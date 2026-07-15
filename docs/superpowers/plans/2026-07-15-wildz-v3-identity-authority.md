@@ -62,7 +62,7 @@ import { createMemoryWildzContinuityDatabase } from "./support/memory-wildz-cont
 test("actor ID prefers normalized username and falls back to UID", async () => {
   const identity = await createReceizIdIdentity({ username: "@Fern.Path", displayName: "Fern" });
   const projection = await projectReceizIdentityAccount(identity.keyFile);
-  assert.equal(canonicalWildzActorId(projection), "fern.path");
+  assert.equal(canonicalWildzActorId(projection), "fern_path");
   assert.equal(canonicalWildzActorId({ ...identity.keyFile, owner: { ...identity.keyFile.owner, username: null, uid: " Receiz:UID_7 " } }), "receiz:uid_7");
 });
 
@@ -148,7 +148,7 @@ export interface WildzIdentityRepository {
 }
 ```
 
-Generate one non-extractable AES-GCM 256-bit wrapping key and store it by IndexedDB structured clone. Encrypt serialized key bytes before opening an IndexedDB write transaction; persist only IV plus ciphertext. Persist and verify a legacy migration marker before deleting the old localStorage record. `canonicalWildzActorId` accepts the minimal owner-shaped `WildzActorOwnerInput`; complete SDK projections and key files conform structurally, as do server projections that carry only username/UID. It trims, removes leading `@`, lowercases, validates the username, and uses the same normalized UID fallback. `wildzOwnerScope(keyId, actorId)` returns `` `wildz:${encodeURIComponent(keyId)}:${encodeURIComponent(actorId)}` `` as `WildzOwnerScope`.
+Generate one non-extractable AES-GCM 256-bit wrapping key and store it by IndexedDB structured clone. Encrypt serialized key bytes before opening an IndexedDB write transaction; persist only IV plus ciphertext. Persist and verify a legacy migration marker before deleting the old localStorage record. `canonicalWildzActorId` accepts the minimal owner-shaped `WildzActorOwnerInput`; complete SDK projections and key files conform structurally, as do server projections that carry only username/UID. It trims, removes leading `@`, lowercases, validates the username, preserves the SDK-projected username characters exactly (including `_`), and uses the same normalized UID fallback. It never rewrites `_` to `.`. `wildzOwnerScope(keyId, actorId)` returns `` `wildz:${encodeURIComponent(keyId)}:${encodeURIComponent(actorId)}` `` as `WildzOwnerScope`.
 
 - [ ] **Step 4: Run focused and existing identity tests**
 
