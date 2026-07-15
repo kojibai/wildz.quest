@@ -3,6 +3,7 @@ import { createReceizIdIdentity, type ReceizDeviceIdentity } from "@receiz/sdk";
 export const WILDZ_IDENTITY_STORAGE_KEY = "wildz:receiz-identity:v1";
 
 export type WildzIdentityStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+export type WildzLegacyIdentityStorage = Pick<Storage, "getItem" | "removeItem">;
 
 export type StoredWildzIdentity = {
   version: 1;
@@ -31,6 +32,12 @@ export function parseStoredWildzIdentity(raw: string | null): StoredWildzIdentit
   } catch {
     return null;
   }
+}
+
+export function readLegacyWildzIdentitySource(storage: WildzLegacyIdentityStorage) {
+  const raw = storage.getItem(WILDZ_IDENTITY_STORAGE_KEY);
+  const identity = parseStoredWildzIdentity(raw);
+  return raw && identity ? { raw, identity } : null;
 }
 
 export async function ensureWildzIdentity(
