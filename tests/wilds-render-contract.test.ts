@@ -320,8 +320,9 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(campaign, /type: "advance-encounter"/);
     assert.match(campaign, /WildsCaptureReward/);
     assert.match(campaign, /WildsInventory/);
-    assert.match(campaign, /useState\(initialPlayState\)/);
-    assert.match(campaign, /const restored = restorePlayState\(window\.localStorage\.getItem\(WILDS_SAVE_KEY\)\)/);
+    assert.match(campaign, /useState\(\(\) => initialState\)/);
+    assert.match(campaign, /onPlayStateChange\(state\)/);
+    assert.doesNotMatch(campaign, /WILDS_SAVE_KEY|localStorage\.setItem\([^,]*wilds:save/);
     assert.match(reward, /role="dialog"/);
     assert.match(reward, /aria-live="assertive"/);
     assert.match(reward, /wilds-capture-capsule/);

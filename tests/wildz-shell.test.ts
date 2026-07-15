@@ -19,16 +19,16 @@ test("Wildz app owns the game and overlay state", () => {
 
 test("Wildz creates identity before character genesis and enters play with that identity", () => {
   const source = read("src/features/shell/WildzApp.tsx");
-  assert.match(source, /ensureWildzIdentity/);
+  assert.match(source, /bootstrapWildzContinuity/);
   assert.match(source, /<WildzGenesis/);
-  assert.match(source, /ownerReceizId=\{identity\.identity\.username\}/);
+  assert.match(source, /ownerReceizId=\{ownerUsername\}/);
   assert.match(source, /WILDZ_CHARACTER_STORAGE_KEY/);
 });
 
 test("genesis visibly confirms the admitted Receiz identity before explorer creation", () => {
   const source = read("src/features/identity/WildzGenesis.tsx");
   assert.match(source, /Restored Receiz ID/);
-  assert.match(source, /identity\.identity\.username/);
+  assert.match(source, /restoredIdentity\.username/);
 });
 
 test("global shell is edge-to-edge and safe-area aware", () => {

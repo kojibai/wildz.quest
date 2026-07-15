@@ -19,21 +19,22 @@ test("active deck and vault grids use creature artwork instead of initials", () 
   assert.doesNotMatch(inventory, /manifest\.name\.slice\(0, 2\)/);
 });
 
-test("vault restore keeps verified full-vault import behavior", () => {
+test("Genesis and Card Vault share the behavior-tested atomic restore boundary", () => {
   const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
   const genesis = readFileSync("src/features/identity/WildzGenesis.tsx", "utf8");
   const adapter = readFileSync("src/lib/receiz/wildz-identity-adapter.ts", "utf8");
+  const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
 
-  assert.match(inventory, /verifyPortableVaultPng/);
-  assert.match(inventory, /assets\.forEach\(\(asset\) => onInput\(\{ type: "import-card", asset \}\)\)/);
-  assert.match(inventory, /inspectReceizCommerceVault/);
+  assert.match(inventory, /onRestoreArtifact\(file/);
+  assert.match(inventory, /currentPlayState = outcome\.playState/);
   assert.match(inventory, /\.receizvault/);
-  assert.match(genesis, /onRestoreVault\(\[\.\.\.result\.assets\]\)/);
-  assert.match(genesis, /saveReceizCommerceVault/);
-  assert.match(adapter, /const vault = card\.ok[\s\S]*?verifyPortableVaultPng\(bytes\)/);
-  assert.match(adapter, /if \(vault\.ok && vault\.assets\.length\)[\s\S]*?return/);
-  assert.match(adapter, /inspectReceizCommerceVault\(file\)/);
-  assert.doesNotMatch(adapter, /identityFailure/);
+  assert.match(genesis, /onRestoreArtifact\(file/);
+  assert.match(shell, /restoreArtifact\(file, "genesis"/);
+  assert.match(shell, /restoreArtifact\(file, "card-vault"/);
+  assert.match(adapter, /restoreWildzArtifactForSurface/);
+  assert.match(adapter, /continuityRestoreEpoch/);
+  assert.doesNotMatch(inventory, /verifyPortableCardPng|verifyPortableVaultPng|inspectReceizCommerceVault|file\.arrayBuffer/);
+  assert.doesNotMatch(genesis, /inspectWildzRestore|file\.arrayBuffer/);
 });
 
 test("D-pad preserves analog camera-relative movement and visible stick travel", () => {

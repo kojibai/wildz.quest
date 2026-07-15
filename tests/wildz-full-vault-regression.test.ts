@@ -1,0 +1,206 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import {
+  appendReceizIdentityArtifactTrailerToPng,
+  createReceizIdentityKeyFile,
+  projectReceizIdentityAccount
+} from "@receiz/sdk";
+import {
+  applyWildsInput,
+  initialPlayState,
+  restorePlayState,
+  serializePlayState,
+  type PlayState
+} from "../src/features/play/game-state";
+import { embedPortableVaultInPng } from "../src/features/play/card-export";
+import { createWildsPlayerVault } from "../src/features/play/wilds-player-vault";
+import { sealCollectedCard } from "../src/features/play/portable-card";
+import {
+  loadWildzRestoredPlayState,
+  restoreWildzArtifactForSurface
+} from "../src/features/identity/wildz-restore";
+import { inspectReceizCommerceVault } from "../src/lib/receiz/receiz-commerce-vault";
+import {
+  createWildzArtifactCodec,
+  type WildzArtifactInspection
+} from "../src/lib/receiz/wildz-artifact-codec";
+import { createWildzIdentityRepository } from "../src/lib/receiz/wildz-identity-repository";
+import { createMemoryWildzContinuityDatabase } from "./support/memory-wildz-continuity-database";
+
+const BASE_PNG = Uint8Array.from(Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "base64"
+));
+
+function createCards(count: number) {
+  return Array.from({ length: count }, (_, index) => sealCollectedCard({
+    formId: "mintcub-1",
+    ownerReceizId: "regression_owner",
+    encounterId: `full-vault-regression-${String(index).padStart(3, "0")}`,
+    capturedAt: new Date(Date.UTC(2026, 6, 15, 15, Math.floor(index / 60), index % 60)).toISOString()
+  }));
+}
+
+function playStateWith(cards: ReturnType<typeof createCards>) {
+  const empty: PlayState = {
+    ...structuredClone(initialPlayState),
+    inventory: [],
+    discoveredCardIds: [],
+    pendingSyncAssetIds: [],
+    companionProgress: {},
+    livingProgress: {},
+    selectedAssetId: "",
+    selectedCardId: ""
+  };
+  return cards.reduce((state, asset) => applyWildsInput(state, { type: "import-card", asset }), empty);
+}
+
+async function regressionArtifact() {
+  const cards = createCards(97);
+  const identity = await createReceizIdentityKeyFile({
+    owner: { uid: "regression_identity", username: "vault__keeper_97", displayName: "Vault Keeper 97" },
+    portableState: {
+      schema: "receiz.account.state.v3",
+      snapshot: {
+        schema: "receiz.app.portable_bundle.v1",
+        objects: [...cards, structuredClone(cards[17]!), { schema: "receiz.wallet.note.v1", id: "unrelated-note" }]
+      }
+    }
+  });
+  const projection = await projectReceizIdentityAccount(identity.keyFile);
+  const playerState = {
+    ...playStateWith(cards),
+    selectedAssetId: cards[42]!.id,
+    selectedCardId: cards[42]!.manifest.familyId,
+    pendingSyncAssetIds: [cards[13]!.id],
+    worldMastery: 41
+  };
+  const player = createWildsPlayerVault({
+    playerId: projection.owner.username!,
+    exportedAt: "2026-07-15T16:00:00.000Z",
+    playState: playerState,
+    settings: { avatarStyle: "female", movementMode: "walk", audio: {} },
+    personalEvents: [],
+    canonicalCursor: { worldId: "wilds:global:v3", revision: 0, eventId: null },
+    receipts: []
+  });
+  const identityBasis = embedPortableVaultInPng(BASE_PNG, cards);
+  const cardOnlyBasis = embedPortableVaultInPng(BASE_PNG, cards, player);
+  return {
+    cards,
+    expectedIds: cards.map((asset) => asset.id).sort(),
+    embeddedUsername: projection.owner.username!,
+    identityBytes: appendReceizIdentityArtifactTrailerToPng(identityBasis, identity.keyFile),
+    cardOnlyBytes: cardOnlyBasis,
+    playerState
+  };
+}
+
+function setup() {
+  const database = createMemoryWildzContinuityDatabase();
+  const repository = createWildzIdentityRepository({ database });
+  const codec = createWildzArtifactCodec({
+    identityRepository: repository,
+    commerceVaultReader: { inspect: inspectReceizCommerceVault }
+  });
+  return { database, repository, codec };
+}
+
+function inspectionIds(inspected: WildzArtifactInspection) {
+  return inspected.kind === "identity-seal" ? inspected.portableAssets.map((asset) => asset.id)
+    : inspected.kind === "card-vault" || inspected.kind === "commerce-vault" ? inspected.assets.map((asset) => asset.id)
+      : [];
+}
+
+test("generated 97-card identity Vault survives inspection, both restore surfaces, PlayState, and cold reload", async () => {
+  const fixture = await regressionArtifact();
+
+  const genesis = setup();
+  const previous = await genesis.repository.bootstrap();
+  assert.notEqual(previous.username, fixture.embeddedUsername);
+  const inspected = await genesis.codec.inspect({ bytes: fixture.identityBytes, mimeType: "image/png", name: "misleading-card.png" });
+  assert.deepEqual(inspectionIds(inspected), fixture.expectedIds);
+  assert.ok(inspected.kind === "identity-seal" || inspected.kind === "commerce-vault");
+  if (inspected.kind === "identity-seal" || inspected.kind === "commerce-vault") {
+    assert.equal(inspected.identity?.session.username, fixture.embeddedUsername);
+  }
+
+  const genesisOutcome = await restoreWildzArtifactForSurface({
+    surface: "genesis",
+    bytes: fixture.identityBytes,
+    mimeType: "image/png",
+    name: "misleading-card.png",
+    codec: genesis.codec,
+    repository: genesis.repository,
+    database: genesis.database,
+    confirmCardOnly: true
+  });
+  assert.equal(genesisOutcome.session.username, fixture.embeddedUsername);
+  assert.deepEqual(genesisOutcome.verifiedAssetIds, fixture.expectedIds);
+  assert.deepEqual(genesisOutcome.playState.inventory.map((asset) => asset.id).sort(), fixture.expectedIds);
+  assert.deepEqual(
+    restorePlayState(serializePlayState(genesisOutcome.playState)).inventory.map((asset) => asset.id).sort(),
+    fixture.expectedIds
+  );
+
+  const coldRepository = createWildzIdentityRepository({ database: genesis.database });
+  const coldSession = await coldRepository.active();
+  assert.equal(coldSession?.username, fixture.embeddedUsername);
+  assert.ok(coldSession);
+  const coldState = await loadWildzRestoredPlayState({ database: genesis.database, session: coldSession });
+  assert.deepEqual(coldState?.inventory.map((asset) => asset.id).sort(), fixture.expectedIds);
+
+  const v3Outcome = await restoreWildzArtifactForSurface({
+    surface: "card-vault",
+    bytes: fixture.cardOnlyBytes,
+    mimeType: "image/png",
+    codec: genesis.codec,
+    repository: genesis.repository,
+    database: genesis.database,
+    confirmCardOnly: true,
+    currentPlayState: genesisOutcome.playState
+  });
+  assert.deepEqual(v3Outcome.playState.inventory.map((asset) => asset.id).sort(), fixture.expectedIds);
+  assert.deepEqual(v3Outcome.playState.pendingSyncAssetIds, fixture.playerState.pendingSyncAssetIds);
+  assert.equal(v3Outcome.playState.selectedAssetId, fixture.playerState.selectedAssetId);
+  assert.equal(v3Outcome.playState.worldMastery, 41);
+
+  const inGame = setup();
+  await inGame.repository.bootstrap();
+  const inventoryOutcome = await restoreWildzArtifactForSurface({
+    surface: "card-vault",
+    bytes: fixture.identityBytes,
+    mimeType: "image/png",
+    name: "misleading-identity.receizvault",
+    codec: inGame.codec,
+    repository: inGame.repository,
+    database: inGame.database,
+    confirmCardOnly: true
+  });
+  assert.equal(inventoryOutcome.session.username, fixture.embeddedUsername);
+  assert.deepEqual(inventoryOutcome.verifiedAssetIds, fixture.expectedIds);
+  assert.deepEqual(inventoryOutcome.playState.inventory.map((asset) => asset.id).sort(), fixture.expectedIds);
+});
+
+test("the same 97-card V3 Vault is card-only without SDK authority and cannot switch identity", async () => {
+  const fixture = await regressionArtifact();
+  const target = setup();
+  const active = await target.repository.bootstrap();
+  const inspected = await target.codec.inspect({ bytes: fixture.cardOnlyBytes, mimeType: "image/png" });
+  assert.equal(inspected.kind, "card-vault");
+  assert.deepEqual(inspectionIds(inspected), fixture.expectedIds);
+
+  await assert.rejects(
+    restoreWildzArtifactForSurface({
+      surface: "card-vault",
+      bytes: fixture.cardOnlyBytes,
+      mimeType: "image/png",
+      codec: target.codec,
+      repository: target.repository,
+      database: target.database,
+      confirmCardOnly: true
+    }),
+    /wildz_restore_owner_mismatch/
+  );
+  assert.deepEqual(await target.repository.active(), active);
+});

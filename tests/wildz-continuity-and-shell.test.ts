@@ -4,22 +4,21 @@ import { test } from "node:test";
 
 test("Receiz continuity preserves identity, original Wildz vault, and Commerce vault paths", () => {
   const adapter = readFileSync("src/lib/receiz/wildz-identity-adapter.ts", "utf8");
+  const codec = readFileSync("src/lib/receiz/wildz-artifact-codec.ts", "utf8");
   const commerce = readFileSync("src/lib/receiz/receiz-commerce-vault.ts", "utf8");
   const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
 
-  assert.match(adapter, /readReceizIdentityArtifact/);
-  assert.match(adapter, /verifyPortableCardPng/);
-  assert.match(adapter, /verifyPortableVaultPng/);
   assert.match(adapter, /inspectReceizCommerceVault/);
-  assert.ok(adapter.indexOf("if (vault.ok && vault.assets.length)") < adapter.indexOf("inspectReceizCommerceVault(file)"));
-  assert.match(commerce, /createReceizClient/);
-  assert.match(commerce, /fetchImpl:\s*\(input, init\) => window\.fetch\(input, init\)/);
-  assert.match(commerce, /verification\.verifyArtifact\(file\)/);
-  assert.match(commerce, /verifyReceizVaultPackage\(bytes\)/);
+  assert.match(adapter, /restoreWildzArtifactForSurface/);
+  assert.match(codec, /readReceizIdentityArtifact\(bytes\)/);
+  assert.match(codec, /extractVerifiedWildzCards/);
+  assert.match(codec, /commerceVaultReader\.inspect/);
+  assert.match(commerce, /restoreVerifiedReceizVaultPackage/);
   assert.match(commerce, /receiz\.signal_vault_card_manifest/);
   assert.match(commerce, /receiz\.sports_arena\.vault_card_manifest/);
   assert.match(commerce, /receiz_vault_archive_hash_mismatch/);
-  assert.match(inventory, /if \(assets\.length\)[\s\S]*?continue;[\s\S]*?inspectReceizCommerceVault\(file\)/);
+  assert.match(inventory, /onRestoreArtifact\(file/);
+  assert.doesNotMatch(inventory, /verifyPortableCardPng|verifyPortableVaultPng|inspectReceizCommerceVault/);
 });
 
 test("live minimap projects world routes and landmarks around player movement heading", () => {

@@ -1,16 +1,24 @@
 import {
   createReceizIdIdentity,
-  projectReceizIdentityAccount,
-  readReceizIdentityArtifact,
-  type ReceizDeviceIdentity,
   type ReceizKeyFile
 } from "@receiz/sdk";
-import { verifyPortableCardPng, verifyPortableVaultPng } from "../../features/play/card-export";
-import { sha256PortableBasis } from "../../features/play/portable-card";
-import { restoreSummary } from "../../features/identity/wildz-restore";
+import {
+  loadWildzRestoredPlayState,
+  restoreWildzArtifactForSurface,
+  saveWildzRestoredPlayState,
+  type WildzCardOnlyConfirmation,
+  type WildzCommittedArtifactRestore
+} from "../../features/identity/wildz-restore";
+import { restorePlayState, type PlayState } from "../../features/play/game-state";
 import { inspectReceizCommerceVault } from "./receiz-commerce-vault";
 import { createWildzIdentitySealPng } from "./wildz-identity-seal";
-import type { WildzIdentityRepository, WildzIdentitySession } from "./wildz-identity-repository";
+import { createWildzArtifactCodec, type WildzArtifactCodec } from "./wildz-artifact-codec";
+import {
+  createWildzIdentityRepository,
+  type WildzIdentityRepository,
+  type WildzIdentitySession
+} from "./wildz-identity-repository";
+import { createWildzContinuityDatabase } from "../storage/wildz-indexed-db";
 
 const IDENTITY_SEAL_USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 
@@ -18,59 +26,95 @@ export async function createAutomaticWildzIdentity() {
   return createReceizIdIdentity({ displayName: "Wildz Explorer", deviceName: "Wildz" });
 }
 
-function identityFromKeyFile(keyFile: ReceizKeyFile): ReceizDeviceIdentity {
-  const now = new Date().toISOString();
-  const username = keyFile.owner.username ?? `wildz-${keyFile.keyId.slice(-8).toLowerCase()}`;
-  return {
-    schema: "receiz.device.identity.v1",
-    createdAt: keyFile.issuedAt,
-    updatedAt: now,
-    localUid: keyFile.owner.uid,
-    username,
-    displayName: keyFile.owner.displayName ?? username,
-    deviceName: "Wildz restored identity",
-    keyFile
-  };
+const LEGACY_PLAY_STATE_STORAGE_KEY = "receiz:wilds:save:v2";
+const defaultContinuityDatabase = createWildzContinuityDatabase();
+const defaultIdentityRepository = createWildzIdentityRepository({ database: defaultContinuityDatabase });
+const defaultArtifactCodec = createWildzArtifactCodec({
+  identityRepository: defaultIdentityRepository,
+  commerceVaultReader: { inspect: inspectReceizCommerceVault }
+});
+let continuityRestoreEpoch = 0;
+let continuityQueue: Promise<void> = Promise.resolve();
+
+export type WildzContinuitySnapshot = {
+  session: WildzIdentitySession;
+  playState: PlayState | null;
+  restoreEpoch: number;
+};
+
+export type WildzUiArtifactRestore = WildzCommittedArtifactRestore & { restoreEpoch: number };
+
+function enqueueContinuityOperation<T>(operation: () => Promise<T>): Promise<T> {
+  const result = continuityQueue.then(operation, operation);
+  continuityQueue = result.then(() => undefined, () => undefined);
+  return result;
 }
 
-export async function inspectWildzRestore(file: File) {
+function sameOwner(left: WildzIdentitySession | null, right: WildzIdentitySession) {
+  return left?.keyId === right.keyId && left.actorId === right.actorId;
+}
+
+export async function inspectWildzRestore(file: File, codec: WildzArtifactCodec = defaultArtifactCodec) {
   const bytes = new Uint8Array(await file.arrayBuffer());
-  try {
-    const keyFile = await readReceizIdentityArtifact(bytes);
-    const projection = await projectReceizIdentityAccount(keyFile);
-    return {
-      summary: restoreSummary({
-        kind: "identity-seal",
-        keyId: keyFile.keyId,
-        username: keyFile.owner.username,
-        displayName: keyFile.owner.displayName,
-        portableStateVerified: projection.portableStateVerified
-      }),
-      identity: identityFromKeyFile(keyFile),
-      assets: []
-    } as const;
-  } catch {
-    const card = verifyPortableCardPng(bytes);
-    const vault = card.ok && card.asset ? { ok: true, assets: [card.asset] } : verifyPortableVaultPng(bytes);
-    if (vault.ok && vault.assets.length) {
-      return {
-        summary: restoreSummary({
-          kind: "vault",
-          cardCount: vault.assets.length,
-          vaultDigest: sha256PortableBasis(vault.assets.map((asset) => `${asset.id}:${asset.proof.digest}`).join("|"))
-        }),
-        identity: null,
-        assets: vault.assets
-      } as const;
+  return codec.inspect({ bytes, mimeType: file.type, name: file.name });
+}
+
+export async function bootstrapWildzContinuity(
+  legacyStorage?: Pick<Storage, "getItem" | "removeItem">
+): Promise<WildzContinuitySnapshot> {
+  return enqueueContinuityOperation(async () => {
+    const session = await defaultIdentityRepository.bootstrap(legacyStorage);
+    let playState = await loadWildzRestoredPlayState({ database: defaultContinuityDatabase, session });
+    const legacyRaw = playState === null ? legacyStorage?.getItem(LEGACY_PLAY_STATE_STORAGE_KEY) ?? null : null;
+    if (legacyRaw !== null) {
+      playState = await saveWildzRestoredPlayState({
+        database: defaultContinuityDatabase,
+        session,
+        playState: restorePlayState(legacyRaw)
+      });
+      if (legacyStorage?.getItem(LEGACY_PLAY_STATE_STORAGE_KEY) === legacyRaw) {
+        legacyStorage.removeItem(LEGACY_PLAY_STATE_STORAGE_KEY);
+      }
     }
-    const receizVault = await inspectReceizCommerceVault(file);
-    return {
-      summary: restoreSummary({ kind: "vault", cardCount: receizVault.cards.length, vaultDigest: `sha256:${receizVault.id}` }),
-      identity: null,
-      assets: [],
-      receizVault
-    } as const;
-  }
+    return { session, playState, restoreEpoch: continuityRestoreEpoch };
+  });
+}
+
+export async function restoreWildzFileForSurface(
+  file: File,
+  surface: "genesis" | "card-vault",
+  confirmCardOnly: WildzCardOnlyConfirmation,
+  current: WildzContinuitySnapshot,
+  currentPlayState: PlayState | null = current.playState
+): Promise<WildzUiArtifactRestore> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  return enqueueContinuityOperation(async () => {
+    if (current.restoreEpoch !== continuityRestoreEpoch) throw new Error("wildz_restore_cursor_stale");
+    const active = await defaultIdentityRepository.active();
+    if (!sameOwner(active, current.session)) throw new Error("wildz_restore_cursor_stale");
+    const outcome = await restoreWildzArtifactForSurface({
+      surface,
+      bytes,
+      mimeType: file.type,
+      name: file.name,
+      codec: defaultArtifactCodec,
+      repository: defaultIdentityRepository,
+      database: defaultContinuityDatabase,
+      confirmCardOnly,
+      ...(currentPlayState ? { currentPlayState } : {})
+    });
+    continuityRestoreEpoch += 1;
+    return { ...outcome, restoreEpoch: continuityRestoreEpoch };
+  });
+}
+
+export function saveWildzContinuityPlayState(current: WildzContinuitySnapshot, playState: PlayState) {
+  return enqueueContinuityOperation(async () => {
+    if (current.restoreEpoch !== continuityRestoreEpoch) return null;
+    const active = await defaultIdentityRepository.active();
+    if (!sameOwner(active, current.session)) return null;
+    return saveWildzRestoredPlayState({ database: defaultContinuityDatabase, session: current.session, playState });
+  });
 }
 
 function normalizedIdentitySealUsername(value: string | null) {

@@ -1,35 +1,35 @@
 "use client";
 
-import type { StoredWildzIdentity } from "@/features/identity/wildz-identity";
 import { generateWildzCharacter, type WildzCharacterGenesis, type WildzGender } from "@/features/identity/wildz-genesis";
-import type { PortableCardAsset } from "@/features/play/portable-card";
-import { friendlyWildzRestoreError } from "@/features/identity/wildz-restore";
-import { inspectWildzRestore } from "@/lib/receiz/wildz-identity-adapter";
+import {
+  friendlyWildzRestoreError,
+  type WildzCardOnlyConfirmation,
+  type WildzCommittedArtifactRestore
+} from "@/features/identity/wildz-restore";
 import { saveReceizCommerceVault } from "@/lib/receiz/receiz-commerce-vault";
+import type { WildzIdentitySession } from "@/lib/receiz/wildz-identity-repository";
 import Image from "next/image";
 import { useState } from "react";
 
 export function WildzGenesis({
   identity,
   onComplete,
-  onRestoreIdentity,
-  onRestoreVault
+  onRestoreArtifact
 }: {
-  identity: StoredWildzIdentity;
+  identity: WildzIdentitySession;
   onComplete: (character: WildzCharacterGenesis) => void;
-  onRestoreIdentity: (identity: StoredWildzIdentity) => void;
-  onRestoreVault: (assets: PortableCardAsset[]) => void;
+  onRestoreArtifact: (file: File, confirmCardOnly: WildzCardOnlyConfirmation) => Promise<WildzCommittedArtifactRestore>;
 }) {
   const [gender, setGender] = useState<WildzGender | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState("");
-  const [identityRestored, setIdentityRestored] = useState(false);
+  const [restoredIdentity, setRestoredIdentity] = useState<WildzIdentitySession | null>(null);
 
   const create = (selected: WildzGender) => {
     setGender(selected);
     const kaiPulse = String(Date.now());
     window.setTimeout(() => onComplete(generateWildzCharacter({
-      identityRef: identity.identity.keyFile.keyId,
+      identityRef: identity.keyId,
       kaiPulse,
       gender: selected,
       version: 1
@@ -40,15 +40,21 @@ export function WildzGenesis({
     setRestoring(true);
     setError("");
     try {
-      const result = await inspectWildzRestore(file);
-      if (result.identity) {
-        onRestoreIdentity({ version: 1, savedAt: new Date().toISOString(), identity: result.identity });
-        setIdentityRestored(true);
-      } else {
-        if ("receizVault" in result && result.receizVault) saveReceizCommerceVault(result.receizVault);
-        onRestoreVault([...result.assets]);
-        setError(`${result.summary.cardCount} Receiz card${result.summary.cardCount === 1 ? "" : "s"} restored into your Card Vault. Choose your explorer to enter the world.`);
+      const result = await onRestoreArtifact(file, () => window.confirm(
+        "This file contains verified Wildz cards but no Identity Seal. Import every verified card into the current Receiz ID?"
+      ));
+      if (result.commerceProjection) {
+        try {
+          saveReceizCommerceVault(result.commerceProjection);
+        } catch {
+          // Display projections are optional; the verified owner restore is already committed.
+        }
       }
+      setRestoredIdentity(result.session);
+      const count = result.verifiedAssetIds.length;
+      setError(count
+        ? `${count} verified Receiz card${count === 1 ? "" : "s"} restored into your Card Vault. Choose your explorer to enter the world.`
+        : "Your verified Receiz ID is restored. Choose your explorer to enter the world.");
     } catch (cause) {
       setError(friendlyWildzRestoreError(cause));
     } finally {
@@ -77,10 +83,10 @@ export function WildzGenesis({
           }} />
         </label>
       </div>
-      {identityRestored ? <div className="wildz-identity-restored" role="status">
+      {restoredIdentity ? <div className="wildz-identity-restored" role="status">
         <span>Restored Receiz ID</span>
-        <strong>@{identity.identity.username}</strong>
-        <small>{identity.identity.displayName}</small>
+        <strong>@{restoredIdentity.username ?? restoredIdentity.actorId}</strong>
+        <small>{restoredIdentity.displayName ?? "Wildz Explorer"}</small>
       </div> : null}
       {gender ? <div className="wildz-pulse-reveal"><i /><span>Kai Pulse is shaping your explorer</span></div> : null}
       {error ? <p className="wildz-genesis-error" role="status">{error}</p> : null}

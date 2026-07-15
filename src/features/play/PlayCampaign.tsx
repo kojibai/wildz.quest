@@ -7,8 +7,6 @@ import {
   applyWildsInput,
   initialPlayState,
   missionCards,
-  restorePlayState,
-  serializePlayState,
   selectedAsset,
   selectedCard,
   type PlayState,
@@ -41,8 +39,11 @@ import { WildzReferenceHud } from "@/features/play/WildzReferenceHud";
 import { WildzSocialDeck } from "@/features/play/WildzSocialDeck";
 import { WildsCreatureThumbnail } from "@/features/play/WildsCreatureThumbnail";
 import { creatureFamilies } from "@/features/play/creature-catalog";
+import type {
+  WildzCardOnlyConfirmation,
+  WildzCommittedArtifactRestore
+} from "@/features/identity/wildz-restore";
 
-const WILDS_SAVE_KEY = "receiz:wilds:save:v2";
 const WILDS_AVATAR_KEY = "receiz:wilds:explorer:v1";
 const WILDS_ACHIEVEMENTS_KEY = "receiz:wilds:landmark-unlocks:v1";
 
@@ -77,7 +78,9 @@ export function PlayCampaign({
   onListAsset,
   onOpenProfile = () => {},
   onOpenMarket = () => {},
-  restoredAssets = []
+  initialState = initialPlayState,
+  onPlayStateChange,
+  onRestoreArtifact
 }: {
   campaignName?: string;
   enabled: boolean;
@@ -87,9 +90,15 @@ export function PlayCampaign({
   onListAsset?: (asset: PortableCardAsset, priceCents: number) => Promise<PortableCardAsset | null>;
   onOpenProfile?: () => void;
   onOpenMarket?: () => void;
-  restoredAssets?: PortableCardAsset[];
+  initialState?: PlayState;
+  onPlayStateChange: (state: PlayState) => void;
+  onRestoreArtifact: (
+    file: File,
+    confirmCardOnly: WildzCardOnlyConfirmation,
+    currentPlayState: PlayState
+  ) => Promise<WildzCommittedArtifactRestore>;
 }) {
-  const [state, setState] = useState(initialPlayState);
+  const [state, setState] = useState(() => initialState);
   const [saveRestored, setSaveRestored] = useState(false);
   const [rewardAsset, setRewardAsset] = useState<PortableCardAsset | null>(null);
   const [avatarStyle, setAvatarStyle] = useState<"female" | "male" | null>(null);
@@ -155,15 +164,17 @@ export function PlayCampaign({
   }, []);
 
   useEffect(() => {
-    const restored = restorePlayState(window.localStorage.getItem(WILDS_SAVE_KEY));
     const params = new URLSearchParams(window.location.search);
     const joinRoom = params.get("wildsJoin");
     const joinX = Number(params.get("wildsX"));
     const joinZ = Number(params.get("wildsZ"));
-    const withVault = restoredAssets.reduce((current, asset) => applyWildsInput(current, { type: "import-card", asset }), restored);
-    setState(/^invite:[a-f0-9]{16}$/.test(joinRoom ?? "") && Number.isFinite(joinX) && Number.isFinite(joinZ)
-      ? { ...withVault, player: { x: joinX + 1.4, z: joinZ + 1.4 }, lastEvent: "Invite signal found. You joined the shared trail beside its sender." }
-      : withVault);
+    if (/^invite:[a-f0-9]{16}$/.test(joinRoom ?? "") && Number.isFinite(joinX) && Number.isFinite(joinZ)) {
+      setState((current) => ({
+        ...current,
+        player: { x: joinX + 1.4, z: joinZ + 1.4 },
+        lastEvent: "Invite signal found. You joined the shared trail beside its sender."
+      }));
+    }
     const savedAvatar = window.localStorage.getItem(WILDS_AVATAR_KEY);
     if (savedAvatar === "female" || savedAvatar === "male") setAvatarStyle(savedAvatar);
     try {
@@ -174,7 +185,7 @@ export function PlayCampaign({
     }
     setMovementMode(normalizeWildsMovementMode(window.localStorage.getItem(WILDS_MOVEMENT_MODE_KEY)));
     setSaveRestored(true);
-  }, [restoredAssets]);
+  }, []);
 
   useEffect(() => {
     if (!saveRestored) return;
@@ -187,12 +198,8 @@ export function PlayCampaign({
 
   useEffect(() => {
     if (!saveRestored) return;
-    try {
-      window.localStorage.setItem(WILDS_SAVE_KEY, serializePlayState(state));
-    } catch {
-      // The game remains playable when browser persistence is unavailable.
-    }
-  }, [saveRestored, state]);
+    onPlayStateChange(state);
+  }, [onPlayStateChange, saveRestored, state]);
 
   useEffect(() => {
     if (state.encounter.phase === "battle_intro") {
@@ -467,7 +474,16 @@ export function PlayCampaign({
       content: (
         <div className="wilds-command-content wilds-vault-command-content">
           <div className="wilds-vault-sheet-heading"><small>Portable card vault</small><strong>{state.inventory.length} sealed {state.inventory.length === 1 ? "card" : "cards"}</strong></div>
-          <WildsInventory state={state} onInput={dispatch} onListAsset={onListAsset} />
+          <WildsInventory
+            state={state}
+            onInput={dispatch}
+            onListAsset={onListAsset}
+            onRestoreArtifact={async (file, confirmCardOnly, currentPlayState) => {
+              const outcome = await onRestoreArtifact(file, confirmCardOnly, currentPlayState);
+              setState(outcome.playState);
+              return outcome;
+            }}
+          />
         </div>
       )
     }

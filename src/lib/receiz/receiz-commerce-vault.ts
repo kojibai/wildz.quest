@@ -1,5 +1,8 @@
-import { createReceizClient, type DocumentVerifyResponse } from "@receiz/sdk";
-import { verifyReceizVaultPackage } from "./receiz-vault-package";
+import {
+  restoreVerifiedReceizVaultPackage,
+  verifyReceizVaultPackage,
+  type RestoredReceizVaultPackageFile
+} from "./receiz-vault-package";
 
 const RECEIZ_VAULT_LIBRARY_KEY = "receiz:wildz:receiz-vault-library:v1";
 const SIGNAL_MANIFEST_KEY = "receiz.signal_vault_card_manifest";
@@ -30,6 +33,17 @@ export type ReceizCommerceVaultProjection = {
   importedAt: string;
   verification: "receiz-sdk" | "receiz-commerce-embedded-vault" | "receiz-commerce-vault-package";
   cards: ReceizCommerceCardProjection[];
+};
+
+export type ReceizCommerceVaultInspection = {
+  projection: ReceizCommerceVaultProjection;
+  restoredFiles: RestoredReceizVaultPackageFile[];
+};
+
+export type ReceizCommerceVaultInput = {
+  bytes: Uint8Array;
+  mimeType: string;
+  name?: string;
 };
 
 type PngText = { keyword: string; text: string };
@@ -87,6 +101,7 @@ function text(value: unknown) {
 }
 
 function decodeBase64Url(value: string) {
+  if (!/^[A-Za-z0-9_-]*$/.test(value)) throw new Error("receiz_vault_archive_encoding_invalid");
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
   const binary = atob(normalized);
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
@@ -97,7 +112,10 @@ async function sha256Hex(bytes: Uint8Array) {
   return [...new Uint8Array(await crypto.subtle.digest("SHA-256", source))].map((value) => value.toString(16).padStart(2, "0")).join("");
 }
 
-async function embeddedVaultProjection(file: File, bytes: Uint8Array): Promise<ReceizCommerceVaultProjection | null> {
+async function embeddedVaultInspection(
+  input: ReceizCommerceVaultInput
+): Promise<ReceizCommerceVaultInspection | null> {
+  const { bytes } = input;
   const chunks = pngTextChunks(bytes);
   const signal = first(chunks, SIGNAL_MANIFEST_KEY);
   const sports = first(chunks, SPORTS_MANIFEST_KEY);
@@ -111,7 +129,9 @@ async function embeddedVaultProjection(file: File, bytes: Uint8Array): Promise<R
   const archivePrefix = signal ? SIGNAL_ARCHIVE_PREFIX : SPORTS_ARCHIVE_PREFIX;
   const expectedSha = text(first(chunks, archiveShaKey));
   const count = Number(first(chunks, archiveCountKey));
-  if (!manifest || !archive || !expectedSha || !Number.isInteger(count) || count <= 0 || count > 100_000) return null;
+  if (!manifest || !archive || !expectedSha || !Number.isInteger(count) || count <= 0 || count > 10_000) {
+    throw new Error("receiz_vault_archive_manifest_invalid");
+  }
   const parts = new Array<string | null>(count).fill(null);
   for (const chunk of chunks) {
     if (!chunk.keyword.startsWith(archivePrefix)) continue;
@@ -119,87 +139,73 @@ async function embeddedVaultProjection(file: File, bytes: Uint8Array): Promise<R
     if (Number.isInteger(index) && index >= 0 && index < count) parts[index] = chunk.text;
   }
   if (parts.some((part) => part === null)) throw new Error("receiz_vault_archive_chunk_missing");
+  const encodedBytes = parts.reduce((total, part) => total + (part?.length ?? 0), 0);
+  if (encodedBytes > Math.ceil(64 * 1024 * 1024 * 4 / 3) + 8) throw new Error("receiz_vault_archive_too_large");
   const archiveBytes = decodeBase64Url(parts.join(""));
+  if (archiveBytes.byteLength > 64 * 1024 * 1024) throw new Error("receiz_vault_archive_too_large");
   const digest = await sha256Hex(archiveBytes);
   if (digest !== expectedSha || digest !== text(archive.sha256Hex)) throw new Error("receiz_vault_archive_hash_mismatch");
+  const restoredFiles = await restoreVerifiedReceizVaultPackage(archiveBytes);
   const source = signal ? "signal" as const : "sports" as const;
   return {
-    id: text(manifest.vaultCardId) || expectedSha,
-    schema: "receiz.wildz.commerce_vault_projection.v1",
-    sourceSchema: text(manifest.schema),
-    filename: file.name,
-    ownerLabel: text(manifest.ownerLabel) || null,
-    importedAt: new Date().toISOString(),
-    verification: "receiz-commerce-embedded-vault",
-    cards: cards.map((card) => {
-      const media = asRecord(card.media);
-      return {
-        id: text(card.collectibleId) || text(card.claimHash),
-        name: text(card.name) || text(card.athlete) || "Receiz sealed card",
-        kind: text(card.kind) || text(card.sport) || "Receiz card",
-        rarity: text(card.rarity) || "Sealed",
-        proofHash: text(card.claimHash),
-        imageUrl: text(media?.imageUrl) || null,
-        source
-      };
-    })
-  };
-}
-
-function sdkProjection(file: File, verified: DocumentVerifyResponse): ReceizCommerceVaultProjection {
-  const bundle = asRecord(verified.bundle);
-  const id = text(bundle?.receizClaimId) || text(bundle?.artifactSha256Basis) || `${file.name}:${file.size}`;
-  return {
-    id,
-    schema: "receiz.wildz.commerce_vault_projection.v1",
-    sourceSchema: text(bundle?.kind) || verified.kind,
-    filename: file.name,
-    ownerLabel: null,
-    importedAt: new Date().toISOString(),
-    verification: "receiz-sdk",
-    cards: [{
-      id,
-      name: file.name.replace(/\.receized(?:\.png)?$/i, "").replace(/[-_]+/g, " "),
-      kind: verified.kind || "Receiz sealed artifact",
-      rarity: "Receized",
-      proofHash: text(bundle?.artifactSha256Basis) || text(bundle?.groth16ProofDigest),
-      imageUrl: null,
-      source: "sealed-artifact"
-    }]
-  };
-}
-
-export async function inspectReceizCommerceVault(file: File) {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const embedded = await embeddedVaultProjection(file, bytes);
-  if (embedded) return embedded;
-  if (file.name.toLowerCase().endsWith(".receizvault") || file.type === "application/vnd.receiz.vault+zip") {
-    const root = await verifyReceizVaultPackage(bytes);
-    return {
-      id: root.vaultId,
+    projection: {
+      id: text(manifest.vaultCardId) || expectedSha,
       schema: "receiz.wildz.commerce_vault_projection.v1",
-      sourceSchema: root.kind,
-      filename: file.name,
-      ownerLabel: null,
+      sourceSchema: text(manifest.schema),
+      filename: input.name ?? "receiz-vault.png",
+      ownerLabel: text(manifest.ownerLabel) || null,
       importedAt: new Date().toISOString(),
-      verification: "receiz-commerce-vault-package",
-      cards: root.files.map((entry) => ({
-        id: entry.fileId,
-        name: entry.name || entry.path.split("/").at(-1) || "Receiz sealed asset",
-        kind: entry.mime || "Receiz vault asset",
-        rarity: "Receized",
-        proofHash: entry.chunkRootSha256,
-        imageUrl: null,
-        source: "sealed-artifact" as const
-      }))
-    } satisfies ReceizCommerceVaultProjection;
+      verification: "receiz-commerce-embedded-vault",
+      cards: cards.map((card) => {
+        const media = asRecord(card.media);
+        return {
+          id: text(card.collectibleId) || text(card.claimHash),
+          name: text(card.name) || text(card.athlete) || "Receiz sealed card",
+          kind: text(card.kind) || text(card.sport) || "Receiz card",
+          rarity: text(card.rarity) || "Sealed",
+          proofHash: text(card.claimHash),
+          imageUrl: text(media?.imageUrl) || null,
+          source
+        };
+      })
+    },
+    restoredFiles
+  };
+}
+
+export async function inspectReceizCommerceVault(
+  input: ReceizCommerceVaultInput
+): Promise<ReceizCommerceVaultInspection | null> {
+  const embedded = await embeddedVaultInspection(input);
+  if (embedded) return embedded;
+  const filename = input.name ?? "receiz-vault";
+  const zipSignature = input.bytes[0] === 0x50 && input.bytes[1] === 0x4b;
+  if (zipSignature) {
+    const root = await verifyReceizVaultPackage(input.bytes);
+    const restoredFiles = await restoreVerifiedReceizVaultPackage(input.bytes);
+    return {
+      projection: {
+        id: root.vaultId,
+        schema: "receiz.wildz.commerce_vault_projection.v1",
+        sourceSchema: root.kind,
+        filename,
+        ownerLabel: null,
+        importedAt: new Date().toISOString(),
+        verification: "receiz-commerce-vault-package",
+        cards: root.files.map((entry) => ({
+          id: entry.fileId,
+          name: entry.name || entry.path.split("/").at(-1) || "Receiz sealed asset",
+          kind: entry.mime || "Receiz vault asset",
+          rarity: "Receized",
+          proofHash: entry.chunkRootSha256,
+          imageUrl: null,
+          source: "sealed-artifact" as const
+        }))
+      },
+      restoredFiles
+    };
   }
-  const client = typeof window === "undefined"
-    ? createReceizClient()
-    : createReceizClient({ baseUrl: window.location.origin, fetchImpl: (input, init) => window.fetch(input, init) });
-  const verified = await client.verification.verifyArtifact(file);
-  if (!verified.ok) throw new Error(verified.errors[0] ?? "receiz_artifact_invalid");
-  return sdkProjection(file, verified);
+  return null;
 }
 
 export function readReceizCommerceVaultLibrary(storage: Pick<Storage, "getItem"> = window.localStorage): ReceizCommerceVaultProjection[] {

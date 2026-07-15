@@ -5,27 +5,36 @@ import Link from "next/link";
 import QRCode from "qrcode";
 import { Icons } from "@/components/icons";
 import { creatureForm } from "./creature-catalog";
-import { downloadPortableCard, downloadPortableVault, standaloneCardUrl, verifyPortableCardPng, verifyPortableVaultPng } from "./card-export";
+import { downloadPortableCard, downloadPortableVault, standaloneCardUrl } from "./card-export";
 import type { PlayState, WildsInput } from "./game-state";
 import { WildsCardScene } from "./WildsCardScene";
 import { WildsGrowthPanel } from "./WildsGrowthPanel";
 import { clampInventoryPage, inventoryPageSize } from "./inventory-pagination";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import {
-  inspectReceizCommerceVault,
   readReceizCommerceVaultLibrary,
   saveReceizCommerceVault,
   type ReceizCommerceVaultProjection
 } from "@/lib/receiz/receiz-commerce-vault";
+import type {
+  WildzCardOnlyConfirmation,
+  WildzCommittedArtifactRestore
+} from "@/features/identity/wildz-restore";
 
 export function WildsInventory({
   state,
   onInput,
-  onListAsset
+  onListAsset,
+  onRestoreArtifact
 }: {
   state: PlayState;
   onInput: (input: WildsInput) => void;
   onListAsset?: (asset: PlayState["inventory"][number], priceCents: number) => Promise<PlayState["inventory"][number] | null>;
+  onRestoreArtifact: (
+    file: File,
+    confirmCardOnly: WildzCardOnlyConfirmation,
+    currentPlayState: PlayState
+  ) => Promise<WildzCommittedArtifactRestore>;
 }) {
   const [query, setQuery] = useState("");
   const [rarity, setRarity] = useState("all");
@@ -43,6 +52,7 @@ export function WildsInventory({
   const [origin, setOrigin] = useState("https://receiz.app");
   const [qr, setQr] = useState("");
   const [receizVaults, setReceizVaults] = useState<ReceizCommerceVaultProjection[]>([]);
+  const [importing, setImporting] = useState(false);
   const importInput = useRef<HTMLInputElement>(null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const suppressCardClick = useRef(false);
@@ -111,7 +121,7 @@ export function WildsInventory({
       <header>
         <div><span>Portable collection</span><h3>Wilds Inventory</h3><p>{state.inventory.length} sealed forms · unlimited unique variants</p></div>
         <div className="wilds-vault-actions">
-          <button aria-label="Import card or vault" className="wilds-import-card" onClick={() => importInput.current?.click()} title="Import card or vault" type="button">
+          <button aria-label="Import card or vault" className="wilds-import-card" disabled={importing} onClick={() => importInput.current?.click()} title="Import card or vault" type="button">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v11m0-11L8 7m4-4 4 4M5 13v6h14v-6" /></svg>
             <span>Import card or vault</span>
           </button>
@@ -143,32 +153,41 @@ export function WildsInventory({
           ref={importInput}
           accept="image/png,.png,.receized.png,.receizvault,application/vnd.receiz.vault+zip,application/zip"
           className="wilds-import-input"
+          disabled={importing}
           multiple
           onChange={async (event) => {
+            const input = event.currentTarget;
             const files = Array.from(event.currentTarget.files ?? []);
             let imported = 0;
             let rejected = 0;
-            for (const file of files) {
-              const bytes = new Uint8Array(await file.arrayBuffer());
-              const verifiedCard = verifyPortableCardPng(bytes);
-              const verifiedVault = verifiedCard.ok ? null : verifyPortableVaultPng(bytes);
-              const assets = verifiedCard.ok && verifiedCard.asset ? [verifiedCard.asset] : verifiedVault?.ok ? verifiedVault.assets : [];
-              try {
-                if (assets.length) {
-                  assets.forEach((asset) => onInput({ type: "import-card", asset }));
-                  setSelectedId(assets.at(-1)!.id);
-                  imported += assets.length;
-                  continue;
+            let currentPlayState = state;
+            setImporting(true);
+            try {
+              for (const file of files) {
+                try {
+                  const outcome = await onRestoreArtifact(file, () => window.confirm(
+                    "This file contains verified Wildz cards but no Identity Seal. Import every verified card into the current Receiz ID?"
+                  ), currentPlayState);
+                  currentPlayState = outcome.playState;
+                  if (outcome.commerceProjection) {
+                    try {
+                      saveReceizCommerceVault(outcome.commerceProjection);
+                      setReceizVaults(readReceizCommerceVaultLibrary());
+                    } catch {
+                      // Projection shelves are optional; playable assets are already committed.
+                    }
+                  }
+                  imported += outcome.verifiedAssetIds.length;
+                  const selected = outcome.verifiedAssetIds.at(-1);
+                  if (selected) setSelectedId(selected);
+                } catch {
+                  rejected += 1;
                 }
-                const projection = await inspectReceizCommerceVault(file);
-                saveReceizCommerceVault(projection);
-                setReceizVaults(readReceizCommerceVaultLibrary());
-                imported += projection.cards.length || 1;
-              } catch {
-                rejected += 1;
               }
+            } finally {
+              input.value = "";
+              setImporting(false);
             }
-            event.currentTarget.value = "";
             setImportMessage(imported
               ? `${imported} verified card${imported === 1 ? "" : "s"} added${rejected ? ` · ${rejected} rejected` : ""}.`
               : "No card was added. Choose a Receiz sealed card, vault image, or Receiz Vault package.");

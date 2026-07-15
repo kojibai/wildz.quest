@@ -13,6 +13,7 @@ import {
   verifyAnyWildsCard,
   type PortableCardAsset
 } from "./portable-card";
+import { verifyWildsPlayerVault, type WildsPlayerVaultPayload } from "./wilds-player-vault";
 
 export type PortableCardPngProof = {
   schema: "receiz.wilds_png_proof.v1" | "receiz.wilds_png_proof.v2";
@@ -21,10 +22,11 @@ export type PortableCardPngProof = {
 };
 
 export type PortableVaultPngProof = {
-  schema: "receiz.wilds_vault_png_proof.v1" | "receiz.wilds_vault_png_proof.v2";
+  schema: "receiz.wilds_vault_png_proof.v1" | "receiz.wilds_vault_png_proof.v2" | "receiz.wilds_vault_png_proof.v3";
   imageDigest: string;
   vaultDigest: string;
   assets: PortableCardAsset[];
+  player?: WildsPlayerVaultPayload;
 };
 
 const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
@@ -236,16 +238,21 @@ export function verifyPortableCardPng(source: Uint8Array): { ok: boolean; errors
   }
 }
 
-export function embedPortableVaultInPng(source: Uint8Array, assets: PortableCardAsset[]) {
+export function embedPortableVaultInPng(source: Uint8Array, assets: PortableCardAsset[], player?: WildsPlayerVaultPayload) {
   if (!assets.length || assets.some((asset) => !verifyAnyWildsCard(asset).ok)) throw new Error("wilds_vault_cards_invalid");
   if (new Set(assets.map((asset) => asset.id)).size !== assets.length) throw new Error("wilds_vault_duplicate_card");
   const sourceChunks = parsePng(source).filter((chunk) => chunk.type !== VAULT_CHUNK_TYPE && chunk.type !== PROOF_CHUNK_TYPE);
-  const vaultDigest = sha256PortableBasis(canonicalPortableCardJson(assets.map((asset) => ({ id: asset.id, proof: asset.proof.digest }))));
+  if (player && !verifyWildsPlayerVault(player).ok) throw new Error("wilds_player_vault_invalid");
+  const cardBasis = assets.map((asset) => ({ id: asset.id, proof: asset.proof.digest }));
+  const vaultDigest = sha256PortableBasis(canonicalPortableCardJson(player
+    ? { assets: cardBasis, playerDigest: player.payloadDigest }
+    : cardBasis));
   const proof: PortableVaultPngProof = {
-    schema: "receiz.wilds_vault_png_proof.v2",
+    schema: player ? "receiz.wilds_vault_png_proof.v3" : "receiz.wilds_vault_png_proof.v2",
     imageDigest: imageDigest(sourceChunks),
     vaultDigest,
-    assets
+    assets,
+    ...(player ? { player } : {})
   };
   const proofData = new TextEncoder().encode(canonicalPortableCardJson(proof));
   const output = [PNG_SIGNATURE];
@@ -261,24 +268,58 @@ export function readPortableVaultFromPng(source: Uint8Array): PortableVaultPngPr
   const proofs = chunks.filter((chunk) => chunk.type === VAULT_CHUNK_TYPE);
   if (proofs.length !== 1) throw new Error(proofs.length ? "wilds_vault_proof_duplicate" : "wilds_vault_proof_missing");
   const decoded = JSON.parse(new TextDecoder().decode(proofs[0]!.data)) as Partial<PortableVaultPngProof>;
-  if ((decoded.schema !== "receiz.wilds_vault_png_proof.v1" && decoded.schema !== "receiz.wilds_vault_png_proof.v2") || typeof decoded.imageDigest !== "string" || typeof decoded.vaultDigest !== "string" || !Array.isArray(decoded.assets)) throw new Error("wilds_vault_proof_invalid");
+  if ((decoded.schema !== "receiz.wilds_vault_png_proof.v1"
+    && decoded.schema !== "receiz.wilds_vault_png_proof.v2"
+    && decoded.schema !== "receiz.wilds_vault_png_proof.v3")
+    || typeof decoded.imageDigest !== "string"
+    || typeof decoded.vaultDigest !== "string"
+    || !Array.isArray(decoded.assets)
+    || (decoded.schema === "receiz.wilds_vault_png_proof.v3" && !decoded.player)
+    || (decoded.schema !== "receiz.wilds_vault_png_proof.v3" && decoded.player !== undefined)) {
+    throw new Error("wilds_vault_proof_invalid");
+  }
   return decoded as PortableVaultPngProof;
 }
 
-export function verifyPortableVaultPng(source: Uint8Array): { ok: boolean; errors: string[]; assets: PortableCardAsset[] } {
+export function verifyPortableVaultPng(source: Uint8Array): {
+  ok: boolean;
+  errors: string[];
+  assets: PortableCardAsset[];
+  player: WildsPlayerVaultPayload | null;
+} {
   try {
     const chunks = parsePng(source);
     const proof = readPortableVaultFromPng(source);
     const errors: string[] = [];
     if (!proof.assets.length) errors.push("wilds_vault_empty");
-    if (new Set(proof.assets.map((asset) => asset.id)).size !== proof.assets.length) errors.push("wilds_vault_duplicate_card");
-    proof.assets.forEach((asset, index) => verifyAnyWildsCard(asset).errors.forEach((error) => errors.push(`card_${index}:${error}`)));
-    const expectedVaultDigest = sha256PortableBasis(canonicalPortableCardJson(proof.assets.map((asset) => ({ id: asset.id, proof: asset.proof.digest }))));
+    const canonicalById = new Map<string, string>();
+    proof.assets.forEach((asset, index) => {
+      verifyAnyWildsCard(asset).errors.forEach((error) => errors.push(`card_${index}:${error}`));
+      const canonical = canonicalPortableCardJson(asset);
+      const prior = canonicalById.get(asset.id);
+      if (prior !== undefined && prior !== canonical) errors.push("wilds_vault_duplicate_card_conflict");
+      canonicalById.set(asset.id, canonical);
+    });
+    if (proof.player) verifyWildsPlayerVault(proof.player).errors.forEach((error) => errors.push(`player:${error}`));
+    const cardBasis = proof.assets.map((asset) => ({ id: asset.id, proof: asset.proof.digest }));
+    const expectedVaultDigest = sha256PortableBasis(canonicalPortableCardJson(proof.player
+      ? { assets: cardBasis, playerDigest: proof.player.payloadDigest }
+      : cardBasis));
     if (proof.vaultDigest !== expectedVaultDigest) errors.push("wilds_vault_digest_mismatch");
     if (proof.imageDigest !== imageDigest(chunks)) errors.push("png_image_digest_mismatch");
-    return { ok: errors.length === 0, errors, assets: errors.length ? [] : proof.assets };
+    return {
+      ok: errors.length === 0,
+      errors,
+      assets: errors.length ? [] : proof.assets,
+      player: errors.length ? null : proof.player ?? null
+    };
   } catch (error) {
-    return { ok: false, errors: [error instanceof Error ? error.message : "wilds_vault_proof_invalid"], assets: [] };
+    return {
+      ok: false,
+      errors: [error instanceof Error ? error.message : "wilds_vault_proof_invalid"],
+      assets: [],
+      player: null
+    };
   }
 }
 
