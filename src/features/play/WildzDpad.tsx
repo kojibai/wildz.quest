@@ -1,49 +1,110 @@
 "use client";
 
 import { Icons } from "@/components/icons";
-import type { MoveDirection } from "./game-state";
+import type { WildsInput } from "./game-state";
+import { cameraRelativeMovement, type WildsMovementMode } from "./wilds-movement";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
-export function WildzDpad({ onMove }: { onMove: (direction: MoveDirection) => void }) {
-  const timer = useRef<number | null>(null);
-  const [active, setActive] = useState<MoveDirection | null>(null);
+export function WildzDpad({ cameraHeading, movementMode, onInput }: {
+  cameraHeading: number;
+  movementMode: WildsMovementMode;
+  onInput: (input: WildsInput) => void;
+}) {
+  const vector = useRef({ x: 0, z: 0 });
+  const dragging = useRef(false);
+  const input = useRef(onInput);
+  const heading = useRef(cameraHeading);
+  const mode = useRef(movementMode);
+  const [active, setActive] = useState(false);
+  const [knob, setKnob] = useState({ x: 0, y: 0 });
 
-  const stop = () => {
-    if (timer.current !== null) window.clearInterval(timer.current);
-    timer.current = null;
-    setActive(null);
+  input.current = onInput;
+  heading.current = cameraHeading;
+  mode.current = movementMode;
+
+  const emitMovement = (next = vector.current) => {
+    if (Math.hypot(next.x, next.z) < 0.08) return;
+    const relative = cameraRelativeMovement(next, heading.current);
+    input.current({ type: "move-vector", x: relative.x, z: relative.z, mode: mode.current });
   };
 
-  useEffect(() => stop, []);
-
-  const start = (direction: MoveDirection, event: ReactPointerEvent<HTMLButtonElement>) => {
-    stop();
-    setActive(direction);
-    onMove(direction);
-    try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* capture is optional */ }
-    timer.current = window.setInterval(() => onMove(direction), 90);
+  const reset = () => {
+    dragging.current = false;
+    vector.current = { x: 0, z: 0 };
+    setKnob({ x: 0, y: 0 });
+    setActive(false);
   };
 
-  const directions = [
-    { direction: "north" as const, label: "Move north", Icon: Icons.chevronUp },
-    { direction: "east" as const, label: "Move east", Icon: Icons.chevronRight },
-    { direction: "south" as const, label: "Move south", Icon: Icons.chevronDown },
-    { direction: "west" as const, label: "Move west", Icon: Icons.chevronLeft }
-  ];
+  useEffect(() => {
+    if (!active) return;
+    const timer = window.setInterval(() => emitMovement(), 45);
+    return () => window.clearInterval(timer);
+  }, [active]);
 
-  return <div className="wildz-dpad" aria-label="Explorer movement controls">
-    <span className="wildz-dpad-ring" aria-hidden="true" />
-    {directions.map(({ direction, label, Icon }) => <button
-      aria-label={label}
-      aria-pressed={active === direction}
-      className={`wildz-dpad-${direction}`}
-      key={direction}
-      onLostPointerCapture={stop}
-      onPointerCancel={stop}
-      onPointerDown={(event) => start(direction, event)}
-      onPointerUp={stop}
+  useEffect(() => {
+    const stop = () => reset();
+    window.addEventListener("blur", stop);
+    document.addEventListener("visibilitychange", stop);
+    return () => {
+      window.removeEventListener("blur", stop);
+      document.removeEventListener("visibilitychange", stop);
+    };
+  }, []);
+
+  const update = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const radius = Math.max(1, Math.min(rect.width, rect.height) * 0.32);
+    const rawX = event.clientX - (rect.left + rect.width / 2);
+    const rawY = event.clientY - (rect.top + rect.height / 2);
+    const magnitude = Math.hypot(rawX, rawY);
+    const scale = magnitude > radius ? radius / magnitude : 1;
+    const x = rawX * scale;
+    const y = rawY * scale;
+    const next = { x: x / radius, z: y / radius };
+    vector.current = next;
+    setKnob({ x, y });
+    return next;
+  };
+
+  const release = (event?: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event) {
+      try {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {
+        // Pointer capture is optional; resetting refs still stops movement.
+      }
+    }
+    reset();
+  };
+
+  return (
+    <button
+      aria-label={`Movement trackpad. ${movementMode === "run" ? "Running" : "Walking"}. Hold and drag in any direction to travel.`}
+      aria-pressed={active}
+      className="wildz-dpad"
+      onLostPointerCapture={release}
+      onPointerCancel={release}
+      onPointerDown={(event) => {
+        dragging.current = true;
+        const next = update(event);
+        setActive(true);
+        try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* capture is optional */ }
+        emitMovement(next);
+      }}
+      onPointerMove={(event) => {
+        if (!dragging.current) return;
+        const next = update(event);
+        emitMovement(next);
+      }}
+      onPointerUp={release}
       type="button"
-    ><Icon aria-hidden="true" size={25} /></button>)}
-    <i className="wildz-dpad-knob" aria-hidden="true" />
-  </div>;
+    >
+      <span className="wildz-dpad-ring" aria-hidden="true" />
+      <Icons.chevronUp className="wildz-dpad-north" aria-hidden="true" size={18} />
+      <Icons.chevronRight className="wildz-dpad-east" aria-hidden="true" size={18} />
+      <Icons.chevronDown className="wildz-dpad-south" aria-hidden="true" size={18} />
+      <Icons.chevronLeft className="wildz-dpad-west" aria-hidden="true" size={18} />
+      <i className="wildz-dpad-knob" aria-hidden="true" style={{ transform: `translate(${knob.x}px, ${knob.y}px)` }} />
+    </button>
+  );
 }

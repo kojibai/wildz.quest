@@ -10,6 +10,7 @@ import type { PlayState, WildsInput } from "./game-state";
 import { WildsCardScene } from "./WildsCardScene";
 import { WildsGrowthPanel } from "./WildsGrowthPanel";
 import { clampInventoryPage, inventoryPageSize } from "./inventory-pagination";
+import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 
 export function WildsInventory({
   state,
@@ -204,7 +205,7 @@ export function WildsInventory({
         <div className="wilds-inventory-grid">
           {visible.map((asset) => {
             const form = creatureForm(asset.manifest.formId)!;
-            return <button aria-pressed={selected?.id === asset.id} key={asset.id} onClick={() => { if (suppressCardClick.current) { suppressCardClick.current = false; return; } setSelectedId(asset.id); }} type="button"><span style={{ background: asset.manifest.variant.traits.palette.primary }}>{asset.manifest.name.slice(0, 2).toUpperCase()}</span><strong>{asset.manifest.name}</strong><small>Stage {form.stage} · {form.rarity}</small><b>{asset.status === "sealed_local" ? "Offline sealed" : "Verified"}</b></button>;
+            return <button aria-pressed={selected?.id === asset.id} key={asset.id} onClick={() => { if (suppressCardClick.current) { suppressCardClick.current = false; return; } setSelectedId(asset.id); }} type="button"><WildsCreatureThumbnail asset={asset} /><strong>{asset.manifest.name}</strong><small>Stage {form.stage} · {form.rarity}</small><b>{asset.status === "sealed_local" ? "Offline sealed" : "Verified"}</b></button>;
           })}
           {!visible.length ? <p className="wilds-inventory-empty">No collected cards match this search.</p> : null}
         </div>

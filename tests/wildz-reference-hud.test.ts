@@ -9,10 +9,12 @@ test("reference HUD exposes player status minimap and mission clusters", () => {
   }
 });
 
-test("D-pad maps four directions onto existing movement intents", () => {
+test("D-pad maps analog camera-relative travel onto existing movement intents", () => {
   const source = readFileSync("src/features/play/WildzDpad.tsx", "utf8");
   for (const direction of ["north", "east", "south", "west"]) assert.match(source, new RegExp(direction));
-  assert.match(source, /onMove/);
+  assert.match(source, /onInput/);
+  assert.match(source, /move-vector/);
+  assert.match(source, /cameraRelativeMovement/);
   assert.doesNotMatch(source, /useReducer/);
 });
 

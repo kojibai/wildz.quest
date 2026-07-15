@@ -2,18 +2,19 @@
 
 import Image from "next/image";
 import { Icons } from "@/components/icons";
-import type { MoveDirection } from "./game-state";
+import type { WildsInput } from "./game-state";
 import type { WildsMovementMode } from "./wilds-movement";
 import type { PortableCardAsset } from "./portable-card";
 import { creatureForm } from "./creature-catalog";
 import { WildzContextButton } from "./WildzContextButton";
 import { WildzDpad } from "./WildzDpad";
 
-export function WildzSocialDeck({ nearbyCards, action, movementMode, onMove, onAction, onMovementModeChange, onSelectCard, onOpenMap, onOpenProfile, onOpenMarket, onOpenRewards, onOpenDeck, onOpenVault, onRest, onTrain, onMission }: {
+export function WildzSocialDeck({ nearbyCards, action, cameraHeading, movementMode, onInput, onAction, onMovementModeChange, onSelectCard, onOpenMap, onOpenProfile, onOpenMarket, onOpenRewards, onOpenDeck, onOpenVault, onRest, onTrain, onMission }: {
   nearbyCards: readonly PortableCardAsset[];
   action: { kind: string; label: string };
+  cameraHeading: number;
   movementMode: WildsMovementMode;
-  onMove: (direction: MoveDirection) => void;
+  onInput: (input: WildsInput) => void;
   onAction: () => void;
   onMovementModeChange: (mode: WildsMovementMode) => void;
   onSelectCard: (assetId: string) => void;
@@ -52,7 +53,7 @@ export function WildzSocialDeck({ nearbyCards, action, movementMode, onMove, onA
           {movementMode === "walk" ? <Icons.walk size={21} /> : <Icons.run size={21} />}
         </button>
       </div>
-      <WildzDpad onMove={onMove} />
+      <WildzDpad cameraHeading={cameraHeading} movementMode={movementMode} onInput={onInput} />
       <div className="wildz-play-control-rail" aria-label="Progression actions">
         <WildzContextButton action={action} onActivate={onAction} />
         <button aria-label="Train active companion" onClick={onTrain} type="button"><Icons.sparkle size={20} /></button>

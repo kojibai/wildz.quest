@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { applyWildsInput, initialPlayState, worldBounds } from "../src/features/play/game-state";
 import { resolveWildsContextAction } from "../src/features/play/wilds-context-action";
@@ -14,6 +15,19 @@ const emptyContext = {
 };
 
 describe("Wilds contextual world actions", () => {
+  it("shows one dormant door control that only glows when an entrance is available", () => {
+    const button = readFileSync("src/features/play/WildzContextButton.tsx", "utf8");
+    const icons = readFileSync("src/components/icons.tsx", "utf8");
+    const css = readFileSync("app/globals.css", "utf8");
+
+    assert.match(icons, /door:\s*DoorClosed/);
+    assert.match(button, /const canEnter = action\.kind === "enter"/);
+    assert.match(button, /<Icons\.door/);
+    assert.match(button, /disabled=\{!canEnter\}/);
+    assert.match(button, /can-enter/);
+    assert.match(css, /\.wildz-context-button\.can-enter\s*\{[^}]*box-shadow:[^}]*rgba\(255,\s*200,\s*90/s);
+  });
+
   it("selects one Pulse action in the documented priority order", () => {
     assert.deepEqual(resolveWildsContextAction({ ...emptyContext, pendingReward: true }), {
       kind: "collect",
@@ -70,11 +84,18 @@ describe("Wilds contextual world actions", () => {
 
   it("keeps trackpad forward aligned with the orbiting camera", () => {
     assert.deepEqual(cameraRelativeMovement({ x: 0, z: -1 }, 0), { x: 0, z: -1 });
+    assert.deepEqual(cameraRelativeMovement({ x: 0, z: 1 }, 0), { x: 0, z: 1 });
     const cameraOnRight = cameraRelativeMovement({ x: 0, z: -1 }, Math.PI / 2);
     assert.ok(Math.abs(cameraOnRight.x + 1) < 0.0001);
     assert.ok(Math.abs(cameraOnRight.z) < 0.0001);
+    const reverseFromRight = cameraRelativeMovement({ x: 0, z: 1 }, Math.PI / 2);
+    assert.ok(Math.abs(reverseFromRight.x - 1) < 0.0001);
+    assert.ok(Math.abs(reverseFromRight.z) < 0.0001);
     const cameraBehind = cameraRelativeMovement({ x: 0, z: -1 }, Math.PI);
     assert.ok(Math.abs(cameraBehind.x) < 0.0001);
     assert.ok(Math.abs(cameraBehind.z - 1) < 0.0001);
+    const reverseFromBehind = cameraRelativeMovement({ x: 0, z: 1 }, Math.PI);
+    assert.ok(Math.abs(reverseFromBehind.x) < 0.0001);
+    assert.ok(Math.abs(reverseFromBehind.z + 1) < 0.0001);
   });
 });

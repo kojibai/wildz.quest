@@ -30,7 +30,6 @@ function identityFromKeyFile(keyFile: ReceizKeyFile): ReceizDeviceIdentity {
 
 export async function inspectWildzRestore(file: File) {
   const bytes = new Uint8Array(await file.arrayBuffer());
-  let identityFailure: unknown = null;
   try {
     const keyFile = await readReceizIdentityArtifact(bytes);
     const projection = await projectReceizIdentityAccount(keyFile);
@@ -45,23 +44,16 @@ export async function inspectWildzRestore(file: File) {
       identity: identityFromKeyFile(keyFile),
       assets: []
     } as const;
-  } catch (cause) {
-    identityFailure = cause;
+  } catch {
+    const vault = verifyPortableVaultPng(bytes);
+    if (!vault.ok) throw new Error(vault.errors[0] ?? "wildz_restore_invalid");
+    const vaultDigest = sha256PortableBasis(vault.assets.map((asset) => `${asset.id}:${asset.proof.digest}`).join("|"));
+    return {
+      summary: restoreSummary({ kind: "vault", cardCount: vault.assets.length, vaultDigest }),
+      identity: null,
+      assets: vault.assets
+    } as const;
   }
-
-  const vault = verifyPortableVaultPng(bytes);
-  if (!vault.ok) {
-    if (identityFailure instanceof Error && identityFailure.message === "receiz_key_identity_record_missing") {
-      throw identityFailure;
-    }
-    throw new Error(vault.errors[0] ?? "wildz_restore_invalid");
-  }
-  const vaultDigest = sha256PortableBasis(vault.assets.map((asset) => `${asset.id}:${asset.proof.digest}`).join("|"));
-  return {
-    summary: restoreSummary({ kind: "vault", cardCount: vault.assets.length, vaultDigest }),
-    identity: null,
-    assets: vault.assets
-  } as const;
 }
 
 export function downloadWildzIdentitySeal(identity: ReceizDeviceIdentity) {

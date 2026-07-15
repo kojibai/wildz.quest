@@ -39,6 +39,7 @@ import type { RiftTravelGrant } from "@/features/play/wilds-rift-travel";
 import { projectWildzHud } from "@/features/play/wildz-gameplay-hud";
 import { WildzReferenceHud } from "@/features/play/WildzReferenceHud";
 import { WildzSocialDeck } from "@/features/play/WildzSocialDeck";
+import { WildsCreatureThumbnail } from "@/features/play/WildsCreatureThumbnail";
 
 const WILDS_SAVE_KEY = "receiz:wilds:save:v2";
 const WILDS_AVATAR_KEY = "receiz:wilds:explorer:v1";
@@ -393,7 +394,7 @@ export function PlayCampaign({
                 onClick={() => dispatch({ type: "select-asset", assetId: card.id })}
                 type="button"
               >
-                <span style={{ background: card.manifest.variant.traits.palette.primary }}>{card.manifest.name.slice(0, 2).toUpperCase()}</span>
+                <WildsCreatureThumbnail asset={card} />
                 <div><strong>{card.manifest.name}</strong><small>Stage {card.manifest.stage} · Level {state.companionProgress[card.manifest.familyId]?.level ?? 1} · Bond {state.companionProgress[card.manifest.familyId]?.bond ?? 0}</small></div>
                 <b>{card.manifest.stats.power}</b>
                 <div className="wilds-mini-charge" aria-label={`${card.manifest.stats.power}% power`}><i style={{ width: `${card.manifest.stats.power}%` }} /></div>
@@ -564,6 +565,7 @@ export function PlayCampaign({
           <div className="wildz-social-stack">
             <WildzSocialDeck
               action={visiblePulse}
+              cameraHeading={cameraHeading}
               movementMode={movementMode}
               nearbyCards={state.inventory}
               onAction={activatePulse}
@@ -574,7 +576,7 @@ export function PlayCampaign({
               onOpenDeck={() => setRequestedCommand("deck")}
               onOpenVault={() => setRequestedCommand("vault")}
               onOpenProfile={onOpenProfile}
-              onMove={(direction) => dispatch({ type: "move", direction })}
+              onInput={(input) => dispatch(input)}
               onMovementModeChange={setMovementMode}
               onRest={() => dispatch({ type: "rest" })}
               onSelectCard={(assetId) => dispatch({ type: "select-asset", assetId })}

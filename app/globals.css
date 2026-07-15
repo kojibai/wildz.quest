@@ -12485,17 +12485,20 @@ button.product-purchase-secondary-link {
   background: rgba(20, 43, 49, .72);
   box-shadow: 0 14px 28px rgba(9, 27, 26, .32), inset 0 0 34px rgba(89, 126, 118, .14);
   backdrop-filter: blur(14px);
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
   pointer-events: auto;
   touch-action: none;
 }
-.wildz-dpad-ring { position: absolute; inset: 27%; border: 2px solid rgba(220, 231, 203, .38); border-radius: 50%; background: rgba(158, 181, 138, .25); }
-.wildz-dpad button { position: absolute; display: grid; width: 44px; height: 44px; place-items: center; border: 0; color: #dce8e1; background: transparent; }
-.wildz-dpad button[aria-pressed="true"] { color: #fff6b5; transform: scale(.9); }
-.wildz-dpad-north { top: 3%; left: 50%; translate: -50% 0; }
-.wildz-dpad-east { top: 50%; right: 3%; translate: 0 -50%; }
-.wildz-dpad-south { bottom: 3%; left: 50%; translate: -50% 0; }
-.wildz-dpad-west { top: 50%; left: 3%; translate: 0 -50%; }
-.wildz-dpad-knob { position: absolute; inset: 35%; border: 1px solid rgba(238, 238, 197, .24); border-radius: 50%; background: rgba(181, 196, 154, .34); box-shadow: inset 0 2px 7px rgba(255,255,255,.12); }
+.wildz-dpad-ring { position: absolute; inset: 27%; border: 2px solid rgba(220, 231, 203, .38); border-radius: 50%; background: rgba(158, 181, 138, .25); pointer-events: none; }
+.wildz-dpad > svg { position: absolute; color: #dce8e1; opacity: .88; pointer-events: none; }
+.wildz-dpad[aria-pressed="true"] > svg { color: #fff6b5; }
+.wildz-dpad-north { top: 5%; left: 50%; translate: -50% 0; }
+.wildz-dpad-east { top: 50%; right: 5%; translate: 0 -50%; }
+.wildz-dpad-south { bottom: 5%; left: 50%; translate: -50% 0; }
+.wildz-dpad-west { top: 50%; left: 5%; translate: 0 -50%; }
+.wildz-dpad-knob { position: absolute; inset: 35%; border: 1px solid rgba(238, 238, 197, .24); border-radius: 50%; background: rgba(181, 196, 154, .48); box-shadow: 0 4px 12px rgba(3, 15, 14, .28), inset 0 2px 7px rgba(255,255,255,.18); transition: transform 45ms linear; pointer-events: none; will-change: transform; }
 
 .wildz-context-button {
   position: absolute;
@@ -12516,6 +12519,14 @@ button.product-purchase-secondary-link {
 .wildz-context-button span { color: #ffc85a; }
 .wildz-context-button strong { max-width: 80%; font-size: clamp(10px, 1.8vw, 14px); letter-spacing: .07em; text-align: center; text-transform: uppercase; }
 .wildz-context-button:active { transform: scale(.95); }
+.wildz-context-button:disabled { border-color: rgba(218, 227, 220, .18); color: rgba(221, 232, 225, .38); background: linear-gradient(145deg, rgba(48, 61, 55, .58), rgba(25, 34, 30, .72)); box-shadow: inset 0 1px rgba(255,255,255,.04); cursor: default; }
+.wildz-context-button:disabled span { color: rgba(221, 232, 225, .38); }
+.wildz-context-button.can-enter { border-color: #ffd16d; color: #fff8d9; background: radial-gradient(circle at 50% 38%, rgba(125, 94, 39, .98), rgba(34, 37, 30, .98)); box-shadow: 0 0 0 3px rgba(255, 200, 90, .14), 0 0 24px rgba(255, 200, 90, .42), 0 10px 22px rgba(20, 29, 20, .3), inset 0 0 18px rgba(255, 194, 61, .22); animation: wildz-door-ready 1.8s ease-in-out infinite; }
+.wildz-context-button.can-enter span { color: #ffd36c; filter: drop-shadow(0 0 7px rgba(255, 207, 96, .7)); }
+
+@keyframes wildz-door-ready {
+  50% { box-shadow: 0 0 0 5px rgba(255, 200, 90, .08), 0 0 32px rgba(255, 200, 90, .58), 0 10px 22px rgba(20, 29, 20, .3), inset 0 0 22px rgba(255, 194, 61, .3); }
+}
 
 .wildz-social-deck {
   position: relative;
@@ -12560,6 +12571,11 @@ button.product-purchase-secondary-link {
 .wildz-nearby-owner small { color: #929d96; font-size: 8px; }
 .wildz-trade-inline { display: flex; min-width: 104px; justify-content: space-between; align-self: end; min-height: 34px; padding: 7px 10px; border: 1px solid rgba(126, 218, 158, .26); border-radius: 14px; color: #f0d066; background: linear-gradient(90deg, rgba(31, 48, 39, .9), rgba(24, 38, 32, .72)); box-shadow: inset 0 1px rgba(255,255,255,.04); }
 .wildz-trade-inline span { color: #78d59c; font-size: 11px; font-weight: 900; letter-spacing: .09em; text-transform: uppercase; }
+
+.wilds-creature-thumbnail { position: relative; display: grid; place-items: center; overflow: hidden; background: radial-gradient(circle at 50% 42%, var(--creature-glow), var(--creature-primary) 72%); }
+.wilds-creature-thumbnail > svg { width: 128%; height: 128%; max-width: none; transform: translateY(4%); filter: drop-shadow(0 4px 5px rgba(0, 0, 0, .28)); }
+.wilds-squad-card .wilds-creature-thumbnail,
+.wilds-inventory-grid .wilds-creature-thumbnail { color: transparent; }
 
 .wildz-bottom-play-controls { display: grid; grid-template-columns: minmax(0, 1fr) 72px minmax(0, 1fr); min-height: 72px; align-items: center; gap: 8px; padding: 2px 0; }
 .wildz-play-control-rail { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
@@ -12663,7 +12679,9 @@ button.product-purchase-secondary-link {
 
 @media (prefers-reduced-motion: reduce) {
   .wildz-context-button,
+  .wildz-dpad-knob,
   .wildz-dpad button,
   .wildz-social-actions button,
   .wildz-social-deck .wilds-command-button { transition: none; }
+  .wildz-context-button.can-enter { animation: none; }
 }
