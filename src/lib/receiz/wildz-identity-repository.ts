@@ -224,7 +224,9 @@ async function verifiedLegacyMigrationFromTransaction(
 }
 
 function removeCapturedLegacySource(storage: WildzLegacyIdentityStorage, capturedRaw: string) {
-  if (storage.getItem(WILDZ_IDENTITY_STORAGE_KEY) !== capturedRaw) {
+  const liveRaw = storage.getItem(WILDZ_IDENTITY_STORAGE_KEY);
+  if (liveRaw === null) return;
+  if (liveRaw !== capturedRaw) {
     throw new Error("wildz_identity_legacy_source_mismatch");
   }
   storage.removeItem(WILDZ_IDENTITY_STORAGE_KEY);

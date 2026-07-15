@@ -151,6 +151,26 @@ test("concurrent bootstrap calls converge on one active identity", async () => {
   );
 });
 
+test("concurrent bootstrap calls for the same legacy source converge after one removes storage", async () => {
+  const database = createMemoryWildzContinuityDatabase();
+  const firstRepository = createWildzIdentityRepository({ database });
+  const secondRepository = createWildzIdentityRepository({ database });
+  const identity = await createReceizIdIdentity({ username: "legacy_concurrent", displayName: "Legacy Concurrent" });
+  const raw = JSON.stringify({ version: 1, savedAt: identity.createdAt, identity });
+  let removals = 0;
+  const legacy = memoryLegacyStorage(raw, () => { removals += 1; });
+
+  const firstBootstrap = firstRepository.bootstrap(legacy.storage);
+  const secondBootstrap = secondRepository.bootstrap(legacy.storage);
+  const [first, second] = await Promise.all([firstBootstrap, secondBootstrap]);
+
+  assert.deepEqual(second, first);
+  assert.equal(first.keyId, identity.keyFile.keyId);
+  assert.deepEqual(await firstRepository.active(), first);
+  assert.equal(legacy.value(), null);
+  assert.equal(removals, 1);
+});
+
 test("a migration marker never deletes a different legacy identity", async () => {
   const database = createMemoryWildzContinuityDatabase();
   const repository = createWildzIdentityRepository({ database });
