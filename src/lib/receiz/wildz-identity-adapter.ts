@@ -5,9 +5,10 @@ import {
   type ReceizDeviceIdentity,
   type ReceizKeyFile
 } from "@receiz/sdk";
-import { verifyPortableVaultPng } from "@/features/play/card-export";
+import { verifyPortableCardPng, verifyPortableVaultPng } from "@/features/play/card-export";
 import { sha256PortableBasis } from "@/features/play/portable-card";
 import { restoreSummary } from "@/features/identity/wildz-restore";
+import { inspectReceizCommerceVault } from "./receiz-commerce-vault";
 
 export async function createAutomaticWildzIdentity() {
   return createReceizIdIdentity({ displayName: "Wildz Explorer", deviceName: "Wildz" });
@@ -45,13 +46,25 @@ export async function inspectWildzRestore(file: File) {
       assets: []
     } as const;
   } catch {
-    const vault = verifyPortableVaultPng(bytes);
-    if (!vault.ok) throw new Error(vault.errors[0] ?? "wildz_restore_invalid");
-    const vaultDigest = sha256PortableBasis(vault.assets.map((asset) => `${asset.id}:${asset.proof.digest}`).join("|"));
+    const card = verifyPortableCardPng(bytes);
+    const vault = card.ok && card.asset ? { ok: true, assets: [card.asset] } : verifyPortableVaultPng(bytes);
+    if (vault.ok && vault.assets.length) {
+      return {
+        summary: restoreSummary({
+          kind: "vault",
+          cardCount: vault.assets.length,
+          vaultDigest: sha256PortableBasis(vault.assets.map((asset) => `${asset.id}:${asset.proof.digest}`).join("|"))
+        }),
+        identity: null,
+        assets: vault.assets
+      } as const;
+    }
+    const receizVault = await inspectReceizCommerceVault(file);
     return {
-      summary: restoreSummary({ kind: "vault", cardCount: vault.assets.length, vaultDigest }),
+      summary: restoreSummary({ kind: "vault", cardCount: receizVault.cards.length, vaultDigest: `sha256:${receizVault.id}` }),
       identity: null,
-      assets: vault.assets
+      assets: [],
+      receizVault
     } as const;
   }
 }

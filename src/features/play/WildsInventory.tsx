@@ -11,6 +11,12 @@ import { WildsCardScene } from "./WildsCardScene";
 import { WildsGrowthPanel } from "./WildsGrowthPanel";
 import { clampInventoryPage, inventoryPageSize } from "./inventory-pagination";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
+import {
+  inspectReceizCommerceVault,
+  readReceizCommerceVaultLibrary,
+  saveReceizCommerceVault,
+  type ReceizCommerceVaultProjection
+} from "@/lib/receiz/receiz-commerce-vault";
 
 export function WildsInventory({
   state,
@@ -36,6 +42,7 @@ export function WildsInventory({
   const [compact, setCompact] = useState(false);
   const [origin, setOrigin] = useState("https://receiz.app");
   const [qr, setQr] = useState("");
+  const [receizVaults, setReceizVaults] = useState<ReceizCommerceVaultProjection[]>([]);
   const importInput = useRef<HTMLInputElement>(null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const suppressCardClick = useRef(false);
@@ -69,6 +76,7 @@ export function WildsInventory({
 
   useEffect(() => {
     setOrigin(window.location.origin);
+    setReceizVaults(readReceizCommerceVaultLibrary());
   }, []);
 
   useEffect(() => {
@@ -133,7 +141,7 @@ export function WildsInventory({
         </div>
         <input
           ref={importInput}
-          accept="image/png,.png"
+          accept="image/png,.png,.receized.png,.receizvault,application/vnd.receiz.vault+zip,application/zip"
           className="wilds-import-input"
           multiple
           onChange={async (event) => {
@@ -145,21 +153,38 @@ export function WildsInventory({
               const verifiedCard = verifyPortableCardPng(bytes);
               const verifiedVault = verifiedCard.ok ? null : verifyPortableVaultPng(bytes);
               const assets = verifiedCard.ok && verifiedCard.asset ? [verifiedCard.asset] : verifiedVault?.ok ? verifiedVault.assets : [];
-              if (!assets.length) { rejected += 1; continue; }
-              assets.forEach((asset) => onInput({ type: "import-card", asset }));
-              setSelectedId(assets.at(-1)!.id);
-              imported += assets.length;
+              try {
+                if (assets.length) {
+                  assets.forEach((asset) => onInput({ type: "import-card", asset }));
+                  setSelectedId(assets.at(-1)!.id);
+                  imported += assets.length;
+                  continue;
+                }
+                const projection = await inspectReceizCommerceVault(file);
+                saveReceizCommerceVault(projection);
+                setReceizVaults(readReceizCommerceVaultLibrary());
+                imported += projection.cards.length || 1;
+              } catch {
+                rejected += 1;
+              }
             }
             event.currentTarget.value = "";
             setImportMessage(imported
               ? `${imported} verified card${imported === 1 ? "" : "s"} added${rejected ? ` · ${rejected} rejected` : ""}.`
-              : "No card was added. Only an untampered Receiz sealed PNG can enter the game.");
+              : "No card was added. Choose a Receiz sealed card, vault image, or Receiz Vault package.");
           }}
           type="file"
         />
         {importMessage ? <p className="wilds-import-message" role="status">{importMessage}</p> : null}
         {vaultMessage ? <p className="wilds-import-message" role="status">{vaultMessage}</p> : null}
       </header>
+      {receizVaults.length ? <section className="wilds-receiz-vault-library" aria-label="Receiz Commerce vaults">
+        <div><span>Receiz continuity</span><strong>{receizVaults.reduce((total, vault) => total + vault.cards.length, 0)} cards from {receizVaults.length} imported vault{receizVaults.length === 1 ? "" : "s"}</strong></div>
+        <div className="wilds-receiz-vault-grid">{receizVaults.flatMap((vault) => vault.cards.map((card) => <article key={`${vault.id}:${card.id}`}>
+          {card.imageUrl ? <img alt={`${card.name} sealed card`} src={card.imageUrl} /* eslint-disable-line @next/next/no-img-element -- Receiz card media retains its sealed source URL. */ /> : <span className="wilds-receiz-proof-mark"><Icons.box aria-hidden="true" size={24} /></span>}
+          <strong>{card.name}</strong><small>{card.kind} · {card.rarity}</small><b>{vault.verification === "receiz-sdk" ? "Receiz SDK" : "Receiz Vault"}</b>
+        </article>))}</div>
+      </section> : null}
       {fusionOpen ? (
         <section className="wilds-fusion-sheet" aria-label="Create a fusion child">
           <div><span>Earned creation</span><strong>{state.fusionSparks} Fusion Spark{state.fusionSparks === 1 ? "" : "s"}</strong><p>Both parents stay in your vault. Each rests for 24 hours after creating a child.</p></div>

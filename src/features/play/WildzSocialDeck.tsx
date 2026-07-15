@@ -61,12 +61,12 @@ export function WildzSocialDeck({ nearbyCards, action, cameraHeading, movementMo
       </div>
     </div>
     <nav className="wildz-social-actions" aria-label="All game functions">
-      <button aria-label="Open world map" onClick={onOpenMap} type="button"><Icons.globe size={23} /></button>
-      <button aria-label="Open player profile" onClick={onOpenProfile} type="button"><Icons.users size={23} /></button>
-      <button aria-label="Open social market" onClick={onOpenMarket} type="button"><Icons.store size={23} /></button>
-      <button aria-label="Open rewards" onClick={onOpenRewards} type="button"><Icons.gift size={23} /></button>
-      <button aria-label="Open active deck" onClick={onOpenDeck} type="button"><Icons.assets size={23} /></button>
-      <button aria-label="Open card vault" onClick={onOpenVault} type="button"><Icons.box size={23} /></button>
+      <button aria-label="Open card vault" className="wildz-action-vault" onClick={onOpenVault} type="button"><Icons.archive size={25} /></button>
+      <button aria-label="Open world map" className="wildz-action-map" onClick={onOpenMap} type="button"><Icons.map size={25} /></button>
+      <button aria-label="Open player profile" className="wildz-action-people" onClick={onOpenProfile} type="button"><Icons.users size={25} /><i aria-hidden="true" /></button>
+      <button aria-label="Open social market" className="wildz-action-pulse" onClick={onOpenMarket} type="button"><Icons.waveform size={25} /></button>
+      <button aria-label="Open active deck" className="wildz-action-companion" onClick={onOpenDeck} type="button"><Image alt="" height={34} src="/creatures/sealcub-portrait.svg" width={34} /></button>
+      <button aria-label="Open rewards" className="wildz-action-rewards" onClick={onOpenRewards} type="button"><Icons.products size={24} /><Icons.sparkle className="wildz-action-reward-spark" size={12} /></button>
     </nav>
   </section>;
 }

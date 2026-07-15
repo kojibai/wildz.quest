@@ -14,7 +14,7 @@ import {
   type PlayState,
   type WildsInput
 } from "@/features/play/game-state";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import { WildsCaptureReward } from "@/features/play/WildsCaptureReward";
 import { WildsInventory } from "@/features/play/WildsInventory";
@@ -96,6 +96,8 @@ export function PlayCampaign({
   const [reducedMotion, setReducedMotion] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [cameraHeading, setCameraHeading] = useState(0);
+  const [playerHeading, setPlayerHeading] = useState(0);
+  const previousPlayerPosition = useRef(state.player);
   const [movementMode, setMovementMode] = useState<WildsMovementMode>("walk");
   const [activeLandmarkId, setActiveLandmarkId] = useState<WildsLandmarkId | null>(null);
   const [landmarkUnlocks, setLandmarkUnlocks] = useState<string[]>([]);
@@ -121,6 +123,14 @@ export function PlayCampaign({
     },
     enabled: enabled && Boolean(avatarStyle)
   });
+
+  useEffect(() => {
+    const previous = previousPlayerPosition.current;
+    const deltaX = state.player.x - previous.x;
+    const deltaZ = state.player.z - previous.z;
+    previousPlayerPosition.current = state.player;
+    if (Math.hypot(deltaX, deltaZ) > 0.0001) setPlayerHeading(Math.atan2(deltaX, -deltaZ));
+  }, [state.player]);
 
   useEffect(() => {
     const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -454,7 +464,7 @@ export function PlayCampaign({
             />
 
             {avatarStyle ? <WildzReferenceHud
-              heading={cameraHeading}
+              heading={playerHeading}
               model={hudModel}
               onOpenMission={() => setRequestedCommand("mission")}
             /> : null}

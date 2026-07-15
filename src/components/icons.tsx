@@ -1,5 +1,7 @@
 import {
   BarChart3,
+  Archive,
+  AudioWaveform,
   Bell,
   BookOpen,
   Box,
@@ -28,6 +30,7 @@ import {
   LogIn,
   Lock,
   Menu,
+  Map,
   Package,
   Palette,
   Receipt,
@@ -49,7 +52,9 @@ import {
 } from "lucide-react";
 
 export const Icons = {
+  archive: Archive,
   analytics: BarChart3,
+  waveform: AudioWaveform,
   assets: Layers3,
   bell: Bell,
   book: BookOpen,
@@ -82,6 +87,7 @@ export const Icons = {
   lock: Lock,
   enter: LogIn,
   menu: Menu,
+  map: Map,
   orders: Receipt,
   package: Package,
   pages: ClipboardList,

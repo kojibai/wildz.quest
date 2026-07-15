@@ -7,7 +7,7 @@ export function normalizeWildsMovementMode(value: unknown): WildsMovementMode {
 }
 
 export function movementScale(mode: WildsMovementMode) {
-  return mode === "run" ? 1.25 : 1;
+  return mode === "run" ? 1.25 : 0.8;
 }
 
 export function cameraRelativeMovement(vector: { x: number; z: number }, cameraHeading: number) {

@@ -26,8 +26,13 @@ test("vault restore keeps verified full-vault import behavior", () => {
 
   assert.match(inventory, /verifyPortableVaultPng/);
   assert.match(inventory, /assets\.forEach\(\(asset\) => onInput\(\{ type: "import-card", asset \}\)\)/);
+  assert.match(inventory, /inspectReceizCommerceVault/);
+  assert.match(inventory, /\.receizvault/);
   assert.match(genesis, /onRestoreVault\(\[\.\.\.result\.assets\]\)/);
-  assert.match(adapter, /catch\s*\{[\s\S]*?const vault = verifyPortableVaultPng\(bytes\)/);
+  assert.match(genesis, /saveReceizCommerceVault/);
+  assert.match(adapter, /const vault = card\.ok[\s\S]*?verifyPortableVaultPng\(bytes\)/);
+  assert.match(adapter, /if \(vault\.ok && vault\.assets\.length\)[\s\S]*?return/);
+  assert.match(adapter, /inspectReceizCommerceVault\(file\)/);
   assert.doesNotMatch(adapter, /identityFailure/);
 });
 

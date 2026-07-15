@@ -5,6 +5,7 @@ import { generateWildzCharacter, type WildzCharacterGenesis, type WildzGender } 
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import { friendlyWildzRestoreError } from "@/features/identity/wildz-restore";
 import { inspectWildzRestore } from "@/lib/receiz/wildz-identity-adapter";
+import { saveReceizCommerceVault } from "@/lib/receiz/receiz-commerce-vault";
 import Image from "next/image";
 import { useState } from "react";
 
@@ -44,8 +45,9 @@ export function WildzGenesis({
         onRestoreIdentity({ version: 1, savedAt: new Date().toISOString(), identity: result.identity });
         setIdentityRestored(true);
       } else {
+        if ("receizVault" in result && result.receizVault) saveReceizCommerceVault(result.receizVault);
         onRestoreVault([...result.assets]);
-        setError(`${result.summary.cardCount} verified cards restored. Choose your explorer to enter the world.`);
+        setError(`${result.summary.cardCount} Receiz card${result.summary.cardCount === 1 ? "" : "s"} restored into your Card Vault. Choose your explorer to enter the world.`);
       }
     } catch (cause) {
       setError(friendlyWildzRestoreError(cause));
@@ -69,7 +71,7 @@ export function WildzGenesis({
         </button>
         <label className="wildz-restore-control">
           <span>{restoring ? "Reading your Wildz…" : "Restore Identity Seal or Vault"}</span>
-          <input type="file" accept="application/json,image/png,.receized.png" disabled={restoring || Boolean(gender)} onChange={(event) => {
+          <input type="file" accept="application/json,image/png,.receized.png,.receizvault,application/vnd.receiz.vault+zip,application/zip" disabled={restoring || Boolean(gender)} onChange={(event) => {
             const file = event.target.files?.[0];
             if (file) void restore(file);
           }} />

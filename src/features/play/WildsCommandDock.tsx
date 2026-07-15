@@ -97,7 +97,7 @@ export function WildsCommandDock({ items, requestedKey = null, onRequestHandled 
           <section
             aria-labelledby={`wilds-command-title-${activeItem.key}`}
             aria-modal="true"
-            className="wilds-command-sheet"
+            className={`wilds-command-sheet wilds-command-sheet-${activeItem.key}`}
             id={`wilds-command-sheet-${activeItem.key}`}
             role="dialog"
             style={{ "--wilds-sheet-drag": `${dragY}px` } as CSSProperties}
