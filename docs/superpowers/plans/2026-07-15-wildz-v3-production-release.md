@@ -928,7 +928,7 @@ Keep default `pnpm receiz:doctor` non-blocking for local development: it prints 
 NEXT_PUBLIC_RECEIZ_MODE=live
 RECEIZ_BASE_URL=https URL
 RECEIZ_CLIENT_ID=non-empty
-RECEIZ_CLIENT_SECRET=non-empty
+RECEIZ_CLIENT_SECRET — non-empty
 RECEIZ_OAUTH_STATE_SECRET=at least 32 characters
 NEXT_PUBLIC_AUTH_MODE=receiz_id
 RECEIZ_AUTH_MODE=receiz_id
@@ -936,7 +936,7 @@ RECEIZ_ID_CALLBACK_URL=https://wildz.quest/api/auth/receiz/callback
 NEXT_PUBLIC_SITE_URL=https://wildz.quest
 NEXT_PUBLIC_CHECKOUT_MODE=receiz
 RECEIZ_CHECKOUT_MODE=receiz
-RECEIZ_ACCESS_TOKEN=explicitly provisioned release credential
+RECEIZ_ACCESS_TOKEN — explicitly provisioned release credential
 ```
 
 Construct `createReceizClient({ baseUrl: process.env.RECEIZ_BASE_URL, accessToken: process.env.RECEIZ_ACCESS_TOKEN })`. Derive the release registration scope with `receizOidcScopesForRails("identity", "wallet", "payments", "proofStore", "world", "appState", "publicStore", "portability", "releases")` so the SDK includes the real `receiz:wallet.transfer`, read, record, and world scopes rather than a hand-written subset, then call:
