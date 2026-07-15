@@ -10,6 +10,12 @@ import {
 } from "../src/lib/receiz/wildz-identity-repository";
 import { createMemoryWildzContinuityDatabase } from "./support/memory-wildz-continuity-database";
 
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
 function memoryLegacyStorage(raw: string, onRemove?: () => void) {
   const values = new Map([[WILDZ_IDENTITY_STORAGE_KEY, raw]]);
   return {
@@ -206,4 +212,189 @@ test("persisted wrapping keys must be non-extractable AES-GCM-256 keys", async (
     createWildzIdentityRepository({ database }).prepare(identity.keyFile),
     /wildz_identity_wrapping_key_invalid/
   );
+});
+
+test("an in-flight legacy migration never removes replacement identity bytes", async () => {
+  const memory = createMemoryWildzContinuityDatabase();
+  const transactionCommitted = deferred();
+  const releaseBootstrap = deferred();
+  let interceptIdentityCommit = true;
+  const database: WildzContinuityDatabase = {
+    read: memory.read.bind(memory),
+    async transaction(stores, mode, operation) {
+      const result = await memory.transaction(stores, mode, operation);
+      if (interceptIdentityCommit && mode === "readwrite" && stores.includes("identities") && stores.includes("meta")) {
+        interceptIdentityCommit = false;
+        transactionCommitted.resolve();
+        await releaseBootstrap.promise;
+      }
+      return result;
+    }
+  };
+  const repository = createWildzIdentityRepository({ database });
+  const first = await createReceizIdIdentity({ username: "inflight_first", displayName: "Inflight First" });
+  const replacement = await createReceizIdIdentity({ username: "inflight_replacement", displayName: "Inflight Replacement" });
+  const firstRaw = JSON.stringify({ version: 1, savedAt: first.createdAt, identity: first });
+  const replacementRaw = JSON.stringify({ version: 1, savedAt: replacement.createdAt, identity: replacement });
+  let raw: string | null = firstRaw;
+  let removals = 0;
+  const storage = {
+    getItem: (key: string) => key === WILDZ_IDENTITY_STORAGE_KEY ? raw : null,
+    removeItem: (key: string) => {
+      if (key === WILDZ_IDENTITY_STORAGE_KEY) {
+        removals += 1;
+        raw = null;
+      }
+    }
+  };
+
+  const bootstrap = repository.bootstrap(storage);
+  await transactionCommitted.promise;
+  raw = replacementRaw;
+  releaseBootstrap.resolve();
+
+  await assert.rejects(bootstrap, /wildz_identity_legacy_source_mismatch/);
+  assert.equal(raw, replacementRaw);
+  assert.equal(removals, 0);
+  assert.equal((await repository.active())?.keyId, first.keyFile.keyId);
+});
+
+test("legacy marker pointer and session verification uses one database snapshot", async () => {
+  const memory = createMemoryWildzContinuityDatabase();
+  let splitMarkerRead = false;
+  const database: WildzContinuityDatabase = {
+    async read<T>(store: Parameters<WildzContinuityDatabase["read"]>[0], key: IDBValidKey) {
+      const value = await memory.read<T>(store, key);
+      if (value && typeof value === "object" && "schema" in value && value.schema === "receiz.wildz.legacy_identity_migration.v1") {
+        splitMarkerRead = true;
+        const meta = memory.dump().meta;
+        const sessionEntry = meta.find(([, item]) => item && typeof item === "object" && "schema" in item && item.schema === "receiz.wildz.identity_session.v1");
+        const pointerEntry = meta.find(([, item]) => item && typeof item === "object" && "schema" in item && item.schema === "receiz.wildz.active_identity.v1");
+        assert.ok(sessionEntry);
+        assert.ok(pointerEntry);
+        const session = sessionEntry[1] as { keyId: string };
+        const actorId = "interleaved_actor";
+        await memory.transaction(["meta"], "readwrite", async (tx) => {
+          await tx.put("meta", { ...sessionEntry[1] as object, actorId }, sessionEntry[0]);
+          await tx.put("meta", {
+            ...pointerEntry[1] as object,
+            actorId,
+            ownerScope: wildzOwnerScope(session.keyId, actorId)
+          }, pointerEntry[0]);
+        });
+      }
+      return value;
+    },
+    transaction: memory.transaction.bind(memory)
+  };
+  const repository = createWildzIdentityRepository({ database });
+  const identity = await createReceizIdIdentity({ username: "snapshot_test", displayName: "Snapshot Test" });
+  const raw = JSON.stringify({ version: 1, savedAt: identity.createdAt, identity });
+  const legacy = memoryLegacyStorage(raw);
+
+  const session = await repository.bootstrap(legacy.storage);
+
+  assert.equal(session.actorId, "snapshot_test");
+  assert.equal(splitMarkerRead, false);
+});
+
+test("writePrepared rejects a prepared session mutated to invalid", async () => {
+  const database = createMemoryWildzContinuityDatabase();
+  const repository = createWildzIdentityRepository({ database });
+  const identity = await createReceizIdIdentity({ username: "mutated_write", displayName: "Mutated Write" });
+  const prepared = await repository.prepare(identity.keyFile);
+  prepared.session.portableStateStatus = "invalid";
+  const before = database.dump();
+
+  await assert.rejects(
+    database.transaction(["identities", "meta"], "readwrite", (tx) => repository.writePrepared(tx, prepared, true)),
+    /wildz_identity_prepared_record_invalid/
+  );
+  assert.deepEqual(database.dump(), before);
+  assert.equal(await repository.active(), null);
+});
+
+test("writePrepared snapshots admission before asynchronous writes", async () => {
+  const database = createMemoryWildzContinuityDatabase();
+  const repository = createWildzIdentityRepository({ database });
+  const identity = await createReceizIdIdentity({ username: "mutated_inflight", displayName: "Mutated Inflight" });
+  const prepared = await repository.prepare(identity.keyFile);
+  const firstPutReached = deferred();
+  const releaseFirstPut = deferred();
+  let firstPut = true;
+
+  const write = database.transaction(["identities", "meta"], "readwrite", (tx) => repository.writePrepared({
+    get: tx.get.bind(tx),
+    async put(store, value, key) {
+      if (firstPut) {
+        firstPut = false;
+        firstPutReached.resolve();
+        await releaseFirstPut.promise;
+      }
+      await tx.put(store, value, key);
+    },
+    delete: tx.delete.bind(tx)
+  }, prepared, true));
+
+  await firstPutReached.promise;
+  prepared.session.portableStateStatus = "invalid";
+  releaseFirstPut.resolve();
+  await write;
+
+  const active = await repository.active();
+  assert.ok(active);
+  assert.equal(active.portableStateStatus, "verified");
+});
+
+test("active rejects a stored session mutated to invalid", async () => {
+  const database = createMemoryWildzContinuityDatabase();
+  const repository = createWildzIdentityRepository({ database });
+  await repository.bootstrap();
+  const sessionEntry = database.dump().meta.find(([, item]) => item && typeof item === "object" && "schema" in item && item.schema === "receiz.wildz.identity_session.v1");
+  assert.ok(sessionEntry);
+  await database.transaction(["meta"], "readwrite", async (tx) => {
+    await tx.put("meta", { ...sessionEntry[1] as object, portableStateStatus: "invalid" }, sessionEntry[0]);
+  });
+
+  assert.equal(await repository.active(), null);
+});
+
+test("partial legacy writes roll back identity session pointer and marker", async () => {
+  const database = createMemoryWildzContinuityDatabase();
+  const repository = createWildzIdentityRepository({ database });
+  const prior = await repository.bootstrap();
+  const before = database.dump();
+  const identity = await createReceizIdIdentity({ username: "partial_write", displayName: "Partial Write" });
+  const raw = JSON.stringify({ version: 1, savedAt: identity.createdAt, identity });
+  const legacy = memoryLegacyStorage(raw);
+  database.failNextTransactionAfterPuts(2, new Error("wildz_test_partial_write_failed"));
+
+  await assert.rejects(repository.bootstrap(legacy.storage), /wildz_test_partial_write_failed/);
+
+  assert.equal(legacy.value(), raw);
+  assert.deepEqual(database.dump(), before);
+  assert.deepEqual(await repository.active(), prior);
+});
+
+test("persisted wrapping keys reject wrong algorithm extractability and extra usages", async () => {
+  const database = createMemoryWildzContinuityDatabase();
+  await createWildzIdentityRepository({ database }).bootstrap();
+  const wrappingKeyId = database.dump().wrappingKeys[0]?.[0];
+  assert.ok(wrappingKeyId);
+  const rejectedKeys = [
+    await crypto.subtle.generateKey({ name: "AES-CBC", length: 256 }, false, ["encrypt", "decrypt"]),
+    await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]),
+    await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt", "wrapKey"])
+  ];
+  const identity = await createReceizIdIdentity({ username: "exact_usage", displayName: "Exact Usage" });
+
+  for (const key of rejectedKeys) {
+    await database.transaction(["wrappingKeys"], "readwrite", async (tx) => {
+      await tx.put("wrappingKeys", key, wrappingKeyId);
+    });
+    await assert.rejects(
+      createWildzIdentityRepository({ database }).prepare(identity.keyFile),
+      /wildz_identity_wrapping_key_invalid/
+    );
+  }
 });

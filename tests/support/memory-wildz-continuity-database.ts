@@ -10,6 +10,7 @@ export type MemoryWildzContinuityDatabase = WildzContinuityDatabase & {
   activePointer(): { keyId: string } | null;
   dump(): Record<WildzStoreName, Array<[IDBValidKey, unknown]>>;
   failNextTransaction(cause?: Error): void;
+  failNextTransactionAfterPuts(putCount: number, cause?: Error): void;
   legacyMigrationMarker(): { keyId: string } | null;
   wrappingKey(): CryptoKey;
 };
@@ -47,6 +48,7 @@ function metaBySchema<T>(stores: Record<WildzStoreName, StoreMap>, schema: strin
 export function createMemoryWildzContinuityDatabase(): MemoryWildzContinuityDatabase {
   let stores = emptyStores();
   let nextFailure: Error | null = null;
+  let nextPartialFailure: { cause: Error; putCount: number } | null = null;
   let transactionTail: Promise<void> = Promise.resolve();
 
   const database: MemoryWildzContinuityDatabase = {
@@ -68,6 +70,7 @@ export function createMemoryWildzContinuityDatabase(): MemoryWildzContinuityData
 
         const selected = new Set(selectedStores);
         const working = mode === "readwrite" ? clonedStores(stores) : stores;
+        let writes = 0;
         const tx: WildzContinuityTransaction = {
           async get<TValue>(store: WildzStoreName, key: IDBValidKey) {
             if (!selected.has(store)) throw new Error("wildz_memory_store_not_in_transaction");
@@ -79,6 +82,12 @@ export function createMemoryWildzContinuityDatabase(): MemoryWildzContinuityData
             if (!selected.has(store)) throw new Error("wildz_memory_store_not_in_transaction");
             if (key === undefined) throw new Error("wildz_memory_key_required");
             working[store].set(clone(key), clone(value));
+            writes += 1;
+            if (nextPartialFailure && writes >= nextPartialFailure.putCount) {
+              const cause = nextPartialFailure.cause;
+              nextPartialFailure = null;
+              throw cause;
+            }
           },
           async delete(store: WildzStoreName, key: IDBValidKey) {
             if (mode !== "readwrite") throw new Error("wildz_memory_transaction_readonly");
@@ -107,6 +116,10 @@ export function createMemoryWildzContinuityDatabase(): MemoryWildzContinuityData
     },
     failNextTransaction(cause = new Error("wildz_memory_transaction_failed")) {
       nextFailure = cause;
+    },
+    failNextTransactionAfterPuts(putCount, cause = new Error("wildz_memory_transaction_failed_after_put")) {
+      if (!Number.isInteger(putCount) || putCount < 1) throw new Error("wildz_memory_put_count_invalid");
+      nextPartialFailure = { cause, putCount };
     },
     legacyMigrationMarker() {
       return metaBySchema<{ keyId: string }>(stores, "receiz.wildz.legacy_identity_migration.v1");

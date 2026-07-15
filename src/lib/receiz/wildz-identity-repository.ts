@@ -133,6 +133,7 @@ function isWrappingKey(value: unknown): value is CryptoKey {
     && algorithm?.name === "AES-GCM"
     && algorithm.length === 256
     && Array.isArray(key.usages)
+    && key.usages.length === 2
     && key.usages.includes("encrypt")
     && key.usages.includes("decrypt");
 }
@@ -145,7 +146,7 @@ function isIdentitySession(value: unknown): value is WildzIdentitySession {
     && typeof session.actorId === "string"
     && (typeof session.username === "string" || session.username === null)
     && (typeof session.displayName === "string" || session.displayName === null)
-    && (session.portableStateStatus === "verified" || session.portableStateStatus === "missing" || session.portableStateStatus === "invalid")
+    && (session.portableStateStatus === "verified" || session.portableStateStatus === "missing")
     && session.localAuthority === "verified"
     && (session.remoteStatus === "unknown" || session.remoteStatus === "connected" || session.remoteStatus === "pending" || session.remoteStatus === "offline" || session.remoteStatus === "unavailable");
 }
@@ -202,6 +203,33 @@ async function activeFromTransaction(tx: WildzContinuityTransaction) {
   return session;
 }
 
+async function verifiedLegacyMigrationFromTransaction(
+  tx: WildzContinuityTransaction,
+  expected: Pick<LegacyIdentityMigrationMarker, "keyId" | "ownerScope" | "sourceDigestB64Url">
+) {
+  const marker = await tx.get<unknown>("meta", LEGACY_MIGRATION_KEY);
+  if (marker === null) return null;
+  if (!isLegacyMigrationMarker(marker)) throw new Error("wildz_identity_legacy_marker_invalid");
+  if (marker.keyId !== expected.keyId || marker.sourceDigestB64Url !== expected.sourceDigestB64Url) {
+    throw new Error("wildz_identity_legacy_source_mismatch");
+  }
+  if (marker.ownerScope !== expected.ownerScope) throw new Error("wildz_identity_legacy_marker_unverified");
+  const current = await activeFromTransaction(tx);
+  if (!current
+    || current.keyId !== marker.keyId
+    || wildzOwnerScope(current.keyId, current.actorId) !== marker.ownerScope) {
+    throw new Error("wildz_identity_legacy_marker_unverified");
+  }
+  return current;
+}
+
+function removeCapturedLegacySource(storage: WildzLegacyIdentityStorage, capturedRaw: string) {
+  if (storage.getItem(WILDZ_IDENTITY_STORAGE_KEY) !== capturedRaw) {
+    throw new Error("wildz_identity_legacy_source_mismatch");
+  }
+  storage.removeItem(WILDZ_IDENTITY_STORAGE_KEY);
+}
+
 export function createWildzIdentityRepository(options: {
   database?: WildzContinuityDatabase;
   crypto?: Crypto;
@@ -249,21 +277,17 @@ export function createWildzIdentityRepository(options: {
       if (legacySource && legacyStorage) {
         const sourceDigestB64Url = await legacySourceDigest(legacySource.raw);
         const legacy = legacySource.identity;
-        const previousMarker = await database.read<unknown>("meta", LEGACY_MIGRATION_KEY);
-        if (previousMarker !== null) {
-          if (!isLegacyMigrationMarker(previousMarker)) throw new Error("wildz_identity_legacy_marker_invalid");
-          if (previousMarker.sourceDigestB64Url !== sourceDigestB64Url
-            || previousMarker.keyId !== legacy.identity.keyFile.keyId) {
-            throw new Error("wildz_identity_legacy_source_mismatch");
-          }
-          const current = await repository.active();
-          if (!current
-            || current.keyId !== previousMarker.keyId
-            || wildzOwnerScope(current.keyId, current.actorId) !== previousMarker.ownerScope) {
-            throw new Error("wildz_identity_legacy_marker_unverified");
-          }
-          legacyStorage.removeItem(WILDZ_IDENTITY_STORAGE_KEY);
-          return current;
+        const expectedMigration = {
+          keyId: legacy.identity.keyFile.keyId,
+          ownerScope: wildzOwnerScope(legacy.identity.keyFile.keyId, canonicalWildzActorId(legacy.identity.keyFile)),
+          sourceDigestB64Url
+        };
+        const previouslyMigrated = await database.transaction(["meta"], "readonly", (tx) =>
+          verifiedLegacyMigrationFromTransaction(tx, expectedMigration)
+        );
+        if (previouslyMigrated) {
+          removeCapturedLegacySource(legacyStorage, legacySource.raw);
+          return previouslyMigrated;
         }
 
         const prepared = await repository.prepare(legacy.identity.keyFile);
@@ -279,17 +303,11 @@ export function createWildzIdentityRepository(options: {
           await tx.put("meta", marker, LEGACY_MIGRATION_KEY);
         });
 
-        const persistedMarker = await database.read<unknown>("meta", LEGACY_MIGRATION_KEY);
-        const current = await repository.active();
-        if (!isLegacyMigrationMarker(persistedMarker)
-          || persistedMarker.keyId !== prepared.session.keyId
-          || persistedMarker.ownerScope !== marker.ownerScope
-          || persistedMarker.sourceDigestB64Url !== sourceDigestB64Url
-          || !current
-          || current.keyId !== prepared.session.keyId) {
-          throw new Error("wildz_identity_legacy_marker_unverified");
-        }
-        legacyStorage.removeItem(WILDZ_IDENTITY_STORAGE_KEY);
+        const current = await database.transaction(["meta"], "readonly", (tx) =>
+          verifiedLegacyMigrationFromTransaction(tx, marker)
+        );
+        if (!current) throw new Error("wildz_identity_legacy_marker_unverified");
+        removeCapturedLegacySource(legacyStorage, legacySource.raw);
         return current;
       }
 
@@ -335,19 +353,21 @@ export function createWildzIdentityRepository(options: {
       };
     },
     async writePrepared(tx: WildzContinuityTransaction, prepared: PreparedWildzIdentity, activate: boolean) {
-      if (!isIdentitySession(prepared.session)
-        || !isEncryptedIdentityRecord(prepared.encryptedRecord)
-        || prepared.session.keyId !== prepared.encryptedRecord.keyId) {
+      const session = { ...prepared.session };
+      const encryptedRecord = { ...prepared.encryptedRecord };
+      if (!isIdentitySession(session)
+        || !isEncryptedIdentityRecord(encryptedRecord)
+        || session.keyId !== encryptedRecord.keyId) {
         throw new Error("wildz_identity_prepared_record_invalid");
       }
-      await tx.put("identities", prepared.encryptedRecord, prepared.session.keyId);
-      await tx.put("meta", prepared.session, sessionMetaKey(prepared.session.keyId));
+      await tx.put("identities", encryptedRecord, session.keyId);
+      await tx.put("meta", session, sessionMetaKey(session.keyId));
       if (activate) {
         const pointer: ActiveIdentityPointer = {
           schema: "receiz.wildz.active_identity.v1",
-          keyId: prepared.session.keyId,
-          actorId: prepared.session.actorId,
-          ownerScope: wildzOwnerScope(prepared.session.keyId, prepared.session.actorId)
+          keyId: session.keyId,
+          actorId: session.actorId,
+          ownerScope: wildzOwnerScope(session.keyId, session.actorId)
         };
         await tx.put("meta", pointer, ACTIVE_IDENTITY_KEY);
       }

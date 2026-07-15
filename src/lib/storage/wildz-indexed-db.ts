@@ -30,7 +30,6 @@ function transactionCompletion(transaction: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     transaction.addEventListener("complete", () => resolve(), { once: true });
     transaction.addEventListener("abort", () => reject(transaction.error ?? new Error("wildz_indexed_db_transaction_aborted")), { once: true });
-    transaction.addEventListener("error", () => reject(transaction.error ?? new Error("wildz_indexed_db_transaction_failed")), { once: true });
   });
 }
 
