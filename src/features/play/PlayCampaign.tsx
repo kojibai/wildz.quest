@@ -27,7 +27,7 @@ import { WildsAudioSettings } from "@/features/play/WildsAudioSettings";
 import { useWildsPresentation } from "@/features/play/use-wilds-presentation";
 import { selectWildsQualityProfile } from "@/features/play/wilds-quality-profile";
 import { projectWorldProgression } from "@/features/play/world-progression";
-import { WildsCommandDock, type WildsCommandItem } from "@/features/play/WildsCommandDock";
+import { WildsCommandDock, type WildsCommandItem, type WildsCommandKey } from "@/features/play/WildsCommandDock";
 import { WildsWorldMap } from "@/features/play/WildsWorldMap";
 import { WildsWorldControls } from "@/features/play/WildsWorldControls";
 import { WildsLandmarkExperience } from "@/features/play/WildsLandmarkExperience";
@@ -36,6 +36,9 @@ import { resolveWildsContextAction } from "@/features/play/wilds-context-action"
 import { landmarkAtPosition, WILDS_FLAGSHIP_LANDMARKS, type WildsLandmarkId } from "@/features/play/wilds-landmarks";
 import { evaluateLandmarkAccess, type WildsLandmarkProgress } from "@/features/play/wilds-landmark-access";
 import type { RiftTravelGrant } from "@/features/play/wilds-rift-travel";
+import { projectWildzHud } from "@/features/play/wildz-gameplay-hud";
+import { WildzReferenceHud } from "@/features/play/WildzReferenceHud";
+import { WildzSocialDeck } from "@/features/play/WildzSocialDeck";
 
 const WILDS_SAVE_KEY = "receiz:wilds:save:v2";
 const WILDS_AVATAR_KEY = "receiz:wilds:explorer:v1";
@@ -68,14 +71,20 @@ export function PlayCampaign({
   enabled,
   onComplete,
   ownerReceizId = "wilds.player.receiz.id",
+  playerDisplayName = "Wildz Explorer",
   onListAsset,
+  onOpenProfile = () => {},
+  onOpenMarket = () => {},
   restoredAssets = []
 }: {
   campaignName?: string;
   enabled: boolean;
   onComplete?: (beans: number) => void;
   ownerReceizId?: string;
+  playerDisplayName?: string;
   onListAsset?: (asset: PortableCardAsset, priceCents: number) => Promise<PortableCardAsset | null>;
+  onOpenProfile?: () => void;
+  onOpenMarket?: () => void;
   restoredAssets?: PortableCardAsset[];
 }) {
   const [state, setState] = useState(initialPlayState);
@@ -90,12 +99,14 @@ export function PlayCampaign({
   const [activeLandmarkId, setActiveLandmarkId] = useState<WildsLandmarkId | null>(null);
   const [landmarkUnlocks, setLandmarkUnlocks] = useState<string[]>([]);
   const [riftError, setRiftError] = useState("");
+  const [requestedCommand, setRequestedCommand] = useState<WildsCommandKey | null>(null);
   const activeMission = missionCards[state.completedMissionIds.length % missionCards.length];
   const worldProgression = projectWorldProgression(state.worldMastery);
   const activeCard = selectedCard(state);
   const activeAsset = selectedAsset(state);
   const deckCards = state.inventory;
   const activeProgress = state.companionProgress[activeCard.id] ?? { level: 1, xp: 0, bond: 0 };
+  const hudModel = projectWildzHud(state, { username: ownerReceizId, displayName: playerDisplayName });
   const multiplayer = useWildsMultiplayer({
     enabled: enabled && Boolean(avatarStyle) && Boolean(activeAsset),
     style: avatarStyle ?? "female",
@@ -441,6 +452,12 @@ export function PlayCampaign({
               }}
             />
 
+            {avatarStyle ? <WildzReferenceHud
+              heading={cameraHeading}
+              model={hudModel}
+              onOpenMission={() => setRequestedCommand("mission")}
+            /> : null}
+
             {avatarStyle ? <WildsMultiplayer multiplayer={multiplayer} position={state.player} /> : null}
             <div className="wilds-utility-cluster">
               <WildsAudioSettings
@@ -529,22 +546,43 @@ export function PlayCampaign({
             </div>
           </div>
 
-          <WildsWorldControls
-            activeAction={state.activeAction}
-            activeCardName={activeCard.name}
-            cameraHeading={cameraHeading}
-            movementMode={movementMode}
-            onInput={dispatch}
-            onMission={() => dispatch({ type: "mission" })}
-            onMovementModeChange={setMovementMode}
-            onPulse={activatePulse}
-            onRest={() => dispatch({ type: "rest" })}
-            onTrain={() => dispatch({ type: "train", at: new Date().toISOString() })}
-            pulse={visiblePulse}
-          />
+          <div className="wildz-preserved-controls" aria-hidden="true">
+            <WildsWorldControls
+              activeAction={state.activeAction}
+              activeCardName={activeCard.name}
+              cameraHeading={cameraHeading}
+              movementMode={movementMode}
+              onInput={dispatch}
+              onMission={() => dispatch({ type: "mission" })}
+              onMovementModeChange={setMovementMode}
+              onPulse={activatePulse}
+              onRest={() => dispatch({ type: "rest" })}
+              onTrain={() => dispatch({ type: "train", at: new Date().toISOString() })}
+              pulse={visiblePulse}
+            />
+          </div>
+          <div className="wildz-social-stack">
+            <WildzSocialDeck
+              action={visiblePulse}
+              movementMode={movementMode}
+              nearbyCards={state.inventory}
+              onAction={activatePulse}
+              onMission={() => dispatch({ type: "mission" })}
+              onOpenMap={() => setMapOpen(true)}
+              onOpenMarket={onOpenMarket}
+              onOpenRewards={() => setRequestedCommand("rewards")}
+              onOpenDeck={() => setRequestedCommand("deck")}
+              onOpenVault={() => setRequestedCommand("vault")}
+              onOpenProfile={onOpenProfile}
+              onMove={(direction) => dispatch({ type: "move", direction })}
+              onMovementModeChange={setMovementMode}
+              onRest={() => dispatch({ type: "rest" })}
+              onSelectCard={(assetId) => dispatch({ type: "select-asset", assetId })}
+              onTrain={() => dispatch({ type: "train", at: new Date().toISOString() })}
+            />
+            <WildsCommandDock items={commandItems} requestedKey={requestedCommand} onRequestHandled={() => setRequestedCommand(null)} />
+          </div>
         </div>
-
-        <WildsCommandDock items={commandItems} />
       </div>
       <WildsWorldMap
         currentPosition={state.player}

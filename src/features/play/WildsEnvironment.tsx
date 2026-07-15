@@ -37,7 +37,8 @@ function useInstances(
   items: Placement[],
   player: PlayState["player"],
   y: number,
-  shape: (item: Placement) => [number, number, number]
+  shape: (item: Placement) => [number, number, number],
+  clearRadius = 0
 ) {
   useLayoutEffect(() => {
     const matrix = new THREE.Matrix4();
@@ -45,13 +46,20 @@ function useInstances(
     const scale = new THREE.Vector3();
     items.forEach((item, index) => {
       const shaped = shape(item);
-      scale.set(shaped[0], shaped[1], shaped[2]);
+      const relativeX = item.x - player.x;
+      const relativeZ = item.z - player.z;
+      const insidePlayablePocket = Math.hypot(relativeX, relativeZ) < clearRadius;
+      scale.set(
+        insidePlayablePocket ? 0 : shaped[0],
+        insidePlayablePocket ? 0 : shaped[1],
+        insidePlayablePocket ? 0 : shaped[2]
+      );
       quaternion.setFromEuler(new THREE.Euler(0, seededUnit(index, item.variant + 17) * Math.PI * 2, 0));
-      matrix.compose(new THREE.Vector3(item.x - player.x, y, item.z - player.z), quaternion, scale);
+      matrix.compose(new THREE.Vector3(relativeX, y, relativeZ), quaternion, scale);
       mesh.current?.setMatrixAt(index, matrix);
     });
     if (mesh.current) mesh.current.instanceMatrix.needsUpdate = true;
-  }, [items, mesh, player.x, player.z, shape, y]);
+  }, [clearRadius, items, mesh, player.x, player.z, shape, y]);
 }
 
 export function WildsEnvironment({
@@ -110,7 +118,11 @@ function FlagshipLandmarkEntrances({ player }: { player: PlayState["player"] }) 
   return <group name="world-flagship-landmarks">
     {entrances.map(({ landmark, relative, distance }) => (
       <group key={landmark.id} name={`world-entrance-${landmark.id}`} position={[relative.x, 0, relative.z]}>
-        {landmark.id === "hearttree-sanctum" ? <HearttreeSanctum /> : null}
+        {landmark.id === "hearttree-sanctum" ? (
+          <group position={distance < landmark.radius + 2 ? [2.6, 0, -2.4] : [0, 0, 0]} scale={distance < landmark.radius + 2 ? 0.44 : 1}>
+            <HearttreeSanctum />
+          </group>
+        ) : null}
         {landmark.id === "arena-of-echoes" ? <ArenaOfEchoes /> : null}
         {landmark.id === "prism-arcade" ? <PrismArcade /> : null}
         <LandmarkEntranceBeacon distance={distance} landmark={landmark} />
@@ -216,11 +228,11 @@ function EcologyInstances({
   const shrubScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.56, item.scale * 0.38, item.scale * 0.52], []);
   const rockScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.32, item.scale * 0.21, item.scale * 0.38], []);
   const flowerScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.09, item.scale * 0.22, item.scale * 0.09], []);
-  useInstances(trunks, trees, player, 0.64, treeScale);
-  useInstances(lowerCrowns, trees, player, 1.65, crownScale);
-  useInstances(upperCrowns, trees, player, 2.16, crownScale);
-  useInstances(shrubMesh, bushes, player, 0.23, shrubScale);
-  useInstances(rockMesh, rocks, player, 0.13, rockScale);
+  useInstances(trunks, trees, player, 0.64, treeScale, 7.2);
+  useInstances(lowerCrowns, trees, player, 1.65, crownScale, 7.2);
+  useInstances(upperCrowns, trees, player, 2.16, crownScale, 7.2);
+  useInstances(shrubMesh, bushes, player, 0.23, shrubScale, 1.45);
+  useInstances(rockMesh, rocks, player, 0.13, rockScale, 1.2);
   useInstances(flowerMesh, flowers, player, 0.15, flowerScale);
 
   return (

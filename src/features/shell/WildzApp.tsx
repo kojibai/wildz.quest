@@ -72,6 +72,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           campaignName="Wildz"
           enabled
           ownerReceizId={identity.identity.username}
+          playerDisplayName={identity.identity.displayName}
+          onOpenProfile={() => setOverlay({ kind: "profile", username: `@${identity.identity.username}` })}
+          onOpenMarket={() => setOverlay({ kind: "market" })}
           restoredAssets={restoredAssets}
           onListAsset={async (asset, priceCents) => {
             const idempotencyKey = `list:${identity.identity.username}:${asset.id}:${asset.proof.digest}`;

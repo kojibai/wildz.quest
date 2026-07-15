@@ -13,12 +13,23 @@ export type WildsCommandItem = {
   content: ReactNode;
 };
 
-export function WildsCommandDock({ items }: { items: readonly WildsCommandItem[] }) {
+export function WildsCommandDock({ items, requestedKey = null, onRequestHandled = () => {} }: {
+  items: readonly WildsCommandItem[];
+  requestedKey?: WildsCommandKey | null;
+  onRequestHandled?: () => void;
+}) {
   const [activeKey, setActiveKey] = useState<WildsCommandKey | null>(null);
   const [dragY, setDragY] = useState(0);
   const triggerRefs = useRef<Partial<Record<WildsCommandKey, HTMLButtonElement | null>>>({});
   const dragStart = useRef<number | null>(null);
   const activeItem = items.find((item) => item.key === activeKey) ?? null;
+
+  useEffect(() => {
+    if (!requestedKey) return;
+    setActiveKey(requestedKey);
+    setDragY(0);
+    onRequestHandled();
+  }, [onRequestHandled, requestedKey]);
 
   const close = useCallback(() => {
     const trigger = activeKey ? triggerRefs.current[activeKey] : null;

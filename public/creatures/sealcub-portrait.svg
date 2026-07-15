@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-labelledby="title desc">
+  <title id="title">Sealcub</title><desc id="desc">A mint green forest seal companion with leaf ears.</desc>
+  <defs>
+    <radialGradient id="bg" cx="44%" cy="32%" r="76%"><stop stop-color="#d9f6b8"/><stop offset=".48" stop-color="#77c890"/><stop offset="1" stop-color="#224e43"/></radialGradient>
+    <linearGradient id="body" x1=".2" y1="0" x2=".8" y2="1"><stop stop-color="#c5f6d1"/><stop offset=".55" stop-color="#75d5ad"/><stop offset="1" stop-color="#45a88d"/></linearGradient>
+    <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#d7f66c"/><stop offset="1" stop-color="#58ad52"/></linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%"><feDropShadow dx="0" dy="9" stdDeviation="8" flood-color="#15382f" flood-opacity=".42"/></filter>
+  </defs>
+  <rect width="240" height="240" rx="48" fill="url(#bg)"/><circle cx="37" cy="48" r="28" fill="#efffd0" opacity=".15"/><circle cx="198" cy="76" r="46" fill="#163e37" opacity=".12"/><ellipse cx="120" cy="204" rx="73" ry="18" fill="#183c35" opacity=".3"/>
+  <g filter="url(#shadow)">
+    <path d="M78 89C56 67 58 43 65 25c21 13 36 31 42 54" fill="url(#leaf)" stroke="#397c50" stroke-width="4" stroke-linejoin="round"/><path d="M160 88c24-20 25-45 20-64-22 12-38 29-46 52" fill="url(#leaf)" stroke="#397c50" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M69 127c0-45 21-73 52-73 33 0 55 29 55 74 0 52-22 78-56 78-31 0-51-27-51-79Z" fill="url(#body)" stroke="#397c72" stroke-width="4"/><path d="M79 151c-20 4-32 17-31 31 18 3 35-2 46-14" fill="#62c99f" stroke="#397c72" stroke-width="4" stroke-linecap="round"/><path d="M164 151c21 3 32 16 31 30-18 4-35-1-47-13" fill="#62c99f" stroke="#397c72" stroke-width="4" stroke-linecap="round"/>
+    <ellipse cx="120" cy="152" rx="37" ry="38" fill="#d9f6d4" opacity=".9"/><ellipse cx="95" cy="114" rx="10" ry="14" fill="#183b39"/><ellipse cx="148" cy="114" rx="10" ry="14" fill="#183b39"/><circle cx="92" cy="109" r="3.5" fill="#fff"/><circle cx="145" cy="109" r="3.5" fill="#fff"/>
+    <path d="M112 136c5-6 13-6 18 0-2 8-6 11-9 11-4 0-7-4-9-11Z" fill="#28544f"/><path d="M121 147c-1 8-8 11-15 8m15-8c1 8 8 11 15 8" fill="none" stroke="#397c72" stroke-width="3.5" stroke-linecap="round"/><path d="M91 132 61 126m31 14-34 2m92-10 29-7m-28 15 32 1" fill="none" stroke="#d8f4d1" stroke-width="3" stroke-linecap="round" opacity=".9"/>
+  </g>
+  <path d="M204 28c-7 14-18 21-33 22 8-13 19-20 33-22Z" fill="#d9f365"/><path d="M189 40c8-9 14-12 20-15" stroke="#fff9b0" stroke-width="2" stroke-linecap="round"/>
+</svg>

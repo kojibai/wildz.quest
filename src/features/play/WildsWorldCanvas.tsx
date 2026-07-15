@@ -6,6 +6,7 @@ import { Html, OrbitControls, Sparkles } from "@react-three/drei";
 import * as THREE from "three";
 import {
   creatureCards,
+  selectedCard,
   type CreatureCard,
   type PlayState
 } from "@/features/play/game-state";
@@ -44,7 +45,7 @@ export function WildsWorldCanvas({
   return (
     <div className={`wilds-canvas-wrap${searchEnabled ? " search-armed" : ""}`}>
       <Canvas
-        camera={{ fov: 42, near: 0.1, far: 80, position: [4.6, 5.8, 7.2] }}
+        camera={{ fov: 40, near: 0.1, far: 80, position: [5.8, 8.2, 9.4] }}
         dpr={qualityProfile.dpr}
         gl={{ antialias: true, powerPreference: "high-performance" }}
         onCreated={({ gl, size }) => {
@@ -101,8 +102,27 @@ function WildsScene({
       <EncounterSequence state={state} />
       {remotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} />)}
       <WildsExplorer style={avatarStyle} worldPosition={state.player} />
+      <ActiveCompanion state={state} />
       <Sparkles count={Math.round(54 * qualityProfile.particles)} scale={[8, 2.4, 8]} size={2.1} speed={0.22} color="#fff5b6" />
     </>
+  );
+}
+
+function ActiveCompanion({ state }: { state: PlayState }) {
+  const card = selectedCard(state);
+  const asset = state.inventory.find((candidate) => candidate.id === state.selectedAssetId);
+  const formId = asset?.manifest.formId ?? `${card.id}-1`;
+  return (
+    <group name="active-companion-sealcub" position={[-1.08, 0.44, 0.42]} scale={0.82}>
+      <WildsCreatureActor accent={card.accent} familyId={card.id} formId={formId} pose="curious" primary={card.color} />
+      <mesh position={[0, -0.37, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.46, 0.035, 8, 36]} />
+        <meshStandardMaterial color="#f4fff6" emissive="#7cdea5" emissiveIntensity={0.55} transparent opacity={0.92} />
+      </mesh>
+      <Html center className="wilds-world-label" distanceFactor={8} position={[0, 0.96, 0]}>
+        <span>{card.name}</span>
+      </Html>
+    </group>
   );
 }
 
@@ -162,7 +182,7 @@ function CameraRig({ onCameraHeadingChange }: { onCameraHeadingChange: (heading:
       minDistance={4.8}
       minPolarAngle={.38}
       rotateSpeed={.62}
-      target={[0, .55, 0]}
+      target={[0, .35, -.65]}
       touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE }}
       zoomSpeed={.82}
     />
