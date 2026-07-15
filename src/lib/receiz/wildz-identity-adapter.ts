@@ -95,15 +95,16 @@ export async function downloadWildzIdentitySeal(
     return new Blob([payload.buffer], { type: "image/png" });
   });
   const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `${username}.receiz-identity-seal.png`;
-  anchor.rel = "noopener";
-  document.body.append(anchor);
+  let anchor: HTMLAnchorElement | null = null;
   try {
+    anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${username}.receiz-identity-seal.png`;
+    anchor.rel = "noopener";
+    document.body.append(anchor);
     anchor.click();
   } finally {
-    anchor.remove();
+    anchor?.remove();
     URL.revokeObjectURL(url);
   }
 }

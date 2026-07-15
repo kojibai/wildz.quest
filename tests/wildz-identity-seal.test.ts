@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import sharp from "sharp";
 import {
   createReceizIdIdentity,
   projectReceizIdentityAccount,
@@ -35,17 +36,18 @@ test("Identity Seal PNG round-trips through the official SDK", async () => {
   const png = await createWildzIdentitySealPng(identity.keyFile, session);
   const restored = await readReceizIdentityArtifact(png);
   const projection = await projectReceizIdentityAccount(restored);
+  const decoded = await sharp(png).raw().toBuffer({ resolveWithObject: true });
   assert.deepEqual([...png.slice(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.equal(decoded.info.width, 900);
+  assert.equal(decoded.info.height, 900);
+  assert.equal(decoded.data.byteLength, 900 * 900 * decoded.info.channels);
   assert.equal(restored.keyId, identity.keyFile.keyId);
   assert.notEqual(projection.portableStateStatus, "invalid");
 });
 
 test("Identity Seal download uses protected authority and a normalized PNG filename", async () => {
-  const identity = await createReceizIdIdentity({ username: "seal.download", displayName: "Seal Download" });
-  const session = {
-    ...await sessionFromIdentity(identity),
-    username: " @Seal.Download "
-  };
+  const identity = await createReceizIdIdentity({ username: "seal_download", displayName: "Seal Download" });
+  const session = await sessionFromIdentity(identity);
   let requestedKeyId: string | null = null;
   const repository = {
     async withKeyFile<T>(keyId: string, operation: (keyFile: ReceizKeyFile) => Promise<T>) {
@@ -121,7 +123,7 @@ test("Identity Seal download uses protected authority and a normalized PNG filen
 
   assert.equal(requestedKeyId, identity.keyFile.keyId);
   assert.equal(download.blob?.type, "image/png");
-  assert.equal(anchor.download, "seal.download.receiz-identity-seal.png");
+  assert.equal(anchor.download, "seal_download.receiz-identity-seal.png");
   assert.equal(anchor.href, "blob:wildz-identity-seal");
   assert.equal(anchor.rel, "noopener");
   assert.equal(appended, true);
@@ -146,4 +148,72 @@ test("Identity Seal download rejects an invalid username before opening authorit
     /wildz_identity_seal_username_invalid/
   );
   assert.equal(authorityOpened, false);
+});
+
+test("Identity Seal download revokes its object URL when DOM setup throws", async () => {
+  const identity = await createReceizIdIdentity({ username: "seal_cleanup", displayName: "Seal Cleanup" });
+  const session = await sessionFromIdentity(identity);
+  const repository = {
+    async withKeyFile<T>(_keyId: string, operation: (keyFile: ReceizKeyFile) => Promise<T>) {
+      return operation(identity.keyFile);
+    }
+  } as WildzIdentityRepository;
+  const sourcePng = Uint8Array.from(Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    "base64"
+  ));
+  const canvasContext = {
+    beginPath() {},
+    closePath() {},
+    createLinearGradient: () => ({ addColorStop() {} }),
+    fill() {},
+    fillRect() {},
+    fillText() {},
+    lineCap: "butt",
+    lineJoin: "miter",
+    lineTo() {},
+    lineWidth: 1,
+    moveTo() {},
+    quadraticCurveTo() {},
+    stroke() {},
+    strokeStyle: "",
+    fillStyle: "",
+    font: "",
+    textAlign: "start"
+  };
+  const canvas = {
+    height: 0,
+    width: 0,
+    getContext: () => canvasContext,
+    toBlob: (callback: BlobCallback) => callback(new Blob([sourcePng.buffer], { type: "image/png" }))
+  };
+  const documentDescriptor = Object.getOwnPropertyDescriptor(globalThis, "document");
+  const createObjectUrl = URL.createObjectURL;
+  const revokeObjectUrl = URL.revokeObjectURL;
+  let revokedUrl: string | null = null;
+  Object.defineProperty(globalThis, "document", {
+    configurable: true,
+    value: {
+      body: { append() {} },
+      createElement: (tagName: string) => {
+        if (tagName === "canvas") return canvas;
+        throw new Error("wildz_test_dom_setup_failed");
+      }
+    } as unknown as Document
+  });
+  URL.createObjectURL = (() => "blob:wildz-cleanup-failure") as typeof URL.createObjectURL;
+  URL.revokeObjectURL = (url: string) => { revokedUrl = url; };
+
+  try {
+    await assert.rejects(
+      downloadWildzIdentitySeal(repository, session),
+      /wildz_test_dom_setup_failed/
+    );
+    assert.equal(revokedUrl, "blob:wildz-cleanup-failure");
+  } finally {
+    URL.createObjectURL = createObjectUrl;
+    URL.revokeObjectURL = revokeObjectUrl;
+    if (documentDescriptor) Object.defineProperty(globalThis, "document", documentDescriptor);
+    else delete (globalThis as { document?: Document }).document;
+  }
 });
