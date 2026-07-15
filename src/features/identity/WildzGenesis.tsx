@@ -3,6 +3,7 @@
 import type { StoredWildzIdentity } from "@/features/identity/wildz-identity";
 import { generateWildzCharacter, type WildzCharacterGenesis, type WildzGender } from "@/features/identity/wildz-genesis";
 import type { PortableCardAsset } from "@/features/play/portable-card";
+import { friendlyWildzRestoreError } from "@/features/identity/wildz-restore";
 import { inspectWildzRestore } from "@/lib/receiz/wildz-identity-adapter";
 import Image from "next/image";
 import { useState } from "react";
@@ -21,6 +22,7 @@ export function WildzGenesis({
   const [gender, setGender] = useState<WildzGender | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState("");
+  const [identityRestored, setIdentityRestored] = useState(false);
 
   const create = (selected: WildzGender) => {
     setGender(selected);
@@ -40,12 +42,13 @@ export function WildzGenesis({
       const result = await inspectWildzRestore(file);
       if (result.identity) {
         onRestoreIdentity({ version: 1, savedAt: new Date().toISOString(), identity: result.identity });
+        setIdentityRestored(true);
       } else {
         onRestoreVault([...result.assets]);
         setError(`${result.summary.cardCount} verified cards restored. Choose your explorer to enter the world.`);
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "This file is not a valid Wildz restore artifact.");
+      setError(friendlyWildzRestoreError(cause));
     } finally {
       setRestoring(false);
     }
@@ -72,6 +75,11 @@ export function WildzGenesis({
           }} />
         </label>
       </div>
+      {identityRestored ? <div className="wildz-identity-restored" role="status">
+        <span>Restored Receiz ID</span>
+        <strong>@{identity.identity.username}</strong>
+        <small>{identity.identity.displayName}</small>
+      </div> : null}
       {gender ? <div className="wildz-pulse-reveal"><i /><span>Kai Pulse is shaping your explorer</span></div> : null}
       {error ? <p className="wildz-genesis-error" role="status">{error}</p> : null}
     </section>

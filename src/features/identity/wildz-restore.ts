@@ -30,3 +30,13 @@ export function restoreSummary(candidate: WildzRestoreCandidate) {
     cardCount: candidate.cardCount
   } as const;
 }
+
+export function friendlyWildzRestoreError(cause: unknown) {
+  const code = cause instanceof Error ? cause.message : "wildz_restore_invalid";
+  if (code === "receiz_key_identity_record_missing") {
+    return "This image is identity artwork, not account authority. Download your owner-only Identity Record or Receiz Key from Receiz and choose that file.";
+  }
+  if (code === "receiz_key_file_too_large") return "This Receiz identity artifact is too large.";
+  if (code === "receiz_key_invalid") return "This file is not a valid Receiz Identity Record or Receiz Key.";
+  return code;
+}

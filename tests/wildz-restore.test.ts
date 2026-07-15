@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { restoreSummary } from "../src/features/identity/wildz-restore";
+import { friendlyWildzRestoreError, restoreSummary } from "../src/features/identity/wildz-restore";
 
 test("Identity Seal restoration restores authority without exposing the Seal", () => {
   const summary = restoreSummary({
@@ -19,4 +19,11 @@ test("Vault restoration restores game assets but never identity authority", () =
   assert.equal(summary.authorityRestored, false);
   assert.equal(summary.cardCount, 7);
   assert.equal(summary.requiresOwnershipReconciliation, true);
+});
+
+test("profile artwork without embedded authority names the required portable artifact", () => {
+  assert.match(
+    friendlyWildzRestoreError(new Error("receiz_key_identity_record_missing")),
+    /owner-only Identity Record or Receiz Key/i
+  );
 });

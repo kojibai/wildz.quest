@@ -25,6 +25,12 @@ test("Wildz creates identity before character genesis and enters play with that 
   assert.match(source, /WILDZ_CHARACTER_STORAGE_KEY/);
 });
 
+test("genesis visibly confirms the admitted Receiz identity before explorer creation", () => {
+  const source = read("src/features/identity/WildzGenesis.tsx");
+  assert.match(source, /Restored Receiz ID/);
+  assert.match(source, /identity\.identity\.username/);
+});
+
 test("global shell is edge-to-edge and safe-area aware", () => {
   const styles = read("app/globals.css");
   assert.match(styles, /\.wildz-app-shell\s*\{[\s\S]*?height:\s*100dvh/);
