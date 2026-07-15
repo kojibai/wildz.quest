@@ -2,22 +2,24 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Establish secure automatic Receiz identity, source-compatible Identity Seal PNG login/export, content-aware legacy artifact inspection, and authenticated Receiz sessions before V3 player continuity is introduced.
+**Goal:** Establish secure automatic Receiz identity, source-compatible Identity Seal PNG login/export, complete cross-platform Receiz/Wildz artifact inspection, and authenticated Receiz sessions before V3 player continuity is introduced.
 
-**Architecture:** Store private identity authority behind a protected IndexedDB repository and expose only a public `WildzIdentitySession` to React. The artifact codec reads bytes once and delegates proof decisions to the installed Receiz SDK and existing card/Vault verifiers. Source-compatible PKCE/OIDC routes establish remote cookie authority without confusing operator tokens with a signed-in player.
+**Architecture:** Store private identity authority behind a protected IndexedDB repository and expose only a public `WildzIdentitySession` to React. The artifact codec reads bytes once and delegates proof decisions to the installed Receiz SDK, Wildz card/Vault verifiers, and verified Receiz package restoration so source application names never determine compatibility. Source-compatible PKCE/OIDC routes establish remote cookie authority without confusing operator tokens with a signed-in player.
 
 **Tech Stack:** TypeScript 5.6, Web Crypto, IndexedDB, `@receiz/sdk` 100.0.0, Next.js 15 route handlers, React 19, Node test runner.
 
 ## Global Constraints
 
-- Execute after the production program freezes and commits the accepted current UI baseline.
+- Execute after the production program verifies accepted checkpoint `d1ac904`.
 - Work on `main`, commit each task, and do not push.
 - Use `@receiz/sdk` for identity creation, artifact parsing, account projection, login proof, and Identity Seal trailer operations.
 - Plaintext key files and raw private key material are forbidden in `localStorage`, logs, analytics, errors, public projections, prompts, screenshots, and MCP output.
 - A delegated server token is operator authority and must never appear as a signed-in player session.
 - Normalize one actor ID everywhere: normalized username without leading `@`, with normalized owner UID only as fallback.
 - Preserve the Safari-safe bound browser fetch implementation.
-- This plan handles Identity Seals and current legacy card/Vault formats. The kernel-continuity plan extends the same codec with V3 player payload and combined identity binding after V3 modules exist.
+- Admit every unique card that passes a Wildz proof verifier whether the containing artifact came from Wildz, Receiz Commerce, receiz.app, Signal, sealed-card, or another SDK-compatible writer; never promote display-only or unrelated portable data into inventory.
+- Treat cross-platform imports atomically: identical duplicate IDs deduplicate once, conflicting duplicate IDs invalidate the import, and no source-order/card-count cap may drop a unique verified card.
+- This plan handles Identity Seals and cross-platform legacy card/Vault formats. The kernel-continuity plan extends the same codec with V3 player payload and combined identity binding after V3 modules exist.
 
 ---
 
@@ -27,6 +29,7 @@
 - `src/lib/receiz/wildz-identity-repository.ts` — encrypted identity persistence and active-session projection.
 - `src/lib/receiz/wildz-identity-seal.ts` — source-compatible 900 by 900 Seal PNG renderer/trailer.
 - `src/lib/receiz/wildz-artifact-codec.ts` — content-aware SDK/card/Vault inspection without mutation.
+- `src/lib/receiz/wildz-cross-platform-cards.ts` — bounded proof-based Wildz-card extraction across verified Receiz containers.
 - `src/lib/receiz/wildz-auth-url.ts` — safe same-origin return paths.
 - `src/lib/receiz/wildz-session-bridge.ts` — remote session state and local-identity continuation.
 - `src/features/identity/use-wildz-identity.ts` — React identity bootstrap/switch interface.
@@ -45,7 +48,7 @@
 
 **Interfaces:**
 - Consumes: `ReceizKeyFile`, `ReceizIdentityAccountProjection`, `createReceizIdIdentity`, and Web Crypto.
-- Produces: `canonicalWildzActorId`, `wildzOwnerScope`, `WildzIdentitySession`, `WildzContinuityDatabase`, and `WildzIdentityRepository`.
+- Produces: `WildzActorOwnerInput`, `canonicalWildzActorId`, `wildzOwnerScope`, `WildzIdentitySession`, `WildzContinuityDatabase`, and `WildzIdentityRepository`.
 
 - [ ] **Step 1: Write failing identity-repository tests**
 
@@ -112,6 +115,29 @@ export type WildzIdentitySession = {
   remoteStatus: "unknown" | "connected" | "pending" | "offline" | "unavailable";
 };
 
+export type PreparedWildzIdentity = {
+  session: WildzIdentitySession;
+  encryptedRecord: {
+    schema: "receiz.wildz.encrypted_identity.v1";
+    keyId: string;
+    ivB64Url: string;
+    ciphertextB64Url: string;
+  };
+};
+
+export type WildzOwnerScope = `wildz:${string}:${string}`;
+
+export type WildzActorOwnerInput = {
+  owner: {
+    username: string | null;
+    uid: string | null;
+  };
+};
+
+export function canonicalWildzActorId(input: WildzActorOwnerInput): string;
+
+export function wildzOwnerScope(keyId: string, actorId: string): WildzOwnerScope;
+
 export interface WildzIdentityRepository {
   bootstrap(legacyStorage?: Pick<Storage, "getItem" | "removeItem">): Promise<WildzIdentitySession>;
   active(): Promise<WildzIdentitySession | null>;
@@ -122,7 +148,7 @@ export interface WildzIdentityRepository {
 }
 ```
 
-Generate one non-extractable AES-GCM 256-bit wrapping key and store it by IndexedDB structured clone. Encrypt serialized key bytes before opening an IndexedDB write transaction; persist only IV plus ciphertext. Persist and verify a legacy migration marker before deleting the old localStorage record. `canonicalWildzActorId` trims, removes leading `@`, lowercases, validates the username, and uses the same normalized UID fallback for a projection or key file. `wildzOwnerScope(keyId, actorId)` returns `wildz:${encodeURIComponent(keyId)}:${encodeURIComponent(actorId)}`.
+Generate one non-extractable AES-GCM 256-bit wrapping key and store it by IndexedDB structured clone. Encrypt serialized key bytes before opening an IndexedDB write transaction; persist only IV plus ciphertext. Persist and verify a legacy migration marker before deleting the old localStorage record. `canonicalWildzActorId` accepts the minimal owner-shaped `WildzActorOwnerInput`; complete SDK projections and key files conform structurally, as do server projections that carry only username/UID. It trims, removes leading `@`, lowercases, validates the username, and uses the same normalized UID fallback. `wildzOwnerScope(keyId, actorId)` returns `` `wildz:${encodeURIComponent(keyId)}:${encodeURIComponent(actorId)}` `` as `WildzOwnerScope`.
 
 - [ ] **Step 4: Run focused and existing identity tests**
 
@@ -193,7 +219,7 @@ export async function createWildzIdentitySealPng(keyFile: ReceizKeyFile, session
 }
 ```
 
-Port the upstream 900 by 900 visible Identity Seal renderer without commerce copy. Replace the current JSON download with a repository `withKeyFile` call, download MIME `image/png`, and filename `<username>.receiz-identity-seal.png`. The public renderer receives only the session projection.
+Port the upstream 900 by 900 visible Identity Seal renderer without commerce copy. Replace the current JSON download with a repository `withKeyFile` call, download MIME `image/png`, and generate the filename as `${normalizedUsername}.receiz-identity-seal.png` after validating the normalized username. The public renderer receives only the session projection.
 
 - [ ] **Step 4: Run Seal and restore tests**
 
@@ -231,8 +257,8 @@ git commit -m "feat: export source-compatible Wildz identity seals"
 - Create: `tests/wildz-auth-session.test.ts`
 
 **Interfaces:**
-- Consumes: current OAuth state helpers, Receiz authorization/token APIs, and cookie session parsing.
-- Produces: `normalizeWildzReturnTo`, `WILDZ_RECEIZ_SESSION_SCOPE`, four source-compatible routes, and `WildzRemoteSessionBridge`.
+- Consumes: current OAuth state helpers, Receiz authorization/token APIs, cookie session parsing, and the protected identity repository.
+- Produces: `normalizeWildzReturnTo`, `WILDZ_RECEIZ_SESSION_SCOPE`, `WildzRemoteSession`, four source-compatible routes, and `WildzRemoteSessionBridge`.
 
 - [ ] **Step 1: Write failing return-path, cookie, and session tests**
 
@@ -260,6 +286,26 @@ Expected: compile fails for `wildz-auth-url` and route source assertions fail be
 
 ```ts
 export const WILDZ_RECEIZ_SESSION_SCOPE = "wildz.quest:v1";
+
+export type WildzRemoteSession =
+  | {
+      status: "connected";
+      actorId: string;
+      profileHandle: string;
+      displayName: string | null;
+    }
+  | {
+      status: "unknown" | "pending" | "offline" | "unavailable";
+      actorId: null;
+      profileHandle: null;
+      displayName: null;
+    };
+
+export interface WildzRemoteSessionBridge {
+  current(): Promise<WildzRemoteSession>;
+  continueLocalIdentity(session: WildzIdentitySession): Promise<WildzRemoteSession>;
+  disconnect(): Promise<WildzRemoteSession>;
+}
 
 export function normalizeWildzReturnTo(value: string | null) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) return "/";
@@ -290,43 +336,68 @@ Expected: all PKCE, ticket, cookie, scope, and no-token projection tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/receiz/wildz-auth-url.ts src/lib/receiz/wildz-session-bridge.ts src/lib/receiz/oauth-scopes.ts src/lib/receiz/session.ts app/api/auth/receiz tests/wildz-auth-session.test.ts
+git add src/lib/receiz/wildz-auth-url.ts src/lib/receiz/wildz-session-bridge.ts src/lib/receiz/oauth-scopes.ts src/lib/receiz/session.ts app/api/auth/receiz/start/route.ts app/api/auth/receiz/callback/route.ts app/api/auth/receiz/complete/route.ts app/api/auth/receiz/me/route.ts tests/wildz-auth-session.test.ts
 git commit -m "feat: restore authenticated Receiz session routes"
 ```
 
 ---
 
-### Task 4: Classify Identity Seals and Legacy Vaults by Verified Content
+### Task 4: Classify Identity Seals and Cross-Platform Vaults by Verified Content
 
 **Files:**
 - Create: `src/lib/receiz/wildz-png-envelope.ts`
 - Create: `src/lib/receiz/wildz-artifact-codec.ts`
+- Create: `src/lib/receiz/wildz-cross-platform-cards.ts`
 - Modify: `src/lib/receiz/wildz-identity-adapter.ts`
 - Modify: `src/lib/receiz/receiz-commerce-vault.ts`
+- Modify: `src/lib/receiz/receiz-vault-package.ts`
 - Modify: `src/features/identity/wildz-restore.ts`
+- Create: `tests/support/receiz-cross-platform-fixtures.ts`
 - Create: `tests/wildz-artifact-codec.test.ts`
+- Create: `tests/wildz-cross-platform-continuity.test.ts`
 
 **Interfaces:**
-- Consumes: full upload bytes, SDK identity reader/projector, V1/V2 card/Vault verification, and Commerce Vault inspection.
-- Produces: base `WildzArtifactInspection`, `splitWildzPngEnvelope`, and `inspectWildzArtifact` for the pre-V3 formats.
+- Consumes: full upload bytes, SDK identity reader/projector, V1/V2 card/Vault verification, verified Commerce Vault package restoration, and bounded verified portable-state traversal.
+- Produces: base `WildzArtifactInspection`, `splitWildzPngEnvelope`, and one cross-platform extractor that admits every verified Wildz-domain card regardless of which Receiz application wrote the container.
 
 - [ ] **Step 1: Write failing content-classification tests**
 
 ```ts
 test("action labels do not override artifact bytes", async () => {
   const seal = await generatedIdentitySealFixture();
-  const inspected = await inspectWildzArtifact({ bytes: seal, mimeType: "image/png", name: "called-a-vault.png" });
+  const inspected = await artifactCodec.inspect({ bytes: seal, mimeType: "image/png", name: "called-a-vault.png" });
   assert.equal(inspected.kind, "identity-seal");
 });
 
 test("legacy card Vault does not claim identity authority", async () => {
-  const inspected = await inspectWildzArtifact({ bytes: legacyV2VaultFixture(), mimeType: "image/png" });
+  const inspected = await artifactCodec.inspect({ bytes: legacyV2VaultFixture(), mimeType: "image/png" });
   assert.equal(inspected.kind, "card-vault");
   assert.equal("identity" in inspected, false);
 });
 ```
 
-Implement `generatedIdentitySealFixture` with Task 2's exporter and `legacyV2VaultFixture` with the current `embedPortableVaultInPng`. Add invalid portable-state, PNG signature, 64 MiB maximum, card tamper, unsupported binary, and Commerce display-projection isolation cases.
+In this test file, construct `artifactCodec` with `createWildzArtifactCodec({ identityRepository, commerceVaultReader })`; implement `generatedIdentitySealFixture` with Task 2's exporter and `legacyV2VaultFixture` with the current `embedPortableVaultInPng`. Add invalid portable-state, PNG signature, 64 MiB maximum, card tamper, unsupported binary, and Commerce display-projection isolation cases.
+
+Create `tests/support/receiz-cross-platform-fixtures.ts` with this exact public test interface:
+
+```ts
+export type ReceizCrossPlatformArtifactFixture = {
+  source: "receiz-commerce" | "receiz-app" | "receiz-signal" | "receiz-sealed-card" | "wildz-original" | "sdk-compatible";
+  bytes: Uint8Array;
+  mimeType: string;
+  filename: string;
+  embeddedUsername: string | null;
+  expectedWildzAssetIds: readonly string[];
+};
+
+export async function createReceizCrossPlatformArtifactFixtures(
+  assets: readonly PortableCardAsset[]
+): Promise<readonly ReceizCrossPlatformArtifactFixture[]>;
+```
+
+Generate all six source-writer fixtures in memory with the installed SDK identity writer, the current V1/V2 card/Vault encoders, and a test-only self-contained Receiz Vault package writer that follows the already-vendored root/shard format. Include at least six distinct verified cards, one byte-identical duplicate, and one verified non-Wildz portable object. No reusable identity fixture or private artifact is committed.
+
+In `wildz-cross-platform-continuity.test.ts`, iterate every fixture and assert the exact sorted unique card-ID set. Assert an embedded username wins over a previously active different username. Assert the non-Wildz object remains outside game inventory. Mutate one archive chunk, portable-state signature, card proof, and duplicate-ID card body and require a closed failure with zero staged cards.
 
 - [ ] **Step 2: Run tests and verify the codec is missing**
 
@@ -336,18 +407,81 @@ Expected: compile fails for `wildz-artifact-codec`.
 
 ```ts
 export type WildzArtifactInspection =
-  | { kind: "identity-seal"; identity: VerifiedWildzIdentity }
+  | { kind: "identity-seal"; identity: VerifiedWildzIdentity; portableAssets: PortableCardAsset[]; portableDomainSchemas: string[] }
   | { kind: "card-vault"; assets: PortableCardAsset[]; vaultDigest: string }
-  | { kind: "commerce-vault"; identity: VerifiedWildzIdentity | null; projection: ReceizCommerceVaultProjection }
+  | { kind: "commerce-vault"; identity: VerifiedWildzIdentity | null; assets: PortableCardAsset[]; sourceSchemas: string[]; unrelatedDomainSchemas: string[]; projection: ReceizCommerceVaultProjection }
   | { kind: "unsupported"; code: "wildz_artifact_unsupported" }
   | { kind: "invalid"; code: WildzRestoreErrorCode; errors: string[] };
 
+export type WildzRestoreErrorCode =
+  | "wildz_restore_identity_missing"
+  | "wildz_restore_identity_invalid"
+  | "wildz_restore_artifact_too_large"
+  | "wildz_restore_portable_signature_invalid"
+  | "wildz_restore_card_proof_invalid"
+  | "wildz_restore_duplicate_card_conflict"
+  | "wildz_restore_player_digest_invalid"
+  | "wildz_restore_binding_invalid"
+  | "wildz_restore_owner_mismatch"
+  | "wildz_restore_schema_unsupported"
+  | "wildz_restore_storage_failed"
+  | "wildz_restore_remote_session_unavailable"
+  | "wildz_restore_cursor_stale"
+  | "wildz_restore_sync_pending";
+
+export type VerifiedWildzIdentity = {
+  session: WildzIdentitySession;
+  prepared: PreparedWildzIdentity;
+};
+
+export interface WildzArtifactCodec {
+  inspect(input: { bytes: Uint8Array; mimeType: string; name?: string }): Promise<WildzArtifactInspection>;
+}
+
+export type RestoredReceizVaultFile = {
+  fileId: string;
+  path: string;
+  name: string;
+  mimeType: string;
+  bytes: Uint8Array;
+};
+
+export type WildzCrossPlatformCardExtraction = {
+  assets: PortableCardAsset[];
+  sourceSchemas: string[];
+  unrelatedDomainSchemas: string[];
+};
+
+export function extractVerifiedWildzCards(input: {
+  pngBasis: Uint8Array | null;
+  verifiedPortableSnapshot: unknown | null;
+  restoredVaultFiles: readonly RestoredReceizVaultFile[];
+}): WildzCrossPlatformCardExtraction;
+
 export function splitWildzPngEnvelope(bytes: Uint8Array): { pngBasis: Uint8Array; trailer: Uint8Array };
 
-export async function inspectWildzArtifact(input: { bytes: Uint8Array; mimeType: string; name?: string }): Promise<WildzArtifactInspection>;
+export type ReceizCommerceVaultInspection = {
+  projection: ReceizCommerceVaultProjection;
+  restoredFiles: RestoredReceizVaultFile[];
+};
+
+export interface ReceizCommerceVaultReader {
+  inspect(input: { bytes: Uint8Array; mimeType: string; name?: string }): Promise<ReceizCommerceVaultInspection | null>;
+}
+
+export function createWildzArtifactCodec(input: {
+  identityRepository: Pick<WildzIdentityRepository, "prepare">;
+  commerceVaultReader: ReceizCommerceVaultReader;
+}): WildzArtifactCodec;
 ```
 
-Locate and validate the PNG `IEND` chunk. Pass full bytes to `readReceizIdentityArtifact`; pass `pngBasis` through and including `IEND` to current card/Vault readers because their parser rejects trailing SDK bytes. Treat a present portable state with status `invalid` as invalid. A Commerce projection can supply display/portable domains but supplies identity only when the SDK reader independently verifies an identity trailer.
+Locate and validate the PNG `IEND` chunk. Pass full bytes to `readReceizIdentityArtifact`; immediately pass a verified key file to `identityRepository.prepare`, release the raw reference, and return only the public session plus encrypted prepared record. Pass `pngBasis` through and including `IEND` to current card/Vault readers because their parser rejects trailing SDK bytes. Treat a present portable state with status `invalid` as invalid.
+
+Change the Commerce reader to consume the same byte buffer and return `{ projection, restoredFiles }`; it must never reread the `File`. Extend `receiz-vault-package.ts` with `restoreVerifiedReceizVaultPackage(bytes)`: validate the existing root, shard, chunk, Merkle, and Fibonacci proofs; sort chunks by index; require contiguous offsets and the declared file size/hash; then return bounded reconstructed file bytes. Display-only Commerce manifest rows remain projections and never become cards.
+
+Run identity, V1/V2/V3 card/Vault, SDK portable-state, and Commerce package readers independently against the same bytes; never use `try identity; else vault` and never return early merely because the SDK identity reader succeeded. This directly removes the current regression where an identity-bearing container returns `assets: []` before its card proof is examined.
+
+The cross-platform extractor checks the V1/V2/V3 PNG readers, verified SDK portable snapshot, and reconstructed PNG/JSON Vault files. Traverse at most 10,000 snapshot nodes, depth 12, 1,000 files, and 64 MiB total. An object enters inventory only when `verifyAnyWildsCard` succeeds. Deduplicate byte-identical canonical cards by asset ID; reject conflicting bodies or proofs with the same ID. Sort admitted assets by ID before returning so container order cannot hide or replace cards. Return that complete sorted set on every card-bearing inspection variant, including `commerce-vault`; never leave it only in a display projection. A Commerce projection supplies identity only when the SDK reader independently verifies its identity trailer.
 
 - [ ] **Step 4: Run artifact and restore tests**
 
@@ -355,18 +489,18 @@ Locate and validate the PNG `IEND` chunk. Pass full bytes to `readReceizIdentity
 node scripts/clean-test-build.mjs
 pnpm exec tsc -p tsconfig.test.json
 node scripts/patch-test-imports.mjs
-node --test .test-build/tests/wildz-artifact-codec.test.js .test-build/tests/wildz-restore.test.js
+node --test .test-build/tests/wildz-artifact-codec.test.js .test-build/tests/wildz-cross-platform-continuity.test.js .test-build/tests/wildz-restore.test.js
 pnpm typecheck
 pnpm lint
 ```
 
-Expected: classification and bounds pass; no filename or selected action determines authority.
+Expected: classification and bounds pass; every cross-platform fixture yields its exact verified Wildz card-ID set; embedded usernames activate; unrelated domains remain outside inventory; no filename or selected action determines authority.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/receiz/wildz-png-envelope.ts src/lib/receiz/wildz-artifact-codec.ts src/lib/receiz/wildz-identity-adapter.ts src/lib/receiz/receiz-commerce-vault.ts src/features/identity/wildz-restore.ts tests/wildz-artifact-codec.test.ts
-git commit -m "feat: classify Wildz artifacts from verified contents"
+git add src/lib/receiz/wildz-png-envelope.ts src/lib/receiz/wildz-artifact-codec.ts src/lib/receiz/wildz-cross-platform-cards.ts src/lib/receiz/wildz-identity-adapter.ts src/lib/receiz/receiz-commerce-vault.ts src/lib/receiz/receiz-vault-package.ts src/features/identity/wildz-restore.ts tests/support/receiz-cross-platform-fixtures.ts tests/wildz-artifact-codec.test.ts tests/wildz-cross-platform-continuity.test.ts
+git commit -m "feat: restore cross-platform Receiz continuity"
 ```
 
 ---
@@ -421,7 +555,7 @@ export type UseWildzIdentityResult = {
 };
 ```
 
-`activateSeal` calls `repository.prepare`, encrypts before opening the database transaction, writes the identity and active pointer together, then updates React. Failed verification or persistence leaves the prior session untouched. Genesis visibly shows the restored handle/display name before character selection. Legacy card Vault import remains a gameplay-card action and does not change identity. Keep remote connected/pending/offline status distinct from local verified authority.
+`inspect` reads `file.arrayBuffer()` exactly once and passes the bytes to the codec. `activateSeal` consumes `inspection.identity.prepared`, calls `repository.writePrepared` inside one identity/meta transaction, then updates React; it never reparses or re-encrypts through a second path. Failed verification or persistence leaves the prior session untouched. Genesis visibly shows the restored handle/display name before character selection. Preserve `inspection.portableAssets` for the continuity coordinator introduced in the next plan; do not convert unrelated portable domains into cards. Legacy card Vault import remains a gameplay-card action and does not change identity. Map every `WildzRestoreErrorCode` to the recovery text specified in the approved design without including raw artifact content. Keep remote connected/pending/offline status distinct from local verified authority.
 
 - [ ] **Step 4: Run the complete identity slice**
 
@@ -455,4 +589,4 @@ pnpm secret:scan
 git status --short
 ```
 
-Expected: every command exits 0; the worktree is clean; automatic identity, Identity Seal PNG round-trip, protected relaunch, PKCE/session routes, content-aware legacy inspection, and Safari-safe SDK fetch are covered. Combined identity-bearing V3 Vault continuity remains deliberately assigned to the next plan because its player payload does not exist until the V3 kernel lands.
+Expected: every command exits 0; the worktree is clean; automatic identity, Identity Seal PNG round-trip, protected relaunch, PKCE/session routes, complete cross-platform verified-card extraction, content-aware legacy inspection, and Safari-safe SDK fetch are covered. Combined identity-bearing V3 Vault continuity remains deliberately assigned to the next plan because its player payload does not exist until the V3 kernel lands.

@@ -1,7 +1,7 @@
 # Wildz V3 Production Continuity Design
 
 Date: 2026-07-15  
-Status: Design approved; written-spec review required before implementation planning  
+Status: Approved for implementation planning
 Product: Wildz  
 Canonical domain: `wildz.quest`  
 Selected approach: V3 kernel migration under the accepted standalone Wildz UI
@@ -121,6 +121,8 @@ The action label never overrides the bytes. Uploading a Vault through the Seal a
 
 Receiz Commerce, receiz.app, Signal, sealed-card, original Wildz, and future SDK-compatible images use the same classifier. When an artifact contains verified Receiz identity authority, that identity is used. Only verified Wildz/card domains enter gameplay inventory; unrelated portable domains remain attached to the identity projection and are never fabricated into game cards.
 
+Cross-platform import is complete and source-agnostic. The application that wrote or sealed the container never decides admissibility: every unique card object that passes a supported Wildz proof verifier is restored, including cards nested in a verified SDK portable snapshot or reconstructed verified Receiz Vault package. Byte-identical duplicate asset IDs deduplicate once; conflicting bodies or proofs under the same asset ID invalidate the staged import. No source-order limit, display-projection limit, rail limit, or UI pagination limit may drop a unique verified card.
+
 ### 5.2 Identity-bearing Vault format
 
 Upstream V3 stores identity authority and player continuity as separate proof layers. The standalone canonical Vault combines them while keeping both source validators usable.
@@ -162,8 +164,8 @@ If any verification, owner check, migration, storage transaction, or activation 
 
 ### 5.4 Exact import behavior
 
-- **Identity-bearing Vault:** activate the embedded identity, restore and reconcile the embedded V3 player continuity, then load that owner in the game.
-- **Identity Seal:** activate the embedded identity, then load its owner-scoped local state and recover compatible verified portable state. It never imports unrelated cards by inference.
+- **Identity-bearing Vault:** activate the embedded identity, restore and reconcile the embedded V3 player continuity, then load that owner in the game. The activated session username must equal the SDK-projected username embedded in the Vault, even when a different username was previously active; its complete sorted unique verified card-ID set must match the verifier-returned Vault set after cold restart.
+- **Identity Seal:** activate the embedded identity, then load its owner-scoped local state and recover compatible verified portable state, including every proof-valid Wildz card written by another Receiz application. It never imports unrelated cards by inference.
 - **V3 player Vault without identity:** accept only when its `playerId` matches the already active verified identity. Otherwise request the matching Identity Seal or identity-bearing Vault.
 - **Legacy V1/V2 card Vault:** merge verified cards into the active owner's inventory after explicit confirmation. It never changes identity.
 - **Invalid or tampered artifact:** show a specific human-readable reason and mutate nothing.
@@ -384,6 +386,8 @@ The adapted V3 suite includes all relevant tagged tests plus standalone-specific
 
 - SDK-generated Identity Seal PNG import and visible identity activation;
 - combined identity-bearing Vault export, cold import, login, V8 restoration, and owner coherence;
+- exact embedded-username activation and exact sorted unique card-ID restoration from identity-bearing Vaults after cold relaunch;
+- proof-valid Wildz card import from Receiz Commerce, receiz.app, Signal, sealed-card, original Wildz, and SDK-compatible portable-state/package containers, plus official-reader verification of Wildz exports;
 - passphrase-protected and unprotected SDK identities;
 - binding, player payload, card, image, and owner tampering;
 - foreign-player V3 Vault rejection without the matching identity;
