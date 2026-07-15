@@ -1,0 +1,73 @@
+{
+  "name": "wildz-quest",
+  "version": "2.0.0",
+  "description": "Standalone full-screen Wildz world, collection, competition, and social marketplace PWA.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "homepage": "https://wildz.quest",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kojibai/Receiz-commerce.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kojibai/Receiz-commerce/issues"
+  },
+  "keywords": [
+    "receiz",
+    "commerce",
+    "ecommerce",
+    "nextjs",
+    "proof-objects",
+    "receiz-sdk",
+    "rewards",
+    "mcp",
+    "model-context-protocol",
+    "proof-commerce",
+    "commerce-saas-template"
+  ],
+  "packageManager": "pnpm@10.29.1",
+  "engines": {
+    "node": ">=20.18.0"
+  },
+  "scripts": {
+    "dev": "node scripts/next-runtime-guard.mjs dev",
+    "build": "node scripts/next-runtime-guard.mjs build",
+    "start": "node scripts/next-runtime-guard.mjs start",
+    "test": "node scripts/clean-test-build.mjs && tsc -p tsconfig.test.json && node scripts/patch-test-imports.mjs && node --test .test-build/tests/*.test.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "receiz:doctor": "node scripts/receiz-doctor.mjs",
+    "receiz:webhooks:create": "node scripts/receiz-create-webhooks.mjs",
+    "secret:scan": "node scripts/release-secret-scan.mjs",
+    "release:check": "node scripts/release-check.mjs"
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.6.1",
+    "@receiz/sdk": "^100.0.0",
+    "lucide-react": "^0.468.0",
+    "next": "^15.0.0",
+    "qrcode": "^1.5.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "three": "0.182.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
+    "@types/node": "^22.0.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/three": "^0.185.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^15.0.0",
+    "sharp": "^0.35.3",
+    "typescript": "^5.6.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": ">=8.5.10"
+    }
+  }
+}

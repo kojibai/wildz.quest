@@ -1,0 +1,2 @@
+import assert from "node:assert/strict"; import { readFileSync } from "node:fs"; import { test } from "node:test";
+test("Wildz AI skills state proof authority and confirmation law", () => { for (const name of ["wildz-builder-skill","wildz-market-operator-skill","wildz-release-skill"]) { const source = readFileSync(`ai-skills/${name}/SKILL.md`,"utf8"); assert.match(source,/Receiz proof authority/i); assert.match(source,/confirmation/i); assert.doesNotMatch(source,/Bearer\s+[A-Za-z0-9_-]{12}/); } });

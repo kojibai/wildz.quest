@@ -1,0 +1,2 @@
+import type { WildzListing } from "@/features/market/wildz-market";
+export function WildzTradeConfirm({ listing, onConfirm, busy }: { listing: WildzListing; onConfirm: () => void; busy: boolean }) { return <div className="wildz-trade-confirm"><span>Proof-pinned purchase</span><strong>${(listing.priceCents / 100).toFixed(2)}</strong><button type="button" onClick={onConfirm} disabled={busy}>{busy ? "Confirming…" : "Buy with Receiz"}</button></div>; }

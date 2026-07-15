@@ -1,0 +1,2 @@
+import { NextResponse } from "next/server";
+export async function POST(request: Request) { const body = await request.json(); const idempotencyKey = request.headers.get("idempotency-key") ?? body.idempotencyKey; if (!idempotencyKey || !body.actor || !body.expectedRevision) return NextResponse.json({ error: "offer_identity_revision_idempotency_required" }, { status: 400 }); return NextResponse.json({ status: "capability_unavailable", ownershipTransferred: false }, { status: 501 }); }

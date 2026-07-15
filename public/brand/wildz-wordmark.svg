@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 64" role="img" aria-label="Wildz">
+  <defs>
+    <linearGradient id="wordmark-trail" x1="6" y1="8" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B8FF6A"/>
+      <stop offset="1" stop-color="#23B77C"/>
+    </linearGradient>
+  </defs>
+  <path d="M7 14 18 50 31 32 44 50 57 14 45 27 31 11 17 27Z" fill="url(#wordmark-trail)"/>
+  <path d="M80 15h10l7 27 8-21h9l8 21 7-27h10l-12 36h-10l-7-18-7 18H92L80 15Zm67 0h10v36h-10V15Zm21 0h10v27h18v9h-28V15Zm38 0h15c13 0 22 7 22 18s-9 18-22 18h-15V15Zm10 9v18h5c7 0 12-3 12-9s-5-9-12-9h-5Zm35-9h31v8l-18 19h19v9h-33v-8l18-19h-17v-9Z" fill="#F7F4E8"/>
+  <circle cx="297" cy="19" r="4" fill="#F0C85A"/>
+</svg>

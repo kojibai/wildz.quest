@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Wildz mark">
+  <defs>
+    <linearGradient id="wildz-trail" x1="10" y1="12" x2="54" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B8FF6A"/>
+      <stop offset="0.55" stop-color="#5EE59B"/>
+      <stop offset="1" stop-color="#23B77C"/>
+    </linearGradient>
+    <radialGradient id="wildz-glow">
+      <stop stop-color="#FFF5A8"/>
+      <stop offset="0.45" stop-color="#C8FF9A"/>
+      <stop offset="1" stop-color="#5EE59B" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="20" fill="#101A17" stroke="#E8D58A" stroke-opacity=".58" stroke-width="2"/>
+  <path d="M11 18 22.5 47 32 33.5 41.5 47 53 18 42 30.5 32 18.5 22 30.5Z" fill="url(#wildz-trail)"/>
+  <circle cx="32" cy="45.5" r="10" fill="url(#wildz-glow)"/>
+  <path id="wildz-seed" d="M32 39.5c1.2 3.1 3.3 5.2 6.5 6.4-3.2 1.1-5.3 3.3-6.5 6.5-1.1-3.2-3.3-5.4-6.5-6.5 3.2-1.2 5.4-3.3 6.5-6.4Z" fill="#FFFBE8"/>
+</svg>
