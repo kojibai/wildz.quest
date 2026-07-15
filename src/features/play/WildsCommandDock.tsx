@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Icons } from "@/components/icons";
 
-export type WildsCommandKey = "mission" | "rewards" | "deck" | "vault";
+export type WildsCommandKey = "mission" | "fieldGuide" | "satchel" | "deck" | "vault";
 
 export type WildsCommandItem = {
   key: WildsCommandKey;

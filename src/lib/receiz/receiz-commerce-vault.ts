@@ -194,8 +194,10 @@ export async function inspectReceizCommerceVault(file: File) {
       }))
     } satisfies ReceizCommerceVaultProjection;
   }
-  const baseUrl = typeof window === "undefined" ? undefined : window.location.origin;
-  const verified = await createReceizClient(baseUrl ? { baseUrl } : undefined).verification.verifyArtifact(file);
+  const client = typeof window === "undefined"
+    ? createReceizClient()
+    : createReceizClient({ baseUrl: window.location.origin, fetchImpl: (input, init) => window.fetch(input, init) });
+  const verified = await client.verification.verifyArtifact(file);
   if (!verified.ok) throw new Error(verified.errors[0] ?? "receiz_artifact_invalid");
   return sdkProjection(file, verified);
 }

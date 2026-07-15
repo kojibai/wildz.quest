@@ -4,16 +4,6 @@ import { creatureForm } from "./creature-catalog";
 import type { BattleAction, BattleState } from "./battle-engine";
 import type { PortableCardAsset } from "./portable-card";
 
-function HealthBar({ label, hp, maxHp }: { label: string; hp: number; maxHp: number }) {
-  const percent = Math.max(0, Math.min(100, Math.round((hp / maxHp) * 100)));
-  return (
-    <div className="wilds-battle-fighter">
-      <div><strong>{label}</strong><span>{hp}/{maxHp} HP</span></div>
-      <div className="wilds-battle-health" role="progressbar" aria-label={`${label} health`} aria-valuemin={0} aria-valuemax={maxHp} aria-valuenow={hp}><i style={{ width: `${percent}%` }} /></div>
-    </div>
-  );
-}
-
 export function WildsBattle({
   battle,
   inventory,
@@ -33,11 +23,7 @@ export function WildsBattle({
 
   return (
     <section className={`wilds-battle phase-${battle.phase}`} aria-label="Wild creature battle">
-      <div className="wilds-battle-versus">
-        <HealthBar label={battle.player.name} hp={battle.player.hp} maxHp={battle.player.maxHp} />
-        <span>TURN {battle.turn}</span>
-        <HealthBar label={`Wild ${battle.wild.name}`} hp={battle.wild.hp} maxHp={battle.wild.maxHp} />
-      </div>
+      <div className="wilds-battle-turn"><span>Turn {battle.turn}</span><small>{battle.player.name} · Wild {battle.wild.name}</small></div>
       <div className="wilds-battle-console">
         <div className={`wilds-battle-intent intent-${battle.intent.kind}`} aria-label={`Wild intent: ${battle.intent.label}`}>
           <strong>{battle.intent.label}</strong><span>{battle.intent.detail}</span>

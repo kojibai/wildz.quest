@@ -11,6 +11,7 @@ import {
   type PlayState
 } from "@/features/play/game-state";
 import { creatureForm } from "@/features/play/creature-catalog";
+import type { BattleFighter } from "@/features/play/battle-engine";
 import type { HotspotCover } from "@/features/play/hidden-hotspots";
 import type { WildsPresence } from "@/features/play/multiplayer-core";
 import { WildsEnvironment } from "@/features/play/WildsEnvironment";
@@ -108,6 +109,10 @@ function WildsScene({
   );
 }
 
+function isBattleTelemetryPhase(phase: PlayState["encounter"]["phase"]) {
+  return phase === "player_turn" || phase === "capture_ready" || phase === "fled" || phase === "defeated";
+}
+
 function ActiveCompanion({ state }: { state: PlayState }) {
   const card = selectedCard(state);
   const asset = state.inventory.find((candidate) => candidate.id === state.selectedAssetId);
@@ -119,10 +124,43 @@ function ActiveCompanion({ state }: { state: PlayState }) {
         <torusGeometry args={[0.46, 0.035, 8, 36]} />
         <meshStandardMaterial color="#f4fff6" emissive="#7cdea5" emissiveIntensity={0.55} transparent opacity={0.92} />
       </mesh>
-      <Html center className="wilds-world-label" distanceFactor={8} position={[0, 0.96, 0]}>
-        <span>{card.name}</span>
-      </Html>
+      {state.battle && isBattleTelemetryPhase(state.encounter.phase) ? (
+        <BattleWorldTelemetry fighter={state.battle.player} position={[0, 1.12, 0]} side="player" />
+      ) : (
+        <Html center className="wilds-world-label" distanceFactor={8} position={[0, 0.96, 0]}>
+          <span>{card.name}</span>
+        </Html>
+      )}
     </group>
+  );
+}
+
+function BattleWorldTelemetry({
+  fighter,
+  position,
+  side,
+  captureReady = false
+}: {
+  fighter: BattleFighter;
+  position: [number, number, number];
+  side: "player" | "wild";
+  captureReady?: boolean;
+}) {
+  const percent = Math.max(0, Math.min(100, Math.round(fighter.hpRatio * 100)));
+  return (
+    <Html center distanceFactor={8} occlude={false} position={position} zIndexRange={[64, 56]}>
+      <div
+        aria-label={`${fighter.name} health ${fighter.hp} of ${fighter.maxHp}`}
+        aria-valuemax={fighter.maxHp}
+        aria-valuemin={0}
+        aria-valuenow={fighter.hp}
+        className={`wilds-battle-world-stat is-${side}${captureReady ? " capture-ready" : ""}`}
+        role="meter"
+      >
+        <span><strong>{side === "wild" ? `Wild ${fighter.name}` : fighter.name}</strong><small>{fighter.hp}<b>HP</b></small></span>
+        <i className="wilds-battle-world-stat-meter" aria-hidden="true"><b style={{ width: `${percent}%` }} /></i>
+      </div>
+    </Html>
   );
 }
 
@@ -301,6 +339,14 @@ function EncounterSequence({ state }: { state: PlayState }) {
       <group scale={encounter.phase === "capsule" ? 0.68 : encounter.phase === "sealed" || encounter.phase === "revealed" ? 0.01 : 1}>
         <Creature card={localCard} formId={encounter.formId} pose={pose} />
       </group>
+      {state.battle && isBattleTelemetryPhase(state.encounter.phase) ? (
+        <BattleWorldTelemetry
+          captureReady={encounter.phase === "capture_ready"}
+          fighter={state.battle.wild}
+          position={[0, 1.38, 0]}
+          side="wild"
+        />
+      ) : null}
       {encounter.phase === "capsule" || encounter.phase === "sealed" || encounter.phase === "revealed" ? (
         <CaptureCapsule sealed={encounter.phase !== "capsule"} />
       ) : null}

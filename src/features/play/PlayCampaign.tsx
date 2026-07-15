@@ -40,6 +40,7 @@ import { projectWildzHud } from "@/features/play/wildz-gameplay-hud";
 import { WildzReferenceHud } from "@/features/play/WildzReferenceHud";
 import { WildzSocialDeck } from "@/features/play/WildzSocialDeck";
 import { WildsCreatureThumbnail } from "@/features/play/WildsCreatureThumbnail";
+import { creatureFamilies } from "@/features/play/creature-catalog";
 
 const WILDS_SAVE_KEY = "receiz:wilds:save:v2";
 const WILDS_AVATAR_KEY = "receiz:wilds:explorer:v1";
@@ -109,6 +110,12 @@ export function PlayCampaign({
   const activeAsset = selectedAsset(state);
   const deckCards = state.inventory;
   const activeProgress = state.companionProgress[activeCard.id] ?? { level: 1, xp: 0, bond: 0 };
+  const discoveredByFamily = new Map(deckCards.map((card) => [card.manifest.familyId, card]));
+  const guideFamilies = [...creatureFamilies].sort((left, right) =>
+    Number(discoveredByFamily.has(right.id)) - Number(discoveredByFamily.has(left.id)) || left.name.localeCompare(right.name)
+  );
+  const nextHabitat = guideFamilies.find((family) => !discoveredByFamily.has(family.id))?.habitat ?? "the living frontier";
+  const visibleGuideFamilies = guideFamilies.slice(0, 24);
   const hudModel = projectWildzHud(state, { username: ownerReceizId, displayName: playerDisplayName });
   const multiplayer = useWildsMultiplayer({
     enabled: enabled && Boolean(avatarStyle) && Boolean(activeAsset),
@@ -367,21 +374,59 @@ export function PlayCampaign({
       )
     },
     {
-      key: "rewards",
-      label: "Rewards",
-      icon: <Icons.gift size={21} />,
-      badge: state.rewardCards.length ? "100%" : `${state.missionProgress}%`,
+      key: "fieldGuide",
+      label: "Field Guide",
+      icon: <Icons.book size={21} />,
+      badge: `${discoveredByFamily.size}/${creatureFamilies.length}`,
       content: (
-        <div className="wilds-command-content wilds-reward-card">
+        <div className="wilds-command-content wilds-field-guide">
           <div className="wilds-command-content-lead">
-            <span><small>Portable reward</small><strong>{state.rewardCards.length ? `${state.rewardCards.length} reward ready` : "Locked merchant card"}</strong></span>
-            <b>{state.rewardCards.length ? "Ready" : `${Math.max(0, 100 - state.missionProgress)}% left`}</b>
+            <span><small>Species index</small><strong>{discoveredByFamily.size} verified discoveries</strong></span>
+            <b>{creatureFamilies.length - discoveredByFamily.size} unseen</b>
           </div>
-          {state.rewardCards.length ? state.rewardCards.map((reward) => (
-            <div key={reward.id}><strong>{reward.title}</strong><p>{reward.businessUse}</p><b>{reward.value}</b></div>
-          )) : (
-            <div><strong>Clear the world mission</strong><p>Mint a portable card businesses can map to coupons, access, perks, or custom proof logic.</p></div>
-          )}
+          <div className="wilds-field-guide-tip">
+            <Icons.search aria-hidden="true" size={18} />
+            <span><strong>Scan habitat trails</strong><small>Pulse terrain in {nextHabitat} to reveal the next species signal.</small></span>
+          </div>
+          <div className="wilds-field-guide-grid" aria-label="Discovered and undiscovered species">
+            {visibleGuideFamilies.map((family) => {
+              const card = discoveredByFamily.get(family.id);
+              return (
+                <article className={`wilds-field-guide-entry ${card ? "is-discovered" : "is-undiscovered"}`} key={family.id}>
+                  {card ? <WildsCreatureThumbnail asset={card} /> : <span className="wilds-field-guide-mystery" aria-hidden="true"><Icons.help size={19} /></span>}
+                  <div>
+                    <strong>{card?.manifest.name ?? "Undiscovered"}</strong>
+                    <small>{family.habitat} · {family.element}</small>
+                    <em>{card ? "Verified discovery" : "Scan this habitat"}</em>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          <small className="wilds-field-guide-limit">Showing discovered species first within 24 nearby field signals.</small>
+        </div>
+      )
+    },
+    {
+      key: "satchel",
+      label: "Foraging Satchel",
+      icon: <Icons.products size={21} />,
+      badge: state.beans,
+      content: (
+        <div className="wilds-command-content wilds-satchel">
+          <div className="wilds-command-content-lead">
+            <span><small>Trail stores</small><strong>Gathered across the living Wilds</strong></span>
+            <b>{state.worldRank}</b>
+          </div>
+          <div className="wilds-satchel-grid" aria-label="Foraged resources and progression">
+            <article><Icons.sparkle aria-hidden="true" size={18} /><span><small>Grove beans</small><strong>{state.beans}</strong></span><em>Foraged</em></article>
+            <article><Icons.pulse aria-hidden="true" size={18} /><span><small>Fusion sparks</small><strong>{state.fusionSparks}</strong></span><em>Charged</em></article>
+            <article><Icons.receiz aria-hidden="true" size={18} /><span><small>Bond traces</small><strong>{activeProgress.bond}</strong></span><em>{activeAsset?.manifest.name ?? activeCard.name}</em></article>
+            <article><Icons.star aria-hidden="true" size={18} /><span><small>World mastery</small><strong>{state.worldMastery}</strong></span><em>Permanent</em></article>
+            <article><Icons.trophy aria-hidden="true" size={18} /><span><small>Trail streak</small><strong>{state.streak}×</strong></span><em>Active</em></article>
+            <article><Icons.package aria-hidden="true" size={18} /><span><small>Ascension catalysts</small><strong>{state.ascensionCatalysts.length}</strong></span><em>Vaulted</em></article>
+          </div>
+          <p className="wilds-satchel-note">Explore, scan, battle, and bond to fill the satchel. Every resource is earned inside the game.</p>
         </div>
       )
     },
@@ -574,15 +619,17 @@ export function PlayCampaign({
           </div>
           <div className="wildz-social-stack">
             <WildzSocialDeck
+              activeCard={activeAsset}
               action={visiblePulse}
               cameraHeading={cameraHeading}
+              companionProgress={state.companionProgress}
               movementMode={movementMode}
               nearbyCards={state.inventory}
               onAction={activatePulse}
               onMission={() => dispatch({ type: "mission" })}
-              onOpenMap={() => setMapOpen(true)}
+              onOpenFieldGuide={() => setRequestedCommand("fieldGuide")}
               onOpenMarket={onOpenMarket}
-              onOpenRewards={() => setRequestedCommand("rewards")}
+              onOpenSatchel={() => setRequestedCommand("satchel")}
               onOpenDeck={() => setRequestedCommand("deck")}
               onOpenVault={() => setRequestedCommand("vault")}
               onOpenProfile={onOpenProfile}

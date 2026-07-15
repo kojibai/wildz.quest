@@ -13,6 +13,7 @@ test("Receiz continuity preserves identity, original Wildz vault, and Commerce v
   assert.match(adapter, /inspectReceizCommerceVault/);
   assert.ok(adapter.indexOf("if (vault.ok && vault.assets.length)") < adapter.indexOf("inspectReceizCommerceVault(file)"));
   assert.match(commerce, /createReceizClient/);
+  assert.match(commerce, /fetchImpl:\s*\(input, init\) => window\.fetch\(input, init\)/);
   assert.match(commerce, /verification\.verifyArtifact\(file\)/);
   assert.match(commerce, /verifyReceizVaultPackage\(bytes\)/);
   assert.match(commerce, /receiz\.signal_vault_card_manifest/);
@@ -44,5 +45,5 @@ test("standalone card route and dark PWA chrome are production-defined", () => {
   assert.match(layout, /themeColor: WILDZ_PRODUCT\.themeColor/);
   assert.match(product, /themeColor: "#09110d"/);
   assert.match(css, /color-scheme:\s*dark/);
-  for (const key of ["rewards", "deck", "vault"]) assert.match(css, new RegExp(`\\.wilds-command-sheet-${key}`));
+  for (const key of ["fieldGuide", "satchel", "deck", "vault"]) assert.match(css, new RegExp(`\\.wilds-command-sheet-${key}`));
 });

@@ -6,7 +6,7 @@ describe("Wilds command dock", () => {
   it("exposes one accessible dismissible sheet for four icon commands", async () => {
     const source = await readFile("src/features/play/WildsCommandDock.tsx", "utf8");
 
-    assert.match(source, /"mission" \| "rewards" \| "deck" \| "vault"/);
+    assert.match(source, /"mission" \| "fieldGuide" \| "satchel" \| "deck" \| "vault"/);
     assert.match(source, /role="dialog"/);
     assert.match(source, /aria-modal="true"/);
     assert.match(source, /aria-controls=/);

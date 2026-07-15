@@ -225,9 +225,10 @@ describe("Receiz Wilds rendering contract", () => {
 
     assert.ok(stageEnd > eventToast);
     assert.match(source, /<WildsCommandDock items=\{commandItems\}/);
-    for (const key of ["mission", "rewards", "deck", "vault"]) assert.match(source, new RegExp(`key: "${key}"`));
+    for (const key of ["mission", "fieldGuide", "satchel", "deck", "vault"]) assert.match(source, new RegExp(`key: "${key}"`));
     assert.match(source, /badge: `\$\{state\.missionProgress\}%`/);
-    assert.match(source, /badge: state\.rewardCards\.length \? "100%" : `\$\{state\.missionProgress\}%`/);
+    assert.match(source, /badge: `\$\{discoveredByFamily\.size\}\/\$\{creatureFamilies\.length\}`/);
+    assert.match(source, /badge: state\.beans/);
     assert.match(source, /badge: state\.inventory\.length/);
     assert.doesNotMatch(source, /<details className="wilds-mission-card">/);
     assert.doesNotMatch(source, /<details className="wilds-command-tray/);
@@ -474,7 +475,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(campaign, /Female explorer/);
     assert.match(campaign, /Male explorer/);
     assert.match(campaign, /<WildsBattle/);
-    assert.match(battle, /wilds-battle-health/);
+    assert.match(battle, /wilds-battle-turn/);
     assert.match(battle, /wilds-battle-intent/);
     assert.match(battle, /wilds-battle-condition/);
     assert.match(battle, /type: "focus"/);
@@ -490,6 +491,25 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(world, /encounter\.proximity === "hot"/);
     assert.match(world, /HabitatCover cover=\{encounter\.cover/);
     assert.match(campaign, /signal-\$\{state\.encounter\.proximity\}/);
+  });
+
+  it("anchors compact battle health to both combatants above the gameplay HUD", async () => {
+    const world = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");
+    const battle = await readFile("src/features/play/WildsBattle.tsx", "utf8");
+    const css = await readFile("app/globals.css", "utf8");
+
+    assert.match(world, /function BattleWorldTelemetry/);
+    assert.match(world, /fighter=\{state\.battle\.player\}/);
+    assert.match(world, /fighter=\{state\.battle\.wild\}/);
+    assert.match(world, /function isBattleTelemetryPhase/);
+    assert.equal((world.match(/state\.battle && isBattleTelemetryPhase\(state\.encounter\.phase\)/g) ?? []).length, 2);
+    assert.match(world, /zIndexRange=\{\[64, 56\]\}/);
+    assert.match(world, /role="meter"/);
+    assert.match(world, /aria-label=\{`\$\{fighter\.name\} health \$\{fighter\.hp\} of \$\{fighter\.maxHp\}`\}/);
+    assert.match(css, /\.wilds-battle-world-stat\s*\{[^}]*width:\s*clamp\(88px,\s*14vw,\s*118px\)[^}]*pointer-events:\s*none/s);
+    assert.match(css, /\.wilds-battle-world-stat-meter\s*\{[^}]*height:\s*3px[^}]*overflow:\s*hidden/s);
+    assert.match(css, /\.wilds-battle-world-stat\.capture-ready/);
+    assert.doesNotMatch(battle, /function HealthBar/);
   });
 
   it("renders the SDK-native live multiplayer loop inside the shared world", async () => {

@@ -1,16 +1,18 @@
 "use client";
 
-import Image from "next/image";
 import { Icons } from "@/components/icons";
-import type { WildsInput } from "./game-state";
+import type { PlayState, WildsInput } from "./game-state";
 import type { WildsMovementMode } from "./wilds-movement";
 import type { PortableCardAsset } from "./portable-card";
 import { creatureForm } from "./creature-catalog";
+import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import { WildzContextButton } from "./WildzContextButton";
 import { WildzDpad } from "./WildzDpad";
 
-export function WildzSocialDeck({ nearbyCards, action, cameraHeading, movementMode, onInput, onAction, onMovementModeChange, onSelectCard, onOpenMap, onOpenProfile, onOpenMarket, onOpenRewards, onOpenDeck, onOpenVault, onRest, onTrain, onMission }: {
+export function WildzSocialDeck({ nearbyCards, activeCard, companionProgress, action, cameraHeading, movementMode, onInput, onAction, onMovementModeChange, onSelectCard, onOpenFieldGuide, onOpenProfile, onOpenMarket, onOpenSatchel, onOpenDeck, onOpenVault, onRest, onTrain, onMission }: {
   nearbyCards: readonly PortableCardAsset[];
+  activeCard: PortableCardAsset | null;
+  companionProgress: PlayState["companionProgress"];
   action: { kind: string; label: string };
   cameraHeading: number;
   movementMode: WildsMovementMode;
@@ -18,10 +20,10 @@ export function WildzSocialDeck({ nearbyCards, action, cameraHeading, movementMo
   onAction: () => void;
   onMovementModeChange: (mode: WildsMovementMode) => void;
   onSelectCard: (assetId: string) => void;
-  onOpenMap: () => void;
+  onOpenFieldGuide: () => void;
   onOpenProfile: () => void;
   onOpenMarket: () => void;
-  onOpenRewards: () => void;
+  onOpenSatchel: () => void;
   onOpenDeck: () => void;
   onOpenVault: () => void;
   onRest: () => void;
@@ -31,17 +33,16 @@ export function WildzSocialDeck({ nearbyCards, action, cameraHeading, movementMo
   return <section className="wildz-social-deck" aria-label="Nearby companions and game functions">
     <span className="wildz-social-handle" aria-hidden="true" />
     <div className="wildz-nearby-cards">
-      {nearbyCards.slice(0, 4).map((card, index) => {
+      {nearbyCards.slice(0, 4).map((card) => {
         const form = creatureForm(card.manifest.formId);
+        const progress = companionProgress[card.manifest.familyId] ?? { level: 1, xp: 0, bond: 0 };
         return <article key={card.id}>
         <button className="wildz-nearby-creature" onClick={() => onSelectCard(card.id)} type="button">
-          <span className="wildz-creature-portrait" style={{ backgroundColor: card.manifest.variant.traits.palette.primary }}>
-            <Image alt={`${card.manifest.name} companion portrait`} fill sizes="72px" src="/creatures/sealcub-portrait.svg" />
-          </span>
-          <div><strong>{card.manifest.name}<i>✓</i></strong><small>Lv. {card.manifest.stage + index} · {form?.element ?? "Wild"} · {index ? "TrailSeeker" : "Your explorer"}</small><em>{form?.temperament ?? "bonded"}</em></div>
+          <WildsCreatureThumbnail asset={card} className="wildz-creature-portrait" />
+          <div><strong>{card.manifest.name}</strong><small>Lv. {progress.level} · Stage {card.manifest.stage} · {form?.element ?? card.manifest.species}</small><em>{form?.temperament ?? card.manifest.rarity}</em></div>
         </button>
-        <div className="wildz-nearby-owner"><Icons.user size={18} /><span><strong>{index ? "TrailSeeker" : "Your explorer"}</strong></span></div>
-        <button className="wildz-trade-inline" onClick={onOpenMarket} type="button"><b>{75 + index * 17} 🍃</b><span>Trade</span></button>
+        <div className="wildz-nearby-owner"><Icons.user size={18} /><span><strong>{card.manifest.ownerReceizId}</strong></span></div>
+        <button className="wildz-trade-inline" onClick={onOpenMarket} type="button"><b>{card.manifest.stats.power} PWR</b><span>Trade</span></button>
       </article>;
       })}
     </div>
@@ -62,11 +63,11 @@ export function WildzSocialDeck({ nearbyCards, action, cameraHeading, movementMo
     </div>
     <nav className="wildz-social-actions" aria-label="All game functions">
       <button aria-label="Open card vault" className="wildz-action-vault" onClick={onOpenVault} type="button"><Icons.archive size={25} /></button>
-      <button aria-label="Open world map" className="wildz-action-map" onClick={onOpenMap} type="button"><Icons.map size={25} /></button>
+      <button aria-label="Open field guide" className="wildz-action-guide" onClick={onOpenFieldGuide} type="button"><Icons.book size={25} /></button>
       <button aria-label="Open player profile" className="wildz-action-people" onClick={onOpenProfile} type="button"><Icons.users size={25} /><i aria-hidden="true" /></button>
       <button aria-label="Open social market" className="wildz-action-pulse" onClick={onOpenMarket} type="button"><Icons.waveform size={25} /></button>
-      <button aria-label="Open active deck" className="wildz-action-companion" onClick={onOpenDeck} type="button"><Image alt="" height={34} src="/creatures/sealcub-portrait.svg" width={34} /></button>
-      <button aria-label="Open rewards" className="wildz-action-rewards" onClick={onOpenRewards} type="button"><Icons.products size={24} /><Icons.sparkle className="wildz-action-reward-spark" size={12} /></button>
+      <button aria-label="Open active deck" className="wildz-action-companion" onClick={onOpenDeck} type="button">{activeCard ? <WildsCreatureThumbnail asset={activeCard} /> : <Icons.assets size={25} />}</button>
+      <button aria-label="Open foraging satchel" className="wildz-action-satchel" onClick={onOpenSatchel} type="button"><Icons.products size={24} /><Icons.sparkle className="wildz-action-satchel-spark" size={12} /></button>
     </nav>
   </section>;
 }
