@@ -57,6 +57,10 @@ export function wildsWorldModeAfterRequestFailure(offline: boolean): "local_prac
   return offline ? "local_practice" : "reconnecting";
 }
 
+export function wildsWorldModeAfterConfirmedBootstrap(mode: WildsWorldClientMode): WildsWorldClientMode {
+  return mode === "connecting" ? "receiz_live" : mode;
+}
+
 export function parseWildsWorldCommandResponse(value: unknown): { projection: WildsWorldProjection; mode: WildsWorldCommandMode } {
   if (!value || typeof value !== "object") throw new Error("wilds_world_command_response_invalid");
   const response = value as Record<string, unknown>;
@@ -119,6 +123,10 @@ export function useWildsWorld(input: {
       setError(wildsNetworkFailureMessage(cause, "world", !offline));
     }
   }, [input.enabled, request]);
+
+  useEffect(() => {
+    if (input.enabled) setMode(wildsWorldModeAfterConfirmedBootstrap);
+  }, [input.enabled]);
 
   useEffect(() => {
     void refresh();

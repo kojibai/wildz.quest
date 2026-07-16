@@ -7,6 +7,7 @@ import {
   buildWildsWorldCommandBody,
   parseWildsWorldCommandResponse,
   parseWildsWorldSnapshotResponse,
+  wildsWorldModeAfterConfirmedBootstrap,
   wildsWorldModeAfterRequestFailure
 } from "../src/features/play/use-wilds-world.js";
 
@@ -69,5 +70,11 @@ describe("Wilds world client contract", () => {
     assert.equal(wildsWorldModeAfterRequestFailure(false), "reconnecting");
     assert.equal(wildsWorldModeAfterRequestFailure(true), "local_practice");
     assert.doesNotMatch(source, /offline\s*\|\|\s*input\.guestId/);
+  });
+
+  it("enters the live client mode immediately after the shell confirms canonical bootstrap", () => {
+    assert.equal(wildsWorldModeAfterConfirmedBootstrap("connecting"), "receiz_live");
+    assert.equal(wildsWorldModeAfterConfirmedBootstrap("reconnecting"), "reconnecting");
+    assert.equal(wildsWorldModeAfterConfirmedBootstrap("local_practice"), "local_practice");
   });
 });

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { useWildsWorld } from "./use-wilds-world";
+import { wildsLivingWorldModeLabel } from "./wilds-living-world-status";
 
 export function WildsLivingWorldHud({ world, player }: { world: ReturnType<typeof useWildsWorld>; player: { x: number; z: number } }) {
   const [open, setOpen] = useState(false);
@@ -16,7 +17,7 @@ export function WildsLivingWorldHud({ world, player }: { world: ReturnType<typeo
   const boss = nearby?.site.bossId ? world.snapshot?.bosses[nearby.site.bossId] : null;
   const raid = boss ? Object.values(world.snapshot?.raids ?? {}).find((item) => item.bossId === boss.id) : null;
   const close = nearby && nearby.distance <= nearby.site.radius + 8;
-  const modeLabel = world.mode === "receiz_live" ? "One shared world" : world.mode === "local_practice" ? "Local practice" : "World reconnecting";
+  const modeLabel = wildsLivingWorldModeLabel(world.mode);
 
   const compactSiteName = nearby?.site.name.split(/\s+/).at(-1) ?? "Event";
 

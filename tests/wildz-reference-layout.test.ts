@@ -32,11 +32,12 @@ test("D-pad occupies the centered column inside the safe-area deck", () => {
   assert.match(css, /env\(safe-area-inset-bottom\)/);
 });
 
-test("mobile living-world pills form the exact lower-left Commerce stack", () => {
+test("living-world pills form one visible lower-left vertical gameplay stack", () => {
   const css = readFileSync("app/globals.css", "utf8");
   assert.match(
     css,
-    /\.mobile-play-wrap \.wilds-living-world-hud\s*\{[^}]*bottom:\s*86px;[^}]*left:\s*8px;[^}]*flex-direction:\s*column;[^}]*align-items:\s*flex-start;[^}]*gap:\s*5px;/
+    /\.wilds-living-world-hud\s*\{[^}]*bottom:\s*86px;[^}]*left:\s*8px;[^}]*flex-direction:\s*column;[^}]*align-items:\s*flex-start;[^}]*gap:\s*5px;/
   );
   assert.doesNotMatch(css, /\.mobile-play-wrap \.wilds-living-world-hud\s*\{[^}]*flex-wrap:\s*wrap;/);
+  assert.doesNotMatch(css, /\.wilds-living-world-hud\.has-event \.wilds-live-pill\[class\*="mode-"\]\s*\{[^}]*display:\s*none/);
 });

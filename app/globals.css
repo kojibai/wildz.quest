@@ -12887,7 +12887,7 @@ button.product-purchase-secondary-link {
 }
 
 /* Wilds V3 living-world, settlement, ecology, and raid surfaces. */
-.wilds-living-world-hud { position: absolute; z-index: 8; top: 76px; right: 12px; display: flex; max-width: calc(100% - 108px); gap: 6px; }
+.wilds-living-world-hud { position: absolute; z-index: 8; top: auto; right: auto; bottom: 86px; left: 8px; display: flex; width: min(240px, calc(100% - 16px)); max-width: min(240px, calc(100% - 16px)); flex-direction: column; align-items: flex-start; gap: 5px; }
 .wilds-live-pill { display: flex; min-height: 34px; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid rgba(113,232,195,.32); border-radius: 999px; color: #effff9; background: rgba(7,25,31,.84); box-shadow: 0 10px 24px rgba(0,0,0,.24); backdrop-filter: blur(16px); font-size: 10px; font-weight: 850; }
 .wilds-live-pill i { width: 7px; height: 7px; border-radius: 50%; background: #f7c948; box-shadow: 0 0 12px currentColor; }
 .wilds-live-pill.mode-receiz_live i { background: #71e8c3; }
@@ -12911,14 +12911,12 @@ button.product-purchase-secondary-link {
      buttons and popover never compete with the player identity row. */
   /* Boss/event overlays live in the lower-left safe zone, clear of the
      scout chip, resource strip, and the right-side share utilities. */
-  .mobile-play-wrap .wilds-living-world-hud { top: auto; right: auto; bottom: 86px; left: 8px; width: min(240px, calc(100% - 16px)); max-width: min(240px, calc(100% - 16px)); flex-direction: column; align-items: flex-start; gap: 5px; }
   .mobile-play-wrap .wilds-live-pill { min-height: 30px; max-width: 124px; padding: 0 7px; }
   .mobile-play-wrap .wilds-live-pill.event { gap: 4px; padding-inline: 6px; font-size: 9px; }
   .mobile-play-wrap .wilds-live-pill.event b { font-size: 8px; }
   .mobile-play-wrap .wilds-live-pill[class*="mode-"] { flex: 0 0 30px; width: 30px; padding: 0; justify-content: center; }
   .mobile-play-wrap .wilds-live-pill[class*="mode-"] span { display: none; }
   .mobile-play-wrap .wilds-live-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .mobile-play-wrap .wilds-living-world-hud.has-event .wilds-live-pill[class*="mode-"] { display: none; }
   /* The pills stay discoverable at the lower-left, but their expanded sheet
      is centered in the gameplay viewport so the dock can never consume it. */
   .mobile-play-wrap .wilds-living-world-sheet { top: 50%; left: 50%; width: min(310px, calc(100vw - 20px)); max-height: min(640px, calc(100dvh - 32px)); transform: translate(-50%, -50%); }
