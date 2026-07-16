@@ -5,8 +5,24 @@ import { test } from "node:test";
 test("gameplay composes the reference HUD and social deck over the preserved world", () => {
   const source = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
   for (const token of ["WildsWorldCanvas", "WildzReferenceHud", "WildzSocialDeck"]) assert.match(source, new RegExp(token));
+  assert.doesNotMatch(source, /WildsWorldControls/);
   const world = readFileSync("src/features/play/WildsWorldCanvas.tsx", "utf8");
   assert.match(world, /ActiveCompanion/);
+});
+
+test("world camera matches the current Commerce gesture framing", () => {
+  const world = readFileSync("src/features/play/WildsWorldCanvas.tsx", "utf8");
+  assert.match(world, /camera=\{\{ fov: 42, near: 0\.1, far: 80, position: \[4\.6, 5\.8, 7\.2\] \}\}/);
+  assert.match(world, /enableDamping=\{false\}/);
+  assert.match(world, /enablePan=\{false\}/);
+  assert.match(world, /minDistance=\{4\.8\}/);
+  assert.match(world, /maxDistance=\{13\.5\}/);
+  assert.match(world, /minPolarAngle=\{\.38\}/);
+  assert.match(world, /maxPolarAngle=\{Math\.PI \/ 2\.15\}/);
+  assert.match(world, /rotateSpeed=\{\.62\}/);
+  assert.match(world, /target=\{\[0, \.55, 0\]\}/);
+  assert.match(world, /touches=\{\{ ONE: THREE\.TOUCH\.ROTATE, TWO: THREE\.TOUCH\.DOLLY_ROTATE \}\}/);
+  assert.match(world, /zoomSpeed=\{\.82\}/);
 });
 
 test("D-pad occupies the centered column inside the safe-area deck", () => {
@@ -14,4 +30,13 @@ test("D-pad occupies the centered column inside the safe-area deck", () => {
   assert.match(css, /\.wildz-bottom-play-controls\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) 72px minmax\(0, 1fr\)/);
   assert.match(css, /\.wildz-bottom-play-controls \.wildz-dpad/);
   assert.match(css, /env\(safe-area-inset-bottom\)/);
+});
+
+test("mobile living-world pills form the exact lower-left Commerce stack", () => {
+  const css = readFileSync("app/globals.css", "utf8");
+  assert.match(
+    css,
+    /\.mobile-play-wrap \.wilds-living-world-hud\s*\{[^}]*bottom:\s*86px;[^}]*left:\s*8px;[^}]*flex-direction:\s*column;[^}]*align-items:\s*flex-start;[^}]*gap:\s*5px;/
+  );
+  assert.doesNotMatch(css, /\.mobile-play-wrap \.wilds-living-world-hud\s*\{[^}]*flex-wrap:\s*wrap;/);
 });

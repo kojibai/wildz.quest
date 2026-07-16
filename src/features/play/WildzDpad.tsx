@@ -53,7 +53,7 @@ export function WildzDpad({ cameraHeading, movementMode, onInput }: {
 
   const update = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
-    const radius = Math.max(1, Math.min(rect.width, rect.height) * 0.32);
+    const radius = Math.max(1, Math.min(rect.width, rect.height) * 0.42);
     const rawX = event.clientX - (rect.left + rect.width / 2);
     const rawY = event.clientY - (rect.top + rect.height / 2);
     const magnitude = Math.hypot(rawX, rawY);
@@ -86,15 +86,13 @@ export function WildzDpad({ cameraHeading, movementMode, onInput }: {
       onPointerCancel={release}
       onPointerDown={(event) => {
         dragging.current = true;
-        const next = update(event);
+        update(event);
         setActive(true);
         try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* capture is optional */ }
-        emitMovement(next);
       }}
       onPointerMove={(event) => {
         if (!dragging.current) return;
-        const next = update(event);
-        emitMovement(next);
+        update(event);
       }}
       onPointerUp={release}
       type="button"

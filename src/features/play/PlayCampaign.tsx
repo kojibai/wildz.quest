@@ -28,7 +28,6 @@ import { selectWildsQualityProfile } from "@/features/play/wilds-quality-profile
 import { projectWorldProgression } from "@/features/play/world-progression";
 import { WildsCommandDock, type WildsCommandItem, type WildsCommandKey } from "@/features/play/WildsCommandDock";
 import { WildsWorldMap } from "@/features/play/WildsWorldMap";
-import { WildsWorldControls } from "@/features/play/WildsWorldControls";
 import { WildsLandmarkExperience } from "@/features/play/WildsLandmarkExperience";
 import type { WildsMovementMode } from "@/features/play/wilds-movement";
 import { resolveWildsContextAction } from "@/features/play/wilds-context-action";
@@ -817,21 +816,6 @@ export function PlayCampaign({
             </div>
           </div>
 
-          <div className="wildz-preserved-controls" aria-hidden="true">
-            <WildsWorldControls
-              activeAction={state.activeAction}
-              activeCardName={activeCard.name}
-              cameraHeading={cameraHeading}
-              movementMode={movementMode}
-              onInput={dispatch}
-              onMission={() => dispatch({ type: "mission" })}
-              onMovementModeChange={setMovementMode}
-              onPulse={activatePulse}
-              onRest={() => dispatch({ type: "rest" })}
-              onTrain={() => dispatch({ type: "train", at: new Date().toISOString() })}
-              pulse={visiblePulse}
-            />
-          </div>
           <div className="wildz-social-stack">
             <WildzSocialDeck
               activeCard={activeAsset}

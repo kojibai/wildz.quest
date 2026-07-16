@@ -61,20 +61,21 @@ describe("Receiz Wilds rendering contract", () => {
 
   it("connects the globe, Rift travel, Walk Run, and Pulse to the playable world", async () => {
     const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
-    const controls = await readFile("src/features/play/WildsWorldControls.tsx", "utf8");
+    const controls = await readFile("src/features/play/WildzSocialDeck.tsx", "utf8");
     const route = await readFile("app/api/wilds/atlas/route.ts", "utf8");
 
     assert.match(campaign, /className="wilds-utility-cluster"/);
     assert.match(campaign, /aria-label="Open world map"/);
     assert.match(campaign, /<WildsWorldMap/);
-    assert.match(campaign, /<WildsWorldControls/);
+    assert.doesNotMatch(campaign, /WildsWorldControls/);
+    assert.match(campaign, /<WildzSocialDeck/);
     assert.match(campaign, /fetch\("\/api\/wilds\/rift"/);
     assert.match(campaign, /type: "apply-rift-grant"/);
     assert.doesNotMatch(campaign, /requestedAt|appliedAt/);
     assert.match(campaign, /grant: result\.grant,[\s\S]*?playerId: result\.grant\.playerId/);
     assert.match(controls, /aria-label=\{movementMode === "walk" \? "Switch to running" : "Switch to walking"\}/);
-    assert.match(controls, /aria-label=\{pulse\.label\}/);
-    assert.match(controls, /mode: movementMode/);
+    assert.match(controls, /<WildzContextButton action=\{action\}/);
+    assert.match(controls, /<WildzDpad cameraHeading=\{cameraHeading\} movementMode=\{movementMode\} onInput=\{onInput\}/);
     assert.match(route, /getWildsAtlasPresence/);
     assert.match(route, /cache-control": "private, no-store"/);
     assert.doesNotMatch(route, /activeCard/);
@@ -218,9 +219,9 @@ describe("Receiz Wilds rendering contract", () => {
 
   it("keeps compact controls below the world and opens strategy from one icon dock", async () => {
     const source = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
-    const controls = await readFile("src/features/play/WildsWorldControls.tsx", "utf8");
+    const controls = await readFile("src/features/play/WildzSocialDeck.tsx", "utf8");
     const css = await readFile("app/globals.css", "utf8");
-    const stageEnd = source.indexOf("<WildsWorldControls");
+    const stageEnd = source.indexOf("<WildzSocialDeck");
     const eventToast = source.indexOf('<div className="wilds-event-toast"');
 
     assert.ok(stageEnd > eventToast);
@@ -236,25 +237,24 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(source, /Portable card vault/);
     assert.match(source, /type: "select-asset"/);
     assert.match(source, /<WildsInventory/);
-    assert.match(controls, /aria-label="Make camp and recover energy"/);
+    assert.match(controls, /aria-label="Make camp and recover"/);
     assert.match(controls, /aria-label="Run world mission"/);
     assert.match(css, /\.mobile-play-wrap \.wilds-stage\s*\{[^}]*min-height:\s*0/);
     assert.doesNotMatch(css, /\.mobile-play-wrap \.wilds-stage\s*\{[^}]*min-height: 286px/);
     assert.match(source, /wilds-coordinate-badges/);
-    assert.match(controls, /Discovery on/);
+    assert.match(controls, /Discovery active/);
     assert.doesNotMatch(source, /setSearchArmed\(false\)/);
     assert.match(source, /state\.encounter\.proximity/);
   });
 
   it("centers the movement pad between two perfectly balanced three-action rails", async () => {
-    const controls = await readFile("src/features/play/WildsWorldControls.tsx", "utf8");
+    const controls = await readFile("src/features/play/WildzSocialDeck.tsx", "utf8");
     const css = await readFile("app/globals.css", "utf8");
 
-    assert.match(controls, /wilds-control-rail wilds-control-rail-left/);
-    assert.match(controls, /wilds-control-rail wilds-control-rail-right/);
-    assert.match(controls, /<WildsTrackpad/);
-    assert.match(css, /\.wilds-screen-controls\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)\s+var\(--wilds-pad-size\)\s+minmax\(0, 1fr\)/s);
-    assert.match(css, /\.wilds-control-rail\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/s);
+    assert.equal(controls.match(/className="wildz-play-control-rail"/g)?.length, 2);
+    assert.match(controls, /<WildzDpad/);
+    assert.match(css, /\.wildz-bottom-play-controls\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) 72px minmax\(0, 1fr\)/s);
+    assert.match(css, /\.wildz-play-control-rail\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/s);
   });
 
   it("surfaces endless chapter equity and deterministic world events", async () => {
@@ -267,11 +267,11 @@ describe("Receiz Wilds rendering contract", () => {
   });
 
   it("uses a drag trackpad and streams terrain around the player", async () => {
-    const controls = await readFile("src/features/play/WildsWorldControls.tsx", "utf8");
+    const controls = await readFile("src/features/play/WildzDpad.tsx", "utf8");
     const world = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");
     const environment = await readFile("src/features/play/WildsEnvironment.tsx", "utf8");
 
-    assert.match(controls, /function WildsTrackpad/);
+    assert.match(controls, /function WildzDpad/);
     assert.match(controls, /setPointerCapture/);
     assert.match(controls, /move-vector/);
     assert.match(world, /function StreamedTerrain/);
@@ -281,10 +281,10 @@ describe("Receiz Wilds rendering contract", () => {
   it("keeps mobile movement aligned while players orbit and pinch the gameplay camera", async () => {
     const world = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");
     const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
-    const controls = await readFile("src/features/play/WildsWorldControls.tsx", "utf8");
+    const controls = await readFile("src/features/play/WildzDpad.tsx", "utf8");
 
     assert.match(world, /OrbitControls/);
-    assert.match(world, /enableDamping/);
+    assert.match(world, /enableDamping=\{false\}/);
     assert.match(world, /enablePan=\{false\}/);
     assert.match(world, /minDistance=\{4\.8\}/);
     assert.match(world, /maxDistance=\{13\.5\}/);
@@ -293,7 +293,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(world, /touches=\{\{ ONE: THREE\.TOUCH\.ROTATE, TWO: THREE\.TOUCH\.DOLLY_ROTATE \}\}/);
     assert.match(world, /onCameraHeadingChange/);
     assert.match(campaign, /cameraHeading/);
-    assert.match(controls, /cameraRelativeMovement\(vector, cameraHeading\)/);
+    assert.match(controls, /cameraRelativeMovement\(next, heading\.current\)/);
     assert.doesNotMatch(world, /camera\.position\.lerp\(target/);
   });
 
@@ -589,7 +589,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(controls, /Music volume/);
     assert.match(controls, /Mute Wilds audio/);
     assert.match(campaign, /wilds-utility-cluster/);
-    const worldControls = campaign.slice(campaign.indexOf("<WildsWorldControls"));
-    assert.doesNotMatch(worldControls, /<WildsAudioSettings/);
+    const socialDeck = campaign.slice(campaign.indexOf("<WildzSocialDeck"));
+    assert.doesNotMatch(socialDeck, /<WildsAudioSettings/);
   });
 });

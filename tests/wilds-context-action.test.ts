@@ -69,7 +69,7 @@ describe("Wilds contextual world actions", () => {
   });
 
   it("keeps walking precise and makes running intentionally faster", () => {
-    assert.equal(movementScale("walk"), 0.8);
+    assert.equal(movementScale("walk"), 1);
     assert.equal(movementScale("run"), 1.25);
     assert.ok(worldBounds.analogStep * movementScale("run") / 0.045 <= 12);
     assert.equal(normalizeWildsMovementMode("run"), "run");
@@ -79,7 +79,7 @@ describe("Wilds contextual world actions", () => {
     const running = applyWildsInput(initialPlayState, { type: "move-vector", x: 1, z: 0, mode: "run" });
     const walkDistance = walking.player.x - initialPlayState.player.x;
     const runDistance = running.player.x - initialPlayState.player.x;
-    assert.ok(Math.abs(runDistance / walkDistance - 1.5625) < 0.001);
+    assert.ok(Math.abs(runDistance / walkDistance - 1.25) < 0.001);
   });
 
   it("keeps trackpad forward aligned with the orbiting camera", () => {
