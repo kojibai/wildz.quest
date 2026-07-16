@@ -7,9 +7,9 @@ import type { PlayState, WildsInput } from "./game-state";
 import type { WildsMovementMode } from "./wilds-movement";
 import type { PortableCardAsset } from "./portable-card";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
+import { WildzCreatureDrawer } from "./WildzCreatureDrawer";
 import { WildzContextButton } from "./WildzContextButton";
 import { WildzDpad } from "./WildzDpad";
-import { WildzPagedCardRail } from "./WildzPagedCardRail";
 
 function useStableEvent<Arguments extends unknown[]>(handler: (...args: Arguments) => void) {
   const handlerRef = useRef(handler);
@@ -44,16 +44,14 @@ export function WildzSocialDeck({ nearbyCards, activeCard, companionProgress, ac
 }) {
   const changeCardOrder = useStableEvent(onCardOrderChange);
   const selectCard = useStableEvent(onSelectCard);
-  const openMarket = useStableEvent(onOpenMarket);
 
   return <section className="wildz-social-deck" aria-label="Nearby companions and game functions">
-    <span className="wildz-social-handle" aria-hidden="true" />
-    <WildzPagedCardRail
+    <WildzCreatureDrawer
+      activeCard={activeCard}
       cardOrder={cardOrder}
       companionProgress={companionProgress}
       nearbyCards={nearbyCards}
       onCardOrderChange={changeCardOrder}
-      onOpenMarket={openMarket}
       onSelectCard={selectCard}
     />
     <div className="wildz-bottom-play-controls" aria-label="Movement and context controls">
@@ -72,11 +70,11 @@ export function WildzSocialDeck({ nearbyCards, activeCard, companionProgress, ac
       </div>
     </div>
     <nav className="wildz-social-actions" aria-label="All game functions">
-      <button aria-label="Open card vault" className="wildz-action-vault" onClick={onOpenVault} type="button"><Icons.archive size={25} /></button>
+      <button aria-label="Open Trail Pack and Wilds Heartbeat" className="wildz-action-vault" onClick={onOpenDeck} type="button"><Icons.archive size={25} /></button>
       <button aria-label="Open field guide" className="wildz-action-guide" onClick={onOpenFieldGuide} type="button"><Icons.book size={25} /></button>
       <button aria-label="Open player profile" className="wildz-action-people" onClick={onOpenProfile} type="button"><Icons.users size={25} /><i aria-hidden="true" /></button>
       <button aria-label="Open social market" className="wildz-action-pulse" onClick={onOpenMarket} type="button"><Icons.waveform size={25} /></button>
-      <button aria-label="Open Trail Pack and Wilds Heartbeat" className="wildz-action-companion" onClick={onOpenDeck} type="button">{activeCard ? <WildsCreatureThumbnail asset={activeCard} /> : <Icons.assets size={25} />}</button>
+      <button aria-label="Open card vault" className="wildz-action-companion" onClick={onOpenVault} type="button">{activeCard ? <WildsCreatureThumbnail asset={activeCard} /> : <Icons.assets size={25} />}</button>
       <button aria-label="Open foraging satchel" className="wildz-action-satchel" onClick={onOpenSatchel} type="button"><Icons.products size={24} /><Icons.sparkle className="wildz-action-satchel-spark" size={12} /></button>
     </nav>
   </section>;

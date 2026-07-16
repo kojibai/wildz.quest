@@ -220,7 +220,7 @@ describe("Receiz Wilds rendering contract", () => {
   it("keeps compact controls below the world and opens strategy from one icon dock", async () => {
     const source = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
     const controls = await readFile("src/features/play/WildzSocialDeck.tsx", "utf8");
-    const pagedRail = await readFile("src/features/play/WildzPagedCardRail.tsx", "utf8").catch(() => "");
+    const creatureDrawer = await readFile("src/features/play/WildzCreatureDrawer.tsx", "utf8").catch(() => "");
     const commandDock = await readFile("src/features/play/WildsCommandDock.tsx", "utf8");
     const css = await readFile("app/globals.css", "utf8");
     const stageEnd = source.indexOf("<WildzSocialDeck");
@@ -239,9 +239,9 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(source, /Portable card vault/);
     assert.match(source, /type: "select-asset"/);
     assert.match(source, /<WildsInventory/);
-    assert.match(controls, /<WildzPagedCardRail/);
+    assert.match(controls, /<WildzCreatureDrawer/);
     assert.doesNotMatch(controls, /sortedCards\.map/);
-    assert.doesNotMatch(pagedRail, /WildsInventory|cameraHeading|movementMode|playerPosition/);
+    assert.doesNotMatch(creatureDrawer, /WildsInventory|cameraHeading|movementMode|playerPosition/);
     assert.match(commandDock, /activeItem\s*\?[\s\S]*?activeItem\.content/);
     assert.match(controls, /aria-label="Make camp and recover"/);
     assert.match(controls, /aria-label="Run world mission"/);

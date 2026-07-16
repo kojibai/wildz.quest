@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 
-const pagedRailPath = "src/features/play/WildzPagedCardRail.tsx";
+const creatureDrawerPath = "src/features/play/WildzCreatureDrawer.tsx";
 
-function readPagedRail() {
-  return existsSync(pagedRailPath) ? readFileSync(pagedRailPath, "utf8") : "";
+function readCreatureDrawer() {
+  return existsSync(creatureDrawerPath) ? readFileSync(creatureDrawerPath, "utf8") : "";
 }
 
 test("social deck preserves the game command surfaces and embedded social market", () => {
@@ -20,11 +20,11 @@ test("social deck preserves the game command surfaces and embedded social market
 test("bottom dock follows the six-slot reference order with distinct functions", () => {
   const source = readFileSync("src/features/play/WildzSocialDeck.tsx", "utf8");
   const markers = [
-    'aria-label="Open card vault"',
+    'aria-label="Open Trail Pack and Wilds Heartbeat"',
     'aria-label="Open field guide"',
     'aria-label="Open player profile"',
     'aria-label="Open social market"',
-    'aria-label="Open Trail Pack and Wilds Heartbeat"',
+    'aria-label="Open card vault"',
     'aria-label="Open foraging satchel"'
   ];
   const offsets = markers.map((marker) => source.indexOf(marker));
@@ -51,29 +51,29 @@ test("Trail Pack replaces the redundant deck list with a three-companion heartbe
 
 test("nearby cards render actual artwork with verification beside the creature name", () => {
   const source = readFileSync("src/features/play/WildzSocialDeck.tsx", "utf8");
-  const rail = readPagedRail();
+  const drawer = readCreatureDrawer();
   const thumbnail = readFileSync("src/features/play/WildsCreatureThumbnail.tsx", "utf8");
   const badge = readFileSync("src/features/play/WildsVerifiedBadge.tsx", "utf8");
   const css = readFileSync("app/globals.css", "utf8");
 
-  assert.match(source, /<WildzPagedCardRail/);
-  assert.match(rail, /<WildsCreatureThumbnail asset=\{card\}/);
+  assert.match(source, /<WildzCreatureDrawer/);
+  assert.match(drawer, /<WildsCreatureThumbnail asset=\{asset\}/);
   assert.match(source, /<WildsCreatureThumbnail asset=\{activeCard\}/);
-  assert.match(rail, /<WildsVerifiedBadge\s*\/>/);
+  assert.match(drawer, /<WildsVerifiedBadge\s*\/>/);
   assert.doesNotMatch(thumbnail, /wilds-creature-verified/);
   assert.match(badge, /wilds-creature-verified/);
   assert.match(css, /\.wilds-creature-verified\s*\{/);
 });
 
 test("reordering nearby cards cannot change any displayed creature fact", () => {
-  const source = readPagedRail();
+  const source = readCreatureDrawer();
 
   assert.doesNotMatch(source, /manifest\.stage \+ index|75 \+ index/);
-  assert.match(source, /const logicalPosition = safePage \* pageSize \+ index \+ 1/);
+  assert.match(source, /logicalPosition=\{logicalIndex \+ 1\}/);
   assert.match(source, /companionProgress\[card\.manifest\.familyId\]/);
-  assert.match(source, /card\.manifest\.stage/);
-  assert.match(source, /card\.manifest\.stats\.power/);
-  assert.match(source, /card\.manifest\.ownerReceizId/);
+  assert.match(source, /asset\.manifest\.name/);
+  assert.match(source, /form\?\.element/);
+  assert.match(source, /progress\.bond/);
 });
 
 test("field guide and satchel are game-native panels without merchant reward language", () => {

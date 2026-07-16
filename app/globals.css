@@ -12613,8 +12613,8 @@ button.product-purchase-secondary-link {
   position: relative;
   z-index: 38;
   display: grid;
-  grid-template-rows: 8px minmax(0, 1fr) auto auto;
-  height: clamp(278px, 35dvh, 340px);
+  grid-template-rows: auto auto auto;
+  height: auto;
   min-height: 0;
   padding: 8px max(10px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
   overflow: hidden;
@@ -12626,7 +12626,7 @@ button.product-purchase-secondary-link {
   backdrop-filter: blur(22px) saturate(1.08);
 }
 .wildz-social-stack { position: relative; z-index: 38; min-height: 0; }
-.wildz-social-stack > .wildz-social-deck { height: clamp(250px, 32dvh, 292px); padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+.wildz-social-stack > .wildz-social-deck { height: auto; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
 .wildz-social-stack > .wilds-command-system { position: absolute; right: max(14px, env(safe-area-inset-right)); bottom: max(7px, env(safe-area-inset-bottom)); left: max(14px, env(safe-area-inset-left)); z-index: 42; width: auto; padding: 0; background: transparent; }
 .wildz-social-stack > .wilds-command-system .wilds-command-dock { width: 100%; max-width: none; border-color: rgba(135, 224, 193, .22); background: linear-gradient(180deg, rgba(8, 27, 30, .94), rgba(5, 20, 23, .98)); box-shadow: 0 12px 28px rgba(0,0,0,.28), inset 0 1px rgba(255,255,255,.07); }
 .wildz-social-stack > .wilds-command-system .wilds-command-button { min-height: 48px; color: #b6d6d0; }
@@ -12636,6 +12636,36 @@ button.product-purchase-secondary-link {
 .wildz-social-stack > .wilds-command-system > .wilds-command-dock { display: none; }
 .wildz-preserved-controls { display: none; }
 .wildz-social-handle { justify-self: center; width: 78px; height: 6px; border-radius: 8px; background: rgba(223, 226, 216, .28); }
+.wildz-creature-drawer { position: relative; height: var(--wildz-drawer-height); min-height: 0; transition: height 220ms cubic-bezier(.2, .8, .2, 1); }
+.wildz-creature-drawer.is-closed { height: 0; }
+.wildz-creature-drawer-handle { position: absolute; right: 50%; bottom: 0; z-index: 4; display: flex; width: 86px; min-height: 24px; align-items: center; justify-content: center; gap: 5px; padding: 0 8px; border: 1px solid rgba(226, 230, 215, .18); border-radius: 999px; color: #dfe8df; background: rgba(26, 34, 30, .96); box-shadow: 0 5px 16px rgba(0,0,0,.24), inset 0 1px rgba(255,255,255,.07); touch-action: none; transform: translate(50%, 50%); }
+.wildz-creature-drawer-handle > span { width: 43px; height: 4px; border-radius: 999px; background: rgba(223, 226, 216, .42); }
+.wildz-creature-drawer-handle > svg { transition: transform 180ms ease; }
+.wildz-creature-drawer:not(.is-closed) .wildz-creature-drawer-handle > svg { transform: rotate(180deg); }
+.wildz-creature-drawer-content { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; overflow: hidden; padding: 7px 2px 14px; border-bottom: 1px solid rgba(255,255,255,.06); }
+.wildz-creature-drawer.is-closed .wildz-creature-drawer-content { visibility: hidden; }
+.wildz-creature-drawer-tools { display: flex; min-height: 28px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px; }
+.wildz-creature-drawer-tools > span { overflow: hidden; color: #9baca0; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.wildz-creature-drawer-tools label { display: flex; align-items: center; gap: 5px; color: #8ea096; font-size: 8px; font-weight: 900; text-transform: uppercase; }
+.wildz-creature-drawer-tools select { min-height: 25px; padding: 0 24px 0 8px; border: 1px solid rgba(143, 215, 168, .22); border-radius: 9px; color: #dff4e5; background: #17261f; font: inherit; text-transform: none; }
+.wildz-creature-window { display: flex; min-height: 0; gap: 8px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; scrollbar-width: none; overscroll-behavior: contain; }
+.wildz-creature-window::-webkit-scrollbar,
+.wildz-creature-book::-webkit-scrollbar { display: none; }
+.wildz-creature-drawer.mode-grid .wildz-creature-window { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; overflow-x: hidden; overflow-y: auto; scroll-snap-type: y proximity; }
+.wildz-creature-choice-shell { width: 176px; min-width: 176px; min-height: 70px; scroll-snap-align: start; }
+.wildz-creature-choice { position: relative; display: grid; grid-template-columns: 54px minmax(0, 1fr); width: 100%; height: 100%; min-height: 70px; align-items: center; gap: 8px; padding: 7px; overflow: hidden; border: 1px solid rgba(225, 217, 184, .18); border-radius: 16px; color: #f3f1e9; background: radial-gradient(circle at 14% 8%, rgba(125, 181, 130, .16), transparent 48%), rgba(28, 37, 33, .9); text-align: left; }
+.wildz-creature-choice[aria-pressed="true"] { border-color: rgba(121, 230, 163, .62); background: radial-gradient(circle at 14% 8%, rgba(125, 215, 145, .3), transparent 50%), rgba(30, 51, 39, .96); box-shadow: inset 0 0 0 1px rgba(132, 235, 171, .14); }
+.wildz-creature-choice > .wilds-creature-thumbnail { width: 54px; height: 54px; border-radius: 13px; }
+.wildz-creature-choice-copy { display: grid; min-width: 0; gap: 2px; }
+.wildz-creature-choice-copy small { color: #f0d066; font-size: 7px; font-weight: 900; text-transform: uppercase; }
+.wildz-creature-choice-copy strong { overflow: hidden; font-size: 12px; }
+.wildz-creature-choice-copy em { overflow: hidden; color: #9eaca4; font-size: 8px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.wildz-creature-choice-active { position: absolute; top: 5px; right: 5px; padding: 2px 5px; border-radius: 999px; color: #173522; background: #9be5ad; font-size: 6px; letter-spacing: .05em; text-transform: uppercase; }
+.wildz-creature-drawer.mode-grid .wildz-creature-choice-shell { width: 100%; min-width: 0; min-height: 74px; }
+.wildz-creature-book { display: flex; min-height: 0; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-inline: contain; }
+.wildz-creature-spread { display: grid; min-width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 7px; padding: 1px 3px; scroll-snap-align: start; scroll-snap-stop: always; }
+.wildz-creature-spread .wildz-creature-choice-shell { width: 100%; min-width: 0; min-height: 0; }
+.wildz-creature-spread .wildz-creature-choice { min-height: 0; }
 .wildz-card-rail { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
 .wildz-card-rail-tools { display: flex; min-height: 26px; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 2px 0; }
 .wildz-card-rail-tools > span { overflow: hidden; color: #9baca0; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
@@ -12822,7 +12852,7 @@ button.product-purchase-secondary-link {
   .wildz-context-button { right: 5vw; bottom: 17px; width: 62px; }
   .wildz-dpad { bottom: 14px; width: 120px; }
   .wildz-social-deck,
-  .wildz-social-stack > .wildz-social-deck { height: 278px; border-radius: 24px 24px 0 0; }
+  .wildz-social-stack > .wildz-social-deck { height: auto; border-radius: 24px 24px 0 0; }
   .wildz-card-rail-tools { min-height: 24px; }
   .wildz-card-rail-tools > span { display: none; }
   .wildz-card-rail-tools label { min-width: 0; flex: 1; justify-content: flex-end; }
@@ -12866,7 +12896,7 @@ button.product-purchase-secondary-link {
 
 @media (max-height: 700px) {
   .wildz-social-deck,
-  .wildz-social-stack > .wildz-social-deck { height: 270px; }
+  .wildz-social-stack > .wildz-social-deck { height: auto; }
   .wildz-minimap { top: 132px; width: 96px; }
   .wildz-player-capsule { transform: scale(.9); transform-origin: top left; }
   .wildz-status-rail { transform: scale(.88); transform-origin: top right; }
@@ -12883,6 +12913,8 @@ button.product-purchase-secondary-link {
   .wildz-dpad button,
   .wildz-social-actions button,
   .wildz-social-deck .wilds-command-button { transition: none; }
+  .wildz-creature-drawer,
+  .wildz-creature-drawer-handle > svg { transition: none; }
   .wildz-context-button.can-enter { animation: none; }
 }
 
