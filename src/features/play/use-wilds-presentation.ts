@@ -17,6 +17,7 @@ import {
   type WildsVisualEvent,
   type WildsVisualEventKind
 } from "@/features/play/wilds-visual-events";
+import type { WildsAudioScene } from "@/features/play/wilds-audio-scene";
 
 function restoreAudioSettings(initial?: unknown) {
   return initial ? normalizeWildsAudioSettings(initial) : { ...DEFAULT_WILDS_AUDIO_SETTINGS };
@@ -41,10 +42,12 @@ function eventKindForPhase(phase: string): WildsVisualEventKind | null {
 
 export function useWildsPresentation({
   encounter,
+  audioScene,
   enabled,
   initialAudioSettings
 }: {
   encounter: WildsEncounterAudioState;
+  audioScene?: WildsAudioScene;
   enabled: boolean;
   initialAudioSettings?: unknown;
 }) {
@@ -101,6 +104,11 @@ export function useWildsPresentation({
     runtime?.setSettings(audioSettings);
     if (audioReady && !audioSettings.muted) runtime?.startAmbience();
   }, [audioReady, audioSettings]);
+
+  useEffect(() => {
+    if (!audioReady || !audioScene || audioSettings.muted) return;
+    void runtimeRef.current?.setScene(audioScene);
+  }, [audioReady, audioScene, audioSettings.muted]);
 
   useEffect(() => {
     const previous = previousEncounter.current;

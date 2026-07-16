@@ -2,6 +2,7 @@ const WILDZ_APPLY_UPDATE_MESSAGE = "WILDZ_APPLY_UPDATE";
 const release = new URL(self.location.href).searchParams.get("release") || "v3.0.0";
 const SHELL_CACHE = `wildz-shell-${release}`;
 const PUBLIC_CACHE = `wildz-public-${release}`;
+const AUDIO_CACHE = "wildz-audio-dcf17ad4caf7";
 const SHELL_URLS = [
   "/",
   "/offline",
@@ -28,6 +29,10 @@ function isImmutableShellAsset(pathname) {
     || pathname.startsWith("/icons/");
 }
 
+function isWildzAudio(pathname) {
+  return pathname.startsWith("/audio/wildz/");
+}
+
 function matchesPrefix(pathname, prefix) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
@@ -41,6 +46,7 @@ function classifyWildzRequest(request, url = new URL(request.url)) {
   if (url.pathname === "/" || url.pathname === "/offline" || isImmutableShellAsset(url.pathname)) {
     return "shell";
   }
+  if (isWildzAudio(url.pathname)) return "audio";
   if (request.mode === "navigate" && PUBLIC_DOCUMENT.test(url.pathname)) return "public-document";
   if (request.credentials === "omit" && PUBLIC_PROFILE_GET.test(url.pathname)) return "public-profile-get";
   if (CARD_GET.test(url.pathname)) return "card-get";
@@ -117,7 +123,8 @@ async function activateCurrentCaches() {
   await Promise.all(keys
     .filter((key) => (
       key.startsWith("wildz-shell-") || key.startsWith("wildz-public-")
-    ) && key !== SHELL_CACHE && key !== PUBLIC_CACHE)
+      || key.startsWith("wildz-audio-")
+    ) && key !== SHELL_CACHE && key !== PUBLIC_CACHE && key !== AUDIO_CACHE)
     .map((key) => caches.delete(key)));
   await self.clients.claim();
 }
@@ -185,6 +192,19 @@ async function networkOnly(request) {
   }
 }
 
+async function audioCacheFirst(request) {
+  const cache = await caches.open(AUDIO_CACHE);
+  const cached = await cache.match(request);
+  if (cached) return cached;
+  try {
+    const response = await fetch(request);
+    if (isBaseCacheable(response)) await cache.put(request, response.clone());
+    return response;
+  } catch {
+    return Response.error();
+  }
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(installPublicShell());
 });
@@ -214,6 +234,9 @@ self.addEventListener("fetch", (event) => {
       return;
     case "card-get":
       event.respondWith(publicCardNetworkFirst(request));
+      return;
+    case "audio":
+      event.respondWith(audioCacheFirst(request));
       return;
     default:
       event.respondWith(networkOnly(request));

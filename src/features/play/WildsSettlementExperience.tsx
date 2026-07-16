@@ -28,6 +28,7 @@ export function WildsSettlementExperience({
   onCivicEvent,
   onExit,
   onAudioCue,
+  onDistrictChange,
   open,
   remotePlayers,
   worldMode
@@ -39,6 +40,7 @@ export function WildsSettlementExperience({
   onCivicEvent: (event: WildsCivicEvent) => void;
   onExit: () => void;
   onAudioCue: (cue: WildsAudioCue) => void;
+  onDistrictChange?: (districtId: WildsSettlementDistrictId) => void;
   open: boolean;
   remotePlayers: WildsPresence[];
   worldMode: WildsSettlementWorldMode;
@@ -116,7 +118,7 @@ export function WildsSettlementExperience({
       <nav aria-label="Wayfinder Hollow districts" className="wilds-settlement-districts">
         {WAYFINDER_HOLLOW.districts.map((item) => {
           const Icon = districtIcons[item.id];
-          return <button aria-current={districtId === item.id ? "page" : undefined} key={item.id} onClick={() => setDistrictId(item.id)} type="button"><Icon aria-hidden="true" size={17} /><span>{item.name}</span></button>;
+          return <button aria-current={districtId === item.id ? "page" : undefined} key={item.id} onClick={() => { setDistrictId(item.id); onDistrictChange?.(item.id); }} type="button"><Icon aria-hidden="true" size={17} /><span>{item.name}</span></button>;
         })}
       </nav>
 

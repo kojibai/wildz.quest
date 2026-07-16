@@ -1,6 +1,8 @@
 import type { WildsEcologyFamilyId } from "./wilds-ecology";
 import type { WildsBossFamilyId } from "./wilds-boss-ecology";
 import { WILDS_AUDIO_BY_ID } from "./wilds-audio-catalog";
+import { selectWildsAudioProgram, type WildsAudioMemory } from "./wilds-audio-director";
+import type { WildsAudioScene } from "./wilds-audio-scene";
 
 export type WildsAudioSettings = {
   master: number;
@@ -91,6 +93,7 @@ type GainLike = {
 
 type AudioBufferSourceLike = {
   buffer: unknown;
+  loop?: boolean;
   onended?: (() => void) | null;
   connect(target: unknown): void;
   disconnect(): void;
@@ -272,6 +275,8 @@ export function createWildsAudioRuntime(
   const buffers = new Map<string, unknown>();
   const loading = new Map<string, Promise<void>>();
   const activeSources = new Set<AudioBufferSourceLike>();
+  let programSources: Array<{ source: AudioBufferSourceLike; gain: GainLike; kind: "music" | "ambience" }> = [];
+  let programMemory: WildsAudioMemory = { activeProgramId: null, enteredAt: 0, recent: [] };
 
   const preload = async (assetIds: readonly string[]) => {
     if (!context || destroyed || !context.decodeAudioData || !context.createBufferSource) return;
@@ -336,6 +341,58 @@ export function createWildsAudioRuntime(
     ambience = [];
   };
 
+  const stopProgram = () => {
+    programSources.forEach(({ source, gain }) => {
+      try { source.stop(); } catch { /* The loop may already be stopped. */ }
+      source.disconnect();
+      gain.disconnect();
+    });
+    programSources = [];
+    programMemory = { ...programMemory, activeProgramId: null, enteredAt: 0 };
+  };
+
+  const setScene = async (scene: WildsAudioScene) => {
+    if (!context || destroyed || settings.muted) return programMemory.activeProgramId;
+    const nowMs = Date.now();
+    const next = selectWildsAudioProgram(scene, programMemory, nowMs);
+    if (next.id === programMemory.activeProgramId) return next.id;
+    const assetIds = next.layers.filter((id) => WILDS_AUDIO_BY_ID.has(id));
+    await preload(assetIds);
+    const now = context.currentTime;
+    const end = now + next.crossfadeSeconds;
+    const oldSources = programSources;
+    programSources = [];
+    stopAmbience();
+    for (const assetId of assetIds) {
+      const asset = WILDS_AUDIO_BY_ID.get(assetId);
+      const buffer = buffers.get(assetId);
+      if (!asset || !buffer || !context.createBufferSource || (asset.kind !== "music" && asset.kind !== "ambience")) continue;
+      const source = context.createBufferSource();
+      const gain = context.createGain();
+      const volume = Math.max(0.0001, settings.master * (asset.kind === "music" ? settings.music : settings.ambience));
+      source.buffer = buffer;
+      source.loop = asset.loop;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(volume, end);
+      source.connect(gain);
+      gain.connect(context.destination);
+      source.onended = () => { source.disconnect(); gain.disconnect(); };
+      source.start(now);
+      programSources.push({ source, gain, kind: asset.kind });
+    }
+    oldSources.forEach(({ source, gain, kind }) => {
+      gain.gain.setValueAtTime(Math.max(0.0001, settings.master * (kind === "music" ? settings.music : settings.ambience)), now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, end);
+      try { source.stop(end); } catch { /* A completed loop needs no further cleanup. */ }
+    });
+    programMemory = {
+      activeProgramId: next.id,
+      enteredAt: nowMs,
+      recent: [...programMemory.recent, next.id].slice(-4)
+    };
+    return next.id;
+  };
+
   return {
     async unlock() {
       if (destroyed) return;
@@ -344,10 +401,22 @@ export function createWildsAudioRuntime(
     },
     setSettings(next: WildsAudioSettings) {
       settings = normalizeWildsAudioSettings(next);
-      if (settings.muted) stopAmbience();
+      if (settings.muted) {
+        stopAmbience();
+        stopProgram();
+      } else if (context) {
+        programSources.forEach(({ gain, kind }) => gain.gain.setValueAtTime(
+          Math.max(0.0001, settings.master * (kind === "music" ? settings.music : settings.ambience)),
+          context!.currentTime
+        ));
+      }
     },
     preload,
     play,
+    setScene,
+    activeProgramId() {
+      return programMemory.activeProgramId;
+    },
     startAmbience() {
       if (!context || destroyed || settings.muted || ambience.length > 0) return;
       ambience = [98, 147].map((frequency, index) => {
@@ -373,6 +442,7 @@ export function createWildsAudioRuntime(
         source.disconnect();
       });
       activeSources.clear();
+      stopProgram();
       buffers.clear();
       const activeContext = context;
       context = null;

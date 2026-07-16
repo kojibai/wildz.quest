@@ -25,6 +25,9 @@ import { useWildsWorld } from "@/features/play/use-wilds-world";
 import { WildsAudioSettings } from "@/features/play/WildsAudioSettings";
 import { useWildsPresentation } from "@/features/play/use-wilds-presentation";
 import { selectWildsQualityProfile } from "@/features/play/wilds-quality-profile";
+import { projectWildsAudioScene } from "@/features/play/wilds-audio-scene";
+import { projectWildsBiome } from "@/features/play/wilds-biome";
+import type { WildsSettlementDistrictId } from "@/features/play/wilds-settlements";
 import { projectWorldProgression } from "@/features/play/world-progression";
 import { WildsCommandDock, type WildsCommandItem, type WildsCommandKey } from "@/features/play/WildsCommandDock";
 import { WildzCommandInsight } from "@/features/play/WildzCommandInsight";
@@ -137,6 +140,7 @@ export function PlayCampaign({
   const [movementMode, setMovementMode] = useState<WildsMovementMode>(() => initialPlayerContinuity?.settings.movementMode ?? "walk");
   const [cardOrder, setCardOrder] = useState<WildzCardOrder>(() => initialPlayerContinuity?.settings.cardOrder ?? "rarity");
   const [activeLandmarkId, setActiveLandmarkId] = useState<WildsLandmarkId | null>(null);
+  const [activeDistrictId, setActiveDistrictId] = useState<WildsSettlementDistrictId>("trail-gate");
   const [activeEcologySiteId, setActiveEcologySiteId] = useState<string | null>(null);
   const [activeRaid, setActiveRaid] = useState<{ bossId: string; roundId: string; placement: "fighter" | "support"; connected: boolean } | null>(null);
   const [raidReturnPosition, setRaidReturnPosition] = useState<{ x: number; z: number } | null>(null);
@@ -182,7 +186,33 @@ export function PlayCampaign({
     activeCard: activeAsset ?? null,
     cardAdmission
   });
+  const audioScene = useMemo(() => {
+    const biome = projectWildsBiome(
+      Math.floor(state.player.x / 12),
+      Math.floor(state.player.z / 12),
+      state.missionProgress,
+      state.worldMastery
+    );
+    const battleActive = Boolean(state.battle && !["captured", "fled", "defeated"].includes(state.battle.phase));
+    const hpRatio = state.battle?.player.hpRatio ?? 1;
+    const encounterProximity = "proximity" in state.encounter ? state.encounter.proximity : "cold";
+    return projectWildsAudioScene({
+      position: state.player,
+      biome: biome.chapterId,
+      districtId: activeLandmarkId === "wayfinder-hollow" ? activeDistrictId : null,
+      landmark: activeLandmarkId === "arena-of-echoes" ? "mortal-arena" : undefined,
+      weather: biome.weather,
+      time: "day",
+      activity: battleActive ? "combat" : state.encounter.phase === "idle" ? "travel" : "discovery",
+      threat: battleActive ? Math.max(.35, 1 - (state.battle?.wild.hpRatio ?? 1)) : encounterProximity === "hot" ? .55 : 0,
+      combatPhase: !battleActive ? "none" : hpRatio <= .25 || (state.battle?.wild.hpRatio ?? 1) <= .25 ? "final" : state.battle!.turn <= 2 ? "opening" : "pressure",
+      vitalityBand: hpRatio <= .25 ? "critical" : hpRatio <= .55 ? "strained" : "healthy",
+      memorial: false,
+      reducedMotion
+    });
+  }, [activeDistrictId, activeLandmarkId, reducedMotion, state.battle, state.encounter, state.missionProgress, state.player, state.worldMastery]);
   const presentation = useWildsPresentation({
+    audioScene,
     encounter: {
       phase: state.encounter.phase,
       proximity: state.encounter.phase === "idle" ? "cold" : state.encounter.proximity
@@ -918,6 +948,7 @@ export function PlayCampaign({
         civic={civic}
         livingWorld={livingWorld.snapshot}
         onAudioCue={presentation.playCue}
+        onDistrictChange={setActiveDistrictId}
         onCivicEvent={(event) => dispatch({ type: "record-civic-event", event })}
         onExit={() => setActiveLandmarkId(null)}
         open={activeLandmarkId === "wayfinder-hollow"}
