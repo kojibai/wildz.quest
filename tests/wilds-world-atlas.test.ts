@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { WILDS_FLAGSHIP_LANDMARKS, landmarkAtPosition, landmarkApproachPoint, projectVisibleLandmarkEntrances } from "../src/features/play/wilds-landmarks";
+import { MORTAL_ARENA_POSITION, WILDS_FLAGSHIP_LANDMARKS, landmarkAtPosition, landmarkApproachPoint, projectVisibleLandmarkEntrances } from "../src/features/play/wilds-landmarks";
 import { projectWildsAtlas } from "../src/features/play/wilds-world-atlas";
 import type { WildsPresence } from "../src/features/play/multiplayer-core";
 
@@ -34,8 +34,9 @@ describe("Wilds world atlas", () => {
       "wayfinder-hollow"
     ]);
     assert.equal(new Set(WILDS_FLAGSHIP_LANDMARKS.map((landmark: { position: { x: number; z: number } }) => `${landmark.position.x}:${landmark.position.z}`)).size, 4);
-    assert.equal(landmarkAtPosition({ x: 0, z: 0 })?.id, "hearttree-sanctum");
-    assert.equal(landmarkAtPosition({ x: 144, z: -96 })?.id, "arena-of-echoes");
+    assert.deepEqual(MORTAL_ARENA_POSITION, { x: 0, z: 0 });
+    assert.equal(landmarkAtPosition({ x: 0, z: 0 })?.id, "arena-of-echoes");
+    assert.equal(landmarkAtPosition({ x: 96, z: 144 })?.id, "hearttree-sanctum");
     assert.equal(landmarkAtPosition({ x: -144, z: 96 })?.id, "prism-arcade");
     assert.equal(landmarkAtPosition({ x: 72, z: 40 })?.id, "wayfinder-hollow");
   });

@@ -9,12 +9,12 @@ describe("Verdant Crown biome projection", () => {
     assert.notDeepEqual(first, projectWildsBiome(4, -7, 38));
   });
 
-  it("keeps ecology bounded and reserves the origin sanctuary", () => {
+  it("keeps ecology bounded and reserves the origin for the Mortal Arena", () => {
     const tile = projectWildsBiome(3, -7, 38);
     assert.ok(["sun-shower", "pollen-drift", "clear"].includes(tile.weather));
     assert.ok(tile.ecology.treeCount >= 2 && tile.ecology.treeCount <= 5);
     assert.ok(tile.ecology.bushCount >= 4 && tile.ecology.bushCount <= 8);
-    assert.equal(projectWildsBiome(0, 0, 100).landmark.kind, "hearttree-sanctum");
+    assert.equal(projectWildsBiome(0, 0, 100).landmark.kind, "mortal-arena");
   });
 
   it("uses progression only for visible world richness", () => {

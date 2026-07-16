@@ -1,32 +1,31 @@
-export type CreatureDrawerMode = "closed" | "rail" | "grid" | "book";
+export type CreatureDrawerMode = "closed" | "preview" | "expanded";
 export type CreatureDrawerSnap = CreatureDrawerMode;
 
 export type CreatureDrawerMetrics = Record<CreatureDrawerSnap, number>;
 
-const SNAP_ORDER: readonly CreatureDrawerSnap[] = ["closed", "rail", "grid", "book"];
+const SNAP_ORDER: readonly CreatureDrawerSnap[] = ["closed", "preview", "expanded"];
 const BOOK_PAGE_SIZE = 8;
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
-export function creatureDrawerMetrics(viewportHeight: number): CreatureDrawerMetrics {
+export function creatureDrawerMetrics(viewportHeight: number, safeBottom = 0): CreatureDrawerMetrics {
   const safeViewport = Number.isFinite(viewportHeight) ? viewportHeight : 720;
-  const available = clamp(Math.round(safeViewport * 0.54), 300, 480);
+  const safeInset = Number.isFinite(safeBottom) ? Math.max(0, safeBottom) : 0;
+  const available = clamp(Math.round((safeViewport - safeInset) * 0.52), 300, 438);
   return {
-    closed: 0,
-    rail: Math.min(112, available),
-    grid: Math.min(268, available),
-    book: available
+    closed: 32,
+    preview: Math.min(132, available),
+    expanded: available
   };
 }
 
 export function creatureDrawerMode(height: number, metrics: CreatureDrawerMetrics): CreatureDrawerMode {
-  const safeHeight = clamp(Number.isFinite(height) ? height : 0, metrics.closed, metrics.book);
-  if (safeHeight < (metrics.closed + metrics.rail) / 2) return "closed";
-  if (safeHeight < (metrics.rail + metrics.grid) / 2) return "rail";
-  if (safeHeight < (metrics.grid + metrics.book) / 2) return "grid";
-  return "book";
+  const safeHeight = clamp(Number.isFinite(height) ? height : metrics.closed, metrics.closed, metrics.expanded);
+  if (safeHeight < (metrics.closed + metrics.preview) / 2) return "closed";
+  if (safeHeight < (metrics.preview + metrics.expanded) / 2) return "preview";
+  return "expanded";
 }
 
 export function settleCreatureDrawer(
@@ -42,6 +41,11 @@ export function settleCreatureDrawer(
   return SNAP_ORDER.reduce((closest, candidate) => (
     Math.abs(metrics[candidate] - height) < Math.abs(metrics[closest] - height) ? candidate : closest
   ), "closed");
+}
+
+export function drawerHapticPattern(previous: CreatureDrawerSnap, next: CreatureDrawerSnap): number[] {
+  if (previous === next) return [];
+  return next === "expanded" ? [9, 28, 14] : [9];
 }
 
 export type CreatureBookWindow<Item> = {

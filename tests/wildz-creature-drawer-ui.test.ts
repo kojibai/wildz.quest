@@ -17,15 +17,18 @@ test("social deck mounts a dedicated active-creature drawer above permanent cont
   assert.doesNotMatch(drawer, /Previous card rail page|Next card rail page|Page \{/);
 });
 
-test("drawer exposes rail grid and eight-card book layouts with automatic windowing", () => {
+test("drawer exposes three wordless states with automatic windowing", () => {
   const drawer = existsSync(drawerPath) ? readFileSync(drawerPath, "utf8") : "";
   const css = readFileSync("app/globals.css", "utf8");
 
   assert.match(drawer, /creatureBookWindow/);
-  assert.match(drawer, /mode === "rail"/);
-  assert.match(drawer, /mode === "grid"/);
-  assert.match(drawer, /mode === "book"/);
-  assert.match(css, /\.wildz-creature-drawer\.is-closed\s*\{[^}]*height:\s*0/s);
+  assert.match(drawer, /mode === "preview"/);
+  assert.match(drawer, /mode === "expanded"/);
+  assert.match(drawer, /wildz-creature-drawer-dots/);
+  assert.match(drawer, /wildz:drawer-affordance-seen:v1/);
+  assert.match(drawer, /drawerHapticPattern/);
+  assert.match(css, /\.wildz-creature-drawer\.is-closed\s*\{[^}]*height:\s*var\(--wildz-drawer-height\)/s);
+  assert.doesNotMatch(css, /\.wildz-creature-drawer-handle\s*\{[^}]*transform:\s*translate\(50%, 50%\)/s);
   assert.match(css, /\.wildz-creature-spread\s*\{[^}]*grid-template-columns:\s*repeat\(2,[^}]*grid-template-rows:\s*repeat\(4,/s);
 });
 

@@ -7,6 +7,7 @@ import {
   creatureBookWindow,
   creatureDrawerMetrics,
   creatureDrawerMode,
+  drawerHapticPattern,
   settleCreatureDrawer,
   type CreatureDrawerSnap
 } from "./creature-drawer";
@@ -17,7 +18,6 @@ import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
 
 const RAIL_CARD_EXTENT = 184;
-const GRID_ROW_EXTENT = 82;
 
 function useStableEvent<Arguments extends unknown[]>(handler: (...args: Arguments) => void) {
   const handlerRef = useRef(handler);
@@ -85,7 +85,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
 }) {
   const [viewportHeight, setViewportHeight] = useState(() => typeof window === "undefined" ? 844 : window.innerHeight);
   const [snap, setSnap] = useState<CreatureDrawerSnap>("closed");
-  const [lastOpenSnap, setLastOpenSnap] = useState<Exclude<CreatureDrawerSnap, "closed">>("rail");
+  const [showAffordanceSweep, setShowAffordanceSweep] = useState(false);
   const [dragHeight, setDragHeight] = useState<number | null>(null);
   const [range, setRange] = useState({ start: 0, end: 24 });
   const [bookPage, setBookPage] = useState(0);
@@ -96,6 +96,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   const mode = creatureDrawerMode(height, metrics);
   const sortedCards = useMemo(() => sortWildzCards(nearbyCards, cardOrder), [cardOrder, nearbyCards]);
   const bookWindow = useMemo(() => creatureBookWindow(sortedCards, bookPage, 1), [bookPage, sortedCards]);
+  const activeForm = activeCard ? creatureForm(activeCard.manifest.formId) : null;
   const changeCardOrder = useStableEvent(onCardOrderChange);
   const selectCard = useStableEvent(onSelectCard);
   const selectAndClose = useCallback((assetId: string) => {
@@ -108,6 +109,15 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
     const resize = () => setViewportHeight(window.innerHeight);
     window.addEventListener("resize", resize, { passive: true });
     return () => window.removeEventListener("resize", resize);
+  }, []);
+
+  useEffect(() => {
+    const key = "wildz:drawer-affordance-seen:v1";
+    if (window.localStorage.getItem(key)) return;
+    setShowAffordanceSweep(true);
+    window.localStorage.setItem(key, "seen");
+    const timer = window.setTimeout(() => setShowAffordanceSweep(false), 1_450);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -124,15 +134,20 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [snap]);
 
+  const commitSnap = useCallback((next: CreatureDrawerSnap) => {
+    const pattern = drawerHapticPattern(snap, next);
+    if (pattern.length && typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(pattern);
+    setSnap(next);
+  }, [snap]);
+
   const finishDrag = (target: HTMLElement, pointerId: number) => {
     const gesture = drag.current;
     drag.current = null;
     if (target.hasPointerCapture?.(pointerId)) target.releasePointerCapture(pointerId);
     if (!gesture) return;
     const next = settleCreatureDrawer(dragHeight ?? gesture.startHeight, gesture.velocityY, metrics);
-    setSnap(next);
+    commitSnap(next);
     setDragHeight(null);
-    if (next !== "closed") setLastOpenSnap(next);
     suppressHandleClick.current = gesture.moved;
   };
 
@@ -154,7 +169,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
     if (!gesture) return;
     const now = performance.now();
     const elapsed = Math.max(1, now - gesture.lastAt);
-    const nextHeight = Math.max(metrics.closed, Math.min(metrics.book, gesture.startHeight + gesture.startY - event.clientY));
+    const nextHeight = Math.max(metrics.closed, Math.min(metrics.expanded, gesture.startHeight + gesture.startY - event.clientY));
     gesture.velocityY = (event.clientY - gesture.lastY) / elapsed;
     gesture.lastY = event.clientY;
     gesture.lastAt = now;
@@ -164,17 +179,11 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
 
   const updateVirtualRange = (event: UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget;
-    if (mode === "rail") {
+    if (mode === "preview") {
       const start = Math.max(0, Math.floor(target.scrollLeft / RAIL_CARD_EXTENT) - 4);
       const count = Math.ceil(target.clientWidth / RAIL_CARD_EXTENT) + 10;
       setRange({ start, end: Math.min(sortedCards.length, start + count) });
       return;
-    }
-    if (mode === "grid") {
-      const startRow = Math.max(0, Math.floor(target.scrollTop / GRID_ROW_EXTENT) - 3);
-      const start = startRow * 2;
-      const count = (Math.ceil(target.clientHeight / GRID_ROW_EXTENT) + 7) * 2;
-      setRange({ start, end: Math.min(sortedCards.length, start + count) });
     }
   };
 
@@ -192,30 +201,29 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   };
 
   const windowedCards = sortedCards.slice(range.start, range.end);
-  const windowStyle = mode === "rail"
+  const windowStyle = mode === "preview"
     ? { paddingInlineStart: `${range.start * RAIL_CARD_EXTENT}px`, paddingInlineEnd: `${Math.max(0, sortedCards.length - range.end) * RAIL_CARD_EXTENT}px` }
-    : { paddingBlockStart: `${Math.floor(range.start / 2) * GRID_ROW_EXTENT}px`, paddingBlockEnd: `${Math.ceil(Math.max(0, sortedCards.length - range.end) / 2) * GRID_ROW_EXTENT}px` };
+    : undefined;
 
   return <section
     aria-label="Active creature selector"
     className={`wildz-creature-drawer mode-${mode} ${mode === "closed" ? "is-closed" : ""}`}
-    style={{ "--wildz-drawer-height": `${height}px` } as CSSProperties}
+    style={{
+      "--wildz-drawer-height": `${height}px`,
+      "--wildz-drawer-creature": activeForm?.palette.accent ?? "#78dda1"
+    } as CSSProperties}
   >
     <button
       aria-controls="wildz-creature-drawer-content"
       aria-expanded={mode !== "closed"}
-      aria-label={mode === "closed" ? `Open creatures. Active: ${activeCard?.manifest.name ?? "none"}` : "Close creature selector"}
-      className="wildz-creature-drawer-handle"
+      aria-label={mode === "closed" ? `Preview creatures. Active: ${activeCard?.manifest.name ?? "none"}` : mode === "preview" ? "Expand creature selector" : "Close creature selector"}
+      className={`wildz-creature-drawer-handle ${showAffordanceSweep ? "show-affordance-sweep" : ""}`}
       onClick={() => {
         if (suppressHandleClick.current) {
           suppressHandleClick.current = false;
           return;
         }
-        if (snap === "closed") setSnap(lastOpenSnap);
-        else {
-          setLastOpenSnap(snap);
-          setSnap("closed");
-        }
+        commitSnap(snap === "closed" ? "preview" : snap === "preview" ? "expanded" : "closed");
       }}
       onLostPointerCapture={() => { drag.current = null; setDragHeight(null); }}
       onPointerCancel={() => { drag.current = null; setDragHeight(null); }}
@@ -224,8 +232,13 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
       onPointerUp={(event) => finishDrag(event.currentTarget, event.pointerId)}
       type="button"
     >
-      <span aria-hidden="true" />
+      <span aria-hidden="true" className="wildz-creature-drawer-peek" />
+      <span aria-hidden="true" className="wildz-creature-drawer-grip" />
+      <span aria-hidden="true" className="wildz-creature-drawer-dots">
+        {(["closed", "preview", "expanded"] as const).map((state) => <i className={mode === state ? "is-active" : ""} key={state} />)}
+      </span>
       <Icons.chevronUp aria-hidden="true" size={14} />
+      <span aria-hidden="true" className="wildz-creature-drawer-sweep" />
     </button>
     <div className="wildz-creature-drawer-content" id="wildz-creature-drawer-content">
       <div className="wildz-creature-drawer-tools">
@@ -236,7 +249,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
           <option value="oldest">Oldest</option>
         </select></label>
       </div>
-      {mode === "book" ? <div
+      {mode === "expanded" ? <div
         aria-label={`Creature book spread ${bookWindow.page + 1} of ${bookWindow.pageCount}`}
         className="wildz-creature-book"
         onScroll={(event) => {
@@ -253,7 +266,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
           </div>;
         })}
       </div> : <div
-        aria-label={mode === "rail" ? "Scroll creatures horizontally" : "Scroll creatures vertically"}
+        aria-label="Scroll creatures horizontally"
         className="wildz-creature-window"
         onScroll={updateVirtualRange}
         role="list"

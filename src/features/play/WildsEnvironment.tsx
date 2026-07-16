@@ -110,7 +110,7 @@ export function WildsEnvironment({
         <EcologyInstances bushes={bushes} flowers={flowers} palette={tiles[12]?.canopy} player={player} rocks={rocks} trees={trees} />
         <FlagshipLandmarkEntrances livingWorld={livingWorld} player={player} worldMode={worldMode} />
         <LivingWorldSites player={player} world={livingWorld} />
-        {tiles.filter((tile) => tile.landmark.kind !== "none" && tile.landmark.kind !== "hearttree-sanctum").map((tile) => (
+        {tiles.filter((tile) => tile.landmark.kind !== "none" && tile.landmark.kind !== "hearttree-sanctum" && tile.landmark.kind !== "mortal-arena").map((tile) => (
           <Landmark key={`landmark:${tile.key}`} player={player} tile={tile} />
         ))}
       </group>

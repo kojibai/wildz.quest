@@ -44,7 +44,8 @@ test("automatic scrolling replaces manual creature page controls", () => {
   assert.match(drawer, /onScroll=/);
   assert.match(drawer, /creatureBookWindow/);
   assert.match(drawer, /scrollLeft/);
-  assert.match(drawer, /scrollTop/);
+  assert.match(drawer, /mode === "preview"/);
+  assert.match(drawer, /mode === "expanded"/);
   assert.match(drawer, /aria-posinset=\{logicalPosition\}/);
   assert.match(drawer, /aria-setsize=\{total\}/);
   assert.doesNotMatch(drawer, /Previous card rail page|Next card rail page/);

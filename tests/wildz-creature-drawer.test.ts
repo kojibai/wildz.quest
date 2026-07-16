@@ -4,29 +4,30 @@ import {
   creatureBookWindow,
   creatureDrawerMetrics,
   creatureDrawerMode,
+  drawerHapticPattern,
   settleCreatureDrawer
 } from "../src/features/play/creature-drawer";
 
-test("drawer projection has zero-height closed state and ordered responsive snaps", () => {
-  const metrics = creatureDrawerMetrics(844);
+test("drawer projection keeps its slim closed handle visible with three deliberate snaps", () => {
+  const metrics = creatureDrawerMetrics(844, 34);
 
-  assert.equal(metrics.closed, 0);
-  assert.ok(metrics.rail > metrics.closed);
-  assert.ok(metrics.grid > metrics.rail);
-  assert.ok(metrics.book > metrics.grid);
-  assert.equal(creatureDrawerMode(0, metrics), "closed");
-  assert.equal(creatureDrawerMode(metrics.rail, metrics), "rail");
-  assert.equal(creatureDrawerMode(metrics.grid, metrics), "grid");
-  assert.equal(creatureDrawerMode(metrics.book, metrics), "book");
+  assert.ok(metrics.closed >= 30);
+  assert.ok(metrics.preview - metrics.closed >= 72);
+  assert.ok(metrics.expanded - metrics.preview >= 140);
+  assert.equal(creatureDrawerMode(metrics.closed, metrics), "closed");
+  assert.equal(creatureDrawerMode(metrics.preview, metrics), "preview");
+  assert.equal(creatureDrawerMode(metrics.expanded, metrics), "expanded");
 });
 
 test("drawer settling uses flick direction and otherwise chooses the nearest snap", () => {
   const metrics = creatureDrawerMetrics(844);
 
-  assert.equal(settleCreatureDrawer(metrics.rail + 10, -0.8, metrics), "grid");
-  assert.equal(settleCreatureDrawer(metrics.grid - 10, 0.9, metrics), "rail");
-  assert.equal(settleCreatureDrawer(4, 0.1, metrics), "closed");
-  assert.equal(settleCreatureDrawer(metrics.book - 4, 0.1, metrics), "book");
+  assert.equal(settleCreatureDrawer(metrics.preview + 10, -0.8, metrics), "expanded");
+  assert.equal(settleCreatureDrawer(metrics.expanded - 10, 0.9, metrics), "preview");
+  assert.equal(settleCreatureDrawer(metrics.closed + 4, 0.1, metrics), "closed");
+  assert.equal(settleCreatureDrawer(metrics.expanded - 4, 0.1, metrics), "expanded");
+  assert.deepEqual(drawerHapticPattern("closed", "preview"), [9]);
+  assert.deepEqual(drawerHapticPattern("preview", "expanded"), [9, 28, 14]);
 });
 
 test("book windows expose eight-card spreads and preload adjacent spreads without duplicates", () => {

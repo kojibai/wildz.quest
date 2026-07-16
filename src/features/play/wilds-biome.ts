@@ -3,7 +3,7 @@ import { projectWorldProgression } from "./world-progression";
 export type WildsWeather = "clear" | "sun-shower" | "pollen-drift";
 
 export type WildsLandmark = {
-  kind: "hearttree-sanctum" | "root-arch" | "spring" | "none";
+  kind: "mortal-arena" | "hearttree-sanctum" | "root-arch" | "spring" | "none";
   rotation: number;
   scale: number;
 };
@@ -48,7 +48,7 @@ export function projectWildsBiome(tileX: number, tileZ: number, missionProgress:
   const weatherRoll = unit(seed, 19);
   const landmarkRoll = unit(seed, 37);
   const landmark: WildsLandmark = tileX === 0 && tileZ === 0
-    ? { kind: "hearttree-sanctum", rotation: 0.18, scale: 1.08 }
+    ? { kind: "mortal-arena", rotation: 0, scale: 1.08 }
     : landmarkRoll > 0.91
       ? { kind: "root-arch", rotation: unit(seed, 41) * Math.PI, scale: 0.88 + unit(seed, 43) * 0.28 }
       : landmarkRoll < 0.075

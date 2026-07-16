@@ -22,13 +22,15 @@ export type WildsLandmarkDefinition = {
   access: { mode: "public" | "any" | "all"; requirements: readonly WildsLandmarkAccessRequirement[] };
 };
 
+export const MORTAL_ARENA_POSITION = Object.freeze({ x: 0, z: 0 });
+
 export const WILDS_FLAGSHIP_LANDMARKS: readonly WildsLandmarkDefinition[] = [
   {
     id: "hearttree-sanctum",
     name: "Hearttree Sanctum",
     subtitle: "Awaken the history inside your cards",
     kind: "mastery",
-    position: { x: 0, z: 0 },
+    position: { x: 96, z: 144 },
     radius: 6,
     accent: "#71e8c3",
     icon: "tree",
@@ -39,10 +41,10 @@ export const WILDS_FLAGSHIP_LANDMARKS: readonly WildsLandmarkDefinition[] = [
   {
     id: "arena-of-echoes",
     name: "Arena of Echoes",
-    subtitle: "Meet, compete, and seal every victory",
+    subtitle: "Every choice becomes history",
     kind: "competition",
-    position: { x: 144, z: -96 },
-    radius: 8,
+    position: MORTAL_ARENA_POSITION,
+    radius: 12,
     accent: "#f7c948",
     icon: "trophy",
     occupancy: "matchmade",
