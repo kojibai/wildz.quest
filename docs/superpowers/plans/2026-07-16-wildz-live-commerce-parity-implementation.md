@@ -4,7 +4,7 @@
 
 **Goal:** Make every successful Wildz entry path complete Receiz connection and enter the canonical shared world, while restoring current Receiz Commerce movement/camera/boss parity and keeping a 100-card Vault responsive without hiding any card.
 
-**Architecture:** `WildzApp` owns a single entry gate. Local SDK identity creation/restore remains the proof root, OIDC/PKCE supplies delegated Receiz API authority in the existing scoped HttpOnly cookie, and gameplay mounts only after actor reconciliation plus an authenticated, idempotent canonical-world bootstrap. Gameplay input follows the current Commerce implementation exactly. The sortable world card rail becomes a memoized, horizontally virtualized child so movement state never reconciles every restored thumbnail.
+**Architecture:** `WildzApp` owns a single entry gate. Local SDK identity creation/restore remains the proof root, OIDC/PKCE supplies delegated Receiz API authority in the existing scoped HttpOnly cookie, and gameplay mounts only after actor reconciliation plus an authenticated, idempotent canonical-world bootstrap. Gameplay input follows the current Commerce implementation exactly. The sortable world card rail uses Commerce's existing 4-card mobile / 8-card desktop pagination inside a memoized boundary so movement state never reconciles a complete restored Vault.
 
 **Tech Stack:** Next.js 15 App Router, React 19, TypeScript, React Three Fiber, `@receiz/sdk` 104.0.0, Node test runner, WebKit browser verification, PWA service worker.
 
@@ -21,7 +21,7 @@
 - Match current Commerce input exactly: 45 ms hold cadence only, analog radius 42%, movement scales `1.0` walk and `1.25` run.
 - Match current Commerce camera exactly: FOV `42`, position `[4.6, 5.8, 7.2]`, damping disabled, target `[0, .55, 0]`, existing distance/polar limits, one-finger rotate, and two-finger dolly/rotate.
 - On mobile, living-world pills stack vertically at lower-left using `flex-direction: column`, `align-items: flex-start`, and `gap: 5px`.
-- All restored cards remain logically present, sortable by rarity/newest/oldest, and horizontally reachable. The world rail must not mount all 100 thumbnails at once.
+- All restored cards remain present and sortable by rarity/newest/oldest. Use Commerce's exact 4-card compact / 8-card wide pagination and page clamping; the world rail must not mount the complete Vault.
 - Bump the default and example service-worker release from `v3.0.0-r104.1` to `v3.0.0-r104.2` so installed PWAs receive this client.
 
 ## Task 1: Make Receiz connection part of every Wildz entry
@@ -87,27 +87,24 @@
 - [ ] **Step 7: Verify GREEN.** Run `pnpm test`, `pnpm typecheck`, and `pnpm lint`. Compare the edited values against `/tmp/receiz-commerce-reference` at the pinned commit.
 - [ ] **Step 8: Commit.** Commit with message `fix: match Receiz Commerce world controls`.
 
-## Task 4: Keep 100-card Vaults out of the movement render loop
+## Task 4: Use the current Commerce Vault paging boundary
 
 **Files:**
 
-- Add: `src/features/play/wildz-card-window.ts`
-- Add: `src/features/play/WildzCardRail.tsx`
+- Add: `src/features/play/WildzPagedCardRail.tsx`
 - Modify: `src/features/play/WildzSocialDeck.tsx`
 - Modify: `app/globals.css`
-- Add: `tests/wildz-card-window.test.ts`
+- Modify: `tests/inventory-pagination.test.ts`
 - Modify: `tests/wildz-card-rail-ui.test.ts`
 - Modify: `tests/wilds-render-contract.test.ts` if component composition is contract-tested there
 
-- [ ] **Step 1: Add failing window-math tests.** Define a pure `wildzCardWindow({ total, scrollLeft, viewportWidth, itemWidth, gap, overscan })` contract. Cover zero cards, first viewport, middle viewport, final viewport, overscan clamping, and a 100-card rail. Require `start`, exclusive `end`, `leadingWidth`, and `trailingWidth`, with `0 <= start <= end <= total` and non-negative spacer widths.
-- [ ] **Step 2: Run the focused test and confirm RED.** Run `pnpm test`; it must fail because the helper does not exist.
-- [ ] **Step 3: Implement minimal window math.** Add the pure helper with finite-number normalization and no DOM dependency. Make the 100-card case mount a bounded visible slice rather than 100 entries.
-- [ ] **Step 4: Add failing component contracts.** Update `tests/wildz-card-rail-ui.test.ts` to require a memoized `WildzCardRail`, a scroll container and `ResizeObserver`, leading/trailing spacers, `sortedCards.slice(window.start, window.end)`, `aria-setsize`/`aria-posinset`, reset-to-start on sort change, and no `sortedCards.map` in `WildzSocialDeck`. Retain rarity/newest/oldest and full logical count contracts.
-- [ ] **Step 5: Run and confirm RED.** Run `pnpm test`; component assertions must fail against the current all-card map.
-- [ ] **Step 6: Implement the isolated virtual rail.** Move sorting, scroll-window state, resize observation, and card thumbnail rendering into `memo(WildzCardRail)`. Use passive scroll handling and requestAnimationFrame coalescing. Render only the visible slice plus modest overscan and spacer elements that preserve full horizontal width. Cache or memoize thumbnail work by stable asset/proof identity. Keep stable callbacks and do not pass movement, camera, player-position, or transient world state into the rail.
-- [ ] **Step 7: Preserve interaction and accessibility.** Reset scroll/window when sort changes. Make all cards reachable by horizontal touch/trackpad and programmatic keyboard focus/scroll. Announce the full collection count and each visible card’s logical position. Keep card selection and verified badge behavior unchanged.
-- [ ] **Step 8: Verify GREEN and responsiveness.** Run `pnpm test`, `pnpm typecheck`, and `pnpm lint`. In browser instrumentation, confirm a 98/100-card Vault has a bounded number of mounted rail articles while the end of the rail remains reachable in all three sort orders.
-- [ ] **Step 9: Commit.** Commit with message `perf: virtualize the Wildz card rail`.
+- [ ] **Step 1: Add failing Commerce-parity paging tests.** Extend `tests/inventory-pagination.test.ts` and `tests/wildz-card-rail-ui.test.ts` to require the shared Commerce `inventoryPageSize` contract of four cards on compact screens and eight on wider screens, clamped first/last pages for zero and 100 cards, and a first-page reset after sort changes. Require the world rail to render `sortedCards.slice(safePage * pageSize, safePage * pageSize + pageSize)` rather than `sortedCards.map`.
+- [ ] **Step 2: Run the focused tests and confirm RED.** Run `pnpm test`; assertions must fail because the world rail currently mounts every sorted card.
+- [ ] **Step 3: Implement the isolated Commerce-paged rail.** Add `memo(WildzPagedCardRail)` using the existing `inventoryPageSize` and `clampInventoryPage` helpers, the same compact breakpoint as `WildsInventory`, and page state clamped when collection length or viewport size changes. Keep sorting, page navigation, swipe gesture, card selection, XP/name/check layout, and all-card count within this child. Do not pass movement, camera, player-position, or transient world state into it.
+- [ ] **Step 4: Preserve every card and all three sorts.** Reset to page zero when rarity/newest/oldest changes. Provide previous/next controls plus a page indicator and retain horizontal swipe navigation, so every restored card is reachable across pages. Announce the full collection count, current page, total pages, and each card's logical position. Keep the verified badge and selected-card behavior unchanged.
+- [ ] **Step 5: Keep the detailed Vault Commerce-native.** Confirm `WildsInventory` continues to use the same 4/8 helpers and only mounts through the active command sheet. Do not add a second full collection map to the always-mounted play surface.
+- [ ] **Step 6: Verify GREEN and responsiveness.** Run `pnpm test`, `pnpm typecheck`, and `pnpm lint`. In browser instrumentation with the real 98-card Vault, confirm the closed Vault sheet plus world rail mounts no more than four card articles on mobile and movement/camera updates do not rerender a full collection. Reach the last page in rarity/newest/oldest order.
+- [ ] **Step 7: Commit.** Commit with message `perf: match Commerce Vault paging`.
 
 ## Task 5: Deliver the PWA update and prove the complete mobile flow
 
@@ -122,8 +119,7 @@
 - [ ] **Step 2: Bump the PWA release.** Update both production references to `v3.0.0-r104.2`; do not change package versions or the already-pinned SDK/MCP/AI Skills v104 packages.
 - [ ] **Step 3: Run automated release verification.** Run `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm secret:scan`, `pnpm build`, `pnpm receiz:doctor`, and finally `pnpm release:check`. Confirm the Vercel output trace no longer requests a missing runtime JSON file.
 - [ ] **Step 4: Run real mobile WebKit verification.** Start the production server and use the browser-control skill before Playwright. At an iPhone viewport, verify the three entry paths as available: fresh explorer redirects automatically through Receiz; Identity Seal redirects and resumes as its actor; the exact Vault `/Users/bjklock/Downloads/wilds-vault-4d5db0995213.receized.png` restores `@bjklock` with all 98 cards, connects automatically, bootstraps/enters `One shared world`, and survives a cold reload. Confirm a foreign Receiz actor fails closed without deleting staged Vault data.
-- [ ] **Step 5: Verify gameplay parity under the real Vault.** With the 98-card Vault loaded, hold/drag the D-pad, release/cancel it, rotate with one finger, pinch with two, switch walk/run, reach the last card in rarity/newest/oldest ordering, and open the stacked boss HUD. Record console errors and confirm mounted card nodes remain bounded during movement.
+- [ ] **Step 5: Verify gameplay parity under the real Vault.** With the 98-card Vault loaded, hold/drag the D-pad, release/cancel it, rotate with one finger, pinch with two, switch walk/run, reach the last Commerce-sized Vault page in rarity/newest/oldest ordering, and open the stacked boss HUD. Record console errors and confirm no more than the active 4-card mobile page is mounted during movement.
 - [ ] **Step 6: Capture evidence.** Save mobile screenshots for the live-world HUD, card-rail end, and cold-reload Vault state under `output/playwright/`. Do not commit generated evidence unless release policy requires it.
 - [ ] **Step 7: Whole-change review.** Review from commit `24ffb99` through HEAD for spec compliance, actor/session security, render performance, and accidental changes. Fix every Critical or Important finding and rerun the covering tests.
 - [ ] **Step 8: Commit the release delivery.** Commit with message `chore: ship Wildz live world release` and leave `main` clean. Do not push; the user said they will push.
-

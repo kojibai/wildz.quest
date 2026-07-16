@@ -17,13 +17,13 @@ Reference: `kojibai/receiz-commerce` `main` at `adaaa4305fc7c249c484656576ee07b2
 
 ## Selected Design
 
-### Card rail performance
+### Vault performance
 
-Keep the full sorted collection as the rail's logical data set, but render only the visible horizontal range plus a small overscan. Preserve total scroll width with leading and trailing spacers so every card remains reachable by touch, trackpad, and keyboard. Recalculate the window from scroll position and container width, not from player movement.
+Use the current Commerce Vault boundary instead of a custom virtual list. Commerce never mounts the complete collection in the live movement tree: it pages four cards on compact/mobile screens and eight on wider screens through the shared `inventoryPageSize` and `clampInventoryPage` helpers, and mounts the complete detailed Vault only while its sheet is open.
 
-Move the rail into a memoized boundary whose inputs are limited to collection data, progression data, sort order, and stable card actions. Camera heading, movement mode, world position, and live frame state must not invalidate the card window. Cache each generated SVG thumbnail by its stable proof/asset identity.
+Apply that same 4/8-card paging to the standalone world rail while retaining its approved styling and rarity/newest/oldest sort control. Every card remains reachable across the page controls and swipe gesture. Move the paged rail into a memoized boundary whose inputs are limited to collection data, progression data, sort order, page, and stable card actions. Camera heading, movement mode, world position, and live frame state must not invalidate card rendering. Cache each generated SVG thumbnail by its stable proof/asset identity.
 
-No pagination is introduced in the world rail. The Card Vault sheet retains its existing paginated detailed view.
+The detailed Card Vault sheet continues to use the same Commerce pagination helpers and mounts only when opened.
 
 ### Movement and camera
 
@@ -53,9 +53,9 @@ Bump the service-worker release identifier so installed clients fetch the new sh
 
 ## Failure Handling
 
-- An empty Vault renders an empty rail without invalid scroll math.
-- Resize and orientation changes recompute the visible card window.
-- Sort changes reset the rail to its first card and recompute the window.
+- An empty Vault renders an empty first page.
+- Resize and orientation changes switch safely between the Commerce 4-card and 8-card page sizes.
+- Sort changes reset the rail to its first page.
 - Pointer cancel, lost capture, visibility change, and blur stop movement immediately.
 - OIDC cancellation, actor mismatch, and token-exchange failure preserve the verified local identity and staged Vault without entering the canonical world under the wrong actor.
 - A canonical-world bootstrap is idempotent and rejects publication conflicts instead of forking world history.
@@ -63,8 +63,8 @@ Bump the service-worker release identifier so installed clients fetch the new sh
 
 ## Verification
 
-- Unit-contract tests prove Commerce camera parameters, vertical boss stacking, one visible D-pad path, bounded card mounting, full logical count, and all three sort orders.
-- A 100-card regression fixture exercises repeated movement without mounting all 100 thumbnails.
+- Unit-contract tests prove Commerce camera parameters, vertical boss stacking, one visible D-pad path, 4/8-card Vault paging, full logical count, and all three sort orders.
+- A 100-card regression fixture exercises repeated movement while mounting at most the active Commerce-sized page.
 - Mobile WebKit verification covers: restore the real 98-card Vault, enter the world, drag the D-pad, rotate and pinch the camera, scroll to the end of the card rail, change sort order, and open the boss HUD.
 - Login tests cover fresh explorer, Identity Seal, and identity-bearing Vault redirects; matching callback resume; actor mismatch; offline preservation; and first-login canonical-world bootstrap.
 - Desktop and mobile screenshots confirm the boss rail and controls do not overlap.
