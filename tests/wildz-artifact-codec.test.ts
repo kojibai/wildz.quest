@@ -6,6 +6,7 @@ import {
   serializeReceizIdentityArtifact
 } from "@receiz/sdk";
 import { embedPortableVaultInPng } from "../src/features/play/card-export";
+import { admitLegacyCard } from "../src/features/play/living-card-proof";
 import { sealCollectedCard } from "../src/features/play/portable-card";
 import { inspectReceizCommerceVault } from "../src/lib/receiz/receiz-commerce-vault";
 import {
@@ -80,6 +81,102 @@ test("a present but invalid SDK portable state closes the whole inspection", asy
   });
   assert.equal(inspected.kind, "invalid");
   if (inspected.kind === "invalid") assert.equal(inspected.code, "wildz_restore_portable_signature_invalid");
+});
+
+test("SDK identity Seals ignore verified non-card Wildz boss proof objects", async () => {
+  // Canonical output from the V3 issueBossArtifact production path, including
+  // every signed basis field and the complete boss-artifact proof shape.
+  const bossArtifact = {
+    bossId: "boss:ember-wyrm",
+    victoryEventId: "evt:raid-42",
+    ownerReceizId: "rz:alice",
+    issuedAt: "2026-07-15T00:00:00.000Z",
+    rewardIndex: 0,
+    id: "artifact:7b75778858b435c6bf8b82bb",
+    rarity: "rare",
+    kind: "boss-relic",
+    proof: {
+      digest: "sha256:4937053ce7c93cf7ea3c6c670bc47db9ce108d75615cf505fc9849b7bfbc2874",
+      kind: "receiz.wilds_boss_artifact.v1"
+    }
+  } as const;
+  const identity = await createReceizIdentityKeyFile({
+    owner: { uid: "codec_boss", username: "codec__boss", displayName: "Codec Boss" },
+    portableState: {
+      snapshot: {
+        boss: bossArtifact
+      }
+    }
+  });
+  const seal = appendReceizIdentityArtifactTrailerToPng(BASE_PNG, identity.keyFile);
+
+  const inspected = await codec().inspect({ bytes: seal, mimeType: "image/png", name: "boss-identity.receized.png" });
+
+  assert.equal(inspected.kind, "identity-seal");
+  if (inspected.kind !== "identity-seal") return;
+  assert.equal(inspected.identity.session.username, "codec__boss");
+  assert.deepEqual(inspected.portableAssets, []);
+});
+
+test("SDK identity Seals reject malformed exact card-proof candidates with the card-proof code", async () => {
+  const identity = await createReceizIdentityKeyFile({
+    owner: { uid: "codec_malformed_card", username: "codec__malformed_card", displayName: "Codec Malformed Card" },
+    portableState: {
+      snapshot: {
+        malformedCard: {
+          id: "wilds:malformed-card",
+          proof: {
+            kind: "receiz.wilds_local_seal.v1",
+            digest: "sha256:malformed-card"
+          }
+        }
+      }
+    }
+  });
+  const seal = appendReceizIdentityArtifactTrailerToPng(BASE_PNG, identity.keyFile);
+
+  const inspected = await codec().inspect({ bytes: seal, mimeType: "image/png", name: "malformed-card.receized.png" });
+
+  assert.equal(inspected.kind, "invalid");
+  if (inspected.kind === "invalid") assert.equal(inspected.code, "wildz_restore_card_proof_invalid");
+});
+
+test("SDK identity Seals admit cards after more than 10,000 unrelated primitive values", async () => {
+  const expected = assets(1)[0]!;
+  const identity = await createReceizIdentityKeyFile({
+    owner: { uid: "codec_scalars", username: "codec__scalars", displayName: "Codec Scalars" },
+    portableState: {
+      snapshot: {
+        unrelated: Array.from({ length: 10_001 }, (_, index) => `value-${index}`),
+        cards: [expected]
+      }
+    }
+  });
+  const seal = appendReceizIdentityArtifactTrailerToPng(BASE_PNG, identity.keyFile);
+
+  const inspected = await codec().inspect({ bytes: seal, mimeType: "image/png", name: "scalar-heavy.receized.png" });
+
+  assert.equal(inspected.kind, "identity-seal");
+  if (inspected.kind !== "identity-seal") return;
+  assert.equal(inspected.identity.session.username, "codec__scalars");
+  assert.deepEqual(inspected.portableAssets.map((asset) => asset.id), [expected.id]);
+});
+
+test("SDK identity Seals import an exact proof-valid living card", async () => {
+  const legacy = assets(1)[0]!;
+  const expected = admitLegacyCard(legacy, "2026-07-15T13:00:00.000Z");
+  const identity = await createReceizIdentityKeyFile({
+    owner: { uid: "codec_living", username: "codec__living", displayName: "Codec Living" },
+    portableState: { snapshot: { cards: [expected] } }
+  });
+  const seal = appendReceizIdentityArtifactTrailerToPng(BASE_PNG, identity.keyFile);
+
+  const inspected = await codec().inspect({ bytes: seal, mimeType: "image/png", name: "living-card.receized.png" });
+
+  assert.equal(inspected.kind, "identity-seal");
+  if (inspected.kind !== "identity-seal") return;
+  assert.equal(inspected.identity.session.username, "codec__living");
+  assert.deepEqual(inspected.portableAssets, [expected]);
 });
 
 test("PNG signature, unsupported binary, and 64 MiB limits fail closed", async () => {
@@ -166,7 +263,7 @@ test("portable traversal enforces node, depth, and restored-file bounds", () => 
 
   assert.throws(() => extractVerifiedWildzCards({
     pngBasis: null,
-    verifiedPortableSnapshot: Array.from({ length: 10_001 }, () => null),
+    verifiedPortableSnapshot: Array.from({ length: 10_001 }, () => ({})),
     restoredVaultFiles: []
   }), /wildz_restore_schema_unsupported/);
 

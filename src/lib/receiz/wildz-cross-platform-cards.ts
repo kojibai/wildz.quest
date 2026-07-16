@@ -54,9 +54,10 @@ function isCardLike(value: unknown): value is PortableCardAsset {
   const manifestSchema = typeof manifest?.schema === "string" ? manifest.schema : "";
   const proofKind = typeof proof?.kind === "string" ? proof.kind : "";
   return typeof record?.id === "string"
-    && (manifestSchema.startsWith("receiz.wilds_card_manifest")
-      || manifestSchema.startsWith("receiz.wilds_living_card_manifest")
-      || proofKind.startsWith("receiz.wilds_"));
+    && (manifestSchema === "receiz.wilds_card_manifest.v1"
+      || manifestSchema === "receiz.wilds_living_card_manifest.v2"
+      || proofKind === "receiz.wilds_local_seal.v1"
+      || proofKind === "receiz.wilds_living_seal.v2");
 }
 
 function proofMissing(error: unknown, label: "card" | "vault") {
@@ -86,7 +87,12 @@ export function extractVerifiedWildzCards(input: {
   };
 
   const admit = (asset: PortableCardAsset) => {
-    const verified = verifyAnyWildsCard(asset);
+    let verified: ReturnType<typeof verifyAnyWildsCard>;
+    try {
+      verified = verifyAnyWildsCard(asset);
+    } catch {
+      throw new Error("wildz_restore_card_proof_invalid");
+    }
     if (!verified.ok) throw new Error("wildz_restore_card_proof_invalid");
     const canonical = canonicalPortableCardJson(asset);
     const prior = canonicalById.get(asset.id);
@@ -150,11 +156,11 @@ export function extractVerifiedWildzCards(input: {
   const seen = new WeakSet<object>();
   let visitedNodes = 0;
   const traverse = (value: unknown, depth: number) => {
+    if (!value || typeof value !== "object") return;
     visitedNodes += 1;
     if (visitedNodes > MAX_PORTABLE_NODES || depth > MAX_PORTABLE_DEPTH) {
       throw new Error("wildz_restore_schema_unsupported");
     }
-    if (!value || typeof value !== "object") return;
     if (isCardLike(value)) {
       admit(value);
       return;
