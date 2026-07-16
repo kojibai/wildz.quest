@@ -81,6 +81,30 @@ export type LivingGrowthSnapshot = {
   consumedAchievementIds: string[];
   completedQuestIds: string[];
   recoveryUntil: string | null;
+  life?: LivingCardLifeSnapshot;
+};
+
+export type LivingCardLifeSnapshot = {
+  creatureId: string;
+  vitality: number;
+  maxVitality: number;
+  retired: boolean;
+  lastSequence: number;
+  eventIds: string[];
+  injuries: string[];
+  repairedScars: string[];
+  victories: number;
+  losses: number;
+  retreats: number;
+  retirement: null | {
+    matchReceiptDigest: string;
+    cause: "mortal-arena-zero-vitality";
+    teamOutcome: "victory" | "defeat" | "draw";
+    honor: "fallen" | "victorious-sacrifice";
+    retiredAt: string;
+    previousRevisionDigest: string;
+    sealDigest: string;
+  };
 };
 
 export type LivingCardGenome = {
@@ -115,7 +139,7 @@ export type LivingCardGenome = {
 };
 
 export type LivingCardRevisionReason = {
-  kind: "birth" | "stage" | "ascension" | "parenthood";
+  kind: "birth" | "stage" | "ascension" | "parenthood" | "life";
   label: string;
 };
 
