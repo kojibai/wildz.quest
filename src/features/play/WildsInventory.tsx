@@ -129,7 +129,7 @@ export function WildsInventory({
 
   return (
     <section className="wilds-inventory" aria-label="Portable creature card inventory">
-      <header>
+      <header className="wilds-vault-compact-header">
         <div><span>Portable collection</span><h3>Wilds Inventory</h3><p>{state.inventory.length} sealed forms · unlimited unique variants</p></div>
         <div className="wilds-vault-actions">
           <button aria-label="Import card or vault" className="wilds-import-card" disabled={importing} onClick={() => importInput.current?.click()} title="Import card or vault" type="button">

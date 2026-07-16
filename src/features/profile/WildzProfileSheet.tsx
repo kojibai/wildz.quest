@@ -44,6 +44,10 @@ export function WildzProfileSheet({ profile, publicationStatus = "published", sh
       <p aria-live="polite" role="status">{shareResult?.message ?? (!shareEnabled ? "Publish this profile before sharing its link." : "")}</p>
     </div>
     <div className="wildz-profile-stats"><span><b>{profile.discoveries}</b> discoveries</span><span><b>{profile.record.wins}</b> wins</span><span><b>{profile.reputation}</b> reputation</span></div>
+    <section className="wildz-profile-impact" aria-label="Explorer impact">
+      <span><small>World impact</small><strong>{profile.discoveries + profile.record.wins} admitted milestones</strong></span>
+      <p>{profile.reputation > 0 ? `Your choices carry ${profile.reputation} reputation into future encounters.` : "Explore, battle, and help the living world to build a remembered reputation."}</p>
+    </section>
     {profile.explorer ? <p className="wildz-profile-traits">{profile.explorer.traits.outfit.replaceAll("-", " ")} · {profile.explorer.traits.trail.replaceAll("-", " ")} trail</p> : null}
     <WildzVaultSheet cards={profile.vault} />
   </div>;

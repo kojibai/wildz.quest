@@ -171,6 +171,7 @@ export function WildzMarketSheet({
   return <div className="wildz-market-sheet">
     <header><div><span>Player market</span><h2>Trade on the trail</h2></div><b>{listings.length} nearby</b></header>
     <div className="wildz-market-list">{listings.length ? listings.map((listing) => <button type="button" key={listing.id} onClick={() => setSelected(listing)}><i>✦</i><span><strong>{listing.assetId}</strong><small>{listing.seller ?? listing.sellerActorId}</small></span><b>${(listing.priceCents / 100).toFixed(2)}</b></button>) : <p className="wildz-sheet-empty">No nearby listings yet. List a verified companion from your Card Vault.</p>}</div>
+    {selected ? <section className="wildz-market-consequence" aria-label="Trade consequence"><small>Vault consequence</small><strong>{selected.assetId} joins your verified collection only after Receiz admits ownership.</strong><span>${(selected.priceCents / 100).toFixed(2)} · seller {selected.seller ?? selected.sellerActorId}</span></section> : null}
     {selected ? <WildzTradeConfirm listing={selected} busy={busy} onConfirm={() => void checkout()} /> : null}
     {pending ? <button type="button" className="wildz-market-retry" disabled={busy} onClick={() => void retrySettlement()}>{busy ? "Checking Receiz…" : "Retry ownership admission"}</button> : null}
     {message ? <p role="status" className="wildz-market-status">{message}</p> : null}

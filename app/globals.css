@@ -300,7 +300,7 @@ body {
 }
 
 .wildz-profile-sheet,
-.wildz-vault-sheet { display: grid; gap: 18px; max-height: min(72dvh, 680px); overflow: auto; padding: 24px; }
+.wildz-vault-sheet { display: grid; gap: 12px; max-height: min(76dvh, 700px); overflow: auto; padding: 16px; }
 .wildz-profile-head { display: flex; align-items: center; gap: 14px; padding-right: 48px; }
 .wildz-profile-head span, .wildz-vault-sheet header span { color: #9cbaa9; font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
 .wildz-profile-head h2 { margin: 2px 0 0; font-size: 25px; }
@@ -310,6 +310,15 @@ body {
 .wildz-profile-stats span { display: grid; gap: 2px; padding: 11px; border-radius: 14px; background: rgba(255,255,255,.06); color: #9cbaa9; font-size: 11px; }
 .wildz-profile-stats b { color: #f8f5e9; font-size: 18px; }
 .wildz-profile-traits { margin: -7px 0 0; color: #d8c989; text-transform: capitalize; }
+.wildz-profile-impact,
+.wildz-market-consequence { display: grid; gap: 3px; padding: 9px 10px; border: 1px solid rgba(151,226,155,.18); border-radius: 13px; background: rgba(118,199,134,.07); }
+.wildz-profile-impact > span { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.wildz-profile-impact small,
+.wildz-market-consequence small { color: #9cbaa9; font-size: 8px; font-weight: 900; letter-spacing: .09em; text-transform: uppercase; }
+.wildz-profile-impact strong,
+.wildz-market-consequence strong { color: #f8f5e9; font-size: 11px; }
+.wildz-profile-impact p,
+.wildz-market-consequence span { margin: 0; color: #9cbaa9; font-size: 9px; line-height: 1.35; }
 .wildz-profile-sharing { display: flex; flex-wrap: wrap; gap: 8px; }
 .wildz-profile-sharing button { min-width: 88px; min-height: 44px; padding: 0 14px; border: 1px solid rgba(151,226,155,.28); border-radius: 14px; color: #effff2; background: rgba(118,199,134,.1); font: inherit; font-size: 12px; font-weight: 850; cursor: pointer; transition: transform .16s ease, border-color .16s ease, background .16s ease; }
 .wildz-profile-sharing button:active { transform: scale(.96); }
@@ -325,10 +334,11 @@ body {
 .wildz-vault-grid article code { overflow: hidden; color: #67897a; font-size: 8px; }
 .wildz-vault-grid article b { color: #e5d58a; }
 .wildz-sheet-empty { margin: 0; padding: 34px 18px; border: 1px dashed rgba(255,255,255,.14); border-radius: 18px; color: #9cbaa9; text-align: center; }
-.wildz-market-sheet { display: grid; gap: 14px; max-height: min(72dvh,680px); overflow: auto; padding: 24px; }
+.wildz-market-sheet { display: grid; gap: 10px; max-height: min(76dvh,700px); overflow: auto; padding: 16px; }
 .wildz-market-sheet > header { display: flex; align-items: center; justify-content: space-between; padding-right: 48px; }
 .wildz-market-sheet > header span { color: #9cbaa9; font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
 .wildz-market-sheet h2 { margin: 3px 0 0; }
+.wildz-market-consequence strong { line-height: 1.35; }
 .wildz-listing-composer { display: grid; grid-template-columns: minmax(0,1fr) 90px auto; gap: 7px; }
 .wildz-listing-composer select, .wildz-listing-composer label, .wildz-listing-composer button { min-height: 42px; border: 1px solid rgba(255,255,255,.12); border-radius: 12px; color: #f8f5e9; background: rgba(255,255,255,.07); font: inherit; }
 .wildz-listing-composer label { display: flex; align-items: center; padding: 0 9px; }.wildz-listing-composer input { width: 100%; border: 0; outline: 0; color: inherit; background: transparent; font: inherit; }.wildz-listing-composer button { padding: 0 17px; color: #092016; background: #b9e49e; font-weight: 900; }
@@ -11750,12 +11760,21 @@ button.product-purchase-secondary-link {
 .wilds-command-sheet { position: absolute; right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); left: max(10px, env(safe-area-inset-left)); display: grid; grid-template-rows: auto auto minmax(0, 1fr); width: min(760px, calc(100% - 20px)); max-height: min(86dvh, 760px); margin-inline: auto; overflow: hidden; color: #effaff; border: 1px solid rgb(131 235 207 / 28%); border-radius: 28px; background: linear-gradient(145deg, rgb(8 37 47 / 98%), rgb(4 17 25 / 98%)); box-shadow: 0 30px 100px rgb(0 0 0 / 54%), inset 0 1px rgb(255 255 255 / 10%); pointer-events: auto; transform: translateY(var(--wilds-sheet-drag, 0)); animation: wilds-command-sheet-in 260ms cubic-bezier(.2,.8,.2,1) both; }
 .wilds-command-handle { display: grid; width: 100%; min-height: 24px; place-items: center; border: 0; background: transparent; touch-action: none; }
 .wilds-command-handle span { width: 42px; height: 4px; border-radius: 999px; background: rgb(183 239 222 / 50%); }
-.wilds-command-sheet-header { display: grid; grid-template-columns: 34px minmax(0, 1fr) 34px; align-items: center; gap: 10px; padding: 2px 18px 12px; }
+.wilds-command-sheet-header { position: sticky; top: 0; z-index: 2; display: grid; grid-template-columns: 32px minmax(0, 1fr) 34px; align-items: center; gap: 9px; padding: 2px 12px 8px; background: linear-gradient(180deg, rgb(8 30 38 / 99%), rgb(8 30 38 / 94%)); }
+.wilds-command-sheet-header > span:nth-child(2) { display: grid; min-width: 0; gap: 1px; }
 .wilds-command-sheet-header h3 { margin: 0; font-size: 17px; letter-spacing: -.01em; }
+.wilds-command-sheet-status { overflow: hidden; color: #7fa1aa; font-size: 8px; font-weight: 850; letter-spacing: .04em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .wilds-command-sheet-icon { display: grid; width: 32px; height: 32px; place-items: center; color: #071a1e; border-radius: 11px; background: linear-gradient(145deg, #f7d25b, #6fe6bd); }
 .wilds-command-close { display: grid; width: 34px; height: 34px; place-items: center; color: #a7c2ca; border: 1px solid rgb(131 235 207 / 22%); border-radius: 11px; background: rgb(255 255 255 / 7%); }
-.wilds-command-sheet-content { min-height: 0; padding: 0 18px max(18px, env(safe-area-inset-bottom)); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
-.wilds-command-content { display: grid; gap: 12px; }
+.wilds-command-sheet-content { min-height: 0; padding: 0 12px 12px; padding-bottom: max(12px, env(safe-area-inset-bottom)); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.wilds-command-content { display: grid; gap: 8px; }
+.wilds-command-insight { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); align-items: center; gap: 4px 10px; padding: 9px 10px; border: 1px solid rgb(131 235 207 / 18%); border-radius: 13px; background: linear-gradient(135deg, rgb(113 232 195 / 10%), rgb(247 210 91 / 5%)); }
+.wilds-command-insight > span { display: grid; min-width: 0; gap: 1px; }
+.wilds-command-insight small { color: #7fa1aa; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.wilds-command-insight strong { overflow: hidden; color: #f7d25b; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.wilds-command-insight > p { margin: 0; color: #a9bdc2; font-size: 9px; line-height: 1.35; }
+.wilds-command-insight-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 5px; }
+.wilds-command-insight-actions button { min-height: 44px; padding: 0 12px; border: 1px solid rgb(113 232 195 / 26%); border-radius: 11px; color: #effff9; background: rgb(113 232 195 / 10%); font: inherit; font-size: 10px; font-weight: 850; }
 .wilds-command-content-lead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid rgb(131 235 207 / 15%); border-radius: 15px; background: rgb(255 255 255 / 6%); }
 .wilds-command-content-lead span { display: grid; gap: 3px; min-width: 0; }
 .wilds-command-content-lead small { color: #7fa1aa; font-size: 9px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
@@ -11766,9 +11785,17 @@ button.product-purchase-secondary-link {
 .wilds-vault-sheet-heading small { color: #7fa1aa; font-size: 9px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
 .wilds-vault-sheet-heading strong { font-size: 13px; }
 .wilds-command-sheet-content .wilds-inventory { margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; }
-.wilds-command-sheet-content .wilds-inventory > header { grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 10px; padding: 14px; border: 1px solid rgb(131 235 207 / 14%); border-radius: 18px; background: linear-gradient(135deg, rgb(113 232 195 / 9%), rgb(247 210 91 / 5%)); }
-.wilds-command-sheet-content .wilds-inventory > header h3 { margin-top: 2px; font-size: clamp(21px, 5vw, 28px); }
-.wilds-command-sheet-content .wilds-inventory > header p { font-size: 11px; line-height: 1.4; }
+.wilds-command-sheet-content .wilds-inventory > header { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 9px 10px; border: 1px solid rgb(131 235 207 / 14%); border-radius: 14px; background: linear-gradient(135deg, rgb(113 232 195 / 9%), rgb(247 210 91 / 5%)); }
+.wilds-command-sheet-content .wilds-inventory > header h3 { margin-top: 1px; font-size: 18px; }
+.wilds-command-sheet-content .wilds-inventory > header p { margin: 1px 0 0; font-size: 9px; line-height: 1.3; }
+.wilds-command-sheet-content .wilds-inventory > header .wilds-import-message { grid-column: 1 / -1; }
+.wilds-command-sheet-content .wilds-inventory { gap: 10px; }
+.wilds-command-sheet-content .wilds-inventory-toolbar { gap: 6px; }
+.wilds-command-sheet-content .wilds-inventory-toolbar input,
+.wilds-command-sheet-content .wilds-inventory-toolbar select { min-height: 38px; padding-inline: 10px; }
+.wilds-command-sheet-content .wilds-inventory-grid { gap: 7px; }
+.wilds-command-sheet-content .wilds-inventory-grid > button { min-height: 78px; padding: 8px; border-radius: 12px; }
+.wilds-command-sheet-content .wilds-inventory-layout { gap: 12px; }
 .wilds-command-sheet-content .wilds-vault-actions {
   display: grid;
   grid-template-columns: repeat(3, 44px);

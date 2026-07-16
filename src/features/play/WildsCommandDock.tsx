@@ -10,6 +10,7 @@ export type WildsCommandItem = {
   label: string;
   icon: ReactNode;
   badge?: string | number;
+  status?: string;
   content: ReactNode;
 };
 
@@ -128,7 +129,7 @@ export function WildsCommandDock({ items, requestedKey = null, onRequestHandled 
             </button>
             <header className="wilds-command-sheet-header">
               <span className="wilds-command-sheet-icon" aria-hidden="true">{activeItem.icon}</span>
-              <h3 id={`wilds-command-title-${activeItem.key}`}>{activeItem.label}</h3>
+              <span><h3 id={`wilds-command-title-${activeItem.key}`}>{activeItem.label}</h3>{activeItem.status ? <small className="wilds-command-sheet-status">{activeItem.status}</small> : null}</span>
               <button aria-label={`Close ${activeItem.label}`} className="wilds-command-close" onClick={close} type="button">
                 <Icons.close aria-hidden="true" size={18} />
               </button>

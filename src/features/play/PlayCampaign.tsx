@@ -27,6 +27,7 @@ import { useWildsPresentation } from "@/features/play/use-wilds-presentation";
 import { selectWildsQualityProfile } from "@/features/play/wilds-quality-profile";
 import { projectWorldProgression } from "@/features/play/world-progression";
 import { WildsCommandDock, type WildsCommandItem, type WildsCommandKey } from "@/features/play/WildsCommandDock";
+import { WildzCommandInsight } from "@/features/play/WildzCommandInsight";
 import { WildsWorldMap } from "@/features/play/WildsWorldMap";
 import { WildsLandmarkExperience } from "@/features/play/WildsLandmarkExperience";
 import type { WildsMovementMode } from "@/features/play/wilds-movement";
@@ -508,6 +509,7 @@ export function PlayCampaign({
       label: "World Mission",
       icon: <Icons.trophy size={21} />,
       badge: `${state.missionProgress}%`,
+      status: `${state.missionProgress}% · ${worldProgression.chapter.name}`,
       content: (
         <div className="wilds-command-content wilds-mission-content">
           <div className="wilds-command-content-lead">
@@ -550,8 +552,12 @@ export function PlayCampaign({
       label: "Field Guide",
       icon: <Icons.book size={21} />,
       badge: `${discoveredByFamily.size}/${creatureFamilies.length}`,
+      status: `${nextHabitat} signal`,
       content: (
         <div className="wilds-command-content wilds-field-guide">
+          <WildzCommandInsight label="Live discovery lead" value={nextHabitat} detail="Scan from your current trail position. The result changes the Guide, Vault, and explorer record together.">
+            <button onClick={() => dispatch({ type: "search-point", x: state.player.x, z: state.player.z, searchedAt: new Date().toISOString(), ownerReceizId })} type="button">Pulse this trail</button>
+          </WildzCommandInsight>
           <div className="wilds-command-content-lead">
             <span><small>Species index</small><strong>{discoveredByFamily.size} verified discoveries</strong></span>
             <b>{creatureFamilies.length - discoveredByFamily.size} unseen</b>
@@ -584,8 +590,14 @@ export function PlayCampaign({
       label: "Foraging Satchel",
       icon: <Icons.products size={21} />,
       badge: state.beans,
+      status: `${state.beans} beans · ${state.fusionSparks} sparks`,
       content: (
         <div className="wilds-command-content wilds-satchel">
+          <WildzCommandInsight label="Trail preparation" value={`${state.energy} energy`} detail="Use what you gathered now; every action updates the same live explorer state used in the world.">
+            <button onClick={() => dispatch({ type: "rest" })} type="button">Make camp</button>
+            <button onClick={() => dispatch({ type: "train", at: new Date().toISOString() })} type="button">Train leader</button>
+            <button onClick={() => dispatch({ type: "mission" })} type="button">Advance mission</button>
+          </WildzCommandInsight>
           <div className="wilds-command-content-lead">
             <span><small>Trail stores</small><strong>Gathered across the living Wilds</strong></span>
             <b>{state.worldRank}</b>
@@ -607,8 +619,10 @@ export function PlayCampaign({
       label: "Trail Pack",
       icon: <Icons.assets size={21} />,
       badge: `${trailPack.length}/3`,
+      status: `${trailSynergy.score}% synergy`,
       content: (
         <div className="wilds-command-content wilds-heartbeat-content">
+          <WildzCommandInsight label="Pack consequence" value={`${trailSynergy.score}% synergy`} detail={trailSynergy.score >= 70 ? "Scout, capture, and recovery support are resonating." : trailSynergy.score >= 45 ? "Scout and support roles are active; another complementary role deepens the loop." : "Bond and diversify the pack to unlock stronger shared effects."} />
           <div className="wilds-command-content-lead">
             <span><small>Wilds Heartbeat</small><strong>One leader · two bonded supports</strong></span>
             <b>{trailSynergy.score}%</b>
@@ -665,8 +679,10 @@ export function PlayCampaign({
       label: "Card Vault",
       icon: <Icons.box size={21} />,
       badge: state.inventory.length,
+      status: `${state.inventory.length} sealed · ${activeAsset?.manifest.name ?? "No leader"}`,
       content: (
         <div className="wilds-command-content wilds-vault-command-content">
+          <WildzCommandInsight label="Collection consequence" value={activeAsset?.manifest.name ?? "Choose a leader"} detail="Vault selection becomes the active explorer companion in the drawer, Trail Pack, and battle." />
           <div className="wilds-vault-sheet-heading"><small>Portable card vault</small><strong>{state.inventory.length} sealed {state.inventory.length === 1 ? "card" : "cards"}</strong></div>
           <WildsInventory
             state={state}
