@@ -9,7 +9,8 @@ test("the shared restore adapter routes V3 player Vaults through proof-sealed Re
 
   assert.match(adapter, /createWildzVaultLoginCoordinator/);
   assert.match(adapter, /createWildzPendingVaultRepository/);
-  assert.match(adapter, /receizCommerceAdapter\.verifyArtifact/);
+  assert.match(adapter, /verifier:\s*\{\s*verifyArtifact:\s*verifyWildzArtifactSameOrigin\s*\}/);
+  assert.doesNotMatch(adapter, /receizCommerceAdapter\.verifyArtifact/);
   assert.match(adapter, /defaultVaultLoginCoordinator\.begin/);
   assert.match(adapter, /status !== "not_player_vault"/);
   assert.match(adapter, /resumePendingWildzVault/);

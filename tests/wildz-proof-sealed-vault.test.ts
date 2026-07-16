@@ -124,6 +124,35 @@ test("proof-sealed V3 verification requires v103-compatible continuity, full-byt
   assert.equal(result.byteDigestSha256.length, 64);
 });
 
+test("the official verifier's existing V3 PNG shape restores without synthesized asset continuity", async () => {
+  const value = fixture();
+  const result = await verifyProofSealedWildzVault({
+    bytes: value.bytes,
+    mimeType: "image/png",
+    name: "vault.receized.png",
+    codec: codec(),
+    verifier: {
+      verifyArtifact: async () => verification({
+        bundle: {
+          kind: "receiz.proof_bundle",
+          artifactSha256Basis: PROOF_BASIS,
+          receizClaimId: "verified-existing-v3-vault",
+          verifyPath: "/v/verified-existing-v3-vault",
+          signerKeyId: "receiz-device-key",
+          anchorId: "receiz-anchor",
+          signatureV4: SIGNATURE_V4
+        },
+        anchor: { anchorId: "receiz-anchor" },
+        assetContinuity: undefined
+      })
+    }
+  });
+
+  assert.equal(result.player.profileHandle, "vault_keeper.receiz.id");
+  assert.equal(result.assets.length, value.assets.length);
+  assert.equal(result.proofBasisSha256, PROOF_BASIS);
+});
+
 test("missing Signature V4, V4 errors, and invalid V3 bytes all fail before admission", async () => {
   const value = fixture();
   await assert.rejects(verifyProofSealedWildzVault({

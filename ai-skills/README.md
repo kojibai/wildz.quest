@@ -1,6 +1,6 @@
 # Wildz v3 repository skills
 
-These repository skills describe bounded operator procedures for Wildz `3.0.0` with the exact `@receiz/sdk@104.0.0`, `@receiz/mcp-server@104.0.0`, and `@receiz/ai-skills@104.0.0` toolchain. The official v104 SDK/MCP tarballs and matching AI-skills artifact are vendored until registry publication; package location does not change their authority boundary.
+These repository skills describe bounded operator procedures for Wildz `3.0.0` with the exact `@receiz/sdk@104.0.0`, `@receiz/mcp-server@104.0.0`, and `@receiz/ai-skills@104.0.0` toolchain. All three finalized packages resolve from the official npm registry with lockfile-pinned integrity; package location does not change their authority boundary.
 
 ## Precedence
 

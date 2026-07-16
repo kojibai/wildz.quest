@@ -55,6 +55,7 @@ function major(version: string) {
 test("SDK, operational MCP, and AI skills request and install Receiz major 104", () => {
   const pkg = readJson("package.json");
   const docs = readFileSync("docs/MCP.md", "utf8");
+  const lockfile = readFileSync("pnpm-lock.yaml", "utf8");
   const requestedSdk = pkg.dependencies?.["@receiz/sdk"];
   const requestedMcp = pkg.devDependencies?.["@receiz/mcp-server"];
   const requestedAiSkills = pkg.devDependencies?.["@receiz/ai-skills"];
@@ -68,9 +69,13 @@ test("SDK, operational MCP, and AI skills request and install Receiz major 104",
   assert.equal(installedSdk, "104.0.0");
   assert.equal(installedMcp, "104.0.0");
   assert.equal(installedAiSkills, "104.0.0");
-  assert.equal(pkg.pnpm?.overrides?.["@receiz/sdk"], "file:vendor/receiz-sdk-104.0.0.tgz");
-  assert.equal(pkg.pnpm?.overrides?.["@receiz/mcp-server"], "file:vendor/receiz-mcp-server-104.0.0.tgz");
-  assert.equal(pkg.pnpm?.overrides?.["@receiz/ai-skills"], "file:vendor/receiz-ai-skills-104.0.0.tgz");
+  assert.equal(pkg.pnpm?.overrides?.["@receiz/sdk"], undefined);
+  assert.equal(pkg.pnpm?.overrides?.["@receiz/mcp-server"], undefined);
+  assert.equal(pkg.pnpm?.overrides?.["@receiz/ai-skills"], undefined);
+  assert.doesNotMatch(lockfile, /file:vendor\/receiz-(?:sdk|mcp-server|ai-skills)-104\.0\.0\.tgz/);
+  assert.ok(lockfile.includes("sha512-QZ2WzUuOKFYmsNjog7sROKphEswxcwkdSDQ79fSLJhxbtjt2JNyZMk+NBx4YcAXSN+OMga7Y5mddWtszHGfRdg=="));
+  assert.ok(lockfile.includes("sha512-0NfCC+Fdj53CsFcc5MqIaXDr/vb2BSSTau/kr5pv9HYbVjzvoSgx1v91SqeOpnqgqIFrSysXxJa155LMCC/tNA=="));
+  assert.ok(lockfile.includes("sha512-6NIPOKzFtB+F+gdf51zfo/Ym0y7IgD1GlWkLJ2JDkkLkSNWQNO2AQxOghJKfXigCyu/kwha2NEY4Au445gaFYA=="));
   assert.equal(pkg.scripts?.["receiz:check"], "receiz app check --target 104.0.0 --json");
   for (const version of [requestedSdk, requestedMcp, requestedAiSkills, installedSdk, installedMcp, installedAiSkills]) {
     assert.equal(major(version), 104);

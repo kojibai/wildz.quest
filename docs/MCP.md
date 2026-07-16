@@ -1,6 +1,6 @@
 # Wildz Receiz SDK, MCP, and AI-skills contract
 
-Wildz pins `@receiz/sdk@104.0.0` as application/runtime authority and `@receiz/mcp-server@104.0.0` plus `@receiz/ai-skills@104.0.0` as development tooling. The official v104 SDK and MCP release tarballs, together with the matching AI-skills artifact, are vendored and checksum-pinned by the lockfile until registry publication. This temporary package source does not fork or patch their runtime behavior. No third-party or external database is introduced.
+Wildz pins `@receiz/sdk@104.0.0` as application/runtime authority and `@receiz/mcp-server@104.0.0` plus `@receiz/ai-skills@104.0.0` as development tooling. The finalized packages resolve directly from the official npm registry, and `pnpm-lock.yaml` pins their published integrity values. No fork, patch, third-party database, or external database is introduced.
 
 The packaged MCP runtime remains operator tooling, and the packaged AI skills remain doctrine for builders and agents. Neither outranks verified artifact continuity or server admission.
 

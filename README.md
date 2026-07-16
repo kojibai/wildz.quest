@@ -2,7 +2,7 @@
 
 Wildz is the standalone, full-screen Receiz game PWA for [wildz.quest](https://wildz.quest). It preserves the open-source Wildz world, collection, battles, progression, multiplayer, Vault recovery, and proof model while replacing the commerce site with a game-first social market overlay.
 
-The application is aligned to the exact Receiz v104 toolchain: `@receiz/sdk@104.0.0`, `@receiz/mcp-server@104.0.0`, and `@receiz/ai-skills@104.0.0`. Until those official v104 artifacts are available from the package registry, the repository pins the matching release tarballs in `vendor/`. The checked-in `receiz.app.json` is the artifact-first source contract; `pnpm receiz:check` runs the v104 integration checker against the repository and its generated evidence. The contract forbids database authority, and Wildz adds no external database.
+The application is aligned to the exact Receiz v104 toolchain: `@receiz/sdk@104.0.0`, `@receiz/mcp-server@104.0.0`, and `@receiz/ai-skills@104.0.0`. All three resolve directly from the official npm registry with integrity checks pinned by `pnpm-lock.yaml`. The checked-in `receiz.app.json` is the artifact-first source contract; `pnpm receiz:check` runs the v104 integration checker against the repository and its generated evidence. The contract forbids database authority, and Wildz adds no external database.
 
 ```bash
 pnpm install

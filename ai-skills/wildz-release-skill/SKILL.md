@@ -4,7 +4,7 @@ Receiz proof authority and verified, sanitized evidence define release truth. Ta
 
 ## Procedure
 
-1. Start with read-only diagnostics: inspect the exact diff, requested and installed versions, vendored official tarball/lockfile resolution, idle processes, and required environment names without printing values.
+1. Start with read-only diagnostics: inspect the exact diff, requested and installed versions, official npm registry and lockfile resolution, idle processes, and required environment names without printing values.
 2. Compile and check `receiz.app.json` at target `104.0.0`. Require artifact-first authority, database authority disabled, authenticated Record before Seal, durable proof memory, continuity verification, idempotency, and browser-safe server secrets.
 3. Run the deterministic local gate on the exact candidate: v104 repository checker, tests, typecheck, lint, secret scan, build, and default doctor.
 4. Run strict-live only with an authorized environment. A configured value is not capability proof; record actual sanitized probe status and stop on failure.

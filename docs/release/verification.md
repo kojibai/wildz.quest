@@ -14,7 +14,7 @@ The exact local candidate passed the repository release gate and is qualified fo
 | `@receiz/mcp-server` | `104.0.0` | `104.0.0` | Operator tooling; never application authority |
 | `@receiz/ai-skills` | `104.0.0` | `104.0.0` | V104 operator procedure guidance; never proof authority |
 
-The official v104 SDK and MCP release tarballs, with the matching AI-skills artifact, are vendored and checksum-pinned by the lockfile until registry publication. Their code is unmodified. `receiz.app.json` declares artifact-first authority with database authority disabled; the v104 compiler and `pnpm receiz:check` validate the repository integration plan and generated evidence.
+The finalized v104 SDK, MCP, and AI-skills packages resolve directly from the official npm registry, with their published integrity values pinned by the lockfile. `receiz.app.json` declares artifact-first authority with database authority disabled; the v104 compiler and `pnpm receiz:check` validate the repository integration plan and generated evidence.
 
 ## Local evidence
 

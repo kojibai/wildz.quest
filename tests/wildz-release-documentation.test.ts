@@ -12,6 +12,15 @@ test("Wildz v3 release doctrine names the exact Receiz v104 toolchain", () => {
   };
   const release = read("docs/release/v3.0.0.md");
   const mcp = read("docs/MCP.md");
+  const packageSourceDocs = [
+    read("README.md"),
+    mcp,
+    read("docs/RECEIZ_RAILS.md"),
+    read("docs/release/verification.md"),
+    release,
+    read("ai-skills/README.md"),
+    read("ai-skills/wildz-release-skill/SKILL.md")
+  ].join("\n");
 
   assert.equal(pkg.version, "3.0.0");
   assert.equal(pkg.dependencies?.["@receiz/sdk"], "104.0.0");
@@ -23,6 +32,8 @@ test("Wildz v3 release doctrine names the exact Receiz v104 toolchain", () => {
   assert.match(mcp, /@receiz\/sdk@104\.0\.0/);
   assert.match(mcp, /@receiz\/mcp-server@104\.0\.0/);
   assert.match(mcp, /@receiz\/ai-skills@104\.0\.0/);
+  assert.match(packageSourceDocs, /official npm registry/i);
+  assert.doesNotMatch(packageSourceDocs, /vendored|vendoring|until registry publication|vendor\//i);
 });
 
 test("release documentation states the real offline and remote authority boundaries", () => {

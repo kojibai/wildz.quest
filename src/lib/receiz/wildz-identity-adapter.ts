@@ -22,7 +22,6 @@ import {
 import type { PortableCardAsset } from "../../features/play/portable-card";
 import type { WildsPlayerVaultPayload } from "../../features/play/wilds-player-vault";
 import { inspectReceizCommerceVault } from "./receiz-commerce-vault";
-import { receizCommerceAdapter } from "./adapter";
 import { createWildzIdentitySealPng } from "./wildz-identity-seal";
 import { appendWildzIdentitySealAuthority } from "./wildz-identity-seal";
 import {
@@ -47,6 +46,7 @@ import {
   wildzRemoteSessionBridge
 } from "./wildz-session-bridge";
 import { createWildzContinuityDatabase } from "../storage/wildz-indexed-db";
+import { verifyWildzArtifactSameOrigin } from "./wildz-same-origin-verifier";
 
 const IDENTITY_SEAL_USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 
@@ -71,7 +71,7 @@ const defaultVaultLoginCoordinator = createWildzVaultLoginCoordinator({
   repository: defaultIdentityRepository,
   codec: defaultArtifactCodec,
   pending: defaultPendingVaultRepository,
-  verifier: { verifyArtifact: (file) => receizCommerceAdapter.verifyArtifact(file) },
+  verifier: { verifyArtifact: verifyWildzArtifactSameOrigin },
   remote: wildzRemoteSessionBridge
 });
 let continuityRestoreEpoch = 0;
