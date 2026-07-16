@@ -1,5 +1,6 @@
 import type { WildsEcologyFamilyId } from "./wilds-ecology";
 import type { WildsBossFamilyId } from "./wilds-boss-ecology";
+import { WILDS_AUDIO_BY_ID } from "./wilds-audio-catalog";
 
 export type WildsAudioSettings = {
   master: number;
@@ -88,6 +89,20 @@ type GainLike = {
   disconnect(): void;
 };
 
+type AudioBufferSourceLike = {
+  buffer: unknown;
+  onended?: (() => void) | null;
+  connect(target: unknown): void;
+  disconnect(): void;
+  start(time?: number): void;
+  stop(time?: number): void;
+};
+
+type WildsAudioFetchResponse = {
+  ok: boolean;
+  arrayBuffer(): Promise<ArrayBuffer>;
+};
+
 export type WildsAudioContextLike = {
   currentTime: number;
   destination: unknown;
@@ -95,6 +110,8 @@ export type WildsAudioContextLike = {
   close(): Promise<void>;
   createOscillator(): OscillatorLike;
   createGain(): GainLike;
+  createBufferSource?(): AudioBufferSourceLike;
+  decodeAudioData?(data: ArrayBuffer): Promise<unknown>;
 };
 
 type CueVoice = {
@@ -151,6 +168,22 @@ const CUE_VOICES: Readonly<Record<WildsAudioCue, CueVoice>> = {
   confirm: { frequency: 540, endFrequency: 760, duration: 0.18, gain: 0.14, type: "sine" },
   error: { frequency: 210, endFrequency: 130, duration: 0.24, gain: 0.16, type: "square" }
 };
+
+const CUE_ASSETS: Partial<Record<WildsAudioCue, string>> = {
+  seal: "receiz-kai-turah-signature",
+  confirm: "ui-confirm",
+  error: "ui-error",
+  "battle-hit": "strike-slice",
+  "landmark-near": "door-open",
+  "settlement-arrival": "door-open",
+  "settlement-service": "receiz-kai-turah-signature",
+  "route-step": "step-2",
+  "route-complete": "proof-latch"
+};
+
+export function audioAssetIdForCue(cue: WildsAudioCue): string | null {
+  return CUE_ASSETS[cue] ?? null;
+}
 
 export function settlementAudioCue(action: "arrival" | "service" | "route-step" | "route-complete"): WildsAudioCue {
   return action === "arrival" ? "settlement-arrival"
@@ -228,14 +261,56 @@ export function audioCuesForTransition(
   return [];
 }
 
-export function createWildsAudioRuntime(factory: () => WildsAudioContextLike) {
+export function createWildsAudioRuntime(
+  factory: () => WildsAudioContextLike,
+  fetcher: (path: string) => Promise<WildsAudioFetchResponse> = (path) => fetch(path)
+) {
   let context: WildsAudioContextLike | null = null;
   let settings = { ...DEFAULT_WILDS_AUDIO_SETTINGS };
   let destroyed = false;
   let ambience: Array<{ oscillator: OscillatorLike; gain: GainLike }> = [];
+  const buffers = new Map<string, unknown>();
+  const loading = new Map<string, Promise<void>>();
+  const activeSources = new Set<AudioBufferSourceLike>();
+
+  const preload = async (assetIds: readonly string[]) => {
+    if (!context || destroyed || !context.decodeAudioData || !context.createBufferSource) return;
+    await Promise.all(assetIds.map(async (assetId) => {
+      if (buffers.has(assetId)) return;
+      const existing = loading.get(assetId);
+      if (existing) return existing;
+      const asset = WILDS_AUDIO_BY_ID.get(assetId);
+      if (!asset) return;
+      const request = (async () => {
+        const response = await fetcher(asset.path);
+        if (!response.ok) throw new Error(`Audio load failed: ${assetId}`);
+        buffers.set(assetId, await context!.decodeAudioData!(await response.arrayBuffer()));
+      })().finally(() => loading.delete(assetId));
+      loading.set(assetId, request);
+      return request;
+    }));
+  };
 
   const play = (cue: WildsAudioCue) => {
     if (!context || destroyed || settings.muted) return;
+    const assetId = audioAssetIdForCue(cue);
+    const buffer = assetId ? buffers.get(assetId) : null;
+    if (buffer && context.createBufferSource) {
+      const source = context.createBufferSource();
+      const gain = context.createGain();
+      source.buffer = buffer;
+      gain.gain.setValueAtTime(Math.max(0.0001, settings.master * settings.effects), context.currentTime);
+      source.connect(gain);
+      gain.connect(context.destination);
+      source.onended = () => {
+        activeSources.delete(source);
+        source.disconnect();
+        gain.disconnect();
+      };
+      activeSources.add(source);
+      source.start(context.currentTime);
+      return;
+    }
     const voice = CUE_VOICES[cue];
     const oscillator = context.createOscillator();
     const gain = context.createGain();
@@ -271,6 +346,7 @@ export function createWildsAudioRuntime(factory: () => WildsAudioContextLike) {
       settings = normalizeWildsAudioSettings(next);
       if (settings.muted) stopAmbience();
     },
+    preload,
     play,
     startAmbience() {
       if (!context || destroyed || settings.muted || ambience.length > 0) return;
@@ -292,6 +368,12 @@ export function createWildsAudioRuntime(factory: () => WildsAudioContextLike) {
       if (destroyed) return;
       destroyed = true;
       stopAmbience();
+      activeSources.forEach((source) => {
+        try { source.stop(); } catch { /* The decoded source may already have ended. */ }
+        source.disconnect();
+      });
+      activeSources.clear();
+      buffers.clear();
       const activeContext = context;
       context = null;
       if (activeContext) await activeContext.close();

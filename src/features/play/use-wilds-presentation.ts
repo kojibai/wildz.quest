@@ -73,6 +73,14 @@ export function useWildsPresentation({
     if (!runtime) return;
     try {
       await runtime.unlock();
+      await runtime.preload([
+        "receiz-kai-turah-signature",
+        "ui-confirm",
+        "ui-error",
+        "strike-slice",
+        "door-open",
+        "proof-latch"
+      ]);
       runtime.setSettings(audioSettings);
       runtime.startAmbience();
       setAudioReady(true);

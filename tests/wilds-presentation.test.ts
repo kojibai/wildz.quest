@@ -10,6 +10,7 @@ import {
 } from "../src/features/play/wilds-visual-events";
 import {
   DEFAULT_WILDS_AUDIO_SETTINGS,
+  audioAssetIdForCue,
   audioCuesForTransition,
   createWildsAudioRuntime,
   normalizeWildsAudioSettings
@@ -115,6 +116,31 @@ describe("Wilds synthesized audio", () => {
       ),
       ["proximity-hot", "foliage-surge"]
     );
+  });
+
+  it("routes proof sealing through the exact Receiz signature recording", () => {
+    assert.equal(audioAssetIdForCue("seal"), "receiz-kai-turah-signature");
+    assert.equal(audioAssetIdForCue("confirm"), "ui-confirm");
+    assert.equal(audioAssetIdForCue("battle-hit"), "strike-slice");
+  });
+
+  it("plays an admitted recording when its decoded buffer is ready", async () => {
+    const calls: string[] = [];
+    const audioParam = { setValueAtTime() {}, exponentialRampToValueAtTime() {} };
+    const runtime = createWildsAudioRuntime(() => ({
+      currentTime: 0,
+      destination: {},
+      resume: async () => {},
+      close: async () => {},
+      createOscillator: () => ({ type: "sine", frequency: audioParam, connect() {}, disconnect() {}, start() { calls.push("oscillator"); }, stop() {} }),
+      createGain: () => ({ gain: audioParam, connect() {}, disconnect() {} }),
+      decodeAudioData: async () => ({ duration: 1 }),
+      createBufferSource: () => ({ buffer: null, connect() {}, disconnect() {}, start() { calls.push("buffer"); }, stop() {} })
+    }), async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) }));
+    await runtime.unlock();
+    await runtime.preload(["receiz-kai-turah-signature"]);
+    runtime.play("seal");
+    assert.deepEqual(calls, ["buffer"]);
   });
 
   it("destroys every synthesized audio resource", async () => {
