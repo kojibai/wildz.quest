@@ -108,7 +108,7 @@ export function WildsEnvironment({
       </group>
       <group name="world-layer-mid">
         <EcologyInstances bushes={bushes} flowers={flowers} palette={tiles[12]?.canopy} player={player} rocks={rocks} trees={trees} />
-        <FlagshipLandmarkEntrances livingWorld={livingWorld} player={player} worldMode={worldMode} />
+        <FlagshipLandmarkEntrances detail={qualityProfile.tier !== "low"} livingWorld={livingWorld} player={player} worldMode={worldMode} />
         <LivingWorldSites player={player} world={livingWorld} />
         {tiles.filter((tile) => tile.landmark.kind !== "none" && tile.landmark.kind !== "hearttree-sanctum" && tile.landmark.kind !== "mortal-arena").map((tile) => (
           <Landmark key={`landmark:${tile.key}`} player={player} tile={tile} />
@@ -146,7 +146,7 @@ function LivingWorldSites({ player, world }: { player: PlayState["player"]; worl
   </group>;
 }
 
-function FlagshipLandmarkEntrances({ livingWorld, player, worldMode }: { livingWorld?: WildsWorldProjection | null; player: PlayState["player"]; worldMode: WildsSettlementWorldMode }) {
+function FlagshipLandmarkEntrances({ detail, livingWorld, player, worldMode }: { detail: boolean; livingWorld?: WildsWorldProjection | null; player: PlayState["player"]; worldMode: WildsSettlementWorldMode }) {
   const entrances = projectVisibleLandmarkEntrances(player);
   return <group name="world-flagship-landmarks">
     {entrances.map(({ landmark, relative, distance }) => (
@@ -156,7 +156,7 @@ function FlagshipLandmarkEntrances({ livingWorld, player, worldMode }: { livingW
             <HearttreeSanctum />
           </group>
         ) : null}
-        {landmark.id === "arena-of-echoes" ? <ArenaOfEchoes /> : null}
+        {landmark.id === "arena-of-echoes" ? <MortalArenaWorldAnchor detail={detail} /> : null}
         {landmark.id === "prism-arcade" ? <PrismArcade /> : null}
         {landmark.id === "wayfinder-hollow" ? <WildsSettlementEnvironment livingWorld={livingWorld} relative={{ x: 0, z: 0 }} settlement={WAYFINDER_HOLLOW} worldMode={worldMode} /> : null}
         <LandmarkEntranceBeacon distance={distance} landmark={landmark} />
@@ -342,22 +342,54 @@ function HearttreeSanctum() {
   );
 }
 
-function ArenaOfEchoes() {
-  return <group name="arena-of-echoes-building">
-    <mesh receiveShadow position={[0, .32, 0]}><cylinderGeometry args={[4.5, 4.8, .64, 48]} /><meshStandardMaterial color="#665b46" roughness={.9} /></mesh>
-    {[0, 1].map((level) => <mesh key={level} position={[0, .8 + level * .72, 0]} rotation={[Math.PI / 2, 0, 0]}>
-      <torusGeometry args={[3.65 - level * .32, .32, 10, 56]} />
-      <meshStandardMaterial color={level ? "#e8d178" : "#9c8650"} emissive="#f7c948" emissiveIntensity={level ? .28 : .12} roughness={.66} />
+function MortalArenaWorldAnchor({ detail }: { detail: boolean }) {
+  const spectators = useRef<THREE.InstancedMesh>(null);
+  const proofSeams = useRef<THREE.InstancedMesh>(null);
+  useLayoutEffect(() => {
+    const matrix = new THREE.Matrix4();
+    const quaternion = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    const spectatorCount = detail ? 48 : 24;
+    for (let index = 0; index < spectatorCount; index += 1) {
+      const angle = index / spectatorCount * Math.PI * 2;
+      const tier = index % 3;
+      scale.set(.18 + (index % 2) * .04, .54 + tier * .12, .18);
+      quaternion.setFromEuler(new THREE.Euler(0, -angle, (index % 5 - 2) * .025));
+      matrix.compose(new THREE.Vector3(Math.cos(angle) * (9 + tier * .48), 1.12 + tier * .42, Math.sin(angle) * (9 + tier * .48)), quaternion, scale);
+      spectators.current?.setMatrixAt(index, matrix);
+    }
+    spectators.current && (spectators.current.instanceMatrix.needsUpdate = true);
+    for (let index = 0; index < 20; index += 1) {
+      const angle = index / 20 * Math.PI * 2;
+      scale.set(.055, .016, 2.2);
+      quaternion.setFromEuler(new THREE.Euler(0, -angle, 0));
+      matrix.compose(new THREE.Vector3(Math.cos(angle) * 3.9, .47, Math.sin(angle) * 3.9), quaternion, scale);
+      proofSeams.current?.setMatrixAt(index, matrix);
+    }
+    proofSeams.current && (proofSeams.current.instanceMatrix.needsUpdate = true);
+  }, [detail]);
+  const arches = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
+  return <group name="mortal-arena-world-anchor">
+    <mesh receiveShadow position={[0, .18, 0]} name="arena-foundation"><cylinderGeometry args={[11.25, 11.7, .36, 64]} /><meshStandardMaterial color="#302b2a" metalness={.16} roughness={.92} /></mesh>
+    <mesh receiveShadow position={[0, .39, 0]} name="arena-open-bowl"><cylinderGeometry args={[7.65, 8.15, .28, 64]} /><meshStandardMaterial color="#675b49" metalness={.08} roughness={.84} /></mesh>
+    <mesh position={[0, .455, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[1.25, 7.1, 64]} /><meshStandardMaterial color="#77684c" emissive="#2f2107" emissiveIntensity={.08} roughness={.72} /></mesh>
+    <instancedMesh args={[undefined, undefined, 20]} ref={proofSeams} name="arena-proof-seams"><boxGeometry args={[1, 1, 1]} /><meshStandardMaterial color="#ffe288" emissive="#f7c948" emissiveIntensity={1.6} metalness={.4} roughness={.28} /></instancedMesh>
+    {[7.5, 8.6, 10.35].map((radius, index) => <mesh key={radius} position={[0, .48 + index * .25, 0]} rotation={[Math.PI / 2, 0, 0]}>
+      <torusGeometry args={[radius, index === 2 ? .34 : .16, 8, 72]} />
+      <meshStandardMaterial color={index === 2 ? "#35302d" : "#d0b464"} emissive="#f7c948" emissiveIntensity={index === 1 ? .3 : .08} metalness={.24} roughness={.66} />
     </mesh>)}
-    {Array.from({ length: 12 }, (_, index) => {
-      const angle = index / 12 * Math.PI * 2;
-      return <mesh key={index} position={[Math.cos(angle) * 3.7, 1.25, Math.sin(angle) * 3.7]}>
-        <cylinderGeometry args={[.17, .24, 2.25, 8]} />
-        <meshStandardMaterial color="#d7c58a" roughness={.72} />
-      </mesh>;
-    })}
-    <mesh position={[-2.7, 1.55, -2.7]} rotation={[0, Math.PI / 4, 0]}><boxGeometry args={[1.35, 3.1, .6]} /><meshStandardMaterial color="#4d4539" emissive="#f7c948" emissiveIntensity={.18} /></mesh>
-    <pointLight color="#f7c948" distance={13} intensity={4.5} position={[0, 3.2, 0]} />
+    {arches.map((rotation, index) => <group key={rotation} name={`arena-split-arch-${index + 1}`} rotation={[0, rotation, 0]}>
+      {[-1, 1].map((side) => <group key={side} position={[side * 2.25, 2.25, -8.15]} rotation={[0, 0, side * -.14]}>
+        <mesh castShadow><cylinderGeometry args={[.42, .72, 4.5, 7]} /><meshStandardMaterial color="#4b443e" metalness={.18} roughness={.78} /></mesh>
+        <mesh position={[side * -.42, 2.1, 0]} rotation={[Math.PI / 2, 0, side * .32]}><torusGeometry args={[1.48, .36, 7, 28, Math.PI * .58]} /><meshStandardMaterial color="#8a784e" emissive="#f7c948" emissiveIntensity={.2} metalness={.22} roughness={.62} /></mesh>
+        <mesh position={[0, -.55, .39]} scale={[.55, 1.1, .12]}><octahedronGeometry args={[.7, 0]} /><meshStandardMaterial color={index % 2 ? "#ff724f" : "#f7c948"} emissive={index % 2 ? "#ff3d27" : "#f7c948"} emissiveIntensity={.82} roughness={.34} /></mesh>
+      </group>)}
+      {detail ? <mesh position={[0, 3.35, -9]}><planeGeometry args={[2.8, 1.25]} /><meshStandardMaterial color={index % 2 ? "#5f1d18" : "#332507"} emissive={index % 2 ? "#ff4f37" : "#f7c948"} emissiveIntensity={.25} side={THREE.DoubleSide} roughness={.72} /></mesh> : null}
+    </group>)}
+    <instancedMesh args={[undefined, undefined, detail ? 48 : 24]} ref={spectators} name="arena-spectator-silhouettes"><capsuleGeometry args={[1, 2.3, 3, 6]} /><meshStandardMaterial color="#171618" emissive="#6f4912" emissiveIntensity={.22} roughness={.92} /></instancedMesh>
+    <mesh position={[0, .62, 0]} rotation={[-Math.PI / 2, 0, 0]} name="arena-canonical-seal"><torusGeometry args={[1.1, .095, 8, 48]} /><meshStandardMaterial color="#fff0a8" emissive="#f7c948" emissiveIntensity={1.8} metalness={.46} roughness={.22} /></mesh>
+    <pointLight color="#f7c948" distance={18} intensity={detail ? 5.2 : 3.2} position={[0, 4.8, 0]} />
+    <pointLight color="#ff4f37" distance={10} intensity={detail ? 2.4 : 1.2} position={[0, 2.4, -7]} />
   </group>;
 }
 
