@@ -1,8 +1,12 @@
 import {
+  buildReceizIdContinueRequest,
   createReceizIdIdentity,
+  RECEIZ_DEVICE_IDENTITY_SCHEMA,
+  type ReceizDeviceIdentity,
   type ReceizKeyFile
 } from "@receiz/sdk";
 import {
+  createStoredWildzPlayState,
   loadWildzRestoredOwnerState,
   restoreWildzArtifactForSurface,
   saveWildzRestoredPlayState,
@@ -32,20 +36,24 @@ import { createWildzArtifactCodec, type WildzArtifactCodec } from "./wildz-artif
 import {
   createWildzAutomaticUsername,
   createWildzIdentityRepository,
+  wildzOwnerScope,
   type WildzIdentityRepository,
   type WildzIdentitySession
 } from "./wildz-identity-repository";
 import { createWildzPendingVaultRepository } from "./wildz-pending-vault";
 import {
   createWildzVaultLoginCoordinator,
-  type WildzVaultAccountMismatch,
-  type WildzVaultLoginRequired
 } from "./wildz-vault-login-coordinator";
 import {
   reconcileWildzRemoteIdentitySession,
+  wildzRemoteSessionMatchesIdentity,
+  type WildzRemoteSession,
   wildzRemoteSessionBridge
 } from "./wildz-session-bridge";
-import { createWildzContinuityDatabase } from "../storage/wildz-indexed-db";
+import {
+  createWildzContinuityDatabase,
+  type WildzContinuityDatabase
+} from "../storage/wildz-indexed-db";
 import { verifyWildzArtifactSameOrigin } from "./wildz-same-origin-verifier";
 
 const IDENTITY_SEAL_USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
@@ -87,23 +95,59 @@ export type WildzContinuitySnapshot = {
 
 export type WildzUiArtifactRestore = WildzCommittedArtifactRestore & { restoreEpoch: number };
 
-type WildzVaultRedirectOutcome = WildzVaultLoginRequired | WildzVaultAccountMismatch;
-
-export class WildzVaultLoginRedirectError extends Error {
-  readonly status: WildzVaultRedirectOutcome["status"];
-  readonly loginUrl: string;
-  readonly resumeId: string;
-
-  constructor(outcome: WildzVaultRedirectOutcome) {
-    super(outcome.status === "receiz_login_required"
-      ? "wildz_restore_login_required"
-      : "wildz_restore_receiz_account_mismatch");
-    this.name = "WildzVaultLoginRedirectError";
-    this.status = outcome.status;
-    this.loginUrl = outcome.loginUrl;
-    this.resumeId = outcome.resumeId;
+export async function alignWildzContinuityWithProofSession(
+  snapshot: WildzContinuitySnapshot,
+  remote: WildzRemoteSession,
+  dependencies: {
+    database?: WildzContinuityDatabase;
+    repository?: Pick<WildzIdentityRepository, "active" | "writeSession">;
+  } = {}
+): Promise<WildzContinuitySnapshot> {
+  if (!wildzRemoteSessionMatchesIdentity(snapshot.session, remote) || remote.status !== "connected") {
+    throw new Error("wildz_proof_session_mismatch");
   }
+  if (snapshot.session.actorId === remote.actorId
+    && snapshot.session.username === remote.actorId
+    && snapshot.session.displayName === remote.displayName
+    && snapshot.session.remoteStatus === "connected") {
+    return snapshot;
+  }
+  const database = dependencies.database ?? defaultContinuityDatabase;
+  const repository = dependencies.repository ?? defaultIdentityRepository;
+  return enqueueContinuityOperation(async () => {
+    const active = await repository.active();
+    if (!sameOwner(active, snapshot.session)) throw new Error("wildz_proof_session_stale");
+    const session: WildzIdentitySession = {
+      ...snapshot.session,
+      actorId: remote.actorId,
+      username: remote.actorId,
+      displayName: remote.displayName,
+      remoteStatus: "connected"
+    };
+    const oldScope = wildzOwnerScope(snapshot.session.keyId, snapshot.session.actorId);
+    const nextScope = wildzOwnerScope(session.keyId, session.actorId);
+    const stored = snapshot.playState
+      ? createStoredWildzPlayState(
+          session,
+          snapshot.playState,
+          snapshot.playerContinuity,
+          new Date().toISOString(),
+          snapshot.character
+        )
+      : null;
+    await database.transaction(["meta", "ownerStates"], "readwrite", async (tx) => {
+      await repository.writeSession(tx, session, true);
+      if (stored) await tx.put("ownerStates", stored, nextScope);
+      if (oldScope !== nextScope) await tx.delete("ownerStates", oldScope);
+    });
+    return { ...snapshot, session };
+  });
 }
+
+type WildzProofChallengeResponse = {
+  ok: true;
+  nonceB64Url: string;
+};
 
 function enqueueContinuityOperation<T>(operation: () => Promise<T>): Promise<T> {
   const result = continuityQueue.then(operation, operation);
@@ -113,6 +157,85 @@ function enqueueContinuityOperation<T>(operation: () => Promise<T>): Promise<T> 
 
 function sameOwner(left: WildzIdentitySession | null, right: WildzIdentitySession) {
   return left?.keyId === right.keyId && left.actorId === right.actorId;
+}
+
+function isWildzProofChallengeResponse(value: unknown): value is WildzProofChallengeResponse {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<WildzProofChallengeResponse>;
+  return candidate.ok === true
+    && typeof candidate.nonceB64Url === "string"
+    && /^[A-Za-z0-9_-]{22,256}$/.test(candidate.nonceB64Url);
+}
+
+function receizDeviceIdentityFromKeyFile(keyFile: ReceizKeyFile): ReceizDeviceIdentity {
+  const localUid = keyFile.owner.uid?.trim() ?? "";
+  const username = keyFile.owner.username?.trim() ?? "";
+  const displayName = keyFile.owner.displayName?.trim() || "Receiz ID";
+  if (!localUid || !username || !Number.isFinite(Date.parse(keyFile.issuedAt))) {
+    throw new Error("wildz_receiz_id_identity_invalid");
+  }
+  return {
+    schema: RECEIZ_DEVICE_IDENTITY_SCHEMA,
+    createdAt: keyFile.issuedAt,
+    updatedAt: keyFile.issuedAt,
+    localUid,
+    username,
+    displayName,
+    deviceName: "Wildz",
+    keyFile
+  };
+}
+
+export async function connectWildzProofSession(
+  session: WildzIdentitySession,
+  options: { passphrase?: string; requestPassphrase?: () => string | null } = {}
+) {
+  const current = await wildzRemoteSessionBridge.current();
+  if (wildzRemoteSessionMatchesIdentity(session, current)) return current;
+  if (session.localAuthority === "proof-sealed-vault") {
+    return wildzRemoteSessionBridge.commitVaultAdmission({
+      actorId: session.actorId,
+      profileHandle: `${session.actorId}.receiz.id`,
+      vaultKeyId: session.keyId
+    });
+  }
+  if (session.localAuthority !== "verified") {
+    return wildzRemoteSessionBridge.current();
+  }
+  return defaultIdentityRepository.withKeyFile(session.keyId, async (keyFile) => {
+    const challengeResponse = await fetch("/api/auth/wildz/challenge", {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+    const challenge: unknown = await challengeResponse.json().catch(() => null);
+    if (!challengeResponse.ok || !isWildzProofChallengeResponse(challenge)) {
+      throw new Error("wildz_proof_challenge_unavailable");
+    }
+    let passphrase = options.passphrase;
+    if (identityKeyNeedsPassphrase(keyFile) && passphrase === undefined) {
+      passphrase = options.requestPassphrase?.()
+        ?? (typeof window !== "undefined"
+          ? window.prompt("Enter this Identity Seal's passphrase to connect Wildz.") ?? undefined
+          : undefined);
+    }
+    const continuation = await buildReceizIdContinueRequest(
+      receizDeviceIdentityFromKeyFile(keyFile),
+      {
+        nonceB64Url: challenge.nonceB64Url,
+        ...(passphrase !== undefined ? { passphrase } : {})
+      }
+    );
+    const admission = await fetch("/api/auth/wildz/session", {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(continuation)
+    });
+    if (!admission.ok) throw new Error("wildz_proof_admission_failed");
+    return wildzRemoteSessionBridge.current();
+  });
 }
 
 export async function inspectWildzRestore(file: File, codec: WildzArtifactCodec = defaultArtifactCodec) {
@@ -126,12 +249,14 @@ export async function bootstrapWildzContinuity(
   return enqueueContinuityOperation(async () => {
     await defaultPendingVaultRepository.purgeExpired().catch(() => 0);
     let session = await defaultIdentityRepository.bootstrap(legacyStorage);
-    const reconciliation = reconcileWildzRemoteIdentitySession(
-      session,
-      await wildzRemoteSessionBridge.current()
-    );
-    if (reconciliation.disconnect) await wildzRemoteSessionBridge.disconnect();
-    session = reconciliation.session;
+    if (session.localAuthority === "remote-only") {
+      const reconciliation = reconcileWildzRemoteIdentitySession(
+        session,
+        await wildzRemoteSessionBridge.current()
+      );
+      if (reconciliation.disconnect) await wildzRemoteSessionBridge.disconnect();
+      session = reconciliation.session;
+    }
     await defaultContinuityDatabase.transaction(["meta"], "readwrite", (tx) =>
       defaultIdentityRepository.writeSession(tx, session, true)
     );
@@ -182,9 +307,6 @@ export async function restoreWildzFileForSurface(
       mimeType: file.type,
       name: file.name
     });
-    if (playerVault.status !== "not_player_vault" && playerVault.status !== "committed") {
-      throw new WildzVaultLoginRedirectError(playerVault);
-    }
     const outcome = playerVault.status === "committed"
       ? playerVault.restore
       : await restoreWildzArtifactForSurface({
@@ -207,7 +329,6 @@ export function resumePendingWildzVault(resumeId: string) {
   return enqueueContinuityOperation(async () => {
     await defaultPendingVaultRepository.purgeExpired().catch(() => 0);
     const outcome = await defaultVaultLoginCoordinator.resume(resumeId);
-    if (outcome.status !== "committed") return outcome;
     continuityRestoreEpoch += 1;
     return { status: "committed" as const, restore: { ...outcome.restore, restoreEpoch: continuityRestoreEpoch } };
   });

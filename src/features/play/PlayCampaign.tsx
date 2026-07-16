@@ -58,6 +58,11 @@ import { createWildsRaidReceipt } from "@/features/play/wilds-raid-history";
 import type { WildsRaidEncounterState, WildsRaidIntent } from "@/features/play/wilds-raid-encounter";
 import type { WildsBossFamilyId } from "@/features/play/wilds-boss-ecology";
 import { deriveLoadoutSynergy, projectWildsCardMastery } from "@/features/play/wilds-card-mastery";
+import {
+  createWildzVaultCardMembershipProof,
+  deriveWildzVaultCardAdmission,
+  type WildzVaultCardMembershipProof
+} from "@/lib/receiz/wildz-vault-card-admission";
 
 function currentWildsQualityProfile() {
   if (typeof window === "undefined") {
@@ -84,6 +89,7 @@ const WildsWorldCanvas = dynamic(
 export function PlayCampaign({
   campaignName = "Reward Challenge",
   enabled,
+  networkEnabled,
   onComplete,
   ownerReceizId = "wilds.player.receiz.id",
   character,
@@ -99,6 +105,7 @@ export function PlayCampaign({
 }: {
   campaignName?: string;
   enabled: boolean;
+  networkEnabled: boolean;
   onComplete?: (beans: number) => void;
   ownerReceizId?: string;
   character: WildzCharacterGenesis;
@@ -149,16 +156,30 @@ export function PlayCampaign({
   const nextHabitat = guideFamilies.find((family) => !discoveredByFamily.has(family.id))?.habitat ?? "the living frontier";
   const visibleGuideFamilies = guideFamilies.slice(0, 24);
   const hudModel = projectWildzHud(state, { username: ownerReceizId, displayName: playerDisplayName });
+  const cardAdmission = useMemo<WildzVaultCardMembershipProof | null>(() => {
+    if (!activeAsset) return null;
+    try {
+      const admission = deriveWildzVaultCardAdmission({
+        cards: deckCards,
+        playerHandle: ownerReceizId
+      });
+      return createWildzVaultCardMembershipProof(admission, activeAsset);
+    } catch {
+      return null;
+    }
+  }, [activeAsset, deckCards, ownerReceizId]);
   const multiplayer = useWildsMultiplayer({
-    enabled: enabled && Boolean(avatarStyle) && Boolean(activeAsset),
+    enabled: enabled && networkEnabled && Boolean(avatarStyle) && Boolean(activeAsset),
     style: avatarStyle ?? "female",
     position: state.player,
-    activeCard: activeAsset
+    activeCard: activeAsset,
+    cardAdmission
   });
   const livingWorld = useWildsWorld({
-    enabled: enabled && Boolean(avatarStyle),
+    enabled: enabled && networkEnabled && Boolean(avatarStyle),
     guestId: multiplayer.guestId,
-    activeCard: activeAsset ?? null
+    activeCard: activeAsset ?? null,
+    cardAdmission
   });
   const presentation = useWildsPresentation({
     encounter: {
@@ -451,6 +472,10 @@ export function PlayCampaign({
   };
   const riftTo = async (destination: { x: number; z: number }) => {
     setRiftError("");
+    if (!networkEnabled) {
+      setRiftError("Wildz is connecting your verified Receiz session.");
+      return;
+    }
     try {
       const response = await fetch("/api/wilds/rift", {
         method: "POST",

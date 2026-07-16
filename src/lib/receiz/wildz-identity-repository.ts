@@ -26,7 +26,7 @@ export type WildzIdentitySession = {
   username: string | null;
   displayName: string | null;
   portableStateStatus: "verified" | "missing" | "invalid";
-  localAuthority: "verified" | "remote-only";
+  localAuthority: "verified" | "proof-sealed-vault" | "remote-only";
   remoteStatus: "unknown" | "connected" | "pending" | "offline" | "unavailable";
 };
 
@@ -154,9 +154,11 @@ function isIdentitySession(value: unknown): value is WildzIdentitySession {
     && (typeof session.username === "string" || session.username === null)
     && (typeof session.displayName === "string" || session.displayName === null)
     && (session.portableStateStatus === "verified" || session.portableStateStatus === "missing")
-    && (session.localAuthority === "verified" || session.localAuthority === "remote-only")
+    && (session.localAuthority === "verified" || session.localAuthority === "proof-sealed-vault" || session.localAuthority === "remote-only")
     && (session.localAuthority !== "remote-only"
       || session.portableStateStatus === "missing")
+    && (session.localAuthority !== "proof-sealed-vault"
+      || (session.portableStateStatus === "missing" && /^receiz_vault_[a-f0-9]{32,64}$/.test(session.keyId)))
     && (session.remoteStatus === "unknown" || session.remoteStatus === "connected" || session.remoteStatus === "pending" || session.remoteStatus === "offline" || session.remoteStatus === "unavailable");
 }
 

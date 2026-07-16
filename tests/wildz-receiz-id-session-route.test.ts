@@ -1,0 +1,110 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { NextRequest } from "next/server";
+import {
+  buildReceizIdContinueRequest,
+  createReceizIdIdentity
+} from "@receiz/sdk";
+import { POST } from "../app/api/auth/wildz/session/route";
+import {
+  WILDZ_PROOF_NONCE_COOKIE,
+  WILDZ_PROOF_SESSION_COOKIE,
+  unpackWildzProofSession
+} from "../src/lib/receiz/wildz-proof-session";
+
+const SECRET = "wildz-receiz-id-route-secret-at-least-thirty-two-bytes";
+const NONCE = "d2lsZHotc2FtZS1vcmlnaW4tbm9uY2UtMTIzNA";
+
+test("same-origin Receiz ID continuation trusts only the canonical upstream account", async () => {
+  const priorSecret = process.env.RECEIZ_OAUTH_STATE_SECRET;
+  const priorBase = process.env.RECEIZ_BASE_URL;
+  const priorFetch = globalThis.fetch;
+  process.env.RECEIZ_OAUTH_STATE_SECRET = SECRET;
+  process.env.RECEIZ_BASE_URL = "https://receiz.example";
+  try {
+    const identity = await createReceizIdIdentity({
+      username: "self_asserted_label",
+      displayName: "Self Asserted"
+    });
+    const continuation = await buildReceizIdContinueRequest(identity, { nonceB64Url: NONCE });
+    let upstreamUrl = "";
+    let upstreamBody = "";
+    globalThis.fetch = async (input, init) => {
+      upstreamUrl = String(input);
+      upstreamBody = String(init?.body ?? "");
+      return Response.json({
+        ok: true,
+        bound: true,
+        next: "/u/canonical_owner",
+        session: {
+          uid: "global-user-123",
+          email: "private@example.com",
+          username: "canonical_owner",
+          displayName: "Canonical Owner"
+        },
+        accountBindings: []
+      });
+    };
+    const response = await POST(new NextRequest("https://wildz.quest/api/auth/wildz/session", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: `${WILDZ_PROOF_NONCE_COOKIE}=${NONCE}`
+      },
+      body: JSON.stringify(continuation)
+    }));
+
+    assert.equal(response.status, 200);
+    assert.equal(upstreamUrl, "https://receiz.example/api/auth/receiz-id/continue");
+    assert.deepEqual(JSON.parse(upstreamBody), continuation);
+    const body = await response.json();
+    assert.deepEqual(body, {
+      status: "connected",
+      subjectKey: body.subjectKey,
+      sessionKeyId: continuation.keyId,
+      actorId: "canonical_owner",
+      profileHandle: "canonical_owner.receiz.id",
+      displayName: "Canonical Owner",
+      authority: "identity-key"
+    });
+    assert.match(body.subjectKey, /^[a-f0-9]{64}$/);
+    assert.doesNotMatch(JSON.stringify(body), /private@example\.com|global-user-123|next|accountBindings/);
+    const cookie = response.cookies.get(WILDZ_PROOF_SESSION_COOKIE);
+    assert.ok(cookie?.value);
+    assert.equal(unpackWildzProofSession(cookie.value, SECRET).actorId, "canonical_owner");
+  } finally {
+    globalThis.fetch = priorFetch;
+    if (priorSecret === undefined) delete process.env.RECEIZ_OAUTH_STATE_SECRET;
+    else process.env.RECEIZ_OAUTH_STATE_SECRET = priorSecret;
+    if (priorBase === undefined) delete process.env.RECEIZ_BASE_URL;
+    else process.env.RECEIZ_BASE_URL = priorBase;
+  }
+});
+
+test("Receiz ID continuation never reaches upstream without the matching browser nonce", async () => {
+  const priorSecret = process.env.RECEIZ_OAUTH_STATE_SECRET;
+  const priorFetch = globalThis.fetch;
+  process.env.RECEIZ_OAUTH_STATE_SECRET = SECRET;
+  try {
+    const identity = await createReceizIdIdentity({ username: "nonce_test" });
+    const continuation = await buildReceizIdContinueRequest(identity, { nonceB64Url: NONCE });
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      return Response.json({ ok: true });
+    };
+    const response = await POST(new NextRequest("https://wildz.quest/api/auth/wildz/session", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(continuation)
+    }));
+
+    assert.equal(response.status, 401);
+    assert.equal(calls, 0);
+    assert.equal(response.cookies.get(WILDZ_PROOF_SESSION_COOKIE), undefined);
+  } finally {
+    globalThis.fetch = priorFetch;
+    if (priorSecret === undefined) delete process.env.RECEIZ_OAUTH_STATE_SECRET;
+    else process.env.RECEIZ_OAUTH_STATE_SECRET = priorSecret;
+  }
+});

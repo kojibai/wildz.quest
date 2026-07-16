@@ -7,6 +7,7 @@ import type { ReceizCommerceAdapter } from "./adapter";
 
 export type WildsWorldRepositoryActor = {
   handle: string;
+  receizActorId?: string;
   practice: boolean;
   accessToken?: string;
 };
@@ -116,7 +117,7 @@ export function createReceizWildsWorldRepository(options: {
         }
         const result = await adapter.publishPublicStore({
           tenantHost: new URL(input.sourceUrl).host,
-          merchantReceizId: input.actor.handle,
+          merchantReceizId: input.actor.receizActorId ?? input.actor.handle,
           title: "Receiz Wilds canonical world",
           sourceUrl: input.sourceUrl,
           namespace: "wilds:global:v3",
@@ -173,7 +174,7 @@ export function createReceizWildsWorldRepository(options: {
           await client.auditAppend({
             tenantHost: new URL(input.sourceUrl).host,
             action: `wilds.${event.kind}:${event.eventId}`,
-            actorReceizId: input.actor.handle
+            actorReceizId: input.actor.receizActorId ?? input.actor.handle
           }, { idempotencyKey: event.eventId });
         }
         return true;

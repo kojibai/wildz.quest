@@ -21,7 +21,7 @@ The finalized v104 SDK, MCP, and AI-skills packages resolve directly from the of
 | Gate | Result |
 |---|---|
 | `pnpm release:check` | Pass: v104 repository integration checker, complete Node test suite, typecheck, lint, full tracked/untracked text secret scan, production build, and default Receiz doctor |
-| Proof/Vault regressions | Pass in the full suite, including complete 97/98-card restore, identity-bearing Vault login, Identity Seal login, historical owners, duplicate drops, revision reconciliation, and atomic fork rejection |
+| Proof/Vault regressions | Pass in the full suite, including complete 97/98-card restore, canonical Identity Seal/key continuation, scoped legacy Vault recovery, compact historical-card custody admission, duplicate drops, revision reconciliation, pending-to-final admission, and atomic fork rejection |
 | Native proof-object continuity | Pass: v104 Record → Seal artifact, owner, claim, verify path, bundle verification, and final verifier continuity; the deployed `wildz-v103` retry namespace remains stable |
 | Legacy compatibility | Pass: strict bounded app-owned reader plus payload digest, owner, namespace, prior-head, and revision checks |
 | Owner continuity | Pass: exact duplicates drop, verified newer revisions win, and divergent immutable origins or proof forks fail |
@@ -32,14 +32,14 @@ The finalized v104 SDK, MCP, and AI-skills packages resolve directly from the of
 | Gameplay presentation | Chromium mobile smoke passed; WebKit mobile world render was visually inspected at the release viewport |
 | PWA boundary | Real Chromium worker activation and offline navigation passed; an unvisited public route rendered offline guidance without leaking another page |
 
-The supplied production-shaped Vault was inspected without recording private bytes, paths, identity values, hashes, or card identifiers. It decoded to 98 cards with an embedded player. An actual-byte browser restore using a mocked successful verifier recovered the embedded identity and all 98 cards. The real local verifier attempt failed closed when the live verifier was unavailable; the mocked-verifier result is frontend/coordinator/IndexedDB evidence, not live Receiz verification.
+The supplied production-shaped Vault was inspected without recording private bytes, paths, identity values, hashes, or card identifiers. It decoded to 98 cards with an embedded player. The exact artifact passed official Receiz verification, local byte/payload/card integrity checks, and Signature V4 verification. It authorizes exact player/card recovery into an artifact-scoped Wildz session. The server commits the historical-owner portion of that exact verified collection into the encrypted session, and gameplay accepts an older-owner card only with its compact membership proof. The artifact contains no Identity Seal or v104 owner-continuity binding, so canonical account-only writes remain Identity Seal/key-gated.
 
 ## Pending external evidence
 
 The following remain production or externally authorized gates and were not rewritten as local passes:
 
 - `pnpm receiz:doctor:strict` was attempted and failed closed before live probes because the production credentials and configuration were absent; strict-live qualification remains pending.
-- Remote world, public-profile, market, payment, transfer, settlement, and publication mutations remain pending. V104 does not expose the Wildz-specific conditional market ownership append, and the local paths fail closed until the configured Receiz deployment admits every required capability.
+- Remote world, public-profile, market, payment, transfer, settlement, and publication mutations remain pending. The shared-world bootstrap is implemented and fail-closed, but requires the server-only `RECEIZ_CONNECT_ACCESS_TOKEN` and authorized production qualification. V104 does not expose the Wildz-specific conditional market ownership append, and the local paths fail closed until the configured Receiz deployment admits every required capability.
 - The external six-writer artifact exercise remains pending; its six-writer local fixtures passed.
 - Deployment, tag, push, and production publication were not performed.
 

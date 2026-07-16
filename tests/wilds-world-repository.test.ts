@@ -69,6 +69,36 @@ describe("Receiz Wilds world repository", () => {
     assert.equal(calls[0]?.options.idempotencyKey, `wilds:global:v3:${worldRecord.checkpoint.revision}:${worldRecord.checkpoint.lastEventId}`);
   });
 
+  it("attributes scoped Vault publication to the artifact principal, never its carried handle", async () => {
+    const calls: Array<Record<string, unknown>> = [];
+    const worldRecord = record();
+    let reads = 0;
+    const repository = createReceizWildsWorldRepository({
+      adapterFactory: () => ({
+        readAppStateByUrl: async () => ({ state: reads++ === 0 ? null : worldRecord }),
+        publishPublicStore: async (input: Record<string, unknown>) => {
+          calls.push(input);
+          return { ok: true, accepted: 1 };
+        }
+      }) as never
+    });
+
+    const result = await repository.publish({
+      sourceUrl,
+      actor: {
+        handle: "bjklock.receiz.id",
+        receizActorId: `vault:${"a".repeat(64)}`,
+        practice: false
+      },
+      record: worldRecord,
+      expectedHead: { revision: 0, lastEventId: null }
+    });
+
+    assert.equal(result.published, true);
+    assert.equal(calls[0]?.merchantReceizId, `vault:${"a".repeat(64)}`);
+    assert.notEqual(calls[0]?.merchantReceizId, "bjklock.receiz.id");
+  });
+
   it("rejects a stale expected head before publish and returns the remote record for rehydration", async () => {
     const remote = record();
     let publishes = 0;

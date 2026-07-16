@@ -317,7 +317,7 @@ function event(type: ProofEvent["type"], detail: string): ProofEvent {
 function receizClientOptionsFromEnv(): ReceizClientOptions {
   return {
     baseUrl: process.env.RECEIZ_BASE_URL || RECEIZ_DEFAULT_BASE_URL,
-    accessToken: process.env.RECEIZ_ACCESS_TOKEN || process.env.RECEIZ_CONNECT_ACCESS_TOKEN || undefined
+    accessToken: process.env.RECEIZ_CONNECT_ACCESS_TOKEN || undefined
   };
 }
 

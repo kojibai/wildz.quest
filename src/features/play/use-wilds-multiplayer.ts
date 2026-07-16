@@ -5,6 +5,7 @@ import { createInviteRoom, roomKeyForPosition, type WildsPresence } from "./mult
 import type { WildsMultiplayerSnapshot } from "./multiplayer-ledger";
 import type { PvpIntent } from "./pvp-battle-engine";
 import type { PortableCardAsset } from "./portable-card";
+import type { WildzVaultCardMembershipProof } from "@/lib/receiz/wildz-vault-card-admission";
 import {
   shouldAttemptWildsNetwork,
   isOpaqueWildsNetworkFailure,
@@ -52,6 +53,7 @@ export function useWildsMultiplayer(input: {
   style: "female" | "male";
   position: { x: number; z: number };
   activeCard: PortableCardAsset | null;
+  cardAdmission: WildzVaultCardMembershipProof | null;
 }) {
   const [guestId, setGuestId] = useState("");
   const [roomOverride, setRoomOverride] = useState<string | null>(null);
@@ -96,7 +98,8 @@ export function useWildsMultiplayer(input: {
           x: current.position.x,
           z: current.position.z,
           heading: 0,
-          card: current.activeCard
+          card: current.activeCard,
+          cardAdmission: current.cardAdmission
         })
       });
       setSelfId(result.actor.playerId);
@@ -161,6 +164,7 @@ export function useWildsMultiplayer(input: {
   }, [heartbeat, refresh]);
 
   const post = useCallback(async (path: "message" | "challenge" | "battle", body: Record<string, unknown>) => {
+    if (!latest.current.enabled) throw new Error("wilds_multiplayer_session_required");
     if (!guestId) throw new Error("wilds_guest_identity_required");
     const result = await jsonRequest<{ snapshot: WildsMultiplayerSnapshot }>(`/api/wilds/multiplayer/${path}`, {
       method: "POST",
@@ -209,8 +213,8 @@ export function useWildsMultiplayer(input: {
     incomingChallenge,
     createInviteLink,
     sendMessage: (text: string) => post("message", { text }),
-    offerChallenge: (opponentId: string, mode: "friendly" | "card_stake" | "money_stake" = "friendly") => post("challenge", { action: "offer", opponentId, mode, card: input.activeCard }),
-    answerChallenge: (challengeId: string, action: "accept" | "decline") => post("challenge", { action, challengeId, card: input.activeCard }),
+    offerChallenge: (opponentId: string, mode: "friendly" | "card_stake" | "money_stake" = "friendly") => post("challenge", { action: "offer", opponentId, mode, card: input.activeCard, cardAdmission: input.cardAdmission }),
+    answerChallenge: (challengeId: string, action: "accept" | "decline") => post("challenge", { action, challengeId, card: input.activeCard, cardAdmission: input.cardAdmission }),
     submitIntent: (battleId: string, intent: PvpIntent) => post("battle", { battleId, intent, intentId: `${selfId}:${battleId}:${activeBattle?.turn ?? 0}:${crypto.randomUUID()}` }),
     dismissBattle: (battleId: string) => setDismissedBattleIds((current) => new Set(current).add(battleId)),
     refresh

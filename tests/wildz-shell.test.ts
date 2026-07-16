@@ -17,9 +17,9 @@ test("Wildz app owns the game and overlay state", () => {
   assert.match(source, /wildz-app/);
 });
 
-test("local-only identities do not attempt authenticated profile publication", () => {
+test("profiles publish only after the same-origin proof session is connected", () => {
   const source = read("src/features/shell/WildzApp.tsx");
-  const connectedGate = source.indexOf('identity.remoteStatus !== "connected"');
+  const connectedGate = source.indexOf("!proofSessionConnected");
   const publication = source.indexOf("publishCurrentWildzProfile(localPublicProfile, ownerPlayState.inventory)");
 
   assert.ok(connectedGate >= 0);
@@ -42,15 +42,28 @@ test("genesis visibly confirms the admitted Receiz identity before explorer crea
   assert.match(source, /restoredIdentity\.username/);
 });
 
-test("every admitted identity and character enters one idempotent automatic Receiz connection gate", () => {
+test("a Vault without a display name keeps its restored Receiz username visible in the game HUD", () => {
+  const source = read("src/features/shell/WildzApp.tsx");
+  assert.match(source, /playerDisplayName=\{identity\.displayName \?\? `@\$\{ownerUsername\}`\}/);
+});
+
+test("every admitted identity enters by local proof and extends to a same-origin session without OAuth navigation", () => {
   const source = read("src/features/shell/WildzApp.tsx");
 
-  assert.equal(source.match(/wildzRemoteSessionBridge\.continueLocalIdentity\(/g)?.length, 1);
-  assert.match(source, /const continueWildzEntry = useCallback/);
-  assert.match(source, /const attemptKey = `\$\{session\.actorId\}:\$\{returnTo\}`/);
-  assert.match(source, /automaticEntryRef\.current === attemptKey/);
-  assert.match(source, /if \(!identity \|\| !character/);
-  assert.match(source, /void continueWildzEntry\(identity\)/);
+  assert.match(source, /connectWildzProofSession/);
+  assert.doesNotMatch(source, /continueLocalIdentity|\/api\/auth\/receiz\/start/);
+  assert.doesNotMatch(source, /window\.location\.assign/);
+});
+
+test("authenticated gameplay networking waits for a confirmed canonical world bootstrap", () => {
+  const source = read("src/features/shell/WildzApp.tsx");
+  const matched = source.indexOf("wildzRemoteSessionMatchesIdentity(identity, session)");
+  const bootstrap = source.indexOf("bootstrapWildzSharedWorld", matched);
+  const connected = source.indexOf("setProofSessionConnected(true)", matched);
+
+  assert.ok(matched >= 0);
+  assert.ok(bootstrap > matched);
+  assert.ok(connected > bootstrap);
 });
 
 test("fresh genesis, Identity Seal restore, and identity-bearing Vault restore converge on the same snapshot gate", () => {
@@ -61,41 +74,62 @@ test("fresh genesis, Identity Seal restore, and identity-bearing Vault restore c
 
   assert.match(genesis, /acceptSnapshot\(snapshot\)/);
   assert.match(restore, /acceptSnapshot\(next\)/);
-  assert.match(initialize, /resumed\.status === "committed"[\s\S]*acceptSnapshot\(\{/);
+  assert.match(initialize, /const resumed = await resumePendingWildzVault[\s\S]*acceptSnapshot\(\{/);
   assert.match(initialize, /const snapshot = await bootstrapWildzContinuity\(window\.localStorage\)/);
   assert.match(initialize, /acceptSnapshot\(snapshot\)/);
 });
 
-test("Receiz connection is not dismissible and proof-sealed Vault owner recovery keeps its required action", () => {
+test("proof-sealed Vault recovery never asks the authenticated Vault owner to sign in again", () => {
   const source = read("src/features/shell/WildzApp.tsx");
 
   assert.doesNotMatch(source, /vaultPromptMode|setVaultPromptMode/);
-  assert.doesNotMatch(source, /Connect Receiz|Not now|Dismiss Vault prompt/);
-  assert.match(source, /Vault owner required/);
-  assert.match(source, /Sign in as Vault owner/);
+  assert.doesNotMatch(source, /Connect Receiz|Not now|Dismiss Vault prompt|Vault owner required|Sign in as Vault owner/);
 });
 
-test("gameplay mounts only after a matching Receiz session or explicit offline practice consent", () => {
+test("gameplay mounts directly from any committed proof-native identity and character", () => {
   const source = read("src/features/shell/WildzApp.tsx");
 
-  assert.match(source, /const gameplayReady = Boolean\([\s\S]*identity\.remoteStatus === "connected" \|\| offlinePracticeAccepted/);
+  assert.match(source, /const gameplayReady = Boolean\([\s\S]*continuity[\s\S]*identity[\s\S]*character/);
+  assert.doesNotMatch(source, /identity\.remoteStatus === "connected" \|\| offlinePracticeAccepted/);
   assert.match(source, /gameplayReady && continuity && identity && character \? <PlayCampaign/);
-  assert.doesNotMatch(source, /\{continuity && identity && character \? <PlayCampaign/);
-  assert.match(source, /navigator\.onLine/);
-  assert.match(source, />Continue offline<\/button>/);
-  assert.equal(source.match(/setOfflinePracticeAccepted\(true\)/g)?.length, 1);
+  assert.doesNotMatch(source, /Continue offline|offlinePracticeAccepted/);
 });
 
-test("OAuth callback errors survive query cleanup and block automatic redirect loops until retry", () => {
+test("local gameplay stays mounted while every authenticated world mutation waits for the exact proof session", () => {
+  const shell = read("src/features/shell/WildzApp.tsx");
+  const campaign = read("src/features/play/PlayCampaign.tsx");
+  const multiplayer = read("src/features/play/use-wilds-multiplayer.ts");
+  const world = read("src/features/play/use-wilds-world.ts");
+
+  assert.match(shell, /networkEnabled=\{proofSessionConnected\}/);
+  assert.match(campaign, /networkEnabled:\s*boolean/);
+  assert.match(campaign, /enabled:\s*enabled && networkEnabled && Boolean\(avatarStyle\)/);
+  assert.match(multiplayer, /if \(!latest\.current\.enabled\) throw new Error\("wilds_multiplayer_session_required"\)/);
+  assert.match(world, /if \(!input\.enabled\) throw new Error\("wilds_world_session_required"\)/);
+});
+
+test("large Vault movement coalesces full-state persistence and flushes the latest state", () => {
+  const source = read("src/features/shell/WildzApp.tsx");
+  const persistStart = source.indexOf("const persistPlayState");
+  const persist = source.slice(persistStart, source.indexOf("\n\n  return (", persistStart));
+
+  assert.ok(persistStart >= 0);
+  assert.match(source, /createLatestOnlySaveScheduler/);
+  assert.match(source, /wildz:preserve-state/);
+  assert.match(source, /pagehide/);
+  assert.match(source, /visibilitychange/);
+  assert.match(persist, /\.schedule\(\{/);
+  assert.doesNotMatch(persist, /void saveWildzContinuityPlayState\(/);
+});
+
+test("legacy OAuth callback query parameters are cleared without restarting an external login", () => {
   const source = read("src/features/shell/WildzApp.tsx");
   const initialize = source.slice(source.indexOf("const initialize"), source.indexOf("const completeGenesis"));
   const callbackError = initialize.indexOf('searchParams.has("receiz_error")');
-  const preserveError = initialize.indexOf("setEntryRecovery", callbackError);
   const clearQuery = initialize.indexOf("clearWildzAuthQuery()", callbackError);
 
-  assert.ok(callbackError >= 0 && preserveError > callbackError && clearQuery > preserveError);
-  assert.match(source, /if \(entryRecovery\) return;/);
-  assert.match(source, /Retry Receiz/);
+  assert.ok(callbackError >= 0 && clearQuery > callbackError);
+  assert.doesNotMatch(source, /Retry Receiz|continueWildzEntry/);
 });
 
 test("global shell is edge-to-edge and safe-area aware", () => {

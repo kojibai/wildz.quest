@@ -4,7 +4,7 @@ import { test } from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("the shared restore adapter routes V3 player Vaults through proof-sealed Receiz login", () => {
+test("the shared restore adapter routes V3 player Vaults through direct proof-sealed admission", () => {
   const adapter = read("src/lib/receiz/wildz-identity-adapter.ts");
 
   assert.match(adapter, /createWildzVaultLoginCoordinator/);
@@ -12,9 +12,9 @@ test("the shared restore adapter routes V3 player Vaults through proof-sealed Re
   assert.match(adapter, /verifier:\s*\{\s*verifyArtifact:\s*verifyWildzArtifactSameOrigin\s*\}/);
   assert.doesNotMatch(adapter, /receizCommerceAdapter\.verifyArtifact/);
   assert.match(adapter, /defaultVaultLoginCoordinator\.begin/);
-  assert.match(adapter, /status !== "not_player_vault"/);
+  assert.match(adapter, /playerVault\.status === "committed"/);
   assert.match(adapter, /resumePendingWildzVault/);
-  assert.match(adapter, /WildzVaultLoginRedirectError/);
+  assert.doesNotMatch(adapter, /WildzVaultLoginRedirectError|\/api\/auth\/receiz\/start/);
 });
 
 test("bootstrap best-effort purges expired staged Vault bytes before identity recovery", () => {
@@ -28,16 +28,16 @@ test("bootstrap best-effort purges expired staged Vault bytes before identity re
   assert.match(adapter.slice(purge, identityBootstrap), /catch/);
 });
 
-test("bootstrap revalidates and persists every active identity before restoring owner state", () => {
+test("bootstrap never revalidates proof-native identity or Vault authority through OAuth", () => {
   const adapter = read("src/lib/receiz/wildz-identity-adapter.ts");
   const bootstrapStart = adapter.indexOf("export async function bootstrapWildzContinuity");
   const ownerState = adapter.indexOf("loadWildzRestoredOwnerState", bootstrapStart);
   const reconciliation = adapter.slice(bootstrapStart, ownerState);
 
   assert.ok(bootstrapStart >= 0 && ownerState > bootstrapStart);
-  assert.doesNotMatch(reconciliation, /session\.localAuthority === "remote-only"/);
+  assert.match(reconciliation, /session\.localAuthority === "remote-only"/);
   assert.match(reconciliation, /wildzRemoteSessionBridge\.current\(\)/);
-  assert.match(reconciliation, /if \(reconciliation\.disconnect\) await wildzRemoteSessionBridge\.disconnect\(\)/);
+  assert.doesNotMatch(reconciliation, /session\.localAuthority !== "remote-only"[\s\S]*wildzRemoteSessionBridge\.current/);
   assert.match(reconciliation, /defaultIdentityRepository\.writeSession\(tx, session, true\)/);
 });
 
@@ -60,16 +60,17 @@ test("the app resumes a staged Vault before automatic identity bootstrap and rem
   assert.ok(shell.indexOf("resumePendingWildzVault") < shell.indexOf("bootstrapWildzContinuity(window.localStorage)"));
   assert.match(shell, /history\.replaceState/);
   assert.match(shell, /searchParams\.delete\("wildzResume"\)/);
-  assert.match(shell, /window\.location\.assign\(cause\.loginUrl\)/);
+  assert.doesNotMatch(shell, /window\.location\.assign|\/api\/auth\/receiz\/start/);
   assert.match(shell, /shouldClearWildzResumeAfterError/);
-  assert.match(shell, /Retry Vault restore/);
+  assert.doesNotMatch(shell, /Retry Vault restore|Sign in as Vault owner/);
 });
 
-test("remote Receiz login is public session authority and never fabricates an exportable key", () => {
+test("proof-sealed Vault login is app session authority and never fabricates an exportable key", () => {
   const coordinator = read("src/lib/receiz/wildz-vault-login-coordinator.ts");
 
-  assert.match(coordinator, /localAuthority: "remote-only"/);
+  assert.match(coordinator, /localAuthority: "proof-sealed-vault"/);
   assert.match(coordinator, /portableStateStatus: "missing"/);
   assert.match(coordinator, /writeSession\(tx, session, true\)/);
+  assert.doesNotMatch(coordinator, /receiz_login_required|receiz_account_mismatch|\/api\/auth\/receiz\/start/);
   assert.doesNotMatch(coordinator, /createReceizIdIdentity|createReceizIdentityKeyFile|privateKey/);
 });

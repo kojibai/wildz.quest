@@ -6,6 +6,7 @@ import { worldCommandRequiresCard } from "@/features/play/wilds-world-authority"
 import { platform } from "@/lib/platform";
 import { authorizeWildsMultiplayerCard, resolveWildsMultiplayerActor, type WildsMultiplayerActor } from "./wilds-multiplayer-server";
 import { createReceizWildsWorldRepository, type WildsWorldPublication, type WildsWorldRepository } from "./wilds-world-repository";
+import { readWildzProofSessionCookie, wildzProofPrincipalId } from "./wildz-proof-session";
 
 export type { WildsWorldPublication } from "./wilds-world-repository";
 
@@ -24,6 +25,7 @@ const practiceKey = Symbol.for("receiz.wilds.world.practice.v3");
 const hydrationKey = Symbol.for("receiz.wilds.world.hydrated.v3");
 const repositoryKey = Symbol.for("receiz.wilds.world.repository.v3");
 const mutationQueueKey = Symbol.for("receiz.wilds.world.mutation_queue.v3");
+const WILDS_WORLD_GENESIS_PULSE = "2026-07-15T00:00:00.000Z";
 type WorldGlobal = typeof globalThis & {
   [serviceKey]?: WildsWorldService;
   [practiceKey]?: WildsWorldService;
@@ -43,7 +45,7 @@ function serializeWildsWorldMutation<T>(operation: () => Promise<T>) {
 function practiceService() {
   if (!root()[practiceKey]) {
     const practice = new WildsWorldService();
-    const pulse = "2026-07-15T00:00:00.000Z";
+    const pulse = WILDS_WORLD_GENESIS_PULSE;
     practice.tick({ pulse, occurredAt: pulse, systemActorId: "receiz:pulse" });
     practice.tickEcology({ pulse, occurredAt: pulse, systemActorId: "receiz:pulse" });
     root()[practiceKey] = practice;
@@ -60,7 +62,11 @@ export async function hydrateWildsWorldFromReceiz(request: NextRequest) {
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 1_200))
     ]);
     const record = findWildsWorldRecord(recovered);
-    if (record) root()[serviceKey] = new WildsWorldService({ checkpoint: record.checkpoint, events: record.eventTail });
+    if (record) {
+      root()[serviceKey] = new WildsWorldService({ checkpoint: record.checkpoint, events: record.eventTail });
+    } else {
+      delete root()[hydrationKey];
+    }
   })();
   root()[hydrationKey] = hydration;
   try {
@@ -103,6 +109,124 @@ async function auditMajorEvents(request: NextRequest, actor: WildsMultiplayerAct
   return repository().audit({ sourceUrl: sourceUrl(request), actor, events });
 }
 
+function proofSessionWorldActor(request: NextRequest): WildsMultiplayerActor {
+  try {
+    const proofSession = readWildzProofSessionCookie(request);
+    const principalId = wildzProofPrincipalId(proofSession);
+    return {
+      playerId: principalId,
+      handle: proofSession.profileHandle,
+      receizActorId: principalId,
+      practice: false,
+      ...(proofSession.vaultCardRootSha256
+        ? { vaultCardRootSha256: proofSession.vaultCardRootSha256 }
+        : {})
+    };
+  } catch {
+    throw new Error("wilds_world_proof_session_required");
+  }
+}
+
+function positiveCanonicalWorld(value: unknown) {
+  const record = findWildsWorldRecord(value);
+  if (!record || !Number.isSafeInteger(record.checkpoint.revision) || record.checkpoint.revision <= 0) return null;
+  try {
+    return { record, world: new WildsWorldService({ checkpoint: record.checkpoint, events: record.eventTail }) };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Joins an authenticated proof-session actor to the shared Receiz world. If
+ * no canonical head exists yet, the first actor deterministically publishes
+ * the same genesis pulse every other instance would derive.
+ */
+export function bootstrapWildsWorld(request: NextRequest) {
+  return serializeWildsWorldMutation(async () => {
+    const actor = proofSessionWorldActor(request);
+    let recovered;
+    try {
+      recovered = await repository().recover(sourceUrl(request));
+    } catch {
+      throw new Error("wilds_world_canonical_recovery_required");
+    }
+
+    const existing = positiveCanonicalWorld(recovered);
+    if (existing) {
+      root()[serviceKey] = existing.world;
+      return {
+        projection: existing.world.snapshot(),
+        mode: "receiz_live" as const,
+        events: [],
+        publication: {
+          published: false,
+          mode: "receiz_live" as const,
+          revision: existing.record.checkpoint.revision,
+          record: existing.record
+        }
+      };
+    }
+
+    const local = service();
+    if (local.checkpoint().revision > 0) throw new Error("wilds_world_canonical_recovery_required");
+    if (recovered && (
+      recovered.checkpoint.revision !== 0
+      || recovered.checkpoint.lastEventId !== null
+      || recovered.eventTail.length > 0
+    )) {
+      throw new Error("wilds_world_canonical_recovery_required");
+    }
+
+    const current = recovered
+      ? new WildsWorldService({ checkpoint: recovered.checkpoint, events: recovered.eventTail })
+      : local;
+    root()[serviceKey] = current;
+    const before = { checkpoint: current.checkpoint(), events: current.events() };
+    const worldTick = current.tick({
+      pulse: WILDS_WORLD_GENESIS_PULSE,
+      occurredAt: WILDS_WORLD_GENESIS_PULSE,
+      systemActorId: "receiz:pulse"
+    });
+    const ecologyTick = current.tickEcology({
+      pulse: WILDS_WORLD_GENESIS_PULSE,
+      occurredAt: WILDS_WORLD_GENESIS_PULSE,
+      systemActorId: "receiz:pulse"
+    });
+    const events = [...worldTick.events, ...ecologyTick.events];
+    let publication: WildsWorldPublication;
+    try {
+      publication = await publish(request, actor, current, { revision: 0, lastEventId: null });
+    } catch {
+      root()[serviceKey] = new WildsWorldService(before);
+      throw new Error("wilds_world_canonical_publish_required");
+    }
+
+    if (publication.published && publication.mode === "receiz_live") {
+      return { projection: current.snapshot(), mode: "receiz_live" as const, events, publication };
+    }
+
+    const competing = publication.conflict ? positiveCanonicalWorld(publication.record) : null;
+    if (competing) {
+      root()[serviceKey] = competing.world;
+      return {
+        projection: competing.world.snapshot(),
+        mode: "receiz_live" as const,
+        events: [],
+        publication: {
+          ...publication,
+          mode: "receiz_live" as const,
+          revision: competing.record.checkpoint.revision,
+          record: competing.record
+        }
+      };
+    }
+
+    root()[serviceKey] = new WildsWorldService(before);
+    throw new Error("wilds_world_canonical_publish_required");
+  });
+}
+
 export async function worldSnapshot(request: NextRequest) {
   await hydrateWildsWorldFromReceiz(request);
   return selectWildsWorldSnapshot(service().snapshot(), practiceService().snapshot());
@@ -114,7 +238,7 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown) {
   const actor = await resolveWildsMultiplayerActor(request, value.guestId);
   const command = value.command as WildsWorldCommand;
   const card = worldCommandRequiresCard(command) ? value.card as PortableCardAsset | undefined : undefined;
-  if (worldCommandRequiresCard(command)) authorizeWildsMultiplayerCard(actor, card);
+  if (worldCommandRequiresCard(command)) authorizeWildsMultiplayerCard(actor, card, value.cardAdmission);
   await hydrateWildsWorldFromReceiz(request);
   if (actor.practice) {
     const now = new Date().toISOString();
@@ -155,7 +279,12 @@ export function tickWildsWorld(request: NextRequest) {
   const world = current.tick({ pulse: now, occurredAt: now, systemActorId: "receiz:pulse" });
   const ecology = current.tickEcology({ pulse: now, occurredAt: now, systemActorId: "receiz:pulse" });
   const result = { projection: ecology.projection, events: [...world.events, ...ecology.events] };
-  const pulseActor = { playerId: "receiz:pulse", handle: "receiz:pulse", practice: false } as const;
+  const pulseActor = {
+    playerId: "receiz:pulse",
+    handle: "receiz:pulse",
+    receizActorId: "receiz:pulse",
+    practice: false
+  } as const;
   let publication = await publish(request, pulseActor, current, {
     revision: before.checkpoint.revision,
     lastEventId: before.checkpoint.lastEventId

@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       action,
       opponentId: typeof body?.opponentId === "string" ? body.opponentId : undefined,
       challengeId: typeof body?.challengeId === "string" ? body.challengeId : undefined,
-      card: authorizeWildsMultiplayerCard(actor, body?.card),
+      card: authorizeWildsMultiplayerCard(actor, body?.card, body?.cardAdmission),
       mode: body?.mode === "card_stake" || body?.mode === "money_stake" ? body.mode : "friendly"
     });
     const publication = await publishWildsRoomToReceiz(request, actor, result.snapshot);

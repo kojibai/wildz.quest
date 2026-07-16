@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       z,
       heading,
       practice: actor.practice,
-      activeCard: authorizeWildsMultiplayerCard(actor, body?.card)
+      activeCard: authorizeWildsMultiplayerCard(actor, body?.card, body?.cardAdmission)
     });
     const publication = await publishWildsRoomToReceiz(request, actor, result.snapshot);
     return NextResponse.json({ ok: true, actor, ...result, publication });

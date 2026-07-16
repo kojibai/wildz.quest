@@ -139,7 +139,7 @@ test("a v103-verified V3 Vault immediately logs into its embedded player and res
   if (outcome.status !== "committed") return;
   assert.equal(outcome.restore.session.actorId, "vault_keeper");
   assert.equal(outcome.restore.session.username, "vault_keeper");
-  assert.equal(outcome.restore.session.localAuthority, "remote-only");
+  assert.equal(outcome.restore.session.localAuthority, "proof-sealed-vault");
   assert.equal(outcome.restore.session.remoteStatus, "unknown");
   assert.equal(outcome.restore.playState.inventory.length, 98);
   assert.deepEqual(
@@ -169,6 +169,29 @@ test("the same proof-backed Vault always uses one non-key owner scope and never 
   );
 });
 
+test("different verified Vault artifacts carrying the same handle use different owner scopes", async () => {
+  const first = setup();
+  const second = setup();
+  const firstOutcome = await first.coordinator.begin({
+    surface: "genesis",
+    bytes: fixture(9).bytes,
+    mimeType: "image/png",
+    name: "first-vault.png"
+  });
+  const secondOutcome = await second.coordinator.begin({
+    surface: "genesis",
+    bytes: fixture(10).bytes,
+    mimeType: "image/png",
+    name: "second-vault.png"
+  });
+
+  assert.equal(firstOutcome.status, "committed");
+  assert.equal(secondOutcome.status, "committed");
+  if (firstOutcome.status !== "committed" || secondOutcome.status !== "committed") return;
+  assert.equal(firstOutcome.restore.session.actorId, secondOutcome.restore.session.actorId);
+  assert.notEqual(firstOutcome.restore.session.keyId, secondOutcome.restore.session.keyId);
+});
+
 test("a standalone V3 Vault still authenticates its owner even when a local Identity label matches", async () => {
   const value = fixture();
   const database = createMemoryWildzContinuityDatabase();
@@ -195,7 +218,7 @@ test("a standalone V3 Vault still authenticates its owner even when a local Iden
   if (outcome.status !== "committed") return;
   assert.equal(outcome.restore.session.username, "vault_keeper");
   assert.notEqual(outcome.restore.session.keyId, identity.keyFile.keyId);
-  assert.equal(outcome.restore.session.localAuthority, "remote-only");
+  assert.equal(outcome.restore.session.localAuthority, "proof-sealed-vault");
   assert.equal(database.dump().ownerStates.length, 1);
   assert.equal(verificationCalls, 1);
 });
@@ -222,11 +245,26 @@ test("a self-asserted local username cannot bypass Vault owner authentication", 
   if (outcome.status !== "committed") return;
   assert.equal(outcome.restore.session.username, "vault_keeper");
   assert.notEqual(outcome.restore.session.keyId, identity.keyFile.keyId);
-  assert.equal(outcome.restore.session.localAuthority, "remote-only");
+  assert.equal(outcome.restore.session.localAuthority, "proof-sealed-vault");
   assert.equal(database.dump().ownerStates.length, 1);
 });
 
-test("matching authenticated /userinfo resumes atomically into a remote-only identity and cannot replay", async () => {
+test("a previously staged verified Vault resumes as its embedded identity without external login", async () => {
+  const value = fixture(98);
+  const target = setup();
+  const staged = await stageLegacyResume(target, value);
+
+  const resumed = await target.coordinator.resume(staged.resumeId);
+
+  assert.equal(resumed.status, "committed");
+  if (resumed.status !== "committed") return;
+  assert.equal(resumed.restore.session.actorId, "vault_keeper");
+  assert.equal(resumed.restore.session.localAuthority, "proof-sealed-vault");
+  assert.equal(resumed.restore.playState.inventory.length, 98);
+  assert.equal(target.database.dump().pendingRestores.length, 0);
+});
+
+test("a matching legacy browser session cannot replace the Vault's own proof authority", async () => {
   const value = fixture();
   const target = setup();
   await target.repository.bootstrap();
@@ -242,9 +280,9 @@ test("matching authenticated /userinfo resumes atomically into a remote-only ide
   assert.equal(resumed.status, "committed");
   if (resumed.status !== "committed") return;
   assert.equal(resumed.restore.session.actorId, "vault_keeper");
-  assert.equal(resumed.restore.session.keyId, `receiz_remote_${"a".repeat(32)}`);
+  assert.match(resumed.restore.session.keyId, /^receiz_vault_[a-f0-9]{32,64}$/);
   assert.equal(resumed.restore.session.username, "vault_keeper");
-  assert.equal(resumed.restore.session.localAuthority, "remote-only");
+  assert.equal(resumed.restore.session.localAuthority, "proof-sealed-vault");
   assert.equal(resumed.restore.session.remoteStatus, "connected");
   assert.equal(resumed.restore.playState.inventory.length, value.assets.length);
   assert.deepEqual(resumed.restore.verifiedAssetIds, value.assets.map((asset) => asset.id).sort());
@@ -279,19 +317,26 @@ test("a successful atomic commit does not depend on a second database read", asy
   if (resumed.status === "committed") assert.equal(resumed.restore.playState.inventory.length, value.assets.length);
 });
 
-test("foreign authenticated accounts and transaction failures retain pending bytes without partial owner mutation", async () => {
+test("a foreign browser session cannot block the identity authenticated by a verified Vault", async () => {
+  const value = fixture();
+  const target = setup();
+  await target.repository.bootstrap();
+  const staged = await stageLegacyResume(target, value);
+  target.setRemote({ status: "connected", subjectKey: "c".repeat(64), actorId: "other_player", profileHandle: "other_player.receiz.id", displayName: "Other" });
+  const restored = await target.coordinator.resume(staged.resumeId);
+  assert.equal(restored.status, "committed");
+  assert.equal(restored.restore.session.actorId, "vault_keeper");
+  assert.equal(restored.restore.session.localAuthority, "proof-sealed-vault");
+  assert.deepEqual(await target.repository.active(), restored.restore.session);
+  assert.equal(target.database.dump().pendingRestores.length, 0);
+  assert.equal(target.database.dump().ownerStates.length, 1);
+});
+
+test("a failed direct Vault commit retains staged bytes without partial owner mutation", async () => {
   const value = fixture();
   const target = setup();
   const prior = await target.repository.bootstrap();
   const staged = await stageLegacyResume(target, value);
-  target.setRemote({ status: "connected", subjectKey: "c".repeat(64), actorId: "other_player", profileHandle: "other_player.receiz.id", displayName: "Other" });
-  const mismatch = await target.coordinator.resume(staged.resumeId);
-  assert.equal(mismatch.status, "receiz_account_mismatch");
-  assert.deepEqual(await target.repository.active(), prior);
-  assert.equal(target.database.dump().pendingRestores.length, 1);
-  assert.equal(target.database.dump().ownerStates.length, 0);
-
-  target.setRemote({ status: "connected", subjectKey: "d".repeat(64), actorId: "vault_keeper", profileHandle: "vault_keeper.receiz.id", displayName: "Vault Keeper" });
   target.database.failNextTransactionAfterPuts(2, new Error("injected_atomic_failure"));
   await assert.rejects(target.coordinator.resume(staged.resumeId), /wildz_restore_storage_failed/);
   assert.deepEqual(await target.repository.active(), prior);

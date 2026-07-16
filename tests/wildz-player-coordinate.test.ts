@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { createReceizIdIdentity } from "@receiz/sdk";
 import {
   parseWildzPlayerCoordinate,
   sameWildzPlayerCoordinate
@@ -18,10 +19,25 @@ test("Receiz base usernames and canonical handles resolve to one Wildz player co
   assert.equal(sameWildzPlayerCoordinate("trail__keeper", "@TRAIL__KEEPER.RECEIZ.ID"), true);
 });
 
+test("player coordinates accept the SDK v104 username normalization maximum", async () => {
+  const sdkMaximumUsername = "a".repeat(30);
+  const identity = await createReceizIdIdentity({
+    username: `${sdkMaximumUsername}extra`,
+    displayName: "SDK Bound"
+  });
+
+  assert.equal(identity.username, sdkMaximumUsername);
+  assert.deepEqual(parseWildzPlayerCoordinate(identity.username), {
+    actorId: sdkMaximumUsername,
+    profileHandle: `${sdkMaximumUsername}.receiz.id`
+  });
+  assert.equal(parseWildzPlayerCoordinate("a".repeat(31)), null);
+});
+
 test("player coordinates reject dotted aliases, malformed suffixes, and invalid profile lengths", () => {
   for (const value of [
     "ab",
-    "a".repeat(25),
+    "a".repeat(31),
     "trail.keeper",
     "trail-keeper",
     "trail__keeper.example",

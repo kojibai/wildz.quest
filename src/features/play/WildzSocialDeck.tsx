@@ -1,16 +1,23 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Icons } from "@/components/icons";
-import { sortWildzCards, type WildzCardSort } from "./card-sort";
+import type { WildzCardSort } from "./card-sort";
 import type { PlayState, WildsInput } from "./game-state";
 import type { WildsMovementMode } from "./wilds-movement";
 import type { PortableCardAsset } from "./portable-card";
-import { creatureForm } from "./creature-catalog";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
-import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
 import { WildzContextButton } from "./WildzContextButton";
 import { WildzDpad } from "./WildzDpad";
+import { WildzPagedCardRail } from "./WildzPagedCardRail";
+
+function useStableEvent<Arguments extends unknown[]>(handler: (...args: Arguments) => void) {
+  const handlerRef = useRef(handler);
+  useEffect(() => {
+    handlerRef.current = handler;
+  }, [handler]);
+  return useCallback((...args: Arguments) => handlerRef.current(...args), []);
+}
 
 export function WildzSocialDeck({ nearbyCards, activeCard, companionProgress, action, cameraHeading, movementMode, cardOrder, onCardOrderChange, onInput, onAction, onMovementModeChange, onSelectCard, onOpenFieldGuide, onOpenProfile, onOpenMarket, onOpenSatchel, onOpenDeck, onOpenVault, onRest, onTrain, onMission }: {
   nearbyCards: readonly PortableCardAsset[];
@@ -35,39 +42,20 @@ export function WildzSocialDeck({ nearbyCards, activeCard, companionProgress, ac
   onTrain: () => void;
   onMission: () => void;
 }) {
-  const sortedCards = useMemo(() => sortWildzCards(nearbyCards, cardOrder), [cardOrder, nearbyCards]);
+  const changeCardOrder = useStableEvent(onCardOrderChange);
+  const selectCard = useStableEvent(onSelectCard);
+  const openMarket = useStableEvent(onOpenMarket);
 
   return <section className="wildz-social-deck" aria-label="Nearby companions and game functions">
     <span className="wildz-social-handle" aria-hidden="true" />
-    <div className="wildz-card-rail">
-      <div className="wildz-card-rail-tools">
-        <span>{nearbyCards.length} sealed companion{nearbyCards.length === 1 ? "" : "s"}</span>
-        <label><span>Sort</span><select aria-label="Sort card rail" onChange={(event) => onCardOrderChange(event.target.value as WildzCardSort)} value={cardOrder}>
-          <option value="rarity">Rarity</option>
-          <option value="newest">Newest</option>
-          <option value="oldest">Oldest</option>
-        </select></label>
-      </div>
-      <div className="wildz-nearby-cards">
-      {sortedCards.map((card) => {
-        const form = creatureForm(card.manifest.formId);
-        const progress = companionProgress[card.manifest.familyId] ?? { level: 1, xp: 0, bond: 0 };
-        return <article key={card.id}>
-        <button className="wildz-nearby-creature" onClick={() => onSelectCard(card.id)} type="button">
-          <WildsCreatureThumbnail asset={card} className="wildz-creature-portrait" />
-          <div>
-            <span className="wildz-nearby-xp">{progress.xp} XP</span>
-            <strong className="wilds-creature-name"><span>{card.manifest.name}</span><WildsVerifiedBadge /></strong>
-            <small>Lv. {progress.level} · Bond {progress.bond} · Stage {card.manifest.stage} · {form?.element ?? card.manifest.species}</small>
-            <em>{form?.temperament ?? card.manifest.rarity}</em>
-          </div>
-        </button>
-        <div className="wildz-nearby-owner"><Icons.user size={18} /><span><strong>{card.manifest.ownerReceizId}</strong></span></div>
-        <button className="wildz-trade-inline" onClick={onOpenMarket} type="button"><b>{card.manifest.stats.power} PWR</b><span>Trade</span></button>
-      </article>;
-      })}
-      </div>
-    </div>
+    <WildzPagedCardRail
+      cardOrder={cardOrder}
+      companionProgress={companionProgress}
+      nearbyCards={nearbyCards}
+      onCardOrderChange={changeCardOrder}
+      onOpenMarket={openMarket}
+      onSelectCard={selectCard}
+    />
     <div className="wildz-bottom-play-controls" aria-label="Movement and context controls">
       <div className="wildz-play-control-rail" aria-label="Explore actions">
         <button aria-label="Discovery active. Tap terrain to scan" aria-pressed="true" className="is-active" type="button"><Icons.game size={20} /></button>

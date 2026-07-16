@@ -7,16 +7,24 @@ import { createOwnerBoundInitialPlayState, initialPlayState, type PlayState } fr
 import type { WildzCardOnlyConfirmation } from "@/features/identity/wildz-restore";
 import {
   bootstrapWildzContinuity,
+  alignWildzContinuityWithProofSession,
+  connectWildzProofSession,
   downloadWildzIdentityPlayerVault,
   restoreWildzFileForSurface,
   resumePendingWildzVault,
   saveWildzContinuityPlayState,
-  WildzVaultLoginRedirectError,
   type WildzContinuitySnapshot,
   type WildzUiArtifactRestore
 } from "@/lib/receiz/wildz-identity-adapter";
-import { wildzRemoteSessionBridge } from "@/lib/receiz/wildz-session-bridge";
 import { shouldClearWildzResumeAfterError } from "@/lib/receiz/wildz-resume-errors";
+import {
+  bootstrapWildzSharedWorld,
+  wildzRemoteSessionMatchesIdentity
+} from "@/lib/receiz/wildz-session-bridge";
+import {
+  createLatestOnlySaveScheduler,
+  type WildzLatestSaveScheduler
+} from "@/lib/receiz/wildz-save-scheduler";
 import { sanitizePublicWildzProfile } from "@/features/profile/public-profile";
 import {
   fetchPublicWildzProfile,
@@ -29,6 +37,12 @@ import type { WildzOverlay } from "@/features/shell/wildz-overlay";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+type PendingPlayStateSave = {
+  snapshot: WildzContinuitySnapshot;
+  playState: PlayState;
+  playerContinuity: NonNullable<WildzContinuitySnapshot["playerContinuity"]>;
+};
+
 function clearWildzAuthQuery() {
   const url = new URL(window.location.href);
   const searchParams = url.searchParams;
@@ -39,25 +53,28 @@ function clearWildzAuthQuery() {
   window.history.replaceState(window.history.state, "", next);
 }
 
-type WildzVaultRecovery = {
-  kind: "login" | "mismatch" | "retry";
-  loginUrl: string;
-};
-
 export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOverlay }) {
   const [overlay, setOverlay] = useState<WildzOverlay>(initialOverlay);
   const [continuity, setContinuity] = useState<WildzContinuitySnapshot | null>(null);
   const continuityRef = useRef<WildzContinuitySnapshot | null>(null);
+  const playStateSaveSchedulerRef = useRef<WildzLatestSaveScheduler<PendingPlayStateSave> | null>(null);
+  if (!playStateSaveSchedulerRef.current) {
+    playStateSaveSchedulerRef.current = createLatestOnlySaveScheduler({
+      delayMs: 400,
+      write: ({ snapshot, playState, playerContinuity }: PendingPlayStateSave) => saveWildzContinuityPlayState(
+        snapshot,
+        playState,
+        playerContinuity,
+        snapshot.character
+      )
+    });
+  }
   const [character, setCharacter] = useState<WildzCharacterGenesis | null>(null);
   const [identityError, setIdentityError] = useState("");
-  const [entryRecovery, setEntryRecovery] = useState("");
-  const [vaultRecovery, setVaultRecovery] = useState<WildzVaultRecovery | null>(null);
-  const [browserOnline, setBrowserOnline] = useState(true);
-  const [offlinePracticeAccepted, setOfflinePracticeAccepted] = useState(false);
+  const [proofSessionConnected, setProofSessionConnected] = useState(false);
   const [remoteProfile, setRemoteProfile] = useState<ReturnType<typeof sanitizePublicWildzProfile> | null>(null);
   const [profileStatus, setProfileStatus] = useState<"idle" | "loading" | "publishing" | "ready" | "unpublished" | "missing" | "error">("idle");
   const publishedProfileRef = useRef("");
-  const automaticEntryRef = useRef("");
   const identity = continuity?.session ?? null;
   const ownerPlayState = useMemo(
     () => continuity?.playState ?? (identity ? createOwnerBoundInitialPlayState(identity.actorId) : initialPlayState),
@@ -84,7 +101,6 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     continuity
     && identity
     && character
-    && (identity.remoteStatus === "connected" || offlinePracticeAccepted)
   );
 
   const acceptSnapshot = useCallback((snapshot: WildzContinuitySnapshot) => {
@@ -92,46 +108,79 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     continuityRef.current = snapshot;
     setContinuity(snapshot);
     setCharacter(snapshot.character);
-    setVaultRecovery(null);
     if (!previous
       || previous.session.keyId !== snapshot.session.keyId
       || previous.session.actorId !== snapshot.session.actorId) {
-      automaticEntryRef.current = "";
-      setOfflinePracticeAccepted(false);
-    }
-  }, []);
-
-  const continueWildzEntry = useCallback(async (
-    session: WildzContinuitySnapshot["session"],
-    force = false
-  ) => {
-    const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    const attemptKey = `${session.actorId}:${returnTo}`;
-    if (!force && automaticEntryRef.current === attemptKey) return;
-    automaticEntryRef.current = attemptKey;
-    setEntryRecovery("");
-    try {
-      const remote = await wildzRemoteSessionBridge.continueLocalIdentity(session, returnTo);
-      if (remote.status !== "connected" && remote.status !== "pending") {
-        setEntryRecovery(remote.status === "offline"
-          ? "Receiz is offline. Reconnect and retry, or continue offline."
-          : "Wildz could not verify this explorer with Receiz. Retry without losing your local identity.");
-      }
-    } catch {
-      setEntryRecovery("Wildz could not start Receiz connection. Retry without losing your local identity.");
+      setProofSessionConnected(false);
     }
   }, []);
 
   useEffect(() => {
-    const updateOnlineStatus = () => setBrowserOnline(navigator.onLine);
-    updateOnlineStatus();
-    window.addEventListener("online", updateOnlineStatus);
-    window.addEventListener("offline", updateOnlineStatus);
+    const scheduler = playStateSaveSchedulerRef.current;
+    if (!scheduler) return;
+    const flush = () => { void scheduler.flush().catch(() => undefined); };
+    const flushWhenHidden = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("wildz:preserve-state", flush);
+    document.addEventListener("visibilitychange", flushWhenHidden);
     return () => {
-      window.removeEventListener("online", updateOnlineStatus);
-      window.removeEventListener("offline", updateOnlineStatus);
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("wildz:preserve-state", flush);
+      document.removeEventListener("visibilitychange", flushWhenHidden);
+      flush();
     };
   }, []);
+
+  useEffect(() => {
+    if (!identity) return;
+    let active = true;
+    let connecting = false;
+    let retryTimer: number | null = null;
+    const connect = () => {
+      if (connecting) return;
+      connecting = true;
+      if (retryTimer !== null) {
+        window.clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+      void connectWildzProofSession(identity).then(async (session) => {
+        if (!active || !wildzRemoteSessionMatchesIdentity(identity, session)) {
+          if (active) setProofSessionConnected(false);
+          return;
+        }
+        await bootstrapWildzSharedWorld();
+        if (!active) return;
+        const current = continuityRef.current;
+        if (!current
+          || current.session.keyId !== identity.keyId
+          || current.session.actorId !== identity.actorId) return;
+        const aligned = await alignWildzContinuityWithProofSession(current, session);
+        if (!active) return;
+        const stillCurrent = continuityRef.current;
+        if (!stillCurrent
+          || stillCurrent.session.keyId !== identity.keyId
+          || stillCurrent.session.actorId !== identity.actorId) return;
+        if (aligned !== current) acceptSnapshot(aligned);
+        setProofSessionConnected(true);
+      }).catch(() => {
+        if (active) {
+          setProofSessionConnected(false);
+          retryTimer = window.setTimeout(connect, 5_000);
+        }
+      }).finally(() => {
+        connecting = false;
+      });
+    };
+    connect();
+    window.addEventListener("online", connect);
+    return () => {
+      active = false;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+      window.removeEventListener("online", connect);
+    };
+  }, [acceptSnapshot, identity]);
 
   useEffect(() => {
     if (overlay?.kind !== "profile") {
@@ -147,7 +196,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         setProfileStatus("ready");
         return () => { active = false; };
       }
-      if (!identity || !character || identity.remoteStatus !== "connected") {
+      if (!identity || !character || !proofSessionConnected) {
         setProfileStatus("unpublished");
         return () => { active = false; };
       }
@@ -172,67 +221,43 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       if (active) setProfileStatus("error");
     });
     return () => { active = false; };
-  }, [character, identity, localPublicProfile, overlay, ownerPlayState.inventory, viewingOwnProfile]);
+  }, [character, identity, localPublicProfile, overlay, ownerPlayState.inventory, proofSessionConnected, viewingOwnProfile]);
 
   useEffect(() => {
     let active = true;
     const initialize = async () => {
       const searchParams = new URLSearchParams(window.location.search);
       const resumeId = searchParams.get("wildzResume");
-      let returnedFromReceiz = false;
-      let receizCallbackFailed = false;
       if (resumeId) {
         try {
           const resumed = await resumePendingWildzVault(resumeId);
           if (!active) return;
-          if (resumed.status === "committed") {
-            clearWildzAuthQuery();
-            acceptSnapshot({
-              session: resumed.restore.session,
-              playState: resumed.restore.playState,
-              character: resumed.restore.character,
-              playerContinuity: resumed.restore.playerContinuity,
-              restoreEpoch: resumed.restore.restoreEpoch
-            });
-            return;
-          }
-          if (resumed.status === "receiz_login_required") {
-            setIdentityError("Your Vault is safe. Receiz login needs to be completed before it can be restored.");
-            setVaultRecovery({ kind: "login", loginUrl: resumed.loginUrl });
-            return;
-          }
-          setIdentityError("This browser is signed in to a different Receiz account than the one sealed in this Vault.");
-          setVaultRecovery({ kind: "mismatch", loginUrl: resumed.loginUrl });
+          clearWildzAuthQuery();
+          acceptSnapshot({
+            session: resumed.restore.session,
+            playState: resumed.restore.playState,
+            character: resumed.restore.character,
+            playerContinuity: resumed.restore.playerContinuity,
+            restoreEpoch: resumed.restore.restoreEpoch
+          });
           return;
         } catch (cause) {
           const code = cause instanceof Error ? cause.message : "wildz_restore_invalid";
           const clearResume = shouldClearWildzResumeAfterError(code);
-          if (clearResume) clearWildzAuthQuery();
-          else setVaultRecovery({ kind: "retry", loginUrl: window.location.href });
+          clearWildzAuthQuery();
           setIdentityError(code === "wildz_restore_resume_missing"
-            ? "That Vault login expired. Upload the Vault image again to continue."
+            ? "That Vault restore expired. Upload the Vault image again to continue."
             : code === "wildz_restore_v4_unavailable"
-              ? "Receiz proof verification is temporarily unavailable. Your staged Vault is safe; retry when the connection returns."
+              ? "Receiz proof verification is temporarily unavailable. Upload the Vault again when the connection returns."
               : clearResume
                 ? "The proof-sealed Vault could not be restored. Upload it again to retry."
-                : "Wildz could not finish the staged Vault restore. Nothing was changed; retry to continue.");
-          if (!clearResume) return;
+                : "Wildz could not finish the staged Vault restore. Nothing was changed; upload it again to retry.");
         }
-      } else {
-        returnedFromReceiz = searchParams.has("receiz");
-        receizCallbackFailed = searchParams.has("receiz_error");
-        if (returnedFromReceiz || receizCallbackFailed) {
-          if (receizCallbackFailed) {
-            setEntryRecovery("Receiz login did not complete. Retry without losing your local identity or Vault.");
-          }
-          clearWildzAuthQuery();
-        }
+      } else if (searchParams.has("receiz") || searchParams.has("receiz_error")) {
+        clearWildzAuthQuery();
       }
       const snapshot = await bootstrapWildzContinuity(window.localStorage);
       if (!active) return;
-      if (returnedFromReceiz && !receizCallbackFailed && snapshot.session.remoteStatus !== "connected") {
-        setEntryRecovery("Receiz returned, but Wildz could not verify this explorer. Retry without losing your local identity or Vault.");
-      }
       acceptSnapshot(snapshot);
     };
     void initialize().catch((cause) => {
@@ -241,22 +266,17 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     return () => { active = false; };
   }, [acceptSnapshot]);
 
-  useEffect(() => {
-    if (!identity || !character || offlinePracticeAccepted) return;
-    if (identity.remoteStatus === "connected") return;
-    if (!browserOnline) return;
-    if (entryRecovery) return;
-    void continueWildzEntry(identity);
-  }, [browserOnline, character, continueWildzEntry, entryRecovery, identity, offlinePracticeAccepted]);
-
-  const completeGenesis = (next: WildzCharacterGenesis) => {
+  const completeGenesis = async (next: WildzCharacterGenesis) => {
     const current = continuityRef.current;
     if (!current) return;
     const playState = current.playState ?? createOwnerBoundInitialPlayState(current.session.actorId);
     const snapshot: WildzContinuitySnapshot = { ...current, playState, character: next };
-    acceptSnapshot(snapshot);
-    void saveWildzContinuityPlayState(snapshot, playState, current.playerContinuity ?? undefined, next)
-      .catch(() => setIdentityError("Your explorer could not be saved. Try again before closing Wildz."));
+    try {
+      await saveWildzContinuityPlayState(snapshot, playState, current.playerContinuity ?? undefined, next);
+      acceptSnapshot(snapshot);
+    } catch {
+      setIdentityError("Your explorer could not be saved. Try again before closing Wildz.");
+    }
   };
 
   const restoreArtifact = useCallback(async (
@@ -267,25 +287,13 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   ): Promise<WildzUiArtifactRestore> => {
     const current = continuityRef.current;
     if (!current) throw new Error("wildz_restore_identity_missing");
-    let outcome: WildzUiArtifactRestore;
-    try {
-      outcome = await restoreWildzFileForSurface(
-        file,
-        surface,
-        confirmCardOnly,
-        current,
-        currentPlayState ?? current.playState
-      );
-    } catch (cause) {
-      if (cause instanceof WildzVaultLoginRedirectError) {
-        if (cause.status === "receiz_login_required") window.location.assign(cause.loginUrl);
-        else {
-          setIdentityError("Sign in with the Receiz account sealed in this Vault to restore its player and cards.");
-          setVaultRecovery({ kind: "mismatch", loginUrl: cause.loginUrl });
-        }
-      }
-      throw cause;
-    }
+    const outcome = await restoreWildzFileForSurface(
+      file,
+      surface,
+      confirmCardOnly,
+      current,
+      currentPlayState ?? current.playState
+    );
     const next: WildzContinuitySnapshot = {
       session: outcome.session,
       playState: outcome.playState,
@@ -296,7 +304,6 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (current.session.keyId !== outcome.session.keyId || current.session.actorId !== outcome.session.actorId) {
       publishedProfileRef.current = "";
     }
-    setEntryRecovery("");
     acceptSnapshot(next);
     return outcome;
   }, [acceptSnapshot]);
@@ -306,7 +313,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (!current) return;
     const snapshot = { ...current, playState, playerContinuity };
     continuityRef.current = snapshot;
-    void saveWildzContinuityPlayState(snapshot, playState, playerContinuity, snapshot.character).catch(() => undefined);
+    playStateSaveSchedulerRef.current?.schedule({ snapshot, playState, playerContinuity });
   }, []);
 
   return (
@@ -317,16 +324,18 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           campaignName="Wildz"
           character={character}
           enabled
+          networkEnabled={proofSessionConnected}
           initialState={ownerPlayState}
           initialPlayerContinuity={continuity.playerContinuity}
           ownerReceizId={ownerUsername}
-          playerDisplayName={identity.displayName ?? "Wildz Explorer"}
+          playerDisplayName={identity.displayName ?? `@${ownerUsername}`}
           onPlayStateChange={persistPlayState}
           onExportVault={(assets, player) => downloadWildzIdentityPlayerVault(identity, assets, player)}
           onRestoreArtifact={(file, confirmCardOnly, currentPlayState) => restoreArtifact(file, "card-vault", confirmCardOnly, currentPlayState)}
           onOpenProfile={() => setOverlay({ kind: "profile", username: `@${ownerUsername}` })}
           onOpenMarket={() => setOverlay({ kind: "market" })}
           onListAsset={async (asset, priceCents) => {
+            if (!proofSessionConnected) return null;
             const headResponse = await fetch("/api/market/listings", { method: "GET", credentials: "same-origin", cache: "no-store" });
             const headResult = await headResponse.json().catch(() => null) as { status?: unknown; head?: { revision?: unknown; appendAnchorId?: unknown } } | null;
             const head = headResult?.head;
@@ -350,32 +359,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           onRestoreArtifact={(file, confirmCardOnly) => restoreArtifact(file, "genesis", confirmCardOnly)}
         /> : <div className="wildz-identity-loading" role="status">
           <Image src="/brand/wildz-mark.svg" alt="" width={64} height={64} priority />
-          <span>{identity && character
-            ? entryRecovery || (!browserOnline
-              ? "Receiz is offline. Choose offline practice to enter without live features."
-              : "Connecting your explorer to Receiz…")
-            : identityError || "Preparing your Receiz ID…"}</span>
+          <span>{identityError || "Preparing your Receiz ID…"}</span>
         </div>}
       </div>
-
-      {vaultRecovery ? <aside className="wildz-vault-login-prompt" role="alert">
-        <span>{vaultRecovery.kind === "retry" ? "Vault restore paused" : "Vault owner required"}</span>
-        <strong>{identityError || "Sign in with the Receiz account sealed in this Vault."}</strong>
-        <div>
-          <button type="button" onClick={() => {
-            if (vaultRecovery.kind === "retry") window.location.assign(vaultRecovery.loginUrl);
-            else void wildzRemoteSessionBridge.disconnect().finally(() => window.location.assign(vaultRecovery.loginUrl));
-          }}>{vaultRecovery.kind === "retry" ? "Retry Vault restore" : "Sign in as Vault owner"}</button>
-        </div>
-      </aside> : identity && character && !gameplayReady ? <aside className="wildz-vault-login-prompt" role={entryRecovery || !browserOnline ? "alert" : "status"}>
-        <span>{!browserOnline ? "Receiz offline" : entryRecovery ? "Receiz connection needs attention" : "Receiz connection"}</span>
-        <strong>{entryRecovery || "Connecting this explorer to live Receiz features…"}</strong>
-        {!browserOnline ? <div>
-          <button type="button" onClick={() => setOfflinePracticeAccepted(true)}>Continue offline</button>
-        </div> : entryRecovery ? <div>
-          <button type="button" onClick={() => void continueWildzEntry(identity, true)}>Retry Receiz</button>
-        </div> : null}
-      </aside> : null}
 
       <div className="wildz-brand-corner" aria-label="Wildz">
         <Image src="/brand/wildz-mark.svg" alt="" width={42} height={42} priority />

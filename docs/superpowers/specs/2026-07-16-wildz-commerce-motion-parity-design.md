@@ -2,7 +2,7 @@
 
 ## Goal
 
-Make a restored Vault of roughly 100 cards feel as light as a starter Vault while matching the current Receiz Commerce Wildz camera and living-world boss HUD. The complete collection must remain sortable and horizontally scrollable. Every successful explorer, Identity Seal, or identity-bearing Vault login must also finish with a live Receiz session and enter the shared world.
+Make a restored Vault of roughly 100 cards feel as light as a starter Vault while matching the current Receiz Commerce Wildz camera and living-world boss HUD. The complete collection must remain sortable and horizontally scrollable. Every successful explorer or Identity Seal login must establish a canonical same-origin Receiz ID session. A fully verified legacy player Vault must restore its complete state into an artifact-scoped Wildz session without leaving Wildz or claiming account authority that the artifact does not contain.
 
 Reference: `kojibai/receiz-commerce` `main` at `adaaa4305fc7c249c484656576ee07b2454846f5`.
 
@@ -12,7 +12,7 @@ Reference: `kojibai/receiz-commerce` `main` at `adaaa4305fc7c249c484656576ee07b2
 - The standalone social deck maps every restored card into a complex SVG thumbnail inside the component tree that also receives movement and camera updates. Movement dispatches every 45 ms, so a 98-card Vault creates avoidable reconciliation work during play.
 - Standalone camera behavior drifted from Commerce by enabling OrbitControls damping and changing the target from `[0, .55, 0]` to `[0, .35, -.65]`.
 - Standalone mobile boss pills wrap horizontally. Commerce stacks them vertically at the lower-left.
-- A locally restored identity can currently enter gameplay before the Receiz OIDC cookie exists. That actor is classified as practice, and an empty canonical world also reports `local_practice` until its first authenticated publication.
+- The regression came from treating an external Receiz OIDC cookie as the admission gate. Key-backed identities can authenticate directly with the official v104 signed continuation flow. A legacy proof-sealed player Vault carries exact recovery authority for its embedded Wildz state, but—without an Identity Seal or v104 owner-continuity binding—it does not cryptographically establish a canonical Receiz account. Redirecting to an unrelated browser account could still conflict with the identity carried by the uploaded Vault.
 - The already-committed Vault fix reused the prior service-worker release identifier, so installed PWAs can retain the old client shell unless the identifier is bumped.
 
 ## Selected Design
@@ -35,17 +35,18 @@ Keep camera-relative analog movement and pointer capture. Remove any duplicate h
 
 Restore the Commerce mobile layout: a lower-left rail with `flex-direction: column`, left alignment, and the existing compact pill sizing. Mode, boss/event, and ecology pills stack rather than wrap. The expanded sheet remains centered and clear of the bottom controls.
 
-### Receiz login and shared-world activation
+### Receiz proof login and shared-world activation
 
-Treat fresh explorer selection, verified Identity Seal restore, and verified identity-bearing Vault restore as three entrances to one login pipeline:
+Treat key-backed identity entry and verified legacy Vault recovery as two explicit proof-native entrances to the Wildz session pipeline:
 
-1. Verify or create the local SDK identity and persist any staged Vault restore.
-2. Automatically start the existing Receiz OIDC/PKCE flow with the expected actor as the username hint. Do not show a separate Connect prompt.
-3. On callback, store the user token only in the existing scoped HttpOnly cookie.
-4. Re-read `/api/auth/receiz/me`, require the connected Receiz actor to match the locally verified actor, and only then complete entry into gameplay.
-5. If the canonical world has no published revision, use that authenticated user session to perform the first idempotent world bootstrap publication before reporting `receiz_live`.
+1. Verify or create the SDK identity and atomically persist any staged Vault restore.
+2. A key-backed identity receives a short-lived same-origin nonce, builds the official v104 `ReceizIdContinueRequest`, and sends that signed request to the Wildz same-origin proxy. The proxy forwards it server-to-server to Receiz and issues a local proof session only from the canonical bound account returned by Receiz.
+3. A legacy proof-sealed player Vault is exact-byte bearer recovery authority for its embedded Wildz player and cards. Official Receiz verification plus local player/card/byte verification creates only a short-lived pending admission. The browser commits the complete restore to IndexedDB before exchanging that pending admission for an artifact-scoped Wildz session.
+4. The legacy Vault principal is derived from the verified artifact, while its carried handle is presentation data. Canonical account-scoped profile, market, proof-object, ownership, and settlement writes require Identity Seal/key authority (or a future owner-bound Vault continuity proof); a legacy Vault cannot self-assert those rights. Its artifact-scoped principal can still participate in shared-world and multiplayer paths.
+5. Store only encrypted, purpose-separated, scoped `HttpOnly` cookies. Never send private key material, Vault bytes, generated access tokens, or canonical account claims into browser application state.
+6. Keep gameplay mounted from committed local state, but gate network hooks until the matching final proof session exists. Normal entry never redirects to `receiz.com` and never depends on a different browser account.
 
-The generated user access token is never copied into an environment variable or browser storage. `RECEIZ_CONNECT_ACCESS_TOKEN` remains an optional dedicated scheduler credential for unattended world pulses; it is not the normal login credential. Local practice remains available only as an explicit offline/recovery state.
+The legacy OIDC routes remain isolated compatibility surfaces and are not part of fresh, Identity Seal, or Vault entry. Durable v104 shared-world/publication writes use a separately provisioned server-only `RECEIZ_CONNECT_ACCESS_TOKEN`; it is not a player-login environment variable. No third-party database is introduced.
 
 ### PWA delivery
 
@@ -57,7 +58,7 @@ Bump the service-worker release identifier so installed clients fetch the new sh
 - Resize and orientation changes switch safely between the Commerce 4-card and 8-card page sizes.
 - Sort changes reset the rail to its first page.
 - Pointer cancel, lost capture, visibility change, and blur stop movement immediately.
-- OIDC cancellation, actor mismatch, and token-exchange failure preserve the verified local identity and staged Vault without entering the canonical world under the wrong actor.
+- Failed proof verification preserves the active identity and makes no partial Vault mutation. A foreign legacy browser session cannot replace or block the artifact-scoped actor recovered from the Vault.
 - A canonical-world bootstrap is idempotent and rejects publication conflicts instead of forking world history.
 - Reduced-motion behavior remains unchanged.
 
@@ -66,6 +67,6 @@ Bump the service-worker release identifier so installed clients fetch the new sh
 - Unit-contract tests prove Commerce camera parameters, vertical boss stacking, one visible D-pad path, 4/8-card Vault paging, full logical count, and all three sort orders.
 - A 100-card regression fixture exercises repeated movement while mounting at most the active Commerce-sized page.
 - Mobile WebKit verification covers: restore the real 98-card Vault, enter the world, drag the D-pad, rotate and pinch the camera, scroll to the end of the card rail, change sort order, and open the boss HUD.
-- Login tests cover fresh explorer, Identity Seal, and identity-bearing Vault redirects; matching callback resume; actor mismatch; offline preservation; and first-login canonical-world bootstrap.
+- Login tests cover direct fresh explorer and Identity Seal canonical continuation, legacy Vault pending-to-final admission after local commit, nonce/session binding, actor mismatch, exact 98-card restore, account-only mutation rejection for a legacy Vault, and the absence of external login navigation.
 - Desktop and mobile screenshots confirm the boss rail and controls do not overlap.
 - The complete release check, production build, output-trace check, and clean-worktree review must pass before the release commit.

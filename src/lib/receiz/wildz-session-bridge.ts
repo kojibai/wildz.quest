@@ -5,6 +5,8 @@ export type WildzRemoteSession =
   | {
       status: "connected";
       subjectKey: string;
+      sessionKeyId?: string;
+      authority?: "identity-key" | "proof-sealed-vault";
       actorId: string;
       profileHandle: string;
       displayName: string | null;
@@ -18,9 +20,25 @@ export type WildzRemoteSession =
 
 export interface WildzRemoteSessionBridge {
   current(): Promise<WildzRemoteSession>;
-  continueLocalIdentity(session: WildzIdentitySession, returnTo?: string): Promise<WildzRemoteSession>;
+  commitVaultAdmission(input: {
+    actorId: string;
+    profileHandle: string;
+    vaultKeyId: string;
+  }): Promise<WildzRemoteSession>;
   disconnect(): Promise<WildzRemoteSession>;
 }
+
+export type WildzSharedWorldBootstrap = {
+  ok: true;
+  mode: "receiz_live";
+  projection: {
+    schema: "receiz.wilds_world_projection.v3";
+    worldId: "wilds:global:v3";
+    revision: number;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
 
 const UNKNOWN_REMOTE_SESSION: WildzRemoteSession = {
   status: "unknown",
@@ -38,6 +56,8 @@ function remoteSession(value: unknown): WildzRemoteSession {
   const candidate = value as {
     status?: unknown;
     subjectKey?: unknown;
+    sessionKeyId?: unknown;
+    authority?: unknown;
     actorId?: unknown;
     profileHandle?: unknown;
     displayName?: unknown;
@@ -53,6 +73,11 @@ function remoteSession(value: unknown): WildzRemoteSession {
       return {
         status: "connected",
         subjectKey: candidate.subjectKey,
+        ...(typeof candidate.sessionKeyId === "string"
+          && /^(?:receiz_vault_[a-f0-9]{32}|[A-Za-z0-9._:-]{8,200})$/.test(candidate.sessionKeyId)
+          && (candidate.authority === "identity-key" || candidate.authority === "proof-sealed-vault")
+          ? { sessionKeyId: candidate.sessionKeyId, authority: candidate.authority }
+          : {}),
         ...coordinate,
         displayName: candidate.displayName
       };
@@ -64,6 +89,50 @@ function remoteSession(value: unknown): WildzRemoteSession {
   return UNKNOWN_REMOTE_SESSION;
 }
 
+export async function bootstrapWildzSharedWorld(
+  fetcher: typeof fetch = globalThis.fetch
+): Promise<WildzSharedWorldBootstrap> {
+  try {
+    const response = await fetcher("/api/wilds/world/bootstrap", {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+    const value = await response.json().catch(() => null) as Record<string, unknown> | null;
+    const projection = value?.projection as Record<string, unknown> | undefined;
+    if (!response.ok
+      || value?.ok !== true
+      || value.mode !== "receiz_live"
+      || projection?.schema !== "receiz.wilds_world_projection.v3"
+      || projection.worldId !== "wilds:global:v3"
+      || !Number.isSafeInteger(projection.revision)
+      || Number(projection.revision) < 1) {
+      throw new Error("wildz_world_bootstrap_unavailable");
+    }
+    return value as WildzSharedWorldBootstrap;
+  } catch {
+    throw new Error("wildz_world_bootstrap_unavailable");
+  }
+}
+
+export function wildzRemoteSessionMatchesIdentity(
+  session: WildzIdentitySession,
+  remote: WildzRemoteSession
+) {
+  if (remote.status !== "connected") return false;
+  if (session.localAuthority === "proof-sealed-vault") {
+    return remote.authority === "proof-sealed-vault"
+      && remote.sessionKeyId === session.keyId
+      && remote.actorId === session.actorId;
+  }
+  if (session.localAuthority === "verified") {
+    return remote.authority === "identity-key"
+      && remote.sessionKeyId === session.keyId;
+  }
+  return remote.actorId === session.actorId
+    && session.keyId === `receiz_remote_${remote.subjectKey.slice(0, 32)}`;
+}
+
 export function reconcileWildzRemoteIdentitySession(
   session: WildzIdentitySession,
   remote: WildzRemoteSession
@@ -71,8 +140,7 @@ export function reconcileWildzRemoteIdentitySession(
   if (remote.status === "connected") {
     const expectedKeyId = `receiz_remote_${remote.subjectKey.slice(0, 32)}`;
     const coordinate = parseWildzPlayerCoordinate(remote.profileHandle);
-    const proofBackedVault = /^receiz_vault_[a-f0-9]{32,64}$/.test(session.keyId);
-    const remoteOnlySubjectBound = session.localAuthority === "remote-only" && !proofBackedVault;
+    const remoteOnlySubjectBound = session.localAuthority === "remote-only";
     if ((remoteOnlySubjectBound && expectedKeyId !== session.keyId)
       || coordinate?.actorId !== session.actorId) {
       return { session: { ...session, remoteStatus: "unavailable" }, disconnect: true };
@@ -92,30 +160,38 @@ export function reconcileWildzRemoteIdentitySession(
 
 export function createWildzRemoteSessionBridge(options: {
   fetcher?: typeof fetch;
-  navigate?: (url: string) => void;
 } = {}): WildzRemoteSessionBridge {
   const fetcher = options.fetcher ?? globalThis.fetch;
-  const navigate = options.navigate ?? ((url: string) => window.location.assign(url));
 
   return {
     async current() {
       try {
-        const response = await fetcher("/api/auth/receiz/me", { cache: "no-store", credentials: "same-origin" });
+        const response = await fetcher("/api/auth/wildz/session", { cache: "no-store", credentials: "same-origin" });
         return response.ok ? remoteSession(await response.json()) : disconnected("unavailable");
       } catch {
         return disconnected("offline");
       }
     },
-    async continueLocalIdentity(session, returnTo = "/") {
-      const coordinate = parseWildzPlayerCoordinate(session.username ?? session.actorId);
-      if (!coordinate) return disconnected("unavailable");
-      const search = new URLSearchParams({ returnTo, usernameHint: coordinate.actorId });
-      navigate(`/api/auth/receiz/start?${search.toString()}`);
-      return disconnected("pending");
+    async commitVaultAdmission(input) {
+      try {
+        const response = await fetcher("/api/auth/wildz/vault-session", {
+          method: "POST",
+          cache: "no-store",
+          credentials: "same-origin",
+          headers: {
+            "content-type": "application/json",
+            "x-wildz-session-intent": "vault-commit"
+          },
+          body: JSON.stringify(input)
+        });
+        return response.ok ? remoteSession(await response.json()) : disconnected("unavailable");
+      } catch {
+        return disconnected("offline");
+      }
     },
     async disconnect() {
       try {
-        await fetcher("/api/auth/receiz/me", {
+        await fetcher("/api/auth/wildz/session", {
           method: "DELETE",
           cache: "no-store",
           credentials: "same-origin"

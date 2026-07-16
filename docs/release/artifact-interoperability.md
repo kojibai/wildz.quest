@@ -7,17 +7,17 @@ This document defines the v3/v104 interoperability contract and names the local 
 ## Authority order
 
 1. The official Receiz v104 verifier establishes cryptographic proof status for the exact enclosing artifact.
-2. An Identity Seal may activate only its verified embedded identity. An identity-bearing player Vault additionally requires a valid Wildz binding or verified enclosing Vault owner. A card-only Vault never supplies identity authority.
+2. An Identity Seal may activate only its verified embedded identity. A player Vault supplies canonical identity only with a valid Wildz identity binding or explicit v104 owner-continuity proof. A legacy proof-sealed player Vault supplies artifact-scoped recovery authority, while a card-only Vault never supplies identity authority.
 3. New exports use the SDK native Record → Seal operation. Wildz submits only artifact type and exact payload bytes; the SDK service resolves owner and proof authority.
 4. Native creation succeeds only when owner, claim, verify path, verification bundle, and final downloaded bytes agree. The SDK-returned artifact is never rewrapped.
 5. Existing v102 `receiz.portable_asset.v1` artifacts are decoded by a strict read-only compatibility reader, then verified through the SDK rail with their legacy namespace and prior-head binding intact. A local decoder never authenticates an artifact by itself.
 6. Only verified Wildz card domains become playable cards; unrelated portable domains remain unrelated.
 
-The player OIDC session requests the v104 proof-store Record/Seal/Verify scopes `receiz:record`, `receiz:seal`, and `receiz:verify` because native card and Vault creation uses that authenticated rail. `offline_access` is not requested, and refresh tokens are not transported or retained by Wildz.
+Normal player entry uses the official v104 signed Receiz ID continuation through the Wildz same-origin proxy; it does not redirect and does not place a generated player access token in application environment variables. Native Record/Seal/Verify operations still require an authenticated Receiz rail and fail closed when the required capability is absent. The isolated legacy OAuth compatibility scope set includes `receiz:record`, `receiz:seal`, and `receiz:verify` for authenticated native rails; normal signed-continuation login does not use it. `offline_access` is not requested, and Wildz neither transports nor retains refresh tokens.
 
 ## Cross-platform collection continuity
 
-The verified player Vault owns the current session and collection custody. Individual card proofs retain their historical owner and creator coordinates, so assets produced by another compatible Receiz application remain portable without rewriting provenance.
+An owner-bound verified player Vault can establish canonical session and collection custody. A legacy proof-sealed player Vault establishes artifact-scoped recovery and collection custody only; its carried handle is presentation data until key or owner-continuity authority is proven. Individual card proofs retain their historical owner and creator coordinates, so assets produced by another compatible Receiz application remain portable without rewriting provenance.
 
 Collection reconciliation is deterministic:
 
@@ -26,6 +26,8 @@ Collection reconciliation is deterministic:
 - a same-ID card with an incompatible origin, rewritten immutable provenance, or divergent revision fork fails the import.
 
 This permits full-Vault restoration without turning duplicate dropping into a proof bypass.
+
+For gameplay, the server derives a player-bound Merkle commitment from historical-owner cards only after verifying the exact enclosing Vault. The encrypted proof session retains that root, while the client sends a compact membership path for the active historical card. Current-owner cards need no path; an unrelated, missing, or tampered path fails closed. This preserves immutable provenance and keeps a large cross-platform Vault out of the movement heartbeat.
 
 ## Byte preservation
 

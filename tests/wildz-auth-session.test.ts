@@ -21,7 +21,8 @@ import {
 import type { WildzRemoteSession } from "../src/lib/receiz/wildz-session-bridge";
 import {
   createWildzRemoteSessionBridge,
-  reconcileWildzRemoteIdentitySession
+  reconcileWildzRemoteIdentitySession,
+  wildzRemoteSessionMatchesIdentity
 } from "../src/lib/receiz/wildz-session-bridge";
 import type { WildzIdentitySession } from "../src/lib/receiz/wildz-identity-repository";
 
@@ -181,6 +182,8 @@ test("remote session projection requires an opaque subject key", async () => {
     fetcher: async () => Response.json({
       status: "connected",
       subjectKey,
+      sessionKeyId: "receiz_vault_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      authority: "proof-sealed-vault",
       actorId: "vault_keeper",
       profileHandle: "vault_keeper.receiz.id",
       displayName: "Vault Keeper"
@@ -189,6 +192,8 @@ test("remote session projection requires an opaque subject key", async () => {
   assert.deepEqual(await connected.current(), {
     status: "connected",
     subjectKey,
+    sessionKeyId: "receiz_vault_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    authority: "proof-sealed-vault",
     actorId: "vault_keeper",
     profileHandle: "vault_keeper.receiz.id",
     displayName: "Vault Keeper"
@@ -203,6 +208,89 @@ test("remote session projection requires an opaque subject key", async () => {
     })
   });
   assert.equal((await missingSubject.current()).status, "unknown");
+});
+
+test("a committed local Vault exchanges its pending admission on the same origin", async () => {
+  let requestedUrl = "";
+  let requestedInit: RequestInit | undefined;
+  const bridge = createWildzRemoteSessionBridge({
+    fetcher: async (input, init) => {
+      requestedUrl = String(input);
+      requestedInit = init;
+      return Response.json({
+        status: "connected",
+        subjectKey: "b".repeat(64),
+        sessionKeyId: `receiz_vault_${"c".repeat(32)}`,
+        authority: "proof-sealed-vault",
+        actorId: "bjklock",
+        profileHandle: "bjklock.receiz.id",
+        displayName: null
+      });
+    }
+  });
+
+  const session = await bridge.commitVaultAdmission({
+    actorId: "bjklock",
+    profileHandle: "bjklock.receiz.id",
+    vaultKeyId: `receiz_vault_${"c".repeat(32)}`
+  });
+
+  assert.equal(requestedUrl, "/api/auth/wildz/vault-session");
+  assert.equal(requestedInit?.method, "POST");
+  assert.equal(requestedInit?.credentials, "same-origin");
+  assert.equal(requestedInit?.cache, "no-store");
+  assert.equal(new Headers(requestedInit?.headers).get("content-type"), "application/json");
+  assert.deepEqual(JSON.parse(String(requestedInit?.body)), {
+    actorId: "bjklock",
+    profileHandle: "bjklock.receiz.id",
+    vaultKeyId: `receiz_vault_${"c".repeat(32)}`
+  });
+  assert.equal(session.status, "connected");
+});
+
+test("network admission matches the exact Vault artifact and the exact identity key", () => {
+  const vault: WildzIdentitySession = {
+    schema: "receiz.wildz.identity_session.v1",
+    keyId: `receiz_vault_${"a".repeat(32)}`,
+    actorId: "bjklock",
+    username: "bjklock",
+    displayName: null,
+    portableStateStatus: "missing",
+    localAuthority: "proof-sealed-vault",
+    remoteStatus: "unknown"
+  };
+  const exactVault: WildzRemoteSession = {
+    status: "connected",
+    subjectKey: "b".repeat(64),
+    sessionKeyId: vault.keyId,
+    authority: "proof-sealed-vault",
+    actorId: "bjklock",
+    profileHandle: "bjklock.receiz.id",
+    displayName: null
+  };
+  assert.equal(wildzRemoteSessionMatchesIdentity(vault, exactVault), true);
+  assert.equal(wildzRemoteSessionMatchesIdentity(vault, {
+    ...exactVault,
+    sessionKeyId: `receiz_vault_${"c".repeat(32)}`
+  }), false);
+
+  const identity: WildzIdentitySession = {
+    ...vault,
+    keyId: "receiz_identity_key_abcdefgh",
+    actorId: "self_asserted_label",
+    username: "self_asserted_label",
+    portableStateStatus: "verified",
+    localAuthority: "verified"
+  };
+  assert.equal(wildzRemoteSessionMatchesIdentity(identity, {
+    status: "connected",
+    subjectKey: "d".repeat(64),
+    sessionKeyId: identity.keyId,
+    authority: "identity-key",
+    actorId: "canonical_owner",
+    profileHandle: "canonical_owner.receiz.id",
+    displayName: "Canonical Owner"
+  }), true);
 });
 
 test("persisted remote-only identities revalidate both account subject and player coordinate", () => {
@@ -311,7 +399,7 @@ test("later Connect reconciliation preserves a proof-backed Vault owner scope an
     username: "vault_keeper",
     displayName: null,
     portableStateStatus: "missing",
-    localAuthority: "remote-only",
+    localAuthority: "proof-sealed-vault",
     remoteStatus: "unknown"
   };
   const matching = reconcileWildzRemoteIdentitySession(session, {
@@ -346,6 +434,8 @@ test("delegated operator tokens never become a signed-in Wildz player", () => {
   process.env.RECEIZ_ACCESS_TOKEN = "operator-only";
   try {
     const delegated = receizRequestSession(requestWith());
+    assert.equal(delegated.accessToken, undefined);
+    assert.equal(delegated.source, null);
     assert.equal(delegated.cookieAccessToken, undefined);
     assert.equal(playerReceizAccessToken(delegated), undefined);
 
@@ -364,11 +454,15 @@ test("delegated operator tokens never become a signed-in Wildz player", () => {
   }
 });
 
-test("auth routes preserve fixed-client PKCE cookies and expose only a safe remote session", () => {
+test("proof-native auth exposes only a safe same-origin session while legacy PKCE remains isolated", () => {
   const start = readFileSync("app/api/auth/receiz/start/route.ts", "utf8");
   const callback = readFileSync("app/api/auth/receiz/callback/route.ts", "utf8");
   const complete = readFileSync("app/api/auth/receiz/complete/route.ts", "utf8");
   const me = readFileSync("app/api/auth/receiz/me/route.ts", "utf8");
+  const proofSession = readFileSync("app/api/auth/wildz/session/route.ts", "utf8");
+  const vaultSession = readFileSync("app/api/auth/wildz/vault-session/route.ts", "utf8");
+  const documentVerify = readFileSync("app/api/document-verify/route.ts", "utf8");
+  const identityAdapter = readFileSync("src/lib/receiz/wildz-identity-adapter.ts", "utf8");
   const bridge = readFileSync("src/lib/receiz/wildz-session-bridge.ts", "utf8");
   const multiplayer = readFileSync("src/lib/receiz/wilds-multiplayer-server.ts", "utf8");
 
@@ -393,9 +487,24 @@ test("auth routes preserve fixed-client PKCE cookies and expose only a safe remo
   assert.match(me, /receizPlayerSubjectKey\(profile\.id\)/);
   assert.match(me, /export async function DELETE/);
   assert.doesNotMatch(me, /email|imageUrl|\bsub\b|\buid\b|accessToken\s*:/);
+  assert.match(proofSession, /WILDZ_PROOF_SESSION_COOKIE/);
+  assert.match(proofSession, /httpOnly|wildzProofSessionCookieOptions/);
+  assert.match(proofSession, /\/api\/auth\/receiz-id\/continue/);
+  assert.match(proofSession, /createWildzReceizIdProofSession/);
+  assert.match(identityAdapter, /buildReceizIdContinueRequest/);
+  assert.doesNotMatch(identityAdapter, /publicWildzIdentityCredential|signReceizIdentityLoginProof/);
+  assert.match(vaultSession, /readWildzVaultPendingAdmissionCookie/);
+  assert.match(vaultSession, /packWildzProofSession/);
+  assert.match(documentVerify, /WILDZ_VAULT_PENDING_COOKIE/);
+  assert.match(documentVerify, /packWildzVaultPendingAdmission/);
+  assert.doesNotMatch(documentVerify, /packWildzProofSession/);
   assert.match(bridge, /cache:\s*"no-store"/);
-  assert.match(multiplayer, /playerReceizAccessToken\(receizRequestSession\(request\)\)/);
+  assert.match(bridge, /\/api\/auth\/wildz\/session/);
+  assert.match(bridge, /\/api\/auth\/wildz\/vault-session/);
+  assert.doesNotMatch(bridge, /\/api\/auth\/receiz\/start|continueLocalIdentity|navigate/);
+  assert.match(multiplayer, /readWildzProofSessionCookie/);
   assert.doesNotMatch(multiplayer, /if \(session\.cookieAccessToken\)/);
+  assert.doesNotMatch(multiplayer, /!actor\.accessToken \|\| actor\.practice/);
 
   const projection: WildzRemoteSession = {
     status: "connected",

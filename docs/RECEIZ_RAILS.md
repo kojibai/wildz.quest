@@ -6,7 +6,7 @@ Wildz targets the exact `@receiz/sdk@104.0.0` release. Application code uses SDK
 
 | Product primitive | Authoritative evidence | Failure rule |
 |---|---|---|
-| Receiz identity | Verified Identity Seal or verified identity-bearing Vault and binding | Card-only or invalid artifacts cannot replace active identity |
+| Receiz identity | Verified Identity Seal/key continuation, or a verified Vault with explicit v104 owner-continuity binding | A legacy proof-sealed Vault restores scoped game state but cannot replace or invent canonical account identity |
 | Local owner continuity | Owner-scoped verified state in IndexedDB | Wrong-owner, stale, partial, or invalid state is rejected |
 | Portable cards and Vaults | Exact portable payload, card proofs, player binding, and enclosing Vault custody | Invalid domains, conflicting bodies, and incompatible proof forks are rejected; exact duplicates are dropped |
 | V104 native proof export | SDK Record → Seal result, authenticated owner, claim, verify path, and byte-exact native artifact | Any owner, claim, path, verification, or byte mismatch fails closed; no legacy-wrapper fallback |
@@ -16,11 +16,13 @@ Wildz targets the exact `@receiz/sdk@104.0.0` release. Application code uses SDK
 | Listing, offer, trade, transfer | Verified conditional append using current ownership head, expected revision, actor, and idempotency | The v104 SDK has no Wildz-specific conditional market append surface; missing capability, conflict, or invalid proof fails closed |
 | Checkout and payment | Receiz checkout plus admitted settlement evidence | Checkout creation alone never transfers ownership |
 
-Historical creator or owner coordinates stored inside individual card proofs remain immutable provenance. They do not override the verified identity and current custody of the enclosing player Vault. A current Vault owner may therefore restore cards produced on another compatible Receiz application without rewriting those card histories.
+Historical creator or owner coordinates stored inside individual card proofs remain immutable provenance. They do not prevent a verified Vault from restoring cards produced on another compatible Receiz application without rewriting those histories. For a legacy Vault without owner-continuity binding, the enclosing proof establishes artifact-scoped recovery—not canonical global account ownership; account-only mutations remain Identity Seal/key-gated.
+
+The historical-owner subset of an exact verified Vault is committed into its encrypted Wildz session. Card-required multiplayer and world commands accept those assets only with a compact membership proof under that server-derived commitment; the browser cannot supply or replace the authoritative root.
 
 ## Persistence boundary
 
-There is no external database added by Wildz. The installed app keeps owner-scoped continuity in browser IndexedDB. Shared public, world, social, and economy durability depends on configured Receiz publication, audit, proof, wallet, and settlement rails.
+There is no external database added by Wildz. The installed app keeps owner-scoped continuity in browser IndexedDB. Shared public, world, social, and economy durability depends on configured Receiz publication, audit, proof, wallet, and settlement rails. Under v104, unattended shared-world/publication writes use the server-only `RECEIZ_CONNECT_ACCESS_TOKEN`; it is an app/service credential, never a generated player login token.
 
 Durable Receiz rails fail closed. Capability absence, network failure, stale revisions, proof mismatch, and unconfirmed reads or writes are returned as unavailable, conflict, or recovery-pending states; they are never simulated as success.
 

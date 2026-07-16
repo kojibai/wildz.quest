@@ -27,6 +27,8 @@ function patchSpecifier(file, specifier) {
 for (const file of files(root)) {
   const original = readFileSync(file, "utf8");
   const patched = original
+    .replaceAll('"next/server"', '"next/server.js"')
+    .replaceAll("'next/server'", "'next/server.js'")
     .replace(
       /(from\s+["'])((?:\.|@\/)[^"']+)(["'])/g,
       (_match, prefix, specifier, suffix) => `${prefix}${patchSpecifier(file, specifier)}${suffix}`

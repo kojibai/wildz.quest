@@ -4,7 +4,7 @@ export type WildzPlayerCoordinate = {
 };
 
 const RECEIZ_PROFILE_SUFFIX = ".receiz.id";
-const RECEIZ_PROFILE_USERNAME = /^[a-z0-9_]{3,24}$/;
+const RECEIZ_PROFILE_USERNAME = /^[a-z0-9_]{3,30}$/;
 
 export function parseWildzPlayerCoordinate(value: string): WildzPlayerCoordinate | null {
   const normalized = value.trim().replace(/^@+/, "").toLowerCase();

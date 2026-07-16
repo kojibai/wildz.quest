@@ -2,12 +2,13 @@ import type { NextRequest } from "next/server";
 import { loadReceizConnectProfile, type ReceizConnectProfile } from "./connect-profile";
 import { playerReceizAccessToken, receizRequestSession } from "./session";
 import { parseWildzPlayerCoordinate } from "./wildz-player-coordinate";
+import { readWildzProofSessionCookie } from "./wildz-proof-session";
 
 export type WildzCookieActor = {
   actorId: string;
   profileHandle: string;
   receizUserId: string;
-  accessToken: string;
+  accessToken?: string;
 };
 
 export function wildzCookieActorFromReceizProfile(
@@ -25,6 +26,22 @@ export function wildzCookieActorFromReceizProfile(
 }
 
 export async function resolveWildzCookieActor(request: NextRequest): Promise<WildzCookieActor> {
+  let proofSession: ReturnType<typeof readWildzProofSessionCookie> | null = null;
+  try {
+    proofSession = readWildzProofSessionCookie(request);
+  } catch {
+    // Legacy scoped Connect cookies remain accepted during migration.
+  }
+  if (proofSession) {
+    if (proofSession.authority === "proof-sealed-vault") {
+      throw new Error("receiz_identity_key_required");
+    }
+    return {
+      actorId: proofSession.actorId,
+      profileHandle: proofSession.profileHandle,
+      receizUserId: `proof:${proofSession.subjectKey}`
+    };
+  }
   const session = receizRequestSession(request);
   const cookieAccessToken = session.cookieAccessToken;
   if (!cookieAccessToken || playerReceizAccessToken(session) !== cookieAccessToken) {

@@ -6,7 +6,8 @@ import {
   acceptWildsWorldSnapshot,
   buildWildsWorldCommandBody,
   parseWildsWorldCommandResponse,
-  parseWildsWorldSnapshotResponse
+  parseWildsWorldSnapshotResponse,
+  wildsWorldModeAfterRequestFailure
 } from "../src/features/play/use-wilds-world.js";
 
 describe("Wilds world client contract", () => {
@@ -28,10 +29,12 @@ describe("Wilds world client contract", () => {
 
   it("sends sealed card material only for semantic raid actions", () => {
     const card = { id: "card:one", proof: { digest: `sha256:${"a".repeat(64)}` } } as never;
-    assert.deepEqual(buildWildsWorldCommandBody("guest-12345678", { type: "raid.act", bossId: "boss:one", roundId: "round:one", intent: "strike", commandId: "command:act" }, card), {
+    const cardAdmission = { schema: "receiz.wilds.vault_card_membership.v1", leafIndex: 0 } as never;
+    assert.deepEqual(buildWildsWorldCommandBody("guest-12345678", { type: "raid.act", bossId: "boss:one", roundId: "round:one", intent: "strike", commandId: "command:act" }, card, cardAdmission), {
       guestId: "guest-12345678",
       command: { type: "raid.act", bossId: "boss:one", roundId: "round:one", intent: "strike", commandId: "command:act" },
-      card
+      card,
+      cardAdmission
     });
   });
 
@@ -58,5 +61,13 @@ describe("Wilds world client contract", () => {
     const route = readFileSync("app/api/wilds/world/snapshot/route.ts", "utf8");
     assert.match(route, /ok:\s*true,\s*\.\.\.await worldSnapshot/);
     assert.doesNotMatch(route, /projection:\s*await worldSnapshot/);
+  });
+
+  it("keeps online request failures reconnecting even when the request carries a guest id", () => {
+    const source = readFileSync("src/features/play/use-wilds-world.ts", "utf8");
+
+    assert.equal(wildsWorldModeAfterRequestFailure(false), "reconnecting");
+    assert.equal(wildsWorldModeAfterRequestFailure(true), "local_practice");
+    assert.doesNotMatch(source, /offline\s*\|\|\s*input\.guestId/);
   });
 });

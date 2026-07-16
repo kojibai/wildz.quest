@@ -30,6 +30,7 @@ test("Vault proof verification uses the working same-origin Wildz proxy", async 
   assert.equal(requestInit?.method, "POST");
   assert.equal(requestInit?.credentials, "same-origin");
   assert.equal(requestInit?.cache, "no-store");
+  assert.equal(new Headers(requestInit?.headers).get("x-wildz-proof-login"), "vault");
   assert.ok(requestInit?.body instanceof FormData);
   assert.ok(requestInit.body.get("file") instanceof Blob);
   assert.deepEqual(result, expected);

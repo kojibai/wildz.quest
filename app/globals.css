@@ -12641,9 +12641,15 @@ button.product-purchase-secondary-link {
 .wildz-card-rail-tools > span { overflow: hidden; color: #9baca0; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .wildz-card-rail-tools label { display: flex; align-items: center; gap: 6px; color: #8ea096; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
 .wildz-card-rail-tools select { min-height: 24px; padding: 0 25px 0 9px; border: 1px solid rgba(143, 215, 168, .22); border-radius: 9px; color: #dff4e5; background: #17261f; font: inherit; letter-spacing: 0; text-transform: none; }
-.wildz-nearby-cards { display: flex; gap: 10px; min-height: 0; padding: 4px 2px 6px; overflow-x: auto; overscroll-behavior-inline: contain; scroll-snap-type: x proximity; scrollbar-width: none; }
+.wildz-card-page { min-height: 0; overflow: hidden; }
+.wildz-card-page-controls { display: flex; flex: 0 0 auto; align-items: center; gap: 4px; color: #aebdb4; }
+.wildz-card-page-controls button { display: grid; width: 24px; height: 24px; flex: 0 0 24px; place-items: center; padding: 0; border: 1px solid rgba(143, 215, 168, .2); border-radius: 8px; color: #dff4e5; background: rgba(23, 38, 31, .92); }
+.wildz-card-page-controls button:disabled { color: rgba(223, 244, 229, .3); cursor: default; }
+.wildz-card-page-controls > span { min-width: 66px; font-size: 8px; font-weight: 900; letter-spacing: .04em; text-align: center; text-transform: uppercase; }
+.wildz-nearby-cards { display: flex; height: 100%; gap: 10px; min-height: 0; padding: 4px 2px 6px; overflow-x: auto; overscroll-behavior-inline: contain; scroll-snap-type: x proximity; scrollbar-width: none; }
 .wildz-nearby-cards::-webkit-scrollbar { display: none; }
-.wildz-nearby-cards article { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 6px 8px; width: clamp(248px, 46vw, 344px); flex: 0 0 auto; padding: 10px; border: 1px solid rgba(225, 217, 184, .22); border-radius: 22px; background: radial-gradient(circle at 18% 5%, rgba(125, 181, 130, .18), transparent 44%), linear-gradient(145deg, rgba(48, 57, 52, .72), rgba(18, 26, 24, .88)); box-shadow: inset 0 1px rgba(255,255,255,.06), 0 10px 24px rgba(0,0,0,.14); contain-intrinsic-size: 300px 100px; content-visibility: auto; scroll-snap-align: start; }
+.wildz-nearby-cards article { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 6px 8px; width: clamp(248px, 46vw, 344px); flex: 0 0 auto; padding: 10px; border: 1px solid rgba(225, 217, 184, .22); border-radius: 22px; background: radial-gradient(circle at 18% 5%, rgba(125, 181, 130, .18), transparent 44%), linear-gradient(145deg, rgba(48, 57, 52, .72), rgba(18, 26, 24, .88)); box-shadow: inset 0 1px rgba(255,255,255,.06), 0 10px 24px rgba(0,0,0,.14); scroll-snap-align: start; }
+.wildz-card-rail-empty { align-self: center; margin: 0 auto; color: #9baca0; font-size: 10px; font-weight: 800; }
 .wildz-nearby-creature { grid-column: 1 / -1; display: grid; grid-template-columns: 66px 1fr; gap: 11px; align-items: center; min-width: 0; border: 0; color: inherit; background: transparent; text-align: left; }
 .wildz-nearby-creature > span { position: relative; display: grid; width: 66px; height: 66px; place-items: center; overflow: hidden; border: 2px solid rgba(227, 216, 169, .42); border-radius: 20px; color: #eef8ee; font-size: 28px; font-weight: 950; box-shadow: inset 0 0 22px rgba(255,255,255,.16), 0 8px 18px rgba(0,0,0,.25); }
 .wildz-creature-portrait .wilds-creature-artwork { transform: scale(1.04); }
@@ -12819,7 +12825,8 @@ button.product-purchase-secondary-link {
   .wildz-social-stack > .wildz-social-deck { height: 278px; border-radius: 24px 24px 0 0; }
   .wildz-card-rail-tools { min-height: 24px; }
   .wildz-card-rail-tools > span { display: none; }
-  .wildz-card-rail-tools label { width: 100%; justify-content: flex-end; }
+  .wildz-card-rail-tools label { min-width: 0; flex: 1; justify-content: flex-end; }
+  .wildz-card-page-controls > span { min-width: 58px; font-size: 7px; }
   .wildz-nearby-cards { padding-top: 3px; padding-bottom: 1px; }
   .wildz-nearby-cards article { position: relative; display: block; width: 250px; height: 80px; padding: 7px; border-radius: 17px; }
   .wildz-nearby-creature { grid-template-columns: 50px minmax(0, 1fr); width: calc(100% - 84px); gap: 9px; }

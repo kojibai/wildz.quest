@@ -9,12 +9,16 @@ import { createReceizCommerceAdapter } from "./adapter";
 import { loadReceizConnectProfile } from "./connect-profile";
 import { playerReceizAccessToken, receizRequestSession } from "./session";
 import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
+import { readWildzProofSessionCookie, wildzProofPrincipalId } from "./wildz-proof-session";
+import { verifyWildzVaultCardMembershipProof } from "./wildz-vault-card-admission";
 
 export type WildsMultiplayerActor = {
   playerId: string;
   handle: string;
+  receizActorId: string;
   practice: boolean;
   accessToken?: string;
+  vaultCardRootSha256?: string;
 };
 
 function stringValue(value: unknown, maxLength = 200) {
@@ -28,22 +32,60 @@ export function parseWildsRoomKey(value: unknown) {
 }
 
 export async function resolveWildsMultiplayerActor(request: NextRequest, guestValue?: unknown): Promise<WildsMultiplayerActor> {
+  try {
+    const proofSession = readWildzProofSessionCookie(request);
+    const principalId = wildzProofPrincipalId(proofSession);
+    return {
+      playerId: principalId,
+      handle: proofSession.profileHandle,
+      receizActorId: principalId,
+      practice: false,
+      ...(proofSession.vaultCardRootSha256
+        ? { vaultCardRootSha256: proofSession.vaultCardRootSha256 }
+        : {})
+    };
+  } catch {
+    // Legacy scoped Connect sessions remain accepted during migration.
+  }
   const playerToken = playerReceizAccessToken(receizRequestSession(request));
   if (playerToken) {
     const profile = await loadReceizConnectProfile(playerToken).catch(() => null);
-    if (profile?.handle) return { playerId: profile.handle, handle: profile.handle, practice: false, accessToken: playerToken };
+    if (profile?.handle) return {
+      playerId: profile.handle,
+      handle: profile.handle,
+      receizActorId: profile.handle,
+      practice: false,
+      accessToken: playerToken
+    };
   }
   const guestId = stringValue(guestValue, 64);
   if (!/^[a-z0-9-]{8,64}$/i.test(guestId)) throw new Error("wilds_guest_identity_required");
   const suffix = guestId.replace(/[^a-z0-9]/gi, "").slice(-6).toUpperCase();
-  return { playerId: `guest:${guestId}`, handle: `Explorer ${suffix}`, practice: true };
+  return {
+    playerId: `guest:${guestId}`,
+    handle: `Explorer ${suffix}`,
+    receizActorId: `guest:${guestId}`,
+    practice: true
+  };
 }
 
-export function authorizeWildsMultiplayerCard(actor: WildsMultiplayerActor, value: unknown) {
+export function authorizeWildsMultiplayerCard(actor: WildsMultiplayerActor, value: unknown, admission?: unknown) {
   if (!value || typeof value !== "object") throw new Error("wilds_multiplayer_card_required");
   const asset = value as PortableCardAsset;
   const owner = asset.manifest?.ownerReceizId;
-  if (!actor.practice && !sameWildzPlayerCoordinate(owner ?? "", actor.handle)) throw new Error("wilds_multiplayer_card_owner_invalid");
+  const directlyOwned = sameWildzPlayerCoordinate(owner ?? "", actor.handle);
+  const admittedFromVault = !actor.practice
+    && !directlyOwned
+    && Boolean(actor.vaultCardRootSha256)
+    && verifyWildzVaultCardMembershipProof({
+      expectedRoot: actor.vaultCardRootSha256!,
+      expectedPlayerHandle: actor.handle,
+      card: asset,
+      proof: admission
+    });
+  if (!actor.practice && !directlyOwned && !admittedFromVault) {
+    throw new Error("wilds_multiplayer_card_owner_invalid");
+  }
   return pvpCardFromAsset(asset);
 }
 
@@ -91,14 +133,14 @@ export async function hydrateWildsRoomFromReceiz(request: NextRequest, roomKey: 
 }
 
 export async function publishWildsRoomToReceiz(request: NextRequest, actor: WildsMultiplayerActor, room: WildsMultiplayerSnapshot) {
-  if (!actor.accessToken || actor.practice) return { published: false, mode: "local_practice" as const };
+  if (actor.practice) return { published: false, mode: "local_practice" as const };
   const sourceUrl = multiplayerSourceUrl(request, room.roomKey);
   const hostContext = hostContextFromHost(new URL(sourceUrl).host);
   const tenantHost = hostContext.tenantHost ?? hostContext.host ?? platform.domain;
   try {
-    const result = await createReceizCommerceAdapter({ accessToken: actor.accessToken }).publishPublicStore({
+    const result = await createReceizCommerceAdapter(actor.accessToken ? { accessToken: actor.accessToken } : undefined).publishPublicStore({
       tenantHost,
-      merchantReceizId: actor.handle,
+      merchantReceizId: actor.receizActorId,
       title: `Receiz Wilds live room ${room.roomKey}`,
       sourceUrl,
       namespace: room.roomKey,

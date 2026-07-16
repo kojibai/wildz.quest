@@ -26,7 +26,8 @@ export async function verifyWildzArtifactSameOrigin(
     method: "POST",
     body: form,
     cache: "no-store",
-    credentials: "same-origin"
+    credentials: "same-origin",
+    headers: { "x-wildz-proof-login": "vault" }
   });
   if (!response.ok) throw new Error(`receiz_document_verify_http_${response.status}`);
   const payload: unknown = await response.json();

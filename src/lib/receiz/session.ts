@@ -11,7 +11,10 @@ export type ReceizRequestSession = {
 
 export function receizRequestSession(request: NextRequest): ReceizRequestSession {
   const cookieAccessToken = request.cookies.get("receiz_access_token")?.value;
-  const delegatedAccessToken = process.env.RECEIZ_ACCESS_TOKEN ?? process.env.RECEIZ_CONNECT_ACCESS_TOKEN;
+  // Runtime application authority is an explicitly provisioned Connect service
+  // credential. The release-doctor RECEIZ_ACCESS_TOKEN never becomes request or
+  // player authority inside the application.
+  const delegatedAccessToken = process.env.RECEIZ_CONNECT_ACCESS_TOKEN;
   const accessToken = cookieAccessToken ?? delegatedAccessToken;
 
   return {

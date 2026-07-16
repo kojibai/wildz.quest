@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
+
+const pagedRailPath = "src/features/play/WildzPagedCardRail.tsx";
+
+function readPagedRail() {
+  return existsSync(pagedRailPath) ? readFileSync(pagedRailPath, "utf8") : "";
+}
 
 test("social deck preserves the game command surfaces and embedded social market", () => {
   const source = readFileSync("src/features/play/WildzSocialDeck.tsx", "utf8");
@@ -45,23 +51,25 @@ test("Trail Pack replaces the redundant deck list with a three-companion heartbe
 
 test("nearby cards render actual artwork with verification beside the creature name", () => {
   const source = readFileSync("src/features/play/WildzSocialDeck.tsx", "utf8");
+  const rail = readPagedRail();
   const thumbnail = readFileSync("src/features/play/WildsCreatureThumbnail.tsx", "utf8");
   const badge = readFileSync("src/features/play/WildsVerifiedBadge.tsx", "utf8");
   const css = readFileSync("app/globals.css", "utf8");
 
-  assert.match(source, /<WildsCreatureThumbnail asset=\{card\}/);
+  assert.match(source, /<WildzPagedCardRail/);
+  assert.match(rail, /<WildsCreatureThumbnail asset=\{card\}/);
   assert.match(source, /<WildsCreatureThumbnail asset=\{activeCard\}/);
-  assert.match(source, /<WildsVerifiedBadge\s*\/>/);
+  assert.match(rail, /<WildsVerifiedBadge\s*\/>/);
   assert.doesNotMatch(thumbnail, /wilds-creature-verified/);
   assert.match(badge, /wilds-creature-verified/);
   assert.match(css, /\.wilds-creature-verified\s*\{/);
 });
 
 test("reordering nearby cards cannot change any displayed creature fact", () => {
-  const source = readFileSync("src/features/play/WildzSocialDeck.tsx", "utf8");
+  const source = readPagedRail();
 
-  assert.doesNotMatch(source, /\.map\(\(card, index\)/);
   assert.doesNotMatch(source, /manifest\.stage \+ index|75 \+ index/);
+  assert.match(source, /const logicalPosition = safePage \* pageSize \+ index \+ 1/);
   assert.match(source, /companionProgress\[card\.manifest\.familyId\]/);
   assert.match(source, /card\.manifest\.stage/);
   assert.match(source, /card\.manifest\.stats\.power/);

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PortableCardAsset } from "./portable-card";
+import type { WildzVaultCardMembershipProof } from "@/lib/receiz/wildz-vault-card-admission";
 import type { WildsWorldCommand } from "./wilds-world-service";
 import { WILDS_WORLD_ID } from "./wilds-world-event";
 import type { WildsWorldProjection } from "./wilds-world-state";
@@ -20,8 +21,15 @@ export function acceptWildsWorldSnapshot(current: WildsWorldProjection | null, c
   return current && candidate.revision < current.revision ? current : candidate;
 }
 
-export function buildWildsWorldCommandBody(guestId: string, command: WildsWorldCommand, card?: PortableCardAsset) {
-  return card ? { guestId, command, card } : { guestId, command };
+export function buildWildsWorldCommandBody(
+  guestId: string,
+  command: WildsWorldCommand,
+  card?: PortableCardAsset,
+  cardAdmission?: WildzVaultCardMembershipProof | null
+) {
+  return card
+    ? { guestId, command, card, ...(cardAdmission ? { cardAdmission } : {}) }
+    : { guestId, command };
 }
 
 function validWildsWorldProjection(projection: WildsWorldProjection | undefined) {
@@ -45,6 +53,10 @@ export function parseWildsWorldSnapshotResponse(value: unknown): WildsWorldSnaps
 export type WildsWorldClientMode = "connecting" | "receiz_live" | "local_practice" | "receiz_recovery_pending" | "reconnecting";
 export type WildsWorldCommandMode = Extract<WildsWorldClientMode, "receiz_live" | "local_practice" | "receiz_recovery_pending">;
 
+export function wildsWorldModeAfterRequestFailure(offline: boolean): "local_practice" | "reconnecting" {
+  return offline ? "local_practice" : "reconnecting";
+}
+
 export function parseWildsWorldCommandResponse(value: unknown): { projection: WildsWorldProjection; mode: WildsWorldCommandMode } {
   if (!value || typeof value !== "object") throw new Error("wilds_world_command_response_invalid");
   const response = value as Record<string, unknown>;
@@ -56,7 +68,12 @@ export function parseWildsWorldCommandResponse(value: unknown): { projection: Wi
   return { projection: projection!, mode };
 }
 
-export function useWildsWorld(input: { enabled: boolean; guestId: string; activeCard: PortableCardAsset | null }) {
+export function useWildsWorld(input: {
+  enabled: boolean;
+  guestId: string;
+  activeCard: PortableCardAsset | null;
+  cardAdmission: WildzVaultCardMembershipProof | null;
+}) {
   const [snapshot, setSnapshot] = useState<WildsWorldProjection | null>(null);
   const [mode, setMode] = useState<WildsWorldClientMode>("connecting");
   const [error, setError] = useState("");
@@ -116,6 +133,7 @@ export function useWildsWorld(input: { enabled: boolean; guestId: string; active
   }, []);
 
   const post = useCallback(async (command: WildsWorldCommand) => {
+    if (!input.enabled) throw new Error("wilds_world_session_required");
     if (commandPending.current) throw new Error("wilds_world_command_pending");
     if (!shouldAttemptWildsNetwork()) {
       setMode("local_practice");
@@ -128,7 +146,12 @@ export function useWildsWorld(input: { enabled: boolean; guestId: string; active
       const value = await request("/api/wilds/world/command", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(buildWildsWorldCommandBody(input.guestId, command, worldCommandRequiresCard(command) ? input.activeCard ?? undefined : undefined))
+        body: JSON.stringify(buildWildsWorldCommandBody(
+          input.guestId,
+          command,
+          worldCommandRequiresCard(command) ? input.activeCard ?? undefined : undefined,
+          input.cardAdmission
+        ))
       });
       const parsed = parseWildsWorldCommandResponse(value);
       const projection = parsed.projection;
@@ -142,14 +165,14 @@ export function useWildsWorld(input: { enabled: boolean; guestId: string; active
       if (opaqueFailure) retryAfter.current = Date.now() + WILDS_NETWORK_RETRY_BACKOFF_MS;
       const offline = !shouldAttemptWildsNetwork() || opaqueFailure;
       const message = wildsNetworkFailureMessage(cause, "world", !offline);
-      setMode(offline || input.guestId ? "local_practice" : "reconnecting");
+      setMode(wildsWorldModeAfterRequestFailure(offline));
       setError(message);
       throw new Error(message);
     } finally {
       commandPending.current = false;
       setPendingCommand(null);
     }
-  }, [input.activeCard, input.guestId, request]);
+  }, [input.activeCard, input.cardAdmission, input.enabled, input.guestId, request]);
 
   useEffect(() => {
     const resume = () => {
