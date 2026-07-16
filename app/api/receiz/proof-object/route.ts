@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       "cache-control": "no-store",
       "content-disposition": `attachment; filename=${kind === "vault" ? "wilds-vault" : "wilds-card"}.receized.png`,
       "content-type": created.artifact.type || "image/png",
-      "x-wildz-proof-authority": "receiz-v103-native-record-seal"
+      "x-wildz-proof-authority": "receiz-v104-native-record-seal"
     });
     return new Response(created.artifact.stream(), { status: 200, headers });
   } catch (cause) {

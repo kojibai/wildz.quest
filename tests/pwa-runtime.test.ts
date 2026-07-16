@@ -4,11 +4,14 @@ import { test } from "node:test";
 
 test("PWA controller registers a release-distinct worker after paint", () => {
   const source = readFileSync("src/features/pwa/PwaController.tsx", "utf8");
+  const env = readFileSync(".env.example", "utf8");
 
   assert.match(source, /serviceWorker\.register/);
   assert.match(source, /requestIdleCallback|setTimeout/);
   assert.match(source, /\/sw\.js\?release=/);
   assert.match(source, /NEXT_PUBLIC_WILDZ_SW_RELEASE/);
+  assert.match(source, /v3\.0\.0-r104\.1/);
+  assert.match(env, /^NEXT_PUBLIC_WILDZ_SW_RELEASE=v3\.0\.0-r104\.1$/m);
 });
 
 test("installability is retained and shown only as explicit user consent", () => {

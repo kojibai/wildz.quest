@@ -37,7 +37,45 @@ const securityHeaders = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: root,
+  outputFileTracingExcludes: {
+    "/*": [
+      ".git/**/*",
+      ".playwright-cli/**/*",
+      ".pnpm-store/**/*",
+      ".test-build/**/*",
+      ".worktrees/**/*",
+      "ai-skills/**/*",
+      "docs/**/*",
+      "output/**/*",
+      "tests/**/*",
+      "tmp/**/*",
+      "vendor/**/*"
+    ]
+  },
   reactStrictMode: true,
+  webpack(config, { isServer, webpack }) {
+    if (!isServer) {
+      // SDK v104 exposes its Node-only app compiler beside the browser runtime.
+      // Keep those unused compiler built-ins outside client bundles until the
+      // package publishes a dedicated browser export condition.
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(/^node:/, (resource) => {
+          resource.request = resource.request.slice("node:".length);
+        })
+      );
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        assert: false,
+        "assert/strict": false,
+        crypto: false,
+        fs: false,
+        "fs/promises": false,
+        path: false,
+        test: false
+      };
+    }
+    return config;
+  },
   async headers() {
     return [
       {

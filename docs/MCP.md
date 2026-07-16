@@ -1,20 +1,22 @@
 # Wildz Receiz SDK, MCP, and AI-skills contract
 
-Wildz uses `@receiz/sdk@^103.0.0` as application/runtime authority and requests `@receiz/mcp-server@^103.0.0` plus `@receiz/ai-skills@^103.0.0` as development dependencies. The installed release graph resolves all three packages to `103.0.0`. No third-party database is introduced.
+Wildz pins `@receiz/sdk@104.0.0` as application/runtime authority and `@receiz/mcp-server@104.0.0` plus `@receiz/ai-skills@104.0.0` as development tooling. The official v104 SDK and MCP release tarballs, together with the matching AI-skills artifact, are vendored and checksum-pinned by the lockfile until registry publication. This temporary package source does not fork or patch their runtime behavior. No third-party or external database is introduced.
 
-The published MCP `103.0.0` manifest currently carries an internal `@receiz/sdk: workspace:^` specifier. Wildz applies the same narrow pnpm override as the official Receiz application template:
-
-```json
-"@receiz/mcp-server@103.0.0>@receiz/sdk": "103.0.0"
-```
-
-This is dependency-resolution compatibility only. It does not fork SDK behavior or replace proof verification. The packaged MCP runtime remains operator tooling, and the packaged AI skills remain doctrine for builders and agents.
+The packaged MCP runtime remains operator tooling, and the packaged AI skills remain doctrine for builders and agents. Neither outranks verified artifact continuity or server admission.
 
 Run MCP from an agent host with `pnpm exec receiz-mcp`. Public reads need no bearer token. Delegated writes require a Receiz-issued Connect/OIDC token supplied to the MCP process as `RECEIZ_ACCESS_TOKEN` or `RECEIZ_CONNECT_ACCESS_TOKEN`. Keep MCP imports out of `app/`, `src/`, client components, and browser bundles.
 
-## v103 native proof objects
+## v104 application contract and checker
 
-New card and Vault exports use the SDK v103 native Record → Seal operation. Wildz supplies only the artifact type and exact payload bytes. The authenticated Receiz service resolves owner, claim, verification path, and native continuity; application code does not author ownership, namespace, provenance, settlement, or prior-head authority.
+`receiz.app.json` defines Wildz as a v104 `receiz.app.contract.v1` application with the `identity`, `proof`, `proofMemory`, `publicStore`, and `commerce` features. It selects `artifact-first` authority and sets `allowDatabaseAuthority` to `false`. The SDK's `defineReceizApp` and `compileReceizAppContract` APIs compile that declaration into a deterministic integration plan; the checked-in `receiz.generated.json` records the repository evidence for Record-before-Seal, durable proof memory, continuity verification, idempotency, and browser-safe secrets.
+
+Run `pnpm receiz:check` to invoke the official v104 repository checker against target `104.0.0`. The command is also part of the release gate. A clean checker result confirms that the declared repository integration requirements have evidence; it is not a substitute for artifact verification, strict-live qualification, or remote mutation evidence.
+
+The SDK v104 commerce clients do not expose the Wildz-specific verified conditional market ownership append required by the game contract. The market adapter therefore reports missing capability and fails closed when that append is unavailable. MCP must not synthesize it, and IndexedDB or process memory must not be presented as durable market authority.
+
+## v104 native proof objects
+
+New card and Vault exports use the SDK v104 native Record → Seal operation. Wildz supplies only the artifact type and exact payload bytes. The authenticated Receiz service resolves owner, claim, verification path, and native continuity; application code does not author ownership, namespace, provenance, settlement, or prior-head authority.
 
 An export is accepted only when all of these agree:
 
@@ -24,7 +26,7 @@ An export is accepted only when all of these agree:
 - the claim and path in the SDK verification bundle; and
 - successful SDK verification with no integrity errors.
 
-The SDK-returned native artifact is the final download. Its bytes and MIME type are preserved exactly; Wildz never wraps a new v103 artifact in a legacy portable-asset envelope.
+The SDK-returned native artifact is the final download. Its bytes and MIME type are preserved exactly; Wildz never wraps a new v104 artifact in a legacy portable-asset envelope. The deployed `wildz-v103` idempotency namespace remains compatibility-stable across the SDK upgrade so retries cannot create duplicate proof objects.
 
 ## Legacy v102 read compatibility
 

@@ -1,0 +1,19 @@
+{
+  "schema": "receiz.app.contract.v1",
+  "name": "Wildz Quest",
+  "framework": "nextjs-app-router",
+  "features": [
+    "identity",
+    "proof",
+    "proofMemory",
+    "publicStore",
+    "commerce"
+  ],
+  "authority": {
+    "mode": "artifact-first",
+    "allowDatabaseAuthority": false
+  },
+  "deployment": {
+    "target": "vercel"
+  }
+}

@@ -5,7 +5,9 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@receiz/mcp-server@103.0.0>@receiz/sdk': 103.0.0
+  '@receiz/ai-skills': file:vendor/receiz-ai-skills-104.0.0.tgz
+  '@receiz/mcp-server': file:vendor/receiz-mcp-server-104.0.0.tgz
+  '@receiz/sdk': file:vendor/receiz-sdk-104.0.0.tgz
   postcss: '>=8.5.10'
 
 importers:
@@ -19,8 +21,8 @@ importers:
         specifier: ^9.6.1
         version: 9.6.1(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(three@0.182.0)
       '@receiz/sdk':
-        specifier: ^103.0.0
-        version: 103.0.0(react@19.2.7)
+        specifier: file:vendor/receiz-sdk-104.0.0.tgz
+        version: file:vendor/receiz-sdk-104.0.0.tgz(react@19.2.7)
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
@@ -47,11 +49,11 @@ importers:
         specifier: ^3.3.5
         version: 3.3.5
       '@receiz/ai-skills':
-        specifier: ^103.0.0
-        version: 103.0.0
+        specifier: file:vendor/receiz-ai-skills-104.0.0.tgz
+        version: file:vendor/receiz-ai-skills-104.0.0.tgz
       '@receiz/mcp-server':
-        specifier: ^103.0.0
-        version: 103.0.0(react@19.2.7)
+        specifier: file:vendor/receiz-mcp-server-104.0.0.tgz
+        version: file:vendor/receiz-mcp-server-104.0.0.tgz(react@19.2.7)
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.0
@@ -594,15 +596,18 @@ packages:
       react-native:
         optional: true
 
-  '@receiz/ai-skills@103.0.0':
-    resolution: {integrity: sha512-o+QeDXYR9zJ+g6Ug2DuSBLOeUbiqmHebban5tsp4h2/MWIuTaueOniUF0RFH3G/ykn/4N2r1Qs/TCtvnIaxj1Q==}
+  '@receiz/ai-skills@file:vendor/receiz-ai-skills-104.0.0.tgz':
+    resolution: {integrity: sha512-y5eeQwKkAkyO1SD8LNMSCwzHYVAroGTYaj246glHQxRL6ckWndgMH33R1ThLl4vSuebOkr0w5RoxYNi/S9zzuA==, tarball: file:vendor/receiz-ai-skills-104.0.0.tgz}
+    version: 104.0.0
 
-  '@receiz/mcp-server@103.0.0':
-    resolution: {integrity: sha512-HZ/Wkhe2LFs9f/s+dr0SdE40ZKhl4zjYylji8foRUp5MDbeBLXKm8MFuecn7aOXQB3xCQKUOaH1fYjVhhPKg5g==}
+  '@receiz/mcp-server@file:vendor/receiz-mcp-server-104.0.0.tgz':
+    resolution: {integrity: sha512-XYAllnHpyiIbycQsh4l5b7o2QUgknEbvN3MyZOVh+iiPx9jlDhA+oDe6L66BrQalB56xNescfZOZ7y3EtyJPlQ==, tarball: file:vendor/receiz-mcp-server-104.0.0.tgz}
+    version: 104.0.0
     hasBin: true
 
-  '@receiz/sdk@103.0.0':
-    resolution: {integrity: sha512-XFKunD3CrWRxMEv3vxMNxU+GwW8soOpZdekg8gThAA4nWElNHTVozYBge/5657bqTy1+Y6kh5MzRHLyxjvmz4g==}
+  '@receiz/sdk@file:vendor/receiz-sdk-104.0.0.tgz':
+    resolution: {integrity: sha512-q5nCHxbFZd/7tnWY8Sbb3yYXBkUxEeefi+AirEOuUPZYpUzYY61/uP5zdewbUNrR8Xpuxwpuwr7W3ITEy5aCfg==, tarball: file:vendor/receiz-sdk-104.0.0.tgz}
+    version: 104.0.0
     hasBin: true
     peerDependencies:
       react: '>=18.0.0 <20.0.0'
@@ -2651,18 +2656,18 @@ snapshots:
       - '@types/react'
       - immer
 
-  '@receiz/ai-skills@103.0.0': {}
+  '@receiz/ai-skills@file:vendor/receiz-ai-skills-104.0.0.tgz': {}
 
-  '@receiz/mcp-server@103.0.0(react@19.2.7)':
+  '@receiz/mcp-server@file:vendor/receiz-mcp-server-104.0.0.tgz(react@19.2.7)':
     dependencies:
-      '@receiz/ai-skills': 103.0.0
-      '@receiz/sdk': 103.0.0(react@19.2.7)
+      '@receiz/ai-skills': file:vendor/receiz-ai-skills-104.0.0.tgz
+      '@receiz/sdk': file:vendor/receiz-sdk-104.0.0.tgz(react@19.2.7)
     transitivePeerDependencies:
       - react
 
-  '@receiz/sdk@103.0.0(react@19.2.7)':
+  '@receiz/sdk@file:vendor/receiz-sdk-104.0.0.tgz(react@19.2.7)':
     dependencies:
-      '@receiz/ai-skills': 103.0.0
+      '@receiz/ai-skills': file:vendor/receiz-ai-skills-104.0.0.tgz
     optionalDependencies:
       react: 19.2.7
 

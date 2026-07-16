@@ -10,24 +10,24 @@ The exact local candidate passed the repository release gate and is qualified fo
 
 | Package | Requested version | Installed version | Role |
 |---|---|---|---|
-| `@receiz/sdk` | `^103.0.0` | `103.0.0` | Application identity, artifact, native proof-object, and remote-rail client |
-| `@receiz/mcp-server` | `^103.0.0` | `103.0.0` | Operator tooling; never application authority |
-| `@receiz/ai-skills` | `^103.0.0` | `103.0.0` | Operator procedure guidance; never proof authority |
+| `@receiz/sdk` | `104.0.0` | `104.0.0` | Application identity, artifact, native proof-object, App Contract Compiler/checker, and remote-rail client |
+| `@receiz/mcp-server` | `104.0.0` | `104.0.0` | Operator tooling; never application authority |
+| `@receiz/ai-skills` | `104.0.0` | `104.0.0` | V104 operator procedure guidance; never proof authority |
 
-The published MCP package's internal `workspace:^` SDK request is resolved with the official template's narrow pnpm override to SDK `103.0.0`. The runtime loaded 38 MCP tools and 6 resources.
+The official v104 SDK and MCP release tarballs, with the matching AI-skills artifact, are vendored and checksum-pinned by the lockfile until registry publication. Their code is unmodified. `receiz.app.json` declares artifact-first authority with database authority disabled; the v104 compiler and `pnpm receiz:check` validate the repository integration plan and generated evidence.
 
 ## Local evidence
 
 | Gate | Result |
 |---|---|
-| `pnpm release:check` | Pass: complete Node test suite, typecheck, lint, full tracked/untracked text secret scan, production build, and default Receiz doctor |
+| `pnpm release:check` | Pass: v104 repository integration checker, complete Node test suite, typecheck, lint, full tracked/untracked text secret scan, production build, and default Receiz doctor |
 | Proof/Vault regressions | Pass in the full suite, including complete 97/98-card restore, identity-bearing Vault login, Identity Seal login, historical owners, duplicate drops, revision reconciliation, and atomic fork rejection |
-| Native proof-object continuity | Pass: v103 Record → Seal artifact, owner, claim, verify path, bundle verification, and final verifier continuity |
+| Native proof-object continuity | Pass: v104 Record → Seal artifact, owner, claim, verify path, bundle verification, and final verifier continuity; the deployed `wildz-v103` retry namespace remains stable |
 | Legacy compatibility | Pass: strict bounded app-owned reader plus payload digest, owner, namespace, prior-head, and revision checks |
 | Owner continuity | Pass: exact duplicates drop, verified newer revisions win, and divergent immutable origins or proof forks fail |
 | Public-profile continuity | Pass: verified cards publish before a non-empty owner profile; only marked sanitized anonymous profile JSON is cached by exact URL |
 | V3 ecology lifecycle | Pass: activation, resolution, historicization, expiry, cap release, causal replay, and retry idempotency |
-| Market settlement coordinator | Pass locally: admitted trade, Receiz Connect transfer proof, corroborating wallet ledger event, conditional ownership append, and idempotent recovery |
+| Market settlement coordinator | Pass with local contract doubles: admitted trade, Receiz Connect transfer proof, corroborating wallet ledger event, conditional ownership append, and idempotent recovery; v104 exposes no Wildz-specific conditional append, so the live adapter remains fail-closed without that capability |
 | Mobile entry | Chromium and WebKit pass: one-line Genesis copy, no horizontal overflow, and clean entry logs |
 | Gameplay presentation | Chromium mobile smoke passed; WebKit mobile world render was visually inspected at the release viewport |
 | PWA boundary | Real Chromium worker activation and offline navigation passed; an unvisited public route rendered offline guidance without leaking another page |
@@ -39,7 +39,7 @@ The supplied production-shaped Vault was inspected without recording private byt
 The following remain production or externally authorized gates and were not rewritten as local passes:
 
 - `pnpm receiz:doctor:strict` was attempted and failed closed before live probes because the production credentials and configuration were absent; strict-live qualification remains pending.
-- Remote world, public-profile, market, payment, transfer, settlement, and publication mutations remain pending. The local paths fail closed until the configured Receiz deployment admits them.
+- Remote world, public-profile, market, payment, transfer, settlement, and publication mutations remain pending. V104 does not expose the Wildz-specific conditional market ownership append, and the local paths fail closed until the configured Receiz deployment admits every required capability.
 - The external six-writer artifact exercise remains pending; its six-writer local fixtures passed.
 - Deployment, tag, push, and production publication were not performed.
 

@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 
 test("package metadata points at the Wildz repository", () => {
@@ -39,4 +41,17 @@ test("mobile metadata uses the iOS icon and keeps pinch zoom available", () => {
   assert.match(source, /apple:\s*"\/icons\/icon-180\.png"/);
   assert.doesNotMatch(source, /maximumScale/);
   assert.match(source, /userScalable:\s*true/);
+});
+
+test("Vercel output tracing excludes transient runtime-guard and local-only files", async () => {
+  const moduleUrl = `${pathToFileURL(resolve("next.config.mjs")).href}?trace-test=${Date.now()}`;
+  const nextConfig = (await import(moduleUrl)).default as {
+    outputFileTracingExcludes?: Record<string, string[]>;
+  };
+  const excludes = nextConfig.outputFileTracingExcludes?.["/*"] ?? [];
+
+  assert.ok(excludes.includes("tmp/**/*"), "the deleted runtime marker must never enter a server trace");
+  assert.ok(excludes.includes(".git/**/*"), "git internals are not runtime dependencies");
+  assert.ok(excludes.includes(".test-build/**/*"), "compiled test output is not a runtime dependency");
+  assert.ok(excludes.includes("tests/**/*"), "test sources are not runtime dependencies");
 });

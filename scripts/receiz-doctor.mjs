@@ -5,7 +5,7 @@ import {
   receizOidcScopesForRails
 } from "@receiz/sdk";
 
-const TARGET_MAJOR = 103;
+const TARGET_MAJOR = 104;
 const REQUIRED_STRICT_CAPABILITIES = [
   "identity",
   "wallet",
@@ -142,7 +142,9 @@ const STRICT_ENVIRONMENT_RULES = [
   ["NEXT_PUBLIC_SITE_URL", exact("https://wildz.quest")],
   ["NEXT_PUBLIC_CHECKOUT_MODE", exact("receiz")],
   ["RECEIZ_CHECKOUT_MODE", exact("receiz")],
-  ["RECEIZ_ACCESS_TOKEN", nonEmpty]
+  ["RECEIZ_ACCESS_TOKEN", nonEmpty],
+  ["WILDS_PULSE_TICK_SECRET", atLeast32Bytes],
+  ["RECEIZ_CONNECT_ACCESS_TOKEN", nonEmpty]
 ];
 
 const pkg = await readJson(new URL("../package.json", import.meta.url));

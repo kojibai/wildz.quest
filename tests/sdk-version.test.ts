@@ -7,6 +7,7 @@ type PackageManifest = {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
   pnpm?: { overrides?: Record<string, string> };
+  scripts?: Record<string, string>;
   version?: string;
 };
 
@@ -22,7 +23,9 @@ const STRICT_RECEIZ_ENVIRONMENT = [
   "NEXT_PUBLIC_SITE_URL",
   "NEXT_PUBLIC_CHECKOUT_MODE",
   "RECEIZ_CHECKOUT_MODE",
-  "RECEIZ_ACCESS_TOKEN"
+  "RECEIZ_ACCESS_TOKEN",
+  "WILDS_PULSE_TICK_SECRET",
+  "RECEIZ_CONNECT_ACCESS_TOKEN"
 ] as const;
 
 function cleanStrictReceizEnvironment() {
@@ -49,7 +52,7 @@ function major(version: string) {
   return Number(match[1]);
 }
 
-test("SDK, operational MCP, and AI skills request and install Receiz major 103", () => {
+test("SDK, operational MCP, and AI skills request and install Receiz major 104", () => {
   const pkg = readJson("package.json");
   const docs = readFileSync("docs/MCP.md", "utf8");
   const requestedSdk = pkg.dependencies?.["@receiz/sdk"];
@@ -59,19 +62,22 @@ test("SDK, operational MCP, and AI skills request and install Receiz major 103",
   const installedMcp = installedVersion("@receiz/mcp-server");
   const installedAiSkills = installedVersion("@receiz/ai-skills");
 
-  assert.equal(requestedSdk, "^103.0.0");
-  assert.equal(requestedMcp, "^103.0.0");
-  assert.equal(requestedAiSkills, "^103.0.0");
-  assert.equal(installedSdk, "103.0.0");
-  assert.equal(installedMcp, "103.0.0");
-  assert.equal(installedAiSkills, "103.0.0");
-  assert.equal(pkg.pnpm?.overrides?.["@receiz/mcp-server@103.0.0>@receiz/sdk"], "103.0.0");
+  assert.equal(requestedSdk, "104.0.0");
+  assert.equal(requestedMcp, "104.0.0");
+  assert.equal(requestedAiSkills, "104.0.0");
+  assert.equal(installedSdk, "104.0.0");
+  assert.equal(installedMcp, "104.0.0");
+  assert.equal(installedAiSkills, "104.0.0");
+  assert.equal(pkg.pnpm?.overrides?.["@receiz/sdk"], "file:vendor/receiz-sdk-104.0.0.tgz");
+  assert.equal(pkg.pnpm?.overrides?.["@receiz/mcp-server"], "file:vendor/receiz-mcp-server-104.0.0.tgz");
+  assert.equal(pkg.pnpm?.overrides?.["@receiz/ai-skills"], "file:vendor/receiz-ai-skills-104.0.0.tgz");
+  assert.equal(pkg.scripts?.["receiz:check"], "receiz app check --target 104.0.0 --json");
   for (const version of [requestedSdk, requestedMcp, requestedAiSkills, installedSdk, installedMcp, installedAiSkills]) {
-    assert.equal(major(version), 103);
+    assert.equal(major(version), 104);
   }
-  assert.match(docs, /@receiz\/sdk@\^103\.0\.0/);
-  assert.match(docs, /@receiz\/mcp-server@\^103\.0\.0/);
-  assert.match(docs, /@receiz\/ai-skills@\^103\.0\.0/);
+  assert.match(docs, /@receiz\/sdk@104\.0\.0/);
+  assert.match(docs, /@receiz\/mcp-server@104\.0\.0/);
+  assert.match(docs, /@receiz\/ai-skills@104\.0\.0/);
 });
 
 test("the production env template contains only standalone Wildz variables and an opt-in doctor token", () => {
@@ -103,7 +109,7 @@ test("the production env template contains only standalone Wildz variables and a
   assert.match(template, /^# RECEIZ_ACCESS_TOKEN=$/m);
 });
 
-test("Receiz doctor verifies requested and installed SDK/MCP/AI-skills major 103", () => {
+test("Receiz doctor verifies requested and installed SDK/MCP/AI-skills major 104", () => {
   const result = spawnSync(process.execPath, ["scripts/receiz-doctor.mjs"], {
     cwd: process.cwd(),
     encoding: "utf8"
@@ -120,25 +126,25 @@ test("Receiz doctor verifies requested and installed SDK/MCP/AI-skills major 103
     };
   };
   assert.deepEqual(report.versions, {
-    targetMajor: 103,
+    targetMajor: 104,
     compatible: true,
     sdk: {
-      requested: "^103.0.0",
-      installed: "103.0.0",
-      requestedMajor: 103,
-      installedMajor: 103
+      requested: "104.0.0",
+      installed: "104.0.0",
+      requestedMajor: 104,
+      installedMajor: 104
     },
     mcp: {
-      requested: "^103.0.0",
-      installed: "103.0.0",
-      requestedMajor: 103,
-      installedMajor: 103
+      requested: "104.0.0",
+      installed: "104.0.0",
+      requestedMajor: 104,
+      installedMajor: 104
     },
     aiSkills: {
-      requested: "^103.0.0",
-      installed: "103.0.0",
-      requestedMajor: 103,
-      installedMajor: 103
+      requested: "104.0.0",
+      installed: "104.0.0",
+      requestedMajor: 104,
+      installedMajor: 104
     }
   });
 });
@@ -161,5 +167,7 @@ test("strict-live Receiz doctor fails closed with sanitized missing configuratio
   assert.equal(report.ok, false);
   assert.ok(report.missingEnvironment.includes("RECEIZ_ACCESS_TOKEN"));
   assert.ok(report.missingEnvironment.includes("RECEIZ_OAUTH_STATE_SECRET"));
+  assert.ok(report.missingEnvironment.includes("WILDS_PULSE_TICK_SECRET"));
+  assert.ok(report.missingEnvironment.includes("RECEIZ_CONNECT_ACCESS_TOKEN"));
   assert.equal(`${result.stdout}${result.stderr}`.includes(clientSecret), false);
 });

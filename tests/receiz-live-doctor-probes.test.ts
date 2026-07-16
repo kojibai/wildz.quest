@@ -16,7 +16,9 @@ const STRICT_ENVIRONMENT = [
   "NEXT_PUBLIC_SITE_URL",
   "NEXT_PUBLIC_CHECKOUT_MODE",
   "RECEIZ_CHECKOUT_MODE",
-  "RECEIZ_ACCESS_TOKEN"
+  "RECEIZ_ACCESS_TOKEN",
+  "WILDS_PULSE_TICK_SECRET",
+  "RECEIZ_CONNECT_ACCESS_TOKEN"
 ] as const;
 
 function strictEnvironment(accessToken: string, acceptedToken: string) {
@@ -38,7 +40,9 @@ function strictEnvironment(accessToken: string, acceptedToken: string) {
     NEXT_PUBLIC_SITE_URL: "https://wildz.quest",
     NEXT_PUBLIC_CHECKOUT_MODE: "receiz",
     RECEIZ_CHECKOUT_MODE: "receiz",
-    RECEIZ_ACCESS_TOKEN: accessToken
+    RECEIZ_ACCESS_TOKEN: accessToken,
+    WILDS_PULSE_TICK_SECRET: "test-pulse-secret-longer-than-thirty-two-bytes",
+    RECEIZ_CONNECT_ACCESS_TOKEN: accessToken
   };
 }
 

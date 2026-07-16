@@ -1,0 +1,14 @@
+{
+  "schema": "receiz.generated-files.v1",
+  "contract": "receiz.app.json",
+  "appName": "Wildz Quest",
+  "framework": "nextjs-app-router",
+  "authority": "sealed-receiz-proof-object",
+  "adapterCreated": true,
+  "recordBeforeSeal": true,
+  "webhookVerification": false,
+  "continuityVerification": true,
+  "proofMemoryPersistence": "durable",
+  "idempotency": true,
+  "serverSecretsBrowserSafe": true
+}

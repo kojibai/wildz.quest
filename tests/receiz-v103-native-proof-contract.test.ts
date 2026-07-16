@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-test("Wildz uses the v103 native Record/Seal proof-object contract", () => {
+test("Wildz uses the v104 native Record/Seal proof-object contract", () => {
   const proofExport = readFileSync("src/lib/receiz/wildz-proof-object-export.ts", "utf8");
   const route = readFileSync("app/api/receiz/proof-object/route.ts", "utf8");
 
@@ -17,6 +17,6 @@ test("Wildz uses the v103 native Record/Seal proof-object contract", () => {
   assert.doesNotMatch(proofExport, /provenance:/);
   assert.doesNotMatch(proofExport, /settlement:/);
   assert.match(route, /created\.artifact\.stream\(\)/);
-  assert.match(route, /receiz-v103-native-record-seal/);
+  assert.match(route, /receiz-v104-native-record-seal/);
   assert.doesNotMatch(route, /receiz-v102-proof-object/);
 });
