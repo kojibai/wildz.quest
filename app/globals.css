@@ -2778,9 +2778,9 @@ a {
   background: linear-gradient(145deg, rgba(48, 41, 25, .9), rgba(23, 24, 19, .84));
 }
 
-.wilds-battle-world-stat > span { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 5px; }
-.wilds-battle-world-stat strong { overflow: hidden; font-size: 8px; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
-.wilds-battle-world-stat small { display: flex; align-items: baseline; gap: 2px; color: var(--battle-stat-accent); font-size: 8px; font-weight: 900; line-height: 1; }
+.wilds-battle-world-stat > span { display: grid; grid-template-columns: minmax(0, 1fr) max-content; align-items: baseline; gap: 5px; }
+.wilds-battle-world-stat strong { min-width: 0; overflow: hidden; font-size: 8px; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.wilds-battle-world-stat small { display: flex; min-width: max-content; align-items: baseline; gap: 2px; color: var(--battle-stat-accent); font-size: 8px; font-weight: 900; line-height: 1; white-space: nowrap; }
 .wilds-battle-world-stat small b { color: rgba(241, 244, 235, .5); font-size: 5px; letter-spacing: .07em; }
 
 .wilds-battle-world-stat-meter {
