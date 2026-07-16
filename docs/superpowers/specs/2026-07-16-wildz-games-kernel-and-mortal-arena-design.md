@@ -12,6 +12,8 @@ Wildz becomes a world of deep, reimagined game archetypes built around verified 
 
 The first flagship is a real-time 3D arena fighter with the accessibility, expressive movement, comeback drama, character mastery, and emotional stakes people value in enduring fighting games, while remaining an original Wildz system. It does not copy protected characters, art, stages, names, music, story, exact rules, animations, user interface, or trade dress from another game.
 
+The Mortal Arena occupies the literal center of the world atlas at coordinate `{ x: 0, z: 0 }`. It replaces the current center landmark as the map's primary visual and gameplay anchor. Hearttree remains part of the wider world and recovery journey, but no longer owns the center coordinate. The center Arena must be identifiable through silhouette, motion, atmosphere, sound, and map projection without changing the established Wildz HUD, buttons, or control geometry.
+
 The experience is instant on mobile, light to download and run, deep enough for long-term mastery, playable with live opponents or NPCs, fully progressive offline, globally synchronized when connected, and bound to the actual evolving histories of verified cards.
 
 ## Program decomposition
