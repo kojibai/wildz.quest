@@ -45,7 +45,7 @@
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
-    "@receiz/sdk": "^100.0.0",
+    "@receiz/sdk": "^101.0.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.468.0",
     "next": "^15.0.0",
@@ -56,6 +56,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
+    "@receiz/mcp-server": "101.0.0",
     "@types/node": "^22.0.0",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.0",

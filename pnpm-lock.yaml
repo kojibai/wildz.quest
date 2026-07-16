@@ -18,8 +18,8 @@ importers:
         specifier: ^9.6.1
         version: 9.6.1(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(three@0.182.0)
       '@receiz/sdk':
-        specifier: ^100.0.0
-        version: 100.0.0(react@19.2.7)
+        specifier: ^101.0.0
+        version: 101.0.0(react@19.2.7)
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
@@ -45,6 +45,9 @@ importers:
       '@eslint/eslintrc':
         specifier: ^3.3.5
         version: 3.3.5
+      '@receiz/mcp-server':
+        specifier: 101.0.0
+        version: 101.0.0(react@19.2.7)
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.0
@@ -587,8 +590,12 @@ packages:
       react-native:
         optional: true
 
-  '@receiz/sdk@100.0.0':
-    resolution: {integrity: sha512-CB4LI7i4LOMqqqe1Xu5qwYLLpTcNTm3Wvbv8rOwMZRYfZn4dPwD2yiEz5xJPXRA2ztHIQQb9g6lT9MRmwqYJdw==}
+  '@receiz/mcp-server@101.0.0':
+    resolution: {integrity: sha512-OYnLT82uiT+6NUxWr7Y7P0hu9BYmfEbotuWPnOyJ970JouKBPRl38BSY6qJYPdQRGAoOg+v4GMsC3goOor8efQ==}
+    hasBin: true
+
+  '@receiz/sdk@101.0.0':
+    resolution: {integrity: sha512-aO8u0XOlw7DL+9I7WdxPQDJkpFV69P/4/TPVLmSQRiThrRI3XaY7Ke5iQouWQo4Xy3ADpU6Oz2fJ3ulDmj+XUw==}
     hasBin: true
     peerDependencies:
       react: '>=18.0.0 <20.0.0'
@@ -2637,7 +2644,13 @@ snapshots:
       - '@types/react'
       - immer
 
-  '@receiz/sdk@100.0.0(react@19.2.7)':
+  '@receiz/mcp-server@101.0.0(react@19.2.7)':
+    dependencies:
+      '@receiz/sdk': 101.0.0(react@19.2.7)
+    transitivePeerDependencies:
+      - react
+
+  '@receiz/sdk@101.0.0(react@19.2.7)':
     optionalDependencies:
       react: 19.2.7
 
