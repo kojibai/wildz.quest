@@ -4,7 +4,7 @@ import { test } from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("Wildz v3 release doctrine names the exact Receiz v104 toolchain", () => {
+test("Wildz v3 release doctrine names the exact Receiz v105 toolchain", () => {
   const pkg = JSON.parse(read("package.json")) as {
     version?: string;
     dependencies?: Record<string, string>;
@@ -23,15 +23,15 @@ test("Wildz v3 release doctrine names the exact Receiz v104 toolchain", () => {
   ].join("\n");
 
   assert.equal(pkg.version, "3.0.0");
-  assert.equal(pkg.dependencies?.["@receiz/sdk"], "104.0.0");
-  assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "104.0.0");
-  assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "104.0.0");
-  for (const version of ["@receiz/sdk 104.0.0", "@receiz/mcp-server 104.0.0", "@receiz/ai-skills 104.0.0"]) {
+  assert.equal(pkg.dependencies?.["@receiz/sdk"], "105.0.0");
+  assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "105.0.0");
+  assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "105.0.0");
+  for (const version of ["@receiz/sdk 105.0.0", "@receiz/mcp-server 105.0.0", "@receiz/ai-skills 105.0.0"]) {
     assert.match(release, new RegExp(version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
-  assert.match(mcp, /@receiz\/sdk@104\.0\.0/);
-  assert.match(mcp, /@receiz\/mcp-server@104\.0\.0/);
-  assert.match(mcp, /@receiz\/ai-skills@104\.0\.0/);
+  assert.match(mcp, /@receiz\/sdk@105\.0\.0/);
+  assert.match(mcp, /@receiz\/mcp-server@105\.0\.0/);
+  assert.match(mcp, /@receiz\/ai-skills@105\.0\.0/);
   assert.match(packageSourceDocs, /official npm registry/i);
   assert.doesNotMatch(packageSourceDocs, /vendored|vendoring|until registry publication|vendor\//i);
 });

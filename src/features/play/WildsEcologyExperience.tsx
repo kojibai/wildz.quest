@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Icons } from "@/components/icons";
 import { verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
-import { applyWildsEcologyActivityInput, createWildsEcologyActivity, type WildsEcologyActivityInput } from "./wilds-ecology-activity";
+import { applyWildsEcologyActivityInput, createWildsEcologyActivity, createWildsMarketActivity, type WildsEcologyActivityInput } from "./wilds-ecology-activity";
 import type { WildsWorldEcologyProjection } from "./wilds-world-state";
 import type { WildsSettlementWorldMode } from "./WildsSettlementEnvironment";
 
@@ -19,7 +19,9 @@ export function WildsEcologyExperience({ card, onExit, onSubmit, open, participa
 }) {
   const seed = site?.seedDigest ?? "";
   const source = site ? { ...site, schema: "receiz.wilds_ecology_site.v1" as const } : null;
-  const initial = useMemo(() => source ? createWildsEcologyActivity(source) : null, [seed]); // eslint-disable-line react-hooks/exhaustive-deps
+  const initial = useMemo(() => source ? source.familyId === "wandering-market" && card && verifyAnyWildsCard(card).ok
+    ? createWildsMarketActivity(source, card)
+    : createWildsEcologyActivity(source) : null, [card, seed]); // eslint-disable-line react-hooks/exhaustive-deps
   const [activity, setActivity] = useState(initial);
   const [submission, setSubmission] = useState<"idle" | "pending" | "accepted" | "error">("idle");
   const dialog = useRef<HTMLElement>(null);

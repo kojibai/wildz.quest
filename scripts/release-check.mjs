@@ -15,6 +15,7 @@ run(process.execPath, ["scripts/next-runtime-guard.mjs", "assert-idle"]);
 run("pnpm", ["test"]);
 run("pnpm", ["typecheck"]);
 run("pnpm", ["receiz:check"]);
+run("pnpm", ["receiz:conformance"]);
 run("pnpm", ["lint"]);
 run("pnpm", ["secret:scan"]);
 run("pnpm", ["build"]);

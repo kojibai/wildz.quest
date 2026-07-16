@@ -13,6 +13,7 @@ test("release check runs the deterministic production gates and stops on failure
     'run("pnpm", ["test"])',
     'run("pnpm", ["typecheck"])',
     'run("pnpm", ["receiz:check"])',
+    'run("pnpm", ["receiz:conformance"])',
     'run("pnpm", ["lint"])',
     'run("pnpm", ["secret:scan"])',
     'run("pnpm", ["build"])'

@@ -39,7 +39,8 @@
     "lint": "eslint .",
     "receiz:doctor": "node scripts/receiz-doctor.mjs",
     "receiz:doctor:strict": "node scripts/receiz-doctor.mjs --strict-live",
-    "receiz:check": "receiz app check --target 104.0.0 --json",
+    "receiz:check": "node scripts/receiz-v105-check.mjs",
+    "receiz:conformance": "receiz conformance",
     "receiz:webhooks:create": "node scripts/receiz-create-webhooks.mjs",
     "secret:scan": "node scripts/release-secret-scan.mjs",
     "release:check": "node scripts/release-check.mjs"
@@ -47,7 +48,7 @@
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
-    "@receiz/sdk": "104.0.0",
+    "@receiz/sdk": "105.0.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.468.0",
     "next": "^15.0.0",
@@ -58,8 +59,8 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
-    "@receiz/ai-skills": "104.0.0",
-    "@receiz/mcp-server": "104.0.0",
+    "@receiz/ai-skills": "105.0.0",
+    "@receiz/mcp-server": "105.0.0",
     "@types/node": "^22.0.0",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.0",

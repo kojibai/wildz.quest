@@ -10,5 +10,7 @@
   "continuityVerification": true,
   "proofMemoryPersistence": "durable",
   "idempotency": true,
-  "serverSecretsBrowserSafe": true
+  "serverSecretsBrowserSafe": true,
+  "protectedExtensions": true,
+  "capabilityDescriptor": "receiz.sdk.capability_descriptor.v1"
 }

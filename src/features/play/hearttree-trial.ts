@@ -1,4 +1,6 @@
 import { canonicalPortableCardJson, sha256PortableBasis, verifiedPortableCardPin, type PortableCardAsset } from "./portable-card";
+import { emptyHearttreeCondition, projectHearttreeCard } from "./hearttree/card-capability";
+import { generateHearttreeExpedition } from "./hearttree/expedition-director";
 
 export type HearttreeIntent = "pulse" | "north" | "guard" | "ability:0";
 export type HearttreeTrialEvent = { id: string; intent: HearttreeIntent; message: string };
@@ -26,10 +28,10 @@ function boundedSeed(seed: string, proofDigest: string) {
 export function createHearttreeTrial(seed: string, card: PortableCardAsset): HearttreeTrialState {
   const pin = verifiedPortableCardPin(card);
   const digest = boundedSeed(seed, pin.proofDigest);
-  const chamberNames = ["Root Memory", "Moonwell", "First Promise", "Crown Door"];
-  const offset = Number.parseInt(digest.slice(7, 9), 16) % chamberNames.length;
-  const chamberOrder = [...chamberNames.slice(offset), ...chamberNames.slice(0, offset)];
-  const cluePattern = Array.from({ length: 3 }, (_, index) => ["leaf", "star", "ember", "wave"][Number.parseInt(digest.slice(9 + index * 2, 11 + index * 2), 16) % 4]!);
+  const capability = projectHearttreeCard(card, emptyHearttreeCondition(card.id));
+  const expedition = generateHearttreeExpedition({ seed: digest, squad: [capability], history: [], mortal: false });
+  const chamberOrder = expedition.chambers.map((chamber) => chamber.name);
+  const cluePattern = expedition.chambers.slice(0, 3).map((chamber) => chamber.routes[0]?.label ?? chamber.topology);
   return {
     seed: digest,
     admittedAssetId: pin.assetId,
@@ -40,7 +42,7 @@ export function createHearttreeTrial(seed: string, card: PortableCardAsset): Hea
     cluePattern,
     clueRevealed: false,
     guard: 0,
-    masterPower: 18 + (Number.parseInt(digest.slice(17, 19), 16) % 8),
+    masterPower: expedition.boss.power,
     masterHealth: 1,
     events: [],
     reward: null

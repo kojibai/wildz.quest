@@ -5,6 +5,9 @@ import { creatureForm } from "../../play/creature-catalog";
 import { isLivingCardAsset } from "../../play/living-card-types";
 import { currentRevision } from "../../play/living-card-proof";
 import { canonicalPortableCardJson, sha256PortableBasis, type PortableCardAsset } from "../../play/portable-card";
+import { emptyAdventureCondition, type AdventureCardCondition } from "../../play/adventure/card-condition";
+import { projectArenaFighter } from "../../play/arena/card-fighter";
+import { createArenaLivingRevision } from "../../play/arena/living-revision";
 import { advanceArenaNpc, createArenaNpc, stepArenaNpc } from "./npc-controller";
 import { advanceArenaPath, projectCampaignOpponent, restoreArenaPath, type WildzArenaPath } from "./campaign";
 import { MORTAL_ARENA_MODULE } from "./module";
@@ -19,17 +22,60 @@ function affinityFor(card: PortableCardAsset): ArenaAffinity {
   return element === "Grove" || element === "Spark" || element === "Tide" || element === "Ember" || element === "Prism" || element === "Stone" ? element : "Prism";
 }
 
+function arenaConditionFor(card: PortableCardAsset): AdventureCardCondition {
+  if (!isLivingCardAsset(card)) return emptyAdventureCondition(card.id);
+  const revision = currentRevision(card);
+  const life = revision.growth.life;
+  if (!life) return emptyAdventureCondition(card.id);
+  const vitalityRatio = life.vitality / Math.max(1, life.maxVitality);
+  const retired = Boolean(life.retired);
+  const base = emptyAdventureCondition(card.id);
+  return {
+    ...base,
+    life: retired ? "dead" : "alive",
+    fatigue: retired ? 100 : Math.max(0, Math.min(100, Math.round((1 - vitalityRatio) * 78))),
+    injuries: life.injuries.slice(-12).map((injuryId, index) => ({
+      id: `arena-injury-${sha256PortableBasis(injuryId).slice(7, 19)}`,
+      kind: "guard" as const,
+      severity: (vitalityRatio <= .2 ? 3 : vitalityRatio <= .5 ? 2 : 1) as 1 | 2 | 3,
+      sourceEventId: `life-event-${index + 1}`
+    })),
+    recovery: { state: "stable", trauma: retired ? 100 : Math.max(0, Math.min(100, Math.round((1 - vitalityRatio) * 92))), lastEventId: life.eventIds.at(-1) ?? null },
+    ...(retired ? {
+      retiredAt: revision.sealedAt,
+      retirementCauseEventId: life.eventIds.at(-1) ?? "mortal-arena-retirement"
+    } : {})
+  };
+}
+
+function receizArenaProjection(card: PortableCardAsset) {
+  const revision = createArenaLivingRevision({
+    assetId: card.id,
+    eventId: "wildz-arena-admission",
+    rulesetId: "receiz-wilds-arena-v105",
+    occurredAt: card.proof.sealedAt,
+    condition: arenaConditionFor(card),
+    scarIds: [],
+    relationshipIds: [],
+    achievementIds: [],
+    evolutionIds: [],
+    matchReceiptDigests: []
+  });
+  return projectArenaFighter(card, revision);
+}
+
 function fighterFor(card: PortableCardAsset) {
   const revision = isLivingCardAsset(card) ? currentRevision(card) : null;
   const life = revision?.growth.life;
   const lifeRatio = life ? life.vitality / Math.max(1, life.maxVitality) : 1;
+  const projected = receizArenaProjection(card);
   return {
     creatureId: card.id,
     affinity: affinityFor(card),
     vitality: Math.max(1, Math.round(1_000 * lifeRatio)),
-    power: Math.max(92, card.manifest.stats.power * 2),
-    guard: Math.max(80, card.manifest.stats.guard * 2),
-    speed: Math.max(82, card.manifest.stats.speed * 2)
+    power: Math.max(92, projected.stats.power * 2),
+    guard: Math.max(80, projected.stats.guard * 2),
+    speed: Math.max(82, Math.round(projected.moveSpeed * 24))
   };
 }
 

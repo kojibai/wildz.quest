@@ -16,6 +16,7 @@ import {
   type PublicProofRecord,
   type ReceizAppStateFeedResponse,
   type ReceizAppStateRecordResponse,
+  type ReceizAppStateRestoreResult,
   type ReceizAssetManifest,
   type ReceizAssetManifestProjection,
   type ReceizAuditAppendRequest,
@@ -175,7 +176,7 @@ export type ReceizCommerceAdapter = {
   resolveTenant<TData extends JsonObject = JsonObject>(
     host: string,
     options?: { schema?: string; state?: string; requiredDataKey?: string }
-  ): Promise<import("@receiz/sdk").ReceizAppStateRestoreResult<TData>>;
+  ): Promise<ReceizAppStateRestoreResult<TData>>;
   publishPublicStore<TState extends JsonObject = JsonObject>(
     input: ReceizPublicStorePublishInput<TState>,
     options?: ReceizIdempotencyOptions

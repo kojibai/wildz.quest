@@ -5,7 +5,7 @@ import {
   receizOidcScopesForRails
 } from "@receiz/sdk";
 
-const TARGET_MAJOR = 104;
+const TARGET_MAJOR = 105;
 const REQUIRED_STRICT_CAPABILITIES = [
   "identity",
   "wallet",

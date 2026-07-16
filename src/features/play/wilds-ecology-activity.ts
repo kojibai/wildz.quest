@@ -1,5 +1,8 @@
-import { sha256PortableBasis } from "./portable-card";
+import { sha256PortableBasis, type PortableCardAsset } from "./portable-card";
 import type { WildsEcologyFamilyId, WildsEcologySite } from "./wilds-ecology";
+import { emptyAdventureCondition } from "./adventure/card-condition";
+import { projectMarketCard } from "./market/card-role";
+import { generateMarketBoard } from "./market/contract-director";
 
 export type WildsEcologyActivityPhase = "ready" | "active" | "submitted";
 export type WildsEcologyActivityInput = "attune" | "carry" | "seal" | "trace" | "listen" | "align" | "anchor" | "channel" | "release" | "gather" | "answer" | "celebrate" | "call" | "guide" | "shelter" | "water" | "shield" | "harvest" | "brace" | "repair" | "ground" | "signal" | "rescue" | "rebuild";
@@ -58,6 +61,35 @@ export function createWildsEcologyActivity(site: WildsEcologySite): WildsEcology
     progress: 0,
     misses: 0,
     message: "The site is listening. Begin when your party is ready."
+  };
+}
+
+export function createWildsMarketActivity(site: WildsEcologySite, card: PortableCardAsset): WildsEcologyActivity {
+  if (site.familyId !== "wandering-market") return createWildsEcologyActivity(site);
+  const capability = projectMarketCard(card, emptyAdventureCondition(card.id));
+  const board = generateMarketBoard({ site, pulse: site.seedDigest, squad: [capability], history: [], mortal: false });
+  const contract = board.contracts[0];
+  const controls = ["attune", "carry", "seal"] as const;
+  const objectives = contract.objectives.slice(0, 3).map((objective, index) => ({
+    id: objective.id,
+    label: objective.label,
+    hint: `${contract.merchant.name} · ${objective.requiredVerb.replaceAll("-", " ")}`,
+    input: controls[index] ?? "seal"
+  }));
+  return {
+    schema: "receiz.wilds_ecology_activity.v1",
+    id: `ecology-activity:${contract.digest.slice(7, 31)}`,
+    siteId: site.id,
+    familyId: site.familyId,
+    moduleId: `wayfarer-${contract.family}`,
+    title: `${contract.merchant.name}'s ${contract.family}`,
+    instruction: `Read the ${contract.merchant.tell}, protect the cargo, and choose the ${contract.solvability.viableRouteIds.length > 1 ? "strongest" : "open"} route.`,
+    objectives,
+    sequence: objectives.map((objective) => objective.input),
+    phase: "ready",
+    progress: 0,
+    misses: 0,
+    message: `${capability.roles[0]} role recognized. The contract is solvable with this card.`
   };
 }
 
