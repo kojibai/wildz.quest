@@ -1,7 +1,18 @@
 import type { WildsWorldEvent } from "./wilds-world-event";
 import type { WildsWorldCheckpoint } from "./wilds-world-state";
+import type { WildsWorldProjection } from "./wilds-world-state";
 
 export type WildsWorldRecord = { checkpoint: WildsWorldCheckpoint; eventTail: WildsWorldEvent[] };
+export type WildsWorldSnapshot = {
+  projection: WildsWorldProjection;
+  mode: "receiz_live" | "local_practice";
+};
+
+export function selectWildsWorldSnapshot(canonical: WildsWorldProjection, practice: WildsWorldProjection): WildsWorldSnapshot {
+  return canonical.revision > 0
+    ? { projection: canonical, mode: "receiz_live" }
+    : { projection: practice, mode: "local_practice" };
+}
 
 export function findWildsWorldRecord(value: unknown): WildsWorldRecord | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;

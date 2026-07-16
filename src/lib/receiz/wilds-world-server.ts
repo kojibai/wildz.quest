@@ -1,13 +1,13 @@
 import type { NextRequest } from "next/server";
-import type { JsonObject } from "@receiz/sdk";
 import { WildsWorldService, type WildsWorldCommand } from "@/features/play/wilds-world-service";
-import { findWildsWorldRecord } from "@/features/play/wilds-world-record";
-import type { WildsWorldEvent } from "@/features/play/wilds-world-event";
+import { findWildsWorldRecord, selectWildsWorldSnapshot } from "@/features/play/wilds-world-record";
+import type { PortableCardAsset } from "@/features/play/portable-card";
+import { worldCommandRequiresCard } from "@/features/play/wilds-world-authority";
 import { platform } from "@/lib/platform";
-import { createReceizCommerceAdapter } from "./adapter";
-import { resolveWildsMultiplayerActor, type WildsMultiplayerActor } from "./wilds-multiplayer-server";
+import { authorizeWildsMultiplayerCard, resolveWildsMultiplayerActor, type WildsMultiplayerActor } from "./wilds-multiplayer-server";
+import { createReceizWildsWorldRepository, type WildsWorldPublication, type WildsWorldRepository } from "./wilds-world-repository";
 
-export type WildsWorldPublication = { published: boolean; mode: "receiz_live" | "local_practice" | "receiz_recovery_pending"; revision: number };
+export type { WildsWorldPublication } from "./wilds-world-repository";
 
 function origin(request: NextRequest) {
   const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? platform.domain;
@@ -20,101 +20,153 @@ function sourceUrl(request: NextRequest) {
 }
 
 const serviceKey = Symbol.for("receiz.wilds.world.service.v3");
+const practiceKey = Symbol.for("receiz.wilds.world.practice.v3");
 const hydrationKey = Symbol.for("receiz.wilds.world.hydrated.v3");
-type WorldGlobal = typeof globalThis & { [serviceKey]?: WildsWorldService; [hydrationKey]?: boolean };
+const repositoryKey = Symbol.for("receiz.wilds.world.repository.v3");
+const mutationQueueKey = Symbol.for("receiz.wilds.world.mutation_queue.v3");
+type WorldGlobal = typeof globalThis & {
+  [serviceKey]?: WildsWorldService;
+  [practiceKey]?: WildsWorldService;
+  [hydrationKey]?: Promise<void>;
+  [repositoryKey]?: WildsWorldRepository;
+  [mutationQueueKey]?: Promise<void>;
+};
 function root() { return globalThis as WorldGlobal; }
 function service() { return (root()[serviceKey] ??= new WildsWorldService()); }
+function repository() { return (root()[repositoryKey] ??= createReceizWildsWorldRepository()); }
+function serializeWildsWorldMutation<T>(operation: () => Promise<T>) {
+  const previous = root()[mutationQueueKey] ?? Promise.resolve();
+  const result = previous.then(operation, operation);
+  root()[mutationQueueKey] = result.then(() => undefined, () => undefined);
+  return result;
+}
+function practiceService() {
+  if (!root()[practiceKey]) {
+    const practice = new WildsWorldService();
+    const pulse = "2026-07-15T00:00:00.000Z";
+    practice.tick({ pulse, occurredAt: pulse, systemActorId: "receiz:pulse" });
+    practice.tickEcology({ pulse, occurredAt: pulse, systemActorId: "receiz:pulse" });
+    root()[practiceKey] = practice;
+  }
+  return root()[practiceKey]!;
+}
 
 export async function hydrateWildsWorldFromReceiz(request: NextRequest) {
-  if (root()[hydrationKey]) return;
-  root()[hydrationKey] = true;
-  try {
+  const existing = root()[hydrationKey];
+  if (existing) return existing;
+  const hydration = (async () => {
     const recovered = await Promise.race([
-      createReceizCommerceAdapter().readAppStateByUrl(sourceUrl(request)),
+      repository().recover(sourceUrl(request)),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 1_200))
     ]);
     const record = findWildsWorldRecord(recovered);
     if (record) root()[serviceKey] = new WildsWorldService({ checkpoint: record.checkpoint, events: record.eventTail });
+  })();
+  root()[hydrationKey] = hydration;
+  try {
+    await hydration;
   } catch {
-    root()[hydrationKey] = false;
+    delete root()[hydrationKey];
   }
 }
 
-async function publish(request: NextRequest, actor: WildsMultiplayerActor, world: WildsWorldService): Promise<WildsWorldPublication> {
-  if (actor.practice) return { published: false, mode: "local_practice", revision: world.snapshot().revision };
-  const checkpoint = world.checkpoint();
-  const lastEventId = checkpoint.lastEventId ?? "genesis";
-  try {
-    const result = await createReceizCommerceAdapter(actor.accessToken ? { accessToken: actor.accessToken } : undefined).publishPublicStore({
-      tenantHost: new URL(sourceUrl(request)).host,
-      merchantReceizId: actor.handle,
-      title: "Receiz Wilds canonical world",
-      sourceUrl: sourceUrl(request),
-      namespace: "wilds:global:v3",
-      projectionState: "published",
-      platform: platform.productName,
-      state: { checkpoint, eventTail: world.events() } as unknown as JsonObject
-    }, { idempotencyKey: `wilds:global:v3:${checkpoint.revision}:${lastEventId}` });
-    if (result && typeof result === "object" && "ok" in result && result.ok === false) throw new Error("wilds_world_publish_failed");
-    return { published: true, mode: "receiz_live", revision: checkpoint.revision };
-  } catch {
-    return { published: false, mode: "receiz_recovery_pending", revision: checkpoint.revision };
+async function recoverCanonicalWorldBeforeMutation(request: NextRequest) {
+  const local = service();
+  const recovered = await Promise.race([
+    repository().recover(sourceUrl(request)),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("wilds_world_recovery_timeout")), 1_200))
+  ]);
+  if (recovered) {
+    const authoritative = new WildsWorldService({ checkpoint: recovered.checkpoint, events: recovered.eventTail });
+    root()[serviceKey] = authoritative;
+    return authoritative;
   }
+  if (local.checkpoint().revision > 0) throw new Error("wilds_world_canonical_recovery_required");
+  return local;
 }
 
-async function auditMajorEvents(request: NextRequest, actor: WildsMultiplayerActor, events: readonly WildsWorldEvent[]) {
-  const major = new Set(["boss.emerged", "boss.defeated", "site.memorialized", "team.created", "league.scored"]);
-  const client = createReceizCommerceAdapter(actor.accessToken ? { accessToken: actor.accessToken } : undefined);
-  try {
-    for (const event of events.filter((candidate) => major.has(candidate.kind))) {
-      await client.auditAppend({
-        tenantHost: new URL(sourceUrl(request)).host,
-        action: `wilds.${event.kind}:${event.eventId}`,
-        actorReceizId: actor.handle
-      }, { idempotencyKey: event.eventId });
-    }
-    return true;
-  } catch {
-    return false;
-  }
+async function publish(
+  request: NextRequest,
+  actor: WildsMultiplayerActor,
+  world: WildsWorldService,
+  expectedHead: { revision: number; lastEventId: string | null }
+): Promise<WildsWorldPublication> {
+  return repository().publish({
+    sourceUrl: sourceUrl(request),
+    actor,
+    record: { checkpoint: world.checkpoint(), eventTail: world.events() },
+    expectedHead
+  });
+}
+
+async function auditMajorEvents(request: NextRequest, actor: WildsMultiplayerActor, events: Parameters<WildsWorldRepository["audit"]>[0]["events"]) {
+  return repository().audit({ sourceUrl: sourceUrl(request), actor, events });
 }
 
 export async function worldSnapshot(request: NextRequest) {
   await hydrateWildsWorldFromReceiz(request);
-  return service().snapshot();
+  return selectWildsWorldSnapshot(service().snapshot(), practiceService().snapshot());
 }
 
-export async function executeWildsWorldCommand(request: NextRequest, body: unknown) {
+export function executeWildsWorldCommand(request: NextRequest, body: unknown) {
+  return serializeWildsWorldMutation(async () => {
   const value = body && typeof body === "object" ? body as Record<string, unknown> : {};
   const actor = await resolveWildsMultiplayerActor(request, value.guestId);
-  if (actor.practice) throw new Error("wilds_world_canonical_authority_required");
-  await hydrateWildsWorldFromReceiz(request);
-  const current = service();
-  const before = { checkpoint: current.checkpoint(), events: current.events() };
   const command = value.command as WildsWorldCommand;
+  const card = worldCommandRequiresCard(command) ? value.card as PortableCardAsset | undefined : undefined;
+  if (worldCommandRequiresCard(command)) authorizeWildsMultiplayerCard(actor, card);
+  await hydrateWildsWorldFromReceiz(request);
+  if (actor.practice) {
+    const now = new Date().toISOString();
+    const result = practiceService().execute(command, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now, card });
+    const publication = { published: false, mode: "local_practice" as const, revision: result.projection.revision };
+    return {
+      projection: result.projection,
+      mode: publication.mode,
+      events: result.events,
+      publication
+    };
+  }
+  const current = await recoverCanonicalWorldBeforeMutation(request);
+  const before = { checkpoint: current.checkpoint(), events: current.events() };
   const now = new Date().toISOString();
-  const result = current.execute(command, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now });
-  let publication = await publish(request, actor, current);
+  const result = current.execute(command, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now, card });
+  let publication = await publish(request, actor, current, {
+    revision: before.checkpoint.revision,
+    lastEventId: before.checkpoint.lastEventId
+  });
   if (!publication.published) {
-    root()[serviceKey] = new WildsWorldService(before);
+    root()[serviceKey] = publication.conflict && publication.record
+      ? new WildsWorldService(publication.record)
+      : new WildsWorldService(before);
     throw new Error("wilds_world_canonical_publish_required");
   }
   if (!await auditMajorEvents(request, actor, result.events)) publication = { ...publication, mode: "receiz_recovery_pending" };
-  return { projection: result.projection, events: result.events, publication };
+  return { projection: result.projection, mode: publication.mode, events: result.events, publication };
+  });
 }
 
-export async function tickWildsWorld(request: NextRequest) {
+export function tickWildsWorld(request: NextRequest) {
+  return serializeWildsWorldMutation(async () => {
   await hydrateWildsWorldFromReceiz(request);
-  const current = service();
+  const current = await recoverCanonicalWorldBeforeMutation(request);
   const before = { checkpoint: current.checkpoint(), events: current.events() };
   const now = new Date().toISOString();
-  const result = current.tick({ pulse: now, occurredAt: now, systemActorId: "receiz:pulse" });
+  const world = current.tick({ pulse: now, occurredAt: now, systemActorId: "receiz:pulse" });
+  const ecology = current.tickEcology({ pulse: now, occurredAt: now, systemActorId: "receiz:pulse" });
+  const result = { projection: ecology.projection, events: [...world.events, ...ecology.events] };
   const pulseActor = { playerId: "receiz:pulse", handle: "receiz:pulse", practice: false } as const;
-  let publication = await publish(request, pulseActor, current);
+  let publication = await publish(request, pulseActor, current, {
+    revision: before.checkpoint.revision,
+    lastEventId: before.checkpoint.lastEventId
+  });
   if (!publication.published) {
-    root()[serviceKey] = new WildsWorldService(before);
+    root()[serviceKey] = publication.conflict && publication.record
+      ? new WildsWorldService(publication.record)
+      : new WildsWorldService(before);
     throw new Error("wilds_world_canonical_publish_required");
   }
   if (!await auditMajorEvents(request, pulseActor, result.events)) publication = { ...publication, mode: "receiz_recovery_pending" };
-  return { projection: result.projection, events: result.events, publication };
+  return { projection: result.projection, mode: publication.mode, events: result.events, publication };
+  });
 }

@@ -28,6 +28,45 @@ export type PublicWildzProfile = {
 
 const clean = (value: unknown, limit = 80) => typeof value === "string" ? value.trim().slice(0, limit) : "";
 const boundedInt = (value: unknown, max = 1_000_000) => Number.isFinite(value) ? Math.max(0, Math.min(max, Math.floor(Number(value)))) : 0;
+const WILDZ_PUBLIC_HANDLE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+const EXPLORER_TRAIT_KEYS = [
+  "hair",
+  "complexion",
+  "outfit",
+  "primaryColor",
+  "secondaryColor",
+  "material",
+  "accessory",
+  "trail",
+  "signatureMark"
+] as const;
+
+function sanitizeExplorer(value: unknown): PublicWildzProfile["explorer"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const explorer = value as Record<string, unknown>;
+  if (explorer.gender !== "female" && explorer.gender !== "male") return null;
+  if (!explorer.traits || typeof explorer.traits !== "object" || Array.isArray(explorer.traits)) return null;
+  const traitsSource = explorer.traits as Record<string, unknown>;
+  const traits = Object.fromEntries(EXPLORER_TRAIT_KEYS.map((key) => [key, clean(traitsSource[key], 64)]));
+  if (Object.values(traits).some((trait) => !trait)) return null;
+  const digest = clean(explorer.digest, 80);
+  if (!/^sha256:[a-f0-9]{64}$/.test(digest) && !/^[a-f0-9]{64}$/.test(digest)) return null;
+  return {
+    gender: explorer.gender,
+    traits: traits as WildzCharacterGenesis["traits"],
+    digest
+  };
+}
+
+export function canonicalWildzHandle(value: string) {
+  const handle = value.trim().replace(/^@+/, "").toLowerCase();
+  if (!WILDZ_PUBLIC_HANDLE.test(handle)) throw new Error("wildz_profile_handle_invalid");
+  return `@${handle}`;
+}
+
+export function canonicalWildzProfilePath(value: string) {
+  return `/u/${encodeURIComponent(canonicalWildzHandle(value).slice(1))}`;
+}
 
 export function sanitizePublicWildzProfile(input: Record<string, unknown>): PublicWildzProfile {
   const vault = Array.isArray(input.vault) ? input.vault.flatMap((raw) => {
@@ -46,15 +85,15 @@ export function sanitizePublicWildzProfile(input: Record<string, unknown>): Publ
       listedPriceCents: Number.isFinite(card.listedPriceCents) ? boundedInt(card.listedPriceCents, 100_000_000) : undefined
     }];
   }).slice(0, 120) : [];
-  const explorer = input.explorer && typeof input.explorer === "object" ? input.explorer as Record<string, unknown> : null;
-  const safeExplorer: PublicWildzProfile["explorer"] = explorer && (explorer.gender === "female" || explorer.gender === "male") && explorer.traits && typeof explorer.digest === "string"
-    ? { gender: explorer.gender as WildzCharacterGenesis["gender"], traits: explorer.traits as WildzCharacterGenesis["traits"], digest: clean(explorer.digest, 80) }
-    : null;
+  const safeExplorer = sanitizeExplorer(input.explorer);
   const record = input.record && typeof input.record === "object" ? input.record as Record<string, unknown> : {};
 
   return {
     schema: "wildz.public_profile.v1",
-    username: clean(input.username, 48).replace(/^@?/, "@") || "@explorer",
+    username: (() => {
+      try { return canonicalWildzHandle(clean(input.username, 64)); }
+      catch { return "@explorer"; }
+    })(),
     displayName: clean(input.displayName) || "Wildz Explorer",
     explorer: safeExplorer,
     activeCompanion: vault.find((card) => card.id === input.activeCompanionId) ?? vault[0] ?? null,

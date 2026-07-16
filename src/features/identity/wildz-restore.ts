@@ -5,8 +5,12 @@ import {
   serializePlayState,
   type PlayState
 } from "../play/game-state";
+import { parseWildzCharacter, type WildzCharacterGenesis } from "./wildz-genesis";
 import { canonicalPortableCardJson, verifyAnyWildsCard, type PortableCardAsset } from "../play/portable-card";
-import type { WildsPlayerVaultPayload } from "../play/wilds-player-vault";
+import {
+  createWildsPlayerVault,
+  type WildsPlayerVaultPayload
+} from "../play/wilds-player-vault";
 import type {
   WildzArtifactCodec,
   WildzArtifactInspection
@@ -17,6 +21,8 @@ import {
   type WildzIdentityRepository,
   type WildzIdentitySession
 } from "../../lib/receiz/wildz-identity-repository";
+import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
+import { extractVerifiedWildzCards } from "../../lib/receiz/wildz-cross-platform-cards";
 import type { WildzContinuityDatabase } from "../../lib/storage/wildz-indexed-db";
 
 export type WildzRestoreCandidate =
@@ -60,7 +66,11 @@ export function friendlyWildzRestoreError(cause: unknown) {
   if (code === "receiz_key_file_too_large") return "This Receiz identity artifact is too large.";
   if (code === "receiz_key_invalid") return "This file is not a valid Receiz Identity Record or Receiz Key.";
   if (code === "wildz_restore_confirmation_required") return "Restore cancelled. Your Receiz ID and Card Vault were not changed.";
-  if (code === "wildz_restore_owner_mismatch") return "This player Vault belongs to a different Receiz ID. Restore its matching Identity Seal first.";
+  if (code === "wildz_restore_owner_mismatch" || code === "wildz_restore_receiz_account_mismatch") return "This player Vault belongs to a different Receiz ID. Sign in with the Receiz account embedded in this Vault.";
+  if (code === "wildz_restore_login_required") return "Sign in with Receiz to restore the player and every card sealed in this Vault.";
+  if (code === "wildz_restore_resume_missing") return "This Vault login expired. Upload the Vault image again to continue.";
+  if (code === "wildz_restore_v4_unavailable") return "Receiz proof verification is temporarily unavailable. Your Vault was not changed; please try again.";
+  if (code === "wildz_restore_v4_invalid") return "This Vault did not pass its Receiz Signature V4 proof check, so nothing was restored.";
   if (code === "wildz_restore_duplicate_card_conflict") return "This Vault contains conflicting versions of the same card, so nothing was restored.";
   if (code === "wildz_restore_card_proof_invalid" || code === "wildz_restore_player_digest_invalid") return "This Vault did not pass its Wildz proof checks, so nothing was restored.";
   if (code === "wildz_restore_artifact_too_large") return "This restore artifact is larger than the 64 MiB safety limit.";
@@ -69,13 +79,21 @@ export function friendlyWildzRestoreError(cause: unknown) {
   return code;
 }
 
-type StoredWildzPlayState = {
-  schema: "receiz.wildz.owner_play_state.v1";
+export type WildzPlayerContinuity = Pick<
+  WildsPlayerVaultPayload,
+  "settings" | "personalEvents" | "canonicalCursor" | "receipts"
+>;
+
+export type StoredWildzOwnerState = WildzPlayerContinuity & {
+  schema: "receiz.wildz.owner_state.v1";
   keyId: string;
   actorId: string;
   playState: PlayState;
+  character: WildzCharacterGenesis | null;
   updatedAt: string;
 };
+
+export type StoredWildzPlayState = StoredWildzOwnerState;
 
 export type WildzCommittedArtifactRestore = {
   restoreStatus: "committed";
@@ -83,13 +101,16 @@ export type WildzCommittedArtifactRestore = {
   artifactKind: "identity-seal" | "card-vault" | "commerce-vault";
   session: WildzIdentitySession;
   playState: PlayState;
+  character: WildzCharacterGenesis | null;
+  playerContinuity: WildzPlayerContinuity;
   verifiedAssetIds: string[];
   commerceProjection: ReceizCommerceVaultProjection | null;
 };
 
 export type WildzCardOnlyConfirmation = boolean | (() => boolean | Promise<boolean>);
 
-const OWNER_PLAY_STATE_SCHEMA = "receiz.wildz.owner_play_state.v1";
+const OWNER_STATE_SCHEMA = "receiz.wildz.owner_state.v1";
+const LEGACY_OWNER_PLAY_STATE_SCHEMA = "receiz.wildz.owner_play_state.v1";
 
 function inspectionAssets(inspection: WildzArtifactInspection): PortableCardAsset[] {
   if (inspection.kind === "identity-seal") return inspection.portableAssets;
@@ -125,19 +146,24 @@ function emptyVaultPlayState(): PlayState {
 }
 
 function importAssets(base: PlayState, assets: readonly PortableCardAsset[]) {
+  extractVerifiedWildzCards({
+    pngBasis: null,
+    verifiedPortableSnapshot: [base.inventory, assets],
+    restoredVaultFiles: []
+  });
   return assets.reduce(
     (state, asset) => applyWildsInput(state, { type: "import-card", asset }),
     base
   );
 }
 
-function stateFromPlayer(player: WildsPlayerVaultPayload, assets: readonly PortableCardAsset[]) {
+export function prepareWildzPlayerPlayState(player: WildsPlayerVaultPayload, assets: readonly PortableCardAsset[]) {
   const normalizedExpected = restorePlayState(serializePlayState({
     ...emptyVaultPlayState(),
     inventory: [...assets]
-  })).inventory;
+  }), player.playerId).inventory;
   const expected = new Map(normalizedExpected.map((asset) => [asset.id, canonicalPortableCardJson(asset)]));
-  const restored = restorePlayState(serializePlayState(player.playState));
+  const restored = restorePlayState(serializePlayState(player.playState), player.playerId);
   if (restored.inventory.length !== expected.size) throw new Error("wildz_restore_binding_invalid");
   const playerIds = new Set<string>();
   for (const asset of restored.inventory) {
@@ -155,40 +181,140 @@ function stateFromPlayer(player: WildsPlayerVaultPayload, assets: readonly Porta
   return restored;
 }
 
-function isStoredPlayState(value: unknown, session: WildzIdentitySession): value is StoredWildzPlayState {
-  if (!value || typeof value !== "object") return false;
-  const record = value as Partial<StoredWildzPlayState>;
-  return record.schema === OWNER_PLAY_STATE_SCHEMA
-    && record.keyId === session.keyId
-    && record.actorId === session.actorId
-    && Boolean(record.playState);
+function defaultPlayerContinuity(): WildzPlayerContinuity {
+  return {
+    settings: { avatarStyle: null, movementMode: "walk", audio: {}, cardOrder: "rarity" },
+    personalEvents: [],
+    canonicalCursor: { worldId: "wilds:global:v3", revision: 0, eventId: null },
+    receipts: []
+  };
+}
+
+function continuityFromOwner(state: StoredWildzOwnerState): WildzPlayerContinuity {
+  return {
+    settings: structuredClone(state.settings),
+    personalEvents: structuredClone(state.personalEvents),
+    canonicalCursor: structuredClone(state.canonicalCursor),
+    receipts: structuredClone(state.receipts)
+  };
+}
+
+function normalizedPlayerContinuity(
+  session: WildzIdentitySession,
+  playState: PlayState,
+  source: WildzPlayerContinuity | WildsPlayerVaultPayload | null | undefined,
+  exportedAt: string
+) {
+  if (source && "playerId" in source && !sameWildzPlayerCoordinate(source.playerId, session.actorId)) {
+    throw new Error("wildz_restore_owner_mismatch");
+  }
+  const continuity = source ?? defaultPlayerContinuity();
+  const normalized = createWildsPlayerVault({
+    playerId: session.actorId,
+    exportedAt,
+    playState,
+    settings: continuity.settings,
+    personalEvents: continuity.personalEvents,
+    canonicalCursor: continuity.canonicalCursor,
+    receipts: continuity.receipts
+  });
+  return {
+    settings: normalized.settings,
+    personalEvents: normalized.personalEvents,
+    canonicalCursor: normalized.canonicalCursor,
+    receipts: normalized.receipts
+  } satisfies WildzPlayerContinuity;
+}
+
+export function createStoredWildzPlayState(
+  session: WildzIdentitySession,
+  playState: PlayState,
+  player: WildzPlayerContinuity | WildsPlayerVaultPayload | null = null,
+  updatedAt = new Date().toISOString(),
+  character?: WildzCharacterGenesis | null
+): StoredWildzPlayState {
+  const normalizedPlayState = restorePlayState(serializePlayState(playState), session.actorId);
+  const continuity = normalizedPlayerContinuity(session, normalizedPlayState, player, updatedAt);
+  const requestedCharacter = character === undefined && player && "playerId" in player ? player.character : character;
+  const normalizedCharacter = requestedCharacter === null || requestedCharacter === undefined
+    ? null
+    : parseWildzCharacter(JSON.stringify(requestedCharacter));
+  if (requestedCharacter && !normalizedCharacter) throw new Error("wildz_owner_character_invalid");
+  return {
+    schema: OWNER_STATE_SCHEMA,
+    keyId: session.keyId,
+    actorId: session.actorId,
+    playState: normalizedPlayState,
+    character: normalizedCharacter,
+    ...continuity,
+    updatedAt
+  };
+}
+
+function storedOwnerState(value: unknown, session: WildzIdentitySession): StoredWildzOwnerState | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Partial<StoredWildzOwnerState> & { schema?: unknown };
+  if (record.keyId !== session.keyId || record.actorId !== session.actorId || !record.playState) return null;
+  try {
+    if (record.schema === OWNER_STATE_SCHEMA) {
+      if (!record.settings || !record.personalEvents || !record.canonicalCursor || !record.receipts) return null;
+      return createStoredWildzPlayState(session, record.playState, {
+        settings: record.settings,
+        personalEvents: record.personalEvents,
+        canonicalCursor: record.canonicalCursor,
+        receipts: record.receipts
+      }, typeof record.updatedAt === "string" ? record.updatedAt : new Date(0).toISOString(), record.character ?? null);
+    }
+    if (record.schema === LEGACY_OWNER_PLAY_STATE_SCHEMA) {
+      return createStoredWildzPlayState(
+        session,
+        record.playState,
+        null,
+        typeof record.updatedAt === "string" ? record.updatedAt : new Date(0).toISOString(),
+        null
+      );
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+export async function loadWildzRestoredOwnerState(input: {
+  database: WildzContinuityDatabase;
+  session: WildzIdentitySession;
+}) {
+  const scope = wildzOwnerScope(input.session.keyId, input.session.actorId);
+  return storedOwnerState(await input.database.read<unknown>("ownerStates", scope), input.session);
 }
 
 export async function loadWildzRestoredPlayState(input: {
   database: WildzContinuityDatabase;
   session: WildzIdentitySession;
 }) {
-  const scope = wildzOwnerScope(input.session.keyId, input.session.actorId);
-  const stored = await input.database.read<unknown>("ownerStates", scope);
-  if (!isStoredPlayState(stored, input.session)) return null;
-  return restorePlayState(serializePlayState(stored.playState));
+  return (await loadWildzRestoredOwnerState(input))?.playState ?? null;
 }
 
 export async function saveWildzRestoredPlayState(input: {
   database: WildzContinuityDatabase;
   session: WildzIdentitySession;
   playState: PlayState;
+  player?: WildzPlayerContinuity | WildsPlayerVaultPayload | null;
+  character?: WildzCharacterGenesis | null;
 }) {
   const scope = wildzOwnerScope(input.session.keyId, input.session.actorId);
-  const stored: StoredWildzPlayState = {
-    schema: OWNER_PLAY_STATE_SCHEMA,
-    keyId: input.session.keyId,
-    actorId: input.session.actorId,
-    playState: restorePlayState(serializePlayState(input.playState)),
-    updatedAt: new Date().toISOString()
-  };
-  await input.database.transaction(["ownerStates"], "readwrite", (tx) => tx.put("ownerStates", stored, scope));
-  return stored.playState;
+  return input.database.transaction(["ownerStates"], "readwrite", async (tx) => {
+    const current = storedOwnerState(await tx.get<unknown>("ownerStates", scope), input.session);
+    const stored = createStoredWildzPlayState(
+      input.session,
+      input.playState,
+      input.player ?? (current ? continuityFromOwner(current) : null),
+      new Date().toISOString(),
+      input.character === undefined ? current?.character ?? null : input.character
+    );
+    await tx.put("ownerStates", stored, scope);
+    return stored.playState;
+  });
 }
 
 export async function restoreWildzArtifactForSurface(input: {
@@ -201,6 +327,7 @@ export async function restoreWildzArtifactForSurface(input: {
   database: WildzContinuityDatabase;
   confirmCardOnly: WildzCardOnlyConfirmation;
   currentPlayState?: PlayState;
+  proofSealedPlayer?: boolean;
 }): Promise<WildzCommittedArtifactRestore> {
   const inspection = await input.codec.inspect({
     bytes: input.bytes,
@@ -220,45 +347,52 @@ export async function restoreWildzArtifactForSurface(input: {
   const session = verifiedIdentity?.session ?? active;
   if (!session) throw new Error("wildz_restore_identity_missing");
   const player = inspectionPlayer(inspection);
-  if (player && player.playerId !== session.actorId) throw new Error("wildz_restore_owner_mismatch");
+  if (player && !sameWildzPlayerCoordinate(player.playerId, session.actorId)) {
+    throw new Error("wildz_restore_owner_mismatch");
+  }
+  if (player && inspection.playerBinding === "artifact-v4-required" && !input.proofSealedPlayer) {
+    throw new Error("wildz_restore_binding_invalid");
+  }
   const assets = inspectionAssets(inspection);
   const verifiedAssetIds = [...new Set(assets.map((asset) => asset.id))].sort();
   const scope = wildzOwnerScope(session.keyId, session.actorId);
-  let committedState: PlayState | null = null;
+  let committedOwnerState: StoredWildzOwnerState | null = null;
   try {
     await input.database.transaction(["identities", "ownerStates", "meta"], "readwrite", async (tx) => {
       const stored = await tx.get<unknown>("ownerStates", scope);
       const sameActiveOwner = active?.keyId === session.keyId && active.actorId === session.actorId;
+      const previous = storedOwnerState(stored, session);
       const current = sameActiveOwner && input.currentPlayState
         ? restorePlayState(serializePlayState(input.currentPlayState))
-        : isStoredPlayState(stored, session)
-          ? restorePlayState(serializePlayState(stored.playState))
+        : previous
+          ? restorePlayState(serializePlayState(previous.playState))
           : emptyVaultPlayState();
-      const next = player ? stateFromPlayer(player, assets) : importAssets(current, assets);
-      const record: StoredWildzPlayState = {
-        schema: OWNER_PLAY_STATE_SCHEMA,
-        keyId: session.keyId,
-        actorId: session.actorId,
-        playState: next,
-        updatedAt: new Date().toISOString()
-      };
+      const next = player ? prepareWildzPlayerPlayState(player, assets) : importAssets(current, assets);
+      const record = createStoredWildzPlayState(
+        session,
+        next,
+        player ?? (previous ? continuityFromOwner(previous) : null),
+        new Date().toISOString(),
+        player?.character ?? previous?.character ?? null
+      );
       if (verifiedIdentity) await input.repository.writePrepared(tx, verifiedIdentity.prepared, true);
       await tx.put("ownerStates", record, scope);
-      committedState = next;
+      committedOwnerState = record;
     });
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("wildz_restore_")) throw error;
     throw new Error("wildz_restore_storage_failed");
   }
-  if (!committedState) throw new Error("wildz_restore_storage_failed");
-  const reloaded = await loadWildzRestoredPlayState({ database: input.database, session });
-  if (!reloaded) throw new Error("wildz_restore_storage_failed");
+  if (!committedOwnerState) throw new Error("wildz_restore_storage_failed");
+  const committed = committedOwnerState as StoredWildzOwnerState;
   return {
     restoreStatus: "committed",
     surface: input.surface,
     artifactKind: inspection.kind,
     session,
-    playState: reloaded,
+    playState: committed.playState,
+    character: committed.character,
+    playerContinuity: continuityFromOwner(committed),
     verifiedAssetIds,
     commerceProjection: inspection.kind === "commerce-vault" ? inspection.projection : null
   };

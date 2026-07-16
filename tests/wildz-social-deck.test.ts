@@ -18,7 +18,7 @@ test("bottom dock follows the six-slot reference order with distinct functions",
     'aria-label="Open field guide"',
     'aria-label="Open player profile"',
     'aria-label="Open social market"',
-    'aria-label="Open active deck"',
+    'aria-label="Open Trail Pack and Wilds Heartbeat"',
     'aria-label="Open foraging satchel"'
   ];
   const offsets = markers.map((marker) => source.indexOf(marker));
@@ -29,14 +29,31 @@ test("bottom dock follows the six-slot reference order with distinct functions",
   }
 });
 
-test("nearby cards and the active-deck slot render their actual verified creature artwork", () => {
+test("Trail Pack replaces the redundant deck list with a three-companion heartbeat", () => {
+  const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
+  const world = readFileSync("src/features/play/WildsWorldCanvas.tsx", "utf8");
+
+  assert.match(campaign, /label: "Trail Pack"/);
+  assert.match(campaign, /One leader · two bonded supports/);
+  assert.match(campaign, /Pack synergy/);
+  assert.match(campaign, /Pack memory/);
+  assert.match(campaign, /World whispers/);
+  assert.match(campaign, /supportCards=\{trailSupportCards\}/);
+  assert.match(world, /trail-pack-support-companions/);
+  assert.doesNotMatch(campaign, /label: "Active Deck"/);
+});
+
+test("nearby cards render actual artwork with verification beside the creature name", () => {
   const source = readFileSync("src/features/play/WildzSocialDeck.tsx", "utf8");
   const thumbnail = readFileSync("src/features/play/WildsCreatureThumbnail.tsx", "utf8");
+  const badge = readFileSync("src/features/play/WildsVerifiedBadge.tsx", "utf8");
   const css = readFileSync("app/globals.css", "utf8");
 
   assert.match(source, /<WildsCreatureThumbnail asset=\{card\}/);
   assert.match(source, /<WildsCreatureThumbnail asset=\{activeCard\}/);
-  assert.match(thumbnail, /wilds-creature-verified/);
+  assert.match(source, /<WildsVerifiedBadge\s*\/>/);
+  assert.doesNotMatch(thumbnail, /wilds-creature-verified/);
+  assert.match(badge, /wilds-creature-verified/);
   assert.match(css, /\.wilds-creature-verified\s*\{/);
 });
 

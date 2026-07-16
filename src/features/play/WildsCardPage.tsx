@@ -4,26 +4,21 @@ import Link from "next/link";
 import Image from "next/image";
 import QRCode from "qrcode";
 import { useEffect, useMemo, useState } from "react";
-import { initialPlayState, restorePlayState } from "./game-state";
 import { standaloneCardUrl } from "./card-export";
 import type { PortableCardAsset } from "./portable-card";
 import { WildsCardScene } from "./WildsCardScene";
 
 export function WildsCardPage({ assetId }: { assetId: string }) {
-  const [asset, setAsset] = useState<PortableCardAsset | null>(() => initialPlayState.inventory.find((item) => item.id === assetId) ?? null);
+  const [asset, setAsset] = useState<PortableCardAsset | null>(null);
   const [tab, setTab] = useState<"Overview" | "Proof" | "Lineage" | "Offers">("Overview");
   const [qr, setQr] = useState("");
   const [origin, setOrigin] = useState("https://receiz.app");
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     const controller = new AbortController();
-    const restored = restorePlayState(window.localStorage.getItem("receiz:wilds:save:v2"));
-    const local = restored.inventory.find((item) => item.id === assetId) ?? null;
-    setAsset(local);
     setOrigin(window.location.origin);
     void QRCode.toDataURL(standaloneCardUrl(assetId, window.location.origin), { errorCorrectionLevel: "M", margin: 4, width: 160 }).then(setQr);
-    if (local) setLoading(false);
-    else void fetch(`/api/cards/${encodeURIComponent(assetId)}`, { signal: controller.signal })
+    void fetch(`/api/cards/${encodeURIComponent(assetId)}`, { signal: controller.signal })
       .then(async (response) => response.ok ? await response.json() as { record?: { asset?: PortableCardAsset } } : null)
       .then((result) => setAsset(result?.record?.asset ?? null))
       .catch(() => undefined)

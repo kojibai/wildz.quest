@@ -3,6 +3,69 @@ import { test } from "node:test";
 import { createWildzContinuityDatabase } from "../src/lib/storage/wildz-indexed-db";
 import { createFakeIndexedDb } from "./support/fake-indexed-db";
 
+class FailingOpenRequest extends EventTarget {
+  readonly error = new DOMException("wildz_test_open_failed", "UnknownError");
+  result!: IDBDatabase;
+}
+
+function failFirstOpen(delegate: IDBFactory) {
+  let openCount = 0;
+  const factory = {
+    open(name: string, version?: number) {
+      openCount += 1;
+      if (openCount > 1) {
+        return version === undefined ? delegate.open(name) : delegate.open(name, version);
+      }
+      const request = new FailingOpenRequest();
+      queueMicrotask(() => request.dispatchEvent(new Event("error")));
+      return request as unknown as IDBOpenDBRequest;
+    }
+  } as unknown as IDBFactory;
+  return { factory, openCount: () => openCount };
+}
+
+function trackVersionChange(delegate: IDBFactory) {
+  let database: (IDBDatabase & EventTarget) | null = null;
+  let openCount = 0;
+  let closed = false;
+  let patched = false;
+  const factory = {
+    open(name: string, version?: number) {
+      openCount += 1;
+      const request = version === undefined ? delegate.open(name) : delegate.open(name, version);
+      request.addEventListener("success", () => {
+        database = request.result as IDBDatabase & EventTarget;
+        closed = false;
+        if (patched) return;
+        patched = true;
+        const mutable = database as unknown as {
+          close(): void;
+          transaction(...args: unknown[]): IDBTransaction;
+        };
+        const close = mutable.close.bind(database);
+        const transaction = mutable.transaction.bind(database);
+        mutable.close = () => {
+          closed = true;
+          close();
+        };
+        mutable.transaction = (...args: unknown[]) => {
+          if (closed) throw new DOMException("wildz_test_database_closed", "InvalidStateError");
+          return transaction(...args);
+        };
+      });
+      return request;
+    }
+  } as unknown as IDBFactory;
+  return {
+    factory,
+    openCount: () => openCount,
+    triggerVersionChange() {
+      if (!database) throw new Error("wildz_test_database_not_open");
+      database.dispatchEvent(new Event("versionchange"));
+    }
+  };
+}
+
 test("production adapter waits for completion and structured-clones CryptoKey values", async () => {
   const fake = createFakeIndexedDb();
   const database = createWildzContinuityDatabase({ factory: fake.factory, name: "wildz-adapter-complete" });
@@ -25,7 +88,7 @@ test("production adapter waits for completion and structured-clones CryptoKey va
   completion.releaseCompletion();
   await pending;
 
-  assert.deepEqual(fake.storeNames(), ["identities", "meta", "ownerStates", "wrappingKeys"]);
+  assert.deepEqual(fake.storeNames(), ["identities", "meta", "ownerStates", "pendingRestores", "wrappingKeys"]);
   assert.equal(fake.completedTransactions, 1);
   const restored = await database.read<CryptoKey>("wrappingKeys", "identity-key");
   assert.ok(restored);
@@ -76,4 +139,28 @@ test("production adapter aborts and rolls back after an operation throws", async
 
   assert.equal(fake.abortedTransactions, 1);
   assert.equal(fake.dump("identities").length, 0);
+});
+
+test("production adapter retries opening after a failed open request", async () => {
+  const fake = createFakeIndexedDb();
+  const controlled = failFirstOpen(fake.factory);
+  const database = createWildzContinuityDatabase({ factory: controlled.factory, name: "wildz-adapter-open-retry" });
+
+  await assert.rejects(database.read("meta", "status"), /wildz_test_open_failed/);
+  await database.transaction(["meta"], "readwrite", (tx) => tx.put("meta", "ready", "status"));
+
+  assert.equal(await database.read("meta", "status"), "ready");
+  assert.equal(controlled.openCount(), 2);
+});
+
+test("production adapter reopens after its connection receives versionchange", async () => {
+  const fake = createFakeIndexedDb();
+  const controlled = trackVersionChange(fake.factory);
+  const database = createWildzContinuityDatabase({ factory: controlled.factory, name: "wildz-adapter-versionchange" });
+
+  await database.transaction(["meta"], "readwrite", (tx) => tx.put("meta", "ready", "status"));
+  controlled.triggerVersionChange();
+
+  assert.equal(await database.read("meta", "status"), "ready");
+  assert.equal(controlled.openCount(), 2);
 });

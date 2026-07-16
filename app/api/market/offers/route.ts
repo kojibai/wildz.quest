@@ -1,2 +1,43 @@
-import { NextResponse } from "next/server";
-export async function POST(request: Request) { const body = await request.json(); const idempotencyKey = request.headers.get("idempotency-key") ?? body.idempotencyKey; if (!idempotencyKey || !body.actor || !body.expectedRevision) return NextResponse.json({ error: "offer_identity_revision_idempotency_required" }, { status: 400 }); return NextResponse.json({ status: "capability_unavailable", ownershipTransferred: false }, { status: 501 }); }
+import { NextRequest, NextResponse } from "next/server";
+import { createReceizCommerceAdapter } from "@/lib/receiz/adapter";
+import { admitWildzTrade } from "@/lib/receiz/wildz-market-adapter";
+import { resolveWildzCookieActor } from "@/lib/receiz/wildz-cookie-actor";
+import {
+  createReceizWildzMarketRepository,
+  resolveWildzMarketConditionalAppendRail
+} from "@/lib/receiz/wildz-market-repository";
+import {
+  marketIdempotencyKey,
+  marketRouteError,
+  parseWildzListingCommand,
+  publicMarketAdmission
+} from "@/lib/receiz/wildz-market-route";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function POST(request: NextRequest) {
+  try {
+    const actor = await resolveWildzCookieActor(request);
+    const body = parseWildzListingCommand(await request.json().catch(() => null));
+    const idempotencyKey = marketIdempotencyKey(request.headers);
+    const adapter = createReceizCommerceAdapter({ accessToken: actor.accessToken });
+    const repository = createReceizWildzMarketRepository({
+      rail: resolveWildzMarketConditionalAppendRail(adapter)
+    });
+    const admission = await admitWildzTrade(repository, { ...body, idempotencyKey }, actor, {
+      occurredAt: new Date().toISOString()
+    });
+    const response = publicMarketAdmission(admission, "trade", idempotencyKey);
+    return NextResponse.json(response.body, {
+      status: response.status,
+      headers: { "cache-control": "no-store" }
+    });
+  } catch (cause) {
+    const failure = marketRouteError(cause, "market_offer_invalid");
+    return NextResponse.json(failure.body, {
+      status: failure.status,
+      headers: { "cache-control": "no-store" }
+    });
+  }
+}

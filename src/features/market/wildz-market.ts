@@ -1,37 +1,189 @@
-import { sha256PortableBasis } from "../play/portable-card";
+import type { JsonObject } from "@receiz/sdk";
+import {
+  sha256PortableBasis,
+  verifyAnyWildsCard,
+  type PortableCardAsset
+} from "../play/portable-card";
+import type { WildzCookieActor } from "../../lib/receiz/wildz-cookie-actor";
+import {
+  currentWildzOwner,
+  wildzTradeExpiresAt,
+  type WildzMarketState
+} from "../../lib/receiz/wildz-market-state";
 
 export type WildzListing = {
-  schema: "wildz.listing.v1"; id: string; assetId: string; proofDigest: string; seller: string;
-  priceCents: number; currency: "USD"; revision: number; status: "active" | "reserved" | "sold" | "cancelled";
-  idempotencyKey: string; createdAt: string;
+  schema: "wildz.listing.v2";
+  id: string;
+  asset: PortableCardAsset;
+  assetId: string;
+  proofDigest: string;
+  sellerActorId: string;
+  sellerReceizUserId: string;
+  priceCents: number;
+  currency: "USD";
+  status: "active" | "reserved" | "sold" | "cancelled";
+  idempotencyKey: string;
+  createdAt: string;
+  /** Temporary presentation alias; never accepted as seller authority. */
+  seller?: string;
+  /** Temporary presentation hint; repository heads remain the only revision authority. */
+  revision?: number;
 };
+
 export type WildzTradePlan = {
-  schema: "wildz.trade_plan.v1"; id: string; listingId: string; assetId: string; seller: string; buyer: string;
-  priceCents: number; currency: "USD"; expectedRevision: number; idempotencyKey: string; ownershipTransferred: false;
+  schema: "wildz.trade_plan.v2";
+  id: string;
+  listingId: string;
+  assetId: string;
+  sellerActorId: string;
+  buyerActorId: string;
+  priceCents: number;
+  currency: "USD";
+  idempotencyKey: string;
+  createdAt: string;
+  /** Server-derived reservation deadline. Legacy records derive this from createdAt. */
+  expiresAt?: string;
 };
+
+export type WildzOwnershipReceipt = {
+  schema: "receiz.wilds_ownership_receipt.v1";
+  assetId: string;
+  proofDigest: string;
+  previousOwnerReceizId: string;
+  ownerReceizId: string;
+  transferId: string;
+  ledgerEventId: string;
+  proofBundle: JsonObject;
+  transferredAt: string;
+};
+
 export type WildzMarketReceipt = {
-  schema: "wildz.market_receipt.v1"; tradeId: string; status: "settled" | "payment_failed" | "capability_unavailable" | "pending_payment";
-  settlementId: string | null; ownershipTransferred: boolean; nextOwner: string | null;
+  schema: "wildz.market_receipt.v2";
+  tradeId: string;
+  status:
+    | "pending_payment"
+    | "settled"
+    | "payment_failed"
+    | "market_capability_unavailable"
+    | "recovery_pending";
+  transferId: string | null;
+  ledgerEventId: string | null;
+  ownershipTransferred: boolean;
+  nextOwnerReceizId: string | null;
 };
 
-const required = (value: string, field: string) => { const clean = value.trim(); if (!clean) throw new Error(`market_${field}_required`); return clean; };
+export type WildzMarketEvent =
+  | { type: "listing-admitted"; listing: WildzListing }
+  | { type: "listing-cancelled"; listingId: string; actorId: string }
+  | { type: "trade-admitted"; trade: WildzTradePlan }
+  | { type: "trade-released"; tradeId: string; actorId: string; reason: "buyer_cancelled" | "reservation_expired" }
+  | { type: "settlement-admitted"; tradeId: string; receipt: WildzOwnershipReceipt };
 
-export function createWildzListing(input: { actor: string; owner: string; assetId: string; proofDigest: string; priceCents: number; currency: "USD"; expectedRevision: number; idempotencyKey: string; now?: string }): WildzListing {
-  if (required(input.actor, "actor") !== required(input.owner, "owner")) throw new Error("market_ownership_required");
-  if (!Number.isInteger(input.expectedRevision) || input.expectedRevision < 0) throw new Error("market_revision_invalid");
-  if (!Number.isInteger(input.priceCents) || input.priceCents < 50 || input.priceCents > 100_000_000) throw new Error("market_price_invalid");
-  const basis = `${input.assetId}|${input.proofDigest}|${input.owner}|${input.idempotencyKey}`;
-  return { schema: "wildz.listing.v1", id: `listing:${sha256PortableBasis(basis).slice(7, 31)}`, assetId: required(input.assetId, "asset"), proofDigest: required(input.proofDigest, "proof"), seller: input.owner, priceCents: input.priceCents, currency: input.currency, revision: input.expectedRevision + 1, status: "active", idempotencyKey: required(input.idempotencyKey, "idempotency"), createdAt: input.now ?? new Date().toISOString() };
+export type WildzMarketHead = {
+  revision: number;
+  appendAnchorId: string | null;
+};
+
+export type AdmitWildzListingInput = {
+  asset: PortableCardAsset;
+  priceCents: number;
+  expectedRevision: number;
+  expectedAppendAnchorId: string | null;
+  idempotencyKey: string;
+};
+
+export type AdmitWildzTradeInput = {
+  listingId: string;
+  expectedRevision: number;
+  expectedAppendAnchorId: string | null;
+  idempotencyKey: string;
+};
+
+export type CancelWildzListingInput = {
+  listingId: string;
+  expectedRevision: number;
+  expectedAppendAnchorId: string | null;
+  idempotencyKey: string;
+};
+
+export type ReleaseWildzTradeInput = {
+  tradeId: string;
+  expectedRevision: number;
+  expectedAppendAnchorId: string | null;
+  idempotencyKey: string;
+};
+
+function required(value: string, field: string, limit = 512) {
+  const clean = value.trim();
+  if (!clean || clean.length > limit) throw new Error(`market_${field}_required`);
+  return clean;
 }
 
-export function planWildzTrade(input: { listing: WildzListing; buyer: string; expectedRevision: number; idempotencyKey: string }): WildzTradePlan {
-  if (input.listing.status !== "active" || input.expectedRevision !== input.listing.revision) throw new Error("market_stale_listing");
-  const buyer = required(input.buyer, "buyer"); if (buyer === input.listing.seller) throw new Error("market_self_trade_invalid");
-  const idempotencyKey = required(input.idempotencyKey, "idempotency");
-  return { schema: "wildz.trade_plan.v1", id: `trade:${sha256PortableBasis(`${input.listing.id}|${buyer}|${idempotencyKey}`).slice(7, 31)}`, listingId: input.listing.id, assetId: input.listing.assetId, seller: input.listing.seller, buyer, priceCents: input.listing.priceCents, currency: input.listing.currency, expectedRevision: input.expectedRevision, idempotencyKey, ownershipTransferred: false };
+function admittedIso(value: string) {
+  if (!Number.isFinite(Date.parse(value)) || new Date(value).toISOString() !== value) {
+    throw new Error("market_time_invalid");
+  }
+  return value;
 }
 
-export function settleWildzPurchase(plan: WildzTradePlan, settlement: { admitted: boolean; settlementId: string | null; capabilityUnavailable?: boolean }): WildzMarketReceipt {
-  const admitted = settlement.admitted && Boolean(settlement.settlementId);
-  return { schema: "wildz.market_receipt.v1", tradeId: plan.id, status: admitted ? "settled" : settlement.capabilityUnavailable ? "capability_unavailable" : "payment_failed", settlementId: admitted ? settlement.settlementId : null, ownershipTransferred: admitted, nextOwner: admitted ? plan.buyer : null };
+export function createWildzListing(
+  state: WildzMarketState,
+  input: Pick<AdmitWildzListingInput, "asset" | "priceCents" | "idempotencyKey">,
+  actor: WildzCookieActor,
+  context: { occurredAt: string }
+): WildzListing {
+  if (!verifyAnyWildsCard(input.asset).ok) throw new Error("market_card_verification_required");
+  if (!Number.isInteger(input.priceCents) || input.priceCents < 50 || input.priceCents > 100_000_000) {
+    throw new Error("market_price_invalid");
+  }
+  const sellerActorId = required(actor.actorId, "actor");
+  if (currentWildzOwner(state, input.asset) !== sellerActorId) throw new Error("market_ownership_required");
+  const sellerReceizUserId = required(actor.receizUserId, "seller_user");
+  const idempotencyKey = required(input.idempotencyKey, "idempotency", 160);
+  const createdAt = admittedIso(context.occurredAt);
+  const basis = `${input.asset.id}|${input.asset.proof.digest}|${sellerActorId}|${idempotencyKey}`;
+  return {
+    schema: "wildz.listing.v2",
+    id: `listing:${sha256PortableBasis(basis).slice(7, 39)}`,
+    asset: input.asset,
+    assetId: input.asset.id,
+    proofDigest: input.asset.proof.digest,
+    sellerActorId,
+    sellerReceizUserId,
+    priceCents: input.priceCents,
+    currency: "USD",
+    status: "active",
+    idempotencyKey,
+    createdAt,
+    seller: sellerActorId,
+    revision: state.revision + 1
+  };
+}
+
+export function createWildzTrade(
+  listing: WildzListing,
+  input: Pick<AdmitWildzTradeInput, "idempotencyKey">,
+  actor: WildzCookieActor,
+  context: { occurredAt: string }
+): WildzTradePlan {
+  if (listing.status !== "active") throw new Error("market_listing_not_active");
+  const buyerActorId = required(actor.actorId, "actor");
+  if (buyerActorId === listing.sellerActorId) throw new Error("market_self_trade_invalid");
+  const idempotencyKey = required(input.idempotencyKey, "idempotency", 160);
+  const createdAt = admittedIso(context.occurredAt);
+  const expiresAt = wildzTradeExpiresAt({ createdAt });
+  const basis = `${listing.id}|${buyerActorId}|${idempotencyKey}`;
+  return {
+    schema: "wildz.trade_plan.v2",
+    id: `trade:${sha256PortableBasis(basis).slice(7, 39)}`,
+    listingId: listing.id,
+    assetId: listing.assetId,
+    sellerActorId: listing.sellerActorId,
+    buyerActorId,
+    priceCents: listing.priceCents,
+    currency: listing.currency,
+    idempotencyKey,
+    createdAt,
+    expiresAt
+  };
 }

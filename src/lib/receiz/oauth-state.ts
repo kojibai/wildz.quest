@@ -1,4 +1,11 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual
+} from "node:crypto";
 
 export type ReceizOAuthStatePayload = {
   flowNonce: string;
@@ -11,7 +18,6 @@ export type ReceizOAuthStatePayload = {
 
 export type ReceizSessionTicketPayload = {
   accessToken: string;
-  refreshToken?: string;
   expiresIn: number;
   returnTo: string;
   sessionScope: string;
@@ -20,38 +26,58 @@ export type ReceizSessionTicketPayload = {
   issuedAt?: number;
 };
 
-function b64url(value: Buffer | string) {
-  return Buffer.from(value).toString("base64url");
+const TOKEN_VERSION = "v1";
+const STATE_PURPOSE = "receiz.wildz.oauth_state.v1";
+const TICKET_PURPOSE = "receiz.wildz.session_ticket.v1";
+const SUBJECT_PURPOSE = "receiz.wildz.player_subject.v1";
+const BASE64_URL_PATTERN = /^[A-Za-z0-9_-]+$/;
+
+function encryptionKey(secret: string) {
+  return createHash("sha256").update("receiz.wildz.auth_encryption.v1\0").update(secret).digest();
 }
 
-function sign(payload: string, secret: string) {
-  return createHmac("sha256", secret).update(payload).digest("base64url");
+function decodeBase64Url(value: string) {
+  if (!BASE64_URL_PATTERN.test(value)) throw new Error("invalid_base64url");
+  const decoded = Buffer.from(value, "base64url");
+  if (decoded.toString("base64url") !== value) throw new Error("invalid_base64url");
+  return decoded;
 }
 
-function verify(payload: string, signature: string, secret: string) {
-  const expected = sign(payload, secret);
-  const expectedBuffer = Buffer.from(expected);
-  const signatureBuffer = Buffer.from(signature);
-  return expectedBuffer.length === signatureBuffer.length && timingSafeEqual(expectedBuffer, signatureBuffer);
+function pack<T extends { issuedAt?: number }>(payload: T, secret: string, purpose: string) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", encryptionKey(secret), iv);
+  cipher.setAAD(Buffer.from(purpose, "utf8"));
+  const plaintext = Buffer.from(JSON.stringify({ ...payload, issuedAt: payload.issuedAt ?? Date.now() }), "utf8");
+  const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+  return [TOKEN_VERSION, iv.toString("base64url"), ciphertext.toString("base64url"), cipher.getAuthTag().toString("base64url")].join(".");
 }
 
-function pack<T extends { issuedAt?: number }>(payload: T, secret: string) {
-  const body = b64url(JSON.stringify({ ...payload, issuedAt: payload.issuedAt ?? Date.now() }));
-  return `${body}.${sign(body, secret)}`;
-}
-
-function unpack<T>(token: string, secret: string, errorMessage: string, maxAgeMs: number): T {
-  const [body, signature] = token.split(".");
-  if (!body || !signature || !verify(body, signature, secret)) {
+function unpack<T>(token: string, secret: string, purpose: string, errorMessage: string, maxAgeMs: number): T {
+  try {
+    const [version, encodedIv, encodedCiphertext, encodedTag, ...extra] = token.split(".");
+    if (version !== TOKEN_VERSION || !encodedIv || !encodedCiphertext || !encodedTag || extra.length) {
+      throw new Error("invalid_token_shape");
+    }
+    const iv = decodeBase64Url(encodedIv);
+    const ciphertext = decodeBase64Url(encodedCiphertext);
+    const tag = decodeBase64Url(encodedTag);
+    if (iv.byteLength !== 12 || tag.byteLength !== 16 || ciphertext.byteLength === 0) {
+      throw new Error("invalid_token_shape");
+    }
+    const decipher = createDecipheriv("aes-256-gcm", encryptionKey(secret), iv);
+    decipher.setAAD(Buffer.from(purpose, "utf8"));
+    decipher.setAuthTag(tag);
+    const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
+    const payload = JSON.parse(plaintext) as T & { issuedAt?: number };
+    if (!payload.issuedAt || !Number.isSafeInteger(payload.issuedAt)
+      || payload.issuedAt > Date.now() + 30_000
+      || Date.now() - payload.issuedAt > maxAgeMs) {
+      throw new Error("invalid_token_age");
+    }
+    return payload;
+  } catch {
     throw new Error(errorMessage);
   }
-
-  const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as T & { issuedAt?: number };
-  if (!payload.issuedAt || payload.issuedAt > Date.now() + 30_000 || Date.now() - payload.issuedAt > maxAgeMs) {
-    throw new Error(errorMessage);
-  }
-
-  return payload;
 }
 
 export function receizOAuthSecret() {
@@ -69,18 +95,36 @@ export function oauthFlowNonceMatches(expected: string | undefined, actual: stri
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
+export function receizPlayerSubjectKey(subject: string, secret = receizOAuthSecret()) {
+  const stableSubject = subject.trim();
+  if (!stableSubject) throw new Error("Receiz player subject is required");
+  return createHmac("sha256", secret)
+    .update(SUBJECT_PURPOSE)
+    .update("\0")
+    .update(stableSubject)
+    .digest("hex");
+}
+
 export function packReceizOAuthState(payload: ReceizOAuthStatePayload, secret = receizOAuthSecret()) {
-  return pack(payload, secret);
+  return pack(payload, secret, STATE_PURPOSE);
 }
 
 export function unpackReceizOAuthState(token: string, secret = receizOAuthSecret()) {
-  return unpack<ReceizOAuthStatePayload>(token, secret, "Invalid Receiz OAuth state", 10 * 60 * 1000);
+  return unpack<ReceizOAuthStatePayload>(token, secret, STATE_PURPOSE, "Invalid Receiz OAuth state", 10 * 60 * 1000);
 }
 
 export function packReceizSessionTicket(payload: ReceizSessionTicketPayload, secret = receizOAuthSecret()) {
-  return pack(payload, secret);
+  return pack({
+    accessToken: payload.accessToken,
+    expiresIn: payload.expiresIn,
+    returnTo: payload.returnTo,
+    sessionScope: payload.sessionScope,
+    flowNonce: payload.flowNonce,
+    startOrigin: payload.startOrigin,
+    ...(payload.issuedAt === undefined ? {} : { issuedAt: payload.issuedAt })
+  }, secret, TICKET_PURPOSE);
 }
 
 export function unpackReceizSessionTicket(token: string, secret = receizOAuthSecret()) {
-  return unpack<ReceizSessionTicketPayload>(token, secret, "Invalid Receiz session ticket", 2 * 60 * 1000);
+  return unpack<ReceizSessionTicketPayload>(token, secret, TICKET_PURPOSE, "Invalid Receiz session ticket", 2 * 60 * 1000);
 }

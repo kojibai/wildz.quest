@@ -230,6 +230,10 @@ class FakeObjectStore {
     });
   }
 
+  getAll() {
+    return this.transaction.request(() => [...this.values.values()].map((value) => clone(value)));
+  }
+
   put(value: unknown, key?: IDBValidKey) {
     return this.transaction.request(() => {
       if (key === undefined) throw new DOMException("fake_key_required", "DataError");
@@ -246,8 +250,10 @@ class FakeObjectStore {
   }
 }
 
-class FakeDatabase {
-  constructor(private readonly controller: FakeIndexedDbController) {}
+class FakeDatabase extends EventTarget {
+  constructor(private readonly controller: FakeIndexedDbController) { super(); }
+
+  close() {}
 
   get objectStoreNames() {
     const names = [...this.controller.stores.keys()];

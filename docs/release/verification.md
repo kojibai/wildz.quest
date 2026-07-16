@@ -1,86 +1,56 @@
-# Wildz release verification
+# Wildz v3 release verification
 
-Date: 2026-07-15. Target: `wildz.quest`. Production preview: Next.js 15.5.19 on local WebKit at `http://127.0.0.1:3000`.
+Date: 2026-07-16. Target version: `3.0.0`.
 
-## Result
+## Qualification status
 
-Automated application gates and the tested production gameplay paths pass. Live Receiz settlement, durable cross-instance listing storage, and public profile publication remain environment/integration dependencies; unavailable rails return an explicit failure and never transfer ownership.
+The exact local candidate passed the repository release gate and is qualified for commit. Production activation still requires the production Receiz environment, a successful authorized strict-live run, and the external interoperability and remote-mutation gates described below. This document does not declare the candidate deployed, tagged, pushed, strict-live qualified, or externally published.
 
-## QA reference ledger
+## Versioned toolchain
 
-| Required reference | Loaded | Result |
-|---|---:|---|
-| QA/release checklist | yes | Applied |
-| Visual verification | yes | Applied |
-| Playtest QA | yes | Applied |
-| Release checklist | yes | Applied |
-| Game UI quality | yes | Applied; standalone wrapper fixes made |
-| HUD readability | yes | Applied; 390px collision fixes made |
-| Responsive UI fit | yes | Applied across five target sizes |
-| AAA quality gate / scorecard | yes | Applied below |
+| Package | Requested version | Installed version | Role |
+|---|---|---|---|
+| `@receiz/sdk` | `^103.0.0` | `103.0.0` | Application identity, artifact, native proof-object, and remote-rail client |
+| `@receiz/mcp-server` | `^103.0.0` | `103.0.0` | Operator tooling; never application authority |
+| `@receiz/ai-skills` | `^103.0.0` | `103.0.0` | Operator procedure guidance; never proof authority |
 
-## Commands and evidence
+The published MCP package's internal `workspace:^` SDK request is resolved with the official template's narrow pnpm override to SDK `103.0.0`. The runtime loaded 38 MCP tools and 6 resources.
 
-- `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`: pass; 150 tests, zero failures.
-- `pnpm secret:scan`: pass across 212 tracked text files without printing values.
-- `pnpm receiz:doctor`: identity/artifact/proof rails available; live API, checkout, and webhooks require environment configuration.
-- Manifest and service-worker header requests: HTTP 200; standalone manifest, maskable icons, root scope, and no-store worker update headers confirmed.
-- Browser console: zero errors and zero warnings after gameplay and overlay interactions.
-- Canvas: one canvas, 390×657.98 CSS pixels / 487×822 drawing buffer on mobile, DPR 1.25.
-- Canvas pixel sample: 4,099 unique colors in a 96×96 sample, channel range 0–255.
-- Renderer: 67 calls, 55,738 triangles, 93 geometries, 3 textures; configured budget passed (calls 41.9%, triangles 31.0%).
-- First-load route payload reported by production build: 456 kB.
+## Local evidence
 
-## Player paths exercised
+| Gate | Result |
+|---|---|
+| `pnpm release:check` | Pass: complete Node test suite, typecheck, lint, full tracked/untracked text secret scan, production build, and default Receiz doctor |
+| Proof/Vault regressions | Pass in the full suite, including complete 97/98-card restore, identity-bearing Vault login, Identity Seal login, historical owners, duplicate drops, revision reconciliation, and atomic fork rejection |
+| Native proof-object continuity | Pass: v103 Record → Seal artifact, owner, claim, verify path, bundle verification, and final verifier continuity |
+| Legacy compatibility | Pass: strict bounded app-owned reader plus payload digest, owner, namespace, prior-head, and revision checks |
+| Owner continuity | Pass: exact duplicates drop, verified newer revisions win, and divergent immutable origins or proof forks fail |
+| Public-profile continuity | Pass: verified cards publish before a non-empty owner profile; only marked sanitized anonymous profile JSON is cached by exact URL |
+| V3 ecology lifecycle | Pass: activation, resolution, historicization, expiry, cap release, causal replay, and retry idempotency |
+| Market settlement coordinator | Pass locally: admitted trade, Receiz Connect transfer proof, corroborating wallet ledger event, conditional ownership append, and idempotent recovery |
+| Mobile entry | Chromium and WebKit pass: one-line Genesis copy, no horizontal overflow, and clean entry logs |
+| Gameplay presentation | Chromium mobile smoke passed; WebKit mobile world render was visually inspected at the release viewport |
+| PWA boundary | Real Chromium worker activation and offline navigation passed; an unvisited public route rendered offline guidance without leaking another page |
 
-- Automatic Receiz ID and deterministic female explorer creation.
-- Run/walk mode, keyboard movement, mobile pointer-drag movement and pointer release.
-- Companion training: card XP 136→146, energy 84→78, mission 38%→47%.
-- Mission action: XP 146→164, mission 47%→68%.
-- Public profile open/close with focus return.
-- Public Vault and compact market overlay rendering.
-- Market unavailable state confirms no ownership mutation without settlement configuration.
-- PWA manifest and service-worker scope/cache headers.
+The supplied production-shaped Vault was inspected without recording private bytes, paths, identity values, hashes, or card identifiers. It decoded to 98 cards with an embedded player. An actual-byte browser restore using a mocked successful verifier recovered the embedded identity and all 98 cards. The real local verifier attempt failed closed when the live verifier was unavailable; the mocked-verifier result is frontend/coordinator/IndexedDB evidence, not live Receiz verification.
 
-## Responsive artifacts
+## Pending external evidence
 
-- `output/verification/wildz-mobile-360x640.png`
-- `output/verification/wildz-mobile-390x844.png`
-- `output/verification/wildz-mobile-412x915.png`
-- `output/verification/wildz-tablet-768x1024.png`
-- `output/verification/wildz-desktop-1440x900.png`
-- `output/verification/wildz-profile-mobile.png`
-- `output/verification/wildz-market-mobile.png`
-- `output/verification/wildz-canvas-desktop.png`
+The following remain production or externally authorized gates and were not rewritten as local passes:
 
-## Visual scorecard
+- `pnpm receiz:doctor:strict` was attempted and failed closed before live probes because the production credentials and configuration were absent; strict-live qualification remains pending.
+- Remote world, public-profile, market, payment, transfer, settlement, and publication mutations remain pending. The local paths fail closed until the configured Receiz deployment admits them.
+- The external six-writer artifact exercise remains pending; its six-writer local fixtures passed.
+- Deployment, tag, push, and production publication were not performed.
 
-| Category | Score (0–3) |
-|---|---:|
-| Art direction | 2 |
-| Hero/player | 2 |
-| Enemies/companions | 2 |
-| Rewards/interactables | 2 |
-| World/environment | 3 |
-| Materials | 2 |
-| Lighting/render | 3 |
-| VFX/motion | 2 |
-| UI/HUD | 3 |
-| Performance evidence | 2 |
+## Offline verification contract
 
-Average: 2.3; no category below 2. The release gate passes. Showcase quality is not claimed.
+The worker may cache the versioned app shell, previously visited public profile and card documents, and successful allowlisted card GET responses. Authentication, live world, social presence, market, Receiz, artifact-proxy, personalized, failed, and mutation responses are network-only. An unvisited public document falls back to `/offline`, never the cached root document.
 
-## Issues found and fixed
+## Remote verification contract
 
-- Removed a TypeScript-only assertion from the JavaScript service worker.
-- Replaced inherited commerce-card sizing with a true viewport-filling game shell.
-- Corrected full-height grid allocation so the world, controls, and command dock fit one viewport.
-- Ported formerly wrapper-scoped mobile HUD rules to the standalone shell, removing 390px collisions.
-- Prevented a remote profile handle from displaying the local player’s explorer or Vault.
+There is no external database added by Wildz. Browser owner state is local IndexedDB state; durable shared state depends on configured Receiz rails. Those rails fail closed when missing, stale, unverifiable, or unreachable. A checkout session is not settlement, and ownership never transfers without admitted settlement evidence.
 
-## Deployment and residual risks
+## Release decision
 
-- Deploy with the normal Next.js production build/start workflow.
-- Configure Receiz access, webhook, and settlement variables from `.env.example` before enabling live transactions.
-- Current listing memory is process-local until connected to a durable Receiz public-state rail; do not advertise cross-instance persistence before that integration is configured.
-- No external 3D/image/audio provider credentials were present. The game uses preserved procedural art and synthesized audio; the new brand assets are repository-owned SVG/PNG files.
+Version `3.0.0` is locally qualified for commit. Production activation is conditional on the supplied environment, the strict-live doctor, and the remaining authorized external gates.

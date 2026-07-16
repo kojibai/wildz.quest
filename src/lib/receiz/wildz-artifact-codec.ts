@@ -4,6 +4,7 @@ import {
   type ReceizKeyFile
 } from "@receiz/sdk";
 import { canonicalPortableCardJson, sha256PortableBasis, type PortableCardAsset } from "../../features/play/portable-card";
+import { readReceizProofObjectFromPng } from "../../features/play/card-export";
 import type { WildsPlayerVaultPayload } from "../../features/play/wilds-player-vault";
 import type {
   PreparedWildzIdentity,
@@ -20,6 +21,24 @@ import {
   type WildzCrossPlatformCardExtraction
 } from "./wildz-cross-platform-cards";
 import { isWildzPng, splitWildzPngEnvelope } from "./wildz-png-envelope";
+import { requireWildzIdentityBindingFromEnvelope } from "./wildz-identity-binding";
+import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
+import { extractLegacyReceizPortableAssetDocument } from "./legacy-receiz-portable-asset";
+
+export type WildzPlayerBinding = "identity-portable-state" | "identity-v3-binding" | "artifact-v4-required" | null;
+
+export type WildzProofObjectContinuity = {
+  schema: "receiz.portable_asset.v1";
+  ownerReceizId: string;
+  custody: string;
+  proofRef: string;
+  provenanceRoot: string;
+  payloadSha256: string;
+  payloadMimeType: string;
+  artifactBasisSha256: string;
+  artifactBytes: Uint8Array;
+  proofClaimId: string;
+};
 
 export type WildzRestoreErrorCode =
   | "wildz_restore_identity_missing"
@@ -49,12 +68,15 @@ export type WildzArtifactInspection =
       portableAssets: PortableCardAsset[];
       portableDomainSchemas: string[];
       player: WildsPlayerVaultPayload | null;
+      playerBinding: WildzPlayerBinding;
     }
   | {
       kind: "card-vault";
       assets: PortableCardAsset[];
       vaultDigest: string;
       player: WildsPlayerVaultPayload | null;
+      playerBinding: WildzPlayerBinding;
+      proofObject: WildzProofObjectContinuity | null;
     }
   | {
       kind: "commerce-vault";
@@ -64,6 +86,7 @@ export type WildzArtifactInspection =
       unrelatedDomainSchemas: string[];
       projection: ReceizCommerceVaultProjection;
       player: WildsPlayerVaultPayload | null;
+      playerBinding: WildzPlayerBinding;
     }
   | { kind: "unsupported"; code: "wildz_artifact_unsupported" }
   | { kind: "invalid"; code: WildzRestoreErrorCode; errors: string[] };
@@ -99,7 +122,10 @@ function normalizedError(error: unknown): WildzRestoreErrorCode {
     return "wildz_restore_artifact_too_large";
   }
   if (message === "wildz_restore_owner_mismatch") return "wildz_restore_owner_mismatch";
-  if (message === "wildz_restore_binding_invalid") return "wildz_restore_binding_invalid";
+  if (message === "wildz_restore_binding_invalid"
+    || message === "wildz_restore_binding_missing"
+    || message.startsWith("wildz_png_proof_object_")
+    || message.startsWith("continuity_")) return "wildz_restore_binding_invalid";
   if (message === "wildz_restore_card_proof_invalid"
     || message.startsWith("png_")
     || message.includes("vault_proof")
@@ -113,6 +139,17 @@ function looksLikeJson(bytes: Uint8Array) {
     return byte === 0x7b;
   }
   return false;
+}
+
+function isReceizBundleCandidate(bytes: Uint8Array) {
+  if (!looksLikeJson(bytes)) return false;
+  try {
+    const value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown;
+    return Boolean(value && typeof value === "object" && !Array.isArray(value)
+      && (value as Record<string, unknown>).kind === "receiz.bundle.v1");
+  } catch {
+    return false;
+  }
 }
 
 function vaultDigest(assets: readonly PortableCardAsset[]) {
@@ -139,11 +176,52 @@ export function createWildzArtifactCodec(input: {
         }
       }
 
+      let proofObject: WildzProofObjectContinuity | null = null;
+      let proofObjectPayload: { bytes: Uint8Array; mimeType: string } | null = null;
+      let proofObjectArtifactBytes: Uint8Array | null = isReceizBundleCandidate(bytes) ? bytes : null;
+      if (pngBasis) {
+        try {
+          proofObjectArtifactBytes = (await readReceizProofObjectFromPng(pngBasis)).artifactBytes;
+        } catch (error) {
+          if (!(error instanceof Error) || error.message !== "wildz_png_proof_object_missing") {
+            return invalid(normalizedError(error));
+          }
+        }
+      }
+      const proofObjectCandidate = proofObjectArtifactBytes !== null;
+      if (proofObjectArtifactBytes !== null) {
+        try {
+          const extracted = await extractLegacyReceizPortableAssetDocument(proofObjectArtifactBytes);
+          if (extracted.document.assetType !== "proof_object") {
+            return invalid("wildz_restore_schema_unsupported");
+          }
+          proofObjectPayload = {
+            bytes: extracted.payloadBytes,
+            mimeType: extracted.document.payload.mimeType
+          };
+          proofObject = {
+            schema: extracted.document.schema,
+            ownerReceizId: extracted.document.ownership.ownerReceizId,
+            custody: extracted.document.ownership.custody,
+            proofRef: extracted.document.ownership.proofRef,
+            provenanceRoot: extracted.document.provenance.root,
+            payloadSha256: extracted.document.payload.sha256,
+            payloadMimeType: extracted.document.payload.mimeType,
+            artifactBasisSha256: extracted.artifactBasisSha256,
+            artifactBytes: proofObjectArtifactBytes.slice(),
+            proofClaimId: extracted.proofClaimId
+          };
+        } catch (error) {
+          return invalid(normalizedError(error));
+        }
+      }
+
       let identity: VerifiedWildzIdentity | null = null;
       let verifiedPortableSnapshot: unknown | null = null;
       let identityError: WildzRestoreErrorCode | null = null;
       let keyFile: ReceizKeyFile | null = null;
       try {
+        if (proofObjectCandidate) throw new Error("wildz_proof_object_not_identity");
         keyFile = await readReceizIdentityArtifact(bytes);
         const projection = await projectReceizIdentityAccount(keyFile);
         if (keyFile.portableState && projection.portableStateStatus !== "verified") {
@@ -157,7 +235,7 @@ export function createWildzArtifactCodec(input: {
         const message = error instanceof Error ? error.message : "";
         const isMissingPngIdentity = pngBasis !== null && message === "receiz_key_identity_record_missing";
         const isIdentityCandidate = pngBasis !== null || looksLikeJson(bytes);
-        if (!isMissingPngIdentity && isIdentityCandidate) {
+        if (!proofObjectCandidate && !isMissingPngIdentity && isIdentityCandidate) {
           identityError = message.includes("portable_state")
             ? "wildz_restore_portable_signature_invalid"
             : "wildz_restore_identity_invalid";
@@ -183,7 +261,8 @@ export function createWildzArtifactCodec(input: {
         extraction = extractVerifiedWildzCards({
           pngBasis,
           verifiedPortableSnapshot,
-          restoredVaultFiles: commerce?.restoredFiles ?? []
+          restoredVaultFiles: commerce?.restoredFiles ?? [],
+          proofObjectPayload
         });
       } catch (error) {
         return invalid(normalizedError(error));
@@ -191,12 +270,29 @@ export function createWildzArtifactCodec(input: {
 
       if (identityError) return invalid(identityError);
       if (commerceError) return invalid(commerceError);
-      if (identity && extraction.player) {
-        if (extraction.player.playerId !== identity.session.actorId) return invalid("wildz_restore_owner_mismatch");
-        // Combined V3 player continuity requires an independently verified
-        // identity binding. The base codec intentionally does not infer one
-        // from matching labels or a spliced SDK trailer.
-        return invalid("wildz_restore_binding_invalid");
+      if (identity && extraction.player
+        && !sameWildzPlayerCoordinate(extraction.player.playerId, identity.session.actorId)) {
+        return invalid("wildz_restore_owner_mismatch");
+      }
+      if (proofObject && (
+        extraction.player && !sameWildzPlayerCoordinate(extraction.player.playerId, proofObject.ownerReceizId)
+      )) {
+        return invalid("wildz_restore_owner_mismatch");
+      }
+      let playerBinding: WildzPlayerBinding = null;
+      if (extraction.player) {
+        if (!identity) {
+          playerBinding = "artifact-v4-required";
+        } else if (extraction.playerSource === "portable-snapshot") {
+          playerBinding = "identity-portable-state";
+        } else {
+          try {
+            await requireWildzIdentityBindingFromEnvelope(bytes);
+            playerBinding = "identity-v3-binding";
+          } catch (error) {
+            return invalid(normalizedError(error));
+          }
+        }
       }
       if (commerce) {
         return {
@@ -206,7 +302,8 @@ export function createWildzArtifactCodec(input: {
           sourceSchemas: [...new Set([commerce.projection.sourceSchema, ...extraction.sourceSchemas])].sort(),
           unrelatedDomainSchemas: extraction.unrelatedDomainSchemas,
           projection: commerce.projection,
-          player: extraction.player
+          player: extraction.player,
+          playerBinding
         };
       }
       if (identity) {
@@ -218,7 +315,8 @@ export function createWildzArtifactCodec(input: {
             ...extraction.sourceSchemas,
             ...extraction.unrelatedDomainSchemas
           ])].sort(),
-          player: extraction.player
+          player: extraction.player,
+          playerBinding
         };
       }
       if (extraction.assets.length) {
@@ -226,7 +324,9 @@ export function createWildzArtifactCodec(input: {
           kind: "card-vault",
           assets: extraction.assets,
           vaultDigest: vaultDigest(extraction.assets),
-          player: extraction.player
+          player: extraction.player,
+          playerBinding,
+          proofObject
         };
       }
       if (artifact.mimeType === "image/png" && pngBasis === null) {

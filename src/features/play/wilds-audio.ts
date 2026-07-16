@@ -1,3 +1,6 @@
+import type { WildsEcologyFamilyId } from "./wilds-ecology";
+import type { WildsBossFamilyId } from "./wilds-boss-ecology";
+
 export type WildsAudioSettings = {
   master: number;
   effects: number;
@@ -21,7 +24,34 @@ export type WildsAudioCue =
   | "player-arrival"
   | "weather-pollen"
   | "landmark-near"
+  | "settlement-arrival"
+  | "settlement-service"
+  | "route-step"
+  | "route-complete"
   | "foliage-surge"
+  | "ecology-rumor"
+  | "ecology-step"
+  | "ecology-resolved"
+  | "ecology-market"
+  | "ecology-ruin"
+  | "ecology-portal"
+  | "ecology-festival"
+  | "ecology-migration"
+  | "ecology-bloom"
+  | "ecology-storm"
+  | "ecology-distress"
+  | "boss-crystal"
+  | "boss-skycoil"
+  | "boss-mirecrown"
+  | "boss-embermane"
+  | "boss-tidal"
+  | "boss-echo"
+  | "boss-lumen"
+  | "boss-voidroot"
+  | "boss-action"
+  | "boss-transform"
+  | "boss-vulnerable"
+  | "boss-defeat"
   | "confirm"
   | "error";
 
@@ -90,10 +120,72 @@ const CUE_VOICES: Readonly<Record<WildsAudioCue, CueVoice>> = {
   "player-arrival": { frequency: 490, endFrequency: 820, duration: 0.36, gain: 0.14, type: "sine" },
   "weather-pollen": { frequency: 310, endFrequency: 470, duration: 0.7, gain: 0.08, type: "sine" },
   "landmark-near": { frequency: 330, endFrequency: 880, duration: 0.72, gain: 0.14, type: "triangle" },
+  "settlement-arrival": { frequency: 294, endFrequency: 784, duration: 0.82, gain: 0.16, type: "triangle" },
+  "settlement-service": { frequency: 587, endFrequency: 988, duration: 0.42, gain: 0.13, type: "sine" },
+  "route-step": { frequency: 440, endFrequency: 554, duration: 0.16, gain: 0.1, type: "triangle" },
+  "route-complete": { frequency: 523, endFrequency: 1_176, duration: 0.72, gain: 0.17, type: "sine" },
   "foliage-surge": { frequency: 170, endFrequency: 390, duration: 0.34, gain: 0.11, type: "sawtooth" },
+  "ecology-rumor": { frequency: 196, endFrequency: 294, duration: 0.55, gain: 0.09, type: "sine" },
+  "ecology-step": { frequency: 392, endFrequency: 523, duration: 0.22, gain: 0.11, type: "triangle" },
+  "ecology-resolved": { frequency: 523, endFrequency: 1_318, duration: 0.92, gain: 0.17, type: "sine" },
+  "ecology-market": { frequency: 330, endFrequency: 659, duration: 0.58, gain: 0.13, type: "triangle" },
+  "ecology-ruin": { frequency: 174, endFrequency: 349, duration: 0.78, gain: 0.12, type: "sine" },
+  "ecology-portal": { frequency: 277, endFrequency: 1_109, duration: 0.7, gain: 0.14, type: "sawtooth" },
+  "ecology-festival": { frequency: 440, endFrequency: 880, duration: 0.68, gain: 0.13, type: "triangle" },
+  "ecology-migration": { frequency: 220, endFrequency: 440, duration: 0.64, gain: 0.12, type: "triangle" },
+  "ecology-bloom": { frequency: 349, endFrequency: 988, duration: 0.72, gain: 0.12, type: "sine" },
+  "ecology-storm": { frequency: 123, endFrequency: 247, duration: 0.66, gain: 0.15, type: "sawtooth" },
+  "ecology-distress": { frequency: 262, endFrequency: 196, duration: 0.48, gain: 0.14, type: "square" },
+  "boss-crystal": { frequency: 196, endFrequency: 988, duration: .72, gain: .17, type: "triangle" },
+  "boss-skycoil": { frequency: 147, endFrequency: 1_176, duration: .66, gain: .17, type: "sawtooth" },
+  "boss-mirecrown": { frequency: 82, endFrequency: 220, duration: .88, gain: .18, type: "triangle" },
+  "boss-embermane": { frequency: 110, endFrequency: 659, duration: .58, gain: .19, type: "square" },
+  "boss-tidal": { frequency: 123, endFrequency: 523, duration: .82, gain: .16, type: "sine" },
+  "boss-echo": { frequency: 174, endFrequency: 698, duration: .9, gain: .15, type: "sine" },
+  "boss-lumen": { frequency: 392, endFrequency: 1_318, duration: .78, gain: .14, type: "triangle" },
+  "boss-voidroot": { frequency: 73, endFrequency: 294, duration: 1.05, gain: .2, type: "sawtooth" },
+  "boss-action": { frequency: 220, endFrequency: 440, duration: .18, gain: .18, type: "square" },
+  "boss-transform": { frequency: 147, endFrequency: 880, duration: .94, gain: .2, type: "sawtooth" },
+  "boss-vulnerable": { frequency: 523, endFrequency: 1_397, duration: .6, gain: .18, type: "triangle" },
+  "boss-defeat": { frequency: 196, endFrequency: 1_568, duration: 1.35, gain: .22, type: "sine" },
   confirm: { frequency: 540, endFrequency: 760, duration: 0.18, gain: 0.14, type: "sine" },
   error: { frequency: 210, endFrequency: 130, duration: 0.24, gain: 0.16, type: "square" }
 };
+
+export function settlementAudioCue(action: "arrival" | "service" | "route-step" | "route-complete"): WildsAudioCue {
+  return action === "arrival" ? "settlement-arrival"
+    : action === "service" ? "settlement-service"
+      : action === "route-step" ? "route-step"
+        : "route-complete";
+}
+
+const ECOLOGY_FAMILY_CUES: Record<WildsEcologyFamilyId, WildsAudioCue> = {
+  "wandering-market": "ecology-market",
+  "echo-ruin": "ecology-ruin",
+  "unstable-portal": "ecology-portal",
+  "convergence-festival": "ecology-festival",
+  "creature-migration": "ecology-migration",
+  "resource-bloom": "ecology-bloom",
+  stormfront: "ecology-storm",
+  "settlement-distress": "ecology-distress"
+};
+
+export function ecologyAudioCue(action: "rumor" | "discovered" | "step" | "resolved", familyId: WildsEcologyFamilyId): WildsAudioCue {
+  return action === "rumor" ? "ecology-rumor"
+    : action === "step" ? "ecology-step"
+      : action === "resolved" ? "ecology-resolved"
+        : ECOLOGY_FAMILY_CUES[familyId];
+}
+
+const BOSS_FAMILY_CUES: Record<WildsBossFamilyId, WildsAudioCue> = {
+  "crystal-burrower": "boss-crystal", "skycoil-tempest": "boss-skycoil", "mirecrown-colossus": "boss-mirecrown",
+  "embermane-siegebeast": "boss-embermane", "tidal-prism-leviathan": "boss-tidal", "echo-antler-warden": "boss-echo",
+  "lumen-moth-sovereign": "boss-lumen", "voidroot-devourer": "boss-voidroot"
+};
+
+export function bossAudioCue(action: "telegraph" | "action" | "transform" | "vulnerable" | "defeat", familyId: WildsBossFamilyId): WildsAudioCue {
+  return action === "action" ? "boss-action" : action === "transform" ? "boss-transform" : action === "vulnerable" ? "boss-vulnerable" : action === "defeat" ? "boss-defeat" : BOSS_FAMILY_CUES[familyId];
+}
 
 function clampUnit(value: unknown, fallback: number) {
   return typeof value === "number" && Number.isFinite(value)

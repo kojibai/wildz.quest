@@ -26,7 +26,7 @@ export type WildzIdentitySession = {
   username: string | null;
   displayName: string | null;
   portableStateStatus: "verified" | "missing" | "invalid";
-  localAuthority: "verified";
+  localAuthority: "verified" | "remote-only";
   remoteStatus: "unknown" | "connected" | "pending" | "offline" | "unavailable";
 };
 
@@ -53,6 +53,7 @@ export interface WildzIdentityRepository {
   bootstrap(legacyStorage?: Pick<Storage, "getItem" | "removeItem">): Promise<WildzIdentitySession>;
   active(): Promise<WildzIdentitySession | null>;
   prepare(keyFile: ReceizKeyFile): Promise<PreparedWildzIdentity>;
+  writeSession(tx: WildzContinuityTransaction, session: WildzIdentitySession, activate: boolean): Promise<void>;
   writePrepared(tx: WildzContinuityTransaction, prepared: PreparedWildzIdentity, activate: boolean): Promise<void>;
   withKeyFile<T>(keyId: string, operation: (keyFile: ReceizKeyFile) => Promise<T>): Promise<T>;
   logout(): Promise<void>;
@@ -110,6 +111,12 @@ export function wildzOwnerScope(keyId: string, actorId: string): WildzOwnerScope
   return `wildz:${encodeURIComponent(keyId)}:${encodeURIComponent(actorId)}`;
 }
 
+export function createWildzAutomaticUsername(webCrypto: Pick<Crypto, "getRandomValues"> = globalThis.crypto) {
+  const entropy = webCrypto.getRandomValues(new Uint8Array(8));
+  const suffix = Array.from(entropy, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `wildz_${suffix}`;
+}
+
 function sessionMetaKey(keyId: string) {
   return `${IDENTITY_SESSION_PREFIX}${keyId}`;
 }
@@ -147,7 +154,9 @@ function isIdentitySession(value: unknown): value is WildzIdentitySession {
     && (typeof session.username === "string" || session.username === null)
     && (typeof session.displayName === "string" || session.displayName === null)
     && (session.portableStateStatus === "verified" || session.portableStateStatus === "missing")
-    && session.localAuthority === "verified"
+    && (session.localAuthority === "verified" || session.localAuthority === "remote-only")
+    && (session.localAuthority !== "remote-only"
+      || session.portableStateStatus === "missing")
     && (session.remoteStatus === "unknown" || session.remoteStatus === "connected" || session.remoteStatus === "pending" || session.remoteStatus === "offline" || session.remoteStatus === "unavailable");
 }
 
@@ -316,7 +325,11 @@ export function createWildzIdentityRepository(options: {
       const current = await repository.active();
       if (current) return current;
 
-      const identity = await createIdentity({ displayName: "Wildz Explorer", deviceName: "Wildz" });
+      const identity = await createIdentity({
+        username: createWildzAutomaticUsername(webCrypto),
+        displayName: "Wildz Explorer",
+        deviceName: "Wildz"
+      });
       const prepared = await repository.prepare(identity.keyFile);
       return database.transaction(["identities", "meta"], "readwrite", async (tx) => {
         const admitted = await activeFromTransaction(tx);
@@ -354,15 +367,9 @@ export function createWildzIdentityRepository(options: {
         }
       };
     },
-    async writePrepared(tx: WildzContinuityTransaction, prepared: PreparedWildzIdentity, activate: boolean) {
-      const session = { ...prepared.session };
-      const encryptedRecord = { ...prepared.encryptedRecord };
-      if (!isIdentitySession(session)
-        || !isEncryptedIdentityRecord(encryptedRecord)
-        || session.keyId !== encryptedRecord.keyId) {
-        throw new Error("wildz_identity_prepared_record_invalid");
-      }
-      await tx.put("identities", encryptedRecord, session.keyId);
+    async writeSession(tx: WildzContinuityTransaction, candidate: WildzIdentitySession, activate: boolean) {
+      const session = { ...candidate };
+      if (!isIdentitySession(session)) throw new Error("wildz_identity_session_invalid");
       await tx.put("meta", session, sessionMetaKey(session.keyId));
       if (activate) {
         const pointer: ActiveIdentityPointer = {
@@ -373,6 +380,17 @@ export function createWildzIdentityRepository(options: {
         };
         await tx.put("meta", pointer, ACTIVE_IDENTITY_KEY);
       }
+    },
+    async writePrepared(tx: WildzContinuityTransaction, prepared: PreparedWildzIdentity, activate: boolean) {
+      const session = { ...prepared.session };
+      const encryptedRecord = { ...prepared.encryptedRecord };
+      if (!isIdentitySession(session)
+        || !isEncryptedIdentityRecord(encryptedRecord)
+        || session.keyId !== encryptedRecord.keyId) {
+        throw new Error("wildz_identity_prepared_record_invalid");
+      }
+      await tx.put("identities", encryptedRecord, session.keyId);
+      await repository.writeSession(tx, session, activate);
     },
     async withKeyFile<T>(keyId: string, operation: (keyFile: ReceizKeyFile) => Promise<T>) {
       const record = await database.read<unknown>("identities", keyId);

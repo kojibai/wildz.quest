@@ -21,4 +21,13 @@ test("public profile projection excludes identity authority and private vault en
   assert.equal("privateKey" in projected, false);
   assert.deepEqual(projected.vault.map((card) => card.id), ["public-card"]);
   assert.equal(projected.activity.length, 24);
+  assert.equal(projected.explorer, null);
+});
+
+test("public profile accepts only complete bounded explorer traits", () => {
+  const malformed = sanitizePublicWildzProfile({
+    username: "@fern",
+    explorer: { gender: "female", digest: "abc", traits: { outfit: { nested: true }, trail: null } }
+  });
+  assert.equal(malformed.explorer, null);
 });

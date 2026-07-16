@@ -7,6 +7,7 @@ import {
   createWildsAudioRuntime,
   normalizeWildsAudioSettings,
   type WildsAudioContextLike,
+  type WildsAudioCue,
   type WildsAudioSettings,
   type WildsEncounterAudioState
 } from "@/features/play/wilds-audio";
@@ -17,16 +18,8 @@ import {
   type WildsVisualEventKind
 } from "@/features/play/wilds-visual-events";
 
-const WILDS_AUDIO_KEY = "receiz:wilds:audio:v1";
-
-function restoreAudioSettings() {
-  if (typeof window === "undefined") return { ...DEFAULT_WILDS_AUDIO_SETTINGS };
-  try {
-    const saved = window.localStorage.getItem(WILDS_AUDIO_KEY);
-    return normalizeWildsAudioSettings(saved ? JSON.parse(saved) : null);
-  } catch {
-    return { ...DEFAULT_WILDS_AUDIO_SETTINGS };
-  }
+function restoreAudioSettings(initial?: unknown) {
+  return initial ? normalizeWildsAudioSettings(initial) : { ...DEFAULT_WILDS_AUDIO_SETTINGS };
 }
 
 function browserAudioContext() {
@@ -48,12 +41,14 @@ function eventKindForPhase(phase: string): WildsVisualEventKind | null {
 
 export function useWildsPresentation({
   encounter,
-  enabled
+  enabled,
+  initialAudioSettings
 }: {
   encounter: WildsEncounterAudioState;
   enabled: boolean;
+  initialAudioSettings?: unknown;
 }) {
-  const [audioSettings, setAudioSettingsState] = useState<WildsAudioSettings>(restoreAudioSettings);
+  const [audioSettings, setAudioSettingsState] = useState<WildsAudioSettings>(() => restoreAudioSettings(initialAudioSettings));
   const [audioReady, setAudioReady] = useState(false);
   const [visualEvents, setVisualEvents] = useState<WildsVisualEvent[]>([]);
   const runtimeRef = useRef<ReturnType<typeof createWildsAudioRuntime> | null>(null);
@@ -97,11 +92,6 @@ export function useWildsPresentation({
     const runtime = runtimeRef.current;
     runtime?.setSettings(audioSettings);
     if (audioReady && !audioSettings.muted) runtime?.startAmbience();
-    try {
-      window.localStorage.setItem(WILDS_AUDIO_KEY, JSON.stringify(audioSettings));
-    } catch {
-      // Audio settings remain active for this session when persistence is blocked.
-    }
   }, [audioReady, audioSettings]);
 
   useEffect(() => {
@@ -130,11 +120,16 @@ export function useWildsPresentation({
     setAudioSettingsState(normalizeWildsAudioSettings(next));
   }, []);
 
+  const playCue = useCallback((cue: WildsAudioCue) => {
+    runtimeRef.current?.play(cue);
+  }, []);
+
   return {
     audioSettings,
     setAudioSettings,
     audioReady,
     unlockAudio,
+    playCue,
     visualEvents
   };
 }

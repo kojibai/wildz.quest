@@ -9,7 +9,6 @@ import {
   type ConnectTransferRequest,
   type ConnectTransferResponse,
   type ConnectWalletResponse,
-  type DocumentSealResponseMetadata,
   type DocumentVerifyResponse,
   type JsonObject,
   type OidcTokenRequest,
@@ -134,7 +133,6 @@ export type ReceizCommerceAdapter = {
     limit?: number
   ): ReceizProofMemoryAdditionsQuery;
   verifyArtifact(file: Blob): Promise<DocumentVerifyResponse>;
-  sealArtifact(file: Blob, options?: { visualStamp?: boolean }): Promise<DocumentSealResponseMetadata>;
   observePublicProof(body: { url: string; externalCreatorId?: string; title?: string }): Promise<PublicProofRecord>;
   getPublicProofByUrl(url: string): Promise<PublicProofRecord>;
   getPublicProofById(id: string): Promise<PublicProofRecord>;
@@ -495,9 +493,6 @@ export function createReceizCommerceAdapter(
     },
     verifyArtifact(file) {
       return client.verification.verifyArtifact(file);
-    },
-    sealArtifact(file, options) {
-      return client.verification.sealArtifact(file, options);
     },
     observePublicProof(body) {
       return client.publicProof.observe(body);

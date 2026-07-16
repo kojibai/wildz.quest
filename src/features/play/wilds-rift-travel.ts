@@ -36,6 +36,13 @@ function validCoordinate(position: { x: number; z: number }) {
   ));
 }
 
+export function bossTerritoryApproachPoint(boss: { position: { x: number; z: number }; territoryRadius: number; seedDigest: string }) {
+  const digest = sha256PortableBasis(`${boss.seedDigest}:rift-approach`);
+  const angle = (Number.parseInt(digest.slice(7, 15), 16) / 0xffffffff) * Math.PI * 2;
+  const distance = Math.max(1, boss.territoryRadius) + 8;
+  return { x: boss.position.x + Math.cos(angle) * distance, z: boss.position.z + Math.sin(angle) * distance };
+}
+
 export function authorizeRiftTravel(
   request: RiftTravelRequest,
   authority: RiftTravelAuthority

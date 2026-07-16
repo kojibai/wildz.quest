@@ -1,0 +1,1 @@
+export const WILDZ_APPLY_UPDATE_MESSAGE = "WILDZ_APPLY_UPDATE" as const;

@@ -7,13 +7,22 @@ import {
 import JSZip from "jszip";
 import { embedPortableVaultInPng } from "../src/features/play/card-export";
 import { createWildsPlayerVault } from "../src/features/play/wilds-player-vault";
-import { sealCollectedCard, type PortableCardAsset } from "../src/features/play/portable-card";
+import {
+  sealCollectedCard,
+  type PortableCardAsset
+} from "../src/features/play/portable-card";
 import {
   saveWildzRestoredPlayState,
   loadWildzRestoredPlayState,
   restoreWildzArtifactForSurface
 } from "../src/features/identity/wildz-restore";
-import { applyWildsInput, initialPlayState, type PlayState } from "../src/features/play/game-state";
+import {
+  applyWildsInput,
+  initialPlayState,
+  restorePlayState,
+  serializePlayState,
+  type PlayState
+} from "../src/features/play/game-state";
 import { inspectReceizCommerceVault } from "../src/lib/receiz/receiz-commerce-vault";
 import {
   createWildzArtifactCodec,
@@ -220,8 +229,9 @@ test("same-owner card-only restore atomically unions the freshest prior PlayStat
     confirmCardOnly: true,
     currentPlayState: freshest
   });
+  const ownerScopedFreshest = restorePlayState(serializePlayState(freshest), session.actorId);
   const expectedUnion = [...new Set([
-    ...freshest.inventory.map((asset) => asset.id),
+    ...ownerScopedFreshest.inventory.map((asset) => asset.id),
     ...fixture.expectedWildzAssetIds
   ])].sort();
   assert.deepEqual(outcome.playState.inventory.map((asset) => asset.id).sort(), expectedUnion);
@@ -231,6 +241,51 @@ test("same-owner card-only restore atomically unions the freshest prior PlayStat
   const cold = await loadWildzRestoredPlayState({ database, session });
   assert.deepEqual(cold?.inventory.map((asset) => asset.id).sort(), expectedUnion);
   assert.equal(cold?.worldMastery, 73);
+});
+
+test("card-only restore rejects a divergent same-ID proof fork without persisting earlier cards", async () => {
+  const { database, repository, codec } = createCodec();
+  const session = await repository.bootstrap();
+  const existing = sealCollectedCard({
+    formId: "mintcub-1",
+    ownerReceizId: "portable_fork_owner.receiz.id",
+    encounterId: "card-only-divergent-fork",
+    capturedAt: "2026-07-15T14:00:00.000Z"
+  });
+  const divergent = sealCollectedCard({
+    formId: existing.manifest.formId,
+    ownerReceizId: existing.manifest.ownerReceizId,
+    encounterId: existing.manifest.encounterId,
+    capturedAt: "2026-07-15T14:01:00.000Z"
+  });
+  const earlierIncoming = sealCollectedCard({
+    formId: "voltray-1",
+    ownerReceizId: "portable_fork_owner.receiz.id",
+    encounterId: "card-only-before-divergent-fork",
+    capturedAt: "2026-07-15T13:59:00.000Z"
+  });
+  assert.equal(divergent.id, existing.id, "control cards must share their stable id");
+  assert.notEqual(divergent.proof.digest, existing.proof.digest, "control cards must carry divergent proofs");
+
+  const baseline = applyWildsInput(structuredClone(initialPlayState), { type: "import-card", asset: existing });
+  await saveWildzRestoredPlayState({ database, session, playState: baseline });
+  const persistedBefore = await loadWildzRestoredPlayState({ database, session });
+  assert.ok(persistedBefore);
+
+  const bytes = embedPortableVaultInPng(BASE_PNG, [earlierIncoming, divergent]);
+  await assert.rejects(restoreWildzArtifactForSurface({
+    surface: "card-vault",
+    bytes,
+    mimeType: "image/png",
+    codec,
+    repository,
+    database,
+    confirmCardOnly: true
+  }), /wildz_restore_duplicate_card_conflict/);
+
+  const persistedAfter = await loadWildzRestoredPlayState({ database, session });
+  assert.deepEqual(persistedAfter, persistedBefore);
+  assert.equal(persistedAfter?.inventory.some((asset) => asset.id === earlierIncoming.id), false);
 });
 
 test("portable proof tamper and conflicting duplicate IDs stage zero cards", async () => {
@@ -305,7 +360,15 @@ test("V3 player continuity rejects body conflicts and legacy-schema player smugg
   };
   const playerState = cards.reduce((state, asset) => applyWildsInput(state, { type: "import-card", asset }), empty);
   const conflictingState = structuredClone(playerState);
-  conflictingState.inventory[0]!.status = "listed";
+  const source = cards[0]!;
+  const unrelatedSameId = sealCollectedCard({
+    formId: source.manifest.formId,
+    ownerReceizId: source.manifest.ownerReceizId,
+    encounterId: source.manifest.encounterId,
+    capturedAt: "2026-07-15T18:00:00.000Z"
+  });
+  assert.equal(unrelatedSameId.id, source.id);
+  conflictingState.inventory[0] = unrelatedSameId;
   const player = createWildsPlayerVault({
     playerId: session.actorId,
     exportedAt: "2026-07-15T17:00:00.000Z",
@@ -316,6 +379,11 @@ test("V3 player continuity rejects body conflicts and legacy-schema player smugg
     receipts: []
   });
   const v3 = embedPortableVaultInPng(BASE_PNG, cards, player);
+  const conflictingInspection = await target.codec.inspect({ bytes: v3, mimeType: "image/png" });
+  assert.equal(conflictingInspection.kind, "invalid");
+  if (conflictingInspection.kind === "invalid") {
+    assert.equal(conflictingInspection.code, "wildz_restore_duplicate_card_conflict");
+  }
   await assert.rejects(restoreWildzArtifactForSurface({
     surface: "card-vault",
     bytes: v3,
@@ -324,7 +392,7 @@ test("V3 player continuity rejects body conflicts and legacy-schema player smugg
     repository: target.repository,
     database: target.database,
     confirmCardOnly: true
-  }), /wildz_restore_binding_invalid/);
+  }), /wildz_restore_duplicate_card_conflict/);
 
   const legacySmuggle = rewritePngChunk(v3, "rzVt", (data) => {
     const proof = JSON.parse(new TextDecoder().decode(data)) as { schema: string };

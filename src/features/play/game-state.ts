@@ -18,6 +18,17 @@ import { createLivingChildTransaction, lineageEligibility } from "./living-linea
 import { worldMasteryAward, type WorldMasteryVerb } from "./world-progression";
 import { validateRiftGrant, type RiftTravelGrant } from "./wilds-rift-travel";
 import { movementScale, type WildsMovementMode } from "./wilds-movement";
+import { projectWildsCivicHistory, type WildsCivicEvent } from "./wilds-civic-history";
+import { projectWildsEcologyHistory, type WildsEcologyKnowledge, type WildsEcologyReceipt } from "./wilds-ecology-history";
+import { projectWildsRaidHistory, type WildsBossKnowledge, type WildsRaidReceipt } from "./wilds-raid-history";
+import {
+  EMPTY_WILDS_SUPPORT_ASSET_IDS,
+  type WildsBossFamilyId,
+  type WildsEcologyFamilyId,
+  type WildsSupportAssetIds
+} from "./wilds-v3-contracts";
+
+export type { WildsSupportAssetIds } from "./wilds-v3-contracts";
 
 export type GameAction = "explore" | "train" | "mission";
 export type MoveDirection = "north" | "south" | "west" | "east";
@@ -38,6 +49,9 @@ export type WildsInput =
   | { type: "fuse-cards"; parentAId: string; parentBId: string; inheritance: FusionInheritance; fusedAt: string }
   | { type: "evolve"; assetId: string; evolvedAt: string }
   | { type: "record-growth"; assetId: string; event: GrowthEvent }
+  | { type: "record-civic-event"; event: WildsCivicEvent }
+  | { type: "record-ecology-event"; event: WildsEcologyReceipt }
+  | { type: "record-raid-event"; event: WildsRaidReceipt }
   | { type: "ascend-card"; assetId: string; at: string }
   | { type: "finish-transformation" }
   | { type: "finish-lineage-reveal" }
@@ -46,6 +60,7 @@ export type WildsInput =
   | { type: "rest" }
   | { type: "select-card"; cardId: string }
   | { type: "select-asset"; assetId: string }
+  | { type: "assign-support"; slot: 0 | 1; assetId: string | null }
   | { type: "reset" };
 
 export type Vec3 = readonly [number, number, number];
@@ -110,6 +125,7 @@ export type PlayState = {
   rewardCards: RewardCard[];
   selectedCardId: string;
   selectedAssetId: string;
+  supportAssetIds: WildsSupportAssetIds;
   streak: number;
   bossUnlocked: boolean;
   battle: BattleState | null;
@@ -132,6 +148,15 @@ export type PlayState = {
   };
   worldRank: "Grove scout" | "Trail keeper" | "Wilds ranger" | "Titan challenger";
   worldMastery: number;
+  civicEvents: WildsCivicEvent[];
+  regionalReputation: Record<string, number>;
+  ecologyEvents: WildsEcologyReceipt[];
+  ecologyKnowledge: Record<string, WildsEcologyKnowledge>;
+  ecologyMastery: Record<WildsEcologyFamilyId, number>;
+  raidEvents: WildsRaidReceipt[];
+  bossKnowledge: Record<string, WildsBossKnowledge>;
+  bossMastery: Record<WildsBossFamilyId, number>;
+  raidAchievements: string[];
 };
 
 export const worldBounds = {
@@ -223,12 +248,18 @@ export const missionCards: MissionCard[] = [
   }
 ];
 
-const starterCardAsset = sealCollectedCard({
+const LEGACY_PLACEHOLDER_OWNER = "wilds.player.receiz.id";
+
+function starterCardForOwner(ownerReceizId: string) {
+  return sealCollectedCard({
   formId: "mintcub-1",
-  ownerReceizId: "wilds.player.receiz.id",
+  ownerReceizId,
   encounterId: "starter-mintcub",
   capturedAt: "2026-06-29T12:00:00.000Z"
-});
+  });
+}
+
+const starterCardAsset = starterCardForOwner(LEGACY_PLACEHOLDER_OWNER);
 
 export const initialPlayState: PlayState = {
   activeAction: "explore",
@@ -256,6 +287,7 @@ export const initialPlayState: PlayState = {
   rewardCards: [],
   selectedCardId: "mintcub",
   selectedAssetId: starterCardAsset.id,
+  supportAssetIds: EMPTY_WILDS_SUPPORT_ASSET_IDS,
   streak: 9,
   bossUnlocked: false,
   battle: null,
@@ -268,11 +300,33 @@ export const initialPlayState: PlayState = {
   transformation: null,
   lineageReveal: null,
   worldRank: "Grove scout",
-  worldMastery: 38
+  worldMastery: 38,
+  civicEvents: [],
+  regionalReputation: {},
+  ecologyEvents: [],
+  ecologyKnowledge: {},
+  ecologyMastery: projectWildsEcologyHistory([]).mastery,
+  raidEvents: [],
+  bossKnowledge: {},
+  bossMastery: projectWildsRaidHistory([]).mastery,
+  raidAchievements: []
 };
 
-const PLAY_SAVE_SCHEMA = "receiz.wilds.save.v5";
-const LEGACY_PLAY_SAVE_SCHEMAS = new Set(["receiz.wilds.save.v2", "receiz.wilds.save.v3", "receiz.wilds.save.v4"]);
+export function createOwnerBoundInitialPlayState(ownerReceizId: string): PlayState {
+  const owner = ownerReceizId.trim();
+  if (!owner) throw new Error("wilds_player_owner_required");
+  const starter = starterCardForOwner(owner);
+  return {
+    ...structuredClone(initialPlayState),
+    inventory: [{ ...starter, status: "verified", synchronizedAt: "2026-06-29T12:00:00.000Z" }],
+    selectedAssetId: starter.id,
+    supportAssetIds: EMPTY_WILDS_SUPPORT_ASSET_IDS,
+    livingProgress: { [starter.id]: emptyLivingGrowth(0) }
+  };
+}
+
+const PLAY_SAVE_SCHEMA = "receiz.wilds.save.v8";
+const LEGACY_PLAY_SAVE_SCHEMAS = new Set(["receiz.wilds.save.v2", "receiz.wilds.save.v3", "receiz.wilds.save.v4", "receiz.wilds.save.v5", "receiz.wilds.save.v6", "receiz.wilds.save.v7"]);
 
 export function serializePlayState(state: PlayState) {
   return JSON.stringify({ schema: PLAY_SAVE_SCHEMA, state });
@@ -298,36 +352,88 @@ function admitAndMergeInventory(assets: PortableCardAsset[]) {
   return [...merged.values()];
 }
 
-export function restorePlayState(value: string | null | undefined): PlayState {
-  if (!value) return initialPlayState;
+function fallbackPlayState(ownerReceizId?: string) {
+  return ownerReceizId ? createOwnerBoundInitialPlayState(ownerReceizId) : initialPlayState;
+}
+
+function reissuePlaceholderAsset(asset: PortableCardAsset, ownerReceizId: string): PortableCardAsset {
+  if (asset.manifest.ownerReceizId !== LEGACY_PLACEHOLDER_OWNER || ownerReceizId === LEGACY_PLACEHOLDER_OWNER) return asset;
+  const baseFormId = `${asset.manifest.familyId}-1`;
+  let issued: PortableCardAsset = sealCollectedCard({
+    formId: baseFormId,
+    ownerReceizId,
+    encounterId: asset.manifest.encounterId,
+    capturedAt: asset.manifest.capturedAt,
+    kaiPulse: asset.manifest.variant.kaiPulse,
+    battleTranscriptDigest: asset.manifest.variant.battleTranscriptDigest
+  });
+  for (let stage = 2; stage <= asset.manifest.stage; stage += 1) {
+    const evolvedAt = isLivingCardAsset(asset)
+      ? asset.manifest.revisions.find((revision) => revision.stage === stage)?.sealedAt ?? asset.proof.sealedAt
+      : asset.proof.sealedAt;
+    issued = evolvePortableCard({ previous: issued, nextFormId: `${asset.manifest.familyId}-${stage}`, evolvedAt });
+  }
+  return { ...issued, status: asset.status, synchronizedAt: asset.synchronizedAt };
+}
+
+export function normalizeWildsSupportAssetIds(
+  values: unknown,
+  inventory: readonly PortableCardAsset[],
+  leaderAssetId: string
+): WildsSupportAssetIds {
+  const input = Array.isArray(values) ? values : [];
+  const admitted = new Set(inventory.filter((asset) => verifyAnyWildsCard(asset).ok).map((asset) => asset.id));
+  const seen = new Set<string>();
+  const normalized = [0, 1].map((slot) => {
+    const value = input[slot];
+    if (typeof value !== "string" || !value || value === leaderAssetId || !admitted.has(value) || seen.has(value)) return null;
+    seen.add(value);
+    return value;
+  });
+  return [normalized[0] ?? null, normalized[1] ?? null];
+}
+
+export function restorePlayState(value: string | null | undefined, ownerReceizId?: string): PlayState {
+  const fallback = fallbackPlayState(ownerReceizId);
+  if (!value) return fallback;
   try {
     const parsed = JSON.parse(value) as { schema?: unknown; state?: unknown };
-    if ((parsed.schema !== PLAY_SAVE_SCHEMA && !LEGACY_PLAY_SAVE_SCHEMAS.has(String(parsed.schema))) || !parsed.state || typeof parsed.state !== "object") return initialPlayState;
+    if ((parsed.schema !== PLAY_SAVE_SCHEMA && !LEGACY_PLAY_SAVE_SCHEMAS.has(String(parsed.schema))) || !parsed.state || typeof parsed.state !== "object") return fallback;
     const saved = parsed.state as Partial<PlayState>;
-    if (!saved.player || typeof saved.player.x !== "number" || typeof saved.player.z !== "number") return initialPlayState;
+    if (!saved.player || typeof saved.player.x !== "number" || typeof saved.player.z !== "number") return fallback;
     const discoveredCardIds = Array.isArray(saved.discoveredCardIds)
       ? saved.discoveredCardIds.filter((id): id is string => typeof id === "string" && creatureCards.some((card) => card.id === id))
-      : initialPlayState.discoveredCardIds;
+      : fallback.discoveredCardIds;
     const restoredInventory = Array.isArray(saved.inventory)
       ? saved.inventory.filter((asset): asset is PortableCardAsset => Boolean(asset) && verifyAnyWildsCard(asset as PortableCardAsset).ok)
       : [];
+    const ownerScopedInventory = ownerReceizId
+      ? restoredInventory.map((asset) => reissuePlaceholderAsset(asset, ownerReceizId))
+      : restoredInventory;
+    const migratedAssetIds = new Map(restoredInventory.map((asset, index) => [asset.id, ownerScopedInventory[index]?.id ?? asset.id]));
     const inventoryWithMigrations = discoveredCardIds.reduce<PortableCardAsset[]>((assets, cardId, index) => {
       if (assets.some((asset) => asset.manifest.familyId === cardId)) return assets;
       const sealed = sealCollectedCard({
         formId: `${cardId}-1`,
-        ownerReceizId: "wilds.player.receiz.id",
+        ownerReceizId: ownerReceizId ?? LEGACY_PLACEHOLDER_OWNER,
         encounterId: `legacy-${cardId}`,
         capturedAt: new Date(Date.UTC(2026, 5, 29, 12, index)).toISOString()
       });
       return [...assets, sealed];
-    }, restoredInventory);
+    }, ownerScopedInventory);
     const migratedInventory = admitAndMergeInventory(inventoryWithMigrations);
+    const civicProjection = projectWildsCivicHistory(Array.isArray(saved.civicEvents) ? saved.civicEvents.slice(-2_048) : []);
+    const ecologyProjection = projectWildsEcologyHistory(Array.isArray(saved.ecologyEvents) ? saved.ecologyEvents.slice(-2_048) : []);
+    const raidProjection = projectWildsRaidHistory(Array.isArray(saved.raidEvents) ? saved.raidEvents.slice(-4_096) : []);
     const restoredEncounter = restoreEncounter(saved.encounter);
-    const restoredSelectedAssetId = typeof saved.selectedAssetId === "string" && migratedInventory.some((asset) => asset.id === saved.selectedAssetId)
-      ? saved.selectedAssetId
+    const requestedSelectedAssetId = typeof saved.selectedAssetId === "string"
+      ? migratedAssetIds.get(saved.selectedAssetId) ?? saved.selectedAssetId
+      : "";
+    const restoredSelectedAssetId = requestedSelectedAssetId && migratedInventory.some((asset) => asset.id === requestedSelectedAssetId)
+      ? requestedSelectedAssetId
       : [...migratedInventory].reverse().find((asset) => asset.manifest.familyId === saved.selectedCardId)?.id ?? migratedInventory[0]?.id ?? starterCardAsset.id;
     return withWorldProgress({
-      ...initialPlayState,
+      ...fallback,
       ...saved,
       player: {
         x: clamp(saved.player.x, worldBounds.min, worldBounds.max),
@@ -336,6 +442,13 @@ export function restorePlayState(value: string | null | undefined): PlayState {
       discoveredCardIds,
       inventory: migratedInventory,
       selectedAssetId: restoredSelectedAssetId,
+      supportAssetIds: normalizeWildsSupportAssetIds(
+        Array.isArray(saved.supportAssetIds)
+          ? saved.supportAssetIds.map((id) => typeof id === "string" ? migratedAssetIds.get(id) ?? id : id)
+          : EMPTY_WILDS_SUPPORT_ASSET_IDS,
+        migratedInventory,
+        restoredSelectedAssetId
+      ),
       capturedHotspotIds: Array.isArray(saved.capturedHotspotIds)
         ? saved.capturedHotspotIds.filter((id): id is string => typeof id === "string")
         : [],
@@ -344,14 +457,18 @@ export function restorePlayState(value: string | null | undefined): PlayState {
         ? { x: saved.lastSearchPoint.x, z: saved.lastSearchPoint.z }
         : null,
       pendingSyncAssetIds: Array.isArray(saved.pendingSyncAssetIds)
-        ? saved.pendingSyncAssetIds.filter((id): id is string => typeof id === "string" && migratedInventory.some((asset) => asset.id === id))
+        ? saved.pendingSyncAssetIds
+          .filter((id): id is string => typeof id === "string")
+          .map((id) => migratedAssetIds.get(id) ?? id)
+          .filter((id) => migratedInventory.some((asset) => asset.id === id))
         : migratedInventory.filter((asset) => asset.status === "sealed_local").map((asset) => asset.id),
       companionProgress: {
         ...initialPlayState.companionProgress,
         ...(saved.companionProgress ?? {})
       },
       livingProgress: Object.fromEntries(migratedInventory.map((asset) => {
-        const savedProgress = saved.livingProgress?.[asset.id];
+        const originalId = [...migratedAssetIds].find(([, migratedId]) => migratedId === asset.id)?.[0] ?? asset.id;
+        const savedProgress = saved.livingProgress?.[asset.id] ?? saved.livingProgress?.[originalId];
         const admitted = isLivingCardAsset(asset) ? currentRevision(asset).growth : emptyLivingGrowth(0);
         return [asset.id, savedProgress && Array.isArray(savedProgress.eventIds) ? savedProgress : admitted];
       })),
@@ -361,10 +478,19 @@ export function restorePlayState(value: string | null | undefined): PlayState {
       bondCooldowns: saved.bondCooldowns && typeof saved.bondCooldowns === "object" ? saved.bondCooldowns : {},
       transformation: saved.transformation ?? null,
       lineageReveal: saved.lineageReveal ?? null,
-      worldMastery: typeof saved.worldMastery === "number" && Number.isFinite(saved.worldMastery) ? Math.max(0, Math.floor(saved.worldMastery)) : initialPlayState.worldMastery
+      worldMastery: typeof saved.worldMastery === "number" && Number.isFinite(saved.worldMastery) ? Math.max(0, Math.floor(saved.worldMastery)) : fallback.worldMastery,
+      civicEvents: civicProjection.events,
+      regionalReputation: civicProjection.reputation > 0 ? { "wayfinder-hollow": civicProjection.reputation } : {},
+      ecologyEvents: ecologyProjection.events,
+      ecologyKnowledge: ecologyProjection.knowledge,
+      ecologyMastery: ecologyProjection.mastery,
+      raidEvents: raidProjection.events,
+      bossKnowledge: raidProjection.knowledge,
+      bossMastery: raidProjection.mastery,
+      raidAchievements: raidProjection.achievements
     });
   } catch {
-    return initialPlayState;
+    return fallback;
   }
 }
 
@@ -452,7 +578,63 @@ function awardWorldMastery(state: PlayState, verb: WorldMasteryVerb) {
 }
 
 export function applyWildsInput(state: PlayState, input: WildsInput): PlayState {
-  if (input.type === "reset") return initialPlayState;
+  if (input.type === "reset") {
+    const owner = selectedAsset(state)?.manifest.ownerReceizId ?? state.inventory[0]?.manifest.ownerReceizId;
+    return owner ? createOwnerBoundInitialPlayState(owner) : initialPlayState;
+  }
+
+  if (input.type === "assign-support") {
+    const current = [...state.supportAssetIds] as [string | null, string | null];
+    if (input.assetId !== null) {
+      const asset = state.inventory.find((candidate) => candidate.id === input.assetId);
+      const otherSlot = input.slot === 0 ? 1 : 0;
+      if (!asset || !verifyAnyWildsCard(asset).ok || asset.id === state.selectedAssetId || current[otherSlot] === asset.id) {
+        return { ...state, lastEvent: "That companion cannot occupy this support slot." };
+      }
+    }
+    current[input.slot] = input.assetId;
+    return {
+      ...state,
+      supportAssetIds: normalizeWildsSupportAssetIds(current, state.inventory, state.selectedAssetId),
+      lastEvent: input.assetId ? "Trail Pack support updated." : "Trail Pack support slot cleared."
+    };
+  }
+
+  if (input.type === "record-civic-event") {
+    const projection = projectWildsCivicHistory([...state.civicEvents, input.event].slice(-2_048));
+    if (projection.events.length === state.civicEvents.length) return state;
+    return {
+      ...state,
+      civicEvents: projection.events,
+      regionalReputation: { ...state.regionalReputation, "wayfinder-hollow": projection.reputation },
+      lastEvent: `Wayfinder Hollow remembers this moment. Reputation ${projection.reputation}.`
+    };
+  }
+
+  if (input.type === "record-ecology-event") {
+    const projection = projectWildsEcologyHistory([...state.ecologyEvents, input.event].slice(-2_048));
+    if (projection.events.length === state.ecologyEvents.length) return state;
+    return {
+      ...state,
+      ecologyEvents: projection.events,
+      ecologyKnowledge: projection.knowledge,
+      ecologyMastery: projection.mastery,
+      lastEvent: `${input.event.familyId.replaceAll("-", " ")} remembered. Ecology mastery ${projection.mastery[input.event.familyId]}.`
+    };
+  }
+
+  if (input.type === "record-raid-event") {
+    const projection = projectWildsRaidHistory([...state.raidEvents, input.event].slice(-4_096));
+    if (projection.events.length === state.raidEvents.length) return state;
+    return {
+      ...state,
+      raidEvents: projection.events,
+      bossKnowledge: projection.knowledge,
+      bossMastery: projection.mastery,
+      raidAchievements: projection.achievements,
+      lastEvent: `${input.event.familyId.replaceAll("-", " ")} raid remembered. Mastery ${projection.mastery[input.event.familyId]}.`
+    };
+  }
 
   if (input.type === "finish-transformation") return state.transformation ? { ...state, transformation: null } : state;
   if (input.type === "finish-lineage-reveal") return state.lineageReveal ? { ...state, lineageReveal: null } : state;
@@ -755,10 +937,12 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
   if (input.type === "select-card") {
     if (!state.discoveredCardIds.includes(input.cardId)) return state;
     const asset = [...state.inventory].reverse().find((candidate) => candidate.manifest.familyId === input.cardId);
+    const selectedAssetId = asset?.id ?? state.selectedAssetId;
     return {
       ...state,
-      selectedAssetId: asset?.id ?? state.selectedAssetId,
+      selectedAssetId,
       selectedCardId: input.cardId,
+      supportAssetIds: normalizeWildsSupportAssetIds(state.supportAssetIds, state.inventory, selectedAssetId),
       lastEvent: `${cardName(input.cardId)} is now leading your deck.`
     };
   }
@@ -770,6 +954,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       ...state,
       selectedAssetId: asset.id,
       selectedCardId: asset.manifest.familyId,
+      supportAssetIds: normalizeWildsSupportAssetIds(state.supportAssetIds, state.inventory, asset.id),
       lastEvent: `${asset.manifest.name} is now leading your active deck.`
     };
   }

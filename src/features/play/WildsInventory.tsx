@@ -4,13 +4,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { Icons } from "@/components/icons";
+import { sortWildzCards, type WildzCardSort } from "./card-sort";
 import { creatureForm } from "./creature-catalog";
-import { downloadPortableCard, downloadPortableVault, standaloneCardUrl } from "./card-export";
+import { downloadPortableCard, standaloneCardUrl } from "./card-export";
 import type { PlayState, WildsInput } from "./game-state";
+import type { WildsPlayerVaultPayload } from "./wilds-player-vault";
 import { WildsCardScene } from "./WildsCardScene";
 import { WildsGrowthPanel } from "./WildsGrowthPanel";
 import { clampInventoryPage, inventoryPageSize } from "./inventory-pagination";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
+import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
 import {
   readReceizCommerceVaultLibrary,
   saveReceizCommerceVault,
@@ -23,11 +26,19 @@ import type {
 
 export function WildsInventory({
   state,
+  cardOrder,
+  onCardOrderChange,
+  playerVault,
+  onExportVault,
   onInput,
   onListAsset,
   onRestoreArtifact
 }: {
   state: PlayState;
+  cardOrder: WildzCardSort;
+  onCardOrderChange: (order: WildzCardSort) => void;
+  playerVault: () => WildsPlayerVaultPayload;
+  onExportVault: (assets: PlayState["inventory"], player: WildsPlayerVaultPayload) => Promise<unknown>;
   onInput: (input: WildsInput) => void;
   onListAsset?: (asset: PlayState["inventory"][number], priceCents: number) => Promise<PlayState["inventory"][number] | null>;
   onRestoreArtifact: (
@@ -56,12 +67,12 @@ export function WildsInventory({
   const importInput = useRef<HTMLInputElement>(null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const suppressCardClick = useRef(false);
-  const matches = useMemo(() => state.inventory.filter((asset) => {
+  const matches = useMemo(() => sortWildzCards(state.inventory.filter((asset) => {
     const form = creatureForm(asset.manifest.formId);
     if (!form) return false;
     const haystack = `${form.name} ${form.species} ${form.habitat} ${form.abilities.map((ability) => ability.name).join(" ")} ${form.cardNumber}`.toLowerCase();
     return haystack.includes(query.trim().toLowerCase()) && (rarity === "all" || form.rarity === rarity);
-  }), [query, rarity, state.inventory]);
+  }), cardOrder), [cardOrder, query, rarity, state.inventory]);
   const pageSize = inventoryPageSize(compact);
   const pages = Math.max(1, Math.ceil(matches.length / pageSize));
   const safePage = clampInventoryPage(page, matches.length, pageSize);
@@ -132,8 +143,8 @@ export function WildsInventory({
             onClick={async () => {
               setVaultMessage("Preparing portable vault image…");
               try {
-                await downloadPortableVault(state.inventory);
-                setVaultMessage("Vault image saved with every verified card sealed inside.");
+                await onExportVault(state.inventory, playerVault());
+                setVaultMessage("Vault image saved with your player identity, progress, settings, and every verified card sealed inside.");
               } catch (error) {
                 setVaultMessage(error instanceof Error ? `Vault save failed: ${error.message}` : "Vault save failed. Try again from this browser.");
               }
@@ -227,6 +238,11 @@ export function WildsInventory({
         <select aria-label="Filter card rarity" onChange={(event) => { setRarity(event.target.value); setPage(0); }} value={rarity}>
           <option value="all">All rarities</option><option value="trail">Trail</option><option value="uncommon">Uncommon</option><option value="rare">Rare</option><option value="mythic">Mythic</option><option value="eternal">Eternal</option>
         </select>
+        <select aria-label="Sort card vault" onChange={(event) => { onCardOrderChange(event.target.value as WildzCardSort); setPage(0); }} value={cardOrder}>
+          <option value="rarity">Rarity</option>
+          <option value="newest">Newest</option>
+          <option value="oldest">Oldest</option>
+        </select>
       </div>
       <div className="wilds-inventory-layout">
         <div
@@ -249,7 +265,14 @@ export function WildsInventory({
         <div className="wilds-inventory-grid">
           {visible.map((asset) => {
             const form = creatureForm(asset.manifest.formId)!;
-            return <button aria-pressed={selected?.id === asset.id} key={asset.id} onClick={() => { if (suppressCardClick.current) { suppressCardClick.current = false; return; } setSelectedId(asset.id); }} type="button"><WildsCreatureThumbnail asset={asset} /><strong>{asset.manifest.name}</strong><small>Stage {form.stage} · {form.rarity}</small><b>{asset.status === "sealed_local" ? "Offline sealed" : "Verified"}</b></button>;
+            const cardProgress = state.companionProgress[asset.manifest.familyId] ?? { level: 1, xp: 0, bond: 0 };
+            return <button aria-pressed={selected?.id === asset.id} key={asset.id} onClick={() => { if (suppressCardClick.current) { suppressCardClick.current = false; return; } setSelectedId(asset.id); }} type="button">
+              <WildsCreatureThumbnail asset={asset} />
+              <span className="wilds-inventory-card-xp">{cardProgress.xp} XP</span>
+              <strong className="wilds-creature-name"><span>{asset.manifest.name}</span><WildsVerifiedBadge /></strong>
+              <small>Stage {form.stage} · {form.rarity} · Bond {cardProgress.bond}</small>
+              <b>{asset.manifest.stats.power} PWR · {asset.status === "sealed_local" ? "Offline sealed" : "Verified"}</b>
+            </button>;
           })}
           {!visible.length ? <p className="wilds-inventory-empty">No collected cards match this search.</p> : null}
         </div>

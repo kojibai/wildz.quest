@@ -1,15 +1,45 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createReceizCommerceAdapter } from "@/lib/receiz/adapter";
-import { planWildzTrade } from "@/features/market/wildz-market";
-import { settleUnavailable } from "@/lib/receiz/wildz-market-adapter";
+import { resolveWildzCookieActor } from "@/lib/receiz/wildz-cookie-actor";
+import {
+  createReceizWildzMarketRepository,
+  resolveWildzMarketConditionalAppendRail
+} from "@/lib/receiz/wildz-market-repository";
+import { purchaseAdmittedWildzTrade } from "@/lib/receiz/wildz-market-adapter";
+import {
+  marketRouteError,
+  parseWildzTradeCommand
+} from "@/lib/receiz/wildz-market-route";
 
-export async function POST(request: Request) {
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const idempotencyKey = request.headers.get("idempotency-key") ?? body.idempotencyKey;
-    const plan = planWildzTrade({ listing: body.listing, buyer: body.buyer, expectedRevision: body.expectedRevision, idempotencyKey });
-    if (!process.env.RECEIZ_ACCESS_TOKEN) return NextResponse.json(settleUnavailable(plan), { status: 503 });
-    const checkout = await createReceizCommerceAdapter().oneClickCheckout({ tenantHost: process.env.NEXT_PUBLIC_DEFAULT_SUBDOMAIN ?? "wildz.quest", amountUsd: (plan.priceCents / 100).toFixed(2), currency: "usd", walletFirst: true, cardFallback: true, customerReceizId: plan.buyer, orderId: plan.id, idempotencyKey, cart: { items: [{ id: plan.assetId, assetId: plan.assetId, quantity: 1, unitAmountUsd: (plan.priceCents / 100).toFixed(2) }] }, successUrl: "https://wildz.quest/?trade=success", cancelUrl: "https://wildz.quest/?trade=cancelled" });
-    return NextResponse.json({ schema: "wildz.market_receipt.v1", tradeId: plan.id, status: "pending_payment", ownershipTransferred: false, nextOwner: null, checkoutSession: checkout.checkoutSession ?? null }, { status: 202 });
-  } catch (cause) { return NextResponse.json({ error: cause instanceof Error ? cause.message : "checkout_invalid", ownershipTransferred: false }, { status: 400 }); }
+    const actor = await resolveWildzCookieActor(request);
+    const body = parseWildzTradeCommand(await request.json().catch(() => null));
+    const adapter = createReceizCommerceAdapter({ accessToken: actor.accessToken });
+    const repository = createReceizWildzMarketRepository({
+      rail: resolveWildzMarketConditionalAppendRail(adapter)
+    });
+    const result = await purchaseAdmittedWildzTrade(repository, adapter, body, actor, {
+      occurredAt: new Date().toISOString()
+    });
+    const status = result.status === "settled" ? 200
+      : result.status === "recovery_pending" ? 202
+        : result.status === "payment_failed" ? 402
+          : result.status === "reservation_expired" ? 409
+          : result.status === "market_revision_conflict" ? 409
+            : 503;
+    const response = result.status === "settled"
+      ? { status: result.status, receipt: result.receipt, ownershipTransferred: true }
+      : result;
+    return NextResponse.json(response, { status, headers: { "cache-control": "no-store" } });
+  } catch (cause) {
+    const failure = marketRouteError(cause, "market_checkout_invalid");
+    return NextResponse.json(failure.body, {
+      status: failure.status,
+      headers: { "cache-control": "no-store" }
+    });
+  }
 }

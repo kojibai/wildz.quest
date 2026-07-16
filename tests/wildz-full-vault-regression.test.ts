@@ -85,7 +85,7 @@ async function regressionArtifact() {
     receipts: []
   });
   const identityBasis = embedPortableVaultInPng(BASE_PNG, cards);
-  const cardOnlyBasis = embedPortableVaultInPng(BASE_PNG, cards, player);
+  const cardOnlyBasis = embedPortableVaultInPng(BASE_PNG, player.playState.inventory, player);
   return {
     cards,
     expectedIds: cards.map((asset) => asset.id).sort(),
@@ -158,6 +158,7 @@ test("generated 97-card identity Vault survives inspection, both restore surface
     repository: genesis.repository,
     database: genesis.database,
     confirmCardOnly: true,
+    proofSealedPlayer: true,
     currentPlayState: genesisOutcome.playState
   });
   assert.deepEqual(v3Outcome.playState.inventory.map((asset) => asset.id).sort(), fixture.expectedIds);

@@ -6,8 +6,30 @@ import { test } from "node:test";
 type PackageManifest = {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
+  pnpm?: { overrides?: Record<string, string> };
   version?: string;
 };
+
+const STRICT_RECEIZ_ENVIRONMENT = [
+  "NEXT_PUBLIC_RECEIZ_MODE",
+  "RECEIZ_BASE_URL",
+  "RECEIZ_CLIENT_ID",
+  "RECEIZ_CLIENT_SECRET",
+  "RECEIZ_OAUTH_STATE_SECRET",
+  "NEXT_PUBLIC_AUTH_MODE",
+  "RECEIZ_AUTH_MODE",
+  "RECEIZ_ID_CALLBACK_URL",
+  "NEXT_PUBLIC_SITE_URL",
+  "NEXT_PUBLIC_CHECKOUT_MODE",
+  "RECEIZ_CHECKOUT_MODE",
+  "RECEIZ_ACCESS_TOKEN"
+] as const;
+
+function cleanStrictReceizEnvironment() {
+  const env = { ...process.env };
+  for (const name of STRICT_RECEIZ_ENVIRONMENT) delete env[name];
+  return env;
+}
 
 function readJson(path: string): PackageManifest {
   return JSON.parse(readFileSync(path, "utf8")) as PackageManifest;
@@ -27,27 +49,61 @@ function major(version: string) {
   return Number(match[1]);
 }
 
-test("SDK and operational MCP packages request and install Receiz major 101", () => {
+test("SDK, operational MCP, and AI skills request and install Receiz major 103", () => {
   const pkg = readJson("package.json");
   const docs = readFileSync("docs/MCP.md", "utf8");
   const requestedSdk = pkg.dependencies?.["@receiz/sdk"];
   const requestedMcp = pkg.devDependencies?.["@receiz/mcp-server"];
+  const requestedAiSkills = pkg.devDependencies?.["@receiz/ai-skills"];
   const installedSdk = installedVersion("@receiz/sdk");
   const installedMcp = installedVersion("@receiz/mcp-server");
+  const installedAiSkills = installedVersion("@receiz/ai-skills");
 
-  assert.equal(requestedSdk, "^101.0.0");
-  assert.equal(requestedMcp, "101.0.0");
-  assert.equal(installedSdk, "101.0.0");
-  assert.equal(installedMcp, "101.0.0");
-  assert.equal(major(requestedSdk), 101);
-  assert.equal(major(requestedMcp), 101);
-  assert.equal(major(installedSdk), 101);
-  assert.equal(major(installedMcp), 101);
-  assert.match(docs, /@receiz\/sdk@\^101\.0\.0/);
-  assert.match(docs, /@receiz\/mcp-server@101\.0\.0/);
+  assert.equal(requestedSdk, "^103.0.0");
+  assert.equal(requestedMcp, "^103.0.0");
+  assert.equal(requestedAiSkills, "^103.0.0");
+  assert.equal(installedSdk, "103.0.0");
+  assert.equal(installedMcp, "103.0.0");
+  assert.equal(installedAiSkills, "103.0.0");
+  assert.equal(pkg.pnpm?.overrides?.["@receiz/mcp-server@103.0.0>@receiz/sdk"], "103.0.0");
+  for (const version of [requestedSdk, requestedMcp, requestedAiSkills, installedSdk, installedMcp, installedAiSkills]) {
+    assert.equal(major(version), 103);
+  }
+  assert.match(docs, /@receiz\/sdk@\^103\.0\.0/);
+  assert.match(docs, /@receiz\/mcp-server@\^103\.0\.0/);
+  assert.match(docs, /@receiz\/ai-skills@\^103\.0\.0/);
 });
 
-test("Receiz doctor verifies requested and installed SDK/MCP major 101", () => {
+test("the production env template contains only standalone Wildz variables and an opt-in doctor token", () => {
+  const template = readFileSync(".env.example", "utf8");
+  const configuredNames = template
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#") && line.includes("="))
+    .map((line) => line.slice(0, line.indexOf("=")));
+
+  assert.deepEqual(configuredNames, [
+    "NEXT_PUBLIC_RECEIZ_MODE",
+    "RECEIZ_BASE_URL",
+    "RECEIZ_CLIENT_ID",
+    "RECEIZ_CLIENT_SECRET",
+    "RECEIZ_OAUTH_STATE_SECRET",
+    "NEXT_PUBLIC_AUTH_MODE",
+    "RECEIZ_AUTH_MODE",
+    "RECEIZ_ID_CALLBACK_URL",
+    "NEXT_PUBLIC_SITE_URL",
+    "NEXT_PUBLIC_WILDZ_SW_RELEASE",
+    "WILDS_PULSE_TICK_SECRET",
+    "RECEIZ_CONNECT_ACCESS_TOKEN",
+    "NEXT_PUBLIC_CHECKOUT_MODE",
+    "RECEIZ_CHECKOUT_MODE"
+  ]);
+  assert.match(template, /Record\/Seal\/Verify[\s\S]*receiz:record[\s\S]*receiz:seal[\s\S]*receiz:verify/);
+  assert.match(template, /strict-live configuration and production activation sentinels/i);
+  assert.match(template, /^# RECEIZ_ACCESS_TOKEN=$/m);
+});
+
+test("Receiz doctor verifies requested and installed SDK/MCP/AI-skills major 103", () => {
   const result = spawnSync(process.execPath, ["scripts/receiz-doctor.mjs"], {
     cwd: process.cwd(),
     encoding: "utf8"
@@ -60,22 +116,50 @@ test("Receiz doctor verifies requested and installed SDK/MCP major 101", () => {
       compatible: boolean;
       sdk: { requested: string; installed: string; requestedMajor: number; installedMajor: number };
       mcp: { requested: string; installed: string; requestedMajor: number; installedMajor: number };
+      aiSkills: { requested: string; installed: string; requestedMajor: number; installedMajor: number };
     };
   };
   assert.deepEqual(report.versions, {
-    targetMajor: 101,
+    targetMajor: 103,
     compatible: true,
     sdk: {
-      requested: "^101.0.0",
-      installed: "101.0.0",
-      requestedMajor: 101,
-      installedMajor: 101
+      requested: "^103.0.0",
+      installed: "103.0.0",
+      requestedMajor: 103,
+      installedMajor: 103
     },
     mcp: {
-      requested: "101.0.0",
-      installed: "101.0.0",
-      requestedMajor: 101,
-      installedMajor: 101
+      requested: "^103.0.0",
+      installed: "103.0.0",
+      requestedMajor: 103,
+      installedMajor: 103
+    },
+    aiSkills: {
+      requested: "^103.0.0",
+      installed: "103.0.0",
+      requestedMajor: 103,
+      installedMajor: 103
     }
   });
+});
+
+test("strict-live Receiz doctor fails closed with sanitized missing configuration", () => {
+  const clientSecret = ["strict", "client", "secret", "must", "not", "print"].join("-");
+  const result = spawnSync(process.execPath, ["scripts/receiz-doctor.mjs", "--strict-live"], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    env: { ...cleanStrictReceizEnvironment(), RECEIZ_CLIENT_SECRET: clientSecret }
+  });
+
+  assert.equal(result.status, 1, result.stderr || result.stdout);
+  const report = JSON.parse(result.stdout) as {
+    mode: string;
+    ok: boolean;
+    missingEnvironment: string[];
+  };
+  assert.equal(report.mode, "strict-live");
+  assert.equal(report.ok, false);
+  assert.ok(report.missingEnvironment.includes("RECEIZ_ACCESS_TOKEN"));
+  assert.ok(report.missingEnvironment.includes("RECEIZ_OAUTH_STATE_SECRET"));
+  assert.equal(`${result.stdout}${result.stderr}`.includes(clientSecret), false);
 });

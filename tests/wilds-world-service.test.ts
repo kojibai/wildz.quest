@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { WildsWorldService } from "../src/features/play/wilds-world-service.js";
-import { findWildsWorldRecord } from "../src/features/play/wilds-world-record.js";
+import { findWildsWorldRecord, selectWildsWorldSnapshot } from "../src/features/play/wilds-world-record.js";
+import { initialWildsWorldProjection } from "../src/features/play/wilds-world-state.js";
+import { sealCollectedCard } from "../src/features/play/portable-card.js";
 
 const authority = {
   actorId: "player:captain",
@@ -9,6 +11,7 @@ const authority = {
   pulse: "2026-07-15T12:00:00.000Z",
   occurredAt: "2026-07-15T12:00:00.000Z"
 };
+const card = sealCollectedCard({ capturedAt: authority.occurredAt, encounterId: "world-service-card", formId: "mintcub-1", ownerReceizId: authority.actorId });
 
 describe("Wilds living world service", () => {
   it("spawns one site, boss, and raid in deterministic causal order", () => {
@@ -45,7 +48,17 @@ describe("Wilds living world service", () => {
 
     assert.throws(() => service.execute({ type: "raid.join", bossId, commandId: "command:guest:1" }, { ...authority, canonical: false }), /wilds_world_canonical_authority_required/);
     service.execute({ type: "raid.join", bossId, commandId: "command:join:1" }, { ...authority, pulse: "2026-07-15T12:01:00.000Z", occurredAt: "2026-07-15T12:01:00.000Z" });
-    assert.throws(() => service.execute({ type: "raid.contribute", bossId, damage: 10, support: 0, cardProofDigest: "bad", commandId: "command:hit:1" }, { ...authority, pulse: "2026-07-15T12:02:00.000Z", occurredAt: "2026-07-15T12:02:00.000Z" }), /wilds_world_card_proof_invalid/);
+    assert.throws(() => service.execute({ type: "raid.contribute", bossId, damage: 10, support: 0, cardProofDigest: "bad", commandId: "command:hit:1" }, { ...authority, card, pulse: "2026-07-15T12:02:00.000Z", occurredAt: "2026-07-15T12:02:00.000Z" }), /wilds_world_card_proof_invalid/);
+  });
+
+  it("rejects stale scheduler pulses without mutating the world", () => {
+    const service = new WildsWorldService();
+    service.tick({ pulse: authority.pulse, occurredAt: authority.occurredAt, systemActorId: "receiz:pulse" });
+    service.tick({ pulse: "2026-07-15T12:01:00.000Z", occurredAt: "2026-07-15T12:01:00.000Z", systemActorId: "receiz:pulse" });
+    const before = service.checkpoint();
+    assert.throws(() => service.tick({ pulse: authority.pulse, occurredAt: authority.occurredAt, systemActorId: "receiz:pulse" }), /wilds_world_pulse_order_invalid/);
+    assert.throws(() => service.tickEcology({ pulse: "2026-07-15T11:59:00.000Z", occurredAt: "2026-07-15T11:59:00.000Z", systemActorId: "receiz:pulse" }), /wilds_world_pulse_order_invalid/);
+    assert.deepEqual(service.checkpoint(), before);
   });
 });
 
@@ -57,5 +70,31 @@ describe("Receiz Wilds world recovery", () => {
 
     assert.deepEqual(findWildsWorldRecord({ result: { appState: record } }), record);
     assert.equal(findWildsWorldRecord({ state: { schema: "receiz.wilds_world_checkpoint.v2" } }), null);
+  });
+
+  it("uses an explicit isolated practice projection until Receiz has a canonical revision", () => {
+    const canonical = initialWildsWorldProjection();
+    const practiceService = new WildsWorldService();
+    const practice = practiceService.tick({ pulse: authority.pulse, occurredAt: authority.occurredAt, systemActorId: "receiz:pulse" }).projection;
+
+    assert.deepEqual(selectWildsWorldSnapshot(canonical, practice), { projection: practice, mode: "local_practice" });
+    assert.deepEqual(selectWildsWorldSnapshot({ ...canonical, revision: 1 }, practice), {
+      projection: { ...canonical, revision: 1 },
+      mode: "receiz_live"
+    });
+  });
+
+  it("recovers a checkpoint without replaying history already included in it", () => {
+    const service = new WildsWorldService();
+    for (let index = 0; index < 520; index += 1) {
+      service.execute({
+        type: "social.report",
+        subjectId: `subject:${index}`,
+        reason: `recovery-${index}`,
+        commandId: `command:recovery:${index}`
+      }, authority);
+    }
+    const recovered = new WildsWorldService({ checkpoint: service.checkpoint(), events: service.events() });
+    assert.deepEqual(recovered.snapshot(), service.snapshot());
   });
 });

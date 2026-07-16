@@ -5,6 +5,7 @@ import { WILDZ_IDENTITY_STORAGE_KEY } from "../src/features/identity/wildz-ident
 import type { WildzContinuityDatabase } from "../src/lib/storage/wildz-indexed-db";
 import {
   canonicalWildzActorId,
+  createWildzAutomaticUsername,
   createWildzIdentityRepository,
   wildzOwnerScope
 } from "../src/lib/receiz/wildz-identity-repository";
@@ -42,6 +43,12 @@ test("owner scopes encode both authority coordinates", () => {
     wildzOwnerScope("rz:key/one", "Fern Path"),
     "wildz:rz%3Akey%2Fone:Fern%20Path"
   );
+});
+
+test("automatic local identities use a canonical cross-platform player coordinate", () => {
+  const username = createWildzAutomaticUsername();
+  assert.match(username, /^wildz_[a-f0-9]{16}$/);
+  assert.match(username, /^[a-z0-9_]{3,24}$/);
 });
 
 test("protected persistence contains no serialized private authority", async () => {
@@ -85,6 +92,26 @@ test("prepared identities can be stored without activation and activated later",
     await repository.withKeyFile(prepared.session.keyId, async (keyFile) => keyFile.keyId),
     prepared.session.keyId
   );
+});
+
+test("remote-only Vault identities survive an offline session recheck without becoming local key authority", async () => {
+  const database = createMemoryWildzContinuityDatabase();
+  const repository = createWildzIdentityRepository({ database });
+  const session = {
+    schema: "receiz.wildz.identity_session.v1",
+    keyId: "receiz_remote_subject_key",
+    actorId: "vault_keeper",
+    username: "vault_keeper",
+    displayName: "Vault Keeper",
+    portableStateStatus: "missing",
+    localAuthority: "remote-only",
+    remoteStatus: "offline"
+  } as const;
+
+  await database.transaction(["meta"], "readwrite", (tx) => repository.writeSession(tx, session, true));
+
+  assert.deepEqual(await repository.active(), session);
+  await assert.rejects(repository.withKeyFile(session.keyId, async () => undefined), /wildz_identity_not_found/);
 });
 
 test("legacy migration is durable before plaintext storage is removed", async () => {
@@ -345,6 +372,7 @@ test("writePrepared snapshots admission before asynchronous writes", async () =>
 
   const write = database.transaction(["identities", "meta"], "readwrite", (tx) => repository.writePrepared({
     get: tx.get.bind(tx),
+    getAll: tx.getAll.bind(tx),
     async put(store, value, key) {
       if (firstPut) {
         firstPut = false;

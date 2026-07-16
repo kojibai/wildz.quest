@@ -28,18 +28,18 @@ export function resolveWildsContextAction(input: WildsContextInput): WildsContex
   if (input.secretId) {
     return { kind: "activate", label: "Awaken hidden signal", targetId: input.secretId };
   }
-  if (input.selectedPlayer) {
-    return {
-      kind: "greet",
-      label: `Greet ${input.selectedPlayer.handle}`,
-      playerId: input.selectedPlayer.playerId
-    };
-  }
   if (input.joinableActivity) {
     return {
       kind: "join",
       label: `Join ${input.joinableActivity.name}`,
       activityId: input.joinableActivity.id
+    };
+  }
+  if (input.selectedPlayer) {
+    return {
+      kind: "greet",
+      label: `Greet ${input.selectedPlayer.handle}`,
+      playerId: input.selectedPlayer.playerId
     };
   }
   return { kind: "scan", label: "Pulse the world" };

@@ -12,6 +12,7 @@ import {
   canonicalPortableCardJson,
   type PortableCardAsset
 } from "../../src/features/play/portable-card";
+import type { WildsPlayerVaultPayload } from "../../src/features/play/wilds-player-vault";
 
 export type ReceizCrossPlatformArtifactFixture = {
   source: "receiz-commerce" | "receiz-app" | "receiz-signal" | "receiz-sealed-card" | "wildz-original" | "sdk-compatible";
@@ -474,4 +475,23 @@ export async function createReceizCrossPlatformArtifactFixtures(
       expectedWildzAssetIds
     }
   ];
+}
+
+export async function createReceizCommercePlayerVaultFixture(
+  assets: readonly PortableCardAsset[],
+  player: WildsPlayerVaultPayload
+) {
+  const bytes = new TextEncoder().encode(canonicalPortableCardJson({
+    schema: "receiz.app.portable_bundle.v1",
+    objects: [
+      player,
+      { schema: "receiz.wallet.note.v1", id: "unrelated-player-vault-note", expectedCards: assets.length }
+    ]
+  }));
+  return createReceizVaultPackage([{
+    path: "portable/wildz-player-vault.json",
+    name: "wildz-player-vault.json",
+    mimeType: "application/json",
+    bytes
+  }]);
 }

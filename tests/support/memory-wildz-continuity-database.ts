@@ -15,7 +15,7 @@ export type MemoryWildzContinuityDatabase = WildzContinuityDatabase & {
   wrappingKey(): CryptoKey;
 };
 
-const STORE_NAMES: readonly WildzStoreName[] = ["wrappingKeys", "identities", "ownerStates", "meta"];
+const STORE_NAMES: readonly WildzStoreName[] = ["wrappingKeys", "identities", "ownerStates", "meta", "pendingRestores"];
 
 function clone<T>(value: T): T {
   return structuredClone(value);
@@ -26,7 +26,8 @@ function emptyStores(): Record<WildzStoreName, StoreMap> {
     wrappingKeys: new Map(),
     identities: new Map(),
     ownerStates: new Map(),
-    meta: new Map()
+    meta: new Map(),
+    pendingRestores: new Map()
   };
 }
 
@@ -77,6 +78,10 @@ export function createMemoryWildzContinuityDatabase(): MemoryWildzContinuityData
             const value = working[store].get(key);
             return value === undefined ? null : clone(value as TValue);
           },
+          async getAll<TValue>(store: WildzStoreName) {
+            if (!selected.has(store)) throw new Error("wildz_memory_store_not_in_transaction");
+            return [...working[store].values()].map((value) => clone(value as TValue));
+          },
           async put<TValue>(store: WildzStoreName, value: TValue, key?: IDBValidKey) {
             if (mode !== "readwrite") throw new Error("wildz_memory_transaction_readonly");
             if (!selected.has(store)) throw new Error("wildz_memory_store_not_in_transaction");
@@ -111,7 +116,8 @@ export function createMemoryWildzContinuityDatabase(): MemoryWildzContinuityData
         wrappingKeys: [...stores.wrappingKeys].map(([key, value]) => [clone(key), clone(value)]),
         identities: [...stores.identities].map(([key, value]) => [clone(key), clone(value)]),
         ownerStates: [...stores.ownerStates].map(([key, value]) => [clone(key), clone(value)]),
-        meta: [...stores.meta].map(([key, value]) => [clone(key), clone(value)])
+        meta: [...stores.meta].map(([key, value]) => [clone(key), clone(value)]),
+        pendingRestores: [...stores.pendingRestores].map(([key, value]) => [clone(key), clone(value)])
       };
     },
     failNextTransaction(cause = new Error("wildz_memory_transaction_failed")) {

@@ -24,7 +24,11 @@ function distanceToSegment(point: { x: number; z: number }, start: { x: number; 
   return Math.hypot(point.x - (start.x + dx * t), point.z - (start.z + dz * t));
 }
 
-export function isDynamicSitePositionSafe(position: { x: number; z: number }, activeSites: readonly WildsDynamicSite[]) {
+export function isDynamicSitePositionSafe(
+  position: { x: number; z: number },
+  activeSites: readonly { position: { x: number; z: number }; radius: number }[],
+  radius = 9
+) {
   for (const landmark of WILDS_FLAGSHIP_LANDMARKS) {
     if (Math.hypot(position.x - landmark.position.x, position.z - landmark.position.z) < landmark.radius + CLEARANCE) return false;
     const approach = landmarkApproachPoint(landmark);
@@ -35,7 +39,7 @@ export function isDynamicSitePositionSafe(position: { x: number; z: number }, ac
       if (distanceToSegment(position, route.points[index - 1]!, route.points[index]!) < CLEARANCE) return false;
     }
   }
-  return activeSites.every((site) => Math.hypot(position.x - site.position.x, position.z - site.position.z) >= site.radius + 9 + CLEARANCE);
+  return activeSites.every((site) => Math.hypot(position.x - site.position.x, position.z - site.position.z) >= site.radius + radius + CLEARANCE);
 }
 
 function hexUnit(hex: string, offset: number) {

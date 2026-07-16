@@ -7,7 +7,8 @@ import { hostContextFromHost } from "@/lib/hosting/host-context";
 import { platform } from "@/lib/platform";
 import { createReceizCommerceAdapter } from "./adapter";
 import { loadReceizConnectProfile } from "./connect-profile";
-import { receizRequestSession } from "./session";
+import { playerReceizAccessToken, receizRequestSession } from "./session";
+import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 
 export type WildsMultiplayerActor = {
   playerId: string;
@@ -27,10 +28,10 @@ export function parseWildsRoomKey(value: unknown) {
 }
 
 export async function resolveWildsMultiplayerActor(request: NextRequest, guestValue?: unknown): Promise<WildsMultiplayerActor> {
-  const session = receizRequestSession(request);
-  if (session.cookieAccessToken) {
-    const profile = await loadReceizConnectProfile(session.cookieAccessToken).catch(() => null);
-    if (profile?.handle) return { playerId: profile.handle, handle: profile.handle, practice: false, accessToken: session.cookieAccessToken };
+  const playerToken = playerReceizAccessToken(receizRequestSession(request));
+  if (playerToken) {
+    const profile = await loadReceizConnectProfile(playerToken).catch(() => null);
+    if (profile?.handle) return { playerId: profile.handle, handle: profile.handle, practice: false, accessToken: playerToken };
   }
   const guestId = stringValue(guestValue, 64);
   if (!/^[a-z0-9-]{8,64}$/i.test(guestId)) throw new Error("wilds_guest_identity_required");
@@ -42,7 +43,7 @@ export function authorizeWildsMultiplayerCard(actor: WildsMultiplayerActor, valu
   if (!value || typeof value !== "object") throw new Error("wilds_multiplayer_card_required");
   const asset = value as PortableCardAsset;
   const owner = asset.manifest?.ownerReceizId;
-  if (!actor.practice && owner !== actor.handle && owner !== "wilds.player.receiz.id") throw new Error("wilds_multiplayer_card_owner_invalid");
+  if (!actor.practice && !sameWildzPlayerCoordinate(owner ?? "", actor.handle)) throw new Error("wilds_multiplayer_card_owner_invalid");
   return pvpCardFromAsset(asset);
 }
 

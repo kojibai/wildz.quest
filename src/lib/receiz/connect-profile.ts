@@ -1,4 +1,5 @@
 import { createReceizCommerceAdapter } from "./adapter";
+import { parseWildzPlayerCoordinate } from "./wildz-player-coordinate";
 
 export type ReceizConnectProfile = {
   customDomain: string;
@@ -31,9 +32,7 @@ function nestedRecord(record: Record<string, unknown>, keys: string[]) {
 }
 
 function normalizeHandle(value: string) {
-  const handle = value.trim().replace(/^@/, "");
-  if (!handle) return "";
-  return handle.includes(".") ? handle : `${handle}.receiz.id`;
+  return parseWildzPlayerCoordinate(value)?.profileHandle ?? "";
 }
 
 export function profileFromReceizUserinfo(value: unknown): ReceizConnectProfile {

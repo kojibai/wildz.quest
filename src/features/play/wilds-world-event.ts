@@ -8,10 +8,26 @@ export type WildsWorldEventKind =
   | "boss.emerged"
   | "raid.joined"
   | "raid.contributed"
+  | "raid.entered"
+  | "raid.acted"
+  | "raid.lease_changed"
+  | "raid.retreated"
   | "boss.defeated"
   | "site.memorialized"
+  | "ecology.spawned"
+  | "ecology.phase_changed"
+  | "ecology.discovered"
+  | "ecology.contributed"
+  | "ecology.resolved"
+  | "ecology.historicized"
   | "team.created"
   | "team.joined"
+  | "team.invited"
+  | "team.invite_accepted"
+  | "team.role_changed"
+  | "team.event_scheduled"
+  | "team.squad_assembled"
+  | "social.abuse_reported"
   | "league.scored";
 
 export type WildsWorldEvent<T = unknown> = {
@@ -37,10 +53,26 @@ const eventKinds = new Set<WildsWorldEventKind>([
   "boss.emerged",
   "raid.joined",
   "raid.contributed",
+  "raid.entered",
+  "raid.acted",
+  "raid.lease_changed",
+  "raid.retreated",
   "boss.defeated",
   "site.memorialized",
+  "ecology.spawned",
+  "ecology.phase_changed",
+  "ecology.discovered",
+  "ecology.contributed",
+  "ecology.resolved",
+  "ecology.historicized",
   "team.created",
   "team.joined",
+  "team.invited",
+  "team.invite_accepted",
+  "team.role_changed",
+  "team.event_scheduled",
+  "team.squad_assembled",
+  "social.abuse_reported",
   "league.scored"
 ]);
 

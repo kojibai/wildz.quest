@@ -28,6 +28,7 @@ export function WildsAtlasCanvas({
   onSelect: (landmarkId: string) => void;
   onDrop: (position: { x: number; z: number }) => void;
 }) {
+  const atlasSparkleCount = reducedMotion ? 12 : Math.round(38 * qualityProfile.particles);
   return (
     <div aria-hidden="true" className="wilds-atlas-canvas">
       <Canvas
@@ -54,8 +55,9 @@ export function WildsAtlasCanvas({
         <PresenceLights projection={projection} />
         <CurrentPositionBeam position={currentPosition} projection={projection} />
         <Sparkles
+          key={`wilds-atlas-sparkles-${atlasSparkleCount}`}
+          count={atlasSparkleCount}
           color="#b9fff0"
-          count={reducedMotion ? 12 : Math.round(38 * qualityProfile.particles)}
           opacity={0.45}
           scale={[16, 5, 16]}
           size={1.5}
@@ -253,7 +255,7 @@ function LandmarkBeacons({
   });
 }
 
-function LandmarkMiniature({ icon, accent, active }: { icon: "tree" | "trophy" | "sparkles"; accent: string; active: boolean }) {
+function LandmarkMiniature({ icon, accent, active }: { icon: "tree" | "trophy" | "sparkles" | "compass"; accent: string; active: boolean }) {
   if (icon === "tree") return <group name="map-building-hearttree" position={[0, .2, 0]}>
     <mesh position={[0, .2, 0]}><cylinderGeometry args={[.07, .11, .52, 10]} /><meshStandardMaterial color="#8a583e" roughness={.8} /></mesh>
     <mesh position={[0, .56, 0]}><icosahedronGeometry args={[active ? .34 : .28, 1]} /><meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={1.1} roughness={.68} /></mesh>
@@ -261,6 +263,11 @@ function LandmarkMiniature({ icon, accent, active }: { icon: "tree" | "trophy" |
   if (icon === "trophy") return <group name="map-building-arena" position={[0, .2, 0]}>
     <mesh rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[.34, .1, 9, 28]} /><meshStandardMaterial color="#c5a852" emissive={accent} emissiveIntensity={.55} roughness={.52} /></mesh>
     {[0, 1, 2, 3].map((index) => <mesh key={index} position={[Math.cos(index * Math.PI / 2) * .29, .2, Math.sin(index * Math.PI / 2) * .29]}><cylinderGeometry args={[.035, .05, .42, 8]} /><meshStandardMaterial color="#e9d48b" /></mesh>)}
+  </group>;
+  if (icon === "compass") return <group name="map-building-wayfinder-hollow" position={[0, .22, 0]}>
+    <mesh rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[.32, .32, .08, 24]} /><meshStandardMaterial color="#183e43" emissive={accent} emissiveIntensity={active ? 1.2 : .7} metalness={.42} roughness={.3} /></mesh>
+    <mesh position={[0, .18, 0]} rotation={[0, Math.PI / 4, 0]}><coneGeometry args={[.13, .52, 4]} /><meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={1.4} /></mesh>
+    <mesh position={[0, .05, 0]}><sphereGeometry args={[.07, 12, 8]} /><meshBasicMaterial color="#fff6c8" /></mesh>
   </group>;
   return <group name="map-building-prism" position={[0, .26, 0]}>
     {[-.18, 0, .18].map((x, index) => <mesh key={x} position={[x, index === 1 ? .28 : .16, 0]} rotation={[0, 0, index === 1 ? 0 : x]}><octahedronGeometry args={[index === 1 ? .2 : .14]} /><meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={1.35} metalness={.22} roughness={.3} /></mesh>)}

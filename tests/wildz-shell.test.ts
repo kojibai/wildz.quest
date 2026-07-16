@@ -17,18 +17,39 @@ test("Wildz app owns the game and overlay state", () => {
   assert.match(source, /wildz-app/);
 });
 
+test("local-only identities do not attempt authenticated profile publication", () => {
+  const source = read("src/features/shell/WildzApp.tsx");
+  const connectedGate = source.indexOf('identity.remoteStatus !== "connected"');
+  const publication = source.indexOf("publishCurrentWildzProfile(localPublicProfile, ownerPlayState.inventory)");
+
+  assert.ok(connectedGate >= 0);
+  assert.ok(publication > connectedGate);
+});
+
 test("Wildz creates identity before character genesis and enters play with that identity", () => {
   const source = read("src/features/shell/WildzApp.tsx");
   assert.match(source, /bootstrapWildzContinuity/);
   assert.match(source, /<WildzGenesis/);
   assert.match(source, /ownerReceizId=\{ownerUsername\}/);
-  assert.match(source, /WILDZ_CHARACTER_STORAGE_KEY/);
+  assert.match(source, /setCharacter\(snapshot\.character\)/);
+  assert.match(source, /character=\{character\}/);
+  assert.doesNotMatch(source, /WILDZ_CHARACTER_STORAGE_KEY|WILDS_AVATAR_KEY/);
 });
 
 test("genesis visibly confirms the admitted Receiz identity before explorer creation", () => {
   const source = read("src/features/identity/WildzGenesis.tsx");
   assert.match(source, /Restored Receiz ID/);
   assert.match(source, /restoredIdentity\.username/);
+});
+
+test("a verified Vault is presented as restored before optional live Receiz connection", () => {
+  const source = read("src/features/shell/WildzApp.tsx");
+  assert.match(source, /setVaultPromptMode\(proofBackedVault \? "connect" : "login"\)/);
+  assert.match(source, /Vault identity restored/);
+  assert.match(source, /Connect Receiz/);
+  assert.match(source, /vaultPromptMode === "connect" \? "status" : "alert"/);
+  assert.match(source, /Vault owner required/);
+  assert.match(source, /Sign in as Vault owner/);
 });
 
 test("global shell is edge-to-edge and safe-area aware", () => {

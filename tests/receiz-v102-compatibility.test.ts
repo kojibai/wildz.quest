@@ -3,22 +3,27 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import {
-  createReceizPortableAssetDocument,
   createReceizIdentityKeyFile,
   createReceizProofMemory,
   createReceizProofRegister,
-  extractReceizPortableAssetDocument,
   parseReceizIdentityArtifactText,
-  parseReceizPortableAssetDocument,
   projectReceizIdentityAccount,
   projectReceizAssetManifest,
   projectReceizSportsCardManifest,
-  serializeReceizPortableAssetDocument,
   serializeReceizIdentityArtifact,
   type ReceizProofRegisterSnapshot
 } from "@receiz/sdk";
+import {
+  createLegacyReceizPortableAssetDocument,
+  extractLegacyReceizPortableAssetDocument,
+  parseLegacyReceizPortableAssetDocument,
+  serializeLegacyReceizPortableAssetDocument
+} from "../src/lib/receiz/legacy-receiz-portable-asset";
 import { createWildzIdentityRepository } from "../src/lib/receiz/wildz-identity-repository";
 import { createMemoryWildzContinuityDatabase } from "./support/memory-wildz-continuity-database";
+
+// v102 compatibility includes deliberate readback of earlier proof-memory
+// snapshots; those fixtures remain named for their original source version.
 
 function runtimeSourceText(directory: string): string {
   return readdirSync(directory, { withFileTypes: true })
@@ -159,12 +164,12 @@ test("a v100 proof-register snapshot stores and reloads without proof-object dri
   assert.deepEqual(second.entries().map((entry) => entry.payload), [snapshot.entries[0]?.payload]);
 });
 
-test("v101 portable proof-object serialization retains payload ownership provenance and settlement", async () => {
+test("v102 portable proof-object serialization retains payload ownership provenance and settlement", async () => {
   const payloadBytes = new TextEncoder().encode(JSON.stringify({
     schema: "receiz.wildz.public_proof_fixture.v1",
     proof: { digestSha256Hex: "d".repeat(64) }
   }));
-  const document = await createReceizPortableAssetDocument({
+  const document = await createLegacyReceizPortableAssetDocument({
     assetType: "proof_object",
     payload: { mimeType: "application/json", bytes: payloadBytes },
     ownership: {
@@ -185,17 +190,17 @@ test("v101 portable proof-object serialization retains payload ownership provena
       primitive: "public-test-fixture"
     }
   });
-  const serialized = serializeReceizPortableAssetDocument(document);
-  const parsed = await parseReceizPortableAssetDocument(JSON.parse(new TextDecoder().decode(serialized)));
+  const serialized = serializeLegacyReceizPortableAssetDocument(document);
+  const parsed = await parseLegacyReceizPortableAssetDocument(JSON.parse(new TextDecoder().decode(serialized)));
   assert.deepEqual(parsed, document);
-  assert.deepEqual(serializeReceizPortableAssetDocument(parsed), serialized);
+  assert.deepEqual(serializeLegacyReceizPortableAssetDocument(parsed), serialized);
 
   const serializedCopy = new Uint8Array(serialized.byteLength);
   serializedCopy.set(serialized);
   const artifactBasisSha256 = [...new Uint8Array(await crypto.subtle.digest("SHA-256", serializedCopy.buffer))]
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
-  // extractReceizPortableAssetDocument proves canonical structure and bound
+  // The app-owned compatibility decoder proves canonical structure and bound
   // hashes. Cryptographic verification remains the separate server verify rail.
   const bundleFixture = new TextEncoder().encode(JSON.stringify({
     kind: "receiz.bundle.v1",
@@ -206,7 +211,7 @@ test("v101 portable proof-object serialization retains payload ownership provena
       receizClaimId: "wildz-public-proof-fixture"
     }
   }));
-  const extracted = await extractReceizPortableAssetDocument(bundleFixture);
+  const extracted = await extractLegacyReceizPortableAssetDocument(bundleFixture);
 
   assert.deepEqual(extracted.document, document);
   assert.deepEqual(extracted.originalBytes, serialized);
@@ -218,7 +223,7 @@ test("v101 portable proof-object serialization retains payload ownership provena
   assert.equal(extracted.document.settlement.state, "none");
 });
 
-test("v101 keeps valid manifests inspection-only instead of admitting incomplete proof truth", async () => {
+test("v102 keeps valid manifests inspection-only instead of admitting incomplete proof truth", async () => {
   const fixtures = [
     {
       value: JSON.parse(readFileSync("node_modules/@receiz/sdk/fixtures/receiz-asset-manifest.example.json", "utf8")),
@@ -248,8 +253,28 @@ test("v101 keeps valid manifests inspection-only instead of admitting incomplete
   }
 });
 
-test("browser runtime excludes MCP and the order-sensitive v101 proof-object client admission path", () => {
-  const runtimeSource = `${runtimeSourceText("app")}\n${runtimeSourceText("src")}`;
-  assert.doesNotMatch(runtimeSource, /@receiz\/mcp-server/);
-  assert.doesNotMatch(runtimeSource, /\bcreateProofObject\s*\(/);
+test("v102 keeps MCP and authenticated proof-object creation out of browser feature modules", () => {
+  const browserRuntime = runtimeSourceText("src/features");
+  const productionRuntime = `${runtimeSourceText("app")}\n${runtimeSourceText("src")}`;
+  const proofObjectRoute = readFileSync("app/api/receiz/proof-object/route.ts", "utf8");
+  const compatibilityRoute = readFileSync("app/api/receiz/seal/route.ts", "utf8");
+  assert.doesNotMatch(productionRuntime, /@receiz\/mcp-server/);
+  assert.doesNotMatch(browserRuntime, /\bcreateProofObject\s*\(/);
+  assert.match(proofObjectRoute, /resolveWildzCookieActor/);
+  assert.match(proofObjectRoute, /createWildzExportProofObject/);
+  assert.match(proofObjectRoute, /content-length/);
+  assert.match(proofObjectRoute, /file\.size/);
+  assert.ok(
+    proofObjectRoute.indexOf("content-length") < proofObjectRoute.indexOf("request.formData()"),
+    "known oversized multipart bodies must be rejected before form-data parsing"
+  );
+  assert.ok(
+    proofObjectRoute.indexOf("file.size") < proofObjectRoute.indexOf("file.arrayBuffer()"),
+    "oversized files must be rejected before arrayBuffer materialization"
+  );
+  assert.doesNotMatch(productionRuntime, /\bsealArtifact\b|\/api\/document-seal/);
+  assert.match(compatibilityRoute, /export const dynamic = "force-dynamic"/);
+  assert.match(compatibilityRoute, /export const runtime = "nodejs"/);
+  assert.match(compatibilityRoute, /export \{ POST \} from "\.\.\/proof-object\/route"/);
+  assert.doesNotMatch(compatibilityRoute, /export \{ dynamic, POST, runtime \}/);
 });

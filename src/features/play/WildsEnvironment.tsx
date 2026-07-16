@@ -8,6 +8,9 @@ import { projectWildsBiome, type WildsBiomeTile } from "@/features/play/wilds-bi
 import type { WildsQualityProfile } from "@/features/play/wilds-quality-profile";
 import { WILDS_MAJOR_ROUTES } from "@/features/play/wilds-world-geography";
 import { projectVisibleLandmarkEntrances, type WildsLandmarkDefinition } from "@/features/play/wilds-landmarks";
+import type { WildsWorldProjection } from "@/features/play/wilds-world-state";
+import { WildsSettlementEnvironment, type WildsSettlementWorldMode } from "@/features/play/WildsSettlementEnvironment";
+import { WAYFINDER_HOLLOW } from "@/features/play/wilds-settlements";
 
 export const WILDS_TILE_SIZE = 12;
 const STREAM_RADIUS = 2;
@@ -66,12 +69,16 @@ export function WildsEnvironment({
   player,
   missionProgress,
   worldMastery,
-  qualityProfile
+  qualityProfile,
+  livingWorld,
+  worldMode
 }: {
   player: PlayState["player"];
   missionProgress: number;
   worldMastery: number;
   qualityProfile: WildsQualityProfile;
+  livingWorld?: WildsWorldProjection | null;
+  worldMode: WildsSettlementWorldMode;
 }) {
   const centerX = Math.floor(player.x / WILDS_TILE_SIZE);
   const centerZ = Math.floor(player.z / WILDS_TILE_SIZE);
@@ -101,7 +108,8 @@ export function WildsEnvironment({
       </group>
       <group name="world-layer-mid">
         <EcologyInstances bushes={bushes} flowers={flowers} palette={tiles[12]?.canopy} player={player} rocks={rocks} trees={trees} />
-        <FlagshipLandmarkEntrances player={player} />
+        <FlagshipLandmarkEntrances livingWorld={livingWorld} player={player} worldMode={worldMode} />
+        <LivingWorldSites player={player} world={livingWorld} />
         {tiles.filter((tile) => tile.landmark.kind !== "none" && tile.landmark.kind !== "hearttree-sanctum").map((tile) => (
           <Landmark key={`landmark:${tile.key}`} player={player} tile={tile} />
         ))}
@@ -113,7 +121,32 @@ export function WildsEnvironment({
   );
 }
 
-function FlagshipLandmarkEntrances({ player }: { player: PlayState["player"] }) {
+function LivingWorldSites({ player, world }: { player: PlayState["player"]; world?: WildsWorldProjection | null }) {
+  if (!world) return null;
+  const sites = Object.values(world.sites).filter((site) => site.phase !== "expired" && Math.hypot(site.position.x - player.x, site.position.z - player.z) <= 54);
+  return <group name="world-living-sites">
+    {sites.map((site) => {
+      const boss = site.bossId ? world.bosses[site.bossId] : null;
+      const memorial = site.phase === "memorialized";
+      return <group key={site.id} name={`world-site-${site.id}`} position={[site.position.x - player.x, 0, site.position.z - player.z]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
+          <torusGeometry args={[site.radius * 0.58, 0.18, 10, 48]} />
+          <meshStandardMaterial color={memorial ? "#8edcff" : "#9f6cff"} emissive={memorial ? "#2582a8" : "#5624a8"} emissiveIntensity={0.8} />
+        </mesh>
+        <mesh position={[0, memorial ? 1.2 : 0.42, 0]}>
+          {memorial ? <octahedronGeometry args={[1.15, 1]} /> : <cylinderGeometry args={[1.8, 2.7, 0.8, 20]} />}
+          <meshStandardMaterial color={memorial ? "#d8f7ff" : "#291846"} emissive={memorial ? "#4cc8ef" : "#17052e"} emissiveIntensity={0.45} />
+        </mesh>
+        {boss && boss.phase !== "defeated" ? <group name={`world-boss-${boss.id}`} position={[0, 1.65, 0]}>
+          <mesh><dodecahedronGeometry args={[1.35, 0]} /><meshStandardMaterial color="#6f4b91" emissive="#6d25ad" emissiveIntensity={0.65} /></mesh>
+          <Html center distanceFactor={9}><span className="wilds-world-boss-label">{Math.ceil((boss.health / boss.maxHealth) * 100)}% · Shared boss</span></Html>
+        </group> : null}
+      </group>;
+    })}
+  </group>;
+}
+
+function FlagshipLandmarkEntrances({ livingWorld, player, worldMode }: { livingWorld?: WildsWorldProjection | null; player: PlayState["player"]; worldMode: WildsSettlementWorldMode }) {
   const entrances = projectVisibleLandmarkEntrances(player);
   return <group name="world-flagship-landmarks">
     {entrances.map(({ landmark, relative, distance }) => (
@@ -125,6 +158,7 @@ function FlagshipLandmarkEntrances({ player }: { player: PlayState["player"] }) 
         ) : null}
         {landmark.id === "arena-of-echoes" ? <ArenaOfEchoes /> : null}
         {landmark.id === "prism-arcade" ? <PrismArcade /> : null}
+        {landmark.id === "wayfinder-hollow" ? <WildsSettlementEnvironment livingWorld={livingWorld} relative={{ x: 0, z: 0 }} settlement={WAYFINDER_HOLLOW} worldMode={worldMode} /> : null}
         <LandmarkEntranceBeacon distance={distance} landmark={landmark} />
       </group>
     ))}

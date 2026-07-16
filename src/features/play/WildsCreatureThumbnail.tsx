@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo } from "react";
-import { Icons } from "@/components/icons";
 import { deriveBirthGenome } from "./heartbound-genome";
 import { renderHeartboundSvg } from "./heartbound-renderer";
 import { currentLivingGenome } from "./living-card-proof";
@@ -38,7 +37,6 @@ export function WildsCreatureThumbnail({ asset, className = "" }: { asset: Porta
       } as React.CSSProperties}
     >
       <span className="wilds-creature-artwork" dangerouslySetInnerHTML={{ __html: artwork }} />
-      <span className="wilds-creature-verified"><Icons.check size={9} strokeWidth={4} /></span>
     </span>
   );
 }

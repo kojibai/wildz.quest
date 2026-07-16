@@ -66,14 +66,14 @@ export function WildzGenesis({
     <section className="wildz-genesis" aria-label="Create or restore your Wildz explorer">
       <div className="wildz-genesis-brand">
         <Image src="/brand/wildz-wordmark.svg" alt="Wildz" width={240} height={48} priority />
-        <p>Your Receiz ID is ready. Shape the explorer only you can become.</p>
+        <p>Catch, grow, own, and cash out creatures you can take anywhere.</p>
       </div>
       <div className="wildz-genesis-actions" aria-busy={Boolean(gender) || restoring}>
         <button type="button" onClick={() => create("female")} disabled={Boolean(gender) || restoring}>
-          <span>Female explorer</span><small>Generate from this Kai Pulse</small>
+          <span>Female explorer</span><small>Start your adventure</small>
         </button>
         <button type="button" onClick={() => create("male")} disabled={Boolean(gender) || restoring}>
-          <span>Male explorer</span><small>Generate from this Kai Pulse</small>
+          <span>Male explorer</span><small>Start your adventure</small>
         </button>
         <label className="wildz-restore-control">
           <span>{restoring ? "Reading your Wildz…" : "Restore Identity Seal or Vault"}</span>
@@ -88,7 +88,7 @@ export function WildzGenesis({
         <strong>@{restoredIdentity.username ?? restoredIdentity.actorId}</strong>
         <small>{restoredIdentity.displayName ?? "Wildz Explorer"}</small>
       </div> : null}
-      {gender ? <div className="wildz-pulse-reveal"><i /><span>Kai Pulse is shaping your explorer</span></div> : null}
+      {gender ? <div className="wildz-pulse-reveal"><i /><span>Shaping your explorer</span></div> : null}
       {error ? <p className="wildz-genesis-error" role="status">{error}</p> : null}
     </section>
   );

@@ -23,6 +23,11 @@ import {
   rendererBudgetStatus,
   type WildsQualityProfile
 } from "@/features/play/wilds-quality-profile";
+import type { WildsWorldProjection } from "@/features/play/wilds-world-state";
+import type { WildsSettlementWorldMode } from "@/features/play/WildsSettlementEnvironment";
+import { WildsEcologyEnvironment } from "@/features/play/WildsEcologyEnvironment";
+import { WildsBossEnvironment } from "@/features/play/WildsBossEnvironment";
+import type { PortableCardAsset } from "@/features/play/portable-card";
 
 export function WildsWorldCanvas({
   state,
@@ -32,7 +37,10 @@ export function WildsWorldCanvas({
   searchEnabled,
   onCameraHeadingChange,
   onSelectPlayer,
-  onSearchPoint
+  onSearchPoint,
+  livingWorld,
+  worldMode,
+  supportCards = []
 }: {
   state: PlayState;
   avatarStyle: "female" | "male";
@@ -42,9 +50,16 @@ export function WildsWorldCanvas({
   onCameraHeadingChange: (heading: number) => void;
   onSelectPlayer: (player: WildsPresence | null) => void;
   onSearchPoint: (point: { x: number; z: number }) => void;
+  livingWorld?: WildsWorldProjection | null;
+  worldMode: WildsSettlementWorldMode;
+  supportCards?: readonly PortableCardAsset[];
 }) {
   return (
-    <div className={`wilds-canvas-wrap${searchEnabled ? " search-armed" : ""}`}>
+    <div
+      className={`wilds-canvas-wrap${searchEnabled ? " search-armed" : ""}`}
+      onContextMenu={(event) => event.preventDefault()}
+      onDragStart={(event) => event.preventDefault()}
+    >
       <Canvas
         camera={{ fov: 40, near: 0.1, far: 80, position: [5.8, 8.2, 9.4] }}
         dpr={qualityProfile.dpr}
@@ -58,7 +73,7 @@ export function WildsWorldCanvas({
         shadows={{ type: THREE.PCFShadowMap }}
       >
         <Suspense fallback={null}>
-          <WildsScene state={state} avatarStyle={avatarStyle} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSearchPoint={onSearchPoint} />
+          <WildsScene state={state} avatarStyle={avatarStyle} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} supportCards={supportCards} />
         </Suspense>
       </Canvas>
     </div>
@@ -73,7 +88,10 @@ function WildsScene({
   searchEnabled,
   onCameraHeadingChange,
   onSelectPlayer,
-  onSearchPoint
+  onSearchPoint,
+  livingWorld,
+  worldMode,
+  supportCards
 }: {
   state: PlayState;
   avatarStyle: "female" | "male";
@@ -83,8 +101,12 @@ function WildsScene({
   onCameraHeadingChange: (heading: number) => void;
   onSelectPlayer: (player: WildsPresence | null) => void;
   onSearchPoint: (point: { x: number; z: number }) => void;
+  livingWorld?: WildsWorldProjection | null;
+  worldMode: WildsSettlementWorldMode;
+  supportCards: readonly PortableCardAsset[];
 }) {
   const world = projectWorldProgression(state.worldMastery);
+  const worldSparkleCount = Math.round(54 * qualityProfile.particles);
   return (
     <>
       <color attach="background" args={[world.chapter.palette.fog]} />
@@ -99,12 +121,17 @@ function WildsScene({
         player={state.player}
         qualityProfile={qualityProfile}
         worldMastery={state.worldMastery}
+        livingWorld={livingWorld}
+        worldMode={worldMode}
       />
+      <WildsEcologyEnvironment livingWorld={livingWorld} player={state.player} worldMode={worldMode} />
+      <WildsBossEnvironment livingWorld={livingWorld} player={state.player} qualityProfile={qualityProfile} />
       <EncounterSequence state={state} />
       {remotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} />)}
       <WildsExplorer style={avatarStyle} worldPosition={state.player} />
       <ActiveCompanion state={state} />
-      <Sparkles count={Math.round(54 * qualityProfile.particles)} scale={[8, 2.4, 8]} size={2.1} speed={0.22} color="#fff5b6" />
+      <SupportCompanions cards={supportCards} />
+      <Sparkles key={`wilds-world-sparkles-${worldSparkleCount}`} count={worldSparkleCount} scale={[8, 2.4, 8]} size={2.1} speed={0.22} color="#fff5b6" />
     </>
   );
 }
@@ -133,6 +160,25 @@ function ActiveCompanion({ state }: { state: PlayState }) {
       )}
     </group>
   );
+}
+
+function SupportCompanions({ cards }: { cards: readonly PortableCardAsset[] }) {
+  const positions: readonly [number, number, number][] = [[1.05, 0.34, 0.72], [1.62, 0.28, 1.34]];
+  return <group name="trail-pack-support-companions">
+    {cards.slice(0, 2).map((card, index) => <group key={card.id} name={`trail-support-${index + 1}`} position={positions[index]} scale={index === 0 ? 0.62 : 0.54}>
+      <WildsCreatureActor
+        accent={card.manifest.variant.traits.palette.accent}
+        familyId={card.manifest.familyId}
+        formId={card.manifest.formId}
+        pose={index === 0 ? "curious" : "idle"}
+        primary={card.manifest.variant.traits.palette.primary}
+      />
+      <mesh position={[0, -0.39, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.4, 0.025, 8, 28]} />
+        <meshStandardMaterial color="#dffcf0" emissive="#58c99d" emissiveIntensity={0.36} transparent opacity={0.72} />
+      </mesh>
+    </group>)}
+  </group>;
 }
 
 function BattleWorldTelemetry({
@@ -237,7 +283,9 @@ function SearchableTerrain({
   missionProgress,
   qualityProfile,
   worldMastery,
-  onSearchPoint
+  onSearchPoint,
+  livingWorld,
+  worldMode
 }: {
   player: PlayState["player"];
   enabled: boolean;
@@ -245,6 +293,8 @@ function SearchableTerrain({
   qualityProfile: WildsQualityProfile;
   worldMastery: number;
   onSearchPoint: (point: { x: number; z: number }) => void;
+  livingWorld?: WildsWorldProjection | null;
+  worldMode: WildsSettlementWorldMode;
 }) {
   return (
     <group
@@ -254,7 +304,7 @@ function SearchableTerrain({
         onSearchPoint({ x: player.x + event.point.x, z: player.z + event.point.z });
       }}
     >
-      <StreamedTerrain missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} worldMastery={worldMastery} />
+      <StreamedTerrain missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} />
     </group>
   );
 }
@@ -263,14 +313,18 @@ function StreamedTerrain({
   missionProgress,
   player,
   qualityProfile,
-  worldMastery
+  worldMastery,
+  livingWorld,
+  worldMode
 }: {
   missionProgress: number;
   player: PlayState["player"];
   qualityProfile: WildsQualityProfile;
   worldMastery: number;
+  livingWorld?: WildsWorldProjection | null;
+  worldMode: WildsSettlementWorldMode;
 }) {
-  return <WildsEnvironment missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} worldMastery={worldMastery} />;
+  return <WildsEnvironment missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} />;
 }
 
 function Creature({ card, formId = `${card.id}-1`, pose = "idle" }: { card: CreatureCard; formId?: string; pose?: WildsCreaturePose }) {
@@ -363,6 +417,7 @@ function RustlingClue({
 }) {
   const ref = useRef<THREE.Group>(null);
   const hot = encounter.proximity === "hot";
+  const clueSparkleCount = hot ? 18 : 9;
   const distance = encounter.distance ?? 0;
   const direction = encounter.direction ?? { x: 0, z: 0 };
   const position: [number, number, number] = [
@@ -386,7 +441,8 @@ function RustlingClue({
     <group ref={ref} position={position}>
       <HabitatCover cover={encounter.cover} open={false} />
       <Sparkles
-        count={hot ? 18 : 9}
+        key={`wilds-clue-sparkles-${clueSparkleCount}`}
+        count={clueSparkleCount}
         scale={hot ? [1.45, 1.05, 1.45] : [1.05, 0.7, 1.05]}
         size={hot ? 4 : 2.4}
         speed={hot ? 1.1 : 0.55}
@@ -576,7 +632,8 @@ function WildsDiagnostics({
     const sample = () => {
     const extra = {
       camera: { position: camera.position.toArray(), fov: camera instanceof THREE.PerspectiveCamera ? camera.fov : null },
-      scene: { children: scene.children.length }
+      scene: { children: scene.children.length },
+      boss: scene.getObjectByName("wilds-boss-environment")?.userData ?? { detailedBosses: 0, maxDetailedBosses: 1 }
     };
     publishWildsDiagnostics(gl, size, state, qualityProfile, extra);
     if (outputRef.current) {

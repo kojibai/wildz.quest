@@ -1,7 +1,8 @@
-export type WildzStoreName = "wrappingKeys" | "identities" | "ownerStates" | "meta";
+export type WildzStoreName = "wrappingKeys" | "identities" | "ownerStates" | "meta" | "pendingRestores";
 
 export interface WildzContinuityTransaction {
   get<T>(store: WildzStoreName, key: IDBValidKey): Promise<T | null>;
+  getAll<T>(store: WildzStoreName): Promise<T[]>;
   put<T>(store: WildzStoreName, value: T, key?: IDBValidKey): Promise<void>;
   delete(store: WildzStoreName, key: IDBValidKey): Promise<void>;
 }
@@ -16,8 +17,8 @@ export interface WildzContinuityDatabase {
 }
 
 const DEFAULT_DATABASE_NAME = "receiz.wildz.continuity.v1";
-const DATABASE_VERSION = 1;
-const STORE_NAMES: readonly WildzStoreName[] = ["wrappingKeys", "identities", "ownerStates", "meta"];
+const DATABASE_VERSION = 2;
+const STORE_NAMES: readonly WildzStoreName[] = ["wrappingKeys", "identities", "ownerStates", "meta", "pendingRestores"];
 
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -39,6 +40,9 @@ function transactionPort(transaction: IDBTransaction): WildzContinuityTransactio
       const value = await requestResult(transaction.objectStore(store).get(key));
       return (value as T | undefined) ?? null;
     },
+    async getAll<T>(store: WildzStoreName) {
+      return requestResult(transaction.objectStore(store).getAll()) as Promise<T[]>;
+    },
     async put<T>(store: WildzStoreName, value: T, key?: IDBValidKey) {
       const objectStore = transaction.objectStore(store);
       await requestResult(key === undefined ? objectStore.put(value) : objectStore.put(value, key));
@@ -57,7 +61,7 @@ export function createWildzContinuityDatabase(options: {
 
   const open = () => {
     if (openPromise) return openPromise;
-    openPromise = new Promise<IDBDatabase>((resolve, reject) => {
+    const pendingOpen = new Promise<IDBDatabase>((resolve, reject) => {
       const factory = options.factory ?? globalThis.indexedDB;
       if (!factory) {
         reject(new Error("wildz_indexed_db_unavailable"));
@@ -69,11 +73,22 @@ export function createWildzContinuityDatabase(options: {
           if (!request.result.objectStoreNames.contains(store)) request.result.createObjectStore(store);
         }
       });
-      request.addEventListener("success", () => resolve(request.result), { once: true });
+      request.addEventListener("success", () => {
+        const database = request.result;
+        database.addEventListener("versionchange", () => {
+          if (openPromise === pendingOpen) openPromise = null;
+          database.close();
+        }, { once: true });
+        resolve(database);
+      }, { once: true });
       request.addEventListener("error", () => reject(request.error ?? new Error("wildz_indexed_db_open_failed")), { once: true });
       request.addEventListener("blocked", () => reject(new Error("wildz_indexed_db_open_blocked")), { once: true });
     });
-    return openPromise;
+    openPromise = pendingOpen;
+    void pendingOpen.catch(() => {
+      if (openPromise === pendingOpen) openPromise = null;
+    });
+    return pendingOpen;
   };
 
   const continuityDatabase: WildzContinuityDatabase = {

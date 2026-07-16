@@ -1,13 +1,19 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
-const files = execFileSync("git", ["ls-files"], { encoding: "utf8" }).trim().split("\n").filter(Boolean);
-const textFiles = files.filter((file) => !/\.(png|jpe?g|gif|webp|woff2?|ico|pdf)$/i.test(file));
+const files = execFileSync(
+  "git",
+  ["ls-files", "--cached", "--others", "--exclude-standard"],
+  { encoding: "utf8" }
+).trim().split("\n").filter(Boolean);
+const textFiles = files.filter((file) =>
+  existsSync(file) && !/\.(png|jpe?g|gif|webp|woff2?|ico|pdf)$/i.test(file)
+);
 const patterns = [
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
   /\b(?:sk|rk)_(?:live|prod)_[A-Za-z0-9_-]{12,}/,
   /\bBearer\s+[A-Za-z0-9_-]{24,}/,
-  /^(?:RECEIZ_ACCESS_TOKEN|RECEIZ_CLIENT_SECRET|RECEIZ_WEBHOOK_SECRET)=[^\s#]+/m
+  /^(?:(?:[A-Z][A-Z0-9_]*_)?(?:ACCESS_TOKEN|REFRESH_TOKEN|CLIENT_SECRET|OAUTH_STATE_SECRET|WEBHOOK_SECRET))=[^\s#]+(?:\s+#.*)?$/m
 ];
 const failures = [];
 for (const file of textFiles) {

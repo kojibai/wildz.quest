@@ -4,9 +4,15 @@ import { deriveBirthGenome } from "./heartbound-genome";
 import { renderHeartboundSvg } from "./heartbound-renderer";
 import { currentLivingGenome } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
-import { attemptPublicWildsCardRegistration } from "./public-card-registry";
-import { safeGetLocalStorage } from "../../lib/storage/browser-storage";
-import { BROWSER_RECEIZ_ID_SESSION_KEY, parseBrowserReceizIdSession } from "../../lib/receiz/browser-identity-session";
+import { receizBase64UrlDecode } from "@receiz/sdk";
+import {
+  extractLegacyReceizPortableAssetDocument,
+  type LegacyReceizPortableAssetDocument
+} from "../../lib/receiz/legacy-receiz-portable-asset";
+import {
+  attemptPublicWildsCardRegistration,
+  canonicalPublicCardPath
+} from "./public-card-registry";
 import {
   canonicalPortableCardJson,
   sha256PortableBasis,
@@ -32,6 +38,7 @@ export type PortableVaultPngProof = {
 const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 const PROOF_CHUNK_TYPE = "rzCd";
 const VAULT_CHUNK_TYPE = "rzVt";
+const PROOF_OBJECT_CHUNK_TYPE = "rzPo";
 
 function xml(value: string | number) {
   return String(value)
@@ -65,7 +72,7 @@ export function standaloneCardUrl(assetId: string, origin: string) {
   const base = new URL(origin);
   if (base.protocol !== "https:" && base.protocol !== "http:") throw new Error("wilds_card_origin_invalid");
   if (!/^wilds:[a-f0-9]{24}$/.test(assetId)) throw new Error("wilds_card_id_invalid");
-  return new URL(`/c/${assetId.slice("wilds:".length)}`, base.origin).toString();
+  return new URL(canonicalPublicCardPath(assetId), base.origin).toString();
 }
 
 export function renderWildsCardSvg(asset: PortableCardAsset, options: { origin?: string } = {}) {
@@ -200,6 +207,75 @@ function imageDigest(chunks: readonly PngChunk[]) {
   return sha256PortableBasis(basis);
 }
 
+function pngFromChunks(chunks: readonly PngChunk[]) {
+  return concatBytes([
+    PNG_SIGNATURE,
+    ...chunks.map((chunk) => makeChunk(chunk.type, chunk.data))
+  ]);
+}
+
+function equalBytes(left: Uint8Array, right: Uint8Array) {
+  if (left.byteLength !== right.byteLength) return false;
+  for (let index = 0; index < left.byteLength; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+
+export type EmbeddedReceizProofObject = {
+  artifactBytes: Uint8Array;
+  artifactBasisSha256: string;
+  document: LegacyReceizPortableAssetDocument;
+  payloadBytes: Uint8Array;
+  proofClaimId: string;
+};
+
+/** Read-only compatibility for Wildz PNGs issued with the v102 `rzPo` carrier. */
+export async function readReceizProofObjectFromPng(source: Uint8Array): Promise<EmbeddedReceizProofObject> {
+  const chunks = parsePng(source);
+  const proofChunks = chunks.filter((chunk) => chunk.type === PROOF_OBJECT_CHUNK_TYPE);
+  if (proofChunks.length !== 1) {
+    throw new Error(proofChunks.length ? "wildz_png_proof_object_duplicate" : "wildz_png_proof_object_missing");
+  }
+  const artifactBytes = proofChunks[0]!.data.slice();
+  const extracted = await extractLegacyReceizPortableAssetDocument(artifactBytes);
+  const payloadBytes = receizBase64UrlDecode(extracted.document.payload.bytesBase64Url);
+  const pngBasis = pngFromChunks(chunks.filter((chunk) => chunk.type !== PROOF_OBJECT_CHUNK_TYPE));
+  if (extracted.document.assetType !== "proof_object"
+    || extracted.document.payload.mimeType !== "image/png"
+    || !equalBytes(payloadBytes, pngBasis)) {
+    throw new Error("wildz_png_proof_object_binding_invalid");
+  }
+  return {
+    artifactBytes,
+    artifactBasisSha256: extracted.artifactBasisSha256,
+    document: extracted.document,
+    payloadBytes,
+    proofClaimId: extracted.proofClaimId
+  };
+}
+
+/** @deprecated Legacy fixture/interoperability helper. V103 native artifacts must never be wrapped. */
+export async function embedReceizProofObjectInPng(source: Uint8Array, artifactBytes: Uint8Array) {
+  const chunks = parsePng(source);
+  if (chunks.some((chunk) => chunk.type === PROOF_OBJECT_CHUNK_TYPE)) {
+    throw new Error("wildz_png_proof_object_duplicate");
+  }
+  const extracted = await extractLegacyReceizPortableAssetDocument(artifactBytes);
+  const payloadBytes = receizBase64UrlDecode(extracted.document.payload.bytesBase64Url);
+  if (extracted.document.assetType !== "proof_object"
+    || extracted.document.payload.mimeType !== "image/png"
+    || !equalBytes(payloadBytes, source)) {
+    throw new Error("wildz_png_proof_object_binding_invalid");
+  }
+  const output: Uint8Array[] = [PNG_SIGNATURE];
+  for (const chunk of chunks) {
+    if (chunk.type === "IEND") output.push(makeChunk(PROOF_OBJECT_CHUNK_TYPE, artifactBytes));
+    output.push(makeChunk(chunk.type, chunk.data));
+  }
+  return concatBytes(output);
+}
+
 export function embedPortableCardInPng(source: Uint8Array, asset: PortableCardAsset) {
   if (!verifyAnyWildsCard(asset).ok) throw new Error("wilds_card_proof_invalid");
   const sourceChunks = parsePng(source).filter((chunk) => chunk.type !== PROOF_CHUNK_TYPE);
@@ -323,7 +399,7 @@ export function verifyPortableVaultPng(source: Uint8Array): {
   }
 }
 
-function downloadBlob(blob: Blob, filename: string) {
+export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -332,17 +408,26 @@ function downloadBlob(blob: Blob, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-export async function sealPortableArtifact(artifact: Blob, filename: string) {
+async function requestReceizProofObject(artifact: Blob, filename: string, kind: "card" | "vault") {
   const form = new FormData();
   form.set("file", artifact, filename);
-  const response = await fetch("/api/receiz/seal", { method: "POST", body: form });
+  form.set("kind", kind);
+  let response: Response;
+  try {
+    response = await fetch("/api/receiz/proof-object", { method: "POST", body: form });
+  } catch {
+    return null;
+  }
+  if (response.status === 401 || response.status === 502 || response.status === 503 || response.status === 504) {
+    return null;
+  }
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { error?: string } | null;
-    throw new Error(payload?.error || "receiz_seal_failed");
+    throw new Error(payload?.error || "receiz_proof_object_failed");
   }
-  const sealed = await response.blob();
-  if (!sealed.size) throw new Error("receiz_seal_empty");
-  return sealed;
+  const proofObject = new Uint8Array(await response.arrayBuffer());
+  if (!proofObject.byteLength) throw new Error("receiz_proof_object_empty");
+  return proofObject;
 }
 
 async function svgPngBlob(svg: string, width = 750, height = 1050) {
@@ -368,7 +453,11 @@ export async function downloadPortableCard(asset: PortableCardAsset) {
   if (typeof document === "undefined") throw new Error("wilds_card_download_browser_required");
   const filename = asset.manifest.formId;
   const publication = await attemptCardPublication(asset);
-  downloadBlob(await renderPortableCardPngBlob(asset), `${filename}.receized.png`);
+  const portable = await renderPortableCardPngBlob(asset);
+  const portableBytes = new Uint8Array(await portable.arrayBuffer());
+  const remoteProof = await requestReceizProofObject(portable, `${filename}.png`, "card");
+  const exported = remoteProof ?? portableBytes;
+  downloadBlob(new Blob([exported.slice().buffer], { type: "image/png" }), `${filename}.receized.png`);
   return { published: publication.published };
 }
 
@@ -379,25 +468,31 @@ export async function portableCardPngBlob(asset: PortableCardAsset) {
 }
 
 function attemptCardPublication(asset: PortableCardAsset) {
-  const browserIdentity = parseBrowserReceizIdSession(safeGetLocalStorage(window.localStorage, BROWSER_RECEIZ_ID_SESSION_KEY));
-  return attemptPublicWildsCardRegistration(asset, browserIdentity?.keyFile ? { identityProof: { keyFile: browserIdentity.keyFile } } : {});
+  return attemptPublicWildsCardRegistration(asset);
 }
 
 async function renderPortableCardPngBlob(asset: PortableCardAsset) {
   const rendered = await svgPngBlob(renderWildsCardSvg(asset, { origin: window.location.origin }));
   const portable = embedPortableCardInPng(new Uint8Array(await rendered.arrayBuffer()), asset);
-  return sealPortableArtifact(new Blob([portable.slice().buffer], { type: "image/png" }), `${asset.manifest.formId}.png`);
+  return new Blob([portable.slice().buffer], { type: "image/png" });
 }
 
-export async function portableVaultPngBlob(assets: PortableCardAsset[]) {
+export async function portableVaultPngBlob(assets: PortableCardAsset[], player?: WildsPlayerVaultPayload) {
   if (typeof document === "undefined") throw new Error("wilds_vault_png_browser_required");
   const rendered = await svgPngBlob(renderWildsVaultSvg(assets), 1200, 900);
-  const portable = embedPortableVaultInPng(new Uint8Array(await rendered.arrayBuffer()), assets);
-  return sealPortableArtifact(new Blob([portable.slice().buffer], { type: "image/png" }), "wilds-vault.png");
+  const portable = embedPortableVaultInPng(new Uint8Array(await rendered.arrayBuffer()), assets, player);
+  return new Blob([portable.slice().buffer], { type: "image/png" });
 }
 
-export async function downloadPortableVault(assets: PortableCardAsset[]) {
+export async function downloadPortableVault(assets: PortableCardAsset[], player?: WildsPlayerVaultPayload) {
   if (!assets.length) throw new Error("wilds_vault_empty");
   const digest = sha256PortableBasis(canonicalPortableCardJson(assets.map((asset) => asset.id))).slice(7, 19);
-  downloadBlob(await portableVaultPngBlob(assets), `wilds-vault-${digest}.receized.png`);
+  const portable = await portableVaultPngBlob(assets, player);
+  const portableBytes = new Uint8Array(await portable.arrayBuffer());
+  const remoteProof = await requestReceizProofObject(portable, "wilds-vault.png", "vault");
+  if (player && !remoteProof) {
+    throw new Error("receiz_proof_object_unavailable");
+  }
+  const exported = remoteProof ?? portableBytes;
+  downloadBlob(new Blob([exported.slice().buffer], { type: "image/png" }), `wilds-vault-${digest}.receized.png`);
 }

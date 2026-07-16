@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { WILDZ_RECEIZ_SESSION_SCOPE } from "./wildz-auth-url";
 
 export type ReceizRequestSession = {
   accessToken: string | undefined;
@@ -24,6 +25,11 @@ export function receizRequestSession(request: NextRequest): ReceizRequestSession
 
 export function receizAccessTokenFromRequest(request: NextRequest) {
   return receizRequestSession(request).accessToken;
+}
+
+export function playerReceizAccessToken(session: ReceizRequestSession) {
+  if (session.source !== "cookie" || session.sessionScope !== WILDZ_RECEIZ_SESSION_SCOPE) return undefined;
+  return session.cookieAccessToken;
 }
 
 export function receizAuthorityRequired(returnTo = "/admin") {

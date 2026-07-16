@@ -1,4 +1,6 @@
-export type WildsLandmarkId = "hearttree-sanctum" | "arena-of-echoes" | "prism-arcade";
+import { WAYFINDER_HOLLOW } from "./wilds-settlements";
+
+export type WildsLandmarkId = "hearttree-sanctum" | "arena-of-echoes" | "prism-arcade" | "wayfinder-hollow";
 
 export type WildsLandmarkAccessRequirement =
   | { kind: "cards"; minimum: number; label: string }
@@ -10,11 +12,11 @@ export type WildsLandmarkDefinition = {
   id: WildsLandmarkId;
   name: string;
   subtitle: string;
-  kind: "mastery" | "competition" | "arcade";
+  kind: "mastery" | "competition" | "arcade" | "settlement";
   position: { x: number; z: number };
   radius: number;
   accent: string;
-  icon: "tree" | "trophy" | "sparkles";
+  icon: "tree" | "trophy" | "sparkles" | "compass";
   occupancy: "solo" | "public" | "matchmade";
   cardRequired: boolean;
   access: { mode: "public" | "any" | "all"; requirements: readonly WildsLandmarkAccessRequirement[] };
@@ -71,7 +73,8 @@ export const WILDS_FLAGSHIP_LANDMARKS: readonly WildsLandmarkDefinition[] = [
         { kind: "achievement", id: "echo-victor", label: "Become an Echo Victor" }
       ]
     }
-  }
+  },
+  WAYFINDER_HOLLOW
 ] as const;
 
 const WILDS_LANDMARK_APPROACH_GAP = 4;

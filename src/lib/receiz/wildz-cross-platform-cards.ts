@@ -9,7 +9,12 @@ import {
   verifyAnyWildsCard,
   type PortableCardAsset
 } from "../../features/play/portable-card";
-import type { WildsPlayerVaultPayload } from "../../features/play/wilds-player-vault";
+import { admitLegacyCard } from "../../features/play/living-card-proof";
+import { isLivingCardAsset, type LivingCardAsset } from "../../features/play/living-card-types";
+import {
+  verifyWildsPlayerVault,
+  type WildsPlayerVaultPayload
+} from "../../features/play/wilds-player-vault";
 import { isWildzPng, splitWildzPngEnvelope } from "./wildz-png-envelope";
 
 export type RestoredReceizVaultFile = {
@@ -25,12 +30,46 @@ export type WildzCrossPlatformCardExtraction = {
   sourceSchemas: string[];
   unrelatedDomainSchemas: string[];
   player: WildsPlayerVaultPayload | null;
+  playerSource: "png" | "portable-snapshot" | "restored-file" | "proof-object" | null;
+};
+
+export type WildzPortableProofObjectPayload = {
+  bytes: Uint8Array;
+  mimeType: string;
 };
 
 const MAX_PORTABLE_NODES = 10_000;
 const MAX_PORTABLE_DEPTH = 12;
 const MAX_RESTORED_FILES = 1_000;
 const MAX_RESTORED_BYTES = 64 * 1024 * 1024;
+
+function livingOriginBasis(asset: LivingCardAsset) {
+  const {
+    evolvedAt: _evolvedAt,
+    childAssetIds: _childAssetIds,
+    ...lineageOrigin
+  } = asset.manifest.lineage;
+  return canonicalPortableCardJson({
+    schema: asset.manifest.schema,
+    catalogVersion: asset.manifest.catalogVersion,
+    assetId: asset.manifest.assetId,
+    familyId: asset.manifest.familyId,
+    ownerReceizId: asset.manifest.ownerReceizId,
+    encounterId: asset.manifest.encounterId,
+    capturedAt: asset.manifest.capturedAt,
+    variant: asset.manifest.variant,
+    lineage: lineageOrigin,
+    birth: asset.manifest.birth,
+    birthGenome: asset.manifest.birthGenome
+  });
+}
+
+function sameLivingOrigin(ancestor: LivingCardAsset, descendant: LivingCardAsset) {
+  return livingOriginBasis(ancestor) === livingOriginBasis(descendant)
+    && ancestor.manifest.lineage.childAssetIds.every(
+      (assetId) => descendant.manifest.lineage.childAssetIds.includes(assetId)
+    );
+}
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -69,6 +108,7 @@ export function extractVerifiedWildzCards(input: {
   pngBasis: Uint8Array | null;
   verifiedPortableSnapshot: unknown | null;
   restoredVaultFiles: readonly RestoredReceizVaultFile[];
+  proofObjectPayload?: WildzPortableProofObjectPayload | null;
 }): WildzCrossPlatformCardExtraction {
   if (input.restoredVaultFiles.length > MAX_RESTORED_FILES) throw new Error("wildz_restore_schema_unsupported");
   const restoredBytes = input.restoredVaultFiles.reduce((total, file) => total + file.bytes.byteLength, 0);
@@ -80,10 +120,29 @@ export function extractVerifiedWildzCards(input: {
   const assetsById = new Map<string, PortableCardAsset>();
   let player: WildsPlayerVaultPayload | null = null;
   let playerCanonical: string | null = null;
+  let playerSource: WildzCrossPlatformCardExtraction["playerSource"] = null;
 
   const rememberSchema = (schema: string | null) => {
     if (!schema) return;
     (isWildzSchema(schema) ? sourceSchemas : unrelatedDomainSchemas).add(schema);
+  };
+
+  const isVerifiedDescendant = (ancestor: PortableCardAsset, descendant: PortableCardAsset) => {
+    if (ancestor.id !== descendant.id || !isLivingCardAsset(descendant)) return false;
+    if (!isLivingCardAsset(ancestor)) {
+      if (descendant.manifest.birth.kind !== "legacy_admission"
+        || descendant.manifest.birth.legacyDigest !== ancestor.proof.digest) return false;
+      const admitted = admitLegacyCard(ancestor, descendant.proof.sealedAt);
+      return sameLivingOrigin(admitted, descendant)
+        && admitted.manifest.revisions.every(
+          (revision, index) => descendant.manifest.revisions[index]?.digest === revision.digest
+        );
+    }
+    return sameLivingOrigin(ancestor, descendant)
+      && descendant.manifest.revisions.length > ancestor.manifest.revisions.length
+      && ancestor.manifest.revisions.every(
+        (revision, index) => descendant.manifest.revisions[index]?.digest === revision.digest
+      );
   };
 
   const admit = (asset: PortableCardAsset) => {
@@ -96,7 +155,15 @@ export function extractVerifiedWildzCards(input: {
     if (!verified.ok) throw new Error("wildz_restore_card_proof_invalid");
     const canonical = canonicalPortableCardJson(asset);
     const prior = canonicalById.get(asset.id);
-    if (prior !== undefined && prior !== canonical) throw new Error("wildz_restore_duplicate_card_conflict");
+    if (prior !== undefined && prior !== canonical) {
+      const priorAsset = assetsById.get(asset.id)!;
+      if (isVerifiedDescendant(priorAsset, asset)) {
+        canonicalById.set(asset.id, canonical);
+        assetsById.set(asset.id, asset);
+      } else if (!isVerifiedDescendant(asset, priorAsset)) {
+        throw new Error("wildz_restore_duplicate_card_conflict");
+      }
+    }
     if (prior === undefined) {
       canonicalById.set(asset.id, canonical);
       assetsById.set(asset.id, asset);
@@ -105,12 +172,27 @@ export function extractVerifiedWildzCards(input: {
     rememberSchema(schemaOf(asset.proof));
   };
 
-  const rememberPlayer = (candidate: WildsPlayerVaultPayload | null) => {
+  const rememberPlayer = (
+    candidate: WildsPlayerVaultPayload | null,
+    source: Exclude<WildzCrossPlatformCardExtraction["playerSource"], null>
+  ) => {
     if (!candidate) return;
-    const canonical = canonicalPortableCardJson(candidate);
+    let canonical: string;
+    try {
+      const verified = verifyWildsPlayerVault(candidate);
+      if (!verified.ok) throw new Error(verified.errors[0]);
+      canonical = canonicalPortableCardJson(candidate);
+      candidate.playState.inventory.forEach(admit);
+    } catch (error) {
+      if (error instanceof Error && error.message === "wildz_restore_duplicate_card_conflict") throw error;
+      throw new Error("wildz_restore_player_digest_invalid");
+    }
     if (playerCanonical !== null && playerCanonical !== canonical) throw new Error("wildz_restore_player_digest_invalid");
     player = candidate;
     playerCanonical = canonical;
+    if (playerSource === null || (source === "portable-snapshot" && playerSource !== "portable-snapshot")) {
+      playerSource = source;
+    }
     rememberSchema(candidate.schema);
   };
 
@@ -149,17 +231,25 @@ export function extractVerifiedWildzCards(input: {
         throw new Error("wildz_restore_card_proof_invalid");
       }
       verified.assets.forEach(admit);
-      rememberPlayer(verified.player);
+      rememberPlayer(verified.player, "png");
     }
   };
 
   const seen = new WeakSet<object>();
   let visitedNodes = 0;
-  const traverse = (value: unknown, depth: number) => {
+  const traverse = (
+    value: unknown,
+    depth: number,
+    source: "portable-snapshot" | "restored-file" | "proof-object"
+  ) => {
     if (!value || typeof value !== "object") return;
     visitedNodes += 1;
     if (visitedNodes > MAX_PORTABLE_NODES || depth > MAX_PORTABLE_DEPTH) {
       throw new Error("wildz_restore_schema_unsupported");
+    }
+    if (schemaOf(value) === "receiz.wilds_player_vault.v3") {
+      rememberPlayer(value as WildsPlayerVaultPayload, source);
+      return;
     }
     if (isCardLike(value)) {
       admit(value);
@@ -168,16 +258,32 @@ export function extractVerifiedWildzCards(input: {
     if (seen.has(value)) throw new Error("wildz_restore_schema_unsupported");
     seen.add(value);
     if (Array.isArray(value)) {
-      value.forEach((child) => traverse(child, depth + 1));
+      value.forEach((child) => traverse(child, depth + 1, source));
       return;
     }
     const record = value as Record<string, unknown>;
     rememberSchema(schemaOf(record));
-    Object.values(record).forEach((child) => traverse(child, depth + 1));
+    Object.values(record).forEach((child) => traverse(child, depth + 1, source));
   };
 
   if (input.pngBasis) inspectPng(input.pngBasis);
-  if (input.verifiedPortableSnapshot !== null) traverse(input.verifiedPortableSnapshot, 0);
+  if (input.verifiedPortableSnapshot !== null) traverse(input.verifiedPortableSnapshot, 0, "portable-snapshot");
+  if (input.proofObjectPayload) {
+    if (isWildzPng(input.proofObjectPayload.bytes)) {
+      inspectPng(splitWildzPngEnvelope(input.proofObjectPayload.bytes).pngBasis);
+    } else if (input.proofObjectPayload.mimeType === "application/json"
+      || input.proofObjectPayload.mimeType.endsWith("+json")) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(input.proofObjectPayload.bytes)) as unknown;
+      } catch {
+        throw new Error("wildz_restore_schema_unsupported");
+      }
+      traverse(parsed, 0, "proof-object");
+    } else {
+      throw new Error("wildz_restore_schema_unsupported");
+    }
+  }
   for (const file of input.restoredVaultFiles) {
     if (isWildzPng(file.bytes)) {
       inspectPng(splitWildzPngEnvelope(file.bytes).pngBasis);
@@ -190,7 +296,7 @@ export function extractVerifiedWildzCards(input: {
       } catch {
         throw new Error("wildz_restore_schema_unsupported");
       }
-      traverse(parsed, 0);
+      traverse(parsed, 0, "restored-file");
     }
   }
 
@@ -198,6 +304,7 @@ export function extractVerifiedWildzCards(input: {
     assets: [...assetsById.values()].sort((left, right) => left.id.localeCompare(right.id)),
     sourceSchemas: [...sourceSchemas].sort(),
     unrelatedDomainSchemas: [...unrelatedDomainSchemas].sort(),
-    player
+    player,
+    playerSource
   };
 }

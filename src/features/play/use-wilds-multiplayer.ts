@@ -5,6 +5,13 @@ import { createInviteRoom, roomKeyForPosition, type WildsPresence } from "./mult
 import type { WildsMultiplayerSnapshot } from "./multiplayer-ledger";
 import type { PvpIntent } from "./pvp-battle-engine";
 import type { PortableCardAsset } from "./portable-card";
+import {
+  shouldAttemptWildsNetwork,
+  isOpaqueWildsNetworkFailure,
+  WILDS_NETWORK_RETRY_BACKOFF_MS,
+  WILDS_MULTIPLAYER_OFFLINE_MESSAGE,
+  wildsNetworkFailureMessage
+} from "./wilds-network-status";
 
 const GUEST_KEY = "receiz:wilds:multiplayer-guest:v1";
 
@@ -26,7 +33,13 @@ function queryInviteRoom() {
 }
 
 async function jsonRequest<T>(url: string, init?: RequestInit) {
-  const response = await fetch(url, init);
+  if (!shouldAttemptWildsNetwork()) throw new Error(WILDS_MULTIPLAYER_OFFLINE_MESSAGE);
+  let response: Response;
+  try {
+    response = await fetch(url, init);
+  } catch (cause) {
+    throw new TypeError(wildsNetworkFailureMessage(cause, "multiplayer"));
+  }
   const result = await response.json().catch(() => null) as (T & { error?: string }) | null;
   if (!response.ok || !result) throw new Error(result?.error ?? "wilds_multiplayer_request_failed");
   return result;
@@ -49,6 +62,7 @@ export function useWildsMultiplayer(input: {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [dismissedBattleIds, setDismissedBattleIds] = useState<Set<string>>(() => new Set());
   const latest = useRef(input);
+  const retryAfter = useRef(0);
   latest.current = input;
 
   useEffect(() => {
@@ -61,6 +75,12 @@ export function useWildsMultiplayer(input: {
   const heartbeat = useCallback(async () => {
     const current = latest.current;
     if (!current.enabled || !current.activeCard || !guestId) return;
+    if (!shouldAttemptWildsNetwork()) {
+      setMode("local_practice");
+      setError(WILDS_MULTIPLAYER_OFFLINE_MESSAGE);
+      return;
+    }
+    if (Date.now() < retryAfter.current) return;
     try {
       const result = await jsonRequest<{
         actor: { playerId: string; practice: boolean };
@@ -83,9 +103,13 @@ export function useWildsMultiplayer(input: {
       setSnapshot(result.snapshot);
       setMode(result.actor.practice ? "local_practice" : result.publication.published ? "receiz_live" : "reconnecting");
       setError("");
+      retryAfter.current = 0;
     } catch (cause) {
-      setMode("reconnecting");
-      setError(cause instanceof Error ? cause.message : "wilds_multiplayer_reconnecting");
+      const opaqueFailure = isOpaqueWildsNetworkFailure(cause);
+      if (opaqueFailure) retryAfter.current = Date.now() + WILDS_NETWORK_RETRY_BACKOFF_MS;
+      const offline = !shouldAttemptWildsNetwork() || opaqueFailure;
+      setMode(offline ? "local_practice" : "reconnecting");
+      setError(wildsNetworkFailureMessage(cause, "multiplayer", !offline));
     }
   }, [guestId, roomKey]);
 
@@ -98,14 +122,24 @@ export function useWildsMultiplayer(input: {
 
   const refresh = useCallback(async () => {
     if (!input.enabled || !guestId) return;
+    if (!shouldAttemptWildsNetwork()) {
+      setMode("local_practice");
+      setError(WILDS_MULTIPLAYER_OFFLINE_MESSAGE);
+      return;
+    }
+    if (Date.now() < retryAfter.current) return;
     try {
       const result = await jsonRequest<{ snapshot: WildsMultiplayerSnapshot }>(`/api/wilds/multiplayer/snapshot?room=${encodeURIComponent(roomKey)}`);
       setSnapshot(result.snapshot);
       if (mode === "reconnecting") setMode("connecting");
       setError("");
+      retryAfter.current = 0;
     } catch (cause) {
-      setMode("reconnecting");
-      setError(cause instanceof Error ? cause.message : "wilds_multiplayer_reconnecting");
+      const opaqueFailure = isOpaqueWildsNetworkFailure(cause);
+      if (opaqueFailure) retryAfter.current = Date.now() + WILDS_NETWORK_RETRY_BACKOFF_MS;
+      const offline = !shouldAttemptWildsNetwork() || opaqueFailure;
+      setMode(offline ? "local_practice" : "reconnecting");
+      setError(wildsNetworkFailureMessage(cause, "multiplayer", !offline));
     }
   }, [guestId, input.enabled, mode, roomKey]);
 
@@ -115,6 +149,16 @@ export function useWildsMultiplayer(input: {
     const timer = window.setInterval(() => void refresh(), 900);
     return () => window.clearInterval(timer);
   }, [input.enabled, refresh]);
+
+  useEffect(() => {
+    const resume = () => {
+      retryAfter.current = 0;
+      void heartbeat();
+      void refresh();
+    };
+    window.addEventListener("online", resume);
+    return () => window.removeEventListener("online", resume);
+  }, [heartbeat, refresh]);
 
   const post = useCallback(async (path: "message" | "challenge" | "battle", body: Record<string, unknown>) => {
     if (!guestId) throw new Error("wilds_guest_identity_required");

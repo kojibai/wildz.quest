@@ -12,7 +12,7 @@ import {
   type PlayState,
   type WildsInput
 } from "@/features/play/game-state";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import { WildsCaptureReward } from "@/features/play/WildsCaptureReward";
 import { WildsInventory } from "@/features/play/WildsInventory";
@@ -21,6 +21,7 @@ import { WildsTransformation } from "@/features/play/WildsTransformation";
 import { WildsChildCeremony } from "@/features/play/WildsChildCeremony";
 import { WildsMultiplayer } from "@/features/play/WildsMultiplayer";
 import { useWildsMultiplayer } from "@/features/play/use-wilds-multiplayer";
+import { useWildsWorld } from "@/features/play/use-wilds-world";
 import { WildsAudioSettings } from "@/features/play/WildsAudioSettings";
 import { useWildsPresentation } from "@/features/play/use-wilds-presentation";
 import { selectWildsQualityProfile } from "@/features/play/wilds-quality-profile";
@@ -29,7 +30,7 @@ import { WildsCommandDock, type WildsCommandItem, type WildsCommandKey } from "@
 import { WildsWorldMap } from "@/features/play/WildsWorldMap";
 import { WildsWorldControls } from "@/features/play/WildsWorldControls";
 import { WildsLandmarkExperience } from "@/features/play/WildsLandmarkExperience";
-import { normalizeWildsMovementMode, WILDS_MOVEMENT_MODE_KEY, type WildsMovementMode } from "@/features/play/wilds-movement";
+import type { WildsMovementMode } from "@/features/play/wilds-movement";
 import { resolveWildsContextAction } from "@/features/play/wilds-context-action";
 import { landmarkAtPosition, WILDS_FLAGSHIP_LANDMARKS, type WildsLandmarkId } from "@/features/play/wilds-landmarks";
 import { evaluateLandmarkAccess, type WildsLandmarkProgress } from "@/features/play/wilds-landmark-access";
@@ -38,14 +39,26 @@ import { projectWildzHud } from "@/features/play/wildz-gameplay-hud";
 import { WildzReferenceHud } from "@/features/play/WildzReferenceHud";
 import { WildzSocialDeck } from "@/features/play/WildzSocialDeck";
 import { WildsCreatureThumbnail } from "@/features/play/WildsCreatureThumbnail";
-import { creatureFamilies } from "@/features/play/creature-catalog";
+import { creatureFamilies, creatureForm } from "@/features/play/creature-catalog";
+import { createWildsPlayerVault, type WildsPlayerVaultPayload, type WildzCardOrder } from "@/features/play/wilds-player-vault";
+import type { WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
 import type {
   WildzCardOnlyConfirmation,
-  WildzCommittedArtifactRestore
+  WildzCommittedArtifactRestore,
+  WildzPlayerContinuity
 } from "@/features/identity/wildz-restore";
-
-const WILDS_AVATAR_KEY = "receiz:wilds:explorer:v1";
-const WILDS_ACHIEVEMENTS_KEY = "receiz:wilds:landmark-unlocks:v1";
+import { bossAudioCue, ecologyAudioCue, normalizeWildsAudioSettings, settlementAudioCue } from "@/features/play/wilds-audio";
+import { WildsLivingWorldHud } from "@/features/play/WildsLivingWorldHud";
+import { WildsSettlementExperience } from "@/features/play/WildsSettlementExperience";
+import { createWildsCivicEvent, normalizeWildsCivicActorId, projectWildsCivicHistory } from "@/features/play/wilds-civic-history";
+import { WildsEcologyExperience } from "@/features/play/WildsEcologyExperience";
+import { createWildsEcologyReceipt } from "@/features/play/wilds-ecology-history";
+import { WildsRaidExperience } from "@/features/play/WildsRaidExperience";
+import { projectWildsRaidRoles } from "@/features/play/wilds-raid-roles";
+import { createWildsRaidReceipt } from "@/features/play/wilds-raid-history";
+import type { WildsRaidEncounterState, WildsRaidIntent } from "@/features/play/wilds-raid-encounter";
+import type { WildsBossFamilyId } from "@/features/play/wilds-boss-ecology";
+import { deriveLoadoutSynergy, projectWildsCardMastery } from "@/features/play/wilds-card-mastery";
 
 function currentWildsQualityProfile() {
   if (typeof window === "undefined") {
@@ -74,24 +87,30 @@ export function PlayCampaign({
   enabled,
   onComplete,
   ownerReceizId = "wilds.player.receiz.id",
+  character,
   playerDisplayName = "Wildz Explorer",
   onListAsset,
   onOpenProfile = () => {},
   onOpenMarket = () => {},
   initialState = initialPlayState,
+  initialPlayerContinuity = null,
   onPlayStateChange,
+  onExportVault,
   onRestoreArtifact
 }: {
   campaignName?: string;
   enabled: boolean;
   onComplete?: (beans: number) => void;
   ownerReceizId?: string;
+  character: WildzCharacterGenesis;
   playerDisplayName?: string;
   onListAsset?: (asset: PortableCardAsset, priceCents: number) => Promise<PortableCardAsset | null>;
   onOpenProfile?: () => void;
   onOpenMarket?: () => void;
   initialState?: PlayState;
-  onPlayStateChange: (state: PlayState) => void;
+  initialPlayerContinuity?: WildzPlayerContinuity | null;
+  onPlayStateChange: (state: PlayState, playerContinuity: WildzPlayerContinuity) => void;
+  onExportVault: (assets: PortableCardAsset[], player: WildsPlayerVaultPayload) => Promise<unknown>;
   onRestoreArtifact: (
     file: File,
     confirmCardOnly: WildzCardOnlyConfirmation,
@@ -101,16 +120,20 @@ export function PlayCampaign({
   const [state, setState] = useState(() => initialState);
   const [saveRestored, setSaveRestored] = useState(false);
   const [rewardAsset, setRewardAsset] = useState<PortableCardAsset | null>(null);
-  const [avatarStyle, setAvatarStyle] = useState<"female" | "male" | null>(null);
+  const [avatarStyle, setAvatarStyle] = useState<"female" | "male" | null>(() => initialPlayerContinuity?.settings.avatarStyle ?? character.gender);
   const [qualityProfile, setQualityProfile] = useState(currentWildsQualityProfile);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [cameraHeading, setCameraHeading] = useState(0);
   const [playerHeading, setPlayerHeading] = useState(0);
   const previousPlayerPosition = useRef(state.player);
-  const [movementMode, setMovementMode] = useState<WildsMovementMode>("walk");
+  const [movementMode, setMovementMode] = useState<WildsMovementMode>(() => initialPlayerContinuity?.settings.movementMode ?? "walk");
+  const [cardOrder, setCardOrder] = useState<WildzCardOrder>(() => initialPlayerContinuity?.settings.cardOrder ?? "rarity");
   const [activeLandmarkId, setActiveLandmarkId] = useState<WildsLandmarkId | null>(null);
-  const [landmarkUnlocks, setLandmarkUnlocks] = useState<string[]>([]);
+  const [activeEcologySiteId, setActiveEcologySiteId] = useState<string | null>(null);
+  const [activeRaid, setActiveRaid] = useState<{ bossId: string; roundId: string; placement: "fighter" | "support"; connected: boolean } | null>(null);
+  const [raidReturnPosition, setRaidReturnPosition] = useState<{ x: number; z: number } | null>(null);
+  const [raidBusyIntent, setRaidBusyIntent] = useState<WildsRaidIntent["type"] | null>(null);
   const [riftError, setRiftError] = useState("");
   const [requestedCommand, setRequestedCommand] = useState<WildsCommandKey | null>(null);
   const activeMission = missionCards[state.completedMissionIds.length % missionCards.length];
@@ -118,6 +141,7 @@ export function PlayCampaign({
   const activeCard = selectedCard(state);
   const activeAsset = selectedAsset(state);
   const deckCards = state.inventory;
+  const landmarkUnlocks = state.achievements;
   const activeProgress = state.companionProgress[activeCard.id] ?? { level: 1, xp: 0, bond: 0 };
   const discoveredByFamily = new Map(deckCards.map((card) => [card.manifest.familyId, card]));
   const guideFamilies = [...creatureFamilies].sort((left, right) =>
@@ -132,13 +156,27 @@ export function PlayCampaign({
     position: state.player,
     activeCard: activeAsset
   });
+  const livingWorld = useWildsWorld({
+    enabled: enabled && Boolean(avatarStyle),
+    guestId: multiplayer.guestId,
+    activeCard: activeAsset ?? null
+  });
   const presentation = useWildsPresentation({
     encounter: {
       phase: state.encounter.phase,
       proximity: state.encounter.phase === "idle" ? "cold" : state.encounter.proximity
     },
-    enabled: enabled && Boolean(avatarStyle)
+    enabled: enabled && Boolean(avatarStyle),
+    initialAudioSettings: initialPlayerContinuity?.settings.audio
   });
+  const trailSupportCards = useMemo(() => {
+    const byId = new Map(deckCards.map((card) => [card.id, card]));
+    return state.supportAssetIds
+      .map((id) => id ? byId.get(id) : undefined)
+      .filter((card): card is PortableCardAsset => Boolean(card && card.id !== activeAsset?.id));
+  }, [activeAsset?.id, deckCards, state.supportAssetIds]);
+  const trailPack = useMemo(() => [activeAsset, ...trailSupportCards].filter((card): card is PortableCardAsset => Boolean(card)), [activeAsset, trailSupportCards]);
+  const trailSynergy = useMemo(() => deriveLoadoutSynergy(trailPack, worldProgression.chapter.name), [trailPack, worldProgression.chapter.name]);
 
   useEffect(() => {
     const previous = previousPlayerPosition.current;
@@ -175,31 +213,42 @@ export function PlayCampaign({
         lastEvent: "Invite signal found. You joined the shared trail beside its sender."
       }));
     }
-    const savedAvatar = window.localStorage.getItem(WILDS_AVATAR_KEY);
-    if (savedAvatar === "female" || savedAvatar === "male") setAvatarStyle(savedAvatar);
-    try {
-      const savedUnlocks = JSON.parse(window.localStorage.getItem(WILDS_ACHIEVEMENTS_KEY) ?? "[]");
-      if (Array.isArray(savedUnlocks)) setLandmarkUnlocks(savedUnlocks.filter((item): item is string => typeof item === "string").slice(0, 64));
-    } catch {
-      // Landmark progression starts clean when local storage is malformed.
-    }
-    setMovementMode(normalizeWildsMovementMode(window.localStorage.getItem(WILDS_MOVEMENT_MODE_KEY)));
+    setAvatarStyle(initialPlayerContinuity?.settings.avatarStyle ?? character.gender);
+    setMovementMode(initialPlayerContinuity?.settings.movementMode ?? "walk");
+    setCardOrder(initialPlayerContinuity?.settings.cardOrder ?? "rarity");
     setSaveRestored(true);
-  }, []);
+  }, [character.gender, initialPlayerContinuity]);
 
   useEffect(() => {
     if (!saveRestored) return;
-    try {
-      window.localStorage.setItem(WILDS_MOVEMENT_MODE_KEY, movementMode);
-    } catch {
-      // Movement mode remains active for this session when storage is unavailable.
-    }
-  }, [movementMode, saveRestored]);
-
-  useEffect(() => {
-    if (!saveRestored) return;
-    onPlayStateChange(state);
-  }, [onPlayStateChange, saveRestored, state]);
+    onPlayStateChange(state, {
+      settings: {
+        avatarStyle,
+        movementMode,
+        audio: presentation.audioSettings,
+        cardOrder
+      },
+      personalEvents: initialPlayerContinuity?.personalEvents ?? [],
+      canonicalCursor: livingWorld.snapshot
+        ? {
+            worldId: "wilds:global:v3",
+            revision: livingWorld.snapshot.revision,
+            eventId: livingWorld.snapshot.cursor?.eventId ?? null
+          }
+        : initialPlayerContinuity?.canonicalCursor ?? { worldId: "wilds:global:v3", revision: 0, eventId: null },
+      receipts: initialPlayerContinuity?.receipts ?? []
+    });
+  }, [
+    avatarStyle,
+    cardOrder,
+    initialPlayerContinuity,
+    livingWorld.snapshot,
+    movementMode,
+    onPlayStateChange,
+    presentation.audioSettings,
+    saveRestored,
+    state
+  ]);
 
   useEffect(() => {
     if (state.encounter.phase === "battle_intro") {
@@ -276,6 +325,12 @@ export function PlayCampaign({
     ? "Tap terrain to scan"
     : `${activeProximity}${state.encounter.trend ? ` · ${state.encounter.trend}` : ""}`;
   const currentLandmark = landmarkAtPosition(state.player);
+  const civic = projectWildsCivicHistory(state.civicEvents);
+  const civicActorId = normalizeWildsCivicActorId(ownerReceizId);
+  const settlementWorldMode = livingWorld.mode === "receiz_live" ? "receiz_live" : livingWorld.mode === "local_practice" ? "local_practice" : "connecting";
+  const discoveredLandmarkIds: WildsLandmarkId[] = civic.completedSourceIds.includes("settlement:wayfinder-hollow")
+    ? ["hearttree-sanctum", "wayfinder-hollow"]
+    : ["hearttree-sanctum"];
   const landmarkProgress: WildsLandmarkProgress = {
     verifiedCardCount: state.inventory.length,
     activeCardLevel: activeProgress.level,
@@ -283,24 +338,110 @@ export function PlayCampaign({
     partySize: multiplayer.remotePlayers.length + 1
   };
   const currentLandmarkAccess = currentLandmark ? evaluateLandmarkAccess(currentLandmark, landmarkProgress) : null;
-  const pulse = resolveWildsContextAction({
+  const nearbyLivingSite = Object.values(livingWorld.snapshot?.sites ?? {})
+    .map((site) => ({ site, distance: Math.hypot(site.position.x - state.player.x, site.position.z - state.player.z) }))
+    .filter(({ site, distance }) => Boolean(site.bossId) && site.phase !== "memorialized" && site.phase !== "expired" && distance <= site.radius + 8)
+    .sort((left, right) => left.distance - right.distance)[0] ?? null;
+  const nearbyLivingBoss = nearbyLivingSite?.site.bossId ? livingWorld.snapshot?.bosses[nearbyLivingSite.site.bossId] : null;
+  const nearbyEcology = Object.values(livingWorld.snapshot?.ecologySites ?? {})
+    .map((site) => ({ site, distance: Math.hypot(site.position.x - state.player.x, site.position.z - state.player.z) }))
+    .filter(({ site, distance }) => (site.phase === "foreshadowed" || site.phase === "discovered" || site.phase === "active") && distance <= site.radius)
+    .sort((left, right) => left.distance - right.distance)[0] ?? null;
+  const activeEcologySite = activeEcologySiteId ? livingWorld.snapshot?.ecologySites[activeEcologySiteId] ?? null : null;
+  const activeRaidBoss = activeRaid ? livingWorld.snapshot?.bosses[activeRaid.bossId] ?? null : null;
+  const activeRaidRound = activeRaid ? livingWorld.snapshot?.raids[activeRaid.roundId] ?? null : null;
+  const activeRaidEncounter = activeRaidRound && typeof activeRaidRound.encounter === "object" ? activeRaidRound.encounter as WildsRaidEncounterState : null;
+  const activeRaidRoles = activeAsset ? projectWildsRaidRoles(activeAsset) : null;
+  const basePulse = resolveWildsContextAction({
     pendingReward: Boolean(rewardAsset),
     landmark: currentLandmark,
     secretId: state.encounter.phase === "hint" ? state.encounter.hotspotId ?? null : null,
     selectedPlayer: multiplayer.selectedPlayer
       ? { playerId: multiplayer.selectedPlayer.playerId, handle: multiplayer.selectedPlayer.handle }
       : null,
-    joinableActivity: null
+    joinableActivity: nearbyLivingBoss && nearbyLivingBoss.phase !== "defeated" ? { id: nearbyLivingBoss.id, name: "shared boss raid" } : null
   });
+  const pulse = nearbyEcology && (basePulse.kind === "scan" || basePulse.kind === "greet")
+    ? { kind: "join" as const, label: `${nearbyEcology.site.phase === "foreshadowed" ? "Discover" : "Enter"} ${nearbyEcology.site.name}`, activityId: nearbyEcology.site.id }
+    : basePulse;
   const visiblePulse = pulse.kind === "enter" && currentLandmarkAccess && !currentLandmarkAccess.allowed
     ? { ...pulse, label: `Inspect sealed ${currentLandmark?.name ?? "landmark"}` }
     : pulse;
+  const heartbeatMood = state.energy < 30 ? "Protective" : state.encounter.phase === "idle" ? "Curious" : "Alert";
+  const heartbeatMemory = state.lastEvent || "Your pack remembers the first trail into the Wilds.";
+  const heartbeatWhispers = [
+    nearbyLivingBoss ? `${nearbyLivingBoss.name} is stirring nearby.` : null,
+    nearbyEcology ? `${nearbyEcology.site.name} is changing this region.` : null,
+    livingWorld.snapshot?.defeatedBossIds.length ? `${livingWorld.snapshot.defeatedBossIds.length} shared victory ${livingWorld.snapshot.defeatedBossIds.length === 1 ? "monument stands" : "monuments stand"} in the world.` : null
+  ].filter((message): message is string => Boolean(message));
   const activatePulse = () => {
     if (pulse.kind === "enter") {
+      if (pulse.landmarkId === "wayfinder-hollow") {
+        if (!civic.completedSourceIds.includes("settlement:wayfinder-hollow")) {
+          dispatch({
+            type: "record-civic-event",
+            event: createWildsCivicEvent({
+              settlementId: "wayfinder-hollow",
+              actorId: civicActorId,
+              kind: "settlement.discovered",
+              sourceId: "settlement:wayfinder-hollow",
+              occurredAt: new Date().toISOString(),
+              cardProofDigest: null,
+              reputation: 3
+            })
+          });
+        }
+        presentation.playCue(settlementAudioCue("arrival"));
+      }
       setActiveLandmarkId(pulse.landmarkId);
       return;
     }
-    if (pulse.kind === "collect" || pulse.kind === "greet" || pulse.kind === "join") return;
+    if (pulse.kind === "join") {
+      if (pulse.activityId.startsWith("ecology:")) {
+        const ecology = livingWorld.snapshot?.ecologySites[pulse.activityId];
+        if (!ecology || !nearbyEcology || nearbyEcology.site.id !== ecology.id) return;
+        if (ecology.phase !== "foreshadowed") {
+          presentation.playCue(ecologyAudioCue("discovered", ecology.familyId));
+          setActiveEcologySiteId(ecology.id);
+          return;
+        }
+        void livingWorld.discoverEcology(ecology.id, state.player).then((projection) => {
+          const admitted = projection.ecologySites[ecology.id];
+          const cursor = projection.cursor;
+          if (!admitted || !cursor) throw new Error("wilds_ecology_discovery_receipt_missing");
+          dispatch({
+            type: "record-ecology-event",
+            event: createWildsEcologyReceipt({
+              actorId: civicActorId,
+              siteId: admitted.id,
+              familyId: admitted.familyId,
+              kind: "site.discovered",
+              sourceEventId: cursor.eventId,
+              occurredAt: cursor.pulse,
+              canonicalRevision: projection.revision,
+              mastery: 1,
+              cardProofDigest: null
+            })
+          });
+          presentation.playCue(ecologyAudioCue("discovered", admitted.familyId));
+          setActiveEcologySiteId(admitted.id);
+        }).catch((error) => setRiftError(error instanceof Error ? error.message : "wilds_ecology_discovery_failed"));
+        return;
+      }
+      const round = Object.values(livingWorld.snapshot?.raids ?? {}).find((candidate) => candidate.bossId === pulse.activityId && candidate.phase !== "settled" && candidate.phase !== "expired");
+      if (!round) { setRiftError("wilds_world_raid_missing"); return; }
+      setRaidReturnPosition({ ...state.player });
+      void livingWorld.enterRaid(pulse.activityId, round.id, state.player).then((projection) => {
+        const admitted = projection.raids[round.id];
+        if (!admitted) throw new Error("wilds_raid_admission_missing");
+        const squads = Array.isArray(admitted.squads) ? admitted.squads as string[][] : [];
+        const placement = squads.some((squad) => squad.includes(multiplayer.guestId)) ? "fighter" : "support";
+        setActiveRaid({ bossId: pulse.activityId, roundId: round.id, placement, connected: true });
+        if (nearbyLivingBoss?.familyId) presentation.playCue(bossAudioCue("telegraph", nearbyLivingBoss.familyId as WildsBossFamilyId));
+      }).catch((error) => setRiftError(error instanceof Error ? error.message : "wilds_raid_join_failed"));
+      return;
+    }
+    if (pulse.kind === "collect" || pulse.kind === "greet") return;
     dispatch({
       type: "search-point",
       x: state.player.x,
@@ -439,29 +580,58 @@ export function PlayCampaign({
     },
     {
       key: "deck",
-      label: "Active Deck",
+      label: "Trail Pack",
       icon: <Icons.assets size={21} />,
+      badge: `${trailPack.length}/3`,
       content: (
-        <div className="wilds-command-content">
+        <div className="wilds-command-content wilds-heartbeat-content">
           <div className="wilds-command-content-lead">
-            <span><small>Active leader</small><strong>{activeAsset?.manifest.name ?? activeCard.name}</strong></span>
-            <b>{deckCards.length}/∞</b>
+            <span><small>Wilds Heartbeat</small><strong>One leader · two bonded supports</strong></span>
+            <b>{trailSynergy.score}%</b>
           </div>
-          <div className="wilds-squad-list" aria-label="Collected companion cards">
-            {deckCards.map((card) => (
-              <button
-                aria-pressed={state.selectedAssetId === card.id}
-                className="wilds-squad-card"
-                key={card.id}
-                onClick={() => dispatch({ type: "select-asset", assetId: card.id })}
-                type="button"
-              >
+          <div className="wilds-heartbeat-pack" aria-label="Trail Pack leader and support companions">
+            {trailPack.map((card, index) => {
+              const progress = state.companionProgress[card.manifest.familyId] ?? { level: 1, xp: 0, bond: 0 };
+              const mastery = projectWildsCardMastery(card);
+              const element = creatureForm(card.manifest.formId)?.element ?? card.manifest.species;
+              const mood = index === 0 ? heartbeatMood : progress.bond >= 60 ? "Devoted" : progress.bond >= 25 ? "Steady" : "Listening";
+              return <article className={index === 0 ? "is-leader" : "is-support"} key={card.id}>
                 <WildsCreatureThumbnail asset={card} />
-                <div><strong>{card.manifest.name}</strong><small>Stage {card.manifest.stage} · Level {state.companionProgress[card.manifest.familyId]?.level ?? 1} · Bond {state.companionProgress[card.manifest.familyId]?.bond ?? 0}</small></div>
-                <b>{card.manifest.stats.power}</b>
-                <div className="wilds-mini-charge" aria-label={`${card.manifest.stats.power}% power`}><i style={{ width: `${card.manifest.stats.power}%` }} /></div>
-              </button>
-            ))}
+                <div>
+                  <small>{index === 0 ? "Leader" : `Support ${index}`} · {mastery.primary}</small>
+                  <strong>{card.manifest.name}</strong>
+                  <span>Lv. {progress.level} · {element} · {card.manifest.stats.power} PWR</span>
+                  <em>{mood} mood · Bond {progress.bond}</em>
+                </div>
+              </article>;
+            })}
+            {Array.from({ length: Math.max(0, 3 - trailPack.length) }, (_, index) => <div className="wilds-heartbeat-empty" key={`empty:${index}`}><Icons.pulse aria-hidden="true" size={18} /><span><strong>Support trail open</strong><small>Seal another companion to complete the pack.</small></span></div>)}
+          </div>
+          <div className="wilds-heartbeat-synergy" aria-label="Pack synergy effects">
+            <span><small>Pack synergy</small><strong>{trailSynergy.score}%</strong></span>
+            <span><small>Role coverage</small><strong>{trailSynergy.coverage}/8</strong></span>
+            <span><small>Active effects</small><strong>{trailSynergy.score >= 70 ? "Scout · capture · recovery" : trailSynergy.score >= 45 ? "Scout · support" : "Bonding"}</strong></span>
+          </div>
+          {deckCards.length > 1 ? <div className="wilds-heartbeat-reserve" aria-label="Choose Trail Pack supports">
+            <small>Shape support composition</small>
+            <div>{deckCards.filter((card) => card.id !== activeAsset?.id).slice(0, 12).map((card) => {
+              const selected = trailSupportCards.some((support) => support.id === card.id);
+              return <button
+                aria-label={`${selected ? "Replace" : "Choose"} ${card.manifest.name} as support`}
+                aria-pressed={selected}
+                key={card.id}
+                onClick={() => {
+                  const existingSlot = state.supportAssetIds.findIndex((id) => id === card.id);
+                  const slot = existingSlot >= 0 ? existingSlot as 0 | 1 : state.supportAssetIds[0] === null ? 0 : state.supportAssetIds[1] === null ? 1 : 0;
+                  dispatch({ type: "assign-support", slot, assetId: existingSlot >= 0 ? null : card.id });
+                }}
+                type="button"
+              ><WildsCreatureThumbnail asset={card} /><span>{card.manifest.name}</span></button>;
+            })}</div>
+          </div> : null}
+          <div className="wilds-heartbeat-echoes">
+            <div><small>Pack memory</small><p>{heartbeatMemory}</p></div>
+            <div><small>World whispers</small>{heartbeatWhispers.length ? heartbeatWhispers.map((message) => <p key={message}>{message}</p>) : <p>The trail is quiet. Your companions are listening for change.</p>}</div>
           </div>
         </div>
       )
@@ -476,11 +646,39 @@ export function PlayCampaign({
           <div className="wilds-vault-sheet-heading"><small>Portable card vault</small><strong>{state.inventory.length} sealed {state.inventory.length === 1 ? "card" : "cards"}</strong></div>
           <WildsInventory
             state={state}
+            cardOrder={cardOrder}
+            onCardOrderChange={setCardOrder}
+            playerVault={() => createWildsPlayerVault({
+              playerId: ownerReceizId,
+              exportedAt: new Date().toISOString(),
+              playState: state,
+              character,
+              settings: {
+                avatarStyle,
+                movementMode,
+                audio: presentation.audioSettings,
+                cardOrder
+              },
+              personalEvents: initialPlayerContinuity?.personalEvents ?? [],
+              canonicalCursor: livingWorld.snapshot
+                ? {
+                    worldId: "wilds:global:v3",
+                    revision: livingWorld.snapshot.revision,
+                    eventId: livingWorld.snapshot.cursor?.eventId ?? null
+                  }
+                : initialPlayerContinuity?.canonicalCursor ?? { worldId: "wilds:global:v3", revision: 0, eventId: null },
+              receipts: initialPlayerContinuity?.receipts ?? []
+            })}
+            onExportVault={onExportVault}
             onInput={dispatch}
             onListAsset={onListAsset}
             onRestoreArtifact={async (file, confirmCardOnly, currentPlayState) => {
               const outcome = await onRestoreArtifact(file, confirmCardOnly, currentPlayState);
               setState(outcome.playState);
+              setAvatarStyle(outcome.playerContinuity.settings.avatarStyle);
+              setMovementMode(outcome.playerContinuity.settings.movementMode);
+              setCardOrder(outcome.playerContinuity.settings.cardOrder);
+              presentation.setAudioSettings(normalizeWildsAudioSettings(outcome.playerContinuity.settings.audio));
               return outcome;
             }}
           />
@@ -518,6 +716,9 @@ export function PlayCampaign({
               qualityProfile={qualityProfile}
               searchEnabled={discoveryActive && Boolean(avatarStyle)}
               onCameraHeadingChange={setCameraHeading}
+              livingWorld={livingWorld.snapshot}
+              worldMode={settlementWorldMode}
+              supportCards={trailSupportCards}
               onSelectPlayer={multiplayer.selectPlayer}
               onSearchPoint={(point) => {
                 dispatch({ type: "search-point", ...point, searchedAt: new Date().toISOString(), ownerReceizId });
@@ -531,6 +732,7 @@ export function PlayCampaign({
             /> : null}
 
             {avatarStyle ? <WildsMultiplayer multiplayer={multiplayer} position={state.player} /> : null}
+            {avatarStyle ? <WildsLivingWorldHud player={state.player} world={livingWorld} /> : null}
             <div className="wilds-utility-cluster">
               <WildsAudioSettings
                 onChange={presentation.setAudioSettings}
@@ -563,10 +765,7 @@ export function PlayCampaign({
                       <button
                         key={choice}
                         className={`wilds-avatar-option ${choice}`}
-                        onClick={() => {
-                          setAvatarStyle(choice);
-                          try { window.localStorage.setItem(WILDS_AVATAR_KEY, choice); } catch { /* selection remains active for this session */ }
-                        }}
+                        onClick={() => setAvatarStyle(choice)}
                         type="button"
                       >
                         <span className="wilds-avatar-preview" aria-hidden="true"><i /><b /><em /></span>
@@ -640,8 +839,10 @@ export function PlayCampaign({
               cameraHeading={cameraHeading}
               companionProgress={state.companionProgress}
               movementMode={movementMode}
+              cardOrder={cardOrder}
               nearbyCards={state.inventory}
               onAction={activatePulse}
+              onCardOrderChange={setCardOrder}
               onMission={() => dispatch({ type: "mission" })}
               onOpenFieldGuide={() => setRequestedCommand("fieldGuide")}
               onOpenMarket={onOpenMarket}
@@ -661,7 +862,7 @@ export function PlayCampaign({
       </div>
       <WildsWorldMap
         currentPosition={state.player}
-        discoveredLandmarkIds={["hearttree-sanctum"]}
+        discoveredLandmarkIds={discoveredLandmarkIds}
         guestId={multiplayer.guestId}
         missionProgress={state.missionProgress}
         onClose={() => setMapOpen(false)}
@@ -672,17 +873,124 @@ export function PlayCampaign({
         remotePlayers={multiplayer.remotePlayers}
         worldMastery={state.worldMastery}
         landmarkProgress={landmarkProgress}
+        livingWorld={livingWorld.snapshot}
+        ecologyKnowledge={state.ecologyKnowledge}
+        bossKnowledge={state.bossKnowledge}
       />
       <WildsLandmarkExperience
-        access={activeLandmarkId ? evaluateLandmarkAccess(WILDS_FLAGSHIP_LANDMARKS.find((item) => item.id === activeLandmarkId)!, landmarkProgress) : null}
+        access={activeLandmarkId && activeLandmarkId !== "wayfinder-hollow" ? evaluateLandmarkAccess(WILDS_FLAGSHIP_LANDMARKS.find((item) => item.id === activeLandmarkId)!, landmarkProgress) : null}
         card={activeAsset}
-        landmarkId={activeLandmarkId}
+        landmarkId={activeLandmarkId === "wayfinder-hollow" ? null : activeLandmarkId}
         onExit={() => setActiveLandmarkId(null)}
-        onUnlock={(unlockId) => setLandmarkUnlocks((current) => {
-          const next = Array.from(new Set([...current, unlockId])).slice(0, 64);
-          try { window.localStorage.setItem(WILDS_ACHIEVEMENTS_KEY, JSON.stringify(next)); } catch { /* progression remains active for this session */ }
-          return next;
-        })}
+        onUnlock={(unlockId) => setState((current) => ({
+          ...current,
+          achievements: Array.from(new Set([...current.achievements, unlockId])).slice(0, 64)
+        }))}
+      />
+      <WildsSettlementExperience
+        actorId={civicActorId}
+        card={activeAsset}
+        civic={civic}
+        livingWorld={livingWorld.snapshot}
+        onAudioCue={presentation.playCue}
+        onCivicEvent={(event) => dispatch({ type: "record-civic-event", event })}
+        onExit={() => setActiveLandmarkId(null)}
+        open={activeLandmarkId === "wayfinder-hollow"}
+        remotePlayers={multiplayer.remotePlayers}
+        worldMode={settlementWorldMode}
+      />
+      <WildsEcologyExperience
+        card={activeAsset}
+        onExit={() => setActiveEcologySiteId(null)}
+        onSubmit={async ({ siteId, amount }) => {
+          const projection = await livingWorld.contributeEcology(siteId, state.player, amount);
+          const admitted = projection.ecologySites[siteId];
+          const cursor = projection.cursor;
+          if (!admitted || !cursor || !activeAsset) throw new Error("wilds_ecology_contribution_receipt_missing");
+          dispatch({
+            type: "record-ecology-event",
+            event: createWildsEcologyReceipt({
+              actorId: civicActorId,
+              siteId: admitted.id,
+              familyId: admitted.familyId,
+              kind: "activity.accepted",
+              sourceEventId: cursor.eventId,
+              occurredAt: cursor.pulse,
+              canonicalRevision: projection.revision,
+              mastery: amount,
+              cardProofDigest: activeAsset.proof.digest
+            })
+          });
+          presentation.playCue(ecologyAudioCue(admitted.phase === "aftermath" ? "resolved" : "step", admitted.familyId));
+        }}
+        open={Boolean(activeEcologySite)}
+        participantCount={(activeEcologySite?.participantIds.length ?? 0) + 1}
+        site={activeEcologySite}
+        worldMode={settlementWorldMode}
+      />
+      <WildsRaidExperience
+        boss={activeRaidBoss}
+        busyIntent={raidBusyIntent}
+        canonical={livingWorld.mode === "receiz_live"}
+        cardName={activeAsset?.manifest.name ?? activeCard.name}
+        connected={activeRaid?.connected ?? false}
+        encounter={activeRaidEncounter}
+        error={livingWorld.error || riftError || null}
+        onAction={(intent) => {
+          if (!activeRaid || !activeAsset || !activeRaidBoss || !activeRaidRoles) return;
+          setRaidBusyIntent(intent);
+          void livingWorld.actRaid(activeRaid.bossId, activeRaid.roundId, intent).then((projection) => {
+            const boss = projection.bosses[activeRaid.bossId];
+            const round = projection.raids[activeRaid.roundId];
+            const cursor = projection.cursor;
+            if (!boss || !round || !cursor) throw new Error("wilds_raid_receipt_missing");
+            const encounter = round.encounter as WildsRaidEncounterState | undefined;
+            const impact = encounter?.actions.at(-1)?.impact ?? 0;
+            dispatch({
+              type: "record-raid-event",
+              event: createWildsRaidReceipt({
+                actorId: civicActorId,
+                bossId: boss.id,
+                familyId: boss.familyId as WildsBossFamilyId,
+                roundId: round.id,
+                actionId: `action:${cursor.eventId}`,
+                sourceEventId: cursor.eventId,
+                kind: "action",
+                role: activeRaidRoles.primary,
+                placement: activeRaid.placement,
+                contributionBand: impact >= 1_400 ? "legendary" : impact >= 900 ? "strong" : impact >= 400 ? "steady" : "light",
+                result: boss.phase === "defeated" ? "victory" : "accepted",
+                revision: projection.revision,
+                occurredAt: cursor.pulse,
+                cardProofDigest: activeAsset.proof.digest
+              })
+            });
+            presentation.playCue(bossAudioCue(boss.phase === "defeated" ? "defeat" : boss.phase === "transforming" ? "transform" : boss.phase === "vulnerable" ? "vulnerable" : "action", boss.familyId as WildsBossFamilyId));
+          }).catch((error) => setRiftError(error instanceof Error ? error.message : "wilds_raid_action_failed")).finally(() => setRaidBusyIntent(null));
+        }}
+        onClose={() => {
+          if (!activeRaid) return;
+          void livingWorld.retreatRaid(activeRaid.bossId, activeRaid.roundId).catch(() => undefined);
+          if (raidReturnPosition) setState((current) => ({ ...current, player: raidReturnPosition }));
+          setActiveRaid(null);
+          setRaidReturnPosition(null);
+        }}
+        onLease={(status) => {
+          if (!activeRaid) return;
+          void livingWorld.leaseRaid(activeRaid.bossId, activeRaid.roundId, status).then(() => setActiveRaid((current) => current ? { ...current, connected: status === "connected" } : current)).catch((error) => setRiftError(error instanceof Error ? error.message : "wilds_raid_lease_failed"));
+        }}
+        onRetreat={() => {
+          if (!activeRaid) return;
+          void livingWorld.retreatRaid(activeRaid.bossId, activeRaid.roundId).finally(() => {
+            if (raidReturnPosition) setState((current) => ({ ...current, player: raidReturnPosition }));
+            setActiveRaid(null);
+            setRaidReturnPosition(null);
+          });
+        }}
+        open={Boolean(activeRaid && activeRaidBoss && activeRaidRound)}
+        placement={activeRaid?.placement ?? "support"}
+        raid={activeRaidRound}
+        role={activeRaidRoles?.primary ?? "steward"}
       />
       <WildsCaptureReward asset={rewardAsset} onClose={() => {
         setRewardAsset(null);

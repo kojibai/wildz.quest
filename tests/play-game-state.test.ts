@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   applyWildsInput,
   canDiscover,
+  createOwnerBoundInitialPlayState,
   initialPlayState,
   restorePlayState,
   serializePlayState,
@@ -13,6 +14,7 @@ import { nextGrowthRequirements } from "../src/features/play/growth-engine.js";
 import { evolvePortableCard, sealCollectedCard, verifyAnyWildsCard, verifyPortableCard } from "../src/features/play/portable-card.js";
 import { nearbyHiddenHotspots } from "../src/features/play/hidden-hotspots.js";
 import { isLivingCardAsset } from "../src/features/play/living-card-types.js";
+import { createWildsCivicEvent } from "../src/features/play/wilds-civic-history.js";
 
 describe("Receiz Wilds game state", () => {
   it("records each gameplay growth event once and awards earned catalysts", () => {
@@ -357,6 +359,93 @@ describe("Receiz Wilds game state", () => {
     assert.equal(migrated.inventory.every((asset) => isLivingCardAsset(asset)), true);
     assert.deepEqual(restorePlayState(serializePlayState(migrated)), migrated);
     assert.deepEqual(restorePlayState("not-json"), initialPlayState);
+  });
+
+  it("records verified civic history once and derives regional reputation", () => {
+    const event = createWildsCivicEvent({
+      settlementId: "wayfinder-hollow",
+      actorId: "wilds.player.receiz.id",
+      kind: "service.completed",
+      sourceId: "orientation",
+      occurredAt: "2026-07-15T18:00:00.000Z",
+      cardProofDigest: null,
+      reputation: 5
+    });
+    const once = applyWildsInput(initialPlayState, { type: "record-civic-event", event });
+    const replay = applyWildsInput(once, { type: "record-civic-event", event });
+    const tampered = applyWildsInput(once, { type: "record-civic-event", event: { ...event, reputation: 99 } });
+
+    assert.deepEqual(once.civicEvents, [event]);
+    assert.equal(once.regionalReputation["wayfinder-hollow"], 5);
+    assert.deepEqual(replay, once);
+    assert.deepEqual(tampered, once);
+  });
+
+  it("persists personal history in v8 and safely migrates v2 through v7 saves", () => {
+    const event = createWildsCivicEvent({
+      settlementId: "wayfinder-hollow",
+      actorId: "wilds.player.receiz.id",
+      kind: "puzzle.completed",
+      sourceId: "route-memory:2026-07-15",
+      occurredAt: "2026-07-15T18:05:00.000Z",
+      cardProofDigest: null,
+      reputation: 5
+    });
+    const progressed = applyWildsInput(initialPlayState, { type: "record-civic-event", event });
+    const serialized = serializePlayState(progressed);
+    const envelope = JSON.parse(serialized);
+    const legacyState = { ...initialPlayState } as Partial<PlayState> & Record<string, unknown>;
+    delete legacyState.civicEvents;
+    delete legacyState.regionalReputation;
+    delete legacyState.supportAssetIds;
+
+    assert.equal(envelope.schema, "receiz.wilds.save.v8");
+    assert.deepEqual(restorePlayState(serialized).civicEvents, [event]);
+    assert.equal(restorePlayState(serialized).regionalReputation["wayfinder-hollow"], 5);
+    for (let version = 2; version <= 7; version += 1) {
+      assert.deepEqual(
+        restorePlayState(JSON.stringify({ schema: `receiz.wilds.save.v${version}`, state: legacyState })).civicEvents,
+        []
+      );
+      assert.deepEqual(
+        restorePlayState(JSON.stringify({ schema: `receiz.wilds.save.v${version}`, state: legacyState })).supportAssetIds,
+        [null, null]
+      );
+    }
+  });
+
+  it("normalizes support slots and removes a selected leader from support", () => {
+    const owner = "support_keeper";
+    const leader = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: owner, encounterId: "support-leader", capturedAt: "2026-07-15T10:00:00.000Z" });
+    const support = sealCollectedCard({ formId: "voltray-1", ownerReceizId: owner, encounterId: "support-one", capturedAt: "2026-07-15T11:00:00.000Z" });
+    const state: PlayState = {
+      ...createOwnerBoundInitialPlayState(owner),
+      inventory: [leader, support],
+      discoveredCardIds: ["mintcub", "voltray"],
+      selectedAssetId: leader.id,
+      selectedCardId: "mintcub",
+      supportAssetIds: [null, null]
+    };
+    const assigned = applyWildsInput(state, { type: "assign-support", slot: 0, assetId: support.id });
+    assert.deepEqual(assigned.supportAssetIds, [support.id, null]);
+    assert.deepEqual(applyWildsInput(assigned, { type: "select-asset", assetId: support.id }).supportAssetIds, [null, null]);
+
+    const duplicateEnvelope = JSON.parse(serializePlayState(state));
+    duplicateEnvelope.state.supportAssetIds = [support.id, support.id];
+    assert.deepEqual(restorePlayState(JSON.stringify(duplicateEnvelope), owner).supportAssetIds, [support.id, null]);
+    duplicateEnvelope.state.supportAssetIds = [leader.id, "missing"];
+    assert.deepEqual(restorePlayState(JSON.stringify(duplicateEnvelope), owner).supportAssetIds, [null, null]);
+  });
+
+  it("issues starter and legacy-discovery cards to the exact active owner", () => {
+    const owner = "new_explorer";
+    const starter = createOwnerBoundInitialPlayState(owner);
+    assert.equal(starter.inventory.every((asset) => asset.manifest.ownerReceizId === owner && verifyAnyWildsCard(asset).ok), true);
+
+    const legacyState = { ...initialPlayState, inventory: undefined, discoveredCardIds: ["mintcub", "voltray"], supportAssetIds: undefined };
+    const restored = restorePlayState(JSON.stringify({ schema: "receiz.wilds.save.v2", state: legacyState }), owner);
+    assert.equal(restored.inventory.every((asset) => asset.manifest.ownerReceizId === owner && verifyAnyWildsCard(asset).ok), true);
+    assert.deepEqual(restored.supportAssetIds, [null, null]);
   });
 
   it("defaults proximity fields when restoring an older active encounter", () => {

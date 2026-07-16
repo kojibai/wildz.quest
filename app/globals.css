@@ -85,6 +85,31 @@ body {
 
 .wildz-identity-loading img { animation: wildz-genesis-breathe 1.7s ease-in-out infinite; }
 
+.wildz-vault-login-prompt {
+  position: fixed;
+  z-index: 180;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: max(14px, env(safe-area-inset-bottom));
+  left: max(14px, env(safe-area-inset-left));
+  display: grid;
+  width: min(520px, calc(100% - 28px));
+  margin-inline: auto;
+  gap: 7px;
+  padding: 16px;
+  border: 1px solid rgba(153, 229, 185, .34);
+  border-radius: 22px;
+  color: #f8f5e9;
+  background: rgba(8, 23, 15, .92);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, .48), inset 0 1px rgba(255, 255, 255, .08);
+  backdrop-filter: blur(24px);
+}
+
+.wildz-vault-login-prompt > span { color: #9ee4b2; font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.wildz-vault-login-prompt > strong { font-size: 14px; line-height: 1.4; }
+.wildz-vault-login-prompt > div { display: flex; gap: 8px; margin-top: 5px; }
+.wildz-vault-login-prompt button { min-height: 42px; padding: 0 15px; border: 1px solid rgba(255,255,255,.16); border-radius: 14px; color: #f8f5e9; background: rgba(255,255,255,.08); font: 800 13px/1 inherit; cursor: pointer; }
+.wildz-vault-login-prompt button:first-child { flex: 1; color: #092116; background: linear-gradient(135deg, #bdf2bd, #70d6a1); }
+
 .wildz-genesis {
   align-content: center;
   gap: clamp(28px, 6vh, 64px);
@@ -112,7 +137,7 @@ body {
 
 .wildz-genesis-brand { display: grid; justify-items: center; gap: 18px; text-align: center; }
 .wildz-genesis-brand img { width: min(64vw, 240px); height: auto; }
-.wildz-genesis-brand p { max-width: 420px; margin: 0; color: rgba(248, 245, 233, .7); font-size: clamp(14px, 3.7vw, 17px); line-height: 1.5; }
+.wildz-genesis-brand p { width: 100%; margin: 0; color: rgba(248, 245, 233, .7); font-size: clamp(10px, 2.85vw, 17px); line-height: 1.5; white-space: nowrap; }
 .wildz-genesis-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 
 .wildz-genesis-actions button,
@@ -285,6 +310,13 @@ body {
 .wildz-profile-stats span { display: grid; gap: 2px; padding: 11px; border-radius: 14px; background: rgba(255,255,255,.06); color: #9cbaa9; font-size: 11px; }
 .wildz-profile-stats b { color: #f8f5e9; font-size: 18px; }
 .wildz-profile-traits { margin: -7px 0 0; color: #d8c989; text-transform: capitalize; }
+.wildz-profile-sharing { display: flex; flex-wrap: wrap; gap: 8px; }
+.wildz-profile-sharing button { min-width: 88px; min-height: 44px; padding: 0 14px; border: 1px solid rgba(151,226,155,.28); border-radius: 14px; color: #effff2; background: rgba(118,199,134,.1); font: inherit; font-size: 12px; font-weight: 850; cursor: pointer; transition: transform .16s ease, border-color .16s ease, background .16s ease; }
+.wildz-profile-sharing button:active { transform: scale(.96); }
+.wildz-profile-sharing button[data-state="success"] { border-color: rgba(151,226,155,.7); background: rgba(118,199,134,.22); animation: wildz-profile-action-success .42s ease; }
+.wildz-profile-sharing [role="status"] { min-height: 18px; flex-basis: 100%; margin: 0; color: #9cbaa9; font-size: 11px; }
+@keyframes wildz-profile-action-success { 50% { transform: translateY(-1px) scale(1.025); } }
+@media (prefers-reduced-motion: reduce) { .wildz-profile-sharing button { transition: none; } .wildz-profile-sharing button[data-state="success"] { animation: none; } }
 .wildz-vault-sheet header { display: flex; justify-content: space-between; align-items: center; }
 .wildz-vault-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(130px,1fr)); gap: 10px; }
 .wildz-vault-grid article { display: grid; min-height: 150px; align-content: end; gap: 3px; overflow: hidden; padding: 12px; border: 1px solid rgba(255,255,255,.1); border-radius: 18px; background: radial-gradient(circle at 50% 28%,rgba(116,220,157,.28),transparent 35%),linear-gradient(160deg,#173a2b,#081610); }
@@ -11458,7 +11490,7 @@ button.product-purchase-secondary-link {
 
 .wilds-inventory-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(150px, 220px);
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 190px) minmax(140px, 190px);
   gap: 10px;
 }
 
@@ -11490,7 +11522,7 @@ button.product-purchase-secondary-link {
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr);
   gap: 3px 9px;
-  min-height: 84px;
+  min-height: 96px;
   padding: 11px;
   color: #effaff;
   text-align: left;
@@ -11505,8 +11537,8 @@ button.product-purchase-secondary-link {
   box-shadow: 0 0 0 2px rgb(101 229 189 / 13%);
 }
 
-.wilds-inventory-grid > button > span {
-  grid-row: 1 / 4;
+.wilds-inventory-grid > button > .wilds-creature-thumbnail {
+  grid-row: 1 / 5;
   display: grid;
   width: 42px;
   height: 42px;
@@ -11515,6 +11547,29 @@ button.product-purchase-secondary-link {
   font-size: 12px;
   font-weight: 950;
   border-radius: 13px;
+}
+
+.wilds-inventory-card-xp {
+  color: #f1d36b;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .06em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.wilds-creature-name {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.wilds-creature-name > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .wilds-inventory-grid strong,
@@ -11749,12 +11804,12 @@ button.product-purchase-secondary-link {
 .wilds-command-sheet-content .wilds-import-card:focus-visible { outline: 2px solid rgb(113 232 195 / 65%); outline-offset: -2px; }
 .wilds-command-sheet-content .wilds-import-card span { display: none; }
 .wilds-command-sheet-content .wilds-import-message { padding: 9px 10px; color: #bcebdd; border: 1px solid rgb(113 232 195 / 14%); border-radius: 11px; background: rgb(4 18 25 / 48%); }
-.wilds-command-sheet-content .wilds-inventory-toolbar { grid-template-columns: minmax(0, 1fr) 150px; }
+.wilds-command-sheet-content .wilds-inventory-toolbar { grid-template-columns: minmax(0, 1fr) 132px 148px; }
 .wilds-command-sheet-content .wilds-inventory-layout { grid-template-columns: minmax(0, 1fr); }
 .wilds-command-sheet-content .wilds-inventory-detail { grid-row: 2; justify-items: center; padding-top: 4px; }
 .wilds-command-sheet-content .wilds-inventory-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .wilds-command-sheet-content .wilds-inventory-grid > button { min-height: 92px; grid-template-columns: 36px minmax(0, 1fr); align-content: center; }
-.wilds-command-sheet-content .wilds-inventory-grid > button > span { width: 36px; height: 36px; }
+.wilds-command-sheet-content .wilds-inventory-grid > button > .wilds-creature-thumbnail { width: 36px; height: 36px; }
 .wilds-command-sheet-content .wilds-inventory-grid strong,
 .wilds-command-sheet-content .wilds-inventory-grid small,
 .wilds-command-sheet-content .wilds-inventory-grid b { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; line-height: 1.2; }
@@ -12581,27 +12636,33 @@ button.product-purchase-secondary-link {
 .wildz-social-stack > .wilds-command-system > .wilds-command-dock { display: none; }
 .wildz-preserved-controls { display: none; }
 .wildz-social-handle { justify-self: center; width: 78px; height: 6px; border-radius: 8px; background: rgba(223, 226, 216, .28); }
-.wildz-nearby-cards { display: flex; gap: 10px; min-height: 0; padding: 8px 2px 6px; overflow-x: auto; scrollbar-width: none; }
+.wildz-card-rail { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
+.wildz-card-rail-tools { display: flex; min-height: 26px; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 2px 0; }
+.wildz-card-rail-tools > span { overflow: hidden; color: #9baca0; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.wildz-card-rail-tools label { display: flex; align-items: center; gap: 6px; color: #8ea096; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.wildz-card-rail-tools select { min-height: 24px; padding: 0 25px 0 9px; border: 1px solid rgba(143, 215, 168, .22); border-radius: 9px; color: #dff4e5; background: #17261f; font: inherit; letter-spacing: 0; text-transform: none; }
+.wildz-nearby-cards { display: flex; gap: 10px; min-height: 0; padding: 4px 2px 6px; overflow-x: auto; overscroll-behavior-inline: contain; scroll-snap-type: x proximity; scrollbar-width: none; }
 .wildz-nearby-cards::-webkit-scrollbar { display: none; }
-.wildz-nearby-cards article { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 6px 8px; width: clamp(248px, 46vw, 344px); flex: 0 0 auto; padding: 10px; border: 1px solid rgba(225, 217, 184, .22); border-radius: 22px; background: radial-gradient(circle at 18% 5%, rgba(125, 181, 130, .18), transparent 44%), linear-gradient(145deg, rgba(48, 57, 52, .72), rgba(18, 26, 24, .88)); box-shadow: inset 0 1px rgba(255,255,255,.06), 0 10px 24px rgba(0,0,0,.14); }
+.wildz-nearby-cards article { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 6px 8px; width: clamp(248px, 46vw, 344px); flex: 0 0 auto; padding: 10px; border: 1px solid rgba(225, 217, 184, .22); border-radius: 22px; background: radial-gradient(circle at 18% 5%, rgba(125, 181, 130, .18), transparent 44%), linear-gradient(145deg, rgba(48, 57, 52, .72), rgba(18, 26, 24, .88)); box-shadow: inset 0 1px rgba(255,255,255,.06), 0 10px 24px rgba(0,0,0,.14); contain-intrinsic-size: 300px 100px; content-visibility: auto; scroll-snap-align: start; }
 .wildz-nearby-creature { grid-column: 1 / -1; display: grid; grid-template-columns: 66px 1fr; gap: 11px; align-items: center; min-width: 0; border: 0; color: inherit; background: transparent; text-align: left; }
 .wildz-nearby-creature > span { position: relative; display: grid; width: 66px; height: 66px; place-items: center; overflow: hidden; border: 2px solid rgba(227, 216, 169, .42); border-radius: 20px; color: #eef8ee; font-size: 28px; font-weight: 950; box-shadow: inset 0 0 22px rgba(255,255,255,.16), 0 8px 18px rgba(0,0,0,.25); }
 .wildz-creature-portrait .wilds-creature-artwork { transform: scale(1.04); }
 .wildz-nearby-creature > div { display: grid; min-width: 0; gap: 3px; }
-.wildz-nearby-creature strong { overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
+.wildz-nearby-xp { align-self: end; color: #f0d066; font-size: 8px; font-weight: 950; letter-spacing: .07em; line-height: 1; text-transform: uppercase; }
+.wildz-nearby-creature strong { overflow: hidden; font-size: 16px; }
 .wildz-nearby-creature small { color: #b9bfba; }
 .wildz-nearby-creature em { justify-self: start; padding: 3px 7px; border: 1px solid rgba(113, 203, 152, .25); border-radius: 7px; color: #85d9a3; font-size: 9px; font-style: normal; text-transform: capitalize; }
 .wildz-nearby-owner { display: flex; min-width: 0; gap: 7px; align-items: center; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.07); color: #dfe3dc; }
 .wildz-nearby-owner span { display: grid; }
 .wildz-nearby-owner strong { display: block; max-width: 150px; overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .wildz-nearby-owner small { color: #929d96; font-size: 8px; }
-.wildz-trade-inline { display: flex; min-width: 104px; justify-content: space-between; align-self: end; min-height: 34px; padding: 7px 10px; border: 1px solid rgba(126, 218, 158, .26); border-radius: 14px; color: #f0d066; background: linear-gradient(90deg, rgba(31, 48, 39, .9), rgba(24, 38, 32, .72)); box-shadow: inset 0 1px rgba(255,255,255,.04); }
+.wildz-trade-inline { display: flex; min-width: 104px; justify-content: space-between; align-self: end; min-height: 34px; gap: 6px; padding: 7px 10px; border: 1px solid rgba(126, 218, 158, .26); border-radius: 14px; color: #f0d066; background: linear-gradient(90deg, rgba(31, 48, 39, .9), rgba(24, 38, 32, .72)); box-shadow: inset 0 1px rgba(255,255,255,.04); }
 .wildz-trade-inline span { color: #78d59c; font-size: 11px; font-weight: 900; letter-spacing: .09em; text-transform: uppercase; }
 
 .wilds-creature-thumbnail { position: relative; display: grid; place-items: center; overflow: hidden; background: radial-gradient(circle at 50% 42%, var(--creature-glow), var(--creature-primary) 72%); }
 .wilds-creature-artwork { position: absolute; inset: 0; display: grid; place-items: center; }
 .wilds-creature-artwork > svg { width: 128%; height: 128%; max-width: none; transform: translateY(4%); filter: drop-shadow(0 4px 5px rgba(0, 0, 0, .28)); }
-.wilds-creature-verified { position: absolute; top: 3px; right: 3px; z-index: 3; display: grid; width: 14px; height: 14px; place-items: center; color: #fff !important; border: 1px solid rgba(218, 237, 255, .92); border-radius: 50%; background: linear-gradient(145deg, #87b9ff, #417be5 64%, #2854b3); box-shadow: 0 2px 7px rgba(17, 58, 137, .6), inset 0 1px rgba(255,255,255,.48); }
+.wilds-creature-verified { position: static; display: inline-grid; width: 14px; height: 14px; flex: 0 0 14px; place-items: center; color: #fff !important; border: 1px solid rgba(218, 237, 255, .92); border-radius: 50%; background: linear-gradient(145deg, #87b9ff, #417be5 64%, #2854b3); box-shadow: 0 2px 7px rgba(17, 58, 137, .6), inset 0 1px rgba(255,255,255,.48); vertical-align: middle; }
 .wilds-squad-card .wilds-creature-thumbnail,
 .wilds-inventory-grid .wilds-creature-thumbnail { color: transparent; }
 
@@ -12755,9 +12816,12 @@ button.product-purchase-secondary-link {
   .wildz-context-button { right: 5vw; bottom: 17px; width: 62px; }
   .wildz-dpad { bottom: 14px; width: 120px; }
   .wildz-social-deck,
-  .wildz-social-stack > .wildz-social-deck { height: 260px; border-radius: 24px 24px 0 0; }
+  .wildz-social-stack > .wildz-social-deck { height: 278px; border-radius: 24px 24px 0 0; }
+  .wildz-card-rail-tools { min-height: 24px; }
+  .wildz-card-rail-tools > span { display: none; }
+  .wildz-card-rail-tools label { width: 100%; justify-content: flex-end; }
   .wildz-nearby-cards { padding-top: 3px; padding-bottom: 1px; }
-  .wildz-nearby-cards article { position: relative; display: block; width: 250px; height: 78px; padding: 7px; border-radius: 17px; }
+  .wildz-nearby-cards article { position: relative; display: block; width: 250px; height: 80px; padding: 7px; border-radius: 17px; }
   .wildz-nearby-creature { grid-template-columns: 50px minmax(0, 1fr); width: calc(100% - 84px); gap: 9px; }
   .wildz-nearby-creature > span { width: 50px; height: 50px; border-radius: 14px; }
   .wildz-nearby-creature strong { font-size: 14px; }
@@ -12795,7 +12859,7 @@ button.product-purchase-secondary-link {
 
 @media (max-height: 700px) {
   .wildz-social-deck,
-  .wildz-social-stack > .wildz-social-deck { height: 260px; }
+  .wildz-social-stack > .wildz-social-deck { height: 270px; }
   .wildz-minimap { top: 132px; width: 96px; }
   .wildz-player-capsule { transform: scale(.9); transform-origin: top left; }
   .wildz-status-rail { transform: scale(.88); transform-origin: top right; }
@@ -12813,4 +12877,418 @@ button.product-purchase-secondary-link {
   .wildz-social-actions button,
   .wildz-social-deck .wilds-command-button { transition: none; }
   .wildz-context-button.can-enter { animation: none; }
+}
+
+/* Wilds V3 living-world, settlement, ecology, and raid surfaces. */
+.wilds-living-world-hud { position: absolute; z-index: 8; top: 76px; right: 12px; display: flex; max-width: calc(100% - 108px); gap: 6px; }
+.wilds-live-pill { display: flex; min-height: 34px; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid rgba(113,232,195,.32); border-radius: 999px; color: #effff9; background: rgba(7,25,31,.84); box-shadow: 0 10px 24px rgba(0,0,0,.24); backdrop-filter: blur(16px); font-size: 10px; font-weight: 850; }
+.wilds-live-pill i { width: 7px; height: 7px; border-radius: 50%; background: #f7c948; box-shadow: 0 0 12px currentColor; }
+.wilds-live-pill.mode-receiz_live i { background: #71e8c3; }
+.wilds-live-pill.event { color: #eadcff; border-color: rgba(183,124,255,.42); }
+.wilds-live-event-compact { display: none; }
+.wilds-live-pill b { color: #fff2a8; }
+.wilds-living-world-sheet { position: fixed; z-index: 100; top: 50%; left: 50%; display: grid; width: min(330px, calc(100vw - 24px)); max-height: min(640px, calc(100dvh - 32px)); gap: 10px; overflow: auto; padding: 16px; border: 1px solid rgba(183,124,255,.35); border-radius: 18px; color: #fff; background: rgba(7,19,28,.96); box-shadow: 0 22px 58px rgba(0,0,0,.44); backdrop-filter: blur(22px); transform: translate(-50%, -50%); overscroll-behavior: contain; }
+.wilds-living-world-close { position: absolute; top: 8px; right: 8px; display: grid; width: 44px; min-height: 44px; place-items: center; border: 0; color: #fff; background: transparent; font-size: 25px; }
+.wilds-living-world-sheet small { padding-right: 40px; color: #9bb9c2; font-size: 9px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
+.wilds-living-world-sheet strong { padding-right: 32px; font-size: 16px; }
+.wilds-living-world-sheet > button:not(.wilds-living-world-close), .wilds-living-world-sheet form button { min-height: 44px; border: 0; border-radius: 12px; color: #071a1e; background: linear-gradient(145deg,#f7d25b,#6fe6bd); font-weight: 900; }
+.wilds-live-boss-meter { position: relative; height: 18px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.1); }
+.wilds-live-boss-meter span { display: block; height: 100%; background: linear-gradient(90deg,#b77cff,#ff6bad); }
+.wilds-live-boss-meter b { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 9px; }
+.wilds-living-world-sheet p, .wilds-living-world-sheet em { margin: 0; color: #afc5cc; font-size: 10px; font-style: normal; }
+.wilds-living-world-sheet form { display: grid; grid-template-columns: minmax(0,1fr) 76px; gap: 7px; }
+.wilds-living-world-sheet input { min-width: 0; min-height: 44px; padding: 0 11px; border: 1px solid rgba(255,255,255,.16); border-radius: 12px; color: #fff; background: rgba(255,255,255,.07); }
+.wilds-world-boss-label { display: block; padding: 5px 8px; border: 1px solid rgba(255,255,255,.24); border-radius: 999px; color: #fff; background: rgba(20,8,34,.84); font-size: 8px; font-weight: 900; white-space: nowrap; }
+@media (max-width: 560px) {
+  /* Keep the shared-boss status rail below the Wilds scout chip so its
+     buttons and popover never compete with the player identity row. */
+  /* Boss/event overlays live in the lower-left safe zone, clear of the
+     scout chip, resource strip, and the right-side share utilities. */
+  .mobile-play-wrap .wilds-living-world-hud { top: auto; right: auto; bottom: 86px; left: 8px; width: min(240px, calc(100% - 16px)); max-width: min(240px, calc(100% - 16px)); flex-wrap: wrap; justify-content: flex-start; }
+  .mobile-play-wrap .wilds-live-pill { min-height: 30px; max-width: 124px; padding: 0 7px; }
+  .mobile-play-wrap .wilds-live-pill.event { gap: 4px; padding-inline: 6px; font-size: 9px; }
+  .mobile-play-wrap .wilds-live-pill.event b { font-size: 8px; }
+  .mobile-play-wrap .wilds-live-pill[class*="mode-"] { flex: 0 0 30px; width: 30px; padding: 0; justify-content: center; }
+  .mobile-play-wrap .wilds-live-pill[class*="mode-"] span { display: none; }
+  .mobile-play-wrap .wilds-live-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-play-wrap .wilds-living-world-hud.has-event .wilds-live-pill[class*="mode-"] { display: none; }
+  /* The pills stay discoverable at the lower-left, but their expanded sheet
+     is centered in the gameplay viewport so the dock can never consume it. */
+  .mobile-play-wrap .wilds-living-world-sheet { top: 50%; left: 50%; width: min(310px, calc(100vw - 20px)); max-height: min(640px, calc(100dvh - 32px)); transform: translate(-50%, -50%); }
+}
+
+@media (max-width: 350px) {
+  .mobile-play-wrap .wilds-living-world-hud.has-event { width: min(240px, calc(100% - 16px)); max-width: min(240px, calc(100% - 16px)); }
+  .mobile-play-wrap .wilds-live-event-full { display: none; }
+  .mobile-play-wrap .wilds-live-event-compact { display: inline; }
+}
+/* Wayfinder Hollow stays one viewport: districts swipe, only the focused place scrolls. */
+.wilds-settlement-experience {
+  position: fixed;
+  inset: 0;
+  z-index: 7100;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  width: 100%;
+  height: 100dvh;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  overflow: hidden;
+  color: #f8f3df;
+  background:
+    radial-gradient(circle at 78% 18%, rgb(244 196 93 / 18%), transparent 30%),
+    radial-gradient(circle at 10% 90%, rgb(71 168 140 / 14%), transparent 34%),
+    linear-gradient(145deg, #071b1c, #0b2928 48%, #0a1c22);
+  isolation: isolate;
+}
+
+.wilds-settlement-experience::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  opacity: .18;
+  background: repeating-linear-gradient(115deg, transparent 0 29px, rgb(240 198 105 / 18%) 30px, transparent 31px 58px);
+  pointer-events: none;
+}
+
+.wilds-settlement-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 44px;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 10px clamp(12px, 3vw, 34px);
+  border-bottom: 1px solid rgb(240 200 112 / 20%);
+  background: rgb(5 21 22 / 72%);
+  backdrop-filter: blur(18px);
+}
+.wilds-settlement-header > div:first-child { min-width: 0; }
+.wilds-settlement-header span { display: block; color: #a9c8bc; font-size: 10px; font-weight: 850; letter-spacing: .11em; text-transform: uppercase; }
+.wilds-settlement-header h2 { margin: 2px 0 0; color: #fff7da; font-size: clamp(20px, 4vw, 31px); line-height: 1; }
+.wilds-settlement-reputation { display: grid; grid-template-columns: auto auto; align-items: baseline; gap: 4px; min-width: 58px; padding: 6px 9px; border: 1px solid rgb(242 200 107 / 28%); border-radius: 15px 4px 15px 4px; background: rgb(242 200 107 / 9%); }
+.wilds-settlement-reputation strong { color: #f2c86b; font-size: 20px; font-variant-numeric: tabular-nums; }
+.wilds-settlement-reputation small { color: #cbbf9c; font-size: 8px; font-weight: 900; letter-spacing: .1em; }
+.wilds-settlement-close {
+  display: grid;
+  min-width: 44px;
+  min-height: 44px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 13%);
+  border-radius: 50%;
+  color: #fff8dc;
+  background: rgb(255 255 255 / 7%);
+}
+
+.wilds-settlement-districts {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  padding: 9px clamp(12px, 3vw, 34px);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
+}
+.wilds-settlement-districts::-webkit-scrollbar { display: none; }
+.wilds-settlement-districts button { display: flex; flex: 0 0 auto; align-items: center; gap: 7px; min-height: 44px; padding: 7px 12px; scroll-snap-align: start; border: 1px solid rgb(143 210 184 / 16%); border-radius: 13px 4px 13px 4px; color: #acc9bd; background: rgb(11 45 42 / 72%); font-size: 11px; font-weight: 800; }
+.wilds-settlement-districts button[aria-current="page"] { border-color: rgb(242 200 107 / 52%); color: #fff4c8; background: linear-gradient(135deg, rgb(242 200 107 / 18%), rgb(70 154 126 / 16%)); box-shadow: inset 0 -2px #f2c86b; }
+
+.wilds-settlement-panel {
+  min-height: 0;
+  padding: clamp(15px, 3vw, 32px) clamp(13px, 4vw, 54px) 28px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: rgb(242 200 107 / 38%) transparent;
+}
+.wilds-settlement-panel:focus { outline: none; }
+.wilds-settlement-panel-heading { width: min(100%, 920px); margin: 0 auto 18px; }
+.wilds-settlement-panel-heading span { color: #8db9aa; font-size: 11px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+.wilds-settlement-panel-heading h3 { margin: 3px 0 0; color: #fff8df; font-size: clamp(25px, 6vw, 48px); line-height: .98; }
+
+.wilds-settlement-resident-layout,
+.wilds-route-memory,
+.wilds-monument-view,
+.wilds-commons-view { width: min(100%, 920px); margin: 0 auto; }
+.wilds-settlement-resident-layout { display: grid; grid-template-columns: minmax(180px, .72fr) minmax(0, 1.4fr); gap: clamp(13px, 3vw, 28px); align-items: stretch; }
+.wilds-settlement-resident { display: grid; grid-template-columns: 60px minmax(0, 1fr); align-items: center; gap: 13px; min-height: 128px; padding: 18px; border: 1px solid rgb(242 200 107 / 22%); border-radius: 30px 6px 30px 6px; background: linear-gradient(140deg, rgb(242 200 107 / 13%), rgb(19 71 62 / 26%)); }
+.wilds-settlement-resident > span { display: grid; width: 60px; aspect-ratio: 1; place-items: center; border: 2px solid rgb(242 200 107 / 46%); border-radius: 50% 50% 45% 55%; color: #f7d888; background: #143b34; box-shadow: 0 0 30px rgb(242 200 107 / 12%); font-size: 17px; font-weight: 950; }
+.wilds-settlement-resident small { display: block; color: #8db9aa; font-size: 9px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
+.wilds-settlement-resident strong { display: block; margin-top: 3px; color: #fff8df; font-size: 19px; }
+.wilds-settlement-resident em { display: block; margin-top: 2px; color: #f2c86b; font-size: 11px; font-style: normal; }
+.wilds-settlement-dialogue { display: grid; gap: 14px; align-content: center; min-width: 0; padding: clamp(16px, 3vw, 27px); border: 1px solid rgb(143 210 184 / 14%); border-radius: 6px 30px 6px 30px; background: rgb(4 20 23 / 58%); }
+.wilds-settlement-dialogue > p { margin: 0; color: #dbe9df; font-size: clamp(14px, 2vw, 18px); line-height: 1.55; }
+.wilds-settlement-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.wilds-settlement-actions button,
+.wilds-route-begin,
+.wilds-route-controls button { min-height: 44px; padding: 9px 14px; border: 1px solid rgb(242 200 107 / 38%); border-radius: 14px 4px 14px 4px; color: #09221f; background: #f2c86b; font-size: 11px; font-weight: 900; }
+.wilds-settlement-actions button:disabled,
+.wilds-route-controls button:disabled { border-color: rgb(255 255 255 / 8%); color: #819b91; background: rgb(255 255 255 / 5%); }
+.wilds-attunement-card { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: center; gap: 11px; min-width: 0; padding: 10px; border: 1px solid rgb(242 200 107 / 18%); border-radius: 15px; background: rgb(242 200 107 / 6%); }
+.wilds-attunement-card > span { display: grid; width: 48px; aspect-ratio: 4 / 5; place-items: center; border-radius: 9px; color: white; font-weight: 950; box-shadow: inset 0 0 0 2px rgb(255 255 255 / 26%); }
+.wilds-attunement-card strong,
+.wilds-attunement-card small,
+.wilds-attunement-card code { display: block; overflow-wrap: anywhere; }
+.wilds-attunement-card small { margin: 2px 0; color: #9bc1b3; font-size: 10px; }
+.wilds-attunement-card code { color: #f2c86b; font-size: 9px; }
+.wilds-attunement-empty { padding: 12px; border: 1px dashed rgb(255 255 255 / 18%); border-radius: 14px; color: #9db7ae; font-size: 12px; }
+
+.wilds-settlement-mode { display: inline-flex; align-items: center; gap: 7px; min-height: 28px; color: #b6d0c7; font-size: 10px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.wilds-settlement-mode > span { width: 8px; aspect-ratio: 1; border-radius: 50%; background: #f2c86b; box-shadow: 0 0 13px currentColor; }
+.wilds-settlement-mode.receiz_live > span { background: #63e4b4; }
+.wilds-commons-view h4 { margin: 2px 0 5px; color: #fff8df; font-size: clamp(25px, 5vw, 42px); }
+.wilds-commons-view > p { max-width: 680px; margin: 0 0 18px; color: #b5c9c2; line-height: 1.5; }
+.wilds-commons-roster { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 9px; }
+.wilds-commons-roster > div { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 2px 10px; align-items: center; min-width: 0; padding: 10px; border: 1px solid rgb(116 208 177 / 15%); border-radius: 16px 5px 16px 5px; background: rgb(5 27 27 / 54%); }
+.wilds-commons-roster > div > span { grid-row: 1 / 3; display: grid; width: 38px; aspect-ratio: 1; place-items: center; border-radius: 50%; color: #08271f; background: #78ddb8; font-size: 10px; font-weight: 950; }
+.wilds-commons-roster strong { color: #eef8ec; font-size: 12px; overflow-wrap: anywhere; }
+.wilds-commons-roster small { color: #8eb0a5; font-size: 9px; overflow-wrap: anywhere; }
+.wilds-commons-roster .is-empty { grid-template-columns: 30px minmax(0, 1fr); grid-column: 1 / -1; }
+.wilds-commons-roster .is-empty svg { grid-row: 1 / 3; color: #f2c86b; }
+
+.wilds-route-memory { display: grid; grid-template-columns: minmax(180px, .75fr) minmax(0, 1.25fr); gap: clamp(18px, 5vw, 58px); align-items: center; }
+.wilds-route-orbit { position: relative; width: min(58vw, 260px); aspect-ratio: 1; justify-self: center; border: 2px solid rgb(242 200 107 / 42%); border-radius: 50%; background: radial-gradient(circle, rgb(242 200 107 / 12%), transparent 62%); box-shadow: inset 0 0 0 18px rgb(79 163 133 / 6%), 0 0 70px rgb(242 200 107 / 7%); }
+.wilds-route-orbit span { position: absolute; color: #e7d59d; font-size: 11px; font-weight: 950; }
+.wilds-route-orbit span:nth-child(1) { top: 8px; left: 50%; transform: translateX(-50%); }
+.wilds-route-orbit span:nth-child(2) { top: 50%; right: 10px; transform: translateY(-50%); }
+.wilds-route-orbit span:nth-child(3) { bottom: 8px; left: 50%; transform: translateX(-50%); }
+.wilds-route-orbit span:nth-child(4) { top: 50%; left: 10px; transform: translateY(-50%); }
+.wilds-route-orbit i { position: absolute; top: 50%; left: 50%; width: 8px; height: 42%; background: linear-gradient(#f2c86b 0 48%, #77b79f 48%); clip-path: polygon(50% 0, 100% 88%, 50% 100%, 0 88%); transform: translate(-50%, -50%); transform-origin: 50% 50%; animation: wilds-wayfinder-needle 4s ease-in-out infinite alternate; }
+.wilds-route-memory > div:last-child > span { color: #7ed4b6; font-size: 10px; font-weight: 850; letter-spacing: .09em; text-transform: uppercase; }
+.wilds-route-memory h4 { margin: 5px 0 8px; color: #fff7d8; font-size: clamp(24px, 5vw, 42px); line-height: 1.02; }
+.wilds-route-memory p { margin: 0 0 15px; color: #b6cbc3; line-height: 1.5; }
+.wilds-route-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-width: 310px; }
+
+.wilds-monument-view { display: grid; grid-template-columns: minmax(185px, .7fr) minmax(0, 1.3fr); gap: 13px; }
+.wilds-monument-authority { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 10px; padding: 14px; border: 1px solid rgb(242 200 107 / 20%); border-radius: 6px 20px 6px 20px; background: rgb(8 33 34 / 70%); }
+.wilds-monument-authority svg { color: #f2c86b; }
+.wilds-monument-authority strong,
+.wilds-monument-authority span { display: block; }
+.wilds-monument-authority strong { color: #fff7dd; font-size: 12px; }
+.wilds-monument-authority span { margin-top: 2px; color: #9bbab0; font-size: 9px; line-height: 1.35; }
+.wilds-monument-list { grid-column: 2; display: grid; gap: 7px; }
+.wilds-monument-list > div { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 9px; align-items: center; min-width: 0; padding: 10px; border-left: 2px solid #f2c86b; background: linear-gradient(90deg, rgb(242 200 107 / 11%), transparent); }
+.wilds-monument-list > div > span { color: #f2c86b; font-size: 18px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.wilds-monument-list strong,
+.wilds-monument-list code { display: block; overflow-wrap: anywhere; }
+.wilds-monument-list strong { color: #e9f4ed; font-size: 11px; }
+.wilds-monument-list code { margin-top: 2px; color: #8cb2a6; font-size: 9px; }
+.wilds-monument-list .is-empty { grid-template-columns: 30px minmax(0, 1fr); }
+.wilds-monument-list .is-empty svg { grid-row: 1 / 3; color: #f2c86b; }
+.wilds-monument-list .is-empty small { color: #91ada4; font-size: 10px; line-height: 1.35; }
+
+.wilds-settlement-footer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 64px; padding: 9px clamp(12px, 3vw, 34px); border-top: 1px solid rgb(242 200 107 / 17%); background: rgb(5 18 20 / 88%); backdrop-filter: blur(18px); }
+.wilds-settlement-footer > span { min-width: 0; color: #8fb0a5; font-size: 10px; line-height: 1.35; }
+.wilds-settlement-footer button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 15px;
+  border: 1px solid rgb(242 200 107 / 44%);
+  border-radius: 15px 4px 15px 4px;
+  color: #0a2521;
+  background: #f2c86b;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.wilds-settlement-experience button:focus-visible { outline: 3px solid #7ce3bd; outline-offset: 2px; }
+.wilds-settlement-experience button:not(:disabled):active { transform: translateY(1px) scale(.99); }
+@keyframes wilds-wayfinder-needle { from { transform: translate(-50%, -50%) rotate(-24deg); } to { transform: translate(-50%, -50%) rotate(24deg); } }
+
+@media (max-width: 640px) {
+  .wilds-settlement-header { min-height: 62px; padding-block: 7px; }
+  .wilds-settlement-header span { font-size: 8px; }
+  .wilds-settlement-header h2 { font-size: 21px; }
+  .wilds-settlement-panel { padding-top: 14px; }
+  .wilds-settlement-panel-heading { margin-bottom: 12px; }
+  .wilds-settlement-panel-heading h3 { font-size: 27px; }
+  .wilds-settlement-resident-layout,
+  .wilds-route-memory,
+  .wilds-monument-view { grid-template-columns: 1fr; }
+  .wilds-settlement-resident { min-height: 86px; padding: 11px; }
+  .wilds-settlement-dialogue { padding: 14px; }
+  .wilds-route-orbit { width: min(38vw, 150px); }
+  .wilds-monument-list { grid-column: auto; }
+  .wilds-settlement-footer > span { display: none; }
+  .wilds-settlement-footer { grid-template-columns: 1fr; min-height: 58px; }
+  .wilds-settlement-footer button { width: 100%; }
+}
+
+@media (max-width: 360px) {
+  .wilds-settlement-header { grid-template-columns: minmax(0, 1fr) 50px 44px; gap: 6px; }
+  .wilds-settlement-reputation { min-width: 48px; padding-inline: 6px; }
+  .wilds-settlement-districts button { max-width: 112px; min-height: 46px; padding: 6px 9px; white-space: normal; line-height: 1.15; text-align: left; }
+  .wilds-settlement-panel { padding-inline: 10px; }
+  .wilds-settlement-resident { grid-template-columns: 48px minmax(0, 1fr); }
+  .wilds-settlement-resident > span { width: 48px; }
+  .wilds-settlement-dialogue > p { font-size: 13px; }
+  .wilds-settlement-actions { display: grid; grid-template-columns: 1fr; }
+  .wilds-settlement-actions button { width: 100%; white-space: normal; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wilds-route-orbit i { animation: none; }
+  .wilds-settlement-experience button { transition: none; }
+}
+
+/* Living ecology uses one focus-safe game shell across all eight event families. */
+.wilds-ecology-experience {
+  --ecology-accent: #71e7bd;
+  position: fixed;
+  inset: 0;
+  z-index: 7200;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  width: 100%;
+  height: 100dvh;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  overflow: hidden;
+  color: #effff9;
+  background: #061815;
+  isolation: isolate;
+}
+.wilds-ecology-experience.family-wandering-market { --ecology-accent: #f2c86b; }
+.wilds-ecology-experience.family-echo-ruin { --ecology-accent: #a9d7c4; }
+.wilds-ecology-experience.family-unstable-portal { --ecology-accent: #9aa8ff; }
+.wilds-ecology-experience.family-convergence-festival { --ecology-accent: #ff8dc6; }
+.wilds-ecology-experience.family-creature-migration { --ecology-accent: #6ee9c3; }
+.wilds-ecology-experience.family-resource-bloom { --ecology-accent: #f3df67; }
+.wilds-ecology-experience.family-stormfront { --ecology-accent: #74c6ff; }
+.wilds-ecology-experience.family-settlement-distress { --ecology-accent: #ff8b73; }
+.wilds-ecology-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 44px;
+  align-items: center;
+  gap: 10px;
+  min-height: 68px;
+  padding: 8px clamp(10px, 3vw, 30px);
+  border-bottom: 1px solid color-mix(in srgb, var(--ecology-accent) 22%, transparent);
+  background: rgb(4 23 20 / 84%);
+  backdrop-filter: blur(18px);
+}
+.wilds-ecology-header > div:first-child { min-width: 0; }
+.wilds-ecology-header span { display: block; color: var(--ecology-accent); font-size: 9px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.wilds-ecology-header h2 { margin: 2px 0 0; color: #f8fff8; font-size: clamp(20px, 4vw, 30px); line-height: 1; overflow-wrap: anywhere; }
+.wilds-ecology-party { display: grid; grid-template-columns: auto auto; align-items: center; gap: 0 5px; min-width: 55px; color: var(--ecology-accent); }
+.wilds-ecology-party svg { grid-row: 1 / 3; }.wilds-ecology-party strong { font-size: 18px; line-height: 1; font-variant-numeric: tabular-nums; }.wilds-ecology-party small { font-size: 7px; font-weight: 900; }
+.wilds-ecology-close {
+  display: grid;
+  min-width: 44px;
+  min-height: 44px;
+  place-items: center;
+  padding: 0;
+  color: #effff9;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 50%;
+  background: rgb(255 255 255 / 7%);
+}
+.wilds-ecology-objectives { display: flex; gap: 7px; min-width: 0; padding: 7px clamp(10px, 3vw, 30px); overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; border-bottom: 1px solid rgb(255 255 255 / 7%); }
+.wilds-ecology-objectives::-webkit-scrollbar { display: none; }
+.wilds-ecology-objectives > div { display: grid; grid-template-columns: 25px minmax(70px, 1fr); flex: 1 0 min(190px, 44vw); min-width: 0; min-height: 44px; align-content: center; gap: 1px 7px; padding: 5px 9px; scroll-snap-align: start; color: #829f96; border: 1px solid rgb(255 255 255 / 8%); border-radius: 13px 4px 13px 4px; background: rgb(255 255 255 / 4%); }
+.wilds-ecology-objectives > div[aria-current="step"] { color: #effff9; border-color: color-mix(in srgb, var(--ecology-accent) 48%, transparent); background: color-mix(in srgb, var(--ecology-accent) 11%, transparent); }
+.wilds-ecology-objectives > div.is-complete { color: var(--ecology-accent); }
+.wilds-ecology-objectives > div > span { grid-row: 1 / 3; display: grid; width: 25px; aspect-ratio: 1; place-items: center; align-self: center; border: 1px solid currentColor; border-radius: 50%; font-size: 9px; font-weight: 950; }
+.wilds-ecology-objectives strong { font-size: 10px; }.wilds-ecology-objectives small { color: #7f9b92; font-size: 8px; white-space: normal; }
+.wilds-ecology-arena { position: relative; min-height: 0; overflow: hidden; background: radial-gradient(circle at 50% 52%, color-mix(in srgb, var(--ecology-accent) 24%, transparent), transparent 24%), linear-gradient(155deg, #071c19, #0b2925 55%, #061411); }
+.wilds-ecology-arena::before { position: absolute; inset: 0; opacity: .18; background-image: radial-gradient(circle, var(--ecology-accent) 0 1px, transparent 1.5px); background-size: 37px 37px; mask-image: linear-gradient(#000, transparent 88%); content: ""; }
+.wilds-ecology-sky { position: absolute; inset: 8% 8% 34%; border: 1px solid color-mix(in srgb, var(--ecology-accent) 18%, transparent); border-radius: 50%; transform: perspective(700px) rotateX(64deg); }
+.wilds-ecology-sky i { position: absolute; border: 1px solid color-mix(in srgb, var(--ecology-accent) 24%, transparent); border-radius: 50%; }.wilds-ecology-sky i:nth-child(1) { inset: 12%; }.wilds-ecology-sky i:nth-child(2) { inset: 27%; }.wilds-ecology-sky i:nth-child(3) { inset: 42%; background: color-mix(in srgb, var(--ecology-accent) 13%, transparent); }
+.wilds-ecology-signal { position: absolute; top: 50%; left: 50%; width: clamp(105px, 24vw, 190px); aspect-ratio: 1; border: 2px solid var(--ecology-accent); border-radius: 44% 56% 48% 52%; background: radial-gradient(circle, color-mix(in srgb, var(--ecology-accent) 34%, #071a16), #071a16 70%); box-shadow: 0 0 70px color-mix(in srgb, var(--ecology-accent) 25%, transparent); transform: translate(-50%, -40%) rotate(45deg); }
+.wilds-ecology-signal span { position: absolute; inset: -16%; border: 1px solid color-mix(in srgb, var(--ecology-accent) 28%, transparent); border-radius: 50%; }.wilds-ecology-signal span:nth-child(2) { inset: -36%; }
+.wilds-ecology-signal b { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: clamp(22px, 5vw, 38px); font-variant-numeric: tabular-nums; transform: rotate(-45deg); }
+.wilds-ecology-brief { position: absolute; top: 12px; left: max(12px, env(safe-area-inset-left)); display: grid; width: min(370px, calc(100% - 24px)); gap: 4px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--ecology-accent) 22%, transparent); border-radius: 18px 5px 18px 5px; background: rgb(3 19 17 / 78%); backdrop-filter: blur(16px); }
+.wilds-ecology-brief > span { color: var(--ecology-accent); font-size: 8px; font-weight: 900; letter-spacing: .09em; text-transform: uppercase; }.wilds-ecology-brief h3 { margin: 0; font-size: clamp(18px, 4vw, 27px); }.wilds-ecology-brief p { margin: 0; color: #b3cbc3; font-size: 11px; line-height: 1.4; }.wilds-ecology-brief > strong { margin-top: 3px; color: #e7f7f1; font-size: 10px; line-height: 1.35; }
+.wilds-ecology-card-role { position: absolute; right: max(12px, env(safe-area-inset-right)); bottom: 10px; display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 9px; max-width: calc(100% - 24px); padding: 9px 11px; color: #9aada7; border: 1px solid rgb(255 255 255 / 10%); border-radius: 5px 17px 5px 17px; background: rgb(4 20 18 / 82%); backdrop-filter: blur(16px); }
+.wilds-ecology-card-role.is-verified { color: var(--ecology-accent); border-color: color-mix(in srgb, var(--ecology-accent) 28%, transparent); }.wilds-ecology-card-role small, .wilds-ecology-card-role strong, .wilds-ecology-card-role code { display: block; overflow-wrap: anywhere; }.wilds-ecology-card-role small { font-size: 8px; text-transform: uppercase; }.wilds-ecology-card-role strong { color: #f0faf6; font-size: 11px; }.wilds-ecology-card-role code { color: #76968c; font-size: 8px; }
+.wilds-ecology-footer { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 7px max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); background: #061a16; }
+.wilds-ecology-action { display: flex; min-width: 0; min-height: 44px; align-items: center; justify-content: center; gap: 7px; padding: 6px; color: #dffff3; border: 1px solid color-mix(in srgb, var(--ecology-accent) 19%, transparent); border-radius: 14px 4px 14px 4px; background: rgb(255 255 255 / 6%); }
+.wilds-ecology-action:disabled { opacity: .28; }.wilds-ecology-action span { display: grid; min-width: 0; text-align: left; }.wilds-ecology-action strong { font-size: 10px; overflow-wrap: anywhere; }.wilds-ecology-action small { color: #789b90; font-size: 8px; overflow-wrap: anywhere; }.wilds-ecology-action.is-primary { grid-column: 1 / -1; color: #05231a; background: var(--ecology-accent); }.wilds-ecology-action.is-primary small { color: rgb(5 35 26 / 66%); }
+.wilds-ecology-experience button:focus-visible { outline: 3px solid var(--ecology-accent); outline-offset: 2px; }
+@media (max-width: 430px) { .wilds-ecology-header { min-height: 60px; padding-block: 6px; }.wilds-ecology-header h2 { font-size: 19px; }.wilds-ecology-objectives { padding-block: 5px; }.wilds-ecology-brief { top: 8px; padding: 9px 11px; }.wilds-ecology-brief p { font-size: 10px; }.wilds-ecology-signal { transform: translate(-50%, -26%) rotate(45deg); }.wilds-ecology-footer { gap: 4px; padding-inline: 5px; }.wilds-ecology-action { gap: 4px; padding-inline: 3px; }.wilds-ecology-action svg { width: 16px; }.wilds-ecology-action small { display: none; } }
+@media (max-width: 340px) { .wilds-ecology-party small { display: none; }.wilds-ecology-objectives > div { flex-basis: 132px; }.wilds-ecology-card-role { left: 8px; right: 8px; max-width: none; }.wilds-ecology-brief h3 { font-size: 17px; } }
+@media (prefers-reduced-motion: reduce) { .wilds-ecology-experience *, .wilds-ecology-experience *::before, .wilds-ecology-experience *::after { animation: none !important; transition: none !important; } }
+
+/* Wilds global raid: one fixed gameplay viewport, no dashboard scroll. */
+.wilds-raid-experience { --raid-accent: #7cf2ca; position: fixed; inset: 0; z-index: 7200; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; width: 100%; height: 100dvh; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); overflow: hidden; color: #f4fff9; background: radial-gradient(circle at 50% 42%, rgb(27 78 71 / 92%), transparent 34%), linear-gradient(160deg, #071a19 0%, #06100f 52%, #120b12 100%); isolation: isolate; overscroll-behavior: none; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.wilds-raid-experience::before { position: absolute; inset: 0; z-index: -1; content: ""; background: repeating-radial-gradient(circle at 50% 54%, transparent 0 42px, rgb(124 242 202 / 4%) 43px 44px); pointer-events: none; }
+.wilds-raid-experience.phase-transforming { --raid-accent: #ffd369; }
+.wilds-raid-experience.phase-vulnerable { --raid-accent: #ff8eae; }
+.wilds-raid-header { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: center; gap: 10px; min-height: 64px; padding: 8px max(10px, env(safe-area-inset-right)) 6px max(12px, env(safe-area-inset-left)); background: linear-gradient(180deg, rgb(4 17 17 / 96%), rgb(4 17 17 / 66%)); }
+.wilds-raid-identity { min-width: 0; }
+.wilds-raid-identity span, .wilds-raid-identity small { display: block; color: color-mix(in srgb, var(--raid-accent) 78%, white); font-size: 9px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.wilds-raid-identity h2 { margin: 2px 0; overflow-wrap: anywhere; font-size: clamp(18px, 4vw, 28px); line-height: 1; }
+.wilds-raid-close { display: grid; min-width: 44px; min-height: 44px; place-items: center; padding: 0; color: #eafff7; border: 1px solid rgb(255 255 255 / 15%); border-radius: 50%; background: rgb(255 255 255 / 7%); font-size: 25px; }
+.wilds-raid-health { display: grid; gap: 5px; padding: 5px max(12px, env(safe-area-inset-right)) 7px max(12px, env(safe-area-inset-left)); background: rgb(4 16 15 / 82%); }
+.wilds-raid-health div { display: flex; justify-content: space-between; gap: 12px; font-size: 10px; font-weight: 850; text-transform: uppercase; }
+.wilds-raid-health i { display: block; height: 7px; overflow: hidden; border-radius: 999px; background: rgb(255 255 255 / 10%); }
+.wilds-raid-health i::after { display: block; width: var(--raid-health); height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ff646c, var(--raid-accent)); box-shadow: 0 0 16px var(--raid-accent); content: ""; transition: width 240ms ease; }
+.wilds-raid-arena { position: relative; min-height: 0; overflow: hidden; touch-action: none; }
+.wilds-raid-telegraph, .wilds-raid-objective, .wilds-raid-card-pin { position: absolute; z-index: 2; display: grid; gap: 2px; max-width: min(42%, 300px); padding: 8px 10px; border: 1px solid rgb(124 242 202 / 16%); background: rgb(3 18 17 / 72%); backdrop-filter: blur(14px); }
+.wilds-raid-telegraph { top: 10px; left: max(10px, env(safe-area-inset-left)); border-radius: 16px 4px 16px 4px; }
+.wilds-raid-objective { right: max(10px, env(safe-area-inset-right)); bottom: 10px; border-radius: 4px 16px 4px 16px; text-align: right; }
+.wilds-raid-card-pin { bottom: 10px; left: max(10px, env(safe-area-inset-left)); border-radius: 16px; }
+.wilds-raid-telegraph span, .wilds-raid-objective span, .wilds-raid-card-pin span, .wilds-raid-card-pin small { color: var(--raid-accent); font-size: 8px; font-weight: 900; letter-spacing: .09em; text-transform: uppercase; }
+.wilds-raid-telegraph strong, .wilds-raid-objective strong, .wilds-raid-card-pin strong { overflow-wrap: anywhere; font-size: clamp(10px, 2.7vw, 13px); }
+.wilds-raid-boss-sigil { position: absolute; top: 50%; left: 50%; width: min(43vw, 240px); aspect-ratio: 1; transform: translate(-50%, -50%); }
+.wilds-raid-boss-sigil i { position: absolute; inset: calc(var(--ring, 0) * 13%); border: 1px solid color-mix(in srgb, var(--raid-accent) calc(55% - var(--ring, 0) * 10%), transparent); border-radius: calc(30% + var(--ring, 0) * 10%); transform: rotate(calc(var(--ring, 0) * 27deg)); animation: wilds-raid-orbit calc(7s + var(--ring, 0) * 2s) linear infinite; }
+.wilds-raid-boss-sigil i:nth-child(1) { --ring: 0; }.wilds-raid-boss-sigil i:nth-child(2) { --ring: 1; }.wilds-raid-boss-sigil i:nth-child(3) { --ring: 2; }
+.wilds-raid-boss-sigil b { position: absolute; inset: 34%; border-radius: 30% 50% 38% 55%; background: radial-gradient(circle at 42% 38%, #fff, var(--raid-accent) 22%, #142526 70%); box-shadow: 0 0 45px color-mix(in srgb, var(--raid-accent) 55%, transparent); transform: rotate(18deg); }
+.wilds-raid-squads { display: flex; gap: 5px; min-width: 0; padding: 5px max(8px, env(safe-area-inset-right)) 5px max(8px, env(safe-area-inset-left)); overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; background: rgb(2 13 13 / 90%); scroll-snap-type: x mandatory; }
+.wilds-raid-squads > div { flex: 0 0 82px; display: grid; grid-template-columns: 1fr auto; gap: 4px; min-height: 34px; align-items: center; padding: 5px 7px; border: 1px solid rgb(255 255 255 / 8%); border-radius: 10px; color: #a9bbb7; background: rgb(255 255 255 / 4%); font-size: 9px; scroll-snap-align: start; }
+.wilds-raid-squads > div.is-full, .wilds-raid-squads > div.support { color: #eafff7; border-color: rgb(124 242 202 / 20%); }
+.wilds-raid-footer { position: relative; display: grid; gap: 5px; padding: 5px max(7px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(7px, env(safe-area-inset-left)); background: #061211; }
+.wilds-raid-action-dock { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+.wilds-raid-action { display: grid; min-width: 0; min-height: 44px; place-items: center; gap: 1px; padding: 3px 1px; color: #eafff8; border: 1px solid rgb(124 242 202 / 18%); border-radius: 11px; background: linear-gradient(180deg, rgb(22 58 52 / 92%), rgb(8 28 26 / 96%)); }
+.wilds-raid-action span { font-size: 17px; line-height: 1; }.wilds-raid-action small { max-width: 100%; overflow-wrap: anywhere; font-size: 7px; line-height: 1; text-transform: uppercase; }
+.wilds-raid-action:disabled { opacity: .4; }
+.wilds-raid-retreat, .wilds-raid-reconnect { min-height: 44px; color: #d9eee8; border: 1px solid rgb(255 255 255 / 10%); border-radius: 11px; background: rgb(255 255 255 / 5%); }
+.wilds-raid-footer > p { position: absolute; right: 8px; bottom: 100%; left: 8px; margin: 0 0 4px; padding: 6px 9px; color: #ffd9df; border: 1px solid rgb(255 112 130 / 24%); border-radius: 9px; background: rgb(55 8 18 / 90%); font-size: 10px; }
+@keyframes wilds-raid-orbit { to { transform: rotate(1turn); } }
+@media (max-width: 360px) { .wilds-raid-header { min-height: 56px; }.wilds-raid-telegraph, .wilds-raid-objective, .wilds-raid-card-pin { padding: 6px 7px; }.wilds-raid-action small { font-size: 6px; }.wilds-raid-squads > div { flex-basis: 74px; } }
+@media (prefers-reduced-motion: reduce) { .wilds-raid-experience *, .wilds-raid-experience *::before, .wilds-raid-experience *::after { animation: none !important; transition: none !important; } }
+
+/* Trail Pack turns the former deck list into one compact living-party heartbeat. */
+.wilds-heartbeat-content { gap: 10px; }
+.wilds-heartbeat-pack { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.wilds-heartbeat-pack > article,
+.wilds-heartbeat-empty { display: grid; min-width: 0; min-height: 154px; align-content: start; gap: 8px; padding: 10px; border: 1px solid rgb(131 235 207 / 14%); border-radius: 18px 6px 18px 6px; color: #dff7ee; background: linear-gradient(150deg, rgb(24 67 57 / 82%), rgb(7 27 28 / 92%)); }
+.wilds-heartbeat-pack > article.is-leader { border-color: rgb(247 201 72 / 42%); background: linear-gradient(150deg, rgb(90 68 25 / 42%), rgb(15 44 39 / 94%)); box-shadow: inset 0 0 24px rgb(247 201 72 / 7%); }
+.wilds-heartbeat-pack .wilds-creature-thumbnail { width: 58px; height: 58px; justify-self: center; border: 1px solid rgb(255 255 255 / 16%); border-radius: 18px; background: radial-gradient(circle, rgb(255 255 255 / 10%), transparent 70%); }
+.wilds-heartbeat-pack article > div { display: grid; gap: 2px; min-width: 0; text-align: center; }
+.wilds-heartbeat-pack article small { color: #86b5a5; font-size: 8px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+.wilds-heartbeat-pack article strong { overflow: hidden; color: #f6fff9; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.wilds-heartbeat-pack article span { color: #bed5cc; font-size: 9px; line-height: 1.35; }
+.wilds-heartbeat-pack article em { color: #f2ce74; font-size: 8px; font-style: normal; line-height: 1.3; }
+.wilds-heartbeat-empty { place-items: center; color: #76988d; text-align: center; border-style: dashed; }
+.wilds-heartbeat-empty span { display: grid; gap: 3px; }.wilds-heartbeat-empty strong { font-size: 10px; }.wilds-heartbeat-empty small { font-size: 8px; line-height: 1.35; }
+.wilds-heartbeat-synergy { display: grid; grid-template-columns: .7fr .7fr 1.6fr; gap: 6px; }
+.wilds-heartbeat-synergy > span { display: grid; min-width: 0; gap: 2px; padding: 9px; border: 1px solid rgb(247 201 72 / 14%); border-radius: 12px; background: rgb(247 201 72 / 6%); }
+.wilds-heartbeat-synergy small,
+.wilds-heartbeat-reserve > small,
+.wilds-heartbeat-echoes small { color: #87a79d; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.wilds-heartbeat-synergy strong { color: #f7d672; font-size: 10px; overflow-wrap: anywhere; }
+.wilds-heartbeat-reserve { display: grid; gap: 6px; }
+.wilds-heartbeat-reserve > div { display: flex; gap: 6px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; scroll-snap-type: x mandatory; }
+.wilds-heartbeat-reserve > div::-webkit-scrollbar { display: none; }
+.wilds-heartbeat-reserve button { display: grid; grid-template-columns: 32px minmax(52px, 1fr); flex: 0 0 auto; min-height: 44px; align-items: center; gap: 6px; padding: 5px 8px; scroll-snap-align: start; color: #b8d0c7; border: 1px solid rgb(255 255 255 / 9%); border-radius: 13px; background: rgb(255 255 255 / 5%); }
+.wilds-heartbeat-reserve button[aria-pressed="true"] { color: #fff2b7; border-color: rgb(247 201 72 / 38%); background: rgb(247 201 72 / 10%); }
+.wilds-heartbeat-reserve .wilds-creature-thumbnail { width: 32px; height: 32px; border-radius: 9px; }.wilds-heartbeat-reserve button > span:last-child { max-width: 88px; overflow: hidden; font-size: 9px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.wilds-heartbeat-echoes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.wilds-heartbeat-echoes > div { min-width: 0; padding: 10px; border-left: 2px solid #66d9ae; border-radius: 0 11px 11px 0; background: rgb(73 189 150 / 6%); }
+.wilds-heartbeat-echoes > div:last-child { border-left-color: #b78cff; background: rgb(183 140 255 / 6%); }
+.wilds-heartbeat-echoes p { margin: 4px 0 0; color: #c2d8d0; font-size: 9px; line-height: 1.4; }
+
+@media (max-width: 420px) {
+  .wilds-heartbeat-pack { grid-template-columns: 1.25fr repeat(2, minmax(0, 1fr)); gap: 5px; }
+  .wilds-heartbeat-pack > article, .wilds-heartbeat-empty { min-height: 138px; padding: 7px 5px; }
+  .wilds-heartbeat-pack .wilds-creature-thumbnail { width: 48px; height: 48px; }
+  .wilds-heartbeat-pack article span { font-size: 8px; }
+  .wilds-heartbeat-synergy { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wilds-heartbeat-synergy > span:last-child { grid-column: 1 / -1; }
+  .wilds-heartbeat-echoes { grid-template-columns: 1fr; }
 }

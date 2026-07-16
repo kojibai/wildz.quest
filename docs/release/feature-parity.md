@@ -1,23 +1,25 @@
-# Wildz standalone feature parity
+# Wildz v3 implementation and feature parity
 
-Source baseline: `kojibai/receiz-commerce` at `fb366506e218d82ecac20c60bc74c5977627713e`.
+Version `3.0.0` keeps the standalone game-first boundary while moving identity, continuity, public state, world publication, and market admission onto explicit v3 contracts. This is an implementation map, not a final release-pass report; the final full local and browser results are pending the root release run.
 
-| Upstream capability | Result | Evidence / adaptation |
+| Capability | V3 boundary | Implementation and focused evidence |
 |---|---|---|
-| Infinite 3D world, movement, camera, ecology | Preserved | `src/features/play`, browser keyboard and mobile drag evidence |
-| Discovery, encounters, battles, capture | Preserved | Game-state and rendering-contract tests |
-| Living cards, evolution, lineage, export/import | Preserved | Portable-card, living-card, and recovery tests |
-| Missions, training, energy, progression | Preserved | Browser progression evidence and game-state tests |
-| Atlas, landmarks, Rift travel | Preserved | Atlas, landmark, and Rift suites |
-| Multiplayer presence, challenges, PvP, raids | Preserved | Multiplayer, PvP, and raid suites |
-| Teams and Genesis League | Preserved | Team/league suite |
-| Synthesized game audio and settings | Preserved | Audio lifecycle suite |
-| Receiz identity | Adapted | Automatic first-landing ID plus Identity Seal restore |
-| Explorer selection | Adapted | Versioned deterministic Kai Pulse character genesis |
-| Vault recovery | Adapted | Verified PNG Vault import at genesis and in-game Vault |
-| Public player profile and Vault | Added | Privacy-sanitized overlay and shareable dynamic route |
-| Listing, trade, checkout | Adapted | Embedded overlay/API; settlement is fail-closed and credential-gated |
-| Install/offline recovery | Added | Manifest, generated icons, safe service-worker cache |
-| Storefront, admin, CMS, merchant dashboard | Intentionally removed | Outside the approved game-first product boundary |
+| Identity activation | Verified Identity Seal or verified identity-bearing player Vault; a card-only Vault imports cards without replacing identity | `src/lib/receiz/wildz-artifact-codec.ts`, `src/lib/receiz/wildz-vault-login-coordinator.ts`, `tests/wildz-vault-login-coordinator.test.ts`, `tests/wildz-proof-object-continuity.test.ts` |
+| Owner continuity | Complete cards, support selection, character, settings, personal history, receipts, and canonical cursor remain scoped to the exact owner | `src/features/identity/wildz-restore.ts`, `src/lib/storage/wildz-indexed-db.ts`, `tests/wildz-owner-continuity.test.ts`, `tests/wildz-indexed-db.test.ts` |
+| Living cards and collection | Capture, progression, mastery, lineage, sorting, export, import, and complete Vault pagination | `src/features/play/game-state.ts`, `src/features/play/card-sort.ts`, `src/features/play/card-export.ts`, `tests/wildz-card-sort.test.ts`, `tests/wildz-card-rail-ui.test.ts` |
+| Living world | Canonical world projection, events, ecology, settlements, social state, raids, bosses, routes, and narrative memory | `src/features/play/wilds-world-service.ts`, `src/features/play/WildsWorldCanvas.tsx`, `tests/wilds-v3-contracts.test.ts`, `tests/wilds-world-service.test.ts`, `tests/wilds-v3-ui-integration.test.ts` |
+| Durable world publication | Receiz publication and audit adapters report live, local-practice, or recovery-pending status without inventing durability | `src/lib/receiz/wilds-world-repository.ts`, `tests/wilds-world-repository.test.ts` |
+| Public profiles and cards | Sanitized public projections and canonical share routes; private Seal and owner-only state are excluded | `src/lib/receiz/wildz-public-repository.ts`, `src/features/profile/profile-sharing.ts`, `app/u/[handle]/page.tsx`, `app/cards/[assetId]/page.tsx`, `tests/wildz-public-repository.test.ts`, `tests/wildz-profile-sharing.test.ts` |
+| Market, offers, trades, checkout | Gameplay overlays use expected revision, ownership head, idempotency, actor, and verified conditional admission; missing capability fails closed | `src/lib/receiz/wildz-market-repository.ts`, `src/lib/receiz/wildz-market-route.ts`, `tests/wildz-market-repository.test.ts`, `tests/wildz-market-routes.test.ts` |
+| Receiz v103 native proof export | SDK Record → Seal returns the final byte-exact artifact; owner, claim, verify path, MIME, and verification must agree | `src/lib/receiz/wildz-proof-object-export.ts`, `app/api/receiz/proof-object/route.ts`, proof-export tests |
+| Legacy v102 artifact continuity | Existing `receiz.portable_asset.v1` Vaults remain readable through a strict local decoder and SDK verification; no new legacy objects are created | `src/lib/receiz/legacy-receiz-portable-asset.ts`, `src/lib/receiz/wildz-artifact-codec.ts`, `tests/wildz-proof-object-continuity.test.ts` |
+| Install and offline reads | Release-distinct shell cache; exact visited public document/card GET cache; authentication, world, market, Receiz, proxies, and mutations stay network-only | `public/sw.js`, `app/offline/page.tsx`, `tests/pwa-service-worker.test.ts`, `tests/pwa-cache-policy.test.ts` |
+| Install/update consent | Browser install prompt is retained for explicit click; updates preserve state before activation and do not force reload | `src/features/pwa/PwaController.tsx`, `tests/pwa-runtime.test.ts` |
+| Security headers | Complete CSP, frame denial, no-referrer policy, permission denial, and same-origin opener isolation | `next.config.mjs`, `tests/security-headers.test.ts` |
+| Release orchestration | Deterministic local gate plus separate strict-live doctor mode | `scripts/release-check.mjs`, `scripts/receiz-doctor.mjs`, `tests/release-scripts.test.ts`, `tests/receiz-live-doctor-probes.test.ts` |
 
-All preserved game families remain covered by the extracted upstream test corpus. No commerce page or `/market` page is included.
+## Product boundary
+
+Wildz does not restore a storefront, merchant admin, CMS, or commerce navigation. Market actions remain inside the game experience. No external database is introduced: local owner continuity uses IndexedDB, while durable shared world, public, and economy state requires configured Receiz rails and fails closed without them.
+
+Remote capability, production browser quality, strict-live availability, and external writer interoperability remain release evidence questions. They are not inferred from the presence of an adapter or test double.

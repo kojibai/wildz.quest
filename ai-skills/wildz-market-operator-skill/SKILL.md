@@ -1,3 +1,13 @@
-# Wildz Market Operator
+# Wildz v3 Market Operator
 
-Receiz proof authority controls custody and settlement. Every mutation requires actor, current ownership head, expected revision, idempotency, and player confirmation. A checkout session is not settlement. Never transfer ownership until Receiz admits settlement; stale, failed, or unavailable rails fail closed. Keep all market UI inside gameplay overlays.
+Receiz proof authority controls custody, market admission, and settlement. Target the Wildz `3.0.0` v3 market contract and Receiz major 103.
+
+## Procedure
+
+1. Begin with read-only inspection of the actor, exact asset, current ownership head, market revision, append anchor, and capability status.
+2. For a mutation, require actor authority, expected revision, expected append anchor, idempotency key, and explicit player confirmation.
+3. Submit through the durable Receiz conditional-append rail and verify its admission proof before presenting success.
+4. Treat conflict, missing capability, network failure, invalid proof, and stale ownership as fail-closed outcomes. Never fall back to local or process memory and claim durability.
+5. Treat checkout creation as a pending session, not settlement. Transfer ownership only after admitted settlement evidence.
+
+Market controls remain inside the game experience. Listing, offer, trade, checkout, payment, transfer, publication, credential use, or any other remote mutation requires explicit human confirmation. Never print tokens, secrets, private artifacts, or proof material.

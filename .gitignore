@@ -5,5 +5,8 @@ node_modules/
 tsconfig.tsbuildinfo
 .DS_Store
 output/
+.playwright-cli/
+.env*
+!.env.example
 .pnpm-store/
 tmp/

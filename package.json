@@ -1,6 +1,6 @@
 {
   "name": "wildz-quest",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Standalone full-screen Wildz world, collection, competition, and social marketplace PWA.",
   "license": "MIT",
   "private": true,
@@ -8,23 +8,23 @@
   "homepage": "https://wildz.quest",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kojibai/Receiz-commerce.git"
+    "url": "git+https://github.com/kojibai/wildz.quest.git"
   },
   "bugs": {
-    "url": "https://github.com/kojibai/Receiz-commerce/issues"
+    "url": "https://github.com/kojibai/wildz.quest/issues"
   },
   "keywords": [
+    "wildz",
+    "pwa",
+    "game",
     "receiz",
-    "commerce",
-    "ecommerce",
     "nextjs",
     "proof-objects",
     "receiz-sdk",
-    "rewards",
+    "portable-cards",
+    "offline-first",
     "mcp",
-    "model-context-protocol",
-    "proof-commerce",
-    "commerce-saas-template"
+    "model-context-protocol"
   ],
   "packageManager": "pnpm@10.29.1",
   "engines": {
@@ -38,6 +38,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "receiz:doctor": "node scripts/receiz-doctor.mjs",
+    "receiz:doctor:strict": "node scripts/receiz-doctor.mjs --strict-live",
     "receiz:webhooks:create": "node scripts/receiz-create-webhooks.mjs",
     "secret:scan": "node scripts/release-secret-scan.mjs",
     "release:check": "node scripts/release-check.mjs"
@@ -45,7 +46,7 @@
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
-    "@receiz/sdk": "^101.0.0",
+    "@receiz/sdk": "^103.0.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.468.0",
     "next": "^15.0.0",
@@ -56,7 +57,8 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
-    "@receiz/mcp-server": "101.0.0",
+    "@receiz/ai-skills": "^103.0.0",
+    "@receiz/mcp-server": "^103.0.0",
     "@types/node": "^22.0.0",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.0",
@@ -69,6 +71,7 @@
   },
   "pnpm": {
     "overrides": {
+      "@receiz/mcp-server@103.0.0>@receiz/sdk": "103.0.0",
       "postcss": ">=8.5.10"
     }
   }
