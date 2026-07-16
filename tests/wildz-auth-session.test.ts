@@ -246,6 +246,62 @@ test("persisted remote-only identities revalidate both account subject and playe
   assert.equal(foreign.session.actorId, "vault_keeper");
 });
 
+test("verified local identities connect when the remote actor coordinate matches without replacing proof authority", () => {
+  const session: WildzIdentitySession = {
+    schema: "receiz.wildz.identity_session.v1",
+    keyId: "receiz_local_proof_key",
+    actorId: "wildz_explorer",
+    username: "wildz_explorer",
+    displayName: "Local Explorer",
+    portableStateStatus: "verified",
+    localAuthority: "verified",
+    remoteStatus: "unknown"
+  };
+
+  const matching = reconcileWildzRemoteIdentitySession(session, {
+    status: "connected",
+    subjectKey: "f".repeat(64),
+    actorId: "wildz_explorer",
+    profileHandle: "wildz_explorer.receiz.id",
+    displayName: "Receiz Explorer"
+  });
+
+  assert.equal(matching.disconnect, false);
+  assert.equal(matching.session.remoteStatus, "connected");
+  assert.equal(matching.session.keyId, session.keyId);
+  assert.equal(matching.session.actorId, session.actorId);
+  assert.equal(matching.session.localAuthority, session.localAuthority);
+  assert.equal(matching.session.portableStateStatus, session.portableStateStatus);
+});
+
+test("verified local identities reject a foreign remote actor without replacing proof authority", () => {
+  const session: WildzIdentitySession = {
+    schema: "receiz.wildz.identity_session.v1",
+    keyId: "receiz_local_proof_key",
+    actorId: "wildz_explorer",
+    username: "wildz_explorer",
+    displayName: "Local Explorer",
+    portableStateStatus: "verified",
+    localAuthority: "verified",
+    remoteStatus: "connected"
+  };
+
+  const foreign = reconcileWildzRemoteIdentitySession(session, {
+    status: "connected",
+    subjectKey: "0".repeat(64),
+    actorId: "other_player",
+    profileHandle: "other_player.receiz.id",
+    displayName: "Other Player"
+  });
+
+  assert.equal(foreign.disconnect, true);
+  assert.equal(foreign.session.remoteStatus, "unavailable");
+  assert.equal(foreign.session.keyId, session.keyId);
+  assert.equal(foreign.session.actorId, session.actorId);
+  assert.equal(foreign.session.localAuthority, session.localAuthority);
+  assert.equal(foreign.session.portableStateStatus, session.portableStateStatus);
+});
+
 test("later Connect reconciliation preserves a proof-backed Vault owner scope and never lets another account replace it", () => {
   const vaultScope = `receiz_vault_${"c".repeat(32)}`;
   const session: WildzIdentitySession = {

@@ -39,17 +39,25 @@ function clearWildzAuthQuery() {
   window.history.replaceState(window.history.state, "", next);
 }
 
+type WildzVaultRecovery = {
+  kind: "login" | "mismatch" | "retry";
+  loginUrl: string;
+};
+
 export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOverlay }) {
   const [overlay, setOverlay] = useState<WildzOverlay>(initialOverlay);
   const [continuity, setContinuity] = useState<WildzContinuitySnapshot | null>(null);
   const continuityRef = useRef<WildzContinuitySnapshot | null>(null);
   const [character, setCharacter] = useState<WildzCharacterGenesis | null>(null);
   const [identityError, setIdentityError] = useState("");
-  const [vaultLoginUrl, setVaultLoginUrl] = useState("");
-  const [vaultPromptMode, setVaultPromptMode] = useState<"connect" | "login" | "retry">("login");
+  const [entryRecovery, setEntryRecovery] = useState("");
+  const [vaultRecovery, setVaultRecovery] = useState<WildzVaultRecovery | null>(null);
+  const [browserOnline, setBrowserOnline] = useState(true);
+  const [offlinePracticeAccepted, setOfflinePracticeAccepted] = useState(false);
   const [remoteProfile, setRemoteProfile] = useState<ReturnType<typeof sanitizePublicWildzProfile> | null>(null);
   const [profileStatus, setProfileStatus] = useState<"idle" | "loading" | "publishing" | "ready" | "unpublished" | "missing" | "error">("idle");
   const publishedProfileRef = useRef("");
+  const automaticEntryRef = useRef("");
   const identity = continuity?.session ?? null;
   const ownerPlayState = useMemo(
     () => continuity?.playState ?? (identity ? createOwnerBoundInitialPlayState(identity.actorId) : initialPlayState),
@@ -72,6 +80,58 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     reputation: viewingOwnProfile ? ownerPlayState.inventory.length * 12 : 0,
     record: { wins: 0, losses: 0, raids: 0 }
   }), [character, identity, overlay, ownerPlayState.inventory, ownerUsername, viewingOwnProfile]);
+  const gameplayReady = Boolean(
+    continuity
+    && identity
+    && character
+    && (identity.remoteStatus === "connected" || offlinePracticeAccepted)
+  );
+
+  const acceptSnapshot = useCallback((snapshot: WildzContinuitySnapshot) => {
+    const previous = continuityRef.current;
+    continuityRef.current = snapshot;
+    setContinuity(snapshot);
+    setCharacter(snapshot.character);
+    setVaultRecovery(null);
+    if (!previous
+      || previous.session.keyId !== snapshot.session.keyId
+      || previous.session.actorId !== snapshot.session.actorId) {
+      automaticEntryRef.current = "";
+      setOfflinePracticeAccepted(false);
+    }
+  }, []);
+
+  const continueWildzEntry = useCallback(async (
+    session: WildzContinuitySnapshot["session"],
+    force = false
+  ) => {
+    const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    const attemptKey = `${session.actorId}:${returnTo}`;
+    if (!force && automaticEntryRef.current === attemptKey) return;
+    automaticEntryRef.current = attemptKey;
+    setEntryRecovery("");
+    try {
+      const remote = await wildzRemoteSessionBridge.continueLocalIdentity(session, returnTo);
+      if (remote.status !== "connected" && remote.status !== "pending") {
+        setEntryRecovery(remote.status === "offline"
+          ? "Receiz is offline. Reconnect and retry, or continue offline."
+          : "Wildz could not verify this explorer with Receiz. Retry without losing your local identity.");
+      }
+    } catch {
+      setEntryRecovery("Wildz could not start Receiz connection. Retry without losing your local identity.");
+    }
+  }, []);
+
+  useEffect(() => {
+    const updateOnlineStatus = () => setBrowserOnline(navigator.onLine);
+    updateOnlineStatus();
+    window.addEventListener("online", updateOnlineStatus);
+    window.addEventListener("offline", updateOnlineStatus);
+    return () => {
+      window.removeEventListener("online", updateOnlineStatus);
+      window.removeEventListener("offline", updateOnlineStatus);
+    };
+  }, []);
 
   useEffect(() => {
     if (overlay?.kind !== "profile") {
@@ -116,30 +176,11 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
 
   useEffect(() => {
     let active = true;
-    const acceptSnapshot = (snapshot: WildzContinuitySnapshot) => {
-      if (!active) return;
-      continuityRef.current = snapshot;
-      setContinuity(snapshot);
-      setCharacter(snapshot.character);
-      if (snapshot.session.localAuthority === "remote-only" && snapshot.session.remoteStatus !== "connected") {
-        const proofBackedVault = /^receiz_vault_[a-f0-9]{32,64}$/.test(snapshot.session.keyId);
-        const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-        const search = new URLSearchParams({
-          returnTo,
-          usernameHint: snapshot.session.actorId
-        });
-        setVaultPromptMode(proofBackedVault ? "connect" : "login");
-        setVaultLoginUrl(`/api/auth/receiz/start?${search.toString()}`);
-        setIdentityError(proofBackedVault
-          ? snapshot.session.remoteStatus === "offline"
-            ? `All cards are ready offline as @${snapshot.session.actorId}. Connect Receiz for live owner features.`
-            : `All cards are restored as @${snapshot.session.actorId}. Connect Receiz for live owner features.`
-          : "Reconnect Receiz to use live owner features.");
-      }
-    };
     const initialize = async () => {
       const searchParams = new URLSearchParams(window.location.search);
       const resumeId = searchParams.get("wildzResume");
+      let returnedFromReceiz = false;
+      let receizCallbackFailed = false;
       if (resumeId) {
         try {
           const resumed = await resumePendingWildzVault(resumeId);
@@ -157,49 +198,63 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           }
           if (resumed.status === "receiz_login_required") {
             setIdentityError("Your Vault is safe. Receiz login needs to be completed before it can be restored.");
-            setVaultPromptMode("login");
-            setVaultLoginUrl(resumed.loginUrl);
+            setVaultRecovery({ kind: "login", loginUrl: resumed.loginUrl });
             return;
           }
           setIdentityError("This browser is signed in to a different Receiz account than the one sealed in this Vault.");
-          setVaultPromptMode("login");
-          setVaultLoginUrl(resumed.loginUrl);
+          setVaultRecovery({ kind: "mismatch", loginUrl: resumed.loginUrl });
           return;
         } catch (cause) {
           const code = cause instanceof Error ? cause.message : "wildz_restore_invalid";
-          if (shouldClearWildzResumeAfterError(code)) clearWildzAuthQuery();
-          else {
-            setVaultPromptMode("retry");
-            setVaultLoginUrl(window.location.href);
-          }
+          const clearResume = shouldClearWildzResumeAfterError(code);
+          if (clearResume) clearWildzAuthQuery();
+          else setVaultRecovery({ kind: "retry", loginUrl: window.location.href });
           setIdentityError(code === "wildz_restore_resume_missing"
             ? "That Vault login expired. Upload the Vault image again to continue."
             : code === "wildz_restore_v4_unavailable"
               ? "Receiz proof verification is temporarily unavailable. Your staged Vault is safe; retry when the connection returns."
-              : shouldClearWildzResumeAfterError(code)
+              : clearResume
                 ? "The proof-sealed Vault could not be restored. Upload it again to retry."
                 : "Wildz could not finish the staged Vault restore. Nothing was changed; retry to continue.");
+          if (!clearResume) return;
         }
-      } else if (searchParams.has("receiz") || searchParams.has("receiz_error")) {
-        if (searchParams.has("receiz_error")) setIdentityError("Receiz login did not complete. Please try the Vault again.");
-        clearWildzAuthQuery();
+      } else {
+        returnedFromReceiz = searchParams.has("receiz");
+        receizCallbackFailed = searchParams.has("receiz_error");
+        if (returnedFromReceiz || receizCallbackFailed) {
+          if (receizCallbackFailed) {
+            setEntryRecovery("Receiz login did not complete. Retry without losing your local identity or Vault.");
+          }
+          clearWildzAuthQuery();
+        }
       }
-      acceptSnapshot(await bootstrapWildzContinuity(window.localStorage));
+      const snapshot = await bootstrapWildzContinuity(window.localStorage);
+      if (!active) return;
+      if (returnedFromReceiz && !receizCallbackFailed && snapshot.session.remoteStatus !== "connected") {
+        setEntryRecovery("Receiz returned, but Wildz could not verify this explorer. Retry without losing your local identity or Vault.");
+      }
+      acceptSnapshot(snapshot);
     };
     void initialize().catch((cause) => {
       if (active) setIdentityError(cause instanceof Error ? cause.message : "Unable to prepare your Receiz ID.");
     });
     return () => { active = false; };
-  }, []);
+  }, [acceptSnapshot]);
+
+  useEffect(() => {
+    if (!identity || !character || offlinePracticeAccepted) return;
+    if (identity.remoteStatus === "connected") return;
+    if (!browserOnline) return;
+    if (entryRecovery) return;
+    void continueWildzEntry(identity);
+  }, [browserOnline, character, continueWildzEntry, entryRecovery, identity, offlinePracticeAccepted]);
 
   const completeGenesis = (next: WildzCharacterGenesis) => {
     const current = continuityRef.current;
     if (!current) return;
     const playState = current.playState ?? createOwnerBoundInitialPlayState(current.session.actorId);
     const snapshot: WildzContinuitySnapshot = { ...current, playState, character: next };
-    continuityRef.current = snapshot;
-    setContinuity(snapshot);
-    setCharacter(next);
+    acceptSnapshot(snapshot);
     void saveWildzContinuityPlayState(snapshot, playState, current.playerContinuity ?? undefined, next)
       .catch(() => setIdentityError("Your explorer could not be saved. Try again before closing Wildz."));
   };
@@ -226,7 +281,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         if (cause.status === "receiz_login_required") window.location.assign(cause.loginUrl);
         else {
           setIdentityError("Sign in with the Receiz account sealed in this Vault to restore its player and cards.");
-          setVaultLoginUrl(cause.loginUrl);
+          setVaultRecovery({ kind: "mismatch", loginUrl: cause.loginUrl });
         }
       }
       throw cause;
@@ -241,11 +296,10 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (current.session.keyId !== outcome.session.keyId || current.session.actorId !== outcome.session.actorId) {
       publishedProfileRef.current = "";
     }
-    continuityRef.current = next;
-    setContinuity(next);
-    setCharacter(outcome.character);
+    setEntryRecovery("");
+    acceptSnapshot(next);
     return outcome;
-  }, []);
+  }, [acceptSnapshot]);
 
   const persistPlayState = useCallback((playState: PlayState, playerContinuity: NonNullable<WildzContinuitySnapshot["playerContinuity"]>) => {
     const current = continuityRef.current;
@@ -258,7 +312,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   return (
     <main className="wildz-app-shell" data-wildz-active-username={ownerUsername}>
       <div className="wildz-app" data-overlay={overlay?.kind ?? "world"}>
-        {continuity && identity && character ? <PlayCampaign
+        {gameplayReady && continuity && identity && character ? <PlayCampaign
           key={`${identity.keyId}:${identity.actorId}:${continuity.restoreEpoch}`}
           campaignName="Wildz"
           character={character}
@@ -290,30 +344,37 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             if (!response.ok) return null;
             return { ...asset, status: "listed" as const, synchronizedAt: new Date().toISOString() };
           }}
-        /> : identity ? <WildzGenesis
+        /> : identity && !character ? <WildzGenesis
           identity={identity}
           onComplete={completeGenesis}
           onRestoreArtifact={(file, confirmCardOnly) => restoreArtifact(file, "genesis", confirmCardOnly)}
         /> : <div className="wildz-identity-loading" role="status">
           <Image src="/brand/wildz-mark.svg" alt="" width={64} height={64} priority />
-          <span>{identityError || "Preparing your Receiz ID…"}</span>
+          <span>{identity && character
+            ? entryRecovery || (!browserOnline
+              ? "Receiz is offline. Choose offline practice to enter without live features."
+              : "Connecting your explorer to Receiz…")
+            : identityError || "Preparing your Receiz ID…"}</span>
         </div>}
       </div>
 
-      {vaultLoginUrl ? <aside className="wildz-vault-login-prompt" role={vaultPromptMode === "connect" ? "status" : "alert"}>
-        <span>{vaultPromptMode === "retry"
-          ? "Vault restore paused"
-          : vaultPromptMode === "connect"
-            ? "Vault identity restored"
-            : "Vault owner required"}</span>
-        <strong>{identityError || "Connect Receiz to enable live owner features."}</strong>
+      {vaultRecovery ? <aside className="wildz-vault-login-prompt" role="alert">
+        <span>{vaultRecovery.kind === "retry" ? "Vault restore paused" : "Vault owner required"}</span>
+        <strong>{identityError || "Sign in with the Receiz account sealed in this Vault."}</strong>
         <div>
           <button type="button" onClick={() => {
-            if (vaultPromptMode === "retry") window.location.reload();
-            else void wildzRemoteSessionBridge.disconnect().finally(() => window.location.assign(vaultLoginUrl));
-          }}>{vaultPromptMode === "retry" ? "Retry Vault restore" : vaultPromptMode === "connect" ? "Connect Receiz" : "Sign in as Vault owner"}</button>
-          <button type="button" aria-label="Dismiss Vault prompt" onClick={() => setVaultLoginUrl("")}>Not now</button>
+            if (vaultRecovery.kind === "retry") window.location.assign(vaultRecovery.loginUrl);
+            else void wildzRemoteSessionBridge.disconnect().finally(() => window.location.assign(vaultRecovery.loginUrl));
+          }}>{vaultRecovery.kind === "retry" ? "Retry Vault restore" : "Sign in as Vault owner"}</button>
         </div>
+      </aside> : identity && character && !gameplayReady ? <aside className="wildz-vault-login-prompt" role={entryRecovery || !browserOnline ? "alert" : "status"}>
+        <span>{!browserOnline ? "Receiz offline" : entryRecovery ? "Receiz connection needs attention" : "Receiz connection"}</span>
+        <strong>{entryRecovery || "Connecting this explorer to live Receiz features…"}</strong>
+        {!browserOnline ? <div>
+          <button type="button" onClick={() => setOfflinePracticeAccepted(true)}>Continue offline</button>
+        </div> : entryRecovery ? <div>
+          <button type="button" onClick={() => void continueWildzEntry(identity, true)}>Retry Receiz</button>
+        </div> : null}
       </aside> : null}
 
       <div className="wildz-brand-corner" aria-label="Wildz">

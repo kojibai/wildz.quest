@@ -68,12 +68,12 @@ export function reconcileWildzRemoteIdentitySession(
   session: WildzIdentitySession,
   remote: WildzRemoteSession
 ): { session: WildzIdentitySession; disconnect: boolean } {
-  if (session.localAuthority !== "remote-only") return { session, disconnect: false };
   if (remote.status === "connected") {
     const expectedKeyId = `receiz_remote_${remote.subjectKey.slice(0, 32)}`;
     const coordinate = parseWildzPlayerCoordinate(remote.profileHandle);
     const proofBackedVault = /^receiz_vault_[a-f0-9]{32,64}$/.test(session.keyId);
-    if ((!proofBackedVault && expectedKeyId !== session.keyId)
+    const remoteOnlySubjectBound = session.localAuthority === "remote-only" && !proofBackedVault;
+    if ((remoteOnlySubjectBound && expectedKeyId !== session.keyId)
       || coordinate?.actorId !== session.actorId) {
       return { session: { ...session, remoteStatus: "unavailable" }, disconnect: true };
     }

@@ -126,17 +126,15 @@ export async function bootstrapWildzContinuity(
   return enqueueContinuityOperation(async () => {
     await defaultPendingVaultRepository.purgeExpired().catch(() => 0);
     let session = await defaultIdentityRepository.bootstrap(legacyStorage);
-    if (session.localAuthority === "remote-only") {
-      const reconciliation = reconcileWildzRemoteIdentitySession(
-        session,
-        await wildzRemoteSessionBridge.current()
-      );
-      if (reconciliation.disconnect) await wildzRemoteSessionBridge.disconnect();
-      session = reconciliation.session;
-      await defaultContinuityDatabase.transaction(["meta"], "readwrite", (tx) =>
-        defaultIdentityRepository.writeSession(tx, session, true)
-      );
-    }
+    const reconciliation = reconcileWildzRemoteIdentitySession(
+      session,
+      await wildzRemoteSessionBridge.current()
+    );
+    if (reconciliation.disconnect) await wildzRemoteSessionBridge.disconnect();
+    session = reconciliation.session;
+    await defaultContinuityDatabase.transaction(["meta"], "readwrite", (tx) =>
+      defaultIdentityRepository.writeSession(tx, session, true)
+    );
     let ownerState = await loadWildzRestoredOwnerState({ database: defaultContinuityDatabase, session });
     let playState = ownerState?.playState ?? null;
     const legacyRaw = playState === null ? legacyStorage?.getItem(LEGACY_PLAY_STATE_STORAGE_KEY) ?? null : null;

@@ -28,6 +28,19 @@ test("bootstrap best-effort purges expired staged Vault bytes before identity re
   assert.match(adapter.slice(purge, identityBootstrap), /catch/);
 });
 
+test("bootstrap revalidates and persists every active identity before restoring owner state", () => {
+  const adapter = read("src/lib/receiz/wildz-identity-adapter.ts");
+  const bootstrapStart = adapter.indexOf("export async function bootstrapWildzContinuity");
+  const ownerState = adapter.indexOf("loadWildzRestoredOwnerState", bootstrapStart);
+  const reconciliation = adapter.slice(bootstrapStart, ownerState);
+
+  assert.ok(bootstrapStart >= 0 && ownerState > bootstrapStart);
+  assert.doesNotMatch(reconciliation, /session\.localAuthority === "remote-only"/);
+  assert.match(reconciliation, /wildzRemoteSessionBridge\.current\(\)/);
+  assert.match(reconciliation, /if \(reconciliation\.disconnect\) await wildzRemoteSessionBridge\.disconnect\(\)/);
+  assert.match(reconciliation, /defaultIdentityRepository\.writeSession\(tx, session, true\)/);
+});
+
 test("resume best-effort purges other expired staged Vault bytes before admission", () => {
   const adapter = read("src/lib/receiz/wildz-identity-adapter.ts");
   const resumeStart = adapter.indexOf("export function resumePendingWildzVault");
