@@ -756,7 +756,7 @@ export function PlayCampaign({
             /> : null}
 
             {avatarStyle ? <WildsMultiplayer multiplayer={multiplayer} position={state.player} /> : null}
-            {avatarStyle ? <WildsLivingWorldHud player={state.player} world={livingWorld} /> : null}
+            {avatarStyle ? <WildsLivingWorldHud connected={networkEnabled} player={state.player} world={livingWorld} /> : null}
             <div className="wilds-utility-cluster">
               <WildsAudioSettings
                 onChange={presentation.setAudioSettings}

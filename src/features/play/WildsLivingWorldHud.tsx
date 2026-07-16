@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import type { useWildsWorld } from "./use-wilds-world";
 import { wildsLivingWorldModeLabel } from "./wilds-living-world-status";
 
-export function WildsLivingWorldHud({ world, player }: { world: ReturnType<typeof useWildsWorld>; player: { x: number; z: number } }) {
+export function WildsLivingWorldHud({ world, player, connected }: { world: ReturnType<typeof useWildsWorld>; player: { x: number; z: number }; connected: boolean }) {
   const [open, setOpen] = useState(false);
   const [teamName, setTeamName] = useState("");
   const nearby = useMemo(() => Object.values(world.snapshot?.sites ?? {})
@@ -17,12 +17,13 @@ export function WildsLivingWorldHud({ world, player }: { world: ReturnType<typeo
   const boss = nearby?.site.bossId ? world.snapshot?.bosses[nearby.site.bossId] : null;
   const raid = boss ? Object.values(world.snapshot?.raids ?? {}).find((item) => item.bossId === boss.id) : null;
   const close = nearby && nearby.distance <= nearby.site.radius + 8;
-  const modeLabel = wildsLivingWorldModeLabel(world.mode);
+  const modeLabel = wildsLivingWorldModeLabel(world.mode, connected);
+  const displayedMode = connected ? "receiz_live" : world.mode;
 
   const compactSiteName = nearby?.site.name.split(/\s+/).at(-1) ?? "Event";
 
   return <div className={`wilds-living-world-hud ${nearby ? "has-event" : ""}`} aria-label="Living world status">
-    <button aria-label={modeLabel} className={`wilds-live-pill mode-${world.mode}`} onClick={() => setOpen((value) => !value)} title={modeLabel} type="button">
+    <button aria-label={modeLabel} className={`wilds-live-pill mode-${displayedMode}`} onClick={() => setOpen((value) => !value)} title={modeLabel} type="button">
       <i aria-hidden="true" /><span>{modeLabel}</span>
     </button>
     {nearby ? <button aria-label={`${nearby.site.name} ${Math.round(nearby.distance)} meters away`} className="wilds-live-pill event" onClick={() => setOpen(true)} type="button">

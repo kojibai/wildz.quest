@@ -150,8 +150,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           if (active) setProofSessionConnected(false);
           return;
         }
-        await bootstrapWildzSharedWorld();
-        if (!active) return;
+        setProofSessionConnected(true);
+        void bootstrapWildzSharedWorld().catch(() => undefined);
         const current = continuityRef.current;
         if (!current
           || current.session.keyId !== identity.keyId

@@ -55,15 +55,16 @@ test("every admitted identity enters by local proof and extends to a same-origin
   assert.doesNotMatch(source, /window\.location\.assign/);
 });
 
-test("authenticated gameplay networking waits for a confirmed canonical world bootstrap", () => {
+test("a matching proof session connects gameplay before best-effort world bootstrap", () => {
   const source = read("src/features/shell/WildzApp.tsx");
   const matched = source.indexOf("wildzRemoteSessionMatchesIdentity(identity, session)");
-  const bootstrap = source.indexOf("bootstrapWildzSharedWorld", matched);
   const connected = source.indexOf("setProofSessionConnected(true)", matched);
+  const bootstrap = source.indexOf("bootstrapWildzSharedWorld", matched);
 
   assert.ok(matched >= 0);
-  assert.ok(bootstrap > matched);
-  assert.ok(connected > bootstrap);
+  assert.ok(connected > matched);
+  assert.ok(bootstrap > connected);
+  assert.doesNotMatch(source.slice(matched, bootstrap), /await bootstrapWildzSharedWorld/);
 });
 
 test("fresh genesis, Identity Seal restore, and identity-bearing Vault restore converge on the same snapshot gate", () => {
