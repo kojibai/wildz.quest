@@ -29,12 +29,12 @@ describe("Wilds ecology player history", () => {
     assert.equal(verifyWildsEcologyReceipt({ ...receipt, mastery: 99 }).ok, false);
   });
 
-  it("records ecology history once and serializes Save V8", () => {
+  it("records ecology history once and serializes Save V9", () => {
     const once = applyWildsInput(initialPlayState, { type: "record-ecology-event", event: receipt });
     const duplicate = applyWildsInput(once, { type: "record-ecology-event", event: receipt });
     const envelope = JSON.parse(serializePlayState(once));
 
-    assert.equal(envelope.schema, "receiz.wilds.save.v8");
+    assert.equal(envelope.schema, "receiz.wilds.save.v9");
     assert.deepEqual(once.ecologyEvents, [receipt]);
     assert.equal(once.ecologyMastery["echo-ruin"], 5);
     assert.deepEqual(duplicate, once);

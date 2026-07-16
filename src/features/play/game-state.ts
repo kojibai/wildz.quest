@@ -22,6 +22,16 @@ import { projectWildsCivicHistory, type WildsCivicEvent } from "./wilds-civic-hi
 import { projectWildsEcologyHistory, type WildsEcologyKnowledge, type WildsEcologyReceipt } from "./wilds-ecology-history";
 import { projectWildsRaidHistory, type WildsBossKnowledge, type WildsRaidReceipt } from "./wilds-raid-history";
 import {
+  adventureConditionToHearttree,
+  emptyHearttreeCondition,
+  hearttreeConditionToAdventure,
+  projectHearttreeCard,
+  type HearttreeCardCondition
+} from "./hearttree/card-capability";
+import { applyHearttreeConsequences } from "./hearttree/consequences";
+import { verifyHearttreeReceipt, type HearttreeReceipt } from "./hearttree/receipt";
+import { emptyAdventureCondition, validateAdventureCondition, type AdventureCardCondition } from "./adventure/card-condition";
+import {
   EMPTY_WILDS_SUPPORT_ASSET_IDS,
   type WildsBossFamilyId,
   type WildsEcologyFamilyId,
@@ -52,6 +62,8 @@ export type WildsInput =
   | { type: "record-civic-event"; event: WildsCivicEvent }
   | { type: "record-ecology-event"; event: WildsEcologyReceipt }
   | { type: "record-raid-event"; event: WildsRaidReceipt }
+  | { type: "hearttree-admit"; receipt: HearttreeReceipt }
+  | { type: "hearttree-select-squad"; assetIds: string[] }
   | { type: "ascend-card"; assetId: string; at: string }
   | { type: "finish-transformation" }
   | { type: "finish-lineage-reveal" }
@@ -157,6 +169,10 @@ export type PlayState = {
   bossKnowledge: Record<string, WildsBossKnowledge>;
   bossMastery: Record<WildsBossFamilyId, number>;
   raidAchievements: string[];
+  adventureConditions: Record<string, AdventureCardCondition>;
+  hearttreeConditions: Record<string, HearttreeCardCondition>;
+  hearttreeReceipts: HearttreeReceipt[];
+  hearttreeSquadAssetIds: string[];
 };
 
 export const worldBounds = {
@@ -309,7 +325,11 @@ export const initialPlayState: PlayState = {
   raidEvents: [],
   bossKnowledge: {},
   bossMastery: projectWildsRaidHistory([]).mastery,
-  raidAchievements: []
+  raidAchievements: [],
+  adventureConditions: { [starterCardAsset.id]: emptyAdventureCondition(starterCardAsset.id) },
+  hearttreeConditions: { [starterCardAsset.id]: emptyHearttreeCondition(starterCardAsset.id) },
+  hearttreeReceipts: [],
+  hearttreeSquadAssetIds: [starterCardAsset.id]
 };
 
 export function createOwnerBoundInitialPlayState(ownerReceizId: string): PlayState {
@@ -321,12 +341,16 @@ export function createOwnerBoundInitialPlayState(ownerReceizId: string): PlaySta
     inventory: [{ ...starter, status: "verified", synchronizedAt: "2026-06-29T12:00:00.000Z" }],
     selectedAssetId: starter.id,
     supportAssetIds: EMPTY_WILDS_SUPPORT_ASSET_IDS,
-    livingProgress: { [starter.id]: emptyLivingGrowth(0) }
+    livingProgress: { [starter.id]: emptyLivingGrowth(0) },
+    adventureConditions: { [starter.id]: emptyAdventureCondition(starter.id) },
+    hearttreeConditions: { [starter.id]: emptyHearttreeCondition(starter.id) },
+    hearttreeReceipts: [],
+    hearttreeSquadAssetIds: [starter.id]
   };
 }
 
-const PLAY_SAVE_SCHEMA = "receiz.wilds.save.v8";
-const LEGACY_PLAY_SAVE_SCHEMAS = new Set(["receiz.wilds.save.v2", "receiz.wilds.save.v3", "receiz.wilds.save.v4", "receiz.wilds.save.v5", "receiz.wilds.save.v6", "receiz.wilds.save.v7"]);
+const PLAY_SAVE_SCHEMA = "receiz.wilds.save.v9";
+const LEGACY_PLAY_SAVE_SCHEMAS = new Set(["receiz.wilds.save.v2", "receiz.wilds.save.v3", "receiz.wilds.save.v4", "receiz.wilds.save.v5", "receiz.wilds.save.v6", "receiz.wilds.save.v7", "receiz.wilds.save.v8"]);
 
 export function serializePlayState(state: PlayState) {
   return JSON.stringify({ schema: PLAY_SAVE_SCHEMA, state });
@@ -422,6 +446,39 @@ export function restorePlayState(value: string | null | undefined, ownerReceizId
       return [...assets, sealed];
     }, ownerScopedInventory);
     const migratedInventory = admitAndMergeInventory(inventoryWithMigrations);
+    const restoredHearttreeReceipts = Array.isArray(saved.hearttreeReceipts)
+      ? saved.hearttreeReceipts.filter((receipt): receipt is HearttreeReceipt => Boolean(receipt) && verifyHearttreeReceipt(receipt as HearttreeReceipt).ok).slice(-512)
+      : [];
+    const adventureConditions: Record<string, AdventureCardCondition> = Object.fromEntries(migratedInventory.map((asset) => {
+      const originalId = [...migratedAssetIds].find(([, migratedId]) => migratedId === asset.id)?.[0] ?? asset.id;
+      const shared = saved.adventureConditions?.[asset.id] ?? saved.adventureConditions?.[originalId];
+      if (shared) {
+        try {
+          validateAdventureCondition(shared);
+          return [asset.id, { ...shared, assetId: asset.id, injuries: [...shared.injuries], xp: { ...shared.xp }, mastery: { ...shared.mastery }, upgradeIds: [...shared.upgradeIds], receiptDigests: [...shared.receiptDigests] }];
+        } catch {
+          // Invalid local projections fall through to the legacy Hearttree projection.
+        }
+      }
+      const legacy = saved.hearttreeConditions?.[asset.id] ?? saved.hearttreeConditions?.[originalId];
+      if (legacy) {
+        try {
+          const remapped = { ...legacy, assetId: asset.id };
+          projectHearttreeCard(asset, remapped);
+          return [asset.id, hearttreeConditionToAdventure(remapped)];
+        } catch {
+          // Invalid local projections fall back to an alive baseline; verified receipts impose death below.
+        }
+      }
+      return [asset.id, emptyAdventureCondition(asset.id)];
+    }));
+    for (const receipt of restoredHearttreeReceipts) {
+      for (const [assetId, consequence] of Object.entries(receipt.consequences.cards)) {
+        const condition = adventureConditions[assetId];
+        if (condition && consequence.lifeAfter === "dead") adventureConditions[assetId] = { ...condition, life: "dead" };
+      }
+    }
+    const hearttreeConditions = Object.fromEntries(Object.entries(adventureConditions).map(([assetId, condition]) => [assetId, adventureConditionToHearttree(condition)]));
     const civicProjection = projectWildsCivicHistory(Array.isArray(saved.civicEvents) ? saved.civicEvents.slice(-2_048) : []);
     const ecologyProjection = projectWildsEcologyHistory(Array.isArray(saved.ecologyEvents) ? saved.ecologyEvents.slice(-2_048) : []);
     const raidProjection = projectWildsRaidHistory(Array.isArray(saved.raidEvents) ? saved.raidEvents.slice(-4_096) : []);
@@ -429,9 +486,14 @@ export function restorePlayState(value: string | null | undefined, ownerReceizId
     const requestedSelectedAssetId = typeof saved.selectedAssetId === "string"
       ? migratedAssetIds.get(saved.selectedAssetId) ?? saved.selectedAssetId
       : "";
-    const restoredSelectedAssetId = requestedSelectedAssetId && migratedInventory.some((asset) => asset.id === requestedSelectedAssetId)
+    const livingInventory = migratedInventory.filter((asset) => adventureConditions[asset.id]?.life !== "dead");
+    const restoredSelectedAssetId = requestedSelectedAssetId && livingInventory.some((asset) => asset.id === requestedSelectedAssetId)
       ? requestedSelectedAssetId
-      : [...migratedInventory].reverse().find((asset) => asset.manifest.familyId === saved.selectedCardId)?.id ?? migratedInventory[0]?.id ?? starterCardAsset.id;
+      : [...livingInventory].reverse().find((asset) => asset.manifest.familyId === saved.selectedCardId)?.id ?? livingInventory[0]?.id ?? "";
+    const requestedHearttreeSquad = Array.isArray(saved.hearttreeSquadAssetIds) ? saved.hearttreeSquadAssetIds : [restoredSelectedAssetId];
+    const hearttreeSquadAssetIds = [...new Set(requestedHearttreeSquad)]
+      .filter((id): id is string => typeof id === "string" && livingInventory.some((asset) => asset.id === id))
+      .slice(0, 3);
     return withWorldProgress({
       ...fallback,
       ...saved,
@@ -487,7 +549,11 @@ export function restorePlayState(value: string | null | undefined, ownerReceizId
       raidEvents: raidProjection.events,
       bossKnowledge: raidProjection.knowledge,
       bossMastery: raidProjection.mastery,
-      raidAchievements: raidProjection.achievements
+      raidAchievements: raidProjection.achievements,
+      adventureConditions,
+      hearttreeConditions,
+      hearttreeReceipts: restoredHearttreeReceipts,
+      hearttreeSquadAssetIds: hearttreeSquadAssetIds.length ? hearttreeSquadAssetIds : livingInventory[0] ? [livingInventory[0].id] : []
     });
   } catch {
     return fallback;
@@ -514,6 +580,16 @@ export function selectedCard(state: PlayState) {
 
 export function selectedAsset(state: PlayState) {
   return state.inventory.find((asset) => asset.id === state.selectedAssetId) ?? state.inventory.find((asset) => asset.manifest.familyId === state.selectedCardId) ?? state.inventory[0];
+}
+
+export function isPlayableAsset(state: PlayState, assetId: string) {
+  const asset = state.inventory.find((candidate) => candidate.id === assetId);
+  if (!asset || !verifyAnyWildsCard(asset).ok || state.adventureConditions[assetId]?.life === "dead") return false;
+  return !isLivingCardAsset(asset) || !currentRevision(asset).growth.life?.retired;
+}
+
+export function playableInventory(state: PlayState) {
+  return state.inventory.filter((asset) => isPlayableAsset(state, asset.id));
 }
 
 export function discoveredCards(state: PlayState) {
@@ -583,12 +659,59 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     return owner ? createOwnerBoundInitialPlayState(owner) : initialPlayState;
   }
 
+  if (input.type === "hearttree-select-squad") {
+    const assetIds = [...new Set(input.assetIds)];
+    if (assetIds.length < 1 || assetIds.length > 3 || assetIds.some((assetId) => !isPlayableAsset(state, assetId))) return state;
+    return { ...state, hearttreeSquadAssetIds: assetIds, lastEvent: `${assetIds.length} living card${assetIds.length === 1 ? "" : "s"} ready for the Hearttree.` };
+  }
+
+  if (input.type === "hearttree-admit") {
+    if (!verifyHearttreeReceipt(input.receipt).ok || state.hearttreeReceipts.some((receipt) => receipt.digest === input.receipt.digest)) return state;
+    const conditions = { ...state.adventureConditions };
+    try {
+      for (const [assetId, consequence] of Object.entries(input.receipt.consequences.cards)) {
+        const current = conditions[assetId] ?? emptyAdventureCondition(assetId);
+        const prior = input.receipt.priorConditions[assetId];
+        if (!prior || JSON.stringify(adventureConditionToHearttree(current)) !== JSON.stringify(prior) || !state.inventory.some((asset) => asset.id === assetId)) throw new Error("hearttree_receipt_prior_invalid");
+        const applied = hearttreeConditionToAdventure(applyHearttreeConsequences(adventureConditionToHearttree(current), consequence));
+        conditions[assetId] = {
+          ...current,
+          life: applied.life,
+          fatigue: applied.fatigue,
+          injuries: applied.injuries,
+          xp: { ...current.xp, hearttree: applied.xp.hearttree ?? 0 },
+          mastery: { ...current.mastery, hearttree: applied.mastery.hearttree ?? 0 },
+          upgradeIds: [...new Set([...current.upgradeIds, ...applied.upgradeIds])],
+          receiptDigests: [...new Set([...current.receiptDigests, input.receipt.digest])].slice(-512)
+        };
+      }
+    } catch {
+      return state;
+    }
+    const hearttreeConditions = Object.fromEntries(Object.entries(conditions).map(([assetId, condition]) => [assetId, adventureConditionToHearttree(condition)]));
+    const provisional = { ...state, adventureConditions: conditions, hearttreeConditions };
+    const playable = playableInventory(provisional);
+    const selected = isPlayableAsset(provisional, state.selectedAssetId) ? state.selectedAssetId : playable[0]?.id ?? "";
+    const squad = state.hearttreeSquadAssetIds.filter((assetId) => isPlayableAsset(provisional, assetId));
+    return {
+      ...provisional,
+      selectedAssetId: selected,
+      selectedCardId: playable.find((asset) => asset.id === selected)?.manifest.familyId ?? state.selectedCardId,
+      supportAssetIds: normalizeWildsSupportAssetIds(state.supportAssetIds, playable, selected),
+      hearttreeSquadAssetIds: squad.length ? squad : playable[0] ? [playable[0].id] : [],
+      hearttreeReceipts: [...state.hearttreeReceipts, input.receipt].slice(-512),
+      lastEvent: input.receipt.consequences.outcome === "squad-defeated" && input.receipt.definition.mortal
+        ? "The Mortal Heart has spoken. Fallen cards remain forever in the memorial inventory."
+        : "The Hearttree receipt was verified and its consequences are now permanent."
+    };
+  }
+
   if (input.type === "assign-support") {
     const current = [...state.supportAssetIds] as [string | null, string | null];
     if (input.assetId !== null) {
       const asset = state.inventory.find((candidate) => candidate.id === input.assetId);
       const otherSlot = input.slot === 0 ? 1 : 0;
-      if (!asset || !verifyAnyWildsCard(asset).ok || asset.id === state.selectedAssetId || current[otherSlot] === asset.id) {
+      if (!asset || !isPlayableAsset(state, asset.id) || asset.id === state.selectedAssetId || current[otherSlot] === asset.id) {
         return { ...state, lastEvent: "That companion cannot occupy this support slot." };
       }
     }
@@ -641,12 +764,12 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
 
   if (input.type === "record-growth") {
     const asset = state.inventory.find((candidate) => candidate.id === input.assetId);
-    return asset ? applyRecordedGrowth(state, asset, input.event) : state;
+    return asset && isPlayableAsset(state, asset.id) ? applyRecordedGrowth(state, asset, input.event) : state;
   }
 
   if (input.type === "ascend-card") {
     const asset = state.inventory.find((candidate) => candidate.id === input.assetId);
-    if (!asset || !isLivingCardAsset(asset) || asset.manifest.stage !== 3 || !verifyAnyWildsCard(asset).ok) return state;
+    if (!asset || !isPlayableAsset(state, asset.id) || !isLivingCardAsset(asset) || asset.manifest.stage !== 3) return state;
     const progress = growthForAsset(state, asset);
     const readiness = growthReadiness(asset, { progress, catalystIds: state.ascensionCatalysts }, input.at);
     if (!readiness.ready) return { ...state, lastEvent: `${asset.manifest.name} still needs ${readiness.missing.join(", ")}.` };
@@ -737,7 +860,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
   if (input.type === "fuse-cards") {
     const parentA = state.inventory.find((asset) => asset.id === input.parentAId);
     const parentB = state.inventory.find((asset) => asset.id === input.parentBId);
-    if (!parentA || !parentB) return { ...state, lastEvent: "Choose two cards from your verified inventory." };
+    if (!parentA || !parentB || !isPlayableAsset(state, parentA.id) || !isPlayableAsset(state, parentB.id)) return state;
     const transactionInput = {
       parentA,
       parentB,
@@ -788,7 +911,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     if (state.encounter.phase !== "battle_intro" || !state.encounter.formId || !state.encounter.hotspotId) return state;
     const wild = creatureForm(state.encounter.formId);
     const playerAsset = selectedAsset(state);
-    if (!wild || !playerAsset || !verifyAnyWildsCard(playerAsset).ok) return { ...state, encounter: { ...state.encounter, phase: "defeated" }, lastEvent: "No verified playable card was available for battle." };
+    if (!wild || !playerAsset || !isPlayableAsset(state, playerAsset.id)) return { ...state, encounter: { ...state.encounter, phase: "defeated" }, lastEvent: "No verified playable card was available for battle." };
     const battle = startWildBattle({
       encounterSeed: state.encounter.hotspotId,
       player: { assetId: playerAsset.id, name: playerAsset.manifest.name, element: creatureForm(playerAsset.manifest.formId)?.element, ...playerAsset.manifest.stats, health: playerAsset.manifest.stats.health * 2 },
@@ -902,7 +1025,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
   if (input.type === "mark-synced" || input.type === "mark-listed") {
     if (!Number.isFinite(Date.parse(input.synchronizedAt))) return state;
     const target = state.inventory.find((asset) => asset.id === input.assetId);
-    if (!target || target.status === "suspended" || target.status === "revoked") return state;
+    if (!target || !isPlayableAsset(state, target.id) || target.status === "suspended" || target.status === "revoked") return state;
     const nextStatus = input.type === "mark-listed" ? "listed" : "verified";
     return {
       ...state,
@@ -918,7 +1041,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
 
   if (input.type === "evolve") {
     const previous = state.inventory.find((asset) => asset.id === input.assetId);
-    if (!previous || previous.manifest.stage >= 3) return state;
+    if (!previous || !isPlayableAsset(state, previous.id) || previous.manifest.stage >= 3) return state;
     const next = creatureForm(`${previous.manifest.familyId}-${previous.manifest.stage + 1}`);
     const progress = state.companionProgress[previous.manifest.familyId] ?? { level: 1, xp: 0, bond: 0 };
     if (!next || progress.level < next.evolution.level || progress.bond < next.evolution.bond) {
@@ -936,7 +1059,8 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
 
   if (input.type === "select-card") {
     if (!state.discoveredCardIds.includes(input.cardId)) return state;
-    const asset = [...state.inventory].reverse().find((candidate) => candidate.manifest.familyId === input.cardId);
+    const asset = [...state.inventory].reverse().find((candidate) => candidate.manifest.familyId === input.cardId && isPlayableAsset(state, candidate.id));
+    if (!asset) return state;
     const selectedAssetId = asset?.id ?? state.selectedAssetId;
     return {
       ...state,
@@ -949,7 +1073,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
 
   if (input.type === "select-asset") {
     const asset = state.inventory.find((candidate) => candidate.id === input.assetId);
-    if (!asset || !verifyAnyWildsCard(asset).ok) return state;
+    if (!asset || !isPlayableAsset(state, asset.id)) return state;
     return {
       ...state,
       selectedAssetId: asset.id,
@@ -1085,7 +1209,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     const currentProgress = state.companionProgress[targetCardId] ?? { level: 1, xp: 0, bond: 0 };
     const trainedAt = input.at ?? new Date(Date.UTC(2026, 6, 13, 12, currentProgress.bond * 15)).toISOString();
     if (!Number.isFinite(Date.parse(trainedAt))) return state;
-    const targetAsset = [...state.inventory].reverse().find((asset) => asset.manifest.familyId === targetCardId);
+    const targetAsset = [...state.inventory].reverse().find((asset) => asset.manifest.familyId === targetCardId && isPlayableAsset(state, asset.id));
     if (!targetAsset) return state;
     const cooldownUntil = state.bondCooldowns[targetAsset.id];
     if (cooldownUntil && Date.parse(cooldownUntil) > Date.parse(trainedAt)) {

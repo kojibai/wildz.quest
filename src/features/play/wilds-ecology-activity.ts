@@ -67,10 +67,13 @@ export function createWildsEcologyActivity(site: WildsEcologySite): WildsEcology
 export function createWildsMarketActivity(site: WildsEcologySite, card: PortableCardAsset): WildsEcologyActivity {
   if (site.familyId !== "wandering-market") return createWildsEcologyActivity(site);
   const capability = projectMarketCard(card, emptyAdventureCondition(card.id));
-  const board = generateMarketBoard({ site, pulse: site.seedDigest, squad: [capability], history: [], mortal: false });
+  const board = generateMarketBoard({ site, pulse: site.spawnedAt, squad: [capability], history: [], mortal: false });
   const contract = board.contracts[0];
   const controls = ["attune", "carry", "seal"] as const;
-  const objectives = contract.objectives.slice(0, 3).map((objective, index) => ({
+  const contractObjectives = contract.objectives.length >= 3
+    ? contract.objectives.slice(0, 3)
+    : [...contract.objectives, { ...contract.objectives.at(-1)!, id: `${contract.id}:handoff`, label: "Seal handoff", requiredVerb: "inspect" as const }];
+  const objectives = contractObjectives.map((objective, index) => ({
     id: objective.id,
     label: objective.label,
     hint: `${contract.merchant.name} · ${objective.requiredVerb.replaceAll("-", " ")}`,

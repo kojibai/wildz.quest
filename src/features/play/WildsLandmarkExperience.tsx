@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Icons } from "@/components/icons";
 import { applyArenaIntent, createArenaMatch, type ArenaIntent } from "./arena-match";
-import { applyHearttreeIntent, createHearttreeTrial, type HearttreeIntent } from "./hearttree-trial";
+import { HearttreeRuntimeExperience } from "./hearttree/HearttreeRuntimeExperience";
+import type { HearttreeCardCondition } from "./hearttree/card-capability";
+import type { HearttreeReceipt } from "./hearttree/receipt";
 import type { PortableCardAsset } from "./portable-card";
 import { applyPrismIntent, createPrismRun, type PrismIntent } from "./prism-run";
 import type { WildsLandmarkAccess } from "./wilds-landmark-access";
@@ -23,30 +25,34 @@ function CardPin({ card, accent }: { card: PortableCardAsset | null; accent: str
   ) : <div className="wilds-hearttree-card-pin"><strong>A verified card is required</strong></div>;
 }
 
-export function WildsLandmarkExperience({ access, card, roster = [], landmarkId, onExit, onUnlock, onArenaCommit, onAudioCue }: {
+export function WildsLandmarkExperience({ access, card, roster = [], hearttreeConditions, hearttreeSquadAssetIds, guestId, landmarkId, onExit, onUnlock, onArenaCommit, onAudioCue, onHearttreeReceipt, onHearttreeSquadChange, worldMode }: {
   access: WildsLandmarkAccess | null;
   card: PortableCardAsset | null;
   roster?: readonly PortableCardAsset[];
+  hearttreeConditions: Readonly<Record<string, HearttreeCardCondition>>;
+  hearttreeSquadAssetIds: readonly string[];
+  guestId: string;
   landmarkId: WildsLandmarkId | null;
   onExit: () => void;
   onUnlock: (unlockId: string) => void;
   onArenaCommit?: (settlement: ArenaSettlement, path: WildzArenaPath) => void;
   onAudioCue?: (cue: WildsAudioCue) => void;
+  onHearttreeReceipt: (receipt: HearttreeReceipt) => void;
+  onHearttreeSquadChange: (assetIds: string[]) => void;
+  worldMode: "receiz_live" | "local_practice" | "connecting";
 }) {
   const landmark = WILDS_FLAGSHIP_LANDMARKS.find((item) => item.id === landmarkId) ?? null;
   const locked = Boolean(access && !access.allowed);
   const seed = useMemo(() => landmark && card ? `${landmark.id}:${card.proof.digest}` : "", [card, landmark]);
-  const [hearttree, setHearttree] = useState(() => !locked && landmark?.id === "hearttree-sanctum" && card ? createHearttreeTrial(seed, card) : null);
   const [arena, setArena] = useState(() => !locked && landmark?.id === "arena-of-echoes" && card ? createArenaMatch(seed, card) : null);
   const [prism, setPrism] = useState(() => !locked && landmark?.id === "prism-arcade" && card ? createPrismRun(seed, card) : null);
 
   useEffect(() => {
-    setHearttree(!locked && landmark?.id === "hearttree-sanctum" && card ? createHearttreeTrial(seed, card) : null);
     setArena(!locked && landmark?.id === "arena-of-echoes" && card ? createArenaMatch(seed, card) : null);
     setPrism(!locked && landmark?.id === "prism-arcade" && card ? createPrismRun(seed, card) : null);
   }, [card, landmark?.id, locked, seed]);
 
-  const activePhase = hearttree?.phase ?? arena?.phase ?? prism?.phase;
+  const activePhase = arena?.phase ?? prism?.phase;
   useEffect(() => {
     if (!landmark) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -62,11 +68,23 @@ export function WildsLandmarkExperience({ access, card, roster = [], landmarkId,
   if (landmark.id === "arena-of-echoes" && !locked && card) {
     return <MortalArenaExperience card={card} roster={roster} onExit={onExit} onUnlock={onUnlock} onCommit={onArenaCommit ?? (() => {})} onAudioCue={onAudioCue} />;
   }
+  if (landmark.id === "hearttree-sanctum" && !locked && card) {
+    return <HearttreeRuntimeExperience
+      cards={roster.length ? roster : [card]}
+      conditions={hearttreeConditions}
+      guestId={guestId}
+      initialSquadAssetIds={hearttreeSquadAssetIds}
+      onExit={onExit}
+      onReceipt={onHearttreeReceipt}
+      onSquadChange={onHearttreeSquadChange}
+      onUnlock={onUnlock}
+      worldMode={worldMode}
+    />;
+  }
   const result = activePhase === "result";
-  const hearttreeAct = (intent: HearttreeIntent) => setHearttree((current) => current ? applyHearttreeIntent(current, intent) : current);
   const arenaAct = (intent: ArenaIntent) => setArena((current) => current ? applyArenaIntent(current, intent) : current);
   const prismAct = (intent: PrismIntent) => setPrism((current) => current ? applyPrismIntent(current, intent) : current);
-  const unlockId = hearttree?.reward?.unlockId ?? arena?.reward?.unlockId ?? prism?.reward?.unlockId ?? null;
+  const unlockId = arena?.reward?.unlockId ?? prism?.reward?.unlockId ?? null;
   const finish = () => {
     if (unlockId) onUnlock(unlockId);
     onExit();
@@ -84,7 +102,7 @@ export function WildsLandmarkExperience({ access, card, roster = [], landmarkId,
   const world = landmark.id === "hearttree-sanctum" ? (
     <div className="wilds-landmark-world wilds-hearttree-world" aria-label="Hearttree trial chamber">
       <div className="wilds-hearttree-aurora" aria-hidden="true" /><div className="wilds-hearttree-trunk" aria-hidden="true"><i /><i /><i /></div><div className="wilds-hearttree-orbit" aria-hidden="true"><i /><i /><i /></div>
-      {locked ? gate : <><div className="wilds-hearttree-status"><span>{result ? "Mastery sealed" : hearttree?.phase === "master" ? "Root Master encounter" : "Memory path"}</span><strong>{hearttree?.phase === "master" ? `Guard ${hearttree.guard}/3` : result ? hearttree?.reward?.label : hearttree?.chamberOrder[hearttree?.chamber ?? 0]}</strong><p aria-live="polite">{hearttree?.events.at(-1)?.message ?? "Pulse the sanctuary to reveal the memory path."}</p></div><CardPin accent={landmark.accent} card={card} /></>}
+      {gate}
     </div>
   ) : landmark.id === "arena-of-echoes" ? (
     <div className="wilds-landmark-world wilds-arena-world" aria-label="Arena of Echoes duel">
@@ -102,12 +120,7 @@ export function WildsLandmarkExperience({ access, card, roster = [], landmarkId,
     <button className="wilds-landmark-primary" onClick={onExit} type="button"><Icons.globe aria-hidden="true" size={18} /><span><strong>Return to world</strong><small>The entrance stays marked on your map</small></span></button>
   ) : result ? (
     <button className="wilds-landmark-primary" onClick={finish} type="button"><Icons.globe aria-hidden="true" size={18} /><span><strong>Return to world</strong><small>Reward secured to this run</small></span></button>
-  ) : landmark.id === "hearttree-sanctum" ? <>
-    <button aria-label="Pulse memory" onClick={() => hearttreeAct("pulse")} type="button"><Icons.pulse size={18} /><span><strong>Pulse</strong><small>Reveal</small></span></button>
-    <button aria-label="Advance through chamber" disabled={!hearttree?.clueRevealed} onClick={() => hearttreeAct("north")} type="button"><Icons.walk size={18} /><span><strong>Advance</strong><small>Follow clue</small></span></button>
-    <button aria-label="Guard with active card" disabled={hearttree?.phase !== "master"} onClick={() => hearttreeAct("guard")} type="button"><Icons.seal size={18} /><span><strong>Guard</strong><small>Remember</small></span></button>
-    <button aria-label="Use signature ability" disabled={hearttree?.phase !== "master" || hearttree.guard < 1} onClick={() => hearttreeAct("ability:0")} type="button"><Icons.sparkle size={18} /><span><strong>Awaken</strong><small>Signature</small></span></button>
-  </> : landmark.id === "arena-of-echoes" ? <>
+  ) : landmark.id === "arena-of-echoes" ? <>
     <button aria-label="Focus on rival" onClick={() => arenaAct("focus")} type="button"><Icons.pulse size={18} /><span><strong>Focus</strong><small>Read echo</small></span></button>
     <button aria-label="Guard rival attack" disabled={!arena?.focus} onClick={() => arenaAct("guard")} type="button"><Icons.seal size={18} /><span><strong>Guard</strong><small>Build streak</small></span></button>
     <button aria-label="Strike rival" disabled={!arena?.focus} onClick={() => arenaAct("strike")} type="button"><Icons.trophy size={18} /><span><strong>Strike</strong><small>Seal victory</small></span></button>

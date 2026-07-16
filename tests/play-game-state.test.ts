@@ -381,7 +381,7 @@ describe("Receiz Wilds game state", () => {
     assert.deepEqual(tampered, once);
   });
 
-  it("persists personal history in v8 and safely migrates v2 through v7 saves", () => {
+  it("persists personal history in v9 and safely migrates v2 through v8 saves", () => {
     const event = createWildsCivicEvent({
       settlementId: "wayfinder-hollow",
       actorId: "wilds.player.receiz.id",
@@ -399,10 +399,10 @@ describe("Receiz Wilds game state", () => {
     delete legacyState.regionalReputation;
     delete legacyState.supportAssetIds;
 
-    assert.equal(envelope.schema, "receiz.wilds.save.v8");
+    assert.equal(envelope.schema, "receiz.wilds.save.v9");
     assert.deepEqual(restorePlayState(serialized).civicEvents, [event]);
     assert.equal(restorePlayState(serialized).regionalReputation["wayfinder-hollow"], 5);
-    for (let version = 2; version <= 7; version += 1) {
+    for (let version = 2; version <= 8; version += 1) {
       assert.deepEqual(
         restorePlayState(JSON.stringify({ schema: `receiz.wilds.save.v${version}`, state: legacyState })).civicEvents,
         []

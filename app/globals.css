@@ -13430,3 +13430,49 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   .wilds-heartbeat-synergy > span:last-child { grid-column: 1 / -1; }
   .wilds-heartbeat-echoes { grid-template-columns: 1fr; }
 }
+
+/* Hearttree full runtime stays inside the established landmark shell. */
+.hearttree-expedition { position: fixed; inset: 0; z-index: 6200; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; width: 100%; height: 100dvh; overflow: hidden; padding-top: env(safe-area-inset-top); padding-right: env(safe-area-inset-right); padding-bottom: env(safe-area-inset-bottom); padding-left: env(safe-area-inset-left); color: #effff7; background: #061712; isolation: isolate; overscroll-behavior: none; }
+.hearttree-runtime-world { position: relative; min-height: 0; overflow: hidden; touch-action: none; }
+.hearttree-canvas { position: absolute; inset: 0; }
+.hearttree-canvas canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.hearttree-hud { position: relative; z-index: 4; display: grid; grid-template-columns: minmax(180px, 340px) minmax(160px, 280px) 48px; align-items: start; justify-content: space-between; gap: 8px; padding: 9px; pointer-events: none; }
+.hearttree-objective, .hearttree-vitals { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid rgb(135 255 196 / 22%); border-radius: 8px 20px 8px 20px; background: rgb(3 24 18 / 82%); box-shadow: 0 18px 55px rgb(0 0 0 / 34%); backdrop-filter: blur(14px); }
+.hearttree-objective small { color: #7cebb6; font-size: 8px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.hearttree-objective strong { overflow-wrap: anywhere; font-size: clamp(14px, 2vw, 20px); line-height: 1.05; }
+.hearttree-objective span { color: #a8cabe; font-size: 9px; }
+.hearttree-vitals span { position: relative; display: flex; min-width: 0; height: 21px; align-items: center; padding: 0 7px; overflow: hidden; color: #f4fff9; border-radius: 4px; background: rgb(255 255 255 / 8%); font-size: 8px; font-variant-numeric: tabular-nums; }
+.hearttree-vitals i { position: absolute; z-index: -1; inset: 0 auto 0 0; background: linear-gradient(90deg, #176b48, #5edc96); transition: width .16s ease; }
+.hearttree-vitals span + span i { background: linear-gradient(90deg, #80641b, #e2c655); }
+.hearttree-pause { display: grid; width: 44px; height: 44px; place-items: center; color: #effff7; border: 1px solid rgb(135 255 196 / 24%); border-radius: 50%; background: rgb(3 24 18 / 82%); pointer-events: auto; }
+.hearttree-caption { position: absolute; z-index: 5; top: 92px; left: 50%; width: min(480px, calc(100% - 24px)); margin: 0; padding: 7px 12px; color: #dff7ea; text-align: center; border: 1px solid rgb(247 218 110 / 22%); border-radius: 99px; background: rgb(7 24 19 / 76%); font-size: 9px; line-height: 1.35; backdrop-filter: blur(10px); transform: translateX(-50%); pointer-events: none; }
+.hearttree-runtime-actions { position: relative; min-height: 150px; padding: 5px max(7px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(7px, env(safe-area-inset-left)); background: #061211; }
+.hearttree-runtime-actions .hearttree-controls { position: relative; inset: auto; display: grid; grid-template-columns: 144px minmax(0, 1fr) auto; width: 100%; align-items: end; gap: 7px; pointer-events: none; }
+.hearttree-move-pad { display: grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); gap: 4px; pointer-events: auto; }
+.hearttree-move-pad .north { grid-area: 1 / 2; }.hearttree-move-pad .west { grid-area: 2 / 1; }.hearttree-move-pad .east { grid-area: 2 / 3; }.hearttree-move-pad .south { grid-area: 3 / 2; }
+.hearttree-action-wheel { display: flex; min-width: 0; justify-content: center; gap: 4px; pointer-events: auto; }
+.hearttree-switcher { display: grid; max-width: 138px; gap: 4px; pointer-events: auto; }
+.hearttree-touch-control { min-width: 44px; min-height: 44px; padding: 6px 8px; color: #eafff2; border: 1px solid rgb(126 238 183 / 22%); border-radius: 8px 16px 8px 16px; background: linear-gradient(145deg, rgb(20 65 46 / 92%), rgb(4 31 23 / 92%)); box-shadow: inset 0 1px rgb(255 255 255 / 8%), 0 8px 22px rgb(0 0 0 / 22%); touch-action: manipulation; }
+.hearttree-touch-control:active { transform: translateY(1px) scale(.98); }.hearttree-touch-control:disabled { opacity: .34; }
+.hearttree-touch-control strong, .hearttree-touch-control small { display: block; white-space: nowrap; }.hearttree-touch-control strong { font-size: 8px; }.hearttree-touch-control small { margin-top: 2px; color: #86aa9b; font-size: 7px; }.hearttree-touch-control.extract { border-color: rgb(247 218 110 / 36%); background: linear-gradient(145deg, #6b531b, #28200d); }
+.hearttree-overlay { position: absolute; z-index: 9; top: 50%; left: 50%; display: grid; width: min(390px, calc(100% - 28px)); justify-items: center; gap: 11px; padding: 24px; text-align: center; border: 1px solid rgb(126 238 183 / 28%); border-radius: 12px 34px 12px 34px; background: rgb(3 19 15 / 94%); box-shadow: 0 30px 100px rgb(0 0 0 / 62%); backdrop-filter: blur(20px); transform: translate(-50%, -50%); }
+.hearttree-overlay strong { font-size: 23px; }.hearttree-overlay p { margin: 0; color: #9bbdaf; font-size: 10px; line-height: 1.5; }.hearttree-overlay button { min-width: 180px; min-height: 44px; color: #092219; border: 0; border-radius: 10px; background: linear-gradient(135deg, #f0d772, #72e7ad); font-weight: 900; }
+.hearttree-squad-gate { position: absolute; inset: 0; z-index: 2; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 9px; padding: 10px; overflow: hidden; background: radial-gradient(circle at 50% 15%, rgb(76 180 117 / 22%), transparent 35%), linear-gradient(155deg, #061712, #102f22); }
+.hearttree-squad-list { position: relative; z-index: 1; display: grid; min-height: 0; align-content: start; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; overflow-y: auto; }
+.hearttree-squad-list > button { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; align-items: center; gap: 9px; min-height: 78px; padding: 10px; color: #eafff2; text-align: left; border: 1px solid rgb(130 238 183 / 16%); border-radius: 10px 26px 10px 26px; background: rgb(3 28 21 / 86%); }
+.hearttree-squad-list > button.is-selected { border-color: #efd66b; background: linear-gradient(135deg, rgb(47 113 75 / 88%), rgb(64 52 17 / 78%)); box-shadow: 0 0 0 2px rgb(239 214 107 / 12%); }
+.hearttree-squad-list > button > span { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 9px 18px 9px 18px; font-weight: 950; }.hearttree-squad-list > button > div { display: grid; min-width: 0; gap: 2px; }.hearttree-squad-list strong { font-size: 12px; }.hearttree-squad-list small, .hearttree-squad-list code { overflow-wrap: anywhere; color: #91b3a5; font-size: 7px; }.hearttree-squad-list b { color: #e8d770; font-size: 8px; }
+.hearttree-risk-panel { position: relative; z-index: 1; display: grid; gap: 6px; padding: 10px 12px; border: 1px solid rgb(255 255 255 / 10%); border-radius: 8px 18px 8px 18px; background: rgb(0 0 0 / 28%); }.hearttree-risk-panel label { display: flex; align-items: center; gap: 8px; font-size: 10px; }.hearttree-risk-panel label.is-mortal { color: #ffb5a7; }.hearttree-risk-panel p { margin: 0; color: #92b2a5; font-size: 9px; }
+
+@media (max-width: 430px) {
+  .hearttree-hud { grid-template-columns: minmax(0, 1fr) 44px; gap: 5px; padding: 6px; }
+  .hearttree-vitals { position: absolute; top: 62px; right: 6px; left: 6px; grid-template-columns: 1fr 1fr; padding: 5px; }
+  .hearttree-caption { top: 99px; font-size: 8px; }
+  .hearttree-runtime-actions { min-height: 142px; }
+  .hearttree-runtime-actions .hearttree-controls { grid-template-columns: 132px minmax(0, 1fr); gap: 4px; }
+  .hearttree-move-pad { grid-template-columns: repeat(3, 41px); grid-template-rows: repeat(3, 41px); }.hearttree-move-pad .hearttree-touch-control { min-width: 41px; min-height: 41px; }
+  .hearttree-action-wheel { display: grid; grid-template-columns: repeat(3, minmax(44px, 1fr)); gap: 3px; }.hearttree-action-wheel .hearttree-touch-control { min-height: 44px; padding: 3px; }.hearttree-action-wheel small { display: none; }
+  .hearttree-switcher { position: absolute; right: 0; bottom: 138px; display: flex; max-width: calc(100vw - 14px); }.hearttree-switcher .hearttree-touch-control { min-height: 40px; padding: 3px 6px; }
+  .hearttree-squad-list { grid-template-columns: 1fr; }.hearttree-squad-list > button { min-height: 70px; }.hearttree-risk-panel { max-height: 88px; overflow-y: auto; }
+}
+@media (prefers-reduced-motion: reduce) { .hearttree-touch-control, .hearttree-vitals i, .hearttree-overlay { transition: none; animation: none; } }

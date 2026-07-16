@@ -19,12 +19,12 @@ describe("portable raid history", () => {
     assert.deepEqual(projection.achievements, ["raid-first-contact"]);
   });
 
-  it("migrates V7 and restores V8 raid history", () => {
+  it("migrates V7 and restores V9 raid history", () => {
     const v7 = JSON.stringify({ schema: "receiz.wilds.save.v7", state: initialPlayState });
     assert.deepEqual(restorePlayState(v7).raidEvents, []);
     const state = { ...initialPlayState, raidEvents: [receipt] };
     const serialized = serializePlayState(state);
-    assert.match(serialized, /receiz\.wilds\.save\.v8/);
+    assert.match(serialized, /receiz\.wilds\.save\.v9/);
     assert.deepEqual(restorePlayState(serialized).raidEvents, [receipt]);
   });
 

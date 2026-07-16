@@ -90,7 +90,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(experience, /role="dialog"/);
     assert.match(experience, /createPortal/);
     assert.match(experience, /aria-label="Return to world"/);
-    assert.match(experience, /createHearttreeTrial/);
+    assert.match(experience, /HearttreeRuntimeExperience/);
     assert.match(experience, /createArenaMatch/);
     assert.match(experience, /createPrismRun/);
     assert.match(experience, /Arena of Echoes duel/);
