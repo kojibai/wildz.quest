@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useMemo } from "react";
 import { creatureForm } from "./creature-catalog";
 import { deriveBirthGenome } from "./heartbound-genome";
 import { renderHeartboundSvg } from "./heartbound-renderer";
@@ -7,8 +8,16 @@ import { currentLivingGenome } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import type { PortableCardAsset } from "./portable-card";
 
-export function WildsCard({ asset, compact = false }: { asset: PortableCardAsset; compact?: boolean }) {
+export const WildsCard = memo(function WildsCard({ asset, compact = false }: { asset: PortableCardAsset; compact?: boolean }) {
   const form = creatureForm(asset.manifest.formId);
+  const variant = asset.manifest.variant.traits;
+  const creatureSvg = useMemo(() => renderHeartboundSvg(
+    isLivingCardAsset(asset)
+      ? currentLivingGenome(asset)
+      : deriveBirthGenome({ formId: asset.manifest.formId, proofDigest: asset.proof.digest, variant }),
+    "card",
+    { width: 640, height: 405, title: asset.manifest.name, fit: "full-body" }
+  ), [asset, variant]);
   if (!form) return null;
   const stats = [
     ["Health", asset.manifest.stats.health],
@@ -17,11 +26,6 @@ export function WildsCard({ asset, compact = false }: { asset: PortableCardAsset
     ["Speed", asset.manifest.stats.speed],
     ["Bond", asset.manifest.stats.bond]
   ] as const;
-  const variant = asset.manifest.variant.traits;
-  const genome = isLivingCardAsset(asset)
-    ? currentLivingGenome(asset)
-    : deriveBirthGenome({ formId: asset.manifest.formId, proofDigest: asset.proof.digest, variant });
-  const creatureSvg = renderHeartboundSvg(genome, "card", { width: 640, height: 405, title: asset.manifest.name, fit: "full-body" });
   return (
     <article
       aria-label={`${asset.manifest.name}, Stage ${form.stage}, ${form.rarity} Wilds card`}
@@ -47,4 +51,4 @@ export function WildsCard({ asset, compact = false }: { asset: PortableCardAsset
       </footer>
     </article>
   );
-}
+});

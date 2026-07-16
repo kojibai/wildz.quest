@@ -12,7 +12,7 @@ import {
   type PlayState,
   type WildsInput
 } from "@/features/play/game-state";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import { WildsCaptureReward } from "@/features/play/WildsCaptureReward";
 import { WildsInventory } from "@/features/play/WildsInventory";
@@ -134,7 +134,10 @@ export function PlayCampaign({
   const [qualityProfile, setQualityProfile] = useState(currentWildsQualityProfile);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
-  const [cameraHeading, setCameraHeading] = useState(0);
+  const cameraHeadingRef = useRef(0);
+  const updateCameraHeading = useCallback((heading: number) => {
+    cameraHeadingRef.current = heading;
+  }, []);
   const [playerHeading, setPlayerHeading] = useState(0);
   const previousPlayerPosition = useRef(state.player);
   const [movementMode, setMovementMode] = useState<WildsMovementMode>(() => initialPlayerContinuity?.settings.movementMode ?? "walk");
@@ -785,7 +788,7 @@ export function PlayCampaign({
               remotePlayers={multiplayer.remotePlayers}
               qualityProfile={qualityProfile}
               searchEnabled={discoveryActive && Boolean(avatarStyle)}
-              onCameraHeadingChange={setCameraHeading}
+              onCameraHeadingChange={updateCameraHeading}
               livingWorld={livingWorld.snapshot}
               worldMode={settlementWorldMode}
               supportCards={trailSupportCards}
@@ -891,7 +894,7 @@ export function PlayCampaign({
             <WildzSocialDeck
               activeCard={activeAsset}
               action={visiblePulse}
-              cameraHeading={cameraHeading}
+              cameraHeadingRef={cameraHeadingRef}
               companionProgress={state.companionProgress}
               movementMode={movementMode}
               cardOrder={cardOrder}
@@ -935,8 +938,32 @@ export function PlayCampaign({
       <WildsLandmarkExperience
         access={activeLandmarkId && activeLandmarkId !== "wayfinder-hollow" ? evaluateLandmarkAccess(WILDS_FLAGSHIP_LANDMARKS.find((item) => item.id === activeLandmarkId)!, landmarkProgress) : null}
         card={activeAsset}
+        roster={trailPack}
         landmarkId={activeLandmarkId === "wayfinder-hollow" ? null : activeLandmarkId}
         onExit={() => setActiveLandmarkId(null)}
+        onAudioCue={presentation.playCue}
+        onArenaCommit={(settlement) => setState((current) => {
+          const retired = settlement.result.retiredCreatureIds.includes(settlement.card.id);
+          const inventory = current.inventory.map((asset) => asset.id === settlement.card.id ? settlement.card : asset);
+          const fallback = retired ? inventory.find((asset) => asset.id !== settlement.card.id) ?? null : null;
+          const progressKey = settlement.card.manifest.familyId;
+          const prior = current.companionProgress[progressKey] ?? { level: 1, xp: 0, bond: 0 };
+          const gainedXp = settlement.result.winnerSide === 0 ? 60 : settlement.result.outcome === "fled" ? 18 : 30;
+          const xp = prior.xp + gainedXp;
+          return {
+            ...current,
+            inventory,
+            selectedAssetId: fallback?.id ?? current.selectedAssetId,
+            selectedCardId: fallback?.manifest.familyId ?? current.selectedCardId,
+            companionProgress: { ...current.companionProgress, [progressKey]: { ...prior, xp, level: Math.max(prior.level, 1 + Math.floor(xp / 100)) } },
+            pendingSyncAssetIds: Array.from(new Set([...current.pendingSyncAssetIds, settlement.card.id])),
+            lastEvent: retired
+              ? `${settlement.card.manifest.name} was sealed into the memorial Vault after the Mortal Arena.`
+              : settlement.result.winnerSide === 0
+                ? `${settlement.card.manifest.name} carried a Mortal Arena victory into living history.`
+                : `${settlement.card.manifest.name} survived the Mortal Arena and carries its marks.`
+          };
+        })}
         onUnlock={(unlockId) => setState((current) => ({
           ...current,
           achievements: Array.from(new Set([...current.achievements, unlockId])).slice(0, 64)

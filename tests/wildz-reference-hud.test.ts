@@ -17,16 +17,12 @@ test("D-pad maps analog camera-relative travel onto existing movement intents", 
   assert.match(source, /cameraRelativeMovement/);
   assert.match(source, /Math\.min\(rect\.width, rect\.height\) \* 0\.42/);
   assert.match(source, /window\.setInterval\(\(\) => emitMovement\(\), 45\)/);
-  assert.equal(
-    source.match(/emitMovement\(/g)?.length,
-    1,
-    "the 45 ms hold interval must be the sole movement emitter"
-  );
+  assert.equal(source.match(/emitMovement\(/g)?.length, 2, "movement must emit immediately and then repeat while held");
   const pointerDownStart = source.indexOf("onPointerDown=");
   const pointerMoveStart = source.indexOf("onPointerMove=", pointerDownStart);
   const pointerUpStart = source.indexOf("onPointerUp=", pointerMoveStart);
   assert.ok(pointerDownStart >= 0 && pointerMoveStart > pointerDownStart && pointerUpStart > pointerMoveStart);
-  assert.doesNotMatch(source.slice(pointerDownStart, pointerMoveStart), /emitMovement|input\.current/);
+  assert.match(source.slice(pointerDownStart, pointerMoveStart), /emitMovement\(next\)/);
   assert.doesNotMatch(source.slice(pointerMoveStart, pointerUpStart), /emitMovement|input\.current/);
   for (const stop of ["setPointerCapture", "releasePointerCapture", "onLostPointerCapture", "onPointerCancel", "onPointerUp", 'addEventListener("blur"', 'addEventListener("visibilitychange"']) {
     assert.match(source, new RegExp(stop.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));

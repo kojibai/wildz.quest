@@ -28,6 +28,7 @@ export type MortalArenaInput = {
   heavy?: boolean;
   guard?: boolean;
   dodge?: boolean;
+  focus?: boolean;
   flee?: boolean;
   swapTo?: number;
 };
@@ -36,6 +37,7 @@ export type MortalArenaFighter = MortalArenaFighterSetup & {
   maxVitality: number;
   break: number;
   maxBreak: number;
+  focus: number;
   position: ArenaVector;
   velocity: ArenaVector;
   facing: 1 | -1;

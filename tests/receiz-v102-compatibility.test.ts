@@ -264,9 +264,11 @@ test("v102 keeps MCP and authenticated proof-object creation out of browser feat
   assert.match(proofObjectRoute, /createWildzExportProofObject/);
   assert.match(proofObjectRoute, /content-length/);
   assert.match(proofObjectRoute, /file\.size/);
+  assert.doesNotMatch(proofObjectRoute, /wildz_proof_object_length_required/);
+  assert.match(proofObjectRoute, /if \(contentLength !== null\)/);
   assert.ok(
     proofObjectRoute.indexOf("content-length") < proofObjectRoute.indexOf("request.formData()"),
-    "known oversized multipart bodies must be rejected before form-data parsing"
+    "known oversized multipart bodies must be rejected before form-data parsing while Safari uploads without the optional header continue"
   );
   assert.ok(
     proofObjectRoute.indexOf("file.size") < proofObjectRoute.indexOf("file.arrayBuffer()"),

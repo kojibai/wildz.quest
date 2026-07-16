@@ -259,7 +259,7 @@ function CameraRig({ onCameraHeadingChange }: { onCameraHeadingChange: (heading:
   return (
     <OrbitControls
       dampingFactor={.08}
-      enableDamping={false}
+      enableDamping
       enablePan={false}
       maxDistance={13.5}
       maxPolarAngle={Math.PI / 2.15}
@@ -627,21 +627,24 @@ function WildsDiagnostics({
 }) {
   const { camera, gl, scene, size } = useThree();
   const outputRef = useRef<HTMLOutputElement>(null);
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   useEffect(() => {
     const sample = () => {
+    const currentState = stateRef.current;
     const extra = {
       camera: { position: camera.position.toArray(), fov: camera instanceof THREE.PerspectiveCamera ? camera.fov : null },
       scene: { children: scene.children.length },
       boss: scene.getObjectByName("wilds-boss-environment")?.userData ?? { detailedBosses: 0, maxDetailedBosses: 1 }
     };
-    publishWildsDiagnostics(gl, size, state, qualityProfile, extra);
+    publishWildsDiagnostics(gl, size, currentState, qualityProfile, extra);
     if (outputRef.current) {
       outputRef.current.dataset.snapshot = JSON.stringify({
         canvas: { width: size.width, height: size.height, dpr: gl.getPixelRatio() },
         render: gl.info.render,
         memory: gl.info.memory,
-        state: { player: state.player, missionProgress: state.missionProgress, energy: state.energy, combo: state.combo },
+        state: { player: currentState.player, missionProgress: currentState.missionProgress, energy: currentState.energy, combo: currentState.combo },
         ...extra
       });
     }
@@ -649,17 +652,12 @@ function WildsDiagnostics({
     sample();
     const interval = window.setInterval(sample, 500);
     return () => window.clearInterval(interval);
-  }, [camera, gl, qualityProfile, scene, size, state]);
+  }, [camera, gl, qualityProfile, scene, size]);
 
   return (
     <Html className="wilds-diagnostics-anchor">
       <output
-        data-snapshot={JSON.stringify({
-          canvas: { width: size.width, height: size.height, dpr: gl.getPixelRatio() },
-          render: gl.info.render,
-          memory: gl.info.memory,
-          state: { player: state.player, missionProgress: state.missionProgress, energy: state.energy, combo: state.combo }
-        })}
+        data-snapshot="pending"
         data-three-game-diagnostics
         ref={outputRef}
       />

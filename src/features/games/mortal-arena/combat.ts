@@ -31,7 +31,9 @@ export function resolveArenaHit(defender: Readonly<MortalArenaFighter>, hit: Are
 }
 
 export function arenaHitFor(attacker: Readonly<MortalArenaFighter>, kind: "light" | "heavy"): ArenaHit {
+  const focusPermille = 1_000 + Math.min(220, Math.round(attacker.focus * .22));
+  const focused = (damage: number) => Math.round(damage * focusPermille / 1_000);
   return kind === "light"
-    ? { damage: Math.max(36, Math.round(attacker.power * .55)), breakDamage: 54, launch: 70, affinity: attacker.affinity }
-    : { damage: Math.max(72, attacker.power), breakDamage: 120, launch: 150, affinity: attacker.affinity };
+    ? { damage: focused(Math.max(36, Math.round(attacker.power * .55))), breakDamage: 54, launch: 70, affinity: attacker.affinity }
+    : { damage: focused(Math.max(72, attacker.power)), breakDamage: 120, launch: 150, affinity: attacker.affinity };
 }

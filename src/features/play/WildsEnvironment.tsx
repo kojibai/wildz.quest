@@ -156,7 +156,7 @@ function FlagshipLandmarkEntrances({ detail, livingWorld, player, worldMode }: {
             <HearttreeSanctum />
           </group>
         ) : null}
-        {landmark.id === "arena-of-echoes" ? <MortalArenaWorldAnchor detail={detail} /> : null}
+        {landmark.id === "arena-of-echoes" ? <ArenaOfEchoes detail={detail} /> : null}
         {landmark.id === "prism-arcade" ? <PrismArcade /> : null}
         {landmark.id === "wayfinder-hollow" ? <WildsSettlementEnvironment livingWorld={livingWorld} relative={{ x: 0, z: 0 }} settlement={WAYFINDER_HOLLOW} worldMode={worldMode} /> : null}
         <LandmarkEntranceBeacon distance={distance} landmark={landmark} />
@@ -342,7 +342,7 @@ function HearttreeSanctum() {
   );
 }
 
-function MortalArenaWorldAnchor({ detail }: { detail: boolean }) {
+function ArenaOfEchoes({ detail }: { detail: boolean }) {
   const spectators = useRef<THREE.InstancedMesh>(null);
   const proofSeams = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {

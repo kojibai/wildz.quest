@@ -30,15 +30,17 @@ function statusFor(error: string) {
 export async function POST(request: NextRequest) {
   try {
     const contentLength = request.headers.get("content-length");
-    if (contentLength === null) {
-      return json("wildz_proof_object_length_required", 411);
-    }
-    const requestBytes = /^\d+$/.test(contentLength) ? Number(contentLength) : Number.NaN;
-    if (!Number.isSafeInteger(requestBytes) || requestBytes <= 0) {
-      return json("wildz_proof_object_request_invalid", 400);
-    }
-    if (requestBytes > MAX_PROOF_OBJECT_REQUEST_BYTES) {
-      return json("wildz_proof_object_size_invalid", 413);
+    // Safari may stream browser-created multipart FormData without exposing a
+    // Content-Length header. Treat the header as an early rejection hint, then
+    // enforce the authoritative size limit on the parsed File below.
+    if (contentLength !== null) {
+      const requestBytes = /^\d+$/.test(contentLength) ? Number(contentLength) : Number.NaN;
+      if (!Number.isSafeInteger(requestBytes) || requestBytes <= 0) {
+        return json("wildz_proof_object_request_invalid", 400);
+      }
+      if (requestBytes > MAX_PROOF_OBJECT_REQUEST_BYTES) {
+        return json("wildz_proof_object_size_invalid", 413);
+      }
     }
     const actor = await resolveWildzCookieActor(request);
     const form = await request.formData();

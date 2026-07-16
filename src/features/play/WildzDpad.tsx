@@ -3,43 +3,41 @@
 import { Icons } from "@/components/icons";
 import type { WildsInput } from "./game-state";
 import { cameraRelativeMovement, type WildsMovementMode } from "./wilds-movement";
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 
-export function WildzDpad({ cameraHeading, movementMode, onInput }: {
-  cameraHeading: number;
+export function WildzDpad({ cameraHeadingRef, movementMode, onInput }: {
+  cameraHeadingRef: RefObject<number>;
   movementMode: WildsMovementMode;
   onInput: (input: WildsInput) => void;
 }) {
   const vector = useRef({ x: 0, z: 0 });
   const dragging = useRef(false);
   const input = useRef(onInput);
-  const heading = useRef(cameraHeading);
   const mode = useRef(movementMode);
   const [active, setActive] = useState(false);
   const [knob, setKnob] = useState({ x: 0, y: 0 });
 
   input.current = onInput;
-  heading.current = cameraHeading;
   mode.current = movementMode;
 
-  const emitMovement = (next = vector.current) => {
+  const emitMovement = useCallback((next = vector.current) => {
     if (Math.hypot(next.x, next.z) < 0.08) return;
-    const relative = cameraRelativeMovement(next, heading.current);
+    const relative = cameraRelativeMovement(next, cameraHeadingRef.current);
     input.current({ type: "move-vector", x: relative.x, z: relative.z, mode: mode.current });
-  };
+  }, [cameraHeadingRef]);
 
-  const reset = () => {
+  const reset = useCallback(() => {
     dragging.current = false;
     vector.current = { x: 0, z: 0 };
     setKnob({ x: 0, y: 0 });
     setActive(false);
-  };
+  }, []);
 
   useEffect(() => {
     if (!active) return;
     const timer = window.setInterval(() => emitMovement(), 45);
     return () => window.clearInterval(timer);
-  }, [active]);
+  }, [active, emitMovement]);
 
   useEffect(() => {
     const stop = () => reset();
@@ -49,7 +47,7 @@ export function WildzDpad({ cameraHeading, movementMode, onInput }: {
       window.removeEventListener("blur", stop);
       document.removeEventListener("visibilitychange", stop);
     };
-  }, []);
+  }, [reset]);
 
   const update = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -86,7 +84,8 @@ export function WildzDpad({ cameraHeading, movementMode, onInput }: {
       onPointerCancel={release}
       onPointerDown={(event) => {
         dragging.current = true;
-        update(event);
+        const next = update(event);
+        emitMovement(next);
         setActive(true);
         try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* capture is optional */ }
       }}

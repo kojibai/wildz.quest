@@ -13,7 +13,7 @@ test("gameplay composes the reference HUD and social deck over the preserved wor
 test("world camera matches the current Commerce gesture framing", () => {
   const world = readFileSync("src/features/play/WildsWorldCanvas.tsx", "utf8");
   assert.match(world, /camera=\{\{ fov: 42, near: 0\.1, far: 80, position: \[4\.6, 5\.8, 7\.2\] \}\}/);
-  assert.match(world, /enableDamping=\{false\}/);
+  assert.match(world, /enableDamping/);
   assert.match(world, /enablePan=\{false\}/);
   assert.match(world, /minDistance=\{4\.8\}/);
   assert.match(world, /maxDistance=\{13\.5\}/);

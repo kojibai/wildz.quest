@@ -1,0 +1,78 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { Icons } from "@/components/icons";
+import type { PortableCardAsset } from "../../play/portable-card";
+
+export const MORTAL_ARENA_COVENANT_VERSION = "mortal-arena-covenant.v1";
+
+export function MortalArenaCovenant({ card, onConfirm, onExit }: {
+  card: PortableCardAsset;
+  onConfirm: () => void;
+  onExit: () => void;
+}) {
+  const [holding, setHolding] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const timerRef = useRef<number | null>(null);
+  const startedRef = useRef(0);
+
+  const stop = () => {
+    if (timerRef.current !== null) window.cancelAnimationFrame(timerRef.current);
+    timerRef.current = null;
+    setHolding(false);
+    setProgress(0);
+  };
+
+  const begin = () => {
+    if (holding) return;
+    setHolding(true);
+    startedRef.current = performance.now();
+    const frame = (now: number) => {
+      const next = Math.min(1, (now - startedRef.current) / 1_100);
+      setProgress(next);
+      if (next >= 1) {
+        timerRef.current = null;
+        setHolding(false);
+        window.localStorage.setItem(MORTAL_ARENA_COVENANT_VERSION, "accepted");
+        onConfirm();
+        return;
+      }
+      timerRef.current = window.requestAnimationFrame(frame);
+    };
+    timerRef.current = window.requestAnimationFrame(frame);
+  };
+
+  useEffect(() => () => {
+    if (timerRef.current !== null) window.cancelAnimationFrame(timerRef.current);
+  }, []);
+
+  return (
+    <div className="mortal-arena-covenant" role="document">
+      <div className="mortal-arena-covenant-mark" aria-hidden="true"><Icons.trophy size={36} /><i /></div>
+      <span>Mortal covenant · {card.manifest.name}</span>
+      <h3>Every life in this ring is real.</h3>
+      <p>If a creature reaches zero Vitality, it retires permanently. It remains honored in your Vault, but it can never fight again.</p>
+      <div className="mortal-arena-covenant-choices" aria-label="Survival choices available during every match">
+        <span><Icons.seal size={17} /><b>Guard</b></span>
+        <span><Icons.users size={17} /><b>Swap</b></span>
+        <span><Icons.door size={17} /><b>Flee</b></span>
+      </div>
+      <button
+        className="mortal-arena-covenant-hold"
+        onKeyDown={(event) => { if ((event.key === " " || event.key === "Enter") && !event.repeat) begin(); }}
+        onKeyUp={stop}
+        onPointerCancel={stop}
+        onPointerDown={begin}
+        onPointerLeave={stop}
+        onPointerUp={stop}
+        style={{ "--covenant-progress": progress } as React.CSSProperties}
+        type="button"
+      >
+        <i aria-hidden="true" />
+        <strong>{holding ? "Keep holding" : "Hold to enter"}</strong>
+        <small>Zero Vitality is permanent</small>
+      </button>
+      <button className="mortal-arena-covenant-return" onClick={onExit} type="button">Return to the Wilds</button>
+    </div>
+  );
+}

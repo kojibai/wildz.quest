@@ -9,6 +9,10 @@ import type { PortableCardAsset } from "./portable-card";
 import { applyPrismIntent, createPrismRun, type PrismIntent } from "./prism-run";
 import type { WildsLandmarkAccess } from "./wilds-landmark-access";
 import { WILDS_FLAGSHIP_LANDMARKS, type WildsLandmarkId } from "./wilds-landmarks";
+import { MortalArenaExperience } from "../games/mortal-arena/MortalArenaExperience";
+import type { ArenaSettlement } from "../games/mortal-arena/settlement";
+import type { WildzArenaPath } from "../games/mortal-arena/campaign";
+import type { WildsAudioCue } from "./wilds-audio";
 
 function CardPin({ card, accent }: { card: PortableCardAsset | null; accent: string }) {
   return card ? (
@@ -19,7 +23,16 @@ function CardPin({ card, accent }: { card: PortableCardAsset | null; accent: str
   ) : <div className="wilds-hearttree-card-pin"><strong>A verified card is required</strong></div>;
 }
 
-export function WildsLandmarkExperience({ access, card, landmarkId, onExit, onUnlock }: { access: WildsLandmarkAccess | null; card: PortableCardAsset | null; landmarkId: WildsLandmarkId | null; onExit: () => void; onUnlock: (unlockId: string) => void }) {
+export function WildsLandmarkExperience({ access, card, roster = [], landmarkId, onExit, onUnlock, onArenaCommit, onAudioCue }: {
+  access: WildsLandmarkAccess | null;
+  card: PortableCardAsset | null;
+  roster?: readonly PortableCardAsset[];
+  landmarkId: WildsLandmarkId | null;
+  onExit: () => void;
+  onUnlock: (unlockId: string) => void;
+  onArenaCommit?: (settlement: ArenaSettlement, path: WildzArenaPath) => void;
+  onAudioCue?: (cue: WildsAudioCue) => void;
+}) {
   const landmark = WILDS_FLAGSHIP_LANDMARKS.find((item) => item.id === landmarkId) ?? null;
   const locked = Boolean(access && !access.allowed);
   const seed = useMemo(() => landmark && card ? `${landmark.id}:${card.proof.digest}` : "", [card, landmark]);
@@ -46,6 +59,9 @@ export function WildsLandmarkExperience({ access, card, landmarkId, onExit, onUn
   }, [activePhase, landmark, onExit]);
 
   if (!landmark || typeof document === "undefined") return null;
+  if (landmark.id === "arena-of-echoes" && !locked && card) {
+    return <MortalArenaExperience card={card} roster={roster} onExit={onExit} onUnlock={onUnlock} onCommit={onArenaCommit ?? (() => {})} onAudioCue={onAudioCue} />;
+  }
   const result = activePhase === "result";
   const hearttreeAct = (intent: HearttreeIntent) => setHearttree((current) => current ? applyHearttreeIntent(current, intent) : current);
   const arenaAct = (intent: ArenaIntent) => setArena((current) => current ? applyArenaIntent(current, intent) : current);

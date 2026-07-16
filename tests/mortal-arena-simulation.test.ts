@@ -60,4 +60,37 @@ describe("Mortal Arena simulation", () => {
     assert.equal(dead.events.filter((event) => event.kind === "retirement").length, 1);
     assert.equal(dead.events[0]?.honor, "victorious-sacrifice");
   });
+
+  it("focuses, swaps only to a living reserve, and cancels an interrupted flee", () => {
+    const withReserve: MortalArenaSetup = {
+      ...setup,
+      sides: [
+        { ...setup.sides[0], fighters: [...setup.sides[0].fighters, { creatureId: "a2", affinity: "Spark", vitality: 900, power: 100, guard: 100, speed: 110 }] },
+        setup.sides[1]
+      ]
+    };
+    let state = MORTAL_ARENA_MODULE.create(withReserve);
+    state = MORTAL_ARENA_MODULE.step(state, [{ actorId: "alpha", sequence: 1, atTick: 1, input: { focus: true } }]);
+    assert.ok(state.sides[0].fighters[0].focus > 0);
+    state = MORTAL_ARENA_MODULE.step(state, [{ actorId: "alpha", sequence: 2, atTick: 2, input: { swapTo: 1 } }]);
+    assert.equal(state.sides[0].activeIndex, 1);
+    state = MORTAL_ARENA_MODULE.step(state, [{ actorId: "alpha", sequence: 3, atTick: 3, input: { flee: true } }]);
+    state = MORTAL_ARENA_MODULE.step(state, []);
+    assert.equal(state.sides[0].fleeStartedTick, null);
+    assert.equal(state.sides[0].fled, false);
+  });
+
+  it("reports the local side's defeat instead of calling every decisive match a victory", () => {
+    const created = MORTAL_ARENA_MODULE.create(setup);
+    const defeated = {
+      ...created,
+      phase: "complete" as const,
+      winnerSide: 1 as const,
+      sides: [
+        { ...created.sides[0], fighters: created.sides[0].fighters.map((fighter, index) => index === created.sides[0].activeIndex ? { ...fighter, vitality: 0 } : fighter) },
+        created.sides[1]
+      ] as typeof created.sides
+    };
+    assert.equal(MORTAL_ARENA_MODULE.complete(defeated)?.outcome, "defeat");
+  });
 });

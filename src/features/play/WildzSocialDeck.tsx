@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, type RefObject } from "react";
 import { Icons } from "@/components/icons";
 import type { WildzCardSort } from "./card-sort";
 import type { PlayState, WildsInput } from "./game-state";
@@ -19,12 +19,12 @@ function useStableEvent<Arguments extends unknown[]>(handler: (...args: Argument
   return useCallback((...args: Arguments) => handlerRef.current(...args), []);
 }
 
-export function WildzSocialDeck({ nearbyCards, activeCard, companionProgress, action, cameraHeading, movementMode, cardOrder, onCardOrderChange, onInput, onAction, onMovementModeChange, onSelectCard, onOpenFieldGuide, onOpenProfile, onOpenMarket, onOpenSatchel, onOpenDeck, onOpenVault, onRest, onTrain, onMission }: {
+export function WildzSocialDeck({ nearbyCards, activeCard, companionProgress, action, cameraHeadingRef, movementMode, cardOrder, onCardOrderChange, onInput, onAction, onMovementModeChange, onSelectCard, onOpenFieldGuide, onOpenProfile, onOpenMarket, onOpenSatchel, onOpenDeck, onOpenVault, onRest, onTrain, onMission }: {
   nearbyCards: readonly PortableCardAsset[];
   activeCard: PortableCardAsset | null;
   companionProgress: PlayState["companionProgress"];
   action: { kind: string; label: string };
-  cameraHeading: number;
+  cameraHeadingRef: RefObject<number>;
   movementMode: WildsMovementMode;
   cardOrder: WildzCardSort;
   onCardOrderChange: (order: WildzCardSort) => void;
@@ -62,7 +62,7 @@ export function WildzSocialDeck({ nearbyCards, activeCard, companionProgress, ac
           {movementMode === "walk" ? <Icons.walk size={21} /> : <Icons.run size={21} />}
         </button>
       </div>
-      <WildzDpad cameraHeading={cameraHeading} movementMode={movementMode} onInput={onInput} />
+      <WildzDpad cameraHeadingRef={cameraHeadingRef} movementMode={movementMode} onInput={onInput} />
       <div className="wildz-play-control-rail" aria-label="Progression actions">
         <WildzContextButton action={action} onActivate={onAction} />
         <button aria-label="Train active companion" onClick={onTrain} type="button"><Icons.sparkle size={20} /></button>

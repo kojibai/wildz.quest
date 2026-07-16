@@ -75,7 +75,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(campaign, /grant: result\.grant,[\s\S]*?playerId: result\.grant\.playerId/);
     assert.match(controls, /aria-label=\{movementMode === "walk" \? "Switch to running" : "Switch to walking"\}/);
     assert.match(controls, /<WildzContextButton action=\{action\}/);
-    assert.match(controls, /<WildzDpad cameraHeading=\{cameraHeading\} movementMode=\{movementMode\} onInput=\{onInput\}/);
+    assert.match(controls, /<WildzDpad cameraHeadingRef=\{cameraHeadingRef\} movementMode=\{movementMode\} onInput=\{onInput\}/);
     assert.match(route, /getWildsAtlasPresence/);
     assert.match(route, /cache-control": "private, no-store"/);
     assert.doesNotMatch(route, /activeCard/);
@@ -290,7 +290,7 @@ describe("Receiz Wilds rendering contract", () => {
     const controls = await readFile("src/features/play/WildzDpad.tsx", "utf8");
 
     assert.match(world, /OrbitControls/);
-    assert.match(world, /enableDamping=\{false\}/);
+    assert.match(world, /enableDamping/);
     assert.match(world, /enablePan=\{false\}/);
     assert.match(world, /minDistance=\{4\.8\}/);
     assert.match(world, /maxDistance=\{13\.5\}/);
@@ -298,8 +298,9 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(world, /maxPolarAngle=\{Math\.PI \/ 2\.15\}/);
     assert.match(world, /touches=\{\{ ONE: THREE\.TOUCH\.ROTATE, TWO: THREE\.TOUCH\.DOLLY_ROTATE \}\}/);
     assert.match(world, /onCameraHeadingChange/);
-    assert.match(campaign, /cameraHeading/);
-    assert.match(controls, /cameraRelativeMovement\(next, heading\.current\)/);
+    assert.match(campaign, /cameraHeadingRef/);
+    assert.doesNotMatch(campaign, /useState\(0\).*cameraHeading/);
+    assert.match(controls, /cameraRelativeMovement\(next, cameraHeadingRef\.current\)/);
     assert.doesNotMatch(world, /camera\.position\.lerp\(target/);
   });
 
@@ -429,7 +430,9 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(css, /-webkit-backface-visibility:\s*hidden/);
     assert.match(css, /\.wilds-card-face-back\s*\{[^}]*opacity:\s*0/);
     assert.match(css, /\.wilds-card-flipper\.is-flipped\s+\.wilds-card-face-back\s*\{[^}]*opacity:\s*1/);
-    assert.match(css, /clip-path:\s*inset\(0 round/);
+    assert.match(css, /\.wilds-collectible-card\s*\{[^}]*overflow:\s*hidden/);
+    assert.match(css, /\.wilds-card-face-front\s*\{[^}]*transform:\s*translateZ\(0\.1px\)/);
+    assert.doesNotMatch(css, /\.wilds-collectible-card\s*\{[^}]*clip-path:/);
     assert.doesNotMatch(css, /\.wilds-card-foil\s*\{[^}]*inset:\s*-35%/s);
     assert.match(campaign, /\{deckCards\.length\}\/∞/);
   });

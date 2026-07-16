@@ -15,13 +15,29 @@ export function stepMortalArena(state: Readonly<MortalArenaState>, frames: reado
   let sides = state.sides.map((side): MortalArenaSide => {
     const input = inputFor(frames, side.actorId);
     const fighters = side.fighters.map((fighter, index) => index === side.activeIndex
-      ? { ...stepArenaMovement(fighter, input, state.arena), guarding: Boolean(input.guard), guardStartedTick: input.guard && !fighter.guarding ? tick : fighter.guardStartedTick }
+      ? {
+          ...stepArenaMovement(fighter, input, state.arena),
+          guarding: Boolean(input.guard),
+          guardStartedTick: input.guard && !fighter.guarding ? tick : fighter.guardStartedTick,
+          focus: input.focus && fighter.recoveryTicks === 0 ? Math.min(1_000, fighter.focus + 180) : fighter.focus
+        }
       : fighter);
+    const requestedSwap = input.swapTo;
+    const activeIndex = typeof requestedSwap === "number"
+      && Number.isInteger(requestedSwap)
+      && requestedSwap >= 0
+      && requestedSwap < fighters.length
+      && requestedSwap !== side.activeIndex
+      && fighters[requestedSwap]!.vitality > 0
+      && fighters[side.activeIndex]!.recoveryTicks === 0
+        ? requestedSwap
+        : side.activeIndex;
     return {
       ...side,
       fighters,
-      fleeStartedTick: input.flee ? (side.fleeStartedTick ?? tick) : side.fleeStartedTick,
-      fled: side.fleeStartedTick !== null && tick - side.fleeStartedTick >= FLEE_TICKS && fighters[side.activeIndex].vitality > 0
+      activeIndex,
+      fleeStartedTick: input.flee ? (side.fleeStartedTick ?? tick) : null,
+      fled: Boolean(input.flee && side.fleeStartedTick !== null && tick - side.fleeStartedTick >= FLEE_TICKS && fighters[activeIndex]!.vitality > 0)
     };
   }) as unknown as [MortalArenaSide, MortalArenaSide];
 
@@ -36,7 +52,7 @@ export function stepMortalArena(state: Readonly<MortalArenaState>, frames: reado
     if (!kind || attacker.recoveryTicks > 0 || Math.hypot(attacker.position.x - defender.position.x, attacker.position.z - defender.position.z) > 2_700) continue;
     const resolved = resolveArenaHit(defender, arenaHitFor(attacker, kind), tick);
     sides[defenderIndex] = { ...defenderSide, fighters: defenderSide.fighters.map((fighter, index) => index === defenderSide.activeIndex ? resolved.fighter : fighter) };
-    sides[attackerIndex] = { ...attackerSide, fighters: attackerSide.fighters.map((fighter, index) => index === attackerSide.activeIndex ? { ...fighter, recoveryTicks: kind === "heavy" ? 22 : 11 } : fighter) };
+    sides[attackerIndex] = { ...attackerSide, fighters: attackerSide.fighters.map((fighter, index) => index === attackerSide.activeIndex ? { ...fighter, focus: 0, recoveryTicks: kind === "heavy" ? 22 : 11 } : fighter) };
   }
 
   const active = sides.map((side) => side.fighters[side.activeIndex]);

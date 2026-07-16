@@ -62,7 +62,7 @@ test("the drawer boundary receives no movement camera or player-position state",
 test("a 100-card fixture exposes a bounded drawer render window and eight-card book spreads", () => {
   const drawer = drawerSource();
 
-  assert.match(drawer, /setRange\(\{ start: 0, end: 24 \}\)/);
+  assert.match(drawer, /setRange\(\{ start: 0, end: 8 \}\)/);
   assert.match(drawer, /bookWindow\.pageSize/);
   assert.match(drawer, /sortedCards\.slice\(start, start \+ bookWindow\.pageSize\)/);
   assert.doesNotMatch(drawer, /nearbyCards\.map\(|sortedCards\.map\(/);

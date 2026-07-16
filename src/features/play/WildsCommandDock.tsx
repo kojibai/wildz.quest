@@ -43,6 +43,8 @@ export function WildsCommandDock({ items, requestedKey = null, onRequestHandled 
   useEffect(() => {
     if (!activeKey) return;
     const previousOverflow = document.body.style.overflow;
+    document.documentElement.classList.add("wilds-command-open");
+    document.body.classList.add("wilds-command-open");
     document.body.style.overflow = "hidden";
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") close();
@@ -51,6 +53,8 @@ export function WildsCommandDock({ items, requestedKey = null, onRequestHandled 
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = previousOverflow;
+      document.documentElement.classList.remove("wilds-command-open");
+      document.body.classList.remove("wilds-command-open");
     };
   }, [activeKey, close]);
 

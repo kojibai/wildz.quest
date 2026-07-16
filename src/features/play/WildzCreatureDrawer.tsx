@@ -6,7 +6,6 @@ import { sortWildzCards, type WildzCardSort } from "./card-sort";
 import {
   creatureBookWindow,
   creatureDrawerMetrics,
-  creatureDrawerMode,
   drawerHapticPattern,
   settleCreatureDrawer,
   type CreatureDrawerSnap
@@ -86,14 +85,15 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   const [viewportHeight, setViewportHeight] = useState(() => typeof window === "undefined" ? 844 : window.innerHeight);
   const [snap, setSnap] = useState<CreatureDrawerSnap>("closed");
   const [showAffordanceSweep, setShowAffordanceSweep] = useState(false);
-  const [dragHeight, setDragHeight] = useState<number | null>(null);
-  const [range, setRange] = useState({ start: 0, end: 24 });
+  const [range, setRange] = useState({ start: 0, end: 8 });
   const [bookPage, setBookPage] = useState(0);
+  const drawerRef = useRef<HTMLElement>(null);
+  const dragHeight = useRef<number | null>(null);
   const drag = useRef<{ startY: number; startHeight: number; lastY: number; lastAt: number; velocityY: number; moved: boolean } | null>(null);
   const suppressHandleClick = useRef(false);
   const metrics = useMemo(() => creatureDrawerMetrics(viewportHeight), [viewportHeight]);
-  const height = dragHeight ?? metrics[snap];
-  const mode = creatureDrawerMode(height, metrics);
+  const height = metrics[snap];
+  const mode = snap;
   const sortedCards = useMemo(() => sortWildzCards(nearbyCards, cardOrder), [cardOrder, nearbyCards]);
   const bookWindow = useMemo(() => creatureBookWindow(sortedCards, bookPage, 1), [bookPage, sortedCards]);
   const activeForm = activeCard ? creatureForm(activeCard.manifest.formId) : null;
@@ -102,7 +102,6 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   const selectAndClose = useCallback((assetId: string) => {
     selectCard(assetId);
     setSnap("closed");
-    setDragHeight(null);
   }, [selectCard]);
 
   useEffect(() => {
@@ -121,7 +120,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   }, []);
 
   useEffect(() => {
-    setRange({ start: 0, end: 24 });
+    setRange({ start: 0, end: 8 });
     setBookPage(0);
   }, [cardOrder]);
 
@@ -143,25 +142,37 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   const finishDrag = (target: HTMLElement, pointerId: number) => {
     const gesture = drag.current;
     drag.current = null;
+    drawerRef.current?.classList.remove("is-dragging");
     if (target.hasPointerCapture?.(pointerId)) target.releasePointerCapture(pointerId);
     if (!gesture) return;
-    const next = settleCreatureDrawer(dragHeight ?? gesture.startHeight, gesture.velocityY, metrics);
+    const next = settleCreatureDrawer(dragHeight.current ?? gesture.startHeight, gesture.velocityY, metrics);
+    dragHeight.current = null;
+    drawerRef.current?.style.setProperty("--wildz-drawer-height", `${metrics[next]}px`);
     commitSnap(next);
-    setDragHeight(null);
     suppressHandleClick.current = gesture.moved;
+  };
+
+  const cancelDrag = () => {
+    if (!drag.current) return;
+    drag.current = null;
+    dragHeight.current = null;
+    drawerRef.current?.classList.remove("is-dragging");
+    drawerRef.current?.style.setProperty("--wildz-drawer-height", `${metrics[snap]}px`);
   };
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const now = performance.now();
     drag.current = {
       startY: event.clientY,
-      startHeight: height,
+      startHeight: metrics[snap],
       lastY: event.clientY,
       lastAt: now,
       velocityY: 0,
       moved: false
     };
-    event.currentTarget.setPointerCapture(event.pointerId);
+    dragHeight.current = metrics[snap];
+    drawerRef.current?.classList.add("is-dragging");
+    try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* capture is optional */ }
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -174,7 +185,8 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
     gesture.lastY = event.clientY;
     gesture.lastAt = now;
     gesture.moved ||= Math.abs(event.clientY - gesture.startY) > 6;
-    setDragHeight(nextHeight);
+    dragHeight.current = nextHeight;
+    drawerRef.current?.style.setProperty("--wildz-drawer-height", `${nextHeight}px`);
   };
 
   const updateVirtualRange = (event: UIEvent<HTMLDivElement>) => {
@@ -208,6 +220,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   return <section
     aria-label="Active creature selector"
     className={`wildz-creature-drawer mode-${mode} ${mode === "closed" ? "is-closed" : ""}`}
+    ref={drawerRef}
     style={{
       "--wildz-drawer-height": `${height}px`,
       "--wildz-drawer-creature": activeForm?.palette.accent ?? "#78dda1"
@@ -225,8 +238,8 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
         }
         commitSnap(snap === "closed" ? "preview" : snap === "preview" ? "expanded" : "closed");
       }}
-      onLostPointerCapture={() => { drag.current = null; setDragHeight(null); }}
-      onPointerCancel={() => { drag.current = null; setDragHeight(null); }}
+      onLostPointerCapture={cancelDrag}
+      onPointerCancel={cancelDrag}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={(event) => finishDrag(event.currentTarget, event.pointerId)}
@@ -240,7 +253,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
       <Icons.chevronUp aria-hidden="true" size={14} />
       <span aria-hidden="true" className="wildz-creature-drawer-sweep" />
     </button>
-    <div className="wildz-creature-drawer-content" id="wildz-creature-drawer-content">
+    <div aria-hidden={mode === "closed"} className="wildz-creature-drawer-content" id="wildz-creature-drawer-content" inert={mode === "closed" ? true : undefined}>
       <div className="wildz-creature-drawer-tools">
         <span>{sortedCards.length} creature{sortedCards.length === 1 ? "" : "s"} · {mode}</span>
         <label><span>Sort</span><select aria-label="Sort creature selector" onChange={(event) => changeCardOrder(event.target.value as WildzCardSort)} value={cardOrder}>

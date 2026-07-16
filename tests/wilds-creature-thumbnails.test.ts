@@ -50,6 +50,6 @@ test("D-pad preserves analog camera-relative movement and visible stick travel",
   assert.match(dpad, /addEventListener\("blur"/);
   assert.match(socialDeck, /cameraHeading/);
   assert.match(socialDeck, /movementMode/);
-  assert.match(campaign, /cameraHeading=\{cameraHeading\}/);
+  assert.match(campaign, /cameraHeadingRef=\{cameraHeadingRef\}/);
   assert.match(campaign, /onInput=\{\(input\) => dispatch\(input\)\}/);
 });

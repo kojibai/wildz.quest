@@ -8,6 +8,7 @@ function fighter(input: MortalArenaSetup["sides"][number]["fighters"][number], s
     maxVitality: input.vitality,
     break: 1_000,
     maxBreak: 1_000,
+    focus: 0,
     position: { x: side === 0 ? -3_000 : 3_000, y: 0, z: 0 },
     velocity: { x: 0, y: 0, z: 0 },
     facing: side === 0 ? 1 : -1,
@@ -40,7 +41,14 @@ export const MORTAL_ARENA_MODULE: WildzGameModule<MortalArenaSetup, MortalArenaS
     if (state.phase !== "complete") return null;
     const finalVitality = state.sides.map((side) => side.fighters[side.activeIndex].vitality) as unknown as readonly [number, number];
     const retiredCreatureIds = state.mortal ? state.sides.flatMap((side) => side.fighters.filter((item) => item.vitality <= 0).map((item) => item.creatureId)) : [];
-    return { matchId: state.matchId, winnerSide: state.winnerSide, outcome: state.sides.some((side) => side.fled) ? "fled" : state.winnerSide === null ? "draw" : "victory", mortal: state.mortal, finalVitality, retiredCreatureIds };
+    const outcome = state.sides[0].fled
+      ? "fled" as const
+      : state.winnerSide === 0
+        ? "victory" as const
+        : state.winnerSide === 1
+          ? "defeat" as const
+          : "draw" as const;
+    return { matchId: state.matchId, winnerSide: state.winnerSide, outcome, mortal: state.mortal, finalVitality, retiredCreatureIds };
   },
   propose(result) {
     return result.retiredCreatureIds.map((creatureId) => ({ kind: "retirement" as const, creatureId, matchId: result.matchId }));

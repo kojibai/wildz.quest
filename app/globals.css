@@ -11071,7 +11071,7 @@ button.product-purchase-secondary-link {
 .wilds-card-flipper.is-flipped { transform: rotateY(180deg); }
 .wilds-card-face { position: absolute; inset: 0; -webkit-backface-visibility: hidden; backface-visibility: hidden; transform-style: preserve-3d; }
 .wilds-card-face > * { width: 100%; height: 100%; }
-.wilds-card-face-front { opacity: 1; }
+.wilds-card-face-front { opacity: 1; transform: translateZ(0.1px); }
 .wilds-card-face-back { opacity: 0; pointer-events: none; transform: rotateY(180deg); }
 .wilds-card-flipper.is-flipped .wilds-card-face-front { opacity: 0; pointer-events: none; }
 .wilds-card-flipper.is-flipped .wilds-card-face-back { opacity: 1; pointer-events: auto; }
@@ -11755,7 +11755,10 @@ button.product-purchase-secondary-link {
 .wilds-command-badge { position: absolute; top: -9px; right: -15px; display: grid; min-width: 27px; height: 17px; padding: 0 4px; place-items: center; color: #08191c; background: #f7d25b; border: 2px solid #09222a; border-radius: 999px; font-size: 8px; font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; }
 .wilds-command-button[aria-pressed="true"] .wilds-command-badge { border-color: #7ce8c5; }
 
+html.wilds-command-open,
+body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-command-overlay { position: fixed; z-index: 1500; inset: 0; pointer-events: none; }
+.wilds-command-overlay::after { position: fixed; z-index: -1; right: 0; bottom: calc(-1 * env(safe-area-inset-bottom)); left: 0; height: calc(96px + env(safe-area-inset-bottom)); background: #09110d; content: ""; pointer-events: none; }
 .wilds-command-backdrop { position: absolute; inset: 0; width: 100%; border: 0; background: rgb(1 10 15 / 48%); opacity: 1; pointer-events: auto; backdrop-filter: blur(5px); }
 .wilds-command-sheet { position: absolute; right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); left: max(10px, env(safe-area-inset-left)); display: grid; grid-template-rows: auto auto minmax(0, 1fr); width: min(760px, calc(100% - 20px)); max-height: min(86dvh, 760px); margin-inline: auto; overflow: hidden; color: #effaff; border: 1px solid rgb(131 235 207 / 28%); border-radius: 28px; background: linear-gradient(145deg, rgb(8 37 47 / 98%), rgb(4 17 25 / 98%)); box-shadow: 0 30px 100px rgb(0 0 0 / 54%), inset 0 1px rgb(255 255 255 / 10%); pointer-events: auto; transform: translateY(var(--wilds-sheet-drag, 0)); animation: wilds-command-sheet-in 260ms cubic-bezier(.2,.8,.2,1) both; }
 .wilds-command-handle { display: grid; width: 100%; min-height: 24px; place-items: center; border: 0; background: transparent; touch-action: none; }
@@ -12180,6 +12183,71 @@ button.product-purchase-secondary-link {
 }
 @media (prefers-reduced-motion: reduce) { .wilds-hearttree-aurora, .wilds-hearttree-orbit { animation: none; } }
 
+/* Mortal Arena flagship — preserves the established landmark shell and control material. */
+.mortal-arena-experience { --arena-gold: #f7c948; --arena-danger: #ff6048; }
+.mortal-arena-live-world { position: relative; isolation: isolate; background: #160b05; }
+.mortal-arena-canvas { position: absolute; inset: 0; }
+.mortal-arena-canvas canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.mortal-arena-header { position: relative; z-index: 12; }
+.mortal-arena-hud { position: absolute; z-index: 4; top: 10px; right: max(10px, env(safe-area-inset-right)); left: max(10px, env(safe-area-inset-left)); display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: start; gap: 9px; pointer-events: none; }
+.mortal-arena-life { display: grid; grid-template-columns: minmax(0, 1fr) 30px; gap: 5px 7px; padding: 8px 10px; border: 1px solid rgb(247 201 72 / 22%); border-radius: 16px; background: rgb(25 11 4 / 76%); box-shadow: 0 12px 28px rgb(0 0 0 / 24%); backdrop-filter: blur(16px); }
+.mortal-arena-life > span { display: grid; min-width: 0; }
+.mortal-arena-life > span strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.mortal-arena-life > span small { color: #c69a51; font-size: 7px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
+.mortal-arena-life > div { grid-column: 1 / -1; height: 6px; overflow: hidden; border-radius: 8px; background: rgb(255 255 255 / 10%); }
+.mortal-arena-life > div i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #57db93, #d8e852); box-shadow: 0 0 12px rgb(91 230 145 / 42%); transition: width .18s ease; }
+.mortal-arena-life > b { grid-column: 2; grid-row: 1; align-self: center; color: #ffe58a; font-size: 15px; font-variant-numeric: tabular-nums; text-align: right; }
+.mortal-arena-life.is-rival { text-align: right; }
+.mortal-arena-life.is-rival > div i { margin-left: auto; background: linear-gradient(90deg, #ff9b45, #ff5f45); }
+.mortal-arena-life.is-strained > div i { background: #f6be43; }
+.mortal-arena-life.is-grave > div i, .mortal-arena-life.is-final > div i { background: #ff5d45; box-shadow: 0 0 18px rgb(255 78 55 / 70%); animation: mortal-vitality-pulse .72s ease-in-out infinite alternate; }
+.mortal-arena-round-mark { display: flex; min-width: 48px; align-items: center; justify-content: center; gap: 4px; padding-top: 13px; color: #ffe38a; }
+.mortal-arena-round-mark strong { max-width: 90px; overflow: hidden; font-size: 8px; letter-spacing: .06em; text-align: center; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.mortal-arena-round-mark i { width: 8px; height: 1px; background: #d99f31; }
+.mortal-arena-warning { position: absolute; z-index: 5; bottom: 13px; left: 50%; display: flex; align-items: center; gap: 7px; padding: 8px 13px; color: #fff3de; border: 1px solid rgb(255 95 67 / 45%); border-radius: 999px; background: rgb(69 14 8 / 82%); box-shadow: 0 0 30px rgb(255 62 35 / 24%); backdrop-filter: blur(16px); transform: translateX(-50%); pointer-events: none; }
+.mortal-arena-warning span { font-size: 9px; font-weight: 900; white-space: nowrap; }
+.mortal-arena-warning > i { width: 4px; height: 4px; border-radius: 50%; background: #ffb54c; }
+.mortal-arena-warning.is-final { animation: mortal-warning-breathe .62s ease-in-out infinite alternate; }
+.mortal-arena-actions { position: relative; z-index: 12; grid-template-columns: repeat(2, minmax(0, 1fr)) 84px repeat(3, minmax(0, 1fr)) !important; align-items: center; background: #170c05 !important; }
+.mortal-arena-actions > button { min-height: 58px; color: #fff6dc; border-color: rgb(247 201 72 / 18%); background: rgb(255 255 255 / 5%); touch-action: none; }
+.mortal-arena-actions > button:active:not(:disabled) { border-color: rgb(247 201 72 / 58%); background: rgb(247 201 72 / 14%); transform: translateY(1px); }
+.mortal-arena-actions > .mortal-arena-flee { color: #ffc1a8; border-color: rgb(255 96 72 / 24%); }
+.mortal-arena-trackpad { position: relative; display: grid !important; width: 78px; height: 78px; min-height: 78px !important; place-items: center; padding: 0 !important; border: 1px solid rgb(247 201 72 / 28%) !important; border-radius: 50% !important; background: radial-gradient(circle, rgb(247 201 72 / 15%), rgb(255 255 255 / 4%) 58%, rgb(0 0 0 / 18%)) !important; touch-action: none; }
+.mortal-arena-trackpad-ring { position: absolute; inset: 8px; border: 1px solid rgb(247 201 72 / 18%); border-radius: 50%; }
+.mortal-arena-trackpad > i { position: absolute; top: 5px; display: grid; width: 20px; height: 20px; place-items: center; color: #eac45c; border-radius: 50%; background: rgb(10 8 5 / 62%); }
+.mortal-arena-trackpad > b { position: relative; width: 28px; height: 28px; border: 2px solid rgb(255 240 170 / 42%); border-radius: 50%; background: radial-gradient(circle at 38% 34%, #d8c675, #756937); box-shadow: 0 4px 14px rgb(0 0 0 / 35%), 0 0 18px rgb(247 201 72 / 14%); }
+.mortal-arena-covenant, .mortal-arena-retired, .mortal-arena-result { position: absolute; z-index: 10; top: 50%; left: 50%; display: grid; width: min(430px, calc(100% - 28px)); justify-items: center; gap: 9px; padding: 24px; text-align: center; border: 1px solid rgb(247 201 72 / 30%); border-radius: 26px; background: rgb(20 10 4 / 94%); box-shadow: 0 30px 100px rgb(0 0 0 / 62%), 0 0 54px rgb(247 201 72 / 10%); backdrop-filter: blur(24px); transform: translate(-50%, -50%); }
+.mortal-arena-covenant-mark { position: relative; display: grid; width: 70px; height: 70px; place-items: center; color: #ffd858; border: 1px solid rgb(247 201 72 / 38%); border-radius: 50%; background: radial-gradient(circle, rgb(247 201 72 / 20%), transparent 70%); }
+.mortal-arena-covenant-mark i { position: absolute; inset: 7px; border: 1px dashed rgb(247 201 72 / 28%); border-radius: 50%; }
+.mortal-arena-covenant > span, .mortal-arena-retired > span, .mortal-arena-result > span { color: #e2ae45; font-size: 8px; font-weight: 950; letter-spacing: .1em; text-transform: uppercase; }
+.mortal-arena-covenant h3, .mortal-arena-retired h3, .mortal-arena-result h3 { max-width: 360px; margin: 0; font-size: clamp(22px, 5vw, 31px); line-height: 1.04; }
+.mortal-arena-covenant p, .mortal-arena-retired p, .mortal-arena-result p { max-width: 360px; margin: 0; color: #cbbda8; font-size: 11px; line-height: 1.5; }
+.mortal-arena-covenant-choices { display: flex; width: 100%; justify-content: center; gap: 7px; }
+.mortal-arena-covenant-choices span { display: flex; min-width: 82px; align-items: center; justify-content: center; gap: 5px; padding: 8px 10px; color: #f6e7c7; border: 1px solid rgb(255 255 255 / 9%); border-radius: 13px; background: rgb(255 255 255 / 4%); }
+.mortal-arena-covenant-choices b { font-size: 9px; }
+.mortal-arena-covenant-hold { position: relative; isolation: isolate; display: grid; width: 100%; min-height: 62px; margin-top: 5px; overflow: hidden; place-items: center; color: #261304; border: 0; border-radius: 17px; background: #806a2e; }
+.mortal-arena-covenant-hold > i { position: absolute; z-index: -1; inset: 0; width: calc(var(--covenant-progress) * 100%); background: linear-gradient(90deg, #f4b43f, #ffe67d); transition: width .05s linear; }
+.mortal-arena-covenant-hold strong { font-size: 13px; }.mortal-arena-covenant-hold small { font-size: 8px; opacity: .68; }
+.mortal-arena-covenant-return { color: #baa98e; border: 0; background: transparent; font-size: 10px; }
+.mortal-arena-retired > svg { color: #ffe274; filter: drop-shadow(0 0 20px rgb(255 215 91 / 30%)); }
+.mortal-arena-retired button, .mortal-arena-result button { width: 100%; min-height: 48px; color: #281604; border: 0; border-radius: 15px; background: linear-gradient(135deg, #f7c948, #f6e792); font-weight: 900; }
+.mortal-arena-result button + button { color: #d9c7aa; border: 1px solid rgb(255 255 255 / 9%); background: rgb(255 255 255 / 5%); }
+@keyframes mortal-vitality-pulse { to { filter: brightness(1.4); transform: scaleY(1.3); } }
+@keyframes mortal-warning-breathe { to { box-shadow: 0 0 42px rgb(255 62 35 / 46%); transform: translateX(-50%) scale(1.025); } }
+@media (max-width: 430px) {
+  .mortal-arena-hud { gap: 4px; }
+  .mortal-arena-life { grid-template-columns: minmax(0, 1fr) 24px; padding: 7px 8px; }
+  .mortal-arena-round-mark { min-width: 28px; }.mortal-arena-round-mark i { display: none; }.mortal-arena-round-mark strong { max-width: 42px; }
+  .mortal-arena-actions { grid-template-columns: repeat(2, minmax(0, 1fr)) 72px repeat(3, minmax(0, 1fr)) !important; gap: 3px; padding-right: 5px; padding-left: 5px; }
+  .mortal-arena-actions > button { min-height: 54px; padding: 4px 2px; }.mortal-arena-actions > button span { display: none; }
+  .mortal-arena-trackpad { width: 70px; height: 70px; min-height: 70px !important; }
+  .mortal-arena-warning { bottom: 8px; max-width: calc(100% - 20px); }.mortal-arena-warning span { overflow: hidden; text-overflow: ellipsis; }
+  .mortal-arena-covenant, .mortal-arena-retired, .mortal-arena-result { padding: 19px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mortal-arena-life.is-grave > div i, .mortal-arena-life.is-final > div i, .mortal-arena-warning.is-final { animation: none; }
+}
+
 .wilds-collectible-card {
   --card-primary: #38d989;
   --card-accent: #f5d36c;
@@ -12195,12 +12263,11 @@ button.product-purchase-secondary-link {
   min-height: 0;
   padding: 17px;
   overflow: hidden;
-  contain: paint;
+  contain: layout style;
   color: #f7fcff;
   background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--card-glow) 24%, transparent), transparent 36%), linear-gradient(145deg, #0f3443, #06131b 55%, #102b38);
   border: var(--card-border) solid var(--card-accent);
   border-radius: var(--card-radius);
-  clip-path: inset(0 round var(--card-radius));
   backface-visibility: hidden;
   box-shadow: inset 0 0 0 2px rgb(255 255 255 / 23%), 0 22px 60px rgb(0 0 0 / 38%);
 }
@@ -12664,6 +12731,7 @@ button.product-purchase-secondary-link {
 .wildz-preserved-controls { display: none; }
 .wildz-social-handle { justify-self: center; width: 78px; height: 6px; border-radius: 8px; background: rgba(223, 226, 216, .28); }
 .wildz-creature-drawer { position: relative; height: var(--wildz-drawer-height); min-height: 0; transition: height 220ms cubic-bezier(.2, .8, .2, 1); }
+.wildz-creature-drawer.is-dragging { transition: none; }
 .wildz-creature-drawer.is-closed { height: var(--wildz-drawer-height); }
 .wildz-creature-drawer-handle { position: absolute; right: 50%; bottom: 2px; z-index: 4; display: flex; width: 112px; min-height: 28px; align-items: center; justify-content: center; gap: 6px; padding: 0 9px; overflow: hidden; border: 1px solid rgba(226, 230, 215, .18); border-radius: 999px; color: #dfe8df; background: rgba(26, 34, 30, .96); box-shadow: 0 5px 16px rgba(0,0,0,.24), inset 0 1px rgba(255,255,255,.07); touch-action: none; transform: translateX(50%); }
 .wildz-creature-drawer-handle::before { position: absolute; inset: -8px; content: ""; }
@@ -12677,8 +12745,8 @@ button.product-purchase-secondary-link {
 .wildz-creature-drawer-handle > svg { transition: transform 180ms ease; }
 .wildz-creature-drawer.mode-expanded .wildz-creature-drawer-handle > svg { transform: rotate(180deg); }
 @keyframes wildz-drawer-upward-sweep { 0% { opacity: 0; transform: translateX(-120%); } 24% { opacity: 1; } 75%, 100% { opacity: 0; transform: translateX(120%); } }
-.wildz-creature-drawer-content { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; overflow: hidden; padding: 7px 2px 14px; border-bottom: 1px solid rgba(255,255,255,.06); }
-.wildz-creature-drawer.is-closed .wildz-creature-drawer-content { visibility: hidden; }
+.wildz-creature-drawer-content { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; overflow: hidden; padding: 7px 2px 14px; border-bottom: 1px solid rgba(255,255,255,.06); opacity: 1; transition: opacity 90ms linear; }
+.wildz-creature-drawer.is-closed .wildz-creature-drawer-content { opacity: .001; pointer-events: none; }
 .wildz-creature-drawer-tools { display: flex; min-height: 28px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px; }
 .wildz-creature-drawer-tools > span { overflow: hidden; color: #9baca0; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .wildz-creature-drawer-tools label { display: flex; align-items: center; gap: 5px; color: #8ea096; font-size: 8px; font-weight: 900; text-transform: uppercase; }
