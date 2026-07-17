@@ -5,12 +5,17 @@ import { deriveKaiKlokMoment } from "./kai-klok-moment";
 import { currentLivingGenome } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import type { PortableCardAsset } from "./portable-card";
+import type { LivingCreatureIdentityV3 } from "./living-taxonomy";
 
 export type CardKaiAppearance = {
   source: "sealed" | "recovered";
   historicalPulse: string;
   profile: KaiCreatureBirthProfile;
   palette: CardVariantTraits["palette"];
+  morphology: { head: number; torso: number; limb: number; symmetry: number };
+  cadenceMs: number;
+  fingerprint: string;
+  discoveryIdentity?: LivingCreatureIdentityV3;
 };
 
 export function projectCardKaiAppearance(asset: PortableCardAsset): CardKaiAppearance {
@@ -25,12 +30,36 @@ export function projectCardKaiAppearance(asset: PortableCardAsset): CardKaiAppea
     glow: livingPalette?.glow ?? variant.traits.palette.glow
   };
 
+  if (variant.generatorVersion === 3) {
+    const identity = variant.traits.identity;
+    const moment = deriveKaiKlokMoment({ occurredAt: identity.discoveredAt, authority: "world" });
+    const recovered = deriveKaiCreatureBirth({ form, moment, seed: variant.seed });
+    return {
+      source: "sealed",
+      historicalPulse: variant.kaiPulse,
+      profile: { ...recovered, palette: { ...palette } },
+      palette,
+      morphology: {
+        head: identity.anatomy.head,
+        torso: identity.anatomy.torso,
+        limb: identity.anatomy.limb,
+        symmetry: identity.anatomy.asymmetry
+      },
+      cadenceMs: identity.motion.cadenceMs,
+      fingerprint: identity.visualFingerprint,
+      discoveryIdentity: identity
+    };
+  }
+
   if (variant.generatorVersion === 2) {
     return {
       source: "sealed",
       historicalPulse: variant.kaiPulse,
       profile: variant.traits.birthProfile,
-      palette
+      palette,
+      morphology: variant.traits.birthProfile.morphology,
+      cadenceMs: variant.traits.birthProfile.motion.cadenceMs,
+      fingerprint: variant.traits.birthProfile.fingerprint
     };
   }
 
@@ -40,6 +69,9 @@ export function projectCardKaiAppearance(asset: PortableCardAsset): CardKaiAppea
     source: "recovered",
     historicalPulse: variant.kaiPulse,
     profile: { ...recovered, palette: { ...palette } },
-    palette
+    palette,
+    morphology: recovered.morphology,
+    cadenceMs: recovered.motion.cadenceMs,
+    fingerprint: recovered.fingerprint
   };
 }

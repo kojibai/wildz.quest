@@ -161,7 +161,7 @@ function ActiveCompanion({ state }: { state: PlayState }) {
   const appearance = useMemo(() => asset ? projectCardKaiAppearance(asset) : null, [asset]);
   return (
     <group name="active-companion-sealcub" position={[-1.08, 0.44, 0.42]} scale={0.82}>
-      <WildsCreatureActor accent={appearance?.palette.accent ?? card.accent} cadenceMs={appearance?.profile.motion.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} identityToken={appearance?.profile.fingerprint} morphology={appearance?.profile.morphology} pose="curious" primary={appearance?.palette.primary ?? card.color} />
+      <WildsCreatureActor accent={appearance?.palette.accent ?? card.accent} cadenceMs={appearance?.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} identityToken={appearance?.fingerprint} morphology={appearance?.morphology} pose="curious" primary={appearance?.palette.primary ?? card.color} />
       <mesh position={[0, -0.37, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.46, 0.035, 8, 36]} />
         <meshStandardMaterial color="#f4fff6" emissive="#7cdea5" emissiveIntensity={0.55} transparent opacity={0.92} />
@@ -184,11 +184,11 @@ function SupportCompanions({ cards }: { cards: readonly PortableCardAsset[] }) {
     {appearances.map(({ card, appearance }, index) => <group key={card.id} name={`trail-support-${index + 1}`} position={positions[index]} scale={index === 0 ? 0.62 : 0.54}>
       <WildsCreatureActor
         accent={appearance.palette.accent}
-        cadenceMs={appearance.profile.motion.cadenceMs}
+        cadenceMs={appearance.cadenceMs}
         familyId={card.manifest.familyId}
         formId={card.manifest.formId}
-        identityToken={appearance.profile.fingerprint}
-        morphology={appearance.profile.morphology}
+        identityToken={appearance.fingerprint}
+        morphology={appearance.morphology}
         pose={index === 0 ? "curious" : "idle"}
         primary={appearance.palette.primary}
       />
@@ -346,7 +346,17 @@ function StreamedTerrain({
   return <WildsEnvironment missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} />;
 }
 
-function Creature({ card, formId = `${card.id}-1`, pose = "idle" }: { card: CreatureCard; formId?: string; pose?: WildsCreaturePose }) {
+function Creature({
+  card,
+  formId = `${card.id}-1`,
+  pose = "idle",
+  identity
+}: {
+  card: CreatureCard;
+  formId?: string;
+  pose?: WildsCreaturePose;
+  identity?: Exclude<PlayState["encounter"], { phase: "idle" }>["discoveryIdentity"];
+}) {
   const groupRef = useRef<THREE.Group>(null);
 
   useFrame(() => {
@@ -358,7 +368,16 @@ function Creature({ card, formId = `${card.id}-1`, pose = "idle" }: { card: Crea
 
   return (
       <group ref={groupRef} position={[card.position[0], 0.42, card.position[2]]}>
-        <WildsCreatureActor accent={card.accent} familyId={card.id} formId={formId} pose={pose} primary={card.color} />
+        <WildsCreatureActor
+          accent={identity?.palette.accent.css ?? card.accent}
+          cadenceMs={identity?.motion.cadenceMs}
+          familyId={card.id}
+          formId={formId}
+          identityToken={identity?.visualFingerprint}
+          morphology={identity ? { head: identity.anatomy.head, torso: identity.anatomy.torso, limb: identity.anatomy.limb, symmetry: identity.anatomy.asymmetry } : undefined}
+          pose={pose}
+          primary={identity?.palette.primary.css ?? card.color}
+        />
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.34, 0]}>
           <torusGeometry args={[0.46, 0.035, 8, 36]} />
           <meshStandardMaterial
@@ -370,7 +389,7 @@ function Creature({ card, formId = `${card.id}-1`, pose = "idle" }: { card: Crea
           />
         </mesh>
         <Html center distanceFactor={8} position={[0, 0.82, 0]} className="wilds-world-label">
-          <span>{card.name}</span>
+          <span>{identity?.name.display ?? card.name}</span>
         </Html>
       </group>
   );
@@ -410,7 +429,7 @@ function EncounterSequence({ state }: { state: PlayState }) {
       <SearchPulse hint position={[0, 0, 0]} />
       <HabitatCover cover={encounter.cover} open={encounter.phase !== "emerging"} />
       <group scale={encounter.phase === "capsule" ? 0.68 : encounter.phase === "sealed" || encounter.phase === "revealed" ? 0.01 : 1}>
-        <Creature card={localCard} formId={encounter.formId} pose={pose} />
+        <Creature card={localCard} formId={encounter.formId} identity={encounter.discoveryIdentity} pose={pose} />
       </group>
       {state.battle && isBattleTelemetryPhase(state.encounter.phase) ? (
         <BattleWorldTelemetry

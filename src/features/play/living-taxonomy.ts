@@ -11,7 +11,18 @@ export type LivingCreatureIdentityV3 = {
   discovery: { location: { x: number; z: number }; kaiPulse: number; ark: KaiArkName; geometry: string; ownerScope: string };
   family: { id: string; name: string; emotionalPromise: string; silhouette: string; locomotion: string; namingDialect: string };
   species: { id: string; name: string; branch: string; ecology: string; forms: readonly [string, string, string] };
-  name: { given: string; epithet: string; display: string; collisionLane: number };
+  name: {
+    prefix: string;
+    suffix: string;
+    display: string;
+    collisionLane: number;
+  } | {
+    /** Compatibility shape for identities sealed before single-name discovery. */
+    given: string;
+    epithet: string;
+    display: string;
+    collisionLane: number;
+  };
   anatomy: {
     body: CreatureRenderRecipe["body"];
     detail: CreatureRenderRecipe["detail"];
@@ -127,11 +138,10 @@ function syllables(seed: string, offset: number, count: number) {
 function resolveName(seed: string, grammar: FamilyGrammar, occupiedNames: ReadonlySet<string>) {
   for (let collisionLane = 0; collisionLane < 64; collisionLane += 1) {
     const laneSeed = sha256PortableBasis(`${seed}:name:${collisionLane}`);
-    const given = `${pick(grammar.roots, laneSeed, 1)}${syllables(laneSeed, 5, 1)}`;
-    const epithetBody = syllables(laneSeed, 23, 2);
-    const epithet = epithetBody.replace(/^./, (letter) => letter.toUpperCase());
-    const display = `${given} ${epithet}`;
-    if (!occupiedNames.has(display.toLowerCase())) return { given, epithet, display, collisionLane };
+    const prefix = pick(grammar.roots, laneSeed, 1);
+    const suffix = syllables(laneSeed, 23, 2);
+    const display = `${prefix}${suffix}`;
+    if (!occupiedNames.has(display.toLowerCase())) return { prefix, suffix, display, collisionLane };
   }
   throw new Error("wilds_discovery_name_exhausted");
 }
@@ -197,8 +207,16 @@ export function validateLivingCreatureIdentity(identity: LivingCreatureIdentityV
   const errors: string[] = [];
   if (identity.version !== 3 || !identity.encounterId.trim()) errors.push("identity_header_invalid");
   if (!Number.isFinite(Date.parse(identity.discoveredAt)) || new Date(Date.parse(identity.discoveredAt)).toISOString() !== identity.discoveredAt) errors.push("discovery_time_invalid");
-  const words = identity.name.display.split(" ");
-  if (words.length !== 2 || words[0] !== identity.name.given || words[1] !== identity.name.epithet || !/^[A-Z][a-z]{2,4}$/.test(identity.name.given) || !/^[A-Z][a-z]{2,4}$/.test(identity.name.epithet)) errors.push("name_invalid");
+  const currentNameValid = "prefix" in identity.name
+    && identity.name.display === `${identity.name.prefix}${identity.name.suffix}`
+    && /^[A-Z][a-z]{1,6}$/.test(identity.name.display)
+    && /^[A-Z][a-z]{2}$/.test(identity.name.prefix)
+    && /^[a-z]{2,4}$/.test(identity.name.suffix);
+  const legacyNameValid = "given" in identity.name
+    && identity.name.display === `${identity.name.given} ${identity.name.epithet}`
+    && /^[A-Z][a-z]{2,4}$/.test(identity.name.given)
+    && /^[A-Z][a-z]{2,4}$/.test(identity.name.epithet);
+  if (!currentNameValid && !legacyNameValid) errors.push("name_invalid");
   if (!Number.isInteger(identity.name.collisionLane) || identity.name.collisionLane < 0 || identity.name.collisionLane > 63) errors.push("name_lane_invalid");
   if (identity.palette.primary.chroma < 48 || identity.palette.primary.lightness > 68 || identity.palette.primary.lightness < 28) errors.push("palette_primary_invalid");
   if (Object.values(identity.palette).some((color) => !/^hsl\(\d+ \d+% \d+%\)$/.test(color.css))) errors.push("palette_css_invalid");

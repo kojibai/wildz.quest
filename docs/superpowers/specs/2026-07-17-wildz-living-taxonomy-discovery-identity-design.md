@@ -9,7 +9,7 @@ The creature exists before ownership. Discovery seals its identity. Capture reco
 ## Product Rules
 
 - Discovery permanently seals the creature's real name and complete identity.
-- Every name is exactly two compact, pronounceable words.
+- Every name is one compact, pronounceable word of at most seven letters.
 - A sealed creature is never renamed by later Pulses, capture, evolution, trade, import, or multiplayer activity.
 - Each new discovery uses its own world facts and Kai Pulse to create a new individual.
 - Related creatures share recognizable inherited features.
@@ -57,7 +57,7 @@ Species generation must use compatibility tables and validation. It may not free
 
 The individual genome permanently seals:
 
-- two-word real name;
+- one discovery-time real name of at most seven letters;
 - exact family and species branch;
 - facial proportions and expression anchors;
 - body proportions, posture, appendage variants, and asymmetry;
@@ -103,7 +103,7 @@ Inputs include:
 - Kai Pulse, Ark, and geometry;
 - proof identity.
 
-The result must contain exactly two words. Each word must be easy to pronounce, visually compact, and bounded to eight letters. Names should sound related within a family without relying on a small repeated adjective/noun table.
+The result is one easy-to-pronounce name of at most seven letters. It combines a short family-coherent prefix with a moment-specific suffix, without appending repeated family or species words such as `Flowkin`.
 
 Uniqueness uses a deterministic registry keyed by the normalized complete name. If a collision exists, generation advances through additional digest lanes until it finds an unused valid name. The collision resolution is deterministic and bounded. Failure to resolve within the limit closes the discovery transaction without exposing an unstable creature.
 
@@ -132,7 +132,7 @@ Discovery executes deterministically:
 2. Select a compatible family.
 3. Generate a valid species branch from the family grammar.
 4. Generate the individual genome.
-5. Resolve and collision-check the two-word name.
+5. Resolve and collision-check the single discovery name.
 6. Validate anatomy, palette, pronounceability, uniqueness, and bounded traits.
 7. Seal the complete `LivingCreatureIdentity` and its digest.
 8. Publish the creature to the encounter state.
@@ -192,7 +192,7 @@ Automated coverage must prove:
 
 - large-scale family, species, genome, visual-fingerprint, and name uniqueness;
 - family resemblance plus measurable individual differentiation;
-- exact two-word and per-word length limits;
+- exact single-name seven-letter limit and prefix/suffix composition;
 - pronounceability rules across the generated corpus;
 - adjacent 5.236-second Pulses produce distinct new discoveries;
 - already discovered creatures retain their sealed names across later Pulses;

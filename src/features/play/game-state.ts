@@ -1025,7 +1025,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     }
     const encounter = encounterFromSearch(result, point, input.searchedAt, ownerScope, state.encounter, discoveryIdentity);
     const lastEvent = result.kind === "hit"
-      ? `Something is moving beneath the ${result.hotspot.cover}. Keep watching.`
+      ? `${discoveryIdentity?.name.display ?? "A living signal"} revealed itself beneath the ${result.hotspot.cover}. This is its permanent name.`
       : result.kind === "near_miss"
         ? `Signal ${encounter.proximity}${encounter.trend ? ` · ${encounter.trend}` : ""}. Follow the search clue.`
         : result.kind === "captured"

@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Discovery permanently seals the creature's real name and complete identity.
-- Every name is exactly two words and each word is at most eight letters.
+- Every newly discovered name is one pronounceable prefix/suffix word of at most seven letters.
 - A sealed creature is never renamed by later Pulses, capture, evolution, trade, import, or multiplayer activity.
 - Related creatures share family silhouette, locomotion, facial, palette, naming, ecological, and emotional anchors.
 - Canonical body colors must remain saturated and bounded away from white and near-white values.
@@ -167,8 +167,8 @@ test("living taxonomy creates compact unique family-coherent creatures", () => {
   assert.equal(new Set(identities.map((identity) => identity.name.display)).size, identities.length);
   assert.equal(new Set(identities.map((identity) => identity.identityDigest)).size, identities.length);
   for (const identity of identities) {
-    assert.equal(identity.name.display.split(" ").length, 2);
-    assert.ok(identity.name.display.split(" ").every((word) => /^[A-Z][a-z]{2,7}$/.test(word)));
+    assert.match(identity.name.display, /^[A-Z][a-z]{1,6}$/);
+    assert.equal(identity.name.display, `${identity.name.prefix}${identity.name.suffix}`);
     assert.equal(validateLivingCreatureIdentity(identity).ok, true);
     assert.ok(identity.palette.primary.lightness <= 68);
     assert.ok(identity.palette.primary.chroma >= 48);

@@ -25,10 +25,10 @@ test("living taxonomy creates compact unique family-coherent creatures", () => {
   assert.equal(new Set(identities.map((identity) => identity.name.display)).size, identities.length);
   assert.equal(new Set(identities.map((identity) => identity.identityDigest)).size, identities.length);
   for (const identity of identities) {
-    assert.equal(identity.name.display.split(" ").length, 2);
-    assert.ok(identity.name.display.split(" ").every((word) => /^[A-Z][a-z]{2,7}$/.test(word)), identity.name.display);
-    assert.ok(identity.name.given.length <= 5, identity.name.display);
-    assert.ok(identity.name.epithet.length <= 5, identity.name.display);
+    assert.match(identity.name.display, /^[A-Z][a-z]{1,6}$/);
+    assert.ok(identity.name.display.length <= 7, identity.name.display);
+    assert.ok("prefix" in identity.name);
+    if ("prefix" in identity.name) assert.equal(identity.name.display, `${identity.name.prefix}${identity.name.suffix}`);
     assert.equal(validateLivingCreatureIdentity(identity).ok, true);
     assert.equal(identity.identityDigest, livingCreatureIdentityDigest(identity));
     assert.ok(identity.palette.primary.lightness <= 68);

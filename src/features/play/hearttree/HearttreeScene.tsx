@@ -8,6 +8,7 @@ import { WildsCreatureActor } from "../WildsCreatureActor";
 import type { PortableCardAsset } from "../portable-card";
 import type { HearttreeExpeditionDefinition } from "./expedition-director";
 import type { HearttreeRuntimeState } from "./runtime";
+import { projectCardKaiAppearance } from "../card-kai-appearance";
 
 export function HearttreeScene({ cards, definition, reducedMotion, runtime }: { cards: readonly PortableCardAsset[]; definition: HearttreeExpeditionDefinition; reducedMotion: boolean; runtime: HearttreeRuntimeState }) {
   return <div className="hearttree-canvas" aria-label="Playable Hearttree expedition chamber">
@@ -32,6 +33,7 @@ export function HearttreeScene({ cards, definition, reducedMotion, runtime }: { 
 function HearttreeWorld({ cards, definition, reducedMotion, runtime }: { cards: readonly PortableCardAsset[]; definition: HearttreeExpeditionDefinition; reducedMotion: boolean; runtime: HearttreeRuntimeState }) {
   const activeCard = cards.find((card) => card.id === runtime.activeAssetId) ?? cards[0]!;
   const actor = runtime.cards[runtime.activeAssetId]!;
+  const appearance = useMemo(() => projectCardKaiAppearance(activeCard), [activeCard]);
   return <>
     <color attach="background" args={["#0b241c"]} />
     <fog attach="fog" args={["#0b241c", 13, 34]} />
@@ -48,11 +50,14 @@ function HearttreeWorld({ cards, definition, reducedMotion, runtime }: { cards: 
     {runtime.phase === "master" ? <RootMaster health={runtime.boss.health / runtime.boss.maxHealth} reducedMotion={reducedMotion} /> : null}
     <group position={[actor.position.x, 0, actor.position.z]} rotation={[0, Math.PI, 0]}>
       <WildsCreatureActor
-        accent={activeCard.manifest.variant.traits.palette.accent}
+        accent={appearance.palette.accent}
+        cadenceMs={appearance.cadenceMs}
         familyId={activeCard.manifest.familyId}
         formId={activeCard.manifest.formId}
+        identityToken={appearance.fingerprint}
+        morphology={appearance.morphology}
         pose={actor.health <= actor.maxHealth * 0.3 ? "weakened" : runtime.threatActive ? "attack" : "curious"}
-        primary={activeCard.manifest.variant.traits.palette.primary}
+        primary={appearance.palette.primary}
       />
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[0.48, 0.62, 36]} /><meshBasicMaterial color="#f6df75" transparent opacity={0.7} /></mesh>
     </group>

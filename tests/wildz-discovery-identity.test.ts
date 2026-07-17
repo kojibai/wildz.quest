@@ -22,7 +22,8 @@ describe("Wildz discovery-sealed identity", () => {
     assert.ok(identity);
     assert.equal(identity.encounterId, hotspot.id);
     assert.equal(validateLivingCreatureIdentity(identity).ok, true);
-    assert.equal(identity.name.display.split(" ").length, 2);
+    assert.match(identity.name.display, /^[A-Z][a-z]{1,6}$/);
+    assert.match(discovered.lastEvent, new RegExp(`^${identity.name.display} revealed itself`));
 
     const rediscovered = applyWildsInput(discovered, {
       type: "search-point",
