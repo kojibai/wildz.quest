@@ -76,7 +76,7 @@ export function WildsCommandCenter({ model, onAction }: {
 
     <header className="wilds-command-telemetry">
       <div><small>Kai Klok world coordinate</small><strong>{model.moment.latticeCoordinate}</strong></div>
-      <div className="wilds-command-eternal"><small>Eternal pulse</small><strong>KAI {model.moment.pulse.toLocaleString("en-US")}</strong></div>
+      <div className="wilds-command-eternal"><small>Eternal pulse</small><strong>☤ KAI {model.moment.pulse.toLocaleString("en-US")}</strong></div>
       <div className="wilds-command-calendar"><span>Y{model.moment.year}</span><span>M{model.moment.month}</span><span>D{model.moment.day}</span><span>W{model.moment.week}</span></div>
       <div className="wilds-command-chakra"><i aria-hidden="true" /><span><small>{model.moment.weekday}</small><strong>{model.moment.chakra} · {model.moment.gate}</strong></span></div>
       <span className="wilds-command-authority">{model.moment.authority === "local" ? "Local continuity" : "Shared world coordinate"} · {model.connection}</span>

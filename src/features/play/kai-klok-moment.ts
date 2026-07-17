@@ -121,7 +121,7 @@ export function deriveKaiKlokMoment(input: {
   const dayIndex = floorDivE(microPulses, KAI_N_DAY_MICRO);
   const weekday = WEEKDAYS[Number(modE(dayIndex, BigInt(WEEKDAYS.length)))]!;
   const chakra = DAY_TO_CHAKRA[weekday];
-  const year = safeInteger(floorDivE(dayIndex, BigInt(KAI_DAYS_PER_YEAR))) + 1;
+  const year = safeInteger(floorDivE(dayIndex, BigInt(KAI_DAYS_PER_YEAR)));
   const month = Number(modE(floorDivE(dayIndex, BigInt(KAI_DAYS_PER_MONTH)), BigInt(KAI_MONTHS_PER_YEAR))) + 1;
   const day = Number(modE(dayIndex, BigInt(KAI_DAYS_PER_MONTH))) + 1;
   const week = Math.floor((day - 1) / KAI_DAYS_PER_WEEK) + 1;

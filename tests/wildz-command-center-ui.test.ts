@@ -16,6 +16,7 @@ test("neural cockpit exposes the full Kai coordinate and consequence branches", 
     assert.match(source, new RegExp(token));
   }
   assert.match(source, /aria-live="polite"/);
+  assert.match(source, /☤ KAI \{model\.moment\.pulse/);
 });
 
 test("cockpit CSS breathes from Kai state and honors reduced motion", async () => {
