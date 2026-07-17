@@ -76,9 +76,9 @@ describe("Wildz discovery-sealed identity", () => {
     if (discovered.encounter.phase === "idle" || !discovered.encounter.discoveryIdentity || !discovered.encounter.formId) return;
     const identity = structuredClone(discovered.encounter.discoveryIdentity);
     identity.name = {
-      given: "Brina",
+      given: "Brikano",
       epithet: "Tanobaki",
-      display: "Brina Tanobaki",
+      display: "Brikano Tanobaki",
       collisionLane: 0
     };
     identity.identityDigest = livingCreatureIdentityDigest(identity);
@@ -90,7 +90,7 @@ describe("Wildz discovery-sealed identity", () => {
       ownerReceizId: discovered.encounter.ownerReceizId,
       capturedAt: "2026-07-17T12:00:08.000Z"
     });
-    assert.equal(sealed.manifest.name, "Brina Tanobaki");
+    assert.equal(sealed.manifest.name, "Brikano Tanobaki");
     assert.equal(verifyPortableCard(sealed).ok, true);
   });
 });

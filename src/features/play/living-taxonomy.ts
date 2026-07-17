@@ -226,7 +226,7 @@ export function validateLivingCreatureIdentity(identity: LivingCreatureIdentityV
       || (/^[A-Z][a-z]{2}$/.test(identity.name.prefix) && /^[a-z]{2,4}$/.test(identity.name.suffix)));
   const legacyNameValid = "given" in identity.name
     && identity.name.display === `${identity.name.given} ${identity.name.epithet}`
-    && /^[A-Z][a-z]{2,4}$/.test(identity.name.given)
+    && /^[A-Z][a-z]{2,7}$/.test(identity.name.given)
     && /^[A-Z][a-z]{2,7}$/.test(identity.name.epithet);
   if (!currentNameValid && !legacyNameValid) errors.push("name_invalid");
   if (!Number.isInteger(identity.name.collisionLane) || identity.name.collisionLane < 0 || identity.name.collisionLane > 63) errors.push("name_lane_invalid");

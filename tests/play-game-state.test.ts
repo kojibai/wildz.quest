@@ -14,6 +14,7 @@ import { nextGrowthRequirements } from "../src/features/play/growth-engine.js";
 import { canonicalPortableCardJson, evolvePortableCard, sealCollectedCard, verifyAnyWildsCard, verifyPortableCard } from "../src/features/play/portable-card.js";
 import { nearbyHiddenHotspots } from "../src/features/play/hidden-hotspots.js";
 import { isLivingCardAsset } from "../src/features/play/living-card-types.js";
+import { livingCreatureIdentityDigest } from "../src/features/play/living-taxonomy.js";
 import { createWildsCivicEvent } from "../src/features/play/wilds-civic-history.js";
 
 describe("Receiz Wilds game state", () => {
@@ -495,7 +496,7 @@ describe("Receiz Wilds game state", () => {
     }
   });
 
-  it("restores an incomplete automatic capture as a safe searchable encounter", () => {
+  it("reconstructs a missing discovery identity and completes capture after refresh", () => {
     const hotspot = nearbyHiddenHotspots(initialPlayState.player)[0]!;
     const envelope = JSON.parse(serializePlayState(initialPlayState));
     envelope.state.encounter = {
@@ -512,11 +513,16 @@ describe("Receiz Wilds game state", () => {
     };
 
     const restored = restorePlayState(JSON.stringify(envelope));
-    assert.equal(restored.encounter.phase, "searching");
-    assert.match(restored.lastEvent, /scan the same terrain/i);
+    assert.equal(restored.encounter.phase, "capsule");
+    assert.ok(restored.encounter.discoveryIdentity);
+
+    const sealed = applyWildsInput(restored, { type: "advance-encounter", at: "2026-07-17T12:00:08.000Z" });
+    assert.equal(sealed.encounter.phase, "sealed");
+    assert.equal(sealed.inventory.length, initialPlayState.inventory.length + 1);
+    assert.equal(verifyPortableCard(sealed.inventory.at(-1)!).ok, true);
   });
 
-  it("stops automatic capture retry when a discovery identity is unavailable", () => {
+  it("completes a runtime capture atomically when its discovery identity must be reconstructed", () => {
     const hotspot = nearbyHiddenHotspots(initialPlayState.player)[0]!;
     const broken: PlayState = {
       ...initialPlayState,
@@ -535,8 +541,44 @@ describe("Receiz Wilds game state", () => {
     };
 
     const recovered = applyWildsInput(broken, { type: "advance-encounter", at: "2026-07-17T12:00:08.000Z" });
-    assert.equal(recovered.encounter.phase, "searching");
-    assert.match(recovered.lastEvent, /scan the same terrain/i);
+    assert.equal(recovered.encounter.phase, "sealed");
+    assert.equal(recovered.inventory.length, initialPlayState.inventory.length + 1);
+    assert.equal(recovered.capturedHotspotIds.includes(hotspot.id), true);
+    assert.equal(verifyPortableCard(recovered.inventory.at(-1)!).ok, true);
+  });
+
+  it("restores and seals a first-generation permanent identity without renaming it", () => {
+    const hotspot = nearbyHiddenHotspots(initialPlayState.player)[0]!;
+    const discovered = applyWildsInput(initialPlayState, {
+      type: "search-point",
+      x: hotspot.position.x,
+      z: hotspot.position.z,
+      searchedAt: "2026-07-17T12:00:00.000Z",
+      ownerReceizId: "player.receiz.id"
+    });
+    assert.notEqual(discovered.encounter.phase, "idle");
+    if (discovered.encounter.phase === "idle" || !discovered.encounter.discoveryIdentity) return;
+    const historicalIdentity = structuredClone(discovered.encounter.discoveryIdentity);
+    historicalIdentity.name = {
+      given: "Brikano",
+      epithet: "Tanobaki",
+      display: "Brikano Tanobaki",
+      collisionLane: 0
+    };
+    historicalIdentity.identityDigest = livingCreatureIdentityDigest(historicalIdentity);
+    const capsule: PlayState = {
+      ...discovered,
+      encounter: { ...discovered.encounter, phase: "capsule", discoveryIdentity: historicalIdentity }
+    };
+
+    const restored = restorePlayState(serializePlayState(capsule));
+    assert.equal(restored.encounter.phase, "capsule");
+    assert.equal(restored.encounter.discoveryIdentity?.name.display, "Brikano Tanobaki");
+
+    const sealed = applyWildsInput(restored, { type: "advance-encounter", at: "2026-07-17T12:00:08.000Z" });
+    assert.equal(sealed.encounter.phase, "sealed");
+    assert.equal(sealed.inventory.at(-1)?.manifest.name, "Brikano Tanobaki");
+    assert.equal(verifyPortableCard(sealed.inventory.at(-1)!).ok, true);
   });
 
   it("migrates a v2 discovery save into sealed portable inventory", () => {

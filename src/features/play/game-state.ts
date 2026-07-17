@@ -514,10 +514,10 @@ export function restorePlayState(value: string | null | undefined, ownerReceizId
     const civicProjection = projectWildsCivicHistory(Array.isArray(saved.civicEvents) ? saved.civicEvents.slice(-2_048) : []);
     const ecologyProjection = projectWildsEcologyHistory(Array.isArray(saved.ecologyEvents) ? saved.ecologyEvents.slice(-2_048) : []);
     const raidProjection = projectWildsRaidHistory(Array.isArray(saved.raidEvents) ? saved.raidEvents.slice(-4_096) : []);
-    const restoredEncounter = restoreEncounter(saved.encounter);
-    const savedEncounterPhase = saved.encounter?.phase;
-    const captureWasPaused = (savedEncounterPhase === "emerging" || savedEncounterPhase === "capsule")
-      && restoredEncounter.phase === "searching";
+    const restoredEncounter = restoreEncounter(
+      saved.encounter,
+      new Set(migratedInventory.map((asset) => asset.manifest.name.toLowerCase()))
+    );
     const requestedSelectedAssetId = typeof saved.selectedAssetId === "string"
       ? migratedAssetIds.get(saved.selectedAssetId) ?? saved.selectedAssetId
       : "";
@@ -549,11 +549,7 @@ export function restorePlayState(value: string | null | undefined, ownerReceizId
       capturedHotspotIds: Array.isArray(saved.capturedHotspotIds)
         ? saved.capturedHotspotIds.filter((id): id is string => typeof id === "string")
         : [],
-      battle: captureWasPaused ? null : saved.battle ?? fallback.battle,
       encounter: restoredEncounter.phase === "sealed" ? { ...restoredEncounter, phase: "revealed" } : restoredEncounter,
-      lastEvent: captureWasPaused
-        ? "Capture paused safely. Scan the same terrain to resume this creature's permanent capture."
-        : saved.lastEvent ?? fallback.lastEvent,
       lastSearchPoint: saved.lastSearchPoint && typeof saved.lastSearchPoint.x === "number" && typeof saved.lastSearchPoint.z === "number"
         ? { x: saved.lastSearchPoint.x, z: saved.lastSearchPoint.z }
         : null,
@@ -599,7 +595,34 @@ export function restorePlayState(value: string | null | undefined, ownerReceizId
   }
 }
 
-function restoreEncounter(value: unknown): EncounterState {
+function reconstructEncounterDiscoveryIdentity(
+  encounter: {
+    hotspotId?: string;
+    formId?: string;
+    searchedAt: string;
+    searchPoint: { x: number; z: number };
+    ownerReceizId: string;
+  },
+  occupiedNames: ReadonlySet<string>
+) {
+  if (!encounter.hotspotId || !encounter.formId || !encounter.ownerReceizId.trim()) return undefined;
+  const form = creatureForm(encounter.formId);
+  if (!form) return undefined;
+  try {
+    return discoverLivingCreature({
+      encounterId: encounter.hotspotId,
+      form,
+      discoveredAt: encounter.searchedAt,
+      location: encounter.searchPoint,
+      ownerScope: encounter.ownerReceizId,
+      moment: deriveKaiKlokMoment({ occurredAt: encounter.searchedAt, authority: "world" })
+    }, occupiedNames);
+  } catch {
+    return undefined;
+  }
+}
+
+function restoreEncounter(value: unknown, occupiedNames: ReadonlySet<string> = new Set()): EncounterState {
   if (!value || typeof value !== "object") return idleEncounterState;
   const candidate = value as Record<string, unknown>;
   if (candidate.phase === "idle") return idleEncounterState;
@@ -618,10 +641,16 @@ function restoreEncounter(value: unknown): EncounterState {
       discoveryIdentity = undefined;
     }
   }
-  const phase = (candidate.phase === "emerging" || candidate.phase === "capsule") && !discoveryIdentity
-    ? "searching"
-    : candidate.phase;
-  return { ...candidate, phase, proximity, trend, discoveryIdentity } as EncounterState;
+  if (!discoveryIdentity && (candidate.phase === "emerging" || candidate.phase === "capsule")) {
+    discoveryIdentity = reconstructEncounterDiscoveryIdentity({
+      hotspotId: typeof candidate.hotspotId === "string" ? candidate.hotspotId : undefined,
+      formId: typeof candidate.formId === "string" ? candidate.formId : undefined,
+      searchedAt: candidate.searchedAt,
+      searchPoint: { x: point.x, z: point.z },
+      ownerReceizId: candidate.ownerReceizId
+    }, occupiedNames);
+  }
+  return { ...candidate, proximity, trend, discoveryIdentity } as EncounterState;
 }
 
 export function selectedCard(state: PlayState) {
@@ -1071,25 +1100,36 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       };
     }
     let sealed: PortableCardAsset;
-    const pauseCapture = () => ({
-      ...state,
-      battle: null,
-      encounter: { ...encounter, phase: "searching" as const },
-      lastEvent: `Capture paused safely. Scan the same terrain to resume ${encounter.discoveryIdentity?.name.display ?? "this creature"}'s permanent capture.`
-    });
-    if (!encounter.discoveryIdentity) return pauseCapture();
+    const discoveryIdentity = encounter.discoveryIdentity ?? reconstructEncounterDiscoveryIdentity(
+      encounter,
+      new Set(state.inventory.map((asset) => asset.manifest.name.toLowerCase()))
+    );
+    if (!discoveryIdentity) {
+      return { ...state, lastEvent: "Capture remains locked while its permanent identity is recovered." };
+    }
+    const capturedAt = new Date(Math.max(Date.parse(input.at), Date.parse(discoveryIdentity.discoveredAt))).toISOString();
     try {
       sealed = sealDiscoveredCard({
-        identity: encounter.discoveryIdentity,
+        identity: discoveryIdentity,
         formId: encounter.formId,
         ownerReceizId: encounter.ownerReceizId,
-        capturedAt: input.at,
+        capturedAt,
         battleTranscriptDigest: state.battle ? battleTranscriptDigest(state.battle) : undefined
       });
     } catch {
-      return pauseCapture();
+      return {
+        ...state,
+        encounter: { ...encounter, discoveryIdentity },
+        lastEvent: `Capture remains locked. ${discoveryIdentity.name.display} is still here while verification completes.`
+      };
     }
-    if (!verifyPortableCard(sealed).ok) return pauseCapture();
+    if (!verifyPortableCard(sealed).ok) {
+      return {
+        ...state,
+        encounter: { ...encounter, discoveryIdentity },
+        lastEvent: `Capture remains locked. ${discoveryIdentity.name.display} is still here while verification completes.`
+      };
+    }
     const nextDiscovered = Array.from(new Set([...state.discoveredCardIds, sealed.manifest.familyId]));
     return withWorldProgress(awardWorldMastery({
       ...state,
@@ -1098,7 +1138,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       capturedHotspotIds: [...state.capturedHotspotIds, encounter.hotspotId],
       combo: state.combo + 1,
       discoveredCardIds: nextDiscovered,
-      encounter: { ...encounter, phase: "sealed", assetId: sealed.id },
+      encounter: { ...encounter, phase: "sealed", assetId: sealed.id, discoveryIdentity },
       inventory: [...state.inventory, sealed],
       lastEvent: `${sealed.manifest.name} was captured and sealed as one portable card.`,
       level: nextDiscovered.length >= 3 ? Math.max(state.level, 8) : state.level,
