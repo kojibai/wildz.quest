@@ -1,5 +1,6 @@
 import { verifyAnyWildsCard, type PortableCardAsset } from "../../features/play/portable-card";
 import { WILDZ_PRODUCT } from "../wildz/product";
+import { restoreWildzPublicState } from "./wildz-public-state";
 
 export type WildzPublicCardReadAdapter = {
   readAppStateByUrl(url: string): Promise<unknown>;
@@ -12,6 +13,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function parseExactPublicAsset(value: unknown, assetId: string, depth = 0): PortableCardAsset | null {
   if (!isRecord(value) || depth > 8) return null;
+  const publicProjectionAsset = restoreWildzPublicState(value).cards[assetId];
+  if (publicProjectionAsset) return publicProjectionAsset;
   if (value.schema === "receiz.wilds_public_card.v1"
     && value.assetId === assetId
     && isRecord(value.asset)) {

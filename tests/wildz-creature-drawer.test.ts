@@ -4,6 +4,7 @@ import {
   creatureBookWindow,
   creatureDrawerMetrics,
   creatureDrawerMode,
+  creatureRailVirtualPadding,
   drawerHapticPattern,
   settleCreatureDrawer
 } from "../src/features/play/creature-drawer";
@@ -50,4 +51,19 @@ test("book windows remain valid for empty and out-of-range collections", () => {
   const window = creatureBookWindow(cards, 99, 1);
   assert.equal(window.page, 0);
   assert.deepEqual(window.visible, cards);
+});
+
+test("single-row drawer rail keeps the final card reachable with end breathing room", () => {
+  assert.deepEqual(creatureRailVirtualPadding(100, 92, 100, 184, 24), {
+    paddingInlineStart: "16928px",
+    paddingInlineEnd: "24px"
+  });
+  assert.deepEqual(creatureRailVirtualPadding(100, 0, 8, 184, 24), {
+    paddingInlineStart: "0px",
+    paddingInlineEnd: "16952px"
+  });
+  assert.deepEqual(creatureRailVirtualPadding(1, 0, 1, 184, 24), {
+    paddingInlineStart: "0px",
+    paddingInlineEnd: "24px"
+  });
 });

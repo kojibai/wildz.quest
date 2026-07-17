@@ -6,6 +6,7 @@ import { sortWildzCards, type WildzCardSort } from "./card-sort";
 import {
   creatureBookWindow,
   creatureDrawerMetrics,
+  creatureRailVirtualPadding,
   drawerHapticPattern,
   settleCreatureDrawer,
   type CreatureDrawerSnap
@@ -223,7 +224,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
 
   const windowedCards = sortedCards.slice(range.start, range.end);
   const windowStyle = mode === "preview"
-    ? { paddingInlineStart: `${range.start * RAIL_CARD_EXTENT}px`, paddingInlineEnd: `${Math.max(0, sortedCards.length - range.end) * RAIL_CARD_EXTENT}px` }
+    ? creatureRailVirtualPadding(sortedCards.length, range.start, range.end, RAIL_CARD_EXTENT)
     : undefined;
 
   return <section

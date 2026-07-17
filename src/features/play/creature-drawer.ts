@@ -48,6 +48,24 @@ export function drawerHapticPattern(previous: CreatureDrawerSnap, next: Creature
   return next === "expanded" ? [9, 28, 14] : [9];
 }
 
+export function creatureRailVirtualPadding(
+  totalItems: number,
+  start: number,
+  end: number,
+  itemExtent: number,
+  endGutter = 24
+) {
+  const safeTotal = Math.max(0, Math.trunc(Number.isFinite(totalItems) ? totalItems : 0));
+  const safeStart = clamp(Math.trunc(Number.isFinite(start) ? start : 0), 0, safeTotal);
+  const safeEnd = clamp(Math.trunc(Number.isFinite(end) ? end : safeStart), safeStart, safeTotal);
+  const safeExtent = Math.max(0, Number.isFinite(itemExtent) ? itemExtent : 0);
+  const safeGutter = Math.max(0, Number.isFinite(endGutter) ? endGutter : 0);
+  return {
+    paddingInlineStart: `${safeStart * safeExtent}px`,
+    paddingInlineEnd: `${Math.max(0, safeTotal - safeEnd) * safeExtent + (safeTotal > 0 ? safeGutter : 0)}px`
+  };
+}
+
 export type CreatureBookWindow<Item> = {
   page: number;
   pageSize: 8;
