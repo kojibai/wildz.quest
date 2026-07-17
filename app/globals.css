@@ -2456,6 +2456,7 @@ a {
 }
 
 .wilds-stage {
+  --wildz-stage-safe-top: env(safe-area-inset-top);
   position: relative;
   min-height: 486px;
   overflow: hidden;
@@ -2726,7 +2727,7 @@ a {
 
 .wilds-search-reticle {
   position: absolute;
-  top: 86px;
+  top: calc(86px + var(--wildz-stage-safe-top));
   left: 50%;
   z-index: 5;
   max-width: calc(100% - 32px);
@@ -2947,7 +2948,7 @@ a {
 .wilds-utility-cluster {
   position: absolute;
   z-index: 24;
-  top: 76px;
+  top: calc(122px + var(--wildz-stage-safe-top));
   left: 12px;
   display: flex;
   align-items: flex-start;
@@ -11113,7 +11114,7 @@ button.product-purchase-secondary-link {
 .wilds-card-back-scroll { display: grid; height: 100%; gap: 10px; padding: 16px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 
 /* Receiz Wilds shared-world multiplayer */
-.wilds-live-cluster { position: absolute; z-index: 24; top: 76px; right: 12px; display: flex; align-items: center; gap: 7px; }
+.wilds-live-cluster { position: absolute; z-index: 24; top: calc(122px + var(--wildz-stage-safe-top)); right: 12px; display: flex; align-items: center; gap: 7px; }
 .wilds-live-badge, .wilds-live-share { min-height: 30px; color: #effffa; border: 1px solid rgb(126 235 205 / 38%); background: rgb(3 20 27 / 84%); box-shadow: 0 8px 22px rgb(0 0 0 / 18%); backdrop-filter: blur(16px); }
 .wilds-live-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 6px; border-radius: 999px; }
 .wilds-live-badge i { width: 6px; height: 6px; border-radius: 50%; background: #f7c948; box-shadow: 0 0 0 3px rgb(247 201 72 / 14%); }
@@ -12705,7 +12706,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   .wilds-fusion-sheet { grid-template-columns: 1fr; }
   .wilds-inventory-toolbar { grid-template-columns: 1fr; }
   .wilds-inventory-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .wilds-capture-backdrop { align-items: start; padding: 10px; }
+  .wilds-capture-backdrop { align-items: start; padding: calc(10px + env(safe-area-inset-top)) 10px 10px; }
   .wilds-capture-dialog { gap: 9px; padding: 12px 14px; border-radius: 22px; }
   .wilds-capture-showcase { gap: 8px; }
   .wilds-capture-stage { min-height: 104px; }
@@ -12780,7 +12781,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 
 .wildz-player-capsule {
   position: absolute;
-  top: max(14px, env(safe-area-inset-top));
+  top: calc(14px + var(--wildz-stage-safe-top));
   left: max(14px, env(safe-area-inset-left));
   display: grid;
   grid-template-columns: 74px minmax(0, 1fr);
@@ -12821,7 +12822,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 
 .wildz-status-rail {
   position: absolute;
-  top: max(12px, env(safe-area-inset-top));
+  top: calc(12px + var(--wildz-stage-safe-top));
   right: max(12px, env(safe-area-inset-right));
   display: grid;
   width: min(25vw, 196px);
@@ -12855,7 +12856,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 
 .wildz-minimap {
   position: absolute;
-  top: clamp(170px, 22vh, 225px);
+  top: calc(clamp(170px, 22vh, 225px) + var(--wildz-stage-safe-top));
   right: max(14px, env(safe-area-inset-right));
   width: clamp(118px, 22vw, 180px);
   aspect-ratio: 1;
@@ -13038,7 +13039,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wildz-bottom-play-controls .wildz-context-button { position: relative; right: auto; bottom: auto; width: 48px; flex: 0 0 48px; }
 .wildz-play-control-rail .wildz-context-button { width: 100%; height: 40px; border-width: 1px; border-radius: 13px; box-shadow: inset 0 1px rgba(255,255,255,.06); }
 
-.wildz-app .wilds-search-reticle { top: 108px; display: block; padding: 9px 16px; border: 1px solid rgba(238, 202, 94, .58); border-radius: 999px; color: #223229; background: linear-gradient(180deg, rgba(255, 248, 191, .97), rgba(237, 221, 133, .94)); box-shadow: 0 10px 24px rgba(22, 41, 31, .2), inset 0 1px rgba(255,255,255,.7); font-size: 11px; letter-spacing: .02em; }
+.wildz-app .wilds-search-reticle { top: calc(108px + var(--wildz-stage-safe-top)); display: block; padding: 9px 16px; border: 1px solid rgba(238, 202, 94, .58); border-radius: 999px; color: #223229; background: linear-gradient(180deg, rgba(255, 248, 191, .97), rgba(237, 221, 133, .94)); box-shadow: 0 10px 24px rgba(22, 41, 31, .2), inset 0 1px rgba(255,255,255,.7); font-size: 11px; letter-spacing: .02em; }
 
 .wildz-social-actions,
 .wildz-social-deck .wilds-command-dock { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
@@ -13150,7 +13151,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-receiz-vault-grid article b { color: #e6d47f; font-size: 8px; text-transform: uppercase; }
 
 .wildz-event-toast { bottom: 10px; left: 14px; max-width: min(44vw, 360px); transform: none; }
-.wilds-utility-cluster { top: 106px; right: auto; bottom: auto; left: max(14px, env(safe-area-inset-left)); }
+.wilds-utility-cluster { top: calc(122px + var(--wildz-stage-safe-top)); right: auto; bottom: auto; left: max(14px, env(safe-area-inset-left)); }
 
 @media (max-width: 640px) {
   .wildz-player-capsule { grid-template-columns: 49px minmax(0, 1fr); width: min(53vw, 208px); min-width: 0; min-height: 52px; border-radius: 20px; }
@@ -13172,7 +13173,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   .wildz-mission-chip > span { display: none; }
   .wildz-mission-chip strong { font-size: 16px; line-height: 1; }
   .wildz-mission-chip small { margin-top: 3px; font-size: 6px; }
-  .wildz-minimap { top: 116px; width: 88px; border-width: 2px; box-shadow: 0 8px 20px rgba(18, 50, 39, .22); }
+  .wildz-minimap { top: calc(116px + var(--wildz-stage-safe-top)); width: 88px; border-width: 2px; box-shadow: 0 8px 20px rgba(18, 50, 39, .22); }
   .wildz-minimap-heading { font-size: 20px; }
   .wildz-minimap > b { right: 10%; padding: 2px 5px; font-size: 6px; }
   .wildz-context-button { right: 5vw; bottom: 17px; width: 62px; }
@@ -13211,11 +13212,11 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   .wilds-command-sheet-deck,
   .wilds-command-sheet-vault { right: 0; bottom: 0; left: 0; width: 100%; max-height: 84dvh; border-right: 0; border-bottom: 0; border-left: 0; border-radius: 26px 26px 0 0; padding-bottom: env(safe-area-inset-bottom); }
   .wildz-app .wilds-event-toast { right: 12px; bottom: 10px; left: 12px; display: block !important; max-width: none; padding: 8px 10px; border-radius: 10px; font-size: 10px; }
-  .wilds-live-cluster { top: 48px; right: 12px; bottom: auto; flex-direction: row; gap: 5px; }
+  .wilds-live-cluster { top: calc(86px + var(--wildz-stage-safe-top)); right: 12px; bottom: auto; flex-direction: row; gap: 5px; }
   .wilds-live-badge,
   .wilds-live-share { min-height: 28px; border-color: rgba(123, 224, 189, .3); background: linear-gradient(145deg, rgba(25, 50, 43, .9), rgba(10, 27, 24, .94)); box-shadow: 0 7px 18px rgba(6, 24, 19, .22), inset 0 1px rgba(255,255,255,.06); }
   .wilds-live-share { width: 28px; }
-  .wilds-utility-cluster { top: 92px; bottom: auto; left: 14px; }
+  .wilds-utility-cluster { top: calc(92px + var(--wildz-stage-safe-top)); bottom: auto; left: 14px; }
   .wildz-pwa-notice { top: 102px; bottom: auto; padding: 7px 9px; border-radius: 12px; font-size: 10px; }
   .wildz-pwa-notice button { min-height: 30px; }
 }

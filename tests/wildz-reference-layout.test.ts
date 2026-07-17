@@ -41,3 +41,21 @@ test("living-world pills form one visible lower-left vertical gameplay stack", (
   assert.doesNotMatch(css, /\.mobile-play-wrap \.wilds-living-world-hud\s*\{[^}]*flex-wrap:\s*wrap;/);
   assert.doesNotMatch(css, /\.wilds-living-world-hud\.has-event \.wilds-live-pill\[class\*="mode-"\]\s*\{[^}]*display:\s*none/);
 });
+
+test("installed PWA surface controls share the stage safe-area offset", () => {
+  const css = readFileSync("app/globals.css", "utf8");
+  assert.match(css, /\.wilds-stage\s*\{[^}]*--wildz-stage-safe-top:\s*env\(safe-area-inset-top\)/);
+  assert.match(css, /\.wildz-player-capsule\s*\{[^}]*top:\s*calc\(14px \+ var\(--wildz-stage-safe-top\)\)/);
+  assert.match(css, /\.wildz-status-rail\s*\{[^}]*top:\s*calc\(12px \+ var\(--wildz-stage-safe-top\)\)/);
+  assert.match(css, /\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(108px \+ var\(--wildz-stage-safe-top\)\)/);
+  assert.match(css, /\.wilds-live-cluster\s*\{[^}]*top:\s*calc\(122px \+ var\(--wildz-stage-safe-top\)\)/);
+  assert.match(css, /\.wilds-utility-cluster\s*\{[^}]*top:\s*calc\(122px \+ var\(--wildz-stage-safe-top\)\)/);
+  assert.match(css, /\.wilds-live-cluster\s*\{[^}]*top:\s*calc\(86px \+ var\(--wildz-stage-safe-top\)\)/);
+  assert.match(css, /\.wilds-utility-cluster\s*\{[^}]*top:\s*calc\(92px \+ var\(--wildz-stage-safe-top\)\)/);
+  assert.match(css, /\.wildz-minimap\s*\{[^}]*top:\s*calc\(116px \+ var\(--wildz-stage-safe-top\)\)/);
+});
+
+test("the caught-creature dialog starts below the installed PWA status area", () => {
+  const css = readFileSync("app/globals.css", "utf8");
+  assert.match(css, /\.wilds-capture-backdrop\s*\{[^}]*align-items:\s*start;[^}]*padding:\s*calc\(10px \+ env\(safe-area-inset-top\)\) 10px 10px;/);
+});
