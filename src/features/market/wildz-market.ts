@@ -77,6 +77,7 @@ export type WildzMarketEvent =
   | { type: "listing-cancelled"; listingId: string; actorId: string }
   | { type: "trade-admitted"; trade: WildzTradePlan }
   | { type: "trade-released"; tradeId: string; actorId: string; reason: "buyer_cancelled" | "reservation_expired" }
+  | { type: "bearer-claim-admitted"; asset: PortableCardAsset; receipt: WildzOwnershipReceipt }
   | { type: "settlement-admitted"; tradeId: string; receipt: WildzOwnershipReceipt };
 
 export type WildzMarketHead = {

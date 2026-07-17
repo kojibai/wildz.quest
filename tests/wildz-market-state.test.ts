@@ -107,6 +107,33 @@ test("settlement records ownership separately without rewriting the immutable ma
   assert.equal(state.receipts.at(-1)?.ownershipTransferred, true);
 });
 
+test("bearer card claims transfer active custody without a market listing", () => {
+  const listing = fixtureListing();
+  const manifestOwner = listing.asset.manifest.ownerReceizId;
+  const receipt: WildzOwnershipReceipt = {
+    schema: "receiz.wilds_ownership_receipt.v1",
+    assetId: listing.assetId,
+    proofDigest: listing.proofDigest,
+    previousOwnerReceizId: listing.sellerActorId,
+    ownerReceizId: "buyer",
+    transferId: "bearer:claim:one",
+    ledgerEventId: "bearer-ledger:claim:one",
+    proofBundle: { schema: "receiz.wilds_bearer_claim.v1", custody: "offline-bearer" },
+    transferredAt: SETTLED_AT
+  };
+
+  const state = advanceWildzMarketState(
+    emptyWildzMarketState(),
+    { type: "bearer-claim-admitted", asset: listing.asset, receipt },
+    { occurredAt: SETTLED_AT }
+  );
+
+  assert.equal(currentWildzOwner(state, listing.asset), "buyer");
+  assert.equal(state.ownership[listing.assetId]?.previousOwnerReceizId, listing.sellerActorId);
+  assert.equal(listing.asset.manifest.ownerReceizId, manifestOwner);
+  assert.equal(restoreWildzMarketState(state)?.ownership[listing.assetId]?.ownerReceizId, "buyer");
+});
+
 test("market restoration fails closed for oversized or malformed authority", () => {
   assert.equal(restoreWildzMarketState({ ...emptyWildzMarketState(), revision: -1 }), null);
   assert.equal(restoreWildzMarketState({ ...emptyWildzMarketState(), updatedAt: "today" }), null);

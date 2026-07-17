@@ -338,6 +338,21 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     await saveIdentityCard();
   };
 
+  const claimVerifiedImportedCards = useCallback(async (outcome: WildzUiArtifactRestore) => {
+    if (!proofSessionConnected || !outcome.verifiedAssetIds.length) return;
+    const verifiedIds = new Set(outcome.verifiedAssetIds);
+    const importedAssets = outcome.playState.inventory.filter((asset) => verifiedIds.has(asset.id));
+    await Promise.allSettled(importedAssets.map((asset) => fetch("/api/market/claims", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": `bearer-claim:${outcome.session.actorId}:${asset.id}:${asset.proof.digest.slice(7, 23)}`
+      },
+      body: JSON.stringify({ asset })
+    })));
+  }, [proofSessionConnected]);
+
   const restoreArtifact = useCallback(async (
     file: File,
     surface: "genesis" | "card-vault",
@@ -364,8 +379,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       publishedProfileRef.current = "";
     }
     acceptSnapshot(next);
+    void claimVerifiedImportedCards(outcome);
     return outcome;
-  }, [acceptSnapshot]);
+  }, [acceptSnapshot, claimVerifiedImportedCards]);
 
   const persistPlayState = useCallback((playState: PlayState, playerContinuity: NonNullable<WildzContinuitySnapshot["playerContinuity"]>) => {
     const current = continuityRef.current;

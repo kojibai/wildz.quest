@@ -74,6 +74,10 @@ function isProofBundle(value: unknown): value is JsonObject {
   return isRecord(value) && Object.keys(value).length > 0;
 }
 
+function isBearerClaimBundle(value: unknown) {
+  return isRecord(value) && value.schema === "receiz.wilds_bearer_claim.v1";
+}
+
 function validListing(value: unknown): value is WildzListing {
   if (!isRecord(value) || value.schema !== "wildz.listing.v2") return false;
   if (!isRecord(value.asset)) return false;
@@ -205,7 +209,11 @@ export function restoreWildzMarketState(value: unknown): WildzMarketState | null
   }
   for (const receipt of Object.values(ownership)) {
     const listing = Object.values(listings).find((candidate) => candidate.assetId === receipt.assetId);
-    if (!listing || listing.proofDigest !== receipt.proofDigest) return null;
+    if (listing) {
+      if (listing.proofDigest !== receipt.proofDigest) return null;
+    } else if (!isBearerClaimBundle(receipt.proofBundle)) {
+      return null;
+    }
   }
 
   return {
@@ -336,6 +344,21 @@ export function advanceWildzMarketState(
       ...nextBase(state, occurredAt),
       listings: { ...state.listings, [listing.id]: { ...listing, status: "active" } },
       trades
+    };
+  }
+
+  if (event.type === "bearer-claim-admitted") {
+    const { asset, receipt } = event;
+    if (!isRecord(asset) || !verifyAnyWildsCard(asset as PortableCardAsset).ok) throw new Error("market_bearer_claim_card_invalid");
+    if (!validOwnership(receipt)) throw new Error("market_ownership_receipt_invalid");
+    if (!isBearerClaimBundle(receipt.proofBundle)) throw new Error("market_bearer_claim_proof_invalid");
+    if (receipt.transferredAt !== occurredAt) throw new Error("market_bearer_claim_time_mismatch");
+    if (receipt.assetId !== asset.id || receipt.proofDigest !== asset.proof.digest) throw new Error("market_bearer_claim_asset_mismatch");
+    if (receipt.previousOwnerReceizId !== currentWildzOwner(state, asset)) throw new Error("market_bearer_claim_previous_owner_mismatch");
+    if (!state.ownership[receipt.assetId] && Object.keys(state.ownership).length >= MAX_OWNERSHIP) throw new Error("market_ownership_limit");
+    return {
+      ...nextBase(state, occurredAt),
+      ownership: { ...state.ownership, [receipt.assetId]: receipt }
     };
   }
 

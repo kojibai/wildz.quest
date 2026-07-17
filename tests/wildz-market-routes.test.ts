@@ -17,12 +17,26 @@ test("market remains embedded and every mutation trusts only the scoped cookie a
   assert.match(actorSource, /loadReceizConnectProfile/);
   assert.doesNotMatch(actorSource, /session\.accessToken|delegatedAccessToken|RECEIZ_ACCESS_TOKEN|RECEIZ_CONNECT_ACCESS_TOKEN/);
 
-  for (const route of ["listings", "trades", "offers", "checkout"]) {
+  for (const route of ["listings", "trades", "offers", "checkout", "claims"]) {
     const source = readFileSync(`app/api/market/${route}/route.ts`, "utf8");
     assert.match(source, /resolveWildzCookieActor/);
     assert.doesNotMatch(source, /body\.(actor|seller|buyer|owner|accessToken|recipientUserId|amount|price)/);
     assert.doesNotMatch(source, /session\.accessToken|process\.env\.RECEIZ_ACCESS_TOKEN/);
   }
+});
+
+test("bearer claim route admits uploaded cards through the global ownership rail", () => {
+  const route = readFileSync("app/api/market/claims/route.ts", "utf8");
+  const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
+
+  assert.match(route, /resolveWildzCookieActor/);
+  assert.match(route, /verifyAnyWildsCard/);
+  assert.match(route, /bearer-claim-admitted/);
+  assert.match(route, /compareAndAppend/);
+  assert.match(route, /receiz\.wilds_bearer_claim\.v1/);
+  assert.doesNotMatch(route, /body\.(actor|seller|buyer|owner|accessToken|recipientUserId)/);
+  assert.match(shell, /\/api\/market\/claims/);
+  assert.match(shell, /proofSessionConnected/);
 });
 
 test("listing admission requires an SDK-recovered public proof and exact request fields", () => {

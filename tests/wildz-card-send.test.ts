@@ -25,15 +25,15 @@ test("card send targets accept Receiz usernames and email addresses", () => {
   assert.equal(normalizeWildsCardSendTarget("bad target"), null);
 });
 
-test("card send draft carries the standalone card URL and a mailto handoff for email", () => {
+test("card send draft carries a bearer transfer package and a mailto handoff for email", () => {
   const asset = initialPlayState.inventory[0]!;
   const draft = createWildsCardSendDraft(asset, "collector@example.com", "https://wildz.quest");
 
   assert.equal(draft.target.kind, "email");
   assert.equal(draft.filename, `${asset.manifest.formId}.receized.png`);
   assert.match(draft.url, /^https:\/\/wildz\.quest\/cards\/wilds%3A[a-f0-9]{24}$/);
-  assert.match(draft.text, /verified Wildz card image/i);
-  assert.match(draft.text, /Upload or open the attached image/);
+  assert.match(draft.text, /bearer Wildz card transfer package/i);
+  assert.match(draft.text, /Claiming it admits active custody/i);
   assert.match(draft.href, /^mailto:collector%40example\.com\?/);
   assert.match(decodeURIComponent(draft.href), new RegExp(asset.id));
 });

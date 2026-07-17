@@ -113,8 +113,9 @@ export function createWildsCardSendDraft(
   const url = standaloneCardUrl(asset.id, origin);
   const title = `Wildz card: ${asset.manifest.name}`;
   const text = [
-    `${target.label}, here is a verified Wildz card image.`,
-    `Upload or open the attached image in Wildz or Receiz Commerce Wilds to claim/import the proof object.`,
+    `${target.label}, here is a bearer Wildz card transfer package.`,
+    `Upload or open the attached image in Wildz or Receiz Commerce Wilds to claim the proof object.`,
+    `Claiming it admits active custody to the claiming Receiz ID; keep the image private unless you want to transfer possession.`,
     `Standalone card link: ${url}`,
     `Card: ${asset.id}`
   ].join("\n");
