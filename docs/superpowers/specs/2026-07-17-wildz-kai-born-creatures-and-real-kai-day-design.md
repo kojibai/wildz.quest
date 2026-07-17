@@ -247,6 +247,24 @@ No external audio files are required. Existing synthesis primitives provide tone
 - World-expression failure falls back to the authored daytime biome atmosphere without mutating saved state.
 - Audio transition failure is nonfatal and silent.
 
+## Legacy Kai Continuity and Color Fidelity
+
+Existing v1 Wildz remain immutable proof objects. Their manifest, digest, generator version, name, species, stats, and original palette are never rewritten to imitate a v2 birth seal.
+
+At read and render time, a pure compatibility projection may recover the Kai moment from the card's verified `capturedAt`, use the existing sealed variant seed for deterministic individuality, and retain the card's stored `kaiPulse` as its historical pulse reference. This recovered projection supplies morphology, markings, motion cadence, geometry, emotional signals, and character traits without changing canonical card bytes.
+
+Palette precedence is:
+
+1. the current living genome palette, when the card has living revisions;
+2. the original sealed v1 variant palette;
+3. the authored catalog palette only when no verified asset is available.
+
+The compatibility projection must not replace legacy colors with newly derived v2 colors. Gameplay actors, card art, and thumbnails use the same authoritative palette source so a creature does not change color between surfaces.
+
+Because the real Kai night cycle intentionally lowers world light, creature materials retain a small bounded emissive color floor. This preserves readable body and accent color at night without adding point lights, draw calls, animation state, or per-frame React work.
+
+The card back labels this information as a “Recovered Birth Pulse,” keeps `birth.sealed` false, shows the recovered Cadueus KAI coordinate and geometry, and explicitly preserves original catalog balance. It must never claim that a v1 compatibility profile was part of the original sealed proof.
+
 ## Testing Strategy
 
 ### Unit contracts
@@ -271,6 +289,9 @@ No external audio files are required. Existing synthesis primitives provide tone
 - profile, trait, palette, stats, and digest splices fail closed
 - imported and evolved cards preserve their birth profile
 - current-world changes never mutate an existing card
+- v1 compatibility projection preserves the exact sealed palette and historical pulse reference
+- recovered Kai geometry is deterministic from capture time and the existing seed
+- v1 proof bytes and verification results remain unchanged after projection
 
 ### Render and integration
 
@@ -281,6 +302,9 @@ No external audio files are required. Existing synthesis primitives provide tone
 - beat and Ark transitions produce one tasteful effect
 - audio and reduced-motion preferences are honored
 - no relevant console errors, framework overlays, clipping, or interaction regressions
+- active and support gameplay companions use the current living palette for both v1 and v2 cards
+- legacy body and accent colors remain distinguishable at the darkest Kai night phase
+- legacy card backs show recovered moment geometry without claiming a sealed v2 profile
 
 ### Performance regression gates
 
@@ -294,7 +318,7 @@ No external audio files are required. Existing synthesis primitives provide tone
 ## Non-Goals
 
 - No permanent terrain or district topology mutation based on the current moment.
-- No invalidation or automatic upgrade of existing v1 cards.
+- No invalidation, byte mutation, or automatic proof upgrade of existing v1 cards; compatibility is a read-time projection only.
 - No real-money scarcity or stronger total stats for favorable moments.
 - No replacement of catalog creature identity or abilities.
 - No large cinematic interruption at beat or Ark boundaries.
