@@ -45,6 +45,8 @@ Visual vocabulary:
 - one dominant Now decision surrounded by quieter supporting systems;
 - asymmetric but disciplined cockpit geometry that feels engineered rather than card-stacked;
 - live points and line segments that illuminate only when their underlying state changes.
+- a dynamically derived phase palette that evolves with admitted state while preserving contrast and Wildz identity;
+- consequence echoes that remain faintly present after resolution so the cockpit carries memory without clutter.
 
 The sheet should create a “wow” first impression in the first viewport, but information remains legible within one glance. Decorative telemetry cannot imply data the game does not possess. Mobile uses the same nervous-system composition in a single vertical flow; it does not shrink a desktop control room into unreadable miniature panels.
 
@@ -68,6 +70,42 @@ Each candidate priority contains:
 Ranking is deterministic. Critical creature survival and unresolved battle consequences outrank expiring world events; active mission blockers outrank ordinary nearby opportunities; opportunities outrank informational state. Equal-priority candidates use stable category and id ordering so the UI never jitters between choices.
 
 The director never invents an action. If the existing domain layer cannot perform an action, the center reports the condition without rendering a false button.
+
+## Deterministic Neural State Machine
+
+The complete visual and interaction state is projected by a pure deterministic state machine. For an identical admitted gameplay snapshot and acknowledgement set, it always returns the same phase, priority order, neural branch topology, palette tokens, heartbeat timing, action availability, and consequence copy.
+
+Phases are semantic and mutually exclusive:
+
+- **steady** — exploration is stable; the system breathes in deep teal and living green;
+- **opportunity** — a meaningful action is available; gold energy enters the relevant branch;
+- **warning** — a mission, creature, battle, or world consequence needs attention; amber tightens the pulse;
+- **critical** — irreversible creature or battle consequence is near; bounded crimson becomes dominant and the Now branch takes visual precedence;
+- **resolving** — an admitted action is propagating through dependent projections; violet/white causal energy travels through changed branches before settling into the next derived phase;
+- **offline** — local continuity remains active while network-only branches become cool desaturated blue and explicitly unavailable.
+
+Inputs are existing domain facts only: living-card condition and lifecycle, battle state, mission progress, active world/ecology/boss state, multiplayer presence, connectivity, pending admitted operations, Vault custody/playability, and acknowledged priority revisions. Presentation time may advance a CSS animation within the selected phase, but it cannot select a phase, change rank, manufacture urgency, or change an action.
+
+Every transition has a named cause and a stable transition id derived from the causal state revision. Replaying history reproduces the same transition sequence. This lets the Command Center function as the visible brain of the deterministic game rather than a loosely synchronized dashboard.
+
+## Kai Klok Moment and Geometry
+
+The neural state machine consumes the canonical Kai Klok moment as a deterministic environmental input. The moment supplies pulse, beat, step index/progress, chakra state, chakra accent/hue, gate, and polygon geometry. Wildz must port the exact small canonical tables and calculations already used by Kai Klok rather than approximating the chakra colors or adding a runtime package.
+
+The moment controls the system's baseline expression:
+
+- chakra accent and hue establish the primary neural color field;
+- chakra polygon sides establish the stable branch geometry and node rhythm;
+- beat establishes the large cockpit cadence;
+- step index/progress establishes the current luminance position and secondary color movement;
+- the Kai gate supplies the moment's semantic world bias;
+- a sealed/admitted pulse makes replay reproduce the exact visual and tactical moment.
+
+Gameplay urgency modulates this baseline instead of replacing it. For example, a Heart moment remains Heart-colored while a critical creature condition introduces a bounded crimson threat current through the Squad-to-Now path. This preserves both the real moment and the real consequence.
+
+The moment may shape deterministic encounter presentation, opportunity weighting, environmental geometry, route emphasis, and non-economic world flavor. It cannot change proof validity, current bearer ownership, settlement, irreversible lifecycle rules, competitive damage formulas, or manufacture rewards. Any gameplay rule influenced by the moment must be explicit, replayable, tested, and identical for every player admitted to that same global moment.
+
+Online shared play uses the admitted Kai coordinate carried by the world snapshot/event cursor. Offline play derives a local Kai moment through the same canonical function and labels its authority as local. Reconnection replays admitted world events and reconciles the cockpit to global Kai state without rewriting already sealed offline history.
 
 ## Now
 
@@ -163,6 +201,8 @@ The implementation extends `WildsCommandDock` so an externally triggered command
 ### Unit and contract coverage
 
 - Priority ranking is deterministic across survival, battle, mission, world, multiplayer, and informational candidates.
+- Identical admitted snapshots reproduce the exact phase, palette, topology, tempo, transition id, actions, and priority order.
+- Every phase transition names a real causal revision; presentation time cannot change semantic state.
 - Critical creature survival always outranks non-critical opportunities.
 - Unsupported actions never appear as executable controls.
 - Acknowledgement changes emphasis without mutating gameplay history.
