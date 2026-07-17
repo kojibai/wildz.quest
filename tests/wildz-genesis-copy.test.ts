@@ -12,7 +12,7 @@ test("Genesis uses the automatic Receiz ID without an entry-page username form",
   assert.match(source, /className="wildz-genesis-tagline"/);
   assert.match(source, /className="wildz-genesis-subtext"/);
   assert.match(source, /className="wildz-genesis-powered"/);
-  assert.match(source, /href="https:\/\/receiz\.com"/);
+  assert.match(source, /href="https:\/\/receiz\.com\/wildz"/);
   assert.match(source, /target="_blank"/);
   assert.match(source, /rel="noopener noreferrer"/);
   assert.match(source, /src="\/brand\/powered-by-receiz\.svg"/);

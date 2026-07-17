@@ -89,7 +89,7 @@ export function WildzGenesis({
       {error ? <p className="wildz-genesis-error" role="status">{error}</p> : null}
       <a
         className="wildz-genesis-powered"
-        href="https://receiz.com"
+        href="https://receiz.com/wildz"
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Powered by Receiz"
