@@ -17,6 +17,15 @@ export type KaiWorldExpression = {
   geometrySides: number;
 };
 
+export type KaiTransitionKind = "beat" | "ark";
+
+export function kaiTransition(previous: KaiWorldExpression["transitionKey"] | null, next: KaiWorldExpression["transitionKey"]): KaiTransitionKind | null {
+  if (!previous) return null;
+  if (previous.ark !== next.ark || previous.day !== next.day) return "ark";
+  if (previous.beat !== next.beat) return "beat";
+  return null;
+}
+
 const PHASES = ["sunrise", "morning", "midday", "afternoon", "twilight", "night"] as const;
 const TARGETS = [
   { elevation: 0.03, intensity: 0.72, luminance: 0.62, fog: 0.026, hemisphere: 0.64, fill: 0.44, shadow: 0.42, particles: 0.34, sun: "#ffd0a2", sky: "#f1a47e" },

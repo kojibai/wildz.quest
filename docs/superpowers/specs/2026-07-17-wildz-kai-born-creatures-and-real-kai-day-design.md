@@ -89,7 +89,7 @@ The same inputs must always select the same result. Kai affinity may not invent 
 
 ## Kai-Born Visual Identity
 
-The catalog form remains the recognizable species foundation. The Kai profile layers individual identity onto it.
+The catalog form remains an invisible compatibility skeleton for habitat, combat, saves, and legacy cards—not a species ceiling. Each v2 Kai profile deterministically constructs its own named species lineage, three evolution expressions, ecology, morphology, and individual identity; the Field Guide presents these living lineages as an open-ended `∞` space.
 
 ### Palette
 

@@ -1,4 +1,7 @@
 import { creatureForm } from "./creature-catalog";
+import { deriveCardVariantV2, variantSeedFor } from "./card-variant";
+import { deriveKaiCreatureBirth } from "./kai-creature-birth";
+import { deriveKaiKlokMoment } from "./kai-klok-moment";
 import { deriveBirthGenome, genomeDigest, mergeLivingGenome, validateGenome } from "./heartbound-genome";
 import {
   canonicalPortableCardJson,
@@ -180,7 +183,7 @@ export function appendLivingCardRevision(input: { asset: LivingCardAsset; revisi
     stage: form.stage,
     cardNumber: form.cardNumber,
     name: revision.title,
-    species: form.species,
+    species: input.asset.manifest.variant.generatorVersion === 2 ? input.asset.manifest.variant.traits.birthProfile.species.display : form.species,
     rarity: form.rarity,
     foil: form.foil,
     stats: { ...revision.stats },
@@ -210,6 +213,40 @@ export function verifyLivingCard(asset: LivingCardAsset): PortableCardVerificati
   if (!manifest.ownerReceizId.trim()) errors.push("owner_required");
   if (!manifest.revisions.length || manifest.currentRevision !== manifest.revisions.length - 1) errors.push("current_revision_invalid");
   if (manifest.birth.legacyDigest !== null && !DIGEST.test(manifest.birth.legacyDigest)) errors.push("legacy_digest_invalid");
+  if (manifest.variant.generatorVersion === 2) {
+    try {
+      const form = creatureForm(manifest.birth.formId);
+      if (!form) throw new Error("birth_form_missing");
+      const expectedSeed = variantSeedFor({
+        formId: form.id,
+        encounterId: manifest.encounterId,
+        ownerReceizId: manifest.ownerReceizId,
+        capturedAt: manifest.capturedAt,
+        kaiPulse: manifest.variant.kaiPulse,
+        battleTranscriptDigest: manifest.variant.battleTranscriptDigest
+      }, 2);
+      const moment = deriveKaiKlokMoment({ occurredAt: manifest.capturedAt, authority: "admitted" });
+      const storedProfile = manifest.variant.traits.birthProfile;
+      const profile = deriveKaiCreatureBirth({
+        form,
+        moment,
+        seed: expectedSeed,
+        ...(manifest.lineage.parentAssetIds && storedProfile.lineage ? {
+          lineage: { parentIds: manifest.lineage.parentAssetIds, inheritedSignals: storedProfile.lineage.inheritedSignals }
+        } : {})
+      });
+      const traits = deriveCardVariantV2(expectedSeed, profile);
+      if (manifest.variant.seed !== expectedSeed) errors.push("variant_seed_mismatch");
+      if (manifest.variant.kaiPulse !== String(moment.pulse)) errors.push("kai_pulse_mismatch");
+      if (canonicalPortableCardJson(manifest.variant.traits) !== canonicalPortableCardJson(traits)) errors.push("variant_traits_mismatch");
+      if (manifest.variant.traitsDigest !== sha256PortableBasis(canonicalPortableCardJson(traits))) errors.push("variant_digest_mismatch");
+      if (canonicalPortableCardJson(manifest.revisions[0]?.stats) !== canonicalPortableCardJson(profile.adjustedStats)) errors.push("birth_stats_mismatch");
+      if (manifest.revisions[0]?.title !== profile.name.display) errors.push("birth_name_mismatch");
+      if (manifest.species !== profile.species.display) errors.push("birth_species_mismatch");
+    } catch {
+      errors.push("kai_birth_invalid");
+    }
+  }
   let genome = manifest.birthGenome;
   let previousDigest: string | null = null;
   manifest.revisions.forEach((revision, index) => {

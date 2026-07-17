@@ -18,6 +18,7 @@ import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
 
 const RAIL_CARD_EXTENT = 184;
+const RAIL_END_GUTTER = 40;
 
 function useStableEvent<Arguments extends unknown[]>(handler: (...args: Arguments) => void) {
   const handlerRef = useRef(handler);
@@ -260,8 +261,8 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   };
 
   const windowedCards = sortedCards.slice(range.start, range.end);
-  const windowStyle = mode === "preview"
-    ? creatureRailVirtualPadding(sortedCards.length, range.start, range.end, RAIL_CARD_EXTENT)
+  const windowStyle = mode !== "expanded"
+    ? creatureRailVirtualPadding(sortedCards.length, range.start, range.end, RAIL_CARD_EXTENT, 0)
     : undefined;
 
   return <section
@@ -338,6 +339,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
         style={windowStyle}
       >
         {windowedCards.map((card, index) => renderChoice(card, range.start + index))}
+        {sortedCards.length ? <span aria-hidden="true" className="wildz-creature-window-end" style={{ flexBasis: RAIL_END_GUTTER }} /> : null}
         {!sortedCards.length ? <p className="wildz-card-rail-empty">No sealed companions yet. Open Vault to restore one.</p> : null}
       </div>}
     </div>

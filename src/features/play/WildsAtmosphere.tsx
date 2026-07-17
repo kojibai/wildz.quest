@@ -7,30 +7,34 @@ import type { PlayState } from "@/features/play/game-state";
 import { projectWildsBiome } from "@/features/play/wilds-biome";
 import type { WildsQualityProfile } from "@/features/play/wilds-quality-profile";
 import { WILDS_TILE_SIZE } from "@/features/play/WildsEnvironment";
+import type { KaiWorldExpression } from "@/features/play/kai-moment-expression";
 
 export function WildsAtmosphere({
   encounter,
   missionProgress,
   player,
-  qualityProfile
+  qualityProfile,
+  expression
 }: {
   encounter: PlayState["encounter"];
   missionProgress: number;
   player: PlayState["player"];
   qualityProfile: WildsQualityProfile;
+  expression: KaiWorldExpression;
 }) {
   const tileX = Math.floor(player.x / WILDS_TILE_SIZE);
   const tileZ = Math.floor(player.z / WILDS_TILE_SIZE);
   const biome = useMemo(() => projectWildsBiome(tileX, tileZ, missionProgress), [missionProgress, tileX, tileZ]);
   const hot = encounter.phase === "hint" && encounter.proximity === "hot";
+  const sunPosition: [number, number, number] = [Math.cos(expression.sun.azimuth) * 8, Math.max(0.6, expression.sun.elevation * 9), Math.sin(expression.sun.azimuth) * 8];
   return (
     <group name={`verdant-atmosphere-${biome.weather}`}>
-      <hemisphereLight color="#c9f2ff" groundColor="#2d5a39" intensity={0.92 * biome.luminosity} />
+      <hemisphereLight color={expression.sky.tint} groundColor="#2d5a39" intensity={expression.lighting.hemisphere * biome.luminosity} />
       <directionalLight
         castShadow
-        color="#fff1c4"
-        intensity={1.5 * biome.luminosity}
-        position={[4.5, 8.5, 4.2]}
+        color={expression.sun.color}
+        intensity={expression.sun.intensity * biome.luminosity}
+        position={sunPosition}
         shadow-camera-bottom={-8}
         shadow-camera-left={-8}
         shadow-camera-right={8}
@@ -38,16 +42,16 @@ export function WildsAtmosphere({
         shadow-mapSize-height={qualityProfile.shadowMapSize}
         shadow-mapSize-width={qualityProfile.shadowMapSize}
       />
-      <directionalLight color="#8ff0d0" intensity={0.46} position={[-4, 3.6, -5]} />
-      <SunShafts strength={biome.weather === "sun-shower" ? 1 : 0.68} />
+      <directionalLight color={expression.accent} intensity={expression.lighting.fill} position={[-4, 3.6, -5]} />
+      <SunShafts color={expression.sun.color} strength={(biome.weather === "sun-shower" ? 1 : 0.68) * expression.sun.intensity} />
       <CanopyShadows />
-      <PollenDrift count={Math.max(10, Math.round(34 * qualityProfile.particles))} weather={biome.weather} />
+      <PollenDrift count={Math.max(10, Math.round(34 * qualityProfile.particles))} speed={expression.particles.speed} tint={expression.accent} weather={biome.weather} />
       {hot ? <FoliageSurge /> : null}
     </group>
   );
 }
 
-function SunShafts({ strength }: { strength: number }) {
+function SunShafts({ strength, color }: { strength: number; color: string }) {
   return (
     <group name="sun-shafts" position={[0, 2.8, -1.2]} rotation={[0, 0, -0.22]}>
       {[-1.8, -0.5, 0.9].map((x, index) => (
@@ -55,7 +59,7 @@ function SunShafts({ strength }: { strength: number }) {
           <planeGeometry args={[0.7 + index * 0.16, 7.5]} />
           <meshBasicMaterial
             blending={THREE.AdditiveBlending}
-            color="#fff4bf"
+            color={color}
             depthWrite={false}
             opacity={(0.035 + index * 0.012) * strength}
             side={THREE.DoubleSide}
@@ -80,7 +84,7 @@ function CanopyShadows() {
   );
 }
 
-function PollenDrift({ count, weather }: { count: number; weather: string }) {
+function PollenDrift({ count, weather, speed, tint }: { count: number; weather: string; speed: number; tint: string }) {
   const group = useRef<THREE.Group>(null);
   const motes = useMemo(() => Array.from({ length: count }, (_, index) => ({
     x: Math.sin(index * 91.7) * 5.6,
@@ -91,7 +95,7 @@ function PollenDrift({ count, weather }: { count: number; weather: string }) {
   useFrame(() => {
     if (!group.current) return;
     const elapsed = performance.now() / 1_000;
-    group.current.rotation.y = elapsed * (weather === "pollen-drift" ? 0.035 : 0.018);
+    group.current.rotation.y = elapsed * (weather === "pollen-drift" ? 0.035 : 0.018) * speed;
     group.current.position.y = Math.sin(elapsed * 0.55) * 0.08;
   });
   return (
@@ -99,7 +103,7 @@ function PollenDrift({ count, weather }: { count: number; weather: string }) {
       {motes.map((mote, index) => (
         <mesh key={index} position={[mote.x, mote.y, mote.z]} scale={mote.scale}>
           <octahedronGeometry args={[1, 0]} />
-          <meshBasicMaterial color={weather === "sun-shower" ? "#d8fbff" : "#ffe88c"} transparent opacity={0.72} />
+          <meshBasicMaterial color={weather === "sun-shower" ? "#d8fbff" : tint} transparent opacity={0.72} />
         </mesh>
       ))}
     </group>

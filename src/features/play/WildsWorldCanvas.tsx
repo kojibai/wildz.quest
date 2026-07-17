@@ -30,6 +30,7 @@ import { WildsBossEnvironment } from "@/features/play/WildsBossEnvironment";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import type { KaiKlokMoment } from "@/features/play/kai-klok-moment";
 import { projectKaiWorldExpression } from "@/features/play/kai-moment-expression";
+import { WildsKaiAtmosphereGeometry } from "@/features/play/WildsKaiAtmosphereGeometry";
 
 export function WildsWorldCanvas({
   state,
@@ -114,14 +115,16 @@ function WildsScene({
   const world = projectWorldProgression(state.worldMastery);
   const kaiExpression = projectKaiWorldExpression(kaiMoment);
   const kaiFog = useMemo(() => new THREE.Color(world.chapter.palette.fog)
+    .lerp(new THREE.Color(kaiExpression.sky.tint), 0.22 * kaiExpression.sky.luminance)
     .lerp(new THREE.Color(kaiExpression.accent), kaiExpression.atmosphericInfluence)
-    .getStyle(), [kaiExpression.accent, kaiExpression.atmosphericInfluence, world.chapter.palette.fog]);
+    .getStyle(), [kaiExpression.accent, kaiExpression.atmosphericInfluence, kaiExpression.sky.luminance, kaiExpression.sky.tint, world.chapter.palette.fog]);
   const worldSparkleCount = Math.round(54 * qualityProfile.particles);
   return (
     <>
       <color attach="background" args={[kaiFog]} />
-      <fog attach="fog" args={[kaiFog, 10, 24]} />
-      <WildsAtmosphere encounter={state.encounter} missionProgress={state.missionProgress} player={state.player} qualityProfile={qualityProfile} />
+      <fog attach="fog" args={[kaiFog, 8 + kaiExpression.sky.luminance * 3, 21 + (1 - kaiExpression.sky.fogDensity) * 4]} />
+      <WildsAtmosphere encounter={state.encounter} expression={kaiExpression} missionProgress={state.missionProgress} player={state.player} qualityProfile={qualityProfile} />
+      <WildsKaiAtmosphereGeometry expression={kaiExpression} qualityProfile={qualityProfile} />
       <CameraRig onCameraHeadingChange={onCameraHeadingChange} />
       <WildsDiagnostics qualityProfile={qualityProfile} state={state} />
       <SearchableTerrain
@@ -154,9 +157,10 @@ function ActiveCompanion({ state }: { state: PlayState }) {
   const card = selectedCard(state);
   const asset = state.inventory.find((candidate) => candidate.id === state.selectedAssetId);
   const formId = asset?.manifest.formId ?? `${card.id}-1`;
+  const birthProfile = asset?.manifest.variant.generatorVersion === 2 ? asset.manifest.variant.traits.birthProfile : null;
   return (
     <group name="active-companion-sealcub" position={[-1.08, 0.44, 0.42]} scale={0.82}>
-      <WildsCreatureActor accent={card.accent} familyId={card.id} formId={formId} pose="curious" primary={card.color} />
+      <WildsCreatureActor accent={asset?.manifest.variant.traits.palette.accent ?? card.accent} cadenceMs={birthProfile?.motion.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} identityToken={asset?.manifest.variant.traits.visualFingerprint} morphology={birthProfile?.morphology} pose="curious" primary={asset?.manifest.variant.traits.palette.primary ?? card.color} />
       <mesh position={[0, -0.37, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.46, 0.035, 8, 36]} />
         <meshStandardMaterial color="#f4fff6" emissive="#7cdea5" emissiveIntensity={0.55} transparent opacity={0.92} />
@@ -165,7 +169,7 @@ function ActiveCompanion({ state }: { state: PlayState }) {
         <BattleWorldTelemetry fighter={state.battle.player} position={[0, 1.9, 0]} side="player" />
       ) : (
         <Html center className="wilds-world-label" distanceFactor={8} position={[0, 0.96, 0]}>
-          <span>{card.name}</span>
+          <span>{asset?.manifest.name ?? card.name}</span>
         </Html>
       )}
     </group>
@@ -175,11 +179,16 @@ function ActiveCompanion({ state }: { state: PlayState }) {
 function SupportCompanions({ cards }: { cards: readonly PortableCardAsset[] }) {
   const positions: readonly [number, number, number][] = [[1.05, 0.34, 0.72], [1.62, 0.28, 1.34]];
   return <group name="trail-pack-support-companions">
-    {cards.slice(0, 2).map((card, index) => <group key={card.id} name={`trail-support-${index + 1}`} position={positions[index]} scale={index === 0 ? 0.62 : 0.54}>
+    {cards.slice(0, 2).map((card, index) => {
+      const birthProfile = card.manifest.variant.generatorVersion === 2 ? card.manifest.variant.traits.birthProfile : null;
+      return <group key={card.id} name={`trail-support-${index + 1}`} position={positions[index]} scale={index === 0 ? 0.62 : 0.54}>
       <WildsCreatureActor
         accent={card.manifest.variant.traits.palette.accent}
+        cadenceMs={birthProfile?.motion.cadenceMs}
         familyId={card.manifest.familyId}
         formId={card.manifest.formId}
+        identityToken={card.manifest.variant.traits.visualFingerprint}
+        morphology={birthProfile?.morphology}
         pose={index === 0 ? "curious" : "idle"}
         primary={card.manifest.variant.traits.palette.primary}
       />
@@ -187,7 +196,7 @@ function SupportCompanions({ cards }: { cards: readonly PortableCardAsset[] }) {
         <torusGeometry args={[0.4, 0.025, 8, 28]} />
         <meshStandardMaterial color="#dffcf0" emissive="#58c99d" emissiveIntensity={0.36} transparent opacity={0.72} />
       </mesh>
-    </group>)}
+    </group>})}
   </group>;
 }
 

@@ -33,6 +33,7 @@ import { WildsCommandDock, type WildsCommandItem, type WildsCommandKey } from "@
 import { WildsCommandCenter } from "@/features/play/command-center/WildsCommandCenter";
 import { projectWildsCommandCenter, type WildsCommandAction } from "@/features/play/command-center/director";
 import { deriveKaiKlokMoment, KAI_GENESIS_TS, millisecondsUntilNextKaiPulse } from "@/features/play/kai-klok-moment";
+import { kaiTransition, projectKaiWorldExpression, type KaiWorldExpression } from "@/features/play/kai-moment-expression";
 import { WildzCommandInsight } from "@/features/play/WildzCommandInsight";
 import { WildsWorldMap } from "@/features/play/WildsWorldMap";
 import { WildsLandmarkExperience } from "@/features/play/WildsLandmarkExperience";
@@ -162,6 +163,9 @@ export function PlayCampaign({
   const landmarkUnlocks = state.achievements;
   const activeProgress = state.companionProgress[activeCard.id] ?? { level: 1, xp: 0, bond: 0 };
   const discoveredByFamily = new Map(deckCards.map((card) => [card.manifest.familyId, card]));
+  const discoveredKaiLineages = new Set(deckCards.map((card) => card.manifest.variant.generatorVersion === 2
+    ? card.manifest.variant.traits.birthProfile.species.lineageKey
+    : `legacy:${card.manifest.familyId}`));
   const guideFamilies = [...creatureFamilies].sort((left, right) =>
     Number(discoveredByFamily.has(right.id)) - Number(discoveredByFamily.has(left.id)) || left.name.localeCompare(right.name)
   );
@@ -193,6 +197,11 @@ export function PlayCampaign({
     activeCard: activeAsset ?? null,
     cardAdmission
   });
+  const kaiMoment = deriveKaiKlokMoment({
+    occurredAt: kaiOccurredAt,
+    authority: livingWorld.mode === "receiz_live" ? "world" : "local"
+  });
+  const kaiExpression = projectKaiWorldExpression(kaiMoment);
   const audioScene = useMemo(() => {
     const biome = projectWildsBiome(
       Math.floor(state.player.x / 12),
@@ -209,7 +218,7 @@ export function PlayCampaign({
       districtId: activeLandmarkId === "wayfinder-hollow" ? activeDistrictId : null,
       landmark: activeLandmarkId === "arena-of-echoes" ? "mortal-arena" : undefined,
       weather: biome.weather,
-      time: "day",
+      time: kaiExpression.dayPhase === "night" ? "night" : "day",
       activity: battleActive ? "combat" : state.encounter.phase === "idle" ? "travel" : "discovery",
       threat: battleActive ? Math.max(.35, 1 - (state.battle?.wild.hpRatio ?? 1)) : encounterProximity === "hot" ? .55 : 0,
       combatPhase: !battleActive ? "none" : hpRatio <= .25 || (state.battle?.wild.hpRatio ?? 1) <= .25 ? "final" : state.battle!.turn <= 2 ? "opening" : "pressure",
@@ -217,7 +226,7 @@ export function PlayCampaign({
       memorial: false,
       reducedMotion
     });
-  }, [activeDistrictId, activeLandmarkId, reducedMotion, state.battle, state.encounter, state.missionProgress, state.player, state.worldMastery]);
+  }, [activeDistrictId, activeLandmarkId, kaiExpression.dayPhase, reducedMotion, state.battle, state.encounter, state.missionProgress, state.player, state.worldMastery]);
   const presentation = useWildsPresentation({
     audioScene,
     encounter: {
@@ -227,6 +236,17 @@ export function PlayCampaign({
     enabled: enabled && Boolean(avatarStyle),
     initialAudioSettings: initialPlayerContinuity?.settings.audio
   });
+  const previousKaiTransitionKey = useRef<KaiWorldExpression["transitionKey"] | null>(null);
+  const kaiDayKey = kaiExpression.transitionKey.day;
+  const kaiBeatKey = kaiExpression.transitionKey.beat;
+  const kaiArkKey = kaiExpression.transitionKey.ark;
+  const playPresentationCue = presentation.playCue;
+  useEffect(() => {
+    const next = { day: kaiDayKey, beat: kaiBeatKey, ark: kaiArkKey };
+    const kind = kaiTransition(previousKaiTransitionKey.current, next);
+    previousKaiTransitionKey.current = next;
+    if (kind) playPresentationCue(kind === "ark" ? "kai-ark" : "kai-beat");
+  }, [kaiArkKey, kaiBeatKey, kaiDayKey, playPresentationCue]);
   const trailSupportCards = useMemo(() => {
     const byId = new Map(deckCards.map((card) => [card.id, card]));
     return state.supportAssetIds
@@ -448,10 +468,6 @@ export function PlayCampaign({
     nearbyEcology ? `${nearbyEcology.site.name} is changing this region.` : null,
     livingWorld.snapshot?.defeatedBossIds.length ? `${livingWorld.snapshot.defeatedBossIds.length} shared victory ${livingWorld.snapshot.defeatedBossIds.length === 1 ? "monument stands" : "monuments stand"} in the world.` : null
   ].filter((message): message is string => Boolean(message));
-  const kaiMoment = deriveKaiKlokMoment({
-    occurredAt: kaiOccurredAt,
-    authority: livingWorld.mode === "receiz_live" ? "world" : "local"
-  });
   const activeCondition = activeAsset ? state.adventureConditions[activeAsset.id] : null;
   const commandModel = projectWildsCommandCenter({
     moment: kaiMoment,
@@ -659,16 +675,16 @@ export function PlayCampaign({
       key: "fieldGuide",
       label: "Field Guide",
       icon: <Icons.book size={21} />,
-      badge: `${discoveredByFamily.size}/${creatureFamilies.length} families`,
-      status: `${state.inventory.length} unique Kai-born · ${nextHabitat}`,
+      badge: `${discoveredKaiLineages.size}/∞`,
+      status: `${state.inventory.length} unique companions · ${nextHabitat}`,
       content: (
         <div className="wilds-command-content wilds-field-guide">
           <WildzCommandInsight label="Live discovery lead" value={nextHabitat} detail="Scan from your current trail position. The result changes the Guide, Vault, and explorer record together.">
             <button onClick={() => dispatch({ type: "search-point", x: state.player.x, z: state.player.z, searchedAt: new Date().toISOString(), ownerReceizId })} type="button">Pulse this trail</button>
           </WildzCommandInsight>
           <div className="wilds-command-content-lead">
-            <span><small>Species families</small><strong>{discoveredByFamily.size} of {creatureFamilies.length} families discovered</strong></span>
-            <b>{state.inventory.length} unique individuals</b>
+            <span><small>Living species lineages</small><strong>{discoveredKaiLineages.size} deterministic lineages encountered</strong></span>
+            <b>∞ possible</b>
           </div>
           <div className="wilds-field-guide-tip">
             <Icons.search aria-hidden="true" size={18} />
@@ -689,7 +705,7 @@ export function PlayCampaign({
               );
             })}
           </div>
-          <small className="wilds-field-guide-limit">250 families · 750 evolution forms · unbounded unique Kai-born individuals. Showing 24 nearby field signals.</small>
+          <small className="wilds-field-guide-limit">No species ceiling · every Kai lineage and evolution form is constructed live from deterministic birth geometry. Showing 24 nearby habitat signals.</small>
         </div>
       )
     },

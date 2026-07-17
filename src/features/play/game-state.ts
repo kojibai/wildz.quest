@@ -8,6 +8,8 @@ import {
 } from "./portable-card";
 import { encounterFromSearch, idleEncounterState, isCapturableEncounter, type EncounterState } from "./encounter-state";
 import { nearbyHiddenHotspots, searchHiddenHotspots } from "./hidden-hotspots";
+import { applyKaiAffinityToHotspot } from "./kai-encounter-affinity";
+import { deriveKaiKlokMoment } from "./kai-klok-moment";
 import { applyBattleAction, battleGrowthAwards, battleTranscriptDigest, startWildBattle, type BattleAction, type BattleState } from "./battle-engine";
 import type { FusionInheritance } from "./card-fusion";
 import { applyGrowthEvent, buildTransformationCandidate, growthReadiness, nextGrowthRequirements, type GrowthEvent } from "./growth-engine";
@@ -951,7 +953,10 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       x: clamp(input.x, worldBounds.min, worldBounds.max),
       z: clamp(input.z, worldBounds.min, worldBounds.max)
     };
-    const result = searchHiddenHotspots(nearbyHiddenHotspots(point), point, state.capturedHotspotIds);
+    const spatialResult = searchHiddenHotspots(nearbyHiddenHotspots(point), point, state.capturedHotspotIds);
+    const result = spatialResult.kind === "hit"
+      ? { ...spatialResult, hotspot: applyKaiAffinityToHotspot(spatialResult.hotspot, deriveKaiKlokMoment({ occurredAt: input.searchedAt, authority: "world" }), input.ownerReceizId.trim()) }
+      : spatialResult;
     const encounter = encounterFromSearch(result, point, input.searchedAt, input.ownerReceizId.trim(), state.encounter);
     const lastEvent = result.kind === "hit"
       ? `Something is moving beneath the ${result.hotspot.cover}. Keep watching.`

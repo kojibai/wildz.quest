@@ -12,7 +12,9 @@ test("Kai creature birth is deterministic, named, and conserves power", () => {
   const first = deriveKaiCreatureBirth({ form, moment, seed });
   const second = deriveKaiCreatureBirth({ form, moment, seed });
   assert.deepEqual(first, second);
-  assert.match(first.name.display, new RegExp(form.name.replace(/\s/g, ""), "i"));
+  assert.match(first.name.display, /[A-Za-z]{8,}/);
+  assert.match(first.species.lineageKey, /^kai-lineage:[a-f0-9]{32}$/);
+  assert.equal(first.species.forms.length, 3);
   assert.equal(first.cadueusKai, moment.coordinate);
   assert.equal(Object.values(first.statShift).reduce((sum, value) => sum + value, 0), 0);
   assert.equal(

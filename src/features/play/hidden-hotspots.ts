@@ -33,7 +33,7 @@ function seededUnit(x: number, z: number, salt: number) {
   return value - Math.floor(value);
 }
 
-function coverForHabitat(habitat: string, familyIndex: number): HotspotCover {
+export function coverForHabitat(habitat: string, familyIndex: number): HotspotCover {
   const value = habitat.toLowerCase();
   if (/water|tide|reef|river|marsh|lagoon|lake|rain/.test(value)) return "water";
   if (/cave|den|hollow|burrow|tunnel|underground/.test(value)) return "cave";

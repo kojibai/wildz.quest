@@ -24,6 +24,12 @@ const MOTIFS = ["square-root", "vesica", "radiant-triangle", "hexawave", "mirror
 const GESTURES = ["paw-wave", "ear-flick", "tail-heart", "wing-bow", "tiny-hop", "proud-nod"] as const;
 const POSTURES = ["gentle", "alert", "heroic", "playful", "watchful"] as const;
 const BUILDS = ["compact", "plush", "athletic", "long", "guardian", "armored", "winged", "serpentine"] as const;
+const SYLLABLES = ["ae", "ari", "bri", "cae", "dor", "eli", "fenn", "glo", "hal", "iri", "jor", "kai", "lum", "mora", "nyx", "ora", "prae", "quin", "rhy", "sol", "tur", "ura", "vel", "wyn", "xai", "yor", "zen"] as const;
+const SPECIES_FORMS: Record<KaiArkName, readonly [string, string, string]> = {
+  Ignite: ["Dawnling", "Flamewarden", "Rootcrown"], Integrate: ["Flowkin", "Heartweaver", "Riverhalo"],
+  Harmonize: ["Songling", "Wavecaller", "Choircrown"], Reflekt: ["Mirrorkin", "Echoseer", "Crystaloracle"],
+  Purify: ["Glimmerling", "Truthwarden", "Torussovereign"], Dream: ["Dreamkin", "Starretriever", "Merkabamemory"]
+};
 
 export type KaiCreatureBirthProfile = {
   version: 1;
@@ -52,6 +58,7 @@ export type KaiCreatureBirthProfile = {
   adjustedStats: CreatureStats;
   fingerprint: string;
   name: { given: string; epithet: string; display: string };
+  species: { lineageKey: string; family: string; forms: readonly [string, string, string]; display: string; ecology: string };
   lineage?: { parentIds: readonly [string, string]; inheritedSignals: readonly string[] };
 };
 
@@ -88,6 +95,10 @@ function canonicalLineage(lineage: { parentIds: readonly [string, string]; inher
   return { parentIds, inheritedSignals } as const;
 }
 
+function generatedWord(seed: string, offsets: readonly number[]) {
+  return offsets.map((offset) => pick(SYLLABLES, seed, offset)).join("").replace(/^./, (letter) => letter.toUpperCase());
+}
+
 export function deriveKaiCreatureBirth(input: {
   form: CreatureForm;
   moment: KaiKlokMoment;
@@ -100,7 +111,10 @@ export function deriveKaiCreatureBirth(input: {
   const traits = ARK_TRAITS[input.moment.ark];
   const arkNames = ARK_NAMES[input.moment.ark];
   const epithet = arkNames[(input.moment.sides + Math.floor(unit(input.seed, 8) * arkNames.length)) % arkNames.length]!;
-  const given = input.form.name.replace(/[^a-z0-9]/gi, "");
+  const family = generatedWord(input.seed, [1, 9, 17, 25]);
+  const personal = generatedWord(input.seed, [6, 14, 30]);
+  const speciesForms = SPECIES_FORMS[input.moment.ark];
+  const given = `${personal}${speciesForms[0]}`;
   const hue = Math.round((input.moment.hue * 0.62 + input.form.positionSeed * 0.19 + unit(input.seed, 2) * 72) % 360);
   const accentHue = Math.round((hue + 35 + input.moment.sides * 7) % 360);
   const glowHue = Math.round((input.moment.hue + 180 + unit(input.seed, 12) * 45) % 360);
@@ -152,6 +166,13 @@ export function deriveKaiCreatureBirth(input: {
     adjustedStats,
     fingerprint,
     name: { given, epithet, display: `${given} ${epithet}` },
+    species: {
+      lineageKey: `kai-lineage:${input.seed.slice(7, 39)}`,
+      family,
+      forms: speciesForms,
+      display: `${family} ${speciesForms[0]}`,
+      ecology: `${input.form.habitat} ${input.moment.ark.toLowerCase()}-expression`
+    },
     ...(lineage ? { lineage } : {})
   };
 }

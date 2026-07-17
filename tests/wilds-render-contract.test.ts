@@ -244,7 +244,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(source, /<WildsCommandDock items=\{commandItems\}/);
     for (const key of ["mission", "fieldGuide", "satchel", "deck", "vault"]) assert.match(source, new RegExp(`key: "${key}"`));
     assert.match(source, /badge: `\$\{state\.missionProgress\}%`/);
-    assert.match(source, /badge: `\$\{discoveredByFamily\.size\}\/\$\{creatureFamilies\.length\}`/);
+    assert.match(source, /badge: `\$\{discoveredKaiLineages\.size\}\/∞`/);
     assert.match(source, /badge: state\.beans/);
     assert.match(source, /badge: state\.inventory\.length/);
     assert.doesNotMatch(source, /<details className="wilds-mission-card">/);

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { canonicalPortableCardJson, sealCollectedCard, sha256PortableBasis, verifyPortableCard } from "../src/features/play/portable-card";
+import { admitLegacyCard, verifyLivingCard } from "../src/features/play/living-card-proof";
 
 const basis = {
   formId: "mintcub-1",
@@ -19,6 +20,18 @@ test("legacy v1 and Kai-born v2 cards verify independently", () => {
   if (born.manifest.variant.generatorVersion !== 2) assert.fail("expected v2 card");
   assert.equal(born.manifest.name, born.manifest.variant.traits.birthProfile.name.display);
   assert.deepEqual(born.manifest.stats, born.manifest.variant.traits.birthProfile.adjustedStats);
+});
+
+test("living admission retains semantic verification of its Kai birth", () => {
+  const born = sealCollectedCard({ ...basis, encounterId: "encounter:kai-living", generatorVersion: 2 });
+  const living = admitLegacyCard(born, basis.capturedAt);
+  assert.equal(verifyLivingCard(living).ok, true);
+  const tampered = structuredClone(living);
+  if (tampered.manifest.variant.generatorVersion !== 2) assert.fail("expected v2 card");
+  tampered.manifest.variant.traits.birthProfile.name.epithet = "Falseecho";
+  tampered.proof.digest = sha256PortableBasis(canonicalPortableCardJson(tampered.manifest));
+  assert.equal(verifyLivingCard(tampered).ok, false);
+  assert.ok(verifyLivingCard(tampered).errors.includes("variant_traits_mismatch"));
 });
 
 test("v2 proof fails closed after semantic mutation even with a recomputed envelope digest", () => {

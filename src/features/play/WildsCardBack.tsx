@@ -39,6 +39,17 @@ export function WildsCardBack({ asset, origin, qr }: { asset: PortableCardAsset;
           <p>{dossier.story}</p>
         </section>
 
+        <section className="wilds-card-back-birth">
+          <span>{dossier.birth.pulse}</span>
+          <h2>{dossier.birth.title}</h2>
+          <p>{dossier.birth.passage}</p>
+          <dl>
+            <div><dt>Cadueus KAI</dt><dd>{dossier.birth.cadueusKai}</dd></div>
+            <div><dt>Living geometry</dt><dd>{dossier.birth.geometry.length ? dossier.birth.geometry.join(" · ") : "Legacy profile"}</dd></div>
+            <div><dt>Balanced powers</dt><dd>{dossier.birth.statShift.length ? dossier.birth.statShift.join(" · ") : "Original catalog balance"}</dd></div>
+          </dl>
+        </section>
+
         <section>
           <h2>Personality</h2>
           <div className="wilds-dossier-tags">{dossier.personality.traits.map((trait) => <span key={trait}>{trait}</span>)}</div>

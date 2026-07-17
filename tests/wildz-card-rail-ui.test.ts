@@ -82,6 +82,16 @@ test("loaded 100-card preview rail coalesces scroll updates without render feedb
   assert.match(css, /\.wildz-creature-window\s*\{[^}]*touch-action:\s*pan-x/s);
 });
 
+test("the single-row rail is scroll-ready before opening and clears the final creature", () => {
+  const drawer = drawerSource();
+  const css = readFileSync("app/globals.css", "utf8");
+
+  assert.match(drawer, /const windowStyle = mode !== "expanded"/);
+  assert.match(drawer, /creatureRailVirtualPadding\(sortedCards\.length, range\.start, range\.end, RAIL_CARD_EXTENT, 0\)/);
+  assert.match(drawer, /className="wildz-creature-window-end"/);
+  assert.match(css, /\.wildz-creature-window-end\s*\{[^}]*flex:\s*0 0 40px/s);
+});
+
 test("inventory retains complete rarity newest and oldest owner preference", () => {
   const source = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
   const css = readFileSync("app/globals.css", "utf8");

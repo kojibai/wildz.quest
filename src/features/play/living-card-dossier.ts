@@ -8,6 +8,15 @@ import { canonicalPortableCardJson, verifyAnyWildsCard, type PortableCardAsset }
 
 export type LivingCardDossier = {
   story: string;
+  birth: {
+    sealed: boolean;
+    pulse: string;
+    cadueusKai: string;
+    title: string;
+    passage: string;
+    geometry: string[];
+    statShift: string[];
+  };
   personality: {
     motivations: string[];
     traits: string[];
@@ -107,15 +116,34 @@ export function projectLivingCardDossier(asset: PortableCardAsset, origin: strin
   const temperament = genome.face.expressionSet;
   const gesture = identity.behavior.gesture;
   const presentation = genome.presentation;
+  const birthProfile = asset.manifest.variant.generatorVersion === 2 ? asset.manifest.variant.traits.birthProfile : null;
   const powerEntries = Object.entries(asset.manifest.stats).sort((a, b) => b[1] - a[1]);
+  const birth = birthProfile ? {
+    sealed: true,
+    pulse: `Birth Pulse ${birthProfile.pulse}`,
+    cadueusKai: birthProfile.cadueusKai,
+    title: `${title(birthProfile.ark)}-born ${title(birthProfile.markings.topology)}`,
+    passage: `${asset.manifest.name} arrived carrying a ${birthProfile.characterTraits[0]} heart and the ${title(birthProfile.geometry.ark).toLowerCase()} in its silhouette. Its ${title(birthProfile.markings.topology).toLowerCase()} markings hold the feeling of ${birthProfile.emotionalSignals.map(title).join(", ")}; when it moves with a ${title(birthProfile.motion.gesture).toLowerCase()}, inherited possibility becomes its own unmistakable presence.`,
+    geometry: [birthProfile.geometry.day, birthProfile.geometry.week, birthProfile.geometry.month, birthProfile.geometry.ark, `${birthProfile.geometry.sides}-sided living motif`],
+    statShift: (Object.entries(birthProfile.statShift) as Array<[keyof CreatureStats, number]>).filter(([, value]) => value !== 0).map(([key, value]) => `${title(key)} ${value > 0 ? "+" : ""}${value}`)
+  } : {
+    sealed: false,
+    pulse: "Historical capture pulse",
+    cadueusKai: "Not sealed in this legacy generator",
+    title: "Legacy companion",
+    passage: `${asset.manifest.name} predates the Kai Birth Profile and retains its original verified character seal.`,
+    geometry: [],
+    statShift: []
+  };
   return {
     story: storyFor(asset, temperament, gesture),
+    birth,
     personality: {
       motivations: [
         identity.behavior.posture === "heroic" ? "Protect the path before asking for recognition." : "Understand new signals before deciding how to act.",
         growth.paths.legacy > 0 ? "Keep its lineage close and help descendants thrive." : "Build a bond strong enough to become a lasting lineage."
       ],
-      traits: [title(temperament), title(identity.behavior.posture), title(identity.behavior.gaze), title(genome.behavior.temperament)],
+      traits: birthProfile ? birthProfile.characterTraits.map(title) : [title(temperament), title(identity.behavior.posture), title(identity.behavior.gaze), title(genome.behavior.temperament)],
       habitat: `${form.habitat} · ${title(genome.anatomy.aura)} affinity`,
       bonding: [`Responds warmly to ${title(gesture).toLowerCase()} moments.`, "Builds trust through active travel, fair battles, and consistent care."],
       cautions: [identity.behavior.gaze === "shy" ? "Needs a calm approach after difficult encounters." : "Dislikes being rushed through a new habitat.", `Its ${title(identity.family.locomotion).toLowerCase()} body needs recovery after intense movement.`],

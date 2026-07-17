@@ -24,6 +24,8 @@ export type WildsAudioCue =
   | "reveal"
   | "evolve"
   | "lineage"
+  | "kai-beat"
+  | "kai-ark"
   | "player-arrival"
   | "weather-pollen"
   | "landmark-near"
@@ -137,6 +139,8 @@ const CUE_VOICES: Readonly<Record<WildsAudioCue, CueVoice>> = {
   reveal: { frequency: 520, endFrequency: 1_320, duration: 0.78, gain: 0.2, type: "triangle" },
   evolve: { frequency: 420, endFrequency: 1_480, duration: 1.1, gain: 0.2, type: "sine" },
   lineage: { frequency: 360, endFrequency: 1_040, duration: 1.15, gain: 0.18, type: "triangle" },
+  "kai-beat": { frequency: 392, endFrequency: 523, duration: 0.22, gain: 0.07, type: "sine" },
+  "kai-ark": { frequency: 261.63, endFrequency: 659.25, duration: 0.82, gain: 0.1, type: "triangle" },
   "player-arrival": { frequency: 490, endFrequency: 820, duration: 0.36, gain: 0.14, type: "sine" },
   "weather-pollen": { frequency: 310, endFrequency: 470, duration: 0.7, gain: 0.08, type: "sine" },
   "landmark-near": { frequency: 330, endFrequency: 880, duration: 0.72, gain: 0.14, type: "triangle" },
@@ -317,19 +321,23 @@ export function createWildsAudioRuntime(
       return;
     }
     const voice = CUE_VOICES[cue];
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    const now = context.currentTime;
-    const volume = Math.max(0.0001, voice.gain * settings.master * settings.effects);
-    oscillator.type = voice.type;
-    oscillator.frequency.setValueAtTime(voice.frequency, now);
-    oscillator.frequency.exponentialRampToValueAtTime(voice.endFrequency, now + voice.duration);
-    gain.gain.setValueAtTime(volume, now);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + voice.duration);
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start(now);
-    oscillator.stop(now + voice.duration);
+    const synth = (transpose = 1, delay = 0, gainScale = 1) => {
+      const oscillator = context!.createOscillator();
+      const gain = context!.createGain();
+      const now = context!.currentTime + delay;
+      const volume = Math.max(0.0001, voice.gain * gainScale * settings.master * settings.effects);
+      oscillator.type = voice.type;
+      oscillator.frequency.setValueAtTime(voice.frequency * transpose, now);
+      oscillator.frequency.exponentialRampToValueAtTime(voice.endFrequency * transpose, now + voice.duration);
+      gain.gain.setValueAtTime(volume, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + voice.duration);
+      oscillator.connect(gain);
+      gain.connect(context!.destination);
+      oscillator.start(now);
+      oscillator.stop(now + voice.duration);
+    };
+    synth();
+    if (cue === "kai-ark") synth(1.5, 0.075, 0.62);
   };
 
   const stopAmbience = () => {

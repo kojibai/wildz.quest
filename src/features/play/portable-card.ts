@@ -205,7 +205,7 @@ export function sealCollectedCard(input: {
     stage: form.stage,
     cardNumber: form.cardNumber,
     name: birthProfile?.name.display ?? displayCreatureName(form.id, form.name),
-    species: form.species,
+    species: birthProfile?.species.display ?? form.species,
     rarity: form.rarity,
     foil: form.foil,
     stats: { ...(birthProfile?.adjustedStats ?? form.stats) },
@@ -305,6 +305,7 @@ export function verifyPortableCard(asset: PortableCardAsset): PortableCardVerifi
         if (manifest.variant.kaiPulse !== String(moment.pulse)) errors.push("kai_pulse_mismatch");
         if (canonicalPortableCardJson(manifest.stats) !== canonicalPortableCardJson(profile.adjustedStats)) errors.push("stats_mismatch");
         if (manifest.name !== profile.name.display) errors.push("name_mismatch");
+        if (manifest.species !== profile.species.display) errors.push("species_mismatch");
         const catalogTotal = Object.values(form.stats).reduce((sum, value) => sum + value, 0);
         const manifestTotal = Object.values(manifest.stats).reduce((sum, value) => sum + value, 0);
         if (catalogTotal !== manifestTotal) errors.push("stats_total_mismatch");

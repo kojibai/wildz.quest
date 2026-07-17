@@ -18,12 +18,18 @@ export function WildsCreatureActor({
   familyId,
   primary,
   accent,
+  identityToken,
+  morphology,
+  cadenceMs,
   pose = "idle"
 }: {
   formId: string;
   familyId: string;
   primary: string;
   accent: string;
+  identityToken?: string;
+  morphology?: { head: number; torso: number; limb: number; symmetry: number };
+  cadenceMs?: number;
   pose?: WildsCreaturePose;
 }) {
   const root = useRef<THREE.Group>(null);
@@ -34,17 +40,22 @@ export function WildsCreatureActor({
   const body = form?.anatomy.body ?? "round";
   const detail = form?.anatomy.detail ?? "ears";
   const auraKind = form?.anatomy.aura ?? "prism";
-  const identity = useMemo(() => ({
-    width: 0.9 + identityNumber(formId, 11) * 0.32,
-    height: 0.88 + identityNumber(formId, 17) * 0.3,
-    head: 0.88 + identityNumber(formId, 23) * 0.24,
-    marking: identityNumber(formId, 31)
-  }), [formId]);
+  const identity = useMemo(() => {
+    const token = identityToken ?? formId;
+    return {
+      width: morphology?.torso ?? 0.9 + identityNumber(token, 11) * 0.32,
+      height: morphology?.limb ?? 0.88 + identityNumber(token, 17) * 0.3,
+      head: morphology?.head ?? 0.88 + identityNumber(token, 23) * 0.24,
+      marking: identityNumber(token, 31),
+      asymmetry: morphology?.symmetry ?? identityNumber(token, 37) * 0.18
+    };
+  }, [formId, identityToken, morphology?.head, morphology?.limb, morphology?.symmetry, morphology?.torso]);
 
   useFrame(() => {
     if (!root.current) return;
     const time = performance.now() / 1_000;
-    const breath = Math.sin(time * 2.1 + identity.marking * 4) * 0.025;
+    const cadence = cadenceMs ? Math.max(0.7, Math.min(3.4, 3_000 / cadenceMs)) : 2.1;
+    const breath = Math.sin(time * cadence + identity.marking * 4) * 0.025;
     const weakened = pose === "weakened";
     const impact = pose === "impact";
     const attack = pose === "attack";
@@ -71,7 +82,7 @@ export function WildsCreatureActor({
 
   return (
     <group name={`wilds-creature-${familyId}`} ref={root}>
-      <group name="wilds-creature-body">
+      <group name="wilds-creature-body" rotation={[0, 0, identity.asymmetry * 0.08]}>
         <mesh castShadow scale={bodyScale}>
           {body === "armored" ? <dodecahedronGeometry args={[0.4, 1]} /> : body === "serpentine" ? <capsuleGeometry args={[0.25, 0.62, 7, 12]} /> : <sphereGeometry args={[0.4, 22, 16]} />}
           <meshStandardMaterial color={primary} emissive={primary} emissiveIntensity={pose === "capture" ? 0.2 : 0.055} roughness={body === "armored" ? 0.78 : 0.6} />
