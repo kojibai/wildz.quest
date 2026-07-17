@@ -7,7 +7,7 @@ Make the Wildz entry page feel quietly alive while adding an official, tasteful 
 ## Composition
 
 - Keep the existing Wildz wordmark, message, and explorer actions as the primary hierarchy.
-- Replace the entry message with the exact single-line copy: “Catch living creatures shaped by the moment. Train, evolve, breed & carry them offline. No two Wildz are ever the same.” Keep it on one visual line across supported entry layouts by sizing it responsively rather than wrapping it into a second line.
+- Replace the entry message with the exact single-line copy: “Catch living creatures shaped by the moment. Train, evolve, breed & carry them anywhere. No two Wildz are ever the same.” Keep it on one visual line across supported entry layouts by sizing it responsively rather than wrapping it into a second line.
 - Add a centered “Powered by Receiz” link after all entry status content so it naturally occupies the bottom of the entry composition and never overlays a control.
 - Use Receiz’s official 116 × 32 badge artwork as a local asset. The whole surrounding link is the hit target, with an accessible name of “Powered by Receiz”.
 - Open Receiz in a new tab and include `rel="noopener noreferrer"`.
