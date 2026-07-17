@@ -7,12 +7,13 @@ import {
   type CreatureStage,
   type CreatureStats
 } from "./creature-catalog";
-import { deriveCardVariant, deriveCardVariantV2, displayCreatureName, variantSeedFor, type CardVariantTraits, type CardVariantTraitsV2 } from "./card-variant";
+import { deriveCardVariant, deriveCardVariantV2, deriveCardVariantV3, displayCreatureName, variantSeedFor, type CardVariantTraits, type CardVariantTraitsV2, type CardVariantTraitsV3 } from "./card-variant";
 import { deriveKaiCreatureBirth } from "./kai-creature-birth";
 import { deriveKaiKlokMoment } from "./kai-klok-moment";
 import { admitLegacyCard, appendLivingCardRevision, currentLivingGenome, currentRevision, verifyLivingCard } from "./living-card-proof";
 import { isLivingCardAsset, type LivingCardAsset } from "./living-card-types";
 import { deriveHeartboundPresentation } from "./heartbound-anime-genome";
+import { validateLivingCreatureIdentity, type LivingCreatureIdentityV3 } from "./living-taxonomy";
 
 export type PortableCardStatus = "sealed_local" | "verified" | "listed" | "suspended" | "revoked";
 
@@ -30,6 +31,13 @@ export type PortableCardVariant = {
   kaiPulse: string;
   battleTranscriptDigest: string;
   traits: CardVariantTraitsV2;
+} | {
+  generatorVersion: 3;
+  seed: string;
+  traitsDigest: string;
+  kaiPulse: string;
+  battleTranscriptDigest: string;
+  traits: CardVariantTraitsV3;
 };
 
 export type PortableCardManifest = {
@@ -258,6 +266,84 @@ export function sealCollectedCard(input: {
   };
 }
 
+export function sealDiscoveredCard(input: {
+  identity: LivingCreatureIdentityV3;
+  formId: string;
+  ownerReceizId: string;
+  capturedAt: string;
+  battleTranscriptDigest?: string;
+}): LegacyPortableCardAsset {
+  const form = creatureForm(input.formId);
+  const ownerReceizId = input.ownerReceizId.trim();
+  const identity = structuredClone(input.identity);
+  if (!form || form.stage !== 1) throw new Error("wilds_capture_base_form_required");
+  if (!ownerReceizId || ownerReceizId !== identity.discovery.ownerScope) throw new Error("wilds_discovery_owner_mismatch");
+  if (!validateLivingCreatureIdentity(identity).ok) throw new Error("wilds_discovery_identity_invalid");
+  if (identity.family.id !== form.familyId || identity.anatomy.body !== form.anatomy.body || identity.anatomy.detail !== form.anatomy.detail) throw new Error("wilds_discovery_form_mismatch");
+  const capturedAtMs = Date.parse(input.capturedAt);
+  if (!Number.isFinite(capturedAtMs) || capturedAtMs < Date.parse(identity.discoveredAt)) throw new Error("wilds_card_capture_time_invalid");
+  const battleTranscriptDigest = input.battleTranscriptDigest ?? "sha256:none";
+  const kaiPulse = String(identity.discovery.kaiPulse);
+  const variantBasis = {
+    formId: form.id,
+    encounterId: identity.encounterId,
+    ownerReceizId,
+    capturedAt: input.capturedAt,
+    kaiPulse,
+    battleTranscriptDigest
+  };
+  const seed = variantSeedFor(variantBasis, 3);
+  const traits = deriveCardVariantV3(seed, identity);
+  const assetId = assetIdFor({ ownerReceizId, formId: form.id, encounterId: identity.encounterId });
+  const manifest: PortableCardManifest = {
+    schema: "receiz.wilds_card_manifest.v1",
+    catalogVersion: CREATURE_CATALOG_VERSION,
+    assetId,
+    formId: form.id,
+    familyId: form.familyId,
+    stage: form.stage,
+    cardNumber: form.cardNumber,
+    name: identity.name.display,
+    species: identity.species.name,
+    rarity: form.rarity,
+    foil: form.foil,
+    stats: { ...form.stats },
+    abilityNames: [form.abilities[0].name, form.abilities[1].name],
+    ownerReceizId,
+    encounterId: identity.encounterId,
+    capturedAt: input.capturedAt,
+    variant: {
+      generatorVersion: 3,
+      seed,
+      traitsDigest: sha256PortableBasis(canonicalPortableCardJson(traits)),
+      kaiPulse,
+      battleTranscriptDigest,
+      traits
+    },
+    lineage: {
+      rootAssetId: assetId,
+      rootDigest: "self",
+      previousAssetId: null,
+      previousDigest: null,
+      evolvedAt: null
+    }
+  };
+  manifest.lineage.rootDigest = manifestDigest(manifest);
+  manifest.lineage.rootDigest = manifestDigest(manifest);
+  return {
+    id: assetId,
+    status: "sealed_local",
+    synchronizedAt: null,
+    manifest,
+    proof: {
+      kind: "receiz.wilds_local_seal.v1",
+      digest: manifestDigest(manifest),
+      canonicalization: "receiz.sorted-json.v1",
+      sealedAt: input.capturedAt
+    }
+  };
+}
+
 export function verifyPortableCard(asset: PortableCardAsset): PortableCardVerification {
   const errors: string[] = [];
   const manifest = asset.manifest;
@@ -273,7 +359,7 @@ export function verifyPortableCard(asset: PortableCardAsset): PortableCardVerifi
   }
   if (form && manifest.variant) {
     const version = manifest.variant.generatorVersion;
-    if (version !== 1 && version !== 2) {
+    if (version !== 1 && version !== 2 && version !== 3) {
       errors.push("variant_version_invalid");
       return { ok: false, errors };
     }
@@ -285,7 +371,7 @@ export function verifyPortableCard(asset: PortableCardAsset): PortableCardVerifi
       kaiPulse: manifest.variant.kaiPulse,
       battleTranscriptDigest: manifest.variant.battleTranscriptDigest
     }, version);
-    let expectedTraits: CardVariantTraits | CardVariantTraitsV2;
+    let expectedTraits: CardVariantTraits | CardVariantTraitsV2 | CardVariantTraitsV3;
     if (version === 2) {
       try {
         const moment = deriveKaiKlokMoment({ occurredAt: manifest.capturedAt, authority: "admitted" });
@@ -312,6 +398,21 @@ export function verifyPortableCard(asset: PortableCardAsset): PortableCardVerifi
       } catch {
         expectedTraits = manifest.variant.traits;
         errors.push("kai_birth_invalid");
+      }
+    } else if (version === 3) {
+      const identity = manifest.variant.traits.identity;
+      try {
+        if (!validateLivingCreatureIdentity(identity).ok) errors.push("discovery_identity_invalid");
+        if (identity.encounterId !== manifest.encounterId || identity.discovery.ownerScope !== manifest.ownerReceizId) errors.push("discovery_identity_mismatch");
+        if (identity.family.id !== form.familyId || identity.anatomy.body !== form.anatomy.body || identity.anatomy.detail !== form.anatomy.detail) errors.push("discovery_form_mismatch");
+        if (manifest.name !== identity.name.display || manifest.species !== identity.species.name) errors.push("discovery_name_mismatch");
+        if (manifest.variant.kaiPulse !== String(identity.discovery.kaiPulse)) errors.push("kai_pulse_mismatch");
+        if (Date.parse(manifest.capturedAt) < Date.parse(identity.discoveredAt)) errors.push("capture_before_discovery");
+        if (canonicalPortableCardJson(manifest.stats) !== canonicalPortableCardJson(form.stats)) errors.push("stats_mismatch");
+        expectedTraits = deriveCardVariantV3(expectedSeed, identity);
+      } catch {
+        expectedTraits = manifest.variant.traits;
+        errors.push("discovery_identity_invalid");
       }
     } else {
       expectedTraits = deriveCardVariant(expectedSeed, 1);
@@ -371,7 +472,9 @@ export function evolvePortableCard(input: {
   const nextStats = birthProfile
     ? Object.fromEntries(Object.entries(next.stats).map(([key, value]) => [key, value + birthProfile.statShift[key as keyof CreatureStats]])) as CreatureStats
     : { ...next.stats };
-  const nextTitle = birthProfile ? `${next.name.replace(/[^a-z0-9]/gi, "")} ${birthProfile.name.epithet}` : displayCreatureName(next.id, next.name);
+  const nextTitle = living.manifest.variant.generatorVersion === 3
+    ? living.manifest.variant.traits.identity.name.display
+    : birthProfile ? `${next.name.replace(/[^a-z0-9]/gi, "")} ${birthProfile.name.epithet}` : displayCreatureName(next.id, next.name);
   return appendLivingCardRevision({
     asset: living,
     revision: {

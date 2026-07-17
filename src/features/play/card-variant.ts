@@ -1,5 +1,6 @@
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import type { KaiCreatureBirthProfile } from "./kai-creature-birth";
+import type { LivingCreatureIdentityV3 } from "./living-taxonomy";
 
 export type CardVariantBasis = {
   formId: string;
@@ -28,6 +29,10 @@ export type CardVariantTraitsV2 = CardVariantTraits & {
   motion: KaiCreatureBirthProfile["motion"];
 };
 
+export type CardVariantTraitsV3 = CardVariantTraits & {
+  identity: LivingCreatureIdentityV3;
+};
+
 function unit(seed: string, offset: number) {
   const hex = seed.replace(/^sha256:/, "");
   const start = offset % (hex.length - 8);
@@ -39,8 +44,28 @@ function ranged(seed: string, offset: number, min: number, max: number, precisio
   return precision ? Number(value.toFixed(precision)) : Math.round(value);
 }
 
-export function variantSeedFor(basis: CardVariantBasis, generatorVersion: 1 | 2 = 1) {
+export function variantSeedFor(basis: CardVariantBasis, generatorVersion: 1 | 2 | 3 = 1) {
   return sha256PortableBasis(canonicalPortableCardJson({ generator: `receiz.wilds.variant.v${generatorVersion}`, ...basis }));
+}
+
+export function deriveCardVariantV3(seed: string, identity: LivingCreatureIdentityV3): CardVariantTraitsV3 {
+  if (!/^sha256:[a-f0-9]{64}$/.test(seed) || identity.version !== 3) throw new Error("wilds_variant_v3_seed_invalid");
+  const potential = 1 + (Number.parseInt(identity.identityDigest.slice(7, 15), 16) % 100);
+  return {
+    bodyScale: Number(((identity.anatomy.torso + identity.anatomy.limb) / 2).toFixed(3)),
+    auraIntensity: Number((0.42 + identity.markings.density * 0.62).toFixed(3)),
+    animationMs: identity.motion.cadenceMs,
+    potential,
+    statBias: 0,
+    abilityModifier: 0,
+    palette: {
+      primary: identity.palette.primary.css,
+      accent: identity.palette.accent.css,
+      glow: identity.palette.glow.css
+    },
+    visualFingerprint: identity.visualFingerprint,
+    identity: structuredClone(identity)
+  };
 }
 
 export function deriveCardVariantV2(seed: string, profile: KaiCreatureBirthProfile): CardVariantTraitsV2 {

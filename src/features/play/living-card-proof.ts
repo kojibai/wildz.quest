@@ -1,7 +1,8 @@
 import { creatureForm } from "./creature-catalog";
-import { deriveCardVariantV2, variantSeedFor } from "./card-variant";
+import { deriveCardVariantV2, deriveCardVariantV3, variantSeedFor } from "./card-variant";
 import { deriveKaiCreatureBirth } from "./kai-creature-birth";
 import { deriveKaiKlokMoment } from "./kai-klok-moment";
+import { validateLivingCreatureIdentity } from "./living-taxonomy";
 import { deriveBirthGenome, genomeDigest, mergeLivingGenome, validateGenome } from "./heartbound-genome";
 import {
   canonicalPortableCardJson,
@@ -183,7 +184,9 @@ export function appendLivingCardRevision(input: { asset: LivingCardAsset; revisi
     stage: form.stage,
     cardNumber: form.cardNumber,
     name: revision.title,
-    species: input.asset.manifest.variant.generatorVersion === 2 ? input.asset.manifest.variant.traits.birthProfile.species.display : form.species,
+    species: input.asset.manifest.variant.generatorVersion === 2
+      ? input.asset.manifest.variant.traits.birthProfile.species.display
+      : input.asset.manifest.variant.generatorVersion === 3 ? input.asset.manifest.variant.traits.identity.species.name : form.species,
     rarity: form.rarity,
     foil: form.foil,
     stats: { ...revision.stats },
@@ -245,6 +248,33 @@ export function verifyLivingCard(asset: LivingCardAsset): PortableCardVerificati
       if (manifest.species !== profile.species.display) errors.push("birth_species_mismatch");
     } catch {
       errors.push("kai_birth_invalid");
+    }
+  } else if (manifest.variant.generatorVersion === 3) {
+    try {
+      const form = creatureForm(manifest.birth.formId);
+      const identity = manifest.variant.traits.identity;
+      if (!form || !manifest.birth.legacyDigest) throw new Error("birth_basis_missing");
+      const expectedSeed = variantSeedFor({
+        formId: form.id,
+        encounterId: manifest.encounterId,
+        ownerReceizId: manifest.ownerReceizId,
+        capturedAt: manifest.capturedAt,
+        kaiPulse: manifest.variant.kaiPulse,
+        battleTranscriptDigest: manifest.variant.battleTranscriptDigest
+      }, 3);
+      const traits = deriveCardVariantV3(expectedSeed, identity);
+      if (!validateLivingCreatureIdentity(identity).ok) errors.push("discovery_identity_invalid");
+      if (identity.encounterId !== manifest.encounterId || identity.discovery.ownerScope !== manifest.ownerReceizId || identity.family.id !== form.familyId) errors.push("discovery_identity_mismatch");
+      if (manifest.variant.seed !== expectedSeed) errors.push("variant_seed_mismatch");
+      if (manifest.variant.kaiPulse !== String(identity.discovery.kaiPulse)) errors.push("kai_pulse_mismatch");
+      if (canonicalPortableCardJson(manifest.variant.traits) !== canonicalPortableCardJson(traits)) errors.push("variant_traits_mismatch");
+      if (manifest.variant.traitsDigest !== sha256PortableBasis(canonicalPortableCardJson(traits))) errors.push("variant_digest_mismatch");
+      if (manifest.revisions[0]?.title !== identity.name.display || manifest.name !== identity.name.display || manifest.species !== identity.species.name) errors.push("birth_name_mismatch");
+      if (canonicalPortableCardJson(manifest.revisions[0]?.stats) !== canonicalPortableCardJson(form.stats)) errors.push("birth_stats_mismatch");
+      const expectedGenome = deriveBirthGenome({ formId: form.id, proofDigest: manifest.birth.legacyDigest, variant: traits });
+      if (canonicalPortableCardJson(manifest.birthGenome) !== canonicalPortableCardJson(expectedGenome)) errors.push("birth_genome_mismatch");
+    } catch {
+      errors.push("discovery_birth_invalid");
     }
   }
   let genome = manifest.birthGenome;

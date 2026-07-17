@@ -1,6 +1,6 @@
 import { creatureForm } from "./creature-catalog";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
-import type { CardVariantTraits, CardVariantTraitsV2 } from "./card-variant";
+import type { CardVariantTraits, CardVariantTraitsV2, CardVariantTraitsV3 } from "./card-variant";
 import type { KaiCreatureBirthProfile } from "./kai-creature-birth";
 import type { GenomeTraitKey, GrowthPath, LivingCardGenome, TraitSource } from "./living-card-types";
 import { deriveHeartboundIdentity, identityForGenome, sealHeartboundIdentity, validateHeartboundIdentity } from "./heartbound-identity";
@@ -24,7 +24,7 @@ function bounded(value: number, min = 0.65, max = 1.45) {
   return Number(Math.max(min, Math.min(max, value)).toFixed(3));
 }
 
-export function deriveBirthGenome(input: { formId: string; proofDigest: string; variant: CardVariantTraits | CardVariantTraitsV2 }, options: { generatorVersion?: 1 | 2 | 3 } = {}): LivingCardGenome {
+export function deriveBirthGenome(input: { formId: string; proofDigest: string; variant: CardVariantTraits | CardVariantTraitsV2 | CardVariantTraitsV3 }, options: { generatorVersion?: 1 | 2 | 3 } = {}): LivingCardGenome {
   const form = creatureForm(input.formId);
   if (!form || !/^sha256:[a-f0-9]{64}$/.test(input.proofDigest)) throw new Error("wilds_genome_birth_invalid");
   const seed = sha256PortableBasis(canonicalPortableCardJson({ generator: "heartbound.v1", ...input }));
@@ -33,6 +33,7 @@ export function deriveBirthGenome(input: { formId: string; proofDigest: string; 
   const detail = form.anatomy.detail;
   const generatorVersion = options.generatorVersion ?? 3;
   const profile = "birthProfile" in input.variant ? input.variant.birthProfile : undefined;
+  const discoveredIdentity = "identity" in input.variant ? input.variant.identity : undefined;
   const baseIdentity = generatorVersion >= 2 ? deriveHeartboundIdentity(input.proofDigest, { familyId: form.familyId, locomotion, signatureDetail: detail }) : undefined;
   const identity = baseIdentity && profile ? sealHeartboundIdentity({
     ...baseIdentity,
@@ -46,9 +47,9 @@ export function deriveBirthGenome(input: { formId: string; proofDigest: string; 
     identityAnchor,
     skeleton: {
       locomotion,
-      head: profile?.morphology.head ?? bounded(0.92 + unit(seed, 2) * 0.28),
-      torso: profile?.morphology.torso ?? bounded(0.84 + unit(seed, 10) * 0.34),
-      limb: profile?.morphology.limb ?? bounded(0.82 + unit(seed, 18) * 0.38)
+      head: discoveredIdentity?.anatomy.head ?? profile?.morphology.head ?? bounded(0.92 + unit(seed, 2) * 0.28),
+      torso: discoveredIdentity?.anatomy.torso ?? profile?.morphology.torso ?? bounded(0.84 + unit(seed, 10) * 0.34),
+      limb: discoveredIdentity?.anatomy.limb ?? profile?.morphology.limb ?? bounded(0.82 + unit(seed, 18) * 0.38)
     },
     face: {
       identityAnchor,
@@ -63,9 +64,9 @@ export function deriveBirthGenome(input: { formId: string; proofDigest: string; 
       tail: detail === "tail" || locomotion === "quadruped" ? `emotion-tail-${choice(seed, 13, [1, 2, 3])}` : "none",
       crest: detail === "crest" ? `bond-crest-${choice(seed, 17, [1, 2, 3])}` : "none"
     },
-    surface: { kind: form.anatomy.body === "armored" ? "shell" : form.anatomy.body === "winged" ? "feather" : "fur", pattern: profile ? `${profile.markings.topology}-${profile.markings.motif}-${profile.morphology.signature}` : `mark-${seed.slice(-6)}` },
-    palette: { primary: input.variant.palette.primary, secondary: input.variant.palette.glow, accent: input.variant.palette.accent, glow: input.variant.palette.glow },
-    behavior: { temperament: profile?.characterTraits.join(" · ") ?? form.temperament, idleCadenceMs: input.variant.animationMs, signatureGesture: profile?.motion.gesture ?? `gesture-${seed.slice(7, 11)}`, battleStance: profile?.motion.posture ?? (locomotion === "quadruped" ? "pounce" : "heroic") },
+    surface: { kind: discoveredIdentity?.anatomy.surface ?? (form.anatomy.body === "armored" ? "shell" : form.anatomy.body === "winged" ? "feather" : "fur"), pattern: discoveredIdentity ? `${discoveredIdentity.markings.topology}-${discoveredIdentity.markings.motif}-${discoveredIdentity.visualFingerprint}` : profile ? `${profile.markings.topology}-${profile.markings.motif}-${profile.morphology.signature}` : `mark-${seed.slice(-6)}` },
+    palette: { primary: input.variant.palette.primary, secondary: discoveredIdentity?.palette.secondary.css ?? input.variant.palette.glow, accent: input.variant.palette.accent, glow: input.variant.palette.glow },
+    behavior: { temperament: discoveredIdentity ? `${discoveredIdentity.personality.temperament} · ${discoveredIdentity.personality.contrast}` : profile?.characterTraits.join(" · ") ?? form.temperament, idleCadenceMs: input.variant.animationMs, signatureGesture: discoveredIdentity?.motion.bondingGesture ?? profile?.motion.gesture ?? `gesture-${seed.slice(7, 11)}`, battleStance: discoveredIdentity?.motion.danger ?? profile?.motion.posture ?? (locomotion === "quadruped" ? "pounce" : "heroic") },
     auraProfile: { kind: form.anatomy.aura, intensity: input.variant.auraIntensity, particle: `pulse-${seed.slice(11, 15)}` },
     anatomy: { ...form.anatomy },
     variant: { ...input.variant, palette: { ...input.variant.palette } },

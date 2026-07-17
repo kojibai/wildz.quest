@@ -11,7 +11,7 @@ import {
 } from "../src/features/play/game-state";
 import { admitLegacyCard, currentRevision, emptyLivingGrowth } from "../src/features/play/living-card-proof.js";
 import { nextGrowthRequirements } from "../src/features/play/growth-engine.js";
-import { evolvePortableCard, sealCollectedCard, verifyAnyWildsCard, verifyPortableCard } from "../src/features/play/portable-card.js";
+import { canonicalPortableCardJson, evolvePortableCard, sealCollectedCard, verifyAnyWildsCard, verifyPortableCard } from "../src/features/play/portable-card.js";
 import { nearbyHiddenHotspots } from "../src/features/play/hidden-hotspots.js";
 import { isLivingCardAsset } from "../src/features/play/living-card-types.js";
 import { createWildsCivicEvent } from "../src/features/play/wilds-civic-history.js";
@@ -180,6 +180,8 @@ describe("Receiz Wilds game state", () => {
     });
 
     assert.equal(searched.encounter.phase, "battle_intro");
+    const discoveryIdentity = searched.encounter.discoveryIdentity;
+    assert.ok(discoveryIdentity);
     assert.equal(searched.inventory.length, initialPlayState.inventory.length);
     assert.equal(searched.livingProgress[leaderId]!.paths.exploration > initialPlayState.livingProgress[leaderId]!.paths.exploration, true);
 
@@ -202,6 +204,14 @@ describe("Receiz Wilds game state", () => {
     assert.equal(sealed.inventory.length, initialPlayState.inventory.length + 1);
     assert.equal(sealed.capturedHotspotIds.includes(hotspot.id), true);
     assert.equal(verifyPortableCard(sealed.inventory.at(-1)!).ok, true);
+    const captured = sealed.inventory.at(-1)!;
+    assert.equal(captured.manifest.variant.generatorVersion, 3);
+    if (captured.manifest.variant.generatorVersion === 3) {
+      assert.equal(
+        canonicalPortableCardJson(captured.manifest.variant.traits.identity),
+        canonicalPortableCardJson(discoveryIdentity)
+      );
+    }
 
     const revealed = applyWildsInput(sealed, { type: "advance-encounter", at: "2026-07-13T15:00:03.000Z" });
     assert.equal(revealed.encounter.phase, "revealed");

@@ -2,6 +2,7 @@ import { creatureFamilies, creatureForm, creatureForms, type CreatureRarity } fr
 import {
   evolvePortableCard,
   canonicalPortableCardJson,
+  sealDiscoveredCard,
   sealCollectedCard,
   sha256PortableBasis,
   verifyAnyWildsCard,
@@ -1055,13 +1056,13 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       };
     }
     let sealed: PortableCardAsset;
+    if (!encounter.discoveryIdentity) return { ...state, encounter: { ...encounter, phase: "emerging" }, lastEvent: "The capsule reopened because this creature's discovery identity was missing." };
     try {
-      sealed = sealCollectedCard({
+      sealed = sealDiscoveredCard({
+        identity: encounter.discoveryIdentity,
         formId: encounter.formId,
         ownerReceizId: encounter.ownerReceizId,
-        encounterId: encounter.hotspotId,
         capturedAt: input.at,
-        generatorVersion: 2,
         battleTranscriptDigest: state.battle ? battleTranscriptDigest(state.battle) : undefined
       });
     } catch {

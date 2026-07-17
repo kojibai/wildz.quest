@@ -27,6 +27,7 @@ test("living taxonomy creates compact unique family-coherent creatures", () => {
   for (const identity of identities) {
     assert.equal(identity.name.display.split(" ").length, 2);
     assert.ok(identity.name.display.split(" ").every((word) => /^[A-Z][a-z]{2,7}$/.test(word)), identity.name.display);
+    assert.ok(identity.name.given.length <= 5, identity.name.display);
     assert.equal(validateLivingCreatureIdentity(identity).ok, true);
     assert.equal(identity.identityDigest, livingCreatureIdentityDigest(identity));
     assert.ok(identity.palette.primary.lightness <= 68);

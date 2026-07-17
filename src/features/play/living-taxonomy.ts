@@ -127,7 +127,7 @@ function syllables(seed: string, offset: number, count: number) {
 function resolveName(seed: string, grammar: FamilyGrammar, occupiedNames: ReadonlySet<string>) {
   for (let collisionLane = 0; collisionLane < 64; collisionLane += 1) {
     const laneSeed = sha256PortableBasis(`${seed}:name:${collisionLane}`);
-    const given = `${pick(grammar.roots, laneSeed, 1)}${syllables(laneSeed, 5, 2)}`;
+    const given = `${pick(grammar.roots, laneSeed, 1)}${syllables(laneSeed, 5, 1)}`;
     const epithetBody = syllables(laneSeed, 23, 4);
     const epithet = epithetBody.replace(/^./, (letter) => letter.toUpperCase());
     const display = `${given} ${epithet}`;
@@ -198,7 +198,7 @@ export function validateLivingCreatureIdentity(identity: LivingCreatureIdentityV
   if (identity.version !== 3 || !identity.encounterId.trim()) errors.push("identity_header_invalid");
   if (!Number.isFinite(Date.parse(identity.discoveredAt)) || new Date(Date.parse(identity.discoveredAt)).toISOString() !== identity.discoveredAt) errors.push("discovery_time_invalid");
   const words = identity.name.display.split(" ");
-  if (words.length !== 2 || words[0] !== identity.name.given || words[1] !== identity.name.epithet || words.some((word) => !/^[A-Z][a-z]{2,7}$/.test(word))) errors.push("name_invalid");
+  if (words.length !== 2 || words[0] !== identity.name.given || words[1] !== identity.name.epithet || !/^[A-Z][a-z]{2,4}$/.test(identity.name.given) || !/^[A-Z][a-z]{2,7}$/.test(identity.name.epithet)) errors.push("name_invalid");
   if (!Number.isInteger(identity.name.collisionLane) || identity.name.collisionLane < 0 || identity.name.collisionLane > 63) errors.push("name_lane_invalid");
   if (identity.palette.primary.chroma < 48 || identity.palette.primary.lightness > 68 || identity.palette.primary.lightness < 28) errors.push("palette_primary_invalid");
   if (Object.values(identity.palette).some((color) => !/^hsl\(\d+ \d+% \d+%\)$/.test(color.css))) errors.push("palette_css_invalid");
