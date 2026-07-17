@@ -19,6 +19,8 @@ test("Genesis atmosphere stays lightweight, two-line, and motion-safe", () => {
   assert.match(css, /animation:\s*wildz-genesis-halo var\(--kai-pulse-duration\)/);
   assert.match(css, /animation:\s*wildz-genesis-seal var\(--kai-pulse-duration\)/);
   assert.match(css, /animation:\s*wildz-genesis-glint var\(--kai-pulse-duration\)/);
+  assert.match(css, /animation-delay:\s*calc\(var\(--kai-pulse-duration\) \* -\.22\)/);
+  assert.match(css, /@keyframes wildz-genesis-glint \{ 0%, 43% \{ opacity: 0;/);
   assert.match(css, /@keyframes wildz-genesis-aurora/);
   assert.match(css, /@keyframes wildz-genesis-geometry/);
   assert.match(css, /@keyframes wildz-genesis-halo/);

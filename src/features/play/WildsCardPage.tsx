@@ -7,24 +7,34 @@ import { useEffect, useMemo, useState } from "react";
 import { standaloneCardUrl } from "./card-export";
 import type { PortableCardAsset } from "./portable-card";
 import { WildsCardScene } from "./WildsCardScene";
+import type { PublicWildsCardRecord } from "./public-card-registry";
 
-export function WildsCardPage({ assetId }: { assetId: string }) {
-  const [asset, setAsset] = useState<PortableCardAsset | null>(null);
+export function WildsCardPage({ assetId, initialRecord = null }: { assetId: string; initialRecord?: PublicWildsCardRecord | null }) {
+  const initialAsset = initialRecord?.assetId === assetId ? initialRecord.asset : null;
+  const [asset, setAsset] = useState<PortableCardAsset | null>(initialAsset);
   const [tab, setTab] = useState<"Overview" | "Proof" | "Lineage" | "Offers">("Overview");
   const [qr, setQr] = useState("");
   const [origin, setOrigin] = useState("https://receiz.app");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialAsset);
   useEffect(() => {
-    const controller = new AbortController();
     setOrigin(window.location.origin);
     void QRCode.toDataURL(standaloneCardUrl(assetId, window.location.origin), { errorCorrectionLevel: "M", margin: 4, width: 160 }).then(setQr);
+  }, [assetId]);
+  useEffect(() => {
+    if (initialRecord?.assetId === assetId) {
+      setAsset(initialRecord.asset);
+      setLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setLoading(true);
     void fetch(`/api/cards/${encodeURIComponent(assetId)}`, { signal: controller.signal })
       .then(async (response) => response.ok ? await response.json() as { record?: { asset?: PortableCardAsset } } : null)
       .then((result) => setAsset(result?.record?.asset ?? null))
       .catch(() => undefined)
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [assetId]);
+  }, [assetId, initialRecord]);
   const detail = useMemo(() => {
     if (!asset) return "This proof-sealed card is not stored on this device yet.";
     if (tab === "Proof") return `${asset.proof.kind} · ${asset.proof.digest}`;

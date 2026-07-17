@@ -37,10 +37,18 @@ test("public card routes trust only the cookie actor and durable projection", ()
 
 test("public card recovery never reads private browser inventory", () => {
   const route = readFileSync("app/api/cards/[assetId]/route.ts", "utf8");
-  assert.match(route, /resolveSdkPublicWildzCard/);
+  const resolver = readFileSync("src/lib/receiz/wildz-public-card-resolver.ts", "utf8");
+  const serverPage = readFileSync("app/cards/[assetId]/page.tsx", "utf8");
+  assert.match(route, /resolvePublicWildsCardRecord/);
   assert.match(route, /requestOrigin\(request\)/);
+  assert.match(resolver, /createReceizWildzPublicRepository/);
+  assert.match(resolver, /resolveSdkPublicWildzCard/);
+  assert.match(resolver, /verifyAnyWildsCard/);
+  assert.match(serverPage, /resolvePublicWildsCardRecord/);
+  assert.match(serverPage, /initialRecord=\{initialRecord\}/);
   const page = readFileSync("src/features/play/WildsCardPage.tsx", "utf8");
   assert.doesNotMatch(page, /initialPlayState|restorePlayState|localStorage|receiz:wilds:save:v2/);
+  assert.match(page, /initialRecord\?\.assetId === assetId/);
   assert.match(page, /fetch\(`\/api\/cards\/\$\{encodeURIComponent\(assetId\)\}`/);
   const registry = readFileSync("src/features/play/public-card-registry.ts", "utf8");
   assert.doesNotMatch(registry, /identityProof|keyFile|passphrase|registryKey|Symbol\.for|resolveLocalPublicWildsCard/);

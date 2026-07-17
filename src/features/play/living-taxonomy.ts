@@ -88,6 +88,13 @@ const GRAMMARS: Record<string, FamilyGrammar> = {
 
 const CONSONANTS = ["b", "c", "d", "f", "g", "h", "j", "k", "l", "m", "n", "p", "r", "s", "t", "v"] as const;
 const VOWELS = ["a", "e", "i", "o"] as const;
+const NAME_CONSONANTS = ["b", "c", "d", "f", "g", "h", "j", "k", "l", "m", "n", "p", "r", "s", "t", "v", "w", "z"] as const;
+const NAME_VOWELS = ["a", "e", "i", "o", "u", "y"] as const;
+const NAME_PATTERNS = [
+  ["v", "c", "v", "c", "v"],
+  ["v", "c", "v", "v", "c"],
+  ["v", "v", "c", "v", "c"]
+] as const;
 const TEMPERAMENTS = ["brave", "gentle", "curious", "patient", "playful", "watchful", "tender", "spirited"] as const;
 const CONTRASTS = ["shy", "stubborn", "dreamy", "startled", "solemn", "mischievous", "cautious", "restless"] as const;
 const SOCIAL = ["one trusted companion", "a lively small pack", "quiet parallel company", "young creatures", "patient explorers", "the edge of a gathering"] as const;
@@ -135,11 +142,16 @@ function syllables(seed: string, offset: number, count: number) {
   return word;
 }
 
+function momentSuffix(seed: string) {
+  const pattern = pick(NAME_PATTERNS, seed, 5);
+  return pattern.map((kind, index) => pick(kind === "v" ? NAME_VOWELS : NAME_CONSONANTS, seed, 13 + index * 9)).join("");
+}
+
 function resolveName(seed: string, grammar: FamilyGrammar, occupiedNames: ReadonlySet<string>) {
   for (let collisionLane = 0; collisionLane < 64; collisionLane += 1) {
     const laneSeed = sha256PortableBasis(`${seed}:name:${collisionLane}`);
-    const prefix = pick(grammar.roots, laneSeed, 1);
-    const suffix = syllables(laneSeed, 23, 2);
+    const prefix = pick(grammar.roots, laneSeed, 1).slice(0, 2);
+    const suffix = momentSuffix(laneSeed);
     const display = `${prefix}${suffix}`;
     if (!occupiedNames.has(display.toLowerCase())) return { prefix, suffix, display, collisionLane };
   }
@@ -210,8 +222,8 @@ export function validateLivingCreatureIdentity(identity: LivingCreatureIdentityV
   const currentNameValid = "prefix" in identity.name
     && identity.name.display === `${identity.name.prefix}${identity.name.suffix}`
     && /^[A-Z][a-z]{1,6}$/.test(identity.name.display)
-    && /^[A-Z][a-z]{2}$/.test(identity.name.prefix)
-    && /^[a-z]{2,4}$/.test(identity.name.suffix);
+    && ((/^[A-Z][a-z]$/.test(identity.name.prefix) && /^[a-z]{5}$/.test(identity.name.suffix))
+      || (/^[A-Z][a-z]{2}$/.test(identity.name.prefix) && /^[a-z]{2,4}$/.test(identity.name.suffix)));
   const legacyNameValid = "given" in identity.name
     && identity.name.display === `${identity.name.given} ${identity.name.epithet}`
     && /^[A-Z][a-z]{2,4}$/.test(identity.name.given)

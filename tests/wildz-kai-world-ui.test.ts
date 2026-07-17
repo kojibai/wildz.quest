@@ -13,7 +13,7 @@ test("the 3D world consumes one shared Kai expression without recoloring authore
   assert.match(canvas, /projectCardKaiAppearance/);
   assert.match(canvas, /appearance\.palette\.primary/);
   assert.match(canvas, /appearance\.palette\.accent/);
-  assert.match(canvas, /appearance\.profile\.morphology/);
+  assert.match(canvas, /appearance\.morphology/);
   assert.match(atmosphere, /KaiWorldExpression/);
   assert.match(atmosphere, /expression\.sun/);
   assert.match(atmosphere, /expression\.lighting/);

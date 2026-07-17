@@ -71,6 +71,7 @@ import {
   deriveWildzVaultCardAdmission,
   type WildzVaultCardMembershipProof
 } from "@/lib/receiz/wildz-vault-card-admission";
+import { usePublicCardPublisher } from "@/features/play/use-public-card-publisher";
 
 function currentWildsQualityProfile() {
   if (typeof window === "undefined") {
@@ -160,6 +161,7 @@ export function PlayCampaign({
   const activeCard = selectedCard(state);
   const activeAsset = selectedAsset(state);
   const deckCards = state.inventory;
+  usePublicCardPublisher(deckCards, enabled && networkEnabled);
   const landmarkUnlocks = state.achievements;
   const activeProgress = state.companionProgress[activeCard.id] ?? { level: 1, xp: 0, bond: 0 };
   const discoveredByFamily = new Map(deckCards.map((card) => [card.manifest.familyId, card]));
