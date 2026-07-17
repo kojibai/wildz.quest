@@ -113,6 +113,7 @@ body {
 .wildz-genesis {
   align-content: center;
   gap: clamp(28px, 6vh, 64px);
+  isolation: isolate;
   overflow-y: auto;
   padding: max(70px, env(safe-area-inset-top)) max(22px, env(safe-area-inset-right)) max(30px, env(safe-area-inset-bottom)) max(22px, env(safe-area-inset-left));
 }
@@ -120,24 +121,68 @@ body {
 .wildz-genesis::before {
   position: absolute;
   inset: 0;
+  z-index: 0;
   content: "";
   pointer-events: none;
   opacity: .12;
   background-image: radial-gradient(circle, #e8d58a 1px, transparent 1px);
   background-size: 34px 34px;
   mask-image: linear-gradient(to bottom, transparent, #000 35%, transparent);
+  animation: wildz-genesis-geometry 18s ease-in-out infinite;
+  will-change: opacity, transform;
 }
 
-.wildz-genesis-brand,
-.wildz-genesis-actions {
+.wildz-genesis::after {
+  position: absolute;
+  inset: -18%;
+  z-index: 0;
+  content: "";
+  pointer-events: none;
+  opacity: .58;
+  background:
+    radial-gradient(ellipse at 72% 18%, rgba(176, 225, 144, .18), transparent 34%),
+    radial-gradient(ellipse at 24% 72%, rgba(57, 161, 120, .17), transparent 38%),
+    radial-gradient(ellipse at 52% 52%, rgba(232, 213, 138, .07), transparent 31%);
+  filter: blur(12px);
+  animation: wildz-genesis-aurora 16s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+.wildz-genesis-brand {
   position: relative;
   z-index: 1;
-  width: min(100%, 560px);
+  width: min(100%, 940px);
 }
 
+.wildz-genesis-actions { position: relative; z-index: 1; width: min(100%, 560px); }
 .wildz-genesis-brand { display: grid; justify-items: center; gap: 18px; text-align: center; }
-.wildz-genesis-brand img { width: min(64vw, 240px); height: auto; }
-.wildz-genesis-brand p { width: 100%; margin: 0; color: rgba(248, 245, 233, .7); font-size: clamp(10px, 2.85vw, 17px); line-height: 1.5; white-space: nowrap; }
+.wildz-genesis-brand::before {
+  position: absolute;
+  top: 36%;
+  left: 50%;
+  z-index: -1;
+  width: min(76vw, 460px);
+  aspect-ratio: 2.5;
+  content: "";
+  pointer-events: none;
+  opacity: .52;
+  background: radial-gradient(ellipse, rgba(185, 235, 177, .2), rgba(232, 213, 138, .06) 42%, transparent 72%);
+  filter: blur(16px);
+  transform: translate(-50%, -50%);
+  animation: wildz-genesis-halo 11s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+.wildz-genesis-brand img { position: relative; width: min(64vw, 240px); height: auto; filter: drop-shadow(0 10px 28px rgba(121, 206, 145, .14)); }
+.wildz-genesis-tagline {
+  width: 100%;
+  margin: 0;
+  color: rgba(248, 245, 233, .72);
+  font-size: clamp(5px, 1.38vw, 15px);
+  font-weight: 650;
+  line-height: 1.5;
+  letter-spacing: -.012em;
+  white-space: nowrap;
+}
 .wildz-genesis-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 
 .wildz-genesis-actions button,
@@ -157,7 +202,7 @@ body {
   backdrop-filter: blur(16px);
 }
 
-.wildz-genesis-actions button { cursor: pointer; }
+.wildz-genesis-actions button { cursor: pointer; transition: border-color .24s ease, background-color .24s ease, box-shadow .24s ease, transform .24s ease; }
 .wildz-genesis-actions button:hover { border-color: rgba(151, 226, 155, .55); background: rgba(118, 199, 134, .14); transform: translateY(-1px); }
 .wildz-genesis-actions button:disabled { cursor: wait; opacity: .55; }
 .wildz-genesis-actions small { color: rgba(248, 245, 233, .54); }
@@ -171,8 +216,56 @@ body {
 .wildz-pulse-reveal { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; color: #b8edbc; font-size: 13px; font-weight: 800; }
 .wildz-pulse-reveal i { width: 10px; height: 10px; border-radius: 50%; background: #9ee4a3; box-shadow: 0 0 22px #9ee4a3; animation: wildz-genesis-breathe .8s ease-in-out infinite; }
 .wildz-genesis-error { position: relative; z-index: 1; max-width: 520px; margin: -18px 0 0; color: #f1d78c; text-align: center; }
+.wildz-genesis-powered {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-width: 144px;
+  min-height: 44px;
+  padding: 5px 13px;
+  overflow: hidden;
+  place-items: center;
+  border: 1px solid rgba(232, 213, 138, .2);
+  border-radius: 999px;
+  outline: none;
+  background: linear-gradient(145deg, rgba(255, 255, 255, .075), rgba(135, 205, 151, .035));
+  box-shadow: 0 0 18px rgba(232, 213, 138, .08), 0 10px 28px rgba(0, 0, 0, .2);
+  transition: border-color .24s ease, background-color .24s ease, box-shadow .24s ease, transform .24s ease;
+  animation: wildz-genesis-seal 10s ease-in-out infinite;
+  will-change: box-shadow, transform;
+}
+.wildz-genesis-powered::after {
+  position: absolute;
+  inset: -40% auto -40% -45%;
+  width: 32%;
+  content: "";
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 248, 218, .28), transparent);
+  transform: translateX(-180%) skewX(-18deg);
+  animation: wildz-genesis-glint 9s ease-in-out infinite;
+}
+.wildz-genesis-powered img { position: relative; z-index: 1; width: 116px; height: 32px; }
+.wildz-genesis-powered:hover { border-color: rgba(232, 213, 138, .38); background: rgba(255, 255, 255, .1); box-shadow: 0 0 30px rgba(232, 213, 138, .16), 0 13px 34px rgba(0, 0, 0, .24); transform: translateY(-1px); }
+.wildz-genesis-powered:focus-visible { border-color: rgba(184, 237, 188, .72); box-shadow: 0 0 0 3px rgba(112, 214, 161, .2), 0 0 28px rgba(232, 213, 138, .15); }
 
 @keyframes wildz-genesis-breathe { 50% { opacity: .55; transform: scale(.94); } }
+@keyframes wildz-genesis-aurora { 50% { opacity: .82; transform: translate3d(2.5%, -1.5%, 0) scale(1.04); } }
+@keyframes wildz-genesis-geometry { 50% { opacity: .18; transform: translate3d(5px, -4px, 0); } }
+@keyframes wildz-genesis-halo { 50% { opacity: .72; transform: translate(-50%, -50%) scale(1.045); } }
+@keyframes wildz-genesis-seal { 50% { box-shadow: 0 0 25px rgba(232, 213, 138, .14), 0 12px 32px rgba(0, 0, 0, .22); transform: translateY(-1px); } }
+@keyframes wildz-genesis-glint { 0%, 38% { transform: translateX(-180%) skewX(-18deg); } 58%, 100% { transform: translateX(620%) skewX(-18deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .wildz-genesis::before,
+  .wildz-genesis::after,
+  .wildz-genesis-brand::before,
+  .wildz-genesis-powered,
+  .wildz-genesis-powered::after,
+  .wildz-genesis-actions button {
+    animation: none;
+    transition: none;
+  }
+}
 
 @media (max-width: 540px) {
   .wildz-genesis-actions { grid-template-columns: 1fr; }
