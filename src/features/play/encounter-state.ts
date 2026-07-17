@@ -1,4 +1,5 @@
 import type { HotspotCover, HotspotSearchResult } from "./hidden-hotspots";
+import type { LivingCreatureIdentityV3 } from "./living-taxonomy";
 
 export type EncounterPhase = "idle" | "searching" | "hint" | "battle_intro" | "player_turn" | "capture_ready" | "fled" | "defeated" | "emerging" | "capsule" | "sealed" | "revealed";
 export type SearchProximity = "cold" | "warm" | "hot";
@@ -20,6 +21,7 @@ export type ActiveEncounterState = {
   proximity: SearchProximity;
   trend: SearchTrend;
   assetId?: string;
+  discoveryIdentity?: LivingCreatureIdentityV3;
 };
 
 export type EncounterState = IdleEncounterState | ActiveEncounterState;
@@ -31,7 +33,8 @@ export function encounterFromSearch(
   searchPoint: { x: number; z: number },
   searchedAt: string,
   ownerReceizId: string,
-  previous?: EncounterState
+  previous?: EncounterState,
+  discoveryIdentity?: LivingCreatureIdentityV3
 ): ActiveEncounterState {
   const distance = result.kind === "empty" ? undefined : result.distance;
   const proximity: SearchProximity = distance === undefined ? "cold" : distance <= 2.25 ? "hot" : "warm";
@@ -45,14 +48,18 @@ export function encounterFromSearch(
   }
   const shared = { searchedAt, searchPoint: { ...searchPoint }, ownerReceizId, proximity, trend };
   if (result.kind === "empty") return { phase: "searching", ...shared };
+  const preservedIdentity = previousActive?.hotspotId === hotspotId
+    ? previousActive.discoveryIdentity ?? discoveryIdentity
+    : discoveryIdentity;
+  const preserveDiscoveredForm = Boolean(preservedIdentity && previousActive?.hotspotId === hotspotId);
   const hotspot = {
     hotspotId: result.hotspot.id,
-    familyId: result.hotspot.familyId,
-    formId: result.hotspot.formId,
-    cover: result.hotspot.cover,
+    familyId: preserveDiscoveredForm ? previousActive?.familyId ?? result.hotspot.familyId : result.hotspot.familyId,
+    formId: preserveDiscoveredForm ? previousActive?.formId ?? result.hotspot.formId : result.hotspot.formId,
+    cover: preserveDiscoveredForm ? previousActive?.cover ?? result.hotspot.cover : result.hotspot.cover,
     distance: result.distance
   };
-  if (result.kind === "hit") return { phase: "battle_intro", ...shared, ...hotspot };
+  if (result.kind === "hit") return { phase: "battle_intro", ...shared, ...hotspot, discoveryIdentity: preservedIdentity };
   if (result.kind === "near_miss") return { phase: "hint", ...shared, ...hotspot, direction: { ...result.direction } };
   return { phase: "hint", ...shared, ...hotspot };
 }

@@ -1,0 +1,57 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { applyWildsInput, initialPlayState } from "../src/features/play/game-state.js";
+import { nearbyHiddenHotspots } from "../src/features/play/hidden-hotspots.js";
+import { validateLivingCreatureIdentity } from "../src/features/play/living-taxonomy.js";
+import { canonicalPortableCardJson } from "../src/features/play/portable-card.js";
+
+describe("Wildz discovery-sealed identity", () => {
+  it("creates one permanent identity at first discovery and carries its name into battle", () => {
+    const hotspot = nearbyHiddenHotspots(initialPlayState.player)[0]!;
+    const discovered = applyWildsInput(initialPlayState, {
+      type: "search-point",
+      x: hotspot.position.x,
+      z: hotspot.position.z,
+      searchedAt: "2026-07-17T12:00:00.000Z",
+      ownerReceizId: "player.receiz.id"
+    });
+
+    assert.notEqual(discovered.encounter.phase, "idle");
+    if (discovered.encounter.phase === "idle") return;
+    const identity = discovered.encounter.discoveryIdentity;
+    assert.ok(identity);
+    assert.equal(identity.encounterId, hotspot.id);
+    assert.equal(validateLivingCreatureIdentity(identity).ok, true);
+    assert.equal(identity.name.display.split(" ").length, 2);
+
+    const rediscovered = applyWildsInput(discovered, {
+      type: "search-point",
+      x: hotspot.position.x,
+      z: hotspot.position.z,
+      searchedAt: "2026-07-17T12:00:06.000Z",
+      ownerReceizId: "player.receiz.id"
+    });
+
+    assert.notEqual(rediscovered.encounter.phase, "idle");
+    if (rediscovered.encounter.phase === "idle") return;
+    assert.equal(
+      canonicalPortableCardJson(rediscovered.encounter.discoveryIdentity),
+      canonicalPortableCardJson(identity)
+    );
+
+    const battling = applyWildsInput(rediscovered, {
+      type: "start-battle",
+      at: "2026-07-17T12:00:07.000Z"
+    });
+
+    assert.equal(battling.battle?.wild.name, identity.name.display);
+    assert.match(battling.lastEvent, new RegExp(`^${identity.name.display} emerged\\.`));
+    assert.notEqual(battling.encounter.phase, "idle");
+    if (battling.encounter.phase !== "idle") {
+      assert.equal(
+        canonicalPortableCardJson(battling.encounter.discoveryIdentity),
+        canonicalPortableCardJson(identity)
+      );
+    }
+  });
+});

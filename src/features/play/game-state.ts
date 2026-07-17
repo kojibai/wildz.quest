@@ -12,6 +12,7 @@ import { encounterFromSearch, idleEncounterState, isCapturableEncounter, type En
 import { nearbyHiddenHotspots, searchHiddenHotspots } from "./hidden-hotspots";
 import { applyKaiAffinityToHotspot } from "./kai-encounter-affinity";
 import { deriveKaiKlokMoment } from "./kai-klok-moment";
+import { discoverLivingCreature, validateLivingCreatureIdentity, type LivingCreatureIdentityV3 } from "./living-taxonomy";
 import { applyBattleAction, battleGrowthAwards, battleTranscriptDigest, startWildBattle, type BattleAction, type BattleState } from "./battle-engine";
 import type { FusionInheritance } from "./card-fusion";
 import { applyGrowthEvent, buildTransformationCandidate, growthReadiness, nextGrowthRequirements, type GrowthEvent } from "./growth-engine";
@@ -595,7 +596,16 @@ function restoreEncounter(value: unknown): EncounterState {
   if (!point || typeof point.x !== "number" || typeof point.z !== "number") return idleEncounterState;
   const proximity = candidate.proximity === "warm" || candidate.proximity === "hot" ? candidate.proximity : "cold";
   const trend = candidate.trend === "closer" || candidate.trend === "farther" || candidate.trend === "steady" ? candidate.trend : null;
-  return { ...candidate, proximity, trend } as EncounterState;
+  let discoveryIdentity: LivingCreatureIdentityV3 | undefined;
+  if (candidate.discoveryIdentity && typeof candidate.discoveryIdentity === "object") {
+    try {
+      const restored = candidate.discoveryIdentity as LivingCreatureIdentityV3;
+      if (restored.encounterId === candidate.hotspotId && validateLivingCreatureIdentity(restored).ok) discoveryIdentity = restored;
+    } catch {
+      discoveryIdentity = undefined;
+    }
+  }
+  return { ...candidate, proximity, trend, discoveryIdentity } as EncounterState;
 }
 
 export function selectedCard(state: PlayState) {
@@ -937,12 +947,13 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     const wild = creatureForm(state.encounter.formId);
     const playerAsset = selectedAsset(state);
     if (!wild || !playerAsset || !isPlayableAsset(state, playerAsset.id)) return { ...state, encounter: { ...state.encounter, phase: "defeated" }, lastEvent: "No verified playable card was available for battle." };
+    const wildName = state.encounter.discoveryIdentity?.name.display ?? wild.name;
     const battle = startWildBattle({
       encounterSeed: state.encounter.hotspotId,
       player: { assetId: playerAsset.id, name: playerAsset.manifest.name, element: creatureForm(playerAsset.manifest.formId)?.element, ...playerAsset.manifest.stats, health: playerAsset.manifest.stats.health * 2 },
-      wild: { formId: wild.id, name: wild.name, element: wild.element, ...wild.stats }
+      wild: { formId: wild.id, name: wildName, element: wild.element, ...wild.stats }
     });
-    return { ...state, battle, encounter: { ...state.encounter, phase: "player_turn" }, lastEvent: `${wild.name} emerged. Weaken it below 30% before capture.` };
+    return { ...state, battle, encounter: { ...state.encounter, phase: "player_turn" }, lastEvent: `${wildName} emerged. Weaken it below 30% before capture.` };
   }
 
   if (input.type === "battle-action") {
@@ -976,11 +987,37 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       x: clamp(input.x, worldBounds.min, worldBounds.max),
       z: clamp(input.z, worldBounds.min, worldBounds.max)
     };
+    const ownerScope = input.ownerReceizId.trim();
+    const moment = deriveKaiKlokMoment({ occurredAt: input.searchedAt, authority: "world" });
     const spatialResult = searchHiddenHotspots(nearbyHiddenHotspots(point), point, state.capturedHotspotIds);
     const result = spatialResult.kind === "hit"
-      ? { ...spatialResult, hotspot: applyKaiAffinityToHotspot(spatialResult.hotspot, deriveKaiKlokMoment({ occurredAt: input.searchedAt, authority: "world" }), input.ownerReceizId.trim()) }
+      ? { ...spatialResult, hotspot: applyKaiAffinityToHotspot(spatialResult.hotspot, moment, ownerScope) }
       : spatialResult;
-    const encounter = encounterFromSearch(result, point, input.searchedAt, input.ownerReceizId.trim(), state.encounter);
+    let discoveryIdentity: LivingCreatureIdentityV3 | undefined;
+    if (result.kind === "hit") {
+      const previousIdentity = state.encounter.phase !== "idle" && state.encounter.hotspotId === result.hotspot.id
+        ? state.encounter.discoveryIdentity
+        : undefined;
+      if (previousIdentity) {
+        discoveryIdentity = previousIdentity;
+      } else {
+        const form = creatureForm(result.hotspot.formId);
+        if (!form) return { ...state, lastEvent: "The living signal could not stabilize into a known form." };
+        try {
+          discoveryIdentity = discoverLivingCreature({
+            encounterId: result.hotspot.id,
+            form,
+            discoveredAt: input.searchedAt,
+            location: point,
+            ownerScope,
+            moment
+          }, new Set(state.inventory.map((asset) => asset.manifest.name.toLowerCase())));
+        } catch {
+          return { ...state, lastEvent: "The living signal could not stabilize into a permanent identity." };
+        }
+      }
+    }
+    const encounter = encounterFromSearch(result, point, input.searchedAt, ownerScope, state.encounter, discoveryIdentity);
     const lastEvent = result.kind === "hit"
       ? `Something is moving beneath the ${result.hotspot.cover}. Keep watching.`
       : result.kind === "near_miss"
