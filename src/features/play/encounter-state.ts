@@ -49,7 +49,7 @@ export function encounterFromSearch(
   const shared = { searchedAt, searchPoint: { ...searchPoint }, ownerReceizId, proximity, trend };
   if (result.kind === "empty") return { phase: "searching", ...shared };
   const preservedIdentity = previousActive?.hotspotId === hotspotId
-    ? previousActive.discoveryIdentity ?? discoveryIdentity
+    ? previousActive?.discoveryIdentity ?? discoveryIdentity
     : discoveryIdentity;
   const preserveDiscoveredForm = Boolean(preservedIdentity && previousActive?.hotspotId === hotspotId);
   const hotspot = {
