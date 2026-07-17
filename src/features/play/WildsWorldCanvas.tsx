@@ -31,6 +31,7 @@ import type { PortableCardAsset } from "@/features/play/portable-card";
 import type { KaiKlokMoment } from "@/features/play/kai-klok-moment";
 import { projectKaiWorldExpression } from "@/features/play/kai-moment-expression";
 import { WildsKaiAtmosphereGeometry } from "@/features/play/WildsKaiAtmosphereGeometry";
+import { projectCardKaiAppearance } from "@/features/play/card-kai-appearance";
 
 export function WildsWorldCanvas({
   state,
@@ -157,10 +158,10 @@ function ActiveCompanion({ state }: { state: PlayState }) {
   const card = selectedCard(state);
   const asset = state.inventory.find((candidate) => candidate.id === state.selectedAssetId);
   const formId = asset?.manifest.formId ?? `${card.id}-1`;
-  const birthProfile = asset?.manifest.variant.generatorVersion === 2 ? asset.manifest.variant.traits.birthProfile : null;
+  const appearance = useMemo(() => asset ? projectCardKaiAppearance(asset) : null, [asset]);
   return (
     <group name="active-companion-sealcub" position={[-1.08, 0.44, 0.42]} scale={0.82}>
-      <WildsCreatureActor accent={asset?.manifest.variant.traits.palette.accent ?? card.accent} cadenceMs={birthProfile?.motion.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} identityToken={asset?.manifest.variant.traits.visualFingerprint} morphology={birthProfile?.morphology} pose="curious" primary={asset?.manifest.variant.traits.palette.primary ?? card.color} />
+      <WildsCreatureActor accent={appearance?.palette.accent ?? card.accent} cadenceMs={appearance?.profile.motion.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} identityToken={appearance?.profile.fingerprint} morphology={appearance?.profile.morphology} pose="curious" primary={appearance?.palette.primary ?? card.color} />
       <mesh position={[0, -0.37, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.46, 0.035, 8, 36]} />
         <meshStandardMaterial color="#f4fff6" emissive="#7cdea5" emissiveIntensity={0.55} transparent opacity={0.92} />
@@ -178,25 +179,24 @@ function ActiveCompanion({ state }: { state: PlayState }) {
 
 function SupportCompanions({ cards }: { cards: readonly PortableCardAsset[] }) {
   const positions: readonly [number, number, number][] = [[1.05, 0.34, 0.72], [1.62, 0.28, 1.34]];
+  const appearances = useMemo(() => cards.slice(0, 2).map((card) => ({ card, appearance: projectCardKaiAppearance(card) })), [cards]);
   return <group name="trail-pack-support-companions">
-    {cards.slice(0, 2).map((card, index) => {
-      const birthProfile = card.manifest.variant.generatorVersion === 2 ? card.manifest.variant.traits.birthProfile : null;
-      return <group key={card.id} name={`trail-support-${index + 1}`} position={positions[index]} scale={index === 0 ? 0.62 : 0.54}>
+    {appearances.map(({ card, appearance }, index) => <group key={card.id} name={`trail-support-${index + 1}`} position={positions[index]} scale={index === 0 ? 0.62 : 0.54}>
       <WildsCreatureActor
-        accent={card.manifest.variant.traits.palette.accent}
-        cadenceMs={birthProfile?.motion.cadenceMs}
+        accent={appearance.palette.accent}
+        cadenceMs={appearance.profile.motion.cadenceMs}
         familyId={card.manifest.familyId}
         formId={card.manifest.formId}
-        identityToken={card.manifest.variant.traits.visualFingerprint}
-        morphology={birthProfile?.morphology}
+        identityToken={appearance.profile.fingerprint}
+        morphology={appearance.profile.morphology}
         pose={index === 0 ? "curious" : "idle"}
-        primary={card.manifest.variant.traits.palette.primary}
+        primary={appearance.palette.primary}
       />
       <mesh position={[0, -0.39, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.4, 0.025, 8, 28]} />
         <meshStandardMaterial color="#dffcf0" emissive="#58c99d" emissiveIntensity={0.36} transparent opacity={0.72} />
       </mesh>
-    </group>})}
+    </group>)}
   </group>;
 }
 

@@ -36,7 +36,7 @@ export function deriveBirthGenome(input: { formId: string; proofDigest: string; 
   const baseIdentity = generatorVersion >= 2 ? deriveHeartboundIdentity(input.proofDigest, { familyId: form.familyId, locomotion, signatureDetail: detail }) : undefined;
   const identity = baseIdentity && profile ? sealHeartboundIdentity({
     ...baseIdentity,
-    body: { ...baseIdentity.body, build: profile.morphology.build, torso: profile.morphology.torso, limb: profile.morphology.limb },
+    body: { ...baseIdentity.body, build: profile.morphology.build, torso: bounded(profile.morphology.torso, 0.76, 1.32), limb: bounded(profile.morphology.limb, 0.76, 1.3) },
     markings: { ...baseIdentity.markings, topology: profile.markings.topology, density: profile.markings.density },
     behavior: { ...baseIdentity.behavior, posture: profile.motion.posture, gesture: profile.motion.gesture }
   }) : baseIdentity;

@@ -1,4 +1,5 @@
 import { standaloneCardUrl } from "./card-export";
+import { projectCardKaiAppearance } from "./card-kai-appearance";
 import { creatureForm, type CreatureStats } from "./creature-catalog";
 import { deriveBirthGenome } from "./heartbound-genome";
 import { identityForGenome } from "./heartbound-identity";
@@ -116,9 +117,10 @@ export function projectLivingCardDossier(asset: PortableCardAsset, origin: strin
   const temperament = genome.face.expressionSet;
   const gesture = identity.behavior.gesture;
   const presentation = genome.presentation;
-  const birthProfile = asset.manifest.variant.generatorVersion === 2 ? asset.manifest.variant.traits.birthProfile : null;
+  const appearance = projectCardKaiAppearance(asset);
+  const birthProfile = appearance.profile;
   const powerEntries = Object.entries(asset.manifest.stats).sort((a, b) => b[1] - a[1]);
-  const birth = birthProfile ? {
+  const birth = appearance.source === "sealed" ? {
     sealed: true,
     pulse: `Birth Pulse ${birthProfile.pulse}`,
     cadueusKai: birthProfile.cadueusKai,
@@ -128,11 +130,11 @@ export function projectLivingCardDossier(asset: PortableCardAsset, origin: strin
     statShift: (Object.entries(birthProfile.statShift) as Array<[keyof CreatureStats, number]>).filter(([, value]) => value !== 0).map(([key, value]) => `${title(key)} ${value > 0 ? "+" : ""}${value}`)
   } : {
     sealed: false,
-    pulse: "Historical capture pulse",
-    cadueusKai: "Not sealed in this legacy generator",
-    title: "Legacy companion",
-    passage: `${asset.manifest.name} predates the Kai Birth Profile and retains its original verified character seal.`,
-    geometry: [],
+    pulse: `Recovered Birth Pulse ${appearance.historicalPulse}`,
+    cadueusKai: birthProfile.cadueusKai,
+    title: `Remembered ${title(birthProfile.ark)} geometry`,
+    passage: `${asset.manifest.name} keeps its original verified colors and character seal. Its capture time recovers the ${title(birthProfile.geometry.ark).toLowerCase()} and ${title(birthProfile.markings.topology).toLowerCase()} geometry that surrounded that historical pulse without rewriting the card's proof.`,
+    geometry: [birthProfile.geometry.day, birthProfile.geometry.week, birthProfile.geometry.month, birthProfile.geometry.ark, `${birthProfile.geometry.sides}-sided living motif`],
     statShift: []
   };
   return {
@@ -143,7 +145,7 @@ export function projectLivingCardDossier(asset: PortableCardAsset, origin: strin
         identity.behavior.posture === "heroic" ? "Protect the path before asking for recognition." : "Understand new signals before deciding how to act.",
         growth.paths.legacy > 0 ? "Keep its lineage close and help descendants thrive." : "Build a bond strong enough to become a lasting lineage."
       ],
-      traits: birthProfile ? birthProfile.characterTraits.map(title) : [title(temperament), title(identity.behavior.posture), title(identity.behavior.gaze), title(genome.behavior.temperament)],
+      traits: birthProfile.characterTraits.map(title),
       habitat: `${form.habitat} · ${title(genome.anatomy.aura)} affinity`,
       bonding: [`Responds warmly to ${title(gesture).toLowerCase()} moments.`, "Builds trust through active travel, fair battles, and consistent care."],
       cautions: [identity.behavior.gaze === "shy" ? "Needs a calm approach after difficult encounters." : "Dislikes being rushed through a new habitat.", `Its ${title(identity.family.locomotion).toLowerCase()} body needs recovery after intense movement.`],

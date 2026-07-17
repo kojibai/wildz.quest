@@ -265,6 +265,12 @@ Because the real Kai night cycle intentionally lowers world light, creature mate
 
 The card back labels this information as a “Recovered Birth Pulse,” keeps `birth.sealed` false, shows the recovered Cadueus KAI coordinate and geometry, and explicitly preserves original catalog balance. It must never claim that a v1 compatibility profile was part of the original sealed proof.
 
+## Kai-Born Identity Starters
+
+Every newly created Receiz ID receives a real generator-v2 starter sealed at the identity's admitted creation time. Starter family selection is deterministic from the Receiz ID and that canonical moment across all base-form families; it is not fixed to Sealcub. The selected family, generated name, species, palette, personality, geometry, powers, proof seed, and Kai profile therefore belong to that player and birth moment.
+
+The identity session retains the admitted creation timestamp so repeated initialization reproduces the same starter until the new play state is persisted. Existing saves and the historical placeholder state are not reissued or replaced. Starter selection and generation are local pure work with no added request, timer, or render cost.
+
 ## Testing Strategy
 
 ### Unit contracts
@@ -292,6 +298,9 @@ The card back labels this information as a “Recovered Birth Pulse,” keeps `b
 - v1 compatibility projection preserves the exact sealed palette and historical pulse reference
 - recovered Kai geometry is deterministic from capture time and the existing seed
 - v1 proof bytes and verification results remain unchanged after projection
+- the same Receiz ID and identity moment reproduce the same verified starter
+- different Receiz IDs receive different proof seeds and are not forced into one starter family
+- every selected base family can enter the living-card revision chain without changing its sealed Kai birth profile
 
 ### Render and integration
 
@@ -327,4 +336,4 @@ The card back labels this information as a “Recovered Birth Pulse,” keeps `b
 
 ## Acceptance Criteria
 
-The feature is complete when a new capture can be reproduced from its sealed proof as a moment-specific creature whose appearance, character, story, and zero-sum stats express its Kai birth; the current moment influences valid encounters; the world continuously follows the real six-Ark Kai day with tasteful beat/Ark acknowledgements; legacy cards and authored environments remain intact; and the production/test/performance gates pass without added latency or load heaviness.
+The feature is complete when a new Receiz ID begins with its own moment-born verified starter; a new capture can be reproduced from its sealed proof as a moment-specific creature whose appearance, character, story, and zero-sum stats express its Kai birth; the current moment influences valid encounters; the world continuously follows the real six-Ark Kai day with tasteful beat/Ark acknowledgements; legacy cards and authored environments remain intact; and the production/test/performance gates pass without added latency or load heaviness.

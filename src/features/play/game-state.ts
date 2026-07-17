@@ -1,7 +1,9 @@
 import { creatureFamilies, creatureForm, creatureForms, type CreatureRarity } from "./creature-catalog";
 import {
   evolvePortableCard,
+  canonicalPortableCardJson,
   sealCollectedCard,
+  sha256PortableBasis,
   verifyAnyWildsCard,
   verifyPortableCard,
   type PortableCardAsset
@@ -268,16 +270,34 @@ export const missionCards: MissionCard[] = [
 
 const LEGACY_PLACEHOLDER_OWNER = "wilds.player.receiz.id";
 
-function starterCardForOwner(ownerReceizId: string) {
+function legacyStarterCardForOwner(ownerReceizId: string) {
   return sealCollectedCard({
-  formId: "mintcub-1",
-  ownerReceizId,
-  encounterId: "starter-mintcub",
-  capturedAt: "2026-06-29T12:00:00.000Z"
+    formId: "mintcub-1",
+    ownerReceizId,
+    encounterId: "starter-mintcub",
+    capturedAt: "2026-06-29T12:00:00.000Z"
   });
 }
 
-const starterCardAsset = starterCardForOwner(LEGACY_PLACEHOLDER_OWNER);
+function kaiBornStarterCardForOwner(ownerReceizId: string, createdAt: string) {
+  const capturedAt = new Date(createdAt).toISOString();
+  const choice = sha256PortableBasis(canonicalPortableCardJson({
+    generator: "receiz.wilds.starter.v2",
+    ownerReceizId,
+    capturedAt
+  }));
+  const familyIndex = Number.parseInt(choice.slice(7, 15), 16) % creatureFamilies.length;
+  const family = creatureFamilies[familyIndex]!;
+  return sealCollectedCard({
+    formId: family.formIds[0],
+    ownerReceizId,
+    encounterId: `starter:${choice.slice(7, 31)}`,
+    capturedAt,
+    generatorVersion: 2
+  });
+}
+
+const starterCardAsset = legacyStarterCardForOwner(LEGACY_PLACEHOLDER_OWNER);
 
 export const initialPlayState: PlayState = {
   activeAction: "explore",
@@ -334,13 +354,16 @@ export const initialPlayState: PlayState = {
   hearttreeSquadAssetIds: [starterCardAsset.id]
 };
 
-export function createOwnerBoundInitialPlayState(ownerReceizId: string): PlayState {
+export function createOwnerBoundInitialPlayState(ownerReceizId: string, createdAt = new Date().toISOString()): PlayState {
   const owner = ownerReceizId.trim();
   if (!owner) throw new Error("wilds_player_owner_required");
-  const starter = starterCardForOwner(owner);
+  const starter = kaiBornStarterCardForOwner(owner, createdAt);
   return {
     ...structuredClone(initialPlayState),
-    inventory: [{ ...starter, status: "verified", synchronizedAt: "2026-06-29T12:00:00.000Z" }],
+    discoveredCardIds: [starter.manifest.familyId],
+    inventory: [{ ...starter, status: "verified", synchronizedAt: starter.manifest.capturedAt }],
+    lastEvent: `${starter.manifest.name} joined your deck. Walk near another wild companion.`,
+    selectedCardId: starter.manifest.familyId,
     selectedAssetId: starter.id,
     supportAssetIds: EMPTY_WILDS_SUPPORT_ASSET_IDS,
     livingProgress: { [starter.id]: emptyLivingGrowth(0) },

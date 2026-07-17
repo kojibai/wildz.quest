@@ -82,7 +82,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const publishedProfileRef = useRef("");
   const identity = continuity?.session ?? null;
   const ownerPlayState = useMemo(
-    () => continuity?.playState ?? (identity ? createOwnerBoundInitialPlayState(identity.actorId) : initialPlayState),
+    () => continuity?.playState ?? (identity ? createOwnerBoundInitialPlayState(identity.actorId, identity.createdAt) : initialPlayState),
     [continuity?.playState, identity]
   );
   const ownerUsername = identity?.username ?? identity?.actorId ?? "explorer";
@@ -278,7 +278,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const completeGenesis = async (next: WildzCharacterGenesis) => {
     const current = continuityRef.current;
     if (!current) return;
-    const playState = current.playState ?? createOwnerBoundInitialPlayState(current.session.actorId);
+    const playState = current.playState ?? createOwnerBoundInitialPlayState(current.session.actorId, current.session.createdAt);
     const snapshot: WildzContinuitySnapshot = { ...current, playState, character: next };
     try {
       await saveWildzContinuityPlayState(snapshot, playState, current.playerContinuity ?? undefined, next);
@@ -312,7 +312,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (!current) throw new Error("wildz_identity_missing");
     if (current.session.localAuthority !== "verified") throw new Error("wildz_identity_card_authority_required");
     const playerContinuity = current.playerContinuity;
-    const playState = current.playState ?? createOwnerBoundInitialPlayState(current.session.actorId);
+    const playState = current.playState ?? createOwnerBoundInitialPlayState(current.session.actorId, current.session.createdAt);
     const player = createWildsPlayerVault({
       playerId: current.session.username ?? current.session.actorId,
       exportedAt: new Date().toISOString(),

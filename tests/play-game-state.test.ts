@@ -439,8 +439,20 @@ describe("Receiz Wilds game state", () => {
 
   it("issues starter and legacy-discovery cards to the exact active owner", () => {
     const owner = "new_explorer";
-    const starter = createOwnerBoundInitialPlayState(owner);
+    const bornAt = "2026-07-17T18:42:11.000Z";
+    const starter = createOwnerBoundInitialPlayState(owner, bornAt);
+    const repeated = createOwnerBoundInitialPlayState(owner, bornAt);
+    const other = createOwnerBoundInitialPlayState("another_explorer", bornAt);
     assert.equal(starter.inventory.every((asset) => asset.manifest.ownerReceizId === owner && verifyAnyWildsCard(asset).ok), true);
+    assert.equal(starter.inventory[0]?.manifest.capturedAt, bornAt);
+    assert.equal(starter.inventory[0]?.manifest.variant.generatorVersion, 2);
+    assert.equal(starter.selectedCardId, starter.inventory[0]?.manifest.familyId);
+    assert.deepEqual(starter.discoveredCardIds, [starter.inventory[0]?.manifest.familyId]);
+    assert.deepEqual(starter.inventory, repeated.inventory);
+    assert.notEqual(starter.inventory[0]?.id, other.inventory[0]?.id);
+    assert.notEqual(starter.inventory[0]?.manifest.variant.seed, other.inventory[0]?.manifest.variant.seed);
+    assert.notEqual(starter.inventory[0]?.manifest.familyId, other.inventory[0]?.manifest.familyId);
+    assert.notEqual(starter.inventory[0]?.manifest.name, "SealCub");
 
     const legacyState = { ...initialPlayState, inventory: undefined, discoveredCardIds: ["mintcub", "voltray"], supportAssetIds: undefined };
     const restored = restorePlayState(JSON.stringify({ schema: "receiz.wilds.save.v2", state: legacyState }), owner);

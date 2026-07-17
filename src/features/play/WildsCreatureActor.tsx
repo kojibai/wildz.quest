@@ -79,13 +79,14 @@ export function WildsCreatureActor({
         ? [identity.width * 1.08, identity.height * 0.9, 1]
         : [identity.width, identity.height, 0.94];
   const eyeScaleY = pose === "weakened" ? 0.42 : pose === "attack" ? 0.7 : 1;
+  const bodyColorFloor = pose === "capture" ? 0.2 : 0.11;
 
   return (
     <group name={`wilds-creature-${familyId}`} ref={root}>
       <group name="wilds-creature-body" rotation={[0, 0, identity.asymmetry * 0.08]}>
         <mesh castShadow scale={bodyScale}>
           {body === "armored" ? <dodecahedronGeometry args={[0.4, 1]} /> : body === "serpentine" ? <capsuleGeometry args={[0.25, 0.62, 7, 12]} /> : <sphereGeometry args={[0.4, 22, 16]} />}
-          <meshStandardMaterial color={primary} emissive={primary} emissiveIntensity={pose === "capture" ? 0.2 : 0.055} roughness={body === "armored" ? 0.78 : 0.6} />
+          <meshStandardMaterial color={primary} emissive={primary} emissiveIntensity={bodyColorFloor} roughness={body === "armored" ? 0.78 : 0.6} />
         </mesh>
         {body === "armored" ? [-0.22, 0, 0.22].map((x) => <mesh castShadow key={x} position={[x, 0.31, -0.06]} rotation={[0, 0, x * 0.6]}><coneGeometry args={[0.075, 0.28, 5]} /><meshStandardMaterial color={accent} roughness={0.46} /></mesh>) : null}
         {body === "serpentine" ? [0, 1, 2].map((index) => <mesh castShadow key={index} position={[0.12 + index * 0.15, -0.12 - index * 0.055, -0.3 - index * 0.18]} rotation={[0.5, 0, -0.5]} scale={1 - index * 0.14}><sphereGeometry args={[0.2, 12, 9]} /><meshStandardMaterial color={primary} roughness={0.62} /></mesh>) : null}
@@ -97,7 +98,7 @@ export function WildsCreatureActor({
       </group>
 
       <group name="wilds-creature-face" position={[0, 0.31, 0.3]} ref={head} scale={identity.head}>
-        <mesh castShadow scale={[0.82, 0.72, 0.6]}><sphereGeometry args={[0.34, 20, 14]} /><meshStandardMaterial color={accent} roughness={0.58} /></mesh>
+        <mesh castShadow scale={[0.82, 0.72, 0.6]}><sphereGeometry args={[0.34, 20, 14]} /><meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.07} roughness={0.58} /></mesh>
         {[-1, 1].map((side) => <group key={side} position={[side * 0.13, 0.045, 0.19]} scale={[1, eyeScaleY, 1]}>
           <mesh><sphereGeometry args={[0.072, 12, 9]} /><meshStandardMaterial color="#fffdf3" roughness={0.32} /></mesh>
           <mesh position={[side * 0.008, -0.006, 0.061]}><sphereGeometry args={[0.033, 10, 8]} /><meshStandardMaterial color="#17221d" roughness={0.3} /></mesh>

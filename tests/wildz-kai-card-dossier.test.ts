@@ -25,5 +25,9 @@ test("legacy dossier does not claim a sealed Kai birth profile", () => {
   const asset = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "receiz:dossier", encounterId: "encounter:dossier-v1", capturedAt: "2026-07-17T12:00:00.000Z" });
   const dossier = projectLivingCardDossier(asset, "https://wildz.quest");
   assert.equal(dossier.birth.sealed, false);
+  assert.match(dossier.birth.pulse, /^Recovered Birth Pulse /);
+  assert.match(dossier.birth.cadueusKai, /^Y/);
+  assert.ok(dossier.birth.geometry.length >= 4);
   assert.equal(dossier.birth.statShift.length, 0);
+  assert.ok(dossier.personality.traits.length >= 4);
 });

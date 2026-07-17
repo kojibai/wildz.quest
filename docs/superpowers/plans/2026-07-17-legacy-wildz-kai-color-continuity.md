@@ -225,3 +225,26 @@ Use the production app and existing Playwright flow to verify the two-line entry
 git add app/globals.css src/features/identity/WildzGenesis.tsx src/features/play/card-kai-appearance.ts src/features/play/living-card-dossier.ts src/features/play/WildsWorldCanvas.tsx src/features/play/WildsCreatureActor.tsx tests/wildz-genesis-copy.test.ts tests/wildz-genesis-living-entry.test.ts tests/wildz-legacy-kai-appearance.test.ts tests/wildz-kai-card-dossier.test.ts tests/wildz-kai-world-ui.test.ts
 git commit -m "fix: restore legacy Wildz Kai colors"
 ```
+
+---
+
+### Task 4: Give every new Receiz ID a moment-born starter
+
+**Files:**
+- Modify: `tests/play-game-state.test.ts`
+- Modify: `src/features/play/game-state.ts`
+- Modify: `src/features/play/heartbound-genome.ts`
+- Modify: `src/lib/receiz/wildz-identity-repository.ts`
+- Modify: `src/features/shell/WildzApp.tsx`
+
+- [x] **Step 1: Lock the starter contract**
+
+Assert that an explicit Receiz ID and creation moment produce a deterministic verified generator-v2 starter, select its actual family in game state, and differ in proof identity for another Receiz ID.
+
+- [x] **Step 2: Select and seal the starter from identity plus moment**
+
+Choose across all base-form families with a SHA-256 projection of the owner and canonical identity time, then seal the selected form with generator v2. Retain the identity key's admitted timestamp in new identity sessions and pass it into initial play-state creation.
+
+- [x] **Step 3: Keep every Kai-born family living-card compatible**
+
+Clamp only the Heartbound presentation projection to its documented body bounds while retaining the exact sealed Kai birth morphology. Verify starter export, living admission, and restore continuity through the full suite.

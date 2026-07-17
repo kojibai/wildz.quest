@@ -25,6 +25,7 @@ export type WildzIdentitySession = {
   actorId: string;
   username: string | null;
   displayName: string | null;
+  createdAt?: string;
   portableStateStatus: "verified" | "missing" | "invalid";
   localAuthority: "verified" | "proof-sealed-vault" | "remote-only";
   remoteStatus: "unknown" | "connected" | "pending" | "offline" | "unavailable";
@@ -153,6 +154,7 @@ function isIdentitySession(value: unknown): value is WildzIdentitySession {
     && typeof session.actorId === "string"
     && (typeof session.username === "string" || session.username === null)
     && (typeof session.displayName === "string" || session.displayName === null)
+    && (session.createdAt === undefined || Number.isFinite(Date.parse(session.createdAt)))
     && (session.portableStateStatus === "verified" || session.portableStateStatus === "missing")
     && (session.localAuthority === "verified" || session.localAuthority === "proof-sealed-vault" || session.localAuthority === "remote-only")
     && (session.localAuthority !== "remote-only"
@@ -190,13 +192,14 @@ function isEncryptedIdentityRecord(value: unknown): value is PreparedWildzIdenti
     && typeof record.ciphertextB64Url === "string";
 }
 
-function sessionFromProjection(projection: ReceizIdentityAccountProjection): WildzIdentitySession {
+function sessionFromProjection(projection: ReceizIdentityAccountProjection, createdAt: string): WildzIdentitySession {
   return {
     schema: "receiz.wildz.identity_session.v1",
     keyId: projection.keyId,
     actorId: canonicalWildzActorId(projection),
     username: normalizedUsername(projection.owner.username),
     displayName: projection.owner.displayName?.trim() || null,
+    createdAt: new Date(createdAt).toISOString(),
     portableStateStatus: projection.portableStateStatus,
     localAuthority: "verified",
     remoteStatus: "unknown"
@@ -346,7 +349,7 @@ export function createWildzIdentityRepository(options: {
     async prepare(keyFile: ReceizKeyFile) {
       const projection = await projectReceizIdentityAccount(keyFile);
       if (projection.portableStateStatus === "invalid") throw new Error("wildz_identity_portable_state_invalid");
-      const session = sessionFromProjection(projection);
+      const session = sessionFromProjection(projection, keyFile.issuedAt);
       const key = await wrappingKey();
       const iv = webCrypto.getRandomValues(new Uint8Array(12));
       const plaintext = new TextEncoder().encode(serializeReceizIdentityArtifact(keyFile));
