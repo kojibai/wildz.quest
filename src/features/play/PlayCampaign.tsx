@@ -32,7 +32,7 @@ import { projectWorldProgression } from "@/features/play/world-progression";
 import { WildsCommandDock, type WildsCommandItem, type WildsCommandKey } from "@/features/play/WildsCommandDock";
 import { WildsCommandCenter } from "@/features/play/command-center/WildsCommandCenter";
 import { projectWildsCommandCenter, type WildsCommandAction } from "@/features/play/command-center/director";
-import { deriveKaiKlokMoment, KAI_GENESIS_TS } from "@/features/play/kai-klok-moment";
+import { deriveKaiKlokMoment, KAI_GENESIS_TS, millisecondsUntilNextKaiPulse } from "@/features/play/kai-klok-moment";
 import { WildzCommandInsight } from "@/features/play/WildzCommandInsight";
 import { WildsWorldMap } from "@/features/play/WildsWorldMap";
 import { WildsLandmarkExperience } from "@/features/play/WildsLandmarkExperience";
@@ -237,12 +237,17 @@ export function PlayCampaign({
   const trailSynergy = useMemo(() => deriveLoadoutSynergy(trailPack, worldProgression.chapter.name), [trailPack, worldProgression.chapter.name]);
 
   useEffect(() => {
+    let timer = 0;
     const updateKaiMoment = () => setKaiOccurredAt(new Date().toISOString());
+    const scheduleNextKaiMoment = () => {
+      updateKaiMoment();
+      timer = window.setTimeout(scheduleNextKaiMoment, millisecondsUntilNextKaiPulse());
+    };
     updateKaiMoment();
-    const timer = window.setInterval(updateKaiMoment, 5_236);
+    timer = window.setTimeout(scheduleNextKaiMoment, millisecondsUntilNextKaiPulse());
     document.addEventListener("visibilitychange", updateKaiMoment);
     return () => {
-      window.clearInterval(timer);
+      window.clearTimeout(timer);
       document.removeEventListener("visibilitychange", updateKaiMoment);
     };
   }, []);

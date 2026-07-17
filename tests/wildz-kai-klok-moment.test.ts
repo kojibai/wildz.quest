@@ -2,7 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   deriveKaiKlokMoment,
-  KAI_CHAKRA_GEOMETRY
+  KAI_CHAKRA_GEOMETRY,
+  KAI_GENESIS_TS,
+  KAI_PULSE_DURATION_MS,
+  millisecondsUntilNextKaiPulse
 } from "../src/features/play/kai-klok-moment";
 
 test("Kai Klok moment is deterministic at the genesis anchor", () => {
@@ -62,6 +65,15 @@ test("the inner pulse rolls from ten to zero as the step advances", () => {
   assert.equal(pulseTen.pulseInStep, 10);
   assert.equal(pulseEleven.pulseInStep, 0);
   assert.equal(pulseEleven.stepIndex, 1);
+});
+
+test("Kai command ticks align to the next Genesis-locked pulse boundary", () => {
+  assert.equal(millisecondsUntilNextKaiPulse(KAI_GENESIS_TS), Math.ceil(KAI_PULSE_DURATION_MS));
+  const nearBoundary = KAI_GENESIS_TS + Math.floor(KAI_PULSE_DURATION_MS) - 1;
+  const nearDelay = millisecondsUntilNextKaiPulse(nearBoundary);
+  assert.ok(nearDelay > 0 && nearDelay <= 3);
+  const arbitraryDelay = millisecondsUntilNextKaiPulse(Date.parse("2026-07-17T11:44:03.650Z"));
+  assert.ok(arbitraryDelay > 0 && arbitraryDelay <= Math.ceil(KAI_PULSE_DURATION_MS));
 });
 
 test("invalid or non-canonical timestamps fail closed", () => {

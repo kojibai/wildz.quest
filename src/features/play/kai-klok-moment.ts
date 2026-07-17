@@ -1,6 +1,7 @@
 export const KAI_GENESIS_TS = 1_715_323_541_888 as const;
 export const KAI_N_DAY_MICRO = 17_491_270_421n;
 export const KAI_BASE_DAY_MICRO = 17_424_000_000n;
+export const KAI_PULSE_DURATION_MS = (3 + Math.sqrt(5)) * 1000;
 export const KAI_PULSES_PER_STEP = 11 as const;
 export const KAI_STEPS_PER_BEAT = 44 as const;
 export const KAI_BEATS_PER_DAY = 36 as const;
@@ -107,6 +108,18 @@ function pad2(value: number) {
   return String(value).padStart(2, "0");
 }
 
+function microPulsesFromEpochMs(epochMs: number) {
+  if (!Number.isFinite(epochMs)) throw new Error("wilds_kai_moment_time_invalid");
+  return mulDivRoundHalfEven(BigInt(Math.trunc(epochMs) - KAI_GENESIS_TS), INV_T_NUM, INV_T_DEN);
+}
+
+export function millisecondsUntilNextKaiPulse(epochMs = Date.now()) {
+  const microPulses = microPulsesFromEpochMs(epochMs);
+  const pulseFractionMicro = modE(microPulses, 1_000_000n);
+  const remainingMicro = pulseFractionMicro === 0n ? 1_000_000n : 1_000_000n - pulseFractionMicro;
+  return Math.max(1, Math.ceil((Number(remainingMicro) / 1_000_000) * KAI_PULSE_DURATION_MS));
+}
+
 export function deriveKaiKlokMoment(input: {
   occurredAt: string;
   authority: KaiMomentAuthority;
@@ -116,7 +129,7 @@ export function deriveKaiKlokMoment(input: {
     throw new Error("wilds_kai_moment_time_invalid");
   }
 
-  const microPulses = mulDivRoundHalfEven(BigInt(epochMs - KAI_GENESIS_TS), INV_T_NUM, INV_T_DEN);
+  const microPulses = microPulsesFromEpochMs(epochMs);
   const pulse = safeInteger(floorDivE(microPulses, 1_000_000n));
   const pulseFractionMicro = modE(microPulses, 1_000_000n);
   const percentIntoPulse = Number(pulseFractionMicro) / 1_000_000;
