@@ -515,6 +515,9 @@ export function restorePlayState(value: string | null | undefined, ownerReceizId
     const ecologyProjection = projectWildsEcologyHistory(Array.isArray(saved.ecologyEvents) ? saved.ecologyEvents.slice(-2_048) : []);
     const raidProjection = projectWildsRaidHistory(Array.isArray(saved.raidEvents) ? saved.raidEvents.slice(-4_096) : []);
     const restoredEncounter = restoreEncounter(saved.encounter);
+    const savedEncounterPhase = saved.encounter?.phase;
+    const captureWasPaused = (savedEncounterPhase === "emerging" || savedEncounterPhase === "capsule")
+      && restoredEncounter.phase === "searching";
     const requestedSelectedAssetId = typeof saved.selectedAssetId === "string"
       ? migratedAssetIds.get(saved.selectedAssetId) ?? saved.selectedAssetId
       : "";
@@ -546,7 +549,11 @@ export function restorePlayState(value: string | null | undefined, ownerReceizId
       capturedHotspotIds: Array.isArray(saved.capturedHotspotIds)
         ? saved.capturedHotspotIds.filter((id): id is string => typeof id === "string")
         : [],
+      battle: captureWasPaused ? null : saved.battle ?? fallback.battle,
       encounter: restoredEncounter.phase === "sealed" ? { ...restoredEncounter, phase: "revealed" } : restoredEncounter,
+      lastEvent: captureWasPaused
+        ? "Capture paused safely. Scan the same terrain to resume this creature's permanent capture."
+        : saved.lastEvent ?? fallback.lastEvent,
       lastSearchPoint: saved.lastSearchPoint && typeof saved.lastSearchPoint.x === "number" && typeof saved.lastSearchPoint.z === "number"
         ? { x: saved.lastSearchPoint.x, z: saved.lastSearchPoint.z }
         : null,
@@ -611,7 +618,10 @@ function restoreEncounter(value: unknown): EncounterState {
       discoveryIdentity = undefined;
     }
   }
-  return { ...candidate, proximity, trend, discoveryIdentity } as EncounterState;
+  const phase = (candidate.phase === "emerging" || candidate.phase === "capsule") && !discoveryIdentity
+    ? "searching"
+    : candidate.phase;
+  return { ...candidate, phase, proximity, trend, discoveryIdentity } as EncounterState;
 }
 
 export function selectedCard(state: PlayState) {
@@ -1061,7 +1071,13 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       };
     }
     let sealed: PortableCardAsset;
-    if (!encounter.discoveryIdentity) return { ...state, encounter: { ...encounter, phase: "emerging" }, lastEvent: "The capsule reopened because this creature's discovery identity was missing." };
+    const pauseCapture = () => ({
+      ...state,
+      battle: null,
+      encounter: { ...encounter, phase: "searching" as const },
+      lastEvent: `Capture paused safely. Scan the same terrain to resume ${encounter.discoveryIdentity?.name.display ?? "this creature"}'s permanent capture.`
+    });
+    if (!encounter.discoveryIdentity) return pauseCapture();
     try {
       sealed = sealDiscoveredCard({
         identity: encounter.discoveryIdentity,
@@ -1071,9 +1087,9 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
         battleTranscriptDigest: state.battle ? battleTranscriptDigest(state.battle) : undefined
       });
     } catch {
-      return { ...state, encounter: { ...encounter, phase: "emerging" }, lastEvent: "The capsule reopened because its offline seal could not be verified." };
+      return pauseCapture();
     }
-    if (!verifyPortableCard(sealed).ok) return { ...state, encounter: { ...encounter, phase: "emerging" }, lastEvent: "The capsule reopened because its offline seal could not be verified." };
+    if (!verifyPortableCard(sealed).ok) return pauseCapture();
     const nextDiscovered = Array.from(new Set([...state.discoveredCardIds, sealed.manifest.familyId]));
     return withWorldProgress(awardWorldMastery({
       ...state,

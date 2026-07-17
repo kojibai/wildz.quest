@@ -495,6 +495,50 @@ describe("Receiz Wilds game state", () => {
     }
   });
 
+  it("restores an incomplete automatic capture as a safe searchable encounter", () => {
+    const hotspot = nearbyHiddenHotspots(initialPlayState.player)[0]!;
+    const envelope = JSON.parse(serializePlayState(initialPlayState));
+    envelope.state.encounter = {
+      phase: "capsule",
+      searchedAt: "2026-07-17T12:00:00.000Z",
+      ownerReceizId: "player.receiz.id",
+      searchPoint: { ...hotspot.position },
+      hotspotId: hotspot.id,
+      familyId: hotspot.familyId,
+      formId: hotspot.formId,
+      cover: hotspot.cover,
+      proximity: "hot",
+      trend: null
+    };
+
+    const restored = restorePlayState(JSON.stringify(envelope));
+    assert.equal(restored.encounter.phase, "searching");
+    assert.match(restored.lastEvent, /scan the same terrain/i);
+  });
+
+  it("stops automatic capture retry when a discovery identity is unavailable", () => {
+    const hotspot = nearbyHiddenHotspots(initialPlayState.player)[0]!;
+    const broken: PlayState = {
+      ...initialPlayState,
+      encounter: {
+        phase: "capsule",
+        searchedAt: "2026-07-17T12:00:00.000Z",
+        ownerReceizId: "player.receiz.id",
+        searchPoint: { ...hotspot.position },
+        hotspotId: hotspot.id,
+        familyId: hotspot.familyId,
+        formId: hotspot.formId,
+        cover: hotspot.cover,
+        proximity: "hot",
+        trend: null
+      }
+    };
+
+    const recovered = applyWildsInput(broken, { type: "advance-encounter", at: "2026-07-17T12:00:08.000Z" });
+    assert.equal(recovered.encounter.phase, "searching");
+    assert.match(recovered.lastEvent, /scan the same terrain/i);
+  });
+
   it("migrates a v2 discovery save into sealed portable inventory", () => {
     const legacy = JSON.stringify({
       schema: "receiz.wilds.save.v2",

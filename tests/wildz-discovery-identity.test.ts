@@ -2,8 +2,15 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { applyWildsInput, initialPlayState } from "../src/features/play/game-state.js";
 import { nearbyHiddenHotspots } from "../src/features/play/hidden-hotspots.js";
-import { validateLivingCreatureIdentity } from "../src/features/play/living-taxonomy.js";
-import { canonicalPortableCardJson } from "../src/features/play/portable-card.js";
+import {
+  livingCreatureIdentityDigest,
+  validateLivingCreatureIdentity
+} from "../src/features/play/living-taxonomy.js";
+import {
+  canonicalPortableCardJson,
+  sealDiscoveredCard,
+  verifyPortableCard
+} from "../src/features/play/portable-card.js";
 
 describe("Wildz discovery-sealed identity", () => {
   it("creates one permanent identity at first discovery and carries its name into battle", () => {
@@ -54,5 +61,36 @@ describe("Wildz discovery-sealed identity", () => {
         canonicalPortableCardJson(identity)
       );
     }
+  });
+
+  it("keeps a historically sealed long discovery name valid across naming updates", () => {
+    const hotspot = nearbyHiddenHotspots(initialPlayState.player)[0]!;
+    const discovered = applyWildsInput(initialPlayState, {
+      type: "search-point",
+      x: hotspot.position.x,
+      z: hotspot.position.z,
+      searchedAt: "2026-07-17T12:00:00.000Z",
+      ownerReceizId: "player.receiz.id"
+    });
+    assert.notEqual(discovered.encounter.phase, "idle");
+    if (discovered.encounter.phase === "idle" || !discovered.encounter.discoveryIdentity || !discovered.encounter.formId) return;
+    const identity = structuredClone(discovered.encounter.discoveryIdentity);
+    identity.name = {
+      given: "Brina",
+      epithet: "Tanobaki",
+      display: "Brina Tanobaki",
+      collisionLane: 0
+    };
+    identity.identityDigest = livingCreatureIdentityDigest(identity);
+
+    assert.equal(validateLivingCreatureIdentity(identity).ok, true);
+    const sealed = sealDiscoveredCard({
+      identity,
+      formId: discovered.encounter.formId,
+      ownerReceizId: discovered.encounter.ownerReceizId,
+      capturedAt: "2026-07-17T12:00:08.000Z"
+    });
+    assert.equal(sealed.manifest.name, "Brina Tanobaki");
+    assert.equal(verifyPortableCard(sealed).ok, true);
   });
 });
