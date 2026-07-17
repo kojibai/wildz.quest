@@ -7,6 +7,7 @@ Make the Wildz entry page feel quietly alive while adding an official, tasteful 
 ## Composition
 
 - Keep the existing Wildz wordmark, message, and explorer actions as the primary hierarchy.
+- Replace the entry message with the exact single-line copy: “Catch living creatures shaped by the moment. Train, evolve, breed & carry them offline. No two Wildz are ever the same.” Keep it on one visual line across supported entry layouts by sizing it responsively rather than wrapping it into a second line.
 - Add a centered “Powered by Receiz” link after all entry status content so it naturally occupies the bottom of the entry composition and never overlays a control.
 - Use Receiz’s official 116 × 32 badge artwork as a local asset. The whole surrounding link is the hit target, with an accessible name of “Powered by Receiz”.
 - Open Receiz in a new tab and include `rel="noopener noreferrer"`.
@@ -37,9 +38,10 @@ Buttons keep their current behavior and gain only a slightly smoother border, li
 - Under `prefers-reduced-motion: reduce`, stop all new drift, breathing, glint, and lift animation while retaining the static lighting composition.
 - Keep the footer in normal document flow. Existing vertical scrolling and safe-area padding continue to handle short mobile viewports, restored-identity messages, and errors without clipping.
 - The wordmark and actions remain readable and usable when motion is unavailable.
+- The tagline remains a single visual line without clipping at the supported viewport widths.
 
 ## Verification
 
 - Add a focused source contract for the Receiz destination, official accessible label, secure external-link attributes, local badge asset, and reduced-motion coverage.
 - Run the full test suite, lint, typecheck, and production build.
-- Render the entry route at desktop and narrow mobile sizes, checking hierarchy, full-page scrolling, badge focus/hover treatment, subtle motion, and the reduced-motion state.
+- Render the entry route at desktop and narrow mobile sizes, checking hierarchy, the tagline's single-line fit, full-page scrolling, badge focus/hover treatment, subtle motion, and the reduced-motion state.
