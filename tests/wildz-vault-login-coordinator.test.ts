@@ -223,6 +223,40 @@ test("a standalone V3 Vault still authenticates its owner even when a local Iden
   assert.equal(verificationCalls, 1);
 });
 
+test("a Wildz-saved V3 Vault restores locally for the matching active player when proof verification is unavailable", async () => {
+  const value = fixture();
+  const database = createMemoryWildzContinuityDatabase();
+  const identity = await createReceizIdentityKeyFile({
+    owner: { uid: "vault_keeper_uid", username: "vault_keeper", displayName: "Vault Keeper" },
+    portableState: { schema: "receiz.account.state.v3", snapshot: { schema: "receiz.app.portable_bundle.v1", objects: [] } }
+  });
+  const repository = createWildzIdentityRepository({ database });
+  const codec = createWildzArtifactCodec({ identityRepository: repository, commerceVaultReader: { inspect: inspectReceizCommerceVault } });
+  const pending = createWildzPendingVaultRepository({ database });
+  let verificationCalls = 0;
+  const coordinator = createWildzVaultLoginCoordinator({
+    database,
+    repository,
+    codec,
+    pending,
+    verifier: { verifyArtifact: async () => { verificationCalls += 1; throw new Error("offline"); } },
+    remote: { current: async () => ({ status: "unknown", actorId: null, profileHandle: null, displayName: null }) }
+  });
+  const prepared = await repository.prepare(identity.keyFile);
+  await database.transaction(["identities", "meta"], "readwrite", (tx) => repository.writePrepared(tx, prepared, true));
+
+  const outcome = await coordinator.begin({ surface: "card-vault", bytes: value.bytes, mimeType: "image/png", name: "wildz-saved-vault.png" });
+
+  assert.equal(outcome.status, "committed");
+  if (outcome.status !== "committed") return;
+  assert.equal(outcome.restore.session.keyId, prepared.session.keyId);
+  assert.equal(outcome.restore.session.localAuthority, "verified");
+  assert.equal(outcome.restore.playState.worldMastery, 77);
+  assert.deepEqual(outcome.restore.verifiedAssetIds, value.assets.map((asset) => asset.id).sort());
+  assert.equal(verificationCalls, 1);
+  assert.equal(database.dump().pendingRestores.length, 0);
+});
+
 test("a self-asserted local username cannot bypass Vault owner authentication", async () => {
   const value = fixture();
   const database = createMemoryWildzContinuityDatabase();

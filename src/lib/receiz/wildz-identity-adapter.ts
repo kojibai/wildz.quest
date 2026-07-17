@@ -602,3 +602,7 @@ export async function downloadWildzIdentitySeal(
     URL.revokeObjectURL(url);
   }
 }
+
+export async function downloadCurrentWildzIdentitySeal(session: WildzIdentitySession) {
+  return downloadWildzIdentitySeal(defaultIdentityRepository, session);
+}

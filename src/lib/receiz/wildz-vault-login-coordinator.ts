@@ -183,13 +183,42 @@ export function createWildzVaultLoginCoordinator(input: {
           })
         };
       }
-      const verified = await verifyProofSealedWildzVault({
-        bytes: artifact.bytes,
-        mimeType: artifact.mimeType,
-        name: artifact.name,
-        codec: input.codec,
-        verifier: input.verifier
-      });
+      let verified: VerifiedProofSealedWildzVault;
+      try {
+        verified = await verifyProofSealedWildzVault({
+          bytes: artifact.bytes,
+          mimeType: artifact.mimeType,
+          name: artifact.name,
+          codec: input.codec,
+          verifier: input.verifier
+        });
+      } catch (error) {
+        if (error instanceof Error
+          && error.message === "wildz_restore_v4_unavailable"
+          && inspection.kind === "card-vault"
+          && inspection.player
+          && inspection.playerBinding === "artifact-v4-required"
+          && !inspection.proofObject) {
+          const active = await input.repository.active();
+          if (active && sameWildzPlayerCoordinate(inspection.player.playerId, active.actorId)) {
+            return {
+              status: "committed",
+              restore: await restoreWildzArtifactForSurface({
+                surface: artifact.surface,
+                bytes: artifact.bytes,
+                mimeType: artifact.mimeType,
+                ...(artifact.name ? { name: artifact.name } : {}),
+                codec: input.codec,
+                repository: input.repository,
+                database: input.database,
+                confirmCardOnly: true,
+                proofSealedPlayer: true
+              })
+            };
+          }
+        }
+        throw error;
+      }
       const pending = await input.pending.stage({
         surface: artifact.surface,
         bytes: artifact.bytes,

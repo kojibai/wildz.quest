@@ -44,6 +44,8 @@ test("Kai teaching inspector remains inside the cockpit and scrolls without a bl
   assert.match(css, /\.wilds-kai-inspector-popover\s*\{[\s\S]*position:\s*absolute[\s\S]*max-height:[\s\S]*overflow-y:\s*auto/s);
   assert.match(css, /\.wilds-kai-inspector-popover\s*\{[\s\S]*background:[^;]*(#030d12|rgb\()/s);
   assert.match(css, /\.wilds-kai-moment-utterance/);
+  assert.match(css, /\.wilds-kai-moment-utterance\s*\{[^}]*white-space:\s*normal/s);
+  assert.doesNotMatch(css, /\.wilds-kai-moment-utterance\s*\{[^}]*-webkit-line-clamp/s);
   assert.match(css, /@media \(max-width: 560px\)[\s\S]*\.wilds-kai-inspector-popover/s);
 });
 

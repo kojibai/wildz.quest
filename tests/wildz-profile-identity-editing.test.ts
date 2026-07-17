@@ -32,8 +32,30 @@ test("profile offers Identity Seal authentication when signing authority is unav
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
   assert.match(sheet, /signingAvailable/);
   assert.match(sheet, /onAuthenticateIdentitySeal/);
-  assert.match(sheet, /Authenticate with Identity Seal/);
+  assert.match(sheet, /Upload Identity Seal/);
   assert.match(sheet, /accept="image\/png,image\/jpeg,image\/webp,application\/json"/);
+  assert.match(sheet, /signingAvailable \? <button[\s\S]*aria-label="Save Identity Seal"[\s\S]*: <button[\s\S]*aria-label="Upload Identity Seal"/);
   assert.match(shell, /signingAvailable=\{identity\?\.localAuthority === "verified"\}/);
   assert.match(shell, /onAuthenticateIdentitySeal=/);
+});
+
+test("profile separates saving an Identity Seal from uploading one for authority", () => {
+  const sheet = readFileSync("src/features/profile/WildzProfileSheet.tsx", "utf8");
+  const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
+  const adapter = readFileSync("src/lib/receiz/wildz-identity-adapter.ts", "utf8");
+  const css = readFileSync("app/globals.css", "utf8");
+  assert.match(sheet, /onSaveIdentitySeal/);
+  assert.match(sheet, /wildz-profile-action-rail/);
+  assert.match(sheet, /aria-label="Share profile"/);
+  assert.match(sheet, /aria-label="Copy profile link"/);
+  assert.match(sheet, /aria-label="Save Identity Seal"/);
+  assert.match(sheet, /aria-label="Save Receiz ID Card"/);
+  assert.match(sheet, /await onSaveIdentitySeal\(\)/);
+  assert.doesNotMatch(sheet, /aria-label="Save Identity Seal"[\s\S]{0,500}identityInputRef\.current\?\.click\(\)/);
+  assert.match(sheet, /signingAvailable \? <button[\s\S]*aria-label="Save Identity Seal"[\s\S]*: <button[\s\S]*aria-label="Upload Identity Seal"/);
+  assert.match(css, /\.wildz-profile-action-rail\s*\{[^}]*grid-template-columns:\s*repeat\(4,\s*44px\)/s);
+  assert.match(shell, /downloadCurrentWildzIdentitySeal/);
+  assert.match(shell, /onSaveIdentitySeal=\{saveIdentitySeal\}/);
+  assert.match(adapter, /export async function downloadCurrentWildzIdentitySeal/);
+  assert.match(adapter, /downloadWildzIdentitySeal\(defaultIdentityRepository, session\)/);
 });
