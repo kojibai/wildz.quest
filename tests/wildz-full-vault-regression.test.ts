@@ -7,6 +7,7 @@ import {
 } from "@receiz/sdk";
 import {
   applyWildsInput,
+  createOwnerBoundInitialPlayState,
   initialPlayState,
   restorePlayState,
   serializePlayState,
@@ -24,7 +25,7 @@ import {
   createWildzArtifactCodec,
   type WildzArtifactInspection
 } from "../src/lib/receiz/wildz-artifact-codec";
-import { createWildzIdentityRepository } from "../src/lib/receiz/wildz-identity-repository";
+import { createWildzIdentityRepository, type WildzIdentitySession } from "../src/lib/receiz/wildz-identity-repository";
 import { createWildzIdentityPlayerCard } from "../src/lib/receiz/wildz-identity-adapter";
 import { createMemoryWildzContinuityDatabase } from "./support/memory-wildz-continuity-database";
 
@@ -221,6 +222,56 @@ test("generated 97-card identity Vault survives inspection, both restore surface
   assert.equal(inventoryOutcome.session.username, fixture.embeddedUsername);
   assert.deepEqual(inventoryOutcome.verifiedAssetIds, fixture.expectedIds);
   assert.deepEqual(inventoryOutcome.playState.inventory.map((asset) => asset.id).sort(), fixture.expectedIds);
+});
+
+test("matching Identity Seal authenticates an already loaded proof vault without dropping current cards", async () => {
+  const { database, repository, codec } = setup();
+  const identity = await createReceizIdentityKeyFile({
+    owner: { uid: "matching_identity", username: "matching_owner", displayName: "Matching Owner" }
+  });
+  const projection = await projectReceizIdentityAccount(identity.keyFile);
+  const proofSession: WildzIdentitySession = {
+    schema: "receiz.wildz.identity_session.v1",
+    keyId: `receiz_vault_${"a".repeat(32)}`,
+    actorId: "matching_owner",
+    username: "matching_owner",
+    displayName: "Matching Owner",
+    portableStateStatus: "missing",
+    localAuthority: "proof-sealed-vault",
+    remoteStatus: "unknown"
+  };
+  await database.transaction(["identities", "meta"], "readwrite", (tx) =>
+    repository.writeSession(tx, proofSession, true)
+  );
+  const existingCard = sealCollectedCard({
+    formId: "mintcub-1",
+    ownerReceizId: proofSession.actorId,
+    encounterId: "already-loaded-vault-card",
+    capturedAt: "2026-07-17T01:00:00.000Z"
+  });
+  const currentPlayState = applyWildsInput(
+    createOwnerBoundInitialPlayState(proofSession.actorId),
+    { type: "import-card", asset: existingCard }
+  );
+
+  const outcome = await restoreWildzArtifactForSurface({
+    surface: "card-vault",
+    bytes: appendReceizIdentityArtifactTrailerToPng(BASE_PNG, identity.keyFile),
+    mimeType: "image/png",
+    name: "matching-owner.identity-seal.png",
+    codec,
+    repository,
+    database,
+    confirmCardOnly: true,
+    currentPlayState
+  });
+
+  assert.equal(outcome.session.keyId, projection.keyId);
+  assert.equal(outcome.session.localAuthority, "verified");
+  assert.equal(outcome.session.actorId, "matching_owner");
+  assert.ok(outcome.playState.inventory.some((asset) => asset.id === existingCard.id));
+  const reloaded = await loadWildzRestoredPlayState({ database, session: outcome.session });
+  assert.ok(reloaded?.inventory.some((asset) => asset.id === existingCard.id));
 });
 
 test("the same 97-card V3 Vault is card-only without SDK authority and cannot switch identity", async () => {

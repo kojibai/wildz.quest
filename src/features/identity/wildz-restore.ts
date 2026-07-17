@@ -361,9 +361,12 @@ export async function restoreWildzArtifactForSurface(input: {
     await input.database.transaction(["identities", "ownerStates", "meta"], "readwrite", async (tx) => {
       const stored = await tx.get<unknown>("ownerStates", scope);
       const sameActiveOwner = active?.keyId === session.keyId && active.actorId === session.actorId;
+      const sameActivePlayer = active
+        ? sameActiveOwner || sameWildzPlayerCoordinate(active.actorId, session.actorId)
+        : false;
       const previous = storedOwnerState(stored, session);
-      const current = sameActiveOwner && input.currentPlayState
-        ? restorePlayState(serializePlayState(input.currentPlayState))
+      const current = sameActivePlayer && input.currentPlayState
+        ? restorePlayState(serializePlayState(input.currentPlayState), session.actorId)
         : previous
           ? restorePlayState(serializePlayState(previous.playState))
           : emptyVaultPlayState();
