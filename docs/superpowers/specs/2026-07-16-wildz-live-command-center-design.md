@@ -45,12 +45,12 @@ Visual vocabulary:
 - one dominant Now decision surrounded by quieter supporting systems;
 - asymmetric but disciplined cockpit geometry that feels engineered rather than card-stacked;
 - live points and line segments that illuminate only when their underlying state changes.
-- a dynamically derived phase palette that evolves with admitted state while preserving contrast and Wildz identity;
+- the canonical Kai moment palette, evolving directly from admitted pulse/chakra state while preserving contrast and Wildz identity;
 - consequence echoes that remain faintly present after resolution so the cockpit carries memory without clutter.
 
 The sheet should create a “wow” first impression in the first viewport, but information remains legible within one glance. Decorative telemetry cannot imply data the game does not possess. Mobile uses the same nervous-system composition in a single vertical flow; it does not shrink a desktop control room into unreadable miniature panels.
 
-The central spine carries a slow organic double-pulse: one primary beat, one softer echo, then rest. Branch nodes respond with low-amplitude, phase-offset luminance so the system reads as a connected living organism rather than synchronized blinking. Real authoritative events temporarily change the pulse: opportunities broaden it, warnings tighten it, critical survival state accelerates it within a bounded accessible range, and successful actions send a causal wave through every changed branch. Reduced-motion mode keeps the complete hierarchy and replaces travel and rhythmic variation with steady illumination.
+The central spine carries the Kai Klok moment cadence: one primary beat, one softer echo, then rest, placed by the canonical beat/step geometry. Branch nodes respond with low-amplitude, geometry-offset luminance so the system reads as a connected living organism rather than synchronized blinking. Gameplay events illuminate the affected branch and send causal waves, but never alter the underlying Kai cadence. Reduced-motion mode keeps the complete hierarchy and replaces travel and rhythmic variation with steady illumination.
 
 The heartbeat is rendered with composited CSS opacity/transform only. It pauses whenever the Command Center is closed, the document is hidden, or the device requests reduced motion. No timer drives gameplay, no pulse fabricates activity, and no decorative node claims a state that does not exist.
 
@@ -71,26 +71,9 @@ Ranking is deterministic. Critical creature survival and unresolved battle conse
 
 The director never invents an action. If the existing domain layer cannot perform an action, the center reports the condition without rendering a false button.
 
-## Deterministic Neural State Machine
-
-The complete visual and interaction state is projected by a pure deterministic state machine. For an identical admitted gameplay snapshot and acknowledgement set, it always returns the same phase, priority order, neural branch topology, palette tokens, heartbeat timing, action availability, and consequence copy.
-
-Phases are semantic and mutually exclusive:
-
-- **steady** — exploration is stable; the system breathes in deep teal and living green;
-- **opportunity** — a meaningful action is available; gold energy enters the relevant branch;
-- **warning** — a mission, creature, battle, or world consequence needs attention; amber tightens the pulse;
-- **critical** — irreversible creature or battle consequence is near; bounded crimson becomes dominant and the Now branch takes visual precedence;
-- **resolving** — an admitted action is propagating through dependent projections; violet/white causal energy travels through changed branches before settling into the next derived phase;
-- **offline** — local continuity remains active while network-only branches become cool desaturated blue and explicitly unavailable.
-
-Inputs are existing domain facts only: living-card condition and lifecycle, battle state, mission progress, active world/ecology/boss state, multiplayer presence, connectivity, pending admitted operations, Vault custody/playability, and acknowledged priority revisions. Presentation time may advance a CSS animation within the selected phase, but it cannot select a phase, change rank, manufacture urgency, or change an action.
-
-Every transition has a named cause and a stable transition id derived from the causal state revision. Replaying history reproduces the same transition sequence. This lets the Command Center function as the visible brain of the deterministic game rather than a loosely synchronized dashboard.
-
 ## Kai Klok Moment and Geometry
 
-The neural state machine consumes the canonical Kai Klok moment as a deterministic environmental input. The moment supplies pulse, beat, step index/progress, chakra state, chakra accent/hue, gate, and polygon geometry. Wildz must port the exact small canonical tables and calculations already used by Kai Klok rather than approximating the chakra colors or adding a runtime package.
+Kai Klok is the system state machine. The Command Center does not invent a second neural phase machine. It consumes the canonical Kai moment directly: pulse, beat, step index/progress, chakra state, chakra accent/hue, gate, and polygon geometry. Wildz must port the exact small canonical tables and calculations already used by Kai Klok rather than approximating the chakra colors or adding a runtime package.
 
 The moment controls the system's baseline expression:
 
@@ -101,11 +84,31 @@ The moment controls the system's baseline expression:
 - the Kai gate supplies the moment's semantic world bias;
 - a sealed/admitted pulse makes replay reproduce the exact visual and tactical moment.
 
-Gameplay urgency modulates this baseline instead of replacing it. For example, a Heart moment remains Heart-colored while a critical creature condition introduces a bounded crimson threat current through the Squad-to-Now path. This preserves both the real moment and the real consequence.
+Gameplay facts are deterministic projections inside the Kai state, not another state machine. They rank decisions and illuminate consequence paths. For example, a Heart moment remains Heart-colored while a critical creature condition introduces a bounded crimson threat current through the Squad-to-Now path without changing Kai cadence or geometry. This preserves both the real moment and the real consequence.
+
+For an identical admitted Kai moment, gameplay snapshot, and acknowledgement set, the Command Center always returns the same priority order, Kai-derived topology/palette/cadence, action availability, and consequence copy. Each changed gameplay projection has a stable causal id derived from the admitted world/player revision, so replay reproduces the same visible sequence.
 
 The moment may shape deterministic encounter presentation, opportunity weighting, environmental geometry, route emphasis, and non-economic world flavor. It cannot change proof validity, current bearer ownership, settlement, irreversible lifecycle rules, competitive damage formulas, or manufacture rewards. Any gameplay rule influenced by the moment must be explicit, replayable, tested, and identical for every player admitted to that same global moment.
 
 Online shared play uses the admitted Kai coordinate carried by the world snapshot/event cursor. Offline play derives a local Kai moment through the same canonical function and labels its authority as local. Reconnection replays admitted world events and reconciles the cockpit to global Kai state without rewriting already sealed offline history.
+
+## Living World Moment Expression
+
+The world and Command Center consume the same `KaiKlokMoment`; neither derives a private clock. Every new canonical moment projects a shared `WildsKaiMomentExpression` that controls non-authoritative environmental expression:
+
+- sky, fog, route glow, ambient particle color, and landmark energy use the chakra color field;
+- chakra polygon sides determine repeated environmental geometry, neural branching rhythm, and subtle landmark/route motifs;
+- beat and step determine which geometric layer is emphasized and where light travels through it;
+- gate meaning biases encounter presentation, exploration hints, route emphasis, and non-economic opportunity flavor through explicit deterministic tables;
+- the transition between moments is visible and smooth, while the underlying state changes exactly at the canonical boundary.
+
+The existing Three.js scene updates colors, material values, and bounded procedural motifs in place. It does not remount the canvas, rebuild the camera, alter movement controls, or allocate a new particle system every pulse. The Command Center uses the exact same expression object and exposes its pulse, beat, step, chakra, gate, and authority.
+
+The cockpit includes one compact Kai coordination strip using the canonical eternal calendar: `Y · M · D · Beat:Step · Pulse`, accompanied by weekday, chakra, and gate. The visual hierarchy emphasizes Beat:Step for immediate coordination and keeps the full pulse available as the exact shareable coordinate. Month, day, and year use the canonical 6-day week, 42-day month, 8-month year, and 336-day year calculations—not Gregorian labels.
+
+World activities may publish deterministic Kai windows such as a raid forming at a future Beat:Step or an arena session opening across a stated pulse range. Scheduling and countdown presentation derive from canonical pulse boundaries, remain identical for users on the same admitted world state, and survive offline continuity. No event becomes authoritative merely because a local device clock reached a display boundary; shared admission still comes from the existing world event rail.
+
+Moment-shaped game rules must remain fair. Shared online players admitted to the same Kai coordinate receive identical expression and opportunity bias. Competitive results, damage, proof, custody, settlement, irreversible lifecycle decisions, and rewards remain governed by their existing explicit systems.
 
 ## Now
 
@@ -163,7 +166,7 @@ The Command Center distinguishes new state from previously acknowledged state wi
 - Reduced-motion mode removes spatial animation.
 - Existing audio remains unchanged. The Command Center may invoke existing gameplay cues only when the underlying game event already emits them; it adds no new soundtrack or audio dependency.
 - A committed action sends one visible causal pulse from the action point through the neural spine to every section whose authoritative projection changed.
-- Ambient life uses the low-cost neural heartbeat while the sheet is visible; its tempo and amplitude come from bounded urgency tokens rather than an independent animation state.
+- Ambient life uses the low-cost neural heartbeat while the sheet is visible; cadence and topology come from Kai beat/step/chakra geometry, while gameplay urgency only illuminates affected consequence paths.
 
 ## Performance
 
@@ -201,8 +204,8 @@ The implementation extends `WildsCommandDock` so an externally triggered command
 ### Unit and contract coverage
 
 - Priority ranking is deterministic across survival, battle, mission, world, multiplayer, and informational candidates.
-- Identical admitted snapshots reproduce the exact phase, palette, topology, tempo, transition id, actions, and priority order.
-- Every phase transition names a real causal revision; presentation time cannot change semantic state.
+- Identical admitted snapshots reproduce the exact Kai moment, palette, topology, cadence, causal id, actions, and priority order.
+- Every visible consequence change names a real causal revision; presentation time cannot change Kai or gameplay semantic state.
 - Critical creature survival always outranks non-critical opportunities.
 - Unsupported actions never appear as executable controls.
 - Acknowledgement changes emphasis without mutating gameplay history.
