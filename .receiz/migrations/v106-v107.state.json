@@ -1,0 +1,14 @@
+{
+  "schema": "receiz.sdk.v106-v107.migration-state.v1",
+  "planDigest": "66853c9b751135e63f78b9f332ba7285f7c28ecfe168945b731ddda317e6372d",
+  "completedPaths": [],
+  "historyDigests": {
+    "sealedArtifactsDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "canonicalReceiptsDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "proofHeadsDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "queueRecords": [],
+  "recovery": "roll-forward-from-verified-checkpoint",
+  "historyRewritten": false,
+  "globallyCommittedClaimsCreated": 0
+}

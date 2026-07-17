@@ -5,14 +5,15 @@ import { basename, join, resolve } from "node:path";
 import {
   RECEIZ_RELEASE_VERSION,
   RECEIZ_RULESET_VERSION,
-  RECEIZ_V106_REGISTRY_DIGEST
+  RECEIZ_V107_REGISTRY_DIGEST,
+  RECEIZ_V107_RELEASE_AUTHORITY
 } from "@receiz/sdk";
 import { checkReceizIntegration } from "@receiz/sdk/compiler";
 
-const TARGET_VERSION = "106.0.0";
-const TARGET_REGISTRY_DIGEST = "bf851c209e807309672c0f466411baa5607ce6b3195fe4eb16755edfeb7f5a1a";
+const TARGET_VERSION = "107.0.0";
+const TARGET_REGISTRY_DIGEST = "4d0caa6172a69c3bf5817c1c35db5630e555b5d6d824091d45a90fb426b86ef6";
 const sourceRoot = resolve(process.cwd());
-const snapshotRoot = await mkdtemp(join(tmpdir(), "wildz-receiz-v106-check-"));
+const snapshotRoot = await mkdtemp(join(tmpdir(), "wildz-receiz-v107-check-"));
 const ignoredDirectories = new Set([
   ".git",
   ".next",
@@ -55,22 +56,25 @@ async function assertCompilerBoundary(directory) {
     if (!/\.(?:[cm]?[jt]sx?|md)$/.test(entry.name)) continue;
     const source = await readFile(path, "utf8");
     if (/(?:import\s+(?:\*\s+as\s+\w+|[A-Za-z_$][\w$]*)\s+from\s*|import\s*\()(["'])@receiz\/sdk\1/.test(source)) {
-      throw new Error(`receiz_v106_ambiguous_root_import:${path.slice(directory.length + 1)}`);
+      throw new Error(`receiz_v107_ambiguous_root_import:${path.slice(directory.length + 1)}`);
     }
     for (const match of source.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s+from\s*["']@receiz\/sdk["']/g)) {
       const imported = (match[1] ?? "").split(",").map((value) => value.replace(/^type\s+/, "").trim().split(/\s+as\s+/)[0]);
       const compilerImport = imported.find((name) => compilerSymbols.has(name));
-      if (compilerImport) throw new Error(`receiz_v106_compiler_import_on_runtime:${compilerImport}`);
+      if (compilerImport) throw new Error(`receiz_v107_compiler_import_on_runtime:${compilerImport}`);
     }
   }
 }
 
 function assertReleaseIdentity() {
   if (RECEIZ_RELEASE_VERSION !== TARGET_VERSION || RECEIZ_RULESET_VERSION !== TARGET_VERSION) {
-    throw new Error("receiz_v106_release_identity_mismatch");
+    throw new Error("receiz_v107_release_identity_mismatch");
   }
-  if (RECEIZ_V106_REGISTRY_DIGEST !== TARGET_REGISTRY_DIGEST) {
-    throw new Error("receiz_v106_registry_digest_mismatch");
+  if (RECEIZ_V107_REGISTRY_DIGEST !== TARGET_REGISTRY_DIGEST) {
+    throw new Error("receiz_v107_registry_digest_mismatch");
+  }
+  if (RECEIZ_V107_RELEASE_AUTHORITY.queuedCommandIsGlobalCommitment !== false) {
+    throw new Error("receiz_v107_offline_authority_mismatch");
   }
 }
 
@@ -103,9 +107,10 @@ try {
     releaseIdentity: {
       releaseVersion: RECEIZ_RELEASE_VERSION,
       rulesetVersion: RECEIZ_RULESET_VERSION,
-      registryDigest: RECEIZ_V106_REGISTRY_DIGEST
+      registryDigest: RECEIZ_V107_REGISTRY_DIGEST
     },
-    reviewedV106ScannerFinding: officialResult.blockingFindings.some((finding) => finding.code === falsePositiveCode)
+    queuedCommandIsGlobalCommitment: RECEIZ_V107_RELEASE_AUTHORITY.queuedCommandIsGlobalCommitment,
+    reviewedV107ScannerFinding: officialResult.blockingFindings.some((finding) => finding.code === falsePositiveCode)
       ? "Runtime-only named imports were independently parsed; no compiler symbol uses the universal entrypoint."
       : null
   };

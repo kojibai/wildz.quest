@@ -4,7 +4,7 @@ import { test } from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("Wildz v3 release doctrine names the exact Receiz v106 toolchain", () => {
+test("Wildz v3 release doctrine names the exact Receiz v107 toolchain", () => {
   const pkg = JSON.parse(read("package.json")) as {
     version?: string;
     dependencies?: Record<string, string>;
@@ -23,15 +23,15 @@ test("Wildz v3 release doctrine names the exact Receiz v106 toolchain", () => {
   ].join("\n");
 
   assert.equal(pkg.version, "3.0.0");
-  assert.equal(pkg.dependencies?.["@receiz/sdk"], "106.0.0");
-  assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "106.0.0");
-  assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "106.0.0");
-  for (const version of ["@receiz/sdk 106.0.0", "@receiz/mcp-server 106.0.0", "@receiz/ai-skills 106.0.0"]) {
+  assert.equal(pkg.dependencies?.["@receiz/sdk"], "107.0.0");
+  assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "107.0.0");
+  assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "107.0.0");
+  for (const version of ["@receiz/sdk 107.0.0", "@receiz/mcp-server 107.0.0", "@receiz/ai-skills 107.0.0"]) {
     assert.match(release, new RegExp(version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
-  assert.match(mcp, /@receiz\/sdk@106\.0\.0/);
-  assert.match(mcp, /@receiz\/mcp-server@106\.0\.0/);
-  assert.match(mcp, /@receiz\/ai-skills@106\.0\.0/);
+  assert.match(mcp, /@receiz\/sdk@107\.0\.0/);
+  assert.match(mcp, /@receiz\/mcp-server@107\.0\.0/);
+  assert.match(mcp, /@receiz\/ai-skills@107\.0\.0/);
   assert.match(packageSourceDocs, /official npm registry/i);
   assert.doesNotMatch(packageSourceDocs, /vendored|vendoring|until registry publication|vendor\//i);
 });
@@ -51,6 +51,7 @@ test("release documentation states the real offline and remote authority boundar
   assert.match(interoperability, /owner.*claim.*verify path/is);
   assert.match(interoperability, /legacy.*namespace.*prior-head/is);
   assert.match(rails, /fail(?:s|ed)? closed/i);
+  assert.match(combined, /queued[\s\S]*not (?:a )?global(?:ly)? commit/i);
   assert.doesNotMatch(combined, /process-local listing|Kai Pulse character genesis/i);
 });
 
