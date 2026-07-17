@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createReceizIdIdentity, projectReceizIdentityAccount } from "@receiz/sdk";
+import type { WildzCharacterGenesis } from "../src/features/identity/wildz-genesis";
 import { WILDZ_IDENTITY_STORAGE_KEY } from "../src/features/identity/wildz-identity";
+import { initialPlayState } from "../src/features/play/game-state";
+import { createNamedWildzIdentity } from "../src/lib/receiz/wildz-identity-adapter";
 import type { WildzContinuityDatabase } from "../src/lib/storage/wildz-indexed-db";
 import {
   canonicalWildzActorId,
@@ -36,6 +39,47 @@ test("actor ID prefers normalized username and falls back to UID", async () => {
   const projection = await projectReceizIdentityAccount(identity.keyFile);
   assert.equal(canonicalWildzActorId(projection), "fern_path");
   assert.equal(canonicalWildzActorId({ ...identity.keyFile, owner: { ...identity.keyFile.owner, username: null, uid: " Receiz:UID_7 " } }), "receiz:uid_7");
+});
+
+test("a chosen SDK username replaces only an untouched automatic identity", async () => {
+  const database = createMemoryWildzContinuityDatabase();
+  const repository = createWildzIdentityRepository({ database });
+  const automatic = await repository.bootstrap();
+  const current = {
+    session: automatic,
+    playState: null,
+    character: null,
+    playerContinuity: null,
+    restoreEpoch: 0
+  };
+  const named = await createNamedWildzIdentity(
+    current,
+    { username: "@Trail_Keeper", displayName: "Trail Keeper" },
+    { database, repository }
+  );
+
+  assert.equal(named.session.username, "trail_keeper");
+  assert.equal(named.session.actorId, "trail_keeper");
+  assert.equal(named.session.portableStateStatus, "verified");
+  assert.deepEqual(await repository.active(), named.session);
+  assert.equal(await database.read("ownerStates", wildzOwnerScope(automatic.keyId, automatic.actorId)), null);
+
+  await assert.rejects(
+    createNamedWildzIdentity(
+      { ...named, playState: structuredClone(initialPlayState) },
+      { username: "second_name" },
+      { database, repository }
+    ),
+    /wildz_identity_username_change_not_fresh/
+  );
+  await assert.rejects(
+    createNamedWildzIdentity(
+      { ...named, character: { identityRef: named.session.keyId } as unknown as WildzCharacterGenesis },
+      { username: "third_name" },
+      { database, repository }
+    ),
+    /wildz_identity_username_change_not_fresh/
+  );
 });
 
 test("owner scopes encode both authority coordinates", () => {

@@ -289,6 +289,43 @@ export async function bootstrapWildzContinuity(
   });
 }
 
+export async function createNamedWildzIdentity(
+  current: WildzContinuitySnapshot,
+  input: { username: string; displayName?: string },
+  dependencies: {
+    database?: WildzContinuityDatabase;
+    repository?: Pick<WildzIdentityRepository, "active" | "prepare" | "writePrepared">;
+    createIdentity?: typeof createReceizIdIdentity;
+  } = {}
+): Promise<WildzContinuitySnapshot> {
+  return enqueueContinuityOperation(async () => {
+    if (current.character || current.playState) throw new Error("wildz_identity_username_change_not_fresh");
+    if (current.restoreEpoch !== continuityRestoreEpoch) throw new Error("wildz_identity_username_change_stale");
+    const database = dependencies.database ?? defaultContinuityDatabase;
+    const repository = dependencies.repository ?? defaultIdentityRepository;
+    const active = await repository.active();
+    if (!sameOwner(active, current.session)) throw new Error("wildz_identity_username_change_stale");
+    const username = normalizedIdentitySealUsername(input.username);
+    const identity = await (dependencies.createIdentity ?? createReceizIdIdentity)({
+      username,
+      displayName: input.displayName?.trim() || "Wildz Explorer",
+      deviceName: "Wildz"
+    });
+    const prepared = await repository.prepare(identity.keyFile);
+    await database.transaction(["identities", "meta"], "readwrite", (tx) =>
+      repository.writePrepared(tx, prepared, true)
+    );
+    continuityRestoreEpoch += 1;
+    return {
+      session: prepared.session,
+      playState: null,
+      character: null,
+      playerContinuity: null,
+      restoreEpoch: continuityRestoreEpoch
+    };
+  });
+}
+
 export async function restoreWildzFileForSurface(
   file: File,
   surface: "genesis" | "card-vault",

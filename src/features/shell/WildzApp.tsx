@@ -9,6 +9,7 @@ import {
   bootstrapWildzContinuity,
   alignWildzContinuityWithProofSession,
   connectWildzProofSession,
+  createNamedWildzIdentity,
   downloadWildzIdentityPlayerVault,
   restoreWildzFileForSurface,
   resumePendingWildzVault,
@@ -279,6 +280,15 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     }
   };
 
+  const createGenesisIdentity = async (username: string) => {
+    const current = continuityRef.current;
+    if (!current) throw new Error("wildz_identity_missing");
+    const snapshot = await createNamedWildzIdentity(current, { username });
+    publishedProfileRef.current = "";
+    acceptSnapshot(snapshot);
+    return snapshot.session;
+  };
+
   const restoreArtifact = useCallback(async (
     file: File,
     surface: "genesis" | "card-vault",
@@ -355,6 +365,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           }}
         /> : identity && !character ? <WildzGenesis
           identity={identity}
+          onCreateIdentity={createGenesisIdentity}
           onComplete={completeGenesis}
           onRestoreArtifact={(file, confirmCardOnly) => restoreArtifact(file, "genesis", confirmCardOnly)}
         /> : <div className="wildz-identity-loading" role="status">

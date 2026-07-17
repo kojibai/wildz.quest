@@ -7,4 +7,8 @@ test("Genesis communicates portable ownership without visible Kai Pulse jargon",
   assert.match(source, /Catch, grow, own, and cash out creatures you can take anywhere\./);
   assert.match(source, /Shaping your explorer/);
   assert.doesNotMatch(source, />[^<]*Kai Pulse[^<]*</);
+  assert.match(source, /aria-label="Choose your Receiz username"/);
+  assert.match(source, /onCreateIdentity/);
+  assert.match(source, /Create Receiz ID/);
+  assert.match(source, /replace\(\/\^@\+\//);
 });
