@@ -22,5 +22,6 @@ test("the 3D world consumes one shared Kai expression without recoloring authore
   assert.doesNotMatch(canvas, /world\.chapter\.palette\.(?:ground|mid|accent)[\s\S]{0,80}kaiExpression/);
   assert.match(actor, /const bodyColorFloor = pose === "capture" \? 0\.2 : 0\.11/);
   assert.match(actor, /emissiveIntensity=\{bodyColorFloor\}/);
-  assert.match(actor, /emissive=\{accent\} emissiveIntensity=\{0\.07\}/);
+  assert.match(actor, /const renderedAccent = threeCreatureColor\(accent\)/);
+  assert.match(actor, /emissive=\{renderedAccent\} emissiveIntensity=\{0\.07\}/);
 });

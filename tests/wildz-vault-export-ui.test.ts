@@ -19,8 +19,7 @@ test("Card Vault export seals the complete live V3 player payload, not cards alo
   assert.match(inventory, /onExportVault\(state\.inventory, playerVault\(\)\)/);
   assert.match(exporter, /portableVaultPngBlob\(assets: PortableCardAsset\[\], player\?: WildsPlayerVaultPayload\)/);
   assert.match(exporter, /embedPortableVaultInPng\([^;]+assets, player\)/s);
-  assert.match(exporter, /verifyPortableVaultPng\(remoteProof\)\.ok/);
-  assert.doesNotMatch(exporter, /if \(player && !remoteProof\)/);
+  assert.match(exporter, /if \(!remoteProof\) throw new Error\("receiz_proof_object_unavailable"\)/);
   assert.match(adapter, /downloadWildzIdentityPlayerVault/);
   assert.match(adapter, /withKeyFile/);
   assert.match(adapter, /appendWildzIdentitySealAuthority/);
@@ -53,15 +52,16 @@ test("Vault card detail can send a saved card to a Receiz username or email", ()
   assert.match(inventory, /mailto:/);
 });
 
-test("Vault export keeps the shared Receiz Wilds PNG as the downloadable artifact", () => {
+test("Vault export keeps the SDK native Record/Seal artifact as the downloadable artifact", () => {
   const exporter = readFileSync("src/features/play/card-export.ts", "utf8");
 
-  assert.match(exporter, /const exported = remoteProof && verifyPortableVaultPng\(remoteProof\)\.ok\s*\? remoteProof\s*:\s*portableBytes/s);
+  assert.equal(exporter.match(/if \(!remoteProof\) throw new Error\("receiz_proof_object_unavailable"\);/g)?.length, 2);
+  assert.doesNotMatch(exporter, /verifyPortableVaultPng\(remoteProof\)\.ok/);
 });
 
 test("v103 native proof responses are downloaded byte-exact without a legacy rzPo wrapper", () => {
   const exporter = readFileSync("src/features/play/card-export.ts", "utf8");
 
   assert.doesNotMatch(exporter, /remoteProof\s*\?\s*await embedReceizProofObjectInPng/);
-  assert.equal(exporter.match(/const exported = remoteProof \?\? portableBytes;/g)?.length, 1);
+  assert.doesNotMatch(exporter, /remoteProof \?\? portableBytes/);
 });

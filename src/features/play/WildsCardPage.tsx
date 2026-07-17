@@ -28,11 +28,31 @@ export function WildsCardPage({ assetId, initialRecord = null }: { assetId: stri
     }
     const controller = new AbortController();
     setLoading(true);
-    void fetch(`/api/cards/${encodeURIComponent(assetId)}`, { signal: controller.signal })
+    let publicAssetResolved = false;
+    let anyAssetResolved = false;
+    const localResolution = import("@/lib/receiz/wildz-local-card-resolver")
+      .then(({ resolveLocalWildzCard }) => resolveLocalWildzCard(assetId))
+      .then((localAsset) => {
+        if (!localAsset || controller.signal.aborted || publicAssetResolved) return;
+        anyAssetResolved = true;
+        setAsset(localAsset);
+        setLoading(false);
+      })
+      .catch(() => undefined);
+    const publicResolution = fetch(`/api/cards/${encodeURIComponent(assetId)}`, { signal: controller.signal })
       .then(async (response) => response.ok ? await response.json() as { record?: { asset?: PortableCardAsset } } : null)
-      .then((result) => setAsset(result?.record?.asset ?? null))
-      .catch(() => undefined)
-      .finally(() => setLoading(false));
+      .then((result) => {
+        const publicAsset = result?.record?.asset ?? null;
+        if (!publicAsset || controller.signal.aborted) return;
+        publicAssetResolved = true;
+        anyAssetResolved = true;
+        setAsset(publicAsset);
+        setLoading(false);
+      })
+      .catch(() => undefined);
+    void Promise.allSettled([localResolution, publicResolution]).then(() => {
+      if (!controller.signal.aborted && !anyAssetResolved) setLoading(false);
+    });
     return () => controller.abort();
   }, [assetId, initialRecord]);
   const detail = useMemo(() => {

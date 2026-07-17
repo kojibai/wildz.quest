@@ -2,8 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   downloadPortableCard,
-  downloadPortableVault,
-  verifyPortableVaultPng
+  downloadPortableVault
 } from "../src/features/play/card-export";
 import { createPublicWildsCardRecord } from "../src/features/play/public-card-registry";
 import { sealCollectedCard } from "../src/features/play/portable-card";
@@ -98,7 +97,7 @@ function card(encounterId: string) {
   });
 }
 
-test("Vault download stays cross-platform when the native proof response is not a portable Wilds PNG", async () => {
+test("Vault download preserves the SDK native Record/Seal artifact byte-exact", async () => {
   const browser = installDownloadBrowser();
   const expected = nativeArtifact(103);
   try {
@@ -118,10 +117,26 @@ test("Vault download stays cross-platform when the native proof response is not 
     const downloaded = browser.downloaded();
     assert.ok(downloaded);
     assert.equal(downloaded.type, "image/png");
-    const bytes = new Uint8Array(await downloaded.arrayBuffer());
-    assert.notDeepEqual(bytes, expected);
-    assert.equal(verifyPortableVaultPng(bytes).ok, true);
+    assert.deepEqual(new Uint8Array(await downloaded.arrayBuffer()), expected);
     assert.match(browser.downloadedFilename(), /^wilds-vault-[a-f0-9]{12}\.receized\.png$/);
+  } finally {
+    browser.restore();
+  }
+});
+
+test("Vault export never downgrades a player Vault to an unsealed inner PNG", async () => {
+  const browser = installDownloadBrowser();
+  try {
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: async () => new Response(null, { status: 503 })
+    });
+
+    await assert.rejects(
+      downloadPortableVault([card("native-vault-required")]),
+      /receiz_proof_object_unavailable/
+    );
+    assert.equal(browser.downloaded(), null);
   } finally {
     browser.restore();
   }
@@ -158,6 +173,28 @@ test("v103 card download preserves the native proof artifact bytes", async () =>
     assert.equal(downloaded.type, "image/png");
     assert.deepEqual(new Uint8Array(await downloaded.arrayBuffer()), expected);
     assert.equal(browser.downloadedFilename(), "mintcub-1.receized.png");
+  } finally {
+    browser.restore();
+  }
+});
+
+test("Card export never downgrades a requested proof object to an unsealed inner PNG", async () => {
+  const browser = installDownloadBrowser();
+  const asset = card("native-card-required");
+  try {
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: async (input: string | URL | Request) => {
+        if (String(input).startsWith("/api/cards/")) {
+          const record = createPublicWildsCardRecord(asset, "https://wildz.test", "2026-07-16T12:02:00.000Z");
+          return Response.json({ ok: true, record });
+        }
+        return new Response(null, { status: 401 });
+      }
+    });
+
+    await assert.rejects(downloadPortableCard(asset), /receiz_proof_object_unavailable/);
+    assert.equal(browser.downloaded(), null);
   } finally {
     browser.restore();
   }

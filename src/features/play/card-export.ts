@@ -511,10 +511,9 @@ export async function downloadPortableCard(asset: PortableCardAsset) {
   const filename = asset.manifest.formId;
   const publication = await attemptCardPublication(asset);
   const portable = await renderPortableCardPngBlob(asset);
-  const portableBytes = new Uint8Array(await portable.arrayBuffer());
   const remoteProof = await requestReceizProofObject(portable, `${filename}.png`, "card");
-  const exported = remoteProof ?? portableBytes;
-  downloadBlob(new Blob([exported.slice().buffer], { type: "image/png" }), `${filename}.receized.png`);
+  if (!remoteProof) throw new Error("receiz_proof_object_unavailable");
+  downloadBlob(new Blob([remoteProof.slice().buffer], { type: "image/png" }), `${filename}.receized.png`);
   return { published: publication.published };
 }
 
@@ -545,10 +544,7 @@ export async function downloadPortableVault(assets: PortableCardAsset[], player?
   if (!assets.length) throw new Error("wilds_vault_empty");
   const digest = sha256PortableBasis(canonicalPortableCardJson(assets.map((asset) => asset.id))).slice(7, 19);
   const portable = await portableVaultPngBlob(assets, player);
-  const portableBytes = new Uint8Array(await portable.arrayBuffer());
   const remoteProof = await requestReceizProofObject(portable, "wilds-vault.png", "vault");
-  const exported = remoteProof && verifyPortableVaultPng(remoteProof).ok
-    ? remoteProof
-    : portableBytes;
-  downloadBlob(new Blob([exported.slice().buffer], { type: "image/png" }), `wilds-vault-${digest}.receized.png`);
+  if (!remoteProof) throw new Error("receiz_proof_object_unavailable");
+  downloadBlob(new Blob([remoteProof.slice().buffer], { type: "image/png" }), `wilds-vault-${digest}.receized.png`);
 }

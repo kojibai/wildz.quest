@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import * as THREE from "three";
 import { creatureForm } from "../src/features/play/creature-catalog.js";
-import { projectCardKaiAppearance } from "../src/features/play/card-kai-appearance.js";
+import { projectCardKaiAppearance, threeCreatureColor } from "../src/features/play/card-kai-appearance.js";
 import { deriveKaiKlokMoment } from "../src/features/play/kai-klok-moment.js";
 import { discoverLivingCreature } from "../src/features/play/living-taxonomy.js";
 import { sealDiscoveredCard } from "../src/features/play/portable-card.js";
@@ -28,6 +29,9 @@ test("v3 cards project their exact discovery colors, anatomy, and motion", () =>
   assert.equal(appearance.palette.primary, identity.palette.primary.css);
   assert.equal(appearance.palette.accent, identity.palette.accent.css);
   assert.equal(appearance.palette.glow, identity.palette.glow.css);
+  assert.equal(threeCreatureColor(appearance.palette.primary), `hsl(${identity.palette.primary.hue}, ${identity.palette.primary.chroma}%, ${identity.palette.primary.lightness}%)`);
+  assert.notEqual(new THREE.Color(threeCreatureColor(appearance.palette.primary)).getHexString(), "ffffff");
+  assert.notEqual(new THREE.Color(threeCreatureColor(appearance.palette.accent)).getHexString(), "ffffff");
   assert.deepEqual(appearance.morphology, {
     head: identity.anatomy.head,
     torso: identity.anatomy.torso,

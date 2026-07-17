@@ -18,6 +18,14 @@ export type CardKaiAppearance = {
   discoveryIdentity?: LivingCreatureIdentityV3;
 };
 
+const MODERN_HSL = /^hsl\(\s*(-?\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%\s*\)$/i;
+
+/** Preserve the sealed hue while adapting CSS Color 4 HSL for Three.js. */
+export function threeCreatureColor(value: string) {
+  const match = value.match(MODERN_HSL);
+  return match ? `hsl(${match[1]}, ${match[2]}%, ${match[3]}%)` : value;
+}
+
 export function projectCardKaiAppearance(asset: PortableCardAsset): CardKaiAppearance {
   const form = creatureForm(asset.manifest.formId);
   if (!form) throw new Error("wilds_kai_appearance_form_unknown");

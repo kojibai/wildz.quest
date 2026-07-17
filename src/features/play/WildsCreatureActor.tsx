@@ -4,6 +4,7 @@ import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { creatureForm } from "./creature-catalog";
+import { threeCreatureColor } from "./card-kai-appearance";
 
 export type WildsCreaturePose = "idle" | "curious" | "attack" | "impact" | "weakened" | "capture";
 
@@ -80,25 +81,27 @@ export function WildsCreatureActor({
         : [identity.width, identity.height, 0.94];
   const eyeScaleY = pose === "weakened" ? 0.42 : pose === "attack" ? 0.7 : 1;
   const bodyColorFloor = pose === "capture" ? 0.2 : 0.11;
+  const renderedPrimary = threeCreatureColor(primary);
+  const renderedAccent = threeCreatureColor(accent);
 
   return (
     <group name={`wilds-creature-${familyId}`} ref={root}>
       <group name="wilds-creature-body" rotation={[0, 0, identity.asymmetry * 0.08]}>
         <mesh castShadow scale={bodyScale}>
           {body === "armored" ? <dodecahedronGeometry args={[0.4, 1]} /> : body === "serpentine" ? <capsuleGeometry args={[0.25, 0.62, 7, 12]} /> : <sphereGeometry args={[0.4, 22, 16]} />}
-          <meshStandardMaterial color={primary} emissive={primary} emissiveIntensity={bodyColorFloor} roughness={body === "armored" ? 0.78 : 0.6} />
+          <meshStandardMaterial color={renderedPrimary} emissive={renderedPrimary} emissiveIntensity={bodyColorFloor} roughness={body === "armored" ? 0.78 : 0.6} />
         </mesh>
-        {body === "armored" ? [-0.22, 0, 0.22].map((x) => <mesh castShadow key={x} position={[x, 0.31, -0.06]} rotation={[0, 0, x * 0.6]}><coneGeometry args={[0.075, 0.28, 5]} /><meshStandardMaterial color={accent} roughness={0.46} /></mesh>) : null}
-        {body === "serpentine" ? [0, 1, 2].map((index) => <mesh castShadow key={index} position={[0.12 + index * 0.15, -0.12 - index * 0.055, -0.3 - index * 0.18]} rotation={[0.5, 0, -0.5]} scale={1 - index * 0.14}><sphereGeometry args={[0.2, 12, 9]} /><meshStandardMaterial color={primary} roughness={0.62} /></mesh>) : null}
+        {body === "armored" ? [-0.22, 0, 0.22].map((x) => <mesh castShadow key={x} position={[x, 0.31, -0.06]} rotation={[0, 0, x * 0.6]}><coneGeometry args={[0.075, 0.28, 5]} /><meshStandardMaterial color={renderedAccent} roughness={0.46} /></mesh>) : null}
+        {body === "serpentine" ? [0, 1, 2].map((index) => <mesh castShadow key={index} position={[0.12 + index * 0.15, -0.12 - index * 0.055, -0.3 - index * 0.18]} rotation={[0.5, 0, -0.5]} scale={1 - index * 0.14}><sphereGeometry args={[0.2, 12, 9]} /><meshStandardMaterial color={renderedPrimary} roughness={0.62} /></mesh>) : null}
       </group>
 
       <group name="wilds-creature-limbs" ref={limbs}>
-        {body === "winged" ? [-1, 1].map((side) => <mesh castShadow key={side} position={[side * 0.46, 0.08, -0.08]} rotation={[0.15, 0, side * -0.72]} scale={[0.48, 1.3, 0.18]}><tetrahedronGeometry args={[0.46, 0]} /><meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.12} roughness={0.46} /></mesh>) : null}
-        {body === "round" || body === "long" || body === "armored" ? [-1, 1].flatMap((side) => [-1, 1].map((front) => <mesh castShadow key={`${side}:${front}`} position={[side * 0.26, -0.3, front * 0.2]} rotation={[front * 0.14, 0, side * -0.08]}><capsuleGeometry args={[0.07, 0.22, 5, 8]} /><meshStandardMaterial color={primary} roughness={0.7} /></mesh>)) : null}
+        {body === "winged" ? [-1, 1].map((side) => <mesh castShadow key={side} position={[side * 0.46, 0.08, -0.08]} rotation={[0.15, 0, side * -0.72]} scale={[0.48, 1.3, 0.18]}><tetrahedronGeometry args={[0.46, 0]} /><meshStandardMaterial color={renderedAccent} emissive={renderedAccent} emissiveIntensity={0.12} roughness={0.46} /></mesh>) : null}
+        {body === "round" || body === "long" || body === "armored" ? [-1, 1].flatMap((side) => [-1, 1].map((front) => <mesh castShadow key={`${side}:${front}`} position={[side * 0.26, -0.3, front * 0.2]} rotation={[front * 0.14, 0, side * -0.08]}><capsuleGeometry args={[0.07, 0.22, 5, 8]} /><meshStandardMaterial color={renderedPrimary} roughness={0.7} /></mesh>)) : null}
       </group>
 
       <group name="wilds-creature-face" position={[0, 0.31, 0.3]} ref={head} scale={identity.head}>
-        <mesh castShadow scale={[0.82, 0.72, 0.6]}><sphereGeometry args={[0.34, 20, 14]} /><meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.07} roughness={0.58} /></mesh>
+        <mesh castShadow scale={[0.82, 0.72, 0.6]}><sphereGeometry args={[0.34, 20, 14]} /><meshStandardMaterial color={renderedAccent} emissive={renderedAccent} emissiveIntensity={0.07} roughness={0.58} /></mesh>
         {[-1, 1].map((side) => <group key={side} position={[side * 0.13, 0.045, 0.19]} scale={[1, eyeScaleY, 1]}>
           <mesh><sphereGeometry args={[0.072, 12, 9]} /><meshStandardMaterial color="#fffdf3" roughness={0.32} /></mesh>
           <mesh position={[side * 0.008, -0.006, 0.061]}><sphereGeometry args={[0.033, 10, 8]} /><meshStandardMaterial color="#17221d" roughness={0.3} /></mesh>
@@ -107,12 +110,12 @@ export function WildsCreatureActor({
         <mesh position={[0, -0.055, 0.255]} scale={[1, 0.72, 0.7]}><sphereGeometry args={[0.038, 9, 7]} /><meshStandardMaterial color="#5b3b35" roughness={0.48} /></mesh>
         <mesh position={[0, -0.125, 0.246]} rotation={[Math.PI / 2, 0, 0]} scale={[1, pose === "attack" ? 1.35 : 0.55, 1]}><torusGeometry args={[0.055, 0.012, 6, 18, Math.PI]} /><meshStandardMaterial color="#7d3f50" roughness={0.54} /></mesh>
         {[-1, 1].map((side) => <mesh key={side} position={[side * 0.2, -0.08, 0.19]} scale={[1.1, 0.55, 0.5]}><sphereGeometry args={[0.042, 8, 6]} /><meshStandardMaterial color="#ff9baa" transparent opacity={0.62} /></mesh>)}
-        <CreatureIdentityDetail accent={accent} detail={detail} familyId={familyId} primary={primary} />
+        <CreatureIdentityDetail accent={renderedAccent} detail={detail} familyId={familyId} primary={renderedPrimary} />
       </group>
 
       <group name={`wilds-creature-aura-${auraKind}`} ref={aura} position={[0, -0.35, 0]}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]}><torusGeometry args={[0.48, 0.025, 7, 30]} /><meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.52} transparent opacity={0.78} /></mesh>
-        {[0, 1, 2].map((index) => <mesh key={index} position={[Math.cos(index * 2.1) * 0.38, 0.08 + index * 0.045, Math.sin(index * 2.1) * 0.38]} rotation={[0, index, 0]}><octahedronGeometry args={[0.035 + identity.marking * 0.018, 0]} /><meshBasicMaterial color={index === 1 ? primary : accent} /></mesh>)}
+        <mesh rotation={[-Math.PI / 2, 0, 0]}><torusGeometry args={[0.48, 0.025, 7, 30]} /><meshStandardMaterial color={renderedAccent} emissive={renderedAccent} emissiveIntensity={0.52} transparent opacity={0.78} /></mesh>
+        {[0, 1, 2].map((index) => <mesh key={index} position={[Math.cos(index * 2.1) * 0.38, 0.08 + index * 0.045, Math.sin(index * 2.1) * 0.38]} rotation={[0, index, 0]}><octahedronGeometry args={[0.035 + identity.marking * 0.018, 0]} /><meshBasicMaterial color={index === 1 ? renderedPrimary : renderedAccent} /></mesh>)}
       </group>
     </group>
   );
