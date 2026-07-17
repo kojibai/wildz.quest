@@ -6,7 +6,6 @@ import {
   type WildzCardOnlyConfirmation,
   type WildzCommittedArtifactRestore
 } from "@/features/identity/wildz-restore";
-import { saveReceizCommerceVault } from "@/lib/receiz/receiz-commerce-vault";
 import type { WildzIdentitySession } from "@/lib/receiz/wildz-identity-repository";
 import Image from "next/image";
 import { useState } from "react";
@@ -43,13 +42,6 @@ export function WildzGenesis({
       const result = await onRestoreArtifact(file, () => window.confirm(
         "This file contains verified Wildz cards but no Identity Seal. Import every verified card into the current Receiz ID?"
       ));
-      if (result.commerceProjection) {
-        try {
-          saveReceizCommerceVault(result.commerceProjection);
-        } catch {
-          // Display projections are optional; the verified owner restore is already committed.
-        }
-      }
       setRestoredIdentity(result.session);
       const count = result.verifiedAssetIds.length;
       setError(count

@@ -21,6 +21,19 @@ test("Receiz continuity preserves identity, original Wildz vault, and Commerce v
   assert.doesNotMatch(inventory, /verifyPortableCardPng|verifyPortableVaultPng|inspectReceizCommerceVault/);
 });
 
+test("same-owner Vault restore preserves the mounted world and one bounded inventory", () => {
+  const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
+  const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
+  const genesis = readFileSync("src/features/identity/WildzGenesis.tsx", "utf8");
+
+  assert.match(shell, /key=\{`\$\{identity\.keyId\}:\$\{identity\.actorId\}`\}/);
+  assert.doesNotMatch(shell, /key=\{[^}]*restoreEpoch/);
+  assert.match(inventory, /inventoryPageSize\(compact\)/);
+  assert.doesNotMatch(inventory, /receizVaults|wilds-receiz-vault-library|wilds-receiz-vault-grid/);
+  assert.doesNotMatch(inventory, /readReceizCommerceVaultLibrary|saveReceizCommerceVault/);
+  assert.doesNotMatch(genesis, /saveReceizCommerceVault/);
+});
+
 test("live minimap projects world routes and landmarks around player movement heading", () => {
   const minimap = readFileSync("src/features/play/WildzMinimap.tsx", "utf8");
   const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");

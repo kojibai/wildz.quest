@@ -320,7 +320,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     <main className="wildz-app-shell" data-wildz-active-username={ownerUsername}>
       <div className="wildz-app" data-overlay={overlay?.kind ?? "world"}>
         {gameplayReady && continuity && identity && character ? <PlayCampaign
-          key={`${identity.keyId}:${identity.actorId}:${continuity.restoreEpoch}`}
+          key={`${identity.keyId}:${identity.actorId}`}
           campaignName="Wildz"
           character={character}
           enabled

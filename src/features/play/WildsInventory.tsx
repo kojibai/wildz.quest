@@ -14,11 +14,6 @@ import { WildsGrowthPanel } from "./WildsGrowthPanel";
 import { clampInventoryPage, inventoryPageSize } from "./inventory-pagination";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
-import {
-  readReceizCommerceVaultLibrary,
-  saveReceizCommerceVault,
-  type ReceizCommerceVaultProjection
-} from "@/lib/receiz/receiz-commerce-vault";
 import type {
   WildzCardOnlyConfirmation,
   WildzCommittedArtifactRestore
@@ -62,7 +57,6 @@ export function WildsInventory({
   const [compact, setCompact] = useState(false);
   const [origin, setOrigin] = useState("https://receiz.app");
   const [qr, setQr] = useState("");
-  const [receizVaults, setReceizVaults] = useState<ReceizCommerceVaultProjection[]>([]);
   const [importing, setImporting] = useState(false);
   const [vaultSaving, setVaultSaving] = useState(false);
   const [cardSaving, setCardSaving] = useState(false);
@@ -99,7 +93,6 @@ export function WildsInventory({
 
   useEffect(() => {
     setOrigin(window.location.origin);
-    setReceizVaults(readReceizCommerceVaultLibrary());
   }, []);
 
   useEffect(() => {
@@ -186,14 +179,6 @@ export function WildsInventory({
                     "This file contains verified Wildz cards but no Identity Seal. Import every verified card into the current Receiz ID?"
                   ), currentPlayState);
                   currentPlayState = outcome.playState;
-                  if (outcome.commerceProjection) {
-                    try {
-                      saveReceizCommerceVault(outcome.commerceProjection);
-                      setReceizVaults(readReceizCommerceVaultLibrary());
-                    } catch {
-                      // Projection shelves are optional; playable assets are already committed.
-                    }
-                  }
                   imported += outcome.verifiedAssetIds.length;
                   const selected = outcome.verifiedAssetIds.at(-1);
                   if (selected) setSelectedId(selected);
@@ -214,13 +199,6 @@ export function WildsInventory({
         {importMessage ? <p className="wilds-import-message" role="status">{importMessage}</p> : null}
         {vaultMessage ? <p className="wilds-import-message" role="status">{vaultMessage}</p> : null}
       </header>
-      {receizVaults.length ? <section className="wilds-receiz-vault-library" aria-label="Receiz Commerce vaults">
-        <div><span>Receiz continuity</span><strong>{receizVaults.reduce((total, vault) => total + vault.cards.length, 0)} cards from {receizVaults.length} imported vault{receizVaults.length === 1 ? "" : "s"}</strong></div>
-        <div className="wilds-receiz-vault-grid">{receizVaults.flatMap((vault) => vault.cards.map((card) => <article key={`${vault.id}:${card.id}`}>
-          {card.imageUrl ? <img alt={`${card.name} sealed card`} src={card.imageUrl} /* eslint-disable-line @next/next/no-img-element -- Receiz card media retains its sealed source URL. */ /> : <span className="wilds-receiz-proof-mark"><Icons.box aria-hidden="true" size={24} /></span>}
-          <strong>{card.name}</strong><small>{card.kind} · {card.rarity}</small><b>{vault.verification === "receiz-sdk" ? "Receiz SDK" : "Receiz Vault"}</b>
-        </article>))}</div>
-      </section> : null}
       {fusionOpen ? (
         <section className="wilds-fusion-sheet" aria-label="Create a fusion child">
           <div><span>Earned creation</span><strong>{state.fusionSparks} Fusion Spark{state.fusionSparks === 1 ? "" : "s"}</strong><p>Both parents stay in your vault. Each rests for 24 hours after creating a child.</p></div>
