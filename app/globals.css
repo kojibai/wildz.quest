@@ -11897,6 +11897,126 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   .wilds-command-sheet-content .wilds-inventory-grid > button { min-height: 100px; }
 }
 
+/* Kai Klok living command cockpit */
+.wilds-kai-command-pill {
+  position: relative;
+  display: grid;
+  min-width: 92px;
+  min-height: 34px;
+  place-items: center;
+  padding: 0 11px;
+  overflow: hidden;
+  color: #f2fffb;
+  border: 1px solid color-mix(in srgb, var(--kai-accent, #71e8c3) 58%, transparent);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgb(4 18 25 / 94%), color-mix(in srgb, var(--kai-accent, #71e8c3) 13%, rgb(4 18 25 / 94%)));
+  box-shadow: inset 0 1px rgb(255 255 255 / 10%), 0 9px 25px rgb(0 0 0 / 30%), 0 0 18px color-mix(in srgb, var(--kai-accent, #71e8c3) 15%, transparent);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 950;
+  letter-spacing: .09em;
+  backdrop-filter: blur(16px);
+}
+.wilds-kai-command-pill::before { position: absolute; inset: 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--kai-accent, #71e8c3) 28%, transparent), transparent); content: ""; transform: translateX(-110%); animation: wilds-kai-pill-scan 5.236s linear infinite; }
+.wilds-kai-command-pill small,
+.wilds-kai-command-pill span { position: relative; z-index: 1; line-height: 1; }
+.wilds-kai-command-pill small { color: color-mix(in srgb, var(--kai-accent, #71e8c3) 75%, #c9d7d5); font-size: 5px; letter-spacing: .14em; }
+.wilds-kai-command-pill span { font-size: 9px; }
+.wilds-kai-command-pill:hover,
+.wilds-kai-command-pill:focus-visible { border-color: var(--kai-accent, #71e8c3); box-shadow: 0 0 0 2px color-mix(in srgb, var(--kai-accent, #71e8c3) 20%, transparent), 0 10px 28px rgb(0 0 0 / 34%); }
+.wilds-kai-command-pill:focus-visible { outline: 2px solid #fff2a8; outline-offset: 2px; }
+
+.wilds-command-sheet-commandCenter { width: min(880px, calc(100% - 20px)); max-height: min(92dvh, 900px); border-color: color-mix(in srgb, var(--kai-accent, #71e8c3) 36%, transparent); background: #030d12; }
+.wilds-command-sheet-commandCenter .wilds-command-sheet-content { padding: 0; }
+.wilds-neural-command { --neural-line: color-mix(in srgb, var(--kai-accent) 48%, transparent); position: relative; display: grid; gap: 12px; min-height: 620px; padding: 8px 14px 18px; overflow: hidden; isolation: isolate; background: radial-gradient(circle at 50% 12%, color-mix(in srgb, var(--kai-accent) 15%, transparent), transparent 36%), linear-gradient(180deg, #04151b, #02090d); }
+.wilds-neural-field { position: absolute; z-index: -2; inset: 0; overflow: hidden; opacity: .28; pointer-events: none; }
+.wilds-neural-field::before { position: absolute; inset: -20%; background: repeating-radial-gradient(circle at center, transparent 0 28px, color-mix(in srgb, var(--kai-accent) 22%, transparent) 29px 30px); content: ""; transform: rotate(calc(var(--kai-sides) * 2deg)) scale(calc(.88 + var(--kai-step-progress) * .12)); }
+.wilds-neural-field > i { position: absolute; width: 1px; height: 140%; background: linear-gradient(transparent, var(--neural-line), transparent); transform-origin: 50% 50%; }
+.wilds-neural-field > i:nth-child(1) { left: 23%; transform: rotate(24deg); }
+.wilds-neural-field > i:nth-child(2) { left: 50%; transform: rotate(-18deg); }
+.wilds-neural-field > i:nth-child(3) { right: 20%; transform: rotate(31deg); }
+.wilds-neural-spine { position: absolute; z-index: -1; top: 118px; bottom: 42px; left: 50%; width: 2px; background: linear-gradient(transparent, var(--kai-accent) 12%, var(--kai-accent) 84%, transparent); box-shadow: 0 0 14px var(--kai-accent); opacity: .74; pointer-events: none; }
+.wilds-neural-spine > i { position: absolute; left: 50%; width: 10px; height: 10px; border: 1px solid var(--kai-accent); border-radius: 50%; background: #06171c; box-shadow: 0 0 17px var(--kai-accent); transform: translate(-50%, -50%); animation: wilds-neural-heartbeat 5.236s cubic-bezier(.3,.7,.2,1) infinite; }
+.wilds-neural-spine > i:nth-child(1) { top: 18%; animation-delay: -.4s; }
+.wilds-neural-spine > i:nth-child(2) { top: 50%; animation-delay: -1.6s; }
+.wilds-neural-spine > i:nth-child(3) { top: 82%; animation-delay: -2.8s; }
+.wilds-neural-spine > b { position: absolute; top: 0; left: -3px; width: 8px; height: 38px; border-radius: 999px; background: linear-gradient(transparent, #fff, var(--kai-accent), transparent); filter: blur(.2px); animation: wilds-neural-travel 5.236s linear infinite; }
+
+.wilds-command-telemetry { position: relative; display: grid; grid-template-columns: 1.2fr 1fr auto; gap: 8px; padding: 12px; border: 1px solid var(--neural-line); border-radius: 18px; background: linear-gradient(135deg, color-mix(in srgb, var(--kai-accent) 12%, rgb(3 17 23 / 94%)), rgb(3 13 18 / 96%)); box-shadow: inset 0 1px rgb(255 255 255 / 7%), 0 16px 36px rgb(0 0 0 / 22%); }
+.wilds-command-telemetry > div { display: grid; min-width: 0; gap: 2px; }
+.wilds-command-telemetry small { color: color-mix(in srgb, var(--kai-accent) 70%, #9aadb3); font-size: 7px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
+.wilds-command-telemetry strong { overflow: hidden; font-size: clamp(14px, 3vw, 22px); font-variant-numeric: tabular-nums; letter-spacing: .06em; text-overflow: ellipsis; white-space: nowrap; }
+.wilds-command-calendar { display: flex !important; align-items: center; justify-content: flex-end; gap: 4px; }
+.wilds-command-calendar span { padding: 4px 6px; color: #dffaf1; border: 1px solid var(--neural-line); border-radius: 7px; background: rgb(255 255 255 / 4%); font-size: 8px; font-variant-numeric: tabular-nums; font-weight: 900; }
+.wilds-command-chakra { grid-column: 1 / 3; display: flex !important; grid-template-columns: auto 1fr; flex-direction: row; align-items: center; gap: 7px; }
+.wilds-command-chakra > i { width: 9px; height: 9px; border-radius: 50%; background: var(--kai-accent); box-shadow: 0 0 15px var(--kai-accent); }
+.wilds-command-chakra > span { display: grid; }
+.wilds-command-chakra strong { font-size: 10px; letter-spacing: .03em; }
+.wilds-command-authority { align-self: end; justify-self: end; color: #72919a; font-size: 7px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+
+.wilds-command-now { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 132px; padding: 18px 16px 16px 74px; border: 1px solid var(--neural-line); border-radius: 22px; background: linear-gradient(120deg, color-mix(in srgb, var(--kai-accent) 18%, rgb(5 25 31 / 96%)), rgb(4 14 20 / 97%)); box-shadow: inset 0 1px rgb(255 255 255 / 8%), 0 22px 52px rgb(0 0 0 / 28%); }
+.wilds-command-now[data-urgency="critical"] { border-color: rgb(255 91 84 / 60%); box-shadow: inset 0 1px rgb(255 255 255 / 8%), 0 0 30px rgb(255 73 68 / 14%); }
+.wilds-command-now > div { display: grid; min-width: 0; gap: 5px; }
+.wilds-command-now small { color: color-mix(in srgb, var(--kai-accent) 75%, #aab8bb); font-size: 7px; font-weight: 950; letter-spacing: .12em; text-transform: uppercase; }
+.wilds-command-now h4 { margin: 0; font-size: clamp(23px, 5vw, 39px); line-height: .98; letter-spacing: -.035em; }
+.wilds-command-now p { max-width: 640px; margin: 0; color: #9db3b8; font-size: 11px; line-height: 1.45; }
+.wilds-command-now button,
+.wilds-neural-branch article > button { display: flex; min-height: 42px; align-items: center; justify-content: center; gap: 5px; padding: 0 11px; color: #021312; border: 0; border-radius: 11px; background: linear-gradient(135deg, #fff2a8, var(--kai-accent)); font-size: 9px; font-weight: 950; white-space: nowrap; }
+.wilds-neural-now-orbit { position: absolute; top: 50%; left: 12px; width: 50px; height: 50px; border: 1px solid var(--neural-line); border-radius: 50%; box-shadow: inset 0 0 16px color-mix(in srgb, var(--kai-accent) 18%, transparent), 0 0 20px color-mix(in srgb, var(--kai-accent) 15%, transparent); transform: translateY(-50%); }
+.wilds-neural-now-orbit::before { position: absolute; inset: 9px; border: 1px dashed var(--kai-accent); border-radius: 50%; content: ""; animation: wilds-neural-orbit 10s linear infinite; }
+.wilds-neural-now-orbit i { position: absolute; top: 50%; left: 50%; width: 5px; height: 5px; border-radius: 50%; background: var(--kai-accent); box-shadow: 0 0 12px var(--kai-accent); }
+.wilds-neural-now-orbit i:nth-child(1) { transform: translate(-50%, -50%); }
+.wilds-neural-now-orbit i:nth-child(2) { transform: translate(17px, -2px); }
+.wilds-neural-now-orbit i:nth-child(3) { transform: translate(-21px, -2px); }
+
+.wilds-command-branches { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+.wilds-neural-branch { position: relative; display: grid; align-content: start; gap: 7px; min-width: 0; padding: 11px; border: 1px solid rgb(126 211 191 / 13%); border-radius: 18px; background: rgb(5 20 26 / 88%); }
+.wilds-neural-branch > header { display: flex; align-items: center; justify-content: space-between; color: color-mix(in srgb, var(--kai-accent) 72%, #dbe8e5); font-size: 8px; font-weight: 950; letter-spacing: .13em; text-transform: uppercase; }
+.wilds-neural-branch > header b { font-variant-numeric: tabular-nums; }
+.wilds-neural-path { position: absolute; top: -13px; left: 50%; width: 1px; height: 13px; background: var(--neural-line); }
+.wilds-neural-path i { position: absolute; bottom: 0; left: -2px; width: 5px; height: 5px; border-radius: 50%; background: var(--kai-accent); box-shadow: 0 0 9px var(--kai-accent); }
+.wilds-neural-branch article { position: relative; display: grid; gap: 7px; padding: 9px; border: 1px solid rgb(255 255 255 / 7%); border-radius: 13px; background: rgb(255 255 255 / 3%); }
+.wilds-neural-branch article[data-urgency="critical"] { border-color: rgb(255 91 84 / 34%); background: rgb(91 20 24 / 18%); }
+.wilds-neural-branch article > div { display: grid; gap: 3px; }
+.wilds-neural-branch article small { color: #718f96; font-size: 6px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.wilds-neural-branch article strong { font-size: 11px; line-height: 1.1; }
+.wilds-neural-branch article p,
+.wilds-neural-quiet { margin: 0; color: #829ca2; font-size: 8px; line-height: 1.35; }
+.wilds-neural-node { position: absolute; top: 11px; right: 9px; width: 4px; height: 4px; border-radius: 50%; background: var(--kai-accent); box-shadow: 0 0 8px var(--kai-accent); }
+.wilds-neural-unavailable { color: #6f858b; font-size: 7px; font-weight: 850; text-transform: uppercase; }
+.wilds-command-coordinate { display: flex; align-items: center; justify-content: center; gap: 7px; color: #68868d; font-size: 7px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.wilds-command-coordinate i { width: 3px; height: 3px; border-radius: 50%; background: var(--kai-accent); }
+.wilds-command-coordinate strong { margin-left: auto; color: color-mix(in srgb, var(--kai-accent) 78%, white); font-variant-numeric: tabular-nums; font-size: 7px; }
+
+@keyframes wilds-kai-pill-scan { 0%, 72% { transform: translateX(-110%); } 100% { transform: translateX(110%); } }
+@keyframes wilds-neural-heartbeat { 0%, 12%, 18%, 100% { transform: translate(-50%, -50%) scale(.72); opacity: .42; } 8% { transform: translate(-50%, -50%) scale(1.45); opacity: 1; } 15% { transform: translate(-50%, -50%) scale(1.08); opacity: .82; } }
+@keyframes wilds-neural-travel { from { transform: translateY(-44px); opacity: 0; } 10%, 82% { opacity: 1; } to { transform: translateY(calc(100% + 44px)); opacity: 0; } }
+@keyframes wilds-neural-orbit { to { transform: rotate(1turn); } }
+
+@media (max-width: 560px) {
+  .wilds-kai-command-pill { min-width: 82px; min-height: 30px; padding-inline: 8px; font-size: 8px; }
+  .wilds-neural-command { min-height: 100%; gap: 9px; padding: 6px 10px 18px; }
+  .wilds-command-telemetry { grid-template-columns: 1fr 1fr; padding: 10px; }
+  .wilds-command-calendar { grid-column: 1 / -1; justify-content: flex-start; }
+  .wilds-command-chakra { grid-column: 1 / -1; }
+  .wilds-command-authority { grid-column: 1 / -1; justify-self: start; }
+  .wilds-command-now { grid-template-columns: 1fr; padding: 16px 12px 12px 63px; }
+  .wilds-command-now button { min-height: 40px; }
+  .wilds-neural-now-orbit { left: 8px; width: 44px; height: 44px; }
+  .wilds-command-branches { grid-template-columns: 1fr; }
+  .wilds-neural-spine { left: 25px; opacity: .45; }
+  .wilds-neural-path { top: 50%; left: -11px; width: 11px; height: 1px; }
+  .wilds-command-coordinate { flex-wrap: wrap; justify-content: flex-start; }
+  .wilds-command-coordinate strong { width: 100%; margin-left: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wilds-neural-command *,
+  .wilds-neural-command *::before,
+  .wilds-neural-command *::after,
+  .wilds-kai-command-pill::before { animation: none !important; transition: none !important; }
+}
+
 /* Living 3D world atlas */
 .wilds-world-map {
   position: fixed;

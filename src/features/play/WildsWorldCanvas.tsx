@@ -28,6 +28,8 @@ import type { WildsSettlementWorldMode } from "@/features/play/WildsSettlementEn
 import { WildsEcologyEnvironment } from "@/features/play/WildsEcologyEnvironment";
 import { WildsBossEnvironment } from "@/features/play/WildsBossEnvironment";
 import type { PortableCardAsset } from "@/features/play/portable-card";
+import type { KaiKlokMoment } from "@/features/play/kai-klok-moment";
+import { projectKaiWorldExpression } from "@/features/play/kai-moment-expression";
 
 export function WildsWorldCanvas({
   state,
@@ -40,6 +42,7 @@ export function WildsWorldCanvas({
   onSearchPoint,
   livingWorld,
   worldMode,
+  kaiMoment,
   supportCards = []
 }: {
   state: PlayState;
@@ -52,6 +55,7 @@ export function WildsWorldCanvas({
   onSearchPoint: (point: { x: number; z: number }) => void;
   livingWorld?: WildsWorldProjection | null;
   worldMode: WildsSettlementWorldMode;
+  kaiMoment: KaiKlokMoment;
   supportCards?: readonly PortableCardAsset[];
 }) {
   return (
@@ -73,7 +77,7 @@ export function WildsWorldCanvas({
         shadows={{ type: THREE.PCFShadowMap }}
       >
         <Suspense fallback={null}>
-          <WildsScene state={state} avatarStyle={avatarStyle} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} supportCards={supportCards} />
+          <WildsScene state={state} avatarStyle={avatarStyle} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} supportCards={supportCards} />
         </Suspense>
       </Canvas>
     </div>
@@ -91,6 +95,7 @@ function WildsScene({
   onSearchPoint,
   livingWorld,
   worldMode,
+  kaiMoment,
   supportCards
 }: {
   state: PlayState;
@@ -103,14 +108,19 @@ function WildsScene({
   onSearchPoint: (point: { x: number; z: number }) => void;
   livingWorld?: WildsWorldProjection | null;
   worldMode: WildsSettlementWorldMode;
+  kaiMoment: KaiKlokMoment;
   supportCards: readonly PortableCardAsset[];
 }) {
   const world = projectWorldProgression(state.worldMastery);
+  const kaiExpression = projectKaiWorldExpression(kaiMoment);
+  const kaiFog = useMemo(() => new THREE.Color(world.chapter.palette.fog)
+    .lerp(new THREE.Color(kaiExpression.accent), kaiExpression.atmosphericInfluence)
+    .getStyle(), [kaiExpression.accent, kaiExpression.atmosphericInfluence, world.chapter.palette.fog]);
   const worldSparkleCount = Math.round(54 * qualityProfile.particles);
   return (
     <>
-      <color attach="background" args={[world.chapter.palette.fog]} />
-      <fog attach="fog" args={[world.chapter.palette.fog, 10, 24]} />
+      <color attach="background" args={[kaiFog]} />
+      <fog attach="fog" args={[kaiFog, 10, 24]} />
       <WildsAtmosphere encounter={state.encounter} missionProgress={state.missionProgress} player={state.player} qualityProfile={qualityProfile} />
       <CameraRig onCameraHeadingChange={onCameraHeadingChange} />
       <WildsDiagnostics qualityProfile={qualityProfile} state={state} />
@@ -131,7 +141,7 @@ function WildsScene({
       <WildsExplorer style={avatarStyle} worldPosition={state.player} />
       <ActiveCompanion state={state} />
       <SupportCompanions cards={supportCards} />
-      <Sparkles key={`wilds-world-sparkles-${worldSparkleCount}`} count={worldSparkleCount} scale={[8, 2.4, 8]} size={2.1} speed={0.22} color="#fff5b6" />
+      <Sparkles key={`wilds-world-sparkles-${worldSparkleCount}`} count={worldSparkleCount} scale={[8, 2.4, 8]} size={2.1} speed={kaiExpression.particleSpeed} color={kaiExpression.accent} />
     </>
   );
 }

@@ -59,7 +59,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(geography, /Prism Coast/);
   });
 
-  it("connects the globe, Rift travel, Walk Run, and Pulse to the playable world", async () => {
+  it("connects the Kai command pill, atlas, Rift travel, Walk Run, and Pulse to the playable world", async () => {
     const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
     const referenceHud = await readFile("src/features/play/WildzReferenceHud.tsx", "utf8");
     const minimap = await readFile("src/features/play/WildzMinimap.tsx", "utf8");
@@ -67,7 +67,9 @@ describe("Receiz Wilds rendering contract", () => {
     const route = await readFile("app/api/wilds/atlas/route.ts", "utf8");
 
     assert.match(campaign, /className="wilds-utility-cluster"/);
-    assert.match(campaign, /aria-label="Open world map"/);
+    assert.match(campaign, /BEAT:STEP:PULSE/);
+    assert.match(campaign, /className="wilds-kai-command-pill"/);
+    assert.match(campaign, /setRequestedCommand\("commandCenter"\)/);
     assert.match(campaign, /onOpenMap=\{\(\) => setMapOpen\(true\)\}/);
     assert.match(referenceHud, /<WildzMinimap[\s\S]*onOpen=\{onOpenMap\}/);
     assert.match(minimap, /<button[\s\S]*aria-label=\{`Open world map\./);

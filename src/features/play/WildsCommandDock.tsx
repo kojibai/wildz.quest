@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Icons } from "@/components/icons";
 
-export type WildsCommandKey = "mission" | "fieldGuide" | "satchel" | "deck" | "vault";
+export type WildsCommandKey = "commandCenter" | "mission" | "fieldGuide" | "satchel" | "deck" | "vault";
 
 export type WildsCommandItem = {
   key: WildsCommandKey;
@@ -11,6 +11,7 @@ export type WildsCommandItem = {
   icon: ReactNode;
   badge?: string | number;
   status?: string;
+  dockVisible?: boolean;
   content: ReactNode;
 };
 
@@ -22,18 +23,20 @@ export function WildsCommandDock({ items, requestedKey = null, onRequestHandled 
   const [activeKey, setActiveKey] = useState<WildsCommandKey | null>(null);
   const [dragY, setDragY] = useState(0);
   const triggerRefs = useRef<Partial<Record<WildsCommandKey, HTMLButtonElement | null>>>({});
+  const externalTriggerRef = useRef<HTMLElement | null>(null);
   const dragStart = useRef<number | null>(null);
   const activeItem = items.find((item) => item.key === activeKey) ?? null;
 
   useEffect(() => {
     if (!requestedKey) return;
+    externalTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setActiveKey(requestedKey);
     setDragY(0);
     onRequestHandled();
   }, [onRequestHandled, requestedKey]);
 
   const close = useCallback(() => {
-    const trigger = activeKey ? triggerRefs.current[activeKey] : null;
+    const trigger = activeKey ? triggerRefs.current[activeKey] ?? externalTriggerRef.current : externalTriggerRef.current;
     setActiveKey(null);
     setDragY(0);
     dragStart.current = null;
@@ -68,7 +71,7 @@ export function WildsCommandDock({ items, requestedKey = null, onRequestHandled 
   return (
     <section className="wilds-command-system" aria-label="Wilds command center">
       <nav className="wilds-command-dock" aria-label="Game panels">
-        {items.map((item) => {
+        {items.filter((item) => item.dockVisible !== false).map((item) => {
           const active = activeKey === item.key;
           const controls = `wilds-command-sheet-${item.key}`;
           return (

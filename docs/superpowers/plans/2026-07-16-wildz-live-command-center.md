@@ -64,7 +64,7 @@ test("Kai Klok moment is deterministic at the genesis anchor", () => {
     authority: "admitted", pulse: 0, beat: 0, stepIndex: 0,
     stepPctAcrossBeat: 0, weekday: "Solhara", chakra: "Root",
     year: 1, month: 1, day: 1, week: 1,
-    coordinate: "Y1·M1·D1·01:01·P0",
+    coordinate: "Y1·M1·D1·00:00:00·KAI0",
     accent: "#CC3F3F", hue: 0, sides: 4, gate: "Earth Gate"
   });
 });
@@ -336,7 +336,7 @@ test("Kai geometry deterministically shapes the living world", () => {
   assert.equal(expression.chakra, "Root");
   assert.equal(expression.geometrySides, 4);
   assert.equal(expression.routeColor, "#CC3F3F");
-  assert.equal(expression.coordinate, "Y1·M1·D1·01:01·P0");
+  assert.equal(expression.coordinate, "Y1·M1·D1·00:00:00·KAI0");
   assert.deepEqual(expression, projectWildsKaiMomentExpression(moment));
 });
 

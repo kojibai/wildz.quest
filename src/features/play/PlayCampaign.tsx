@@ -12,7 +12,7 @@ import {
   type PlayState,
   type WildsInput
 } from "@/features/play/game-state";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import { WildsCaptureReward } from "@/features/play/WildsCaptureReward";
 import { WildsInventory } from "@/features/play/WildsInventory";
@@ -30,6 +30,9 @@ import { projectWildsBiome } from "@/features/play/wilds-biome";
 import type { WildsSettlementDistrictId } from "@/features/play/wilds-settlements";
 import { projectWorldProgression } from "@/features/play/world-progression";
 import { WildsCommandDock, type WildsCommandItem, type WildsCommandKey } from "@/features/play/WildsCommandDock";
+import { WildsCommandCenter } from "@/features/play/command-center/WildsCommandCenter";
+import { projectWildsCommandCenter, type WildsCommandAction } from "@/features/play/command-center/director";
+import { deriveKaiKlokMoment, KAI_GENESIS_TS } from "@/features/play/kai-klok-moment";
 import { WildzCommandInsight } from "@/features/play/WildzCommandInsight";
 import { WildsWorldMap } from "@/features/play/WildsWorldMap";
 import { WildsLandmarkExperience } from "@/features/play/WildsLandmarkExperience";
@@ -150,6 +153,7 @@ export function PlayCampaign({
   const [raidBusyIntent, setRaidBusyIntent] = useState<WildsRaidIntent["type"] | null>(null);
   const [riftError, setRiftError] = useState("");
   const [requestedCommand, setRequestedCommand] = useState<WildsCommandKey | null>(null);
+  const [kaiOccurredAt, setKaiOccurredAt] = useState(() => new Date(KAI_GENESIS_TS).toISOString());
   const activeMission = missionCards[state.completedMissionIds.length % missionCards.length];
   const worldProgression = projectWorldProgression(state.worldMastery);
   const activeCard = selectedCard(state);
@@ -231,6 +235,17 @@ export function PlayCampaign({
   }, [activeAsset?.id, deckCards, state.supportAssetIds]);
   const trailPack = useMemo(() => [activeAsset, ...trailSupportCards].filter((card): card is PortableCardAsset => Boolean(card)), [activeAsset, trailSupportCards]);
   const trailSynergy = useMemo(() => deriveLoadoutSynergy(trailPack, worldProgression.chapter.name), [trailPack, worldProgression.chapter.name]);
+
+  useEffect(() => {
+    const updateKaiMoment = () => setKaiOccurredAt(new Date().toISOString());
+    updateKaiMoment();
+    const timer = window.setInterval(updateKaiMoment, 5_236);
+    document.addEventListener("visibilitychange", updateKaiMoment);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", updateKaiMoment);
+    };
+  }, []);
 
   useEffect(() => {
     const previous = previousPlayerPosition.current;
@@ -428,6 +443,44 @@ export function PlayCampaign({
     nearbyEcology ? `${nearbyEcology.site.name} is changing this region.` : null,
     livingWorld.snapshot?.defeatedBossIds.length ? `${livingWorld.snapshot.defeatedBossIds.length} shared victory ${livingWorld.snapshot.defeatedBossIds.length === 1 ? "monument stands" : "monuments stand"} in the world.` : null
   ].filter((message): message is string => Boolean(message));
+  const kaiMoment = deriveKaiKlokMoment({
+    occurredAt: kaiOccurredAt,
+    authority: livingWorld.mode === "receiz_live" ? "world" : "local"
+  });
+  const activeCondition = activeAsset ? state.adventureConditions[activeAsset.id] : null;
+  const commandModel = projectWildsCommandCenter({
+    moment: kaiMoment,
+    connected: livingWorld.mode === "receiz_live",
+    worldRevision: livingWorld.snapshot?.revision ?? 0,
+    energy: state.energy,
+    creature: activeAsset ? {
+      assetId: activeAsset.id,
+      name: activeAsset.manifest.name,
+      life: activeCondition?.life === "dead" ? "dead" : activeCondition?.retiredAt ? "retired" : (activeCondition?.fatigue ?? 0) >= 90 ? "critical" : "alive",
+      health: state.battle?.player.hp ?? Math.max(1, 100 - (activeCondition?.fatigue ?? 0)),
+      maxHealth: state.battle?.player.maxHp ?? 100,
+      fatigue: activeCondition?.fatigue ?? 0
+    } : null,
+    battle: state.battle && !["captured", "fled", "defeated"].includes(state.battle.phase) ? {
+      id: state.battle.encounterSeed,
+      opponent: state.battle.wild.name,
+      health: state.battle.player.hp,
+      maxHealth: state.battle.player.maxHp
+    } : null,
+    mission: { title: activeMission.title, progress: state.missionProgress, reward: activeMission.reward },
+    nearby: {
+      landmark: currentLandmark ? { id: currentLandmark.id, name: currentLandmark.name } : null,
+      ecology: nearbyEcology ? { id: nearbyEcology.site.id, name: nearbyEcology.site.name } : null,
+      boss: nearbyLivingBoss ? {
+        id: nearbyLivingBoss.id,
+        name: typeof nearbyLivingBoss.name === "string" ? nearbyLivingBoss.name : nearbyLivingSite?.site.name ?? "World boss"
+      } : null,
+      livePlayer: multiplayer.selectedPlayer ? { id: multiplayer.selectedPlayer.playerId, name: multiplayer.selectedPlayer.handle } : null
+    },
+    pendingReward: Boolean(rewardAsset),
+    pendingOperation: livingWorld.pendingCommand ?? raidBusyIntent,
+    acknowledgedCausalIds: []
+  });
   const activatePulse = () => {
     if (pulse.kind === "enter") {
       if (pulse.landmarkId === "wayfinder-hollow") {
@@ -504,6 +557,15 @@ export function PlayCampaign({
       ownerReceizId
     });
   };
+  const executeCommandAction = (action: WildsCommandAction) => {
+    if (action.type === "open-mission") setRequestedCommand("mission");
+    else if (action.type === "open-field-guide") setRequestedCommand("fieldGuide");
+    else if (action.type === "open-satchel") setRequestedCommand("satchel");
+    else if (action.type === "open-trail-pack") setRequestedCommand("deck");
+    else if (action.type === "open-vault") setRequestedCommand("vault");
+    else if (action.type === "open-map") setMapOpen(true);
+    else activatePulse();
+  };
   const riftTo = async (destination: { x: number; z: number }) => {
     setRiftError("");
     if (!networkEnabled) {
@@ -537,6 +599,14 @@ export function PlayCampaign({
     }
   };
   const commandItems: readonly WildsCommandItem[] = [
+    {
+      key: "commandCenter",
+      label: "Living Command Center",
+      icon: <Icons.pulse size={21} />,
+      status: `${kaiMoment.latticeCoordinate} · ${kaiMoment.chakra} · ${commandModel.connection}`,
+      dockVisible: false,
+      content: <WildsCommandCenter model={commandModel} onAction={executeCommandAction} />
+    },
     {
       key: "mission",
       label: "World Mission",
@@ -791,6 +861,7 @@ export function PlayCampaign({
               onCameraHeadingChange={updateCameraHeading}
               livingWorld={livingWorld.snapshot}
               worldMode={settlementWorldMode}
+              kaiMoment={kaiMoment}
               supportCards={trailSupportCards}
               onSelectPlayer={multiplayer.selectPlayer}
               onSearchPoint={(point) => {
@@ -814,8 +885,16 @@ export function PlayCampaign({
                 ready={presentation.audioReady}
                 settings={presentation.audioSettings}
               />
-              <button aria-label="Open world map" className="wilds-map-trigger" onClick={() => setMapOpen(true)} title="Open world map" type="button">
-                <Icons.globe aria-hidden="true" size={20} />
+              <button
+                aria-label={`Open living Command Center. Beat step pulse ${kaiMoment.latticeCoordinate}`}
+                className="wilds-kai-command-pill"
+                onClick={() => setRequestedCommand("commandCenter")}
+                style={{ "--kai-accent": kaiMoment.accent } as CSSProperties}
+                title="Open living Command Center"
+                type="button"
+              >
+                <small>BEAT:STEP:PULSE</small>
+                <span>{kaiMoment.latticeCoordinate}</span>
               </button>
             </div>
 
