@@ -25,6 +25,7 @@ import {
   type WildzArtifactInspection
 } from "../src/lib/receiz/wildz-artifact-codec";
 import { createWildzIdentityRepository } from "../src/lib/receiz/wildz-identity-repository";
+import { createWildzIdentityPlayerCard } from "../src/lib/receiz/wildz-identity-adapter";
 import { createMemoryWildzContinuityDatabase } from "./support/memory-wildz-continuity-database";
 
 const BASE_PNG = Uint8Array.from(Buffer.from(
@@ -86,11 +87,27 @@ async function regressionArtifact() {
   });
   const identityBasis = embedPortableVaultInPng(BASE_PNG, cards);
   const cardOnlyBasis = embedPortableVaultInPng(BASE_PNG, player.playState.inventory, player);
+  const identityCardBytes = await createWildzIdentityPlayerCard({
+    keyFile: identity.keyFile,
+    session: {
+      schema: "receiz.wildz.identity_session.v1",
+      keyId: projection.keyId,
+      actorId: projection.owner.username!,
+      username: projection.owner.username,
+      displayName: projection.owner.displayName,
+      portableStateStatus: projection.portableStateStatus,
+      localAuthority: "verified",
+      remoteStatus: "unknown"
+    },
+    assets: cards,
+    player
+  });
   return {
     cards,
     expectedIds: cards.map((asset) => asset.id).sort(),
     embeddedUsername: projection.owner.username!,
     identityBytes: appendReceizIdentityArtifactTrailerToPng(identityBasis, identity.keyFile),
+    identityCardBytes,
     cardOnlyBytes: cardOnlyBasis,
     playerState
   };
@@ -149,6 +166,29 @@ test("generated 97-card identity Vault survives inspection, both restore surface
   assert.ok(coldSession);
   const coldState = await loadWildzRestoredPlayState({ database: genesis.database, session: coldSession });
   assert.deepEqual(coldState?.inventory.map((asset) => asset.id).sort(), fixture.expectedIds);
+
+  const idCard = setup();
+  await idCard.repository.bootstrap();
+  const idCardOutcome = await restoreWildzArtifactForSurface({
+    surface: "card-vault",
+    bytes: fixture.identityCardBytes,
+    mimeType: "image/png",
+    name: "vault__keeper_97.receiz-id-card.png",
+    codec: idCard.codec,
+    repository: idCard.repository,
+    database: idCard.database,
+    confirmCardOnly: true
+  });
+  assert.equal(idCardOutcome.session.username, fixture.embeddedUsername);
+  assert.deepEqual(idCardOutcome.verifiedAssetIds, fixture.expectedIds);
+  assert.equal(idCardOutcome.playState.selectedAssetId, fixture.playerState.selectedAssetId);
+  assert.deepEqual(idCardOutcome.playState.pendingSyncAssetIds, fixture.playerState.pendingSyncAssetIds);
+  assert.equal(idCardOutcome.playState.worldMastery, 41);
+  const idCardColdRepository = createWildzIdentityRepository({ database: idCard.database });
+  const idCardColdSession = await idCardColdRepository.active();
+  assert.ok(idCardColdSession);
+  const idCardColdState = await loadWildzRestoredPlayState({ database: idCard.database, session: idCardColdSession });
+  assert.deepEqual(idCardColdState?.inventory.map((asset) => asset.id).sort(), fixture.expectedIds);
 
   const v3Outcome = await restoreWildzArtifactForSurface({
     surface: "card-vault",

@@ -8,8 +8,22 @@ import {
   type ReceizDeviceIdentity,
   type ReceizKeyFile
 } from "@receiz/sdk";
-import { downloadWildzIdentitySeal } from "../src/lib/receiz/wildz-identity-adapter";
+import {
+  createWildzIdentityPlayerCard,
+  downloadWildzIdentitySeal
+} from "../src/lib/receiz/wildz-identity-adapter";
 import { createWildzIdentitySealPng } from "../src/lib/receiz/wildz-identity-seal";
+import { splitWildzPngEnvelope } from "../src/lib/receiz/wildz-png-envelope";
+import {
+  readPortableVaultFromPng,
+  verifyPortableVaultPng
+} from "../src/features/play/card-export";
+import {
+  applyWildsInput,
+  createOwnerBoundInitialPlayState
+} from "../src/features/play/game-state";
+import { sealCollectedCard } from "../src/features/play/portable-card";
+import { createWildsPlayerVault } from "../src/features/play/wilds-player-vault";
 import {
   canonicalWildzActorId,
   type WildzIdentityRepository,
@@ -43,6 +57,50 @@ test("Identity Seal PNG round-trips through the official SDK", async () => {
   assert.equal(decoded.data.byteLength, 900 * 900 * decoded.info.channels);
   assert.equal(restored.keyId, identity.keyFile.keyId);
   assert.notEqual(projection.portableStateStatus, "invalid");
+});
+
+test("Receiz ID Card carries SDK identity, complete player state, and every verified card", async () => {
+  const identity = await createReceizIdIdentity({ username: "card_keeper", displayName: "Card Keeper" });
+  const session = await sessionFromIdentity(identity);
+  const assets = [0, 1].map((index) => sealCollectedCard({
+    formId: "mintcub-1",
+    ownerReceizId: "card_keeper",
+    encounterId: `identity-card-${index}`,
+    capturedAt: `2026-07-16T18:0${index}:00.000Z`
+  }));
+  const playState = assets.reduce(
+    (state, asset) => applyWildsInput(state, { type: "import-card", asset }),
+    createOwnerBoundInitialPlayState("card_keeper")
+  );
+  const player = createWildsPlayerVault({
+    playerId: "card_keeper",
+    exportedAt: "2026-07-16T18:10:00.000Z",
+    playState,
+    settings: { avatarStyle: "female", movementMode: "walk", audio: {}, cardOrder: "rarity" },
+    personalEvents: [],
+    canonicalCursor: { worldId: "wilds:global:v3", revision: 0, eventId: null },
+    receipts: []
+  });
+  const cardBytes = await createWildzIdentityPlayerCard({
+    keyFile: identity.keyFile,
+    session,
+    assets,
+    player
+  });
+  const restoredIdentity = await readReceizIdentityArtifact(cardBytes);
+  const account = await projectReceizIdentityAccount(restoredIdentity);
+  const { pngBasis } = splitWildzPngEnvelope(cardBytes);
+  const proof = readPortableVaultFromPng(pngBasis);
+  const verified = verifyPortableVaultPng(pngBasis);
+
+  assert.equal(restoredIdentity.keyId, identity.keyFile.keyId);
+  assert.equal(account.owner.username, "card_keeper");
+  assert.equal(account.portableStateStatus, "verified");
+  assert.equal(proof.schema, "receiz.wilds_vault_png_proof.v3");
+  assert.deepEqual(proof.assets.map((asset) => asset.id).sort(), assets.map((asset) => asset.id).sort());
+  assert.equal(proof.player?.playerId, "card_keeper");
+  assert.equal(verified.ok, true);
+  assert.ok(verified.player);
 });
 
 test("Identity Seal download uses protected authority and a normalized PNG filename", async () => {

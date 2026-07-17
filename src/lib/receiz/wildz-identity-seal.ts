@@ -152,9 +152,15 @@ async function renderWildzIdentitySealArtwork(identity: WildzIdentitySealArtwork
   context.fill();
 
   context.fillStyle = "#001b2d";
-  context.font = "800 58px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  context.font = "900 28px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  context.letterSpacing = "8px";
   context.textAlign = "center";
-  context.fillText("Receiz ID", 450, 230);
+  context.fillText("RECEIZ ID", 450, 190);
+
+  context.fillStyle = "#00a58a";
+  context.font = "800 18px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  context.letterSpacing = "4px";
+  context.fillText("PORTABLE ACCOUNT", 450, 228);
 
   context.strokeStyle = "#00a58a";
   context.lineWidth = 18;
@@ -170,14 +176,19 @@ async function renderWildzIdentitySealArtwork(identity: WildzIdentitySealArtwork
   context.lineJoin = "round";
   context.stroke();
 
-  const identityLabel = identity.username?.trim() || identity.displayName?.trim() || identity.keyId;
+  const identityLabel = identity.username?.trim() ? `@${identity.username.trim().replace(/^@+/, "")}` : identity.displayName?.trim() || identity.keyId;
   context.fillStyle = "#001b2d";
   context.font = "800 42px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  context.letterSpacing = "0px";
   context.fillText(identityLabel, 450, 650);
 
   context.fillStyle = "#667085";
-  context.font = "600 28px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-  context.fillText("Identity Seal image", 450, 704);
+  context.font = "800 18px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  context.letterSpacing = "3px";
+  context.fillText("BEARER CREDENTIAL", 450, 700);
+  context.font = "700 16px ui-monospace, SFMono-Regular, Menlo, monospace";
+  context.letterSpacing = "1px";
+  context.fillText(`KEY ${identity.keyId.slice(0, 8).toUpperCase()} · FULL CONTINUITY`, 450, 742);
 
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((value) => {
@@ -192,15 +203,19 @@ export function appendWildzIdentitySealAuthority(pngBytes: Uint8Array, keyFile: 
   return appendReceizIdentityArtifactTrailerToPng(pngBytes, keyFile);
 }
 
+export async function createWildzIdentityCardArtworkPng(session: WildzIdentitySession) {
+  return renderWildzIdentitySealArtwork({
+    keyId: session.keyId,
+    username: session.username,
+    displayName: session.displayName
+  });
+}
+
 export async function createWildzIdentitySealPng(
   keyFile: ReceizKeyFile,
   session: WildzIdentitySession
 ) {
   if (keyFile.keyId !== session.keyId) throw new Error("wildz_identity_seal_key_id_mismatch");
-  const artwork = await renderWildzIdentitySealArtwork({
-    keyId: session.keyId,
-    username: session.username,
-    displayName: session.displayName
-  });
+  const artwork = await createWildzIdentityCardArtworkPng(session);
   return appendWildzIdentitySealAuthority(artwork, keyFile);
 }
