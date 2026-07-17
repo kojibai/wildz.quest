@@ -1,6 +1,7 @@
 import { creatureForm } from "./creature-catalog";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
-import type { CardVariantTraits } from "./card-variant";
+import type { CardVariantTraits, CardVariantTraitsV2 } from "./card-variant";
+import type { KaiCreatureBirthProfile } from "./kai-creature-birth";
 import type { GenomeTraitKey, GrowthPath, LivingCardGenome, TraitSource } from "./living-card-types";
 import { deriveHeartboundIdentity, identityForGenome, sealHeartboundIdentity, validateHeartboundIdentity } from "./heartbound-identity";
 import { deriveHeartboundPresentation, validateHeartboundPresentation } from "./heartbound-anime-genome";
@@ -23,7 +24,7 @@ function bounded(value: number, min = 0.65, max = 1.45) {
   return Number(Math.max(min, Math.min(max, value)).toFixed(3));
 }
 
-export function deriveBirthGenome(input: { formId: string; proofDigest: string; variant: CardVariantTraits }, options: { generatorVersion?: 1 | 2 | 3 } = {}): LivingCardGenome {
+export function deriveBirthGenome(input: { formId: string; proofDigest: string; variant: CardVariantTraits | CardVariantTraitsV2 }, options: { generatorVersion?: 1 | 2 | 3 } = {}): LivingCardGenome {
   const form = creatureForm(input.formId);
   if (!form || !/^sha256:[a-f0-9]{64}$/.test(input.proofDigest)) throw new Error("wilds_genome_birth_invalid");
   const seed = sha256PortableBasis(canonicalPortableCardJson({ generator: "heartbound.v1", ...input }));
@@ -31,17 +32,29 @@ export function deriveBirthGenome(input: { formId: string; proofDigest: string; 
   const identityAnchor = sha256PortableBasis(`${input.proofDigest}:heartbound-face`).slice(7, 31);
   const detail = form.anatomy.detail;
   const generatorVersion = options.generatorVersion ?? 3;
-  const identity = generatorVersion >= 2 ? deriveHeartboundIdentity(input.proofDigest, { familyId: form.familyId, locomotion, signatureDetail: detail }) : undefined;
+  const profile = "birthProfile" in input.variant ? input.variant.birthProfile : undefined;
+  const baseIdentity = generatorVersion >= 2 ? deriveHeartboundIdentity(input.proofDigest, { familyId: form.familyId, locomotion, signatureDetail: detail }) : undefined;
+  const identity = baseIdentity && profile ? sealHeartboundIdentity({
+    ...baseIdentity,
+    body: { ...baseIdentity.body, build: profile.morphology.build, torso: profile.morphology.torso, limb: profile.morphology.limb },
+    markings: { ...baseIdentity.markings, topology: profile.markings.topology, density: profile.markings.density },
+    behavior: { ...baseIdentity.behavior, posture: profile.motion.posture, gesture: profile.motion.gesture }
+  }) : baseIdentity;
   const genome: LivingCardGenome = {
     generatorVersion,
     ...(identity ? { identity } : {}),
     identityAnchor,
-    skeleton: { locomotion, head: bounded(0.92 + unit(seed, 2) * 0.28), torso: bounded(0.84 + unit(seed, 10) * 0.34), limb: bounded(0.82 + unit(seed, 18) * 0.38) },
+    skeleton: {
+      locomotion,
+      head: profile?.morphology.head ?? bounded(0.92 + unit(seed, 2) * 0.28),
+      torso: profile?.morphology.torso ?? bounded(0.84 + unit(seed, 10) * 0.34),
+      limb: profile?.morphology.limb ?? bounded(0.82 + unit(seed, 18) * 0.38)
+    },
     face: {
       identityAnchor,
       eye: choice(seed, 7, ["round", "almond", "star", "crescent"] as const),
       mouth: form.anatomy.body === "winged" ? "beak" : choice(seed, 15, ["smile", "muzzle", "fang"] as const),
-      expressionSet: choice(seed, 23, ["gentle", "brave", "curious", "mischievous"] as const)
+      expressionSet: profile ? ({ gentle: "gentle", alert: "curious", heroic: "brave", playful: "mischievous", watchful: "curious" } as const)[profile.motion.posture] : choice(seed, 23, ["gentle", "brave", "curious", "mischievous"] as const)
     },
     appendages: {
       ears: detail === "ears" ? `heart-ear-${choice(seed, 3, [1, 2, 3])}` : "none",
@@ -50,9 +63,9 @@ export function deriveBirthGenome(input: { formId: string; proofDigest: string; 
       tail: detail === "tail" || locomotion === "quadruped" ? `emotion-tail-${choice(seed, 13, [1, 2, 3])}` : "none",
       crest: detail === "crest" ? `bond-crest-${choice(seed, 17, [1, 2, 3])}` : "none"
     },
-    surface: { kind: form.anatomy.body === "armored" ? "shell" : form.anatomy.body === "winged" ? "feather" : "fur", pattern: `mark-${seed.slice(-6)}` },
+    surface: { kind: form.anatomy.body === "armored" ? "shell" : form.anatomy.body === "winged" ? "feather" : "fur", pattern: profile ? `${profile.markings.topology}-${profile.markings.motif}-${profile.morphology.signature}` : `mark-${seed.slice(-6)}` },
     palette: { primary: input.variant.palette.primary, secondary: input.variant.palette.glow, accent: input.variant.palette.accent, glow: input.variant.palette.glow },
-    behavior: { temperament: form.temperament, idleCadenceMs: input.variant.animationMs, signatureGesture: `gesture-${seed.slice(7, 11)}`, battleStance: locomotion === "quadruped" ? "pounce" : "heroic" },
+    behavior: { temperament: profile?.characterTraits.join(" · ") ?? form.temperament, idleCadenceMs: input.variant.animationMs, signatureGesture: profile?.motion.gesture ?? `gesture-${seed.slice(7, 11)}`, battleStance: profile?.motion.posture ?? (locomotion === "quadruped" ? "pounce" : "heroic") },
     auraProfile: { kind: form.anatomy.aura, intensity: input.variant.auraIntensity, particle: `pulse-${seed.slice(11, 15)}` },
     anatomy: { ...form.anatomy },
     variant: { ...input.variant, palette: { ...input.variant.palette } },
@@ -103,7 +116,7 @@ function mixColor(a: string, b: string, seed: string) {
   return `color-mix(in oklch, ${a} ${45 + Math.round(unit(seed, 4) * 10)}%, ${b})`;
 }
 
-export function deriveFusionGenome(input: { parentA: LivingCardGenome; parentB: LivingCardGenome; emphasis: "balanced" | "parent_a" | "parent_b"; kaiPulse: string; mutationNonce: string }) {
+export function deriveFusionGenome(input: { parentA: LivingCardGenome; parentB: LivingCardGenome; emphasis: "balanced" | "parent_a" | "parent_b"; kaiPulse: string; mutationNonce: string; birthProfile?: KaiCreatureBirthProfile }) {
   if (!validateGenome(input.parentA).ok || !validateGenome(input.parentB).ok) throw new Error("wilds_fusion_genome_invalid");
   const seed = sha256PortableBasis(canonicalPortableCardJson({ a: genomeDigest(input.parentA), b: genomeDigest(input.parentB), emphasis: input.emphasis, kaiPulse: input.kaiPulse, mutationNonce: input.mutationNonce }));
   const identityAnchor = sha256PortableBasis(`${seed}:child-face`).slice(7, 31);
@@ -131,22 +144,45 @@ export function deriveFusionGenome(input: { parentA: LivingCardGenome; parentB: 
       celebration: identityB.behavior.celebration
     }
   });
+  const bornIdentity = input.birthProfile ? sealHeartboundIdentity({
+    ...childIdentity,
+    body: {
+      ...childIdentity.body,
+      torso: bounded((childIdentity.body.torso + input.birthProfile.morphology.torso) / 2),
+      limb: bounded((childIdentity.body.limb + input.birthProfile.morphology.limb) / 2)
+    },
+    markings: {
+      ...childIdentity.markings,
+      topology: input.birthProfile.markings.topology,
+      density: input.birthProfile.markings.density
+    },
+    behavior: {
+      ...childIdentity.behavior,
+      posture: input.birthProfile.motion.posture,
+      gesture: input.birthProfile.motion.gesture
+    }
+  }) : childIdentity;
   const child: LivingCardGenome = {
     ...input.parentA,
     generatorVersion: 3,
-    identity: childIdentity,
+    identity: bornIdentity,
     identityAnchor,
-    skeleton: { ...input.parentA.skeleton },
+    skeleton: input.birthProfile ? {
+      ...input.parentA.skeleton,
+      head: bounded((input.parentA.skeleton.head + input.birthProfile.morphology.head) / 2),
+      torso: bounded((input.parentA.skeleton.torso + input.birthProfile.morphology.torso) / 2),
+      limb: bounded((input.parentA.skeleton.limb + input.birthProfile.morphology.limb) / 2)
+    } : { ...input.parentA.skeleton },
     face: { ...input.parentB.face, identityAnchor, expressionSet: choice(seed, 8, [input.parentA.face.expressionSet, input.parentB.face.expressionSet]) },
     appendages: { ...input.parentB.appendages },
-    surface: { ...input.parentA.surface, pattern: `${input.parentA.surface.pattern}+${input.parentB.surface.pattern}` },
+    surface: { ...input.parentA.surface, pattern: `${input.parentA.surface.pattern}+${input.parentB.surface.pattern}${input.birthProfile ? `+${input.birthProfile.markings.motif}` : ""}` },
     palette: {
-      primary: mixColor(input.parentA.palette.primary, input.parentB.palette.primary, seed),
+      primary: input.birthProfile ? mixColor(mixColor(input.parentA.palette.primary, input.parentB.palette.primary, seed), input.birthProfile.palette.primary, `${seed}1`) : mixColor(input.parentA.palette.primary, input.parentB.palette.primary, seed),
       secondary: mixColor(input.parentB.palette.secondary, input.parentA.palette.secondary, seed),
-      accent: mixColor(input.parentA.palette.accent, input.parentB.palette.accent, seed),
-      glow: mixColor(input.parentB.palette.glow, input.parentA.palette.glow, seed)
+      accent: input.birthProfile ? mixColor(mixColor(input.parentA.palette.accent, input.parentB.palette.accent, seed), input.birthProfile.palette.accent, `${seed}2`) : mixColor(input.parentA.palette.accent, input.parentB.palette.accent, seed),
+      glow: input.birthProfile ? mixColor(input.parentB.palette.glow, input.birthProfile.palette.glow, `${seed}3`) : mixColor(input.parentB.palette.glow, input.parentA.palette.glow, seed)
     },
-    behavior: { ...input.parentA.behavior, signatureGesture: input.parentB.behavior.signatureGesture },
+    behavior: { ...input.parentA.behavior, idleCadenceMs: input.birthProfile?.motion.cadenceMs ?? input.parentA.behavior.idleCadenceMs, signatureGesture: input.birthProfile?.motion.gesture ?? input.parentB.behavior.signatureGesture, battleStance: input.birthProfile?.motion.posture ?? input.parentA.behavior.battleStance },
     auraProfile: { ...input.parentB.auraProfile, particle: `child-${seed.slice(7, 13)}` },
     provenance: { skeleton: "parent_a", face: "parent_b", appendages: "parent_b", surface: "blended", palette: "blended", behavior: "parent_a", aura: "parent_b", stance: "parent_a" },
     presentation: undefined

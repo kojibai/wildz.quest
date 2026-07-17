@@ -659,16 +659,16 @@ export function PlayCampaign({
       key: "fieldGuide",
       label: "Field Guide",
       icon: <Icons.book size={21} />,
-      badge: `${discoveredByFamily.size}/${creatureFamilies.length}`,
-      status: `${nextHabitat} signal`,
+      badge: `${discoveredByFamily.size}/${creatureFamilies.length} families`,
+      status: `${state.inventory.length} unique Kai-born · ${nextHabitat}`,
       content: (
         <div className="wilds-command-content wilds-field-guide">
           <WildzCommandInsight label="Live discovery lead" value={nextHabitat} detail="Scan from your current trail position. The result changes the Guide, Vault, and explorer record together.">
             <button onClick={() => dispatch({ type: "search-point", x: state.player.x, z: state.player.z, searchedAt: new Date().toISOString(), ownerReceizId })} type="button">Pulse this trail</button>
           </WildzCommandInsight>
           <div className="wilds-command-content-lead">
-            <span><small>Species index</small><strong>{discoveredByFamily.size} verified discoveries</strong></span>
-            <b>{creatureFamilies.length - discoveredByFamily.size} unseen</b>
+            <span><small>Species families</small><strong>{discoveredByFamily.size} of {creatureFamilies.length} families discovered</strong></span>
+            <b>{state.inventory.length} unique individuals</b>
           </div>
           <div className="wilds-field-guide-tip">
             <Icons.search aria-hidden="true" size={18} />
@@ -689,7 +689,7 @@ export function PlayCampaign({
               );
             })}
           </div>
-          <small className="wilds-field-guide-limit">Showing discovered species first within 24 nearby field signals.</small>
+          <small className="wilds-field-guide-limit">250 families · 750 evolution forms · unbounded unique Kai-born individuals. Showing 24 nearby field signals.</small>
         </div>
       )
     },

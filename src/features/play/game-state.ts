@@ -996,6 +996,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
         ownerReceizId: encounter.ownerReceizId,
         encounterId: encounter.hotspotId,
         capturedAt: input.at,
+        generatorVersion: 2,
         battleTranscriptDigest: state.battle ? battleTranscriptDigest(state.battle) : undefined
       });
     } catch {
@@ -1172,7 +1173,8 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
         formId: `${nearest.card.id}-1`,
         ownerReceizId,
         encounterId,
-        capturedAt
+        capturedAt,
+        ...(input.type === "capture" ? { generatorVersion: 2 as const } : {})
       });
     } catch {
       return { ...state, lastEvent: "The Receiz Capsule reopened because the local seal could not be verified. Try again." };

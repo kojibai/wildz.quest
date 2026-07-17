@@ -1,4 +1,4 @@
-import type { CardVariantTraits } from "./card-variant";
+import type { CardVariantTraits, CardVariantTraitsV2 } from "./card-variant";
 import type { CreatureFoil, CreatureRarity, CreatureStage, CreatureStats } from "./creature-catalog";
 import type { HeartboundPresentationV3 } from "./heartbound-anime-types";
 
@@ -214,6 +214,13 @@ export type LivingCardManifest = {
     kaiPulse: string;
     battleTranscriptDigest: string;
     traits: CardVariantTraits;
+  } | {
+    generatorVersion: 2;
+    seed: string;
+    traitsDigest: string;
+    kaiPulse: string;
+    battleTranscriptDigest: string;
+    traits: CardVariantTraitsV2;
   };
   lineage: LivingLineage;
   birth: LivingCardBirth;

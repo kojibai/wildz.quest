@@ -7,12 +7,30 @@ import {
   type CreatureStage,
   type CreatureStats
 } from "./creature-catalog";
-import { deriveCardVariant, displayCreatureName, variantSeedFor, type CardVariantTraits } from "./card-variant";
+import { deriveCardVariant, deriveCardVariantV2, displayCreatureName, variantSeedFor, type CardVariantTraits, type CardVariantTraitsV2 } from "./card-variant";
+import { deriveKaiCreatureBirth } from "./kai-creature-birth";
+import { deriveKaiKlokMoment } from "./kai-klok-moment";
 import { admitLegacyCard, appendLivingCardRevision, currentLivingGenome, currentRevision, verifyLivingCard } from "./living-card-proof";
 import { isLivingCardAsset, type LivingCardAsset } from "./living-card-types";
 import { deriveHeartboundPresentation } from "./heartbound-anime-genome";
 
 export type PortableCardStatus = "sealed_local" | "verified" | "listed" | "suspended" | "revoked";
+
+export type PortableCardVariant = {
+  generatorVersion: 1;
+  seed: string;
+  traitsDigest: string;
+  kaiPulse: string;
+  battleTranscriptDigest: string;
+  traits: CardVariantTraits;
+} | {
+  generatorVersion: 2;
+  seed: string;
+  traitsDigest: string;
+  kaiPulse: string;
+  battleTranscriptDigest: string;
+  traits: CardVariantTraitsV2;
+};
 
 export type PortableCardManifest = {
   schema: "receiz.wilds_card_manifest.v1";
@@ -31,14 +49,7 @@ export type PortableCardManifest = {
   ownerReceizId: string;
   encounterId: string;
   capturedAt: string;
-  variant: {
-    generatorVersion: 1;
-    seed: string;
-    traitsDigest: string;
-    kaiPulse: string;
-    battleTranscriptDigest: string;
-    traits: CardVariantTraits;
-  };
+  variant: PortableCardVariant;
   lineage: {
     rootAssetId: string;
     rootDigest: string;
@@ -155,6 +166,8 @@ export function sealCollectedCard(input: {
   capturedAt: string;
   kaiPulse?: string;
   battleTranscriptDigest?: string;
+  generatorVersion?: 1 | 2;
+  lineage?: { parentAssetIds: readonly [string, string]; inheritedSignals: readonly string[] };
 }): LegacyPortableCardAsset {
   const form = creatureForm(input.formId);
   if (!form || form.stage !== 1) throw new Error("wilds_capture_base_form_required");
@@ -163,17 +176,26 @@ export function sealCollectedCard(input: {
   if (!input.encounterId.trim()) throw new Error("wilds_card_encounter_required");
   if (!Number.isFinite(Date.parse(input.capturedAt))) throw new Error("wilds_card_capture_time_invalid");
   const assetId = assetIdFor({ ownerReceizId, formId: form.id, encounterId: input.encounterId });
-  const kaiPulse = input.kaiPulse ?? String(Date.parse(input.capturedAt));
+  const generatorVersion = input.generatorVersion ?? 1;
+  const kaiMoment = generatorVersion === 2 ? deriveKaiKlokMoment({ occurredAt: input.capturedAt, authority: "admitted" }) : null;
+  const kaiPulse = kaiMoment ? String(kaiMoment.pulse) : input.kaiPulse ?? String(Date.parse(input.capturedAt));
   const battleTranscriptDigest = input.battleTranscriptDigest ?? "sha256:none";
-  const variantSeed = variantSeedFor({
+  const variantBasis = {
     formId: form.id,
     encounterId: input.encounterId,
     ownerReceizId,
     capturedAt: input.capturedAt,
     kaiPulse,
     battleTranscriptDigest
-  });
-  const variantTraits = deriveCardVariant(variantSeed, 1);
+  };
+  const variantSeed = variantSeedFor(variantBasis, generatorVersion);
+  const birthProfile = kaiMoment ? deriveKaiCreatureBirth({
+    form,
+    moment: kaiMoment,
+    seed: variantSeed,
+    ...(input.lineage ? { lineage: { parentIds: input.lineage.parentAssetIds, inheritedSignals: input.lineage.inheritedSignals } } : {})
+  }) : null;
+  const variantTraits = birthProfile ? deriveCardVariantV2(variantSeed, birthProfile) : deriveCardVariant(variantSeed, 1);
   const manifest: PortableCardManifest = {
     schema: "receiz.wilds_card_manifest.v1",
     catalogVersion: CREATURE_CATALOG_VERSION,
@@ -182,29 +204,39 @@ export function sealCollectedCard(input: {
     familyId: form.familyId,
     stage: form.stage,
     cardNumber: form.cardNumber,
-    name: displayCreatureName(form.id, form.name),
+    name: birthProfile?.name.display ?? displayCreatureName(form.id, form.name),
     species: form.species,
     rarity: form.rarity,
     foil: form.foil,
-    stats: { ...form.stats },
+    stats: { ...(birthProfile?.adjustedStats ?? form.stats) },
     abilityNames: [form.abilities[0].name, form.abilities[1].name],
     ownerReceizId,
     encounterId: input.encounterId,
     capturedAt: input.capturedAt,
-    variant: {
-      generatorVersion: 1,
-      seed: variantSeed,
-      traitsDigest: sha256PortableBasis(canonicalPortableCardJson(variantTraits)),
-      kaiPulse,
-      battleTranscriptDigest,
-      traits: variantTraits
-    },
+    variant: generatorVersion === 2
+      ? {
+          generatorVersion: 2,
+          seed: variantSeed,
+          traitsDigest: sha256PortableBasis(canonicalPortableCardJson(variantTraits)),
+          kaiPulse,
+          battleTranscriptDigest,
+          traits: variantTraits as CardVariantTraitsV2
+        }
+      : {
+          generatorVersion: 1,
+          seed: variantSeed,
+          traitsDigest: sha256PortableBasis(canonicalPortableCardJson(variantTraits)),
+          kaiPulse,
+          battleTranscriptDigest,
+          traits: variantTraits
+        },
     lineage: {
       rootAssetId: assetId,
       rootDigest: "self",
       previousAssetId: null,
       previousDigest: null,
-      evolvedAt: null
+      evolvedAt: null,
+      ...(input.lineage ? { parentAssetIds: [...input.lineage.parentAssetIds].sort() as [string, string] } : {})
     }
   };
   const digest = manifestDigest(manifest);
@@ -237,10 +269,14 @@ export function verifyPortableCard(asset: PortableCardAsset): PortableCardVerifi
   if (manifest.assetId !== asset.id) errors.push("asset_id_mismatch");
   if (form) {
     if (manifest.familyId !== form.familyId || manifest.stage !== form.stage || manifest.cardNumber !== form.cardNumber) errors.push("catalog_identity_mismatch");
-    if (canonicalPortableCardJson(manifest.stats) !== canonicalPortableCardJson(form.stats)) errors.push("stats_mismatch");
     if (canonicalPortableCardJson(manifest.abilityNames) !== canonicalPortableCardJson(form.abilities.map((ability) => ability.name))) errors.push("abilities_mismatch");
   }
   if (form && manifest.variant) {
+    const version = manifest.variant.generatorVersion;
+    if (version !== 1 && version !== 2) {
+      errors.push("variant_version_invalid");
+      return { ok: false, errors };
+    }
     const expectedSeed = variantSeedFor({
       formId: manifest.formId,
       encounterId: manifest.encounterId,
@@ -248,9 +284,39 @@ export function verifyPortableCard(asset: PortableCardAsset): PortableCardVerifi
       capturedAt: manifest.capturedAt,
       kaiPulse: manifest.variant.kaiPulse,
       battleTranscriptDigest: manifest.variant.battleTranscriptDigest
-    });
-    const expectedTraits = deriveCardVariant(expectedSeed, 1);
-    if (manifest.variant.generatorVersion !== 1 || manifest.variant.seed !== expectedSeed) errors.push("variant_seed_mismatch");
+    }, version);
+    let expectedTraits: CardVariantTraits | CardVariantTraitsV2;
+    if (version === 2) {
+      try {
+        const moment = deriveKaiKlokMoment({ occurredAt: manifest.capturedAt, authority: "admitted" });
+        const storedProfile = manifest.variant.traits.birthProfile;
+        const profile = deriveKaiCreatureBirth({
+          form,
+          moment,
+          seed: expectedSeed,
+          ...(manifest.lineage.parentAssetIds && storedProfile.lineage ? {
+            lineage: {
+              parentIds: manifest.lineage.parentAssetIds,
+              inheritedSignals: storedProfile.lineage.inheritedSignals
+            }
+          } : {})
+        });
+        expectedTraits = deriveCardVariantV2(expectedSeed, profile);
+        if (manifest.variant.kaiPulse !== String(moment.pulse)) errors.push("kai_pulse_mismatch");
+        if (canonicalPortableCardJson(manifest.stats) !== canonicalPortableCardJson(profile.adjustedStats)) errors.push("stats_mismatch");
+        if (manifest.name !== profile.name.display) errors.push("name_mismatch");
+        const catalogTotal = Object.values(form.stats).reduce((sum, value) => sum + value, 0);
+        const manifestTotal = Object.values(manifest.stats).reduce((sum, value) => sum + value, 0);
+        if (catalogTotal !== manifestTotal) errors.push("stats_total_mismatch");
+      } catch {
+        expectedTraits = manifest.variant.traits;
+        errors.push("kai_birth_invalid");
+      }
+    } else {
+      expectedTraits = deriveCardVariant(expectedSeed, 1);
+      if (canonicalPortableCardJson(manifest.stats) !== canonicalPortableCardJson(form.stats)) errors.push("stats_mismatch");
+    }
+    if (manifest.variant.seed !== expectedSeed) errors.push("variant_seed_mismatch");
     if (canonicalPortableCardJson(manifest.variant.traits) !== canonicalPortableCardJson(expectedTraits)) errors.push("variant_traits_mismatch");
     if (manifest.variant.traitsDigest !== sha256PortableBasis(canonicalPortableCardJson(expectedTraits))) errors.push("variant_digest_mismatch");
   } else {
@@ -300,6 +366,11 @@ export function evolvePortableCard(input: {
   const nextPresentation = currentGenome.generatorVersion === 3
     ? deriveHeartboundPresentation({ genome: { ...currentGenome, anatomy: nextAnatomy, presentation: undefined }, stage: next.stage, ascensionRank: prior.ascensionRank })
     : undefined;
+  const birthProfile = living.manifest.variant.generatorVersion === 2 ? living.manifest.variant.traits.birthProfile : null;
+  const nextStats = birthProfile
+    ? Object.fromEntries(Object.entries(next.stats).map(([key, value]) => [key, value + birthProfile.statShift[key as keyof CreatureStats]])) as CreatureStats
+    : { ...next.stats };
+  const nextTitle = birthProfile ? `${next.name.replace(/[^a-z0-9]/gi, "")} ${birthProfile.name.epithet}` : displayCreatureName(next.id, next.name);
   return appendLivingCardRevision({
     asset: living,
     revision: {
@@ -323,9 +394,9 @@ export function evolvePortableCard(input: {
           aura: "ascension"
         }
       },
-      stats: { ...next.stats },
+      stats: nextStats,
       abilityNames: [next.abilities[0].name, next.abilities[1].name],
-      title: displayCreatureName(next.id, next.name),
+      title: nextTitle,
       childEventIds: []
     }
   });

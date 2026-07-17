@@ -1,4 +1,5 @@
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
+import type { KaiCreatureBirthProfile } from "./kai-creature-birth";
 
 export type CardVariantBasis = {
   formId: string;
@@ -20,6 +21,13 @@ export type CardVariantTraits = {
   visualFingerprint: string;
 };
 
+export type CardVariantTraitsV2 = CardVariantTraits & {
+  birthProfile: KaiCreatureBirthProfile;
+  morphology: KaiCreatureBirthProfile["morphology"];
+  markings: KaiCreatureBirthProfile["markings"];
+  motion: KaiCreatureBirthProfile["motion"];
+};
+
 function unit(seed: string, offset: number) {
   const hex = seed.replace(/^sha256:/, "");
   const start = offset % (hex.length - 8);
@@ -31,8 +39,27 @@ function ranged(seed: string, offset: number, min: number, max: number, precisio
   return precision ? Number(value.toFixed(precision)) : Math.round(value);
 }
 
-export function variantSeedFor(basis: CardVariantBasis) {
-  return sha256PortableBasis(canonicalPortableCardJson({ generator: "receiz.wilds.variant.v1", ...basis }));
+export function variantSeedFor(basis: CardVariantBasis, generatorVersion: 1 | 2 = 1) {
+  return sha256PortableBasis(canonicalPortableCardJson({ generator: `receiz.wilds.variant.v${generatorVersion}`, ...basis }));
+}
+
+export function deriveCardVariantV2(seed: string, profile: KaiCreatureBirthProfile): CardVariantTraitsV2 {
+  if (!/^sha256:[a-f0-9]{64}$/.test(seed) || profile.version !== 1) throw new Error("wilds_variant_v2_seed_invalid");
+  const legacyShape = deriveCardVariant(seed, 1);
+  return {
+    ...legacyShape,
+    bodyScale: Number(((profile.morphology.torso + profile.morphology.limb) / 2).toFixed(3)),
+    auraIntensity: Number((0.42 + profile.markings.density * 0.62).toFixed(3)),
+    animationMs: profile.motion.cadenceMs,
+    statBias: Math.max(...Object.values(profile.statShift)),
+    abilityModifier: profile.statShift.power + profile.statShift.bond,
+    palette: { ...profile.palette },
+    visualFingerprint: profile.fingerprint,
+    birthProfile: profile,
+    morphology: { ...profile.morphology },
+    markings: { ...profile.markings },
+    motion: { ...profile.motion }
+  };
 }
 
 export function deriveCardVariant(seed: string, generatorVersion: 1): CardVariantTraits {

@@ -1,4 +1,3 @@
-import { displayCreatureName } from "./card-variant";
 import { creatureForm } from "./creature-catalog";
 import { deriveBirthGenome, genomeDigest, mergeLivingGenome, validateGenome } from "./heartbound-genome";
 import {
@@ -52,6 +51,12 @@ function rendererVersionForGenome(genome: LivingCardGenome): 1 | 2 | 3 {
   return genome.generatorVersion;
 }
 
+function validProjectedStats(stats: LivingCardRevisionDraft["stats"], formStats: LivingCardRevisionDraft["stats"]) {
+  const keys = Object.keys(formStats) as (keyof typeof formStats)[];
+  const total = (value: typeof stats) => keys.reduce((sum, key) => sum + value[key], 0);
+  return total(stats) === total(formStats) && keys.every((key) => stats[key] > 0 && Math.abs(stats[key] - formStats[key]) <= 3);
+}
+
 function revisionBasis(revision: LivingCardRevision) {
   const { digest: _digest, ...basis } = revision;
   return basis;
@@ -90,12 +95,12 @@ export function admitLegacyCard(legacy: LegacyPortableCardAsset, admittedAt: str
     stage: form.stage,
     ascensionRank: 0,
     formId: form.id,
-    growth: emptyLivingGrowth(form.stats.bond),
+    growth: emptyLivingGrowth(legacy.manifest.stats.bond),
     qualifyingAchievementIds: [],
     consumedCatalystId: null,
     genomeDelta: {},
     genomeDigest: livingGenomeDigest(genome),
-    stats: { ...form.stats },
+    stats: { ...legacy.manifest.stats },
     abilityNames: [form.abilities[0].name, form.abilities[1].name],
     title: name,
     rendererVersion: rendererVersionForGenome(genome),
@@ -157,7 +162,7 @@ export function appendLivingCardRevision(input: { asset: LivingCardAsset; revisi
   const prior = currentRevision(input.asset);
   const form = creatureForm(input.revision.formId);
   if (!form || form.stage !== input.revision.stage) throw new Error("wilds_revision_form_invalid");
-  if (canonicalPortableCardJson(input.revision.stats) !== canonicalPortableCardJson(form.stats)) throw new Error("wilds_revision_stats_invalid");
+  if (!validProjectedStats(input.revision.stats, form.stats)) throw new Error("wilds_revision_stats_invalid");
   if (canonicalPortableCardJson(input.revision.abilityNames) !== canonicalPortableCardJson(form.abilities.map((ability) => ability.name))) throw new Error("wilds_revision_abilities_invalid");
   const genome = mergeGenome(currentLivingGenome(input.asset), input.revision.genomeDelta);
   const revision = sealRevision({
@@ -174,7 +179,7 @@ export function appendLivingCardRevision(input: { asset: LivingCardAsset; revisi
     familyId: form.familyId,
     stage: form.stage,
     cardNumber: form.cardNumber,
-    name: displayCreatureName(form.id, form.name),
+    name: revision.title,
     species: form.species,
     rarity: form.rarity,
     foil: form.foil,

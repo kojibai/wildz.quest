@@ -19,6 +19,7 @@
 - Initial mount must not play a transition; duplicate, reload, and catch-up updates acknowledge at most the newest beat/Ark once.
 - Card-back copy includes `Birth Pulse` and `Cadueus KAI` and translates geometry/meaning into creature language.
 - V2 names are deterministic expressions of species plus birth geometry/meaning; offspring inherit recognizable signals from both parents and are then uniquely shaped and named by the child's own Kai birth moment.
+- The 250 families and 750 evolution forms remain stable ecological/species anchors, while deterministic morphology parameters create an effectively unbounded population of visually distinct individuals without expanding assets or runtime work.
 - Audio settings, reduced motion, quality profiles, offline capture, movement, camera, persistence, multiplayer, and list virtualization remain intact.
 
 ---
@@ -168,6 +169,7 @@ export type KaiCreatureBirthProfile = {
   characterTraits: readonly [string, string, string, string];
   palette: { primary: string; accent: string; glow: string };
   markings: { topology: string; density: number; motif: string };
+  morphology: { build: string; head: number; torso: number; limb: number; appendage: string; symmetry: number; signature: string };
   motion: { cadenceMs: number; gesture: string; posture: string };
   affinities: readonly string[];
   statShift: CreatureStats;
@@ -185,6 +187,8 @@ Derive the display name deterministically from the recognizable catalog species 
 - [ ] **Step 4: Implement bounded palette and geometry projection**
 
 Blend the catalog palette with the chakra accent using deterministic HSL conversion and bounded ratios. Select existing Heartbound-compatible marking/motion identifiers from geometry and semantic lanes. Clamp cadence and density to existing renderer limits.
+
+Treat the catalog anatomy as a recognizable species anchor, then project bounded head/torso/limb proportions, body build, appendage morphology, symmetry, topology, and markings from the proof seed and moment. This is the dynamic base-form layer: no texture/model downloads and no additional per-frame work.
 
 - [ ] **Step 5: Implement zero-sum stat redistribution**
 

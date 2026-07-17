@@ -1,4 +1,3 @@
-import { displayCreatureName } from "./card-variant";
 import { creatureForm } from "./creature-catalog";
 import { applyGrowthEvent } from "./growth-engine";
 import { deriveFusionGenome, validateGenome } from "./heartbound-genome";
@@ -90,24 +89,36 @@ export function createLivingChildTransaction(input: LivingLineageInput) {
   const inherited = input.inheritance === "parent_b" ? parentB : input.inheritance === "parent_a" ? parentA : ordered[0]!;
   const baseForm = creatureForm(`${inherited.manifest.familyId}-1`);
   if (!baseForm) throw new Error("wilds_lineage_base_form_missing");
-  const genome = deriveFusionGenome({
-    parentA: currentLivingGenome(parentA),
-    parentB: currentLivingGenome(parentB),
-    emphasis: input.inheritance,
-    kaiPulse: input.kaiPulse,
-    mutationNonce: eventId
-  });
-  if (!validateGenome(genome).ok) throw new Error("wilds_lineage_child_genome_invalid");
+  const parentGenomeA = currentLivingGenome(ordered[0]!);
+  const parentGenomeB = currentLivingGenome(ordered[1]!);
+  const parentAssetIds = [ordered[0]!.id, ordered[1]!.id] as const;
+  const inheritedSignals = [
+    `parent-a:${parentGenomeA.identity?.markings.topology ?? parentGenomeA.surface.pattern}`,
+    `parent-a:${parentGenomeA.identity?.behavior.gesture ?? parentGenomeA.behavior.signatureGesture}`,
+    `parent-b:${parentGenomeB.identity?.markings.topology ?? parentGenomeB.surface.pattern}`,
+    `parent-b:${parentGenomeB.identity?.behavior.gesture ?? parentGenomeB.behavior.signatureGesture}`
+  ];
   const legacyChild = sealCollectedCard({
     formId: baseForm.id,
     ownerReceizId: parentA.manifest.ownerReceizId,
     encounterId: `fusion:${eventDigest.slice(7, 39)}`,
     capturedAt: input.createdAt,
     kaiPulse: input.kaiPulse,
-    battleTranscriptDigest: sha256PortableBasis(canonicalPortableCardJson(eventBasis.parentDigests))
+    battleTranscriptDigest: sha256PortableBasis(canonicalPortableCardJson(eventBasis.parentDigests)),
+    generatorVersion: 2,
+    lineage: { parentAssetIds, inheritedSignals }
   });
-  const prefixes = ["Nova", "Prism", "Echo", "Auric", "Velvet", "Astral"];
-  const name = `${prefixes[Number.parseInt(eventDigest.slice(7, 9), 16) % prefixes.length]} ${displayCreatureName(baseForm.id, baseForm.name)}`;
+  if (legacyChild.manifest.variant.generatorVersion !== 2) throw new Error("wilds_lineage_child_birth_missing");
+  const genome = deriveFusionGenome({
+    parentA: parentGenomeA,
+    parentB: parentGenomeB,
+    emphasis: input.inheritance,
+    kaiPulse: legacyChild.manifest.variant.kaiPulse,
+    mutationNonce: eventId,
+    birthProfile: legacyChild.manifest.variant.traits.birthProfile
+  });
+  if (!validateGenome(genome).ok) throw new Error("wilds_lineage_child_genome_invalid");
+  const name = legacyChild.manifest.name;
   const child = admitLegacyCard(legacyChild, input.createdAt, {
     name,
     birth: { kind: "fusion", bornAt: input.createdAt, formId: baseForm.id, legacyDigest: legacyChild.proof.digest },
@@ -118,8 +129,8 @@ export function createLivingChildTransaction(input: LivingLineageInput) {
       previousAssetId: null,
       previousDigest: null,
       evolvedAt: null,
-      parentAssetIds: [parentA.id, parentB.id],
-      parentDigests: [currentRevision(parentA).digest, currentRevision(parentB).digest],
+      parentAssetIds: [...parentAssetIds],
+      parentDigests: [currentRevision(ordered[0]!).digest, currentRevision(ordered[1]!).digest],
       fusionSparkId: input.sparkId,
       childAssetIds: []
     }
