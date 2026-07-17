@@ -60,7 +60,10 @@ export function WildzGenesis({
     <section className="wildz-genesis" aria-label="Create or restore your Wildz explorer">
       <div className="wildz-genesis-brand">
         <Image src="/brand/wildz-wordmark.svg" alt="Wildz" width={240} height={48} priority />
-        <p className="wildz-genesis-tagline">Catch living creatures shaped by the moment. Train, evolve, breed & carry them anywhere. No two Wildz are ever the same.</p>
+        <div className="wildz-genesis-copy">
+          <p className="wildz-genesis-tagline">Catch living creatures shaped by the moment.</p>
+          <p className="wildz-genesis-subtext">Train, evolve, breed & carry them anywhere. No two Wildz are ever the same.</p>
+        </div>
       </div>
       <div className="wildz-genesis-actions" aria-busy={Boolean(gender) || restoring}>
         <button type="button" onClick={() => create("female")} disabled={Boolean(gender) || restoring}>
@@ -91,7 +94,7 @@ export function WildzGenesis({
         rel="noopener noreferrer"
         aria-label="Powered by Receiz"
       >
-        <Image src="/brand/powered-by-receiz.svg" alt="Powered by Receiz" width={116} height={32} />
+        <Image src="/brand/powered-by-receiz.svg" alt="Powered by Receiz" width={96} height={26} />
       </a>
     </section>
   );
