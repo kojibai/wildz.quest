@@ -32,6 +32,8 @@ test("Kai Klok moment is deterministic at the genesis anchor", () => {
     monthName: "Aethon",
     ark: "Ignite",
     arkIndex: 0,
+    dayProgress: 0,
+    arkProgress: 0,
     latticeCoordinate: "00:00:00",
     coordinate: "Y0·M1·D1·00:00:00·KAI0",
     accent: "#CC3F3F",
@@ -39,6 +41,20 @@ test("Kai Klok moment is deterministic at the genesis anchor", () => {
     sides: 4,
     gate: "Earth Gate"
   });
+});
+
+test("Kai day and Ark progress are exact normalized projections", () => {
+  const samples = [
+    "2024-05-10T06:45:41.888Z",
+    "2026-07-16T22:00:00.000Z",
+    "2030-01-01T00:00:00.000Z"
+  ];
+  for (const occurredAt of samples) {
+    const moment = deriveKaiKlokMoment({ occurredAt, authority: "world" });
+    assert.ok(moment.dayProgress >= 0 && moment.dayProgress < 1);
+    assert.ok(moment.arkProgress >= 0 && moment.arkProgress < 1);
+    assert.equal(moment.arkIndex, Math.floor(moment.dayProgress * 6));
+  }
 });
 
 test("chakra geometry uses the canonical Kai tables", () => {

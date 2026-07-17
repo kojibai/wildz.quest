@@ -50,6 +50,8 @@ export type KaiKlokMoment = {
   monthName: KaiMonthName;
   ark: KaiArkName;
   arkIndex: number;
+  dayProgress: number;
+  arkProgress: number;
   latticeCoordinate: string;
   coordinate: string;
   accent: string;
@@ -152,6 +154,8 @@ export function deriveKaiKlokMoment(input: {
   const monthName = KAI_MONTH_NAMES[month - 1]!;
   const arkIndex = Math.min(5, Number((microPulsesInDay * 6n) / KAI_N_DAY_MICRO));
   const ark = KAI_ARK_NAMES[arkIndex]!;
+  const dayProgress = Number(microPulsesInDay) / Number(KAI_N_DAY_MICRO);
+  const arkProgress = dayProgress * KAI_ARK_NAMES.length - arkIndex;
   const latticeCoordinate = `${pad2(beat)}:${pad2(stepIndex)}:${pad2(pulseInStep)}`;
   const coordinate = `Y${year}·M${month}·D${day}·${latticeCoordinate}·KAI${pulse}`;
 
@@ -173,6 +177,8 @@ export function deriveKaiKlokMoment(input: {
     monthName,
     ark,
     arkIndex,
+    dayProgress,
+    arkProgress,
     latticeCoordinate,
     coordinate,
     ...KAI_CHAKRA_GEOMETRY[chakra]
