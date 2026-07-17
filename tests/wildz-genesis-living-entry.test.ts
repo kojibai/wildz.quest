@@ -13,10 +13,17 @@ test("Genesis atmosphere stays lightweight, two-line, and motion-safe", () => {
   assert.match(css, /\.wildz-genesis-powered\s*\{[^}]*margin-top:\s*clamp\(18px,\s*3vh,\s*28px\)/s);
   assert.match(css, /\.wildz-genesis-powered img\s*\{[^}]*width:\s*96px;[^}]*height:\s*26px/s);
   assert.match(css, /\.wildz-genesis-powered:focus-visible/);
+  assert.match(css, /\.wildz-genesis\s*\{[^}]*--kai-pulse-duration:\s*5\.236s/s);
+  assert.match(css, /animation:\s*wildz-genesis-geometry var\(--kai-pulse-duration\)/);
+  assert.match(css, /animation:\s*wildz-genesis-aurora var\(--kai-pulse-duration\)/);
+  assert.match(css, /animation:\s*wildz-genesis-halo var\(--kai-pulse-duration\)/);
+  assert.match(css, /animation:\s*wildz-genesis-seal var\(--kai-pulse-duration\)/);
+  assert.match(css, /animation:\s*wildz-genesis-glint var\(--kai-pulse-duration\)/);
   assert.match(css, /@keyframes wildz-genesis-aurora/);
   assert.match(css, /@keyframes wildz-genesis-geometry/);
   assert.match(css, /@keyframes wildz-genesis-halo/);
   assert.match(css, /@keyframes wildz-genesis-seal/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.wildz-genesis-powered/s);
+  assert.doesNotMatch(css, /wildz-genesis-(?:geometry|aurora|halo|seal|glint) (?:9|10|11|16|18)s/);
   assert.doesNotMatch(css, /\.wildz-genesis[^\n{]*\{[^}]*url\(https?:/s);
 });

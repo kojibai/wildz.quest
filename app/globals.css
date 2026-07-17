@@ -111,6 +111,7 @@ body {
 .wildz-vault-login-prompt button:first-child { flex: 1; color: #092116; background: linear-gradient(135deg, #bdf2bd, #70d6a1); }
 
 .wildz-genesis {
+  --kai-pulse-duration: 5.236s;
   align-content: center;
   gap: clamp(28px, 6vh, 64px);
   isolation: isolate;
@@ -128,7 +129,7 @@ body {
   background-image: radial-gradient(circle, #e8d58a 1px, transparent 1px);
   background-size: 34px 34px;
   mask-image: linear-gradient(to bottom, transparent, #000 35%, transparent);
-  animation: wildz-genesis-geometry 18s ease-in-out infinite;
+  animation: wildz-genesis-geometry var(--kai-pulse-duration) ease-in-out infinite;
   will-change: opacity, transform;
 }
 
@@ -144,7 +145,7 @@ body {
     radial-gradient(ellipse at 24% 72%, rgba(57, 161, 120, .17), transparent 38%),
     radial-gradient(ellipse at 52% 52%, rgba(232, 213, 138, .07), transparent 31%);
   filter: blur(12px);
-  animation: wildz-genesis-aurora 16s ease-in-out infinite;
+  animation: wildz-genesis-aurora var(--kai-pulse-duration) ease-in-out infinite;
   will-change: opacity, transform;
 }
 
@@ -169,7 +170,7 @@ body {
   background: radial-gradient(ellipse, rgba(185, 235, 177, .2), rgba(232, 213, 138, .06) 42%, transparent 72%);
   filter: blur(16px);
   transform: translate(-50%, -50%);
-  animation: wildz-genesis-halo 11s ease-in-out infinite;
+  animation: wildz-genesis-halo var(--kai-pulse-duration) ease-in-out infinite;
   will-change: opacity, transform;
 }
 .wildz-genesis-brand img { position: relative; width: min(64vw, 240px); height: auto; filter: drop-shadow(0 10px 28px rgba(121, 206, 145, .14)); }
@@ -235,7 +236,7 @@ body {
   background: linear-gradient(145deg, rgba(255, 255, 255, .075), rgba(135, 205, 151, .035));
   box-shadow: 0 0 18px rgba(232, 213, 138, .08), 0 10px 28px rgba(0, 0, 0, .2);
   transition: border-color .24s ease, background-color .24s ease, box-shadow .24s ease, transform .24s ease;
-  animation: wildz-genesis-seal 10s ease-in-out infinite;
+  animation: wildz-genesis-seal var(--kai-pulse-duration) ease-in-out infinite;
   will-change: box-shadow, transform;
 }
 .wildz-genesis-powered::after {
@@ -246,7 +247,7 @@ body {
   pointer-events: none;
   background: linear-gradient(90deg, transparent, rgba(255, 248, 218, .28), transparent);
   transform: translateX(-180%) skewX(-18deg);
-  animation: wildz-genesis-glint 9s ease-in-out infinite;
+  animation: wildz-genesis-glint var(--kai-pulse-duration) ease-in-out infinite;
 }
 .wildz-genesis-powered img { position: relative; z-index: 1; width: 96px; height: 26px; }
 .wildz-genesis-powered:hover { border-color: rgba(232, 213, 138, .38); background: rgba(255, 255, 255, .1); box-shadow: 0 0 30px rgba(232, 213, 138, .16), 0 13px 34px rgba(0, 0, 0, .24); transform: translateY(-1px); }
