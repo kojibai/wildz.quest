@@ -2,7 +2,7 @@
 
 import type { PublicWildzProfile } from "@/features/profile/public-profile";
 import { WildzVaultSheet } from "@/features/profile/WildzVaultSheet";
-import { Camera, Check, CreditCard, Download, Link, LoaderCircle, Pencil, Share2, Upload, X } from "lucide-react";
+import { Camera, Check, Download, Link, LoaderCircle, Pencil, Share2, Upload, X } from "lucide-react";
 import Image from "next/image";
 import { useRef, useState } from "react";
 import {
@@ -40,14 +40,13 @@ async function profileImageFromFile(file: File) {
   }
 }
 
-export function WildzProfileSheet({ profile, publicationStatus = "published", shareEnabled = true, editable = false, signingAvailable = true, onAuthenticateIdentitySeal, onSaveIdentityCard, onSaveIdentitySeal, onSaveProfile }: {
+export function WildzProfileSheet({ profile, publicationStatus = "published", shareEnabled = true, editable = false, signingAvailable = true, onAuthenticateIdentitySeal, onSaveIdentitySeal, onSaveProfile }: {
   profile: PublicWildzProfile;
   publicationStatus?: "local" | "published";
   shareEnabled?: boolean;
   editable?: boolean;
   signingAvailable?: boolean;
   onAuthenticateIdentitySeal?: (file: File) => Promise<void>;
-  onSaveIdentityCard?: () => Promise<void>;
   onSaveIdentitySeal?: () => Promise<void>;
   onSaveProfile?: (input: { username: string; displayName: string; avatarImageUrl: string | null }) => Promise<void>;
 }) {
@@ -58,7 +57,6 @@ export function WildzProfileSheet({ profile, publicationStatus = "published", sh
   const [draftDisplayName, setDraftDisplayName] = useState(profile.displayName);
   const [draftAvatar, setDraftAvatar] = useState(profile.avatarImageUrl);
   const [editMessage, setEditMessage] = useState("");
-  const [identityCardSaving, setIdentityCardSaving] = useState(false);
   const [identitySealSaving, setIdentitySealSaving] = useState(false);
   const [identityAuthenticating, setIdentityAuthenticating] = useState(false);
   const [identityMessage, setIdentityMessage] = useState("");
@@ -143,65 +141,42 @@ export function WildzProfileSheet({ profile, publicationStatus = "published", sh
       <button aria-label="Copy profile link" data-state={shareResult?.status === "copied" ? "success" : "idle"} disabled={!shareEnabled} onClick={() => void copy()} title="Copy profile link" type="button"><Link aria-hidden="true" size={18} /></button>
       {editable ? <>
       <button
-        aria-busy={identityCardSaving}
-        aria-label="Save Receiz ID Card"
-        data-state={identityCardSaving ? "working" : "idle"}
-        disabled={identityCardSaving || identitySealSaving || identityAuthenticating || !onSaveIdentityCard}
-        onClick={async () => {
-          if (!signingAvailable) {
-            setIdentityMessage("Authenticate with your Identity Seal to sign this account card.");
-            identityInputRef.current?.click();
-            return;
-          }
-          if (!onSaveIdentityCard) return;
-          if (!window.confirm("This image is your Receiz account. Anyone who has it can access this account; giving it away gives account access. Save it now?")) return;
-          setIdentityCardSaving(true);
-          setIdentityMessage("Sealing your Receiz ID Card…");
-          try {
-            await onSaveIdentityCard();
-            setIdentityMessage("Receiz ID Card saved with complete verified continuity.");
-          } catch (cause) {
-            const code = cause instanceof Error ? cause.message : "";
-            setIdentityMessage(code === "wildz_identity_card_authority_required"
-              ? "Authenticate with your Identity Seal, then save the ID Card again."
-              : "The Receiz ID Card could not be saved. Your account was not changed.");
-          } finally {
-            setIdentityCardSaving(false);
-          }
+        aria-busy={identityAuthenticating}
+        aria-label="Upload Identity Seal"
+        data-state={identityAuthenticating ? "working" : "idle"}
+        disabled={identitySealSaving || identityAuthenticating || !onAuthenticateIdentitySeal}
+        onClick={() => {
+          setIdentityMessage("Choose the Identity Seal that authenticates this Receiz ID.");
+          identityInputRef.current?.click();
         }}
-        title="Save Receiz ID Card"
+        title="Upload Identity Seal"
         type="button"
-      ><CreditCard aria-hidden="true" size={18} /></button>
-      {signingAvailable ? <button
+      ><Upload aria-hidden="true" size={18} /></button>
+      <button
         aria-busy={identitySealSaving}
         aria-label="Save Identity Seal"
         data-state={identitySealSaving ? "working" : "idle"}
-        disabled={identityCardSaving || identitySealSaving || identityAuthenticating || !onSaveIdentitySeal}
+        disabled={identitySealSaving || identityAuthenticating || !signingAvailable || !onSaveIdentitySeal}
         onClick={async () => {
           if (!onSaveIdentitySeal) return;
-          if (!window.confirm("This image is your Identity Seal. Anyone who has it can authenticate this account. Save it now?")) return;
+          if (!window.confirm("This Identity Seal stores this Receiz ID and full Wildz account continuity. Anyone who has it can authenticate this account. Save it now?")) return;
           setIdentitySealSaving(true);
-          setIdentityMessage("Saving your Identity Seal…");
+          setIdentityMessage("Saving your full Receiz ID continuity seal…");
           try {
             await onSaveIdentitySeal();
-            setIdentityMessage("Identity Seal saved for this account.");
-          } catch {
-            setIdentityMessage("Identity Seal could not be saved from this browser.");
+            setIdentityMessage("Identity Seal saved with full account continuity.");
+          } catch (cause) {
+            const code = cause instanceof Error ? cause.message : "";
+            setIdentityMessage(code === "wildz_identity_card_authority_required" || code === "wildz_identity_seal_authority_required"
+              ? "Upload your Identity Seal first, then save the continuity seal again."
+              : "Identity Seal could not be saved from this browser.");
           } finally {
             setIdentitySealSaving(false);
           }
         }}
         title="Save Identity Seal"
         type="button"
-      ><Download aria-hidden="true" size={18} /></button> : <button
-        aria-busy={identityAuthenticating}
-        aria-label="Upload Identity Seal"
-        data-state={identityAuthenticating ? "working" : "idle"}
-        disabled={identityCardSaving || identitySealSaving || identityAuthenticating || !onAuthenticateIdentitySeal}
-        onClick={() => identityInputRef.current?.click()}
-        title="Upload Identity Seal"
-        type="button"
-      ><Upload aria-hidden="true" size={18} /></button>}
+      ><Download aria-hidden="true" size={18} /></button>
       </> : null}
     </section>
     {editable ? <section className="wildz-profile-proof-actions" aria-label="Receiz identity controls">

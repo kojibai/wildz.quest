@@ -11,7 +11,6 @@ import {
   alignWildzContinuityWithProofSession,
   claimWildzProfileIdentity,
   connectWildzProofSession,
-  downloadCurrentWildzIdentitySeal,
   downloadWildzIdentityPlayerCard,
   downloadWildzIdentityPlayerVault,
   restoreWildzFileForSurface,
@@ -337,7 +336,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     const current = continuityRef.current;
     if (!current) throw new Error("wildz_identity_missing");
     if (current.session.localAuthority !== "verified") throw new Error("wildz_identity_seal_authority_required");
-    await downloadCurrentWildzIdentitySeal(current.session);
+    await saveIdentityCard();
   };
 
   const restoreArtifact = useCallback(async (
@@ -451,7 +450,6 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
               if (outcome.artifactKind !== "identity-seal") throw new Error("wildz_identity_seal_required");
               setOverlay({ kind: "profile", username: `@${outcome.session.username ?? outcome.session.actorId}` });
             }}
-            onSaveIdentityCard={saveIdentityCard}
             onSaveIdentitySeal={saveIdentitySeal}
             onSaveProfile={saveProfileIdentity}
           /> : <div className="wildz-shell-overlay-placeholder" role="status">

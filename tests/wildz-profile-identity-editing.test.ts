@@ -34,7 +34,8 @@ test("profile offers Identity Seal authentication when signing authority is unav
   assert.match(sheet, /onAuthenticateIdentitySeal/);
   assert.match(sheet, /Upload Identity Seal/);
   assert.match(sheet, /accept="image\/png,image\/jpeg,image\/webp,application\/json"/);
-  assert.match(sheet, /signingAvailable \? <button[\s\S]*aria-label="Save Identity Seal"[\s\S]*: <button[\s\S]*aria-label="Upload Identity Seal"/);
+  assert.match(sheet, /aria-label="Upload Identity Seal"[\s\S]*identityInputRef\.current\?\.click\(\)/);
+  assert.match(sheet, /aria-label="Save Identity Seal"[\s\S]*disabled=\{identitySealSaving \|\| identityAuthenticating \|\| !signingAvailable \|\| !onSaveIdentitySeal\}/);
   assert.match(shell, /signingAvailable=\{identity\?\.localAuthority === "verified"\}/);
   assert.match(shell, /onAuthenticateIdentitySeal=/);
 });
@@ -49,13 +50,13 @@ test("profile separates saving an Identity Seal from uploading one for authority
   assert.match(sheet, /aria-label="Share profile"/);
   assert.match(sheet, /aria-label="Copy profile link"/);
   assert.match(sheet, /aria-label="Save Identity Seal"/);
-  assert.match(sheet, /aria-label="Save Receiz ID Card"/);
+  assert.match(sheet, /aria-label="Upload Identity Seal"/);
   assert.match(sheet, /await onSaveIdentitySeal\(\)/);
   assert.doesNotMatch(sheet, /aria-label="Save Identity Seal"[\s\S]{0,500}identityInputRef\.current\?\.click\(\)/);
-  assert.match(sheet, /signingAvailable \? <button[\s\S]*aria-label="Save Identity Seal"[\s\S]*: <button[\s\S]*aria-label="Upload Identity Seal"/);
+  assert.match(sheet, /aria-label="Upload Identity Seal"[\s\S]{0,500}identityInputRef\.current\?\.click\(\)/);
+  assert.match(sheet, /aria-label="Save Identity Seal"[\s\S]{0,900}await onSaveIdentitySeal\(\)/);
   assert.match(css, /\.wildz-profile-action-rail\s*\{[^}]*grid-template-columns:\s*repeat\(4,\s*44px\)/s);
-  assert.match(shell, /downloadCurrentWildzIdentitySeal/);
+  assert.match(shell, /downloadWildzIdentityPlayerCard/);
   assert.match(shell, /onSaveIdentitySeal=\{saveIdentitySeal\}/);
-  assert.match(adapter, /export async function downloadCurrentWildzIdentitySeal/);
-  assert.match(adapter, /downloadWildzIdentitySeal\(defaultIdentityRepository, session\)/);
+  assert.match(adapter, /createWildzIdentityPlayerCard/);
 });

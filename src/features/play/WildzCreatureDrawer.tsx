@@ -92,6 +92,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   const railFrameRef = useRef<number | null>(null);
   const dragHeight = useRef<number | null>(null);
   const drag = useRef<{ startY: number; startHeight: number; lastY: number; lastAt: number; velocityY: number; moved: boolean } | null>(null);
+  const railGesture = useRef<{ startX: number; startY: number; horizontal: boolean } | null>(null);
   const suppressHandleClick = useRef(false);
   const metrics = useMemo(() => creatureDrawerMetrics(viewportHeight), [viewportHeight]);
   const height = metrics[snap];
@@ -201,12 +202,31 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
       railFrameRef.current = window.requestAnimationFrame(() => {
         railFrameRef.current = null;
         if (!target.isConnected) return;
-      const start = Math.max(0, Math.floor(target.scrollLeft / RAIL_CARD_EXTENT) - 4);
-      const count = Math.ceil(target.clientWidth / RAIL_CARD_EXTENT) + 10;
+        const start = Math.max(0, Math.floor(target.scrollLeft / RAIL_CARD_EXTENT) - 4);
+        const count = Math.ceil(target.clientWidth / RAIL_CARD_EXTENT) + 10;
         const end = Math.min(sortedCards.length, start + count);
         setRange((previous) => previous.start === start && previous.end === end ? previous : { start, end });
       });
     }
+  };
+
+  const beginRailScrollGuard = (event: ReactPointerEvent<HTMLDivElement>) => {
+    railGesture.current = { startX: event.clientX, startY: event.clientY, horizontal: false };
+  };
+
+  const guardRailHorizontalScroll = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const gesture = railGesture.current;
+    if (!gesture) return;
+    const dx = event.clientX - gesture.startX;
+    const dy = event.clientY - gesture.startY;
+    if (!gesture.horizontal && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.15) {
+      gesture.horizontal = true;
+    }
+    if (gesture.horizontal) event.stopPropagation();
+  };
+
+  const endRailScrollGuard = () => {
+    railGesture.current = null;
   };
 
   const renderChoice = (card: PortableCardAsset, logicalIndex: number) => {
@@ -291,6 +311,10 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
       </div> : <div
         aria-label="Scroll creatures horizontally"
         className="wildz-creature-window"
+        onPointerCancel={endRailScrollGuard}
+        onPointerDown={beginRailScrollGuard}
+        onPointerMove={guardRailHorizontalScroll}
+        onPointerUp={endRailScrollGuard}
         onScroll={updateVirtualRange}
         role="list"
         style={windowStyle}
