@@ -622,6 +622,13 @@ function reconstructEncounterDiscoveryIdentity(
   }
 }
 
+function discoveredFormForIdentity(identity: LivingCreatureIdentityV3) {
+  return creatureForms.find((form) => form.stage === 1
+    && form.familyId === identity.family.id
+    && form.anatomy.body === identity.anatomy.body
+    && form.anatomy.detail === identity.anatomy.detail);
+}
+
 function restoreEncounter(value: unknown, occupiedNames: ReadonlySet<string> = new Set()): EncounterState {
   if (!value || typeof value !== "object") return idleEncounterState;
   const candidate = value as Record<string, unknown>;
@@ -1100,33 +1107,48 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       };
     }
     let sealed: PortableCardAsset;
-    const discoveryIdentity = encounter.discoveryIdentity ?? reconstructEncounterDiscoveryIdentity(
-      encounter,
-      new Set(state.inventory.map((asset) => asset.manifest.name.toLowerCase()))
-    );
+    const restoredIdentity = encounter.discoveryIdentity;
+    const restoredForm = restoredIdentity ? discoveredFormForIdentity(restoredIdentity) : undefined;
+    const discoveryIdentity = restoredIdentity && restoredForm
+      ? restoredIdentity
+      : reconstructEncounterDiscoveryIdentity(
+          encounter,
+          new Set(state.inventory.map((asset) => asset.manifest.name.toLowerCase()))
+        );
     if (!discoveryIdentity) {
       return { ...state, lastEvent: "Capture remains locked while its permanent identity is recovered." };
     }
+    const discoveredForm = restoredForm ?? discoveredFormForIdentity(discoveryIdentity);
+    if (!discoveredForm) {
+      return { ...state, lastEvent: `Capture remains locked. ${discoveryIdentity.name.display}'s discovered form is still being recovered.` };
+    }
+    const normalizedEncounter = {
+      ...encounter,
+      ownerReceizId: discoveryIdentity.discovery.ownerScope,
+      familyId: discoveryIdentity.family.id,
+      formId: discoveredForm.id,
+      discoveryIdentity
+    };
     const capturedAt = new Date(Math.max(Date.parse(input.at), Date.parse(discoveryIdentity.discoveredAt))).toISOString();
     try {
       sealed = sealDiscoveredCard({
         identity: discoveryIdentity,
-        formId: encounter.formId,
-        ownerReceizId: encounter.ownerReceizId,
+        formId: discoveredForm.id,
+        ownerReceizId: discoveryIdentity.discovery.ownerScope,
         capturedAt,
         battleTranscriptDigest: state.battle ? battleTranscriptDigest(state.battle) : undefined
       });
     } catch {
       return {
         ...state,
-        encounter: { ...encounter, discoveryIdentity },
+        encounter: normalizedEncounter,
         lastEvent: `Capture remains locked. ${discoveryIdentity.name.display} is still here while verification completes.`
       };
     }
     if (!verifyPortableCard(sealed).ok) {
       return {
         ...state,
-        encounter: { ...encounter, discoveryIdentity },
+        encounter: normalizedEncounter,
         lastEvent: `Capture remains locked. ${discoveryIdentity.name.display} is still here while verification completes.`
       };
     }
@@ -1138,7 +1160,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       capturedHotspotIds: [...state.capturedHotspotIds, encounter.hotspotId],
       combo: state.combo + 1,
       discoveredCardIds: nextDiscovered,
-      encounter: { ...encounter, phase: "sealed", assetId: sealed.id, discoveryIdentity },
+      encounter: { ...normalizedEncounter, phase: "sealed", assetId: sealed.id },
       inventory: [...state.inventory, sealed],
       lastEvent: `${sealed.manifest.name} was captured and sealed as one portable card.`,
       level: nextDiscovered.length >= 3 ? Math.max(state.level, 8) : state.level,

@@ -581,6 +581,62 @@ describe("Receiz Wilds game state", () => {
     assert.equal(verifyPortableCard(sealed.inventory.at(-1)!).ok, true);
   });
 
+  it("seals the permanent identity after a restored owner handle changes", () => {
+    const hotspot = nearbyHiddenHotspots(initialPlayState.player)[0]!;
+    const discovered = applyWildsInput(initialPlayState, {
+      type: "search-point",
+      x: hotspot.position.x,
+      z: hotspot.position.z,
+      searchedAt: "2026-07-17T12:00:00.000Z",
+      ownerReceizId: "original-owner"
+    });
+    assert.notEqual(discovered.encounter.phase, "idle");
+    if (discovered.encounter.phase === "idle" || !discovered.encounter.discoveryIdentity) return;
+    const identity = discovered.encounter.discoveryIdentity;
+    const migrated: PlayState = {
+      ...discovered,
+      encounter: { ...discovered.encounter, phase: "capsule", ownerReceizId: "renamed-owner" }
+    };
+
+    const sealed = applyWildsInput(migrated, { type: "advance-encounter", at: "2026-07-17T12:00:08.000Z" });
+    assert.equal(sealed.encounter.phase, "sealed");
+    assert.equal(sealed.inventory.at(-1)?.manifest.name, identity.name.display);
+    assert.equal(sealed.inventory.at(-1)?.manifest.ownerReceizId, identity.discovery.ownerScope);
+    assert.equal(verifyPortableCard(sealed.inventory.at(-1)!).ok, true);
+  });
+
+  it("seals the permanent identity using its discovered form after encounter metadata drifts", () => {
+    const hotspots = nearbyHiddenHotspots(initialPlayState.player);
+    const hotspot = hotspots[0]!;
+    const discovered = applyWildsInput(initialPlayState, {
+      type: "search-point",
+      x: hotspot.position.x,
+      z: hotspot.position.z,
+      searchedAt: "2026-07-17T12:00:00.000Z",
+      ownerReceizId: "player.receiz.id"
+    });
+    assert.notEqual(discovered.encounter.phase, "idle");
+    if (discovered.encounter.phase === "idle" || !discovered.encounter.discoveryIdentity || !discovered.encounter.formId) return;
+    const identity = discovered.encounter.discoveryIdentity;
+    const other = hotspots.find((candidate) => candidate.familyId !== identity.family.id)!;
+    const migrated: PlayState = {
+      ...discovered,
+      encounter: {
+        ...discovered.encounter,
+        phase: "capsule",
+        familyId: other.familyId,
+        formId: other.formId,
+        cover: other.cover
+      }
+    };
+
+    const sealed = applyWildsInput(migrated, { type: "advance-encounter", at: "2026-07-17T12:00:08.000Z" });
+    assert.equal(sealed.encounter.phase, "sealed");
+    assert.equal(sealed.inventory.at(-1)?.manifest.name, identity.name.display);
+    assert.equal(sealed.inventory.at(-1)?.manifest.familyId, identity.family.id);
+    assert.equal(verifyPortableCard(sealed.inventory.at(-1)!).ok, true);
+  });
+
   it("migrates a v2 discovery save into sealed portable inventory", () => {
     const legacy = JSON.stringify({
       schema: "receiz.wilds.save.v2",
