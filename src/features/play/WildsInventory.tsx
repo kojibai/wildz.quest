@@ -6,7 +6,13 @@ import QRCode from "qrcode";
 import { Icons } from "@/components/icons";
 import { sortWildzCards, type WildzCardSort } from "./card-sort";
 import { creatureForm } from "./creature-catalog";
-import { downloadPortableCard, standaloneCardUrl } from "./card-export";
+import {
+  createWildsCardSendDraft,
+  downloadBlob,
+  downloadPortableCard,
+  portableCardPngBlob,
+  standaloneCardUrl
+} from "./card-export";
 import type { PlayState, WildsInput } from "./game-state";
 import type { WildsPlayerVaultPayload } from "./wilds-player-vault";
 import { WildsCardScene } from "./WildsCardScene";
@@ -60,6 +66,9 @@ export function WildsInventory({
   const [importing, setImporting] = useState(false);
   const [vaultSaving, setVaultSaving] = useState(false);
   const [cardSaving, setCardSaving] = useState(false);
+  const [cardSending, setCardSending] = useState(false);
+  const [sendTarget, setSendTarget] = useState("");
+  const [sendMessage, setSendMessage] = useState("");
   const importInput = useRef<HTMLInputElement>(null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const suppressCardClick = useRef(false);
@@ -120,6 +129,43 @@ export function WildsInventory({
     if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy)) return;
     suppressCardClick.current = true;
     changePage(page + (dx < 0 ? 1 : -1));
+  };
+  const sendPortableCardToTarget = async () => {
+    if (!selected) return;
+    setCardSending(true);
+    setSendMessage("Preparing verified card send package…");
+    try {
+      const draft = createWildsCardSendDraft(selected, sendTarget, origin);
+      const blob = await portableCardPngBlob(selected);
+      const file = new File([blob], draft.filename, { type: "image/png" });
+      const shareData: ShareData = {
+        title: draft.title,
+        text: draft.text,
+        url: draft.url,
+        files: [file]
+      };
+      if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
+        await navigator.share(shareData);
+        setSendMessage(`Card send package opened for ${draft.target.label}.`);
+        return;
+      }
+      downloadBlob(blob, draft.filename);
+      if (draft.href.startsWith("mailto:")) {
+        window.location.href = draft.href;
+        setSendMessage(`Card image downloaded. Email compose opened for ${draft.target.label}. Attach the downloaded image if your mail app did not attach it automatically.`);
+        return;
+      }
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(draft.text);
+        setSendMessage(`Card image downloaded. Send text copied for ${draft.target.label}.`);
+        return;
+      }
+      setSendMessage(`Card image downloaded. Send it to ${draft.target.label} with this link: ${draft.url}`);
+    } catch (error) {
+      setSendMessage(error instanceof Error ? `Card send failed: ${error.message}` : "Card send failed. Try again.");
+    } finally {
+      setCardSending(false);
+    }
   };
 
   return (
@@ -296,6 +342,28 @@ export function WildsInventory({
                 }}
                 type="button"
               >Save card image</button>
+              <div className="wilds-card-send-control">
+                <label>
+                  <span>Send card</span>
+                  <input
+                    aria-label="Receiz username or email to send this card"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    inputMode="email"
+                    onChange={(event) => setSendTarget(event.target.value)}
+                    placeholder="@username or email"
+                    type="text"
+                    value={sendTarget}
+                  />
+                </label>
+                <button
+                  aria-busy={cardSending}
+                  className={`button button-outline wilds-action-feedback${cardSending ? " wilds-action-busy" : ""}`}
+                  disabled={cardSending || !sendTarget.trim()}
+                  onClick={sendPortableCardToTarget}
+                  type="button"
+                >{cardSending ? "Preparing…" : "Send card"}</button>
+              </div>
               {onListAsset && selected.status !== "listed" ? (
                 <div className="wilds-listing-control">
                   <label>List price <span>$</span><input aria-label="Wilds card listing price" inputMode="decimal" min="0.01" onChange={(event) => setPriceUsd(event.target.value)} step="0.01" type="number" value={priceUsd} /></label>
@@ -320,6 +388,7 @@ export function WildsInventory({
               ) : selected.status === "listed" ? <span className="wilds-apex-label">Listed on Exchange</span> : null}
               {next ? <button className="button button-outline" disabled={!canEvolve} onClick={() => onInput({ type: "evolve", assetId: selected.id, evolvedAt: new Date().toISOString() })} type="button">{canEvolve ? `Evolve into ${next.name}` : `Needs L${next.evolution.level} · Bond ${next.evolution.bond}`}</button> : <span className="wilds-apex-label">Apex form reached</span>}
               {downloadMessage ? <p aria-live="polite">{downloadMessage}</p> : null}
+              {sendMessage ? <p aria-live="polite">{sendMessage}</p> : null}
               {listingMessage ? <p aria-live="polite">{listingMessage}</p> : null}
             </div>
             <WildsGrowthPanel

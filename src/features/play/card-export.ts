@@ -5,6 +5,7 @@ import { renderHeartboundSvg } from "./heartbound-renderer";
 import { currentLivingGenome } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import { receizBase64UrlDecode } from "@receiz/sdk";
+import { parseWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 import {
   extractLegacyReceizPortableAssetDocument,
   type LegacyReceizPortableAssetDocument
@@ -33,6 +34,19 @@ export type PortableVaultPngProof = {
   vaultDigest: string;
   assets: PortableCardAsset[];
   player?: WildsPlayerVaultPayload;
+};
+
+export type WildsCardSendTarget =
+  | { kind: "receiz-username"; value: string; label: `@${string}` }
+  | { kind: "email"; value: string; label: string };
+
+export type WildsCardSendDraft = {
+  target: WildsCardSendTarget;
+  url: string;
+  title: string;
+  text: string;
+  href: string;
+  filename: string;
 };
 
 const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
@@ -73,6 +87,48 @@ export function standaloneCardUrl(assetId: string, origin: string) {
   if (base.protocol !== "https:" && base.protocol !== "http:") throw new Error("wilds_card_origin_invalid");
   if (!/^wilds:[a-f0-9]{24}$/.test(assetId)) throw new Error("wilds_card_id_invalid");
   return new URL(canonicalPublicCardPath(assetId), base.origin).toString();
+}
+
+export function normalizeWildsCardSendTarget(value: string): WildsCardSendTarget | null {
+  const normalized = value.trim().replace(/^mailto:/i, "");
+  if (!normalized) return null;
+  const email = normalized.toLowerCase();
+  if (/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email)) {
+    return { kind: "email", value: email, label: email };
+  }
+  const coordinate = parseWildzPlayerCoordinate(normalized);
+  return coordinate
+    ? { kind: "receiz-username", value: coordinate.actorId, label: `@${coordinate.actorId}` }
+    : null;
+}
+
+export function createWildsCardSendDraft(
+  asset: PortableCardAsset,
+  targetValue: string,
+  origin: string
+): WildsCardSendDraft {
+  if (!verifyAnyWildsCard(asset).ok) throw new Error("wilds_card_proof_invalid");
+  const target = normalizeWildsCardSendTarget(targetValue);
+  if (!target) throw new Error("wilds_card_send_target_invalid");
+  const url = standaloneCardUrl(asset.id, origin);
+  const title = `Wildz card: ${asset.manifest.name}`;
+  const text = [
+    `${target.label}, here is a verified Wildz card image.`,
+    `Upload or open the attached image in Wildz or Receiz Commerce Wilds to claim/import the proof object.`,
+    `Standalone card link: ${url}`,
+    `Card: ${asset.id}`
+  ].join("\n");
+  const mailto = target.kind === "email"
+    ? `mailto:${encodeURIComponent(target.value)}?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(text)}`
+    : `https://receiz.com/${encodeURIComponent(target.value)}`;
+  return {
+    target,
+    url,
+    title,
+    text,
+    href: mailto,
+    filename: `${asset.manifest.formId}.receized.png`
+  };
 }
 
 export function renderWildsCardSvg(asset: PortableCardAsset, options: { origin?: string } = {}) {

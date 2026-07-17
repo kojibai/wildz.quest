@@ -42,6 +42,16 @@ test("Vault actions remain one perfectly aligned row after ID Card moves to Prof
   assert.match(css, /\.wilds-command-sheet-content \.wilds-vault-actions\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*40px\)/s);
 });
 
+test("Vault card detail can send a saved card to a Receiz username or email", () => {
+  const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
+
+  assert.match(inventory, /aria-label="Receiz username or email to send this card"/);
+  assert.match(inventory, /sendPortableCardToTarget/);
+  assert.match(inventory, /createWildsCardSendDraft/);
+  assert.match(inventory, /navigator\.share/);
+  assert.match(inventory, /mailto:/);
+});
+
 test("Vault export keeps the shared Receiz Wilds PNG as the downloadable artifact", () => {
   const exporter = readFileSync("src/features/play/card-export.ts", "utf8");
 
