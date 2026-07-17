@@ -13,6 +13,7 @@ export type PublicWildzProfile = {
   schema: "wildz.public_profile.v1";
   username: string;
   displayName: string;
+  avatarImageUrl: string | null;
   explorer: Pick<WildzCharacterGenesis, "gender" | "traits" | "digest"> | null;
   activeCompanion: PublicWildzCard | null;
   vault: PublicWildzCard[];
@@ -29,6 +30,20 @@ export type PublicWildzProfile = {
 const clean = (value: unknown, limit = 80) => typeof value === "string" ? value.trim().slice(0, limit) : "";
 const boundedInt = (value: unknown, max = 1_000_000) => Number.isFinite(value) ? Math.max(0, Math.min(max, Math.floor(Number(value)))) : 0;
 const WILDZ_PUBLIC_HANDLE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+const INLINE_PROFILE_IMAGE = /^data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=]+$/i;
+
+function safeAvatarImageUrl(value: unknown) {
+  if (typeof value !== "string") return null;
+  const image = value.trim();
+  if (!image || image.length > 220_000) return null;
+  if (INLINE_PROFILE_IMAGE.test(image)) return image;
+  try {
+    const url = new URL(image);
+    return url.protocol === "https:" ? url.toString().slice(0, 2_048) : null;
+  } catch {
+    return null;
+  }
+}
 const EXPLORER_TRAIT_KEYS = [
   "hair",
   "complexion",
@@ -95,6 +110,7 @@ export function sanitizePublicWildzProfile(input: Record<string, unknown>): Publ
       catch { return "@explorer"; }
     })(),
     displayName: clean(input.displayName) || "Wildz Explorer",
+    avatarImageUrl: safeAvatarImageUrl(input.avatarImageUrl),
     explorer: safeExplorer,
     activeCompanion: vault.find((card) => card.id === input.activeCompanionId) ?? vault[0] ?? null,
     vault,

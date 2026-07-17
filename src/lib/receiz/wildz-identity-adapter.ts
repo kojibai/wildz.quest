@@ -242,6 +242,60 @@ export async function connectWildzProofSession(
   });
 }
 
+export async function claimWildzProfileIdentity(
+  snapshot: WildzContinuitySnapshot,
+  input: { username: string; displayName?: string },
+  options: { passphrase?: string; requestPassphrase?: () => string | null } = {}
+): Promise<WildzContinuitySnapshot> {
+  if (snapshot.session.localAuthority !== "verified") throw new Error("wildz_username_claim_requires_identity_key");
+  const username = normalizedIdentitySealUsername(input.username);
+  const displayName = input.displayName?.trim().slice(0, 80) || "Wildz Explorer";
+  return defaultIdentityRepository.withKeyFile(snapshot.session.keyId, async (keyFile) => {
+    const challengeResponse = await fetch("/api/auth/wildz/challenge", {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+    const challenge: unknown = await challengeResponse.json().catch(() => null);
+    if (!challengeResponse.ok || !isWildzProofChallengeResponse(challenge)) {
+      throw new Error("wildz_username_check_unavailable");
+    }
+    let passphrase = options.passphrase;
+    if (identityKeyNeedsPassphrase(keyFile) && passphrase === undefined) {
+      passphrase = options.requestPassphrase?.()
+        ?? (typeof window !== "undefined"
+          ? window.prompt("Enter this Identity Seal's passphrase to update your profile.") ?? undefined
+          : undefined);
+    }
+    const identity = {
+      ...receizDeviceIdentityFromKeyFile(keyFile),
+      username,
+      displayName
+    } satisfies ReceizDeviceIdentity;
+    const continuation = await buildReceizIdContinueRequest(identity, {
+      nonceB64Url: challenge.nonceB64Url,
+      ...(passphrase !== undefined ? { passphrase } : {})
+    });
+    const admission = await fetch("/api/auth/wildz/session", {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(continuation)
+    });
+    const response = await admission.json().catch(() => null) as { status?: unknown; error?: unknown } | null;
+    if (admission.status === 409 || response?.status === "conflict") throw new Error("wildz_username_taken");
+    if (!admission.ok) throw new Error("wildz_username_check_unavailable");
+    const canonical = await wildzRemoteSessionBridge.current();
+    if (canonical.status !== "connected"
+      || canonical.sessionKeyId !== snapshot.session.keyId
+      || canonical.actorId !== username) {
+      throw new Error("wildz_username_claim_unverified");
+    }
+    return alignWildzContinuityWithProofSession(snapshot, canonical);
+  });
+}
+
 export async function inspectWildzRestore(file: File, codec: WildzArtifactCodec = defaultArtifactCodec) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   return codec.inspect({ bytes, mimeType: file.type, name: file.name });

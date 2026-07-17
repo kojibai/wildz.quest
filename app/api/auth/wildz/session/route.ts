@@ -104,7 +104,11 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify(body)
     });
-    const canonical = canonicalReceizSession(await upstream.json().catch(() => null));
+    const upstreamBody = await upstream.json().catch(() => null);
+    if (upstream.status === 409) {
+      return NextResponse.json({ status: "conflict", error: "wildz_username_taken" }, { status: 409 });
+    }
+    const canonical = canonicalReceizSession(upstreamBody);
     if (!upstream.ok || !canonical) throw new Error("wildz_receiz_id_continue_failed");
     const session = createWildzReceizIdProofSession({
       keyId: body.keyId,

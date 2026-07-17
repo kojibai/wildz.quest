@@ -4,7 +4,7 @@ import { fromFixed, replayGame, runFixedSteps, toFixed, type WildzGameModule } f
 
 type State = { tick: number; x: number };
 type Input = { dx: number };
-const module: WildzGameModule<{ x: number }, State, Input, { x: number }, never> = {
+const gameModule: WildzGameModule<{ x: number }, State, Input, { x: number }, never> = {
   id: "kernel-test", rulesVersion: "1", tickRate: 60,
   limits: { maxTicks: 120, maxInputs: 8, maxEntities: 2 },
   create: (setup) => ({ tick: 0, x: setup.x }),
@@ -19,16 +19,16 @@ describe("Wildz deterministic game kernel", () => {
       { actorId: "b", sequence: 2, atTick: 1, input: { dx: 7 } },
       { actorId: "a", sequence: 1, atTick: 1, input: { dx: 4 } }
     ];
-    const left = replayGame(module, { x: 0 }, frames, 3);
-    const right = replayGame(module, { x: 0 }, [...frames].reverse(), 3);
+    const left = replayGame(gameModule, { x: 0 }, frames, 3);
+    const right = replayGame(gameModule, { x: 0 }, [...frames].reverse(), 3);
     assert.equal(left.snapshot.digest, right.snapshot.digest);
     assert.deepEqual(left.result, { x: 11 });
   });
 
   it("caps inputs and ticks before simulation work", () => {
     const tooMany = Array.from({ length: 9 }, (_, sequence) => ({ actorId: "a", sequence, atTick: 1, input: { dx: 1 } }));
-    assert.throws(() => replayGame(module, { x: 0 }, tooMany, 3), /input cap/i);
-    assert.throws(() => replayGame(module, { x: 0 }, [], 121), /tick cap/i);
+    assert.throws(() => replayGame(gameModule, { x: 0 }, tooMany, 3), /input cap/i);
+    assert.throws(() => replayGame(gameModule, { x: 0 }, [], 121), /tick cap/i);
   });
 
   it("runs fixed cadence with a bounded catch-up and exact fixed-point values", () => {

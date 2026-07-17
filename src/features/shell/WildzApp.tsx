@@ -8,8 +8,8 @@ import type { WildzCardOnlyConfirmation } from "@/features/identity/wildz-restor
 import {
   bootstrapWildzContinuity,
   alignWildzContinuityWithProofSession,
+  claimWildzProfileIdentity,
   connectWildzProofSession,
-  createNamedWildzIdentity,
   downloadWildzIdentityPlayerCard,
   downloadWildzIdentityPlayerVault,
   restoreWildzFileForSurface,
@@ -76,6 +76,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const [proofSessionConnected, setProofSessionConnected] = useState(false);
   const [remoteProfile, setRemoteProfile] = useState<ReturnType<typeof sanitizePublicWildzProfile> | null>(null);
   const [profileStatus, setProfileStatus] = useState<"idle" | "loading" | "publishing" | "ready" | "unpublished" | "missing" | "error">("idle");
+  const [avatarImageUrl, setAvatarImageUrl] = useState<string | null>(null);
   const publishedProfileRef = useRef("");
   const identity = continuity?.session ?? null;
   const ownerPlayState = useMemo(
@@ -87,6 +88,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const localPublicProfile = useMemo(() => sanitizePublicWildzProfile({
     username: overlay?.kind === "profile" ? overlay.username : ownerUsername,
     displayName: viewingOwnProfile ? identity?.displayName ?? undefined : overlay?.kind === "profile" ? overlay.username.replace(/^@/, "") : undefined,
+    avatarImageUrl: viewingOwnProfile ? avatarImageUrl : undefined,
     explorer: viewingOwnProfile ? character : null,
     vault: viewingOwnProfile ? ownerPlayState.inventory.map((asset) => ({
       id: asset.id,
@@ -98,7 +100,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     discoveries: viewingOwnProfile ? ownerPlayState.inventory.length : 0,
     reputation: viewingOwnProfile ? ownerPlayState.inventory.length * 12 : 0,
     record: { wins: 0, losses: 0, raids: 0 }
-  }), [character, identity, overlay, ownerPlayState.inventory, ownerUsername, viewingOwnProfile]);
+  }), [avatarImageUrl, character, identity, overlay, ownerPlayState.inventory, ownerUsername, viewingOwnProfile]);
   const gameplayReady = Boolean(
     continuity
     && identity
@@ -116,6 +118,11 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       setProofSessionConnected(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!identity) return;
+    setAvatarImageUrl(window.localStorage.getItem(`wildz:profile-avatar:${identity.keyId}`));
+  }, [identity]);
 
   useEffect(() => {
     const scheduler = playStateSaveSchedulerRef.current;
@@ -281,13 +288,15 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     }
   };
 
-  const createGenesisIdentity = async (username: string) => {
+  const saveProfileIdentity = async (input: { username: string; displayName: string; avatarImageUrl: string | null }) => {
     const current = continuityRef.current;
     if (!current) throw new Error("wildz_identity_missing");
-    const snapshot = await createNamedWildzIdentity(current, { username });
+    const snapshot = await claimWildzProfileIdentity(current, input);
+    if (input.avatarImageUrl) window.localStorage.setItem(`wildz:profile-avatar:${snapshot.session.keyId}`, input.avatarImageUrl);
+    else window.localStorage.removeItem(`wildz:profile-avatar:${snapshot.session.keyId}`);
+    setAvatarImageUrl(input.avatarImageUrl);
     publishedProfileRef.current = "";
     acceptSnapshot(snapshot);
-    return snapshot.session;
   };
 
   const restoreArtifact = useCallback(async (
@@ -367,7 +376,6 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           }}
         /> : identity && !character ? <WildzGenesis
           identity={identity}
-          onCreateIdentity={createGenesisIdentity}
           onComplete={completeGenesis}
           onRestoreArtifact={(file, confirmCardOnly) => restoreArtifact(file, "genesis", confirmCardOnly)}
         /> : <div className="wildz-identity-loading" role="status">
@@ -396,6 +404,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             profile={remoteProfile}
             publicationStatus={viewingOwnProfile && profileStatus !== "ready" ? "local" : "published"}
             shareEnabled={!viewingOwnProfile || profileStatus === "ready"}
+            editable={viewingOwnProfile}
+            onSaveProfile={saveProfileIdentity}
           /> : <div className="wildz-shell-overlay-placeholder" role="status">
             <Image src="/brand/wildz-mark.svg" alt="" width={48} height={48} />
             <strong>{profileStatus === "loading" ? "Finding explorer…" : "Explorer unavailable"}</strong>

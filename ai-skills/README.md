@@ -1,12 +1,12 @@
 # Wildz v3 repository skills
 
-These repository skills describe bounded operator procedures for Wildz `3.0.0` with the exact `@receiz/sdk@105.0.0`, `@receiz/mcp-server@105.0.0`, and `@receiz/ai-skills@105.0.0` toolchain. All three finalized packages resolve from the official npm registry with lockfile-pinned integrity; package location does not change their authority boundary.
+These repository skills describe bounded operator procedures for Wildz `3.0.0` with the exact `@receiz/sdk@106.0.0`, `@receiz/mcp-server@106.0.0`, and `@receiz/ai-skills@106.0.0` toolchain. All three finalized packages resolve from the official npm registry with lockfile-pinned integrity; package location does not change their authority boundary. Constitutional operations bind to registry digest `bf851c209e807309672c0f466411baa5607ce6b3195fe4eb16755edfeb7f5a1a`.
 
 ## Precedence
 
 Receiz proof authority, verified Identity Seal and proof-object continuity, ownership heads, remote admission, and explicit player confirmation outrank any AI suggestion or MCP output. Skills and MCP are operational guidance; their presence is not evidence that an action or release gate ran.
 
-The v105 Application Contract Compiler and repository checker enforce the declared artifact-first integration with database authority disabled. They do not establish artifact validity or remote capability. Wildz adds no external database, and its market mutations remain fail-closed while the SDK lacks the required Wildz-specific conditional ownership append.
+The v106 Application Contract Compiler, constitutional compiler, registry checks, and repository checker enforce the declared artifact-first integration with database authority disabled and command-only mutation. They do not establish artifact validity or remote capability. Plan/permit/execute requires exact permit-digest confirmation for admitted operations. Wildz adds no external database, and its market mutations remain fail-closed while the SDK lacks the required Wildz-specific conditional ownership append.
 
 ## Available procedures
 

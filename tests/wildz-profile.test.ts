@@ -6,6 +6,7 @@ test("public profile projection excludes identity authority and private vault en
   const projected = sanitizePublicWildzProfile({
     username: "@fern",
     displayName: "Fern",
+    avatarImageUrl: "https://media.receiz.com/profile/fern.png",
     identitySeal: "secret",
     privateKey: "secret",
     explorer: { gender: "female", traits: { outfit: "trailweaver" }, digest: "abc" },
@@ -19,9 +20,15 @@ test("public profile projection excludes identity authority and private vault en
 
   assert.equal("identitySeal" in projected, false);
   assert.equal("privateKey" in projected, false);
+  assert.equal(projected.avatarImageUrl, "https://media.receiz.com/profile/fern.png");
   assert.deepEqual(projected.vault.map((card) => card.id), ["public-card"]);
   assert.equal(projected.activity.length, 24);
   assert.equal(projected.explorer, null);
+});
+
+test("public profile rejects unbounded or executable avatar image references", () => {
+  assert.equal(sanitizePublicWildzProfile({ username: "@fern", avatarImageUrl: "javascript:alert(1)" }).avatarImageUrl, null);
+  assert.equal(sanitizePublicWildzProfile({ username: "@fern", avatarImageUrl: `data:image/png;base64,${"a".repeat(300_000)}` }).avatarImageUrl, null);
 });
 
 test("public profile accepts only complete bounded explorer traits", () => {

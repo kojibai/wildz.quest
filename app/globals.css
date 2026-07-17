@@ -308,11 +308,33 @@ body {
 
 .wildz-profile-sheet,
 .wildz-vault-sheet { display: grid; gap: 12px; max-height: min(76dvh, 700px); overflow: auto; padding: 16px; }
-.wildz-profile-head { display: flex; align-items: center; gap: 14px; padding-right: 48px; }
+.wildz-profile-head { position: relative; display: flex; align-items: center; gap: 14px; padding-right: 48px; }
 .wildz-profile-head span, .wildz-vault-sheet header span { color: #9cbaa9; font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
 .wildz-profile-head h2 { margin: 2px 0 0; font-size: 25px; }
 .wildz-profile-head p { margin: 3px 0 0; color: #9cbaa9; }
-.wildz-profile-avatar { display: grid; width: 58px; height: 58px; flex: 0 0 auto; place-items: center; border: 2px solid rgba(229,213,138,.4); border-radius: 44% 56% 48% 52%; background: linear-gradient(140deg,#568d68,#214535); font-weight: 950; }
+.wildz-profile-avatar { display: grid; width: 58px; height: 58px; flex: 0 0 auto; overflow: hidden; place-items: center; border: 2px solid rgba(229,213,138,.4); border-radius: 44% 56% 48% 52%; background: linear-gradient(140deg,#568d68,#214535); font-weight: 950; }
+.wildz-profile-avatar img, .wildz-profile-photo-control img { width: 100%; height: 100%; object-fit: cover; }
+.wildz-profile-edit-trigger { position: absolute; top: 0; right: 0; display: grid; width: 42px; height: 42px; padding: 0; place-items: center; border: 1px solid rgba(151,226,155,.28); border-radius: 14px; color: #effff2; background: rgba(118,199,134,.1); }
+.wildz-profile-edit-trigger:active, .wildz-profile-editor button:active { transform: scale(.94); }
+.wildz-profile-edit-trigger[aria-pressed="true"] { border-color: rgba(151,226,155,.7); background: rgba(118,199,134,.22); }
+.wildz-profile-editor { display: grid; grid-template-columns: 58px 1fr; gap: 10px; padding: 12px; border: 1px solid rgba(151,226,155,.24); border-radius: 17px; background: rgba(5,28,27,.72); }
+.wildz-profile-editor > label:not(.wildz-profile-photo-control) { display: grid; gap: 5px; }
+.wildz-profile-editor > label:nth-of-type(3) { grid-column: 2; }
+.wildz-profile-editor label > span { color: #9cbaa9; font-size: 10px; font-weight: 900; letter-spacing: .11em; text-transform: uppercase; }
+.wildz-profile-editor input { width: 100%; min-width: 0; height: 42px; padding: 0 12px; border: 1px solid rgba(151,226,155,.22); border-radius: 12px; outline: 0; color: #f8f5e9; background: rgba(0,17,20,.68); font: inherit; font-size: 14px; }
+.wildz-profile-editor input:focus { border-color: rgba(151,226,155,.72); box-shadow: 0 0 0 3px rgba(113,236,188,.08); }
+.wildz-profile-photo-control { position: relative; grid-row: 1 / span 2; align-self: center; cursor: pointer; }
+.wildz-profile-photo-control > span { display: grid; width: 58px; height: 58px; overflow: hidden; place-items: center; border: 1px solid rgba(151,226,155,.42); border-radius: 44% 56% 48% 52%; color: #baf7d2; background: rgba(118,199,134,.12); }
+.wildz-profile-photo-control input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.wildz-profile-username-field { display: flex; align-items: center; border-radius: 12px; background: rgba(0,17,20,.68); }
+.wildz-profile-username-field i { padding-left: 11px; color: #78d8ad; font-style: normal; }
+.wildz-profile-username-field input { padding-left: 4px; background: transparent; }
+.wildz-profile-editor-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
+.wildz-profile-editor-actions button { display: grid; width: 42px; height: 42px; padding: 0; place-items: center; border: 1px solid rgba(151,226,155,.28); border-radius: 13px; color: #effff2; background: rgba(118,199,134,.1); transition: transform .14s ease, background .14s ease; }
+.wildz-profile-editor-actions button:last-child { color: #09291f; background: #83e3ad; }
+.wildz-profile-editor-actions button[data-state="working"] svg { animation: wildz-profile-spinner .8s linear infinite; }
+.wildz-profile-editor > [role="status"] { grid-column: 1 / -1; min-height: 16px; margin: 0; color: #a8c7b6; font-size: 11px; }
+@keyframes wildz-profile-spinner { to { transform: rotate(360deg); } }
 .wildz-profile-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
 .wildz-profile-stats span { display: grid; gap: 2px; padding: 11px; border-radius: 14px; background: rgba(255,255,255,.06); color: #9cbaa9; font-size: 11px; }
 .wildz-profile-stats b { color: #f8f5e9; font-size: 18px; }
@@ -327,12 +349,12 @@ body {
 .wildz-profile-impact p,
 .wildz-market-consequence span { margin: 0; color: #9cbaa9; font-size: 9px; line-height: 1.35; }
 .wildz-profile-sharing { display: flex; flex-wrap: wrap; gap: 8px; }
-.wildz-profile-sharing button { min-width: 88px; min-height: 44px; padding: 0 14px; border: 1px solid rgba(151,226,155,.28); border-radius: 14px; color: #effff2; background: rgba(118,199,134,.1); font: inherit; font-size: 12px; font-weight: 850; cursor: pointer; transition: transform .16s ease, border-color .16s ease, background .16s ease; }
+.wildz-profile-sharing button { display: grid; width: 44px; min-height: 44px; padding: 0; place-items: center; border: 1px solid rgba(151,226,155,.28); border-radius: 14px; color: #effff2; background: rgba(118,199,134,.1); font: inherit; cursor: pointer; transition: transform .16s ease, border-color .16s ease, background .16s ease; }
 .wildz-profile-sharing button:active { transform: scale(.96); }
 .wildz-profile-sharing button[data-state="success"] { border-color: rgba(151,226,155,.7); background: rgba(118,199,134,.22); animation: wildz-profile-action-success .42s ease; }
 .wildz-profile-sharing [role="status"] { min-height: 18px; flex-basis: 100%; margin: 0; color: #9cbaa9; font-size: 11px; }
 @keyframes wildz-profile-action-success { 50% { transform: translateY(-1px) scale(1.025); } }
-@media (prefers-reduced-motion: reduce) { .wildz-profile-sharing button { transition: none; } .wildz-profile-sharing button[data-state="success"] { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .wildz-profile-sharing button, .wildz-profile-editor-actions button { transition: none; } .wildz-profile-sharing button[data-state="success"], .wildz-profile-editor-actions button[data-state="working"] svg { animation: none; } }
 .wildz-vault-sheet header { display: flex; justify-content: space-between; align-items: center; }
 .wildz-vault-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(130px,1fr)); gap: 10px; }
 .wildz-vault-grid article { display: grid; min-height: 150px; align-content: end; gap: 3px; overflow: hidden; padding: 12px; border: 1px solid rgba(255,255,255,.1); border-radius: 18px; background: radial-gradient(circle at 50% 28%,rgba(116,220,157,.28),transparent 35%),linear-gradient(160deg,#173a2b,#081610); }
