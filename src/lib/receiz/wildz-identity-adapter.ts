@@ -396,7 +396,7 @@ export async function restoreWildzFileForSurface(
     if (current.restoreEpoch !== continuityRestoreEpoch) throw new Error("wildz_restore_cursor_stale");
     const active = await defaultIdentityRepository.active();
     if (!sameOwner(active, current.session)) throw new Error("wildz_restore_cursor_stale");
-    const playerVault = await defaultVaultLoginCoordinator.begin({
+    const playerVault = currentPlayState ? { status: "not_player_vault" as const } : await defaultVaultLoginCoordinator.begin({
       surface,
       bytes,
       mimeType: file.type,

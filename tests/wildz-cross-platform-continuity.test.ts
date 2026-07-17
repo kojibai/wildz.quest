@@ -30,7 +30,10 @@ import {
 } from "../src/lib/receiz/wildz-artifact-codec";
 import { createWildzIdentityRepository } from "../src/lib/receiz/wildz-identity-repository";
 import { createMemoryWildzContinuityDatabase } from "./support/memory-wildz-continuity-database";
-import { createReceizCrossPlatformArtifactFixtures } from "./support/receiz-cross-platform-fixtures";
+import {
+  createReceizCommercePlayerVaultFixture,
+  createReceizCrossPlatformArtifactFixtures
+} from "./support/receiz-cross-platform-fixtures";
 
 const BASE_PNG = Uint8Array.from(Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
@@ -241,6 +244,81 @@ test("same-owner card-only restore atomically unions the freshest prior PlayStat
   const cold = await loadWildzRestoredPlayState({ database, session });
   assert.deepEqual(cold?.inventory.map((asset) => asset.id).sort(), expectedUnion);
   assert.equal(cold?.worldMastery, 73);
+});
+
+test("identity-bearing vault uploaded inside an active vault merges into the current Receiz ID", async () => {
+  const { database, repository, codec } = createCodec();
+  const session = await repository.bootstrap();
+  const incomingCards = verifiedAssets();
+  const foreignBase: PlayState = {
+    ...structuredClone(initialPlayState),
+    inventory: [],
+    discoveredCardIds: [],
+    pendingSyncAssetIds: [],
+    companionProgress: {},
+    livingProgress: {},
+    selectedAssetId: "",
+    selectedCardId: ""
+  };
+  const foreignPlayer = createWildsPlayerVault({
+    playerId: "foreign_commerce_keeper",
+    exportedAt: "2026-07-15T14:10:00.000Z",
+    playState: incomingCards.reduce((state, asset) => applyWildsInput(state, { type: "import-card", asset }), foreignBase),
+    settings: { avatarStyle: "male", movementMode: "walk", audio: {} },
+    personalEvents: [],
+    canonicalCursor: { worldId: "wilds:global:v3", revision: 0, eventId: null },
+    receipts: []
+  });
+  const fixture = {
+    bytes: await createReceizCommercePlayerVaultFixture(incomingCards, foreignPlayer),
+    mimeType: "application/vnd.receiz.vault+zip",
+    filename: "foreign-commerce-player-vault.receizvault",
+    expectedWildzAssetIds: incomingCards.map((asset) => asset.id).sort()
+  };
+  const priorOnly = sealCollectedCard({
+    formId: "voltray-1",
+    ownerReceizId: session.actorId,
+    encounterId: "active-vault-prior-only-card",
+    capturedAt: "2026-07-15T14:09:00.000Z"
+  });
+  const currentPlayState = applyWildsInput(structuredClone(initialPlayState), { type: "import-card", asset: priorOnly });
+  currentPlayState.worldMastery = 91;
+  await saveWildzRestoredPlayState({ database, session, playState: currentPlayState });
+  const inspected = await codec.inspect({ bytes: fixture.bytes, mimeType: fixture.mimeType, name: fixture.filename });
+  assert.equal(inspected.kind, "commerce-vault");
+  const incomingAssets = inspected.kind === "commerce-vault" ? inspected.assets : [];
+  const normalizedCurrent = restorePlayState(serializePlayState(currentPlayState), session.actorId);
+  const expectedPlayState = restorePlayState(serializePlayState(
+    incomingAssets.reduce((state, asset) => applyWildsInput(state, { type: "import-card", asset }), normalizedCurrent)
+  ), session.actorId);
+
+  const outcome = await restoreWildzArtifactForSurface({
+    surface: "card-vault",
+    bytes: fixture.bytes,
+    mimeType: fixture.mimeType,
+    name: fixture.filename,
+    codec,
+    repository,
+    database,
+    confirmCardOnly: true,
+    currentPlayState
+  });
+
+  assert.equal(outcome.session.keyId, session.keyId);
+  assert.equal(outcome.session.actorId, session.actorId);
+  assert.equal(outcome.session.username, session.username);
+  assert.deepEqual(outcome.verifiedAssetIds, fixture.expectedWildzAssetIds);
+  assert.deepEqual(
+    outcome.playState.inventory.map((asset) => asset.id).sort(),
+    expectedPlayState.inventory.map((asset) => asset.id).sort()
+  );
+  assert.equal(outcome.playState.worldMastery, 91);
+  assert.deepEqual(await repository.active(), session);
+  const cold = await loadWildzRestoredPlayState({ database, session });
+  assert.deepEqual(
+    cold?.inventory.map((asset) => asset.id).sort(),
+    expectedPlayState.inventory.map((asset) => asset.id).sort()
+  );
 });
 
 test("card-only restore rejects a divergent same-ID proof fork without persisting earlier cards", async () => {
