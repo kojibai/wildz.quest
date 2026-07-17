@@ -34,6 +34,16 @@ test("Kai math teaching retains the exact closure and zero-based lattice", () =>
   assert.match(KAI_MATH_TEACHINGS.join(" "), /1715323541888/);
 });
 
+test("Beat Step Pulse derives from the full Kai day instead of wrapping at the semantic grid", () => {
+  const moment = deriveKaiKlokMoment({ occurredAt: "2024-05-11T08:07:31.143Z", authority: "world" });
+
+  assert.equal(moment.pulse, 17_438);
+  assert.equal(moment.beat, 35);
+  assert.equal(moment.stepIndex, 39);
+  assert.equal(moment.pulseInStep, 2);
+  assert.equal(moment.latticeCoordinate, "35:39:02");
+});
+
 test("the same Kai coordinate always says the same bounded canonical meaning", () => {
   const moment = deriveKaiKlokMoment({ occurredAt: "2026-07-16T22:00:00.000Z", authority: "admitted" });
   const first = deriveKaiMomentExpression(moment);

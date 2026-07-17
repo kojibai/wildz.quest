@@ -57,9 +57,8 @@ test("the same admitted time always produces identical moment state", () => {
 });
 
 test("the inner pulse rolls from ten to zero as the step advances", () => {
-  const genesis = Date.parse("2024-05-10T06:45:41.888Z");
-  const pulseTen = deriveKaiKlokMoment({ occurredAt: new Date(genesis + Math.round((3 + Math.sqrt(5)) * 10_000)).toISOString(), authority: "local" });
-  const pulseEleven = deriveKaiKlokMoment({ occurredAt: new Date(genesis + Math.round((3 + Math.sqrt(5)) * 11_000)).toISOString(), authority: "local" });
+  const pulseTen = deriveKaiKlokMoment({ occurredAt: "2024-05-10T06:46:34.451Z", authority: "local" });
+  const pulseEleven = deriveKaiKlokMoment({ occurredAt: "2024-05-10T06:46:39.708Z", authority: "local" });
   assert.equal(pulseTen.pulseInStep, 10);
   assert.equal(pulseEleven.pulseInStep, 0);
   assert.equal(pulseEleven.stepIndex, 1);

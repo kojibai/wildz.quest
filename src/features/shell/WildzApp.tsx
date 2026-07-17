@@ -20,6 +20,7 @@ import {
   type WildzUiArtifactRestore
 } from "@/lib/receiz/wildz-identity-adapter";
 import { shouldClearWildzResumeAfterError } from "@/lib/receiz/wildz-resume-errors";
+import { sameWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate";
 import {
   bootstrapWildzSharedWorld,
   wildzRemoteSessionMatchesIdentity
@@ -113,9 +114,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     continuityRef.current = snapshot;
     setContinuity(snapshot);
     setCharacter(snapshot.character);
-    if (!previous
-      || previous.session.keyId !== snapshot.session.keyId
-      || previous.session.actorId !== snapshot.session.actorId) {
+    if (!previous || !sameWildzPlayerCoordinate(previous.session.actorId, snapshot.session.actorId)) {
       setProofSessionConnected(false);
     }
   }, []);
@@ -380,7 +379,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     <main className="wildz-app-shell" data-wildz-active-username={ownerUsername}>
       <div className="wildz-app" data-overlay={overlay?.kind ?? "world"}>
         {gameplayReady && continuity && identity && character ? <PlayCampaign
-          key={`${identity.keyId}:${identity.actorId}`}
+          key={identity.actorId}
           campaignName="Wildz"
           character={character}
           enabled

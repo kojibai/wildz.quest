@@ -119,17 +119,16 @@ export function deriveKaiKlokMoment(input: {
   const microPulses = mulDivRoundHalfEven(BigInt(epochMs - KAI_GENESIS_TS), INV_T_NUM, INV_T_DEN);
   const pulse = safeInteger(floorDivE(microPulses, 1_000_000n));
   const pulseFractionMicro = modE(microPulses, 1_000_000n);
-  const pulsesInGrid = modE(microPulses, KAI_N_DAY_MICRO) % KAI_BASE_DAY_MICRO;
-  const beat = Number(pulsesInGrid / KAI_PULSES_PER_BEAT_MICRO);
-  const pulsesInBeat = pulsesInGrid - BigInt(beat) * KAI_PULSES_PER_BEAT_MICRO;
-  const stepIndex = Number(pulsesInBeat / KAI_PULSES_PER_STEP_MICRO);
-  const pulsesInStep = pulsesInBeat - BigInt(stepIndex) * KAI_PULSES_PER_STEP_MICRO;
-  const pulseInStep = Number(pulsesInStep / 1_000_000n);
   const percentIntoPulse = Number(pulseFractionMicro) / 1_000_000;
-  const stepPctAcrossBeat = (stepIndex + Number(pulsesInStep) / Number(KAI_PULSES_PER_STEP_MICRO)) / KAI_STEPS_PER_BEAT;
 
   const dayIndex = floorDivE(microPulses, KAI_N_DAY_MICRO);
   const microPulsesInDay = modE(microPulses, KAI_N_DAY_MICRO);
+  const beat = Number((microPulsesInDay * BigInt(KAI_BEATS_PER_DAY)) / KAI_N_DAY_MICRO);
+  const microPulsesWithinBeat = (microPulsesInDay * BigInt(KAI_BEATS_PER_DAY)) % KAI_N_DAY_MICRO;
+  const stepIndex = Number((microPulsesWithinBeat * BigInt(KAI_STEPS_PER_BEAT)) / KAI_N_DAY_MICRO);
+  const microPulsesWithinStep = (microPulsesWithinBeat * BigInt(KAI_STEPS_PER_BEAT)) % KAI_N_DAY_MICRO;
+  const pulseInStep = Number((microPulsesWithinStep * BigInt(KAI_PULSES_PER_STEP)) / KAI_N_DAY_MICRO);
+  const stepPctAcrossBeat = (stepIndex + Number(microPulsesWithinStep) / Number(KAI_N_DAY_MICRO)) / KAI_STEPS_PER_BEAT;
   const weekday = WEEKDAYS[Number(modE(dayIndex, BigInt(WEEKDAYS.length)))]!;
   const chakra = DAY_TO_CHAKRA[weekday];
   const year = safeInteger(floorDivE(dayIndex, BigInt(KAI_DAYS_PER_YEAR)));

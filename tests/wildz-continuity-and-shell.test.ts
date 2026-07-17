@@ -26,7 +26,8 @@ test("same-owner Vault restore preserves the mounted world and one bounded inven
   const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
   const genesis = readFileSync("src/features/identity/WildzGenesis.tsx", "utf8");
 
-  assert.match(shell, /key=\{`\$\{identity\.keyId\}:\$\{identity\.actorId\}`\}/);
+  assert.match(shell, /key=\{identity\.actorId\}/);
+  assert.doesNotMatch(shell, /key=\{`\$\{identity\.keyId\}:\$\{identity\.actorId\}`\}/);
   assert.doesNotMatch(shell, /key=\{[^}]*restoreEpoch/);
   assert.match(inventory, /inventoryPageSize\(compact\)/);
   assert.doesNotMatch(inventory, /receizVaults|wilds-receiz-vault-library|wilds-receiz-vault-grid/);

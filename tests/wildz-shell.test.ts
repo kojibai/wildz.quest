@@ -109,6 +109,18 @@ test("local gameplay stays mounted while every authenticated world mutation wait
   assert.match(world, /if \(!input\.enabled\) throw new Error\("wilds_world_session_required"\)/);
 });
 
+test("matching Identity Seal upgrades a proof Vault login without clearing the loaded Vault", () => {
+  const source = read("src/features/shell/WildzApp.tsx");
+  const acceptStart = source.indexOf("const acceptSnapshot");
+  const accept = source.slice(acceptStart, source.indexOf("useEffect(() => {", acceptStart));
+  const campaign = source.slice(source.indexOf("<PlayCampaign"), source.indexOf("</PlayCampaign>"));
+
+  assert.match(source, /sameWildzPlayerCoordinate/);
+  assert.match(accept, /sameWildzPlayerCoordinate\(previous\.session\.actorId,\s*snapshot\.session\.actorId\)/);
+  assert.doesNotMatch(accept, /previous\.session\.keyId !== snapshot\.session\.keyId[\s\S]*setProofSessionConnected\(false\)/);
+  assert.match(campaign, /key=\{identity\.actorId\}/);
+});
+
 test("large Vault movement coalesces full-state persistence and flushes the latest state", () => {
   const source = read("src/features/shell/WildzApp.tsx");
   const persistStart = source.indexOf("const persistPlayState");
