@@ -24,7 +24,6 @@ export function WildsInventory({
   cardOrder,
   onCardOrderChange,
   playerVault,
-  onExportIdentityCard,
   onExportVault,
   onInput,
   onListAsset,
@@ -34,7 +33,6 @@ export function WildsInventory({
   cardOrder: WildzCardSort;
   onCardOrderChange: (order: WildzCardSort) => void;
   playerVault: () => WildsPlayerVaultPayload;
-  onExportIdentityCard: (assets: PlayState["inventory"], player: WildsPlayerVaultPayload) => Promise<unknown>;
   onExportVault: (assets: PlayState["inventory"], player: WildsPlayerVaultPayload) => Promise<unknown>;
   onInput: (input: WildsInput) => void;
   onListAsset?: (asset: PlayState["inventory"][number], priceCents: number) => Promise<PlayState["inventory"][number] | null>;
@@ -60,7 +58,6 @@ export function WildsInventory({
   const [origin, setOrigin] = useState("https://receiz.app");
   const [qr, setQr] = useState("");
   const [importing, setImporting] = useState(false);
-  const [identityCardSaving, setIdentityCardSaving] = useState(false);
   const [vaultSaving, setVaultSaving] = useState(false);
   const [cardSaving, setCardSaving] = useState(false);
   const importInput = useRef<HTMLInputElement>(null);
@@ -138,7 +135,7 @@ export function WildsInventory({
             aria-label="Save vault image"
             aria-busy={vaultSaving}
             className={`wilds-import-card vault wilds-action-feedback${vaultSaving ? " wilds-action-busy" : ""}`}
-            disabled={!state.inventory.length || vaultSaving || identityCardSaving}
+            disabled={!state.inventory.length || vaultSaving}
             onClick={async () => {
               setVaultSaving(true);
               setVaultMessage("Preparing portable vault image…");
@@ -156,30 +153,6 @@ export function WildsInventory({
           >
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16v13H4zM8 6V4h8v2m-4 3v6m0 0-3-3m3 3 3-3" /></svg>
             <span>Save vault image</span>
-          </button>
-          <button
-            aria-label="Save Receiz ID Card"
-            aria-busy={identityCardSaving}
-            className={`wilds-import-card identity-card wilds-action-feedback${identityCardSaving ? " wilds-action-busy" : ""}`}
-            disabled={!state.inventory.length || vaultSaving || identityCardSaving}
-            onClick={async () => {
-              if (!window.confirm("This image is your Receiz account. Anyone who has it can access this account; giving it away gives account access. Save it now?")) return;
-              setIdentityCardSaving(true);
-              setVaultMessage("Sealing your Receiz ID Card…");
-              try {
-                await onExportIdentityCard(state.inventory, playerVault());
-                setVaultMessage("Receiz ID Card saved with your complete verified Wildz continuity.");
-              } catch (error) {
-                setVaultMessage(error instanceof Error ? `ID Card save failed: ${error.message}` : "ID Card save failed. Try again from this browser.");
-              } finally {
-                setIdentityCardSaving(false);
-              }
-            }}
-            title="Save Receiz ID Card"
-            type="button"
-          >
-            <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2" /><circle cx="9" cy="11" r="2" /><path d="M13 10h4m-4 3h4M7 16h10" /></svg>
-            <span>Save Receiz ID Card</span>
           </button>
           <button aria-label="Fuse cards" className="wilds-import-card fusion wilds-action-feedback" disabled={state.inventory.length < 2} onClick={() => setFusionOpen((value) => !value)} title="Fuse cards" type="button">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 7h5l2 3 2-3h5M5 17h5l2-3 2 3h5" /></svg>

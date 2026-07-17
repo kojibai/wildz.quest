@@ -4,6 +4,7 @@ import { PlayCampaign } from "@/features/play/PlayCampaign";
 import { WildzGenesis } from "@/features/identity/WildzGenesis";
 import type { WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
 import { createOwnerBoundInitialPlayState, initialPlayState, type PlayState } from "@/features/play/game-state";
+import { createWildsPlayerVault } from "@/features/play/wilds-player-vault";
 import type { WildzCardOnlyConfirmation } from "@/features/identity/wildz-restore";
 import {
   bootstrapWildzContinuity,
@@ -297,6 +298,38 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     setAvatarImageUrl(input.avatarImageUrl);
     publishedProfileRef.current = "";
     acceptSnapshot(snapshot);
+    const canonicalHandle = `@${snapshot.session.username ?? snapshot.session.actorId}`;
+    setRemoteProfile((profile) => profile ? sanitizePublicWildzProfile({
+      ...profile,
+      username: canonicalHandle,
+      displayName: input.displayName,
+      avatarImageUrl: input.avatarImageUrl
+    }) : profile);
+    setOverlay({ kind: "profile", username: canonicalHandle });
+  };
+
+  const saveIdentityCard = async () => {
+    const current = continuityRef.current;
+    if (!current) throw new Error("wildz_identity_missing");
+    if (current.session.localAuthority !== "verified") throw new Error("wildz_identity_card_authority_required");
+    const playerContinuity = current.playerContinuity;
+    const playState = current.playState ?? createOwnerBoundInitialPlayState(current.session.actorId);
+    const player = createWildsPlayerVault({
+      playerId: current.session.username ?? current.session.actorId,
+      exportedAt: new Date().toISOString(),
+      playState,
+      character: current.character,
+      settings: playerContinuity?.settings ?? {
+        avatarStyle: current.character?.gender ?? null,
+        movementMode: "walk",
+        audio: {},
+        cardOrder: "rarity"
+      },
+      personalEvents: playerContinuity?.personalEvents ?? [],
+      canonicalCursor: playerContinuity?.canonicalCursor ?? { worldId: "wilds:global:v3", revision: 0, eventId: null },
+      receipts: playerContinuity?.receipts ?? []
+    });
+    await downloadWildzIdentityPlayerCard(current.session, playState.inventory, player);
   };
 
   const restoreArtifact = useCallback(async (
@@ -350,7 +383,6 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           ownerReceizId={ownerUsername}
           playerDisplayName={identity.displayName ?? `@${ownerUsername}`}
           onPlayStateChange={persistPlayState}
-          onExportIdentityCard={(assets, player) => downloadWildzIdentityPlayerCard(identity, assets, player)}
           onExportVault={(assets, player) => downloadWildzIdentityPlayerVault(identity, assets, player)}
           onRestoreArtifact={(file, confirmCardOnly, currentPlayState) => restoreArtifact(file, "card-vault", confirmCardOnly, currentPlayState)}
           onOpenProfile={() => setOverlay({ kind: "profile", username: `@${ownerUsername}` })}
@@ -405,6 +437,13 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             publicationStatus={viewingOwnProfile && profileStatus !== "ready" ? "local" : "published"}
             shareEnabled={!viewingOwnProfile || profileStatus === "ready"}
             editable={viewingOwnProfile}
+            signingAvailable={identity?.localAuthority === "verified"}
+            onAuthenticateIdentitySeal={async (file) => {
+              const outcome = await restoreArtifact(file, "card-vault", false, continuityRef.current?.playState ?? undefined);
+              if (outcome.artifactKind !== "identity-seal") throw new Error("wildz_identity_seal_required");
+              setOverlay({ kind: "profile", username: `@${outcome.session.username ?? outcome.session.actorId}` });
+            }}
+            onSaveIdentityCard={saveIdentityCard}
             onSaveProfile={saveProfileIdentity}
           /> : <div className="wildz-shell-overlay-placeholder" role="status">
             <Image src="/brand/wildz-mark.svg" alt="" width={48} height={48} />

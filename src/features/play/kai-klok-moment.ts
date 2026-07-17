@@ -16,6 +16,9 @@ const INV_T_DEN = 10n ** 60n;
 
 export type KaiWeekday = "Solhara" | "Aquaris" | "Flamora" | "Verdari" | "Sonari" | "Kaelith";
 export type KaiChakra = "Root" | "Sacral" | "Solar Plexus" | "Heart" | "Throat" | "Third Eye" | "Crown";
+export type KaiWeekName = "Awakening Flame" | "Flowing Heart" | "Radiant Will" | "Harmonic Voh" | "Inner Mirror" | "Dreamfire Memory" | "Krowned Light";
+export type KaiMonthName = "Aethon" | "Virelai" | "Solari" | "Amarin" | "Kaelus" | "Umbriel" | "Noktura" | "Liora";
+export type KaiArkName = "Ignite" | "Integrate" | "Harmonize" | "Reflekt" | "Purify" | "Dream";
 export type KaiMomentAuthority = "admitted" | "world" | "local";
 
 export const KAI_CHAKRA_GEOMETRY = {
@@ -42,6 +45,10 @@ export type KaiKlokMoment = {
   month: number;
   day: number;
   week: number;
+  weekName: KaiWeekName;
+  monthName: KaiMonthName;
+  ark: KaiArkName;
+  arkIndex: number;
   latticeCoordinate: string;
   coordinate: string;
   accent: string;
@@ -51,6 +58,9 @@ export type KaiKlokMoment = {
 };
 
 const WEEKDAYS: readonly KaiWeekday[] = ["Solhara", "Aquaris", "Flamora", "Verdari", "Sonari", "Kaelith"];
+export const KAI_WEEK_NAMES: readonly KaiWeekName[] = ["Awakening Flame", "Flowing Heart", "Radiant Will", "Harmonic Voh", "Inner Mirror", "Dreamfire Memory", "Krowned Light"];
+export const KAI_MONTH_NAMES: readonly KaiMonthName[] = ["Aethon", "Virelai", "Solari", "Amarin", "Kaelus", "Umbriel", "Noktura", "Liora"];
+export const KAI_ARK_NAMES: readonly KaiArkName[] = ["Ignite", "Integrate", "Harmonize", "Reflekt", "Purify", "Dream"];
 const DAY_TO_CHAKRA: Record<KaiWeekday, KaiChakra> = {
   Solhara: "Root",
   Aquaris: "Sacral",
@@ -119,12 +129,17 @@ export function deriveKaiKlokMoment(input: {
   const stepPctAcrossBeat = (stepIndex + Number(pulsesInStep) / Number(KAI_PULSES_PER_STEP_MICRO)) / KAI_STEPS_PER_BEAT;
 
   const dayIndex = floorDivE(microPulses, KAI_N_DAY_MICRO);
+  const microPulsesInDay = modE(microPulses, KAI_N_DAY_MICRO);
   const weekday = WEEKDAYS[Number(modE(dayIndex, BigInt(WEEKDAYS.length)))]!;
   const chakra = DAY_TO_CHAKRA[weekday];
   const year = safeInteger(floorDivE(dayIndex, BigInt(KAI_DAYS_PER_YEAR)));
   const month = Number(modE(floorDivE(dayIndex, BigInt(KAI_DAYS_PER_MONTH)), BigInt(KAI_MONTHS_PER_YEAR))) + 1;
   const day = Number(modE(dayIndex, BigInt(KAI_DAYS_PER_MONTH))) + 1;
   const week = Math.floor((day - 1) / KAI_DAYS_PER_WEEK) + 1;
+  const weekName = KAI_WEEK_NAMES[week - 1]!;
+  const monthName = KAI_MONTH_NAMES[month - 1]!;
+  const arkIndex = Math.min(5, Number((microPulsesInDay * 6n) / KAI_N_DAY_MICRO));
+  const ark = KAI_ARK_NAMES[arkIndex]!;
   const latticeCoordinate = `${pad2(beat)}:${pad2(stepIndex)}:${pad2(pulseInStep)}`;
   const coordinate = `Y${year}·M${month}·D${day}·${latticeCoordinate}·KAI${pulse}`;
 
@@ -142,6 +157,10 @@ export function deriveKaiKlokMoment(input: {
     month,
     day,
     week,
+    weekName,
+    monthName,
+    ark,
+    arkIndex,
     latticeCoordinate,
     coordinate,
     ...KAI_CHAKRA_GEOMETRY[chakra]

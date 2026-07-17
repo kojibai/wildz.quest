@@ -27,12 +27,19 @@ test("Card Vault export seals the complete live V3 player payload, not cards alo
   assert.match(adapter, /createWildzIdentityBinding/);
   assert.match(adapter, /appendWildzIdentityBindingTrailer/);
   assert.match(shell, /downloadWildzIdentityPlayerCard/);
-  assert.match(campaign, /onExportIdentityCard/);
-  assert.match(inventory, /aria-label="Save Receiz ID Card"/);
-  assert.match(inventory, /This image is your Receiz account/);
-  assert.match(inventory, /giving it away gives account access/);
-  assert.match(inventory, /aria-busy=\{identityCardSaving\}/);
+  const profile = readFileSync("src/features/profile/WildzProfileSheet.tsx", "utf8");
+  assert.doesNotMatch(campaign, /onExportIdentityCard/);
+  assert.doesNotMatch(inventory, /aria-label="Save Receiz ID Card"/);
+  assert.match(profile, /aria-label="Save Receiz ID Card"/);
+  assert.match(profile, /This image is your Receiz account/);
+  assert.match(profile, /giving it away gives account access/);
+  assert.match(profile, /aria-busy=\{identityCardSaving\}/);
   assert.match(inventory, /wilds-action-feedback/);
+});
+
+test("Vault actions remain one perfectly aligned row after ID Card moves to Profile", () => {
+  const css = readFileSync("app/globals.css", "utf8");
+  assert.match(css, /\.wilds-command-sheet-content \.wilds-vault-actions\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*40px\)/s);
 });
 
 test("Vault export keeps the shared Receiz Wilds PNG as the downloadable artifact", () => {

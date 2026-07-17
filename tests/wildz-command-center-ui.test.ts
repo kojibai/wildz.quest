@@ -16,7 +16,35 @@ test("neural cockpit exposes the full Kai coordinate and consequence branches", 
     assert.match(source, new RegExp(token));
   }
   assert.match(source, /aria-live="polite"/);
-  assert.match(source, /☤ KAI \{model\.moment\.pulse/);
+  assert.match(source, /WildsKaiMomentInspector/);
+});
+
+test("Eternal Pulse opens a contained, keyboard-safe Kai teaching inspector", async () => {
+  const source = await readFile("src/features/play/command-center/WildsKaiMomentInspector.tsx", "utf8");
+  for (const token of [
+    "What this moment is saying",
+    "Six harmonic days",
+    "Seven harmonic weeks",
+    "Eight eternal months",
+    "Six chakra arks",
+    "Deterministic mathematics",
+    "Coordinate legend",
+    "Full teaching",
+    "☤ KAI"
+  ]) assert.match(source, new RegExp(token));
+  assert.match(source, /aria-expanded=\{open\}/);
+  assert.match(source, /aria-controls="wilds-kai-moment-inspector"/);
+  assert.match(source, /role="dialog"/);
+  assert.match(source, /event\.key === "Escape"/);
+  assert.match(source, /triggerRef\.current\?\.focus\(\)/);
+});
+
+test("Kai teaching inspector remains inside the cockpit and scrolls without a blank surface", async () => {
+  const css = await readFile("app/globals.css", "utf8");
+  assert.match(css, /\.wilds-kai-inspector-popover\s*\{[\s\S]*position:\s*absolute[\s\S]*max-height:[\s\S]*overflow-y:\s*auto/s);
+  assert.match(css, /\.wilds-kai-inspector-popover\s*\{[\s\S]*background:[^;]*(#030d12|rgb\()/s);
+  assert.match(css, /\.wilds-kai-moment-utterance/);
+  assert.match(css, /@media \(max-width: 560px\)[\s\S]*\.wilds-kai-inspector-popover/s);
 });
 
 test("cockpit CSS breathes from Kai state and honors reduced motion", async () => {

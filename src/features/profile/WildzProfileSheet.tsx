@@ -2,9 +2,9 @@
 
 import type { PublicWildzProfile } from "@/features/profile/public-profile";
 import { WildzVaultSheet } from "@/features/profile/WildzVaultSheet";
-import { Camera, Check, Link, LoaderCircle, Pencil, Share2, X } from "lucide-react";
+import { Camera, Check, CreditCard, KeyRound, Link, LoaderCircle, Pencil, Share2, X } from "lucide-react";
 import Image from "next/image";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   copyWildzProfileLink,
   shareWildzProfile,
@@ -40,11 +40,14 @@ async function profileImageFromFile(file: File) {
   }
 }
 
-export function WildzProfileSheet({ profile, publicationStatus = "published", shareEnabled = true, editable = false, onSaveProfile }: {
+export function WildzProfileSheet({ profile, publicationStatus = "published", shareEnabled = true, editable = false, signingAvailable = true, onAuthenticateIdentitySeal, onSaveIdentityCard, onSaveProfile }: {
   profile: PublicWildzProfile;
   publicationStatus?: "local" | "published";
   shareEnabled?: boolean;
   editable?: boolean;
+  signingAvailable?: boolean;
+  onAuthenticateIdentitySeal?: (file: File) => Promise<void>;
+  onSaveIdentityCard?: () => Promise<void>;
   onSaveProfile?: (input: { username: string; displayName: string; avatarImageUrl: string | null }) => Promise<void>;
 }) {
   const [shareResult, setShareResult] = useState<WildzShareResult | null>(null);
@@ -54,6 +57,10 @@ export function WildzProfileSheet({ profile, publicationStatus = "published", sh
   const [draftDisplayName, setDraftDisplayName] = useState(profile.displayName);
   const [draftAvatar, setDraftAvatar] = useState(profile.avatarImageUrl);
   const [editMessage, setEditMessage] = useState("");
+  const [identityCardSaving, setIdentityCardSaving] = useState(false);
+  const [identityAuthenticating, setIdentityAuthenticating] = useState(false);
+  const [identityMessage, setIdentityMessage] = useState("");
+  const identityInputRef = useRef<HTMLInputElement>(null);
   const browserPort = (): WildzSharePort => ({
     share: typeof navigator.share === "function" ? (data) => navigator.share(data) : undefined,
     clipboard: navigator.clipboard?.writeText
@@ -128,6 +135,69 @@ export function WildzProfileSheet({ profile, publicationStatus = "published", sh
         <button aria-label="Save profile" data-state={saving ? "working" : "idle"} disabled={saving} onClick={() => void save()} type="button">{saving ? <LoaderCircle aria-hidden="true" size={18} /> : <Check aria-hidden="true" size={18} />}</button>
       </div>
       <p aria-live="polite" role="status">{editMessage}</p>
+    </section> : null}
+    {editable ? <section className="wildz-profile-proof-actions" aria-label="Receiz identity controls">
+      <button
+        aria-busy={identityCardSaving}
+        aria-label="Save Receiz ID Card"
+        data-state={identityCardSaving ? "working" : "idle"}
+        disabled={identityCardSaving || identityAuthenticating || !onSaveIdentityCard}
+        onClick={async () => {
+          if (!signingAvailable) {
+            setIdentityMessage("Authenticate with your Identity Seal to sign this account card.");
+            identityInputRef.current?.click();
+            return;
+          }
+          if (!onSaveIdentityCard) return;
+          if (!window.confirm("This image is your Receiz account. Anyone who has it can access this account; giving it away gives account access. Save it now?")) return;
+          setIdentityCardSaving(true);
+          setIdentityMessage("Sealing your Receiz ID Card…");
+          try {
+            await onSaveIdentityCard();
+            setIdentityMessage("Receiz ID Card saved with complete verified continuity.");
+          } catch (cause) {
+            const code = cause instanceof Error ? cause.message : "";
+            setIdentityMessage(code === "wildz_identity_card_authority_required"
+              ? "Authenticate with your Identity Seal, then save the ID Card again."
+              : "The Receiz ID Card could not be saved. Your account was not changed.");
+          } finally {
+            setIdentityCardSaving(false);
+          }
+        }}
+        title="Save Receiz ID Card"
+        type="button"
+      ><CreditCard aria-hidden="true" size={18} /><span>Save ID Card</span></button>
+      {!signingAvailable ? <button
+        aria-busy={identityAuthenticating}
+        aria-label="Authenticate with Identity Seal"
+        data-state={identityAuthenticating ? "working" : "idle"}
+        disabled={identityAuthenticating || !onAuthenticateIdentitySeal}
+        onClick={() => identityInputRef.current?.click()}
+        title="Authenticate with Identity Seal"
+        type="button"
+      ><KeyRound aria-hidden="true" size={18} /><span>Identity Seal</span></button> : null}
+      <input
+        accept="image/png,image/jpeg,image/webp,application/json"
+        className="wilds-import-input"
+        onChange={async (event) => {
+          const file = event.target.files?.[0];
+          event.currentTarget.value = "";
+          if (!file || !onAuthenticateIdentitySeal) return;
+          setIdentityAuthenticating(true);
+          setIdentityMessage("Verifying Identity Seal authority…");
+          try {
+            await onAuthenticateIdentitySeal(file);
+            setIdentityMessage("Identity Seal authenticated. Signing authority is ready.");
+          } catch {
+            setIdentityMessage("That file did not restore signing authority. Choose the account's verified Identity Seal.");
+          } finally {
+            setIdentityAuthenticating(false);
+          }
+        }}
+        ref={identityInputRef}
+        type="file"
+      />
+      <p aria-live="polite" role="status">{identityMessage}</p>
     </section> : null}
     <div className="wildz-profile-sharing">
       <button aria-label="Share profile" data-state={shareResult?.status === "shared" ? "success" : "idle"} disabled={!shareEnabled} onClick={() => void share()} type="button"><Share2 aria-hidden="true" size={18} /></button>

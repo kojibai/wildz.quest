@@ -88,6 +88,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   const [range, setRange] = useState({ start: 0, end: 8 });
   const [bookPage, setBookPage] = useState(0);
   const drawerRef = useRef<HTMLElement>(null);
+  const railFrameRef = useRef<number | null>(null);
   const dragHeight = useRef<number | null>(null);
   const drag = useRef<{ startY: number; startHeight: number; lastY: number; lastAt: number; velocityY: number; moved: boolean } | null>(null);
   const suppressHandleClick = useRef(false);
@@ -123,6 +124,10 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
     setRange({ start: 0, end: 8 });
     setBookPage(0);
   }, [cardOrder]);
+
+  useEffect(() => () => {
+    if (railFrameRef.current !== null) window.cancelAnimationFrame(railFrameRef.current);
+  }, []);
 
   useEffect(() => {
     if (snap === "closed") return;
@@ -191,11 +196,15 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
 
   const updateVirtualRange = (event: UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget;
-    if (mode === "preview") {
+    if (mode === "preview" && railFrameRef.current === null) {
+      railFrameRef.current = window.requestAnimationFrame(() => {
+        railFrameRef.current = null;
+        if (!target.isConnected) return;
       const start = Math.max(0, Math.floor(target.scrollLeft / RAIL_CARD_EXTENT) - 4);
       const count = Math.ceil(target.clientWidth / RAIL_CARD_EXTENT) + 10;
-      setRange({ start, end: Math.min(sortedCards.length, start + count) });
-      return;
+        const end = Math.min(sortedCards.length, start + count);
+        setRange((previous) => previous.start === start && previous.end === end ? previous : { start, end });
+      });
     }
   };
 

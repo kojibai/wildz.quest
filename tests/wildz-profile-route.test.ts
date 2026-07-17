@@ -50,3 +50,9 @@ test("only the owner profile exposes compact identity edit and image controls", 
   assert.match(sheet, /aria-label="Edit profile"/);
   assert.doesNotMatch(genesis, /username-control|Choose your Receiz username/);
 });
+
+test("profile edit control reserves the overlay close-button hit area", () => {
+  const css = readFileSync("app/globals.css", "utf8");
+  assert.match(css, /\.wildz-profile-head\s*\{[^}]*padding-right:\s*(?:9[6-9]|1\d{2})px/);
+  assert.match(css, /\.wildz-profile-edit-trigger\s*\{[^}]*right:\s*5[0-9]px/);
+});

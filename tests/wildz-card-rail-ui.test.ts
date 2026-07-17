@@ -68,6 +68,16 @@ test("a 100-card fixture exposes a bounded drawer render window and eight-card b
   assert.doesNotMatch(drawer, /nearbyCards\.map\(|sortedCards\.map\(/);
 });
 
+test("loaded 100-card preview rail coalesces scroll updates without render feedback", () => {
+  const drawer = drawerSource();
+  const css = readFileSync("app/globals.css", "utf8");
+  assert.match(drawer, /railFrameRef/);
+  assert.match(drawer, /window\.requestAnimationFrame/);
+  assert.match(drawer, /previous\.start === start && previous\.end === end \? previous/);
+  assert.match(drawer, /window\.cancelAnimationFrame/);
+  assert.match(css, /\.wildz-creature-window\s*\{[^}]*overflow-anchor:\s*none/s);
+});
+
 test("inventory retains complete rarity newest and oldest owner preference", () => {
   const source = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
   const css = readFileSync("app/globals.css", "utf8");
