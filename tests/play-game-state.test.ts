@@ -116,6 +116,9 @@ describe("Receiz Wilds game state", () => {
     assert.equal(fused.selectedAssetId, fused.inventory.at(-1)?.id);
     assert.equal(replay.inventory.length, fused.inventory.length);
     assert.equal(fused.inventory.every((asset) => isLivingCardAsset(asset)), true);
+    assert.equal(fused.inventory.at(-1)?.manifest.variant.generatorVersion, 3);
+    assert.ok(fused.inventory.at(-1)?.manifest.name.split(" ").every((word) => word.length <= 5));
+    assert.doesNotMatch(fused.inventory.at(-1)?.manifest.name ?? "", /flowkin/i);
     assert.equal(currentRevision(fused.inventory[0] as ReturnType<typeof admitLegacyCard>).childEventIds.length, 1);
     assert.equal(currentRevision(fused.inventory[1] as ReturnType<typeof admitLegacyCard>).childEventIds.length, 1);
   });
@@ -165,6 +168,9 @@ describe("Receiz Wilds game state", () => {
     assert.equal(once.inventory.length, initialPlayState.inventory.length + 1);
     assert.equal(twice.inventory.length, once.inventory.length);
     assert.equal(twice.inventory.at(-1)?.id, once.inventory.at(-1)?.id);
+    assert.equal(once.inventory.at(-1)?.manifest.variant.generatorVersion, 3);
+    assert.ok(once.inventory.at(-1)?.manifest.name.split(" ").every((word) => word.length <= 5));
+    assert.doesNotMatch(once.inventory.at(-1)?.manifest.name ?? "", /flowkin/i);
     assert.match(once.lastEvent, /sealed for offline use/i);
   });
 
@@ -455,9 +461,12 @@ describe("Receiz Wilds game state", () => {
     const other = createOwnerBoundInitialPlayState("another_explorer", bornAt);
     assert.equal(starter.inventory.every((asset) => asset.manifest.ownerReceizId === owner && verifyAnyWildsCard(asset).ok), true);
     assert.equal(starter.inventory[0]?.manifest.capturedAt, bornAt);
-    assert.equal(starter.inventory[0]?.manifest.variant.generatorVersion, 2);
+    assert.equal(starter.inventory[0]?.manifest.variant.generatorVersion, 3);
+    assert.ok(starter.inventory[0]?.manifest.name.split(" ").every((word) => word.length <= 5));
+    assert.doesNotMatch(starter.inventory[0]?.manifest.name ?? "", /flowkin/i);
     assert.equal(starter.selectedCardId, starter.inventory[0]?.manifest.familyId);
     assert.deepEqual(starter.discoveredCardIds, [starter.inventory[0]?.manifest.familyId]);
+    assert.notEqual(starter.inventory[0]?.manifest.name, other.inventory[0]?.manifest.name);
     assert.deepEqual(starter.inventory, repeated.inventory);
     assert.notEqual(starter.inventory[0]?.id, other.inventory[0]?.id);
     assert.notEqual(starter.inventory[0]?.manifest.variant.seed, other.inventory[0]?.manifest.variant.seed);

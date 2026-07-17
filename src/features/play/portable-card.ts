@@ -272,6 +272,7 @@ export function sealDiscoveredCard(input: {
   ownerReceizId: string;
   capturedAt: string;
   battleTranscriptDigest?: string;
+  lineage?: { parentAssetIds: readonly [string, string] };
 }): LegacyPortableCardAsset {
   const form = creatureForm(input.formId);
   const ownerReceizId = input.ownerReceizId.trim();
@@ -325,7 +326,8 @@ export function sealDiscoveredCard(input: {
       rootDigest: "self",
       previousAssetId: null,
       previousDigest: null,
-      evolvedAt: null
+      evolvedAt: null,
+      ...(input.lineage ? { parentAssetIds: [...input.lineage.parentAssetIds].sort() as [string, string] } : {})
     }
   };
   manifest.lineage.rootDigest = manifestDigest(manifest);

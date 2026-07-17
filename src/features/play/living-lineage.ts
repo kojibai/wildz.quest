@@ -3,8 +3,10 @@ import { applyGrowthEvent } from "./growth-engine";
 import { deriveFusionGenome, validateGenome } from "./heartbound-genome";
 import { admitLegacyCard, appendLivingCardRevision, currentLivingGenome, currentRevision, verifyLivingCard } from "./living-card-proof";
 import { isLivingCardAsset, type LivingCardAsset } from "./living-card-types";
-import { canonicalPortableCardJson, sealCollectedCard, sha256PortableBasis, verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
+import { canonicalPortableCardJson, sealDiscoveredCard, sha256PortableBasis, verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
 import type { FusionInheritance } from "./card-fusion";
+import { discoverLivingCreature } from "./living-taxonomy";
+import { deriveKaiKlokMoment } from "./kai-klok-moment";
 
 const RECOVERY_MS = 24 * 60 * 60 * 1000;
 
@@ -92,30 +94,30 @@ export function createLivingChildTransaction(input: LivingLineageInput) {
   const parentGenomeA = currentLivingGenome(ordered[0]!);
   const parentGenomeB = currentLivingGenome(ordered[1]!);
   const parentAssetIds = [ordered[0]!.id, ordered[1]!.id] as const;
-  const inheritedSignals = [
-    `parent-a:${parentGenomeA.identity?.markings.topology ?? parentGenomeA.surface.pattern}`,
-    `parent-a:${parentGenomeA.identity?.behavior.gesture ?? parentGenomeA.behavior.signatureGesture}`,
-    `parent-b:${parentGenomeB.identity?.markings.topology ?? parentGenomeB.surface.pattern}`,
-    `parent-b:${parentGenomeB.identity?.behavior.gesture ?? parentGenomeB.behavior.signatureGesture}`
-  ];
-  const legacyChild = sealCollectedCard({
+  const encounterId = `fusion:${eventDigest.slice(7, 39)}`;
+  const childIdentity = discoverLivingCreature({
+    encounterId,
+    form: baseForm,
+    discoveredAt: input.createdAt,
+    location: { x: 0, z: 0 },
+    ownerScope: parentA.manifest.ownerReceizId,
+    moment: deriveKaiKlokMoment({ occurredAt: input.createdAt, authority: "world" })
+  }, new Set([parentA.manifest.name.toLowerCase(), parentB.manifest.name.toLowerCase()]));
+  const legacyChild = sealDiscoveredCard({
+    identity: childIdentity,
     formId: baseForm.id,
     ownerReceizId: parentA.manifest.ownerReceizId,
-    encounterId: `fusion:${eventDigest.slice(7, 39)}`,
     capturedAt: input.createdAt,
-    kaiPulse: input.kaiPulse,
     battleTranscriptDigest: sha256PortableBasis(canonicalPortableCardJson(eventBasis.parentDigests)),
-    generatorVersion: 2,
-    lineage: { parentAssetIds, inheritedSignals }
+    lineage: { parentAssetIds }
   });
-  if (legacyChild.manifest.variant.generatorVersion !== 2) throw new Error("wilds_lineage_child_birth_missing");
+  if (legacyChild.manifest.variant.generatorVersion !== 3) throw new Error("wilds_lineage_child_birth_missing");
   const genome = deriveFusionGenome({
     parentA: parentGenomeA,
     parentB: parentGenomeB,
     emphasis: input.inheritance,
     kaiPulse: legacyChild.manifest.variant.kaiPulse,
-    mutationNonce: eventId,
-    birthProfile: legacyChild.manifest.variant.traits.birthProfile
+    mutationNonce: eventId
   });
   if (!validateGenome(genome).ok) throw new Error("wilds_lineage_child_genome_invalid");
   const name = legacyChild.manifest.name;

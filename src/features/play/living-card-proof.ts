@@ -271,8 +271,10 @@ export function verifyLivingCard(asset: LivingCardAsset): PortableCardVerificati
       if (manifest.variant.traitsDigest !== sha256PortableBasis(canonicalPortableCardJson(traits))) errors.push("variant_digest_mismatch");
       if (manifest.revisions[0]?.title !== identity.name.display || manifest.name !== identity.name.display || manifest.species !== identity.species.name) errors.push("birth_name_mismatch");
       if (canonicalPortableCardJson(manifest.revisions[0]?.stats) !== canonicalPortableCardJson(form.stats)) errors.push("birth_stats_mismatch");
-      const expectedGenome = deriveBirthGenome({ formId: form.id, proofDigest: manifest.birth.legacyDigest, variant: traits });
-      if (canonicalPortableCardJson(manifest.birthGenome) !== canonicalPortableCardJson(expectedGenome)) errors.push("birth_genome_mismatch");
+      if (manifest.birth.kind !== "fusion") {
+        const expectedGenome = deriveBirthGenome({ formId: form.id, proofDigest: manifest.birth.legacyDigest, variant: traits });
+        if (canonicalPortableCardJson(manifest.birthGenome) !== canonicalPortableCardJson(expectedGenome)) errors.push("birth_genome_mismatch");
+      }
     } catch {
       errors.push("discovery_birth_invalid");
     }

@@ -290,13 +290,18 @@ function kaiBornStarterCardForOwner(ownerReceizId: string, createdAt: string) {
   }));
   const familyIndex = Number.parseInt(choice.slice(7, 15), 16) % creatureFamilies.length;
   const family = creatureFamilies[familyIndex]!;
-  return sealCollectedCard({
-    formId: family.formIds[0],
-    ownerReceizId,
-    encounterId: `starter:${choice.slice(7, 31)}`,
-    capturedAt,
-    generatorVersion: 2
+  const form = creatureForm(family.formIds[0]);
+  if (!form) throw new Error("wilds_starter_form_missing");
+  const encounterId = `starter:${choice.slice(7, 31)}`;
+  const identity = discoverLivingCreature({
+    encounterId,
+    form,
+    discoveredAt: capturedAt,
+    location: { x: 0, z: 0 },
+    ownerScope: ownerReceizId,
+    moment: deriveKaiKlokMoment({ occurredAt: capturedAt, authority: "world" })
   });
+  return sealDiscoveredCard({ identity, formId: form.id, ownerReceizId, capturedAt });
 }
 
 const starterCardAsset = legacyStarterCardForOwner(LEGACY_PLACEHOLDER_OWNER);
@@ -1235,12 +1240,21 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     }
     let sealed: PortableCardAsset;
     try {
-      sealed = sealCollectedCard({
-        formId: `${nearest.card.id}-1`,
-        ownerReceizId,
+      const form = creatureForm(`${nearest.card.id}-1`);
+      if (!form) throw new Error("wilds_capture_form_missing");
+      const identity = discoverLivingCreature({
         encounterId,
-        capturedAt,
-        ...(input.type === "capture" ? { generatorVersion: 2 as const } : {})
+        form,
+        discoveredAt: capturedAt,
+        location: { ...state.player },
+        ownerScope: ownerReceizId,
+        moment: deriveKaiKlokMoment({ occurredAt: capturedAt, authority: "world" })
+      }, new Set(state.inventory.map((asset) => asset.manifest.name.toLowerCase())));
+      sealed = sealDiscoveredCard({
+        identity,
+        formId: form.id,
+        ownerReceizId,
+        capturedAt
       });
     } catch {
       return { ...state, lastEvent: "The Receiz Capsule reopened because the local seal could not be verified. Try again." };
