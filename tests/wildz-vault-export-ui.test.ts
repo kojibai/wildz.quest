@@ -7,6 +7,7 @@ test("Card Vault export seals the complete live V3 player payload, not cards alo
   const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
   const exporter = readFileSync("src/features/play/card-export.ts", "utf8");
   const adapter = readFileSync("src/lib/receiz/wildz-identity-adapter.ts", "utf8");
+  const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
 
   assert.match(campaign, /createWildsPlayerVault/);
   assert.match(campaign, /playerVault=\{\(\) => createWildsPlayerVault/);
@@ -25,6 +26,13 @@ test("Card Vault export seals the complete live V3 player payload, not cards alo
   assert.match(adapter, /appendWildzIdentitySealAuthority/);
   assert.match(adapter, /createWildzIdentityBinding/);
   assert.match(adapter, /appendWildzIdentityBindingTrailer/);
+  assert.match(shell, /downloadWildzIdentityPlayerCard/);
+  assert.match(campaign, /onExportIdentityCard/);
+  assert.match(inventory, /aria-label="Save Receiz ID Card"/);
+  assert.match(inventory, /This image is your Receiz account/);
+  assert.match(inventory, /giving it away gives account access/);
+  assert.match(inventory, /aria-busy=\{identityCardSaving\}/);
+  assert.match(inventory, /wilds-action-feedback/);
 });
 
 test("Vault export keeps the shared Receiz Wilds PNG as the downloadable artifact", () => {

@@ -469,8 +469,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.doesNotMatch(css, /\.wilds-command-sheet-content \.wilds-inventory > header \{ display: none; \}/);
     assert.match(css, /\.wilds-command-sheet\s*\{[^}]*grid-template-rows:\s*auto auto minmax\(0, 1fr\)/s);
     assert.match(css, /\.wilds-command-sheet-content\s*\{[^}]*overflow-y:\s*auto/s);
-    assert.match(css, /\.wilds-command-sheet-content \.wilds-vault-actions\s*\{[^}]*grid-template-columns:\s*repeat\(3, 44px\)[^}]*justify-content:\s*end/s);
-    assert.match(css, /\.wilds-command-sheet-content \.wilds-import-card\s*\{[^}]*width:\s*44px[^}]*min-height:\s*44px/s);
+    assert.match(css, /\.wilds-command-sheet-content \.wilds-vault-actions\s*\{[^}]*grid-template-columns:\s*repeat\(4, 40px\)[^}]*justify-content:\s*end/s);
+    assert.match(css, /\.wilds-command-sheet-content \.wilds-import-card\s*\{[^}]*width:\s*40px[^}]*min-height:\s*44px/s);
     assert.match(css, /\.wilds-command-sheet-content \.wilds-import-card::before\s*\{[^}]*inset:\s*4px/s);
     assert.doesNotMatch(css, /\.wilds-command-sheet-content \.wilds-inventory > header \.wilds-import-card\s*\{[^}]*width:\s*100%/s);
     assert.match(css, /\.wilds-command-sheet-content \.wilds-import-card span\s*\{[^}]*display:\s*none/s);

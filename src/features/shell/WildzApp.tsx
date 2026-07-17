@@ -10,6 +10,7 @@ import {
   alignWildzContinuityWithProofSession,
   connectWildzProofSession,
   createNamedWildzIdentity,
+  downloadWildzIdentityPlayerCard,
   downloadWildzIdentityPlayerVault,
   restoreWildzFileForSurface,
   resumePendingWildzVault,
@@ -340,6 +341,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           ownerReceizId={ownerUsername}
           playerDisplayName={identity.displayName ?? `@${ownerUsername}`}
           onPlayStateChange={persistPlayState}
+          onExportIdentityCard={(assets, player) => downloadWildzIdentityPlayerCard(identity, assets, player)}
           onExportVault={(assets, player) => downloadWildzIdentityPlayerVault(identity, assets, player)}
           onRestoreArtifact={(file, confirmCardOnly, currentPlayState) => restoreArtifact(file, "card-vault", confirmCardOnly, currentPlayState)}
           onOpenProfile={() => setOverlay({ kind: "profile", username: `@${ownerUsername}` })}
