@@ -801,6 +801,7 @@ export function PlayCampaign({
             {avatarStyle ? <WildzReferenceHud
               heading={playerHeading}
               model={hudModel}
+              onOpenMap={() => setMapOpen(true)}
               onOpenMission={() => setRequestedCommand("mission")}
             /> : null}
 

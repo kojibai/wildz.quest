@@ -64,6 +64,8 @@ export function WildsInventory({
   const [qr, setQr] = useState("");
   const [receizVaults, setReceizVaults] = useState<ReceizCommerceVaultProjection[]>([]);
   const [importing, setImporting] = useState(false);
+  const [vaultSaving, setVaultSaving] = useState(false);
+  const [cardSaving, setCardSaving] = useState(false);
   const importInput = useRef<HTMLInputElement>(null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const suppressCardClick = useRef(false);
@@ -132,21 +134,25 @@ export function WildsInventory({
       <header className="wilds-vault-compact-header">
         <div><span>Portable collection</span><h3>Wilds Inventory</h3><p>{state.inventory.length} sealed forms · unlimited unique variants</p></div>
         <div className="wilds-vault-actions">
-          <button aria-label="Import card or vault" className="wilds-import-card" disabled={importing} onClick={() => importInput.current?.click()} title="Import card or vault" type="button">
+          <button aria-busy={importing} aria-label="Import card or vault" className={`wilds-import-card wilds-action-feedback${importing ? " wilds-action-busy" : ""}`} disabled={importing} onClick={() => importInput.current?.click()} title="Import card or vault" type="button">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v11m0-11L8 7m4-4 4 4M5 13v6h14v-6" /></svg>
             <span>Import card or vault</span>
           </button>
           <button
             aria-label="Save vault image"
-            className="wilds-import-card vault"
-            disabled={!state.inventory.length}
+            aria-busy={vaultSaving}
+            className={`wilds-import-card vault wilds-action-feedback${vaultSaving ? " wilds-action-busy" : ""}`}
+            disabled={!state.inventory.length || vaultSaving}
             onClick={async () => {
+              setVaultSaving(true);
               setVaultMessage("Preparing portable vault image…");
               try {
                 await onExportVault(state.inventory, playerVault());
                 setVaultMessage("Vault image saved with your player identity, progress, settings, and every verified card sealed inside.");
               } catch (error) {
                 setVaultMessage(error instanceof Error ? `Vault save failed: ${error.message}` : "Vault save failed. Try again from this browser.");
+              } finally {
+                setVaultSaving(false);
               }
             }}
             title="Save vault image"
@@ -155,7 +161,7 @@ export function WildsInventory({
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16v13H4zM8 6V4h8v2m-4 3v6m0 0-3-3m3 3 3-3" /></svg>
             <span>Save vault image</span>
           </button>
-          <button aria-label="Fuse cards" className="wilds-import-card fusion" disabled={state.inventory.length < 2} onClick={() => setFusionOpen((value) => !value)} title="Fuse cards" type="button">
+          <button aria-label="Fuse cards" className="wilds-import-card fusion wilds-action-feedback" disabled={state.inventory.length < 2} onClick={() => setFusionOpen((value) => !value)} title="Fuse cards" type="button">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 7h5l2 3 2-3h5M5 17h5l2-3 2 3h5" /></svg>
             <span>Fuse cards</span>
           </button>
@@ -291,8 +297,11 @@ export function WildsInventory({
               <button className="button button-primary" disabled={state.selectedAssetId === selected.id} onClick={() => onInput({ type: "select-asset", assetId: selected.id })} type="button">{state.selectedAssetId === selected.id ? "Active deck leader" : "Set as active deck leader"}</button>
               <Link className="button button-outline" href={`/cards/${encodeURIComponent(selected.id)}`}>Open standalone card page</Link>
               <button
-                className="button button-outline"
+                aria-busy={cardSaving}
+                className={`button button-outline wilds-action-feedback${cardSaving ? " wilds-action-busy" : ""}`}
+                disabled={cardSaving}
                 onClick={async () => {
+                  setCardSaving(true);
                   setDownloadMessage("Publishing verified card link…");
                   try {
                     const result = await downloadPortableCard(selected);
@@ -303,6 +312,8 @@ export function WildsInventory({
                     setDownloadMessage(error instanceof Error
                       ? `Card download failed: ${error.message}`
                       : "Card download failed. Try again from this browser.");
+                  } finally {
+                    setCardSaving(false);
                   }
                 }}
                 type="button"

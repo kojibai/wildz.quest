@@ -4,9 +4,10 @@ import Image from "next/image";
 import type { WildzHudModel } from "./wildz-gameplay-hud";
 import { WildzMinimap } from "./WildzMinimap";
 
-export function WildzReferenceHud({ model, heading, onOpenMission }: {
+export function WildzReferenceHud({ model, heading, onOpenMap, onOpenMission }: {
   model: WildzHudModel;
   heading: number;
+  onOpenMap: () => void;
   onOpenMission: () => void;
 }) {
   return <div className="wildz-reference-hud">
@@ -23,6 +24,6 @@ export function WildzReferenceHud({ model, heading, onOpenMission }: {
       <div className="wildz-xp-meter"><span>XP</span><strong>{model.xp.progress}%</strong><i><b style={{ width: `${model.xp.progress}%` }} /></i></div>
     </section>
     <button className="wildz-mission-chip" aria-label={`Open mission details · ${model.mission.progress}% progress`} onClick={onOpenMission} type="button"><span>★</span><strong>{model.mission.progress}%<small>Mission</small></strong></button>
-    <WildzMinimap x={model.location.x} z={model.location.z} heading={heading} />
+    <WildzMinimap x={model.location.x} z={model.location.z} heading={heading} onOpen={onOpenMap} />
   </div>;
 }

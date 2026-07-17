@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   downloadPortableCard,
-  downloadPortableVault
+  downloadPortableVault,
+  verifyPortableVaultPng
 } from "../src/features/play/card-export";
 import { createPublicWildsCardRecord } from "../src/features/play/public-card-registry";
 import { sealCollectedCard } from "../src/features/play/portable-card";
@@ -97,7 +98,7 @@ function card(encounterId: string) {
   });
 }
 
-test("v103 Vault download preserves the native proof artifact bytes", async () => {
+test("Vault download stays cross-platform when the native proof response is not a portable Wilds PNG", async () => {
   const browser = installDownloadBrowser();
   const expected = nativeArtifact(103);
   try {
@@ -117,7 +118,9 @@ test("v103 Vault download preserves the native proof artifact bytes", async () =
     const downloaded = browser.downloaded();
     assert.ok(downloaded);
     assert.equal(downloaded.type, "image/png");
-    assert.deepEqual(new Uint8Array(await downloaded.arrayBuffer()), expected);
+    const bytes = new Uint8Array(await downloaded.arrayBuffer());
+    assert.notDeepEqual(bytes, expected);
+    assert.equal(verifyPortableVaultPng(bytes).ok, true);
     assert.match(browser.downloadedFilename(), /^wilds-vault-[a-f0-9]{12}\.receized\.png$/);
   } finally {
     browser.restore();

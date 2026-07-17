@@ -36,6 +36,9 @@ test("public card routes trust only the cookie actor and durable projection", ()
 });
 
 test("public card recovery never reads private browser inventory", () => {
+  const route = readFileSync("app/api/cards/[assetId]/route.ts", "utf8");
+  assert.match(route, /resolveSdkPublicWildzCard/);
+  assert.match(route, /requestOrigin\(request\)/);
   const page = readFileSync("src/features/play/WildsCardPage.tsx", "utf8");
   assert.doesNotMatch(page, /initialPlayState|restorePlayState|localStorage|receiz:wilds:save:v2/);
   assert.match(page, /fetch\(`\/api\/cards\/\$\{encodeURIComponent\(assetId\)\}`/);

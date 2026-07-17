@@ -490,9 +490,8 @@ export async function downloadPortableVault(assets: PortableCardAsset[], player?
   const portable = await portableVaultPngBlob(assets, player);
   const portableBytes = new Uint8Array(await portable.arrayBuffer());
   const remoteProof = await requestReceizProofObject(portable, "wilds-vault.png", "vault");
-  if (player && !remoteProof) {
-    throw new Error("receiz_proof_object_unavailable");
-  }
-  const exported = remoteProof ?? portableBytes;
+  const exported = remoteProof && verifyPortableVaultPng(remoteProof).ok
+    ? remoteProof
+    : portableBytes;
   downloadBlob(new Blob([exported.slice().buffer], { type: "image/png" }), `wilds-vault-${digest}.receized.png`);
 }

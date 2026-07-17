@@ -6,6 +6,7 @@ import {
 import { verifyAnyWildsCard, type PortableCardAsset } from "@/features/play/portable-card";
 import { WILDZ_PRODUCT } from "@/lib/wildz/product";
 import { createReceizCommerceAdapter } from "@/lib/receiz/adapter";
+import { resolveSdkPublicWildzCard } from "@/lib/receiz/wildz-market-public-card";
 import { resolveWildzCookieActor } from "@/lib/receiz/wildz-cookie-actor";
 import { createReceizWildzPublicRepository } from "@/lib/receiz/wildz-public-repository";
 import {
@@ -103,13 +104,32 @@ export async function GET(request: NextRequest, context: { params: Promise<{ ass
   try {
     const { assetId: rawAssetId } = await context.params;
     const { assetId } = parsePublicCardParam(rawAssetId);
-    const repository = createReceizWildzPublicRepository({ adapter: createReceizCommerceAdapter() });
-    const { state } = await repository.load();
-    const asset = state.cards[assetId];
+    const adapter = createReceizCommerceAdapter();
+    const repository = createReceizWildzPublicRepository({ adapter });
+    let asset: PortableCardAsset | null = null;
+    let registeredAt = new Date().toISOString();
+    let repositoryFailure: unknown = null;
+    try {
+      const { state } = await repository.load();
+      const projected = state.cards[assetId];
+      if (projected && verifyAnyWildsCard(projected).ok) {
+        asset = projected;
+        registeredAt = state.updatedAt;
+      }
+    } catch (cause) {
+      repositoryFailure = cause;
+    }
+    if (!asset) {
+      asset = await resolveSdkPublicWildzCard(assetId, {
+        adapter,
+        requestOrigin: requestOrigin(request)
+      });
+    }
     if (!asset || !verifyAnyWildsCard(asset).ok) {
+      if (repositoryFailure) throw repositoryFailure;
       return NextResponse.json({ ok: false, error: "wildz_public_card_not_found" }, { status: 404 });
     }
-    const record = createPublicWildsCardRecord(asset, requestOrigin(request), state.updatedAt);
+    const record = createPublicWildsCardRecord(asset, requestOrigin(request), registeredAt);
     return NextResponse.json({ ok: true, record }, {
       headers: { "cache-control": "public, max-age=60, stale-while-revalidate=300" }
     });

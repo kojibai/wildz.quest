@@ -13,7 +13,7 @@ function mapPoint(worldX: number, worldZ: number, playerX: number, playerZ: numb
   };
 }
 
-export function WildzMinimap({ x, z, heading = 0 }: { x: number; z: number; heading?: number }) {
+export function WildzMinimap({ x, z, heading = 0, onOpen }: { x: number; z: number; heading?: number; onOpen: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -67,9 +67,9 @@ export function WildzMinimap({ x, z, heading = 0 }: { x: number; z: number; head
     }
     context.restore();
   }, [x, z]);
-  return <div className="wildz-minimap" aria-label={`World minimap. X ${Math.round(x)}, Z ${Math.round(z)}`}>
+  return <button className="wildz-minimap" aria-label={`Open world map. Current position X ${Math.round(x)}, Z ${Math.round(z)}`} onClick={onOpen} type="button">
     <canvas ref={canvasRef} />
-    <span className="wildz-minimap-heading" style={{ transform: `translate(-50%, -50%) rotate(${heading}rad)` }}>▲</span>
+    <span aria-hidden="true" className="wildz-minimap-heading" style={{ transform: `translate(-50%, -50%) rotate(${heading}rad)` }}>▲</span>
     <b>X {Math.round(x)} · Z {Math.round(z)}</b>
-  </div>;
+  </button>;
 }

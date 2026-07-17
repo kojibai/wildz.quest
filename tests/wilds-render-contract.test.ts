@@ -61,11 +61,16 @@ describe("Receiz Wilds rendering contract", () => {
 
   it("connects the globe, Rift travel, Walk Run, and Pulse to the playable world", async () => {
     const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
+    const referenceHud = await readFile("src/features/play/WildzReferenceHud.tsx", "utf8");
+    const minimap = await readFile("src/features/play/WildzMinimap.tsx", "utf8");
     const controls = await readFile("src/features/play/WildzSocialDeck.tsx", "utf8");
     const route = await readFile("app/api/wilds/atlas/route.ts", "utf8");
 
     assert.match(campaign, /className="wilds-utility-cluster"/);
     assert.match(campaign, /aria-label="Open world map"/);
+    assert.match(campaign, /onOpenMap=\{\(\) => setMapOpen\(true\)\}/);
+    assert.match(referenceHud, /<WildzMinimap[\s\S]*onOpen=\{onOpenMap\}/);
+    assert.match(minimap, /<button[\s\S]*aria-label=\{`Open world map\./);
     assert.match(campaign, /<WildsWorldMap/);
     assert.doesNotMatch(campaign, /WildsWorldControls/);
     assert.match(campaign, /<WildzSocialDeck/);
@@ -449,6 +454,9 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(inventory, />Save card image</);
     assert.match(inventory, /aria-label="Import card or vault"/);
     assert.match(inventory, /aria-label="Save vault image"/);
+    assert.match(inventory, /aria-busy=\{vaultSaving\}/);
+    assert.match(inventory, /aria-busy=\{cardSaving\}/);
+    assert.match(inventory, /wilds-action-busy/);
     assert.match(inventory, /aria-label="Fuse cards"/);
     assert.match(inventory, /setVaultMessage/);
     assert.match(inventory, /type: "fuse-cards"/);
@@ -465,6 +473,9 @@ describe("Receiz Wilds rendering contract", () => {
     assert.doesNotMatch(css, /\.wilds-command-sheet-content \.wilds-inventory > header \.wilds-import-card\s*\{[^}]*width:\s*100%/s);
     assert.match(css, /\.wilds-command-sheet-content \.wilds-import-card span\s*\{[^}]*display:\s*none/s);
     assert.match(css, /\.wilds-inventory-detail \.wilds-card-scene\s*\{[^}]*aspect-ratio:\s*5\s*\/\s*7/s);
+    assert.match(css, /\.wilds-action-feedback:active/);
+    assert.match(css, /\.wilds-action-feedback\.wilds-action-busy/);
+    assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
     assert.match(css, /\.mobile-play-wrap \.wilds-command-sheet\s*\{[^}]*top:\s*calc\(52px \+ env\(safe-area-inset-top\)\)[^}]*max-height:\s*none/s);
   });
 
