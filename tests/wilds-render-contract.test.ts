@@ -3,7 +3,18 @@ import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 
 describe("Receiz Wilds rendering contract", () => {
-  it("opens a focus-safe 3D atlas with an accessible fallback", async () => {
+  it("keeps the atlas unobstructed and makes the map itself the travel control", async () => {
+    const map = await readFile("src/features/play/WildsWorldMap.tsx", "utf8");
+
+    assert.match(map, /onDrop=\{\(position\) => void onRift\(position\)\}/);
+    assert.match(map, /onSelect=\{\(landmarkId\) => \{[\s\S]*?void onRift\(landmarkApproachPoint\(landmark\)\)/);
+    assert.doesNotMatch(map, /wilds-atlas-destinations/);
+    assert.doesNotMatch(map, /wilds-atlas-fallback/);
+    assert.doesNotMatch(map, /wilds-atlas-destination-card/);
+    assert.doesNotMatch(map, /Drop anywhere\. Learn everywhere\./);
+  });
+
+  it("opens a focus-safe unobstructed 3D atlas", async () => {
     const map = await readFile("src/features/play/WildsWorldMap.tsx", "utf8");
     const canvas = await readFile("src/features/play/WildsAtlasCanvas.tsx", "utf8");
     const css = await readFile("app/globals.css", "utf8");
@@ -11,10 +22,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(map, /role="dialog"/);
     assert.match(map, /aria-modal="true"/);
     assert.match(map, /aria-label="Close world map"/);
-    assert.match(map, /aria-label="Hold to Rift Drop"/);
-    assert.match(map, /landmarkApproachPoint\(selected\)/);
-    assert.match(map, /walk to the physical entrance/);
-    assert.match(map, /wilds-atlas-fallback/);
+    assert.match(map, /landmarkApproachPoint\(landmark\)/);
+    assert.doesNotMatch(map, /wilds-atlas-destinations/);
     assert.match(map, /createPortal/);
     assert.match(map, /document\.body/);
     assert.match(map, /\.focus\(\)/);
@@ -30,7 +39,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.wilds-world-map-header h2\s*\{[^}]*white-space:\s*normal/s);
   });
 
-  it("renders an organic world map and lets explorers confirm any terrain coordinate", async () => {
+  it("renders an organic world map and lets explorers Rift from any terrain coordinate", async () => {
     const map = await readFile("src/features/play/WildsWorldMap.tsx", "utf8");
     const canvas = await readFile("src/features/play/WildsAtlasCanvas.tsx", "utf8");
 
@@ -40,9 +49,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(canvas, /ExactPlayerLights/);
     assert.match(canvas, /atlas-live-players/);
     assert.doesNotMatch(canvas, /gridHelper/);
-    assert.match(map, /Travel here\?/);
-    assert.match(map, /onRift\(freeDrop\)/);
-    assert.match(map, /Confirm Rift travel/);
+    assert.match(map, /onDrop=\{\(position\) => void onRift\(position\)\}/);
   });
 
   it("shares stable named geography between the atlas and walkable world", async () => {
@@ -529,7 +536,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(world, /zIndexRange=\{\[64, 56\]\}/);
     assert.match(world, /role="meter"/);
     assert.match(world, /aria-label=\{`\$\{fighter\.name\} health \$\{fighter\.hp\} of \$\{fighter\.maxHp\}`\}/);
-    assert.match(css, /\.wilds-battle-world-stat\s*\{[^}]*width:\s*clamp\(88px,\s*14vw,\s*118px\)[^}]*pointer-events:\s*none/s);
+    assert.match(css, /\.wilds-battle-world-stat\s*\{[^}]*width:\s*clamp\(118px,\s*18vw,\s*156px\)[^}]*pointer-events:\s*none/s);
     assert.match(css, /\.wilds-battle-world-stat-meter\s*\{[^}]*height:\s*3px[^}]*overflow:\s*hidden/s);
     assert.match(css, /\.wilds-battle-world-stat\.capture-ready/);
     assert.doesNotMatch(battle, /function HealthBar/);

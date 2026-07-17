@@ -162,7 +162,7 @@ function ActiveCompanion({ state }: { state: PlayState }) {
         <meshStandardMaterial color="#f4fff6" emissive="#7cdea5" emissiveIntensity={0.55} transparent opacity={0.92} />
       </mesh>
       {state.battle && isBattleTelemetryPhase(state.encounter.phase) ? (
-        <BattleWorldTelemetry fighter={state.battle.player} position={[0, 1.12, 0]} side="player" />
+        <BattleWorldTelemetry fighter={state.battle.player} position={[0, 1.9, 0]} side="player" />
       ) : (
         <Html center className="wilds-world-label" distanceFactor={8} position={[0, 0.96, 0]}>
           <span>{card.name}</span>
@@ -407,7 +407,7 @@ function EncounterSequence({ state }: { state: PlayState }) {
         <BattleWorldTelemetry
           captureReady={encounter.phase === "capture_ready"}
           fighter={state.battle.wild}
-          position={[0, 1.38, 0]}
+          position={[0, 2.15, 0]}
           side="wild"
         />
       ) : null}
