@@ -415,6 +415,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(inventory, /is-retired/);
     assert.match(inventory, /Retired memorial/);
     assert.match(inventory, /selectedRetired/);
+    assert.match(inventory, /selectedRetired \? <div className="wilds-vault-card-memorial"/);
+    assert.match(inventory, /: <WildsCardScene asset=\{selected\} origin=\{origin\} qr=\{qr\} \/>/);
     assert.match(drawer, /retired/);
     assert.match(css, /\.wilds-inventory-grid > button\.is-retired/);
     assert.match(css, /\.wildz-creature-choice\.is-retired/);
@@ -539,6 +541,7 @@ describe("Receiz Wilds rendering contract", () => {
   });
 
   it("anchors compact battle health to both combatants above the gameplay HUD", async () => {
+    const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
     const world = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");
     const battle = await readFile("src/features/play/WildsBattle.tsx", "utf8");
     const css = await readFile("app/globals.css", "utf8");
@@ -554,6 +557,10 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(css, /\.wilds-battle-world-stat\s*\{[^}]*width:\s*clamp\(118px,\s*18vw,\s*156px\)[^}]*pointer-events:\s*none/s);
     assert.match(css, /\.wilds-battle-world-stat-meter\s*\{[^}]*height:\s*3px[^}]*overflow:\s*hidden/s);
     assert.match(css, /\.wilds-battle-world-stat\.capture-ready/);
+    assert.match(campaign, /wild-battle-active/);
+    assert.match(css, /\.wilds-stage\.wild-battle-active \.wilds-world-navigator-stack[\s\S]*?visibility:\s*hidden/);
+    assert.match(css, /\.wilds-stage\.wild-battle-active \.wilds-live-cluster[\s\S]*?visibility:\s*hidden/);
+    assert.match(css, /\.wilds-battle\s*\{[^}]*z-index:\s*90/s);
     assert.doesNotMatch(battle, /function HealthBar/);
   });
 
@@ -578,6 +585,10 @@ describe("Receiz Wilds rendering contract", () => {
     assert.doesNotMatch(styles, /content: "↗"/);
     assert.match(styles, /\.wilds-live-badge, \.wilds-live-share \{ min-height: 30px/);
     assert.match(styles, /\.wilds-live-share \{[\s\S]*?width: 30px/);
+    assert.match(multiplayer, /onRosterOpenChange\?: \(open: boolean\) => void/);
+    assert.match(campaign, /multiplayer-roster-open/);
+    assert.match(styles, /\.wilds-stage\.multiplayer-roster-open\s*\{[^}]*z-index:\s*39/s);
+    assert.match(styles, /\.wilds-stage\.multiplayer-roster-open \.wilds-remote-nameplate\s*\{[^}]*visibility:\s*hidden/s);
     assert.match(multiplayer, /Friendly battle/);
     assert.match(multiplayer, /Return to world/);
     assert.match(hook, /dismissBattle/);

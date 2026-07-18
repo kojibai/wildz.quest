@@ -156,6 +156,7 @@ export function PlayCampaign({
   const [qualityProfile, setQualityProfile] = useState(currentWildsQualityProfile);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
+  const [multiplayerRosterOpen, setMultiplayerRosterOpen] = useState(false);
   const cameraHeadingRef = useRef(0);
   const updateCameraHeading = useCallback((heading: number) => {
     cameraHeadingRef.current = heading;
@@ -231,6 +232,7 @@ export function PlayCampaign({
     memories: livingWorld.snapshot?.story.memories ?? []
   });
   const sagaPlayer = livingWorld.snapshot?.players[ownerReceizId] ?? null;
+  const wildBattleActive = Boolean(state.battle && ["player_turn", "capture_ready", "fled", "defeated"].includes(state.encounter.phase));
   const sagaContributions: WildsMissionContribution[] = saga.chapter.missions.flatMap((mission) => mission.nodes.flatMap((node) => {
     const amount = sagaPlayer?.contributions[node.id] ?? 0;
     return amount > 0 ? [{
@@ -955,7 +957,7 @@ export function PlayCampaign({
       <div className="wilds-shell wilds-playable-shell">
         <div className="wilds-world">
           <div
-            className={`wilds-stage${state.encounter.phase === "hint" ? ` signal-${state.encounter.proximity}` : ""}${multiplayer.activeBattle ? " pvp-active" : ""}`}
+            className={`wilds-stage${state.encounter.phase === "hint" ? ` signal-${state.encounter.proximity}` : ""}${multiplayer.activeBattle ? " pvp-active" : ""}${multiplayerRosterOpen ? " multiplayer-roster-open" : ""}${wildBattleActive ? " wild-battle-active" : ""}`}
             aria-label="Receiz Wilds playable 3D world"
           >
             <WildsWorldCanvas
@@ -984,7 +986,7 @@ export function PlayCampaign({
               onOpenMission={() => setRequestedCommand("mission")}
             /> : null}
 
-            {avatarStyle ? <WildsMultiplayer multiplayer={multiplayer} position={state.player} /> : null}
+            {avatarStyle ? <WildsMultiplayer multiplayer={multiplayer} position={state.player} onRosterOpenChange={setMultiplayerRosterOpen} /> : null}
             <div className="wilds-world-navigator-stack">
               {avatarStyle ? <WildsLivingWorldHud connected={networkEnabled} onEnterRaid={enterLivingRaid} player={state.player} world={livingWorld} /> : null}
               {nearestTrainer ? <button
@@ -1013,7 +1015,7 @@ export function PlayCampaign({
               </button>
             </div>
 
-            {state.battle && ["player_turn", "capture_ready", "fled", "defeated"].includes(state.encounter.phase) ? (
+            {wildBattleActive && state.battle ? (
               <WildsBattle
                 battle={state.battle}
                 inventory={state.inventory}

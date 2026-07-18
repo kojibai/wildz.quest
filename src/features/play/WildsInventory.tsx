@@ -320,7 +320,7 @@ export function WildsInventory({
         </div>
         {selected && selectedForm ? (
           <aside className={`wilds-inventory-detail${selectedRetired ? " is-retired" : ""}`}>
-            <div className="wilds-vault-card-memorial"><WildsCardScene asset={selected} origin={origin} qr={qr} />{selectedRetired ? <strong>Retired memorial</strong> : null}</div>
+            {selectedRetired ? <div className="wilds-vault-card-memorial"><WildsCardScene asset={selected} origin={origin} qr={qr} /><strong>Retired memorial</strong></div> : <WildsCardScene asset={selected} origin={origin} qr={qr} />}
             <div className="wilds-inventory-actions">
               <button className="button button-primary" disabled={selectedRetired || state.selectedAssetId === selected.id} onClick={() => onInput({ type: "select-asset", assetId: selected.id })} type="button">{selectedRetired ? "Retired · cannot enter game" : state.selectedAssetId === selected.id ? "Active deck leader" : "Set as active deck leader"}</button>
               <Link className="button button-outline" href={`/cards/${encodeURIComponent(selected.id)}`}>Open standalone card page</Link>

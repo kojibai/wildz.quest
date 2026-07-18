@@ -8,7 +8,15 @@ function healthPercent(hp: number, maxHp: number) {
   return `${Math.max(0, Math.min(100, (hp / maxHp) * 100))}%`;
 }
 
-export function WildsMultiplayer({ multiplayer, position }: { multiplayer: WildsMultiplayerController; position: { x: number; z: number } }) {
+export function WildsMultiplayer({
+  multiplayer,
+  position,
+  onRosterOpenChange
+}: {
+  multiplayer: WildsMultiplayerController;
+  position: { x: number; z: number };
+  onRosterOpenChange?: (open: boolean) => void;
+}) {
   const [rosterOpen, setRosterOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [message, setMessage] = useState("");
@@ -24,6 +32,10 @@ export function WildsMultiplayer({ multiplayer, position }: { multiplayer: Wilds
     const timer = window.setTimeout(() => setNotice(""), 2_800);
     return () => window.clearTimeout(timer);
   }, [notice]);
+  useEffect(() => {
+    onRosterOpenChange?.(rosterOpen);
+  }, [onRosterOpenChange, rosterOpen]);
+  useEffect(() => () => onRosterOpenChange?.(false), [onRosterOpenChange]);
 
   return (
     <>

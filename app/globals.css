@@ -2770,10 +2770,18 @@ a {
 
 .wilds-battle {
   position: absolute;
-  z-index: 10;
+  z-index: 90;
   inset: 8px;
   display: grid;
   align-content: space-between;
+  pointer-events: none;
+}
+
+.wilds-stage.wild-battle-active .wilds-world-navigator-stack,
+.wilds-stage.wild-battle-active .wilds-live-cluster,
+.wilds-stage.wild-battle-active .wilds-utility-cluster,
+.wilds-stage.wild-battle-active .wilds-remote-nameplate {
+  visibility: hidden;
   pointer-events: none;
 }
 
@@ -11294,6 +11302,8 @@ button.product-purchase-secondary-link {
 @keyframes wilds-live-pulse { 50% { opacity: .38; transform: scale(.78); } }
 
 .wilds-live-sheet { position: absolute; z-index: 44; color: #eafff9; border: 1px solid rgb(126 235 205 / 36%); background: linear-gradient(160deg, rgb(8 37 45 / 97%), rgb(3 17 24 / 98%)); box-shadow: 0 24px 70px rgb(0 0 0 / 42%); backdrop-filter: blur(20px); }
+.wilds-stage.multiplayer-roster-open { z-index: 39; }
+.wilds-stage.multiplayer-roster-open .wilds-remote-nameplate { visibility: hidden; }
 .wilds-live-sheet header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
 .wilds-live-sheet header div { display: grid; gap: 2px; }
 .wilds-live-sheet header span, .wilds-live-sheet > span { color: #76e9c6; font-size: 9px; font-weight: 900; letter-spacing: .15em; text-transform: uppercase; }
