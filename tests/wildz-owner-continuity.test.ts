@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  applyWildsInput,
   createOwnerBoundInitialPlayState,
   initialPlayState,
   restorePlayState,
   serializePlayState
 } from "../src/features/play/game-state";
+import { sealCollectedCard } from "../src/features/play/portable-card";
 import { generateWildzCharacter } from "../src/features/identity/wildz-genesis";
-import { createWildsPlayerVault, verifyWildsPlayerVault } from "../src/features/play/wilds-player-vault";
+import { createWildsPlayerVault, reconcileWildsPlayerVault, verifyWildsPlayerVault } from "../src/features/play/wilds-player-vault";
+import { initialWildsWorldProjection } from "../src/features/play/wilds-world-state";
 import {
   loadWildzRestoredOwnerState,
   prepareWildzPlayerPlayState,
@@ -133,4 +136,63 @@ test("the default identity starter survives player Vault export and reimport und
   assert.deepEqual(restored.inventory.map((asset) => asset.id), player.playState.inventory.map((asset) => asset.id));
   assert.equal(restored.inventory.every((asset) => asset.manifest.ownerReceizId === SESSION.actorId), true);
   assert.deepEqual(restorePlayState(serializePlayState(restored), SESSION.actorId).supportAssetIds, [null, null]);
+});
+
+test("Commerce Vault reconciliation preserves both Vaults and every continuity collection", () => {
+  const localCard = sealCollectedCard({
+    formId: "mintcub-1",
+    ownerReceizId: SESSION.actorId,
+    encounterId: "local-vault-card",
+    capturedAt: "2026-07-15T20:00:00.000Z"
+  });
+  const uploadedCard = sealCollectedCard({
+    formId: "voltray-1",
+    ownerReceizId: SESSION.actorId,
+    encounterId: "uploaded-vault-card",
+    capturedAt: "2026-07-15T21:00:00.000Z"
+  });
+  const empty = {
+    ...createOwnerBoundInitialPlayState(SESSION.actorId),
+    inventory: [],
+    discoveredCardIds: [],
+    pendingSyncAssetIds: [],
+    achievements: [],
+    completedMissionIds: [],
+    civicEvents: [],
+    ecologyEvents: [],
+    raidEvents: [],
+    rewardCards: [],
+    selectedAssetId: "",
+    selectedCardId: ""
+  };
+  const local = {
+    ...applyWildsInput(empty, { type: "import-card", asset: localCard }),
+    achievements: ["local-achievement"],
+    completedMissionIds: ["local-mission"]
+  };
+  const uploadedState = {
+    ...applyWildsInput(empty, { type: "import-card", asset: uploadedCard }),
+    achievements: ["uploaded-achievement"],
+    completedMissionIds: ["uploaded-mission"]
+  };
+  const uploaded = createWildsPlayerVault({
+    playerId: SESSION.actorId,
+    exportedAt: "2026-07-15T22:00:00.000Z",
+    playState: uploadedState,
+    settings: { avatarStyle: "female", movementMode: "walk", audio: {}, cardOrder: "rarity" },
+    personalEvents: [],
+    canonicalCursor: { worldId: "wilds:global:v3", revision: 0, eventId: null },
+    receipts: []
+  });
+
+  const restored = reconcileWildsPlayerVault({
+    local,
+    restored: uploaded,
+    canonical: initialWildsWorldProjection(),
+    actorId: SESSION.actorId
+  }).state;
+
+  assert.deepEqual(new Set(restored.inventory.map((asset) => asset.id)), new Set([localCard.id, uploadedCard.id]));
+  assert.deepEqual(new Set(restored.achievements), new Set(["local-achievement", "uploaded-achievement"]));
+  assert.deepEqual(new Set(restored.completedMissionIds), new Set(["local-mission", "uploaded-mission"]));
 });

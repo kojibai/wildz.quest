@@ -16,7 +16,8 @@ test("D-pad maps analog camera-relative travel onto existing movement intents", 
   assert.match(source, /move-vector/);
   assert.match(source, /cameraRelativeMovement/);
   assert.match(source, /Math\.min\(rect\.width, rect\.height\) \* 0\.42/);
-  assert.match(source, /window\.setInterval\(\(\) => emitMovement\(\), 45\)/);
+  assert.match(source, /window\.requestAnimationFrame\(tick\)/);
+  assert.match(source, /window\.cancelAnimationFrame\(frame\)/);
   assert.equal(source.match(/emitMovement\(/g)?.length, 2, "movement must emit immediately and then repeat while held");
   const pointerDownStart = source.indexOf("onPointerDown=");
   const pointerMoveStart = source.indexOf("onPointerMove=", pointerDownStart);

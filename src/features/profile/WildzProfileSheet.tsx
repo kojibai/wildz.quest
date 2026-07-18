@@ -142,14 +142,14 @@ export function WildzProfileSheet({ profile, publicationStatus = "published", sh
       {editable ? <>
       <button
         aria-busy={identityAuthenticating}
-        aria-label="Upload Identity Seal"
+        aria-label="Upload Identity Seal or Record"
         data-state={identityAuthenticating ? "working" : "idle"}
         disabled={identitySealSaving || identityAuthenticating || !onAuthenticateIdentitySeal}
         onClick={() => {
-          setIdentityMessage("Choose the Identity Seal that authenticates this Receiz ID.");
+          setIdentityMessage("Choose the Identity Seal or Record that activates this Receiz ID.");
           identityInputRef.current?.click();
         }}
-        title="Upload Identity Seal"
+        title="Upload Identity Seal or Record"
         type="button"
       ><Upload aria-hidden="true" size={18} /></button>
       <button
@@ -188,12 +188,12 @@ export function WildzProfileSheet({ profile, publicationStatus = "published", sh
           event.currentTarget.value = "";
           if (!file || !onAuthenticateIdentitySeal) return;
           setIdentityAuthenticating(true);
-          setIdentityMessage("Verifying Identity Seal authority…");
+          setIdentityMessage("Verifying Identity Seal or Record authority…");
           try {
             await onAuthenticateIdentitySeal(file);
-            setIdentityMessage("Identity Seal authenticated. Signing authority is ready.");
+            setIdentityMessage("Receiz ID activated. Your current Vault is still loaded.");
           } catch {
-            setIdentityMessage("That file did not restore signing authority. Choose the account's verified Identity Seal.");
+            setIdentityMessage("That file did not activate a Receiz ID. Choose the account's verified Identity Seal or Record.");
           } finally {
             setIdentityAuthenticating(false);
           }

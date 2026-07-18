@@ -17,6 +17,7 @@ import {
 import { embedPortableVaultInPng } from "../src/features/play/card-export";
 import { createWildsPlayerVault } from "../src/features/play/wilds-player-vault";
 import { sealCollectedCard, verifyAnyWildsCard } from "../src/features/play/portable-card";
+import { generateWildzCharacter } from "../src/features/identity/wildz-genesis";
 import {
   loadWildzRestoredPlayState,
   restoreWildzArtifactForSurface
@@ -300,6 +301,60 @@ test("matching Identity Seal authenticates an already loaded proof vault without
   assert.equal(outcome.session.localAuthority, "verified");
   assert.equal(outcome.session.actorId, "matching_owner");
   assert.ok(outcome.playState.inventory.some((asset) => asset.id === existingCard.id));
+  const reloaded = await loadWildzRestoredPlayState({ database, session: outcome.session });
+  assert.ok(reloaded?.inventory.some((asset) => asset.id === existingCard.id));
+});
+
+test("a different Identity Seal becomes active without discarding the working Vault", async () => {
+  const { database, repository, codec } = setup();
+  const currentSession = await repository.bootstrap();
+  const identity = await createReceizIdentityKeyFile({
+    owner: { uid: "replacement_identity", username: "replacement_owner", displayName: "Replacement Owner" }
+  });
+  const projection = await projectReceizIdentityAccount(identity.keyFile);
+  const existingCard = sealCollectedCard({
+    formId: "mintcub-1",
+    ownerReceizId: currentSession.actorId,
+    encounterId: "vault-before-identity-switch",
+    capturedAt: "2026-07-17T01:05:00.000Z"
+  });
+  const currentPlayState = applyWildsInput(
+    createOwnerBoundInitialPlayState(currentSession.actorId),
+    { type: "import-card", asset: existingCard }
+  );
+  const currentCharacter = generateWildzCharacter({
+    identityRef: currentSession.keyId,
+    kaiPulse: "303",
+    gender: "female",
+    version: 1
+  });
+
+  const outcome = await restoreWildzArtifactForSurface({
+    surface: "card-vault",
+    bytes: appendReceizIdentityArtifactTrailerToPng(BASE_PNG, identity.keyFile),
+    mimeType: "image/png",
+    name: "replacement-owner.identity-seal.png",
+    codec,
+    repository,
+    database,
+    confirmCardOnly: true,
+    carryCurrentVault: true,
+    currentPlayState,
+    currentCharacter,
+    currentPlayerContinuity: {
+      settings: { avatarStyle: "female", movementMode: "run", audio: {}, cardOrder: "newest" },
+      personalEvents: [],
+      canonicalCursor: { worldId: "wilds:global:v3", revision: 0, eventId: null },
+      receipts: []
+    }
+  });
+
+  assert.equal(outcome.session.keyId, projection.keyId);
+  assert.equal(outcome.session.actorId, "replacement_owner");
+  assert.ok(outcome.playState.inventory.some((asset) => asset.id === existingCard.id));
+  assert.equal(outcome.character?.digest, currentCharacter.digest);
+  assert.equal(outcome.playerContinuity.settings.cardOrder, "newest");
+  assert.deepEqual(await repository.active(), outcome.session);
   const reloaded = await loadWildzRestoredPlayState({ database, session: outcome.session });
   assert.ok(reloaded?.inventory.some((asset) => asset.id === existingCard.id));
 });

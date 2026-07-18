@@ -72,11 +72,10 @@ test("loaded 100-card preview rail coalesces scroll updates without render feedb
   const drawer = drawerSource();
   const css = readFileSync("app/globals.css", "utf8");
   assert.match(drawer, /railFrameRef/);
-  assert.match(drawer, /railScrollRef/);
   assert.match(drawer, /window\.requestAnimationFrame/);
   assert.match(drawer, /previous\.start === start && previous\.end === end \? previous/);
-  assert.match(drawer, /event\.currentTarget\.scrollLeft = gesture\.startScrollLeft - dx/);
-  assert.match(drawer, /event\.preventDefault\(\)/);
+  assert.doesNotMatch(drawer, /beginRailScrollGuard|guardRailHorizontalScroll|railGesture/);
+  assert.doesNotMatch(drawer, /onPointerDown=\{beginRailScrollGuard\}|onPointerMove=\{guardRailHorizontalScroll\}/);
   assert.match(drawer, /window\.cancelAnimationFrame/);
   assert.match(css, /\.wildz-creature-window\s*\{[^}]*overflow-anchor:\s*none/s);
   assert.match(css, /\.wildz-creature-window\s*\{[^}]*touch-action:\s*pan-x/s);

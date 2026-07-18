@@ -301,6 +301,7 @@ test("identity-bearing vault uploaded inside an active vault merges into the cur
     repository,
     database,
     confirmCardOnly: true,
+    preserveActiveIdentity: true,
     currentPlayState
   });
 

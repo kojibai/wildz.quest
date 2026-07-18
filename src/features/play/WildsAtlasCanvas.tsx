@@ -53,6 +53,7 @@ export function WildsAtlasCanvas({
         <DropPin position={selectedDrop} projection={projection} />
         <ExactPlayerLights projection={projection} />
         <PresenceLights projection={projection} />
+        <TrainerLights projection={projection} />
         <CurrentPositionBeam position={currentPosition} projection={projection} />
         <Sparkles
           key={`wilds-atlas-sparkles-${atlasSparkleCount}`}
@@ -79,6 +80,18 @@ export function WildsAtlasCanvas({
       </Canvas>
     </div>
   );
+}
+
+function TrainerLights({ projection }: { projection: WildsAtlasProjection }) {
+  return <group name="atlas-trainers">{projection.trainers.map((trainer) => {
+    const x = (trainer.position[0] / WILDS_REGION_SIZE - projection.centerRegion.x) * 1.35;
+    const z = (trainer.position[2] / WILDS_REGION_SIZE - projection.centerRegion.z) * 1.35;
+    return <group key={trainer.id} position={[x, .44, z]}>
+      <mesh><capsuleGeometry args={[.11, .28, 4, 8]} /><meshStandardMaterial color="#fff2b0" emissive="#d9982b" emissiveIntensity={1.65} /></mesh>
+      <mesh position={[0, -.17, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[.22, .025, 6, 20]} /><meshBasicMaterial color="#f7d25b" /></mesh>
+      <Html center position={[0, .55, 0]} zIndexRange={[2, 1]}><span className="wilds-atlas-trainer-label">{trainer.name} · NPC</span></Html>
+    </group>;
+  })}</group>;
 }
 
 function AtlasHorizon() {

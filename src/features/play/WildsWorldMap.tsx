@@ -17,6 +17,7 @@ import { WildsAtlasCanvas } from "./WildsAtlasCanvas";
 import type { WildsWorldProjection } from "./wilds-world-state";
 import type { WildsEcologyKnowledge } from "./wilds-ecology-history";
 import type { WildsBossKnowledge } from "./wilds-raid-history";
+import type { WildsTrainerProjection } from "./wilds-saga-trainers";
 
 const zoomLevels: readonly WildsAtlasZoom[] = ["world", "region", "landmark"];
 
@@ -33,6 +34,7 @@ export function WildsWorldMap({
   livingWorld,
   ecologyKnowledge,
   bossKnowledge,
+  trainers,
   onClose,
   onRift
 }: {
@@ -49,6 +51,7 @@ export function WildsWorldMap({
   livingWorld?: WildsWorldProjection | null;
   ecologyKnowledge?: Record<string, WildsEcologyKnowledge>;
   bossKnowledge?: Record<string, WildsBossKnowledge>;
+  trainers: readonly WildsTrainerProjection[];
   onClose: () => void;
   onRift: (destination: { x: number; z: number }) => void | Promise<void>;
 }) {
@@ -72,8 +75,9 @@ export function WildsWorldMap({
     ecologySites: Object.values(livingWorld?.ecologySites ?? {}),
     ecologyKnowledge,
     bosses: Object.values(livingWorld?.bosses ?? {}),
-    bossKnowledge
-  }), [bossKnowledge, currentPosition, discoveredLandmarkIds, ecologyKnowledge, livingWorld?.bosses, livingWorld?.ecologySites, livingWorld?.sites, missionProgress, remotePlayers, worldMastery, zoom]);
+    bossKnowledge,
+    trainers
+  }), [bossKnowledge, currentPosition, discoveredLandmarkIds, ecologyKnowledge, livingWorld?.bosses, livingWorld?.ecologySites, livingWorld?.sites, missionProgress, remotePlayers, trainers, worldMastery, zoom]);
   const projection = useMemo(() => atlasPresence.loaded ? {
     ...localProjection,
     exactPlayers: atlasPresence.players,

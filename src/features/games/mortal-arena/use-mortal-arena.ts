@@ -9,7 +9,7 @@ import { emptyAdventureCondition, type AdventureCardCondition } from "../../play
 import { projectArenaFighter } from "../../play/arena/card-fighter";
 import { createArenaLivingRevision } from "../../play/arena/living-revision";
 import { advanceArenaNpc, createArenaNpc, stepArenaNpc } from "./npc-controller";
-import { advanceArenaPath, projectCampaignOpponent, restoreArenaPath, type WildzArenaPath } from "./campaign";
+import { advanceArenaPath, projectCampaignOpponent, restoreArenaPath, type ArenaCampaignOpponent, type WildzArenaPath } from "./campaign";
 import { MORTAL_ARENA_MODULE } from "./module";
 import { projectMortalityWarning } from "./mortality";
 import { createArenaSettlement, recoverArenaSettlement, type ArenaSettlement } from "./settlement";
@@ -79,8 +79,8 @@ function fighterFor(card: PortableCardAsset) {
   };
 }
 
-function setupFor(roster: readonly PortableCardAsset[], path: WildzArenaPath): { setup: MortalArenaSetup; opponent: ReturnType<typeof projectCampaignOpponent> } {
-  const opponent = projectCampaignOpponent(path);
+function setupFor(roster: readonly PortableCardAsset[], path: WildzArenaPath, requestedOpponent?: ArenaCampaignOpponent | null): { setup: MortalArenaSetup; opponent: ArenaCampaignOpponent } {
+  const opponent = requestedOpponent ?? projectCampaignOpponent(path);
   const leader = roster[0]!;
   const matchBasis = { player: leader.manifest.ownerReceizId, proof: leader.proof.digest, stage: path.stage, history: path.history.length };
   const digest = sha256PortableBasis(canonicalPortableCardJson(matchBasis));
@@ -107,14 +107,15 @@ function setupFor(roster: readonly PortableCardAsset[], path: WildzArenaPath): {
   };
 }
 
-export function useMortalArena({ active, roster, onCommit }: {
+export function useMortalArena({ active, roster, onCommit, requestedOpponent = null }: {
   active: boolean;
   roster: readonly PortableCardAsset[];
   onCommit: (settlement: ArenaSettlement, path: WildzArenaPath) => void;
+  requestedOpponent?: ArenaCampaignOpponent | null;
 }) {
   const leader = roster[0]!;
   const initialPath = useMemo(() => typeof window === "undefined" ? restoreArenaPath(null, leader.manifest.ownerReceizId) : restoreArenaPath(window.localStorage.getItem(PATH_KEY), leader.manifest.ownerReceizId), [leader.manifest.ownerReceizId]);
-  const initial = useMemo(() => setupFor(roster, initialPath), [initialPath, roster]);
+  const initial = useMemo(() => setupFor(roster, initialPath, requestedOpponent), [initialPath, requestedOpponent, roster]);
   const [path, setPath] = useState(initialPath);
   const [opponent, setOpponent] = useState(initial.opponent);
   const [state, setState] = useState<MortalArenaState>(() => MORTAL_ARENA_MODULE.create(initial.setup));
@@ -130,7 +131,7 @@ export function useMortalArena({ active, roster, onCommit }: {
   const previousVitalityRef = useRef(state.sides[0].fighters[0]!.vitality + state.sides[1].fighters[0]!.vitality);
 
   const resetForPath = useCallback((nextPath: WildzArenaPath) => {
-    const next = setupFor(roster, nextPath);
+    const next = setupFor(roster, nextPath, requestedOpponent);
     setOpponent(next.opponent);
     setState(MORTAL_ARENA_MODULE.create(next.setup));
     setSettlement(null);
@@ -138,7 +139,7 @@ export function useMortalArena({ active, roster, onCommit }: {
     playerSequence.current = 0;
     npcQueue.current = [];
     npcRef.current = createArenaNpc({ actorId: next.opponent.id, tier: next.opponent.tier, seed: next.setup.seed ^ 0x9e3779b9 });
-  }, [roster]);
+  }, [requestedOpponent, roster]);
 
   useEffect(() => {
     if (!active || state.phase === "complete" || settlement) return;

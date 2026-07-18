@@ -19,22 +19,23 @@ test("active deck and vault grids use creature artwork instead of initials", () 
   assert.doesNotMatch(inventory, /manifest\.name\.slice\(0, 2\)/);
 });
 
-test("Genesis and Card Vault share the behavior-tested atomic restore boundary", () => {
+test("in-world onboarding and Card Vault share the behavior-tested atomic restore boundary", () => {
   const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
-  const genesis = readFileSync("src/features/identity/WildzGenesis.tsx", "utf8");
+  const onboarding = readFileSync("src/features/identity/WildzInWorldOnboarding.tsx", "utf8");
   const adapter = readFileSync("src/lib/receiz/wildz-identity-adapter.ts", "utf8");
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
 
   assert.match(inventory, /onRestoreArtifact\(file/);
   assert.match(inventory, /currentPlayState = outcome\.playState/);
   assert.match(inventory, /\.receizvault/);
-  assert.match(genesis, /onRestoreArtifact\(file/);
-  assert.match(shell, /restoreArtifact\(file, "genesis"/);
+  assert.match(onboarding, /onAddVault\(file\)/);
+  assert.match(shell, /"merge-vault"/);
+  assert.match(shell, /"activate-identity"/);
   assert.match(shell, /restoreArtifact\(file, "card-vault"/);
   assert.match(adapter, /restoreWildzArtifactForSurface/);
   assert.match(adapter, /continuityRestoreEpoch/);
   assert.doesNotMatch(inventory, /verifyPortableCardPng|verifyPortableVaultPng|inspectReceizCommerceVault|file\.arrayBuffer/);
-  assert.doesNotMatch(genesis, /inspectWildzRestore|file\.arrayBuffer/);
+  assert.doesNotMatch(onboarding, /inspectWildzRestore|file\.arrayBuffer/);
 });
 
 test("D-pad preserves analog camera-relative movement and visible stick travel", () => {

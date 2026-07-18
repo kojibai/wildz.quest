@@ -110,6 +110,7 @@ export type WildzContinuitySnapshot = {
 };
 
 export type WildzUiArtifactRestore = WildzCommittedArtifactRestore & { restoreEpoch: number };
+export type WildzRestoreIntent = "merge-vault" | "activate-identity";
 
 export async function alignWildzContinuityWithProofSession(
   snapshot: WildzContinuitySnapshot,
@@ -401,32 +402,36 @@ export async function restoreWildzFileForSurface(
   surface: "genesis" | "card-vault",
   confirmCardOnly: WildzCardOnlyConfirmation,
   current: WildzContinuitySnapshot,
-  currentPlayState: PlayState | null = current.playState
+  currentPlayState: PlayState | null = current.playState,
+  intent: WildzRestoreIntent
 ): Promise<WildzUiArtifactRestore> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   return enqueueContinuityOperation(async () => {
     if (current.restoreEpoch !== continuityRestoreEpoch) throw new Error("wildz_restore_cursor_stale");
     const active = await defaultIdentityRepository.active();
     if (!sameOwner(active, current.session)) throw new Error("wildz_restore_cursor_stale");
-    const playerVault = currentPlayState ? { status: "not_player_vault" as const } : await defaultVaultLoginCoordinator.begin({
-      surface,
+    const inspection = await defaultArtifactCodec.inspect({
       bytes,
       mimeType: file.type,
       name: file.name
     });
-    const outcome = playerVault.status === "committed"
-      ? playerVault.restore
-      : await restoreWildzArtifactForSurface({
-        surface,
-        bytes,
-        mimeType: file.type,
-        name: file.name,
-        codec: defaultArtifactCodec,
-        repository: defaultIdentityRepository,
-        database: defaultContinuityDatabase,
-        confirmCardOnly,
-        ...(currentPlayState ? { currentPlayState } : {})
-      });
+    if (inspection.kind === "invalid" || inspection.kind === "unsupported") throw new Error(inspection.code);
+    if (intent === "activate-identity" && inspection.kind !== "identity-seal") throw new Error("wildz_identity_seal_required");
+    if (intent === "merge-vault" && inspection.kind === "identity-seal") throw new Error("wildz_vault_required");
+    const outcome = await restoreWildzArtifactForSurface({
+      surface,
+      bytes,
+      mimeType: file.type,
+      name: file.name,
+      codec: defaultArtifactCodec,
+      repository: defaultIdentityRepository,
+      database: defaultContinuityDatabase,
+      confirmCardOnly,
+      currentPlayerContinuity: current.playerContinuity,
+      currentCharacter: current.character,
+      ...(currentPlayState ? { currentPlayState } : {}),
+      ...(intent === "merge-vault" ? { preserveActiveIdentity: true } : { carryCurrentVault: true })
+    });
     continuityRestoreEpoch += 1;
     return { ...outcome, restoreEpoch: continuityRestoreEpoch };
   });

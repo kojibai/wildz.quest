@@ -99,3 +99,17 @@ export function projectCampaignOpponentFromTrainer(trainer: WildsTrainerProjecti
     powerPermille: Math.min(1_600, 880 + trainer.challengeLevel * 6 + trainer.rematchIndex * 55)
   };
 }
+
+export function trainerDistance(trainer: WildsTrainerProjection, position: { x: number; z: number }) {
+  return Math.hypot(trainer.position[0] - position.x, trainer.position[2] - position.z);
+}
+
+export function nearestSagaTrainer(
+  trainers: readonly WildsTrainerProjection[],
+  position: { x: number; z: number }
+) {
+  return trainers
+    .filter((trainer) => trainer.available)
+    .map((trainer) => ({ trainer, distance: trainerDistance(trainer, position) }))
+    .sort((left, right) => left.distance - right.distance || left.trainer.id.localeCompare(right.trainer.id))[0] ?? null;
+}

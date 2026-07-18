@@ -4,15 +4,17 @@ import { test } from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("the shared restore adapter routes V3 player Vaults through direct proof-sealed admission", () => {
+test("the shared restore adapter keeps Vault merge separate from Profile identity activation", () => {
   const adapter = read("src/lib/receiz/wildz-identity-adapter.ts");
 
   assert.match(adapter, /createWildzVaultLoginCoordinator/);
   assert.match(adapter, /createWildzPendingVaultRepository/);
   assert.match(adapter, /verifier:\s*\{[\s\S]*openArtifact:\s*openWildzArtifactSameOrigin[\s\S]*\}/);
   assert.doesNotMatch(adapter, /receizCommerceAdapter\.verifyArtifact/);
-  assert.match(adapter, /defaultVaultLoginCoordinator\.begin/);
-  assert.match(adapter, /playerVault\.status === "committed"/);
+  assert.match(adapter, /WildzRestoreIntent = "merge-vault" \| "activate-identity"/);
+  assert.match(adapter, /preserveActiveIdentity: true/);
+  assert.match(adapter, /carryCurrentVault: true/);
+  assert.doesNotMatch(adapter, /defaultVaultLoginCoordinator\.begin/);
   assert.match(adapter, /resumePendingWildzVault/);
   assert.doesNotMatch(adapter, /WildzVaultLoginRedirectError|\/api\/auth\/receiz\/start/);
 });

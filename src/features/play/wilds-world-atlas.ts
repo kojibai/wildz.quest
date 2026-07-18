@@ -14,6 +14,7 @@ import type { WildsEcologyKnowledge, WildsEcologyKnowledgeVisibility } from "./w
 import type { WildsWorldBossProjection } from "./wilds-world-state";
 import type { WildsBossKnowledge } from "./wilds-raid-history";
 import type { WildsBossFamilyId } from "./wilds-boss-ecology";
+import type { WildsTrainerProjection } from "./wilds-saga-trainers";
 
 export type WildsAtlasZoom = "world" | "region" | "landmark";
 
@@ -48,6 +49,7 @@ export type WildsAtlasProjection = {
   dynamicSites: (WildsWorldSiteProjection & { visibility: "signal" | "exact" | "memorial" })[];
   ecologySites: WildsAtlasEcologySite[];
   bosses: WildsAtlasBoss[];
+  trainers: WildsTrainerProjection[];
 };
 
 type WildsAtlasBossCommon = {
@@ -81,6 +83,7 @@ export type WildsAtlasInput = {
   ecologySites?: readonly WildsWorldEcologyProjection[];
   ecologyKnowledge?: Record<string, WildsEcologyKnowledge>;
   bosses?: readonly WildsWorldBossProjection[];
+  trainers?: readonly WildsTrainerProjection[];
   bossKnowledge?: Record<string, WildsBossKnowledge>;
   now?: number;
 };
@@ -156,7 +159,8 @@ export function projectWildsAtlas(input: WildsAtlasInput): WildsAtlasProjection 
       .map((site) => projectEcologySite(site, input.ecologyKnowledge?.[site.id])),
     bosses: (input.bosses ?? [])
       .filter((boss) => boss.phase !== "withdrawn")
-      .map((boss) => projectAtlasBoss(boss, input.bossKnowledge?.[boss.id]))
+      .map((boss) => projectAtlasBoss(boss, input.bossKnowledge?.[boss.id])),
+    trainers: (input.trainers ?? []).filter((trainer) => trainer.available)
   };
 }
 

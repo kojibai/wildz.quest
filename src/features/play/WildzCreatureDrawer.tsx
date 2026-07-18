@@ -91,10 +91,8 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   const [bookPage, setBookPage] = useState(0);
   const drawerRef = useRef<HTMLElement>(null);
   const railFrameRef = useRef<number | null>(null);
-  const railScrollRef = useRef<HTMLDivElement | null>(null);
   const dragHeight = useRef<number | null>(null);
   const drag = useRef<{ startY: number; startHeight: number; lastY: number; lastAt: number; velocityY: number; moved: boolean } | null>(null);
-  const railGesture = useRef<{ pointerId: number; startX: number; startY: number; startScrollLeft: number; horizontal: boolean } | null>(null);
   const suppressHandleClick = useRef(false);
   const metrics = useMemo(() => creatureDrawerMetrics(viewportHeight), [viewportHeight]);
   const height = metrics[snap];
@@ -212,41 +210,6 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
     }
   };
 
-  const beginRailScrollGuard = (event: ReactPointerEvent<HTMLDivElement>) => {
-    railScrollRef.current = event.currentTarget;
-    railGesture.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      startScrollLeft: event.currentTarget.scrollLeft,
-      horizontal: false
-    };
-  };
-
-  const guardRailHorizontalScroll = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const gesture = railGesture.current;
-    if (!gesture) return;
-    const dx = event.clientX - gesture.startX;
-    const dy = event.clientY - gesture.startY;
-    if (!gesture.horizontal && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.15) {
-      gesture.horizontal = true;
-      try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* rail capture is optional */ }
-    }
-    if (gesture.horizontal) {
-      event.preventDefault();
-      event.stopPropagation();
-      event.currentTarget.scrollLeft = gesture.startScrollLeft - dx;
-    }
-  };
-
-  const endRailScrollGuard = (event?: ReactPointerEvent<HTMLDivElement>) => {
-    const gesture = railGesture.current;
-    if (event && gesture && event.currentTarget.hasPointerCapture?.(gesture.pointerId)) {
-      try { event.currentTarget.releasePointerCapture(gesture.pointerId); } catch { /* rail capture is optional */ }
-    }
-    railGesture.current = null;
-  };
-
   const renderChoice = (card: PortableCardAsset, logicalIndex: number) => {
     const progress = companionProgress[card.manifest.familyId] ?? { level: 1, xp: 0, bond: 0 };
     return <CreatureChoice
@@ -329,12 +292,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
       </div> : <div
         aria-label="Scroll creatures horizontally"
         className="wildz-creature-window"
-        onPointerCancel={endRailScrollGuard}
-        onPointerDown={beginRailScrollGuard}
-        onPointerMove={guardRailHorizontalScroll}
-        onPointerUp={endRailScrollGuard}
         onScroll={updateVirtualRange}
-        ref={railScrollRef}
         role="list"
         style={windowStyle}
       >

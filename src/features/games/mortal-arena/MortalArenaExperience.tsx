@@ -9,14 +9,16 @@ import type { PortableCardAsset } from "../../play/portable-card";
 import type { WildsAudioCue } from "../../play/wilds-audio";
 import { selectWildsQualityProfile } from "../../play/wilds-quality-profile";
 import type { WildzArenaPath } from "./campaign";
+import type { ArenaCampaignOpponent } from "./campaign";
 import { MORTAL_ARENA_COVENANT_VERSION, MortalArenaCovenant } from "./MortalArenaCovenant";
 import { MortalArenaScene } from "./MortalArenaScene";
 import type { ArenaSettlement } from "./settlement";
 import { useMortalArena } from "./use-mortal-arena";
 
-export function MortalArenaExperience({ card, roster, onExit, onUnlock, onCommit, onAudioCue }: {
+export function MortalArenaExperience({ card, roster, opponent = null, onExit, onUnlock, onCommit, onAudioCue }: {
   card: PortableCardAsset;
   roster: readonly PortableCardAsset[];
+  opponent?: ArenaCampaignOpponent | null;
   onExit: () => void;
   onUnlock: (unlockId: string) => void;
   onCommit: (settlement: ArenaSettlement, path: WildzArenaPath) => void;
@@ -37,7 +39,7 @@ export function MortalArenaExperience({ card, roster, onExit, onUnlock, onCommit
     onCommit(settlement, path);
     if (settlement.result.winnerSide === 0) onUnlock(path.stage % 3 === 1 ? "echo-sovereign" : "echo-victor");
   }, [onCommit, onUnlock]);
-  const arena = useMortalArena({ active: covenantAccepted && !retired, roster: admittedRoster, onCommit: committed });
+  const arena = useMortalArena({ active: covenantAccepted && !retired, roster: admittedRoster, onCommit: committed, requestedOpponent: opponent });
   const player = arena.state.sides[0].fighters[arena.state.sides[0].activeIndex]!;
   const activeArenaCard = admittedRoster[arena.state.sides[0].activeIndex] ?? card;
   const rival = arena.state.sides[1].fighters[arena.state.sides[1].activeIndex]!;

@@ -29,17 +29,17 @@ test("profiles publish only after the same-origin proof session is connected", (
 test("Wildz creates identity before character genesis and enters play with that identity", () => {
   const source = read("src/features/shell/WildzApp.tsx");
   assert.match(source, /bootstrapWildzContinuity/);
-  assert.match(source, /<WildzGenesis/);
+  assert.match(source, /<WildzInWorldOnboarding/);
   assert.match(source, /ownerReceizId=\{ownerUsername\}/);
   assert.match(source, /setCharacter\(snapshot\.character\)/);
-  assert.match(source, /character=\{character\}/);
+  assert.match(source, /character=\{campaignCharacter\}/);
   assert.doesNotMatch(source, /WILDZ_CHARACTER_STORAGE_KEY|WILDS_AVATAR_KEY/);
 });
 
-test("genesis visibly confirms the admitted Receiz identity before explorer creation", () => {
-  const source = read("src/features/identity/WildzGenesis.tsx");
-  assert.match(source, /Restored Receiz ID/);
-  assert.match(source, /restoredIdentity\.username/);
+test("in-world onboarding visibly confirms the active Receiz identity before explorer creation", () => {
+  const source = read("src/features/identity/WildzInWorldOnboarding.tsx");
+  assert.match(source, /Receiz ID · @\{username\}/);
+  assert.match(source, /identity\.username \?\? identity\.actorId/);
 });
 
 test("a Vault without a display name keeps its restored Receiz username visible in the game HUD", () => {
@@ -87,12 +87,12 @@ test("proof-sealed Vault recovery never asks the authenticated Vault owner to si
   assert.doesNotMatch(source, /Connect Receiz|Not now|Dismiss Vault prompt|Vault owner required|Sign in as Vault owner/);
 });
 
-test("gameplay mounts directly from any committed proof-native identity and character", () => {
+test("gameplay mounts behind onboarding as soon as proof-native identity continuity exists", () => {
   const source = read("src/features/shell/WildzApp.tsx");
 
-  assert.match(source, /const gameplayReady = Boolean\([\s\S]*continuity[\s\S]*identity[\s\S]*character/);
   assert.doesNotMatch(source, /identity\.remoteStatus === "connected" \|\| offlinePracticeAccepted/);
-  assert.match(source, /gameplayReady && continuity && identity && character \? <PlayCampaign/);
+  assert.match(source, /continuity && identity && campaignCharacter \? <PlayCampaign/);
+  assert.match(source, /interactionEnabled=\{Boolean\(character\)\}/);
   assert.doesNotMatch(source, /Continue offline|offlinePracticeAccepted/);
 });
 
@@ -102,7 +102,7 @@ test("local gameplay stays mounted while every authenticated world mutation wait
   const multiplayer = read("src/features/play/use-wilds-multiplayer.ts");
   const world = read("src/features/play/use-wilds-world.ts");
 
-  assert.match(shell, /networkEnabled=\{proofSessionConnected\}/);
+  assert.match(shell, /networkEnabled=\{Boolean\(character\) && proofSessionConnected\}/);
   assert.match(campaign, /networkEnabled:\s*boolean/);
   assert.match(campaign, /enabled:\s*enabled && networkEnabled && Boolean\(avatarStyle\)/);
   assert.match(multiplayer, /if \(!latest\.current\.enabled\) throw new Error\("wilds_multiplayer_session_required"\)/);
@@ -118,7 +118,7 @@ test("matching Identity Seal upgrades a proof Vault login without clearing the l
   assert.match(source, /sameWildzPlayerCoordinate/);
   assert.match(accept, /sameWildzPlayerCoordinate\(previous\.session\.actorId,\s*snapshot\.session\.actorId\)/);
   assert.doesNotMatch(accept, /previous\.session\.keyId !== snapshot\.session\.keyId[\s\S]*setProofSessionConnected\(false\)/);
-  assert.match(campaign, /key=\{identity\.actorId\}/);
+  assert.match(campaign, /key=\{`\$\{identity\.actorId\}:\$\{continuity\.restoreEpoch\}`\}/);
 });
 
 test("large Vault movement coalesces full-state persistence and flushes the latest state", () => {

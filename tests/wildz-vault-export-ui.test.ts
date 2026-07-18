@@ -29,7 +29,7 @@ test("Card Vault export seals the complete live V3 player payload, not cards alo
   const profile = readFileSync("src/features/profile/WildzProfileSheet.tsx", "utf8");
   assert.doesNotMatch(campaign, /onExportIdentityCard/);
   assert.doesNotMatch(inventory, /aria-label="Save Receiz ID Card"/);
-  assert.match(profile, /aria-label="Upload Identity Seal"/);
+  assert.match(profile, /aria-label="Upload Identity Seal or Record"/);
   assert.match(profile, /aria-label="Save Identity Seal"/);
   assert.match(profile, /full Wildz account continuity/);
   assert.match(profile, /Anyone who has it can authenticate this account/);

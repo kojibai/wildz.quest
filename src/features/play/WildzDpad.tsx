@@ -35,8 +35,17 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput }: {
 
   useEffect(() => {
     if (!active) return;
-    const timer = window.setInterval(() => emitMovement(), 45);
-    return () => window.clearInterval(timer);
+    let frame = 0;
+    let lastEmission = performance.now();
+    const tick = (now: number) => {
+      if (now - lastEmission >= 45) {
+        lastEmission = now;
+        emitMovement();
+      }
+      frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
   }, [active, emitMovement]);
 
   useEffect(() => {

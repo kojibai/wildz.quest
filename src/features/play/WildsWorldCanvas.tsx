@@ -32,6 +32,7 @@ import type { KaiKlokMoment } from "@/features/play/kai-klok-moment";
 import { projectKaiWorldExpression } from "@/features/play/kai-moment-expression";
 import { WildsKaiAtmosphereGeometry } from "@/features/play/WildsKaiAtmosphereGeometry";
 import { projectCardKaiAppearance } from "@/features/play/card-kai-appearance";
+import type { WildsTrainerProjection } from "@/features/play/wilds-saga-trainers";
 
 export function WildsWorldCanvas({
   state,
@@ -41,11 +42,13 @@ export function WildsWorldCanvas({
   searchEnabled,
   onCameraHeadingChange,
   onSelectPlayer,
+  onSelectTrainer,
   onSearchPoint,
   livingWorld,
   worldMode,
   kaiMoment,
-  supportCards = []
+  supportCards = [],
+  trainers = []
 }: {
   state: PlayState;
   avatarStyle: "female" | "male";
@@ -59,6 +62,8 @@ export function WildsWorldCanvas({
   worldMode: WildsSettlementWorldMode;
   kaiMoment: KaiKlokMoment;
   supportCards?: readonly PortableCardAsset[];
+  trainers?: readonly WildsTrainerProjection[];
+  onSelectTrainer: (trainer: WildsTrainerProjection) => void;
 }) {
   return (
     <div
@@ -79,7 +84,7 @@ export function WildsWorldCanvas({
         shadows={{ type: THREE.PCFShadowMap }}
       >
         <Suspense fallback={null}>
-          <WildsScene state={state} avatarStyle={avatarStyle} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} supportCards={supportCards} />
+          <WildsScene state={state} avatarStyle={avatarStyle} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} supportCards={supportCards} trainers={trainers} />
         </Suspense>
       </Canvas>
     </div>
@@ -98,7 +103,9 @@ function WildsScene({
   livingWorld,
   worldMode,
   kaiMoment,
-  supportCards
+  supportCards,
+  trainers,
+  onSelectTrainer
 }: {
   state: PlayState;
   avatarStyle: "female" | "male";
@@ -112,6 +119,8 @@ function WildsScene({
   worldMode: WildsSettlementWorldMode;
   kaiMoment: KaiKlokMoment;
   supportCards: readonly PortableCardAsset[];
+  trainers: readonly WildsTrainerProjection[];
+  onSelectTrainer: (trainer: WildsTrainerProjection) => void;
 }) {
   const world = projectWorldProgression(state.worldMastery);
   const kaiExpression = projectKaiWorldExpression(kaiMoment);
@@ -142,12 +151,48 @@ function WildsScene({
       <WildsBossEnvironment livingWorld={livingWorld} player={state.player} qualityProfile={qualityProfile} />
       <EncounterSequence state={state} />
       {remotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} />)}
+      {trainers.map((trainer) => <TrainerExplorer key={trainer.id} trainer={trainer} localPlayer={state.player} onSelect={onSelectTrainer} />)}
       <WildsExplorer style={avatarStyle} worldPosition={state.player} />
       <ActiveCompanion state={state} />
       <SupportCompanions cards={supportCards} />
       <Sparkles key={`wilds-world-sparkles-${worldSparkleCount}`} count={worldSparkleCount} scale={[8, 2.4, 8]} size={2.1} speed={kaiExpression.particleSpeed} color={kaiExpression.accent} />
     </>
   );
+}
+
+function TrainerExplorer({ trainer, localPlayer, onSelect }: {
+  trainer: WildsTrainerProjection;
+  localPlayer: PlayState["player"];
+  onSelect: (trainer: WildsTrainerProjection) => void;
+}) {
+  const group = useRef<THREE.Group>(null);
+  const style = trainer.seed % 2 ? "female" as const : "male" as const;
+  useFrame(({ clock }) => {
+    if (!group.current) return;
+    const phase = clock.elapsedTime * (0.18 + trainer.seed % 5 * 0.015) + trainer.seed % 97;
+    group.current.position.set(
+      trainer.position[0] - localPlayer.x + Math.sin(phase) * 0.7,
+      0,
+      trainer.position[2] - localPlayer.z + Math.cos(phase * 0.83) * 0.7
+    );
+    group.current.rotation.y = -phase;
+  });
+  const rosterName = creatureForm(trainer.rosterFormIds[0])?.name ?? trainer.affinity;
+  return <group
+    name={`trainer-${trainer.id}`}
+    onClick={(event) => { event.stopPropagation(); onSelect(trainer); }}
+    position={[trainer.position[0] - localPlayer.x, 0, trainer.position[2] - localPlayer.z]}
+    ref={group}
+  >
+    <WildsExplorer remote style={style} worldPosition={{ x: trainer.position[0], z: trainer.position[2] }} />
+    <mesh position={[0, .035, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <torusGeometry args={[.5, .045, 8, 32]} />
+      <meshStandardMaterial color="#f7d25b" emissive="#c68f25" emissiveIntensity={.78} />
+    </mesh>
+    <Html center className="wilds-remote-nameplate wilds-trainer-nameplate" distanceFactor={8} position={[0, 1.48, 0]} zIndexRange={[14, 1]}>
+      <span>{trainer.name}</span><small>NPC trainer · Lv. {trainer.challengeLevel} · {rosterName}</small>
+    </Html>
+  </group>;
 }
 
 function isBattleTelemetryPhase(phase: PlayState["encounter"]["phase"]) {

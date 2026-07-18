@@ -85,6 +85,56 @@ body {
 
 .wildz-identity-loading img { animation: wildz-genesis-breathe 1.7s ease-in-out infinite; }
 
+.wildz-in-world-onboarding {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  overscroll-behavior: none;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: radial-gradient(circle at 50% 42%, rgba(23, 66, 43, .18), rgba(4, 10, 7, .58));
+  backdrop-filter: blur(8px) saturate(.9);
+}
+
+.wildz-onboarding-card {
+  display: grid;
+  width: min(560px, 100%);
+  max-height: calc(100dvh - max(32px, env(safe-area-inset-top) + env(safe-area-inset-bottom)));
+  overflow: auto;
+  gap: 14px;
+  padding: clamp(20px, 4vw, 32px);
+  border: 1px solid rgba(174, 236, 187, .3);
+  border-radius: 28px;
+  color: #f8f5e9;
+  background: rgba(8, 21, 14, .91);
+  box-shadow: 0 30px 100px rgba(0, 0, 0, .58), inset 0 1px rgba(255, 255, 255, .08);
+}
+
+.wildz-onboarding-card h1 { margin: 0; font-size: clamp(28px, 6vw, 44px); line-height: 1; outline: none; }
+.wildz-onboarding-card > p { margin: 0; color: rgba(248, 245, 233, .68); line-height: 1.5; }
+.wildz-onboarding-eyebrow { color: #9ee4b2 !important; font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.wildz-onboarding-explorers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.wildz-onboarding-explorers button,
+.wildz-onboarding-vault,
+.wildz-onboarding-profile { min-height: 70px; border: 1px solid rgba(255,255,255,.14); border-radius: 18px; color: #f8f5e9; background: rgba(255,255,255,.07); font: inherit; cursor: pointer; }
+.wildz-onboarding-explorers button { display: grid; place-items: center; gap: 3px; padding: 12px; }
+.wildz-onboarding-explorers span,
+.wildz-onboarding-vault span { color: rgba(248,245,233,.58); font-size: 11px; }
+.wildz-onboarding-vault { position: relative; display: grid; align-content: center; gap: 3px; padding: 12px 16px; overflow: hidden; }
+.wildz-onboarding-vault input { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; }
+.wildz-onboarding-profile { min-height: 48px; padding: 0 14px; color: #b8e9c4; }
+.wildz-onboarding-card :disabled { opacity: .55; cursor: wait; }
+.wildz-onboarding-error { color: #f0d78d !important; font-size: 12px; text-align: center; }
+
+@media (max-width: 560px), (max-height: 620px) {
+  .wildz-onboarding-card { gap: 10px; padding: 18px; border-radius: 22px; }
+  .wildz-onboarding-explorers { grid-template-columns: 1fr; }
+  .wildz-onboarding-explorers button { min-height: 56px; }
+  .wildz-onboarding-vault { min-height: 60px; }
+}
+
 .wildz-vault-login-prompt {
   position: fixed;
   z-index: 180;
@@ -115,7 +165,9 @@ body {
   align-content: center;
   gap: clamp(28px, 6vh, 64px);
   isolation: isolate;
-  overflow-y: auto;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
   padding: max(70px, env(safe-area-inset-top)) max(22px, env(safe-area-inset-right)) max(30px, env(safe-area-inset-bottom)) max(22px, env(safe-area-inset-left));
 }
 
@@ -295,6 +347,15 @@ body {
   .wildz-app .wilds-mission-meter { width: 62px; height: 62px; }
   .wildz-utility-dock { top: 118px; right: 8px; bottom: auto; flex-direction: column; gap: 5px; }
   .wildz-utility-dock button { width: 34px; height: 34px; }
+}
+
+@media (max-height: 700px) {
+  .wildz-genesis { gap: clamp(12px, 3vh, 24px); padding-block: max(16px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-bottom)); }
+  .wildz-genesis-brand { gap: 9px; }
+  .wildz-genesis-brand img { width: min(48vw, 180px); }
+  .wildz-genesis-actions button { min-height: 64px; padding: 11px 14px; }
+  .wildz-restore-control { min-height: 48px; }
+  .wildz-genesis-powered { min-height: 40px; margin-top: 4px; }
 }
 
 .wildz-app > .wilds-play-panel,
@@ -12055,6 +12116,13 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-vault-page-dots button { display: grid; width: 18px; height: 18px; place-items: center; border: 0; background: transparent; }
 .wilds-vault-page-dots span { width: 5px; height: 5px; border-radius: 50%; background: #63808a; transition: width 160ms ease, border-radius 160ms ease, background 160ms ease; }
 .wilds-vault-page-dots button[aria-pressed="true"] span { width: 15px; border-radius: 999px; background: #f7d25b; }
+.wilds-trainer-navigator { position: absolute; z-index: 34; top: max(86px, calc(env(safe-area-inset-top) + 72px)); left: 50%; display: grid; min-width: min(280px, calc(100% - 128px)); gap: 1px; padding: 8px 14px; color: #fff8d5; border: 1px solid rgb(247 210 91 / 38%); border-radius: 14px; background: linear-gradient(145deg, rgb(16 42 42 / 92%), rgb(8 23 29 / 88%)); box-shadow: 0 10px 28px rgb(0 0 0 / 28%); text-align: left; transform: translateX(-50%); backdrop-filter: blur(14px); }
+.wilds-trainer-navigator span { color: #f7d25b; font-size: 8px; font-weight: 950; letter-spacing: .14em; }
+.wilds-trainer-navigator strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.wilds-trainer-navigator small { color: #b8d3cb; font-size: 9px; }
+.wilds-trainer-nameplate small { color: #f5d97b; }
+.wilds-atlas-trainer-label { display: block; padding: 4px 7px; color: #fff3b7; border: 1px solid rgb(247 210 91 / 32%); border-radius: 999px; background: rgb(7 25 29 / 88%); font-size: 7px; font-weight: 900; white-space: nowrap; }
+@media (max-width: 640px) { .wilds-trainer-navigator { top: max(70px, calc(env(safe-area-inset-top) + 58px)); min-width: min(230px, calc(100% - 116px)); padding: 6px 10px; } }
 @keyframes wilds-command-sheet-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(var(--wilds-sheet-drag, 0)); } }
 @media (prefers-reduced-motion: reduce) { .wilds-command-sheet, .wilds-command-button, .wilds-vault-page-dots span { animation: none; transition: none; } }
 @media (max-width: 560px) {
@@ -13078,11 +13146,12 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 @keyframes wildz-drawer-upward-sweep { 0% { opacity: 0; transform: translateX(-120%); } 24% { opacity: 1; } 75%, 100% { opacity: 0; transform: translateX(120%); } }
 .wildz-creature-drawer-content { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; overflow: hidden; padding: 7px 2px 14px; border-bottom: 1px solid rgba(255,255,255,.06); opacity: 1; transition: opacity 90ms linear; }
 .wildz-creature-drawer.is-closed .wildz-creature-drawer-content { opacity: .001; pointer-events: none; }
+.wildz-creature-drawer.is-closed.is-dragging .wildz-creature-drawer-content { opacity: 1; }
 .wildz-creature-drawer-tools { display: flex; min-height: 28px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px; }
 .wildz-creature-drawer-tools > span { overflow: hidden; color: #9baca0; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .wildz-creature-drawer-tools label { display: flex; align-items: center; gap: 5px; color: #8ea096; font-size: 8px; font-weight: 900; text-transform: uppercase; }
 .wildz-creature-drawer-tools select { min-height: 25px; padding: 0 24px 0 8px; border: 1px solid rgba(143, 215, 168, .22); border-radius: 9px; color: #dff4e5; background: #17261f; font: inherit; text-transform: none; }
-.wildz-creature-window { display: flex; min-height: 0; gap: 8px; overflow-x: auto; overflow-y: hidden; overflow-anchor: none; scroll-snap-type: none; scrollbar-width: none; overscroll-behavior: contain; touch-action: pan-x; -webkit-overflow-scrolling: touch; }
+.wildz-creature-window { display: flex; min-height: 0; gap: 8px; overflow-x: auto; overflow-y: hidden; overflow-anchor: none; scroll-snap-type: x proximity; scrollbar-width: none; overscroll-behavior-inline: contain; touch-action: pan-x; -webkit-overflow-scrolling: touch; }
 .wildz-creature-window::-webkit-scrollbar,
 .wildz-creature-book::-webkit-scrollbar { display: none; }
 .wildz-creature-window-end { width: 40px; min-width: 40px; height: 1px; flex: 0 0 40px; pointer-events: none; }

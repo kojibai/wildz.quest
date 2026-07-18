@@ -10,8 +10,10 @@ import { parseWildzCharacter, type WildzCharacterGenesis } from "./wildz-genesis
 import { canonicalPortableCardJson, verifyAnyWildsCard, type PortableCardAsset } from "../play/portable-card";
 import {
   createWildsPlayerVault,
+  reconcileWildsPlayerVault,
   type WildsPlayerVaultPayload
 } from "../play/wilds-player-vault";
+import { initialWildsWorldProjection } from "../play/wilds-world-state";
 import type {
   WildzArtifactCodec,
   WildzArtifactInspection
@@ -200,6 +202,31 @@ function continuityFromOwner(state: StoredWildzOwnerState): WildzPlayerContinuit
   };
 }
 
+function mergePlayerContinuity(
+  local: WildzPlayerContinuity | null | undefined,
+  restored: WildsPlayerVaultPayload | null | undefined
+): WildzPlayerContinuity | null {
+  if (!local && !restored) return null;
+  const recordKey = (value: { eventId: string; digest?: string }) => `${value.eventId}:${value.digest ?? ""}`;
+  const merge = <T extends { eventId: string; digest?: string }>(left: readonly T[], right: readonly T[]) => {
+    const values = new Map<string, T>();
+    for (const value of left) values.set(recordKey(value), value);
+    for (const value of right) values.set(recordKey(value), value);
+    return [...values.values()];
+  };
+  const localCursor = local?.canonicalCursor;
+  const restoredCursor = restored?.canonicalCursor;
+  const canonicalCursor = (restoredCursor?.revision ?? -1) > (localCursor?.revision ?? -1)
+    ? restoredCursor!
+    : localCursor ?? restoredCursor!;
+  return {
+    settings: local?.settings ?? restored!.settings,
+    personalEvents: merge(local?.personalEvents ?? [], restored?.personalEvents ?? []),
+    canonicalCursor,
+    receipts: merge(local?.receipts ?? [], restored?.receipts ?? [])
+  };
+}
+
 function normalizedPlayerContinuity(
   session: WildzIdentitySession,
   playState: PlayState,
@@ -328,6 +355,10 @@ export async function restoreWildzArtifactForSurface(input: {
   database: WildzContinuityDatabase;
   confirmCardOnly: WildzCardOnlyConfirmation;
   currentPlayState?: PlayState;
+  currentPlayerContinuity?: WildzPlayerContinuity | null;
+  currentCharacter?: WildzCharacterGenesis | null;
+  preserveActiveIdentity?: boolean;
+  carryCurrentVault?: boolean;
   proofSealedPlayer?: boolean;
 }): Promise<WildzCommittedArtifactRestore> {
   const inspection = await input.codec.inspect({
@@ -346,11 +377,11 @@ export async function restoreWildzArtifactForSurface(input: {
   if (!cardOnlyConfirmed) throw new Error("wildz_restore_confirmation_required");
   const active = await input.repository.active();
   const player = inspectionPlayer(inspection);
-  const shouldMergeIntoActiveVault = input.surface === "card-vault"
+  const shouldMergeIntoActiveVault = Boolean(input.preserveActiveIdentity) || (input.surface === "card-vault"
     && Boolean(input.currentPlayState)
     && Boolean(active)
     && inspection.kind !== "identity-seal"
-    && (!player || !sameWildzPlayerCoordinate(player.playerId, active!.actorId));
+    && (!player || !sameWildzPlayerCoordinate(player.playerId, active!.actorId)));
   const session = shouldMergeIntoActiveVault ? active : verifiedIdentity?.session ?? active;
   if (!session) throw new Error("wildz_restore_identity_missing");
   if (player && !shouldMergeIntoActiveVault && !sameWildzPlayerCoordinate(player.playerId, session.actorId)) {
@@ -360,6 +391,18 @@ export async function restoreWildzArtifactForSurface(input: {
     throw new Error("wildz_restore_binding_invalid");
   }
   const assets = inspectionAssets(inspection);
+  const playerForSession = player && shouldMergeIntoActiveVault
+    ? createWildsPlayerVault({
+        playerId: session.actorId,
+        exportedAt: player.exportedAt,
+        playState: player.playState,
+        character: player.character,
+        settings: player.settings,
+        personalEvents: player.personalEvents,
+        canonicalCursor: player.canonicalCursor,
+        receipts: player.receipts
+      })
+    : player;
   const verifiedAssetIds = [...new Set(assets.map((asset) => asset.id))].sort();
   const scope = wildzOwnerScope(session.keyId, session.actorId);
   let committedOwnerState: StoredWildzOwnerState | null = null;
@@ -371,20 +414,40 @@ export async function restoreWildzArtifactForSurface(input: {
         ? sameActiveOwner || sameWildzPlayerCoordinate(active.actorId, session.actorId)
         : false;
       const previous = storedOwnerState(stored, session);
-      const current = sameActivePlayer && input.currentPlayState
+      const current = input.carryCurrentVault && input.currentPlayState
+        ? restorePlayState(serializePlayState(input.currentPlayState), session.actorId)
+        : sameActivePlayer && input.currentPlayState
         ? restorePlayState(serializePlayState(input.currentPlayState), session.actorId)
         : previous
           ? restorePlayState(serializePlayState(previous.playState))
           : assets.length
             ? emptyVaultPlayState()
             : createOwnerBoundInitialPlayState(session.actorId, session.createdAt);
-      const next = player && !shouldMergeIntoActiveVault ? prepareWildzPlayerPlayState(player, assets) : importAssets(current, assets);
+      const next = playerForSession
+        ? input.currentPlayState && sameWildzPlayerCoordinate(playerForSession.playerId, session.actorId)
+          ? reconcileWildsPlayerVault({
+              local: current,
+              restored: playerForSession,
+              canonical: initialWildsWorldProjection(),
+              actorId: session.actorId,
+              preferLocalState: shouldMergeIntoActiveVault
+            }).state
+          : prepareWildzPlayerPlayState(playerForSession, assets)
+        : importAssets(current, assets);
+      const localContinuity = input.currentPlayerContinuity ?? (previous ? continuityFromOwner(previous) : null);
+      const carriedContinuity = input.carryCurrentVault
+        ? localContinuity
+        : shouldMergeIntoActiveVault
+          ? mergePlayerContinuity(localContinuity, playerForSession)
+          : null;
       const record = createStoredWildzPlayState(
         session,
         next,
-        player && !shouldMergeIntoActiveVault ? player : previous ? continuityFromOwner(previous) : null,
+        carriedContinuity ?? (playerForSession && !shouldMergeIntoActiveVault ? playerForSession : previous ? continuityFromOwner(previous) : null),
         new Date().toISOString(),
-        player && !shouldMergeIntoActiveVault ? player.character : previous?.character ?? null
+        input.carryCurrentVault
+          ? input.currentCharacter ?? previous?.character ?? null
+          : playerForSession && !shouldMergeIntoActiveVault ? playerForSession.character : previous?.character ?? null
       );
       const verifiedIdentityMatchesActive = active && verifiedIdentity && sameWildzPlayerCoordinate(verifiedIdentity.session.actorId, active.actorId);
       if (verifiedIdentity && (!shouldMergeIntoActiveVault || verifiedIdentityMatchesActive)) {

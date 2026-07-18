@@ -43,12 +43,12 @@ test("own-profile share controls remain disabled until durable publication succe
 
 test("only the owner profile exposes compact identity edit and image controls", () => {
   const sheet = readFileSync("src/features/profile/WildzProfileSheet.tsx", "utf8");
-  const genesis = readFileSync("src/features/identity/WildzGenesis.tsx", "utf8");
+  const onboarding = readFileSync("src/features/identity/WildzInWorldOnboarding.tsx", "utf8");
   assert.match(sheet, /editable/);
   assert.match(sheet, /onSaveProfile/);
   assert.match(sheet, /accept="image\/png,image\/jpeg,image\/webp"/);
   assert.match(sheet, /aria-label="Edit profile"/);
-  assert.doesNotMatch(genesis, /username-control|Choose your Receiz username/);
+  assert.doesNotMatch(onboarding, /username-control|Choose your Receiz username/);
 });
 
 test("profile edit control reserves the overlay close-button hit area", () => {
