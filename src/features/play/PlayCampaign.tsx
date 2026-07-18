@@ -6,7 +6,6 @@ import { Button, StatusPill } from "@/components/ui";
 import {
   applyWildsInput,
   initialPlayState,
-  missionCards,
   selectedAsset,
   selectedCard,
   type PlayState,
@@ -56,6 +55,12 @@ import type {
 } from "@/features/identity/wildz-restore";
 import { bossAudioCue, ecologyAudioCue, normalizeWildsAudioSettings, settlementAudioCue } from "@/features/play/wilds-audio";
 import { WildsLivingWorldHud } from "@/features/play/WildsLivingWorldHud";
+import { WildsSagaPanel } from "@/features/play/WildsSagaPanel";
+import { wildsSagaFramework } from "@/features/play/wilds-saga-content";
+import { projectWildsSaga } from "@/features/play/wilds-saga-director";
+import { projectMissionGraph, type WildsMissionContribution } from "@/features/play/wilds-saga-missions";
+import type { WildsTrainerProjection } from "@/features/play/wilds-saga-trainers";
+import type { WildsTournamentProjection } from "@/features/play/wilds-saga-tournament";
 import { WildsSettlementExperience } from "@/features/play/WildsSettlementExperience";
 import { createWildsCivicEvent, normalizeWildsCivicActorId, projectWildsCivicHistory } from "@/features/play/wilds-civic-history";
 import { WildsEcologyExperience } from "@/features/play/WildsEcologyExperience";
@@ -156,7 +161,6 @@ export function PlayCampaign({
   const [riftError, setRiftError] = useState("");
   const [requestedCommand, setRequestedCommand] = useState<WildsCommandKey | null>(null);
   const [kaiOccurredAt, setKaiOccurredAt] = useState(() => new Date(KAI_GENESIS_TS).toISOString());
-  const activeMission = missionCards[state.completedMissionIds.length % missionCards.length];
   const worldProgression = projectWorldProgression(state.worldMastery);
   const activeCard = selectedCard(state);
   const activeAsset = selectedAsset(state);
@@ -203,6 +207,31 @@ export function PlayCampaign({
     occurredAt: kaiOccurredAt,
     authority: livingWorld.mode === "receiz_live" ? "world" : "local"
   });
+  const saga = projectWildsSaga({
+    moment: kaiMoment,
+    framework: wildsSagaFramework(),
+    memories: livingWorld.snapshot?.story.memories ?? []
+  });
+  const sagaPlayer = livingWorld.snapshot?.players[ownerReceizId] ?? null;
+  const sagaContributions: WildsMissionContribution[] = saga.chapter.missions.flatMap((mission) => mission.nodes.flatMap((node) => {
+    const amount = sagaPlayer?.contributions[node.id] ?? 0;
+    return amount > 0 ? [{
+      eventId: `projection:${saga.dayId}:${ownerReceizId}:${node.id}`,
+      dayId: saga.dayId,
+      objectiveId: node.id,
+      playerId: ownerReceizId,
+      verb: node.acceptedVerbs[0]!,
+      amount
+    }] : [];
+  }));
+  const sagaMissions = projectMissionGraph({ saga, playerId: ownerReceizId, contributions: sagaContributions, currentDayId: saga.dayId });
+  const sagaPrimaryNodes = sagaMissions.nodes.filter((node) => node.primary);
+  const sagaPrimaryTarget = sagaPrimaryNodes.reduce((total, node) => total + node.target, 0);
+  const sagaPrimaryProgress = sagaPrimaryNodes.reduce((total, node) => total + node.progress, 0);
+  const sagaProgressPercent = sagaPrimaryTarget ? Math.round(sagaPrimaryProgress / sagaPrimaryTarget * 100) : 0;
+  const sagaTrainerIds = new Set(saga.chapter.trainers.map((trainer) => trainer.id));
+  const sagaTrainers = Object.values(livingWorld.snapshot?.trainers ?? {}).filter((trainer) => sagaTrainerIds.has(trainer.id)) as unknown as WildsTrainerProjection[];
+  const sagaTournament = (Object.values(livingWorld.snapshot?.tournaments ?? {}).find((tournament) => tournament.dayId === saga.dayId) ?? null) as WildsTournamentProjection | null;
   const kaiExpression = projectKaiWorldExpression(kaiMoment);
   const audioScene = useMemo(() => {
     const biome = projectWildsBiome(
@@ -490,7 +519,11 @@ export function PlayCampaign({
       health: state.battle.player.hp,
       maxHealth: state.battle.player.maxHp
     } : null,
-    mission: { title: activeMission.title, progress: state.missionProgress, reward: activeMission.reward },
+    mission: {
+      title: saga.chapter.title,
+      progress: sagaProgressPercent,
+      reward: saga.chapter.missions.find((mission) => mission.primary)?.reward.label ?? "Living story progress"
+    },
     nearby: {
       landmark: currentLandmark ? { id: currentLandmark.id, name: currentLandmark.name } : null,
       ecology: nearbyEcology ? { id: nearbyEcology.site.id, name: nearbyEcology.site.name } : null,
@@ -632,44 +665,38 @@ export function PlayCampaign({
     },
     {
       key: "mission",
-      label: "World Mission",
+      label: "Living Story",
       icon: <Icons.trophy size={21} />,
-      badge: `${state.missionProgress}%`,
-      status: `${state.missionProgress}% · ${worldProgression.chapter.name}`,
+      badge: `${sagaProgressPercent}%`,
+      status: `${saga.act.ark} · ${saga.chapter.title}`,
       content: (
         <div className="wilds-command-content wilds-mission-content">
-          <div className="wilds-command-content-lead">
-            <span><small>Current mission</small><strong>{activeMission.title}</strong></span>
-            <b>{state.missionProgress}%</b>
-          </div>
-          <div className="wilds-world-chapter">
-            <span>
-              <small>Chapter {worldProgression.chapterIndex + 1} · Cycle {worldProgression.cycle}</small>
-              <strong>{worldProgression.chapter.name}</strong>
-            </span>
-            <b>{worldProgression.chapter.element}</b>
-            <p>{worldProgression.chapter.objective}</p>
-            <div className="wilds-progress" aria-label={`${worldProgression.chapterMastery}% chapter mastery`}>
-              <span style={{ width: `${worldProgression.chapterMastery}%` }} />
-            </div>
-            <span className="wilds-world-event">
-              <small>Live world event</small>
-              <strong>{worldProgression.worldEvent.name}</strong>
-              <em>{worldProgression.worldEvent.objective}</em>
-            </span>
-            <small>Permanent mastery {state.worldMastery} · Next realm at {worldProgression.nextChapterAt}</small>
-          </div>
-          <p>{activeMission.requirement}</p>
-          <div className="wilds-progress" aria-label={`${state.missionProgress}% mission progress`}>
-            <span style={{ width: `${state.missionProgress}%` }} />
-          </div>
-          <strong className="wilds-command-reward-label">{activeMission.reward}</strong>
-          <div className="wilds-economy-grid">
-            <div><span>Deck</span><strong>{deckCards.length}/∞</strong></div>
-            <div><span>Near</span><strong>{state.encounter.phase === "idle" ? "Hidden" : state.encounter.phase}</strong></div>
-            <div><span>Titan Gate</span><strong>{state.bossUnlocked ? "Open" : "Locked"}</strong></div>
-          </div>
-          <Button className="wilds-reset" variant="outline" onClick={() => dispatch({ type: "reset" })}>Reset world</Button>
+          <WildsSagaPanel
+            missions={sagaMissions}
+            mode={livingWorld.mode}
+            onBattleTrainer={(trainer) => {
+              try {
+                void livingWorld.settleTrainerBattle(saga.dayId, trainer.id, "player_victory").catch((error) => setRiftError(error instanceof Error ? error.message : "wilds_story_trainer_battle_failed"));
+              } catch (error) {
+                setRiftError(error instanceof Error ? error.message : "wilds_story_trainer_battle_failed");
+              }
+            }}
+            onContribute={(node) => void livingWorld.contributeStory(saga.dayId, node.definition.id, node.definition.acceptedVerbs[0]!, 1, state.player).catch((error) => setRiftError(error instanceof Error ? error.message : "wilds_story_contribution_failed"))}
+            onEnterTournament={(tournamentId, qualificationGrantId) => {
+              try {
+                void livingWorld.enterSagaTournament(tournamentId, qualificationGrantId).catch((error) => setRiftError(error instanceof Error ? error.message : "wilds_story_tournament_entry_failed"));
+              } catch (error) {
+                setRiftError(error instanceof Error ? error.message : "wilds_story_tournament_entry_failed");
+              }
+            }}
+            pending={Boolean(livingWorld.pendingCommand)}
+            player={sagaPlayer}
+            playerId={ownerReceizId}
+            playerName={playerDisplayName}
+            saga={saga}
+            tournament={sagaTournament}
+            trainers={sagaTrainers}
+          />
         </div>
       )
     },
@@ -860,7 +887,7 @@ export function PlayCampaign({
           <h2>
             <span>Play:</span> Receiz Wilds
           </h2>
-          <p>{campaignName} is now a playable 3D creature-card world: discover companions, build a deck, run missions, and unlock portable merchant rewards.</p>
+          <p>{campaignName} is a living creature-card world: roam freely, meet trainers, complete the shared Kai story, and leave real achievements in its history.</p>
         </div>
         <div className="play-stats wilds-stat-strip" aria-label="Current game stats">
           <StatusPill tone="pink">{state.streak}x streak</StatusPill>

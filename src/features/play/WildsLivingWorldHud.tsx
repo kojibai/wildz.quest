@@ -19,6 +19,7 @@ export function WildsLivingWorldHud({ world, player, connected }: { world: Retur
   const close = nearby && nearby.distance <= nearby.site.radius + 8;
   const modeLabel = wildsLivingWorldModeLabel(world.mode, connected);
   const displayedMode = connected ? "receiz_live" : world.mode;
+  const activeChapter = world.snapshot?.story.activeChapter;
 
   const compactSiteName = nearby?.site.name.split(/\s+/).at(-1) ?? "Event";
 
@@ -35,6 +36,7 @@ export function WildsLivingWorldHud({ world, player, connected }: { world: Retur
     {open ? <section className="wilds-living-world-sheet" aria-label="Shared world event details">
       <button aria-label="Close shared world details" className="wilds-living-world-close" onClick={() => setOpen(false)} type="button">×</button>
       <small>{modeLabel} · shared world status</small>
+      {activeChapter ? <p><strong>Living chapter</strong> · {activeChapter.chapterId}</p> : <p>The next Kai chapter is being admitted.</p>}
       <strong>{boss?.phase === "defeated" ? `${boss.id} defeated for everyone` : boss ? "A shared boss has emerged" : "The living world is listening"}</strong>
       {nearbyEcology ? <p>{nearbyEcology.site.name} · {nearbyEcology.site.phase} · {Math.round(nearbyEcology.distance)}m from you</p> : null}
       {boss ? <div className="wilds-live-boss-meter"><span style={{ width: `${Math.max(0, Math.min(100, boss.health / boss.maxHealth * 100))}%` }} /><b>{Math.ceil(boss.health / boss.maxHealth * 100)}%</b></div> : null}

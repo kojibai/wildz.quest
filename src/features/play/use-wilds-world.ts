@@ -8,6 +8,7 @@ import { WILDS_WORLD_ID } from "./wilds-world-event";
 import type { WildsWorldProjection } from "./wilds-world-state";
 import type { WildsWorldSnapshot } from "./wilds-world-record";
 import type { WildsRaidIntent } from "./wilds-raid-encounter";
+import type { WildsGameplayVerb } from "./wilds-saga-types";
 import { worldCommandRequiresCard } from "./wilds-world-authority";
 import {
   shouldAttemptWildsNetwork,
@@ -198,6 +199,38 @@ export function useWildsWorld(input: {
     error,
     pendingCommand,
     refresh,
+    contributeStory: (dayId: string, objectiveId: string, verb: WildsGameplayVerb, amount = 1, position?: { x: number; z: number }) => post({
+      type: "story.contribute",
+      dayId,
+      objectiveId,
+      verb,
+      amount,
+      position,
+      cardProofDigest: input.activeCard?.proof.digest,
+      commandId: commandId("command:story:contribute")
+    }),
+    settleTrainerBattle: (dayId: string, trainerId: string, outcome: "player_victory" | "trainer_victory" | "fled") => {
+      if (!input.activeCard) throw new Error("wilds_world_active_card_required");
+      return post({
+        type: "story.trainer_battle",
+        dayId,
+        trainerId,
+        matchId: `match:story:${crypto.randomUUID()}`,
+        outcome,
+        cardProofDigest: input.activeCard.proof.digest,
+        commandId: commandId("command:story:trainer_battle")
+      });
+    },
+    enterSagaTournament: (tournamentId: string, qualificationGrantId: string) => {
+      if (!input.activeCard) throw new Error("wilds_world_active_card_required");
+      return post({
+        type: "story.tournament_enter",
+        tournamentId,
+        qualificationGrantId,
+        cardProofDigest: input.activeCard.proof.digest,
+        commandId: commandId("command:story:tournament_enter")
+      });
+    },
     discoverEcology: (siteId: string, position: { x: number; z: number }) => post({ type: "ecology.discover", siteId, position, commandId: commandId("command:ecology:discover") }),
     contributeEcology: (siteId: string, position: { x: number; z: number }, amount: number) => {
       if (!input.activeCard) throw new Error("wilds_world_active_card_required");

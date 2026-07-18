@@ -13808,3 +13808,18 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   .hearttree-squad-list { grid-template-columns: 1fr; }.hearttree-squad-list > button { min-height: 70px; }.hearttree-risk-panel { max-height: 88px; overflow-y: auto; }
 }
 @media (prefers-reduced-motion: reduce) { .hearttree-touch-control, .hearttree-vitals i, .hearttree-overlay { transition: none; animation: none; } }
+
+/* Living Kai saga */
+.wilds-saga-panel { display: grid; gap: 14px; }
+.wilds-saga-panel > header, .wilds-saga-trainers > div, .wilds-saga-trainers article { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
+.wilds-saga-panel > header span, .wilds-saga-trainers article span { display: grid; gap: 3px; }
+.wilds-saga-panel > header b { border: 1px solid rgb(136 247 207 / 42%); border-radius: 999px; padding: 6px 10px; }
+.wilds-saga-directive, .wilds-saga-live-state, .wilds-saga-grid p, .wilds-saga-tournament p, .wilds-saga-history p { color: #a9b8b4; margin: 0; }
+.wilds-saga-grid { display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.wilds-saga-grid article, .wilds-saga-trainers, .wilds-saga-tournament, .wilds-saga-history { background: rgb(7 23 19 / 84%); border: 1px solid rgb(159 245 215 / 14%); border-radius: 14px; display: grid; gap: 8px; padding: 12px; }
+.wilds-saga-grid article > strong { line-height: 1.35; }
+.wilds-saga-panel button { justify-self: start; }
+.wilds-saga-trainers { gap: 10px; }
+.wilds-saga-trainers article { border-top: 1px solid rgb(159 245 215 / 10%); padding-top: 10px; }
+.wilds-saga-history summary { cursor: pointer; font-weight: 800; }
+@media (max-width: 720px) { .wilds-saga-grid { grid-template-columns: 1fr; } .wilds-saga-trainers article { align-items: flex-start; flex-wrap: wrap; } }
