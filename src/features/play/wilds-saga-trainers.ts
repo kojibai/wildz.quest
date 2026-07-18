@@ -4,6 +4,7 @@ import { creatureForms } from "./creature-catalog";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import type { WildsSagaProjection } from "./wilds-saga-director";
 import type { WildsTrainerAffinity, WildsTrainerTier } from "./wilds-saga-types";
+import { WILDS_NAMED_REGIONS } from "./wilds-world-geography";
 
 export type WildsTrainerBattleMemory = Readonly<{
   trainerId: string;
@@ -48,6 +49,15 @@ function trainerSeed(saga: WildsSagaProjection, definitionId: string, locationId
   return Number.parseInt(digest.slice("sha256:".length, "sha256:".length + 8), 16) >>> 0;
 }
 
+function scatteredTrainerPosition(saga: WildsSagaProjection, seed: number, index: number): readonly [number, number, number] {
+  const dayDigest = sha256PortableBasis(canonicalPortableCardJson({ dayId: saga.dayId, frameworkVersion: saga.frameworkVersion }));
+  const dayOffset = Number.parseInt(dayDigest.slice("sha256:".length, "sha256:".length + 4), 16) % WILDS_NAMED_REGIONS.length;
+  const region = WILDS_NAMED_REGIONS[(dayOffset + index * 2) % WILDS_NAMED_REGIONS.length]!;
+  const xJitter = ((seed & 0xffff) / 0xffff - 0.5) * 36;
+  const zJitter = (((seed >>> 16) & 0xffff) / 0xffff - 0.5) * 36;
+  return [Number((region.position.x + xJitter).toFixed(2)), 0, Number((region.position.z + zJitter).toFixed(2))];
+}
+
 function roster(input: { affinity: WildsTrainerAffinity; tier: WildsTrainerTier; size: number; seed: number; rematchIndex: number; playerLevel: number }) {
   const targetStage = Math.min(3, Math.max(STAGE_BY_TIER[input.tier], input.playerLevel >= 25 ? 3 : input.playerLevel >= 10 ? 2 : 1));
   let candidates = creatureForms.filter((form) => form.element === input.affinity && form.stage === targetStage);
@@ -62,7 +72,7 @@ export function projectSagaTrainers(input: {
   battleMemories: readonly WildsTrainerBattleMemory[];
 }): WildsTrainerProjection[] {
   const playerLevel = Math.max(1, Math.min(100, Math.floor(Number.isFinite(input.playerLevel) ? input.playerLevel : 1)));
-  return input.saga.chapter.trainers.map((definition) => {
+  return input.saga.chapter.trainers.map((definition, index) => {
     const rematchIndex = input.battleMemories.filter((memory) => memory.trainerId === definition.id && Number.isFinite(Date.parse(memory.settledAt))).length;
     const seed = trainerSeed(input.saga, definition.id, definition.locationId, rematchIndex);
     return {
@@ -70,7 +80,7 @@ export function projectSagaTrainers(input: {
       kind: "npc",
       name: definition.name,
       locationId: definition.locationId,
-      position: definition.position,
+      position: scatteredTrainerPosition(input.saga, seed, index),
       tier: definition.tier,
       affinity: definition.affinity,
       seed,

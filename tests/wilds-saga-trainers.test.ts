@@ -21,6 +21,10 @@ describe("Wilds seeded saga trainers", () => {
     assert.ok(first.some((trainer) => trainer.recurring));
     assert.equal(trainerArenaNpc(first[0]!).actorId, first[0]!.id);
     assert.equal(projectCampaignOpponentFromTrainer(first[0]!).id, first[0]!.id);
+    const xs = first.map((trainer) => trainer.position[0]);
+    const zs = first.map((trainer) => trainer.position[2]);
+    assert.ok(Math.max(...xs) - Math.min(...xs) >= 100 || Math.max(...zs) - Math.min(...zs) >= 100);
+    assert.ok(first.every((trainer) => Math.abs(trainer.position[0]) <= 192 && Math.abs(trainer.position[2]) <= 192));
   });
 
   it("evolves a remembered trainer rematch deterministically", () => {

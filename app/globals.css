@@ -12624,7 +12624,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .mortal-arena-covenant-choices { display: flex; width: 100%; justify-content: center; gap: 7px; }
 .mortal-arena-covenant-choices span { display: flex; min-width: 82px; align-items: center; justify-content: center; gap: 5px; padding: 8px 10px; color: #f6e7c7; border: 1px solid rgb(255 255 255 / 9%); border-radius: 13px; background: rgb(255 255 255 / 4%); }
 .mortal-arena-covenant-choices b { font-size: 9px; }
-.mortal-arena-covenant-hold { position: relative; isolation: isolate; display: grid; width: 100%; min-height: 62px; margin-top: 5px; overflow: hidden; place-items: center; color: #261304; border: 0; border-radius: 17px; background: #806a2e; }
+.mortal-arena-covenant-hold { position: relative; isolation: isolate; display: grid; width: 100%; min-height: 62px; margin-top: 5px; overflow: hidden; place-items: center; color: #261304; border: 0; border-radius: 17px; background: #806a2e; touch-action: none; user-select: none; -webkit-user-select: none; }
 .mortal-arena-covenant-hold > i { position: absolute; z-index: -1; inset: 0; width: calc(var(--covenant-progress) * 100%); background: linear-gradient(90deg, #f4b43f, #ffe67d); transition: width .05s linear; }
 .mortal-arena-covenant-hold strong { font-size: 13px; }.mortal-arena-covenant-hold small { font-size: 8px; opacity: .68; }
 .mortal-arena-covenant-return { color: #baa98e; border: 0; background: transparent; font-size: 10px; }

@@ -24,6 +24,15 @@ describe("Mortal Arena UI integration", () => {
     assert.match(source, /if \(!active/);
   });
 
+  it("captures the covenant hold without selecting text or cancelling on tiny pointer drift", async () => {
+    const source = await readFile("src/features/games/mortal-arena/MortalArenaCovenant.tsx", "utf8");
+    const css = await readFile("app/globals.css", "utf8");
+    assert.match(source, /setPointerCapture/);
+    assert.match(source, /event\?\.preventDefault\(\)/);
+    assert.doesNotMatch(source, /onPointerLeave=\{stop\}/);
+    assert.match(css, /\.mortal-arena-covenant-hold\s*\{[^}]*touch-action:\s*none[^}]*user-select:\s*none/s);
+  });
+
   it("does not turn every movement release into an accidental jump", async () => {
     const source = await readFile("src/features/games/mortal-arena/MortalArenaExperience.tsx", "utf8");
     assert.match(source, /movedRef/);

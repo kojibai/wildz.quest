@@ -283,9 +283,20 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     const current = continuityRef.current;
     if (!current) return;
     const playState = current.playState ?? createOwnerBoundInitialPlayState(current.session.actorId, current.session.createdAt);
-    const snapshot: WildzContinuitySnapshot = { ...current, playState, character: next };
+    const playerContinuity: NonNullable<WildzContinuitySnapshot["playerContinuity"]> = {
+      settings: {
+        avatarStyle: next.gender,
+        movementMode: current.playerContinuity?.settings.movementMode ?? "walk",
+        audio: current.playerContinuity?.settings.audio ?? {},
+        cardOrder: current.playerContinuity?.settings.cardOrder ?? "rarity"
+      },
+      personalEvents: current.playerContinuity?.personalEvents ?? [],
+      canonicalCursor: current.playerContinuity?.canonicalCursor ?? { worldId: "wilds:global:v3", revision: 0, eventId: null },
+      receipts: current.playerContinuity?.receipts ?? []
+    };
+    const snapshot: WildzContinuitySnapshot = { ...current, playState, character: next, playerContinuity };
     try {
-      await saveWildzContinuityPlayState(snapshot, playState, current.playerContinuity ?? undefined, next);
+      await saveWildzContinuityPlayState(snapshot, playState, playerContinuity, next);
       acceptSnapshot(snapshot);
     } catch {
       setIdentityError("Your explorer could not be saved. Try again before closing Wildz.");
@@ -448,7 +459,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     <main className="wildz-app-shell" data-wildz-active-username={ownerUsername}>
       <div className="wildz-app" data-overlay={overlay?.kind ?? "world"}>
         {continuity && identity && campaignCharacter ? <PlayCampaign
-          key={`${identity.actorId}:${continuity.restoreEpoch}`}
+          key={`${identity.keyId}:${identity.actorId}`}
           campaignName="Wildz"
           character={campaignCharacter}
           enabled

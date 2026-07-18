@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Icons } from "@/components/icons";
 import type { PortableCardAsset } from "../../play/portable-card";
 
@@ -23,8 +23,12 @@ export function MortalArenaCovenant({ card, onConfirm, onExit }: {
     setProgress(0);
   };
 
-  const begin = () => {
-    if (holding) return;
+  const begin = (event?: ReactPointerEvent<HTMLButtonElement>) => {
+    event?.preventDefault();
+    if (event) {
+      try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* Pointer capture is optional. */ }
+    }
+    if (timerRef.current !== null) return;
     setHolding(true);
     startedRef.current = performance.now();
     const frame = (now: number) => {
@@ -40,6 +44,15 @@ export function MortalArenaCovenant({ card, onConfirm, onExit }: {
       timerRef.current = window.requestAnimationFrame(frame);
     };
     timerRef.current = window.requestAnimationFrame(frame);
+  };
+
+  const release = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    try {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // Releasing still cancels the hold when pointer capture is unavailable.
+    }
+    stop();
   };
 
   useEffect(() => () => {
@@ -63,8 +76,7 @@ export function MortalArenaCovenant({ card, onConfirm, onExit }: {
         onKeyUp={stop}
         onPointerCancel={stop}
         onPointerDown={begin}
-        onPointerLeave={stop}
-        onPointerUp={stop}
+        onPointerUp={release}
         style={{ "--covenant-progress": progress } as React.CSSProperties}
         type="button"
       >

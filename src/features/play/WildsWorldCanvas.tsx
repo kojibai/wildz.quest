@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, OrbitControls, Sparkles } from "@react-three/drei";
 import * as THREE from "three";
@@ -137,27 +137,47 @@ function WildsScene({
       <WildsKaiAtmosphereGeometry expression={kaiExpression} qualityProfile={qualityProfile} />
       <CameraRig onCameraHeadingChange={onCameraHeadingChange} />
       <WildsDiagnostics qualityProfile={qualityProfile} state={state} />
-      <SearchableTerrain
-        enabled={searchEnabled}
-        missionProgress={state.missionProgress}
-        onSearchPoint={onSearchPoint}
-        player={state.player}
-        qualityProfile={qualityProfile}
-        worldMastery={state.worldMastery}
-        livingWorld={livingWorld}
-        worldMode={worldMode}
-      />
-      <WildsEcologyEnvironment livingWorld={livingWorld} player={state.player} worldMode={worldMode} />
-      <WildsBossEnvironment livingWorld={livingWorld} player={state.player} qualityProfile={qualityProfile} />
-      <EncounterSequence state={state} />
-      {remotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} />)}
-      {trainers.map((trainer) => <TrainerExplorer key={trainer.id} trainer={trainer} localPlayer={state.player} onSelect={onSelectTrainer} />)}
+      <SmoothWorldFrame player={state.player}>
+        <SearchableTerrain
+          enabled={searchEnabled}
+          missionProgress={state.missionProgress}
+          onSearchPoint={onSearchPoint}
+          player={state.player}
+          qualityProfile={qualityProfile}
+          worldMastery={state.worldMastery}
+          livingWorld={livingWorld}
+          worldMode={worldMode}
+        />
+        <WildsEcologyEnvironment livingWorld={livingWorld} player={state.player} worldMode={worldMode} />
+        <WildsBossEnvironment livingWorld={livingWorld} player={state.player} qualityProfile={qualityProfile} />
+        <EncounterSequence state={state} />
+        {remotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} />)}
+        {trainers.map((trainer) => <TrainerExplorer key={trainer.id} trainer={trainer} localPlayer={state.player} onSelect={onSelectTrainer} />)}
+      </SmoothWorldFrame>
       <WildsExplorer style={avatarStyle} worldPosition={state.player} />
       <ActiveCompanion state={state} />
       <SupportCompanions cards={supportCards} />
       <Sparkles key={`wilds-world-sparkles-${worldSparkleCount}`} count={worldSparkleCount} scale={[8, 2.4, 8]} size={2.1} speed={kaiExpression.particleSpeed} color={kaiExpression.accent} />
     </>
   );
+}
+
+function SmoothWorldFrame({ player, children }: { player: PlayState["player"]; children: ReactNode }) {
+  const group = useRef<THREE.Group>(null);
+  const previous = useRef(player);
+  useLayoutEffect(() => {
+    const prior = previous.current;
+    previous.current = player;
+    if (!group.current) return;
+    group.current.position.x += player.x - prior.x;
+    group.current.position.z += player.z - prior.z;
+  }, [player]);
+  useFrame((_, delta) => {
+    if (!group.current) return;
+    group.current.position.x = THREE.MathUtils.damp(group.current.position.x, 0, 18, delta);
+    group.current.position.z = THREE.MathUtils.damp(group.current.position.z, 0, 18, delta);
+  });
+  return <group ref={group}>{children}</group>;
 }
 
 function TrainerExplorer({ trainer, localPlayer, onSelect }: {

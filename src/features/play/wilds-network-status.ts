@@ -27,5 +27,8 @@ export function wildsNetworkFailureMessage(
 
   const message = cause instanceof Error ? cause.message.trim() : "";
   if (!message || isOpaqueWildsNetworkFailure(cause)) return offlineMessage;
+  if (message === "wilds_multiplayer_card_owner_invalid") {
+    return "That companion is not admitted to this verified Vault session yet.";
+  }
   return message;
 }

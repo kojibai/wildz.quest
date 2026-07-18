@@ -80,6 +80,7 @@ import { deriveLoadoutSynergy, projectWildsCardMastery } from "@/features/play/w
 import {
   createWildzVaultCardMembershipProof,
   deriveWildzVaultCardAdmission,
+  type WildzVaultCardAdmission,
   type WildzVaultCardMembershipProof
 } from "@/lib/receiz/wildz-vault-card-admission";
 import { usePublicCardPublisher } from "@/features/play/use-public-card-publisher";
@@ -176,6 +177,10 @@ export function PlayCampaign({
   const activeCard = selectedCard(state);
   const activeAsset = selectedAsset(state);
   const deckCards = state.inventory;
+  const [initialVaultAdmission] = useState<WildzVaultCardAdmission>(() => deriveWildzVaultCardAdmission({
+    cards: initialState.inventory,
+    playerHandle: ownerReceizId
+  }));
   usePublicCardPublisher(deckCards, enabled && networkEnabled);
   const landmarkUnlocks = state.achievements;
   const activeProgress = state.companionProgress[activeCard.id] ?? { level: 1, xp: 0, bond: 0 };
@@ -192,15 +197,11 @@ export function PlayCampaign({
   const cardAdmission = useMemo<WildzVaultCardMembershipProof | null>(() => {
     if (!activeAsset) return null;
     try {
-      const admission = deriveWildzVaultCardAdmission({
-        cards: deckCards,
-        playerHandle: ownerReceizId
-      });
-      return createWildzVaultCardMembershipProof(admission, activeAsset);
+      return createWildzVaultCardMembershipProof(initialVaultAdmission, activeAsset);
     } catch {
       return null;
     }
-  }, [activeAsset, deckCards, ownerReceizId]);
+  }, [activeAsset, initialVaultAdmission]);
   const multiplayer = useWildsMultiplayer({
     enabled: enabled && networkEnabled && Boolean(avatarStyle) && Boolean(activeAsset),
     style: avatarStyle ?? "female",
@@ -251,7 +252,11 @@ export function PlayCampaign({
     battleMemories: worldTrainerMemories
   });
   const liveSagaTrainers = worldTrainerValues.filter((trainer) => sagaTrainerIds.has(trainer.id)) as unknown as WildsTrainerProjection[];
-  const sagaTrainers = liveSagaTrainers.length ? liveSagaTrainers : projectedTrainers;
+  const liveSagaTrainerById = new Map(liveSagaTrainers.map((trainer) => [trainer.id, trainer]));
+  const sagaTrainers = projectedTrainers.map((projected) => {
+    const live = liveSagaTrainerById.get(projected.id);
+    return live ? { ...live, position: projected.position } : projected;
+  });
   const nearestTrainer = nearestSagaTrainer(sagaTrainers, state.player);
   const sagaTournament = (Object.values(livingWorld.snapshot?.tournaments ?? {}).find((tournament) => tournament.dayId === saga.dayId) ?? null) as WildsTournamentProjection | null;
   const kaiExpression = projectKaiWorldExpression(kaiMoment);

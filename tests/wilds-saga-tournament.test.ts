@@ -26,6 +26,7 @@ describe("Wilds Kai tournaments", () => {
     const zero = projectSagaTournament({ saga, moment: purify.moment, qualifiedPlayers: [], trainers, results: [] });
     assert.equal(zero.entrants.length, 8);
     assert.ok(zero.entrants.every((entrant) => entrant.kind === "npc"));
+    assert.ok(zero.entrants.every((entrant) => entrant.label.includes("Trainer") && !entrant.label.includes("NPC")));
 
     const sparse = projectSagaTournament({ saga, moment: purify.moment, qualifiedPlayers: [{ id: "player:ari", seedScore: 42 }], trainers, results: [] });
     assert.equal(sparse.entrants.length, 8);

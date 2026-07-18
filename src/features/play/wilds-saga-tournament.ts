@@ -45,9 +45,9 @@ function digestHex(value: unknown) {
 }
 
 function npcEntrant(input: { saga: WildsSagaProjection; trainer?: WildsTrainerProjection; slot: number }): WildsTournamentEntrant {
-  if (input.trainer) return { id: input.trainer.id, kind: "npc", label: `${input.trainer.name} · NPC`, seedScore: input.trainer.seed };
+  if (input.trainer) return { id: input.trainer.id, kind: "npc", label: `${input.trainer.name} · Trainer`, seedScore: input.trainer.seed };
   const digest = digestHex({ dayId: input.saga.dayId, slot: input.slot, kind: "daily-challenger" });
-  return { id: `npc:daily:${digest.slice(0, 16)}:${input.slot}`, kind: "npc", label: `Daily Challenger ${input.slot + 1} · NPC`, seedScore: Number.parseInt(digest.slice(0, 8), 16) >>> 0 };
+  return { id: `npc:daily:${digest.slice(0, 16)}:${input.slot}`, kind: "npc", label: `Daily Challenger ${input.slot + 1} · Trainer`, seedScore: Number.parseInt(digest.slice(0, 8), 16) >>> 0 };
 }
 
 function match(tournamentId: string, round: WildsTournamentRound, slot: number, entrantIds: readonly [string, string]): WildsTournamentMatch {

@@ -15,6 +15,9 @@ test("camera orbit stays outside React state and diagnostics do not restart on e
   assert.match(world, /const stateRef = useRef\(state\)/);
   assert.match(world, /stateRef\.current = state/);
   assert.doesNotMatch(world, /\[camera, gl, qualityProfile, scene, size, state\]/);
+  assert.match(world, /function SmoothWorldFrame/);
+  assert.match(world, /THREE\.MathUtils\.damp/);
+  assert.match(world, /<SmoothWorldFrame player=\{state\.player\}>/);
 });
 
 test("drawer drag uses direct frame-local height without remounting card layouts", () => {
@@ -50,4 +53,12 @@ test("held movement stays on the render clock instead of a competing interval", 
   assert.match(dpad, /requestAnimationFrame/);
   assert.match(dpad, /cancelAnimationFrame/);
   assert.doesNotMatch(dpad, /setInterval/);
+});
+
+test("Vault merges preserve the admitted multiplayer card set for the mounted session", () => {
+  const campaign = source("src/features/play/PlayCampaign.tsx");
+  assert.match(campaign, /const \[initialVaultAdmission\] = useState/);
+  assert.match(campaign, /cards:\s*initialState\.inventory/);
+  assert.match(campaign, /createWildzVaultCardMembershipProof\(initialVaultAdmission, activeAsset\)/);
+  assert.doesNotMatch(campaign, /deriveWildzVaultCardAdmission\(\{\s*cards:\s*deckCards,[\s\S]*?createWildzVaultCardMembershipProof\(admission, activeAsset\)/);
 });

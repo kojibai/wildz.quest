@@ -36,6 +36,13 @@ test("Wildz creates identity before character genesis and enters play with that 
   assert.doesNotMatch(source, /WILDZ_CHARACTER_STORAGE_KEY|WILDS_AVATAR_KEY/);
 });
 
+test("choosing an explorer persists the matching rendered avatar style", () => {
+  const source = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
+  const genesis = source.slice(source.indexOf("const completeGenesis"), source.indexOf("const saveProfileIdentity"));
+  assert.match(genesis, /avatarStyle:\s*next\.gender/);
+  assert.match(genesis, /playerContinuity/);
+});
+
 test("in-world onboarding keeps identity controls out of first entry", () => {
   const source = read("src/features/identity/WildzInWorldOnboarding.tsx");
   assert.match(source, /Choose your explorer/);
@@ -118,7 +125,8 @@ test("matching Identity Seal upgrades a proof Vault login without clearing the l
   assert.match(source, /sameWildzPlayerCoordinate/);
   assert.match(accept, /sameWildzPlayerCoordinate\(previous\.session\.actorId,\s*snapshot\.session\.actorId\)/);
   assert.doesNotMatch(accept, /previous\.session\.keyId !== snapshot\.session\.keyId[\s\S]*setProofSessionConnected\(false\)/);
-  assert.match(campaign, /key=\{`\$\{identity\.actorId\}:\$\{continuity\.restoreEpoch\}`\}/);
+  assert.match(campaign, /key=\{`\$\{identity\.keyId\}:\$\{identity\.actorId\}`\}/);
+  assert.doesNotMatch(campaign, /restoreEpoch/);
 });
 
 test("large Vault movement coalesces full-state persistence and flushes the latest state", () => {
