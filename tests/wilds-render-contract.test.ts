@@ -243,7 +243,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.ok(stageEnd > eventToast);
     assert.match(source, /<WildsCommandDock items=\{commandItems\}/);
     for (const key of ["mission", "fieldGuide", "satchel", "deck", "vault"]) assert.match(source, new RegExp(`key: "${key}"`));
-    assert.match(source, /badge: `\$\{state\.missionProgress\}%`/);
+    assert.match(source, /badge: `\$\{sagaProgressPercent\}%`/);
     assert.match(source, /badge: `\$\{discoveredKaiLineages\.size\}\/∞`/);
     assert.match(source, /badge: state\.beans/);
     assert.match(source, /badge: state\.inventory\.length/);
@@ -279,10 +279,13 @@ describe("Receiz Wilds rendering contract", () => {
 
   it("surfaces endless chapter equity and deterministic world events", async () => {
     const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
+    const sagaPanel = await readFile("src/features/play/WildsSagaPanel.tsx", "utf8");
     const environment = await readFile("src/features/play/WildsEnvironment.tsx", "utf8");
     assert.match(campaign, /projectWorldProgression/);
-    assert.match(campaign, /wilds-world-chapter/);
-    assert.match(campaign, /Permanent mastery/);
+    assert.match(campaign, /projectWildsSaga/);
+    assert.match(campaign, /<WildsSagaPanel/);
+    assert.match(sagaPanel, /Today['"]s living chapter/);
+    assert.match(sagaPanel, /Why the world changed/);
     assert.match(environment, /worldMastery/);
   });
 

@@ -124,17 +124,18 @@ export function projectLivingCardDossier(asset: PortableCardAsset, origin: strin
   const birthProfile = appearance.profile;
   const birthMoment = deriveKaiKlokMoment({ occurredAt: asset.manifest.capturedAt, authority: "local" });
   const birthExpression = deriveKaiMomentExpression(birthMoment);
+  const arkMeaning = birthExpression.ark.meaning.replace(/^The [^.]+? Ark /, "This phase ");
   const momentGeometry = [birthExpression.day, birthExpression.week, birthExpression.month, birthExpression.ark]
     .map((teaching) => `${teaching.color} · ${teaching.element} · ${teaching.geometry}`);
   const momentTeachings = [
     birthExpression.day.meaning,
     birthExpression.week.meaning,
     birthExpression.month.meaning,
-    birthExpression.ark.meaning,
+    arkMeaning,
     KAI_MATH_TEACHINGS[birthMoment.pulse % KAI_MATH_TEACHINGS.length]!
   ];
   const semanticTitle = `${birthExpression.day.color} presence · ${birthExpression.ark.geometry}`;
-  const semanticPassage = `${asset.manifest.name} holds a moment of ${birthExpression.day.element.toLowerCase()} shaped as ${birthExpression.day.geometry.toLowerCase()}. ${birthExpression.day.meaning} ${birthExpression.month.meaning} ${birthExpression.ark.meaning}`;
+  const semanticPassage = `${asset.manifest.name} holds a moment of ${birthExpression.day.element.toLowerCase()} shaped as ${birthExpression.day.geometry.toLowerCase()}. ${birthExpression.day.meaning} ${birthExpression.month.meaning} ${arkMeaning}`;
   const powerEntries = Object.entries(asset.manifest.stats).sort((a, b) => b[1] - a[1]);
   const birth = appearance.source === "sealed" ? {
     sealed: true,

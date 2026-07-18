@@ -24,6 +24,7 @@ test("Kai-born dossier turns the sealed moment into emotional creature identity"
   const moment = deriveKaiKlokMoment({ occurredAt: asset.manifest.capturedAt, authority: "local" });
   const semanticCopy = [dossier.birth.title, dossier.birth.passage, ...dossier.birth.geometry].join(" ");
   for (const calendarName of [moment.weekday, moment.weekName, moment.monthName, moment.ark]) assert.doesNotMatch(semanticCopy, new RegExp(calendarName, "i"));
+  assert.doesNotMatch([dossier.birth.passage, ...dossier.birth.teachings].join(" "), /The [A-Za-z-]+ Ark\b/);
   assert.match(semanticCopy, /crimson|orange|gold|emerald|blue|violet|indigo|white/i);
   assert.match(semanticCopy, /square|triangle|vesica|hex|wave|octa|torus|merkaba|dodeca/i);
   assert.ok(dossier.birth.statShift.some((shift) => /[+-][1-3]/.test(shift)));

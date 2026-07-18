@@ -671,6 +671,7 @@ export function PlayCampaign({
       status: `${saga.act.ark} · ${saga.chapter.title}`,
       content: (
         <div className="wilds-command-content wilds-mission-content">
+          <p className="wilds-saga-deck-count"><strong>{deckCards.length}/∞</strong> living cards in your deck</p>
           <WildsSagaPanel
             missions={sagaMissions}
             mode={livingWorld.mode}
