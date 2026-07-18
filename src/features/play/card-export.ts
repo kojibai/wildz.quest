@@ -467,8 +467,11 @@ export async function downloadPortableCard(asset: PortableCardAsset) {
   const publication = await attemptCardPublication(asset);
   const portable = await renderPortableCardPngBlob(asset);
   const remoteProof = await requestReceizProofObject(portable, `${filename}.png`, "card");
-  if (!remoteProof) throw new Error("receiz_proof_object_unavailable");
-  downloadBlob(new Blob([remoteProof.slice().buffer], { type: "image/png" }), `${filename}.receized.png`);
+  if (remoteProof) {
+    downloadBlob(new Blob([remoteProof.slice().buffer], { type: "image/png" }), `${filename}.receized.png`);
+  } else {
+    downloadBlob(portable, `${filename}.wildz-card.png`);
+  }
   return { published: publication.published };
 }
 

@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   downloadPortableCard,
-  downloadPortableVault
+  downloadPortableVault,
+  readPortableCardFromPng
 } from "../src/features/play/card-export";
 import { createPublicWildsCardRecord } from "../src/features/play/public-card-registry";
 import { sealCollectedCard } from "../src/features/play/portable-card";
@@ -178,7 +179,7 @@ test("v103 card download preserves the native proof artifact bytes", async () =>
   }
 });
 
-test("Card export never downgrades a requested proof object to an unsealed inner PNG", async () => {
+test("Card export falls back to its offline-verifiable portable PNG when Receiz proof service is unavailable", async () => {
   const browser = installDownloadBrowser();
   const asset = card("native-card-required");
   try {
@@ -193,8 +194,12 @@ test("Card export never downgrades a requested proof object to an unsealed inner
       }
     });
 
-    await assert.rejects(downloadPortableCard(asset), /receiz_proof_object_unavailable/);
-    assert.equal(browser.downloaded(), null);
+    await downloadPortableCard(asset);
+    const downloaded = browser.downloaded();
+    assert.ok(downloaded);
+    const proof = readPortableCardFromPng(new Uint8Array(await downloaded.arrayBuffer()));
+    assert.equal(proof.asset.id, asset.id);
+    assert.equal(browser.downloadedFilename(), "mintcub-1.wildz-card.png");
   } finally {
     browser.restore();
   }
