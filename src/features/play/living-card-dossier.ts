@@ -3,6 +3,8 @@ import { projectCardKaiAppearance } from "./card-kai-appearance";
 import { creatureForm, type CreatureStats } from "./creature-catalog";
 import { deriveBirthGenome } from "./heartbound-genome";
 import { identityForGenome } from "./heartbound-identity";
+import { deriveKaiKlokMoment } from "./kai-klok-moment";
+import { deriveKaiMomentExpression, KAI_MATH_TEACHINGS } from "./kai-klok-teachings";
 import { currentLivingGenome, currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import { canonicalPortableCardJson, verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
@@ -16,6 +18,7 @@ export type LivingCardDossier = {
     title: string;
     passage: string;
     geometry: string[];
+    teachings: string[];
     statShift: string[];
   };
   personality: {
@@ -119,22 +122,37 @@ export function projectLivingCardDossier(asset: PortableCardAsset, origin: strin
   const presentation = genome.presentation;
   const appearance = projectCardKaiAppearance(asset);
   const birthProfile = appearance.profile;
+  const birthMoment = deriveKaiKlokMoment({ occurredAt: asset.manifest.capturedAt, authority: "local" });
+  const birthExpression = deriveKaiMomentExpression(birthMoment);
+  const momentGeometry = [birthExpression.day, birthExpression.week, birthExpression.month, birthExpression.ark]
+    .map((teaching) => `${teaching.color} · ${teaching.element} · ${teaching.geometry}`);
+  const momentTeachings = [
+    birthExpression.day.meaning,
+    birthExpression.week.meaning,
+    birthExpression.month.meaning,
+    birthExpression.ark.meaning,
+    KAI_MATH_TEACHINGS[birthMoment.pulse % KAI_MATH_TEACHINGS.length]!
+  ];
+  const semanticTitle = `${birthExpression.day.color} presence · ${birthExpression.ark.geometry}`;
+  const semanticPassage = `${asset.manifest.name} holds a moment of ${birthExpression.day.element.toLowerCase()} shaped as ${birthExpression.day.geometry.toLowerCase()}. ${birthExpression.day.meaning} ${birthExpression.month.meaning} ${birthExpression.ark.meaning}`;
   const powerEntries = Object.entries(asset.manifest.stats).sort((a, b) => b[1] - a[1]);
   const birth = appearance.source === "sealed" ? {
     sealed: true,
     pulse: `Birth Pulse ${birthProfile.pulse}`,
     cadueusKai: birthProfile.cadueusKai,
-    title: `${title(birthProfile.ark)}-born ${title(birthProfile.markings.topology)}`,
-    passage: `${asset.manifest.name} arrived carrying a ${birthProfile.characterTraits[0]} heart and the ${title(birthProfile.geometry.ark).toLowerCase()} in its silhouette. Its ${title(birthProfile.markings.topology).toLowerCase()} markings hold the feeling of ${birthProfile.emotionalSignals.map(title).join(", ")}; when it moves with a ${title(birthProfile.motion.gesture).toLowerCase()}, inherited possibility becomes its own unmistakable presence.`,
-    geometry: [birthProfile.geometry.day, birthProfile.geometry.week, birthProfile.geometry.month, birthProfile.geometry.ark, `${birthProfile.geometry.sides}-sided living motif`],
+    title: semanticTitle,
+    passage: semanticPassage,
+    geometry: [...momentGeometry, `${birthProfile.geometry.sides}-sided living motif`],
+    teachings: momentTeachings,
     statShift: (Object.entries(birthProfile.statShift) as Array<[keyof CreatureStats, number]>).filter(([, value]) => value !== 0).map(([key, value]) => `${title(key)} ${value > 0 ? "+" : ""}${value}`)
   } : {
     sealed: false,
     pulse: `Recovered Birth Pulse ${appearance.historicalPulse}`,
     cadueusKai: birthProfile.cadueusKai,
-    title: `Remembered ${title(birthProfile.ark)} geometry`,
-    passage: `${asset.manifest.name} keeps its original verified colors and character seal. Its capture time recovers the ${title(birthProfile.geometry.ark).toLowerCase()} and ${title(birthProfile.markings.topology).toLowerCase()} geometry that surrounded that historical pulse without rewriting the card's proof.`,
-    geometry: [birthProfile.geometry.day, birthProfile.geometry.week, birthProfile.geometry.month, birthProfile.geometry.ark, `${birthProfile.geometry.sides}-sided living motif`],
+    title: `Remembered ${semanticTitle}`,
+    passage: `${semanticPassage} This interpretation recovers the historical moment without rewriting the card's original proof.`,
+    geometry: [...momentGeometry, `${birthProfile.geometry.sides}-sided living motif`],
+    teachings: momentTeachings,
     statShift: []
   };
   return {

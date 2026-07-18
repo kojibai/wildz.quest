@@ -44,8 +44,9 @@ export function WildsCardBack({ asset, origin, qr }: { asset: PortableCardAsset;
           <h2>{dossier.birth.title}</h2>
           <p>{dossier.birth.passage}</p>
           <dl>
-            <div><dt>Cadueus KAI</dt><dd>{dossier.birth.cadueusKai}</dd></div>
+            <div><dt aria-label="Caduceus KAI">☤ KAI</dt><dd>{dossier.birth.cadueusKai}</dd></div>
             <div><dt>Living geometry</dt><dd>{dossier.birth.geometry.length ? dossier.birth.geometry.join(" · ") : "Legacy profile"}</dd></div>
+            <div><dt>Moment teachings</dt><dd>{dossier.birth.teachings.join(" ")}</dd></div>
             <div><dt>Balanced powers</dt><dd>{dossier.birth.statShift.length ? dossier.birth.statShift.join(" · ") : "Original catalog balance"}</dd></div>
           </dl>
         </section>
