@@ -5,17 +5,17 @@ import { basename, join, resolve } from "node:path";
 import {
   RECEIZ_RELEASE_VERSION,
   RECEIZ_RULESET_VERSION,
-  RECEIZ_V110_ARTIFACT_LAWS,
-  RECEIZ_V110_REGISTRY_DIGEST,
-  RECEIZ_V110_RELEASE_AUTHORITY
+  RECEIZ_V111_ARTIFACT_LAWS,
+  RECEIZ_V111_REGISTRY_DIGEST,
+  RECEIZ_V111_RELEASE_AUTHORITY
 } from "@receiz/sdk";
 import { checkReceizIntegration } from "@receiz/sdk/compiler";
 
-const TARGET_VERSION = "110.0.0";
-const TARGET_REGISTRY_DIGEST = "824aa4af849c4840ba94535798eab36e45d514703b6ae0cd30d4aa53f3c896e4";
-const TARGET_LAWS = Array.from({ length: 15 }, (_, index) => `ARTIFACT-${String(index + 1).padStart(3, "0")}`);
+const TARGET_VERSION = "111.0.0";
+const TARGET_REGISTRY_DIGEST = "cf02d0bce6ad1541cfe84e27bfb1036777b29616bf8a1e5aeafb899a945e359a";
+const TARGET_LAWS = Array.from({ length: 20 }, (_, index) => `ARTIFACT-${String(index + 1).padStart(3, "0")}`);
 const sourceRoot = resolve(process.cwd());
-const snapshotRoot = await mkdtemp(join(tmpdir(), "wildz-receiz-v110-check-"));
+const snapshotRoot = await mkdtemp(join(tmpdir(), "wildz-receiz-v111-check-"));
 const ignoredDirectories = new Set([
   ".git", ".next", ".playwright-cli", ".pnpm-store", ".superpowers", ".test-build", ".worktrees",
   "build", "coverage", "dist", "node_modules", "out", "output", "tmp"
@@ -37,39 +37,44 @@ async function assertCompilerBoundary(directory) {
     if (!/\.(?:[cm]?[jt]sx?|md)$/.test(entry.name)) continue;
     const source = await readFile(path, "utf8");
     if (/from\s*["']@receiz\/sdk\/v107["']|import\s*\(["']@receiz\/sdk\/v107["']\)/.test(source)) {
-      throw new Error(`receiz_v110_historical_sdk_import:${path.slice(directory.length + 1)}`);
+      throw new Error(`receiz_v111_historical_sdk_import:${path.slice(directory.length + 1)}`);
     }
     if (/(?:import\s+(?:\*\s+as\s+\w+|[A-Za-z_$][\w$]*)\s+from\s*|import\s*\()(["'])@receiz\/sdk\1/.test(source)) {
-      throw new Error(`receiz_v110_ambiguous_root_import:${path.slice(directory.length + 1)}`);
+      throw new Error(`receiz_v111_ambiguous_root_import:${path.slice(directory.length + 1)}`);
     }
     for (const match of source.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s+from\s*["']@receiz\/sdk["']/g)) {
       const imported = (match[1] ?? "").split(",").map((value) => value.replace(/^type\s+/, "").trim().split(/\s+as\s+/)[0]);
       const compilerImport = imported.find((name) => compilerSymbols.has(name));
-      if (compilerImport) throw new Error(`receiz_v110_compiler_import_on_runtime:${compilerImport}`);
+      if (compilerImport) throw new Error(`receiz_v111_compiler_import_on_runtime:${compilerImport}`);
     }
   }
 }
 
 function assertReleaseIdentity() {
   if (RECEIZ_RELEASE_VERSION !== TARGET_VERSION || RECEIZ_RULESET_VERSION !== TARGET_VERSION) {
-    throw new Error("receiz_v110_release_identity_mismatch");
+    throw new Error("receiz_v111_release_identity_mismatch");
   }
-  if (RECEIZ_V110_REGISTRY_DIGEST !== TARGET_REGISTRY_DIGEST) throw new Error("receiz_v110_registry_digest_mismatch");
-  if (JSON.stringify(RECEIZ_V110_ARTIFACT_LAWS) !== JSON.stringify(TARGET_LAWS)) {
-    throw new Error("receiz_v110_artifact_laws_mismatch");
+  if (RECEIZ_V111_REGISTRY_DIGEST !== TARGET_REGISTRY_DIGEST) throw new Error("receiz_v111_registry_digest_mismatch");
+  if (JSON.stringify(RECEIZ_V111_ARTIFACT_LAWS) !== JSON.stringify(TARGET_LAWS)) {
+    throw new Error("receiz_v111_artifact_laws_mismatch");
   }
-  if (!RECEIZ_V110_RELEASE_AUTHORITY.proofObjectFirst
-    || !RECEIZ_V110_RELEASE_AUTHORITY.receizComReferenceBeforeDeveloperRails
-    || RECEIZ_V110_RELEASE_AUTHORITY.queuedCommandIsGlobalCommitment !== false
-    || RECEIZ_V110_RELEASE_AUTHORITY.registryPayloadIsProofAuthority !== false
-    || RECEIZ_V110_RELEASE_AUTHORITY.localArtifactVerificationRequiresNetwork !== false
-    || RECEIZ_V110_RELEASE_AUTHORITY.historicalDeveloperSdkInstallable !== false
-    || RECEIZ_V110_RELEASE_AUTHORITY.unifiedArtifactAdmission !== true
-    || RECEIZ_V110_RELEASE_AUTHORITY.recoveryPlanIsProofAuthority !== false
-    || RECEIZ_V110_RELEASE_AUTHORITY.proofExplanationIsProofAuthority !== false
-    || RECEIZ_V110_RELEASE_AUTHORITY.recoveryCommitRequiresVerifiedCapability !== true
-    || RECEIZ_V110_RELEASE_AUTHORITY.recoveryCommitIsAtomic !== true) {
-    throw new Error("receiz_v110_authority_mismatch");
+  if (!RECEIZ_V111_RELEASE_AUTHORITY.proofObjectFirst
+    || !RECEIZ_V111_RELEASE_AUTHORITY.receizComReferenceBeforeDeveloperRails
+    || RECEIZ_V111_RELEASE_AUTHORITY.queuedCommandIsGlobalCommitment !== false
+    || RECEIZ_V111_RELEASE_AUTHORITY.registryPayloadIsProofAuthority !== false
+    || RECEIZ_V111_RELEASE_AUTHORITY.localArtifactVerificationRequiresNetwork !== false
+    || RECEIZ_V111_RELEASE_AUTHORITY.historicalDeveloperSdkInstallable !== false
+    || RECEIZ_V111_RELEASE_AUTHORITY.unifiedArtifactAdmission !== true
+    || RECEIZ_V111_RELEASE_AUTHORITY.recoveryPlanIsProofAuthority !== false
+    || RECEIZ_V111_RELEASE_AUTHORITY.proofExplanationIsProofAuthority !== false
+    || RECEIZ_V111_RELEASE_AUTHORITY.recoveryCommitRequiresVerifiedCapability !== true
+    || RECEIZ_V111_RELEASE_AUTHORITY.recoveryCommitIsAtomic !== true
+    || RECEIZ_V111_RELEASE_AUTHORITY.admissionDerivedFromCanonicalExactBytes !== true
+    || RECEIZ_V111_RELEASE_AUTHORITY.recoveryHistoryRequiresIndependentEvidenceRoots !== true
+    || RECEIZ_V111_RELEASE_AUTHORITY.canonicalIdentityRequiresSigningChallenge !== true
+    || RECEIZ_V111_RELEASE_AUTHORITY.planIdentityDistinctFromAttemptIdentity !== true
+    || RECEIZ_V111_RELEASE_AUTHORITY.terminalMcpAttemptConfirmationReusable !== false) {
+    throw new Error("receiz_v111_authority_mismatch");
   }
 }
 
@@ -101,11 +106,11 @@ try {
     releaseIdentity: {
       releaseVersion: RECEIZ_RELEASE_VERSION,
       rulesetVersion: RECEIZ_RULESET_VERSION,
-      registryDigest: RECEIZ_V110_REGISTRY_DIGEST
+      registryDigest: RECEIZ_V111_REGISTRY_DIGEST
     },
-    artifactLaws: RECEIZ_V110_ARTIFACT_LAWS,
-    releaseAuthority: RECEIZ_V110_RELEASE_AUTHORITY,
-    reviewedV110ScannerFinding: officialResult.blockingFindings.some(
+    artifactLaws: RECEIZ_V111_ARTIFACT_LAWS,
+    releaseAuthority: RECEIZ_V111_RELEASE_AUTHORITY,
+    reviewedV111ScannerFinding: officialResult.blockingFindings.some(
       (finding) => finding.code === reviewedScannerCode
     )
       ? "Runtime-only named imports were independently parsed; no compiler symbol uses the universal entrypoint."

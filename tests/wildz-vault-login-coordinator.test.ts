@@ -444,7 +444,7 @@ test("a cross-platform Receiz Commerce Vault restores its embedded player identi
   assert.equal(restored.restore.artifactKind, "commerce-vault");
 });
 
-test("an existing Commerce Vault logs in through v110 verified-legacy-read compatibility", async () => {
+test("an existing Commerce Vault logs in through v111 verified-legacy-read compatibility", async () => {
   const value = fixture(12);
   const player = createWildsPlayerVault({
     playerId: "vault_keeper.receiz.id",
