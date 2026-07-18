@@ -15,7 +15,7 @@ export type MemoryWildzContinuityDatabase = WildzContinuityDatabase & {
   wrappingKey(): CryptoKey;
 };
 
-const STORE_NAMES: readonly WildzStoreName[] = ["wrappingKeys", "identities", "ownerStates", "meta", "pendingRestores"];
+const STORE_NAMES: readonly WildzStoreName[] = ["wrappingKeys", "identities", "ownerStates", "meta", "pendingRestores", "artifacts"];
 
 function clone<T>(value: T): T {
   return structuredClone(value);
@@ -27,7 +27,8 @@ function emptyStores(): Record<WildzStoreName, StoreMap> {
     identities: new Map(),
     ownerStates: new Map(),
     meta: new Map(),
-    pendingRestores: new Map()
+    pendingRestores: new Map(),
+    artifacts: new Map()
   };
 }
 
@@ -117,7 +118,8 @@ export function createMemoryWildzContinuityDatabase(): MemoryWildzContinuityData
         identities: [...stores.identities].map(([key, value]) => [clone(key), clone(value)]),
         ownerStates: [...stores.ownerStates].map(([key, value]) => [clone(key), clone(value)]),
         meta: [...stores.meta].map(([key, value]) => [clone(key), clone(value)]),
-        pendingRestores: [...stores.pendingRestores].map(([key, value]) => [clone(key), clone(value)])
+        pendingRestores: [...stores.pendingRestores].map(([key, value]) => [clone(key), clone(value)]),
+        artifacts: [...stores.artifacts].map(([key, value]) => [clone(key), clone(value)])
       };
     },
     failNextTransaction(cause = new Error("wildz_memory_transaction_failed")) {

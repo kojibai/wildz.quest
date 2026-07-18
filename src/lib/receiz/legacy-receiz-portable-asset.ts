@@ -67,7 +67,6 @@ export class LegacyReceizPortableAssetError extends Error {
   }
 }
 
-const MAX_ARTIFACT_BYTES = 64 * 1024 * 1024;
 const MAX_ORIGINAL_BYTES = 64 * 1024 * 1024;
 const MAX_TEXT_FIELD_LENGTH = 4_096;
 const MAX_JSON_DEPTH = 64;
@@ -151,14 +150,6 @@ function canonicalize(value: unknown, depth = 0, budget = { nodes: 0 }): string 
   return fail("continuity_round_trip_failed");
 }
 
-function parseJsonBytes(bytes: Uint8Array) {
-  try {
-    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown;
-  } catch {
-    fail("continuity_round_trip_failed");
-  }
-}
-
 function parseOwnership(value: unknown): LegacyReceizPortableAssetDocument["ownership"] {
   if (!isRecord(value)) fail("continuity_ownership_missing");
   const ownerReceizId = nonempty(value.ownerReceizId);
@@ -237,48 +228,4 @@ export async function createLegacyReceizPortableAssetDocument(
 
 export function serializeLegacyReceizPortableAssetDocument(document: LegacyReceizPortableAssetDocument) {
   return new TextEncoder().encode(canonicalize(document));
-}
-
-export async function extractLegacyReceizPortableAssetDocument(artifactBytes: Uint8Array): Promise<{
-  document: LegacyReceizPortableAssetDocument;
-  originalBytes: Uint8Array;
-  payloadBytes: Uint8Array;
-  artifactBasisSha256: string;
-  proofClaimId: string;
-}> {
-  if (!(artifactBytes instanceof Uint8Array)) fail("continuity_round_trip_failed");
-  if (artifactBytes.byteLength > MAX_ARTIFACT_BYTES) fail("continuity_artifact_too_large");
-  const envelope = parseJsonBytes(artifactBytes);
-  if (!isRecord(envelope)
-    || envelope.kind !== "receiz.bundle.v1"
-    || !isRecord(envelope.manifest)
-    || !isRecord(envelope.proofbundle)) {
-    fail("continuity_round_trip_failed");
-  }
-  const originalBase64 = typeof envelope.originalBase64 === "string" ? envelope.originalBase64 : "";
-  const originalBytes = decodeBase64Url(originalBase64, MAX_ORIGINAL_BYTES);
-  const artifactBasisSha256 = await sha256Hex(originalBytes);
-  const manifestBasis = typeof envelope.manifest.basisSha256 === "string"
-    ? envelope.manifest.basisSha256.trim().toLowerCase()
-    : "";
-  const proofBasis = typeof envelope.proofbundle.artifactSha256Basis === "string"
-    ? envelope.proofbundle.artifactSha256Basis.trim().toLowerCase()
-    : "";
-  const proofClaimId = nonempty(envelope.proofbundle.receizClaimId);
-  if (!proofClaimId || manifestBasis !== artifactBasisSha256 || proofBasis !== artifactBasisSha256) {
-    fail("continuity_offline_verification_failed");
-  }
-  const document = await parseLegacyReceizPortableAssetDocument(parseJsonBytes(originalBytes));
-  const canonicalBytes = serializeLegacyReceizPortableAssetDocument(document);
-  if (canonicalBytes.byteLength !== originalBytes.byteLength
-    || canonicalBytes.some((byte, index) => byte !== originalBytes[index])) {
-    fail("continuity_round_trip_failed");
-  }
-  return {
-    document,
-    originalBytes: originalBytes.slice(),
-    payloadBytes: decodeBase64Url(document.payload.bytesBase64Url, MAX_ORIGINAL_BYTES),
-    artifactBasisSha256,
-    proofClaimId
-  };
 }

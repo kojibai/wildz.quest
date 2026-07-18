@@ -55,6 +55,14 @@ export async function openWildzArtifact(
   filename: string,
   port: WildzArtifactPort
 ): Promise<WildzAdmittedArtifact> {
+  return (await openWildzArtifactEvidence(file, filename, port)).admitted;
+}
+
+export async function openWildzArtifactEvidence(
+  file: Blob,
+  filename: string,
+  port: Pick<WildzArtifactPort, "verifyAndOpen">
+): Promise<{ admitted: WildzAdmittedArtifact; sealedArtifact: ReceizOpenedArtifact["sealedArtifact"] }> {
   let opened: ReceizOpenedArtifact;
   try {
     opened = await port.verifyAndOpen(file);
@@ -68,7 +76,7 @@ export async function openWildzArtifact(
     throw new Error("wildz_artifact_digest_mismatch");
   }
   const continuity = opened.sealedArtifact.continuity;
-  return {
+  const admitted: WildzAdmittedArtifact = {
     artifactBytes: artifactBytes.slice(),
     artifactSha256,
     payloadBytes: opened.verifiedPayload.bytes.slice(),
@@ -81,6 +89,7 @@ export async function openWildzArtifact(
     recordId: continuity.carrier === "native-record-seal" ? continuity.recordId : null,
     compatibility: opened.legacyCompatibility
   };
+  return { admitted, sealedArtifact: opened.sealedArtifact };
 }
 
 export async function downloadAndReopenWildzArtifact(

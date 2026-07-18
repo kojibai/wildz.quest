@@ -85,6 +85,25 @@ test("rejects a one-byte substitution before exposing payload", async () => {
   assert.equal(exposed, true);
 });
 
+test("rejects truncated and concatenated enclosing artifacts", async () => {
+  const value = await fixture();
+  const port: WildzArtifactPort = {
+    async verifyAndOpen() { return value.opened; },
+    async download() { throw new Error("not_used"); }
+  };
+  await assert.rejects(
+    openWildzArtifact(new Blob([value.artifactBytes.slice(0, -1).buffer]), "card.receiz", port),
+    /wildz_artifact_digest_mismatch/
+  );
+  const concatenated = new Uint8Array(value.artifactBytes.byteLength + 1);
+  concatenated.set(value.artifactBytes);
+  concatenated[concatenated.length - 1] = 0xff;
+  await assert.rejects(
+    openWildzArtifact(new Blob([concatenated.buffer]), "card.receiz", port),
+    /wildz_artifact_digest_mismatch/
+  );
+});
+
 test("download requires exact bytes and a successful reopen", async () => {
   const value = await fixture();
   let reopened = 0;

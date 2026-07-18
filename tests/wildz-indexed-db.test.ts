@@ -88,7 +88,7 @@ test("production adapter waits for completion and structured-clones CryptoKey va
   completion.releaseCompletion();
   await pending;
 
-  assert.deepEqual(fake.storeNames(), ["identities", "meta", "ownerStates", "pendingRestores", "wrappingKeys"]);
+  assert.deepEqual(fake.storeNames(), ["artifacts", "identities", "meta", "ownerStates", "pendingRestores", "wrappingKeys"]);
   assert.equal(fake.completedTransactions, 1);
   const restored = await database.read<CryptoKey>("wrappingKeys", "identity-key");
   assert.ok(restored);

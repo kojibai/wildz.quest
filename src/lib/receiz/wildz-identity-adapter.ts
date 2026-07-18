@@ -58,7 +58,8 @@ import {
   createWildzContinuityDatabase,
   type WildzContinuityDatabase
 } from "../storage/wildz-indexed-db";
-import { verifyWildzArtifactSameOrigin } from "./wildz-same-origin-verifier";
+import { openWildzArtifactSameOrigin, verifyWildzArtifactSameOrigin } from "./wildz-same-origin-verifier";
+import { createWildzArtifactHistory } from "./wildz-artifact-history";
 
 const IDENTITY_SEAL_USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 
@@ -73,9 +74,17 @@ export async function createAutomaticWildzIdentity() {
 const LEGACY_PLAY_STATE_STORAGE_KEY = "receiz:wilds:save:v2";
 const defaultContinuityDatabase = createWildzContinuityDatabase();
 const defaultIdentityRepository = createWildzIdentityRepository({ database: defaultContinuityDatabase });
+const defaultArtifactHistory = createWildzArtifactHistory(defaultContinuityDatabase);
 const defaultArtifactCodec = createWildzArtifactCodec({
   identityRepository: defaultIdentityRepository,
-  commerceVaultReader: { inspect: inspectReceizCommerceVault }
+  commerceVaultReader: { inspect: inspectReceizCommerceVault },
+  artifactOpener: {
+    async open(input) {
+      const admitted = await openWildzArtifactSameOrigin(input);
+      await defaultArtifactHistory.append(admitted);
+      return admitted;
+    }
+  }
 });
 const defaultPendingVaultRepository = createWildzPendingVaultRepository({ database: defaultContinuityDatabase });
 const defaultVaultLoginCoordinator = createWildzVaultLoginCoordinator({

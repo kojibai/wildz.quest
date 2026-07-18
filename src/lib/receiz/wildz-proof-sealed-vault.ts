@@ -147,35 +147,41 @@ export async function verifyProofSealedWildzVault(input: {
     throw new Error("wildz_restore_player_vault_required");
   }
   const proofObject = inspection.kind === "card-vault" ? inspection.proofObject : null;
-  const verificationBytes = proofObject?.artifactBytes ?? input.bytes;
+  if (proofObject) {
+    const player = parseWildzPlayerCoordinate(inspection.player.playerId);
+    if (!player) throw new Error("wildz_restore_player_owner_invalid");
+    if (!sameWildzPlayerCoordinate(proofObject.ownerReceizId, player.profileHandle)) {
+      throw new Error("wildz_restore_v4_binding_mismatch");
+    }
+    return {
+      artifactKind: inspection.kind,
+      assets: inspection.assets,
+      playerPayload: inspection.player,
+      player,
+      proofBasisSha256: proofObject.artifactBasisSha256,
+      byteDigestSha256: await sha256Hex(input.bytes),
+      inspection
+    };
+  }
+  const verificationBytes = input.bytes;
   let verification: DocumentVerifyResponse;
   try {
     verification = await input.verifier.verifyArtifact(new Blob(
       [strictArrayBuffer(verificationBytes)],
-      { type: proofObject ? "application/vnd.receiz.bundle+json" : input.mimeType }
+      { type: input.mimeType }
     ));
   } catch {
     throw new Error("wildz_restore_v4_unavailable");
   }
   const proof = proofEvidence(
     verification,
-    proofObject === null && inspection.kind === "card-vault" && input.mimeType === "image/png"
+    inspection.kind === "card-vault" && input.mimeType === "image/png"
   );
-  if (proofObject
-    && (!proof.continuity
-      || proofObject.artifactBasisSha256 !== proof.basis
-      || proofObject.proofClaimId !== proof.claimId
-      || proof.continuity.carrier !== "portable_asset"
-      || !sameWildzPlayerCoordinate(proof.continuity.ownerReceizId, proofObject.ownerReceizId)
-      || proof.continuity.namespace !== proofObject.provenanceRoot
-      || proof.continuity.priorHeadReference !== proofObject.proofRef)) {
-    throw new Error("wildz_restore_v4_binding_mismatch");
-  }
   const player = parseWildzPlayerCoordinate(inspection.player.playerId);
   if (!player) throw new Error("wildz_restore_player_owner_invalid");
   if (proof.continuity
     && (!sameWildzPlayerCoordinate(proof.continuity.ownerReceizId, player.profileHandle)
-      || (!proofObject && proof.continuity.carrier !== "ownership_provenance"))) {
+      || proof.continuity.carrier !== "ownership_provenance")) {
     throw new Error("wildz_restore_v4_binding_mismatch");
   }
   return {

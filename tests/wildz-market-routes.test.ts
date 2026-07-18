@@ -25,18 +25,24 @@ test("market remains embedded and every mutation trusts only the scoped cookie a
   }
 });
 
-test("bearer claim route admits uploaded cards through the global ownership rail", () => {
+test("bearer claim route admits complete artifacts through v108 ownership before projecting cards", () => {
   const route = readFileSync("app/api/market/claims/route.ts", "utf8");
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
 
   assert.match(route, /resolveWildzCookieActor/);
-  assert.match(route, /verifyAnyWildsCard/);
+  assert.match(route, /claimWildzBearerArtifact/);
+  assert.match(route, /adapter\.client\.ownership/);
+  assert.match(route, /multipart\/form-data/);
   assert.match(route, /bearer-claim-admitted/);
   assert.match(route, /compareAndAppend/);
-  assert.match(route, /receiz\.wilds_bearer_claim\.v1/);
+  assert.match(route, /receiz\.wilds_bearer_claim\.v108/);
+  assert.doesNotMatch(route, /request\.json/);
   assert.doesNotMatch(route, /body\.(actor|seller|buyer|owner|accessToken|recipientUserId)/);
   assert.match(shell, /\/api\/market\/claims/);
   assert.match(shell, /proofSessionConnected/);
+  assert.match(shell, /window\.confirm/);
+  assert.match(shell, /openWildzArtifactSameOrigin/);
+  assert.match(shell, /creates and downloads a new Receiz ownership artifact/);
 });
 
 test("listing admission requires an SDK-recovered public proof and exact request fields", () => {

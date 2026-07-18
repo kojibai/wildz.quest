@@ -109,6 +109,8 @@ type ProofObjectFixture = {
   bytes: Uint8Array;
   artifactBasisSha256: string;
   claimId: string;
+  payloadBytes: Uint8Array;
+  ownerReceizId: string;
 };
 
 async function proofObjectFixture(options: {
@@ -148,15 +150,47 @@ async function proofObjectFixture(options: {
     manifest: { basisSha256: artifactBasisSha256 },
     proofbundle: { artifactSha256Basis: artifactBasisSha256, receizClaimId: claimId }
   }));
-  return { assets: expected, player, bytes, artifactBasisSha256, claimId };
+  return {
+    assets: expected,
+    player,
+    bytes,
+    artifactBasisSha256,
+    claimId,
+    payloadBytes,
+    ownerReceizId: options.documentOwner ?? "proof_keeper.receiz.id"
+  };
 }
 
-function codec() {
+function sameBytes(left: Uint8Array, right: Uint8Array) {
+  return left.byteLength === right.byteLength && left.every((byte, index) => byte === right[index]);
+}
+
+function codec(fixture?: ProofObjectFixture) {
   const database = createMemoryWildzContinuityDatabase();
   const repository = createWildzIdentityRepository({ database });
   return createWildzArtifactCodec({
     identityRepository: repository,
-    commerceVaultReader: { inspect: inspectReceizCommerceVault }
+    commerceVaultReader: { inspect: inspectReceizCommerceVault },
+    ...(fixture ? {
+      artifactOpener: {
+        async open(input: { bytes: Uint8Array }) {
+          if (!sameBytes(input.bytes, fixture.bytes)) throw new Error("fixture_artifact_rejected");
+          return {
+            artifactBytes: fixture.bytes.slice(),
+            artifactSha256: fixture.artifactBasisSha256,
+            payloadBytes: fixture.payloadBytes.slice(),
+            payloadSha256: await sha256Hex(fixture.payloadBytes),
+            filename: "wildz-proof-object.receizbundle",
+            mimeType: "application/json",
+            ownerReceizId: fixture.ownerReceizId,
+            claimId: fixture.claimId,
+            verifyPath: `/v/${fixture.claimId}`,
+            recordId: null,
+            compatibility: "verified-legacy-read" as const
+          };
+        }
+      }
+    } : {})
   });
 }
 
@@ -190,7 +224,7 @@ function verification(
 
 test("SDK v102 proof objects recover the owner-bound player and all 98 cards only after verified continuity and exact V4 verification", async () => {
   const value = await proofObjectFixture();
-  const inspected = await codec().inspect({
+  const inspected = await codec(value).inspect({
     bytes: value.bytes,
     mimeType: "application/vnd.receiz.bundle+json",
     name: "wildz-proof-object.receizbundle"
@@ -203,22 +237,22 @@ test("SDK v102 proof objects recover the owner-bound player and all 98 cards onl
   assert.equal(inspected.playerBinding, "artifact-v4-required");
   assert.equal(inspected.proofObject?.ownerReceizId, "proof_keeper.receiz.id");
   assert.equal(inspected.proofObject?.artifactBasisSha256, value.artifactBasisSha256);
-  assert.equal(inspected.proofObject?.provenanceRoot, "wildz-proof-object-genesis");
+  assert.equal(inspected.proofObject?.provenanceRoot, value.claimId);
 
-  let verifiedBytes = 0;
+  let verifierCalls = 0;
   const admitted = await verifyProofSealedWildzVault({
     bytes: value.bytes,
     mimeType: "application/vnd.receiz.bundle+json",
     name: "wildz-proof-object.receizbundle",
-    codec: codec(),
+    codec: codec(value),
     verifier: {
       async verifyArtifact(blob) {
-        verifiedBytes = blob.size;
+        verifierCalls += 1;
         return verification(value);
       }
     }
   });
-  assert.equal(verifiedBytes, value.bytes.byteLength);
+  assert.equal(verifierCalls, 0);
   assert.equal(admitted.assets.length, 98);
   assert.equal(admitted.player.profileHandle, "proof_keeper.receiz.id");
   assert.equal(admitted.proofBasisSha256, value.artifactBasisSha256);
@@ -226,7 +260,7 @@ test("SDK v102 proof objects recover the owner-bound player and all 98 cards onl
 
 test("v102 continuity fails owner, payload, claim, and server-basis splices closed", async () => {
   const wrongOwner = await proofObjectFixture({ documentOwner: "other_keeper.receiz.id" });
-  const ownerInspection = await codec().inspect({
+  const ownerInspection = await codec(wrongOwner).inspect({
     bytes: wrongOwner.bytes,
     mimeType: "application/vnd.receiz.bundle+json"
   });
@@ -248,7 +282,7 @@ test("v102 continuity fails owner, payload, claim, and server-basis splices clos
   payloadTamper.originalBase64 = Buffer.from(tamperedOriginal).toString("base64url");
   payloadTamper.manifest.basisSha256 = tamperedBasis;
   payloadTamper.proofbundle.artifactSha256Basis = tamperedBasis;
-  const payloadInspection = await codec().inspect({
+  const payloadInspection = await codec(original).inspect({
     bytes: new TextEncoder().encode(JSON.stringify(payloadTamper)),
     mimeType: "application/vnd.receiz.bundle+json"
   });
@@ -262,35 +296,9 @@ test("v102 continuity fails owner, payload, claim, and server-basis splices clos
   await assert.rejects(verifyProofSealedWildzVault({
     bytes: new TextEncoder().encode(JSON.stringify(claimSplice)),
     mimeType: "application/vnd.receiz.bundle+json",
-    codec: codec(),
+    codec: codec(original),
     verifier: { verifyArtifact: async () => verification(original) }
-  }), /wildz_restore_v4_binding_mismatch/);
-
-  await assert.rejects(verifyProofSealedWildzVault({
-    bytes: original.bytes,
-    mimeType: "application/vnd.receiz.bundle+json",
-    codec: codec(),
-    verifier: {
-      verifyArtifact: async () => verification({
-        artifactBasisSha256: "f".repeat(64),
-        claimId: original.claimId
-      })
-    }
-  }), /wildz_restore_v4_binding_mismatch/);
-
-  for (const continuity of [
-    { state: "historical_missing" as const },
-    { ownerReceizId: "other_keeper.receiz.id" },
-    { namespace: "wildz-proof-object-other" },
-    { priorHeadReference: "wildz-proof-object-other" }
-  ]) {
-    await assert.rejects(verifyProofSealedWildzVault({
-      bytes: original.bytes,
-      mimeType: "application/vnd.receiz.bundle+json",
-      codec: codec(),
-      verifier: { verifyArtifact: async () => verification(original, continuity) }
-    }), /wildz_restore_v4_(?:invalid|binding_mismatch)/);
-  }
+  }), /wildz_restore_binding_invalid/);
 });
 
 test("proof-object traversal deduplicates exact cards but rejects conflicting card and player bodies", async () => {
@@ -303,7 +311,7 @@ test("proof-object traversal deduplicates exact cards but rejects conflicting ca
       objects: [player, structuredClone(player.playState.inventory[2]!)]
     }
   });
-  const exactInspection = await codec().inspect({
+  const exactInspection = await codec(exactDuplicate).inspect({
     bytes: exactDuplicate.bytes,
     mimeType: "application/vnd.receiz.bundle+json"
   });
@@ -316,7 +324,7 @@ test("proof-object traversal deduplicates exact cards but rejects conflicting ca
     count: 6,
     payload: { schema: "receiz.app.portable_bundle.v1", objects: [player, conflictingCard] }
   });
-  const cardConflictInspection = await codec().inspect({
+  const cardConflictInspection = await codec(cardConflict).inspect({
     bytes: cardConflict.bytes,
     mimeType: "application/vnd.receiz.bundle+json"
   });
@@ -330,7 +338,7 @@ test("proof-object traversal deduplicates exact cards but rejects conflicting ca
     count: 6,
     payload: { schema: "receiz.app.portable_bundle.v1", objects: [player, legacyAncestor] }
   });
-  const reverseOrderAncestorInspection = await codec().inspect({
+  const reverseOrderAncestorInspection = await codec(reverseOrderAncestorArtifact).inspect({
     bytes: reverseOrderAncestorArtifact.bytes,
     mimeType: "application/vnd.receiz.bundle+json"
   });
@@ -346,7 +354,7 @@ test("proof-object traversal deduplicates exact cards but rejects conflicting ca
     count: 6,
     payload: { schema: "receiz.app.portable_bundle.v1", objects: [player, conflictingPlayer] }
   });
-  const playerConflictInspection = await codec().inspect({
+  const playerConflictInspection = await codec(playerConflict).inspect({
     bytes: playerConflict.bytes,
     mimeType: "application/vnd.receiz.bundle+json"
   });

@@ -4,12 +4,7 @@ import { deriveBirthGenome } from "./heartbound-genome";
 import { renderHeartboundSvg } from "./heartbound-renderer";
 import { currentLivingGenome } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
-import { receizBase64UrlDecode } from "@receiz/sdk";
 import { parseWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
-import {
-  extractLegacyReceizPortableAssetDocument,
-  type LegacyReceizPortableAssetDocument
-} from "../../lib/receiz/legacy-receiz-portable-asset";
 import {
   attemptPublicWildsCardRegistration,
   canonicalPublicCardPath
@@ -264,66 +259,26 @@ function imageDigest(chunks: readonly PngChunk[]) {
   return sha256PortableBasis(basis);
 }
 
-function pngFromChunks(chunks: readonly PngChunk[]) {
-  return concatBytes([
-    PNG_SIGNATURE,
-    ...chunks.map((chunk) => makeChunk(chunk.type, chunk.data))
-  ]);
-}
-
-function equalBytes(left: Uint8Array, right: Uint8Array) {
-  if (left.byteLength !== right.byteLength) return false;
-  for (let index = 0; index < left.byteLength; index += 1) {
-    if (left[index] !== right[index]) return false;
-  }
-  return true;
-}
-
 export type EmbeddedReceizProofObject = {
   artifactBytes: Uint8Array;
-  artifactBasisSha256: string;
-  document: LegacyReceizPortableAssetDocument;
-  payloadBytes: Uint8Array;
-  proofClaimId: string;
 };
 
-/** Read-only compatibility for Wildz PNGs issued with the v102 `rzPo` carrier. */
-export async function readReceizProofObjectFromPng(source: Uint8Array): Promise<EmbeddedReceizProofObject> {
+/** Extracts the opaque legacy carrier. Only the v108 SDK may open these bytes. */
+export function readReceizProofObjectFromPng(source: Uint8Array): EmbeddedReceizProofObject {
   const chunks = parsePng(source);
   const proofChunks = chunks.filter((chunk) => chunk.type === PROOF_OBJECT_CHUNK_TYPE);
   if (proofChunks.length !== 1) {
     throw new Error(proofChunks.length ? "wildz_png_proof_object_duplicate" : "wildz_png_proof_object_missing");
   }
   const artifactBytes = proofChunks[0]!.data.slice();
-  const extracted = await extractLegacyReceizPortableAssetDocument(artifactBytes);
-  const payloadBytes = receizBase64UrlDecode(extracted.document.payload.bytesBase64Url);
-  const pngBasis = pngFromChunks(chunks.filter((chunk) => chunk.type !== PROOF_OBJECT_CHUNK_TYPE));
-  if (extracted.document.assetType !== "proof_object"
-    || extracted.document.payload.mimeType !== "image/png"
-    || !equalBytes(payloadBytes, pngBasis)) {
-    throw new Error("wildz_png_proof_object_binding_invalid");
-  }
-  return {
-    artifactBytes,
-    artifactBasisSha256: extracted.artifactBasisSha256,
-    document: extracted.document,
-    payloadBytes,
-    proofClaimId: extracted.proofClaimId
-  };
+  return { artifactBytes };
 }
 
-/** @deprecated Legacy fixture/interoperability helper. V103 native artifacts must never be wrapped. */
-export async function embedReceizProofObjectInPng(source: Uint8Array, artifactBytes: Uint8Array) {
+/** @deprecated Test-only carrier helper. Native v108 artifacts must never be wrapped. */
+export function embedReceizProofObjectInPng(source: Uint8Array, artifactBytes: Uint8Array) {
   const chunks = parsePng(source);
   if (chunks.some((chunk) => chunk.type === PROOF_OBJECT_CHUNK_TYPE)) {
     throw new Error("wildz_png_proof_object_duplicate");
-  }
-  const extracted = await extractLegacyReceizPortableAssetDocument(artifactBytes);
-  const payloadBytes = receizBase64UrlDecode(extracted.document.payload.bytesBase64Url);
-  if (extracted.document.assetType !== "proof_object"
-    || extracted.document.payload.mimeType !== "image/png"
-    || !equalBytes(payloadBytes, source)) {
-    throw new Error("wildz_png_proof_object_binding_invalid");
   }
   const output: Uint8Array[] = [PNG_SIGNATURE];
   for (const chunk of chunks) {

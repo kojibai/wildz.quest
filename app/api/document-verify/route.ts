@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { DocumentVerifyResponse } from "@receiz/sdk";
+import { createReceizClient, type DocumentVerifyResponse } from "@receiz/sdk";
 import { inspectReceizCommerceVault } from "@/lib/receiz/receiz-commerce-vault";
 import { createWildzArtifactCodec } from "@/lib/receiz/wildz-artifact-codec";
 import { verifyProofSealedWildzVault } from "@/lib/receiz/wildz-proof-sealed-vault";
@@ -10,6 +10,7 @@ import {
   wildzVaultPendingCookieOptions
 } from "@/lib/receiz/wildz-proof-session";
 import { deriveWildzVaultCardAdmission } from "@/lib/receiz/wildz-vault-card-admission";
+import { openWildzArtifact } from "@/lib/receiz/wildz-artifact-custody";
 
 export const runtime = "nodejs";
 
@@ -23,6 +24,30 @@ export async function POST(request: Request) {
   const file = form.get("file");
   if (!(file instanceof Blob)) {
     return NextResponse.json({ ok: false, kind: "unknown", errors: ["file_required"], warnings: [] }, { status: 400 });
+  }
+  if (request.headers.get("x-wildz-artifact-open") === "v108") {
+    try {
+      const filename = file instanceof File ? file.name : "wildz.receized";
+      const client = createReceizClient({ baseUrl });
+      const admitted = await openWildzArtifact(file, filename, client.artifacts);
+      return NextResponse.json({
+        artifactSha256: admitted.artifactSha256,
+        payloadSha256: admitted.payloadSha256,
+        payloadBase64Url: Buffer.from(admitted.payloadBytes).toString("base64url"),
+        filename: admitted.filename,
+        mimeType: admitted.mimeType,
+        ownerReceizId: admitted.ownerReceizId,
+        claimId: admitted.claimId,
+        verifyPath: admitted.verifyPath,
+        recordId: admitted.recordId,
+        compatibility: admitted.compatibility
+      }, { headers: { "cache-control": "no-store" } });
+    } catch {
+      return NextResponse.json({ error: "wildz_artifact_verification_failed" }, {
+        status: 422,
+        headers: { "cache-control": "no-store" }
+      });
+    }
   }
   const upstreamForm = new FormData();
   upstreamForm.set("file", file, file instanceof File ? file.name : "wildz-vault.receized.png");

@@ -1,16 +1,9 @@
-# Wildz v3 Builder
+# Wildz builder — Receiz v108
 
-Receiz proof authority is the source of identity, artifact, ownership, and causal truth. Target Wildz `3.0.0` and Receiz major 107 without reimplementing SDK verification. Bind every constitutional operation to registry digest `4d0caa6172a69c3bf5817c1c35db5630e555b5d6d824091d45a90fb426b86ef6`.
+Target only Receiz `108.0.0` and registry digest `126ca9283fee4ef4c398dbcb958e861cbea191724fdab8eb08df55ff0c14bb79`. Receiz proof authority and verified local history are stronger truth. AI, MCP, server, database, and UI state are projections.
 
-## Procedure
+Require explicit confirmation for admitted mutations. Never rewrite witnessed ownership, provenance, object identity, prior history, or unknown namespaces. A queued proposal is not a global commitment.
 
-1. Establish the exact owner from a verified local session, Identity Seal, or verified identity-bearing Vault. A card-only Vault may add verified cards but may not select an identity.
-2. Preserve owner scoping for cards, support selection, character state, settings, history, receipts, and canonical cursor. Append events; do not rewrite admitted history.
-3. Keep first paint and owner continuity local-capable. Treat IndexedDB as a local store, never as remote proof, public publication, market, or settlement authority.
-4. Route shared world and public-state durability through configured Receiz rails. Missing or unverifiable capability fails closed.
-5. Preserve `receiz.app.json` as the artifact-first v107 application contract with database authority disabled. Canonical mutation is command-only: require typed command admission, scoped capability, actor and tenant binding, expected revision, causal parents, idempotency key, registry digest, and bounded maximum effects.
-6. Use plan/permit/execute for admitted changes and require exact permit-digest confirmation before execution. Add focused law, denial, replay-equivalence, and mutation tests before changing UI integration, then run the compiler, checker, MCP conformance, independent verifier, type, lint, and release gates.
+Use native `assets.createProofObject`, exact `artifacts.download`, independent artifact hashing, and `artifacts.verifyAndOpen`. Pass only verified payload bytes to Wildz parsers. Preserve complete artifacts append-only by artifact digest. Legacy artifacts are read-only compatibility and may never be re-emitted as current artifacts.
 
-V107 offline execution may return a signed queued proposal. A queued proposal is not a global commitment; retain it as pending and require an independently verified canonical receipt before advancing shared state.
-
-Read-only diagnostics are the default. Destructive migration, public publication, authority replacement, credential handling, deployment, or remote mutation requires explicit human or player confirmation. A registry evaluation, skill, MCP result, compiler result, or release lock is never proof authority. Never log identity secrets, private artifact values, or credential contents.
+Use command-only admission where a current SDK command exists. Test all `ARTIFACT-001` through `ARTIFACT-010` boundaries, byte mutations, divergent same-ID rejection, replay equivalence, offline failure, and cross-application continuity. MCP/skills/checker output is not proof authority.

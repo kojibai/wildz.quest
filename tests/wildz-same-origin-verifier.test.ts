@@ -2,7 +2,41 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import type { DocumentVerifyResponse } from "@receiz/sdk";
-import { verifyWildzArtifactSameOrigin } from "../src/lib/receiz/wildz-same-origin-verifier";
+import {
+  openWildzArtifactSameOrigin,
+  verifyWildzArtifactSameOrigin
+} from "../src/lib/receiz/wildz-same-origin-verifier";
+
+test("v108 artifact opening returns only SDK-admitted payload and continuity coordinates", async () => {
+  const artifactBytes = new TextEncoder().encode("sealed-artifact");
+  const payloadBytes = new TextEncoder().encode("verified-payload");
+  let header = "";
+  const admitted = await openWildzArtifactSameOrigin({
+    bytes: artifactBytes,
+    mimeType: "application/vnd.receiz.artifact",
+    name: "proof.receized"
+  }, async (_input, init) => {
+    header = new Headers(init?.headers).get("x-wildz-artifact-open") ?? "";
+    return new Response(JSON.stringify({
+      artifactSha256: "a".repeat(64),
+      payloadSha256: "b".repeat(64),
+      payloadBase64Url: Buffer.from(payloadBytes).toString("base64url"),
+      filename: "proof.receized",
+      mimeType: "application/json",
+      ownerReceizId: "keeper.receiz.id",
+      claimId: "claim-v108",
+      verifyPath: "/v/claim-v108",
+      recordId: "record-v108",
+      compatibility: "current-native"
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  });
+
+  assert.equal(header, "v108");
+  assert.deepEqual(admitted.artifactBytes, artifactBytes);
+  assert.deepEqual(admitted.payloadBytes, payloadBytes);
+  assert.equal(admitted.recordId, "record-v108");
+  assert.equal("payloadBase64Url" in admitted, false);
+});
 
 test("Vault proof verification uses the working same-origin Wildz proxy", async () => {
   const expected = {

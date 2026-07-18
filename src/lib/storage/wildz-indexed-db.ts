@@ -1,4 +1,4 @@
-export type WildzStoreName = "wrappingKeys" | "identities" | "ownerStates" | "meta" | "pendingRestores";
+export type WildzStoreName = "wrappingKeys" | "identities" | "ownerStates" | "meta" | "pendingRestores" | "artifacts";
 
 export interface WildzContinuityTransaction {
   get<T>(store: WildzStoreName, key: IDBValidKey): Promise<T | null>;
@@ -17,8 +17,8 @@ export interface WildzContinuityDatabase {
 }
 
 const DEFAULT_DATABASE_NAME = "receiz.wildz.continuity.v1";
-const DATABASE_VERSION = 2;
-const STORE_NAMES: readonly WildzStoreName[] = ["wrappingKeys", "identities", "ownerStates", "meta", "pendingRestores"];
+const DATABASE_VERSION = 3;
+const STORE_NAMES: readonly WildzStoreName[] = ["wrappingKeys", "identities", "ownerStates", "meta", "pendingRestores", "artifacts"];
 
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {

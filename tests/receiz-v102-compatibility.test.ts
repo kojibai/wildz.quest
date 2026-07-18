@@ -15,7 +15,6 @@ import {
 } from "@receiz/sdk";
 import {
   createLegacyReceizPortableAssetDocument,
-  extractLegacyReceizPortableAssetDocument,
   parseLegacyReceizPortableAssetDocument,
   serializeLegacyReceizPortableAssetDocument
 } from "../src/lib/receiz/legacy-receiz-portable-asset";
@@ -195,32 +194,10 @@ test("v102 portable proof-object serialization retains payload ownership provena
   assert.deepEqual(parsed, document);
   assert.deepEqual(serializeLegacyReceizPortableAssetDocument(parsed), serialized);
 
-  const serializedCopy = new Uint8Array(serialized.byteLength);
-  serializedCopy.set(serialized);
-  const artifactBasisSha256 = [...new Uint8Array(await crypto.subtle.digest("SHA-256", serializedCopy.buffer))]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-  // The app-owned compatibility decoder proves canonical structure and bound
-  // hashes. Cryptographic verification remains the separate server verify rail.
-  const bundleFixture = new TextEncoder().encode(JSON.stringify({
-    kind: "receiz.bundle.v1",
-    originalBase64: Buffer.from(serialized).toString("base64url"),
-    manifest: { basisSha256: artifactBasisSha256 },
-    proofbundle: {
-      artifactSha256Basis: artifactBasisSha256,
-      receizClaimId: "wildz-public-proof-fixture"
-    }
-  }));
-  const extracted = await extractLegacyReceizPortableAssetDocument(bundleFixture);
-
-  assert.deepEqual(extracted.document, document);
-  assert.deepEqual(extracted.originalBytes, serialized);
-  assert.equal(extracted.artifactBasisSha256, artifactBasisSha256);
-  assert.equal(extracted.proofClaimId, "wildz-public-proof-fixture");
-  assert.equal(extracted.document.assetType, "proof_object");
-  assert.equal(extracted.document.ownership.ownerReceizId, "wildz_public_fixture_owner");
-  assert.equal(extracted.document.provenance.appends.length, 1);
-  assert.equal(extracted.document.settlement.state, "none");
+  assert.equal(parsed.assetType, "proof_object");
+  assert.equal(parsed.ownership.ownerReceizId, "wildz_public_fixture_owner");
+  assert.equal(parsed.provenance.appends.length, 1);
+  assert.equal(parsed.settlement.state, "none");
 });
 
 test("v102 keeps valid manifests inspection-only instead of admitting incomplete proof truth", async () => {

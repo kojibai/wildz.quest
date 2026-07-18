@@ -1,19 +1,13 @@
-# Wildz v3 repository skills
+# Wildz v108 AI operating doctrine
 
-These repository skills describe bounded operator procedures for Wildz `3.0.0` with the exact `@receiz/sdk@107.0.0`, `@receiz/mcp-server@107.0.0`, and `@receiz/ai-skills@107.0.0` toolchain. All three finalized packages resolve from the official npm registry with lockfile-pinned integrity; package location does not change their authority boundary. Constitutional operations bind to registry digest `4d0caa6172a69c3bf5817c1c35db5630e555b5d6d824091d45a90fb426b86ef6`.
+Wildz is aligned only to `@receiz/ai-skills@108.0.0`, `@receiz/sdk@108.0.0`, and `@receiz/mcp-server@108.0.0` from the official npm registry. All procedures bind to registry digest `126ca9283fee4ef4c398dbcb958e861cbea191724fdab8eb08df55ff0c14bb79` and artifact laws `ARTIFACT-001` through `ARTIFACT-010`.
 
-## Precedence
+Sealed proof-object truth and verified local history outrank SDK, MCP, AI, server, database, session, and UI projections. Receiz.com reference behavior comes before developer rails. Never mutate witnessed history; append authenticated truth and rebuild projections. A queued proposal is not a global commitment.
 
-Receiz proof authority, verified Identity Seal and proof-object continuity, ownership heads, remote admission, and explicit player confirmation outrank any AI suggestion or MCP output. Skills and MCP are operational guidance; their presence is not evidence that an action or release gate ran.
+Complete artifacts must cross `artifacts.verifyAndOpen` before any domain parser sees `verifiedPayload.bytes`. Current creation uses native Record → Seal, exact `artifacts.download`, an independent byte digest, and exact-file reopening. Verified legacy artifacts are read-compatible only. Bearer ownership passes only `opened.sealedArtifact` into `ownership.claimBearerAsset`, then downloads and reopens the returned native artifact.
 
-The v107 Application Contract Compiler, constitutional compiler, registry checks, and repository checker enforce the declared artifact-first integration with database authority disabled and command-only mutation. They do not establish artifact validity or remote capability. Plan/permit/execute requires exact permit-digest confirmation for admitted operations. Wildz adds no external database, and its market mutations remain fail-closed while the SDK lacks the required Wildz-specific conditional ownership append.
+MCP and AI outputs are operational guidance, never proof authority. Any admitted remote operation requires explicit user confirmation, authenticated authority, and independent verification. Release completion requires law coverage, mutation tests, compatibility, MCP conformance, independent verifier evidence, typecheck, and the release lock.
 
-V107 offline execution may produce a signed queued proposal. A queued proposal is not a global commitment; do not present it as admitted until its canonical receipt is independently verified.
-
-## Available procedures
-
-- `wildz-builder-skill`: change gameplay and continuity without weakening proof or owner boundaries.
-- `wildz-market-operator-skill`: inspect and operate market commands through verified, fail-closed rails.
-- `wildz-release-skill`: gather reproducible local, browser, strict-live, and interoperability evidence without overstating it.
-
-Read-only inspection is the default. Public publication, credential changes, deployment, release, settlement, transfer, destructive migration, or another remote mutation requires explicit human confirmation and the appropriate authoritative rail.
+- `wildz-builder-skill`: preserve artifact custody, continuity, history, and deterministic projections.
+- `wildz-market-operator-skill`: use native v108 bearer ownership and fail closed on unavailable admission.
+- `wildz-release-skill`: enforce exact package/digest parity and all artifact evidence fields.

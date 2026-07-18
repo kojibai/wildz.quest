@@ -23,14 +23,15 @@ import {
 import { isWildzPng, splitWildzPngEnvelope } from "./wildz-png-envelope";
 import { requireWildzIdentityBindingFromEnvelope } from "./wildz-identity-binding";
 import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
-import { extractLegacyReceizPortableAssetDocument } from "./legacy-receiz-portable-asset";
+import type { WildzAdmittedArtifact } from "./wildz-artifact-custody";
 
 export type WildzPlayerBinding = "identity-portable-state" | "identity-v3-binding" | "artifact-v4-required" | null;
 
 export type WildzProofObjectContinuity = {
-  schema: "receiz.portable_asset.v1";
+  schema: "receiz.wildz.verified_artifact.v108";
+  compatibility: WildzAdmittedArtifact["compatibility"];
   ownerReceizId: string;
-  custody: string;
+  custody: "v108-verified-artifact";
   proofRef: string;
   provenanceRoot: string;
   payloadSha256: string;
@@ -101,6 +102,10 @@ export interface ReceizCommerceVaultReader {
   inspect(input: { bytes: Uint8Array; mimeType: string; name?: string }): Promise<ReceizCommerceVaultInspection | null>;
 }
 
+export interface WildzArtifactOpener {
+  open(input: { bytes: Uint8Array; mimeType: string; name?: string }): Promise<WildzAdmittedArtifact>;
+}
+
 const MAX_ARTIFACT_BYTES = 64 * 1024 * 1024;
 
 function invalid(code: WildzRestoreErrorCode): Extract<WildzArtifactInspection, { kind: "invalid" }> {
@@ -124,6 +129,9 @@ function normalizedError(error: unknown): WildzRestoreErrorCode {
   if (message === "wildz_restore_owner_mismatch") return "wildz_restore_owner_mismatch";
   if (message === "wildz_restore_binding_invalid"
     || message === "wildz_restore_binding_missing"
+    || message.startsWith("wildz_artifact_")
+    || message.startsWith("receiz_artifact_open_")
+    || message === "fixture_artifact_rejected"
     || message.startsWith("wildz_png_proof_object_")
     || message.startsWith("continuity_")) return "wildz_restore_binding_invalid";
   if (message === "wildz_restore_card_proof_invalid"
@@ -161,6 +169,7 @@ function vaultDigest(assets: readonly PortableCardAsset[]) {
 export function createWildzArtifactCodec(input: {
   identityRepository: Pick<WildzIdentityRepository, "prepare">;
   commerceVaultReader: ReceizCommerceVaultReader;
+  artifactOpener?: WildzArtifactOpener;
 }): WildzArtifactCodec {
   return {
     async inspect(artifact) {
@@ -181,7 +190,7 @@ export function createWildzArtifactCodec(input: {
       let proofObjectArtifactBytes: Uint8Array | null = isReceizBundleCandidate(bytes) ? bytes : null;
       if (pngBasis) {
         try {
-          proofObjectArtifactBytes = (await readReceizProofObjectFromPng(pngBasis)).artifactBytes;
+          proofObjectArtifactBytes = readReceizProofObjectFromPng(pngBasis).artifactBytes;
         } catch (error) {
           if (!(error instanceof Error) || error.message !== "wildz_png_proof_object_missing") {
             return invalid(normalizedError(error));
@@ -191,25 +200,28 @@ export function createWildzArtifactCodec(input: {
       const proofObjectCandidate = proofObjectArtifactBytes !== null;
       if (proofObjectArtifactBytes !== null) {
         try {
-          const extracted = await extractLegacyReceizPortableAssetDocument(proofObjectArtifactBytes);
-          if (extracted.document.assetType !== "proof_object") {
-            return invalid("wildz_restore_schema_unsupported");
-          }
+          if (!input.artifactOpener) throw new Error("wildz_artifact_opener_required");
+          const admitted = await input.artifactOpener.open({
+            bytes: proofObjectArtifactBytes,
+            mimeType: artifact.mimeType,
+            ...(artifact.name ? { name: artifact.name } : {})
+          });
           proofObjectPayload = {
-            bytes: extracted.payloadBytes,
-            mimeType: extracted.document.payload.mimeType
+            bytes: admitted.payloadBytes,
+            mimeType: admitted.mimeType
           };
           proofObject = {
-            schema: extracted.document.schema,
-            ownerReceizId: extracted.document.ownership.ownerReceizId,
-            custody: extracted.document.ownership.custody,
-            proofRef: extracted.document.ownership.proofRef,
-            provenanceRoot: extracted.document.provenance.root,
-            payloadSha256: extracted.document.payload.sha256,
-            payloadMimeType: extracted.document.payload.mimeType,
-            artifactBasisSha256: extracted.artifactBasisSha256,
-            artifactBytes: proofObjectArtifactBytes.slice(),
-            proofClaimId: extracted.proofClaimId
+            schema: "receiz.wildz.verified_artifact.v108",
+            compatibility: admitted.compatibility,
+            ownerReceizId: admitted.ownerReceizId,
+            custody: "v108-verified-artifact",
+            proofRef: admitted.claimId,
+            provenanceRoot: admitted.recordId ?? admitted.claimId,
+            payloadSha256: admitted.payloadSha256,
+            payloadMimeType: admitted.mimeType,
+            artifactBasisSha256: admitted.artifactSha256,
+            artifactBytes: admitted.artifactBytes.slice(),
+            proofClaimId: admitted.claimId
           };
         } catch (error) {
           return invalid(normalizedError(error));

@@ -21,6 +21,7 @@ import {
 } from "@/lib/receiz/wildz-identity-adapter";
 import { shouldClearWildzResumeAfterError } from "@/lib/receiz/wildz-resume-errors";
 import { sameWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate";
+import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-verifier";
 import {
   bootstrapWildzSharedWorld,
   wildzRemoteSessionMatchesIdentity
@@ -338,19 +339,29 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     await saveIdentityCard();
   };
 
-  const claimVerifiedImportedCards = useCallback(async (outcome: WildzUiArtifactRestore) => {
+  const claimVerifiedImportedCards = useCallback(async (file: File, outcome: WildzUiArtifactRestore) => {
     if (!proofSessionConnected || !outcome.verifiedAssetIds.length) return;
-    const verifiedIds = new Set(outcome.verifiedAssetIds);
-    const importedAssets = outcome.playState.inventory.filter((asset) => verifiedIds.has(asset.id));
-    await Promise.allSettled(importedAssets.map((asset) => fetch("/api/market/claims", {
+    const admitted = await openWildzArtifactSameOrigin({
+      bytes: new Uint8Array(await file.arrayBuffer()),
+      mimeType: file.type || "application/octet-stream",
+      name: file.name
+    });
+    if (sameWildzPlayerCoordinate(admitted.ownerReceizId, outcome.session.actorId)) return;
+    const approved = window.confirm(
+      `Claim verified proof object ${file.name} (${admitted.claimId}) from @${admitted.ownerReceizId} `
+      + `to @${outcome.session.actorId}? This creates and downloads a new Receiz ownership artifact while preserving its history.`
+    );
+    if (!approved) return;
+    const form = new FormData();
+    form.set("file", file, file.name);
+    await fetch("/api/market/claims", {
       method: "POST",
       credentials: "same-origin",
       headers: {
-        "content-type": "application/json",
-        "idempotency-key": `bearer-claim:${outcome.session.actorId}:${asset.id}:${asset.proof.digest.slice(7, 23)}`
+        "idempotency-key": `bearer-claim:${outcome.session.actorId}:${outcome.verifiedAssetIds.join(":")}`
       },
-      body: JSON.stringify({ asset })
-    })));
+      body: form
+    });
   }, [proofSessionConnected]);
 
   const restoreArtifact = useCallback(async (
@@ -379,7 +390,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       publishedProfileRef.current = "";
     }
     acceptSnapshot(next);
-    void claimVerifiedImportedCards(outcome);
+    void claimVerifiedImportedCards(file, outcome);
     return outcome;
   }, [acceptSnapshot, claimVerifiedImportedCards]);
 
