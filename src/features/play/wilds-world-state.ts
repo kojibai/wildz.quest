@@ -6,6 +6,8 @@ import {
   type WildsWorldEvent
 } from "./wilds-world-event";
 import type { WildsEcologySite } from "./wilds-ecology";
+import type { WildsChapterMemory } from "./wilds-saga-director";
+import type { WildsReward } from "./wilds-saga-types";
 
 export type WildsDynamicSitePhase = "rumored" | "tracked" | "emerged" | "assaulting" | "engaged" | "defeated" | "memorialized" | "expired";
 
@@ -65,6 +67,42 @@ export type WildsLeagueProjection = {
   scoredEventIds: string[];
 };
 
+export type WildsStoryChapterProjection = {
+  dayId: string;
+  chapterId: string;
+  frameworkVersion: "kai-saga.v1";
+  openedAt: string;
+  endsAt: string;
+};
+
+export type WildsAchievementGrantProjection = {
+  grantId: string;
+  playerId: string;
+  definitionId: string;
+  scopeInstanceId: string;
+  reward: WildsReward;
+};
+
+export type WildsPlayerSagaState = {
+  trainerXp: number;
+  trainerLevel: number;
+  reputation: Record<string, number>;
+  contributions: Record<string, number>;
+  achievementGrantIds: string[];
+  rewardIds: string[];
+  achievementGrants: Record<string, WildsAchievementGrantProjection>;
+};
+
+export type WildsStoryProjection = {
+  activeChapter: WildsStoryChapterProjection | null;
+  objectiveTotals: Record<string, number>;
+  memories: WildsChapterMemory[];
+  settledDayIds: string[];
+};
+
+export type WildsTrainerWorldProjection = { id: string; [key: string]: unknown };
+export type WildsTournamentWorldProjection = { id: string; phase?: string; [key: string]: unknown };
+
 export type WildsWorldProjection = {
   schema: "receiz.wilds_world_projection.v3";
   worldId: typeof WILDS_WORLD_ID;
@@ -77,6 +115,10 @@ export type WildsWorldProjection = {
   raids: Record<string, WildsWorldRaidProjection>;
   teams: Record<string, WildsWorldTeamProjection>;
   league: WildsLeagueProjection;
+  story: WildsStoryProjection;
+  players: Record<string, WildsPlayerSagaState>;
+  trainers: Record<string, WildsTrainerWorldProjection>;
+  tournaments: Record<string, WildsTournamentWorldProjection>;
   defeatedBossIds: string[];
   recentEventIds: string[];
 };
@@ -103,6 +145,10 @@ export function initialWildsWorldProjection(): WildsWorldProjection {
     raids: {},
     teams: {},
     league: { seasonId: "v3-genesis", scores: {}, standings: [], scoredEventIds: [] },
+    story: { activeChapter: null, objectiveTotals: {}, memories: [], settledDayIds: [] },
+    players: {},
+    trainers: {},
+    tournaments: {},
     defeatedBossIds: [],
     recentEventIds: []
   };
@@ -127,6 +173,28 @@ function appendEvent(state: WildsWorldProjection, event: WildsWorldEvent, patch:
     cursor: { pulse: event.pulse, kaiKlok: event.kaiKlok, eventId: event.eventId },
     recentEventIds: [...state.recentEventIds, event.eventId].slice(-512)
   };
+}
+
+function playerSagaState(state: WildsWorldProjection, playerId: string): WildsPlayerSagaState {
+  return state.players[playerId] ?? {
+    trainerXp: 0,
+    trainerLevel: 1,
+    reputation: {},
+    contributions: {},
+    achievementGrantIds: [],
+    rewardIds: [],
+    achievementGrants: {}
+  };
+}
+
+function sagaIdentity(value: unknown, label: string) {
+  if (typeof value !== "string" || !/^[a-z0-9][a-z0-9:._-]{2,179}$/i.test(value)) throw new Error(`wilds_story_${label}_invalid`);
+  return value;
+}
+
+function sagaTime(value: unknown) {
+  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) throw new Error("wilds_story_time_invalid");
+  return value;
 }
 
 export function reduceWildsWorldEvent(state: WildsWorldProjection, event: WildsWorldEvent): WildsWorldProjection {
@@ -237,8 +305,102 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: WildsW
       if (league.seasonId !== "v3-genesis") throw new Error("wilds_world_league_invalid");
       return appendEvent(state, event, { league });
     }
-    case "social.abuse_reported":
-      return appendEvent(state, event, {});
+    case "story.chapter_opened": {
+      const chapter = recordPayload(payload.chapter) as WildsStoryChapterProjection;
+      sagaIdentity(chapter.dayId, "day");
+      sagaIdentity(chapter.chapterId, "chapter");
+      if (chapter.frameworkVersion !== "kai-saga.v1") throw new Error("wilds_story_framework_invalid");
+      sagaTime(chapter.openedAt);
+      sagaTime(chapter.endsAt);
+      if (chapter.endsAt <= chapter.openedAt) throw new Error("wilds_story_window_invalid");
+      if (state.story.activeChapter && state.story.activeChapter.dayId !== chapter.dayId && !state.story.settledDayIds.includes(state.story.activeChapter.dayId)) {
+        throw new Error("wilds_story_prior_chapter_unsettled");
+      }
+      return appendEvent(state, event, { story: { ...state.story, activeChapter: { ...chapter } } });
+    }
+    case "story.objective_contributed": {
+      const dayId = sagaIdentity(payload.dayId, "day");
+      const objectiveId = sagaIdentity(payload.objectiveId, "objective");
+      const playerId = sagaIdentity(payload.playerId, "player");
+      sagaIdentity(payload.verb, "verb");
+      const amount = Number(payload.amount);
+      if (!Number.isSafeInteger(amount) || amount < 1 || amount > 100) throw new Error("wilds_story_contribution_invalid");
+      if (state.story.activeChapter?.dayId !== dayId || state.story.settledDayIds.includes(dayId)) throw new Error("wilds_story_chapter_inactive");
+      const player = playerSagaState(state, playerId);
+      const trainerXp = Math.min(10_000, player.trainerXp + amount);
+      return appendEvent(state, event, {
+        story: { ...state.story, objectiveTotals: { ...state.story.objectiveTotals, [objectiveId]: (state.story.objectiveTotals[objectiveId] ?? 0) + amount } },
+        players: {
+          ...state.players,
+          [playerId]: {
+            ...player,
+            trainerXp,
+            trainerLevel: Math.min(100, 1 + Math.floor(trainerXp / 100)),
+            contributions: { ...player.contributions, [objectiveId]: (player.contributions[objectiveId] ?? 0) + amount }
+          }
+        }
+      });
+    }
+    case "story.chapter_settled": {
+      const memory = recordPayload(payload.memory) as unknown as WildsChapterMemory;
+      sagaIdentity(memory.chapterId, "chapter");
+      sagaIdentity(memory.dayId, "day");
+      sagaIdentity(memory.hookId, "hook");
+      sagaIdentity(memory.settledEventId, "settlement");
+      sagaTime(memory.settledAt);
+      if (!new Set(["success", "partial", "failure", "unopposed"]).has(memory.outcome)) throw new Error("wilds_story_outcome_invalid");
+      if (state.story.settledDayIds.includes(memory.dayId)) throw new Error("wilds_story_chapter_already_settled");
+      if (state.story.activeChapter?.dayId !== memory.dayId || state.story.activeChapter.chapterId !== memory.chapterId) throw new Error("wilds_story_chapter_inactive");
+      return appendEvent(state, event, {
+        story: {
+          ...state.story,
+          memories: [...state.story.memories, { ...memory }].slice(-2_048),
+          settledDayIds: [...state.story.settledDayIds, memory.dayId].slice(-2_048)
+        }
+      });
+    }
+    case "story.achievement_granted": {
+      const grant = recordPayload(payload.grant) as unknown as WildsAchievementGrantProjection;
+      const grantId = sagaIdentity(grant.grantId, "achievement_grant");
+      const playerId = sagaIdentity(grant.playerId, "player");
+      sagaIdentity(grant.definitionId, "achievement");
+      sagaIdentity(grant.scopeInstanceId, "scope");
+      const reward = recordPayload(grant.reward) as unknown as WildsReward;
+      sagaIdentity(reward.id, "reward");
+      const player = playerSagaState(state, playerId);
+      const existing = player.achievementGrants[grantId];
+      if (existing && canonicalPortableCardJson(existing) !== canonicalPortableCardJson(grant)) throw new Error("wilds_story_achievement_divergent");
+      if (existing) return appendEvent(state, event, {});
+      return appendEvent(state, event, {
+        players: {
+          ...state.players,
+          [playerId]: {
+            ...player,
+            achievementGrantIds: [...player.achievementGrantIds, grantId].slice(-4_096),
+            rewardIds: player.rewardIds.includes(reward.id) ? player.rewardIds : [...player.rewardIds, reward.id].slice(-4_096),
+            achievementGrants: { ...player.achievementGrants, [grantId]: { ...grant, reward: { ...reward } } }
+          }
+        }
+      });
+    }
+    case "story.trainer_encountered":
+    case "story.trainer_battle_settled": {
+      const trainer = entity<WildsTrainerWorldProjection>(payload.trainer, "story_trainer");
+      const existing = state.trainers[trainer.id];
+      if (existing && event.kind === "story.trainer_battle_settled" && existing.settledMatchId === trainer.settledMatchId && canonicalPortableCardJson(existing) !== canonicalPortableCardJson(trainer)) {
+        throw new Error("wilds_story_trainer_battle_divergent");
+      }
+      return appendEvent(state, event, { trainers: { ...state.trainers, [trainer.id]: trainer } });
+    }
+    case "story.tournament_opened":
+    case "story.tournament_entered":
+    case "story.tournament_round_settled":
+    case "story.tournament_settled": {
+      const tournament = entity<WildsTournamentWorldProjection>(payload.tournament, "story_tournament");
+      const existing = state.tournaments[tournament.id];
+      if (existing?.phase === "settled" && canonicalPortableCardJson(existing) !== canonicalPortableCardJson(tournament)) throw new Error("wilds_story_tournament_divergent");
+      return appendEvent(state, event, { tournaments: { ...state.tournaments, [tournament.id]: tournament } });
+    }
   }
 }
 

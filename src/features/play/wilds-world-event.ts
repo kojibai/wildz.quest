@@ -28,7 +28,17 @@ export type WildsWorldEventKind =
   | "team.event_scheduled"
   | "team.squad_assembled"
   | "social.abuse_reported"
-  | "league.scored";
+  | "league.scored"
+  | "story.chapter_opened"
+  | "story.objective_contributed"
+  | "story.chapter_settled"
+  | "story.achievement_granted"
+  | "story.trainer_encountered"
+  | "story.trainer_battle_settled"
+  | "story.tournament_opened"
+  | "story.tournament_entered"
+  | "story.tournament_round_settled"
+  | "story.tournament_settled";
 
 export type WildsWorldEvent<T = unknown> = {
   schema: "receiz.wilds_world_event.v3";
@@ -73,7 +83,17 @@ const eventKinds = new Set<WildsWorldEventKind>([
   "team.event_scheduled",
   "team.squad_assembled",
   "social.abuse_reported",
-  "league.scored"
+  "league.scored",
+  "story.chapter_opened",
+  "story.objective_contributed",
+  "story.chapter_settled",
+  "story.achievement_granted",
+  "story.trainer_encountered",
+  "story.trainer_battle_settled",
+  "story.tournament_opened",
+  "story.tournament_entered",
+  "story.tournament_round_settled",
+  "story.tournament_settled"
 ]);
 
 function isIsoTime(value: unknown): value is string {
