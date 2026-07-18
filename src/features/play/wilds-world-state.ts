@@ -390,6 +390,17 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: WildsW
       if (existing && event.kind === "story.trainer_battle_settled" && existing.settledMatchId === trainer.settledMatchId && canonicalPortableCardJson(existing) !== canonicalPortableCardJson(trainer)) {
         throw new Error("wilds_story_trainer_battle_divergent");
       }
+      if (event.kind === "story.trainer_battle_settled") {
+        const playerId = sagaIdentity(payload.playerId, "player");
+        const xpAward = Number(payload.xpAward);
+        if (!Number.isSafeInteger(xpAward) || xpAward < 0 || xpAward > 100) throw new Error("wilds_story_trainer_xp_invalid");
+        const player = playerSagaState(state, playerId);
+        const trainerXp = Math.min(10_000, player.trainerXp + xpAward);
+        return appendEvent(state, event, {
+          trainers: { ...state.trainers, [trainer.id]: trainer },
+          players: { ...state.players, [playerId]: { ...player, trainerXp, trainerLevel: Math.min(100, 1 + Math.floor(trainerXp / 100)) } }
+        });
+      }
       return appendEvent(state, event, { trainers: { ...state.trainers, [trainer.id]: trainer } });
     }
     case "story.tournament_opened":

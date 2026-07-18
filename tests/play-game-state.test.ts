@@ -331,7 +331,26 @@ describe("Receiz Wilds game state", () => {
     assert.equal(state.companionProgress.mintcub.level, 2);
     assert.equal(state.companionProgress.mintcub.bond, 3);
     assert.equal(state.livingProgress[state.selectedAssetId]!.paths.bond, 3);
-    assert.match(state.lastEvent, /Level 2/);
+    assert.match(blocked.lastEvent, /^SealCub is resting/);
+    assert.match(state.lastEvent, /^SealCub reached Level 2/);
+  });
+
+  it("uses the individual creature name when XP raises its level", () => {
+    const creature = sealCollectedCard({
+      formId: "voltray-1",
+      ownerReceizId: "receiz:named-trainer",
+      encounterId: "encounter:named-trainer",
+      capturedAt: "2026-07-17T12:00:00.000Z",
+      generatorVersion: 2
+    });
+    const imported = applyWildsInput(initialPlayState, { type: "import-card", asset: creature });
+    const ready = {
+      ...imported,
+      companionProgress: { ...imported.companionProgress, [creature.manifest.familyId]: { level: 1, xp: 80, bond: 0 } }
+    };
+    const leveled = applyWildsInput(ready, { type: "train", at: "2026-07-17T12:15:00.000Z" });
+
+    assert.match(leveled.lastEvent, new RegExp(`^${creature.manifest.name} reached Level 2`));
   });
 
   it("records active travel only when the leading card crosses a bounded milestone", () => {

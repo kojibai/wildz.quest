@@ -1366,10 +1366,10 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       bondCooldowns: { ...state.bondCooldowns, [targetAsset.id]: new Date(Date.parse(trainedAt) + 10 * 60 * 1000).toISOString() },
       energy: Math.max(0, state.energy - 6),
       lastEvent: leveledUp
-        ? `${cardName(targetCardId)} reached Level ${nextProgress.level}. A new mastery tier is active.`
-        : `${cardName(targetCardId)} gained 40 XP and strengthened your bond.`,
+        ? `${targetAsset.manifest.name} reached Level ${nextProgress.level}. A new mastery tier is active.`
+        : `${targetAsset.manifest.name} gained 40 XP and strengthened your bond.`,
       missionProgress: Math.min(100, state.missionProgress + 9),
-      selectedAssetId: [...state.inventory].reverse().find((asset) => asset.manifest.familyId === targetCardId)?.id ?? state.selectedAssetId,
+      selectedAssetId: targetAsset.id,
       selectedCardId: targetCardId,
       streak: state.streak + 1
     }, "training"));

@@ -358,7 +358,8 @@ export class WildsWorldService {
       }
       const memory: WildsTrainerBattleMemory = { trainerId: command.trainerId, playerId: authority.actorId, outcome: command.outcome, settledEventId: command.matchId, settledAt: authority.occurredAt };
       const trainer = { ...current, battleMemories: [...battleMemories, memory].slice(-128), settledMatchId: command.matchId, lastOutcome: command.outcome };
-      events.push(this.append("story.trainer_battle_settled", { trainer, playerId: authority.actorId, outcome: command.outcome }, authority, command.commandId));
+      const xpAward = command.outcome === "player_victory" ? 50 : command.outcome === "trainer_victory" ? 15 : 0;
+      events.push(this.append("story.trainer_battle_settled", { trainer, playerId: authority.actorId, outcome: command.outcome, xpAward }, authority, command.commandId));
     } else if (command.type === "story.tournament_enter") {
       if (!authority.card) throw new Error("wilds_world_verified_card_required");
       const current = this.projection.tournaments[command.tournamentId] as WildsTournamentProjection & { enteredPlayerIds?: string[] } | undefined;

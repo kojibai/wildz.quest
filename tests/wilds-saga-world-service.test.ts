@@ -38,6 +38,7 @@ describe("authoritative Kai saga lifecycle", () => {
     const card = sealCollectedCard({ capturedAt: battleAt, encounterId: "saga-trainer-card", formId: "mintcub-1", ownerReceizId: "player:ari" });
     const battle = service.execute({ type: "story.trainer_battle", dayId: chapter.dayId, trainerId, matchId: "match:saga:one", outcome: "player_victory", cardProofDigest: card.proof.digest, commandId: "command:story:battle" }, { actorId: "player:ari", canonical: true, card, pulse: battleAt, occurredAt: battleAt });
     assert.equal(battle.events[0]?.kind, "story.trainer_battle_settled");
+    assert.equal(battle.projection.players["player:ari"]?.trainerXp, 51);
 
     const purify = fixtureForArk("Purify", Date.parse(battleAt));
     const tournamentTick = service.tick({ pulse: purify.occurredAt, occurredAt: purify.occurredAt, systemActorId: "receiz:pulse" });
