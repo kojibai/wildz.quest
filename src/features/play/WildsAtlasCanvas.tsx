@@ -89,7 +89,7 @@ function TrainerLights({ projection }: { projection: WildsAtlasProjection }) {
     return <group key={trainer.id} position={[x, .44, z]}>
       <mesh><capsuleGeometry args={[.11, .28, 4, 8]} /><meshStandardMaterial color="#fff2b0" emissive="#d9982b" emissiveIntensity={1.65} /></mesh>
       <mesh position={[0, -.17, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[.22, .025, 6, 20]} /><meshBasicMaterial color="#f7d25b" /></mesh>
-      <Html center position={[0, .55, 0]} zIndexRange={[2, 1]}><span className="wilds-atlas-trainer-label">{trainer.name} · NPC</span></Html>
+      <Html center position={[0, .55, 0]} zIndexRange={[2, 1]}><span className="wilds-atlas-trainer-label">{trainer.name} · Trainer</span></Html>
     </group>;
   })}</group>;
 }

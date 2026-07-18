@@ -76,8 +76,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     });
   }
   const [character, setCharacter] = useState<WildzCharacterGenesis | null>(null);
-  const [onboardingBusy, setOnboardingBusy] = useState<"explorer" | "vault" | null>(null);
-  const [onboardingError, setOnboardingError] = useState("");
+  const [onboardingBusy, setOnboardingBusy] = useState(false);
   const [identityError, setIdentityError] = useState("");
   const [proofSessionConnected, setProofSessionConnected] = useState(false);
   const [remoteProfile, setRemoteProfile] = useState<ReturnType<typeof sanitizePublicWildzProfile> | null>(null);
@@ -295,15 +294,14 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
 
   const chooseExplorer = (gender: WildzGender) => {
     if (!identity || onboardingBusy) return;
-    setOnboardingBusy("explorer");
-    setOnboardingError("");
+    setOnboardingBusy(true);
     const next = generateWildzCharacter({
       identityRef: identity.keyId,
       kaiPulse: String(Date.now()),
       gender,
       version: 1
     });
-    void completeGenesis(next).finally(() => setOnboardingBusy(null));
+    void completeGenesis(next).finally(() => setOnboardingBusy(false));
   };
 
   const saveProfileIdentity = async (input: { username: string; displayName: string; avatarImageUrl: string | null }) => {
@@ -354,6 +352,29 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (!current) throw new Error("wildz_identity_missing");
     if (current.session.localAuthority !== "verified") throw new Error("wildz_identity_seal_authority_required");
     await saveIdentityCard();
+  };
+
+  const saveCombinedVault = async () => {
+    const current = continuityRef.current;
+    if (!current) throw new Error("wildz_identity_missing");
+    const playerContinuity = current.playerContinuity;
+    const playState = current.playState ?? createOwnerBoundInitialPlayState(current.session.actorId, current.session.createdAt);
+    const player = createWildsPlayerVault({
+      playerId: current.session.username ?? current.session.actorId,
+      exportedAt: new Date().toISOString(),
+      playState,
+      character: current.character,
+      settings: playerContinuity?.settings ?? {
+        avatarStyle: current.character?.gender ?? null,
+        movementMode: "walk",
+        audio: {},
+        cardOrder: "rarity"
+      },
+      personalEvents: playerContinuity?.personalEvents ?? [],
+      canonicalCursor: playerContinuity?.canonicalCursor ?? { worldId: "wilds:global:v3", revision: 0, eventId: null },
+      receipts: playerContinuity?.receipts ?? []
+    });
+    await downloadWildzIdentityPlayerVault(current.session, playState.inventory, player);
   };
 
   const claimVerifiedImportedCards = useCallback(async (file: File, outcome: WildzUiArtifactRestore) => {
@@ -409,7 +430,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       publishedProfileRef.current = "";
     }
     acceptSnapshot(next);
-    void claimVerifiedImportedCards(file, outcome);
+    if (sameWildzPlayerCoordinate(current.session.actorId, outcome.session.actorId)) {
+      void claimVerifiedImportedCards(file, outcome);
+    }
     return outcome;
   }, [acceptSnapshot, claimVerifiedImportedCards]);
 
@@ -437,7 +460,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           playerDisplayName={identity.displayName ?? `@${ownerUsername}`}
           onPlayStateChange={persistPlayState}
           onExportVault={(assets, player) => downloadWildzIdentityPlayerVault(identity, assets, player)}
-          onRestoreArtifact={(file, confirmCardOnly, currentPlayState) => restoreArtifact(file, "card-vault", confirmCardOnly, currentPlayState)}
+          onRestoreArtifact={(file, confirmCardOnly, currentPlayState) => restoreArtifact(file, "card-vault", confirmCardOnly, currentPlayState, "merge-vault")}
           onOpenProfile={() => setOverlay({ kind: "profile", username: `@${ownerUsername}` })}
           onOpenMarket={() => setOverlay({ kind: "market" })}
           onListAsset={async (asset, priceCents) => {
@@ -477,26 +500,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       </nav> : null}
 
       {identity && !character ? <WildzInWorldOnboarding
-        identity={identity}
         busy={onboardingBusy}
-        error={onboardingError || identityError}
+        error={identityError}
         onChooseExplorer={chooseExplorer}
-        onAddVault={async (file) => {
-          setOnboardingBusy("vault");
-          setOnboardingError("");
-          try {
-            const outcome = await restoreArtifact(file, "card-vault", () => window.confirm(
-              "This Vault contains verified cards only. Add every verified card to the current Receiz ID?"
-            ), continuityRef.current?.playState ?? undefined, "merge-vault");
-            const count = outcome.verifiedAssetIds.length;
-            setOnboardingError(`${count} verified card${count === 1 ? "" : "s"} added to @${outcome.session.username ?? outcome.session.actorId}.`);
-          } catch (cause) {
-            setOnboardingError(cause instanceof Error ? cause.message : "That Vault could not be added.");
-          } finally {
-            setOnboardingBusy(null);
-          }
-        }}
-        onOpenProfile={() => setOverlay({ kind: "profile", username: `@${ownerUsername}` })}
       /> : null}
 
       {overlay ? (
@@ -521,7 +527,17 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             <Image src="/brand/wildz-mark.svg" alt="" width={48} height={48} />
             <strong>{profileStatus === "loading" ? "Finding explorer…" : "Explorer unavailable"}</strong>
             <span>{profileStatus === "missing" || profileStatus === "unpublished" ? "This Wildz profile has not been published yet." : profileStatus === "error" ? "Receiz profile recovery is temporarily unavailable." : "Preparing profile"}</span>
-          </div> : overlay.kind === "vault" ? <WildzVaultSheet cards={localPublicProfile.vault} /> : overlay.kind === "market" ? <WildzMarketSheet listings={[]} buyer={`@${ownerUsername}`} /> : <div className="wildz-shell-overlay-placeholder">
+          </div> : overlay.kind === "vault" ? <WildzVaultSheet
+            cards={localPublicProfile.vault}
+            title="Card Vault"
+            onAddVault={async (file) => {
+              const outcome = await restoreArtifact(file, "card-vault", () => window.confirm(
+                "Combine every verified card from this Vault with the cards already here? The current Identity Seal will own the combined Vault when you save it."
+              ), continuityRef.current?.playState ?? undefined, "merge-vault");
+              return outcome.verifiedAssetIds.length;
+            }}
+            onSaveVault={saveCombinedVault}
+          /> : overlay.kind === "market" ? <WildzMarketSheet listings={[]} buyer={`@${ownerUsername}`} /> : <div className="wildz-shell-overlay-placeholder">
             <Image src="/brand/wildz-mark.svg" alt="" width={48} height={48} />
             <strong>{overlay.kind}</strong>
             <span>Wildz surface loading</span>

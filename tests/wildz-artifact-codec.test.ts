@@ -6,8 +6,10 @@ import {
   serializeReceizIdentityArtifact
 } from "@receiz/sdk";
 import { embedPortableVaultInPng } from "../src/features/play/card-export";
+import { applyWildsInput, initialPlayState, type PlayState } from "../src/features/play/game-state";
 import { admitLegacyCard } from "../src/features/play/living-card-proof";
 import { sealCollectedCard } from "../src/features/play/portable-card";
+import { createWildsPlayerVault } from "../src/features/play/wilds-player-vault";
 import { inspectReceizCommerceVault } from "../src/lib/receiz/receiz-commerce-vault";
 import {
   createWildzArtifactCodec,
@@ -15,6 +17,7 @@ import {
 } from "../src/lib/receiz/wildz-artifact-codec";
 import { createWildzIdentityRepository } from "../src/lib/receiz/wildz-identity-repository";
 import { inspectWildzRestore } from "../src/lib/receiz/wildz-identity-adapter";
+import { createWildzIdentityBoundPlayerVault } from "../src/lib/receiz/wildz-identity-adapter";
 import { splitWildzPngEnvelope } from "../src/lib/receiz/wildz-png-envelope";
 import { extractVerifiedWildzCards } from "../src/lib/receiz/wildz-cross-platform-cards";
 import { createMemoryWildzContinuityDatabase } from "./support/memory-wildz-continuity-database";
@@ -64,6 +67,49 @@ test("legacy card Vault never claims identity authority", async () => {
   assert.equal(inspected.kind, "card-vault");
   if (inspected.kind !== "card-vault") return;
   assert.equal("identity" in inspected, false);
+  assert.deepEqual(inspected.assets.map((asset) => asset.id), expected.map((asset) => asset.id).sort());
+});
+
+test("a Vault saved by Wildz remains a card Vault when it carries its Identity Seal", async () => {
+  const expected = assets(2);
+  const emptyPlayState: PlayState = {
+    ...structuredClone(initialPlayState),
+    inventory: [],
+    discoveredCardIds: [],
+    pendingSyncAssetIds: [],
+    companionProgress: {},
+    livingProgress: {},
+    selectedAssetId: "",
+    selectedCardId: ""
+  };
+  const playState = expected.reduce(
+    (state, asset) => applyWildsInput(state, { type: "import-card", asset }),
+    emptyPlayState
+  );
+  const player = createWildsPlayerVault({
+    playerId: "codec_saved_vault",
+    exportedAt: "2026-07-18T12:00:00.000Z",
+    playState,
+    settings: { avatarStyle: "female", movementMode: "walk", audio: {}, cardOrder: "rarity" },
+    personalEvents: [],
+    canonicalCursor: { worldId: "wilds:global:v3", revision: 0, eventId: null },
+    receipts: []
+  });
+  const identity = await createReceizIdentityKeyFile({
+    owner: { uid: "codec_saved_vault_uid", username: "codec_saved_vault", displayName: "Codec Vault" },
+    portableState: null
+  });
+  const saved = await createWildzIdentityBoundPlayerVault({
+    keyFile: identity.keyFile,
+    vaultBytes: embedPortableVaultInPng(BASE_PNG, expected, player)
+  });
+
+  const inspected = await codec().inspect({ bytes: saved, mimeType: "image/png", name: "wilds-vault.receized.png" });
+
+  assert.equal(inspected.kind, "card-vault");
+  if (inspected.kind !== "card-vault") return;
+  assert.equal(inspected.identity?.session.username, "codec_saved_vault");
+  assert.equal(inspected.playerBinding, "identity-v3-binding");
   assert.deepEqual(inspected.assets.map((asset) => asset.id), expected.map((asset) => asset.id).sort());
 });
 

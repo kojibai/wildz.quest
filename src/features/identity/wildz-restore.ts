@@ -130,9 +130,8 @@ function inspectionPlayer(inspection: WildzArtifactInspection): WildsPlayerVault
 }
 
 function identityFromInspection(inspection: WildzArtifactInspection) {
-  return inspection.kind === "identity-seal" || inspection.kind === "commerce-vault"
-    ? inspection.identity
-    : null;
+  if (inspection.kind === "identity-seal" || inspection.kind === "commerce-vault") return inspection.identity;
+  return inspection.kind === "card-vault" ? inspection.identity ?? null : null;
 }
 
 function emptyVaultPlayState(): PlayState {

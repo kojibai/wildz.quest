@@ -222,7 +222,7 @@ export function WildsInventory({
               for (const file of files) {
                 try {
                   const outcome = await onRestoreArtifact(file, () => window.confirm(
-                    "This file contains verified Wildz cards but no Identity Seal. Import every verified card into the current Receiz ID?"
+                    "Add every verified card from this file to the current Vault? The combined Vault stays tied to the Identity Seal used when you save it."
                   ), currentPlayState);
                   currentPlayState = outcome.playState;
                   imported += outcome.verifiedAssetIds.length;

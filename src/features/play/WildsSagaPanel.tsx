@@ -82,7 +82,7 @@ export function WildsSagaPanel({
       {trainers.slice(0, 3).map((trainer) => <article key={trainer.id}>
         <span><strong>{trainer.name}</strong><small>{trainer.locationId} · {trainer.affinity}</small></span>
         <b>Lv. {trainer.challengeLevel}</b>
-        <button disabled={mode !== "receiz_live" || pending} onClick={() => onBattleTrainer(trainer)} type="button">Battle NPC</button>
+        <button disabled={mode !== "receiz_live" || pending} onClick={() => onBattleTrainer(trainer)} type="button">Battle Trainer</button>
       </article>)}
     </section>
 

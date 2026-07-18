@@ -974,12 +974,14 @@ export function PlayCampaign({
             /> : null}
 
             {avatarStyle ? <WildsMultiplayer multiplayer={multiplayer} position={state.player} /> : null}
-            {avatarStyle ? <WildsLivingWorldHud connected={networkEnabled} onEnterRaid={enterLivingRaid} player={state.player} world={livingWorld} /> : null}
-            {nearestTrainer ? <button
-              className="wilds-trainer-navigator"
-              onClick={() => nearestTrainer.distance <= 10 ? setActiveTrainer(nearestTrainer.trainer) : setMapOpen(true)}
-              type="button"
-            ><span>NPC TRAINER</span><strong>{nearestTrainer.trainer.name}</strong><small>{Math.round(nearestTrainer.distance)}m away · Lv. {nearestTrainer.trainer.challengeLevel} · {nearestTrainer.distance <= 10 ? "Battle now" : "Open map"}</small></button> : null}
+            <div className="wilds-world-navigator-stack">
+              {avatarStyle ? <WildsLivingWorldHud connected={networkEnabled} onEnterRaid={enterLivingRaid} player={state.player} world={livingWorld} /> : null}
+              {nearestTrainer ? <button
+                className="wilds-trainer-navigator"
+                onClick={() => nearestTrainer.distance <= 10 ? setActiveTrainer(nearestTrainer.trainer) : setMapOpen(true)}
+                type="button"
+              ><span>WILD TRAINER</span><strong>{nearestTrainer.trainer.name}</strong><small>{Math.round(nearestTrainer.distance)}m away · Lv. {nearestTrainer.trainer.challengeLevel} · {nearestTrainer.distance <= 10 ? "Battle now" : "Open map"}</small></button> : null}
+            </div>
             <div className="wilds-utility-cluster">
               <WildsAudioSettings
                 onChange={presentation.setAudioSettings}

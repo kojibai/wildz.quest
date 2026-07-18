@@ -36,10 +36,10 @@ test("Wildz creates identity before character genesis and enters play with that 
   assert.doesNotMatch(source, /WILDZ_CHARACTER_STORAGE_KEY|WILDS_AVATAR_KEY/);
 });
 
-test("in-world onboarding visibly confirms the active Receiz identity before explorer creation", () => {
+test("in-world onboarding keeps identity controls out of first entry", () => {
   const source = read("src/features/identity/WildzInWorldOnboarding.tsx");
-  assert.match(source, /Receiz ID · @\{username\}/);
-  assert.match(source, /identity\.username \?\? identity\.actorId/);
+  assert.match(source, /Choose your explorer/);
+  assert.doesNotMatch(source, /Receiz ID|identity\.username|identity\.actorId|Add Vault|Profile/);
 });
 
 test("a Vault without a display name keeps its restored Receiz username visible in the game HUD", () => {

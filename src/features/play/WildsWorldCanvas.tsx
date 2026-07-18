@@ -190,7 +190,7 @@ function TrainerExplorer({ trainer, localPlayer, onSelect }: {
       <meshStandardMaterial color="#f7d25b" emissive="#c68f25" emissiveIntensity={.78} />
     </mesh>
     <Html center className="wilds-remote-nameplate wilds-trainer-nameplate" distanceFactor={8} position={[0, 1.48, 0]} zIndexRange={[14, 1]}>
-      <span>{trainer.name}</span><small>NPC trainer · Lv. {trainer.challengeLevel} · {rosterName}</small>
+      <span>{trainer.name}</span><small>Wild trainer · Lv. {trainer.challengeLevel} · {rosterName}</small>
     </Html>
   </group>;
 }

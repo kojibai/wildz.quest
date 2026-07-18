@@ -73,6 +73,7 @@ export type WildzArtifactInspection =
     }
   | {
       kind: "card-vault";
+      identity?: VerifiedWildzIdentity | null;
       assets: PortableCardAsset[];
       vaultDigest: string;
       player: WildsPlayerVaultPayload | null;
@@ -316,6 +317,17 @@ export function createWildzArtifactCodec(input: {
           projection: commerce.projection,
           player: extraction.player,
           playerBinding
+        };
+      }
+      if (identity && extraction.player && playerBinding === "identity-v3-binding") {
+        return {
+          kind: "card-vault",
+          identity,
+          assets: extraction.assets,
+          vaultDigest: vaultDigest(extraction.assets),
+          player: extraction.player,
+          playerBinding,
+          proofObject
         };
       }
       if (identity) {

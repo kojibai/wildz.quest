@@ -392,11 +392,12 @@ test("a signed identity-V3 binding admits a combined Vault locally and splice or
     commerceVaultReader: { inspect: inspectReceizCommerceVault }
   });
   const inspected = await artifactCodec.inspect({ bytes: combined, mimeType: "image/png" });
-  assert.equal(inspected.kind, "identity-seal");
-  if (inspected.kind !== "identity-seal") return;
+  assert.equal(inspected.kind, "card-vault");
+  if (inspected.kind !== "card-vault") return;
+  assert.equal(inspected.identity?.session.username, "bound_keeper");
   assert.equal(inspected.playerBinding, "identity-v3-binding");
   assert.equal(inspected.player?.payloadDigest, player.payloadDigest);
-  assert.equal(inspected.portableAssets.length, expected.length);
+  assert.equal(inspected.assets.length, expected.length);
 
   let remoteVerifierCalls = 0;
   const coordinator = createWildzVaultLoginCoordinator({

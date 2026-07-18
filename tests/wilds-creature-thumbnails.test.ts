@@ -19,7 +19,7 @@ test("active deck and vault grids use creature artwork instead of initials", () 
   assert.doesNotMatch(inventory, /manifest\.name\.slice\(0, 2\)/);
 });
 
-test("in-world onboarding and Card Vault share the behavior-tested atomic restore boundary", () => {
+test("the in-game Card Vault owns the atomic merge boundary", () => {
   const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
   const onboarding = readFileSync("src/features/identity/WildzInWorldOnboarding.tsx", "utf8");
   const adapter = readFileSync("src/lib/receiz/wildz-identity-adapter.ts", "utf8");
@@ -28,7 +28,7 @@ test("in-world onboarding and Card Vault share the behavior-tested atomic restor
   assert.match(inventory, /onRestoreArtifact\(file/);
   assert.match(inventory, /currentPlayState = outcome\.playState/);
   assert.match(inventory, /\.receizvault/);
-  assert.match(onboarding, /onAddVault\(file\)/);
+  assert.doesNotMatch(onboarding, /onAddVault|Add Vault|Identity Seal/);
   assert.match(shell, /"merge-vault"/);
   assert.match(shell, /"activate-identity"/);
   assert.match(shell, /restoreArtifact\(file, "card-vault"/);
