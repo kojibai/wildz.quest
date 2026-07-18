@@ -271,6 +271,14 @@ Map and HUD projections identify story NPCs, seeded trainers, live players, miss
 
 All placeholder merchant reward copy in the mission path is replaced. The initial chapter uses a specific authored reward so no generic fallback is visible during migration.
 
+### Card-back birth-pulse interpretation
+
+Living card backs use the same canonical Kai teachings as the saga. The Birth Pulse section must interpret the companion's recorded birth moment rather than repeat calendar labels. Its prose and geometry rows explain what the corresponding harmonic day/chakra, eternal month, week, and Ark mean through their canonical color, element, mathematics, geometry, and teaching.
+
+The visible passage must not use the harmonic day, month, week, or Ark names as a substitute for meaning. Names may remain inside the exact proof coordinate or an expandable proof record, but the player-facing Birth Pulse story speaks in meanings such as grounded Root stability, compassionate Heart coherence, coherent-light completion, or purification through twelve-rayed crown geometry.
+
+The Caduceus KAI identity is displayed with the established `☤ KAI` symbol. UI labels must not spell or misspell `Caduceus KAI`, including the current `Cadueus KAI` card-back label. The underlying canonical coordinate remains unchanged.
+
 ## Authority, offline behavior, and failures
 
 - World/admitted Kai time determines canonical transitions and deadlines.
@@ -326,6 +334,8 @@ The engine also projects the containing month and year identifiers and inherited
 - arena results feed tournament settlement once;
 - offline recovery converges without premature grants;
 - return continuity explains current state from prior memories.
+- card Birth Pulse copy is a deterministic interpretation of canonical Kai teachings and does not merely list harmonic calendar names;
+- the card back uses the `☤ KAI` symbol while preserving the exact coordinate value.
 
 ### Experience verification
 
@@ -351,4 +361,4 @@ The engine also projects the containing month and year identifiers and inherited
 
 ## Success criteria
 
-The work is successful when two clients at the same admitted Kai moment and world head see the same active story, NPC population, missions, tournament, and settled history; when player actions create admitted consequences that deterministically affect later chapters; when every day resolves and advances without waiting; when a solo player always has meaningful NPC competition; when returning players can understand why the world changed; and when gameplay presents real achievements and rewards without the former brandable merchant placeholder.
+The work is successful when two clients at the same admitted Kai moment and world head see the same active story, NPC population, missions, tournament, and settled history; when player actions create admitted consequences that deterministically affect later chapters; when every day resolves and advances without waiting; when a solo player always has meaningful NPC competition; when returning players can understand why the world changed; when gameplay presents real achievements and rewards without the former brandable merchant placeholder; and when every card back explains the meaning of its birth geometry while using the `☤ KAI` symbol instead of spelling out Caduceus KAI.
