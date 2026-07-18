@@ -6,9 +6,9 @@ import {
   RECEIZ_RELEASE_VERSION,
   RECEIZ_RULESET_VERSION,
   RECEIZ_SDK_VERSION,
-  RECEIZ_V109_ARTIFACT_LAWS,
-  RECEIZ_V109_REGISTRY_DIGEST,
-  RECEIZ_V109_RELEASE_AUTHORITY
+  RECEIZ_V110_ARTIFACT_LAWS,
+  RECEIZ_V110_REGISTRY_DIGEST,
+  RECEIZ_V110_RELEASE_AUTHORITY
 } from "@receiz/sdk";
 import {
   checkReceizIntegration,
@@ -25,33 +25,38 @@ const expectedFeatures = [
   "commerce"
 ] as const;
 
-describe("Receiz v109 application contract", () => {
-  it("compiles the truthful Wildz artifact-first contract through SDK v109", () => {
-    assert.equal(RECEIZ_SDK_VERSION, "109.0.0");
-    assert.equal(RECEIZ_RELEASE_VERSION, "109.0.0");
-    assert.equal(RECEIZ_RULESET_VERSION, "109.0.0");
+describe("Receiz v110 application contract", () => {
+  it("compiles the truthful Wildz artifact-first contract through SDK v110", () => {
+    assert.equal(RECEIZ_SDK_VERSION, "110.0.0");
+    assert.equal(RECEIZ_RELEASE_VERSION, "110.0.0");
+    assert.equal(RECEIZ_RULESET_VERSION, "110.0.0");
     assert.equal(
-      RECEIZ_V109_REGISTRY_DIGEST,
-      "17f76b37c9fcd46f710239b5c1660b03cc34ec64bed30d1cc45c18d5d40eab70"
+      RECEIZ_V110_REGISTRY_DIGEST,
+      "824aa4af849c4840ba94535798eab36e45d514703b6ae0cd30d4aa53f3c896e4"
     );
-    assert.deepEqual(RECEIZ_V109_ARTIFACT_LAWS, [
+    assert.deepEqual(RECEIZ_V110_ARTIFACT_LAWS, [
       "ARTIFACT-001", "ARTIFACT-002", "ARTIFACT-003", "ARTIFACT-004", "ARTIFACT-005",
       "ARTIFACT-006", "ARTIFACT-007", "ARTIFACT-008", "ARTIFACT-009", "ARTIFACT-010",
-      "ARTIFACT-011"
+      "ARTIFACT-011", "ARTIFACT-012", "ARTIFACT-013", "ARTIFACT-014", "ARTIFACT-015"
     ]);
-    assert.equal(RECEIZ_V109_RELEASE_AUTHORITY.proofObjectFirst, true);
-    assert.equal(RECEIZ_V109_RELEASE_AUTHORITY.receizComReferenceBeforeDeveloperRails, true);
-    assert.equal(RECEIZ_V109_RELEASE_AUTHORITY.queuedCommandIsGlobalCommitment, false);
-    assert.equal(RECEIZ_V109_RELEASE_AUTHORITY.localArtifactVerificationRequiresNetwork, false);
-    assert.equal(RECEIZ_V109_RELEASE_AUTHORITY.historicalDeveloperSdkInstallable, false);
+    assert.equal(RECEIZ_V110_RELEASE_AUTHORITY.proofObjectFirst, true);
+    assert.equal(RECEIZ_V110_RELEASE_AUTHORITY.receizComReferenceBeforeDeveloperRails, true);
+    assert.equal(RECEIZ_V110_RELEASE_AUTHORITY.queuedCommandIsGlobalCommitment, false);
+    assert.equal(RECEIZ_V110_RELEASE_AUTHORITY.localArtifactVerificationRequiresNetwork, false);
+    assert.equal(RECEIZ_V110_RELEASE_AUTHORITY.historicalDeveloperSdkInstallable, false);
+    assert.equal(RECEIZ_V110_RELEASE_AUTHORITY.unifiedArtifactAdmission, true);
+    assert.equal(RECEIZ_V110_RELEASE_AUTHORITY.recoveryPlanIsProofAuthority, false);
+    assert.equal(RECEIZ_V110_RELEASE_AUTHORITY.proofExplanationIsProofAuthority, false);
+    assert.equal(RECEIZ_V110_RELEASE_AUTHORITY.recoveryCommitRequiresVerifiedCapability, true);
+    assert.equal(RECEIZ_V110_RELEASE_AUTHORITY.recoveryCommitIsAtomic, true);
     assert.equal(typeof defineReceizApp, "function");
     assert.equal(typeof compileReceizAppContract, "function");
 
     const input = JSON.parse(readFileSync("receiz.app.json", "utf8"));
     const contract = defineReceizApp(input);
-    const plan = compileReceizAppContract(contract, { targetSdkVersion: "109.0.0" });
+    const plan = compileReceizAppContract(contract, { targetSdkVersion: "110.0.0" });
 
-    assert.equal(plan.targetSdkVersion, "109.0.0");
+    assert.equal(plan.targetSdkVersion, "110.0.0");
     assert.deepEqual(contract.features, expectedFeatures);
     assert.equal(contract.authority.mode, "artifact-first");
     assert.equal(contract.authority.allowDatabaseAuthority, false);
@@ -60,7 +65,7 @@ describe("Receiz v109 application contract", () => {
     assert.ok(plan.verificationCommands.length > 0);
   });
 
-  it("passes the v109 repository integration checker with evidence-backed rails", async () => {
+  it("passes the v110 repository integration checker with evidence-backed rails", async () => {
     const generated = JSON.parse(readFileSync("receiz.generated.json", "utf8"));
     const contract = defineReceizApp(JSON.parse(readFileSync("receiz.app.json", "utf8")));
     const generatedFile = generateNextjsAppRouterFiles(contract)
@@ -77,25 +82,25 @@ describe("Receiz v109 application contract", () => {
     assert.deepEqual(generated, JSON.parse(generatedFile.content));
 
     assert.equal(typeof checkReceizIntegration, "function");
-    const result = spawnSync(process.execPath, ["scripts/receiz-v109-check.mjs"], { encoding: "utf8" });
+    const result = spawnSync(process.execPath, ["scripts/receiz-v110-check.mjs"], { encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const report = JSON.parse(result.stdout);
     assert.deepEqual(report.blockingFindings, []);
     assert.equal(report.ok, true);
     assert.deepEqual(report.releaseIdentity, {
-      releaseVersion: "109.0.0",
-      rulesetVersion: "109.0.0",
-      registryDigest: "17f76b37c9fcd46f710239b5c1660b03cc34ec64bed30d1cc45c18d5d40eab70"
+      releaseVersion: "110.0.0",
+      rulesetVersion: "110.0.0",
+      registryDigest: "824aa4af849c4840ba94535798eab36e45d514703b6ae0cd30d4aa53f3c896e4"
     });
-    assert.deepEqual(report.artifactLaws, RECEIZ_V109_ARTIFACT_LAWS);
+    assert.deepEqual(report.artifactLaws, RECEIZ_V110_ARTIFACT_LAWS);
   });
 
-  it("enforces the v109 checker and browser compiler guard in release configuration", () => {
+  it("enforces the v110 checker and browser compiler guard in release configuration", () => {
     const pkg = JSON.parse(readFileSync("package.json", "utf8"));
     const releaseCheck = readFileSync("scripts/release-check.mjs", "utf8");
     const nextConfig = readFileSync("next.config.mjs", "utf8");
 
-    assert.equal(pkg.scripts?.["receiz:check"], "node scripts/receiz-v109-check.mjs");
+    assert.equal(pkg.scripts?.["receiz:check"], "node scripts/receiz-v110-check.mjs");
     assert.equal(pkg.scripts?.["receiz:conformance"], "receiz conformance");
     assert.match(releaseCheck, /["']receiz:check["']/);
     assert.match(nextConfig, /NormalModuleReplacementPlugin/);

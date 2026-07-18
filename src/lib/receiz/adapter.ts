@@ -136,6 +136,10 @@ export type ReceizCommerceAdapter = {
   verifyArtifact(file: Blob): Promise<DocumentVerifyResponse>;
   verifyAndOpenArtifact: ReceizClient["artifacts"]["verifyAndOpen"];
   downloadArtifact: ReceizClient["artifacts"]["download"];
+  admitArtifact: ReceizClient["artifacts"]["admit"];
+  planArtifactRecovery: ReceizClient["artifacts"]["planRecovery"];
+  admitAndRecoverArtifact: ReceizClient["artifacts"]["admitAndRecover"];
+  commitArtifactRecovery: ReceizClient["artifacts"]["commitRecovery"];
   claimBearerArtifact: ReceizClient["ownership"]["claimBearerAsset"];
   observePublicProof(body: { url: string; externalCreatorId?: string; title?: string }): Promise<PublicProofRecord>;
   getPublicProofByUrl(url: string): Promise<PublicProofRecord>;
@@ -503,6 +507,18 @@ export function createReceizCommerceAdapter(
     },
     downloadArtifact(artifact) {
       return client.artifacts.download(artifact);
+    },
+    admitArtifact(file, context) {
+      return client.artifacts.admit(file, context);
+    },
+    planArtifactRecovery(admission, knownHistory) {
+      return client.artifacts.planRecovery(admission, knownHistory);
+    },
+    admitAndRecoverArtifact(file, context) {
+      return client.artifacts.admitAndRecover(file, context);
+    },
+    commitArtifactRecovery(plan, capability, idempotencyKey, store) {
+      return client.artifacts.commitRecovery(plan, capability, idempotencyKey, store);
     },
     claimBearerArtifact(input) {
       return client.ownership.claimBearerAsset(input);

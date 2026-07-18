@@ -124,9 +124,14 @@ test("download requires exact bytes and a successful reopen", async () => {
   );
 });
 
-test("the production adapter exposes only current v109 artifact custody operations", () => {
+test("the production adapter exposes only current v110 artifact custody operations", () => {
   const adapter = createReceizCommerceAdapter();
+  const artifactOperations = adapter as unknown as Record<string, unknown>;
   assert.equal(typeof adapter.verifyAndOpenArtifact, "function");
   assert.equal(typeof adapter.downloadArtifact, "function");
+  assert.equal(typeof artifactOperations.admitArtifact, "function");
+  assert.equal(typeof artifactOperations.planArtifactRecovery, "function");
+  assert.equal(typeof artifactOperations.admitAndRecoverArtifact, "function");
+  assert.equal(typeof artifactOperations.commitArtifactRecovery, "function");
   assert.equal(typeof adapter.claimBearerArtifact, "function");
 });

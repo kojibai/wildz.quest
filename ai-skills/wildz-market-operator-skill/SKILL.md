@@ -1,6 +1,6 @@
-# Wildz market operator — Receiz v109
+# Wildz market operator — Receiz v110
 
-Target only Receiz `109.0.0` and registry digest `17f76b37c9fcd46f710239b5c1660b03cc34ec64bed30d1cc45c18d5d40eab70`. Receiz proof authority controls custody, ownership, and settlement; request explicit confirmation before an admitted ownership change.
+Target only Receiz `110.0.0` and registry digest `824aa4af849c4840ba94535798eab36e45d514703b6ae0cd30d4aa53f3c896e4`. Receiz proof authority controls custody, ownership, and settlement; request explicit confirmation before an admitted ownership change.
 
 For bearer ownership, accept a complete sealed artifact, call `artifacts.verifyAndOpen`, and pass only the runtime-issued `opened.sealedArtifact` to `ownership.claimBearerAsset`. Download and reopen the returned native Record → Seal artifact. Never accept a caller-selected owner, detached card payload, identity key, claim key, or proof head. A queued proposal is not a global commitment.
 

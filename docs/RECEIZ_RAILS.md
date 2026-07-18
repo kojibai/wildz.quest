@@ -1,20 +1,20 @@
 # Receiz rails for Wildz v3
 
-Wildz targets the exact `@receiz/sdk@109.0.0` release. Application code uses SDK identity, artifact, native proof-object, publication, audit, and settlement clients. `@receiz/mcp-server@109.0.0` and `@receiz/ai-skills@109.0.0` are operator tooling only; neither can replace proof verification or independently admit a mutation. The finalized packages resolve directly from the official npm registry with published integrity values pinned by the lockfile.
+Wildz targets the exact `@receiz/sdk@110.0.0` release. Application code uses SDK identity, artifact, native proof-object, publication, audit, and settlement clients. `@receiz/mcp-server@110.0.0` and `@receiz/ai-skills@110.0.0` are operator tooling only; neither can replace proof verification or independently admit a mutation. The finalized packages resolve directly from the official npm registry with published integrity values pinned by the lockfile.
 
 ## Authority map
 
 | Product primitive | Authoritative evidence | Failure rule |
 |---|---|---|
-| Receiz identity | Verified Identity Seal/key continuation, or a verified Vault with explicit v109 owner-continuity binding | A legacy proof-sealed Vault restores scoped game state but cannot replace or invent canonical account identity |
+| Receiz identity | Verified Identity Seal/key continuation, or a verified Vault with explicit v110 owner-continuity binding | A legacy proof-sealed Vault restores scoped game state but cannot replace or invent canonical account identity |
 | Local owner continuity | Owner-scoped verified state in IndexedDB | Wrong-owner, stale, partial, or invalid state is rejected |
 | Portable cards and Vaults | Exact portable payload, card proofs, player binding, and enclosing Vault custody | Invalid domains, conflicting bodies, and incompatible proof forks are rejected; exact duplicates are dropped |
-| V109 native proof export | SDK Record → Seal result, authenticated owner, claim, verify path, and byte-exact native artifact | Any owner, claim, path, verification, or byte mismatch fails closed; no legacy-wrapper fallback |
+| V110 native proof export | SDK Record → Seal result, authenticated owner, claim, verify path, and byte-exact native artifact | Any owner, claim, path, verification, or byte mismatch fails closed; no legacy-wrapper fallback |
 | Legacy v102 proof import | Strict local envelope/hash decoding plus SDK verification of the enclosing server artifact | Legacy decoding is read-only and never creates new authority |
 | Canonical world | Server-admitted V3 projection plus publication/audit result | Failed publication reports recovery pending, never durable success |
 | Public profile/card projection | Sanitized Receiz public state with expected head and confirmed digest | Private Seal/owner data is omitted; unconfirmed publication fails |
 | Offline proposal | Retained verified local truth | A queued proposal is not a global commitment and never advances shared authority by itself |
-| Listing, offer, trade, transfer | Verified command admission and conditional append using current ownership head, expected revision, actor, tenant, capability, causal parents, registry digest, and idempotency | The v109 SDK has no Wildz-specific conditional market append surface; missing capability, conflict, or invalid proof fails closed |
+| Listing, offer, trade, transfer | Verified command admission and conditional append using current ownership head, expected revision, actor, tenant, capability, causal parents, registry digest, and idempotency | The v110 SDK has no Wildz-specific conditional market append surface; missing capability, conflict, or invalid proof fails closed |
 | Checkout and payment | Receiz checkout plus admitted settlement evidence | Checkout creation alone never transfers ownership |
 
 Historical creator or owner coordinates stored inside individual card proofs remain immutable provenance. They do not prevent a verified Vault from restoring cards produced on another compatible Receiz application without rewriting those histories. For a legacy Vault without owner-continuity binding, the enclosing proof establishes artifact-scoped recovery—not canonical global account ownership; account-only mutations remain Identity Seal/key-gated.
@@ -23,17 +23,19 @@ The historical-owner subset of an exact verified Vault is committed into its enc
 
 ## Persistence boundary
 
-There is no external database added by Wildz. The installed app keeps owner-scoped continuity in browser IndexedDB. Shared public, world, social, and economy durability depends on configured Receiz publication, audit, proof, wallet, and settlement rails. Under v109, unattended shared-world/publication writes use the server-only `RECEIZ_CONNECT_ACCESS_TOKEN`; it is an app/service credential, never a generated player login token.
+There is no external database added by Wildz. The installed app keeps owner-scoped continuity in browser IndexedDB. Shared public, world, social, and economy durability depends on configured Receiz publication, audit, proof, wallet, and settlement rails. Under v110, unattended shared-world/publication writes use the server-only `RECEIZ_CONNECT_ACCESS_TOKEN`; it is an app/service credential, never a generated player login token.
 
 Durable Receiz rails fail closed. Capability absence, network failure, stale revisions, proof mismatch, and unconfirmed reads or writes are returned as unavailable, conflict, or recovery-pending states; they are never simulated as success.
 
-## V109 constitutional application boundary
+## V110 constitutional application boundary
 
-`receiz.app.json` is compiled by the official v109 compiler with artifact-first authority and `allowDatabaseAuthority: false`. The release is bound to registry digest `17f76b37c9fcd46f710239b5c1660b03cc34ec64bed30d1cc45c18d5d40eab70`; canonical changes are command-only and must carry scoped capability, actor and tenant binding, expected revision, causal parents, idempotency, and bounded effects. `pnpm receiz:check` runs the v109 repository checker and is included in the local release gate.
+`receiz.app.json` is compiled by the official v110 compiler with artifact-first authority and `allowDatabaseAuthority: false`. The release is bound to registry digest `824aa4af849c4840ba94535798eab36e45d514703b6ae0cd30d4aa53f3c896e4`; canonical changes are command-only and must carry scoped capability, actor and tenant binding, expected revision, causal parents, idempotency, and bounded effects. `pnpm receiz:check` runs the v110 repository checker and is included in the local release gate.
 
-The historical migration checkpoint records forward-only preservation and zero rewritten artifacts, receipts, or heads. It remains compatibility evidence only; current execution and qualification use v109. The migration verifier is not proof authority.
+V110 exposes unified `admit`, `planRecovery`, `admitAndRecover`, and `commitRecovery` rails through the production adapter. Admission and planning perform zero writes. Commit requires an SDK-verified capability, stable idempotency, the expected continuity head, and an atomic store; plans and explanations never become proof authority.
 
-Compiler, registry evaluation, MCP conformance, or checker success proves only that the repository matches its declared integration contract. It does not prove artifact truth, strict-live availability, or remote mutation admission. In particular, v109's general commerce clients do not provide the Wildz-specific conditional market ownership append; market mutations remain fail-closed until Receiz exposes and the app verifies that capability.
+The historical migration checkpoint records forward-only preservation and zero rewritten artifacts, receipts, or heads. It remains compatibility evidence only; current execution and qualification use v110. The migration verifier is not proof authority.
+
+Compiler, registry evaluation, MCP conformance, or checker success proves only that the repository matches its declared integration contract. It does not prove artifact truth, strict-live availability, or remote mutation admission. In particular, v110's general commerce clients do not provide the Wildz-specific conditional market ownership append; market mutations remain fail-closed until Receiz exposes and the app verifies that capability.
 
 ## Offline boundary
 
