@@ -19,8 +19,9 @@ describe("Wilds living world service", () => {
     const first = service.tick({ pulse: authority.pulse, occurredAt: authority.occurredAt, systemActorId: "receiz:pulse" });
     const replay = service.tick({ pulse: authority.pulse, occurredAt: authority.occurredAt, systemActorId: "receiz:pulse" });
 
-    assert.deepEqual(first.events.map((event) => event.kind), ["site.spawned", "site.phase_changed", "site.phase_changed", "boss.emerged"]);
-    assert.deepEqual(first.events.map((event) => event.kaiKlok), [1, 2, 3, 4]);
+    const bossEvents = first.events.filter((event) => !event.kind.startsWith("story."));
+    assert.deepEqual(bossEvents.map((event) => event.kind), ["site.spawned", "site.phase_changed", "site.phase_changed", "boss.emerged"]);
+    assert.deepEqual(bossEvents.map((event) => event.kaiKlok), [5, 6, 7, 8]);
     assert.equal(Object.keys(first.projection.sites).length, 1);
     assert.equal(Object.keys(first.projection.bosses).length, 1);
     assert.equal(Object.keys(first.projection.raids).length, 1);

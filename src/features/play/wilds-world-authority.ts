@@ -2,7 +2,12 @@ import { verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
 import type { WildsWorldCommand } from "./wilds-world-service";
 
 export function worldCommandRequiresCard(command: WildsWorldCommand) {
-  return command.type === "raid.act" || command.type === "raid.contribute" || command.type === "ecology.contribute";
+  return command.type === "raid.act"
+    || command.type === "raid.contribute"
+    || command.type === "ecology.contribute"
+    || command.type === "story.trainer_battle"
+    || command.type === "story.tournament_enter"
+    || (command.type === "story.contribute" && Boolean(command.cardProofDigest));
 }
 
 export function verifyWildsWorldCommandCard(input: {

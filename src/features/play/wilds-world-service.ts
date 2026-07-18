@@ -5,7 +5,14 @@ import { advanceWildsEcologySite, deriveWildsEcologyChild, generateWildsEcologyE
 import { admitRaidPlayer, applyRaidContribution, createWildsRaid, type WildsRaid } from "./wilds-raid-core";
 import { applyWildsRaidIntent, createWildsRaidEncounter, type WildsRaidIntent } from "./wilds-raid-encounter";
 import { admitWildsRaidParticipant, createWildsRaidRound, renewWildsRaidLease, retreatWildsRaidParticipant, settleWildsRaidRound, type WildsRaidRound } from "./wilds-raid-round";
+import { deriveKaiKlokMoment, KAI_N_DAY_MICRO, KAI_PULSE_DURATION_MS } from "./kai-klok-moment";
 import type { PortableCardAsset } from "./portable-card";
+import { achievementGrantCandidates } from "./wilds-saga-achievements";
+import { wildsSagaFramework } from "./wilds-saga-content";
+import { projectWildsSaga } from "./wilds-saga-director";
+import { projectSagaTournament, settleSagaTournament, type WildsTournamentProjection } from "./wilds-saga-tournament";
+import { projectSagaTrainers, type WildsTrainerBattleMemory, type WildsTrainerProjection } from "./wilds-saga-trainers";
+import type { WildsGameplayVerb } from "./wilds-saga-types";
 import { createWildsTeam, joinWildsTeam, scoreWildsLeague } from "./wilds-team-league";
 import { acceptWildsInvite, assembleWildsSquad, changeWildsRole, inviteWildsPlayer, reportWildsAbuse, scheduleWildsTeamEvent, type WildsSocialTeam } from "./wilds-social-core";
 import { createWildsWorldEvent, type WildsWorldEvent, type WildsWorldEventKind } from "./wilds-world-event";
@@ -38,7 +45,10 @@ export type WildsWorldCommand =
   | { type: "team.squad.assemble"; teamId: string; eventId: string; playerIds: string[]; commandId: string }
   | { type: "social.report"; subjectId: string; reason: string; commandId: string }
   | { type: "ecology.discover"; siteId: string; position: { x: number; z: number }; commandId: string }
-  | { type: "ecology.contribute"; siteId: string; position: { x: number; z: number }; amount: number; cardProofDigest: string; commandId: string };
+  | { type: "ecology.contribute"; siteId: string; position: { x: number; z: number }; amount: number; cardProofDigest: string; commandId: string }
+  | { type: "story.contribute"; dayId: string; objectiveId: string; verb: WildsGameplayVerb; amount: number; position?: { x: number; z: number }; cardProofDigest?: string; commandId: string }
+  | { type: "story.trainer_battle"; dayId: string; trainerId: string; matchId: string; outcome: "player_victory" | "trainer_victory" | "fled"; cardProofDigest: string; commandId: string }
+  | { type: "story.tournament_enter"; tournamentId: string; qualificationGrantId: string; cardProofDigest: string; commandId: string };
 
 export type WildsWorldAuthority = {
   actorId: string;
@@ -99,6 +109,70 @@ export class WildsWorldService {
     return event;
   }
 
+  private sagaAt(occurredAt: string) {
+    const moment = deriveKaiKlokMoment({ occurredAt, authority: "world" });
+    const saga = projectWildsSaga({ moment, framework: wildsSagaFramework(), memories: this.projection.story.memories });
+    return { moment, saga };
+  }
+
+  private sagaTrainers(saga: ReturnType<WildsWorldService["sagaAt"]>["saga"]) {
+    const memories = Object.values(this.projection.trainers).flatMap((trainer) => Array.isArray(trainer.battleMemories) ? trainer.battleMemories as WildsTrainerBattleMemory[] : []);
+    const playerLevel = Math.max(1, ...Object.values(this.projection.players).map((player) => player.trainerLevel));
+    return projectSagaTrainers({ saga, playerLevel, battleMemories: memories });
+  }
+
+  private settleTournamentForDay(dayId: string, occurredAt: string, authority: Pick<WildsWorldAuthority, "actorId" | "pulse" | "occurredAt">, causeId: string, events: WildsWorldEvent[]) {
+    const current = Object.values(this.projection.tournaments).find((tournament) => tournament.dayId === dayId && tournament.phase !== "settled") as WildsTournamentProjection | undefined;
+    if (!current) return;
+    const tournament = settleSagaTournament({ tournament: current, occurredAt });
+    events.push(this.append("story.tournament_settled", { tournament }, authority, causeId));
+  }
+
+  private advanceSaga(input: { occurredAt: string }, authority: Pick<WildsWorldAuthority, "actorId" | "pulse" | "occurredAt">, causeId: string, events: WildsWorldEvent[]) {
+    const { moment, saga } = this.sagaAt(input.occurredAt);
+    const prior = this.projection.story.activeChapter;
+    if (prior && prior.dayId !== saga.dayId && !this.projection.story.settledDayIds.includes(prior.dayId)) {
+      this.settleTournamentForDay(prior.dayId, input.occurredAt, authority, causeId, events);
+      const definition = wildsSagaFramework().dailyChapters.find((chapter) => chapter.id === prior.chapterId);
+      if (!definition) throw new Error("wilds_story_definition_missing");
+      const objectives = definition.missions.filter((mission) => mission.primary).flatMap((mission) => mission.nodes);
+      const target = objectives.reduce((total, objective) => total + objective.target, 0);
+      const progress = objectives.reduce((total, objective) => total + Math.min(objective.target, this.projection.story.objectiveTotals[objective.id] ?? 0), 0);
+      const outcome = progress === 0 ? "unopposed" : progress >= target ? "success" : progress * 2 >= target ? "partial" : "failure";
+      const memory = {
+        chapterId: prior.chapterId,
+        dayId: prior.dayId,
+        outcome,
+        hookId: definition.outcomeHooks[outcome],
+        settledEventId: `settlement:${prior.dayId}`,
+        settledAt: input.occurredAt
+      };
+      events.push(this.append("story.chapter_settled", { memory }, authority, causeId));
+    }
+
+    if (this.projection.story.activeChapter?.dayId !== saga.dayId) {
+      const dayDurationMs = Number(KAI_N_DAY_MICRO) / 1_000_000 * KAI_PULSE_DURATION_MS;
+      const instant = Date.parse(input.occurredAt);
+      const openedAt = new Date(instant - moment.dayProgress * dayDurationMs).toISOString();
+      const endsAt = new Date(instant + (1 - moment.dayProgress) * dayDurationMs).toISOString();
+      const chapter = { dayId: saga.dayId, chapterId: saga.chapter.id, frameworkVersion: saga.frameworkVersion, openedAt, endsAt };
+      events.push(this.append("story.chapter_opened", { chapter }, authority, causeId));
+      for (const trainer of this.sagaTrainers(saga)) events.push(this.append("story.trainer_encountered", { trainer }, authority, causeId));
+    }
+
+    const openTournament = Object.values(this.projection.tournaments).find((tournament) => tournament.dayId === saga.dayId) as WildsTournamentProjection | undefined;
+    if (openTournament && moment.ark === "Dream" && openTournament.phase !== "settled") {
+      this.settleTournamentForDay(saga.dayId, input.occurredAt, authority, causeId, events);
+    } else if (!openTournament && moment.arkIndex >= 4) {
+      const qualifiedPlayers = Object.values(this.projection.players).flatMap((player) => Object.values(player.achievementGrants))
+        .filter((grant) => grant.definitionId === saga.chapter.tournament.qualificationAchievementId && grant.scopeInstanceId === saga.dayId)
+        .map((grant) => ({ id: grant.playerId, seedScore: this.projection.players[grant.playerId]?.trainerXp ?? 0 }));
+      const tournament = projectSagaTournament({ saga, moment, qualifiedPlayers, trainers: this.sagaTrainers(saga), results: [] });
+      events.push(this.append("story.tournament_opened", { tournament }, authority, causeId));
+      if (moment.ark === "Dream") this.settleTournamentForDay(saga.dayId, input.occurredAt, authority, causeId, events);
+    }
+  }
+
   tick(input: { pulse: string; occurredAt: string; systemActorId: "receiz:pulse" }) {
     if (input.systemActorId !== "receiz:pulse") throw new Error("wilds_world_pulse_authority_invalid");
     // A scheduler retry may arrive after a newer pulse has already been
@@ -111,10 +185,11 @@ export class WildsWorldService {
     const causeId = `pulse:${input.pulse}`;
     if (this.eventTail.some((event) => event.causeId === causeId)) return { events: [], projection: this.projection };
     const authority = { actorId: input.systemActorId, pulse: input.pulse, occurredAt: input.occurredAt };
+    const events: WildsWorldEvent[] = [];
+    this.advanceSaga(input, authority, causeId, events);
     const existingBosses = Object.values(this.projection.bosses) as WildsBossDefinition[];
     const undefeated = existingBosses.filter((boss) => !["defeated", "memorialized", "withdrawn"].includes(boss.phase));
-    if (undefeated.length >= 3) return { events: [], projection: this.projection };
-    const events: WildsWorldEvent[] = [];
+    if (undefeated.length >= 3) return { events, projection: this.projection };
 
     const defeatedParent = existingBosses.find((boss) => (boss.phase === "defeated" || boss.phase === "memorialized") && !existingBosses.some((candidate) => candidate.parentBossId === boss.id));
     if (defeatedParent) {
@@ -246,7 +321,54 @@ export class WildsWorldService {
     authority = { ...authority, card: verifyWildsWorldCommandCard({ command, card: authority.card }) };
     const events: WildsWorldEvent[] = [];
 
-    if (command.type === "boss.track") {
+    if (command.type === "story.contribute") {
+      const { saga } = this.sagaAt(authority.occurredAt);
+      if (this.projection.story.activeChapter?.dayId !== command.dayId || saga.dayId !== command.dayId) throw new Error("wilds_story_chapter_inactive");
+      const nodes = saga.chapter.missions.flatMap((mission) => mission.nodes);
+      const node = nodes.find((candidate) => candidate.id === command.objectiveId);
+      if (!node || !node.acceptedVerbs.includes(command.verb)) throw new Error("wilds_story_objective_invalid");
+      const player = this.projection.players[authority.actorId];
+      if (!node.prerequisites.every((prerequisite) => (player?.contributions[prerequisite] ?? 0) >= (nodes.find((candidate) => candidate.id === prerequisite)?.target ?? Number.POSITIVE_INFINITY))) {
+        throw new Error("wilds_story_objective_locked");
+      }
+      const current = player?.contributions[node.id] ?? 0;
+      if (!Number.isSafeInteger(command.amount) || command.amount < 1 || command.amount > node.target - current) throw new Error("wilds_story_contribution_invalid");
+      events.push(this.append("story.objective_contributed", { dayId: command.dayId, objectiveId: command.objectiveId, playerId: authority.actorId, verb: command.verb, amount: command.amount }, authority, command.commandId));
+
+      const updatedPlayer = this.projection.players[authority.actorId]!;
+      const progressEvents = nodes.flatMap((candidate) => {
+        const amount = updatedPlayer.contributions[candidate.id] ?? 0;
+        const verb = candidate.acceptedVerbs.find((accepted) => saga.chapter.achievements.some((definition) => definition.acceptedVerbs.includes(accepted)));
+        return amount > 0 && verb ? [{ eventId: `objective:${command.dayId}:${authority.actorId}:${candidate.id}`, playerId: authority.actorId, verb, amount }] : [];
+      });
+      const scopeInstanceIds = { day: saga.dayId, week: saga.weekId, month: saga.monthId, year: saga.yearId, lifetime: "saga:lifetime" };
+      for (const grant of achievementGrantCandidates({ definitions: saga.chapter.achievements, playerId: authority.actorId, scopeInstanceIds, events: progressEvents, existingGrantIds: updatedPlayer.achievementGrantIds })) {
+        events.push(this.append("story.achievement_granted", { grant }, authority, command.commandId));
+      }
+    } else if (command.type === "story.trainer_battle") {
+      if (!authority.card) throw new Error("wilds_world_verified_card_required");
+      if (this.projection.story.activeChapter?.dayId !== command.dayId) throw new Error("wilds_story_chapter_inactive");
+      const current = this.projection.trainers[command.trainerId] as WildsTrainerProjection & { battleMemories?: WildsTrainerBattleMemory[] } | undefined;
+      if (!current) throw new Error("wilds_story_trainer_missing");
+      const battleMemories = current.battleMemories ?? [];
+      const existing = battleMemories.find((memory) => memory.settledEventId === command.matchId);
+      if (existing) {
+        if (existing.outcome !== command.outcome || existing.playerId !== authority.actorId) throw new Error("wilds_story_trainer_battle_divergent");
+        return { events: [], projection: this.projection };
+      }
+      const memory: WildsTrainerBattleMemory = { trainerId: command.trainerId, playerId: authority.actorId, outcome: command.outcome, settledEventId: command.matchId, settledAt: authority.occurredAt };
+      const trainer = { ...current, battleMemories: [...battleMemories, memory].slice(-128), settledMatchId: command.matchId, lastOutcome: command.outcome };
+      events.push(this.append("story.trainer_battle_settled", { trainer, playerId: authority.actorId, outcome: command.outcome }, authority, command.commandId));
+    } else if (command.type === "story.tournament_enter") {
+      if (!authority.card) throw new Error("wilds_world_verified_card_required");
+      const current = this.projection.tournaments[command.tournamentId] as WildsTournamentProjection & { enteredPlayerIds?: string[] } | undefined;
+      const player = this.projection.players[authority.actorId];
+      const grant = player?.achievementGrants[command.qualificationGrantId];
+      if (!current || current.phase === "settled") throw new Error("wilds_story_tournament_inactive");
+      if (!grant || grant.playerId !== authority.actorId || grant.definitionId !== this.sagaAt(authority.occurredAt).saga.chapter.tournament.qualificationAchievementId) throw new Error("wilds_story_tournament_qualification_required");
+      const enteredPlayerIds = current.enteredPlayerIds?.includes(authority.actorId) ? current.enteredPlayerIds : [...(current.enteredPlayerIds ?? []), authority.actorId];
+      events.push(this.append("story.tournament_entered", { tournament: { ...current, enteredPlayerIds } }, authority, command.commandId));
+    } else if (command.type === "boss.track") {
       const boss = this.projection.bosses[command.bossId];
       if (!boss) throw new Error("wilds_world_boss_missing");
       const position = boss.position as { x: number; z: number } | undefined;

@@ -53,7 +53,11 @@ const MAJOR_WORLD_EVENTS = new Set<WildsWorldEvent["kind"]>([
   "ecology.resolved",
   "ecology.historicized",
   "team.created",
-  "league.scored"
+  "league.scored",
+  "story.chapter_settled",
+  "story.achievement_granted",
+  "story.trainer_battle_settled",
+  "story.tournament_settled"
 ]);
 
 function head(record: WildsWorldRecord | null): WildsWorldHead {
