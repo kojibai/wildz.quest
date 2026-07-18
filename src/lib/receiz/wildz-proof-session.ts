@@ -211,9 +211,10 @@ function assertProofSession(value: WildzProofSession) {
     || (typeof value.displayName !== "string" && value.displayName !== null)
     || (value.authority !== "identity-key" && value.authority !== "proof-sealed-vault")
     || !SHA256_PATTERN.test(value.subjectKey)
+    || (value.vaultCardRootSha256 !== undefined
+      && !/^sha256:[a-f0-9]{64}$/.test(value.vaultCardRootSha256))
     || (value.authority === "identity-key" && (value.proofBasisSha256 !== undefined
-      || value.artifactDigestSha256 !== undefined
-      || value.vaultCardRootSha256 !== undefined))
+      || value.artifactDigestSha256 !== undefined))
     || (value.authority === "proof-sealed-vault"
       && (!value.proofBasisSha256 || !SHA256_PATTERN.test(value.proofBasisSha256)
         || !value.artifactDigestSha256 || !SHA256_PATTERN.test(value.artifactDigestSha256)
@@ -222,6 +223,23 @@ function assertProofSession(value: WildzProofSession) {
     throw new Error("wildz_proof_session_invalid");
   }
   return value;
+}
+
+export function retainWildzVaultCardAdmission(
+  identitySession: WildzProofSession,
+  verifiedVaultSession: WildzProofSession
+) {
+  const identity = assertProofSession(identitySession);
+  const vault = assertProofSession(verifiedVaultSession);
+  if (identity.authority !== "identity-key"
+    || vault.authority !== "proof-sealed-vault"
+    || identity.actorId !== vault.actorId
+    || identity.profileHandle !== vault.profileHandle) {
+    throw new Error("wildz_vault_admission_identity_mismatch");
+  }
+  return vault.vaultCardRootSha256
+    ? assertProofSession({ ...identity, vaultCardRootSha256: vault.vaultCardRootSha256 })
+    : identity;
 }
 
 export function packWildzProofSession(session: WildzProofSession, secret = receizOAuthSecret()) {

@@ -6,6 +6,7 @@ import { Button, StatusPill } from "@/components/ui";
 import {
   applyWildsInput,
   initialPlayState,
+  playableInventory,
   selectedAsset,
   selectedCard,
   type PlayState,
@@ -184,13 +185,18 @@ export function PlayCampaign({
   usePublicCardPublisher(deckCards, enabled && networkEnabled);
   const landmarkUnlocks = state.achievements;
   const activeProgress = state.companionProgress[activeCard.id] ?? { level: 1, xp: 0, bond: 0 };
-  const discoveredByFamily = new Map(deckCards.map((card) => [card.manifest.familyId, card]));
-  const discoveredKaiLineages = new Set(deckCards.map((card) => card.manifest.variant.generatorVersion === 2
-    ? card.manifest.variant.traits.birthProfile.species.lineageKey
-    : `legacy:${card.manifest.familyId}`));
-  const guideFamilies = [...creatureFamilies].sort((left, right) =>
-    Number(discoveredByFamily.has(right.id)) - Number(discoveredByFamily.has(left.id)) || left.name.localeCompare(right.name)
-  );
+  const { discoveredByFamily, discoveredKaiLineages, guideFamilies } = useMemo(() => {
+    const byFamily = new Map(deckCards.map((card) => [card.manifest.familyId, card]));
+    const lineages = new Set(deckCards.map((card) => card.manifest.variant.generatorVersion === 2
+      ? card.manifest.variant.traits.birthProfile.species.lineageKey
+      : `legacy:${card.manifest.familyId}`));
+    return {
+      discoveredByFamily: byFamily,
+      discoveredKaiLineages: lineages,
+      guideFamilies: [...creatureFamilies].sort((left, right) =>
+        Number(byFamily.has(right.id)) - Number(byFamily.has(left.id)) || left.name.localeCompare(right.name))
+    };
+  }, [deckCards]);
   const nextHabitat = guideFamilies.find((family) => !discoveredByFamily.has(family.id))?.habitat ?? "the living frontier";
   const visibleGuideFamilies = guideFamilies.slice(0, 24);
   const hudModel = projectWildzHud(state, { username: ownerReceizId, displayName: playerDisplayName });
@@ -263,7 +269,7 @@ export function PlayCampaign({
   const commitArenaSettlement = useCallback((settlement: ArenaSettlement) => setState((current) => {
     const retired = settlement.result.retiredCreatureIds.includes(settlement.card.id);
     const inventory = current.inventory.map((asset) => asset.id === settlement.card.id ? settlement.card : asset);
-    const fallback = retired ? inventory.find((asset) => asset.id !== settlement.card.id) ?? null : null;
+    const fallback = retired ? playableInventory({ ...current, inventory }).find((asset) => asset.id !== settlement.card.id) ?? null : null;
     const progressKey = settlement.card.manifest.familyId;
     const prior = current.companionProgress[progressKey] ?? { level: 1, xp: 0, bond: 0 };
     const gainedXp = settlement.result.winnerSide === 0 ? 60 : settlement.result.outcome === "fled" ? 18 : 30;
@@ -271,8 +277,8 @@ export function PlayCampaign({
     return {
       ...current,
       inventory,
-      selectedAssetId: fallback?.id ?? current.selectedAssetId,
-      selectedCardId: fallback?.manifest.familyId ?? current.selectedCardId,
+      selectedAssetId: retired ? fallback?.id ?? "" : current.selectedAssetId,
+      selectedCardId: retired ? fallback?.manifest.familyId ?? "" : current.selectedCardId,
       companionProgress: { ...current.companionProgress, [progressKey]: { ...prior, xp, level: Math.max(prior.level, 1 + Math.floor(xp / 100)) } },
       pendingSyncAssetIds: Array.from(new Set([...current.pendingSyncAssetIds, settlement.card.id])),
       lastEvent: retired
@@ -457,7 +463,7 @@ export function PlayCampaign({
               : key === "arrowright" || key === "d" ? { type: "move", direction: "east" }
                 : key === "t" ? { type: "train", at: new Date().toISOString() }
                     : key === "m" ? { type: "mission" }
-                      : key === "r" ? { type: "rest" }
+                      : key === "r" ? { type: "rest", at: new Date().toISOString() }
                         : null;
       if (!input) return;
       event.preventDefault();
@@ -797,7 +803,7 @@ export function PlayCampaign({
       content: (
         <div className="wilds-command-content wilds-satchel">
           <WildzCommandInsight label="Trail preparation" value={`${state.energy} energy`} detail="Use what you gathered now; every action updates the same live explorer state used in the world.">
-            <button onClick={() => dispatch({ type: "rest" })} type="button">Make camp</button>
+            <button onClick={() => dispatch({ type: "rest", at: new Date().toISOString() })} type="button">Make camp</button>
             <button onClick={() => dispatch({ type: "train", at: new Date().toISOString() })} type="button">Train leader</button>
             <button onClick={() => dispatch({ type: "mission" })} type="button">Advance mission</button>
           </WildzCommandInsight>
@@ -1011,7 +1017,7 @@ export function PlayCampaign({
               <WildsBattle
                 battle={state.battle}
                 inventory={state.inventory}
-                onAction={(action) => dispatch({ type: "battle-action", action })}
+                onAction={(action) => dispatch({ type: "battle-action", action, at: new Date().toISOString() })}
                 onDismiss={() => dispatch({ type: "dismiss-reveal" })}
               />
             ) : null}
@@ -1099,7 +1105,7 @@ export function PlayCampaign({
               onOpenProfile={onOpenProfile}
               onInput={(input) => dispatch(input)}
               onMovementModeChange={setMovementMode}
-              onRest={() => dispatch({ type: "rest" })}
+              onRest={() => dispatch({ type: "rest", at: new Date().toISOString() })}
               onSelectCard={(assetId) => dispatch({ type: "select-asset", assetId })}
               onTrain={() => dispatch({ type: "train", at: new Date().toISOString() })}
             />

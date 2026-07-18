@@ -408,6 +408,18 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(cardBack, /aria-live="polite"/);
   });
 
+  it("keeps retired creatures visible as unplayable memorial cards", async () => {
+    const inventory = await readFile("src/features/play/WildsInventory.tsx", "utf8");
+    const drawer = await readFile("src/features/play/WildzCreatureDrawer.tsx", "utf8");
+    const css = await readFile("app/globals.css", "utf8");
+    assert.match(inventory, /is-retired/);
+    assert.match(inventory, /Retired memorial/);
+    assert.match(inventory, /selectedRetired/);
+    assert.match(drawer, /retired/);
+    assert.match(css, /\.wilds-inventory-grid > button\.is-retired/);
+    assert.match(css, /\.wildz-creature-choice\.is-retired/);
+  });
+
   it("resolves public cards across devices and physically flips the complete card", async () => {
     const page = await readFile("src/features/play/WildsCardPage.tsx", "utf8");
     const scene = await readFile("src/features/play/WildsCardScene.tsx", "utf8");

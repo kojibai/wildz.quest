@@ -67,8 +67,9 @@ describe("Wilds world client contract", () => {
   it("keeps online request failures reconnecting even when the request carries a guest id", () => {
     const source = readFileSync("src/features/play/use-wilds-world.ts", "utf8");
 
-    assert.equal(wildsWorldModeAfterRequestFailure(false), "reconnecting");
-    assert.equal(wildsWorldModeAfterRequestFailure(true), "local_practice");
+    assert.equal(wildsWorldModeAfterRequestFailure(false, "connecting"), "reconnecting");
+    assert.equal(wildsWorldModeAfterRequestFailure(false, "receiz_live"), "receiz_live");
+    assert.equal(wildsWorldModeAfterRequestFailure(true, "receiz_live"), "local_practice");
     assert.doesNotMatch(source, /offline\s*\|\|\s*input\.guestId/);
   });
 

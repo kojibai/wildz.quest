@@ -6,6 +6,7 @@ import {
   publicWildzProofSession,
   readWildzProofSessionCookie,
   readWildzVaultPendingAdmissionCookie,
+  retainWildzVaultCardAdmission,
   wildzProofSessionCookieOptions,
   wildzVaultPendingCookieOptions,
   type WildzProofSession
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
     const current = readWildzProofSessionCookie(request);
     if (current.authority === "identity-key"
       && sameCoordinate(current, coordinate.actorId, coordinate.profileHandle)) {
-      admitted = current;
+      admitted = retainWildzVaultCardAdmission(current, pending);
     }
   } catch {
     // A verified pending Vault is sufficient for its scoped Wildz recovery session.

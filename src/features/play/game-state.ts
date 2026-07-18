@@ -37,6 +37,7 @@ import {
 import { applyHearttreeConsequences } from "./hearttree/consequences";
 import { verifyHearttreeReceipt, type HearttreeReceipt } from "./hearttree/receipt";
 import { emptyAdventureCondition, validateAdventureCondition, type AdventureCardCondition } from "./adventure/card-condition";
+import { healWildBattleCard, settleWildBattleCard } from "./wild-battle-life";
 import {
   EMPTY_WILDS_SUPPORT_ASSET_IDS,
   type WildsBossFamilyId,
@@ -57,7 +58,7 @@ export type WildsInput =
   | { type: "search-point"; x: number; z: number; searchedAt: string; ownerReceizId: string }
   | { type: "advance-encounter"; at: string }
   | { type: "start-battle"; at: string }
-  | { type: "battle-action"; action: BattleAction }
+  | { type: "battle-action"; action: BattleAction; at?: string }
   | { type: "dismiss-reveal" }
   | { type: "mark-synced"; assetId: string; synchronizedAt: string }
   | { type: "mark-listed"; assetId: string; synchronizedAt: string }
@@ -75,7 +76,7 @@ export type WildsInput =
   | { type: "finish-lineage-reveal" }
   | { type: "train"; cardId?: string; at?: string }
   | { type: "mission" }
-  | { type: "rest" }
+  | { type: "rest"; at?: string }
   | { type: "select-card"; cardId: string }
   | { type: "select-asset"; assetId: string }
   | { type: "assign-support"; slot: 0 | 1; assetId: string | null }
@@ -493,7 +494,11 @@ export function restorePlayState(value: string | null | undefined, ownerReceizId
     const requestedSelectedAssetId = typeof saved.selectedAssetId === "string"
       ? migratedAssetIds.get(saved.selectedAssetId) ?? saved.selectedAssetId
       : "";
-    const livingInventory = migratedInventory.filter((asset) => adventureConditions[asset.id]?.life !== "dead");
+    const livingInventory = migratedInventory.filter((asset) => {
+      if (adventureConditions[asset.id]?.life === "dead") return false;
+      const life = isLivingCardAsset(asset) ? currentRevision(asset).growth.life : null;
+      return !life || (!life.retired && life.vitality > 0);
+    });
     const restoredSelectedAssetId = requestedSelectedAssetId && livingInventory.some((asset) => asset.id === requestedSelectedAssetId)
       ? requestedSelectedAssetId
       : [...livingInventory].reverse().find((asset) => asset.manifest.familyId === saved.selectedCardId)?.id ?? livingInventory[0]?.id ?? "";
@@ -511,6 +516,7 @@ export function restorePlayState(value: string | null | undefined, ownerReceizId
       discoveredCardIds,
       inventory: migratedInventory,
       selectedAssetId: restoredSelectedAssetId,
+      selectedCardId: livingInventory.find((asset) => asset.id === restoredSelectedAssetId)?.manifest.familyId ?? "",
       supportAssetIds: normalizeWildsSupportAssetIds(
         Array.isArray(saved.supportAssetIds)
           ? saved.supportAssetIds.map((id) => typeof id === "string" ? migratedAssetIds.get(id) ?? id : id)
@@ -644,7 +650,8 @@ export function selectedAsset(state: PlayState) {
 export function isPlayableAsset(state: PlayState, assetId: string) {
   const asset = state.inventory.find((candidate) => candidate.id === assetId);
   if (!asset || !verifyAnyWildsCard(asset).ok || state.adventureConditions[assetId]?.life === "dead") return false;
-  return !isLivingCardAsset(asset) || !currentRevision(asset).growth.life?.retired;
+  const life = isLivingCardAsset(asset) ? currentRevision(asset).growth.life : null;
+  return !life || (!life.retired && life.vitality > 0);
 }
 
 export function playableInventory(state: PlayState) {
@@ -972,9 +979,17 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     const playerAsset = selectedAsset(state);
     if (!wild || !playerAsset || !isPlayableAsset(state, playerAsset.id)) return { ...state, encounter: { ...state.encounter, phase: "defeated" }, lastEvent: "No verified playable card was available for battle." };
     const wildName = state.encounter.discoveryIdentity?.name.display ?? wild.name;
+    const persistentLife = isLivingCardAsset(playerAsset) ? currentRevision(playerAsset).growth.life : null;
     const battle = startWildBattle({
       encounterSeed: state.encounter.hotspotId,
-      player: { assetId: playerAsset.id, name: playerAsset.manifest.name, element: creatureForm(playerAsset.manifest.formId)?.element, ...playerAsset.manifest.stats, health: playerAsset.manifest.stats.health * 2 },
+      player: {
+        assetId: playerAsset.id,
+        name: playerAsset.manifest.name,
+        element: creatureForm(playerAsset.manifest.formId)?.element,
+        ...playerAsset.manifest.stats,
+        health: persistentLife?.maxVitality ?? playerAsset.manifest.stats.health * 2,
+        currentHealth: persistentLife?.vitality
+      },
       wild: { formId: wild.id, name: wildName, element: wild.element, ...wild.stats }
     });
     return { ...state, battle, encounter: { ...state.encounter, phase: "player_turn" }, lastEvent: `${wildName} emerged. Weaken it below 30% before capture.` };
@@ -982,15 +997,32 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
 
   if (input.type === "battle-action") {
     if (!state.battle || (state.encounter.phase !== "player_turn" && state.encounter.phase !== "capture_ready")) return state;
-    const battle = applyBattleAction(state.battle, input.action);
-    if (battle === state.battle) return state;
-    if (battle.phase === "captured") {
-      return { ...state, battle, encounter: { ...state.encounter, phase: "capsule" }, lastEvent: "Capture locked. Sealing the portable card now." };
+    let action: BattleAction = input.action;
+    if (action.type === "switch") {
+      const switchAction = action;
+      const switching = state.inventory.find((asset) => asset.id === switchAction.player.assetId);
+      if (!switching || !isPlayableAsset(state, switching.id)) return state;
+      const life = switching && isLivingCardAsset(switching) ? currentRevision(switching).growth.life : null;
+      if (life) action = { ...switchAction, player: { ...switchAction.player, health: life.maxVitality, currentHealth: life.vitality } };
     }
-    const phase: EncounterState["phase"] = battle.phase === "capture_ready" ? "capture_ready" : battle.phase === "fled" ? "fled" : battle.phase === "defeated" ? "defeated" : "player_turn";
+    const battle = applyBattleAction(state.battle, action);
+    if (battle === state.battle) return state;
+    const phase: EncounterState["phase"] = battle.phase === "captured" ? "capsule" : battle.phase === "capture_ready" ? "capture_ready" : battle.phase === "fled" ? "fled" : battle.phase === "defeated" ? "defeated" : "player_turn";
     const last = battle.transcript.at(-1)?.detail ?? "Battle turn resolved.";
-    const resolved: PlayState = { ...state, battle, encounter: { ...state.encounter, phase }, lastEvent: last };
-    const asset = state.inventory.find((candidate) => candidate.id === state.battle?.player.id);
+    let resolved: PlayState = { ...state, battle, encounter: { ...state.encounter, phase }, lastEvent: battle.phase === "captured" ? "Capture locked. Sealing the portable card now." : last };
+    if (battle.phase === "captured" || battle.phase === "fled" || battle.phase === "defeated") {
+      const combatAsset = state.inventory.find((candidate) => candidate.id === battle.player.id);
+      if (combatAsset) {
+        const settledCard = settleWildBattleCard(combatAsset, battle, input.at ?? state.encounter.searchedAt);
+        resolved = { ...resolved, inventory: state.inventory.map((asset) => asset.id === settledCard.id ? settledCard : asset) };
+        if (!isPlayableAsset(resolved, settledCard.id)) {
+          const fallback = playableInventory(resolved)[0];
+          resolved = { ...resolved, selectedAssetId: fallback?.id ?? "", selectedCardId: fallback?.manifest.familyId ?? "" };
+        }
+      }
+    }
+    if (battle.phase === "captured") return resolved;
+    const asset = state.inventory.find((candidate) => candidate.id === battle.player.id);
     if (!asset) return resolved;
     const wild = state.encounter.formId ? creatureForm(state.encounter.formId) : null;
     const occurredAt = state.encounter.searchedAt;
@@ -1247,12 +1279,18 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
   }
 
   if (input.type === "rest") {
+    const leader = selectedAsset(state);
+    const maxVitality = leader && isLivingCardAsset(leader) ? currentRevision(leader).growth.life?.maxVitality : null;
+    const recovered = leader && input.at
+      ? healWildBattleCard(leader, Math.max(1, Math.round((maxVitality ?? 20) * .25)), input.at)
+      : leader;
     return {
       ...state,
+      inventory: recovered ? state.inventory.map((asset) => asset.id === recovered.id ? recovered : asset) : state.inventory,
       activeAction: "explore",
       combo: 0,
       energy: Math.min(100, state.energy + 35),
-      lastEvent: "Camp restored 35 energy. Your expedition combo reset."
+      lastEvent: recovered !== leader ? "Camp restored 35 energy and recovered 25% companion vitality." : "Camp restored 35 energy. Your expedition combo reset."
     };
   }
 

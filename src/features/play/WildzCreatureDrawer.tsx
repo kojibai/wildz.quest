@@ -16,6 +16,8 @@ import type { PlayState } from "./game-state";
 import type { PortableCardAsset } from "./portable-card";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
+import { currentRevision } from "./living-card-proof";
+import { isLivingCardAsset } from "./living-card-types";
 
 const RAIL_CARD_EXTENT = 184;
 const RAIL_END_GUTTER = 40;
@@ -34,7 +36,8 @@ const CreatureChoice = memo(function CreatureChoice({
   progress,
   logicalPosition,
   total,
-  onSelect
+  onSelect,
+  retired
 }: {
   asset: PortableCardAsset;
   active: boolean;
@@ -42,6 +45,7 @@ const CreatureChoice = memo(function CreatureChoice({
   logicalPosition: number;
   total: number;
   onSelect: (assetId: string) => void;
+  retired: boolean;
 }) {
   const form = creatureForm(asset.manifest.formId);
   return <article
@@ -52,9 +56,10 @@ const CreatureChoice = memo(function CreatureChoice({
     role="listitem"
   >
     <button
-      aria-label={`${asset.manifest.name}, creature ${logicalPosition} of ${total}${active ? ", active" : ""}`}
+      aria-label={`${asset.manifest.name}, creature ${logicalPosition} of ${total}${retired ? ", retired memorial" : active ? ", active" : ""}`}
       aria-pressed={active}
-      className="wildz-creature-choice"
+      className={`wildz-creature-choice${retired ? " is-retired" : ""}`}
+      disabled={retired}
       onClick={() => onSelect(asset.id)}
       type="button"
     >
@@ -64,7 +69,7 @@ const CreatureChoice = memo(function CreatureChoice({
         <strong className="wilds-creature-name"><span>{asset.manifest.name}</span><WildsVerifiedBadge /></strong>
         <em>{form?.element ?? asset.manifest.species} · Bond {progress.bond}</em>
       </span>
-      {active ? <b className="wildz-creature-choice-active">Active</b> : null}
+      {retired ? <b className="wildz-creature-choice-active">Retired</b> : active ? <b className="wildz-creature-choice-active">Active</b> : null}
     </button>
   </article>;
 });
@@ -212,6 +217,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
 
   const renderChoice = (card: PortableCardAsset, logicalIndex: number) => {
     const progress = companionProgress[card.manifest.familyId] ?? { level: 1, xp: 0, bond: 0 };
+    const retired = isLivingCardAsset(card) && Boolean(currentRevision(card).growth.life?.retired);
     return <CreatureChoice
       active={activeCard?.id === card.id}
       asset={card}
@@ -219,6 +225,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
       logicalPosition={logicalIndex + 1}
       onSelect={selectAndClose}
       progress={progress}
+      retired={retired}
       total={sortedCards.length}
     />;
   };

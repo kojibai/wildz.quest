@@ -54,8 +54,12 @@ export function parseWildsWorldSnapshotResponse(value: unknown): WildsWorldSnaps
 export type WildsWorldClientMode = "connecting" | "receiz_live" | "local_practice" | "receiz_recovery_pending" | "reconnecting";
 export type WildsWorldCommandMode = Extract<WildsWorldClientMode, "receiz_live" | "local_practice" | "receiz_recovery_pending">;
 
-export function wildsWorldModeAfterRequestFailure(offline: boolean): "local_practice" | "reconnecting" {
-  return offline ? "local_practice" : "reconnecting";
+export function wildsWorldModeAfterRequestFailure(
+  offline: boolean,
+  currentMode: WildsWorldClientMode
+): WildsWorldClientMode {
+  if (offline) return "local_practice";
+  return currentMode === "receiz_live" ? "receiz_live" : "reconnecting";
 }
 
 export function wildsWorldModeAfterConfirmedBootstrap(mode: WildsWorldClientMode): WildsWorldClientMode {
@@ -174,7 +178,7 @@ export function useWildsWorld(input: {
       if (opaqueFailure) retryAfter.current = Date.now() + WILDS_NETWORK_RETRY_BACKOFF_MS;
       const offline = !shouldAttemptWildsNetwork() || opaqueFailure;
       const message = wildsNetworkFailureMessage(cause, "world", !offline);
-      setMode(wildsWorldModeAfterRequestFailure(offline));
+      setMode((current) => wildsWorldModeAfterRequestFailure(offline, current));
       setError(message);
       throw new Error(message);
     } finally {

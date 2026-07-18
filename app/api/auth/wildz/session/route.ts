@@ -9,6 +9,7 @@ import {
   publicWildzProofSession,
   readWildzProofSessionCookie,
   receizIdContinuationNonceMatches,
+  retainWildzVaultCardAdmission,
   wildzProofNonceCookieOptions,
   wildzProofSessionCookieOptions,
   wildzVaultPendingCookieOptions
@@ -110,11 +111,16 @@ export async function POST(request: NextRequest) {
     }
     const canonical = canonicalReceizSession(upstreamBody);
     if (!upstream.ok || !canonical) throw new Error("wildz_receiz_id_continue_failed");
-    const session = createWildzReceizIdProofSession({
+    let session = createWildzReceizIdProofSession({
       keyId: body.keyId,
       username: canonical.username,
       displayName: canonical.displayName
     });
+    try {
+      session = retainWildzVaultCardAdmission(session, readWildzProofSessionCookie(request));
+    } catch {
+      // A new Identity Seal remains valid without a prior matching verified Vault.
+    }
     const response = NextResponse.json(publicWildzProofSession(session));
     response.cookies.set(WILDZ_PROOF_SESSION_COOKIE, packWildzProofSession(session), wildzProofSessionCookieOptions());
     response.cookies.set(WILDZ_PROOF_NONCE_COOKIE, "", { ...wildzProofNonceCookieOptions(), maxAge: 0 });

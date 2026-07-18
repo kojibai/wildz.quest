@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { sealCollectedCard } from "../src/features/play/portable-card.js";
-import { publicCardPublicationQueue } from "../src/features/play/use-public-card-publisher.js";
+import { publicCardPublicationQueue, publicCardPublicationQueueCooperatively } from "../src/features/play/use-public-card-publisher.js";
 
 test("public card publisher queues every verified proof once in stable order", () => {
   const later = sealCollectedCard({ formId: "voltray-1", ownerReceizId: "publisher", encounterId: "publisher-z", capturedAt: "2026-07-17T16:00:00.000Z" });
@@ -15,4 +15,20 @@ test("public card publisher queues every verified proof once in stable order", (
     publicCardPublicationQueue([later, earlier], new Set()).map((asset) => asset.id),
     [earlier, later].sort((left, right) => left.id.localeCompare(right.id)).map((asset) => asset.id)
   );
+});
+
+test("large Vault publication yields between bounded proof-verification batches", async () => {
+  const cards = Array.from({ length: 25 }, (_, index) => sealCollectedCard({
+    formId: index % 2 ? "voltray-1" : "mintcub-1",
+    ownerReceizId: "publisher",
+    encounterId: `publisher-large-${index}`,
+    capturedAt: new Date(Date.parse("2026-07-17T15:00:00.000Z") + index * 1_000).toISOString()
+  }));
+  let yields = 0;
+  const queue = await publicCardPublicationQueueCooperatively(cards, new Set(), {
+    batchSize: 8,
+    yieldControl: async () => { yields += 1; }
+  });
+  assert.equal(queue.length, cards.length);
+  assert.equal(yields, 3);
 });

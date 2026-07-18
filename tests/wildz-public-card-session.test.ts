@@ -37,7 +37,7 @@ test("public card routes trust only the cookie actor and durable projection", ()
   assert.match(route, /status:\s*503/);
 });
 
-test("standalone card recovery resolves the public projection and exact verified local card concurrently", () => {
+test("standalone card recovery resolves the public projection for anonymous visitors and exact verified local card concurrently", () => {
   const route = readFileSync("app/api/cards/[assetId]/route.ts", "utf8");
   const resolver = readFileSync("src/lib/receiz/wildz-public-card-resolver.ts", "utf8");
   const serverPage = readFileSync("app/cards/[assetId]/page.tsx", "utf8");
@@ -46,8 +46,8 @@ test("standalone card recovery resolves the public projection and exact verified
   assert.match(resolver, /createReceizWildzPublicRepository/);
   assert.match(resolver, /resolveSdkPublicWildzCard/);
   assert.match(resolver, /verifyAnyWildsCard/);
-  assert.doesNotMatch(serverPage, /resolvePublicWildsCardRecord/);
-  assert.match(serverPage, /<WildsCardPage assetId=\{parsed\.assetId\} \/>/);
+  assert.match(serverPage, /resolvePublicWildsCardRecord/);
+  assert.match(serverPage, /<WildsCardPage assetId=\{parsed\.assetId\} initialRecord=\{initialRecord\} \/>/);
   const page = readFileSync("src/features/play/WildsCardPage.tsx", "utf8");
   assert.match(page, /initialRecord\?\.assetId === assetId/);
   assert.match(page, /fetch\(`\/api\/cards\/\$\{encodeURIComponent\(assetId\)\}`/);

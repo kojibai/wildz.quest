@@ -16,6 +16,11 @@ describe("Mortal Arena UI integration", () => {
     assert.match(source, /<Canvas/);
     assert.match(source, /WildsCreatureActor/);
     assert.match(source, /MortalArenaState/);
+    assert.match(source, /ArenaImpactVfx/);
+    assert.match(source, /mortalArenaCameraDistance/);
+    assert.match(source, /mortalArenaRivalCreature/);
+    assert.match(source, /<mesh receiveShadow>\s*<cylinderGeometry/s);
+    assert.doesNotMatch(source, /<mesh receiveShadow rotation=.*?>\s*<cylinderGeometry/s);
   });
 
   it("does not advance the match clock before mortal consent", async () => {

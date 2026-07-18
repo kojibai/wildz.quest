@@ -98,7 +98,7 @@ export type LivingCardLifeSnapshot = {
   retreats: number;
   retirement: null | {
     matchReceiptDigest: string;
-    cause: "mortal-arena-zero-vitality";
+    cause: "mortal-arena-zero-vitality" | "wild-battle-zero-vitality";
     teamOutcome: "victory" | "defeat" | "draw";
     honor: "fallen" | "victorious-sacrifice";
     retiredAt: string;

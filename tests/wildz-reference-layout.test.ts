@@ -43,6 +43,8 @@ test("trainer navigation follows the boss pills in one lower-left stack above th
   const worldHud = source.indexOf("<WildsLivingWorldHud", stackStart);
   const trainer = source.indexOf('className="wilds-trainer-navigator"', stackStart);
   assert.ok(stackStart >= 0 && worldHud > stackStart && trainer > worldHud);
+  assert.match(css, /\.wilds-living-world-hud\s*\{[^}]*position:\s*relative;[^}]*z-index:\s*2;/);
+  assert.match(css, /\.wilds-trainer-navigator\s*\{[^}]*z-index:\s*1;/);
   assert.doesNotMatch(css, /\.mobile-play-wrap \.wilds-living-world-hud\s*\{[^}]*flex-wrap:\s*wrap;/);
   assert.doesNotMatch(css, /\.wilds-living-world-hud\.has-event \.wilds-live-pill\[class\*="mode-"\]\s*\{[^}]*display:\s*none/);
 });

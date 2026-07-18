@@ -16,8 +16,30 @@ import { nearbyHiddenHotspots } from "../src/features/play/hidden-hotspots.js";
 import { isLivingCardAsset } from "../src/features/play/living-card-types.js";
 import { livingCreatureIdentityDigest } from "../src/features/play/living-taxonomy.js";
 import { createWildsCivicEvent } from "../src/features/play/wilds-civic-history.js";
+import { createArenaSettlement, recoverArenaSettlement } from "../src/features/games/mortal-arena/settlement.js";
 
 describe("Receiz Wilds game state", () => {
+  it("promotes a living Vault card when the selected Mortal Arena card is retired", () => {
+    const retiredBase = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "wilds.player.receiz.id", encounterId: "retired-only", capturedAt: "2026-07-18T10:00:00.000Z" });
+    const retired = recoverArenaSettlement(createArenaSettlement({
+      card: retiredBase,
+      result: { matchId: "retired-only-match", winnerSide: 1, outcome: "defeat", mortal: true, finalVitality: [0, 400], retiredCreatureIds: [retiredBase.id] },
+      playerSide: 0,
+      completedAt: "2026-07-18T10:05:00.000Z"
+    })).card;
+    const restoredCard = sealCollectedCard({ formId: "voltray-1", ownerReceizId: "wilds.player.receiz.id", encounterId: "vault-rescue", capturedAt: "2026-07-18T10:10:00.000Z" });
+    const saved = {
+      ...structuredClone(initialPlayState),
+      inventory: [retired, restoredCard],
+      selectedAssetId: retired.id,
+      selectedCardId: retired.manifest.familyId
+    };
+
+    const restored = restorePlayState(serializePlayState(saved));
+    assert.equal(restored.selectedAssetId, restoredCard.id);
+    assert.equal(restored.selectedCardId, restoredCard.manifest.familyId);
+  });
+
   it("records each gameplay growth event once and awards earned catalysts", () => {
     const assetId = initialPlayState.inventory[0]!.id;
     const event = {

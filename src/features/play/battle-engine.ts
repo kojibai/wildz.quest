@@ -6,6 +6,7 @@ export type BattleParticipantInput = {
   name: string;
   element?: string;
   health: number;
+  currentHealth?: number;
   power: number;
   guard: number;
   speed: number;
@@ -100,12 +101,13 @@ export function elementEffectiveness(attacker: BattleElement, defender: BattleEl
 
 function fighter(input: BattleParticipantInput, fallbackId: string): BattleFighter {
   const maxHp = Math.max(1, Math.round(input.health));
+  const hp = Math.max(0, Math.min(maxHp, Math.round(input.currentHealth ?? maxHp)));
   return {
     id: input.assetId ?? input.formId ?? fallbackId,
     name: input.name,
-    hp: maxHp,
+    hp,
     maxHp,
-    hpRatio: 1,
+    hpRatio: hp / maxHp,
     energy: 50,
     power: Math.max(1, Math.round(input.power)),
     guard: Math.max(0, Math.round(input.guard)),

@@ -10,6 +10,7 @@ export type WildzRetirementProposal = {
   finalVitality: number;
   teamOutcome: "victory" | "defeat" | "draw";
   retiredAt: string;
+  cause?: "mortal-arena-zero-vitality" | "wild-battle-zero-vitality";
 };
 
 export function assertCreaturePlayable(card: LivingCardAsset) {
@@ -26,8 +27,9 @@ export function sealRetirement(card: LivingCardAsset, proposal: WildzRetirementP
   if (proposal.creatureId !== card.id || proposal.previousRevisionDigest !== prior.digest) throw new Error("Retirement proposal does not bind the current creature revision");
   if (!/^sha256:[a-f0-9]{64}$/.test(proposal.matchReceiptDigest) || !Number.isFinite(Date.parse(proposal.retiredAt))) throw new Error("Retirement receipt is invalid");
   const honor = proposal.teamOutcome === "victory" ? "victorious-sacrifice" as const : "fallen" as const;
-  const basis = { creatureId: card.id, matchReceiptDigest: proposal.matchReceiptDigest, cause: "mortal-arena-zero-vitality", teamOutcome: proposal.teamOutcome, honor, retiredAt: proposal.retiredAt, previousRevisionDigest: prior.digest };
-  const retirement = { ...basis, cause: "mortal-arena-zero-vitality" as const, sealDigest: sha256PortableBasis(canonicalPortableCardJson(basis)) };
+  const cause = proposal.cause ?? "mortal-arena-zero-vitality";
+  const basis = { creatureId: card.id, matchReceiptDigest: proposal.matchReceiptDigest, cause, teamOutcome: proposal.teamOutcome, honor, retiredAt: proposal.retiredAt, previousRevisionDigest: prior.digest };
+  const retirement = { ...basis, sealDigest: sha256PortableBasis(canonicalPortableCardJson(basis)) };
   const life: LivingCardLifeSnapshot = {
     ...(prior.growth.life ?? createCreatureLife(card.id, Math.max(1, prior.stats.health * 2))),
     vitality: 0,
@@ -39,7 +41,7 @@ export function sealRetirement(card: LivingCardAsset, proposal: WildzRetirementP
   const next = appendLivingCardRevision({ asset: card, revision: {
     sealedAt: proposal.retiredAt,
     kaiPulse: prior.kaiPulse,
-    reason: { kind: "life", label: honor === "victorious-sacrifice" ? "Honored after a victorious sacrifice" : "Canonically retired in the Mortal Arena" },
+    reason: { kind: "life", label: cause === "wild-battle-zero-vitality" ? "Canonically retired after a wild battle" : honor === "victorious-sacrifice" ? "Honored after a victorious sacrifice" : "Canonically retired in the Mortal Arena" },
     stage: prior.stage,
     ascensionRank: prior.ascensionRank,
     formId: prior.formId,

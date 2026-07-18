@@ -20,6 +20,8 @@ import { WildsGrowthPanel } from "./WildsGrowthPanel";
 import { clampInventoryPage, inventoryPageSize } from "./inventory-pagination";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
+import { currentRevision } from "./living-card-proof";
+import { isLivingCardAsset } from "./living-card-types";
 import type {
   WildzCardOnlyConfirmation,
   WildzCommittedArtifactRestore
@@ -84,6 +86,7 @@ export function WildsInventory({
   const visible = matches.slice(safePage * pageSize, safePage * pageSize + pageSize);
   const selected = state.inventory.find((asset) => asset.id === selectedId) ?? visible[0] ?? state.inventory[0];
   const selectedForm = selected ? creatureForm(selected.manifest.formId) : null;
+  const selectedRetired = Boolean(selected && isLivingCardAsset(selected) && currentRevision(selected).growth.life?.retired);
   const progress = selectedForm ? state.companionProgress[selectedForm.familyId] ?? { level: 1, xp: 0, bond: 0 } : null;
   const next = selectedForm && selectedForm.stage < 3 ? creatureForm(`${selectedForm.familyId}-${selectedForm.stage + 1}`) : null;
   const canEvolve = Boolean(next && progress && progress.level >= next.evolution.level && progress.bond >= next.evolution.bond);
@@ -296,12 +299,13 @@ export function WildsInventory({
           {visible.map((asset) => {
             const form = creatureForm(asset.manifest.formId)!;
             const cardProgress = state.companionProgress[asset.manifest.familyId] ?? { level: 1, xp: 0, bond: 0 };
-            return <button aria-pressed={selected?.id === asset.id} key={asset.id} onClick={() => { if (suppressCardClick.current) { suppressCardClick.current = false; return; } setSelectedId(asset.id); }} type="button">
+            const retired = isLivingCardAsset(asset) && Boolean(currentRevision(asset).growth.life?.retired);
+            return <button aria-pressed={selected?.id === asset.id} className={retired ? "is-retired" : ""} key={asset.id} onClick={() => { if (suppressCardClick.current) { suppressCardClick.current = false; return; } setSelectedId(asset.id); }} type="button">
               <WildsCreatureThumbnail asset={asset} />
               <span className="wilds-inventory-card-xp">{cardProgress.xp} XP</span>
               <strong className="wilds-creature-name"><span>{asset.manifest.name}</span><WildsVerifiedBadge /></strong>
               <small>Stage {form.stage} · {form.rarity} · Bond {cardProgress.bond}</small>
-              <b>{asset.manifest.stats.power} PWR · {asset.status === "sealed_local" ? "Offline sealed" : "Verified"}</b>
+              <b>{retired ? "Retired memorial · permanently unplayable" : `${asset.manifest.stats.power} PWR · ${asset.status === "sealed_local" ? "Offline sealed" : "Verified"}`}</b>
             </button>;
           })}
           {!visible.length ? <p className="wilds-inventory-empty">No collected cards match this search.</p> : null}
@@ -315,15 +319,15 @@ export function WildsInventory({
         </div>
         </div>
         {selected && selectedForm ? (
-          <aside className="wilds-inventory-detail">
-            <WildsCardScene asset={selected} origin={origin} qr={qr} />
+          <aside className={`wilds-inventory-detail${selectedRetired ? " is-retired" : ""}`}>
+            <div className="wilds-vault-card-memorial"><WildsCardScene asset={selected} origin={origin} qr={qr} />{selectedRetired ? <strong>Retired memorial</strong> : null}</div>
             <div className="wilds-inventory-actions">
-              <button className="button button-primary" disabled={state.selectedAssetId === selected.id} onClick={() => onInput({ type: "select-asset", assetId: selected.id })} type="button">{state.selectedAssetId === selected.id ? "Active deck leader" : "Set as active deck leader"}</button>
+              <button className="button button-primary" disabled={selectedRetired || state.selectedAssetId === selected.id} onClick={() => onInput({ type: "select-asset", assetId: selected.id })} type="button">{selectedRetired ? "Retired · cannot enter game" : state.selectedAssetId === selected.id ? "Active deck leader" : "Set as active deck leader"}</button>
               <Link className="button button-outline" href={`/cards/${encodeURIComponent(selected.id)}`}>Open standalone card page</Link>
               <button
                 aria-busy={cardSaving}
                 className={`button button-outline wilds-action-feedback${cardSaving ? " wilds-action-busy" : ""}`}
-                disabled={cardSaving}
+                disabled={cardSaving || selectedRetired}
                 onClick={async () => {
                   setCardSaving(true);
                   setDownloadMessage("Publishing verified card link…");
@@ -341,7 +345,7 @@ export function WildsInventory({
                   }
                 }}
                 type="button"
-              >Save card image</button>
+              ><span hidden={selectedRetired}>Save card image</span><span hidden={!selectedRetired}>Memorial card cannot be saved</span></button>
               <div className="wilds-card-send-control">
                 <label>
                   <span>Send card</span>
@@ -359,7 +363,7 @@ export function WildsInventory({
                 <button
                   aria-busy={cardSending}
                   className={`button button-outline wilds-action-feedback${cardSending ? " wilds-action-busy" : ""}`}
-                  disabled={cardSending || !sendTarget.trim()}
+                  disabled={selectedRetired || cardSending || !sendTarget.trim()}
                   onClick={sendPortableCardToTarget}
                   type="button"
                 >{cardSending ? "Preparing…" : "Send card"}</button>
@@ -369,7 +373,7 @@ export function WildsInventory({
                   <label>List price <span>$</span><input aria-label="Wilds card listing price" inputMode="decimal" min="0.01" onChange={(event) => setPriceUsd(event.target.value)} step="0.01" type="number" value={priceUsd} /></label>
                   <button
                     className="button button-outline"
-                    disabled={listing || !Number.isFinite(Number(priceUsd)) || Number(priceUsd) <= 0}
+                    disabled={selectedRetired || listing || !Number.isFinite(Number(priceUsd)) || Number(priceUsd) <= 0}
                     onClick={async () => {
                       setListing(true);
                       setListingMessage("Running Receiz offline verifier…");
@@ -386,7 +390,7 @@ export function WildsInventory({
                   >{listing ? "Verifying…" : "Verify + list on Exchange"}</button>
                 </div>
               ) : selected.status === "listed" ? <span className="wilds-apex-label">Listed on Exchange</span> : null}
-              {next ? <button className="button button-outline" disabled={!canEvolve} onClick={() => onInput({ type: "evolve", assetId: selected.id, evolvedAt: new Date().toISOString() })} type="button">{canEvolve ? `Evolve into ${next.name}` : `Needs L${next.evolution.level} · Bond ${next.evolution.bond}`}</button> : <span className="wilds-apex-label">Apex form reached</span>}
+              {next ? <button className="button button-outline" disabled={selectedRetired || !canEvolve} onClick={() => onInput({ type: "evolve", assetId: selected.id, evolvedAt: new Date().toISOString() })} type="button">{selectedRetired ? "Retired creatures cannot evolve" : canEvolve ? `Evolve into ${next.name}` : `Needs L${next.evolution.level} · Bond ${next.evolution.bond}`}</button> : <span className="wilds-apex-label">{selectedRetired ? "Retired memorial" : "Apex form reached"}</span>}
               {downloadMessage ? <p aria-live="polite">{downloadMessage}</p> : null}
               {sendMessage ? <p aria-live="polite">{sendMessage}</p> : null}
               {listingMessage ? <p aria-live="polite">{listingMessage}</p> : null}

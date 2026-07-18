@@ -122,8 +122,9 @@ test("a matching canonical Identity session is never downgraded by a Vault excha
       username: "bjklock",
       displayName: "BJ Klock"
     }, SECRET);
+    const pending = vaultSession();
     const response = await POST(request({
-      pending: packWildzVaultPendingAdmission(vaultSession(), SECRET),
+      pending: packWildzVaultPendingAdmission(pending, SECRET),
       current: packWildzProofSession(identity, SECRET)
     }));
 
@@ -132,7 +133,9 @@ test("a matching canonical Identity session is never downgraded by a Vault excha
     assert.equal(body.authority, "identity-key");
     const finalCookie = response.cookies.get(WILDZ_PROOF_SESSION_COOKIE);
     assert.ok(finalCookie?.value);
-    assert.equal(unpackWildzProofSession(finalCookie.value, SECRET).keyId, identity.keyId);
+    const upgraded = unpackWildzProofSession(finalCookie.value, SECRET);
+    assert.equal(upgraded.keyId, identity.keyId);
+    assert.equal(upgraded.vaultCardRootSha256, pending.vaultCardRootSha256);
   } finally {
     if (prior === undefined) delete process.env.RECEIZ_OAUTH_STATE_SECRET;
     else process.env.RECEIZ_OAUTH_STATE_SECRET = prior;

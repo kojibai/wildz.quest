@@ -8,6 +8,7 @@ import {
   WILDZ_PROOF_SESSION_COOKIE,
   createWildzReceizIdProofSession,
   createWildzVaultProofSession,
+  retainWildzVaultCardAdmission,
   packWildzVaultPendingAdmission,
   packWildzProofSession,
   receizIdContinuationNonceMatches,
@@ -173,6 +174,29 @@ test("a verified Vault custody commitment authorizes historical-owner cards with
     () => authorizeWildsMultiplayerCard(actor, historicalCard, { ...proof, root: `sha256:${"0".repeat(64)}` }),
     /wilds_multiplayer_card_owner_invalid/
   );
+});
+
+test("a matching Identity Seal keeps the server-verified Vault card commitment", () => {
+  const identity = createWildzReceizIdProofSession({
+    keyId: "receiz_identity_key_vault_upgrade",
+    username: "vault_keeper",
+    displayName: "Vault Keeper",
+    issuedAt: NOW
+  }, SECRET);
+  const vault = createWildzVaultProofSession({
+    actorId: "vault_keeper",
+    profileHandle: "vault_keeper.receiz.id",
+    proofBasisSha256: "4".repeat(64),
+    byteDigestSha256: "5".repeat(64),
+    vaultCardRootSha256: `sha256:${"6".repeat(64)}`,
+    issuedAt: NOW
+  }, SECRET);
+
+  const upgraded = retainWildzVaultCardAdmission(identity, vault);
+  assert.equal(upgraded.authority, "identity-key");
+  assert.equal(upgraded.keyId, identity.keyId);
+  assert.equal(upgraded.vaultCardRootSha256, vault.vaultCardRootSha256);
+  assert.equal(unpackWildzProofSession(packWildzProofSession(upgraded, SECRET), SECRET, NOW).vaultCardRootSha256, vault.vaultCardRootSha256);
 });
 
 test("a legacy Vault recovery principal cannot claim canonical account-only writes", async () => {

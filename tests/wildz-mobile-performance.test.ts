@@ -62,3 +62,9 @@ test("Vault merges preserve the admitted multiplayer card set for the mounted se
   assert.match(campaign, /createWildzVaultCardMembershipProof\(initialVaultAdmission, activeAsset\)/);
   assert.doesNotMatch(campaign, /deriveWildzVaultCardAdmission\(\{\s*cards:\s*deckCards,[\s\S]*?createWildzVaultCardMembershipProof\(admission, activeAsset\)/);
 });
+
+test("large Vault collection indexes are not rebuilt for every movement render", () => {
+  const campaign = source("src/features/play/PlayCampaign.tsx");
+  assert.match(campaign, /const \{ discoveredByFamily, discoveredKaiLineages, guideFamilies \} = useMemo\(\(\) =>/);
+  assert.match(campaign, /\}, \[deckCards\]\);/);
+});

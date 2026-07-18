@@ -9,6 +9,8 @@ import { POST } from "../app/api/auth/wildz/session/route";
 import {
   WILDZ_PROOF_NONCE_COOKIE,
   WILDZ_PROOF_SESSION_COOKIE,
+  createWildzVaultProofSession,
+  packWildzProofSession,
   unpackWildzProofSession
 } from "../src/lib/receiz/wildz-proof-session";
 
@@ -27,6 +29,13 @@ test("same-origin Receiz ID continuation trusts only the canonical upstream acco
       displayName: "Self Asserted"
     });
     const continuation = await buildReceizIdContinueRequest(identity, { nonceB64Url: NONCE });
+    const priorVault = createWildzVaultProofSession({
+      actorId: "canonical_owner",
+      profileHandle: "canonical_owner.receiz.id",
+      proofBasisSha256: "4".repeat(64),
+      byteDigestSha256: "5".repeat(64),
+      vaultCardRootSha256: `sha256:${"6".repeat(64)}`
+    }, SECRET);
     let upstreamUrl = "";
     let upstreamBody = "";
     globalThis.fetch = async (input, init) => {
@@ -49,7 +58,7 @@ test("same-origin Receiz ID continuation trusts only the canonical upstream acco
       method: "POST",
       headers: {
         "content-type": "application/json",
-        cookie: `${WILDZ_PROOF_NONCE_COOKIE}=${NONCE}`
+        cookie: `${WILDZ_PROOF_NONCE_COOKIE}=${NONCE}; ${WILDZ_PROOF_SESSION_COOKIE}=${packWildzProofSession(priorVault, SECRET)}`
       },
       body: JSON.stringify(continuation)
     }));
@@ -71,7 +80,9 @@ test("same-origin Receiz ID continuation trusts only the canonical upstream acco
     assert.doesNotMatch(JSON.stringify(body), /private@example\.com|global-user-123|next|accountBindings/);
     const cookie = response.cookies.get(WILDZ_PROOF_SESSION_COOKIE);
     assert.ok(cookie?.value);
-    assert.equal(unpackWildzProofSession(cookie.value, SECRET).actorId, "canonical_owner");
+    const admitted = unpackWildzProofSession(cookie.value, SECRET);
+    assert.equal(admitted.actorId, "canonical_owner");
+    assert.equal(admitted.vaultCardRootSha256, priorVault.vaultCardRootSha256);
   } finally {
     globalThis.fetch = priorFetch;
     if (priorSecret === undefined) delete process.env.RECEIZ_OAUTH_STATE_SECRET;
