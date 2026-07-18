@@ -134,6 +134,9 @@ export type ReceizCommerceAdapter = {
     limit?: number
   ): ReceizProofMemoryAdditionsQuery;
   verifyArtifact(file: Blob): Promise<DocumentVerifyResponse>;
+  verifyAndOpenArtifact: ReceizClient["artifacts"]["verifyAndOpen"];
+  downloadArtifact: ReceizClient["artifacts"]["download"];
+  claimBearerArtifact: ReceizClient["ownership"]["claimBearerAsset"];
   observePublicProof(body: { url: string; externalCreatorId?: string; title?: string }): Promise<PublicProofRecord>;
   getPublicProofByUrl(url: string): Promise<PublicProofRecord>;
   getPublicProofById(id: string): Promise<PublicProofRecord>;
@@ -494,6 +497,15 @@ export function createReceizCommerceAdapter(
     },
     verifyArtifact(file) {
       return client.verification.verifyArtifact(file);
+    },
+    verifyAndOpenArtifact(file) {
+      return client.artifacts.verifyAndOpen(file);
+    },
+    downloadArtifact(artifact) {
+      return client.artifacts.download(artifact);
+    },
+    claimBearerArtifact(input) {
+      return client.ownership.claimBearerAsset(input);
     },
     observePublicProof(body) {
       return client.publicProof.observe(body);
