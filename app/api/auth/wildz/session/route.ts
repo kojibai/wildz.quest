@@ -14,6 +14,7 @@ import {
   wildzProofSessionCookieOptions,
   wildzVaultPendingCookieOptions
 } from "@/lib/receiz/wildz-proof-session";
+import { verifyWildzIdentityVaultAdmissionProof } from "@/lib/receiz/wildz-identity-vault-admission";
 
 export const runtime = "nodejs";
 
@@ -89,7 +90,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = continuationRequest(await request.json());
+    const rawBody = await request.json();
+    const body = continuationRequest(rawBody);
     const nonce = request.cookies.get(WILDZ_PROOF_NONCE_COOKIE)?.value;
     if (!body || !nonce || !receizIdContinuationNonceMatches(body, nonce)) {
       throw new Error("wildz_proof_admission_invalid");
@@ -111,15 +113,28 @@ export async function POST(request: NextRequest) {
     }
     const canonical = canonicalReceizSession(upstreamBody);
     if (!upstream.ok || !canonical) throw new Error("wildz_receiz_id_continue_failed");
+    const rawAdmission = rawBody && typeof rawBody === "object" && !Array.isArray(rawBody)
+      ? (rawBody as { vaultCardAdmission?: unknown }).vaultCardAdmission
+      : undefined;
+    const signedAdmission = rawAdmission === undefined
+      ? null
+      : await verifyWildzIdentityVaultAdmissionProof({
+        value: rawAdmission,
+        continuation: body,
+        canonicalUsername: canonical.username
+      });
     let session = createWildzReceizIdProofSession({
       keyId: body.keyId,
       username: canonical.username,
-      displayName: canonical.displayName
+      displayName: canonical.displayName,
+      ...(signedAdmission ? { vaultCardRootSha256: signedAdmission.root } : {})
     });
-    try {
-      session = retainWildzVaultCardAdmission(session, readWildzProofSessionCookie(request));
-    } catch {
-      // A new Identity Seal remains valid without a prior matching verified Vault.
+    if (!signedAdmission) {
+      try {
+        session = retainWildzVaultCardAdmission(session, readWildzProofSessionCookie(request));
+      } catch {
+        // A new Identity Seal remains valid without a prior matching verified Vault.
+      }
     }
     const response = NextResponse.json(publicWildzProofSession(session));
     response.cookies.set(WILDZ_PROOF_SESSION_COOKIE, packWildzProofSession(session), wildzProofSessionCookieOptions());

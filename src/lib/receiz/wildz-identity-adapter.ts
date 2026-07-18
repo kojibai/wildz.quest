@@ -60,6 +60,8 @@ import {
 } from "../storage/wildz-indexed-db";
 import { openWildzArtifactSameOrigin, verifyWildzArtifactSameOrigin } from "./wildz-same-origin-verifier";
 import { createWildzArtifactHistory } from "./wildz-artifact-history";
+import { createWildzIdentityVaultAdmissionProof } from "./wildz-identity-vault-admission";
+import type { WildzVaultCardAdmission } from "./wildz-vault-card-admission";
 
 const IDENTITY_SEAL_USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 
@@ -205,10 +207,16 @@ function receizDeviceIdentityFromKeyFile(keyFile: ReceizKeyFile): ReceizDeviceId
 
 export async function connectWildzProofSession(
   session: WildzIdentitySession,
-  options: { passphrase?: string; requestPassphrase?: () => string | null } = {}
+  options: {
+    passphrase?: string;
+    requestPassphrase?: () => string | null;
+    vaultAdmission?: WildzVaultCardAdmission;
+  } = {}
 ) {
   const current = await wildzRemoteSessionBridge.current();
-  if (wildzRemoteSessionMatchesIdentity(session, current)) return current;
+  if (current.status === "connected"
+    && wildzRemoteSessionMatchesIdentity(session, current)
+    && (!options.vaultAdmission || current.vaultCardRootSha256 === options.vaultAdmission.root)) return current;
   if (session.localAuthority === "proof-sealed-vault") {
     return wildzRemoteSessionBridge.commitVaultAdmission({
       actorId: session.actorId,
@@ -243,12 +251,23 @@ export async function connectWildzProofSession(
         ...(passphrase !== undefined ? { passphrase } : {})
       }
     );
+    const vaultCardAdmission = options.vaultAdmission
+      ? await createWildzIdentityVaultAdmissionProof({
+        keyFile,
+        session,
+        admission: options.vaultAdmission,
+        ...(passphrase !== undefined ? { passphrase } : {})
+      })
+      : null;
     const admission = await fetch("/api/auth/wildz/session", {
       method: "POST",
       credentials: "same-origin",
       cache: "no-store",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(continuation)
+      body: JSON.stringify({
+        ...continuation,
+        ...(vaultCardAdmission ? { vaultCardAdmission } : {})
+      })
     });
     if (!admission.ok) throw new Error("wildz_proof_admission_failed");
     return wildzRemoteSessionBridge.current();

@@ -184,6 +184,7 @@ test("remote session projection requires an opaque subject key", async () => {
       subjectKey,
       sessionKeyId: "receiz_vault_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       authority: "proof-sealed-vault",
+      vaultCardRootSha256: `sha256:${"d".repeat(64)}`,
       actorId: "vault_keeper",
       profileHandle: "vault_keeper.receiz.id",
       displayName: "Vault Keeper"
@@ -194,6 +195,7 @@ test("remote session projection requires an opaque subject key", async () => {
     subjectKey,
     sessionKeyId: "receiz_vault_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     authority: "proof-sealed-vault",
+    vaultCardRootSha256: `sha256:${"d".repeat(64)}`,
     actorId: "vault_keeper",
     profileHandle: "vault_keeper.receiz.id",
     displayName: "Vault Keeper"

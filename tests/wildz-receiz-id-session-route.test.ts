@@ -3,7 +3,8 @@ import { test } from "node:test";
 import { NextRequest } from "next/server";
 import {
   buildReceizIdContinueRequest,
-  createReceizIdIdentity
+  createReceizIdIdentity,
+  signReceizIdentityLoginProof
 } from "@receiz/sdk";
 import { POST } from "../app/api/auth/wildz/session/route";
 import {
@@ -13,9 +14,82 @@ import {
   packWildzProofSession,
   unpackWildzProofSession
 } from "../src/lib/receiz/wildz-proof-session";
+import { canonicalPortableCardJson, sealCollectedCard } from "../src/features/play/portable-card";
+import { deriveWildzVaultCardAdmission } from "../src/lib/receiz/wildz-vault-card-admission";
 
 const SECRET = "wildz-receiz-id-route-secret-at-least-thirty-two-bytes";
 const NONCE = "d2lsZHotc2FtZS1vcmlnaW4tbm9uY2UtMTIzNA";
+
+test("Identity Seal login admits its signed Vault cards into the server session", async () => {
+  const priorSecret = process.env.RECEIZ_OAUTH_STATE_SECRET;
+  const priorBase = process.env.RECEIZ_BASE_URL;
+  const priorFetch = globalThis.fetch;
+  process.env.RECEIZ_OAUTH_STATE_SECRET = SECRET;
+  process.env.RECEIZ_BASE_URL = "https://receiz.example";
+  try {
+    const identity = await createReceizIdIdentity({ username: "seal_vault_owner", displayName: "Seal Vault Owner" });
+    const continuation = await buildReceizIdContinueRequest(identity, { nonceB64Url: NONCE });
+    const card = sealCollectedCard({
+      formId: "mintcub-1",
+      ownerReceizId: "historical_keeper",
+      encounterId: "identity-seal-server-admission",
+      capturedAt: "2026-07-18T18:00:00.000Z"
+    });
+    const admission = deriveWildzVaultCardAdmission({
+      cards: [card],
+      playerHandle: "seal_vault_owner.receiz.id"
+    });
+    const claim = {
+      schema: "receiz.wildz.identity_vault_admission.v1",
+      keyId: continuation.keyId,
+      actorId: "seal_vault_owner",
+      profileHandle: "seal_vault_owner.receiz.id",
+      root: admission.root,
+      leafCount: admission.leafCount,
+      issuedAt: new Date().toISOString()
+    } as const;
+    const proof = await signReceizIdentityLoginProof({
+      keyFile: identity.keyFile,
+      challengeText: canonicalPortableCardJson(claim)
+    });
+    globalThis.fetch = async () => Response.json({
+      ok: true,
+      bound: true,
+      session: {
+        uid: "seal-vault-owner-uid",
+        username: "seal_vault_owner",
+        displayName: "Seal Vault Owner"
+      }
+    });
+
+    const response = await POST(new NextRequest("https://wildz.quest/api/auth/wildz/session", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: `${WILDZ_PROOF_NONCE_COOKIE}=${NONCE}`
+      },
+      body: JSON.stringify({
+        ...continuation,
+        vaultCardAdmission: {
+          claim,
+          challengeB64Url: proof.challengeB64Url,
+          signatureB64Url: proof.signatureB64Url
+        }
+      })
+    }));
+
+    assert.equal(response.status, 200);
+    const cookie = response.cookies.get(WILDZ_PROOF_SESSION_COOKIE);
+    assert.ok(cookie?.value);
+    assert.equal(unpackWildzProofSession(cookie.value, SECRET).vaultCardRootSha256, admission.root);
+  } finally {
+    globalThis.fetch = priorFetch;
+    if (priorSecret === undefined) delete process.env.RECEIZ_OAUTH_STATE_SECRET;
+    else process.env.RECEIZ_OAUTH_STATE_SECRET = priorSecret;
+    if (priorBase === undefined) delete process.env.RECEIZ_BASE_URL;
+    else process.env.RECEIZ_BASE_URL = priorBase;
+  }
+});
 
 test("same-origin Receiz ID continuation trusts only the canonical upstream account", async () => {
   const priorSecret = process.env.RECEIZ_OAUTH_STATE_SECRET;
@@ -74,7 +148,8 @@ test("same-origin Receiz ID continuation trusts only the canonical upstream acco
       actorId: "canonical_owner",
       profileHandle: "canonical_owner.receiz.id",
       displayName: "Canonical Owner",
-      authority: "identity-key"
+      authority: "identity-key",
+      vaultCardRootSha256: priorVault.vaultCardRootSha256
     });
     assert.match(body.subjectKey, /^[a-f0-9]{64}$/);
     assert.doesNotMatch(JSON.stringify(body), /private@example\.com|global-user-123|next|accountBindings/);

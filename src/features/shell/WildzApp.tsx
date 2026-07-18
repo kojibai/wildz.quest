@@ -23,6 +23,7 @@ import {
 import { shouldClearWildzResumeAfterError } from "@/lib/receiz/wildz-resume-errors";
 import { sameWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate";
 import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-verifier";
+import { deriveWildzVaultCardAdmission } from "@/lib/receiz/wildz-vault-card-admission";
 import {
   bootstrapWildzSharedWorld,
   wildzRemoteSessionMatchesIdentity
@@ -89,6 +90,10 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     [continuity?.playState, identity]
   );
   const ownerUsername = identity?.username ?? identity?.actorId ?? "explorer";
+  const vaultAdmission = useMemo(() => identity ? deriveWildzVaultCardAdmission({
+    cards: ownerPlayState.inventory,
+    playerHandle: identity.actorId
+  }) : null, [identity, ownerPlayState.inventory]);
   const viewingOwnProfile = !overlay || overlay.kind !== "profile" || overlay.username.toLowerCase() === `@${ownerUsername}`.toLowerCase();
   const localPublicProfile = useMemo(() => sanitizePublicWildzProfile({
     username: overlay?.kind === "profile" ? overlay.username : ownerUsername,
@@ -147,7 +152,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   }, []);
 
   useEffect(() => {
-    if (!identity) return;
+    if (!identity || !vaultAdmission) return;
     let active = true;
     let connecting = false;
     let retryTimer: number | null = null;
@@ -158,7 +163,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         window.clearTimeout(retryTimer);
         retryTimer = null;
       }
-      void connectWildzProofSession(identity).then(async (session) => {
+      void connectWildzProofSession(identity, { vaultAdmission }).then(async (session) => {
         if (!active || !wildzRemoteSessionMatchesIdentity(identity, session)) {
           if (active) setProofSessionConnected(false);
           return;
@@ -193,7 +198,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       if (retryTimer !== null) window.clearTimeout(retryTimer);
       window.removeEventListener("online", connect);
     };
-  }, [acceptSnapshot, identity]);
+  }, [acceptSnapshot, identity, vaultAdmission]);
 
   useEffect(() => {
     if (overlay?.kind !== "profile") {

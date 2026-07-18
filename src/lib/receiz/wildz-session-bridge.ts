@@ -7,6 +7,7 @@ export type WildzRemoteSession =
       subjectKey: string;
       sessionKeyId?: string;
       authority?: "identity-key" | "proof-sealed-vault";
+      vaultCardRootSha256?: string;
       actorId: string;
       profileHandle: string;
       displayName: string | null;
@@ -58,6 +59,7 @@ function remoteSession(value: unknown): WildzRemoteSession {
     subjectKey?: unknown;
     sessionKeyId?: unknown;
     authority?: unknown;
+    vaultCardRootSha256?: unknown;
     actorId?: unknown;
     profileHandle?: unknown;
     displayName?: unknown;
@@ -77,6 +79,10 @@ function remoteSession(value: unknown): WildzRemoteSession {
           && /^(?:receiz_vault_[a-f0-9]{32}|[A-Za-z0-9._:-]{8,200})$/.test(candidate.sessionKeyId)
           && (candidate.authority === "identity-key" || candidate.authority === "proof-sealed-vault")
           ? { sessionKeyId: candidate.sessionKeyId, authority: candidate.authority }
+          : {}),
+        ...(typeof candidate.vaultCardRootSha256 === "string"
+          && /^sha256:[a-f0-9]{64}$/.test(candidate.vaultCardRootSha256)
+          ? { vaultCardRootSha256: candidate.vaultCardRootSha256 }
           : {}),
         ...coordinate,
         displayName: candidate.displayName

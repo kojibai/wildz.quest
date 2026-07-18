@@ -123,6 +123,8 @@ test("matching Identity Seal upgrades a proof Vault login without clearing the l
   const campaign = source.slice(source.indexOf("<PlayCampaign"), source.indexOf("</PlayCampaign>"));
 
   assert.match(source, /sameWildzPlayerCoordinate/);
+  assert.match(source, /deriveWildzVaultCardAdmission/);
+  assert.match(source, /connectWildzProofSession\(identity,\s*\{\s*vaultAdmission/);
   assert.match(accept, /sameWildzPlayerCoordinate\(previous\.session\.actorId,\s*snapshot\.session\.actorId\)/);
   assert.doesNotMatch(accept, /previous\.session\.keyId !== snapshot\.session\.keyId[\s\S]*setProofSessionConnected\(false\)/);
   assert.match(campaign, /key=\{`\$\{identity\.keyId\}:\$\{identity\.actorId\}`\}/);

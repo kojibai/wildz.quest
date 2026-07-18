@@ -147,12 +147,14 @@ export function createWildzReceizIdProofSession(input: {
   keyId: string;
   username: string;
   displayName: string | null;
+  vaultCardRootSha256?: string;
   issuedAt?: number;
 }, secret = receizOAuthSecret()): WildzProofSession {
   const coordinate = parseWildzPlayerCoordinate(input.username);
   if (!validKeyId(input.keyId)
     || !coordinate
-    || (typeof input.displayName !== "string" && input.displayName !== null)) {
+    || (typeof input.displayName !== "string" && input.displayName !== null)
+    || (input.vaultCardRootSha256 !== undefined && !/^sha256:[a-f0-9]{64}$/.test(input.vaultCardRootSha256))) {
     throw new Error("wildz_receiz_id_session_invalid");
   }
   return {
@@ -163,6 +165,7 @@ export function createWildzReceizIdProofSession(input: {
     displayName: input.displayName?.trim() || null,
     authority: "identity-key",
     subjectKey: subjectKey(input.keyId, secret),
+    ...(input.vaultCardRootSha256 ? { vaultCardRootSha256: input.vaultCardRootSha256 } : {}),
     issuedAt: input.issuedAt ?? Date.now()
   };
 }
@@ -347,7 +350,8 @@ export function publicWildzProofSession(session: WildzProofSession) {
     actorId: session.actorId,
     profileHandle: session.profileHandle,
     displayName: session.displayName,
-    authority: session.authority
+    authority: session.authority,
+    ...(session.vaultCardRootSha256 ? { vaultCardRootSha256: session.vaultCardRootSha256 } : {})
   };
 }
 
