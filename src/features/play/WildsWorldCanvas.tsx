@@ -160,7 +160,7 @@ function ActiveCompanion({ state }: { state: PlayState }) {
   const formId = asset?.manifest.formId ?? `${card.id}-1`;
   const appearance = useMemo(() => asset ? projectCardKaiAppearance(asset) : null, [asset]);
   return (
-    <group name="active-companion-sealcub" position={[-1.08, 0.44, 0.42]} scale={0.82}>
+    <group name="active-companion" position={[-1.08, 0.44, 0.42]} scale={0.82}>
       <WildsCreatureActor accent={appearance?.palette.accent ?? card.accent} cadenceMs={appearance?.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} identityToken={appearance?.fingerprint} morphology={appearance?.morphology} pose="curious" primary={appearance?.palette.primary ?? card.color} />
       <mesh position={[0, -0.37, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.46, 0.035, 8, 36]} />

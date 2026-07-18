@@ -15,7 +15,7 @@ export function WildzReferenceHud({ model, heading, onOpenMap, onOpenMission }: 
       <span className="wildz-player-emblem"><Image src="/brand/wildz-mark.svg" alt="" width={58} height={58} /></span>
       <div>
         <strong>{model.player.displayName || model.player.username}<i>✓</i></strong>
-        <span><b className="wildz-sealcub-orb">S</b><em><i style={{ width: `${Math.min(100, model.companion.bond)}%` }} /></em></span>
+        <span><b className="wildz-companion-orb">{model.companion.name.slice(0, 1).toUpperCase()}</b><em><i style={{ width: `${Math.min(100, model.companion.bond)}%` }} /></em></span>
         <small>Lv. {model.player.level} · {model.companion.name} L{model.companion.level}</small>
       </div>
     </section>

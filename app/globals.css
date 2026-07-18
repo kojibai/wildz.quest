@@ -12920,7 +12920,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wildz-player-capsule strong i,
 .wildz-nearby-creature strong i { display: inline-grid; place-items: center; margin-left: 5px; color: #7fb1ff; font-style: normal; }
 .wildz-player-capsule > div > span { display: grid; grid-template-columns: 25px 1fr; gap: 7px; align-items: center; }
-.wildz-sealcub-orb { display: grid; width: 25px; height: 25px; place-items: center; border: 2px solid #b5d990; border-radius: 50%; color: #244638; background: #8fcf96; font-size: 11px; }
+.wildz-companion-orb { display: grid; width: 25px; height: 25px; place-items: center; border: 2px solid #b5d990; border-radius: 50%; color: #244638; background: #8fcf96; font-size: 11px; }
 .wildz-player-capsule em { display: block; height: 8px; overflow: hidden; border-radius: 9px; background: rgba(255, 255, 255, .16); }
 .wildz-player-capsule em i { display: block; min-width: 45%; height: 100%; border-radius: inherit; background: #92d78f; }
 .wildz-player-capsule small { color: #d0d8d2; font-size: 11px; }

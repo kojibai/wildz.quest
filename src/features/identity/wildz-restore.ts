@@ -1,5 +1,6 @@
 import {
   applyWildsInput,
+  createOwnerBoundInitialPlayState,
   initialPlayState,
   restorePlayState,
   serializePlayState,
@@ -374,7 +375,9 @@ export async function restoreWildzArtifactForSurface(input: {
         ? restorePlayState(serializePlayState(input.currentPlayState), session.actorId)
         : previous
           ? restorePlayState(serializePlayState(previous.playState))
-          : emptyVaultPlayState();
+          : assets.length
+            ? emptyVaultPlayState()
+            : createOwnerBoundInitialPlayState(session.actorId, session.createdAt);
       const next = player && !shouldMergeIntoActiveVault ? prepareWildzPlayerPlayState(player, assets) : importAssets(current, assets);
       const record = createStoredWildzPlayState(
         session,

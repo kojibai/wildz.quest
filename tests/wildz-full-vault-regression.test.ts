@@ -3,7 +3,8 @@ import { test } from "node:test";
 import {
   appendReceizIdentityArtifactTrailerToPng,
   createReceizIdentityKeyFile,
-  projectReceizIdentityAccount
+  projectReceizIdentityAccount,
+  serializeReceizIdentityArtifact
 } from "@receiz/sdk";
 import {
   applyWildsInput,
@@ -15,7 +16,7 @@ import {
 } from "../src/features/play/game-state";
 import { embedPortableVaultInPng } from "../src/features/play/card-export";
 import { createWildsPlayerVault } from "../src/features/play/wilds-player-vault";
-import { sealCollectedCard } from "../src/features/play/portable-card";
+import { sealCollectedCard, verifyAnyWildsCard } from "../src/features/play/portable-card";
 import {
   loadWildzRestoredPlayState,
   restoreWildzArtifactForSurface
@@ -129,6 +130,35 @@ function inspectionIds(inspected: WildzArtifactInspection) {
     : inspected.kind === "card-vault" || inspected.kind === "commerce-vault" ? inspected.assets.map((asset) => asset.id)
       : [];
 }
+
+test("a first Identity Record login creates one real owner-bound starter creature", async () => {
+  const target = setup();
+  await target.repository.bootstrap();
+  const identity = await createReceizIdentityKeyFile({
+    owner: { uid: "new_keeper_uid", username: "new_keeper", displayName: "New Keeper" },
+    portableState: null
+  });
+
+  const outcome = await restoreWildzArtifactForSurface({
+    surface: "genesis",
+    bytes: new TextEncoder().encode(serializeReceizIdentityArtifact(identity.keyFile)),
+    mimeType: "application/json",
+    name: "new-keeper.receiz-key.json",
+    codec: target.codec,
+    repository: target.repository,
+    database: target.database,
+    confirmCardOnly: true
+  });
+
+  assert.equal(outcome.session.actorId, "new_keeper");
+  assert.equal(outcome.playState.inventory.length, 1);
+  const starter = outcome.playState.inventory[0]!;
+  assert.equal(starter.manifest.ownerReceizId, outcome.session.actorId);
+  assert.equal(verifyAnyWildsCard(starter).ok, true);
+  assert.equal(outcome.playState.selectedAssetId, starter.id);
+  assert.equal(outcome.playState.selectedCardId, starter.manifest.familyId);
+  assert.notEqual(starter.manifest.name, "SealCub");
+});
 
 test("generated 97-card identity Vault survives inspection, both restore surfaces, PlayState, and cold reload", async () => {
   const fixture = await regressionArtifact();

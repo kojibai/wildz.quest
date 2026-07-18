@@ -92,7 +92,10 @@ const defaultVaultLoginCoordinator = createWildzVaultLoginCoordinator({
   repository: defaultIdentityRepository,
   codec: defaultArtifactCodec,
   pending: defaultPendingVaultRepository,
-  verifier: { verifyArtifact: verifyWildzArtifactSameOrigin },
+  verifier: {
+    verifyArtifact: verifyWildzArtifactSameOrigin,
+    openArtifact: openWildzArtifactSameOrigin
+  },
   remote: wildzRemoteSessionBridge
 });
 let continuityRestoreEpoch = 0;

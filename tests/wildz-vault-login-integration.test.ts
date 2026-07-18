@@ -9,7 +9,7 @@ test("the shared restore adapter routes V3 player Vaults through direct proof-se
 
   assert.match(adapter, /createWildzVaultLoginCoordinator/);
   assert.match(adapter, /createWildzPendingVaultRepository/);
-  assert.match(adapter, /verifier:\s*\{\s*verifyArtifact:\s*verifyWildzArtifactSameOrigin\s*\}/);
+  assert.match(adapter, /verifier:\s*\{[\s\S]*openArtifact:\s*openWildzArtifactSameOrigin[\s\S]*\}/);
   assert.doesNotMatch(adapter, /receizCommerceAdapter\.verifyArtifact/);
   assert.match(adapter, /defaultVaultLoginCoordinator\.begin/);
   assert.match(adapter, /playerVault\.status === "committed"/);

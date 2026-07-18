@@ -5,6 +5,7 @@ import type {
   WildzArtifactCodec,
   WildzArtifactInspection
 } from "./wildz-artifact-codec";
+import type { WildzAdmittedArtifact } from "./wildz-artifact-custody";
 import {
   parseWildzPlayerCoordinate,
   sameWildzPlayerCoordinate,
@@ -13,6 +14,7 @@ import {
 
 export interface WildzProofArtifactVerifier {
   verifyArtifact(file: Blob): Promise<DocumentVerifyResponse>;
+  openArtifact?(input: { bytes: Uint8Array; mimeType: string; name?: string }): Promise<WildzAdmittedArtifact>;
 }
 
 export type VerifiedProofSealedWildzVault = {
@@ -160,6 +162,34 @@ export async function verifyProofSealedWildzVault(input: {
       player,
       proofBasisSha256: proofObject.artifactBasisSha256,
       byteDigestSha256: await sha256Hex(input.bytes),
+      inspection
+    };
+  }
+  if (input.verifier.openArtifact) {
+    let admitted: WildzAdmittedArtifact;
+    try {
+      admitted = await input.verifier.openArtifact({
+        bytes: input.bytes,
+        mimeType: input.mimeType,
+        ...(input.name ? { name: input.name } : {})
+      });
+    } catch {
+      throw new Error("wildz_restore_v4_unavailable");
+    }
+    const player = parseWildzPlayerCoordinate(inspection.player.playerId);
+    if (!player) throw new Error("wildz_restore_player_owner_invalid");
+    const byteDigestSha256 = await sha256Hex(input.bytes);
+    if (admitted.artifactSha256 !== byteDigestSha256
+      || !sameWildzPlayerCoordinate(admitted.ownerReceizId, player.profileHandle)) {
+      throw new Error("wildz_restore_v4_binding_mismatch");
+    }
+    return {
+      artifactKind: inspection.kind,
+      assets: inspection.assets,
+      playerPayload: inspection.player,
+      player,
+      proofBasisSha256: admitted.artifactSha256,
+      byteDigestSha256,
       inspection
     };
   }

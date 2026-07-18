@@ -16,6 +16,7 @@ import { createWildzIdentityRepository } from "../src/lib/receiz/wildz-identity-
 import { createWildzPendingVaultRepository } from "../src/lib/receiz/wildz-pending-vault";
 import type { WildzRemoteSession } from "../src/lib/receiz/wildz-session-bridge";
 import { createWildzVaultLoginCoordinator } from "../src/lib/receiz/wildz-vault-login-coordinator";
+import type { WildzProofArtifactVerifier } from "../src/lib/receiz/wildz-proof-sealed-vault";
 import { createMemoryWildzContinuityDatabase } from "./support/memory-wildz-continuity-database";
 import { createReceizCommercePlayerVaultFixture } from "./support/receiz-cross-platform-fixtures";
 
@@ -441,6 +442,70 @@ test("a cross-platform Receiz Commerce Vault restores its embedded player identi
   assert.equal(restored.restore.playState.inventory.length, 98);
   assert.deepEqual(restored.restore.verifiedAssetIds, value.assets.map((asset) => asset.id).sort());
   assert.equal(restored.restore.artifactKind, "commerce-vault");
+});
+
+test("an existing Commerce Vault logs in through v108 verified-legacy-read compatibility", async () => {
+  const value = fixture(12);
+  const player = createWildsPlayerVault({
+    playerId: "vault_keeper.receiz.id",
+    exportedAt: "2026-07-15T20:30:00.000Z",
+    playState: value.assets.reduce<PlayState>(
+      (state, asset) => applyWildsInput(state, { type: "import-card", asset }),
+      { ...structuredClone(initialPlayState), inventory: [], discoveredCardIds: [], pendingSyncAssetIds: [], companionProgress: {}, livingProgress: {}, selectedAssetId: "", selectedCardId: "" }
+    ),
+    settings: { avatarStyle: "female", movementMode: "walk", audio: {} },
+    personalEvents: [],
+    canonicalCursor: { worldId: "wilds:global:v3", revision: 2, eventId: null },
+    receipts: []
+  });
+  const bytes = await createReceizCommercePlayerVaultFixture(value.assets, player);
+  const artifactSha256 = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes.slice().buffer)))
+    .map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  const database = createMemoryWildzContinuityDatabase();
+  const repository = createWildzIdentityRepository({ database });
+  const codec = createWildzArtifactCodec({ identityRepository: repository, commerceVaultReader: { inspect: inspectReceizCommerceVault } });
+  let opened = 0;
+  const verifier = {
+    verifyArtifact: async () => { throw new Error("legacy_document_verifier_must_not_run"); },
+    openArtifact: async () => {
+      opened += 1;
+      return {
+        artifactBytes: bytes,
+        artifactSha256,
+        payloadBytes: bytes,
+        payloadSha256: artifactSha256,
+        filename: "existing.receizvault",
+        mimeType: "application/vnd.receiz.vault+zip",
+        ownerReceizId: player.playerId,
+        claimId: "legacy-commerce-claim",
+        verifyPath: "/v/legacy-commerce-claim",
+        recordId: null,
+        compatibility: "verified-legacy-read" as const
+      };
+    }
+  } satisfies WildzProofArtifactVerifier;
+  const coordinator = createWildzVaultLoginCoordinator({
+    database,
+    repository,
+    codec,
+    pending: createWildzPendingVaultRepository({ database }),
+    verifier,
+    remote: { current: async () => ({ status: "unknown", actorId: null, profileHandle: null, displayName: null }) }
+  });
+  await repository.bootstrap();
+
+  const restored = await coordinator.begin({
+    surface: "genesis",
+    bytes,
+    mimeType: "application/vnd.receiz.vault+zip",
+    name: "existing.receizvault"
+  });
+
+  assert.equal(restored.status, "committed");
+  if (restored.status !== "committed") return;
+  assert.equal(opened, 1);
+  assert.equal(restored.restore.session.actorId, "vault_keeper");
+  assert.equal(restored.restore.playState.inventory.length, value.assets.length);
 });
 
 test("an SDK-verified Identity Seal logs into its embedded identity and player without requiring OIDC", async () => {
