@@ -1,7 +1,6 @@
 import type {
   ReceizClient,
-  ReceizProofObjectCreateInput,
-  ReceizProofObjectCreateResult
+  ReceizProofObjectCreateInput
 } from "@receiz/sdk";
 import {
   readPortableCardFromPng,
@@ -10,6 +9,10 @@ import {
   verifyPortableVaultPng
 } from "../../features/play/card-export";
 import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
+import {
+  downloadAndReopenWildzArtifact,
+  type WildzArtifactPort
+} from "./wildz-artifact-custody";
 
 export type WildzExportProofObjectActor = {
   actorId: string;
@@ -28,16 +31,6 @@ function strictArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 async function sha256Hex(bytes: Uint8Array) {
   const digest = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", strictArrayBuffer(bytes)));
   return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function nonEmpty(value: unknown) {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
 }
 
 function safeSourceFilename(value: string) {
@@ -78,39 +71,13 @@ function requireOwnedWildzPng(
   }
 }
 
-function requireVerifiedContinuity(
-  result: ReceizProofObjectCreateResult,
-  actor: WildzExportProofObjectActor
-) {
-  const continuity = result.continuity;
-  const bundle = asRecord(result.verification.bundle);
-  const verifiedClaimId = typeof bundle.receizClaimId === "string"
-    ? bundle.receizClaimId.trim()
-    : "";
-  const verifiedPath = typeof bundle.verifyPath === "string"
-    ? bundle.verifyPath.trim()
-    : "";
-  const continuityPath = continuity.verifyPath.trim();
-  if (!result.verification.ok
-    || result.verification.integrity?.ok === false
-    || result.verification.errors.length > 0
-    || result.artifact.size <= 0
-    || continuity.carrier !== "native-record-seal"
-    || !sameWildzPlayerCoordinate(continuity.ownerReceizId, actor.profileHandle)
-    || !nonEmpty(continuity.claimId)
-    || !continuityPath.startsWith("/v/")
-    || verifiedClaimId !== continuity.claimId.trim()
-    || (continuityPath !== verifiedPath && !continuityPath.startsWith(`${verifiedPath}?`))) {
-    throw new Error("wildz_proof_object_continuity_invalid");
-  }
-}
-
 export async function createWildzExportProofObject(input: {
   actor: WildzExportProofObjectActor;
   bytes: Uint8Array;
   filename: string;
   kind: "card" | "vault";
   createProofObject: WildzExportProofObjectCreator;
+  artifacts: WildzArtifactPort;
 }) {
   requireOwnedWildzPng(input.kind, input.bytes, input.actor);
   const digest = await sha256Hex(input.bytes);
@@ -118,10 +85,13 @@ export async function createWildzExportProofObject(input: {
     assetType: "proof_object",
     payload: { mimeType: "image/png", bytes: input.bytes.slice() }
   };
-  const created = await input.createProofObject(proofObject, {
-    idempotencyKey: `wildz-v103-${digest}`,
+  const artifact = await input.createProofObject(proofObject, {
+    idempotencyKey: `wildz-v108-${digest}`,
     filename: safeSourceFilename(input.filename)
   });
-  requireVerifiedContinuity(created, input.actor);
-  return created;
+  const admitted = await downloadAndReopenWildzArtifact(artifact, input.artifacts);
+  if (!sameWildzPlayerCoordinate(admitted.ownerReceizId, input.actor.profileHandle)) {
+    throw new Error("wildz_proof_object_owner_mismatch");
+  }
+  return { artifact, admitted };
 }

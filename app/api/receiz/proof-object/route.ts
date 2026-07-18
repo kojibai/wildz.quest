@@ -58,15 +58,20 @@ export async function POST(request: NextRequest) {
       bytes: new Uint8Array(await file.arrayBuffer()),
       filename: file.name,
       kind,
-      createProofObject: adapter.client.assets.createProofObject
+      createProofObject: adapter.client.assets.createProofObject,
+      artifacts: {
+        verifyAndOpen: adapter.verifyAndOpenArtifact,
+        download: adapter.downloadArtifact
+      }
     });
+    const artifactBytes = created.admitted.artifactBytes;
     const headers = new Headers({
       "cache-control": "no-store",
-      "content-disposition": `attachment; filename=${kind === "vault" ? "wilds-vault" : "wilds-card"}.receized.png`,
-      "content-type": created.artifact.type || "image/png",
-      "x-wildz-proof-authority": "receiz-v105-native-record-seal"
+      "content-disposition": `attachment; filename=${created.admitted.filename}`,
+      "content-type": created.admitted.mimeType,
+      "x-wildz-proof-authority": "receiz-v108-native-record-seal"
     });
-    return new Response(created.artifact.stream(), { status: 200, headers });
+    return new Response(artifactBytes.slice().buffer, { status: 200, headers });
   } catch (cause) {
     const error = cause instanceof Error ? cause.message : "wildz_proof_object_failed";
     return json(error, statusFor(error));

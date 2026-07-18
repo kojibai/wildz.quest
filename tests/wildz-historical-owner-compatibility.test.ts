@@ -4,8 +4,9 @@ import {
   appendReceizIdentityArtifactTrailerToPng,
   createReceizIdentityKeyFile,
   type DocumentVerifyResponse,
+  type ReceizOpenedArtifact,
   type ReceizProofObjectCreateInput,
-  type ReceizProofObjectCreateResult
+  type ReceizSealedArtifact
 } from "@receiz/sdk";
 import {
   embedPortableVaultInPng,
@@ -133,24 +134,49 @@ function v103Verification(): DocumentVerifyResponse {
   };
 }
 
-async function fakeCreateResult(input: ReceizProofObjectCreateInput): Promise<ReceizProofObjectCreateResult> {
+async function fakeCreateResult(input: ReceizProofObjectCreateInput): Promise<ReceizSealedArtifact> {
   const claimId = "historical-owner-export-claim";
   const verifyPath = `/v/${claimId}`;
+  const artifact = new Blob([input.payload.bytes.slice().buffer], { type: "application/vnd.receiz.artifact" });
+  const artifactSha256 = Buffer.from(await crypto.subtle.digest("SHA-256", input.payload.bytes.slice().buffer)).toString("hex");
   return {
-    ok: true,
-    artifact: new Blob([input.payload.bytes.slice().buffer], { type: input.payload.mimeType }),
+    kind: "receiz.native-record-seal",
+    artifact,
+    filename: "historical-owner-vault.receiz",
+    mimeType: artifact.type,
+    artifactSha256,
+    payloadSha256: artifactSha256,
     verification: {
       ok: true,
       kind: "png",
+      integrity: { ok: true, errors: [] },
       errors: [],
       warnings: [],
       bundle: { receizClaimId: claimId, verifyPath }
     },
     continuity: {
       ownerReceizId: ACTOR_PROFILE,
+      recordId: "record:historical-owner:v108",
       claimId,
       verifyPath,
-      carrier: "native-record-seal"
+      carrier: "native-record-seal",
+      signatureVersion: 4
+    }
+  } as unknown as ReceizSealedArtifact;
+}
+
+function fakeArtifactPort(artifact: ReceizSealedArtifact, payload: Uint8Array) {
+  return {
+    async download() {
+      return { ok: true as const, filename: artifact.filename, mimeType: artifact.mimeType, size: artifact.artifact.size, artifactSha256: artifact.artifactSha256 };
+    },
+    async verifyAndOpen() {
+      return {
+        sealedArtifact: artifact,
+        verifiedPayload: { bytes: payload.slice(), filename: "historical-owner-vault.png", mimeType: "image/png", sha256: artifact.payloadSha256 },
+        verification: artifact.verification,
+        legacyCompatibility: "current-native"
+      } as unknown as ReceizOpenedArtifact;
     }
   };
 }
@@ -341,6 +367,7 @@ test("identity binding still rejects signed vault- and player-digest splices", a
 test("v103 native Vault export accepts historical card provenance when the embedded player is the authenticated actor", async () => {
   const value = historicalVaultPng();
   let creatorCalls = 0;
+  let issued: ReceizSealedArtifact | null = null;
   const created = await createWildzExportProofObject({
     actor: {
       actorId: ACTOR_ID,
@@ -352,14 +379,22 @@ test("v103 native Vault export accepts historical card provenance when the embed
     kind: "vault",
     async createProofObject(input) {
       creatorCalls += 1;
-      return fakeCreateResult(input);
+      issued = await fakeCreateResult(input);
+      return issued;
+    },
+    artifacts: {
+      async download(artifact) { return fakeArtifactPort(artifact, value.bytes).download(); },
+      async verifyAndOpen() {
+        if (!issued) throw new Error("artifact_missing");
+        return fakeArtifactPort(issued, value.bytes).verifyAndOpen();
+      }
     }
   });
 
   assert.equal(creatorCalls, 1);
-  assert.equal(created.continuity.ownerReceizId, ACTOR_PROFILE);
-  assert.equal(created.continuity.carrier, "native-record-seal");
-  assert.deepEqual(new Uint8Array(await created.artifact.arrayBuffer()), value.bytes);
+  assert.equal(created.admitted.ownerReceizId, ACTOR_PROFILE);
+  assert.equal(created.admitted.compatibility, "current-native");
+  assert.deepEqual(created.admitted.artifactBytes, value.bytes);
 });
 
 test("v103 native Vault export still rejects an embedded player that differs from the authenticated actor", async () => {
@@ -377,7 +412,8 @@ test("v103 native Vault export still rejects an embedded player that differs fro
     async createProofObject(input) {
       creatorCalls += 1;
       return fakeCreateResult(input);
-    }
+    },
+    artifacts: { download: async () => { throw new Error("not_called"); }, verifyAndOpen: async () => { throw new Error("not_called"); } }
   }), /wildz_proof_object_owner_mismatch/);
   assert.equal(creatorCalls, 0);
 });

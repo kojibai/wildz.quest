@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type {
+  ReceizOpenedArtifact,
   ReceizProofObjectCreateInput,
-  ReceizProofObjectCreateResult
+  ReceizSealedArtifact
 } from "@receiz/sdk";
 import {
   embedPortableCardInPng,
@@ -52,40 +53,73 @@ function vaultPng(owner = "vault_keeper") {
   return embedPortableVaultInPng(BASE_PNG, player.playState.inventory, player);
 }
 
-function nativeCreateResult(overrides: {
+async function sha256(bytes: Uint8Array) {
+  return Buffer.from(await crypto.subtle.digest("SHA-256", bytes.slice().buffer)).toString("hex");
+}
+
+async function nativeCreateResult(payloadBytes: Uint8Array, overrides: {
   ownerReceizId?: string;
   claimId?: string;
   verifyPath?: string;
-  verifiedClaimId?: string;
-  verifiedPath?: string;
   verificationOk?: boolean;
   verificationErrors?: string[];
-  carrier?: string;
   artifact?: Blob;
-} = {}): ReceizProofObjectCreateResult {
+} = {}): Promise<ReceizSealedArtifact> {
   const claimId = overrides.claimId ?? "wildz-v103-native-claim";
   const verifyPath = overrides.verifyPath ?? "/v/wildz-v103-native-claim";
-  return {
-    ok: true,
-    artifact: overrides.artifact ?? new Blob([
+  const artifact = overrides.artifact ?? new Blob([
       new TextEncoder().encode("byte-exact-native-record-seal").buffer
-    ], { type: "image/png" }),
+    ], { type: "application/vnd.receiz.artifact" });
+  const artifactBytes = new Uint8Array(await artifact.arrayBuffer());
+  return {
+    kind: "receiz.native-record-seal",
+    artifact,
+    filename: "wilds-vault.receiz",
+    mimeType: artifact.type,
+    artifactSha256: await sha256(artifactBytes),
+    payloadSha256: await sha256(payloadBytes),
     verification: {
       ok: overrides.verificationOk ?? true,
       kind: "bundle",
+      integrity: { ok: true, errors: [] },
       errors: overrides.verificationErrors ?? [],
       warnings: [],
-      bundle: {
-        receizClaimId: overrides.verifiedClaimId ?? claimId,
-        verifyPath: overrides.verifiedPath ?? verifyPath,
-        artifactSha256Basis: "a".repeat(64)
-      }
+      bundle: { receizClaimId: claimId, verifyPath }
     },
     continuity: {
       ownerReceizId: overrides.ownerReceizId ?? "vault_keeper.receiz.id",
+      recordId: "record:wildz:v108",
       claimId,
       verifyPath,
-      carrier: (overrides.carrier ?? "native-record-seal") as "native-record-seal"
+      carrier: "native-record-seal",
+      signatureVersion: 4
+    }
+  } as unknown as ReceizSealedArtifact;
+}
+
+function artifactPort(artifact: ReceizSealedArtifact, payloadBytes: Uint8Array) {
+  return {
+    async download() {
+      return {
+        ok: true as const,
+        filename: artifact.filename,
+        mimeType: artifact.mimeType,
+        size: artifact.artifact.size,
+        artifactSha256: artifact.artifactSha256
+      };
+    },
+    async verifyAndOpen(): Promise<ReceizOpenedArtifact> {
+      return {
+        sealedArtifact: artifact,
+        verifiedPayload: {
+          bytes: payloadBytes.slice(),
+          filename: "wilds-vault.png",
+          mimeType: "image/png",
+          sha256: artifact.payloadSha256
+        },
+        verification: artifact.verification,
+        legacyCompatibility: "current-native"
+      } as unknown as ReceizOpenedArtifact;
     }
   };
 }
@@ -93,7 +127,8 @@ function nativeCreateResult(overrides: {
 test("authenticated v103 native export submits only the validated PNG and returns the Record/Seal artifact byte-exact", async () => {
   const source = vaultPng();
   const nativeBytes = new TextEncoder().encode("native-record-seal-bytes-must-not-be-repacked");
-  const nativeArtifact = new Blob([nativeBytes.buffer], { type: "image/png" });
+  const nativeBlob = new Blob([nativeBytes.buffer], { type: "application/vnd.receiz.artifact" });
+  const nativeArtifact = await nativeCreateResult(source, { artifact: nativeBlob });
   let capturedInput: ReceizProofObjectCreateInput | null = null;
   let capturedOptions: { idempotencyKey: string; filename?: string } | null = null;
   const created = await createWildzExportProofObject({
@@ -108,8 +143,9 @@ test("authenticated v103 native export submits only the validated PNG and return
     async createProofObject(input, options) {
       capturedInput = input;
       capturedOptions = options;
-      return nativeCreateResult({ artifact: nativeArtifact });
-    }
+      return nativeArtifact;
+    },
+    artifacts: artifactPort(nativeArtifact, source)
   });
 
   assert.ok(capturedInput);
@@ -131,17 +167,18 @@ test("authenticated v103 native export submits only the validated PNG and return
     idempotencyKey: observedOptions.idempotencyKey
   }, {
     filename: "wilds-vault.png",
-    idempotencyKey: `wildz-v103-${await crypto.subtle.digest("SHA-256", source.slice().buffer).then((value) => Buffer.from(value).toString("hex"))}`
+    idempotencyKey: `wildz-v108-${await crypto.subtle.digest("SHA-256", source.slice().buffer).then((value) => Buffer.from(value).toString("hex"))}`
   });
   assert.strictEqual(created.artifact, nativeArtifact);
-  assert.deepEqual(new Uint8Array(await created.artifact.arrayBuffer()), nativeBytes);
-  assert.equal(created.continuity.carrier, "native-record-seal");
+  assert.deepEqual(created.admitted.artifactBytes, nativeBytes);
+  assert.equal(created.admitted.compatibility, "current-native");
+  assert.equal(created.admitted.ownerReceizId, "vault_keeper.receiz.id");
   assert.equal(verifyPortableVaultPng(source).ok, true);
 });
 
-test("v103 export rejects native continuity that does not match the authenticated owner, claim, path, or verifier verdict", async () => {
+test("v108 export rejects native continuity that does not match the authenticated owner or verifier verdict", async () => {
   const source = vaultPng();
-  const run = (result: ReceizProofObjectCreateResult) => createWildzExportProofObject({
+  const run = (result: ReceizSealedArtifact) => createWildzExportProofObject({
     actor: {
       actorId: "vault_keeper",
       profileHandle: "vault_keeper.receiz.id",
@@ -150,15 +187,15 @@ test("v103 export rejects native continuity that does not match the authenticate
     bytes: source,
     filename: "wilds-vault.png",
     kind: "vault",
-    createProofObject: async () => result
+    createProofObject: async () => result,
+    artifacts: artifactPort(result, source)
   });
 
-  await assert.rejects(run(nativeCreateResult({ ownerReceizId: "other.receiz.id" })), /wildz_proof_object_continuity_invalid/);
-  await assert.rejects(run(nativeCreateResult({ carrier: "portable_asset" })), /wildz_proof_object_continuity_invalid/);
-  await assert.rejects(run(nativeCreateResult({ verifiedClaimId: "spliced-claim" })), /wildz_proof_object_continuity_invalid/);
-  await assert.rejects(run(nativeCreateResult({ verifiedPath: "/v/spliced-path" })), /wildz_proof_object_continuity_invalid/);
-  await assert.rejects(run(nativeCreateResult({ verificationOk: false })), /wildz_proof_object_continuity_invalid/);
-  await assert.rejects(run(nativeCreateResult({ verificationErrors: ["native seal invalid"] })), /wildz_proof_object_continuity_invalid/);
+  await assert.rejects(run(await nativeCreateResult(source, { ownerReceizId: "other.receiz.id" })), /wildz_proof_object_owner_mismatch/);
+  await assert.rejects(run(await nativeCreateResult(source, { claimId: "" })), /wildz_artifact_verification_failed/);
+  await assert.rejects(run(await nativeCreateResult(source, { verifyPath: "/wrong/path" })), /wildz_artifact_verification_failed/);
+  await assert.rejects(run(await nativeCreateResult(source, { verificationOk: false })), /wildz_artifact_verification_failed/);
+  await assert.rejects(run(await nativeCreateResult(source, { verificationErrors: ["native seal invalid"] })), /wildz_artifact_verification_failed/);
 });
 
 test("v103 export validates the local Vault owner before any native proof-object network call", async () => {
@@ -174,8 +211,9 @@ test("v103 export validates the local Vault owner before any native proof-object
     kind: "vault",
     async createProofObject() {
       calls += 1;
-      return nativeCreateResult();
-    }
+      return nativeCreateResult(vaultPng());
+    },
+    artifacts: { download: async () => { throw new Error("not_called"); }, verifyAndOpen: async () => { throw new Error("not_called"); } }
   }), /wildz_proof_object_owner_mismatch/);
   assert.equal(calls, 0);
 });
@@ -190,7 +228,7 @@ test("v103 export validates the local card proof and owner before any native pro
   let calls = 0;
   const createProofObject = async () => {
     calls += 1;
-    return nativeCreateResult();
+    return nativeCreateResult(embedPortableCardInPng(BASE_PNG, asset));
   };
   const actor = {
     actorId: "other_keeper",
@@ -203,14 +241,16 @@ test("v103 export validates the local card proof and owner before any native pro
     bytes: BASE_PNG,
     filename: "mintcub.png",
     kind: "card",
-    createProofObject
+    createProofObject,
+    artifacts: { download: async () => { throw new Error("not_called"); }, verifyAndOpen: async () => { throw new Error("not_called"); } }
   }), /wilds_png_proof_missing/);
   await assert.rejects(createWildzExportProofObject({
     actor,
     bytes: embedPortableCardInPng(BASE_PNG, asset),
     filename: "mintcub.png",
     kind: "card",
-    createProofObject
+    createProofObject,
+    artifacts: { download: async () => { throw new Error("not_called"); }, verifyAndOpen: async () => { throw new Error("not_called"); } }
   }), /wildz_proof_object_owner_mismatch/);
   assert.equal(calls, 0);
 });
