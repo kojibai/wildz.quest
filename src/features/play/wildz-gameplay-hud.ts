@@ -1,4 +1,4 @@
-import { missionCards, selectedCard, type PlayState } from "./game-state";
+import { selectedCard, type PlayState } from "./game-state";
 
 const percent = (value: number) => Math.max(0, Math.min(100, Math.round(Number.isFinite(value) ? value : 0)));
 
@@ -17,7 +17,6 @@ export function projectWildzHud(
 ): WildzHudModel {
   const companion = selectedCard(state);
   const progression = state.companionProgress[companion.id] ?? { level: 1, xp: 0, bond: 0 };
-  const mission = missionCards[state.completedMissionIds.length % missionCards.length];
   return {
     player: {
       username: identity.username.trim(),
@@ -33,7 +32,7 @@ export function projectWildzHud(
     },
     energy: { current: percent(state.energy), maximum: 100 },
     xp: { current: Math.max(0, Math.round(state.cardXp)), progress: percent(state.cardXp % 100) },
-    mission: { title: mission.title, progress: percent(state.missionProgress) },
+    mission: { title: "Living Kai Story", progress: percent(state.missionProgress) },
     location: { x: state.player.x, z: state.player.z }
   };
 }

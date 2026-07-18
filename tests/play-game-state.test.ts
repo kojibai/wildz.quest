@@ -300,7 +300,7 @@ describe("Receiz Wilds game state", () => {
     assert.equal(next, initialPlayState);
   });
 
-  it("turns mission completion into a portable merchant reward card", () => {
+  it("turns legacy mission completion into a permanent story achievement", () => {
     const readyState: PlayState = {
       ...initialPlayState,
       completed: false,
@@ -314,8 +314,9 @@ describe("Receiz Wilds game state", () => {
 
     assert.equal(next.completed, true);
     assert.equal(next.missionProgress, 100);
-    assert.equal(next.rewardCards.length, 1);
-    assert.match(next.rewardCards[0].businessUse, /coupon/);
+    assert.equal(next.rewardCards.length, 0);
+    assert.ok(next.achievements.includes("first-light"));
+    assert.match(next.lastEvent, /First Light is now part of your story/);
     assert.equal(next.worldMastery, readyState.worldMastery + 25);
   });
 

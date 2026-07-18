@@ -103,13 +103,6 @@ export type HabitatNode = {
   tone: "grove" | "spark" | "trade" | "reward" | "gate";
 };
 
-export type MissionCard = {
-  id: string;
-  title: string;
-  reward: string;
-  requirement: string;
-};
-
 export type RewardCard = {
   id: string;
   title: string;
@@ -247,27 +240,6 @@ export const habitatNodes: HabitatNode[] = [
   { id: "trade-crossing", label: "Trade Crossing", position: [-0.7, 0, 1.8], tone: "trade" },
   { id: "reward-nest", label: "Reward Nest", position: [1.7, 0, 2.8], tone: "reward" },
   { id: "titan-gate", label: "Titan Gate", position: [3.4, 0, 1.5], tone: "gate" }
-];
-
-export const missionCards: MissionCard[] = [
-  {
-    id: "daily-expedition",
-    title: "Daily Wild Expedition",
-    reward: "Brandable reward card",
-    requirement: "Discover one companion and play a mission."
-  },
-  {
-    id: "bond-training",
-    title: "Train 3 companion cards",
-    reward: "+450 beans",
-    requirement: "Use card powers to raise mission progress."
-  },
-  {
-    id: "titan-challenge",
-    title: "Clear the Titan Gate",
-    reward: "Custom coupon slot",
-    requirement: "Bring a trained card into the gate mission."
-  }
 ];
 
 const LEGACY_PLACEHOLDER_OWNER = "wilds.player.receiz.id";
@@ -1417,7 +1389,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
 
   const progressGain = 16 + discoveredCards(state).length * 4 + Math.floor(selectedCard(state).power / 24);
   const nextProgress = Math.min(100, state.missionProgress + progressGain);
-  const earnedReward = nextProgress >= 100 && !state.rewardCards.some((reward) => reward.id === "merchant-perk");
+  const earnedAchievement = nextProgress >= 100 && !state.achievements.includes("first-light");
 
   return withWorldProgress(awardWorldMastery({
     ...state,
@@ -1426,25 +1398,18 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     cardXp: state.cardXp + 18,
     challenge: Math.min(100, state.challenge + 7),
     combo: state.combo + 1,
-    completed: state.completed || earnedReward,
+    completed: state.completed || earnedAchievement,
     energy: Math.max(0, state.energy - 10),
-    lastEvent: earnedReward
-      ? "Mission cleared. A brandable merchant reward card is now portable."
+    lastEvent: earnedAchievement
+      ? "Mission cleared. First Light is now part of your story."
       : `${selectedCard(state).name} played a mission power.`,
-    level: earnedReward ? Math.max(state.level, 9) : state.level,
+    level: earnedAchievement ? Math.max(state.level, 9) : state.level,
     missionProgress: nextProgress,
-    rewardCards: earnedReward
-      ? [
-          ...state.rewardCards,
-          {
-            id: "merchant-perk",
-            title: "Boost Coffee Wild Perk",
-            businessUse: "Merchant can map this to a coupon, VIP access, free item, or custom proof reward.",
-            value: "Customizable"
-          }
-        ]
-      : state.rewardCards,
-    completedMissionIds: earnedReward
+    rewardCards: state.rewardCards,
+    achievements: earnedAchievement
+      ? Array.from(new Set([...state.achievements, "first-light"]))
+      : state.achievements,
+    completedMissionIds: earnedAchievement
       ? Array.from(new Set([...state.completedMissionIds, "daily-expedition"]))
       : state.completedMissionIds,
     streak: state.streak + 1
