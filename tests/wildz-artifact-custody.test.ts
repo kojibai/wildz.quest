@@ -124,7 +124,7 @@ test("download requires exact bytes and a successful reopen", async () => {
   );
 });
 
-test("the production adapter exposes only current v108 artifact custody operations", () => {
+test("the production adapter exposes only current v109 artifact custody operations", () => {
   const adapter = createReceizCommerceAdapter();
   assert.equal(typeof adapter.verifyAndOpenArtifact, "function");
   assert.equal(typeof adapter.downloadArtifact, "function");

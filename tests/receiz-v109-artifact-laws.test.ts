@@ -2,40 +2,44 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
-  RECEIZ_V108_ARTIFACT_LAWS,
-  RECEIZ_V108_REGISTRY_DIGEST,
-  RECEIZ_V108_RELEASE_AUTHORITY
+  RECEIZ_V109_ARTIFACT_LAWS,
+  RECEIZ_V109_REGISTRY_DIGEST,
+  RECEIZ_V109_RELEASE_AUTHORITY
 } from "@receiz/sdk";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("ARTIFACT-001 through ARTIFACT-010 are pinned to the active v108 constitutional context", () => {
-  assert.deepEqual(RECEIZ_V108_ARTIFACT_LAWS, Array.from(
-    { length: 10 },
+test("ARTIFACT-001 through ARTIFACT-011 are pinned to the active v109 constitutional context", () => {
+  assert.deepEqual(RECEIZ_V109_ARTIFACT_LAWS, Array.from(
+    { length: 11 },
     (_, index) => `ARTIFACT-${String(index + 1).padStart(3, "0")}`
   ));
-  assert.equal(RECEIZ_V108_REGISTRY_DIGEST, "126ca9283fee4ef4c398dbcb958e861cbea191724fdab8eb08df55ff0c14bb79");
+  assert.equal(RECEIZ_V109_REGISTRY_DIGEST, "17f76b37c9fcd46f710239b5c1660b03cc34ec64bed30d1cc45c18d5d40eab70");
   assert.deepEqual({
-    proofObjectFirst: RECEIZ_V108_RELEASE_AUTHORITY.proofObjectFirst,
-    receizComReferenceBeforeDeveloperRails: RECEIZ_V108_RELEASE_AUTHORITY.receizComReferenceBeforeDeveloperRails,
-    queuedCommandIsGlobalCommitment: RECEIZ_V108_RELEASE_AUTHORITY.queuedCommandIsGlobalCommitment,
-    registryPayloadIsProofAuthority: RECEIZ_V108_RELEASE_AUTHORITY.registryPayloadIsProofAuthority
+    proofObjectFirst: RECEIZ_V109_RELEASE_AUTHORITY.proofObjectFirst,
+    receizComReferenceBeforeDeveloperRails: RECEIZ_V109_RELEASE_AUTHORITY.receizComReferenceBeforeDeveloperRails,
+    queuedCommandIsGlobalCommitment: RECEIZ_V109_RELEASE_AUTHORITY.queuedCommandIsGlobalCommitment,
+    registryPayloadIsProofAuthority: RECEIZ_V109_RELEASE_AUTHORITY.registryPayloadIsProofAuthority,
+    localArtifactVerificationRequiresNetwork: RECEIZ_V109_RELEASE_AUTHORITY.localArtifactVerificationRequiresNetwork,
+    historicalDeveloperSdkInstallable: RECEIZ_V109_RELEASE_AUTHORITY.historicalDeveloperSdkInstallable
   }, {
     proofObjectFirst: true,
     receizComReferenceBeforeDeveloperRails: true,
     queuedCommandIsGlobalCommitment: false,
-    registryPayloadIsProofAuthority: false
+    registryPayloadIsProofAuthority: false,
+    localArtifactVerificationRequiresNetwork: false,
+    historicalDeveloperSdkInstallable: false
   });
 });
 
-test("the ten-law custody matrix has executable repository evidence", () => {
+test("the eleven-law custody matrix has executable repository evidence", () => {
   const custody = read("src/lib/receiz/wildz-artifact-custody.ts");
   const exportSource = read("src/lib/receiz/wildz-proof-object-export.ts");
   const codec = read("src/lib/receiz/wildz-artifact-codec.ts");
   const history = read("src/lib/receiz/wildz-artifact-history.ts");
   const ownership = read("src/lib/receiz/wildz-bearer-ownership.ts");
   const route = read("app/api/market/claims/route.ts");
-  const evidence: Record<(typeof RECEIZ_V108_ARTIFACT_LAWS)[number], boolean> = {
+  const evidence: Record<(typeof RECEIZ_V109_ARTIFACT_LAWS)[number], boolean> = {
     "ARTIFACT-001": /assets\.createProofObject|createProofObject/.test(exportSource),
     "ARTIFACT-002": /downloadAndReopenWildzArtifact/.test(exportSource),
     "ARTIFACT-003": /sha256WildzArtifactBytes/.test(custody),
@@ -46,13 +50,14 @@ test("the ten-law custody matrix has executable repository evidence", () => {
     "ARTIFACT-008": /verified-legacy-read/.test(custody) && !/extractLegacyReceizPortableAssetDocument/.test(codec),
     "ARTIFACT-009": /wildz_artifact_history_conflict/.test(history) && /artifactBytes/.test(history),
     "ARTIFACT-010": /claimBearerAsset\(\{ artifact: opened\.sealedArtifact \}\)/.test(ownership)
-      && /multipart\/form-data/.test(route)
+      && /multipart\/form-data/.test(route),
+    "ARTIFACT-011": /verifyAndOpen/.test(custody) && !/fetch\(/.test(custody)
   };
-  assert.deepEqual(Object.keys(evidence), RECEIZ_V108_ARTIFACT_LAWS);
+  assert.deepEqual(Object.keys(evidence), RECEIZ_V109_ARTIFACT_LAWS);
   assert.ok(Object.values(evidence).every(Boolean), JSON.stringify(evidence));
 });
 
-test("v108 MCP and AI Skills expose the same current artifact and bearer operation map", () => {
+test("v109 MCP and AI Skills expose the same current artifact and bearer operation map", () => {
   const mcpOperations = read("node_modules/@receiz/mcp-server/dist/operations.d.ts");
   const aiManifest = JSON.parse(read("node_modules/@receiz/ai-skills/receiz-portable-artifacts/manifest.json")) as {
     version: string;
@@ -69,7 +74,7 @@ test("v108 MCP and AI Skills expose the same current artifact and bearer operati
     "receiz_bearer_asset_claim_plan",
     "receiz_bearer_asset_claim_execute"
   ]) assert.match(mcpOperations, new RegExp(tool));
-  assert.equal(aiManifest.version, "108.0.0");
-  assert.deepEqual(aiManifest.artifactLaws, RECEIZ_V108_ARTIFACT_LAWS);
-  assert.equal(aiManifest.requires.registryDigest, RECEIZ_V108_REGISTRY_DIGEST);
+  assert.equal(aiManifest.version, "109.0.0");
+  assert.deepEqual(aiManifest.artifactLaws, RECEIZ_V109_ARTIFACT_LAWS);
+  assert.equal(aiManifest.requires.registryDigest, RECEIZ_V109_REGISTRY_DIGEST);
 });

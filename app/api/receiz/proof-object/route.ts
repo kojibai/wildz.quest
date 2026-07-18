@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
       "cache-control": "no-store",
       "content-disposition": `attachment; filename=${created.admitted.filename}`,
       "content-type": created.admitted.mimeType,
-      "x-wildz-proof-authority": "receiz-v108-native-record-seal"
+      "x-wildz-proof-authority": "receiz-v109-native-record-seal"
     });
     return new Response(artifactBytes.slice().buffer, { status: 200, headers });
   } catch (cause) {

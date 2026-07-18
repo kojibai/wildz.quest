@@ -10,38 +10,38 @@ The exact local candidate passed the repository release gate and is qualified fo
 
 | Package | Requested version | Installed version | Role |
 |---|---|---|---|
-| `@receiz/sdk` | `108.0.0` | `108.0.0` | Application identity, artifact, native proof-object, constitutional compiler, command admission, causal replay, checker, and remote-rail client |
-| `@receiz/mcp-server` | `108.0.0` | `108.0.0` | Operator tooling; never application authority |
-| `@receiz/ai-skills` | `108.0.0` | `108.0.0` | V108 operator procedure guidance; never proof authority |
+| `@receiz/sdk` | `109.0.0` | `109.0.0` | Application identity, artifact, native proof-object, constitutional compiler, command admission, causal replay, checker, and remote-rail client |
+| `@receiz/mcp-server` | `109.0.0` | `109.0.0` | Operator tooling; never application authority |
+| `@receiz/ai-skills` | `109.0.0` | `109.0.0` | V109 operator procedure guidance; never proof authority |
 
-The finalized v108 SDK, MCP, and AI-skills packages resolve directly from the official npm registry, with their published integrity values pinned by the lockfile. `receiz.app.json` declares artifact-first authority with database authority disabled; the v108 compiler and `pnpm receiz:check` validate the repository integration plan, release identity, ruleset, and registry digest `126ca9283fee4ef4c398dbcb958e861cbea191724fdab8eb08df55ff0c14bb79`.
+The finalized v109 SDK, MCP, and AI-skills packages resolve directly from the official npm registry, with their published integrity values pinned by the lockfile. `receiz.app.json` declares artifact-first authority with database authority disabled; the v109 compiler and `pnpm receiz:check` validate the repository integration plan, release identity, ruleset, and registry digest `17f76b37c9fcd46f710239b5c1660b03cc34ec64bed30d1cc45c18d5d40eab70`.
 
 ## Local evidence
 
 | Gate | Result |
 |---|---|
-| `pnpm release:check` | Pass: v108 repository integration and release-identity checker, complete Node test suite, typecheck, lint, full tracked/untracked text secret scan, production build, and default Receiz doctor |
-| Historical migration compatibility | Pass: forward-only checkpoint retained; sealed artifacts, receipts, and heads preserved; current execution remains v108-only |
-| V108 offline authority | Pass: release identity asserts that a queued proposal is not a global commitment |
+| `pnpm release:check` | Pass: v109 repository integration and release-identity checker, complete Node test suite, typecheck, lint, full tracked/untracked text secret scan, production build, and default Receiz doctor |
+| Historical migration compatibility | Pass: forward-only checkpoint retained; sealed artifacts, receipts, and heads preserved; current execution remains v109-only |
+| V109 offline authority | Pass: release identity asserts that a queued proposal is not a global commitment |
 | Proof/Vault regressions | Pass in the full suite, including complete 97/98-card restore, canonical Identity Seal/key continuation, scoped legacy Vault recovery, compact historical-card custody admission, duplicate drops, revision reconciliation, pending-to-final admission, and atomic fork rejection |
-| Native proof-object continuity | Pass: v108 Record → Seal artifact, owner, record, claim, verify path, Signature V4, exact download digest, and exact-file reopen; `wildz-v108` retries bind to the payload digest |
+| Native proof-object continuity | Pass: v109 Record → Seal artifact, owner, record, claim, verify path, Signature V4, exact download digest, and exact-file reopen; `wildz-v109` retries bind to the payload digest |
 | Legacy compatibility | Pass: strict bounded app-owned reader plus payload digest, owner, namespace, prior-head, and revision checks |
 | Owner continuity | Pass: bearer claims consume only an SDK-opened complete artifact, return and reopen a native claimed artifact, exact duplicates drop, and divergent immutable origins or proof forks fail |
 | Public-profile continuity | Pass: verified cards publish before a non-empty owner profile; only marked sanitized anonymous profile JSON is cached by exact URL |
 | V3 ecology lifecycle | Pass: activation, resolution, historicization, expiry, cap release, causal replay, and retry idempotency |
-| Market settlement coordinator | Pass with local contract doubles: admitted trade, Receiz Connect transfer proof, corroborating wallet ledger event, conditional ownership append, and idempotent recovery; v108 exposes no Wildz-specific conditional append, so the live adapter remains fail-closed without that capability |
+| Market settlement coordinator | Pass with local contract doubles: admitted trade, Receiz Connect transfer proof, corroborating wallet ledger event, conditional ownership append, and idempotent recovery; v109 exposes no Wildz-specific conditional append, so the live adapter remains fail-closed without that capability |
 | Mobile entry | Chromium and WebKit pass: one-line Genesis copy, no horizontal overflow, and clean entry logs |
 | Gameplay presentation | Chromium mobile smoke passed; WebKit mobile world render was visually inspected at the release viewport |
 | PWA boundary | Real Chromium worker activation and offline navigation passed; an unvisited public route rendered offline guidance without leaking another page |
 
-The supplied production-shaped Vault was inspected without recording private bytes, paths, identity values, hashes, or card identifiers. It decoded to 98 cards with an embedded player. The exact artifact passed official Receiz verification, local byte/payload/card integrity checks, and Signature V4 verification. It authorizes exact player/card recovery into an artifact-scoped Wildz session. The server commits the historical-owner portion of that exact verified collection into the encrypted session, and gameplay accepts an older-owner card only with its compact membership proof. The artifact contains no Identity Seal or v108 owner-continuity binding, so canonical account-only writes remain Identity Seal/key-gated.
+The supplied production-shaped Vault was inspected without recording private bytes, paths, identity values, hashes, or card identifiers. It decoded to 98 cards with an embedded player. The exact artifact passed official Receiz verification, local byte/payload/card integrity checks, and Signature V4 verification. It authorizes exact player/card recovery into an artifact-scoped Wildz session. The server commits the historical-owner portion of that exact verified collection into the encrypted session, and gameplay accepts an older-owner card only with its compact membership proof. The artifact contains no Identity Seal or v109 owner-continuity binding, so canonical account-only writes remain Identity Seal/key-gated.
 
 ## Pending external evidence
 
 The following remain production or externally authorized gates and were not rewritten as local passes:
 
 - `pnpm receiz:doctor:strict` was attempted and failed closed before live probes because the production credentials and configuration were absent; strict-live qualification remains pending.
-- Remote world, public-profile, market, payment, transfer, settlement, and publication mutations remain pending. The shared-world bootstrap is implemented and fail-closed, but requires the server-only `RECEIZ_CONNECT_ACCESS_TOKEN` and authorized production qualification. V108 does not expose the Wildz-specific conditional market ownership append, and the local paths fail closed until the configured Receiz deployment admits every required capability.
+- Remote world, public-profile, market, payment, transfer, settlement, and publication mutations remain pending. The shared-world bootstrap is implemented and fail-closed, but requires the server-only `RECEIZ_CONNECT_ACCESS_TOKEN` and authorized production qualification. V109 does not expose the Wildz-specific conditional market ownership append, and the local paths fail closed until the configured Receiz deployment admits every required capability.
 - The external six-writer artifact exercise remains pending; its six-writer local fixtures passed.
 - Deployment, tag, push, and production publication were not performed.
 

@@ -2,7 +2,7 @@ import type { WildzContinuityDatabase } from "../storage/wildz-indexed-db";
 import type { WildzAdmittedArtifact } from "./wildz-artifact-custody";
 
 export type WildzArtifactHistoryEntry = Readonly<{
-  schema: "receiz.wildz.artifact_history.v108";
+  schema: "receiz.wildz.artifact_history.v108" | "receiz.wildz.artifact_history.v109";
   artifactSha256: string;
   payloadSha256: string;
   artifactBytes: Uint8Array;
@@ -20,8 +20,7 @@ function sameBytes(left: Uint8Array, right: Uint8Array) {
 }
 
 function sameEntry(left: WildzArtifactHistoryEntry, right: WildzArtifactHistoryEntry) {
-  return left.schema === right.schema
-    && left.artifactSha256 === right.artifactSha256
+  return left.artifactSha256 === right.artifactSha256
     && left.payloadSha256 === right.payloadSha256
     && left.filename === right.filename
     && left.mimeType === right.mimeType
@@ -35,7 +34,7 @@ function sameEntry(left: WildzArtifactHistoryEntry, right: WildzArtifactHistoryE
 
 function entryFrom(admitted: WildzAdmittedArtifact): WildzArtifactHistoryEntry {
   return {
-    schema: "receiz.wildz.artifact_history.v108",
+    schema: "receiz.wildz.artifact_history.v109",
     artifactSha256: admitted.artifactSha256,
     payloadSha256: admitted.payloadSha256,
     artifactBytes: admitted.artifactBytes.slice(),

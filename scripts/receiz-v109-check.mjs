@@ -5,17 +5,17 @@ import { basename, join, resolve } from "node:path";
 import {
   RECEIZ_RELEASE_VERSION,
   RECEIZ_RULESET_VERSION,
-  RECEIZ_V108_ARTIFACT_LAWS,
-  RECEIZ_V108_REGISTRY_DIGEST,
-  RECEIZ_V108_RELEASE_AUTHORITY
+  RECEIZ_V109_ARTIFACT_LAWS,
+  RECEIZ_V109_REGISTRY_DIGEST,
+  RECEIZ_V109_RELEASE_AUTHORITY
 } from "@receiz/sdk";
 import { checkReceizIntegration } from "@receiz/sdk/compiler";
 
-const TARGET_VERSION = "108.0.0";
-const TARGET_REGISTRY_DIGEST = "126ca9283fee4ef4c398dbcb958e861cbea191724fdab8eb08df55ff0c14bb79";
-const TARGET_LAWS = Array.from({ length: 10 }, (_, index) => `ARTIFACT-${String(index + 1).padStart(3, "0")}`);
+const TARGET_VERSION = "109.0.0";
+const TARGET_REGISTRY_DIGEST = "17f76b37c9fcd46f710239b5c1660b03cc34ec64bed30d1cc45c18d5d40eab70";
+const TARGET_LAWS = Array.from({ length: 11 }, (_, index) => `ARTIFACT-${String(index + 1).padStart(3, "0")}`);
 const sourceRoot = resolve(process.cwd());
-const snapshotRoot = await mkdtemp(join(tmpdir(), "wildz-receiz-v108-check-"));
+const snapshotRoot = await mkdtemp(join(tmpdir(), "wildz-receiz-v109-check-"));
 const ignoredDirectories = new Set([
   ".git", ".next", ".playwright-cli", ".pnpm-store", ".superpowers", ".test-build", ".worktrees",
   "build", "coverage", "dist", "node_modules", "out", "output", "tmp"
@@ -37,32 +37,34 @@ async function assertCompilerBoundary(directory) {
     if (!/\.(?:[cm]?[jt]sx?|md)$/.test(entry.name)) continue;
     const source = await readFile(path, "utf8");
     if (/from\s*["']@receiz\/sdk\/v107["']|import\s*\(["']@receiz\/sdk\/v107["']\)/.test(source)) {
-      throw new Error(`receiz_v108_historical_sdk_import:${path.slice(directory.length + 1)}`);
+      throw new Error(`receiz_v109_historical_sdk_import:${path.slice(directory.length + 1)}`);
     }
     if (/(?:import\s+(?:\*\s+as\s+\w+|[A-Za-z_$][\w$]*)\s+from\s*|import\s*\()(["'])@receiz\/sdk\1/.test(source)) {
-      throw new Error(`receiz_v108_ambiguous_root_import:${path.slice(directory.length + 1)}`);
+      throw new Error(`receiz_v109_ambiguous_root_import:${path.slice(directory.length + 1)}`);
     }
     for (const match of source.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s+from\s*["']@receiz\/sdk["']/g)) {
       const imported = (match[1] ?? "").split(",").map((value) => value.replace(/^type\s+/, "").trim().split(/\s+as\s+/)[0]);
       const compilerImport = imported.find((name) => compilerSymbols.has(name));
-      if (compilerImport) throw new Error(`receiz_v108_compiler_import_on_runtime:${compilerImport}`);
+      if (compilerImport) throw new Error(`receiz_v109_compiler_import_on_runtime:${compilerImport}`);
     }
   }
 }
 
 function assertReleaseIdentity() {
   if (RECEIZ_RELEASE_VERSION !== TARGET_VERSION || RECEIZ_RULESET_VERSION !== TARGET_VERSION) {
-    throw new Error("receiz_v108_release_identity_mismatch");
+    throw new Error("receiz_v109_release_identity_mismatch");
   }
-  if (RECEIZ_V108_REGISTRY_DIGEST !== TARGET_REGISTRY_DIGEST) throw new Error("receiz_v108_registry_digest_mismatch");
-  if (JSON.stringify(RECEIZ_V108_ARTIFACT_LAWS) !== JSON.stringify(TARGET_LAWS)) {
-    throw new Error("receiz_v108_artifact_laws_mismatch");
+  if (RECEIZ_V109_REGISTRY_DIGEST !== TARGET_REGISTRY_DIGEST) throw new Error("receiz_v109_registry_digest_mismatch");
+  if (JSON.stringify(RECEIZ_V109_ARTIFACT_LAWS) !== JSON.stringify(TARGET_LAWS)) {
+    throw new Error("receiz_v109_artifact_laws_mismatch");
   }
-  if (!RECEIZ_V108_RELEASE_AUTHORITY.proofObjectFirst
-    || !RECEIZ_V108_RELEASE_AUTHORITY.receizComReferenceBeforeDeveloperRails
-    || RECEIZ_V108_RELEASE_AUTHORITY.queuedCommandIsGlobalCommitment !== false
-    || RECEIZ_V108_RELEASE_AUTHORITY.registryPayloadIsProofAuthority !== false) {
-    throw new Error("receiz_v108_authority_mismatch");
+  if (!RECEIZ_V109_RELEASE_AUTHORITY.proofObjectFirst
+    || !RECEIZ_V109_RELEASE_AUTHORITY.receizComReferenceBeforeDeveloperRails
+    || RECEIZ_V109_RELEASE_AUTHORITY.queuedCommandIsGlobalCommitment !== false
+    || RECEIZ_V109_RELEASE_AUTHORITY.registryPayloadIsProofAuthority !== false
+    || RECEIZ_V109_RELEASE_AUTHORITY.localArtifactVerificationRequiresNetwork !== false
+    || RECEIZ_V109_RELEASE_AUTHORITY.historicalDeveloperSdkInstallable !== false) {
+    throw new Error("receiz_v109_authority_mismatch");
   }
 }
 
@@ -94,11 +96,11 @@ try {
     releaseIdentity: {
       releaseVersion: RECEIZ_RELEASE_VERSION,
       rulesetVersion: RECEIZ_RULESET_VERSION,
-      registryDigest: RECEIZ_V108_REGISTRY_DIGEST
+      registryDigest: RECEIZ_V109_REGISTRY_DIGEST
     },
-    artifactLaws: RECEIZ_V108_ARTIFACT_LAWS,
-    releaseAuthority: RECEIZ_V108_RELEASE_AUTHORITY,
-    reviewedV108ScannerFinding: officialResult.blockingFindings.some(
+    artifactLaws: RECEIZ_V109_ARTIFACT_LAWS,
+    releaseAuthority: RECEIZ_V109_RELEASE_AUTHORITY,
+    reviewedV109ScannerFinding: officialResult.blockingFindings.some(
       (finding) => finding.code === reviewedScannerCode
     )
       ? "Runtime-only named imports were independently parsed; no compiler symbol uses the universal entrypoint."

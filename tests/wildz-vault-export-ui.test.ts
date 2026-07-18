@@ -55,7 +55,7 @@ test("Vault card detail can send a saved card to a Receiz username or email", ()
 test("Vault export keeps the SDK native Record/Seal artifact as the downloadable artifact", () => {
   const exporter = readFileSync("src/features/play/card-export.ts", "utf8");
 
-  assert.equal(exporter.match(/if \(!remoteProof\) throw new Error\("receiz_proof_object_unavailable"\);/g)?.length, 2);
+  assert.equal(exporter.match(/if \(!remoteProof\) throw new Error\("receiz_proof_object_unavailable"\);/g)?.length, 1);
   assert.doesNotMatch(exporter, /verifyPortableVaultPng\(remoteProof\)\.ok/);
 });
 

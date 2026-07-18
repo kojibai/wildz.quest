@@ -55,7 +55,7 @@ const nextConfig = {
   reactStrictMode: true,
   webpack(config, { isServer, webpack }) {
     if (!isServer) {
-      // SDK v108 exposes its Node-only compilers through @receiz/sdk/compiler.
+      // SDK v109 exposes its Node-only compilers through @receiz/sdk/compiler.
       // Keep those unused compiler built-ins outside client bundles until the
       // package publishes a dedicated browser export condition.
       config.plugins.push(

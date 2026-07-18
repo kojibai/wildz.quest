@@ -27,8 +27,33 @@ test("complete verified artifacts are retained exactly and duplicate admission i
   const second = await history.append(artifact());
 
   assert.deepEqual(second, first);
+  assert.equal(first.schema, "receiz.wildz.artifact_history.v109");
   assert.deepEqual((await history.read("a".repeat(64)))?.artifactBytes, new Uint8Array([1, 2, 3]));
   assert.equal((await history.list()).length, 1);
+});
+
+test("v108 history remains idempotent when the same verified artifact is admitted under v109", async () => {
+  const database = createMemoryWildzContinuityDatabase();
+  const admitted = artifact();
+  await database.transaction(["artifacts"], "readwrite", async (tx) => {
+    await tx.put("artifacts", {
+      schema: "receiz.wildz.artifact_history.v108",
+      artifactSha256: admitted.artifactSha256,
+      payloadSha256: admitted.payloadSha256,
+      artifactBytes: admitted.artifactBytes,
+      filename: admitted.filename,
+      mimeType: admitted.mimeType,
+      ownerReceizId: admitted.ownerReceizId,
+      claimId: admitted.claimId,
+      verifyPath: admitted.verifyPath,
+      recordId: admitted.recordId,
+      compatibility: admitted.compatibility
+    }, admitted.artifactSha256);
+  });
+
+  const existing = await createWildzArtifactHistory(database).append(admitted);
+  assert.equal(existing.schema, "receiz.wildz.artifact_history.v108");
+  assert.equal((await createWildzArtifactHistory(database).list()).length, 1);
 });
 
 test("an existing artifact digest can never be overwritten with different provenance or bytes", async () => {

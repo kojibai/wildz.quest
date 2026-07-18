@@ -263,7 +263,7 @@ export type EmbeddedReceizProofObject = {
   artifactBytes: Uint8Array;
 };
 
-/** Extracts the opaque legacy carrier. Only the v108 SDK may open these bytes. */
+/** Extracts the opaque legacy carrier. Only the v109 SDK may open these bytes. */
 export function readReceizProofObjectFromPng(source: Uint8Array): EmbeddedReceizProofObject {
   const chunks = parsePng(source);
   const proofChunks = chunks.filter((chunk) => chunk.type === PROOF_OBJECT_CHUNK_TYPE);
@@ -274,7 +274,7 @@ export function readReceizProofObjectFromPng(source: Uint8Array): EmbeddedReceiz
   return { artifactBytes };
 }
 
-/** @deprecated Test-only carrier helper. Native v108 artifacts must never be wrapped. */
+/** @deprecated Test-only carrier helper. Native v109 artifacts must never be wrapped. */
 export function embedReceizProofObjectInPng(source: Uint8Array, artifactBytes: Uint8Array) {
   const chunks = parsePng(source);
   if (chunks.some((chunk) => chunk.type === PROOF_OBJECT_CHUNK_TYPE)) {

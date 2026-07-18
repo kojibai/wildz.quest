@@ -7,7 +7,7 @@ import {
   verifyWildzArtifactSameOrigin
 } from "../src/lib/receiz/wildz-same-origin-verifier";
 
-test("v108 artifact opening returns only SDK-admitted payload and continuity coordinates", async () => {
+test("v109 artifact opening returns only SDK-admitted payload and continuity coordinates", async () => {
   const artifactBytes = new TextEncoder().encode("sealed-artifact");
   const payloadBytes = new TextEncoder().encode("verified-payload");
   let header = "";
@@ -31,7 +31,7 @@ test("v108 artifact opening returns only SDK-admitted payload and continuity coo
     }), { status: 200, headers: { "content-type": "application/json" } });
   });
 
-  assert.equal(header, "v108");
+  assert.equal(header, "v109");
   assert.deepEqual(admitted.artifactBytes, artifactBytes);
   assert.deepEqual(admitted.payloadBytes, payloadBytes);
   assert.equal(admitted.recordId, "record-v108");

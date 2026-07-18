@@ -25,7 +25,7 @@ export async function POST(request: Request) {
   if (!(file instanceof Blob)) {
     return NextResponse.json({ ok: false, kind: "unknown", errors: ["file_required"], warnings: [] }, { status: 400 });
   }
-  if (request.headers.get("x-wildz-artifact-open") === "v108") {
+  if (request.headers.get("x-wildz-artifact-open") === "v109") {
     try {
       const filename = file instanceof File ? file.name : "wildz.receized";
       const client = createReceizClient({ baseUrl });
