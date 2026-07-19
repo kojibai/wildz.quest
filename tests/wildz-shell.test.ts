@@ -54,13 +54,12 @@ test("a Vault without a display name keeps its restored Receiz username visible 
   assert.match(source, /playerDisplayName=\{identity\.displayName \?\? `@\$\{ownerUsername\}`\}/);
 });
 
-test("every admitted identity enters by local proof and obtains delegated Connect authority when the world requires it", () => {
+test("every admitted identity stays in Wildz when delegated world authority is unavailable", () => {
   const source = read("src/features/shell/WildzApp.tsx");
 
   assert.match(source, /connectWildzProofSession/);
   assert.doesNotMatch(source, /continueLocalIdentity|\/api\/auth\/receiz\/start/);
-  assert.match(source, /WildzWorldConnectRequiredError/);
-  assert.match(source, /window\.location\.assign\(cause\.connectUrl\)/);
+  assert.doesNotMatch(source, /WildzWorldConnectRequiredError|window\.location\.assign|connectUrl/);
 });
 
 test("a matching proof session connects gameplay only after canonical world bootstrap", () => {

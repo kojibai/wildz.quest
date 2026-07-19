@@ -31,16 +31,6 @@ export function parseWildsRoomKey(value: unknown) {
   return roomKey;
 }
 
-export function wildsWorldConnectUrl(request: NextRequest, returnTo = "/") {
-  const params = new URLSearchParams({ returnTo });
-  try {
-    params.set("usernameHint", readWildzProofSessionCookie(request).profileHandle);
-  } catch {
-    // The Connect start route can still render without an identity hint.
-  }
-  return `/api/auth/receiz/start?${params.toString()}`;
-}
-
 export async function resolveWildsMultiplayerActor(request: NextRequest, guestValue?: unknown): Promise<WildsMultiplayerActor> {
   let proofSession: ReturnType<typeof readWildzProofSessionCookie> | null = null;
   try {

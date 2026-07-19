@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { bootstrapWildsWorld } from "@/lib/receiz/wilds-world-server";
-import { wildsWorldConnectUrl } from "@/lib/receiz/wilds-multiplayer-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,8 +25,7 @@ export async function POST(request: NextRequest) {
       ok: false,
       error: proofRequired || connectRequired || SAFE_BOOTSTRAP_ERRORS.has(message)
         ? message
-        : "wilds_world_bootstrap_unavailable",
-      ...(connectRequired ? { connectUrl: wildsWorldConnectUrl(request) } : {})
+        : "wilds_world_bootstrap_unavailable"
     }, {
       status: proofRequired || connectRequired ? 401 : 503,
       headers: NO_STORE_HEADERS

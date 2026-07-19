@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { worldSnapshot } from "@/lib/receiz/wilds-world-server";
-import { wildsWorldConnectUrl } from "@/lib/receiz/wilds-multiplayer-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,8 +13,7 @@ export async function GET(request: NextRequest) {
       || message === "wilds_world_connect_identity_mismatch";
     return NextResponse.json({
       ok: false,
-      error: message,
-      ...(connectRequired ? { connectUrl: wildsWorldConnectUrl(request) } : {})
+      error: message
     }, {
       status: connectRequired ? 401 : 503,
       headers: { "cache-control": "private, no-store" }

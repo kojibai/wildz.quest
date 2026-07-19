@@ -64,6 +64,13 @@ describe("Wilds world client contract", () => {
     assert.doesNotMatch(route, /projection:\s*await worldSnapshot/);
   });
 
+  it("never exposes a Receiz navigation target from world APIs", () => {
+    for (const path of ["bootstrap", "snapshot", "command"]) {
+      const route = readFileSync(`app/api/wilds/world/${path}/route.ts`, "utf8");
+      assert.doesNotMatch(route, /connectUrl|wildsWorldConnectUrl|\/api\/auth\/receiz\/start/);
+    }
+  });
+
   it("keeps online request failures reconnecting even when the request carries a guest id", () => {
     const source = readFileSync("src/features/play/use-wilds-world.ts", "utf8");
 
@@ -71,6 +78,7 @@ describe("Wilds world client contract", () => {
     assert.equal(wildsWorldModeAfterRequestFailure(false, "receiz_live"), "receiz_live");
     assert.equal(wildsWorldModeAfterRequestFailure(true, "receiz_live"), "local_practice");
     assert.doesNotMatch(source, /offline\s*\|\|\s*input\.guestId/);
+    assert.doesNotMatch(source, /window\.location\.assign|\/api\/auth\/receiz\/start|connectUrl/);
   });
 
   it("enters the live client mode immediately after the shell confirms canonical bootstrap", () => {

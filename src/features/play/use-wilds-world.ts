@@ -98,12 +98,6 @@ export function useWildsWorld(input: {
       const response = await fetch(url, { ...init, signal: controller.signal });
       const value = await response.json().catch(() => null) as Record<string, unknown> | null;
       if (!response.ok || !value) {
-        if ((value?.error === "wilds_world_connect_required"
-            || value?.error === "wilds_world_connect_identity_mismatch")
-          && typeof value.connectUrl === "string"
-          && value.connectUrl.startsWith("/api/auth/receiz/start?")) {
-          window.location.assign(value.connectUrl);
-        }
         throw new Error(typeof value?.error === "string" ? value.error : "wilds_world_request_failed");
       }
       return value;

@@ -169,14 +169,13 @@ test("an authenticated proof session without its returned Connect token fails be
   assert.equal(recoveries, 0);
 });
 
-test("the bootstrap route returns a Connect URL when delegated player access is missing", async () => {
+test("the bootstrap route reports missing delegated access without a navigation target", async () => {
   const response = await bootstrapRoute(proofRequest({ accessToken: "" }).request);
 
   assert.equal(response.status, 401);
   assert.deepEqual(await response.json(), {
     ok: false,
-    error: "wilds_world_connect_required",
-    connectUrl: "/api/auth/receiz/start?returnTo=%2F&usernameHint=bjklock.receiz.id"
+    error: "wilds_world_connect_required"
   });
   assert.equal(response.headers.get("cache-control"), "private, no-store");
 });

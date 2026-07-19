@@ -41,16 +41,6 @@ export type WildzSharedWorldBootstrap = {
   [key: string]: unknown;
 };
 
-export class WildzWorldConnectRequiredError extends Error {
-  readonly connectUrl: string;
-
-  constructor(connectUrl: string) {
-    super("wilds_world_connect_required");
-    this.name = "WildzWorldConnectRequiredError";
-    this.connectUrl = connectUrl;
-  }
-}
-
 const UNKNOWN_REMOTE_SESSION: WildzRemoteSession = {
   status: "unknown",
   actorId: null,
@@ -116,15 +106,7 @@ export async function bootstrapWildzSharedWorld(
     });
     const value = await response.json().catch(() => null) as Record<string, unknown> | null;
     const projection = value?.projection as Record<string, unknown> | undefined;
-    if (!response.ok) {
-      if ((value?.error === "wilds_world_connect_required"
-          || value?.error === "wilds_world_connect_identity_mismatch")
-        && typeof value.connectUrl === "string"
-        && value.connectUrl.startsWith("/api/auth/receiz/start?")) {
-        throw new WildzWorldConnectRequiredError(value.connectUrl);
-      }
-      throw new Error("wildz_world_bootstrap_unavailable");
-    }
+    if (!response.ok) throw new Error("wildz_world_bootstrap_unavailable");
     if (value?.ok !== true
       || value.mode !== "receiz_live"
       || projection?.schema !== "receiz.wilds_world_projection.v3"
@@ -134,8 +116,7 @@ export async function bootstrapWildzSharedWorld(
       throw new Error("wildz_world_bootstrap_unavailable");
     }
     return value as WildzSharedWorldBootstrap;
-  } catch (error) {
-    if (error instanceof WildzWorldConnectRequiredError) throw error;
+  } catch {
     throw new Error("wildz_world_bootstrap_unavailable");
   }
 }

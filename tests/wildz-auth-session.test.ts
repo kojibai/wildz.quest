@@ -503,8 +503,8 @@ test("proof-native auth exposes only a safe same-origin session while legacy PKC
   assert.match(bridge, /cache:\s*"no-store"/);
   assert.match(bridge, /\/api\/auth\/wildz\/session/);
   assert.match(bridge, /\/api\/auth\/wildz\/vault-session/);
-  assert.match(bridge, /wilds_world_connect_required/);
-  assert.match(bridge, /\/api\/auth\/receiz\/start/);
+  assert.doesNotMatch(bridge, /wilds_world_connect_required/);
+  assert.doesNotMatch(bridge, /\/api\/auth\/receiz\/start|connectUrl|window\.location/);
   assert.doesNotMatch(bridge, /continueLocalIdentity|navigate/);
   assert.match(multiplayer, /readWildzProofSessionCookie/);
   assert.doesNotMatch(multiplayer, /if \(session\.cookieAccessToken\)/);
