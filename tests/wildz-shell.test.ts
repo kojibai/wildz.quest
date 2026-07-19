@@ -54,24 +54,25 @@ test("a Vault without a display name keeps its restored Receiz username visible 
   assert.match(source, /playerDisplayName=\{identity\.displayName \?\? `@\$\{ownerUsername\}`\}/);
 });
 
-test("every admitted identity enters by local proof and extends to a same-origin session without OAuth navigation", () => {
+test("every admitted identity enters by local proof and obtains delegated Connect authority when the world requires it", () => {
   const source = read("src/features/shell/WildzApp.tsx");
 
   assert.match(source, /connectWildzProofSession/);
   assert.doesNotMatch(source, /continueLocalIdentity|\/api\/auth\/receiz\/start/);
-  assert.doesNotMatch(source, /window\.location\.assign/);
+  assert.match(source, /WildzWorldConnectRequiredError/);
+  assert.match(source, /window\.location\.assign\(cause\.connectUrl\)/);
 });
 
-test("a matching proof session connects gameplay before best-effort world bootstrap", () => {
+test("a matching proof session connects gameplay only after canonical world bootstrap", () => {
   const source = read("src/features/shell/WildzApp.tsx");
   const matched = source.indexOf("wildzRemoteSessionMatchesIdentity(identity, session)");
   const connected = source.indexOf("setProofSessionConnected(true)", matched);
   const bootstrap = source.indexOf("bootstrapWildzSharedWorld", matched);
 
   assert.ok(matched >= 0);
-  assert.ok(connected > matched);
-  assert.ok(bootstrap > connected);
-  assert.doesNotMatch(source.slice(matched, bootstrap), /await bootstrapWildzSharedWorld/);
+  assert.ok(bootstrap > matched);
+  assert.ok(connected > bootstrap);
+  assert.match(source.slice(matched, connected), /await bootstrapWildzSharedWorld/);
 });
 
 test("fresh genesis, Identity Seal restore, and identity-bearing Vault restore converge on the same snapshot gate", () => {

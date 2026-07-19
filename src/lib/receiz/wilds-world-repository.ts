@@ -23,7 +23,7 @@ export type WildsWorldPublication = {
 export type WildsWorldHead = { revision: number; lastEventId: string | null };
 
 export interface WildsWorldRepository {
-  recover(sourceUrl: string): Promise<WildsWorldRecord | null>;
+  recover(sourceUrl: string, actor?: WildsWorldRepositoryActor): Promise<WildsWorldRecord | null>;
   publish(input: {
     sourceUrl: string;
     actor: WildsWorldRepositoryActor;
@@ -103,8 +103,8 @@ export function createReceizWildsWorldRepository(options: {
   ).createReceizCommerceAdapter(adapterOptions));
 
   return {
-    async recover(sourceUrl) {
-      const adapter = await adapterFactory();
+    async recover(sourceUrl, actor) {
+      const adapter = await adapterFactory(actor?.accessToken ? { accessToken: actor.accessToken } : undefined);
       return findWildsWorldRecord(await adapter.readAppStateByUrl(sourceUrl));
     },
 

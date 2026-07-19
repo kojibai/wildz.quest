@@ -19,6 +19,7 @@ const hydrationKey = Symbol.for("receiz.wilds.world.hydrated.v3");
 const repositoryKey = Symbol.for("receiz.wilds.world.repository.v3");
 const mutationQueueKey = Symbol.for("receiz.wilds.world.mutation_queue.v3");
 let priorSecret: string | undefined;
+let priorFetch: typeof globalThis.fetch;
 
 function clearWorldGlobals() {
   const root = globalThis as Record<symbol, unknown>;
@@ -32,7 +33,7 @@ function canonicalWorld(pulse = GENESIS_PULSE): WildsWorldRecord {
   return { checkpoint: canonical.checkpoint(), eventTail: canonical.events() };
 }
 
-function proofRequest() {
+function proofRequest(options: { accessToken?: string; profileHandle?: string } = {}) {
   const session = createWildzVaultProofSession({
     actorId: "bjklock",
     profileHandle: "bjklock.receiz.id",
@@ -42,12 +43,21 @@ function proofRequest() {
     issuedAt: Date.now()
   }, SECRET);
   const token = packWildzProofSession(session, SECRET);
+  const accessToken = options.accessToken === undefined ? "player-connect-token" : options.accessToken;
+  const cookies = [
+    `${WILDZ_PROOF_SESSION_COOKIE}=${token}`,
+    ...(accessToken ? [
+      `receiz_access_token=${accessToken}`,
+      "receiz_session_scope=wildz.quest%3Av1"
+    ] : [])
+  ];
   return {
     request: new NextRequest("https://wildz.quest/api/wilds/world/bootstrap", {
       method: "POST",
-      headers: { cookie: `${WILDZ_PROOF_SESSION_COOKIE}=${token}` }
+      headers: { cookie: cookies.join("; ") }
     }),
-    session
+    session,
+    profileHandle: options.profileHandle ?? "bjklock.receiz.id"
   };
 }
 
@@ -67,11 +77,14 @@ function bootstrap(request: NextRequest) {
 beforeEach(() => {
   priorSecret = process.env.RECEIZ_OAUTH_STATE_SECRET;
   process.env.RECEIZ_OAUTH_STATE_SECRET = SECRET;
+  priorFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ preferred_username: "bjklock" });
   clearWorldGlobals();
 });
 
 afterEach(() => {
   clearWorldGlobals();
+  globalThis.fetch = priorFetch;
   if (priorSecret === undefined) delete process.env.RECEIZ_OAUTH_STATE_SECRET;
   else process.env.RECEIZ_OAUTH_STATE_SECRET = priorSecret;
 });
@@ -131,10 +144,41 @@ test("an authenticated bootstrap deterministically publishes genesis from canoni
   assert.deepEqual(publicationInput?.actor, {
     playerId: `vault:${session.subjectKey}`,
     handle: "bjklock.receiz.id",
-    receizActorId: `vault:${session.subjectKey}`,
+    receizActorId: "bjklock.receiz.id",
     practice: false,
+    accessToken: "player-connect-token",
     vaultCardRootSha256: session.vaultCardRootSha256
   });
+});
+
+test("an authenticated proof session without its returned Connect token fails before canonical recovery", async () => {
+  let recoveries = 0;
+  (globalThis as Record<symbol, unknown>)[repositoryKey] = {
+    recover: async () => {
+      recoveries += 1;
+      return canonicalWorld();
+    },
+    publish: async () => { throw new Error("unexpected_publish"); },
+    audit: async () => true
+  };
+
+  await assert.rejects(
+    bootstrap(proofRequest({ accessToken: "" }).request),
+    /wilds_world_connect_required/
+  );
+  assert.equal(recoveries, 0);
+});
+
+test("the bootstrap route returns a Connect URL when delegated player access is missing", async () => {
+  const response = await bootstrapRoute(proofRequest({ accessToken: "" }).request);
+
+  assert.equal(response.status, 401);
+  assert.deepEqual(await response.json(), {
+    ok: false,
+    error: "wilds_world_connect_required",
+    connectUrl: "/api/auth/receiz/start?returnTo=%2F&usernameHint=bjklock.receiz.id"
+  });
+  assert.equal(response.headers.get("cache-control"), "private, no-store");
 });
 
 test("an authenticated bootstrap accepts and rehydrates a valid competing positive world", async () => {

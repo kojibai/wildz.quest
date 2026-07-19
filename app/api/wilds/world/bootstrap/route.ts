@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { bootstrapWildsWorld } from "@/lib/receiz/wilds-world-server";
+import { wildsWorldConnectUrl } from "@/lib/receiz/wilds-multiplayer-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,13 +20,16 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "wilds_world_bootstrap_unavailable";
     const proofRequired = message === "wilds_world_proof_session_required";
+    const connectRequired = message === "wilds_world_connect_required"
+      || message === "wilds_world_connect_identity_mismatch";
     return NextResponse.json({
       ok: false,
-      error: proofRequired || SAFE_BOOTSTRAP_ERRORS.has(message)
+      error: proofRequired || connectRequired || SAFE_BOOTSTRAP_ERRORS.has(message)
         ? message
-        : "wilds_world_bootstrap_unavailable"
+        : "wilds_world_bootstrap_unavailable",
+      ...(connectRequired ? { connectUrl: wildsWorldConnectUrl(request) } : {})
     }, {
-      status: proofRequired ? 401 : 503,
+      status: proofRequired || connectRequired ? 401 : 503,
       headers: NO_STORE_HEADERS
     });
   }

@@ -78,4 +78,10 @@ describe("Wilds world client contract", () => {
     assert.equal(wildsWorldModeAfterConfirmedBootstrap("reconnecting"), "reconnecting");
     assert.equal(wildsWorldModeAfterConfirmedBootstrap("local_practice"), "local_practice");
   });
+
+  it("does not visually promote a server practice mode from a separate session flag", () => {
+    const hud = readFileSync("src/features/play/WildsLivingWorldHud.tsx", "utf8");
+    assert.doesNotMatch(hud, /displayedMode\s*=\s*connected\s*\?/);
+    assert.doesNotMatch(hud, /wildsLivingWorldModeLabel\(world\.mode,\s*connected\)/);
+  });
 });

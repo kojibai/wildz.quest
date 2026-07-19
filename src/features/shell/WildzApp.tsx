@@ -26,6 +26,7 @@ import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-veri
 import { deriveWildzVaultCardAdmission } from "@/lib/receiz/wildz-vault-card-admission";
 import {
   bootstrapWildzSharedWorld,
+  WildzWorldConnectRequiredError,
   wildzRemoteSessionMatchesIdentity
 } from "@/lib/receiz/wildz-session-bridge";
 import {
@@ -168,8 +169,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           if (active) setProofSessionConnected(false);
           return;
         }
+        await bootstrapWildzSharedWorld();
+        if (!active) return;
         setProofSessionConnected(true);
-        void bootstrapWildzSharedWorld().catch(() => undefined);
         const current = continuityRef.current;
         if (!current
           || current.session.keyId !== identity.keyId
@@ -182,9 +184,13 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           || stillCurrent.session.actorId !== identity.actorId) return;
         if (aligned !== current) acceptSnapshot(aligned);
         setProofSessionConnected(true);
-      }).catch(() => {
+      }).catch((cause) => {
         if (active) {
           setProofSessionConnected(false);
+          if (cause instanceof WildzWorldConnectRequiredError) {
+            window.location.assign(cause.connectUrl);
+            return;
+          }
           retryTimer = window.setTimeout(connect, 5_000);
         }
       }).finally(() => {

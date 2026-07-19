@@ -31,21 +31,41 @@ export function parseWildsRoomKey(value: unknown) {
   return roomKey;
 }
 
-export async function resolveWildsMultiplayerActor(request: NextRequest, guestValue?: unknown): Promise<WildsMultiplayerActor> {
+export function wildsWorldConnectUrl(request: NextRequest, returnTo = "/") {
+  const params = new URLSearchParams({ returnTo });
   try {
-    const proofSession = readWildzProofSessionCookie(request);
+    params.set("usernameHint", readWildzProofSessionCookie(request).profileHandle);
+  } catch {
+    // The Connect start route can still render without an identity hint.
+  }
+  return `/api/auth/receiz/start?${params.toString()}`;
+}
+
+export async function resolveWildsMultiplayerActor(request: NextRequest, guestValue?: unknown): Promise<WildsMultiplayerActor> {
+  let proofSession: ReturnType<typeof readWildzProofSessionCookie> | null = null;
+  try {
+    proofSession = readWildzProofSessionCookie(request);
+  } catch {
+    // Legacy scoped Connect sessions remain accepted during migration.
+  }
+  if (proofSession) {
+    const playerToken = playerReceizAccessToken(receizRequestSession(request));
+    if (!playerToken) throw new Error("wilds_world_connect_required");
+    const profile = await loadReceizConnectProfile(playerToken).catch(() => null);
+    if (!profile?.handle || !sameWildzPlayerCoordinate(profile.handle, proofSession.profileHandle)) {
+      throw new Error("wilds_world_connect_identity_mismatch");
+    }
     const principalId = wildzProofPrincipalId(proofSession);
     return {
       playerId: principalId,
       handle: proofSession.profileHandle,
-      receizActorId: principalId,
+      receizActorId: profile.handle,
       practice: false,
+      accessToken: playerToken,
       ...(proofSession.vaultCardRootSha256
         ? { vaultCardRootSha256: proofSession.vaultCardRootSha256 }
         : {})
     };
-  } catch {
-    // Legacy scoped Connect sessions remain accepted during migration.
   }
   const playerToken = playerReceizAccessToken(receizRequestSession(request));
   if (playerToken) {

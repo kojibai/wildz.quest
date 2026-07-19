@@ -6,7 +6,6 @@ import { worldCommandRequiresCard } from "@/features/play/wilds-world-authority"
 import { platform } from "@/lib/platform";
 import { authorizeWildsMultiplayerCard, resolveWildsMultiplayerActor, type WildsMultiplayerActor } from "./wilds-multiplayer-server";
 import { createReceizWildsWorldRepository, type WildsWorldPublication, type WildsWorldRepository } from "./wilds-world-repository";
-import { readWildzProofSessionCookie, wildzProofPrincipalId } from "./wildz-proof-session";
 
 export type { WildsWorldPublication } from "./wilds-world-repository";
 
@@ -76,10 +75,10 @@ export async function hydrateWildsWorldFromReceiz(request: NextRequest) {
   }
 }
 
-async function recoverCanonicalWorldBeforeMutation(request: NextRequest) {
+async function recoverCanonicalWorldBeforeMutation(request: NextRequest, actor?: WildsMultiplayerActor) {
   const local = service();
   const recovered = await Promise.race([
-    repository().recover(sourceUrl(request)),
+    repository().recover(sourceUrl(request), actor),
     new Promise<never>((_, reject) => setTimeout(() => reject(new Error("wilds_world_recovery_timeout")), 1_200))
   ]);
   if (recovered) {
@@ -109,24 +108,6 @@ async function auditMajorEvents(request: NextRequest, actor: WildsMultiplayerAct
   return repository().audit({ sourceUrl: sourceUrl(request), actor, events });
 }
 
-function proofSessionWorldActor(request: NextRequest): WildsMultiplayerActor {
-  try {
-    const proofSession = readWildzProofSessionCookie(request);
-    const principalId = wildzProofPrincipalId(proofSession);
-    return {
-      playerId: principalId,
-      handle: proofSession.profileHandle,
-      receizActorId: principalId,
-      practice: false,
-      ...(proofSession.vaultCardRootSha256
-        ? { vaultCardRootSha256: proofSession.vaultCardRootSha256 }
-        : {})
-    };
-  } catch {
-    throw new Error("wilds_world_proof_session_required");
-  }
-}
-
 function positiveCanonicalWorld(value: unknown) {
   const record = findWildsWorldRecord(value);
   if (!record || !Number.isSafeInteger(record.checkpoint.revision) || record.checkpoint.revision <= 0) return null;
@@ -144,10 +125,18 @@ function positiveCanonicalWorld(value: unknown) {
  */
 export function bootstrapWildsWorld(request: NextRequest) {
   return serializeWildsWorldMutation(async () => {
-    const actor = proofSessionWorldActor(request);
+    let actor: WildsMultiplayerActor;
+    try {
+      actor = await resolveWildsMultiplayerActor(request);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message === "wilds_guest_identity_required") throw new Error("wilds_world_proof_session_required");
+      throw error;
+    }
+    if (actor.practice) throw new Error("wilds_world_proof_session_required");
     let recovered;
     try {
-      recovered = await repository().recover(sourceUrl(request));
+      recovered = await repository().recover(sourceUrl(request), actor);
     } catch {
       throw new Error("wilds_world_canonical_recovery_required");
     }
@@ -228,6 +217,14 @@ export function bootstrapWildsWorld(request: NextRequest) {
 }
 
 export async function worldSnapshot(request: NextRequest) {
+  if (request.cookies.get("wildz_proof_session")) {
+    const actor = await resolveWildsMultiplayerActor(request);
+    const recovered = await repository().recover(sourceUrl(request), actor);
+    const canonical = positiveCanonicalWorld(recovered);
+    if (!canonical) throw new Error("wilds_world_canonical_recovery_required");
+    root()[serviceKey] = canonical.world;
+    return { projection: canonical.world.snapshot(), mode: "receiz_live" as const };
+  }
   await hydrateWildsWorldFromReceiz(request);
   return selectWildsWorldSnapshot(service().snapshot(), practiceService().snapshot());
 }
@@ -251,7 +248,7 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown) {
       publication
     };
   }
-  const current = await recoverCanonicalWorldBeforeMutation(request);
+  const current = await recoverCanonicalWorldBeforeMutation(request, actor);
   const before = { checkpoint: current.checkpoint(), events: current.events() };
   const now = new Date().toISOString();
   const result = current.execute(command, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now, card });
