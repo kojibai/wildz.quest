@@ -39,7 +39,7 @@ export function WildsLandmarkExperience({ access, card, roster = [], hearttreeCo
   onAudioCue?: (cue: WildsAudioCue) => void;
   onHearttreeReceipt: (receipt: HearttreeReceipt) => void;
   onHearttreeSquadChange: (assetIds: string[]) => void;
-  worldMode: "receiz_live" | "local_practice" | "connecting";
+  worldMode: "receiz_live" | "kai_live" | "local_practice" | "connecting";
 }) {
   const landmark = WILDS_FLAGSHIP_LANDMARKS.find((item) => item.id === landmarkId) ?? null;
   const locked = Boolean(access && !access.allowed);

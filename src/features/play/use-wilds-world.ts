@@ -10,6 +10,7 @@ import type { WildsWorldSnapshot } from "./wilds-world-record";
 import type { WildsRaidIntent } from "./wilds-raid-encounter";
 import type { WildsGameplayVerb } from "./wilds-saga-types";
 import { worldCommandRequiresCard } from "./wilds-world-authority";
+import { publishActiveWildsWorldWithIdentityProof } from "@/lib/receiz/wilds-world-identity-publication";
 import {
   shouldAttemptWildsNetwork,
   isOpaqueWildsNetworkFailure,
@@ -45,25 +46,25 @@ export function parseWildsWorldSnapshotResponse(value: unknown): WildsWorldSnaps
   const response = value as Record<string, unknown>;
   const projection = response.projection as WildsWorldProjection | undefined;
   const mode = response.mode;
-  if (response.ok !== true || !validWildsWorldProjection(projection) || (mode !== "receiz_live" && mode !== "local_practice")) {
+  if (response.ok !== true || !validWildsWorldProjection(projection) || (mode !== "receiz_live" && mode !== "kai_live" && mode !== "local_practice")) {
     throw new Error("wilds_world_snapshot_invalid");
   }
   return { projection: projection!, mode };
 }
 
-export type WildsWorldClientMode = "connecting" | "receiz_live" | "local_practice" | "receiz_recovery_pending" | "reconnecting";
-export type WildsWorldCommandMode = Extract<WildsWorldClientMode, "receiz_live" | "local_practice" | "receiz_recovery_pending">;
+export type WildsWorldClientMode = "connecting" | "receiz_live" | "kai_live" | "local_practice" | "receiz_recovery_pending" | "reconnecting";
+export type WildsWorldCommandMode = Extract<WildsWorldClientMode, "receiz_live" | "kai_live" | "local_practice" | "receiz_recovery_pending">;
 
 export function wildsWorldModeAfterRequestFailure(
   offline: boolean,
   currentMode: WildsWorldClientMode
 ): WildsWorldClientMode {
   if (offline) return "local_practice";
-  return currentMode === "receiz_live" ? "receiz_live" : "reconnecting";
+  return currentMode === "receiz_live" || currentMode === "kai_live" ? currentMode : "reconnecting";
 }
 
 export function wildsWorldModeAfterConfirmedBootstrap(mode: WildsWorldClientMode): WildsWorldClientMode {
-  return mode === "connecting" ? "receiz_live" : mode;
+  return mode === "connecting" ? "kai_live" : mode;
 }
 
 export function parseWildsWorldCommandResponse(value: unknown): { projection: WildsWorldProjection; mode: WildsWorldCommandMode } {
@@ -71,7 +72,7 @@ export function parseWildsWorldCommandResponse(value: unknown): { projection: Wi
   const response = value as Record<string, unknown>;
   const projection = response.projection as WildsWorldProjection | undefined;
   const mode = response.mode;
-  if (response.ok !== true || !validWildsWorldProjection(projection) || (mode !== "receiz_live" && mode !== "local_practice" && mode !== "receiz_recovery_pending")) {
+  if (response.ok !== true || !validWildsWorldProjection(projection) || (mode !== "receiz_live" && mode !== "kai_live" && mode !== "local_practice" && mode !== "receiz_recovery_pending")) {
     throw new Error("wilds_world_command_response_invalid");
   }
   return { projection: projection!, mode };
@@ -126,7 +127,7 @@ export function useWildsWorld(input: {
       const opaqueFailure = isOpaqueWildsNetworkFailure(cause);
       if (opaqueFailure) retryAfter.current = Date.now() + WILDS_NETWORK_RETRY_BACKOFF_MS;
       const offline = !shouldAttemptWildsNetwork() || opaqueFailure;
-      setMode(offline ? "local_practice" : "reconnecting");
+      setMode((current) => wildsWorldModeAfterRequestFailure(offline, current));
       setError(wildsNetworkFailureMessage(cause, "world", !offline));
     }
   }, [input.enabled, request]);
@@ -168,6 +169,10 @@ export function useWildsWorld(input: {
           input.cardAdmission
         ))
       });
+      const publication = value.publication as Record<string, unknown> | undefined;
+      if (publication?.required === "identity_proof" && publication.published === false) {
+        await publishActiveWildsWorldWithIdentityProof(publication.draft);
+      }
       const parsed = parseWildsWorldCommandResponse(value);
       const projection = parsed.projection;
       setSnapshot((current) => acceptWildsWorldSnapshot(current, projection));

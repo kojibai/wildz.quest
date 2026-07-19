@@ -5,7 +5,7 @@ import type { WildsWorldProjection } from "./wilds-world-state";
 export type WildsWorldRecord = { checkpoint: WildsWorldCheckpoint; eventTail: WildsWorldEvent[] };
 export type WildsWorldSnapshot = {
   projection: WildsWorldProjection;
-  mode: "receiz_live" | "local_practice";
+  mode: "receiz_live" | "kai_live" | "local_practice";
 };
 
 export function selectWildsWorldSnapshot(canonical: WildsWorldProjection, practice: WildsWorldProjection): WildsWorldSnapshot {

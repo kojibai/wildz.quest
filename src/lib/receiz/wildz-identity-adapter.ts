@@ -75,7 +75,7 @@ export async function createAutomaticWildzIdentity() {
 
 const LEGACY_PLAY_STATE_STORAGE_KEY = "receiz:wilds:save:v2";
 const defaultContinuityDatabase = createWildzContinuityDatabase();
-const defaultIdentityRepository = createWildzIdentityRepository({ database: defaultContinuityDatabase });
+export const defaultIdentityRepository = createWildzIdentityRepository({ database: defaultContinuityDatabase });
 const defaultArtifactHistory = createWildzArtifactHistory(defaultContinuityDatabase);
 const defaultArtifactCodec = createWildzArtifactCodec({
   identityRepository: defaultIdentityRepository,

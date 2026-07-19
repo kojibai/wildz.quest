@@ -110,9 +110,7 @@ test("a fully verified recovery Vault issues the embedded identity session witho
 
 test("a Vault proof session resolves as its embedded non-practice Wildz actor", async () => {
   const prior = process.env.RECEIZ_OAUTH_STATE_SECRET;
-  const priorFetch = globalThis.fetch;
   process.env.RECEIZ_OAUTH_STATE_SECRET = SECRET;
-  globalThis.fetch = async () => Response.json({ preferred_username: "bjklock" });
   try {
     const session = createWildzVaultProofSession({
       actorId: "bjklock",
@@ -125,26 +123,18 @@ test("a Vault proof session resolves as its embedded non-practice Wildz actor", 
     const token = packWildzProofSession(session, SECRET);
     const actor = await resolveWildsMultiplayerActor({
       cookies: {
-        get: (name: string) => name === "wildz_proof_session"
-          ? { value: token }
-          : name === "receiz_access_token"
-            ? { value: "returned-connect-token" }
-            : name === "receiz_session_scope"
-              ? { value: "wildz.quest:v1" }
-              : undefined
+        get: (name: string) => name === "wildz_proof_session" ? { value: token } : undefined
       }
     } as never);
 
     assert.deepEqual(actor, {
       playerId: `vault:${session.subjectKey}`,
       handle: "bjklock.receiz.id",
-      receizActorId: "bjklock.receiz.id",
+      receizActorId: `vault:${session.subjectKey}`,
       practice: false,
-      accessToken: "returned-connect-token",
       vaultCardRootSha256: session.vaultCardRootSha256
     });
   } finally {
-    globalThis.fetch = priorFetch;
     if (prior === undefined) delete process.env.RECEIZ_OAUTH_STATE_SECRET;
     else process.env.RECEIZ_OAUTH_STATE_SECRET = prior;
   }

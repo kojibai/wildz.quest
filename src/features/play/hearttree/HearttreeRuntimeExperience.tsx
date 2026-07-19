@@ -11,7 +11,7 @@ import { HearttreeControls } from "./HearttreeControls";
 import { HearttreeScene } from "./HearttreeScene";
 import { useHearttreeExpedition } from "./use-hearttree-expedition";
 
-type WorldMode = "receiz_live" | "local_practice" | "connecting";
+type WorldMode = "receiz_live" | "kai_live" | "local_practice" | "connecting";
 
 export function HearttreeRuntimeExperience({ cards, conditions, guestId, initialSquadAssetIds, onExit, onReceipt, onSquadChange, onUnlock, worldMode }: {
   cards: readonly PortableCardAsset[];

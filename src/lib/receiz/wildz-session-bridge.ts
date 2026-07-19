@@ -1,5 +1,6 @@
 import type { WildzIdentitySession } from "./wildz-identity-repository";
 import { parseWildzPlayerCoordinate } from "./wildz-player-coordinate";
+import { parseWildsWorldIdentityPublicationDraft, type WildsWorldIdentityPublicationDraft } from "./wilds-world-identity-publication";
 
 export type WildzRemoteSession =
   | {
@@ -31,12 +32,17 @@ export interface WildzRemoteSessionBridge {
 
 export type WildzSharedWorldBootstrap = {
   ok: true;
-  mode: "receiz_live";
+  mode: "receiz_live" | "kai_live";
   projection: {
     schema: "receiz.wilds_world_projection.v3";
     worldId: "wilds:global:v3";
     revision: number;
     [key: string]: unknown;
+  };
+  publication?: {
+    published: false;
+    required: "identity_proof";
+    draft: WildsWorldIdentityPublicationDraft;
   };
   [key: string]: unknown;
 };
@@ -107,15 +113,23 @@ export async function bootstrapWildzSharedWorld(
     const value = await response.json().catch(() => null) as Record<string, unknown> | null;
     const projection = value?.projection as Record<string, unknown> | undefined;
     if (!response.ok) throw new Error("wildz_world_bootstrap_unavailable");
+    const identityPublication = value?.mode === "kai_live"
+      && value.publication && typeof value.publication === "object"
+      && (value.publication as Record<string, unknown>).published === false
+      && (value.publication as Record<string, unknown>).required === "identity_proof"
+      ? parseWildsWorldIdentityPublicationDraft((value.publication as Record<string, unknown>).draft)
+      : null;
     if (value?.ok !== true
-      || value.mode !== "receiz_live"
+      || (value.mode !== "receiz_live" && !identityPublication)
       || projection?.schema !== "receiz.wilds_world_projection.v3"
       || projection.worldId !== "wilds:global:v3"
       || !Number.isSafeInteger(projection.revision)
       || Number(projection.revision) < 1) {
       throw new Error("wildz_world_bootstrap_unavailable");
     }
-    return value as WildzSharedWorldBootstrap;
+    return identityPublication
+      ? { ...value, publication: { published: false, required: "identity_proof", draft: identityPublication } } as WildzSharedWorldBootstrap
+      : value as WildzSharedWorldBootstrap;
   } catch {
     throw new Error("wildz_world_bootstrap_unavailable");
   }

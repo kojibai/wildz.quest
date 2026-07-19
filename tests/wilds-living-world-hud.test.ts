@@ -4,6 +4,7 @@ import { wildsLivingWorldModeLabel } from "../src/features/play/wilds-living-wor
 
 test("the acknowledged live world pill says Connected", () => {
   assert.equal(wildsLivingWorldModeLabel("receiz_live"), "Connected");
+  assert.equal(wildsLivingWorldModeLabel("kai_live"), "Connected");
   assert.equal(wildsLivingWorldModeLabel("reconnecting"), "World reconnecting");
 });
 

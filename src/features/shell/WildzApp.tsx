@@ -28,6 +28,7 @@ import {
   bootstrapWildzSharedWorld,
   wildzRemoteSessionMatchesIdentity
 } from "@/lib/receiz/wildz-session-bridge";
+import { publishWildsWorldWithIdentityProof } from "@/lib/receiz/wilds-world-identity-publication";
 import {
   createLatestOnlySaveScheduler,
   type WildzLatestSaveScheduler
@@ -168,9 +169,12 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           if (active) setProofSessionConnected(false);
           return;
         }
-        await bootstrapWildzSharedWorld();
-        if (!active) return;
         setProofSessionConnected(true);
+        void bootstrapWildzSharedWorld().then(async (world) => {
+          if (world.publication?.required !== "identity_proof" || identity.localAuthority !== "verified") return;
+          await publishWildsWorldWithIdentityProof(identity, world.publication.draft);
+          await bootstrapWildzSharedWorld();
+        }).catch(() => undefined);
         const current = continuityRef.current;
         if (!current
           || current.session.keyId !== identity.keyId

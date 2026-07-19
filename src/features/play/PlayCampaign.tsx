@@ -224,7 +224,7 @@ export function PlayCampaign({
   });
   const kaiMoment = deriveKaiKlokMoment({
     occurredAt: kaiOccurredAt,
-    authority: livingWorld.mode === "receiz_live" ? "world" : "local"
+    authority: livingWorld.mode === "receiz_live" || livingWorld.mode === "kai_live" ? "world" : "local"
   });
   const saga = projectWildsSaga({
     moment: kaiMoment,
@@ -509,7 +509,7 @@ export function PlayCampaign({
   const currentLandmark = landmarkAtPosition(state.player);
   const civic = projectWildsCivicHistory(state.civicEvents);
   const civicActorId = normalizeWildsCivicActorId(ownerReceizId);
-  const settlementWorldMode = livingWorld.mode === "receiz_live" ? "receiz_live" : livingWorld.mode === "local_practice" ? "local_practice" : "connecting";
+  const settlementWorldMode = livingWorld.mode === "receiz_live" || livingWorld.mode === "kai_live" ? livingWorld.mode : livingWorld.mode === "local_practice" ? "local_practice" : "connecting";
   const discoveredLandmarkIds: WildsLandmarkId[] = civic.completedSourceIds.includes("settlement:wayfinder-hollow")
     ? ["hearttree-sanctum", "wayfinder-hollow"]
     : ["hearttree-sanctum"];

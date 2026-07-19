@@ -41,6 +41,10 @@ describe("Wilds world client contract", () => {
 
   it("accepts exactly one projection and mode layer", () => {
     const projection = initialWildsWorldProjection();
+    assert.deepEqual(parseWildsWorldSnapshotResponse({ ok: true, projection, mode: "kai_live" }), {
+      projection,
+      mode: "kai_live"
+    });
     assert.deepEqual(parseWildsWorldSnapshotResponse({ ok: true, projection, mode: "local_practice" }), {
       projection,
       mode: "local_practice"
@@ -71,18 +75,28 @@ describe("Wilds world client contract", () => {
     }
   });
 
+  it("publishes proof-native command transitions with the active Identity Seal", () => {
+    const source = readFileSync("src/features/play/use-wilds-world.ts", "utf8");
+    const request = source.indexOf('request("/api/wilds/world/command"');
+    const publish = source.indexOf("publishActiveWildsWorldWithIdentityProof", request);
+    const parse = source.indexOf("parseWildsWorldCommandResponse", publish);
+    assert.ok(request >= 0 && publish > request && parse > publish);
+    assert.doesNotMatch(source.slice(request, parse), /connectUrl|window\.location|receiz\.com/);
+  });
+
   it("keeps online request failures reconnecting even when the request carries a guest id", () => {
     const source = readFileSync("src/features/play/use-wilds-world.ts", "utf8");
 
     assert.equal(wildsWorldModeAfterRequestFailure(false, "connecting"), "reconnecting");
     assert.equal(wildsWorldModeAfterRequestFailure(false, "receiz_live"), "receiz_live");
+    assert.equal(wildsWorldModeAfterRequestFailure(false, "kai_live"), "kai_live");
     assert.equal(wildsWorldModeAfterRequestFailure(true, "receiz_live"), "local_practice");
     assert.doesNotMatch(source, /offline\s*\|\|\s*input\.guestId/);
     assert.doesNotMatch(source, /window\.location\.assign|\/api\/auth\/receiz\/start|connectUrl/);
   });
 
-  it("enters the live client mode immediately after the shell confirms canonical bootstrap", () => {
-    assert.equal(wildsWorldModeAfterConfirmedBootstrap("connecting"), "receiz_live");
+  it("enters the Kai-connected mode immediately after proof-native identity admission", () => {
+    assert.equal(wildsWorldModeAfterConfirmedBootstrap("connecting"), "kai_live");
     assert.equal(wildsWorldModeAfterConfirmedBootstrap("reconnecting"), "reconnecting");
     assert.equal(wildsWorldModeAfterConfirmedBootstrap("local_practice"), "local_practice");
   });

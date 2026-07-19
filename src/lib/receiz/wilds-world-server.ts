@@ -6,6 +6,8 @@ import { worldCommandRequiresCard } from "@/features/play/wilds-world-authority"
 import { platform } from "@/lib/platform";
 import { authorizeWildsMultiplayerCard, resolveWildsMultiplayerActor, type WildsMultiplayerActor } from "./wilds-multiplayer-server";
 import { createReceizWildsWorldRepository, type WildsWorldPublication, type WildsWorldRepository } from "./wilds-world-repository";
+import { readWildzProofSessionCookie } from "./wildz-proof-session";
+import { createWildsWorldIdentityPublicationDraft } from "./wilds-world-identity-publication";
 
 export type { WildsWorldPublication } from "./wilds-world-repository";
 
@@ -183,50 +185,37 @@ export function bootstrapWildsWorld(request: NextRequest) {
       systemActorId: "receiz:pulse"
     });
     const events = [...worldTick.events, ...ecologyTick.events];
-    let publication: WildsWorldPublication;
-    try {
-      publication = await publish(request, actor, current, { revision: 0, lastEventId: null });
-    } catch {
-      root()[serviceKey] = new WildsWorldService(before);
-      throw new Error("wilds_world_canonical_publish_required");
-    }
-
-    if (publication.published && publication.mode === "receiz_live") {
-      return { projection: current.snapshot(), mode: "receiz_live" as const, events, publication };
-    }
-
-    const competing = publication.conflict ? positiveCanonicalWorld(publication.record) : null;
-    if (competing) {
-      root()[serviceKey] = competing.world;
-      return {
-        projection: competing.world.snapshot(),
-        mode: "receiz_live" as const,
-        events: [],
-        publication: {
-          ...publication,
-          mode: "receiz_live" as const,
-          revision: competing.record.checkpoint.revision,
-          record: competing.record
-        }
-      };
-    }
-
+    const projection = current.snapshot();
+    const record = { checkpoint: current.checkpoint(), eventTail: current.events() };
     root()[serviceKey] = new WildsWorldService(before);
-    throw new Error("wilds_world_canonical_publish_required");
+    return {
+      projection,
+      mode: "kai_live" as const,
+      events,
+      publication: {
+        published: false as const,
+        required: "identity_proof" as const,
+        draft: createWildsWorldIdentityPublicationDraft({
+          sourceUrl: sourceUrl(request),
+          merchantReceizId: actor.handle,
+          record,
+          expectedHead: { revision: 0, lastEventId: null }
+        })
+      }
+    };
   });
 }
 
 export async function worldSnapshot(request: NextRequest) {
-  if (request.cookies.get("wildz_proof_session")) {
-    const actor = await resolveWildsMultiplayerActor(request);
-    const recovered = await repository().recover(sourceUrl(request), actor);
-    const canonical = positiveCanonicalWorld(recovered);
-    if (!canonical) throw new Error("wilds_world_canonical_recovery_required");
-    root()[serviceKey] = canonical.world;
-    return { projection: canonical.world.snapshot(), mode: "receiz_live" as const };
-  }
   await hydrateWildsWorldFromReceiz(request);
-  return selectWildsWorldSnapshot(service().snapshot(), practiceService().snapshot());
+  const snapshot = selectWildsWorldSnapshot(service().snapshot(), practiceService().snapshot());
+  if (snapshot.mode === "receiz_live") return snapshot;
+  try {
+    readWildzProofSessionCookie(request);
+    return { projection: snapshot.projection, mode: "kai_live" as const };
+  } catch {
+    return snapshot;
+  }
 }
 
 export function executeWildsWorldCommand(request: NextRequest, body: unknown) {
@@ -252,18 +241,26 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown) {
   const before = { checkpoint: current.checkpoint(), events: current.events() };
   const now = new Date().toISOString();
   const result = current.execute(command, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now, card });
-  let publication = await publish(request, actor, current, {
-    revision: before.checkpoint.revision,
-    lastEventId: before.checkpoint.lastEventId
-  });
-  if (!publication.published) {
-    root()[serviceKey] = publication.conflict && publication.record
-      ? new WildsWorldService(publication.record)
-      : new WildsWorldService(before);
-    throw new Error("wilds_world_canonical_publish_required");
-  }
-  if (!await auditMajorEvents(request, actor, result.events)) publication = { ...publication, mode: "receiz_recovery_pending" };
-  return { projection: result.projection, mode: publication.mode, events: result.events, publication };
+  const record = { checkpoint: current.checkpoint(), eventTail: current.events() };
+  root()[serviceKey] = new WildsWorldService(before);
+  return {
+    projection: result.projection,
+    mode: "kai_live" as const,
+    events: result.events,
+    publication: {
+      published: false as const,
+      required: "identity_proof" as const,
+      draft: createWildsWorldIdentityPublicationDraft({
+        sourceUrl: sourceUrl(request),
+        merchantReceizId: actor.handle,
+        record,
+        expectedHead: {
+          revision: before.checkpoint.revision,
+          lastEventId: before.checkpoint.lastEventId
+        }
+      })
+    }
+  };
   });
 }
 

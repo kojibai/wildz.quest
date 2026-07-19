@@ -7,7 +7,7 @@ import * as THREE from "three";
 import type { WildsSettlementDefinition } from "./wilds-settlements";
 import type { WildsWorldProjection } from "./wilds-world-state";
 
-export type WildsSettlementWorldMode = "receiz_live" | "local_practice" | "connecting";
+export type WildsSettlementWorldMode = "receiz_live" | "kai_live" | "local_practice" | "connecting";
 
 export function WildsSettlementEnvironment({
   settlement,

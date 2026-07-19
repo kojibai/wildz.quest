@@ -62,16 +62,16 @@ test("every admitted identity stays in Wildz when delegated world authority is u
   assert.doesNotMatch(source, /WildzWorldConnectRequiredError|window\.location\.assign|connectUrl/);
 });
 
-test("a matching proof session connects gameplay only after canonical world bootstrap", () => {
+test("a matching proof session connects the Kai world before best-effort Receiz publication", () => {
   const source = read("src/features/shell/WildzApp.tsx");
   const matched = source.indexOf("wildzRemoteSessionMatchesIdentity(identity, session)");
   const connected = source.indexOf("setProofSessionConnected(true)", matched);
   const bootstrap = source.indexOf("bootstrapWildzSharedWorld", matched);
 
   assert.ok(matched >= 0);
-  assert.ok(bootstrap > matched);
-  assert.ok(connected > bootstrap);
-  assert.match(source.slice(matched, connected), /await bootstrapWildzSharedWorld/);
+  assert.ok(connected > matched);
+  assert.ok(bootstrap > connected);
+  assert.doesNotMatch(source.slice(matched, bootstrap), /await bootstrapWildzSharedWorld/);
 });
 
 test("fresh genesis, Identity Seal restore, and identity-bearing Vault restore converge on the same snapshot gate", () => {

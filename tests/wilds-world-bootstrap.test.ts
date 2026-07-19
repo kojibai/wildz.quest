@@ -33,7 +33,7 @@ function canonicalWorld(pulse = GENESIS_PULSE): WildsWorldRecord {
   return { checkpoint: canonical.checkpoint(), eventTail: canonical.events() };
 }
 
-function proofRequest(options: { accessToken?: string; profileHandle?: string } = {}) {
+function proofRequest() {
   const session = createWildzVaultProofSession({
     actorId: "bjklock",
     profileHandle: "bjklock.receiz.id",
@@ -43,21 +43,12 @@ function proofRequest(options: { accessToken?: string; profileHandle?: string } 
     issuedAt: Date.now()
   }, SECRET);
   const token = packWildzProofSession(session, SECRET);
-  const accessToken = options.accessToken === undefined ? "player-connect-token" : options.accessToken;
-  const cookies = [
-    `${WILDZ_PROOF_SESSION_COOKIE}=${token}`,
-    ...(accessToken ? [
-      `receiz_access_token=${accessToken}`,
-      "receiz_session_scope=wildz.quest%3Av1"
-    ] : [])
-  ];
   return {
     request: new NextRequest("https://wildz.quest/api/wilds/world/bootstrap", {
       method: "POST",
-      headers: { cookie: cookies.join("; ") }
+      headers: { cookie: `${WILDZ_PROOF_SESSION_COOKIE}=${token}` }
     }),
-    session,
-    profileHandle: options.profileHandle ?? "bjklock.receiz.id"
+    session
   };
 }
 
@@ -114,44 +105,29 @@ test("an authenticated bootstrap rehydrates an existing positive canonical world
   assert.equal(publishes, 0);
 });
 
-test("an authenticated bootstrap deterministically publishes genesis from canonical head zero", async () => {
-  let publicationInput: Record<string, unknown> | undefined;
+test("an authenticated bootstrap prepares deterministic genesis for Identity Seal publication", async () => {
+  let publishes = 0;
   (globalThis as Record<symbol, unknown>)[repositoryKey] = {
     recover: async () => null,
-    publish: async (input: Record<string, unknown>) => {
-      publicationInput = input;
-      const record = input.record as WildsWorldRecord;
-      return {
-        published: true,
-        mode: "receiz_live",
-        revision: record.checkpoint.revision,
-        conflict: false,
-        record
-      };
-    },
+    publish: async () => { publishes += 1; throw new Error("delegated_publish_forbidden"); },
     audit: async () => true
   };
-  const { request, session } = proofRequest();
+  const { request } = proofRequest();
 
   const result = await bootstrap(request);
 
   const expected = canonicalWorld();
-  assert.equal(result.mode, "receiz_live");
+  assert.equal(result.mode, "kai_live");
   assert.equal(result.projection.revision, expected.checkpoint.revision);
-  assert.equal(result.publication.published, true);
-  assert.deepEqual(publicationInput?.expectedHead, { revision: 0, lastEventId: null });
-  assert.deepEqual(publicationInput?.record, expected);
-  assert.deepEqual(publicationInput?.actor, {
-    playerId: `vault:${session.subjectKey}`,
-    handle: "bjklock.receiz.id",
-    receizActorId: "bjklock.receiz.id",
-    practice: false,
-    accessToken: "player-connect-token",
-    vaultCardRootSha256: session.vaultCardRootSha256
-  });
+  assert.equal(result.publication.published, false);
+  assert.equal(result.publication.required, "identity_proof");
+  assert.equal(result.publication.draft.merchantReceizId, "bjklock.receiz.id");
+  assert.deepEqual(result.publication.draft.expectedHead, { revision: 0, lastEventId: null });
+  assert.deepEqual(result.publication.draft.storeStateRecord, expected);
+  assert.equal(publishes, 0);
 });
 
-test("an authenticated proof session without its returned Connect token fails before canonical recovery", async () => {
+test("an authenticated proof session joins the canonical Kai world without a separate OIDC token", async () => {
   let recoveries = 0;
   (globalThis as Record<symbol, unknown>)[repositoryKey] = {
     recover: async () => {
@@ -162,52 +138,45 @@ test("an authenticated proof session without its returned Connect token fails be
     audit: async () => true
   };
 
-  await assert.rejects(
-    bootstrap(proofRequest({ accessToken: "" }).request),
-    /wilds_world_connect_required/
-  );
-  assert.equal(recoveries, 0);
+  const result = await bootstrap(proofRequest().request);
+
+  assert.equal(result.mode, "receiz_live");
+  assert.equal(result.projection.revision, canonicalWorld().checkpoint.revision);
+  assert.equal(recoveries, 1);
 });
 
-test("the bootstrap route reports missing delegated access without a navigation target", async () => {
-  const response = await bootstrapRoute(proofRequest({ accessToken: "" }).request);
+test("the bootstrap route accepts proof-native identity without delegated player access", async () => {
+  (globalThis as Record<symbol, unknown>)[repositoryKey] = {
+    recover: async () => canonicalWorld(),
+    publish: async () => { throw new Error("unexpected_publish"); },
+    audit: async () => true
+  };
+  const response = await bootstrapRoute(proofRequest().request);
 
-  assert.equal(response.status, 401);
-  assert.deepEqual(await response.json(), {
-    ok: false,
-    error: "wilds_world_connect_required"
-  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.ok, true);
+  assert.equal(body.mode, "receiz_live");
   assert.equal(response.headers.get("cache-control"), "private, no-store");
 });
 
-test("an authenticated bootstrap accepts and rehydrates a valid competing positive world", async () => {
-  const competing = canonicalWorld("2026-07-16T00:00:00.000Z");
+test("genesis bootstrap never invokes the delegated publication repository", async () => {
+  let publishes = 0;
   (globalThis as Record<symbol, unknown>)[repositoryKey] = {
     recover: async () => null,
-    publish: async () => ({
-      published: false,
-      mode: "receiz_recovery_pending",
-      revision: canonicalWorld().checkpoint.revision,
-      conflict: true,
-      record: competing
-    }),
+    publish: async () => { publishes += 1; throw new Error("delegated_publish_forbidden"); },
     audit: async () => true
   };
 
   const result = await bootstrap(proofRequest().request);
 
-  assert.equal(result.mode, "receiz_live");
-  assert.equal(result.projection.revision, competing.checkpoint.revision);
+  assert.equal(result.mode, "kai_live");
   assert.equal(result.publication.published, false);
-  assert.equal(result.publication.conflict, true);
-  assert.equal(result.publication.mode, "receiz_live");
-  assert.equal(
-    ((globalThis as Record<symbol, unknown>)[serviceKey] as WildsWorldService).checkpoint().lastEventId,
-    competing.checkpoint.lastEventId
-  );
+  assert.equal(result.publication.required, "identity_proof");
+  assert.equal(publishes, 0);
 });
 
-test("an unsuccessful genesis publication rolls canonical memory back to head zero and fails closed", async () => {
+test("prepared Identity Seal genesis rolls canonical memory back until the proof append is recoverable", async () => {
   (globalThis as Record<symbol, unknown>)[repositoryKey] = {
     recover: async () => null,
     publish: async () => ({
@@ -218,8 +187,9 @@ test("an unsuccessful genesis publication rolls canonical memory back to head ze
     audit: async () => true
   };
 
-  await assert.rejects(bootstrap(proofRequest().request), /wilds_world_canonical_publish_required/);
+  const result = await bootstrap(proofRequest().request);
 
+  assert.equal(result.mode, "kai_live");
   assert.equal(
     ((globalThis as Record<symbol, unknown>)[serviceKey] as WildsWorldService).checkpoint().revision,
     0
@@ -286,4 +256,29 @@ test("the bootstrap route rejects a missing proof session without probing or mut
   });
   assert.equal(response.headers.get("cache-control"), "private, no-store");
   assert.equal(repositoryCalls, 0);
+});
+
+test("a proof-native player command prepares an Identity Seal append and never delegates publication", async () => {
+  const record = canonicalWorld();
+  let publishes = 0;
+  (globalThis as Record<symbol, unknown>)[repositoryKey] = {
+    recover: async () => record,
+    publish: async () => { publishes += 1; throw new Error("delegated_publish_forbidden"); },
+    audit: async () => { throw new Error("delegated_audit_forbidden"); }
+  };
+  const result = await worldServer.executeWildsWorldCommand(proofRequest().request, {
+    command: {
+      type: "team.create",
+      name: "Proof Keepers",
+      commandId: "command:team:create:identity-proof-test"
+    }
+  });
+
+  assert.equal(result.mode, "kai_live");
+  assert.equal(result.publication.published, false);
+  assert.equal(result.publication.required, "identity_proof");
+  assert.equal(result.publication.draft.merchantReceizId, "bjklock.receiz.id");
+  assert.equal(result.publication.draft.expectedHead.revision, record.checkpoint.revision);
+  assert.equal(result.publication.draft.storeStateRecord.checkpoint.revision > record.checkpoint.revision, true);
+  assert.equal(publishes, 0);
 });
