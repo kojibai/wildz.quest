@@ -112,8 +112,15 @@ body {
   box-shadow: 0 30px 100px rgba(0, 0, 0, .58), inset 0 1px rgba(255, 255, 255, .08);
 }
 
-.wildz-onboarding-card h1 { margin: 0; font-size: clamp(28px, 6vw, 44px); line-height: 1; outline: none; }
+.wildz-onboarding-brand { display: grid; justify-items: center; gap: 12px; text-align: center; }
+.wildz-onboarding-brand img { width: min(64vw, 240px); height: auto; filter: drop-shadow(0 10px 28px rgba(121, 206, 145, .14)); }
+.wildz-onboarding-copy { display: grid; width: 100%; justify-items: center; gap: 5px; }
+.wildz-onboarding-copy p { width: 100%; margin: 0; white-space: nowrap; }
+.wildz-onboarding-tagline { color: rgba(248, 245, 233, .92); font-size: clamp(12px, 2vw, 16px); font-weight: 780; line-height: 1.35; letter-spacing: -.018em; }
+.wildz-onboarding-subtext { color: rgba(248, 245, 233, .6); font-size: clamp(7px, 1.35vw, 11px); font-weight: 600; line-height: 1.45; letter-spacing: -.008em; }
+.wildz-onboarding-card h1 { margin: 4px 0 0; outline: none; color: #b8edbc; font-size: 12px; font-weight: 900; line-height: 1.2; letter-spacing: .12em; text-align: center; text-transform: uppercase; }
 .wildz-onboarding-card > p { margin: 0; color: rgba(248, 245, 233, .68); line-height: 1.5; }
+.wildz-onboarding-prompt { font-size: 13px; text-align: center; }
 .wildz-onboarding-eyebrow { color: #9ee4b2 !important; font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
 .wildz-onboarding-explorers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .wildz-onboarding-explorers button,
@@ -130,6 +137,8 @@ body {
 
 @media (max-width: 560px), (max-height: 620px) {
   .wildz-onboarding-card { gap: 10px; padding: 18px; border-radius: 22px; }
+  .wildz-onboarding-brand { gap: 8px; }
+  .wildz-onboarding-brand img { width: min(48vw, 180px); }
   .wildz-onboarding-explorers { grid-template-columns: 1fr; }
   .wildz-onboarding-explorers button { min-height: 56px; }
   .wildz-onboarding-vault { min-height: 60px; }

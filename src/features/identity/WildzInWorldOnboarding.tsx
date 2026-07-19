@@ -1,6 +1,7 @@
 "use client";
 
 import type { WildzGender } from "@/features/identity/wildz-genesis";
+import Image from "next/image";
 import { useEffect, useRef } from "react";
 
 export function WildzInWorldOnboarding({
@@ -22,8 +23,15 @@ export function WildzInWorldOnboarding({
   return (
     <section className="wildz-in-world-onboarding" role="dialog" aria-modal="true" aria-labelledby="wildz-onboarding-title">
       <div className="wildz-onboarding-card" aria-busy={busy}>
+        <div className="wildz-onboarding-brand">
+          <Image src="/brand/wildz-wordmark.svg" alt="Wildz" width={240} height={48} priority />
+          <div className="wildz-onboarding-copy">
+            <p className="wildz-onboarding-tagline">Catch living creatures shaped by the moment.</p>
+            <p className="wildz-onboarding-subtext">Train, evolve, breed &amp; carry them anywhere. No two Wildz are ever the same.</p>
+          </div>
+        </div>
         <h1 id="wildz-onboarding-title" ref={headingRef} tabIndex={-1}>Choose your explorer</h1>
-        <p>Pick the explorer who will enter the Wilds.</p>
+        <p className="wildz-onboarding-prompt">Pick the explorer who will enter the Wildz.</p>
 
         <div className="wildz-onboarding-explorers">
           <button type="button" disabled={busy} onClick={() => onChooseExplorer("female")}>
