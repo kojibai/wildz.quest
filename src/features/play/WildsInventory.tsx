@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { Icons } from "@/components/icons";
@@ -28,10 +28,6 @@ import type {
   WildzCardOnlyConfirmation,
   WildzCommittedArtifactRestore
 } from "@/features/identity/wildz-restore";
-import {
-  consumeWildzNativeProofResume,
-  ensureWildzNativeProofSession
-} from "@/lib/receiz/wildz-native-proof-session";
 
 export function WildsInventory({
   state,
@@ -80,7 +76,6 @@ export function WildsInventory({
   const importInput = useRef<HTMLInputElement>(null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const suppressCardClick = useRef(false);
-  const nativeProofResumeStarted = useRef(false);
   const matches = useMemo(() => sortWildzCards(state.inventory.filter((asset) => {
     const form = creatureForm(asset.manifest.formId);
     if (!form) return false;
@@ -148,7 +143,6 @@ export function WildsInventory({
     setCardSending(true);
     setSendMessage("Preparing verified card send package…");
     try {
-      if (!await ensureWildzNativeProofSession(selected.manifest.ownerReceizId, { kind: "card", assetId: selected.id })) return;
       const draft = createWildsCardSendDraft(selected, sendTarget, origin);
       const payload = await portableCardPngBlob(selected);
       const artifact = await createReceizProofObjectArtifact(
@@ -188,30 +182,27 @@ export function WildsInventory({
     }
   };
 
-  const saveVerifiedVault = useCallback(async () => {
+  const saveVerifiedVault = async () => {
     setVaultSaving(true);
-    setVaultMessage("Checking active Receiz ID authority…");
+      setVaultMessage("Sealing the Vault for the active Receiz ID…");
     try {
       const player = playerVault();
-      if (!await ensureWildzNativeProofSession(player.playerId, { kind: "vault" })) return;
-      setVaultMessage("Creating native Receiz Record → Seal proof object…");
       await onExportVault(state.inventory, player);
-      setVaultMessage("Receiz proof object downloaded. SDK v113 verified the complete Vault offline.");
+      setVaultMessage("Receiz-sealed Vault downloaded for SDK v113 offline verification.");
     } catch (error) {
       setVaultMessage(error instanceof Error ? `Vault save failed: ${error.message}` : "Vault save failed. Try again from this browser.");
     } finally {
       setVaultSaving(false);
     }
-  }, [onExportVault, playerVault, state.inventory]);
+  };
 
-  const saveVerifiedCard = useCallback(async (asset: PlayState["inventory"][number]) => {
+  const saveVerifiedCard = async (asset: PlayState["inventory"][number]) => {
     setCardSaving(true);
-    setDownloadMessage("Checking active Receiz ID authority…");
+    setDownloadMessage("Sealing the card for the active Receiz ID…");
     try {
-      if (!await ensureWildzNativeProofSession(asset.manifest.ownerReceizId, { kind: "card", assetId: asset.id })) return;
-      setDownloadMessage("Publishing the verified card and creating its native Receiz proof object…");
+      setDownloadMessage("Publishing and sealing the verified card…");
       await downloadPortableCard(asset);
-      setDownloadMessage("Receiz proof object downloaded. SDK v113 verified it offline and its card page anonymously.");
+      setDownloadMessage("Receiz-sealed card downloaded. Its standalone page is anonymously readable.");
     } catch (error) {
       setDownloadMessage(error instanceof Error
         ? `Card download failed: ${error.message}`
@@ -219,20 +210,7 @@ export function WildsInventory({
     } finally {
       setCardSaving(false);
     }
-  }, []);
-
-  useEffect(() => {
-    if (nativeProofResumeStarted.current) return;
-    const resume = consumeWildzNativeProofResume();
-    if (!resume) return;
-    nativeProofResumeStarted.current = true;
-    if (resume.kind === "vault") {
-      void saveVerifiedVault();
-      return;
-    }
-    const asset = state.inventory.find((candidate) => candidate.id === resume.assetId);
-    if (asset) void saveVerifiedCard(asset);
-  }, [saveVerifiedCard, saveVerifiedVault, state.inventory]);
+  };
 
   return (
     <section className="wilds-inventory" aria-label="Portable creature card inventory">

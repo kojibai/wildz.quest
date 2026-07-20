@@ -23,7 +23,6 @@ import {
 } from "@/lib/receiz/wildz-identity-adapter";
 import { shouldClearWildzResumeAfterError } from "@/lib/receiz/wildz-resume-errors";
 import { sameWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate";
-import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-verifier";
 import { deriveWildzVaultCardAdmission } from "@/lib/receiz/wildz-vault-card-admission";
 import {
   bootstrapWildzSharedWorld,
@@ -399,56 +398,6 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     await downloadWildzIdentityPlayerVault(current.session, playState.inventory, player);
   };
 
-  const claimVerifiedImportedCards = useCallback(async (file: File, targetActorId: string) => {
-    if (!navigator.onLine || !proofSessionConnected) {
-      throw new Error("Global Receiz ownership must be online before this Vault can be merged.");
-    }
-    const source = await openWildzArtifactSameOrigin({
-      bytes: new Uint8Array(await file.arrayBuffer()),
-      mimeType: file.type || "application/octet-stream",
-      name: file.name
-    });
-    const approved = window.confirm(
-      `Confirm global ownership of ${file.name} (${source.claimId}) for @${targetActorId}? `
-      + `Receiz v113 will reject this file if a newer owner already exists, then creates and downloads a new Receiz ownership artifact with its history preserved.`
-    );
-    if (!approved) throw new Error("Global ownership claim cancelled. Nothing was added.");
-    const form = new FormData();
-    form.set("file", file, file.name);
-    const response = await fetch("/api/market/claims", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: {
-        "idempotency-key": `bearer-claim:${targetActorId}:${source.artifactSha256}`
-      },
-      body: form
-    });
-    if (!response.ok) {
-      const failure = await response.json().catch(() => null) as { error?: unknown } | null;
-      if (failure?.error === "wildz_bearer_claim_stale_ownership") {
-        throw new Error("This card has new ownership.");
-      }
-      throw new Error("Global Receiz ownership could not be verified. Nothing was added.");
-    }
-    const artifactBytes = new Uint8Array(await response.arrayBuffer());
-    const claimed = new File(
-      [artifactBytes.slice().buffer],
-      `claimed-${source.claimId}.receized`,
-      { type: response.headers.get("content-type") || "application/octet-stream" }
-    );
-    const verified = await openWildzArtifactSameOrigin({
-      bytes: artifactBytes,
-      mimeType: claimed.type,
-      name: claimed.name
-    });
-    if (!sameWildzPlayerCoordinate(verified.ownerReceizId, targetActorId)
-      || verified.payloadSha256 !== source.payloadSha256
-      || verified.artifactSha256 !== response.headers.get("x-receiz-artifact-sha256")) {
-      throw new Error("Global Receiz ownership proof did not match this Vault. Nothing was added.");
-    }
-    return claimed;
-  }, [proofSessionConnected]);
-
   const restoreArtifact = useCallback(async (
     file: File,
     surface: "genesis" | "card-vault",
@@ -458,11 +407,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   ): Promise<WildzUiArtifactRestore> => {
     const current = continuityRef.current;
     if (!current) throw new Error("wildz_restore_identity_missing");
-    const admittedFile = intent === "merge-vault"
-      ? await claimVerifiedImportedCards(file, current.session.actorId)
-      : file;
     const outcome = await restoreWildzFileForSurface(
-      admittedFile,
+      file,
       surface,
       confirmCardOnly,
       current,
@@ -486,7 +432,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       channel.close();
     }
     return outcome;
-  }, [acceptSnapshot, claimVerifiedImportedCards]);
+  }, [acceptSnapshot]);
 
   const persistPlayState = useCallback((playState: PlayState, playerContinuity: NonNullable<WildzContinuitySnapshot["playerContinuity"]>) => {
     const current = continuityRef.current;

@@ -110,7 +110,7 @@ export function createWildsCardSendDraft(
   const title = `Wildz card: ${asset.manifest.name}`;
   const text = [
     `${target.label}, here is a verified Wildz Receiz proof object.`,
-    `Open the attached native Record → Seal artifact in Wildz, Receiz, or another v113-compatible application.`,
+    `Open the attached Receiz-sealed artifact in Wildz, Receiz, or another v113-compatible application.`,
     `The sealed proof object and its append-only ownership history remain the authority.`,
     `Standalone card link: ${url}`,
     `Card: ${asset.id}`
@@ -438,32 +438,11 @@ export type WildzDownloadedProofObjectVerifier = (
   expectedPayloadBytes: Uint8Array
 ) => Promise<void>;
 
-/**
- * Independently reopens the exact response bytes with the SDK's local v113
- * verifier before the browser is allowed to save them.
- */
-export async function verifyDownloadedWildzProofObject(
-  artifactBytes: Uint8Array,
-  artifactMimeType: string,
-  artifactFilename: string,
-  expectedPayloadBytes: Uint8Array
-) {
-  const { verifyDownloadedWildzProofObjectLocally } = await import(
-    "../../lib/receiz/wildz-downloaded-proof-verifier"
-  );
-  await verifyDownloadedWildzProofObjectLocally(
-    artifactBytes,
-    artifactMimeType,
-    artifactFilename,
-    expectedPayloadBytes
-  );
-}
-
 export async function createReceizProofObjectArtifact(
   payload: Blob,
   filename: string,
   kind: "card" | "vault",
-  verifyProofObject: WildzDownloadedProofObjectVerifier = verifyDownloadedWildzProofObject
+  verifyProofObject?: WildzDownloadedProofObjectVerifier
 ) {
   const form = new FormData();
   form.set("file", payload, filename);
@@ -488,12 +467,14 @@ export async function createReceizProofObjectArtifact(
   const artifactFilename = dispositionFilename && /^[a-zA-Z0-9._-]{1,220}$/.test(dispositionFilename)
     ? dispositionFilename
     : `${filename.replace(/\.png$/i, "")}.receized`;
-  await verifyProofObject(
-    proofObject,
-    mimeType,
-    artifactFilename,
-    new Uint8Array(await payload.arrayBuffer())
-  );
+  if (verifyProofObject) {
+    await verifyProofObject(
+      proofObject,
+      mimeType,
+      artifactFilename,
+      new Uint8Array(await payload.arrayBuffer())
+    );
+  }
   return { bytes: proofObject, filename: artifactFilename, mimeType };
 }
 
@@ -521,8 +502,15 @@ async function svgPngBlob(svg: string, width = 750, height = 1050) {
   try {
     const image = new Image();
     image.decoding = "async";
+    const loaded = new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("wilds_card_svg_load_failed"));
+    });
     image.src = source;
-    await image.decode();
+    // Chromium can leave decode() pending indefinitely for a large SVG blob
+    // after the image has already loaded. Either completed signal is sufficient
+    // before drawing the exact same source bytes to the canvas.
+    await Promise.race([image.decode(), loaded]);
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
@@ -583,6 +571,6 @@ export async function downloadPortableVault(
     portable,
     "wilds-vault.png",
     "vault",
-    { ...options, outputFilename: `wilds-vault-${digest}.receized` }
+    { ...options, outputFilename: `wilds-vault-${digest}.receized.png` }
   );
 }

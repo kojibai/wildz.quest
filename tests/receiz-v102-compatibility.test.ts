@@ -237,8 +237,10 @@ test("v102 keeps MCP and authenticated proof-object creation out of browser feat
   const compatibilityRoute = readFileSync("app/api/receiz/seal/route.ts", "utf8");
   assert.doesNotMatch(productionRuntime, /@receiz\/mcp-server/);
   assert.doesNotMatch(browserRuntime, /\bcreateProofObject\s*\(/);
-  assert.match(proofObjectRoute, /resolveWildzCookieActor/);
-  assert.match(proofObjectRoute, /createWildzExportProofObject/);
+  assert.doesNotMatch(proofObjectRoute, /resolveWildzCookieActor/);
+  assert.match(proofObjectRoute, /requireVerifiedWildzPng/);
+  assert.doesNotMatch(proofObjectRoute, /verifyReceizArtifact/);
+  assert.match(proofObjectRoute, /\/api\/document-seal/);
   assert.match(proofObjectRoute, /content-length/);
   assert.match(proofObjectRoute, /file\.size/);
   assert.doesNotMatch(proofObjectRoute, /wildz_proof_object_length_required/);
@@ -251,7 +253,7 @@ test("v102 keeps MCP and authenticated proof-object creation out of browser feat
     proofObjectRoute.indexOf("file.size") < proofObjectRoute.indexOf("file.arrayBuffer()"),
     "oversized files must be rejected before arrayBuffer materialization"
   );
-  assert.doesNotMatch(productionRuntime, /\bsealArtifact\b|\/api\/document-seal/);
+  assert.doesNotMatch(browserRuntime, /\bsealArtifact\b|\/api\/document-seal/);
   assert.match(compatibilityRoute, /export const dynamic = "force-dynamic"/);
   assert.match(compatibilityRoute, /export const runtime = "nodejs"/);
   assert.match(compatibilityRoute, /export \{ POST \} from "\.\.\/proof-object\/route"/);

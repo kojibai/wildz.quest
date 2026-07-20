@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-test("Wildz uses the v113 native Record/Seal proof-object contract", () => {
+test("Wildz verifies the exact Receiz-sealed Card and Vault before download", () => {
   const proofExport = readFileSync("src/lib/receiz/wildz-proof-object-export.ts", "utf8");
   const route = readFileSync("app/api/receiz/proof-object/route.ts", "utf8");
 
@@ -16,7 +16,11 @@ test("Wildz uses the v113 native Record/Seal proof-object contract", () => {
   assert.doesNotMatch(proofExport, /ownership:/);
   assert.doesNotMatch(proofExport, /provenance:/);
   assert.doesNotMatch(proofExport, /settlement:/);
-  assert.match(route, /created\.admitted\.artifactBytes/);
-  assert.match(route, /receiz-v113-native-record-seal/);
+  assert.doesNotMatch(route, /resolveWildzCookieActor/);
+  assert.match(route, /requireVerifiedWildzPng/);
+  assert.match(route, /requireWildzIdentityBindingFromEnvelope/);
+  assert.match(route, /\/api\/document-seal/);
+  assert.doesNotMatch(route, /verifyReceizArtifact|createReceizClient/);
+  assert.match(route, /receiz-sealed-artifact/);
   assert.doesNotMatch(route, /receiz-v102-proof-object/);
 });

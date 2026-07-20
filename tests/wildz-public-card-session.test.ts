@@ -62,19 +62,15 @@ test("standalone card recovery resolves the public projection for anonymous visi
   assert.doesNotMatch(registry, /registryKey|Symbol\.for|resolveLocalPublicWildsCard/);
 });
 
-test("card and Vault sealing enter the official SDK tenant-session rail", () => {
-  const startRoute = readFileSync("app/api/auth/receiz/start/route.ts", "utf8");
+test("card and Vault sealing use the active Wildz Receiz ID without a Connect redirect", () => {
   const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
-  const session = readFileSync("src/lib/receiz/wildz-native-proof-session.ts", "utf8");
+  const route = readFileSync("app/api/receiz/proof-object/route.ts", "utf8");
   const identityAdapter = readFileSync("src/lib/receiz/wildz-identity-adapter.ts", "utf8");
-  assert.match(startRoute, /ensureTenantSession/);
-  assert.match(startRoute, /fallback:\s*"artifact_upload"/);
-  assert.match(startRoute, /scope:\s*WILDZ_RECEIZ_OIDC_SCOPES/);
-  assert.match(session, /\/api\/auth\/receiz\/me/);
-  assert.match(session, /\/api\/auth\/receiz\/start/);
-  assert.match(session, /sameWildzPlayerCoordinate/);
-  assert.match(inventory, /ensureWildzNativeProofSession\(player\.playerId/);
-  assert.match(inventory, /ensureWildzNativeProofSession\(asset\.manifest\.ownerReceizId/);
+  assert.doesNotMatch(inventory, /\/api\/auth\/receiz\/start|ensureWildzNativeProofSession|ensureActiveWildzProofSession|receizResume/);
+  assert.doesNotMatch(route, /resolveWildzCookieActor|receiz_authority_required/);
+  assert.match(route, /requireVerifiedWildzPng/);
+  assert.match(route, /\/api\/document-seal/);
+  assert.doesNotMatch(route, /verifyReceizArtifact/);
   assert.match(identityAdapter, /downloadReceizProofObject/);
   assert.doesNotMatch(identityAdapter, /identityBound:\s*false/);
 });

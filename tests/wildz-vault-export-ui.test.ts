@@ -18,14 +18,14 @@ test("Card Vault export seals the complete live V3 player payload, not cards alo
   assert.match(campaign, /presentation\.audioSettings/);
   assert.match(inventory, /playerVault:\s*\(\) => WildsPlayerVaultPayload/);
   assert.match(inventory, /const player = playerVault\(\)/);
-  assert.match(inventory, /ensureWildzNativeProofSession\(player\.playerId, \{ kind: "vault" \}\)/);
+  assert.doesNotMatch(inventory, /ensureActiveWildzProofSession|\/api\/auth\/receiz\/start/);
   assert.match(inventory, /onExportVault\(state\.inventory, player\)/);
   assert.match(exporter, /portableVaultPngBlob\(assets: PortableCardAsset\[\], player\?: WildsPlayerVaultPayload\)/);
   assert.match(exporter, /embedPortableVaultInPng\([^;]+assets, player\)/s);
-  assert.match(exporter, /verifyDownloadedWildzProofObject/);
-  assert.match(exporter, /wildz-downloaded-proof-verifier/);
-  assert.match(localVerifier, /openWildzArtifact/);
-  assert.match(localVerifier, /compatibility !== "current-native"/);
+  assert.match(exporter, /verifyProofObject\?: WildzDownloadedProofObjectVerifier/);
+  assert.doesNotMatch(exporter, /wildz-downloaded-proof-verifier/);
+  assert.match(localVerifier, /verifyReceizArtifact/);
+  assert.match(localVerifier, /verified\.status !== "verified-artifact"/);
   assert.doesNotMatch(exporter, /\.wildz-card\.png/);
   assert.match(adapter, /downloadWildzIdentityPlayerVault/);
   assert.match(adapter, /withKeyFile/);
@@ -56,19 +56,20 @@ test("Vault card detail can send a saved card to a Receiz username or email", ()
   assert.match(inventory, /sendPortableCardToTarget/);
   assert.match(inventory, /createWildsCardSendDraft/);
   assert.match(inventory, /createReceizProofObjectArtifact/);
-  assert.match(inventory, /ensureWildzNativeProofSession\(selected\.manifest\.ownerReceizId/);
+  assert.doesNotMatch(inventory, /ensureActiveWildzProofSession/);
+  assert.doesNotMatch(inventory, /ensureWildzNativeProofSession|\/api\/auth\/receiz\/start/);
   assert.match(inventory, /navigator\.share/);
   assert.match(inventory, /mailto:/);
 });
 
-test("Vault export keeps the SDK native Record/Seal artifact as the downloadable artifact", () => {
+test("Vault export keeps the exact SDK-verified Receiz artifact as the downloadable artifact", () => {
   const exporter = readFileSync("src/features/play/card-export.ts", "utf8");
   const localVerifier = readFileSync("src/lib/receiz/wildz-downloaded-proof-verifier.ts", "utf8");
 
-  assert.match(exporter, /verifyDownloadedWildzProofObjectLocally/);
-  assert.match(localVerifier, /openWildzArtifact/);
-  assert.match(localVerifier, /sameBytes\(admitted\.artifactBytes, artifactBytes\)/);
-  assert.match(localVerifier, /sameBytes\(admitted\.payloadBytes, expectedPayloadBytes\)/);
+  assert.doesNotMatch(exporter, /verifyDownloadedWildzProofObjectLocally/);
+  assert.match(localVerifier, /verifyReceizArtifact/);
+  assert.match(localVerifier, /verified\.artifactDigest\.value !== await sha256\(artifactBytes\)/);
+  assert.match(localVerifier, /verified\.payloadDigest\.value !== await sha256\(expectedPayloadBytes\)/);
   assert.doesNotMatch(exporter, /remoteProof \?\? portable|downloadBlob\(portable/);
 });
 

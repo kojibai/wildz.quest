@@ -22,12 +22,11 @@ test("custody reconciliation removes active cards but retains their permanent hi
   assert.deepEqual(next.achievements, ["proof-history-remains"]);
 });
 
-test("global ownership is admitted before any local Vault merge", () => {
+test("proof-verified Vault restore is never gated by an online ownership claim", () => {
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
-  const claim = shell.indexOf("await claimVerifiedImportedCards(file, current.session.actorId)");
   const restore = shell.indexOf("await restoreWildzFileForSurface(");
-  assert.ok(claim >= 0 && restore > claim);
-  assert.match(shell, /This card has new ownership\./);
+  assert.ok(restore >= 0);
+  assert.doesNotMatch(shell, /claimVerifiedImportedCards|Global Receiz ownership must be online|\/api\/market\/claims/);
   assert.match(shell, /BroadcastChannel\("receiz:wildz:ownership:v113"\)/);
 
   const route = readFileSync("app/api/market/claims/route.ts", "utf8");

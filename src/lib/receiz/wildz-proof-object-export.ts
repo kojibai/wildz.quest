@@ -41,10 +41,9 @@ function safeSourceFilename(value: string) {
   return basename.toLowerCase().endsWith(".png") ? basename : `${basename}.png`;
 }
 
-function requireOwnedWildzPng(
+export function requireVerifiedWildzPng(
   kind: "card" | "vault",
-  bytes: Uint8Array,
-  actor: WildzExportProofObjectActor
+  bytes: Uint8Array
 ) {
   if (!bytes.byteLength || bytes.byteLength > MAX_WILDZ_PROOF_OBJECT_BYTES) {
     throw new Error("wildz_proof_object_size_invalid");
@@ -55,10 +54,7 @@ function requireOwnedWildzPng(
     if (!verified.ok || !verified.asset || proof.asset.id !== verified.asset.id) {
       throw new Error("wildz_proof_object_card_invalid");
     }
-    if (!sameWildzPlayerCoordinate(verified.asset.manifest.ownerReceizId, actor.profileHandle)) {
-      throw new Error("wildz_proof_object_owner_mismatch");
-    }
-    return;
+    return verified.asset.manifest.ownerReceizId;
   }
 
   const verified = verifyPortableVaultPng(bytes);
@@ -66,7 +62,16 @@ function requireOwnedWildzPng(
   if (!verified.ok || !verified.player || proof.schema !== "receiz.wilds_vault_png_proof.v3") {
     throw new Error("wildz_proof_object_player_vault_required");
   }
-  if (!sameWildzPlayerCoordinate(verified.player.playerId, actor.profileHandle)) {
+  return verified.player.playerId;
+}
+
+export function requireOwnedWildzPng(
+  kind: "card" | "vault",
+  bytes: Uint8Array,
+  actor: WildzExportProofObjectActor
+) {
+  const ownerReceizId = requireVerifiedWildzPng(kind, bytes);
+  if (!sameWildzPlayerCoordinate(ownerReceizId, actor.profileHandle)) {
     throw new Error("wildz_proof_object_owner_mismatch");
   }
 }

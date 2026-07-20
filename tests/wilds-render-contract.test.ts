@@ -455,9 +455,9 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(cardRoute, /storeStateRecord:\s*transportRecord as unknown as JsonObject/);
     assert.match(cardRoute, /status:\s*503/);
     assert.doesNotMatch(cardRoute, /createReceizWildzPublicRepository|hasPublicationAuthority|published:\s*false/);
-    assert.match(inventory, /Publishing the verified card and creating its native Receiz proof object/);
-    assert.match(inventory, /Receiz proof object downloaded/);
-    assert.match(inventory, /SDK v113 verified it offline/);
+    assert.match(inventory, /Publishing and sealing the verified card/);
+    assert.match(inventory, /Receiz-sealed card downloaded/);
+    assert.match(inventory, /standalone page is anonymously readable/);
     assert.match(cardExport, /premiumQrSvg\(cardPath/);
     assert.match(cardExport, /requireGloballyAvailablePublicWildsCard/);
     assert.match(cardExport, /requireGloballyAvailablePublicWildsCard\(asset\)/);

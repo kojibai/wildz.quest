@@ -568,7 +568,7 @@ export async function downloadWildzIdentityPlayerVault(
     new Blob([combined.slice().buffer], { type: "image/png" }),
     `wilds-vault-${digest}.png`,
     "vault",
-    { outputFilename: `wilds-vault-${digest}.receized` }
+    { outputFilename: `wilds-vault-${digest}.receized.png` }
   );
   return { identityBound: true } as const;
 }

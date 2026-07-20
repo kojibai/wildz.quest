@@ -33,7 +33,7 @@ test("card send draft carries the native sealed proof object and a mailto handof
   assert.equal(draft.filename, `${asset.manifest.name}.receized`);
   assert.match(draft.url, /^https:\/\/wildz\.quest\/cards\/wilds%3A[a-f0-9]{24}$/);
   assert.match(draft.text, /verified Wildz Receiz proof object/i);
-  assert.match(draft.text, /native Record → Seal artifact/i);
+  assert.match(draft.text, /Receiz-sealed artifact/i);
   assert.match(draft.text, /sealed proof object and its append-only ownership history remain the authority/i);
   assert.match(draft.href, /^mailto:collector%40example\.com\?/);
   assert.match(decodeURIComponent(draft.href), new RegExp(asset.id));

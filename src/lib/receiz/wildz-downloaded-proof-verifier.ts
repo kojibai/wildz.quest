@@ -1,34 +1,26 @@
-import { createReceizClient } from "@receiz/sdk";
-import { openWildzArtifact } from "./wildz-artifact-custody";
+import { verifyReceizArtifact } from "@receiz/sdk";
 
-function sameBytes(left: Uint8Array, right: Uint8Array) {
-  if (left.byteLength !== right.byteLength) return false;
-  for (let index = 0; index < left.byteLength; index += 1) {
-    if (left[index] !== right[index]) return false;
-  }
-  return true;
+async function sha256(bytes: Uint8Array) {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes.slice().buffer));
+  return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-/** Reopen exact response bytes locally before the browser may save them. */
+/** Verify exact response bytes locally before the browser may save them. */
 export async function verifyDownloadedWildzProofObjectLocally(
   artifactBytes: Uint8Array,
   artifactMimeType: string,
   artifactFilename: string,
   expectedPayloadBytes: Uint8Array
 ) {
-  const client = createReceizClient();
-  const admitted = await openWildzArtifact(
-    new Blob([artifactBytes.slice().buffer], { type: artifactMimeType }),
-    artifactFilename,
-    client.artifacts
-  );
-  if (admitted.compatibility !== "current-native") {
-    throw new Error("wildz_proof_object_current_native_required");
+  const file = new File([artifactBytes.slice().buffer], artifactFilename, { type: artifactMimeType });
+  const verified = await verifyReceizArtifact(file);
+  if (verified.status !== "verified-artifact" || verified.verification.ok !== true) {
+    throw new Error("wildz_artifact_verification_failed");
   }
-  if (!sameBytes(admitted.artifactBytes, artifactBytes)) {
+  if (verified.artifactDigest.value !== await sha256(artifactBytes)) {
     throw new Error("wildz_proof_object_artifact_bytes_mismatch");
   }
-  if (admitted.mimeType !== artifactMimeType || !sameBytes(admitted.payloadBytes, expectedPayloadBytes)) {
+  if (verified.payloadDigest.value !== await sha256(expectedPayloadBytes)) {
     throw new Error("wildz_proof_object_payload_mismatch");
   }
 }

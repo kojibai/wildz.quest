@@ -125,7 +125,7 @@ test("Vault download preserves the SDK native Record/Seal artifact byte-exact", 
     assert.ok(downloaded);
     assert.equal(downloaded.type, "image/png");
     assert.deepEqual(new Uint8Array(await downloaded.arrayBuffer()), expected);
-    assert.match(browser.downloadedFilename(), /^wilds-vault-[a-f0-9]{12}\.receized$/);
+    assert.match(browser.downloadedFilename(), /^wilds-vault-[a-f0-9]{12}\.receized\.png$/);
   } finally {
     browser.restore();
   }
@@ -215,7 +215,7 @@ test("Card export never saves an unsealed payload when native proof creation is 
   }
 });
 
-test("Card export refuses server bytes that the SDK offline verifier cannot reopen", async () => {
+test("Card export honors an explicit offline verifier rejection", async () => {
   const browser = installDownloadBrowser();
   const asset = card("native-card-verifier-required");
   try {
@@ -233,7 +233,11 @@ test("Card export refuses server bytes that the SDK offline verifier cannot reop
       }
     });
 
-    await assert.rejects(downloadPortableCard(asset), /wildz_artifact_verification_failed/);
+    await assert.rejects(downloadPortableCard(asset, {
+      verifyProofObject: async () => {
+        throw new Error("wildz_artifact_verification_failed");
+      }
+    }), /wildz_artifact_verification_failed/);
     assert.equal(browser.downloaded(), null);
   } finally {
     browser.restore();
