@@ -5,12 +5,19 @@ import type { PortableCardAsset } from "./portable-card";
 import type { WildzVaultCardMembershipProof } from "@/lib/receiz/wildz-vault-card-admission";
 import type { WildsWorldCommand } from "./wilds-world-service";
 import { WILDS_WORLD_ID } from "./wilds-world-event";
-import type { WildsWorldProjection } from "./wilds-world-state";
+import { initialWildsWorldProjection, type WildsWorldProjection } from "./wilds-world-state";
 import type { WildsWorldSnapshot } from "./wilds-world-record";
 import type { WildsRaidIntent } from "./wilds-raid-encounter";
 import type { WildsGameplayVerb } from "./wilds-saga-types";
 import { worldCommandRequiresCard } from "./wilds-world-authority";
 import { publishActiveWildsWorldWithIdentityProof } from "@/lib/receiz/wilds-world-identity-publication";
+import {
+  acknowledgeWildsWorldCommand,
+  enqueueWildsWorldCommand,
+  projectWildsWorldOutbox,
+  readWildsWorldOutbox,
+  type WildsWorldOutboxEntry
+} from "./wilds-world-outbox";
 import {
   shouldAttemptWildsNetwork,
   isOpaqueWildsNetworkFailure,
@@ -59,7 +66,7 @@ export function wildsWorldModeAfterRequestFailure(
   offline: boolean,
   currentMode: WildsWorldClientMode
 ): WildsWorldClientMode {
-  if (offline) return "local_practice";
+  if (offline) return "receiz_recovery_pending";
   return currentMode === "receiz_live" || currentMode === "kai_live" ? currentMode : "reconnecting";
 }
 
@@ -80,6 +87,7 @@ export function parseWildsWorldCommandResponse(value: unknown): { projection: Wi
 
 export function useWildsWorld(input: {
   enabled: boolean;
+  actorId: string;
   guestId: string;
   activeCard: PortableCardAsset | null;
   cardAdmission: WildzVaultCardMembershipProof | null;
@@ -89,6 +97,7 @@ export function useWildsWorld(input: {
   const [error, setError] = useState("");
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
   const commandPending = useRef(false);
+  const canonicalSnapshot = useRef<WildsWorldProjection | null>(null);
   const controllers = useRef(new Set<AbortController>());
   const retryAfter = useRef(0);
 
@@ -99,7 +108,9 @@ export function useWildsWorld(input: {
       const response = await fetch(url, { ...init, signal: controller.signal });
       const value = await response.json().catch(() => null) as Record<string, unknown> | null;
       if (!response.ok || !value) {
-        throw new Error(typeof value?.error === "string" ? value.error : "wilds_world_request_failed");
+        const error = new Error(typeof value?.error === "string" ? value.error : "wilds_world_request_failed") as Error & { status?: number };
+        error.status = response.status;
+        throw error;
       }
       return value;
     } finally {
@@ -107,10 +118,51 @@ export function useWildsWorld(input: {
     }
   }, []);
 
+  const sendEntry = useCallback(async (entry: WildsWorldOutboxEntry) => {
+    const value = await request("/api/wilds/world/command", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        guestId: entry.guestId,
+        command: entry.command,
+        ...(entry.card ? { card: entry.card } : {}),
+        ...(entry.cardAdmission ? { cardAdmission: entry.cardAdmission } : {})
+      })
+    });
+    const publication = value.publication as Record<string, unknown> | undefined;
+    if (publication?.required === "identity_proof" && publication.published === false) {
+      await publishActiveWildsWorldWithIdentityProof(publication.draft);
+    }
+    return parseWildsWorldCommandResponse(value);
+  }, [request]);
+
+  const flushOutbox = useCallback(async (base: WildsWorldProjection, initialMode: WildsWorldCommandMode) => {
+    if (commandPending.current) {
+      const entries = await readWildsWorldOutbox(input.actorId);
+      return { projection: projectWildsWorldOutbox(base, input.actorId, entries), mode: initialMode as WildsWorldClientMode };
+    }
+    commandPending.current = true;
+    let canonical = base;
+    let nextMode: WildsWorldClientMode = initialMode;
+    let entries = await readWildsWorldOutbox(input.actorId);
+    try {
+      while (entries.length > 0 && shouldAttemptWildsNetwork()) {
+        const parsed = await sendEntry(entries[0]!);
+        canonical = parsed.projection;
+        nextMode = parsed.mode;
+        entries = await acknowledgeWildsWorldCommand(input.actorId, entries[0]!.command.commandId);
+      }
+    } finally {
+      commandPending.current = false;
+    }
+    canonicalSnapshot.current = canonical;
+    return { projection: projectWildsWorldOutbox(canonical, input.actorId, entries), mode: nextMode };
+  }, [input.actorId, sendEntry]);
+
   const refresh = useCallback(async () => {
     if (!input.enabled) return;
     if (!shouldAttemptWildsNetwork()) {
-      setMode("local_practice");
+      setMode("receiz_recovery_pending");
       setError(WILDS_WORLD_OFFLINE_MESSAGE);
       return;
     }
@@ -118,8 +170,10 @@ export function useWildsWorld(input: {
     try {
       const value = await request("/api/wilds/world/snapshot");
       const { projection, mode: nextMode } = parseWildsWorldSnapshotResponse(value);
-      setSnapshot((current) => acceptWildsWorldSnapshot(current, projection));
-      setMode(nextMode);
+      canonicalSnapshot.current = projection;
+      const flushed = await flushOutbox(projection, nextMode);
+      setSnapshot(flushed.projection);
+      setMode(flushed.mode);
       setError("");
       retryAfter.current = 0;
     } catch (cause) {
@@ -130,7 +184,7 @@ export function useWildsWorld(input: {
       setMode((current) => wildsWorldModeAfterRequestFailure(offline, current));
       setError(wildsNetworkFailureMessage(cause, "world", !offline));
     }
-  }, [input.enabled, request]);
+  }, [flushOutbox, input.enabled, request]);
 
   useEffect(() => {
     if (input.enabled) setMode(wildsWorldModeAfterConfirmedBootstrap);
@@ -150,32 +204,35 @@ export function useWildsWorld(input: {
 
   const post = useCallback(async (command: WildsWorldCommand) => {
     if (!input.enabled) throw new Error("wilds_world_session_required");
-    if (commandPending.current) throw new Error("wilds_world_command_pending");
-    if (!shouldAttemptWildsNetwork()) {
-      setMode("local_practice");
+    const entry: WildsWorldOutboxEntry = {
+      schema: "receiz.wilds_world_outbox_entry.v1",
+      actorId: input.actorId,
+      guestId: input.guestId,
+      command,
+      ...(worldCommandRequiresCard(command) && input.activeCard ? { card: input.activeCard } : {}),
+      ...(input.cardAdmission ? { cardAdmission: input.cardAdmission } : {}),
+      queuedAt: new Date().toISOString()
+    };
+    const queueForGlobalCommit = async () => {
+      const entries = await enqueueWildsWorldCommand(entry);
+      const base = canonicalSnapshot.current ?? snapshot ?? initialWildsWorldProjection();
+      const projection = projectWildsWorldOutbox(base, input.actorId, entries);
+      setSnapshot(projection);
+      setMode("receiz_recovery_pending");
       setError(WILDS_WORLD_OFFLINE_MESSAGE);
-      throw new Error(WILDS_WORLD_OFFLINE_MESSAGE);
+      return projection;
+    };
+    if (commandPending.current || !shouldAttemptWildsNetwork()) {
+      return queueForGlobalCommit();
     }
     commandPending.current = true;
     setPendingCommand(command.commandId);
     try {
-      const value = await request("/api/wilds/world/command", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(buildWildsWorldCommandBody(
-          input.guestId,
-          command,
-          worldCommandRequiresCard(command) ? input.activeCard ?? undefined : undefined,
-          input.cardAdmission
-        ))
-      });
-      const publication = value.publication as Record<string, unknown> | undefined;
-      if (publication?.required === "identity_proof" && publication.published === false) {
-        await publishActiveWildsWorldWithIdentityProof(publication.draft);
-      }
-      const parsed = parseWildsWorldCommandResponse(value);
+      const parsed = await sendEntry(entry);
       const projection = parsed.projection;
-      setSnapshot((current) => acceptWildsWorldSnapshot(current, projection));
+      canonicalSnapshot.current = projection;
+      const queued = await readWildsWorldOutbox(input.actorId);
+      setSnapshot(projectWildsWorldOutbox(projection, input.actorId, queued));
       setMode(parsed.mode);
       setError("");
       retryAfter.current = 0;
@@ -184,6 +241,8 @@ export function useWildsWorld(input: {
       const opaqueFailure = isOpaqueWildsNetworkFailure(cause);
       if (opaqueFailure) retryAfter.current = Date.now() + WILDS_NETWORK_RETRY_BACKOFF_MS;
       const offline = !shouldAttemptWildsNetwork() || opaqueFailure;
+      const status = (cause as Error & { status?: number }).status;
+      if (offline || status === undefined || status >= 500) return queueForGlobalCommit();
       const message = wildsNetworkFailureMessage(cause, "world", !offline);
       setMode((current) => wildsWorldModeAfterRequestFailure(offline, current));
       setError(message);
@@ -192,7 +251,7 @@ export function useWildsWorld(input: {
       commandPending.current = false;
       setPendingCommand(null);
     }
-  }, [input.activeCard, input.cardAdmission, input.enabled, input.guestId, request]);
+  }, [input.activeCard, input.actorId, input.cardAdmission, input.enabled, input.guestId, sendEntry, snapshot]);
 
   useEffect(() => {
     const resume = () => {

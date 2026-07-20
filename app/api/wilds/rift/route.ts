@@ -4,6 +4,7 @@ import { authorizeRiftTravel, type RiftTravelGrant } from "@/features/play/wilds
 import {
   hydrateWildsRoomFromReceiz,
   parseWildsRoomKey,
+  commitWildsRoomToReceiz,
   resolveWildsMultiplayerActor
 } from "@/lib/receiz/wilds-multiplayer-server";
 import { wildsMultiplayerError } from "@/lib/receiz/wilds-multiplayer-response";
@@ -67,15 +68,16 @@ export async function POST(request: NextRequest) {
       locked
     });
     if (!result.ok) throw new Error(result.error);
-    applyAuthorizedRiftPresence({
+    const room = applyAuthorizedRiftPresence({
       roomKey,
       playerId: actor.playerId,
       destination: result.grant.destination,
       kaiPulse: result.grant.kaiPulse
     });
+    const publication = await commitWildsRoomToReceiz(request, actor, snapshot, room);
     ledger.grants.set(cacheKey, result.grant);
     if (ledger.grants.size > 512) ledger.grants.delete(ledger.grants.keys().next().value!);
-    return NextResponse.json({ ok: true, grant: result.grant, idempotent: false }, {
+    return NextResponse.json({ ok: true, grant: result.grant, idempotent: false, publication }, {
       headers: { "cache-control": "private, no-store" }
     });
   } catch (error) {

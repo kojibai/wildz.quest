@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { heartbeatWildsPresence } from "@/features/play/multiplayer-ledger";
-import { authorizeWildsMultiplayerCard, hydrateWildsRoomFromReceiz, parseWildsRoomKey, publishWildsRoomToReceiz, resolveWildsMultiplayerActor } from "@/lib/receiz/wilds-multiplayer-server";
+import { getWildsMultiplayerSnapshot, heartbeatWildsPresence } from "@/features/play/multiplayer-ledger";
+import { authorizeWildsMultiplayerCard, commitWildsRoomToReceiz, hydrateWildsRoomFromReceiz, parseWildsRoomKey, resolveWildsMultiplayerActor } from "@/lib/receiz/wilds-multiplayer-server";
 import { wildsMultiplayerError } from "@/lib/receiz/wilds-multiplayer-response";
 
 export const runtime = "nodejs";
@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
     const z = Number(body?.z);
     const heading = Number(body?.heading ?? 0);
     await hydrateWildsRoomFromReceiz(request, roomKey);
+    const previous = getWildsMultiplayerSnapshot(roomKey);
     const result = heartbeatWildsPresence({
       roomKey,
       playerId: actor.playerId,
@@ -28,8 +29,13 @@ export async function POST(request: NextRequest) {
       practice: actor.practice,
       activeCard: authorizeWildsMultiplayerCard(actor, body?.card, body?.cardAdmission)
     });
-    const publication = await publishWildsRoomToReceiz(request, actor, result.snapshot);
-    return NextResponse.json({ ok: true, actor, ...result, publication });
+    const publication = await commitWildsRoomToReceiz(request, actor, previous, result.snapshot);
+    return NextResponse.json({
+      ok: true,
+      actor: { playerId: actor.playerId, handle: actor.handle, practice: actor.practice },
+      ...result,
+      publication
+    });
   } catch (error) {
     return wildsMultiplayerError(error);
   }

@@ -101,6 +101,14 @@ export function admitWildsMultiplayerRoom(value: WildsMultiplayerRoom) {
   return rooms().get(value.roomKey)!;
 }
 
+export function restoreWildsMultiplayerRoom(value: WildsMultiplayerRoom) {
+  if (value.schema !== "receiz.wilds_multiplayer_room.v1" || !value.roomKey || !Number.isInteger(value.revision)) {
+    throw new Error("wilds_multiplayer_room_invalid");
+  }
+  rooms().set(value.roomKey, value);
+  return value;
+}
+
 export function getWildsMultiplayerSnapshot(roomKey: string, now = new Date().toISOString()) {
   const current = cleanRoom(rooms().get(roomKey) ?? emptyRoom(roomKey, now), now);
   rooms().set(roomKey, current);

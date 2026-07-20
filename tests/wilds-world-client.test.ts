@@ -90,7 +90,7 @@ describe("Wilds world client contract", () => {
     assert.equal(wildsWorldModeAfterRequestFailure(false, "connecting"), "reconnecting");
     assert.equal(wildsWorldModeAfterRequestFailure(false, "receiz_live"), "receiz_live");
     assert.equal(wildsWorldModeAfterRequestFailure(false, "kai_live"), "kai_live");
-    assert.equal(wildsWorldModeAfterRequestFailure(true, "receiz_live"), "local_practice");
+    assert.equal(wildsWorldModeAfterRequestFailure(true, "receiz_live"), "receiz_recovery_pending");
     assert.doesNotMatch(source, /offline\s*\|\|\s*input\.guestId/);
     assert.doesNotMatch(source, /window\.location\.assign|\/api\/auth\/receiz\/start|connectUrl/);
   });

@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import type { JsonObject } from "@receiz/sdk";
 import { pvpCardFromAsset } from "@/features/play/multiplayer-card";
-import { admitWildsMultiplayerRoom, type WildsMultiplayerRoom, type WildsMultiplayerSnapshot } from "@/features/play/multiplayer-ledger";
+import { admitWildsMultiplayerRoom, restoreWildsMultiplayerRoom, type WildsMultiplayerRoom, type WildsMultiplayerSnapshot } from "@/features/play/multiplayer-ledger";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import { hostContextFromHost } from "@/lib/hosting/host-context";
 import { platform } from "@/lib/platform";
@@ -32,14 +32,25 @@ export function parseWildsRoomKey(value: unknown) {
 }
 
 export async function resolveWildsMultiplayerActor(request: NextRequest, guestValue?: unknown): Promise<WildsMultiplayerActor> {
+  const playerToken = playerReceizAccessToken(receizRequestSession(request));
   try {
     const proofSession = readWildzProofSessionCookie(request);
     const principalId = wildzProofPrincipalId(proofSession);
+    let matchingAccessToken: string | undefined;
+    let matchingReceizActorId: string | undefined;
+    if (playerToken) {
+      const profile = await loadReceizConnectProfile(playerToken).catch(() => null);
+      if (profile?.handle && sameWildzPlayerCoordinate(profile.handle, proofSession.profileHandle)) {
+        matchingAccessToken = playerToken;
+        matchingReceizActorId = profile.id || profile.handle;
+      }
+    }
     return {
       playerId: principalId,
       handle: proofSession.profileHandle,
-      receizActorId: principalId,
+      receizActorId: matchingReceizActorId ?? principalId,
       practice: false,
+      ...(matchingAccessToken ? { accessToken: matchingAccessToken } : {}),
       ...(proofSession.vaultCardRootSha256
         ? { vaultCardRootSha256: proofSession.vaultCardRootSha256 }
         : {})
@@ -47,13 +58,12 @@ export async function resolveWildsMultiplayerActor(request: NextRequest, guestVa
   } catch {
     // Legacy scoped Connect sessions remain accepted during migration.
   }
-  const playerToken = playerReceizAccessToken(receizRequestSession(request));
   if (playerToken) {
     const profile = await loadReceizConnectProfile(playerToken).catch(() => null);
     if (profile?.handle) return {
       playerId: profile.handle,
       handle: profile.handle,
-      receizActorId: profile.handle,
+      receizActorId: profile.id || profile.handle,
       practice: false,
       accessToken: playerToken
     };
@@ -110,16 +120,17 @@ function findRoomRecord(value: unknown): WildsMultiplayerRoom | null {
   return null;
 }
 
-const hydrateKey = Symbol.for("receiz.wilds.multiplayer-hydration.v1");
+const hydrateKey = Symbol.for("receiz.wilds.multiplayer-hydration.v2");
 function hydratedUrls() {
-  const root = globalThis as typeof globalThis & { [hydrateKey]?: Set<string> };
-  return (root[hydrateKey] ??= new Set());
+  const root = globalThis as typeof globalThis & { [hydrateKey]?: Map<string, number> };
+  return (root[hydrateKey] ??= new Map());
 }
 
 export async function hydrateWildsRoomFromReceiz(request: NextRequest, roomKey: string) {
   const sourceUrl = multiplayerSourceUrl(request, roomKey);
-  if (hydratedUrls().has(sourceUrl)) return;
-  hydratedUrls().add(sourceUrl);
+  const hydratedAt = hydratedUrls().get(sourceUrl) ?? 0;
+  if (Date.now() - hydratedAt < 1_000) return;
+  hydratedUrls().set(sourceUrl, Date.now());
   try {
     const recovered = await Promise.race([
       createReceizCommerceAdapter().readAppStateByUrl(sourceUrl),
@@ -128,7 +139,8 @@ export async function hydrateWildsRoomFromReceiz(request: NextRequest, roomKey: 
     const room = findRoomRecord(recovered);
     if (room?.roomKey === roomKey) admitWildsMultiplayerRoom(room);
   } catch {
-    // Local practice remains playable; the next verified write republishes the room projection.
+    hydratedUrls().delete(sourceUrl);
+    // Retain the last visible room; the next verified write retries publication.
   }
 }
 
@@ -153,4 +165,18 @@ export async function publishWildsRoomToReceiz(request: NextRequest, actor: Wild
   } catch {
     return { published: false, mode: "receiz_recovery_pending" as const };
   }
+}
+
+export async function commitWildsRoomToReceiz(
+  request: NextRequest,
+  actor: WildsMultiplayerActor,
+  previous: WildsMultiplayerRoom,
+  room: WildsMultiplayerSnapshot
+) {
+  const publication = await publishWildsRoomToReceiz(request, actor, room);
+  if (!actor.practice && !publication.published) {
+    restoreWildsMultiplayerRoom(previous);
+    throw new Error("wilds_multiplayer_publication_required");
+  }
+  return publication;
 }

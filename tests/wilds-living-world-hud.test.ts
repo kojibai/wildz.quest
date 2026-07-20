@@ -8,7 +8,8 @@ test("the acknowledged live world pill says Connected", () => {
   assert.equal(wildsLivingWorldModeLabel("reconnecting"), "World reconnecting");
 });
 
-test("the HUD never rewrites a non-live world as Connected", () => {
-  assert.equal(wildsLivingWorldModeLabel("local_practice", true), "Local practice");
+test("the HUD never rewrites a pending world as Connected or practice", () => {
+  assert.equal(wildsLivingWorldModeLabel("local_practice", true), "World reconnecting");
+  assert.equal(wildsLivingWorldModeLabel("receiz_recovery_pending", true), "Live sync pending");
   assert.equal(wildsLivingWorldModeLabel("reconnecting", true), "World reconnecting");
 });

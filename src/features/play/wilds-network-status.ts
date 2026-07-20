@@ -1,5 +1,5 @@
-export const WILDS_WORLD_OFFLINE_MESSAGE = "Offline — local play continues. Shared world sync resumes when connected.";
-export const WILDS_MULTIPLAYER_OFFLINE_MESSAGE = "Offline — local play continues. Global explorers resume when connected.";
+export const WILDS_WORLD_OFFLINE_MESSAGE = "Connection unavailable — this live action is saved and will keep retrying until globally committed.";
+export const WILDS_MULTIPLAYER_OFFLINE_MESSAGE = "Connection unavailable — live global presence resumes automatically when connected.";
 export const WILDS_NETWORK_RETRY_BACKOFF_MS = 15_000;
 
 type NetworkStatus = { onLine?: boolean } | null | undefined;
@@ -14,7 +14,7 @@ export function shouldAttemptWildsNetwork(status: NetworkStatus = browserNetwork
 
 export function isOpaqueWildsNetworkFailure(cause: unknown) {
   const message = cause instanceof Error ? cause.message.trim() : "";
-  return /failed to fetch|networkerror|load failed|^offline — local play continues\./i.test(message);
+  return /failed to fetch|networkerror|load failed|^connection unavailable —/i.test(message);
 }
 
 export function wildsNetworkFailureMessage(

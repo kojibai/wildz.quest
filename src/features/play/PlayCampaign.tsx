@@ -221,6 +221,7 @@ export function PlayCampaign({
   });
   const livingWorld = useWildsWorld({
     enabled: enabled && networkEnabled && Boolean(avatarStyle),
+    actorId: ownerReceizId,
     guestId: multiplayer.guestId,
     activeCard: activeAsset ?? null,
     cardAdmission

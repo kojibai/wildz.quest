@@ -10,6 +10,7 @@ import {
   createWildzVaultProofSession,
   packWildzProofSession
 } from "../src/lib/receiz/wildz-proof-session.js";
+import { WILDZ_RECEIZ_SESSION_SCOPE } from "../src/lib/receiz/wildz-auth-url.js";
 
 const SECRET = "wildz-world-bootstrap-test-secret-at-least-thirty-two-bytes";
 const GENESIS_PULSE = "2026-07-15T00:00:00.000Z";
@@ -33,7 +34,7 @@ function canonicalWorld(pulse = GENESIS_PULSE): WildsWorldRecord {
   return { checkpoint: canonical.checkpoint(), eventTail: canonical.events() };
 }
 
-function proofRequest() {
+function proofRequest(withReceizResponseToken = false) {
   const session = createWildzVaultProofSession({
     actorId: "bjklock",
     profileHandle: "bjklock.receiz.id",
@@ -46,7 +47,13 @@ function proofRequest() {
   return {
     request: new NextRequest("https://wildz.quest/api/wilds/world/bootstrap", {
       method: "POST",
-      headers: { cookie: `${WILDZ_PROOF_SESSION_COOKIE}=${token}` }
+      headers: { cookie: [
+        `${WILDZ_PROOF_SESSION_COOKIE}=${token}`,
+        ...(withReceizResponseToken ? [
+          "receiz_access_token=receiz-response-token",
+          `receiz_session_scope=${encodeURIComponent(WILDZ_RECEIZ_SESSION_SCOPE)}`
+        ] : [])
+      ].join("; ") }
     }),
     session
   };
@@ -125,6 +132,24 @@ test("an authenticated bootstrap prepares deterministic genesis for Identity Sea
   assert.deepEqual(result.publication.draft.expectedHead, { revision: 0, lastEventId: null });
   assert.deepEqual(result.publication.draft.storeStateRecord, expected);
   assert.equal(publishes, 0);
+});
+
+test("a matching Receiz response token directly publishes genesis with user authority", async () => {
+  let publishedAccessToken = "";
+  (globalThis as Record<symbol, unknown>)[repositoryKey] = {
+    recover: async () => null,
+    publish: async ({ actor, record }: { actor: { accessToken?: string }; record: WildsWorldRecord }) => {
+      publishedAccessToken = actor.accessToken ?? "";
+      return { published: true, mode: "receiz_live", revision: record.checkpoint.revision, record };
+    },
+    audit: async () => true
+  };
+
+  const result = await bootstrap(proofRequest(true).request);
+
+  assert.equal(result.mode, "receiz_live");
+  assert.equal(result.publication.published, true);
+  assert.equal(publishedAccessToken, "receiz-response-token");
 });
 
 test("an authenticated proof session joins the canonical Kai world without a separate OIDC token", async () => {
@@ -281,4 +306,26 @@ test("a proof-native player command prepares an Identity Seal append and never d
   assert.equal(result.publication.draft.expectedHead.revision, record.checkpoint.revision);
   assert.equal(result.publication.draft.storeStateRecord.checkpoint.revision > record.checkpoint.revision, true);
   assert.equal(publishes, 0);
+});
+
+test("a matching Receiz response token publishes a player command before acknowledging it", async () => {
+  const record = canonicalWorld();
+  let publishedRevision = -1;
+  (globalThis as Record<symbol, unknown>)[repositoryKey] = {
+    recover: async () => record,
+    publish: async ({ actor, record: next }: { actor: { accessToken?: string }; record: WildsWorldRecord }) => {
+      assert.equal(actor.accessToken, "receiz-response-token");
+      publishedRevision = next.checkpoint.revision;
+      return { published: true, mode: "receiz_live", revision: next.checkpoint.revision, record: next };
+    },
+    audit: async () => true
+  };
+
+  const result = await worldServer.executeWildsWorldCommand(proofRequest(true).request, {
+    command: { type: "team.create", name: "Global Keepers", commandId: "command:team:create:response-token" }
+  });
+
+  assert.equal(result.mode, "receiz_live");
+  assert.equal(result.publication.published, true);
+  assert.equal(publishedRevision, result.projection.revision);
 });

@@ -187,6 +187,17 @@ export function bootstrapWildsWorld(request: NextRequest) {
     const events = [...worldTick.events, ...ecologyTick.events];
     const projection = current.snapshot();
     const record = { checkpoint: current.checkpoint(), eventTail: current.events() };
+    if (actor.accessToken) {
+      let publication = await publish(request, actor, current, { revision: 0, lastEventId: null });
+      if (!publication.published) {
+        root()[serviceKey] = publication.conflict && publication.record
+          ? new WildsWorldService(publication.record)
+          : new WildsWorldService(before);
+        throw new Error("wilds_world_canonical_publish_required");
+      }
+      if (!await auditMajorEvents(request, actor, events)) publication = { ...publication, mode: "receiz_recovery_pending" };
+      return { projection, mode: publication.mode, events, publication };
+    }
     root()[serviceKey] = new WildsWorldService(before);
     return {
       projection,
@@ -207,7 +218,18 @@ export function bootstrapWildsWorld(request: NextRequest) {
 }
 
 export async function worldSnapshot(request: NextRequest) {
-  await hydrateWildsWorldFromReceiz(request);
+  try {
+    const recovered = await Promise.race([
+      repository().recover(sourceUrl(request)),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1_200))
+    ]);
+    const record = findWildsWorldRecord(recovered);
+    if (record && record.checkpoint.revision >= service().checkpoint().revision) {
+      root()[serviceKey] = new WildsWorldService({ checkpoint: record.checkpoint, events: record.eventTail });
+    }
+  } catch {
+    await hydrateWildsWorldFromReceiz(request);
+  }
   const snapshot = selectWildsWorldSnapshot(service().snapshot(), practiceService().snapshot());
   if (snapshot.mode === "receiz_live") return snapshot;
   try {
@@ -242,6 +264,20 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown) {
   const now = new Date().toISOString();
   const result = current.execute(command, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now, card });
   const record = { checkpoint: current.checkpoint(), eventTail: current.events() };
+  if (actor.accessToken) {
+    let publication = await publish(request, actor, current, {
+      revision: before.checkpoint.revision,
+      lastEventId: before.checkpoint.lastEventId
+    });
+    if (!publication.published) {
+      root()[serviceKey] = publication.conflict && publication.record
+        ? new WildsWorldService(publication.record)
+        : new WildsWorldService(before);
+      throw new Error("wilds_world_canonical_publish_required");
+    }
+    if (!await auditMajorEvents(request, actor, result.events)) publication = { ...publication, mode: "receiz_recovery_pending" };
+    return { projection: result.projection, mode: publication.mode, events: result.events, publication };
+  }
   root()[serviceKey] = new WildsWorldService(before);
   return {
     projection: result.projection,

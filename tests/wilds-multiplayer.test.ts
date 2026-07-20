@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import {
   canInteractWithPresence,
@@ -31,6 +32,12 @@ const card = (id: string, speed = 44): PvpCard => ({
     { name: "Pulse", power: 32 },
     { name: "Bond", power: 39 }
   ]
+});
+
+it("keeps the Receiz response token server-side when returning the live actor", () => {
+  const route = readFileSync("app/api/wilds/multiplayer/session/route.ts", "utf8");
+  assert.match(route, /actor:\s*\{\s*playerId:\s*actor\.playerId,\s*handle:\s*actor\.handle,\s*practice:\s*actor\.practice\s*\}/s);
+  assert.doesNotMatch(route, /\{\s*ok:\s*true,\s*actor,\s*\.\.\.result/);
 });
 
 describe("Wilds live multiplayer core", () => {

@@ -64,7 +64,7 @@ const defaultDependencies: HearttreeAdmissionDependencies = {
     try {
       const result = await createReceizCommerceAdapter({ accessToken: actor.accessToken }).publishPublicStore({
         tenantHost: new URL(sourceUrl).host,
-        merchantReceizId: actor.handle,
+        merchantReceizId: actor.receizActorId,
         title: "Receiz Wilds Hearttree record",
         sourceUrl,
         namespace: `wilds:hearttree:v1:${actor.playerId}`,
