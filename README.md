@@ -1,18 +1,178 @@
 # Wildz
 
-Wildz is the standalone, full-screen Receiz game PWA for [wildz.quest](https://wildz.quest). It preserves the open-source Wildz world, collection, battles, progression, multiplayer, Vault recovery, and proof model while replacing the commerce site with a game-first social market overlay.
+**A living game world built on proof-native commerce.**
 
-The application is aligned to the exact Receiz v113 toolchain: `@receiz/sdk@113.0.0`, `@receiz/mcp-server@113.0.0`, and `@receiz/ai-skills@113.0.0`. All three resolve directly from the official npm registry with integrity checks pinned by `pnpm-lock.yaml`. The checked-in `receiz.app.json` is the artifact-first source contract; `pnpm receiz:check` runs the v113 integration checker and locks the release to registry digest `4c4aa85f9785d205dcf7e4e5109837a83f8c3bf8e166130ae7e87353f299c637` and operation-matrix digest `091ab9e6b3acb05283510a19754e53c637dbd96b47b499a524dc44c34f8e783b`. V113 admission and planning are zero-write and non-authoritative. Transitions require same-runtime verified custody, a plan-bound verified capability, immutable staging, independent byte resolution, and atomic acceptance in a named commit domain; receipts remain report-only. The contract forbids database authority, and Wildz adds no external database.
+[Wildz](https://wildz.quest) is a real, full-screen game PWA and the first end-to-end reference product built by taking the open-source [Receiz Commerce Kit](https://github.com/kojibai/Receiz-commerce) beyond a storefront. It turns the same identity, proof, ownership, publication, settlement, MCP, and AI-skill primitives into a persistent world where players explore, collect, compete, share, and trade.
+
+[![CI](https://github.com/kojibai/wildz.quest/actions/workflows/ci.yml/badge.svg)](https://github.com/kojibai/wildz.quest/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-2ea44f.svg)](LICENSE)
+[![Receiz SDK](https://img.shields.io/badge/Receiz%20SDK-113.0.0-6f42c1.svg)](https://www.npmjs.com/package/@receiz/sdk)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
+
+> Wildz is both a product and a reference implementation. The game is the product; the repository is the evidence that the Receiz application model can be reshaped into something genuinely different without replacing its proof authority.
+
+## Why this repository exists
+
+Most SDK examples stop at a code snippet or a sample checkout. Wildz is deliberately larger: a production-shaped application with identity recovery, portable artifacts, deterministic gameplay, multiplayer, public projections, offline reads, commerce coordination, release gates, and agent operating doctrine.
+
+It demonstrates four layers working together:
+
+| Layer | What Wildz uses it for | Authority boundary |
+|---|---|---|
+| [Receiz Commerce Kit](https://github.com/kojibai/Receiz-commerce) | The forkable application kernel and original commerce architecture | Starting point, not a runtime dependency |
+| `@receiz/sdk@113.0.0` | Identity, proof objects, custody, ownership, publication, audit, and settlement clients | The typed application/runtime boundary |
+| `@receiz/mcp-server@113.0.0` | Capability inspection and authorized operator workflows | Tooling only; it cannot manufacture proof or authority |
+| `@receiz/ai-skills@113.0.0` plus the checked-in Wildz skills | Proof-aware build, market, and release procedures for coding agents | Operating guidance only; verification still wins |
+
+All three Receiz packages resolve from the official npm registry and are pinned by `pnpm-lock.yaml`. The application contract in [`receiz.app.json`](receiz.app.json) selects artifact-first authority and explicitly disables database authority.
+
+## What was built
+
+Wildz replaces the source repository's commerce-site experience with a game-first product while preserving and extending its Receiz rails:
+
+- A no-signup first landing with local player genesis and later Receiz identity activation.
+- Identity Seal/key continuation and verified Vault recovery.
+- Living, portable creature cards with lineage, mastery, progression, export, import, and cross-application continuity.
+- A deterministic world with ecology, settlements, social memory, routes, raids, bosses, and canonical event projections.
+- Mortal Arena, Hearttree, party play, competition, and multiplayer commands.
+- Sanitized public player profiles and public card routes.
+- A social market overlay with listings, offers, trades, checkout, and settlement contracts.
+- An installable PWA with explicit install/update consent and a narrow, tested offline-read boundary.
+- A constitutional Receiz application contract, repository checker, secret scanner, conformance tests, and one-command release gate.
+- Three repository-native AI skills that teach agents how to build, operate the market, and qualify a release without outranking verified proof.
+
+This is not a reskinned storefront. It is an architectural fork: the inherited kernel has been exercised against a different interaction model, state model, threat model, and product loop.
+
+## Quick start
+
+Requirements: Node.js `20.18.0` or newer and pnpm `10.29.1`.
 
 ```bash
-pnpm install
+git clone https://github.com/kojibai/wildz.quest.git
+cd wildz.quest
+corepack enable
+pnpm install --frozen-lockfile
+cp .env.example .env.local
 pnpm dev
 ```
 
-Players receive a local Receiz ID on first landing—there is no signup gate. At explorer selection they may restore an existing Identity Seal or verified Vault. Identity Seal/key entry uses the official v113 same-origin signed continuation with no Receiz redirect. A legacy proof-sealed Vault restores its embedded Wildz identity and complete verified collection into an artifact-scoped Wildz session. Historical-owner cards remain playable through an encrypted commitment to the exact verified Vault, while canonical account-only actions still require owner-continuity or Identity Seal/key authority. Durable shared-world publication requires the server-only Receiz Connect credential described in `.env.example`; it is coordination authority only, not player or artifact authority. Live settlement also requires its Receiz capabilities and otherwise fails closed without changing ownership.
+Open [http://localhost:3000](http://localhost:3000). The local product can boot without production credentials. Shared-world publication, live identity coordination, market mutations, and settlement remain unavailable until their server-side Receiz capabilities are configured.
 
-The v113 commerce surface does not by itself supply Wildz's required conditional market ownership append. Listing, offer, trade, and settlement mutations remain unavailable and fail closed whenever that verified capability is absent; no local store is promoted to durable authority.
+Before changing code, establish a clean baseline:
 
-Receiz v113 supplies proof-object-first artifact custody, bearer ownership, bounded local verification, and structural-only offline reconciliation. A global result means acceptance by the named `receiz.com/global/v1` coordination domain, not universal consensus or effect delivery. Historical sealed bytes remain verifiable evidence, but historical runtime objects, plans, capabilities, confirmations, stores, and receipts cannot authorize a current receiver. Wildz preserves witnessed history, and a queued proposal is not a global commitment.
+```bash
+pnpm release:check
+```
 
-See [Receiz rails](docs/RECEIZ_RAILS.md), [MCP](docs/MCP.md), and [AI skills](ai-skills/README.md).
+That command runs the Node test suite, typecheck, Receiz v113 contract checker, MCP conformance, lint, tracked/untracked text secret scan, production build, and default Receiz doctor.
+
+## The system in one view
+
+```mermaid
+flowchart LR
+    P["Player or operator"] --> UI["Wildz Next.js PWA"]
+    UI --> G["Deterministic game systems"]
+    UI --> A["Wildz Receiz adapters"]
+    A --> SDK["Receiz SDK"]
+    SDK --> O["Verified proof objects"]
+    SDK --> R["Configured Receiz rails"]
+    MCP["Receiz MCP"] --> A
+    S["Wildz + Receiz AI skills"] --> MCP
+    S --> UI
+    O -->|"authority"| A
+    R -->|"admitted shared state"| A
+    A -->|"verified projections"| UI
+```
+
+The important rule is directional: AI skills and MCP can help inspect, prepare, and invoke work, but neither can promote model output, local storage, a receipt, or a queued proposal into authority. Complete artifacts are verified before their payloads are interpreted. Canonical transitions require current evidence and fail closed when a capability is absent.
+
+Read the detailed [architecture](docs/ARCHITECTURE.md), [Receiz rail map](docs/RECEIZ_RAILS.md), and [MCP contract](docs/MCP.md).
+
+## SDK, MCP, and AI skills
+
+### SDK application boundary
+
+Application-facing Receiz code lives in [`src/lib/receiz`](src/lib/receiz). UI and game modules consume these adapters instead of scattering SDK calls across components. New v113 artifacts use the native Record → Seal flow, preserve SDK-returned bytes exactly, and are independently reopened before acceptance.
+
+The checked-in contract and generated evidence bind the application to the v113 ruleset, registry digest, operation matrix, protocol limits, and 30 artifact laws:
+
+```bash
+pnpm receiz:check
+pnpm receiz:doctor
+```
+
+### MCP operator surface
+
+Run the pinned MCP server from an MCP-capable agent host:
+
+```bash
+pnpm exec receiz-mcp
+```
+
+Public reads do not require a bearer token. Authorized delegated operations require a scoped Receiz credential supplied to the MCP process. MCP packages must stay out of browser and application bundles. See [`docs/MCP.md`](docs/MCP.md) for the supported v113 inventory and credential boundary.
+
+### AI-native repository operations
+
+The [`ai-skills`](ai-skills) directory contains installable, versioned procedures for agents working in this codebase:
+
+- `wildz-builder-skill` preserves custody, continuity, append-only history, and deterministic projections.
+- `wildz-market-operator-skill` governs bearer ownership and capability-gated market work.
+- `wildz-release-skill` enforces package, digest, artifact-law, conformance, verification, and release parity.
+
+These skills make the repository teachable to an agent without turning the agent into a source of truth. See the [AI skills guide](ai-skills/README.md).
+
+## Local, live, and offline boundaries
+
+Wildz adds no external application database. Owner-scoped continuity is retained in browser IndexedDB; durable public, world, social, and economy state depends on configured Receiz rails.
+
+| Surface | Local development | Configured live environment | Offline |
+|---|---:|---:|---:|
+| App shell and local verified owner state | Yes | Yes | Previously installed state only |
+| Previously visited public profiles/cards | Yes | Yes | Readable from the allowlisted cache |
+| Identity/Vault verification | Fixture and local flows | Yes | Artifact-dependent; no remote continuation |
+| Live world and social presence | No durable claim | Yes | No |
+| Publication and public projection writes | Fail closed | Capability required | No |
+| Listing, trade, transfer, payment, settlement | Fail closed | Every required capability and proof required | No |
+
+The current v113 SDK does not expose Wildz's required conditional market-ownership append. Those live mutations therefore remain deliberately unavailable; the app does not substitute IndexedDB, process memory, or a successful checkout response for settlement authority.
+
+## Repository map
+
+| Path | Purpose |
+|---|---|
+| [`app`](app) | Next.js pages, public routes, and 31 API route handlers |
+| [`src/features`](src/features) | Identity, world, games, market, profile, shell, and PWA product modules |
+| [`src/lib/receiz`](src/lib/receiz) | Receiz adapters, artifact custody, sessions, repositories, verification, and publication |
+| [`tests`](tests) | 212 contract, game, continuity, PWA, market, and release test files |
+| [`ai-skills`](ai-skills) | Agent-readable build, market, and release doctrine |
+| [`docs`](docs) | Architecture, Receiz boundaries, interoperability, and release evidence |
+| [`scripts`](scripts) | Release gate, doctor, checker, conformance support, and secret scanning |
+
+## Release status
+
+`v3.0.0` is the first public open-source release of the standalone Wildz product. The exact local candidate has passed the repository release gate. Production credentials, authorized strict-live verification, external multi-writer interoperability, remote mutation qualification, deployment, tagging, and publication are intentionally reported as separate gates—not implied by a green local build.
+
+Read the complete [v3.0.0 release notes](docs/release/v3.0.0.md), [verification record](docs/release/verification.md), and [changelog](CHANGELOG.md).
+
+## Build your own Receiz-native product
+
+Use this repository when you want to study a complete vertical product rather than a minimal SDK call. A disciplined fork should:
+
+1. Replace the Wildz product domain while keeping Receiz calls behind a narrow adapter.
+2. Declare features and authority in `receiz.app.json`.
+3. Treat carried proof as untrusted until the SDK verifies the complete artifact.
+4. Keep MCP and agent actions below the same capability and confirmation gates as human actions.
+5. Add domain tests before expanding a canonical mutation surface.
+6. Make `pnpm release:check` a required branch and release gate.
+
+The [architecture guide](docs/ARCHITECTURE.md) identifies the extension seams and non-negotiable authority rules.
+
+## Contributing and support
+
+Wildz is open for rigorous contributions. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md), use [`SUPPORT.md`](SUPPORT.md) for help, and follow [`SECURITY.md`](SECURITY.md) for private vulnerability reporting. Participation is governed by [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+
+## Provenance and license
+
+Wildz includes code derived from [`kojibai/Receiz-commerce`](https://github.com/kojibai/Receiz-commerce) at commit [`fb366506e218d82ecac20c60bc74c5977627713e`](https://github.com/kojibai/Receiz-commerce/commit/fb366506e218d82ecac20c60bc74c5977627713e). The fork relationship, retained license obligations, and Wildz-specific composition are recorded in [`NOTICE.md`](NOTICE.md).
+
+Released under the [MIT License](LICENSE).

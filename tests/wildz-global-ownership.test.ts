@@ -26,7 +26,11 @@ test("proof-verified Vault restore is never gated by an online ownership claim",
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
   const restore = shell.indexOf("await restoreWildzFileForSurface(");
   assert.ok(restore >= 0);
-  assert.doesNotMatch(shell, /claimVerifiedImportedCards|Global Receiz ownership must be online|\/api\/market\/claims/);
+  const restoreBoundary = shell.slice(
+    shell.indexOf("const restoreArtifact"),
+    shell.indexOf("const claimBearerArtifact")
+  );
+  assert.doesNotMatch(restoreBoundary, /claimVerifiedImportedCards|Global Receiz ownership must be online|\/api\/market\/claims/);
   assert.match(shell, /BroadcastChannel\("receiz:wildz:ownership:v113"\)/);
 
   const route = readFileSync("app/api/market/claims/route.ts", "utf8");

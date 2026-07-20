@@ -42,6 +42,8 @@ import { WildzProfileSheet } from "@/features/profile/WildzProfileSheet";
 import { WildzVaultSheet } from "@/features/profile/WildzVaultSheet";
 import { WildzMarketSheet } from "@/features/market/WildzMarketSheet";
 import type { WildzOverlay } from "@/features/shell/wildz-overlay";
+import { downloadBlob } from "@/features/play/card-export";
+import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-verifier";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -434,6 +436,47 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     return outcome;
   }, [acceptSnapshot]);
 
+  const claimBearerArtifact = useCallback(async (file: File): Promise<number | null> => {
+    if (!proofSessionConnected) throw new Error("Connect your Receiz ID before claiming a bearer artifact.");
+    if (!window.confirm(
+      "Claim this complete bearer artifact? This creates and downloads a new Receiz ownership artifact; the original witnessed history is preserved."
+    )) return null;
+
+    const form = new FormData();
+    form.set("file", file, file.name);
+    const stableName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 64) || "artifact";
+    const response = await fetch("/api/market/claims", {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "idempotency-key": `bearer:${file.size}:${file.lastModified}:${stableName}`.slice(0, 160) },
+      body: form
+    });
+    if (!response.ok) {
+      const failure = await response.json().catch(() => null) as { error?: unknown } | null;
+      throw new Error(typeof failure?.error === "string" ? failure.error : "Receiz did not admit the bearer claim.");
+    }
+
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const mimeType = response.headers.get("content-type")?.split(";", 1)[0]?.trim() || "application/octet-stream";
+    const contentDisposition = response.headers.get("content-disposition") ?? "";
+    const filename = /filename="([^"\\]+)"/.exec(contentDisposition)?.[1] ?? "wildz-claimed.receized";
+    const opened = await openWildzArtifactSameOrigin({ bytes, mimeType, name: filename });
+    const expectedDigest = response.headers.get("x-receiz-artifact-sha256");
+    if (expectedDigest && opened.artifactSha256 !== expectedDigest) throw new Error("wildz_bearer_claim_download_mismatch");
+
+    downloadBlob(new Blob([bytes.slice().buffer], { type: mimeType }), filename);
+    const claimedFile = new File([bytes.slice().buffer], filename, { type: mimeType });
+    const outcome = await restoreArtifact(
+      claimedFile,
+      "card-vault",
+      false,
+      continuityRef.current?.playState ?? undefined,
+      "merge-vault"
+    );
+    return outcome.verifiedAssetIds.length;
+  }, [proofSessionConnected, restoreArtifact]);
+
   const persistPlayState = useCallback((playState: PlayState, playerContinuity: NonNullable<WildzContinuitySnapshot["playerContinuity"]>) => {
     const current = continuityRef.current;
     if (!current) return;
@@ -564,6 +607,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
               ), continuityRef.current?.playState ?? undefined, "merge-vault");
               return outcome.verifiedAssetIds.length;
             }}
+            onClaimBearer={proofSessionConnected ? claimBearerArtifact : undefined}
             onSaveVault={saveCombinedVault}
           /> : overlay.kind === "market" ? <WildzMarketSheet listings={[]} buyer={`@${ownerUsername}`} /> : <div className="wildz-shell-overlay-placeholder">
             <Image src="/brand/wildz-mark.svg" alt="" width={48} height={48} />

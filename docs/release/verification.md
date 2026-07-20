@@ -1,6 +1,6 @@
 # Wildz v3 release verification
 
-Date: 2026-07-17. Target version: `3.0.0`.
+Date: 2026-07-20. Target version: `3.0.0`.
 
 ## Qualification status
 
@@ -20,7 +20,7 @@ The finalized v113 SDK, MCP, and AI-skills packages resolve directly from the of
 
 | Gate | Result |
 |---|---|
-| `pnpm release:check` | Pass: v113 repository integration and release-identity checker, complete Node test suite, typecheck, MCP conformance, lint, full tracked/untracked text secret scan, production build, and default Receiz doctor |
+| `pnpm release:check` | Pass: v113 repository integration and release-identity checker, all 941 Node tests, typecheck, MCP conformance, lint, full tracked/untracked text secret scan, production build, and default Receiz doctor |
 | Historical migration compatibility | Pass: forward-only checkpoint retained; sealed artifacts, receipts, and heads preserved; current execution remains v113-only |
 | V113 offline authority | Pass: a queued proposal is not a global commitment; divergence resolution is structural-only |
 | Proof/Vault regressions | Pass in the full suite, including complete 97/98-card restore, canonical Identity Seal/key continuation, scoped legacy Vault recovery, compact historical-card custody admission, duplicate drops, revision reconciliation, pending-to-final admission, and atomic fork rejection |
@@ -31,6 +31,7 @@ The finalized v113 SDK, MCP, and AI-skills packages resolve directly from the of
 | Public-profile continuity | Pass: verified cards publish before a non-empty owner profile; only marked sanitized anonymous profile JSON is cached by exact URL |
 | V3 ecology lifecycle | Pass: activation, resolution, historicization, expiry, cap release, causal replay, and retry idempotency |
 | Market settlement coordinator | Pass with local contract doubles: admitted trade, Receiz Connect transfer proof, corroborating wallet ledger event, conditional ownership append, and idempotent recovery; v113 exposes no Wildz-specific conditional append, so the live adapter remains fail-closed without that capability |
+| Bearer claim product flow | Pass: the explicit online action requires the active proof session and player confirmation, submits the complete artifact to the v113 ownership route, independently reopens the returned artifact, downloads the exact admitted bytes, and only then projects verified cards locally; ordinary Vault restore remains independent of this online claim |
 | Mobile entry | Chromium and WebKit pass: one-line Genesis copy, no horizontal overflow, and clean entry logs |
 | Gameplay presentation | Chromium mobile smoke passed; WebKit mobile world render was visually inspected at the release viewport |
 | PWA boundary | Real Chromium worker activation and offline navigation passed; an unvisited public route rendered offline guidance without leaking another page |

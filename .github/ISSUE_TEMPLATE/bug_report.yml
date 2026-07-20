@@ -1,0 +1,50 @@
+name: Bug report
+description: Report a reproducible Wildz defect
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not attach credentials, Identity Seals, Receiz Keys, private Vaults, production artifacts, or player data. Report security issues privately through SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: v3.0.0 or commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: State the expected and actual behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: Include exact steps and sanitized fixtures or logs.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Node, pnpm, browser, OS, and whether the issue is local or live.
+    validations:
+      required: true
+  - type: textarea
+    id: boundary
+    attributes:
+      label: Authority or offline boundary
+      description: If known, identify affected proof, identity, ownership, settlement, cache, MCP, or agent behavior.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed all secrets, private artifacts, and personal data.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true
