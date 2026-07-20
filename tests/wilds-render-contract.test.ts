@@ -405,6 +405,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(cardBack, /Copy canonical proof/);
     assert.match(cardBack, /Download canonical proof/);
     assert.match(cardBack, /Generate exact PNG proof metadata/);
+    assert.match(cardBack, /Permanent death record/);
+    assert.match(cardBack, /Death recorded/);
     assert.match(cardBack, /aria-live="polite"/);
   });
 
@@ -416,8 +418,11 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(inventory, /Retired memorial/);
     assert.match(inventory, /selectedRetired/);
     assert.match(inventory, /selectedRetired \? <div className="wilds-vault-card-memorial"/);
-    assert.match(inventory, /: <WildsCardScene asset=\{selected\} origin=\{origin\} qr=\{qr\} \/>/);
+    assert.match(inventory, /: <WildsCardScene asset=\{selected\} condition=\{state\.adventureConditions\[selected\.id\]\} origin=\{origin\} qr=\{qr\} \/>/);
     assert.match(drawer, /retired/);
+    assert.doesNotMatch(drawer, /disabled=\{retired\}/);
+    assert.match(drawer, /wildz-memorial-card-viewer/);
+    assert.match(inventory, /swipe to view death record/);
     assert.match(css, /\.wilds-inventory-grid > button\.is-retired/);
     assert.match(css, /\.wildz-creature-choice\.is-retired/);
   });
@@ -474,7 +479,7 @@ describe("Receiz Wilds rendering contract", () => {
 
     assert.match(inventory, /import QRCode from "qrcode"/);
     assert.match(inventory, /standaloneCardUrl/);
-    assert.match(inventory, /<WildsCardScene asset=\{selected\} origin=\{origin\} qr=\{qr\}/);
+    assert.match(inventory, /<WildsCardScene asset=\{selected\} condition=\{state\.adventureConditions\[selected\.id\]\} origin=\{origin\} qr=\{qr\}/);
     assert.match(inventory, />Import card or vault</);
     assert.match(inventory, />Save vault image</);
     assert.match(inventory, />Save card image</);
@@ -572,6 +577,7 @@ describe("Receiz Wilds rendering contract", () => {
     const styles = await readFile("app/globals.css", "utf8");
 
     assert.match(campaign, /useWildsMultiplayer/);
+    assert.match(campaign, /enabled: enabled && Boolean\(avatarStyle\) && Boolean\(activeAsset\)/);
     assert.match(campaign, /remotePlayers=\{multiplayer\.remotePlayers\}/);
     assert.match(campaign, /multiplayer\.activeBattle \? " pvp-active"/);
     assert.match(world, /function RemoteExplorer/);
@@ -596,6 +602,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(multiplayer, /Compliance locked/);
     assert.match(hook, /\/api\/wilds\/multiplayer\/session/);
     assert.match(hook, /\/api\/wilds\/multiplayer\/snapshot/);
+    assert.match(hook, /\/api\/wilds\/atlas/);
+    assert.doesNotMatch(hook, /setMode\("local_practice"\)/);
     assert.match(hook, /wildsJoin/);
   });
 

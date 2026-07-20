@@ -19,10 +19,11 @@ function useStableEvent<Arguments extends unknown[]>(handler: (...args: Argument
   return useCallback((...args: Arguments) => handlerRef.current(...args), []);
 }
 
-export function WildzSocialDeck({ nearbyCards, activeCard, companionProgress, action, cameraHeadingRef, movementMode, cardOrder, onCardOrderChange, onInput, onAction, onMovementModeChange, onSelectCard, onOpenFieldGuide, onOpenProfile, onOpenMarket, onOpenSatchel, onOpenDeck, onOpenVault, onRest, onTrain, onMission }: {
+export function WildzSocialDeck({ nearbyCards, activeCard, companionProgress, cardConditions, action, cameraHeadingRef, movementMode, cardOrder, onCardOrderChange, onInput, onAction, onMovementModeChange, onSelectCard, onOpenFieldGuide, onOpenProfile, onOpenMarket, onOpenSatchel, onOpenDeck, onOpenVault, onRest, onTrain, onMission }: {
   nearbyCards: readonly PortableCardAsset[];
   activeCard: PortableCardAsset | null;
   companionProgress: PlayState["companionProgress"];
+  cardConditions: PlayState["adventureConditions"];
   action: { kind: string; label: string };
   cameraHeadingRef: RefObject<number>;
   movementMode: WildsMovementMode;
@@ -49,6 +50,7 @@ export function WildzSocialDeck({ nearbyCards, activeCard, companionProgress, ac
     <WildzCreatureDrawer
       activeCard={activeCard}
       cardOrder={cardOrder}
+      cardConditions={cardConditions}
       companionProgress={companionProgress}
       nearbyCards={nearbyCards}
       onCardOrderChange={changeCardOrder}

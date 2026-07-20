@@ -39,6 +39,8 @@ describe("Hearttree Save V9 compatibility and dead-card guards", () => {
     const first = applyWildsInput(initialPlayState, { type: "hearttree-admit", receipt });
     const duplicate = applyWildsInput(first, { type: "hearttree-admit", receipt });
     assert.equal(first.hearttreeConditions[card.id]!.life, "dead");
+    assert.equal(first.adventureConditions[card.id]!.retiredAt, receipt.createdAt);
+    assert.match(first.adventureConditions[card.id]!.retirementCauseEventId ?? "", /^hearttree:/);
     assert.equal(first.inventory.some((asset) => asset.id === card.id), true);
     assert.equal(playableInventory(first).some((asset) => asset.id === card.id), false);
     assert.equal(first.hearttreeReceipts.length, 1);

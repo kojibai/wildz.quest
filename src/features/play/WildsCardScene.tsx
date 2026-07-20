@@ -4,8 +4,9 @@ import { useRef, useState } from "react";
 import type { PortableCardAsset } from "./portable-card";
 import { WildsCard } from "./WildsCard";
 import { WildsCardBack } from "./WildsCardBack";
+import type { AdventureCardCondition } from "./adventure/card-condition";
 
-export function WildsCardScene({ asset, origin, qr }: { asset: PortableCardAsset; origin: string; qr: string }) {
+export function WildsCardScene({ asset, origin, qr, condition }: { asset: PortableCardAsset; origin: string; qr: string; condition?: AdventureCardCondition | null }) {
   const scene = useRef<HTMLDivElement>(null);
   const swipeStart = useRef<{ x: number; y: number; pointerId: number } | null>(null);
   const [flipped, setFlipped] = useState(false);
@@ -49,8 +50,8 @@ export function WildsCardScene({ asset, origin, qr }: { asset: PortableCardAsset
       <div className="wilds-card-orbit" aria-hidden="true"><i /><i /><i /></div>
       <div className="wilds-card-float">
         <div className={`wilds-card-flipper${flipped ? " is-flipped" : ""}`}>
-          <div aria-hidden={flipped} className="wilds-card-face wilds-card-face-front" inert={flipped ? true : undefined}><WildsCard asset={asset} /></div>
-          <div aria-hidden={!flipped} className="wilds-card-face wilds-card-face-back" inert={!flipped ? true : undefined}><WildsCardBack asset={asset} origin={origin} qr={qr} /></div>
+          <div aria-hidden={flipped} className="wilds-card-face wilds-card-face-front" inert={flipped ? true : undefined}><WildsCard asset={asset} condition={condition} /></div>
+          <div aria-hidden={!flipped} className="wilds-card-face wilds-card-face-back" inert={!flipped ? true : undefined}><WildsCardBack asset={asset} condition={condition} origin={origin} qr={qr} /></div>
         </div>
       </div>
     </div>

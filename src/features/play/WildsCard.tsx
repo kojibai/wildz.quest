@@ -6,9 +6,11 @@ import { deriveBirthGenome } from "./heartbound-genome";
 import { renderHeartboundSvg } from "./heartbound-renderer";
 import { currentLivingGenome } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
+import { cardDeathRecord } from "./card-death-record";
+import type { AdventureCardCondition } from "./adventure/card-condition";
 import type { PortableCardAsset } from "./portable-card";
 
-export const WildsCard = memo(function WildsCard({ asset, compact = false }: { asset: PortableCardAsset; compact?: boolean }) {
+export const WildsCard = memo(function WildsCard({ asset, compact = false, condition }: { asset: PortableCardAsset; compact?: boolean; condition?: AdventureCardCondition | null }) {
   const form = creatureForm(asset.manifest.formId);
   const variant = asset.manifest.variant.traits;
   const creatureSvg = useMemo(() => renderHeartboundSvg(
@@ -19,6 +21,7 @@ export const WildsCard = memo(function WildsCard({ asset, compact = false }: { a
     { width: 640, height: 405, title: asset.manifest.name, fit: "full-body" }
   ), [asset, variant]);
   if (!form) return null;
+  const death = cardDeathRecord(asset, condition);
   const stats = [
     ["Health", asset.manifest.stats.health],
     ["Power", asset.manifest.stats.power],
@@ -29,7 +32,7 @@ export const WildsCard = memo(function WildsCard({ asset, compact = false }: { a
   return (
     <article
       aria-label={`${asset.manifest.name}, Stage ${form.stage}, ${form.rarity} Wilds card`}
-      className={`wilds-collectible-card foil-${form.foil}${compact ? " compact" : ""}`}
+      className={`wilds-collectible-card foil-${form.foil}${compact ? " compact" : ""}${death ? " is-dead" : ""}`}
       style={{ "--card-primary": variant.palette.primary, "--card-accent": variant.palette.accent, "--card-glow": variant.palette.glow, "--card-body-scale": variant.bodyScale, "--card-motion": `${variant.animationMs}ms` } as React.CSSProperties}
     >
       <div className="wilds-card-foil" aria-hidden="true" />
@@ -38,6 +41,7 @@ export const WildsCard = memo(function WildsCard({ asset, compact = false }: { a
         <div><b>STAGE {form.stage}</b><small>{form.cardNumber}</small></div>
       </header>
       <div className="wilds-card-art heartbound-card-art" dangerouslySetInnerHTML={{ __html: creatureSvg }} />
+      {death ? <div className="wilds-card-death-mark"><span>Memorial</span><strong>Deceased</strong></div> : null}
       <div className="wilds-card-rarity"><span>{form.rarity}</span><b>{form.foil}</b></div>
       <dl className="wilds-card-stats">
         {stats.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}

@@ -86,7 +86,10 @@ export function WildsInventory({
   const visible = matches.slice(safePage * pageSize, safePage * pageSize + pageSize);
   const selected = state.inventory.find((asset) => asset.id === selectedId) ?? visible[0] ?? state.inventory[0];
   const selectedForm = selected ? creatureForm(selected.manifest.formId) : null;
-  const selectedRetired = Boolean(selected && isLivingCardAsset(selected) && currentRevision(selected).growth.life?.retired);
+  const selectedRetired = Boolean(selected && (
+    state.adventureConditions[selected.id]?.life === "dead"
+    || (isLivingCardAsset(selected) && currentRevision(selected).growth.life?.retired)
+  ));
   const progress = selectedForm ? state.companionProgress[selectedForm.familyId] ?? { level: 1, xp: 0, bond: 0 } : null;
   const next = selectedForm && selectedForm.stage < 3 ? creatureForm(`${selectedForm.familyId}-${selectedForm.stage + 1}`) : null;
   const canEvolve = Boolean(next && progress && progress.level >= next.evolution.level && progress.bond >= next.evolution.bond);
@@ -219,6 +222,7 @@ export function WildsInventory({
             const files = Array.from(event.currentTarget.files ?? []);
             let imported = 0;
             let rejected = 0;
+            let rejectionMessage = "";
             let currentPlayState = state;
             setImporting(true);
             try {
@@ -231,8 +235,9 @@ export function WildsInventory({
                   imported += outcome.verifiedAssetIds.length;
                   const selected = outcome.verifiedAssetIds.at(-1);
                   if (selected) setSelectedId(selected);
-                } catch {
+                } catch (cause) {
                   rejected += 1;
+                  if (!rejectionMessage && cause instanceof Error) rejectionMessage = cause.message;
                 }
               }
             } finally {
@@ -241,7 +246,7 @@ export function WildsInventory({
             }
             setImportMessage(imported
               ? `${imported} verified card${imported === 1 ? "" : "s"} added${rejected ? ` · ${rejected} rejected` : ""}.`
-              : "No card was added. Choose a Receiz sealed card, vault image, or Receiz Vault package.");
+              : rejectionMessage || "No card was added. Choose a Receiz sealed card, vault image, or Receiz Vault package.");
           }}
           type="file"
         />
@@ -299,7 +304,8 @@ export function WildsInventory({
           {visible.map((asset) => {
             const form = creatureForm(asset.manifest.formId)!;
             const cardProgress = state.companionProgress[asset.manifest.familyId] ?? { level: 1, xp: 0, bond: 0 };
-            const retired = isLivingCardAsset(asset) && Boolean(currentRevision(asset).growth.life?.retired);
+            const retired = state.adventureConditions[asset.id]?.life === "dead"
+              || (isLivingCardAsset(asset) && Boolean(currentRevision(asset).growth.life?.retired));
             return <button aria-pressed={selected?.id === asset.id} className={retired ? "is-retired" : ""} key={asset.id} onClick={() => { if (suppressCardClick.current) { suppressCardClick.current = false; return; } setSelectedId(asset.id); }} type="button">
               <WildsCreatureThumbnail asset={asset} />
               <span className="wilds-inventory-card-xp">{cardProgress.xp} XP</span>
@@ -320,7 +326,7 @@ export function WildsInventory({
         </div>
         {selected && selectedForm ? (
           <aside className={`wilds-inventory-detail${selectedRetired ? " is-retired" : ""}`}>
-            {selectedRetired ? <div className="wilds-vault-card-memorial"><WildsCardScene asset={selected} origin={origin} qr={qr} /><strong>Retired memorial</strong></div> : <WildsCardScene asset={selected} origin={origin} qr={qr} />}
+            {selectedRetired ? <div className="wilds-vault-card-memorial"><WildsCardScene asset={selected} condition={state.adventureConditions[selected.id]} origin={origin} qr={qr} /><strong>Retired memorial · swipe to view death record</strong></div> : <WildsCardScene asset={selected} condition={state.adventureConditions[selected.id]} origin={origin} qr={qr} />}
             <div className="wilds-inventory-actions">
               <button className="button button-primary" disabled={selectedRetired || state.selectedAssetId === selected.id} onClick={() => onInput({ type: "select-asset", assetId: selected.id })} type="button">{selectedRetired ? "Retired · cannot enter game" : state.selectedAssetId === selected.id ? "Active deck leader" : "Set as active deck leader"}</button>
               <Link className="button button-outline" href={`/cards/${encodeURIComponent(selected.id)}`}>Open standalone card page</Link>

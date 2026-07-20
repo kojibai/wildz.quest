@@ -11799,7 +11799,15 @@ button.product-purchase-secondary-link {
 .wilds-inventory-grid > button.is-retired .wilds-creature-thumbnail { filter: grayscale(1) brightness(.48) contrast(1.15); opacity: .7; }
 .wilds-vault-card-memorial { position: relative; }
 .wilds-vault-card-memorial > strong { position: absolute; z-index: 5; right: 12%; bottom: 10%; left: 12%; padding: 8px; border: 1px solid rgb(209 218 214 / 24%); border-radius: 999px; color: #d8dedb; background: rgb(8 11 12 / 88%); box-shadow: 0 12px 34px rgb(0 0 0 / 48%); font-size: 9px; letter-spacing: .14em; text-align: center; text-transform: uppercase; }
-.wilds-inventory-detail.is-retired .wilds-card-scene { filter: grayscale(1) brightness(.52) contrast(1.16); }
+.wilds-inventory-detail.is-retired .wilds-card-scene { filter: none; }
+.wilds-collectible-card.is-dead .wilds-card-art { filter: grayscale(1) brightness(.42) contrast(1.18); }
+.wilds-collectible-card.is-dead .wilds-card-foil { opacity: .18; }
+.wilds-card-death-mark { position: absolute; z-index: 4; top: 28%; right: 8%; left: 8%; display: grid; place-items: center; padding: 10px; border: 2px solid rgb(220 228 224 / 58%); color: #e2e7e4; background: rgb(6 9 10 / 76%); box-shadow: 0 8px 28px rgb(0 0 0 / 54%); text-align: center; text-transform: uppercase; transform: rotate(-4deg); }
+.wilds-card-death-mark span { font-size: 9px; letter-spacing: .22em; }
+.wilds-card-death-mark strong { font-size: 17px; letter-spacing: .12em; }
+.wilds-card-back-death { border-color: rgb(214 224 220 / 32%) !important; background: linear-gradient(145deg, rgb(13 20 21 / 96%), rgb(5 9 10 / 98%)) !important; }
+.wilds-card-back-death > span { color: #cbd3d0; font-size: 9px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
+.wilds-card-back-death code { overflow-wrap: anywhere; }
 
 .wilds-inventory-grid > button > .wilds-creature-thumbnail {
   grid-row: 1 / 5;
@@ -13185,7 +13193,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wildz-creature-window-end { width: 40px; min-width: 40px; height: 1px; flex: 0 0 40px; pointer-events: none; }
 .wildz-creature-choice-shell { width: 176px; min-width: 176px; min-height: 70px; scroll-snap-align: start; }
 .wildz-creature-choice { position: relative; display: grid; grid-template-columns: 54px minmax(0, 1fr); width: 100%; height: 100%; min-height: 70px; align-items: center; gap: 8px; padding: 7px; overflow: hidden; border: 1px solid rgba(225, 217, 184, .18); border-radius: 16px; color: #f3f1e9; background: radial-gradient(circle at 14% 8%, rgba(125, 181, 130, .16), transparent 48%), rgba(28, 37, 33, .9); text-align: left; }
-.wildz-creature-choice.is-retired { color: #9ca6a2; border-color: rgba(180, 190, 186, .2); background: rgba(13, 17, 17, .96); cursor: not-allowed; }
+.wildz-creature-choice.is-retired { color: #9ca6a2; border-color: rgba(180, 190, 186, .2); background: rgba(13, 17, 17, .96); cursor: pointer; }
 .wildz-creature-choice.is-retired .wilds-creature-thumbnail { filter: grayscale(1) brightness(.45); opacity: .66; }
 .wildz-creature-choice[aria-pressed="true"] { border-color: rgba(121, 230, 163, .62); background: radial-gradient(circle at 14% 8%, rgba(125, 215, 145, .3), transparent 50%), rgba(30, 51, 39, .96); box-shadow: inset 0 0 0 1px rgba(132, 235, 171, .14); }
 .wildz-creature-choice > .wilds-creature-thumbnail { width: 54px; height: 54px; border-radius: 13px; }
@@ -13194,6 +13202,11 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wildz-creature-choice-copy strong { overflow: hidden; font-size: 12px; }
 .wildz-creature-choice-copy em { overflow: hidden; color: #9eaca4; font-size: 8px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
 .wildz-creature-choice-active { position: absolute; top: 5px; right: 5px; padding: 2px 5px; border-radius: 999px; color: #173522; background: #9be5ad; font-size: 6px; letter-spacing: .05em; text-transform: uppercase; }
+.wildz-creature-choice.is-retired .wildz-creature-choice-active { color: #e2e7e4; background: #343b39; }
+.wildz-memorial-card-viewer { position: fixed; z-index: 120; inset: 0; display: grid; place-items: center; padding: max(28px, env(safe-area-inset-top)) 18px max(28px, env(safe-area-inset-bottom)); color: #e2e7e4; background: rgb(2 7 9 / 92%); backdrop-filter: blur(18px); }
+.wildz-memorial-card-viewer > .wilds-card-scene { width: min(88vw, 390px); }
+.wildz-memorial-card-viewer > p { margin: 0; font-size: 11px; letter-spacing: .06em; }
+.wildz-memorial-card-close { position: absolute; top: max(14px, env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); z-index: 2; display: grid; width: 44px; height: 44px; place-items: center; border: 1px solid rgb(220 228 224 / 24%); border-radius: 50%; color: #fff; background: rgb(10 18 20 / 92%); font-size: 28px; }
 .wildz-creature-book { display: flex; min-height: 0; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-inline: contain; }
 .wildz-creature-spread { display: grid; min-width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 7px; padding: 1px 3px; scroll-snap-align: start; scroll-snap-stop: always; }
 .wildz-creature-spread .wildz-creature-choice-shell { width: 100%; min-width: 0; min-height: 0; }

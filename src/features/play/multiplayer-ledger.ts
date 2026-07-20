@@ -127,9 +127,19 @@ export function getWildsAtlasPresence(input: {
   const players = [...newestByPlayer.values()]
     .filter((player) => player.playerId !== input.actorId)
     .sort((left, right) => presenceDistance(left, input.center) - presenceDistance(right, input.center));
+  // Public atlas consumers need complete presence records so the main live
+  // roster can show players outside the current room. Private players remain
+  // anonymous and are represented only by regional counts below.
   const visiblePlayers = players
     .filter((player) => player.status !== "private")
-    .map(({ playerId, handle, style, x, z, status }) => ({ playerId, handle, style, x, z, status }));
+    .map((player) => ({
+      ...player,
+      activeCard: {
+        ...player.activeCard,
+        stats: { ...player.activeCard.stats },
+        abilities: player.activeCard.abilities.map((ability) => ({ ...ability }))
+      }
+    }));
   const visibleIds = new Set(visiblePlayers.map((player) => player.playerId));
   const clusters = new Map<string, {
     id: string;

@@ -210,7 +210,10 @@ export function PlayCampaign({
     }
   }, [activeAsset, initialVaultAdmission]);
   const multiplayer = useWildsMultiplayer({
-    enabled: enabled && networkEnabled && Boolean(avatarStyle) && Boolean(activeAsset),
+    // Global presence is available to every internet-connected explorer.
+    // networkEnabled still protects canonical world writes, but must not turn
+    // unauthenticated live players into an isolated local session.
+    enabled: enabled && Boolean(avatarStyle) && Boolean(activeAsset),
     style: avatarStyle ?? "female",
     position: state.player,
     activeCard: activeAsset,
@@ -1092,6 +1095,7 @@ export function PlayCampaign({
               activeCard={activeAsset}
               action={visiblePulse}
               cameraHeadingRef={cameraHeadingRef}
+              cardConditions={state.adventureConditions}
               companionProgress={state.companionProgress}
               movementMode={movementMode}
               cardOrder={cardOrder}

@@ -40,7 +40,7 @@ export function WildsMultiplayer({
   return (
     <>
       <div className="wilds-live-cluster" aria-label="Live multiplayer">
-        <button aria-label={`Open nearby explorers · ${multiplayer.mode === "receiz_live" ? "live room" : multiplayer.mode === "local_practice" ? "practice room" : "syncing"}`} className={`wilds-live-badge ${multiplayer.mode}`} onClick={() => setRosterOpen((value) => !value)} type="button">
+        <button aria-label={`Open global live explorers · ${multiplayer.mode === "receiz_live" ? "connected worldwide" : "reconnecting"}`} className={`wilds-live-badge ${multiplayer.mode}`} onClick={() => setRosterOpen((value) => !value)} type="button">
           <i />
           <span>{multiplayer.remotePlayers.length}</span>
         </button>
@@ -55,9 +55,9 @@ export function WildsMultiplayer({
       </div>
 
       {rosterOpen ? (
-        <section className="wilds-live-sheet wilds-live-roster" aria-label="Nearby live explorers">
-          <header><div><span>Shared Wilds</span><strong>Nearby explorers</strong></div><button onClick={() => setRosterOpen(false)} aria-label="Close live roster" type="button">×</button></header>
-          <p>{multiplayer.mode === "receiz_live" ? "Verified Receiz room" : "Local practice room · sign in for durable cross-device presence"}</p>
+        <section className="wilds-live-sheet wilds-live-roster" aria-label="Global live explorers">
+          <header><div><span>Shared Wilds</span><strong>Everyone live now</strong></div><button onClick={() => setRosterOpen(false)} aria-label="Close live roster" type="button">×</button></header>
+          <p>{multiplayer.mode === "receiz_live" ? "Connected globally · exact live positions" : "Reconnecting to global presence"}</p>
           <div className="wilds-live-player-list">
             {multiplayer.remotePlayers.length ? multiplayer.remotePlayers.map((player) => (
               <button key={player.playerId} onClick={() => { multiplayer.selectPlayer(player); setRosterOpen(false); }} type="button">
@@ -79,7 +79,7 @@ export function WildsMultiplayer({
 
       {selected ? (
         <section className="wilds-live-sheet wilds-player-sheet" aria-label={`Interact with ${selected.handle}`}>
-          <header><div><span>{selected.practice ? "Practice explorer" : "Verified explorer"}</span><strong>{selected.handle}</strong></div><button onClick={() => multiplayer.selectPlayer(null)} aria-label="Close player interaction" type="button">×</button></header>
+          <header><div><span>{selected.practice ? "Live guest explorer" : "Verified explorer"}</span><strong>{selected.handle}</strong></div><button onClick={() => multiplayer.selectPlayer(null)} aria-label="Close player interaction" type="button">×</button></header>
           <div className="wilds-player-card-line"><i className={selected.style} /><span><strong>{selected.activeCard.name}</strong><small>{selected.activeCard.stats.health} HP · {selected.activeCard.stats.power} power · {Math.round(selectedDistance)}m away</small></span></div>
           {!canInteract ? <p className="wilds-live-distance">Move within {WILDS_INTERACTION_DISTANCE}m to chat or battle.</p> : null}
           <div className="wilds-challenge-modes">

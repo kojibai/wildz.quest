@@ -10,7 +10,7 @@ export type WildzRetirementProposal = {
   finalVitality: number;
   teamOutcome: "victory" | "defeat" | "draw";
   retiredAt: string;
-  cause?: "mortal-arena-zero-vitality" | "wild-battle-zero-vitality";
+  cause?: "mortal-arena-zero-vitality" | "wild-battle-zero-vitality" | "hearttree-mortal-death";
 };
 
 export function assertCreaturePlayable(card: LivingCardAsset) {
@@ -41,7 +41,16 @@ export function sealRetirement(card: LivingCardAsset, proposal: WildzRetirementP
   const next = appendLivingCardRevision({ asset: card, revision: {
     sealedAt: proposal.retiredAt,
     kaiPulse: prior.kaiPulse,
-    reason: { kind: "life", label: cause === "wild-battle-zero-vitality" ? "Canonically retired after a wild battle" : honor === "victorious-sacrifice" ? "Honored after a victorious sacrifice" : "Canonically retired in the Mortal Arena" },
+    reason: {
+      kind: "life",
+      label: cause === "hearttree-mortal-death"
+        ? "Death recorded by a verified Mortal Hearttree receipt"
+        : cause === "wild-battle-zero-vitality"
+          ? "Canonically retired after a wild battle"
+          : honor === "victorious-sacrifice"
+            ? "Honored after a victorious sacrifice"
+            : "Canonically retired in the Mortal Arena"
+    },
     stage: prior.stage,
     ascensionRank: prior.ascensionRank,
     formId: prior.formId,

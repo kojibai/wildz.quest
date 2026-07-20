@@ -27,6 +27,7 @@ import {
 import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 import { extractVerifiedWildzCards } from "../../lib/receiz/wildz-cross-platform-cards";
 import type { WildzContinuityDatabase } from "../../lib/storage/wildz-indexed-db";
+import { removeWildzAssetsFromActiveVault } from "./wildz-ownership-reconciliation";
 
 export type WildzRestoreCandidate =
   | {
@@ -448,9 +449,32 @@ export async function restoreWildzArtifactForSurface(input: {
           ? input.currentCharacter ?? previous?.character ?? null
           : playerForSession && !shouldMergeIntoActiveVault ? playerForSession.character : previous?.character ?? null
       );
+      const custodyAssetIds = input.carryCurrentVault
+        && verifiedIdentity
+        && active
+        && !sameWildzPlayerCoordinate(active.actorId, session.actorId)
+        ? [...new Set([...verifiedAssetIds, ...record.playState.inventory.map((asset) => asset.id)])].sort()
+        : verifiedAssetIds;
       const verifiedIdentityMatchesActive = active && verifiedIdentity && sameWildzPlayerCoordinate(verifiedIdentity.session.actorId, active.actorId);
       if (verifiedIdentity && (!shouldMergeIntoActiveVault || verifiedIdentityMatchesActive)) {
         await input.repository.writePrepared(tx, verifiedIdentity.prepared, true);
+      }
+      if (custodyAssetIds.length) {
+        const ownerStates = await tx.getAll<StoredWildzOwnerState>("ownerStates");
+        for (const ownerState of ownerStates) {
+          if (ownerState?.schema !== OWNER_STATE_SCHEMA
+            || typeof ownerState.keyId !== "string"
+            || typeof ownerState.actorId !== "string") continue;
+          const ownerScope = wildzOwnerScope(ownerState.keyId, ownerState.actorId);
+          if (ownerScope === scope) continue;
+          const reconciled = removeWildzAssetsFromActiveVault(ownerState.playState, custodyAssetIds);
+          if (reconciled === ownerState.playState) continue;
+          await tx.put("ownerStates", {
+            ...ownerState,
+            playState: reconciled,
+            updatedAt: new Date().toISOString()
+          }, ownerScope);
+        }
       }
       await tx.put("ownerStates", record, scope);
       committedOwnerState = record;

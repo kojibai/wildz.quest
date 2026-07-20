@@ -1,4 +1,5 @@
 import type { ReceizClient } from "@receiz/sdk";
+import { ReceizArtifactError } from "@receiz/sdk";
 import {
   downloadAndReopenWildzArtifact,
   openWildzArtifactEvidence,
@@ -20,7 +21,10 @@ export async function claimWildzBearerArtifact(
   let claimed;
   try {
     claimed = await port.ownership.claimBearerAsset({ artifact: opened.sealedArtifact });
-  } catch {
+  } catch (cause) {
+    if (cause instanceof ReceizArtifactError && cause.code === "artifact_custody_conflict") {
+      throw new Error("wildz_bearer_claim_stale_ownership");
+    }
     throw new Error("wildz_bearer_claim_failed");
   }
   const admitted = await downloadAndReopenWildzArtifact(claimed, port.artifacts);

@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type UIEvent } from "react";
+import { createPortal } from "react-dom";
 import { Icons } from "@/components/icons";
 import { sortWildzCards, type WildzCardSort } from "./card-sort";
 import {
@@ -18,6 +19,8 @@ import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
 import { currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
+import { WildsCardScene } from "./WildsCardScene";
+import type { AdventureCardCondition } from "./adventure/card-condition";
 
 const RAIL_CARD_EXTENT = 184;
 const RAIL_END_GUTTER = 40;
@@ -38,6 +41,7 @@ const CreatureChoice = memo(function CreatureChoice({
   total,
   onSelect,
   retired
+  , condition
 }: {
   asset: PortableCardAsset;
   active: boolean;
@@ -46,8 +50,10 @@ const CreatureChoice = memo(function CreatureChoice({
   total: number;
   onSelect: (assetId: string) => void;
   retired: boolean;
+  condition?: AdventureCardCondition;
 }) {
   const form = creatureForm(asset.manifest.formId);
+  const [inspecting, setInspecting] = useState(false);
   return <article
     aria-posinset={logicalPosition}
     aria-setsize={total}
@@ -59,8 +65,7 @@ const CreatureChoice = memo(function CreatureChoice({
       aria-label={`${asset.manifest.name}, creature ${logicalPosition} of ${total}${retired ? ", retired memorial" : active ? ", active" : ""}`}
       aria-pressed={active}
       className={`wildz-creature-choice${retired ? " is-retired" : ""}`}
-      disabled={retired}
-      onClick={() => onSelect(asset.id)}
+      onClick={() => retired ? setInspecting(true) : onSelect(asset.id)}
       type="button"
     >
       <WildsCreatureThumbnail asset={asset} />
@@ -71,6 +76,11 @@ const CreatureChoice = memo(function CreatureChoice({
       </span>
       {retired ? <b className="wildz-creature-choice-active">Retired</b> : active ? <b className="wildz-creature-choice-active">Active</b> : null}
     </button>
+    {inspecting && typeof document !== "undefined" ? createPortal(<div aria-label={`${asset.manifest.name} memorial card`} aria-modal="true" className="wildz-memorial-card-viewer" role="dialog">
+      <button aria-label="Close memorial card" className="wildz-memorial-card-close" onClick={() => setInspecting(false)} type="button">×</button>
+      <WildsCardScene asset={asset} condition={condition} origin={window.location.origin} qr="" />
+      <p>Swipe the card to read its permanent death record.</p>
+    </div>, document.body) : null}
   </article>;
 });
 
@@ -78,6 +88,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   nearbyCards,
   activeCard,
   companionProgress,
+  cardConditions,
   cardOrder,
   onCardOrderChange,
   onSelectCard
@@ -85,6 +96,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   nearbyCards: readonly PortableCardAsset[];
   activeCard: PortableCardAsset | null;
   companionProgress: PlayState["companionProgress"];
+  cardConditions: PlayState["adventureConditions"];
   cardOrder: WildzCardSort;
   onCardOrderChange: (order: WildzCardSort) => void;
   onSelectCard: (assetId: string) => void;
@@ -217,7 +229,8 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
 
   const renderChoice = (card: PortableCardAsset, logicalIndex: number) => {
     const progress = companionProgress[card.manifest.familyId] ?? { level: 1, xp: 0, bond: 0 };
-    const retired = isLivingCardAsset(card) && Boolean(currentRevision(card).growth.life?.retired);
+    const condition = cardConditions[card.id];
+    const retired = condition?.life === "dead" || (isLivingCardAsset(card) && Boolean(currentRevision(card).growth.life?.retired));
     return <CreatureChoice
       active={activeCard?.id === card.id}
       asset={card}
@@ -226,6 +239,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
       onSelect={selectAndClose}
       progress={progress}
       retired={retired}
+      condition={condition}
       total={sortedCards.length}
     />;
   };

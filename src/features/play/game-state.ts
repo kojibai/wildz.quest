@@ -38,6 +38,7 @@ import { applyHearttreeConsequences } from "./hearttree/consequences";
 import { verifyHearttreeReceipt, type HearttreeReceipt } from "./hearttree/receipt";
 import { emptyAdventureCondition, validateAdventureCondition, type AdventureCardCondition } from "./adventure/card-condition";
 import { healWildBattleCard, settleWildBattleCard } from "./wild-battle-life";
+import { sealRetirement } from "../games/lifecycle/creature-retirement";
 import {
   EMPTY_WILDS_SUPPORT_ASSET_IDS,
   type WildsBossFamilyId,
@@ -480,7 +481,13 @@ export function restorePlayState(value: string | null | undefined, ownerReceizId
     for (const receipt of restoredHearttreeReceipts) {
       for (const [assetId, consequence] of Object.entries(receipt.consequences.cards)) {
         const condition = adventureConditions[assetId];
-        if (condition && consequence.lifeAfter === "dead") adventureConditions[assetId] = { ...condition, life: "dead" };
+        if (condition && consequence.lifeAfter === "dead") adventureConditions[assetId] = {
+          ...condition,
+          life: "dead",
+          retiredAt: condition.retiredAt ?? receipt.createdAt,
+          retirementCauseEventId: condition.retirementCauseEventId ?? `hearttree:${receipt.definition.id}:${receipt.digest}`,
+          receiptDigests: [...new Set([...condition.receiptDigests, receipt.digest])].slice(-512)
+        };
       }
     }
     const hearttreeConditions = Object.fromEntries(Object.entries(adventureConditions).map(([assetId, condition]) => [assetId, adventureConditionToHearttree(condition)]));
@@ -734,6 +741,9 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
   if (input.type === "hearttree-admit") {
     if (!verifyHearttreeReceipt(input.receipt).ok || state.hearttreeReceipts.some((receipt) => receipt.digest === input.receipt.digest)) return state;
     const conditions = { ...state.adventureConditions };
+    let inventory = state.inventory;
+    let livingProgress = state.livingProgress;
+    let pendingSyncAssetIds = state.pendingSyncAssetIds;
     try {
       for (const [assetId, consequence] of Object.entries(input.receipt.consequences.cards)) {
         const current = conditions[assetId] ?? emptyAdventureCondition(assetId);
@@ -748,14 +758,33 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
           xp: { ...current.xp, hearttree: applied.xp.hearttree ?? 0 },
           mastery: { ...current.mastery, hearttree: applied.mastery.hearttree ?? 0 },
           upgradeIds: [...new Set([...current.upgradeIds, ...applied.upgradeIds])],
-          receiptDigests: [...new Set([...current.receiptDigests, input.receipt.digest])].slice(-512)
+          receiptDigests: [...new Set([...current.receiptDigests, input.receipt.digest])].slice(-512),
+          ...(current.life === "alive" && applied.life === "dead" ? {
+            retiredAt: input.receipt.createdAt,
+            retirementCauseEventId: `hearttree:${input.receipt.definition.id}:${input.receipt.digest}`
+          } : {})
         };
+        const asset = inventory.find((candidate) => candidate.id === assetId);
+        if (current.life === "alive" && applied.life === "dead" && asset && isLivingCardAsset(asset) && !currentRevision(asset).growth.life?.retired) {
+          const sealed = sealRetirement(asset, {
+            creatureId: asset.id,
+            previousRevisionDigest: currentRevision(asset).digest,
+            matchReceiptDigest: input.receipt.digest,
+            finalVitality: 0,
+            teamOutcome: "defeat",
+            retiredAt: input.receipt.createdAt,
+            cause: "hearttree-mortal-death"
+          }, { verified: true, mortalOptIn: input.receipt.definition.mortal });
+          inventory = inventory.map((candidate) => candidate.id === assetId ? sealed.card : candidate);
+          livingProgress = { ...livingProgress, [assetId]: currentRevision(sealed.card).growth };
+          pendingSyncAssetIds = Array.from(new Set([...pendingSyncAssetIds, assetId]));
+        }
       }
     } catch {
       return state;
     }
     const hearttreeConditions = Object.fromEntries(Object.entries(conditions).map(([assetId, condition]) => [assetId, adventureConditionToHearttree(condition)]));
-    const provisional = { ...state, adventureConditions: conditions, hearttreeConditions };
+    const provisional = { ...state, inventory, livingProgress, pendingSyncAssetIds, adventureConditions: conditions, hearttreeConditions };
     const playable = playableInventory(provisional);
     const selected = isPlayableAsset(provisional, state.selectedAssetId) ? state.selectedAssetId : playable[0]?.id ?? "";
     const squad = state.hearttreeSquadAssetIds.filter((assetId) => isPlayableAsset(provisional, assetId));

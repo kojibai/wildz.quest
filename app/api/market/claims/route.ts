@@ -19,6 +19,27 @@ function json(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: { "cache-control": "no-store" } });
 }
 
+function claimedArtifactResponse(
+  admitted: Awaited<ReturnType<typeof claimWildzBearerArtifact>>,
+  assetIds: readonly string[],
+  marketProjection: "admitted" | "unavailable"
+) {
+  return new NextResponse(admitted.artifactBytes.slice().buffer, {
+    status: 201,
+    headers: {
+      "cache-control": "no-store",
+      "content-type": admitted.mimeType,
+      "content-disposition": `attachment; filename="${admitted.filename.replace(/["\\]/g, "_")}"`,
+      "x-receiz-owner": admitted.ownerReceizId,
+      "x-receiz-claim-id": admitted.claimId,
+      "x-receiz-verify-path": admitted.verifyPath,
+      "x-receiz-artifact-sha256": admitted.artifactSha256,
+      "x-wildz-asset-ids": assetIds.join(","),
+      "x-wildz-market-projection": marketProjection
+    }
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const actor = await resolveWildzCookieActor(request);
@@ -49,11 +70,14 @@ export async function POST(request: NextRequest) {
     const repository = createReceizWildzMarketRepository({
       rail: resolveWildzMarketConditionalAppendRail(adapter)
     });
-    let transferred = 0;
+    let marketProjection: "admitted" | "unavailable" = "admitted";
     for (const asset of extracted.assets) {
       let loaded = await repository.load();
       for (let attempt = 0; attempt < 2; attempt += 1) {
-        if (loaded.status !== "ready") return json({ status: loaded.status, ownershipTransferred: false }, 503);
+        if (loaded.status !== "ready") {
+          marketProjection = "unavailable";
+          break;
+        }
         const previousOwnerReceizId = currentWildzOwner(loaded.state, asset);
         if (sameWildzPlayerCoordinate(previousOwnerReceizId, actor.actorId)) break;
         const occurredAt = new Date().toISOString();
@@ -85,24 +109,16 @@ export async function POST(request: NextRequest) {
           event: { type: "bearer-claim-admitted", asset, receipt }
         });
         if (admission.status === "admitted" || admission.status === "replayed") {
-          transferred += admission.status === "admitted" ? 1 : 0;
           break;
         }
         if (admission.status !== "market_revision_conflict") {
-          return json({ status: admission.status, ownershipTransferred: false }, 503);
+          marketProjection = "unavailable";
+          break;
         }
         loaded = await repository.load();
       }
     }
-    return json({
-      status: "admitted",
-      ownershipTransferred: transferred > 0,
-      ownerReceizId: actor.actorId,
-      artifactSha256: admitted.artifactSha256,
-      claimId: admitted.claimId,
-      verifyPath: admitted.verifyPath,
-      assetCount: extracted.assets.length
-    }, 201);
+    return claimedArtifactResponse(admitted, extracted.assets.map((asset) => asset.id), marketProjection);
   } catch (cause) {
     const failure = marketRouteError(cause, "market_bearer_claim_invalid");
     return json(failure.body, failure.status);

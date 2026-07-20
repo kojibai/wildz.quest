@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { portableCardPngBlob, readPortableCardFromPng, type PortableCardPngProof } from "./card-export";
 import { projectLivingCardDossier } from "./living-card-dossier";
+import { cardDeathRecord } from "./card-death-record";
+import type { AdventureCardCondition } from "./adventure/card-condition";
 import type { PortableCardAsset } from "./portable-card";
 
 function label(value: string) {
@@ -20,8 +22,9 @@ function downloadText(value: string, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-export function WildsCardBack({ asset, origin, qr }: { asset: PortableCardAsset; origin: string; qr: string }) {
+export function WildsCardBack({ asset, origin, qr, condition }: { asset: PortableCardAsset; origin: string; qr: string; condition?: AdventureCardCondition | null }) {
   const dossier = useMemo(() => projectLivingCardDossier(asset, origin), [asset, origin]);
+  const death = useMemo(() => cardDeathRecord(asset, condition), [asset, condition]);
   const [copyStatus, setCopyStatus] = useState("");
   const [pngProof, setPngProof] = useState<PortableCardPngProof | null>(null);
   const [generatingPngProof, setGeneratingPngProof] = useState(false);
@@ -38,6 +41,19 @@ export function WildsCardBack({ asset, origin, qr }: { asset: PortableCardAsset;
           <span>Character story</span>
           <p>{dossier.story}</p>
         </section>
+
+        {death ? <section className="wilds-card-back-death" aria-label="Permanent death record">
+          <span>Permanent life event</span>
+          <h2>Death recorded</h2>
+          <p>This card remains complete and viewable as a memorial. Its creature can never return to play.</p>
+          <dl>
+            <div><dt>Occurred</dt><dd>{Number.isFinite(Date.parse(death.occurredAt)) ? new Date(death.occurredAt).toLocaleString() : death.occurredAt}</dd></div>
+            <div><dt>Cause</dt><dd>{label(death.cause)}</dd></div>
+            <div><dt>Outcome</dt><dd>{label(death.outcome)} · {label(death.honor)}</dd></div>
+            <div><dt>Death event</dt><dd><code>{death.eventId}</code></dd></div>
+            <div><dt>Source receipt</dt><dd><code>{death.sourceReceiptDigest}</code></dd></div>
+          </dl>
+        </section> : null}
 
         <section className="wilds-card-back-birth">
           <span>{dossier.birth.pulse}</span>

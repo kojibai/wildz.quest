@@ -1,5 +1,5 @@
 export const WILDS_WORLD_OFFLINE_MESSAGE = "Offline — local play continues. Shared world sync resumes when connected.";
-export const WILDS_MULTIPLAYER_OFFLINE_MESSAGE = "Offline — local play continues. Nearby explorers resume when connected.";
+export const WILDS_MULTIPLAYER_OFFLINE_MESSAGE = "Offline — local play continues. Global explorers resume when connected.";
 export const WILDS_NETWORK_RETRY_BACKOFF_MS = 15_000;
 
 type NetworkStatus = { onLine?: boolean } | null | undefined;

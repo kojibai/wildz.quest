@@ -58,6 +58,7 @@ export function useWildsMultiplayer(input: {
   const [guestId, setGuestId] = useState("");
   const [roomOverride, setRoomOverride] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<WildsMultiplayerSnapshot | null>(null);
+  const [globalPlayers, setGlobalPlayers] = useState<WildsPresence[]>([]);
   const [selfId, setSelfId] = useState("");
   const [mode, setMode] = useState<"connecting" | "receiz_live" | "local_practice" | "reconnecting">("connecting");
   const [error, setError] = useState("");
@@ -78,7 +79,7 @@ export function useWildsMultiplayer(input: {
     const current = latest.current;
     if (!current.enabled || !current.activeCard || !guestId) return;
     if (!shouldAttemptWildsNetwork()) {
-      setMode("local_practice");
+      setMode("reconnecting");
       setError(WILDS_MULTIPLAYER_OFFLINE_MESSAGE);
       return;
     }
@@ -104,14 +105,16 @@ export function useWildsMultiplayer(input: {
       });
       setSelfId(result.actor.playerId);
       setSnapshot(result.snapshot);
-      setMode(result.actor.practice ? "local_practice" : result.publication.published ? "receiz_live" : "reconnecting");
+      // A server-accepted heartbeat is shared internet presence. Publication
+      // controls durability; it does not decide whether other players see it.
+      setMode("receiz_live");
       setError("");
       retryAfter.current = 0;
     } catch (cause) {
       const opaqueFailure = isOpaqueWildsNetworkFailure(cause);
       if (opaqueFailure) retryAfter.current = Date.now() + WILDS_NETWORK_RETRY_BACKOFF_MS;
       const offline = !shouldAttemptWildsNetwork() || opaqueFailure;
-      setMode(offline ? "local_practice" : "reconnecting");
+      setMode("reconnecting");
       setError(wildsNetworkFailureMessage(cause, "multiplayer", !offline));
     }
   }, [guestId, roomKey]);
@@ -126,7 +129,7 @@ export function useWildsMultiplayer(input: {
   const refresh = useCallback(async () => {
     if (!input.enabled || !guestId) return;
     if (!shouldAttemptWildsNetwork()) {
-      setMode("local_practice");
+      setMode("reconnecting");
       setError(WILDS_MULTIPLAYER_OFFLINE_MESSAGE);
       return;
     }
@@ -141,7 +144,7 @@ export function useWildsMultiplayer(input: {
       const opaqueFailure = isOpaqueWildsNetworkFailure(cause);
       if (opaqueFailure) retryAfter.current = Date.now() + WILDS_NETWORK_RETRY_BACKOFF_MS;
       const offline = !shouldAttemptWildsNetwork() || opaqueFailure;
-      setMode(offline ? "local_practice" : "reconnecting");
+      setMode("reconnecting");
       setError(wildsNetworkFailureMessage(cause, "multiplayer", !offline));
     }
   }, [guestId, input.enabled, mode, roomKey]);
@@ -162,6 +165,30 @@ export function useWildsMultiplayer(input: {
     window.addEventListener("online", resume);
     return () => window.removeEventListener("online", resume);
   }, [heartbeat, refresh]);
+
+  const refreshGlobalPresence = useCallback(async () => {
+    if (!latest.current.enabled || !guestId || !shouldAttemptWildsNetwork()) return;
+    const current = latest.current;
+    try {
+      const params = new URLSearchParams({
+        x: String(current.position.x),
+        z: String(current.position.z),
+        guestId
+      });
+      const result = await jsonRequest<{ players: WildsPresence[] }>(`/api/wilds/atlas?${params.toString()}`, { cache: "no-store" });
+      setGlobalPlayers(result.players ?? []);
+    } catch {
+      // Retain the last short-lived atlas projection until the next heartbeat.
+      // Server-side TTL enforcement prevents stale players from reappearing.
+    }
+  }, [guestId]);
+
+  useEffect(() => {
+    void refreshGlobalPresence();
+    if (!input.enabled) return;
+    const timer = window.setInterval(() => void refreshGlobalPresence(), 900);
+    return () => window.clearInterval(timer);
+  }, [input.enabled, refreshGlobalPresence]);
 
   const post = useCallback(async (path: "message" | "challenge" | "battle", body: Record<string, unknown>) => {
     if (!latest.current.enabled) throw new Error("wilds_multiplayer_session_required");
@@ -188,10 +215,16 @@ export function useWildsMultiplayer(input: {
     return url.toString();
   }, [guestId, input.activeCard, input.position, roomKey, selfId]);
 
-  const remotePlayers = useMemo(() => (snapshot?.players ?? [])
-    .filter((player) => player.playerId !== selfId)
+  const remotePlayers = useMemo(() => {
+    const newestByPlayer = new Map<string, WildsPresence>();
+    for (const player of [...(snapshot?.players ?? []), ...globalPlayers]) {
+      const current = newestByPlayer.get(player.playerId);
+      if (!current || Date.parse(player.lastSeenAt) > Date.parse(current.lastSeenAt)) newestByPlayer.set(player.playerId, player);
+    }
+    return [...newestByPlayer.values()]
+    .filter((player) => player.playerId !== selfId && player.status !== "private")
     .sort((left, right) => Math.hypot(left.x - input.position.x, left.z - input.position.z) - Math.hypot(right.x - input.position.x, right.z - input.position.z))
-    .slice(0, 24), [input.position.x, input.position.z, selfId, snapshot?.players]);
+  }, [globalPlayers, input.position.x, input.position.z, selfId, snapshot?.players]);
   const selectedPlayer = remotePlayers.find((player) => player.playerId === selectedPlayerId) ?? null;
   const activeBattle = snapshot?.battles.find((battle) => battle.phase === "active" && Boolean(battle.players[selfId]))
     ?? snapshot?.battles.find((battle) => battle.phase === "settled" && Boolean(battle.players[selfId]) && !dismissedBattleIds.has(battle.id))

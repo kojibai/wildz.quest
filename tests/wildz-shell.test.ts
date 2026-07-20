@@ -13,6 +13,7 @@ test("root page renders one persistent Wildz app", () => {
 test("Wildz app owns the game and overlay state", () => {
   const source = read("src/features/shell/WildzApp.tsx");
   assert.equal(source.match(/<PlayCampaign\b/g)?.length, 1);
+  assert.match(source, /enabled=\{true\}/);
   assert.match(source, /initialOverlay/);
   assert.match(source, /wildz-app/);
 });

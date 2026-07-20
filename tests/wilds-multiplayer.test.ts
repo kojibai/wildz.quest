@@ -78,9 +78,9 @@ describe("Wilds live multiplayer core", () => {
       now: Date.parse(now),
       maxClusters: 64
     });
-    assert.deepEqual(atlas.players, [
-      { playerId: "atlas-near", handle: "Nearby", style: "female", x: 48_003, z: 48_004, status: "available" },
-      { playerId: "atlas-far", handle: "Hidden", style: "female", x: 48_100, z: 48_010, status: "available" }
+    assert.deepEqual(atlas.players.map(({ playerId, handle, x, z, activeCard }) => ({ playerId, handle, x, z, card: activeCard.assetId })), [
+      { playerId: "atlas-near", handle: "Nearby", x: 48_003, z: 48_004, card: "atlas" },
+      { playerId: "atlas-far", handle: "Hidden", x: 48_100, z: 48_010, card: "atlas" }
     ]);
     assert.equal(atlas.clusters.length, 0);
   });

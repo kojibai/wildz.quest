@@ -6,6 +6,7 @@ import { generateWildzCharacter, type WildzCharacterGenesis, type WildzGender } 
 import { createOwnerBoundInitialPlayState, initialPlayState, type PlayState } from "@/features/play/game-state";
 import { createWildsPlayerVault } from "@/features/play/wilds-player-vault";
 import type { WildzCardOnlyConfirmation } from "@/features/identity/wildz-restore";
+import { removeWildzAssetsFromActiveVault } from "@/features/identity/wildz-ownership-reconciliation";
 import {
   bootstrapWildzContinuity,
   alignWildzContinuityWithProofSession,
@@ -398,29 +399,54 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     await downloadWildzIdentityPlayerVault(current.session, playState.inventory, player);
   };
 
-  const claimVerifiedImportedCards = useCallback(async (file: File, outcome: WildzUiArtifactRestore) => {
-    if (!proofSessionConnected || !outcome.verifiedAssetIds.length) return;
-    const admitted = await openWildzArtifactSameOrigin({
+  const claimVerifiedImportedCards = useCallback(async (file: File, targetActorId: string) => {
+    if (!navigator.onLine || !proofSessionConnected) {
+      throw new Error("Global Receiz ownership must be online before this Vault can be merged.");
+    }
+    const source = await openWildzArtifactSameOrigin({
       bytes: new Uint8Array(await file.arrayBuffer()),
       mimeType: file.type || "application/octet-stream",
       name: file.name
     });
-    if (sameWildzPlayerCoordinate(admitted.ownerReceizId, outcome.session.actorId)) return;
     const approved = window.confirm(
-      `Claim verified proof object ${file.name} (${admitted.claimId}) from @${admitted.ownerReceizId} `
-      + `to @${outcome.session.actorId}? This creates and downloads a new Receiz ownership artifact while preserving its history.`
+      `Confirm global ownership of ${file.name} (${source.claimId}) for @${targetActorId}? `
+      + `Receiz v113 will reject this file if a newer owner already exists, then creates and downloads a new Receiz ownership artifact with its history preserved.`
     );
-    if (!approved) return;
+    if (!approved) throw new Error("Global ownership claim cancelled. Nothing was added.");
     const form = new FormData();
     form.set("file", file, file.name);
-    await fetch("/api/market/claims", {
+    const response = await fetch("/api/market/claims", {
       method: "POST",
       credentials: "same-origin",
       headers: {
-        "idempotency-key": `bearer-claim:${outcome.session.actorId}:${outcome.verifiedAssetIds.join(":")}`
+        "idempotency-key": `bearer-claim:${targetActorId}:${source.artifactSha256}`
       },
       body: form
     });
+    if (!response.ok) {
+      const failure = await response.json().catch(() => null) as { error?: unknown } | null;
+      if (failure?.error === "wildz_bearer_claim_stale_ownership") {
+        throw new Error("This card has new ownership.");
+      }
+      throw new Error("Global Receiz ownership could not be verified. Nothing was added.");
+    }
+    const artifactBytes = new Uint8Array(await response.arrayBuffer());
+    const claimed = new File(
+      [artifactBytes.slice().buffer],
+      `claimed-${source.claimId}.receized`,
+      { type: response.headers.get("content-type") || "application/octet-stream" }
+    );
+    const verified = await openWildzArtifactSameOrigin({
+      bytes: artifactBytes,
+      mimeType: claimed.type,
+      name: claimed.name
+    });
+    if (!sameWildzPlayerCoordinate(verified.ownerReceizId, targetActorId)
+      || verified.payloadSha256 !== source.payloadSha256
+      || verified.artifactSha256 !== response.headers.get("x-receiz-artifact-sha256")) {
+      throw new Error("Global Receiz ownership proof did not match this Vault. Nothing was added.");
+    }
+    return claimed;
   }, [proofSessionConnected]);
 
   const restoreArtifact = useCallback(async (
@@ -432,8 +458,11 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   ): Promise<WildzUiArtifactRestore> => {
     const current = continuityRef.current;
     if (!current) throw new Error("wildz_restore_identity_missing");
+    const admittedFile = intent === "merge-vault"
+      ? await claimVerifiedImportedCards(file, current.session.actorId)
+      : file;
     const outcome = await restoreWildzFileForSurface(
-      file,
+      admittedFile,
       surface,
       confirmCardOnly,
       current,
@@ -451,8 +480,10 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       publishedProfileRef.current = "";
     }
     acceptSnapshot(next);
-    if (sameWildzPlayerCoordinate(current.session.actorId, outcome.session.actorId)) {
-      void claimVerifiedImportedCards(file, outcome);
+    if (intent === "merge-vault" && typeof BroadcastChannel !== "undefined") {
+      const channel = new BroadcastChannel("receiz:wildz:ownership:v113");
+      channel.postMessage({ ownerActorId: outcome.session.actorId, assetIds: outcome.verifiedAssetIds });
+      channel.close();
     }
     return outcome;
   }, [acceptSnapshot, claimVerifiedImportedCards]);
@@ -465,6 +496,28 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     playStateSaveSchedulerRef.current?.schedule({ snapshot, playState, playerContinuity });
   }, []);
 
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const channel = new BroadcastChannel("receiz:wildz:ownership:v113");
+    channel.addEventListener("message", (event: MessageEvent<unknown>) => {
+      const message = event.data as { ownerActorId?: unknown; assetIds?: unknown } | null;
+      if (!message || typeof message.ownerActorId !== "string" || !Array.isArray(message.assetIds)
+        || message.assetIds.some((id) => typeof id !== "string")) return;
+      const current = continuityRef.current;
+      if (!current?.playState || sameWildzPlayerCoordinate(current.session.actorId, message.ownerActorId)) return;
+      const reconciled = removeWildzAssetsFromActiveVault(current.playState, message.assetIds as string[]);
+      if (reconciled === current.playState || !current.playerContinuity) return;
+      const snapshot = { ...current, playState: reconciled };
+      acceptSnapshot(snapshot);
+      playStateSaveSchedulerRef.current?.schedule({
+        snapshot,
+        playState: reconciled,
+        playerContinuity: current.playerContinuity
+      });
+    });
+    return () => channel.close();
+  }, [acceptSnapshot]);
+
   return (
     <main className="wildz-app-shell" data-wildz-active-username={ownerUsername}>
       <div className="wildz-app" data-overlay={overlay?.kind ?? "world"}>
@@ -472,7 +525,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           key={`${identity.keyId}:${identity.actorId}`}
           campaignName="Wildz"
           character={campaignCharacter}
-          enabled
+          enabled={true}
           interactionEnabled={Boolean(character)}
           networkEnabled={Boolean(character) && proofSessionConnected}
           initialState={ownerPlayState}
