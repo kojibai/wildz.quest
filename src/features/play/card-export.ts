@@ -6,9 +6,10 @@ import { currentLivingGenome } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import { parseWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 import {
-  attemptPublicWildsCardRegistration,
-  canonicalPublicCardPath
+  canonicalPublicCardPath,
+  requireGloballyAvailablePublicWildsCard
 } from "./public-card-registry";
+import { WILDZ_PRODUCT } from "../../lib/wildz/product";
 import {
   canonicalPortableCardJson,
   sha256PortableBasis,
@@ -146,7 +147,7 @@ export function renderWildsCardSvg(asset: PortableCardAsset, options: { origin?:
   ].join("");
   const abilityOne = form.abilities[0];
   const abilityTwo = form.abilities[1];
-  const cardPath = standaloneCardUrl(asset.id, options.origin ?? "https://receiz.com");
+  const cardPath = standaloneCardUrl(asset.id, options.origin ?? WILDZ_PRODUCT.origin);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1050" viewBox="0 0 750 1050" role="img" aria-labelledby="title description">
   <title id="title">${xml(asset.manifest.name)} Wilds card</title><desc id="description">Stage ${asset.manifest.stage} ${xml(asset.manifest.rarity)} portable Receiz card</desc>
   <defs>
@@ -464,7 +465,7 @@ async function svgPngBlob(svg: string, width = 750, height = 1050) {
 export async function downloadPortableCard(asset: PortableCardAsset) {
   if (typeof document === "undefined") throw new Error("wilds_card_download_browser_required");
   const filename = asset.manifest.formId;
-  const publication = await attemptCardPublication(asset);
+  await requireGloballyAvailablePublicWildsCard(asset);
   const portable = await renderPortableCardPngBlob(asset);
   const remoteProof = await requestReceizProofObject(portable, `${filename}.png`, "card");
   if (remoteProof) {
@@ -472,21 +473,17 @@ export async function downloadPortableCard(asset: PortableCardAsset) {
   } else {
     downloadBlob(portable, `${filename}.wildz-card.png`);
   }
-  return { published: publication.published };
+  return { published: true as const };
 }
 
 export async function portableCardPngBlob(asset: PortableCardAsset) {
   if (typeof document === "undefined") throw new Error("wilds_card_png_browser_required");
-  await attemptCardPublication(asset);
+  await requireGloballyAvailablePublicWildsCard(asset);
   return renderPortableCardPngBlob(asset);
 }
 
-function attemptCardPublication(asset: PortableCardAsset) {
-  return attemptPublicWildsCardRegistration(asset);
-}
-
 async function renderPortableCardPngBlob(asset: PortableCardAsset) {
-  const rendered = await svgPngBlob(renderWildsCardSvg(asset, { origin: window.location.origin }));
+  const rendered = await svgPngBlob(renderWildsCardSvg(asset, { origin: WILDZ_PRODUCT.origin }));
   const portable = embedPortableCardInPng(new Uint8Array(await rendered.arrayBuffer()), asset);
   return new Blob([portable.slice().buffer], { type: "image/png" });
 }

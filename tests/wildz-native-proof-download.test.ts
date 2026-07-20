@@ -170,10 +170,36 @@ test("v103 card download preserves the native proof artifact bytes", async () =>
     const downloaded = browser.downloaded();
     assert.ok(downloaded);
     assert.equal(result.published, true);
-    assert.equal(requestCount, 2);
+    assert.equal(requestCount, 3);
     assert.equal(downloaded.type, "image/png");
     assert.deepEqual(new Uint8Array(await downloaded.arrayBuffer()), expected);
     assert.equal(browser.downloadedFilename(), "mintcub-1.receized.png");
+  } finally {
+    browser.restore();
+  }
+});
+
+test("Card export is blocked unless the exact card is readable without owner credentials", async () => {
+  const browser = installDownloadBrowser();
+  const asset = card("anonymous-card-required");
+  let anonymousRequest: RequestInit | undefined;
+  try {
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: async (input: string | URL | Request, init?: RequestInit) => {
+        if (!String(input).startsWith("/api/cards/")) return new Response(null, { status: 500 });
+        if (init?.method === "POST") {
+          const record = createPublicWildsCardRecord(asset, "https://wildz.quest", "2026-07-16T12:03:00.000Z");
+          return Response.json({ ok: true, record });
+        }
+        anonymousRequest = init;
+        return Response.json({ ok: false, error: "wildz_public_card_not_found" }, { status: 404 });
+      }
+    });
+
+    await assert.rejects(downloadPortableCard(asset), /wildz_public_card_anonymous_read_required/);
+    assert.equal(anonymousRequest?.credentials, "omit");
+    assert.equal(browser.downloaded(), null);
   } finally {
     browser.restore();
   }

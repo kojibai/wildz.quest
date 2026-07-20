@@ -338,10 +338,8 @@ export function WildsInventory({
                   setCardSaving(true);
                   setDownloadMessage("Publishing verified card link…");
                   try {
-                    const result = await downloadPortableCard(selected);
-                    setDownloadMessage(result.published
-                      ? "Portable PNG downloaded. Its QR opens this verified card from another device."
-                      : "Portable PNG downloaded and verifies offline. Connect Receiz ID to publish its short QR link across devices.");
+                    await downloadPortableCard(selected);
+                    setDownloadMessage("Portable PNG downloaded. Its QR was verified anonymously on wildz.quest.");
                   } catch (error) {
                     setDownloadMessage(error instanceof Error
                       ? `Card download failed: ${error.message}`

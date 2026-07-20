@@ -448,7 +448,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(scene, /aria-hidden=\{!flipped\}/);
     assert.doesNotMatch(scene, /wilds-card-flip-control/);
     assert.doesNotMatch(css, /\.wilds-card-flip-control/);
-    assert.match(cardExport, /attemptPublicWildsCardRegistration/);
+    assert.match(cardExport, /requireGloballyAvailablePublicWildsCard/);
     assert.doesNotMatch(cardExport, /BROWSER_RECEIZ_ID_SESSION_KEY|keyFile|passphrase/);
     assert.match(cardRoute, /resolveWildzCookieActor/);
     assert.match(cardRoute, /createReceizWildzPublicRepository/);
@@ -457,10 +457,11 @@ describe("Receiz Wilds rendering contract", () => {
     assert.doesNotMatch(cardRoute, /publishPublicStoreWithIdentityProof|hasPublicationAuthority|published:\s*false/);
     assert.match(inventory, /Publishing verified card link/);
     assert.match(inventory, /Portable PNG downloaded/);
-    assert.match(inventory, /Portable PNG downloaded and verifies offline/);
+    assert.match(inventory, /Its QR was verified anonymously on wildz\.quest/);
     assert.match(cardExport, /premiumQrSvg\(cardPath/);
-    assert.match(cardExport, /attemptPublicWildsCardRegistration/);
-    assert.match(cardExport, /attemptPublicWildsCardRegistration\(asset\)/);
+    assert.match(cardExport, /requireGloballyAvailablePublicWildsCard/);
+    assert.match(cardExport, /requireGloballyAvailablePublicWildsCard\(asset\)/);
+    assert.match(cardExport, /origin: WILDZ_PRODUCT\.origin/);
     assert.match(cardExport, /errorCorrectionLevel:\s*"L"/);
     assert.match(css, /backface-visibility:\s*hidden/);
     assert.match(css, /-webkit-backface-visibility:\s*hidden/);

@@ -118,10 +118,43 @@ export async function registerPublicWildsCard(
     record?: PublicWildsCardRecord;
     error?: string;
   } | null;
-  if (!response.ok || payload?.ok !== true || payload.record?.asset?.id !== asset.id) {
+  const record = parsePublicWildsCardRecord(payload?.record);
+  if (!response.ok
+    || payload?.ok !== true
+    || record?.assetId !== asset.id
+    || record.asset.proof.digest !== asset.proof.digest) {
     throw new Error(payload?.error ?? "wildz_public_card_registration_failed");
   }
-  return payload.record;
+  return record;
+}
+
+/**
+ * Publication is not enough for an exported QR: prove that the public GET works
+ * without the owner's cookies and returns this exact verified proof revision.
+ */
+export async function requireGloballyAvailablePublicWildsCard(
+  asset: PortableCardAsset,
+  fetcher: typeof fetch = globalThis.fetch
+) {
+  await registerPublicWildsCard(asset, fetcher);
+  const response = await fetcher(`/api/cards/${encodeURIComponent(asset.id)}`, {
+    method: "GET",
+    credentials: "omit",
+    cache: "no-store",
+    headers: { accept: "application/json", "cache-control": "no-cache" }
+  });
+  const payload = await response.json().catch(() => null) as {
+    ok?: boolean;
+    record?: PublicWildsCardRecord;
+  } | null;
+  const record = parsePublicWildsCardRecord(payload?.record);
+  if (!response.ok
+    || payload?.ok !== true
+    || record?.assetId !== asset.id
+    || record.asset.proof.digest !== asset.proof.digest) {
+    throw new Error("wildz_public_card_anonymous_read_required");
+  }
+  return record;
 }
 
 export async function attemptPublicWildsCardRegistration(
