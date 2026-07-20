@@ -94,6 +94,8 @@ describe("Wildz v3 discovery card proof", () => {
 
     const appends = readWildzProofAppendsFromPng(png);
     assert.equal(appends.length, 1);
+    assert.equal(appends[0]!.kind, "card");
+    if (appends[0]!.kind !== "card") return;
     assert.equal(appends[0]!.base.assetId, portable.asset!.id);
     assert.equal(appends[0]!.base.proofDigest, portable.asset!.proof.digest);
     assert.equal(appends[0]!.asset.proof.digest, card.proof.digest);

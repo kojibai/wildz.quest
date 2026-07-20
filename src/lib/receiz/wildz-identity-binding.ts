@@ -10,6 +10,7 @@ import {
 } from "@receiz/sdk";
 import {
   readPortableVaultFromPng,
+  readWildzPlayerVaultAppendFromPng,
   verifyPortableVaultPng
 } from "../../features/play/card-export";
 import { canonicalPortableCardJson } from "../../features/play/portable-card";
@@ -193,11 +194,15 @@ export function readWildzIdentityBindingFromEnvelope(bytes: Uint8Array) {
 export async function requireWildzIdentityBindingFromEnvelope(bytes: Uint8Array) {
   const { pngBasis } = splitWildzPngEnvelope(bytes);
   const verifiedVault = verifyPortableVaultPng(pngBasis);
-  if (!verifiedVault.ok || !verifiedVault.player) throw new Error("wildz_restore_binding_invalid");
+  if (!verifiedVault.ok) throw new Error("wildz_restore_binding_invalid");
   const proof = readPortableVaultFromPng(pngBasis);
-  if (proof.schema !== "receiz.wilds_vault_png_proof.v3" || !proof.player) {
+  let playerAppend: ReturnType<typeof readWildzPlayerVaultAppendFromPng>;
+  try {
+    playerAppend = readWildzPlayerVaultAppendFromPng(pngBasis);
+  } catch {
     throw new Error("wildz_restore_binding_invalid");
   }
+  if (playerAppend.base.vaultDigest !== proof.vaultDigest) throw new Error("wildz_restore_binding_invalid");
   const binding = readWildzIdentityBindingFromEnvelope(bytes);
   const keyFile = await readReceizIdentityArtifact(bytes);
   const projection = await projectReceizIdentityAccount(keyFile);
@@ -205,12 +210,12 @@ export async function requireWildzIdentityBindingFromEnvelope(bytes: Uint8Array)
   if (binding.keyId !== keyFile.keyId
     || binding.alg !== keyFile.alg
     || !username
-    || !sameWildzPlayerCoordinate(username, proof.player.playerId)
-    || !sameWildzPlayerCoordinate(binding.playerId, proof.player.playerId)) {
+    || !sameWildzPlayerCoordinate(username, playerAppend.player.playerId)
+    || !sameWildzPlayerCoordinate(binding.playerId, playerAppend.player.playerId)) {
     throw new Error("wildz_restore_owner_mismatch");
   }
   if (binding.vaultDigest !== proof.vaultDigest
-    || binding.playerPayloadDigest !== proof.player.payloadDigest) {
+    || binding.playerPayloadDigest !== playerAppend.player.payloadDigest) {
     throw new Error("wildz_restore_binding_invalid");
   }
   let challenge: string;

@@ -22,6 +22,7 @@ import {
   embedPortableVaultInPng,
   portableVaultPngBlob,
   readPortableVaultFromPng,
+  readWildzPlayerVaultAppendFromPng,
   verifyPortableVaultPng
 } from "../../features/play/card-export";
 import type { PortableCardAsset } from "../../features/play/portable-card";
@@ -497,7 +498,13 @@ export async function createWildzIdentityBoundPlayerVault(input: {
 }) {
   const verified = verifyPortableVaultPng(input.vaultBytes);
   const proof = readPortableVaultFromPng(input.vaultBytes);
-  if (!verified.ok || !verified.player || proof.schema !== "receiz.wilds_vault_png_proof.v3" || !proof.player) {
+  let playerAppend: ReturnType<typeof readWildzPlayerVaultAppendFromPng>;
+  try {
+    playerAppend = readWildzPlayerVaultAppendFromPng(input.vaultBytes);
+  } catch {
+    throw new Error("wildz_vault_export_proof_invalid");
+  }
+  if (!verified.ok || playerAppend.base.vaultDigest !== proof.vaultDigest) {
     throw new Error("wildz_vault_export_proof_invalid");
   }
   if (identityKeyNeedsPassphrase(input.keyFile) && !input.passphrase) {
@@ -506,9 +513,9 @@ export async function createWildzIdentityBoundPlayerVault(input: {
   const withIdentity = appendWildzIdentitySealAuthority(input.vaultBytes, input.keyFile);
   const binding = await createWildzIdentityBinding({
     keyFile: input.keyFile,
-    playerId: proof.player.playerId,
+    playerId: playerAppend.player.playerId,
     vaultDigest: proof.vaultDigest,
-    playerPayloadDigest: proof.player.payloadDigest,
+    playerPayloadDigest: playerAppend.player.payloadDigest,
     ...(input.passphrase !== undefined ? { passphrase: input.passphrase } : {})
   });
   return appendWildzIdentityBindingTrailer(withIdentity, binding);
@@ -546,7 +553,8 @@ export async function downloadWildzIdentityPlayerVault(
   const sealed = await portableVaultPngBlob(assets, player);
   const sealedBytes = new Uint8Array(await sealed.arrayBuffer());
   const proof = readPortableVaultFromPng(sealedBytes);
-  if (proof.schema !== "receiz.wilds_vault_png_proof.v3" || !proof.player) {
+  const playerAppend = readWildzPlayerVaultAppendFromPng(sealedBytes);
+  if (playerAppend.base.vaultDigest !== proof.vaultDigest) {
     throw new Error("wildz_vault_export_proof_invalid");
   }
   const combined = await defaultIdentityRepository.withKeyFile(session.keyId, async (keyFile) => {

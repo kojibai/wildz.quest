@@ -5,6 +5,7 @@ import type {
 import {
   readPortableCardFromPng,
   readPortableVaultFromPng,
+  readWildzPlayerVaultAppendFromPng,
   verifyPortableCardPng,
   verifyPortableVaultPng
 } from "../../features/play/card-export";
@@ -59,10 +60,16 @@ export function requireVerifiedWildzPng(
 
   const verified = verifyPortableVaultPng(bytes);
   const proof = readPortableVaultFromPng(bytes);
-  if (!verified.ok || !verified.player || proof.schema !== "receiz.wilds_vault_png_proof.v3") {
+  let playerAppend: ReturnType<typeof readWildzPlayerVaultAppendFromPng>;
+  try {
+    playerAppend = readWildzPlayerVaultAppendFromPng(bytes);
+  } catch {
     throw new Error("wildz_proof_object_player_vault_required");
   }
-  return verified.player.playerId;
+  if (!verified.ok || playerAppend.base.vaultDigest !== proof.vaultDigest) {
+    throw new Error("wildz_proof_object_player_vault_required");
+  }
+  return playerAppend.player.playerId;
 }
 
 export function requireOwnedWildzPng(

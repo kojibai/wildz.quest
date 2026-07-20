@@ -55,11 +55,19 @@ const WILDZ_PROOF_APPEND_CHUNK_TYPE = "rzWx";
 
 export type WildzProofAppendV1 = {
   schema: "receiz.wildz_proof_append.v1";
+  kind?: "card";
   base: {
     assetId: string;
     proofDigest: string;
   };
   asset: PortableCardAsset;
+} | {
+  schema: "receiz.wildz_proof_append.v1";
+  kind: "player-vault";
+  base: {
+    vaultDigest: string;
+  };
+  player: WildsPlayerVaultPayload;
 };
 
 function xml(value: string | number) {
@@ -305,6 +313,7 @@ function wildzProofAppendFor(asset: PortableCardAsset, base: PortableCardAsset):
   if (!requiresPortableCardProofAppend(asset)) return null;
   return {
     schema: "receiz.wildz_proof_append.v1",
+    kind: "card",
     base: {
       assetId: base.id,
       proofDigest: base.proof.digest
@@ -318,17 +327,35 @@ export function readWildzProofAppendsFromPng(source: Uint8Array): WildzProofAppe
   return chunks
     .filter((chunk) => chunk.type === WILDZ_PROOF_APPEND_CHUNK_TYPE)
     .map((chunk) => {
-      const decoded = JSON.parse(new TextDecoder().decode(chunk.data)) as Partial<WildzProofAppendV1>;
+      const decoded = JSON.parse(new TextDecoder().decode(chunk.data)) as Record<string, unknown>;
+      const base = decoded.base && typeof decoded.base === "object" && !Array.isArray(decoded.base)
+        ? decoded.base as Record<string, unknown>
+        : null;
       if (decoded.schema !== "receiz.wildz_proof_append.v1"
-        || !decoded.base
-        || typeof decoded.base.assetId !== "string"
-        || typeof decoded.base.proofDigest !== "string"
-        || !decoded.asset
-        || typeof decoded.asset !== "object") {
+        || !base
+        || (decoded.kind === "player-vault"
+          ? (typeof base.vaultDigest !== "string"
+            || !decoded.player
+            || typeof decoded.player !== "object")
+          : (typeof base.assetId !== "string"
+            || typeof base.proofDigest !== "string"
+            || !decoded.asset
+            || typeof decoded.asset !== "object"))) {
         throw new Error("wildz_png_proof_append_invalid");
       }
       return decoded as WildzProofAppendV1;
     });
+}
+
+export function readWildzPlayerVaultAppendFromPng(source: Uint8Array): {
+  base: { vaultDigest: string };
+  player: WildsPlayerVaultPayload;
+} {
+  const appends = readWildzProofAppendsFromPng(source).filter((append) => append.kind === "player-vault");
+  if (appends.length !== 1) throw new Error(appends.length ? "wildz_player_vault_append_duplicate" : "wildz_player_vault_append_missing");
+  const append = appends[0]!;
+  if (append.kind !== "player-vault") throw new Error("wildz_player_vault_append_missing");
+  return { base: append.base, player: append.player };
 }
 
 export function embedPortableCardInPng(source: Uint8Array, asset: PortableCardAsset) {
@@ -385,18 +412,23 @@ export function embedPortableVaultInPng(source: Uint8Array, assets: PortableCard
   const sourceChunks = parsePng(source).filter((chunk) => chunk.type !== VAULT_CHUNK_TYPE && chunk.type !== PROOF_CHUNK_TYPE && chunk.type !== WILDZ_PROOF_APPEND_CHUNK_TYPE);
   if (player && !verifyWildsPlayerVault(player).ok) throw new Error("wilds_player_vault_invalid");
   const cardBasis = baseAssets.map((asset) => ({ id: asset.id, proof: asset.proof.digest }));
-  const vaultDigest = sha256PortableBasis(canonicalPortableCardJson(player
-    ? { assets: cardBasis, playerDigest: player.payloadDigest }
-    : cardBasis));
+  const vaultDigest = sha256PortableBasis(canonicalPortableCardJson(cardBasis));
   const proof: PortableVaultPngProof = {
-    schema: player ? "receiz.wilds_vault_png_proof.v3" : "receiz.wilds_vault_png_proof.v2",
+    schema: "receiz.wilds_vault_png_proof.v2",
     imageDigest: imageDigest(sourceChunks),
     vaultDigest,
-    assets: baseAssets,
-    ...(player ? { player } : {})
+    assets: baseAssets
   };
   const proofData = new TextEncoder().encode(canonicalPortableCardJson(proof));
-  const appendData = appends.map((append) => new TextEncoder().encode(canonicalPortableCardJson(append)));
+  const appendData = [
+    ...appends,
+    ...(player ? [{
+      schema: "receiz.wildz_proof_append.v1" as const,
+      kind: "player-vault" as const,
+      base: { vaultDigest },
+      player
+    }] : [])
+  ].map((append) => new TextEncoder().encode(canonicalPortableCardJson(append)));
   const output = [PNG_SIGNATURE];
   for (const chunk of sourceChunks) {
     if (chunk.type === "IEND") {
@@ -418,9 +450,7 @@ export function readPortableVaultFromPng(source: Uint8Array): PortableVaultPngPr
     && decoded.schema !== "receiz.wilds_vault_png_proof.v3")
     || typeof decoded.imageDigest !== "string"
     || typeof decoded.vaultDigest !== "string"
-    || !Array.isArray(decoded.assets)
-    || (decoded.schema === "receiz.wilds_vault_png_proof.v3" && !decoded.player)
-    || (decoded.schema !== "receiz.wilds_vault_png_proof.v3" && decoded.player !== undefined)) {
+    || !Array.isArray(decoded.assets)) {
     throw new Error("wilds_vault_proof_invalid");
   }
   return decoded as PortableVaultPngProof;
@@ -445,11 +475,12 @@ export function verifyPortableVaultPng(source: Uint8Array): {
       if (prior !== undefined && prior !== canonical) errors.push("wilds_vault_duplicate_card_conflict");
       canonicalById.set(asset.id, canonical);
     });
-    if (proof.player) verifyWildsPlayerVault(proof.player).errors.forEach((error) => errors.push(`player:${error}`));
     const cardBasis = proof.assets.map((asset) => ({ id: asset.id, proof: asset.proof.digest }));
-    const expectedVaultDigest = sha256PortableBasis(canonicalPortableCardJson(proof.player
-      ? { assets: cardBasis, playerDigest: proof.player.payloadDigest }
-      : cardBasis));
+    const expectedVaultDigest = sha256PortableBasis(canonicalPortableCardJson(
+      proof.schema === "receiz.wilds_vault_png_proof.v3" && proof.player
+        ? { assets: cardBasis, playerDigest: proof.player.payloadDigest }
+        : cardBasis
+    ));
     if (proof.vaultDigest !== expectedVaultDigest) errors.push("wilds_vault_digest_mismatch");
     if (proof.imageDigest !== imageDigest(chunks)) errors.push("png_image_digest_mismatch");
     return {

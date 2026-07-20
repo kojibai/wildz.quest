@@ -16,6 +16,7 @@ import { createWildzIdentitySealPng } from "../src/lib/receiz/wildz-identity-sea
 import { splitWildzPngEnvelope } from "../src/lib/receiz/wildz-png-envelope";
 import {
   readPortableVaultFromPng,
+  readWildzPlayerVaultAppendFromPng,
   verifyPortableVaultPng
 } from "../src/features/play/card-export";
 import {
@@ -91,16 +92,18 @@ test("Receiz ID Card carries SDK identity, complete player state, and every veri
   const account = await projectReceizIdentityAccount(restoredIdentity);
   const { pngBasis } = splitWildzPngEnvelope(cardBytes);
   const proof = readPortableVaultFromPng(pngBasis);
+  const playerAppend = readWildzPlayerVaultAppendFromPng(pngBasis);
   const verified = verifyPortableVaultPng(pngBasis);
 
   assert.equal(restoredIdentity.keyId, identity.keyFile.keyId);
   assert.equal(account.owner.username, "card_keeper");
   assert.equal(account.portableStateStatus, "verified");
-  assert.equal(proof.schema, "receiz.wilds_vault_png_proof.v3");
+  assert.equal(proof.schema, "receiz.wilds_vault_png_proof.v2");
   assert.deepEqual(proof.assets.map((asset) => asset.id).sort(), assets.map((asset) => asset.id).sort());
-  assert.equal(proof.player?.playerId, "card_keeper");
+  assert.equal(playerAppend.base.vaultDigest, proof.vaultDigest);
+  assert.equal(playerAppend.player.playerId, "card_keeper");
   assert.equal(verified.ok, true);
-  assert.ok(verified.player);
+  assert.equal(verified.player, null);
 });
 
 test("Identity Seal download uses protected authority and a normalized PNG filename", async () => {

@@ -225,6 +225,35 @@ export function extractVerifiedWildzCards(input: {
     rememberSchema(candidate.schema);
   };
 
+  const rememberPlayerAppend = (
+    candidate: WildsPlayerVaultPayload | null,
+    basesById: Map<string, string>
+  ) => {
+    if (!candidate) return;
+    let canonical: string;
+    try {
+      const verified = verifyWildsPlayerVault(candidate);
+      if (!verified.ok) throw new Error(verified.errors[0]);
+      canonical = canonicalPortableCardJson(candidate);
+      candidate.playState.inventory.forEach((asset) => {
+        const base = portableCardBaseProofAsset(asset);
+        if (basesById.get(base.id) === base.proof.digest) {
+          admitBoundAppend(asset, basesById);
+        } else {
+          admit(asset);
+        }
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === "wildz_restore_duplicate_card_conflict") throw error;
+      throw new Error("wildz_restore_player_digest_invalid");
+    }
+    if (playerCanonical !== null && playerCanonical !== canonical) throw new Error("wildz_restore_player_digest_invalid");
+    player = candidate;
+    playerCanonical = canonical;
+    playerSource = "png";
+    rememberSchema(candidate.schema);
+  };
+
   const inspectPng = (bytes: Uint8Array) => {
     const basesById = new Map<string, string>();
     let cardProofPresent = false;
@@ -243,9 +272,11 @@ export function extractVerifiedWildzCards(input: {
     }
 
     let vaultProofPresent = false;
+    let vaultDigest: string | null = null;
     try {
       const proof = readPortableVaultFromPng(bytes);
       vaultProofPresent = true;
+      vaultDigest = proof.vaultDigest;
       rememberSchema(proof.schema);
     } catch (error) {
       if (!proofMissing(error, "vault")) throw new Error("wildz_restore_card_proof_invalid");
@@ -271,13 +302,24 @@ export function extractVerifiedWildzCards(input: {
     try {
       for (const append of readWildzProofAppendsFromPng(bytes)) {
         rememberSchema(append.schema);
+        if (append.kind === "player-vault") {
+          if (!vaultDigest || append.base.vaultDigest !== vaultDigest) {
+            throw new Error("wildz_restore_card_proof_invalid");
+          }
+          rememberPlayerAppend(append.player, basesById);
+          continue;
+        }
         if (basesById.get(append.base.assetId) !== append.base.proofDigest) {
           throw new Error("wildz_restore_card_proof_invalid");
         }
         admitBoundAppend(append.asset, basesById);
       }
     } catch (error) {
-      if (error instanceof Error && error.message === "wildz_restore_card_proof_invalid") throw error;
+      if (error instanceof Error && (
+        error.message === "wildz_restore_card_proof_invalid"
+        || error.message === "wildz_restore_duplicate_card_conflict"
+        || error.message === "wildz_restore_player_digest_invalid"
+      )) throw error;
       throw new Error("wildz_restore_card_proof_invalid");
     }
   };
