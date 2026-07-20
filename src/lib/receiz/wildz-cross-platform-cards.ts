@@ -1,11 +1,13 @@
 import {
   readPortableCardFromPng,
+  readWildzProofAppendsFromPng,
   readPortableVaultFromPng,
   verifyPortableCardPng,
   verifyPortableVaultPng
 } from "../../features/play/card-export";
 import {
   canonicalPortableCardJson,
+  portableCardBaseProofAsset,
   verifyAnyWildsCard,
   type PortableCardAsset
 } from "../../features/play/portable-card";
@@ -172,6 +174,33 @@ export function extractVerifiedWildzCards(input: {
     rememberSchema(schemaOf(asset.proof));
   };
 
+  const admitBoundAppend = (asset: PortableCardAsset, basesById: Map<string, string>) => {
+    let verified: ReturnType<typeof verifyAnyWildsCard>;
+    let base: PortableCardAsset;
+    try {
+      verified = verifyAnyWildsCard(asset);
+      if (!verified.ok) throw new Error(verified.errors[0]);
+      base = portableCardBaseProofAsset(asset);
+    } catch {
+      throw new Error("wildz_restore_card_proof_invalid");
+    }
+    if (basesById.get(base.id) !== base.proof.digest) throw new Error("wildz_restore_card_proof_invalid");
+    const canonical = canonicalPortableCardJson(asset);
+    const prior = canonicalById.get(asset.id);
+    if (prior !== undefined && prior !== canonical) {
+      const priorAsset = assetsById.get(asset.id)!;
+      const priorIsVerifiedBase = priorAsset.proof.digest === base.proof.digest
+        && canonicalPortableCardJson(priorAsset) === canonicalPortableCardJson(base);
+      if (!priorIsVerifiedBase && !isVerifiedDescendant(priorAsset, asset)) {
+        throw new Error("wildz_restore_duplicate_card_conflict");
+      }
+    }
+    canonicalById.set(asset.id, canonical);
+    assetsById.set(asset.id, asset);
+    rememberSchema(schemaOf(asset.manifest));
+    rememberSchema(schemaOf(asset.proof));
+  };
+
   const rememberPlayer = (
     candidate: WildsPlayerVaultPayload | null,
     source: Exclude<WildzCrossPlatformCardExtraction["playerSource"], null>
@@ -197,6 +226,7 @@ export function extractVerifiedWildzCards(input: {
   };
 
   const inspectPng = (bytes: Uint8Array) => {
+    const basesById = new Map<string, string>();
     let cardProofPresent = false;
     try {
       const proof = readPortableCardFromPng(bytes);
@@ -209,6 +239,7 @@ export function extractVerifiedWildzCards(input: {
       const verified = verifyPortableCardPng(bytes);
       if (!verified.ok || !verified.asset) throw new Error("wildz_restore_card_proof_invalid");
       admit(verified.asset);
+      basesById.set(verified.asset.id, verified.asset.proof.digest);
     }
 
     let vaultProofPresent = false;
@@ -230,8 +261,24 @@ export function extractVerifiedWildzCards(input: {
         }
         throw new Error("wildz_restore_card_proof_invalid");
       }
-      verified.assets.forEach(admit);
+      verified.assets.forEach((asset) => {
+        admit(asset);
+        basesById.set(asset.id, asset.proof.digest);
+      });
       rememberPlayer(verified.player, "png");
+    }
+
+    try {
+      for (const append of readWildzProofAppendsFromPng(bytes)) {
+        rememberSchema(append.schema);
+        if (basesById.get(append.base.assetId) !== append.base.proofDigest) {
+          throw new Error("wildz_restore_card_proof_invalid");
+        }
+        admitBoundAppend(append.asset, basesById);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message === "wildz_restore_card_proof_invalid") throw error;
+      throw new Error("wildz_restore_card_proof_invalid");
     }
   };
 

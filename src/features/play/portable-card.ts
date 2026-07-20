@@ -452,6 +452,25 @@ export function verifiedPortableCardPin(asset: PortableCardAsset): VerifiedPorta
   };
 }
 
+export function requiresPortableCardProofAppend(asset: PortableCardAsset) {
+  return isLivingCardAsset(asset) || asset.manifest.variant.generatorVersion !== 1;
+}
+
+export function portableCardBaseProofAsset(asset: PortableCardAsset): LegacyPortableCardAsset {
+  const verified = verifyAnyWildsCard(asset);
+  if (!verified.ok) throw new Error("wilds_card_proof_invalid");
+  if (!requiresPortableCardProofAppend(asset)) return asset as LegacyPortableCardAsset;
+  const manifest = asset.manifest;
+  return sealCollectedCard({
+    formId: isLivingCardAsset(asset) ? asset.manifest.birth.formId : manifest.formId,
+    ownerReceizId: manifest.ownerReceizId,
+    encounterId: manifest.encounterId,
+    capturedAt: manifest.capturedAt,
+    kaiPulse: manifest.variant.kaiPulse,
+    battleTranscriptDigest: manifest.variant.battleTranscriptDigest
+  });
+}
+
 export function evolvePortableCard(input: {
   previous: PortableCardAsset;
   nextFormId: string;

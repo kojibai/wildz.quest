@@ -12,6 +12,8 @@ import {
 import { WILDZ_PRODUCT } from "../../lib/wildz/product";
 import {
   canonicalPortableCardJson,
+  portableCardBaseProofAsset,
+  requiresPortableCardProofAppend,
   sha256PortableBasis,
   verifyAnyWildsCard,
   type PortableCardAsset
@@ -49,6 +51,16 @@ const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 const PROOF_CHUNK_TYPE = "rzCd";
 const VAULT_CHUNK_TYPE = "rzVt";
 const PROOF_OBJECT_CHUNK_TYPE = "rzPo";
+const WILDZ_PROOF_APPEND_CHUNK_TYPE = "rzWx";
+
+export type WildzProofAppendV1 = {
+  schema: "receiz.wildz_proof_append.v1";
+  base: {
+    assetId: string;
+    proofDigest: string;
+  };
+  asset: PortableCardAsset;
+};
 
 function xml(value: string | number) {
   return String(value)
@@ -289,18 +301,54 @@ export function embedReceizProofObjectInPng(source: Uint8Array, artifactBytes: U
   return concatBytes(output);
 }
 
+function wildzProofAppendFor(asset: PortableCardAsset, base: PortableCardAsset): WildzProofAppendV1 | null {
+  if (!requiresPortableCardProofAppend(asset)) return null;
+  return {
+    schema: "receiz.wildz_proof_append.v1",
+    base: {
+      assetId: base.id,
+      proofDigest: base.proof.digest
+    },
+    asset
+  };
+}
+
+export function readWildzProofAppendsFromPng(source: Uint8Array): WildzProofAppendV1[] {
+  const chunks = parsePng(source);
+  return chunks
+    .filter((chunk) => chunk.type === WILDZ_PROOF_APPEND_CHUNK_TYPE)
+    .map((chunk) => {
+      const decoded = JSON.parse(new TextDecoder().decode(chunk.data)) as Partial<WildzProofAppendV1>;
+      if (decoded.schema !== "receiz.wildz_proof_append.v1"
+        || !decoded.base
+        || typeof decoded.base.assetId !== "string"
+        || typeof decoded.base.proofDigest !== "string"
+        || !decoded.asset
+        || typeof decoded.asset !== "object") {
+        throw new Error("wildz_png_proof_append_invalid");
+      }
+      return decoded as WildzProofAppendV1;
+    });
+}
+
 export function embedPortableCardInPng(source: Uint8Array, asset: PortableCardAsset) {
   if (!verifyAnyWildsCard(asset).ok) throw new Error("wilds_card_proof_invalid");
-  const sourceChunks = parsePng(source).filter((chunk) => chunk.type !== PROOF_CHUNK_TYPE);
+  const baseAsset = portableCardBaseProofAsset(asset);
+  const append = wildzProofAppendFor(asset, baseAsset);
+  const sourceChunks = parsePng(source).filter((chunk) => chunk.type !== PROOF_CHUNK_TYPE && chunk.type !== WILDZ_PROOF_APPEND_CHUNK_TYPE);
   const proof: PortableCardPngProof = {
     schema: "receiz.wilds_png_proof.v2",
     imageDigest: imageDigest(sourceChunks),
-    asset
+    asset: baseAsset
   };
   const proofData = new TextEncoder().encode(canonicalPortableCardJson(proof));
+  const appendData = append ? new TextEncoder().encode(canonicalPortableCardJson(append)) : null;
   const output = [PNG_SIGNATURE];
   for (const chunk of sourceChunks) {
-    if (chunk.type === "IEND") output.push(makeChunk(PROOF_CHUNK_TYPE, proofData));
+    if (chunk.type === "IEND") {
+      if (appendData) output.push(makeChunk(WILDZ_PROOF_APPEND_CHUNK_TYPE, appendData));
+      output.push(makeChunk(PROOF_CHUNK_TYPE, proofData));
+    }
     output.push(makeChunk(chunk.type, chunk.data));
   }
   return concatBytes(output);
@@ -330,9 +378,13 @@ export function verifyPortableCardPng(source: Uint8Array): { ok: boolean; errors
 export function embedPortableVaultInPng(source: Uint8Array, assets: PortableCardAsset[], player?: WildsPlayerVaultPayload) {
   if (!assets.length || assets.some((asset) => !verifyAnyWildsCard(asset).ok)) throw new Error("wilds_vault_cards_invalid");
   if (new Set(assets.map((asset) => asset.id)).size !== assets.length) throw new Error("wilds_vault_duplicate_card");
-  const sourceChunks = parsePng(source).filter((chunk) => chunk.type !== VAULT_CHUNK_TYPE && chunk.type !== PROOF_CHUNK_TYPE);
+  const baseAssets = assets.map(portableCardBaseProofAsset);
+  const appends = assets
+    .map((asset, index) => wildzProofAppendFor(asset, baseAssets[index]!))
+    .filter((append): append is WildzProofAppendV1 => append !== null);
+  const sourceChunks = parsePng(source).filter((chunk) => chunk.type !== VAULT_CHUNK_TYPE && chunk.type !== PROOF_CHUNK_TYPE && chunk.type !== WILDZ_PROOF_APPEND_CHUNK_TYPE);
   if (player && !verifyWildsPlayerVault(player).ok) throw new Error("wilds_player_vault_invalid");
-  const cardBasis = assets.map((asset) => ({ id: asset.id, proof: asset.proof.digest }));
+  const cardBasis = baseAssets.map((asset) => ({ id: asset.id, proof: asset.proof.digest }));
   const vaultDigest = sha256PortableBasis(canonicalPortableCardJson(player
     ? { assets: cardBasis, playerDigest: player.payloadDigest }
     : cardBasis));
@@ -340,13 +392,17 @@ export function embedPortableVaultInPng(source: Uint8Array, assets: PortableCard
     schema: player ? "receiz.wilds_vault_png_proof.v3" : "receiz.wilds_vault_png_proof.v2",
     imageDigest: imageDigest(sourceChunks),
     vaultDigest,
-    assets,
+    assets: baseAssets,
     ...(player ? { player } : {})
   };
   const proofData = new TextEncoder().encode(canonicalPortableCardJson(proof));
+  const appendData = appends.map((append) => new TextEncoder().encode(canonicalPortableCardJson(append)));
   const output = [PNG_SIGNATURE];
   for (const chunk of sourceChunks) {
-    if (chunk.type === "IEND") output.push(makeChunk(VAULT_CHUNK_TYPE, proofData));
+    if (chunk.type === "IEND") {
+      appendData.forEach((data) => output.push(makeChunk(WILDZ_PROOF_APPEND_CHUNK_TYPE, data)));
+      output.push(makeChunk(VAULT_CHUNK_TYPE, proofData));
+    }
     output.push(makeChunk(chunk.type, chunk.data));
   }
   return concatBytes(output);
