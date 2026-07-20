@@ -13,7 +13,7 @@ import {
   type JsonObject,
   type OidcTokenRequest,
   type OidcTokenResponse,
-  type PublicProofRecord,
+  type ReceizPublicProjectionRecord,
   type ReceizAppStateFeedResponse,
   type ReceizAppStateRecordResponse,
   type ReceizAppStateRestoreResult,
@@ -141,9 +141,9 @@ export type ReceizCommerceAdapter = {
   admitAndRecoverArtifact: ReceizClient["artifacts"]["admitAndRecover"];
   commitArtifactRecovery: ReceizClient["artifacts"]["commitRecovery"];
   claimBearerArtifact: ReceizClient["ownership"]["claimBearerAsset"];
-  observePublicProof(body: { url: string; externalCreatorId?: string; title?: string }): Promise<PublicProofRecord>;
-  getPublicProofByUrl(url: string): Promise<PublicProofRecord>;
-  getPublicProofById(id: string): Promise<PublicProofRecord>;
+  observePublicProof(body: { url: string; externalCreatorId?: string; title?: string }): Promise<ReceizPublicProjectionRecord>;
+  getPublicProofByUrl(url: string): Promise<ReceizPublicProjectionRecord>;
+  getPublicProofById(id: string): Promise<ReceizPublicProjectionRecord>;
   worldSnapshot(): Promise<ReceizWorldPublicSnapshotResponse>;
   worldProfile(username: string, query?: ReceizWorldProfileQuery): Promise<ReceizWorldProfileResponse>;
   worldMessage(username: string, body: ReceizWorldProfileMessageRequest): Promise<ReceizWorldProfileResponse>;
@@ -500,7 +500,10 @@ export function createReceizCommerceAdapter(
       return client.proofMemory.additionsQuery(value, limit);
     },
     verifyArtifact(file) {
-      return client.verification.verifyArtifact(file);
+      // The v113 local verifier returns a runtime-custodied verification object
+      // for admission. This compatibility lane intentionally calls the Connect
+      // document endpoint because callers still consume DocumentVerifyResponse.
+      return client.connect.verifyArtifact(file);
     },
     verifyAndOpenArtifact(file) {
       return client.artifacts.verifyAndOpen(file);

@@ -28,10 +28,10 @@ import type { WildzAdmittedArtifact } from "./wildz-artifact-custody";
 export type WildzPlayerBinding = "identity-portable-state" | "identity-v3-binding" | "artifact-v4-required" | null;
 
 export type WildzProofObjectContinuity = {
-  schema: "receiz.wildz.verified_artifact.v111";
+  schema: "receiz.wildz.verified_artifact.v113";
   compatibility: WildzAdmittedArtifact["compatibility"];
   ownerReceizId: string;
-  custody: "v111-verified-artifact";
+  custody: "v113-verified-artifact";
   proofRef: string;
   provenanceRoot: string;
   payloadSha256: string;
@@ -212,10 +212,10 @@ export function createWildzArtifactCodec(input: {
             mimeType: admitted.mimeType
           };
           proofObject = {
-            schema: "receiz.wildz.verified_artifact.v111",
+            schema: "receiz.wildz.verified_artifact.v113",
             compatibility: admitted.compatibility,
             ownerReceizId: admitted.ownerReceizId,
-            custody: "v111-verified-artifact",
+            custody: "v113-verified-artifact",
             proofRef: admitted.claimId,
             provenanceRoot: admitted.recordId ?? admitted.claimId,
             payloadSha256: admitted.payloadSha256,

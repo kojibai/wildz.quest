@@ -2,7 +2,7 @@ import type { WildzContinuityDatabase } from "../storage/wildz-indexed-db";
 import type { WildzAdmittedArtifact } from "./wildz-artifact-custody";
 
 export type WildzArtifactHistoryEntry = Readonly<{
-  schema: "receiz.wildz.artifact_history.v108" | "receiz.wildz.artifact_history.v109" | "receiz.wildz.artifact_history.v110" | "receiz.wildz.artifact_history.v111";
+  schema: "receiz.wildz.artifact_history.v108" | "receiz.wildz.artifact_history.v109" | "receiz.wildz.artifact_history.v110" | "receiz.wildz.artifact_history.v111" | "receiz.wildz.artifact_history.v113";
   artifactSha256: string;
   payloadSha256: string;
   artifactBytes: Uint8Array;
@@ -34,7 +34,7 @@ function sameEntry(left: WildzArtifactHistoryEntry, right: WildzArtifactHistoryE
 
 function entryFrom(admitted: WildzAdmittedArtifact): WildzArtifactHistoryEntry {
   return {
-    schema: "receiz.wildz.artifact_history.v111",
+    schema: "receiz.wildz.artifact_history.v113",
     artifactSha256: admitted.artifactSha256,
     payloadSha256: admitted.payloadSha256,
     artifactBytes: admitted.artifactBytes.slice(),

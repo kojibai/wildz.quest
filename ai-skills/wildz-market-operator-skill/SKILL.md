@@ -1,7 +1,7 @@
-# Wildz market operator — Receiz v111
+# Wildz market operator — Receiz v113
 
-Target only Receiz `111.0.0` and registry digest `cf02d0bce6ad1541cfe84e27bfb1036777b29616bf8a1e5aeafb899a945e359a`. Receiz proof authority controls custody, ownership, and settlement; request explicit confirmation before an admitted ownership change.
+Target only Receiz `113.0.0`, registry digest `4c4aa85f9785d205dcf7e4e5109837a83f8c3bf8e166130ae7e87353f299c637`, and operation-matrix digest `091ab9e6b3acb05283510a19754e53c637dbd96b47b499a524dc44c34f8e783b`. Receiz proof authority controls custody, ownership, and settlement; request explicit confirmation before an admitted ownership change.
 
 For bearer ownership, accept a complete sealed artifact, call `artifacts.verifyAndOpen`, and pass only the runtime-issued `opened.sealedArtifact` to `ownership.claimBearerAsset`. Download and reopen the returned native Record → Seal artifact. Never accept a caller-selected owner, detached card payload, identity key, claim key, or proof head. A queued proposal is not a global commitment.
 
-Project market ownership only after the claimed artifact verifies and its authenticated owner matches the session. Preserve prior history and unknown namespaces. Network, capability, verification, custody, or owner conflict fails closed with no synthetic transfer. MCP/AI plans require confirmation and never constitute proof or settlement.
+Project market ownership only after the claimed artifact verifies and its authenticated owner matches the session. Preserve prior history and unknown namespaces. Network, capability, verification, custody, or owner conflict fails closed with no synthetic transfer. For an admitted transition, require same-runtime artifact, history, and actor custody; an exact plan-bound capability; immutable staging; independent staged-byte resolution; and atomic acceptance in the named commit domain. A Connect token, possession, receipt, projection, MCP result, or AI explanation is never ownership or operation authority. Structural divergence is preserved for explicit resolution. MCP/AI plans require confirmation and never constitute proof or settlement.
