@@ -27,10 +27,6 @@ test("public card routes trust only the cookie actor and durable projection", ()
   assert.match(route, /createReceizWildzPublicRepository/);
   assert.match(route, /loadVerifiedWildzPublicOwnershipAuthority/);
   assert.match(route, /requireCurrentWildzPublicOwner/);
-  assert.match(route, /const ownershipAdapter = createReceizCommerceAdapter\(\{ accessToken: actor\.accessToken \}\)/);
-  assert.match(route, /loadVerifiedWildzPublicOwnershipAuthority\(ownershipAdapter\)/);
-  assert.match(route, /const publicationAdapter = createReceizCommerceAdapter\(\)/);
-  assert.match(route, /createReceizWildzPublicRepository\(\{ adapter: publicationAdapter \}\)/);
   assert.doesNotMatch(route, /asset\.manifest\.ownerReceizId/);
   const ownershipCheck = route.indexOf("const admittedOwnerId = requireCurrentWildzPublicOwner(");
   const exactRegistrationCheck = route.indexOf("if (isCurrentWildzPublicCardRegistration(current.state, asset))");

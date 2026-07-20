@@ -26,6 +26,8 @@ export function wildzCookieActorFromReceizProfile(
 }
 
 export async function resolveWildzCookieActor(request: NextRequest): Promise<WildzCookieActor> {
+  const requestSession = receizRequestSession(request);
+  const playerAccessToken = playerReceizAccessToken(requestSession);
   let proofSession: ReturnType<typeof readWildzProofSessionCookie> | null = null;
   try {
     proofSession = readWildzProofSessionCookie(request);
@@ -36,15 +38,21 @@ export async function resolveWildzCookieActor(request: NextRequest): Promise<Wil
     if (proofSession.authority === "proof-sealed-vault") {
       throw new Error("receiz_identity_key_required");
     }
+    if (playerAccessToken) {
+      const profile = await loadReceizConnectProfile(playerAccessToken).catch(() => null);
+      if (profile?.id && profile.handle) {
+        const delegatedActor = wildzCookieActorFromReceizProfile(profile, playerAccessToken);
+        if (delegatedActor.actorId === proofSession.actorId) return delegatedActor;
+      }
+    }
     return {
       actorId: proofSession.actorId,
       profileHandle: proofSession.profileHandle,
       receizUserId: `proof:${proofSession.subjectKey}`
     };
   }
-  const session = receizRequestSession(request);
-  const cookieAccessToken = session.cookieAccessToken;
-  if (!cookieAccessToken || playerReceizAccessToken(session) !== cookieAccessToken) {
+  const cookieAccessToken = requestSession.cookieAccessToken;
+  if (!cookieAccessToken || playerAccessToken !== cookieAccessToken) {
     throw new Error("receiz_authority_required");
   }
   const profile = await loadReceizConnectProfile(cookieAccessToken);

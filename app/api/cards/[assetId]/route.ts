@@ -63,21 +63,15 @@ export async function POST(request: NextRequest, context: { params: Promise<{ as
     }
 
     const actor = await resolveWildzCookieActor(request);
-    // The player credential proves who is asking and what they currently own.
-    // It is deliberately not used as the app's durable publication credential.
-    const ownershipAdapter = createReceizCommerceAdapter({ accessToken: actor.accessToken });
-    const ownershipAuthority = await loadVerifiedWildzPublicOwnershipAuthority(ownershipAdapter);
+    const adapter = createReceizCommerceAdapter({ accessToken: actor.accessToken });
+    const ownershipAuthority = await loadVerifiedWildzPublicOwnershipAuthority(adapter);
     const admittedOwnerId = requireCurrentWildzPublicOwner(
       ownershipAuthority,
       asset,
       actor.actorId,
       "wildz_public_card_owner_mismatch"
     );
-    // Public projection writes are app-coordinated server writes. Using the
-    // server publication adapter makes the resulting card readable globally;
-    // owner OIDC tokens are not expected to carry that infrastructure scope.
-    const publicationAdapter = createReceizCommerceAdapter();
-    const repository = createReceizWildzPublicRepository({ adapter: publicationAdapter });
+    const repository = createReceizWildzPublicRepository({ adapter });
     const current = await repository.load();
     const occurredAt = new Date().toISOString();
     if (isCurrentWildzPublicCardRegistration(current.state, asset)) {
