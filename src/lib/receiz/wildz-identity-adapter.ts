@@ -18,7 +18,7 @@ import { restorePlayState, type PlayState } from "../../features/play/game-state
 import type { WildzCharacterGenesis } from "../../features/identity/wildz-genesis";
 import {
   downloadBlob,
-  downloadPortableVault,
+  downloadReceizProofObject,
   embedPortableVaultInPng,
   portableVaultPngBlob,
   readPortableVaultFromPng,
@@ -541,8 +541,7 @@ export async function downloadWildzIdentityPlayerVault(
   } = {}
 ) {
   if (session.localAuthority !== "verified") {
-    await downloadPortableVault(assets, player);
-    return { identityBound: false } as const;
+    throw new Error("wildz_identity_vault_authority_required");
   }
   const sealed = await portableVaultPngBlob(assets, player);
   const sealedBytes = new Uint8Array(await sealed.arrayBuffer());
@@ -565,7 +564,12 @@ export async function downloadWildzIdentityPlayerVault(
     });
   });
   const digest = proof.vaultDigest.slice(7, 19);
-  downloadBlob(new Blob([combined.slice().buffer], { type: "image/png" }), `wilds-vault-${digest}.receized.png`);
+  await downloadReceizProofObject(
+    new Blob([combined.slice().buffer], { type: "image/png" }),
+    `wilds-vault-${digest}.png`,
+    "vault",
+    { outputFilename: `wilds-vault-${digest}.receized` }
+  );
   return { identityBound: true } as const;
 }
 

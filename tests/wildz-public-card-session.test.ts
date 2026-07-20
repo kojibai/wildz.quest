@@ -21,20 +21,21 @@ test("full and compact card parameters resolve one canonical asset", () => {
   assert.equal(existsSync("app/c/[assetId]/page.tsx"), true);
 });
 
-test("public card routes trust only the cookie actor and durable projection", () => {
+test("public card publication accepts Identity Seal authority without making cookies superior", () => {
   const route = readFileSync("app/api/cards/[assetId]/route.ts", "utf8");
   assert.match(route, /resolveWildzCookieActor/);
-  assert.match(route, /createReceizWildzPublicRepository/);
-  assert.match(route, /loadVerifiedWildzPublicOwnershipAuthority/);
-  assert.match(route, /requireCurrentWildzPublicOwner/);
-  assert.doesNotMatch(route, /asset\.manifest\.ownerReceizId/);
-  const ownershipCheck = route.indexOf("const admittedOwnerId = requireCurrentWildzPublicOwner(");
-  const exactRegistrationCheck = route.indexOf("if (isCurrentWildzPublicCardRegistration(current.state, asset))");
-  assert.ok(ownershipCheck >= 0 && exactRegistrationCheck > ownershipCheck);
-  assert.doesNotMatch(route, /identityProof|keyFile|session\.accessToken|resolveLocalPublicWildsCard|admitPublicWildsCard/);
+  assert.match(route, /if \(identityKeyFile\)/);
+  assert.match(route, /else \{\s*const actor = await resolveWildzCookieActor/);
+  assert.match(route, /sameWildzPlayerCoordinate\(asset\.manifest\.ownerReceizId, actor\.profileHandle\)/);
+  assert.match(route, /publishPublicStoreWithIdentityProof/);
+  assert.match(route, /storeStateRecord:\s*transportRecord as unknown as JsonObject/);
+  assert.match(route, /merchantReceizId:\s*ownerCoordinate\.profileHandle/);
+  assert.doesNotMatch(route, /createReceizWildzPublicRepository|loadVerifiedWildzPublicOwnershipAuthority|advanceWildzPublicState/);
   assert.match(route, /status:\s*401/);
   assert.match(route, /status:\s*403/);
   assert.match(route, /status:\s*503/);
+  assert.match(route, /namespace:\s*`wildz-card:\$\{record\.assetId\}`/);
+  assert.match(route, /state:\s*transportRecord as unknown as JsonObject/);
 });
 
 test("standalone card recovery resolves the public projection for anonymous visitors and exact verified local card concurrently", () => {
@@ -43,6 +44,7 @@ test("standalone card recovery resolves the public projection for anonymous visi
   const serverPage = readFileSync("app/cards/[assetId]/page.tsx", "utf8");
   assert.match(route, /resolvePublicWildsCardRecord/);
   assert.match(route, /requestOrigin\(request\)/);
+  assert.match(route, /return WILDZ_PRODUCT\.origin/);
   assert.match(resolver, /createReceizWildzPublicRepository/);
   assert.match(resolver, /resolveSdkPublicWildzCard/);
   assert.match(resolver, /verifyAnyWildsCard/);
@@ -56,7 +58,25 @@ test("standalone card recovery resolves the public projection for anonymous visi
   assert.match(page, /Promise\.allSettled\(\[localResolution, publicResolution\]\)/);
   assert.doesNotMatch(page, /initialPlayState|restorePlayState|localStorage|receiz:wilds:save:v2/);
   const registry = readFileSync("src/features/play/public-card-registry.ts", "utf8");
-  assert.doesNotMatch(registry, /identityProof|keyFile|passphrase|registryKey|Symbol\.for|resolveLocalPublicWildsCard/);
+  assert.match(registry, /identityProof|keyFile/);
+  assert.doesNotMatch(registry, /registryKey|Symbol\.for|resolveLocalPublicWildsCard/);
+});
+
+test("card and Vault sealing enter the official SDK tenant-session rail", () => {
+  const startRoute = readFileSync("app/api/auth/receiz/start/route.ts", "utf8");
+  const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
+  const session = readFileSync("src/lib/receiz/wildz-native-proof-session.ts", "utf8");
+  const identityAdapter = readFileSync("src/lib/receiz/wildz-identity-adapter.ts", "utf8");
+  assert.match(startRoute, /ensureTenantSession/);
+  assert.match(startRoute, /fallback:\s*"artifact_upload"/);
+  assert.match(startRoute, /scope:\s*WILDZ_RECEIZ_OIDC_SCOPES/);
+  assert.match(session, /\/api\/auth\/receiz\/me/);
+  assert.match(session, /\/api\/auth\/receiz\/start/);
+  assert.match(session, /sameWildzPlayerCoordinate/);
+  assert.match(inventory, /ensureWildzNativeProofSession\(player\.playerId/);
+  assert.match(inventory, /ensureWildzNativeProofSession\(asset\.manifest\.ownerReceizId/);
+  assert.match(identityAdapter, /downloadReceizProofObject/);
+  assert.doesNotMatch(identityAdapter, /identityBound:\s*false/);
 });
 
 test("local standalone recovery returns only the exact proof-verified card", async () => {

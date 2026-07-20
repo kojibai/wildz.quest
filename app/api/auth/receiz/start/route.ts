@@ -11,6 +11,7 @@ import {
   WILDZ_RECEIZ_SESSION_SCOPE
 } from "@/lib/receiz/wildz-auth-url";
 import { parseWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate";
+import { WILDZ_PRODUCT } from "@/lib/wildz/product";
 
 export const runtime = "nodejs";
 
@@ -53,16 +54,18 @@ export async function GET(request: NextRequest) {
     sessionScope: WILDZ_RECEIZ_SESSION_SCOPE,
     startOrigin: origin
   });
-  const authorizeUrl = receizCommerceAdapter.buildReceizIdAuthorizeUrl({
+  const tenantSession = receizCommerceAdapter.ensureTenantSession({
+    tenantHost: WILDZ_PRODUCT.domain,
+    fallback: "artifact_upload",
     clientId,
     redirectUri,
     codeChallenge: codeChallenge(verifier),
-    scopes: WILDZ_RECEIZ_OIDC_SCOPES,
+    scope: WILDZ_RECEIZ_OIDC_SCOPES,
     state,
     ...(coordinate ? { usernameHint: coordinate.actorId } : {})
   });
 
-  const response = NextResponse.redirect(buildReceizConnectEntryUrl(authorizeUrl));
+  const response = NextResponse.redirect(buildReceizConnectEntryUrl(tenantSession.url));
   response.headers.set("cache-control", "no-store");
   response.cookies.set("receiz_oauth_flow", flowNonce, {
     httpOnly: true,

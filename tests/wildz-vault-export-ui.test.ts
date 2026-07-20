@@ -17,7 +17,9 @@ test("Card Vault export seals the complete live V3 player payload, not cards alo
   assert.match(campaign, /movementMode/);
   assert.match(campaign, /presentation\.audioSettings/);
   assert.match(inventory, /playerVault:\s*\(\) => WildsPlayerVaultPayload/);
-  assert.match(inventory, /onExportVault\(state\.inventory, playerVault\(\)\)/);
+  assert.match(inventory, /const player = playerVault\(\)/);
+  assert.match(inventory, /ensureWildzNativeProofSession\(player\.playerId, \{ kind: "vault" \}\)/);
+  assert.match(inventory, /onExportVault\(state\.inventory, player\)/);
   assert.match(exporter, /portableVaultPngBlob\(assets: PortableCardAsset\[\], player\?: WildsPlayerVaultPayload\)/);
   assert.match(exporter, /embedPortableVaultInPng\([^;]+assets, player\)/s);
   assert.match(exporter, /verifyDownloadedWildzProofObject/);
@@ -53,6 +55,8 @@ test("Vault card detail can send a saved card to a Receiz username or email", ()
   assert.match(inventory, /aria-label="Receiz username or email to send this card"/);
   assert.match(inventory, /sendPortableCardToTarget/);
   assert.match(inventory, /createWildsCardSendDraft/);
+  assert.match(inventory, /createReceizProofObjectArtifact/);
+  assert.match(inventory, /ensureWildzNativeProofSession\(selected\.manifest\.ownerReceizId/);
   assert.match(inventory, /navigator\.share/);
   assert.match(inventory, /mailto:/);
 });

@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { Icons } from "@/components/icons";
 import { sortWildzCards, type WildzCardSort } from "./card-sort";
 import { creatureForm } from "./creature-catalog";
 import {
+  createReceizProofObjectArtifact,
   createWildsCardSendDraft,
   downloadBlob,
   downloadPortableCard,
   portableCardPngBlob,
+  portableCreatureFilename,
   standaloneCardUrl
 } from "./card-export";
 import type { PlayState, WildsInput } from "./game-state";
@@ -26,6 +28,10 @@ import type {
   WildzCardOnlyConfirmation,
   WildzCommittedArtifactRestore
 } from "@/features/identity/wildz-restore";
+import {
+  consumeWildzNativeProofResume,
+  ensureWildzNativeProofSession
+} from "@/lib/receiz/wildz-native-proof-session";
 
 export function WildsInventory({
   state,
@@ -74,6 +80,7 @@ export function WildsInventory({
   const importInput = useRef<HTMLInputElement>(null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const suppressCardClick = useRef(false);
+  const nativeProofResumeStarted = useRef(false);
   const matches = useMemo(() => sortWildzCards(state.inventory.filter((asset) => {
     const form = creatureForm(asset.manifest.formId);
     if (!form) return false;
@@ -141,9 +148,16 @@ export function WildsInventory({
     setCardSending(true);
     setSendMessage("Preparing verified card send package…");
     try {
+      if (!await ensureWildzNativeProofSession(selected.manifest.ownerReceizId, { kind: "card", assetId: selected.id })) return;
       const draft = createWildsCardSendDraft(selected, sendTarget, origin);
-      const blob = await portableCardPngBlob(selected);
-      const file = new File([blob], draft.filename, { type: "image/png" });
+      const payload = await portableCardPngBlob(selected);
+      const artifact = await createReceizProofObjectArtifact(
+        payload,
+        `${portableCreatureFilename(selected.manifest.name)}.png`,
+        "card"
+      );
+      const blob = new Blob([artifact.bytes.slice().buffer], { type: artifact.mimeType });
+      const file = new File([blob], artifact.filename, { type: artifact.mimeType });
       const shareData: ShareData = {
         title: draft.title,
         text: draft.text,
@@ -155,7 +169,7 @@ export function WildsInventory({
         setSendMessage(`Card send package opened for ${draft.target.label}.`);
         return;
       }
-      downloadBlob(blob, draft.filename);
+      downloadBlob(blob, artifact.filename);
       if (draft.href.startsWith("mailto:")) {
         window.location.href = draft.href;
         setSendMessage(`Card image downloaded. Email compose opened for ${draft.target.label}. Attach the downloaded image if your mail app did not attach it automatically.`);
@@ -174,6 +188,52 @@ export function WildsInventory({
     }
   };
 
+  const saveVerifiedVault = useCallback(async () => {
+    setVaultSaving(true);
+    setVaultMessage("Checking active Receiz ID authority…");
+    try {
+      const player = playerVault();
+      if (!await ensureWildzNativeProofSession(player.playerId, { kind: "vault" })) return;
+      setVaultMessage("Creating native Receiz Record → Seal proof object…");
+      await onExportVault(state.inventory, player);
+      setVaultMessage("Receiz proof object downloaded. SDK v113 verified the complete Vault offline.");
+    } catch (error) {
+      setVaultMessage(error instanceof Error ? `Vault save failed: ${error.message}` : "Vault save failed. Try again from this browser.");
+    } finally {
+      setVaultSaving(false);
+    }
+  }, [onExportVault, playerVault, state.inventory]);
+
+  const saveVerifiedCard = useCallback(async (asset: PlayState["inventory"][number]) => {
+    setCardSaving(true);
+    setDownloadMessage("Checking active Receiz ID authority…");
+    try {
+      if (!await ensureWildzNativeProofSession(asset.manifest.ownerReceizId, { kind: "card", assetId: asset.id })) return;
+      setDownloadMessage("Publishing the verified card and creating its native Receiz proof object…");
+      await downloadPortableCard(asset);
+      setDownloadMessage("Receiz proof object downloaded. SDK v113 verified it offline and its card page anonymously.");
+    } catch (error) {
+      setDownloadMessage(error instanceof Error
+        ? `Card download failed: ${error.message}`
+        : "Card download failed. Try again from this browser.");
+    } finally {
+      setCardSaving(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (nativeProofResumeStarted.current) return;
+    const resume = consumeWildzNativeProofResume();
+    if (!resume) return;
+    nativeProofResumeStarted.current = true;
+    if (resume.kind === "vault") {
+      void saveVerifiedVault();
+      return;
+    }
+    const asset = state.inventory.find((candidate) => candidate.id === resume.assetId);
+    if (asset) void saveVerifiedCard(asset);
+  }, [saveVerifiedCard, saveVerifiedVault, state.inventory]);
+
   return (
     <section className="wilds-inventory" aria-label="Portable creature card inventory">
       <header className="wilds-vault-compact-header">
@@ -184,27 +244,16 @@ export function WildsInventory({
             <span>Import card or vault</span>
           </button>
           <button
-            aria-label="Save vault image"
+            aria-label="Save verified vault"
             aria-busy={vaultSaving}
             className={`wilds-import-card vault wilds-action-feedback${vaultSaving ? " wilds-action-busy" : ""}`}
             disabled={!state.inventory.length || vaultSaving}
-            onClick={async () => {
-              setVaultSaving(true);
-              setVaultMessage("Preparing portable vault image…");
-              try {
-                await onExportVault(state.inventory, playerVault());
-                setVaultMessage("Vault image saved with your player identity, progress, settings, and every verified card sealed inside.");
-              } catch (error) {
-                setVaultMessage(error instanceof Error ? `Vault save failed: ${error.message}` : "Vault save failed. Try again from this browser.");
-              } finally {
-                setVaultSaving(false);
-              }
-            }}
-            title="Save vault image"
+            onClick={() => { void saveVerifiedVault(); }}
+            title="Save verified vault"
             type="button"
           >
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16v13H4zM8 6V4h8v2m-4 3v6m0 0-3-3m3 3 3-3" /></svg>
-            <span>Save vault image</span>
+            <span>Save verified vault</span>
           </button>
           <button aria-label="Fuse cards" className="wilds-import-card fusion wilds-action-feedback" disabled={state.inventory.length < 2} onClick={() => setFusionOpen((value) => !value)} title="Fuse cards" type="button">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 7h5l2 3 2-3h5M5 17h5l2-3 2 3h5" /></svg>
@@ -334,22 +383,9 @@ export function WildsInventory({
                 aria-busy={cardSaving}
                 className={`button button-outline wilds-action-feedback${cardSaving ? " wilds-action-busy" : ""}`}
                 disabled={cardSaving || selectedRetired}
-                onClick={async () => {
-                  setCardSaving(true);
-                  setDownloadMessage("Publishing verified card link…");
-                  try {
-                    await downloadPortableCard(selected);
-                    setDownloadMessage("Portable PNG downloaded. Its QR was verified anonymously on wildz.quest.");
-                  } catch (error) {
-                    setDownloadMessage(error instanceof Error
-                      ? `Card download failed: ${error.message}`
-                      : "Card download failed. Try again from this browser.");
-                  } finally {
-                    setCardSaving(false);
-                  }
-                }}
+                onClick={() => { void saveVerifiedCard(selected); }}
                 type="button"
-              ><span hidden={selectedRetired}>Save card image</span><span hidden={!selectedRetired}>Memorial card cannot be saved</span></button>
+              ><span hidden={selectedRetired}>Save verified card</span><span hidden={!selectedRetired}>Memorial card cannot be saved</span></button>
               <div className="wilds-card-send-control">
                 <label>
                   <span>Send card</span>

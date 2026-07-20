@@ -109,9 +109,9 @@ export function createWildsCardSendDraft(
   const url = standaloneCardUrl(asset.id, origin);
   const title = `Wildz card: ${asset.manifest.name}`;
   const text = [
-    `${target.label}, here is a bearer Wildz card transfer package.`,
-    `Upload or open the attached image in Wildz or Receiz Commerce Wilds to claim the proof object.`,
-    `Claiming it admits active custody to the claiming Receiz ID; keep the image private unless you want to transfer possession.`,
+    `${target.label}, here is a verified Wildz Receiz proof object.`,
+    `Open the attached native Record → Seal artifact in Wildz, Receiz, or another v113-compatible application.`,
+    `The sealed proof object and its append-only ownership history remain the authority.`,
     `Standalone card link: ${url}`,
     `Card: ${asset.id}`
   ].join("\n");
@@ -124,7 +124,7 @@ export function createWildsCardSendDraft(
     title,
     text,
     href: mailto,
-    filename: `${asset.manifest.formId}.receized`
+    filename: `${portableCreatureFilename(asset.manifest.name)}.receized`
   };
 }
 
@@ -421,6 +421,16 @@ export function downloadBlob(blob: Blob, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+export function portableCreatureFilename(name: string) {
+  const normalized = name.normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120);
+  if (!normalized) throw new Error("wilds_card_name_invalid");
+  return normalized;
+}
+
 export type WildzDownloadedProofObjectVerifier = (
   artifactBytes: Uint8Array,
   artifactMimeType: string,
@@ -449,7 +459,7 @@ export async function verifyDownloadedWildzProofObject(
   );
 }
 
-async function requestReceizProofObject(
+export async function createReceizProofObjectArtifact(
   payload: Blob,
   filename: string,
   kind: "card" | "vault",
@@ -487,6 +497,25 @@ async function requestReceizProofObject(
   return { bytes: proofObject, filename: artifactFilename, mimeType };
 }
 
+export async function downloadReceizProofObject(
+  payload: Blob,
+  filename: string,
+  kind: "card" | "vault",
+  options: { verifyProofObject?: WildzDownloadedProofObjectVerifier; outputFilename?: string } = {}
+) {
+  const artifact = await createReceizProofObjectArtifact(
+    payload,
+    filename,
+    kind,
+    options.verifyProofObject
+  );
+  downloadBlob(
+    new Blob([artifact.bytes.slice().buffer], { type: artifact.mimeType }),
+    options.outputFilename ?? artifact.filename
+  );
+  return artifact;
+}
+
 async function svgPngBlob(svg: string, width = 750, height = 1050) {
   const source = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
   try {
@@ -511,16 +540,15 @@ export async function downloadPortableCard(
   options: { verifyProofObject?: WildzDownloadedProofObjectVerifier } = {}
 ) {
   if (typeof document === "undefined") throw new Error("wilds_card_download_browser_required");
-  const filename = asset.manifest.formId;
+  const filename = portableCreatureFilename(asset.manifest.name);
   await requireGloballyAvailablePublicWildsCard(asset);
   const portable = await renderPortableCardPngBlob(asset);
-  const remoteProof = await requestReceizProofObject(
+  await downloadReceizProofObject(
     portable,
     `${filename}.png`,
     "card",
-    options.verifyProofObject
+    options
   );
-  downloadBlob(new Blob([remoteProof.bytes.slice().buffer], { type: remoteProof.mimeType }), remoteProof.filename);
   return { published: true as const };
 }
 
@@ -551,14 +579,10 @@ export async function downloadPortableVault(
   if (!assets.length) throw new Error("wilds_vault_empty");
   const digest = sha256PortableBasis(canonicalPortableCardJson(assets.map((asset) => asset.id))).slice(7, 19);
   const portable = await portableVaultPngBlob(assets, player);
-  const remoteProof = await requestReceizProofObject(
+  await downloadReceizProofObject(
     portable,
     "wilds-vault.png",
     "vault",
-    options.verifyProofObject
+    { ...options, outputFilename: `wilds-vault-${digest}.receized` }
   );
-  const outputFilename = remoteProof.filename === "wilds-vault.receized"
-    ? `wilds-vault-${digest}.receized`
-    : remoteProof.filename;
-  downloadBlob(new Blob([remoteProof.bytes.slice().buffer], { type: remoteProof.mimeType }), outputFilename);
 }

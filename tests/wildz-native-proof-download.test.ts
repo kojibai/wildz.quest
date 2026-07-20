@@ -184,7 +184,7 @@ test("v103 card download preserves the native proof artifact bytes", async () =>
     assert.equal(requestCount, 3);
     assert.equal(downloaded.type, "image/png");
     assert.deepEqual(new Uint8Array(await downloaded.arrayBuffer()), expected);
-    assert.equal(browser.downloadedFilename(), "mintcub-1.receized");
+    assert.equal(browser.downloadedFilename(), `${asset.manifest.name}.receized`);
   } finally {
     browser.restore();
   }

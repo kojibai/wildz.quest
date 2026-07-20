@@ -116,7 +116,7 @@ export function PlayCampaign({
   interactionEnabled = true,
   networkEnabled,
   onComplete,
-  ownerReceizId = "wilds.player.receiz.id",
+  ownerReceizId,
   character,
   playerDisplayName = "Wildz Explorer",
   onListAsset,
@@ -133,7 +133,7 @@ export function PlayCampaign({
   interactionEnabled?: boolean;
   networkEnabled: boolean;
   onComplete?: (beans: number) => void;
-  ownerReceizId?: string;
+  ownerReceizId: string;
   character: WildzCharacterGenesis;
   playerDisplayName?: string;
   onListAsset?: (asset: PortableCardAsset, priceCents: number) => Promise<PortableCardAsset | null>;

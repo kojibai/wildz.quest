@@ -1,22 +1,17 @@
+import type { JsonObject, ReceizKeyFileV1 } from "@receiz/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import {
   createPublicWildsCardRecord,
-  parsePublicCardParam
+  createPublicWildsCardTransportRecord,
+  parsePublicCardParam,
+  type PublicWildsCardIdentityProof
 } from "@/features/play/public-card-registry";
 import { verifyAnyWildsCard, type PortableCardAsset } from "@/features/play/portable-card";
 import { WILDZ_PRODUCT } from "@/lib/wildz/product";
 import { createReceizCommerceAdapter } from "@/lib/receiz/adapter";
 import { resolveWildzCookieActor } from "@/lib/receiz/wildz-cookie-actor";
-import { createReceizWildzPublicRepository } from "@/lib/receiz/wildz-public-repository";
 import { resolvePublicWildsCardRecord } from "@/lib/receiz/wildz-public-card-resolver";
-import {
-  loadVerifiedWildzPublicOwnershipAuthority,
-  requireCurrentWildzPublicOwner
-} from "@/lib/receiz/wildz-public-ownership";
-import {
-  advanceWildzPublicState,
-  isCurrentWildzPublicCardRegistration
-} from "@/lib/receiz/wildz-public-state";
+import { parseWildzPlayerCoordinate, sameWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,11 +20,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function requestOrigin(request: NextRequest) {
-  const url = new URL(request.url);
-  return url.hostname === "localhost" || url.hostname === "127.0.0.1"
-    ? url.origin
-    : WILDZ_PRODUCT.origin;
+function isReceizKeyFile(value: unknown): value is ReceizKeyFileV1 {
+  return isRecord(value) && value.schema === "receiz.key.v1" && value.name === "Receiz Key" && value.version === 1;
+}
+
+function requestOrigin(_request: NextRequest) {
+  return WILDZ_PRODUCT.origin;
+}
+
+function publicationSucceeded(value: unknown) {
+  return isRecord(value)
+    && value.ok !== false
+    && (value.ok === true || typeof value.appendAnchorId === "string" || isRecord(value.knownHead));
 }
 
 function publicCardError(cause: unknown) {
@@ -53,8 +55,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ as
   try {
     const { assetId: rawAssetId } = await context.params;
     const { assetId } = parsePublicCardParam(rawAssetId);
-    const body = await request.json().catch(() => null);
-    if (!isRecord(body) || Object.keys(body).length !== 1 || !isRecord(body.asset)) {
+    const body = await request.json().catch(() => null) as {
+      asset?: PortableCardAsset;
+      identityProof?: PublicWildsCardIdentityProof;
+    } | null;
+    if (!body?.asset || !isRecord(body.asset)) {
       throw new Error("wildz_public_card_request_invalid");
     }
     const asset = body.asset as PortableCardAsset;
@@ -62,36 +67,52 @@ export async function POST(request: NextRequest, context: { params: Promise<{ as
       throw new Error("wildz_public_card_verification_failed");
     }
 
-    const actor = await resolveWildzCookieActor(request);
-    const adapter = createReceizCommerceAdapter({ accessToken: actor.accessToken });
-    const ownershipAuthority = await loadVerifiedWildzPublicOwnershipAuthority(adapter);
-    const admittedOwnerId = requireCurrentWildzPublicOwner(
-      ownershipAuthority,
-      asset,
-      actor.actorId,
-      "wildz_public_card_owner_mismatch"
-    );
-    const repository = createReceizWildzPublicRepository({ adapter });
-    const current = await repository.load();
-    const occurredAt = new Date().toISOString();
-    if (isCurrentWildzPublicCardRegistration(current.state, asset)) {
-      const record = createPublicWildsCardRecord(asset, requestOrigin(request), current.state.updatedAt);
-      return NextResponse.json({ ok: true, record }, {
-        headers: { "cache-control": "no-store" }
-      });
+    const identityProof = body.identityProof;
+    const identityKeyFile = isReceizKeyFile(identityProof?.keyFile)
+      ? identityProof.keyFile
+      : null;
+    let accessToken: string | undefined;
+    if (identityKeyFile) {
+      if (!identityKeyFile.owner.username
+        || !sameWildzPlayerCoordinate(asset.manifest.ownerReceizId, identityKeyFile.owner.username)) {
+        throw new Error("wildz_public_card_owner_mismatch");
+      }
+    } else {
+      const actor = await resolveWildzCookieActor(request);
+      if (!sameWildzPlayerCoordinate(asset.manifest.ownerReceizId, actor.profileHandle)) {
+        throw new Error("wildz_public_card_owner_mismatch");
+      }
+      accessToken = actor.accessToken;
     }
-    const next = advanceWildzPublicState(current.state, {
-      type: "publish-card",
-      actorId: actor.actorId,
-      expectedRevision: current.state.revision,
-      card: asset
-    }, { occurredAt, admittedCardOwnerId: admittedOwnerId });
-    await repository.publish(next, {
-      expectedHead: current.head,
-      idempotencyKey: `card:${asset.id}:${asset.proof.digest}`,
-      merchantReceizId: actor.receizUserId
-    });
+    const adapter = createReceizCommerceAdapter(accessToken ? { accessToken } : undefined);
+    const occurredAt = new Date().toISOString();
     const record = createPublicWildsCardRecord(asset, requestOrigin(request), occurredAt);
+    const transportRecord = createPublicWildsCardTransportRecord(record);
+    const ownerCoordinate = parseWildzPlayerCoordinate(record.asset.manifest.ownerReceizId);
+    if (!ownerCoordinate) throw new Error("wildz_public_card_owner_mismatch");
+    const base = {
+      tenantHost: WILDZ_PRODUCT.domain,
+      merchantReceizId: ownerCoordinate.profileHandle,
+      title: `${asset.manifest.name} living card`,
+      sourceUrl: record.sourceUrl,
+      namespace: `wildz-card:${record.assetId}`,
+      projectionState: "published",
+      platform: WILDZ_PRODUCT.name
+    } as const;
+    const publishOptions = { idempotencyKey: `wildz-card:${asset.id}:${asset.proof.digest}` };
+    const result = identityKeyFile
+      ? await adapter.publishPublicStoreWithIdentityProof({
+        ...base,
+        storeStateRecord: transportRecord as unknown as JsonObject,
+        keyFile: identityKeyFile,
+        ...(identityProof?.passphrase !== undefined ? { passphrase: identityProof.passphrase } : {})
+      }, publishOptions)
+      : await adapter.publishPublicStore({ ...base, state: transportRecord as unknown as JsonObject }, publishOptions);
+    if (!publicationSucceeded(result)) {
+      throw new Error(isRecord(result) && typeof result.error === "string"
+        ? result.error
+        : "wildz_public_card_publication_failed");
+    }
     return NextResponse.json({ ok: true, record }, {
       status: 201,
       headers: { "cache-control": "no-store" }

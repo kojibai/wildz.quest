@@ -13,6 +13,18 @@ export type PublicWildsCardRecord = {
   asset: PortableCardAsset;
 };
 
+export type PublicWildsCardIdentityProof = {
+  keyFile: unknown;
+  passphrase?: string;
+};
+
+export type PublicWildsCardTransportRecord = {
+  schema: "receiz.wilds_public_card_transport.v1";
+  assetId: string;
+  sourceUrl: string;
+  recordJson: string;
+};
+
 type CommittedPublicRestore = {
   restoreStatus: "committed";
   verifiedAssetIds: readonly string[];
@@ -73,11 +85,35 @@ export function createPublicWildsCardRecord(
   };
 }
 
+export function createPublicWildsCardTransportRecord(record: PublicWildsCardRecord): PublicWildsCardTransportRecord {
+  const verified = parsePublicWildsCardRecord(record);
+  if (!verified) throw new Error("wildz_public_card_verification_failed");
+  return {
+    schema: "receiz.wilds_public_card_transport.v1",
+    assetId: verified.assetId,
+    sourceUrl: verified.sourceUrl,
+    recordJson: JSON.stringify(verified)
+  };
+}
+
 export function parsePublicWildsCardRecord(value: unknown): PublicWildsCardRecord | null {
   const seen = new Set<object>();
   const parse = (candidate: unknown): PublicWildsCardRecord | null => {
     if (!isRecord(candidate) || seen.has(candidate)) return null;
     seen.add(candidate);
+    if (candidate.schema === "receiz.wilds_public_card_transport.v1"
+      && typeof candidate.assetId === "string"
+      && typeof candidate.sourceUrl === "string"
+      && typeof candidate.recordJson === "string") {
+      try {
+        const restored = parse(JSON.parse(candidate.recordJson));
+        return restored?.assetId === candidate.assetId && restored.sourceUrl === candidate.sourceUrl
+          ? restored
+          : null;
+      } catch {
+        return null;
+      }
+    }
     if (candidate.schema === "receiz.wilds_public_card.v1"
       && typeof candidate.assetId === "string"
       && typeof candidate.sourceUrl === "string"
@@ -93,7 +129,16 @@ export function parsePublicWildsCardRecord(value: unknown): PublicWildsCardRecor
         return null;
       }
     }
-    for (const key of ["state", "data", "record", "appState", "result", "storeStateRecord"]) {
+    for (const key of [
+      "state",
+      "data",
+      "record",
+      "appState",
+      "result",
+      "storeStateRecord",
+      "appProjectionRecord",
+      "appProjectionData"
+    ]) {
       const parsed = parse(candidate[key]);
       if (parsed) return parsed;
     }
@@ -104,14 +149,27 @@ export function parsePublicWildsCardRecord(value: unknown): PublicWildsCardRecor
 
 export async function registerPublicWildsCard(
   asset: PortableCardAsset,
-  fetcher: typeof fetch = globalThis.fetch
+  fetcher: typeof fetch = globalThis.fetch,
+  options: { identityProof?: PublicWildsCardIdentityProof } = {}
 ) {
   if (!verifyAnyWildsCard(asset).ok) throw new Error("wildz_public_card_verification_failed");
+  let identityProof = options.identityProof;
+  if (!identityProof && typeof indexedDB !== "undefined") {
+    try {
+      const { defaultIdentityRepository } = await import("../../lib/receiz/wildz-identity-adapter");
+      const session = await defaultIdentityRepository.active();
+      if (session?.localAuthority === "verified") {
+        identityProof = await defaultIdentityRepository.withKeyFile(session.keyId, async (keyFile) => ({ keyFile }));
+      }
+    } catch {
+      // A connected Receiz session can publish without a local identity key.
+    }
+  }
   const response = await fetcher(`/api/cards/${encodeURIComponent(asset.id)}`, {
     method: "POST",
     credentials: "same-origin",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ asset })
+    body: JSON.stringify({ asset, ...(identityProof ? { identityProof } : {}) })
   });
   const payload = await response.json().catch(() => null) as {
     ok?: boolean;
