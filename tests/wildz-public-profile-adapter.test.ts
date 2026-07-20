@@ -62,6 +62,7 @@ describe("Receiz-backed public Wildz profiles", () => {
     });
     assert.equal(record.profile.username, "@fern");
     assert.equal((published[0]?.state as { schema?: string }).schema, "receiz.wilds_public_profile.v1");
+    assert.equal(published[0]?.schema, undefined);
 
     const reader = {
       publishPublicStore: async () => ({ ok: false }),

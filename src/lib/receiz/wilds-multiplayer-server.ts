@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import type { JsonObject } from "@receiz/sdk";
 import { pvpCardFromAsset } from "@/features/play/multiplayer-card";
-import { admitWildsMultiplayerRoom, restoreWildsMultiplayerRoom, type WildsMultiplayerRoom, type WildsMultiplayerSnapshot } from "@/features/play/multiplayer-ledger";
+import { admitWildsMultiplayerRoom, type WildsMultiplayerRoom, type WildsMultiplayerSnapshot } from "@/features/play/multiplayer-ledger";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import { hostContextFromHost } from "@/lib/hosting/host-context";
 import { platform } from "@/lib/platform";
@@ -165,18 +165,4 @@ export async function publishWildsRoomToReceiz(request: NextRequest, actor: Wild
   } catch {
     return { published: false, mode: "receiz_recovery_pending" as const };
   }
-}
-
-export async function commitWildsRoomToReceiz(
-  request: NextRequest,
-  actor: WildsMultiplayerActor,
-  previous: WildsMultiplayerRoom,
-  room: WildsMultiplayerSnapshot
-) {
-  const publication = await publishWildsRoomToReceiz(request, actor, room);
-  if (!actor.practice && !publication.published) {
-    restoreWildsMultiplayerRoom(previous);
-    throw new Error("wilds_multiplayer_publication_required");
-  }
-  return publication;
 }

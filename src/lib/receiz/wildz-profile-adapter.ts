@@ -148,7 +148,6 @@ export async function publishPublicWildzProfile(
     sourceUrl: record.sourceUrl,
     namespace: `wildz-profile:${record.handle.slice(1)}`,
     projectionState: "published",
-    schema: WILDZ_PUBLIC_PROFILE_SCHEMA,
     platform: WILDZ_PRODUCT.name,
     state: record as unknown as Record<string, unknown>,
     idempotencyKey

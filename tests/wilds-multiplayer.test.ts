@@ -40,6 +40,16 @@ it("keeps the Receiz response token server-side when returning the live actor", 
   assert.doesNotMatch(route, /\{\s*ok:\s*true,\s*actor,\s*\.\.\.result/);
 });
 
+it("does not turn optional multiplayer projection publication into a repeating required gate", () => {
+  const server = readFileSync("src/lib/receiz/wilds-multiplayer-server.ts", "utf8");
+  const routes = ["session", "message", "challenge", "battle"]
+    .map((name) => readFileSync(`app/api/wilds/multiplayer/${name}/route.ts`, "utf8"))
+    .join("\n");
+  assert.doesNotMatch(server, /wilds_multiplayer_publication_required|commitWildsRoomToReceiz/);
+  assert.doesNotMatch(routes, /commitWildsRoomToReceiz/);
+  assert.match(routes, /publishWildsRoomToReceiz/);
+});
+
 describe("Wilds live multiplayer core", () => {
   it("partitions the infinite world into stable 48-unit regions", () => {
     assert.deepEqual(regionForPosition({ x: 0, z: 0 }), { x: 0, z: 0 });

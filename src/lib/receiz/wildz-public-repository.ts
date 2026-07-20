@@ -136,7 +136,6 @@ export function createReceizWildzPublicRepository(options: {
         sourceUrl: WILDZ_PRODUCT.origin,
         namespace: WILDZ_PUBLIC_NAMESPACE,
         projectionState: "published",
-        schema: WILDZ_PUBLIC_STATE_SCHEMA,
         platform: WILDZ_PRODUCT.name,
         state: state as unknown as JsonObject,
         idempotencyKey

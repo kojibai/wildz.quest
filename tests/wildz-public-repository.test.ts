@@ -6,9 +6,11 @@ import { createReceizWildzPublicRepository } from "../src/lib/receiz/wildz-publi
 test("a second repository instance restores the published projection", async () => {
   let durableState = emptyWildzPublicState();
   let durableHead = { appendAnchorId: "anchor:0", afterKaiUpulse: "pulse:0" };
+  let publishedEnvelope: Record<string, unknown> | null = null;
   const adapter = {
     restoreLatestPublicStore: async () => ({ state: durableState, knownHead: durableHead }),
-    publishPublicStore: async (input: { state: typeof durableState }) => {
+    publishPublicStore: async (input: { state: typeof durableState } & Record<string, unknown>) => {
+      publishedEnvelope = input;
       durableState = input.state;
       durableHead = {
         appendAnchorId: `anchor:${durableState.revision}`,
@@ -26,6 +28,9 @@ test("a second repository instance restores the published projection", async () 
   });
   const second = createReceizWildzPublicRepository({ adapter: adapter as never });
   assert.equal((await second.load()).state.revision, 1);
+  const envelope = publishedEnvelope as unknown as Record<string, unknown>;
+  assert.equal(envelope.schema, undefined);
+  assert.equal((envelope.state as { schema?: string }).schema, "receiz.wildz_public_projection.v1");
 });
 
 test("repository rejects a stale local expected head before publication", async () => {
