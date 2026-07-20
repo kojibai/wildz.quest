@@ -124,7 +124,7 @@ export function createWildsCardSendDraft(
     title,
     text,
     href: mailto,
-    filename: `${asset.manifest.formId}.receized.png`
+    filename: `${asset.manifest.formId}.receized`
   };
 }
 
@@ -421,18 +421,48 @@ export function downloadBlob(blob: Blob, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-async function requestReceizProofObject(artifact: Blob, filename: string, kind: "card" | "vault") {
+export type WildzDownloadedProofObjectVerifier = (
+  artifactBytes: Uint8Array,
+  artifactMimeType: string,
+  artifactFilename: string,
+  expectedPayloadBytes: Uint8Array
+) => Promise<void>;
+
+/**
+ * Independently reopens the exact response bytes with the SDK's local v113
+ * verifier before the browser is allowed to save them.
+ */
+export async function verifyDownloadedWildzProofObject(
+  artifactBytes: Uint8Array,
+  artifactMimeType: string,
+  artifactFilename: string,
+  expectedPayloadBytes: Uint8Array
+) {
+  const { verifyDownloadedWildzProofObjectLocally } = await import(
+    "../../lib/receiz/wildz-downloaded-proof-verifier"
+  );
+  await verifyDownloadedWildzProofObjectLocally(
+    artifactBytes,
+    artifactMimeType,
+    artifactFilename,
+    expectedPayloadBytes
+  );
+}
+
+async function requestReceizProofObject(
+  payload: Blob,
+  filename: string,
+  kind: "card" | "vault",
+  verifyProofObject: WildzDownloadedProofObjectVerifier = verifyDownloadedWildzProofObject
+) {
   const form = new FormData();
-  form.set("file", artifact, filename);
+  form.set("file", payload, filename);
   form.set("kind", kind);
   let response: Response;
   try {
     response = await fetch("/api/receiz/proof-object", { method: "POST", body: form });
   } catch {
-    return null;
-  }
-  if (response.status === 401 || response.status === 502 || response.status === 503 || response.status === 504) {
-    return null;
+    throw new Error("receiz_proof_object_unavailable");
   }
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { error?: string } | null;
@@ -440,7 +470,21 @@ async function requestReceizProofObject(artifact: Blob, filename: string, kind: 
   }
   const proofObject = new Uint8Array(await response.arrayBuffer());
   if (!proofObject.byteLength) throw new Error("receiz_proof_object_empty");
-  return proofObject;
+  const mimeType = response.headers.get("content-type")?.split(";", 1)[0]?.trim() || "application/octet-stream";
+  const dispositionFilename = response.headers.get("content-disposition")
+    ?.match(/filename=(?:"([^"]+)"|([^;\s]+))/i)
+    ?.slice(1)
+    .find(Boolean);
+  const artifactFilename = dispositionFilename && /^[a-zA-Z0-9._-]{1,220}$/.test(dispositionFilename)
+    ? dispositionFilename
+    : `${filename.replace(/\.png$/i, "")}.receized`;
+  await verifyProofObject(
+    proofObject,
+    mimeType,
+    artifactFilename,
+    new Uint8Array(await payload.arrayBuffer())
+  );
+  return { bytes: proofObject, filename: artifactFilename, mimeType };
 }
 
 async function svgPngBlob(svg: string, width = 750, height = 1050) {
@@ -462,17 +506,21 @@ async function svgPngBlob(svg: string, width = 750, height = 1050) {
   }
 }
 
-export async function downloadPortableCard(asset: PortableCardAsset) {
+export async function downloadPortableCard(
+  asset: PortableCardAsset,
+  options: { verifyProofObject?: WildzDownloadedProofObjectVerifier } = {}
+) {
   if (typeof document === "undefined") throw new Error("wilds_card_download_browser_required");
   const filename = asset.manifest.formId;
   await requireGloballyAvailablePublicWildsCard(asset);
   const portable = await renderPortableCardPngBlob(asset);
-  const remoteProof = await requestReceizProofObject(portable, `${filename}.png`, "card");
-  if (remoteProof) {
-    downloadBlob(new Blob([remoteProof.slice().buffer], { type: "image/png" }), `${filename}.receized.png`);
-  } else {
-    downloadBlob(portable, `${filename}.wildz-card.png`);
-  }
+  const remoteProof = await requestReceizProofObject(
+    portable,
+    `${filename}.png`,
+    "card",
+    options.verifyProofObject
+  );
+  downloadBlob(new Blob([remoteProof.bytes.slice().buffer], { type: remoteProof.mimeType }), remoteProof.filename);
   return { published: true as const };
 }
 
@@ -495,11 +543,22 @@ export async function portableVaultPngBlob(assets: PortableCardAsset[], player?:
   return new Blob([portable.slice().buffer], { type: "image/png" });
 }
 
-export async function downloadPortableVault(assets: PortableCardAsset[], player?: WildsPlayerVaultPayload) {
+export async function downloadPortableVault(
+  assets: PortableCardAsset[],
+  player?: WildsPlayerVaultPayload,
+  options: { verifyProofObject?: WildzDownloadedProofObjectVerifier } = {}
+) {
   if (!assets.length) throw new Error("wilds_vault_empty");
   const digest = sha256PortableBasis(canonicalPortableCardJson(assets.map((asset) => asset.id))).slice(7, 19);
   const portable = await portableVaultPngBlob(assets, player);
-  const remoteProof = await requestReceizProofObject(portable, "wilds-vault.png", "vault");
-  if (!remoteProof) throw new Error("receiz_proof_object_unavailable");
-  downloadBlob(new Blob([remoteProof.slice().buffer], { type: "image/png" }), `wilds-vault-${digest}.receized.png`);
+  const remoteProof = await requestReceizProofObject(
+    portable,
+    "wilds-vault.png",
+    "vault",
+    options.verifyProofObject
+  );
+  const outputFilename = remoteProof.filename === "wilds-vault.receized"
+    ? `wilds-vault-${digest}.receized`
+    : remoteProof.filename;
+  downloadBlob(new Blob([remoteProof.bytes.slice().buffer], { type: remoteProof.mimeType }), outputFilename);
 }

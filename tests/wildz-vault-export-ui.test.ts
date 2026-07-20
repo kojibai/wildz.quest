@@ -6,6 +6,7 @@ test("Card Vault export seals the complete live V3 player payload, not cards alo
   const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
   const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
   const exporter = readFileSync("src/features/play/card-export.ts", "utf8");
+  const localVerifier = readFileSync("src/lib/receiz/wildz-downloaded-proof-verifier.ts", "utf8");
   const adapter = readFileSync("src/lib/receiz/wildz-identity-adapter.ts", "utf8");
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
 
@@ -19,7 +20,11 @@ test("Card Vault export seals the complete live V3 player payload, not cards alo
   assert.match(inventory, /onExportVault\(state\.inventory, playerVault\(\)\)/);
   assert.match(exporter, /portableVaultPngBlob\(assets: PortableCardAsset\[\], player\?: WildsPlayerVaultPayload\)/);
   assert.match(exporter, /embedPortableVaultInPng\([^;]+assets, player\)/s);
-  assert.match(exporter, /if \(!remoteProof\) throw new Error\("receiz_proof_object_unavailable"\)/);
+  assert.match(exporter, /verifyDownloadedWildzProofObject/);
+  assert.match(exporter, /wildz-downloaded-proof-verifier/);
+  assert.match(localVerifier, /openWildzArtifact/);
+  assert.match(localVerifier, /compatibility !== "current-native"/);
+  assert.doesNotMatch(exporter, /\.wildz-card\.png/);
   assert.match(adapter, /downloadWildzIdentityPlayerVault/);
   assert.match(adapter, /withKeyFile/);
   assert.match(adapter, /appendWildzIdentitySealAuthority/);
@@ -54,9 +59,13 @@ test("Vault card detail can send a saved card to a Receiz username or email", ()
 
 test("Vault export keeps the SDK native Record/Seal artifact as the downloadable artifact", () => {
   const exporter = readFileSync("src/features/play/card-export.ts", "utf8");
+  const localVerifier = readFileSync("src/lib/receiz/wildz-downloaded-proof-verifier.ts", "utf8");
 
-  assert.equal(exporter.match(/if \(!remoteProof\) throw new Error\("receiz_proof_object_unavailable"\);/g)?.length, 1);
-  assert.doesNotMatch(exporter, /verifyPortableVaultPng\(remoteProof\)\.ok/);
+  assert.match(exporter, /verifyDownloadedWildzProofObjectLocally/);
+  assert.match(localVerifier, /openWildzArtifact/);
+  assert.match(localVerifier, /sameBytes\(admitted\.artifactBytes, artifactBytes\)/);
+  assert.match(localVerifier, /sameBytes\(admitted\.payloadBytes, expectedPayloadBytes\)/);
+  assert.doesNotMatch(exporter, /remoteProof \?\? portable|downloadBlob\(portable/);
 });
 
 test("v103 native proof responses are downloaded byte-exact without a legacy rzPo wrapper", () => {

@@ -491,9 +491,17 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const persistPlayState = useCallback((playState: PlayState, playerContinuity: NonNullable<WildzContinuitySnapshot["playerContinuity"]>) => {
     const current = continuityRef.current;
     if (!current) return;
+    const previousCardPins = current.playState?.inventory.map((asset) => `${asset.id}:${asset.proof.digest}`) ?? [];
+    const nextCardPins = playState.inventory.map((asset) => `${asset.id}:${asset.proof.digest}`);
+    const cardTruthChanged = previousCardPins.length !== nextCardPins.length
+      || previousCardPins.some((pin, index) => pin !== nextCardPins[index]);
     const snapshot = { ...current, playState, playerContinuity };
     continuityRef.current = snapshot;
-    playStateSaveSchedulerRef.current?.schedule({ snapshot, playState, playerContinuity });
+    const scheduler = playStateSaveSchedulerRef.current;
+    scheduler?.schedule({ snapshot, playState, playerContinuity });
+    // Card capture/import/revision is durable account truth, not high-frequency
+    // movement projection. Start its IndexedDB commit immediately.
+    if (cardTruthChanged) void scheduler?.flush().catch(() => undefined);
   }, []);
 
   useEffect(() => {

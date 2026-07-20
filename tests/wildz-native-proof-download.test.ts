@@ -3,7 +3,8 @@ import { test } from "node:test";
 import {
   downloadPortableCard,
   downloadPortableVault,
-  readPortableCardFromPng
+  readPortableCardFromPng,
+  verifyPortableVaultPng
 } from "../src/features/play/card-export";
 import { createPublicWildsCardRecord } from "../src/features/play/public-card-registry";
 import { sealCollectedCard } from "../src/features/play/portable-card";
@@ -113,13 +114,18 @@ test("Vault download preserves the SDK native Record/Seal artifact byte-exact", 
       }
     });
 
-    await downloadPortableVault([card("native-vault-download")]);
+    await downloadPortableVault([card("native-vault-download")], undefined, {
+      verifyProofObject: async (artifactBytes, _mimeType, _filename, payloadBytes) => {
+        assert.deepEqual(artifactBytes, expected);
+        assert.equal(verifyPortableVaultPng(payloadBytes).ok, true);
+      }
+    });
 
     const downloaded = browser.downloaded();
     assert.ok(downloaded);
     assert.equal(downloaded.type, "image/png");
     assert.deepEqual(new Uint8Array(await downloaded.arrayBuffer()), expected);
-    assert.match(browser.downloadedFilename(), /^wilds-vault-[a-f0-9]{12}\.receized\.png$/);
+    assert.match(browser.downloadedFilename(), /^wilds-vault-[a-f0-9]{12}\.receized$/);
   } finally {
     browser.restore();
   }
@@ -135,7 +141,7 @@ test("Vault export never downgrades a player Vault to an unsealed inner PNG", as
 
     await assert.rejects(
       downloadPortableVault([card("native-vault-required")]),
-      /receiz_proof_object_unavailable/
+      /receiz_proof_object_failed/
     );
     assert.equal(browser.downloaded(), null);
   } finally {
@@ -165,7 +171,12 @@ test("v103 card download preserves the native proof artifact bytes", async () =>
       }
     });
 
-    const result = await downloadPortableCard(asset);
+    const result = await downloadPortableCard(asset, {
+      verifyProofObject: async (artifactBytes, _mimeType, _filename, payloadBytes) => {
+        assert.deepEqual(artifactBytes, expected);
+        assert.equal(readPortableCardFromPng(payloadBytes).asset.id, asset.id);
+      }
+    });
 
     const downloaded = browser.downloaded();
     assert.ok(downloaded);
@@ -173,7 +184,57 @@ test("v103 card download preserves the native proof artifact bytes", async () =>
     assert.equal(requestCount, 3);
     assert.equal(downloaded.type, "image/png");
     assert.deepEqual(new Uint8Array(await downloaded.arrayBuffer()), expected);
-    assert.equal(browser.downloadedFilename(), "mintcub-1.receized.png");
+    assert.equal(browser.downloadedFilename(), "mintcub-1.receized");
+  } finally {
+    browser.restore();
+  }
+});
+
+test("Card export never saves an unsealed payload when native proof creation is unavailable", async () => {
+  const browser = installDownloadBrowser();
+  const asset = card("native-card-required");
+  try {
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: async (input: string | URL | Request) => {
+        if (String(input).startsWith("/api/cards/")) {
+          const record = createPublicWildsCardRecord(asset, "https://wildz.test", "2026-07-16T12:01:00.000Z");
+          return Response.json({ ok: true, record });
+        }
+        return new Response(JSON.stringify({ error: "receiz_proof_object_unavailable" }), {
+          status: 503,
+          headers: { "content-type": "application/json" }
+        });
+      }
+    });
+
+    await assert.rejects(downloadPortableCard(asset), /receiz_proof_object_unavailable/);
+    assert.equal(browser.downloaded(), null);
+  } finally {
+    browser.restore();
+  }
+});
+
+test("Card export refuses server bytes that the SDK offline verifier cannot reopen", async () => {
+  const browser = installDownloadBrowser();
+  const asset = card("native-card-verifier-required");
+  try {
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: async (input: string | URL | Request) => {
+        if (String(input).startsWith("/api/cards/")) {
+          const record = createPublicWildsCardRecord(asset, "https://wildz.test", "2026-07-16T12:01:00.000Z");
+          return Response.json({ ok: true, record });
+        }
+        return new Response(Uint8Array.from([1, 2, 3, 4]), {
+          status: 200,
+          headers: { "content-type": "application/vnd.receiz.artifact" }
+        });
+      }
+    });
+
+    await assert.rejects(downloadPortableCard(asset), /wildz_artifact_verification_failed/);
+    assert.equal(browser.downloaded(), null);
   } finally {
     browser.restore();
   }
@@ -205,7 +266,7 @@ test("Card export is blocked unless the exact card is readable without owner cre
   }
 });
 
-test("Card export falls back to its offline-verifiable portable PNG when Receiz proof service is unavailable", async () => {
+test("Card export rejects unavailable native sealing instead of relabeling its inner PNG as an artifact", async () => {
   const browser = installDownloadBrowser();
   const asset = card("native-card-required");
   try {
@@ -220,12 +281,8 @@ test("Card export falls back to its offline-verifiable portable PNG when Receiz 
       }
     });
 
-    await downloadPortableCard(asset);
-    const downloaded = browser.downloaded();
-    assert.ok(downloaded);
-    const proof = readPortableCardFromPng(new Uint8Array(await downloaded.arrayBuffer()));
-    assert.equal(proof.asset.id, asset.id);
-    assert.equal(browser.downloadedFilename(), "mintcub-1.wildz-card.png");
+    await assert.rejects(downloadPortableCard(asset), /receiz_proof_object_failed/);
+    assert.equal(browser.downloaded(), null);
   } finally {
     browser.restore();
   }

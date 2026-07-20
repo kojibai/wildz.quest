@@ -30,7 +30,7 @@ test("card send draft carries a bearer transfer package and a mailto handoff for
   const draft = createWildsCardSendDraft(asset, "collector@example.com", "https://wildz.quest");
 
   assert.equal(draft.target.kind, "email");
-  assert.equal(draft.filename, `${asset.manifest.formId}.receized.png`);
+  assert.equal(draft.filename, `${asset.manifest.formId}.receized`);
   assert.match(draft.url, /^https:\/\/wildz\.quest\/cards\/wilds%3A[a-f0-9]{24}$/);
   assert.match(draft.text, /bearer Wildz card transfer package/i);
   assert.match(draft.text, /Claiming it admits active custody/i);

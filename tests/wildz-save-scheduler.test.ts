@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { createLatestOnlySaveScheduler } from "../src/lib/receiz/wildz-save-scheduler";
 
@@ -125,4 +126,11 @@ test("a newer snapshot supersedes a failed in-flight snapshot", async () => {
 
   assert.deepEqual(writes, [1, 2]);
   assert.equal(scheduler.hasPending(), false);
+});
+
+test("card truth changes flush owner persistence immediately instead of waiting on movement debounce", () => {
+  const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
+  assert.match(shell, /previousCardPins/);
+  assert.match(shell, /nextCardPins/);
+  assert.match(shell, /if \(cardTruthChanged\) void scheduler\?\.flush\(\)/);
 });
