@@ -11922,30 +11922,31 @@ button.product-purchase-secondary-link {
 
 .wilds-inventory-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(138px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
+  gap: 14px;
 }
 
 .wilds-inventory-grid > button {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
-  gap: 3px 9px;
-  min-height: 96px;
-  padding: 11px;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px;
   color: #effaff;
   text-align: left;
-  background: #0a202b;
-  border: 1px solid rgb(149 213 223 / 15%);
-  border-radius: 15px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 22px;
   cursor: pointer;
 }
 
 .wilds-inventory-grid > button[aria-pressed="true"] {
   border-color: #65e5bd;
-  box-shadow: 0 0 0 2px rgb(101 229 189 / 13%);
+  background: rgb(101 229 189 / 5%);
+  box-shadow: 0 0 0 2px rgb(101 229 189 / 13%), 0 14px 34px rgb(0 0 0 / 24%);
 }
-.wilds-inventory-grid > button.is-retired { border-color: rgb(170 178 175 / 30%); color: #aab2af; background: linear-gradient(145deg, rgb(22 27 27 / 96%), rgb(7 10 11 / 98%)); box-shadow: inset 0 0 34px rgb(0 0 0 / 58%); }
-.wilds-inventory-grid > button.is-retired .wilds-creature-thumbnail { filter: grayscale(1) brightness(.48) contrast(1.15); opacity: .7; }
+.wilds-inventory-grid > button.is-retired { border-color: rgb(170 178 175 / 30%); color: #aab2af; background: rgb(7 10 11 / 46%); box-shadow: inset 0 0 34px rgb(0 0 0 / 38%); }
 .wilds-vault-card-memorial { position: relative; }
 .wilds-vault-card-memorial > strong { position: absolute; z-index: 5; right: 12%; bottom: 10%; left: 12%; padding: 8px; border: 1px solid rgb(209 218 214 / 24%); border-radius: 999px; color: #d8dedb; background: rgb(8 11 12 / 88%); box-shadow: 0 12px 34px rgb(0 0 0 / 48%); font-size: 9px; letter-spacing: .14em; text-align: center; text-transform: uppercase; }
 .wilds-inventory-detail.is-retired .wilds-card-scene { filter: none; }
@@ -11958,19 +11959,53 @@ button.product-purchase-secondary-link {
 .wilds-card-back-death > span { color: #cbd3d0; font-size: 9px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
 .wilds-card-back-death code { overflow-wrap: anywhere; }
 
-.wilds-inventory-grid > button > .wilds-creature-thumbnail {
-  grid-row: 1 / 5;
+.wilds-card-preview {
+  --card-preview-accent: #f5d36c;
+  --card-preview-glow: #62c8ff;
+  position: relative;
+  isolation: isolate;
   display: grid;
-  width: 42px;
-  height: 42px;
-  place-items: center;
-  color: #06141d;
-  font-size: 12px;
-  font-weight: 950;
-  border-radius: 13px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: 100%;
+  aspect-ratio: 5 / 7;
+  min-width: 0;
+  gap: 6px;
+  padding: 8px;
+  overflow: hidden;
+  color: #f8fdff;
+  border: 4px solid var(--card-preview-accent);
+  border-radius: 18px;
+  background: radial-gradient(circle at 50% 34%, color-mix(in srgb, var(--card-preview-glow) 30%, transparent), transparent 40%), linear-gradient(145deg, #103542, #06141c 58%, #102a36);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 22%), 0 12px 28px rgb(0 0 0 / 34%);
+}
+.wilds-card-preview-foil { position: absolute; z-index: -1; inset: 0; opacity: .12; background: conic-gradient(from 15deg, #ff72bf, #ffe66f, #77ffd0, #72a7ff, #d27bff, #ff72bf); mix-blend-mode: screen; }
+.wilds-card-preview.foil-shimmer .wilds-card-preview-foil { opacity: .22; }
+.wilds-card-preview.foil-prism .wilds-card-preview-foil { opacity: .34; }
+.wilds-card-preview.foil-eternal .wilds-card-preview-foil { opacity: .46; }
+.wilds-card-preview-head,
+.wilds-card-preview-stats { position: relative; z-index: 1; display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 4px; }
+.wilds-card-preview-head strong { min-width: 0; overflow: hidden; font-size: clamp(8px, 1.9vw, 13px); line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.wilds-card-preview-head b,
+.wilds-card-preview-stats { font-size: clamp(5px, 1.1vw, 8px); font-weight: 950; letter-spacing: .05em; text-transform: uppercase; }
+.wilds-card-preview-head b { flex: 0 0 auto; color: var(--card-preview-accent); }
+.wilds-card-preview > .wilds-creature-thumbnail { width: 100%; height: 100%; min-height: 0; border: 1px solid color-mix(in srgb, var(--card-preview-accent) 65%, transparent); border-radius: 11px; background: radial-gradient(circle at 50% 40%, var(--creature-glow), color-mix(in srgb, var(--creature-primary) 68%, #06141c) 72%); }
+.wilds-card-preview-stats small { color: #b5ccd3; }
+.wilds-card-preview-stats b { color: var(--card-preview-accent); }
+.wilds-card-preview.is-dead { --card-preview-accent: #aeb8b4 !important; background: linear-gradient(145deg, #202829, #070b0c 62%, #161c1d); }
+.wilds-card-preview.is-dead > .wilds-creature-thumbnail { filter: grayscale(1) brightness(.42) contrast(1.16); opacity: .72; }
+.wilds-card-preview.is-dead .wilds-card-preview-foil { opacity: .08; }
+.wilds-card-preview-memorial { position: absolute; z-index: 3; top: 45%; right: 7%; left: 7%; display: grid; padding: 6px 3px; place-items: center; color: #edf1ef; border: 1px solid rgb(225 232 229 / 62%); background: rgb(5 9 10 / 84%); box-shadow: 0 8px 20px rgb(0 0 0 / 48%); text-align: center; text-transform: uppercase; transform: rotate(-4deg); }
+.wilds-card-preview-memorial small { font-size: clamp(4px, .8vw, 7px); letter-spacing: .14em; }
+.wilds-card-preview-memorial strong { font-size: clamp(6px, 1.4vw, 11px); letter-spacing: .08em; }
+
+.wilds-inventory-card-meta {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  padding: 0 4px 3px;
 }
 
-.wilds-inventory-card-xp {
+.wilds-inventory-card-meta small {
   color: #f1d36b;
   font-size: 9px;
   font-weight: 900;
@@ -11993,15 +12028,14 @@ button.product-purchase-secondary-link {
   white-space: nowrap;
 }
 
-.wilds-inventory-grid strong,
-.wilds-inventory-grid small,
-.wilds-inventory-grid b {
+.wilds-inventory-card-meta small,
+.wilds-inventory-card-meta strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.wilds-inventory-grid b {
+.wilds-inventory-card-meta strong {
   color: #74d9ba;
   font-size: 10px;
   text-transform: uppercase;
@@ -12284,12 +12318,10 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-command-sheet-content .wilds-inventory-toolbar { grid-template-columns: minmax(0, 1fr) 132px 148px; }
 .wilds-command-sheet-content .wilds-inventory-layout { grid-template-columns: minmax(0, 1fr); }
 .wilds-command-sheet-content .wilds-inventory-detail { grid-row: 2; justify-items: center; padding-top: 4px; }
-.wilds-command-sheet-content .wilds-inventory-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.wilds-command-sheet-content .wilds-inventory-grid > button { min-height: 92px; grid-template-columns: 36px minmax(0, 1fr); align-content: center; }
-.wilds-command-sheet-content .wilds-inventory-grid > button > .wilds-creature-thumbnail { width: 36px; height: 36px; }
-.wilds-command-sheet-content .wilds-inventory-grid strong,
-.wilds-command-sheet-content .wilds-inventory-grid small,
-.wilds-command-sheet-content .wilds-inventory-grid b { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; line-height: 1.2; }
+.wilds-command-sheet-content .wilds-inventory-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.wilds-command-sheet-content .wilds-inventory-grid > button { align-content: start; }
+.wilds-command-sheet-content .wilds-inventory-card-meta small,
+.wilds-command-sheet-content .wilds-inventory-card-meta strong { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; line-height: 1.2; }
 .wilds-inventory-detail .wilds-card-scene { width: min(100%, 380px); min-height: 0; aspect-ratio: 5 / 7; }
 .wilds-inventory-detail .wilds-card-float { height: 100%; }
 .wilds-command-sheet-content .wilds-inventory-actions,
@@ -13343,9 +13375,15 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wildz-creature-choice-shell { width: 176px; min-width: 176px; min-height: 70px; scroll-snap-align: start; }
 .wildz-creature-choice { position: relative; display: grid; grid-template-columns: 54px minmax(0, 1fr); width: 100%; height: 100%; min-height: 70px; align-items: center; gap: 8px; padding: 7px; overflow: hidden; border: 1px solid rgba(225, 217, 184, .18); border-radius: 16px; color: #f3f1e9; background: radial-gradient(circle at 14% 8%, rgba(125, 181, 130, .16), transparent 48%), rgba(28, 37, 33, .9); text-align: left; }
 .wildz-creature-choice.is-retired { color: #9ca6a2; border-color: rgba(180, 190, 186, .2); background: rgba(13, 17, 17, .96); cursor: pointer; }
-.wildz-creature-choice.is-retired .wilds-creature-thumbnail { filter: grayscale(1) brightness(.45); opacity: .66; }
 .wildz-creature-choice[aria-pressed="true"] { border-color: rgba(121, 230, 163, .62); background: radial-gradient(circle at 14% 8%, rgba(125, 215, 145, .3), transparent 50%), rgba(30, 51, 39, .96); box-shadow: inset 0 0 0 1px rgba(132, 235, 171, .14); }
-.wildz-creature-choice > .wilds-creature-thumbnail { width: 54px; height: 54px; border-radius: 13px; }
+.wildz-creature-choice > .wilds-card-preview { width: 52px; height: auto; gap: 2px; padding: 3px; border-width: 2px; border-radius: 8px; box-shadow: 0 5px 12px rgb(0 0 0 / 30%); }
+.wildz-creature-choice > .wilds-card-preview .wilds-card-preview-head strong { font-size: 4px; }
+.wildz-creature-choice > .wilds-card-preview .wilds-card-preview-head b,
+.wildz-creature-choice > .wilds-card-preview .wilds-card-preview-stats { font-size: 3px; }
+.wildz-creature-choice > .wilds-card-preview > .wilds-creature-thumbnail { border-radius: 4px; }
+.wildz-creature-choice > .wilds-card-preview .wilds-card-preview-memorial { right: 3%; left: 3%; padding: 2px 1px; }
+.wildz-creature-choice > .wilds-card-preview .wilds-card-preview-memorial small { font-size: 3px; }
+.wildz-creature-choice > .wilds-card-preview .wilds-card-preview-memorial strong { font-size: 4px; }
 .wildz-creature-choice-copy { display: grid; min-width: 0; gap: 2px; }
 .wildz-creature-choice-copy small { color: #f0d066; font-size: 7px; font-weight: 900; text-transform: uppercase; }
 .wildz-creature-choice-copy strong { overflow: hidden; font-size: 12px; }

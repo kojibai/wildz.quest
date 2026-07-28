@@ -9,12 +9,14 @@ test("portable card thumbnails render deterministic Heartbound creature artwork"
   assert.match(campaign, /<WildsCreatureThumbnail asset=\{card\}/);
 });
 
-test("active deck and vault grids use creature artwork instead of initials", () => {
+test("active deck and vault cards use creature artwork instead of initials or avatar-only tiles", () => {
   const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
   const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
+  const preview = readFileSync("src/features/play/WildsCardPreview.tsx", "utf8");
 
   assert.match(campaign, /<WildsCreatureThumbnail asset=\{card\}/);
-  assert.match(inventory, /<WildsCreatureThumbnail asset=\{asset\}/);
+  assert.match(inventory, /<WildsCardPreview asset=\{asset\}/);
+  assert.match(preview, /<WildsCreatureThumbnail asset=\{asset\}/);
   assert.doesNotMatch(campaign, /manifest\.name\.slice\(0, 2\)/);
   assert.doesNotMatch(inventory, /manifest\.name\.slice\(0, 2\)/);
 });

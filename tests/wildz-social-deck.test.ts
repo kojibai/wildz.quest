@@ -49,7 +49,7 @@ test("Trail Pack replaces the redundant deck list with a three-companion heartbe
   assert.doesNotMatch(campaign, /label: "Active Deck"/);
 });
 
-test("nearby cards render actual artwork with verification beside the creature name", () => {
+test("nearby cards render framed card artwork with verification beside the creature name", () => {
   const source = readFileSync("src/features/play/WildzSocialDeck.tsx", "utf8");
   const drawer = readCreatureDrawer();
   const thumbnail = readFileSync("src/features/play/WildsCreatureThumbnail.tsx", "utf8");
@@ -57,7 +57,7 @@ test("nearby cards render actual artwork with verification beside the creature n
   const css = readFileSync("app/globals.css", "utf8");
 
   assert.match(source, /<WildzCreatureDrawer/);
-  assert.match(drawer, /<WildsCreatureThumbnail asset=\{asset\}/);
+  assert.match(drawer, /<WildsCardPreview asset=\{asset\}/);
   assert.match(source, /<WildsCreatureThumbnail asset=\{activeCard\}/);
   assert.match(drawer, /<WildsVerifiedBadge\s*\/>/);
   assert.doesNotMatch(thumbnail, /wilds-creature-verified/);

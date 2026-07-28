@@ -22,9 +22,9 @@ import { createPreparedCardArtifactCache } from "./prepared-card-artifact";
 import type { PlayState, WildsInput } from "./game-state";
 import type { WildsPlayerVaultPayload } from "./wilds-player-vault";
 import { WildsCardScene } from "./WildsCardScene";
+import { WildsCardPreview } from "./WildsCardPreview";
 import { WildsGrowthPanel } from "./WildsGrowthPanel";
 import { clampInventoryPage, inventoryPageSize } from "./inventory-pagination";
-import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
 import { currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
@@ -360,16 +360,15 @@ export function WildsInventory({
         >
         <div className="wilds-inventory-grid">
           {visible.map((asset) => {
-            const form = creatureForm(asset.manifest.formId)!;
             const cardProgress = state.companionProgress[asset.manifest.familyId] ?? { level: 1, xp: 0, bond: 0 };
             const retired = state.adventureConditions[asset.id]?.life === "dead"
               || (isLivingCardAsset(asset) && Boolean(currentRevision(asset).growth.life?.retired));
             return <button aria-pressed={selected?.id === asset.id} className={retired ? "is-retired" : ""} key={asset.id} onClick={() => { if (suppressCardClick.current) { suppressCardClick.current = false; return; } setSelectedId(asset.id); }} type="button">
-              <WildsCreatureThumbnail asset={asset} />
-              <span className="wilds-inventory-card-xp">{cardProgress.xp} XP</span>
-              <strong className="wilds-creature-name"><span>{asset.manifest.name}</span><WildsVerifiedBadge /></strong>
-              <small>Stage {form.stage} · {form.rarity} · Bond {cardProgress.bond}</small>
-              <b>{retired ? "Retired memorial · permanently unplayable" : `${asset.manifest.stats.power} PWR · ${asset.status === "sealed_local" ? "Offline sealed" : "Verified"}`}</b>
+              <WildsCardPreview asset={asset} condition={state.adventureConditions[asset.id]} />
+              <span className="wilds-inventory-card-meta">
+                <small className="wilds-inventory-card-xp">{cardProgress.xp} XP · Lv. {cardProgress.level} · Bond {cardProgress.bond}</small>
+                <strong className="wilds-creature-name"><span>{retired ? "Retired memorial · permanently unplayable" : asset.status === "sealed_local" ? "Offline sealed card" : "Verified card"}</span><WildsVerifiedBadge /></strong>
+              </span>
             </button>;
           })}
           {!visible.length ? <p className="wilds-inventory-empty">No collected cards match this search.</p> : null}

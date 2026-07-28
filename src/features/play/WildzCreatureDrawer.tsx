@@ -15,7 +15,7 @@ import {
 import { creatureForm } from "./creature-catalog";
 import type { PlayState } from "./game-state";
 import type { PortableCardAsset } from "./portable-card";
-import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
+import { WildsCardPreview } from "./WildsCardPreview";
 import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
 import { currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
@@ -68,7 +68,7 @@ const CreatureChoice = memo(function CreatureChoice({
       onClick={() => retired ? setInspecting(true) : onSelect(asset.id)}
       type="button"
     >
-      <WildsCreatureThumbnail asset={asset} />
+      <WildsCardPreview asset={asset} condition={condition} />
       <span className="wildz-creature-choice-copy">
         <small>{progress.xp} XP · Lv. {progress.level}</small>
         <strong className="wilds-creature-name"><span>{asset.manifest.name}</span><WildsVerifiedBadge /></strong>
