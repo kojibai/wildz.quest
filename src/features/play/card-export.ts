@@ -18,6 +18,10 @@ import {
   verifyAnyWildsCard,
   type PortableCardAsset
 } from "./portable-card";
+import {
+  cardArtifactFingerprint,
+  type PreparedCardArtifact
+} from "./prepared-card-artifact";
 import { verifyWildsPlayerVault, type WildsPlayerVaultPayload } from "./wilds-player-vault";
 
 export type PortableCardPngProof = {
@@ -615,16 +619,36 @@ export async function downloadPortableCard(
   options: { verifyProofObject?: WildzDownloadedProofObjectVerifier } = {}
 ) {
   if (typeof document === "undefined") throw new Error("wilds_card_download_browser_required");
+  const prepared = await preparePortableCardArtifact(asset, options);
+  downloadPreparedCardArtifact(prepared);
+  return { published: true as const };
+}
+
+export async function preparePortableCardArtifact(
+  asset: PortableCardAsset,
+  options: { verifyProofObject?: WildzDownloadedProofObjectVerifier } = {}
+): Promise<PreparedCardArtifact> {
+  if (typeof document === "undefined") throw new Error("wilds_card_download_browser_required");
   const filename = portableCreatureFilename(asset.manifest.name);
   await requireGloballyAvailablePublicWildsCard(asset);
   const portable = await renderPortableCardPngBlob(asset);
-  await downloadReceizProofObject(
+  const artifact = await createReceizProofObjectArtifact(
     portable,
     `${filename}.png`,
     "card",
-    options
+    options.verifyProofObject
   );
-  return { published: true as const };
+  return {
+    ...artifact,
+    fingerprint: cardArtifactFingerprint(asset)
+  };
+}
+
+export function downloadPreparedCardArtifact(artifact: PreparedCardArtifact) {
+  downloadBlob(
+    new Blob([artifact.bytes.slice().buffer], { type: artifact.mimeType }),
+    artifact.filename
+  );
 }
 
 export async function portableCardPngBlob(asset: PortableCardAsset) {

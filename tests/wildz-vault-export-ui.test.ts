@@ -55,11 +55,30 @@ test("Vault card detail can send a saved card to a Receiz username or email", ()
   assert.match(inventory, /aria-label="Receiz username or email to send this card"/);
   assert.match(inventory, /sendPortableCardToTarget/);
   assert.match(inventory, /createWildsCardSendDraft/);
-  assert.match(inventory, /createReceizProofObjectArtifact/);
+  assert.match(inventory, /createPreparedCardArtifactCache/);
+  assert.match(inventory, /preparePortableCardArtifact/);
+  assert.match(inventory, /preparedCardArtifacts\.prepare\(selected\)/);
+  assert.doesNotMatch(inventory, /createReceizProofObjectArtifact|portableCardPngBlob/);
   assert.doesNotMatch(inventory, /ensureActiveWildzProofSession/);
   assert.doesNotMatch(inventory, /ensureWildzNativeProofSession|\/api\/auth\/receiz\/start/);
   assert.match(inventory, /navigator\.share/);
   assert.match(inventory, /mailto:/);
+});
+
+test("Save verified card prewarms its exact proof and resolves with premium accessible feedback", () => {
+  const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
+  const css = readFileSync("app/globals.css", "utf8");
+
+  assert.match(inventory, /cardSavePresentation/);
+  assert.match(inventory, /triggerCardHaptic\("press"\)/);
+  assert.match(inventory, /triggerCardHaptic\("success"\)/);
+  assert.match(inventory, /triggerCardHaptic\("error"\)/);
+  assert.match(inventory, /data-state=\{cardSaveState\}/);
+  assert.match(inventory, /aria-live="polite"/);
+  assert.match(inventory, /wilds-card-save-celebration/);
+  assert.match(css, /\.wilds-save-card-button\[data-state="success"\]/);
+  assert.match(css, /\.wilds-card-save-celebration/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.wilds-card-save-celebration/s);
 });
 
 test("Vault export keeps the exact SDK-verified Receiz artifact as the downloadable artifact", () => {

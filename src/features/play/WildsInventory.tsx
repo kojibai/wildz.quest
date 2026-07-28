@@ -5,16 +5,20 @@ import Link from "next/link";
 import QRCode from "qrcode";
 import { Icons } from "@/components/icons";
 import { sortWildzCards, type WildzCardSort } from "./card-sort";
+import {
+  cardSavePresentation,
+  triggerCardHaptic,
+  type CardSaveState
+} from "./card-save-feedback";
 import { creatureForm } from "./creature-catalog";
 import {
-  createReceizProofObjectArtifact,
   createWildsCardSendDraft,
   downloadBlob,
-  downloadPortableCard,
-  portableCardPngBlob,
-  portableCreatureFilename,
+  downloadPreparedCardArtifact,
+  preparePortableCardArtifact,
   standaloneCardUrl
 } from "./card-export";
+import { createPreparedCardArtifactCache } from "./prepared-card-artifact";
 import type { PlayState, WildsInput } from "./game-state";
 import type { WildsPlayerVaultPayload } from "./wilds-player-vault";
 import { WildsCardScene } from "./WildsCardScene";
@@ -69,13 +73,18 @@ export function WildsInventory({
   const [qr, setQr] = useState("");
   const [importing, setImporting] = useState(false);
   const [vaultSaving, setVaultSaving] = useState(false);
-  const [cardSaving, setCardSaving] = useState(false);
+  const [cardSaveState, setCardSaveState] = useState<CardSaveState>("idle");
   const [cardSending, setCardSending] = useState(false);
   const [sendTarget, setSendTarget] = useState("");
   const [sendMessage, setSendMessage] = useState("");
   const importInput = useRef<HTMLInputElement>(null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const suppressCardClick = useRef(false);
+  const saveResetTimer = useRef<number | null>(null);
+  const preparedCardArtifacts = useMemo(
+    () => createPreparedCardArtifactCache(preparePortableCardArtifact),
+    []
+  );
   const matches = useMemo(() => sortWildzCards(state.inventory.filter((asset) => {
     const form = creatureForm(asset.manifest.formId);
     if (!form) return false;
@@ -95,6 +104,8 @@ export function WildsInventory({
   const progress = selectedForm ? state.companionProgress[selectedForm.familyId] ?? { level: 1, xp: 0, bond: 0 } : null;
   const next = selectedForm && selectedForm.stage < 3 ? creatureForm(`${selectedForm.familyId}-${selectedForm.stage + 1}`) : null;
   const canEvolve = Boolean(next && progress && progress.level >= next.evolution.level && progress.bond >= next.evolution.bond);
+  const cardSave = cardSavePresentation(cardSaveState);
+  const cardSaving = cardSave.busy;
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 820px)");
@@ -124,6 +135,20 @@ export function WildsInventory({
     return () => { active = false; };
   }, [origin, selected]);
 
+  useEffect(() => {
+    if (!selected || selectedRetired) return;
+    setCardSaveState("idle");
+    setDownloadMessage("");
+    void preparedCardArtifacts.prepare(selected).catch(() => {
+      // Speculative preparation is silent. An explicit Save or Send retries
+      // through the cache and owns any visible error.
+    });
+  }, [preparedCardArtifacts, selected, selectedRetired]);
+
+  useEffect(() => () => {
+    if (saveResetTimer.current !== null) window.clearTimeout(saveResetTimer.current);
+  }, []);
+
   const changePage = (nextPage: number) => setPage(clampInventoryPage(nextPage, matches.length, pageSize));
   const endSwipe = (target: HTMLElement, pointerId: number) => {
     const start = swipeStart.current;
@@ -144,12 +169,7 @@ export function WildsInventory({
     setSendMessage("Preparing verified card send package…");
     try {
       const draft = createWildsCardSendDraft(selected, sendTarget, origin);
-      const payload = await portableCardPngBlob(selected);
-      const artifact = await createReceizProofObjectArtifact(
-        payload,
-        `${portableCreatureFilename(selected.manifest.name)}.png`,
-        "card"
-      );
+      const artifact = await preparedCardArtifacts.prepare(selected);
       const blob = new Blob([artifact.bytes.slice().buffer], { type: artifact.mimeType });
       const file = new File([blob], artifact.filename, { type: artifact.mimeType });
       const shareData: ShareData = {
@@ -197,18 +217,29 @@ export function WildsInventory({
   };
 
   const saveVerifiedCard = async (asset: PlayState["inventory"][number]) => {
-    setCardSaving(true);
-    setDownloadMessage("Sealing the card for the active Receiz ID…");
+    if (cardSaving) return;
+    if (saveResetTimer.current !== null) window.clearTimeout(saveResetTimer.current);
+    triggerCardHaptic("press");
+    setCardSaveState("preparing");
+    setDownloadMessage(cardSavePresentation("preparing").message);
     try {
-      setDownloadMessage("Publishing and sealing the verified card…");
-      await downloadPortableCard(asset);
-      setDownloadMessage("Receiz-sealed card downloaded. Its standalone page is anonymously readable.");
+      const artifact = await preparedCardArtifacts.prepare(asset);
+      setCardSaveState("saving");
+      setDownloadMessage(cardSavePresentation("saving").message);
+      downloadPreparedCardArtifact(artifact);
+      setCardSaveState("success");
+      setDownloadMessage(cardSavePresentation("success").message);
+      triggerCardHaptic("success");
+      saveResetTimer.current = window.setTimeout(() => {
+        setCardSaveState("idle");
+        saveResetTimer.current = null;
+      }, 2_400);
     } catch (error) {
+      setCardSaveState("error");
+      triggerCardHaptic("error");
       setDownloadMessage(error instanceof Error
-        ? `Card download failed: ${error.message}`
-        : "Card download failed. Try again from this browser.");
-    } finally {
-      setCardSaving(false);
+        ? `Card save failed: ${error.message}. Try again.`
+        : "Card save failed. Try again from this browser.");
     }
   };
 
@@ -353,17 +384,25 @@ export function WildsInventory({
         </div>
         {selected && selectedForm ? (
           <aside className={`wilds-inventory-detail${selectedRetired ? " is-retired" : ""}`}>
-            {selectedRetired ? <div className="wilds-vault-card-memorial"><WildsCardScene asset={selected} condition={state.adventureConditions[selected.id]} origin={origin} qr={qr} /><strong>Retired memorial · swipe to view death record</strong></div> : <WildsCardScene asset={selected} condition={state.adventureConditions[selected.id]} origin={origin} qr={qr} />}
+            <div className={`wilds-selected-card-stage${cardSaveState === "success" ? " is-secured" : ""}`}>
+              {selectedRetired ? <div className="wilds-vault-card-memorial"><WildsCardScene asset={selected} condition={state.adventureConditions[selected.id]} origin={origin} qr={qr} /><strong>Retired memorial · swipe to view death record</strong></div> : <WildsCardScene asset={selected} condition={state.adventureConditions[selected.id]} origin={origin} qr={qr} />}
+              {cardSaveState === "success" ? <span aria-hidden="true" className="wilds-card-save-celebration"><i /><i /><i /><i /></span> : null}
+            </div>
             <div className="wilds-inventory-actions">
               <button className="button button-primary" disabled={selectedRetired || state.selectedAssetId === selected.id} onClick={() => onInput({ type: "select-asset", assetId: selected.id })} type="button">{selectedRetired ? "Retired · cannot enter game" : state.selectedAssetId === selected.id ? "Active deck leader" : "Set as active deck leader"}</button>
               <Link className="button button-outline" href={`/cards/${encodeURIComponent(selected.id)}`}>Open standalone card page</Link>
               <button
                 aria-busy={cardSaving}
-                className={`button button-outline wilds-action-feedback${cardSaving ? " wilds-action-busy" : ""}`}
+                aria-label={selectedRetired ? "Memorial card cannot be saved" : cardSave.button}
+                className={`button button-outline wilds-action-feedback wilds-save-card-button${cardSaving ? " wilds-action-busy" : ""}`}
+                data-state={cardSaveState}
                 disabled={cardSaving || selectedRetired}
                 onClick={() => { void saveVerifiedCard(selected); }}
                 type="button"
-              ><span hidden={selectedRetired}>Save verified card</span><span hidden={!selectedRetired}>Memorial card cannot be saved</span></button>
+              >
+                {cardSaveState === "success" ? <Icons.check aria-hidden="true" size={17} /> : <Icons.seal aria-hidden="true" size={17} />}
+                <span>{selectedRetired ? "Memorial card cannot be saved" : cardSave.button}</span>
+              </button>
               <div className="wilds-card-send-control">
                 <label>
                   <span>Send card</span>

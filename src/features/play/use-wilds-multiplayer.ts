@@ -211,7 +211,6 @@ export function useWildsMultiplayer(input: {
     url.searchParams.set("wildsZ", String(Math.round(input.position.z * 100) / 100));
     url.hash = "play";
     window.history.replaceState(window.history.state, "", url);
-    await navigator.clipboard.writeText(url.toString());
     return url.toString();
   }, [guestId, input.activeCard, input.position, roomKey, selfId]);
 

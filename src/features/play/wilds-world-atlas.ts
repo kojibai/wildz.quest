@@ -94,22 +94,9 @@ const radiusByZoom: Record<WildsAtlasZoom, number> = {
   landmark: 1
 };
 
-export function projectWildsAtlas(input: WildsAtlasInput): WildsAtlasProjection {
-  // The world view is a stable, learnable atlas. Closer zooms follow the explorer.
-  const centerRegion = input.zoom === "world" ? { x: 0, z: 0 } : regionForPosition(input.center);
-  const radius = radiusByZoom[input.zoom];
-  const nodes: WildsAtlasNode[] = [];
-  for (let regionZ = centerRegion.z - radius; regionZ <= centerRegion.z + radius; regionZ += 1) {
-    for (let regionX = centerRegion.x - radius; regionX <= centerRegion.x + radius; regionX += 1) {
-      nodes.push({
-        id: `region:${regionX}:${regionZ}`,
-        regionX,
-        regionZ,
-        biome: projectWildsBiome(regionX, regionZ, input.missionProgress, input.worldMastery)
-      });
-    }
-  }
-
+export function projectWildsAtlasPresence(
+  input: Pick<WildsAtlasInput, "center" | "now" | "players" | "selfId">
+) {
   const visiblePlayers = expirePresence(input.players, input.now)
     .filter((player) => player.playerId !== input.selfId)
     .sort((left, right) => presenceDistance(left, input.center) - presenceDistance(right, input.center))
@@ -139,6 +126,26 @@ export function projectWildsAtlas(input: WildsAtlasInput): WildsAtlasProjection 
       });
     }
   }
+  return { exactPlayers, playerClusters: [...clusters.values()] };
+}
+
+export function projectWildsAtlas(input: WildsAtlasInput): WildsAtlasProjection {
+  // The world view is a stable, learnable atlas. Closer zooms follow the explorer.
+  const centerRegion = input.zoom === "world" ? { x: 0, z: 0 } : regionForPosition(input.center);
+  const radius = radiusByZoom[input.zoom];
+  const nodes: WildsAtlasNode[] = [];
+  for (let regionZ = centerRegion.z - radius; regionZ <= centerRegion.z + radius; regionZ += 1) {
+    for (let regionX = centerRegion.x - radius; regionX <= centerRegion.x + radius; regionX += 1) {
+      nodes.push({
+        id: `region:${regionX}:${regionZ}`,
+        regionX,
+        regionZ,
+        biome: projectWildsBiome(regionX, regionZ, input.missionProgress, input.worldMastery)
+      });
+    }
+  }
+
+  const presence = projectWildsAtlasPresence(input);
 
   const discovered = new Set(input.discoveredLandmarkIds);
   return {
@@ -146,8 +153,8 @@ export function projectWildsAtlas(input: WildsAtlasInput): WildsAtlasProjection 
     zoom: input.zoom,
     nodes,
     landmarks: WILDS_FLAGSHIP_LANDMARKS.map((landmark) => ({ ...landmark, discovered: discovered.has(landmark.id) })),
-    exactPlayers,
-    playerClusters: [...clusters.values()],
+    exactPlayers: presence.exactPlayers,
+    playerClusters: presence.playerClusters,
     dynamicSites: (input.dynamicSites ?? [])
       .filter((site) => site.phase !== "expired")
       .map((site) => ({

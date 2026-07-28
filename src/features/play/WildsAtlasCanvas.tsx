@@ -114,19 +114,22 @@ function terrainNoise(x: number, z: number) {
 }
 
 function OrganicWorldSurface({ projection, onDrop }: { projection: WildsAtlasProjection; onDrop: (position: { x: number; z: number }) => void }) {
-  const size = Math.max(7.2, Math.sqrt(projection.nodes.length) * 1.35);
+  const centerRegionX = projection.centerRegion.x;
+  const centerRegionZ = projection.centerRegion.z;
+  const nodes = projection.nodes;
+  const size = Math.max(7.2, Math.sqrt(nodes.length) * 1.35);
   const geometry = useMemo(() => {
     const rings = 32;
     const segments = 96;
     const positions: number[] = [];
     const colors: number[] = [];
     const indices: number[] = [];
-    const nodes = new Map(projection.nodes.map((node) => [`${node.regionX}:${node.regionZ}`, node]));
-    const fallback = projection.nodes[Math.floor(projection.nodes.length / 2)]!;
+    const nodesByRegion = new Map(nodes.map((node) => [`${node.regionX}:${node.regionZ}`, node]));
+    const fallback = nodes[Math.floor(nodes.length / 2)]!;
     const addVertex = (x: number, z: number, coast = 0) => {
-      const regionX = Math.round(projection.centerRegion.x + x / 1.35);
-      const regionZ = Math.round(projection.centerRegion.z + z / 1.35);
-      const node = nodes.get(`${regionX}:${regionZ}`) ?? fallback;
+      const regionX = Math.round(centerRegionX + x / 1.35);
+      const regionZ = Math.round(centerRegionZ + z / 1.35);
+      const node = nodesByRegion.get(`${regionX}:${regionZ}`) ?? fallback;
       const height = (terrainNoise(x + regionX * 0.19, z + regionZ * 0.17) + node.biome.luminosity * 0.12) * (1 - coast * .62);
       const color = new THREE.Color(node.biome.ground.base).offsetHSL(0, .12, .08 + height * .2 - coast * .035);
       positions.push(x, height, z);
@@ -157,7 +160,7 @@ function OrganicWorldSurface({ projection, onDrop }: { projection: WildsAtlasPro
     next.setIndex(indices);
     next.computeVertexNormals();
     return next;
-  }, [projection, size]);
+  }, [centerRegionX, centerRegionZ, nodes, size]);
   return (
     <mesh
       geometry={geometry}

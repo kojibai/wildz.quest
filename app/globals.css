@@ -1433,6 +1433,12 @@ a {
   border-radius: var(--radius);
   font-size: 14px;
   font-weight: 700;
+  transition: transform 120ms cubic-bezier(.2, .8, .2, 1), filter 120ms ease, box-shadow 160ms ease;
+}
+
+.button:not(:disabled):active {
+  filter: brightness(.94);
+  transform: translateY(2px) scale(.97);
 }
 
 .button-primary {
@@ -11312,6 +11318,7 @@ button.product-purchase-secondary-link {
 
 .wilds-live-sheet { position: absolute; z-index: 44; color: #eafff9; border: 1px solid rgb(126 235 205 / 36%); background: linear-gradient(160deg, rgb(8 37 45 / 97%), rgb(3 17 24 / 98%)); box-shadow: 0 24px 70px rgb(0 0 0 / 42%); backdrop-filter: blur(20px); }
 .wilds-stage.multiplayer-roster-open { z-index: 39; }
+.wilds-stage.multiplayer-roster-open .wilds-world-label,
 .wilds-stage.multiplayer-roster-open .wilds-remote-nameplate { visibility: hidden; }
 .wilds-live-sheet header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
 .wilds-live-sheet header div { display: grid; gap: 2px; }
@@ -11661,7 +11668,8 @@ button.product-purchase-secondary-link {
 
 .wilds-action-feedback:active,
 .wilds-inventory button:not(:disabled):active {
-  transform: translateY(1px) scale(0.96);
+  filter: brightness(.92);
+  transform: translateY(2px) scale(0.96);
 }
 
 .wilds-action-feedback.wilds-action-busy {
@@ -11676,9 +11684,150 @@ button.product-purchase-secondary-link {
   to { transform: scale(1); filter: brightness(1.12); }
 }
 
+.wilds-selected-card-stage {
+  position: relative;
+  min-width: 0;
+  isolation: isolate;
+}
+
+.wilds-save-card-button {
+  position: relative;
+  min-height: 48px;
+  overflow: hidden;
+  border-color: rgb(247 210 91 / 34%);
+  background:
+    linear-gradient(145deg, rgb(18 48 52 / 96%), rgb(6 25 32 / 98%));
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 8%),
+    inset 0 -3px rgb(0 0 0 / 24%),
+    0 10px 24px rgb(0 0 0 / 18%);
+  font-weight: 900;
+  letter-spacing: .015em;
+}
+
+.wilds-save-card-button::before {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgb(255 245 177 / 42%) 48%, transparent 66%);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-120%);
+}
+
+.wilds-save-card-button > * {
+  position: relative;
+  z-index: 1;
+}
+
+.wilds-save-card-button[data-state="preparing"],
+.wilds-save-card-button[data-state="saving"] {
+  border-color: rgb(247 210 91 / 74%);
+  color: #fff8cb;
+  background:
+    radial-gradient(circle at 18% 10%, rgb(247 210 91 / 18%), transparent 40%),
+    linear-gradient(145deg, rgb(22 66 61 / 98%), rgb(7 34 39 / 98%));
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 12%),
+    0 0 0 2px rgb(113 232 195 / 11%),
+    0 0 30px rgb(113 232 195 / 20%);
+}
+
+.wilds-save-card-button[data-state="preparing"] svg,
+.wilds-save-card-button[data-state="saving"] svg {
+  animation: wilds-card-seal-turn .9s linear infinite;
+}
+
+.wilds-save-card-button[data-state="preparing"]::before,
+.wilds-save-card-button[data-state="saving"]::before {
+  animation: wilds-card-button-sweep 1.05s ease-in-out infinite;
+  opacity: 1;
+}
+
+.wilds-save-card-button[data-state="success"] {
+  border-color: #ffe58d;
+  color: #071d18;
+  background:
+    radial-gradient(circle at 18% 0, rgb(255 255 255 / 66%), transparent 34%),
+    linear-gradient(135deg, #ffe89a, #75e8bd 64%, #51cea4);
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 78%),
+    inset 0 -3px rgb(28 113 83 / 24%),
+    0 0 0 2px rgb(255 229 141 / 14%),
+    0 12px 32px rgb(79 218 168 / 30%);
+  animation: wilds-card-button-secured .44s cubic-bezier(.18, .88, .24, 1.2) both;
+}
+
+.wilds-card-save-celebration {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.wilds-card-save-celebration::before {
+  position: absolute;
+  inset: -18%;
+  background: linear-gradient(112deg, transparent 37%, rgb(255 247 188 / 0%) 43%, rgb(255 247 188 / 74%) 50%, rgb(111 238 192 / 34%) 56%, transparent 63%);
+  content: "";
+  transform: translateX(-120%);
+  animation: wilds-card-foil-secured .8s cubic-bezier(.2, .7, .25, 1) both;
+}
+
+.wilds-card-save-celebration i {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fff2a8;
+  box-shadow: 0 0 12px #f7d25b;
+  animation: wilds-card-value-mote .72s ease-out both;
+}
+
+.wilds-card-save-celebration i:nth-child(1) { top: 17%; left: 18%; }
+.wilds-card-save-celebration i:nth-child(2) { top: 28%; right: 14%; animation-delay: .08s; }
+.wilds-card-save-celebration i:nth-child(3) { right: 26%; bottom: 18%; animation-delay: .14s; }
+.wilds-card-save-celebration i:nth-child(4) { bottom: 30%; left: 12%; animation-delay: .2s; }
+
+@keyframes wilds-card-seal-turn {
+  to { transform: rotate(1turn); }
+}
+
+@keyframes wilds-card-button-sweep {
+  0% { transform: translateX(-120%); }
+  58%, 100% { transform: translateX(120%); }
+}
+
+@keyframes wilds-card-button-secured {
+  0% { transform: translateY(1px) scale(.97); }
+  62% { transform: translateY(-1px) scale(1.018); }
+  100% { transform: none; }
+}
+
+@keyframes wilds-card-foil-secured {
+  0% { opacity: 0; transform: translateX(-120%); }
+  18% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(120%); }
+}
+
+@keyframes wilds-card-value-mote {
+  0% { opacity: 0; transform: translateY(8px) scale(.4); }
+  28% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-18px) scale(1.25); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wilds-inventory button { transition-duration: 0.01ms; }
   .wilds-action-feedback.wilds-action-busy { animation: none; }
+  .wilds-save-card-button,
+  .wilds-save-card-button::before,
+  .wilds-save-card-button svg,
+  .wilds-card-save-celebration,
+  .wilds-card-save-celebration::before,
+  .wilds-card-save-celebration i { animation: none !important; transition-duration: .01ms; }
+  .wilds-card-save-celebration { display: none; }
 }
 
 .wilds-import-card svg {

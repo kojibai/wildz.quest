@@ -234,7 +234,7 @@ function ActiveCompanion({ state }: { state: PlayState }) {
       {state.battle && isBattleTelemetryPhase(state.encounter.phase) ? (
         <BattleWorldTelemetry fighter={state.battle.player} position={[0, 1.9, 0]} side="player" />
       ) : (
-        <Html center className="wilds-world-label" distanceFactor={8} position={[0, 0.96, 0]}>
+        <Html center className="wilds-world-label" distanceFactor={8} position={[0, 0.96, 0]} zIndexRange={[10, 0]}>
           <span>{asset?.manifest.name ?? card.name}</span>
         </Html>
       )}
@@ -453,7 +453,7 @@ function Creature({
             opacity={0.95}
           />
         </mesh>
-        <Html center distanceFactor={8} position={[0, 0.82, 0]} className="wilds-world-label">
+        <Html center distanceFactor={8} position={[0, 0.82, 0]} className="wilds-world-label" zIndexRange={[10, 0]}>
           <span>{identity?.name.display ?? card.name}</span>
         </Html>
       </group>

@@ -8,6 +8,7 @@ import { landmarkApproachPoint, type WildsLandmarkId } from "./wilds-landmarks";
 import type { WildsLandmarkProgress } from "./wilds-landmark-access";
 import {
   projectWildsAtlas,
+  projectWildsAtlasPresence,
   type WildsAtlasExactPlayer,
   type WildsAtlasPlayerCluster,
   type WildsAtlasZoom
@@ -63,26 +64,33 @@ export function WildsWorldMap({
   }>({ loaded: false, players: [], clusters: [] });
   const headingRef = useRef<HTMLHeadingElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
-  const localProjection = useMemo(() => projectWildsAtlas({
+  const refreshInFlight = useRef(false);
+  const refreshGeneration = useRef(0);
+  const staticProjection = useMemo(() => projectWildsAtlas({
     center: currentPosition,
     zoom,
     missionProgress,
     worldMastery,
     discoveredLandmarkIds,
     selfId: "self",
-    players: remotePlayers,
+    players: [],
     dynamicSites: Object.values(livingWorld?.sites ?? {}),
     ecologySites: Object.values(livingWorld?.ecologySites ?? {}),
     ecologyKnowledge,
     bosses: Object.values(livingWorld?.bosses ?? {}),
     bossKnowledge,
     trainers
-  }), [bossKnowledge, currentPosition, discoveredLandmarkIds, ecologyKnowledge, livingWorld?.bosses, livingWorld?.ecologySites, livingWorld?.sites, missionProgress, remotePlayers, trainers, worldMastery, zoom]);
-  const projection = useMemo(() => atlasPresence.loaded ? {
-    ...localProjection,
-    exactPlayers: atlasPresence.players,
-    playerClusters: atlasPresence.clusters
-  } : localProjection, [atlasPresence, localProjection]);
+  }), [bossKnowledge, currentPosition, discoveredLandmarkIds, ecologyKnowledge, livingWorld?.bosses, livingWorld?.ecologySites, livingWorld?.sites, missionProgress, trainers, worldMastery, zoom]);
+  const localPresence = useMemo(() => projectWildsAtlasPresence({
+    center: currentPosition,
+    players: remotePlayers,
+    selfId: "self"
+  }), [currentPosition, remotePlayers]);
+  const projection = useMemo(() => ({
+    ...staticProjection,
+    exactPlayers: atlasPresence.loaded ? atlasPresence.players : localPresence.exactPlayers,
+    playerClusters: atlasPresence.loaded ? atlasPresence.clusters : localPresence.playerClusters
+  }), [atlasPresence, localPresence.exactPlayers, localPresence.playerClusters, staticProjection]);
 
   useEffect(() => {
     if (!open) return;
@@ -102,7 +110,10 @@ export function WildsWorldMap({
   useEffect(() => {
     if (!open || !guestId) return;
     let active = true;
+    const generation = ++refreshGeneration.current;
     const refresh = async () => {
+      if (refreshInFlight.current) return;
+      refreshInFlight.current = true;
       const params = new URLSearchParams({
         x: String(currentPosition.x),
         z: String(currentPosition.z),
@@ -115,17 +126,20 @@ export function WildsWorldMap({
           players?: WildsAtlasExactPlayer[];
           clusters?: WildsAtlasPlayerCluster[];
         } | null;
-        if (active && response.ok && result?.ok) {
+        if (active && generation === refreshGeneration.current && response.ok && result?.ok) {
           setAtlasPresence({ loaded: true, players: result.players ?? [], clusters: result.clusters ?? [] });
         }
       } catch {
         // The local room projection remains available while global atlas presence reconnects.
+      } finally {
+        refreshInFlight.current = false;
       }
     };
     void refresh();
     const timer = window.setInterval(() => void refresh(), 1_000);
     return () => {
       active = false;
+      refreshGeneration.current += 1;
       window.clearInterval(timer);
     };
   }, [currentPosition.x, currentPosition.z, guestId, open]);

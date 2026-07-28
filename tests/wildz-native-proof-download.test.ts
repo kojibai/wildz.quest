@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  downloadPreparedCardArtifact,
   downloadPortableCard,
   downloadPortableVault,
+  preparePortableCardArtifact,
   readPortableCardFromPng,
   verifyPortableVaultPng
 } from "../src/features/play/card-export";
@@ -184,6 +186,40 @@ test("v103 card download preserves the native proof artifact bytes", async () =>
     assert.equal(requestCount, 3);
     assert.equal(downloaded.type, "image/png");
     assert.deepEqual(new Uint8Array(await downloaded.arrayBuffer()), expected);
+    assert.equal(browser.downloadedFilename(), `${asset.manifest.name}.receized`);
+  } finally {
+    browser.restore();
+  }
+});
+
+test("card preparation creates the exact native artifact without downloading until explicitly requested", async () => {
+  const browser = installDownloadBrowser();
+  const expected = nativeArtifact(204);
+  const asset = card("prepared-card-download");
+  try {
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: async (input: string | URL | Request) => {
+        if (String(input).startsWith("/api/cards/")) {
+          const record = createPublicWildsCardRecord(asset, "https://wildz.test", "2026-07-16T12:01:00.000Z");
+          return Response.json({ ok: true, record });
+        }
+        return new Response(expected.slice().buffer, {
+          status: 200,
+          headers: {
+            "content-disposition": `attachment; filename="${asset.manifest.name}.receized"`,
+            "content-type": "application/vnd.receiz.artifact"
+          }
+        });
+      }
+    });
+
+    const prepared = await preparePortableCardArtifact(asset);
+    assert.equal(browser.downloadedFilename(), "");
+    assert.deepEqual(prepared.bytes, expected);
+    assert.equal(prepared.mimeType, "application/vnd.receiz.artifact");
+
+    downloadPreparedCardArtifact(prepared);
     assert.equal(browser.downloadedFilename(), `${asset.manifest.name}.receized`);
   } finally {
     browser.restore();

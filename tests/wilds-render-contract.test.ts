@@ -35,6 +35,12 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(canvas, /qualityProfile\.dpr/);
     assert.match(canvas, /instancedMesh/);
     assert.match(canvas, /function AtlasHorizon/);
+    assert.match(map, /refreshInFlight/);
+    assert.match(map, /refreshGeneration/);
+    assert.match(map, /const staticProjection = useMemo/);
+    assert.match(map, /players:\s*\[\]/);
+    assert.match(canvas, /\[centerRegionX,\s*centerRegionZ,\s*nodes,\s*size\]/);
+    assert.doesNotMatch(canvas, /\}, \[projection, size\]\)/);
     assert.doesNotMatch(canvas, /gridHelper/);
     assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.wilds-world-map-header h2\s*\{[^}]*white-space:\s*normal/s);
   });
@@ -359,7 +365,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(inventory, /onPointerCancel=/);
     assert.match(inventory, /onLostPointerCapture=/);
     assert.match(inventory, /wilds-vault-page-dots/);
-    assert.match(inventory, /downloadPortableCard/);
+    assert.match(inventory, /downloadPreparedCardArtifact/);
+    assert.match(inventory, /preparePortableCardArtifact/);
     assert.match(inventory, /Set as active deck leader/);
     assert.match(inventory, /type: "select-asset"/);
     assert.match(inventory, /type: "evolve"/);
@@ -455,9 +462,9 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(cardRoute, /storeStateRecord:\s*transportRecord as unknown as JsonObject/);
     assert.match(cardRoute, /status:\s*503/);
     assert.doesNotMatch(cardRoute, /createReceizWildzPublicRepository|hasPublicationAuthority|published:\s*false/);
-    assert.match(inventory, /Publishing and sealing the verified card/);
-    assert.match(inventory, /Receiz-sealed card downloaded/);
-    assert.match(inventory, /standalone page is anonymously readable/);
+    assert.match(inventory, /cardSavePresentation\("preparing"\)/);
+    assert.match(inventory, /downloadPreparedCardArtifact/);
+    assert.match(inventory, /cardSavePresentation\("success"\)/);
     assert.match(cardExport, /premiumQrSvg\(cardPath/);
     assert.match(cardExport, /requireGloballyAvailablePublicWildsCard/);
     assert.match(cardExport, /requireGloballyAvailablePublicWildsCard\(asset\)/);
@@ -483,7 +490,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(inventory, /<WildsCardScene asset=\{selected\} condition=\{state\.adventureConditions\[selected\.id\]\} origin=\{origin\} qr=\{qr\}/);
     assert.match(inventory, />Import card or vault</);
     assert.match(inventory, />Save verified vault</);
-    assert.match(inventory, />Save verified card</);
+    assert.match(inventory, /cardSave\.button/);
     assert.match(inventory, /aria-label="Import card or vault"/);
     assert.match(inventory, /aria-label="Save verified vault"/);
     assert.match(inventory, /aria-busy=\{vaultSaving\}/);
@@ -584,10 +591,14 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(world, /function RemoteExplorer/);
     assert.match(world, /onSelectPlayer/);
     assert.match(world, /zIndexRange=\{\[12, 0\]\}/);
-    assert.match(multiplayer, /Copy invite link/);
+    assert.match(world, /className="wilds-world-label"[\s\S]*?zIndexRange=\{\[10, 0\]\}/);
+    assert.match(multiplayer, /Share Wildz invite/);
+    assert.match(multiplayer, /shareWildzInvite/);
+    assert.match(multiplayer, /Invite link copied/);
+    assert.match(multiplayer, /Wildz invite shared/);
     assert.doesNotMatch(multiplayer, />PRACTICE</);
     assert.match(multiplayer, /viewBox="0 0 24 24"/);
-    assert.doesNotMatch(multiplayer, /className="sr-only">Copy invite link/);
+    assert.doesNotMatch(multiplayer, /aria-label="Copy invite link"/);
     assert.match(multiplayer, /window\.setTimeout\(\(\) => setNotice\(""\), 2_800\)/);
     assert.doesNotMatch(styles, /content: "↗"/);
     assert.match(styles, /\.wilds-live-badge, \.wilds-live-share \{ min-height: 30px/);
@@ -595,7 +606,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(multiplayer, /onRosterOpenChange\?: \(open: boolean\) => void/);
     assert.match(campaign, /multiplayer-roster-open/);
     assert.match(styles, /\.wilds-stage\.multiplayer-roster-open\s*\{[^}]*z-index:\s*39/s);
-    assert.match(styles, /\.wilds-stage\.multiplayer-roster-open \.wilds-remote-nameplate\s*\{[^}]*visibility:\s*hidden/s);
+    assert.match(styles, /\.wilds-stage\.multiplayer-roster-open \.wilds-world-label,[\s\S]*?\.wilds-stage\.multiplayer-roster-open \.wilds-remote-nameplate\s*\{[^}]*visibility:\s*hidden/s);
     assert.match(multiplayer, /Friendly battle/);
     assert.match(multiplayer, /Return to world/);
     assert.match(hook, /dismissBattle/);
@@ -606,6 +617,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(hook, /\/api\/wilds\/atlas/);
     assert.doesNotMatch(hook, /setMode\("local_practice"\)/);
     assert.match(hook, /wildsJoin/);
+    assert.doesNotMatch(hook, /navigator\.clipboard/);
   });
 
   it("keeps animated card foil inside rounded inventory corners", async () => {

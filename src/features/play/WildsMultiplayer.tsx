@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { WILDS_INTERACTION_DISTANCE, presenceDistance } from "./multiplayer-core";
 import type { WildsMultiplayerController } from "./use-wilds-multiplayer";
+import { shareWildzInvite } from "./wilds-invite-share";
 
 function healthPercent(hp: number, maxHp: number) {
   return `${Math.max(0, Math.min(100, (hp / maxHp) * 100))}%`;
@@ -44,12 +45,14 @@ export function WildsMultiplayer({
           <i />
           <span>{multiplayer.remotePlayers.length}</span>
         </button>
-        <button aria-label="Copy invite link" className="wilds-live-share" onClick={async () => {
+        <button aria-label="Share Wildz invite" className="wilds-live-share" onClick={async () => {
           try {
-            await multiplayer.createInviteLink();
-            setNotice("Invite link copied — anyone opening it joins this live room.");
+            const url = await multiplayer.createInviteLink();
+            const result = await shareWildzInvite(url);
+            if (result === "shared") setNotice("Wildz invite shared — they can join this live room.");
+            if (result === "copied") setNotice("Invite link copied — anyone opening it joins this live room.");
           } catch {
-            setNotice("Copy was blocked. Use your browser share control for this page.");
+            setNotice("Sharing was blocked. Use your browser share control for this page.");
           }
         }} type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="19" r="2.5" /><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5" /></svg></button>
       </div>

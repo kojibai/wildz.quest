@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { MORTAL_ARENA_POSITION, WILDS_FLAGSHIP_LANDMARKS, landmarkAtPosition, landmarkApproachPoint, projectVisibleLandmarkEntrances } from "../src/features/play/wilds-landmarks";
-import { projectWildsAtlas } from "../src/features/play/wilds-world-atlas";
+import { projectWildsAtlas, projectWildsAtlasPresence } from "../src/features/play/wilds-world-atlas";
 import type { WildsPresence } from "../src/features/play/multiplayer-core";
 
 function presence(index: number, position: { x: number; z: number }): WildsPresence {
@@ -96,6 +96,30 @@ describe("Wilds world atlas", () => {
     assert.equal(atlas.exactPlayers.length, 24);
     assert.deepEqual(atlas.exactPlayers.slice(0, 2).map((player: { handle: string }) => player.handle), ["Scout 1", "Scout 2"]);
     assert.equal(atlas.playerClusters.length, 0);
+  });
+
+  it("projects live presence without rebuilding static atlas terrain", () => {
+    const players = [presence(1, { x: 3, z: 4 }), presence(2, { x: 30, z: 29 })];
+    const input = {
+      center: { x: 0, z: 0 },
+      selfId: "self",
+      players,
+      now: Date.parse("2026-07-15T12:00:00.000Z")
+    };
+    const presenceOnly = projectWildsAtlasPresence(input);
+    const complete = projectWildsAtlas({
+      ...input,
+      zoom: "world",
+      missionProgress: 30,
+      worldMastery: 8,
+      discoveredLandmarkIds: []
+    });
+
+    assert.deepEqual(presenceOnly, {
+      exactPlayers: complete.exactPlayers,
+      playerClusters: complete.playerClusters
+    });
+    assert.equal("nodes" in presenceOnly, false);
   });
 
   it("expires stale presence and excludes the requesting player", () => {
