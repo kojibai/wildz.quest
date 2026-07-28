@@ -16,7 +16,7 @@ test("active deck and vault cards use creature artwork instead of initials or av
 
   assert.match(campaign, /<WildsCreatureThumbnail asset=\{card\}/);
   assert.match(inventory, /<WildsCardPreview asset=\{asset\}/);
-  assert.match(preview, /<WildsCreatureThumbnail asset=\{asset\}/);
+  assert.match(preview, /<WildsCard asset=\{asset\} compact condition=\{condition\}/);
   assert.doesNotMatch(campaign, /manifest\.name\.slice\(0, 2\)/);
   assert.doesNotMatch(inventory, /manifest\.name\.slice\(0, 2\)/);
 });

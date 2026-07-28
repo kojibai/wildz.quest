@@ -29,7 +29,7 @@ function card(formId: string, suffix: string) {
   });
 }
 
-test("creature selectors render living and dead entries as framed cards instead of avatar dots", () => {
+test("creature selectors reuse the complete living and dead collectible card face", () => {
   const living = card("mintcub-1", "1");
   const dead = card("voltray-1", "2");
   const deadCondition = {
@@ -51,9 +51,12 @@ test("creature selectors render living and dead entries as framed cards instead 
     })
   ));
 
-  assert.equal((html.match(/class="wilds-card-preview [^"]*" data-life=/g) ?? []).length, 2);
-  assert.match(html, /wilds-card-preview[^"]*" data-life="alive"/);
-  assert.match(html, /wilds-card-preview[^"]*is-dead[^"]*" data-life="dead"/);
+  assert.equal((html.match(/class="wilds-collectible-card/g) ?? []).length, 2);
+  for (const stat of ["Health", "Power", "Guard", "Speed", "Bond"]) {
+    assert.equal((html.match(new RegExp(`<dt>${stat}</dt>`, "g")) ?? []).length, 2);
+  }
+  assert.equal((html.match(/class="wilds-card-abilities"/g) ?? []).length, 2);
+  assert.match(html, />Grove Pulse</);
   assert.match(html, />STAGE 1</);
   assert.match(html, />Memorial</);
   assert.match(html, />Deceased</);

@@ -22,7 +22,7 @@ import { isLivingCardAsset } from "./living-card-types";
 import { WildsCardScene } from "./WildsCardScene";
 import type { AdventureCardCondition } from "./adventure/card-condition";
 
-const RAIL_CARD_EXTENT = 184;
+const RAIL_CARD_EXTENT = 238;
 const RAIL_END_GUTTER = 40;
 
 function useStableEvent<Arguments extends unknown[]>(handler: (...args: Arguments) => void) {
