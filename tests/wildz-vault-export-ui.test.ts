@@ -77,6 +77,7 @@ test("Save verified card prewarms its exact proof and resolves with premium acce
   assert.match(inventory, /aria-live="polite"/);
   assert.match(inventory, /wilds-card-save-celebration/);
   assert.match(css, /\.wilds-save-card-button\[data-state="success"\]/);
+  assert.match(css, /\.wilds-save-card-button\s*\{[^}]*color:\s*#fff8cb;/s);
   assert.match(css, /\.wilds-card-save-celebration/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.wilds-card-save-celebration/s);
 });

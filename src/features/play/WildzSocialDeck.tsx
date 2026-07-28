@@ -6,7 +6,6 @@ import type { WildzCardSort } from "./card-sort";
 import type { PlayState, WildsInput } from "./game-state";
 import type { WildsMovementMode } from "./wilds-movement";
 import type { PortableCardAsset } from "./portable-card";
-import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import { WildzCreatureDrawer } from "./WildzCreatureDrawer";
 import { WildzContextButton } from "./WildzContextButton";
 import { WildzDpad } from "./WildzDpad";
@@ -76,7 +75,7 @@ export function WildzSocialDeck({ nearbyCards, activeCard, companionProgress, ca
       <button aria-label="Open field guide" className="wildz-action-guide" onClick={onOpenFieldGuide} type="button"><Icons.book size={25} /></button>
       <button aria-label="Open player profile" className="wildz-action-people" onClick={onOpenProfile} type="button"><Icons.users size={25} /><i aria-hidden="true" /></button>
       <button aria-label="Open social market" className="wildz-action-pulse" onClick={onOpenMarket} type="button"><Icons.waveform size={25} /></button>
-      <button aria-label="Open card vault" className="wildz-action-companion" onClick={onOpenVault} type="button">{activeCard ? <WildsCreatureThumbnail asset={activeCard} /> : <Icons.assets size={25} />}</button>
+      <button aria-label="Open card vault" className="wildz-action-companion" onClick={onOpenVault} type="button"><Icons.assets aria-hidden="true" size={25} /></button>
       <button aria-label="Open foraging satchel" className="wildz-action-satchel" onClick={onOpenSatchel} type="button"><Icons.products size={24} /><Icons.sparkle className="wildz-action-satchel-spark" size={12} /></button>
     </nav>
   </section>;

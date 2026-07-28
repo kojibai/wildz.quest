@@ -15,14 +15,13 @@ import {
 import { creatureForm } from "./creature-catalog";
 import type { PlayState } from "./game-state";
 import type { PortableCardAsset } from "./portable-card";
-import { WildsCardPreview } from "./WildsCardPreview";
 import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
 import { currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import { WildsCardScene } from "./WildsCardScene";
 import type { AdventureCardCondition } from "./adventure/card-condition";
 
-const RAIL_CARD_EXTENT = 238;
+const RAIL_CARD_EXTENT = 184;
 const RAIL_END_GUTTER = 40;
 
 function useStableEvent<Arguments extends unknown[]>(handler: (...args: Arguments) => void) {
@@ -68,7 +67,6 @@ const CreatureChoice = memo(function CreatureChoice({
       onClick={() => retired ? setInspecting(true) : onSelect(asset.id)}
       type="button"
     >
-      <WildsCardPreview asset={asset} condition={condition} />
       <span className="wildz-creature-choice-copy">
         <small>{progress.xp} XP · Lv. {progress.level}</small>
         <strong className="wilds-creature-name"><span>{asset.manifest.name}</span><WildsVerifiedBadge /></strong>

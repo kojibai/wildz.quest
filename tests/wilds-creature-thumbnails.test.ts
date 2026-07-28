@@ -9,14 +9,20 @@ test("portable card thumbnails render deterministic Heartbound creature artwork"
   assert.match(campaign, /<WildsCreatureThumbnail asset=\{card\}/);
 });
 
-test("active deck and vault cards use creature artwork instead of initials or avatar-only tiles", () => {
+test("card entry points never substitute a framed creature thumbnail for the full flippable card", () => {
   const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
   const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
-  const preview = readFileSync("src/features/play/WildsCardPreview.tsx", "utf8");
+  const drawer = readFileSync("src/features/play/WildzCreatureDrawer.tsx", "utf8");
+  const scene = readFileSync("src/features/play/WildsCardScene.tsx", "utf8");
+  const css = readFileSync("app/globals.css", "utf8");
 
   assert.match(campaign, /<WildsCreatureThumbnail asset=\{card\}/);
-  assert.match(inventory, /<WildsCardPreview asset=\{asset\}/);
-  assert.match(preview, /<WildsCard asset=\{asset\} compact condition=\{condition\}/);
+  assert.doesNotMatch(inventory, /<WildsCreatureThumbnail/);
+  assert.doesNotMatch(drawer, /<WildsCreatureThumbnail/);
+  assert.match(inventory, /<WildsCardScene asset=\{selected\}/);
+  assert.match(scene, /wilds-card-flipper/);
+  assert.match(scene, /<WildsCard asset=\{asset\} condition=\{condition\}/);
+  assert.match(css, /\.wilds-inventory-detail \.wilds-card-scene\s*\{[^}]*width:\s*min\(380px,\s*calc\(100vw - 48px\)\);/s);
   assert.doesNotMatch(campaign, /manifest\.name\.slice\(0, 2\)/);
   assert.doesNotMatch(inventory, /manifest\.name\.slice\(0, 2\)/);
 });

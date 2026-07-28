@@ -11695,6 +11695,7 @@ button.product-purchase-secondary-link {
   min-height: 48px;
   overflow: hidden;
   border-color: rgb(247 210 91 / 34%);
+  color: #fff8cb;
   background:
     linear-gradient(145deg, rgb(18 48 52 / 96%), rgb(6 25 32 / 98%));
   box-shadow:
@@ -11922,31 +11923,29 @@ button.product-purchase-secondary-link {
 
 .wilds-inventory-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(138px, 1fr));
+  gap: 10px;
 }
 
 .wilds-inventory-grid > button {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  align-content: start;
-  gap: 8px;
-  min-width: 0;
-  padding: 5px;
+  gap: 3px 9px;
+  min-height: 96px;
+  padding: 11px;
   color: #effaff;
   text-align: left;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 22px;
+  background: #0a202b;
+  border: 1px solid rgb(149 213 223 / 15%);
+  border-radius: 15px;
   cursor: pointer;
 }
 
 .wilds-inventory-grid > button[aria-pressed="true"] {
   border-color: #65e5bd;
-  background: rgb(101 229 189 / 5%);
-  box-shadow: 0 0 0 2px rgb(101 229 189 / 13%), 0 14px 34px rgb(0 0 0 / 24%);
+  box-shadow: 0 0 0 2px rgb(101 229 189 / 13%);
 }
-.wilds-inventory-grid > button.is-retired { border-color: rgb(170 178 175 / 30%); color: #aab2af; background: rgb(7 10 11 / 46%); box-shadow: inset 0 0 34px rgb(0 0 0 / 38%); }
+.wilds-inventory-grid > button.is-retired { border-color: rgb(170 178 175 / 30%); color: #aab2af; background: linear-gradient(145deg, rgb(22 27 27 / 96%), rgb(7 10 11 / 98%)); box-shadow: inset 0 0 34px rgb(0 0 0 / 58%); }
 .wilds-vault-card-memorial { position: relative; }
 .wilds-vault-card-memorial > strong { position: absolute; z-index: 5; right: 12%; bottom: 10%; left: 12%; padding: 8px; border: 1px solid rgb(209 218 214 / 24%); border-radius: 999px; color: #d8dedb; background: rgb(8 11 12 / 88%); box-shadow: 0 12px 34px rgb(0 0 0 / 48%); font-size: 9px; letter-spacing: .14em; text-align: center; text-transform: uppercase; }
 .wilds-inventory-detail.is-retired .wilds-card-scene { filter: none; }
@@ -11959,36 +11958,7 @@ button.product-purchase-secondary-link {
 .wilds-card-back-death > span { color: #cbd3d0; font-size: 9px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
 .wilds-card-back-death code { overflow-wrap: anywhere; }
 
-.wilds-inventory-grid > button > .wilds-collectible-card.compact {
-  --card-border: 5px;
-  --card-radius: 17px;
-  width: 100%;
-  gap: 4px;
-  padding: 8px;
-}
-.wilds-inventory-grid > button > .wilds-collectible-card.compact > header strong { font-size: clamp(9px, 2.6vw, 14px); }
-.wilds-inventory-grid > button > .wilds-collectible-card.compact > header span,
-.wilds-inventory-grid > button > .wilds-collectible-card.compact > header small,
-.wilds-inventory-grid > button > .wilds-collectible-card.compact > footer,
-.wilds-inventory-grid > button > .wilds-collectible-card.compact .wilds-card-rarity { font-size: clamp(4px, 1.25vw, 7px); }
-.wilds-inventory-grid > button > .wilds-collectible-card.compact .wilds-card-stats { gap: 2px; }
-.wilds-inventory-grid > button > .wilds-collectible-card.compact .wilds-card-stats div { padding: 3px 1px; }
-.wilds-inventory-grid > button > .wilds-collectible-card.compact .wilds-card-stats dt { font-size: clamp(3px, .9vw, 5px); }
-.wilds-inventory-grid > button > .wilds-collectible-card.compact .wilds-card-stats dd { font-size: clamp(7px, 2vw, 10px); }
-.wilds-inventory-grid > button > .wilds-collectible-card.compact .wilds-card-abilities { gap: 3px; }
-.wilds-inventory-grid > button > .wilds-collectible-card.compact .wilds-card-abilities > div { gap: 1px 3px; padding: 3px 4px; }
-.wilds-inventory-grid > button > .wilds-collectible-card.compact .wilds-card-abilities strong,
-.wilds-inventory-grid > button > .wilds-collectible-card.compact .wilds-card-abilities b { font-size: clamp(5px, 1.4vw, 7px); }
-.wilds-inventory-grid > button > .wilds-collectible-card.compact .wilds-card-abilities p { font-size: clamp(3px, 1vw, 5px); }
-
-.wilds-inventory-card-meta {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-  padding: 0 4px 3px;
-}
-
-.wilds-inventory-card-meta small {
+.wilds-inventory-card-xp {
   color: #f1d36b;
   font-size: 9px;
   font-weight: 900;
@@ -12011,14 +11981,15 @@ button.product-purchase-secondary-link {
   white-space: nowrap;
 }
 
-.wilds-inventory-card-meta small,
-.wilds-inventory-card-meta strong {
+.wilds-inventory-grid strong,
+.wilds-inventory-grid small,
+.wilds-inventory-grid b {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.wilds-inventory-card-meta strong {
+.wilds-inventory-grid b {
   color: #74d9ba;
   font-size: 10px;
   text-transform: uppercase;
@@ -12301,11 +12272,12 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-command-sheet-content .wilds-inventory-toolbar { grid-template-columns: minmax(0, 1fr) 132px 148px; }
 .wilds-command-sheet-content .wilds-inventory-layout { grid-template-columns: minmax(0, 1fr); }
 .wilds-command-sheet-content .wilds-inventory-detail { grid-row: 2; justify-items: center; padding-top: 4px; }
-.wilds-command-sheet-content .wilds-inventory-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.wilds-command-sheet-content .wilds-inventory-grid > button { align-content: start; }
-.wilds-command-sheet-content .wilds-inventory-card-meta small,
-.wilds-command-sheet-content .wilds-inventory-card-meta strong { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; line-height: 1.2; }
-.wilds-inventory-detail .wilds-card-scene { width: min(100%, 380px); min-height: 0; aspect-ratio: 5 / 7; }
+.wilds-command-sheet-content .wilds-inventory-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.wilds-command-sheet-content .wilds-inventory-grid > button { min-height: 92px; grid-template-columns: minmax(0, 1fr); align-content: center; }
+.wilds-command-sheet-content .wilds-inventory-grid strong,
+.wilds-command-sheet-content .wilds-inventory-grid small,
+.wilds-command-sheet-content .wilds-inventory-grid b { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; line-height: 1.2; }
+.wilds-inventory-detail .wilds-card-scene { width: min(380px, calc(100vw - 48px)); max-width: 100%; min-height: 0; aspect-ratio: 5 / 7; }
 .wilds-inventory-detail .wilds-card-float { height: 100%; }
 .wilds-command-sheet-content .wilds-inventory-actions,
 .wilds-command-sheet-content .wilds-growth-panel { width: min(100%, 380px); }
@@ -13355,35 +13327,10 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wildz-creature-window::-webkit-scrollbar,
 .wildz-creature-book::-webkit-scrollbar { display: none; }
 .wildz-creature-window-end { width: 40px; min-width: 40px; height: 1px; flex: 0 0 40px; pointer-events: none; }
-.wildz-creature-choice-shell { width: 230px; min-width: 230px; min-height: 164px; scroll-snap-align: start; }
-.wildz-creature-choice { position: relative; display: grid; grid-template-columns: 112px minmax(0, 1fr); width: 100%; height: 100%; min-height: 164px; align-items: center; gap: 9px; padding: 7px; overflow: hidden; border: 1px solid rgba(225, 217, 184, .18); border-radius: 16px; color: #f3f1e9; background: radial-gradient(circle at 14% 8%, rgba(125, 181, 130, .16), transparent 48%), rgba(28, 37, 33, .9); text-align: left; }
+.wildz-creature-choice-shell { width: 176px; min-width: 176px; min-height: 70px; scroll-snap-align: start; }
+.wildz-creature-choice { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; height: 100%; min-height: 70px; align-items: center; gap: 8px; padding: 7px; overflow: hidden; border: 1px solid rgba(225, 217, 184, .18); border-radius: 16px; color: #f3f1e9; background: radial-gradient(circle at 14% 8%, rgba(125, 181, 130, .16), transparent 48%), rgba(28, 37, 33, .9); text-align: left; }
 .wildz-creature-choice.is-retired { color: #9ca6a2; border-color: rgba(180, 190, 186, .2); background: rgba(13, 17, 17, .96); cursor: pointer; }
 .wildz-creature-choice[aria-pressed="true"] { border-color: rgba(121, 230, 163, .62); background: radial-gradient(circle at 14% 8%, rgba(125, 215, 145, .3), transparent 50%), rgba(30, 51, 39, .96); box-shadow: inset 0 0 0 1px rgba(132, 235, 171, .14); }
-.wildz-creature-choice > .wilds-collectible-card.compact {
-  --card-border: 3px;
-  --card-radius: 11px;
-  width: 112px;
-  gap: 2px;
-  padding: 5px;
-  box-shadow: 0 6px 16px rgb(0 0 0 / 34%);
-}
-.wildz-creature-choice > .wilds-collectible-card.compact > header strong { font-size: 7px; }
-.wildz-creature-choice > .wilds-collectible-card.compact > header span,
-.wildz-creature-choice > .wilds-collectible-card.compact > header small,
-.wildz-creature-choice > .wilds-collectible-card.compact > footer,
-.wildz-creature-choice > .wilds-collectible-card.compact .wilds-card-rarity { font-size: 3px; }
-.wildz-creature-choice > .wilds-collectible-card.compact .wilds-card-stats { gap: 1px; }
-.wildz-creature-choice > .wilds-collectible-card.compact .wilds-card-stats div { padding: 2px 0; }
-.wildz-creature-choice > .wilds-collectible-card.compact .wilds-card-stats dt { font-size: 2px; }
-.wildz-creature-choice > .wilds-collectible-card.compact .wilds-card-stats dd { font-size: 5px; }
-.wildz-creature-choice > .wilds-collectible-card.compact .wilds-card-abilities { gap: 2px; }
-.wildz-creature-choice > .wilds-collectible-card.compact .wilds-card-abilities > div { gap: 1px 2px; padding: 2px; }
-.wildz-creature-choice > .wilds-collectible-card.compact .wilds-card-abilities strong,
-.wildz-creature-choice > .wilds-collectible-card.compact .wilds-card-abilities b { font-size: 4px; }
-.wildz-creature-choice > .wilds-collectible-card.compact .wilds-card-abilities p { font-size: 2px; }
-.wildz-creature-choice > .wilds-collectible-card.compact .wilds-card-death-mark { top: 27%; right: 5%; left: 5%; padding: 3px; border-width: 1px; }
-.wildz-creature-choice > .wilds-collectible-card.compact .wilds-card-death-mark span { font-size: 3px; }
-.wildz-creature-choice > .wilds-collectible-card.compact .wilds-card-death-mark strong { font-size: 5px; }
 .wildz-creature-choice-copy { display: grid; min-width: 0; gap: 2px; }
 .wildz-creature-choice-copy small { color: #f0d066; font-size: 7px; font-weight: 900; text-transform: uppercase; }
 .wildz-creature-choice-copy strong { overflow: hidden; font-size: 12px; }
@@ -13397,9 +13344,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wildz-creature-book { display: flex; min-height: 0; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-inline: contain; }
 .wildz-creature-spread { display: grid; min-width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 7px; padding: 1px 3px; scroll-snap-align: start; scroll-snap-stop: always; }
 .wildz-creature-spread .wildz-creature-choice-shell { width: 100%; min-width: 0; min-height: 0; }
-.wildz-creature-spread .wildz-creature-choice { grid-template-columns: minmax(0, 1fr); min-height: 0; justify-items: center; padding: 4px; }
-.wildz-creature-spread .wildz-creature-choice > .wilds-collectible-card.compact { width: min(100%, 88px); }
-.wildz-creature-spread .wildz-creature-choice-copy { display: none; }
+.wildz-creature-spread .wildz-creature-choice { min-height: 0; }
 .wildz-card-rail { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
 .wildz-card-rail-tools { display: flex; min-height: 26px; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 2px 0; }
 .wildz-card-rail-tools > span { overflow: hidden; color: #9baca0; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
