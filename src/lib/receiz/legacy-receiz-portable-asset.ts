@@ -1,9 +1,9 @@
 /**
  * Read-only compatibility codec for Receiz SDK v102 portable-asset bundles.
  *
- * Receiz SDK v103 no longer exports this developer-authored container. Wildz
+ * Receiz SDK v114 does not export this retired developer-authored container. Wildz
  * keeps this bounded decoder solely so already-issued `receiz.portable_asset.v1`
- * artifacts remain recoverable. New artifacts must use the SDK v103 native
+ * artifacts remain recoverable. New artifacts must use the current SDK native
  * Record -> Seal proof-object flow instead.
  */
 

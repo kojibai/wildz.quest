@@ -31,7 +31,7 @@ test("proof-verified Vault restore is never gated by an online ownership claim",
     shell.indexOf("const claimBearerArtifact")
   );
   assert.doesNotMatch(restoreBoundary, /claimVerifiedImportedCards|Global Receiz ownership must be online|\/api\/market\/claims/);
-  assert.match(shell, /BroadcastChannel\("receiz:wildz:ownership:v113"\)/);
+  assert.match(shell, /BroadcastChannel\("receiz:wildz:ownership:v114"\)/);
 
   const route = readFileSync("app/api/market/claims/route.ts", "utf8");
   assert.match(route, /claimedArtifactResponse\(admitted/);

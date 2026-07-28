@@ -429,7 +429,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     }
     acceptSnapshot(next);
     if (intent === "merge-vault" && typeof BroadcastChannel !== "undefined") {
-      const channel = new BroadcastChannel("receiz:wildz:ownership:v113");
+      const channel = new BroadcastChannel("receiz:wildz:ownership:v114");
       channel.postMessage({ ownerActorId: outcome.session.actorId, assetIds: outcome.verifiedAssetIds });
       channel.close();
     }
@@ -495,7 +495,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
 
   useEffect(() => {
     if (typeof BroadcastChannel === "undefined") return;
-    const channel = new BroadcastChannel("receiz:wildz:ownership:v113");
+    const channel = new BroadcastChannel("receiz:wildz:ownership:v114");
     channel.addEventListener("message", (event: MessageEvent<unknown>) => {
       const message = event.data as { ownerActorId?: unknown; assetIds?: unknown } | null;
       if (!message || typeof message.ownerActorId !== "string" || !Array.isArray(message.assetIds)

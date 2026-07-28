@@ -130,7 +130,7 @@ export function createWildsCardSendDraft(
   const title = `Wildz card: ${asset.manifest.name}`;
   const text = [
     `${target.label}, here is a verified Wildz Receiz proof object.`,
-    `Open the attached Receiz-sealed artifact in Wildz, Receiz, or another v113-compatible application.`,
+    `Open the attached Receiz-sealed artifact in Wildz, Receiz, or another v114-compatible application.`,
     `The sealed proof object and its append-only ownership history remain the authority.`,
     `Standalone card link: ${url}`,
     `Card: ${asset.id}`
@@ -284,7 +284,7 @@ export type EmbeddedReceizProofObject = {
   artifactBytes: Uint8Array;
 };
 
-/** Extracts the opaque legacy carrier. Only the v113 SDK may open these bytes. */
+/** Extracts the opaque legacy carrier. Only the v114 SDK may open these bytes. */
 export function readReceizProofObjectFromPng(source: Uint8Array): EmbeddedReceizProofObject {
   const chunks = parsePng(source);
   const proofChunks = chunks.filter((chunk) => chunk.type === PROOF_OBJECT_CHUNK_TYPE);
@@ -295,7 +295,7 @@ export function readReceizProofObjectFromPng(source: Uint8Array): EmbeddedReceiz
   return { artifactBytes };
 }
 
-/** @deprecated Test-only carrier helper. Native v113 artifacts must never be wrapped. */
+/** @deprecated Test-only carrier helper. Native v114 artifacts must never be wrapped. */
 export function embedReceizProofObjectInPng(source: Uint8Array, artifactBytes: Uint8Array) {
   const chunks = parsePng(source);
   if (chunks.some((chunk) => chunk.type === PROOF_OBJECT_CHUNK_TYPE)) {
