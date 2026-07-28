@@ -7,7 +7,7 @@ import { creatureForm } from "../src/features/play/creature-catalog.js";
 import { deriveKaiKlokMoment } from "../src/features/play/kai-klok-moment.js";
 import { discoverLivingCreature } from "../src/features/play/living-taxonomy.js";
 import { sealDiscoveredCard } from "../src/features/play/portable-card.js";
-import { WildzCreatureDrawer } from "../src/features/play/WildzCreatureDrawer.js";
+import { WildsCardPreview } from "../src/features/play/WildsCardPreview.js";
 
 (globalThis as typeof globalThis & { React: typeof React }).React = React;
 
@@ -40,21 +40,16 @@ test("creature selectors render living and dead entries as framed cards instead 
     receiptDigests: ["sha256:preview-death"]
   };
 
-  const html = renderToStaticMarkup(React.createElement(WildzCreatureDrawer, {
-    nearbyCards: [living, dead],
-    activeCard: living,
-    companionProgress: {
-      [living.manifest.familyId]: { level: 2, xp: 80, bond: 12 },
-      [dead.manifest.familyId]: { level: 1, xp: 20, bond: 4 }
-    },
-    cardConditions: {
-      [living.id]: emptyAdventureCondition(living.id),
-      [dead.id]: deadCondition
-    },
-    cardOrder: "rarity",
-    onCardOrderChange: () => {},
-    onSelectCard: () => {}
-  }));
+  const html = renderToStaticMarkup(React.createElement(React.Fragment, null,
+    React.createElement(WildsCardPreview, {
+      asset: living,
+      condition: emptyAdventureCondition(living.id)
+    }),
+    React.createElement(WildsCardPreview, {
+      asset: dead,
+      condition: deadCondition
+    })
+  ));
 
   assert.equal((html.match(/class="wilds-card-preview [^"]*" data-life=/g) ?? []).length, 2);
   assert.match(html, /wilds-card-preview[^"]*" data-life="alive"/);
