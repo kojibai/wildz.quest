@@ -70,12 +70,19 @@ test("Save verified card prewarms its exact proof and resolves with premium acce
   const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
   const adapter = readFileSync("src/lib/receiz/wildz-identity-adapter.ts", "utf8");
+  const exporter = readFileSync("src/features/play/card-export.ts", "utf8");
   const css = readFileSync("app/globals.css", "utf8");
 
   assert.match(inventory, /onExportCard\(asset,\s*playerVault\(\)\)/);
   assert.match(campaign, /onExportCard=\{onExportCard\}/);
   assert.match(shell, /onExportCard=\{\(asset,\s*player\) => downloadWildzIdentityOwnedCard\(identity,\s*asset,\s*player\)\}/);
   assert.match(adapter, /export async function downloadWildzIdentityOwnedCard/);
+  assert.match(adapter, /portableCardPngBlobForIdentityOwnership\(asset\)/);
+  assert.match(exporter, /export async function portableCardPngBlobForIdentityOwnership/);
+  const identityOwnedRenderer = exporter.match(
+    /export async function portableCardPngBlobForIdentityOwnership[\s\S]*?\n\}/
+  )?.[0] ?? "";
+  assert.doesNotMatch(identityOwnedRenderer, /requireGloballyAvailablePublicWildsCard/);
   assert.match(adapter, /embedPortableVaultInPng\([^;]+,\s*\[asset\],\s*activePlayer\s*\)/s);
   assert.match(adapter, /createWildzIdentityBoundPlayerVault/);
   assert.match(adapter, /playerId:\s*session\.username \?\? session\.actorId/);

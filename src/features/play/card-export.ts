@@ -657,6 +657,11 @@ export async function portableCardPngBlob(asset: PortableCardAsset) {
   return renderPortableCardPngBlob(asset);
 }
 
+export async function portableCardPngBlobForIdentityOwnership(asset: PortableCardAsset) {
+  if (typeof document === "undefined") throw new Error("wilds_card_png_browser_required");
+  return renderPortableCardPngBlob(asset);
+}
+
 async function renderPortableCardPngBlob(asset: PortableCardAsset) {
   const rendered = await svgPngBlob(renderWildsCardSvg(asset, { origin: WILDZ_PRODUCT.origin }));
   const portable = embedPortableCardInPng(new Uint8Array(await rendered.arrayBuffer()), asset);

@@ -20,7 +20,7 @@ import {
   downloadBlob,
   downloadReceizProofObject,
   embedPortableVaultInPng,
-  portableCardPngBlob,
+  portableCardPngBlobForIdentityOwnership,
   portableCreatureFilename,
   portableVaultPngBlob,
   readPortableVaultFromPng,
@@ -614,7 +614,7 @@ export async function downloadWildzIdentityOwnedCard(
     canonicalCursor: player.canonicalCursor,
     receipts: player.receipts
   });
-  const portable = await portableCardPngBlob(asset);
+  const portable = await portableCardPngBlobForIdentityOwnership(asset);
   const playerCardBytes = embedPortableVaultInPng(
     new Uint8Array(await portable.arrayBuffer()),
     [asset],
