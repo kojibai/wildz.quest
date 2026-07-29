@@ -20,13 +20,18 @@ import {
   downloadBlob,
   downloadReceizProofObject,
   embedPortableVaultInPng,
+  portableCardPngBlob,
+  portableCreatureFilename,
   portableVaultPngBlob,
   readPortableVaultFromPng,
   readWildzPlayerVaultAppendFromPng,
   verifyPortableVaultPng
 } from "../../features/play/card-export";
 import type { PortableCardAsset } from "../../features/play/portable-card";
-import type { WildsPlayerVaultPayload } from "../../features/play/wilds-player-vault";
+import {
+  createWildsPlayerVault,
+  type WildsPlayerVaultPayload
+} from "../../features/play/wilds-player-vault";
 import { inspectReceizCommerceVault } from "./receiz-commerce-vault";
 import {
   createWildzIdentityCardArtworkPng,
@@ -587,6 +592,56 @@ export async function downloadWildzIdentityPlayerVault(
     { outputFilename: `wilds-vault-${digest}.receized.png` }
   );
   return { identityBound: true } as const;
+}
+
+export async function downloadWildzIdentityOwnedCard(
+  session: WildzIdentitySession,
+  asset: PortableCardAsset,
+  player: WildsPlayerVaultPayload,
+  options: {
+    passphrase?: string;
+    requestPassphrase?: () => string | null;
+  } = {}
+) {
+  if (session.localAuthority !== "verified") throw new Error("wildz_identity_card_authority_required");
+  const activePlayer = createWildsPlayerVault({
+    playerId: session.username ?? session.actorId,
+    exportedAt: new Date().toISOString(),
+    playState: { ...player.playState, inventory: [asset] },
+    character: player.character,
+    settings: player.settings,
+    personalEvents: player.personalEvents,
+    canonicalCursor: player.canonicalCursor,
+    receipts: player.receipts
+  });
+  const portable = await portableCardPngBlob(asset);
+  const playerCardBytes = embedPortableVaultInPng(
+    new Uint8Array(await portable.arrayBuffer()),
+    [asset],
+    activePlayer
+  );
+  const combined = await defaultIdentityRepository.withKeyFile(session.keyId, async (keyFile) => {
+    let passphrase = options.passphrase;
+    if (identityKeyNeedsPassphrase(keyFile) && passphrase === undefined) {
+      passphrase = options.requestPassphrase?.()
+        ?? (typeof window !== "undefined"
+          ? window.prompt("Enter this Identity Seal's passphrase to sign the card export.") ?? undefined
+          : undefined);
+    }
+    return createWildzIdentityBoundPlayerVault({
+      keyFile,
+      vaultBytes: playerCardBytes,
+      ...(passphrase !== undefined ? { passphrase } : {})
+    });
+  });
+  const filename = `${portableCreatureFilename(asset.manifest.name)}.receized.png`;
+  await downloadReceizProofObject(
+    new Blob([combined.slice().buffer], { type: "image/png" }),
+    `${portableCreatureFilename(asset.manifest.name)}.png`,
+    "vault",
+    { outputFilename: filename }
+  );
+  return { identityBound: true, ownerReceizId: activePlayer.playerId } as const;
 }
 
 export async function downloadWildzIdentityPlayerCard(

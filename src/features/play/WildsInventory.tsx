@@ -38,6 +38,7 @@ export function WildsInventory({
   cardOrder,
   onCardOrderChange,
   playerVault,
+  onExportCard,
   onExportVault,
   onInput,
   onListAsset,
@@ -47,6 +48,7 @@ export function WildsInventory({
   cardOrder: WildzCardSort;
   onCardOrderChange: (order: WildzCardSort) => void;
   playerVault: () => WildsPlayerVaultPayload;
+  onExportCard: (asset: PlayState["inventory"][number], player: WildsPlayerVaultPayload) => Promise<unknown>;
   onExportVault: (assets: PlayState["inventory"], player: WildsPlayerVaultPayload) => Promise<unknown>;
   onInput: (input: WildsInput) => void;
   onListAsset?: (asset: PlayState["inventory"][number], priceCents: number) => Promise<PlayState["inventory"][number] | null>;
@@ -223,10 +225,9 @@ export function WildsInventory({
     setCardSaveState("preparing");
     setDownloadMessage(cardSavePresentation("preparing").message);
     try {
-      const artifact = await preparedCardArtifacts.prepare(asset);
       setCardSaveState("saving");
       setDownloadMessage(cardSavePresentation("saving").message);
-      downloadPreparedCardArtifact(artifact);
+      await onExportCard(asset, playerVault());
       setCardSaveState("success");
       setDownloadMessage(cardSavePresentation("success").message);
       triggerCardHaptic("success");

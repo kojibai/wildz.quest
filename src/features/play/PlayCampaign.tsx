@@ -125,6 +125,7 @@ export function PlayCampaign({
   initialState = initialPlayState,
   initialPlayerContinuity = null,
   onPlayStateChange,
+  onExportCard,
   onExportVault,
   onRestoreArtifact
 }: {
@@ -142,6 +143,7 @@ export function PlayCampaign({
   initialState?: PlayState;
   initialPlayerContinuity?: WildzPlayerContinuity | null;
   onPlayStateChange: (state: PlayState, playerContinuity: WildzPlayerContinuity) => void;
+  onExportCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload) => Promise<unknown>;
   onExportVault: (assets: PortableCardAsset[], player: WildsPlayerVaultPayload) => Promise<unknown>;
   onRestoreArtifact: (
     file: File,
@@ -924,6 +926,7 @@ export function PlayCampaign({
                 : initialPlayerContinuity?.canonicalCursor ?? { worldId: "wilds:global:v3", revision: 0, eventId: null },
               receipts: initialPlayerContinuity?.receipts ?? []
             })}
+            onExportCard={onExportCard}
             onExportVault={onExportVault}
             onInput={dispatch}
             onListAsset={onListAsset}

@@ -67,8 +67,18 @@ test("Vault card detail can send a saved card to a Receiz username or email", ()
 
 test("Save verified card prewarms its exact proof and resolves with premium accessible feedback", () => {
   const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
+  const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
+  const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
+  const adapter = readFileSync("src/lib/receiz/wildz-identity-adapter.ts", "utf8");
   const css = readFileSync("app/globals.css", "utf8");
 
+  assert.match(inventory, /onExportCard\(asset,\s*playerVault\(\)\)/);
+  assert.match(campaign, /onExportCard=\{onExportCard\}/);
+  assert.match(shell, /onExportCard=\{\(asset,\s*player\) => downloadWildzIdentityOwnedCard\(identity,\s*asset,\s*player\)\}/);
+  assert.match(adapter, /export async function downloadWildzIdentityOwnedCard/);
+  assert.match(adapter, /embedPortableVaultInPng\([^;]+,\s*\[asset\],\s*activePlayer\s*\)/s);
+  assert.match(adapter, /createWildzIdentityBoundPlayerVault/);
+  assert.match(adapter, /playerId:\s*session\.username \?\? session\.actorId/);
   assert.match(inventory, /cardSavePresentation/);
   assert.match(inventory, /triggerCardHaptic\("press"\)/);
   assert.match(inventory, /triggerCardHaptic\("success"\)/);
