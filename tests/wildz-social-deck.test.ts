@@ -49,7 +49,7 @@ test("Trail Pack replaces the redundant deck list with a three-companion heartbe
   assert.doesNotMatch(campaign, /label: "Active Deck"/);
 });
 
-test("nearby cards render actual artwork with verification beside the creature name", () => {
+test("Slate cards render frameless artwork with verification beside the creature name", () => {
   const source = readFileSync("src/features/play/WildzSocialDeck.tsx", "utf8");
   const drawer = readCreatureDrawer();
   const thumbnail = readFileSync("src/features/play/WildsCreatureThumbnail.tsx", "utf8");
@@ -57,13 +57,14 @@ test("nearby cards render actual artwork with verification beside the creature n
   const css = readFileSync("app/globals.css", "utf8");
 
   assert.match(source, /<WildzCreatureDrawer/);
-  assert.doesNotMatch(drawer, /<WildsCreatureThumbnail/);
+  assert.match(drawer, /<WildsCreatureThumbnail asset=\{asset\} className="wildz-slate-creature-art"/);
   assert.doesNotMatch(source, /<WildsCreatureThumbnail asset=\{activeCard\}/);
   assert.match(source, /aria-label="Open card vault"[\s\S]*?<Icons\.assets aria-hidden="true"/);
   assert.match(drawer, /<WildsVerifiedBadge\s*\/>/);
   assert.doesNotMatch(thumbnail, /wilds-creature-verified/);
   assert.match(badge, /wilds-creature-verified/);
   assert.match(css, /\.wilds-creature-verified\s*\{/);
+  assert.match(css, /\.wildz-slate-creature-art\s*\{[^}]*background:\s*transparent;[^}]*border-radius:\s*0;/s);
 });
 
 test("reordering nearby cards cannot change any displayed creature fact", () => {
