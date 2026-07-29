@@ -6,6 +6,16 @@ import { verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
 
 const RETRY_AFTER_MS = 30_000;
 
+export function publicCardPublicationCandidates(
+  assets: readonly PortableCardAsset[],
+  pendingAssetIds: ReadonlySet<string>,
+  admittedPins: ReadonlySet<string>
+) {
+  return assets.filter((asset) =>
+    pendingAssetIds.has(asset.id)
+    && !admittedPins.has(`${asset.id}:${asset.proof.digest}`));
+}
+
 export function publicCardPublicationQueue(
   assets: readonly PortableCardAsset[],
   publishedPins: ReadonlySet<string>

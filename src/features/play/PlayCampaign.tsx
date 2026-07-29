@@ -84,7 +84,10 @@ import {
   type WildzVaultCardAdmission,
   type WildzVaultCardMembershipProof
 } from "@/lib/receiz/wildz-vault-card-admission";
-import { usePublicCardPublisher } from "@/features/play/use-public-card-publisher";
+import {
+  publicCardPublicationCandidates,
+  usePublicCardPublisher
+} from "@/features/play/use-public-card-publisher";
 import { MortalArenaExperience } from "@/features/games/mortal-arena/MortalArenaExperience";
 import type { ArenaSettlement } from "@/features/games/mortal-arena/settlement";
 
@@ -181,11 +184,19 @@ export function PlayCampaign({
   const activeCard = selectedCard(state);
   const activeAsset = selectedAsset(state);
   const deckCards = state.inventory;
+  const vaultAdmittedCardPins = useRef(new Set(initialState.inventory.map(
+    (asset) => `${asset.id}:${asset.proof.digest}`
+  )));
+  const publicCardCandidates = useMemo(() => publicCardPublicationCandidates(
+    deckCards,
+    new Set(state.pendingSyncAssetIds),
+    vaultAdmittedCardPins.current
+  ), [deckCards, state.pendingSyncAssetIds]);
   const [initialVaultAdmission] = useState<WildzVaultCardAdmission>(() => deriveWildzVaultCardAdmission({
     cards: initialState.inventory,
     playerHandle: ownerReceizId
   }));
-  usePublicCardPublisher(deckCards, enabled && networkEnabled);
+  usePublicCardPublisher(publicCardCandidates, enabled && networkEnabled);
   const landmarkUnlocks = state.achievements;
   const activeProgress = state.companionProgress[activeCard.id] ?? { level: 1, xp: 0, bond: 0 };
   const { discoveredByFamily, discoveredKaiLineages, guideFamilies } = useMemo(() => {
@@ -932,6 +943,12 @@ export function PlayCampaign({
             onListAsset={onListAsset}
             onRestoreArtifact={async (file, confirmCardOnly, currentPlayState) => {
               const outcome = await onRestoreArtifact(file, confirmCardOnly, currentPlayState);
+              const verifiedAssetIds = new Set(outcome.verifiedAssetIds);
+              for (const asset of outcome.playState.inventory) {
+                if (verifiedAssetIds.has(asset.id)) {
+                  vaultAdmittedCardPins.current.add(`${asset.id}:${asset.proof.digest}`);
+                }
+              }
               setState(outcome.playState);
               setAvatarStyle(outcome.playerContinuity.settings.avatarStyle);
               setMovementMode(outcome.playerContinuity.settings.movementMode);
