@@ -22,6 +22,7 @@ import { createPreparedCardArtifactCache } from "./prepared-card-artifact";
 import type { PlayState, WildsInput } from "./game-state";
 import type { WildsPlayerVaultPayload } from "./wilds-player-vault";
 import { WildsCardScene } from "./WildsCardScene";
+import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import { WildsGrowthPanel } from "./WildsGrowthPanel";
 import { clampInventoryPage, inventoryPageSize } from "./inventory-pagination";
 import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
@@ -364,10 +365,13 @@ export function WildsInventory({
             const retired = state.adventureConditions[asset.id]?.life === "dead"
               || (isLivingCardAsset(asset) && Boolean(currentRevision(asset).growth.life?.retired));
             return <button aria-pressed={selected?.id === asset.id} className={retired ? "is-retired" : ""} key={asset.id} onClick={() => { if (suppressCardClick.current) { suppressCardClick.current = false; return; } setSelectedId(asset.id); }} type="button">
-              <span className="wilds-inventory-card-xp">{cardProgress.xp} XP</span>
-              <strong className="wilds-creature-name"><span>{asset.manifest.name}</span><WildsVerifiedBadge /></strong>
-              <small>Stage {form.stage} · {form.rarity} · Bond {cardProgress.bond}</small>
-              <b>{retired ? "Retired memorial · permanently unplayable" : `${asset.manifest.stats.power} PWR · ${asset.status === "sealed_local" ? "Offline sealed" : "Verified"}`}</b>
+              <WildsCreatureThumbnail asset={asset} className="wilds-vault-creature-art" />
+              <span className="wilds-vault-card-copy">
+                <span className="wilds-inventory-card-xp">{cardProgress.xp} XP</span>
+                <strong className="wilds-creature-name"><span>{asset.manifest.name}</span><WildsVerifiedBadge /></strong>
+                <small>Stage {form.stage} · {form.rarity} · Bond {cardProgress.bond}</small>
+                <b>{retired ? "Retired memorial · permanently unplayable" : `${asset.manifest.stats.power} PWR · ${asset.status === "sealed_local" ? "Offline sealed" : "Verified"}`}</b>
+              </span>
             </button>;
           })}
           {!visible.length ? <p className="wilds-inventory-empty">No collected cards match this search.</p> : null}

@@ -19,6 +19,7 @@ import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
 import { currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import { WildsCardScene } from "./WildsCardScene";
+import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import type { AdventureCardCondition } from "./adventure/card-condition";
 
 const RAIL_CARD_EXTENT = 184;
@@ -67,6 +68,7 @@ const CreatureChoice = memo(function CreatureChoice({
       onClick={() => retired ? setInspecting(true) : onSelect(asset.id)}
       type="button"
     >
+      <WildsCreatureThumbnail asset={asset} className="wildz-slate-creature-art" />
       <span className="wildz-creature-choice-copy">
         <small>{progress.xp} XP · Lv. {progress.level}</small>
         <strong className="wilds-creature-name"><span>{asset.manifest.name}</span><WildsVerifiedBadge /></strong>

@@ -9,7 +9,7 @@ test("portable card thumbnails render deterministic Heartbound creature artwork"
   assert.match(campaign, /<WildsCreatureThumbnail asset=\{card\}/);
 });
 
-test("card entry points never substitute a framed creature thumbnail for the full flippable card", () => {
+test("the Slate selector and Vault rows show creature artwork without a circular frame", () => {
   const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
   const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
   const drawer = readFileSync("src/features/play/WildzCreatureDrawer.tsx", "utf8");
@@ -17,8 +17,11 @@ test("card entry points never substitute a framed creature thumbnail for the ful
   const css = readFileSync("app/globals.css", "utf8");
 
   assert.match(campaign, /<WildsCreatureThumbnail asset=\{card\}/);
-  assert.doesNotMatch(inventory, /<WildsCreatureThumbnail/);
-  assert.doesNotMatch(drawer, /<WildsCreatureThumbnail/);
+  assert.match(inventory, /<WildsCreatureThumbnail asset=\{asset\} className="wilds-vault-creature-art"/);
+  assert.match(drawer, /<WildsCreatureThumbnail asset=\{asset\} className="wildz-slate-creature-art"/);
+  assert.match(css, /\.wilds-vault-creature-art,\s*\.wildz-slate-creature-art\s*\{[^}]*background:\s*transparent;[^}]*border-radius:\s*0;/s);
+  assert.doesNotMatch(inventory, /<WildsCardPreview/);
+  assert.doesNotMatch(drawer, /<WildsCardPreview/);
   assert.match(inventory, /<WildsCardScene asset=\{selected\}/);
   assert.match(scene, /wilds-card-flipper/);
   assert.match(scene, /<WildsCard asset=\{asset\} condition=\{condition\}/);

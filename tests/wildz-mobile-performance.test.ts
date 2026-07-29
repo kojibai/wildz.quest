@@ -65,6 +65,11 @@ test("Vault merges preserve the admitted multiplayer card set for the mounted se
 
 test("large Vault collection indexes are not rebuilt for every movement render", () => {
   const campaign = source("src/features/play/PlayCampaign.tsx");
+  const shell = source("src/features/shell/WildzApp.tsx");
   assert.match(campaign, /const \{ discoveredByFamily, discoveredKaiLineages, guideFamilies \} = useMemo\(\(\) =>/);
   assert.match(campaign, /\}, \[deckCards\]\);/);
+  assert.match(
+    shell,
+    /const cardTruthChanged = current\.playState\?\.inventory === playState\.inventory\s*\?\s*false/
+  );
 });
