@@ -30,7 +30,7 @@ test("bottom dock follows the six-slot reference order with distinct functions",
   const offsets = markers.map((marker) => source.indexOf(marker));
   assert.ok(offsets.every((offset) => offset >= 0));
   assert.deepEqual(offsets, [...offsets].sort((a, b) => a - b));
-  for (const token of ["Icons.archive", "Icons.book", "Icons.users", "Icons.waveform", "WildsCreatureThumbnail", "Icons.products"]) {
+  for (const token of ["Icons.archive", "Icons.book", "Icons.users", "Icons.waveform", "Icons.assets", "Icons.products"]) {
     assert.match(source, new RegExp(token.replace(".", "\\.")));
   }
 });

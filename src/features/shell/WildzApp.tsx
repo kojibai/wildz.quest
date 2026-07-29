@@ -436,6 +436,43 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     return outcome;
   }, [acceptSnapshot]);
 
+  const activateIdentitySeal = useCallback(async (file: File) => {
+    const outcome = await restoreArtifact(
+      file,
+      "card-vault",
+      false,
+      continuityRef.current?.playState ?? undefined,
+      "activate-identity"
+    );
+    if (outcome.artifactKind !== "identity-seal") throw new Error("wildz_identity_seal_required");
+
+    const restored = continuityRef.current;
+    if (!restored
+      || restored.session.keyId !== outcome.session.keyId
+      || restored.session.actorId !== outcome.session.actorId) {
+      throw new Error("wildz_identity_activation_failed");
+    }
+
+    const restoredAdmission = deriveWildzVaultCardAdmission({
+      cards: outcome.playState.inventory,
+      playerHandle: outcome.session.actorId
+    });
+    try {
+      const remote = await connectWildzProofSession(outcome.session, { vaultAdmission: restoredAdmission });
+      if (wildzRemoteSessionMatchesIdentity(outcome.session, remote)) {
+        const aligned = await alignWildzContinuityWithProofSession(restored, remote);
+        acceptSnapshot(aligned);
+        setProofSessionConnected(true);
+      } else {
+        setProofSessionConnected(false);
+      }
+    } catch {
+      // The verified Seal still activates local authority; the connection effect retries.
+      setProofSessionConnected(false);
+    }
+    setOverlay({ kind: "profile", username: `@${outcome.session.username ?? outcome.session.actorId}` });
+  }, [acceptSnapshot, restoreArtifact]);
+
   const claimBearerArtifact = useCallback(async (file: File): Promise<number | null> => {
     if (!proofSessionConnected) throw new Error("Connect your Receiz ID before claiming a bearer artifact.");
     if (!window.confirm(
@@ -587,11 +624,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             shareEnabled={!viewingOwnProfile || profileStatus === "ready"}
             editable={viewingOwnProfile}
             signingAvailable={identity?.localAuthority === "verified"}
-            onAuthenticateIdentitySeal={async (file) => {
-              const outcome = await restoreArtifact(file, "card-vault", false, continuityRef.current?.playState ?? undefined, "activate-identity");
-              if (outcome.artifactKind !== "identity-seal") throw new Error("wildz_identity_seal_required");
-              setOverlay({ kind: "profile", username: `@${outcome.session.username ?? outcome.session.actorId}` });
-            }}
+            onAuthenticateIdentitySeal={activateIdentitySeal}
             onSaveIdentitySeal={saveIdentitySeal}
             onSaveProfile={saveProfileIdentity}
           /> : <div className="wildz-shell-overlay-placeholder" role="status">

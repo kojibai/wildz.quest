@@ -51,6 +51,7 @@ test("profile separates saving an Identity Seal from uploading one for authority
   assert.match(sheet, /aria-label="Copy profile link"/);
   assert.match(sheet, /aria-label="Save Identity Seal"/);
   assert.match(sheet, /aria-label="Upload Identity Seal or Record"/);
+  assert.match(sheet, /This Identity Seal now owns the current Vault/);
   assert.match(sheet, /await onSaveIdentitySeal\(\)/);
   assert.doesNotMatch(sheet, /aria-label="Save Identity Seal"[\s\S]{0,500}identityInputRef\.current\?\.click\(\)/);
   assert.match(sheet, /aria-label="Upload Identity Seal or Record"[\s\S]{0,500}identityInputRef\.current\?\.click\(\)/);

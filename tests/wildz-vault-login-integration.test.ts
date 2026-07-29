@@ -14,9 +14,24 @@ test("the shared restore adapter keeps Vault merge separate from Profile identit
   assert.match(adapter, /WildzRestoreIntent = "merge-vault" \| "activate-identity"/);
   assert.match(adapter, /preserveActiveIdentity: true/);
   assert.match(adapter, /carryCurrentVault: true/);
+  assert.match(adapter, /isWildzVaultBearingInspection/);
+  assert.doesNotMatch(adapter, /intent === "merge-vault" && inspection\.kind === "identity-seal"\) throw/);
   assert.doesNotMatch(adapter, /defaultVaultLoginCoordinator\.begin/);
   assert.match(adapter, /resumePendingWildzVault/);
   assert.doesNotMatch(adapter, /WildzVaultLoginRedirectError|\/api\/auth\/receiz\/start/);
+});
+
+test("explicit uploads adopt ownership in both directions", () => {
+  const shell = read("src/features/shell/WildzApp.tsx");
+  const adapter = read("src/lib/receiz/wildz-identity-adapter.ts");
+
+  assert.match(adapter, /intent === "merge-vault"[\s\S]*preserveActiveIdentity: true/);
+  assert.match(adapter, /intent === "activate-identity"[\s\S]*carryCurrentVault: true/);
+  assert.match(shell, /const activateIdentitySeal/);
+  assert.match(shell, /activateIdentitySeal[\s\S]*connectWildzProofSession/);
+  assert.match(shell, /activateIdentitySeal[\s\S]*wildzRemoteSessionMatchesIdentity/);
+  assert.match(shell, /onAuthenticateIdentitySeal=\{activateIdentitySeal\}/);
+  assert.match(shell, /playerId:\s*current\.session\.username \?\? current\.session\.actorId/);
 });
 
 test("bootstrap best-effort purges expired staged Vault bytes before identity recovery", () => {

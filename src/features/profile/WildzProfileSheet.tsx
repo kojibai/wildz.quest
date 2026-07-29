@@ -191,7 +191,7 @@ export function WildzProfileSheet({ profile, publicationStatus = "published", sh
           setIdentityMessage("Verifying Identity Seal or Record authority…");
           try {
             await onAuthenticateIdentitySeal(file);
-            setIdentityMessage("Receiz ID activated. Your current Vault is still loaded.");
+            setIdentityMessage("Receiz ID activated. This Identity Seal now owns the current Vault.");
           } catch {
             setIdentityMessage("That file did not activate a Receiz ID. Choose the account's verified Identity Seal or Record.");
           } finally {

@@ -14,7 +14,10 @@ import {
   serializePlayState,
   type PlayState
 } from "../src/features/play/game-state";
-import { embedPortableVaultInPng } from "../src/features/play/card-export";
+import {
+  embedPortableVaultInPng,
+  readWildzPlayerVaultAppendFromPng
+} from "../src/features/play/card-export";
 import { createWildsPlayerVault } from "../src/features/play/wilds-player-vault";
 import { sealCollectedCard, verifyAnyWildsCard } from "../src/features/play/portable-card";
 import { generateWildzCharacter } from "../src/features/identity/wildz-genesis";
@@ -357,6 +360,46 @@ test("a different Identity Seal becomes active without discarding the working Va
   assert.deepEqual(await repository.active(), outcome.session);
   const reloaded = await loadWildzRestoredPlayState({ database, session: outcome.session });
   assert.ok(reloaded?.inventory.some((asset) => asset.id === existingCard.id));
+});
+
+test("an explicitly uploaded foreign Vault is adopted and saved by the active Identity Seal", async () => {
+  const fixture = await regressionArtifact();
+  const { database, repository, codec } = setup();
+  const active = await repository.bootstrap();
+  const currentPlayState = createOwnerBoundInitialPlayState(active.actorId, active.createdAt);
+
+  const outcome = await restoreWildzArtifactForSurface({
+    surface: "card-vault",
+    bytes: fixture.identityCardBytes,
+    mimeType: "image/png",
+    name: "foreign-owner-vault.png",
+    codec,
+    repository,
+    database,
+    confirmCardOnly: true,
+    currentPlayState,
+    preserveActiveIdentity: true
+  });
+
+  assert.equal(outcome.session.keyId, active.keyId);
+  assert.equal(outcome.session.actorId, active.actorId);
+  assert.equal(outcome.playState.inventory.length, fixture.expectedIds.length + currentPlayState.inventory.length);
+  for (const assetId of fixture.expectedIds) {
+    assert.ok(outcome.playState.inventory.some((asset) => asset.id === assetId));
+  }
+
+  const adoptedPlayer = createWildsPlayerVault({
+    playerId: outcome.session.username ?? outcome.session.actorId,
+    exportedAt: "2026-07-28T22:00:00.000Z",
+    playState: outcome.playState,
+    character: outcome.character,
+    settings: outcome.playerContinuity.settings,
+    personalEvents: outcome.playerContinuity.personalEvents,
+    canonicalCursor: outcome.playerContinuity.canonicalCursor,
+    receipts: outcome.playerContinuity.receipts
+  });
+  const saved = embedPortableVaultInPng(BASE_PNG, outcome.playState.inventory, adoptedPlayer);
+  assert.equal(readWildzPlayerVaultAppendFromPng(saved).player.playerId, active.actorId);
 });
 
 test("the same 97-card V3 Vault is card-only without SDK authority and cannot switch identity", async () => {

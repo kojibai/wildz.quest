@@ -115,6 +115,14 @@ export type WildzContinuitySnapshot = {
 export type WildzUiArtifactRestore = WildzCommittedArtifactRestore & { restoreEpoch: number };
 export type WildzRestoreIntent = "merge-vault" | "activate-identity";
 
+function isWildzVaultBearingInspection(
+  inspection: Awaited<ReturnType<WildzArtifactCodec["inspect"]>>
+) {
+  if (inspection.kind === "card-vault" || inspection.kind === "commerce-vault") return true;
+  return inspection.kind === "identity-seal"
+    && Boolean(inspection.player);
+}
+
 export async function alignWildzContinuityWithProofSession(
   snapshot: WildzContinuitySnapshot,
   remote: WildzRemoteSession,
@@ -437,7 +445,7 @@ export async function restoreWildzFileForSurface(
     });
     if (inspection.kind === "invalid" || inspection.kind === "unsupported") throw new Error(inspection.code);
     if (intent === "activate-identity" && inspection.kind !== "identity-seal") throw new Error("wildz_identity_seal_required");
-    if (intent === "merge-vault" && inspection.kind === "identity-seal") throw new Error("wildz_vault_required");
+    if (intent === "merge-vault" && !isWildzVaultBearingInspection(inspection)) throw new Error("wildz_vault_required");
     const outcome = await restoreWildzArtifactForSurface({
       surface,
       bytes,
