@@ -13351,8 +13351,6 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wildz-creature-book { display: flex; min-height: 0; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-inline: contain; }
 .wildz-creature-spread { display: grid; min-width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 7px; padding: 1px 3px; scroll-snap-align: start; scroll-snap-stop: always; }
 .wildz-creature-spread .wildz-creature-choice-shell { width: 100%; min-width: 0; min-height: 0; }
-.wildz-creature-spread .wildz-creature-choice { grid-template-columns: minmax(0, 1fr); min-height: 0; justify-items: center; }
-.wildz-creature-spread .wildz-creature-choice-copy { display: none; }
 .wildz-card-rail { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
 .wildz-card-rail-tools { display: flex; min-height: 26px; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 2px 0; }
 .wildz-card-rail-tools > span { overflow: hidden; color: #9baca0; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }

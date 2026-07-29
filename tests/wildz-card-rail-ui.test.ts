@@ -38,6 +38,15 @@ test("creature XP flows above the name and its verification check sits beside th
   assert.match(css, /\.wilds-creature-verified\s*\{[^}]*position:\s*static/s);
 });
 
+test("the fully opened Slate keeps the same creature details as its one-row cards", () => {
+  const drawer = drawerSource();
+  const css = readFileSync("app/globals.css", "utf8");
+
+  assert.match(drawer, /progress\.xp[\s\S]*progress\.level[\s\S]*asset\.manifest\.name[\s\S]*progress\.bond/);
+  assert.doesNotMatch(css, /\.wildz-creature-spread \.wildz-creature-choice-copy\s*\{[^}]*display:\s*none/s);
+  assert.doesNotMatch(css, /\.wildz-creature-spread \.wildz-creature-choice\s*\{[^}]*grid-template-columns:/s);
+});
+
 test("automatic scrolling replaces manual creature page controls", () => {
   const drawer = drawerSource();
 
