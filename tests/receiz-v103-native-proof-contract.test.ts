@@ -11,7 +11,7 @@ test("Wildz verifies the exact Receiz-sealed Card and Vault before download", ()
   assert.match(proofExport, /downloadAndReopenWildzArtifact/);
   assert.match(proofExport, /assetType: "proof_object"/);
   assert.match(proofExport, /payload: \{ mimeType: "image\/png", bytes:/);
-  assert.match(proofExport, /wildz-v114-/);
+  assert.match(proofExport, /wildz-v116-/);
   assert.doesNotMatch(proofExport, /ReceizPortableAsset/);
   assert.doesNotMatch(proofExport, /ownership:/);
   assert.doesNotMatch(proofExport, /provenance:/);

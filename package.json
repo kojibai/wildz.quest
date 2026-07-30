@@ -42,7 +42,7 @@
     "lint": "eslint .",
     "receiz:doctor": "node scripts/receiz-doctor.mjs",
     "receiz:doctor:strict": "node scripts/receiz-doctor.mjs --strict-live",
-    "receiz:check": "node scripts/receiz-v114-check.mjs",
+    "receiz:check": "node scripts/receiz-v116-check.mjs",
     "receiz:conformance": "receiz conformance",
     "receiz:webhooks:create": "node scripts/receiz-create-webhooks.mjs",
     "secret:scan": "node scripts/release-secret-scan.mjs",
@@ -51,7 +51,7 @@
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
-    "@receiz/sdk": "114.0.0",
+    "@receiz/sdk": "116.0.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.468.0",
     "next": "^15.0.0",
@@ -62,8 +62,8 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
-    "@receiz/ai-skills": "114.0.0",
-    "@receiz/mcp-server": "114.0.0",
+    "@receiz/ai-skills": "116.0.0",
+    "@receiz/mcp-server": "116.0.0",
     "@types/node": "^22.0.0",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.0",
@@ -76,6 +76,9 @@
   },
   "pnpm": {
     "overrides": {
+      "@receiz/ai-skills": "file:vendor/receiz-v116/receiz-ai-skills-116.0.0.tgz",
+      "@receiz/mcp-server": "file:vendor/receiz-v116/receiz-mcp-server-116.0.0.tgz",
+      "@receiz/sdk": "file:vendor/receiz-v116/receiz-sdk-116.0.0.tgz",
       "postcss": ">=8.5.10"
     }
   }

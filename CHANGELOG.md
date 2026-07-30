@@ -6,9 +6,10 @@ All notable changes to Wildz are documented here. Wildz uses semantic versioning
 
 ### Changed
 
-- Aligned the SDK, MCP server, AI skills, lockfile, application contract, generated integration evidence, runtime labels, tests, checker, and documentation to Receiz `114.0.0`.
-- Adopted the v114 constitutional registry digest `ae912154d97b695464c3a19361bceb9440bc5d703a1d9129edac92c64192e29a` and 16-operation matrix digest `fd4ea8fccd867a0b9aab772ea6c5827ea8bdfe4c7fbed017c5a4843a40109c4f`.
-- Added release-gate coverage for v114 profile-showcase identity/history authority and profile/economy showcase genesis, append, and merge planning.
+- Aligned the SDK, MCP server, AI skills, lockfile, application contract, generated integration evidence, runtime labels, tests, checker, and documentation to Receiz `116.0.0`.
+- Adopted the v116 constitutional registry digest `9bf61fcf4541edf565bb2ded252e35a976a3ca7c9176dea0f1ffac74ce192a80` and 16-operation matrix digest `ec5829eeec039c1f4885d056b8cd6cf6506d08547cee58daa229ecbd44155420`.
+- Added release-gate coverage for v116 native-capture and PBI-authorship authority while retaining the profile/economy showcase operation surface.
+- Pinned immutable v116 release artifacts from upstream commit `8a8a828ec90794d3daa3c96ae97077ca2fc10121` until public npm registry publication.
 
 ## [3.0.0] - 2026-07-20
 

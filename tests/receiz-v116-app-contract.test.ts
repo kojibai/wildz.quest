@@ -7,16 +7,16 @@ import {
   RECEIZ_RULESET_VERSION,
   RECEIZ_SDK_VERSION,
   RECEIZ_CURRENT_CONSTITUTION_REGISTRY,
-  RECEIZ_V114_REGISTRY_DIGEST,
-  RECEIZ_V114_RELEASE_AUTHORITY
+  RECEIZ_V116_REGISTRY_DIGEST,
+  RECEIZ_V116_RELEASE_AUTHORITY
 } from "@receiz/sdk";
 import {
   checkReceizIntegration,
   compileReceizAppContract,
   defineReceizApp,
   generateNextjsAppRouterFiles,
-  RECEIZ_V114_APPLICATION_OPERATIONS,
-  RECEIZ_V114_APPLICATION_OPERATION_MATRIX_DIGEST
+  RECEIZ_V116_APPLICATION_OPERATIONS,
+  RECEIZ_V116_APPLICATION_OPERATION_MATRIX_DIGEST
 } from "@receiz/sdk/compiler";
 
 const expectedFeatures = [
@@ -31,52 +31,58 @@ const artifactLaws = RECEIZ_CURRENT_CONSTITUTION_REGISTRY.laws
   .map((law) => law.id)
   .filter((id) => /^ARTIFACT-\d{3}$/.test(id));
 
-describe("Receiz v114 application contract", () => {
-  it("compiles the truthful Wildz artifact-first contract through SDK v114", () => {
-    assert.equal(RECEIZ_SDK_VERSION, "114.0.0");
-    assert.equal(RECEIZ_RELEASE_VERSION, "114.0.0");
-    assert.equal(RECEIZ_RULESET_VERSION, "114.0.0");
+describe("Receiz v116 application contract", () => {
+  it("compiles the truthful Wildz artifact-first contract through SDK v116", () => {
+    assert.equal(RECEIZ_SDK_VERSION, "116.0.0");
+    assert.equal(RECEIZ_RELEASE_VERSION, "116.0.0");
+    assert.equal(RECEIZ_RULESET_VERSION, "116.0.0");
     assert.equal(
-      RECEIZ_V114_REGISTRY_DIGEST,
-      "ae912154d97b695464c3a19361bceb9440bc5d703a1d9129edac92c64192e29a"
+      RECEIZ_V116_REGISTRY_DIGEST,
+      "9bf61fcf4541edf565bb2ded252e35a976a3ca7c9176dea0f1ffac74ce192a80"
     );
     assert.deepEqual(artifactLaws, Array.from(
       { length: 30 },
       (_, index) => `ARTIFACT-${String(index + 1).padStart(3, "0")}`
     ));
-    assert.equal(RECEIZ_V114_RELEASE_AUTHORITY.proofObjectFirst, true);
-    assert.equal(RECEIZ_V114_RELEASE_AUTHORITY.receizComReferenceBeforeDeveloperRails, true);
-    assert.equal(RECEIZ_V114_RELEASE_AUTHORITY.admissionIsOperationAuthority, false);
-    assert.equal(RECEIZ_V114_RELEASE_AUTHORITY.commitDomainNamedAndAtomic, true);
-    assert.equal(RECEIZ_V114_RELEASE_AUTHORITY.receiptIsOperationAuthority, false);
-    assert.equal(RECEIZ_V114_RELEASE_AUTHORITY.globalMeansNamedCoordinationDomain, true);
-    assert.equal(RECEIZ_V114_RELEASE_AUTHORITY.offlineDivergenceResolution, "structural-only");
-    assert.equal(RECEIZ_V114_RELEASE_AUTHORITY.profileShowcaseLiteralIdentity, "profile-showcase:<owner>");
-    assert.equal(RECEIZ_V114_RELEASE_AUTHORITY.profileShowcaseArtifactIdentityIsPayloadDigest, false);
-    assert.equal(RECEIZ_V114_RELEASE_AUTHORITY.profileShowcaseSuccessorHistoryTravelsInSealedBytes, true);
-    assert.equal(RECEIZ_V114_RELEASE_AUTHORITY.profileShowcaseIntroducesNewSignerIssuerOrHeadAuthority, false);
-    assert.equal(RECEIZ_V114_APPLICATION_OPERATIONS.length, 16);
+    assert.equal(RECEIZ_V116_RELEASE_AUTHORITY.proofObjectFirst, true);
+    assert.equal(RECEIZ_V116_RELEASE_AUTHORITY.receizComReferenceBeforeDeveloperRails, true);
+    assert.equal(RECEIZ_V116_RELEASE_AUTHORITY.admissionIsOperationAuthority, false);
+    assert.equal(RECEIZ_V116_RELEASE_AUTHORITY.commitDomainNamedAndAtomic, true);
+    assert.equal(RECEIZ_V116_RELEASE_AUTHORITY.receiptIsOperationAuthority, false);
+    assert.equal(RECEIZ_V116_RELEASE_AUTHORITY.globalMeansNamedCoordinationDomain, true);
+    assert.equal(RECEIZ_V116_RELEASE_AUTHORITY.offlineDivergenceResolution, "structural-only");
+    assert.equal(RECEIZ_V116_RELEASE_AUTHORITY.profileShowcaseLiteralIdentity, "profile-showcase:<owner>");
+    assert.equal(RECEIZ_V116_RELEASE_AUTHORITY.profileShowcaseArtifactIdentityIsPayloadDigest, false);
+    assert.equal(RECEIZ_V116_RELEASE_AUTHORITY.profileShowcaseSuccessorHistoryTravelsInSealedBytes, true);
+    assert.equal(RECEIZ_V116_RELEASE_AUTHORITY.profileShowcaseIntroducesNewSignerIssuerOrHeadAuthority, false);
+    assert.equal(RECEIZ_V116_RELEASE_AUTHORITY.nativeCaptureAttestsDedicatedCameraCeremonyOnly, true);
+    assert.equal(RECEIZ_V116_RELEASE_AUTHORITY.pbiAuthorshipRequiresCanonicalEnclosingPredecessor, true);
+    assert.equal(RECEIZ_V116_RELEASE_AUTHORITY.pbiAuthorshipChangesOwnership, false);
+    assert.equal(RECEIZ_V116_RELEASE_AUTHORITY.pbiAuthorshipChangesMediaTruth, false);
+    assert.equal(RECEIZ_V116_RELEASE_AUTHORITY.pbiAuthorshipAppendsInVerifiedOrder, true);
+    assert.equal(RECEIZ_V116_RELEASE_AUTHORITY.offlineSettlementWaitsForGlobalPublication, false);
+    assert.equal(RECEIZ_V116_APPLICATION_OPERATIONS.length, 16);
     assert.equal(typeof defineReceizApp, "function");
     assert.equal(typeof compileReceizAppContract, "function");
 
     const input = JSON.parse(readFileSync("receiz.app.json", "utf8"));
     const contract = defineReceizApp(input);
-    const plan = compileReceizAppContract(contract, { targetSdkVersion: "114.0.0" });
+    const plan = compileReceizAppContract(contract, { targetSdkVersion: "116.0.0" });
 
-    assert.equal(plan.targetSdkVersion, "114.0.0");
+    assert.equal(plan.targetSdkVersion, "116.0.0");
     assert.deepEqual(contract.features, expectedFeatures);
     assert.equal(contract.authority.mode, "artifact-first");
     assert.equal(contract.authority.allowDatabaseAuthority, false);
     assert.deepEqual(
       contract.operations?.map((operation: { operation: string }) => operation.operation),
-      RECEIZ_V114_APPLICATION_OPERATIONS
+      RECEIZ_V116_APPLICATION_OPERATIONS
     );
     assert.equal(plan.authority.proofCreation, "authenticated-native-record-before-seal");
     assert.equal(plan.authority.databaseAuthority, false);
     assert.ok(plan.verificationCommands.length > 0);
   });
 
-  it("passes the v114 repository integration checker with evidence-backed rails", async () => {
+  it("passes the v116 repository integration checker with evidence-backed rails", async () => {
     const generated = JSON.parse(readFileSync("receiz.generated.json", "utf8"));
     const contract = defineReceizApp(JSON.parse(readFileSync("receiz.app.json", "utf8")));
     const generatedFile = generateNextjsAppRouterFiles(contract)
@@ -93,26 +99,26 @@ describe("Receiz v114 application contract", () => {
     assert.deepEqual(generated, JSON.parse(generatedFile.content));
 
     assert.equal(typeof checkReceizIntegration, "function");
-    const result = spawnSync(process.execPath, ["scripts/receiz-v114-check.mjs"], { encoding: "utf8" });
+    const result = spawnSync(process.execPath, ["scripts/receiz-v116-check.mjs"], { encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const report = JSON.parse(result.stdout);
     assert.deepEqual(report.blockingFindings, []);
     assert.equal(report.ok, true);
     assert.deepEqual(report.releaseIdentity, {
-      releaseVersion: "114.0.0",
-      rulesetVersion: "114.0.0",
-      registryDigest: "ae912154d97b695464c3a19361bceb9440bc5d703a1d9129edac92c64192e29a",
-      operationMatrixDigest: RECEIZ_V114_APPLICATION_OPERATION_MATRIX_DIGEST
+      releaseVersion: "116.0.0",
+      rulesetVersion: "116.0.0",
+      registryDigest: "9bf61fcf4541edf565bb2ded252e35a976a3ca7c9176dea0f1ffac74ce192a80",
+      operationMatrixDigest: RECEIZ_V116_APPLICATION_OPERATION_MATRIX_DIGEST
     });
     assert.deepEqual(report.artifactLaws, artifactLaws);
   });
 
-  it("enforces the v114 checker and browser compiler guard in release configuration", () => {
+  it("enforces the v116 checker and browser compiler guard in release configuration", () => {
     const pkg = JSON.parse(readFileSync("package.json", "utf8"));
     const releaseCheck = readFileSync("scripts/release-check.mjs", "utf8");
     const nextConfig = readFileSync("next.config.mjs", "utf8");
 
-    assert.equal(pkg.scripts?.["receiz:check"], "node scripts/receiz-v114-check.mjs");
+    assert.equal(pkg.scripts?.["receiz:check"], "node scripts/receiz-v116-check.mjs");
     assert.equal(pkg.scripts?.["receiz:conformance"], "receiz conformance");
     assert.match(releaseCheck, /["']receiz:check["']/);
     assert.match(nextConfig, /NormalModuleReplacementPlugin/);

@@ -5,13 +5,13 @@ import {
   RECEIZ_CURRENT_CONSTITUTION_REGISTRY,
   RECEIZ_V113_GLOBAL_COMMIT_DOMAIN,
   RECEIZ_V114_PROTOCOL_LIMITS,
-  RECEIZ_V114_REGISTRY_DIGEST,
-  RECEIZ_V114_RELEASE_AUTHORITY,
+  RECEIZ_V116_REGISTRY_DIGEST,
+  RECEIZ_V116_RELEASE_AUTHORITY,
   RECEIZ_V114_RUNTIME_MATERIALIZATION_LIMITS
 } from "@receiz/sdk";
 import {
-  RECEIZ_V114_APPLICATION_OPERATIONS,
-  RECEIZ_V114_APPLICATION_OPERATION_MATRIX_DIGEST
+  RECEIZ_V116_APPLICATION_OPERATIONS,
+  RECEIZ_V116_APPLICATION_OPERATION_MATRIX_DIGEST
 } from "@receiz/sdk/compiler";
 
 const read = (path: string) => readFileSync(path, "utf8");
@@ -19,34 +19,43 @@ const artifactLaws = RECEIZ_CURRENT_CONSTITUTION_REGISTRY.laws
   .map((law) => law.id)
   .filter((id) => /^ARTIFACT-\d{3}$/.test(id));
 
-test("ARTIFACT-001 through ARTIFACT-030 are pinned to the active v114 constitutional context", () => {
+test("ARTIFACT-001 through ARTIFACT-030 are pinned to the active v116 constitutional context", () => {
   assert.deepEqual(artifactLaws, Array.from(
     { length: 30 },
     (_, index) => `ARTIFACT-${String(index + 1).padStart(3, "0")}`
   ));
-  assert.equal(RECEIZ_V114_REGISTRY_DIGEST, "ae912154d97b695464c3a19361bceb9440bc5d703a1d9129edac92c64192e29a");
-  assert.equal(RECEIZ_V114_APPLICATION_OPERATION_MATRIX_DIGEST, "fd4ea8fccd867a0b9aab772ea6c5827ea8bdfe4c7fbed017c5a4843a40109c4f");
+  assert.equal(RECEIZ_V116_REGISTRY_DIGEST, "9bf61fcf4541edf565bb2ded252e35a976a3ca7c9176dea0f1ffac74ce192a80");
+  assert.equal(RECEIZ_V116_APPLICATION_OPERATION_MATRIX_DIGEST, "ec5829eeec039c1f4885d056b8cd6cf6506d08547cee58daa229ecbd44155420");
   assert.equal(RECEIZ_V113_GLOBAL_COMMIT_DOMAIN.value, "receiz.com/global/v1");
   assert.equal(RECEIZ_V114_PROTOCOL_LIMITS.exactArtifactBytes, 524_288_000);
   assert.equal(RECEIZ_V114_RUNTIME_MATERIALIZATION_LIMITS.exactArtifactBytes, 16_777_216);
   assert.deepEqual({
-    admissionIsOperationAuthority: RECEIZ_V114_RELEASE_AUTHORITY.admissionIsOperationAuthority,
-    transitionDigestExcludesPlanCoordination: RECEIZ_V114_RELEASE_AUTHORITY.transitionDigestExcludesPlanCoordination,
-    effectsDerivedByRegistryOperationLaw: RECEIZ_V114_RELEASE_AUTHORITY.effectsDerivedByRegistryOperationLaw,
-    commitDomainNamedAndAtomic: RECEIZ_V114_RELEASE_AUTHORITY.commitDomainNamedAndAtomic,
-    receiptIsOperationAuthority: RECEIZ_V114_RELEASE_AUTHORITY.receiptIsOperationAuthority,
-    browserAdmissionStoreCarriesProofObjects: RECEIZ_V114_RELEASE_AUTHORITY.browserAdmissionStoreCarriesProofObjects,
-    globalMeansNamedCoordinationDomain: RECEIZ_V114_RELEASE_AUTHORITY.globalMeansNamedCoordinationDomain,
-    databaseManufacturesArtifactTruth: RECEIZ_V114_RELEASE_AUTHORITY.databaseManufacturesArtifactTruth,
-    connectTokenIsArtifactAuthority: RECEIZ_V114_RELEASE_AUTHORITY.connectTokenIsArtifactAuthority,
-    offlineDivergenceResolution: RECEIZ_V114_RELEASE_AUTHORITY.offlineDivergenceResolution,
+    admissionIsOperationAuthority: RECEIZ_V116_RELEASE_AUTHORITY.admissionIsOperationAuthority,
+    transitionDigestExcludesPlanCoordination: RECEIZ_V116_RELEASE_AUTHORITY.transitionDigestExcludesPlanCoordination,
+    effectsDerivedByRegistryOperationLaw: RECEIZ_V116_RELEASE_AUTHORITY.effectsDerivedByRegistryOperationLaw,
+    commitDomainNamedAndAtomic: RECEIZ_V116_RELEASE_AUTHORITY.commitDomainNamedAndAtomic,
+    receiptIsOperationAuthority: RECEIZ_V116_RELEASE_AUTHORITY.receiptIsOperationAuthority,
+    browserAdmissionStoreCarriesProofObjects: RECEIZ_V116_RELEASE_AUTHORITY.browserAdmissionStoreCarriesProofObjects,
+    globalMeansNamedCoordinationDomain: RECEIZ_V116_RELEASE_AUTHORITY.globalMeansNamedCoordinationDomain,
+    databaseManufacturesArtifactTruth: RECEIZ_V116_RELEASE_AUTHORITY.databaseManufacturesArtifactTruth,
+    connectTokenIsArtifactAuthority: RECEIZ_V116_RELEASE_AUTHORITY.connectTokenIsArtifactAuthority,
+    offlineDivergenceResolution: RECEIZ_V116_RELEASE_AUTHORITY.offlineDivergenceResolution,
     profileShowcaseArtifactIdentityIsPayloadDigest:
-      RECEIZ_V114_RELEASE_AUTHORITY.profileShowcaseArtifactIdentityIsPayloadDigest,
-    profileShowcaseLiteralIdentity: RECEIZ_V114_RELEASE_AUTHORITY.profileShowcaseLiteralIdentity,
+      RECEIZ_V116_RELEASE_AUTHORITY.profileShowcaseArtifactIdentityIsPayloadDigest,
+    profileShowcaseLiteralIdentity: RECEIZ_V116_RELEASE_AUTHORITY.profileShowcaseLiteralIdentity,
     profileShowcaseSuccessorHistoryTravelsInSealedBytes:
-      RECEIZ_V114_RELEASE_AUTHORITY.profileShowcaseSuccessorHistoryTravelsInSealedBytes,
+      RECEIZ_V116_RELEASE_AUTHORITY.profileShowcaseSuccessorHistoryTravelsInSealedBytes,
     profileShowcaseIntroducesNewSignerIssuerOrHeadAuthority:
-      RECEIZ_V114_RELEASE_AUTHORITY.profileShowcaseIntroducesNewSignerIssuerOrHeadAuthority
+      RECEIZ_V116_RELEASE_AUTHORITY.profileShowcaseIntroducesNewSignerIssuerOrHeadAuthority,
+    nativeCaptureAttestsDedicatedCameraCeremonyOnly:
+      RECEIZ_V116_RELEASE_AUTHORITY.nativeCaptureAttestsDedicatedCameraCeremonyOnly,
+    pbiAuthorshipRequiresCanonicalEnclosingPredecessor:
+      RECEIZ_V116_RELEASE_AUTHORITY.pbiAuthorshipRequiresCanonicalEnclosingPredecessor,
+    pbiAuthorshipChangesOwnership: RECEIZ_V116_RELEASE_AUTHORITY.pbiAuthorshipChangesOwnership,
+    pbiAuthorshipChangesMediaTruth: RECEIZ_V116_RELEASE_AUTHORITY.pbiAuthorshipChangesMediaTruth,
+    pbiAuthorshipAppendsInVerifiedOrder: RECEIZ_V116_RELEASE_AUTHORITY.pbiAuthorshipAppendsInVerifiedOrder,
+    offlineSettlementWaitsForGlobalPublication:
+      RECEIZ_V116_RELEASE_AUTHORITY.offlineSettlementWaitsForGlobalPublication
   }, {
     admissionIsOperationAuthority: false,
     transitionDigestExcludesPlanCoordination: true,
@@ -61,7 +70,13 @@ test("ARTIFACT-001 through ARTIFACT-030 are pinned to the active v114 constituti
     profileShowcaseArtifactIdentityIsPayloadDigest: false,
     profileShowcaseLiteralIdentity: "profile-showcase:<owner>",
     profileShowcaseSuccessorHistoryTravelsInSealedBytes: true,
-    profileShowcaseIntroducesNewSignerIssuerOrHeadAuthority: false
+    profileShowcaseIntroducesNewSignerIssuerOrHeadAuthority: false,
+    nativeCaptureAttestsDedicatedCameraCeremonyOnly: true,
+    pbiAuthorshipRequiresCanonicalEnclosingPredecessor: true,
+    pbiAuthorshipChangesOwnership: false,
+    pbiAuthorshipChangesMediaTruth: false,
+    pbiAuthorshipAppendsInVerifiedOrder: true,
+    offlineSettlementWaitsForGlobalPublication: false
   });
 });
 
@@ -91,32 +106,32 @@ test("the thirty-law custody matrix has executable repository and SDK evidence",
     "ARTIFACT-014": /commitArtifactRecovery/.test(adapter),
     "ARTIFACT-015": /admitAndRecoverArtifact/.test(adapter),
     "ARTIFACT-016": /file\.arrayBuffer\(\)/.test(custody) && /artifact_digest_mismatch/.test(custody),
-    "ARTIFACT-017": RECEIZ_V114_RELEASE_AUTHORITY.recoveryHistoryRequiresIndependentEvidenceRoots,
+    "ARTIFACT-017": RECEIZ_V116_RELEASE_AUTHORITY.recoveryHistoryRequiresIndependentEvidenceRoots,
     "ARTIFACT-018": /challengeB64Url/.test(adapter),
-    "ARTIFACT-019": RECEIZ_V114_RELEASE_AUTHORITY.planIdentityDistinctFromAttemptIdentity,
-    "ARTIFACT-020": !RECEIZ_V114_RELEASE_AUTHORITY.terminalMcpAttemptConfirmationReusable,
-    "ARTIFACT-021": !RECEIZ_V114_RELEASE_AUTHORITY.admissionIsOperationAuthority,
-    "ARTIFACT-022": RECEIZ_V114_RELEASE_AUTHORITY.transitionDigestExcludesPlanCoordination,
-    "ARTIFACT-023": RECEIZ_V114_RELEASE_AUTHORITY.canonicalIdentityRequiresSigningChallenge,
-    "ARTIFACT-024": RECEIZ_V114_RELEASE_AUTHORITY.recoveryHistoryRequiresIndependentEvidenceRoots,
-    "ARTIFACT-025": RECEIZ_V114_RELEASE_AUTHORITY.recoveryCommitIsAtomic,
-    "ARTIFACT-026": RECEIZ_V114_RELEASE_AUTHORITY.commitDomainNamedAndAtomic,
+    "ARTIFACT-019": RECEIZ_V116_RELEASE_AUTHORITY.planIdentityDistinctFromAttemptIdentity,
+    "ARTIFACT-020": !RECEIZ_V116_RELEASE_AUTHORITY.terminalMcpAttemptConfirmationReusable,
+    "ARTIFACT-021": !RECEIZ_V116_RELEASE_AUTHORITY.admissionIsOperationAuthority,
+    "ARTIFACT-022": RECEIZ_V116_RELEASE_AUTHORITY.transitionDigestExcludesPlanCoordination,
+    "ARTIFACT-023": RECEIZ_V116_RELEASE_AUTHORITY.canonicalIdentityRequiresSigningChallenge,
+    "ARTIFACT-024": RECEIZ_V116_RELEASE_AUTHORITY.recoveryHistoryRequiresIndependentEvidenceRoots,
+    "ARTIFACT-025": RECEIZ_V116_RELEASE_AUTHORITY.recoveryCommitIsAtomic,
+    "ARTIFACT-026": RECEIZ_V116_RELEASE_AUTHORITY.commitDomainNamedAndAtomic,
     "ARTIFACT-027": RECEIZ_V113_GLOBAL_COMMIT_DOMAIN.scheme === "receiz-commit-domain.v1",
     "ARTIFACT-028": /idempotencyKey/.test(adapter),
-    "ARTIFACT-029": !RECEIZ_V114_RELEASE_AUTHORITY.receiptIsOperationAuthority,
-    "ARTIFACT-030": RECEIZ_V114_APPLICATION_OPERATIONS.includes("artifact.global.resolve")
-      && RECEIZ_V114_APPLICATION_OPERATIONS.includes("artifact.offline.reconcile")
-      && RECEIZ_V114_APPLICATION_OPERATIONS.includes("profile-showcase.genesis.plan")
-      && RECEIZ_V114_APPLICATION_OPERATIONS.includes("profile-showcase.append.plan")
-      && RECEIZ_V114_APPLICATION_OPERATIONS.includes("economy-showcase.genesis.plan")
-      && RECEIZ_V114_APPLICATION_OPERATIONS.includes("economy-showcase.append.plan")
-      && RECEIZ_V114_APPLICATION_OPERATIONS.includes("economy-showcase.merge.plan")
+    "ARTIFACT-029": !RECEIZ_V116_RELEASE_AUTHORITY.receiptIsOperationAuthority,
+    "ARTIFACT-030": RECEIZ_V116_APPLICATION_OPERATIONS.includes("artifact.global.resolve")
+      && RECEIZ_V116_APPLICATION_OPERATIONS.includes("artifact.offline.reconcile")
+      && RECEIZ_V116_APPLICATION_OPERATIONS.includes("profile-showcase.genesis.plan")
+      && RECEIZ_V116_APPLICATION_OPERATIONS.includes("profile-showcase.append.plan")
+      && RECEIZ_V116_APPLICATION_OPERATIONS.includes("economy-showcase.genesis.plan")
+      && RECEIZ_V116_APPLICATION_OPERATIONS.includes("economy-showcase.append.plan")
+      && RECEIZ_V116_APPLICATION_OPERATIONS.includes("economy-showcase.merge.plan")
   };
   assert.deepEqual(Object.keys(evidence), artifactLaws);
   assert.ok(Object.values(evidence).every(Boolean), JSON.stringify(evidence));
 });
 
-test("v114 MCP and AI Skills expose the same nine-tool artifact operation map", () => {
+test("v116 MCP and AI Skills expose the same nine-tool artifact operation map", () => {
   const mcpOperations = read("node_modules/@receiz/mcp-server/dist/operations.d.ts");
   const aiIndex = JSON.parse(read("node_modules/@receiz/ai-skills/skills.json")) as {
     version: string;
@@ -137,7 +152,7 @@ test("v114 MCP and AI Skills expose the same nine-tool artifact operation map", 
   ];
   assert.deepEqual(aiIndex.currentMcpArtifactTools, expectedTools);
   for (const operation of expectedTools) assert.match(mcpOperations, new RegExp(operation));
-  assert.equal(aiIndex.version, "114.0.0");
-  assert.equal(aiIndex.registryDigest, RECEIZ_V114_REGISTRY_DIGEST);
-  assert.equal(aiIndex.operationMatrixDigest, RECEIZ_V114_APPLICATION_OPERATION_MATRIX_DIGEST);
+  assert.equal(aiIndex.version, "116.0.0");
+  assert.equal(aiIndex.registryDigest, RECEIZ_V116_REGISTRY_DIGEST);
+  assert.equal(aiIndex.operationMatrixDigest, RECEIZ_V116_APPLICATION_OPERATION_MATRIX_DIGEST);
 });

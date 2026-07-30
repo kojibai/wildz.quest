@@ -73,7 +73,7 @@ export async function openWildzArtifactSameOrigin(
     body: form,
     cache: "no-store",
     credentials: "same-origin",
-    headers: { "x-wildz-artifact-open": "v114" }
+    headers: { "x-wildz-artifact-open": "v116" }
   });
   if (!response.ok) throw new Error(`receiz_artifact_open_http_${response.status}`);
   const payload: unknown = await response.json();

@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/kojibai/wildz.quest/actions/workflows/ci.yml/badge.svg)](https://github.com/kojibai/wildz.quest/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-2ea44f.svg)](LICENSE)
-[![Receiz SDK](https://img.shields.io/badge/Receiz%20SDK-114.0.0-6f42c1.svg)](https://www.npmjs.com/package/@receiz/sdk)
+[![Receiz SDK](https://img.shields.io/badge/Receiz%20SDK-116.0.0-6f42c1.svg)](https://www.npmjs.com/package/@receiz/sdk)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
 
 > Wildz is both a product and a reference implementation. The game is the product; the repository is the evidence that the Receiz application model can be reshaped into something genuinely different without replacing its proof authority.
@@ -20,11 +20,11 @@ It demonstrates four layers working together:
 | Layer | What Wildz uses it for | Authority boundary |
 |---|---|---|
 | [Receiz Commerce Kit](https://github.com/kojibai/Receiz-commerce) | The forkable application kernel and original commerce architecture | Starting point, not a runtime dependency |
-| `@receiz/sdk@114.0.0` | Identity, proof objects, custody, ownership, publication, audit, and settlement clients | The typed application/runtime boundary |
-| `@receiz/mcp-server@114.0.0` | Capability inspection and authorized operator workflows | Tooling only; it cannot manufacture proof or authority |
-| `@receiz/ai-skills@114.0.0` plus the checked-in Wildz skills | Proof-aware build, market, and release procedures for coding agents | Operating guidance only; verification still wins |
+| `@receiz/sdk@116.0.0` | Identity, proof objects, custody, ownership, publication, audit, and settlement clients | The typed application/runtime boundary |
+| `@receiz/mcp-server@116.0.0` | Capability inspection and authorized operator workflows | Tooling only; it cannot manufacture proof or authority |
+| `@receiz/ai-skills@116.0.0` plus the checked-in Wildz skills | Proof-aware build, market, and release procedures for coding agents | Operating guidance only; verification still wins |
 
-All three Receiz packages resolve from the official npm registry and are pinned by `pnpm-lock.yaml`. The application contract in [`receiz.app.json`](receiz.app.json) selects artifact-first authority and explicitly disables database authority.
+All three Receiz packages are built from upstream release commit `8a8a828ec90794d3daa3c96ae97077ca2fc10121`. Until public npm registry publication, the immutable tarballs and their SHA-512 hashes are pinned under [`vendor/receiz-v116`](vendor/receiz-v116); `pnpm-lock.yaml` resolves only those artifacts. The application contract in [`receiz.app.json`](receiz.app.json) selects artifact-first authority and explicitly disables database authority.
 
 ## What was built
 
@@ -64,7 +64,7 @@ Before changing code, establish a clean baseline:
 pnpm release:check
 ```
 
-That command runs the Node test suite, typecheck, Receiz v114 contract checker, MCP conformance, lint, tracked/untracked text secret scan, production build, and default Receiz doctor.
+That command runs the Node test suite, typecheck, Receiz v116 contract checker, MCP conformance, lint, tracked/untracked text secret scan, production build, and default Receiz doctor.
 
 ## The system in one view
 
@@ -92,9 +92,9 @@ Read the detailed [architecture](docs/ARCHITECTURE.md), [Receiz rail map](docs/R
 
 ### SDK application boundary
 
-Application-facing Receiz code lives in [`src/lib/receiz`](src/lib/receiz). UI and game modules consume these adapters instead of scattering SDK calls across components. New v114 artifacts use the native Record → Seal flow, preserve SDK-returned bytes exactly, and are independently reopened before acceptance.
+Application-facing Receiz code lives in [`src/lib/receiz`](src/lib/receiz). UI and game modules consume these adapters instead of scattering SDK calls across components. New v116 artifacts use the native Record → Seal flow, preserve SDK-returned bytes exactly, and are independently reopened before acceptance.
 
-The checked-in contract and generated evidence bind the application to the v114 ruleset, registry digest, 16-operation matrix, protocol limits, 30 numbered artifact laws, and the v114 profile/economy showcase authority rules. The expanded matrix adds profile-showcase genesis and append planning plus economy-showcase genesis, append, and merge planning while keeping plans non-authoritative and zero-write:
+The checked-in contract and generated evidence bind the application to the v116 ruleset, registry digest, 16-operation matrix, protocol limits, 30 numbered artifact laws, profile/economy showcase authority, and native-capture/PBI-authorship rules. The matrix retains profile-showcase genesis and append planning plus economy-showcase genesis, append, and merge planning while keeping plans non-authoritative and zero-write:
 
 ```bash
 pnpm receiz:check
@@ -109,7 +109,7 @@ Run the pinned MCP server from an MCP-capable agent host:
 pnpm exec receiz-mcp
 ```
 
-Public reads do not require a bearer token. Authorized delegated operations require a scoped Receiz credential supplied to the MCP process. MCP packages must stay out of browser and application bundles. See [`docs/MCP.md`](docs/MCP.md) for the supported v114 inventory and credential boundary.
+Public reads do not require a bearer token. Authorized delegated operations require a scoped Receiz credential supplied to the MCP process. MCP packages must stay out of browser and application bundles. See [`docs/MCP.md`](docs/MCP.md) for the supported v116 inventory and credential boundary.
 
 ### AI-native repository operations
 
@@ -134,7 +134,7 @@ Wildz adds no external application database. Owner-scoped continuity is retained
 | Publication and public projection writes | Fail closed | Capability required | No |
 | Listing, trade, transfer, payment, settlement | Fail closed | Every required capability and proof required | No |
 
-The current v114 SDK does not expose Wildz's required conditional market-ownership append. Those live mutations therefore remain deliberately unavailable; the app does not substitute IndexedDB, process memory, or a successful checkout response for settlement authority.
+The current v116 SDK does not expose Wildz's required conditional market-ownership append. Those live mutations therefore remain deliberately unavailable; the app does not substitute IndexedDB, process memory, or a successful checkout response for settlement authority.
 
 ## Repository map
 
