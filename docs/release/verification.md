@@ -14,7 +14,7 @@ The exact local candidate passed the repository release gate and is qualified fo
 | `@receiz/mcp-server` | `116.0.0` | `116.0.0` | Operator tooling; never application authority |
 | `@receiz/ai-skills` | `116.0.0` | `116.0.0` | V116 operator procedure guidance; never proof authority |
 
-The finalized v116 SDK, MCP, and AI-skills packages were built from upstream release commit `8a8a828ec90794d3daa3c96ae97077ca2fc10121`. Their vendored tarballs and lockfile integrity values remain pinned until public npm registry publication. `receiz.app.json` declares artifact-first authority with database authority disabled; the v116 compiler and `pnpm receiz:check` validate the repository integration plan, release identity, ruleset, registry digest `9bf61fcf4541edf565bb2ded252e35a976a3ca7c9176dea0f1ffac74ce192a80`, 16-operation matrix digest `ec5829eeec039c1f4885d056b8cd6cf6506d08547cee58daa229ecbd44155420`, 30 numbered artifact laws, v116 profile-showcase authority rules, and protocol/runtime limits.
+The finalized v116 SDK, MCP, and AI-skills packages resolve from the public npm registry at exact version `116.0.0`, with published integrity values pinned in `pnpm-lock.yaml`. `receiz.app.json` declares artifact-first authority with database authority disabled; the v116 compiler and `pnpm receiz:check` validate the repository integration plan, release identity, ruleset, registry digest `9bf61fcf4541edf565bb2ded252e35a976a3ca7c9176dea0f1ffac74ce192a80`, 16-operation matrix digest `ec5829eeec039c1f4885d056b8cd6cf6506d08547cee58daa229ecbd44155420`, 30 numbered artifact laws, v116 profile-showcase authority rules, and protocol/runtime limits.
 
 ## Local evidence
 

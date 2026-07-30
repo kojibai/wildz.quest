@@ -1,6 +1,6 @@
 # Wildz release — Receiz v116
 
-Release only with exact `@receiz/sdk@116.0.0`, `@receiz/mcp-server@116.0.0`, and `@receiz/ai-skills@116.0.0` artifacts from upstream release commit `8a8a828ec90794d3daa3c96ae97077ca2fc10121`, with the vendored SHA-512 values verified until public npm registry publication, ruleset `116.0.0`, registry digest `9bf61fcf4541edf565bb2ded252e35a976a3ca7c9176dea0f1ffac74ce192a80`, and operation-matrix digest `ec5829eeec039c1f4885d056b8cd6cf6506d08547cee58daa229ecbd44155420`.
+Release only with exact public npm packages `@receiz/sdk@116.0.0`, `@receiz/mcp-server@116.0.0`, and `@receiz/ai-skills@116.0.0`, their published SHA-512 values verified in `pnpm-lock.yaml`, ruleset `116.0.0`, registry digest `9bf61fcf4541edf565bb2ded252e35a976a3ca7c9176dea0f1ffac74ce192a80`, and operation-matrix digest `ec5829eeec039c1f4885d056b8cd6cf6506d08547cee58daa229ecbd44155420`.
 
 Receiz proof authority and verified local history are stronger truth. Require explicit confirmation for publication or deployment. A queued proposal is not a global commitment. MCP, AI, compiler, checker, registry evaluation, and release locks remain below sealed proof authority.
 

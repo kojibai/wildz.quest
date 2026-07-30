@@ -76,9 +76,6 @@
   },
   "pnpm": {
     "overrides": {
-      "@receiz/ai-skills": "file:vendor/receiz-v116/receiz-ai-skills-116.0.0.tgz",
-      "@receiz/mcp-server": "file:vendor/receiz-v116/receiz-mcp-server-116.0.0.tgz",
-      "@receiz/sdk": "file:vendor/receiz-v116/receiz-sdk-116.0.0.tgz",
       "postcss": ">=8.5.10"
     }
   }

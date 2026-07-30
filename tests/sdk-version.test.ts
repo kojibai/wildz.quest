@@ -69,10 +69,11 @@ test("SDK, operational MCP, and AI skills request and install only Receiz v116",
   assert.equal(installedSdk, "116.0.0");
   assert.equal(installedMcp, "116.0.0");
   assert.equal(installedAiSkills, "116.0.0");
-  assert.equal(pkg.pnpm?.overrides?.["@receiz/sdk"], "file:vendor/receiz-v116/receiz-sdk-116.0.0.tgz");
-  assert.equal(pkg.pnpm?.overrides?.["@receiz/mcp-server"], "file:vendor/receiz-v116/receiz-mcp-server-116.0.0.tgz");
-  assert.equal(pkg.pnpm?.overrides?.["@receiz/ai-skills"], "file:vendor/receiz-v116/receiz-ai-skills-116.0.0.tgz");
-  assert.ok(lockfile.includes("sha512-b8dnWiRV5fljLclfYNMf3cGsBjzSPtW+R5EvEASNqFWPOViOOFWaiGy4D4NfO4IfnEIONgIK2IGOSExFYtIRnA=="));
+  assert.equal(pkg.pnpm?.overrides?.["@receiz/sdk"], undefined);
+  assert.equal(pkg.pnpm?.overrides?.["@receiz/mcp-server"], undefined);
+  assert.equal(pkg.pnpm?.overrides?.["@receiz/ai-skills"], undefined);
+  assert.doesNotMatch(lockfile, /file:vendor\/receiz-v116/);
+  assert.ok(lockfile.includes("sha512-0Xla7lyOtSKxkN0frJJLhtvvK4TblQFAUU5hfpJq2G80zuWWnOEKfBtAgeQrdxWGUQkEV48WXih/QL1zfQu7/g=="));
   assert.ok(lockfile.includes("sha512-IkdW5s4Wt5FMyQEZY49I3YK7IWVtxUdvrWtNig2tlgv/4qaSoNg1F39hG0aVxoJ1D4HzpH0wLxhjFjhjJnr3cg=="));
   assert.ok(lockfile.includes("sha512-DXRTe0hWruAiLL1a3iUbPnIlfK+dj9mOmSQZTByQIkcuKlZEYJ0L7u93hAz3bwZxP00b3j/mtIQAnttQ3x4lqg=="));
   assert.equal(pkg.scripts?.["receiz:check"], "node scripts/receiz-v116-check.mjs");

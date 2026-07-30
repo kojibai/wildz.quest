@@ -1,6 +1,6 @@
 # Wildz v116 AI operating doctrine
 
-Wildz is aligned only to `@receiz/ai-skills@116.0.0`, `@receiz/sdk@116.0.0`, and `@receiz/mcp-server@116.0.0` from upstream release commit `8a8a828ec90794d3daa3c96ae97077ca2fc10121`. Immutable tarballs remain pinned until public npm registry publication. All procedures bind to registry digest `9bf61fcf4541edf565bb2ded252e35a976a3ca7c9176dea0f1ffac74ce192a80`, 16-operation matrix digest `ec5829eeec039c1f4885d056b8cd6cf6506d08547cee58daa229ecbd44155420`, artifact laws `ARTIFACT-001` through `ARTIFACT-030`, and the v116 profile/economy showcase authority rules.
+Wildz is aligned only to the public npm releases `@receiz/ai-skills@116.0.0`, `@receiz/sdk@116.0.0`, and `@receiz/mcp-server@116.0.0`, with published integrity values pinned in `pnpm-lock.yaml`. All procedures bind to registry digest `9bf61fcf4541edf565bb2ded252e35a976a3ca7c9176dea0f1ffac74ce192a80`, 16-operation matrix digest `ec5829eeec039c1f4885d056b8cd6cf6506d08547cee58daa229ecbd44155420`, artifact laws `ARTIFACT-001` through `ARTIFACT-030`, and the v116 profile/economy showcase authority rules.
 
 Sealed proof-object truth and verified local history outrank SDK, MCP, AI, server, database, session, and UI projections. Receiz.com reference behavior comes before developer rails. Never mutate witnessed history; append authenticated truth and rebuild projections. A queued proposal is not a global commitment.
 

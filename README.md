@@ -24,7 +24,7 @@ It demonstrates four layers working together:
 | `@receiz/mcp-server@116.0.0` | Capability inspection and authorized operator workflows | Tooling only; it cannot manufacture proof or authority |
 | `@receiz/ai-skills@116.0.0` plus the checked-in Wildz skills | Proof-aware build, market, and release procedures for coding agents | Operating guidance only; verification still wins |
 
-All three Receiz packages are built from upstream release commit `8a8a828ec90794d3daa3c96ae97077ca2fc10121`. Until public npm registry publication, the immutable tarballs and their SHA-512 hashes are pinned under [`vendor/receiz-v116`](vendor/receiz-v116); `pnpm-lock.yaml` resolves only those artifacts. The application contract in [`receiz.app.json`](receiz.app.json) selects artifact-first authority and explicitly disables database authority.
+All three Receiz packages resolve at exact version `116.0.0` from the public npm registry, with their published SHA-512 integrity values pinned by `pnpm-lock.yaml`. The application contract in [`receiz.app.json`](receiz.app.json) selects artifact-first authority and explicitly disables database authority.
 
 ## What was built
 

@@ -1,6 +1,6 @@
 # Receiz rails for Wildz v3
 
-Wildz targets the exact `@receiz/sdk@116.0.0` release. Application code uses SDK identity, artifact, native proof-object, publication, audit, and settlement clients. `@receiz/mcp-server@116.0.0` and `@receiz/ai-skills@116.0.0` are operator tooling only; neither can replace proof verification or independently admit a mutation. The packages come from upstream release commit `8a8a828ec90794d3daa3c96ae97077ca2fc10121`; immutable vendored tarballs and lockfile integrity values keep installation reproducible until public npm registry publication.
+Wildz targets the exact `@receiz/sdk@116.0.0` release. Application code uses SDK identity, artifact, native proof-object, publication, audit, and settlement clients. `@receiz/mcp-server@116.0.0` and `@receiz/ai-skills@116.0.0` are operator tooling only; neither can replace proof verification or independently admit a mutation. The packages resolve from the public npm registry, and their published lockfile integrity values keep installation reproducible.
 
 ## Authority map
 

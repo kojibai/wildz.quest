@@ -32,8 +32,8 @@ test("Wildz v3 release doctrine names the exact Receiz v116 toolchain", () => {
   assert.match(mcp, /@receiz\/sdk@116\.0\.0/);
   assert.match(mcp, /@receiz\/mcp-server@116\.0\.0/);
   assert.match(mcp, /@receiz\/ai-skills@116\.0\.0/);
-  assert.match(packageSourceDocs, /release commit/i);
-  assert.match(packageSourceDocs, /public npm registry publication/i);
+  assert.match(packageSourceDocs, /public npm/i);
+  assert.match(packageSourceDocs, /published (?:SHA-512 )?integrity/i);
 });
 
 test("release documentation states the real offline and remote authority boundaries", () => {
