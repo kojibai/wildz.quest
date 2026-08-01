@@ -210,7 +210,7 @@ export function WildsInventory({
     try {
       const player = playerVault();
       await onExportVault(state.inventory, player);
-      setVaultMessage("Receiz-sealed Vault downloaded for SDK v116 offline verification.");
+      setVaultMessage("Receiz-sealed Vault downloaded for SDK v118 offline verification.");
     } catch (error) {
       setVaultMessage(error instanceof Error ? `Vault save failed: ${error.message}` : "Vault save failed. Try again from this browser.");
     } finally {

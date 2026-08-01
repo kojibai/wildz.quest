@@ -25,7 +25,7 @@
       "outputAuthority": "verified-artifact-runtime",
       "processBoundary": "reverify-exact-bytes",
       "namespacePolicy": "not-applicable",
-      "compatibleSdkRange": ">=116.0.0 <117.0.0"
+      "compatibleSdkRange": ">=118.0.0 <119.0.0"
     },
     {
       "operation": "artifact.admit",
@@ -39,7 +39,7 @@
       "outputAuthority": "verified-admission-runtime",
       "processBoundary": "same-runtime-custody",
       "namespacePolicy": "not-applicable",
-      "compatibleSdkRange": ">=116.0.0 <117.0.0"
+      "compatibleSdkRange": ">=118.0.0 <119.0.0"
     },
     {
       "operation": "artifact.append.plan",
@@ -61,7 +61,7 @@
       "outputAuthority": "sdk-plan-runtime",
       "processBoundary": "same-runtime-custody",
       "namespacePolicy": "preserve-all-non-target",
-      "compatibleSdkRange": ">=116.0.0 <117.0.0"
+      "compatibleSdkRange": ">=118.0.0 <119.0.0"
     },
     {
       "operation": "identity.capability.sign",
@@ -74,7 +74,7 @@
       "outputAuthority": "signed-capability-claim-not-yet-verified",
       "processBoundary": "local-identity-key-custody",
       "namespacePolicy": "not-applicable",
-      "compatibleSdkRange": ">=116.0.0 <117.0.0"
+      "compatibleSdkRange": ">=118.0.0 <119.0.0"
     },
     {
       "operation": "artifact.transition.seal",
@@ -91,7 +91,7 @@
       "outputAuthority": "sealed-candidate-proof-object-not-accepted-head",
       "processBoundary": "same-runtime-custody",
       "namespacePolicy": "preserve-all-non-target",
-      "compatibleSdkRange": ">=116.0.0 <117.0.0"
+      "compatibleSdkRange": ">=118.0.0 <119.0.0"
     },
     {
       "operation": "artifact.transition.stage",
@@ -108,7 +108,7 @@
       "outputAuthority": "staged-candidate-locator-non-authoritative",
       "processBoundary": "same-runtime-custody",
       "namespacePolicy": "preserve-all-non-target",
-      "compatibleSdkRange": ">=116.0.0 <117.0.0"
+      "compatibleSdkRange": ">=118.0.0 <119.0.0"
     },
     {
       "operation": "artifact.transition.commit",
@@ -127,7 +127,7 @@
       "outputAuthority": "accepted-artifact-history-with-report-only-receipt",
       "processBoundary": "same-runtime-custody",
       "namespacePolicy": "preserve-all-non-target",
-      "compatibleSdkRange": ">=116.0.0 <117.0.0"
+      "compatibleSdkRange": ">=118.0.0 <119.0.0"
     },
     {
       "operation": "admission.command.execute",
@@ -148,7 +148,7 @@
       "outputAuthority": "admission-receipt-non-authoritative",
       "processBoundary": "same-runtime-custody",
       "namespacePolicy": "not-applicable",
-      "compatibleSdkRange": ">=116.0.0 <117.0.0"
+      "compatibleSdkRange": ">=118.0.0 <119.0.0"
     },
     {
       "operation": "public-proof.projection.locate",
@@ -162,7 +162,7 @@
       "outputAuthority": "exact-artifact-bytes-not-yet-verified",
       "processBoundary": "projection-only",
       "namespacePolicy": "not-applicable",
-      "compatibleSdkRange": ">=116.0.0 <117.0.0"
+      "compatibleSdkRange": ">=118.0.0 <119.0.0"
     },
     {
       "operation": "artifact.global.resolve",
@@ -178,7 +178,7 @@
       "outputAuthority": "exact-artifact-bytes-not-yet-verified",
       "processBoundary": "reverify-exact-bytes",
       "namespacePolicy": "not-applicable",
-      "compatibleSdkRange": ">=116.0.0 <117.0.0"
+      "compatibleSdkRange": ">=118.0.0 <119.0.0"
     },
     {
       "operation": "artifact.offline.reconcile",
@@ -201,7 +201,7 @@
       "outputAuthority": "accepted-artifact-history-with-report-only-receipt",
       "processBoundary": "reverify-exact-bytes",
       "namespacePolicy": "preserve-all-non-target",
-      "compatibleSdkRange": ">=116.0.0 <117.0.0"
+      "compatibleSdkRange": ">=118.0.0 <119.0.0"
     },
     {
       "operation": "profile-showcase.genesis.plan",
@@ -225,7 +225,7 @@
       "outputAuthority": "sdk-plan-runtime",
       "processBoundary": "same-runtime-custody",
       "namespacePolicy": "preserve-all-non-target",
-      "compatibleSdkRange": ">=116.0.0 <117.0.0"
+      "compatibleSdkRange": ">=118.0.0 <119.0.0"
     },
     {
       "operation": "profile-showcase.append.plan",
@@ -251,7 +251,7 @@
       "outputAuthority": "sdk-plan-runtime",
       "processBoundary": "same-runtime-custody",
       "namespacePolicy": "preserve-all-non-target",
-      "compatibleSdkRange": ">=116.0.0 <117.0.0"
+      "compatibleSdkRange": ">=118.0.0 <119.0.0"
     },
     {
       "operation": "economy-showcase.genesis.plan",
@@ -275,7 +275,7 @@
       "outputAuthority": "sdk-plan-runtime",
       "processBoundary": "same-runtime-custody",
       "namespacePolicy": "preserve-all-non-target",
-      "compatibleSdkRange": ">=116.0.0 <117.0.0"
+      "compatibleSdkRange": ">=118.0.0 <119.0.0"
     },
     {
       "operation": "economy-showcase.append.plan",
@@ -302,7 +302,7 @@
       "outputAuthority": "sdk-plan-runtime",
       "processBoundary": "same-runtime-custody",
       "namespacePolicy": "preserve-all-non-target",
-      "compatibleSdkRange": ">=116.0.0 <117.0.0"
+      "compatibleSdkRange": ">=118.0.0 <119.0.0"
     },
     {
       "operation": "economy-showcase.merge.plan",
@@ -330,7 +330,7 @@
       "outputAuthority": "sdk-plan-runtime",
       "processBoundary": "same-runtime-custody",
       "namespacePolicy": "preserve-all-non-target",
-      "compatibleSdkRange": ">=116.0.0 <117.0.0"
+      "compatibleSdkRange": ">=118.0.0 <119.0.0"
     }
   ],
   "deployment": {

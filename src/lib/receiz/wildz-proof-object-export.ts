@@ -98,7 +98,7 @@ export async function createWildzExportProofObject(input: {
     payload: { mimeType: "image/png", bytes: input.bytes.slice() }
   };
   const artifact = await input.createProofObject(proofObject, {
-    idempotencyKey: `wildz-v116-${digest}`,
+    idempotencyKey: `wildz-v118-${digest}`,
     filename: safeSourceFilename(input.filename)
   });
   const admitted = await downloadAndReopenWildzArtifact(artifact, input.artifacts);

@@ -4,7 +4,7 @@ import { test } from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("Wildz v3 release doctrine names the exact Receiz v116 toolchain", () => {
+test("Wildz v3 release doctrine names the exact Receiz v118 toolchain", () => {
   const pkg = JSON.parse(read("package.json")) as {
     version?: string;
     dependencies?: Record<string, string>;
@@ -23,17 +23,21 @@ test("Wildz v3 release doctrine names the exact Receiz v116 toolchain", () => {
   ].join("\n");
 
   assert.equal(pkg.version, "3.0.0");
-  assert.equal(pkg.dependencies?.["@receiz/sdk"], "116.0.0");
-  assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "116.0.0");
-  assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "116.0.0");
-  for (const version of ["@receiz/sdk 116.0.0", "@receiz/mcp-server 116.0.0", "@receiz/ai-skills 116.0.0"]) {
+  assert.equal(pkg.dependencies?.["@receiz/sdk"], "118.0.0");
+  assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "118.0.0");
+  assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "118.0.0");
+  for (const version of ["@receiz/sdk 118.0.0", "@receiz/mcp-server 118.0.0", "@receiz/ai-skills 118.0.0"]) {
     assert.match(release, new RegExp(version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
-  assert.match(mcp, /@receiz\/sdk@116\.0\.0/);
-  assert.match(mcp, /@receiz\/mcp-server@116\.0\.0/);
-  assert.match(mcp, /@receiz\/ai-skills@116\.0\.0/);
+  assert.match(mcp, /@receiz\/sdk@118\.0\.0/);
+  assert.match(mcp, /@receiz\/mcp-server@118\.0\.0/);
+  assert.match(mcp, /@receiz\/ai-skills@118\.0\.0/);
   assert.match(packageSourceDocs, /public npm/i);
   assert.match(packageSourceDocs, /published (?:SHA-512 )?integrity/i);
+  assert.match(packageSourceDocs, /c284bd39a891c1a828b532523bd548507570819c32e307d79b8043f06d2d3360/i);
+  assert.match(packageSourceDocs, /153b2472830567ec3b445c2c1b4102e4c036ed4c45cc374d40d0079096a40f54/i);
+  assert.match(packageSourceDocs, /first admission only, then append forever/i);
+  assert.match(packageSourceDocs, /v119[\s\S]*not shipped/i);
 });
 
 test("release documentation states the real offline and remote authority boundaries", () => {

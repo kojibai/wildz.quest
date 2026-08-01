@@ -6,10 +6,11 @@ All notable changes to Wildz are documented here. Wildz uses semantic versioning
 
 ### Changed
 
-- Aligned the SDK, MCP server, AI skills, lockfile, application contract, generated integration evidence, runtime labels, tests, checker, and documentation to Receiz `116.0.0`.
-- Adopted the v116 constitutional registry digest `9bf61fcf4541edf565bb2ded252e35a976a3ca7c9176dea0f1ffac74ce192a80` and 16-operation matrix digest `ec5829eeec039c1f4885d056b8cd6cf6506d08547cee58daa229ecbd44155420`.
-- Added release-gate coverage for v116 native-capture and PBI-authorship authority while retaining the profile/economy showcase operation surface.
-- Pinned the official public npm v116 releases and their published integrity values.
+- Aligned the SDK, MCP server, AI skills, lockfile, application contract, generated integration evidence, runtime labels, tests, checker, and documentation to Receiz `118.0.0`.
+- Adopted the v118 constitutional registry digest `c284bd39a891c1a828b532523bd548507570819c32e307d79b8043f06d2d3360` and 16-operation matrix digest `153b2472830567ec3b445c2c1b4102e4c036ed4c45cc374d40d0079096a40f54`.
+- Coordinated SDK, MCP, AI manifests, ruleset, registry, operation matrix, compatible package range, and packed runtime as one v118 release identity, with predecessor registry digest `598ee0fa4dc31b8394fdd2b7b8fe713c8ee8c4b33e6ecdd92101a1a93d8787a8`.
+- Retained release-gate coverage for native-capture, PBI-authorship, and the profile/economy showcase operation surface; durable proof memory remains first admission only, then append forever, while deferred v119 orchestration is not shipped.
+- Pinned the official public npm v118 releases and their published integrity values.
 
 ## [3.0.0] - 2026-07-20
 
