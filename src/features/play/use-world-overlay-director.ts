@@ -16,9 +16,11 @@ export function useWorldOverlayDirector({
   exclusiveOwner: WorldOverlayOwner;
 }) {
   const [state, dispatch] = useReducer(reduceWorldOverlay, initialWorldOverlayState);
+  const [gestureCancelSignal, cancelGestures] = useReducer((signal: number) => signal + 1, 0);
   const priorDismissSignal = useRef(dismissSignal);
 
   const resetTransientState = useCallback((event: Extract<WorldOverlayEvent, { type: "dismiss" | "viewport-change" }>) => {
+    cancelGestures();
     dispatch(event);
     if (exclusiveOwner !== "none") dispatch({ type: "exclusive", owner: exclusiveOwner });
   }, [exclusiveOwner]);
@@ -51,8 +53,9 @@ export function useWorldOverlayDirector({
   }, [dismissSignal, resetTransientState]);
 
   useEffect(() => {
+    cancelGestures();
     dispatch({ type: "exclusive", owner: exclusiveOwner });
   }, [exclusiveOwner]);
 
-  return { state, dispatch };
+  return { state, dispatch, gestureCancelSignal };
 }

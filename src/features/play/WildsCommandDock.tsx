@@ -26,32 +26,43 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
   onRequestHandled?: () => void;
 }) {
   const [dragY, setDragY] = useState(0);
-  const triggerRefs = useRef<Partial<Record<WildsCommandKey, HTMLButtonElement | null>>>({});
   const toolsTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const externalTriggerRef = useRef<HTMLElement | null>(null);
+  const originTriggerRef = useRef<HTMLElement | null>(null);
   const dragStart = useRef<number | null>(null);
   const priorDismissSignal = useRef(dismissSignal);
+  const priorActiveKey = useRef<WildsCommandKey | null>(panelKey);
   const activeKey = panelKey;
   const activeItem = items.find((item) => item.key === activeKey) ?? null;
 
+  const restoreOriginFocus = useCallback(() => {
+    window.requestAnimationFrame(() => originTriggerRef.current?.focus());
+  }, []);
+
   useEffect(() => {
     if (!requestedKey) return;
-    externalTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    originTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : toolsTriggerRef.current;
+    const requestedItem = items.find((item) => item.key === requestedKey);
     onToolsOpenChange(false);
-    onPanelKeyChange(requestedKey);
     setDragY(0);
     onRequestHandled();
-  }, [onPanelKeyChange, onRequestHandled, onToolsOpenChange, requestedKey]);
+    if (!requestedItem) {
+      onPanelKeyChange(null);
+      restoreOriginFocus();
+      return;
+    }
+    onPanelKeyChange(requestedKey);
+  }, [items, onPanelKeyChange, onRequestHandled, onToolsOpenChange, requestedKey, restoreOriginFocus]);
 
   const close = useCallback(() => {
-    const trigger = activeKey
-      ? triggerRefs.current[activeKey] ?? externalTriggerRef.current ?? toolsTriggerRef.current
-      : externalTriggerRef.current ?? toolsTriggerRef.current;
     onPanelKeyChange(null);
     setDragY(0);
     dragStart.current = null;
-    window.requestAnimationFrame(() => trigger?.focus());
-  }, [activeKey, onPanelKeyChange]);
+  }, [onPanelKeyChange]);
+
+  useEffect(() => {
+    if (priorActiveKey.current && !activeKey) restoreOriginFocus();
+    priorActiveKey.current = activeKey;
+  }, [activeKey, restoreOriginFocus]);
 
   useEffect(() => {
     if (priorDismissSignal.current === dismissSignal) return;
@@ -91,7 +102,10 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
         aria-expanded={toolsOpen}
         aria-label="Open world tools"
         className="wilds-world-tools-trigger"
-        onClick={() => onToolsOpenChange(!toolsOpen)}
+        onClick={() => {
+          originTriggerRef.current = toolsTriggerRef.current;
+          onToolsOpenChange(!toolsOpen);
+        }}
         ref={toolsTriggerRef}
         type="button"
       >
@@ -106,7 +120,6 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
               const controls = `wilds-command-sheet-${item.key}`;
               return (
                 <button
-                  ref={(node) => { triggerRefs.current[item.key] = node; }}
                   aria-controls={controls}
                   aria-expanded={active}
                   aria-label={`${item.label}${item.badge === undefined ? "" : ` · ${item.badge}`}`}
@@ -114,7 +127,7 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
                   className="wilds-command-button"
                   key={item.key}
                   onClick={() => {
-                    externalTriggerRef.current = null;
+                    originTriggerRef.current = toolsTriggerRef.current;
                     setDragY(0);
                     onToolsOpenChange(false);
                     onPanelKeyChange(item.key);

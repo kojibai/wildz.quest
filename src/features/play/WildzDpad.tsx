@@ -5,13 +5,15 @@ import type { WildsInput } from "./game-state";
 import { cameraRelativeMovement, type WildsMovementMode } from "./wilds-movement";
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 
-export function WildzDpad({ cameraHeadingRef, movementMode, onInput }: {
+export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSignal = 0 }: {
   cameraHeadingRef: RefObject<number>;
   movementMode: WildsMovementMode;
   onInput: (input: WildsInput) => void;
+  cancelSignal?: number;
 }) {
   const vector = useRef({ x: 0, z: 0 });
   const dragging = useRef(false);
+  const activePointerIdRef = useRef<number | null>(null);
   const input = useRef(onInput);
   const mode = useRef(movementMode);
   const [active, setActive] = useState(false);
@@ -28,10 +30,13 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput }: {
 
   const reset = useCallback(() => {
     dragging.current = false;
+    activePointerIdRef.current = null;
     vector.current = { x: 0, z: 0 };
     setKnob({ x: 0, y: 0 });
     setActive(false);
   }, []);
+
+  useEffect(() => reset(), [cancelSignal, reset]);
 
   useEffect(() => {
     if (!active) return;
@@ -74,6 +79,7 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput }: {
   };
 
   const release = (event?: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event && activePointerIdRef.current !== event.pointerId) return;
     if (event) {
       try {
         if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
@@ -92,6 +98,8 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput }: {
       onLostPointerCapture={release}
       onPointerCancel={release}
       onPointerDown={(event) => {
+        if (activePointerIdRef.current !== null) return;
+        activePointerIdRef.current = event.pointerId;
         dragging.current = true;
         const next = update(event);
         emitMovement(next);
@@ -99,7 +107,7 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput }: {
         try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* capture is optional */ }
       }}
       onPointerMove={(event) => {
-        if (!dragging.current) return;
+        if (!dragging.current || activePointerIdRef.current !== event.pointerId) return;
         update(event);
       }}
       onPointerUp={release}

@@ -26,7 +26,8 @@ export function WildsCompanionCommand({
   onUsePower,
   onSelectAbility,
   onRequestDrawer,
-  onAudioCue
+  onAudioCue,
+  cancelSignal = 0
 }: {
   cards: readonly PortableCardAsset[];
   activeCard: PortableCardAsset | null;
@@ -36,8 +37,10 @@ export function WildsCompanionCommand({
   onSelectAbility: (abilityIndex: number) => void;
   onRequestDrawer: (snap: "preview" | "expanded") => void;
   onAudioCue?: (cue: WildsAudioCue) => void;
+  cancelSignal?: number;
 }) {
   const gestureRef = useRef<CompanionGestureState | null>(null);
+  const activePointerIdRef = useRef<number | null>(null);
   const holdTimerRef = useRef<number | null>(null);
   const renderFrameRef = useRef<number | null>(null);
   const [mode, setMode] = useState<CompanionGestureState["mode"]>("pending");
@@ -101,8 +104,9 @@ export function WildsCompanionCommand({
   const pointerPoint = (event: ReactPointerEvent<HTMLButtonElement>) => ({ x: event.clientX, y: event.clientY });
 
   const onPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (!activeCard) return;
+    if (!activeCard || activePointerIdRef.current !== null) return;
     event.preventDefault();
+    activePointerIdRef.current = event.pointerId;
     const gesture = createCompanionGesture(pointerPoint(event), performance.now());
     gestureRef.current = gesture;
     try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* capture is optional */ }
@@ -118,7 +122,7 @@ export function WildsCompanionCommand({
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (!gestureRef.current) return;
+    if (!gestureRef.current || activePointerIdRef.current !== event.pointerId) return;
     const previousIndex = gestureRef.current.activeAbilityIndex;
     const moved = moveCompanionGesture(gestureRef.current, pointerPoint(event), performance.now());
     gestureRef.current = moved;
@@ -131,23 +135,31 @@ export function WildsCompanionCommand({
   };
 
   const finishPointer = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (activePointerIdRef.current !== event.pointerId) return;
     const gesture = gestureRef.current;
     if (!gesture) return;
     clearHold();
     gestureRef.current = null;
+    activePointerIdRef.current = null;
     try {
       if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     } catch { /* capture is optional */ }
     consume(releaseCompanionGesture(gesture, pointerPoint(event), performance.now()));
   };
 
-  const cancelPointer = () => {
+  const cancelPointer = (event?: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event && activePointerIdRef.current !== event.pointerId) return;
     if (!gestureRef.current) return;
     clearHold();
     const gesture = gestureRef.current;
     gestureRef.current = null;
+    activePointerIdRef.current = null;
     consume(cancelCompanionGesture(gesture));
   };
+
+  useEffect(() => {
+    cancelPointer();
+  }, [cancelSignal]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === "Enter" || event.key === " ") {

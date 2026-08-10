@@ -51,8 +51,7 @@ export function shouldDismissTrainerEncounterForExternalCombat(
 ) {
   return Boolean(
     phase
-    && phase !== "combat"
-    && (phase === "challenge" || phase === "transition" || phase === "result")
+    && (phase === "challenge" || phase === "transition" || phase === "combat" || phase === "result")
     && (combat.wildBattleActive || combat.pvpBattleActive)
   );
 }

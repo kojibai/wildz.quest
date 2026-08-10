@@ -1230,7 +1230,7 @@ export function PlayCampaign({
         roster={state.inventory}
         trainer={activeTrainer}
       /> : null}
-      {activeTrainer && activeAsset && trainerEncounter?.phase === "combat" ? <MortalArenaExperience
+      {!state.battle && !multiplayer.activeBattle && activeTrainer && activeAsset && trainerEncounter?.phase === "combat" ? <MortalArenaExperience
         card={activeAsset}
         roster={state.inventory}
         opponent={projectCampaignOpponentFromTrainer(activeTrainer)}
