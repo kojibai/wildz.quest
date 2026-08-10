@@ -15,9 +15,10 @@ export type WildsCommandItem = {
   content: ReactNode;
 };
 
-export function WildsCommandDock({ items, requestedKey = null, onRequestHandled = () => {} }: {
+export function WildsCommandDock({ items, requestedKey = null, dismissSignal = 0, onRequestHandled = () => {} }: {
   items: readonly WildsCommandItem[];
   requestedKey?: WildsCommandKey | null;
+  dismissSignal?: number;
   onRequestHandled?: () => void;
 }) {
   const [activeKey, setActiveKey] = useState<WildsCommandKey | null>(null);
@@ -25,6 +26,7 @@ export function WildsCommandDock({ items, requestedKey = null, onRequestHandled 
   const triggerRefs = useRef<Partial<Record<WildsCommandKey, HTMLButtonElement | null>>>({});
   const externalTriggerRef = useRef<HTMLElement | null>(null);
   const dragStart = useRef<number | null>(null);
+  const priorDismissSignal = useRef(dismissSignal);
   const activeItem = items.find((item) => item.key === activeKey) ?? null;
 
   useEffect(() => {
@@ -42,6 +44,12 @@ export function WildsCommandDock({ items, requestedKey = null, onRequestHandled 
     dragStart.current = null;
     window.requestAnimationFrame(() => trigger?.focus());
   }, [activeKey]);
+
+  useEffect(() => {
+    if (priorDismissSignal.current === dismissSignal) return;
+    priorDismissSignal.current = dismissSignal;
+    if (activeKey) close();
+  }, [activeKey, close, dismissSignal]);
 
   useEffect(() => {
     if (!activeKey) return;

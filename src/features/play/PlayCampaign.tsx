@@ -89,6 +89,13 @@ import {
 } from "@/features/play/use-public-card-publisher";
 import { MortalArenaExperience } from "@/features/games/mortal-arena/MortalArenaExperience";
 import type { ArenaSettlement } from "@/features/games/mortal-arena/settlement";
+import { WildsTrainerEncounter } from "@/features/play/WildsTrainerEncounter";
+import {
+  advanceTrainerEncounter,
+  createTrainerEncounter,
+  type TrainerEncounterEvent,
+  type TrainerEncounterState
+} from "@/features/play/trainer-encounter";
 
 function currentWildsQualityProfile() {
   if (typeof window === "undefined") {
@@ -177,7 +184,9 @@ export function PlayCampaign({
   const [raidBusyIntent, setRaidBusyIntent] = useState<WildsRaidIntent["type"] | null>(null);
   const [riftError, setRiftError] = useState("");
   const [requestedCommand, setRequestedCommand] = useState<WildsCommandKey | null>(null);
+  const [commandDismissSignal, setCommandDismissSignal] = useState(0);
   const [activeTrainer, setActiveTrainer] = useState<WildsTrainerProjection | null>(null);
+  const [trainerEncounter, setTrainerEncounter] = useState<TrainerEncounterState | null>(null);
   const [kaiOccurredAt, setKaiOccurredAt] = useState(() => new Date(KAI_GENESIS_TS).toISOString());
   const worldProgression = projectWorldProgression(state.worldMastery);
   const activeCard = selectedCard(state);
@@ -281,6 +290,22 @@ export function PlayCampaign({
     const live = liveSagaTrainerById.get(projected.id);
     return live ? { ...live, position: projected.position } : projected;
   });
+  const openTrainerEncounter = (trainer: WildsTrainerProjection) => {
+    const recognized = advanceTrainerEncounter(
+      createTrainerEncounter(
+        trainer.id,
+        { x: state.player.x, z: state.player.z, heading: playerHeading },
+        { repeat: trainer.rematchIndex > 0 }
+      ),
+      { type: "recognize" }
+    );
+    setCommandDismissSignal((signal) => signal + 1);
+    setActiveTrainer(trainer);
+    setTrainerEncounter(advanceTrainerEncounter(recognized, { type: "open-challenge" }));
+  };
+  const sendTrainerEncounter = (event: TrainerEncounterEvent) => {
+    setTrainerEncounter((current) => current ? advanceTrainerEncounter(current, event) : current);
+  };
   const sagaTournament = (Object.values(livingWorld.snapshot?.tournaments ?? {}).find((tournament) => tournament.dayId === saga.dayId) ?? null) as WildsTournamentProjection | null;
   const kaiExpression = projectKaiWorldExpression(kaiMoment);
   const commitArenaSettlement = useCallback((settlement: ArenaSettlement) => setState((current) => {
@@ -296,7 +321,15 @@ export function PlayCampaign({
       inventory,
       selectedAssetId: retired ? fallback?.id ?? "" : current.selectedAssetId,
       selectedCardId: retired ? fallback?.manifest.familyId ?? "" : current.selectedCardId,
-      companionProgress: { ...current.companionProgress, [progressKey]: { ...prior, xp, level: Math.max(prior.level, 1 + Math.floor(xp / 100)) } },
+      companionProgress: {
+        ...current.companionProgress,
+        [progressKey]: {
+          ...prior,
+          xp,
+          bond: Math.min(100, prior.bond + (settlement.result.winnerSide === 0 ? 2 : settlement.result.outcome === "fled" ? 0 : 1)),
+          level: Math.max(prior.level, 1 + Math.floor(xp / 100))
+        }
+      },
       pendingSyncAssetIds: Array.from(new Set([...current.pendingSyncAssetIds, settlement.card.id])),
       lastEvent: retired
         ? `${settlement.card.manifest.name} was sealed into the memorial Vault after the Mortal Arena.`
@@ -751,9 +784,7 @@ export function PlayCampaign({
           <WildsSagaPanel
             missions={sagaMissions}
             mode={livingWorld.mode}
-            onBattleTrainer={(trainer) => {
-              setActiveTrainer(trainer);
-            }}
+            onBattleTrainer={openTrainerEncounter}
             onContribute={(node) => void livingWorld.contributeStory(saga.dayId, node.definition.id, node.definition.acceptedVerbs[0]!, 1, state.player).catch((error) => setRiftError(error instanceof Error ? error.message : "wilds_story_contribution_failed"))}
             onEnterTournament={(tournamentId, qualificationGrantId) => {
               try {
@@ -996,7 +1027,7 @@ export function PlayCampaign({
               supportCards={trailSupportCards}
               onSelectPlayer={multiplayer.selectPlayer}
               trainers={sagaTrainers}
-              onSelectTrainer={setActiveTrainer}
+              onSelectTrainer={openTrainerEncounter}
               onSearchPoint={(point) => {
                 dispatch({ type: "search-point", ...point, searchedAt: new Date().toISOString(), ownerReceizId });
               }}
@@ -1068,7 +1099,7 @@ export function PlayCampaign({
               onRest={() => dispatch({ type: "rest", at: new Date().toISOString() })}
               onSelectCard={(assetId) => dispatch({ type: "select-asset", assetId })}
             />
-            <WildsCommandDock items={commandItems} requestedKey={requestedCommand} onRequestHandled={() => setRequestedCommand(null)} />
+            <WildsCommandDock items={commandItems} dismissSignal={commandDismissSignal} requestedKey={requestedCommand} onRequestHandled={() => setRequestedCommand(null)} />
           </div>
         </div>
       </div>
@@ -1109,20 +1140,57 @@ export function PlayCampaign({
         }))}
         worldMode={settlementWorldMode}
       />
-      {activeTrainer && activeAsset ? <MortalArenaExperience
+      {activeTrainer && activeAsset && trainerEncounter ? <WildsTrainerEncounter
+        activeCard={activeAsset}
+        encounter={trainerEncounter}
+        onAccept={(rosterIds) => sendTrainerEncounter({ type: "accept", rosterIds })}
+        onCancel={() => {
+          sendTrainerEncounter({ type: "cancel" });
+          setActiveTrainer(null);
+          setTrainerEncounter(null);
+        }}
+        onContinue={() => {
+          sendTrainerEncounter({ type: "continue" });
+          window.setTimeout(() => {
+            setActiveTrainer(null);
+            setTrainerEncounter(null);
+          }, 180);
+        }}
+        onRematch={() => sendTrainerEncounter({ type: "rematch" })}
+        onSkipTransition={() => sendTrainerEncounter({ type: "skip-transition" })}
+        onTransitionComplete={() => sendTrainerEncounter({ type: "transition-complete" })}
+        playerLevel={sagaPlayer?.trainerLevel ?? state.level}
+        roster={state.inventory}
+        trainer={activeTrainer}
+      /> : null}
+      {activeTrainer && activeAsset && trainerEncounter?.phase === "combat" ? <MortalArenaExperience
         card={activeAsset}
         roster={state.inventory}
         opponent={projectCampaignOpponentFromTrainer(activeTrainer)}
+        resultPresentation="director"
         onAudioCue={presentation.playCue}
-        onCommit={(settlement) => {
+        onCommit={(settlement, path) => {
           commitArenaSettlement(settlement);
           const outcome = settlement.result.outcome === "victory" ? "player_victory" : settlement.result.outcome === "fled" ? "fled" : "trainer_victory";
+          sendTrainerEncounter({
+            type: "settlement-committed",
+            settlementId: settlement.id,
+            result: {
+              outcome,
+              xp: outcome === "player_victory" ? 60 : outcome === "fled" ? 18 : 30,
+              bond: outcome === "player_victory" ? 2 : outcome === "fled" ? 0 : 1,
+              arenaPathStage: path.stage
+            }
+          });
           if (livingWorld.mode === "receiz_live") {
             void livingWorld.settleTrainerBattle(saga.dayId, activeTrainer.id, outcome)
               .catch((error) => setRiftError(error instanceof Error ? error.message : "wilds_story_trainer_battle_failed"));
           }
         }}
-        onExit={() => setActiveTrainer(null)}
+        onExit={() => {
+          setActiveTrainer(null);
+          setTrainerEncounter(null);
+        }}
         onUnlock={(unlockId) => setState((current) => ({ ...current, achievements: Array.from(new Set([...current.achievements, unlockId])).slice(0, 64) }))}
       /> : null}
       <WildsSettlementExperience

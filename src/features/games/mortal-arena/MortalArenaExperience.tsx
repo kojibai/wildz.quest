@@ -15,10 +15,11 @@ import { MortalArenaScene } from "./MortalArenaScene";
 import type { ArenaSettlement } from "./settlement";
 import { useMortalArena } from "./use-mortal-arena";
 
-export function MortalArenaExperience({ card, roster, opponent = null, onExit, onUnlock, onCommit, onAudioCue }: {
+export function MortalArenaExperience({ card, roster, opponent = null, resultPresentation = "arena", onExit, onUnlock, onCommit, onAudioCue }: {
   card: PortableCardAsset;
   roster: readonly PortableCardAsset[];
   opponent?: ArenaCampaignOpponent | null;
+  resultPresentation?: "arena" | "director";
   onExit: () => void;
   onUnlock: (unlockId: string) => void;
   onCommit: (settlement: ArenaSettlement, path: WildzArenaPath) => void;
@@ -95,7 +96,7 @@ export function MortalArenaExperience({ card, roster, opponent = null, onExit, o
           </article>
         </div>
         {arena.warning !== "safe" ? <div className={`mortal-arena-warning is-${arena.warning}`} role="alert"><i /><Icons.pulse aria-hidden="true" size={19} /><span>{arena.warning === "final" ? "One more clean hit may be final" : arena.warning === "grave" ? "Swap or flee while life remains" : "Vitality strained"}</span><i /></div> : null}
-        {arena.settlement ? <div className="mortal-arena-result" role="status"><Icons.trophy size={32} /><span>Result sealed locally</span><h3>{resultLabel}</h3><p>{`${arena.settlement.card.manifest.name}'s history has been appended before this result appeared.`}</p><button onClick={arena.continuePath} type="button">Continue to stage {arena.path.stage}</button><button onClick={onExit} type="button">Return to world</button></div> : null}
+        {arena.settlement && resultPresentation === "arena" ? <div className="mortal-arena-result" role="status"><Icons.trophy size={32} /><span>Result sealed locally</span><h3>{resultLabel}</h3><p>{`${arena.settlement.card.manifest.name}'s history has been appended before this result appeared.`}</p><button onClick={arena.continuePath} type="button">Continue to stage {arena.path.stage}</button><button onClick={onExit} type="button">Return to world</button></div> : null}
       </div>
       <footer className="wilds-landmark-actions mortal-arena-actions" aria-label="Mortal Arena actions">
         <button aria-label="Focus and read the rival" disabled={!covenantAccepted || retired || Boolean(arena.settlement)} onClick={() => arena.pulse({ focus: true })} type="button"><Icons.pulse size={18} /><span><strong>Focus</strong><small>Read</small></span></button>

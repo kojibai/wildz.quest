@@ -32,7 +32,7 @@ test("D-pad occupies the centered column inside the safe-area deck", () => {
   assert.match(css, /env\(safe-area-inset-bottom\)/);
 });
 
-test("trainer navigation follows the boss pills in one lower-left stack above the bottom deck", () => {
+test("world event pills stay compact while trainer challenges come from directly selected world actors", () => {
   const css = readFileSync("app/globals.css", "utf8");
   const source = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
   assert.match(
@@ -41,10 +41,10 @@ test("trainer navigation follows the boss pills in one lower-left stack above th
   );
   const stackStart = source.indexOf('<div className="wilds-world-navigator-stack">');
   const worldHud = source.indexOf("<WildsLivingWorldHud", stackStart);
-  const trainer = source.indexOf('className="wilds-trainer-navigator"', stackStart);
-  assert.ok(stackStart >= 0 && worldHud > stackStart && trainer > worldHud);
+  assert.ok(stackStart >= 0 && worldHud > stackStart);
+  assert.doesNotMatch(source, /wilds-trainer-navigator/);
+  assert.match(source, /onSelectTrainer=\{openTrainerEncounter\}/);
   assert.match(css, /\.wilds-living-world-hud\s*\{[^}]*position:\s*relative;[^}]*z-index:\s*2;/);
-  assert.match(css, /\.wilds-trainer-navigator\s*\{[^}]*z-index:\s*1;/);
   assert.doesNotMatch(css, /\.mobile-play-wrap \.wilds-living-world-hud\s*\{[^}]*flex-wrap:\s*wrap;/);
   assert.doesNotMatch(css, /\.wilds-living-world-hud\.has-event \.wilds-live-pill\[class\*="mode-"\]\s*\{[^}]*display:\s*none/);
 });
