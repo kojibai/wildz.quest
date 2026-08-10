@@ -37,3 +37,23 @@ test("panel ownership ref closes the same-frame action window before React commi
   assert.match(campaign, /if \(canUseWorldStage\(\)\) setRequestedCommand\("mission"\)/);
   assert.match(campaign, /if \(!canUseWorldStage\(\)\) return;[\s\S]*const nextOpen = !worldStatusOpen/);
 });
+
+test("panel-owned actions remain available without reopening the world-stage action window", () => {
+  const campaign = read("src/features/play/PlayCampaign.tsx");
+
+  assert.match(campaign, /const openTrainerEncounter = \(trainer: WildsTrainerProjection, origin: "world" \| "mission"\)/);
+  assert.match(campaign, /origin === "mission"[\s\S]*worldOverlayState\.panelKey === "mission"/);
+  assert.match(campaign, /if \(!trainerActionAllowed\) return;[\s\S]*dispatchStageOverlay\(\{ type: "panel", key: null \}\)/);
+  assert.match(campaign, /onSelectTrainer=\{\(trainer\) => openTrainerEncounter\(trainer, "world"\)\}/);
+  assert.match(campaign, /onBattleTrainer=\{\(trainer\) => openTrainerEncounter\(trainer, "mission"\)\}/);
+  assert.match(campaign, /const openWorldMapFromCommandPanel = \(\) => \{[\s\S]*worldOverlayState\.panelKey !== "commandCenter"[\s\S]*dispatchStageOverlay\(\{ type: "panel", key: null \}\)[\s\S]*setMapOpen\(true\)/);
+  assert.match(campaign, /action\.type === "open-map"\) openWorldMapFromCommandPanel\(\)/);
+});
+
+test("companion actions synchronously consult the stage ownership ref", () => {
+  const campaign = read("src/features/play/PlayCampaign.tsx");
+
+  assert.match(campaign, /const activateWorldPulse = \(\) => \{\s*if \(!canUseWorldStage\(\)\) return;\s*activatePulse\(\);\s*\}/);
+  assert.match(campaign, /onAction=\{activateWorldPulse\}/);
+  assert.doesNotMatch(campaign, /onAction=\{activatePulse\}/);
+});

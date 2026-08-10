@@ -39,6 +39,13 @@ test("gameplay controls float in collision-safe homes without a bottom chassis",
   assert.doesNotMatch(css, /\.wildz-world-controls[^}]*background:/);
 });
 
+test("movement and quick utilities resolve from an explicit safe inline bound", () => {
+  const css = readFileSync("app/globals.css", "utf8");
+  assert.match(css, /\.wildz-movement-home\s*\{[^}]*box-sizing:\s*border-box;[^}]*inset-inline-start:\s*max\(var\(--wildz-bottom-home-gap\), env\(safe-area-inset-left\)\);[^}]*transform:\s*none;/s);
+  assert.match(css, /\.wildz-movement-home \.wildz-dpad\s*\{[^}]*box-sizing:\s*border-box;[^}]*inset-inline-start:\s*0;[^}]*transform:\s*none;/s);
+  assert.match(css, /\.wildz-quick-utilities\s*\{[^}]*box-sizing:\s*border-box;[^}]*inset-inline-start:\s*0;/s);
+});
+
 test("expanded controls grow from their semantic homes and remain motion-safe", () => {
   const css = readFileSync("app/globals.css", "utf8");
   const finalCss = css.slice(css.lastIndexOf("/* Unified living-world overlay"));
@@ -101,7 +108,7 @@ test("world event pills stay compact while trainer challenges come from directly
   const worldHud = source.indexOf("<WildsLivingWorldHud", stackStart);
   assert.ok(fanStart >= 0 && stackStart > fanStart && worldHud > stackStart);
   assert.doesNotMatch(source, /wilds-trainer-navigator/);
-  assert.match(source, /onSelectTrainer=\{openTrainerEncounter\}/);
+  assert.match(source, /onSelectTrainer=\{\(trainer\) => openTrainerEncounter\(trainer, "world"\)\}/);
   assert.match(css, /\.wilds-living-world-hud\s*\{[^}]*position:\s*relative;[^}]*z-index:\s*2;/);
   assert.doesNotMatch(css, /\.mobile-play-wrap \.wilds-living-world-hud\s*\{[^}]*flex-wrap:\s*wrap;/);
   assert.doesNotMatch(css, /\.wilds-living-world-hud\.has-event \.wilds-live-pill\[class\*="mode-"\]\s*\{[^}]*display:\s*none/);

@@ -205,6 +205,15 @@ function candidatePriorities(input: WildsCommandCenterInput) {
     score: input.mission.progress >= 80 ? 580 : 300,
     action: { type: "open-mission" }
   }));
+  values.push(priority({
+    id: "world:atlas",
+    category: "world",
+    urgency: "calm",
+    title: "Explore the living world",
+    consequence: "Open the atlas without leaving the command flow.",
+    score: 180,
+    action: { type: "open-map" }
+  }));
   return values;
 }
 

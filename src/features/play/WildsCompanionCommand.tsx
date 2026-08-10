@@ -50,6 +50,7 @@ export function WildsCompanionCommand({
   const previous = cards.find((card) => card.id === projection.previousId) ?? null;
   const next = cards.find((card) => card.id === projection.nextId) ?? null;
   const abilityCount = Math.max(1, Math.min(4, fieldPowers.length));
+  const normalizedActiveAbilityIndex = activeAbilityIndex === null ? null : activeAbilityIndex % abilityCount;
 
   const clearHold = () => {
     if (holdTimerRef.current !== null) window.clearTimeout(holdTimerRef.current);
@@ -185,14 +186,14 @@ export function WildsCompanionCommand({
   const wheelOpen = mode === "ability-wheel";
   return <div className={`wilds-companion-command-zone mode-${mode}`}>
     {wheelOpen ? <div
-      aria-activedescendant={activeAbilityIndex === null ? undefined : `wilds-companion-ability-${activeAbilityIndex % abilityCount}`}
+      aria-activedescendant={normalizedActiveAbilityIndex === null ? undefined : `wilds-companion-ability-${normalizedActiveAbilityIndex}`}
       aria-label="Choose active companion ability"
       className="wilds-companion-ability-wheel"
       role="listbox"
     >
       {fieldPowers.slice(0, 4).map((power, index) => <div
-        aria-selected={activeAbilityIndex === index}
-        className={`wilds-companion-ability ability-${index}${activeAbilityIndex === index ? " is-active" : ""}`}
+        aria-selected={normalizedActiveAbilityIndex === index}
+        className={`wilds-companion-ability ability-${index}${normalizedActiveAbilityIndex === index ? " is-active" : ""}`}
         id={`wilds-companion-ability-${index}`}
         key={power.id}
         role="option"

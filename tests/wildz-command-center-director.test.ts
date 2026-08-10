@@ -46,6 +46,20 @@ test("offline state disables only network actions", () => {
   assert.ok(model.priorities.some((item) => item.action?.type === "open-mission"));
 });
 
+test("the world branch always keeps the atlas reachable from its owning panel", () => {
+  const model = projectWildsCommandCenter(base);
+  const atlas = model.priorities.find((item) => item.id === "world:atlas");
+  assert.deepEqual(atlas, {
+    id: "world:atlas",
+    category: "world",
+    urgency: "calm",
+    title: "Explore the living world",
+    consequence: "Open the atlas without leaving the command flow.",
+    score: 180,
+    action: { type: "open-map" }
+  });
+});
+
 test("Kai Klok remains the only cadence and geometry authority", () => {
   const model = projectWildsCommandCenter({
     ...base,

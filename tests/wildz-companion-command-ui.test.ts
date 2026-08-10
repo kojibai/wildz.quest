@@ -31,6 +31,16 @@ test("hold and slide has accessible abilities and equivalent keyboard controls",
   assert.match(source, /playWildsHaptic\("wheel-detent"\)/);
 });
 
+test("raw wheel sectors visibly select the same normalized ability that release equips", () => {
+  const source = read("src/features/play/WildsCompanionCommand.tsx");
+  assert.match(source, /const normalizedActiveAbilityIndex = activeAbilityIndex === null \? null : activeAbilityIndex % abilityCount/);
+  assert.match(source, /aria-activedescendant=\{normalizedActiveAbilityIndex === null \? undefined : `wilds-companion-ability-\$\{normalizedActiveAbilityIndex\}`\}/);
+  assert.match(source, /aria-selected=\{normalizedActiveAbilityIndex === index\}/);
+  assert.match(source, /normalizedActiveAbilityIndex === index \? " is-active" : ""/);
+  assert.match(source, /const index = result\.index % abilityCount;[\s\S]*setSelectedAbilityIndex\(index\);[\s\S]*onSelectAbility\(index\)/);
+  assert.doesNotMatch(source, /aria-selected=\{activeAbilityIndex === index\}/);
+});
+
 test("companion command is thumb-sized, safe-area aware, directional, and motion-safe", () => {
   const css = read("app/globals.css");
   assert.match(css, /\.wilds-companion-command\s*\{[^}]*width:\s*(?:clamp\([^;]*72px[^;]*94px|[789]\dpx)/s);

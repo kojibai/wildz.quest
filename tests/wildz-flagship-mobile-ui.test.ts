@@ -40,7 +40,7 @@ describe("flagship mobile release contracts", () => {
   it("keeps world, challenge, and combat as one uninterrupted state-owned journey", () => {
     assert.match(campaign, /trainerEncounter\?\.phase === "combat"/);
     assert.match(campaign, /settlementId: settlement\.id/);
-    assert.match(campaign, /onSelectTrainer=\{openTrainerEncounter\}/);
+    assert.match(campaign, /onSelectTrainer=\{\(trainer\) => openTrainerEncounter\(trainer, "world"\)\}/);
     assert.match(campaign, /resultPresentation="director"/);
     assert.match(campaign, /useWildsQualityProfile/);
     assert.doesNotMatch(campaign, /wilds-trainer-navigator/);

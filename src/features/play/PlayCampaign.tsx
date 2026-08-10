@@ -335,8 +335,12 @@ export function PlayCampaign({
     const live = liveSagaTrainerById.get(projected.id);
     return live ? { ...live, position: projected.position } : projected;
   });
-  const openTrainerEncounter = (trainer: WildsTrainerProjection) => {
-    if (!worldInteractionEnabled) return;
+  const openTrainerEncounter = (trainer: WildsTrainerProjection, origin: "world" | "mission") => {
+    const trainerActionAllowed = origin === "mission"
+      ? exclusiveOwner === "none" && worldOverlayState.panelKey === "mission"
+      : canUseWorldStage();
+    if (!trainerActionAllowed) return;
+    if (origin === "mission") dispatchStageOverlay({ type: "panel", key: null });
     void import("@/features/play/WildsTrainerEncounter");
     void import("@/features/games/mortal-arena/MortalArenaExperience");
     presentation.playCue("trainer-challenge");
@@ -592,6 +596,12 @@ export function PlayCampaign({
     setCommandDismissSignal((signal) => signal + 1);
     setMapOpen(true);
   };
+  const openWorldMapFromCommandPanel = () => {
+    if (exclusiveOwner !== "none" || worldOverlayState.panelKey !== "commandCenter") return;
+    dispatchStageOverlay({ type: "panel", key: null });
+    setCommandDismissSignal((signal) => signal + 1);
+    setMapOpen(true);
+  };
   const discoveryActive = state.encounter.phase === "idle" || state.encounter.phase === "searching" || state.encounter.phase === "hint";
   const activeProximity = state.encounter.phase === "idle" ? "cold" : state.encounter.proximity ?? "cold";
   const proximityLabel = state.encounter.phase === "idle"
@@ -766,14 +776,23 @@ export function PlayCampaign({
       ownerReceizId
     });
   };
+  const activateWorldPulse = () => {
+    if (!canUseWorldStage()) return;
+    activatePulse();
+  };
+  const activatePulseFromCommandPanel = () => {
+    if (exclusiveOwner !== "none" || worldOverlayState.panelKey !== "commandCenter") return;
+    dispatchStageOverlay({ type: "panel", key: null });
+    activatePulse();
+  };
   const executeCommandAction = (action: WildsCommandAction) => {
     if (action.type === "open-mission") setRequestedCommand("mission");
     else if (action.type === "open-field-guide") setRequestedCommand("fieldGuide");
     else if (action.type === "open-satchel") setRequestedCommand("satchel");
     else if (action.type === "open-trail-pack") setRequestedCommand("deck");
     else if (action.type === "open-vault") setRequestedCommand("vault");
-    else if (action.type === "open-map") openWorldMap();
-    else activatePulse();
+    else if (action.type === "open-map") openWorldMapFromCommandPanel();
+    else activatePulseFromCommandPanel();
   };
   const riftTo = async (destination: { x: number; z: number }) => {
     setRiftError("");
@@ -828,7 +847,7 @@ export function PlayCampaign({
           <WildsSagaPanel
             missions={sagaMissions}
             mode={livingWorld.mode}
-            onBattleTrainer={openTrainerEncounter}
+            onBattleTrainer={(trainer) => openTrainerEncounter(trainer, "mission")}
             onContribute={(node) => void livingWorld.contributeStory(saga.dayId, node.definition.id, node.definition.acceptedVerbs[0]!, 1, state.player).catch((error) => setRiftError(error instanceof Error ? error.message : "wilds_story_contribution_failed"))}
             onEnterTournament={(tournamentId, qualificationGrantId) => {
               try {
@@ -1074,7 +1093,7 @@ export function PlayCampaign({
                 if (canUseWorldStage()) multiplayer.selectPlayer(player);
               }}
               trainers={sagaTrainers}
-              onSelectTrainer={openTrainerEncounter}
+              onSelectTrainer={(trainer) => openTrainerEncounter(trainer, "world")}
               onSearchPoint={(point) => {
                 if (canUseWorldStage()) {
                   dispatch({ type: "search-point", ...point, searchedAt: new Date().toISOString(), ownerReceizId });
@@ -1165,7 +1184,7 @@ export function PlayCampaign({
               nearbyCards={state.inventory}
               overlayDispatch={dispatchStageOverlay}
               overlayState={worldOverlayState}
-              onAction={activatePulse}
+              onAction={activateWorldPulse}
               onAudioCue={presentation.playCue}
               onCardOrderChange={setCardOrder}
               onInput={dispatchWorldInput}

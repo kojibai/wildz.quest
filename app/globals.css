@@ -14361,16 +14361,21 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 
 .wildz-movement-home {
   position: absolute;
+  box-sizing: border-box;
   bottom: max(var(--wildz-bottom-home-gap), env(safe-area-inset-bottom));
   left: max(var(--wildz-bottom-home-gap), env(safe-area-inset-left));
+  inset-inline-start: max(var(--wildz-bottom-home-gap), env(safe-area-inset-left));
   width: clamp(68px, 24vw, 94px);
   aspect-ratio: 1;
+  transform: none;
 }
 
 .wildz-movement-home .wildz-dpad {
   position: relative;
+  box-sizing: border-box;
   bottom: auto;
   left: auto;
+  inset-inline-start: 0;
   width: clamp(68px, 24vw, 94px);
   height: auto;
   min-width: 68px;
@@ -14380,8 +14385,10 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 
 .wildz-quick-utilities {
   position: absolute;
+  box-sizing: border-box;
   bottom: calc(100% + 8px);
   left: 0;
+  inset-inline-start: 0;
   display: grid;
   grid-template-columns: repeat(2, 44px);
   grid-template-rows: 44px;

@@ -14,7 +14,7 @@ This qualification covers the rebuilt living-world controls and one complete tra
 | E6 | `interactionRecovery.offline`, `lifecycle`, and `audio` |
 | E7 | `interactionRecovery.performance120Frames` |
 | E8 | `drawerHaptics.variants` |
-| E9 | `trainerSevenStateMatrix.constituent` — physically reached trainer challenge, transition, combat, result, and return at all seven viewports |
+| E9 | `trainerSevenStateMatrix.constituent` plus `trainerTransitionSeven.constituent` — physically reached trainer challenge/combat/result/return and one live transition resized through all seven viewports |
 | E10 | `cleanProduction` — final rebuilt listener-before-navigation console, page-error, request-failure, and HTTP status capture |
 | E11 | `automatedGates` |
 | E12 | `externalAssetSourcing` |
@@ -26,7 +26,7 @@ This qualification covers the rebuilt living-world controls and one complete tra
 - Every final panel capture contains no top, bottom, companion, movement, or tools control painted above the modal. [E2]
 - Seven production viewports render a full-viewport canvas with zero overflow and no collisions among interactive homes. All interactive targets meet 44 px; the D-pad meets 68 px. Each row records DPR, drawing buffer, draw calls, triangles, geometries, textures, safe bounds, and nonblank/color-variance evidence. [E3]
 - Real two-touch CDP input moved the player while the companion command independently reached its ability state; `touchCancel` and `lostpointercapture` both returned the D-pad and companion command to settled states. [E4]
-- A complete physically reached Nahl Vey route records challenge, transition, full combat, safe-retreat result, and world return at all seven viewports. The discovered 844×390 challenge overflow was fixed under regression coverage; the final sheet is `[386,8,440,374]`, fully in viewport, with a 44×44 close target. [E9]
+- A complete physically reached Nahl Vey route records challenge, transition, full combat, safe-retreat result, and world return. Challenge/combat/result/return were measured at all seven viewports; one real pre-covenant transition was paused after it became visible, resized through all seven viewports, resumed, and completed through a real Flee/Continue return. The discovered 844×390 challenge overflow was fixed under regression coverage; the final sheet is `[386,8,440,374]`, fully in viewport, with a 44×44 close target. [E9]
 - The final clean production profile attached listeners before navigation and observed zero console errors, console warnings, page errors, request failures, and HTTP responses ≥400 after controls became visible and a five-second settling window completed. [E10]
 - The rebuilt flagship slice is production-capable, but content breadth and authored audio still prevent a whole-game showcase claim. [E12, scorecard and automatic failures below]
 
@@ -76,7 +76,7 @@ Audio uses the existing gesture-unlocked, settings-aware Web Audio runtime for c
 
 | Route/state | Objective result | Evidence |
 | --- | --- | --- |
-| Seven-viewport complete state matrix | 7/7 resting, simultaneous input, real name cycle, roster, every ability sector plus cancel, tools, four panels, map, mission, status, and orientation recovery pass | E2, E3 |
+| Seven-viewport complete state matrix | 7/7 resting, simultaneous input, roster, every ability sector plus cancel, tools, four panels, map, mission, status, and orientation recovery pass. Horizontal cycle correctly no-ops because the acquired second card is retired; a visible sealed-name change remains unqualified | E2, E3 |
 | Four command panels | 28/28 rows in-bounds, stage-exclusive, focus-contained, Escape/restoration pass | E2 |
 | Seven viewport fit | 7/7 full-canvas, zero-overflow, zero interactive collision, target-floor and safe-bound rows pass | E3 |
 | Real two-touch | Pointer IDs 41/42 moved world and activated companion concurrently, then settled | E4 |
@@ -88,7 +88,7 @@ Audio uses the existing gesture-unlocked, settings-aware Web Audio runtime for c
 | Lifecycle | Frozen→active CDP approximation returned visible with two canvases and zero overflow | E6 |
 | Audio | Status settings reported sound ready; mute and unmute states both changed | E6 |
 | Haptic absence/failure | Missing, non-callable, and throwing `navigator.vibrate` variants all opened the drawer and kept the page alive | E8 |
-| Trainer/combat/result/return | Physical travel plus challenge, transition, covenant, Arena, safe retreat settlement, Continue, and world return pass at all seven sizes | E9 |
+| Trainer/combat/result/return | Physical travel plus challenge, one live seven-resize transition, covenant, Arena, safe retreat settlement, Continue, and world return pass; renderer budget failures remain disclosed below | E9 |
 | Clean production console/network | 0 errors, warnings, page errors, failed requests, and HTTP errors | E10 |
 
 ## Responsive browser geometry
@@ -103,15 +103,16 @@ Audio uses the existing gesture-unlocked, settings-aware Web Audio runtime for c
 | 768×1024 | 768×1024 | 0 | 0 px | E3 |
 | 1440×900 | 1440×900 | 0 | 0 px | E3 |
 
-Retained panel artifacts are `output/playwright/unified-controls-{field-guide,foraging-satchel,trail-pack,card-vault}-{320x568,360x800,390x844,430x932,844x390,768x1024,1440x900}-r3.png`. Trainer challenge/combat/result/return artifacts use the same seven-size `-r3.png` contract; the physically settled trainer frame is `unified-controls-trainer-settled-390x844-r3.png`. The fresh final frame is `unified-controls-clean-console-390x844.png`. All retained artifact hashes are under `artifactHashes`. [E2, E9, E10]
+Retained panel artifacts are `output/playwright/unified-controls-{field-guide,foraging-satchel,trail-pack,card-vault}-{320x568,360x800,390x844,430x932,844x390,768x1024,1440x900}-r4.png`. Trainer challenge/transition/combat/result/return artifacts use the same seven-size `-r4.png` contract. The fresh final frame is `unified-controls-clean-console-390x844.png`. All retained final artifact hashes are under `artifactHashes`. [E2, E9, E10]
 
 Desktop and mobile composited screenshots were visually inspected at rendered pixel level; the world, sheets, trainer challenge, Arena, result, and return frames are visibly nonblank. [E2, E9, E10]
 
 ## Performance and automated verification
 
-- The warm 120-frame sample recorded 16.555833 ms average, 60.40167 fps average, 16.8 ms p95, and 16.8 ms maximum. [E7]
-- `pnpm test` passed 1,043/1,043; `pnpm typecheck` passed; `pnpm lint` exited zero with the two disclosed pre-existing exhaustive-deps warnings; `pnpm build` passed with a 557 kB `/` first load and the known `snarkjs` dynamic web-worker warnings. [E11]
-- `pnpm release:check` passed after the final production server closed: 1,043 tests, Receiz conformance 15/15, secret scan, lint/type validation, optimized build, and doctor compatibility all completed successfully. [E11]
+- The warm 120-frame representative sample recorded 29.51 ms average, 33.89 fps average, 33.4 ms p95, and 58 ms maximum. [E7]
+- The trainer transition measured 344 calls and 120,918 triangles and was over the configured renderer budget at all seven sizes. Challenge/combat/result also exceeded the draw-call budget at 844×390 and 1440×900. The trainer resize replay emitted 22 `GL_INVALID_OPERATION` vertex-buffer warnings; the separate clean resting profile remained clean. These are release residuals, not erased by the clean profile. [E9, E10]
+- `pnpm test` passed 1,048/1,048; `pnpm typecheck` passed; `pnpm lint` exited zero with the two disclosed pre-existing exhaustive-deps warnings; `pnpm build` passed with the known `snarkjs` dynamic web-worker warnings. [E11]
+- `pnpm release:check` passed: 1,048/1,048 tests, typecheck, Receiz v118 check, conformance 15/15, lint with the two disclosed warnings, secret scan across 739 text files, optimized 557 kB `/` first load, and doctor compatibility. [E11]
 
 ## Ten-category AAA visual scorecard
 
@@ -128,15 +129,18 @@ Scale: 0 absent, 1 prototype, 2 production-capable, 3 showcase. This scores the 
 | Lighting/render | 2 | Silhouettes remain readable in world and Arena; cinematic lighting is not proved across all locations | E9 |
 | VFX/motion | 2 | Transition, combat state, modal motion, and reduced-motion fallback are coherent; signature effects breadth is limited | E5, E9 |
 | UI/HUD | 3 | Full-screen world, thumb homes, exclusive panels, focus containment, and responsive reflow are release-strong | E2, E3, E5 |
-| Performance evidence | 3 | Seven-view geometry, 120-frame sample, and clean production capture are objective and retained | E3, E7, E10 |
+| Performance evidence | 1 | Evidence is objective and retained, but 33.89 fps average, seven transition budget failures, six wide-view challenge/combat/result failures, and 22 GL vertex-buffer warnings are below production target | E3, E7, E9, E10 |
 
-Average: **2.2 / 3**.
+Average: **2.0 / 3**.
 
 Automatic failures remaining:
 
 1. The evidence covers one complete trainer route, not every arena, settlement, raid, resident, or trainer. [E9]
 2. Externally authored encounter audio remains unqualified because the ElevenLabs credential probe was blank/inconclusive. [E12]
 3. Only the retained Lanternforge trainer imagery is identified as bespoke generated trainer art; the full cast is not equivalently evidenced. [E12]
+4. The player-facing capture path produced a second retired card. Horizontal cycle correctly no-opped at all seven sizes, so a visible sealed-name cycle remains unqualified. [E2]
+5. Trainer transition renderer budget fails at all seven sizes; challenge/combat/result exceed budget at 844×390 and 1440×900, and the trainer resize run emits 22 GL vertex-buffer warnings. [E7, E9]
+6. The core matrix records one cancelled Next.js card preload (`net::ERR_ABORTED`); it caused no console/page error or failed user action, but the route is not claimed network-clean. [E2]
 
 ## Experience rating versus the best current game experiences
 
@@ -157,16 +161,18 @@ The ceiling is an experience benchmark of 10, independent of age, brand, sales, 
 | Arena/place distinctiveness | 5.8 | 7.0 | 10 | E9 |
 | Narrative/objectives | 6.2 | 6.8 | 10 | E9 |
 | Audio/haptics | 4.5 | 7.3 | 10 | E6, E8, E12 |
-| Performance/latency | 6.0 | 8.4 | 10 | E7, E10 |
+| Performance/latency | 6.0 | 5.8 | 10 | E7, E9, E10 |
 | Responsive/accessibility | 4.0 | 8.8 | 10 | E2, E3, E5 |
 | Progression/replay | 8.2 | 8.4 | 10 | E9 |
 | Social/live reliability | 5.5 | 6.4 | 10 | E6, E10 |
 | Content breadth/polish | 6.8 | 6.9 | 10 | E9, E12 |
 
-Flagship-slice average: **7.88 / 10**, up from **5.24 / 10**. Whole-game observed readiness remains **6.9 / 10** because one strong route is not evidence of world-wide authored parity. [E9, E12, automatic failures above]
+Flagship-slice average: **7.74 / 10**, up from **5.24 / 10**. Whole-game observed readiness remains **6.9 / 10** because one strong route is not evidence of world-wide authored parity. [E9, E12, automatic failures above]
 
 ## Next highest-value work
 
 1. Re-run the same active-combat/result/return evidence contract for every trainer and location family. [Gap: E9 covers one route]
 2. Give every arena and settlement a distinct art, encounter, and interaction identity, then add them to the retained visual matrix. [Gap: E9]
 3. Re-probe provider availability and replace fallback cues with authored spatial audio when a usable credential is confirmed. [Gap: E12]
+4. Optimize the trainer/Arena draw-call path and eliminate the vertex-buffer warnings before restoring a premium performance score. [Gap: E7, E9]
+5. Provide a reachable second non-retired companion in the fresh-player loop and re-run visible sealed-name cycle evidence. [Gap: E2]
