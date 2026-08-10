@@ -14054,3 +14054,687 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
     width: min(36vw, 280px);
   }
 }
+
+/* Unified living-world overlay. This final cascade layer is the sole owner of
+   gameplay control geometry, safe areas, and control-surface paint. */
+.wildz-app .wilds-playable-shell {
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0;
+}
+
+.wildz-app .wilds-world {
+  position: relative;
+  height: 100%;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0;
+}
+
+.wildz-app .wilds-stage {
+  --wildz-layer-top-hud: 44;
+  --wildz-layer-resting-controls: 48;
+  --wildz-layer-expanded-controls: 54;
+  --wildz-bottom-home-gap: 14px;
+}
+
+/* The retired shell classes remain visually inert for restored/legacy trees. */
+.wildz-app .wildz-social-stack,
+.wildz-app .wildz-social-deck {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  pointer-events: none;
+}
+
+.wildz-app .wildz-social-stack > *,
+.wildz-app .wildz-social-deck > * {
+  pointer-events: auto;
+}
+
+.wildz-app .wilds-command-system {
+  width: auto;
+  padding: 0;
+  background: transparent;
+}
+
+.wildz-app .wilds-command-dock {
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.wildz-app .wilds-command-overlay::after {
+  display: none;
+}
+
+/* Three collision-safe top homes. The wrappers, not their children, solve the
+   columns so mission copy yields before identity or map can collide. */
+.wildz-reference-hud {
+  z-index: var(--wildz-layer-top-hud);
+  display: grid;
+  grid-template-columns: minmax(0, clamp(136px, 34vw, 258px)) minmax(44px, 1fr) minmax(68px, clamp(72px, 10vw, 108px));
+  align-items: start;
+  gap: 8px;
+  padding: calc(10px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left));
+}
+
+.wildz-identity-home,
+.wildz-mission-home,
+.wildz-map-home {
+  min-width: 0;
+}
+
+.wildz-identity-home {
+  grid-column: 1;
+  justify-self: start;
+  width: 100%;
+}
+
+.wildz-mission-home {
+  grid-column: 2;
+  justify-self: center;
+  width: min(100%, 184px);
+}
+
+.wildz-map-home {
+  grid-column: 3;
+  justify-self: end;
+  width: clamp(72px, 10vw, 108px);
+}
+
+.wildz-identity-home > .wildz-companion-capsule {
+  position: relative;
+  top: auto;
+  left: auto;
+  grid-template-columns: 54px minmax(0, 1fr);
+  width: 100%;
+  min-width: 0;
+  min-height: 58px;
+}
+
+.wildz-identity-home > .wildz-companion-capsule small {
+  display: none;
+}
+
+.wildz-mission-home > .wildz-mission-chip {
+  position: relative;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  width: 100%;
+  min-width: 44px;
+  min-height: 44px;
+  justify-content: center;
+  overflow: hidden;
+  padding: 6px 10px;
+  transform: none;
+}
+
+.wildz-mission-home > .wildz-mission-chip strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: clamp(12px, 1.5vw, 17px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wildz-mission-home > .wildz-mission-chip small {
+  display: inline;
+  margin-left: 4px;
+  font-size: 7px;
+}
+
+.wildz-map-home > .wildz-minimap {
+  position: relative;
+  top: auto;
+  right: auto;
+  width: 100%;
+  min-width: 68px;
+  border-width: 2px;
+}
+
+/* The full-stage coordinator is transparent and click-through; only its
+   localized controls and expanded surfaces accept input. */
+.wildz-world-controls {
+  position: absolute;
+  z-index: var(--wildz-layer-resting-controls);
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  isolation: isolate;
+}
+
+.wildz-movement-home,
+.wildz-tools-home,
+.wildz-companion-home {
+  z-index: 1;
+  pointer-events: none;
+}
+
+.wildz-movement-home {
+  position: absolute;
+  bottom: max(var(--wildz-bottom-home-gap), env(safe-area-inset-bottom));
+  left: max(var(--wildz-bottom-home-gap), env(safe-area-inset-left));
+  width: clamp(68px, 24vw, 94px);
+  aspect-ratio: 1;
+}
+
+.wildz-movement-home .wildz-dpad {
+  position: relative;
+  bottom: auto;
+  left: auto;
+  width: clamp(68px, 24vw, 94px);
+  height: auto;
+  min-width: 68px;
+  min-height: 68px;
+  transform: none;
+}
+
+.wildz-quick-utilities {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 44px);
+  grid-template-rows: 44px;
+  gap: 6px;
+  pointer-events: auto;
+  transform-origin: bottom left;
+  animation: wildz-quick-utilities-in 160ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.wildz-quick-utilities > button {
+  min-width: 44px;
+  min-height: 44px;
+  border-color: rgba(198, 248, 219, .24);
+  border-radius: 15px;
+  color: #e6f8ee;
+  background: linear-gradient(145deg, rgba(16, 44, 39, .9), rgba(7, 25, 22, .94));
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .34), inset 0 1px rgba(255, 255, 255, .08);
+  backdrop-filter: blur(14px);
+}
+
+.wildz-tools-home {
+  position: absolute;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.wildz-tools-home > .wilds-command-system {
+  position: relative;
+  z-index: auto;
+  display: grid;
+  width: auto;
+  justify-items: center;
+  pointer-events: auto;
+}
+
+.wilds-world-tools-trigger {
+  display: grid;
+  width: clamp(64px, 18vw, 96px);
+  min-width: 44px;
+  min-height: 44px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(198, 248, 219, .25);
+  border-radius: 999px;
+  color: #e1f7ed;
+  background: linear-gradient(145deg, rgba(16, 44, 39, .9), rgba(7, 25, 22, .95));
+  box-shadow: 0 9px 26px rgba(0, 0, 0, .38), inset 0 1px rgba(255, 255, 255, .09);
+  backdrop-filter: blur(16px) saturate(1.08);
+}
+
+.wilds-world-tools-trigger[aria-expanded="true"],
+.wilds-world-tools-trigger:hover,
+.wilds-world-tools-trigger:focus-visible {
+  color: #fff0a2;
+  border-color: rgba(244, 221, 121, .52);
+}
+
+.wildz-tools-home .wilds-world-tools-fan {
+  position: absolute;
+  z-index: var(--wildz-layer-expanded-controls);
+  bottom: calc(100% + 9px);
+  left: 50%;
+  display: grid;
+  width: max-content;
+  pointer-events: auto;
+  transform: translateX(-50%);
+  transform-origin: bottom center;
+  animation: wildz-home-fan-in 170ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.wildz-tools-home .wilds-world-tools-fan .wilds-command-dock {
+  display: grid;
+  grid-template-columns: repeat(2, 46px);
+  gap: 7px;
+  width: auto;
+}
+
+.wildz-tools-home .wilds-command-button {
+  width: 46px;
+  min-width: 46px;
+  min-height: 46px;
+  border: 1px solid rgba(198, 248, 219, .22);
+  border-radius: 15px;
+  color: #dff6eb;
+  background: linear-gradient(145deg, rgba(16, 44, 39, .93), rgba(7, 25, 22, .96));
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .35), inset 0 1px rgba(255, 255, 255, .08);
+  backdrop-filter: blur(15px);
+}
+
+.wildz-tools-home .wilds-command-button:hover,
+.wildz-tools-home .wilds-command-button:focus-visible {
+  color: #fff2ab;
+  border-color: rgba(244, 221, 121, .52);
+  background: linear-gradient(145deg, rgba(31, 65, 51, .96), rgba(9, 30, 25, .98));
+}
+
+.wildz-tools-home .wilds-command-button[aria-controls="wilds-command-sheet-mission"] {
+  display: none;
+}
+
+.wildz-companion-home {
+  position: absolute;
+  right: max(var(--wildz-bottom-home-gap), env(safe-area-inset-right));
+  bottom: max(var(--wildz-bottom-home-gap), env(safe-area-inset-bottom));
+  width: clamp(72px, 22vw, 94px);
+  min-height: 72px;
+}
+
+.wildz-companion-home > .wildz-creature-drawer {
+  position: absolute;
+  z-index: var(--wildz-layer-expanded-controls);
+  right: 0;
+  bottom: calc(100% + 9px);
+  width: clamp(280px, 74vw, 620px);
+  max-width: calc(100vw - max(24px, env(safe-area-inset-left)) - max(24px, env(safe-area-inset-right)));
+  max-height: calc(100dvh - max(110px, calc(env(safe-area-inset-top) + 92px)) - max(112px, calc(env(safe-area-inset-bottom) + 104px)));
+  overflow: hidden;
+  border: 1px solid rgba(198, 248, 219, .2);
+  border-radius: 22px;
+  background: linear-gradient(145deg, rgba(16, 44, 39, .94), rgba(7, 25, 22, .97));
+  box-shadow: 0 14px 38px rgba(0, 0, 0, .44), inset 0 1px rgba(255, 255, 255, .08);
+  backdrop-filter: blur(18px) saturate(1.08);
+  transform-origin: bottom right;
+}
+
+.wildz-companion-home > .wildz-creature-drawer.is-closed {
+  width: 112px;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  overflow: visible;
+}
+
+.wildz-companion-home .wildz-creature-drawer-handle {
+  min-height: 44px;
+  pointer-events: auto;
+}
+
+.wildz-companion-home .wildz-creature-drawer-content {
+  padding: 9px 8px 14px;
+}
+
+.wildz-companion-home .wilds-companion-command-zone,
+.wildz-companion-home .wilds-companion-command {
+  pointer-events: auto;
+}
+
+.wildz-companion-home .wilds-companion-command-zone {
+  width: 100%;
+  min-width: 72px;
+  padding-right: 0;
+}
+
+.wilds-companion-real-name {
+  position: absolute;
+  z-index: 4;
+  right: 5px;
+  bottom: 5px;
+  left: 5px;
+  overflow: hidden;
+  padding: 4px 6px;
+  border: 1px solid rgba(244, 221, 121, .35);
+  border-radius: 999px;
+  color: #fff2a7;
+  background: rgba(4, 18, 16, .9);
+  font-size: 8px;
+  font-weight: 950;
+  line-height: 1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+}
+
+.wildz-companion-home .wilds-companion-power-label {
+  top: 5px;
+  right: 24px;
+  bottom: auto;
+  left: 5px;
+  padding: 3px 4px;
+  font-size: 6px;
+}
+
+.wildz-companion-home .wilds-companion-command > small {
+  top: 7px;
+  right: 7px;
+}
+
+.wildz-companion-home .wilds-companion-ability-wheel {
+  right: -4px;
+  bottom: calc(100% - 24px);
+  width: min(210px, calc(100vw - 24px));
+  height: auto;
+  aspect-ratio: 1;
+  transform: none;
+  transform-origin: bottom right;
+  animation: wildz-wheel-in 150ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+/* Right-edge world status and utility controls remain below the map safe zone. */
+.wildz-app .wilds-world-navigator-stack {
+  top: calc(clamp(92px, 15vh, 124px) + env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  bottom: auto;
+  left: auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.wildz-app .wilds-living-world-hud {
+  align-items: flex-end;
+}
+
+.wildz-app .wilds-utility-cluster {
+  top: calc(clamp(196px, 31vh, 252px) + env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  bottom: auto;
+  left: auto;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.wildz-app .wilds-utility-cluster .wilds-audio-sheet {
+  right: 0;
+  left: auto;
+}
+
+.wildz-app .wilds-event-toast {
+  right: auto;
+  bottom: max(180px, calc(env(safe-area-inset-bottom) + 174px));
+  left: max(116px, calc(env(safe-area-inset-left) + 108px));
+  width: auto;
+  max-width: min(40vw, 280px);
+}
+
+@keyframes wildz-home-fan-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px) scale(.92); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+@keyframes wildz-quick-utilities-in {
+  from { opacity: 0; transform: translateY(8px) scale(.92); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes wildz-wheel-in {
+  from { opacity: 0; transform: scale(.86); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (max-width: 640px) {
+  .wildz-reference-hud {
+    grid-template-columns: minmax(0, clamp(118px, 42vw, 184px)) minmax(44px, 1fr) 68px;
+    gap: 4px;
+    padding: calc(8px + env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));
+  }
+
+  .wildz-identity-home > .wildz-companion-capsule {
+    grid-template-columns: 40px minmax(0, 1fr);
+    min-height: 48px;
+    gap: 4px;
+    padding: 4px 7px 4px 4px;
+    border-radius: 18px;
+  }
+
+  .wildz-identity-home > .wildz-companion-capsule > .wilds-creature-thumbnail {
+    width: 40px;
+    height: 40px;
+  }
+
+  .wildz-identity-home > .wildz-companion-capsule strong {
+    font-size: 10px;
+  }
+
+  .wildz-map-home,
+  .wildz-map-home > .wildz-minimap {
+    width: 68px;
+  }
+
+  .wildz-mission-home {
+    width: min(100%, 112px);
+  }
+
+  .wildz-mission-home > .wildz-mission-chip {
+    min-height: 44px;
+    gap: 4px;
+    padding: 5px 7px;
+  }
+
+  .wildz-mission-home > .wildz-mission-chip > span {
+    font-size: 15px;
+  }
+
+  .wildz-movement-home,
+  .wildz-companion-home {
+    bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .wildz-movement-home {
+    left: max(12px, env(safe-area-inset-left));
+  }
+
+  .wildz-tools-home {
+    bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  .wildz-companion-home {
+    right: max(12px, env(safe-area-inset-right));
+  }
+
+  .wilds-world-tools-trigger {
+    width: clamp(58px, 18vw, 72px);
+  }
+
+  .wildz-companion-home > .wildz-creature-drawer {
+    width: min(74vw, 430px);
+  }
+
+  .wildz-app .wilds-world-navigator-stack {
+    top: calc(84px + env(safe-area-inset-top));
+    right: max(8px, env(safe-area-inset-right));
+  }
+
+  .wildz-app .wilds-utility-cluster {
+    top: calc(194px + env(safe-area-inset-top));
+    right: max(8px, env(safe-area-inset-right));
+  }
+}
+
+@media (max-width: 350px) {
+  .wildz-reference-hud {
+    grid-template-columns: minmax(0, 112px) minmax(44px, 1fr) 64px;
+  }
+
+  .wildz-map-home,
+  .wildz-map-home > .wildz-minimap {
+    width: 64px;
+    min-width: 64px;
+  }
+
+  .wildz-mission-home > .wildz-mission-chip small {
+    display: none;
+  }
+
+  .wildz-companion-home > .wildz-creature-drawer {
+    width: calc(100vw - max(16px, env(safe-area-inset-left)) - max(16px, env(safe-area-inset-right)));
+  }
+}
+
+/* 844x390 and similar devices use shallow, horizontal expansions. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .wildz-reference-hud {
+    grid-template-columns: minmax(0, 190px) minmax(80px, 1fr) 62px;
+    gap: 6px;
+    padding: calc(6px + env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));
+  }
+
+  .wildz-identity-home > .wildz-companion-capsule {
+    grid-template-columns: 40px minmax(0, 1fr);
+    min-height: 48px;
+    padding: 4px 7px 4px 4px;
+  }
+
+  .wildz-identity-home > .wildz-companion-capsule > .wilds-creature-thumbnail {
+    width: 40px;
+    height: 40px;
+  }
+
+  .wildz-map-home,
+  .wildz-map-home > .wildz-minimap {
+    width: 62px;
+    min-width: 62px;
+  }
+
+  .wildz-mission-home {
+    width: min(100%, 124px);
+  }
+
+  .wildz-movement-home,
+  .wildz-movement-home .wildz-dpad {
+    width: 68px;
+    min-width: 68px;
+  }
+
+  .wildz-movement-home {
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: max(8px, env(safe-area-inset-left));
+  }
+
+  .wildz-quick-utilities {
+    bottom: 0;
+    left: calc(100% + 8px);
+    grid-template-columns: repeat(2, 44px);
+  }
+
+  .wildz-tools-home {
+    bottom: max(10px, env(safe-area-inset-bottom));
+  }
+
+  .wildz-tools-home .wilds-world-tools-fan {
+    bottom: calc(100% + 6px);
+  }
+
+  .wildz-tools-home .wilds-world-tools-fan .wilds-command-dock {
+    grid-template-columns: repeat(4, 44px);
+    gap: 5px;
+  }
+
+  .wildz-tools-home .wilds-command-button {
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .wildz-companion-home {
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    width: 78px;
+  }
+
+  .wildz-companion-home .wilds-companion-command {
+    width: 78px;
+  }
+
+  .wildz-companion-home > .wildz-creature-drawer {
+    bottom: calc(100% + 6px);
+    width: min(520px, calc(100vw - 200px));
+    max-height: min(44dvh, 156px);
+  }
+
+  .wildz-companion-home .wilds-companion-ability-wheel {
+    right: 0;
+    bottom: calc(100% + 6px);
+    display: grid;
+    grid-template-columns: repeat(4, minmax(68px, 1fr));
+    width: min(390px, calc(100vw - 200px));
+    height: auto;
+    aspect-ratio: auto;
+    gap: 5px;
+  }
+
+  .wildz-companion-home .wilds-companion-ability {
+    position: static;
+    width: auto;
+    min-height: 44px;
+    transform: none;
+  }
+
+  .wildz-app .wilds-world-navigator-stack {
+    top: calc(70px + env(safe-area-inset-top));
+    right: max(8px, env(safe-area-inset-right));
+    width: min(340px, 44vw);
+    max-width: min(340px, 44vw);
+  }
+
+  .wildz-app .wilds-living-world-hud {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+
+  .wildz-app .wilds-utility-cluster {
+    top: calc(112px + env(safe-area-inset-top));
+    right: max(8px, env(safe-area-inset-right));
+  }
+
+  .wildz-app .wilds-event-toast {
+    bottom: max(88px, calc(env(safe-area-inset-bottom) + 82px));
+    left: max(116px, calc(env(safe-area-inset-left) + 108px));
+    width: min(24vw, 200px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wilds-world-tools-fan,
+  .wildz-creature-drawer,
+  .wilds-companion-ability-wheel {
+    animation: none;
+    transition: none;
+  }
+
+  .wildz-quick-utilities,
+  .wildz-creature-drawer-handle,
+  .wildz-creature-drawer-content,
+  .wildz-creature-drawer-dots i,
+  .wilds-companion-command,
+  .wilds-companion-peek,
+  .wilds-companion-ability,
+  .wilds-command-button {
+    animation: none;
+    transition: none;
+  }
+}

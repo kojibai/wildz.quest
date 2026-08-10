@@ -30,7 +30,11 @@ describe("flagship mobile release contracts", () => {
     assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
     assert.match(css, /\.wilds-trainer-transition-energy\s*\{\s*animation:\s*none/);
     assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\)/);
-    assert.match(css, /\.wildz-social-stack\s*\{[^}]*position:\s*absolute;[^}]*pointer-events:\s*none;/);
+    assert.match(css, /\.wildz-world-controls\s*\{[^}]*position:\s*absolute;[^}]*inset:\s*0;[^}]*pointer-events:\s*none;/);
+    assert.match(css, /\.wildz-movement-home\s*\{[^}]*bottom:\s*max\([^}]*safe-area-inset-bottom/);
+    assert.match(css, /\.wildz-companion-home\s*\{[^}]*right:\s*max\([^}]*safe-area-inset-right/);
+    assert.match(css, /\.wildz-quick-utilities\s*>\s*button\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px/);
+    assert.match(css, /\.wildz-movement-home\s+\.wildz-dpad\s*\{[^}]*width:\s*clamp\(68px,/);
   });
 
   it("keeps world, challenge, and combat as one uninterrupted state-owned journey", () => {

@@ -26,11 +26,31 @@ test("world camera matches the current Commerce gesture framing", () => {
   assert.match(world, /zoomSpeed=\{\.82\}/);
 });
 
-test("D-pad occupies the centered column inside the safe-area deck", () => {
+test("gameplay controls float in collision-safe homes without a bottom chassis", () => {
   const css = readFileSync("app/globals.css", "utf8");
-  assert.match(css, /\.wildz-bottom-play-controls\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) 72px minmax\(0, 1fr\)/);
-  assert.match(css, /\.wildz-bottom-play-controls \.wildz-dpad/);
-  assert.match(css, /env\(safe-area-inset-bottom\)/);
+  assert.match(css, /\.wildz-app \.wilds-world\s*\{[^}]*grid-template-rows:\s*minmax\(0, 1fr\);/);
+  assert.match(css, /\.wildz-world-controls\s*\{[^}]*position:\s*absolute;[^}]*inset:\s*0;[^}]*pointer-events:\s*none;/);
+  assert.match(css, /\.wildz-movement-home\s*\{[^}]*position:\s*absolute;[^}]*bottom:/);
+  assert.match(css, /\.wildz-tools-home\s*\{[^}]*left:\s*50%;/);
+  assert.match(css, /\.wildz-companion-home\s*\{[^}]*right:/);
+  assert.match(css, /\.wilds-companion-real-name/);
+  assert.doesNotMatch(css, /\.wildz-world-controls[^}]*background:/);
+});
+
+test("expanded controls grow from their semantic homes and remain motion-safe", () => {
+  const css = readFileSync("app/globals.css", "utf8");
+  assert.match(css, /\.wildz-quick-utilities\s*\{[^}]*animation:\s*wildz-quick-utilities-in/);
+  assert.doesNotMatch(css, /\.wildz-quick-utilities\s*\{[^}]*animation:\s*wildz-home-fan-in/);
+  assert.match(css, /\.wildz-companion-home\s*>\s*\.wildz-creature-drawer\s*\{[^}]*position:\s*absolute;[^}]*bottom:/);
+  assert.match(css, /\.wildz-tools-home \.wilds-world-tools-fan\s*\{[^}]*position:\s*absolute;[^}]*bottom:/);
+  assert.match(css, /\.wildz-tools-home \.wilds-world-tools-fan \.wilds-command-dock\s*\{[^}]*grid-template-columns:\s*repeat\(2,/);
+  assert.match(css, /\.wildz-tools-home \.wilds-command-button\[aria-controls="wilds-command-sheet-mission"\]\s*\{[^}]*display:\s*none;/);
+  assert.match(css, /\.wildz-companion-home \.wilds-companion-ability-wheel\s*\{[^}]*right:/);
+  assert.match(css, /\.wildz-app \.wilds-event-toast\s*\{[^}]*bottom:\s*max\(180px,/);
+  assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\)\s*\{[\s\S]*\.wildz-tools-home \.wilds-world-tools-fan \.wilds-command-dock\s*\{[^}]*grid-template-columns:\s*repeat\(4,/);
+  assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\)\s*\{[\s\S]*\.wildz-companion-home \.wilds-companion-command\s*\{[^}]*width:\s*78px;/);
+  assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\)\s*\{[\s\S]*\.wildz-app \.wilds-event-toast\s*\{[^}]*width:\s*min\(24vw, 200px\);/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*\.wilds-world-tools-fan,[\s\S]*\.wildz-creature-drawer,[\s\S]*\.wilds-companion-ability-wheel\s*\{[^}]*animation:\s*none;[^}]*transition:\s*none;/);
 });
 
 test("world event pills stay compact while trainer challenges come from directly selected world actors", () => {
@@ -38,7 +58,7 @@ test("world event pills stay compact while trainer challenges come from directly
   const source = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
   assert.match(
     css,
-    /\.wilds-world-navigator-stack\s*\{[^}]*bottom:\s*86px;[^}]*left:\s*8px;[^}]*flex-direction:\s*column;[^}]*align-items:\s*flex-start;[^}]*gap:\s*5px;/
+    /\.wildz-app \.wilds-world-navigator-stack\s*\{[^}]*top:\s*calc\([^}]*safe-area-inset-top[^}]*right:\s*max\([^}]*safe-area-inset-right[^}]*flex-direction:\s*column;[^}]*align-items:\s*flex-end;/
   );
   const stackStart = source.indexOf('<div className="wilds-world-navigator-stack">');
   const worldHud = source.indexOf("<WildsLivingWorldHud", stackStart);
