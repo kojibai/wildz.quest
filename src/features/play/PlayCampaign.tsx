@@ -278,6 +278,7 @@ export function PlayCampaign({
   const openTrainerEncounter = (trainer: WildsTrainerProjection) => {
     void import("@/features/play/WildsTrainerEncounter");
     void import("@/features/games/mortal-arena/MortalArenaExperience");
+    presentation.playCue("trainer-challenge");
     const recognized = advanceTrainerEncounter(
       createTrainerEncounter(
         trainer.id,
@@ -1069,6 +1070,7 @@ export function PlayCampaign({
               onCardOrderChange={setCardOrder}
               onInput={(input) => dispatch(input)}
               onMovementModeChange={setMovementMode}
+              onAudioCue={presentation.playCue}
               onRest={() => dispatch({ type: "rest", at: new Date().toISOString() })}
               onSelectCard={(assetId) => dispatch({ type: "select-asset", assetId })}
             />

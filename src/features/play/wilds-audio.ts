@@ -57,6 +57,8 @@ export type WildsAudioCue =
   | "boss-transform"
   | "boss-vulnerable"
   | "boss-defeat"
+  | "trainer-challenge"
+  | "companion-detent"
   | "confirm"
   | "error";
 
@@ -172,6 +174,8 @@ const CUE_VOICES: Readonly<Record<WildsAudioCue, CueVoice>> = {
   "boss-transform": { frequency: 147, endFrequency: 880, duration: .94, gain: .2, type: "sawtooth" },
   "boss-vulnerable": { frequency: 523, endFrequency: 1_397, duration: .6, gain: .18, type: "triangle" },
   "boss-defeat": { frequency: 196, endFrequency: 1_568, duration: 1.35, gain: .22, type: "sine" },
+  "trainer-challenge": { frequency: 196, endFrequency: 880, duration: .68, gain: .18, type: "triangle" },
+  "companion-detent": { frequency: 720, endFrequency: 880, duration: .08, gain: .08, type: "sine" },
   confirm: { frequency: 540, endFrequency: 760, duration: 0.18, gain: 0.14, type: "sine" },
   error: { frequency: 210, endFrequency: 130, duration: 0.24, gain: 0.16, type: "square" }
 };

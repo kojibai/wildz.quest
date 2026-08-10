@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { Icons } from "@/components/icons";
 import type { PortableCardAsset } from "./portable-card";
 import type { TrainerEncounterState } from "./trainer-encounter";
@@ -41,6 +42,7 @@ export function WildsTrainerEncounter({
   onTransitionComplete: () => void;
 }) {
   const [reviewOpen, setReviewOpen] = useState(false);
+  const signatureTrainer = trainer.name === "Lanternforge Keeper";
   const transitionCompleteRef = useRef(onTransitionComplete);
   transitionCompleteRef.current = onTransitionComplete;
   const admittedRoster = useMemo(
@@ -60,8 +62,8 @@ export function WildsTrainerEncounter({
     return <section className="wilds-trainer-transition" aria-live="assertive" aria-label={`Battle transition: ${activeCard.manifest.name} versus ${trainer.name}`}>
       <div className="wilds-trainer-transition-energy" aria-hidden="true" />
       <article><WildsCreatureThumbnail asset={activeCard} /><strong>{activeCard.manifest.name}</strong><small>Your lead</small></article>
-      <div className="wilds-trainer-versus"><span>Trainer battle</span><b>VS</b><i>{trainer.affinity}</i></div>
-      <article className={`is-rival affinity-${trainer.affinity}`}><span className="wilds-trainer-portrait"><Icons.users size={34} /></span><strong>{trainer.name}</strong><small>Lv. {trainer.challengeLevel}</small></article>
+      <div className="wilds-trainer-versus"><span>Trainer battle</span>{signatureTrainer ? <Image alt="" aria-hidden="true" className="wilds-trainer-emblem" height={38} src="/game/trainers/lanternforge-emblem.webp" width={38} /> : null}<b>VS</b><i>{trainer.affinity}</i></div>
+      <article className={`is-rival affinity-${trainer.affinity}`}><span className="wilds-trainer-portrait">{signatureTrainer ? <Image alt="" fill sizes="156px" src="/game/trainers/lanternforge-keeper-portrait.webp" /> : <Icons.users size={34} />}</span><strong>{trainer.name}</strong><small>Lv. {trainer.challengeLevel}</small></article>
       {encounter.repeat ? <button onClick={onSkipTransition} type="button">Skip</button> : null}
     </section>;
   }
@@ -89,7 +91,7 @@ export function WildsTrainerEncounter({
 
   return <section className="wilds-trainer-challenge" aria-labelledby="wilds-trainer-challenge-title" aria-modal="true" role="dialog">
     <header>
-      <div className={`wilds-trainer-portrait affinity-${trainer.affinity}`}><Icons.users aria-hidden="true" size={32} /></div>
+      <div className={`wilds-trainer-portrait affinity-${trainer.affinity}`}>{signatureTrainer ? <Image alt="" fill priority sizes="54px" src="/game/trainers/lanternforge-keeper-portrait.webp" /> : <Icons.users aria-hidden="true" size={32} />}</div>
       <div><span className="eyebrow">{trainer.tier} trainer · {trainer.affinity} affinity</span><h2 id="wilds-trainer-challenge-title">{trainer.name}</h2></div>
       <button aria-label="Close trainer challenge" onClick={onCancel} type="button"><Icons.close size={19} /></button>
     </header>

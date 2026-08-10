@@ -11,6 +11,7 @@ import { WildzDpad } from "./WildzDpad";
 import { WildsCompanionCommand } from "./WildsCompanionCommand";
 import { creatureForm } from "./creature-catalog";
 import type { CreatureDrawerSnap } from "./creature-drawer";
+import type { WildsAudioCue } from "./wilds-audio";
 
 function useStableEvent<Arguments extends unknown[]>(handler: (...args: Arguments) => void) {
   const handlerRef = useRef(handler);
@@ -20,7 +21,7 @@ function useStableEvent<Arguments extends unknown[]>(handler: (...args: Argument
   return useCallback((...args: Arguments) => handlerRef.current(...args), []);
 }
 
-export function WildzSocialDeck({ nearbyCards, activeCard, companionProgress, cardConditions, action, cameraHeadingRef, movementMode, cardOrder, onCardOrderChange, onInput, onAction, onMovementModeChange, onSelectCard, onRest }: {
+export function WildzSocialDeck({ nearbyCards, activeCard, companionProgress, cardConditions, action, cameraHeadingRef, movementMode, cardOrder, onCardOrderChange, onInput, onAction, onMovementModeChange, onSelectCard, onRest, onAudioCue }: {
   nearbyCards: readonly PortableCardAsset[];
   activeCard: PortableCardAsset | null;
   companionProgress: PlayState["companionProgress"];
@@ -35,6 +36,7 @@ export function WildzSocialDeck({ nearbyCards, activeCard, companionProgress, ca
   onMovementModeChange: (mode: WildsMovementMode) => void;
   onSelectCard: (assetId: string) => void;
   onRest: () => void;
+  onAudioCue?: (cue: WildsAudioCue) => void;
 }) {
   const changeCardOrder = useStableEvent(onCardOrderChange);
   const selectCard = useStableEvent(onSelectCard);
@@ -70,6 +72,7 @@ export function WildzSocialDeck({ nearbyCards, activeCard, companionProgress, ca
         cards={nearbyCards}
         fieldPowers={fieldPowers}
         onRequestDrawer={setRequestedSnap}
+        onAudioCue={onAudioCue}
         onSelectAbility={() => {}}
         onSelectCard={selectCard}
         onUsePower={onAction}

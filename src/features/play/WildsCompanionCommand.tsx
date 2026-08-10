@@ -13,6 +13,7 @@ import {
 import { companionCarousel, cycleCompanion } from "./companion-command-model";
 import { playWildsHaptic } from "./wilds-haptics";
 import type { PortableCardAsset } from "./portable-card";
+import type { WildsAudioCue } from "./wilds-audio";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 
 export type WildsCompanionPower = { id: string; label: string };
@@ -24,7 +25,8 @@ export function WildsCompanionCommand({
   onSelectCard,
   onUsePower,
   onSelectAbility,
-  onRequestDrawer
+  onRequestDrawer,
+  onAudioCue
 }: {
   cards: readonly PortableCardAsset[];
   activeCard: PortableCardAsset | null;
@@ -33,6 +35,7 @@ export function WildsCompanionCommand({
   onUsePower: (abilityIndex: number) => void;
   onSelectAbility: (abilityIndex: number) => void;
   onRequestDrawer: (snap: "preview" | "expanded") => void;
+  onAudioCue?: (cue: WildsAudioCue) => void;
 }) {
   const gestureRef = useRef<CompanionGestureState | null>(null);
   const holdTimerRef = useRef<number | null>(null);
@@ -68,6 +71,7 @@ export function WildsCompanionCommand({
     const assetId = cycleCompanion(cards, activeCard?.id ?? null, direction);
     if (!assetId || assetId === activeCard?.id) return;
     playWildsHaptic("cycle");
+    onAudioCue?.("companion-detent");
     onSelectCard(assetId);
   };
 
@@ -118,7 +122,10 @@ export function WildsCompanionCommand({
     const previousIndex = gestureRef.current.activeAbilityIndex;
     const moved = moveCompanionGesture(gestureRef.current, pointerPoint(event), performance.now());
     gestureRef.current = moved;
-    if (moved.activeAbilityIndex !== previousIndex && moved.activeAbilityIndex !== null) playWildsHaptic("wheel-detent");
+    if (moved.activeAbilityIndex !== previousIndex && moved.activeAbilityIndex !== null) {
+      playWildsHaptic("wheel-detent");
+      onAudioCue?.("companion-detent");
+    }
     if (moved.mode !== "pending") clearHold();
     renderGesture(moved);
   };
