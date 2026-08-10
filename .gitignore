@@ -6,6 +6,7 @@ tsconfig.tsbuildinfo
 .DS_Store
 output/
 .playwright-cli/
+.superpowers/
 .env*
 !.env.example
 .pnpm-store/
