@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import {
+  dismissIncomingChallengeWhenBlocked,
+  shareWildzInviteWhenEnabled,
+  shouldShowIncomingChallenge
+} from "../src/features/play/wilds-multiplayer-controls";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -43,6 +48,58 @@ test("exclusive ownership dismisses multiplayer expansions and blocks roster and
   assert.match(multiplayer, /disabled=\{!interactionEnabled \|\| !canInteract\}/);
   assert.match(multiplayer, /if \(!interactionEnabled\) return;[\s\S]*multiplayer\.offerChallenge/);
   assert.match(multiplayer, /disabled=\{!interactionEnabled\}[\s\S]*multiplayer\.answerChallenge/);
+});
+
+test("exclusive ownership suppresses an incoming multiplayer challenge", () => {
+  const incomingChallenge = { id: "challenge-1" };
+
+  assert.equal(shouldShowIncomingChallenge(true, incomingChallenge), true);
+  assert.equal(shouldShowIncomingChallenge(false, incomingChallenge), false);
+  assert.equal(shouldShowIncomingChallenge(true, null), false);
+});
+
+test("exclusive ownership safely declines an incoming multiplayer challenge", async () => {
+  const answers: Array<{ id: string; action: "accept" | "decline" }> = [];
+
+  const dismissed = await dismissIncomingChallengeWhenBlocked(
+    false,
+    "challenge-1",
+    async (id, action) => {
+      answers.push({ id, action });
+    }
+  );
+
+  assert.equal(dismissed, true);
+  assert.deepEqual(answers, [{ id: "challenge-1", action: "decline" }]);
+});
+
+test("exclusive ownership prevents invite creation and sharing", async () => {
+  let createCalls = 0;
+  let shareCalls = 0;
+
+  const result = await shareWildzInviteWhenEnabled(
+    false,
+    async () => {
+      createCalls += 1;
+      return "https://wildz.quest/?wildsJoin=room";
+    },
+    async () => {
+      shareCalls += 1;
+      return "shared" as const;
+    }
+  );
+
+  assert.equal(result, null);
+  assert.equal(createCalls, 0);
+  assert.equal(shareCalls, 0);
+});
+
+test("multiplayer UI connects exclusive ownership to incoming challenge and share guards", () => {
+  const multiplayer = read("src/features/play/WildsMultiplayer.tsx");
+
+  assert.match(multiplayer, /shouldShowIncomingChallenge\(interactionEnabled, multiplayer\.incomingChallenge\)/);
+  assert.match(multiplayer, /shareWildzInviteWhenEnabled\([\s\S]*interactionEnabled,[\s\S]*multiplayer\.createInviteLink/);
+  assert.match(multiplayer, /className="wilds-live-share"[\s\S]*disabled=\{!interactionEnabled\}/);
 });
 
 test("campaign removes duplicate world chrome and persistent distant trainer navigation", () => {

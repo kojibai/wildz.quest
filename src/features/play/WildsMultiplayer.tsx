@@ -4,6 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { WILDS_INTERACTION_DISTANCE, presenceDistance } from "./multiplayer-core";
 import type { WildsMultiplayerController } from "./use-wilds-multiplayer";
 import { shareWildzInvite } from "./wilds-invite-share";
+import {
+  dismissIncomingChallengeWhenBlocked,
+  shareWildzInviteWhenEnabled,
+  shouldShowIncomingChallenge
+} from "./wilds-multiplayer-controls";
 
 function healthPercent(hp: number, maxHp: number) {
   return `${Math.max(0, Math.min(100, (hp / maxHp) * 100))}%`;
@@ -27,6 +32,7 @@ export function WildsMultiplayer({
   const [message, setMessage] = useState("");
   const [notice, setNotice] = useState("");
   const priorDismissSignal = useRef(dismissSignal);
+  const dismissedChallengeIds = useRef(new Set<string>());
   const selected = multiplayer.selectedPlayer;
   const selectedDistance = selected ? presenceDistance(selected, position) : Infinity;
   const canInteract = selectedDistance <= WILDS_INTERACTION_DISTANCE && selected?.status === "available";
@@ -51,6 +57,16 @@ export function WildsMultiplayer({
     setMessage("");
     multiplayer.selectPlayer(null);
   }, [dismissSignal, interactionEnabled]);
+  const blockedIncomingChallengeId = interactionEnabled ? null : multiplayer.incomingChallenge?.id;
+  useEffect(() => {
+    if (!blockedIncomingChallengeId || dismissedChallengeIds.current.has(blockedIncomingChallengeId)) return;
+    dismissedChallengeIds.current.add(blockedIncomingChallengeId);
+    void dismissIncomingChallengeWhenBlocked(
+      interactionEnabled,
+      blockedIncomingChallengeId,
+      multiplayer.answerChallenge
+    ).catch(() => dismissedChallengeIds.current.delete(blockedIncomingChallengeId));
+  }, [blockedIncomingChallengeId, interactionEnabled, multiplayer.answerChallenge]);
 
   return (
     <>
@@ -62,10 +78,14 @@ export function WildsMultiplayer({
           <i />
           <span>{multiplayer.remotePlayers.length}</span>
         </button>
-        <button aria-label="Share Wildz invite" className="wilds-live-share" onClick={async () => {
+        <button aria-label="Share Wildz invite" className="wilds-live-share" disabled={!interactionEnabled} onClick={async () => {
+          if (!interactionEnabled) return;
           try {
-            const url = await multiplayer.createInviteLink();
-            const result = await shareWildzInvite(url);
+            const result = await shareWildzInviteWhenEnabled(
+              interactionEnabled,
+              multiplayer.createInviteLink,
+              shareWildzInvite
+            );
             if (result === "shared") setNotice("Wildz invite shared — they can join this live room.");
             if (result === "copied") setNotice("Invite link copied — anyone opening it joins this live room.");
           } catch {
@@ -121,7 +141,7 @@ export function WildsMultiplayer({
         </section>
       ) : null}
 
-      {multiplayer.incomingChallenge ? (
+      {shouldShowIncomingChallenge(interactionEnabled, multiplayer.incomingChallenge) ? (
         <section className="wilds-live-sheet wilds-challenge-incoming" role="dialog" aria-modal="true" aria-label="Incoming Wilds battle challenge">
           <span>Challenge signal</span>
           <h3>{multiplayer.snapshot?.players.find((player) => player.playerId === multiplayer.incomingChallenge?.challengerId)?.handle ?? "A nearby explorer"} wants to battle</h3>
