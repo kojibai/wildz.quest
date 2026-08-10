@@ -76,27 +76,27 @@ describe("Receiz Wilds rendering contract", () => {
     const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
     const referenceHud = await readFile("src/features/play/WildzReferenceHud.tsx", "utf8");
     const minimap = await readFile("src/features/play/WildzMinimap.tsx", "utf8");
-    const controls = await readFile("src/features/play/WildzSocialDeck.tsx", "utf8");
+    const controls = await readFile("src/features/play/WildzWorldControls.tsx", "utf8");
     const route = await readFile("app/api/wilds/atlas/route.ts", "utf8");
 
     assert.match(campaign, /className="wilds-utility-cluster"/);
     assert.match(campaign, /BEAT:STEP:PULSE/);
     assert.match(campaign, /className="wilds-kai-command-pill"/);
     assert.match(campaign, /setRequestedCommand\("commandCenter"\)/);
-    assert.match(campaign, /onOpenMap=\{\(\) => setMapOpen\(true\)\}/);
+    assert.match(campaign, /onOpenMap=\{openWorldMap\}/);
     assert.match(referenceHud, /<WildzMinimap[\s\S]*onOpen=\{onOpenMap\}/);
     assert.match(minimap, /<button[\s\S]*aria-label=\{`Open world map\./);
     assert.match(campaign, /<WildsWorldMap/);
-    assert.doesNotMatch(campaign, /WildsWorldControls/);
-    assert.match(campaign, /<WildzSocialDeck/);
+    assert.match(campaign, /<WildzWorldControls/);
+    assert.doesNotMatch(campaign, /<WildzSocialDeck/);
     assert.match(campaign, /fetch\("\/api\/wilds\/rift"/);
     assert.match(campaign, /type: "apply-rift-grant"/);
     assert.doesNotMatch(campaign, /requestedAt|appliedAt/);
     assert.match(campaign, /grant: result\.grant,[\s\S]*?playerId: result\.grant\.playerId/);
     assert.match(controls, /aria-label=\{movementMode === "walk" \? "Switch to running" : "Switch to walking"\}/);
     assert.match(controls, /<WildsCompanionCommand/);
-    assert.match(controls, /onUsePower=\{onAction\}/);
-    assert.match(controls, /<WildzDpad cameraHeadingRef=\{cameraHeadingRef\} movementMode=\{movementMode\} onInput=\{onInput\}/);
+    assert.match(controls, /onUsePower=\{\(\) => \{ if \(controlsEnabled\) onAction\(\); \}\}/);
+    assert.match(controls, /<WildzDpad[\s\S]*cameraHeadingRef=\{cameraHeadingRef\}[\s\S]*movementMode=\{movementMode\}/);
     assert.match(route, /getWildsAtlasPresence/);
     assert.match(route, /cache-control": "private, no-store"/);
     assert.doesNotMatch(route, /activeCard/);
@@ -238,17 +238,18 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(world, /<WildsCreatureActor/);
   });
 
-  it("keeps compact controls below the world and opens strategy from one icon dock", async () => {
+  it("keeps compact controls inside the world and opens strategy from one icon dock", async () => {
     const source = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
-    const controls = await readFile("src/features/play/WildzSocialDeck.tsx", "utf8");
+    const controls = await readFile("src/features/play/WildzWorldControls.tsx", "utf8");
     const creatureDrawer = await readFile("src/features/play/WildzCreatureDrawer.tsx", "utf8").catch(() => "");
     const commandDock = await readFile("src/features/play/WildsCommandDock.tsx", "utf8");
     const css = await readFile("app/globals.css", "utf8");
-    const stageEnd = source.indexOf("<WildzSocialDeck");
+    const stageControls = source.indexOf("<WildzWorldControls");
     const eventToast = source.indexOf('<div className="wilds-event-toast"');
 
-    assert.ok(stageEnd > eventToast);
-    assert.match(source, /<WildsCommandDock items=\{commandItems\}/);
+    assert.ok(stageControls > source.indexOf("<WildsWorldCanvas") && stageControls < eventToast);
+    assert.match(controls, /<WildsCommandDock/);
+    assert.doesNotMatch(source, /<div className="wildz-social-stack">/);
     for (const key of ["mission", "fieldGuide", "satchel", "deck", "vault"]) assert.match(source, new RegExp(`key: "${key}"`));
     assert.match(source, /badge: `\$\{sagaProgressPercent\}%`/);
     assert.match(source, /badge: `\$\{discoveredKaiLineages\.size\}\/∞`/);
@@ -668,7 +669,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(controls, /Music volume/);
     assert.match(controls, /Mute Wilds audio/);
     assert.match(campaign, /wilds-utility-cluster/);
-    const socialDeck = campaign.slice(campaign.indexOf("<WildzSocialDeck"));
-    assert.doesNotMatch(socialDeck, /<WildsAudioSettings/);
+    const worldControls = campaign.slice(campaign.indexOf("<WildzWorldControls"));
+    assert.doesNotMatch(worldControls, /<WildsAudioSettings/);
   });
 });

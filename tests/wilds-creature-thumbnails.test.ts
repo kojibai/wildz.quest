@@ -48,7 +48,7 @@ test("the in-game Card Vault owns the atomic merge boundary", () => {
 
 test("D-pad preserves analog camera-relative movement and visible stick travel", () => {
   const dpad = readFileSync("src/features/play/WildzDpad.tsx", "utf8");
-  const socialDeck = readFileSync("src/features/play/WildzSocialDeck.tsx", "utf8");
+  const controls = readFileSync("src/features/play/WildzWorldControls.tsx", "utf8");
   const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
 
   assert.match(dpad, /cameraRelativeMovement/);
@@ -57,8 +57,8 @@ test("D-pad preserves analog camera-relative movement and visible stick travel",
   assert.match(dpad, /onLostPointerCapture/);
   assert.match(dpad, /translate\(\$\{knob\.x\}px, \$\{knob\.y\}px\)/);
   assert.match(dpad, /addEventListener\("blur"/);
-  assert.match(socialDeck, /cameraHeading/);
-  assert.match(socialDeck, /movementMode/);
+  assert.match(controls, /cameraHeading/);
+  assert.match(controls, /movementMode/);
   assert.match(campaign, /cameraHeadingRef=\{cameraHeadingRef\}/);
-  assert.match(campaign, /onInput=\{\(input\) => dispatch\(input\)\}/);
+  assert.match(campaign, /onInput=\{dispatchWorldInput\}/);
 });

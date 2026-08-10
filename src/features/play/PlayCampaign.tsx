@@ -29,7 +29,7 @@ import { projectWildsAudioScene } from "@/features/play/wilds-audio-scene";
 import { projectWildsBiome } from "@/features/play/wilds-biome";
 import type { WildsSettlementDistrictId } from "@/features/play/wilds-settlements";
 import { projectWorldProgression } from "@/features/play/world-progression";
-import { WildsCommandDock, type WildsCommandItem, type WildsCommandKey } from "@/features/play/WildsCommandDock";
+import type { WildsCommandItem, WildsCommandKey } from "@/features/play/WildsCommandDock";
 import { WildsCommandCenter } from "@/features/play/command-center/WildsCommandCenter";
 import { projectWildsCommandCenter, type WildsCommandAction } from "@/features/play/command-center/director";
 import { deriveKaiKlokMoment, KAI_GENESIS_TS, millisecondsUntilNextKaiPulse } from "@/features/play/kai-klok-moment";
@@ -42,7 +42,7 @@ import { evaluateLandmarkAccess, type WildsLandmarkProgress } from "@/features/p
 import type { RiftTravelGrant } from "@/features/play/wilds-rift-travel";
 import { projectWildzHud } from "@/features/play/wildz-gameplay-hud";
 import { WildzReferenceHud } from "@/features/play/WildzReferenceHud";
-import { WildzSocialDeck } from "@/features/play/WildzSocialDeck";
+import { WildzWorldControls } from "@/features/play/WildzWorldControls";
 import { WildsCreatureThumbnail } from "@/features/play/WildsCreatureThumbnail";
 import { creatureFamilies, creatureForm } from "@/features/play/creature-catalog";
 import { createWildsPlayerVault, type WildsPlayerVaultPayload, type WildzCardOrder } from "@/features/play/wilds-player-vault";
@@ -152,8 +152,6 @@ export function PlayCampaign({
   const [avatarStyle, setAvatarStyle] = useState<"female" | "male">(() => initialPlayerContinuity?.settings.avatarStyle ?? character.gender);
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
   const [mapOpen, setMapOpen] = useState(false);
-  const [toolsOpen, setToolsOpen] = useState(false);
-  const [panelKey, setPanelKey] = useState<WildsCommandKey | null>(null);
   const [multiplayerRosterOpen, setMultiplayerRosterOpen] = useState(false);
   const cameraHeadingRef = useRef(0);
   const updateCameraHeading = useCallback((heading: number) => {
@@ -227,6 +225,22 @@ export function PlayCampaign({
     activeCard: activeAsset,
     cardAdmission
   });
+  const exclusiveOwner =
+    trainerEncounter?.phase === "combat" || Boolean(state.battle) || Boolean(multiplayer.activeBattle) ? "combat"
+      : activeTrainer && activeAsset && trainerEncounter && ["challenge", "transition", "result"].includes(trainerEncounter.phase) ? "trainer"
+        : mapOpen ? "map" : "none";
+  const worldInteractionEnabled = interactionEnabled && exclusiveOwner === "none";
+  const priorExclusiveOwner = useRef(exclusiveOwner);
+  useEffect(() => {
+    const priorOwner = priorExclusiveOwner.current;
+    priorExclusiveOwner.current = exclusiveOwner;
+    if (exclusiveOwner === "combat" && priorOwner !== "combat") {
+      setCommandDismissSignal((signal) => signal + 1);
+    }
+    if ((exclusiveOwner === "combat" || exclusiveOwner === "trainer") && mapOpen) {
+      setMapOpen(false);
+    }
+  }, [exclusiveOwner, mapOpen]);
   const livingWorld = useWildsWorld({
     enabled: enabled && networkEnabled && Boolean(avatarStyle),
     actorId: ownerReceizId,
@@ -278,6 +292,7 @@ export function PlayCampaign({
     return live ? { ...live, position: projected.position } : projected;
   });
   const openTrainerEncounter = (trainer: WildsTrainerProjection) => {
+    if (!worldInteractionEnabled) return;
     void import("@/features/play/WildsTrainerEncounter");
     void import("@/features/games/mortal-arena/MortalArenaExperience");
     presentation.playCue("trainer-challenge");
@@ -477,7 +492,7 @@ export function PlayCampaign({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!interactionEnabled || !avatarStyle) return;
+      if (!worldInteractionEnabled || !avatarStyle) return;
       const target = event.target as HTMLElement | null;
       if (target?.matches("input, textarea, select, button, [contenteditable='true']")) return;
       const key = event.key.toLowerCase();
@@ -500,7 +515,7 @@ export function PlayCampaign({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [avatarStyle, interactionEnabled, onComplete, ownerReceizId]);
+  }, [avatarStyle, onComplete, ownerReceizId, worldInteractionEnabled]);
 
   if (!enabled) {
     return (
@@ -523,6 +538,15 @@ export function PlayCampaign({
       }
       return next;
     });
+  };
+  const dispatchWorldInput = (input: WildsInput) => {
+    if (!worldInteractionEnabled) return;
+    dispatch(input);
+  };
+  const openWorldMap = () => {
+    if (!worldInteractionEnabled) return;
+    setCommandDismissSignal((signal) => signal + 1);
+    setMapOpen(true);
   };
   const discoveryActive = state.encounter.phase === "idle" || state.encounter.phase === "searching" || state.encounter.phase === "hint";
   const activeProximity = state.encounter.phase === "idle" ? "cold" : state.encounter.proximity ?? "cold";
@@ -618,6 +642,7 @@ export function PlayCampaign({
     acknowledgedCausalIds: []
   });
   const enterLivingRaid = (bossId: string) => {
+    if (!worldInteractionEnabled) return;
     const round = Object.values(livingWorld.snapshot?.raids ?? {}).find((candidate) => candidate.bossId === bossId && candidate.phase !== "settled" && candidate.phase !== "expired");
     const boss = livingWorld.snapshot?.bosses[bossId];
     if (!round) { setRiftError("wilds_world_raid_missing"); return; }
@@ -703,7 +728,7 @@ export function PlayCampaign({
     else if (action.type === "open-satchel") setRequestedCommand("satchel");
     else if (action.type === "open-trail-pack") setRequestedCommand("deck");
     else if (action.type === "open-vault") setRequestedCommand("vault");
-    else if (action.type === "open-map") setMapOpen(true);
+    else if (action.type === "open-map") openWorldMap();
     else activatePulse();
   };
   const riftTo = async (destination: { x: number; z: number }) => {
@@ -995,17 +1020,21 @@ export function PlayCampaign({
               remotePlayers={multiplayer.remotePlayers}
               qualityProfile={qualityProfile}
               onFrameSample={reportFrameSample}
-              searchEnabled={interactionEnabled && discoveryActive && Boolean(avatarStyle)}
+              searchEnabled={worldInteractionEnabled && discoveryActive && Boolean(avatarStyle)}
               onCameraHeadingChange={updateCameraHeading}
               livingWorld={livingWorld.snapshot}
               worldMode={settlementWorldMode}
               kaiMoment={kaiMoment}
               supportCards={trailSupportCards}
-              onSelectPlayer={multiplayer.selectPlayer}
+              onSelectPlayer={(player) => {
+                if (worldInteractionEnabled) multiplayer.selectPlayer(player);
+              }}
               trainers={sagaTrainers}
               onSelectTrainer={openTrainerEncounter}
               onSearchPoint={(point) => {
-                dispatch({ type: "search-point", ...point, searchedAt: new Date().toISOString(), ownerReceizId });
+                if (worldInteractionEnabled) {
+                  dispatch({ type: "search-point", ...point, searchedAt: new Date().toISOString(), ownerReceizId });
+                }
               }}
             />
 
@@ -1014,8 +1043,10 @@ export function PlayCampaign({
               condition={activeAsset ? state.adventureConditions[activeAsset.id] : undefined}
               heading={playerHeading}
               model={hudModel}
-              onOpenMap={() => setMapOpen(true)}
-              onOpenMission={() => setRequestedCommand("mission")}
+              onOpenMap={openWorldMap}
+              onOpenMission={() => {
+                if (worldInteractionEnabled) setRequestedCommand("mission");
+              }}
             /> : null}
 
             {avatarStyle ? <WildsMultiplayer multiplayer={multiplayer} position={state.player} onRosterOpenChange={setMultiplayerRosterOpen} /> : null}
@@ -1032,7 +1063,9 @@ export function PlayCampaign({
               <button
                 aria-label={`Open living Command Center. Beat step pulse ${kaiMoment.latticeCoordinate}`}
                 className="wilds-kai-command-pill"
-                onClick={() => setRequestedCommand("commandCenter")}
+                onClick={() => {
+                  if (worldInteractionEnabled) setRequestedCommand("commandCenter");
+                }}
                 style={{ "--kai-accent": kaiMoment.accent } as CSSProperties}
                 title="Open living Command Center"
                 type="button"
@@ -1041,6 +1074,29 @@ export function PlayCampaign({
                 <span>{kaiMoment.latticeCoordinate}</span>
               </button>
             </div>
+
+            <WildzWorldControls
+              activeCard={activeAsset}
+              action={visiblePulse}
+              cameraHeadingRef={cameraHeadingRef}
+              cardConditions={state.adventureConditions}
+              cardOrder={cardOrder}
+              commandItems={commandItems}
+              companionProgress={state.companionProgress}
+              dismissSignal={commandDismissSignal}
+              exclusiveOwner={exclusiveOwner}
+              movementMode={movementMode}
+              nearbyCards={state.inventory}
+              onAction={activatePulse}
+              onAudioCue={presentation.playCue}
+              onCardOrderChange={setCardOrder}
+              onInput={dispatchWorldInput}
+              onMovementModeChange={setMovementMode}
+              onRequestedCommandHandled={() => setRequestedCommand(null)}
+              onRest={() => dispatchWorldInput({ type: "rest", at: new Date().toISOString() })}
+              onSelectCard={(assetId) => dispatchWorldInput({ type: "select-asset", assetId })}
+              requestedCommand={requestedCommand}
+            />
 
             {wildBattleActive && state.battle ? (
               <WildsBattle
@@ -1058,34 +1114,6 @@ export function PlayCampaign({
             </div>
           </div>
 
-          <div className="wildz-social-stack">
-            <WildzSocialDeck
-              activeCard={activeAsset}
-              action={visiblePulse}
-              cameraHeadingRef={cameraHeadingRef}
-              cardConditions={state.adventureConditions}
-              companionProgress={state.companionProgress}
-              movementMode={movementMode}
-              cardOrder={cardOrder}
-              nearbyCards={state.inventory}
-              onAction={activatePulse}
-              onCardOrderChange={setCardOrder}
-              onInput={(input) => dispatch(input)}
-              onMovementModeChange={setMovementMode}
-              onAudioCue={presentation.playCue}
-              onRest={() => dispatch({ type: "rest", at: new Date().toISOString() })}
-              onSelectCard={(assetId) => dispatch({ type: "select-asset", assetId })}
-            />
-            <WildsCommandDock items={commandItems}
-              toolsOpen={toolsOpen}
-              panelKey={panelKey}
-              onToolsOpenChange={setToolsOpen}
-              onPanelKeyChange={setPanelKey}
-              dismissSignal={commandDismissSignal}
-              requestedKey={requestedCommand}
-              onRequestHandled={() => setRequestedCommand(null)}
-            />
-          </div>
         </div>
       </div>
       <WildsWorldMap

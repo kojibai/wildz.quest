@@ -48,8 +48,8 @@ describe("Wilds V3 living-world UI integration", () => {
     assert.match(campaign, /initialPlayerContinuity/);
     assert.match(campaign, /onExportVault/);
     assert.match(campaign, /onRestoreArtifact/);
-    assert.match(campaign, /<WildzSocialDeck/);
-    assert.match(campaign, /<WildsCommandDock items=\{commandItems\}/);
+    assert.match(campaign, /<WildzWorldControls/);
+    assert.doesNotMatch(campaign, /<WildzSocialDeck|<WildsCommandDock/);
     assert.doesNotMatch(campaign, /key: "social"/);
     assert.match(campaign, /Trail Pack/);
     assert.match(campaign, /Wilds Heartbeat/);

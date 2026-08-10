@@ -11,7 +11,24 @@ test("world HUD is one active-creature capsule, one objective, and orientation",
   assert.match(hud, /wildz-companion-vitality/);
   assert.match(hud, /wildz-mission-chip/);
   assert.match(hud, /<WildzMinimap/);
+  assert.match(hud, /className="wildz-identity-home"/);
+  assert.match(hud, /className="wildz-mission-home"/);
+  assert.match(hud, /className="wildz-map-home"/);
+  assert.match(hud, /<strong>\{model\.player\.displayName \|\| model\.player\.username\}<i>✓<\/i><\/strong>/);
+  assert.doesNotMatch(hud, /<strong>\{activeCard\.manifest\.name\}<i>✓<\/i><\/strong>/);
   assert.doesNotMatch(hud, /wildz-status-rail|wildz-energy-meter|wildz-xp-meter/);
+});
+
+test("campaign projects one modal owner and gates underlying world input", () => {
+  const campaign = read("src/features/play/PlayCampaign.tsx");
+
+  assert.match(campaign, /const exclusiveOwner[^=]*=\s*trainerEncounter\?\.phase === "combat"\s*\|\| Boolean\(state\.battle\)\s*\|\| Boolean\(multiplayer\.activeBattle\)\s*\? "combat"/);
+  assert.match(campaign, /:\s*activeTrainer && activeAsset && trainerEncounter && \["challenge", "transition", "result"\]\.includes\(trainerEncounter\.phase\)\s*\? "trainer"/);
+  assert.match(campaign, /:\s*mapOpen\s*\? "map"\s*:\s*"none"/);
+  assert.match(campaign, /exclusiveOwner=\{exclusiveOwner\}/);
+  assert.match(campaign, /const worldInteractionEnabled = interactionEnabled && exclusiveOwner === "none"/);
+  assert.match(campaign, /if \(!worldInteractionEnabled \|\| !avatarStyle\) return/);
+  assert.match(campaign, /searchEnabled=\{worldInteractionEnabled && discoveryActive && Boolean\(avatarStyle\)\}/);
 });
 
 test("campaign removes duplicate world chrome and persistent distant trainer navigation", () => {

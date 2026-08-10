@@ -8,12 +8,13 @@ function readCreatureDrawer() {
   return existsSync(creatureDrawerPath) ? readFileSync(creatureDrawerPath, "utf8") : "";
 }
 
-test("social deck delegates secondary surfaces to the compact command dock", () => {
-  const source = readFileSync("src/features/play/WildzSocialDeck.tsx", "utf8");
+test("unified world controls delegate secondary surfaces to the compact command dock", () => {
+  const source = readFileSync("src/features/play/WildzWorldControls.tsx", "utf8");
   const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
   assert.match(source, /nearbyCards/);
   for (const key of ["fieldGuide", "satchel", "deck", "vault"]) assert.match(campaign, new RegExp(`key: "${key}"`));
-  assert.match(campaign, /<WildsCommandDock items=\{commandItems\}/);
+  assert.match(source, /<WildsCommandDock/);
+  assert.match(campaign, /<WildzWorldControls/);
   assert.doesNotMatch(source, /onOpenMap|onOpenRewards|sealcub-portrait\.svg/);
   assert.doesNotMatch(source, /router\.push|href=["']\/market/);
 });

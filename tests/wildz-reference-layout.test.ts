@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-test("gameplay composes the reference HUD and social deck over the preserved world", () => {
+test("gameplay composes the reference HUD and unified controls inside the preserved world stage", () => {
   const source = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
-  for (const token of ["WildsWorldCanvas", "WildzReferenceHud", "WildzSocialDeck"]) assert.match(source, new RegExp(token));
-  assert.doesNotMatch(source, /WildsWorldControls/);
+  assert.match(source, /<WildsWorldCanvas[\s\S]*<WildzReferenceHud[\s\S]*<WildzWorldControls/);
+  assert.doesNotMatch(source, /<div className="wildz-social-stack">/);
+  assert.doesNotMatch(source, /<WildzSocialDeck/);
   const world = readFileSync("src/features/play/WildsWorldCanvas.tsx", "utf8");
   assert.match(world, /ActiveCompanion/);
 });
