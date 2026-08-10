@@ -21,6 +21,7 @@ function useStableEvent<Arguments extends unknown[]>(handler: (...args: Argument
   return useCallback((...args: Arguments) => handlerRef.current(...args), []);
 }
 
+/** @deprecated Use `WildzWorldControls`; retained until PlayCampaign mounts the unified composition. */
 export function WildzSocialDeck({ nearbyCards, activeCard, companionProgress, cardConditions, action, cameraHeadingRef, movementMode, cardOrder, onCardOrderChange, onInput, onAction, onMovementModeChange, onSelectCard, onRest, onAudioCue }: {
   nearbyCards: readonly PortableCardAsset[];
   activeCard: PortableCardAsset | null;
