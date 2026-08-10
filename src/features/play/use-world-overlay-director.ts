@@ -15,15 +15,21 @@ export function useWorldOverlayDirector({
   dismissSignal: number;
   exclusiveOwner: WorldOverlayOwner;
 }) {
-  const [state, dispatch] = useReducer(reduceWorldOverlay, initialWorldOverlayState);
+  const [state, reduce] = useReducer(reduceWorldOverlay, initialWorldOverlayState);
   const [gestureCancelSignal, cancelGestures] = useReducer((signal: number) => signal + 1, 0);
   const priorDismissSignal = useRef(dismissSignal);
+  const panelOwnershipRef = useRef(false);
+  const dispatch = useCallback((event: WorldOverlayEvent) => {
+    if (event.type === "panel") panelOwnershipRef.current = event.key !== null;
+    else if (event.type === "dismiss" || event.type === "viewport-change" || event.type === "exclusive") panelOwnershipRef.current = false;
+    reduce(event);
+  }, [reduce]);
 
   const resetTransientState = useCallback((event: Extract<WorldOverlayEvent, { type: "dismiss" | "viewport-change" }>) => {
     cancelGestures();
     dispatch(event);
     if (exclusiveOwner !== "none") dispatch({ type: "exclusive", owner: exclusiveOwner });
-  }, [exclusiveOwner]);
+  }, [dispatch, exclusiveOwner]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -55,7 +61,7 @@ export function useWorldOverlayDirector({
   useEffect(() => {
     cancelGestures();
     dispatch({ type: "exclusive", owner: exclusiveOwner });
-  }, [exclusiveOwner]);
+  }, [dispatch, exclusiveOwner]);
 
-  return { state, dispatch, gestureCancelSignal };
+  return { state, dispatch, gestureCancelSignal, panelOwnershipRef };
 }

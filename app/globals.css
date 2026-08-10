@@ -13991,6 +13991,17 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 
 /* Short landscape phones keep the world primary and float controls into thumb zones. */
 @media (orientation: landscape) and (max-height: 500px) {
+  .wilds-trainer-challenge,
+  .wilds-trainer-result {
+    top: max(8px, env(safe-area-inset-top));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 16px);
+    gap: 9px;
+    padding: 12px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
   .wildz-app .wilds-world {
     position: relative;
     height: 100%;
@@ -14406,6 +14417,10 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 }
 
 .wildz-world-controls.is-panel-open :is(.wildz-movement-home, .wildz-companion-home) {
+  pointer-events: none;
+}
+
+.wilds-stage.is-command-panel-open :is(.wildz-reference-hud, .wilds-multiplayer-home, .wilds-world-status-home) {
   pointer-events: none;
 }
 

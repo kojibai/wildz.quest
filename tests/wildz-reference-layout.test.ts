@@ -74,7 +74,7 @@ test("one collapsed world-status trigger owns live, share, audio, Kai, and livin
 
   assert.equal(triggerCount, 1);
   assert.match(source, /aria-controls="wilds-live-controls wilds-world-status-fan"/);
-  assert.match(source, /controlsExpanded=\{worldStatusOpen\}/);
+  assert.match(source, /controlsExpanded=\{worldStatusOpen && !commandPanelOpen\}/);
   assert.ok(fanStart >= 0 && source.indexOf("wilds-world-navigator-stack", fanStart) < fanEnd);
   assert.ok(source.indexOf("wilds-utility-cluster", fanStart) < fanEnd);
   assert.match(multiplayer, /id="wilds-live-controls"[\s\S]*aria-hidden=\{!controlsExpanded\}[\s\S]*inert=\{controlsExpanded \? undefined : true\}/);
@@ -135,4 +135,9 @@ test("installed PWA surface controls share the stage safe-area offset", () => {
 test("the caught-creature dialog starts below the installed PWA status area", () => {
   const css = readFileSync("app/globals.css", "utf8");
   assert.match(css, /\.wilds-capture-backdrop\s*\{[^}]*align-items:\s*start;[^}]*padding:\s*calc\(10px \+ env\(safe-area-inset-top\)\) 10px 10px;/);
+});
+
+test("trainer challenge remains inside short landscape viewports", () => {
+  const css = readFileSync("app/globals.css", "utf8");
+  assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\)[\s\S]*?\.wilds-trainer-challenge,\s*\.wilds-trainer-result\s*\{[\s\S]*?max-height:\s*calc\(100dvh - 16px\);[\s\S]*?overflow-y:\s*auto;/);
 });

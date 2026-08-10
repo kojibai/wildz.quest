@@ -7,26 +7,26 @@ This qualification covers the rebuilt living-world controls and one complete tra
 | ID | Machine-readable record or artifact |
 | --- | --- |
 | E1 | `commands` — exact executable Playwright CLI commands, saved scripts, and script SHA-256 values |
-| E2 | `panelMatrix.rows` — 12 panel rows with constituent geometry, hit tests, inert/ARIA state, focus containment, Escape, restoration, and screenshot paths |
-| E3 | `sevenViewportGeometry` — exact canvas, overflow, and command-centering measurements |
+| E2 | `fullSevenStateMatrix.constituent.records` — seven complete state rows including 28 panel captures, constituent geometry, modal ownership, focus, Escape, and restoration |
+| E3 | `fullSevenStateMatrix.constituent.records[*].resting` and `imageSignalStats.constituent.rows` — canvas/display/drawing-buffer, DPR, renderer, target, collision, overflow, and pixel-variance measurements |
 | E4 | `interactionRecovery.twoTouch`, `touchCancel`, and `lostCapture` |
 | E5 | `interactionRecovery.keyboardOnly`, `text200`, and `reducedMotion` |
 | E6 | `interactionRecovery.offline`, `lifecycle`, and `audio` |
 | E7 | `interactionRecovery.performance120Frames` |
 | E8 | `drawerHaptics.variants` |
-| E9 | `trainerCombat.navigation` and `trainerCombat.states` |
-| E10 | `cleanProduction` — listener-before-navigation console, page-error, request-failure, and HTTP status capture |
+| E9 | `trainerSevenStateMatrix.constituent` — physically reached trainer challenge, transition, combat, result, and return at all seven viewports |
+| E10 | `cleanProduction` — final rebuilt listener-before-navigation console, page-error, request-failure, and HTTP status capture |
 | E11 | `automatedGates` |
 | E12 | `externalAssetSourcing` |
 | E13 | `claimIndex` |
 
 ## Release outcome
 
-- The world-tool sheet is now the exclusive modal owner: every non-modal control home becomes inert and ARIA-hidden, the tools trigger becomes disabled and ARIA-hidden, pointer hit tests resolve to modal content, programmatic focus is contained, Tab and Shift+Tab wrap, Escape closes, and prior focus/home state restores. This passed for Field Guide, Foraging Satchel, Trail Pack, and Card Vault at 390×844, 844×390, and 768×1024. [E2]
-- The four phone captures and eight representative landscape/tablet captures contain no companion, movement, or tools control painted above the modal. [E2]
-- Seven production viewports render a canvas exactly equal to the viewport with zero horizontal document overflow; the bottom command center is centered within 0.008 px. [E3]
+- The world-tool sheet is now the stage-level exclusive modal owner: identity, mission, map, multiplayer, world-status, movement, companion, and tools homes cannot retain focus or receive same-frame actions. This passed for Field Guide, Foraging Satchel, Trail Pack, and Card Vault at all seven viewports (28/28 panel rows), including stale-status collapse and focus restoration. [E2]
+- Every final panel capture contains no top, bottom, companion, movement, or tools control painted above the modal. [E2]
+- Seven production viewports render a full-viewport canvas with zero overflow and no collisions among interactive homes. All interactive targets meet 44 px; the D-pad meets 68 px. Each row records DPR, drawing buffer, draw calls, triangles, geometries, textures, safe bounds, and nonblank/color-variance evidence. [E3]
 - Real two-touch CDP input moved the player while the companion command independently reached its ability state; `touchCancel` and `lostpointercapture` both returned the D-pad and companion command to settled states. [E4]
-- A complete trainer route used visible D-pad travel, opened Nahl Vey’s challenge and transition, held the 1.1-second covenant, entered the full-screen mobile Arena, used the safe Flee hold, showed the sealed “Retreat survived” result, and returned to the world at X11/Z18. [E9]
+- A complete physically reached Nahl Vey route records challenge, transition, full combat, safe-retreat result, and world return at all seven viewports. The discovered 844×390 challenge overflow was fixed under regression coverage; the final sheet is `[386,8,440,374]`, fully in viewport, with a 44×44 close target. [E9]
 - The final clean production profile attached listeners before navigation and observed zero console errors, console warnings, page errors, request failures, and HTTP responses ≥400 after controls became visible and a five-second settling window completed. [E10]
 - The rebuilt flagship slice is production-capable, but content breadth and authored audio still prevent a whole-game showcase claim. [E12, scorecard and automatic failures below]
 
@@ -39,9 +39,9 @@ This qualification covers the rebuilt living-world controls and one complete tra
 | UI | `threejs-game-ui-designer` | Full-screen modal ownership, responsive sheets, focus trap, thumb controls | E2, E3, E5 |
 | Debug/profile | `threejs-debug-profiler` | Recovery, frame sample, clean console/network profile | E4, E6, E7, E10 |
 | QA/release | `threejs-qa-release` and Playwright | Production browser matrix and retained artifacts | E1–E11 |
-| 3D generator | `threejs-3d-generator` | Loaded; no generation because Tripo and Gemini credentials were missing | E12 |
+| 3D generator | `threejs-3d-generator` | Loaded; no generation because the provider probe returned blank/inconclusive values | E12 |
 | Image generator | `imagegen` / image workflow | Existing project-bound Lanternforge portrait and emblem retained | E12 |
-| Audio generator | `threejs-audio-generator` | Loaded; Web Audio fallback retained because ElevenLabs credential was missing | E12 |
+| Audio generator | `threejs-audio-generator` | Loaded; the blank/inconclusive provider probe left the existing Web Audio fallback as the qualified path | E12 |
 
 ## Reference ledger
 
@@ -63,21 +63,22 @@ Gameplay workflows, the AAA visual scorecard and quality gates, UI patterns plus
 Credential probe output:
 
 ```text
-TRIPO_API_KEY=MISSING
-GEMINI_API_KEY=MISSING
-ELEVENLABS_API_KEY=MISSING
+TRIPO_API_KEY=
+GEMINI_API_KEY=
+ELEVENLABS_API_KEY=
 ```
 
-Chosen sources are hybrid. Hero/player: the deterministic Kai Pulse explorer. World/sky/background: the procedural Three.js world. Materials/textures/decals: existing runtime materials plus the Lanternforge emblem. The Lanternforge Keeper uses `public/game/trainers/lanternforge-keeper-portrait.webp` and `public/game/trainers/lanternforge-emblem.webp`. No new 3D model was generated because both 3D provider credentials were missing. [E12]
+The literal blank output is classified **inconclusive/empty**, not “missing.” Chosen sources are hybrid. Hero/player: the deterministic Kai Pulse explorer. World/sky/background: the procedural Three.js world. Materials/textures/decals: existing runtime materials plus the Lanternforge emblem. The Lanternforge Keeper uses `public/game/trainers/lanternforge-keeper-portrait.webp` and `public/game/trainers/lanternforge-emblem.webp`. No new 3D model was generated during this qualification because provider availability could not be established from the blank probe; the external generation lane was therefore offline-only for this run. [E12]
 
-Audio uses the existing gesture-unlocked, settings-aware Web Audio runtime for companion detents, trainer recognition, impacts, danger/results, and scene ambience. No external audio file is claimed because `ELEVENLABS_API_KEY=MISSING`; authored spatial audio remains a release gap. [E6, E12]
+Audio uses the existing gesture-unlocked, settings-aware Web Audio runtime for companion detents, trainer recognition, impacts, danger/results, and scene ambience. No external audio file is claimed because the ElevenLabs probe was blank/inconclusive; external audio sourcing was offline-only for this run, and authored spatial audio remains a release gap. [E6, E12]
 
 ## Unified-control and accessibility matrix
 
 | Route/state | Objective result | Evidence |
 | --- | --- | --- |
-| Four command panels | 12/12 phone/landscape/tablet rows exact-viewport, in-bounds, exclusive, focus-contained, Escape/restoration pass | E2 |
-| Seven viewport fit | 7/7 full-canvas, zero-overflow rows pass | E3 |
+| Seven-viewport complete state matrix | 7/7 resting, simultaneous input, real name cycle, roster, every ability sector plus cancel, tools, four panels, map, mission, status, and orientation recovery pass | E2, E3 |
+| Four command panels | 28/28 rows in-bounds, stage-exclusive, focus-contained, Escape/restoration pass | E2 |
+| Seven viewport fit | 7/7 full-canvas, zero-overflow, zero interactive collision, target-floor and safe-bound rows pass | E3 |
 | Real two-touch | Pointer IDs 41/42 moved world and activated companion concurrently, then settled | E4 |
 | Cancellation | `touchCancel` and `lostpointercapture` reset ownership and knob transform | E4 |
 | Keyboard-only | Tab reached semantic homes, opened Field Guide, focused its close control, and restored trigger focus | E5 |
@@ -87,7 +88,7 @@ Audio uses the existing gesture-unlocked, settings-aware Web Audio runtime for c
 | Lifecycle | Frozen→active CDP approximation returned visible with two canvases and zero overflow | E6 |
 | Audio | Status settings reported sound ready; mute and unmute states both changed | E6 |
 | Haptic absence/failure | Missing, non-callable, and throwing `navigator.vibrate` variants all opened the drawer and kept the page alive | E8 |
-| Trainer/combat/result/return | Physical travel, challenge, transition, covenant, Arena, safe retreat settlement, Continue, world return pass | E9 |
+| Trainer/combat/result/return | Physical travel plus challenge, transition, covenant, Arena, safe retreat settlement, Continue, and world return pass at all seven sizes | E9 |
 | Clean production console/network | 0 errors, warnings, page errors, failed requests, and HTTP errors | E10 |
 
 ## Responsive browser geometry
@@ -102,15 +103,15 @@ Audio uses the existing gesture-unlocked, settings-aware Web Audio runtime for c
 | 768×1024 | 768×1024 | 0 | 0 px | E3 |
 | 1440×900 | 1440×900 | 0 | 0 px | E3 |
 
-Retained panel artifacts are `output/playwright/unified-controls-{field-guide,satchel,trail-pack,card-vault}-{390x844,844x390,768x1024}.png`. Trainer artifacts are `unified-controls-trainer-settled-390x844.png`, `unified-controls-trainer-390x844.png`, `unified-controls-trainer-transition-390x844.png`, `unified-controls-combat-390x844.png`, `unified-controls-result-390x844.png`, and `unified-controls-return-390x844.png`. The fresh final frame is `unified-controls-clean-console-390x844.png`. [E2, E9, E10]
+Retained panel artifacts are `output/playwright/unified-controls-{field-guide,foraging-satchel,trail-pack,card-vault}-{320x568,360x800,390x844,430x932,844x390,768x1024,1440x900}-r3.png`. Trainer challenge/combat/result/return artifacts use the same seven-size `-r3.png` contract; the physically settled trainer frame is `unified-controls-trainer-settled-390x844-r3.png`. The fresh final frame is `unified-controls-clean-console-390x844.png`. All retained artifact hashes are under `artifactHashes`. [E2, E9, E10]
 
 Desktop and mobile composited screenshots were visually inspected at rendered pixel level; the world, sheets, trainer challenge, Arena, result, and return frames are visibly nonblank. [E2, E9, E10]
 
 ## Performance and automated verification
 
 - The warm 120-frame sample recorded 16.555833 ms average, 60.40167 fps average, 16.8 ms p95, and 16.8 ms maximum. [E7]
-- `pnpm test` passed 1,040/1,040; `pnpm typecheck` passed; `pnpm lint` exited zero with the two disclosed pre-existing exhaustive-deps warnings; `pnpm build` passed with a 557 kB `/` first load and the known `snarkjs` dynamic web-worker warnings. [E11]
-- `pnpm release:check` passed after the production browser/server closed: 1,040 tests, Receiz conformance 15/15, secret scan, lint/type validation, optimized build, and doctor compatibility all completed successfully. [E11]
+- `pnpm test` passed 1,043/1,043; `pnpm typecheck` passed; `pnpm lint` exited zero with the two disclosed pre-existing exhaustive-deps warnings; `pnpm build` passed with a 557 kB `/` first load and the known `snarkjs` dynamic web-worker warnings. [E11]
+- `pnpm release:check` passed after the final production server closed: 1,043 tests, Receiz conformance 15/15, secret scan, lint/type validation, optimized build, and doctor compatibility all completed successfully. [E11]
 
 ## Ten-category AAA visual scorecard
 
@@ -134,7 +135,7 @@ Average: **2.2 / 3**.
 Automatic failures remaining:
 
 1. The evidence covers one complete trainer route, not every arena, settlement, raid, resident, or trainer. [E9]
-2. Externally authored encounter audio remains blocked by the missing ElevenLabs credential. [E12]
+2. Externally authored encounter audio remains unqualified because the ElevenLabs credential probe was blank/inconclusive. [E12]
 3. Only the retained Lanternforge trainer imagery is identified as bespoke generated trainer art; the full cast is not equivalently evidenced. [E12]
 
 ## Experience rating versus the best current game experiences
@@ -168,4 +169,4 @@ Flagship-slice average: **7.88 / 10**, up from **5.24 / 10**. Whole-game observe
 
 1. Re-run the same active-combat/result/return evidence contract for every trainer and location family. [Gap: E9 covers one route]
 2. Give every arena and settlement a distinct art, encounter, and interaction identity, then add them to the retained visual matrix. [Gap: E9]
-3. Replace fallback cues with authored spatial audio after the provider credential is available. [Gap: E12]
+3. Re-probe provider availability and replace fallback cues with authored spatial audio when a usable credential is confirmed. [Gap: E12]

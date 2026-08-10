@@ -25,6 +25,7 @@ import { useWildsWorld } from "@/features/play/use-wilds-world";
 import { WildsAudioSettings } from "@/features/play/WildsAudioSettings";
 import { useWildsPresentation } from "@/features/play/use-wilds-presentation";
 import { useWildsQualityProfile } from "@/features/play/use-wilds-quality-profile";
+import { useWorldOverlayDirector } from "@/features/play/use-world-overlay-director";
 import { projectWildsAudioScene } from "@/features/play/wilds-audio-scene";
 import { projectWildsBiome } from "@/features/play/wilds-biome";
 import type { WildsSettlementDistrictId } from "@/features/play/wilds-settlements";
@@ -231,7 +232,25 @@ export function PlayCampaign({
     trainerEncounter?.phase === "combat" || Boolean(state.battle) || Boolean(multiplayer.activeBattle) ? "combat"
       : activeTrainer && activeAsset && trainerEncounter && ["challenge", "transition", "result"].includes(trainerEncounter.phase) ? "trainer"
         : mapOpen ? "map" : "none";
-  const worldInteractionEnabled = interactionEnabled && exclusiveOwner === "none";
+  const {
+    state: worldOverlayState,
+    dispatch: dispatchWorldOverlay,
+    gestureCancelSignal,
+    panelOwnershipRef
+  } = useWorldOverlayDirector({ dismissSignal: commandDismissSignal, exclusiveOwner });
+  const commandPanelOpen = exclusiveOwner === "none" && worldOverlayState.panelKey !== null;
+  const worldInteractionEnabled = interactionEnabled && exclusiveOwner === "none" && !commandPanelOpen;
+  const canUseWorldStage = useCallback(
+    () => worldInteractionEnabled && !panelOwnershipRef.current,
+    [panelOwnershipRef, worldInteractionEnabled]
+  );
+  const dispatchStageOverlay = useCallback((event: Parameters<typeof dispatchWorldOverlay>[0]) => {
+    if (event.type === "panel" && event.key !== null) {
+      setWorldStatusOpen(false);
+      setMultiplayerRosterOpen(false);
+    }
+    dispatchWorldOverlay(event);
+  }, [dispatchWorldOverlay]);
   const handleMultiplayerRosterOpenChange = useCallback((open: boolean) => {
     setMultiplayerRosterOpen(open);
     if (open) setWorldStatusOpen(false);
@@ -565,11 +584,11 @@ export function PlayCampaign({
     });
   };
   const dispatchWorldInput = (input: WildsInput) => {
-    if (!worldInteractionEnabled) return;
+    if (!canUseWorldStage()) return;
     dispatch(input);
   };
   const openWorldMap = () => {
-    if (!worldInteractionEnabled) return;
+    if (!canUseWorldStage()) return;
     setCommandDismissSignal((signal) => signal + 1);
     setMapOpen(true);
   };
@@ -1035,7 +1054,7 @@ export function PlayCampaign({
       <div className="wilds-shell wilds-playable-shell">
         <div className="wilds-world">
           <div
-            className={`wilds-stage${state.encounter.phase === "hint" ? ` signal-${state.encounter.proximity}` : ""}${multiplayer.activeBattle ? " pvp-active" : ""}${multiplayerRosterOpen ? " multiplayer-roster-open" : ""}${wildBattleActive ? " wild-battle-active" : ""}`}
+            className={`wilds-stage${state.encounter.phase === "hint" ? ` signal-${state.encounter.proximity}` : ""}${multiplayer.activeBattle ? " pvp-active" : ""}${multiplayerRosterOpen ? " multiplayer-roster-open" : ""}${wildBattleActive ? " wild-battle-active" : ""}${commandPanelOpen ? " is-command-panel-open" : ""}`}
             aria-label="Receiz Wilds playable 3D world"
           >
             <WildsWorldCanvas
@@ -1052,12 +1071,12 @@ export function PlayCampaign({
               kaiMoment={kaiMoment}
               supportCards={trailSupportCards}
               onSelectPlayer={(player) => {
-                if (worldInteractionEnabled) multiplayer.selectPlayer(player);
+                if (canUseWorldStage()) multiplayer.selectPlayer(player);
               }}
               trainers={sagaTrainers}
               onSelectTrainer={openTrainerEncounter}
               onSearchPoint={(point) => {
-                if (worldInteractionEnabled) {
+                if (canUseWorldStage()) {
                   dispatch({ type: "search-point", ...point, searchedAt: new Date().toISOString(), ownerReceizId });
                 }
               }}
@@ -1065,23 +1084,25 @@ export function PlayCampaign({
 
             {avatarStyle ? <WildzReferenceHud
               character={character}
+              interactionEnabled={worldInteractionEnabled}
+              modalOwned={commandPanelOpen}
               heading={playerHeading}
               model={hudModel}
               onOpenMap={openWorldMap}
               onOpenMission={() => {
-                if (worldInteractionEnabled) setRequestedCommand("mission");
+                if (canUseWorldStage()) setRequestedCommand("mission");
               }}
             /> : null}
 
-            {avatarStyle ? <WildsMultiplayer
-              controlsExpanded={worldStatusOpen}
+            {avatarStyle ? <div aria-hidden={commandPanelOpen} className="wilds-multiplayer-home" inert={commandPanelOpen ? true : undefined}><WildsMultiplayer
+              controlsExpanded={worldStatusOpen && !commandPanelOpen}
               dismissSignal={commandDismissSignal}
               interactionEnabled={worldInteractionEnabled}
               multiplayer={multiplayer}
               position={state.player}
               onRosterOpenChange={handleMultiplayerRosterOpenChange}
-            /> : null}
-            <div className={`wilds-world-status-home${worldStatusOpen ? " is-open" : ""}`}>
+            /></div> : null}
+            <div aria-hidden={commandPanelOpen} className={`wilds-world-status-home${worldStatusOpen && !commandPanelOpen ? " is-open" : ""}`} inert={commandPanelOpen ? true : undefined}>
               <button
                 aria-controls="wilds-live-controls wilds-world-status-fan"
                 aria-expanded={worldStatusOpen}
@@ -1089,7 +1110,7 @@ export function PlayCampaign({
                 className="wilds-world-status-trigger"
                 disabled={!worldInteractionEnabled}
                 onClick={() => {
-                  if (!worldInteractionEnabled) return;
+                  if (!canUseWorldStage()) return;
                   const nextOpen = !worldStatusOpen;
                   setWorldStatusOpen(nextOpen);
                   if (nextOpen) setCommandDismissSignal((signal) => signal + 1);
@@ -1099,7 +1120,7 @@ export function PlayCampaign({
                 <i aria-hidden="true"><span /><span /><span /></i>
                 <b>{multiplayer.remotePlayers.length}</b>
               </button>
-              <div aria-hidden={!worldStatusOpen} className="wilds-world-status-fan" id="wilds-world-status-fan" inert={worldStatusOpen ? undefined : true}>
+              {worldStatusOpen && !commandPanelOpen ? <div className="wilds-world-status-fan" id="wilds-world-status-fan">
                 <div className="wilds-world-navigator-stack">
                   {avatarStyle ? <WildsLivingWorldHud connected={networkEnabled} onEnterRaid={enterLivingRaid} player={state.player} world={livingWorld} /> : null}
                 </div>
@@ -1114,7 +1135,7 @@ export function PlayCampaign({
                     aria-label={`Open living Command Center. Beat step pulse ${kaiMoment.latticeCoordinate}`}
                     className="wilds-kai-command-pill"
                     onClick={() => {
-                      if (!worldInteractionEnabled) return;
+                      if (!canUseWorldStage()) return;
                       setWorldStatusOpen(false);
                       setRequestedCommand("commandCenter");
                     }}
@@ -1126,7 +1147,7 @@ export function PlayCampaign({
                     <span>{kaiMoment.latticeCoordinate}</span>
                   </button>
                 </div>
-              </div>
+              </div> : null}
             </div>
 
             <WildzWorldControls
@@ -1139,8 +1160,11 @@ export function PlayCampaign({
               companionProgress={state.companionProgress}
               dismissSignal={commandDismissSignal}
               exclusiveOwner={exclusiveOwner}
+              gestureCancelSignal={gestureCancelSignal}
               movementMode={movementMode}
               nearbyCards={state.inventory}
+              overlayDispatch={dispatchStageOverlay}
+              overlayState={worldOverlayState}
               onAction={activatePulse}
               onAudioCue={presentation.playCue}
               onCardOrderChange={setCardOrder}

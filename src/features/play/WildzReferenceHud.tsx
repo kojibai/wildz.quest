@@ -6,16 +6,18 @@ import { projectWildsExplorerAppearance } from "./wilds-explorer-appearance";
 import type { WildzHudModel } from "./wildz-gameplay-hud";
 import { WildzMinimap } from "./WildzMinimap";
 
-export function WildzReferenceHud({ model, heading, character, onOpenMap, onOpenMission }: {
+export function WildzReferenceHud({ model, heading, character, interactionEnabled, modalOwned, onOpenMap, onOpenMission }: {
   model: WildzHudModel;
   heading: number;
   character: WildzCharacterGenesis;
+  interactionEnabled: boolean;
+  modalOwned: boolean;
   onOpenMap: () => void;
   onOpenMission: () => void;
 }) {
   const appearance = projectWildsExplorerAppearance(character);
   const explorerName = model.player.displayName || model.player.username;
-  return <div className="wildz-reference-hud">
+  return <div aria-hidden={modalOwned} className={`wildz-reference-hud${modalOwned ? " is-modal-owned" : ""}`} inert={modalOwned ? true : undefined}>
     <div className="wildz-identity-home">
       <section className="wildz-explorer-capsule" aria-label={`${explorerName}, explorer level ${model.player.level}, ${model.energy.current}% energy`} data-explorer-proof={character.digest.slice(0, 16)}>
         <div
@@ -44,10 +46,10 @@ export function WildzReferenceHud({ model, heading, character, onOpenMap, onOpen
       </section>
     </div>
     <div className="wildz-mission-home">
-      <button className="wildz-mission-chip" aria-label={`Open mission details · ${model.mission.progress}% progress`} onClick={onOpenMission} type="button"><span>★</span><strong>{model.mission.progress}%<small>Mission</small></strong></button>
+      <button className="wildz-mission-chip" aria-label={`Open mission details · ${model.mission.progress}% progress`} disabled={!interactionEnabled} onClick={onOpenMission} type="button"><span>★</span><strong>{model.mission.progress}%<small>Mission</small></strong></button>
     </div>
     <div className="wildz-map-home">
-      <WildzMinimap x={model.location.x} z={model.location.z} heading={heading} onOpen={onOpenMap} />
+      <WildzMinimap disabled={!interactionEnabled} x={model.location.x} z={model.location.z} heading={heading} onOpen={onOpenMap} />
     </div>
   </div>;
 }
