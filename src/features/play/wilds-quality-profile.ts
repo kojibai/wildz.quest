@@ -10,6 +10,21 @@ export type WildsQualityProfile = {
   maxTriangles: 180_000;
 };
 
+export function wildsQualityProfileForTier(tier: WildsQualityTier, reducedMotion: boolean): WildsQualityProfile {
+  const base = tier === "low"
+    ? { dpr: 1 as const, shadowMapSize: 512 as const, foliage: 0.58, particles: 0.55 }
+    : tier === "medium"
+      ? { dpr: 1.25 as const, shadowMapSize: 1024 as const, foliage: 0.8, particles: 0.78 }
+      : { dpr: 1.5 as const, shadowMapSize: 1024 as const, foliage: 1, particles: 1 };
+  return {
+    ...base,
+    tier,
+    particles: reducedMotion ? 0.35 : base.particles,
+    maxDrawCalls: 160,
+    maxTriangles: 180_000
+  };
+}
+
 export function selectWildsQualityProfile(input: {
   width: number;
   hardwareConcurrency?: number;
@@ -23,19 +38,7 @@ export function selectWildsQualityProfile(input: {
     : input.width < 900 || cores < 8 || memory < 8
       ? "medium"
       : "high";
-  const base = tier === "low"
-    ? { dpr: 1 as const, shadowMapSize: 512 as const, foliage: 0.58, particles: 0.55 }
-    : tier === "medium"
-      ? { dpr: 1.25 as const, shadowMapSize: 1024 as const, foliage: 0.8, particles: 0.78 }
-      : { dpr: 1.5 as const, shadowMapSize: 1024 as const, foliage: 1, particles: 1 };
-
-  return {
-    ...base,
-    tier,
-    particles: input.reducedMotion ? 0.35 : base.particles,
-    maxDrawCalls: 160,
-    maxTriangles: 180_000
-  };
+  return wildsQualityProfileForTier(tier, input.reducedMotion);
 }
 
 export function rendererBudgetStatus(

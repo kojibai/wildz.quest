@@ -17,12 +17,13 @@ declare global {
   }
 }
 
-export function MortalArenaScene({ state, roster, opponent, qualityProfile, impactTick }: {
+export function MortalArenaScene({ state, roster, opponent, qualityProfile, impactTick, onFrameSample }: {
   state: MortalArenaState;
   roster: readonly PortableCardAsset[];
   opponent: ArenaCampaignOpponent;
   qualityProfile: WildsQualityProfile;
   impactTick: number;
+  onFrameSample?: (frameMs: number) => void;
 }) {
   return (
     <div className="mortal-arena-canvas" aria-label="Live three-dimensional Mortal Arena">
@@ -42,10 +43,16 @@ export function MortalArenaScene({ state, roster, opponent, qualityProfile, impa
         }}
         shadows={{ type: THREE.PCFShadowMap }}
       >
+        {onFrameSample ? <MortalArenaFrameReporter onFrameSample={onFrameSample} /> : null}
         <ArenaWorld state={state} roster={roster} opponent={opponent} impactTick={impactTick} particleScale={qualityProfile.particles} />
       </Canvas>
     </div>
   );
+}
+
+function MortalArenaFrameReporter({ onFrameSample }: { onFrameSample: (frameMs: number) => void }) {
+  useFrame((_, delta) => onFrameSample(delta * 1_000));
+  return null;
 }
 
 function ArenaWorld({ state, roster, opponent, impactTick, particleScale }: {

@@ -24,7 +24,7 @@ import { useWildsMultiplayer } from "@/features/play/use-wilds-multiplayer";
 import { useWildsWorld } from "@/features/play/use-wilds-world";
 import { WildsAudioSettings } from "@/features/play/WildsAudioSettings";
 import { useWildsPresentation } from "@/features/play/use-wilds-presentation";
-import { selectWildsQualityProfile } from "@/features/play/wilds-quality-profile";
+import { useWildsQualityProfile } from "@/features/play/use-wilds-quality-profile";
 import { projectWildsAudioScene } from "@/features/play/wilds-audio-scene";
 import { projectWildsBiome } from "@/features/play/wilds-biome";
 import type { WildsSettlementDistrictId } from "@/features/play/wilds-settlements";
@@ -35,8 +35,6 @@ import { projectWildsCommandCenter, type WildsCommandAction } from "@/features/p
 import { deriveKaiKlokMoment, KAI_GENESIS_TS, millisecondsUntilNextKaiPulse } from "@/features/play/kai-klok-moment";
 import { kaiTransition, projectKaiWorldExpression, type KaiWorldExpression } from "@/features/play/kai-moment-expression";
 import { WildzCommandInsight } from "@/features/play/WildzCommandInsight";
-import { WildsWorldMap } from "@/features/play/WildsWorldMap";
-import { WildsLandmarkExperience } from "@/features/play/WildsLandmarkExperience";
 import type { WildsMovementMode } from "@/features/play/wilds-movement";
 import { resolveWildsContextAction } from "@/features/play/wilds-context-action";
 import { landmarkAtPosition, WILDS_FLAGSHIP_LANDMARKS, type WildsLandmarkId } from "@/features/play/wilds-landmarks";
@@ -67,11 +65,8 @@ import {
   type WildsTrainerProjection
 } from "@/features/play/wilds-saga-trainers";
 import type { WildsTournamentProjection } from "@/features/play/wilds-saga-tournament";
-import { WildsSettlementExperience } from "@/features/play/WildsSettlementExperience";
 import { createWildsCivicEvent, normalizeWildsCivicActorId, projectWildsCivicHistory } from "@/features/play/wilds-civic-history";
-import { WildsEcologyExperience } from "@/features/play/WildsEcologyExperience";
 import { createWildsEcologyReceipt } from "@/features/play/wilds-ecology-history";
-import { WildsRaidExperience } from "@/features/play/WildsRaidExperience";
 import { projectWildsRaidRoles } from "@/features/play/wilds-raid-roles";
 import { createWildsRaidReceipt } from "@/features/play/wilds-raid-history";
 import type { WildsRaidEncounterState, WildsRaidIntent } from "@/features/play/wilds-raid-encounter";
@@ -87,29 +82,13 @@ import {
   publicCardPublicationCandidates,
   usePublicCardPublisher
 } from "@/features/play/use-public-card-publisher";
-import { MortalArenaExperience } from "@/features/games/mortal-arena/MortalArenaExperience";
 import type { ArenaSettlement } from "@/features/games/mortal-arena/settlement";
-import { WildsTrainerEncounter } from "@/features/play/WildsTrainerEncounter";
 import {
   advanceTrainerEncounter,
   createTrainerEncounter,
   type TrainerEncounterEvent,
   type TrainerEncounterState
 } from "@/features/play/trainer-encounter";
-
-function currentWildsQualityProfile() {
-  if (typeof window === "undefined") {
-    return selectWildsQualityProfile({ width: 390, reducedMotion: false });
-  }
-  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const deviceMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
-  return selectWildsQualityProfile({
-    width: window.innerWidth,
-    hardwareConcurrency: navigator.hardwareConcurrency,
-    deviceMemory,
-    reducedMotion
-  });
-}
 
 const WildsWorldCanvas = dynamic(
   () => import("@/features/play/WildsWorldCanvas").then((mod) => mod.WildsWorldCanvas),
@@ -118,6 +97,13 @@ const WildsWorldCanvas = dynamic(
     loading: () => <div className="wilds-canvas-fallback" aria-label="Loading 3D world" />
   }
 );
+const WildsWorldMap = dynamic(() => import("@/features/play/WildsWorldMap").then((mod) => mod.WildsWorldMap), { ssr: false });
+const WildsLandmarkExperience = dynamic(() => import("@/features/play/WildsLandmarkExperience").then((mod) => mod.WildsLandmarkExperience), { ssr: false });
+const WildsSettlementExperience = dynamic(() => import("@/features/play/WildsSettlementExperience").then((mod) => mod.WildsSettlementExperience), { ssr: false });
+const WildsEcologyExperience = dynamic(() => import("@/features/play/WildsEcologyExperience").then((mod) => mod.WildsEcologyExperience), { ssr: false });
+const WildsRaidExperience = dynamic(() => import("@/features/play/WildsRaidExperience").then((mod) => mod.WildsRaidExperience), { ssr: false });
+const WildsTrainerEncounter = dynamic(() => import("@/features/play/WildsTrainerEncounter").then((mod) => mod.WildsTrainerEncounter), { ssr: false });
+const MortalArenaExperience = dynamic(() => import("@/features/games/mortal-arena/MortalArenaExperience").then((mod) => mod.MortalArenaExperience), { ssr: false });
 
 export function PlayCampaign({
   campaignName = "Reward Challenge",
@@ -164,8 +150,7 @@ export function PlayCampaign({
   const [saveRestored, setSaveRestored] = useState(false);
   const [rewardAsset, setRewardAsset] = useState<PortableCardAsset | null>(null);
   const [avatarStyle, setAvatarStyle] = useState<"female" | "male">(() => initialPlayerContinuity?.settings.avatarStyle ?? character.gender);
-  const [qualityProfile, setQualityProfile] = useState(currentWildsQualityProfile);
-  const [reducedMotion, setReducedMotion] = useState(false);
+  const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
   const [mapOpen, setMapOpen] = useState(false);
   const [multiplayerRosterOpen, setMultiplayerRosterOpen] = useState(false);
   const cameraHeadingRef = useRef(0);
@@ -291,6 +276,8 @@ export function PlayCampaign({
     return live ? { ...live, position: projected.position } : projected;
   });
   const openTrainerEncounter = (trainer: WildsTrainerProjection) => {
+    void import("@/features/play/WildsTrainerEncounter");
+    void import("@/features/games/mortal-arena/MortalArenaExperience");
     const recognized = advanceTrainerEncounter(
       createTrainerEncounter(
         trainer.id,
@@ -415,21 +402,6 @@ export function PlayCampaign({
     previousPlayerPosition.current = state.player;
     if (Math.hypot(deltaX, deltaZ) > 0.0001) setPlayerHeading(Math.atan2(deltaX, -deltaZ));
   }, [state.player]);
-
-  useEffect(() => {
-    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update = () => {
-      setQualityProfile(currentWildsQualityProfile());
-      setReducedMotion(preference.matches);
-    };
-    update();
-    window.addEventListener("resize", update);
-    preference.addEventListener("change", update);
-    return () => {
-      window.removeEventListener("resize", update);
-      preference.removeEventListener("change", update);
-    };
-  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1019,6 +991,7 @@ export function PlayCampaign({
               character={character}
               remotePlayers={multiplayer.remotePlayers}
               qualityProfile={qualityProfile}
+              onFrameSample={reportFrameSample}
               searchEnabled={interactionEnabled && discoveryActive && Boolean(avatarStyle)}
               onCameraHeadingChange={updateCameraHeading}
               livingWorld={livingWorld.snapshot}

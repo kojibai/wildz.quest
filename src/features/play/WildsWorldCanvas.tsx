@@ -41,6 +41,7 @@ export function WildsWorldCanvas({
   character,
   remotePlayers,
   qualityProfile,
+  onFrameSample,
   searchEnabled,
   onCameraHeadingChange,
   onSelectPlayer,
@@ -57,6 +58,7 @@ export function WildsWorldCanvas({
   character: WildzCharacterGenesis;
   remotePlayers: WildsPresence[];
   qualityProfile: WildsQualityProfile;
+  onFrameSample?: (frameMs: number) => void;
   searchEnabled: boolean;
   onCameraHeadingChange: (heading: number) => void;
   onSelectPlayer: (player: WildsPresence | null) => void;
@@ -86,12 +88,18 @@ export function WildsWorldCanvas({
         }}
         shadows={{ type: THREE.PCFShadowMap }}
       >
+        {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
           <WildsScene state={state} avatarStyle={avatarStyle} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} supportCards={supportCards} trainers={trainers} />
         </Suspense>
       </Canvas>
     </div>
   );
+}
+
+function WildsFrameReporter({ onFrameSample }: { onFrameSample: (frameMs: number) => void }) {
+  useFrame((_, delta) => onFrameSample(delta * 1_000));
+  return null;
 }
 
 function WildsScene({

@@ -21,7 +21,8 @@ describe("Wilds presentation quality", () => {
   it("mounts a single responsive campaign owner", () => {
     const campaign = readFileSync(`${process.cwd()}/src/features/play/PlayCampaign.tsx`, "utf8");
     assert.equal(campaign.match(/export function PlayCampaign\b/g)?.length, 1);
-    assert.match(campaign, /currentWildsQualityProfile/);
+    assert.match(campaign, /useWildsQualityProfile/);
+    assert.match(campaign, /onFrameSample=\{reportFrameSample\}/);
     assert.doesNotMatch(campaign, /compactLayout|PublicStorefront/);
   });
 

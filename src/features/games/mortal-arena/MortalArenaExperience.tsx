@@ -7,7 +7,7 @@ import { currentRevision } from "../../play/living-card-proof";
 import { isLivingCardAsset } from "../../play/living-card-types";
 import type { PortableCardAsset } from "../../play/portable-card";
 import type { WildsAudioCue } from "../../play/wilds-audio";
-import { selectWildsQualityProfile } from "../../play/wilds-quality-profile";
+import { useWildsQualityProfile } from "../../play/use-wilds-quality-profile";
 import type { WildzArenaPath } from "./campaign";
 import type { ArenaCampaignOpponent } from "./campaign";
 import { MORTAL_ARENA_COVENANT_VERSION, MortalArenaCovenant } from "./MortalArenaCovenant";
@@ -30,12 +30,7 @@ export function MortalArenaExperience({ card, roster, opponent = null, resultPre
   const grave = Boolean(life && life.vitality / Math.max(1, life.maxVitality) <= .15);
   const retired = Boolean(life?.retired);
   const [covenantAccepted, setCovenantAccepted] = useState(() => typeof window !== "undefined" && !grave && window.localStorage.getItem(MORTAL_ARENA_COVENANT_VERSION) === "accepted");
-  const qualityProfile = useMemo(() => selectWildsQualityProfile({
-    width: typeof window === "undefined" ? 390 : window.innerWidth,
-    hardwareConcurrency: typeof navigator === "undefined" ? 4 : navigator.hardwareConcurrency,
-    deviceMemory: typeof navigator === "undefined" ? 4 : (navigator as Navigator & { deviceMemory?: number }).deviceMemory,
-    reducedMotion: typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  }), []);
+  const { profile: qualityProfile, reportFrameSample } = useWildsQualityProfile();
   const committed = useCallback((settlement: ArenaSettlement, path: WildzArenaPath) => {
     onCommit(settlement, path);
     if (settlement.result.winnerSide === 0) onUnlock(path.stage % 3 === 1 ? "echo-sovereign" : "echo-victor");
@@ -87,7 +82,7 @@ export function MortalArenaExperience({ card, roster, opponent = null, resultPre
       <div className="wilds-landmark-world wilds-arena-world mortal-arena-live-world">
         {!covenantAccepted && !retired ? <MortalArenaCovenant card={card} onConfirm={() => setCovenantAccepted(true)} onExit={onExit} /> : null}
         {retired ? <div className="mortal-arena-retired" role="status"><Icons.star size={38} /><span>Memorial seal</span><h3>{card.manifest.name} has completed their final chapter.</h3><p>Their card and full history remain in your Vault. They cannot enter another match.</p><button onClick={onExit} type="button">Return to the Wilds</button></div> : null}
-        <MortalArenaScene state={arena.state} roster={admittedRoster} opponent={arena.opponent} qualityProfile={qualityProfile} impactTick={arena.impactTick} />
+        <MortalArenaScene state={arena.state} roster={admittedRoster} opponent={arena.opponent} qualityProfile={qualityProfile} impactTick={arena.impactTick} onFrameSample={reportFrameSample} />
         <div className="mortal-arena-hud" aria-live="polite">
           <article className={`mortal-arena-life is-player is-${arena.warning}`}>
             <span><strong>{activeArenaCard.manifest.name}</strong><small>{arena.warning === "safe" ? `Reserve ${arena.state.sides[0].fighters.length}` : arena.warning}</small></span>
