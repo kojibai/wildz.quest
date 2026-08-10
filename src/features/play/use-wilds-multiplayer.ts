@@ -225,6 +225,7 @@ export function useWildsMultiplayer(input: {
     .sort((left, right) => Math.hypot(left.x - input.position.x, left.z - input.position.z) - Math.hypot(right.x - input.position.x, right.z - input.position.z))
   }, [globalPlayers, input.position.x, input.position.z, selfId, snapshot?.players]);
   const selectedPlayer = remotePlayers.find((player) => player.playerId === selectedPlayerId) ?? null;
+  const selectPlayer = useCallback((player: WildsPresence | null) => setSelectedPlayerId(player?.playerId ?? null), []);
   const activeBattle = snapshot?.battles.find((battle) => battle.phase === "active" && Boolean(battle.players[selfId]))
     ?? snapshot?.battles.find((battle) => battle.phase === "settled" && Boolean(battle.players[selfId]) && !dismissedBattleIds.has(battle.id))
     ?? null;
@@ -240,7 +241,7 @@ export function useWildsMultiplayer(input: {
     remotePlayers,
     selectedPlayer,
     selectedPlayerId,
-    selectPlayer: (player: WildsPresence | null) => setSelectedPlayerId(player?.playerId ?? null),
+    selectPlayer,
     activeBattle,
     incomingChallenge,
     createInviteLink,

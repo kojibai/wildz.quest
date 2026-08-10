@@ -154,6 +154,7 @@ export function PlayCampaign({
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
   const [mapOpen, setMapOpen] = useState(false);
   const [multiplayerRosterOpen, setMultiplayerRosterOpen] = useState(false);
+  const [worldStatusOpen, setWorldStatusOpen] = useState(false);
   const cameraHeadingRef = useRef(0);
   const updateCameraHeading = useCallback((heading: number) => {
     cameraHeadingRef.current = heading;
@@ -231,6 +232,10 @@ export function PlayCampaign({
       : activeTrainer && activeAsset && trainerEncounter && ["challenge", "transition", "result"].includes(trainerEncounter.phase) ? "trainer"
         : mapOpen ? "map" : "none";
   const worldInteractionEnabled = interactionEnabled && exclusiveOwner === "none";
+  const handleMultiplayerRosterOpenChange = useCallback((open: boolean) => {
+    setMultiplayerRosterOpen(open);
+    if (open) setWorldStatusOpen(false);
+  }, []);
   const priorExclusiveOwner = useRef(exclusiveOwner);
   useEffect(() => {
     const priorOwner = priorExclusiveOwner.current;
@@ -242,6 +247,17 @@ export function PlayCampaign({
       setMapOpen(false);
     }
   }, [exclusiveOwner, mapOpen]);
+  useEffect(() => {
+    if (!worldInteractionEnabled) setWorldStatusOpen(false);
+  }, [worldInteractionEnabled]);
+  useEffect(() => {
+    if (!worldStatusOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setWorldStatusOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [worldStatusOpen]);
   useEffect(() => {
     if (!shouldDismissTrainerEncounterForExternalCombat(trainerEncounter?.phase ?? null, {
       wildBattleActive: Boolean(state.battle),
@@ -1047,9 +1063,8 @@ export function PlayCampaign({
               }}
             />
 
-            {avatarStyle && activeAsset ? <WildzReferenceHud
-              activeCard={activeAsset}
-              condition={activeAsset ? state.adventureConditions[activeAsset.id] : undefined}
+            {avatarStyle ? <WildzReferenceHud
+              character={character}
               heading={playerHeading}
               model={hudModel}
               onOpenMap={openWorldMap}
@@ -1059,35 +1074,59 @@ export function PlayCampaign({
             /> : null}
 
             {avatarStyle ? <WildsMultiplayer
+              controlsExpanded={worldStatusOpen}
               dismissSignal={commandDismissSignal}
               interactionEnabled={worldInteractionEnabled}
               multiplayer={multiplayer}
               position={state.player}
-              onRosterOpenChange={setMultiplayerRosterOpen}
+              onRosterOpenChange={handleMultiplayerRosterOpenChange}
             /> : null}
-            <div className="wilds-world-navigator-stack">
-              {avatarStyle ? <WildsLivingWorldHud connected={networkEnabled} onEnterRaid={enterLivingRaid} player={state.player} world={livingWorld} /> : null}
-            </div>
-            <div className="wilds-utility-cluster">
-              <WildsAudioSettings
-                onChange={presentation.setAudioSettings}
-                onUnlock={() => { void presentation.unlockAudio(); }}
-                ready={presentation.audioReady}
-                settings={presentation.audioSettings}
-              />
+            <div className={`wilds-world-status-home${worldStatusOpen ? " is-open" : ""}`}>
               <button
-                aria-label={`Open living Command Center. Beat step pulse ${kaiMoment.latticeCoordinate}`}
-                className="wilds-kai-command-pill"
+                aria-controls="wilds-live-controls wilds-world-status-fan"
+                aria-expanded={worldStatusOpen}
+                aria-label={`${worldStatusOpen ? "Close" : "Open"} world status controls · ${multiplayer.remotePlayers.length} live explorers`}
+                className="wilds-world-status-trigger"
+                disabled={!worldInteractionEnabled}
                 onClick={() => {
-                  if (worldInteractionEnabled) setRequestedCommand("commandCenter");
+                  if (!worldInteractionEnabled) return;
+                  const nextOpen = !worldStatusOpen;
+                  setWorldStatusOpen(nextOpen);
+                  if (nextOpen) setCommandDismissSignal((signal) => signal + 1);
                 }}
-                style={{ "--kai-accent": kaiMoment.accent } as CSSProperties}
-                title="Open living Command Center"
                 type="button"
               >
-                <small>BEAT:STEP:PULSE</small>
-                <span>{kaiMoment.latticeCoordinate}</span>
+                <i aria-hidden="true"><span /><span /><span /></i>
+                <b>{multiplayer.remotePlayers.length}</b>
               </button>
+              <div aria-hidden={!worldStatusOpen} className="wilds-world-status-fan" id="wilds-world-status-fan" inert={worldStatusOpen ? undefined : true}>
+                <div className="wilds-world-navigator-stack">
+                  {avatarStyle ? <WildsLivingWorldHud connected={networkEnabled} onEnterRaid={enterLivingRaid} player={state.player} world={livingWorld} /> : null}
+                </div>
+                <div className="wilds-utility-cluster">
+                  <WildsAudioSettings
+                    onChange={presentation.setAudioSettings}
+                    onUnlock={() => { void presentation.unlockAudio(); }}
+                    ready={presentation.audioReady}
+                    settings={presentation.audioSettings}
+                  />
+                  <button
+                    aria-label={`Open living Command Center. Beat step pulse ${kaiMoment.latticeCoordinate}`}
+                    className="wilds-kai-command-pill"
+                    onClick={() => {
+                      if (!worldInteractionEnabled) return;
+                      setWorldStatusOpen(false);
+                      setRequestedCommand("commandCenter");
+                    }}
+                    style={{ "--kai-accent": kaiMoment.accent } as CSSProperties}
+                    title="Open living Command Center"
+                    type="button"
+                  >
+                    <small>BEAT:STEP:PULSE</small>
+                    <span>{kaiMoment.latticeCoordinate}</span>
+                  </button>
+                </div>
+              </div>
             </div>
 
             <WildzWorldControls

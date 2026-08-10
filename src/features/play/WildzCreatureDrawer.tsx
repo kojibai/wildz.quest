@@ -138,13 +138,14 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   }, []);
 
   useEffect(() => {
+    if (snap === "closed") return;
     const key = "wildz:drawer-affordance-seen:v1";
     if (window.localStorage.getItem(key)) return;
     setShowAffordanceSweep(true);
     window.localStorage.setItem(key, "seen");
     const timer = window.setTimeout(() => setShowAffordanceSweep(false), 1_450);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [snap]);
 
   useEffect(() => {
     setRange({ start: 0, end: 8 });
@@ -271,17 +272,17 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
       "--wildz-drawer-creature": activeForm?.palette.accent ?? "#78dda1"
     } as CSSProperties}
   >
-    <button
+    {mode !== "closed" ? <button
       aria-controls="wildz-creature-drawer-content"
-      aria-expanded={mode !== "closed"}
-      aria-label={mode === "closed" ? `Preview creatures. Active: ${activeCard?.manifest.name ?? "none"}` : mode === "preview" ? "Expand creature selector" : "Close creature selector"}
+      aria-expanded={true}
+      aria-label={mode === "preview" ? "Expand creature selector" : "Close creature selector"}
       className={`wildz-creature-drawer-handle ${showAffordanceSweep ? "show-affordance-sweep" : ""}`}
       onClick={() => {
         if (suppressHandleClick.current) {
           suppressHandleClick.current = false;
           return;
         }
-        commitSnap(snap === "closed" ? "preview" : snap === "preview" ? "expanded" : "closed");
+        commitSnap(snap === "preview" ? "expanded" : "closed");
       }}
       onLostPointerCapture={cancelDrag}
       onPointerCancel={cancelDrag}
@@ -297,7 +298,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
       </span>
       <Icons.chevronUp aria-hidden="true" size={14} />
       <span aria-hidden="true" className="wildz-creature-drawer-sweep" />
-    </button>
+    </button> : null}
     <div aria-hidden={mode === "closed"} className="wildz-creature-drawer-content" id="wildz-creature-drawer-content" inert={mode === "closed" ? true : undefined}>
       <div className="wildz-creature-drawer-tools">
         <span>{sortedCards.length} creature{sortedCards.length === 1 ? "" : "s"} · {mode}</span>

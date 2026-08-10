@@ -39,6 +39,7 @@ test("gameplay controls float in collision-safe homes without a bottom chassis",
 
 test("expanded controls grow from their semantic homes and remain motion-safe", () => {
   const css = readFileSync("app/globals.css", "utf8");
+  const finalCss = css.slice(css.lastIndexOf("/* Unified living-world overlay"));
   assert.match(css, /\.wildz-quick-utilities\s*\{[^}]*animation:\s*wildz-quick-utilities-in/);
   assert.doesNotMatch(css, /\.wildz-quick-utilities\s*\{[^}]*animation:\s*wildz-home-fan-in/);
   assert.match(css, /\.wildz-companion-home\s*>\s*\.wildz-creature-drawer\s*\{[^}]*position:\s*absolute;[^}]*bottom:/);
@@ -50,19 +51,52 @@ test("expanded controls grow from their semantic homes and remain motion-safe", 
   assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\)\s*\{[\s\S]*\.wildz-tools-home \.wilds-world-tools-fan \.wilds-command-dock\s*\{[^}]*grid-template-columns:\s*repeat\(4,/);
   assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\)\s*\{[\s\S]*\.wildz-companion-home \.wilds-companion-command\s*\{[^}]*width:\s*78px;/);
   assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\)\s*\{[\s\S]*\.wildz-app \.wilds-event-toast\s*\{[^}]*width:\s*min\(24vw, 200px\);/);
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*\.wilds-world-tools-fan,[\s\S]*\.wildz-creature-drawer,[\s\S]*\.wilds-companion-ability-wheel\s*\{[^}]*animation:\s*none;[^}]*transition:\s*none;/);
+  const reducedMotionStart = finalCss.lastIndexOf("@media (prefers-reduced-motion: reduce)");
+  const reducedMotionRuleStart = finalCss.indexOf(".wilds-world-tools-fan,", reducedMotionStart);
+  const reducedMotionRule = finalCss.slice(reducedMotionRuleStart, finalCss.indexOf("}", reducedMotionRuleStart));
+  for (const selector of ["wilds-world-tools-fan", "wildz-creature-drawer", "wilds-companion-ability-wheel", "wilds-world-status-fan", "wilds-live-cluster"]) {
+    assert.match(reducedMotionRule, new RegExp(selector));
+  }
+  assert.match(reducedMotionRule, /animation:\s*none;[\s\S]*transition:\s*none;/);
+});
+
+test("one collapsed world-status trigger owns live, share, audio, Kai, and living-world controls", () => {
+  const css = readFileSync("app/globals.css", "utf8");
+  const finalCss = css.slice(css.lastIndexOf("/* Unified living-world overlay"));
+  const source = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
+  const multiplayer = readFileSync("src/features/play/WildsMultiplayer.tsx", "utf8");
+  const triggerCount = source.match(/className="wilds-world-status-trigger"/g)?.length ?? 0;
+  const fanStart = source.indexOf('id="wilds-world-status-fan"');
+  const fanEnd = source.indexOf("</div>", source.indexOf("wilds-utility-cluster", fanStart));
+
+  assert.equal(triggerCount, 1);
+  assert.match(source, /aria-controls="wilds-live-controls wilds-world-status-fan"/);
+  assert.match(source, /controlsExpanded=\{worldStatusOpen\}/);
+  assert.ok(fanStart >= 0 && source.indexOf("wilds-world-navigator-stack", fanStart) < fanEnd);
+  assert.ok(source.indexOf("wilds-utility-cluster", fanStart) < fanEnd);
+  assert.match(multiplayer, /id="wilds-live-controls"[\s\S]*aria-hidden=\{!controlsExpanded\}[\s\S]*inert=\{controlsExpanded \? undefined : true\}/);
+  assert.match(finalCss, /\.wilds-world-status-home:not\(\.is-open\)[\s\S]*visibility:\s*hidden;[\s\S]*pointer-events:\s*none;/);
+  assert.match(finalCss, /@media \(orientation: landscape\) and \(max-height: 500px\)[\s\S]*\.wilds-world-status-fan\s*\{[^}]*right:\s*156px;/);
+
+  const targetFloor = finalCss.slice(finalCss.indexOf(".wildz-app .wilds-world-status-trigger,"));
+  for (const selector of ["wilds-live-badge", "wilds-live-share", "wilds-audio-settings > summary", "wilds-kai-command-pill", "wilds-live-pill"]) {
+    assert.match(targetFloor, new RegExp(selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  assert.match(targetFloor, /\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/);
 });
 
 test("world event pills stay compact while trainer challenges come from directly selected world actors", () => {
   const css = readFileSync("app/globals.css", "utf8");
+  const finalCss = css.slice(css.lastIndexOf("/* Unified living-world overlay"));
   const source = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
   assert.match(
-    css,
-    /\.wildz-app \.wilds-world-navigator-stack\s*\{[^}]*top:\s*calc\([^}]*safe-area-inset-top[^}]*right:\s*max\([^}]*safe-area-inset-right[^}]*flex-direction:\s*column;[^}]*align-items:\s*flex-end;/
+    finalCss,
+    /\.wilds-world-status-fan \.wilds-world-navigator-stack\s*\{[^}]*position:\s*static;[^}]*flex-direction:\s*column;[^}]*align-items:\s*flex-end;/
   );
-  const stackStart = source.indexOf('<div className="wilds-world-navigator-stack">');
+  const fanStart = source.indexOf('id="wilds-world-status-fan"');
+  const stackStart = source.indexOf('<div className="wilds-world-navigator-stack">', fanStart);
   const worldHud = source.indexOf("<WildsLivingWorldHud", stackStart);
-  assert.ok(stackStart >= 0 && worldHud > stackStart);
+  assert.ok(fanStart >= 0 && stackStart > fanStart && worldHud > stackStart);
   assert.doesNotMatch(source, /wilds-trainer-navigator/);
   assert.match(source, /onSelectTrainer=\{openTrainerEncounter\}/);
   assert.match(css, /\.wilds-living-world-hud\s*\{[^}]*position:\s*relative;[^}]*z-index:\s*2;/);
@@ -87,6 +121,7 @@ test("installed PWA surface controls share the stage safe-area offset", () => {
   assert.match(css, /\.wildz-player-capsule\s*\{[^}]*top:\s*calc\(14px \+ var\(--wildz-stage-safe-top\)\)/);
   assert.match(css, /\.wildz-status-rail\s*\{[^}]*top:\s*calc\(12px \+ var\(--wildz-stage-safe-top\)\)/);
   assert.match(css, /\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(108px \+ var\(--wildz-stage-safe-top\)\)/);
+  assert.match(css, /\.wilds-world-status-home\s*\{[^}]*top:\s*calc\([^}]*safe-area-inset-top[^}]*right:\s*max\([^}]*safe-area-inset-right/);
   assert.match(css, /\.wilds-live-cluster\s*\{[^}]*top:\s*calc\(122px \+ var\(--wildz-stage-safe-top\)\)/);
   assert.match(css, /\.wilds-utility-cluster\s*\{[^}]*top:\s*calc\(122px \+ var\(--wildz-stage-safe-top\)\)/);
   assert.match(css, /\.wilds-live-cluster\s*\{[^}]*top:\s*calc\(86px \+ var\(--wildz-stage-safe-top\)\)/);

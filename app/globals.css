@@ -14150,18 +14150,146 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   width: clamp(72px, 10vw, 108px);
 }
 
-.wildz-identity-home > .wildz-companion-capsule {
+.wildz-identity-home > .wildz-explorer-capsule {
   position: relative;
   top: auto;
   left: auto;
+  display: grid;
   grid-template-columns: 54px minmax(0, 1fr);
   width: 100%;
   min-width: 0;
   min-height: 58px;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px 5px 5px;
+  border: 1px solid rgba(198, 248, 219, .24);
+  border-radius: 22px;
+  color: #effcf6;
+  background: linear-gradient(145deg, rgba(16, 44, 39, .9), rgba(7, 25, 22, .94));
+  box-shadow: 0 9px 26px rgba(0, 0, 0, .34), inset 0 1px rgba(255, 255, 255, .08);
+  backdrop-filter: blur(16px) saturate(1.08);
 }
 
-.wildz-identity-home > .wildz-companion-capsule small {
-  display: none;
+.wildz-explorer-capsule > div:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.wildz-explorer-capsule small {
+  overflow: hidden;
+  color: #9fcbbb;
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: .04em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wildz-explorer-capsule strong {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wildz-explorer-capsule strong i {
+  display: grid;
+  width: 13px;
+  min-width: 13px;
+  height: 13px;
+  place-items: center;
+  border-radius: 50%;
+  color: #082119;
+  background: #78dda1;
+  font-size: 8px;
+  font-style: normal;
+}
+
+.wildz-explorer-portrait {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  overflow: hidden;
+  border: 1px solid rgba(244, 221, 121, .35);
+  border-radius: 18px;
+  background: radial-gradient(circle at 50% 24%, rgba(244, 221, 121, .18), transparent 37%), linear-gradient(160deg, var(--wildz-explorer-outfit-secondary), rgba(4, 18, 16, .96));
+  box-shadow: inset 0 1px rgba(255, 255, 255, .12);
+}
+
+.wildz-explorer-portrait-head {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  left: 50%;
+  width: 20px;
+  height: 23px;
+  border-radius: 48% 48% 44% 44%;
+  background: var(--wildz-explorer-skin);
+  box-shadow: 0 -6px 0 -1px var(--wildz-explorer-hair);
+  transform: translateX(-50%);
+}
+
+.wildz-explorer-portrait-head > i {
+  position: absolute;
+  top: 10px;
+  right: 4px;
+  left: 4px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(7, 25, 22, .72);
+}
+
+.wildz-explorer-portrait-body {
+  position: absolute;
+  right: 9px;
+  bottom: -7px;
+  left: 9px;
+  height: 31px;
+  border-radius: 50% 50% 12px 12px;
+  background: linear-gradient(135deg, var(--wildz-explorer-outfit), var(--wildz-explorer-outfit-secondary));
+}
+
+.wildz-explorer-portrait-signature {
+  position: absolute;
+  z-index: 3;
+  right: 5px;
+  bottom: 5px;
+  width: 8px;
+  height: 8px;
+  border: 1px solid rgba(255, 255, 255, .72);
+  border-radius: 50%;
+  background: #f4dd79;
+  box-shadow: 0 0 10px rgba(244, 221, 121, .75);
+}
+
+.wildz-explorer-energy {
+  position: relative;
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .12);
+}
+
+.wildz-explorer-energy > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #5cd69a, #f4dd79);
+}
+
+.wildz-explorer-energy > b {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
 }
 
 .wildz-mission-home > .wildz-mission-chip {
@@ -14376,6 +14504,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   box-shadow: none;
   backdrop-filter: none;
   overflow: visible;
+  pointer-events: none;
 }
 
 .wildz-companion-home .wildz-creature-drawer-handle {
@@ -14444,33 +14573,181 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   animation: wildz-wheel-in 150ms cubic-bezier(.2, .8, .2, 1) both;
 }
 
-/* Right-edge world status and utility controls remain below the map safe zone. */
-.wildz-app .wilds-world-navigator-stack {
-  top: calc(clamp(92px, 15vh, 124px) + env(safe-area-inset-top));
+/* One semantic status home owns every secondary world control below the map. */
+.wilds-world-status-home {
+  position: absolute;
+  z-index: var(--wildz-layer-resting-controls);
+  top: calc(clamp(126px, 18vh, 146px) + env(safe-area-inset-top));
   right: max(12px, env(safe-area-inset-right));
-  bottom: auto;
-  left: auto;
+  width: 44px;
+  height: 44px;
+  pointer-events: none;
+}
+
+.wilds-world-status-trigger {
+  position: relative;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(198, 248, 219, .3);
+  border-radius: 16px;
+  color: #e9fff5;
+  background: linear-gradient(145deg, rgba(16, 44, 39, .92), rgba(7, 25, 22, .96));
+  box-shadow: 0 9px 25px rgba(0, 0, 0, .34), inset 0 1px rgba(255, 255, 255, .08);
+  backdrop-filter: blur(16px) saturate(1.08);
+  pointer-events: auto;
+}
+
+.wilds-world-status-trigger > i {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.wilds-world-status-trigger > i > span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #71e8c3;
+  box-shadow: 0 0 7px rgba(113, 232, 195, .7);
+}
+
+.wilds-world-status-trigger > b {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: grid;
+  min-width: 17px;
+  height: 17px;
+  place-items: center;
+  padding: 0 4px;
+  border: 1px solid rgba(7, 25, 22, .8);
+  border-radius: 999px;
+  color: #071916;
+  background: #f4dd79;
+  font-size: 8px;
+}
+
+.wilds-world-status-trigger[aria-expanded="true"],
+.wilds-world-status-trigger:hover,
+.wilds-world-status-trigger:focus-visible {
+  border-color: rgba(244, 221, 121, .62);
+  color: #fff2a8;
+}
+
+.wilds-world-status-fan {
+  position: absolute;
+  z-index: var(--wildz-layer-expanded-controls);
+  top: calc(100% + 58px);
+  right: 0;
+  display: grid;
+  width: min(280px, calc(100vw - 24px));
+  justify-items: end;
+  gap: 7px;
+  pointer-events: none;
+  transform-origin: top right;
+  transition: opacity 140ms ease, visibility 140ms ease, transform 140ms ease;
+}
+
+.wilds-world-status-home:not(.is-open) .wilds-world-status-fan {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-6px) scale(.96);
+}
+
+.wilds-world-status-home.is-open .wilds-world-status-fan {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+}
+
+.wilds-world-status-fan > * {
+  pointer-events: auto;
+}
+
+.wilds-world-status-fan .wilds-world-navigator-stack {
+  position: static;
+  display: flex;
+  width: min(100%, 280px);
+  max-width: 280px;
   flex-direction: column;
   align-items: flex-end;
   gap: 5px;
 }
 
-.wildz-app .wilds-living-world-hud {
+.wilds-world-status-fan .wilds-living-world-hud {
+  position: static;
+  width: auto;
   align-items: flex-end;
 }
 
-.wildz-app .wilds-utility-cluster {
-  top: calc(clamp(196px, 31vh, 252px) + env(safe-area-inset-top));
+.wilds-world-status-fan .wilds-utility-cluster {
+  position: static;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wilds-world-status-fan .wilds-utility-cluster .wilds-audio-sheet {
+  right: 0;
+  left: auto;
+}
+
+.wildz-app .wilds-live-cluster {
+  z-index: var(--wildz-layer-expanded-controls);
+  top: calc(clamp(178px, calc(18vh + 52px), 198px) + env(safe-area-inset-top));
   right: max(12px, env(safe-area-inset-right));
   bottom: auto;
   left: auto;
-  flex-direction: column;
-  align-items: flex-end;
+  gap: 6px;
+  transform-origin: top right;
+  transition: opacity 140ms ease, visibility 140ms ease, transform 140ms ease;
 }
 
-.wildz-app .wilds-utility-cluster .wilds-audio-sheet {
-  right: 0;
-  left: auto;
+.wildz-app .wilds-live-cluster:not(.is-status-open) {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-6px) scale(.96);
+}
+
+.wildz-app .wilds-live-cluster.is-status-open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+}
+
+/* Final interaction floor: every target revealed from the status home is
+   thumb-safe without growing a full-width control chassis. */
+.wildz-app .wilds-world-status-trigger,
+.wildz-app .wilds-live-badge,
+.wildz-app .wilds-live-share,
+.wildz-app .wilds-audio-settings > summary,
+.wildz-app .wilds-kai-command-pill,
+.wildz-app .wilds-live-pill {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.wildz-app .wilds-live-badge,
+.wildz-app .wilds-live-share,
+.wildz-app .wilds-live-pill {
+  padding-block: 0;
+}
+
+.wildz-app .wilds-live-share {
+  width: 44px;
+}
+
+.wildz-app .wilds-audio-settings > summary {
+  width: 44px;
+}
+
+.wildz-app .wilds-kai-command-pill {
+  min-width: 104px;
 }
 
 .wildz-app .wilds-event-toast {
@@ -14503,7 +14780,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
     padding: calc(8px + env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));
   }
 
-  .wildz-identity-home > .wildz-companion-capsule {
+  .wildz-identity-home > .wildz-explorer-capsule {
     grid-template-columns: 40px minmax(0, 1fr);
     min-height: 48px;
     gap: 4px;
@@ -14511,12 +14788,13 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
     border-radius: 18px;
   }
 
-  .wildz-identity-home > .wildz-companion-capsule > .wilds-creature-thumbnail {
+  .wildz-identity-home > .wildz-explorer-capsule > .wildz-explorer-portrait {
     width: 40px;
     height: 40px;
+    border-radius: 14px;
   }
 
-  .wildz-identity-home > .wildz-companion-capsule strong {
+  .wildz-identity-home > .wildz-explorer-capsule strong {
     font-size: 10px;
   }
 
@@ -14564,14 +14842,18 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
     width: min(74vw, 430px);
   }
 
-  .wildz-app .wilds-world-navigator-stack {
+  .wilds-world-status-home {
     top: calc(84px + env(safe-area-inset-top));
     right: max(8px, env(safe-area-inset-right));
   }
 
-  .wildz-app .wilds-utility-cluster {
-    top: calc(194px + env(safe-area-inset-top));
+  .wildz-app .wilds-live-cluster {
+    top: calc(136px + env(safe-area-inset-top));
     right: max(8px, env(safe-area-inset-right));
+  }
+
+  .wilds-world-status-fan {
+    width: min(260px, calc(100vw - 16px));
   }
 }
 
@@ -14593,6 +14875,10 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   .wildz-companion-home > .wildz-creature-drawer {
     width: calc(100vw - max(16px, env(safe-area-inset-left)) - max(16px, env(safe-area-inset-right)));
   }
+
+  .wilds-world-status-fan {
+    width: min(244px, calc(100vw - 16px));
+  }
 }
 
 /* 844x390 and similar devices use shallow, horizontal expansions. */
@@ -14603,15 +14889,16 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
     padding: calc(6px + env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));
   }
 
-  .wildz-identity-home > .wildz-companion-capsule {
+  .wildz-identity-home > .wildz-explorer-capsule {
     grid-template-columns: 40px minmax(0, 1fr);
     min-height: 48px;
     padding: 4px 7px 4px 4px;
   }
 
-  .wildz-identity-home > .wildz-companion-capsule > .wilds-creature-thumbnail {
+  .wildz-identity-home > .wildz-explorer-capsule > .wildz-explorer-portrait {
     width: 40px;
     height: 40px;
+    border-radius: 14px;
   }
 
   .wildz-map-home,
@@ -14694,21 +14981,38 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
     transform: none;
   }
 
-  .wildz-app .wilds-world-navigator-stack {
+  .wilds-world-status-home {
     top: calc(70px + env(safe-area-inset-top));
     right: max(8px, env(safe-area-inset-right));
-    width: min(340px, 44vw);
-    max-width: min(340px, 44vw);
   }
 
-  .wildz-app .wilds-living-world-hud {
+  .wildz-app .wilds-live-cluster {
+    top: calc(70px + env(safe-area-inset-top));
+    right: calc(max(8px, env(safe-area-inset-right)) + 52px);
+  }
+
+  .wilds-world-status-fan {
+    top: 0;
+    right: 156px;
+    display: flex;
+    width: max-content;
+    max-width: calc(100vw - 224px);
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .wilds-world-status-fan .wilds-world-navigator-stack {
+    width: auto;
+    max-width: min(330px, 42vw);
+  }
+
+  .wilds-world-status-fan .wilds-living-world-hud {
     flex-direction: row;
     justify-content: flex-end;
   }
 
-  .wildz-app .wilds-utility-cluster {
-    top: calc(112px + env(safe-area-inset-top));
-    right: max(8px, env(safe-area-inset-right));
+  .wilds-world-status-fan .wilds-utility-cluster {
+    flex: none;
   }
 
   .wildz-app .wilds-event-toast {
@@ -14721,7 +15025,9 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 @media (prefers-reduced-motion: reduce) {
   .wilds-world-tools-fan,
   .wildz-creature-drawer,
-  .wilds-companion-ability-wheel {
+  .wilds-companion-ability-wheel,
+  .wilds-world-status-fan,
+  .wilds-live-cluster {
     animation: none;
     transition: none;
   }

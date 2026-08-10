@@ -15,12 +15,14 @@ function healthPercent(hp: number, maxHp: number) {
 }
 
 export function WildsMultiplayer({
+  controlsExpanded,
   dismissSignal,
   interactionEnabled,
   multiplayer,
   position,
   onRosterOpenChange
 }: {
+  controlsExpanded: boolean;
   dismissSignal: number;
   interactionEnabled: boolean;
   multiplayer: WildsMultiplayerController;
@@ -33,6 +35,7 @@ export function WildsMultiplayer({
   const [notice, setNotice] = useState("");
   const priorDismissSignal = useRef(dismissSignal);
   const dismissedChallengeIds = useRef(new Set<string>());
+  const { selectPlayer } = multiplayer;
   const selected = multiplayer.selectedPlayer;
   const selectedDistance = selected ? presenceDistance(selected, position) : Infinity;
   const canInteract = selectedDistance <= WILDS_INTERACTION_DISTANCE && selected?.status === "available";
@@ -55,8 +58,8 @@ export function WildsMultiplayer({
     setRosterOpen(false);
     setChatOpen(false);
     setMessage("");
-    multiplayer.selectPlayer(null);
-  }, [dismissSignal, interactionEnabled]);
+    selectPlayer(null);
+  }, [dismissSignal, interactionEnabled, selectPlayer]);
   const blockedIncomingChallengeId = interactionEnabled ? null : multiplayer.incomingChallenge?.id;
   useEffect(() => {
     if (!blockedIncomingChallengeId || dismissedChallengeIds.current.has(blockedIncomingChallengeId)) return;
@@ -70,7 +73,7 @@ export function WildsMultiplayer({
 
   return (
     <>
-      <div className="wilds-live-cluster" aria-label="Live multiplayer">
+      <div id="wilds-live-controls" aria-hidden={!controlsExpanded} inert={controlsExpanded ? undefined : true} className={`wilds-live-cluster${controlsExpanded ? " is-status-open" : ""}`} aria-label="Live multiplayer">
         <button aria-label={`Open global live explorers · ${multiplayer.mode === "receiz_live" ? "connected worldwide" : "reconnecting"}`} className={`wilds-live-badge ${multiplayer.mode}`} disabled={!interactionEnabled} onClick={() => {
           if (!interactionEnabled) return;
           setRosterOpen((value) => !value);

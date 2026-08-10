@@ -9,19 +9,22 @@ import {
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("world HUD is one active-creature capsule, one objective, and orientation", () => {
+test("world HUD is one proof-bound explorer capsule, one objective, and orientation", () => {
   const hud = read("src/features/play/WildzReferenceHud.tsx");
-  assert.match(hud, /WildsCreatureThumbnail/);
-  assert.match(hud, /activeCard/);
-  assert.match(hud, /wildz-companion-vitality/);
+  assert.match(hud, /projectWildsExplorerAppearance\(character\)/);
+  assert.match(hud, /character\.digest/);
+  assert.match(hud, /wildz-explorer-portrait/);
+  assert.match(hud, /model\.player\.level/);
+  assert.match(hud, /model\.energy\.current/);
   assert.match(hud, /wildz-mission-chip/);
   assert.match(hud, /<WildzMinimap/);
   assert.match(hud, /className="wildz-identity-home"/);
   assert.match(hud, /className="wildz-mission-home"/);
   assert.match(hud, /className="wildz-map-home"/);
-  assert.match(hud, /<strong>\{model\.player\.displayName \|\| model\.player\.username\}<i>✓<\/i><\/strong>/);
-  assert.doesNotMatch(hud, /<strong>\{activeCard\.manifest\.name\}<i>✓<\/i><\/strong>/);
-  assert.doesNotMatch(hud, /wildz-status-rail|wildz-energy-meter|wildz-xp-meter/);
+  assert.match(hud, /const explorerName = model\.player\.displayName \|\| model\.player\.username;/);
+  assert.match(hud, /<strong>\{explorerName\}<i>✓<\/i><\/strong>/);
+  assert.doesNotMatch(hud, /activeCard|WildsCreatureThumbnail|wildz-companion-vitality/);
+  assert.doesNotMatch(hud, /wildz-status-rail|wildz-xp-meter/);
 });
 
 test("campaign projects one modal owner and gates underlying world input", () => {
@@ -102,13 +105,26 @@ test("multiplayer UI connects exclusive ownership to incoming challenge and shar
   assert.match(multiplayer, /className="wilds-live-share"[\s\S]*disabled=\{!interactionEnabled\}/);
 });
 
+test("multiplayer dismissal depends on a stable player-selection action", () => {
+  const hook = read("src/features/play/use-wilds-multiplayer.ts");
+  const controls = read("src/features/play/WildsMultiplayer.tsx");
+
+  assert.match(hook, /const selectPlayer = useCallback\(\(player: WildsPresence \| null\) => setSelectedPlayerId\(player\?\.playerId \?\? null\), \[\]\);/);
+  assert.match(hook, /selectedPlayerId,[\s\S]*?selectPlayer,/);
+  assert.match(controls, /const \{ selectPlayer \} = multiplayer;/);
+  assert.match(controls, /selectPlayer\(null\);[\s\S]*?\}, \[dismissSignal, interactionEnabled, selectPlayer\]\);/);
+});
+
 test("campaign removes duplicate world chrome and persistent distant trainer navigation", () => {
   const campaign = read("src/features/play/PlayCampaign.tsx");
   for (const legacy of ["wilds-hud-top", "wilds-resource-strip", "runner-card", "wilds-mission-meter", "wilds-trainer-navigator"]) {
     assert.doesNotMatch(campaign, new RegExp(legacy));
   }
-  assert.match(campaign, /activeCard=\{activeAsset\}/);
-  assert.match(campaign, /condition=\{activeAsset \? state\.adventureConditions\[activeAsset\.id\] : undefined\}/);
+  const hudStart = campaign.indexOf("<WildzReferenceHud");
+  const hudEnd = campaign.indexOf("/>", hudStart);
+  const hudMount = campaign.slice(hudStart, hudEnd);
+  assert.match(hudMount, /character=\{character\}/);
+  assert.doesNotMatch(hudMount, /activeCard|condition/);
 });
 
 test("visible trainers remain directly tappable and show challenge copy only within twelve meters", () => {
@@ -121,7 +137,7 @@ test("visible trainers remain directly tappable and show challenge copy only wit
 
 test("mobile HUD reserves corners and leaves target prompts unobstructed", () => {
   const css = read("app/globals.css");
-  assert.match(css, /\.wildz-companion-capsule\s*\{/);
+  assert.match(css, /\.wildz-explorer-capsule\s*\{/);
   assert.match(css, /\.wilds-trainer-challenge-prompt\s*\{/);
-  assert.match(css, /@media \(max-width: 640px\)[\s\S]*\.wildz-companion-capsule/s);
+  assert.match(css, /@media \(max-width: 640px\)[\s\S]*\.wildz-explorer-capsule/s);
 });

@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-test("reference HUD exposes the active companion, mission, and minimap without duplicate status chrome", () => {
+test("reference HUD exposes the proof-bound explorer, mission, and minimap without companion duplication", () => {
   const source = readFileSync("src/features/play/WildzReferenceHud.tsx", "utf8");
-  for (const token of ["wildz-companion-capsule", "wildz-companion-vitality", "WildsCreatureThumbnail", "WildzMinimap"]) {
+  for (const token of ["wildz-explorer-capsule", "wildz-explorer-portrait", "projectWildsExplorerAppearance", "character.digest", "model.player.level", "model.energy.current", "WildzMinimap"]) {
     assert.match(source, new RegExp(token));
   }
-  assert.doesNotMatch(source, /wildz-status-rail|Energy|XP/);
+  assert.doesNotMatch(source, /activeCard|WildsCreatureThumbnail|wildz-companion-vitality/);
+  assert.doesNotMatch(source, /wildz-status-rail|XP/);
 });
 
 test("D-pad maps analog camera-relative travel onto existing movement intents", () => {

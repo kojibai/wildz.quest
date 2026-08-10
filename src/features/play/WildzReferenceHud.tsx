@@ -1,28 +1,45 @@
 "use client";
 
+import type { CSSProperties } from "react";
+import type { WildzCharacterGenesis } from "../identity/wildz-genesis";
+import { projectWildsExplorerAppearance } from "./wilds-explorer-appearance";
 import type { WildzHudModel } from "./wildz-gameplay-hud";
 import { WildzMinimap } from "./WildzMinimap";
-import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
-import type { PortableCardAsset } from "./portable-card";
-import type { AdventureCardCondition } from "./adventure/card-condition";
 
-export function WildzReferenceHud({ model, heading, activeCard, condition, onOpenMap, onOpenMission }: {
+export function WildzReferenceHud({ model, heading, character, onOpenMap, onOpenMission }: {
   model: WildzHudModel;
   heading: number;
-  activeCard: PortableCardAsset;
-  condition?: AdventureCardCondition;
+  character: WildzCharacterGenesis;
   onOpenMap: () => void;
   onOpenMission: () => void;
 }) {
-  const vitality = condition?.life === "dead" ? 0 : Math.max(1, 100 - (condition?.fatigue ?? 0));
+  const appearance = projectWildsExplorerAppearance(character);
+  const explorerName = model.player.displayName || model.player.username;
   return <div className="wildz-reference-hud">
     <div className="wildz-identity-home">
-      <section className="wildz-companion-capsule" aria-label={`${activeCard.manifest.name}, ${vitality}% vitality`}>
-        <WildsCreatureThumbnail asset={activeCard} />
+      <section className="wildz-explorer-capsule" aria-label={`${explorerName}, explorer level ${model.player.level}, ${model.energy.current}% energy`} data-explorer-proof={character.digest.slice(0, 16)}>
+        <div
+          aria-hidden="true"
+          className="wildz-explorer-portrait"
+          data-accessory={appearance.accessory}
+          data-hair={appearance.hairProfile}
+          data-outfit={appearance.outfitProfile}
+          data-signature={appearance.signatureMark}
+          style={{
+            "--wildz-explorer-hair": appearance.hair,
+            "--wildz-explorer-outfit": appearance.outfitPrimary,
+            "--wildz-explorer-outfit-secondary": appearance.outfitSecondary,
+            "--wildz-explorer-skin": appearance.skin
+          } as CSSProperties}
+        >
+          <span className="wildz-explorer-portrait-head"><i /></span>
+          <span className="wildz-explorer-portrait-body" />
+          <b className="wildz-explorer-portrait-signature" />
+        </div>
         <div>
-          <small>{activeCard.manifest.name} · Lv. {model.companion.level}</small>
-          <strong>{model.player.displayName || model.player.username}<i>✓</i></strong>
-          <span className="wildz-companion-vitality"><i style={{ width: `${vitality}%` }} /><b>{vitality}%</b></span>
+          <small>Explorer · Lv. {model.player.level}</small>
+          <strong>{explorerName}<i>✓</i></strong>
+          <span aria-label={`Explorer energy ${model.energy.current}%`} aria-valuemax={model.energy.maximum} aria-valuemin={0} aria-valuenow={model.energy.current} className="wildz-explorer-energy" role="progressbar"><i style={{ width: `${model.energy.current}%` }} /><b>{model.energy.current}%</b></span>
         </div>
       </section>
     </div>

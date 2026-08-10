@@ -80,6 +80,8 @@ describe("Receiz Wilds rendering contract", () => {
     const route = await readFile("app/api/wilds/atlas/route.ts", "utf8");
 
     assert.match(campaign, /className="wilds-utility-cluster"/);
+    assert.match(campaign, /className="wilds-world-status-trigger"/);
+    assert.match(campaign, /aria-controls="wilds-live-controls wilds-world-status-fan"/);
     assert.match(campaign, /BEAT:STEP:PULSE/);
     assert.match(campaign, /className="wilds-kai-command-pill"/);
     assert.match(campaign, /setRequestedCommand\("commandCenter"\)/);
@@ -269,8 +271,9 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(source, /key: "mission"/);
     assert.match(css, /\.mobile-play-wrap \.wilds-stage\s*\{[^}]*min-height:\s*0/);
     assert.doesNotMatch(css, /\.mobile-play-wrap \.wilds-stage\s*\{[^}]*min-height: 286px/);
-    assert.match(source, /activeCard=\{activeAsset\}/);
-    assert.match(source, /condition=\{activeAsset \? state\.adventureConditions\[activeAsset\.id\] : undefined\}/);
+    const hudMount = source.slice(source.indexOf("<WildzReferenceHud"), source.indexOf("/>", source.indexOf("<WildzReferenceHud")));
+    assert.match(hudMount, /character=\{character\}/);
+    assert.doesNotMatch(hudMount, /activeCard|condition/);
     assert.doesNotMatch(source, /wilds-coordinate-badges/);
     assert.match(controls, /fieldPowers=\{fieldPowers\}/);
     assert.doesNotMatch(source, /setSearchArmed\(false\)/);
