@@ -54,3 +54,13 @@ test("service-worker delivery is revalidated while inheriting the global header 
   assert.equal(headers.get("cache-control"), "no-cache, no-store, must-revalidate");
   assert.equal(headers.get("service-worker-allowed"), "/");
 });
+
+test("development permits the framework evaluator without weakening production", async () => {
+  const moduleUrl = pathToFileURL(resolve("next.config.mjs")).href;
+  const module = await import(moduleUrl) as { contentSecurityPolicy(environment: "development" | "production"): string };
+
+  assert.match(module.contentSecurityPolicy("development"), /script-src 'self' 'unsafe-inline' 'unsafe-eval'/);
+  assert.doesNotMatch(module.contentSecurityPolicy("production"), /'unsafe-eval'/);
+  assert.match(module.contentSecurityPolicy("production"), /object-src 'none'/);
+  assert.match(module.contentSecurityPolicy("production"), /frame-ancestors 'none'/);
+});

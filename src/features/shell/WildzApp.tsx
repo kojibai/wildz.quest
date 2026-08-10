@@ -43,6 +43,7 @@ import { WildzProfileSheet } from "@/features/profile/WildzProfileSheet";
 import { WildzVaultSheet } from "@/features/profile/WildzVaultSheet";
 import { WildzMarketSheet } from "@/features/market/WildzMarketSheet";
 import type { WildzOverlay } from "@/features/shell/wildz-overlay";
+import { proofSessionRetryDecision } from "@/features/shell/proof-session-retry";
 import { downloadBlob } from "@/features/play/card-export";
 import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-verifier";
 import Image from "next/image";
@@ -159,9 +160,11 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (!identity || !vaultAdmission) return;
     let active = true;
     let connecting = false;
+    let retryAttempt = 0;
     let retryTimer: number | null = null;
-    const connect = () => {
+    const connect = (resetAttempt = false) => {
       if (connecting) return;
+      if (resetAttempt) retryAttempt = 0;
       connecting = true;
       if (retryTimer !== null) {
         window.clearTimeout(retryTimer);
@@ -189,22 +192,31 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           || stillCurrent.session.keyId !== identity.keyId
           || stillCurrent.session.actorId !== identity.actorId) return;
         if (aligned !== current) acceptSnapshot(aligned);
+        retryAttempt = 0;
         setProofSessionConnected(true);
-      }).catch(() => {
+      }).catch((error: unknown) => {
         if (active) {
           setProofSessionConnected(false);
-          retryTimer = window.setTimeout(connect, 5_000);
+          const code = error instanceof Error ? error.message : "wildz_proof_unknown";
+          const decision = proofSessionRetryDecision({
+            attempt: retryAttempt,
+            online: navigator.onLine,
+            code
+          });
+          retryAttempt += 1;
+          if (decision.retry) retryTimer = window.setTimeout(() => connect(), decision.delayMs);
         }
       }).finally(() => {
         connecting = false;
       });
     };
     connect();
-    window.addEventListener("online", connect);
+    const reconnectOnline = () => connect(true);
+    window.addEventListener("online", reconnectOnline);
     return () => {
       active = false;
       if (retryTimer !== null) window.clearTimeout(retryTimer);
-      window.removeEventListener("online", connect);
+      window.removeEventListener("online", reconnectOnline);
     };
   }, [acceptSnapshot, identity, vaultAdmission]);
 
