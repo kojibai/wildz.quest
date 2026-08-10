@@ -10,7 +10,7 @@ test("social deck mounts a dedicated active-creature drawer above permanent cont
 
   assert.match(social, /<WildzCreatureDrawer/);
   assert.ok(social.indexOf("<WildzCreatureDrawer") < social.indexOf("wildz-bottom-play-controls"));
-  assert.ok(social.indexOf("wildz-bottom-play-controls") < social.indexOf("wildz-social-actions"));
+  assert.match(social, /<WildsCompanionCommand/);
   assert.match(drawer, /aria-expanded=\{mode !== "closed"\}/);
   assert.match(drawer, /settleCreatureDrawer/);
   assert.match(drawer, /selectCard\(assetId\);[\s\S]*?setSnap\("closed"\)/);
@@ -34,9 +34,11 @@ test("drawer exposes three wordless states with automatic windowing", () => {
   assert.match(css, /\.wildz-creature-spread\s*\{[^}]*grid-template-columns:\s*repeat\(2,[^}]*grid-template-rows:\s*repeat\(4,/s);
 });
 
-test("toolbar creature opens Vault while the archive icon opens Trail Pack", () => {
+test("companion command opens the controlled roster while Vault and Trail Pack remain in command dock", () => {
   const social = readFileSync("src/features/play/WildzSocialDeck.tsx", "utf8");
+  const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
 
-  assert.match(social, /aria-label="Open Trail Pack[^"]*"[\s\S]*?className="wildz-action-vault"[\s\S]*?onClick=\{onOpenDeck\}/);
-  assert.match(social, /aria-label="Open card vault"[\s\S]*?className="wildz-action-companion"[\s\S]*?onClick=\{onOpenVault\}/);
+  assert.match(social, /onRequestDrawer=\{setRequestedSnap\}/);
+  assert.match(campaign, /key: "deck"/);
+  assert.match(campaign, /key: "vault"/);
 });

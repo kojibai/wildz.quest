@@ -1100,18 +1100,10 @@ export function PlayCampaign({
               nearbyCards={state.inventory}
               onAction={activatePulse}
               onCardOrderChange={setCardOrder}
-              onMission={() => dispatch({ type: "mission" })}
-              onOpenFieldGuide={() => setRequestedCommand("fieldGuide")}
-              onOpenMarket={onOpenMarket}
-              onOpenSatchel={() => setRequestedCommand("satchel")}
-              onOpenDeck={() => setRequestedCommand("deck")}
-              onOpenVault={() => setRequestedCommand("vault")}
-              onOpenProfile={onOpenProfile}
               onInput={(input) => dispatch(input)}
               onMovementModeChange={setMovementMode}
               onRest={() => dispatch({ type: "rest", at: new Date().toISOString() })}
               onSelectCard={(assetId) => dispatch({ type: "select-asset", assetId })}
-              onTrain={() => dispatch({ type: "train", at: new Date().toISOString() })}
             />
             <WildsCommandDock items={commandItems} requestedKey={requestedCommand} onRequestHandled={() => setRequestedCommand(null)} />
           </div>

@@ -33,7 +33,7 @@ test("D-pad maps analog camera-relative travel onto existing movement intents", 
 
 test("movement and context controls live inside the bottom play toolbar", () => {
   const source = readFileSync("src/features/play/WildzSocialDeck.tsx", "utf8");
-  for (const token of ["wildz-bottom-play-controls", "WildzDpad", "WildzContextButton"]) {
+  for (const token of ["wildz-bottom-play-controls", "WildzDpad", "WildsCompanionCommand"]) {
     assert.match(source, new RegExp(token));
   }
 });

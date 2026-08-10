@@ -1,0 +1,201 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  advanceCompanionGesture,
+  cancelCompanionGesture,
+  createCompanionGesture,
+  moveCompanionGesture,
+  releaseCompanionGesture,
+  type CompanionGestureResult,
+  type CompanionGestureState
+} from "./companion-command-gesture";
+import { companionCarousel, cycleCompanion } from "./companion-command-model";
+import { playWildsHaptic } from "./wilds-haptics";
+import type { PortableCardAsset } from "./portable-card";
+import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
+
+export type WildsCompanionPower = { id: string; label: string };
+
+export function WildsCompanionCommand({
+  cards,
+  activeCard,
+  fieldPowers,
+  onSelectCard,
+  onUsePower,
+  onSelectAbility,
+  onRequestDrawer
+}: {
+  cards: readonly PortableCardAsset[];
+  activeCard: PortableCardAsset | null;
+  fieldPowers: readonly WildsCompanionPower[];
+  onSelectCard: (assetId: string) => void;
+  onUsePower: (abilityIndex: number) => void;
+  onSelectAbility: (abilityIndex: number) => void;
+  onRequestDrawer: (snap: "preview" | "expanded") => void;
+}) {
+  const gestureRef = useRef<CompanionGestureState | null>(null);
+  const holdTimerRef = useRef<number | null>(null);
+  const renderFrameRef = useRef<number | null>(null);
+  const [mode, setMode] = useState<CompanionGestureState["mode"]>("pending");
+  const [activeAbilityIndex, setActiveAbilityIndex] = useState<number | null>(null);
+  const [selectedAbilityIndex, setSelectedAbilityIndex] = useState(0);
+  const projection = useMemo(() => companionCarousel(cards, activeCard?.id ?? null), [activeCard?.id, cards]);
+  const previous = cards.find((card) => card.id === projection.previousId) ?? null;
+  const next = cards.find((card) => card.id === projection.nextId) ?? null;
+  const abilityCount = Math.max(1, Math.min(4, fieldPowers.length));
+
+  const clearHold = () => {
+    if (holdTimerRef.current !== null) window.clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = null;
+  };
+
+  const renderGesture = (gesture: CompanionGestureState) => {
+    if (renderFrameRef.current !== null) window.cancelAnimationFrame(renderFrameRef.current);
+    renderFrameRef.current = window.requestAnimationFrame(() => {
+      renderFrameRef.current = null;
+      setMode(gesture.mode);
+      setActiveAbilityIndex(gesture.activeAbilityIndex);
+    });
+  };
+
+  useEffect(() => () => {
+    clearHold();
+    if (renderFrameRef.current !== null) window.cancelAnimationFrame(renderFrameRef.current);
+  }, []);
+
+  const cycle = (direction: -1 | 1) => {
+    const assetId = cycleCompanion(cards, activeCard?.id ?? null, direction);
+    if (!assetId || assetId === activeCard?.id) return;
+    playWildsHaptic("cycle");
+    onSelectCard(assetId);
+  };
+
+  const consume = (result: CompanionGestureResult) => {
+    if (result.kind === "tap-power") {
+      playWildsHaptic("confirm");
+      onUsePower(selectedAbilityIndex);
+    } else if (result.kind === "cycle-next") {
+      cycle(1);
+    } else if (result.kind === "cycle-previous") {
+      cycle(-1);
+    } else if (result.kind === "open-drawer") {
+      playWildsHaptic("drawer-open");
+      onRequestDrawer("preview");
+    } else if (result.kind === "select-ability") {
+      const index = result.index % abilityCount;
+      setSelectedAbilityIndex(index);
+      onSelectAbility(index);
+      playWildsHaptic("confirm");
+    } else if (result.kind === "cancel") {
+      playWildsHaptic("cancel");
+    }
+    setMode("pending");
+    setActiveAbilityIndex(null);
+  };
+
+  const pointerPoint = (event: ReactPointerEvent<HTMLButtonElement>) => ({ x: event.clientX, y: event.clientY });
+
+  const onPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!activeCard) return;
+    event.preventDefault();
+    const gesture = createCompanionGesture(pointerPoint(event), performance.now());
+    gestureRef.current = gesture;
+    try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* capture is optional */ }
+    setMode("pending");
+    clearHold();
+    holdTimerRef.current = window.setTimeout(() => {
+      if (!gestureRef.current) return;
+      const advanced = advanceCompanionGesture(gestureRef.current, performance.now());
+      gestureRef.current = advanced;
+      if (advanced.mode === "ability-wheel") playWildsHaptic("wheel-open");
+      renderGesture(advanced);
+    }, 96);
+  };
+
+  const onPointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!gestureRef.current) return;
+    const previousIndex = gestureRef.current.activeAbilityIndex;
+    const moved = moveCompanionGesture(gestureRef.current, pointerPoint(event), performance.now());
+    gestureRef.current = moved;
+    if (moved.activeAbilityIndex !== previousIndex && moved.activeAbilityIndex !== null) playWildsHaptic("wheel-detent");
+    if (moved.mode !== "pending") clearHold();
+    renderGesture(moved);
+  };
+
+  const finishPointer = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const gesture = gestureRef.current;
+    if (!gesture) return;
+    clearHold();
+    gestureRef.current = null;
+    try {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch { /* capture is optional */ }
+    consume(releaseCompanionGesture(gesture, pointerPoint(event), performance.now()));
+  };
+
+  const cancelPointer = () => {
+    if (!gestureRef.current) return;
+    clearHold();
+    const gesture = gestureRef.current;
+    gestureRef.current = null;
+    consume(cancelCompanionGesture(gesture));
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onUsePower(selectedAbilityIndex);
+      playWildsHaptic("confirm");
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      cycle(-1);
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      cycle(1);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      onRequestDrawer("preview");
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      cancelPointer();
+      setMode("pending");
+    }
+  };
+
+  const wheelOpen = mode === "ability-wheel";
+  return <div className={`wilds-companion-command-zone mode-${mode}`}>
+    {wheelOpen ? <div
+      aria-activedescendant={activeAbilityIndex === null ? undefined : `wilds-companion-ability-${activeAbilityIndex % abilityCount}`}
+      aria-label="Choose active companion ability"
+      className="wilds-companion-ability-wheel"
+      role="listbox"
+    >
+      {fieldPowers.slice(0, 4).map((power, index) => <div
+        aria-selected={activeAbilityIndex === index}
+        className={`wilds-companion-ability ability-${index}${activeAbilityIndex === index ? " is-active" : ""}`}
+        id={`wilds-companion-ability-${index}`}
+        key={power.id}
+        role="option"
+      >{power.label}</div>)}
+    </div> : null}
+    <button
+      aria-label={activeCard ? `${activeCard.manifest.name}. Tap to use ${fieldPowers[selectedAbilityIndex]?.label ?? "field power"}. Swipe sideways to change companion, swipe up for roster, or hold for abilities.` : "No active companion"}
+      className="wilds-companion-command"
+      disabled={!activeCard}
+      onKeyDown={onKeyDown}
+      onLostPointerCapture={cancelPointer}
+      onPointerCancel={cancelPointer}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={finishPointer}
+      type="button"
+    >
+      {previous ? <span aria-hidden="true" className="wilds-companion-peek previous"><WildsCreatureThumbnail asset={previous} /></span> : null}
+      {activeCard ? <WildsCreatureThumbnail asset={activeCard} className="wilds-companion-active-portrait" /> : null}
+      {next ? <span aria-hidden="true" className="wilds-companion-peek next"><WildsCreatureThumbnail asset={next} /></span> : null}
+      <span className="wilds-companion-power-label">{fieldPowers[selectedAbilityIndex]?.label ?? "Power"}</span>
+      <small>{projection.position}/{projection.total}</small>
+    </button>
+  </div>;
+}

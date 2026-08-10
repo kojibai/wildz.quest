@@ -8,31 +8,24 @@ function readCreatureDrawer() {
   return existsSync(creatureDrawerPath) ? readFileSync(creatureDrawerPath, "utf8") : "";
 }
 
-test("social deck preserves the game command surfaces and embedded social market", () => {
+test("social deck delegates secondary surfaces to the compact command dock", () => {
   const source = readFileSync("src/features/play/WildzSocialDeck.tsx", "utf8");
-  for (const token of ["onOpenFieldGuide", "onOpenProfile", "onOpenMarket", "onOpenSatchel", "nearbyCards"]) {
-    assert.match(source, new RegExp(token));
-  }
+  const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
+  assert.match(source, /nearbyCards/);
+  for (const key of ["fieldGuide", "satchel", "deck", "vault"]) assert.match(campaign, new RegExp(`key: "${key}"`));
+  assert.match(campaign, /<WildsCommandDock items=\{commandItems\}/);
   assert.doesNotMatch(source, /onOpenMap|onOpenRewards|sealcub-portrait\.svg/);
   assert.doesNotMatch(source, /router\.push|href=["']\/market/);
 });
 
-test("bottom dock follows the six-slot reference order with distinct functions", () => {
+test("thumb controls expose only two quick utilities beside movement and companion command", () => {
   const source = readFileSync("src/features/play/WildzSocialDeck.tsx", "utf8");
-  const markers = [
-    'aria-label="Open Trail Pack and Wilds Heartbeat"',
-    'aria-label="Open field guide"',
-    'aria-label="Open player profile"',
-    'aria-label="Open social market"',
-    'aria-label="Open card vault"',
-    'aria-label="Open foraging satchel"'
-  ];
-  const offsets = markers.map((marker) => source.indexOf(marker));
-  assert.ok(offsets.every((offset) => offset >= 0));
-  assert.deepEqual(offsets, [...offsets].sort((a, b) => a - b));
-  for (const token of ["Icons.archive", "Icons.book", "Icons.users", "Icons.waveform", "Icons.assets", "Icons.products"]) {
-    assert.match(source, new RegExp(token.replace(".", "\\.")));
-  }
+  assert.match(source, /aria-label="Quick utilities"/);
+  assert.match(source, /aria-label="Make camp and recover"/);
+  assert.match(source, /Switch to running/);
+  assert.match(source, /<WildzDpad/);
+  assert.match(source, /<WildsCompanionCommand/);
+  assert.doesNotMatch(source, /wildz-social-actions|Open social market|Open card vault/);
 });
 
 test("Trail Pack replaces the redundant deck list with a three-companion heartbeat", () => {
@@ -57,9 +50,9 @@ test("Slate cards render frameless artwork with verification beside the creature
   const css = readFileSync("app/globals.css", "utf8");
 
   assert.match(source, /<WildzCreatureDrawer/);
+  assert.match(source, /<WildsCompanionCommand/);
   assert.match(drawer, /<WildsCreatureThumbnail asset=\{asset\} className="wildz-slate-creature-art"/);
-  assert.doesNotMatch(source, /<WildsCreatureThumbnail asset=\{activeCard\}/);
-  assert.match(source, /aria-label="Open card vault"[\s\S]*?<Icons\.assets aria-hidden="true"/);
+  assert.match(readFileSync("src/features/play/WildsCompanionCommand.tsx", "utf8"), /<WildsCreatureThumbnail asset=\{activeCard\}/);
   assert.match(drawer, /<WildsVerifiedBadge\s*\/>/);
   assert.doesNotMatch(thumbnail, /wilds-creature-verified/);
   assert.match(badge, /wilds-creature-verified/);

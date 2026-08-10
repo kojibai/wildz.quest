@@ -91,7 +91,9 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   cardConditions,
   cardOrder,
   onCardOrderChange,
-  onSelectCard
+  onSelectCard,
+  requestedSnap = null,
+  onRequestedSnapHandled = () => {}
 }: {
   nearbyCards: readonly PortableCardAsset[];
   activeCard: PortableCardAsset | null;
@@ -100,6 +102,8 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   cardOrder: WildzCardSort;
   onCardOrderChange: (order: WildzCardSort) => void;
   onSelectCard: (assetId: string) => void;
+  requestedSnap?: CreatureDrawerSnap | null;
+  onRequestedSnapHandled?: () => void;
 }) {
   const [viewportHeight, setViewportHeight] = useState(() => typeof window === "undefined" ? 844 : window.innerHeight);
   const [snap, setSnap] = useState<CreatureDrawerSnap>("closed");
@@ -162,6 +166,12 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
     if (pattern.length && typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(pattern);
     setSnap(next);
   }, [snap]);
+
+  useEffect(() => {
+    if (!requestedSnap) return;
+    commitSnap(requestedSnap);
+    onRequestedSnapHandled();
+  }, [commitSnap, onRequestedSnapHandled, requestedSnap]);
 
   const finishDrag = (target: HTMLElement, pointerId: number) => {
     const gesture = drag.current;

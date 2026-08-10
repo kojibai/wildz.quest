@@ -94,7 +94,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.doesNotMatch(campaign, /requestedAt|appliedAt/);
     assert.match(campaign, /grant: result\.grant,[\s\S]*?playerId: result\.grant\.playerId/);
     assert.match(controls, /aria-label=\{movementMode === "walk" \? "Switch to running" : "Switch to walking"\}/);
-    assert.match(controls, /<WildzContextButton action=\{action\}/);
+    assert.match(controls, /<WildsCompanionCommand/);
+    assert.match(controls, /onUsePower=\{onAction\}/);
     assert.match(controls, /<WildzDpad cameraHeadingRef=\{cameraHeadingRef\} movementMode=\{movementMode\} onInput=\{onInput\}/);
     assert.match(route, /getWildsAtlasPresence/);
     assert.match(route, /cache-control": "private, no-store"/);
@@ -264,23 +265,24 @@ describe("Receiz Wilds rendering contract", () => {
     assert.doesNotMatch(creatureDrawer, /WildsInventory|cameraHeading|movementMode|playerPosition/);
     assert.match(commandDock, /activeItem\s*\?[\s\S]*?activeItem\.content/);
     assert.match(controls, /aria-label="Make camp and recover"/);
-    assert.match(controls, /aria-label="Run world mission"/);
+    assert.match(source, /key: "mission"/);
     assert.match(css, /\.mobile-play-wrap \.wilds-stage\s*\{[^}]*min-height:\s*0/);
     assert.doesNotMatch(css, /\.mobile-play-wrap \.wilds-stage\s*\{[^}]*min-height: 286px/);
     assert.match(source, /wilds-coordinate-badges/);
-    assert.match(controls, /Discovery active/);
+    assert.match(controls, /fieldPowers=\{fieldPowers\}/);
     assert.doesNotMatch(source, /setSearchArmed\(false\)/);
     assert.match(source, /state\.encounter\.proximity/);
   });
 
-  it("centers the movement pad between two perfectly balanced three-action rails", async () => {
+  it("balances quick utilities, movement, and the active companion thumb command", async () => {
     const controls = await readFile("src/features/play/WildzSocialDeck.tsx", "utf8");
     const css = await readFile("app/globals.css", "utf8");
 
-    assert.equal(controls.match(/className="wildz-play-control-rail"/g)?.length, 2);
+    assert.doesNotMatch(controls, /wildz-play-control-rail|wildz-social-actions/);
+    assert.match(controls, /className="wildz-quick-utilities"/);
     assert.match(controls, /<WildzDpad/);
-    assert.match(css, /\.wildz-bottom-play-controls\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) 72px minmax\(0, 1fr\)/s);
-    assert.match(css, /\.wildz-play-control-rail\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/s);
+    assert.match(controls, /<WildsCompanionCommand/);
+    assert.match(css, /\.wildz-bottom-play-controls\s*\{[^}]*grid-template-columns:\s*56px 72px minmax\(72px, 94px\)/s);
   });
 
   it("surfaces endless chapter equity and deterministic world events", async () => {
