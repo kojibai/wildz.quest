@@ -24,7 +24,7 @@ describe("living saga interface", () => {
 
     assert.match(hud, /activeChapter/);
     assert.match(campaign, /WildsSagaPanel/);
-    assert.match(campaign, /nearestSagaTrainer/);
+    assert.doesNotMatch(campaign, /nearestSagaTrainer/);
     assert.match(campaign, /activeTrainer/);
     assert.match(campaign, /MortalArenaExperience/);
     assert.doesNotMatch(`${panel}\n${campaign}`, /Brandable reward|brandable merchant|portable merchant rewards/i);
@@ -40,7 +40,10 @@ describe("living saga interface", () => {
     assert.match(world, /trainers\.map/);
     assert.match(map, /trainers/);
     assert.match(atlas, /trainers:/);
-    assert.match(campaign, /m away/);
+    assert.match(world, /distance <= 12/);
+    assert.match(world, /wilds-trainer-challenge-prompt/);
+    assert.match(world, /Tap to challenge/);
+    assert.doesNotMatch(campaign, /m away/);
   });
 
   it("keeps living-world pills contextual and lets a solo player enter the selected boss raid", () => {

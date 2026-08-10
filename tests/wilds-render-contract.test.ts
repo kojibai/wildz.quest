@@ -268,7 +268,9 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(source, /key: "mission"/);
     assert.match(css, /\.mobile-play-wrap \.wilds-stage\s*\{[^}]*min-height:\s*0/);
     assert.doesNotMatch(css, /\.mobile-play-wrap \.wilds-stage\s*\{[^}]*min-height: 286px/);
-    assert.match(source, /wilds-coordinate-badges/);
+    assert.match(source, /activeCard=\{activeAsset\}/);
+    assert.match(source, /condition=\{activeAsset \? state\.adventureConditions\[activeAsset\.id\] : undefined\}/);
+    assert.doesNotMatch(source, /wilds-coordinate-badges/);
     assert.match(controls, /fieldPowers=\{fieldPowers\}/);
     assert.doesNotMatch(source, /setSearchArmed\(false\)/);
     assert.match(source, /state\.encounter\.proximity/);

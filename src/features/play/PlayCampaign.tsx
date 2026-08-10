@@ -61,7 +61,6 @@ import { wildsSagaFramework } from "@/features/play/wilds-saga-content";
 import { projectWildsSaga } from "@/features/play/wilds-saga-director";
 import { projectMissionGraph, type WildsMissionContribution } from "@/features/play/wilds-saga-missions";
 import {
-  nearestSagaTrainer,
   projectCampaignOpponentFromTrainer,
   projectSagaTrainers,
   type WildsTrainerBattleMemory,
@@ -282,7 +281,6 @@ export function PlayCampaign({
     const live = liveSagaTrainerById.get(projected.id);
     return live ? { ...live, position: projected.position } : projected;
   });
-  const nearestTrainer = nearestSagaTrainer(sagaTrainers, state.player);
   const sagaTournament = (Object.values(livingWorld.snapshot?.tournaments ?? {}).find((tournament) => tournament.dayId === saga.dayId) ?? null) as WildsTournamentProjection | null;
   const kaiExpression = projectKaiWorldExpression(kaiMoment);
   const commitArenaSettlement = useCallback((settlement: ArenaSettlement) => setState((current) => {
@@ -1004,7 +1002,9 @@ export function PlayCampaign({
               }}
             />
 
-            {avatarStyle ? <WildzReferenceHud
+            {avatarStyle && activeAsset ? <WildzReferenceHud
+              activeCard={activeAsset}
+              condition={activeAsset ? state.adventureConditions[activeAsset.id] : undefined}
               heading={playerHeading}
               model={hudModel}
               onOpenMap={() => setMapOpen(true)}
@@ -1014,11 +1014,6 @@ export function PlayCampaign({
             {avatarStyle ? <WildsMultiplayer multiplayer={multiplayer} position={state.player} onRosterOpenChange={setMultiplayerRosterOpen} /> : null}
             <div className="wilds-world-navigator-stack">
               {avatarStyle ? <WildsLivingWorldHud connected={networkEnabled} onEnterRaid={enterLivingRaid} player={state.player} world={livingWorld} /> : null}
-              {nearestTrainer ? <button
-                className="wilds-trainer-navigator"
-                onClick={() => nearestTrainer.distance <= 10 ? setActiveTrainer(nearestTrainer.trainer) : setMapOpen(true)}
-                type="button"
-              ><span>WILD TRAINER</span><strong>{nearestTrainer.trainer.name}</strong><small>{Math.round(nearestTrainer.distance)}m away · Lv. {nearestTrainer.trainer.challengeLevel} · {nearestTrainer.distance <= 10 ? "Battle now" : "Open map"}</small></button> : null}
             </div>
             <div className="wilds-utility-cluster">
               <WildsAudioSettings
@@ -1048,38 +1043,6 @@ export function PlayCampaign({
                 onDismiss={() => dispatch({ type: "dismiss-reveal" })}
               />
             ) : null}
-
-            <div className="wilds-hud-top">
-              <div className="wilds-player-chip">
-                <span className="wilds-avatar">RZ</span>
-                <div>
-                  <strong>Wilds scout</strong>
-                  <small>{state.worldRank} · {activeAsset?.manifest.name ?? activeCard.name} L{activeProgress.level}</small>
-                  <span className="wilds-coordinate-badges" aria-label={`World coordinates X ${Math.round(state.player.x)}, Z ${Math.round(state.player.z)}`}>
-                    <b>X {Math.round(state.player.x)}</b><b>Z {Math.round(state.player.z)}</b>
-                  </span>
-                </div>
-              </div>
-              <div className="wilds-resource-strip">
-                <span>{state.cardXp} card XP</span>
-                <span>{state.energy}% energy</span>
-                <span>{state.challenge}% challenge</span>
-                <span>{state.combo}x combo</span>
-              </div>
-            </div>
-
-            <div className="wilds-mission-meter" aria-label={`${state.missionProgress}% mission progress`}>
-              <strong>{state.missionProgress}%</strong>
-              <span>mission</span>
-            </div>
-
-            <div className="runner-card runner-primary">
-              <span className="runner-core" />
-              <div>
-                <strong>{state.encounter.phase === "hint" ? `Signal ${proximityLabel}` : "Discovery on"}</strong>
-                <small>{state.encounter.phase === "hint" ? "Keep tapping around the clue." : "Tap terrain repeatedly to scan."}</small>
-              </div>
-            </div>
 
             {discoveryActive ? <div className={`wilds-search-reticle ${state.encounter.phase === "idle" ? "" : activeProximity}`} aria-live="polite">{proximityLabel}</div> : null}
 

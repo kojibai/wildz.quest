@@ -203,6 +203,7 @@ function TrainerExplorer({ trainer, localPlayer, onSelect }: {
     group.current.rotation.y = -phase;
   });
   const rosterName = creatureForm(trainer.rosterFormIds[0])?.name ?? trainer.affinity;
+  const distance = Math.hypot(trainer.position[0] - localPlayer.x, trainer.position[2] - localPlayer.z);
   return <group
     name={`trainer-${trainer.id}`}
     onClick={(event) => { event.stopPropagation(); onSelect(trainer); }}
@@ -214,9 +215,13 @@ function TrainerExplorer({ trainer, localPlayer, onSelect }: {
       <torusGeometry args={[.5, .045, 8, 32]} />
       <meshStandardMaterial color="#f7d25b" emissive="#c68f25" emissiveIntensity={.78} />
     </mesh>
-    <Html center className="wilds-remote-nameplate wilds-trainer-nameplate" distanceFactor={8} position={[0, 1.48, 0]} zIndexRange={[14, 1]}>
-      <span>{trainer.name}</span><small>Wild trainer · Lv. {trainer.challengeLevel} · {rosterName}</small>
-    </Html>
+    {distance <= 12 ? <Html center className="wilds-trainer-challenge-anchor" distanceFactor={8} position={[0, 1.48, 0]} zIndexRange={[14, 1]}>
+      <button aria-label={`Battle trainer ${trainer.name}`} className="wilds-trainer-challenge-prompt" onClick={(event) => { event.stopPropagation(); onSelect(trainer); }} type="button">
+        <span>{trainer.name}</span><small>Lv. {trainer.challengeLevel} · {rosterName} · Tap to challenge</small>
+      </button>
+    </Html> : <Html center className="wilds-remote-nameplate wilds-trainer-nameplate" distanceFactor={8} position={[0, 1.48, 0]} zIndexRange={[14, 1]}>
+      <span>{trainer.name}</span><small>Wild trainer · Lv. {trainer.challengeLevel}</small>
+    </Html>}
   </group>;
 }
 

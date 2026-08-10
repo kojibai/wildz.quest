@@ -1,27 +1,28 @@
 "use client";
 
-import Image from "next/image";
 import type { WildzHudModel } from "./wildz-gameplay-hud";
 import { WildzMinimap } from "./WildzMinimap";
+import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
+import type { PortableCardAsset } from "./portable-card";
+import type { AdventureCardCondition } from "./adventure/card-condition";
 
-export function WildzReferenceHud({ model, heading, onOpenMap, onOpenMission }: {
+export function WildzReferenceHud({ model, heading, activeCard, condition, onOpenMap, onOpenMission }: {
   model: WildzHudModel;
   heading: number;
+  activeCard: PortableCardAsset;
+  condition?: AdventureCardCondition;
   onOpenMap: () => void;
   onOpenMission: () => void;
 }) {
+  const vitality = condition?.life === "dead" ? 0 : Math.max(1, 100 - (condition?.fatigue ?? 0));
   return <div className="wildz-reference-hud">
-    <section className="wildz-player-capsule" aria-label="Player and active companion">
-      <span className="wildz-player-emblem"><Image src="/brand/wildz-mark.svg" alt="" width={58} height={58} /></span>
+    <section className="wildz-companion-capsule" aria-label={`${activeCard.manifest.name}, ${vitality}% vitality`}>
+      <WildsCreatureThumbnail asset={activeCard} />
       <div>
-        <strong>{model.player.displayName || model.player.username}<i>✓</i></strong>
-        <span><b className="wildz-companion-orb">{model.companion.name.slice(0, 1).toUpperCase()}</b><em><i style={{ width: `${Math.min(100, model.companion.bond)}%` }} /></em></span>
-        <small>Lv. {model.player.level} · {model.companion.name} L{model.companion.level}</small>
+        <small>{model.player.displayName || model.player.username} · Lv. {model.companion.level}</small>
+        <strong>{activeCard.manifest.name}<i>✓</i></strong>
+        <span className="wildz-companion-vitality"><i style={{ width: `${vitality}%` }} /><b>{vitality}%</b></span>
       </div>
-    </section>
-    <section className="wildz-status-rail" aria-label="Player status">
-      <div className="wildz-energy-meter"><span>ϟ</span><strong>{model.energy.current}<small>/ {model.energy.maximum}</small></strong><b>+</b></div>
-      <div className="wildz-xp-meter"><span>XP</span><strong>{model.xp.progress}%</strong><i><b style={{ width: `${model.xp.progress}%` }} /></i></div>
     </section>
     <button className="wildz-mission-chip" aria-label={`Open mission details · ${model.mission.progress}% progress`} onClick={onOpenMission} type="button"><span>★</span><strong>{model.mission.progress}%<small>Mission</small></strong></button>
     <WildzMinimap x={model.location.x} z={model.location.z} heading={heading} onOpen={onOpenMap} />
