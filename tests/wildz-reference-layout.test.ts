@@ -50,6 +50,7 @@ test("expanded controls grow from their semantic homes and remain motion-safe", 
   assert.match(css, /\.wildz-app \.wilds-event-toast\s*\{[^}]*bottom:\s*max\(180px,/);
   assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\)\s*\{[\s\S]*\.wildz-tools-home \.wilds-world-tools-fan \.wilds-command-dock\s*\{[^}]*grid-template-columns:\s*repeat\(4,/);
   assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\)\s*\{[\s\S]*\.wildz-companion-home \.wilds-companion-command\s*\{[^}]*width:\s*78px;/);
+  assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\)\s*\{[\s\S]*\.wilds-world-status-home\s*\{[^}]*top:\s*calc\(76px \+ env\(safe-area-inset-top\)\);/);
   assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\)\s*\{[\s\S]*\.wildz-app \.wilds-event-toast\s*\{[^}]*width:\s*min\(24vw, 200px\);/);
   const reducedMotionStart = finalCss.lastIndexOf("@media (prefers-reduced-motion: reduce)");
   const reducedMotionRuleStart = finalCss.indexOf(".wilds-world-tools-fan,", reducedMotionStart);
@@ -57,7 +58,7 @@ test("expanded controls grow from their semantic homes and remain motion-safe", 
   for (const selector of ["wilds-world-tools-fan", "wildz-creature-drawer", "wilds-companion-ability-wheel", "wilds-world-status-fan", "wilds-live-cluster"]) {
     assert.match(reducedMotionRule, new RegExp(selector));
   }
-  assert.match(reducedMotionRule, /animation:\s*none;[\s\S]*transition:\s*none;/);
+  assert.match(reducedMotionRule, /animation:\s*none !important;[\s\S]*transition:\s*none !important;/);
 });
 
 test("one collapsed world-status trigger owns live, share, audio, Kai, and living-world controls", () => {

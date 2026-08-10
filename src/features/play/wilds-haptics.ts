@@ -19,16 +19,25 @@ export function wildsHapticPattern(event: WildsHapticEvent): readonly number[] {
   return WILDS_HAPTIC_PATTERNS[event];
 }
 
+export function playHapticPattern(
+  pattern: number | readonly number[],
+  vibrate: ((pattern: number | readonly number[]) => boolean) | undefined = typeof navigator !== "undefined" && typeof navigator.vibrate === "function"
+    ? (value) => navigator.vibrate(typeof value === "number" ? value : [...value])
+    : undefined
+): boolean {
+  if (!vibrate) return false;
+  try {
+    return vibrate(pattern) === true;
+  } catch {
+    return false;
+  }
+}
+
 export function playWildsHaptic(
   event: WildsHapticEvent,
   vibrate: ((pattern: number | readonly number[]) => boolean) | undefined = typeof navigator !== "undefined" && typeof navigator.vibrate === "function"
     ? (pattern) => navigator.vibrate(typeof pattern === "number" ? pattern : [...pattern])
     : undefined
 ): boolean {
-  if (!vibrate) return false;
-  try {
-    return vibrate(wildsHapticPattern(event)) === true;
-  } catch {
-    return false;
-  }
+  return playHapticPattern(wildsHapticPattern(event), vibrate);
 }

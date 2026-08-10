@@ -97,7 +97,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(campaign, /grant: result\.grant,[\s\S]*?playerId: result\.grant\.playerId/);
     assert.match(controls, /aria-label=\{movementMode === "walk" \? "Switch to running" : "Switch to walking"\}/);
     assert.match(controls, /<WildsCompanionCommand/);
-    assert.match(controls, /const handleUsePower = useCallback\(\(\) => \{[\s\S]*if \(controlsEnabled\) useAction\(\);/);
+    assert.match(controls, /const handleUsePower = useCallback\(\(\) => \{[\s\S]*if \(controlsEnabled\) invokeAction\(\);/);
     assert.match(controls, /onUsePower=\{handleUsePower\}/);
     assert.match(controls, /<WildzDpad[\s\S]*cameraHeadingRef=\{cameraHeadingRef\}[\s\S]*movementMode=\{movementMode\}/);
     assert.match(route, /getWildsAtlasPresence/);

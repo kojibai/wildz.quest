@@ -57,10 +57,10 @@ test("service-worker delivery is revalidated while inheriting the global header 
 
 test("development permits the framework evaluator without weakening production", async () => {
   const moduleUrl = pathToFileURL(resolve("next.config.mjs")).href;
-  const module = await import(moduleUrl) as { contentSecurityPolicy(environment: "development" | "production"): string };
+  const configModule = await import(moduleUrl) as { contentSecurityPolicy(environment: "development" | "production"): string };
 
-  assert.match(module.contentSecurityPolicy("development"), /script-src 'self' 'unsafe-inline' 'unsafe-eval'/);
-  assert.doesNotMatch(module.contentSecurityPolicy("production"), /'unsafe-eval'/);
-  assert.match(module.contentSecurityPolicy("production"), /object-src 'none'/);
-  assert.match(module.contentSecurityPolicy("production"), /frame-ancestors 'none'/);
+  assert.match(configModule.contentSecurityPolicy("development"), /script-src 'self' 'unsafe-inline' 'unsafe-eval'/);
+  assert.doesNotMatch(configModule.contentSecurityPolicy("production"), /'unsafe-eval'/);
+  assert.match(configModule.contentSecurityPolicy("production"), /object-src 'none'/);
+  assert.match(configModule.contentSecurityPolicy("production"), /frame-ancestors 'none'/);
 });

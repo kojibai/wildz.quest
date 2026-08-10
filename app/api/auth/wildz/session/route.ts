@@ -75,6 +75,11 @@ function canonicalReceizSession(value: unknown) {
   };
 }
 
+function proofSessionSealingConfigured() {
+  const secret = process.env.RECEIZ_OAUTH_STATE_SECRET ?? process.env.RECEIZ_CLIENT_SECRET;
+  return typeof secret === "string" && Buffer.byteLength(secret, "utf8") >= 32;
+}
+
 export async function GET(request: NextRequest) {
   try {
     return NextResponse.json(publicWildzProofSession(readWildzProofSessionCookie(request)), {
@@ -82,7 +87,6 @@ export async function GET(request: NextRequest) {
     });
   } catch {
     return NextResponse.json({ status: "unknown" }, {
-      status: 401,
       headers: { "cache-control": "no-store" }
     });
   }
@@ -96,23 +100,44 @@ export async function POST(request: NextRequest) {
     if (!body || !nonce || !receizIdContinuationNonceMatches(body, nonce)) {
       throw new Error("wildz_proof_admission_invalid");
     }
+    if (!proofSessionSealingConfigured()) {
+      return NextResponse.json({ status: "unavailable" }, {
+        headers: { "cache-control": "no-store" }
+      });
+    }
     const baseUrl = (process.env.RECEIZ_BASE_URL || "https://receiz.com").replace(/\/$/, "");
-    const upstream = await fetch(`${baseUrl}/api/auth/receiz-id/continue`, {
-      method: "POST",
-      cache: "no-store",
-      redirect: "error",
-      headers: {
-        accept: "application/json",
-        "content-type": "application/json"
-      },
-      body: JSON.stringify(body)
-    });
+    let upstream: Response;
+    try {
+      upstream = await fetch(`${baseUrl}/api/auth/receiz-id/continue`, {
+        method: "POST",
+        cache: "no-store",
+        redirect: "error",
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+    } catch {
+      return NextResponse.json({ status: "unavailable" }, {
+        headers: { "cache-control": "no-store" }
+      });
+    }
     const upstreamBody = await upstream.json().catch(() => null);
     if (upstream.status === 409) {
       return NextResponse.json({ status: "conflict", error: "wildz_username_taken" }, { status: 409 });
     }
+    if (!upstream.ok) {
+      return NextResponse.json({ status: "unavailable" }, {
+        headers: { "cache-control": "no-store" }
+      });
+    }
     const canonical = canonicalReceizSession(upstreamBody);
-    if (!upstream.ok || !canonical) throw new Error("wildz_receiz_id_continue_failed");
+    if (!canonical) {
+      return NextResponse.json({ status: "unavailable" }, {
+        headers: { "cache-control": "no-store" }
+      });
+    }
     const rawAdmission = rawBody && typeof rawBody === "object" && !Array.isArray(rawBody)
       ? (rawBody as { vaultCardAdmission?: unknown }).vaultCardAdmission
       : undefined;

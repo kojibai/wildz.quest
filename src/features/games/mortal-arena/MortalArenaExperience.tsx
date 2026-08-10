@@ -7,6 +7,7 @@ import { currentRevision } from "../../play/living-card-proof";
 import { isLivingCardAsset } from "../../play/living-card-types";
 import type { PortableCardAsset } from "../../play/portable-card";
 import type { WildsAudioCue } from "../../play/wilds-audio";
+import { playHapticPattern } from "../../play/wilds-haptics";
 import { useWildsQualityProfile } from "../../play/use-wilds-quality-profile";
 import type { WildzArenaPath } from "./campaign";
 import type { ArenaCampaignOpponent } from "./campaign";
@@ -46,7 +47,7 @@ export function MortalArenaExperience({ card, roster, opponent = null, resultPre
     if (arena.impactTick > 0 && arena.impactTick !== lastImpact.current) {
       lastImpact.current = arena.impactTick;
       onAudioCue?.("battle-hit");
-      if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(24);
+      playHapticPattern(24);
     }
   }, [arena.impactTick, onAudioCue]);
 
@@ -55,7 +56,7 @@ export function MortalArenaExperience({ card, roster, opponent = null, resultPre
     lastWarning.current = arena.warning;
     if (arena.warning === "grave" || arena.warning === "final") {
       onAudioCue?.("error");
-      if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(arena.warning === "final" ? [60, 45, 90] : [35, 45, 35]);
+      playHapticPattern(arena.warning === "final" ? [60, 45, 90] : [35, 45, 35]);
     }
   }, [arena.warning, onAudioCue]);
 
@@ -70,7 +71,7 @@ export function MortalArenaExperience({ card, roster, opponent = null, resultPre
   const resultLabel = arena.result?.winnerSide === 0 ? "Victory carried forward" : arena.result?.outcome === "fled" ? "Retreat survived" : "The Arena remembers";
   const disabled = !covenantAccepted || retired || Boolean(arena.settlement);
   const haptic = (pattern: number | number[]) => {
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(pattern);
+    playHapticPattern(pattern);
   };
 
   return createPortal(

@@ -72,7 +72,7 @@ export function WildzWorldControls({
   const changeCardOrder = useStableEvent(onCardOrderChange);
   const selectCard = useStableEvent(onSelectCard);
   const forwardInput = useStableEvent(onInput);
-  const useAction = useStableEvent(onAction);
+  const invokeAction = useStableEvent(onAction);
   const changeMovementMode = useStableEvent(onMovementModeChange);
   const rest = useStableEvent(onRest);
   const requestHandled = useStableEvent(onRequestedCommandHandled);
@@ -88,8 +88,8 @@ export function WildzWorldControls({
     if (controlsEnabled) selectCard(assetId);
   }, [controlsEnabled, selectCard]);
   const handleUsePower = useCallback(() => {
-    if (controlsEnabled) useAction();
-  }, [controlsEnabled, useAction]);
+    if (controlsEnabled) invokeAction();
+  }, [controlsEnabled, invokeAction]);
   const handleRest = useCallback(() => {
     if (controlsEnabled) rest();
   }, [controlsEnabled, rest]);

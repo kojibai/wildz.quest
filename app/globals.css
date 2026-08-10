@@ -14982,7 +14982,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   }
 
   .wilds-world-status-home {
-    top: calc(70px + env(safe-area-inset-top));
+    top: calc(76px + env(safe-area-inset-top));
     right: max(8px, env(safe-area-inset-right));
   }
 
@@ -15028,8 +15028,8 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   .wilds-companion-ability-wheel,
   .wilds-world-status-fan,
   .wilds-live-cluster {
-    animation: none;
-    transition: none;
+    animation: none !important;
+    transition: none !important;
   }
 
   .wildz-quick-utilities,
@@ -15040,7 +15040,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   .wilds-companion-peek,
   .wilds-companion-ability,
   .wilds-command-button {
-    animation: none;
-    transition: none;
+    animation: none !important;
+    transition: none !important;
   }
 }

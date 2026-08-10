@@ -8,15 +8,18 @@ This document records reproducible evidence for the flagship mobile-world rebuil
 - Initial `/` app manifest: 23 JavaScript chunks, 2,001.1 KB raw and 544.5 KB gzip, measured from the deduplicated `/layout` + `/page` entries in `.next/app-build-manifest.json`.
 - Planning baseline: 836 KB first-load JavaScript. The comparable compressed manifest measurement is 291.5 KB lower (34.9%).
 - Noncritical chunks: world map, landmark/Hearttree shell, settlement, ecology, raid, trainer challenge, and Mortal Arena are loaded with `next/dynamic`; trainer and Arena modules begin preloading as soon as a trainer challenge opens.
-- Live 390 × 844 WebKit evidence: medium quality, DPR 1.25, 123 renderer calls (76.9% of the 160-call budget), approximately 73,834 triangles (41.0% of the 180,000-triangle budget), all within budget.
+- Live 390 × 844 production Chromium evidence: medium quality, DPR 1.25, 85 renderer calls (53.1% of the 160-call budget), 57,416 triangles (31.9% of the 180,000-triangle budget), 122 geometries, and 3 textures, all within budget. A 120-frame warm sample averaged 16.62 ms / 60.15 fps, with 16.7 ms p95 and 16.8 ms maximum.
 - Runtime governor: bounded 120-frame window; one-tier downshift after 120 slow visible frames; one-tier recovery after 600 healthy visible frames; 30-second transition cooldown; hidden frames excluded; device base recomputed on resize, orientation, and reduced-motion changes.
 
 Ignored browser evidence:
 
-- `output/playwright/contextual-world-mobile.png`
-- `output/playwright/trainer-challenge-mobile-clean.png`
-- `output/playwright/trainer-transition-mobile.png`
-- `output/playwright/mortal-arena-zones-active-mobile.png`
+- `output/playwright/unified-controls-resting-390x844.png`
+- `output/playwright/unified-controls-tools-fan-390x844.png`
+- `output/playwright/unified-controls-roster-preview-390x844.png`
+- `output/playwright/unified-controls-roster-expanded-390x844.png`
+- `output/playwright/unified-controls-ability-wheel-390x844.png`
+- `output/playwright/unified-controls-trainer-390x844.png`
+- `output/playwright/unified-controls-combat-390x844.png`
 
 ## Signature trainer visual and audio pass
 
@@ -36,7 +39,7 @@ GEMINI_API_KEY=
 ELEVENLABS_API_KEY=
 ```
 
-The required external audio provider was unavailable, so no generated MP3 is claimed. The game instead uses its existing gesture-unlocked, settings-aware Web Audio runtime for this pass.
+The required external audio provider was unavailable, so no generated MP3 is claimed. The audio generation path was offline only; the game instead uses its existing gesture-unlocked, settings-aware Web Audio runtime for this pass.
 
 | Category | Event | Runtime cue | Duration | Loop | Group |
 | --- | --- | --- | ---: | --- | --- |
@@ -80,57 +83,73 @@ Reference ledger: game-director, gameplay-systems, AAA graphics, UI, debug/profi
 | Companion command | Pass | Tap, horizontal cycle, swipe-up preview, hold-slide abilities, keyboard alternatives, detent haptics |
 | Contextual world | Pass | Visible terrain and trainers own their interactions; redundant Interact/navigation chrome removed |
 | Trainer encounter | Pass | Challenge sheet, VS transition, combat ownership, result, rematch/review/return states |
-| Mortal Arena mobile combat | Pass | Movement, primary combat, and survival/context zones; active covenant tested |
+| Mortal Arena mobile combat | Pass with a balance caveat | Real D-pad traversal reached Lanternforge Keeper; challenge, 1.1-second covenant hold, active controls, deterministic loss, permanent retirement, committed reward/result, and return to world were browser-tested. A new missing-`navigator.vibrate` crash was fixed before final replay. The first hard encounter can retire a lone starter within seconds, which is mechanically intentional but severe first-session tuning. |
 | Adaptive runtime | Pass | Quality governor, dynamic chunks, renderer budgets, orientation response |
 | Signature presentation | Partial | One authored trainer identity and synthesized cues; full location cast and externally authored audio remain open |
-| QA/release | Pass with disclosed automatic failures | Tests, types, lint, build, release gate, device matrix pass; production unauthenticated session probes still log two 401 page errors |
+| QA/release | Pass with disclosed content failures | Tests, types, lint, build, release gate, device matrix, lifecycle, offline recovery, and clean-console production bootstrap pass. Full-game authored content and audio breadth remain below the premium gate. |
+
+### Unified-control preservation matrix
+
+| Route/state | Browser evidence | Result |
+| --- | --- | --- |
+| Resting world HUD | Real explorer name, mission, map, status, movement, two quick utilities, tools, and active companion all share the world stage | Pass |
+| Mission and map | Each opens from its stable top home; Escape closes and restores focus; world stays mounted | Pass |
+| World status | One trigger owns live/share, audio, Kai, and living-world status; Escape restores focus | Pass |
+| World tools | Field Guide, Foraging Satchel, Trail Pack, and Card Vault open from the fan with one expansion owner | Pass |
+| Companion tap/cycle/drawer | Tap action, fast horizontal cycle, fast upward preview, handle expansion, and tasteful adjacent portraits exercised | Pass |
+| Companion hold-slide | Timed hold opened the wheel; sector traversal emitted detents; center/cancel preserved selection; directional release committed the selected real ability | Pass |
+| Concurrent touch and cancellation | CDP two-touch moved while a companion action spent energy; `touchCancel` stopped both command and D-pad ownership without stuck motion | Pass |
+| Trainer/combat exclusivity | Trainer challenge dismisses expansions; covenant gates controls; active Arena owns input; result commits before return | Pass |
+| Keyboard | Tab reaches every semantic home; ArrowUp opens roster preview; Escape closes and returns focus | Pass |
+| Audio | A visible settings label unlocks sound and toggles mute without relying on the visually hidden checkbox | Pass |
+| Recovery | Resize/orientation cancels drawers; offline map stays local; frozen→active lifecycle restores; missing vibration capability is safe | Pass |
+
+Reference ledger (yes/no/path/failure): gameplay systems yes / deterministic gesture and combat routes / no gameplay workflow failure; UI yes / seven viewports and four UI checklists / no fit failure after landscape correction; debug/profile yes / diagnostics, frame sample, lifecycle / visibility-state emulation itself was unsupported, so frozen→active CDP plus source tests were used; AAA graphics yes / ten-category scorecard and automatic gates / premium gate fails on content breadth and authored audio; QA/release yes / production browser, recovery, accessibility, artifacts / no remaining runtime crash; audio yes / runtime matrix and credential probe / external generation unavailable because the credential was blank.
 
 ### Responsive browser matrix
 
-All measurements are composited WebKit output. `overflow` means horizontal document overflow; `overlap` means bounding-box collision among movement, companion command, and command dock.
+All measurements are composited production-browser output. `overflow` means horizontal document overflow; `overlap` means bounding-box collision among movement, companion command, and command dock.
 
 | Viewport | World canvas | Primary controls | Overflow | Overlap | Result |
 | --- | ---: | ---: | --- | --- | --- |
-| 320×568 | 320×358 | command 72×72; d-pad 68×68 | None | None | Pass |
-| 360×800 | 360×590 | command 79×79; d-pad 78×78 | None | None | Pass |
-| 390×844 | 390×634 | command 86×86; d-pad 78×78 | None | None | Pass |
-| 430×932 | 430×718 | command 94×94; d-pad 78×78 | None | None | Pass |
-| 844×390 landscape, before fix | 844×166 | two stacked control rows | None | None, but world compressed | Fail |
-| 844×390 landscape, final | 844×390 | floated 94×94 command, 68×68 d-pad, 258×52 dock | None | None | Pass |
-| 768×1024 | 768×800 | 98 px control region | None | None | Pass |
-| 1440×900 | 1440×676 | 98 px control region | None | None | Pass |
+| 320×568 | 320×568 | command ≥72; d-pad ≥68 | None | None | Pass |
+| 360×800 | 360×800 | command ≥79; d-pad ≥68 | None | None | Pass |
+| 390×844 | 390×844 | command ≥86; d-pad ≥68 | None | None | Pass |
+| 430×932 | 430×932 | command ≥94; d-pad ≥68 | None | None | Pass |
+| 844×390 landscape, before overhaul | 844×166 | two stacked control rows | None | World compressed | Fail |
+| 844×390 landscape, final | 844×390 | floated command and d-pad homes | None | Map/status overlap area 0 | Pass |
+| 768×1024 | 768×1024 | floating semantic homes | None | None | Pass |
+| 1440×900 | 1440×900 | floating semantic homes | None | None | Pass |
 
 Screenshots:
 
-- Mobile world: `output/playwright/flagship-world-390x844.png`
-- Final landscape: `output/playwright/flagship-world-844x390-fixed.png`
-- Trainer challenge: `output/playwright/lanternforge-challenge-mobile.png`
-- VS transition: `output/playwright/lanternforge-transition-mobile.png`
-- Active combat: `output/playwright/mortal-arena-zones-active-mobile.png`
-- Production mobile: `output/playwright/flagship-production-mobile.png`
-- Composited canvas frames: `output/playwright/flagship-canvas-mobile.png`, `flagship-canvas-desktop.png`, and `flagship-canvas-landscape.png`
+- Resting matrix: `output/playwright/unified-controls-resting-320x568.png`, `unified-controls-resting-360x800.png`, `unified-controls-resting-390x844.png`, `unified-controls-resting-430x932.png`, `unified-controls-resting-844x390.png`, `unified-controls-resting-768x1024.png`, and `unified-controls-resting-1440x900.png`
+- Expansion states: `output/playwright/unified-controls-tools-fan-390x844.png`, `unified-controls-panel-open-390x844.png`, `unified-controls-world-status-390x844.png`, `unified-controls-roster-preview-390x844.png`, `unified-controls-roster-expanded-390x844.png`, and `unified-controls-ability-wheel-390x844.png`
+- Trainer and active combat: `output/playwright/unified-controls-trainer-390x844.png` and `unified-controls-combat-390x844.png`
 
 ### Verification evidence
 
-- Build: optimized Next.js production build passed. First load for `/` is 555 kB in the final build. Build warnings are the known dynamic `web-worker` dependency inside `snarkjs` and one pre-existing `completeGenesis` hook-dependency warning.
-- Automated: 1,009 tests passed; typecheck passed; lint passed; `pnpm release:check` passed, including the Receiz conformance suite.
-- Console: production world loads and remains playable. Page error evidence is two `401 Unauthorized` requests to `/api/auth/wildz/session` for an unauthenticated local identity before reconnecting/practice fallback; no render crash occurs. This remains an automatic failure for a premium release claim.
+- Build: optimized Next.js production build passed. First load for `/` is 557 kB in the final build. Build warnings are the known dynamic `web-worker` dependency inside `snarkjs`; lint has zero errors and two disclosed exhaustive-deps warnings (`cancelPointer` and `completeGenesis`).
+- Automated: 1,037 tests passed; typecheck passed; lint exited zero; `pnpm release:check` passed, including Receiz conformance 15/15, secret scan, build, and doctor.
+- Console/auth/page error: initial qualification found two automatic `401 Unauthorized` session writes. Root-cause tracing separated missing session GET, remote HTTP failure, thrown connection, non-canonical success, and missing proof-session sealing configuration. Valid local proofs now receive cache-disabled logical `unavailable` with no cookie and no upstream call when sealing is unconfigured; malformed or nonce-mismatched admission remains 401. Final clean production result: page error 0, console errors 0, console warnings 0.
 - Desktop and mobile: the full matrix above was rendered, measured, and screenshot. The 844×390 failure was repaired and remeasured from a 166 px canvas to a full 390 px canvas.
-- Canvas pixel evidence: composited screenshots, not the discarded WebGL back buffer, were downsampled to 64×64. Mobile Y range 11–230 with YAVG 58.56; desktop 11–230 with YAVG 49.61; landscape 8–230 with YAVG 56.80. All are visibly nonblank with meaningful luminance range.
-- Performance evidence: at 390×844 the medium profile used DPR 1.25, 123 draw calls and approximately 73,834 triangles, below the 160-call and 180,000-triangle budgets. Runtime quality can only recover up to the device base tier.
-- Accessibility/recovery: semantic buttons and dialog/status roles are source-contracted; companion keyboard focus and ArrowUp preview were browser-tested; reduced motion reports true and suppresses declared effects; 200% WebKit text adjustment produces no page overflow; offline companion activation leaves the world mounted; unavailable `navigator.vibrate` does not throw.
+- Canvas pixel evidence: composited screenshots, not the discarded WebGL back buffer, were measured with `signalstats`. Mobile world Y range 16–235 / YAVG 61.454; landscape 16–235 / YAVG 64.347; active combat 24–230 / YAVG 55.486. All are visibly nonblank with meaningful luminance and saturation ranges.
+- Performance evidence: at 390×844 the medium profile used DPR 1.25, 85 draw calls, 57,416 triangles, 122 geometries, and 3 textures, below the 160-call and 180,000-triangle budgets. The 120-frame warm sample averaged 16.62 ms / 60.15 fps, p95 16.7 ms, maximum 16.8 ms. Runtime quality can only recover up to the device base tier.
+- Accessibility/recovery: semantic buttons and dialog/status roles are source-contracted; keyboard Tab/ArrowUp/Escape and focus restoration were browser-tested; reduced motion computes `animation-name: none`, animation duration `0s`, and transition duration `0s`; 200% text adjustment leaves chrome inside the viewport with zero document overflow; offline map opening retains three mounted canvases and zero overflow; CDP frozen→active lifecycle recovery retained two canvases and zero overflow; pointer cancellation stops both companion and movement gestures; unavailable `navigator.vibrate` no longer throws in either world or Arena.
 
 ### External asset sourcing
 
 Credential probe output:
 
 ```text
-TRIPO_API_KEY=missing
-GEMINI_API_KEY=missing
-ELEVENLABS_API_KEY=missing
+TRIPO_API_KEY=
+GEMINI_API_KEY=
+ELEVENLABS_API_KEY=
 ```
 
 Chosen sources:
+
+No external assets were downloaded for 3D generation because that provider path was offline only; the image-generator outputs and existing project assets are the only externally dispositioned visual sources claimed here.
 
 | Surface | Source and disposition |
 | --- | --- |
@@ -161,10 +180,10 @@ Average: **2.2 / 3**. The slice clears production-capable quality but does not c
 
 Automatic failures:
 
-1. Two unauthenticated production session probes surface as console/page errors before the safe local fallback.
-2. Several un-upgraded locations remain close to a primitive-dominant procedural visual language and do not yet meet the bespoke density of the strongest environments.
-3. External authored encounter audio is blocked; the current fallback is responsive and functional but not showcase audio.
-4. Only the Lanternforge Keeper received a bespoke generated identity in this pass; the full trainer and arena cast is not equivalently authored.
+1. Several un-upgraded locations remain close to a primitive-dominant procedural visual language and do not yet meet the bespoke density of the strongest environments.
+2. External authored encounter audio is blocked; the current fallback is responsive and functional but not showcase audio.
+3. Only the Lanternforge Keeper received a bespoke generated identity in this pass; the full trainer and arena cast is not equivalently authored.
+4. The first hard trainer can permanently retire a lone starter within seconds after covenant entry. The consequence is correctly disclosed and committed, but first-session difficulty/onboarding is below showcase tuning.
 
 ### Experience rating versus the best current game experiences
 
@@ -188,14 +207,14 @@ The benchmark column is an experiential ceiling of 10, independent of age, franc
 | Performance/latency | 6.0 | 8.4 | 10 | Budgeted render, dynamic chunks, adaptive quality, direct gesture response |
 | Responsive/accessibility | 4.0 | 8.8 | 10 | Seven-viewport matrix, keyboard alternatives, reduced motion, 200% text, safe areas |
 | Progression/replay | 8.2 | 8.4 | 10 | Deep proof-backed consequences and deterministic replay were preserved |
-| Social/live reliability | 5.5 | 5.8 | 10 | Safe reconnecting mode works; local unauthenticated 401 probes remain noisy |
+| Social/live reliability | 5.5 | 6.4 | 10 | Safe reconnecting mode and clean logical unavailability work; live canonical authority still needs deployment credentials |
 | Content breadth/polish | 6.8 | 6.9 | 10 | This pass upgrades a flagship path, not every arena, settlement, raid, resident, or trainer |
 
 Flagship-slice average: **7.85 / 10**, up from **5.24 / 10**. Whole-game observed readiness is **6.9 / 10** because the strongest interaction system is not yet matched by world-wide authored content, audio, and trainer/location coverage. This is materially advanced and mobile-first, but it is not yet honest to call the entire game equal to the best game experiences ever created.
 
 ### Next highest-value location work
 
-1. Eliminate unauthenticated session 401 console noise without weakening proof admission.
+1. Add an explicit first-trainer teaching/practice covenant or tuned opponent so a new lone starter learns guard/flee before permanent retirement is likely.
 2. Apply the location-quality contract to every arena, settlement, Hearttree space, Prism activity, raid, and rift.
 3. Give each trainer family a bespoke portrait/emblem/entrance/audio identity and distinct tactical behavior.
 4. Replace fallback cues with authored spatial audio once the provider is available.
