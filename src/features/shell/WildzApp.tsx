@@ -1,8 +1,7 @@
 "use client";
 
 import { PlayCampaign } from "@/features/play/PlayCampaign";
-import { WildzInWorldOnboarding } from "@/features/identity/WildzInWorldOnboarding";
-import { generateWildzCharacter, type WildzCharacterGenesis, type WildzGender } from "@/features/identity/wildz-genesis";
+import { generateIdentityBoundWildzCharacter, type WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
 import { createOwnerBoundInitialPlayState, initialPlayState, type PlayState } from "@/features/play/game-state";
 import { createWildsPlayerVault } from "@/features/play/wilds-player-vault";
 import type { WildzCardOnlyConfirmation } from "@/features/identity/wildz-restore";
@@ -82,7 +81,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     });
   }
   const [character, setCharacter] = useState<WildzCharacterGenesis | null>(null);
-  const [onboardingBusy, setOnboardingBusy] = useState(false);
+  const genesisInFlightRef = useRef<string | null>(null);
   const [identityError, setIdentityError] = useState("");
   const [proofSessionConnected, setProofSessionConnected] = useState(false);
   const [remoteProfile, setRemoteProfile] = useState<ReturnType<typeof sanitizePublicWildzProfile> | null>(null);
@@ -116,12 +115,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     reputation: viewingOwnProfile ? ownerPlayState.inventory.length * 12 : 0,
     record: { wins: 0, losses: 0, raids: 0 }
   }), [avatarImageUrl, character, identity, overlay, ownerPlayState.inventory, ownerUsername, viewingOwnProfile]);
-  const campaignCharacter = useMemo(() => character ?? (identity ? generateWildzCharacter({
-    identityRef: identity.keyId,
-    kaiPulse: String(Math.max(1, Date.parse(identity.createdAt ?? "") || 1)),
-    gender: "female",
-    version: 1
-  }) : null), [character, identity]);
+  const campaignCharacter = useMemo(() => character ?? (identity?.createdAt
+    ? generateIdentityBoundWildzCharacter(identity)
+    : null), [character, identity]);
 
   const acceptSnapshot = useCallback((snapshot: WildzContinuitySnapshot) => {
     const previous = continuityRef.current;
@@ -328,17 +324,14 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     }
   };
 
-  const chooseExplorer = (gender: WildzGender) => {
-    if (!identity || onboardingBusy) return;
-    setOnboardingBusy(true);
-    const next = generateWildzCharacter({
-      identityRef: identity.keyId,
-      kaiPulse: String(Date.now()),
-      gender,
-      version: 1
+  useEffect(() => {
+    if (!identity?.createdAt || character || genesisInFlightRef.current === identity.keyId) return;
+    genesisInFlightRef.current = identity.keyId;
+    const next = generateIdentityBoundWildzCharacter(identity);
+    void completeGenesis(next).finally(() => {
+      if (continuityRef.current?.character === null) genesisInFlightRef.current = null;
     });
-    void completeGenesis(next).finally(() => setOnboardingBusy(false));
-  };
+  }, [character, identity]);
 
   const saveProfileIdentity = async (input: { username: string; displayName: string; avatarImageUrl: string | null }) => {
     const current = continuityRef.current;
@@ -577,7 +570,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           campaignName="Wildz"
           character={campaignCharacter}
           enabled={true}
-          interactionEnabled={Boolean(character)}
+          interactionEnabled={Boolean(campaignCharacter)}
           networkEnabled={Boolean(character) && proofSessionConnected}
           initialState={ownerPlayState}
           initialPlayerContinuity={continuity.playerContinuity}
@@ -624,12 +617,6 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         <button type="button" onClick={() => setOverlay({ kind: "vault" })} aria-label="Open public Vault">◇</button>
         <button type="button" onClick={() => setOverlay({ kind: "market" })} aria-label="Open player market">↝</button>
       </nav> : null}
-
-      {identity && !character ? <WildzInWorldOnboarding
-        busy={onboardingBusy}
-        error={identityError}
-        onChooseExplorer={chooseExplorer}
-      /> : null}
 
       {overlay ? (
         <section className="wildz-shell-overlay" role="dialog" aria-modal="true" aria-label={`${overlay.kind} panel`}>

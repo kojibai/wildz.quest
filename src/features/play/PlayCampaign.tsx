@@ -157,7 +157,7 @@ export function PlayCampaign({
   const [state, setState] = useState(() => initialState);
   const [saveRestored, setSaveRestored] = useState(false);
   const [rewardAsset, setRewardAsset] = useState<PortableCardAsset | null>(null);
-  const [avatarStyle, setAvatarStyle] = useState<"female" | "male" | null>(() => initialPlayerContinuity?.settings.avatarStyle ?? character.gender);
+  const [avatarStyle, setAvatarStyle] = useState<"female" | "male">(() => initialPlayerContinuity?.settings.avatarStyle ?? character.gender);
   const [qualityProfile, setQualityProfile] = useState(currentWildsQualityProfile);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
@@ -950,7 +950,7 @@ export function PlayCampaign({
                 }
               }
               setState(outcome.playState);
-              setAvatarStyle(outcome.playerContinuity.settings.avatarStyle);
+              setAvatarStyle(outcome.playerContinuity.settings.avatarStyle ?? outcome.character?.gender ?? character.gender);
               setMovementMode(outcome.playerContinuity.settings.movementMode);
               setCardOrder(outcome.playerContinuity.settings.cardOrder);
               presentation.setAudioSettings(normalizeWildsAudioSettings(outcome.playerContinuity.settings.audio));
@@ -987,6 +987,7 @@ export function PlayCampaign({
             <WildsWorldCanvas
               state={state}
               avatarStyle={avatarStyle ?? "female"}
+              character={character}
               remotePlayers={multiplayer.remotePlayers}
               qualityProfile={qualityProfile}
               searchEnabled={interactionEnabled && discoveryActive && Boolean(avatarStyle)}
@@ -1046,30 +1047,6 @@ export function PlayCampaign({
                 onAction={(action) => dispatch({ type: "battle-action", action, at: new Date().toISOString() })}
                 onDismiss={() => dispatch({ type: "dismiss-reveal" })}
               />
-            ) : null}
-
-            {!avatarStyle ? (
-              <div className="wilds-avatar-select" role="dialog" aria-labelledby="wilds-avatar-title" aria-modal="true">
-                <div className="wilds-avatar-select-card">
-                  <span className="eyebrow">Your journey begins</span>
-                  <h3 id="wilds-avatar-title">Choose your explorer</h3>
-                  <p>You’ll see your explorer from behind as you walk, search, battle, and capture.</p>
-                  <div className="wilds-avatar-options">
-                    {(["female", "male"] as const).map((choice) => (
-                      <button
-                        key={choice}
-                        className={`wilds-avatar-option ${choice}`}
-                        onClick={() => setAvatarStyle(choice)}
-                        type="button"
-                      >
-                        <span className="wilds-avatar-preview" aria-hidden="true"><i /><b /><em /></span>
-                        <strong>{choice === "female" ? "Female explorer" : "Male explorer"}</strong>
-                        <small>Select and enter the Wilds</small>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
             ) : null}
 
             <div className="wilds-hud-top">

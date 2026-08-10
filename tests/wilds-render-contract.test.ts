@@ -531,9 +531,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(environment, /<EcologyInstances/);
     assert.match(world, /<WildsExplorer/);
     assert.match(environment, /projectWildsBiome/);
-    assert.match(campaign, /Choose your explorer/);
-    assert.match(campaign, /Female explorer/);
-    assert.match(campaign, /Male explorer/);
+    assert.doesNotMatch(campaign, /Choose your explorer|Female explorer|Male explorer/);
+    assert.match(campaign, /character=\{character\}/);
     assert.match(campaign, /<WildsBattle/);
     assert.match(battle, /wilds-battle-turn/);
     assert.match(battle, /wilds-battle-intent/);

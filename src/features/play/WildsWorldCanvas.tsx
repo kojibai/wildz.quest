@@ -33,10 +33,12 @@ import { projectKaiWorldExpression } from "@/features/play/kai-moment-expression
 import { WildsKaiAtmosphereGeometry } from "@/features/play/WildsKaiAtmosphereGeometry";
 import { projectCardKaiAppearance } from "@/features/play/card-kai-appearance";
 import type { WildsTrainerProjection } from "@/features/play/wilds-saga-trainers";
+import type { WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
 
 export function WildsWorldCanvas({
   state,
   avatarStyle,
+  character,
   remotePlayers,
   qualityProfile,
   searchEnabled,
@@ -52,6 +54,7 @@ export function WildsWorldCanvas({
 }: {
   state: PlayState;
   avatarStyle: "female" | "male";
+  character: WildzCharacterGenesis;
   remotePlayers: WildsPresence[];
   qualityProfile: WildsQualityProfile;
   searchEnabled: boolean;
@@ -84,7 +87,7 @@ export function WildsWorldCanvas({
         shadows={{ type: THREE.PCFShadowMap }}
       >
         <Suspense fallback={null}>
-          <WildsScene state={state} avatarStyle={avatarStyle} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} supportCards={supportCards} trainers={trainers} />
+          <WildsScene state={state} avatarStyle={avatarStyle} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} supportCards={supportCards} trainers={trainers} />
         </Suspense>
       </Canvas>
     </div>
@@ -94,6 +97,7 @@ export function WildsWorldCanvas({
 function WildsScene({
   state,
   avatarStyle,
+  character,
   remotePlayers,
   qualityProfile,
   searchEnabled,
@@ -109,6 +113,7 @@ function WildsScene({
 }: {
   state: PlayState;
   avatarStyle: "female" | "male";
+  character: WildzCharacterGenesis;
   remotePlayers: WildsPresence[];
   qualityProfile: WildsQualityProfile;
   searchEnabled: boolean;
@@ -154,7 +159,7 @@ function WildsScene({
         {remotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} />)}
         {trainers.map((trainer) => <TrainerExplorer key={trainer.id} trainer={trainer} localPlayer={state.player} onSelect={onSelectTrainer} />)}
       </SmoothWorldFrame>
-      <WildsExplorer style={avatarStyle} worldPosition={state.player} />
+      <WildsExplorer character={character} style={avatarStyle} worldPosition={state.player} />
       <ActiveCompanion state={state} />
       <SupportCompanions cards={supportCards} />
       <Sparkles key={`wilds-world-sparkles-${worldSparkleCount}`} count={worldSparkleCount} scale={[8, 2.4, 8]} size={2.1} speed={kaiExpression.particleSpeed} color={kaiExpression.accent} />

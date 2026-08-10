@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { PlayState } from "@/features/play/game-state";
+import type { WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
+import { projectWildsExplorerAppearance } from "@/features/play/wilds-explorer-appearance";
 
 type ExplorerStyle = "female" | "male";
 
@@ -34,14 +36,29 @@ function LimbSegment({
 }
 
 export function WildsExplorer({
+  character,
   style,
   worldPosition,
   remote = false
 }: {
+  character?: WildzCharacterGenesis;
   style: ExplorerStyle;
   worldPosition: PlayState["player"];
   remote?: boolean;
 }) {
+  const appearance = character ? projectWildsExplorerAppearance(character) : {
+    skin: palette.skin,
+    hair: palette.hair,
+    hairProfile: style === "female" ? "river-braid" : "canopy-crop",
+    outfitProfile: "trailweaver",
+    outfitPrimary: style === "female" ? "#9F5272" : "#376B8D",
+    outfitSecondary: style === "female" ? "#593348" : "#21465E",
+    materialRoughness: 0.68,
+    accessory: "trail-satchel",
+    trail: "mint-ripple",
+    signatureMark: "sprout",
+    signatureSeed: 0.5
+  };
   const root = useRef<THREE.Group>(null);
   const hips = useRef<THREE.Group>(null);
   const spine = useRef<THREE.Group>(null);
@@ -96,24 +113,24 @@ export function WildsExplorer({
     if (scarf.current) scarf.current.rotation.x = 0.18 + Math.sin(elapsed * 5.5) * (moving ? 0.12 : 0.035);
   });
 
-  const jacket = style === "female" ? "#e95383" : "#2e73a6";
-  const jacketDark = style === "female" ? "#9f315d" : "#174b73";
+  const hairLength = appearance.hairProfile === "river-braid" || appearance.hairProfile === "fern-locks" ? 1.2 : 0.82;
+  const outfitWidth = appearance.outfitProfile === "canopy-guard" ? 1.08 : appearance.outfitProfile === "rift-scout" ? 0.92 : 1;
 
   return (
     <group name={`wilds-explorer-${style}`} ref={root} scale={remote ? 0.62 : 0.68}>
       <group name="hips" position={[0, 0.72, 0]} ref={hips}>
         <mesh castShadow scale={[0.86, 0.52, 0.66]}>
           <capsuleGeometry args={[0.18, 0.2, 6, 12]} />
-          <meshStandardMaterial color={jacketDark} roughness={0.68} />
+          <meshStandardMaterial color={appearance.outfitSecondary} roughness={appearance.materialRoughness} />
         </mesh>
-        <Leg side={-1} knee={leftKnee} />
-        <Leg side={1} knee={rightKnee} />
+        <Leg boots={appearance.outfitSecondary} side={-1} knee={leftKnee} trousers={appearance.outfitSecondary} />
+        <Leg boots={appearance.outfitSecondary} side={1} knee={rightKnee} trousers={appearance.outfitSecondary} />
       </group>
 
       <group name="spine" position={[0, 0.92, 0]} ref={spine}>
-        <mesh castShadow position={[0, 0.2, 0]} scale={style === "female" ? [0.86, 1, 0.72] : [1, 1, 0.76]}>
+        <mesh castShadow position={[0, 0.2, 0]} scale={[outfitWidth * (style === "female" ? 0.86 : 1), 1, style === "female" ? 0.72 : 0.76]}>
           <capsuleGeometry args={[0.24, 0.34, 8, 14]} />
-          <meshStandardMaterial color={jacket} roughness={0.58} />
+          <meshStandardMaterial color={appearance.outfitPrimary} roughness={appearance.materialRoughness} />
         </mesh>
         <mesh castShadow position={[0, 0.24, 0.2]} scale={[0.78, 0.88, 0.52]}>
           <boxGeometry args={[0.42, 0.45, 0.22]} />
@@ -123,51 +140,59 @@ export function WildsExplorer({
           <>
             <mesh castShadow position={[0.3, 0.08, 0.17]} ref={satchel} rotation={[0.08, 0.12, -0.08]}>
               <boxGeometry args={[0.23, 0.3, 0.18]} />
-              <meshStandardMaterial color={palette.leather} roughness={0.9} />
+              <meshStandardMaterial color={appearance.outfitSecondary} roughness={0.9} />
             </mesh>
-            <mesh castShadow position={[-0.13, 0.48, 0.08]} ref={scarf} rotation={[0.18, 0, 0.08]}>
+            <mesh castShadow name={appearance.accessory} position={[-0.13, 0.48, 0.08]} ref={scarf} rotation={[0.18, 0, 0.08]}>
               <capsuleGeometry args={[0.045, 0.32, 5, 8]} />
-              <meshStandardMaterial color="#f6d46d" roughness={0.82} />
+              <meshStandardMaterial color={appearance.outfitPrimary} emissive={appearance.outfitPrimary} emissiveIntensity={0.08} roughness={0.82} />
+            </mesh>
+            <mesh name={`signature-${appearance.signatureMark}`} position={[0, 0.24, -0.225]} rotation={[0, 0, appearance.signatureSeed * Math.PI]}>
+              <torusGeometry args={[0.055, 0.012, 6, 10]} />
+              <meshStandardMaterial color={appearance.outfitSecondary} emissive={appearance.outfitPrimary} emissiveIntensity={0.28} />
+            </mesh>
+            <mesh name={`trail-${appearance.trail}`} position={[0, -0.02, 0.28]} scale={0.5 + appearance.signatureSeed * 0.25}>
+              <octahedronGeometry args={[0.055, 0]} />
+              <meshStandardMaterial color={appearance.outfitPrimary} emissive={appearance.outfitPrimary} emissiveIntensity={0.72} transparent opacity={0.7} />
             </mesh>
           </>
         ) : null}
-        <Arm elbow={leftElbow} shoulder={leftShoulder} side={-1} sleeve={jacketDark} />
-        <Arm elbow={rightElbow} shoulder={rightShoulder} side={1} sleeve={jacketDark} />
+        <Arm elbow={leftElbow} shoulder={leftShoulder} side={-1} skin={appearance.skin} sleeve={appearance.outfitSecondary} />
+        <Arm elbow={rightElbow} shoulder={rightShoulder} side={1} skin={appearance.skin} sleeve={appearance.outfitSecondary} />
       </group>
 
       <group name="head" position={[0, 1.57, -0.01]} ref={head}>
         <mesh castShadow scale={[0.9, 1.06, 0.92]}>
           <sphereGeometry args={[0.225, 18, 14]} />
-          <meshStandardMaterial color={palette.skin} roughness={0.72} />
+          <meshStandardMaterial color={appearance.skin} roughness={0.72} />
         </mesh>
         <mesh castShadow position={[0, 0.075, 0.025]} scale={style === "female" ? [1.1, 0.9, 1.08] : [1.09, 0.76, 1.07]}>
           <sphereGeometry args={[0.225, 16, 12]} />
-          <meshStandardMaterial color={palette.hair} roughness={0.88} />
+          <meshStandardMaterial color={appearance.hair} roughness={0.88} />
         </mesh>
         <mesh
           castShadow
           name="rearHair"
           position={[0, style === "female" ? -0.045 : -0.005, 0.135]}
-          scale={style === "female" ? [1.12, 1.2, 0.8] : [1.08, 0.92, 0.72]}
+          scale={[style === "female" ? 1.12 : 1.08, hairLength, style === "female" ? 0.8 : 0.72]}
         >
           <sphereGeometry args={[0.205, 16, 12]} />
-          <meshStandardMaterial color={palette.hair} roughness={0.9} />
+          <meshStandardMaterial color={appearance.hair} roughness={0.9} />
         </mesh>
         {style === "female" ? (
           <mesh castShadow position={[0, -0.13, 0.19]} rotation={[-0.22, 0, 0]}>
             <capsuleGeometry args={[0.075, 0.3, 5, 9]} />
-            <meshStandardMaterial color={palette.hair} roughness={0.9} />
+            <meshStandardMaterial color={appearance.hair} roughness={0.9} />
           </mesh>
         ) : null}
         {!remote ? (
           <>
             <mesh name="leftEar" position={[-0.23, -0.02, 0]} rotation={[0, 0, 0.2]}>
               <sphereGeometry args={[0.045, 8, 6]} />
-              <meshStandardMaterial color={palette.skin} roughness={0.72} />
+              <meshStandardMaterial color={appearance.skin} roughness={0.72} />
             </mesh>
             <mesh name="rightEar" position={[0.23, -0.02, 0]} rotation={[0, 0, -0.2]}>
               <sphereGeometry args={[0.045, 8, 6]} />
-              <meshStandardMaterial color={palette.skin} roughness={0.72} />
+              <meshStandardMaterial color={appearance.skin} roughness={0.72} />
             </mesh>
           </>
         ) : null}
@@ -180,36 +205,38 @@ function Arm({
   elbow,
   shoulder,
   side,
+  skin,
   sleeve
 }: {
   elbow: React.RefObject<THREE.Group | null>;
   shoulder: React.RefObject<THREE.Group | null>;
   side: -1 | 1;
+  skin: string;
   sleeve: string;
 }) {
   return (
     <group name={side < 0 ? "leftShoulder" : "rightShoulder"} position={[side * 0.31, 0.37, 0]} ref={shoulder}>
       <LimbSegment color={sleeve} length={0.3} radius={0.075} />
       <group name={side < 0 ? "leftElbow" : "rightElbow"} position={[0, -0.29, 0]} ref={elbow}>
-        <LimbSegment color={palette.skin} length={0.28} radius={0.06} />
+        <LimbSegment color={skin} length={0.28} radius={0.06} />
         <mesh castShadow position={[0, -0.3, 0]} scale={[0.8, 1, 0.72]}>
           <sphereGeometry args={[0.075, 9, 7]} />
-          <meshStandardMaterial color={palette.skin} roughness={0.7} />
+          <meshStandardMaterial color={skin} roughness={0.7} />
         </mesh>
       </group>
     </group>
   );
 }
 
-function Leg({ side, knee }: { side: -1 | 1; knee: React.RefObject<THREE.Group | null> }) {
+function Leg({ boots, side, knee, trousers }: { boots: string; side: -1 | 1; knee: React.RefObject<THREE.Group | null>; trousers: string }) {
   return (
     <group name={side < 0 ? "leftKnee" : "rightKnee"} position={[side * 0.12, -0.06, 0]} ref={knee}>
-      <LimbSegment color={palette.trousers} length={0.34} radius={0.08} />
+      <LimbSegment color={trousers} length={0.34} radius={0.08} />
       <group position={[0, -0.32, 0]}>
-        <LimbSegment color={palette.trousers} length={0.31} radius={0.072} />
+        <LimbSegment color={trousers} length={0.31} radius={0.072} />
         <mesh castShadow position={[0, -0.34, -0.055]}>
           <boxGeometry args={[0.17, 0.13, 0.31]} />
-          <meshStandardMaterial color={palette.boots} roughness={0.9} />
+          <meshStandardMaterial color={boots} roughness={0.9} />
         </mesh>
       </group>
     </group>

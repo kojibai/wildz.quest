@@ -27,27 +27,30 @@ test("profiles publish only after the same-origin proof session is connected", (
   assert.ok(publication > connectedGate);
 });
 
-test("Wildz creates identity before character genesis and enters play with that identity", () => {
+test("Wildz creates identity before deterministic character genesis and enters play immediately", () => {
   const source = read("src/features/shell/WildzApp.tsx");
   assert.match(source, /bootstrapWildzContinuity/);
-  assert.match(source, /<WildzInWorldOnboarding/);
+  assert.match(source, /generateIdentityBoundWildzCharacter/);
+  assert.doesNotMatch(source, /<WildzInWorldOnboarding|chooseExplorer|WildzGender/);
   assert.match(source, /ownerReceizId=\{ownerUsername\}/);
   assert.match(source, /setCharacter\(snapshot\.character\)/);
   assert.match(source, /character=\{campaignCharacter\}/);
   assert.doesNotMatch(source, /WILDZ_CHARACTER_STORAGE_KEY|WILDS_AVATAR_KEY/);
 });
 
-test("choosing an explorer persists the matching rendered avatar style", () => {
+test("automatic explorer genesis persists its deterministically derived rendered style", () => {
   const source = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
   const genesis = source.slice(source.indexOf("const completeGenesis"), source.indexOf("const saveProfileIdentity"));
   assert.match(genesis, /avatarStyle:\s*next\.gender/);
   assert.match(genesis, /playerContinuity/);
+  assert.match(genesis, /generateIdentityBoundWildzCharacter/);
+  assert.doesNotMatch(genesis, /Date\.now\(\)|onChooseExplorer/);
 });
 
-test("in-world onboarding keeps identity controls out of first entry", () => {
-  const source = read("src/features/identity/WildzInWorldOnboarding.tsx");
-  assert.match(source, /Choose your explorer/);
-  assert.doesNotMatch(source, /Receiz ID|identity\.username|identity\.actorId|Add Vault|Profile/);
+test("first entry has no gender or explorer selection gate", () => {
+  const source = read("src/features/shell/WildzApp.tsx");
+  assert.doesNotMatch(source, /Choose your explorer|Female explorer|Male explorer|onChooseExplorer/);
+  assert.match(source, /interactionEnabled=\{Boolean\(campaignCharacter\)\}/);
 });
 
 test("a Vault without a display name keeps its restored Receiz username visible in the game HUD", () => {
@@ -95,12 +98,12 @@ test("proof-sealed Vault recovery never asks the authenticated Vault owner to si
   assert.doesNotMatch(source, /Connect Receiz|Not now|Dismiss Vault prompt|Vault owner required|Sign in as Vault owner/);
 });
 
-test("gameplay mounts behind onboarding as soon as proof-native identity continuity exists", () => {
+test("gameplay mounts immediately as soon as proof-native identity continuity exists", () => {
   const source = read("src/features/shell/WildzApp.tsx");
 
   assert.doesNotMatch(source, /identity\.remoteStatus === "connected" \|\| offlinePracticeAccepted/);
   assert.match(source, /continuity && identity && campaignCharacter \? <PlayCampaign/);
-  assert.match(source, /interactionEnabled=\{Boolean\(character\)\}/);
+  assert.match(source, /interactionEnabled=\{Boolean\(campaignCharacter\)\}/);
   assert.doesNotMatch(source, /Continue offline|offlinePracticeAccepted/);
 });
 

@@ -4,22 +4,20 @@ import { test } from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("first entry only asks the player to choose an explorer", () => {
+test("first entry derives the proof explorer and enters play without a chooser", () => {
   const shell = read("src/features/shell/WildzApp.tsx");
-  const chooser = read("src/features/identity/WildzInWorldOnboarding.tsx");
+  const campaign = read("src/features/play/PlayCampaign.tsx");
 
   assert.match(shell, /continuity && identity && campaignCharacter \? <PlayCampaign/);
   assert.match(shell, /character=\{campaignCharacter\}/);
   assert.match(shell, /networkEnabled=\{Boolean\(character\) && proofSessionConnected\}/);
-  assert.match(shell, /<WildzInWorldOnboarding/);
-  assert.match(chooser, /Choose your explorer/);
-  assert.doesNotMatch(chooser, /Add Vault|Identity Seal|Receiz ID|Profile/);
+  assert.match(shell, /generateIdentityBoundWildzCharacter/);
+  assert.doesNotMatch(`${shell}\n${campaign}`, /Choose your explorer|Female explorer|Male explorer|WildzInWorldOnboarding/);
 });
 
-test("the in-world chooser is a fixed non-scrolling modal", () => {
+test("removed explorer selection leaves no hidden modal or dead mobile CSS", () => {
   const styles = read("app/globals.css");
-  assert.match(styles, /\.wildz-in-world-onboarding\s*\{[^}]*position:\s*fixed[^}]*overflow:\s*hidden/s);
-  assert.match(styles, /\.wildz-onboarding-card\s*\{[^}]*max-height:\s*calc\(100dvh/s);
+  assert.doesNotMatch(styles, /wildz-in-world-onboarding|wildz-onboarding-card|wilds-avatar-select/);
 });
 
 test("the in-game Vault popover merges Vault files and saves the combined collection", () => {

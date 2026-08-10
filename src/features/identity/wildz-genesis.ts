@@ -1,4 +1,5 @@
 import { canonicalPortableCardJson, sha256PortableBasis } from "../play/portable-card";
+import { deriveKaiKlokMoment } from "../play/kai-klok-moment";
 
 export type WildzGender = "female" | "male";
 
@@ -88,4 +89,29 @@ export function generateWildzCharacter(input: {
   };
 
   return { ...canonical, digest: sha256PortableBasis(canonicalPortableCardJson(canonical)).slice(7) };
+}
+
+export function generateIdentityBoundWildzCharacter(identity: {
+  keyId: string;
+  createdAt?: string | null;
+}): WildzCharacterGenesis {
+  if (!identity.keyId.trim()) throw new Error("wildz_genesis_identity_required");
+  if (!identity.createdAt) throw new Error("wildz_genesis_account_creation_required");
+  const kaiPulse = String(deriveKaiKlokMoment({
+    occurredAt: identity.createdAt,
+    authority: "admitted"
+  }).pulse);
+  if (!/^\d{1,32}$/.test(kaiPulse)) throw new Error("wildz_genesis_kai_pulse_invalid");
+  const presentationSeed = sha256PortableBasis(canonicalPortableCardJson({
+    identityRef: identity.keyId,
+    kaiPulse,
+    purpose: "wildz.explorer.presentation.v1"
+  })).slice(7);
+  const gender: WildzGender = Number.parseInt(presentationSeed.slice(0, 2), 16) % 2 === 0 ? "female" : "male";
+  return generateWildzCharacter({
+    identityRef: identity.keyId,
+    kaiPulse,
+    gender,
+    version: 1
+  });
 }
