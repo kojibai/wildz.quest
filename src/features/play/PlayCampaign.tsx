@@ -152,6 +152,8 @@ export function PlayCampaign({
   const [avatarStyle, setAvatarStyle] = useState<"female" | "male">(() => initialPlayerContinuity?.settings.avatarStyle ?? character.gender);
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
   const [mapOpen, setMapOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [panelKey, setPanelKey] = useState<WildsCommandKey | null>(null);
   const [multiplayerRosterOpen, setMultiplayerRosterOpen] = useState(false);
   const cameraHeadingRef = useRef(0);
   const updateCameraHeading = useCallback((heading: number) => {
@@ -1074,7 +1076,15 @@ export function PlayCampaign({
               onRest={() => dispatch({ type: "rest", at: new Date().toISOString() })}
               onSelectCard={(assetId) => dispatch({ type: "select-asset", assetId })}
             />
-            <WildsCommandDock items={commandItems} dismissSignal={commandDismissSignal} requestedKey={requestedCommand} onRequestHandled={() => setRequestedCommand(null)} />
+            <WildsCommandDock items={commandItems}
+              toolsOpen={toolsOpen}
+              panelKey={panelKey}
+              onToolsOpenChange={setToolsOpen}
+              onPanelKeyChange={setPanelKey}
+              dismissSignal={commandDismissSignal}
+              requestedKey={requestedCommand}
+              onRequestHandled={() => setRequestedCommand(null)}
+            />
           </div>
         </div>
       </div>

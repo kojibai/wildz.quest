@@ -15,35 +15,43 @@ export type WildsCommandItem = {
   content: ReactNode;
 };
 
-export function WildsCommandDock({ items, requestedKey = null, dismissSignal = 0, onRequestHandled = () => {} }: {
+export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange, onPanelKeyChange, requestedKey = null, dismissSignal = 0, onRequestHandled = () => {} }: {
   items: readonly WildsCommandItem[];
+  toolsOpen: boolean;
+  panelKey: WildsCommandKey | null;
+  onToolsOpenChange: (open: boolean) => void;
+  onPanelKeyChange: (key: WildsCommandKey | null) => void;
   requestedKey?: WildsCommandKey | null;
   dismissSignal?: number;
   onRequestHandled?: () => void;
 }) {
-  const [activeKey, setActiveKey] = useState<WildsCommandKey | null>(null);
   const [dragY, setDragY] = useState(0);
   const triggerRefs = useRef<Partial<Record<WildsCommandKey, HTMLButtonElement | null>>>({});
+  const toolsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const externalTriggerRef = useRef<HTMLElement | null>(null);
   const dragStart = useRef<number | null>(null);
   const priorDismissSignal = useRef(dismissSignal);
+  const activeKey = panelKey;
   const activeItem = items.find((item) => item.key === activeKey) ?? null;
 
   useEffect(() => {
     if (!requestedKey) return;
     externalTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setActiveKey(requestedKey);
+    onToolsOpenChange(false);
+    onPanelKeyChange(requestedKey);
     setDragY(0);
     onRequestHandled();
-  }, [onRequestHandled, requestedKey]);
+  }, [onPanelKeyChange, onRequestHandled, onToolsOpenChange, requestedKey]);
 
   const close = useCallback(() => {
-    const trigger = activeKey ? triggerRefs.current[activeKey] ?? externalTriggerRef.current : externalTriggerRef.current;
-    setActiveKey(null);
+    const trigger = activeKey
+      ? triggerRefs.current[activeKey] ?? externalTriggerRef.current ?? toolsTriggerRef.current
+      : externalTriggerRef.current ?? toolsTriggerRef.current;
+    onPanelKeyChange(null);
     setDragY(0);
     dragStart.current = null;
     window.requestAnimationFrame(() => trigger?.focus());
-  }, [activeKey]);
+  }, [activeKey, onPanelKeyChange]);
 
   useEffect(() => {
     if (priorDismissSignal.current === dismissSignal) return;
@@ -78,34 +86,52 @@ export function WildsCommandDock({ items, requestedKey = null, dismissSignal = 0
 
   return (
     <section className="wilds-command-system" aria-label="Wilds command center">
-      <nav className="wilds-command-dock" aria-label="Game panels">
-        {items.filter((item) => item.dockVisible !== false).map((item) => {
-          const active = activeKey === item.key;
-          const controls = `wilds-command-sheet-${item.key}`;
-          return (
-            <button
-              ref={(node) => { triggerRefs.current[item.key] = node; }}
-              aria-controls={controls}
-              aria-expanded={active}
-              aria-label={`${item.label}${item.badge === undefined ? "" : ` · ${item.badge}`}`}
-              aria-pressed={active}
-              className="wilds-command-button"
-              key={item.key}
-              onClick={() => {
-                setDragY(0);
-                setActiveKey(active ? null : item.key);
-              }}
-              title={item.label}
-              type="button"
-            >
-              <span className="wilds-command-icon" aria-hidden="true">
-                {item.icon}
-                {item.badge === undefined ? null : <b className="wilds-command-badge">{item.badge}</b>}
-              </span>
-            </button>
-          );
-        })}
-      </nav>
+      <button
+        aria-controls="wilds-world-tools-fan"
+        aria-expanded={toolsOpen}
+        aria-label="Open world tools"
+        className="wilds-world-tools-trigger"
+        onClick={() => onToolsOpenChange(!toolsOpen)}
+        ref={toolsTriggerRef}
+        type="button"
+      >
+        <Icons.menu aria-hidden="true" size={20} />
+      </button>
+
+      {toolsOpen ? (
+        <div className="wilds-world-tools-fan" id="wilds-world-tools-fan">
+          <nav className="wilds-command-dock" aria-label="Game panels">
+            {items.filter((item) => item.dockVisible !== false).map((item) => {
+              const active = activeKey === item.key;
+              const controls = `wilds-command-sheet-${item.key}`;
+              return (
+                <button
+                  ref={(node) => { triggerRefs.current[item.key] = node; }}
+                  aria-controls={controls}
+                  aria-expanded={active}
+                  aria-label={`${item.label}${item.badge === undefined ? "" : ` · ${item.badge}`}`}
+                  aria-pressed={active}
+                  className="wilds-command-button"
+                  key={item.key}
+                  onClick={() => {
+                    externalTriggerRef.current = null;
+                    setDragY(0);
+                    onToolsOpenChange(false);
+                    onPanelKeyChange(item.key);
+                  }}
+                  title={item.label}
+                  type="button"
+                >
+                  <span className="wilds-command-icon" aria-hidden="true">
+                    {item.icon}
+                    {item.badge === undefined ? null : <b className="wilds-command-badge">{item.badge}</b>}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+      ) : null}
 
       {activeItem ? (
         <div className="wilds-command-overlay">
