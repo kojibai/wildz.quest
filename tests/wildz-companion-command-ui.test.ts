@@ -50,3 +50,9 @@ test("the command requests controlled drawer snaps and replaces the duplicate ac
   assert.match(social, /<WildsCompanionCommand/);
   assert.doesNotMatch(social, /wildz-play-control-rail|wildz-social-actions/);
 });
+
+test("the command visibly renders the proof-sealed individual name", () => {
+  const companionSource = read("src/features/play/WildsCompanionCommand.tsx");
+  assert.match(companionSource, /className="wilds-companion-real-name"[^>]*>\{activeCard\.manifest\.name\}/);
+  assert.doesNotMatch(companionSource, /wilds-companion-real-name[^\n]*(familyId|species|formId)/);
+});

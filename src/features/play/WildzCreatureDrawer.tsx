@@ -92,6 +92,8 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   cardOrder,
   onCardOrderChange,
   onSelectCard,
+  snap,
+  onSnapChange,
   requestedSnap = null,
   onRequestedSnapHandled = () => {}
 }: {
@@ -102,11 +104,12 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   cardOrder: WildzCardSort;
   onCardOrderChange: (order: WildzCardSort) => void;
   onSelectCard: (assetId: string) => void;
+  snap: CreatureDrawerSnap;
+  onSnapChange: (snap: CreatureDrawerSnap) => void;
   requestedSnap?: CreatureDrawerSnap | null;
   onRequestedSnapHandled?: () => void;
 }) {
   const [viewportHeight, setViewportHeight] = useState(() => typeof window === "undefined" ? 844 : window.innerHeight);
-  const [snap, setSnap] = useState<CreatureDrawerSnap>("closed");
   const [showAffordanceSweep, setShowAffordanceSweep] = useState(false);
   const [range, setRange] = useState({ start: 0, end: 8 });
   const [bookPage, setBookPage] = useState(0);
@@ -125,8 +128,8 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   const selectCard = useStableEvent(onSelectCard);
   const selectAndClose = useCallback((assetId: string) => {
     selectCard(assetId);
-    setSnap("closed");
-  }, [selectCard]);
+    onSnapChange("closed");
+  }, [onSnapChange, selectCard]);
 
   useEffect(() => {
     const resize = () => setViewportHeight(window.innerHeight);
@@ -155,17 +158,17 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   useEffect(() => {
     if (snap === "closed") return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSnap("closed");
+      if (event.key === "Escape") onSnapChange("closed");
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [snap]);
+  }, [onSnapChange, snap]);
 
   const commitSnap = useCallback((next: CreatureDrawerSnap) => {
     const pattern = drawerHapticPattern(snap, next);
     if (pattern.length && typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(pattern);
-    setSnap(next);
-  }, [snap]);
+    onSnapChange(next);
+  }, [onSnapChange, snap]);
 
   useEffect(() => {
     if (!requestedSnap) return;

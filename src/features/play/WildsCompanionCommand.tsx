@@ -201,6 +201,7 @@ export function WildsCompanionCommand({
       {previous ? <span aria-hidden="true" className="wilds-companion-peek previous"><WildsCreatureThumbnail asset={previous} /></span> : null}
       {activeCard ? <WildsCreatureThumbnail asset={activeCard} className="wilds-companion-active-portrait" /> : null}
       {next ? <span aria-hidden="true" className="wilds-companion-peek next"><WildsCreatureThumbnail asset={next} /></span> : null}
+      {activeCard ? <strong className="wilds-companion-real-name">{activeCard.manifest.name}</strong> : null}
       <span className="wilds-companion-power-label">{fieldPowers[selectedAbilityIndex]?.label ?? "Power"}</span>
       <small>{projection.position}/{projection.total}</small>
     </button>

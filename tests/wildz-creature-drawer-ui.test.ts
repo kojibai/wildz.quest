@@ -13,7 +13,7 @@ test("social deck mounts a dedicated active-creature drawer above permanent cont
   assert.match(social, /<WildsCompanionCommand/);
   assert.match(drawer, /aria-expanded=\{mode !== "closed"\}/);
   assert.match(drawer, /settleCreatureDrawer/);
-  assert.match(drawer, /selectCard\(assetId\);[\s\S]*?setSnap\("closed"\)/);
+  assert.match(drawer, /selectCard\(assetId\);[\s\S]*?onSnapChange\("closed"\)/);
   assert.doesNotMatch(drawer, /Previous card rail page|Next card rail page|Page \{/);
 });
 
@@ -37,8 +37,16 @@ test("drawer exposes three wordless states with automatic windowing", () => {
 test("companion command opens the controlled roster while Vault and Trail Pack remain in command dock", () => {
   const social = readFileSync("src/features/play/WildzSocialDeck.tsx", "utf8");
   const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
+  const drawerSource = readFileSync(drawerPath, "utf8");
 
-  assert.match(social, /onRequestDrawer=\{setRequestedSnap\}/);
+  assert.match(social, /const \[drawerSnap, setDrawerSnap\] = useState<CreatureDrawerSnap>\("closed"\)/);
+  assert.match(social, /snap=\{drawerSnap\}/);
+  assert.match(social, /onSnapChange=\{setDrawerSnap\}/);
+  assert.match(social, /onRequestDrawer=\{setDrawerSnap\}/);
+  assert.doesNotMatch(social, /requestedSnap|onRequestedSnapHandled/);
   assert.match(campaign, /key: "deck"/);
   assert.match(campaign, /key: "vault"/);
+  assert.match(drawerSource, /snap: CreatureDrawerSnap/);
+  assert.match(drawerSource, /onSnapChange: \(snap: CreatureDrawerSnap\) => void/);
+  assert.doesNotMatch(drawerSource, /useState<CreatureDrawerSnap>\("closed"\)/);
 });

@@ -40,7 +40,7 @@ export function WildzSocialDeck({ nearbyCards, activeCard, companionProgress, ca
 }) {
   const changeCardOrder = useStableEvent(onCardOrderChange);
   const selectCard = useStableEvent(onSelectCard);
-  const [requestedSnap, setRequestedSnap] = useState<CreatureDrawerSnap | null>(null);
+  const [drawerSnap, setDrawerSnap] = useState<CreatureDrawerSnap>("closed");
   const fieldPowers = useMemo(() => {
     const form = activeCard ? creatureForm(activeCard.manifest.formId) : null;
     return form?.abilities.map((ability, index) => ({ id: `${form.id}:${index}`, label: ability.name }))
@@ -56,8 +56,8 @@ export function WildzSocialDeck({ nearbyCards, activeCard, companionProgress, ca
       nearbyCards={nearbyCards}
       onCardOrderChange={changeCardOrder}
       onSelectCard={selectCard}
-      requestedSnap={requestedSnap}
-      onRequestedSnapHandled={() => setRequestedSnap(null)}
+      snap={drawerSnap}
+      onSnapChange={setDrawerSnap}
     />
     <div className="wildz-bottom-play-controls" aria-label="Movement and context controls">
       <div className="wildz-quick-utilities" aria-label="Quick utilities">
@@ -71,7 +71,7 @@ export function WildzSocialDeck({ nearbyCards, activeCard, companionProgress, ca
         activeCard={activeCard}
         cards={nearbyCards}
         fieldPowers={fieldPowers}
-        onRequestDrawer={setRequestedSnap}
+        onRequestDrawer={setDrawerSnap}
         onAudioCue={onAudioCue}
         onSelectAbility={() => {}}
         onSelectCard={selectCard}
