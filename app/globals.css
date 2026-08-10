@@ -13988,3 +13988,69 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   .wilds-trainer-challenge > header { grid-template-columns: 48px minmax(0, 1fr) 44px; }.wilds-trainer-portrait { width: 48px; height: 48px; }.wilds-trainer-challenge blockquote { font-size: 10px; }.wilds-trainer-transition { grid-template-columns: 1fr auto 1fr; gap: 7px; }.wilds-trainer-transition article .wilds-creature-thumbnail, .wilds-trainer-transition article .wilds-trainer-portrait { width: 76px; height: 76px; }.wilds-trainer-versus b { font-size: 36px; }.wilds-trainer-result-actions { grid-template-columns: 1.3fr 1fr 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { .wilds-trainer-transition-energy { animation: none; } }
+
+/* Short landscape phones keep the world primary and float controls into thumb zones. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .wildz-app .wilds-world {
+    position: relative;
+    height: 100%;
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .wildz-social-stack {
+    position: absolute;
+    z-index: 48;
+    inset: 0;
+    min-height: 0;
+    pointer-events: none;
+  }
+
+  .wildz-social-stack > .wildz-social-deck {
+    position: absolute;
+    right: 0;
+    bottom: max(6px, env(safe-area-inset-bottom));
+    left: 0;
+    padding: 0 max(10px, env(safe-area-inset-right)) 0 max(10px, env(safe-area-inset-left));
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    pointer-events: none;
+  }
+
+  .wildz-social-deck > .wildz-creature-drawer { display: none; }
+  .wildz-bottom-play-controls { min-height: 72px; padding: 0; pointer-events: none; }
+  .wildz-bottom-play-controls > * { pointer-events: auto; }
+
+  .wildz-social-stack > .wilds-command-system {
+    position: absolute;
+    right: max(112px, calc(env(safe-area-inset-right) + 104px));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    left: calc(50% + 52px);
+    z-index: 50;
+    width: auto;
+    padding: 0;
+    background: transparent;
+    pointer-events: auto;
+  }
+
+  .wildz-social-stack > .wilds-command-system .wilds-command-dock {
+    gap: 3px;
+    padding: 3px;
+    border-radius: 16px;
+  }
+
+  .wildz-social-stack > .wilds-command-system .wilds-command-button {
+    min-height: 44px;
+    border-radius: 13px;
+  }
+
+  .wildz-app .wilds-event-toast {
+    right: auto;
+    bottom: max(108px, calc(env(safe-area-inset-bottom) + 102px));
+    left: max(10px, env(safe-area-inset-left));
+    width: min(36vw, 280px);
+  }
+}
