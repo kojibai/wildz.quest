@@ -73,6 +73,10 @@ export function MortalArenaExperience({ card, roster, opponent = null, resultPre
   const vitality = Math.round(player.vitality / Math.max(1, player.maxVitality) * 100);
   const rivalVitality = Math.round(rival.vitality / Math.max(1, rival.maxVitality) * 100);
   const resultLabel = arena.result?.winnerSide === 0 ? "Victory carried forward" : arena.result?.outcome === "fled" ? "Retreat survived" : "The Arena remembers";
+  const disabled = !covenantAccepted || retired || Boolean(arena.settlement);
+  const haptic = (pattern: number | number[]) => {
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(pattern);
+  };
 
   return createPortal(
     <section aria-labelledby="mortal-arena-title" aria-modal="true" className={`wilds-landmark-experience competition mortal-arena-experience warning-${arena.warning}`} role="dialog">
@@ -99,12 +103,20 @@ export function MortalArenaExperience({ card, roster, opponent = null, resultPre
         {arena.settlement && resultPresentation === "arena" ? <div className="mortal-arena-result" role="status"><Icons.trophy size={32} /><span>Result sealed locally</span><h3>{resultLabel}</h3><p>{`${arena.settlement.card.manifest.name}'s history has been appended before this result appeared.`}</p><button onClick={arena.continuePath} type="button">Continue to stage {arena.path.stage}</button><button onClick={onExit} type="button">Return to world</button></div> : null}
       </div>
       <footer className="wilds-landmark-actions mortal-arena-actions" aria-label="Mortal Arena actions">
-        <button aria-label="Focus and read the rival" disabled={!covenantAccepted || retired || Boolean(arena.settlement)} onClick={() => arena.pulse({ focus: true })} type="button"><Icons.pulse size={18} /><span><strong>Focus</strong><small>Read</small></span></button>
-        <button aria-label="Guard while held" disabled={!covenantAccepted || retired || Boolean(arena.settlement)} onPointerCancel={() => arena.hold("guard", false)} onPointerDown={() => arena.hold("guard", true)} onPointerLeave={() => arena.hold("guard", false)} onPointerUp={() => arena.hold("guard", false)} type="button"><Icons.seal size={18} /><span><strong>Guard</strong><small>Hold</small></span></button>
-        <MortalArenaTrackpad disabled={!covenantAccepted || retired || Boolean(arena.settlement)} onJump={() => arena.pulse({ jump: true })} onMove={arena.setMovement} />
-        <button aria-label="Strike rival" disabled={!covenantAccepted || retired || Boolean(arena.settlement)} onClick={() => arena.pulse({ light: true })} type="button"><Icons.trophy size={18} /><span><strong>Strike</strong><small>Attack</small></span></button>
-        <button aria-label="Swap to the next living reserve" disabled={!covenantAccepted || retired || Boolean(arena.settlement) || arena.state.sides[0].fighters.length < 2} onClick={() => arena.pulse({ swapTo: (arena.state.sides[0].activeIndex + 1) % arena.state.sides[0].fighters.length })} type="button"><Icons.users size={18} /><span><strong>Swap</strong><small>Reserve</small></span></button>
-        <button className="mortal-arena-flee" aria-label="Flee while held" disabled={!covenantAccepted || retired || Boolean(arena.settlement)} onPointerCancel={() => arena.hold("flee", false)} onPointerDown={() => arena.hold("flee", true)} onPointerLeave={() => arena.hold("flee", false)} onPointerUp={() => arena.hold("flee", false)} type="button"><Icons.door size={18} /><span><strong>Flee</strong><small>Hold</small></span></button>
+        <section className="mortal-arena-movement-zone" aria-label="Movement zone">
+          <MortalArenaTrackpad disabled={disabled} onJump={() => { arena.pulse({ jump: true }); haptic(10); }} onMove={arena.setMovement} />
+          <small>Move · tap to jump</small>
+        </section>
+        <section className="mortal-arena-combat-zone" aria-label="Primary combat actions">
+          <button className="mortal-arena-primary-strike" aria-label="Strike rival" disabled={disabled} onClick={() => { arena.pulse({ light: true }); haptic(18); }} type="button"><Icons.trophy size={24} /><span><strong>Strike</strong><small>Primary</small></span></button>
+          <button className="mortal-arena-guard" aria-label="Guard while held" disabled={disabled} onPointerCancel={() => arena.hold("guard", false)} onPointerDown={() => { arena.hold("guard", true); haptic(12); }} onPointerLeave={() => arena.hold("guard", false)} onPointerUp={() => arena.hold("guard", false)} type="button"><Icons.seal size={19} /><span><strong>Guard</strong><small>Hold</small></span></button>
+          <button className="mortal-arena-ability" aria-label={`Use ${activeArenaCard.manifest.abilityNames[0]}`} disabled={disabled} onClick={() => { arena.pulse({ heavy: true }); haptic([20, 18, 28]); }} type="button"><Icons.pulse size={19} /><span><strong>{activeArenaCard.manifest.abilityNames[0]}</strong><small>Ability</small></span></button>
+        </section>
+        <div className="mortal-arena-context-actions" aria-label="Context actions">
+          <button aria-label="Focus and read the rival" disabled={disabled} onClick={() => { arena.pulse({ focus: true }); haptic(10); }} type="button"><Icons.pulse size={17} /><span><strong>Focus</strong><small>Read</small></span></button>
+          <button aria-label="Swap to the next living reserve" disabled={disabled || arena.state.sides[0].fighters.length < 2} onClick={() => { arena.pulse({ swapTo: (arena.state.sides[0].activeIndex + 1) % arena.state.sides[0].fighters.length }); haptic([12, 18]); }} type="button"><Icons.users size={17} /><span><strong>Swap</strong><small>Reserve</small></span></button>
+          <button className="mortal-arena-flee" aria-label="Flee while held" disabled={disabled} onPointerCancel={() => arena.hold("flee", false)} onPointerDown={() => { arena.hold("flee", true); haptic(24); }} onPointerLeave={() => arena.hold("flee", false)} onPointerUp={() => arena.hold("flee", false)} type="button"><Icons.door size={17} /><span><strong>Flee</strong><small>Hold</small></span></button>
+        </div>
       </footer>
     </section>,
     document.body
