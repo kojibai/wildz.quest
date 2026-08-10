@@ -27,6 +27,8 @@ test("drawer exposes three wordless states with automatic windowing", () => {
   assert.match(drawer, /wildz-creature-drawer-dots/);
   assert.match(drawer, /wildz:drawer-affordance-seen:v1/);
   assert.match(drawer, /drawerHapticPattern/);
+  assert.match(drawer, /playHapticPattern\(pattern\)/);
+  assert.doesNotMatch(drawer, /navigator\.vibrate|"vibrate" in navigator/);
   assert.doesNotMatch(drawer, /beginRailScrollGuard|guardRailHorizontalScroll/);
   assert.match(css, /\.wildz-creature-drawer\.is-closed\s*\{[^}]*height:\s*var\(--wildz-drawer-height\)/s);
   assert.doesNotMatch(css, /\.wildz-creature-drawer-handle\s*\{[^}]*transform:\s*translate\(50%, 50%\)/s);

@@ -14394,8 +14394,11 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wildz-tools-home {
   position: absolute;
   bottom: max(18px, env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translateX(-50%);
+  right: 0;
+  left: 0;
+  width: max-content;
+  margin-inline: auto;
+  transform: none;
 }
 
 .wildz-tools-home > .wilds-command-system {

@@ -31,7 +31,9 @@ test("gameplay controls float in collision-safe homes without a bottom chassis",
   assert.match(css, /\.wildz-app \.wilds-world\s*\{[^}]*grid-template-rows:\s*minmax\(0, 1fr\);/);
   assert.match(css, /\.wildz-world-controls\s*\{[^}]*position:\s*absolute;[^}]*inset:\s*0;[^}]*pointer-events:\s*none;/);
   assert.match(css, /\.wildz-movement-home\s*\{[^}]*position:\s*absolute;[^}]*bottom:/);
-  assert.match(css, /\.wildz-tools-home\s*\{[^}]*left:\s*50%;/);
+  assert.match(css, /\.wildz-tools-home\s*\{[^}]*right:\s*0;[^}]*left:\s*0;[^}]*width:\s*max-content;[^}]*margin-inline:\s*auto;[^}]*transform:\s*none;/);
+  const toolsHomeRule = css.match(/\.wildz-tools-home\s*\{([^}]*)\}/)?.[1] ?? "";
+  assert.doesNotMatch(toolsHomeRule, /transform:\s*translate/);
   assert.match(css, /\.wildz-companion-home\s*\{[^}]*right:/);
   assert.match(css, /\.wilds-companion-real-name/);
   assert.doesNotMatch(css, /\.wildz-world-controls[^}]*background:/);

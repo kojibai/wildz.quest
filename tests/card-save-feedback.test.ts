@@ -41,5 +41,7 @@ describe("premium card save feedback", () => {
     assert.equal(triggerCardHaptic("error", (pattern) => { patterns.push(pattern); return true; }), true);
     assert.deepEqual(patterns, [10, [12, 34, 22], [18, 32, 18]]);
     assert.equal(triggerCardHaptic("success", undefined), false);
+    assert.equal(triggerCardHaptic("success", "not-callable" as never), false);
+    assert.equal(triggerCardHaptic("success", () => { throw new Error("blocked"); }), false);
   });
 });

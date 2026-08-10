@@ -184,7 +184,7 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
             <header className="wilds-command-sheet-header">
               <span className="wilds-command-sheet-icon" aria-hidden="true">{activeItem.icon}</span>
               <span><h3 id={`wilds-command-title-${activeItem.key}`}>{activeItem.label}</h3>{activeItem.status ? <small className="wilds-command-sheet-status">{activeItem.status}</small> : null}</span>
-              <button aria-label={`Close ${activeItem.label}`} className="wilds-command-close" onClick={close} type="button">
+              <button autoFocus aria-label={`Close ${activeItem.label}`} className="wilds-command-close" onClick={close} type="button">
                 <Icons.close aria-hidden="true" size={18} />
               </button>
             </header>

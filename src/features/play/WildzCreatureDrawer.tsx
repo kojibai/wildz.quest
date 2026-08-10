@@ -18,6 +18,7 @@ import type { PortableCardAsset } from "./portable-card";
 import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
 import { currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
+import { playHapticPattern } from "./wilds-haptics";
 import { WildsCardScene } from "./WildsCardScene";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import type { AdventureCardCondition } from "./adventure/card-condition";
@@ -167,7 +168,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
 
   const commitSnap = useCallback((next: CreatureDrawerSnap) => {
     const pattern = drawerHapticPattern(snap, next);
-    if (pattern.length && typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(pattern);
+    if (pattern.length) playHapticPattern(pattern);
     onSnapChange(next);
   }, [onSnapChange, snap]);
 

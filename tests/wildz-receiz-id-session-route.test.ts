@@ -203,6 +203,81 @@ test("Receiz ID continuation never reaches upstream without the matching browser
   }
 });
 
+test("a wrong browser nonce fails closed before upstream with no session cookie", async () => {
+  const priorSecret = process.env.RECEIZ_OAUTH_STATE_SECRET;
+  const priorFetch = globalThis.fetch;
+  process.env.RECEIZ_OAUTH_STATE_SECRET = SECRET;
+  try {
+    const identity = await createReceizIdIdentity({ username: "wrong_nonce" });
+    const continuation = await buildReceizIdContinueRequest(identity, { nonceB64Url: NONCE });
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      return Response.json({ ok: true });
+    };
+    const response = await POST(new NextRequest("https://wildz.quest/api/auth/wildz/session", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: `${WILDZ_PROOF_NONCE_COOKIE}=definitely-the-wrong-nonce`
+      },
+      body: JSON.stringify(continuation)
+    }));
+
+    assert.equal(response.status, 401);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(calls, 0);
+    assert.equal(response.cookies.get(WILDZ_PROOF_SESSION_COOKIE), undefined);
+  } finally {
+    globalThis.fetch = priorFetch;
+    if (priorSecret === undefined) delete process.env.RECEIZ_OAUTH_STATE_SECRET;
+    else process.env.RECEIZ_OAUTH_STATE_SECRET = priorSecret;
+  }
+});
+
+test("malformed and hostile proof JSON fail closed before upstream without setting authority", async () => {
+  const priorSecret = process.env.RECEIZ_OAUTH_STATE_SECRET;
+  const priorFetch = globalThis.fetch;
+  process.env.RECEIZ_OAUTH_STATE_SECRET = SECRET;
+  try {
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      return Response.json({ ok: true });
+    };
+    const bodies = [
+      "{not-json",
+      JSON.stringify({
+        __proto__: { admin: true },
+        constructor: { prototype: { admitted: true } },
+        keyId: ["receiz_identity_key_hostile"],
+        alg: "none",
+        challengeB64Url: { toString: "spoof" },
+        signatureB64Url: null
+      })
+    ];
+
+    for (const body of bodies) {
+      const response = await POST(new NextRequest("https://wildz.quest/api/auth/wildz/session", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: `${WILDZ_PROOF_NONCE_COOKIE}=${NONCE}`
+        },
+        body
+      }));
+      assert.equal(response.status, 401);
+      assert.equal(response.headers.get("cache-control"), "no-store");
+      assert.equal(response.cookies.get(WILDZ_PROOF_SESSION_COOKIE), undefined);
+    }
+    assert.equal(calls, 0);
+  } finally {
+    globalThis.fetch = priorFetch;
+    if (priorSecret === undefined) delete process.env.RECEIZ_OAUTH_STATE_SECRET;
+    else process.env.RECEIZ_OAUTH_STATE_SECRET = priorSecret;
+  }
+});
+
 test("a valid local proof attempt reports remote unavailability without a browser transport error", async () => {
   const priorSecret = process.env.RECEIZ_OAUTH_STATE_SECRET;
   const priorBase = process.env.RECEIZ_BASE_URL;

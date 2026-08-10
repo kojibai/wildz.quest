@@ -8,6 +8,7 @@ import {
   drawerHapticPattern,
   settleCreatureDrawer
 } from "../src/features/play/creature-drawer";
+import { playHapticPattern } from "../src/features/play/wilds-haptics";
 
 test("drawer projection keeps its slim closed handle visible with three deliberate snaps", () => {
   const metrics = creatureDrawerMetrics(844, 34);
@@ -29,6 +30,13 @@ test("drawer settling uses flick direction and otherwise chooses the nearest sna
   assert.equal(settleCreatureDrawer(metrics.expanded - 4, 0.1, metrics), "expanded");
   assert.deepEqual(drawerHapticPattern("closed", "preview"), [9]);
   assert.deepEqual(drawerHapticPattern("preview", "expanded"), [9, 28, 14]);
+});
+
+test("drawer snap haptics tolerate missing, non-callable, and throwing vibration capabilities", () => {
+  const pattern = drawerHapticPattern("preview", "expanded");
+  assert.equal(playHapticPattern(pattern, undefined), false);
+  assert.equal(playHapticPattern(pattern, "not-callable" as never), false);
+  assert.equal(playHapticPattern(pattern, () => { throw new Error("blocked"); }), false);
 });
 
 test("book windows expose eight-card spreads and preload adjacent spreads without duplicates", () => {

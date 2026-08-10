@@ -166,7 +166,10 @@ export async function POST(request: NextRequest) {
     response.cookies.set(WILDZ_PROOF_NONCE_COOKIE, "", { ...wildzProofNonceCookieOptions(), maxAge: 0 });
     return response;
   } catch {
-    return NextResponse.json({ status: "unavailable", error: "wildz_proof_admission_invalid" }, { status: 401 });
+    return NextResponse.json(
+      { status: "unavailable", error: "wildz_proof_admission_invalid" },
+      { status: 401, headers: { "cache-control": "no-store" } }
+    );
   }
 }
 

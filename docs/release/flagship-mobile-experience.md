@@ -95,7 +95,7 @@ Reference ledger: game-director, gameplay-systems, AAA graphics, UI, debug/profi
 | Resting world HUD | Real explorer name, mission, map, status, movement, two quick utilities, tools, and active companion all share the world stage | Pass |
 | Mission and map | Each opens from its stable top home; Escape closes and restores focus; world stays mounted | Pass |
 | World status | One trigger owns live/share, audio, Kai, and living-world status; Escape restores focus | Pass |
-| World tools | Field Guide, Foraging Satchel, Trail Pack, and Card Vault open from the fan with one expansion owner | Pass |
+| World tools | Field Guide, Foraging Satchel, Trail Pack, and Card Vault open from the fan with one expansion owner; every overlay measures exactly to the viewport, moves focus inside, occludes the world, closes with Escape, and restores trigger focus | Pass |
 | Companion tap/cycle/drawer | Tap action, fast horizontal cycle, fast upward preview, handle expansion, and tasteful adjacent portraits exercised | Pass |
 | Companion hold-slide | Timed hold opened the wheel; sector traversal emitted detents; center/cancel preserved selection; directional release committed the selected real ability | Pass |
 | Concurrent touch and cancellation | CDP two-touch moved while a companion action spent energy; `touchCancel` stopped both command and D-pad ownership without stuck motion | Pass |
@@ -124,18 +124,19 @@ All measurements are composited production-browser output. `overflow` means hori
 Screenshots:
 
 - Resting matrix: `output/playwright/unified-controls-resting-320x568.png`, `unified-controls-resting-360x800.png`, `unified-controls-resting-390x844.png`, `unified-controls-resting-430x932.png`, `unified-controls-resting-844x390.png`, `unified-controls-resting-768x1024.png`, and `unified-controls-resting-1440x900.png`
-- Expansion states: `output/playwright/unified-controls-tools-fan-390x844.png`, `unified-controls-panel-open-390x844.png`, `unified-controls-world-status-390x844.png`, `unified-controls-roster-preview-390x844.png`, `unified-controls-roster-expanded-390x844.png`, and `unified-controls-ability-wheel-390x844.png`
+- Expansion states: `output/playwright/unified-controls-tools-fan-390x844.png`, `unified-controls-field-guide-390x844.png`, `unified-controls-satchel-390x844.png`, `unified-controls-trail-pack-390x844.png`, `unified-controls-card-vault-390x844.png`, `unified-controls-panel-open-390x844.png`, `unified-controls-world-status-390x844.png`, `unified-controls-roster-preview-390x844.png`, `unified-controls-roster-expanded-390x844.png`, and `unified-controls-ability-wheel-390x844.png`
 - Trainer and active combat: `output/playwright/unified-controls-trainer-390x844.png` and `unified-controls-combat-390x844.png`
+- Machine-readable browser ledger: `output/playwright/task-8-browser-evidence.json` records the exact production URL, commands/actions, all panel and seven-viewport measurements, haptic capability variants, focus/Escape results, console counts, and screenshot paths.
 
 ### Verification evidence
 
 - Build: optimized Next.js production build passed. First load for `/` is 557 kB in the final build. Build warnings are the known dynamic `web-worker` dependency inside `snarkjs`; lint has zero errors and two disclosed exhaustive-deps warnings (`cancelPointer` and `completeGenesis`).
-- Automated: 1,037 tests passed; typecheck passed; lint exited zero; `pnpm release:check` passed, including Receiz conformance 15/15, secret scan, build, and doctor.
+- Automated: 1,040 tests passed; typecheck passed; lint exited zero; `pnpm release:check` passed, including Receiz conformance 15/15, secret scan, build, and doctor.
 - Console/auth/page error: initial qualification found two automatic `401 Unauthorized` session writes. Root-cause tracing separated missing session GET, remote HTTP failure, thrown connection, non-canonical success, and missing proof-session sealing configuration. Valid local proofs now receive cache-disabled logical `unavailable` with no cookie and no upstream call when sealing is unconfigured; malformed or nonce-mismatched admission remains 401. Final clean production result: page error 0, console errors 0, console warnings 0.
 - Desktop and mobile: the full matrix above was rendered, measured, and screenshot. The 844×390 failure was repaired and remeasured from a 166 px canvas to a full 390 px canvas.
 - Canvas pixel evidence: composited screenshots, not the discarded WebGL back buffer, were measured with `signalstats`. Mobile world Y range 16–235 / YAVG 61.454; landscape 16–235 / YAVG 64.347; active combat 24–230 / YAVG 55.486. All are visibly nonblank with meaningful luminance and saturation ranges.
 - Performance evidence: at 390×844 the medium profile used DPR 1.25, 85 draw calls, 57,416 triangles, 122 geometries, and 3 textures, below the 160-call and 180,000-triangle budgets. The 120-frame warm sample averaged 16.62 ms / 60.15 fps, p95 16.7 ms, maximum 16.8 ms. Runtime quality can only recover up to the device base tier.
-- Accessibility/recovery: semantic buttons and dialog/status roles are source-contracted; keyboard Tab/ArrowUp/Escape and focus restoration were browser-tested; reduced motion computes `animation-name: none`, animation duration `0s`, and transition duration `0s`; 200% text adjustment leaves chrome inside the viewport with zero document overflow; offline map opening retains three mounted canvases and zero overflow; CDP frozen→active lifecycle recovery retained two canvases and zero overflow; pointer cancellation stops both companion and movement gestures; unavailable `navigator.vibrate` no longer throws in either world or Arena.
+- Accessibility/recovery: semantic buttons and dialog/status roles are source-contracted; all four command sheets move focus into the modal close control, Escape closes them, and focus returns to the tools trigger at 390×844, 844×390, and 768×1024; keyboard Tab/ArrowUp/Escape were browser-tested; reduced motion computes `animation-name: none`, animation duration `0s`, and transition duration `0s`; 200% text adjustment leaves chrome inside the viewport with zero document overflow; offline map opening retains three mounted canvases and zero overflow; CDP frozen→active lifecycle recovery retained two canvases and zero overflow; pointer cancellation stops both companion and movement gestures; missing, non-callable, and throwing `navigator.vibrate` capabilities are safe in the creature drawer, world, card-save feedback, and Arena.
 
 ### External asset sourcing
 
@@ -210,7 +211,7 @@ The benchmark column is an experiential ceiling of 10, independent of age, franc
 | Social/live reliability | 5.5 | 6.4 | 10 | Safe reconnecting mode and clean logical unavailability work; live canonical authority still needs deployment credentials |
 | Content breadth/polish | 6.8 | 6.9 | 10 | This pass upgrades a flagship path, not every arena, settlement, raid, resident, or trainer |
 
-Flagship-slice average: **7.85 / 10**, up from **5.24 / 10**. Whole-game observed readiness is **6.9 / 10** because the strongest interaction system is not yet matched by world-wide authored content, audio, and trainer/location coverage. This is materially advanced and mobile-first, but it is not yet honest to call the entire game equal to the best game experiences ever created.
+Flagship-slice average: **7.88 / 10**, up from **5.24 / 10**. Whole-game observed readiness is **6.9 / 10** because the strongest interaction system is not yet matched by world-wide authored content, audio, and trainer/location coverage. This is materially advanced and mobile-first, but it is not yet honest to call the entire game equal to the best game experiences ever created.
 
 ### Next highest-value location work
 
