@@ -86,6 +86,7 @@ import type { ArenaSettlement } from "@/features/games/mortal-arena/settlement";
 import {
   advanceTrainerEncounter,
   createTrainerEncounter,
+  shouldDismissTrainerEncounterForExternalCombat,
   type TrainerEncounterEvent,
   type TrainerEncounterState
 } from "@/features/play/trainer-encounter";
@@ -241,6 +242,14 @@ export function PlayCampaign({
       setMapOpen(false);
     }
   }, [exclusiveOwner, mapOpen]);
+  useEffect(() => {
+    if (!shouldDismissTrainerEncounterForExternalCombat(trainerEncounter?.phase ?? null, {
+      wildBattleActive: Boolean(state.battle),
+      pvpBattleActive: Boolean(multiplayer.activeBattle)
+    })) return;
+    setActiveTrainer(null);
+    setTrainerEncounter(null);
+  }, [multiplayer.activeBattle, state.battle, trainerEncounter?.phase]);
   const livingWorld = useWildsWorld({
     enabled: enabled && networkEnabled && Boolean(avatarStyle),
     actorId: ownerReceizId,
@@ -1049,7 +1058,13 @@ export function PlayCampaign({
               }}
             /> : null}
 
-            {avatarStyle ? <WildsMultiplayer multiplayer={multiplayer} position={state.player} onRosterOpenChange={setMultiplayerRosterOpen} /> : null}
+            {avatarStyle ? <WildsMultiplayer
+              dismissSignal={commandDismissSignal}
+              interactionEnabled={worldInteractionEnabled}
+              multiplayer={multiplayer}
+              position={state.player}
+              onRosterOpenChange={setMultiplayerRosterOpen}
+            /> : null}
             <div className="wilds-world-navigator-stack">
               {avatarStyle ? <WildsLivingWorldHud connected={networkEnabled} onEnterRaid={enterLivingRaid} player={state.player} world={livingWorld} /> : null}
             </div>
@@ -1153,7 +1168,7 @@ export function PlayCampaign({
         }))}
         worldMode={settlementWorldMode}
       />
-      {activeTrainer && activeAsset && trainerEncounter ? <WildsTrainerEncounter
+      {exclusiveOwner === "trainer" && activeTrainer && activeAsset && trainerEncounter ? <WildsTrainerEncounter
         activeCard={activeAsset}
         encounter={trainerEncounter}
         onAccept={(rosterIds) => sendTrainerEncounter({ type: "accept", rosterIds })}

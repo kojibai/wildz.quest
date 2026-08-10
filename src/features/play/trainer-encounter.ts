@@ -45,6 +45,18 @@ export type TrainerEncounterEvent =
   | { type: "rematch" }
   | { type: "return-complete" };
 
+export function shouldDismissTrainerEncounterForExternalCombat(
+  phase: TrainerEncounterPhase | null,
+  combat: { wildBattleActive: boolean; pvpBattleActive: boolean }
+) {
+  return Boolean(
+    phase
+    && phase !== "combat"
+    && (phase === "challenge" || phase === "transition" || phase === "result")
+    && (combat.wildBattleActive || combat.pvpBattleActive)
+  );
+}
+
 export function createTrainerEncounter(
   trainerId: string,
   returnPosition: TrainerEncounterWorldPosition,

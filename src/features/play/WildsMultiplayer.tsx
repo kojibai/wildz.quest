@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { WILDS_INTERACTION_DISTANCE, presenceDistance } from "./multiplayer-core";
 import type { WildsMultiplayerController } from "./use-wilds-multiplayer";
 import { shareWildzInvite } from "./wilds-invite-share";
@@ -10,10 +10,14 @@ function healthPercent(hp: number, maxHp: number) {
 }
 
 export function WildsMultiplayer({
+  dismissSignal,
+  interactionEnabled,
   multiplayer,
   position,
   onRosterOpenChange
 }: {
+  dismissSignal: number;
+  interactionEnabled: boolean;
   multiplayer: WildsMultiplayerController;
   position: { x: number; z: number };
   onRosterOpenChange?: (open: boolean) => void;
@@ -22,6 +26,7 @@ export function WildsMultiplayer({
   const [chatOpen, setChatOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [notice, setNotice] = useState("");
+  const priorDismissSignal = useRef(dismissSignal);
   const selected = multiplayer.selectedPlayer;
   const selectedDistance = selected ? presenceDistance(selected, position) : Infinity;
   const canInteract = selectedDistance <= WILDS_INTERACTION_DISTANCE && selected?.status === "available";
@@ -37,11 +42,23 @@ export function WildsMultiplayer({
     onRosterOpenChange?.(rosterOpen);
   }, [onRosterOpenChange, rosterOpen]);
   useEffect(() => () => onRosterOpenChange?.(false), [onRosterOpenChange]);
+  useEffect(() => {
+    const dismissalChanged = priorDismissSignal.current !== dismissSignal;
+    priorDismissSignal.current = dismissSignal;
+    if (interactionEnabled && !dismissalChanged) return;
+    setRosterOpen(false);
+    setChatOpen(false);
+    setMessage("");
+    multiplayer.selectPlayer(null);
+  }, [dismissSignal, interactionEnabled]);
 
   return (
     <>
       <div className="wilds-live-cluster" aria-label="Live multiplayer">
-        <button aria-label={`Open global live explorers · ${multiplayer.mode === "receiz_live" ? "connected worldwide" : "reconnecting"}`} className={`wilds-live-badge ${multiplayer.mode}`} onClick={() => setRosterOpen((value) => !value)} type="button">
+        <button aria-label={`Open global live explorers · ${multiplayer.mode === "receiz_live" ? "connected worldwide" : "reconnecting"}`} className={`wilds-live-badge ${multiplayer.mode}`} disabled={!interactionEnabled} onClick={() => {
+          if (!interactionEnabled) return;
+          setRosterOpen((value) => !value);
+        }} type="button">
           <i />
           <span>{multiplayer.remotePlayers.length}</span>
         </button>
@@ -63,19 +80,26 @@ export function WildsMultiplayer({
           <p>{multiplayer.mode === "receiz_live" ? "Connected globally · exact live positions" : "Reconnecting to global presence"}</p>
           <div className="wilds-live-player-list">
             {multiplayer.remotePlayers.length ? multiplayer.remotePlayers.map((player) => (
-              <button key={player.playerId} onClick={() => { multiplayer.selectPlayer(player); setRosterOpen(false); }} type="button">
+              <button disabled={!interactionEnabled} key={player.playerId} onClick={() => {
+                if (!interactionEnabled) return;
+                multiplayer.selectPlayer(player);
+                setRosterOpen(false);
+              }} type="button">
                 <i className={player.style} /><span><strong>{player.handle}</strong><small>{Math.round(presenceDistance(player, position))}m · {player.activeCard.name}</small></span><b>{player.status}</b>
               </button>
             )) : <div className="wilds-live-empty"><strong>The trail is quiet.</strong><span>Share the invite link and another explorer will appear here live.</span></div>}
           </div>
-          <button className="wilds-live-chat-toggle" onClick={() => setChatOpen((value) => !value)} type="button">{chatOpen ? "Close room chat" : "Open room chat"}</button>
+          <button className="wilds-live-chat-toggle" disabled={!interactionEnabled} onClick={() => {
+            if (!interactionEnabled) return;
+            setChatOpen((value) => !value);
+          }} type="button">{chatOpen ? "Close room chat" : "Open room chat"}</button>
           {chatOpen ? <form className="wilds-live-chat" onSubmit={async (event) => {
             event.preventDefault();
-            if (!message.trim()) return;
+            if (!interactionEnabled || !message.trim()) return;
             try { await multiplayer.sendMessage(message); setMessage(""); } catch (cause) { setNotice(cause instanceof Error ? cause.message : "Message not sent"); }
           }}>
             <div>{multiplayer.snapshot?.messages.slice(-8).map((item) => <p key={item.id}><b>{item.senderHandle}</b><span>{item.text}</span></p>)}</div>
-            <label><span className="sr-only">Room message</span><input maxLength={280} onChange={(event) => setMessage(event.target.value)} placeholder="Say something kind…" value={message} /><button type="submit">Send</button></label>
+            <label><span className="sr-only">Room message</span><input disabled={!interactionEnabled} maxLength={280} onChange={(event) => setMessage(event.target.value)} placeholder="Say something kind…" value={message} /><button disabled={!interactionEnabled} type="submit">Send</button></label>
           </form> : null}
         </section>
       ) : null}
@@ -86,7 +110,8 @@ export function WildsMultiplayer({
           <div className="wilds-player-card-line"><i className={selected.style} /><span><strong>{selected.activeCard.name}</strong><small>{selected.activeCard.stats.health} HP · {selected.activeCard.stats.power} power · {Math.round(selectedDistance)}m away</small></span></div>
           {!canInteract ? <p className="wilds-live-distance">Move within {WILDS_INTERACTION_DISTANCE}m to chat or battle.</p> : null}
           <div className="wilds-challenge-modes">
-            <button disabled={!canInteract} onClick={async () => {
+            <button disabled={!interactionEnabled || !canInteract} onClick={async () => {
+              if (!interactionEnabled) return;
               try { await multiplayer.offerChallenge(selected.playerId); setNotice(`Friendly battle sent to ${selected.handle}.`); multiplayer.selectPlayer(null); }
               catch (cause) { setNotice(cause instanceof Error ? cause.message : "Challenge not sent"); }
             }} type="button"><strong>Friendly battle</strong><span>Proof-sealed result · no custody transfer</span></button>
@@ -101,7 +126,13 @@ export function WildsMultiplayer({
           <span>Challenge signal</span>
           <h3>{multiplayer.snapshot?.players.find((player) => player.playerId === multiplayer.incomingChallenge?.challengerId)?.handle ?? "A nearby explorer"} wants to battle</h3>
           <p>{multiplayer.incomingChallenge.challengerCard.name} · Friendly mode · no cards or funds change hands</p>
-          <div><button onClick={() => void multiplayer.answerChallenge(multiplayer.incomingChallenge!.id, "decline")} type="button">Decline</button><button className="primary" onClick={() => void multiplayer.answerChallenge(multiplayer.incomingChallenge!.id, "accept")} type="button">Accept battle</button></div>
+          <div><button disabled={!interactionEnabled} onClick={() => {
+            if (!interactionEnabled) return;
+            void multiplayer.answerChallenge(multiplayer.incomingChallenge!.id, "decline");
+          }} type="button">Decline</button><button className="primary" disabled={!interactionEnabled} onClick={() => {
+            if (!interactionEnabled) return;
+            void multiplayer.answerChallenge(multiplayer.incomingChallenge!.id, "accept");
+          }} type="button">Accept battle</button></div>
         </section>
       ) : null}
 

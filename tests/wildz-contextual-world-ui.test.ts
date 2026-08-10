@@ -31,6 +31,20 @@ test("campaign projects one modal owner and gates underlying world input", () =>
   assert.match(campaign, /searchEnabled=\{worldInteractionEnabled && discoveryActive && Boolean\(avatarStyle\)\}/);
 });
 
+test("exclusive ownership dismisses multiplayer expansions and blocks roster and challenge actions", () => {
+  const campaign = read("src/features/play/PlayCampaign.tsx");
+  const multiplayer = read("src/features/play/WildsMultiplayer.tsx");
+
+  assert.match(campaign, /<WildsMultiplayer[\s\S]*dismissSignal=\{commandDismissSignal\}[\s\S]*interactionEnabled=\{worldInteractionEnabled\}/);
+  assert.match(multiplayer, /dismissSignal: number/);
+  assert.match(multiplayer, /interactionEnabled: boolean/);
+  assert.match(multiplayer, /setRosterOpen\(false\);[\s\S]*setChatOpen\(false\);[\s\S]*setMessage\(""\);[\s\S]*multiplayer\.selectPlayer\(null\)/);
+  assert.match(multiplayer, /className=\{`wilds-live-badge[\s\S]*disabled=\{!interactionEnabled\}/);
+  assert.match(multiplayer, /disabled=\{!interactionEnabled \|\| !canInteract\}/);
+  assert.match(multiplayer, /if \(!interactionEnabled\) return;[\s\S]*multiplayer\.offerChallenge/);
+  assert.match(multiplayer, /disabled=\{!interactionEnabled\}[\s\S]*multiplayer\.answerChallenge/);
+});
+
 test("campaign removes duplicate world chrome and persistent distant trainer navigation", () => {
   const campaign = read("src/features/play/PlayCampaign.tsx");
   for (const legacy of ["wilds-hud-top", "wilds-resource-strip", "runner-card", "wilds-mission-meter", "wilds-trainer-navigator"]) {

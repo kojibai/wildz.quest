@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   advanceTrainerEncounter,
   createTrainerEncounter,
+  shouldDismissTrainerEncounterForExternalCombat,
   type TrainerEncounterResult
 } from "../src/features/play/trainer-encounter";
 
@@ -85,6 +86,29 @@ describe("trainer encounter director", () => {
     assert.equal(next.phase, "idle");
     assert.equal(next.error, "trainer_encounter_invalid_transition");
   });
+
+  it("dismisses visible trainer phases when an asynchronous PvP battle takes ownership", () => {
+    let challenge = advanceTrainerEncounter(createTrainerEncounter(trainerId, worldPosition), { type: "recognize" });
+    challenge = advanceTrainerEncounter(challenge, { type: "open-challenge" });
+    const transition = advanceTrainerEncounter(challenge, { type: "accept", rosterIds: ["card:a"], now: 1_000 });
+    const combat = advanceTrainerEncounter(transition, { type: "transition-complete" });
+    const result = advanceTrainerEncounter(combat, { type: "settlement-committed", settlementId: "settlement:1", result: victory });
+
+    for (const encounter of [challenge, transition, result]) {
+      assert.equal(shouldDismissTrainerEncounterForExternalCombat(encounter.phase, {
+        wildBattleActive: false,
+        pvpBattleActive: false
+      }), false);
+      assert.equal(shouldDismissTrainerEncounterForExternalCombat(encounter.phase, {
+        wildBattleActive: false,
+        pvpBattleActive: true
+      }), true, encounter.phase);
+    }
+    assert.equal(shouldDismissTrainerEncounterForExternalCombat(combat.phase, {
+      wildBattleActive: false,
+      pvpBattleActive: true
+    }), false);
+  });
 });
 
 describe("trainer encounter presentation", () => {
@@ -106,6 +130,8 @@ describe("trainer encounter presentation", () => {
       "Review"
     ]) assert.match(component, new RegExp(token));
     assert.match(campaign, /trainerEncounter\?\.phase === "combat"/);
+    assert.match(campaign, /exclusiveOwner === "trainer" && activeTrainer && activeAsset && trainerEncounter/);
+    assert.match(campaign, /shouldDismissTrainerEncounterForExternalCombat/);
     assert.match(campaign, /settlementId: settlement\.id/);
     assert.match(campaign, /dismissSignal=\{commandDismissSignal\}/);
     assert.match(arena, /resultPresentation === "arena"/);
