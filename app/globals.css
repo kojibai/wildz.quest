@@ -14401,6 +14401,14 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   transform: none;
 }
 
+.wildz-world-controls.is-panel-open .wildz-tools-home {
+  z-index: 2;
+}
+
+.wildz-world-controls.is-panel-open :is(.wildz-movement-home, .wildz-companion-home) {
+  pointer-events: none;
+}
+
 .wildz-tools-home > .wilds-command-system {
   position: relative;
   z-index: auto;

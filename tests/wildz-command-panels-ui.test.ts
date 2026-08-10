@@ -18,11 +18,18 @@ test("command sheets share a compact status consequence action hierarchy", () =>
   assert.match(dock, /document\.documentElement\.classList\.add\("wilds-command-open"\)/);
   assert.match(dock, /document\.body\.classList\.add\("wilds-command-open"\)/);
   assert.match(dock, /autoFocus[\s\S]*aria-label=\{`Close \$\{activeItem\.label\}`\}/);
+  assert.match(dock, /const sheetRef = useRef<HTMLElement \| null>\(null\)/);
+  assert.match(dock, /if \(event\.key === "Tab"\)[\s\S]*event\.preventDefault\(\)/);
+  assert.match(dock, /document\.addEventListener\("focusin", containFocus\)/);
+  assert.match(dock, /tabIndex=\{-1\}[\s\S]*className="wilds-command-backdrop"/);
+  assert.match(dock, /aria-hidden=\{activeItem \? true : undefined\}[\s\S]*disabled=\{Boolean\(activeItem\)\}/);
   assert.match(css, /\.wilds-command-sheet-header\s*\{[^}]*position:\s*sticky/s);
   assert.match(css, /\.wilds-command-sheet-content\s*\{[^}]*padding:\s*0 12px 12px/s);
   assert.match(css, /html\.wilds-command-open,\s*body\.wilds-command-open\s*\{[^}]*background:\s*#09110d\s*!important/s);
   assert.match(css, /\.wilds-command-overlay::after\s*\{[^}]*position:\s*fixed[^}]*background:\s*#09110d/s);
   assert.match(css, /\.wildz-tools-home\s*\{[^}]*transform:\s*none/s);
+  assert.match(css, /\.wildz-world-controls\.is-panel-open \.wildz-tools-home\s*\{[^}]*z-index:\s*2/s);
+  assert.match(css, /\.wildz-world-controls\.is-panel-open :is\(\.wildz-movement-home, \.wildz-companion-home\)\s*\{[^}]*pointer-events:\s*none/s);
   assert.doesNotMatch(css, /\.wildz-tools-home\s*\{[^}]*transform:\s*translate/s);
   assert.doesNotMatch(css, /\.wilds-command-sheet[^}]*transform:\s*scale\(/s);
 });

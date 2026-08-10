@@ -77,25 +77,27 @@ export function WildzWorldControls({
   const rest = useStableEvent(onRest);
   const requestHandled = useStableEvent(onRequestedCommandHandled);
   const controlsEnabled = exclusiveOwner === "none" && state.exclusiveOwner === "none";
+  const panelOpen = controlsEnabled && state.panelKey !== null;
+  const worldHomesEnabled = controlsEnabled && !panelOpen;
   const handleInput = useCallback((input: WildsInput) => {
-    if (controlsEnabled) forwardInput(input);
-  }, [controlsEnabled, forwardInput]);
+    if (worldHomesEnabled) forwardInput(input);
+  }, [forwardInput, worldHomesEnabled]);
   const handleToolsOpenChange = useCallback((open: boolean) => dispatch({ type: "tools", open }), [dispatch]);
   const handlePanelKeyChange = useCallback((key: WildsCommandKey | null) => dispatch({ type: "panel", key }), [dispatch]);
   const handleDrawerSnapChange = useCallback((snap: "closed" | "preview" | "expanded") => dispatch({ type: "drawer", snap }), [dispatch]);
   const handleRequestDrawer = useCallback((snap: "preview" | "expanded") => dispatch({ type: "drawer", snap }), [dispatch]);
   const handleSelectCard = useCallback((assetId: string) => {
-    if (controlsEnabled) selectCard(assetId);
-  }, [controlsEnabled, selectCard]);
+    if (worldHomesEnabled) selectCard(assetId);
+  }, [selectCard, worldHomesEnabled]);
   const handleUsePower = useCallback(() => {
-    if (controlsEnabled) invokeAction();
-  }, [controlsEnabled, invokeAction]);
+    if (worldHomesEnabled) invokeAction();
+  }, [invokeAction, worldHomesEnabled]);
   const handleRest = useCallback(() => {
-    if (controlsEnabled) rest();
-  }, [controlsEnabled, rest]);
+    if (worldHomesEnabled) rest();
+  }, [rest, worldHomesEnabled]);
   const handleMovementModeChange = useCallback(() => {
-    if (controlsEnabled) changeMovementMode(movementMode === "walk" ? "run" : "walk");
-  }, [changeMovementMode, controlsEnabled, movementMode]);
+    if (worldHomesEnabled) changeMovementMode(movementMode === "walk" ? "run" : "walk");
+  }, [changeMovementMode, movementMode, worldHomesEnabled]);
   const fieldPowers = useMemo(() => {
     const form = activeCard ? creatureForm(activeCard.manifest.formId) : null;
     return form?.abilities.map((ability, index) => ({ id: `${form.id}:${index}`, label: ability.name }))
@@ -107,13 +109,13 @@ export function WildzWorldControls({
   }, [exclusiveOwner, requestHandled, requestedCommand]);
 
   return (
-    <section className="wildz-world-controls" aria-label="World controls">
-      <div className="wildz-movement-home">
+    <section className={`wildz-world-controls${panelOpen ? " is-panel-open" : ""}`} aria-label="World controls">
+      <div aria-hidden={panelOpen} className="wildz-movement-home" inert={panelOpen ? true : undefined}>
         <div className="wildz-quick-utilities" aria-label="Quick utilities">
-          <button aria-label="Make camp and recover" disabled={!controlsEnabled} onClick={handleRest} type="button"><Icons.camp size={20} /></button>
+          <button aria-label="Make camp and recover" disabled={!worldHomesEnabled} onClick={handleRest} type="button"><Icons.camp size={20} /></button>
           <button
             aria-label={movementMode === "walk" ? "Switch to running" : "Switch to walking"}
-            disabled={!controlsEnabled}
+            disabled={!worldHomesEnabled}
             onClick={handleMovementModeChange}
             type="button"
           >
@@ -141,7 +143,7 @@ export function WildzWorldControls({
         />
       </div>
 
-      <div className="wildz-companion-home">
+      <div aria-hidden={panelOpen} className="wildz-companion-home" inert={panelOpen ? true : undefined}>
         <WildzCreatureDrawer
           activeCard={activeCard}
           cardOrder={cardOrder}
@@ -150,7 +152,7 @@ export function WildzWorldControls({
           nearbyCards={nearbyCards}
           onCardOrderChange={changeCardOrder}
           onSelectCard={selectCard}
-          snap={controlsEnabled ? state.drawerSnap : "closed"}
+          snap={worldHomesEnabled ? state.drawerSnap : "closed"}
           onSnapChange={handleDrawerSnapChange}
         />
         <WildsCompanionCommand

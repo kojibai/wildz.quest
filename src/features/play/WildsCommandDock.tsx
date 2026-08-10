@@ -27,6 +27,7 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
 }) {
   const [dragY, setDragY] = useState(0);
   const toolsTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const sheetRef = useRef<HTMLElement | null>(null);
   const originTriggerRef = useRef<HTMLElement | null>(null);
   const dragStart = useRef<number | null>(null);
   const priorDismissSignal = useRef(dismissSignal);
@@ -77,11 +78,36 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
     document.body.classList.add("wilds-command-open");
     document.body.style.overflow = "hidden";
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
+      if (event.key === "Escape") {
+        close();
+        return;
+      }
+      if (event.key === "Tab") {
+        const focusable = Array.from(sheetRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), select:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+        ) ?? []);
+        if (!focusable.length) return;
+        const first = focusable[0]!;
+        const last = focusable[focusable.length - 1]!;
+        if (event.shiftKey && (document.activeElement === first || !sheetRef.current?.contains(document.activeElement))) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !sheetRef.current?.contains(document.activeElement))) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    const containFocus = (event: FocusEvent) => {
+      if (event.target instanceof Node && !sheetRef.current?.contains(event.target)) {
+        sheetRef.current?.querySelector<HTMLElement>("[autofocus], button:not([disabled])")?.focus();
+      }
     };
     window.addEventListener("keydown", onKeyDown);
+    document.addEventListener("focusin", containFocus);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("focusin", containFocus);
       document.body.style.overflow = previousOverflow;
       document.documentElement.classList.remove("wilds-command-open");
       document.body.classList.remove("wilds-command-open");
@@ -100,8 +126,10 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
       <button
         aria-controls="wilds-world-tools-fan"
         aria-expanded={toolsOpen}
+        aria-hidden={activeItem ? true : undefined}
         aria-label="Open world tools"
         className="wilds-world-tools-trigger"
+        disabled={Boolean(activeItem)}
         onClick={() => {
           originTriggerRef.current = toolsTriggerRef.current;
           onToolsOpenChange(!toolsOpen);
@@ -148,13 +176,14 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
 
       {activeItem ? (
         <div className="wilds-command-overlay">
-          <button className="wilds-command-backdrop" aria-label={`Close ${activeItem.label}`} onClick={close} type="button" />
+          <button tabIndex={-1} className="wilds-command-backdrop" aria-label={`Close ${activeItem.label}`} onClick={close} type="button" />
           <section
             aria-labelledby={`wilds-command-title-${activeItem.key}`}
             aria-modal="true"
             className={`wilds-command-sheet wilds-command-sheet-${activeItem.key}`}
             id={`wilds-command-sheet-${activeItem.key}`}
             role="dialog"
+            ref={sheetRef}
             style={{ "--wilds-sheet-drag": `${dragY}px` } as CSSProperties}
           >
             <button
