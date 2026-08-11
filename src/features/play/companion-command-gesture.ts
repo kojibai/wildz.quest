@@ -17,7 +17,7 @@ export type CompanionGestureState = Readonly<{
 }>;
 
 export type CompanionGestureResult =
-  | { kind: "open-drawer-expanded" }
+  | { kind: "open-drawer-preview" }
   | { kind: "open-quick-actions" }
   | { kind: "cycle-previous" }
   | { kind: "cycle-next" }
@@ -73,7 +73,7 @@ export function releaseCompanionGesture(
     return { kind: "cancel" };
   }
   if (final.mode === "vertical") {
-    return dy <= -COMPANION_DRAWER_PX ? { kind: "open-drawer-expanded" } : { kind: "cancel" };
+    return dy <= -COMPANION_DRAWER_PX ? { kind: "open-drawer-preview" } : { kind: "cancel" };
   }
   if (final.mode === "quick-actions") {
     return { kind: "open-quick-actions" };
@@ -90,7 +90,7 @@ export function cancelCompanionGesture(_state: CompanionGestureState): Companion
 
 export function companionCommandKeyResult(key: string): CompanionGestureResult["kind"] | null {
   if (key === "Enter" || key === " ") return "open-quick-actions";
-  if (key === "ArrowUp") return "open-drawer-expanded";
+  if (key === "ArrowUp") return "open-drawer-preview";
   if (key === "ArrowLeft") return "cycle-previous";
   if (key === "ArrowRight") return "cycle-next";
   if (key === "Escape") return "cancel";

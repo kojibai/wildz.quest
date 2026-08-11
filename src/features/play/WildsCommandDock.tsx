@@ -193,43 +193,45 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
           <section
             aria-labelledby={`wilds-command-title-${activeItem.key}`}
             aria-modal="true"
-            className={`wilds-command-sheet wilds-command-sheet-${activeItem.key}`}
+            className={`wilds-command-sheet wilds-command-sheet-${activeItem.key}${dragY > 0 ? " is-dragging" : ""}`}
             id={`wilds-command-sheet-${activeItem.key}`}
             role="dialog"
             ref={sheetRef}
             style={{ "--wilds-sheet-drag": `${dragY}px` } as CSSProperties}
           >
-            <button
-              aria-label={`Drag down to close ${activeItem.label}`}
-              className="wilds-command-handle"
-              onLostPointerCapture={() => {
-                dragStart.current = null;
-                setDragY(0);
-              }}
-              onPointerCancel={() => {
-                dragStart.current = null;
-                setDragY(0);
-              }}
-              onPointerDown={(event) => {
-                dragStart.current = event.clientY;
-                event.currentTarget.setPointerCapture(event.pointerId);
-              }}
-              onPointerMove={(event) => {
-                if (dragStart.current === null) return;
-                setDragY(Math.max(0, event.clientY - dragStart.current));
-              }}
-              onPointerUp={(event) => releaseDrag(event.currentTarget, event.pointerId)}
-              type="button"
-            >
-              <span aria-hidden="true" />
-            </button>
-            <header className="wilds-command-sheet-header">
-              <span className="wilds-command-sheet-icon" aria-hidden="true">{activeItem.icon}</span>
-              <span><h3 id={`wilds-command-title-${activeItem.key}`}>{activeItem.label}</h3>{activeItem.status ? <small className="wilds-command-sheet-status">{activeItem.status}</small> : null}</span>
-              <button autoFocus aria-label={`Close ${activeItem.label}`} className="wilds-command-close" onClick={close} type="button">
-                <Icons.close aria-hidden="true" size={18} />
+            <div className="wilds-command-sheet-chrome">
+              <button
+                aria-label={`Drag down to close ${activeItem.label}`}
+                className="wilds-command-handle"
+                onLostPointerCapture={() => {
+                  dragStart.current = null;
+                  setDragY(0);
+                }}
+                onPointerCancel={() => {
+                  dragStart.current = null;
+                  setDragY(0);
+                }}
+                onPointerDown={(event) => {
+                  dragStart.current = event.clientY;
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                }}
+                onPointerMove={(event) => {
+                  if (dragStart.current === null) return;
+                  setDragY(Math.max(0, event.clientY - dragStart.current));
+                }}
+                onPointerUp={(event) => releaseDrag(event.currentTarget, event.pointerId)}
+                type="button"
+              >
+                <span aria-hidden="true" />
               </button>
-            </header>
+              <header className="wilds-command-sheet-header">
+                <span className="wilds-command-sheet-icon" aria-hidden="true">{activeItem.icon}</span>
+                <span><h3 id={`wilds-command-title-${activeItem.key}`}>{activeItem.label}</h3>{activeItem.status ? <small className="wilds-command-sheet-status">{activeItem.status}</small> : null}</span>
+                <button autoFocus aria-label={`Close ${activeItem.label}`} className="wilds-command-close" onClick={close} type="button">
+                  <Icons.close aria-hidden="true" size={18} />
+                </button>
+              </header>
+            </div>
             <div className="wilds-command-sheet-content">{activeItem.content}</div>
           </section>
         </div>

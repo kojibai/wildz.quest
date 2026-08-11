@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { Icons } from "@/components/icons";
 import {
   advanceCompanionGesture,
   cancelCompanionGesture,
@@ -97,10 +96,11 @@ export function WildsCompanionCommand({
   const consume = (result: CompanionGestureResult) => {
     if (result.kind === "open-quick-actions") {
       playWildsHaptic("drawer-open");
-      setQuickActionsOpen(true);
-    } else if (result.kind === "open-drawer-expanded") {
+      setQuickActionsOpen((open) => !open);
+    } else if (result.kind === "open-drawer-preview") {
       playWildsHaptic("drawer-open");
-      onRequestDrawer("expanded");
+      setQuickActionsOpen(false);
+      onRequestDrawer("preview");
     } else if (result.kind === "cycle-next") {
       cycle(1);
     } else if (result.kind === "cycle-previous") {
@@ -198,7 +198,7 @@ export function WildsCompanionCommand({
     if (result === "cycle-previous") cycle(-1);
     else if (result === "cycle-next") cycle(1);
     else if (result === "open-quick-actions") consume({ kind: result });
-    else if (result === "open-drawer-expanded") consume({ kind: result });
+    else if (result === "open-drawer-preview") consume({ kind: result });
     else cancelPointer();
   };
 
@@ -215,17 +215,16 @@ export function WildsCompanionCommand({
       <header>
         <WildsCreatureThumbnail asset={activeEntry.asset} className="wilds-companion-quick-portrait" />
         <span><strong>{activeEntry.name}</strong><small>Lv. {activeEntry.level} · {activeEntry.xp} XP · Bond {activeEntry.bond}</small><b>{activeEntry.element} · {activeEntry.conditionLabel}</b></span>
-        <button aria-label="Close character actions" onClick={() => runQuickAction(() => {})} type="button"><Icons.close aria-hidden="true" size={17} /></button>
       </header>
       <div>
-        <button onClick={() => runQuickAction(() => onTrainCharacter(activeEntry.asset.manifest.familyId))} type="button">Train</button>
+        <button onClick={() => runQuickAction(() => onTrainCharacter(activeEntry.asset.manifest.familyId))} type="button">Bond</button>
         <button onClick={() => runQuickAction(onRecoverCharacter)} type="button">Recover</button>
         <button onClick={() => runQuickAction(onViewInVault)} type="button">View in Vault</button>
       </div>
     </div> : null}
     <button
       aria-expanded={quickActionsOpen}
-      aria-label={activeEntry ? `${activeEntry.name}. Open character actions. Swipe sideways to change character, flick up for the full roster, or hold for character actions.` : "No selectable creature in this Vault."}
+      aria-label={activeEntry ? `${activeEntry.name}. Open character actions. Swipe sideways to change character, flick up for Slate, or hold for character actions.` : "No selectable creature in this Vault."}
       className="wilds-companion-command"
       disabled={!activeEntry}
       onKeyDown={onKeyDown}

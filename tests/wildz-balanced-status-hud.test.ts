@@ -80,5 +80,5 @@ test("top-right status uses one primary row, slimmer event rows, and elevated li
   assert.match(finalCss, /\.wilds-map-status-home \.wilds-live-pill\.event\s*\{[^}]*grid-column:\s*1\s*\/\s*-1[^}]*min-height:\s*44px/s);
   assert.match(finalCss, /\.wilds-map-status-home \.wilds-live-pill\.event::before\s*\{[^}]*inset-block:\s*4px/s);
   assert.match(finalCss, /\.wilds-stage\.multiplayer-roster-open \.wilds-map-status-home\s*\{[^}]*z-index:/s);
-  assert.match(css, /\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(228px \+ var\(--wildz-stage-safe-top\)\)/s);
+  assert.match(css, /\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(254px \+ var\(--wildz-stage-safe-top\)\)/s);
 });

@@ -4,6 +4,8 @@
 
 **Goal:** Put the three top-right status controls in one collision-free row, slim the event bars beneath them without truncation, keep audio unchanged, make the bottom-right companion control character-only, repair mobile sheet scrolling, and premiumize capture feedback.
 
+**Approved extension:** Add a 26-pixel live world-heading compass above the existing HUD, driven by the real movement/minimap heading and authored landmark coordinates, then shift every top home down as one collision-safe system.
+
 **Architecture:** Keep Kai Klok and all domain components intact. Change only final HUD composition CSS and the companion command’s activation contract; the existing Vault roster projection, drawer, selection reducer, focus restoration, and modal ownership remain authoritative.
 
 **Tech Stack:** Next.js 15, React 19, TypeScript, CSS, Node test runner, Playwright browser verification.
@@ -16,7 +18,7 @@
 - The opened live roster stacks above Kai Klok, audio, and every resting HUD control.
 - Status/event visuals may shrink, but every semantic target remains at least 44 by 44 CSS pixels.
 - Audio control and icon dimensions remain unchanged.
-- Bottom-right tap/hold/Enter/Space opens compact real character actions; upward flick opens expanded Slate; none opens or executes field abilities.
+- Bottom-right tap/hold/Enter/Space toggles compact real character actions; upward flick restores the `0161317` single-row Slate preview and its existing pull-to-full expansion; none opens or executes field abilities.
 - Character selection continues through the existing authoritative `select-asset` path using exact sealed Vault names and IDs.
 - Do not create a replacement field-ability HUD control.
 
@@ -36,7 +38,7 @@
 
 **Interfaces:**
 - Consumes: `onRequestDrawer(snap: "preview" | "expanded")`, `onSelectCard(assetId: string)`, and the existing `VaultCompanionRosterEntry[]`.
-- Produces: a `WildsCompanionCommand` whose pointer click and Enter/Space activation call `onRequestDrawer("preview")`, whose upward flick and hold call `onRequestDrawer("expanded")`, and whose sideways gestures still call `onSelectCard`; no ability props or listbox surface remain.
+- Produces: a `WildsCompanionCommand` whose pointer click and Enter/Space activation toggle quick actions, whose upward flick calls `onRequestDrawer("preview")`, and whose sideways gestures still call `onSelectCard`; no ability props or listbox surface remain.
 
 - [ ] **Step 1: Write the failing character-only activation tests**
 
@@ -48,7 +50,7 @@ test("the companion command activates only the owned-character roster", () => {
   const controls = readFileSync("src/features/play/WildzWorldControls.tsx", "utf8");
 
   assert.match(command, /result\.kind === "open-drawer-preview"[\s\S]*onRequestDrawer\("preview"\)/);
-  assert.match(command, /result\.kind === "open-drawer-expanded"[\s\S]*onRequestDrawer\("expanded"\)/);
+  assert.match(command, /result\.kind === "open-drawer-preview"[\s\S]*onRequestDrawer\("preview"\)/);
   assert.match(command, /event\.key === "Enter" \|\| event\.key === " "[\s\S]*onRequestDrawer\("preview"\)/);
   assert.match(command, /aria-label=\{activeEntry \? `\$\{activeEntry\.name\}\. Open character roster\./);
   assert.doesNotMatch(command, /onUsePower|onSelectAbility|abilityListboxRef|wilds-companion-ability-wheel|Choose active companion ability/);
@@ -56,7 +58,7 @@ test("the companion command activates only the owned-character roster", () => {
 });
 ```
 
-In the real drawer fixture, verify pointer click and Enter transition `closed` to `preview`, while upward flick and hold transition `closed` to `expanded`, without changing selected asset or last world event.
+In the real drawer fixture, verify pointer tap and Enter toggle character quick actions, while upward flick transitions `closed` to the original single-row `preview` and the existing handle can then pull it to `expanded`, without changing selected asset or last world event.
 
 - [ ] **Step 2: Run the focused tests and verify RED**
 
@@ -82,7 +84,7 @@ playWildsHaptic("drawer-open");
 onRequestDrawer("preview");
 ```
 
-- map upward flick and hold results to `onRequestDrawer("expanded")`;
+- map upward flick to `onRequestDrawer("preview")` so the established single-row-to-full Slate pull remains unchanged;
 - map Enter and Space to the compact roster-open path;
 - preserve left/right character cycling, upward roster opening, pointer cancel/lost-capture cleanup, and exclusive-owner cancellation;
 - change the accessible name to character-selection language and remove `aria-haspopup="listbox"`/ability-expanded semantics;
@@ -236,7 +238,7 @@ Using a real two-creature Vault profile:
 5. reload and assert persistence;
 6. focus the command, press Enter, and assert Slate opens again with focus inside;
 7. hold the command and assert expanded Slate opens;
-8. flick upward and assert expanded Slate opens;
+8. flick upward and assert the single-row Slate preview opens, then pull its handle and assert expanded Slate opens;
 9. assert no Grove Pulse, Bond, or field-ability options appear in any selector flow.
 
 - [ ] **Step 4: Run final release gates**
@@ -261,3 +263,20 @@ Document exact viewport measurements, selector behavior, console/page/network re
 git add docs/release/flagship-mobile-experience.md docs/release/evidence/compact-status-character-selector
 git commit -m "test: qualify compact HUD character selector"
 ```
+
+---
+
+### Task 4: Live world-heading compass
+
+**Files:**
+- Add: `src/features/play/world-heading-compass.ts`
+- Add: `src/features/play/WildzDirectionCompass.tsx`
+- Modify: `src/features/play/WildzReferenceHud.tsx`
+- Modify: `app/globals.css`
+- Add: `tests/wildz-direction-compass.test.ts`
+
+- [x] Write RED tests for movement-aligned degrees, north wrapping, the visible landmark arc, HUD composition, and reserved top geometry.
+- [x] Implement the pure heading/bearing projection and the non-interactive reference-HUD compass.
+- [x] Reserve a 26-pixel safe top lane and shift the reference, instrument, status, and scan bands down together.
+- [ ] Verify live heading changes plus collision-free 320x568, 390x844, and 844x390 production geometry.
+- [ ] Run full release gates and create the requested second commit.

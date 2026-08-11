@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import type { WildzCharacterGenesis } from "../identity/wildz-genesis";
 import { projectWildsExplorerAppearance } from "./wilds-explorer-appearance";
 import type { WildzHudModel } from "./wildz-gameplay-hud";
+import { WildzDirectionCompass } from "./WildzDirectionCompass";
 import { WildzMinimap } from "./WildzMinimap";
 
 export function WildzReferenceHud({ model, heading, character, interactionEnabled, modalOwned, onOpenMap, onOpenMission, onOpenProfile }: {
@@ -19,6 +20,7 @@ export function WildzReferenceHud({ model, heading, character, interactionEnable
   const appearance = projectWildsExplorerAppearance(character);
   const explorerName = model.player.displayName || model.player.username;
   return <div aria-hidden={modalOwned} className={`wildz-reference-hud${modalOwned ? " is-modal-owned" : ""}`} inert={modalOwned ? true : undefined}>
+    <WildzDirectionCompass heading={heading} x={model.location.x} z={model.location.z} />
     <div className="wildz-identity-home">
       <button className="wildz-explorer-capsule" aria-label={`Open profile for ${explorerName}, explorer level ${model.player.level}, ${model.energy.current}% energy`} data-explorer-proof={character.digest.slice(0, 16)} disabled={!interactionEnabled} onClick={onOpenProfile} type="button">
         <div

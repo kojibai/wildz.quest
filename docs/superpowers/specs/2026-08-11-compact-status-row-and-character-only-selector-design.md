@@ -28,6 +28,14 @@ The “Everyone live now” roster is an expanded surface. While open, it stacks
 
 The audio control remains beside the Kai Klok and keeps its current size, icon size, settings sheet, and behavior. Its interactive hit area remains at least 44 by 44 CSS pixels, and the audio sheet remains centered and viewport-bounded.
 
+## Live Direction Compass
+
+A slim, non-interactive compass ribbon occupies its own safe-area-aware lane at the top center. The explorer, mission, minimap, Kai/audio instruments, status row, and scan action shift down together so the compass never overlays an existing control.
+
+The fixed center caret represents the explorer's live facing. Fifteen-degree ticks and cardinal labels slide beneath it using the same real movement heading as the world actor and minimap. Nearby authored world landmarks may appear as restrained markers only while their actual bearing is within the visible sixty-degree arc. The compass does not invent GPS data, own input, or become another button.
+
+At narrow portrait and short-landscape sizes it stays 26 pixels tall, remains inside the safe viewport, and yields horizontally before it can collide with the identity or minimap homes. Its accessible status label reports the current cardinal and degrees; modal ownership hides it with the rest of the reference HUD.
+
 ## Event Bars
 
 Nearby world-event bars remain below the three-control primary row. Their semantic targets remain at least 44 pixels high, but the visible pill surface is inset to a 36-pixel visual height with tighter vertical rhythm. Event name and distance remain fully readable on supported mobile widths: no ellipsis, clipping, or hidden distance text.
@@ -36,20 +44,22 @@ Nearby world-event bars remain below the three-control primary row. Their semant
 
 The bottom-right companion control is exclusively for owned-character selection:
 
-- pressing or clicking it opens a compact active-character action panel;
+- pressing or clicking it toggles a compact active-character action panel; a second tap closes it without a separate close icon;
 - Enter or Space opens the same active-character action panel;
 - horizontal character cycling may remain because it only changes the selected owned character;
-- an upward flick opens the expanded roster with full character stats;
+- an upward flick preserves the `0161317` Slate flow: it opens the single-row preview, which can then be pulled into the full roster;
 - press and hold opens the same compact active-character action panel with a haptic acknowledgement;
 - the control never opens the field-ability wheel;
 - it never presents Grove Pulse, Bond, or any other field ability;
 - a simple press never executes a field ability.
 
-The compact panel shows the active creature's exact sealed name, portrait, level, XP, bond, element, and condition, plus real Train, Recover, and View in Vault actions. The expanded roster continues to show only selectable living creatures from the admitted player Vault, using exact sealed names, portraits, stats, active state, and the existing authoritative `select-asset` path. Selecting a creature closes the roster and persists through reload as already qualified.
+The compact panel shows the active creature's exact sealed name, portrait, level, XP, bond, element, and condition, plus real Bond, Recover, and View in Vault actions. Bond uses the existing authoritative training progression while naming the player-facing relationship outcome. The expanded roster continues to show only selectable living creatures from the admitted player Vault, using exact sealed names, portraits, stats, active state, and the existing authoritative `select-asset` path. Selecting a creature closes the roster and persists through reload as already qualified.
 
 ## Mobile Popover Scrolling
 
-Card Vault, Kai Klok teaching, audio, living-world, and live-player surfaces each own one continuous vertical pan. Their outer sheet is the scroll container; nested card history, growth, and chat regions expand into it on mobile rather than trapping or section-snapping the same touch gesture.
+Card Vault, Kai Klok teaching, audio, living-world, and live-player surfaces each own one continuous native vertical pan. Their outer sheet is the only scroll container; nested card history, growth, Kai teaching, and chat regions expand into it on mobile rather than trapping or section-snapping the same touch gesture. The command sheet drops its transformed compositor layer after entry and only reapplies translation while the dedicated grabber is actively dragged.
+
+The command-sheet grabber and title live in one premium chrome surface with a restrained mint/gold edge, integrated grip, proof-colored icon tile, and a clear close target. It must read as the top of the sheet rather than a detached strip.
 
 ## Capture Presentation
 
@@ -76,11 +86,12 @@ Implementation is complete only after strict red-green tests prove:
 - the audio control and icon remain unchanged;
 - event bars retain 44-pixel semantic targets, use a 36-pixel visible pill, and show complete name and distance text;
 - pointer click, press-and-hold, and keyboard activation on the bottom-right control open compact real character actions;
-- upward flick opens the expanded character roster;
+- upward flick opens the single-row Slate preview and preserves its existing pull-to-full expansion;
 - pointer click and keyboard activation do not open an ability wheel or execute a field ability;
 - Kai Klok source behavior and destination remain unchanged;
 - selecting a real owned creature still updates exact name, portrait, world actor, active ID, and reload state;
 - production browser checks pass at 320x568, 390x844, and 844x390 with no HUD collision, clipping, overflow, console error, or page error.
+- the live compass follows real player movement heading, wraps cleanly through north, and preserves a separate collision-free lane at all required viewports.
 
 ## Out of Scope
 

@@ -26,13 +26,13 @@ test("horizontal movement locks cycling and cannot become a drawer pull", () => 
   assert.deepEqual(releaseCompanionGesture(state, { x: 170, y: 500 }, 90), { kind: "cycle-next" });
 });
 
-test("upward movement locks the roster drawer and cannot cycle", () => {
+test("upward movement restores the single-row Slate preview and cannot cycle", () => {
   let state = createCompanionGesture({ x: 100, y: 600 }, 0);
   state = moveCompanionGesture(state, { x: 106, y: 570 }, 35);
   state = moveCompanionGesture(state, { x: 170, y: 500 }, 90);
 
   assert.equal(state.mode, "vertical");
-  assert.deepEqual(releaseCompanionGesture(state, { x: 180, y: 490 }, 110), { kind: "open-drawer-expanded" });
+  assert.deepEqual(releaseCompanionGesture(state, { x: 180, y: 490 }, 110), { kind: "open-drawer-preview" });
 });
 
 test("a stationary hold opens character quick actions and cannot open abilities", () => {
@@ -52,7 +52,7 @@ test("pointer cancellation remains safe without activating or opening anything",
 test("keyboard activation mirrors tap and keeps roster expansion explicit", () => {
   assert.equal(companionCommandKeyResult("Enter"), "open-quick-actions");
   assert.equal(companionCommandKeyResult(" "), "open-quick-actions");
-  assert.equal(companionCommandKeyResult("ArrowUp"), "open-drawer-expanded");
+  assert.equal(companionCommandKeyResult("ArrowUp"), "open-drawer-preview");
   assert.equal(companionCommandKeyResult("ArrowLeft"), "cycle-previous");
   assert.equal(companionCommandKeyResult("ArrowRight"), "cycle-next");
   assert.equal(companionCommandKeyResult("a"), null);

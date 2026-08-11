@@ -13,23 +13,25 @@ test("active companion command is a character-only Vault selector", () => {
   assert.match(source, /setPointerCapture/);
   assert.match(source, /capture is optional/);
   assert.match(source, /releaseCompanionGesture/);
-  for (const result of ["open-drawer-expanded", "open-quick-actions", "cycle-next", "cycle-previous"]) {
+  for (const result of ["open-drawer-preview", "open-quick-actions", "cycle-next", "cycle-previous"]) {
     assert.match(source, new RegExp(result));
   }
   assert.doesNotMatch(source, /fieldPowers|onUsePower|onSelectAbility|ability-wheel|role="listbox"|Grove Pulse/);
   assert.match(source, /Bond \{activeEntry\.bond\}/);
 });
 
-test("tap and hold expose real character actions while upward flick opens the full roster", () => {
+test("tap toggles character actions while upward flick restores the Slate preview", () => {
   const source = read("src/features/play/WildsCompanionCommand.tsx");
   assert.match(source, /companionCommandKeyResult/);
-  assert.match(source, /setQuickActionsOpen\(true\)/);
-  assert.match(source, /onRequestDrawer\("expanded"\)/);
+  assert.match(source, /setQuickActionsOpen\(\(open\) => !open\)/);
+  assert.match(source, /onRequestDrawer\("preview"\)/);
   assert.match(source, /advanceCompanionGesture/);
-  assert.match(source, /Train/);
+  assert.match(source, />Bond<\/button>/);
+  assert.doesNotMatch(source, />Train<\/button>/);
   assert.match(source, /Recover/);
   assert.match(source, /View in Vault/);
-  assert.match(source, /Swipe sideways to change character, flick up for the full roster, or hold for character actions/);
+  assert.match(source, /Swipe sideways to change character, flick up for Slate, or hold for character actions/);
+  assert.doesNotMatch(source, /Close character actions|Icons\.close/);
 });
 
 test("companion command is thumb-sized, safe-area aware, directional, and motion-safe", () => {

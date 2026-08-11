@@ -89,7 +89,7 @@ test("closed roster leaves the companion command as its sole physical and access
   assert.match(drawer, /\{mode !== "closed" \? <button[\s\S]*?className=\{`wildz-creature-drawer-handle/);
   assert.doesNotMatch(drawer, /mode === "closed" \? `Preview creatures/);
   assert.match(command, /companionCommandKeyResult/);
-  assert.match(command, /onRequestDrawer\("expanded"\)/);
+  assert.match(command, /onRequestDrawer\("preview"\)/);
   assert.match(css, /\.wildz-companion-home > \.wildz-creature-drawer\.is-closed\s*\{[^}]*pointer-events:\s*none;/);
   assert.match(css, /\.wildz-companion-home > \.wildz-creature-drawer:not\(\.is-closed\)\s*\{[^}]*pointer-events:\s*auto;/);
 });
