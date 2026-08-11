@@ -13,7 +13,7 @@
 - Kai Klok placement, appearance, content, click behavior, and Command Center destination remain unchanged.
 - Top-right order is living-world status, live explorers, share invite.
 - Visible mobile surfaces may shrink, but every semantic target remains at least 44 by 44 CSS pixels.
-- Bottom-right activation opens only the existing Slate roster and never opens or executes field abilities.
+- Bottom-right tap/Enter/Space opens the compact Slate roster; upward flick or hold opens the expanded Slate roster; none opens or executes field abilities.
 - Character selection continues through the existing authoritative `select-asset` path using exact sealed Vault names and IDs.
 - Do not create a replacement field-ability HUD control.
 
@@ -33,7 +33,7 @@
 
 **Interfaces:**
 - Consumes: `onRequestDrawer(snap: "preview" | "expanded")`, `onSelectCard(assetId: string)`, and the existing `VaultCompanionRosterEntry[]`.
-- Produces: a `WildsCompanionCommand` whose pointer click and Enter/Space activation call `onRequestDrawer("preview")`; sideways gestures still call `onSelectCard`; no ability props or listbox surface remain.
+- Produces: a `WildsCompanionCommand` whose pointer click and Enter/Space activation call `onRequestDrawer("preview")`, whose upward flick and hold call `onRequestDrawer("expanded")`, and whose sideways gestures still call `onSelectCard`; no ability props or listbox surface remain.
 
 - [ ] **Step 1: Write the failing character-only activation tests**
 
@@ -44,7 +44,8 @@ test("the companion command activates only the owned-character roster", () => {
   const command = readFileSync("src/features/play/WildsCompanionCommand.tsx", "utf8");
   const controls = readFileSync("src/features/play/WildzWorldControls.tsx", "utf8");
 
-  assert.match(command, /result\.kind === "tap-power"[\s\S]*onRequestDrawer\("preview"\)/);
+  assert.match(command, /result\.kind === "open-drawer-preview"[\s\S]*onRequestDrawer\("preview"\)/);
+  assert.match(command, /result\.kind === "open-drawer-expanded"[\s\S]*onRequestDrawer\("expanded"\)/);
   assert.match(command, /event\.key === "Enter" \|\| event\.key === " "[\s\S]*onRequestDrawer\("preview"\)/);
   assert.match(command, /aria-label=\{activeEntry \? `\$\{activeEntry\.name\}\. Open character roster\./);
   assert.doesNotMatch(command, /onUsePower|onSelectAbility|abilityListboxRef|wilds-companion-ability-wheel|Choose active companion ability/);
@@ -52,7 +53,7 @@ test("the companion command activates only the owned-character roster", () => {
 });
 ```
 
-In the real drawer fixture, focus the companion command and verify pointer click and Enter each transition controlled snap from `closed` to `preview` without changing selected asset or last world event.
+In the real drawer fixture, verify pointer click and Enter transition `closed` to `preview`, while upward flick and hold transition `closed` to `expanded`, without changing selected asset or last world event.
 
 - [ ] **Step 2: Run the focused tests and verify RED**
 
@@ -70,15 +71,16 @@ In `WildsCompanionCommand.tsx`:
 
 - remove `fieldPowers`, `onUsePower`, `onSelectAbility`, and `selectedAbilityIndex` props;
 - remove the hold timer, keyboard ability-listbox state, listbox rendering, and the `A` shortcut;
-- do not call `advanceCompanionGesture`, so a stationary press cannot enter `ability-wheel`;
-- map the existing `tap-power` gesture result to:
+- change `advanceCompanionGesture` so a stationary hold yields character-only expanded-roster intent rather than `ability-wheel`;
+- map the character-only gesture results to:
 
 ```ts
 playWildsHaptic("drawer-open");
 onRequestDrawer("preview");
 ```
 
-- map Enter and Space to the same roster-open path;
+- map upward flick and hold results to `onRequestDrawer("expanded")`;
+- map Enter and Space to the compact roster-open path;
 - preserve left/right character cycling, upward roster opening, pointer cancel/lost-capture cleanup, and exclusive-owner cancellation;
 - change the accessible name to character-selection language and remove `aria-haspopup="listbox"`/ability-expanded semantics;
 - remove the field-power label from the closed command visual.
@@ -221,7 +223,9 @@ Using a real two-creature Vault profile:
 4. select the other creature and assert exact real name/portrait/world actor/active ID change;
 5. reload and assert persistence;
 6. focus the command, press Enter, and assert Slate opens again with focus inside;
-7. assert no Grove Pulse, Bond, or field-ability options appear in this selector flow.
+7. hold the command and assert expanded Slate opens;
+8. flick upward and assert expanded Slate opens;
+9. assert no Grove Pulse, Bond, or field-ability options appear in any selector flow.
 
 - [ ] **Step 4: Run final release gates**
 

@@ -30,10 +30,11 @@ The audio control remains beside the Kai Klok and keeps its current settings she
 
 The bottom-right companion control is exclusively for owned-character selection:
 
-- pressing or clicking it opens the existing Slate roster;
-- Enter or Space opens the same roster;
+- pressing or clicking it opens the compact Slate roster preview;
+- Enter or Space opens the same compact roster preview;
 - horizontal character cycling may remain because it only changes the selected owned character;
-- an upward roster gesture may remain because it opens the same character roster;
+- an upward flick opens the expanded roster with full character stats;
+- press and hold opens that same expanded roster;
 - the control never opens the field-ability wheel;
 - it never presents Grove Pulse, Bond, or any other field ability;
 - a simple press never executes a field ability.
@@ -57,7 +58,8 @@ Implementation is complete only after strict red-green tests prove:
 - the top-right status, live, and share controls use a single-row layout at mobile and short-landscape sizes;
 - their semantic targets remain at least 44 by 44 pixels;
 - the audio visual treatment is smaller while its semantic target remains at least 44 by 44 pixels;
-- pointer click and keyboard activation on the bottom-right control open the character roster;
+- pointer click and keyboard activation on the bottom-right control open the compact character roster;
+- upward flick and press-and-hold open the expanded character roster;
 - pointer click and keyboard activation do not open an ability wheel or execute a field ability;
 - Kai Klok source behavior and destination remain unchanged;
 - selecting a real owned creature still updates exact name, portrait, world actor, active ID, and reload state;
