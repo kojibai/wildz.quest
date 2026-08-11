@@ -124,7 +124,9 @@ test("the stage owns Escape lifecycle for every non-combat world modal", () => {
   const multiplayer = read("src/features/play/WildsMultiplayer.tsx");
 
   assert.match(lifecycle, /const ESCAPE_OWNED_WORLD_OWNERS = new Set<WorldOverlayOwner>\(\[[\s\S]*"trainer"[\s\S]*"map"[\s\S]*"landmark"[\s\S]*"settlement"[\s\S]*"ecology"[\s\S]*"raid"[\s\S]*"reward"[\s\S]*"ceremony"[\s\S]*"memorial"[\s\S]*"multiplayer"[\s\S]*\]\)/);
-  assert.match(lifecycle, /event\.key === "Escape" && ESCAPE_OWNED_WORLD_OWNERS\.has\(owner\)[\s\S]*onEscape\(owner\)/);
+  assert.match(lifecycle, /onEscapeRef\.current = onEscape/);
+  assert.match(lifecycle, /event\.key === "Escape" && ESCAPE_OWNED_WORLD_OWNERS\.has\(owner\)[\s\S]*onEscapeRef\.current\(owner\)/);
+  assert.match(lifecycle, /window\.addEventListener\("keydown", onKeyDown\)[\s\S]*\}, \[owner\]\)/);
   assert.match(campaign, /usePlayModalLifecycle\(\{ onEscape: closeOwnedModal, originRef: exclusiveOriginRef, owner: modalOwner \}\)/);
   assert.match(campaign, /setMapOpen\(false\)/);
   assert.match(campaign, /setActiveLandmarkId\(null\)/);

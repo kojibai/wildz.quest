@@ -48,7 +48,10 @@ test("live controls stay persistent while multiplayer modal content escapes the 
   assert.match(multiplayer, /role="dialog" aria-modal="true" aria-label="Incoming Wilds battle challenge"/);
   assert.doesNotMatch(multiplayer, /challengeDialogRef|challengeFocusFrameRef/);
   assert.match(lifecycle, /owner === "multiplayer"[\s\S]*data-play-modal-origin/);
-  assert.match(lifecycle, /event\.stopImmediatePropagation\(\)[\s\S]*onEscape\(owner\)/);
+  assert.match(lifecycle, /onEscapeRef\.current = onEscape/);
+  assert.match(lifecycle, /event\.stopImmediatePropagation\(\)[\s\S]*onEscapeRef\.current\(owner\)/);
+  assert.match(lifecycle, /window\.addEventListener\("keydown", onKeyDown\)[\s\S]*\}, \[owner\]\)/);
+  assert.doesNotMatch(lifecycle, /\}, \[onEscape, owner\]\)/);
 });
 
 test("balanced homes remain touch-safe and collision-aware at phone and short-landscape sizes", () => {

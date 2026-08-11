@@ -25,7 +25,12 @@ export function usePlayModalLifecycle({
 }) {
   const priorOwnerRef = useRef(owner);
   const focusFrameRef = useRef<number | null>(null);
+  const onEscapeRef = useRef(onEscape);
   const restoreFrameRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    onEscapeRef.current = onEscape;
+  }, [onEscape]);
 
   useEffect(() => {
     const priorOwner = priorOwnerRef.current;
@@ -77,7 +82,7 @@ export function usePlayModalLifecycle({
       if (event.key === "Escape" && ESCAPE_OWNED_WORLD_OWNERS.has(owner)) {
         event.preventDefault();
         event.stopImmediatePropagation();
-        onEscape(owner);
+        onEscapeRef.current(owner);
         return;
       }
       if (event.key !== "Tab" || !dialog) return;
@@ -106,7 +111,7 @@ export function usePlayModalLifecycle({
       document.removeEventListener("focusin", containFocus);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [onEscape, owner]);
+  }, [owner]);
 
   useEffect(() => () => {
     if (focusFrameRef.current !== null) window.cancelAnimationFrame(focusFrameRef.current);

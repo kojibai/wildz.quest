@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { WildsChallenge } from "./multiplayer-challenge";
 import type { WildsPresence } from "./multiplayer-core";
 import type { PvpCard } from "./pvp-battle-engine";
@@ -50,10 +50,17 @@ const fixtureChallenge: WildsChallenge = {
 export function BalancedStatusHudBrowserFixture() {
   const [challenge, setChallenge] = useState<WildsChallenge | null>(null);
   const [declineCount, setDeclineCount] = useState(0);
+  const [escapeRevision, setEscapeRevision] = useState<number | null>(null);
+  const [pollRevision, setPollRevision] = useState(0);
   const [selectedPlayer, setSelectedPlayer] = useState<WildsPresence | null>(null);
   const [audio, setAudio] = useState(DEFAULT_WILDS_AUDIO_SETTINGS);
   const originRef = useRef<HTMLElement | null>(null);
   const modalOwned = challenge !== null;
+  useEffect(() => {
+    if (!modalOwned) return;
+    const timer = window.setInterval(() => setPollRevision((revision) => revision + 1), 100);
+    return () => window.clearInterval(timer);
+  }, [modalOwned]);
   const answerChallenge = useCallback(async (_challengeId: string, action: "accept" | "decline") => {
     if (action === "decline") setDeclineCount((count) => count + 1);
     await new Promise((resolve) => window.setTimeout(resolve, 20));
@@ -91,9 +98,10 @@ export function BalancedStatusHudBrowserFixture() {
     dismissBattle: () => {},
     refresh: async () => {}
   }), [answerChallenge, challenge, selectedPlayer]);
-  const closeOwnedModal = useCallback(() => {
+  const closeOwnedModal = () => {
+    setEscapeRevision(pollRevision);
     if (challenge) void answerChallenge(challenge.id, "decline");
-  }, [answerChallenge, challenge]);
+  };
   usePlayModalLifecycle({
     onEscape: closeOwnedModal,
     originRef,
@@ -114,6 +122,8 @@ export function BalancedStatusHudBrowserFixture() {
       <WildsAudioSettings onChange={setAudio} onUnlock={() => {}} ready settings={audio} />
       <button onClick={() => setChallenge(fixtureChallenge)} type="button">Receive fixture challenge</button>
     </div>
+    <output data-poll-revision={pollRevision} id="fixture-poll-revision">Polls: {pollRevision}</output>
+    <output data-escape-revision={escapeRevision ?? ""} id="fixture-escape-revision">Escape revision: {escapeRevision ?? "none"}</output>
     <output aria-live="polite" data-decline-count={declineCount} id="fixture-decline-count">Declines: {declineCount}</output>
   </main>;
 }

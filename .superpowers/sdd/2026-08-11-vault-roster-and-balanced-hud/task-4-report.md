@@ -136,3 +136,39 @@ The real world remained collision-free after the target changes:
 - `git diff --check`: PASS.
 
 Concern: the browser fixture uses a deterministic in-memory multiplayer controller to reproduce the real asynchronous answer timing; no external second peer or network mutation was required.
+
+## Fix round 2: stable modal lifecycle across callback churn
+
+Review disposition: the new P1 is addressed in a second non-amended follow-up commit. The final hash is reported in the handoff.
+
+### Root cause and strict TDD RED
+
+`usePlayModalLifecycle` included `onEscape` in the focus-trap effect dependencies. `PlayCampaign.closeOwnedModal` inherits the identity of `multiplayer.answerChallenge`, which the multiplayer controller currently recreates on each render. Every multiplayer poll could therefore tear down and rebuild the trap without changing ownership, scheduling initial focus again and moving a keyboard user away from the control they had chosen.
+
+The real development-only HUD fixture now increments a visible poll revision every 100ms while a challenge owns the modal and supplies a newly identified Escape callback on each render. In pre-fix WebKit evidence, focus was moved to the later `Accept battle` control; after the next poll/render, the old lifecycle returned focus to the first `Decline` control. This was the expected RED and directly reproduced the review finding.
+
+### GREEN implementation and runtime regression
+
+`usePlayModalLifecycle` now updates `onEscapeRef` after every committed callback change. The trap/observer/key-listener effect depends only on `owner`, so callback churn does not reinstall focus containment. Escape invokes `onEscapeRef.current(owner)`, ensuring the one persistent listener uses the latest committed callback without giving callback identity ownership of the focus lifecycle.
+
+The same WebKit fixture verified all requested behavior:
+
+- focus remained on `Accept battle` while the poll revision advanced from 172 to 176;
+- Escape at revision 281 recorded exact `Escape revision: 281` and exactly `Declines: 1`;
+- dismissal restored focus to the connected `data-play-modal-origin="multiplayer"` live badge;
+- ownership re-entry created one dialog and initialized focus on `Decline`.
+
+Visual evidence: `output/playwright/task4-fix-round2-callback-churn.png`.
+
+No stabilization was added to `answerChallenge`: the lifecycle boundary is intentionally tolerant of changing callback identities, including other parent rerenders and future controller implementations.
+
+### Fix-round verification
+
+- Focused modal/HUD set: PASS — 32/32.
+- `pnpm test`: PASS — 1,085/1,085 tests, 109 suites.
+- `pnpm typecheck`: PASS.
+- `pnpm lint`: PASS, 0 warnings.
+- `git diff --check`: PASS.
+- Browser console during the runtime replay: no application errors.
+
+Concern: the callback-churn regression remains a development-only real-browser fixture rather than a synthetic DOM unit test; it exercises actual React effects, focus, keyboard events, inert ownership, and portaling in WebKit.
