@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { applyWildsInput, initialPlayState, worldBounds } from "../src/features/play/game-state";
 import { resolveWildsContextAction } from "../src/features/play/wilds-context-action";
-import { dpadMovementIntent, movementScale, normalizeWildsMovementMode } from "../src/features/play/wilds-movement";
+import { cameraRelativeMovement, movementScale, normalizeWildsMovementMode } from "../src/features/play/wilds-movement";
 import { WILDS_FLAGSHIP_LANDMARKS } from "../src/features/play/wilds-landmarks";
 
 const emptyContext = {
@@ -82,20 +82,12 @@ describe("Wilds contextual world actions", () => {
     assert.ok(Math.abs(runDistance / walkDistance - 1.25) < 0.001);
   });
 
-  it("keeps D-pad travel in world directions while the camera looks independently", () => {
-    const heldDirection = { x: 0.6, z: -0.8 };
-    assert.deepEqual(dpadMovementIntent(heldDirection, "walk"), {
-      type: "move-vector",
-      x: 0.6,
-      z: -0.8,
-      mode: "walk"
-    });
-    assert.deepEqual(dpadMovementIntent(heldDirection, "run"), {
-      type: "move-vector",
-      x: 0.6,
-      z: -0.8,
-      mode: "run"
-    });
+  it("keeps D-pad up aligned with the camera's current screen-forward direction", () => {
+    const screenUp = { x: 0, z: -1 };
+    assert.deepEqual(cameraRelativeMovement(screenUp, 0), { x: 0, z: -1 });
+    const quarterTurn = cameraRelativeMovement(screenUp, Math.PI / 2);
+    assert.ok(Math.abs(quarterTurn.x + 1) < 1e-10);
+    assert.ok(Math.abs(quarterTurn.z) < 1e-10);
   });
 
 });

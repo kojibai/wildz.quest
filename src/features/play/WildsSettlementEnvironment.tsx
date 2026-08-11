@@ -151,7 +151,7 @@ function MonumentWalk({ geometry, livingWorld, materials, worldMode }: { geometr
         <mesh position={[0, -.52, 0]}><cylinderGeometry args={[.32, .42, .3, 10]} /><primitive attach="material" object={materials.gold} /></mesh>
       </group>;
     })}
-    <Html center distanceFactor={10} position={[0, 2, 0]} zIndexRange={[10, 1]}>
+    <Html center distanceFactor={10} occlude={false} position={[0, 2, 0]} zIndexRange={[10, 1]}>
       <div className="wilds-settlement-memory-label"><strong>{canonical ? "Canonical world memory" : "Practice memory"}</strong><span>{canonical ? `${monumentIds.length} shared victories remembered` : "Not shared world truth"}</span></div>
     </Html>
   </group>;

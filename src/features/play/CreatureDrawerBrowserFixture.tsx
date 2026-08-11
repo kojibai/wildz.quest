@@ -73,6 +73,7 @@ export function CreatureDrawerBrowserFixture() {
 }
 
 function WorldControlsFocusRecoveryFixture() {
+  const cameraHeadingRef = useRef(0);
   const [overlayState, setOverlayState] = useState(initialWorldOverlayState);
   const [exclusiveOwner, setExclusiveOwner] = useState<WorldOverlayOwner>("none");
   const [selectedAssetId, setSelectedAssetId] = useState(initialFixtureAssetId);
@@ -91,6 +92,7 @@ function WorldControlsFocusRecoveryFixture() {
     </output>
     <WildzWorldControls
       activeCard={activeCard}
+      cameraHeadingRef={cameraHeadingRef}
       cardConditions={{}}
       cardOrder="newest"
       commandItems={[]}

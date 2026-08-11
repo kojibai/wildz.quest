@@ -84,7 +84,7 @@ function EcologyManifestation({ geometry, materials, relative, site, worldMode }
     </mesh>
     <FamilyKit familyId={site.familyId} geometry={geometry} materials={materials} />
     <SignalInstances geometry={geometry} materials={materials} radius={Math.min(4.2, site.radius * .46)} />
-    <Html center distanceFactor={11} position={[0, 3.55, 0]} zIndexRange={[8, 1]}>
+    <Html center distanceFactor={11} occlude={false} position={[0, 3.55, 0]} zIndexRange={[8, 1]}>
       <div className="wilds-ecology-world-label"><strong>{site.name}</strong><span>{worldMode === "receiz_live" ? site.phase : `Practice · ${site.phase}`}</span></div>
     </Html>
   </group>;

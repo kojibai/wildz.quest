@@ -2932,8 +2932,9 @@ a {
   border: 1px solid rgba(255, 255, 255, 0.28);
   border-radius: 999px;
   color: #ffffff;
-  background: rgba(23, 19, 17, 0.62);
-  backdrop-filter: blur(12px);
+  background: rgba(23, 19, 17, 0.92);
+  backface-visibility: hidden;
+  contain: paint;
   box-shadow: 0 10px 20px rgba(23, 19, 17, 0.16);
   font-size: 10px;
   font-weight: 900;
@@ -11339,7 +11340,7 @@ button.product-purchase-secondary-link {
 .wilds-pvp-result span { font-size: 10px; }
 .wilds-pvp-result button { margin-top: 6px; min-height: 36px; padding: 0 18px; border: 1px solid rgba(255, 240, 166, .52); border-radius: 999px; color: #201608; background: linear-gradient(135deg, #fff5bd, #e9bd54); font: 800 11px/1 var(--font-sans); letter-spacing: .04em; box-shadow: 0 8px 24px rgba(0, 0, 0, .22); }
 .wilds-live-notice { position: absolute; z-index: 70; right: 12px; bottom: 12px; max-width: min(380px, calc(100% - 24px)); padding: 10px 14px; color: #eafff9; font-size: 11px; border: 1px solid rgb(126 235 205 / 34%); background: rgb(3 20 27 / 94%); border-radius: 13px; box-shadow: 0 15px 40px rgb(0 0 0 / 34%); }
-.wilds-remote-nameplate { display: grid; min-width: 90px; justify-items: center; gap: 1px; padding: 4px 7px; color: #effffa; pointer-events: none; background: rgb(3 20 27 / 80%); border: 1px solid rgb(126 235 205 / 30%); border-radius: 9px; backdrop-filter: blur(8px); }
+.wilds-remote-nameplate { display: grid; min-width: 90px; justify-items: center; gap: 1px; padding: 4px 7px; color: #effffa; pointer-events: none; background: rgb(3 20 27 / 94%); border: 1px solid rgb(126 235 205 / 30%); border-radius: 9px; backface-visibility: hidden; contain: paint; }
 .wilds-remote-nameplate span { max-width: 120px; overflow: hidden; font-size: 9px; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
 .wilds-remote-nameplate small { color: #76e9c6; font-size: 7px; }
 .wilds-stage.pvp-active .wilds-remote-nameplate { display: none; }
@@ -12580,7 +12581,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-atlas-map-label.is-active { color: #071a1e; border-color: #f9e58e; background: linear-gradient(135deg, #f7d25b, #71e8c3); transform: translateY(-4px) scale(1.06); }
 .wilds-atlas-region-name { display: block; color: rgb(224 255 246 / 62%); font-size: clamp(7px, .8vw, 10px); font-weight: 900; letter-spacing: .14em; text-shadow: 0 2px 7px #00151b, 0 0 14px rgb(80 240 194 / 35%); text-transform: uppercase; white-space: nowrap; pointer-events: none; }
 .wilds-atlas-you-are-here { display: block; padding: 6px 9px; color: #06181c; border: 1px solid rgb(255 255 255 / 72%); border-radius: 999px; background: linear-gradient(135deg, #fff8c2, #71e8c3); box-shadow: 0 8px 25px rgb(0 0 0 / 35%), 0 0 22px rgb(113 232 195 / 42%); font-size: 8px; font-weight: 950; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; pointer-events: none; }
-.wilds-landmark-wayfinder { display: grid; min-width: 118px; justify-items: center; gap: 2px; padding: 7px 10px; color: #effffb; border: 1px solid color-mix(in srgb, var(--landmark-accent) 68%, white); border-radius: 15px; background: rgb(4 22 29 / 86%); box-shadow: 0 10px 30px rgb(0 0 0 / 32%), 0 0 24px color-mix(in srgb, var(--landmark-accent) 38%, transparent); text-align: center; backdrop-filter: blur(12px); pointer-events: none; }
+.wilds-landmark-wayfinder { display: grid; min-width: 118px; justify-items: center; gap: 2px; padding: 7px 10px; color: #effffb; border: 1px solid color-mix(in srgb, var(--landmark-accent) 68%, white); border-radius: 15px; background: rgb(4 22 29 / 95%); box-shadow: 0 10px 30px rgb(0 0 0 / 32%), 0 0 24px color-mix(in srgb, var(--landmark-accent) 38%, transparent); text-align: center; backface-visibility: hidden; contain: paint; pointer-events: none; }
 .wilds-landmark-wayfinder span { padding: 2px 6px; color: #071a1e; border-radius: 999px; background: var(--landmark-accent); font-size: 8px; font-weight: 950; }
 .wilds-landmark-wayfinder strong { font-size: 11px; line-height: 1.05; }
 .wilds-landmark-wayfinder small { color: #a9c5c7; font-size: 8px; font-weight: 800; text-transform: uppercase; }

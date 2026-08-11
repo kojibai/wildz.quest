@@ -102,7 +102,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(controls, /onTrainCharacter=\{handleTrainCharacter\}/);
     assert.doesNotMatch(controls, /onUsePower|onSelectAbility/);
     assert.match(controls, /<WildzDpad[\s\S]*movementMode=\{movementMode\}/);
-    assert.doesNotMatch(controls, /cameraHeadingRef/);
+    assert.match(controls, /cameraHeadingRef/);
     assert.match(route, /getWildsAtlasPresence/);
     assert.match(route, /cache-control": "private, no-store"/);
     assert.doesNotMatch(route, /activeCard/);
@@ -314,7 +314,7 @@ describe("Receiz Wilds rendering contract", () => {
 
     assert.match(controls, /function WildzDpad/);
     assert.match(controls, /setPointerCapture/);
-    assert.match(controls, /dpadMovementIntent/);
+    assert.match(controls, /cameraRelativeMovement/);
     assert.match(world, /function StreamedTerrain/);
     assert.match(environment, /WILDS_TILE_SIZE/);
   });
@@ -335,9 +335,10 @@ describe("Receiz Wilds rendering contract", () => {
     const cameraRig = world.slice(world.indexOf("function CameraRig"), world.indexOf("function frameSeconds"));
     assert.match(cameraRig, /<OrbitControls/);
     assert.doesNotMatch(cameraRig, /onChange=\{/);
-    assert.doesNotMatch(campaign, /cameraHeadingRef/);
+    assert.match(campaign, /cameraHeadingRef/);
     assert.doesNotMatch(campaign, /useState\(0\).*cameraHeading/);
-    assert.doesNotMatch(controls, /cameraRelativeMovement|cameraHeading/);
+    assert.match(controls, /cameraRelativeMovement/);
+    assert.match(controls, /cameraHeadingRef\.current/);
     assert.doesNotMatch(world, /camera\.position\.lerp\(target/);
   });
 

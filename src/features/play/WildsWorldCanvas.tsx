@@ -41,6 +41,7 @@ export function WildsWorldCanvas({
   remotePlayers,
   qualityProfile,
   onFrameSample,
+  onCameraHeadingChange,
   searchEnabled,
   onSelectPlayer,
   onSelectTrainer,
@@ -56,6 +57,7 @@ export function WildsWorldCanvas({
   remotePlayers: WildsPresence[];
   qualityProfile: WildsQualityProfile;
   onFrameSample?: (frameMs: number) => void;
+  onCameraHeadingChange: (heading: number) => void;
   searchEnabled: boolean;
   onSelectPlayer: (player: WildsPresence | null) => void;
   onSearchPoint: (point: { x: number; z: number }) => void;
@@ -86,7 +88,7 @@ export function WildsWorldCanvas({
       >
         {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
-          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} supportCards={supportCards} trainers={trainers} />
+          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} supportCards={supportCards} trainers={trainers} />
         </Suspense>
       </Canvas>
     </div>
@@ -104,6 +106,7 @@ function WildsScene({
   remotePlayers,
   qualityProfile,
   searchEnabled,
+  onCameraHeadingChange,
   onSelectPlayer,
   onSearchPoint,
   livingWorld,
@@ -118,6 +121,7 @@ function WildsScene({
   remotePlayers: WildsPresence[];
   qualityProfile: WildsQualityProfile;
   searchEnabled: boolean;
+  onCameraHeadingChange: (heading: number) => void;
   onSelectPlayer: (player: WildsPresence | null) => void;
   onSearchPoint: (point: { x: number; z: number }) => void;
   livingWorld?: WildsWorldProjection | null;
@@ -140,7 +144,7 @@ function WildsScene({
       <fog attach="fog" args={[kaiFog, 8 + kaiExpression.sky.luminance * 3, 21 + (1 - kaiExpression.sky.fogDensity) * 4]} />
       <WildsAtmosphere encounter={state.encounter} expression={kaiExpression} missionProgress={state.missionProgress} player={state.player} qualityProfile={qualityProfile} />
       <WildsKaiAtmosphereGeometry expression={kaiExpression} qualityProfile={qualityProfile} />
-      <CameraRig />
+      <CameraRig onCameraHeadingChange={onCameraHeadingChange} />
       <WildsDiagnostics qualityProfile={qualityProfile} state={state} />
       <SmoothWorldFrame player={state.player}>
         <SearchableTerrain
@@ -215,11 +219,11 @@ function TrainerExplorer({ trainer, localPlayer, onSelect }: {
       <torusGeometry args={[.5, .045, 8, 32]} />
       <meshStandardMaterial color="#f7d25b" emissive="#c68f25" emissiveIntensity={.78} />
     </mesh>
-    {distance <= 12 ? <Html center className="wilds-trainer-challenge-anchor" distanceFactor={8} position={[0, 1.48, 0]} zIndexRange={[14, 1]}>
+    {distance <= 12 ? <Html center className="wilds-trainer-challenge-anchor" distanceFactor={8} occlude={false} position={[0, 1.48, 0]} zIndexRange={[14, 1]}>
       <button aria-label={`Battle trainer ${trainer.name}`} className="wilds-trainer-challenge-prompt" onClick={(event) => { event.stopPropagation(); onSelect(trainer); }} type="button">
         <span>{trainer.name}</span><small>Lv. {trainer.challengeLevel} · {rosterName} · Tap to challenge</small>
       </button>
-    </Html> : <Html center className="wilds-remote-nameplate wilds-trainer-nameplate" distanceFactor={8} position={[0, 1.48, 0]} zIndexRange={[14, 1]}>
+    </Html> : <Html center className="wilds-remote-nameplate wilds-trainer-nameplate" distanceFactor={8} occlude={false} position={[0, 1.48, 0]} zIndexRange={[14, 1]}>
       <span>{trainer.name}</span><small>Wild trainer · Lv. {trainer.challengeLevel}</small>
     </Html>}
   </group>;
@@ -244,7 +248,7 @@ function ActiveCompanion({ state }: { state: PlayState }) {
       {state.battle && isBattleTelemetryPhase(state.encounter.phase) ? (
         <BattleWorldTelemetry fighter={state.battle.player} position={[0, 1.9, 0]} side="player" />
       ) : (
-        <Html center className="wilds-world-label" distanceFactor={8} position={[0, 0.96, 0]} zIndexRange={[10, 0]}>
+        <Html center className="wilds-world-label" distanceFactor={8} occlude={false} position={[0, 0.96, 0]} zIndexRange={[10, 0]}>
           <span>{asset?.manifest.name ?? card.name}</span>
         </Html>
       )}
@@ -335,14 +339,21 @@ function RemoteExplorer({
         <torusGeometry args={[0.48, 0.04, 8, 32]} />
         <meshStandardMaterial color={player.practice ? "#f7c948" : "#6ef0c9"} emissive={player.practice ? "#f7c948" : "#37d688"} emissiveIntensity={0.62} />
       </mesh>
-      <Html center className="wilds-remote-nameplate" distanceFactor={8} position={[0, 1.42, 0]} zIndexRange={[12, 0]}>
+      <Html center className="wilds-remote-nameplate" distanceFactor={8} occlude={false} position={[0, 1.42, 0]} zIndexRange={[12, 0]}>
         <span>{player.handle}</span><small>{player.activeCard.name}</small>
       </Html>
     </group>
   );
 }
 
-function CameraRig() {
+function CameraRig({ onCameraHeadingChange }: { onCameraHeadingChange: (heading: number) => void }) {
+  const lastHeading = useRef(Number.NaN);
+  useFrame(({ camera }) => {
+    const heading = Math.atan2(camera.position.x, camera.position.z);
+    if (Number.isFinite(lastHeading.current) && Math.abs(heading - lastHeading.current) < .001) return;
+    lastHeading.current = heading;
+    onCameraHeadingChange(heading);
+  });
   return (
     <OrbitControls
       dampingFactor={.08}
@@ -456,7 +467,7 @@ function Creature({
             opacity={0.95}
           />
         </mesh>
-        <Html center distanceFactor={8} position={[0, 0.82, 0]} className="wilds-world-label" zIndexRange={[10, 0]}>
+        <Html center distanceFactor={8} occlude={false} position={[0, 0.82, 0]} className="wilds-world-label" zIndexRange={[10, 0]}>
           <span>{identity?.name.display ?? card.name}</span>
         </Html>
       </group>

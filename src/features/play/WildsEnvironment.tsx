@@ -139,7 +139,7 @@ function LivingWorldSites({ player, world }: { player: PlayState["player"]; worl
         </mesh>
         {boss && boss.phase !== "defeated" ? <group name={`world-boss-${boss.id}`} position={[0, 1.65, 0]}>
           <mesh><dodecahedronGeometry args={[1.35, 0]} /><meshStandardMaterial color="#6f4b91" emissive="#6d25ad" emissiveIntensity={0.65} /></mesh>
-          <Html center distanceFactor={9}><span className="wilds-world-boss-label">{Math.ceil((boss.health / boss.maxHealth) * 100)}% · Shared boss</span></Html>
+          <Html center distanceFactor={9} occlude={false}><span className="wilds-world-boss-label">{Math.ceil((boss.health / boss.maxHealth) * 100)}% · Shared boss</span></Html>
         </group> : null}
       </group>;
     })}
@@ -175,7 +175,7 @@ function LandmarkEntranceBeacon({ landmark, distance }: { landmark: WildsLandmar
       <cylinderGeometry args={[.035, .16, 8.4, 10]} />
       <meshBasicMaterial color={landmark.accent} transparent opacity={.34} />
     </mesh>
-    <Html center distanceFactor={9} position={[0, 6.15, 0]} zIndexRange={[14, 1]}>
+    <Html center distanceFactor={9} occlude={false} position={[0, 6.15, 0]} zIndexRange={[14, 1]}>
       <div className="wilds-landmark-wayfinder" style={{ "--landmark-accent": landmark.accent } as React.CSSProperties}>
         <span>{Math.max(0, Math.round(distance - landmark.radius))}m</span>
         <strong>{landmark.name}</strong>

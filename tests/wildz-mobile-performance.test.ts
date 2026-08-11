@@ -4,13 +4,13 @@ import { test } from "node:test";
 
 const source = (path: string) => readFileSync(path, "utf8");
 
-test("camera orbit stays outside React state and diagnostics do not restart on every movement", () => {
+test("camera orbit publishes heading through a ref without React state or diagnostic restarts", () => {
   const campaign = source("src/features/play/PlayCampaign.tsx");
   const world = source("src/features/play/WildsWorldCanvas.tsx");
 
-  assert.doesNotMatch(campaign, /cameraHeadingRef/);
+  assert.match(campaign, /cameraHeadingRef/);
   assert.doesNotMatch(campaign, /\[cameraHeading, setCameraHeading\]/);
-  assert.doesNotMatch(campaign, /onCameraHeadingChange/);
+  assert.match(campaign, /onCameraHeadingChange/);
   assert.match(world, /enableDamping/);
   assert.match(world, /const stateRef = useRef\(state\)/);
   assert.match(world, /stateRef\.current = state/);

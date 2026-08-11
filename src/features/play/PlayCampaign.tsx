@@ -166,6 +166,10 @@ export function PlayCampaign({
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
   const [mapOpen, setMapOpen] = useState(false);
   const [multiplayerRosterOpen, setMultiplayerRosterOpen] = useState(false);
+  const cameraHeadingRef = useRef(0);
+  const updateCameraHeading = useCallback((heading: number) => {
+    cameraHeadingRef.current = heading;
+  }, []);
   const [playerHeading, setPlayerHeading] = useState(0);
   const previousPlayerPosition = useRef(state.player);
   const [movementMode, setMovementMode] = useState<WildsMovementMode>(() => initialPlayerContinuity?.settings.movementMode ?? "walk");
@@ -1197,6 +1201,7 @@ export function PlayCampaign({
               remotePlayers={multiplayer.remotePlayers}
               qualityProfile={qualityProfile}
               onFrameSample={reportFrameSample}
+              onCameraHeadingChange={updateCameraHeading}
               searchEnabled={worldInteractionEnabled && discoveryActive}
               livingWorld={livingWorld.snapshot}
               worldMode={settlementWorldMode}
@@ -1256,6 +1261,7 @@ export function PlayCampaign({
 
             <WildzWorldControls
               activeCard={activeAsset}
+              cameraHeadingRef={cameraHeadingRef}
               cardConditions={state.adventureConditions}
               cardOrder={cardOrder}
               commandItems={commandItems}
