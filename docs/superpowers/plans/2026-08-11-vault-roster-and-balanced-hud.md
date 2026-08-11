@@ -20,6 +20,7 @@
 - The top-right status toggle and fan are removed; live/social status remains near the minimap, while Kai and audio occupy a persistent left-side home.
 - No new dependency is added.
 - Existing modal ownership and capture/reward recovery must remain green.
+- Selecting a living card from Card Vault or the world roster must update the same active asset, portrait, real name, world companion, and battle leader, then survive reload.
 
 ---
 
@@ -69,6 +70,14 @@ test("never synthesizes catalogue, nearby, remote, or family fallback creatures"
     newAssetId: null
   });
   assert.deepEqual(roster.map((entry) => entry.asset.id), [ownedAlive.id]);
+});
+
+test("Card Vault and world-roster selection converge on one persisted active asset", () => {
+  const fromVault = reducePlayState(twoCardState, { type: "select-asset", assetId: second.id });
+  const fromRoster = reducePlayState(twoCardState, { type: "select-asset", assetId: second.id });
+  assert.equal(fromVault.selectedAssetId, second.id);
+  assert.equal(fromRoster.selectedAssetId, second.id);
+  assert.equal(selectedCard(restorePlayState(JSON.parse(JSON.stringify(fromVault)))).id, second.id);
 });
 ```
 
@@ -414,6 +423,8 @@ Against one exact optimized production build, replay 320x568, 360x800, 390x844, 
 - [ ] **Step 3: Replay the real capture-to-roster flow**
 
 Use only player-facing D-pad, battle, capture, reward, roster, and selection controls. Record exact inventory count and card ids/names before capture; capture and settle one new card; verify exactly one reward modal; return to world; open roster; assert the new exact `manifest.name`, “New” state, stats, and asset id; select it; assert the bottom-right portrait/name changes; reload; assert the same card remains in inventory and active.
+
+Then open Card Vault, choose a different living sealed card, press its real “Set as active deck leader” control, close the panel, and assert the bottom-right command, world actor, and next battle leader all use that exact asset id/name. Reload and assert that Card Vault selection remains active. Repeat once from the world roster to prove both surfaces converge on the same authoritative state.
 
 - [ ] **Step 4: Replay all input and recovery paths**
 

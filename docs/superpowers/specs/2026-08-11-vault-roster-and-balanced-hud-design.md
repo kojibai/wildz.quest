@@ -61,6 +61,8 @@ Every roster entry presents:
 
 Selecting a creature dispatches the existing authoritative `select-asset` game intent, immediately updates the companion command, provides safe haptic and visual confirmation, and closes the preview. A selection must never mutate the Vault independently of game state.
 
+The existing Card Vault selection surface uses that same intent and remains fully functional. Selecting a living card from either Card Vault or the world roster must update the same `selectedAssetId`, bottom-right portrait/name, world companion, and battle leader, then persist across reload.
+
 ## Newly Captured Creature Flow
 
 After a successful capture and reward settlement:
@@ -109,6 +111,7 @@ Opening, snapping, selecting, and closing have immediate feedback with no artifi
 Implementation is complete only after:
 
 - tests first fail, then pass for admitted-inventory-only projection, retired exclusion, exact real names, new capture appearance, immediate selection, and one-creature/empty cases;
+- behavioral tests and production replay prove Card Vault selection and world-roster selection converge on the same active asset and survive reload;
 - source and runtime tests prove the top status toggle is absent and Kai plus sound have persistent left-side homes;
 - mobile browser evidence covers 320x568, 360x800, 390x844, 430x932, 844x390, 768x1024, and 1440x900;
 - preview and expanded roster states show no clipping, collision, page overflow, or target below 44 pixels;
