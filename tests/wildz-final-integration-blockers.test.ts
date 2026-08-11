@@ -4,12 +4,21 @@ import { test } from "node:test";
 import { initialWorldOverlayState, reduceWorldOverlay, type WorldOverlayOwner } from "../src/features/play/world-overlay-state";
 import { applyWildsInput, initialPlayState } from "../src/features/play/game-state";
 import { canRestoreFocus } from "../src/features/play/focus-recovery";
-import { canAcceptPlayShellInput, projectPlayShellOwner } from "../src/features/play/play-shell-owner";
+import { canAcceptPlayShellInput, isCaptureRewardModalOwner, isWildBattleModalOwner, projectPlayShellOwner } from "../src/features/play/play-shell-owner";
 import { generateIdentityBoundWildzCharacter } from "../src/features/identity/wildz-genesis";
 import { projectWildzContinuityExplorer } from "../src/features/play/wildz-explorer-proof";
 import { nextCompanionAbilityIndex } from "../src/features/play/companion-ability-composite";
 import { shouldRefreshWildzMarket } from "../src/features/market/market-refresh-policy";
 import { worldInputForKeyboardEvent } from "../src/features/play/world-keyboard-routing";
+import {
+  beginModalAdmission,
+  canCommitModalAdmission,
+  claimModalAdmissionOwner,
+  createModalAdmissionState,
+  isPlayHomeAvailable,
+  isProjectedModalMounted,
+  releaseModalAdmissionOwner
+} from "../src/features/play/modal-admission";
 import {
   openCompanionKeyboardInteraction,
   resetCompanionCommandInteraction
@@ -313,4 +322,99 @@ test("passive market presentation stays locally unavailable without probing an a
   const market = read("src/features/market/WildzMarketSheet.tsx");
   assert.match(app, /connected=\{proofSessionConnected\}/);
   assert.match(market, /if \(!connected\) return/);
+});
+
+test("modal admission tokens reject delayed work after another owner wins or closes", () => {
+  for (const winner of ["map", "trainer", "combat", "profile", "command"] as const) {
+    const idle = createModalAdmissionState();
+    const delayedAdmission = beginModalAdmission(idle);
+    assert.ok(delayedAdmission);
+    assert.equal(canCommitModalAdmission(idle, delayedAdmission), true);
+
+    const claimed = claimModalAdmissionOwner(idle, winner);
+    assert.equal(canCommitModalAdmission(claimed, delayedAdmission), false);
+    assert.equal(isProjectedModalMounted(claimed.owner, winner), true);
+    assert.equal(isProjectedModalMounted(claimed.owner, "raid"), false);
+
+    const closed = releaseModalAdmissionOwner(claimed, winner);
+    assert.equal(closed.owner, "none");
+    assert.equal(canCommitModalAdmission(closed, delayedAdmission), false);
+    assert.equal(isProjectedModalMounted(closed.owner, "raid"), false);
+  }
+});
+
+test("a completed capture yields combat ownership so its reward can be admitted", () => {
+  for (const phase of ["battle_intro", "player_turn", "capture_ready", "emerging", "capsule", "sealed", "fled", "defeated"]) {
+    assert.equal(isWildBattleModalOwner(phase, true), true, `${phase} must retain combat ownership`);
+  }
+  assert.equal(isWildBattleModalOwner("revealed", true), false);
+  assert.equal(isWildBattleModalOwner("idle", true), false);
+  assert.equal(isWildBattleModalOwner("player_turn", false), false);
+
+  const combatReleased = createModalAdmissionState("none");
+  const rewardAdmission = beginModalAdmission(combatReleased);
+  assert.ok(rewardAdmission);
+  assert.equal(canCommitModalAdmission(combatReleased, rewardAdmission), true);
+});
+
+test("a revealed inventory-backed capture owns the reward surface synchronously", () => {
+  assert.equal(isCaptureRewardModalOwner("revealed", true), true);
+  assert.equal(isCaptureRewardModalOwner("revealed", false), false);
+  assert.equal(isCaptureRewardModalOwner("sealed", true), false);
+
+  const campaign = read("src/features/play/PlayCampaign.tsx");
+  assert.match(campaign, /const captureRewardAssetId = state\.encounter\.phase === "revealed"/);
+  assert.match(campaign, /const captureRewardAsset = captureRewardAssetId/);
+  assert.match(campaign, /reward: isCaptureRewardModalOwner\(state\.encounter\.phase, Boolean\(captureRewardAsset\)\)/);
+  assert.doesNotMatch(campaign, /state\.encounter\.phase !== "revealed"[\s\S]{0,500}window\.setTimeout/);
+});
+
+test("every exclusive owner hides and gates every non-owner world home", () => {
+  const homes = ["reference", "multiplayer", "status", "movement", "tools", "companion"] as const;
+  const owners: WorldOverlayOwner[] = [
+    "map", "trainer", "combat", "landmark", "settlement", "ecology", "raid", "reward",
+    "ceremony", "memorial", "profile", "market", "multiplayer", "command"
+  ];
+  for (const owner of owners) {
+    const available = homes.filter((home) => isPlayHomeAvailable(owner, home));
+    assert.deepEqual(available, owner === "command" ? ["tools"] : owner === "multiplayer" ? ["multiplayer"] : []);
+  }
+  assert.deepEqual(homes.filter((home) => isPlayHomeAvailable("none", home)), homes);
+});
+
+test("the projected owner admits exactly one modal candidate and release admits no stale loser", () => {
+  const candidates: WorldOverlayOwner[] = [
+    "map", "trainer", "combat", "landmark", "settlement", "ecology", "raid",
+    "reward", "ceremony", "memorial", "profile", "market", "multiplayer", "command"
+  ];
+  for (const owner of candidates) {
+    const claimed = claimModalAdmissionOwner(createModalAdmissionState(), owner);
+    assert.deepEqual(candidates.filter((candidate) => isProjectedModalMounted(claimed.owner, candidate)), [owner]);
+    const released = releaseModalAdmissionOwner(claimed, owner);
+    assert.deepEqual(candidates.filter((candidate) => isProjectedModalMounted(released.owner, candidate)), []);
+  }
+});
+
+test("PlayCampaign mounts only the projected winner and guards delayed admissions", () => {
+  const campaign = read("src/features/play/PlayCampaign.tsx");
+  assert.match(campaign, /const claimPlayModalOwner/);
+  assert.match(campaign, /clearIncompatibleModalState\(exclusiveOwner\)/);
+  assert.match(campaign, /beginModalAdmission/);
+  assert.match(campaign, /canCommitModalAdmission/);
+  assert.match(campaign, /exclusiveOwner === "map"/);
+  assert.match(campaign, /exclusiveOwner === "landmark"/);
+  assert.match(campaign, /exclusiveOwner === "settlement"/);
+  assert.match(campaign, /exclusiveOwner === "ecology"/);
+  assert.match(campaign, /exclusiveOwner === "raid"/);
+  assert.match(campaign, /exclusiveOwner === "reward"/);
+  assert.match(campaign, /exclusiveOwner === "ceremony"/);
+  assert.match(campaign, /exclusiveOwner === "combat"/);
+  assert.match(campaign, /memorialAssetId=\{exclusiveOwner === "memorial" \? memorialAssetId : null\}/);
+  assert.match(campaign, /backgroundHomesBlocked/);
+  assert.match(campaign, /aria-hidden=\{referenceHomeBlocked\}/);
+  assert.match(campaign, /inert=\{referenceHomeBlocked \? true : undefined\}/);
+  const controls = read("src/features/play/WildzWorldControls.tsx");
+  assert.match(controls, /aria-hidden=\{movementHomeBlocked\}[\s\S]*inert=\{movementHomeBlocked \? true : undefined\}/);
+  assert.match(controls, /aria-hidden=\{toolsHomeBlocked\}[\s\S]*inert=\{toolsHomeBlocked \? true : undefined\}/);
+  assert.match(controls, /aria-hidden=\{companionHomeBlocked\}[\s\S]*inert=\{companionHomeBlocked \? true : undefined\}/);
 });

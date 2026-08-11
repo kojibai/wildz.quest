@@ -15,9 +15,9 @@ test("the stage director owns command panels and gates every non-modal home", ()
   assert.match(campaign, /const canUseWorldStage = useCallback[\s\S]*!panelOwnershipRef\.current/);
   assert.match(campaign, /event\.type === "panel" && event\.key !== null[\s\S]*setWorldStatusOpen\(false\)[\s\S]*setMultiplayerRosterOpen\(false\)/);
   assert.match(campaign, /is-command-panel-open/);
-  assert.match(campaign, /aria-hidden=\{commandPanelOpen\} className="wilds-multiplayer-home" inert=\{commandPanelOpen \? true : undefined\}/);
-  assert.match(campaign, /aria-hidden=\{commandPanelOpen\}[\s\S]*wilds-world-status-home[\s\S]*inert=\{commandPanelOpen \? true : undefined\}/);
-  assert.match(campaign, /worldStatusOpen && !commandPanelOpen \? <div className="wilds-world-status-fan"/);
+  assert.match(campaign, /aria-hidden=\{multiplayerHomeBlocked\} className="wilds-multiplayer-home" inert=\{multiplayerHomeBlocked \? true : undefined\}/);
+  assert.match(campaign, /aria-hidden=\{statusHomeBlocked\}[\s\S]*wilds-world-status-home[\s\S]*inert=\{statusHomeBlocked \? true : undefined\}/);
+  assert.match(campaign, /worldStatusOpen && !backgroundHomesBlocked \? <div className="wilds-world-status-fan"/);
   assert.match(campaign, /overlayDispatch=\{dispatchStageOverlay\}/);
   assert.match(campaign, /overlayState=\{worldOverlayState\}/);
   assert.doesNotMatch(controls, /useWorldOverlayDirector/);

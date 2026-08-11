@@ -26,7 +26,16 @@ import { WildsAudioSettings } from "@/features/play/WildsAudioSettings";
 import { useWildsPresentation } from "@/features/play/use-wilds-presentation";
 import { useWildsQualityProfile } from "@/features/play/use-wilds-quality-profile";
 import { useWorldOverlayDirector } from "@/features/play/use-world-overlay-director";
-import { canAcceptPlayShellInput, projectPlayShellOwner } from "@/features/play/play-shell-owner";
+import { canAcceptPlayShellInput, isCaptureRewardModalOwner, isWildBattleModalOwner, projectPlayShellOwner } from "@/features/play/play-shell-owner";
+import {
+  beginModalAdmission,
+  canCommitModalAdmission,
+  claimModalAdmissionOwner,
+  createModalAdmissionState,
+  isPlayHomeAvailable,
+  releaseModalAdmissionOwner,
+  type ModalAdmissionToken
+} from "@/features/play/modal-admission";
 import { worldInputForKeyboardEvent } from "@/features/play/world-keyboard-routing";
 import { projectWildsAudioScene } from "@/features/play/wilds-audio-scene";
 import { projectWildsBiome } from "@/features/play/wilds-biome";
@@ -157,7 +166,6 @@ export function PlayCampaign({
 }) {
   const [state, setState] = useState(() => initialState);
   const [saveRestored, setSaveRestored] = useState(false);
-  const [rewardAsset, setRewardAsset] = useState<PortableCardAsset | null>(null);
   const [memorialAssetId, setMemorialAssetId] = useState<string | null>(null);
   const [selectedAbilityByAssetId, setSelectedAbilityByAssetId] = useState<Record<string, number>>({});
   const explorerStyle = character.gender;
@@ -237,11 +245,15 @@ export function PlayCampaign({
     activeCard: activeAsset,
     cardAdmission
   });
+  const captureRewardAssetId = state.encounter.phase === "revealed" ? state.encounter.assetId : null;
+  const captureRewardAsset = captureRewardAssetId
+    ? state.inventory.find((candidate) => candidate.id === captureRewardAssetId) ?? null
+    : null;
   const modalOwner = projectPlayShellOwner({
-    combat: trainerEncounter?.phase === "combat" || Boolean(state.battle) || Boolean(multiplayer.activeBattle),
+    combat: trainerEncounter?.phase === "combat" || isWildBattleModalOwner(state.encounter.phase, Boolean(state.battle)) || Boolean(multiplayer.activeBattle),
     trainer: Boolean(activeTrainer && activeAsset && trainerEncounter && ["challenge", "transition", "result"].includes(trainerEncounter.phase)),
     memorial: memorialAssetId !== null,
-    reward: rewardAsset !== null,
+    reward: isCaptureRewardModalOwner(state.encounter.phase, Boolean(captureRewardAsset)),
     ceremony: Boolean(state.transformation || state.lineageReveal),
     raid: Boolean(activeRaid),
     ecology: Boolean(activeEcologySiteId),
@@ -262,7 +274,52 @@ export function PlayCampaign({
   } = useWorldOverlayDirector({ dismissSignal: commandDismissSignal, exclusiveOwner: modalOwner });
   const commandPanelOpen = modalOwner === "none" && worldOverlayState.panelKey !== null;
   const exclusiveOwner = commandPanelOpen ? "command" : modalOwner;
+  const modalAdmissionRef = useRef(createModalAdmissionState(exclusiveOwner));
+  if (modalAdmissionRef.current.owner !== exclusiveOwner) {
+    modalAdmissionRef.current = claimModalAdmissionOwner(modalAdmissionRef.current, exclusiveOwner);
+  }
+  const clearIncompatibleModalState = useCallback((owner: typeof exclusiveOwner) => {
+    if (owner !== "map") setMapOpen(false);
+    if (owner !== "landmark" && owner !== "settlement") setActiveLandmarkId(null);
+    if (owner !== "ecology") setActiveEcologySiteId(null);
+    if (owner !== "raid") {
+      setActiveRaid(null);
+      setRaidBusyIntent(null);
+    }
+    if (owner !== "trainer" && owner !== "combat") {
+      setActiveTrainer(null);
+      setTrainerEncounter(null);
+    }
+    if (owner !== "memorial") setMemorialAssetId(null);
+    setWorldStatusOpen(false);
+    setMultiplayerRosterOpen(false);
+  }, []);
+  const claimPlayModalOwner = useCallback((
+    owner: Exclude<typeof exclusiveOwner, "none" | "command">,
+    restoreOrigin?: HTMLElement | null
+  ) => {
+    modalAdmissionRef.current = claimModalAdmissionOwner(modalAdmissionRef.current, owner);
+    clearIncompatibleModalState(owner);
+    claimExclusiveOwner(owner, restoreOrigin);
+  }, [claimExclusiveOwner, clearIncompatibleModalState]);
+  const beginPlayModalAdmission = useCallback(() => beginModalAdmission(modalAdmissionRef.current), []);
+  const commitPlayModalAdmission = useCallback((token: ModalAdmissionToken | null, owner: Exclude<typeof exclusiveOwner, "none" | "command">) => {
+    if (!canCommitModalAdmission(modalAdmissionRef.current, token)) return false;
+    claimPlayModalOwner(owner);
+    return true;
+  }, [claimPlayModalOwner]);
+  const releasePlayModalOwner = useCallback((owner: typeof exclusiveOwner) => {
+    modalAdmissionRef.current = releaseModalAdmissionOwner(modalAdmissionRef.current, owner);
+  }, []);
+  useEffect(() => {
+    if (exclusiveOwner === "none" || exclusiveOwner === "command") return;
+    clearIncompatibleModalState(exclusiveOwner);
+  }, [clearIncompatibleModalState, exclusiveOwner]);
   const worldInteractionEnabled = canAcceptPlayShellInput(interactionEnabled, modalOwner, commandPanelOpen);
+  const backgroundHomesBlocked = exclusiveOwner !== "none";
+  const referenceHomeBlocked = !isPlayHomeAvailable(exclusiveOwner, "reference");
+  const multiplayerHomeBlocked = !isPlayHomeAvailable(exclusiveOwner, "multiplayer");
+  const statusHomeBlocked = !isPlayHomeAvailable(exclusiveOwner, "status");
   const canUseWorldStage = useCallback(
     () => worldInteractionEnabled && !panelOwnershipRef.current,
     [panelOwnershipRef, worldInteractionEnabled]
@@ -333,6 +390,7 @@ export function PlayCampaign({
       if (event.key !== "Escape") return;
       event.preventDefault();
       event.stopImmediatePropagation();
+      releasePlayModalOwner(exclusiveOwner);
       if (exclusiveOwner === "trainer") {
         setActiveTrainer(null);
         setTrainerEncounter(null);
@@ -345,7 +403,6 @@ export function PlayCampaign({
       } else if (exclusiveOwner === "raid") {
         setActiveRaid(null);
       } else if (exclusiveOwner === "reward") {
-        setRewardAsset(null);
         setState((current) => applyWildsInput(current, { type: "dismiss-reveal" }));
       } else if (exclusiveOwner === "ceremony") {
         setState((current) => current.transformation
@@ -359,7 +416,7 @@ export function PlayCampaign({
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [answerMultiplayerChallenge, exclusiveOwner, incomingChallengeId]);
+  }, [answerMultiplayerChallenge, exclusiveOwner, incomingChallengeId, releasePlayModalOwner]);
   useEffect(() => {
     if (!worldStatusOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -431,7 +488,7 @@ export function PlayCampaign({
       ? modalOwner === "none" && worldOverlayState.panelKey === "mission"
       : canUseWorldStage();
     if (!trainerActionAllowed) return;
-    claimExclusiveOwner("trainer");
+    claimPlayModalOwner("trainer");
     if (origin === "mission") dispatchStageOverlay({ type: "panel", key: null });
     void import("@/features/play/WildsTrainerEncounter");
     void import("@/features/games/mortal-arena/MortalArenaExperience");
@@ -623,14 +680,6 @@ export function PlayCampaign({
   }, [state.encounter.phase]);
 
   useEffect(() => {
-    if (state.encounter.phase !== "revealed" || !state.encounter.assetId) return;
-    const assetId = state.encounter.assetId;
-    const asset = state.inventory.find((candidate) => candidate.id === assetId) ?? null;
-    claimExclusiveOwner("reward");
-    setRewardAsset(asset);
-  }, [claimExclusiveOwner, state.encounter, state.inventory]);
-
-  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!worldInteractionEnabled) return;
       const input = worldInputForKeyboardEvent(event);
@@ -675,26 +724,26 @@ export function PlayCampaign({
   const openProfile = () => {
     if (!canUseWorldStage()) return;
     const origin = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    claimExclusiveOwner("profile", origin);
+    claimPlayModalOwner("profile", origin);
     onOpenProfile(origin);
   };
   const openMarketFromVault = () => {
     if (modalOwner !== "none" || worldOverlayState.panelKey !== "vault") return;
     const origin = document.querySelector<HTMLElement>(".wilds-world-tools-trigger");
-    claimExclusiveOwner("market", origin);
+    claimPlayModalOwner("market", origin);
     dispatchStageOverlay({ type: "panel", key: null });
     onOpenMarket(origin);
   };
   const openWorldMap = () => {
     if (!canUseWorldStage()) return;
-    claimExclusiveOwner("map");
+    claimPlayModalOwner("map");
     setCommandDismissSignal((signal) => signal + 1);
     setMapOpen(true);
   };
   const openWorldMapFromCommandPanel = () => {
     if (modalOwner !== "none" || worldOverlayState.panelKey !== "commandCenter") return;
     dispatchStageOverlay({ type: "panel", key: null });
-    claimExclusiveOwner("map");
+    claimPlayModalOwner("map");
     setCommandDismissSignal((signal) => signal + 1);
     setMapOpen(true);
   };
@@ -732,7 +781,7 @@ export function PlayCampaign({
   const activeRaidEncounter = activeRaidRound && typeof activeRaidRound.encounter === "object" ? activeRaidRound.encounter as WildsRaidEncounterState : null;
   const activeRaidRoles = activeAsset ? projectWildsRaidRoles(activeAsset) : null;
   const basePulse = resolveWildsContextAction({
-    pendingReward: Boolean(rewardAsset),
+    pendingReward: Boolean(captureRewardAsset),
     landmark: currentLandmark,
     secretId: state.encounter.phase === "hint" ? state.encounter.hotspotId ?? null : null,
     selectedPlayer: multiplayer.selectedPlayer
@@ -788,12 +837,14 @@ export function PlayCampaign({
       } : null,
       livePlayer: multiplayer.selectedPlayer ? { id: multiplayer.selectedPlayer.playerId, name: multiplayer.selectedPlayer.handle } : null
     },
-    pendingReward: Boolean(rewardAsset),
+    pendingReward: Boolean(captureRewardAsset),
     pendingOperation: livingWorld.pendingCommand ?? raidBusyIntent,
     acknowledgedCausalIds: []
   });
   const enterLivingRaid = (bossId: string) => {
     if (!worldInteractionEnabled) return;
+    const admission = beginPlayModalAdmission();
+    if (!admission) return;
     const round = Object.values(livingWorld.snapshot?.raids ?? {}).find((candidate) => candidate.bossId === bossId && candidate.phase !== "settled" && candidate.phase !== "expired");
     const boss = livingWorld.snapshot?.bosses[bossId];
     if (!round) { setRiftError("wilds_world_raid_missing"); return; }
@@ -803,10 +854,14 @@ export function PlayCampaign({
       if (!admitted) throw new Error("wilds_raid_admission_missing");
       const squads = Array.isArray(admitted.squads) ? admitted.squads as string[][] : [];
       const placement = squads.some((squad) => squad.includes(multiplayer.guestId)) ? "fighter" : "support";
-      claimExclusiveOwner("raid");
+      if (!commitPlayModalAdmission(admission, "raid")) return;
       setActiveRaid({ bossId, roundId: round.id, placement, connected: true });
       if (boss?.familyId) presentation.playCue(bossAudioCue("telegraph", boss.familyId as WildsBossFamilyId));
-    }).catch((error) => setRiftError(error instanceof Error ? error.message : "wilds_raid_join_failed"));
+    }).catch((error) => {
+      if (canCommitModalAdmission(modalAdmissionRef.current, admission)) {
+        setRiftError(error instanceof Error ? error.message : "wilds_raid_join_failed");
+      }
+    });
   };
   const activatePulse = () => {
     if (pulse.kind === "enter") {
@@ -827,7 +882,7 @@ export function PlayCampaign({
         }
         presentation.playCue(settlementAudioCue("arrival"));
       }
-      claimExclusiveOwner(pulse.landmarkId === "wayfinder-hollow" ? "settlement" : "landmark");
+      claimPlayModalOwner(pulse.landmarkId === "wayfinder-hollow" ? "settlement" : "landmark");
       setActiveLandmarkId(pulse.landmarkId);
       return;
     }
@@ -837,14 +892,17 @@ export function PlayCampaign({
         if (!ecology || !nearbyEcology || nearbyEcology.site.id !== ecology.id) return;
         if (ecology.phase !== "foreshadowed") {
           presentation.playCue(ecologyAudioCue("discovered", ecology.familyId));
-          claimExclusiveOwner("ecology");
+          claimPlayModalOwner("ecology");
           setActiveEcologySiteId(ecology.id);
           return;
         }
+        const admission = beginPlayModalAdmission();
+        if (!admission) return;
         void livingWorld.discoverEcology(ecology.id, state.player).then((projection) => {
           const admitted = projection.ecologySites[ecology.id];
           const cursor = projection.cursor;
           if (!admitted || !cursor) throw new Error("wilds_ecology_discovery_receipt_missing");
+          if (!commitPlayModalAdmission(admission, "ecology")) return;
           dispatch({
             type: "record-ecology-event",
             event: createWildsEcologyReceipt({
@@ -860,9 +918,12 @@ export function PlayCampaign({
             })
           });
           presentation.playCue(ecologyAudioCue("discovered", admitted.familyId));
-          claimExclusiveOwner("ecology");
           setActiveEcologySiteId(admitted.id);
-        }).catch((error) => setRiftError(error instanceof Error ? error.message : "wilds_ecology_discovery_failed"));
+        }).catch((error) => {
+          if (canCommitModalAdmission(modalAdmissionRef.current, admission)) {
+            setRiftError(error instanceof Error ? error.message : "wilds_ecology_discovery_failed");
+          }
+        });
         return;
       }
       enterLivingRaid(pulse.activityId);
@@ -928,6 +989,7 @@ export function PlayCampaign({
       });
       multiplayer.selectPlayer(null);
       setActiveLandmarkId(null);
+      releasePlayModalOwner("map");
       setMapOpen(false);
     } catch (error) {
       setRiftError(error instanceof Error ? error.message : "wilds_rift_failed");
@@ -1206,20 +1268,22 @@ export function PlayCampaign({
               }}
             />
 
-            <WildzReferenceHud
-              character={character}
-              interactionEnabled={worldInteractionEnabled}
-              modalOwned={exclusiveOwner !== "none"}
-              heading={playerHeading}
-              model={hudModel}
-              onOpenMap={openWorldMap}
-              onOpenProfile={openProfile}
-              onOpenMission={() => {
-                if (canUseWorldStage()) setRequestedCommand("mission");
-              }}
-            />
+            <div aria-hidden={referenceHomeBlocked} className="wildz-reference-home" inert={referenceHomeBlocked ? true : undefined}>
+              <WildzReferenceHud
+                character={character}
+                interactionEnabled={worldInteractionEnabled}
+                modalOwned={exclusiveOwner !== "none"}
+                heading={playerHeading}
+                model={hudModel}
+                onOpenMap={openWorldMap}
+                onOpenProfile={openProfile}
+                onOpenMission={() => {
+                  if (canUseWorldStage()) setRequestedCommand("mission");
+                }}
+              />
+            </div>
 
-            <div aria-hidden={commandPanelOpen} className="wilds-multiplayer-home" inert={commandPanelOpen ? true : undefined}><WildsMultiplayer
+            <div aria-hidden={multiplayerHomeBlocked} className="wilds-multiplayer-home" inert={multiplayerHomeBlocked ? true : undefined}><WildsMultiplayer
               controlsExpanded={worldStatusOpen && !commandPanelOpen}
               dismissSignal={commandDismissSignal}
               interactionEnabled={worldInteractionEnabled}
@@ -1228,7 +1292,7 @@ export function PlayCampaign({
               position={state.player}
               onRosterOpenChange={handleMultiplayerRosterOpenChange}
             /></div>
-            <div aria-hidden={commandPanelOpen} className={`wilds-world-status-home${worldStatusOpen && !commandPanelOpen ? " is-open" : ""}`} inert={commandPanelOpen ? true : undefined}>
+            <div aria-hidden={statusHomeBlocked} className={`wilds-world-status-home${worldStatusOpen && !backgroundHomesBlocked ? " is-open" : ""}`} inert={statusHomeBlocked ? true : undefined}>
               <button
                 aria-controls="wilds-live-controls wilds-world-status-fan"
                 aria-expanded={worldStatusOpen}
@@ -1246,14 +1310,14 @@ export function PlayCampaign({
                 <i aria-hidden="true"><span /><span /><span /></i>
                 <b>{multiplayer.remotePlayers.length}</b>
               </button>
-              {worldStatusOpen && !commandPanelOpen ? <div className="wilds-world-status-fan" id="wilds-world-status-fan">
+              {worldStatusOpen && !backgroundHomesBlocked ? <div className="wilds-world-status-fan" id="wilds-world-status-fan">
                 <div className="wilds-world-navigator-stack">
                   <WildsLivingWorldHud connected={networkEnabled} onEnterRaid={enterLivingRaid} player={state.player} world={livingWorld} />
                 </div>
                 <div className="wilds-utility-cluster">
                   <WildsAudioSettings
-                    onChange={presentation.setAudioSettings}
-                    onUnlock={() => { void presentation.unlockAudio(); }}
+                    onChange={(settings) => { if (canUseWorldStage()) presentation.setAudioSettings(settings); }}
+                    onUnlock={() => { if (canUseWorldStage()) void presentation.unlockAudio(); }}
                     ready={presentation.audioReady}
                     settings={presentation.audioSettings}
                   />
@@ -1285,10 +1349,10 @@ export function PlayCampaign({
               commandItems={commandItems}
               companionProgress={state.companionProgress}
               dismissSignal={commandDismissSignal}
-              exclusiveOwner={modalOwner}
+              exclusiveOwner={exclusiveOwner}
               gestureCancelSignal={gestureCancelSignal}
               selectedAbilityIndex={selectedAbilityIndex}
-              memorialAssetId={memorialAssetId}
+              memorialAssetId={exclusiveOwner === "memorial" ? memorialAssetId : null}
               movementMode={movementMode}
               nearbyCards={state.inventory}
               overlayDispatch={dispatchStageOverlay}
@@ -1306,18 +1370,22 @@ export function PlayCampaign({
                 setSelectedAbilityByAssetId((current) => ({ ...current, [activeAsset.id]: abilityIndex }));
               }}
               onMemorialAssetChange={(assetId) => {
-                if (assetId) claimExclusiveOwner("memorial");
+                if (assetId) claimPlayModalOwner("memorial");
+                else releasePlayModalOwner("memorial");
                 setMemorialAssetId(assetId);
               }}
               requestedCommand={requestedCommand}
             />
 
-            {wildBattleActive && state.battle ? (
+            {exclusiveOwner === "combat" && wildBattleActive && state.battle ? (
               <WildsBattle
                 battle={state.battle}
                 inventory={state.inventory}
                 onAction={(action) => dispatch({ type: "battle-action", action, at: new Date().toISOString() })}
-                onDismiss={() => dispatch({ type: "dismiss-reveal" })}
+                onDismiss={() => {
+                  releasePlayModalOwner("combat");
+                  dispatch({ type: "dismiss-reveal" });
+                }}
               />
             ) : null}
 
@@ -1335,9 +1403,12 @@ export function PlayCampaign({
         discoveredLandmarkIds={discoveredLandmarkIds}
         guestId={multiplayer.guestId}
         missionProgress={state.missionProgress}
-        onClose={() => setMapOpen(false)}
+        onClose={() => {
+          releasePlayModalOwner("map");
+          setMapOpen(false);
+        }}
         onRift={riftTo}
-        open={mapOpen}
+        open={exclusiveOwner === "map" && mapOpen}
         qualityProfile={qualityProfile}
         reducedMotion={reducedMotion}
         remotePlayers={multiplayer.remotePlayers}
@@ -1355,8 +1426,11 @@ export function PlayCampaign({
         hearttreeConditions={state.hearttreeConditions}
         hearttreeSquadAssetIds={state.hearttreeSquadAssetIds}
         guestId={multiplayer.guestId}
-        landmarkId={activeLandmarkId === "wayfinder-hollow" ? null : activeLandmarkId}
-        onExit={() => setActiveLandmarkId(null)}
+        landmarkId={exclusiveOwner === "landmark" && activeLandmarkId !== "wayfinder-hollow" ? activeLandmarkId : null}
+        onExit={() => {
+          releasePlayModalOwner("landmark");
+          setActiveLandmarkId(null);
+        }}
         onAudioCue={presentation.playCue}
         onHearttreeReceipt={(receipt) => dispatch({ type: "hearttree-admit", receipt })}
         onHearttreeSquadChange={(assetIds) => dispatch({ type: "hearttree-select-squad", assetIds })}
@@ -1372,6 +1446,7 @@ export function PlayCampaign({
         encounter={trainerEncounter}
         onAccept={(rosterIds) => sendTrainerEncounter({ type: "accept", rosterIds })}
         onCancel={() => {
+          releasePlayModalOwner("trainer");
           sendTrainerEncounter({ type: "cancel" });
           setActiveTrainer(null);
           setTrainerEncounter(null);
@@ -1379,6 +1454,7 @@ export function PlayCampaign({
         onContinue={() => {
           sendTrainerEncounter({ type: "continue" });
           window.setTimeout(() => {
+            releasePlayModalOwner("trainer");
             setActiveTrainer(null);
             setTrainerEncounter(null);
           }, 180);
@@ -1390,7 +1466,7 @@ export function PlayCampaign({
         roster={state.inventory}
         trainer={activeTrainer}
       /> : null}
-      {!state.battle && !multiplayer.activeBattle && activeTrainer && activeAsset && trainerEncounter?.phase === "combat" ? <MortalArenaExperience
+      {exclusiveOwner === "combat" && !state.battle && !multiplayer.activeBattle && activeTrainer && activeAsset && trainerEncounter?.phase === "combat" ? <MortalArenaExperience
         card={activeAsset}
         roster={state.inventory}
         opponent={projectCampaignOpponentFromTrainer(activeTrainer)}
@@ -1415,6 +1491,7 @@ export function PlayCampaign({
           }
         }}
         onExit={() => {
+          releasePlayModalOwner("combat");
           setActiveTrainer(null);
           setTrainerEncounter(null);
         }}
@@ -1428,14 +1505,20 @@ export function PlayCampaign({
         onAudioCue={presentation.playCue}
         onDistrictChange={setActiveDistrictId}
         onCivicEvent={(event) => dispatch({ type: "record-civic-event", event })}
-        onExit={() => setActiveLandmarkId(null)}
-        open={activeLandmarkId === "wayfinder-hollow"}
+        onExit={() => {
+          releasePlayModalOwner("settlement");
+          setActiveLandmarkId(null);
+        }}
+        open={exclusiveOwner === "settlement" && activeLandmarkId === "wayfinder-hollow"}
         remotePlayers={multiplayer.remotePlayers}
         worldMode={settlementWorldMode}
       />
       <WildsEcologyExperience
         card={activeAsset}
-        onExit={() => setActiveEcologySiteId(null)}
+        onExit={() => {
+          releasePlayModalOwner("ecology");
+          setActiveEcologySiteId(null);
+        }}
         onSubmit={async ({ siteId, amount }) => {
           const projection = await livingWorld.contributeEcology(siteId, state.player, amount);
           const admitted = projection.ecologySites[siteId];
@@ -1457,7 +1540,7 @@ export function PlayCampaign({
           });
           presentation.playCue(ecologyAudioCue(admitted.phase === "aftermath" ? "resolved" : "step", admitted.familyId));
         }}
-        open={Boolean(activeEcologySite)}
+        open={exclusiveOwner === "ecology" && Boolean(activeEcologySite)}
         participantCount={(activeEcologySite?.participantIds.length ?? 0) + 1}
         site={activeEcologySite}
         worldMode={settlementWorldMode}
@@ -1504,6 +1587,7 @@ export function PlayCampaign({
         }}
         onClose={() => {
           if (!activeRaid) return;
+          releasePlayModalOwner("raid");
           void livingWorld.retreatRaid(activeRaid.bossId, activeRaid.roundId).catch(() => undefined);
           if (raidReturnPosition) setState((current) => ({ ...current, player: raidReturnPosition }));
           setActiveRaid(null);
@@ -1516,22 +1600,25 @@ export function PlayCampaign({
         onRetreat={() => {
           if (!activeRaid) return;
           void livingWorld.retreatRaid(activeRaid.bossId, activeRaid.roundId).finally(() => {
+            releasePlayModalOwner("raid");
             if (raidReturnPosition) setState((current) => ({ ...current, player: raidReturnPosition }));
             setActiveRaid(null);
             setRaidReturnPosition(null);
           });
         }}
-        open={Boolean(activeRaid && activeRaidBoss && activeRaidRound)}
+        open={exclusiveOwner === "raid" && Boolean(activeRaid && activeRaidBoss && activeRaidRound)}
         placement={activeRaid?.placement ?? "support"}
         raid={activeRaidRound}
         role={activeRaidRoles?.primary ?? "steward"}
       />
-      <WildsCaptureReward asset={rewardAsset} onClose={() => {
-        setRewardAsset(null);
+      {exclusiveOwner === "reward" ? <WildsCaptureReward asset={captureRewardAsset} onClose={() => {
+        releasePlayModalOwner("reward");
         dispatch({ type: "dismiss-reveal" });
-      }} />
-      <WildsTransformation state={state} onInput={dispatch} />
-      <WildsChildCeremony state={state} onInput={dispatch} />
+      }} /> : null}
+      {exclusiveOwner === "ceremony" ? <>
+        <WildsTransformation state={state} onInput={dispatch} />
+        <WildsChildCeremony state={state} onInput={dispatch} />
+      </> : null}
     </section>
   );
 }

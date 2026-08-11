@@ -31,10 +31,10 @@ test("campaign projects one modal owner and gates underlying world input", () =>
   const campaign = read("src/features/play/PlayCampaign.tsx");
 
   assert.match(campaign, /const modalOwner = projectPlayShellOwner/);
-  assert.match(campaign, /combat: trainerEncounter\?\.phase === "combat" \|\| Boolean\(state\.battle\) \|\| Boolean\(multiplayer\.activeBattle\)/);
+  assert.match(campaign, /combat: trainerEncounter\?\.phase === "combat" \|\| isWildBattleModalOwner\(state\.encounter\.phase, Boolean\(state\.battle\)\) \|\| Boolean\(multiplayer\.activeBattle\)/);
   assert.match(campaign, /trainer: Boolean\(activeTrainer && activeAsset && trainerEncounter/);
   assert.match(campaign, /map: mapOpen/);
-  assert.match(campaign, /exclusiveOwner=\{modalOwner\}/);
+  assert.match(campaign, /exclusiveOwner=\{exclusiveOwner\}/);
   assert.match(campaign, /const worldInteractionEnabled = canAcceptPlayShellInput\(interactionEnabled, modalOwner, commandPanelOpen\)/);
   assert.match(campaign, /if \(!worldInteractionEnabled\) return/);
   assert.match(campaign, /searchEnabled=\{worldInteractionEnabled && discoveryActive\}/);

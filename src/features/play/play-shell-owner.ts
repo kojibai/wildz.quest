@@ -17,6 +17,25 @@ export type PlayShellOwnerState = Readonly<{
   command: boolean;
 }>;
 
+const WILD_BATTLE_OWNED_PHASES = new Set([
+  "battle_intro",
+  "player_turn",
+  "capture_ready",
+  "emerging",
+  "capsule",
+  "sealed",
+  "fled",
+  "defeated"
+]);
+
+export function isWildBattleModalOwner(encounterPhase: string, battlePresent: boolean) {
+  return battlePresent && WILD_BATTLE_OWNED_PHASES.has(encounterPhase);
+}
+
+export function isCaptureRewardModalOwner(encounterPhase: string, rewardAssetPresent: boolean) {
+  return encounterPhase === "revealed" && rewardAssetPresent;
+}
+
 export function projectPlayShellOwner(state: PlayShellOwnerState): WorldOverlayOwner {
   if (state.combat) return "combat";
   if (state.trainer) return "trainer";

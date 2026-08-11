@@ -20,6 +20,7 @@ This qualification covers the rebuilt living-world controls and one complete tra
 | E12 | `externalAssetSourcing` |
 | E13 | `claimIndex` |
 | E14 | Tracked bundle `docs/release/evidence/final-integration/`: manifest `final-integration-evidence-manifest.json` (SHA-256 `cdd1218471ea8363b3582a07bf27ad92234b97e123bea3296fa745b04c1e9cbe`), replay script (SHA-256 `0cbc544102b97e5268f89a33f11e24a18446dbc311dd9f5fea9666254af314f9`), structured result (SHA-256 `0a7fd11f3c8589cd406a473a0fbf4ce751239f733363221f02cfcd48cd27fa9c`), executable validator `validate-final-integration-evidence.mjs` (SHA-256 `991685e4eb5d1776c26fc34139d6c9b788bbc0ff5916eee8caeb285cb67df329`), five hashed screenshots, and tracked final report — recorded product-commit/build-ID metadata, listener-before-navigation, modal lifetime, ability, owner-cancellation, and gate evidence |
+| E15 | 2026-08-11 authoritative-modal qualification on production `http://127.0.0.1:49817/`: Map held exactly one visible `aria-modal`, all six non-owner world homes were `inert` and `aria-hidden`, forced world/companion actions did not change world state, and Escape left zero stale modal. A real capture reproduced and corrected the revealed-phase deadlock; phase-aware combat ownership and synchronous inventory-backed reward ownership now have regression coverage. |
 
 ## Release outcome
 
@@ -36,6 +37,7 @@ This qualification covers the rebuilt living-world controls and one complete tra
 - Profile and Market now retain shell-modal ownership for their complete open lifetime. Profile held the world inert and `aria-hidden`; repeated keyboard input and two companion action attempts left recorded world state unchanged, focus stayed trapped, and Escape restored the identity origin. Market separately proved world inertness/`aria-hidden`, focus containment, Escape restoration to the persistent world-tools origin, local unavailable presentation, and zero `/api/market/listings` requests; the replay did not attempt background Market actions. The ability listbox owned real DOM focus and its `aria-activedescendant`; pointer and keyboard paths changed the selected named ability. [E14]
 - The focused ability composite now consumes all four arrow keys without producing explorer movement: production position remained exactly X -2, Z -1 while every arrow changed `aria-activedescendant`. Claiming Profile ownership from an A-open wheel synchronously removed the wheel, cancelled its focus RAF and any owned pointer capture, and kept focus inside the inert-gated modal; normal commit and Escape still restore companion focus. [E14]
 - E14 capture metadata records product commit `c26ae652894db84868c0343c108c048aa32d0fb4`, build ID `pVMRsX8Mh21tHuB69B34C`, `http://127.0.0.1:49816/`, Chromium 152 at 390×844. Validation proves the product commit is an ancestor of this release evidence and optionally compares a present local `.next/BUILD_ID`; a fresh checkout cannot independently attest the untracked captured `.next` artifact without rebuilding. Precise machine claims are `.listenerEvidence`, `.profile`, `.market`, `.keyboardAbility`, `.pointerAbility`, and `.ownerCancellation`. Profile's exact twelve-Tab sequence wrapped the four visible labels three times. `manifest.capturePathMap` resolves every raw path-bearing result field to its tracked copy. The exact validation command independently fixes the manifest metadata, commands, claim pointers, seven mappings, eight immutable artifacts, nine-path artifact set, and validator self-entry; removal or mutation of any tested contract member fails. [E14]
+- Modal admission is now epoch-guarded for delayed ecology and raid completion. A competing owner invalidates stale work before it can mount; only the projected winner renders. Combat ownership ends at `revealed` instead of remaining stuck on a retained battle object, and an inventory-backed revealed capture projects reward ownership synchronously, eliminating the world-interactive gap that caused the reported frozen or skipped capture-complete state. [E15]
 
 ## Skill-loading ledger
 
@@ -96,7 +98,8 @@ Audio uses the existing gesture-unlocked, settings-aware Web Audio runtime for c
 | Audio | Status settings reported sound ready; mute and unmute states both changed | E6 |
 | Haptic absence/failure | Missing, non-callable, and throwing `navigator.vibrate` variants all opened the drawer and kept the page alive | E8 |
 | Trainer/combat/result/return | Physical travel plus challenge, one live seven-resize transition, covenant, Arena, safe retreat settlement, Continue, and world return pass; renderer budget failures remain disclosed below | E9 |
-| Clean production console/network | 0 errors, warnings, page errors, failed requests, and HTTP errors | E10 |
+| Clean production console/network | Baseline final profile: 0 errors, warnings, page errors, failed requests, and HTTP errors. The later isolated modal replay observed one expected unauthenticated multiplayer-session 422 and no application exception. | E10, E15 |
+| Modal authority/recovery | Map: exactly one visible modal; six of six non-owner homes inert and `aria-hidden`; background actions gated; Escape leaves no stale loser. Capture: phase-aware combat release plus synchronous reward regression coverage. | E15 |
 
 ## Responsive browser geometry
 
@@ -118,8 +121,8 @@ Desktop and mobile composited screenshots were visually inspected at rendered pi
 
 - The warm 120-frame representative sample recorded 29.51 ms average, 33.89 fps average, 33.4 ms p95, and 58 ms maximum. [E7]
 - The trainer transition measured 344 calls and 120,918 triangles and was over the configured renderer budget at all seven sizes. Challenge/combat/result also exceeded the draw-call budget at 844×390 and 1440×900. The trainer resize replay emitted 22 `GL_INVALID_OPERATION` vertex-buffer warnings; the separate clean resting profile remained clean. These are release residuals, not erased by the clean profile. [E9, E10]
-- `pnpm test` passed 1,058/1,058 across 109 suites; `pnpm typecheck` passed; `pnpm lint` exited zero with no warnings; `pnpm build` passed with the known `snarkjs` dynamic web-worker warnings. [E11, E14]
-- `pnpm release:check` passed: 1,058/1,058 tests, typecheck, Receiz v118 check, conformance 15/15, warning-free lint, secret scan across 745 text files, optimized 561 kB `/` first load, and doctor compatibility. [E11, E14]
+- `pnpm test` passed 1,064/1,064 across 109 suites; `pnpm typecheck` passed; `pnpm lint` exited zero with no warnings; `pnpm build` passed with the known `snarkjs` dynamic web-worker warnings. [E11, E14, E15]
+- `pnpm release:check` passed: 1,064/1,064 tests, typecheck, Receiz v118 integration, conformance 15/15, warning-free lint, secret scan across 753 text files, optimized 562 kB `/` first load, and doctor compatibility. [E15]
 
 ## Ten-category AAA visual scorecard
 
