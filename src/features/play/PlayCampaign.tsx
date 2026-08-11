@@ -26,7 +26,7 @@ import { WildsAudioSettings } from "@/features/play/WildsAudioSettings";
 import { useWildsPresentation } from "@/features/play/use-wilds-presentation";
 import { useWildsQualityProfile } from "@/features/play/use-wilds-quality-profile";
 import { useWorldOverlayDirector } from "@/features/play/use-world-overlay-director";
-import { projectPlayShellOwner } from "@/features/play/play-shell-owner";
+import { canAcceptPlayShellInput, projectPlayShellOwner } from "@/features/play/play-shell-owner";
 import { projectWildsAudioScene } from "@/features/play/wilds-audio-scene";
 import { projectWildsBiome } from "@/features/play/wilds-biome";
 import type { WildsSettlementDistrictId } from "@/features/play/wilds-settlements";
@@ -121,6 +121,7 @@ export function PlayCampaign({
   character,
   playerDisplayName = "Wildz Explorer",
   onListAsset,
+  shellOverlayOwner = "none",
   onOpenProfile = () => {},
   onOpenMarket = () => {},
   initialState = initialPlayState,
@@ -139,8 +140,9 @@ export function PlayCampaign({
   character: WildzCharacterGenesis;
   playerDisplayName?: string;
   onListAsset?: (asset: PortableCardAsset, priceCents: number) => Promise<PortableCardAsset | null>;
-  onOpenProfile?: () => void;
-  onOpenMarket?: () => void;
+  shellOverlayOwner?: "none" | "profile" | "market";
+  onOpenProfile?: (restoreOrigin: HTMLElement | null) => void;
+  onOpenMarket?: (restoreOrigin: HTMLElement | null) => void;
   initialState?: PlayState;
   initialPlayerContinuity?: WildzPlayerContinuity | null;
   onPlayStateChange: (state: PlayState, playerContinuity: WildzPlayerContinuity) => void;
@@ -156,7 +158,6 @@ export function PlayCampaign({
   const [saveRestored, setSaveRestored] = useState(false);
   const [rewardAsset, setRewardAsset] = useState<PortableCardAsset | null>(null);
   const [memorialAssetId, setMemorialAssetId] = useState<string | null>(null);
-  const [externalOwner, setExternalOwner] = useState<"none" | "profile" | "market">("none");
   const [selectedAbilityByAssetId, setSelectedAbilityByAssetId] = useState<Record<string, number>>({});
   const explorerStyle = character.gender;
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
@@ -246,8 +247,8 @@ export function PlayCampaign({
     settlement: activeLandmarkId === "wayfinder-hollow",
     landmark: activeLandmarkId !== null && activeLandmarkId !== "wayfinder-hollow",
     map: mapOpen,
-    profile: externalOwner === "profile",
-    market: externalOwner === "market",
+    profile: shellOverlayOwner === "profile",
+    market: shellOverlayOwner === "market",
     multiplayer: Boolean(multiplayer.incomingChallenge),
     command: false
   });
@@ -256,12 +257,11 @@ export function PlayCampaign({
     dispatch: dispatchWorldOverlay,
     gestureCancelSignal,
     panelOwnershipRef,
-    claimExclusiveOwner,
-    releaseExclusiveOwner
+    claimExclusiveOwner
   } = useWorldOverlayDirector({ dismissSignal: commandDismissSignal, exclusiveOwner: modalOwner });
   const commandPanelOpen = modalOwner === "none" && worldOverlayState.panelKey !== null;
   const exclusiveOwner = commandPanelOpen ? "command" : modalOwner;
-  const worldInteractionEnabled = interactionEnabled && exclusiveOwner === "none";
+  const worldInteractionEnabled = canAcceptPlayShellInput(interactionEnabled, modalOwner, commandPanelOpen);
   const canUseWorldStage = useCallback(
     () => worldInteractionEnabled && !panelOwnershipRef.current,
     [panelOwnershipRef, worldInteractionEnabled]
@@ -682,23 +682,18 @@ export function PlayCampaign({
     if (!canUseWorldStage()) return;
     dispatch(input);
   };
-  const openExternalDestination = (owner: "profile" | "market", open: () => void) => {
-    claimExclusiveOwner(owner);
-    setExternalOwner(owner);
-    open();
-    window.requestAnimationFrame(() => {
-      setExternalOwner((current) => current === owner ? "none" : current);
-      releaseExclusiveOwner();
-    });
-  };
   const openProfile = () => {
     if (!canUseWorldStage()) return;
-    openExternalDestination("profile", onOpenProfile);
+    const origin = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    claimExclusiveOwner("profile", origin);
+    onOpenProfile(origin);
   };
   const openMarketFromVault = () => {
     if (modalOwner !== "none" || worldOverlayState.panelKey !== "vault") return;
+    const origin = document.querySelector<HTMLElement>(".wilds-world-tools-trigger");
+    claimExclusiveOwner("market", origin);
     dispatchStageOverlay({ type: "panel", key: null });
-    openExternalDestination("market", onOpenMarket);
+    onOpenMarket(origin);
   };
   const openWorldMap = () => {
     if (!canUseWorldStage()) return;

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { generateIdentityBoundWildzCharacter } from "../src/features/identity/wildz-genesis";
 import { projectWildsExplorerAppearance } from "../src/features/play/wilds-explorer-appearance";
+import { projectWildzExplorerRender } from "../src/features/play/wildz-explorer-proof";
 
 test("the account-creation Kai Pulse projects every sealed explorer trait into render data", () => {
   const character = generateIdentityBoundWildzCharacter({
@@ -25,12 +25,15 @@ test("the account-creation Kai Pulse projects every sealed explorer trait into r
 });
 
 test("the local 3D explorer consumes proof-derived appearance instead of a pink-blue gender split", () => {
-  const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
-  const canvas = readFileSync("src/features/play/WildsWorldCanvas.tsx", "utf8");
-  const explorer = readFileSync("src/features/play/WildsExplorer.tsx", "utf8");
+  const character = generateIdentityBoundWildzCharacter({
+    keyId: "receiz:rendered-proof-explorer",
+    createdAt: "2026-08-10T18:24:00.000Z"
+  });
+  const render = projectWildzExplorerRender(character);
 
-  assert.match(campaign, /character=\{character\}/);
-  assert.match(canvas, /<WildsExplorer[^>]*character=\{character\}/s);
-  assert.match(explorer, /projectWildsExplorerAppearance\(character\)/);
-  assert.doesNotMatch(explorer, /style === "female" \? "#e95383" : "#2e73a6"/);
+  assert.equal(render.style, character.gender);
+  assert.equal(render.character.digest, character.digest);
+  assert.deepEqual(render.appearance, projectWildsExplorerAppearance(character));
+  assert.equal(render.appearance.outfitPrimary, character.traits.primaryColor);
+  assert.equal(render.appearance.outfitSecondary, character.traits.secondaryColor);
 });

@@ -15,6 +15,8 @@ import { playWildsHaptic } from "./wilds-haptics";
 import type { PortableCardAsset } from "./portable-card";
 import type { WildsAudioCue } from "./wilds-audio";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
+import { nextCompanionAbilityIndex, type CompanionAbilityNavigationKey } from "./companion-ability-composite";
+import { canRestoreFocus } from "./focus-recovery";
 
 export type WildsCompanionPower = { id: string; label: string };
 
@@ -45,8 +47,12 @@ export function WildsCompanionCommand({
   const activePointerIdRef = useRef<number | null>(null);
   const holdTimerRef = useRef<number | null>(null);
   const renderFrameRef = useRef<number | null>(null);
+  const focusFrameRef = useRef<number | null>(null);
+  const commandButtonRef = useRef<HTMLButtonElement | null>(null);
+  const abilityListboxRef = useRef<HTMLDivElement | null>(null);
   const [mode, setMode] = useState<CompanionGestureState["mode"]>("pending");
   const [activeAbilityIndex, setActiveAbilityIndex] = useState<number | null>(null);
+  const [keyboardWheelOpen, setKeyboardWheelOpen] = useState(false);
   const projection = useMemo(() => companionCarousel(cards, activeCard?.id ?? null), [activeCard?.id, cards]);
   const previous = cards.find((card) => card.id === projection.previousId) ?? null;
   const next = cards.find((card) => card.id === projection.nextId) ?? null;
@@ -70,6 +76,7 @@ export function WildsCompanionCommand({
   useEffect(() => () => {
     clearHold();
     if (renderFrameRef.current !== null) window.cancelAnimationFrame(renderFrameRef.current);
+    if (focusFrameRef.current !== null) window.cancelAnimationFrame(focusFrameRef.current);
   }, []);
 
   const cycle = (direction: -1 | 1) => {
@@ -100,6 +107,7 @@ export function WildsCompanionCommand({
     }
     setMode("pending");
     setActiveAbilityIndex(null);
+    setKeyboardWheelOpen(false);
   };
 
   const pointerPoint = (event: ReactPointerEvent<HTMLButtonElement>) => ({ x: event.clientX, y: event.clientY });
@@ -118,6 +126,7 @@ export function WildsCompanionCommand({
       const advanced = advanceCompanionGesture(gestureRef.current, performance.now());
       gestureRef.current = advanced;
       if (advanced.mode === "ability-wheel") playWildsHaptic("wheel-open");
+      if (advanced.mode === "ability-wheel") setKeyboardWheelOpen(false);
       renderGesture(advanced);
     }, 96);
   };
@@ -167,39 +176,32 @@ export function WildsCompanionCommand({
   const openKeyboardWheel = () => {
     setMode("ability-wheel");
     setActiveAbilityIndex(selectedAbilityIndex % abilityCount);
+    setKeyboardWheelOpen(true);
     playWildsHaptic("wheel-open");
   };
 
-  const commitKeyboardAbility = () => {
+  const restoreCommandFocus = () => {
+    if (focusFrameRef.current !== null) window.cancelAnimationFrame(focusFrameRef.current);
+    focusFrameRef.current = window.requestAnimationFrame(() => {
+      focusFrameRef.current = null;
+      if (canRestoreFocus(commandButtonRef.current)) commandButtonRef.current.focus();
+    });
+  };
+
+  const closeKeyboardWheel = (commit: boolean) => {
     const index = (activeAbilityIndex ?? selectedAbilityIndex) % abilityCount;
-    onSelectAbility(index);
+    if (commit) onSelectAbility(index);
     setMode("pending");
     setActiveAbilityIndex(null);
-    playWildsHaptic("confirm");
+    setKeyboardWheelOpen(false);
+    playWildsHaptic(commit ? "confirm" : "cancel");
+    restoreCommandFocus();
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key.toLowerCase() === "a") {
       event.preventDefault();
-      if (mode === "ability-wheel") commitKeyboardAbility();
-      else openKeyboardWheel();
-      return;
-    }
-    if (mode === "ability-wheel") {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        commitKeyboardAbility();
-      } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-        event.preventDefault();
-        const direction = event.key === "ArrowRight" ? 1 : -1;
-        setActiveAbilityIndex((current) => ((current ?? selectedAbilityIndex) + direction + abilityCount) % abilityCount);
-        playWildsHaptic("wheel-detent");
-      } else if (event.key === "Escape") {
-        event.preventDefault();
-        setMode("pending");
-        setActiveAbilityIndex(null);
-        playWildsHaptic("cancel");
-      }
+      openKeyboardWheel();
       return;
     }
     if (event.key === "Enter" || event.key === " ") {
@@ -222,13 +224,47 @@ export function WildsCompanionCommand({
     }
   };
 
+  const onAbilityKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      closeKeyboardWheel(true);
+      return;
+    }
+    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+      event.preventDefault();
+      setActiveAbilityIndex((current) => nextCompanionAbilityIndex(
+        current ?? selectedAbilityIndex,
+        event.key as CompanionAbilityNavigationKey,
+        abilityCount
+      ));
+      playWildsHaptic("wheel-detent");
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeKeyboardWheel(false);
+    }
+  };
+
   const wheelOpen = mode === "ability-wheel";
+  useEffect(() => {
+    if (!wheelOpen || !keyboardWheelOpen) return;
+    if (focusFrameRef.current !== null) window.cancelAnimationFrame(focusFrameRef.current);
+    focusFrameRef.current = window.requestAnimationFrame(() => {
+      focusFrameRef.current = null;
+      abilityListboxRef.current?.focus();
+    });
+  }, [keyboardWheelOpen, wheelOpen]);
+
   return <div className={`wilds-companion-command-zone mode-${mode}`}>
     {wheelOpen ? <div
       aria-activedescendant={normalizedActiveAbilityIndex === null ? undefined : `wilds-companion-ability-${normalizedActiveAbilityIndex}`}
       aria-label="Choose active companion ability"
       className="wilds-companion-ability-wheel"
+      onKeyDown={onAbilityKeyDown}
+      ref={abilityListboxRef}
       role="listbox"
+      tabIndex={0}
     >
       {fieldPowers.slice(0, 4).map((power, index) => <div
         aria-selected={normalizedActiveAbilityIndex === index}
@@ -250,6 +286,7 @@ export function WildsCompanionCommand({
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={finishPointer}
+      ref={commandButtonRef}
       type="button"
     >
       {previous ? <span aria-hidden="true" className="wilds-companion-peek previous"><WildsCreatureThumbnail asset={previous} /></span> : null}

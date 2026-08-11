@@ -19,7 +19,7 @@ This qualification covers the rebuilt living-world controls and one complete tra
 | E11 | `automatedGates` |
 | E12 | `externalAssetSourcing` |
 | E13 | `claimIndex` |
-| E14 | `.superpowers/sdd/2026-08-10-wildz-unified-living-world-controls/final-integration-fix-report.md` and `output/playwright/final-integration-mobile-world.png` — final integration browser and gate evidence |
+| E14 | `.superpowers/sdd/2026-08-10-wildz-unified-living-world-controls/final-integration-fix-report.md`, `output/playwright/final-integration-mobile-world.png`, and `output/playwright/final-integration-correction-mobile-world.png` — final integration browser and gate evidence |
 
 ## Release outcome
 
@@ -33,6 +33,7 @@ This qualification covers the rebuilt living-world controls and one complete tra
 - The rebuilt flagship slice is production-capable, but content breadth and authored audio still prevent a whole-game showcase claim. [E12, scorecard and automatic failures below]
 - The proof explorer now opens the real profile, and Card Vault opens the real Market without restoring the removed chassis. Both returned to the mounted world in the final 390×844 production replay. [E14]
 - Companion ability selection is causal by keyboard and pointer: the final replay selected named abilities, changed authoritative energy/XP/bond by the selected ability's real reducer effect, and preserved the exact named event copy. Modal entry gated the background in the same snapshot; first-press Escape closed it and restored valid companion focus. [E14]
+- Profile and Market now retain shell-modal ownership for their complete open lifetime. The corrected production replay held the world inert and `aria-hidden`, rejected background keyboard and companion actions, trapped focus, closed on Escape, and restored focus to the profile identity or persistent world-tools origin. The ability listbox owned real DOM focus and its `aria-activedescendant`; both pointer and keyboard paths changed the selected named ability. Disconnected Market presentation made zero passive listings requests and retained route-side authority checks. [E14]
 
 ## Skill-loading ledger
 
@@ -115,8 +116,8 @@ Desktop and mobile composited screenshots were visually inspected at rendered pi
 
 - The warm 120-frame representative sample recorded 29.51 ms average, 33.89 fps average, 33.4 ms p95, and 58 ms maximum. [E7]
 - The trainer transition measured 344 calls and 120,918 triangles and was over the configured renderer budget at all seven sizes. Challenge/combat/result also exceeded the draw-call budget at 844×390 and 1440×900. The trainer resize replay emitted 22 `GL_INVALID_OPERATION` vertex-buffer warnings; the separate clean resting profile remained clean. These are release residuals, not erased by the clean profile. [E9, E10]
-- `pnpm test` passed 1,052/1,052 across 109 suites; `pnpm typecheck` passed; `pnpm lint` exited zero with one disclosed pre-existing `WildzApp` exhaustive-deps warning and no touched-module warning; `pnpm build` passed with the known `snarkjs` dynamic web-worker warnings. [E11, E14]
-- `pnpm release:check` passed: 1,052/1,052 tests, typecheck, Receiz v118 check, conformance 15/15, lint with the one disclosed warning, secret scan across 740 text files, optimized 560 kB `/` first load, and doctor compatibility. [E11, E14]
+- `pnpm test` passed 1,055/1,055 across 109 suites; `pnpm typecheck` passed; `pnpm lint` exited zero with no warnings; `pnpm build` passed with the known `snarkjs` dynamic web-worker warnings. [E11, E14]
+- `pnpm release:check` passed: 1,055/1,055 tests, typecheck, Receiz v118 check, conformance 15/15, warning-free lint, secret scan across 743 text files, optimized 561 kB `/` first load, and doctor compatibility. [E11, E14]
 
 ## Ten-category AAA visual scorecard
 

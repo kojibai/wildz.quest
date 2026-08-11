@@ -34,3 +34,11 @@ export function projectPlayShellOwner(state: PlayShellOwnerState): WorldOverlayO
   if (state.command) return "command";
   return "none";
 }
+
+export function canAcceptPlayShellInput(
+  interactionEnabled: boolean,
+  owner: WorldOverlayOwner,
+  commandPanelOpen: boolean
+) {
+  return interactionEnabled && owner === "none" && !commandPanelOpen;
+}

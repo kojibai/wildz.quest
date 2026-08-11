@@ -4,6 +4,11 @@ import { test } from "node:test";
 import { initialWorldOverlayState, reduceWorldOverlay, type WorldOverlayOwner } from "../src/features/play/world-overlay-state";
 import { applyWildsInput, initialPlayState } from "../src/features/play/game-state";
 import { canRestoreFocus } from "../src/features/play/focus-recovery";
+import { canAcceptPlayShellInput, projectPlayShellOwner } from "../src/features/play/play-shell-owner";
+import { generateIdentityBoundWildzCharacter } from "../src/features/identity/wildz-genesis";
+import { projectWildzProofExplorer } from "../src/features/play/wildz-explorer-proof";
+import { nextCompanionAbilityIndex } from "../src/features/play/companion-ability-composite";
+import { shouldRefreshWildzMarket } from "../src/features/market/market-refresh-policy";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -16,7 +21,8 @@ test("proof identity and Card Vault preserve reachable profile and market destin
   assert.match(hud, /disabled=\{!interactionEnabled\}/);
   assert.match(campaign, /onOpenProfile=\{openProfile\}/);
   assert.match(campaign, /className="wilds-open-market"[\s\S]*onClick=\{openMarketFromVault\}/);
-  assert.match(campaign, /openExternalDestination\("market", onOpenMarket\)/);
+  assert.match(campaign, /shellOverlayOwner\?: "none" \| "profile" \| "market"/);
+  assert.match(campaign, /onOpenMarket\(origin\)/);
 });
 
 test("ability selection is controlled, causal, and keyboard-equivalent", () => {
@@ -33,7 +39,9 @@ test("ability selection is controlled, causal, and keyboard-equivalent", () => {
   assert.doesNotMatch(command, /useState\(0\)/);
   assert.match(command, /event\.key\.toLowerCase\(\) === "a"/);
   assert.match(command, /openKeyboardWheel/);
-  assert.match(command, /commitKeyboardAbility/);
+  assert.match(command, /closeKeyboardWheel\(true\)/);
+  assert.match(command, /ref=\{abilityListboxRef\}[\s\S]*role="listbox"[\s\S]*tabIndex=\{0\}/);
+  assert.match(command, /restoreCommandFocus/);
   assert.match(campaign, /const activateWorldPulse = \(abilityIndex: number\)/);
   assert.match(campaign, /type: "use-field-ability"/);
   assert.match(gameState, /input\.type === "use-field-ability"/);
@@ -101,19 +109,6 @@ test("the stage owns Escape lifecycle for every non-combat world modal", () => {
   assert.match(director, /event\.key === "Escape" && exclusiveOwner === "none"/);
 });
 
-test("explorer rendering is invariant to mutable restored avatar continuity", () => {
-  const campaign = read("src/features/play/PlayCampaign.tsx");
-  const canvas = read("src/features/play/WildsWorldCanvas.tsx");
-  const explorer = read("src/features/play/WildsExplorer.tsx");
-
-  assert.doesNotMatch(campaign, /const \[avatarStyle, setAvatarStyle\]/);
-  assert.doesNotMatch(campaign, /initialPlayerContinuity\?\.settings\.avatarStyle \?\?/);
-  assert.doesNotMatch(campaign, /setAvatarStyle\(outcome\.playerContinuity\.settings\.avatarStyle/);
-  assert.doesNotMatch(canvas, /avatarStyle/);
-  assert.match(canvas, /<WildsExplorer character=\{character\} style=\{character\.gender\}/);
-  assert.match(explorer, /projectWildsExplorerAppearance\(character\)/);
-});
-
 test("focus recovery is cancellable, owner-aware, connected, and enabled", () => {
   const dock = read("src/features/play/WildsCommandDock.tsx");
   assert.match(dock, /focusFrameRef/);
@@ -137,4 +132,69 @@ test("the dead duplicate WildzSocialDeck owner is removed", () => {
   assert.equal(existsSync("src/features/play/WildzSocialDeck.tsx"), false);
   assert.doesNotMatch(read("src/features/play/PlayCampaign.tsx"), /WildzSocialDeck/);
   assert.doesNotMatch(read("src/features/play/WildzWorldControls.tsx"), /WildzSocialDeck/);
+});
+
+test("a controlled shell overlay owns the world for its entire open lifetime", () => {
+  let worldActions = 0;
+  const attemptWorldAction = (owner: WorldOverlayOwner) => {
+    if (canAcceptPlayShellInput(true, owner, false)) worldActions += 1;
+  };
+
+  for (const shellOwner of ["profile", "market"] as const) {
+    const owner = projectPlayShellOwner({
+      combat: false, trainer: false, memorial: false, reward: false, ceremony: false,
+      raid: false, ecology: false, settlement: false, landmark: false, map: false,
+      profile: shellOwner === "profile", market: shellOwner === "market",
+      multiplayer: false, command: false
+    });
+    attemptWorldAction(owner);
+    attemptWorldAction(owner);
+    assert.equal(owner, shellOwner);
+    assert.equal(worldActions, 0);
+  }
+
+  attemptWorldAction("none");
+  assert.equal(worldActions, 1);
+});
+
+test("ability composite navigation wraps independently before commit", () => {
+  assert.equal(nextCompanionAbilityIndex(0, "ArrowRight", 4), 1);
+  assert.equal(nextCompanionAbilityIndex(3, "ArrowRight", 4), 0);
+  assert.equal(nextCompanionAbilityIndex(0, "ArrowLeft", 4), 3);
+  assert.equal(nextCompanionAbilityIndex(2, "ArrowDown", 4), 3);
+  assert.equal(nextCompanionAbilityIndex(2, "ArrowUp", 4), 1);
+});
+
+test("bootstrap restore and reset ignore conflicting legacy avatar style", () => {
+  const session = {
+    keyId: "proof-explorer-key",
+    createdAt: "2026-08-10T12:00:00.000Z"
+  };
+  const genesis = generateIdentityBoundWildzCharacter(session);
+  const conflictingStyle = genesis.gender === "female" ? "male" : "female";
+  const phases = [
+    { phase: "bootstrap", character: genesis, avatarStyle: conflictingStyle },
+    { phase: "artifact-restore", character: structuredClone(genesis), avatarStyle: conflictingStyle },
+    { phase: "reset", character: null, avatarStyle: conflictingStyle }
+  ] as const;
+  const expected = projectWildzProofExplorer({ session, character: genesis, legacyAvatarStyle: null });
+
+  for (const fixture of phases) {
+    const projection = projectWildzProofExplorer({
+      session,
+      character: fixture.character,
+      legacyAvatarStyle: fixture.avatarStyle
+    });
+    assert.deepEqual(projection, expected, fixture.phase);
+    assert.equal(projection.style, genesis.gender, fixture.phase);
+  }
+});
+
+test("passive market presentation stays locally unavailable without probing an absent proof session", () => {
+  assert.equal(shouldRefreshWildzMarket(false), false);
+  assert.equal(shouldRefreshWildzMarket(true), true);
+  const app = read("src/features/shell/WildzApp.tsx");
+  const market = read("src/features/market/WildzMarketSheet.tsx");
+  assert.match(app, /connected=\{proofSessionConnected\}/);
+  assert.match(market, /if \(!connected\) return/);
 });

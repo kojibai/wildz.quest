@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { WildzListing } from "@/features/market/wildz-market";
 import { WildzTradeConfirm } from "@/features/market/WildzTradeConfirm";
+import { shouldRefreshWildzMarket } from "@/features/market/market-refresh-policy";
 
 type MarketListing = Pick<
   WildzListing,
@@ -22,10 +23,12 @@ function marketHead(value: unknown): MarketHead | null {
 
 export function WildzMarketSheet({
   listings: initialListings,
-  buyer
+  buyer,
+  connected
 }: {
   listings: MarketListing[];
   buyer: string;
+  connected: boolean;
 }) {
   const [listings, setListings] = useState(initialListings);
   const [head, setHead] = useState<MarketHead | null>(null);
@@ -35,6 +38,7 @@ export function WildzMarketSheet({
   const [message, setMessage] = useState("");
 
   const refreshMarket = useCallback(async () => {
+    if (!shouldRefreshWildzMarket(connected)) return;
     const response = await fetch("/api/market/listings", {
       method: "GET",
       credentials: "same-origin",
@@ -54,15 +58,16 @@ export function WildzMarketSheet({
     }
     setListings(result.listings as MarketListing[]);
     setHead(nextHead);
-  }, []);
+  }, [connected]);
 
   useEffect(() => {
+    if (!connected) return;
     let active = true;
     void refreshMarket().catch((cause) => {
       if (active) setMessage(cause instanceof Error ? cause.message : "Receiz market is temporarily unavailable.");
     });
     return () => { active = false; };
-  }, [refreshMarket]);
+  }, [connected, refreshMarket]);
 
   const checkout = async () => {
     if (!selected || !head) return;
@@ -174,6 +179,6 @@ export function WildzMarketSheet({
     {selected ? <section className="wildz-market-consequence" aria-label="Trade consequence"><small>Vault consequence</small><strong>{selected.assetId} joins your verified collection only after Receiz admits ownership.</strong><span>${(selected.priceCents / 100).toFixed(2)} · seller {selected.seller ?? selected.sellerActorId}</span></section> : null}
     {selected ? <WildzTradeConfirm listing={selected} busy={busy} onConfirm={() => void checkout()} /> : null}
     {pending ? <button type="button" className="wildz-market-retry" disabled={busy} onClick={() => void retrySettlement()}>{busy ? "Checking Receiz…" : "Retry ownership admission"}</button> : null}
-    {message ? <p role="status" className="wildz-market-status">{message}</p> : null}
+    {message ? <p role="status" className="wildz-market-status">{message}</p> : !connected ? <p role="status" className="wildz-market-status">Connect your Receiz ID to load live market listings.</p> : null}
   </div>;
 }

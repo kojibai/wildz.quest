@@ -45,6 +45,8 @@ import type { WildzOverlay } from "@/features/shell/wildz-overlay";
 import { proofSessionRetryDecision } from "@/features/shell/proof-session-retry";
 import { downloadBlob } from "@/features/play/card-export";
 import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-verifier";
+import { canRestoreFocus } from "@/features/play/focus-recovery";
+import { projectWildzExplorerRender, projectWildzProofExplorer } from "@/features/play/wildz-explorer-proof";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -66,6 +68,10 @@ function clearWildzAuthQuery() {
 
 export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOverlay }) {
   const [overlay, setOverlay] = useState<WildzOverlay>(initialOverlay);
+  const shellOverlayRef = useRef<HTMLElement | null>(null);
+  const shellOverlayOriginRef = useRef<HTMLElement | null>(null);
+  const shellFocusFrameRef = useRef<number | null>(null);
+  const priorShellOverlayOpenRef = useRef(Boolean(initialOverlay));
   const [continuity, setContinuity] = useState<WildzContinuitySnapshot | null>(null);
   const continuityRef = useRef<WildzContinuitySnapshot | null>(null);
   const playStateSaveSchedulerRef = useRef<WildzLatestSaveScheduler<PendingPlayStateSave> | null>(null);
@@ -115,9 +121,82 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     reputation: viewingOwnProfile ? ownerPlayState.inventory.length * 12 : 0,
     record: { wins: 0, losses: 0, raids: 0 }
   }), [avatarImageUrl, character, identity, overlay, ownerPlayState.inventory, ownerUsername, viewingOwnProfile]);
-  const campaignCharacter = useMemo(() => character ?? (identity?.createdAt
-    ? generateIdentityBoundWildzCharacter(identity)
-    : null), [character, identity]);
+  const campaignExplorer = useMemo(() => {
+    if (!identity) return null;
+    if (identity.createdAt) return projectWildzProofExplorer({
+      session: identity,
+      character,
+      legacyAvatarStyle: continuity?.playerContinuity?.settings.avatarStyle ?? null
+    });
+    return character ? projectWildzExplorerRender(character) : null;
+  }, [character, continuity?.playerContinuity?.settings.avatarStyle, identity]);
+  const campaignCharacter = campaignExplorer?.character ?? null;
+  const shellOverlayOwner = overlay?.kind === "profile" ? "profile" : overlay?.kind === "market" ? "market" : "none";
+
+  const openShellOverlay = useCallback((next: Exclude<WildzOverlay, null>, fallbackOrigin?: HTMLElement | null) => {
+    shellOverlayOriginRef.current = fallbackOrigin
+      ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    setOverlay(next);
+  }, []);
+  const closeShellOverlay = useCallback(() => setOverlay(null), []);
+
+  useEffect(() => {
+    const wasOpen = priorShellOverlayOpenRef.current;
+    priorShellOverlayOpenRef.current = Boolean(overlay);
+    if (!overlay) {
+      if (!wasOpen) return;
+      if (shellFocusFrameRef.current !== null) window.cancelAnimationFrame(shellFocusFrameRef.current);
+      shellFocusFrameRef.current = window.requestAnimationFrame(() => {
+        shellFocusFrameRef.current = null;
+        const origin = shellOverlayOriginRef.current;
+        if (canRestoreFocus(origin)) origin.focus();
+      });
+      return;
+    }
+
+    const focusable = () => Array.from(shellOverlayRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), select:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+    ) ?? []);
+    const focusFirst = () => focusable()[0]?.focus();
+    if (shellFocusFrameRef.current !== null) window.cancelAnimationFrame(shellFocusFrameRef.current);
+    shellFocusFrameRef.current = window.requestAnimationFrame(() => {
+      shellFocusFrameRef.current = null;
+      focusFirst();
+    });
+    const containFocus = (event: FocusEvent) => {
+      if (event.target instanceof Node && !shellOverlayRef.current?.contains(event.target)) focusFirst();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        closeShellOverlay();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      if (!items.length) return;
+      const first = items[0]!;
+      const last = items[items.length - 1]!;
+      if (event.shiftKey && (document.activeElement === first || !shellOverlayRef.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !shellOverlayRef.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("focusin", containFocus);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("focusin", containFocus);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [closeShellOverlay, overlay]);
+
+  useEffect(() => () => {
+    if (shellFocusFrameRef.current !== null) window.cancelAnimationFrame(shellFocusFrameRef.current);
+  }, []);
 
   const acceptSnapshot = useCallback((snapshot: WildzContinuitySnapshot) => {
     const previous = continuityRef.current;
@@ -300,7 +379,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     return () => { active = false; };
   }, [acceptSnapshot]);
 
-  const completeGenesis = async (next: WildzCharacterGenesis) => {
+  const completeGenesis = useCallback(async (next: WildzCharacterGenesis) => {
     const current = continuityRef.current;
     if (!current) return;
     const playState = current.playState ?? createOwnerBoundInitialPlayState(current.session.actorId, current.session.createdAt);
@@ -322,7 +401,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     } catch {
       setIdentityError("Your explorer could not be saved. Try again before closing Wildz.");
     }
-  };
+  }, [acceptSnapshot]);
 
   useEffect(() => {
     if (!identity?.createdAt || character || genesisInFlightRef.current === identity.keyId) return;
@@ -331,7 +410,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     void completeGenesis(next).finally(() => {
       if (continuityRef.current?.character === null) genesisInFlightRef.current = null;
     });
-  }, [character, identity]);
+  }, [character, completeGenesis, identity]);
 
   const saveProfileIdentity = async (input: { username: string; displayName: string; avatarImageUrl: string | null }) => {
     const current = continuityRef.current;
@@ -564,7 +643,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
 
   return (
     <main className="wildz-app-shell" data-wildz-active-username={ownerUsername}>
-      <div className="wildz-app" data-overlay={overlay?.kind ?? "world"}>
+      <div aria-hidden={overlay ? true : undefined} className="wildz-app" data-overlay={overlay?.kind ?? "world"} inert={overlay ? true : undefined}>
         {continuity && identity && campaignCharacter ? <PlayCampaign
           key={`${identity.keyId}:${identity.actorId}`}
           campaignName="Wildz"
@@ -576,12 +655,13 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           initialPlayerContinuity={continuity.playerContinuity}
           ownerReceizId={ownerUsername}
           playerDisplayName={identity.displayName ?? `@${ownerUsername}`}
+          shellOverlayOwner={shellOverlayOwner}
           onPlayStateChange={persistPlayState}
           onExportCard={(asset, player) => downloadWildzIdentityOwnedCard(identity, asset, player)}
           onExportVault={(assets, player) => downloadWildzIdentityPlayerVault(identity, assets, player)}
           onRestoreArtifact={(file, confirmCardOnly, currentPlayState) => restoreArtifact(file, "card-vault", confirmCardOnly, currentPlayState, "merge-vault")}
-          onOpenProfile={() => setOverlay({ kind: "profile", username: `@${ownerUsername}` })}
-          onOpenMarket={() => setOverlay({ kind: "market" })}
+          onOpenProfile={(origin) => openShellOverlay({ kind: "profile", username: `@${ownerUsername}` }, origin)}
+          onOpenMarket={(origin) => openShellOverlay({ kind: "market" }, origin)}
           onListAsset={async (asset, priceCents) => {
             if (!proofSessionConnected) return null;
             const headResponse = await fetch("/api/market/listings", { method: "GET", credentials: "same-origin", cache: "no-store" });
@@ -612,15 +692,15 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         <span>WILDZ</span>
       </div>
 
-      {identity ? <nav className="wildz-utility-dock" aria-label="Wildz utilities">
-        <button type="button" onClick={() => setOverlay({ kind: "profile", username: `@${ownerUsername}` })} aria-label="Open player profile">◉</button>
-        <button type="button" onClick={() => setOverlay({ kind: "vault" })} aria-label="Open public Vault">◇</button>
-        <button type="button" onClick={() => setOverlay({ kind: "market" })} aria-label="Open player market">↝</button>
+      {identity ? <nav aria-hidden={overlay ? true : undefined} className="wildz-utility-dock" inert={overlay ? true : undefined} aria-label="Wildz utilities">
+        <button type="button" onClick={() => openShellOverlay({ kind: "profile", username: `@${ownerUsername}` })} aria-label="Open player profile">◉</button>
+        <button type="button" onClick={() => openShellOverlay({ kind: "vault" })} aria-label="Open public Vault">◇</button>
+        <button type="button" onClick={() => openShellOverlay({ kind: "market" })} aria-label="Open player market">↝</button>
       </nav> : null}
 
       {overlay ? (
-        <section className="wildz-shell-overlay" role="dialog" aria-modal="true" aria-label={`${overlay.kind} panel`}>
-          <button type="button" className="wildz-overlay-dismiss" onClick={() => setOverlay(null)} aria-label="Return to world">
+        <section className="wildz-shell-overlay" ref={shellOverlayRef} role="dialog" aria-modal="true" aria-label={`${overlay.kind} panel`}>
+          <button type="button" className="wildz-overlay-dismiss" onClick={closeShellOverlay} aria-label="Return to world">
             <span aria-hidden="true">×</span>
           </button>
           {overlay.kind === "profile" ? (viewingOwnProfile ? localPublicProfile : remoteProfile) ? <WildzProfileSheet
@@ -647,7 +727,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             }}
             onClaimBearer={proofSessionConnected ? claimBearerArtifact : undefined}
             onSaveVault={saveCombinedVault}
-          /> : overlay.kind === "market" ? <WildzMarketSheet listings={[]} buyer={`@${ownerUsername}`} /> : <div className="wildz-shell-overlay-placeholder">
+          /> : overlay.kind === "market" ? <WildzMarketSheet listings={[]} buyer={`@${ownerUsername}`} connected={proofSessionConnected} /> : <div className="wildz-shell-overlay-placeholder">
             <Image src="/brand/wildz-mark.svg" alt="" width={48} height={48} />
             <strong>{overlay.kind}</strong>
             <span>Wildz surface loading</span>

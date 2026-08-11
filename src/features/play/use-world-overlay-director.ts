@@ -28,8 +28,12 @@ export function useWorldOverlayDirector({
     else if (event.type === "dismiss" || event.type === "viewport-change" || event.type === "exclusive") panelOwnershipRef.current = false;
     reduce(event);
   }, [reduce]);
-  const claimExclusiveOwner = useCallback((owner: Exclude<WorldOverlayOwner, "none" | "command">) => {
-    exclusiveOriginRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const claimExclusiveOwner = useCallback((
+    owner: Exclude<WorldOverlayOwner, "none" | "command">,
+    restoreOrigin?: HTMLElement | null
+  ) => {
+    exclusiveOriginRef.current = restoreOrigin
+      ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     panelOwnershipRef.current = true;
     cancelGestures();
     reduce({ type: "exclusive", owner });

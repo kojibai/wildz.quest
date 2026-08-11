@@ -5,7 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { PlayState } from "@/features/play/game-state";
 import type { WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
-import { projectWildsExplorerAppearance } from "@/features/play/wilds-explorer-appearance";
+import { projectWildzExplorerRender } from "@/features/play/wildz-explorer-proof";
 
 type ExplorerStyle = "female" | "male";
 
@@ -46,13 +46,15 @@ export function WildsExplorer({
   worldPosition: PlayState["player"];
   remote?: boolean;
 }) {
-  const appearance = character ? projectWildsExplorerAppearance(character) : {
+  const proofRender = character ? projectWildzExplorerRender(character) : null;
+  const renderStyle = proofRender?.style ?? style;
+  const appearance = proofRender?.appearance ?? {
     skin: palette.skin,
     hair: palette.hair,
-    hairProfile: style === "female" ? "river-braid" : "canopy-crop",
+    hairProfile: renderStyle === "female" ? "river-braid" : "canopy-crop",
     outfitProfile: "trailweaver",
-    outfitPrimary: style === "female" ? "#9F5272" : "#376B8D",
-    outfitSecondary: style === "female" ? "#593348" : "#21465E",
+    outfitPrimary: renderStyle === "female" ? "#9F5272" : "#376B8D",
+    outfitSecondary: renderStyle === "female" ? "#593348" : "#21465E",
     materialRoughness: 0.68,
     accessory: "trail-satchel",
     trail: "mint-ripple",
@@ -117,7 +119,7 @@ export function WildsExplorer({
   const outfitWidth = appearance.outfitProfile === "canopy-guard" ? 1.08 : appearance.outfitProfile === "rift-scout" ? 0.92 : 1;
 
   return (
-    <group name={`wilds-explorer-${style}`} ref={root} scale={remote ? 0.62 : 0.68}>
+    <group name={`wilds-explorer-${renderStyle}`} ref={root} scale={remote ? 0.62 : 0.68}>
       <group name="hips" position={[0, 0.72, 0]} ref={hips}>
         <mesh castShadow scale={[0.86, 0.52, 0.66]}>
           <capsuleGeometry args={[0.18, 0.2, 6, 12]} />
@@ -128,7 +130,7 @@ export function WildsExplorer({
       </group>
 
       <group name="spine" position={[0, 0.92, 0]} ref={spine}>
-        <mesh castShadow position={[0, 0.2, 0]} scale={[outfitWidth * (style === "female" ? 0.86 : 1), 1, style === "female" ? 0.72 : 0.76]}>
+        <mesh castShadow position={[0, 0.2, 0]} scale={[outfitWidth * (renderStyle === "female" ? 0.86 : 1), 1, renderStyle === "female" ? 0.72 : 0.76]}>
           <capsuleGeometry args={[0.24, 0.34, 8, 14]} />
           <meshStandardMaterial color={appearance.outfitPrimary} roughness={appearance.materialRoughness} />
         </mesh>
@@ -165,20 +167,20 @@ export function WildsExplorer({
           <sphereGeometry args={[0.225, 18, 14]} />
           <meshStandardMaterial color={appearance.skin} roughness={0.72} />
         </mesh>
-        <mesh castShadow position={[0, 0.075, 0.025]} scale={style === "female" ? [1.1, 0.9, 1.08] : [1.09, 0.76, 1.07]}>
+        <mesh castShadow position={[0, 0.075, 0.025]} scale={renderStyle === "female" ? [1.1, 0.9, 1.08] : [1.09, 0.76, 1.07]}>
           <sphereGeometry args={[0.225, 16, 12]} />
           <meshStandardMaterial color={appearance.hair} roughness={0.88} />
         </mesh>
         <mesh
           castShadow
           name="rearHair"
-          position={[0, style === "female" ? -0.045 : -0.005, 0.135]}
-          scale={[style === "female" ? 1.12 : 1.08, hairLength, style === "female" ? 0.8 : 0.72]}
+          position={[0, renderStyle === "female" ? -0.045 : -0.005, 0.135]}
+          scale={[renderStyle === "female" ? 1.12 : 1.08, hairLength, renderStyle === "female" ? 0.8 : 0.72]}
         >
           <sphereGeometry args={[0.205, 16, 12]} />
           <meshStandardMaterial color={appearance.hair} roughness={0.9} />
         </mesh>
-        {style === "female" ? (
+        {renderStyle === "female" ? (
           <mesh castShadow position={[0, -0.13, 0.19]} rotation={[-0.22, 0, 0]}>
             <capsuleGeometry args={[0.075, 0.3, 5, 9]} />
             <meshStandardMaterial color={appearance.hair} roughness={0.9} />

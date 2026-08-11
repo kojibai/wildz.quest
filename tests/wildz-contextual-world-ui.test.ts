@@ -35,7 +35,7 @@ test("campaign projects one modal owner and gates underlying world input", () =>
   assert.match(campaign, /trainer: Boolean\(activeTrainer && activeAsset && trainerEncounter/);
   assert.match(campaign, /map: mapOpen/);
   assert.match(campaign, /exclusiveOwner=\{modalOwner\}/);
-  assert.match(campaign, /const worldInteractionEnabled = interactionEnabled && exclusiveOwner === "none"/);
+  assert.match(campaign, /const worldInteractionEnabled = canAcceptPlayShellInput\(interactionEnabled, modalOwner, commandPanelOpen\)/);
   assert.match(campaign, /if \(!worldInteractionEnabled\) return/);
   assert.match(campaign, /searchEnabled=\{worldInteractionEnabled && discoveryActive\}/);
 });
