@@ -314,7 +314,7 @@ describe("Receiz Wilds rendering contract", () => {
 
     assert.match(controls, /function WildzDpad/);
     assert.match(controls, /setPointerCapture/);
-    assert.match(controls, /move-vector/);
+    assert.match(controls, /dpadMovementIntent/);
     assert.match(world, /function StreamedTerrain/);
     assert.match(environment, /WILDS_TILE_SIZE/);
   });
