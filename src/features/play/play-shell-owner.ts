@@ -36,6 +36,15 @@ export function isCaptureRewardModalOwner(encounterPhase: string, rewardAssetPre
   return encounterPhase === "revealed" && rewardAssetPresent;
 }
 
+export type PlayCombatSurface = "trainer" | "wild" | "pvp";
+
+export function projectPlayCombatSurface(state: Readonly<Record<PlayCombatSurface, boolean>>): PlayCombatSurface | null {
+  if (state.trainer) return "trainer";
+  if (state.wild) return "wild";
+  if (state.pvp) return "pvp";
+  return null;
+}
+
 export function projectPlayShellOwner(state: PlayShellOwnerState): WorldOverlayOwner {
   if (state.combat) return "combat";
   if (state.trainer) return "trainer";

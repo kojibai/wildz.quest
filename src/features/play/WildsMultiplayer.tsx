@@ -16,6 +16,7 @@ function healthPercent(hp: number, maxHp: number) {
 }
 
 export function WildsMultiplayer({
+  battleModalOwned,
   controlsExpanded,
   dismissSignal,
   interactionEnabled,
@@ -24,6 +25,7 @@ export function WildsMultiplayer({
   position,
   onRosterOpenChange
 }: {
+  battleModalOwned: boolean;
   controlsExpanded: boolean;
   dismissSignal: number;
   interactionEnabled: boolean;
@@ -115,7 +117,7 @@ export function WildsMultiplayer({
 
   useEffect(() => {
     const dialog = battleDialogRef.current;
-    if (!battleId || !battlePhase || !dialog) return;
+    if (!battleModalOwned || !battleId || !battlePhase || !dialog) return;
     const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>(
       'button:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
     ));
@@ -145,7 +147,7 @@ export function WildsMultiplayer({
       window.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("focusin", containFocus);
     };
-  }, [battleId, battlePhase, dismissBattle]);
+  }, [battleId, battleModalOwned, battlePhase, dismissBattle]);
 
   return (
     <>
@@ -235,7 +237,7 @@ export function WildsMultiplayer({
         </section>
       ) : null}
 
-      {battle && typeof document !== "undefined" ? createPortal((
+      {battle && battleModalOwned && typeof document !== "undefined" ? createPortal((
         <section aria-labelledby="wilds-pvp-battle-title" aria-modal="true" className={`wilds-pvp-battle ${battle.phase}`} ref={battleDialogRef} role="dialog" tabIndex={-1}>
           <header><span>LIVE DUEL</span><strong id="wilds-pvp-battle-title">TURN {battle.turn}</strong><small>{battle.phase === "settled" ? "Proof sealed" : myIntentPending ? "Waiting for opponent" : "Choose your move"}</small></header>
           <div className="wilds-pvp-fighters">

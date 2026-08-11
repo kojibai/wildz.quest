@@ -31,7 +31,8 @@ test("campaign projects one modal owner and gates underlying world input", () =>
   const campaign = read("src/features/play/PlayCampaign.tsx");
 
   assert.match(campaign, /const modalOwner = projectPlayShellOwner/);
-  assert.match(campaign, /combat: trainerEncounter\?\.phase === "combat" \|\| isWildBattleModalOwner\(state\.encounter\.phase, Boolean\(state\.battle\)\) \|\| Boolean\(multiplayer\.activeBattle\)/);
+  assert.match(campaign, /const combatSurface = projectPlayCombatSurface\(\{[\s\S]*trainer:[\s\S]*wild:[\s\S]*pvp:/);
+  assert.match(campaign, /combat: combatSurface !== null/);
   assert.match(campaign, /trainer: Boolean\(activeTrainer && activeAsset && trainerEncounter/);
   assert.match(campaign, /map: mapOpen/);
   assert.match(campaign, /exclusiveOwner=\{exclusiveOwner\}/);

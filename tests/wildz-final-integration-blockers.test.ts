@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { initialWorldOverlayState, reduceWorldOverlay, type WorldOverlayOwner } from "../src/features/play/world-overlay-state";
 import { applyWildsInput, initialPlayState } from "../src/features/play/game-state";
 import { canRestoreFocus } from "../src/features/play/focus-recovery";
-import { canAcceptPlayShellInput, isCaptureRewardModalOwner, isWildBattleModalOwner, projectPlayShellOwner } from "../src/features/play/play-shell-owner";
+import { canAcceptPlayShellInput, isCaptureRewardModalOwner, isWildBattleModalOwner, projectPlayCombatSurface, projectPlayShellOwner } from "../src/features/play/play-shell-owner";
 import { generateIdentityBoundWildzCharacter } from "../src/features/identity/wildz-genesis";
 import { projectWildzContinuityExplorer } from "../src/features/play/wildz-explorer-proof";
 import { nextCompanionAbilityIndex } from "../src/features/play/companion-ability-composite";
@@ -387,6 +387,25 @@ test("every exclusive combat phase mounts one accessible combat dialog", () => {
   assert.match(multiplayer, /aria-modal="true"/);
   assert.match(multiplayer, /battleDialogRef/);
   assert.match(multiplayer, /typeof document !== "undefined" \? createPortal\(\([\s\S]*document\.body\)/);
+});
+
+test("simultaneous trainer, wild, and PvP state projects exactly one combat surface without deleting losers", () => {
+  assert.equal(projectPlayCombatSurface({ trainer: true, wild: true, pvp: true }), "trainer");
+  assert.equal(projectPlayCombatSurface({ trainer: false, wild: true, pvp: true }), "wild");
+  assert.equal(projectPlayCombatSurface({ trainer: false, wild: false, pvp: true }), "pvp");
+  assert.equal(projectPlayCombatSurface({ trainer: false, wild: false, pvp: false }), null);
+
+  const campaign = read("src/features/play/PlayCampaign.tsx");
+  const multiplayer = read("src/features/play/WildsMultiplayer.tsx");
+  assert.match(campaign, /const combatSurface = projectPlayCombatSurface\(\{/);
+  assert.match(campaign, /combat: combatSurface !== null/);
+  assert.match(campaign, /exclusiveOwner === "combat" && combatSurface === "wild"/);
+  assert.match(campaign, /battleModalOwned=\{exclusiveOwner === "combat" && combatSurface === "pvp"\}/);
+  assert.match(campaign, /exclusiveOwner === "combat" && combatSurface === "trainer"/);
+  assert.match(multiplayer, /battleModalOwned: boolean/);
+  assert.match(multiplayer, /if \(!battleModalOwned \|\| !battleId \|\| !battlePhase \|\| !dialog\) return/);
+  assert.match(multiplayer, /battle && battleModalOwned && typeof document !== "undefined"/);
+  assert.doesNotMatch(campaign, /setState\([\s\S]{0,120}dismiss-battle/);
 });
 
 test("every exclusive owner hides and gates every non-owner world home", () => {

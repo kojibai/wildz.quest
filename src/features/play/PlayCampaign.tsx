@@ -26,7 +26,7 @@ import { WildsAudioSettings } from "@/features/play/WildsAudioSettings";
 import { useWildsPresentation } from "@/features/play/use-wilds-presentation";
 import { useWildsQualityProfile } from "@/features/play/use-wilds-quality-profile";
 import { useWorldOverlayDirector } from "@/features/play/use-world-overlay-director";
-import { canAcceptPlayShellInput, isCaptureRewardModalOwner, isWildBattleModalOwner, projectPlayShellOwner } from "@/features/play/play-shell-owner";
+import { canAcceptPlayShellInput, isCaptureRewardModalOwner, isWildBattleModalOwner, projectPlayCombatSurface, projectPlayShellOwner } from "@/features/play/play-shell-owner";
 import {
   beginModalAdmission,
   canCommitModalAdmission,
@@ -249,8 +249,13 @@ export function PlayCampaign({
   const captureRewardAsset = captureRewardAssetId
     ? state.inventory.find((candidate) => candidate.id === captureRewardAssetId) ?? null
     : null;
+  const combatSurface = projectPlayCombatSurface({
+    trainer: Boolean(activeTrainer && activeAsset && trainerEncounter?.phase === "combat"),
+    wild: isWildBattleModalOwner(state.encounter.phase, Boolean(state.battle)),
+    pvp: Boolean(multiplayer.activeBattle)
+  });
   const modalOwner = projectPlayShellOwner({
-    combat: trainerEncounter?.phase === "combat" || isWildBattleModalOwner(state.encounter.phase, Boolean(state.battle)) || Boolean(multiplayer.activeBattle),
+    combat: combatSurface !== null,
     trainer: Boolean(activeTrainer && activeAsset && trainerEncounter && ["challenge", "transition", "result"].includes(trainerEncounter.phase)),
     memorial: memorialAssetId !== null,
     reward: isCaptureRewardModalOwner(state.encounter.phase, Boolean(captureRewardAsset)),
@@ -1241,7 +1246,7 @@ export function PlayCampaign({
       <div className="wilds-shell wilds-playable-shell">
         <div className="wilds-world">
           <div
-            className={`wilds-stage${state.encounter.phase === "hint" ? ` signal-${state.encounter.proximity}` : ""}${multiplayer.activeBattle ? " pvp-active" : ""}${multiplayerRosterOpen ? " multiplayer-roster-open" : ""}${wildBattleActive ? " wild-battle-active" : ""}${commandPanelOpen ? " is-command-panel-open" : ""}`}
+            className={`wilds-stage${state.encounter.phase === "hint" ? ` signal-${state.encounter.proximity}` : ""}${combatSurface === "pvp" ? " pvp-active" : ""}${multiplayerRosterOpen ? " multiplayer-roster-open" : ""}${combatSurface === "wild" ? " wild-battle-active" : ""}${commandPanelOpen ? " is-command-panel-open" : ""}`}
             aria-label="Receiz Wilds playable 3D world"
           >
             <WildsWorldCanvas
@@ -1285,6 +1290,7 @@ export function PlayCampaign({
 
             <div aria-hidden={multiplayerHomeBlocked} className="wilds-multiplayer-home" inert={multiplayerHomeBlocked ? true : undefined}><WildsMultiplayer
               controlsExpanded={worldStatusOpen && !commandPanelOpen}
+              battleModalOwned={exclusiveOwner === "combat" && combatSurface === "pvp"}
               dismissSignal={commandDismissSignal}
               interactionEnabled={worldInteractionEnabled}
               modalOwned={exclusiveOwner === "multiplayer"}
@@ -1377,7 +1383,7 @@ export function PlayCampaign({
               requestedCommand={requestedCommand}
             />
 
-            {exclusiveOwner === "combat" && wildBattleActive && state.battle ? (
+            {exclusiveOwner === "combat" && combatSurface === "wild" && wildBattleActive && state.battle ? (
               <WildsBattle
                 battle={state.battle}
                 encounterPhase={state.encounter.phase}
@@ -1467,7 +1473,7 @@ export function PlayCampaign({
         roster={state.inventory}
         trainer={activeTrainer}
       /> : null}
-      {exclusiveOwner === "combat" && !state.battle && !multiplayer.activeBattle && activeTrainer && activeAsset && trainerEncounter?.phase === "combat" ? <MortalArenaExperience
+      {exclusiveOwner === "combat" && combatSurface === "trainer" && activeTrainer && activeAsset && trainerEncounter?.phase === "combat" ? <MortalArenaExperience
         card={activeAsset}
         roster={state.inventory}
         opponent={projectCampaignOpponentFromTrainer(activeTrainer)}
