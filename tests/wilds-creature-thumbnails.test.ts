@@ -18,7 +18,7 @@ test("the Slate selector and Vault rows show creature artwork without a circular
 
   assert.match(campaign, /<WildsCreatureThumbnail asset=\{card\}/);
   assert.match(inventory, /<WildsCreatureThumbnail asset=\{asset\} className="wilds-vault-creature-art"/);
-  assert.match(drawer, /<WildsCreatureThumbnail asset=\{asset\} className="wildz-slate-creature-art"/);
+  assert.match(drawer, /<WildsCreatureThumbnail asset=\{entry\.asset\} className="wildz-slate-creature-art"/);
   assert.match(css, /\.wilds-vault-creature-art,\s*\.wildz-slate-creature-art\s*\{[^}]*background:\s*transparent;[^}]*border-radius:\s*0;/s);
   assert.doesNotMatch(inventory, /<WildsCardPreview/);
   assert.doesNotMatch(drawer, /<WildsCardPreview/);

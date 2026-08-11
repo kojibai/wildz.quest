@@ -43,9 +43,12 @@ test("campaign projects one modal owner and gates underlying world input", () =>
 
 test("exclusive ownership dismisses multiplayer expansions and blocks roster and challenge actions", () => {
   const campaign = read("src/features/play/PlayCampaign.tsx");
+  const statusHud = read("src/features/play/WildsBalancedStatusHud.tsx");
   const multiplayer = read("src/features/play/WildsMultiplayer.tsx");
 
-  assert.match(campaign, /<WildsMultiplayer[\s\S]*dismissSignal=\{commandDismissSignal\}[\s\S]*interactionEnabled=\{worldInteractionEnabled\}/);
+  assert.match(campaign, /<WildsBalancedStatusHud[\s\S]*blocked=\{backgroundHomesBlocked\}[\s\S]*dismissSignal=\{commandDismissSignal\}[\s\S]*interactionEnabled=\{worldInteractionEnabled\}/);
+  assert.match(statusHud, /const homeInteractionEnabled = interactionEnabled && !blocked;/);
+  assert.match(statusHud, /<WildsMultiplayer[\s\S]*dismissSignal=\{dismissSignal\}[\s\S]*interactionEnabled=\{homeInteractionEnabled\}/);
   assert.match(multiplayer, /dismissSignal: number/);
   assert.match(multiplayer, /interactionEnabled: boolean/);
   assert.match(multiplayer, /setRosterOpen\(false\);[\s\S]*setChatOpen\(false\);[\s\S]*setMessage\(""\);[\s\S]*multiplayer\.selectPlayer\(null\)/);

@@ -17,7 +17,6 @@ function healthPercent(hp: number, maxHp: number) {
 
 export function WildsMultiplayer({
   battleModalOwned,
-  controlsExpanded,
   dismissSignal,
   interactionEnabled,
   modalOwned,
@@ -26,7 +25,6 @@ export function WildsMultiplayer({
   onRosterOpenChange
 }: {
   battleModalOwned: boolean;
-  controlsExpanded: boolean;
   dismissSignal: number;
   interactionEnabled: boolean;
   modalOwned: boolean;
@@ -151,7 +149,7 @@ export function WildsMultiplayer({
 
   return (
     <>
-      <div id="wilds-live-controls" aria-hidden={!controlsExpanded} inert={controlsExpanded ? undefined : true} className={`wilds-live-cluster${controlsExpanded ? " is-status-open" : ""}`} aria-label="Live multiplayer">
+      <div id="wilds-live-controls" className="wilds-live-cluster" aria-label="Live multiplayer">
         <button aria-label={`Open global live explorers · ${multiplayer.mode === "receiz_live" ? "connected worldwide" : "reconnecting"}`} className={`wilds-live-badge ${multiplayer.mode}`} disabled={!interactionEnabled} onClick={() => {
           if (!interactionEnabled) return;
           setRosterOpen((value) => !value);
@@ -222,7 +220,7 @@ export function WildsMultiplayer({
         </section>
       ) : null}
 
-      {shouldShowIncomingChallenge(challengeInteractionEnabled, multiplayer.incomingChallenge) ? (
+      {shouldShowIncomingChallenge(challengeInteractionEnabled, multiplayer.incomingChallenge) && typeof document !== "undefined" ? createPortal((
         <section className="wilds-live-sheet wilds-challenge-incoming" ref={challengeDialogRef} role="dialog" aria-modal="true" aria-label="Incoming Wilds battle challenge">
           <span>Challenge signal</span>
           <h3>{multiplayer.snapshot?.players.find((player) => player.playerId === multiplayer.incomingChallenge?.challengerId)?.handle ?? "A nearby explorer"} wants to battle</h3>
@@ -235,7 +233,7 @@ export function WildsMultiplayer({
             void multiplayer.answerChallenge(multiplayer.incomingChallenge!.id, "accept");
           }} type="button">Accept battle</button></div>
         </section>
-      ) : null}
+      ), document.body) : null}
 
       {battle && battleModalOwned && typeof document !== "undefined" ? createPortal((
         <section aria-labelledby="wilds-pvp-battle-title" aria-modal="true" className={`wilds-pvp-battle ${battle.phase}`} ref={battleDialogRef} role="dialog" tabIndex={-1}>

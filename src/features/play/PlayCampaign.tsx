@@ -12,17 +12,16 @@ import {
   type PlayState,
   type WildsInput
 } from "@/features/play/game-state";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import { WildsCaptureReward } from "@/features/play/WildsCaptureReward";
 import { WildsInventory } from "@/features/play/WildsInventory";
 import { WildsBattle } from "@/features/play/WildsBattle";
 import { WildsTransformation } from "@/features/play/WildsTransformation";
 import { WildsChildCeremony } from "@/features/play/WildsChildCeremony";
-import { WildsMultiplayer } from "@/features/play/WildsMultiplayer";
 import { useWildsMultiplayer } from "@/features/play/use-wilds-multiplayer";
 import { useWildsWorld } from "@/features/play/use-wilds-world";
-import { WildsAudioSettings } from "@/features/play/WildsAudioSettings";
+import { WildsBalancedStatusHud } from "@/features/play/WildsBalancedStatusHud";
 import { useWildsPresentation } from "@/features/play/use-wilds-presentation";
 import { useWildsQualityProfile } from "@/features/play/use-wilds-quality-profile";
 import { useWorldOverlayDirector } from "@/features/play/use-world-overlay-director";
@@ -65,7 +64,6 @@ import type {
   WildzPlayerContinuity
 } from "@/features/identity/wildz-restore";
 import { bossAudioCue, ecologyAudioCue, normalizeWildsAudioSettings, settlementAudioCue } from "@/features/play/wilds-audio";
-import { WildsLivingWorldHud } from "@/features/play/WildsLivingWorldHud";
 import { WildsSagaPanel } from "@/features/play/WildsSagaPanel";
 import { wildsSagaFramework } from "@/features/play/wilds-saga-content";
 import { projectWildsSaga } from "@/features/play/wilds-saga-director";
@@ -172,7 +170,6 @@ export function PlayCampaign({
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
   const [mapOpen, setMapOpen] = useState(false);
   const [multiplayerRosterOpen, setMultiplayerRosterOpen] = useState(false);
-  const [worldStatusOpen, setWorldStatusOpen] = useState(false);
   const cameraHeadingRef = useRef(0);
   const updateCameraHeading = useCallback((heading: number) => {
     cameraHeadingRef.current = heading;
@@ -315,7 +312,6 @@ export function PlayCampaign({
       setTrainerEncounter(null);
     }
     if (owner !== "memorial") setMemorialAssetId(null);
-    setWorldStatusOpen(false);
     setMultiplayerRosterOpen(false);
   }, []);
   const claimPlayModalOwner = useCallback((
@@ -340,24 +336,20 @@ export function PlayCampaign({
     clearIncompatibleModalState(exclusiveOwner);
   }, [clearIncompatibleModalState, exclusiveOwner]);
   const worldInteractionEnabled = canAcceptPlayShellInput(interactionEnabled, modalOwner, commandPanelOpen);
-  const backgroundHomesBlocked = exclusiveOwner !== "none";
+  const backgroundHomesBlocked = !isPlayHomeAvailable(exclusiveOwner, "status");
   const referenceHomeBlocked = !isPlayHomeAvailable(exclusiveOwner, "reference");
-  const multiplayerHomeBlocked = !isPlayHomeAvailable(exclusiveOwner, "multiplayer");
-  const statusHomeBlocked = !isPlayHomeAvailable(exclusiveOwner, "status");
   const canUseWorldStage = useCallback(
     () => worldInteractionEnabled && !panelOwnershipRef.current,
     [panelOwnershipRef, worldInteractionEnabled]
   );
   const dispatchStageOverlay = useCallback((event: Parameters<typeof dispatchWorldOverlay>[0]) => {
     if (event.type === "panel" && event.key !== null) {
-      setWorldStatusOpen(false);
       setMultiplayerRosterOpen(false);
     }
     dispatchWorldOverlay(event);
   }, [dispatchWorldOverlay]);
   const handleMultiplayerRosterOpenChange = useCallback((open: boolean) => {
     setMultiplayerRosterOpen(open);
-    if (open) setWorldStatusOpen(false);
   }, []);
   const priorExclusiveOwner = useRef(exclusiveOwner);
   useEffect(() => {
@@ -370,9 +362,6 @@ export function PlayCampaign({
       setMapOpen(false);
     }
   }, [exclusiveOwner, mapOpen]);
-  useEffect(() => {
-    if (!worldInteractionEnabled) setWorldStatusOpen(false);
-  }, [worldInteractionEnabled]);
   useEffect(() => {
     if (exclusiveOwner === "none" || exclusiveOwner === "command" || exclusiveOwner === "combat") return;
     let modal: HTMLElement | null = null;
@@ -441,14 +430,6 @@ export function PlayCampaign({
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [answerMultiplayerChallenge, exclusiveOwner, incomingChallengeId, releasePlayModalOwner]);
-  useEffect(() => {
-    if (!worldStatusOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setWorldStatusOpen(false);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [worldStatusOpen]);
   useEffect(() => {
     if (!shouldDismissTrainerEncounterForExternalCombat(trainerEncounter?.phase ?? null, {
       wildBattleActive: Boolean(state.battle),
@@ -1308,63 +1289,30 @@ export function PlayCampaign({
               />
             </div>
 
-            <div aria-hidden={multiplayerHomeBlocked} className="wilds-multiplayer-home" inert={multiplayerHomeBlocked ? true : undefined}><WildsMultiplayer
-              controlsExpanded={worldStatusOpen && !commandPanelOpen}
+            <WildsBalancedStatusHud
+              audio={{
+                onChange: (settings) => { if (canUseWorldStage()) presentation.setAudioSettings(settings); },
+                onUnlock: () => { if (canUseWorldStage()) void presentation.unlockAudio(); },
+                ready: presentation.audioReady,
+                settings: presentation.audioSettings
+              }}
               battleModalOwned={exclusiveOwner === "combat" && combatSurface === "pvp"}
+              blocked={backgroundHomesBlocked}
+              connected={networkEnabled}
               dismissSignal={commandDismissSignal}
               interactionEnabled={worldInteractionEnabled}
+              kaiMoment={kaiMoment}
               modalOwned={exclusiveOwner === "multiplayer"}
               multiplayer={multiplayer}
-              position={state.player}
+              onEnterRaid={enterLivingRaid}
+              onOpenCommandCenter={() => {
+                if (!canUseWorldStage()) return;
+                setRequestedCommand("commandCenter");
+              }}
               onRosterOpenChange={handleMultiplayerRosterOpenChange}
-            /></div>
-            <div aria-hidden={statusHomeBlocked} className={`wilds-world-status-home${worldStatusOpen && !backgroundHomesBlocked ? " is-open" : ""}`} inert={statusHomeBlocked ? true : undefined}>
-              <button
-                aria-controls="wilds-live-controls wilds-world-status-fan"
-                aria-expanded={worldStatusOpen}
-                aria-label={`${worldStatusOpen ? "Close" : "Open"} world status controls · ${multiplayer.remotePlayers.length} live explorers`}
-                className="wilds-world-status-trigger"
-                disabled={!worldInteractionEnabled}
-                onClick={() => {
-                  if (!canUseWorldStage()) return;
-                  const nextOpen = !worldStatusOpen;
-                  setWorldStatusOpen(nextOpen);
-                  if (nextOpen) setCommandDismissSignal((signal) => signal + 1);
-                }}
-                type="button"
-              >
-                <i aria-hidden="true"><span /><span /><span /></i>
-                <b>{multiplayer.remotePlayers.length}</b>
-              </button>
-              {worldStatusOpen && !backgroundHomesBlocked ? <div className="wilds-world-status-fan" id="wilds-world-status-fan">
-                <div className="wilds-world-navigator-stack">
-                  <WildsLivingWorldHud connected={networkEnabled} onEnterRaid={enterLivingRaid} player={state.player} world={livingWorld} />
-                </div>
-                <div className="wilds-utility-cluster">
-                  <WildsAudioSettings
-                    onChange={(settings) => { if (canUseWorldStage()) presentation.setAudioSettings(settings); }}
-                    onUnlock={() => { if (canUseWorldStage()) void presentation.unlockAudio(); }}
-                    ready={presentation.audioReady}
-                    settings={presentation.audioSettings}
-                  />
-                  <button
-                    aria-label={`Open living Command Center. Beat step pulse ${kaiMoment.latticeCoordinate}`}
-                    className="wilds-kai-command-pill"
-                    onClick={() => {
-                      if (!canUseWorldStage()) return;
-                      setWorldStatusOpen(false);
-                      setRequestedCommand("commandCenter");
-                    }}
-                    style={{ "--kai-accent": kaiMoment.accent } as CSSProperties}
-                    title="Open living Command Center"
-                    type="button"
-                  >
-                    <small>BEAT:STEP:PULSE</small>
-                    <span>{kaiMoment.latticeCoordinate}</span>
-                  </button>
-                </div>
-              </div> : null}
-            </div>
+              player={state.player}
+              world={livingWorld}
+            />
 
             <WildzWorldControls
               activeCard={activeAsset}

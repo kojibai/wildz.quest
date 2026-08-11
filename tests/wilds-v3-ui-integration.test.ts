@@ -19,12 +19,14 @@ describe("Wilds V3 living-world UI integration", () => {
 
   it("makes settlements, ecology, bosses, and raids reachable from the accepted campaign", async () => {
     const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
+    const statusHud = await readFile("src/features/play/WildsBalancedStatusHud.tsx", "utf8");
     const canvas = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");
     const environment = await readFile("src/features/play/WildsEnvironment.tsx", "utf8");
     const map = await readFile("src/features/play/WildsWorldMap.tsx", "utf8");
 
     assert.match(campaign, /useWildsWorld/);
-    assert.match(campaign, /<WildsLivingWorldHud/);
+    assert.match(campaign, /<WildsBalancedStatusHud/);
+    assert.match(statusHud, /<WildsLivingWorldHud/);
     assert.match(campaign, /<WildsSettlementExperience/);
     assert.match(campaign, /<WildsEcologyExperience/);
     assert.match(campaign, /<WildsRaidExperience/);

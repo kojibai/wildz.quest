@@ -13,11 +13,9 @@ test("the stage director owns command panels and gates every non-modal home", ()
   assert.match(campaign, /useWorldOverlayDirector\(\{ dismissSignal: commandDismissSignal, exclusiveOwner: modalOwner \}\)/);
   assert.match(campaign, /const commandPanelOpen = modalOwner === "none" && worldOverlayState\.panelKey !== null/);
   assert.match(campaign, /const canUseWorldStage = useCallback[\s\S]*!panelOwnershipRef\.current/);
-  assert.match(campaign, /event\.type === "panel" && event\.key !== null[\s\S]*setWorldStatusOpen\(false\)[\s\S]*setMultiplayerRosterOpen\(false\)/);
+  assert.match(campaign, /event\.type === "panel" && event\.key !== null[\s\S]*setMultiplayerRosterOpen\(false\)/);
   assert.match(campaign, /is-command-panel-open/);
-  assert.match(campaign, /aria-hidden=\{multiplayerHomeBlocked\} className="wilds-multiplayer-home" inert=\{multiplayerHomeBlocked \? true : undefined\}/);
-  assert.match(campaign, /aria-hidden=\{statusHomeBlocked\}[\s\S]*wilds-world-status-home[\s\S]*inert=\{statusHomeBlocked \? true : undefined\}/);
-  assert.match(campaign, /worldStatusOpen && !backgroundHomesBlocked \? <div className="wilds-world-status-fan"/);
+  assert.match(campaign, /<WildsBalancedStatusHud[\s\S]*blocked=\{backgroundHomesBlocked\}/);
   assert.match(campaign, /overlayDispatch=\{dispatchStageOverlay\}/);
   assert.match(campaign, /overlayState=\{worldOverlayState\}/);
   assert.doesNotMatch(controls, /useWorldOverlayDirector/);
@@ -35,7 +33,7 @@ test("panel ownership ref closes the same-frame action window before React commi
   assert.match(campaign, /if \(!canUseWorldStage\(\)\) return;[\s\S]*dispatch\(input\)/);
   assert.match(campaign, /const openWorldMap = \(\) => \{[\s\S]*if \(!canUseWorldStage\(\)\) return/);
   assert.match(campaign, /if \(canUseWorldStage\(\)\) setRequestedCommand\("mission"\)/);
-  assert.match(campaign, /if \(!canUseWorldStage\(\)\) return;[\s\S]*const nextOpen = !worldStatusOpen/);
+  assert.match(campaign, /onOpenCommandCenter=\{\(\) => \{[\s\S]*if \(!canUseWorldStage\(\)\) return;[\s\S]*setRequestedCommand\("commandCenter"\)/);
 });
 
 test("panel-owned actions remain available without reopening the world-stage action window", () => {

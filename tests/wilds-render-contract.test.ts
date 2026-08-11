@@ -74,16 +74,17 @@ describe("Receiz Wilds rendering contract", () => {
 
   it("connects the Kai command pill, atlas, Rift travel, Walk Run, and Pulse to the playable world", async () => {
     const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
+    const statusHud = await readFile("src/features/play/WildsBalancedStatusHud.tsx", "utf8");
     const referenceHud = await readFile("src/features/play/WildzReferenceHud.tsx", "utf8");
     const minimap = await readFile("src/features/play/WildzMinimap.tsx", "utf8");
     const controls = await readFile("src/features/play/WildzWorldControls.tsx", "utf8");
     const route = await readFile("app/api/wilds/atlas/route.ts", "utf8");
 
-    assert.match(campaign, /className="wilds-utility-cluster"/);
-    assert.match(campaign, /className="wilds-world-status-trigger"/);
-    assert.match(campaign, /aria-controls="wilds-live-controls wilds-world-status-fan"/);
-    assert.match(campaign, /BEAT:STEP:PULSE/);
-    assert.match(campaign, /className="wilds-kai-command-pill"/);
+    assert.match(campaign, /<WildsBalancedStatusHud/);
+    assert.match(statusHud, /className="wilds-map-status-home"/);
+    assert.match(statusHud, /className="wilds-left-instrument-home"/);
+    assert.match(statusHud, /BEAT:STEP:PULSE/);
+    assert.match(statusHud, /className="wilds-kai-command-pill"/);
     assert.match(campaign, /setRequestedCommand\("commandCenter"\)/);
     assert.match(campaign, /onOpenMap=\{openWorldMap\}/);
     assert.match(referenceHud, /<WildzMinimap[\s\S]*onOpen=\{onOpenMap\}/);
@@ -426,21 +427,21 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(cardBack, /aria-live="polite"/);
   });
 
-  it("keeps retired creatures visible as unplayable memorial cards", async () => {
+  it("keeps retired creatures in the Card Vault memorial and out of the playable Slate", async () => {
     const inventory = await readFile("src/features/play/WildsInventory.tsx", "utf8");
     const drawer = await readFile("src/features/play/WildzCreatureDrawer.tsx", "utf8");
+    const roster = await readFile("src/features/play/vault-companion-roster.ts", "utf8");
     const css = await readFile("app/globals.css", "utf8");
     assert.match(inventory, /is-retired/);
     assert.match(inventory, /Retired memorial/);
     assert.match(inventory, /selectedRetired/);
     assert.match(inventory, /selectedRetired \? <div className="wilds-vault-card-memorial"/);
     assert.match(inventory, /: <WildsCardScene asset=\{selected\} condition=\{state\.adventureConditions\[selected\.id\]\} origin=\{origin\} qr=\{qr\} \/>/);
-    assert.match(drawer, /retired/);
-    assert.doesNotMatch(drawer, /disabled=\{retired\}/);
-    assert.match(drawer, /wildz-memorial-card-viewer/);
+    assert.match(roster, /const retired = condition\.life === "dead"/);
+    assert.match(roster, /if \(retired\) return \[\]/);
+    assert.doesNotMatch(drawer, /is-retired|wildz-memorial-card-viewer/);
     assert.match(inventory, /swipe to view death record/);
     assert.match(css, /\.wilds-inventory-grid > button\.is-retired/);
-    assert.match(css, /\.wildz-creature-choice\.is-retired/);
   });
 
   it("resolves public cards across devices and physically flips the complete card", async () => {
@@ -661,11 +662,12 @@ describe("Receiz Wilds rendering contract", () => {
 
   it("integrates a gesture-safe audio lifecycle and accessible settings", async () => {
     const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
+    const statusHud = await readFile("src/features/play/WildsBalancedStatusHud.tsx", "utf8");
     const hook = await readFile("src/features/play/use-wilds-presentation.ts", "utf8");
     const controls = await readFile("src/features/play/WildsAudioSettings.tsx", "utf8");
 
     assert.match(campaign, /useWildsPresentation/);
-    assert.match(campaign, /<WildsAudioSettings/);
+    assert.match(statusHud, /<WildsAudioSettings/);
     assert.match(hook, /pointerdown/);
     assert.match(hook, /runtime\.destroy\(\)/);
     assert.match(controls, /aria-label="Wilds audio settings"/);
@@ -674,7 +676,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(controls, /Ambience volume/);
     assert.match(controls, /Music volume/);
     assert.match(controls, /Mute Wilds audio/);
-    assert.match(campaign, /wilds-utility-cluster/);
+    assert.match(statusHud, /wilds-left-instrument-home/);
     const worldControls = campaign.slice(campaign.indexOf("<WildzWorldControls"));
     assert.doesNotMatch(worldControls, /<WildsAudioSettings/);
   });

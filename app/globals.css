@@ -14472,7 +14472,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   pointer-events: none;
 }
 
-.wilds-stage.is-command-panel-open :is(.wildz-reference-hud, .wilds-multiplayer-home, .wilds-world-status-home) {
+.wilds-stage.is-command-panel-open :is(.wildz-reference-hud, .wilds-map-status-home, .wilds-left-instrument-home) {
   pointer-events: none;
 }
 
@@ -14651,161 +14651,100 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   animation: wildz-wheel-in 150ms cubic-bezier(.2, .8, .2, 1) both;
 }
 
-/* One semantic status home owns every secondary world control below the map. */
-.wilds-world-status-home {
+/* Balanced persistent status homes keep world truth near the map and personal
+   instruments beneath the explorer identity without adding another chassis. */
+.wilds-map-status-home,
+.wilds-left-instrument-home {
   position: absolute;
   z-index: var(--wildz-layer-resting-controls);
-  top: calc(clamp(126px, 18vh, 146px) + env(safe-area-inset-top));
-  right: max(12px, env(safe-area-inset-right));
-  width: 44px;
-  height: 44px;
   pointer-events: none;
 }
 
-.wilds-world-status-trigger {
-  position: relative;
-  display: grid;
-  width: 44px;
-  height: 44px;
-  place-items: center;
-  padding: 0;
-  border: 1px solid rgba(198, 248, 219, .3);
-  border-radius: 16px;
-  color: #e9fff5;
-  background: linear-gradient(145deg, rgba(16, 44, 39, .92), rgba(7, 25, 22, .96));
-  box-shadow: 0 9px 25px rgba(0, 0, 0, .34), inset 0 1px rgba(255, 255, 255, .08);
-  backdrop-filter: blur(16px) saturate(1.08);
-  pointer-events: auto;
-}
-
-.wilds-world-status-trigger > i {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.wilds-world-status-trigger > i > span {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: #71e8c3;
-  box-shadow: 0 0 7px rgba(113, 232, 195, .7);
-}
-
-.wilds-world-status-trigger > b {
+.wilds-map-status-home {
   position: absolute;
-  top: -4px;
-  right: -4px;
-  display: grid;
-  min-width: 17px;
-  height: 17px;
-  place-items: center;
-  padding: 0 4px;
-  border: 1px solid rgba(7, 25, 22, .8);
-  border-radius: 999px;
-  color: #071916;
-  background: #f4dd79;
-  font-size: 8px;
-}
-
-.wilds-world-status-trigger[aria-expanded="true"],
-.wilds-world-status-trigger:hover,
-.wilds-world-status-trigger:focus-visible {
-  border-color: rgba(244, 221, 121, .62);
-  color: #fff2a8;
-}
-
-.wilds-world-status-fan {
-  position: absolute;
-  z-index: var(--wildz-layer-expanded-controls);
-  top: calc(100% + 58px);
-  right: 0;
+  top: calc(clamp(126px, 14vw, 134px) + env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
   display: grid;
   width: min(280px, calc(100vw - 24px));
   justify-items: end;
-  gap: 7px;
-  pointer-events: none;
-  transform-origin: top right;
-  transition: opacity 140ms ease, visibility 140ms ease, transform 140ms ease;
+  gap: 6px;
 }
 
-.wilds-world-status-home:not(.is-open) .wilds-world-status-fan {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transform: translateY(-6px) scale(.96);
-}
-
-.wilds-world-status-home.is-open .wilds-world-status-fan {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0) scale(1);
-}
-
-.wilds-world-status-fan > * {
-  pointer-events: auto;
-}
-
-.wilds-world-status-fan .wilds-world-navigator-stack {
-  position: static;
-  display: flex;
-  width: min(100%, 280px);
-  max-width: 280px;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 5px;
-}
-
-.wilds-world-status-fan .wilds-living-world-hud {
-  position: static;
-  width: auto;
-  align-items: flex-end;
-}
-
-.wilds-world-status-fan .wilds-utility-cluster {
-  position: static;
+.wilds-left-instrument-home {
+  position: absolute;
+  top: calc(84px + env(safe-area-inset-top));
+  left: max(12px, env(safe-area-inset-left));
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.wilds-world-status-fan .wilds-utility-cluster .wilds-audio-sheet {
-  right: 0;
-  left: auto;
-}
-
-.wildz-app .wilds-live-cluster {
-  z-index: var(--wildz-layer-expanded-controls);
-  top: calc(clamp(178px, calc(18vh + 52px), 198px) + env(safe-area-inset-top));
-  right: max(12px, env(safe-area-inset-right));
-  bottom: auto;
-  left: auto;
-  gap: 6px;
-  transform-origin: top right;
-  transition: opacity 140ms ease, visibility 140ms ease, transform 140ms ease;
-}
-
-.wildz-app .wilds-live-cluster:not(.is-status-open) {
-  opacity: 0;
+.wilds-map-status-home[aria-hidden="true"],
+.wilds-left-instrument-home[aria-hidden="true"] {
   visibility: hidden;
   pointer-events: none;
-  transform: translateY(-6px) scale(.96);
 }
 
-.wildz-app .wilds-live-cluster.is-status-open {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0) scale(1);
+.wilds-map-status-home > *,
+.wilds-left-instrument-home > * {
+  pointer-events: auto;
 }
 
-/* Final interaction floor: every target revealed from the status home is
-   thumb-safe without growing a full-width control chassis. */
-.wildz-app .wilds-world-status-trigger,
-.wildz-app .wilds-live-badge,
-.wildz-app .wilds-live-share,
-.wildz-app .wilds-audio-settings > summary,
-.wildz-app .wilds-kai-command-pill,
-.wildz-app .wilds-live-pill {
+.wilds-map-status-home .wilds-living-world-hud {
+  position: relative;
+  width: min(100%, 280px);
+  align-items: flex-end;
+}
+
+.wilds-map-status-home .wilds-live-cluster {
+  position: static;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  pointer-events: auto;
+  transform: none;
+}
+
+.wilds-map-status-home .wilds-live-roster,
+.wilds-map-status-home .wilds-player-sheet,
+.wilds-map-status-home .wilds-live-notice {
+  position: fixed;
+}
+
+.wilds-map-status-home .wilds-live-roster {
+  top: max(88px, calc(env(safe-area-inset-top) + 76px));
+  right: max(12px, env(safe-area-inset-right));
+  max-height: calc(100dvh - max(112px, calc(env(safe-area-inset-top) + 100px)) - max(12px, env(safe-area-inset-bottom)));
+}
+
+.wilds-map-status-home .wilds-player-sheet {
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+.wilds-map-status-home .wilds-live-notice {
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(118px, calc(env(safe-area-inset-bottom) + 108px));
+}
+
+.wilds-challenge-incoming {
+  position: fixed;
+  z-index: 6600;
+}
+
+.wilds-left-instrument-home .wilds-audio-sheet {
+  position: fixed;
+  top: 50%;
+  bottom: auto;
+  left: 50%;
+  max-height: calc(100dvh - max(24px, env(safe-area-inset-top)) - max(24px, env(safe-area-inset-bottom)));
+  overflow-y: auto;
+  transform: translate(-50%, -50%);
+}
+
+.wilds-map-status-home :is(.wilds-live-badge, .wilds-live-share, .wilds-live-pill),
+.wilds-left-instrument-home :is(.wilds-kai-command-pill, .wilds-audio-settings > summary) {
   min-width: 44px;
   min-height: 44px;
 }
@@ -14920,18 +14859,25 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
     width: min(74vw, 430px);
   }
 
-  .wilds-world-status-home {
+  .wilds-map-status-home {
     top: calc(84px + env(safe-area-inset-top));
     right: max(8px, env(safe-area-inset-right));
-  }
-
-  .wildz-app .wilds-live-cluster {
-    top: calc(136px + env(safe-area-inset-top));
-    right: max(8px, env(safe-area-inset-right));
-  }
-
-  .wilds-world-status-fan {
     width: min(260px, calc(100vw - 16px));
+  }
+
+  .wilds-map-status-home .wilds-live-pill[class*="mode-"] {
+    width: 44px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .wilds-map-status-home .wilds-live-pill[class*="mode-"] > span {
+    display: none;
+  }
+
+  .wilds-left-instrument-home {
+    top: calc(68px + env(safe-area-inset-top));
+    left: max(8px, env(safe-area-inset-left));
   }
 }
 
@@ -14959,8 +14905,9 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   .wildz-creature-spread { grid-template-rows: repeat(4, minmax(96px, 1fr)); gap: 5px; }
   .wildz-creature-choice-copy { gap: 2px; }
 
-  .wilds-world-status-fan {
-    width: min(244px, calc(100vw - 16px));
+  .wilds-map-status-home {
+    top: calc(80px + env(safe-area-inset-top));
+    max-width: calc(100vw - 136px);
   }
 }
 
@@ -15074,38 +15021,32 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
     transform: none;
   }
 
-  .wilds-world-status-home {
-    top: calc(76px + env(safe-area-inset-top));
+  .wilds-map-status-home {
+    top: calc(74px + env(safe-area-inset-top));
     right: max(8px, env(safe-area-inset-right));
+    width: min(330px, 42vw);
   }
 
-  .wildz-app .wilds-live-cluster {
-    top: calc(70px + env(safe-area-inset-top));
-    right: calc(max(8px, env(safe-area-inset-right)) + 52px);
-  }
-
-  .wilds-world-status-fan {
-    top: 0;
-    right: 156px;
-    display: flex;
-    width: max-content;
-    max-width: calc(100vw - 224px);
-    align-items: flex-start;
-    gap: 6px;
-  }
-
-  .wilds-world-status-fan .wilds-world-navigator-stack {
+  .wilds-map-status-home .wilds-living-world-hud {
     width: auto;
-    max-width: min(330px, 42vw);
-  }
-
-  .wilds-world-status-fan .wilds-living-world-hud {
+    max-width: 100%;
     flex-direction: row;
+    flex-wrap: wrap;
     justify-content: flex-end;
   }
 
-  .wilds-world-status-fan .wilds-utility-cluster {
-    flex: none;
+  .wilds-left-instrument-home {
+    top: calc(62px + env(safe-area-inset-top));
+    left: max(8px, env(safe-area-inset-left));
+    display: grid;
+    grid-template-columns: 104px 44px;
+    gap: 6px;
+  }
+
+  .wilds-map-status-home .wilds-live-roster {
+    top: max(8px, env(safe-area-inset-top));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 16px);
   }
 
   .wildz-app .wilds-event-toast {
@@ -15119,8 +15060,8 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   .wilds-world-tools-fan,
   .wildz-creature-drawer,
   .wilds-companion-ability-wheel,
-  .wilds-world-status-fan,
-  .wilds-live-cluster {
+  .wilds-living-world-sheet,
+  .wilds-audio-sheet {
     animation: none !important;
     transition: none !important;
   }

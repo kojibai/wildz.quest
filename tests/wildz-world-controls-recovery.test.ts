@@ -51,8 +51,8 @@ test("controlled callbacks stay stable and the D-pad forwards input directly", (
 
 test("programmatic drawer callbacks cannot mutate overlay state while the companion home is blocked", () => {
   const controls = read("src/features/play/WildzWorldControls.tsx");
-  assert.match(controls, /const handleDrawerSnapChange = useCallback[\s\S]*if \(!companionHomeBlocked\) overlayDispatch\(\{ type: "drawer", snap \}\)/);
-  assert.match(controls, /const handleRequestDrawer = useCallback[\s\S]*if \(worldHomesEnabled\) overlayDispatch\(\{ type: "drawer", snap \}\)/);
+  assert.match(controls, /const handleDrawerSnapChange = useCallback[\s\S]*if \(companionHomeBlocked\) return;[\s\S]*overlayDispatch\(\{ type: "drawer", snap \}\)/);
+  assert.match(controls, /const handleRequestDrawer = useCallback[\s\S]*if \(!worldHomesEnabled\) return;[\s\S]*overlayDispatch\(\{ type: "drawer", snap \}\)/);
 });
 
 test("the companion command receives the same living Vault roster as the Slate", () => {

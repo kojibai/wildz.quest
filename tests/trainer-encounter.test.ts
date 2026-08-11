@@ -134,7 +134,7 @@ describe("trainer encounter presentation", () => {
       "Review"
     ]) assert.match(component, new RegExp(token));
     assert.match(campaign, /trainerEncounter\?\.phase === "combat"/);
-    assert.match(campaign, /!state\.battle && !multiplayer\.activeBattle && activeTrainer && activeAsset && trainerEncounter\?\.phase === "combat"/);
+    assert.match(campaign, /exclusiveOwner === "combat" && combatSurface === "trainer" && activeTrainer && activeAsset && trainerEncounter\?\.phase === "combat"/);
     assert.match(campaign, /exclusiveOwner === "trainer" && activeTrainer && activeAsset && trainerEncounter/);
     assert.match(campaign, /shouldDismissTrainerEncounterForExternalCombat/);
     assert.match(campaign, /settlementId: settlement\.id/);
