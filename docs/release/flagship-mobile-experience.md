@@ -6,7 +6,7 @@ This qualification covers the rebuilt living-world controls and one complete tra
 
 | ID | Machine-readable record or artifact |
 | --- | --- |
-| E1 | `commands` — exact executable Playwright CLI commands, saved scripts, and script SHA-256 values |
+| E1 | `commands` — six exact executable Playwright CLI commands with matching saved-script and result SHA-256 values; stale historical commands are excluded |
 | E2 | `fullSevenStateMatrix.constituent.records` — seven complete state rows including 28 panel captures, constituent geometry, modal ownership, focus, Escape, and restoration |
 | E3 | `fullSevenStateMatrix.constituent.records[*].resting` and `imageSignalStats.constituent.rows` — canvas/display/drawing-buffer, DPR, renderer, target, collision, overflow, and pixel-variance measurements |
 | E4 | `interactionRecovery.twoTouch`, `touchCancel`, and `lostCapture` |
@@ -23,6 +23,7 @@ This qualification covers the rebuilt living-world controls and one complete tra
 ## Release outcome
 
 - The world-tool sheet is now the stage-level exclusive modal owner: identity, mission, map, multiplayer, world-status, movement, companion, and tools homes cannot retain focus or receive same-frame actions. This passed for Field Guide, Foraging Satchel, Trail Pack, and Card Vault at all seven viewports (28/28 panel rows), including stale-status collapse and focus restoration. [E2]
+- The focused panel-owned action evidence is a same-execution schema-v3 pair: its retained script produced the recorded Command Center→map and Living Story→trainer result and both final screenshots. Every command, result, artifact, and release-document hash in the v4 evidence bundle was revalidated after capture; stale `-r3` signal-stat rows are not retained. [E1, E9, E13]
 - Every final panel capture contains no top, bottom, companion, movement, or tools control painted above the modal. [E2]
 - Seven production viewports render a full-viewport canvas with zero overflow and no collisions among interactive homes. All interactive targets meet 44 px; the D-pad meets 68 px. Each row records DPR, drawing buffer, draw calls, triangles, geometries, textures, safe bounds, and nonblank/color-variance evidence. [E3]
 - Real two-touch CDP input moved the player while the companion command independently reached its ability state; `touchCancel` and `lostpointercapture` both returned the D-pad and companion command to settled states. [E4]
