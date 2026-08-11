@@ -149,7 +149,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
 
     const focusable = () => Array.from(shellOverlayRef.current?.querySelectorAll<HTMLElement>(
       'button:not([disabled]), select:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
-    ) ?? []);
+    ) ?? []).filter(canRestoreFocus);
     const focusFirst = () => focusable()[0]?.focus();
     if (shellFocusFrameRef.current !== null) window.cancelAnimationFrame(shellFocusFrameRef.current);
     shellFocusFrameRef.current = window.requestAnimationFrame(() => {

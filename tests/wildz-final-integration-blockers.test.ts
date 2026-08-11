@@ -139,6 +139,48 @@ test("focus recovery rejects detached, disabled, aria-disabled, and inert origin
   assert.equal(canRestoreFocus(element(true, false)), true);
 });
 
+test("modal focus boundaries exclude hidden and unavailable selector matches", () => {
+  const candidate = ({
+    connected = true,
+    matchesUnavailable = false,
+    tabIndex = 0,
+    hidden = false,
+    display = "block",
+    visibility = "visible",
+    clientRects = 1
+  }: {
+    connected?: boolean;
+    matchesUnavailable?: boolean;
+    tabIndex?: number;
+    hidden?: boolean;
+    display?: string;
+    visibility?: string;
+    clientRects?: number;
+  } = {}) => ({
+    isConnected: connected,
+    matches: () => matchesUnavailable,
+    tabIndex,
+    hidden,
+    ownerDocument: {
+      defaultView: { getComputedStyle: () => ({ display, visibility }) }
+    },
+    getClientRects: () => ({ length: clientRects })
+  }) as unknown as HTMLElement;
+
+  const first = candidate();
+  const lastVisible = candidate();
+  const hiddenFileInput = candidate({ display: "none", clientRects: 0 });
+  assert.equal(canRestoreFocus(first), true);
+  assert.equal(canRestoreFocus(candidate({ connected: false })), false);
+  assert.equal(canRestoreFocus(candidate({ matchesUnavailable: true })), false);
+  assert.equal(canRestoreFocus(candidate({ tabIndex: -1 })), false);
+  assert.equal(canRestoreFocus(candidate({ hidden: true })), false);
+  assert.equal(canRestoreFocus(candidate({ visibility: "hidden" })), false);
+  assert.equal(canRestoreFocus(candidate({ clientRects: 0 })), false);
+  assert.equal(canRestoreFocus(lastVisible), true);
+  assert.equal(canRestoreFocus(hiddenFileInput), false);
+});
+
 test("the dead duplicate WildzSocialDeck owner is removed", () => {
   assert.equal(existsSync("src/features/play/WildzSocialDeck.tsx"), false);
   assert.doesNotMatch(read("src/features/play/PlayCampaign.tsx"), /WildzSocialDeck/);
