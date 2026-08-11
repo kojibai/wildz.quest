@@ -3,7 +3,8 @@ import { test } from "node:test";
 import {
   clampInventoryPage,
   inventoryPageSize,
-  rebaseInventoryPage
+  rebaseInventoryPage,
+  shouldCaptureInventorySwipe
 } from "../src/features/play/inventory-pagination";
 
 test("Commerce Vault pages use four cards on compact screens and eight on wider screens", () => {
@@ -47,4 +48,14 @@ test("page-size rebasing keeps the former first visible card anchored in the nex
   const rebasedWidePage = rebaseInventoryPage(7, 4, 8, 100);
   assert.ok(formerFirstIndex >= rebasedWidePage * 8);
   assert.ok(formerFirstIndex < rebasedWidePage * 8 + 8);
+});
+
+test("Vault card taps stay clickable until a deliberate horizontal page swipe", () => {
+  const start = { x: 100, y: 100 };
+
+  assert.equal(shouldCaptureInventorySwipe(start, { x: 100, y: 100 }), false);
+  assert.equal(shouldCaptureInventorySwipe(start, { x: 112, y: 101 }), false);
+  assert.equal(shouldCaptureInventorySwipe(start, { x: 149, y: 151 }), false);
+  assert.equal(shouldCaptureInventorySwipe(start, { x: 148, y: 102 }), true);
+  assert.equal(shouldCaptureInventorySwipe(start, { x: 52, y: 98 }), true);
 });

@@ -24,7 +24,7 @@ import type { WildsPlayerVaultPayload } from "./wilds-player-vault";
 import { WildsCardScene } from "./WildsCardScene";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import { WildsGrowthPanel } from "./WildsGrowthPanel";
-import { clampInventoryPage, inventoryPageSize } from "./inventory-pagination";
+import { clampInventoryPage, inventoryPageSize, shouldCaptureInventorySwipe } from "./inventory-pagination";
 import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
 import { currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
@@ -348,12 +348,16 @@ export function WildsInventory({
           onPointerCancel={(event) => { swipeStart.current = null; delete event.currentTarget.dataset.swipeX; delete event.currentTarget.dataset.swipeY; }}
           onPointerDown={(event) => {
             swipeStart.current = { x: event.clientX, y: event.clientY };
-            event.currentTarget.setPointerCapture(event.pointerId);
+            suppressCardClick.current = false;
           }}
           onPointerMove={(event) => {
             if (!swipeStart.current) return;
             event.currentTarget.dataset.swipeX = String(event.clientX);
             event.currentTarget.dataset.swipeY = String(event.clientY);
+            if (
+              shouldCaptureInventorySwipe(swipeStart.current, { x: event.clientX, y: event.clientY })
+              && !event.currentTarget.hasPointerCapture(event.pointerId)
+            ) event.currentTarget.setPointerCapture(event.pointerId);
           }}
           onPointerUp={(event) => endSwipe(event.currentTarget, event.pointerId)}
           role="region"
