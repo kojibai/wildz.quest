@@ -15,48 +15,71 @@
     "production": "pnpm start -p 49816",
     "browser": "/Users/bjklock/.npm/_npx/31e32ef8478fbf80/node_modules/.bin/playwright-cli --session final-integration-evidence-c26ae65 open about:blank --browser chromium",
     "replay": "/Users/bjklock/.npm/_npx/31e32ef8478fbf80/node_modules/.bin/playwright-cli --session final-integration-evidence-c26ae65 run-code \"$(cat docs/release/evidence/final-integration/final-integration-evidence-script.js)\"",
-    "validation": "jq -e <final-integration claim predicate> docs/release/evidence/final-integration/final-integration-evidence-result.json"
+    "validation": "node docs/release/evidence/final-integration/validate-final-integration-evidence.mjs"
+  },
+  "capturePathMap": {
+    "output/playwright/final-integration-evidence-script.js": "docs/release/evidence/final-integration/final-integration-evidence-script.js",
+    "output/playwright/final-integration-evidence-result.json": "docs/release/evidence/final-integration/final-integration-evidence-result.json",
+    "output/playwright/final-integration-profile-open.png": "docs/release/evidence/final-integration/final-integration-profile-open.png",
+    "output/playwright/final-integration-market-open.png": "docs/release/evidence/final-integration/final-integration-market-open.png",
+    "output/playwright/final-integration-keyboard-listbox.png": "docs/release/evidence/final-integration/final-integration-keyboard-listbox.png",
+    "output/playwright/final-integration-pointer-wheel.png": "docs/release/evidence/final-integration/final-integration-pointer-wheel.png",
+    "output/playwright/final-integration-owner-cancel.png": "docs/release/evidence/final-integration/final-integration-owner-cancel.png"
   },
   "artifacts": [
     {
       "path": "docs/release/evidence/final-integration/final-integration-evidence-script.js",
       "sha256": "0cbc544102b97e5268f89a33f11e24a18446dbc311dd9f5fea9666254af314f9",
-      "bytes": 19738
+      "bytes": 19738,
+      "mode": "100755"
     },
     {
       "path": "docs/release/evidence/final-integration/final-integration-evidence-result.json",
       "sha256": "0a7fd11f3c8589cd406a473a0fbf4ce751239f733363221f02cfcd48cd27fa9c",
-      "bytes": 22882
+      "bytes": 22882,
+      "mode": "100644"
     },
     {
       "path": "docs/release/evidence/final-integration/final-integration-profile-open.png",
       "sha256": "2cab5576d4e80e45e65431f92468e8e74ff69236c99d74c5d13609f021dc7ac2",
-      "bytes": 151738
+      "bytes": 151738,
+      "mode": "100644"
     },
     {
       "path": "docs/release/evidence/final-integration/final-integration-market-open.png",
       "sha256": "b5e4fcfe22086d1eef29144864c3aa21fdb82f74b52eec9402579af29e4b65cd",
-      "bytes": 147855
+      "bytes": 147855,
+      "mode": "100644"
     },
     {
       "path": "docs/release/evidence/final-integration/final-integration-keyboard-listbox.png",
       "sha256": "6ae135e4a3f6a6333b1237d69512c70cc6a1a015b125e1996f164676c8a77ba8",
-      "bytes": 171116
+      "bytes": 171116,
+      "mode": "100644"
     },
     {
       "path": "docs/release/evidence/final-integration/final-integration-pointer-wheel.png",
       "sha256": "b4df6c2c7aa32a8365b048850c378fc7ad20d5fcacb8945ae582867a94e964dd",
-      "bytes": 172427
+      "bytes": 172427,
+      "mode": "100644"
     },
     {
       "path": "docs/release/evidence/final-integration/final-integration-owner-cancel.png",
       "sha256": "513977f6c953243e0ce851e662d0d2e0581a00c7980d5376dfa168a57bc743a6",
-      "bytes": 151626
+      "bytes": 151626,
+      "mode": "100644"
     },
     {
       "path": "docs/release/evidence/final-integration/final-integration-fix-report.md",
-      "sha256": "205a723f732b2b0dd71f0c8fbb0a4a2403563eadc1e8ca55ab5a8982c0e0f058",
-      "bytes": 8454
+      "sha256": "6baa14f8722ee81713f372e3f4e5a13d16083b6573fcba60bad6468bd2cf404d",
+      "bytes": 9008,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/release/evidence/final-integration/validate-final-integration-evidence.mjs",
+      "sha256": "12dbea34ea626d019f9b86beb297206125fe19f79ab02bfbe9b85217d852d2cd",
+      "bytes": 10417,
+      "mode": "100755"
     }
   ],
   "claimPointers": {
