@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type CSSProperties } from "react";
 import { Icons } from "@/components/icons";
 import type { KaiKlokMoment } from "../kai-klok-moment";
 import { WildsPopoverSurface } from "../WildsPopoverSurface";
@@ -16,15 +16,33 @@ import {
 
 const INSPECTOR_ID = "wilds-kai-moment-inspector";
 
+export function KaiTeachingSpectrum({ items }: { items: readonly KaiTeaching[] }) {
+  return <span
+    aria-label={items.map((item) => item.color).join(", ")}
+    className="wilds-kai-group-spectrum"
+    role="img"
+  >
+    {items.map((item) => <i
+      className="wilds-kai-spectrum-color"
+      key={item.id}
+      style={{ "--kai-teaching-start": item.visual[0], "--kai-teaching-end": item.visual[1] } as CSSProperties}
+    />)}
+  </span>;
+}
+
 function TeachingGroup({ title, items, currentId }: {
   title: string;
   items: readonly KaiTeaching[];
   currentId: string;
 }) {
   return <details className="wilds-kai-teaching-group">
-    <summary>{title}<span>{items.length}</span></summary>
-    <div>{items.map((item) => <article data-current={item.id === currentId ? "true" : "false"} key={item.id}>
-      <header><strong>{item.name}</strong><small>{item.color}</small></header>
+    <summary><span className="wilds-kai-group-title">{title}</span><KaiTeachingSpectrum items={items} /><b>{items.length}</b></summary>
+    <div>{items.map((item) => <article
+      data-current={item.id === currentId ? "true" : "false"}
+      key={item.id}
+      style={{ "--kai-teaching-start": item.visual[0], "--kai-teaching-end": item.visual[1] } as CSSProperties}
+    >
+      <header><strong>{item.name}</strong><span className="wilds-kai-teaching-color"><i aria-hidden="true" /><small>{item.color}</small></span></header>
       <p>{item.meaning}</p>
       <dl><div><dt>Element</dt><dd>{item.element}</dd></div><div><dt>Geometry</dt><dd>{item.geometry}</dd></div></dl>
     </article>)}</div>

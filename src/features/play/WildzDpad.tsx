@@ -2,7 +2,7 @@
 
 import { Icons } from "@/components/icons";
 import type { WildsInput } from "./game-state";
-import { advanceMovementEmissionDeadline, cameraRelativeMovement, type WildsMovementMode } from "./wilds-movement";
+import { cameraRelativeMovement, type WildsMovementMode } from "./wilds-movement";
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 
 export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSignal = 0 }: {
@@ -41,11 +41,12 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSigna
   useEffect(() => {
     if (!active) return;
     let frame = 0;
-    let nextEmission = performance.now() + 45;
+    let lastEmission = performance.now();
     const tick = (now: number) => {
-      const cadence = advanceMovementEmissionDeadline(nextEmission, now);
-      nextEmission = cadence.nextAt;
-      if (cadence.emit) emitMovement();
+      if (now - lastEmission >= 45) {
+        lastEmission = now;
+        emitMovement();
+      }
       frame = window.requestAnimationFrame(tick);
     };
     frame = window.requestAnimationFrame(tick);

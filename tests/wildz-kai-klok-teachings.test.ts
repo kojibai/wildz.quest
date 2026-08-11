@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import test from "node:test";
 import { deriveKaiKlokMoment } from "../src/features/play/kai-klok-moment";
+import { KaiTeachingSpectrum } from "../src/features/play/command-center/WildsKaiMomentInspector";
 import {
   KAI_CHAKRA_ARKS,
   KAI_ETERNAL_MONTHS,
@@ -22,6 +25,33 @@ test("Kai teaching tables preserve every ordered canonical cycle", () => {
       assert.doesNotMatch(item.meaning, /\b(?:kolor|koheren|klarity|kompassion|kreation|krowned)\b/i);
     }
   }
+});
+
+test("every Kai teaching exposes its exact visible color pair", () => {
+  const exactColors = {
+    Solhara: ["#8F1537", "#E44957"], Aquaris: ["#F26A21", "#FFB347"], Flamora: ["#F4B41A", "#FFE66D"],
+    Verdari: ["#118C5B", "#4DE2A5"], Sonari: ["#1356B8", "#45B8FF"], Kaelith: ["#7B4DCC", "#F7F2FF"],
+    "Awakening Flame": ["#8F1537", "#E44957"], "Flowing Heart": ["#F47A23", "#FFC04D"], "Radiant Will": ["#E8A90E", "#FFF08A"],
+    "Harmonic Voh": ["#174EA6", "#51C8FF"], "Inner Mirror": ["#2F2A8C", "#7568FF"], "Dreamfire Memory": ["#7F3FCB", "#D9D6E8"],
+    "Krowned Light": ["#F5D36B", "#FFFFFF"], Aethon: ["#8F1537", "#E44957"], Virelai: ["#F26A21", "#F7C948"],
+    Solari: ["#E8A90E", "#FFF08A"], Amarin: ["#0F8B72", "#5FE0C0"], Kaelus: ["#174EA6", "#51C8FF"],
+    Umbriel: ["#251333", "#7D3C98"], Noktura: ["#3C2A8C", "#E15B97"], Liora: ["#F5D36B", "#FFFFFF"],
+    Ignite: ["#8F1537", "#E44957"], Integrate: ["#F26A21", "#F7C948"], Harmonize: ["#118C5B", "#63E6D2"],
+    Reflekt: ["#2F2A8C", "#3B82F6"], Purify: ["#6F2DBD", "#FFF0A8"], Dream: ["#8C66C7", "#D8FFF4"]
+  } as const;
+  const teachings = [KAI_HARMONIC_DAYS, KAI_HARMONIC_WEEKS, KAI_ETERNAL_MONTHS, KAI_CHAKRA_ARKS].flat();
+
+  assert.equal(teachings.length, 27);
+  assert.deepEqual(Object.fromEntries(teachings.map((item) => [item.name, item.visual])), exactColors);
+});
+
+test("a collapsed Kai teaching group still paints every canonical color", () => {
+  const markup = renderToStaticMarkup(createElement(KaiTeachingSpectrum, { items: KAI_HARMONIC_DAYS }));
+
+  assert.equal((markup.match(/class="wilds-kai-spectrum-color"/g) ?? []).length, 6);
+  assert.match(markup, /aria-label="Deep crimson, Ember orange, Golden yellow, Emerald green, Deep blue, Violet-white"/);
+  assert.match(markup, /--kai-teaching-start:#8F1537;--kai-teaching-end:#E44957/);
+  assert.match(markup, /--kai-teaching-start:#7B4DCC;--kai-teaching-end:#F7F2FF/);
 });
 
 test("Kai math teaching retains the exact closure and zero-based lattice", () => {

@@ -12358,14 +12358,19 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-kai-teaching-group > summary::after { color: var(--kai-accent); content: "+"; font-size: 16px; }
 .wilds-kai-full-teaching[open] > summary::after,
 .wilds-kai-teaching-group[open] > summary::after { content: "−"; }
-.wilds-kai-teaching-group > summary span { margin-left: auto; color: #729197; font-size: 8px; font-variant-numeric: tabular-nums; }
+.wilds-kai-teaching-group > summary > b { color: #729197; font-size: 8px; font-variant-numeric: tabular-nums; }
+.wilds-kai-group-title { min-width: 0; }
+.wilds-kai-group-spectrum { display: flex; min-width: 64px; flex: 1 1 auto; align-items: center; justify-content: flex-end; gap: 2px; }
+.wilds-kai-spectrum-color { width: clamp(7px, 2.4vw, 14px); height: 8px; flex: 0 1 14px; border-radius: 999px; background: linear-gradient(90deg, var(--kai-teaching-start), var(--kai-teaching-end)); box-shadow: 0 0 7px color-mix(in srgb, var(--kai-teaching-end) 32%, transparent), inset 0 1px rgb(255 255 255 / 35%); }
 .wilds-kai-full-teaching > p { padding: 0 11px 12px; }
 .wilds-kai-teaching-group > div { display: grid; gap: 7px; padding: 0 8px 8px; }
-.wilds-kai-teaching-group article { display: grid; gap: 6px; padding: 9px; border: 1px solid rgb(255 255 255 / 6%); border-radius: 11px; background: rgb(255 255 255 / 2%); }
-.wilds-kai-teaching-group article[data-current="true"] { border-color: color-mix(in srgb, var(--kai-accent) 58%, transparent); background: color-mix(in srgb, var(--kai-accent) 9%, rgb(4 18 24)); box-shadow: inset 3px 0 var(--kai-accent); }
+.wilds-kai-teaching-group article { display: grid; gap: 6px; padding: 9px; border: 1px solid color-mix(in srgb, var(--kai-teaching-start) 34%, rgb(255 255 255 / 6%)); border-radius: 11px; background: linear-gradient(115deg, color-mix(in srgb, var(--kai-teaching-start) 15%, rgb(5 20 26)) 0%, color-mix(in srgb, var(--kai-teaching-end) 7%, rgb(5 20 26)) 62%, rgb(5 20 26) 100%); box-shadow: inset 3px 0 var(--kai-teaching-start); }
+.wilds-kai-teaching-group article[data-current="true"] { border-color: var(--kai-teaching-end); background: linear-gradient(115deg, color-mix(in srgb, var(--kai-teaching-start) 30%, rgb(4 18 24)), color-mix(in srgb, var(--kai-teaching-end) 15%, rgb(4 18 24))); box-shadow: inset 4px 0 var(--kai-teaching-start), 0 0 22px color-mix(in srgb, var(--kai-teaching-end) 16%, transparent); }
 .wilds-kai-teaching-group article header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .wilds-kai-teaching-group article header strong { font-size: 12px; white-space: normal; }
-.wilds-kai-teaching-group article header small { text-align: right; }
+.wilds-kai-teaching-color { display: inline-flex; min-width: 0; align-items: center; justify-content: flex-end; gap: 6px; }
+.wilds-kai-teaching-color i { width: 28px; height: 10px; flex: 0 0 auto; border: 1px solid color-mix(in srgb, var(--kai-teaching-end) 74%, white); border-radius: 999px; background: linear-gradient(90deg, var(--kai-teaching-start), var(--kai-teaching-end)); box-shadow: 0 0 12px color-mix(in srgb, var(--kai-teaching-end) 42%, transparent), inset 0 1px rgb(255 255 255 / 42%); }
+.wilds-kai-teaching-group article header small { color: color-mix(in srgb, var(--kai-teaching-end) 76%, white); text-align: right; }
 .wilds-kai-teaching-group article p { margin: 0; color: #9cb4b8; font-size: 9px; line-height: 1.48; }
 .wilds-kai-teaching-group article dl,
 .wilds-kai-coordinate-legend { display: grid; gap: 4px; margin: 0; }
