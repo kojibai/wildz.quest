@@ -1191,7 +1191,7 @@ export function PlayCampaign({
       <div className="wilds-shell wilds-playable-shell">
         <div className="wilds-world">
           <div
-            className={`wilds-stage${state.encounter.phase === "hint" ? ` signal-${state.encounter.proximity}` : ""}${combatSurface === "pvp" ? " pvp-active" : ""}${multiplayerRosterOpen ? " multiplayer-roster-open" : ""}${combatSurface === "wild" ? " wild-battle-active" : ""}${commandPanelOpen ? " is-command-panel-open" : ""}`}
+            className={`wilds-stage${state.encounter.phase === "hint" ? ` signal-${state.encounter.proximity}` : ""}${combatSurface === "pvp" ? " pvp-active" : ""}${multiplayerRosterOpen ? " multiplayer-roster-open" : ""}${combatSurface === "wild" ? " wild-battle-active" : ""}${commandPanelOpen ? " is-command-panel-open" : ""}${worldOverlayState.toolsOpen ? " is-world-tools-open" : ""}`}
             aria-label="Receiz Wilds playable 3D world"
           >
             <WildsWorldCanvas

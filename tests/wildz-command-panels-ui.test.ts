@@ -62,8 +62,9 @@ test("all mobile HUD popovers own one continuous vertical touch scroller", () =>
   assert.match(css, /\.wilds-command-sheet\s*\{[^}]*transform:\s*none;/s);
   assert.match(css, /\.wilds-command-sheet\.is-dragging\s*\{[^}]*transform:\s*translateY\(var\(--wilds-sheet-drag\)\);/s);
   assert.match(css, /\.wilds-command-overlay\s*\{[^}]*pointer-events:\s*auto;/s);
-  assert.match(css, /:is\(\.wilds-command-sheet-content, \.wilds-audio-sheet, \.wilds-living-world-sheet, \.wilds-live-sheet\)\s*\{[^}]*overflow-y:\s*auto;[^}]*overscroll-behavior-y:\s*auto;[^}]*scroll-behavior:\s*auto;[^}]*scroll-snap-type:\s*none;[^}]*touch-action:\s*pan-y;[^}]*-webkit-overflow-scrolling:\s*touch;/s);
-  assert.match(css, /\.wilds-command-sheet-content \.wilds-kai-inspector-popover\s*\{[^}]*position:\s*relative;[^}]*max-height:\s*none;[^}]*overflow:\s*visible;/s);
+  assert.match(css, /:is\(\.wilds-command-sheet-content, \.wilds-audio-sheet, \.wilds-living-world-sheet, \.wilds-live-sheet\)\s*\{[^}]*overflow-y:\s*auto;[^}]*overscroll-behavior-y:\s*contain;[^}]*scroll-behavior:\s*auto;[^}]*scroll-snap-type:\s*none;[^}]*touch-action:\s*pan-y;[^}]*-webkit-overflow-scrolling:\s*touch;/s);
+  assert.match(css, /:is\(\.wilds-command-sheet-content, \.wilds-audio-sheet, \.wilds-living-world-sheet, \.wilds-live-sheet, \.wilds-kai-inspector-popover\) :is\(button, a, summary, label\)\s*\{[^}]*touch-action:\s*pan-y;/s);
+  assert.doesNotMatch(css, /\.wilds-command-sheet-content \.wilds-kai-inspector-popover\s*\{[^}]*position:\s*relative;[^}]*overflow:\s*visible;/s);
   assert.match(css, /\.wilds-command-sheet-content :is\(\.wilds-card-back-scroll, \.wilds-growth-panel ol\)\s*\{[^}]*height:\s*auto;[^}]*max-height:\s*none;[^}]*overflow:\s*visible;[^}]*overscroll-behavior:\s*auto;/s);
   assert.match(css, /\.wilds-command-sheet-content \.wilds-card-proof-dossier pre\s*\{[^}]*max-height:\s*none;[^}]*overflow:\s*visible;/s);
   assert.match(css, /\.wilds-live-sheet \.wilds-live-chat > div\s*\{[^}]*max-height:\s*none;[^}]*overflow:\s*visible;/s);

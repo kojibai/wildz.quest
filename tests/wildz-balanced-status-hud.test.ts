@@ -73,6 +73,7 @@ test("balanced homes remain touch-safe and collision-aware at phone and short-la
 
 test("top-right status uses one primary row, slimmer event rows, and elevated live popovers", () => {
   const css = read("app/globals.css");
+  const multiplayer = read("src/features/play/WildsMultiplayer.tsx");
   const finalCss = css.slice(css.lastIndexOf("/* Unified living-world overlay"));
 
   assert.match(finalCss, /\.wilds-map-status-home\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*repeat\(3,\s*44px\)/s);
@@ -80,5 +81,9 @@ test("top-right status uses one primary row, slimmer event rows, and elevated li
   assert.match(finalCss, /\.wilds-map-status-home \.wilds-live-pill\.event\s*\{[^}]*grid-column:\s*1\s*\/\s*-1[^}]*min-height:\s*44px/s);
   assert.match(finalCss, /\.wilds-map-status-home \.wilds-live-pill\.event::before\s*\{[^}]*inset-block:\s*4px/s);
   assert.match(finalCss, /\.wilds-stage\.multiplayer-roster-open \.wilds-map-status-home\s*\{[^}]*z-index:/s);
-  assert.match(css, /\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(254px \+ var\(--wildz-stage-safe-top\)\)/s);
+  assert.match(multiplayer, /const liveSurfaceOpen = rosterOpen \|\| Boolean\(selected\)/);
+  assert.match(multiplayer, /onRosterOpenChange\?\.\(liveSurfaceOpen\)/);
+  assert.match(finalCss, /\.wilds-stage\.multiplayer-roster-open \.wilds-map-status-home\s*\{[^}]*z-index:\s*calc\(var\(--wildz-layer-expanded-controls\) \+ 20\)/s);
+  assert.match(css, /\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(210px \+ var\(--wildz-stage-safe-top\)\)/s);
+  assert.match(css, /@media \(max-width: 640px\)[\s\S]*\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(164px \+ var\(--wildz-stage-safe-top\)\)/s);
 });

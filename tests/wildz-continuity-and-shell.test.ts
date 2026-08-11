@@ -53,7 +53,7 @@ test("standalone card route and dark PWA chrome are production-defined", () => {
 
   assert.match(cardPage, /WildsCardPage/);
   assert.match(cardPage, /assetId/);
-  assert.match(layout, /themeColor: WILDZ_PRODUCT\.themeColor/);
+  assert.match(layout, /themeColor:\s*\[\s*\{ media: "\(prefers-color-scheme: light\)", color: WILDZ_PRODUCT\.themeColor \},\s*\{ media: "\(prefers-color-scheme: dark\)", color: WILDZ_PRODUCT\.themeColor \}\s*\]/s);
   assert.match(product, /themeColor: "#09110d"/);
   assert.match(css, /color-scheme:\s*dark/);
   for (const key of ["fieldGuide", "satchel", "deck", "vault"]) assert.match(css, new RegExp(`\\.wilds-command-sheet-${key}`));

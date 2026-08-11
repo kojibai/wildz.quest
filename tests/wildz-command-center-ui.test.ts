@@ -39,11 +39,12 @@ test("Eternal Pulse opens a contained, keyboard-safe Kai teaching inspector", as
   assert.match(source, /triggerRef\.current\?\.focus\(\)/);
 });
 
-test("Kai teaching inspector remains inside the cockpit and joins the sheet's single native scroller", async () => {
+test("Kai teaching inspector restores its independent overlay and native momentum scroller", async () => {
   const css = await readFile("app/globals.css", "utf8");
   assert.match(css, /\.wilds-kai-inspector-popover\s*\{[\s\S]*position:\s*absolute[\s\S]*max-height:[\s\S]*overflow-y:\s*auto/s);
   assert.match(css, /\.wilds-command-sheet-content\s*\{[^}]*overflow-y:\s*auto[^}]*touch-action:\s*pan-y/s);
-  assert.match(css, /\.wilds-command-sheet-content \.wilds-kai-inspector-popover\s*\{[^}]*position:\s*relative[^}]*max-height:\s*none[^}]*overflow:\s*visible/s);
+  assert.doesNotMatch(css, /\.wilds-command-sheet-content \.wilds-kai-inspector-popover\s*\{[^}]*position:\s*relative[^}]*overflow:\s*visible/s);
+  assert.match(css, /\.wilds-kai-inspector-popover\s*\{[^}]*position:\s*absolute[^}]*overflow-y:\s*auto[^}]*overscroll-behavior-y:\s*contain[^}]*touch-action:\s*pan-y[^}]*-webkit-overflow-scrolling:\s*touch/s);
   assert.match(css, /\.wilds-kai-inspector-popover\s*\{[\s\S]*background:[^;]*(#030d12|rgb\()/s);
   assert.match(css, /\.wilds-kai-moment-utterance/);
   assert.match(css, /\.wilds-kai-moment-utterance\s*\{[^}]*white-space:\s*normal/s);

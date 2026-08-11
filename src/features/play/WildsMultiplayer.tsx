@@ -41,6 +41,7 @@ export function WildsMultiplayer({
   const battleDialogRef = useRef<HTMLElement | null>(null);
   const { selectPlayer } = multiplayer;
   const selected = multiplayer.selectedPlayer;
+  const liveSurfaceOpen = rosterOpen || Boolean(selected);
   const selectedDistance = selected ? presenceDistance(selected, position) : Infinity;
   const canInteract = selectedDistance <= WILDS_INTERACTION_DISTANCE && selected?.status === "available";
   const battle = multiplayer.activeBattle;
@@ -57,8 +58,8 @@ export function WildsMultiplayer({
     return () => window.clearTimeout(timer);
   }, [notice]);
   useEffect(() => {
-    onRosterOpenChange?.(rosterOpen);
-  }, [onRosterOpenChange, rosterOpen]);
+    onRosterOpenChange?.(liveSurfaceOpen);
+  }, [liveSurfaceOpen, onRosterOpenChange]);
   useEffect(() => () => onRosterOpenChange?.(false), [onRosterOpenChange]);
   useEffect(() => {
     const dismissalChanged = priorDismissSignal.current !== dismissSignal;

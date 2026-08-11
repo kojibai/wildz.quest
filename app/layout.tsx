@@ -42,7 +42,10 @@ export const viewport: Viewport = {
   initialScale: 1,
   userScalable: true,
   viewportFit: "cover",
-  themeColor: WILDZ_PRODUCT.themeColor
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: WILDZ_PRODUCT.themeColor },
+    { media: "(prefers-color-scheme: dark)", color: WILDZ_PRODUCT.themeColor }
+  ]
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

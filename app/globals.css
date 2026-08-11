@@ -12267,7 +12267,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-kai-inspector-trigger[aria-expanded="true"] .wilds-kai-inspector-caret { transform: translateY(-50%) rotate(180deg); }
 .wilds-kai-inspector-trigger:focus-visible { border-radius: 8px; outline: 2px solid #fff2a8; outline-offset: 4px; }
 
-.wilds-kai-inspector-popover { position: absolute; z-index: 30; top: 0; right: 0; left: 0; display: grid; gap: 9px; max-height: min(72dvh, 720px); padding: 12px; overflow-y: auto; overscroll-behavior: contain; color: #effffb; border: 1px solid color-mix(in srgb, var(--kai-accent) 58%, #29424a); border-radius: 18px; background: #030d12; box-shadow: 0 22px 68px rgb(0 0 0 / 72%), inset 0 1px rgb(255 255 255 / 8%); color-scheme: dark; scrollbar-color: color-mix(in srgb, var(--kai-accent) 54%, #17323a) #030d12; }
+.wilds-kai-inspector-popover { position: absolute; z-index: 30; top: 0; right: 0; left: 0; display: grid; gap: 9px; max-height: min(72dvh, 720px); padding: 12px; overflow-y: auto; overscroll-behavior-y: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; color: #effffb; border: 1px solid color-mix(in srgb, var(--kai-accent) 58%, #29424a); border-radius: 18px; background: #030d12; box-shadow: 0 22px 68px rgb(0 0 0 / 72%), inset 0 1px rgb(255 255 255 / 8%); color-scheme: dark; scrollbar-color: color-mix(in srgb, var(--kai-accent) 54%, #17323a) #030d12; }
 .wilds-kai-inspector-head { position: sticky; z-index: 2; top: -12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0 9px; background: linear-gradient(180deg, #030d12 82%, transparent); }
 .wilds-kai-inspector-head > div { display: grid; min-width: 0; gap: 2px; }
 .wilds-kai-inspector-head h3 { margin: 0; overflow: hidden; font-size: clamp(18px, 4vw, 27px); font-variant-numeric: tabular-nums; letter-spacing: .04em; text-overflow: ellipsis; white-space: nowrap; }
@@ -13315,7 +13315,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wildz-bottom-play-controls .wildz-context-button { position: relative; right: auto; bottom: auto; width: 48px; flex: 0 0 48px; }
 .wildz-play-control-rail .wildz-context-button { width: 100%; height: 40px; border-width: 1px; border-radius: 13px; box-shadow: inset 0 1px rgba(255,255,255,.06); }
 
-.wildz-app .wilds-search-reticle { top: calc(254px + var(--wildz-stage-safe-top)); display: block; padding: 9px 16px; border: 1px solid rgba(238, 202, 94, .58); border-radius: 999px; color: #223229; background: linear-gradient(180deg, rgba(255, 248, 191, .97), rgba(237, 221, 133, .94)); box-shadow: 0 10px 24px rgba(22, 41, 31, .2), inset 0 1px rgba(255,255,255,.7); font-size: 11px; letter-spacing: .02em; }
+.wildz-app .wilds-search-reticle { top: calc(210px + var(--wildz-stage-safe-top)); display: block; padding: 9px 16px; border: 1px solid rgba(238, 202, 94, .58); border-radius: 999px; color: #223229; background: linear-gradient(180deg, rgba(255, 248, 191, .97), rgba(237, 221, 133, .94)); box-shadow: 0 10px 24px rgba(22, 41, 31, .2), inset 0 1px rgba(255,255,255,.7); font-size: 11px; letter-spacing: .02em; }
 
 .wildz-social-actions,
 .wildz-social-deck .wilds-command-dock { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
@@ -14864,7 +14864,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 }
 
 .wilds-stage.multiplayer-roster-open .wilds-map-status-home {
-  z-index: calc(var(--wildz-layer-expanded-controls) + 2);
+  z-index: calc(var(--wildz-layer-expanded-controls) + 20);
 }
 
 .wilds-left-instrument-home {
@@ -14897,19 +14897,15 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
    regions expand into the sheet instead of competing for the same gesture. */
 :is(.wilds-command-sheet-content, .wilds-audio-sheet, .wilds-living-world-sheet, .wilds-live-sheet) {
   overflow-y: auto;
-  overscroll-behavior-y: auto;
+  overscroll-behavior-y: contain;
   scroll-behavior: auto;
   scroll-snap-type: none;
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
 }
 
-.wilds-command-sheet-content .wilds-kai-inspector-popover {
-  position: relative;
-  inset: auto;
-  max-height: none;
-  overflow: visible;
-  overscroll-behavior: auto;
+:is(.wilds-command-sheet-content, .wilds-audio-sheet, .wilds-living-world-sheet, .wilds-live-sheet, .wilds-kai-inspector-popover) :is(button, a, summary, label) {
+  touch-action: pan-y;
 }
 
 .wilds-command-sheet-content :is(.wilds-card-back-scroll, .wilds-growth-panel ol) {
@@ -15003,10 +14999,15 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 
 .wildz-app .wilds-event-toast {
   right: auto;
-  bottom: max(180px, calc(env(safe-area-inset-bottom) + 174px));
-  left: max(116px, calc(env(safe-area-inset-left) + 108px));
-  width: auto;
-  max-width: min(40vw, 280px);
+  bottom: max(82px, calc(env(safe-area-inset-bottom) + 76px));
+  left: 50%;
+  width: min(320px, calc(100vw - 32px));
+  max-width: none;
+  transform: translateX(-50%);
+}
+
+.wilds-stage.is-world-tools-open .wilds-event-toast {
+  bottom: max(190px, calc(env(safe-area-inset-bottom) + 184px));
 }
 
 .wildz-app .wilds-event-toast.is-capture {
@@ -15042,6 +15043,10 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 }
 
 @media (max-width: 640px) {
+  .wildz-app .wilds-search-reticle {
+    top: calc(164px + var(--wildz-stage-safe-top));
+  }
+
   .wildz-reference-hud {
     grid-template-columns: minmax(0, clamp(118px, 42vw, 184px)) minmax(44px, 1fr) 68px;
     gap: 4px;
@@ -15164,6 +15169,10 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 
 /* 844x390 and similar devices use shallow, horizontal expansions. */
 @media (orientation: landscape) and (max-height: 500px) {
+  .wildz-app .wilds-search-reticle {
+    top: calc(148px + var(--wildz-stage-safe-top));
+  }
+
   .wildz-reference-hud {
     grid-template-columns: minmax(0, 190px) minmax(80px, 1fr) 62px;
     gap: 6px;
@@ -15301,9 +15310,13 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   }
 
   .wildz-app .wilds-event-toast {
-    bottom: max(88px, calc(env(safe-area-inset-bottom) + 82px));
-    left: max(116px, calc(env(safe-area-inset-left) + 108px));
-    width: min(24vw, 200px);
+    bottom: max(64px, calc(env(safe-area-inset-bottom) + 58px));
+    left: 50%;
+    width: min(260px, 32vw);
+  }
+
+  .wilds-stage.is-world-tools-open .wilds-event-toast {
+    bottom: max(118px, calc(env(safe-area-inset-bottom) + 112px));
   }
 }
 
