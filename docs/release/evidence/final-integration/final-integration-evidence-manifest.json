@@ -3,6 +3,11 @@
   "capturedAt": "2026-08-11T05:10:37.332Z",
   "productCommit": "c26ae652894db84868c0343c108c048aa32d0fb4",
   "nextBuildId": "pVMRsX8Mh21tHuB69B34C",
+  "provenance": {
+    "productCommit": "recorded-and-validated-as-ancestor-of-release-evidence",
+    "nextBuildId": "recorded-capture-metadata-with-optional-local-comparison",
+    "browser": "observed-by-listeners-installed-before-navigation"
+  },
   "trackedBundleRoot": "docs/release/evidence/final-integration",
   "replayOutputRoot": "output/playwright",
   "productionUrl": "http://127.0.0.1:49816/",
@@ -71,14 +76,14 @@
     },
     {
       "path": "docs/release/evidence/final-integration/final-integration-fix-report.md",
-      "sha256": "6baa14f8722ee81713f372e3f4e5a13d16083b6573fcba60bad6468bd2cf404d",
-      "bytes": 9008,
+      "sha256": "1fb6dc3de01c83a84911dc208fa85c85a29a4cb861b285e36a4baa3685c01da5",
+      "bytes": 9673,
       "mode": "100644"
     },
     {
       "path": "docs/release/evidence/final-integration/validate-final-integration-evidence.mjs",
-      "sha256": "12dbea34ea626d019f9b86beb297206125fe19f79ab02bfbe9b85217d852d2cd",
-      "bytes": 10417,
+      "sha256": "6283dbc3f61b54826672eaf7a4e4ad9e878b5392c9c070d277e3515f72ada9de",
+      "bytes": 21303,
       "mode": "100755"
     }
   ],
