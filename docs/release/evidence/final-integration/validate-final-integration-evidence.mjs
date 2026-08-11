@@ -7,7 +7,11 @@ import { resolve } from "node:path";
 
 const root = process.cwd();
 const bundle = "docs/release/evidence/final-integration";
-const manifestPath = `${bundle}/final-integration-evidence-manifest.json`;
+const manifestArgumentIndex = process.argv.indexOf("--manifest");
+if (manifestArgumentIndex >= 0 && !process.argv[manifestArgumentIndex + 1]) throw new Error("--manifest requires a path");
+const manifestPath = manifestArgumentIndex >= 0
+  ? process.argv[manifestArgumentIndex + 1]
+  : `${bundle}/final-integration-evidence-manifest.json`;
 const resultPath = `${bundle}/final-integration-evidence-result.json`;
 
 const fail = (message) => { throw new Error(`final_integration_evidence_invalid: ${message}`); };
@@ -24,6 +28,55 @@ const trackedMode = (path) => {
 const manifest = readJson(manifestPath);
 const result = readJson(resultPath);
 const expected = {
+  manifest: {
+    schema: "wildz.final-integration-evidence-manifest.v1",
+    capturedAt: "2026-08-11T05:10:37.332Z",
+    productCommit: "c26ae652894db84868c0343c108c048aa32d0fb4",
+    nextBuildId: "pVMRsX8Mh21tHuB69B34C",
+    provenance: {
+      productCommit: "recorded-and-validated-as-ancestor-of-release-evidence",
+      nextBuildId: "recorded-capture-metadata-with-optional-local-comparison",
+      browser: "observed-by-listeners-installed-before-navigation"
+    },
+    trackedBundleRoot: "docs/release/evidence/final-integration",
+    replayOutputRoot: "output/playwright",
+    productionUrl: "http://127.0.0.1:49816/",
+    viewport: { width: 390, height: 844, deviceScaleFactor: 1 },
+    commands: {
+      production: "pnpm start -p 49816",
+      browser: "/Users/bjklock/.npm/_npx/31e32ef8478fbf80/node_modules/.bin/playwright-cli --session final-integration-evidence-c26ae65 open about:blank --browser chromium",
+      replay: "/Users/bjklock/.npm/_npx/31e32ef8478fbf80/node_modules/.bin/playwright-cli --session final-integration-evidence-c26ae65 run-code \"$(cat docs/release/evidence/final-integration/final-integration-evidence-script.js)\"",
+      validation: "node docs/release/evidence/final-integration/validate-final-integration-evidence.mjs"
+    },
+    claimPointers: {
+      listenerBeforeNavigation: ".listenersInstalledBeforeNavigation, .listenerEvidence",
+      profileLifetime: ".profile",
+      marketLifetime: ".market",
+      keyboardAbility: ".keyboardAbility.initial, .keyboardAbility.arrows, .keyboardAbility.causalChange",
+      pointerAbility: ".pointerAbility",
+      exclusiveOwnerCancellation: ".ownerCancellation"
+    }
+  },
+  capturePathMap: {
+    "output/playwright/final-integration-evidence-script.js": "docs/release/evidence/final-integration/final-integration-evidence-script.js",
+    "output/playwright/final-integration-evidence-result.json": "docs/release/evidence/final-integration/final-integration-evidence-result.json",
+    "output/playwright/final-integration-profile-open.png": "docs/release/evidence/final-integration/final-integration-profile-open.png",
+    "output/playwright/final-integration-market-open.png": "docs/release/evidence/final-integration/final-integration-market-open.png",
+    "output/playwright/final-integration-keyboard-listbox.png": "docs/release/evidence/final-integration/final-integration-keyboard-listbox.png",
+    "output/playwright/final-integration-pointer-wheel.png": "docs/release/evidence/final-integration/final-integration-pointer-wheel.png",
+    "output/playwright/final-integration-owner-cancel.png": "docs/release/evidence/final-integration/final-integration-owner-cancel.png"
+  },
+  immutableArtifacts: [
+    { path: "docs/release/evidence/final-integration/final-integration-evidence-script.js", sha256: "0cbc544102b97e5268f89a33f11e24a18446dbc311dd9f5fea9666254af314f9", bytes: 19738, mode: "100755" },
+    { path: "docs/release/evidence/final-integration/final-integration-evidence-result.json", sha256: "0a7fd11f3c8589cd406a473a0fbf4ce751239f733363221f02cfcd48cd27fa9c", bytes: 22882, mode: "100644" },
+    { path: "docs/release/evidence/final-integration/final-integration-profile-open.png", sha256: "2cab5576d4e80e45e65431f92468e8e74ff69236c99d74c5d13609f021dc7ac2", bytes: 151738, mode: "100644" },
+    { path: "docs/release/evidence/final-integration/final-integration-market-open.png", sha256: "b5e4fcfe22086d1eef29144864c3aa21fdb82f74b52eec9402579af29e4b65cd", bytes: 147855, mode: "100644" },
+    { path: "docs/release/evidence/final-integration/final-integration-keyboard-listbox.png", sha256: "6ae135e4a3f6a6333b1237d69512c70cc6a1a015b125e1996f164676c8a77ba8", bytes: 171116, mode: "100644" },
+    { path: "docs/release/evidence/final-integration/final-integration-pointer-wheel.png", sha256: "b4df6c2c7aa32a8365b048850c378fc7ad20d5fcacb8945ae582867a94e964dd", bytes: 172427, mode: "100644" },
+    { path: "docs/release/evidence/final-integration/final-integration-owner-cancel.png", sha256: "513977f6c953243e0ce851e662d0d2e0581a00c7980d5376dfa168a57bc743a6", bytes: 151626, mode: "100644" },
+    { path: "docs/release/evidence/final-integration/final-integration-fix-report.md", sha256: "3eb512303e5bdf594c304da13c3620e14792e4827b1da33fd5c64ba09641c9c5", bytes: 10041, mode: "100644" }
+  ],
+  validatorArtifact: { path: "docs/release/evidence/final-integration/validate-final-integration-evidence.mjs", mode: "100755" },
   productCommit: "c26ae652894db84868c0343c108c048aa32d0fb4",
   nextBuildId: "pVMRsX8Mh21tHuB69B34C",
   startedAt: "2026-08-11T05:10:30.321Z",
@@ -117,18 +170,27 @@ const expected = {
   pointerCompanionLabel: "Iruozof. Tap to use Prism Pulse. Swipe sideways to change companion, swipe up for roster, or hold for abilities."
 };
 
-assert(manifest.schema === "wildz.final-integration-evidence-manifest.v1", "manifest schema");
+assert(manifest.schema === expected.manifest.schema, "manifest schema");
+assert(same(Object.keys(manifest).sort(), [
+  "artifacts", "capturePathMap", "capturedAt", "claimPointers", "commands", "nextBuildId",
+  "productCommit", "productionUrl", "provenance", "replayOutputRoot", "schema", "trackedBundleRoot", "viewport"
+].sort()), "manifest top-level field set");
+assert(manifest.capturedAt === expected.manifest.capturedAt, "manifest capturedAt");
+assert(manifest.productCommit === expected.manifest.productCommit, "manifest product commit");
+assert(manifest.nextBuildId === expected.manifest.nextBuildId, "manifest build ID");
+assert(same(manifest.provenance, expected.manifest.provenance), "capture provenance classification");
+assert(manifest.trackedBundleRoot === expected.manifest.trackedBundleRoot, "tracked bundle root");
+assert(manifest.replayOutputRoot === expected.manifest.replayOutputRoot, "replay output root");
+assert(manifest.productionUrl === expected.manifest.productionUrl, "manifest production URL");
+assert(same(manifest.viewport, expected.manifest.viewport), "manifest viewport");
+assert(same(manifest.commands, expected.manifest.commands), "manifest commands");
+assert(same(manifest.claimPointers, expected.manifest.claimPointers), "manifest claim pointers");
+assert(same(manifest.capturePathMap, expected.capturePathMap), "exact capture path map");
 assert(result.schema === "wildz.final-integration-evidence.v1", "result schema");
 assert(result.productCommit === expected.productCommit, "recorded product commit literal");
 assert(result.nextBuildId === expected.nextBuildId, "recorded build ID literal");
 assert(manifest.productCommit === result.productCommit, "product commit mismatch");
 assert(manifest.nextBuildId === result.nextBuildId, "Next build mismatch");
-assert(same(manifest.provenance, {
-  productCommit: "recorded-and-validated-as-ancestor-of-release-evidence",
-  nextBuildId: "recorded-capture-metadata-with-optional-local-comparison",
-  browser: "observed-by-listeners-installed-before-navigation"
-}), "capture provenance classification");
-assert(manifest.trackedBundleRoot === bundle, "tracked bundle root");
 assert(manifest.commands.validation === `node ${bundle}/validate-final-integration-evidence.mjs`, "validation command is not exact");
 execFileSync("git", ["cat-file", "-e", `${manifest.productCommit}^{commit}`], { cwd: root });
 execFileSync("git", ["merge-base", "--is-ancestor", manifest.productCommit, "HEAD"], { cwd: root });
@@ -271,6 +333,23 @@ assert(same([...mappedRawReferences].sort(), [...rawCaptureReferences].sort()), 
 
 const artifacts = new Map(manifest.artifacts.map((artifact) => [artifact.path, artifact]));
 assert(artifacts.size === manifest.artifacts.length, "duplicate manifest artifact paths");
+assert(manifest.artifacts.length === 9, "manifest artifact count must be exactly nine");
+const expectedArtifactPaths = [
+  ...expected.immutableArtifacts.map((artifact) => artifact.path),
+  expected.validatorArtifact.path
+].sort();
+assert(same([...artifacts.keys()].sort(), expectedArtifactPaths), "manifest artifact path set");
+for (const immutableArtifact of expected.immutableArtifacts) {
+  assert(same(artifacts.get(immutableArtifact.path), immutableArtifact), `${immutableArtifact.path} immutable manifest contract`);
+}
+const validatorBytes = readFileSync(resolve(root, expected.validatorArtifact.path));
+const expectedValidatorEntry = {
+  path: expected.validatorArtifact.path,
+  sha256: sha256(validatorBytes),
+  bytes: validatorBytes.length,
+  mode: expected.validatorArtifact.mode
+};
+assert(same(artifacts.get(expected.validatorArtifact.path), expectedValidatorEntry), "validator self artifact contract");
 for (const artifact of manifest.artifacts) {
   assert(artifact.path.startsWith(`${bundle}/`), `${artifact.path} is outside tracked bundle`);
   const absolute = resolve(root, artifact.path);
