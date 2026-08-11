@@ -1,7 +1,22 @@
 import type { CreatureDrawerSnap } from "./creature-drawer";
 import type { WildsCommandKey } from "./WildsCommandDock";
 
-export type WorldOverlayOwner = "none" | "map" | "trainer" | "combat";
+export type WorldOverlayOwner =
+  | "none"
+  | "map"
+  | "trainer"
+  | "combat"
+  | "landmark"
+  | "settlement"
+  | "ecology"
+  | "raid"
+  | "reward"
+  | "ceremony"
+  | "memorial"
+  | "profile"
+  | "market"
+  | "command"
+  | "multiplayer";
 export type WorldOverlayState = Readonly<{
   drawerSnap: CreatureDrawerSnap;
   toolsOpen: boolean;

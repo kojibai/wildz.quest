@@ -28,6 +28,36 @@ test("a passive proof-session probe treats a missing session as an anonymous sta
   assert.deepEqual(await response.json(), { status: "unknown" });
 });
 
+test("an unconfigured local proof sealer reports unavailable before browser nonce admission", async () => {
+  const priorStateSecret = process.env.RECEIZ_OAUTH_STATE_SECRET;
+  const priorClientSecret = process.env.RECEIZ_CLIENT_SECRET;
+  const priorFetch = globalThis.fetch;
+  delete process.env.RECEIZ_OAUTH_STATE_SECRET;
+  delete process.env.RECEIZ_CLIENT_SECRET;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    return Response.json({ ok: true });
+  };
+  try {
+    const response = await POST(new NextRequest("http://localhost/api/auth/wildz/session", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ challengeB64Url: "browser-cannot-store-a-secure-cookie-over-http" })
+    }));
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { status: "unavailable" });
+    assert.equal(calls, 0);
+  } finally {
+    globalThis.fetch = priorFetch;
+    if (priorStateSecret === undefined) delete process.env.RECEIZ_OAUTH_STATE_SECRET;
+    else process.env.RECEIZ_OAUTH_STATE_SECRET = priorStateSecret;
+    if (priorClientSecret === undefined) delete process.env.RECEIZ_CLIENT_SECRET;
+    else process.env.RECEIZ_CLIENT_SECRET = priorClientSecret;
+  }
+});
+
 test("Identity Seal login admits its signed Vault cards into the server session", async () => {
   const priorSecret = process.env.RECEIZ_OAUTH_STATE_SECRET;
   const priorBase = process.env.RECEIZ_BASE_URL;

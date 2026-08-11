@@ -11,6 +11,7 @@ import { WAYFINDER_HOLLOW, type WildsSettlementDistrictId } from "./wilds-settle
 import type { WildsSettlementWorldMode } from "./WildsSettlementEnvironment";
 import type { WildsWorldProjection } from "./wilds-world-state";
 import { settlementAudioCue, type WildsAudioCue } from "./wilds-audio";
+import { canRestoreFocus } from "./focus-recovery";
 
 const districtIcons = {
   "trail-gate": Icons.walk,
@@ -75,7 +76,7 @@ export function WildsSettlementExperience({
       window.cancelAnimationFrame(frame);
       window.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = priorOverflow;
-      previousFocus.current?.focus();
+      if (canRestoreFocus(previousFocus.current)) previousFocus.current.focus();
     };
   }, [open, requestExit]);
 

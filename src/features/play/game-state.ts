@@ -76,6 +76,7 @@ export type WildsInput =
   | { type: "finish-transformation" }
   | { type: "finish-lineage-reveal" }
   | { type: "train"; cardId?: string; at?: string }
+  | { type: "use-field-ability"; assetId: string; abilityIndex: number; usedAt: string }
   | { type: "mission" }
   | { type: "rest"; at?: string }
   | { type: "select-card"; cardId: string }
@@ -731,6 +732,32 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     const owner = selectedAsset(state)?.manifest.ownerReceizId ?? state.inventory[0]?.manifest.ownerReceizId;
     return owner ? createOwnerBoundInitialPlayState(owner) : initialPlayState;
   }
+
+  if (input.type === "use-field-ability") {
+    const asset = state.inventory.find((candidate) => candidate.id === input.assetId);
+    if (!asset || !isPlayableAsset(state, asset.id) || !Number.isInteger(input.abilityIndex) || !Number.isFinite(Date.parse(input.usedAt))) return state;
+    const form = creatureForm(asset.manifest.formId);
+    const ability = form?.abilities[input.abilityIndex];
+    if (!ability) return state;
+    const familyId = asset.manifest.familyId;
+    const current = state.companionProgress[familyId] ?? { level: 1, xp: 0, bond: 0 };
+    const xpGain = Math.max(1, Math.round(ability.power / 12));
+    const totalXp = current.xp + xpGain;
+    const levelGain = Math.floor(totalXp / 100);
+    const next = {
+      level: Math.min(10, current.level + levelGain),
+      xp: totalXp % 100,
+      bond: Math.min(100, current.bond + input.abilityIndex + 1)
+    };
+    return {
+      ...state,
+      activeAction: "explore",
+      companionProgress: { ...state.companionProgress, [familyId]: next },
+      energy: Math.max(0, state.energy - input.abilityIndex - 1),
+      lastEvent: `${asset.manifest.name} used ${ability.name}. ${ability.text}`
+    };
+  }
+
 
   if (input.type === "hearttree-select-squad") {
     const assetIds = [...new Set(input.assetIds)];

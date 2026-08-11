@@ -94,16 +94,16 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!proofSessionSealingConfigured()) {
+      return NextResponse.json({ status: "unavailable" }, {
+        headers: { "cache-control": "no-store" }
+      });
+    }
     const rawBody = await request.json();
     const body = continuationRequest(rawBody);
     const nonce = request.cookies.get(WILDZ_PROOF_NONCE_COOKIE)?.value;
     if (!body || !nonce || !receizIdContinuationNonceMatches(body, nonce)) {
       throw new Error("wildz_proof_admission_invalid");
-    }
-    if (!proofSessionSealingConfigured()) {
-      return NextResponse.json({ status: "unavailable" }, {
-        headers: { "cache-control": "no-store" }
-      });
     }
     const baseUrl = (process.env.RECEIZ_BASE_URL || "https://receiz.com").replace(/\/$/, "");
     let upstream: Response;

@@ -37,7 +37,6 @@ import type { WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
 
 export function WildsWorldCanvas({
   state,
-  avatarStyle,
   character,
   remotePlayers,
   qualityProfile,
@@ -54,7 +53,6 @@ export function WildsWorldCanvas({
   trainers = []
 }: {
   state: PlayState;
-  avatarStyle: "female" | "male";
   character: WildzCharacterGenesis;
   remotePlayers: WildsPresence[];
   qualityProfile: WildsQualityProfile;
@@ -90,7 +88,7 @@ export function WildsWorldCanvas({
       >
         {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
-          <WildsScene state={state} avatarStyle={avatarStyle} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} supportCards={supportCards} trainers={trainers} />
+          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} supportCards={supportCards} trainers={trainers} />
         </Suspense>
       </Canvas>
     </div>
@@ -104,7 +102,6 @@ function WildsFrameReporter({ onFrameSample }: { onFrameSample: (frameMs: number
 
 function WildsScene({
   state,
-  avatarStyle,
   character,
   remotePlayers,
   qualityProfile,
@@ -120,7 +117,6 @@ function WildsScene({
   onSelectTrainer
 }: {
   state: PlayState;
-  avatarStyle: "female" | "male";
   character: WildzCharacterGenesis;
   remotePlayers: WildsPresence[];
   qualityProfile: WildsQualityProfile;
@@ -167,7 +163,7 @@ function WildsScene({
         {remotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} />)}
         {trainers.map((trainer) => <TrainerExplorer key={trainer.id} trainer={trainer} localPlayer={state.player} onSelect={onSelectTrainer} />)}
       </SmoothWorldFrame>
-      <WildsExplorer character={character} style={avatarStyle} worldPosition={state.player} />
+      <WildsExplorer character={character} style={character.gender} worldPosition={state.player} />
       <ActiveCompanion state={state} />
       <SupportCompanions cards={supportCards} />
       <Sparkles key={`wilds-world-sparkles-${worldSparkleCount}`} count={worldSparkleCount} scale={[8, 2.4, 8]} size={2.1} speed={kaiExpression.particleSpeed} color={kaiExpression.accent} />

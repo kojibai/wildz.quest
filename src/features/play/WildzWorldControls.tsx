@@ -39,6 +39,8 @@ export function WildzWorldControls({
   overlayState,
   overlayDispatch,
   gestureCancelSignal,
+  selectedAbilityIndex,
+  memorialAssetId,
   requestedCommand = null,
   onRequestedCommandHandled = ignore,
   onCardOrderChange,
@@ -46,6 +48,8 @@ export function WildzWorldControls({
   onAction,
   onMovementModeChange,
   onSelectCard,
+  onSelectAbility,
+  onMemorialAssetChange,
   onRest,
   onAudioCue
 }: {
@@ -63,18 +67,24 @@ export function WildzWorldControls({
   overlayState: WorldOverlayState;
   overlayDispatch: (event: WorldOverlayEvent) => void;
   gestureCancelSignal: number;
+  selectedAbilityIndex: number;
+  memorialAssetId: string | null;
   requestedCommand?: WildsCommandKey | null;
   onRequestedCommandHandled?: () => void;
   onCardOrderChange: (order: WildzCardSort) => void;
   onInput: (input: WildsInput) => void;
-  onAction: () => void;
+  onAction: (abilityIndex: number) => void;
   onMovementModeChange: (mode: WildsMovementMode) => void;
   onSelectCard: (assetId: string) => void;
+  onSelectAbility: (abilityIndex: number) => void;
+  onMemorialAssetChange: (assetId: string | null) => void;
   onRest: () => void;
   onAudioCue?: (cue: WildsAudioCue) => void;
 }) {
   const changeCardOrder = useStableEvent(onCardOrderChange);
   const selectCard = useStableEvent(onSelectCard);
+  const selectAbility = useStableEvent(onSelectAbility);
+  const changeMemorialAsset = useStableEvent(onMemorialAssetChange);
   const forwardInput = useStableEvent(onInput);
   const invokeAction = useStableEvent(onAction);
   const changeMovementMode = useStableEvent(onMovementModeChange);
@@ -93,8 +103,8 @@ export function WildzWorldControls({
   const handleSelectCard = useCallback((assetId: string) => {
     if (worldHomesEnabled) selectCard(assetId);
   }, [selectCard, worldHomesEnabled]);
-  const handleUsePower = useCallback(() => {
-    if (worldHomesEnabled) invokeAction();
+  const handleUsePower = useCallback((abilityIndex: number) => {
+    if (worldHomesEnabled) invokeAction(abilityIndex);
   }, [invokeAction, worldHomesEnabled]);
   const handleRest = useCallback(() => {
     if (worldHomesEnabled) rest();
@@ -143,6 +153,7 @@ export function WildzWorldControls({
           onPanelKeyChange={handlePanelKeyChange}
           requestedKey={exclusiveOwner === "none" ? requestedCommand : null}
           dismissSignal={dismissSignal}
+          exclusiveOwner={exclusiveOwner}
           onRequestHandled={requestHandled}
         />
       </div>
@@ -153,9 +164,11 @@ export function WildzWorldControls({
           cardOrder={cardOrder}
           cardConditions={cardConditions}
           companionProgress={companionProgress}
+          memorialAssetId={memorialAssetId}
           nearbyCards={nearbyCards}
           onCardOrderChange={changeCardOrder}
           onSelectCard={selectCard}
+          onMemorialAssetChange={changeMemorialAsset}
           snap={worldHomesEnabled ? overlayState.drawerSnap : "closed"}
           onSnapChange={handleDrawerSnapChange}
         />
@@ -166,9 +179,10 @@ export function WildzWorldControls({
           fieldPowers={fieldPowers}
           onRequestDrawer={handleRequestDrawer}
           onAudioCue={onAudioCue}
-          onSelectAbility={ignore}
+          onSelectAbility={selectAbility}
           onSelectCard={handleSelectCard}
           onUsePower={handleUsePower}
+          selectedAbilityIndex={selectedAbilityIndex}
         />
       </div>
     </section>

@@ -25,6 +25,7 @@ export function WildsCompanionCommand({
   onSelectCard,
   onUsePower,
   onSelectAbility,
+  selectedAbilityIndex,
   onRequestDrawer,
   onAudioCue,
   cancelSignal = 0
@@ -35,6 +36,7 @@ export function WildsCompanionCommand({
   onSelectCard: (assetId: string) => void;
   onUsePower: (abilityIndex: number) => void;
   onSelectAbility: (abilityIndex: number) => void;
+  selectedAbilityIndex: number;
   onRequestDrawer: (snap: "preview" | "expanded") => void;
   onAudioCue?: (cue: WildsAudioCue) => void;
   cancelSignal?: number;
@@ -45,7 +47,6 @@ export function WildsCompanionCommand({
   const renderFrameRef = useRef<number | null>(null);
   const [mode, setMode] = useState<CompanionGestureState["mode"]>("pending");
   const [activeAbilityIndex, setActiveAbilityIndex] = useState<number | null>(null);
-  const [selectedAbilityIndex, setSelectedAbilityIndex] = useState(0);
   const projection = useMemo(() => companionCarousel(cards, activeCard?.id ?? null), [activeCard?.id, cards]);
   const previous = cards.find((card) => card.id === projection.previousId) ?? null;
   const next = cards.find((card) => card.id === projection.nextId) ?? null;
@@ -92,7 +93,6 @@ export function WildsCompanionCommand({
       onRequestDrawer("preview");
     } else if (result.kind === "select-ability") {
       const index = result.index % abilityCount;
-      setSelectedAbilityIndex(index);
       onSelectAbility(index);
       playWildsHaptic("confirm");
     } else if (result.kind === "cancel") {
@@ -157,12 +157,51 @@ export function WildsCompanionCommand({
     activePointerIdRef.current = null;
     consume(cancelCompanionGesture(gesture));
   };
+  const cancelPointerRef = useRef(cancelPointer);
+  cancelPointerRef.current = cancelPointer;
 
   useEffect(() => {
-    cancelPointer();
+    cancelPointerRef.current();
   }, [cancelSignal]);
 
+  const openKeyboardWheel = () => {
+    setMode("ability-wheel");
+    setActiveAbilityIndex(selectedAbilityIndex % abilityCount);
+    playWildsHaptic("wheel-open");
+  };
+
+  const commitKeyboardAbility = () => {
+    const index = (activeAbilityIndex ?? selectedAbilityIndex) % abilityCount;
+    onSelectAbility(index);
+    setMode("pending");
+    setActiveAbilityIndex(null);
+    playWildsHaptic("confirm");
+  };
+
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key.toLowerCase() === "a") {
+      event.preventDefault();
+      if (mode === "ability-wheel") commitKeyboardAbility();
+      else openKeyboardWheel();
+      return;
+    }
+    if (mode === "ability-wheel") {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        commitKeyboardAbility();
+      } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault();
+        const direction = event.key === "ArrowRight" ? 1 : -1;
+        setActiveAbilityIndex((current) => ((current ?? selectedAbilityIndex) + direction + abilityCount) % abilityCount);
+        playWildsHaptic("wheel-detent");
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        setMode("pending");
+        setActiveAbilityIndex(null);
+        playWildsHaptic("cancel");
+      }
+      return;
+    }
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       onUsePower(selectedAbilityIndex);
@@ -201,6 +240,8 @@ export function WildsCompanionCommand({
     </div> : null}
     <button
       aria-label={activeCard ? `${activeCard.manifest.name}. Tap to use ${fieldPowers[selectedAbilityIndex]?.label ?? "field power"}. Swipe sideways to change companion, swipe up for roster, or hold for abilities.` : "No active companion"}
+      aria-expanded={wheelOpen}
+      aria-haspopup="listbox"
       className="wilds-companion-command"
       disabled={!activeCard}
       onKeyDown={onKeyDown}

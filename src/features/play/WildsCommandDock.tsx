@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Icons } from "@/components/icons";
+import type { WorldOverlayOwner } from "./world-overlay-state";
+import { canRestoreFocus } from "./focus-recovery";
 
 export type WildsCommandKey = "commandCenter" | "mission" | "fieldGuide" | "satchel" | "deck" | "vault";
 
@@ -15,7 +17,7 @@ export type WildsCommandItem = {
   content: ReactNode;
 };
 
-export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange, onPanelKeyChange, requestedKey = null, dismissSignal = 0, onRequestHandled = () => {} }: {
+export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange, onPanelKeyChange, requestedKey = null, dismissSignal = 0, exclusiveOwner, onRequestHandled = () => {} }: {
   items: readonly WildsCommandItem[];
   toolsOpen: boolean;
   panelKey: WildsCommandKey | null;
@@ -23,12 +25,14 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
   onPanelKeyChange: (key: WildsCommandKey | null) => void;
   requestedKey?: WildsCommandKey | null;
   dismissSignal?: number;
+  exclusiveOwner: WorldOverlayOwner;
   onRequestHandled?: () => void;
 }) {
   const [dragY, setDragY] = useState(0);
   const toolsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const sheetRef = useRef<HTMLElement | null>(null);
   const originTriggerRef = useRef<HTMLElement | null>(null);
+  const focusFrameRef = useRef<number | null>(null);
   const dragStart = useRef<number | null>(null);
   const priorDismissSignal = useRef(dismissSignal);
   const priorActiveKey = useRef<WildsCommandKey | null>(panelKey);
@@ -36,7 +40,16 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
   const activeItem = items.find((item) => item.key === activeKey) ?? null;
 
   const restoreOriginFocus = useCallback(() => {
-    window.requestAnimationFrame(() => originTriggerRef.current?.focus());
+    if (focusFrameRef.current !== null) window.cancelAnimationFrame(focusFrameRef.current);
+    focusFrameRef.current = window.requestAnimationFrame(() => {
+      focusFrameRef.current = null;
+      const origin = originTriggerRef.current;
+      if (exclusiveOwner === "none" && canRestoreFocus(origin)) origin.focus();
+    });
+  }, [exclusiveOwner]);
+
+  useEffect(() => () => {
+    if (focusFrameRef.current !== null) window.cancelAnimationFrame(focusFrameRef.current);
   }, []);
 
   useEffect(() => {

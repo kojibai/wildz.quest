@@ -19,6 +19,7 @@ This qualification covers the rebuilt living-world controls and one complete tra
 | E11 | `automatedGates` |
 | E12 | `externalAssetSourcing` |
 | E13 | `claimIndex` |
+| E14 | `.superpowers/sdd/2026-08-10-wildz-unified-living-world-controls/final-integration-fix-report.md` and `output/playwright/final-integration-mobile-world.png` — final integration browser and gate evidence |
 
 ## Release outcome
 
@@ -30,6 +31,8 @@ This qualification covers the rebuilt living-world controls and one complete tra
 - A complete physically reached Nahl Vey route records challenge, transition, full combat, safe-retreat result, and world return. Challenge/combat/result/return were measured at all seven viewports; one real pre-covenant transition was paused after it became visible, resized through all seven viewports, resumed, and completed through a real Flee/Continue return. The discovered 844×390 challenge overflow was fixed under regression coverage; the final sheet is `[386,8,440,374]`, fully in viewport, with a 44×44 close target. [E9]
 - The final clean production profile attached listeners before navigation and observed zero console errors, console warnings, page errors, request failures, and HTTP responses ≥400 after controls became visible and a five-second settling window completed. [E10]
 - The rebuilt flagship slice is production-capable, but content breadth and authored audio still prevent a whole-game showcase claim. [E12, scorecard and automatic failures below]
+- The proof explorer now opens the real profile, and Card Vault opens the real Market without restoring the removed chassis. Both returned to the mounted world in the final 390×844 production replay. [E14]
+- Companion ability selection is causal by keyboard and pointer: the final replay selected named abilities, changed authoritative energy/XP/bond by the selected ability's real reducer effect, and preserved the exact named event copy. Modal entry gated the background in the same snapshot; first-press Escape closed it and restored valid companion focus. [E14]
 
 ## Skill-loading ledger
 
@@ -112,8 +115,8 @@ Desktop and mobile composited screenshots were visually inspected at rendered pi
 
 - The warm 120-frame representative sample recorded 29.51 ms average, 33.89 fps average, 33.4 ms p95, and 58 ms maximum. [E7]
 - The trainer transition measured 344 calls and 120,918 triangles and was over the configured renderer budget at all seven sizes. Challenge/combat/result also exceeded the draw-call budget at 844×390 and 1440×900. The trainer resize replay emitted 22 `GL_INVALID_OPERATION` vertex-buffer warnings; the separate clean resting profile remained clean. These are release residuals, not erased by the clean profile. [E9, E10]
-- `pnpm test` passed 1,048/1,048; `pnpm typecheck` passed; `pnpm lint` exited zero with the two disclosed pre-existing exhaustive-deps warnings; `pnpm build` passed with the known `snarkjs` dynamic web-worker warnings. [E11]
-- `pnpm release:check` passed: 1,048/1,048 tests, typecheck, Receiz v118 check, conformance 15/15, lint with the two disclosed warnings, secret scan across 739 text files, optimized 557 kB `/` first load, and doctor compatibility. [E11]
+- `pnpm test` passed 1,052/1,052 across 109 suites; `pnpm typecheck` passed; `pnpm lint` exited zero with one disclosed pre-existing `WildzApp` exhaustive-deps warning and no touched-module warning; `pnpm build` passed with the known `snarkjs` dynamic web-worker warnings. [E11, E14]
+- `pnpm release:check` passed: 1,052/1,052 tests, typecheck, Receiz v118 check, conformance 15/15, lint with the one disclosed warning, secret scan across 740 text files, optimized 560 kB `/` first load, and doctor compatibility. [E11, E14]
 
 ## Ten-category AAA visual scorecard
 
@@ -142,6 +145,7 @@ Automatic failures remaining:
 4. The player-facing capture path produced a second retired card. Horizontal cycle correctly no-opped at all seven sizes, so a visible sealed-name cycle remains unqualified. [E2]
 5. Trainer transition renderer budget fails at all seven sizes; challenge/combat/result exceed budget at 844×390 and 1440×900, and the trainer resize run emits 22 GL vertex-buffer warnings. [E7, E9]
 6. The core matrix records one cancelled Next.js card preload (`net::ERR_ABORTED`); it caused no console/page error or failed user action, but the route is not claimed network-clean. [E2]
+7. The final integration replay had no real retired-card QA profile, so memorial browser replay was not fabricated; memorial ownership, focus containment, Escape, and cleanup are qualified by automated lifecycle contracts only. [E14]
 
 ## Experience rating versus the best current game experiences
 

@@ -10,8 +10,8 @@ test("the stage director owns command panels and gates every non-modal home", ()
   const hud = read("src/features/play/WildzReferenceHud.tsx");
   const minimap = read("src/features/play/WildzMinimap.tsx");
 
-  assert.match(campaign, /useWorldOverlayDirector\(\{ dismissSignal: commandDismissSignal, exclusiveOwner \}\)/);
-  assert.match(campaign, /const commandPanelOpen = exclusiveOwner === "none" && worldOverlayState\.panelKey !== null/);
+  assert.match(campaign, /useWorldOverlayDirector\(\{ dismissSignal: commandDismissSignal, exclusiveOwner: modalOwner \}\)/);
+  assert.match(campaign, /const commandPanelOpen = modalOwner === "none" && worldOverlayState\.panelKey !== null/);
   assert.match(campaign, /const canUseWorldStage = useCallback[\s\S]*!panelOwnershipRef\.current/);
   assert.match(campaign, /event\.type === "panel" && event\.key !== null[\s\S]*setWorldStatusOpen\(false\)[\s\S]*setMultiplayerRosterOpen\(false\)/);
   assert.match(campaign, /is-command-panel-open/);
@@ -31,7 +31,7 @@ test("panel ownership ref closes the same-frame action window before React commi
   const hook = read("src/features/play/use-world-overlay-director.ts");
   const campaign = read("src/features/play/PlayCampaign.tsx");
   assert.match(hook, /if \(event\.type === "panel"\) panelOwnershipRef\.current = event\.key !== null/);
-  assert.match(hook, /return \{ state, dispatch, gestureCancelSignal, panelOwnershipRef \}/);
+  assert.match(hook, /return \{ state, dispatch, gestureCancelSignal, panelOwnershipRef, claimExclusiveOwner, releaseExclusiveOwner \}/);
   assert.match(campaign, /if \(!canUseWorldStage\(\)\) return;[\s\S]*dispatch\(input\)/);
   assert.match(campaign, /const openWorldMap = \(\) => \{[\s\S]*if \(!canUseWorldStage\(\)\) return/);
   assert.match(campaign, /if \(canUseWorldStage\(\)\) setRequestedCommand\("mission"\)/);
@@ -53,7 +53,7 @@ test("panel-owned actions remain available without reopening the world-stage act
 test("companion actions synchronously consult the stage ownership ref", () => {
   const campaign = read("src/features/play/PlayCampaign.tsx");
 
-  assert.match(campaign, /const activateWorldPulse = \(\) => \{\s*if \(!canUseWorldStage\(\)\) return;\s*activatePulse\(\);\s*\}/);
+  assert.match(campaign, /const activateWorldPulse = \(abilityIndex: number\) => \{\s*if \(!canUseWorldStage\(\)\) return;[\s\S]*type: "use-field-ability",[\s\S]*abilityIndex,[\s\S]*activatePulse\(\);\s*\}/);
   assert.match(campaign, /onAction=\{activateWorldPulse\}/);
   assert.doesNotMatch(campaign, /onAction=\{activatePulse\}/);
 });

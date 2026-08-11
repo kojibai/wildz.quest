@@ -49,10 +49,13 @@ test("controlled callbacks stay stable and the D-pad forwards input directly", (
   }
 });
 
-test("command dismissal and unavailable requested panels restore focus on the origin via RAF", () => {
+test("command dismissal restores only a valid origin through a cancellable RAF", () => {
   const dock = read("src/features/play/WildsCommandDock.tsx");
   assert.match(dock, /originTriggerRef/);
-  assert.match(dock, /window\.requestAnimationFrame\(\(\) => originTriggerRef\.current\?\.focus\(\)\)/);
+  assert.match(dock, /focusFrameRef/);
+  assert.match(dock, /window\.cancelAnimationFrame/);
+  assert.match(dock, /exclusiveOwner === "none"/);
+  assert.match(dock, /canRestoreFocus\(origin\)/);
   assert.match(dock, /if \(!requestedItem\)/);
   assert.match(dock, /restoreOriginFocus\(\)/);
   assert.match(dock, /event\.key === "Escape"/);

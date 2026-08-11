@@ -97,7 +97,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(campaign, /grant: result\.grant,[\s\S]*?playerId: result\.grant\.playerId/);
     assert.match(controls, /aria-label=\{movementMode === "walk" \? "Switch to running" : "Switch to walking"\}/);
     assert.match(controls, /<WildsCompanionCommand/);
-    assert.match(controls, /const handleUsePower = useCallback\(\(\) => \{[\s\S]*if \(worldHomesEnabled\) invokeAction\(\);/);
+    assert.match(controls, /const handleUsePower = useCallback\(\(abilityIndex: number\) => \{[\s\S]*if \(worldHomesEnabled\) invokeAction\(abilityIndex\);/);
     assert.match(controls, /onUsePower=\{handleUsePower\}/);
     assert.match(controls, /<WildzDpad[\s\S]*cameraHeadingRef=\{cameraHeadingRef\}[\s\S]*movementMode=\{movementMode\}/);
     assert.match(route, /getWildsAtlasPresence/);
@@ -282,14 +282,14 @@ describe("Receiz Wilds rendering contract", () => {
   });
 
   it("balances quick utilities, movement, and the active companion thumb command", async () => {
-    const controls = await readFile("src/features/play/WildzSocialDeck.tsx", "utf8");
+    const controls = await readFile("src/features/play/WildzWorldControls.tsx", "utf8");
     const css = await readFile("app/globals.css", "utf8");
 
     assert.doesNotMatch(controls, /wildz-play-control-rail|wildz-social-actions/);
     assert.match(controls, /className="wildz-quick-utilities"/);
     assert.match(controls, /<WildzDpad/);
     assert.match(controls, /<WildsCompanionCommand/);
-    assert.match(css, /\.wildz-bottom-play-controls\s*\{[^}]*grid-template-columns:\s*56px 72px minmax\(72px, 94px\)/s);
+    assert.match(css, /\.wildz-world-controls\s*\{[^}]*position:\s*absolute/s);
   });
 
   it("surfaces endless chapter equity and deterministic world events", async () => {
@@ -593,7 +593,8 @@ describe("Receiz Wilds rendering contract", () => {
     const styles = await readFile("app/globals.css", "utf8");
 
     assert.match(campaign, /useWildsMultiplayer/);
-    assert.match(campaign, /enabled: enabled && Boolean\(avatarStyle\) && Boolean\(activeAsset\)/);
+    assert.match(campaign, /enabled: enabled && Boolean\(activeAsset\)/);
+    assert.match(campaign, /style: explorerStyle/);
     assert.match(campaign, /remotePlayers=\{multiplayer\.remotePlayers\}/);
     assert.match(campaign, /multiplayer\.activeBattle \? " pvp-active"/);
     assert.match(world, /function RemoteExplorer/);

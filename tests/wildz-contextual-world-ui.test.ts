@@ -30,13 +30,14 @@ test("world HUD is one proof-bound explorer capsule, one objective, and orientat
 test("campaign projects one modal owner and gates underlying world input", () => {
   const campaign = read("src/features/play/PlayCampaign.tsx");
 
-  assert.match(campaign, /const exclusiveOwner[^=]*=\s*trainerEncounter\?\.phase === "combat"\s*\|\| Boolean\(state\.battle\)\s*\|\| Boolean\(multiplayer\.activeBattle\)\s*\? "combat"/);
-  assert.match(campaign, /:\s*activeTrainer && activeAsset && trainerEncounter && \["challenge", "transition", "result"\]\.includes\(trainerEncounter\.phase\)\s*\? "trainer"/);
-  assert.match(campaign, /:\s*mapOpen\s*\? "map"\s*:\s*"none"/);
-  assert.match(campaign, /exclusiveOwner=\{exclusiveOwner\}/);
+  assert.match(campaign, /const modalOwner = projectPlayShellOwner/);
+  assert.match(campaign, /combat: trainerEncounter\?\.phase === "combat" \|\| Boolean\(state\.battle\) \|\| Boolean\(multiplayer\.activeBattle\)/);
+  assert.match(campaign, /trainer: Boolean\(activeTrainer && activeAsset && trainerEncounter/);
+  assert.match(campaign, /map: mapOpen/);
+  assert.match(campaign, /exclusiveOwner=\{modalOwner\}/);
   assert.match(campaign, /const worldInteractionEnabled = interactionEnabled && exclusiveOwner === "none"/);
-  assert.match(campaign, /if \(!worldInteractionEnabled \|\| !avatarStyle\) return/);
-  assert.match(campaign, /searchEnabled=\{worldInteractionEnabled && discoveryActive && Boolean\(avatarStyle\)\}/);
+  assert.match(campaign, /if \(!worldInteractionEnabled\) return/);
+  assert.match(campaign, /searchEnabled=\{worldInteractionEnabled && discoveryActive\}/);
 });
 
 test("exclusive ownership dismisses multiplayer expansions and blocks roster and challenge actions", () => {
@@ -50,7 +51,7 @@ test("exclusive ownership dismisses multiplayer expansions and blocks roster and
   assert.match(multiplayer, /className=\{`wilds-live-badge[\s\S]*disabled=\{!interactionEnabled\}/);
   assert.match(multiplayer, /disabled=\{!interactionEnabled \|\| !canInteract\}/);
   assert.match(multiplayer, /if \(!interactionEnabled\) return;[\s\S]*multiplayer\.offerChallenge/);
-  assert.match(multiplayer, /disabled=\{!interactionEnabled\}[\s\S]*multiplayer\.answerChallenge/);
+  assert.match(multiplayer, /disabled=\{!challengeInteractionEnabled\}[\s\S]*multiplayer\.answerChallenge/);
 });
 
 test("exclusive ownership suppresses an incoming multiplayer challenge", () => {
@@ -100,7 +101,7 @@ test("exclusive ownership prevents invite creation and sharing", async () => {
 test("multiplayer UI connects exclusive ownership to incoming challenge and share guards", () => {
   const multiplayer = read("src/features/play/WildsMultiplayer.tsx");
 
-  assert.match(multiplayer, /shouldShowIncomingChallenge\(interactionEnabled, multiplayer\.incomingChallenge\)/);
+  assert.match(multiplayer, /shouldShowIncomingChallenge\(challengeInteractionEnabled, multiplayer\.incomingChallenge\)/);
   assert.match(multiplayer, /shareWildzInviteWhenEnabled\([\s\S]*interactionEnabled,[\s\S]*multiplayer\.createInviteLink/);
   assert.match(multiplayer, /className="wilds-live-share"[\s\S]*disabled=\{!interactionEnabled\}/);
 });
@@ -112,7 +113,7 @@ test("multiplayer dismissal depends on a stable player-selection action", () => 
   assert.match(hook, /const selectPlayer = useCallback\(\(player: WildsPresence \| null\) => setSelectedPlayerId\(player\?\.playerId \?\? null\), \[\]\);/);
   assert.match(hook, /selectedPlayerId,[\s\S]*?selectPlayer,/);
   assert.match(controls, /const \{ selectPlayer \} = multiplayer;/);
-  assert.match(controls, /selectPlayer\(null\);[\s\S]*?\}, \[dismissSignal, interactionEnabled, selectPlayer\]\);/);
+  assert.match(controls, /selectPlayer\(null\);[\s\S]*?\}, \[dismissSignal, interactionEnabled, modalOwned, selectPlayer\]\);/);
 });
 
 test("campaign removes duplicate world chrome and persistent distant trainer navigation", () => {

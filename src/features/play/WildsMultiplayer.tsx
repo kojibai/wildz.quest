@@ -18,6 +18,7 @@ export function WildsMultiplayer({
   controlsExpanded,
   dismissSignal,
   interactionEnabled,
+  modalOwned,
   multiplayer,
   position,
   onRosterOpenChange
@@ -25,6 +26,7 @@ export function WildsMultiplayer({
   controlsExpanded: boolean;
   dismissSignal: number;
   interactionEnabled: boolean;
+  modalOwned: boolean;
   multiplayer: WildsMultiplayerController;
   position: { x: number; z: number };
   onRosterOpenChange?: (open: boolean) => void;
@@ -35,11 +37,15 @@ export function WildsMultiplayer({
   const [notice, setNotice] = useState("");
   const priorDismissSignal = useRef(dismissSignal);
   const dismissedChallengeIds = useRef(new Set<string>());
+  const challengeDialogRef = useRef<HTMLElement | null>(null);
+  const challengeFocusFrameRef = useRef<number | null>(null);
   const { selectPlayer } = multiplayer;
   const selected = multiplayer.selectedPlayer;
   const selectedDistance = selected ? presenceDistance(selected, position) : Infinity;
   const canInteract = selectedDistance <= WILDS_INTERACTION_DISTANCE && selected?.status === "available";
   const battle = multiplayer.activeBattle;
+  const incomingChallenge = multiplayer.incomingChallenge;
+  const answerChallenge = multiplayer.answerChallenge;
   const battlePlayers = useMemo(() => battle ? battle.playerOrder.map((id) => battle.players[id]!) : [], [battle]);
   const myIntentPending = Boolean(battle?.pendingIntents[multiplayer.selfId]);
   useEffect(() => {
@@ -54,22 +60,53 @@ export function WildsMultiplayer({
   useEffect(() => {
     const dismissalChanged = priorDismissSignal.current !== dismissSignal;
     priorDismissSignal.current = dismissSignal;
-    if (interactionEnabled && !dismissalChanged) return;
+    if ((interactionEnabled || modalOwned) && !dismissalChanged) return;
     setRosterOpen(false);
     setChatOpen(false);
     setMessage("");
     selectPlayer(null);
-  }, [dismissSignal, interactionEnabled, selectPlayer]);
-  const blockedIncomingChallengeId = interactionEnabled ? null : multiplayer.incomingChallenge?.id;
+  }, [dismissSignal, interactionEnabled, modalOwned, selectPlayer]);
+  const challengeInteractionEnabled = interactionEnabled || modalOwned;
+  const blockedIncomingChallengeId = challengeInteractionEnabled ? null : incomingChallenge?.id;
   useEffect(() => {
     if (!blockedIncomingChallengeId || dismissedChallengeIds.current.has(blockedIncomingChallengeId)) return;
     dismissedChallengeIds.current.add(blockedIncomingChallengeId);
     void dismissIncomingChallengeWhenBlocked(
-      interactionEnabled,
+      challengeInteractionEnabled,
       blockedIncomingChallengeId,
-      multiplayer.answerChallenge
+      answerChallenge
     ).catch(() => dismissedChallengeIds.current.delete(blockedIncomingChallengeId));
-  }, [blockedIncomingChallengeId, interactionEnabled, multiplayer.answerChallenge]);
+  }, [answerChallenge, blockedIncomingChallengeId, challengeInteractionEnabled]);
+
+  useEffect(() => {
+    if (!modalOwned || !incomingChallenge) return;
+    const focusable = () => Array.from(challengeDialogRef.current?.querySelectorAll<HTMLButtonElement>("button:not([disabled])") ?? []);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        void answerChallenge(incomingChallenge.id, "decline");
+      } else if (event.key === "Tab") {
+        const items = focusable();
+        if (!items.length) return;
+        const first = items[0]!;
+        const last = items[items.length - 1]!;
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
+    };
+    const containFocus = (event: FocusEvent) => {
+      if (event.target instanceof Node && !challengeDialogRef.current?.contains(event.target)) focusable()[0]?.focus();
+    };
+    challengeFocusFrameRef.current = window.requestAnimationFrame(() => focusable()[0]?.focus());
+    window.addEventListener("keydown", onKeyDown);
+    document.addEventListener("focusin", containFocus);
+    return () => {
+      if (challengeFocusFrameRef.current !== null) window.cancelAnimationFrame(challengeFocusFrameRef.current);
+      challengeFocusFrameRef.current = null;
+      window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("focusin", containFocus);
+    };
+  }, [answerChallenge, incomingChallenge, modalOwned]);
 
   return (
     <>
@@ -144,16 +181,16 @@ export function WildsMultiplayer({
         </section>
       ) : null}
 
-      {shouldShowIncomingChallenge(interactionEnabled, multiplayer.incomingChallenge) ? (
-        <section className="wilds-live-sheet wilds-challenge-incoming" role="dialog" aria-modal="true" aria-label="Incoming Wilds battle challenge">
+      {shouldShowIncomingChallenge(challengeInteractionEnabled, multiplayer.incomingChallenge) ? (
+        <section className="wilds-live-sheet wilds-challenge-incoming" ref={challengeDialogRef} role="dialog" aria-modal="true" aria-label="Incoming Wilds battle challenge">
           <span>Challenge signal</span>
           <h3>{multiplayer.snapshot?.players.find((player) => player.playerId === multiplayer.incomingChallenge?.challengerId)?.handle ?? "A nearby explorer"} wants to battle</h3>
           <p>{multiplayer.incomingChallenge.challengerCard.name} · Friendly mode · no cards or funds change hands</p>
-          <div><button disabled={!interactionEnabled} onClick={() => {
-            if (!interactionEnabled) return;
+          <div><button disabled={!challengeInteractionEnabled} onClick={() => {
+            if (!challengeInteractionEnabled) return;
             void multiplayer.answerChallenge(multiplayer.incomingChallenge!.id, "decline");
-          }} type="button">Decline</button><button className="primary" disabled={!interactionEnabled} onClick={() => {
-            if (!interactionEnabled) return;
+          }} type="button">Decline</button><button className="primary" disabled={!challengeInteractionEnabled} onClick={() => {
+            if (!challengeInteractionEnabled) return;
             void multiplayer.answerChallenge(multiplayer.incomingChallenge!.id, "accept");
           }} type="button">Accept battle</button></div>
         </section>

@@ -4,13 +4,12 @@ import { test } from "node:test";
 
 const drawerPath = "src/features/play/WildzCreatureDrawer.tsx";
 
-test("social deck mounts a dedicated active-creature drawer above permanent controls", () => {
-  const social = readFileSync("src/features/play/WildzSocialDeck.tsx", "utf8");
+test("unified controls mount a dedicated active-creature drawer beside the companion command", () => {
+  const controls = readFileSync("src/features/play/WildzWorldControls.tsx", "utf8");
   const drawer = existsSync(drawerPath) ? readFileSync(drawerPath, "utf8") : "";
 
-  assert.match(social, /<WildzCreatureDrawer/);
-  assert.ok(social.indexOf("<WildzCreatureDrawer") < social.indexOf("wildz-bottom-play-controls"));
-  assert.match(social, /<WildsCompanionCommand/);
+  assert.match(controls, /<WildzCreatureDrawer/);
+  assert.ok(controls.indexOf("<WildzCreatureDrawer") < controls.indexOf("<WildsCompanionCommand"));
   assert.match(drawer, /\{mode !== "closed" \? <button[\s\S]*?aria-expanded=\{true\}/);
   assert.match(drawer, /settleCreatureDrawer/);
   assert.match(drawer, /selectCard\(assetId\);[\s\S]*?onSnapChange\("closed"\)/);
@@ -48,15 +47,13 @@ test("closed roster leaves the companion command as its sole physical and access
 });
 
 test("companion command opens the controlled roster while Vault and Trail Pack remain in command dock", () => {
-  const social = readFileSync("src/features/play/WildzSocialDeck.tsx", "utf8");
+  const controls = readFileSync("src/features/play/WildzWorldControls.tsx", "utf8");
   const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
   const drawerSource = readFileSync(drawerPath, "utf8");
 
-  assert.match(social, /const \[drawerSnap, setDrawerSnap\] = useState<CreatureDrawerSnap>\("closed"\)/);
-  assert.match(social, /snap=\{drawerSnap\}/);
-  assert.match(social, /onSnapChange=\{setDrawerSnap\}/);
-  assert.match(social, /onRequestDrawer=\{setDrawerSnap\}/);
-  assert.doesNotMatch(social, /requestedSnap|onRequestedSnapHandled/);
+  assert.match(controls, /snap=\{worldHomesEnabled \? overlayState\.drawerSnap : "closed"\}/);
+  assert.match(controls, /onSnapChange=\{handleDrawerSnapChange\}/);
+  assert.match(controls, /onRequestDrawer=\{handleRequestDrawer\}/);
   assert.match(campaign, /key: "deck"/);
   assert.match(campaign, /key: "vault"/);
   assert.match(drawerSource, /snap: CreatureDrawerSnap/);

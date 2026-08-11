@@ -19,6 +19,7 @@ import type { WildsWorldProjection } from "./wilds-world-state";
 import type { WildsEcologyKnowledge } from "./wilds-ecology-history";
 import type { WildsBossKnowledge } from "./wilds-raid-history";
 import type { WildsTrainerProjection } from "./wilds-saga-trainers";
+import { canRestoreFocus } from "./focus-recovery";
 
 const zoomLevels: readonly WildsAtlasZoom[] = ["world", "region", "landmark"];
 
@@ -103,7 +104,7 @@ export function WildsWorldMap({
     return () => {
       window.cancelAnimationFrame(frame);
       document.removeEventListener("keydown", onKeyDown);
-      previousFocus.current?.focus();
+      if (canRestoreFocus(previousFocus.current)) previousFocus.current.focus();
     };
   }, [onClose, open]);
 

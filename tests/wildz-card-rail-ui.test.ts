@@ -9,10 +9,10 @@ function drawerSource() {
 }
 
 test("the active creature selector uses a bounded memoized drawer with Vault sorting", () => {
-  const social = readFileSync("src/features/play/WildzSocialDeck.tsx", "utf8");
+  const controls = readFileSync("src/features/play/WildzWorldControls.tsx", "utf8");
   const drawer = drawerSource();
 
-  assert.match(social, /<WildzCreatureDrawer/);
+  assert.match(controls, /<WildzCreatureDrawer/);
   assert.match(drawer, /memo\(function WildzCreatureDrawer/);
   assert.match(drawer, /sortWildzCards\(nearbyCards, cardOrder\)/);
   assert.match(drawer, /sortedCards\.slice\(range\.start, range\.end\)/);

@@ -7,6 +7,7 @@ import { verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
 import { applyWildsEcologyActivityInput, createWildsEcologyActivity, createWildsMarketActivity, type WildsEcologyActivityInput } from "./wilds-ecology-activity";
 import type { WildsWorldEcologyProjection } from "./wilds-world-state";
 import type { WildsSettlementWorldMode } from "./WildsSettlementEnvironment";
+import { canRestoreFocus } from "./focus-recovery";
 
 export function WildsEcologyExperience({ card, onExit, onSubmit, open, participantCount, site, worldMode }: {
   card: PortableCardAsset | null;
@@ -46,7 +47,7 @@ export function WildsEcologyExperience({ card, onExit, onSubmit, open, participa
       window.cancelAnimationFrame(frame);
       window.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = priorOverflow;
-      previousFocus.current?.focus();
+      if (canRestoreFocus(previousFocus.current)) previousFocus.current.focus();
     };
   }, [open, requestExit]);
 

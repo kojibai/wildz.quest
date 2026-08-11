@@ -6,7 +6,7 @@ import { projectWildsExplorerAppearance } from "./wilds-explorer-appearance";
 import type { WildzHudModel } from "./wildz-gameplay-hud";
 import { WildzMinimap } from "./WildzMinimap";
 
-export function WildzReferenceHud({ model, heading, character, interactionEnabled, modalOwned, onOpenMap, onOpenMission }: {
+export function WildzReferenceHud({ model, heading, character, interactionEnabled, modalOwned, onOpenMap, onOpenMission, onOpenProfile }: {
   model: WildzHudModel;
   heading: number;
   character: WildzCharacterGenesis;
@@ -14,12 +14,13 @@ export function WildzReferenceHud({ model, heading, character, interactionEnable
   modalOwned: boolean;
   onOpenMap: () => void;
   onOpenMission: () => void;
+  onOpenProfile: () => void;
 }) {
   const appearance = projectWildsExplorerAppearance(character);
   const explorerName = model.player.displayName || model.player.username;
   return <div aria-hidden={modalOwned} className={`wildz-reference-hud${modalOwned ? " is-modal-owned" : ""}`} inert={modalOwned ? true : undefined}>
     <div className="wildz-identity-home">
-      <section className="wildz-explorer-capsule" aria-label={`${explorerName}, explorer level ${model.player.level}, ${model.energy.current}% energy`} data-explorer-proof={character.digest.slice(0, 16)}>
+      <button className="wildz-explorer-capsule" aria-label={`Open profile for ${explorerName}, explorer level ${model.player.level}, ${model.energy.current}% energy`} data-explorer-proof={character.digest.slice(0, 16)} disabled={!interactionEnabled} onClick={onOpenProfile} type="button">
         <div
           aria-hidden="true"
           className="wildz-explorer-portrait"
@@ -43,7 +44,7 @@ export function WildzReferenceHud({ model, heading, character, interactionEnable
           <strong>{explorerName}<i>✓</i></strong>
           <span aria-label={`Explorer energy ${model.energy.current}%`} aria-valuemax={model.energy.maximum} aria-valuemin={0} aria-valuenow={model.energy.current} className="wildz-explorer-energy" role="progressbar"><i style={{ width: `${model.energy.current}%` }} /><b>{model.energy.current}%</b></span>
         </div>
-      </section>
+      </button>
     </div>
     <div className="wildz-mission-home">
       <button className="wildz-mission-chip" aria-label={`Open mission details · ${model.mission.progress}% progress`} disabled={!interactionEnabled} onClick={onOpenMission} type="button"><span>★</span><strong>{model.mission.progress}%<small>Mission</small></strong></button>

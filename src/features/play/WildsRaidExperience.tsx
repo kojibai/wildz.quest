@@ -6,6 +6,7 @@ import type { WildsRaidEncounterState, WildsRaidIntent } from "./wilds-raid-enco
 import type { WildsRaidCardRole } from "./wilds-raid-roles";
 import type { WildsWorldBossProjection, WildsWorldRaidProjection } from "./wilds-world-state";
 import { WildsRaidActionDock } from "./WildsRaidActionDock";
+import { canRestoreFocus } from "./focus-recovery";
 
 export function WildsRaidExperience({ open, boss, raid, encounter, cardName, role, placement, canonical, connected, busyIntent, error, onAction, onLease, onRetreat, onClose }: {
   open: boolean;
@@ -44,7 +45,7 @@ export function WildsRaidExperience({ open, boss, raid, encounter, cardName, rol
       window.cancelAnimationFrame(frame);
       document.removeEventListener("keydown", keydown);
       document.body.style.overflow = previousOverflow;
-      previousFocus.current?.focus();
+      if (canRestoreFocus(previousFocus.current)) previousFocus.current.focus();
     };
   }, [onClose, open]);
 

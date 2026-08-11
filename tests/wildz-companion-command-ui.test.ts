@@ -37,7 +37,8 @@ test("raw wheel sectors visibly select the same normalized ability that release 
   assert.match(source, /aria-activedescendant=\{normalizedActiveAbilityIndex === null \? undefined : `wilds-companion-ability-\$\{normalizedActiveAbilityIndex\}`\}/);
   assert.match(source, /aria-selected=\{normalizedActiveAbilityIndex === index\}/);
   assert.match(source, /normalizedActiveAbilityIndex === index \? " is-active" : ""/);
-  assert.match(source, /const index = result\.index % abilityCount;[\s\S]*setSelectedAbilityIndex\(index\);[\s\S]*onSelectAbility\(index\)/);
+  assert.match(source, /const index = result\.index % abilityCount;[\s\S]*onSelectAbility\(index\)/);
+  assert.match(source, /selectedAbilityIndex: number/);
   assert.doesNotMatch(source, /aria-selected=\{activeAbilityIndex === index\}/);
 });
 
@@ -53,12 +54,10 @@ test("companion command is thumb-sized, safe-area aware, directional, and motion
 test("the command requests controlled drawer snaps and replaces the duplicate action rails", () => {
   const command = read("src/features/play/WildsCompanionCommand.tsx");
   const drawer = read("src/features/play/WildzCreatureDrawer.tsx");
-  const social = read("src/features/play/WildzSocialDeck.tsx");
   assert.match(command, /onRequestDrawer\("preview"\)/);
   assert.match(drawer, /requestedSnap/);
   assert.match(drawer, /onRequestedSnapHandled/);
-  assert.match(social, /<WildsCompanionCommand/);
-  assert.doesNotMatch(social, /wildz-play-control-rail|wildz-social-actions/);
+  assert.match(read("src/features/play/WildzWorldControls.tsx"), /<WildsCompanionCommand/);
 });
 
 test("the command visibly renders the proof-sealed individual name", () => {
