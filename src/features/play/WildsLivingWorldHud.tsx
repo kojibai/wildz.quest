@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { useWildsWorld } from "./use-wilds-world";
 import { wildsLivingWorldModeLabel } from "./wilds-living-world-status";
+import { WildsPopoverSurface } from "./WildsPopoverSurface";
 
 type LivingWorldDetail =
   | { kind: "status" }
@@ -35,6 +36,7 @@ export function WildsLivingWorldHud({ world, player, onEnterRaid }: {
   const activeChapter = world.snapshot?.story.activeChapter;
   const compactSiteName = nearby?.site.name.split(/\s+/).at(-1) ?? "Event";
   const bossHealthPercent = selectedBoss ? Math.max(0, Math.min(100, selectedBoss.health / selectedBoss.maxHealth * 100)) : 0;
+  const closeDetail = useCallback(() => setDetail(null), []);
 
   return <div className={`wilds-living-world-hud ${nearby || nearbyEcology ? "has-event" : ""}`} aria-label="Living world status">
     <button aria-label={modeLabel} className={`wilds-live-pill mode-${world.mode}`} onClick={() => setDetail((current) => current?.kind === "status" ? null : { kind: "status" })} title={modeLabel} type="button">
@@ -46,8 +48,7 @@ export function WildsLivingWorldHud({ world, player, onEnterRaid }: {
       <b>{Math.round(nearby.distance)}m</b>
     </button> : null}
     {nearbyEcology ? <button aria-label={`${nearbyEcology.site.name} ecology signal ${Math.round(nearbyEcology.distance)} meters away`} className="wilds-live-pill event ecology" onClick={() => setDetail({ kind: "ecology", siteId: nearbyEcology.site.id })} type="button"><span className="wilds-live-event-full">{nearbyEcology.site.name}</span><span className="wilds-live-event-compact" aria-hidden="true">Ecology</span><b>{Math.round(nearbyEcology.distance)}m</b></button> : null}
-    {detail ? <section className="wilds-living-world-sheet" aria-label={`${detail.kind} details`}>
-      <button aria-label="Close shared world details" className="wilds-living-world-close" onClick={() => setDetail(null)} type="button">×</button>
+    {detail ? <WildsPopoverSurface ariaLabel={`${detail.kind} details`} className="wilds-living-world-sheet" header={<header><span><small>Living Wilds</small><strong>{detail.kind === "status" ? "World signal" : detail.kind === "boss" ? String(selectedBoss?.name ?? "World boss") : selectedEcology?.name ?? "Ecology signal"}</strong></span><button aria-label="Close shared world details" autoFocus className="wilds-living-world-close" onClick={closeDetail} type="button">×</button></header>} onClose={closeDetail}>
       {detail.kind === "status" ? <>
         <small>{modeLabel} · shared world status</small>
         {activeChapter ? <p><strong>Living chapter</strong> · {activeChapter.chapterId}</p> : <p>The next Kai chapter is being admitted.</p>}
@@ -72,6 +73,6 @@ export function WildsLivingWorldHud({ world, player, onEnterRaid }: {
         <p>{selectedEcology.participantIds.length} verified participant{selectedEcology.participantIds.length === 1 ? "" : "s"} · {selectedEcology.contributionTotal.toLocaleString()} total contribution</p>
       </> : <p>This ecology signal is no longer active.</p> : null}
       {world.error ? <em role="status">{world.error}</em> : null}
-    </section> : null}
+    </WildsPopoverSurface> : null}
   </div>;
 }

@@ -279,6 +279,71 @@ body {
   }
 }
 
+/* Final cascade for the isolated popover viewport. These rules deliberately
+   outrank the legacy in-HUD placement selectors while migration completes. */
+body > .wilds-popover-layer { position: fixed; z-index: 6400; inset: 0; overflow: hidden; touch-action: none; }
+body > .wilds-popover-layer > .wilds-popover-surface { position: relative; inset: auto; display: grid; grid-template-rows: auto minmax(0, 1fr); max-height: min(760px, calc(100dvh - max(24px, env(safe-area-inset-top)) - max(24px, env(safe-area-inset-bottom)))); padding: 0; overflow: hidden; transform: none; }
+body > .wilds-popover-layer > .wilds-popover-surface > .wilds-popover-scroll { min-height: 0; max-height: none; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; scroll-snap-type: none; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .wildz-app .wilds-event-toast { bottom: max(104px, calc(env(safe-area-inset-bottom) + 98px)); left: 50%; width: min(220px, 30vw); }
+  .wilds-stage.is-world-tools-open .wilds-event-toast { bottom: max(148px, calc(env(safe-area-inset-bottom) + 142px)); }
+  body > .wilds-popover-layer > .wilds-popover-surface { max-height: calc(100dvh - 16px); }
+}
+
+.wilds-popover-layer.is-contained { position: absolute; z-index: 20; inset: 0; padding: 0; }
+.wilds-popover-layer.is-contained > .wilds-popover-surface.wilds-kai-inspector-popover { position: relative; inset: auto; display: grid; grid-template-rows: auto minmax(0, 1fr); width: 100%; height: 100%; max-height: none; gap: 0; padding: 0; overflow: hidden; border-radius: inherit; transform: none; }
+.wilds-popover-layer.is-contained .wilds-kai-inspector-head { min-height: 70px; padding: 10px 12px; }
+.wilds-popover-layer.is-contained .wilds-popover-scroll { display: grid; align-content: start; gap: 9px; padding: 12px; }
+
+/* Three-way world bearing row: event / proximity / event. Each lane owns a
+   fixed fraction of the viewport so labels scale but surfaces never collide. */
+@media (max-width: 640px) and (orientation: portrait) {
+  .wildz-app .wilds-search-reticle { top: calc(210px + var(--wildz-stage-safe-top)); left: 50%; width: 34vw; min-width: 0; max-width: 142px; padding-inline: clamp(5px, 1.8vw, 10px); overflow: visible; font-size: clamp(7px, 2.05vw, 10px); line-height: 1.12; white-space: nowrap; transform: translateX(-50%); }
+  .wilds-map-status-home .wilds-live-pill.event { position: fixed !important; top: calc(210px + var(--wildz-stage-safe-top)); grid-column: auto; width: 30vw; max-width: 132px; min-width: 0; height: 44px; padding-inline: clamp(4px, 1.5vw, 9px); justify-content: center; gap: 3px; font-size: clamp(6.5px, 1.95vw, 9px); letter-spacing: -.01em; }
+  .wilds-map-status-home .wilds-live-pill.event:not(.ecology) { right: max(1.5vw, env(safe-area-inset-right)); }
+  .wilds-map-status-home .wilds-live-pill.event.ecology { right: auto; left: max(1.5vw, env(safe-area-inset-left)); }
+  .wilds-map-status-home .wilds-live-pill.event span,
+  .wilds-map-status-home .wilds-live-pill.event b { flex: 0 1 auto; overflow: visible; font-size: inherit; text-overflow: clip; white-space: nowrap; }
+}
+
+/* Mobile popovers are isolated from the Three.js/gameplay pointer tree.
+   The frame never scrolls: one native content viewport owns every vertical
+   gesture and momentum continuation on iOS. */
+.wilds-popover-layer { position: fixed; z-index: 6400; inset: 0; display: grid; place-items: center; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); overflow: hidden; touch-action: none; isolation: isolate; }
+.wilds-popover-layer.is-contained { position: absolute; z-index: 20; padding: 0; }
+.wilds-popover-backdrop { position: absolute; z-index: -1; inset: 0; width: 100%; height: 100%; border: 0; background: rgb(1 12 16 / 72%); backdrop-filter: blur(12px) saturate(.84); touch-action: none; }
+.wilds-popover-surface { position: relative; display: grid; grid-template-rows: auto minmax(0, 1fr); width: min(560px, 100%); max-height: min(760px, 100%); overflow: hidden; border: 1px solid rgb(132 238 208 / 28%); border-radius: clamp(20px, 5vw, 30px); color: #effff9; background: radial-gradient(circle at 12% 0%, rgb(113 232 195 / 14%), transparent 34%), linear-gradient(155deg, rgb(8 38 46 / 99%), rgb(3 17 24 / 99%)); box-shadow: 0 30px 90px rgb(0 0 0 / 64%), inset 0 1px rgb(255 255 255 / 10%); }
+.wilds-popover-chrome { position: relative; z-index: 2; min-height: 64px; border-bottom: 1px solid rgb(132 238 208 / 16%); background: linear-gradient(180deg, rgb(11 43 49 / 100%), rgb(6 27 34 / 98%)); box-shadow: 0 10px 26px rgb(0 7 12 / 24%); }
+.wilds-popover-chrome::before { position: absolute; top: 0; right: 14%; left: 14%; height: 1px; background: linear-gradient(90deg, transparent, #f7d25b, #71e8c3, transparent); content: ""; opacity: .72; }
+.wilds-popover-scroll { min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; scroll-behavior: auto; scroll-snap-type: none; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+.wilds-popover-scroll :is(button, a, summary, label) { touch-action: pan-y; }
+.wilds-popover-scroll > * { scroll-snap-align: none !important; scroll-snap-stop: normal !important; }
+
+.wilds-popover-surface.wilds-audio-sheet,
+.wilds-popover-surface.wilds-living-world-sheet,
+.wilds-popover-surface.wilds-live-sheet { position: relative; inset: auto; display: grid; padding: 0; overflow: hidden; transform: none; }
+.wilds-popover-surface.wilds-audio-sheet { width: min(380px, 100%); }
+.wilds-popover-surface.wilds-audio-sheet .wilds-popover-scroll,
+.wilds-popover-surface.wilds-living-world-sheet .wilds-popover-scroll,
+.wilds-popover-surface.wilds-live-sheet .wilds-popover-scroll { display: grid; align-content: start; gap: 12px; padding: 14px 16px max(18px, env(safe-area-inset-bottom)); }
+.wilds-audio-sheet-head,
+.wilds-living-world-sheet > .wilds-popover-chrome > header,
+.wilds-live-sheet > .wilds-popover-chrome > header { display: grid; grid-template-columns: minmax(0, 1fr) 44px; min-height: 64px; align-items: center; gap: 10px; padding: 9px 10px 9px 16px; }
+.wilds-audio-sheet-head > span,
+.wilds-live-sheet > .wilds-popover-chrome header > div,
+.wilds-living-world-sheet > .wilds-popover-chrome header > span { display: grid; min-width: 0; gap: 2px; }
+.wilds-audio-sheet-head button,
+.wilds-live-sheet > .wilds-popover-chrome header > button,
+.wilds-living-world-sheet > .wilds-popover-chrome header > button { position: static; display: grid; width: 44px; height: 44px; min-height: 44px; place-items: center; padding: 0; border: 1px solid rgb(132 238 208 / 20%); border-radius: 15px; color: #effff9; background: rgb(255 255 255 / 6%); font: inherit; font-size: 24px; }
+.wilds-audio-settings > button { display: grid; width: 44px; min-height: 44px; place-items: center; padding: 0; border: 1px solid var(--game-line); border-radius: 12px; color: #fff; background: rgba(23, 19, 17, .76); box-shadow: 0 10px 24px rgba(0, 0, 0, .2); backdrop-filter: blur(16px); }
+.wilds-audio-settings > button svg { width: 32px; height: 32px; padding: 7px; fill: currentColor; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
+
+@media (max-width: 560px) {
+  .wilds-popover-layer { align-items: end; padding: max(10px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
+  .wilds-popover-surface { width: 100%; max-height: min(82dvh, 720px); border-radius: 25px; }
+}
+
 /* Final integrated reachability controls */
 .wildz-identity-home > .wildz-explorer-capsule {
   appearance: none;
@@ -12090,11 +12155,8 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-command-overlay::after { position: fixed; z-index: -1; right: 0; bottom: calc(-1 * env(safe-area-inset-bottom)); left: 0; height: calc(96px + env(safe-area-inset-bottom)); background: #09110d; content: ""; pointer-events: none; }
 .wilds-command-backdrop { position: absolute; inset: 0; width: 100%; border: 0; background: rgb(1 10 15 / 48%); opacity: 1; pointer-events: auto; backdrop-filter: blur(5px); }
 .wilds-command-sheet { position: absolute; right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); left: max(10px, env(safe-area-inset-left)); display: grid; grid-template-rows: auto minmax(0, 1fr); width: min(760px, calc(100% - 20px)); max-height: min(86dvh, 760px); margin-inline: auto; overflow: hidden; color: #effaff; border: 1px solid rgb(131 235 207 / 28%); border-radius: 28px; background: linear-gradient(145deg, rgb(8 37 47 / 98%), rgb(4 17 25 / 98%)); box-shadow: 0 30px 100px rgb(0 0 0 / 54%), inset 0 1px rgb(255 255 255 / 10%); pointer-events: auto; transform: none; animation: wilds-command-sheet-in 260ms cubic-bezier(.2,.8,.2,1); }
-.wilds-command-sheet.is-dragging { transform: translateY(var(--wilds-sheet-drag)); transition: none; }
 .wilds-command-sheet-chrome { position: relative; z-index: 3; display: grid; overflow: hidden; border-bottom: 1px solid rgb(131 235 207 / 18%); background: radial-gradient(circle at 14% 0%, rgb(113 232 195 / 13%), transparent 38%), linear-gradient(180deg, rgb(9 35 43 / 100%), rgb(6 25 33 / 98%)); box-shadow: 0 10px 28px rgb(0 7 12 / 22%), inset 0 1px rgb(255 255 255 / 9%); }
 .wilds-command-sheet-chrome::before { position: absolute; z-index: 0; top: 0; right: 16%; left: 16%; height: 1px; background: linear-gradient(90deg, transparent, rgb(247 210 91 / 72%), rgb(113 232 195 / 76%), transparent); content: ""; pointer-events: none; }
-.wilds-command-handle { position: relative; z-index: 1; display: grid; width: 100%; min-height: 24px; place-items: center; border: 0; background: linear-gradient(180deg, rgb(255 255 255 / 3%), transparent); touch-action: none; }
-.wilds-command-handle span { width: 44px; height: 4px; border-radius: 999px; background: linear-gradient(90deg, rgb(247 210 91 / 62%), rgb(153 238 214 / 82%)); box-shadow: 0 0 14px rgb(113 232 195 / 22%); }
 .wilds-command-sheet-header { position: sticky; top: 0; z-index: 2; display: grid; grid-template-columns: 34px minmax(0, 1fr) 36px; align-items: center; gap: 10px; padding: 1px 13px 10px; background: transparent; }
 .wilds-command-sheet-header > span:nth-child(2) { display: grid; min-width: 0; gap: 1px; }
 .wilds-command-sheet-header h3 { margin: 0; font-size: 17px; letter-spacing: -.01em; }
@@ -14974,7 +15036,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 }
 
 .wilds-map-status-home :is(.wilds-live-badge, .wilds-live-share, .wilds-live-pill),
-.wilds-left-instrument-home :is(.wilds-kai-command-pill, .wilds-audio-settings > summary) {
+.wilds-left-instrument-home :is(.wilds-kai-command-pill, .wilds-audio-settings > button) {
   min-width: 44px;
   min-height: 44px;
 }
@@ -14989,7 +15051,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   width: 44px;
 }
 
-.wildz-app .wilds-audio-settings > summary {
+.wildz-app .wilds-audio-settings > button {
   width: 44px;
 }
 
@@ -14999,15 +15061,15 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 
 .wildz-app .wilds-event-toast {
   right: auto;
-  bottom: max(82px, calc(env(safe-area-inset-bottom) + 76px));
+  bottom: max(172px, calc(env(safe-area-inset-bottom) + 166px));
   left: 50%;
-  width: min(320px, calc(100vw - 32px));
+  width: min(260px, calc(100vw - 128px));
   max-width: none;
   transform: translateX(-50%);
 }
 
 .wilds-stage.is-world-tools-open .wilds-event-toast {
-  bottom: max(190px, calc(env(safe-area-inset-bottom) + 184px));
+  bottom: max(218px, calc(env(safe-area-inset-bottom) + 212px));
 }
 
 .wildz-app .wilds-event-toast.is-capture {
@@ -15340,4 +15402,29 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* Authoritative body-portal cascade: only the inner content viewport scrolls. */
+body > .wilds-popover-layer { position: fixed; z-index: 6400; inset: 0; overflow: hidden; touch-action: none; }
+body > .wilds-popover-layer > .wilds-popover-surface { position: relative; inset: auto; display: grid; grid-template-rows: auto minmax(0, 1fr); max-height: min(760px, calc(100dvh - max(24px, env(safe-area-inset-top)) - max(24px, env(safe-area-inset-bottom)))); padding: 0; overflow: hidden; transform: none; }
+body > .wilds-popover-layer > .wilds-popover-surface > .wilds-popover-scroll { min-height: 0; max-height: none; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; scroll-snap-type: none; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .wildz-app .wilds-event-toast { bottom: max(104px, calc(env(safe-area-inset-bottom) + 98px)); left: 50%; width: min(220px, 30vw); }
+  .wilds-stage.is-world-tools-open .wilds-event-toast { bottom: max(148px, calc(env(safe-area-inset-bottom) + 142px)); }
+  body > .wilds-popover-layer > .wilds-popover-surface { max-height: calc(100dvh - 16px); }
+}
+
+.wilds-popover-layer.is-contained { position: absolute; z-index: 20; inset: 0; padding: 0; }
+.wilds-popover-layer.is-contained > .wilds-popover-surface.wilds-kai-inspector-popover { position: relative; inset: auto; display: grid; grid-template-rows: auto minmax(0, 1fr); width: 100%; height: 100%; max-height: none; gap: 0; padding: 0; overflow: hidden; border-radius: inherit; transform: none; }
+.wilds-popover-layer.is-contained .wilds-kai-inspector-head { min-height: 70px; padding: 10px 12px; }
+.wilds-popover-layer.is-contained .wilds-popover-scroll { display: grid; align-content: start; gap: 9px; padding: 12px; }
+
+@media (max-width: 640px) and (orientation: portrait) {
+  .wildz-app .wilds-search-reticle { top: calc(210px + var(--wildz-stage-safe-top)); left: 50%; width: 34vw; min-width: 0; max-width: 142px; padding-inline: clamp(5px, 1.8vw, 10px); overflow: visible; font-size: clamp(7px, 2.05vw, 10px); line-height: 1.12; white-space: nowrap; transform: translateX(-50%); }
+  .wilds-map-status-home .wilds-live-pill.event { position: fixed !important; top: calc(210px + var(--wildz-stage-safe-top)); grid-column: auto; width: 30vw; max-width: 132px; min-width: 0; height: 44px; padding-inline: clamp(4px, 1.5vw, 9px); justify-content: center; gap: 3px; font-size: clamp(6.5px, 1.95vw, 9px); letter-spacing: -.01em; }
+  .wilds-map-status-home .wilds-live-pill.event:not(.ecology) { right: max(1.5vw, env(safe-area-inset-right)); }
+  .wilds-map-status-home .wilds-live-pill.event.ecology { right: auto; left: max(1.5vw, env(safe-area-inset-left)); }
+  .wilds-map-status-home .wilds-live-pill.event span,
+  .wilds-map-status-home .wilds-live-pill.event b { flex: 0 1 auto; overflow: visible; font-size: inherit; text-overflow: clip; white-space: nowrap; }
 }

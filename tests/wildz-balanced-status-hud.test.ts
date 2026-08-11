@@ -61,7 +61,7 @@ test("balanced homes remain touch-safe and collision-aware at phone and short-la
   assert.doesNotMatch(finalCss, /wilds-world-status-trigger|wilds-world-status-fan/);
   assert.match(finalCss, /\.wilds-map-status-home\s*\{[^}]*position:\s*absolute;[^}]*top:\s*calc\([^}]*safe-area-inset-top[^}]*right:\s*max\([^}]*safe-area-inset-right/);
   assert.match(finalCss, /\.wilds-left-instrument-home\s*\{[^}]*position:\s*absolute;[^}]*top:\s*calc\([^}]*safe-area-inset-top[^}]*left:\s*max\([^}]*safe-area-inset-left/);
-  assert.match(finalCss, /\.wilds-map-status-home :is\(\.wilds-live-badge, \.wilds-live-share, \.wilds-live-pill\),[\s\S]*\.wilds-left-instrument-home :is\(\.wilds-kai-command-pill, \.wilds-audio-settings > summary\)\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/);
+  assert.match(finalCss, /\.wilds-map-status-home :is\(\.wilds-live-badge, \.wilds-live-share, \.wilds-live-pill\),[\s\S]*\.wilds-left-instrument-home :is\(\.wilds-kai-command-pill, \.wilds-audio-settings > button\)\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/);
   assert.match(finalCss, /@media \(max-width: 350px\)[\s\S]*\.wilds-map-status-home\s*\{[^}]*max-width:\s*calc\(100vw - 136px/);
   assert.match(finalCss, /@media \(orientation: landscape\) and \(max-height: 500px\)[\s\S]*\.wilds-left-instrument-home\s*\{[^}]*grid-template-columns:\s*104px 44px;/);
   assert.match(css, /\.wilds-live-sheet header > button\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;/);

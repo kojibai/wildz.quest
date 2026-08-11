@@ -15,9 +15,9 @@ describe("Wilds command dock", () => {
     assert.match(source, /\.focus\(\)/);
     assert.match(source, /wilds-command-backdrop/);
     assert.match(source, /onPointerCancel=/);
-    assert.match(source, /onLostPointerCapture=/);
-    assert.match(source, /setPointerCapture/);
-    assert.match(source, /72/);
+    assert.match(source, /createPortal\([\s\S]*wilds-command-overlay[\s\S]*document\.body/s);
+    assert.match(source, /onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/);
+    assert.doesNotMatch(source, /onLostPointerCapture|setPointerCapture|wilds-command-handle/);
   });
 
   it("renders tasteful fixed-position values inside command icons", async () => {

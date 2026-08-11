@@ -1,5 +1,8 @@
 "use client";
 
+import { useCallback, useState } from "react";
+import { WildsPopoverSurface } from "./WildsPopoverSurface";
+
 import type { WildsAudioSettings as WildsAudioSettingsValue } from "@/features/play/wilds-audio";
 
 const volumeControls = [
@@ -20,19 +23,17 @@ export function WildsAudioSettings({
   onChange: (settings: WildsAudioSettingsValue) => void;
   onUnlock: () => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
   return (
-    <details className="wilds-audio-settings">
-      <summary aria-label="Wilds audio settings" onClick={onUnlock} title="Audio settings">
+    <div className="wilds-audio-settings">
+      <button aria-expanded={open} aria-label="Wilds audio settings" onClick={() => { onUnlock(); setOpen((value) => !value); }} title="Audio settings" type="button">
         <svg aria-hidden="true" viewBox="0 0 24 24">
           <path d="M4 9v6h4l5 4V5L8 9H4Z" />
           <path d="M16 8.2a5 5 0 0 1 0 7.6M18.7 5.5a9 9 0 0 1 0 13" />
         </svg>
-      </summary>
-      <div className="wilds-audio-sheet">
-        <div className="wilds-audio-sheet-head">
-          <strong>Wilds sound</strong>
-          <span aria-live="polite">{ready ? "Sound ready" : "Tap world for sound"}</span>
-        </div>
+      </button>
+      {open ? <WildsPopoverSurface ariaLabel="Wilds audio settings" className="wilds-audio-sheet" header={<div className="wilds-audio-sheet-head"><span><strong>Wilds sound</strong><small aria-live="polite">{ready ? "Sound ready" : "Tap world for sound"}</small></span><button aria-label="Close Wilds audio settings" autoFocus onClick={close} type="button">×</button></div>} onClose={close}>
         {volumeControls.map(([key, label]) => (
           <label key={key}>
             <span>{label}</span>
@@ -56,7 +57,7 @@ export function WildsAudioSettings({
           />
           <span>Mute Wilds audio</span>
         </label>
-      </div>
-    </details>
+      </WildsPopoverSurface> : null}
+    </div>
   );
 }

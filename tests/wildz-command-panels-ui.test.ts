@@ -57,28 +57,40 @@ test("Vault keeps its proof actions while using the compact premium header", () 
 
 test("all mobile HUD popovers own one continuous vertical touch scroller", () => {
   const dock = source("src/features/play/WildsCommandDock.tsx");
+  const audio = source("src/features/play/WildsAudioSettings.tsx");
+  const living = source("src/features/play/WildsLivingWorldHud.tsx");
+  const multiplayer = source("src/features/play/WildsMultiplayer.tsx");
+  const surface = source("src/features/play/WildsPopoverSurface.tsx");
   const css = source("app/globals.css");
-  assert.match(dock, /className="wilds-command-sheet-chrome"/);
-  assert.match(css, /\.wilds-command-sheet\s*\{[^}]*transform:\s*none;/s);
-  assert.match(css, /\.wilds-command-sheet\.is-dragging\s*\{[^}]*transform:\s*translateY\(var\(--wilds-sheet-drag\)\);/s);
+  assert.match(dock, /createPortal\([\s\S]*wilds-command-overlay[\s\S]*document\.body/s);
+  assert.doesNotMatch(dock, /wilds-command-handle|setPointerCapture/);
+  for (const component of [audio, living, multiplayer]) assert.match(component, /<WildsPopoverSurface/);
+  assert.match(surface, /createPortal/);
+  assert.match(surface, /className=\{`wilds-popover-layer\$\{portalTarget \? " is-contained" : ""\}`\}/);
+  assert.match(surface, /className="wilds-popover-scroll"/);
+  assert.match(surface, /onPointerDown=\{stopPointerPropagation\}/);
+  assert.match(surface, /onPointerMove=\{stopPointerPropagation\}/);
   assert.match(css, /\.wilds-command-overlay\s*\{[^}]*pointer-events:\s*auto;/s);
-  assert.match(css, /:is\(\.wilds-command-sheet-content, \.wilds-audio-sheet, \.wilds-living-world-sheet, \.wilds-live-sheet\)\s*\{[^}]*overflow-y:\s*auto;[^}]*overscroll-behavior-y:\s*contain;[^}]*scroll-behavior:\s*auto;[^}]*scroll-snap-type:\s*none;[^}]*touch-action:\s*pan-y;[^}]*-webkit-overflow-scrolling:\s*touch;/s);
-  assert.match(css, /:is\(\.wilds-command-sheet-content, \.wilds-audio-sheet, \.wilds-living-world-sheet, \.wilds-live-sheet, \.wilds-kai-inspector-popover\) :is\(button, a, summary, label\)\s*\{[^}]*touch-action:\s*pan-y;/s);
+  assert.match(css, /\.wilds-popover-layer\s*\{[^}]*position:\s*fixed;[^}]*inset:\s*0;[^}]*touch-action:\s*none;/s);
+  assert.match(css, /\.wilds-popover-surface\s*\{[^}]*display:\s*grid;[^}]*grid-template-rows:\s*auto minmax\(0, 1fr\);[^}]*overflow:\s*hidden;/s);
+  assert.match(css, /\.wilds-popover-scroll\s*\{[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;[^}]*overscroll-behavior-y:\s*contain;[^}]*scroll-snap-type:\s*none;[^}]*touch-action:\s*pan-y;[^}]*-webkit-overflow-scrolling:\s*touch;/s);
+  assert.match(css, /\.wilds-popover-scroll :is\(button, a, summary, label\)\s*\{[^}]*touch-action:\s*pan-y;/s);
   assert.doesNotMatch(css, /\.wilds-command-sheet-content \.wilds-kai-inspector-popover\s*\{[^}]*position:\s*relative;[^}]*overflow:\s*visible;/s);
   assert.match(css, /\.wilds-command-sheet-content :is\(\.wilds-card-back-scroll, \.wilds-growth-panel ol\)\s*\{[^}]*height:\s*auto;[^}]*max-height:\s*none;[^}]*overflow:\s*visible;[^}]*overscroll-behavior:\s*auto;/s);
   assert.match(css, /\.wilds-command-sheet-content \.wilds-card-proof-dossier pre\s*\{[^}]*max-height:\s*none;[^}]*overflow:\s*visible;/s);
   assert.match(css, /\.wilds-live-sheet \.wilds-live-chat > div\s*\{[^}]*max-height:\s*none;[^}]*overflow:\s*visible;/s);
 });
 
-test("command sheet grabber is integrated into premium fixed chrome", () => {
+test("command sheet uses premium fixed chrome without a competing drag strip", () => {
   const dock = source("src/features/play/WildsCommandDock.tsx");
   const css = source("app/globals.css");
 
-  assert.match(dock, /<div className="wilds-command-sheet-chrome">[\s\S]*className="wilds-command-handle"[\s\S]*<header className="wilds-command-sheet-header">/s);
+  assert.match(dock, /<div className="wilds-command-sheet-chrome">[\s\S]*<header className="wilds-command-sheet-header">/s);
+  assert.doesNotMatch(dock, /className="wilds-command-handle"/);
   assert.match(css, /\.wilds-command-sheet-chrome\s*\{[^}]*border-bottom:[^;}]+;/s);
   assert.match(css, /\.wilds-command-sheet-chrome\s*\{[^}]*background:[^;}]+;/s);
   assert.match(css, /\.wilds-command-sheet-chrome::before\s*\{[^}]*background:[^;}]+;/s);
-  assert.doesNotMatch(css, /\.wilds-command-handle\s*\{[^}]*background:\s*transparent;/s);
+  assert.doesNotMatch(css, /\.wilds-command-handle\s*\{/s);
 });
 
 test("Profile and Market show admitted impact without inventing authority", () => {

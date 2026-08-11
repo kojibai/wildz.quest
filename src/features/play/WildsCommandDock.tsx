@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Icons } from "@/components/icons";
 import type { WorldOverlayOwner } from "./world-overlay-state";
 import { canRestoreFocus } from "./focus-recovery";
@@ -28,12 +29,10 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
   exclusiveOwner: WorldOverlayOwner;
   onRequestHandled?: () => void;
 }) {
-  const [dragY, setDragY] = useState(0);
   const toolsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const sheetRef = useRef<HTMLElement | null>(null);
   const originTriggerRef = useRef<HTMLElement | null>(null);
   const focusFrameRef = useRef<number | null>(null);
-  const dragStart = useRef<number | null>(null);
   const priorDismissSignal = useRef(dismissSignal);
   const priorActiveKey = useRef<WildsCommandKey | null>(panelKey);
   const activeKey = panelKey;
@@ -57,7 +56,6 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
     originTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : toolsTriggerRef.current;
     const requestedItem = items.find((item) => item.key === requestedKey);
     onToolsOpenChange(false);
-    setDragY(0);
     onRequestHandled();
     if (!requestedItem) {
       onPanelKeyChange(null);
@@ -69,8 +67,6 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
 
   const close = useCallback(() => {
     onPanelKeyChange(null);
-    setDragY(0);
-    dragStart.current = null;
   }, [onPanelKeyChange]);
 
   useEffect(() => {
@@ -127,13 +123,6 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
     };
   }, [activeKey, close]);
 
-  const releaseDrag = (target: HTMLElement, pointerId: number) => {
-    if (dragY > 72) close();
-    else setDragY(0);
-    dragStart.current = null;
-    if (target.hasPointerCapture?.(pointerId)) target.releasePointerCapture(pointerId);
-  };
-
   return (
     <section className="wilds-command-system" aria-label="Wilds command center">
       <button
@@ -169,7 +158,6 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
                   key={item.key}
                   onClick={() => {
                     originTriggerRef.current = toolsTriggerRef.current;
-                    setDragY(0);
                     onToolsOpenChange(false);
                     onPanelKeyChange(item.key);
                   }}
@@ -187,43 +175,24 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
         </div>
       ) : null}
 
-      {activeItem ? (
-        <div className="wilds-command-overlay">
+      {activeItem && typeof document !== "undefined" ? createPortal((
+        <div
+          className="wilds-command-overlay"
+          onPointerCancel={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          onPointerMove={(event) => event.stopPropagation()}
+          onPointerUp={(event) => event.stopPropagation()}
+        >
           <button tabIndex={-1} className="wilds-command-backdrop" aria-label={`Close ${activeItem.label}`} onClick={close} type="button" />
           <section
             aria-labelledby={`wilds-command-title-${activeItem.key}`}
             aria-modal="true"
-            className={`wilds-command-sheet wilds-command-sheet-${activeItem.key}${dragY > 0 ? " is-dragging" : ""}`}
+            className={`wilds-command-sheet wilds-command-sheet-${activeItem.key}`}
             id={`wilds-command-sheet-${activeItem.key}`}
             role="dialog"
             ref={sheetRef}
-            style={{ "--wilds-sheet-drag": `${dragY}px` } as CSSProperties}
           >
             <div className="wilds-command-sheet-chrome">
-              <button
-                aria-label={`Drag down to close ${activeItem.label}`}
-                className="wilds-command-handle"
-                onLostPointerCapture={() => {
-                  dragStart.current = null;
-                  setDragY(0);
-                }}
-                onPointerCancel={() => {
-                  dragStart.current = null;
-                  setDragY(0);
-                }}
-                onPointerDown={(event) => {
-                  dragStart.current = event.clientY;
-                  event.currentTarget.setPointerCapture(event.pointerId);
-                }}
-                onPointerMove={(event) => {
-                  if (dragStart.current === null) return;
-                  setDragY(Math.max(0, event.clientY - dragStart.current));
-                }}
-                onPointerUp={(event) => releaseDrag(event.currentTarget, event.pointerId)}
-                type="button"
-              >
-                <span aria-hidden="true" />
-              </button>
               <header className="wilds-command-sheet-header">
                 <span className="wilds-command-sheet-icon" aria-hidden="true">{activeItem.icon}</span>
                 <span><h3 id={`wilds-command-title-${activeItem.key}`}>{activeItem.label}</h3>{activeItem.status ? <small className="wilds-command-sheet-status">{activeItem.status}</small> : null}</span>
@@ -235,7 +204,7 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
             <div className="wilds-command-sheet-content">{activeItem.content}</div>
           </section>
         </div>
-      ) : null}
+      ), document.body) : null}
     </section>
   );
 }

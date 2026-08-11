@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Icons } from "@/components/icons";
 import type { KaiKlokMoment } from "../kai-klok-moment";
+import { WildsPopoverSurface } from "../WildsPopoverSurface";
 import {
   deriveKaiMomentExpression,
   KAI_CHAKRA_ARKS,
@@ -33,23 +34,12 @@ function TeachingGroup({ title, items, currentId }: {
 export function WildsKaiMomentInspector({ moment }: { moment: KaiKlokMoment }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
   const expression = useMemo(() => deriveKaiMomentExpression(moment), [moment]);
 
   const close = () => {
     setOpen(false);
     window.requestAnimationFrame(() => triggerRef.current?.focus());
   };
-
-  useEffect(() => {
-    if (!open) return;
-    closeRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open]);
 
   return <>
     <button
@@ -66,16 +56,10 @@ export function WildsKaiMomentInspector({ moment }: { moment: KaiKlokMoment }) {
       <Icons.chevronDown aria-hidden="true" className="wilds-kai-inspector-caret" size={14} />
     </button>
 
-    {open ? <section
-      aria-labelledby="wilds-kai-inspector-title"
-      className="wilds-kai-inspector-popover"
-      id={INSPECTOR_ID}
-      role="dialog"
-    >
-      <header className="wilds-kai-inspector-head">
+    {open ? <WildsPopoverSurface ariaLabel="Kai moment inspector" className="wilds-kai-inspector-popover" id={INSPECTOR_ID} header={<header className="wilds-kai-inspector-head">
         <div><small>Living world time authority</small><h3 id="wilds-kai-inspector-title">☤ KAI · {moment.latticeCoordinate}</h3><p>{moment.coordinate}</p></div>
-        <button aria-label="Close Kai moment inspector" onClick={close} ref={closeRef} type="button"><Icons.close aria-hidden="true" size={20} /></button>
-      </header>
+        <button aria-label="Close Kai moment inspector" autoFocus onClick={close} type="button"><Icons.close aria-hidden="true" size={20} /></button>
+      </header>} onClose={close} portalTarget={triggerRef.current?.closest(".wilds-command-sheet")}>
 
       <section className="wilds-kai-inspector-now" aria-labelledby="wilds-kai-now-title">
         <header><small id="wilds-kai-now-title">What this moment is saying</small><strong>{expression.day.name} · {expression.month.name} · {expression.ark.name}</strong></header>
@@ -108,6 +92,6 @@ export function WildsKaiMomentInspector({ moment }: { moment: KaiKlokMoment }) {
           <div><dt>KAI</dt><dd>Full continuous pulse since Genesis</dd></div>
         </dl>
       </details>
-    </section> : null}
+    </WildsPopoverSurface> : null}
   </>;
 }
