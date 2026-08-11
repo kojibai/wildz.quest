@@ -161,6 +161,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (shellOverlayRef.current?.querySelector("[data-profile-card-viewer]")) return;
         event.preventDefault();
         event.stopImmediatePropagation();
         closeShellOverlay();
@@ -692,6 +693,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           </button>
           {overlay.kind === "profile" ? (viewingOwnProfile ? localPublicProfile : remoteProfile) ? <WildzProfileSheet
             profile={(viewingOwnProfile ? localPublicProfile : remoteProfile)!}
+            vaultAssets={viewingOwnProfile ? ownerPlayState.inventory : undefined}
             publicationStatus={viewingOwnProfile && profileStatus !== "ready" ? "local" : "published"}
             shareEnabled={!viewingOwnProfile || profileStatus === "ready"}
             editable={viewingOwnProfile}

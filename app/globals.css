@@ -60,6 +60,7 @@ body {
   position: absolute;
   inset: 0;
   overflow: hidden;
+  touch-action: none;
 }
 
 .wildz-identity-loading,
@@ -497,6 +498,7 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
   background: rgba(13, 20, 18, 0.92);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.46);
   backdrop-filter: blur(22px) saturate(1.15);
+  touch-action: pan-y;
 }
 
 .wildz-overlay-dismiss {
@@ -532,7 +534,7 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 
 .wildz-profile-sheet,
 .wildz-vault-sheet { display: grid; gap: 12px; max-height: min(76dvh, 700px); overflow: auto; padding: 16px; }
-.wildz-profile-sheet { isolation: isolate; }
+.wildz-profile-sheet { isolation: isolate; overscroll-behavior-y: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
 .wildz-profile-head { position: relative; display: flex; align-items: center; gap: 14px; padding-right: 100px; }
 .wildz-profile-head span, .wildz-vault-sheet header span { color: #9cbaa9; font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
 .wildz-profile-head h2 { margin: 2px 0 0; font-size: 25px; }
@@ -580,8 +582,44 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 .wildz-market-consequence strong { color: #f8f5e9; font-size: 11px; }
 .wildz-profile-impact p,
 .wildz-market-consequence span { margin: 0; color: #9cbaa9; font-size: 9px; line-height: 1.35; }
+.wildz-profile-vault-gallery { position: relative; display: grid; gap: 10px; }
+.wildz-profile-vault-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.wildz-profile-vault-heading span { color: #9cbaa9; font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.wildz-profile-vault-heading strong { color: #d9eddf; font-size: 10px; }
+.wildz-profile-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.wildz-profile-card-tile { position: relative; display: grid; min-width: 0; min-height: 44px; padding: 0; overflow: hidden; border: 1px solid rgba(151,226,155,.2); border-radius: 18px; color: #effff5; background: linear-gradient(155deg, rgba(29,72,52,.9), rgba(5,23,18,.96)); box-shadow: 0 12px 26px rgba(0,0,0,.2); text-align: left; touch-action: pan-y; cursor: pointer; }
+.wildz-profile-card-tile:focus-visible { outline: 3px solid rgba(113,232,195,.78); outline-offset: 3px; }
+.wildz-profile-card-tile img { display: block; width: 100%; height: auto; aspect-ratio: 5 / 7; object-fit: contain; background: #061a17; }
+.wildz-profile-card-local { width: 100%; aspect-ratio: 5 / 7; overflow: hidden; background: #061a17; pointer-events: none; }
+.wildz-profile-card-local .wilds-collectible-card.compact { width: 100%; height: 100%; padding: 6%; gap: 2.1%; border-width: 4px; border-radius: 14px; box-shadow: none; }
+.wildz-profile-card-local .wilds-collectible-card > header strong { font-size: clamp(8px, 3.1vw, 14px); }
+.wildz-profile-card-local .wilds-collectible-card > header span,
+.wildz-profile-card-local .wilds-collectible-card > header small,
+.wildz-profile-card-local .wilds-collectible-card > footer,
+.wildz-profile-card-local .wilds-card-rarity { font-size: clamp(5px, 1.6vw, 8px); }
+.wildz-profile-card-local .wilds-card-stats dt,
+.wildz-profile-card-local .wilds-card-stats dd,
+.wildz-profile-card-local .wilds-card-abilities strong,
+.wildz-profile-card-local .wilds-card-abilities b { font-size: clamp(5px, 1.7vw, 8px); }
+.wildz-profile-card-local .wilds-card-abilities p,
+.wildz-profile-card-local .wilds-collectible-card code { display: none; }
+.wildz-profile-card-tile > span { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 7px; padding: 9px 10px 10px; }
+.wildz-profile-card-tile strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.wildz-profile-card-tile small { flex: 0 0 auto; color: #8fc5a7; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.wildz-profile-card-viewer { position: absolute; z-index: 20; inset: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: min(76dvh, 700px); gap: 10px; padding: 14px; overflow: hidden; border: 1px solid rgba(126,235,205,.34); border-radius: 28px; color: #effff8; background: radial-gradient(circle at 50% 34%, rgba(48,121,96,.28), transparent 45%), linear-gradient(160deg, rgba(6,31,28,.99), rgba(2,13,15,.99)); box-shadow: 0 28px 76px rgba(0,0,0,.66), inset 0 1px rgba(255,255,255,.08); isolation: isolate; touch-action: pan-y; }
+.wildz-profile-card-viewer > header { display: grid; grid-template-columns: minmax(0,1fr) auto 44px; align-items: center; gap: 9px; }
+.wildz-profile-card-viewer > header span { display: inline-flex; min-width: 0; align-items: center; gap: 6px; color: #75e8c5; font-size: 9px; font-weight: 950; letter-spacing: .1em; text-transform: uppercase; }
+.wildz-profile-card-viewer > header strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.wildz-profile-card-viewer > header button { display: grid; width: 44px; height: 44px; padding: 0; place-items: center; border: 1px solid rgba(255,255,255,.14); border-radius: 50%; color: #effff8; background: rgba(255,255,255,.07); }
+.wildz-profile-card-viewer-body { display: grid; min-height: 0; place-items: center; overflow: hidden; }
+.wildz-profile-card-viewer .wilds-card-scene { width: min(100%, 310px, calc(58dvh * 5 / 7)); min-height: 0; aspect-ratio: 5 / 7; touch-action: pan-y; }
+.wildz-profile-card-viewer .wilds-card-float { animation: none; transform: none; }
+.wildz-profile-card-viewer > p { margin: 0; color: #8cb7aa; font-size: 9px; text-align: center; }
+.wildz-profile-card-state { display: grid; max-width: 240px; justify-items: center; gap: 7px; color: #bdebd7; text-align: center; }
+.wildz-profile-card-state svg { color: #70dfbd; }
+.wildz-profile-card-state span { color: #83a99e; font-size: 10px; line-height: 1.4; }
 @keyframes wildz-profile-action-success { 50% { transform: translateY(-1px) scale(1.025); } }
-@media (prefers-reduced-motion: reduce) { .wildz-profile-action-rail button, .wildz-profile-editor-actions button { transition: none; } .wildz-profile-action-rail button[data-state="success"], .wildz-profile-action-rail button[data-state="working"] svg, .wildz-profile-editor-actions button[data-state="working"] svg { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .wildz-profile-action-rail button, .wildz-profile-editor-actions button, .wildz-profile-card-tile { transition: none; } .wildz-profile-action-rail button[data-state="success"], .wildz-profile-action-rail button[data-state="working"] svg, .wildz-profile-editor-actions button[data-state="working"] svg { animation: none; } }
 .wildz-vault-sheet header { display: flex; justify-content: space-between; align-items: center; }
 .wildz-vault-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(130px,1fr)); gap: 10px; }
 .wildz-vault-grid article { display: grid; min-height: 150px; align-content: end; gap: 3px; overflow: hidden; padding: 12px; border: 1px solid rgba(255,255,255,.1); border-radius: 18px; background: radial-gradient(circle at 50% 28%,rgba(116,220,157,.28),transparent 35%),linear-gradient(160deg,#173a2b,#081610); }

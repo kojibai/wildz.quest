@@ -6,9 +6,9 @@ import { WildsCard } from "./WildsCard";
 import { WildsCardBack } from "./WildsCardBack";
 import type { AdventureCardCondition } from "./adventure/card-condition";
 
-export function WildsCardScene({ asset, origin, qr, condition }: { asset: PortableCardAsset; origin: string; qr: string; condition?: AdventureCardCondition | null }) {
+export function WildsCardScene({ asset, origin, qr, condition, tapToFlip = false }: { asset: PortableCardAsset; origin: string; qr: string; condition?: AdventureCardCondition | null; tapToFlip?: boolean }) {
   const scene = useRef<HTMLDivElement>(null);
-  const swipeStart = useRef<{ x: number; y: number; pointerId: number } | null>(null);
+  const swipeStart = useRef<{ x: number; y: number; pointerId: number; startedAt: number; interactive: boolean } | null>(null);
   const [flipped, setFlipped] = useState(false);
   const flip = () => setFlipped((value) => !value);
   return (
@@ -23,7 +23,14 @@ export function WildsCardScene({ asset, origin, qr, condition }: { asset: Portab
       }}
       onPointerCancel={() => { swipeStart.current = null; }}
       onPointerDown={(event) => {
-        swipeStart.current = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+        const target = event.target instanceof Element ? event.target : null;
+        swipeStart.current = {
+          x: event.clientX,
+          y: event.clientY,
+          pointerId: event.pointerId,
+          startedAt: performance.now(),
+          interactive: Boolean(target?.closest("button, a, input, select, textarea, summary, [role='button']"))
+        };
       }}
       onPointerLeave={() => {
         scene.current?.style.setProperty("--tilt-x", "0deg");
@@ -41,7 +48,11 @@ export function WildsCardScene({ asset, origin, qr, condition }: { asset: Portab
         if (!start || start.pointerId !== event.pointerId) return;
         const deltaX = event.clientX - start.x;
         const deltaY = event.clientY - start.y;
-        if (Math.abs(deltaX) >= 28 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) flip();
+        if (Math.abs(deltaX) >= 28 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+          flip();
+          return;
+        }
+        if (tapToFlip && !start.interactive && performance.now() - start.startedAt <= 360 && Math.hypot(deltaX, deltaY) <= 9) flip();
       }}
       ref={scene}
       role="group"

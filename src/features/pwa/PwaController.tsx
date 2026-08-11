@@ -82,7 +82,7 @@ export function PwaController() {
 
     const handleUpdateFound = () => watchWorker(registration?.installing ?? null);
     const register = () => {
-      const release = process.env.NEXT_PUBLIC_WILDZ_SW_RELEASE ?? "v3.0.0-r115.0";
+      const release = process.env.NEXT_PUBLIC_WILDZ_SW_RELEASE ?? "v3.0.0-r118.0";
       const workerUrl = `/sw.js?release=${encodeURIComponent(release)}`;
       void navigator.serviceWorker.register(workerUrl, {
         scope: "/",

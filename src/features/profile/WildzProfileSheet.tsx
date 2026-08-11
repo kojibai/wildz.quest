@@ -1,7 +1,8 @@
 "use client";
 
 import type { PublicWildzProfile } from "@/features/profile/public-profile";
-import { WildzVaultSheet } from "@/features/profile/WildzVaultSheet";
+import type { PortableCardAsset } from "@/features/play/portable-card";
+import { WildzProfileVaultGallery } from "@/features/profile/WildzProfileVaultGallery";
 import { Camera, Check, Download, Link, LoaderCircle, Pencil, Share2, Upload, X } from "lucide-react";
 import Image from "next/image";
 import { useRef, useState } from "react";
@@ -40,8 +41,9 @@ async function profileImageFromFile(file: File) {
   }
 }
 
-export function WildzProfileSheet({ profile, publicationStatus = "published", shareEnabled = true, editable = false, signingAvailable = true, onAuthenticateIdentitySeal, onSaveIdentitySeal, onSaveProfile }: {
+export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "published", shareEnabled = true, editable = false, signingAvailable = true, onAuthenticateIdentitySeal, onSaveIdentitySeal, onSaveProfile }: {
   profile: PublicWildzProfile;
+  vaultAssets?: readonly PortableCardAsset[];
   publicationStatus?: "local" | "published";
   shareEnabled?: boolean;
   editable?: boolean;
@@ -209,6 +211,6 @@ export function WildzProfileSheet({ profile, publicationStatus = "published", sh
       <p>{profile.reputation > 0 ? `Your choices carry ${profile.reputation} reputation into future encounters.` : "Explore, battle, and help the living world to build a remembered reputation."}</p>
     </section>
     {profile.explorer ? <p className="wildz-profile-traits">{profile.explorer.traits.outfit.replaceAll("-", " ")} · {profile.explorer.traits.trail.replaceAll("-", " ")} trail</p> : null}
-    <WildzVaultSheet cards={profile.vault} />
+    <WildzProfileVaultGallery cards={profile.vault} ownerAssets={vaultAssets} />
   </div>;
 }
