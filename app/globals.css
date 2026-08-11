@@ -14585,6 +14585,10 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   pointer-events: none;
 }
 
+.wildz-companion-home > .wildz-creature-drawer:not(.is-closed) {
+  pointer-events: auto;
+}
+
 .wildz-companion-home .wildz-creature-drawer-handle {
   min-height: 44px;
   pointer-events: auto;
