@@ -42,7 +42,6 @@ export function WildsWorldCanvas({
   qualityProfile,
   onFrameSample,
   searchEnabled,
-  onCameraHeadingChange,
   onSelectPlayer,
   onSelectTrainer,
   onSearchPoint,
@@ -58,7 +57,6 @@ export function WildsWorldCanvas({
   qualityProfile: WildsQualityProfile;
   onFrameSample?: (frameMs: number) => void;
   searchEnabled: boolean;
-  onCameraHeadingChange: (heading: number) => void;
   onSelectPlayer: (player: WildsPresence | null) => void;
   onSearchPoint: (point: { x: number; z: number }) => void;
   livingWorld?: WildsWorldProjection | null;
@@ -88,7 +86,7 @@ export function WildsWorldCanvas({
       >
         {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
-          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} supportCards={supportCards} trainers={trainers} />
+          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} supportCards={supportCards} trainers={trainers} />
         </Suspense>
       </Canvas>
     </div>
@@ -106,7 +104,6 @@ function WildsScene({
   remotePlayers,
   qualityProfile,
   searchEnabled,
-  onCameraHeadingChange,
   onSelectPlayer,
   onSearchPoint,
   livingWorld,
@@ -121,7 +118,6 @@ function WildsScene({
   remotePlayers: WildsPresence[];
   qualityProfile: WildsQualityProfile;
   searchEnabled: boolean;
-  onCameraHeadingChange: (heading: number) => void;
   onSelectPlayer: (player: WildsPresence | null) => void;
   onSearchPoint: (point: { x: number; z: number }) => void;
   livingWorld?: WildsWorldProjection | null;
@@ -144,7 +140,7 @@ function WildsScene({
       <fog attach="fog" args={[kaiFog, 8 + kaiExpression.sky.luminance * 3, 21 + (1 - kaiExpression.sky.fogDensity) * 4]} />
       <WildsAtmosphere encounter={state.encounter} expression={kaiExpression} missionProgress={state.missionProgress} player={state.player} qualityProfile={qualityProfile} />
       <WildsKaiAtmosphereGeometry expression={kaiExpression} qualityProfile={qualityProfile} />
-      <CameraRig onCameraHeadingChange={onCameraHeadingChange} />
+      <CameraRig />
       <WildsDiagnostics qualityProfile={qualityProfile} state={state} />
       <SmoothWorldFrame player={state.player}>
         <SearchableTerrain
@@ -346,14 +342,7 @@ function RemoteExplorer({
   );
 }
 
-function CameraRig({ onCameraHeadingChange }: { onCameraHeadingChange: (heading: number) => void }) {
-  const lastHeading = useRef(Number.NaN);
-  useFrame(({ camera }) => {
-    const heading = Math.atan2(camera.position.x, camera.position.z);
-    if (Number.isFinite(lastHeading.current) && Math.abs(heading - lastHeading.current) < .001) return;
-    lastHeading.current = heading;
-    onCameraHeadingChange(heading);
-  });
+function CameraRig() {
   return (
     <OrbitControls
       dampingFactor={.08}

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { applyWildsInput, initialPlayState, worldBounds } from "../src/features/play/game-state";
 import { resolveWildsContextAction } from "../src/features/play/wilds-context-action";
-import { cameraRelativeMovement, movementScale, normalizeWildsMovementMode } from "../src/features/play/wilds-movement";
+import { dpadMovementIntent, movementScale, normalizeWildsMovementMode } from "../src/features/play/wilds-movement";
 import { WILDS_FLAGSHIP_LANDMARKS } from "../src/features/play/wilds-landmarks";
 
 const emptyContext = {
@@ -82,21 +82,20 @@ describe("Wilds contextual world actions", () => {
     assert.ok(Math.abs(runDistance / walkDistance - 1.25) < 0.001);
   });
 
-  it("keeps trackpad forward aligned with the orbiting camera", () => {
-    assert.deepEqual(cameraRelativeMovement({ x: 0, z: -1 }, 0), { x: 0, z: -1 });
-    assert.deepEqual(cameraRelativeMovement({ x: 0, z: 1 }, 0), { x: 0, z: 1 });
-    const cameraOnRight = cameraRelativeMovement({ x: 0, z: -1 }, Math.PI / 2);
-    assert.ok(Math.abs(cameraOnRight.x + 1) < 0.0001);
-    assert.ok(Math.abs(cameraOnRight.z) < 0.0001);
-    const reverseFromRight = cameraRelativeMovement({ x: 0, z: 1 }, Math.PI / 2);
-    assert.ok(Math.abs(reverseFromRight.x - 1) < 0.0001);
-    assert.ok(Math.abs(reverseFromRight.z) < 0.0001);
-    const cameraBehind = cameraRelativeMovement({ x: 0, z: -1 }, Math.PI);
-    assert.ok(Math.abs(cameraBehind.x) < 0.0001);
-    assert.ok(Math.abs(cameraBehind.z - 1) < 0.0001);
-    const reverseFromBehind = cameraRelativeMovement({ x: 0, z: 1 }, Math.PI);
-    assert.ok(Math.abs(reverseFromBehind.x) < 0.0001);
-    assert.ok(Math.abs(reverseFromBehind.z + 1) < 0.0001);
+  it("keeps D-pad travel in world directions while the camera looks independently", () => {
+    const heldDirection = { x: 0.6, z: -0.8 };
+    assert.deepEqual(dpadMovementIntent(heldDirection, "walk"), {
+      type: "move-vector",
+      x: 0.6,
+      z: -0.8,
+      mode: "walk"
+    });
+    assert.deepEqual(dpadMovementIntent(heldDirection, "run"), {
+      type: "move-vector",
+      x: 0.6,
+      z: -0.8,
+      mode: "run"
+    });
   });
 
 });

@@ -10,6 +10,10 @@ export function movementScale(mode: WildsMovementMode) {
   return mode === "run" ? 1.25 : 1;
 }
 
+export function dpadMovementIntent(vector: { x: number; z: number }, mode: WildsMovementMode) {
+  return { type: "move-vector" as const, x: vector.x, z: vector.z, mode };
+}
+
 export function cameraRelativeMovement(vector: { x: number; z: number }, cameraHeading: number) {
   const heading = Number.isFinite(cameraHeading) ? cameraHeading : 0;
   const cosine = Math.cos(heading);

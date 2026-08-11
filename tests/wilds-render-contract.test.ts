@@ -101,7 +101,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(controls, /const handleTrainCharacter = useCallback[\s\S]*if \(worldHomesEnabled\) forwardInput/);
     assert.match(controls, /onTrainCharacter=\{handleTrainCharacter\}/);
     assert.doesNotMatch(controls, /onUsePower|onSelectAbility/);
-    assert.match(controls, /<WildzDpad[\s\S]*cameraHeadingRef=\{cameraHeadingRef\}[\s\S]*movementMode=\{movementMode\}/);
+    assert.match(controls, /<WildzDpad[\s\S]*movementMode=\{movementMode\}/);
+    assert.doesNotMatch(controls, /cameraHeadingRef/);
     assert.match(route, /getWildsAtlasPresence/);
     assert.match(route, /cache-control": "private, no-store"/);
     assert.doesNotMatch(route, /activeCard/);
@@ -331,13 +332,12 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(world, /minPolarAngle=\{(?:0)?\.38\}/);
     assert.match(world, /maxPolarAngle=\{Math\.PI \/ 2\.15\}/);
     assert.match(world, /touches=\{\{ ONE: THREE\.TOUCH\.ROTATE, TWO: THREE\.TOUCH\.DOLLY_ROTATE \}\}/);
-    assert.match(world, /onCameraHeadingChange/);
     const cameraRig = world.slice(world.indexOf("function CameraRig"), world.indexOf("function frameSeconds"));
-    assert.match(cameraRig, /useFrame\(\(\{ camera \}\) =>/);
+    assert.match(cameraRig, /<OrbitControls/);
     assert.doesNotMatch(cameraRig, /onChange=\{/);
-    assert.match(campaign, /cameraHeadingRef/);
+    assert.doesNotMatch(campaign, /cameraHeadingRef/);
     assert.doesNotMatch(campaign, /useState\(0\).*cameraHeading/);
-    assert.match(controls, /cameraRelativeMovement\(next, cameraHeadingRef\.current\)/);
+    assert.doesNotMatch(controls, /cameraRelativeMovement|cameraHeading/);
     assert.doesNotMatch(world, /camera\.position\.lerp\(target/);
   });
 

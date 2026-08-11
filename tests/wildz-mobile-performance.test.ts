@@ -8,9 +8,9 @@ test("camera orbit stays outside React state and diagnostics do not restart on e
   const campaign = source("src/features/play/PlayCampaign.tsx");
   const world = source("src/features/play/WildsWorldCanvas.tsx");
 
-  assert.match(campaign, /const cameraHeadingRef = useRef\(0\)/);
+  assert.doesNotMatch(campaign, /cameraHeadingRef/);
   assert.doesNotMatch(campaign, /\[cameraHeading, setCameraHeading\]/);
-  assert.match(campaign, /onCameraHeadingChange=\{updateCameraHeading\}/);
+  assert.doesNotMatch(campaign, /onCameraHeadingChange/);
   assert.match(world, /enableDamping/);
   assert.match(world, /const stateRef = useRef\(state\)/);
   assert.match(world, /stateRef\.current = state/);

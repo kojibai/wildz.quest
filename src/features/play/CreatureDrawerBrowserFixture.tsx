@@ -76,7 +76,6 @@ function WorldControlsFocusRecoveryFixture() {
   const [overlayState, setOverlayState] = useState(initialWorldOverlayState);
   const [exclusiveOwner, setExclusiveOwner] = useState<WorldOverlayOwner>("none");
   const [selectedAssetId, setSelectedAssetId] = useState(initialFixtureAssetId);
-  const cameraHeadingRef = useRef(0);
   const setOwner = (owner: WorldOverlayOwner) => {
     setExclusiveOwner(owner);
     setOverlayState((state) => reduceWorldOverlay(state, { type: "exclusive", owner }));
@@ -92,7 +91,6 @@ function WorldControlsFocusRecoveryFixture() {
     </output>
     <WildzWorldControls
       activeCard={activeCard}
-      cameraHeadingRef={cameraHeadingRef}
       cardConditions={{}}
       cardOrder="newest"
       commandItems={[]}

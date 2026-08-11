@@ -2,11 +2,10 @@
 
 import { Icons } from "@/components/icons";
 import type { WildsInput } from "./game-state";
-import { cameraRelativeMovement, type WildsMovementMode } from "./wilds-movement";
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
+import { dpadMovementIntent, type WildsMovementMode } from "./wilds-movement";
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
-export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSignal = 0 }: {
-  cameraHeadingRef: RefObject<number>;
+export function WildzDpad({ movementMode, onInput, cancelSignal = 0 }: {
   movementMode: WildsMovementMode;
   onInput: (input: WildsInput) => void;
   cancelSignal?: number;
@@ -24,9 +23,8 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSigna
 
   const emitMovement = useCallback((next = vector.current) => {
     if (Math.hypot(next.x, next.z) < 0.08) return;
-    const relative = cameraRelativeMovement(next, cameraHeadingRef.current);
-    input.current({ type: "move-vector", x: relative.x, z: relative.z, mode: mode.current });
-  }, [cameraHeadingRef]);
+    input.current(dpadMovementIntent(next, mode.current));
+  }, []);
 
   const reset = useCallback(() => {
     dragging.current = false;

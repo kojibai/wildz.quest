@@ -11,12 +11,12 @@ test("reference HUD exposes the proof-bound explorer, mission, and minimap witho
   assert.doesNotMatch(source, /wildz-status-rail|XP/);
 });
 
-test("D-pad maps analog camera-relative travel onto existing movement intents", () => {
+test("D-pad maps analog world travel independently from camera look", () => {
   const source = readFileSync("src/features/play/WildzDpad.tsx", "utf8");
   for (const direction of ["north", "east", "south", "west"]) assert.match(source, new RegExp(direction));
   assert.match(source, /onInput/);
-  assert.match(source, /move-vector/);
-  assert.match(source, /cameraRelativeMovement/);
+  assert.match(source, /dpadMovementIntent/);
+  assert.doesNotMatch(source, /cameraHeading|cameraRelativeMovement/);
   assert.match(source, /Math\.min\(rect\.width, rect\.height\) \* 0\.42/);
   assert.match(source, /window\.requestAnimationFrame\(tick\)/);
   assert.match(source, /window\.cancelAnimationFrame\(frame\)/);

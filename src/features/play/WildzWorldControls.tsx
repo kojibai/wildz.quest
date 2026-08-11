@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Icons } from "@/components/icons";
 import type { WildzCardSort } from "./card-sort";
 import type { PlayState, WildsInput } from "./game-state";
@@ -30,7 +30,6 @@ export function WildzWorldControls({
   activeCard,
   companionProgress,
   cardConditions,
-  cameraHeadingRef,
   movementMode,
   cardOrder,
   commandItems,
@@ -53,7 +52,6 @@ export function WildzWorldControls({
   activeCard: PortableCardAsset | null;
   companionProgress: PlayState["companionProgress"];
   cardConditions: PlayState["adventureConditions"];
-  cameraHeadingRef: RefObject<number>;
   movementMode: WildsMovementMode;
   cardOrder: WildzCardSort;
   commandItems: readonly WildsCommandItem[];
@@ -172,7 +170,6 @@ export function WildzWorldControls({
           </button>
         </div>
         <WildzDpad
-          cameraHeadingRef={cameraHeadingRef}
           cancelSignal={gestureCancelSignal}
           movementMode={movementMode}
           onInput={handleInput}
