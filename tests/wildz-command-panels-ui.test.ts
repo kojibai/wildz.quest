@@ -55,7 +55,7 @@ test("Vault keeps its proof actions while using the compact premium header", () 
   assert.match(inventory, /aria-label="Sort card vault"/);
 });
 
-test("all mobile HUD popovers own one continuous vertical touch scroller", () => {
+test("long-form tools own one continuous vertical touch scroller", () => {
   const dock = source("src/features/play/WildsCommandDock.tsx");
   const audio = source("src/features/play/WildsAudioSettings.tsx");
   const living = source("src/features/play/WildsLivingWorldHud.tsx");
@@ -63,8 +63,11 @@ test("all mobile HUD popovers own one continuous vertical touch scroller", () =>
   const surface = source("src/features/play/WildsPopoverSurface.tsx");
   const css = source("app/globals.css");
   assert.match(dock, /createPortal\([\s\S]*wilds-command-overlay[\s\S]*document\.body/s);
-  assert.doesNotMatch(dock, /wilds-command-handle|setPointerCapture/);
-  for (const component of [audio, living, multiplayer]) assert.match(component, /<WildsPopoverSurface/);
+  assert.match(dock, /className="wilds-command-handle"[\s\S]*setPointerCapture/);
+  for (const component of [audio, living, multiplayer]) assert.doesNotMatch(component, /<WildsPopoverSurface/);
+  assert.match(audio, /<details className="wilds-audio-settings">/);
+  assert.match(living, /<section className="wilds-living-world-sheet"/);
+  assert.match(multiplayer, /<section className="wilds-live-sheet wilds-live-roster"/);
   assert.match(surface, /createPortal/);
   assert.match(surface, /className=\{`wilds-popover-layer\$\{portalTarget \? " is-contained" : ""\}`\}/);
   assert.match(surface, /className="wilds-popover-scroll"/);
@@ -81,16 +84,37 @@ test("all mobile HUD popovers own one continuous vertical touch scroller", () =>
   assert.match(css, /\.wilds-live-sheet \.wilds-live-chat > div\s*\{[^}]*max-height:\s*none;[^}]*overflow:\s*visible;/s);
 });
 
-test("command sheet uses premium fixed chrome without a competing drag strip", () => {
+test("popover chrome restores a header-only pull-down grip without competing for content scrolling", () => {
   const dock = source("src/features/play/WildsCommandDock.tsx");
+  const surface = source("src/features/play/WildsPopoverSurface.tsx");
   const css = source("app/globals.css");
 
-  assert.match(dock, /<div className="wilds-command-sheet-chrome">[\s\S]*<header className="wilds-command-sheet-header">/s);
-  assert.doesNotMatch(dock, /className="wilds-command-handle"/);
+  for (const component of [dock, surface]) {
+    assert.match(component, /className="wilds-command-handle"/);
+    assert.match(component, /setPointerCapture/);
+    assert.match(component, /clientY/);
+  }
+  assert.match(dock, /<div className="wilds-command-sheet-chrome">[\s\S]*className="wilds-command-handle"[\s\S]*<header className="wilds-command-sheet-header">/s);
+  assert.match(surface, /<div className="wilds-popover-chrome">[\s\S]*className="wilds-command-handle"[\s\S]*\{header\}/s);
   assert.match(css, /\.wilds-command-sheet-chrome\s*\{[^}]*border-bottom:[^;}]+;/s);
   assert.match(css, /\.wilds-command-sheet-chrome\s*\{[^}]*background:[^;}]+;/s);
   assert.match(css, /\.wilds-command-sheet-chrome::before\s*\{[^}]*background:[^;}]+;/s);
-  assert.doesNotMatch(css, /\.wilds-command-handle\s*\{/s);
+  assert.match(css, /\.wilds-command-handle\s*\{[^}]*min-height:\s*24px;[^}]*touch-action:\s*none;/s);
+  assert.match(css, /\.wilds-command-handle span\s*\{[^}]*width:\s*44px;[^}]*height:\s*4px;/s);
+  assert.match(css, /:is\(\.wilds-command-sheet, \.wilds-popover-surface\)\.is-dragging\s*\{[^}]*translateY\(var\(--wilds-sheet-drag\)\)/s);
+  assert.doesNotMatch(surface, /wilds-popover-scroll[^>]+onPointer/);
+});
+
+test("gameplay HUD popovers remain inline contextual cards without a fullscreen layer", () => {
+  const audio = source("src/features/play/WildsAudioSettings.tsx");
+  const living = source("src/features/play/WildsLivingWorldHud.tsx");
+  const multiplayer = source("src/features/play/WildsMultiplayer.tsx");
+  const css = source("app/globals.css");
+
+  for (const component of [audio, living, multiplayer]) assert.doesNotMatch(component, /WildsPopoverSurface/);
+  assert.match(css, /\.wilds-live-roster\s*\{[^}]*width:\s*min\(340px, calc\(100% - 24px\)\);/s);
+  assert.match(css, /\.wilds-living-world-sheet\s*\{[^}]*width:\s*min\(330px, calc\(100vw - 24px\)\);/s);
+  assert.match(css, /\.wilds-left-instrument-home \.wilds-audio-sheet\s*\{[^}]*width:\s*min\(260px, calc\(100vw - 24px\)\);/s);
 });
 
 test("Profile and Market show admitted impact without inventing authority", () => {

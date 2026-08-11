@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Icons } from "@/components/icons";
 import type { WorldOverlayOwner } from "./world-overlay-state";
@@ -29,10 +29,13 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
   exclusiveOwner: WorldOverlayOwner;
   onRequestHandled?: () => void;
 }) {
+  const [dragY, setDragY] = useState(0);
   const toolsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const sheetRef = useRef<HTMLElement | null>(null);
   const originTriggerRef = useRef<HTMLElement | null>(null);
   const focusFrameRef = useRef<number | null>(null);
+  const dragStartRef = useRef<number | null>(null);
+  const dragDistanceRef = useRef(0);
   const priorDismissSignal = useRef(dismissSignal);
   const priorActiveKey = useRef<WildsCommandKey | null>(panelKey);
   const activeKey = panelKey;
@@ -67,7 +70,23 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
 
   const close = useCallback(() => {
     onPanelKeyChange(null);
+    dragStartRef.current = null;
+    dragDistanceRef.current = 0;
+    setDragY(0);
   }, [onPanelKeyChange]);
+
+  const resetDrag = () => {
+    dragStartRef.current = null;
+    dragDistanceRef.current = 0;
+    setDragY(0);
+  };
+
+  const releaseDrag = (target: HTMLButtonElement, pointerId: number) => {
+    const shouldClose = dragDistanceRef.current > 72;
+    resetDrag();
+    if (target.hasPointerCapture?.(pointerId)) target.releasePointerCapture(pointerId);
+    if (shouldClose) close();
+  };
 
   useEffect(() => {
     if (priorActiveKey.current && !activeKey) restoreOriginFocus();
@@ -187,12 +206,34 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
           <section
             aria-labelledby={`wilds-command-title-${activeItem.key}`}
             aria-modal="true"
-            className={`wilds-command-sheet wilds-command-sheet-${activeItem.key}`}
+            className={`wilds-command-sheet wilds-command-sheet-${activeItem.key}${dragY > 0 ? " is-dragging" : ""}`}
             id={`wilds-command-sheet-${activeItem.key}`}
             role="dialog"
             ref={sheetRef}
+            style={{ "--wilds-sheet-drag": `${dragY}px` } as CSSProperties}
           >
             <div className="wilds-command-sheet-chrome">
+              <button
+                aria-label={`Drag down to close ${activeItem.label}`}
+                className="wilds-command-handle"
+                onLostPointerCapture={resetDrag}
+                onPointerCancel={resetDrag}
+                onPointerDown={(event) => {
+                  dragStartRef.current = event.clientY;
+                  dragDistanceRef.current = 0;
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                }}
+                onPointerMove={(event) => {
+                  if (dragStartRef.current === null) return;
+                  const distance = Math.max(0, event.clientY - dragStartRef.current);
+                  dragDistanceRef.current = distance;
+                  setDragY(distance);
+                }}
+                onPointerUp={(event) => releaseDrag(event.currentTarget, event.pointerId)}
+                type="button"
+              >
+                <span aria-hidden="true" />
+              </button>
               <header className="wilds-command-sheet-header">
                 <span className="wilds-command-sheet-icon" aria-hidden="true">{activeItem.icon}</span>
                 <span><h3 id={`wilds-command-title-${activeItem.key}`}>{activeItem.label}</h3>{activeItem.status ? <small className="wilds-command-sheet-status">{activeItem.status}</small> : null}</span>

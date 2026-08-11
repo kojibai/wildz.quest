@@ -54,6 +54,8 @@ test("companion selector exposes only Vault characters and real card interaction
   assert.match(command, /View in Vault/);
   assert.match(controls, /type: "train"/);
   assert.match(controls, /type: "panel", key: "vault"/);
+  assert.match(campaign, /focusedAssetId=\{state\.selectedAssetId\}/);
+  assert.match(read("src\/features\/play\/WildsInventory\.tsx"), /focusedAssetId[\s\S]*setSelectedId\(focusedAssetId\)[\s\S]*inventoryPageForAsset/);
 });
 
 test("different named field abilities produce different authoritative play effects", () => {

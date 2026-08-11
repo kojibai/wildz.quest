@@ -48,7 +48,7 @@ test("reference HUD mounts the real heading compass and reserves a collision-saf
   assert.match(css, /\.wildz-direction-compass\s*\{[^}]*height:\s*26px;[^}]*pointer-events:\s*none;/s);
   assert.match(css, /\.wildz-reference-hud\s*\{[^}]*padding:\s*calc\(38px \+ env\(safe-area-inset-top\)\)/s);
   assert.match(css, /@media \(max-width: 640px\)[\s\S]*\.wilds-map-status-home\s*\{[^}]*top:\s*calc\(110px \+ env\(safe-area-inset-top\)\)/s);
-  assert.match(css, /\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(210px \+ var\(--wildz-stage-safe-top\)\)/s);
+  assert.match(css, /\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(104px \+ var\(--wildz-stage-safe-top\)\)/s);
   assert.match(css, /@media \(max-width: 640px\)[\s\S]*\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(164px \+ var\(--wildz-stage-safe-top\)\)/s);
   assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\)[\s\S]*\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(148px \+ var\(--wildz-stage-safe-top\)\)/s);
 });

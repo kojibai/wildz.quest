@@ -84,6 +84,6 @@ test("top-right status uses one primary row, slimmer event rows, and elevated li
   assert.match(multiplayer, /const liveSurfaceOpen = rosterOpen \|\| Boolean\(selected\)/);
   assert.match(multiplayer, /onRosterOpenChange\?\.\(liveSurfaceOpen\)/);
   assert.match(finalCss, /\.wilds-stage\.multiplayer-roster-open \.wilds-map-status-home\s*\{[^}]*z-index:\s*calc\(var\(--wildz-layer-expanded-controls\) \+ 20\)/s);
-  assert.match(css, /\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(210px \+ var\(--wildz-stage-safe-top\)\)/s);
+  assert.match(css, /\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(104px \+ var\(--wildz-stage-safe-top\)\)/s);
   assert.match(css, /@media \(max-width: 640px\)[\s\S]*\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(164px \+ var\(--wildz-stage-safe-top\)\)/s);
 });

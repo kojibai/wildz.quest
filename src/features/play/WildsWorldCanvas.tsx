@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, OrbitControls, Sparkles } from "@react-three/drei";
 import * as THREE from "three";
@@ -347,13 +347,15 @@ function RemoteExplorer({
 }
 
 function CameraRig({ onCameraHeadingChange }: { onCameraHeadingChange: (heading: number) => void }) {
+  const camera = useThree((state) => state.camera);
   const lastHeading = useRef(Number.NaN);
-  useFrame(({ camera }) => {
+  const publishCameraHeading = useCallback(() => {
     const heading = Math.atan2(camera.position.x, camera.position.z);
     if (Number.isFinite(lastHeading.current) && Math.abs(heading - lastHeading.current) < .001) return;
     lastHeading.current = heading;
     onCameraHeadingChange(heading);
-  });
+  }, [camera, onCameraHeadingChange]);
+  useEffect(() => publishCameraHeading(), [publishCameraHeading]);
   return (
     <OrbitControls
       dampingFactor={.08}
@@ -363,6 +365,7 @@ function CameraRig({ onCameraHeadingChange }: { onCameraHeadingChange: (heading:
       maxPolarAngle={Math.PI / 2.15}
       minDistance={4.8}
       minPolarAngle={.38}
+      onChange={publishCameraHeading}
       rotateSpeed={.62}
       target={[0, .55, 0]}
       touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE }}

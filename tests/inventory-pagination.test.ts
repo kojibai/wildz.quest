@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   clampInventoryPage,
+  inventoryPageForAsset,
   inventoryPageSize,
   rebaseInventoryPage,
   shouldCaptureInventorySwipe
@@ -10,6 +11,13 @@ import {
 test("Commerce Vault pages use four cards on compact screens and eight on wider screens", () => {
   assert.equal(inventoryPageSize(true), 4);
   assert.equal(inventoryPageSize(false), 8);
+});
+
+test("opening a character from quick actions lands on that exact Vault page", () => {
+  const ids = Array.from({ length: 17 }, (_, index) => `card-${index + 1}`);
+  assert.equal(inventoryPageForAsset(ids, "card-15", 4), 3);
+  assert.equal(inventoryPageForAsset(ids, "card-15", 8), 1);
+  assert.equal(inventoryPageForAsset(ids, "missing", 4), 0);
 });
 
 test("Commerce Vault page clamping keeps empty and 100-card collections in bounds", () => {

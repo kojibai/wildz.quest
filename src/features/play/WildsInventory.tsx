@@ -24,7 +24,7 @@ import type { WildsPlayerVaultPayload } from "./wilds-player-vault";
 import { WildsCardScene } from "./WildsCardScene";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import { WildsGrowthPanel } from "./WildsGrowthPanel";
-import { clampInventoryPage, inventoryPageSize, shouldCaptureInventorySwipe } from "./inventory-pagination";
+import { clampInventoryPage, inventoryPageForAsset, inventoryPageSize, shouldCaptureInventorySwipe } from "./inventory-pagination";
 import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
 import { currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
@@ -35,6 +35,7 @@ import type {
 
 export function WildsInventory({
   state,
+  focusedAssetId,
   cardOrder,
   onCardOrderChange,
   playerVault,
@@ -45,6 +46,7 @@ export function WildsInventory({
   onRestoreArtifact
 }: {
   state: PlayState;
+  focusedAssetId: string | null;
   cardOrder: WildzCardSort;
   onCardOrderChange: (order: WildzCardSort) => void;
   playerVault: () => WildsPlayerVaultPayload;
@@ -61,7 +63,7 @@ export function WildsInventory({
   const [query, setQuery] = useState("");
   const [rarity, setRarity] = useState("all");
   const [page, setPage] = useState(0);
-  const [selectedId, setSelectedId] = useState(state.inventory.at(-1)?.id ?? "");
+  const [selectedId, setSelectedId] = useState(focusedAssetId ?? state.selectedAssetId ?? state.inventory.at(-1)?.id ?? "");
   const [priceUsd, setPriceUsd] = useState("25.00");
   const [listing, setListing] = useState(false);
   const [listingMessage, setListingMessage] = useState("");
@@ -87,12 +89,13 @@ export function WildsInventory({
     () => createPreparedCardArtifactCache(preparePortableCardArtifact),
     []
   );
-  const matches = useMemo(() => sortWildzCards(state.inventory.filter((asset) => {
+  const orderedInventory = useMemo(() => sortWildzCards(state.inventory, cardOrder), [cardOrder, state.inventory]);
+  const matches = useMemo(() => orderedInventory.filter((asset) => {
     const form = creatureForm(asset.manifest.formId);
     if (!form) return false;
     const haystack = `${form.name} ${form.species} ${form.habitat} ${form.abilities.map((ability) => ability.name).join(" ")} ${form.cardNumber}`.toLowerCase();
     return haystack.includes(query.trim().toLowerCase()) && (rarity === "all" || form.rarity === rarity);
-  }), cardOrder), [cardOrder, query, rarity, state.inventory]);
+  }), [orderedInventory, query, rarity]);
   const pageSize = inventoryPageSize(compact);
   const pages = Math.max(1, Math.ceil(matches.length / pageSize));
   const safePage = clampInventoryPage(page, matches.length, pageSize);
@@ -120,6 +123,14 @@ export function WildsInventory({
   useEffect(() => {
     setPage((current) => clampInventoryPage(current, matches.length, pageSize));
   }, [matches.length, pageSize]);
+
+  useEffect(() => {
+    if (!focusedAssetId || !orderedInventory.some((asset) => asset.id === focusedAssetId)) return;
+    setQuery("");
+    setRarity("all");
+    setSelectedId(focusedAssetId);
+    setPage(inventoryPageForAsset(orderedInventory.map((asset) => asset.id), focusedAssetId, pageSize));
+  }, [focusedAssetId, orderedInventory, pageSize]);
 
   useEffect(() => {
     setOrigin(window.location.origin);

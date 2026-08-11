@@ -17,7 +17,9 @@ describe("Wilds command dock", () => {
     assert.match(source, /onPointerCancel=/);
     assert.match(source, /createPortal\([\s\S]*wilds-command-overlay[\s\S]*document\.body/s);
     assert.match(source, /onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/);
-    assert.doesNotMatch(source, /onLostPointerCapture|setPointerCapture|wilds-command-handle/);
+    assert.match(source, /wilds-command-sheet-chrome[\s\S]*wilds-command-handle[\s\S]*setPointerCapture/s);
+    assert.match(source, /dragDistanceRef\.current > 72[\s\S]*if \(shouldClose\) close\(\)/s);
+    assert.doesNotMatch(source, /wilds-command-sheet-content[^>]+onPointer/);
   });
 
   it("renders tasteful fixed-position values inside command icons", async () => {

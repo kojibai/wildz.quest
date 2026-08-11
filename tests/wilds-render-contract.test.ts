@@ -332,6 +332,11 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(world, /maxPolarAngle=\{Math\.PI \/ 2\.15\}/);
     assert.match(world, /touches=\{\{ ONE: THREE\.TOUCH\.ROTATE, TWO: THREE\.TOUCH\.DOLLY_ROTATE \}\}/);
     assert.match(world, /onCameraHeadingChange/);
+    const cameraRig = world.slice(world.indexOf("function CameraRig"), world.indexOf("function frameSeconds"));
+    assert.match(cameraRig, /useThree\(\(state\) => state\.camera\)/);
+    assert.match(cameraRig, /const publishCameraHeading/);
+    assert.match(cameraRig, /<OrbitControls[\s\S]*onChange=\{publishCameraHeading\}/);
+    assert.doesNotMatch(cameraRig, /useFrame/);
     assert.match(campaign, /cameraHeadingRef/);
     assert.doesNotMatch(campaign, /useState\(0\).*cameraHeading/);
     assert.match(controls, /cameraRelativeMovement\(next, cameraHeadingRef\.current\)/);

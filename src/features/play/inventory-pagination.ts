@@ -2,6 +2,16 @@ export function inventoryPageSize(compact: boolean): 4 | 8 {
   return compact ? 4 : 8;
 }
 
+export function inventoryPageForAsset(
+  orderedAssetIds: readonly string[],
+  assetId: string,
+  pageSize: number
+) {
+  const index = orderedAssetIds.indexOf(assetId);
+  if (index < 0) return 0;
+  return clampInventoryPage(Math.floor(index / Math.max(1, Math.floor(pageSize))), orderedAssetIds.length, pageSize);
+}
+
 export function shouldCaptureInventorySwipe(
   start: Readonly<{ x: number; y: number }>,
   current: Readonly<{ x: number; y: number }>

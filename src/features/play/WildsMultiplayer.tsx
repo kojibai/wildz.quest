@@ -10,7 +10,6 @@ import {
   shareWildzInviteWhenEnabled,
   shouldShowIncomingChallenge
 } from "./wilds-multiplayer-controls";
-import { WildsPopoverSurface } from "./WildsPopoverSurface";
 
 function healthPercent(hp: number, maxHp: number) {
   return `${Math.max(0, Math.min(100, (hp / maxHp) * 100))}%`;
@@ -144,7 +143,8 @@ export function WildsMultiplayer({
       </div>
 
       {rosterOpen && !modalOwned ? (
-        <WildsPopoverSurface ariaLabel="Global live explorers" className="wilds-live-sheet wilds-live-roster" header={<header><div><span>Shared Wilds</span><strong>Everyone live now</strong></div><button autoFocus onClick={() => setRosterOpen(false)} aria-label="Close live roster" type="button">×</button></header>} onClose={() => setRosterOpen(false)}>
+        <section className="wilds-live-sheet wilds-live-roster" aria-label="Global live explorers">
+          <header><div><span>Shared Wilds</span><strong>Everyone live now</strong></div><button onClick={() => setRosterOpen(false)} aria-label="Close live roster" type="button">×</button></header>
           <p>{multiplayer.mode === "receiz_live" ? "Connected globally · exact live positions" : "Reconnecting to global presence"}</p>
           <div className="wilds-live-player-list">
             {multiplayer.remotePlayers.length ? multiplayer.remotePlayers.map((player) => (
@@ -169,11 +169,12 @@ export function WildsMultiplayer({
             <div>{multiplayer.snapshot?.messages.slice(-8).map((item) => <p key={item.id}><b>{item.senderHandle}</b><span>{item.text}</span></p>)}</div>
             <label><span className="sr-only">Room message</span><input disabled={!interactionEnabled} maxLength={280} onChange={(event) => setMessage(event.target.value)} placeholder="Say something kind…" value={message} /><button disabled={!interactionEnabled} type="submit">Send</button></label>
           </form> : null}
-        </WildsPopoverSurface>
+        </section>
       ) : null}
 
       {selected && !modalOwned ? (
-        <WildsPopoverSurface ariaLabel={`Interact with ${selected.handle}`} className="wilds-live-sheet wilds-player-sheet" header={<header><div><span>{selected.practice ? "Live guest explorer" : "Verified explorer"}</span><strong>{selected.handle}</strong></div><button autoFocus onClick={() => multiplayer.selectPlayer(null)} aria-label="Close player interaction" type="button">×</button></header>} onClose={() => multiplayer.selectPlayer(null)}>
+        <section className="wilds-live-sheet wilds-player-sheet" aria-label={`Interact with ${selected.handle}`}>
+          <header><div><span>{selected.practice ? "Live guest explorer" : "Verified explorer"}</span><strong>{selected.handle}</strong></div><button onClick={() => multiplayer.selectPlayer(null)} aria-label="Close player interaction" type="button">×</button></header>
           <div className="wilds-player-card-line"><i className={selected.style} /><span><strong>{selected.activeCard.name}</strong><small>{selected.activeCard.stats.health} HP · {selected.activeCard.stats.power} power · {Math.round(selectedDistance)}m away</small></span></div>
           {!canInteract ? <p className="wilds-live-distance">Move within {WILDS_INTERACTION_DISTANCE}m to chat or battle.</p> : null}
           <div className="wilds-challenge-modes">
@@ -185,7 +186,7 @@ export function WildsMultiplayer({
             <button disabled type="button"><strong>Card stake</strong><span>Awaiting Receiz atomic asset exchange</span></button>
             <button disabled type="button"><strong>Funds</strong><span>Compliance locked</span></button>
           </div>
-        </WildsPopoverSurface>
+        </section>
       ) : null}
 
       {shouldShowIncomingChallenge(challengeInteractionEnabled, multiplayer.incomingChallenge) && typeof document !== "undefined" ? createPortal((

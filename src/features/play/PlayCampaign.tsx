@@ -1125,6 +1125,7 @@ export function PlayCampaign({
           <div className="wilds-vault-sheet-heading"><span><small>Portable card vault</small><strong>{state.inventory.length} sealed {state.inventory.length === 1 ? "card" : "cards"}</strong></span><button className="wilds-open-market" onClick={openMarketFromVault} type="button"><Icons.store size={18} /> Open Market</button></div>
           <WildsInventory
             state={state}
+            focusedAssetId={state.selectedAssetId}
             cardOrder={cardOrder}
             onCardOrderChange={setCardOrder}
             playerVault={() => createWildsPlayerVault({

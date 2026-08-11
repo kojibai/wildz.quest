@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 export function WildsPopoverSurface({ ariaLabel, children, className = "", header, id, onClose, portalTarget = null }: {
@@ -12,9 +12,12 @@ export function WildsPopoverSurface({ ariaLabel, children, className = "", heade
   onClose: () => void;
   portalTarget?: Element | null;
 }) {
+  const [dragY, setDragY] = useState(0);
   const surfaceRef = useRef<HTMLElement | null>(null);
   const originRef = useRef<HTMLElement | null>(null);
   const closeRef = useRef(onClose);
+  const dragStartRef = useRef<number | null>(null);
+  const dragDistanceRef = useRef(0);
   closeRef.current = onClose;
 
   useEffect(() => {
@@ -51,6 +54,17 @@ export function WildsPopoverSurface({ ariaLabel, children, className = "", heade
 
   if (typeof document === "undefined") return null;
   const stopPointerPropagation = (event: ReactPointerEvent) => event.stopPropagation();
+  const resetDrag = () => {
+    dragStartRef.current = null;
+    dragDistanceRef.current = 0;
+    setDragY(0);
+  };
+  const releaseDrag = (target: HTMLButtonElement, pointerId: number) => {
+    const shouldClose = dragDistanceRef.current > 72;
+    resetDrag();
+    if (target.hasPointerCapture?.(pointerId)) target.releasePointerCapture(pointerId);
+    if (shouldClose) closeRef.current();
+  };
   return createPortal(
     <div
       className={`wilds-popover-layer${portalTarget ? " is-contained" : ""}`}
@@ -60,8 +74,39 @@ export function WildsPopoverSurface({ ariaLabel, children, className = "", heade
       onPointerUp={stopPointerPropagation}
     >
       <button aria-label={`Close ${ariaLabel}`} className="wilds-popover-backdrop" onClick={onClose} tabIndex={-1} type="button" />
-      <section aria-label={ariaLabel} aria-modal="true" className={`wilds-popover-surface ${className}`.trim()} id={id} ref={surfaceRef} role="dialog">
-        <div className="wilds-popover-chrome">{header}</div>
+      <section
+        aria-label={ariaLabel}
+        aria-modal="true"
+        className={`wilds-popover-surface ${className}${dragY > 0 ? " is-dragging" : ""}`.trim()}
+        id={id}
+        ref={surfaceRef}
+        role="dialog"
+        style={{ "--wilds-sheet-drag": `${dragY}px` } as CSSProperties}
+      >
+        <div className="wilds-popover-chrome">
+          <button
+            aria-label={`Drag down to close ${ariaLabel}`}
+            className="wilds-command-handle"
+            onLostPointerCapture={resetDrag}
+            onPointerCancel={resetDrag}
+            onPointerDown={(event) => {
+              dragStartRef.current = event.clientY;
+              dragDistanceRef.current = 0;
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => {
+              if (dragStartRef.current === null) return;
+              const distance = Math.max(0, event.clientY - dragStartRef.current);
+              dragDistanceRef.current = distance;
+              setDragY(distance);
+            }}
+            onPointerUp={(event) => releaseDrag(event.currentTarget, event.pointerId)}
+            type="button"
+          >
+            <span aria-hidden="true" />
+          </button>
+          {header}
+        </div>
         <div className="wilds-popover-scroll">{children}</div>
       </section>
     </div>,
