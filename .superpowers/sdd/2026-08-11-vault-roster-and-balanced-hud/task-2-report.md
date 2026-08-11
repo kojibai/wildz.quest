@@ -204,3 +204,5 @@ Screenshot: `output/playwright/task2-world-controls-exclusive-focus.png`.
 ### Scope and concern
 
 Only the controller, existing development-only fixture, its focused contract, and this report changed. Memorial/Card Vault behavior and the approved modal/combat gates remain untouched. The fixture is development-gated and unavailable in production.
+
+Fix-round implementation commit: `0b4c587` (`fix: defer Slate focus through exclusive owners`).
