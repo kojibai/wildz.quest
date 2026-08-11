@@ -191,8 +191,15 @@ async (page) => {
       const height = Math.max(0, Math.min(ar.bottom, br.bottom) - Math.max(ar.y, br.y));
       collisions.push({ a: ak, b: bk, area: width * height, width, height });
     }
-    const targetRoots = Object.values(selectorMap).join(",");
-    const targets = Array.from(document.querySelectorAll(`${targetRoots.split(",").map((root) => `${root} button`).join(",")}, .wilds-audio-settings summary`)).filter((element) => {
+    const targetElements = [...new Set(Object.values(selectorMap).flatMap((selector) => {
+      const root = document.querySelector(selector);
+      if (!(root instanceof HTMLElement)) return [];
+      return [
+        ...(root.matches("button, summary") ? [root] : []),
+        ...root.querySelectorAll("button, summary")
+      ];
+    }))];
+    const targets = targetElements.filter((element) => {
       const style = getComputedStyle(element); const r = element.getBoundingClientRect();
       return style.display !== "none" && style.visibility !== "hidden" && r.width > 0 && r.height > 0;
     }).map((element) => { const r = element.getBoundingClientRect(); return { label: element.getAttribute("aria-label") ?? element.textContent?.trim().slice(0, 50) ?? null, width: r.width, height: r.height, floor44: r.width >= 44 && r.height >= 44 }; });

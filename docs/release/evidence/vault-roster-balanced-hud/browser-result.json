@@ -1,6 +1,6 @@
 {
   "schema": "wildz.vault-roster-balanced-hud.browser.v1",
-  "capturedAt": "2026-08-11T11:25:30.899Z",
+  "capturedAt": "2026-08-11T11:41:22.585Z",
   "baseUrl": "http://127.0.0.1:49817/",
   "buildId": "9sYHunZv9Fb2Jn8qLGnlF",
   "productCommit": "cea7b57",
@@ -29,7 +29,7 @@
     },
     "vaultCards": [
       "0 XPToiusapStage 1 · uncommon · Bond 079 PWR · Verified",
-      "44 XPNeiatidStage 1 · trail · Bond 1161 PWR · Offline sealed"
+      "48 XPNeiatidStage 1 · trail · Bond 1261 PWR · Offline sealed"
     ],
     "vaultManifests": {
       "Toiusap": {
@@ -96,13 +96,13 @@
       },
       {
         "id": "wilds:223616f27f33bc5b5fa273d9",
-        "label": "Neiatid, level 1, 44 XP, bond 11, Ready",
+        "label": "Neiatid, level 1, 48 XP, bond 12, Ready",
         "active": false
       }
     ],
     "slateButtonRect": {
       "x": 290.40625,
-      "y": 612.859375,
+      "y": 667.703125,
       "width": 184,
       "height": 108
     },
@@ -176,23 +176,23 @@
           },
           "state": {
             "player": {
-              "x": 4.6404511615158155,
-              "z": -11.984548508065226
+              "x": 4.830643025709528,
+              "z": -12.847726968636687
             },
             "selectedCardId": "mossbeak",
             "discovered": 2,
             "missionProgress": 50,
-            "energy": 41,
+            "energy": 38,
             "combo": 1
           },
           "render": {
-            "calls": 89,
-            "triangles": 49850,
-            "points": 30,
+            "calls": 92,
+            "triangles": 53220,
+            "points": 39,
             "lines": 0
           },
           "memory": {
-            "geometries": 88,
+            "geometries": 95,
             "textures": 3
           },
           "quality": {
@@ -201,8 +201,8 @@
           },
           "budget": {
             "withinBudget": true,
-            "drawCallRatio": 0.55625,
-            "triangleRatio": 0.27694444444444444
+            "drawCallRatio": 0.575,
+            "triangleRatio": 0.2956666666666667
           },
           "warningFreeCompatibility": {
             "three": "0.182.0",
@@ -818,6 +818,18 @@
         "positiveCollisions": [],
         "targets": [
           {
+            "label": "Open profile for Wildz Explorer, explorer level 7, 38% energy",
+            "width": 112,
+            "height": 50,
+            "floor44": true
+          },
+          {
+            "label": "Open mission details · 50% progress",
+            "width": 112,
+            "height": 58,
+            "floor44": true
+          },
+          {
             "label": "World reconnecting",
             "width": 44,
             "height": 44,
@@ -836,7 +848,7 @@
             "floor44": true
           },
           {
-            "label": "Open living Command Center. Beat step pulse 21:03:02",
+            "label": "Open living Command Center. Beat step pulse 21:19:07",
             "width": 73.421875,
             "height": 44,
             "floor44": true
@@ -878,7 +890,7 @@
             "floor44": true
           },
           {
-            "label": "Neiatid, level 1, 44 XP, bond 11, Ready, active",
+            "label": "Neiatid, level 1, 48 XP, bond 12, Ready, active",
             "width": 172,
             "height": 96,
             "floor44": true
@@ -895,9 +907,9 @@
       "preview": {
         "rect": {
           "x": 36,
-          "y": 304.578125,
+          "y": 307.578125,
           "width": 272,
-          "height": 170.421875,
+          "height": 167.421875,
           "right": 308,
           "bottom": 475
         },
@@ -907,9 +919,9 @@
       "expanded": {
         "rect": {
           "x": 36,
-          "y": 177.484375,
+          "y": 180.390625,
           "width": 272,
-          "height": 297.515625,
+          "height": 294.609375,
           "right": 308,
           "bottom": 475
         },
@@ -931,11 +943,11 @@
         "dialogCount": 1,
         "rect": {
           "x": 10,
-          "y": 37.61360549926758,
+          "y": 37.220821380615234,
           "width": 300,
-          "height": 522.5468559265137,
+          "height": 522.5468788146973,
           "right": 310,
-          "bottom": 560.1604614257812
+          "bottom": 559.7677001953125
         },
         "homesInert": [
           {
@@ -1013,23 +1025,23 @@
           },
           "state": {
             "player": {
-              "x": 4.6404511615158155,
-              "z": -11.984548508065226
+              "x": 4.830643025709528,
+              "z": -12.847726968636687
             },
             "selectedCardId": "mossbeak",
             "discovered": 2,
             "missionProgress": 50,
-            "energy": 41,
+            "energy": 38,
             "combo": 1
           },
           "render": {
-            "calls": 88,
-            "triangles": 49840,
+            "calls": 89,
+            "triangles": 53200,
             "points": 30,
             "lines": 0
           },
           "memory": {
-            "geometries": 88,
+            "geometries": 95,
             "textures": 3
           },
           "quality": {
@@ -1038,8 +1050,8 @@
           },
           "budget": {
             "withinBudget": true,
-            "drawCallRatio": 0.55,
-            "triangleRatio": 0.2768888888888889
+            "drawCallRatio": 0.55625,
+            "triangleRatio": 0.29555555555555557
           },
           "warningFreeCompatibility": {
             "three": "0.182.0",
@@ -1655,6 +1667,18 @@
         "positiveCollisions": [],
         "targets": [
           {
+            "label": "Open profile for Wildz Explorer, explorer level 7, 38% energy",
+            "width": 151.1875,
+            "height": 50,
+            "floor44": true
+          },
+          {
+            "label": "Open mission details · 50% progress",
+            "width": 112,
+            "height": 58,
+            "floor44": true
+          },
+          {
             "label": "World reconnecting",
             "width": 44,
             "height": 44,
@@ -1673,7 +1697,7 @@
             "floor44": true
           },
           {
-            "label": "Open living Command Center. Beat step pulse 21:03:02",
+            "label": "Open living Command Center. Beat step pulse 21:19:07",
             "width": 73.421875,
             "height": 44,
             "floor44": true
@@ -1715,7 +1739,7 @@
             "floor44": true
           },
           {
-            "label": "Neiatid, level 1, 44 XP, bond 11, Ready, active",
+            "label": "Neiatid, level 1, 48 XP, bond 12, Ready, active",
             "width": 184,
             "height": 108,
             "floor44": true
@@ -1732,9 +1756,9 @@
       "preview": {
         "rect": {
           "x": 81.609375,
-          "y": 531.984375,
+          "y": 532.796875,
           "width": 266.390625,
-          "height": 167.828125,
+          "height": 167.015625,
           "right": 348,
           "bottom": 699.8125
         },
@@ -1744,9 +1768,9 @@
       "expanded": {
         "rect": {
           "x": 81.609375,
-          "y": 323.21875,
+          "y": 322.65625,
           "width": 266.390625,
-          "height": 376.59375,
+          "height": 377.15625,
           "right": 348,
           "bottom": 699.8125
         },
@@ -1768,11 +1792,11 @@
         "dialogCount": 1,
         "rect": {
           "x": 10,
-          "y": 56.084468841552734,
+          "y": 56.105934143066406,
           "width": 340,
-          "height": 736.0000038146973,
+          "height": 736.0000228881836,
           "right": 350,
-          "bottom": 792.08447265625
+          "bottom": 792.10595703125
         },
         "homesInert": [
           {
@@ -1850,23 +1874,23 @@
           },
           "state": {
             "player": {
-              "x": 4.6404511615158155,
-              "z": -11.984548508065226
+              "x": 4.830643025709528,
+              "z": -12.847726968636687
             },
             "selectedCardId": "mossbeak",
             "discovered": 2,
             "missionProgress": 50,
-            "energy": 41,
+            "energy": 38,
             "combo": 1
           },
           "render": {
-            "calls": 88,
-            "triangles": 49840,
-            "points": 30,
+            "calls": 90,
+            "triangles": 67912,
+            "points": 42,
             "lines": 0
           },
           "memory": {
-            "geometries": 88,
+            "geometries": 96,
             "textures": 3
           },
           "quality": {
@@ -1875,8 +1899,8 @@
           },
           "budget": {
             "withinBudget": true,
-            "drawCallRatio": 0.55,
-            "triangleRatio": 0.2768888888888889
+            "drawCallRatio": 0.5625,
+            "triangleRatio": 0.3772888888888889
           },
           "warningFreeCompatibility": {
             "three": "0.182.0",
@@ -2492,6 +2516,18 @@
         "positiveCollisions": [],
         "targets": [
           {
+            "label": "Open profile for Wildz Explorer, explorer level 7, 38% energy",
+            "width": 163.796875,
+            "height": 50,
+            "floor44": true
+          },
+          {
+            "label": "Open mission details · 50% progress",
+            "width": 112,
+            "height": 58,
+            "floor44": true
+          },
+          {
             "label": "World reconnecting",
             "width": 44,
             "height": 44,
@@ -2510,7 +2546,7 @@
             "floor44": true
           },
           {
-            "label": "Open living Command Center. Beat step pulse 21:03:02",
+            "label": "Open living Command Center. Beat step pulse 21:19:07",
             "width": 73.421875,
             "height": 44,
             "floor44": true
@@ -2552,7 +2588,7 @@
             "floor44": true
           },
           {
-            "label": "Neiatid, level 1, 44 XP, bond 11, Ready, active",
+            "label": "Neiatid, level 1, 48 XP, bond 12, Ready, active",
             "width": 184,
             "height": 108,
             "floor44": true
@@ -2569,9 +2605,9 @@
       "preview": {
         "rect": {
           "x": 89.40625,
-          "y": 566.671875,
+          "y": 570.25,
           "width": 288.59375,
-          "height": 170.53125,
+          "height": 166.953125,
           "right": 378,
           "bottom": 737.203125
         },
@@ -2581,9 +2617,9 @@
       "expanded": {
         "rect": {
           "x": 89.40625,
-          "y": 334.21875,
+          "y": 342.5625,
           "width": 288.59375,
-          "height": 402.984375,
+          "height": 394.640625,
           "right": 378,
           "bottom": 737.203125
         },
@@ -2605,11 +2641,11 @@
         "dialogCount": 1,
         "rect": {
           "x": 10,
-          "y": 59.24565505981445,
+          "y": 59.64463806152344,
           "width": 370,
-          "height": 776.4687614440918,
+          "height": 776.4687652587891,
           "right": 380,
-          "bottom": 835.7144165039062
+          "bottom": 836.1134033203125
         },
         "homesInert": [
           {
@@ -2687,23 +2723,23 @@
           },
           "state": {
             "player": {
-              "x": 4.6404511615158155,
-              "z": -11.984548508065226
+              "x": 4.830643025709528,
+              "z": -12.847726968636687
             },
             "selectedCardId": "mossbeak",
             "discovered": 2,
             "missionProgress": 50,
-            "energy": 41,
+            "energy": 38,
             "combo": 1
           },
           "render": {
-            "calls": 89,
-            "triangles": 64936,
+            "calls": 90,
+            "triangles": 67912,
             "points": 42,
             "lines": 0
           },
           "memory": {
-            "geometries": 89,
+            "geometries": 96,
             "textures": 3
           },
           "quality": {
@@ -2712,8 +2748,8 @@
           },
           "budget": {
             "withinBudget": true,
-            "drawCallRatio": 0.55625,
-            "triangleRatio": 0.36075555555555555
+            "drawCallRatio": 0.5625,
+            "triangleRatio": 0.3772888888888889
           },
           "warningFreeCompatibility": {
             "three": "0.182.0",
@@ -3329,6 +3365,18 @@
         "positiveCollisions": [],
         "targets": [
           {
+            "label": "Open profile for Wildz Explorer, explorer level 7, 38% energy",
+            "width": 180.59375,
+            "height": 50,
+            "floor44": true
+          },
+          {
+            "label": "Open mission details · 50% progress",
+            "width": 112,
+            "height": 58,
+            "floor44": true
+          },
+          {
             "label": "World reconnecting",
             "width": 44,
             "height": 44,
@@ -3347,7 +3395,7 @@
             "floor44": true
           },
           {
-            "label": "Open living Command Center. Beat step pulse 21:03:02",
+            "label": "Open living Command Center. Beat step pulse 21:19:08",
             "width": 73.421875,
             "height": 44,
             "floor44": true
@@ -3389,7 +3437,7 @@
             "floor44": true
           },
           {
-            "label": "Neiatid, level 1, 44 XP, bond 11, Ready, active",
+            "label": "Neiatid, level 1, 48 XP, bond 12, Ready, active",
             "width": 184,
             "height": 108,
             "floor44": true
@@ -3406,9 +3454,9 @@
       "preview": {
         "rect": {
           "x": 99.8125,
-          "y": 649.65625,
+          "y": 643.25,
           "width": 318.1875,
-          "height": 167.34375,
+          "height": 173.75,
           "right": 418,
           "bottom": 817
         },
@@ -3418,9 +3466,9 @@
       "expanded": {
         "rect": {
           "x": 99.8125,
-          "y": 423.046875,
+          "y": 413.796875,
           "width": 318.1875,
-          "height": 393.953125,
+          "height": 403.203125,
           "right": 418,
           "bottom": 817
         },
@@ -3442,11 +3490,11 @@
         "dialogCount": 1,
         "rect": {
           "x": 10,
-          "y": 66.72383880615234,
+          "y": 66.7210693359375,
           "width": 410,
-          "height": 857.4374771118164,
+          "height": 857.4375,
           "right": 420,
-          "bottom": 924.1613159179688
+          "bottom": 924.1585693359375
         },
         "homesInert": [
           {
@@ -3524,23 +3572,23 @@
           },
           "state": {
             "player": {
-              "x": 4.6404511615158155,
-              "z": -11.984548508065226
+              "x": 4.830643025709528,
+              "z": -12.847726968636687
             },
             "selectedCardId": "mossbeak",
             "discovered": 2,
             "missionProgress": 50,
-            "energy": 41,
+            "energy": 38,
             "combo": 1
           },
           "render": {
-            "calls": 125,
-            "triangles": 70670,
-            "points": 42,
+            "calls": 129,
+            "triangles": 73056,
+            "points": 51,
             "lines": 0
           },
           "memory": {
-            "geometries": 122,
+            "geometries": 126,
             "textures": 3
           },
           "quality": {
@@ -3549,8 +3597,8 @@
           },
           "budget": {
             "withinBudget": true,
-            "drawCallRatio": 0.78125,
-            "triangleRatio": 0.39261111111111113
+            "drawCallRatio": 0.80625,
+            "triangleRatio": 0.40586666666666665
           },
           "warningFreeCompatibility": {
             "three": "0.182.0",
@@ -4166,6 +4214,18 @@
         "positiveCollisions": [],
         "targets": [
           {
+            "label": "Open profile for Wildz Explorer, explorer level 7, 38% energy",
+            "width": 190,
+            "height": 50,
+            "floor44": true
+          },
+          {
+            "label": "Open mission details · 50% progress",
+            "width": 124,
+            "height": 51,
+            "floor44": true
+          },
+          {
             "label": "World reconnecting",
             "width": 138.953125,
             "height": 44,
@@ -4184,7 +4244,7 @@
             "floor44": true
           },
           {
-            "label": "Open living Command Center. Beat step pulse 21:03:02",
+            "label": "Open living Command Center. Beat step pulse 21:19:08",
             "width": 104,
             "height": 44,
             "floor44": true
@@ -4226,7 +4286,7 @@
             "floor44": true
           },
           {
-            "label": "Neiatid, level 1, 44 XP, bond 11, Ready, active",
+            "label": "Neiatid, level 1, 48 XP, bond 12, Ready, active",
             "width": 96.375,
             "height": 72,
             "floor44": true
@@ -4279,11 +4339,11 @@
         "dialogCount": 1,
         "rect": {
           "x": 10,
-          "y": 22.957719802856445,
+          "y": 23.714738845825195,
           "width": 824,
           "height": 358.79688835144043,
           "right": 834,
-          "bottom": 381.7546081542969
+          "bottom": 382.5116271972656
         },
         "homesInert": [
           {
@@ -4361,23 +4421,23 @@
           },
           "state": {
             "player": {
-              "x": 4.6404511615158155,
-              "z": -11.984548508065226
+              "x": 4.830643025709528,
+              "z": -12.847726968636687
             },
             "selectedCardId": "mossbeak",
             "discovered": 2,
             "missionProgress": 50,
-            "energy": 41,
+            "energy": 38,
             "combo": 1
           },
           "render": {
-            "calls": 95,
-            "triangles": 65008,
-            "points": 42,
+            "calls": 100,
+            "triangles": 67998,
+            "points": 51,
             "lines": 0
           },
           "memory": {
-            "geometries": 122,
+            "geometries": 126,
             "textures": 3
           },
           "quality": {
@@ -4386,8 +4446,8 @@
           },
           "budget": {
             "withinBudget": true,
-            "drawCallRatio": 0.59375,
-            "triangleRatio": 0.36115555555555556
+            "drawCallRatio": 0.625,
+            "triangleRatio": 0.37776666666666664
           },
           "warningFreeCompatibility": {
             "three": "0.182.0",
@@ -5003,6 +5063,18 @@
         "positiveCollisions": [],
         "targets": [
           {
+            "label": "Open profile for Wildz Explorer, explorer level 7, 38% energy",
+            "width": 258,
+            "height": 66,
+            "floor44": true
+          },
+          {
+            "label": "Open mission details · 50% progress",
+            "width": 184,
+            "height": 51,
+            "floor44": true
+          },
+          {
             "label": "World reconnecting",
             "width": 138.953125,
             "height": 44,
@@ -5021,7 +5093,7 @@
             "floor44": true
           },
           {
-            "label": "Open living Command Center. Beat step pulse 21:03:02",
+            "label": "Open living Command Center. Beat step pulse 21:19:08",
             "width": 79.421875,
             "height": 44,
             "floor44": true
@@ -5063,7 +5135,7 @@
             "floor44": true
           },
           {
-            "label": "Neiatid, level 1, 44 XP, bond 11, Ready, active",
+            "label": "Neiatid, level 1, 48 XP, bond 12, Ready, active",
             "width": 184,
             "height": 108,
             "floor44": true
@@ -5080,9 +5152,9 @@
       "preview": {
         "rect": {
           "x": 185.6875,
-          "y": 736.546875,
+          "y": 739.4375,
           "width": 568.3125,
-          "height": 170.453125,
+          "height": 167.5625,
           "right": 754,
           "bottom": 907
         },
@@ -5092,9 +5164,9 @@
       "expanded": {
         "rect": {
           "x": 185.6875,
-          "y": 512.515625,
+          "y": 511.71875,
           "width": 568.3125,
-          "height": 394.484375,
+          "height": 395.28125,
           "right": 754,
           "bottom": 907
         },
@@ -5116,11 +5188,11 @@
         "dialogCount": 1,
         "rect": {
           "x": 10,
-          "y": 325.1186218261719,
+          "y": 325.16143798828125,
           "width": 748,
-          "height": 691.0000305175781,
+          "height": 691,
           "right": 758,
-          "bottom": 1016.11865234375
+          "bottom": 1016.1614379882812
         },
         "homesInert": [
           {
@@ -5198,23 +5270,23 @@
           },
           "state": {
             "player": {
-              "x": 4.6404511615158155,
-              "z": -11.984548508065226
+              "x": 4.830643025709528,
+              "z": -12.847726968636687
             },
             "selectedCardId": "mossbeak",
             "discovered": 2,
             "missionProgress": 50,
-            "energy": 41,
+            "energy": 38,
             "combo": 1
           },
           "render": {
-            "calls": 118,
-            "triangles": 69998,
-            "points": 42,
+            "calls": 121,
+            "triangles": 71324,
+            "points": 51,
             "lines": 0
           },
           "memory": {
-            "geometries": 122,
+            "geometries": 126,
             "textures": 3
           },
           "quality": {
@@ -5223,8 +5295,8 @@
           },
           "budget": {
             "withinBudget": true,
-            "drawCallRatio": 0.7375,
-            "triangleRatio": 0.38887777777777777
+            "drawCallRatio": 0.75625,
+            "triangleRatio": 0.39624444444444445
           },
           "warningFreeCompatibility": {
             "three": "0.182.0",
@@ -5840,6 +5912,18 @@
         "positiveCollisions": [],
         "targets": [
           {
+            "label": "Open profile for Wildz Explorer, explorer level 7, 38% energy",
+            "width": 258,
+            "height": 66,
+            "floor44": true
+          },
+          {
+            "label": "Open mission details · 50% progress",
+            "width": 184,
+            "height": 51,
+            "floor44": true
+          },
+          {
             "label": "World reconnecting",
             "width": 138.953125,
             "height": 44,
@@ -5858,7 +5942,7 @@
             "floor44": true
           },
           {
-            "label": "Open living Command Center. Beat step pulse 21:03:03",
+            "label": "Open living Command Center. Beat step pulse 21:19:08",
             "width": 79.421875,
             "height": 44,
             "floor44": true
@@ -5900,7 +5984,7 @@
             "floor44": true
           },
           {
-            "label": "Neiatid, level 1, 44 XP, bond 11, Ready, active",
+            "label": "Neiatid, level 1, 48 XP, bond 12, Ready, active",
             "width": 184,
             "height": 108,
             "floor44": true
@@ -5917,9 +6001,9 @@
       "preview": {
         "rect": {
           "x": 806,
-          "y": 612.5,
+          "y": 612.8125,
           "width": 620,
-          "height": 170.5,
+          "height": 170.1875,
           "right": 1426,
           "bottom": 783
         },
@@ -5929,9 +6013,9 @@
       "expanded": {
         "rect": {
           "x": 806,
-          "y": 372.015625,
+          "y": 379.625,
           "width": 620,
-          "height": 410.984375,
+          "height": 403.375,
           "right": 1426,
           "bottom": 783
         },
@@ -5953,11 +6037,11 @@
         "dialogCount": 1,
         "rect": {
           "x": 280,
-          "y": 201.1571502685547,
+          "y": 200.78558349609375,
           "width": 880,
-          "height": 691.0000152587891,
+          "height": 691,
           "right": 1160,
-          "bottom": 892.1571655273438
+          "bottom": 891.7855834960938
         },
         "homesInert": [
           {
@@ -6006,7 +6090,7 @@
       "ownedOnly": true
     },
     "tapPower": {
-      "eventText": "Signal warm. Follow the search clue.",
+      "eventText": "Signal warm · closer. Follow the search clue.",
       "commandStillMounted": true
     },
     "holdSlide": {
@@ -6110,13 +6194,7 @@
     "consoleWarnings": [],
     "pageErrors": [],
     "httpErrors": [],
-    "failedRequests": [
-      {
-        "method": "GET",
-        "url": "http://127.0.0.1:49817/cards/wilds%3A123e00f59899025a366d578f?_rsc=1p-R_iEY6bj0jY31",
-        "error": "net::ERR_ABORTED"
-      }
-    ]
+    "failedRequests": []
   },
   "screenshots": [
     "output/playwright/task5-card-vault-toiusap-final.png",

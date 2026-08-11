@@ -21,7 +21,7 @@ const prefix = "docs/release/evidence/vault-roster-balanced-hud/";
 const selfPath = `${prefix}validate-vault-roster-hud.mjs`;
 const selfBytes = await readFile(fileURLToPath(import.meta.url));
 const selfInfo = await stat(fileURLToPath(import.meta.url));
-const expectedSelfByteLength = Number("19852");
+const expectedSelfByteLength = Number("21806");
 
 let manifestPath = resolve(bundleDir, "manifest.json");
 let resultPath = resolve(bundleDir, "browser-result.json");
@@ -65,6 +65,32 @@ const kaiHomesInert = [
   { selector: ".wilds-left-instrument-home", inert: true, ariaHidden: "true" },
   { selector: ".wildz-world-controls", inert: false, ariaHidden: null }
 ];
+const targetLabels = (beatStepPulse) => [
+  "Open profile for Wildz Explorer, explorer level 7, 38% energy",
+  "Open mission details · 50% progress",
+  "World reconnecting",
+  "Open global live explorers · connected worldwide",
+  "Share Wildz invite",
+  `Open living Command Center. Beat step pulse ${beatStepPulse}`,
+  "Wilds audio settings",
+  "Make camp and recover",
+  "Switch to walking",
+  "Movement trackpad. Running. Hold and drag in any direction to travel.",
+  "Open world tools",
+  "Toiusap, level 1, 0 XP, bond 0, Ready",
+  "Neiatid, level 1, 48 XP, bond 12, Ready, active",
+  "Neiatid. Tap to use Tide Pulse. Swipe sideways to change companion, swipe up for roster, or hold for abilities."
+];
+const expectedTargetLabelsByViewport = {
+  "320x568": targetLabels("21:19:07"),
+  "360x800": targetLabels("21:19:07"),
+  "390x844": targetLabels("21:19:07"),
+  "430x932": targetLabels("21:19:08"),
+  "844x390": targetLabels("21:19:08"),
+  "768x1024": targetLabels("21:19:08"),
+  "1440x900": targetLabels("21:19:08")
+};
+const expectedTargetCount = 14;
 const cards = {
   Toiusap: {
     id: "wilds:123e00f59899025a366d578f",
@@ -89,18 +115,18 @@ const cards = {
 };
 
 const expectedArtifactFiles = [
-  { path: `${prefix}battle-leader-neiatid.png`, sha256: "35101ddf488032c3b242bb2039837566ae0d7e91ceee5223b92036537af2f89b", bytes: 343344, mode: "0644" },
-  { path: `${prefix}browser-replay.js`, sha256: "064ff90dd312f1dc56ce47540f0387a45f5b99492ae9b32de16faf1f10d8ffe0", bytes: 31146, mode: "0644" },
-  { path: `${prefix}browser-result.json`, sha256: "d51ff2f81144d20aab0e441200ee44cc0e41beedc678b3345f0f18ab8b86a4ac", bytes: 148961, mode: "0644" },
-  { path: `${prefix}card-vault-toiusap.png`, sha256: "5895c6f9e12e1504433f4e8970f7ea6b158bb12a7115402a3a201e07be5ff2ad", bytes: 693194, mode: "0644" },
-  { path: `${prefix}resting-1440x900.png`, sha256: "3f9889a69a50460d79fc5317bea9aaad03c91e3b964f923e0c4db9961bc1556f", bytes: 1588297, mode: "0644" },
-  { path: `${prefix}resting-320x568.png`, sha256: "2e5aa1d9dfafa65faa0b9881c849ef90c7de5f128583f55df30d9652f8491a53", bytes: 544229, mode: "0644" },
-  { path: `${prefix}resting-360x800.png`, sha256: "4240663c62ada9548b0e0d575b3c595471ea6e9099151487cc96d74025ec79c7", bytes: 638805, mode: "0644" },
-  { path: `${prefix}resting-390x844.png`, sha256: "86a43c010b07d2696a4a3f423a516738abfa4f9a82daad3180714210286513fe", bytes: 733898, mode: "0644" },
-  { path: `${prefix}resting-430x932.png`, sha256: "15888fd8ab9f5c40722de82120899bc9ca148d3b445db7dc613a1924b11e01f1", bytes: 788121, mode: "0644" },
-  { path: `${prefix}resting-768x1024.png`, sha256: "a79f89e393254b052423a57a8fe623418b1b964ac8b5dd7ade1183b5ff8b0e26", bytes: 1123622, mode: "0644" },
-  { path: `${prefix}resting-844x390.png`, sha256: "34a6f1a57d413f1323733e177231b486edb06cc7bb0e5f6f49b68796b0b0c91a", bytes: 863436, mode: "0644" },
-  { path: `${prefix}slate-neiatid.png`, sha256: "ac2ae630fa55e117a54237ffc8a79cbab2bdfda2f97a110ca47f347d6189227e", bytes: 735422, mode: "0644" }
+  { path: `${prefix}battle-leader-neiatid.png`, sha256: "df732b8cb162ad6d109efe2ddabcb48745d62596a1c2b47dc03640978a6e60ef", bytes: 343060, mode: "0644" },
+  { path: `${prefix}browser-replay.js`, sha256: "ae463639d8cd3dd5e716e92f2e8fab88553f85f043a4f087ba021262e868129b", bytes: 31301, mode: "0644" },
+  { path: `${prefix}browser-result.json`, sha256: "d60bc6725863d6c085dd9d5e402604e2c8862e72f3a24cb28ccde34420822151", bytes: 151249, mode: "0644" },
+  { path: `${prefix}card-vault-toiusap.png`, sha256: "0da7d5fedf7f14fbb3cb4bad560ce30f8577202aaf7b250cbb691b954937cc04", bytes: 691408, mode: "0644" },
+  { path: `${prefix}resting-1440x900.png`, sha256: "6907076741497ca8baafd9cc0a1c1a8748921daf3d1034a05b4604bbe29a7fe5", bytes: 1601787, mode: "0644" },
+  { path: `${prefix}resting-320x568.png`, sha256: "7f9303d0a67afac4cdc85f1455fe07de2c8d652e8836cac5c51ce8d963698a67", bytes: 508577, mode: "0644" },
+  { path: `${prefix}resting-360x800.png`, sha256: "969748f53f99e933a2113cc90fa9d9512be50856ae9cb1834ce2ab36cb5f5ae4", bytes: 612648, mode: "0644" },
+  { path: `${prefix}resting-390x844.png`, sha256: "0ae113770fe91650db61f2faed8e7dd2385f996c2f560b8ac1c31af318946b6b", bytes: 710982, mode: "0644" },
+  { path: `${prefix}resting-430x932.png`, sha256: "fb15fc219ad39f8fc3b05e58fdb2626e7187132a7babf7135ecae20f523e047c", bytes: 757709, mode: "0644" },
+  { path: `${prefix}resting-768x1024.png`, sha256: "3cfcd5dfcf582661cbacd97d66a8f4667c3f0f9558f9bd5d4fa4987a68080a9a", bytes: 1118825, mode: "0644" },
+  { path: `${prefix}resting-844x390.png`, sha256: "ed73eb141efe8d7c53f77915fbfd039bd0c500c8257cdc6c6b05f44eb67820ae", bytes: 842027, mode: "0644" },
+  { path: `${prefix}slate-neiatid.png`, sha256: "a71895ec03b25f6f691d05a83866afcbc5ea5728b93da6d9740689bc6cf524ad", bytes: 697414, mode: "0644" }
 ];
 const expectedFiles = [...expectedArtifactFiles, {
   path: selfPath,
@@ -215,6 +241,13 @@ for (const entry of result.matrix) {
   check(resting.diagnostics.render.calls > 0 && resting.diagnostics.render.triangles > 0, `${entry.size} renderer counters`);
   check(resting.diagnostics.memory.geometries > 0 && resting.diagnostics.memory.textures > 0, `${entry.size} renderer memory`);
   check(resting.diagnostics.budget.withinBudget === true, `${entry.size} renderer budget`);
+  check(resting.targets.length === expectedTargetCount, `${entry.size} exact target count`);
+  exact(resting.targets.map((target) => target.label).sort(), expectedTargetLabelsByViewport[entry.size].toSorted(), `${entry.size} exact target label set`);
+  check(resting.targets.every((target) => target.floor44 === true && target.width >= 44 && target.height >= 44), `${entry.size} target dimensions and floor flags`);
+  const explorerTarget = resting.targets.find((target) => target.label === expectedTargetLabelsByViewport[entry.size][0]);
+  const missionTarget = resting.targets.find((target) => target.label === expectedTargetLabelsByViewport[entry.size][1]);
+  check(explorerTarget?.width >= 44 && explorerTarget?.height >= 44, `${entry.size} Explorer root target floor`);
+  check(missionTarget?.width >= 44 && missionTarget?.height >= 44, `${entry.size} Mission root target floor`);
   check(resting.targetFloorFailures.length === 0, `${entry.size} target floors`);
   check(resting.safeBounds.every((surface) => surface.pass), `${entry.size} safe bounds`);
   check(resting.positiveCollisions.length === 0, `${entry.size} painted-surface collisions`);
@@ -231,7 +264,7 @@ for (const entry of result.matrix) {
 const interaction = result.interaction;
 check(interaction.twoTouchDuring.dpadPressed === "true" && interaction.twoTouchReleased === "false", "simultaneous touch release");
 exact(interaction.horizontalCycle, { before: "Neiatid", after: "Toiusap", restored: "Neiatid", ownedOnly: true }, "owned-only horizontal cycle");
-exact(interaction.tapPower, { eventText: "Signal warm. Follow the search clue.", commandStillMounted: true }, "tap power exact event and recovery");
+exact(interaction.tapPower, { eventText: "Signal warm · closer. Follow the search clue.", commandStillMounted: true }, "tap power exact event and recovery");
 check(interaction.holdSlide.wheelVisible === true && interaction.holdSlide.selected === "Mossbeak Bond", "hold-slide exact ability");
 exact(interaction.pointerCancel, { wheelCount: 0, mode: "wilds-companion-command-zone mode-pending" }, "pointer cancel");
 exact(interaction.lostCapture, { before: "true", after: "false" }, "lost pointer capture");
