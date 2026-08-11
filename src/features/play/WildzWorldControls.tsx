@@ -90,7 +90,9 @@ export function WildzWorldControls({
   const rest = useStableEvent(onRest);
   const requestHandled = useStableEvent(onRequestedCommandHandled);
   const drawerOriginRef = useRef<HTMLElement | null>(null);
+  const companionCommandRef = useRef<HTMLButtonElement | null>(null);
   const drawerFocusFrameRef = useRef<number | null>(null);
+  const previousDrawerSnapRef = useRef<"closed" | "preview" | "expanded">("closed");
   const controlsEnabled = (exclusiveOwner === "none" || exclusiveOwner === "command")
     && (overlayState.exclusiveOwner === "none" || overlayState.exclusiveOwner === "command");
   const panelOpen = exclusiveOwner === "command" && overlayState.panelKey !== null;
@@ -98,6 +100,7 @@ export function WildzWorldControls({
   const movementHomeBlocked = exclusiveOwner !== "none" || panelOpen;
   const toolsHomeBlocked = exclusiveOwner !== "none" && exclusiveOwner !== "command";
   const companionHomeBlocked = exclusiveOwner !== "none" || panelOpen;
+  const controlledDrawerSnap = worldHomesEnabled ? overlayState.drawerSnap : "closed";
   const handleInput = useCallback((input: WildsInput) => {
     if (worldHomesEnabled) forwardInput(input);
   }, [forwardInput, worldHomesEnabled]);
@@ -117,14 +120,17 @@ export function WildzWorldControls({
   useEffect(() => () => {
     if (drawerFocusFrameRef.current !== null) window.cancelAnimationFrame(drawerFocusFrameRef.current);
   }, []);
+  useEffect(() => {
+    if (previousDrawerSnapRef.current !== "closed" && controlledDrawerSnap === "closed") restoreDrawerOrigin();
+    previousDrawerSnapRef.current = controlledDrawerSnap;
+  }, [controlledDrawerSnap, restoreDrawerOrigin]);
   const handleDrawerSnapChange = useCallback((snap: "closed" | "preview" | "expanded") => {
     if (companionHomeBlocked) return;
     overlayDispatch({ type: "drawer", snap });
-    if (snap === "closed") restoreDrawerOrigin();
-  }, [companionHomeBlocked, overlayDispatch, restoreDrawerOrigin]);
+  }, [companionHomeBlocked, overlayDispatch]);
   const handleRequestDrawer = useCallback((snap: "preview" | "expanded") => {
     if (!worldHomesEnabled) return;
-    drawerOriginRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    drawerOriginRef.current = companionCommandRef.current;
     overlayDispatch({ type: "drawer", snap });
   }, [overlayDispatch, worldHomesEnabled]);
   const handleSelectCard = useCallback((assetId: string) => {
@@ -201,7 +207,7 @@ export function WildzWorldControls({
           entries={companionRoster}
           onCardOrderChange={changeCardOrder}
           onSelectCard={handleSelectCard}
-          snap={worldHomesEnabled ? overlayState.drawerSnap : "closed"}
+          snap={controlledDrawerSnap}
           onSnapChange={handleDrawerSnapChange}
         />
         <WildsCompanionCommand
@@ -209,6 +215,7 @@ export function WildzWorldControls({
           cancelSignal={gestureCancelSignal}
           cards={nearbyCards}
           fieldPowers={fieldPowers}
+          onCommandButtonReady={(button) => { companionCommandRef.current = button; }}
           onRequestDrawer={handleRequestDrawer}
           onAudioCue={worldHomesEnabled ? onAudioCue : undefined}
           onSelectAbility={handleSelectAbility}

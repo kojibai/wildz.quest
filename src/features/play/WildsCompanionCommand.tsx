@@ -34,6 +34,7 @@ export function WildsCompanionCommand({
   onSelectAbility,
   selectedAbilityIndex,
   onRequestDrawer,
+  onCommandButtonReady,
   onAudioCue,
   cancelSignal = 0
 }: {
@@ -45,6 +46,7 @@ export function WildsCompanionCommand({
   onSelectAbility: (abilityIndex: number) => void;
   selectedAbilityIndex: number;
   onRequestDrawer: (snap: "preview" | "expanded") => void;
+  onCommandButtonReady?: (button: HTMLButtonElement | null) => void;
   onAudioCue?: (cue: WildsAudioCue) => void;
   cancelSignal?: number;
 }) {
@@ -319,7 +321,10 @@ export function WildsCompanionCommand({
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={finishPointer}
-      ref={commandButtonRef}
+      ref={(button) => {
+        commandButtonRef.current = button;
+        onCommandButtonReady?.(button);
+      }}
       type="button"
     >
       {previous ? <span aria-hidden="true" className="wilds-companion-peek previous"><WildsCreatureThumbnail asset={previous} /></span> : null}

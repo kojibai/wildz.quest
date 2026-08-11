@@ -16,7 +16,7 @@ export function creatureDrawerMetrics(viewportHeight: number, safeBottom = 0): C
   const available = clamp(Math.round((safeViewport - safeInset) * 0.52), 300, 438);
   return {
     closed: 32,
-    preview: Math.min(132, available),
+    preview: Math.min(184, available),
     expanded: available
   };
 }

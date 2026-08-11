@@ -92,6 +92,8 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   const drawerRef = useRef<HTMLElement>(null);
   const entryButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const entryFocusFrameRef = useRef<number | null>(null);
+  const pendingFocusAssetIdRef = useRef<string | null>(null);
+  const previousSnapRef = useRef<CreatureDrawerSnap>(snap);
   const railFrameRef = useRef<number | null>(null);
   const dragHeight = useRef<number | null>(null);
   const drag = useRef<{ startY: number; startHeight: number; lastY: number; lastAt: number; velocityY: number; moved: boolean } | null>(null);
@@ -107,6 +109,12 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
     }), [cardOrder, entries, entriesByAssetId]);
   const bookWindow = useMemo(() => creatureBookWindow(sortedEntries, bookPage, 1), [bookPage, sortedEntries]);
   const activeEntry = entries.find((entry) => entry.active) ?? null;
+  const activeIndex = sortedEntries.findIndex((entry) => entry.active);
+  const activeWindowRange = useMemo(() => {
+    const targetIndex = activeIndex >= 0 ? activeIndex : 0;
+    const start = Math.max(0, targetIndex - 4);
+    return { start, end: Math.min(sortedEntries.length, start + 12) };
+  }, [activeIndex, sortedEntries.length]);
   const activeForm = activeEntry ? creatureForm(activeEntry.asset.manifest.formId) : null;
   const changeCardOrder = useStableEvent(onCardOrderChange);
   const selectCard = useStableEvent(onSelectCard);
@@ -155,12 +163,33 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   }, []);
 
   useEffect(() => {
-    if (snap === "closed") return;
+    const opened = previousSnapRef.current === "closed" && snap !== "closed";
+    previousSnapRef.current = snap;
+    if (!opened) return;
+    const target = activeEntry ?? sortedEntries[0];
+    pendingFocusAssetIdRef.current = target?.asset.id ?? null;
+    setRange(activeWindowRange);
+    if (activeIndex >= 0) setBookPage(Math.floor(activeIndex / bookWindow.pageSize));
+  }, [activeEntry, activeIndex, activeWindowRange, bookWindow.pageSize, snap, sortedEntries]);
+
+  useEffect(() => {
+    const assetId = pendingFocusAssetIdRef.current;
+    if (!assetId || snap === "closed") return;
     entryFocusFrameRef.current = window.requestAnimationFrame(() => {
       entryFocusFrameRef.current = null;
-      const target = activeEntry ?? sortedEntries[0];
-      entryButtonRefs.current.get(target?.asset.id ?? "")?.focus();
+      const target = entryButtonRefs.current.get(assetId);
+      if (!target) return;
+      target.focus();
+      pendingFocusAssetIdRef.current = null;
     });
+    return () => {
+      if (entryFocusFrameRef.current !== null) window.cancelAnimationFrame(entryFocusFrameRef.current);
+      entryFocusFrameRef.current = null;
+    };
+  }, [bookPage, range, snap, sortedEntries]);
+
+  useEffect(() => {
+    if (snap === "closed") return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
@@ -172,20 +201,22 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
       entryFocusFrameRef.current = null;
       window.removeEventListener("keydown", closeOnEscape);
     };
-  }, [activeEntry, onSnapChange, snap, sortedEntries]);
+  }, [onSnapChange, snap]);
 
   useEffect(() => {
     if (snap !== "expanded") return;
-    const focusableEntries = () => Array.from(drawerRef.current?.querySelectorAll<HTMLButtonElement>(".wildz-creature-choice") ?? []);
+    const focusables = () => Array.from(drawerRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+    ) ?? []);
     const containFocus = (event: FocusEvent) => {
-      if (event.target instanceof Node && !drawerRef.current?.contains(event.target)) focusableEntries()[0]?.focus();
+      if (event.target instanceof Node && !drawerRef.current?.contains(event.target)) focusables()[0]?.focus();
     };
     const trapFocus = (event: KeyboardEvent) => {
       if (event.key !== "Tab") return;
-      const choices = focusableEntries();
-      if (!choices.length) return;
-      const first = choices[0]!;
-      const last = choices[choices.length - 1]!;
+      const items = focusables();
+      if (!items.length) return;
+      const first = items[0]!;
+      const last = items[items.length - 1]!;
       if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();

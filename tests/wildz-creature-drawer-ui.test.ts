@@ -39,9 +39,22 @@ test("selecting a roster entry uses its exact asset id, closes, and restores the
 
   assert.match(drawer, /onClick=\{\(\) => selectAndClose\(entry\.asset\.id\)\}/);
   assert.match(drawer, /selectCard\(assetId\);[\s\S]*?onSnapChange\("closed"\)/);
-  assert.match(controls, /drawerOriginRef\.current = document\.activeElement instanceof HTMLElement \? document\.activeElement : null/);
+  assert.match(controls, /companionCommandRef/);
+  assert.match(controls, /drawerOriginRef\.current = companionCommandRef\.current/);
   assert.match(controls, /canRestoreFocus\(drawerOriginRef\.current\)/);
   assert.match(controls, /window\.requestAnimationFrame/);
+  assert.match(controls, /previousDrawerSnapRef/);
+});
+
+test("opening a virtualized roster renders its active entry before focusing it and traps every drawer control", () => {
+  const drawer = readFileSync(drawerPath, "utf8");
+
+  assert.match(drawer, /const activeIndex = sortedEntries\.findIndex/);
+  assert.match(drawer, /setRange\(activeWindowRange/);
+  assert.match(drawer, /setBookPage\(Math\.floor\(activeIndex \/ bookWindow\.pageSize\)\)/);
+  assert.match(drawer, /pendingFocusAssetIdRef/);
+  assert.match(drawer, /button:not\(\[disabled\]\), select:not\(\[disabled\]\)/);
+  assert.match(drawer, /focusables\(\)\[0\]/);
 });
 
 test("drawer exposes three wordless states with automatic roster windowing", () => {
@@ -61,6 +74,9 @@ test("drawer exposes three wordless states with automatic roster windowing", () 
   assert.doesNotMatch(css, /\.wildz-creature-drawer-handle\s*\{[^}]*transform:\s*translate\(50%, 50%\)/s);
   assert.match(css, /\.wildz-creature-window\s*\{[^}]*touch-action:\s*pan-x/s);
   assert.match(css, /\.wildz-creature-spread\s*\{[^}]*overflow-y:\s*auto/s);
+  assert.match(css, /\.wildz-creature-drawer-tools select\s*\{[^}]*min-height:\s*44px/s);
+  assert.match(css, /\.wildz-creature-drawer-tools\s*\{[^}]*min-height:\s*44px/s);
+  assert.match(css, /\.wildz-companion-home \.wildz-creature-stat-row\s*\{[^}]*display:\s*flex/s);
   assert.match(css, /@media \(max-width: 350px\) \{[\s\S]*\.wildz-creature-choice\s*\{[^}]*min-height:\s*96px/s);
   assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\) \{[\s\S]*\.wildz-creature-spread\s*\{[^}]*grid-template-columns:\s*repeat\(4,/s);
 });
@@ -81,7 +97,8 @@ test("companion command opens the controlled living roster while Vault and Trail
   const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
   const drawerSource = readFileSync(drawerPath, "utf8");
 
-  assert.match(controls, /snap=\{worldHomesEnabled \? overlayState\.drawerSnap : "closed"\}/);
+  assert.match(controls, /const controlledDrawerSnap = worldHomesEnabled \? overlayState\.drawerSnap : "closed";/);
+  assert.match(controls, /snap=\{controlledDrawerSnap\}/);
   assert.match(controls, /onSnapChange=\{handleDrawerSnapChange\}/);
   assert.match(controls, /onRequestDrawer=\{handleRequestDrawer\}/);
   assert.match(campaign, /key: "deck"/);
@@ -90,4 +107,16 @@ test("companion command opens the controlled living roster while Vault and Trail
   assert.match(drawerSource, /snap: CreatureDrawerSnap/);
   assert.match(drawerSource, /onSnapChange: \(snap: CreatureDrawerSnap\) => void/);
   assert.doesNotMatch(drawerSource, /useState<CreatureDrawerSnap>\("closed"\)/);
+});
+
+test("development browser fixture renders the real drawer with a non-first active card and controlled origin restore", () => {
+  const fixture = readFileSync("src/features/play/CreatureDrawerBrowserFixture.tsx", "utf8");
+
+  assert.match(fixture, /WildzCreatureDrawer/);
+  assert.match(fixture, /sealCollectedCard/);
+  assert.match(fixture, /initialFixtureAssetId = fixtureAssets\[2\]!\.id/);
+  assert.match(fixture, /selection-count/);
+  assert.match(fixture, /data-expected-active-index="14"/);
+  assert.match(fixture, /previousSnapRef/);
+  assert.match(fixture, /originRef\.current\?\.focus\(\)/);
 });

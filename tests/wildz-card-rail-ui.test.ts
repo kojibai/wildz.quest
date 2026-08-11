@@ -102,6 +102,12 @@ test("the single-row rail is scroll-ready before opening and clears the final cr
   assert.match(css, /\.wildz-creature-window-end\s*\{[^}]*flex:\s*0 0 40px/s);
 });
 
+test("preview height keeps the full stat card below the accessible sort control", () => {
+  const metrics = readFileSync("src/features/play/creature-drawer.ts", "utf8");
+
+  assert.match(metrics, /preview: Math\.min\(184, available\)/);
+});
+
 test("inventory retains complete rarity newest and oldest owner preference", () => {
   const source = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
   const css = readFileSync("app/globals.css", "utf8");

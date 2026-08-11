@@ -13197,10 +13197,10 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wildz-creature-drawer-content { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; overflow: hidden; padding: 7px 2px 14px; border-bottom: 1px solid rgba(255,255,255,.06); opacity: 1; transition: opacity 90ms linear; }
 .wildz-creature-drawer.is-closed .wildz-creature-drawer-content { opacity: .001; pointer-events: none; }
 .wildz-creature-drawer.is-closed.is-dragging .wildz-creature-drawer-content { opacity: 1; }
-.wildz-creature-drawer-tools { display: flex; min-height: 28px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px; }
+.wildz-creature-drawer-tools { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px; }
 .wildz-creature-drawer-tools > span { overflow: hidden; color: #9baca0; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .wildz-creature-drawer-tools label { display: flex; align-items: center; gap: 5px; color: #8ea096; font-size: 8px; font-weight: 900; text-transform: uppercase; }
-.wildz-creature-drawer-tools select { min-height: 25px; padding: 0 24px 0 8px; border: 1px solid rgba(143, 215, 168, .22); border-radius: 9px; color: #dff4e5; background: #17261f; font: inherit; text-transform: none; }
+.wildz-creature-drawer-tools select { min-height: 44px; padding: 0 24px 0 8px; border: 1px solid rgba(143, 215, 168, .22); border-radius: 9px; color: #dff4e5; background: #17261f; font: inherit; text-transform: none; }
 .wildz-creature-window { display: flex; min-height: 0; gap: 8px; overflow-x: auto; overflow-y: hidden; overflow-anchor: none; scroll-snap-type: x proximity; scrollbar-width: none; overscroll-behavior-inline: contain; touch-action: pan-x; -webkit-overflow-scrolling: touch; }
 .wildz-creature-window::-webkit-scrollbar,
 .wildz-creature-book::-webkit-scrollbar { display: none; }
@@ -15052,14 +15052,14 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   }
 
   .wildz-companion-home .wildz-creature-drawer-content { padding: 5px 6px 8px; }
-  .wildz-companion-home .wildz-creature-drawer-tools { min-height: 24px; }
+  .wildz-companion-home .wildz-creature-drawer-tools { min-height: 44px; }
   .wildz-companion-home .wildz-creature-book { scroll-snap-type: y proximity; }
   .wildz-companion-home .wildz-creature-spread { min-height: 148px; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(72px, 1fr)); gap: 5px; padding-bottom: 5px; }
   .wildz-companion-home .wildz-creature-choice-shell { width: 100%; min-width: 0; min-height: 72px; }
   .wildz-companion-home .wildz-creature-choice { min-height: 72px; grid-template-columns: 40px minmax(0, 1fr); gap: 5px; padding: 5px; }
   .wildz-companion-home .wildz-creature-choice-copy { gap: 1px; }
   .wildz-companion-home .wildz-creature-xp-meter { height: 3px; }
-  .wildz-companion-home .wildz-creature-stat-row { display: none; }
+  .wildz-companion-home .wildz-creature-stat-row { display: flex; font-size: 6px; }
 
   .wildz-companion-home .wilds-companion-ability-wheel {
     right: 0;
