@@ -197,6 +197,8 @@ export function PlayCampaign({
   const activeCard = selectedCard(state);
   const activeAsset = selectedAsset(state);
   const deckCards = state.inventory;
+  const priorVaultIdsRef = useRef(new Set(state.inventory.map((asset) => asset.id)));
+  const [newRosterAssetId, setNewRosterAssetId] = useState<string | null>(null);
   const vaultAdmittedCardPins = useRef(new Set(initialState.inventory.map(
     (asset) => `${asset.id}:${asset.proof.digest}`
   )));
@@ -209,6 +211,23 @@ export function PlayCampaign({
     cards: initialState.inventory,
     playerHandle: ownerReceizId
   }));
+  useEffect(() => {
+    const prior = priorVaultIdsRef.current;
+    const added = state.inventory.filter((asset) => !prior.has(asset.id));
+    priorVaultIdsRef.current = new Set(state.inventory.map((asset) => asset.id));
+    if (!added.length) return;
+    const newest = [...added].sort((left, right) =>
+      Date.parse(right.manifest.capturedAt) - Date.parse(left.manifest.capturedAt)
+    )[0];
+    setNewRosterAssetId(newest?.id ?? null);
+  }, [state.inventory]);
+  useEffect(() => {
+    if (!newRosterAssetId) return;
+    const timeout = window.setTimeout(() => {
+      setNewRosterAssetId((current) => current === newRosterAssetId ? null : current);
+    }, 6_000);
+    return () => window.clearTimeout(timeout);
+  }, [newRosterAssetId]);
   usePublicCardPublisher(publicCardCandidates, enabled && networkEnabled);
   const landmarkUnlocks = state.achievements;
   const activeProgress = state.companionProgress[activeCard.id] ?? { level: 1, xp: 0, bond: 0 };
@@ -714,6 +733,7 @@ export function PlayCampaign({
 
   const dispatch = (input: WildsInput) => {
     if (!interactionEnabled) return;
+    if (input.type === "select-asset") setNewRosterAssetId(null);
     setState((current) => {
       const next = applyWildsInput(current, input);
       if (!current.completed && next.completed) {
