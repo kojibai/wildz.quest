@@ -596,7 +596,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(campaign, /enabled: enabled && Boolean\(activeAsset\)/);
     assert.match(campaign, /style: explorerStyle/);
     assert.match(campaign, /remotePlayers=\{multiplayer\.remotePlayers\}/);
-    assert.match(campaign, /multiplayer\.activeBattle \? " pvp-active"/);
+    assert.match(campaign, /const combatSurface = projectPlayCombatSurface\(\{[\s\S]*pvp: Boolean\(multiplayer\.activeBattle\)[\s\S]*\}\)/);
+    assert.match(campaign, /combatSurface === "pvp" \? " pvp-active"/);
     assert.match(world, /function RemoteExplorer/);
     assert.match(world, /onSelectPlayer/);
     assert.match(world, /zIndexRange=\{\[12, 0\]\}/);

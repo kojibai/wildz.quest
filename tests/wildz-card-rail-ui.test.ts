@@ -8,29 +8,29 @@ function drawerSource() {
   return readFileSync(drawerPath, "utf8");
 }
 
-test("the active creature selector uses a bounded memoized drawer with Vault sorting", () => {
+test("the active creature selector uses a bounded memoized drawer with roster sorting", () => {
   const controls = readFileSync("src/features/play/WildzWorldControls.tsx", "utf8");
   const drawer = drawerSource();
 
   assert.match(controls, /<WildzCreatureDrawer/);
   assert.match(drawer, /memo\(function WildzCreatureDrawer/);
-  assert.match(drawer, /sortWildzCards\(nearbyCards, cardOrder\)/);
-  assert.match(drawer, /sortedCards\.slice\(range\.start, range\.end\)/);
-  assert.doesNotMatch(drawer, /sortedCards\.map\(/);
+  assert.match(drawer, /sortWildzCards\(entries\.map\(\(entry\) => entry\.asset\), cardOrder\)/);
+  assert.match(drawer, /sortedEntries\.slice\(range\.start, range\.end\)/);
+  assert.doesNotMatch(drawer, /nearbyCards/);
   assert.match(drawer, /aria-label="Sort creature selector"/);
   assert.match(drawer, /<option value="rarity">Rarity<\/option>/);
   assert.match(drawer, /<option value="newest">Newest<\/option>/);
   assert.match(drawer, /<option value="oldest">Oldest<\/option>/);
 });
 
-test("creature XP flows above the name and its verification check sits beside the name", () => {
+test("creature XP flows above the exact Vault name and its verification check sits beside the name", () => {
   const drawer = drawerSource();
   const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
   const thumbnail = readFileSync("src/features/play/WildsCreatureThumbnail.tsx", "utf8");
   const css = readFileSync("app/globals.css", "utf8");
 
-  assert.ok(drawer.indexOf("progress.xp") >= 0);
-  assert.ok(drawer.indexOf("progress.xp") < drawer.indexOf("wilds-creature-name"));
+  assert.ok(drawer.indexOf("entry.xp") >= 0);
+  assert.ok(drawer.indexOf("entry.xp") < drawer.indexOf("wilds-creature-name"));
   assert.match(drawer, /<WildsVerifiedBadge\s*\/>/);
   assert.match(inventory, /wilds-inventory-card-xp/);
   assert.match(inventory, /<WildsVerifiedBadge\s*\/>/);
@@ -38,11 +38,13 @@ test("creature XP flows above the name and its verification check sits beside th
   assert.match(css, /\.wilds-creature-verified\s*\{[^}]*position:\s*static/s);
 });
 
-test("the fully opened Slate keeps the same creature details as its one-row cards", () => {
+test("the fully opened Slate keeps complete living-roster details as its one-row cards", () => {
   const drawer = drawerSource();
   const css = readFileSync("app/globals.css", "utf8");
 
-  assert.match(drawer, /progress\.xp[\s\S]*progress\.level[\s\S]*asset\.manifest\.name[\s\S]*progress\.bond/);
+  for (const stat of ["entry.level", "entry.xp", "entry.name", "entry.bond", "entry.conditionLabel", "entry.element", "entry.species"]) {
+    assert.ok(drawer.includes(stat), `missing ${stat}`);
+  }
   assert.doesNotMatch(css, /\.wildz-creature-spread \.wildz-creature-choice-copy\s*\{[^}]*display:\s*none/s);
   assert.doesNotMatch(css, /\.wildz-creature-spread \.wildz-creature-choice\s*\{[^}]*grid-template-columns:/s);
 });
@@ -68,12 +70,12 @@ test("the drawer boundary receives no movement camera or player-position state",
   }
 });
 
-test("a 100-card fixture exposes a bounded drawer render window and eight-card book spreads", () => {
+test("a 100-entry fixture exposes a bounded drawer render window and living roster spreads", () => {
   const drawer = drawerSource();
 
   assert.match(drawer, /setRange\(\{ start: 0, end: 8 \}\)/);
   assert.match(drawer, /bookWindow\.pageSize/);
-  assert.match(drawer, /sortedCards\.slice\(start, start \+ bookWindow\.pageSize\)/);
+  assert.match(drawer, /sortedEntries\.slice\(start, start \+ bookWindow\.pageSize\)/);
   assert.doesNotMatch(drawer, /nearbyCards\.map\(|sortedCards\.map\(/);
 });
 
@@ -95,7 +97,7 @@ test("the single-row rail is scroll-ready before opening and clears the final cr
   const css = readFileSync("app/globals.css", "utf8");
 
   assert.match(drawer, /const windowStyle = mode !== "expanded"/);
-  assert.match(drawer, /creatureRailVirtualPadding\(sortedCards\.length, range\.start, range\.end, RAIL_CARD_EXTENT, 0\)/);
+  assert.match(drawer, /creatureRailVirtualPadding\(sortedEntries\.length, range\.start, range\.end, RAIL_CARD_EXTENT, 0\)/);
   assert.match(drawer, /className="wildz-creature-window-end"/);
   assert.match(css, /\.wildz-creature-window-end\s*\{[^}]*flex:\s*0 0 40px/s);
 });

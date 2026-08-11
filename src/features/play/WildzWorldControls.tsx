@@ -7,6 +7,8 @@ import { creatureForm } from "./creature-catalog";
 import type { PlayState, WildsInput } from "./game-state";
 import type { PortableCardAsset } from "./portable-card";
 import type { WildsAudioCue } from "./wilds-audio";
+import { canRestoreFocus } from "./focus-recovery";
+import { projectVaultCompanionRoster } from "./vault-companion-roster";
 import { WildsCommandDock, type WildsCommandItem, type WildsCommandKey } from "./WildsCommandDock";
 import { WildsCompanionCommand } from "./WildsCompanionCommand";
 import { WildzCreatureDrawer } from "./WildzCreatureDrawer";
@@ -40,7 +42,7 @@ export function WildzWorldControls({
   overlayDispatch,
   gestureCancelSignal,
   selectedAbilityIndex,
-  memorialAssetId,
+  newRosterAssetId,
   requestedCommand = null,
   onRequestedCommandHandled = ignore,
   onCardOrderChange,
@@ -49,7 +51,6 @@ export function WildzWorldControls({
   onMovementModeChange,
   onSelectCard,
   onSelectAbility,
-  onMemorialAssetChange,
   onRest,
   onAudioCue
 }: {
@@ -68,7 +69,7 @@ export function WildzWorldControls({
   overlayDispatch: (event: WorldOverlayEvent) => void;
   gestureCancelSignal: number;
   selectedAbilityIndex: number;
-  memorialAssetId: string | null;
+  newRosterAssetId: string | null;
   requestedCommand?: WildsCommandKey | null;
   onRequestedCommandHandled?: () => void;
   onCardOrderChange: (order: WildzCardSort) => void;
@@ -77,19 +78,19 @@ export function WildzWorldControls({
   onMovementModeChange: (mode: WildsMovementMode) => void;
   onSelectCard: (assetId: string) => void;
   onSelectAbility: (abilityIndex: number) => void;
-  onMemorialAssetChange: (assetId: string | null) => void;
   onRest: () => void;
   onAudioCue?: (cue: WildsAudioCue) => void;
 }) {
   const changeCardOrder = useStableEvent(onCardOrderChange);
   const selectCard = useStableEvent(onSelectCard);
   const selectAbility = useStableEvent(onSelectAbility);
-  const changeMemorialAsset = useStableEvent(onMemorialAssetChange);
   const forwardInput = useStableEvent(onInput);
   const invokeAction = useStableEvent(onAction);
   const changeMovementMode = useStableEvent(onMovementModeChange);
   const rest = useStableEvent(onRest);
   const requestHandled = useStableEvent(onRequestedCommandHandled);
+  const drawerOriginRef = useRef<HTMLElement | null>(null);
+  const drawerFocusFrameRef = useRef<number | null>(null);
   const controlsEnabled = (exclusiveOwner === "none" || exclusiveOwner === "command")
     && (overlayState.exclusiveOwner === "none" || overlayState.exclusiveOwner === "command");
   const panelOpen = exclusiveOwner === "command" && overlayState.panelKey !== null;
@@ -106,11 +107,25 @@ export function WildzWorldControls({
   const handlePanelKeyChange = useCallback((key: WildsCommandKey | null) => {
     if (!toolsHomeBlocked) overlayDispatch({ type: "panel", key });
   }, [overlayDispatch, toolsHomeBlocked]);
+  const restoreDrawerOrigin = useCallback(() => {
+    if (drawerFocusFrameRef.current !== null) window.cancelAnimationFrame(drawerFocusFrameRef.current);
+    drawerFocusFrameRef.current = window.requestAnimationFrame(() => {
+      drawerFocusFrameRef.current = null;
+      if (canRestoreFocus(drawerOriginRef.current)) drawerOriginRef.current.focus();
+    });
+  }, []);
+  useEffect(() => () => {
+    if (drawerFocusFrameRef.current !== null) window.cancelAnimationFrame(drawerFocusFrameRef.current);
+  }, []);
   const handleDrawerSnapChange = useCallback((snap: "closed" | "preview" | "expanded") => {
-    if (!companionHomeBlocked) overlayDispatch({ type: "drawer", snap });
-  }, [companionHomeBlocked, overlayDispatch]);
+    if (companionHomeBlocked) return;
+    overlayDispatch({ type: "drawer", snap });
+    if (snap === "closed") restoreDrawerOrigin();
+  }, [companionHomeBlocked, overlayDispatch, restoreDrawerOrigin]);
   const handleRequestDrawer = useCallback((snap: "preview" | "expanded") => {
-    if (worldHomesEnabled) overlayDispatch({ type: "drawer", snap });
+    if (!worldHomesEnabled) return;
+    drawerOriginRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    overlayDispatch({ type: "drawer", snap });
   }, [overlayDispatch, worldHomesEnabled]);
   const handleSelectCard = useCallback((assetId: string) => {
     if (worldHomesEnabled) selectCard(assetId);
@@ -132,6 +147,13 @@ export function WildzWorldControls({
     return form?.abilities.map((ability, index) => ({ id: `${form.id}:${index}`, label: ability.name }))
       ?? [{ id: "context", label: action.label }];
   }, [action.label, activeCard]);
+  const companionRoster = useMemo(() => projectVaultCompanionRoster({
+    inventory: nearbyCards,
+    companionProgress,
+    cardConditions,
+    activeAssetId: activeCard?.id ?? null,
+    newAssetId: newRosterAssetId
+  }), [activeCard?.id, cardConditions, companionProgress, nearbyCards, newRosterAssetId]);
 
   useEffect(() => {
     if (requestedCommand && exclusiveOwner !== "none") requestHandled();
@@ -175,15 +197,10 @@ export function WildzWorldControls({
 
       <div aria-hidden={companionHomeBlocked} className="wildz-companion-home" inert={companionHomeBlocked ? true : undefined}>
         <WildzCreatureDrawer
-          activeCard={activeCard}
           cardOrder={cardOrder}
-          cardConditions={cardConditions}
-          companionProgress={companionProgress}
-          memorialAssetId={memorialAssetId}
-          nearbyCards={nearbyCards}
+          entries={companionRoster}
           onCardOrderChange={changeCardOrder}
           onSelectCard={handleSelectCard}
-          onMemorialAssetChange={changeMemorialAsset}
           snap={worldHomesEnabled ? overlayState.drawerSnap : "closed"}
           onSnapChange={handleDrawerSnapChange}
         />

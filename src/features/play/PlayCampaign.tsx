@@ -1377,8 +1377,8 @@ export function PlayCampaign({
               dismissSignal={commandDismissSignal}
               exclusiveOwner={exclusiveOwner}
               gestureCancelSignal={gestureCancelSignal}
+              newRosterAssetId={newRosterAssetId}
               selectedAbilityIndex={selectedAbilityIndex}
-              memorialAssetId={exclusiveOwner === "memorial" ? memorialAssetId : null}
               movementMode={movementMode}
               nearbyCards={state.inventory}
               overlayDispatch={dispatchStageOverlay}
@@ -1394,11 +1394,6 @@ export function PlayCampaign({
               onSelectAbility={(abilityIndex) => {
                 if (!activeAsset || !canUseWorldStage()) return;
                 setSelectedAbilityByAssetId((current) => ({ ...current, [activeAsset.id]: abilityIndex }));
-              }}
-              onMemorialAssetChange={(assetId) => {
-                if (assetId) claimPlayModalOwner("memorial");
-                else releasePlayModalOwner("memorial");
-                setMemorialAssetId(assetId);
               }}
               requestedCommand={requestedCommand}
             />

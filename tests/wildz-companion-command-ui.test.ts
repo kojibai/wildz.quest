@@ -55,8 +55,8 @@ test("the command requests controlled drawer snaps and replaces the duplicate ac
   const command = read("src/features/play/WildsCompanionCommand.tsx");
   const drawer = read("src/features/play/WildzCreatureDrawer.tsx");
   assert.match(command, /onRequestDrawer\("preview"\)/);
-  assert.match(drawer, /requestedSnap/);
-  assert.match(drawer, /onRequestedSnapHandled/);
+  assert.match(drawer, /onSnapChange: \(snap: CreatureDrawerSnap\) => void/);
+  assert.doesNotMatch(drawer, /useState<CreatureDrawerSnap>\("closed"\)/);
   assert.match(read("src/features/play/WildzWorldControls.tsx"), /<WildsCompanionCommand/);
 });
 

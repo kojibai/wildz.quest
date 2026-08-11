@@ -1,7 +1,6 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type UIEvent } from "react";
-import { createPortal } from "react-dom";
 import { Icons } from "@/components/icons";
 import { sortWildzCards, type WildzCardSort } from "./card-sort";
 import {
@@ -13,15 +12,10 @@ import {
   type CreatureDrawerSnap
 } from "./creature-drawer";
 import { creatureForm } from "./creature-catalog";
-import type { PlayState } from "./game-state";
-import type { PortableCardAsset } from "./portable-card";
+import type { VaultCompanionRosterEntry } from "./vault-companion-roster";
 import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
-import { currentRevision } from "./living-card-proof";
-import { isLivingCardAsset } from "./living-card-types";
 import { playHapticPattern } from "./wilds-haptics";
-import { WildsCardScene } from "./WildsCardScene";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
-import { canRestoreFocus } from "./focus-recovery";
 
 const RAIL_CARD_EXTENT = 184;
 const RAIL_END_GUTTER = 40;
@@ -35,87 +29,69 @@ function useStableEvent<Arguments extends unknown[]>(handler: (...args: Argument
 }
 
 const CreatureChoice = memo(function CreatureChoice({
-  asset,
-  active,
-  progress,
+  entry,
   logicalPosition,
   total,
-  onSelect,
-  onInspect,
-  retired
+  selectAndClose,
+  buttonRef
 }: {
-  asset: PortableCardAsset;
-  active: boolean;
-  progress: { level: number; xp: number; bond: number };
+  entry: VaultCompanionRosterEntry;
   logicalPosition: number;
   total: number;
-  onSelect: (assetId: string) => void;
-  onInspect: (assetId: string, origin: HTMLButtonElement) => void;
-  retired: boolean;
+  selectAndClose: (assetId: string) => void;
+  buttonRef: (element: HTMLButtonElement | null) => void;
 }) {
-  const form = creatureForm(asset.manifest.formId);
   return <article
     aria-posinset={logicalPosition}
     aria-setsize={total}
-    data-wildz-card-id={asset.id}
     className="wildz-creature-choice-shell"
+    data-wildz-card-id={entry.asset.id}
     role="listitem"
   >
     <button
-      aria-label={`${asset.manifest.name}, creature ${logicalPosition} of ${total}${retired ? ", retired memorial" : active ? ", active" : ""}`}
-      aria-pressed={active}
-      className={`wildz-creature-choice${retired ? " is-retired" : ""}`}
-      onClick={(event) => retired ? onInspect(asset.id, event.currentTarget) : onSelect(asset.id)}
+      aria-label={`${entry.name}, level ${entry.level}, ${entry.xp} XP, bond ${entry.bond}, ${entry.conditionLabel}${entry.active ? ", active" : ""}${entry.newlyCaptured ? ", new" : ""}`}
+      aria-pressed={entry.active}
+      className="wildz-creature-choice"
+      onClick={() => selectAndClose(entry.asset.id)}
+      ref={buttonRef}
       type="button"
     >
-      <WildsCreatureThumbnail asset={asset} className="wildz-slate-creature-art" />
+      <WildsCreatureThumbnail asset={entry.asset} className="wildz-slate-creature-art" />
       <span className="wildz-creature-choice-copy">
-        <small>{progress.xp} XP · Lv. {progress.level}</small>
-        <strong className="wilds-creature-name"><span>{asset.manifest.name}</span><WildsVerifiedBadge /></strong>
-        <em>{form?.element ?? asset.manifest.species} · Bond {progress.bond}</em>
+        <span className="wildz-creature-choice-kicker"><b>Lv. {entry.level}</b><i>{entry.xp} XP</i></span>
+        <strong className="wilds-creature-name"><span>{entry.name}</span><WildsVerifiedBadge /></strong>
+        <span aria-valuemax={100} aria-valuemin={0} aria-valuenow={entry.xp % 100} className="wildz-creature-xp-meter" role="progressbar"><i style={{ width: `${entry.xp % 100}%` }} /></span>
+        <em>{entry.element} · {entry.species}</em>
+        <span className="wildz-creature-stat-row"><b>Bond {entry.bond}</b><b>{entry.conditionLabel}</b></span>
       </span>
-      {retired ? <b className="wildz-creature-choice-active">Retired</b> : active ? <b className="wildz-creature-choice-active">Active</b> : null}
+      {entry.newlyCaptured ? <span className="wildz-creature-new">New</span> : null}
+      {entry.active ? <span className="wildz-creature-choice-active">Active</span> : null}
     </button>
   </article>;
 });
 
 export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
-  nearbyCards,
-  activeCard,
-  companionProgress,
-  cardConditions,
+  entries,
   cardOrder,
   onCardOrderChange,
   onSelectCard,
-  memorialAssetId,
-  onMemorialAssetChange,
   snap,
-  onSnapChange,
-  requestedSnap = null,
-  onRequestedSnapHandled = () => {}
+  onSnapChange
 }: {
-  nearbyCards: readonly PortableCardAsset[];
-  activeCard: PortableCardAsset | null;
-  companionProgress: PlayState["companionProgress"];
-  cardConditions: PlayState["adventureConditions"];
+  entries: readonly VaultCompanionRosterEntry[];
   cardOrder: WildzCardSort;
   onCardOrderChange: (order: WildzCardSort) => void;
   onSelectCard: (assetId: string) => void;
-  memorialAssetId: string | null;
-  onMemorialAssetChange: (assetId: string | null) => void;
   snap: CreatureDrawerSnap;
   onSnapChange: (snap: CreatureDrawerSnap) => void;
-  requestedSnap?: CreatureDrawerSnap | null;
-  onRequestedSnapHandled?: () => void;
 }) {
   const [viewportHeight, setViewportHeight] = useState(() => typeof window === "undefined" ? 844 : window.innerHeight);
   const [showAffordanceSweep, setShowAffordanceSweep] = useState(false);
   const [range, setRange] = useState({ start: 0, end: 8 });
   const [bookPage, setBookPage] = useState(0);
   const drawerRef = useRef<HTMLElement>(null);
-  const memorialDialogRef = useRef<HTMLDivElement>(null);
-  const memorialOriginRef = useRef<HTMLButtonElement | null>(null);
-  const memorialFocusFrameRef = useRef<number | null>(null);
+  const entryButtonRefs = useRef(new Map<string, HTMLButtonElement>());
+  const entryFocusFrameRef = useRef<number | null>(null);
   const railFrameRef = useRef<number | null>(null);
   const dragHeight = useRef<number | null>(null);
   const drag = useRef<{ startY: number; startHeight: number; lastY: number; lastAt: number; velocityY: number; moved: boolean } | null>(null);
@@ -123,76 +99,40 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   const metrics = useMemo(() => creatureDrawerMetrics(viewportHeight), [viewportHeight]);
   const height = metrics[snap];
   const mode = snap;
-  const sortedCards = useMemo(() => sortWildzCards(nearbyCards, cardOrder), [cardOrder, nearbyCards]);
-  const bookWindow = useMemo(() => creatureBookWindow(sortedCards, bookPage, 1), [bookPage, sortedCards]);
-  const activeForm = activeCard ? creatureForm(activeCard.manifest.formId) : null;
-  const memorialAsset = memorialAssetId ? nearbyCards.find((card) => card.id === memorialAssetId) ?? null : null;
+  const entriesByAssetId = useMemo(() => new Map(entries.map((entry) => [entry.asset.id, entry])), [entries]);
+  const sortedEntries = useMemo(() => sortWildzCards(entries.map((entry) => entry.asset), cardOrder)
+    .flatMap((asset) => {
+      const entry = entriesByAssetId.get(asset.id);
+      return entry ? [entry] : [];
+    }), [cardOrder, entries, entriesByAssetId]);
+  const bookWindow = useMemo(() => creatureBookWindow(sortedEntries, bookPage, 1), [bookPage, sortedEntries]);
+  const activeEntry = entries.find((entry) => entry.active) ?? null;
+  const activeForm = activeEntry ? creatureForm(activeEntry.asset.manifest.formId) : null;
   const changeCardOrder = useStableEvent(onCardOrderChange);
   const selectCard = useStableEvent(onSelectCard);
   const selectAndClose = useCallback((assetId: string) => {
+    playHapticPattern([9]);
     selectCard(assetId);
     onSnapChange("closed");
   }, [onSnapChange, selectCard]);
 
-  const inspectMemorial = useCallback((assetId: string, origin: HTMLButtonElement) => {
-    memorialOriginRef.current = origin;
-    onMemorialAssetChange(assetId);
-  }, [onMemorialAssetChange]);
+  const registerEntryButton = useCallback((assetId: string, element: HTMLButtonElement | null) => {
+    if (element) entryButtonRefs.current.set(assetId, element);
+    else entryButtonRefs.current.delete(assetId);
+  }, []);
 
   useEffect(() => {
-    if (!memorialAsset) return;
-    const priorOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const focusables = () => Array.from(memorialDialogRef.current?.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
-    ) ?? []);
-    const closeMemorial = () => onMemorialAssetChange(null);
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        closeMemorial();
-      } else if (event.key === "Tab") {
-        const items = focusables();
-        if (!items.length) return;
-        const first = items[0]!;
-        const last = items[items.length - 1]!;
-        if (event.shiftKey && (document.activeElement === first || !memorialDialogRef.current?.contains(document.activeElement))) {
-          event.preventDefault();
-          last.focus();
-        } else if (!event.shiftKey && (document.activeElement === last || !memorialDialogRef.current?.contains(document.activeElement))) {
-          event.preventDefault();
-          first.focus();
-        }
-      }
+    const closeForViewportChange = () => {
+      setViewportHeight(window.innerHeight);
+      if (snap !== "closed") onSnapChange("closed");
     };
-    const containFocus = (event: FocusEvent) => {
-      if (event.target instanceof Node && !memorialDialogRef.current?.contains(event.target)) focusables()[0]?.focus();
-    };
-    memorialFocusFrameRef.current = window.requestAnimationFrame(() => focusables()[0]?.focus());
-    window.addEventListener("keydown", onKeyDown);
-    document.addEventListener("focusin", containFocus);
+    window.addEventListener("resize", closeForViewportChange, { passive: true });
+    window.addEventListener("orientationchange", closeForViewportChange);
     return () => {
-      if (memorialFocusFrameRef.current !== null) window.cancelAnimationFrame(memorialFocusFrameRef.current);
-      memorialFocusFrameRef.current = null;
-      window.removeEventListener("keydown", onKeyDown);
-      document.removeEventListener("focusin", containFocus);
-      document.body.style.overflow = priorOverflow;
-      const origin = memorialOriginRef.current;
-      memorialFocusFrameRef.current = window.requestAnimationFrame(() => {
-        if (canRestoreFocus(origin)) origin.focus();
-      });
+      window.removeEventListener("resize", closeForViewportChange);
+      window.removeEventListener("orientationchange", closeForViewportChange);
     };
-  }, [memorialAsset, onMemorialAssetChange]);
-
-  useEffect(() => () => {
-    if (memorialFocusFrameRef.current !== null) window.cancelAnimationFrame(memorialFocusFrameRef.current);
-  }, []);
-
-  useEffect(() => {
-    const resize = () => setViewportHeight(window.innerHeight);
-    window.addEventListener("resize", resize, { passive: true });
-    return () => window.removeEventListener("resize", resize);
-  }, []);
+  }, [onSnapChange, snap]);
 
   useEffect(() => {
     if (snap === "closed") return;
@@ -211,28 +151,62 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
 
   useEffect(() => () => {
     if (railFrameRef.current !== null) window.cancelAnimationFrame(railFrameRef.current);
+    if (entryFocusFrameRef.current !== null) window.cancelAnimationFrame(entryFocusFrameRef.current);
   }, []);
 
   useEffect(() => {
     if (snap === "closed") return;
+    entryFocusFrameRef.current = window.requestAnimationFrame(() => {
+      entryFocusFrameRef.current = null;
+      const target = activeEntry ?? sortedEntries[0];
+      entryButtonRefs.current.get(target?.asset.id ?? "")?.focus();
+    });
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onSnapChange("closed");
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onSnapChange("closed");
     };
     window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [onSnapChange, snap]);
+    return () => {
+      if (entryFocusFrameRef.current !== null) window.cancelAnimationFrame(entryFocusFrameRef.current);
+      entryFocusFrameRef.current = null;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [activeEntry, onSnapChange, snap, sortedEntries]);
+
+  useEffect(() => {
+    if (snap !== "expanded") return;
+    const focusableEntries = () => Array.from(drawerRef.current?.querySelectorAll<HTMLButtonElement>(".wildz-creature-choice") ?? []);
+    const containFocus = (event: FocusEvent) => {
+      if (event.target instanceof Node && !drawerRef.current?.contains(event.target)) focusableEntries()[0]?.focus();
+    };
+    const trapFocus = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const choices = focusableEntries();
+      if (!choices.length) return;
+      const first = choices[0]!;
+      const last = choices[choices.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("focusin", containFocus);
+    window.addEventListener("keydown", trapFocus);
+    return () => {
+      document.removeEventListener("focusin", containFocus);
+      window.removeEventListener("keydown", trapFocus);
+    };
+  }, [snap]);
 
   const commitSnap = useCallback((next: CreatureDrawerSnap) => {
     const pattern = drawerHapticPattern(snap, next);
     if (pattern.length) playHapticPattern(pattern);
     onSnapChange(next);
   }, [onSnapChange, snap]);
-
-  useEffect(() => {
-    if (!requestedSnap) return;
-    commitSnap(requestedSnap);
-    onRequestedSnapHandled();
-  }, [commitSnap, onRequestedSnapHandled, requestedSnap]);
 
   const finishDrag = (target: HTMLElement, pointerId: number) => {
     const gesture = drag.current;
@@ -253,6 +227,11 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
     dragHeight.current = null;
     drawerRef.current?.classList.remove("is-dragging");
     drawerRef.current?.style.setProperty("--wildz-drawer-height", `${metrics[snap]}px`);
+  };
+
+  const cancelAndClose = () => {
+    cancelDrag();
+    if (snap !== "closed") onSnapChange("closed");
   };
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -292,35 +271,27 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
         if (!target.isConnected) return;
         const start = Math.max(0, Math.floor(target.scrollLeft / RAIL_CARD_EXTENT) - 4);
         const count = Math.ceil(target.clientWidth / RAIL_CARD_EXTENT) + 10;
-        const end = Math.min(sortedCards.length, start + count);
+        const end = Math.min(sortedEntries.length, start + count);
         setRange((previous) => previous.start === start && previous.end === end ? previous : { start, end });
       });
     }
   };
 
-  const renderChoice = (card: PortableCardAsset, logicalIndex: number) => {
-    const progress = companionProgress[card.manifest.familyId] ?? { level: 1, xp: 0, bond: 0 };
-    const condition = cardConditions[card.id];
-    const retired = condition?.life === "dead" || (isLivingCardAsset(card) && Boolean(currentRevision(card).growth.life?.retired));
-    return <CreatureChoice
-      active={activeCard?.id === card.id}
-      asset={card}
-      key={card.id}
-      logicalPosition={logicalIndex + 1}
-      onSelect={selectAndClose}
-      onInspect={inspectMemorial}
-      progress={progress}
-      retired={retired}
-      total={sortedCards.length}
-    />;
-  };
+  const renderChoice = (entry: VaultCompanionRosterEntry, logicalIndex: number) => <CreatureChoice
+    buttonRef={(element) => registerEntryButton(entry.asset.id, element)}
+    entry={entry}
+    key={entry.asset.id}
+    logicalPosition={logicalIndex + 1}
+    selectAndClose={selectAndClose}
+    total={sortedEntries.length}
+  />;
 
-  const windowedCards = sortedCards.slice(range.start, range.end);
+  const windowedEntries = sortedEntries.slice(range.start, range.end);
   const windowStyle = mode !== "expanded"
-    ? creatureRailVirtualPadding(sortedCards.length, range.start, range.end, RAIL_CARD_EXTENT, 0)
+    ? creatureRailVirtualPadding(sortedEntries.length, range.start, range.end, RAIL_CARD_EXTENT, 0)
     : undefined;
 
-  return <><section
+  return <section
     aria-label="Active creature selector"
     className={`wildz-creature-drawer mode-${mode} ${mode === "closed" ? "is-closed" : ""}`}
     ref={drawerRef}
@@ -342,7 +313,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
         commitSnap(snap === "preview" ? "expanded" : "closed");
       }}
       onLostPointerCapture={cancelDrag}
-      onPointerCancel={cancelDrag}
+      onPointerCancel={cancelAndClose}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={(event) => finishDrag(event.currentTarget, event.pointerId)}
@@ -358,7 +329,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
     </button> : null}
     <div aria-hidden={mode === "closed"} className="wildz-creature-drawer-content" id="wildz-creature-drawer-content" inert={mode === "closed" ? true : undefined}>
       <div className="wildz-creature-drawer-tools">
-        <span>{sortedCards.length} creature{sortedCards.length === 1 ? "" : "s"} · {mode}</span>
+        <span>{sortedEntries.length} companion{sortedEntries.length === 1 ? "" : "s"} · {mode}</span>
         <label><span>Sort</span><select aria-label="Sort creature selector" onChange={(event) => changeCardOrder(event.target.value as WildzCardSort)} value={cardOrder}>
           <option value="rarity">Rarity</option>
           <option value="newest">Newest</option>
@@ -366,11 +337,11 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
         </select></label>
       </div>
       {mode === "expanded" ? <div
-        aria-label={`Creature book spread ${bookWindow.page + 1} of ${bookWindow.pageCount}`}
+        aria-label={`Creature roster page ${bookWindow.page + 1} of ${bookWindow.pageCount}`}
         className="wildz-creature-book"
         onScroll={(event) => {
-          const width = Math.max(1, event.currentTarget.clientWidth);
-          setBookPage(Math.max(0, Math.min(bookWindow.pageCount - 1, Math.round(event.currentTarget.scrollLeft / width))));
+          const height = Math.max(1, event.currentTarget.clientHeight);
+          setBookPage(Math.max(0, Math.min(bookWindow.pageCount - 1, Math.round(event.currentTarget.scrollTop / height))));
         }}
         role="region"
       >
@@ -378,24 +349,20 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
           const withinWindow = page >= bookWindow.windowStartPage && page < bookWindow.windowEndPage;
           const start = page * bookWindow.pageSize;
           return <div className="wildz-creature-spread" key={page} role="list">
-            {withinWindow ? sortedCards.slice(start, start + bookWindow.pageSize).map((card, index) => renderChoice(card, start + index)) : null}
+            {withinWindow ? sortedEntries.slice(start, start + bookWindow.pageSize).map((entry, index) => renderChoice(entry, start + index)) : null}
           </div>;
         })}
       </div> : <div
-        aria-label="Scroll creatures horizontally"
+        aria-label="Scroll companions horizontally"
         className="wildz-creature-window"
         onScroll={updateVirtualRange}
         role="list"
         style={windowStyle}
       >
-        {windowedCards.map((card, index) => renderChoice(card, range.start + index))}
-        {sortedCards.length ? <span aria-hidden="true" className="wildz-creature-window-end" style={{ flexBasis: RAIL_END_GUTTER }} /> : null}
-        {!sortedCards.length ? <p className="wildz-card-rail-empty">No sealed companions yet. Open Vault to restore one.</p> : null}
+        {windowedEntries.map((entry, index) => renderChoice(entry, range.start + index))}
+        {sortedEntries.length ? <span aria-hidden="true" className="wildz-creature-window-end" style={{ flexBasis: RAIL_END_GUTTER }} /> : null}
+        {!sortedEntries.length ? <p className="wildz-card-rail-empty">No living companions in the Vault yet.</p> : null}
       </div>}
     </div>
-  </section>{memorialAsset && typeof document !== "undefined" ? createPortal(<div aria-label={`${memorialAsset.manifest.name} memorial card`} aria-modal="true" className="wildz-memorial-card-viewer" ref={memorialDialogRef} role="dialog" tabIndex={-1}>
-    <button aria-label="Close memorial card" className="wildz-memorial-card-close" onClick={() => onMemorialAssetChange(null)} type="button">×</button>
-    <WildsCardScene asset={memorialAsset} condition={cardConditions[memorialAsset.id]} origin={window.location.origin} qr="" />
-    <p>Swipe the card to read its permanent death record.</p>
-  </div>, document.body) : null}</>;
+  </section>;
 });

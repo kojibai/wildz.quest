@@ -13205,22 +13205,29 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wildz-creature-window::-webkit-scrollbar,
 .wildz-creature-book::-webkit-scrollbar { display: none; }
 .wildz-creature-window-end { width: 40px; min-width: 40px; height: 1px; flex: 0 0 40px; pointer-events: none; }
-.wildz-creature-choice-shell { width: 176px; min-width: 176px; min-height: 70px; scroll-snap-align: start; }
-.wildz-creature-choice { position: relative; display: grid; grid-template-columns: 52px minmax(0, 1fr); width: 100%; height: 100%; min-height: 70px; align-items: center; gap: 8px; padding: 7px; overflow: hidden; border: 1px solid rgba(225, 217, 184, .18); border-radius: 16px; color: #f3f1e9; background: radial-gradient(circle at 14% 8%, rgba(125, 181, 130, .16), transparent 48%), rgba(28, 37, 33, .9); text-align: left; }
-.wildz-creature-choice.is-retired { color: #9ca6a2; border-color: rgba(180, 190, 186, .2); background: rgba(13, 17, 17, .96); cursor: pointer; }
-.wildz-creature-choice[aria-pressed="true"] { border-color: rgba(121, 230, 163, .62); background: radial-gradient(circle at 14% 8%, rgba(125, 215, 145, .3), transparent 50%), rgba(30, 51, 39, .96); box-shadow: inset 0 0 0 1px rgba(132, 235, 171, .14); }
-.wildz-creature-choice-copy { display: grid; min-width: 0; gap: 2px; }
-.wildz-creature-choice-copy small { color: #f0d066; font-size: 7px; font-weight: 900; text-transform: uppercase; }
-.wildz-creature-choice-copy strong { overflow: hidden; font-size: 12px; }
+.wildz-creature-choice-shell { width: 184px; min-width: 184px; min-height: 108px; scroll-snap-align: start; }
+.wildz-creature-choice { position: relative; display: grid; grid-template-columns: 56px minmax(0, 1fr); width: 100%; height: 100%; min-height: 108px; align-items: center; gap: 8px; padding: 8px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--wildz-drawer-creature) 31%, rgba(225, 217, 184, .18)); border-radius: 16px; color: #f3f1e9; background: radial-gradient(circle at 14% 8%, color-mix(in srgb, var(--wildz-drawer-creature) 22%, transparent), transparent 52%), linear-gradient(145deg, rgba(28, 45, 39, .92), rgba(10, 25, 22, .96)); box-shadow: inset 0 1px rgba(255,255,255,.08), 0 7px 16px rgba(0,0,0,.16); text-align: left; }
+.wildz-creature-choice:focus-visible { outline: 2px solid #fff2a7; outline-offset: 2px; }
+.wildz-creature-choice[aria-pressed="true"] { border-color: color-mix(in srgb, var(--wildz-drawer-creature) 76%, #fff); background: radial-gradient(circle at 14% 8%, color-mix(in srgb, var(--wildz-drawer-creature) 42%, transparent), transparent 55%), rgba(25, 58, 42, .96); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wildz-drawer-creature) 25%, transparent), 0 7px 18px rgba(0,0,0,.24); }
+.wildz-creature-choice-copy { display: grid; min-width: 0; gap: 3px; }
+.wildz-creature-choice-kicker { display: flex; align-items: center; justify-content: space-between; gap: 5px; color: #f0d066; font-size: 7px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
+.wildz-creature-choice-kicker i { color: #b8d6c2; font-style: normal; }
+.wildz-creature-choice-copy strong { display: flex; align-items: center; gap: 3px; overflow: hidden; font-size: 12px; }
+.wildz-creature-choice-copy strong > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wildz-creature-choice-copy em { overflow: hidden; color: #9eaca4; font-size: 8px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
-.wildz-creature-choice-active { position: absolute; top: 5px; right: 5px; padding: 2px 5px; border-radius: 999px; color: #173522; background: #9be5ad; font-size: 6px; letter-spacing: .05em; text-transform: uppercase; }
-.wildz-creature-choice.is-retired .wildz-creature-choice-active { color: #e2e7e4; background: #343b39; }
+.wildz-creature-xp-meter { display: block; height: 4px; overflow: hidden; border-radius: 999px; background: rgba(224, 245, 231, .14); }
+.wildz-creature-xp-meter > i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--wildz-drawer-creature), #fff2a7); box-shadow: 0 0 8px color-mix(in srgb, var(--wildz-drawer-creature) 65%, transparent); }
+.wildz-creature-stat-row { display: flex; justify-content: space-between; gap: 5px; color: #c6d8cb; font-size: 7px; letter-spacing: .02em; }
+.wildz-creature-stat-row b:last-child { color: #fff2a7; text-align: right; }
+.wildz-creature-choice-active,
+.wildz-creature-new { position: absolute; top: 5px; right: 5px; padding: 2px 5px; border-radius: 999px; color: #173522; background: #9be5ad; font-size: 6px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
+.wildz-creature-new { right: auto; left: 5px; color: #332a08; background: #fff2a7; }
 .wildz-memorial-card-viewer { position: fixed; z-index: 120; inset: 0; display: grid; place-items: center; padding: max(28px, env(safe-area-inset-top)) 18px max(28px, env(safe-area-inset-bottom)); color: #e2e7e4; background: rgb(2 7 9 / 92%); backdrop-filter: blur(18px); }
 .wildz-memorial-card-viewer > .wilds-card-scene { width: min(88vw, 390px); }
 .wildz-memorial-card-viewer > p { margin: 0; font-size: 11px; letter-spacing: .06em; }
 .wildz-memorial-card-close { position: absolute; top: max(14px, env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); z-index: 2; display: grid; width: 44px; height: 44px; place-items: center; border: 1px solid rgb(220 228 224 / 24%); border-radius: 50%; color: #fff; background: rgb(10 18 20 / 92%); font-size: 28px; }
-.wildz-creature-book { display: flex; min-height: 0; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-inline: contain; }
-.wildz-creature-spread { display: grid; min-width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 7px; padding: 1px 3px; scroll-snap-align: start; scroll-snap-stop: always; }
+.wildz-creature-book { min-height: 0; overflow-x: hidden; overflow-y: auto; scroll-snap-type: y proximity; scrollbar-width: thin; overscroll-behavior-block: contain; }
+.wildz-creature-spread { display: grid; min-height: 100%; overflow-y: auto; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(108px, 1fr)); gap: 7px; padding: 1px 3px 8px; scroll-snap-align: start; scroll-snap-stop: always; }
 .wildz-creature-spread .wildz-creature-choice-shell { width: 100%; min-width: 0; min-height: 0; }
 .wildz-card-rail { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
 .wildz-card-rail-tools { display: flex; min-height: 26px; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 2px 0; }
@@ -14952,6 +14959,11 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
     width: calc(100vw - max(16px, env(safe-area-inset-left)) - max(16px, env(safe-area-inset-right)));
   }
 
+  .wildz-creature-choice { min-height: 96px; grid-template-columns: 50px minmax(0, 1fr); gap: 6px; padding: 7px; }
+  .wildz-creature-choice-shell { width: 172px; min-width: 172px; min-height: 96px; }
+  .wildz-creature-spread { grid-template-rows: repeat(4, minmax(96px, 1fr)); gap: 5px; }
+  .wildz-creature-choice-copy { gap: 2px; }
+
   .wilds-world-status-fan {
     width: min(244px, calc(100vw - 16px));
   }
@@ -15038,6 +15050,16 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
     width: min(520px, calc(100vw - 200px));
     max-height: min(44dvh, 156px);
   }
+
+  .wildz-companion-home .wildz-creature-drawer-content { padding: 5px 6px 8px; }
+  .wildz-companion-home .wildz-creature-drawer-tools { min-height: 24px; }
+  .wildz-companion-home .wildz-creature-book { scroll-snap-type: y proximity; }
+  .wildz-companion-home .wildz-creature-spread { min-height: 148px; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(72px, 1fr)); gap: 5px; padding-bottom: 5px; }
+  .wildz-companion-home .wildz-creature-choice-shell { width: 100%; min-width: 0; min-height: 72px; }
+  .wildz-companion-home .wildz-creature-choice { min-height: 72px; grid-template-columns: 40px minmax(0, 1fr); gap: 5px; padding: 5px; }
+  .wildz-companion-home .wildz-creature-choice-copy { gap: 1px; }
+  .wildz-companion-home .wildz-creature-xp-meter { height: 3px; }
+  .wildz-companion-home .wildz-creature-stat-row { display: none; }
 
   .wildz-companion-home .wilds-companion-ability-wheel {
     right: 0;

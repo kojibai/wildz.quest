@@ -105,12 +105,15 @@ test("every play-shell modal has an explicit exclusive owner", () => {
 
   const campaign = read("src/features/play/PlayCampaign.tsx");
   const drawer = read("src/features/play/WildzCreatureDrawer.tsx");
+  const inventory = read("src/features/play/WildsInventory.tsx");
   assert.match(campaign, /projectPlayShellOwner/);
   assert.match(campaign, /claimExclusiveOwner/);
   assert.match(campaign, /memorialAssetId/);
-  assert.match(drawer, /memorialAssetId: string \| null/);
-  assert.match(drawer, /onMemorialAssetChange: \(assetId: string \| null\) => void/);
-  assert.match(drawer, /event\.key === "Escape"/);
+  assert.match(campaign, /key: "vault"[\s\S]*<WildsInventory/s);
+  assert.match(inventory, /selectedRetired \? <div className="wilds-vault-card-memorial"><WildsCardScene/);
+  assert.match(inventory, /Retired memorial · swipe to view death record/);
+  assert.doesNotMatch(drawer, /memorialAssetId|onMemorialAssetChange|is-retired/);
+  assert.match(drawer, /event\.key !== "Escape"/);
   assert.match(drawer, /containFocus/);
 });
 
@@ -448,7 +451,7 @@ test("PlayCampaign mounts only the projected winner and guards delayed admission
   assert.match(campaign, /exclusiveOwner === "reward"/);
   assert.match(campaign, /exclusiveOwner === "ceremony"/);
   assert.match(campaign, /exclusiveOwner === "combat"/);
-  assert.match(campaign, /memorialAssetId=\{exclusiveOwner === "memorial" \? memorialAssetId : null\}/);
+  assert.match(campaign, /key: "vault"[\s\S]*<WildsInventory/s);
   assert.match(campaign, /backgroundHomesBlocked/);
   assert.match(campaign, /aria-hidden=\{referenceHomeBlocked\}/);
   assert.match(campaign, /inert=\{referenceHomeBlocked \? true : undefined\}/);
