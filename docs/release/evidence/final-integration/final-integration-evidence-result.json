@@ -1,0 +1,804 @@
+{
+  "schema": "wildz.final-integration-evidence.v1",
+  "startedAt": "2026-08-11T05:10:30.321Z",
+  "finishedAt": "2026-08-11T05:10:37.332Z",
+  "productCommit": "c26ae652894db84868c0343c108c048aa32d0fb4",
+  "nextBuildId": "pVMRsX8Mh21tHuB69B34C",
+  "listenersInstalledBeforeNavigation": true,
+  "command": "/Users/bjklock/.npm/_npx/31e32ef8478fbf80/node_modules/.bin/playwright-cli --session final-integration-evidence-c26ae65 run-code \"$(cat output/playwright/final-integration-evidence-script.js)\"",
+  "script": "output/playwright/final-integration-evidence-script.js",
+  "result": "output/playwright/final-integration-evidence-result.json",
+  "production": {
+    "url": "http://127.0.0.1:49816/",
+    "title": "Wildz",
+    "viewport": {
+      "width": 390,
+      "height": 844,
+      "dpr": 1
+    },
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36",
+    "canvasCount": 2,
+    "overflowX": 0,
+    "scriptChunks": [
+      "http://127.0.0.1:49816/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js",
+      "http://127.0.0.1:49816/_next/static/chunks/8920-e8a44724f7d68c07.js",
+      "http://127.0.0.1:49816/_next/static/chunks/main-app-7db33f4786c6ffdf.js",
+      "http://127.0.0.1:49816/_next/static/chunks/app/layout-26d3d4a0b593426f.js",
+      "http://127.0.0.1:49816/_next/static/chunks/091b534c-291448adc41f8b14.js",
+      "http://127.0.0.1:49816/_next/static/chunks/3c0a7a34-30af208f1d84d817.js",
+      "http://127.0.0.1:49816/_next/static/chunks/18533f58-893357b5e6300aaa.js",
+      "http://127.0.0.1:49816/_next/static/chunks/3a8a8fad-b7792acd0f3ed948.js",
+      "http://127.0.0.1:49816/_next/static/chunks/e9540a35-3a09ca5be6c59996.js",
+      "http://127.0.0.1:49816/_next/static/chunks/1c0345e6-301608ed5eaced19.js",
+      "http://127.0.0.1:49816/_next/static/chunks/f63a2255-ce9e5eb44eba4efd.js",
+      "http://127.0.0.1:49816/_next/static/chunks/8898-6bd3ae2036150b59.js",
+      "http://127.0.0.1:49816/_next/static/chunks/1922-52bd6e6aa489d9fe.js",
+      "http://127.0.0.1:49816/_next/static/chunks/3749-9bdffe236e94ea42.js",
+      "http://127.0.0.1:49816/_next/static/chunks/1072-10d7b116f96bac08.js",
+      "http://127.0.0.1:49816/_next/static/chunks/polyfills-42372ed130431b0a.js",
+      "http://127.0.0.1:49816/_next/static/chunks/webpack-fb8243b3d177d49b.js"
+    ]
+  },
+  "listenerEvidence": {
+    "consoleEntries": [],
+    "pageErrors": [],
+    "requestFailures": [],
+    "httpErrors": [],
+    "requestCount": 84
+  },
+  "profile": {
+    "before": {
+      "x": -2,
+      "z": -1,
+      "mapLabel": "Open world map. Current position X -2, Z -1",
+      "energy": 84,
+      "xp": 0,
+      "bond": 0,
+      "event": "Iruozof joined your deck. Walk near another wild companion.",
+      "selectedAbility": "Prism Pulse"
+    },
+    "open": {
+      "worldInert": true,
+      "worldAriaHidden": "true",
+      "utilityInert": true,
+      "dialogModal": "true"
+    },
+    "initialFocus": {
+      "tag": "BUTTON",
+      "role": null,
+      "tabIndex": 0,
+      "ariaLabel": "Return to world",
+      "className": "wildz-overlay-dismiss",
+      "activeDescendant": null,
+      "insideShell": true,
+      "isCompanion": false,
+      "isProfileOrigin": false,
+      "isToolsOrigin": false
+    },
+    "afterRepeatedBlockedInput": {
+      "x": -2,
+      "z": -1,
+      "mapLabel": "Open world map. Current position X -2, Z -1",
+      "energy": 84,
+      "xp": 0,
+      "bond": 0,
+      "event": "Iruozof joined your deck. Walk near another wild companion.",
+      "selectedAbility": "Prism Pulse"
+    },
+    "repeatedInputBlocked": true,
+    "tabSequence": [
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Edit profile",
+        "className": "wildz-profile-edit-trigger",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Upload Identity Seal or Record",
+        "className": "",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Save Identity Seal",
+        "className": "",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Return to world",
+        "className": "wildz-overlay-dismiss",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Edit profile",
+        "className": "wildz-profile-edit-trigger",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Upload Identity Seal or Record",
+        "className": "",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Save Identity Seal",
+        "className": "",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Return to world",
+        "className": "wildz-overlay-dismiss",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Edit profile",
+        "className": "wildz-profile-edit-trigger",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Upload Identity Seal or Record",
+        "className": "",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Save Identity Seal",
+        "className": "",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Return to world",
+        "className": "wildz-overlay-dismiss",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      }
+    ],
+    "tabStayedInside": true,
+    "restoredFocus": {
+      "tag": "BUTTON",
+      "role": null,
+      "tabIndex": 0,
+      "ariaLabel": "Open profile for Wildz Explorer, explorer level 7, 84% energy",
+      "className": "wildz-explorer-capsule",
+      "activeDescendant": null,
+      "insideShell": false,
+      "isCompanion": false,
+      "isProfileOrigin": true,
+      "isToolsOrigin": false
+    },
+    "screenshot": "output/playwright/final-integration-profile-open.png"
+  },
+  "market": {
+    "open": {
+      "worldInert": true,
+      "worldAriaHidden": "true",
+      "localUnavailable": true,
+      "listingsRequestCount": 0
+    },
+    "initialFocus": {
+      "tag": "BUTTON",
+      "role": null,
+      "tabIndex": 0,
+      "ariaLabel": "Return to world",
+      "className": "wildz-overlay-dismiss",
+      "activeDescendant": null,
+      "insideShell": true,
+      "isCompanion": false,
+      "isProfileOrigin": false,
+      "isToolsOrigin": false
+    },
+    "tabSequence": [
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Return to world",
+        "className": "wildz-overlay-dismiss",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Return to world",
+        "className": "wildz-overlay-dismiss",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Return to world",
+        "className": "wildz-overlay-dismiss",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Return to world",
+        "className": "wildz-overlay-dismiss",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Return to world",
+        "className": "wildz-overlay-dismiss",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Return to world",
+        "className": "wildz-overlay-dismiss",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Return to world",
+        "className": "wildz-overlay-dismiss",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Return to world",
+        "className": "wildz-overlay-dismiss",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Return to world",
+        "className": "wildz-overlay-dismiss",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Return to world",
+        "className": "wildz-overlay-dismiss",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Return to world",
+        "className": "wildz-overlay-dismiss",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      },
+      {
+        "tag": "BUTTON",
+        "role": null,
+        "tabIndex": 0,
+        "ariaLabel": "Return to world",
+        "className": "wildz-overlay-dismiss",
+        "activeDescendant": null,
+        "insideShell": true,
+        "isCompanion": false,
+        "isProfileOrigin": false,
+        "isToolsOrigin": false
+      }
+    ],
+    "tabStayedInside": true,
+    "restoredFocus": {
+      "tag": "BUTTON",
+      "role": null,
+      "tabIndex": 0,
+      "ariaLabel": "Open world tools",
+      "className": "wilds-world-tools-trigger",
+      "activeDescendant": null,
+      "insideShell": false,
+      "isCompanion": false,
+      "isProfileOrigin": false,
+      "isToolsOrigin": true
+    },
+    "listingsRequests": [],
+    "screenshot": "output/playwright/final-integration-market-open.png"
+  },
+  "keyboardAbility": {
+    "initial": {
+      "activeElementTag": "DIV",
+      "role": "listbox",
+      "tabIndex": 0,
+      "activeDescendant": "wilds-companion-ability-0",
+      "optionRole": "option",
+      "optionSelected": "true",
+      "optionLabel": "Prism Pulse"
+    },
+    "arrows": [
+      {
+        "key": "ArrowLeft",
+        "priorActiveDescendant": "wilds-companion-ability-0",
+        "beforePosition": {
+          "x": -2,
+          "z": -1
+        },
+        "afterPosition": {
+          "x": -2,
+          "z": -1
+        },
+        "activeElementRole": "listbox",
+        "activeDescendant": "wilds-companion-ability-1",
+        "selectedOptionCount": 1,
+        "selectedOptionRole": "option",
+        "selectedOptionAriaSelected": "true",
+        "selectedOptionLabel": "Emberglide Bond"
+      },
+      {
+        "key": "ArrowRight",
+        "priorActiveDescendant": "wilds-companion-ability-1",
+        "beforePosition": {
+          "x": -2,
+          "z": -1
+        },
+        "afterPosition": {
+          "x": -2,
+          "z": -1
+        },
+        "activeElementRole": "listbox",
+        "activeDescendant": "wilds-companion-ability-0",
+        "selectedOptionCount": 1,
+        "selectedOptionRole": "option",
+        "selectedOptionAriaSelected": "true",
+        "selectedOptionLabel": "Prism Pulse"
+      },
+      {
+        "key": "ArrowUp",
+        "priorActiveDescendant": "wilds-companion-ability-0",
+        "beforePosition": {
+          "x": -2,
+          "z": -1
+        },
+        "afterPosition": {
+          "x": -2,
+          "z": -1
+        },
+        "activeElementRole": "listbox",
+        "activeDescendant": "wilds-companion-ability-1",
+        "selectedOptionCount": 1,
+        "selectedOptionRole": "option",
+        "selectedOptionAriaSelected": "true",
+        "selectedOptionLabel": "Emberglide Bond"
+      },
+      {
+        "key": "ArrowDown",
+        "priorActiveDescendant": "wilds-companion-ability-1",
+        "beforePosition": {
+          "x": -2,
+          "z": -1
+        },
+        "afterPosition": {
+          "x": -2,
+          "z": -1
+        },
+        "activeElementRole": "listbox",
+        "activeDescendant": "wilds-companion-ability-0",
+        "selectedOptionCount": 1,
+        "selectedOptionRole": "option",
+        "selectedOptionAriaSelected": "true",
+        "selectedOptionLabel": "Prism Pulse"
+      }
+    ],
+    "arrowsChangedSelection": true,
+    "arrowsKeptPlayerStill": true,
+    "beforeCommit": {
+      "x": -2,
+      "z": -1,
+      "mapLabel": "Open world map. Current position X -2, Z -1",
+      "energy": 84,
+      "xp": 0,
+      "bond": 0,
+      "event": "Iruozof joined your deck. Walk near another wild companion.",
+      "selectedAbility": "Prism Pulse"
+    },
+    "committedLabel": "Emberglide Bond",
+    "committedFocus": {
+      "tag": "BUTTON",
+      "role": null,
+      "tabIndex": 0,
+      "ariaLabel": "Iruozof. Tap to use Emberglide Bond. Swipe sideways to change companion, swipe up for roster, or hold for abilities.",
+      "className": "wilds-companion-command",
+      "activeDescendant": null,
+      "insideShell": false,
+      "isCompanion": true,
+      "isProfileOrigin": false,
+      "isToolsOrigin": false
+    },
+    "beforeAction": {
+      "x": -2,
+      "z": -1,
+      "mapLabel": "Open world map. Current position X -2, Z -1",
+      "energy": 84,
+      "xp": 0,
+      "bond": 0,
+      "event": "Iruozof joined your deck. Walk near another wild companion.",
+      "selectedAbility": "Emberglide Bond"
+    },
+    "afterAction": {
+      "x": -2,
+      "z": -1,
+      "mapLabel": "Open world map. Current position X -2, Z -1",
+      "energy": 82,
+      "xp": 4,
+      "bond": 2,
+      "event": "Arena of Echoes entrance awakened.",
+      "selectedAbility": "Emberglide Bond"
+    },
+    "causalChange": {
+      "energy": -2,
+      "xp": 4,
+      "bond": 2,
+      "eventChanged": true
+    },
+    "dialogOpened": true,
+    "normalCancelFocus": {
+      "tag": "BUTTON",
+      "role": null,
+      "tabIndex": 0,
+      "ariaLabel": "Iruozof. Tap to use Emberglide Bond. Swipe sideways to change companion, swipe up for roster, or hold for abilities.",
+      "className": "wilds-companion-command",
+      "activeDescendant": null,
+      "insideShell": false,
+      "isCompanion": true,
+      "isProfileOrigin": false,
+      "isToolsOrigin": false
+    },
+    "screenshot": "output/playwright/final-integration-keyboard-listbox.png"
+  },
+  "pointerAbility": {
+    "before": {
+      "x": -2,
+      "z": -1,
+      "mapLabel": "Open world map. Current position X -2, Z -1",
+      "energy": 82,
+      "xp": 4,
+      "bond": 2,
+      "event": "Iruozof used Emberglide Bond. Gain 2 bond after a successful Beryl Marsh mission.",
+      "selectedAbility": "Emberglide Bond"
+    },
+    "captureDuringHold": {
+      "pointerId": 1,
+      "hasCapture": true
+    },
+    "selected": {
+      "label": "Prism Pulse",
+      "activeDescendant": "wilds-companion-ability-0"
+    },
+    "captureAfterRelease": {
+      "pointerId": 1,
+      "hasCapture": false,
+      "events": [
+        {
+          "type": "pointermove",
+          "pointerId": 1,
+          "at": 5904.10000000149
+        },
+        {
+          "type": "pointerdown",
+          "pointerId": 1,
+          "at": 5907.79999999702
+        },
+        {
+          "type": "gotpointercapture",
+          "pointerId": 1,
+          "at": 6045.10000000149
+        },
+        {
+          "type": "pointermove",
+          "pointerId": 1,
+          "at": 6064.79999999702
+        },
+        {
+          "type": "pointermove",
+          "pointerId": 1,
+          "at": 6085.89999999851
+        },
+        {
+          "type": "pointermove",
+          "pointerId": 1,
+          "at": 6121.29999999702
+        },
+        {
+          "type": "pointermove",
+          "pointerId": 1,
+          "at": 6131.19999999553
+        },
+        {
+          "type": "pointerup",
+          "pointerId": 1,
+          "at": 6326.60000000149
+        },
+        {
+          "type": "lostpointercapture",
+          "pointerId": 1,
+          "at": 6330.5
+        }
+      ]
+    },
+    "committedLabel": "Prism Pulse",
+    "beforeAction": {
+      "x": -2,
+      "z": -1,
+      "mapLabel": "Open world map. Current position X -2, Z -1",
+      "energy": 82,
+      "xp": 4,
+      "bond": 2,
+      "event": "Iruozof used Emberglide Bond. Gain 2 bond after a successful Beryl Marsh mission.",
+      "selectedAbility": "Prism Pulse"
+    },
+    "afterAction": {
+      "x": -2,
+      "z": -1,
+      "mapLabel": "Open world map. Current position X -2, Z -1",
+      "energy": 81,
+      "xp": 8,
+      "bond": 3,
+      "event": "Arena of Echoes entrance awakened.",
+      "selectedAbility": "Prism Pulse"
+    },
+    "causalChange": {
+      "energy": -1,
+      "xp": 4,
+      "bond": 1,
+      "eventChanged": true
+    },
+    "dialogOpened": true,
+    "screenshot": "output/playwright/final-integration-pointer-wheel.png"
+  },
+  "ownerCancellation": {
+    "wheelBefore": {
+      "wheelMounted": true,
+      "active": "listbox"
+    },
+    "captureBeforeClaim": {
+      "pointerId": 1,
+      "hasCapture": true
+    },
+    "afterClaim": {
+      "wheelMounted": false,
+      "pointerId": 1,
+      "pointerCaptureAfterClaim": false,
+      "focusInsideShell": true,
+      "companionFocused": false,
+      "worldInert": true,
+      "events": [
+        {
+          "type": "pointermove",
+          "pointerId": 1,
+          "at": 5904.10000000149
+        },
+        {
+          "type": "pointerdown",
+          "pointerId": 1,
+          "at": 5907.79999999702
+        },
+        {
+          "type": "gotpointercapture",
+          "pointerId": 1,
+          "at": 6045.10000000149
+        },
+        {
+          "type": "pointermove",
+          "pointerId": 1,
+          "at": 6064.79999999702
+        },
+        {
+          "type": "pointermove",
+          "pointerId": 1,
+          "at": 6085.89999999851
+        },
+        {
+          "type": "pointermove",
+          "pointerId": 1,
+          "at": 6121.29999999702
+        },
+        {
+          "type": "pointermove",
+          "pointerId": 1,
+          "at": 6131.19999999553
+        },
+        {
+          "type": "pointerup",
+          "pointerId": 1,
+          "at": 6326.60000000149
+        },
+        {
+          "type": "lostpointercapture",
+          "pointerId": 1,
+          "at": 6330.5
+        },
+        {
+          "type": "pointermove",
+          "pointerId": 1,
+          "at": 6508.89999999851
+        },
+        {
+          "type": "pointerdown",
+          "pointerId": 1,
+          "at": 6509.69999999553
+        },
+        {
+          "type": "gotpointercapture",
+          "pointerId": 1,
+          "at": 6510
+        },
+        {
+          "type": "pointerup",
+          "pointerId": 1,
+          "at": 6510.10000000149
+        },
+        {
+          "type": "lostpointercapture",
+          "pointerId": 1,
+          "at": 6515.69999999553
+        },
+        {
+          "type": "pointermove",
+          "pointerId": 1,
+          "at": 6611.39999999851
+        },
+        {
+          "type": "pointerdown",
+          "pointerId": 1,
+          "at": 6613.79999999702
+        },
+        {
+          "type": "gotpointercapture",
+          "pointerId": 1,
+          "at": 6629.60000000149
+        },
+        {
+          "type": "lostpointercapture",
+          "pointerId": 1,
+          "at": 6652.39999999851
+        }
+      ]
+    },
+    "normalCommitFocus": {
+      "tag": "BUTTON",
+      "role": null,
+      "tabIndex": 0,
+      "ariaLabel": "Iruozof. Tap to use Prism Pulse. Swipe sideways to change companion, swipe up for roster, or hold for abilities.",
+      "className": "wilds-companion-command",
+      "activeDescendant": null,
+      "insideShell": false,
+      "isCompanion": true,
+      "isProfileOrigin": false,
+      "isToolsOrigin": false
+    },
+    "screenshot": "output/playwright/final-integration-owner-cancel.png"
+  }
+}
