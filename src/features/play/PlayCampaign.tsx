@@ -450,7 +450,7 @@ export function PlayCampaign({
     memories: livingWorld.snapshot?.story.memories ?? []
   });
   const sagaPlayer = livingWorld.snapshot?.players[ownerReceizId] ?? null;
-  const wildBattleActive = Boolean(state.battle && ["player_turn", "capture_ready", "fled", "defeated"].includes(state.encounter.phase));
+  const wildBattleActive = isWildBattleModalOwner(state.encounter.phase, Boolean(state.battle));
   const sagaContributions: WildsMissionContribution[] = saga.chapter.missions.flatMap((mission) => mission.nodes.flatMap((node) => {
     const amount = sagaPlayer?.contributions[node.id] ?? 0;
     return amount > 0 ? [{
@@ -1380,6 +1380,7 @@ export function PlayCampaign({
             {exclusiveOwner === "combat" && wildBattleActive && state.battle ? (
               <WildsBattle
                 battle={state.battle}
+                encounterPhase={state.encounter.phase}
                 inventory={state.inventory}
                 onAction={(action) => dispatch({ type: "battle-action", action, at: new Date().toISOString() })}
                 onDismiss={() => {

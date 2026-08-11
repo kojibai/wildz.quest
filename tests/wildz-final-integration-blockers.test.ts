@@ -369,6 +369,26 @@ test("a revealed inventory-backed capture owns the reward surface synchronously"
   assert.doesNotMatch(campaign, /state\.encounter\.phase !== "revealed"[\s\S]{0,500}window\.setTimeout/);
 });
 
+test("every exclusive combat phase mounts one accessible combat dialog", () => {
+  const campaign = read("src/features/play/PlayCampaign.tsx");
+  const wildBattle = read("src/features/play/WildsBattle.tsx");
+  const multiplayer = read("src/features/play/WildsMultiplayer.tsx");
+
+  assert.match(campaign, /const wildBattleActive = isWildBattleModalOwner\(state\.encounter\.phase, Boolean\(state\.battle\)\)/);
+  assert.match(campaign, /<WildsBattle[\s\S]*encounterPhase=\{state\.encounter\.phase\}/);
+  assert.match(wildBattle, /role="dialog"/);
+  assert.match(wildBattle, /aria-modal="true"/);
+  assert.match(wildBattle, /const battleInputEnabled = encounterPhase === "player_turn" \|\| encounterPhase === "capture_ready"/);
+  assert.match(wildBattle, /captureTransitioning/);
+  assert.match(wildBattle, /event\.key !== "Tab"/);
+  assert.match(wildBattle, /event\.key === "Escape"/);
+  assert.match(multiplayer, /className=\{`wilds-pvp-battle/);
+  assert.match(multiplayer, /role="dialog"/);
+  assert.match(multiplayer, /aria-modal="true"/);
+  assert.match(multiplayer, /battleDialogRef/);
+  assert.match(multiplayer, /typeof document !== "undefined" \? createPortal\(\([\s\S]*document\.body\)/);
+});
+
 test("every exclusive owner hides and gates every non-owner world home", () => {
   const homes = ["reference", "multiplayer", "status", "movement", "tools", "companion"] as const;
   const owners: WorldOverlayOwner[] = [

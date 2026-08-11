@@ -106,8 +106,12 @@ export function WildzWorldControls({
   const handlePanelKeyChange = useCallback((key: WildsCommandKey | null) => {
     if (!toolsHomeBlocked) overlayDispatch({ type: "panel", key });
   }, [overlayDispatch, toolsHomeBlocked]);
-  const handleDrawerSnapChange = useCallback((snap: "closed" | "preview" | "expanded") => overlayDispatch({ type: "drawer", snap }), [overlayDispatch]);
-  const handleRequestDrawer = useCallback((snap: "preview" | "expanded") => overlayDispatch({ type: "drawer", snap }), [overlayDispatch]);
+  const handleDrawerSnapChange = useCallback((snap: "closed" | "preview" | "expanded") => {
+    if (!companionHomeBlocked) overlayDispatch({ type: "drawer", snap });
+  }, [companionHomeBlocked, overlayDispatch]);
+  const handleRequestDrawer = useCallback((snap: "preview" | "expanded") => {
+    if (worldHomesEnabled) overlayDispatch({ type: "drawer", snap });
+  }, [overlayDispatch, worldHomesEnabled]);
   const handleSelectCard = useCallback((assetId: string) => {
     if (worldHomesEnabled) selectCard(assetId);
   }, [selectCard, worldHomesEnabled]);

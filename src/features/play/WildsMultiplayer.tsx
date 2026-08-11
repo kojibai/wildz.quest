@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { WILDS_INTERACTION_DISTANCE, presenceDistance } from "./multiplayer-core";
 import type { WildsMultiplayerController } from "./use-wilds-multiplayer";
 import { shareWildzInvite } from "./wilds-invite-share";
@@ -39,13 +40,17 @@ export function WildsMultiplayer({
   const dismissedChallengeIds = useRef(new Set<string>());
   const challengeDialogRef = useRef<HTMLElement | null>(null);
   const challengeFocusFrameRef = useRef<number | null>(null);
+  const battleDialogRef = useRef<HTMLElement | null>(null);
   const { selectPlayer } = multiplayer;
   const selected = multiplayer.selectedPlayer;
   const selectedDistance = selected ? presenceDistance(selected, position) : Infinity;
   const canInteract = selectedDistance <= WILDS_INTERACTION_DISTANCE && selected?.status === "available";
   const battle = multiplayer.activeBattle;
+  const battleId = battle?.id ?? null;
+  const battlePhase = battle?.phase ?? null;
   const incomingChallenge = multiplayer.incomingChallenge;
   const answerChallenge = multiplayer.answerChallenge;
+  const dismissBattle = multiplayer.dismissBattle;
   const battlePlayers = useMemo(() => battle ? battle.playerOrder.map((id) => battle.players[id]!) : [], [battle]);
   const myIntentPending = Boolean(battle?.pendingIntents[multiplayer.selfId]);
   useEffect(() => {
@@ -107,6 +112,40 @@ export function WildsMultiplayer({
       document.removeEventListener("focusin", containFocus);
     };
   }, [answerChallenge, incomingChallenge, modalOwned]);
+
+  useEffect(() => {
+    const dialog = battleDialogRef.current;
+    if (!battleId || !battlePhase || !dialog) return;
+    const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+    ));
+    const frame = window.requestAnimationFrame(() => (focusable()[0] ?? dialog).focus());
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (battlePhase !== "active") dismissBattle(battleId);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      if (!items.length) { event.preventDefault(); dialog.focus(); return; }
+      const first = items[0]!;
+      const last = items[items.length - 1]!;
+      if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+    };
+    const containFocus = (event: FocusEvent) => {
+      if (event.target instanceof Node && !dialog.contains(event.target)) (focusable()[0] ?? dialog).focus();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    document.addEventListener("focusin", containFocus);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("focusin", containFocus);
+    };
+  }, [battleId, battlePhase, dismissBattle]);
 
   return (
     <>
@@ -196,9 +235,9 @@ export function WildsMultiplayer({
         </section>
       ) : null}
 
-      {battle ? (
-        <section className={`wilds-pvp-battle ${battle.phase}`} aria-label="Live player battle">
-          <header><span>LIVE DUEL</span><strong>TURN {battle.turn}</strong><small>{battle.phase === "settled" ? "Proof sealed" : myIntentPending ? "Waiting for opponent" : "Choose your move"}</small></header>
+      {battle && typeof document !== "undefined" ? createPortal((
+        <section aria-labelledby="wilds-pvp-battle-title" aria-modal="true" className={`wilds-pvp-battle ${battle.phase}`} ref={battleDialogRef} role="dialog" tabIndex={-1}>
+          <header><span>LIVE DUEL</span><strong id="wilds-pvp-battle-title">TURN {battle.turn}</strong><small>{battle.phase === "settled" ? "Proof sealed" : myIntentPending ? "Waiting for opponent" : "Choose your move"}</small></header>
           <div className="wilds-pvp-fighters">
             {battlePlayers.map((player) => <div key={player.playerId} className={player.playerId === multiplayer.selfId ? "self" : "opponent"}><span>{player.playerId === multiplayer.selfId ? "YOU" : "RIVAL"}</span><strong>{player.card.name}</strong><div role="progressbar" aria-label={`${player.card.name} health`} aria-valuemax={player.maxHp} aria-valuemin={0} aria-valuenow={player.hp}><i style={{ width: healthPercent(player.hp, player.maxHp) }} /></div><small>{player.hp}/{player.maxHp} HP</small></div>)}
           </div>
@@ -208,7 +247,7 @@ export function WildsMultiplayer({
             <button disabled={myIntentPending} onClick={() => void multiplayer.submitIntent(battle.id, { type: "guard" })} type="button"><strong>Guard</strong><span>Reduce incoming damage</span></button>
           </div> : <div className="wilds-pvp-result"><strong>{battle.winnerId === multiplayer.selfId ? "Victory" : battle.winnerId ? "Battle complete" : "Draw"}</strong><span>{battle.resultReason} · {battle.transcript.at(-1)?.digest.slice(0, 20)}</span><button onClick={() => multiplayer.dismissBattle(battle.id)} type="button">Return to world</button></div>}
         </section>
-      ) : null}
+      ), document.body) : null}
 
       {notice || multiplayer.error ? <div className="wilds-live-notice" aria-live="polite">{notice || multiplayer.error}</div> : null}
     </>

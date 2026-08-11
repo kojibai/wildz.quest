@@ -1,28 +1,71 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { creatureForm } from "./creature-catalog";
 import type { BattleAction, BattleState } from "./battle-engine";
 import type { PortableCardAsset } from "./portable-card";
 
 export function WildsBattle({
   battle,
+  encounterPhase,
   inventory,
   onAction,
   onDismiss
 }: {
   battle: BattleState;
+  encounterPhase: string;
   inventory: PortableCardAsset[];
   onAction: (action: BattleAction) => void;
   onDismiss: () => void;
 }) {
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const dismissRef = useRef(onDismiss);
+  dismissRef.current = onDismiss;
   const active = inventory.find((asset) => asset.id === battle.player.id);
   const form = active ? creatureForm(active.manifest.formId) : null;
   const ended = battle.phase === "fled" || battle.phase === "defeated";
   const message = battle.transcript.at(-1)?.detail ?? "A wild creature challenges your active card.";
   const effectiveness = battle.player.element === battle.wild.element ? "even" : `${battle.player.element} vs ${battle.wild.element}`;
+  const battleInputEnabled = encounterPhase === "player_turn" || encounterPhase === "capture_ready";
+  const captureTransitioning = !ended && !battleInputEnabled;
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+    ));
+    const frame = window.requestAnimationFrame(() => (focusable()[0] ?? dialog).focus());
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (ended) dismissRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      if (!items.length) { event.preventDefault(); dialog.focus(); return; }
+      const first = items[0]!;
+      const last = items[items.length - 1]!;
+      if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+    };
+    const containFocus = (event: FocusEvent) => {
+      if (event.target instanceof Node && !dialog.contains(event.target)) (focusable()[0] ?? dialog).focus();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    document.addEventListener("focusin", containFocus);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("focusin", containFocus);
+    };
+  }, [ended]);
 
   return (
-    <section className={`wilds-battle phase-${battle.phase}`} aria-label="Wild creature battle">
+    <section aria-labelledby="wilds-battle-title" aria-modal="true" className={`wilds-battle phase-${battle.phase}`} ref={dialogRef} role="dialog" tabIndex={-1}>
+      <h2 className="sr-only" id="wilds-battle-title">Wild creature battle</h2>
       <div className="wilds-battle-turn"><span>Turn {battle.turn}</span><small>{battle.player.name} · Wild {battle.wild.name}</small></div>
       <div className="wilds-battle-console">
         <div className={`wilds-battle-intent intent-${battle.intent.kind}`} aria-label={`Wild intent: ${battle.intent.label}`}>
@@ -34,6 +77,11 @@ export function WildsBattle({
         </div> : null}
         {ended ? (
           <button className="wilds-battle-primary" onClick={onDismiss} type="button">Return to discovery</button>
+        ) : captureTransitioning ? (
+          <div aria-live="assertive" className="wilds-battle-capture-transition" role="status">
+            <strong>{encounterPhase === "battle_intro" ? "Entering the encounter" : encounterPhase === "emerging" ? "Capture locked" : encounterPhase === "capsule" ? "Sealing portable card" : "Verifying captured companion"}</strong>
+            <span>{encounterPhase === "battle_intro" ? "Reading the wild creature's intent…" : "Keep this screen open while the proof sequence completes."}</span>
+          </div>
         ) : (
           <>
             <div className="wilds-battle-actions">
