@@ -5,6 +5,7 @@ import { currentRevision } from "../src/features/play/living-card-proof";
 import { sealCollectedCard } from "../src/features/play/portable-card";
 import { isLivingCardAsset } from "../src/features/play/living-card-types";
 import { healWildBattleCard, settleWildBattleCard } from "../src/features/play/wild-battle-life";
+import { deriveKaiKlokMoment } from "../src/features/play/kai-klok-moment";
 
 const card = () => sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "battle-life", encounterId: "battle-life-card", capturedAt: "2026-07-18T12:00:00.000Z" });
 
@@ -15,9 +16,11 @@ test("wild battle damage persists and camp recovery is bounded", () => {
   assert.equal(isLivingCardAsset(damaged), true);
   if (!isLivingCardAsset(damaged)) throw new Error("expected living battle card");
   assert.equal(currentRevision(damaged).growth.life?.vitality, 34);
+  assert.equal(currentRevision(damaged).kaiPulse, String(deriveKaiKlokMoment({ occurredAt: "2026-07-18T12:05:00.000Z", authority: "local" }).uPulse));
   const healed = healWildBattleCard(damaged, 20, "2026-07-18T12:06:00.000Z");
   if (!isLivingCardAsset(healed)) throw new Error("expected healed living card");
   assert.equal(currentRevision(healed).growth.life?.vitality, 54);
+  assert.equal(currentRevision(healed).kaiPulse, String(deriveKaiKlokMoment({ occurredAt: "2026-07-18T12:06:00.000Z", authority: "local" }).uPulse));
 });
 
 test("zero health in a wild battle permanently retires the creature", () => {
@@ -27,5 +30,6 @@ test("zero health in a wild battle permanently retires the creature", () => {
   if (!isLivingCardAsset(retired)) throw new Error("expected retired living card");
   assert.equal(currentRevision(retired).growth.life?.retired, true);
   assert.equal(currentRevision(retired).growth.life?.retirement?.cause, "wild-battle-zero-vitality");
+  assert.equal(currentRevision(retired).kaiPulse, String(deriveKaiKlokMoment({ occurredAt: "2026-07-18T12:05:00.000Z", authority: "local" }).uPulse));
   assert.equal(healWildBattleCard(retired, 20, "2026-07-18T12:06:00.000Z"), retired);
 });

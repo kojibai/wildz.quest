@@ -1,6 +1,6 @@
-# Wildz v3 release verification
+# Wildz v4 competitive alpha release verification
 
-Date: 2026-08-01. Target application version: `3.0.0`. Receiz integration target: `118.0.0`.
+Date: 2026-08-11. Target application version: `4.0.0-alpha.0`. Receiz integration target: `118.0.0`.
 
 ## Qualification status
 
@@ -22,7 +22,12 @@ The qualification treats v118 as one coordinated SDK/MCP/AI/ruleset/registry/mat
 
 | Gate | Result |
 |---|---|
-| `pnpm release:check` | Pass: v118 repository integration and release-identity checker, all 959 Node tests, typecheck, MCP conformance, lint, full tracked/untracked text secret scan, production build, and default Receiz doctor |
+| Full Node suite | Pass: 1,216/1,216 tests across 119 suites |
+| `pnpm typecheck` | Pass |
+| `pnpm lint` | Pass |
+| Production build | Pass: 16/16 static pages generated; existing SDK verifier `web-worker` dynamic-dependency warning retained |
+| Production browser | Pass in Chromium: desktop and 390×844 mobile, zero console errors, no horizontal overflow, keyboard lantern toggle, reduced-motion layout, and fixed-Kai deep-night readability |
+| `pnpm release:check` | Pass: 1,216 tests, typecheck, v118 checker, 15/15 conformance, lint, secret scan, production build, and default doctor |
 | Historical migration compatibility | Pass: forward-only checkpoint retained; sealed artifacts, receipts, and heads preserved; current execution remains v118-only |
 | V118 offline authority | Pass: a queued proposal is not a global commitment; divergence resolution is structural-only |
 | Proof/Vault regressions | Pass in the full suite, including complete 97/98-card restore, canonical Identity Seal/key continuation, scoped legacy Vault recovery, compact historical-card custody admission, duplicate drops, revision reconciliation, pending-to-final admission, and atomic fork rejection |
@@ -36,8 +41,8 @@ The qualification treats v118 as one coordinated SDK/MCP/AI/ruleset/registry/mat
 | V3 ecology lifecycle | Pass: activation, resolution, historicization, expiry, cap release, causal replay, and retry idempotency |
 | Market settlement coordinator | Pass with local contract doubles: admitted trade, Receiz Connect transfer proof, corroborating wallet ledger event, conditional ownership append, and idempotent recovery; v118 exposes no Wildz-specific conditional append, so the live adapter remains fail-closed without that capability |
 | Bearer claim product flow | Pass: the explicit online action requires the active proof session and player confirmation, submits the complete artifact to the v118 ownership route, independently reopens the returned artifact, downloads the exact admitted bytes, and only then projects verified cards locally; ordinary Vault restore remains independent of this online claim |
-| Mobile entry | Chromium and WebKit pass: one-line Genesis copy, no horizontal overflow, and clean entry logs |
-| Gameplay presentation | Chromium mobile smoke passed; WebKit mobile world render was visually inspected at the release viewport |
+| Mobile entry | Chromium 390×844 pass: no horizontal overflow and clean production logs; prior WebKit entry evidence remains valid |
+| Gameplay presentation | Chromium desktop/mobile production smoke passed; deep-night fixed-Kai capture confirms a dark world with the explorer and creature remaining visible under the lantern |
 | PWA boundary | Real Chromium worker activation and offline navigation passed; an unvisited public route rendered offline guidance without leaking another page |
 
 The supplied production-shaped Vault was historically inspected without recording private bytes, paths, identity values, hashes, or card identifiers. It decoded to 98 cards with an embedded player. That result remains compatibility evidence, not a fresh v118 qualification. The server commits the historical-owner portion of an exact verified collection into the encrypted session, and gameplay accepts an older-owner card only with its compact membership proof. An artifact without an Identity Seal or v118 owner-continuity binding leaves canonical account-only writes Identity Seal/key-gated.
@@ -61,4 +66,4 @@ There is no external database added by Wildz. Browser owner state is local Index
 
 ## Release decision
 
-Version `3.0.0` is locally qualified for commit. Production activation is conditional on the supplied environment, the strict-live doctor, and the remaining authorized external gates.
+Version `4.0.0-alpha.0` is locally qualified for commit and local release tagging. Production activation is conditional on the supplied environment, the strict-live doctor, representative player/device qualification, and the remaining authorized external gates.

@@ -1,9 +1,23 @@
 import { creatureForm } from "./creature-catalog";
 import { deriveCardVariantV2, deriveCardVariantV3, variantSeedFor } from "./card-variant";
 import { deriveKaiCreatureBirth } from "./kai-creature-birth";
-import { deriveKaiKlokMoment } from "./kai-klok-moment";
+import { deriveKaiKlokMoment, deriveKaiKlokMomentFromUPulse } from "./kai-klok-moment";
 import { validateLivingCreatureIdentity } from "./living-taxonomy";
 import { deriveBirthGenome, genomeDigest, mergeLivingGenome, validateGenome } from "./heartbound-genome";
+import { emptyAdventureCondition } from "./adventure/card-condition";
+import {
+  appendCreatureHistoryEvent,
+  compareCreatureHistoryHeads,
+  createCreatureHistory,
+  isCreatureHistoryDescendant,
+  verifyCreatureHistory
+} from "./creature-history";
+import type {
+  CreatureHistoryAuthorityVerifier,
+  CreatureHistoryEventDraft,
+  CreatureHistoryProjection,
+  CreatureRetirementAuthorityVerifier
+} from "./creature-history-types";
 import {
   canonicalPortableCardJson,
   sha256PortableBasis,
@@ -79,6 +93,65 @@ function birthGenome(legacy: LegacyPortableCardAsset): LivingCardGenome {
   return deriveBirthGenome({ formId: legacy.manifest.formId, proofDigest: legacy.proof.digest, variant: legacy.manifest.variant.traits });
 }
 
+function historyProjectionForRevision(
+  assetId: string,
+  revision: LivingCardRevision,
+  prior?: CreatureHistoryProjection
+): CreatureHistoryProjection {
+  const priorGrowth = prior?.growth;
+  const growth: LivingGrowthSnapshot = priorGrowth ? {
+    ...revision.growth,
+    bond: Math.max(priorGrowth.bond, revision.growth.bond),
+    paths: Object.fromEntries((Object.keys(priorGrowth.paths) as Array<keyof LivingGrowthSnapshot["paths"]>).map((path) => [
+      path,
+      Math.max(priorGrowth.paths[path], revision.growth.paths[path])
+    ])) as LivingGrowthSnapshot["paths"],
+    eventIds: Array.from(new Set([...priorGrowth.eventIds, ...revision.growth.eventIds])),
+    achievementIds: Array.from(new Set([...priorGrowth.achievementIds, ...revision.growth.achievementIds])),
+    consumedAchievementIds: Array.from(new Set([...priorGrowth.consumedAchievementIds, ...revision.growth.consumedAchievementIds])),
+    completedQuestIds: Array.from(new Set([...priorGrowth.completedQuestIds, ...revision.growth.completedQuestIds])),
+    life: revision.growth.life ?? priorGrowth.life
+  } : structuredClone(revision.growth);
+  const life = growth.life;
+  const baseCondition = prior?.condition ?? emptyAdventureCondition(assetId);
+  const condition = life?.retired
+    ? {
+        ...baseCondition,
+        life: "dead" as const,
+        fatigue: 100,
+        retiredAt: life.retirement?.retiredAt ?? revision.sealedAt,
+        retirementCauseEventId: life.retirement?.sealDigest ?? life.eventIds.at(-1) ?? `retirement:${revision.digest}`
+      }
+    : baseCondition;
+  return {
+    schema: "receiz.wildz.creature_history_projection.v1",
+    assetId,
+    level: prior?.level ?? 1,
+    xp: prior?.xp ?? 0,
+    bond: growth.bond,
+    growth,
+    condition,
+    mastery: { ...condition.mastery },
+    record: {
+      wins: life?.victories ?? prior?.record.wins ?? 0,
+      losses: life?.losses ?? prior?.record.losses ?? 0,
+      draws: prior?.record.draws ?? 0,
+      retreats: life?.retreats ?? prior?.record.retreats ?? 0,
+      rescues: prior?.record.rescues ?? 0,
+      tags: prior?.record.tags ?? 0,
+      bossVictories: prior?.record.bossVictories ?? 0
+    },
+    achievements: Array.from(new Set([...(prior?.achievements ?? []), ...growth.achievementIds])),
+    relationships: [...(prior?.relationships ?? [])],
+    scars: Array.from(new Set([...(prior?.scars ?? []), ...(life?.repairedScars ?? [])])),
+    upgrades: [...(prior?.upgrades ?? [])],
+    formId: revision.formId,
+    stage: revision.stage,
+    ascensionRank: revision.ascensionRank,
+    livingRevisionDigest: revision.digest
+  };
+}
+
 export function admitLegacyCard(legacy: LegacyPortableCardAsset, admittedAt: string, options: {
   birth?: LivingCardBirth;
   birthGenome?: LivingCardGenome;
@@ -119,7 +192,15 @@ export function admitLegacyCard(legacy: LegacyPortableCardAsset, admittedAt: str
     birth: options.birth ?? { kind: "legacy_admission", bornAt: legacy.manifest.capturedAt, formId: form.id, legacyDigest: legacy.proof.digest },
     birthGenome: genome,
     currentRevision: 0,
-    revisions: [revision]
+    revisions: [revision],
+    history: createCreatureHistory({
+      assetId: legacy.id,
+      rootProofDigest: legacy.proof.digest,
+      rulesetVersion: "wildz.creature-history.v1",
+      occurredAt: revision.sealedAt,
+      actorId: legacy.manifest.ownerReceizId,
+      projection: historyProjectionForRevision(legacy.id, revision)
+    })
   };
   return {
     id: legacy.id,
@@ -159,7 +240,79 @@ export function currentLivingProjection(asset: LivingCardAsset) {
   };
 }
 
-export function appendLivingCardRevision(input: { asset: LivingCardAsset; revision: LivingCardRevisionDraft; lineageChildAssetId?: string }): LivingCardAsset {
+export function currentCreatureHistoryProjection(asset: LivingCardAsset) {
+  return asset.manifest.history?.projection
+    ?? historyProjectionForRevision(asset.id, currentRevision(asset));
+}
+
+export function appendLivingCardHistory(input: { asset: LivingCardAsset; event: CreatureHistoryEventDraft }): LivingCardAsset {
+  const checked = verifyLivingCard(input.asset);
+  if (!checked.ok) throw new Error("wilds_living_previous_invalid");
+  const prior = currentRevision(input.asset);
+  const history = input.asset.manifest.history ?? createCreatureHistory({
+    assetId: input.asset.id,
+    rootProofDigest: input.asset.manifest.birth.legacyDigest ?? input.asset.proof.digest,
+    rulesetVersion: "wildz.creature-history.v1",
+    occurredAt: prior.sealedAt,
+    actorId: input.asset.manifest.ownerReceizId,
+    projection: historyProjectionForRevision(input.asset.id, prior),
+    completeness: "legacy-checkpoint"
+  });
+  const appended = appendCreatureHistoryEvent(history, input.event);
+  if (appended === history) return input.asset;
+  const manifest = { ...input.asset.manifest, history: appended };
+  return {
+    ...input.asset,
+    manifest,
+    proof: { ...input.asset.proof, digest: manifestDigest(manifest), sealedAt: input.event.occurredAt }
+  };
+}
+
+export function isLivingCardHistoryDescendant(ancestor: LivingCardAsset, descendant: LivingCardAsset) {
+  if (ancestor.id !== descendant.id) return false;
+  const left = ancestor.manifest.history;
+  const right = descendant.manifest.history;
+  if (!left || !right) return Boolean(!left && right);
+  return isCreatureHistoryDescendant(left, right);
+}
+
+export function compareLivingCardHistoryHeads(left: LivingCardAsset, right: LivingCardAsset, verifier?: CreatureHistoryAuthorityVerifier) {
+  if (left.id !== right.id || !left.manifest.history || !right.manifest.history) throw new Error("creature_history_root_conflict");
+  return compareCreatureHistoryHeads(left.manifest.history, right.manifest.history, verifier);
+}
+
+export function livingCardHasIrreversibleMortality(asset: LivingCardAsset) {
+  return Boolean(currentRevision(asset).growth.life?.retired)
+    || currentCreatureHistoryProjection(asset).condition.life === "dead";
+}
+
+export function verifyLivingCardRetirementAuthority(
+  asset: LivingCardAsset,
+  verifier?: CreatureRetirementAuthorityVerifier
+) {
+  if (!livingCardHasIrreversibleMortality(asset)) return true;
+  const revision = currentRevision(asset);
+  const retirement = revision.growth.life?.retirement;
+  const history = asset.manifest.history;
+  if (!retirement || !history || !verifier) return false;
+  try {
+    return verifier.verifyRetirement({
+      schema: "receiz.wildz.creature_retirement_authority_evidence.v1",
+      assetId: asset.id,
+      cardProofDigest: asset.proof.digest,
+      revisionDigest: revision.digest,
+      historyHeadDigest: history.headDigest,
+      matchReceiptDigest: retirement.matchReceiptDigest,
+      retirementSealDigest: retirement.sealDigest,
+      retiredAt: retirement.retiredAt,
+      previousRevisionDigest: retirement.previousRevisionDigest
+    }) === true;
+  } catch {
+    return false;
+  }
+}
+
+export function appendLivingCardRevision(input: { asset: LivingCardAsset; revision: LivingCardRevisionDraft; lineageChildAssetId?: string; historyKaiUPulse?: number }): LivingCardAsset {
   const checked = verifyLivingCard(input.asset);
   if (!checked.ok) throw new Error("wilds_living_previous_invalid");
   if (!Number.isFinite(Date.parse(input.revision.sealedAt))) throw new Error("wilds_revision_time_invalid");
@@ -199,7 +352,39 @@ export function appendLivingCardRevision(input: { asset: LivingCardAsset; revisi
         : input.asset.manifest.lineage.childAssetIds
     },
     currentRevision: revision.revision,
-    revisions: [...input.asset.manifest.revisions, revision]
+    revisions: [...input.asset.manifest.revisions, revision],
+    history: input.asset.manifest.history
+      ? appendCreatureHistoryEvent(input.asset.manifest.history, {
+          eventId: `living-revision:${revision.digest}`,
+          rulesetVersion: "wildz.living-revision.v1",
+          occurredAt: revision.sealedAt,
+          ...(input.historyKaiUPulse === undefined ? {} : {
+            kai: (() => {
+              const moment = deriveKaiKlokMomentFromUPulse({ uPulse: input.historyKaiUPulse, authority: "admitted" });
+              return {
+                uPulse: moment.uPulse,
+                pulse: moment.pulse,
+                beat: moment.beat,
+                stepIndex: moment.stepIndex,
+                weekday: moment.weekday,
+                chakra: moment.chakra,
+                coordinate: moment.coordinate
+              };
+            })()
+          }),
+          source: {
+            mode: "living-revision",
+            activityId: `living-revision:${revision.revision}`,
+            actorId: input.asset.manifest.ownerReceizId,
+            authority: "local"
+          },
+          evidence: {},
+          effects: [{
+            kind: "legacy-checkpoint",
+            projection: historyProjectionForRevision(input.asset.id, revision, input.asset.manifest.history.projection)
+          }]
+        })
+      : undefined
   };
   return {
     ...input.asset,
@@ -299,6 +484,20 @@ export function verifyLivingCard(asset: LivingCardAsset): PortableCardVerificati
     if (manifest.formId !== current.formId || manifest.stage !== current.stage) errors.push("current_projection_identity_invalid");
     if (canonicalPortableCardJson(manifest.stats) !== canonicalPortableCardJson(current.stats)) errors.push("current_projection_stats_invalid");
     if (canonicalPortableCardJson(manifest.abilityNames) !== canonicalPortableCardJson(current.abilityNames)) errors.push("current_projection_abilities_invalid");
+  }
+  if (manifest.history) {
+    const history = verifyCreatureHistory(manifest.history);
+    history.errors.forEach((error) => errors.push(`history_${error}`));
+    if (manifest.history.assetId !== asset.id
+      || (manifest.birth.legacyDigest && manifest.history.rootProofDigest !== manifest.birth.legacyDigest)) {
+      errors.push("history_root_invalid");
+    }
+    if (current && (manifest.history.projection.formId !== current.formId
+      || manifest.history.projection.stage !== current.stage
+      || manifest.history.projection.ascensionRank !== current.ascensionRank
+      || manifest.history.projection.livingRevisionDigest !== current.digest)) {
+      errors.push("history_revision_projection_invalid");
+    }
   }
   if (asset.proof.kind !== "receiz.wilds_living_seal.v2" || asset.proof.digest !== manifestDigest(manifest)) errors.push("digest_mismatch");
   return { ok: errors.length === 0, errors };

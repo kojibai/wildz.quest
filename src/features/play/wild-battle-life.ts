@@ -4,12 +4,14 @@ import { isLivingCardAsset, type LivingCardAsset, type LivingCardLifeSnapshot } 
 import { canonicalPortableCardJson, sha256PortableBasis, type PortableCardAsset } from "./portable-card";
 import { createCreatureLife } from "../games/lifecycle/creature-life-event";
 import { sealRetirement } from "../games/lifecycle/creature-retirement";
+import { deriveKaiKlokMoment } from "./kai-klok-moment";
 
 function appendLife(card: LivingCardAsset, life: LivingCardLifeSnapshot, sealedAt: string, eventId: string, label: string) {
   const prior = currentRevision(card);
+  const kai = deriveKaiKlokMoment({ occurredAt: sealedAt, authority: "local" });
   return appendLivingCardRevision({ asset: card, revision: {
     sealedAt,
-    kaiPulse: prior.kaiPulse,
+    kaiPulse: String(kai.uPulse),
     reason: { kind: "life", label },
     stage: prior.stage,
     ascensionRank: prior.ascensionRank,
@@ -28,6 +30,7 @@ function appendLife(card: LivingCardAsset, life: LivingCardLifeSnapshot, sealedA
 export function settleWildBattleCard(card: PortableCardAsset, battle: BattleState, settledAt: string) {
   if (!Number.isFinite(Date.parse(settledAt))) throw new Error("wild_battle_life_time_invalid");
   const living = isLivingCardAsset(card) ? card : admitLegacyCard(card, settledAt);
+  const kai = deriveKaiKlokMoment({ occurredAt: settledAt, authority: "local" });
   const prior = currentRevision(living);
   const previousLife = prior.growth.life ?? createCreatureLife(living.id, Math.max(1, battle.player.maxHp));
   const receiptDigest = sha256PortableBasis(canonicalPortableCardJson({
@@ -47,6 +50,7 @@ export function settleWildBattleCard(card: PortableCardAsset, battle: BattleStat
       finalVitality: 0,
       teamOutcome: "defeat",
       retiredAt: settledAt,
+      kaiUPulse: kai.uPulse,
       cause: "wild-battle-zero-vitality"
     }, { verified: true, mortalOptIn: true }).card;
   }

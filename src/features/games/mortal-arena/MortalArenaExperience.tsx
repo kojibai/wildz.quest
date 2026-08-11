@@ -9,17 +9,21 @@ import type { PortableCardAsset } from "../../play/portable-card";
 import type { WildsAudioCue } from "../../play/wilds-audio";
 import { playHapticPattern } from "../../play/wilds-haptics";
 import { useWildsQualityProfile } from "../../play/use-wilds-quality-profile";
+import type { ArenaMode } from "../../play/arena/mode";
 import type { WildzArenaPath } from "./campaign";
 import type { ArenaCampaignOpponent } from "./campaign";
-import { MORTAL_ARENA_COVENANT_VERSION, MortalArenaCovenant } from "./MortalArenaCovenant";
+import { MortalArenaCovenant } from "./MortalArenaCovenant";
 import { MortalArenaScene } from "./MortalArenaScene";
+import type { CanonicalMortalAdmission } from "./canonical-adapter";
 import type { ArenaSettlement } from "./settlement";
 import { useMortalArena } from "./use-mortal-arena";
 
-export function MortalArenaExperience({ card, roster, opponent = null, resultPresentation = "arena", onExit, onUnlock, onCommit, onAudioCue }: {
+export function MortalArenaExperience({ card, roster, opponent = null, mode = "adventure", mortalAdmission, resultPresentation = "arena", onExit, onUnlock, onCommit, onAudioCue }: {
   card: PortableCardAsset;
   roster: readonly PortableCardAsset[];
   opponent?: ArenaCampaignOpponent | null;
+  mode?: ArenaMode;
+  mortalAdmission?: CanonicalMortalAdmission;
   resultPresentation?: "arena" | "director";
   onExit: () => void;
   onUnlock: (unlockId: string) => void;
@@ -28,15 +32,15 @@ export function MortalArenaExperience({ card, roster, opponent = null, resultPre
 }) {
   const admittedRoster = useMemo(() => [card, ...roster.filter((item) => item.id !== card.id)].slice(0, 3), [card, roster]);
   const life = isLivingCardAsset(card) ? currentRevision(card).growth.life : null;
-  const grave = Boolean(life && life.vitality / Math.max(1, life.maxVitality) <= .15);
   const retired = Boolean(life?.retired);
-  const [covenantAccepted, setCovenantAccepted] = useState(() => typeof window !== "undefined" && !grave && window.localStorage.getItem(MORTAL_ARENA_COVENANT_VERSION) === "accepted");
+  const [covenantAccepted, setCovenantAccepted] = useState(false);
   const { profile: qualityProfile, reportFrameSample } = useWildsQualityProfile();
   const committed = useCallback((settlement: ArenaSettlement, path: WildzArenaPath) => {
     onCommit(settlement, path);
     if (settlement.result.winnerSide === 0) onUnlock(path.stage % 3 === 1 ? "echo-sovereign" : "echo-victor");
   }, [onCommit, onUnlock]);
-  const arena = useMortalArena({ active: covenantAccepted && !retired, roster: admittedRoster, onCommit: committed, requestedOpponent: opponent });
+  const requiresCovenant = mode === "mortal";
+  const arena = useMortalArena({ active: (!requiresCovenant || covenantAccepted) && !retired, roster: admittedRoster, onCommit: committed, requestedOpponent: opponent, mode, mortalAdmission });
   const player = arena.state.sides[0].fighters[arena.state.sides[0].activeIndex]!;
   const activeArenaCard = admittedRoster[arena.state.sides[0].activeIndex] ?? card;
   const rival = arena.state.sides[1].fighters[arena.state.sides[1].activeIndex]!;
@@ -68,8 +72,16 @@ export function MortalArenaExperience({ card, roster, opponent = null, resultPre
   if (typeof document === "undefined") return null;
   const vitality = Math.round(player.vitality / Math.max(1, player.maxVitality) * 100);
   const rivalVitality = Math.round(rival.vitality / Math.max(1, rival.maxVitality) * 100);
+  const stamina = Math.round(player.stamina ?? 0);
+  const breakPercent = Math.round(player.break / Math.max(1, player.maxBreak) * 100);
+  const actionWindow = player.action?.kind === "idle"
+    ? "Ready"
+    : arena.state.tick <= (player.action?.activeUntil ?? -1)
+      ? `${player.action?.kind} active`
+      : `${player.action?.kind} recovery`;
   const resultLabel = arena.result?.winnerSide === 0 ? "Victory carried forward" : arena.result?.outcome === "fled" ? "Retreat survived" : "The Arena remembers";
-  const disabled = !covenantAccepted || retired || Boolean(arena.settlement);
+  const disabled = Boolean(arena.unavailableReason) || (requiresCovenant && !covenantAccepted) || retired || Boolean(arena.settlement);
+  const arenaTitle = mode === "mortal" ? "Mortal Arena" : mode === "ranked" ? "Ranked Arena" : mode === "practice" ? "Practice Arena" : "Adventure Arena";
   const haptic = (pattern: number | number[]) => {
     playHapticPattern(pattern);
   };
@@ -77,11 +89,15 @@ export function MortalArenaExperience({ card, roster, opponent = null, resultPre
   return createPortal(
     <section aria-labelledby="mortal-arena-title" aria-modal="true" className={`wilds-landmark-experience competition mortal-arena-experience warning-${arena.warning}`} role="dialog">
       <header className="wilds-landmark-header mortal-arena-header">
-        <div><span className="eyebrow">Stage {arena.path.stage} · {arena.opponent.kind === "boss" ? "Sovereign encounter" : "Mortal match"}</span><h2 id="mortal-arena-title">Mortal Arena</h2></div>
-        <button aria-label="Leave Mortal Arena" onClick={onExit} type="button"><Icons.close aria-hidden="true" size={19} /></button>
+        <div><span className="eyebrow">Stage {arena.path.stage} · {arena.opponent.kind === "boss" ? "Sovereign encounter" : `${mode} match`}</span><h2 id="mortal-arena-title">{arenaTitle}</h2></div>
+        <button aria-label={`Leave ${arenaTitle}`} onClick={onExit} type="button"><Icons.close aria-hidden="true" size={19} /></button>
       </header>
       <div className="wilds-landmark-world wilds-arena-world mortal-arena-live-world">
-        {!covenantAccepted && !retired ? <MortalArenaCovenant card={card} onConfirm={() => setCovenantAccepted(true)} onExit={onExit} /> : null}
+        {requiresCovenant && !covenantAccepted && !retired ? <MortalArenaCovenant card={card} onConfirm={() => {
+          arena.claimMortalAdmission();
+          setCovenantAccepted(true);
+        }} onExit={onExit} /> : null}
+        {arena.unavailableReason && (!requiresCovenant || covenantAccepted) ? <div className="mortal-arena-retired" role="status"><Icons.seal size={38} /><span>Verified admission required</span><h3>{mode === "ranked" ? "Ranked is unavailable without global authority." : "This Mortal match has not received its exact signed covenant."}</h3><p>No competitive or irreversible match can start from a local assertion.</p><button onClick={onExit} type="button">Return to the Wilds</button></div> : null}
         {retired ? <div className="mortal-arena-retired" role="status"><Icons.star size={38} /><span>Memorial seal</span><h3>{card.manifest.name} has completed their final chapter.</h3><p>Their card and full history remain in your Vault. They cannot enter another match.</p><button onClick={onExit} type="button">Return to the Wilds</button></div> : null}
         <MortalArenaScene state={arena.state} roster={admittedRoster} opponent={arena.opponent} qualityProfile={qualityProfile} impactTick={arena.impactTick} onFrameSample={reportFrameSample} />
         <div className="mortal-arena-hud" aria-live="polite">
@@ -89,6 +105,7 @@ export function MortalArenaExperience({ card, roster, opponent = null, resultPre
             <span><strong>{activeArenaCard.manifest.name}</strong><small>{arena.warning === "safe" ? `Reserve ${arena.state.sides[0].fighters.length}` : arena.warning}</small></span>
             <div aria-label={`${vitality}% Vitality`}><i style={{ width: `${vitality}%` }} /></div><b>{vitality}</b>
           </article>
+          <div className="mortal-arena-skill-state" aria-label="Combat resources"><span>Stamina <b>{stamina}</b></span><span>Break <b>{breakPercent}%</b></span><span>Focus <b>{player.focus}</b></span><span>Window <b>{actionWindow}</b></span></div>
           <div className="mortal-arena-round-mark" aria-hidden="true"><i /><strong>{arena.opponent.kind === "boss" ? arena.opponent.phases[Math.min(arena.opponent.phases.length - 1, Math.floor((100 - rivalVitality) / 34))] : "VS"}</strong><i /></div>
           <article className="mortal-arena-life is-rival">
             <span><strong>{arena.opponent.name}</strong><small>{arena.opponent.kind}</small></span>
@@ -96,7 +113,7 @@ export function MortalArenaExperience({ card, roster, opponent = null, resultPre
           </article>
         </div>
         {arena.warning !== "safe" ? <div className={`mortal-arena-warning is-${arena.warning}`} role="alert"><i /><Icons.pulse aria-hidden="true" size={19} /><span>{arena.warning === "final" ? "One more clean hit may be final" : arena.warning === "grave" ? "Swap or flee while life remains" : "Vitality strained"}</span><i /></div> : null}
-        {arena.settlement && resultPresentation === "arena" ? <div className="mortal-arena-result" role="status"><Icons.trophy size={32} /><span>Result sealed locally</span><h3>{resultLabel}</h3><p>{`${arena.settlement.card.manifest.name}'s history has been appended before this result appeared.`}</p><button onClick={arena.continuePath} type="button">Continue to stage {arena.path.stage}</button><button onClick={onExit} type="button">Return to world</button></div> : null}
+        {arena.settlement && resultPresentation === "arena" ? <div className="mortal-arena-result" role="status"><Icons.trophy size={32} /><span>Result sealed locally</span><h3>{resultLabel}</h3><p>{`${arena.settlement.card.manifest.name}'s history has been appended before this result appeared.`}</p><button onClick={mode === "mortal" ? onExit : arena.continuePath} type="button">{mode === "mortal" ? "Return for a new covenant" : `Continue to stage ${arena.path.stage}`}</button><button onClick={onExit} type="button">Return to world</button></div> : null}
       </div>
       <footer className="wilds-landmark-actions mortal-arena-actions" aria-label="Mortal Arena actions">
         <section className="mortal-arena-movement-zone" aria-label="Movement zone">
@@ -106,12 +123,15 @@ export function MortalArenaExperience({ card, roster, opponent = null, resultPre
         <section className="mortal-arena-combat-zone" aria-label="Primary combat actions">
           <button className="mortal-arena-primary-strike" aria-label="Strike rival" disabled={disabled} onClick={() => { arena.pulse({ light: true }); haptic(18); }} type="button"><Icons.trophy size={24} /><span><strong>Strike</strong><small>Primary</small></span></button>
           <button className="mortal-arena-guard" aria-label="Guard while held" disabled={disabled} onPointerCancel={() => arena.hold("guard", false)} onPointerDown={() => { arena.hold("guard", true); haptic(12); }} onPointerLeave={() => arena.hold("guard", false)} onPointerUp={() => arena.hold("guard", false)} type="button"><Icons.seal size={19} /><span><strong>Guard</strong><small>Hold</small></span></button>
-          <button className="mortal-arena-ability" aria-label={`Use ${activeArenaCard.manifest.abilityNames[0]}`} disabled={disabled} onClick={() => { arena.pulse({ heavy: true }); haptic([20, 18, 28]); }} type="button"><Icons.pulse size={19} /><span><strong>{activeArenaCard.manifest.abilityNames[0]}</strong><small>Ability</small></span></button>
+          <button className="mortal-arena-ability" aria-label={`Use ${activeArenaCard.manifest.abilityNames[0]}`} disabled={disabled} onClick={() => { arena.pulse({ abilitySlot: 0 }); haptic([20, 18, 28]); }} type="button"><Icons.pulse size={19} /><span><strong>{activeArenaCard.manifest.abilityNames[0]}</strong><small>Ability</small></span></button>
         </section>
         <div className="mortal-arena-context-actions" aria-label="Context actions">
+          <button aria-label="Dodge through an attack window" disabled={disabled} onClick={() => { arena.pulse({ dodge: true }); haptic([9, 9]); }} type="button"><Icons.chevronUp size={17} /><span><strong>Dodge</strong><small>Evade</small></span></button>
+          <button aria-label="Parry during the rival attack window" disabled={disabled} onClick={() => { arena.pulse({ parry: true }); haptic([8, 12, 18]); }} type="button"><Icons.seal size={17} /><span><strong>Parry</strong><small>Timing</small></span></button>
           <button aria-label="Focus and read the rival" disabled={disabled} onClick={() => { arena.pulse({ focus: true }); haptic(10); }} type="button"><Icons.pulse size={17} /><span><strong>Focus</strong><small>Read</small></span></button>
-          <button aria-label="Swap to the next living reserve" disabled={disabled || arena.state.sides[0].fighters.length < 2} onClick={() => { arena.pulse({ swapTo: (arena.state.sides[0].activeIndex + 1) % arena.state.sides[0].fighters.length }); haptic([12, 18]); }} type="button"><Icons.users size={17} /><span><strong>Swap</strong><small>Reserve</small></span></button>
-          <button className="mortal-arena-flee" aria-label="Flee while held" disabled={disabled} onPointerCancel={() => arena.hold("flee", false)} onPointerDown={() => { arena.hold("flee", true); haptic(24); }} onPointerLeave={() => arena.hold("flee", false)} onPointerUp={() => arena.hold("flee", false)} type="button"><Icons.door size={17} /><span><strong>Flee</strong><small>Hold</small></span></button>
+          <button aria-label="Tag the next living reserve" disabled={disabled || arena.state.sides[0].fighters.length < 2} onClick={() => { arena.pulse({ swapTo: (arena.state.sides[0].activeIndex + 1) % arena.state.sides[0].fighters.length }); haptic([12, 18]); }} type="button"><Icons.users size={17} /><span><strong>Tag</strong><small>Reserve</small></span></button>
+          <button aria-label="Use the nearby Arena mechanism" disabled={disabled} onClick={() => { arena.pulse({ contextTargetId: "mechanism:gate" }); haptic(12); }} type="button"><Icons.star size={17} /><span><strong>Use</strong><small>Context</small></span></button>
+          <button className="mortal-arena-flee" aria-label="Withdraw while held" disabled={disabled} onPointerCancel={() => arena.hold("flee", false)} onPointerDown={() => { arena.hold("flee", true); haptic(24); }} onPointerLeave={() => arena.hold("flee", false)} onPointerUp={() => arena.hold("flee", false)} type="button"><Icons.door size={17} /><span><strong>Withdraw</strong><small>Hold</small></span></button>
         </div>
       </footer>
     </section>,

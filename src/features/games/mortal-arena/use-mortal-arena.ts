@@ -1,200 +1,168 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { creatureForm } from "../../play/creature-catalog";
-import { isLivingCardAsset } from "../../play/living-card-types";
-import { currentRevision } from "../../play/living-card-proof";
-import { canonicalPortableCardJson, sha256PortableBasis, type PortableCardAsset } from "../../play/portable-card";
-import { emptyAdventureCondition, type AdventureCardCondition } from "../../play/adventure/card-condition";
-import { projectArenaFighter } from "../../play/arena/card-fighter";
-import { createArenaLivingRevision } from "../../play/arena/living-revision";
-import { advanceArenaNpc, createArenaNpc, stepArenaNpc } from "./npc-controller";
+import type { ArenaMode } from "../../play/arena/mode";
+import type { PortableCardAsset } from "../../play/portable-card";
+import { sealArenaReceipt } from "../../play/arena/receipt";
+import { createArenaTranscript } from "../../play/arena/transcript";
 import { advanceArenaPath, projectCampaignOpponent, restoreArenaPath, type ArenaCampaignOpponent, type WildzArenaPath } from "./campaign";
-import { MORTAL_ARENA_MODULE } from "./module";
+import {
+  advanceCanonicalArenaSession,
+  createCanonicalArenaSession,
+  projectCanonicalArenaResult,
+  projectCanonicalArenaState,
+  type CanonicalArenaSession,
+  type CanonicalMortalAdmission
+} from "./canonical-adapter";
 import { projectMortalityWarning } from "./mortality";
-import { createArenaSettlement, recoverArenaSettlement, type ArenaSettlement } from "./settlement";
-import type { ArenaAffinity, MortalArenaInput, MortalArenaResult, MortalArenaSetup, MortalArenaState } from "./types";
+import { ARENA_SETTLEMENT_JOURNAL_PREFIX, createArenaSettlement, recoverArenaSettlement, type ArenaSettlement } from "./settlement";
+import type { MortalArenaInput } from "./types";
 
 const PATH_KEY = "wildz:mortal-arena:path:v1";
 
-function affinityFor(card: PortableCardAsset): ArenaAffinity {
-  const element = creatureForm(card.manifest.formId)?.element;
-  return element === "Grove" || element === "Spark" || element === "Tide" || element === "Ember" || element === "Prism" || element === "Stone" ? element : "Prism";
+type SessionProjection = Readonly<{
+  session: CanonicalArenaSession;
+  unavailableReason: string | null;
+}>;
+
+export function createMortalArenaSessionProjection(input: {
+  roster: readonly PortableCardAsset[];
+  path: WildzArenaPath;
+  opponent: ArenaCampaignOpponent;
+  mode: ArenaMode;
+  mortalAdmission?: CanonicalMortalAdmission;
+}, options: Readonly<{ claimMortalAdmission?: boolean }> = {}): SessionProjection {
+  if (input.mode === "mortal" && input.mortalAdmission && !options.claimMortalAdmission) {
+    const { mortalAdmission: _mortalAdmission, ...practiceInput } = input;
+    return {
+      session: createCanonicalArenaSession({ ...practiceInput, mode: "practice" }),
+      unavailableReason: "mortal_arena_covenant_not_claimed"
+    };
+  }
+  try {
+    return { session: createCanonicalArenaSession(input), unavailableReason: null };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "mortal_arena_session_unavailable";
+    if (reason !== "mortal_arena_ranked_global_session_required" && reason !== "mortal_arena_signed_covenant_required") throw error;
+    // A non-interactive Practice projection keeps the existing scene readable while
+    // Ranked and Mortal remain fail-closed until their verified envelopes are supplied.
+    const { mortalAdmission: _mortalAdmission, ...practiceInput } = input;
+    return { session: createCanonicalArenaSession({ ...practiceInput, mode: "practice" }), unavailableReason: reason };
+  }
 }
 
-function arenaConditionFor(card: PortableCardAsset): AdventureCardCondition {
-  if (!isLivingCardAsset(card)) return emptyAdventureCondition(card.id);
-  const revision = currentRevision(card);
-  const life = revision.growth.life;
-  if (!life) return emptyAdventureCondition(card.id);
-  const vitalityRatio = life.vitality / Math.max(1, life.maxVitality);
-  const retired = Boolean(life.retired);
-  const base = emptyAdventureCondition(card.id);
-  return {
-    ...base,
-    life: retired ? "dead" : "alive",
-    fatigue: retired ? 100 : Math.max(0, Math.min(100, Math.round((1 - vitalityRatio) * 78))),
-    injuries: life.injuries.slice(-12).map((injuryId, index) => ({
-      id: `arena-injury-${sha256PortableBasis(injuryId).slice(7, 19)}`,
-      kind: "guard" as const,
-      severity: (vitalityRatio <= .2 ? 3 : vitalityRatio <= .5 ? 2 : 1) as 1 | 2 | 3,
-      sourceEventId: `life-event-${index + 1}`
-    })),
-    recovery: { state: "stable", trauma: retired ? 100 : Math.max(0, Math.min(100, Math.round((1 - vitalityRatio) * 92))), lastEventId: life.eventIds.at(-1) ?? null },
-    ...(retired ? {
-      retiredAt: revision.sealedAt,
-      retirementCauseEventId: life.eventIds.at(-1) ?? "mortal-arena-retirement"
-    } : {})
-  };
-}
-
-function receizArenaProjection(card: PortableCardAsset) {
-  const revision = createArenaLivingRevision({
-    assetId: card.id,
-    eventId: "wildz-arena-admission",
-    rulesetId: "receiz-wilds-arena-v105",
-    occurredAt: card.proof.sealedAt,
-    condition: arenaConditionFor(card),
-    scarIds: [],
-    relationshipIds: [],
-    achievementIds: [],
-    evolutionIds: [],
-    matchReceiptDigests: []
-  });
-  return projectArenaFighter(card, revision);
-}
-
-function fighterFor(card: PortableCardAsset) {
-  const revision = isLivingCardAsset(card) ? currentRevision(card) : null;
-  const life = revision?.growth.life;
-  const lifeRatio = life ? life.vitality / Math.max(1, life.maxVitality) : 1;
-  const projected = receizArenaProjection(card);
-  return {
-    creatureId: card.id,
-    affinity: affinityFor(card),
-    vitality: Math.max(1, Math.round(1_000 * lifeRatio)),
-    power: Math.max(92, projected.stats.power * 2),
-    guard: Math.max(80, projected.stats.guard * 2),
-    speed: Math.max(82, Math.round(projected.moveSpeed * 24))
-  };
-}
-
-function setupFor(roster: readonly PortableCardAsset[], path: WildzArenaPath, requestedOpponent?: ArenaCampaignOpponent | null): { setup: MortalArenaSetup; opponent: ArenaCampaignOpponent } {
-  const opponent = requestedOpponent ?? projectCampaignOpponent(path);
-  const leader = roster[0]!;
-  const matchBasis = { player: leader.manifest.ownerReceizId, proof: leader.proof.digest, stage: path.stage, history: path.history.length };
-  const digest = sha256PortableBasis(canonicalPortableCardJson(matchBasis));
-  const seed = Number.parseInt(digest.slice(7, 15), 16) >>> 0;
-  const base = fighterFor(leader);
-  return {
-    opponent,
-    setup: {
-      matchId: `arena:${digest.slice(7, 31)}`,
-      seed,
-      mortal: true,
-      sides: [
-        { actorId: leader.manifest.ownerReceizId, fighters: roster.slice(0, 3).map(fighterFor) },
-        { actorId: opponent.id, fighters: [{
-          creatureId: opponent.id,
-          affinity: opponent.affinity,
-          vitality: Math.round(1_000 * opponent.vitalityPermille / 1_000),
-          power: Math.round(base.power * opponent.powerPermille / 1_000),
-          guard: Math.round(base.guard * (opponent.kind === "boss" ? 1.18 : .96)),
-          speed: Math.round(base.speed * (opponent.kind === "boss" ? .92 : .98))
-        }] }
-      ]
-    }
-  };
-}
-
-export function useMortalArena({ active, roster, onCommit, requestedOpponent = null }: {
+export function useMortalArena({ active, roster, onCommit, requestedOpponent = null, mode = "adventure", mortalAdmission }: {
   active: boolean;
   roster: readonly PortableCardAsset[];
   onCommit: (settlement: ArenaSettlement, path: WildzArenaPath) => void;
   requestedOpponent?: ArenaCampaignOpponent | null;
+  mode?: ArenaMode;
+  mortalAdmission?: CanonicalMortalAdmission;
 }) {
   const leader = roster[0]!;
   const initialPath = useMemo(() => typeof window === "undefined" ? restoreArenaPath(null, leader.manifest.ownerReceizId) : restoreArenaPath(window.localStorage.getItem(PATH_KEY), leader.manifest.ownerReceizId), [leader.manifest.ownerReceizId]);
-  const initial = useMemo(() => setupFor(roster, initialPath, requestedOpponent), [initialPath, requestedOpponent, roster]);
+  const initialOpponent = useMemo(() => requestedOpponent ?? projectCampaignOpponent(initialPath), [initialPath, requestedOpponent]);
+  const initial = useMemo(() => createMortalArenaSessionProjection({ roster, path: initialPath, opponent: initialOpponent, mode, mortalAdmission }), [initialOpponent, initialPath, mode, mortalAdmission, roster]);
   const [path, setPath] = useState(initialPath);
-  const [opponent, setOpponent] = useState(initial.opponent);
-  const [state, setState] = useState<MortalArenaState>(() => MORTAL_ARENA_MODULE.create(initial.setup));
+  const [opponent, setOpponent] = useState(initialOpponent);
+  const [projection, setProjection] = useState<SessionProjection>(initial);
   const [settlement, setSettlement] = useState<ArenaSettlement | null>(null);
   const [impactTick, setImpactTick] = useState(0);
   const movementRef = useRef({ x: 0, z: 0 });
   const pulseRef = useRef<Partial<MortalArenaInput>>({});
   const heldRef = useRef<Pick<MortalArenaInput, "guard" | "flee">>({});
-  const playerSequence = useRef(0);
-  const npcRef = useRef(createArenaNpc({ actorId: initial.opponent.id, tier: initial.opponent.tier, seed: initial.setup.seed ^ 0x9e3779b9 }));
-  const npcQueue = useRef<ReturnType<typeof stepArenaNpc>[]>([]);
   const settledMatchRef = useRef<string | null>(null);
-  const previousVitalityRef = useRef(state.sides[0].fighters[0]!.vitality + state.sides[1].fighters[0]!.vitality);
+  const initialState = projectCanonicalArenaState(initial.session);
+  const previousVitalityRef = useRef(initialState.sides[0].fighters[0]!.vitality + initialState.sides[1].fighters[0]!.vitality);
 
   const resetForPath = useCallback((nextPath: WildzArenaPath) => {
-    const next = setupFor(roster, nextPath, requestedOpponent);
-    setOpponent(next.opponent);
-    setState(MORTAL_ARENA_MODULE.create(next.setup));
+    const nextOpponent = requestedOpponent ?? projectCampaignOpponent(nextPath);
+    const next = createMortalArenaSessionProjection({ roster, path: nextPath, opponent: nextOpponent, mode, mortalAdmission });
+    setOpponent(nextOpponent);
+    setProjection(next);
     setSettlement(null);
     settledMatchRef.current = null;
-    playerSequence.current = 0;
-    npcQueue.current = [];
-    npcRef.current = createArenaNpc({ actorId: next.opponent.id, tier: next.opponent.tier, seed: next.setup.seed ^ 0x9e3779b9 });
-  }, [requestedOpponent, roster]);
+    const nextState = projectCanonicalArenaState(next.session);
+    previousVitalityRef.current = nextState.sides[0].fighters[0]!.vitality + nextState.sides[1].fighters[0]!.vitality;
+  }, [mode, mortalAdmission, requestedOpponent, roster]);
+
+  const claimMortalAdmission = useCallback(() => {
+    if (mode !== "mortal" || !mortalAdmission) return false;
+    try {
+      const next = createMortalArenaSessionProjection(
+        { roster, path, opponent, mode, mortalAdmission },
+        { claimMortalAdmission: true }
+      );
+      setProjection(next);
+      setSettlement(null);
+      settledMatchRef.current = null;
+      const nextState = projectCanonicalArenaState(next.session);
+      previousVitalityRef.current = nextState.sides[0].fighters[0]!.vitality + nextState.sides[1].fighters[0]!.vitality;
+      return next.unavailableReason === null;
+    } catch {
+      return false;
+    }
+  }, [mode, mortalAdmission, opponent, path, roster]);
+
+  const state = projectCanonicalArenaState(projection.session);
+  const result = projectCanonicalArenaResult(projection.session);
+  const playable = active && !projection.unavailableReason;
 
   useEffect(() => {
-    if (!active || state.phase === "complete" || settlement) return;
+    if (!playable || state.phase === "complete" || settlement) return;
     const timer = window.setInterval(() => {
-      setState((current) => {
-        let next = current;
-        for (let step = 0; step < 2 && next.phase !== "complete"; step += 1) {
-          const nextTick = next.tick + 1;
-          playerSequence.current += 1;
+      setProjection((current) => {
+        let next = current.session;
+        for (let step = 0; step < 2 && !next.canonical.terminal; step += 1) {
           const playerInput: MortalArenaInput = {
             moveX: Math.round(movementRef.current.x * 1_000),
             moveZ: Math.round(movementRef.current.z * 1_000),
             ...heldRef.current,
-            ...pulseRef.current
+            ...(step === 0 ? pulseRef.current : {})
           };
-          pulseRef.current = {};
-          npcQueue.current.push(stepArenaNpc(npcRef.current, next));
-          npcRef.current = advanceArenaNpc(npcRef.current);
-          const due = npcQueue.current.filter((frame) => frame.atTick <= nextTick);
-          npcQueue.current = npcQueue.current.filter((frame) => frame.atTick > nextTick);
-          next = MORTAL_ARENA_MODULE.step(next, [
-            { actorId: next.sides[0].actorId, sequence: playerSequence.current, atTick: nextTick, input: playerInput },
-            ...due.slice(-1)
-          ]);
+          if (step === 0) pulseRef.current = {};
+          next = advanceCanonicalArenaSession(next, playerInput);
         }
-        const vitality = next.sides[0].fighters[next.sides[0].activeIndex]!.vitality + next.sides[1].fighters[next.sides[1].activeIndex]!.vitality;
-        if (vitality < previousVitalityRef.current) setImpactTick(next.tick);
+        const view = projectCanonicalArenaState(next);
+        const vitality = view.sides[0].fighters[view.sides[0].activeIndex]!.vitality + view.sides[1].fighters[view.sides[1].activeIndex]!.vitality;
+        if (vitality < previousVitalityRef.current) setImpactTick(view.tick);
         previousVitalityRef.current = vitality;
-        return next;
+        return { ...current, session: next };
       });
     }, 33);
     return () => window.clearInterval(timer);
-  }, [active, settlement, state.phase]);
+  }, [playable, settlement, state.phase]);
 
   useEffect(() => {
-    if (!active || state.phase !== "complete" || settledMatchRef.current === state.matchId) return;
-    const result = MORTAL_ARENA_MODULE.complete(state);
-    if (!result) return;
-    settledMatchRef.current = state.matchId;
-    const settledCard = roster[state.sides[0].activeIndex] ?? leader;
-    const pending = createArenaSettlement({ card: settledCard, result, playerSide: 0, completedAt: new Date().toISOString() });
-    const key = `wildz:mortal-arena:settlement:${pending.id}`;
+    if (!playable || !result || settledMatchRef.current === result.matchId) return;
+    settledMatchRef.current = result.matchId;
+    const completedAt = new Date().toISOString();
+    const canonicalReceipt = sealArenaReceipt({
+      definition: projection.session.definition,
+      transcript: createArenaTranscript(projection.session.definition, projection.session.canonical, projection.session.verification),
+      priorConditions: Object.fromEntries(projection.session.definition.teams.flatMap((team) => team.fighters.map((fighter) => [fighter.assetId, fighter.condition]))),
+      encounterId: opponent.id,
+      checkpointId: `arena:path:${path.checkpointDigest}`,
+      actorId: path.playerId,
+      authority: { kind: "offline-pending", deviceId: `arena-device:${leader.proof.digest.slice(7, 23)}` },
+      publication: { state: "pending", revision: 0 },
+      createdAt: completedAt
+    }, projection.session.verification);
+    const pending = createArenaSettlement({ cards: roster, result, playerSide: 0, completedAt, canonicalReceipt, verification: projection.session.verification });
+    const key = `${ARENA_SETTLEMENT_JOURNAL_PREFIX}${pending.id}`;
     window.localStorage.setItem(key, JSON.stringify(pending));
-    const committed = recoverArenaSettlement(pending);
+    const committed = recoverArenaSettlement(pending, projection.session.verification);
     window.localStorage.setItem(key, JSON.stringify(committed));
     const nextPath = advanceArenaPath(path, result);
     window.localStorage.setItem(PATH_KEY, JSON.stringify(nextPath));
     setPath(nextPath);
     setSettlement(committed);
     onCommit(committed, nextPath);
-  }, [active, leader, onCommit, path, roster, state]);
+  }, [leader.proof.digest, onCommit, opponent.id, path, playable, projection.session, result, roster]);
 
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
-      if (!active) return;
+      if (!playable) return;
       if (event.target instanceof HTMLElement && event.target.matches("input, textarea, select, button, [contenteditable='true']")) return;
       const key = event.key.toLowerCase();
       if (key === "w" || key === "arrowup") movementRef.current.z = -1;
@@ -202,7 +170,10 @@ export function useMortalArena({ active, roster, onCommit, requestedOpponent = n
       if (key === "a" || key === "arrowleft") movementRef.current.x = -1;
       if (key === "d" || key === "arrowright") movementRef.current.x = 1;
       if (key === " ") pulseRef.current.light = true;
+      if (key === "e") pulseRef.current.dodge = true;
+      if (key === "r") pulseRef.current.parry = true;
       if (key === "f") pulseRef.current.focus = true;
+      if (key === "1") pulseRef.current.abilitySlot = 0;
       if (key === "q") pulseRef.current.swapTo = (state.sides[0].activeIndex + 1) % state.sides[0].fighters.length;
       if (key === "shift") heldRef.current.guard = true;
     };
@@ -217,11 +188,10 @@ export function useMortalArena({ active, roster, onCommit, requestedOpponent = n
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); };
-  }, [active, state.sides]);
+  }, [playable, state.sides]);
 
   const activeFighter = state.sides[0].fighters[state.sides[0].activeIndex]!;
   const rival = state.sides[1].fighters[state.sides[1].activeIndex]!;
-  const result: MortalArenaResult | null = state.phase === "complete" ? MORTAL_ARENA_MODULE.complete(state) : null;
   return {
     state,
     path,
@@ -229,6 +199,9 @@ export function useMortalArena({ active, roster, onCommit, requestedOpponent = n
     settlement,
     result,
     impactTick,
+    mode,
+    unavailableReason: projection.unavailableReason,
+    claimMortalAdmission,
     warning: projectMortalityWarning(activeFighter, Math.max(72, rival.power)),
     setMovement: (x: number, z: number) => { movementRef.current = { x, z }; },
     pulse: (input: Partial<MortalArenaInput>) => { pulseRef.current = { ...pulseRef.current, ...input }; },

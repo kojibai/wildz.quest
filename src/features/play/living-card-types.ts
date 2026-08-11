@@ -1,6 +1,7 @@
 import type { CardVariantTraits, CardVariantTraitsV2, CardVariantTraitsV3 } from "./card-variant";
 import type { CreatureFoil, CreatureRarity, CreatureStage, CreatureStats } from "./creature-catalog";
 import type { HeartboundPresentationV3 } from "./heartbound-anime-types";
+import type { CreatureHistoryChain } from "./creature-history-types";
 
 export type GrowthPath = "bond" | "battle" | "exploration" | "legacy" | "community" | "character";
 export type TraitSource = "birth" | "parent_a" | "parent_b" | "blended" | "mutation" | "ascension";
@@ -234,6 +235,7 @@ export type LivingCardManifest = {
   birthGenome: LivingCardGenome;
   currentRevision: number;
   revisions: LivingCardRevision[];
+  history?: CreatureHistoryChain;
 };
 
 export type LivingCardAsset = {

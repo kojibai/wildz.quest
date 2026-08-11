@@ -7,6 +7,7 @@ import * as THREE from "three";
 import { WILDS_ECOLOGY_FAMILIES, type WildsEcologyFamilyId } from "./wilds-ecology";
 import type { WildsSettlementWorldMode } from "./WildsSettlementEnvironment";
 import type { WildsWorldEcologyProjection, WildsWorldProjection } from "./wilds-world-state";
+import { useWildsReadability } from "./WildsReadabilityContext";
 
 export function WildsEcologyEnvironment({ livingWorld, player, worldMode }: {
   livingWorld?: WildsWorldProjection | null;
@@ -153,12 +154,14 @@ function BloomKit({ geometry, materials }: { geometry: Geometry; materials: Mate
 }
 
 function StormKit({ geometry, materials }: { geometry: Geometry; materials: Materials }) {
+  const readability = useWildsReadability();
   return <group name="stormfront">
     {[-2.2, 0, 2.2].map((x) => <group key={x} position={[x, 0, 0]}>
       <Shared geometry={geometry.post} material={materials.danger} position={[0, 1.35, 0]} scale={[1.6, 2.7, 1.6]} />
       <Shared geometry={geometry.shard} material={materials.prism} position={[0, 2.85, 0]} scale={[1.1, 1.7, 1.1]} />
     </group>)}
     {[-1.2, 0, 1.2].map((x) => <Shared geometry={geometry.cloud} key={x} material={materials.cloud} position={[x, 4.05 + Math.abs(x) * .2, 0]} scale={[1.8, .72, 1.15]} />)}
+    <pointLight castShadow={false} color="#8ca8ff" distance={7} intensity={readability.threatEmissive * 1.4} position={[0, 3.2, 0]} />
   </group>;
 }
 

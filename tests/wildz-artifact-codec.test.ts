@@ -7,16 +7,19 @@ import {
 } from "@receiz/sdk";
 import { embedPortableVaultInPng } from "../src/features/play/card-export";
 import { applyWildsInput, initialPlayState, type PlayState } from "../src/features/play/game-state";
-import { admitLegacyCard } from "../src/features/play/living-card-proof";
+import { admitLegacyCard, currentRevision } from "../src/features/play/living-card-proof";
+import { sealRetirement } from "../src/features/games/lifecycle/creature-retirement";
 import { sealCollectedCard } from "../src/features/play/portable-card";
 import { createWildsPlayerVault } from "../src/features/play/wilds-player-vault";
 import { inspectReceizCommerceVault } from "../src/lib/receiz/receiz-commerce-vault";
 import {
   createWildzArtifactCodec,
+  WildzRetirementQuarantineError,
   type ReceizCommerceVaultReader
 } from "../src/lib/receiz/wildz-artifact-codec";
 import { createWildzIdentityRepository } from "../src/lib/receiz/wildz-identity-repository";
 import { inspectWildzRestore } from "../src/lib/receiz/wildz-identity-adapter";
+import { restoreWildzArtifactForSurface } from "../src/features/identity/wildz-restore";
 import { createWildzIdentityBoundPlayerVault } from "../src/lib/receiz/wildz-identity-adapter";
 import { splitWildzPngEnvelope } from "../src/lib/receiz/wildz-png-envelope";
 import { extractVerifiedWildzCards } from "../src/lib/receiz/wildz-cross-platform-cards";
@@ -36,11 +39,24 @@ function assets(count = 7) {
   }));
 }
 
-function codec() {
+function retiredAsset() {
+  const living = admitLegacyCard(assets(1)[0]!, "2026-07-15T13:00:00.000Z");
+  return sealRetirement(living, {
+    creatureId: living.id,
+    previousRevisionDigest: currentRevision(living).digest,
+    matchReceiptDigest: `sha256:${"e".repeat(64)}`,
+    finalVitality: 0,
+    teamOutcome: "defeat",
+    retiredAt: "2026-07-15T14:00:00.000Z"
+  }, { verified: true, mortalOptIn: true }).card;
+}
+
+function codec(retirementAuthorityVerifier?: Parameters<typeof createWildzArtifactCodec>[0]["retirementAuthorityVerifier"]) {
   const identityRepository = createWildzIdentityRepository({ database: createMemoryWildzContinuityDatabase() });
   return createWildzArtifactCodec({
     identityRepository,
-    commerceVaultReader: { inspect: inspectReceizCommerceVault }
+    commerceVaultReader: { inspect: inspectReceizCommerceVault },
+    retirementAuthorityVerifier
   });
 }
 
@@ -223,6 +239,141 @@ test("SDK identity Seals import an exact proof-valid living card", async () => {
   if (inspected.kind !== "identity-seal") return;
   assert.equal(inspected.identity.session.username, "codec__living");
   assert.deepEqual(inspected.portableAssets, [expected]);
+});
+
+test("signed carriers quarantine fabricated retirement while an actual receipt verifier restores it", async () => {
+  const retired = retiredAsset();
+  const standaloneIdentity = await createReceizIdentityKeyFile({
+    owner: { uid: "artifact_codec_owner_uid", username: "artifact_codec_owner", displayName: "Retired Keeper" },
+    portableState: { snapshot: { cards: [retired] } }
+  });
+  const standalone = appendReceizIdentityArtifactTrailerToPng(BASE_PNG, standaloneIdentity.keyFile);
+  const forgedStandalone = await codec().inspect({ bytes: standalone, mimeType: "image/png", name: "retired-card.receized.png" });
+  assert.equal(forgedStandalone.kind, "retirement-quarantine");
+  if (forgedStandalone.kind !== "retirement-quarantine") return;
+  assert.deepEqual(forgedStandalone.memorialAssets, [retired]);
+  assert.deepEqual(forgedStandalone.artifactBytes, standalone);
+
+  const retirement = currentRevision(retired).growth.life!.retirement!;
+  // Test double for an external origin receipt registry. The carrier itself
+  // cannot create this authority; production must inject the Receiz/game rail.
+  const externallyVerifiedReceiptDigests = new Set([retirement.matchReceiptDigest]);
+  const verifiedCodec = codec({
+    verifyRetirement: (evidence) => evidence.matchReceiptDigest === retirement.matchReceiptDigest
+      && externallyVerifiedReceiptDigests.has(evidence.matchReceiptDigest)
+      && evidence.retirementSealDigest === retirement.sealDigest
+      && evidence.previousRevisionDigest === retirement.previousRevisionDigest
+  });
+  const standaloneInspection = await verifiedCodec.inspect({ bytes: standalone, mimeType: "image/png", name: "retired-card.receized.png" });
+  assert.equal(standaloneInspection.kind, "identity-seal");
+  if (standaloneInspection.kind !== "identity-seal") return;
+  assert.deepEqual(standaloneInspection.portableAssets, [retired]);
+
+  const emptyPlayState: PlayState = {
+    ...structuredClone(initialPlayState),
+    inventory: [retired],
+    discoveredCardIds: [retired.manifest.familyId],
+    selectedAssetId: retired.id,
+    selectedCardId: retired.manifest.familyId
+  };
+  const player = createWildsPlayerVault({
+    playerId: "artifact_codec_owner",
+    exportedAt: "2026-07-15T15:00:00.000Z",
+    playState: emptyPlayState,
+    settings: { avatarStyle: null, movementMode: "walk", audio: {}, cardOrder: "rarity" },
+    personalEvents: [],
+    canonicalCursor: { worldId: "wilds:global:v3", revision: 0, eventId: null },
+    receipts: []
+  });
+  const vaultIdentity = await createReceizIdentityKeyFile({
+    owner: { uid: "artifact_codec_owner_vault_uid", username: "artifact_codec_owner", displayName: "Retired Keeper" },
+    portableState: null
+  });
+  const vault = await createWildzIdentityBoundPlayerVault({
+    keyFile: vaultIdentity.keyFile,
+    vaultBytes: embedPortableVaultInPng(BASE_PNG, [retired], player)
+  });
+  const forgedVault = await codec().inspect({ bytes: vault, mimeType: "image/png", name: "retired-vault.receized.png" });
+  assert.equal(forgedVault.kind, "retirement-quarantine", JSON.stringify(forgedVault));
+  const quarantineDatabase = createMemoryWildzContinuityDatabase();
+  const quarantineRepository = createWildzIdentityRepository({ database: quarantineDatabase });
+  await assert.rejects(restoreWildzArtifactForSurface({
+    surface: "genesis",
+    bytes: vault,
+    mimeType: "image/png",
+    name: "retired-vault.receized.png",
+    codec: createWildzArtifactCodec({
+      identityRepository: quarantineRepository,
+      commerceVaultReader: { inspect: inspectReceizCommerceVault }
+    }),
+    repository: quarantineRepository,
+    database: quarantineDatabase,
+    confirmCardOnly: true
+  }), (error) => error instanceof WildzRetirementQuarantineError
+    && error.quarantine.memorialAssets[0]?.proof.digest === retired.proof.digest
+    && Buffer.from(error.quarantine.artifactBytes).equals(Buffer.from(vault)));
+  const vaultInspection = await verifiedCodec.inspect({ bytes: vault, mimeType: "image/png", name: "retired-vault.receized.png" });
+  assert.equal(vaultInspection.kind, "card-vault");
+  if (vaultInspection.kind !== "card-vault") return;
+  assert.deepEqual(vaultInspection.assets, [retired]);
+
+  const restoreDatabase = createMemoryWildzContinuityDatabase();
+  const restoreRepository = createWildzIdentityRepository({ database: restoreDatabase });
+  const restored = await restoreWildzArtifactForSurface({
+    surface: "genesis",
+    bytes: vault,
+    mimeType: "image/png",
+    name: "retired-vault.receized.png",
+    codec: createWildzArtifactCodec({
+      identityRepository: restoreRepository,
+      commerceVaultReader: { inspect: inspectReceizCommerceVault },
+      retirementAuthorityVerifier: {
+        verifyRetirement: (evidence) => evidence.matchReceiptDigest === retirement.matchReceiptDigest
+          && evidence.retirementSealDigest === retirement.sealDigest
+          && evidence.previousRevisionDigest === retirement.previousRevisionDigest
+      }
+    }),
+    repository: restoreRepository,
+    database: restoreDatabase,
+    confirmCardOnly: true
+  });
+  assert.equal(restored.playState.inventory[0]!.proof.digest, retired.proof.digest);
+  assert.equal(currentRevision(restored.playState.inventory[0] as typeof retired).growth.life?.retired, true);
+});
+
+test("a hash-valid Commerce carrier cannot promote a fabricated retirement receipt", async () => {
+  const retired = retiredAsset();
+  const commerceBytes = new Uint8Array([80, 75, 3, 4]);
+  const inspected = await createWildzArtifactCodec({
+    identityRepository: createWildzIdentityRepository({ database: createMemoryWildzContinuityDatabase() }),
+    commerceVaultReader: {
+      async inspect() {
+        return {
+          projection: {
+            id: "retired-commerce",
+            schema: "receiz.wildz.commerce_vault_projection.v1",
+            sourceSchema: "receiz.bundle.v1",
+            filename: "retired.receizvault",
+            ownerLabel: "artifact_codec_owner",
+            importedAt: "2026-07-15T15:00:00.000Z",
+            verification: "receiz-sdk",
+            cards: []
+          },
+          restoredFiles: [{
+            fileId: "retired-card",
+            path: "cards/retired.json",
+            name: "retired.json",
+            mimeType: "application/json",
+            bytes: new TextEncoder().encode(JSON.stringify(retired))
+          }]
+        };
+      }
+    }
+  }).inspect({ bytes: commerceBytes, mimeType: "application/zip", name: "retired.receizvault" });
+  assert.equal(inspected.kind, "retirement-quarantine");
+  if (inspected.kind !== "retirement-quarantine") return;
+  assert.deepEqual(inspected.memorialAssets, [retired]);
+  assert.deepEqual(inspected.artifactBytes, commerceBytes);
 });
 
 test("PNG signature, unsupported binary, and 64 MiB limits fail closed", async () => {

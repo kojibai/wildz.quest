@@ -1,7 +1,8 @@
 import { validateAdventureCondition, type AdventureCardCondition, type AdventureInjury } from "../adventure/card-condition";
 import { canonicalPortableCardJson, sha256PortableBasis } from "../portable-card";
-import type { ArenaMatchDefinition, ArenaEvent, ArenaFighterRuntime } from "./runtime";
+import { arenaDefinitionDigest, type ArenaMatchDefinition, type ArenaEvent, type ArenaFighterRuntime } from "./runtime";
 import type { ArenaReplayResult, ArenaTranscript } from "./transcript";
+import { arenaModePolicy } from "./mode";
 
 export type ArenaMemorial = Readonly<{
   id: string;
@@ -32,8 +33,8 @@ export type ArenaConsequenceSet = Readonly<{
   definitionDigest: string;
   transcriptDigest: string;
   stateDigest: string;
-  mode: "practice" | "mortal";
-  winnerTeamId: string;
+  mode: ArenaMatchDefinition["mode"];
+  winnerTeamId: string | null;
   encounterId: string;
   checkpointIds: readonly string[];
   cards: Readonly<Record<string, ArenaCardConsequence>>;
@@ -106,44 +107,45 @@ export function projectArenaConsequences(input: ArenaConsequenceInput): ArenaCon
     || input.replay.transcriptDigest !== input.transcript.digest
     || input.replay.state.phase !== "terminal"
     || !input.replay.state.terminal) throw new Error("arena_consequences_replay_invalid");
-  const expectedDefinitionDigest = digest(input.definition);
+  const expectedDefinitionDigest = arenaDefinitionDigest(input.definition);
   if (expectedDefinitionDigest !== input.transcript.definitionDigest) throw new Error("arena_consequences_definition_invalid");
   const events = uniqueEvents(input.replay.state.events);
-  const practice = input.definition.mode === "practice";
+  const policy = arenaModePolicy(input.definition.mode);
+  const livingProgression = policy.progression === "living-card";
   const winnerTeamId = input.replay.state.terminal.winnerTeamId;
   const cards = Object.fromEntries(input.definition.teams.flatMap((team) => team.fighters).map((fighter) => {
     const prior = input.priorConditions[fighter.assetId];
-    if (!prior || prior.assetId !== fighter.assetId) throw new Error("arena_consequences_condition_invalid");
+    if (!prior || prior.assetId !== fighter.assetId || canonicalPortableCardJson(prior) !== canonicalPortableCardJson(fighter.condition)) throw new Error("arena_consequences_condition_invalid");
     validateAdventureCondition(prior);
     const { runtime, teamId } = runtimeFor(input, fighter.assetId);
     const related = events.filter((event) => event.actorId === fighter.assetId || event.targetId === fighter.assetId);
     const contributions = related.filter((event) => event.actorId === fighter.assetId && xpByEvent[event.kind]);
     const sourceEventIds = related.map((event) => event.id);
-    const retired = !practice && runtime.status === "retired";
+    const retired = policy.mortality === "retirement" && runtime.status === "retired";
     const won = teamId === winnerTeamId;
     const baseXp = contributions.reduce((total, event) => total + (xpByEvent[event.kind] ?? 0), 0) + (won && contributions.length ? 20 : 0);
-    const xp = practice ? 0 : Math.min(retired ? 25 : 250, baseXp);
-    const injuriesAdded = practice ? [] : injuries(fighter.assetId, related, fighter.maxVitality);
+    const xp = livingProgression ? Math.min(retired ? 25 : 250, baseXp) : 0;
+    const injuriesAdded = livingProgression ? injuries(fighter.assetId, related, fighter.maxVitality) : [];
     const scars = injuriesAdded.map((injury) => `arena:scar:${digest({ assetId: fighter.assetId, injuryId: injury.id }).slice(7, 27)}`);
     const retiredEvent = related.find((event) => event.kind === "fighter.retired");
     const epitaph = retired && retiredEvent ? (won ? `${fighter.name} carried the team beyond the final fall.` : `${fighter.name} fell with the path unfinished.`) : null;
-    const achievements = practice ? [] : [
+    const achievements = livingProgression ? [
       ...(won && contributions.length ? ["arena:victory-contributor"] : []),
       ...(retired && won ? ["arena:honored-sacrifice"] : []),
       ...(contributions.some((event) => event.kind === "fighter.rescued") ? ["arena:guardian-bond"] : []),
-    ];
-    const mastery = practice || !xp ? {} : Object.fromEntries([...new Set(contributions.map((event) => `arena:${event.detail}`))].slice(0, 8).map((key) => [key, Math.min(100, Math.max(1, Math.ceil(xp / 8)))]));
-    const evolutionIds = !practice && !retired && xp >= 40 ? [`arena:evolution:${digest({ assetId: fighter.assetId, sourceEventIds }).slice(7, 23)}`] : [];
+    ] : [];
+    const mastery = !livingProgression || !xp ? {} : Object.fromEntries([...new Set(contributions.map((event) => `arena:${event.detail}`))].slice(0, 8).map((key) => [key, Math.min(100, Math.max(1, Math.ceil(xp / 8)))]));
+    const evolutionIds = livingProgression && !retired && xp >= 40 ? [`arena:evolution:${digest({ assetId: fighter.assetId, sourceEventIds }).slice(7, 23)}`] : [];
     const consequence: ArenaCardConsequence = {
       assetId: fighter.assetId,
       lifeBefore: prior.life,
       lifeAfter: prior.life === "dead" || retired ? "dead" : "alive",
       xp,
       mastery,
-      fatigueDelta: practice ? 0 : Math.min(25, related.length + injuriesAdded.reduce((sum, injury) => sum + injury.severity * 2, 0)),
+      fatigueDelta: livingProgression ? Math.min(25, related.length + injuriesAdded.reduce((sum, injury) => sum + injury.severity * 2, 0)) : 0,
       injuriesAdded,
       scarIds: scars,
-      relationshipIds: practice ? [] : relationshipIds(fighter.assetId, related),
+      relationshipIds: livingProgression ? relationshipIds(fighter.assetId, related) : [],
       achievementIds: achievements,
       evolutionIds,
       sourceEventIds,
@@ -165,7 +167,7 @@ export function projectArenaConsequences(input: ArenaConsequenceInput): ArenaCon
     } satisfies ArenaMemorial];
   });
   const contributingWinner = Object.values(cards).some((card) => card.xp > 0 && runtimeFor(input, card.assetId).teamId === winnerTeamId);
-  const resourceAwards: Record<string, number> = !practice && contributingWinner ? { "arena-fragment": Math.min(3, 1 + Math.floor(events.length / 8)) } : {};
+  const resourceAwards: Record<string, number> = livingProgression && contributingWinner ? { "arena-fragment": Math.min(3, 1 + Math.floor(events.length / 8)) } : {};
   const unsigned = {
     schema: "receiz.wilds.arena_consequences.v1" as const,
     matchId: input.replay.state.id,
@@ -175,7 +177,7 @@ export function projectArenaConsequences(input: ArenaConsequenceInput): ArenaCon
     mode: input.definition.mode,
     winnerTeamId,
     encounterId: input.encounterId,
-    checkpointIds: practice ? [] : [input.checkpointId],
+    checkpointIds: policy.progression === "none" ? [] : [input.checkpointId],
     cards,
     resourceAwards,
     memorials,

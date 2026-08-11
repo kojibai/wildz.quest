@@ -4,6 +4,37 @@ All notable changes to Wildz are documented here. Wildz uses semantic versioning
 
 ## [Unreleased]
 
+## [4.0.0-alpha.0] - 2026-08-11
+
+The first Wildz competitive-gameplay alpha: a deterministic, proof-native combat and creature-continuity release rooted in Kai Klok micro-pulses.
+
+### Added
+
+- Canonical Practice, Adventure, Ranked, and Mortal Arena policies with atomic 60 Hz simulation, deterministic replay, stamina, focus, guard, parry, dodge, tags, context actions, hazards, withdrawals, exact named abilities, fair observable-state opponents, and replay-grounded consequences.
+- Signed global-admission and Mortal-covenant interfaces, exact roster/ruleset/Kai commitments, durable one-match nonce consumption, canonical terminal receipts, Glicko-2 rating, seven mastery drills, and local input-only ghosts.
+- An immutable per-creature history chain carrying exact level, XP, bond, mastery, condition, records, relationships, scars, upgrades, form, rank, life, evidence, and Kai `uPulse` across standalone cards and complete Vaults.
+- True Kai celestial progression: `00:00:00` is horizon sunrise, midday is the solar peak, Dream is visibly dark, stars and constellations are deterministic, and the player has a heading-following lantern with persisted controls.
+- Kai-rooted world event v4, exact `uPulse` plus causal sequence ordering, explicit v3 replay compatibility, and deterministic shared-slot conflict rejection.
+- Competitive integrity, gameplay scorecard, MCP, architecture, and AI-skill doctrine for safe simulation, coaching, release audit, and operator workflows.
+
+### Changed
+
+- Arena settlement now verifies and replays its canonical receipt before atomically persisting every affected owned card; reserve injuries, history, and mortality can no longer be dropped.
+- Training and progression are exact-asset scoped, so same-family creatures never share level, XP, or bond state.
+- Evolution, ascension, fusion, battle recovery, mortality, world events, and living history use Kai `uPulse` as temporal authority; ISO time is descriptive interoperability metadata only.
+- Card and Vault import prefer causal history descendants, require trusted admission for divergent authority, reject equal-slot siblings, and never let a living fork reverse verified mortality.
+- Retired-card imports require an origin receipt authority verifier; otherwise the exact artifact bytes and memorial cards enter a non-playable retirement quarantine instead of gaining gameplay or market authority.
+- Night rendering now scales stars, atmosphere, fog, authored cave/storm darkness, actor readability, path guidance, and reduced motion across quality profiles.
+
+### Security and integrity
+
+- Self-minted history admissions cannot win divergent merges; a trusted verifier must explicitly admit either branch.
+- Ranked remains unavailable without a configured global verifier, and Mortal remains unavailable without an externally signed, verified, one-use covenant.
+- Practice cannot mutate canonical card progression, and local AI/MCP/skills cannot sign, admit, publish, or settle authority.
+- The immutable base Receiz proof object is preserved; Wildz history travels as verified proof appends.
+
+See the [competitive alpha release notes](docs/release/v4.0.0-alpha.0.md), [verification record](docs/release/verification.md), and [gameplay scorecard](docs/release/gameplay-scorecard.md).
+
 ### Changed
 
 - Aligned the SDK, MCP server, AI skills, lockfile, application contract, generated integration evidence, runtime labels, tests, checker, and documentation to Receiz `118.0.0`.
@@ -43,3 +74,4 @@ First public open-source release of the standalone Wildz product and Receiz refe
 See the [complete v3.0.0 release notes](docs/release/v3.0.0.md) and [verification record](docs/release/verification.md).
 
 [3.0.0]: https://github.com/kojibai/wildz.quest/releases/tag/v3.0.0
+[4.0.0-alpha.0]: https://github.com/kojibai/wildz.quest/releases/tag/v4.0.0-alpha.0

@@ -11,8 +11,17 @@ import {
   verifyAnyWildsCard,
   type PortableCardAsset
 } from "../../features/play/portable-card";
-import { admitLegacyCard } from "../../features/play/living-card-proof";
+import {
+  admitLegacyCard,
+  compareLivingCardHistoryHeads,
+  currentCreatureHistoryProjection,
+  currentRevision,
+  isLivingCardHistoryDescendant,
+  livingCardHasIrreversibleMortality,
+  verifyLivingCardRetirementAuthority
+} from "../../features/play/living-card-proof";
 import { isLivingCardAsset, type LivingCardAsset } from "../../features/play/living-card-types";
+import type { CreatureHistoryAuthorityVerifier, CreatureRetirementAuthorityVerifier } from "../../features/play/creature-history-types";
 import {
   verifyWildsPlayerVault,
   type WildsPlayerVaultPayload
@@ -111,6 +120,8 @@ export function extractVerifiedWildzCards(input: {
   verifiedPortableSnapshot: unknown | null;
   restoredVaultFiles: readonly RestoredReceizVaultFile[];
   proofObjectPayload?: WildzPortableProofObjectPayload | null;
+  historyAuthorityVerifier?: CreatureHistoryAuthorityVerifier;
+  retirementAuthorityVerifier?: CreatureRetirementAuthorityVerifier;
 }): WildzCrossPlatformCardExtraction {
   if (input.restoredVaultFiles.length > MAX_RESTORED_FILES) throw new Error("wildz_restore_schema_unsupported");
   const restoredBytes = input.restoredVaultFiles.reduce((total, file) => total + file.bytes.byteLength, 0);
@@ -129,22 +140,72 @@ export function extractVerifiedWildzCards(input: {
     (isWildzSchema(schema) ? sourceSchemas : unrelatedDomainSchemas).add(schema);
   };
 
+  const assertRetirementAuthority = (asset: PortableCardAsset) => {
+    if (isLivingCardAsset(asset)
+      && livingCardHasIrreversibleMortality(asset)
+      && !verifyLivingCardRetirementAuthority(asset, input.retirementAuthorityVerifier)) {
+      throw new Error("wildz_restore_retirement_authority_untrusted");
+    }
+  };
+
   const isVerifiedDescendant = (ancestor: PortableCardAsset, descendant: PortableCardAsset) => {
     if (ancestor.id !== descendant.id || !isLivingCardAsset(descendant)) return false;
     if (!isLivingCardAsset(ancestor)) {
       if (descendant.manifest.birth.kind !== "legacy_admission"
         || descendant.manifest.birth.legacyDigest !== ancestor.proof.digest) return false;
       const admitted = admitLegacyCard(ancestor, descendant.proof.sealedAt);
-      return sameLivingOrigin(admitted, descendant)
-        && admitted.manifest.revisions.every(
+      if (!sameLivingOrigin(admitted, descendant)
+        || !admitted.manifest.revisions.every(
           (revision, index) => descendant.manifest.revisions[index]?.digest === revision.digest
-        );
+        )) return false;
+      if (admitted.manifest.history && descendant.manifest.history
+        && isLivingCardHistoryDescendant(admitted, descendant)) {
+        try {
+          return compareLivingCardHistoryHeads(admitted, descendant, input.historyAuthorityVerifier) === "right";
+        } catch {
+          return false;
+        }
+      }
+      return true;
     }
-    return sameLivingOrigin(ancestor, descendant)
-      && descendant.manifest.revisions.length > ancestor.manifest.revisions.length
+    if (!sameLivingOrigin(ancestor, descendant)) return false;
+    if (ancestor.manifest.history && descendant.manifest.history
+      && isLivingCardHistoryDescendant(ancestor, descendant)) {
+      try {
+        return compareLivingCardHistoryHeads(ancestor, descendant, input.historyAuthorityVerifier) === "right";
+      } catch {
+        return false;
+      }
+    }
+    return descendant.manifest.revisions.length > ancestor.manifest.revisions.length
       && ancestor.manifest.revisions.every(
         (revision, index) => descendant.manifest.revisions[index]?.digest === revision.digest
       );
+  };
+
+  const resolveConflict = (left: PortableCardAsset, right: PortableCardAsset) => {
+    if (isVerifiedDescendant(left, right)) return right;
+    if (isVerifiedDescendant(right, left)) return left;
+    if (isLivingCardAsset(left) && isLivingCardAsset(right)
+      && sameLivingOrigin(left, right)) {
+      const leftRetired = Boolean(currentRevision(left).growth.life?.retired)
+        || currentCreatureHistoryProjection(left).condition.life === "dead";
+      const rightRetired = Boolean(currentRevision(right).growth.life?.retired)
+        || currentCreatureHistoryProjection(right).condition.life === "dead";
+      if (leftRetired !== rightRetired) return leftRetired ? left : right;
+      if (!left.manifest.history || !right.manifest.history) {
+        throw new Error("wildz_restore_duplicate_card_conflict");
+      }
+      try {
+        const winner = compareLivingCardHistoryHeads(left, right, input.historyAuthorityVerifier);
+        if (winner === "left") return left;
+        if (winner === "right") return right;
+        throw new Error("wildz_restore_duplicate_card_conflict");
+      } catch {
+        throw new Error("wildz_restore_duplicate_card_conflict");
+      }
+    }
+    throw new Error("wildz_restore_duplicate_card_conflict");
   };
 
   const admit = (asset: PortableCardAsset) => {
@@ -155,16 +216,14 @@ export function extractVerifiedWildzCards(input: {
       throw new Error("wildz_restore_card_proof_invalid");
     }
     if (!verified.ok) throw new Error("wildz_restore_card_proof_invalid");
+    assertRetirementAuthority(asset);
     const canonical = canonicalPortableCardJson(asset);
     const prior = canonicalById.get(asset.id);
     if (prior !== undefined && prior !== canonical) {
       const priorAsset = assetsById.get(asset.id)!;
-      if (isVerifiedDescendant(priorAsset, asset)) {
-        canonicalById.set(asset.id, canonical);
-        assetsById.set(asset.id, asset);
-      } else if (!isVerifiedDescendant(asset, priorAsset)) {
-        throw new Error("wildz_restore_duplicate_card_conflict");
-      }
+      const selected = resolveConflict(priorAsset, asset);
+      canonicalById.set(asset.id, canonicalPortableCardJson(selected));
+      assetsById.set(asset.id, selected);
     }
     if (prior === undefined) {
       canonicalById.set(asset.id, canonical);
@@ -184,6 +243,7 @@ export function extractVerifiedWildzCards(input: {
     } catch {
       throw new Error("wildz_restore_card_proof_invalid");
     }
+    assertRetirementAuthority(asset);
     if (basesById.get(base.id) !== base.proof.digest) throw new Error("wildz_restore_card_proof_invalid");
     const canonical = canonicalPortableCardJson(asset);
     const prior = canonicalById.get(asset.id);
@@ -191,9 +251,12 @@ export function extractVerifiedWildzCards(input: {
       const priorAsset = assetsById.get(asset.id)!;
       const priorIsVerifiedBase = priorAsset.proof.digest === base.proof.digest
         && canonicalPortableCardJson(priorAsset) === canonicalPortableCardJson(base);
-      if (!priorIsVerifiedBase && !isVerifiedDescendant(priorAsset, asset)) {
-        throw new Error("wildz_restore_duplicate_card_conflict");
-      }
+      const selected = priorIsVerifiedBase ? asset : resolveConflict(priorAsset, asset);
+      canonicalById.set(asset.id, canonicalPortableCardJson(selected));
+      assetsById.set(asset.id, selected);
+      rememberSchema(schemaOf(selected.manifest));
+      rememberSchema(schemaOf(selected.proof));
+      return;
     }
     canonicalById.set(asset.id, canonical);
     assetsById.set(asset.id, asset);
@@ -319,6 +382,7 @@ export function extractVerifiedWildzCards(input: {
         error.message === "wildz_restore_card_proof_invalid"
         || error.message === "wildz_restore_duplicate_card_conflict"
         || error.message === "wildz_restore_player_digest_invalid"
+        || error.message === "wildz_restore_retirement_authority_untrusted"
       )) throw error;
       throw new Error("wildz_restore_card_proof_invalid");
     }

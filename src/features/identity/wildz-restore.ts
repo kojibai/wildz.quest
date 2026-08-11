@@ -14,9 +14,10 @@ import {
   type WildsPlayerVaultPayload
 } from "../play/wilds-player-vault";
 import { initialWildsWorldProjection } from "../play/wilds-world-state";
-import type {
-  WildzArtifactCodec,
-  WildzArtifactInspection
+import {
+  WildzRetirementQuarantineError,
+  type WildzArtifactCodec,
+  type WildzArtifactInspection
 } from "../../lib/receiz/wildz-artifact-codec";
 import type { ReceizCommerceVaultProjection } from "../../lib/receiz/receiz-commerce-vault";
 import {
@@ -149,10 +150,16 @@ function emptyVaultPlayState(): PlayState {
 }
 
 function importAssets(base: PlayState, assets: readonly PortableCardAsset[]) {
+  const codecAdmittedProofs = new Set(assets.map((asset) => asset.proof.digest));
   extractVerifiedWildzCards({
     pngBasis: null,
     verifiedPortableSnapshot: [base.inventory, assets],
-    restoredVaultFiles: []
+    restoredVaultFiles: [],
+    // Only exact proofs admitted by the codec's origin verifier carry retirement
+    // authority here; local self-hashed state never promotes itself.
+    retirementAuthorityVerifier: {
+      verifyRetirement: (evidence) => codecAdmittedProofs.has(evidence.cardProofDigest)
+    }
   });
   return assets.reduce(
     (state, asset) => applyWildsInput(state, { type: "import-card", asset }),
@@ -368,6 +375,7 @@ export async function restoreWildzArtifactForSurface(input: {
   });
   if (inspection.kind === "invalid") throw new Error(inspection.code);
   if (inspection.kind === "unsupported") throw new Error(inspection.code);
+  if (inspection.kind === "retirement-quarantine") throw new WildzRetirementQuarantineError(inspection);
   const verifiedIdentity = identityFromInspection(inspection);
   const cardOnlyConfirmed = verifiedIdentity
     ? true

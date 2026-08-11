@@ -2,6 +2,7 @@ export type WildsQualityTier = "low" | "medium" | "high";
 
 export type WildsQualityProfile = {
   tier: WildsQualityTier;
+  reducedMotion: boolean;
   dpr: 1 | 1.25 | 1.5;
   shadowMapSize: 512 | 1024;
   foliage: number;
@@ -19,6 +20,7 @@ export function wildsQualityProfileForTier(tier: WildsQualityTier, reducedMotion
   return {
     ...base,
     tier,
+    reducedMotion,
     particles: reducedMotion ? 0.35 : base.particles,
     maxDrawCalls: 160,
     maxTriangles: 180_000

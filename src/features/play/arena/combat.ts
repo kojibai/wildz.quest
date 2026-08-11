@@ -91,6 +91,17 @@ export function createArenaCombatantState(actor: ArenaFighterDefinition): ArenaC
   return { vitality: actor.maxVitality, break: actor.maxBreak, stamina: 100, focus: 0, combo: 0, action: idleAction, cooldowns: [0, 0], statuses: [] };
 }
 
+export function advanceArenaCombatantState(state: ArenaCombatantState, frame: number): ArenaCombatantState {
+  if (!Number.isSafeInteger(frame) || frame < 0) throw new Error("arena_combat_frame_invalid");
+  const committed = frame <= state.action.recoverUntil;
+  const stamina = Math.min(100, Number((state.stamina + (committed ? 0.25 : 1)).toFixed(3)));
+  return {
+    ...state,
+    stamina,
+    statuses: state.statuses.filter((status) => status.expiresFrame > frame),
+  };
+}
+
 function actionBasis(context: ArenaCombatContext, intent: ArenaCombatIntent) {
   const { frame, state, actor } = context;
   if (!Number.isSafeInteger(frame) || frame < 0) throw new Error("arena_combat_frame_invalid");
@@ -124,6 +135,8 @@ function actionBasis(context: ArenaCombatContext, intent: ArenaCombatIntent) {
 export function beginArenaAction(context: ArenaCombatContext, intent: ArenaCombatIntent): ArenaActionResolution {
   const basis = actionBasis(context, intent);
   if (context.state.stamina < basis.cost) throw new Error("arena_combat_stamina");
+  const focusSpent = intent.kind === "heavy" || intent.kind === "ability" ? context.state.focus : 0;
+  const focusMultiplier = 1 + focusSpent / 200;
   const comboIndex = intent.kind === "light"
     ? (context.frame <= context.state.action.recoverUntil + 8 ? Math.min(3, Math.max(1, context.state.action.comboIndex + 1)) : 1)
     : 0;
@@ -138,9 +151,9 @@ export function beginArenaAction(context: ArenaCombatContext, intent: ArenaComba
     abilitySlot: intent.kind === "ability" ? intent.slot : null,
     abilityName: basis.abilityName ?? null,
     abilityPower: basis.abilityPower ?? 0,
-    damageScale: basis.damage,
-    breakScale: basis.breaking,
-    launchScale: basis.launch,
+    damageScale: basis.damage * focusMultiplier,
+    breakScale: basis.breaking * (1 + focusSpent / 300),
+    launchScale: basis.launch * (1 + focusSpent / 400),
     priority: basis.priority,
   };
   const cooldowns: [number, number] = [...context.state.cooldowns];
@@ -150,7 +163,7 @@ export function beginArenaAction(context: ArenaCombatContext, intent: ArenaComba
     state: {
       ...context.state,
       stamina: context.state.stamina - basis.cost,
-      focus: intent.kind === "focus" ? Math.min(100, context.state.focus + 18) : context.state.focus,
+      focus: intent.kind === "focus" ? Math.min(100, context.state.focus + 18) : focusSpent > 0 ? 0 : context.state.focus,
       combo: comboIndex,
       action,
       cooldowns,
@@ -180,6 +193,13 @@ export function resolveArenaHit(context: ArenaHitContext): ArenaHitResolution {
   const distance = Math.hypot(delta.x, delta.y, delta.z);
   const range = context.attacker.reach * (action.kind === "heavy" ? 1.14 : action.kind === "ability" ? 1.3 : 1);
   if (distance > range + context.target.collision.radius) return emptyHit("miss", context.targetState);
+  if (action.kind === "light" || action.kind === "heavy") {
+    const planarDistance = Math.hypot(delta.x, delta.z) || 1;
+    const planarDirection = Math.hypot(action.direction.x, action.direction.z) || 1;
+    const alignment = (delta.x / planarDistance) * (action.direction.x / planarDirection)
+      + (delta.z / planarDistance) * (action.direction.z / planarDirection);
+    if (alignment < 0.25) return emptyHit("miss", context.targetState);
+  }
   const defense = defensiveOutcome(context);
   if (defense === "dodged" || defense === "parried") return emptyHit(defense, context.targetState);
   const element = effectiveness(context.attacker.element, context.target.element);

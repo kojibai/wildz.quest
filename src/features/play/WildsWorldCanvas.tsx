@@ -31,9 +31,22 @@ import type { PortableCardAsset } from "@/features/play/portable-card";
 import type { KaiKlokMoment } from "@/features/play/kai-klok-moment";
 import { projectKaiWorldExpression } from "@/features/play/kai-moment-expression";
 import { WildsKaiAtmosphereGeometry } from "@/features/play/WildsKaiAtmosphereGeometry";
+import { WildsCelestialSky } from "@/features/play/WildsCelestialSky";
+import { wildsStarCountForTier } from "@/features/play/wilds-celestial-model";
+import {
+  DEFAULT_WILDS_VISUAL_SETTINGS,
+  normalizeWildsVisualSettings,
+  projectWildsNightRig,
+  type WildsVisualSettings
+} from "@/features/play/wilds-night-visibility";
 import { projectCardKaiAppearance } from "@/features/play/card-kai-appearance";
 import type { WildsTrainerProjection } from "@/features/play/wilds-saga-trainers";
 import type { WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
+import { WildsReadabilityProvider, useWildsReadability } from "@/features/play/WildsReadabilityContext";
+import {
+  projectWildsAuthoredDarkness,
+  projectWildsReadabilityProfile
+} from "@/features/play/wilds-night-readability";
 
 export function WildsWorldCanvas({
   state,
@@ -49,6 +62,7 @@ export function WildsWorldCanvas({
   livingWorld,
   worldMode,
   kaiMoment,
+  visualSettings = DEFAULT_WILDS_VISUAL_SETTINGS,
   supportCards = [],
   trainers = []
 }: {
@@ -64,6 +78,7 @@ export function WildsWorldCanvas({
   livingWorld?: WildsWorldProjection | null;
   worldMode: WildsSettlementWorldMode;
   kaiMoment: KaiKlokMoment;
+  visualSettings?: Partial<WildsVisualSettings>;
   supportCards?: readonly PortableCardAsset[];
   trainers?: readonly WildsTrainerProjection[];
   onSelectTrainer: (trainer: WildsTrainerProjection) => void;
@@ -88,7 +103,7 @@ export function WildsWorldCanvas({
       >
         {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
-          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} supportCards={supportCards} trainers={trainers} />
+          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} />
         </Suspense>
       </Canvas>
     </div>
@@ -112,6 +127,7 @@ function WildsScene({
   livingWorld,
   worldMode,
   kaiMoment,
+  visualSettings,
   supportCards,
   trainers,
   onSelectTrainer
@@ -127,25 +143,57 @@ function WildsScene({
   livingWorld?: WildsWorldProjection | null;
   worldMode: WildsSettlementWorldMode;
   kaiMoment: KaiKlokMoment;
+  visualSettings: Partial<WildsVisualSettings>;
   supportCards: readonly PortableCardAsset[];
   trainers: readonly WildsTrainerProjection[];
   onSelectTrainer: (trainer: WildsTrainerProjection) => void;
 }) {
   const world = projectWorldProgression(state.worldMastery);
   const kaiExpression = projectKaiWorldExpression(kaiMoment);
+  const normalizedVisualSettings = useMemo(() => normalizeWildsVisualSettings(visualSettings), [visualSettings]);
+  const darkness = projectWildsAuthoredDarkness({
+    encounter: state.encounter,
+    player: state.player,
+    ecologySites: Object.values(livingWorld?.ecologySites ?? {})
+  });
+  const nightRig = projectWildsNightRig(kaiExpression, normalizedVisualSettings, {
+    authoredDarkness: darkness.amount,
+    mode: "adventure"
+  });
+  const readability = projectWildsReadabilityProfile({
+    authoredDarkness: darkness.amount,
+    characterFill: nightRig.characterFill,
+    nightAmount: kaiExpression.night.amount,
+    reducedMotion: qualityProfile.reducedMotion,
+    rim: nightRig.rim
+  });
   const kaiFog = useMemo(() => new THREE.Color(world.chapter.palette.fog)
-    .lerp(new THREE.Color(kaiExpression.sky.tint), 0.22 * kaiExpression.sky.luminance)
+    .lerp(new THREE.Color(kaiExpression.sky.horizon), 0.24 + kaiExpression.night.amount * 0.7)
     .lerp(new THREE.Color(kaiExpression.accent), kaiExpression.atmosphericInfluence)
-    .getStyle(), [kaiExpression.accent, kaiExpression.atmosphericInfluence, kaiExpression.sky.luminance, kaiExpression.sky.tint, world.chapter.palette.fog]);
+    .multiplyScalar((1 - kaiExpression.night.amount * 0.48) * (1 - darkness.amount * 0.38))
+    .getStyle(), [darkness.amount, kaiExpression.accent, kaiExpression.atmosphericInfluence, kaiExpression.night.amount, kaiExpression.sky.horizon, world.chapter.palette.fog]);
+  const kaiSky = useMemo(() => new THREE.Color(kaiExpression.sky.zenith)
+    .lerp(new THREE.Color("#050811"), darkness.amount * 0.72)
+    .getStyle(), [darkness.amount, kaiExpression.sky.zenith]);
   const worldSparkleCount = Math.round(54 * qualityProfile.particles);
   return (
-    <>
-      <color attach="background" args={[kaiFog]} />
+    <WildsReadabilityProvider value={readability}>
+      <color attach="background" args={[kaiSky]} />
       <fog attach="fog" args={[kaiFog, 8 + kaiExpression.sky.luminance * 3, 21 + (1 - kaiExpression.sky.fogDensity) * 4]} />
-      <WildsAtmosphere encounter={state.encounter} expression={kaiExpression} missionProgress={state.missionProgress} player={state.player} qualityProfile={qualityProfile} />
+      <WildsCelestialSky expression={kaiExpression} qualityProfile={qualityProfile} />
+      <WildsAtmosphere encounter={state.encounter} expression={kaiExpression} missionProgress={state.missionProgress} nightRig={nightRig} player={state.player} qualityProfile={qualityProfile} />
       <WildsKaiAtmosphereGeometry expression={kaiExpression} qualityProfile={qualityProfile} />
       <CameraRig onCameraHeadingChange={onCameraHeadingChange} />
-      <WildsDiagnostics qualityProfile={qualityProfile} state={state} />
+      <WildsDiagnostics environment={{
+        authoredDarkness: darkness.amount,
+        dayPhase: kaiExpression.dayPhase,
+        darknessSource: darkness.source,
+        kaiCoordinate: kaiMoment.latticeCoordinate,
+        lanternEnabled: normalizedVisualSettings.lanternEnabled,
+        nightAmount: kaiExpression.night.amount,
+        reducedMotion: qualityProfile.reducedMotion,
+        starCount: wildsStarCountForTier(qualityProfile.tier)
+      }} qualityProfile={qualityProfile} state={state} />
       <SmoothWorldFrame player={state.player}>
         <SearchableTerrain
           enabled={searchEnabled}
@@ -166,8 +214,8 @@ function WildsScene({
       <WildsExplorer character={character} style={character.gender} worldPosition={state.player} />
       <ActiveCompanion state={state} />
       <SupportCompanions cards={supportCards} />
-      <Sparkles key={`wilds-world-sparkles-${worldSparkleCount}`} count={worldSparkleCount} scale={[8, 2.4, 8]} size={2.1} speed={kaiExpression.particleSpeed} color={kaiExpression.accent} />
-    </>
+      <Sparkles key={`wilds-world-sparkles-${worldSparkleCount}`} count={worldSparkleCount} scale={[8, 2.4, 8]} size={2.1} speed={qualityProfile.reducedMotion ? 0 : kaiExpression.particleSpeed} color={kaiExpression.accent} />
+    </WildsReadabilityProvider>
   );
 }
 
@@ -589,6 +637,7 @@ function SearchPulse({ hint, position }: { hint: boolean; position: [number, num
 }
 
 function HabitatCover({ cover, open }: { cover: HotspotCover; open: boolean }) {
+  const readability = useWildsReadability();
   const colors: Record<string, string> = {
     grass: "#2f8d51", flowers: "#ff8dad", tree: "#236b43", rock: "#7f827d",
     cave: "#3b3446", water: "#45aee7", ruin: "#b49b75", energy: "#f7c948"
@@ -598,7 +647,7 @@ function HabitatCover({ cover, open }: { cover: HotspotCover; open: boolean }) {
       {[-1, -0.5, 0, 0.5, 1].map((offset, index) => (
         <mesh key={offset} castShadow position={[offset * 0.25, 0.2 + Math.abs(offset) * 0.08, index % 2 ? -0.1 : 0.08]} rotation={[0.12, offset * 0.4, offset * -0.32]}>
           {cover === "rock" || cover === "cave" || cover === "ruin" ? <dodecahedronGeometry args={[0.24, 0]} /> : <coneGeometry args={[0.15, 0.52, cover === "water" ? 8 : 5]} />}
-          <meshStandardMaterial color={colors[String(cover)] ?? colors.grass} roughness={0.78} metalness={cover === "energy" ? 0.24 : 0} emissive={cover === "energy" ? "#f7c948" : "#000000"} emissiveIntensity={0.28} />
+          <meshStandardMaterial color={colors[String(cover)] ?? colors.grass} roughness={0.78} metalness={cover === "energy" ? 0.24 : 0} emissive={cover === "energy" ? "#f7c948" : colors[String(cover)] ?? colors.grass} emissiveIntensity={cover === "energy" ? 0.28 : readability.threatEmissive * 0.55} />
         </mesh>
       ))}
     </group>
@@ -736,16 +785,20 @@ function CreatureDetails({ cardId, color, accent }: { cardId: string; color: str
 }
 
 function WildsDiagnostics({
+  environment,
   qualityProfile,
   state
 }: {
+  environment: { authoredDarkness: number; dayPhase: string; darknessSource: string; kaiCoordinate: string; lanternEnabled: boolean; nightAmount: number; reducedMotion: boolean; starCount: number };
   qualityProfile: WildsQualityProfile;
   state: PlayState;
 }) {
   const { camera, gl, scene, size } = useThree();
   const outputRef = useRef<HTMLOutputElement>(null);
   const stateRef = useRef(state);
+  const environmentRef = useRef(environment);
   stateRef.current = state;
+  environmentRef.current = environment;
 
   useEffect(() => {
     const sample = () => {
@@ -753,6 +806,7 @@ function WildsDiagnostics({
     const extra = {
       camera: { position: camera.position.toArray(), fov: camera instanceof THREE.PerspectiveCamera ? camera.fov : null },
       scene: { children: scene.children.length },
+      environment: environmentRef.current,
       boss: scene.getObjectByName("wilds-boss-environment")?.userData ?? { detailedBosses: 0, maxDetailedBosses: 1 }
     };
     publishWildsDiagnostics(gl, size, currentState, qualityProfile, extra);

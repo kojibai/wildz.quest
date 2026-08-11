@@ -13650,7 +13650,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wildz-social-stack > .wilds-command-system { position: relative; right: auto; bottom: auto; left: auto; width: 100%; padding: 4px max(10px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
 .wildz-social-stack > .wildz-social-deck { padding-bottom: 2px; }
 .wildz-bottom-play-controls { grid-template-columns: 56px 72px minmax(72px, 94px); justify-content: space-between; }
-.wildz-quick-utilities { display: grid; grid-template-rows: repeat(2, 1fr); gap: 6px; }
+.wildz-quick-utilities { display: grid; grid-template-rows: repeat(3, 1fr); gap: 6px; }
 .wildz-quick-utilities > button { display: grid; width: 48px; min-height: 44px; place-items: center; padding: 0; border: 1px solid rgba(224, 227, 207, .15); border-radius: 14px; color: #dce9e1; background: linear-gradient(145deg, rgba(52, 68, 60, .78), rgba(23, 37, 31, .88)); box-shadow: inset 0 1px rgba(255,255,255,.06); }
 .wilds-companion-command-zone { position: relative; display: grid; min-width: 72px; justify-items: end; padding-right: max(0px, env(safe-area-inset-right)); isolation: isolate; }
 .wilds-companion-command { position: relative; display: grid; width: clamp(72px, 22vw, 94px); aspect-ratio: 1; place-items: center; padding: 7px; overflow: visible; border: 1px solid color-mix(in srgb, var(--creature-primary, #78dda1) 55%, white 10%); border-radius: 31% 31% 38% 38%; color: #f4fff7; background: radial-gradient(circle at 50% 30%, rgba(102, 219, 158, .2), rgba(8, 28, 24, .97) 68%); box-shadow: 0 10px 28px rgba(0,0,0,.4), inset 0 1px rgba(255,255,255,.12); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
@@ -14654,7 +14654,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   left: 0;
   inset-inline-start: 0;
   display: grid;
-  grid-template-columns: repeat(2, 44px);
+  grid-template-columns: repeat(3, 44px);
   grid-template-rows: 44px;
   gap: 6px;
   pointer-events: auto;
@@ -14671,6 +14671,13 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   background: linear-gradient(145deg, rgba(16, 44, 39, .9), rgba(7, 25, 22, .94));
   box-shadow: 0 8px 22px rgba(0, 0, 0, .34), inset 0 1px rgba(255, 255, 255, .08);
   backdrop-filter: blur(14px);
+}
+
+.wildz-quick-utilities > button.is-active {
+  border-color: rgba(255, 218, 137, .72);
+  color: #fff2bf;
+  background: linear-gradient(145deg, rgba(91, 67, 27, .94), rgba(38, 34, 21, .96));
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .34), 0 0 18px rgba(255, 198, 109, .22), inset 0 1px rgba(255, 255, 255, .12);
 }
 
 .wildz-tools-home {
@@ -15328,7 +15335,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   .wildz-quick-utilities {
     bottom: 0;
     left: calc(100% + 8px);
-    grid-template-columns: repeat(2, 44px);
+    grid-template-columns: repeat(3, 44px);
   }
 
   .wildz-tools-home {

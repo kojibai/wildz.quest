@@ -1,9 +1,11 @@
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import {
   compareWildsWorldEvents,
+  wildsWorldEventSequence,
+  wildsWorldEventUPulse,
   verifyWildsWorldEvent,
   WILDS_WORLD_ID,
-  type WildsWorldEvent
+  type CompatibleWildsWorldEvent
 } from "./wilds-world-event";
 import type { WildsEcologySite } from "./wilds-ecology";
 import type { WildsChapterMemory } from "./wilds-saga-director";
@@ -107,7 +109,15 @@ export type WildsWorldProjection = {
   schema: "receiz.wilds_world_projection.v3";
   worldId: typeof WILDS_WORLD_ID;
   revision: number;
-  cursor: { pulse: string; kaiKlok: number; eventId: string } | null;
+  cursor: {
+    pulse: string;
+    kaiKlok: number;
+    eventId: string;
+    /** Present on current checkpoints; absent only on exact legacy V3 checkpoints. */
+    uPulse?: number;
+    /** Present on current checkpoints; kaiKlok is the legacy alias. */
+    sequence?: number;
+  } | null;
   sites: Record<string, WildsWorldSiteProjection>;
   ecologySites: Record<string, WildsWorldEcologyProjection>;
   ecologyHistory: string[];
@@ -165,12 +175,18 @@ function entity<T extends { id: string }>(value: unknown, label: string): T {
   return record as T;
 }
 
-function appendEvent(state: WildsWorldProjection, event: WildsWorldEvent, patch: Partial<WildsWorldProjection>): WildsWorldProjection {
+function appendEvent(state: WildsWorldProjection, event: CompatibleWildsWorldEvent, patch: Partial<WildsWorldProjection>): WildsWorldProjection {
   return {
     ...state,
     ...patch,
     revision: state.revision + 1,
-    cursor: { pulse: event.pulse, kaiKlok: event.kaiKlok, eventId: event.eventId },
+    cursor: {
+      pulse: event.pulse,
+      kaiKlok: event.kaiKlok,
+      eventId: event.eventId,
+      uPulse: wildsWorldEventUPulse(event),
+      sequence: wildsWorldEventSequence(event)
+    },
     recentEventIds: [...state.recentEventIds, event.eventId].slice(-512)
   };
 }
@@ -197,14 +213,37 @@ function sagaTime(value: unknown) {
   return value;
 }
 
-export function reduceWildsWorldEvent(state: WildsWorldProjection, event: WildsWorldEvent): WildsWorldProjection {
+export function wildsWorldCursorUPulse(cursor: NonNullable<WildsWorldProjection["cursor"]>) {
+  return cursor.uPulse ?? deriveCursorUPulse(cursor.pulse);
+}
+
+function deriveCursorUPulse(pulse: string) {
+  return wildsWorldEventUPulse({ pulse });
+}
+
+export function wildsWorldCursorSequence(cursor: NonNullable<WildsWorldProjection["cursor"]>) {
+  return cursor.sequence ?? cursor.kaiKlok;
+}
+
+function cursorAsEvent(cursor: NonNullable<WildsWorldProjection["cursor"]>) {
+  return {
+    eventId: cursor.eventId,
+    pulse: cursor.pulse,
+    kaiKlok: cursor.kaiKlok,
+    ...(cursor.uPulse === undefined ? {} : { uPulse: cursor.uPulse }),
+    ...(cursor.sequence === undefined ? {} : { sequence: cursor.sequence })
+  } as CompatibleWildsWorldEvent;
+}
+
+export function reduceWildsWorldEvent(state: WildsWorldProjection, event: CompatibleWildsWorldEvent): WildsWorldProjection {
   if (state.recentEventIds.includes(event.eventId)) return state;
   if (state.cursor) {
-    if (event.pulse < state.cursor.pulse || (event.pulse === state.cursor.pulse && event.kaiKlok <= state.cursor.kaiKlok)) {
+    const prior = cursorAsEvent(state.cursor);
+    if (compareWildsWorldEvents(prior, event) >= 0) {
       throw new Error("wilds_world_event_order_invalid");
     }
   }
-  const continuity = verifyWildsWorldEvent(event, state.cursor ? ({ eventId: state.cursor.eventId, pulse: state.cursor.pulse, kaiKlok: state.cursor.kaiKlok } as WildsWorldEvent) : null);
+  const continuity = verifyWildsWorldEvent(event, state.cursor ? cursorAsEvent(state.cursor) : null);
   if (!continuity.ok) throw new Error(continuity.errors[0] ?? "wilds_world_event_invalid");
   const payload = recordPayload(event.payload);
 
@@ -438,7 +477,7 @@ function verifyCheckpoint(checkpoint: WildsWorldCheckpoint) {
     && checkpoint.projectionDigest === projectionDigest(checkpoint.projection);
 }
 
-export function replayWildsWorld(events: readonly WildsWorldEvent[], checkpoint?: WildsWorldCheckpoint) {
+export function replayWildsWorld(events: readonly CompatibleWildsWorldEvent[], checkpoint?: WildsWorldCheckpoint) {
   if (checkpoint && !verifyCheckpoint(checkpoint)) throw new Error("wilds_world_checkpoint_invalid");
   return events.reduce(reduceWildsWorldEvent, checkpoint?.projection ?? initialWildsWorldProjection());
 }

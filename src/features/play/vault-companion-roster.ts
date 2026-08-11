@@ -1,7 +1,7 @@
 import { emptyAdventureCondition, type AdventureCardCondition } from "./adventure/card-condition";
 import { creatureForm } from "./creature-catalog";
 import type { PlayState } from "./game-state";
-import { currentRevision } from "./living-card-proof";
+import { currentCreatureHistoryProjection, currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import type { PortableCardAsset } from "./portable-card";
 
@@ -37,14 +37,17 @@ function projectRosterConditionLabel(condition: AdventureCardCondition): VaultCo
 
 export function projectVaultCompanionRoster(input: VaultCompanionRosterInput): readonly VaultCompanionRosterEntry[] {
   return input.inventory.flatMap((asset) => {
-    const condition = input.cardConditions[asset.id] ?? emptyAdventureCondition(asset.id);
+    const history = isLivingCardAsset(asset) ? currentCreatureHistoryProjection(asset) : null;
+    const condition = history?.condition ?? input.cardConditions[asset.id] ?? emptyAdventureCondition(asset.id);
     const retired = condition.life === "dead"
       || (isLivingCardAsset(asset) && Boolean(currentRevision(asset).growth.life?.retired));
     if (retired) return [];
 
-    const progress = input.companionProgress[asset.manifest.familyId]
-      ?? input.companionProgress[asset.id]
-      ?? { level: 1, xp: 0, bond: 0 };
+    const progress = history
+      ? { level: history.level, xp: history.xp, bond: history.bond }
+      : input.companionProgress[asset.id]
+        ?? input.companionProgress[asset.manifest.familyId]
+        ?? { level: 1, xp: 0, bond: 0 };
     const form = creatureForm(asset.manifest.formId);
     return [{
       asset,

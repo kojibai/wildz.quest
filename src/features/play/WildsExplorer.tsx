@@ -6,6 +6,7 @@ import * as THREE from "three";
 import type { PlayState } from "@/features/play/game-state";
 import type { WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
 import { projectWildzExplorerRender } from "@/features/play/wildz-explorer-proof";
+import { useWildsReadability } from "@/features/play/WildsReadabilityContext";
 
 type ExplorerStyle = "female" | "male";
 
@@ -46,6 +47,7 @@ export function WildsExplorer({
   worldPosition: PlayState["player"];
   remote?: boolean;
 }) {
+  const readability = useWildsReadability();
   const proofRender = character ? projectWildzExplorerRender(character) : null;
   const renderStyle = proofRender?.style ?? style;
   const appearance = proofRender?.appearance ?? {
@@ -91,11 +93,11 @@ export function WildsExplorer({
     if (!root.current) return;
     const elapsed = performance.now() / 1_000;
     const moving = performance.now() < movingUntil.current;
-    const stride = moving ? Math.sin(elapsed * 11.5) : 0;
+    const stride = moving ? Math.sin(elapsed * 11.5) * readability.motionScale : 0;
     const footPlant = moving ? Math.max(0, Math.cos(elapsed * 23)) : 1;
-    const breath = Math.sin(elapsed * 1.8) * 0.018;
+    const breath = Math.sin(elapsed * 1.8) * 0.018 * readability.motionScale;
     root.current.rotation.y = THREE.MathUtils.lerp(root.current.rotation.y, facing.current, remote ? 0.11 : 0.18);
-    root.current.position.y = moving ? Math.abs(Math.sin(elapsed * 11.5)) * 0.026 : 0;
+    root.current.position.y = moving ? Math.abs(Math.sin(elapsed * 11.5)) * 0.026 * readability.motionScale : 0;
     if (hips.current) {
       hips.current.rotation.y = stride * 0.08;
       hips.current.position.y = 0.72 + footPlant * 0.012;
@@ -104,7 +106,7 @@ export function WildsExplorer({
       spine.current.rotation.y = -stride * 0.06;
       spine.current.scale.y = 1 + breath;
     }
-    if (head.current) head.current.rotation.y = Math.sin(elapsed * 0.72) * (moving ? 0.035 : 0.09);
+    if (head.current) head.current.rotation.y = Math.sin(elapsed * 0.72) * (moving ? 0.035 : 0.09) * readability.motionScale;
     if (leftShoulder.current) leftShoulder.current.rotation.x = stride * 0.52;
     if (rightShoulder.current) rightShoulder.current.rotation.x = -stride * 0.52;
     if (leftElbow.current) leftElbow.current.rotation.x = Math.max(0, -stride) * 0.22 - 0.08;
@@ -112,7 +114,7 @@ export function WildsExplorer({
     if (leftKnee.current) leftKnee.current.rotation.x = -stride * 0.7;
     if (rightKnee.current) rightKnee.current.rotation.x = stride * 0.7;
     if (satchel.current) satchel.current.rotation.z = stride * -0.09;
-    if (scarf.current) scarf.current.rotation.x = 0.18 + Math.sin(elapsed * 5.5) * (moving ? 0.12 : 0.035);
+    if (scarf.current) scarf.current.rotation.x = 0.18 + Math.sin(elapsed * 5.5) * (moving ? 0.12 : 0.035) * readability.motionScale;
   });
 
   const hairLength = appearance.hairProfile === "river-braid" || appearance.hairProfile === "fern-locks" ? 1.2 : 0.82;
@@ -123,7 +125,7 @@ export function WildsExplorer({
       <group name="hips" position={[0, 0.72, 0]} ref={hips}>
         <mesh castShadow scale={[0.86, 0.52, 0.66]}>
           <capsuleGeometry args={[0.18, 0.2, 6, 12]} />
-          <meshStandardMaterial color={appearance.outfitSecondary} roughness={appearance.materialRoughness} />
+          <meshStandardMaterial color={appearance.outfitSecondary} emissive={appearance.outfitSecondary} emissiveIntensity={readability.actorEmissive * 0.6} roughness={appearance.materialRoughness} />
         </mesh>
         <Leg boots={appearance.outfitSecondary} side={-1} knee={leftKnee} trousers={appearance.outfitSecondary} />
         <Leg boots={appearance.outfitSecondary} side={1} knee={rightKnee} trousers={appearance.outfitSecondary} />
@@ -132,7 +134,7 @@ export function WildsExplorer({
       <group name="spine" position={[0, 0.92, 0]} ref={spine}>
         <mesh castShadow position={[0, 0.2, 0]} scale={[outfitWidth * (renderStyle === "female" ? 0.86 : 1), 1, renderStyle === "female" ? 0.72 : 0.76]}>
           <capsuleGeometry args={[0.24, 0.34, 8, 14]} />
-          <meshStandardMaterial color={appearance.outfitPrimary} roughness={appearance.materialRoughness} />
+          <meshStandardMaterial color={appearance.outfitPrimary} emissive={appearance.outfitPrimary} emissiveIntensity={readability.actorEmissive} roughness={appearance.materialRoughness} />
         </mesh>
         <mesh castShadow position={[0, 0.24, 0.2]} scale={[0.78, 0.88, 0.52]}>
           <boxGeometry args={[0.42, 0.45, 0.22]} />

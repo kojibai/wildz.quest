@@ -12,7 +12,7 @@ function fighter(formId: string, suffix: string) {
 
 function match() {
   const definition: ArenaMatchDefinition = {
-    seed: "arena:npc:seed", mode: "practice",
+    seed: "arena:npc:seed", kai: { schema: "receiz.wildz.kai_temporal_root.v1", authority: "admitted", uPulse: 17_491_270_421, pulse: 17_491, sequence: 0, coordinate: "kai:arena:npc" }, mode: "practice", authority: "local",
     teams: [{ id: "player", fighters: [fighter("mintcub-1", "player")] }, { id: "npc", fighters: [fighter("voltray-1", "opponent")] }],
     stage: { id: "arena:npc", groundY: 0, fallY: -6, spawn: { x: 0, y: 0, z: 0 }, bounds: { minX: -10, maxX: 10, minZ: -8, maxZ: 8 }, obstacles: [] },
     spawns: [{ x: -2, y: 0, z: 0 }, { x: 2, y: 0, z: 0 }], pickups: [], mechanisms: [], hazards: [],

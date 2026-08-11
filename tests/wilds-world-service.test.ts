@@ -14,6 +14,26 @@ const authority = {
 const card = sealCollectedCard({ capturedAt: authority.occurredAt, encounterId: "world-service-card", formId: "mintcub-1", ownerReceizId: authority.actorId });
 
 describe("Wilds living world service", () => {
+  it("admits exact uPulse values even when descriptive ISO metadata points the other way", () => {
+    const service = new WildsWorldService();
+    const first = service.execute({
+      type: "social.report",
+      subjectId: "subject:first",
+      reason: "exact-upulse-first",
+      commandId: "command:upulse:first"
+    }, { ...authority, uPulse: 190, pulse: "2099-01-01T00:00:00.000Z", occurredAt: "2099-01-01T00:00:00.000Z" });
+    const second = service.execute({
+      type: "social.report",
+      subjectId: "subject:second",
+      reason: "exact-upulse-second",
+      commandId: "command:upulse:second"
+    }, { ...authority, uPulse: 191, pulse: "2000-01-01T00:00:00.000Z", occurredAt: "2000-01-01T00:00:00.000Z" });
+
+    assert.equal(first.events[0]?.uPulse, 190);
+    assert.equal(second.events[0]?.uPulse, 191);
+    assert.equal(second.projection.cursor?.uPulse, 191);
+  });
+
   it("spawns one site, boss, and raid in deterministic causal order", () => {
     const service = new WildsWorldService();
     const first = service.tick({ pulse: authority.pulse, occurredAt: authority.occurredAt, systemActorId: "receiz:pulse" });

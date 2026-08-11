@@ -1,17 +1,19 @@
 import type { AdventureCardCondition } from "../adventure/card-condition";
 import { validateAdventureCondition } from "../adventure/card-condition";
 import { canonicalPortableCardJson, sha256PortableBasis } from "../portable-card";
+import { assertCanonicalKaiTemporalRoot, compareKaiTemporalRoots, type KaiTemporalRoot } from "../kai-temporal-root";
 
 export type ArenaLifeState = "healthy" | "strained" | "wounded" | "critical" | "mortal" | "retired";
 
 export type ArenaLivingRevision = Readonly<{
-  schema: "receiz.wilds.arena_living_revision.v1";
+  schema: "receiz.wilds.arena_living_revision.v2";
   assetId: string;
   revision: number;
   parentDigest: string | null;
   eventId: string;
   rulesetId: string;
   occurredAt: string;
+  kai: KaiTemporalRoot;
   condition: AdventureCardCondition;
   lifeState: ArenaLifeState;
   scarIds: readonly string[];
@@ -28,6 +30,7 @@ export type ArenaLivingRevisionInput = Readonly<{
   eventId: string;
   rulesetId: string;
   occurredAt: string;
+  kai: KaiTemporalRoot;
   condition: AdventureCardCondition;
   scarIds: readonly string[];
   relationshipIds: readonly string[];
@@ -79,6 +82,7 @@ function validateInput(input: ArenaLivingRevisionInput) {
     throw new Error("arena_revision_identity_invalid");
   }
   if (!canonicalTime(input.occurredAt)) throw new Error("arena_revision_time_invalid");
+  assertCanonicalKaiTemporalRoot(input.kai);
   validateAdventureCondition(input.condition);
   if (input.condition.assetId !== input.assetId) throw new Error("arena_revision_condition_asset_invalid");
   validateHistory(input.scarIds);
@@ -97,7 +101,7 @@ export function createArenaLivingRevision(input: ArenaLivingRevisionInput): Aren
   if (parent) {
     if (parent.assetId !== input.assetId) throw new Error("arena_revision_parent_asset_invalid");
     if (!verifyArenaLivingRevisionBasis(parent)) throw new Error("arena_revision_parent_invalid");
-    if (Date.parse(input.occurredAt) < Date.parse(parent.occurredAt)) throw new Error("arena_revision_time_invalid");
+    if (compareKaiTemporalRoots(input.kai, parent.kai) < 0) throw new Error("arena_revision_time_invalid");
     if (parent.lifeState === "retired" && input.condition.life !== "dead") throw new Error("arena_revision_retirement_irreversible");
     if (!containsHistory(parent.scarIds, input.scarIds)
       || !containsHistory(parent.relationshipIds, input.relationshipIds)
@@ -108,13 +112,14 @@ export function createArenaLivingRevision(input: ArenaLivingRevisionInput): Aren
     }
   }
   const unsigned: Omit<ArenaLivingRevision, "digest"> = {
-    schema: "receiz.wilds.arena_living_revision.v1",
+    schema: "receiz.wilds.arena_living_revision.v2",
     assetId: input.assetId,
     revision: (parent?.revision ?? 0) + 1,
     parentDigest: parent?.digest ?? null,
     eventId: input.eventId,
     rulesetId: input.rulesetId,
     occurredAt: input.occurredAt,
+    kai: input.kai,
     condition: input.condition,
     lifeState: deriveArenaLifeState(input.condition),
     scarIds: [...input.scarIds],
@@ -134,6 +139,7 @@ function verifyArenaLivingRevisionBasis(revision: ArenaLivingRevision) {
       eventId: revision.eventId,
       rulesetId: revision.rulesetId,
       occurredAt: revision.occurredAt,
+      kai: revision.kai,
       condition: revision.condition,
       scarIds: revision.scarIds,
       relationshipIds: revision.relationshipIds,
@@ -141,7 +147,7 @@ function verifyArenaLivingRevisionBasis(revision: ArenaLivingRevision) {
       evolutionIds: revision.evolutionIds,
       matchReceiptDigests: revision.matchReceiptDigests,
     });
-    return revision.schema === "receiz.wilds.arena_living_revision.v1"
+    return revision.schema === "receiz.wilds.arena_living_revision.v2"
       && Number.isSafeInteger(revision.revision)
       && revision.revision >= 1
       && (revision.parentDigest === null || digestPattern.test(revision.parentDigest))
@@ -169,7 +175,7 @@ export function verifyArenaLivingRevision(revision: ArenaLivingRevision, parent?
     if (revision.assetId !== parent.assetId
       || revision.revision !== parent.revision + 1
       || revision.parentDigest !== parent.digest) errors.push("arena_revision_parent_mismatch");
-    if (Date.parse(revision.occurredAt) < Date.parse(parent.occurredAt)) errors.push("arena_revision_time_invalid");
+    if (compareKaiTemporalRoots(revision.kai, parent.kai) < 0) errors.push("arena_revision_time_invalid");
     if (parent.lifeState === "retired" && revision.lifeState !== "retired") errors.push("arena_revision_retirement_irreversible");
   }
   return { ok: errors.length === 0, errors: [...new Set(errors)] };

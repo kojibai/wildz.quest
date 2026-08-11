@@ -27,10 +27,14 @@ export type MortalArenaInput = {
   light?: boolean;
   heavy?: boolean;
   guard?: boolean;
+  parry?: boolean;
   dodge?: boolean;
   focus?: boolean;
   flee?: boolean;
+  withdraw?: boolean;
   swapTo?: number;
+  abilitySlot?: 0 | 1;
+  contextTargetId?: string;
 };
 
 export type MortalArenaFighter = MortalArenaFighterSetup & {
@@ -44,6 +48,8 @@ export type MortalArenaFighter = MortalArenaFighterSetup & {
   guarding: boolean;
   guardStartedTick: number | null;
   recoveryTicks: number;
+  stamina?: number;
+  action?: { kind: "idle" | "light" | "heavy" | "guard" | "parry" | "dodge" | "focus" | "ability"; activeFrom: number; activeUntil: number; recoverUntil: number; abilityName: string | null };
 };
 
 export type MortalArenaSide = {
@@ -72,6 +78,15 @@ export type MortalArenaResult = {
   mortal: boolean;
   finalVitality: readonly [number, number];
   retiredCreatureIds: readonly string[];
+  affectedOwnedCards?: readonly { cardId: string; finalVitality: number; maxVitality: number; status: "active" | "ready" | "knocked-out" | "retired" }[];
+  canonical?: {
+    rulesetId: string;
+    definitionDigest: string;
+    kai: import("../../play/kai-temporal-root").KaiTemporalRoot;
+    mode: import("../../play/arena/mode").ArenaMode;
+    authority: import("../../play/arena/mode").ArenaAuthorityKind;
+    terminalReason: "withdrawal" | "team-defeat" | "double-defeat" | "mutual-withdrawal";
+  };
 };
 
 export type MortalArenaFrame = WildzInputFrame<MortalArenaInput>;

@@ -23,11 +23,11 @@ export function WildsKaiAtmosphereGeometry({ expression, qualityProfile }: { exp
     const next = { day: dayKey, beat: beatKey, ark: arkKey };
     const kind = kaiTransition(priorKey.current, next);
     priorKey.current = next;
-    if (kind) transition.current = { kind, startedAt: performance.now() };
-  }, [arkKey, beatKey, dayKey]);
+    if (kind && !qualityProfile.reducedMotion) transition.current = { kind, startedAt: performance.now() };
+  }, [arkKey, beatKey, dayKey, qualityProfile.reducedMotion]);
   useFrame((_, delta) => {
     if (!group.current) return;
-    group.current.rotation.y += delta * expression.particles.speed * 0.025;
+    if (!qualityProfile.reducedMotion) group.current.rotation.y += delta * expression.particles.speed * 0.025;
     const active = transition.current;
     const progress = active ? Math.min(1, (performance.now() - active.startedAt) / (active.kind === "ark" ? 1_100 : 480)) : 1;
     const breath = active && progress < 1 ? Math.sin(progress * Math.PI) * (active.kind === "ark" ? 0.12 : 0.045) : 0;

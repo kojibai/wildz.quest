@@ -484,6 +484,7 @@ export function evolvePortableCard(input: {
   if (!next || next.evolvesFromId !== living.manifest.formId) throw new Error("wilds_evolution_lineage_invalid");
   if (!Number.isFinite(Date.parse(input.evolvedAt))) throw new Error("wilds_evolution_time_invalid");
   const prior = currentRevision(living);
+  const kai = deriveKaiKlokMoment({ occurredAt: input.evolvedAt, authority: "local" });
   const currentGenome = currentLivingGenome(living);
   const nextAnatomy = { ...next.anatomy };
   const nextPresentation = currentGenome.generatorVersion === 3
@@ -500,7 +501,7 @@ export function evolvePortableCard(input: {
     asset: living,
     revision: {
       sealedAt: input.evolvedAt,
-      kaiPulse: String(Date.parse(input.evolvedAt)),
+      kaiPulse: String(kai.uPulse),
       reason: { kind: "stage", label: `Earned evolution into ${next.name}` },
       stage: next.stage,
       ascensionRank: prior.ascensionRank,

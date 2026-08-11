@@ -18,10 +18,22 @@ Wildz targets the exact `@receiz/sdk@118.0.0` release. Application code uses SDK
 | Offline proposal | Retained verified local truth | A queued proposal is not a global commitment and never advances shared authority by itself |
 | Listing, offer, trade, transfer | Verified command admission and conditional append using current ownership head, expected revision, runtime-custodied actor, plan-bound capability, causal parents, registry law, named commit domain, and idempotency | The v118 SDK has no Wildz-specific conditional market append surface; missing capability, conflict, or invalid proof fails closed |
 | Checkout and payment | Receiz checkout plus admitted settlement evidence | Checkout creation alone never transfers ownership |
+| Exact creature history | SDK-verified enclosing card/Vault, immutable base proof, exact asset ID, causal parent, event/projection digests, admitted Kai coordinate, and bounded append | A family cache, ISO timestamp, model summary, or detached history cannot advance the card; malformed or non-causal history fails closed |
+| Ranked Arena | Verified signed global admission bound to ruleset, definition, roster revisions, and Kai root, followed by independently verified deterministic replay and current publication head at settlement | Local play may remain practice evidence, but cannot change rating, season, or published result |
+| Mortal Arena | Ranked evidence plus a verified, match-scoped, player-bound, revision-pinned Mortal covenant with bounded Kai expiry | Missing, expired, mismatched, or digest-shaped consent cannot retire a creature |
+| Tournament and season projection | Admitted match results under the current published ruleset and season head | Audit, coaching, local simulation, MCP output, and queued publication never change standings |
 
 Historical creator or owner coordinates stored inside individual card proofs remain immutable provenance. They do not prevent a verified Vault from restoring cards produced on another compatible Receiz application without rewriting those histories. For a legacy Vault without owner-continuity binding, the enclosing proof establishes artifact-scoped recovery—not canonical global account ownership; account-only mutations remain Identity Seal/key-gated.
 
 The historical-owner subset of an exact verified Vault is committed into its encrypted Wildz session. Card-required multiplayer and world commands accept those assets only with a compact membership proof under that server-derived commitment; the browser cannot supply or replace the authoritative root.
+
+## Kai temporal and creature-continuity rails
+
+Kai Klok is the primary temporal root for canonical Wildz gameplay. Its exact `uPulse` is carried as a non-negative safe integer. Causal ancestry is evaluated first; a verified descendant advances its parent. For verified divergent siblings only, the greatest admitted `uPulse` wins. Causal append sequence orders intentional events within one `uPulse`, while non-identical claims to the same causal slot fail closed unless a named merge law applies. ISO time is descriptive display metadata and never ordering or authority.
+
+Each living card carries a complete append-only creature history sufficient to rebuild level, XP, bond, mastery, growth, condition, record, form, and life state. Verification binds the exact asset, causal parent, event digest, resulting projection digest, admitted Kai coordinate, idempotency identity, and bounded effects. Card and Vault export append this history without changing the base proof object; a verified import restores the same history and projection on a compatible application. Retirement and death are terminal unless a future named, verified law explicitly says otherwise.
+
+High-frequency Arena inputs belong in a deterministic transcript, not in per-frame card appends. Only admitted consequences append to creature history. Ranked never causes permanent death. Mortal retirement requires the verified covenant and settlement evidence described above.
 
 ## Persistence boundary
 

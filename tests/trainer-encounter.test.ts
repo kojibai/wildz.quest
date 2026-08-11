@@ -140,6 +140,7 @@ describe("trainer encounter presentation", () => {
     assert.match(campaign, /settlementId: settlement\.id/);
     assert.match(campaign, /dismissSignal=\{commandDismissSignal\}/);
     assert.match(arena, /resultPresentation === "arena"/);
+    assert.match(arena, /mode = "adventure"/);
     assert.match(css, /@media \(max-width: 640px\)[\s\S]*?\.wilds-trainer-challenge, \.wilds-trainer-result/);
     assert.match(css, /min-height: 52px/);
     assert.match(css, /env\(safe-area-inset-bottom\)/);

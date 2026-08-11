@@ -1,18 +1,19 @@
 import { canonicalPortableCardJson, sha256PortableBasis } from "../portable-card";
+import { assertCanonicalKaiTemporalRoot, compareKaiTemporalRoots, type KaiTemporalRoot } from "../kai-temporal-root";
 
 export type ArenaCausalEventKind = "progress" | "retirement" | "ownership";
 export type ArenaCausalEventInput = Readonly<{
-  id: string; assetId: string; parentDigest: string; occurredAt: string; ownerId: string;
+  id: string; assetId: string; parentDigest: string; kai: KaiTemporalRoot; occurredAt?: string; ownerId: string;
   kind: ArenaCausalEventKind; xp: Readonly<Record<string, number>>; historyIds: readonly string[];
   rewardIds: readonly string[]; resourceDelta: Readonly<Record<string, number>>; injuryIds: readonly string[];
   ownershipTo?: string;
 }>;
-export type ArenaCausalEvent = ArenaCausalEventInput & Readonly<{ schema: "receiz.wilds.arena_causal_event.v1"; digest: string }>;
+export type ArenaCausalEvent = ArenaCausalEventInput & Readonly<{ schema: "receiz.wilds.arena_causal_event.v2"; digest: string }>;
 export type ArenaMergeInput = Readonly<{
   base: Readonly<{ ownerId: string; resources: Readonly<Record<string, number>>; cardHeadDigests: Readonly<Record<string, string>> }>;
   branches: readonly (readonly ArenaCausalEvent[])[];
 }>;
-export type ArenaMergeRejection = Readonly<{ eventId: string; digest: string; reason: "event_invalid" | "causal_parent_missing" | "insufficient_resource" | "stale_living_after_retirement" | "ownership_conflict" | "owner_mismatch" }>;
+export type ArenaMergeRejection = Readonly<{ eventId: string; digest: string; reason: "event_invalid" | "causal_parent_missing" | "insufficient_resource" | "stale_living_after_retirement" | "ownership_conflict" | "temporal_slot_conflict" | "owner_mismatch" }>;
 export type ArenaMergeResult = Readonly<{
   admittedDigests: readonly string[]; rejected: readonly ArenaMergeRejection[];
   cardHeadDigests: Readonly<Record<string, readonly string[]>>; xp: Readonly<Record<string, Readonly<Record<string, number>>>>;
@@ -28,9 +29,10 @@ const eventDigest = (value: Omit<ArenaCausalEvent, "digest">) => sha256PortableB
 function validateEventInput(input: ArenaCausalEventInput) {
   if (![input.id, input.assetId, input.ownerId].every((value) => idPattern.test(value))
     || !digestPattern.test(input.parentDigest)
-    || !Number.isFinite(Date.parse(input.occurredAt))
+    || (input.occurredAt !== undefined && !Number.isFinite(Date.parse(input.occurredAt)))
     || !["progress", "retirement", "ownership"].includes(input.kind)
     || (input.kind === "ownership") !== Boolean(input.ownershipTo && idPattern.test(input.ownershipTo))) throw new Error("arena_causal_event_invalid");
+  assertCanonicalKaiTemporalRoot(input.kai);
   for (const values of [input.historyIds, input.rewardIds, input.injuryIds]) {
     if (values.length > 512 || values.some((value) => !idPattern.test(value))) throw new Error("arena_causal_event_invalid");
   }
@@ -40,7 +42,7 @@ function validateEventInput(input: ArenaCausalEventInput) {
 
 export function createArenaCausalEvent(input: ArenaCausalEventInput): ArenaCausalEvent {
   validateEventInput(input);
-  const unsigned = { schema: "receiz.wilds.arena_causal_event.v1" as const, ...input };
+  const unsigned = { schema: "receiz.wilds.arena_causal_event.v2" as const, ...input };
   return { ...unsigned, digest: eventDigest(unsigned) };
 }
 
@@ -48,7 +50,7 @@ function validEvent(event: ArenaCausalEvent) {
   try {
     const { digest, ...unsigned } = event;
     validateEventInput(event);
-    return event.schema === "receiz.wilds.arena_causal_event.v1" && digestPattern.test(digest) && eventDigest(unsigned) === digest;
+    return event.schema === "receiz.wilds.arena_causal_event.v2" && digestPattern.test(digest) && eventDigest(unsigned) === digest;
   } catch { return false; }
 }
 
@@ -59,6 +61,12 @@ export function mergeArenaCausalBranches(input: ArenaMergeInput): ArenaMergeResu
   const rejected = new Map<string, ArenaMergeRejection>();
   const reject = (event: ArenaCausalEvent, reason: ArenaMergeRejection["reason"]) => rejected.set(event.digest, { eventId: event.id, digest: event.digest, reason });
   const candidates = events.filter((event) => validEvent(event) || (reject(event, "event_invalid"), false));
+  const temporalSlots = new Map<string, ArenaCausalEvent[]>();
+  for (const event of candidates) {
+    const key = `${event.assetId}:${event.kai.uPulse}:${event.kai.sequence}`;
+    temporalSlots.set(key, [...(temporalSlots.get(key) ?? []), event]);
+  }
+  for (const group of temporalSlots.values()) if (new Set(group.map((event) => event.digest)).size > 1) for (const event of group) reject(event, "temporal_slot_conflict");
   const ownershipGroups = new Map<string, ArenaCausalEvent[]>();
   for (const event of candidates.filter((item) => item.kind === "ownership")) {
     const key = `${event.assetId}:${event.parentDigest}`;
@@ -70,7 +78,7 @@ export function mergeArenaCausalBranches(input: ArenaMergeInput): ArenaMergeResu
   const ordered: ArenaCausalEvent[] = [];
   const remaining = candidates.filter((event) => !rejected.has(event.digest));
   while (remaining.length) {
-    const ready = remaining.filter((event) => known.has(event.parentDigest)).sort((left, right) => left.occurredAt.localeCompare(right.occurredAt) || left.digest.localeCompare(right.digest));
+    const ready = remaining.filter((event) => known.has(event.parentDigest)).sort((left, right) => compareKaiTemporalRoots(left.kai, right.kai) || left.digest.localeCompare(right.digest));
     if (!ready.length) { for (const event of remaining) reject(event, "causal_parent_missing"); break; }
     for (const event of ready) {
       ordered.push(event); known.add(event.digest);
@@ -78,8 +86,8 @@ export function mergeArenaCausalBranches(input: ArenaMergeInput): ArenaMergeResu
     }
   }
 
-  const retirementTime = new Map<string, string>();
-  for (const event of ordered) if (event.kind === "retirement" && (!retirementTime.has(event.assetId) || event.occurredAt < retirementTime.get(event.assetId)!)) retirementTime.set(event.assetId, event.occurredAt);
+  const retirementTime = new Map<string, KaiTemporalRoot>();
+  for (const event of ordered) if (event.kind === "retirement" && (!retirementTime.has(event.assetId) || compareKaiTemporalRoots(event.kai, retirementTime.get(event.assetId)!) < 0)) retirementTime.set(event.assetId, event.kai);
   const resources: Record<string, number> = { ...input.base.resources };
   const xp: Record<string, Record<string, number>> = {};
   const injuries: Record<string, Set<string>> = {};
@@ -91,7 +99,7 @@ export function mergeArenaCausalBranches(input: ArenaMergeInput): ArenaMergeResu
     if (rejected.has(event.digest)) continue;
     if ((ownership[event.assetId] ?? input.base.ownerId) !== event.ownerId) { reject(event, "owner_mismatch"); continue; }
     const deathAt = retirementTime.get(event.assetId);
-    if (event.kind !== "retirement" && deathAt && event.occurredAt > deathAt) { reject(event, "stale_living_after_retirement"); continue; }
+    if (event.kind !== "retirement" && deathAt && compareKaiTemporalRoots(event.kai, deathAt) > 0) { reject(event, "stale_living_after_retirement"); continue; }
     if (Object.entries(event.resourceDelta).some(([resource, delta]) => (resources[resource] ?? 0) + delta < 0)) { reject(event, "insufficient_resource"); continue; }
     for (const [resource, delta] of Object.entries(event.resourceDelta)) resources[resource] = (resources[resource] ?? 0) + delta;
     const progress = xp[event.assetId] ??= {};

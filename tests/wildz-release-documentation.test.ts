@@ -4,13 +4,13 @@ import { test } from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("Wildz v3 release doctrine names the exact Receiz v118 toolchain", () => {
+test("Wildz competitive alpha release doctrine names the exact Receiz v118 toolchain", () => {
   const pkg = JSON.parse(read("package.json")) as {
     version?: string;
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
   };
-  const release = read("docs/release/v3.0.0.md");
+  const release = read("docs/release/v4.0.0-alpha.0.md");
   const mcp = read("docs/MCP.md");
   const packageSourceDocs = [
     read("README.md"),
@@ -22,7 +22,7 @@ test("Wildz v3 release doctrine names the exact Receiz v118 toolchain", () => {
     read("ai-skills/wildz-release-skill/SKILL.md")
   ].join("\n");
 
-  assert.equal(pkg.version, "3.0.0");
+  assert.equal(pkg.version, "4.0.0-alpha.0");
   assert.equal(pkg.dependencies?.["@receiz/sdk"], "118.0.0");
   assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "118.0.0");
   assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "118.0.0");
@@ -41,7 +41,7 @@ test("Wildz v3 release doctrine names the exact Receiz v118 toolchain", () => {
 });
 
 test("release documentation states the real offline and remote authority boundaries", () => {
-  const release = read("docs/release/v3.0.0.md");
+  const release = read("docs/release/v4.0.0-alpha.0.md");
   const verification = read("docs/release/verification.md");
   const interoperability = read("docs/release/artifact-interoperability.md");
   const rails = read("docs/RECEIZ_RAILS.md");
@@ -61,7 +61,7 @@ test("release documentation states the real offline and remote authority boundar
 
 test("release doctrine contains no private artifact paths or assigned credentials", () => {
   const paths = [
-    "docs/release/v3.0.0.md",
+    "docs/release/v4.0.0-alpha.0.md",
     "docs/release/verification.md",
     "docs/release/feature-parity.md",
     "docs/release/artifact-interoperability.md",
@@ -73,4 +73,41 @@ test("release doctrine contains no private artifact paths or assigned credential
   assert.doesNotMatch(combined, /\/Users\/|wilds-vault-[a-f0-9]+\.receized\.png/i);
   assert.doesNotMatch(combined, /(?:RECEIZ_ACCESS_TOKEN|RECEIZ_CLIENT_SECRET|RECEIZ_OAUTH_STATE_SECRET)\s*=\s*[^<\s]/);
   assert.doesNotMatch(combined, /"schema"\s*:\s*"receiz\.key\.v1"/);
+});
+
+test("competitive release doctrine defines proof, replay, operator, and temporal boundaries", () => {
+  const paths = [
+    "docs/ARCHITECTURE.md",
+    "docs/MCP.md",
+    "docs/RECEIZ_RAILS.md",
+    "docs/release/competitive-integrity.md"
+  ];
+  const combined = paths.map(read).join("\n");
+
+  assert.match(combined, /Kai Klok[\s\S]*primary temporal root/i);
+  assert.match(combined, /uPulse[\s\S]*safe integer/i);
+  assert.match(combined, /ISO[\s\S]*(?:descriptive|display)[\s\S]*never[\s\S]*(?:order|authority)/i);
+  assert.match(combined, /creature history[\s\S]*(?:parent|causal)[\s\S]*(?:projection|digest)/i);
+  assert.match(combined, /base proof[\s\S]*(?:unchanged|byte-identical|never rewrite)/i);
+  assert.match(combined, /Arena[\s\S]*replay[\s\S]*(?:admission|envelope)[\s\S]*audit/i);
+  assert.match(combined, /tournament[\s\S]*(?:health|season)/i);
+  assert.match(combined, /coaching[\s\S]*(?:simulation|recommendation)[\s\S]*(?:not|never)[\s\S]*authority/i);
+  assert.match(combined, /MCP[\s\S]*(?:read-only|read only)[\s\S]*audit/i);
+  assert.match(combined, /explicit[\s-]*confirmation[\s\S]*(?:publication|release|deploy)/i);
+  assert.match(combined, /(?:AI|agent)[\s\S]*(?:never|cannot)[\s\S]*(?:sign|admit)/i);
+});
+
+test("gameplay scorecard grades the alpha against a world-class absolute bar without inventing evidence", () => {
+  const scorecard = read("docs/release/gameplay-scorecard.md");
+
+  assert.match(scorecard, /world-class[\s\S]*(?:absolute|10\/10)/i);
+  assert.match(scorecard, /competitive mastery/i);
+  assert.match(scorecard, /deterministic replay/i);
+  assert.match(scorecard, /portable creature continuity/i);
+  assert.match(scorecard, /accessibility/i);
+  assert.match(scorecard, /performance/i);
+  assert.match(scorecard, /live operations/i);
+  assert.match(scorecard, /not (?:yet )?(?:verified|proven)|pending evidence/i);
+  assert.match(scorecard, /gap[\s-]*closure/i);
+  assert.doesNotMatch(scorecard, /(?:is|certified as|proven to be) the best game/i);
 });

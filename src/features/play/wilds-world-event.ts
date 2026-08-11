@@ -1,4 +1,5 @@
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
+import { deriveKaiKlokMoment } from "./kai-klok-moment";
 
 export const WILDS_WORLD_ID = "wilds:global:v3" as const;
 
@@ -40,8 +41,7 @@ export type WildsWorldEventKind =
   | "story.tournament_round_settled"
   | "story.tournament_settled";
 
-export type WildsWorldEvent<T = unknown> = {
-  schema: "receiz.wilds_world_event.v3";
+type WildsWorldEventFields<T> = {
   worldId: typeof WILDS_WORLD_ID;
   eventId: string;
   kind: WildsWorldEventKind;
@@ -55,7 +55,24 @@ export type WildsWorldEvent<T = unknown> = {
   digest: string;
 };
 
-type WildsWorldEventInput<T> = Omit<WildsWorldEvent<T>, "schema" | "worldId" | "eventId" | "digest">;
+export type LegacyWildsWorldEventV3<T = unknown> = WildsWorldEventFields<T> & {
+  schema: "receiz.wilds_world_event.v3";
+};
+
+export type WildsWorldEvent<T = unknown> = WildsWorldEventFields<T> & {
+  schema: "receiz.wilds_world_event.v4";
+  /** Primary deterministic temporal coordinate admitted at the mutation boundary. */
+  uPulse: number;
+  /** Causal append sequence inside one uPulse. */
+  sequence: number;
+};
+
+export type CompatibleWildsWorldEvent<T = unknown> = WildsWorldEvent<T> | LegacyWildsWorldEventV3<T>;
+
+type WildsWorldEventInput<T> = Omit<WildsWorldEvent<T>, "schema" | "worldId" | "eventId" | "digest" | "sequence" | "uPulse"> & {
+  /** Exact admitted root. Omit only at an ISO interoperability boundary. */
+  uPulse?: number;
+};
 
 const eventKinds = new Set<WildsWorldEventKind>([
   "site.spawned",
@@ -125,16 +142,26 @@ function validateInput(input: WildsWorldEventInput<unknown>) {
   if (!identityValid(input.causeId)) throw new Error("wilds_world_cause_invalid");
   if (!isIsoTime(input.pulse) || !isIsoTime(input.occurredAt)) throw new Error("wilds_world_time_invalid");
   if (!Number.isSafeInteger(input.kaiKlok) || input.kaiKlok < 1) throw new Error("wilds_world_kai_klok_invalid");
+  if (input.uPulse !== undefined && (!Number.isSafeInteger(input.uPulse) || input.uPulse < 0)) throw new Error("wilds_world_upulse_invalid");
   if (input.previousEventId !== null && !/^wve:[a-f0-9]{64}$/.test(input.previousEventId)) throw new Error("wilds_world_previous_event_invalid");
   if (!jsonValueValid(input.payload)) throw new Error("wilds_world_payload_invalid");
 }
 
 function eventBasis<T>(input: WildsWorldEventInput<T>) {
+  const { uPulse: admittedUPulse, ...fields } = input;
+  const uPulse = admittedUPulse ?? deriveKaiKlokMoment({ occurredAt: input.pulse, authority: "world" }).uPulse;
   return {
-    schema: "receiz.wilds_world_event.v3" as const,
+    schema: "receiz.wilds_world_event.v4" as const,
     worldId: WILDS_WORLD_ID,
-    ...input
+    uPulse,
+    sequence: input.kaiKlok,
+    ...fields
   };
+}
+
+function legacyEventBasis<T>(input: WildsWorldEventInput<T>) {
+  const { uPulse: _uPulse, ...fields } = input;
+  return { schema: "receiz.wilds_world_event.v3" as const, worldId: WILDS_WORLD_ID, ...fields };
 }
 
 export function createWildsWorldEvent<T>(input: WildsWorldEventInput<T>): WildsWorldEvent<T> {
@@ -147,10 +174,10 @@ export function createWildsWorldEvent<T>(input: WildsWorldEventInput<T>): WildsW
   };
 }
 
-export function verifyWildsWorldEvent(event: WildsWorldEvent, previous?: WildsWorldEvent | null) {
+export function verifyWildsWorldEvent(event: CompatibleWildsWorldEvent, previous?: CompatibleWildsWorldEvent | null) {
   const errors: string[] = [];
   try {
-    const rebuilt = createWildsWorldEvent({
+    const input = {
       kind: event.kind,
       actorId: event.actorId,
       causeId: event.causeId,
@@ -159,9 +186,23 @@ export function verifyWildsWorldEvent(event: WildsWorldEvent, previous?: WildsWo
       occurredAt: event.occurredAt,
       previousEventId: event.previousEventId,
       payload: event.payload
-    });
-    if (event.schema !== rebuilt.schema || event.worldId !== rebuilt.worldId) errors.push("wilds_world_schema_invalid");
-    if (event.eventId !== rebuilt.eventId || event.digest !== rebuilt.digest) errors.push("wilds_world_digest_invalid");
+    };
+    if (event.schema === "receiz.wilds_world_event.v3") {
+      validateInput(input);
+      const digestHex = sha256PortableBasis(canonicalPortableCardJson(legacyEventBasis(input))).slice("sha256:".length);
+      if (event.schema !== "receiz.wilds_world_event.v3" || event.worldId !== WILDS_WORLD_ID) errors.push("wilds_world_schema_invalid");
+      if (event.eventId !== `wve:${digestHex}` || event.digest !== `sha256:${digestHex}`) errors.push("wilds_world_digest_invalid");
+    } else if (event.schema === "receiz.wilds_world_event.v4") {
+      const rebuilt = createWildsWorldEvent({ ...input, uPulse: event.uPulse });
+      if (event.schema !== rebuilt.schema || event.worldId !== rebuilt.worldId) errors.push("wilds_world_schema_invalid");
+      if (event.uPulse !== rebuilt.uPulse
+        || event.sequence !== event.kaiKlok
+        || event.sequence !== rebuilt.sequence
+        || event.eventId !== rebuilt.eventId
+        || event.digest !== rebuilt.digest) errors.push("wilds_world_digest_invalid");
+    } else {
+      errors.push("wilds_world_schema_invalid");
+    }
   } catch (error) {
     errors.push(error instanceof Error ? error.message : "wilds_world_event_invalid");
   }
@@ -169,16 +210,29 @@ export function verifyWildsWorldEvent(event: WildsWorldEvent, previous?: WildsWo
     if (previous === null) {
       if (event.previousEventId !== null) errors.push("wilds_world_previous_event_invalid");
     } else {
-      if (event.previousEventId !== previous.eventId || compareWildsWorldEvents(previous, event) >= 0) errors.push("wilds_world_previous_event_invalid");
+      if (event.previousEventId !== previous.eventId
+        || compareWildsWorldEvents(previous, event) >= 0) errors.push("wilds_world_previous_event_invalid");
     }
   }
   return { ok: errors.length === 0, errors: [...new Set(errors)] };
 }
 
-export function compareWildsWorldEvents(left: WildsWorldEvent, right: WildsWorldEvent) {
-  const pulseOrder = left.pulse.localeCompare(right.pulse);
-  if (pulseOrder !== 0) return pulseOrder < 0 ? -1 : 1;
-  if (left.kaiKlok !== right.kaiKlok) return left.kaiKlok < right.kaiKlok ? -1 : 1;
-  const idOrder = left.eventId.localeCompare(right.eventId);
-  return idOrder === 0 ? 0 : idOrder < 0 ? -1 : 1;
+export function wildsWorldEventUPulse(event: Pick<CompatibleWildsWorldEvent, "pulse"> & Partial<Pick<WildsWorldEvent, "uPulse">>) {
+  return "uPulse" in event && event.uPulse !== undefined
+    ? event.uPulse
+    : deriveKaiKlokMoment({ occurredAt: event.pulse, authority: "world" }).uPulse;
+}
+
+export function wildsWorldEventSequence(event: Pick<CompatibleWildsWorldEvent, "kaiKlok"> & Partial<Pick<WildsWorldEvent, "sequence">>) {
+  return "sequence" in event && event.sequence !== undefined ? event.sequence : event.kaiKlok;
+}
+
+export function compareWildsWorldEvents(left: CompatibleWildsWorldEvent, right: CompatibleWildsWorldEvent) {
+  const leftUPulse = wildsWorldEventUPulse(left);
+  const rightUPulse = wildsWorldEventUPulse(right);
+  if (leftUPulse !== rightUPulse) return leftUPulse < rightUPulse ? -1 : 1;
+  const leftSequence = wildsWorldEventSequence(left);
+  const rightSequence = wildsWorldEventSequence(right);
+  if (leftSequence !== rightSequence) return leftSequence < rightSequence ? -1 : 1;
+  return 0;
 }

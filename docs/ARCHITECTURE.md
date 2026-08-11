@@ -53,6 +53,12 @@ Local browser state makes the product responsive and recoverable, but it never p
 
 Keep game rules deterministic. Inject time, randomness, and external results as explicit inputs so commands can be replayed and tested.
 
+Kai Klok is the primary temporal root for that deterministic kernel. Canonical inputs carry an exact safe-integer `uPulse`, admitted coordinate, and causal sequence. ISO timestamps are descriptive display metadata and never order game state. Descendant history advances its parent; only verified divergent siblings compare `uPulse`; an equal-`uPulse`, equal-slot disagreement fails closed.
+
+Creature progression uses two layers: an immutable base proof object and an append-only exact-card history. History verification checks asset identity, parent linkage, idempotency, Kai chronology, bounded effects, event digest, and resulting projection digest before rebuilding level, bond, mastery, condition, record, form, and life state. A Vault transports the same verified card history; it does not flatten it into family-level state or rewrite the base proof.
+
+Arena uses fixed rules, deterministic frame batches, pinned fighter revisions, and replayable transcripts. Practice and Adventure can run locally. Ranked settlement additionally requires verified global admission. Mortal additionally requires a verified, player-bound, match-scoped covenant. Replays, receipts, AI reviews, and MCP audits explain evidence; none can admit a result. High-frequency inputs remain in the transcript, while only admitted durable consequences append to creature history.
+
 ### Receiz integration
 
 `src/lib/receiz` is the integration boundary. It owns complete-artifact verification, session bridging, Vault/card admission, custody and history, public repositories, world publication, market coordination, and SDK adapters.
@@ -93,6 +99,8 @@ Wildz treats AI as an operator and proof as authority.
 
 This makes agent assistance reproducible without creating an unreviewable privileged path.
 
+For competitive operations, read-only MCP audits may summarize replay admission, tournament health, season integrity, publication status, and capability readiness. AI may run deterministic simulations, balance analysis, incident triage, and opt-in coaching from sanitized admitted evidence. Coaching recommendations are not gameplay or proof authority, and an agent never signs or admits an Arena envelope, covenant, result, card event, publication, or release. Every command that can publish, settle, administer a season, deploy, or release requires explicit human confirmation against the exact command or permit digest.
+
 ## Extension checklist
 
 When building a new product or feature from Wildz:
@@ -114,3 +122,5 @@ When building a new product or feature from Wildz:
 - [Artifact interoperability](release/artifact-interoperability.md)
 - [Feature implementation map](release/feature-parity.md)
 - [Release verification](release/verification.md)
+- [Competitive integrity](release/competitive-integrity.md)
+- [Gameplay scorecard](release/gameplay-scorecard.md)

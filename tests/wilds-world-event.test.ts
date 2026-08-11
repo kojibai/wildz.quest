@@ -4,8 +4,10 @@ import {
   compareWildsWorldEvents,
   createWildsWorldEvent,
   verifyWildsWorldEvent,
+  wildsWorldEventUPulse,
   WILDS_WORLD_ID
 } from "../src/features/play/wilds-world-event.js";
+import { deriveKaiKlokMoment } from "../src/features/play/kai-klok-moment.js";
 import {
   checkpointWildsWorld,
   initialWildsWorldProjection,
@@ -20,8 +22,37 @@ const firstInput = {
   kaiKlok: 1,
   occurredAt: "2026-07-15T12:00:00.000Z",
   previousEventId: null,
+  uPulse: 190,
   payload: { siteId: "site:crystal-burrow:genesis", position: { x: 144, z: 96 } }
 };
+
+const legacyV3Event = {
+  schema: "receiz.wilds_world_event.v3",
+  worldId: WILDS_WORLD_ID,
+  eventId: "wve:3b8b1dccf1e59ffe0fc27c998908a5b8f73cf1a4c3f42535ea6eac3758fa99ce",
+  digest: "sha256:3b8b1dccf1e59ffe0fc27c998908a5b8f73cf1a4c3f42535ea6eac3758fa99ce",
+  kind: "site.spawned",
+  actorId: "receiz:pulse",
+  causeId: "pulse:legacy",
+  pulse: "2026-07-15T12:00:00.000Z",
+  kaiKlok: 1,
+  occurredAt: "2099-01-01T00:00:00.000Z",
+  previousEventId: null,
+  payload: {
+    site: {
+      id: "site:legacy",
+      familyId: "crystal-burrow",
+      name: "Legacy Burrow",
+      position: { x: 1, z: 2 },
+      radius: 9,
+      phase: "rumored",
+      spawnedAt: "2026-07-15T12:00:00.000Z",
+      expiresAt: "2026-07-18T12:00:00.000Z",
+      bossId: null,
+      seedDigest: `sha256:${"a".repeat(64)}`
+    }
+  }
+} as const;
 
 describe("Wilds world event", () => {
   it("creates one stable hash-addressed event from canonical facts", () => {
@@ -29,11 +60,55 @@ describe("Wilds world event", () => {
     const replay = createWildsWorldEvent({ ...firstInput, payload: { position: { z: 96, x: 144 }, siteId: "site:crystal-burrow:genesis" } });
 
     assert.equal(first.worldId, WILDS_WORLD_ID);
-    assert.equal(first.schema, "receiz.wilds_world_event.v3");
+    assert.equal(first.schema, "receiz.wilds_world_event.v4");
+    assert.equal(first.uPulse, 190);
+    assert.equal(first.sequence, 1);
     assert.match(first.eventId, /^wve:[a-f0-9]{64}$/);
     assert.match(first.digest, /^sha256:[a-f0-9]{64}$/);
     assert.equal(replay.eventId, first.eventId);
     assert.deepEqual(verifyWildsWorldEvent(first), { ok: true, errors: [] });
+  });
+
+  it("roots authoritative ordering in Kai uPulse rather than descriptive occurredAt", () => {
+    const earlier = createWildsWorldEvent({ ...firstInput, uPulse: 190, pulse: "2099-01-01T00:00:00.000Z", occurredAt: "2099-01-01T00:00:00.000Z" });
+    const later = createWildsWorldEvent({
+      ...firstInput,
+      uPulse: 191,
+      pulse: "2000-01-01T00:00:00.000Z",
+      occurredAt: "2000-01-01T00:00:00.000Z",
+      previousEventId: earlier.eventId
+    });
+    assert.ok(later.uPulse > earlier.uPulse);
+    assert.equal(compareWildsWorldEvents(earlier, later), -1);
+    assert.equal(verifyWildsWorldEvent(later, earlier).ok, true);
+  });
+
+  it("compares only uPulse then causal sequence and leaves a shared slot conflicting", () => {
+    const left = createWildsWorldEvent(firstInput);
+    const conflict = createWildsWorldEvent({ ...firstInput, kind: "site.phase_changed", payload: { siteId: "other", phase: "tracked" } });
+    assert.notEqual(left.eventId, conflict.eventId);
+    assert.equal(compareWildsWorldEvents(left, conflict), 0);
+  });
+
+  it("verifies and replays a golden legacy V3 event through the explicit compatibility path", () => {
+    const legacy = legacyV3Event as unknown as Parameters<typeof verifyWildsWorldEvent>[0];
+    assert.deepEqual(verifyWildsWorldEvent(legacy), { ok: true, errors: [] });
+    const legacyUPulse = deriveKaiKlokMoment({ occurredAt: legacyV3Event.pulse, authority: "world" }).uPulse;
+    assert.equal(wildsWorldEventUPulse(legacy), legacyUPulse);
+
+    const next = createWildsWorldEvent({
+      ...firstInput,
+      kind: "site.phase_changed",
+      uPulse: legacyUPulse + 1,
+      kaiKlok: 1,
+      previousEventId: legacyV3Event.eventId,
+      payload: { siteId: "site:legacy", phase: "tracked" }
+    });
+    const replay = replayWildsWorld([legacy, next]);
+    assert.equal(replay.revision, 2);
+    assert.equal(replay.sites["site:legacy"]?.phase, "tracked");
+    assert.equal(replay.cursor?.uPulse, legacyUPulse + 1);
+    assert.equal(replay.cursor?.sequence, 1);
   });
 
   it("orders Kai-Klok deterministically within one Pulse", () => {
@@ -99,6 +174,8 @@ describe("Wilds world replay", () => {
     assert.equal(state.revision, 1);
     assert.equal(state.sites["site:crystal-burrow:genesis"]?.phase, "rumored");
     assert.equal(state.cursor?.eventId, first.eventId);
+    assert.equal(state.cursor?.uPulse, first.uPulse);
+    assert.equal(state.cursor?.sequence, first.sequence);
   });
 
   it("continues from a verified checkpoint", () => {

@@ -4,8 +4,6 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { Icons } from "@/components/icons";
 import type { PortableCardAsset } from "../../play/portable-card";
 
-export const MORTAL_ARENA_COVENANT_VERSION = "mortal-arena-covenant.v1";
-
 export function MortalArenaCovenant({ card, onConfirm, onExit }: {
   card: PortableCardAsset;
   onConfirm: () => void;
@@ -37,7 +35,6 @@ export function MortalArenaCovenant({ card, onConfirm, onExit }: {
       if (next >= 1) {
         timerRef.current = null;
         setHolding(false);
-        window.localStorage.setItem(MORTAL_ARENA_COVENANT_VERSION, "accepted");
         onConfirm();
         return;
       }
@@ -64,11 +61,11 @@ export function MortalArenaCovenant({ card, onConfirm, onExit }: {
       <div className="mortal-arena-covenant-mark" aria-hidden="true"><Icons.trophy size={36} /><i /></div>
       <span>Mortal covenant · {card.manifest.name}</span>
       <h3>Every life in this ring is real.</h3>
-      <p>If a creature reaches zero Vitality, it retires permanently. It remains honored in your Vault, but it can never fight again.</p>
+      <p>This covenant applies to one exact match, its pinned cards, ruleset, and Kai uPulse. If a creature reaches zero Vitality, it retires permanently and its complete history remains honored in your Vault.</p>
       <div className="mortal-arena-covenant-choices" aria-label="Survival choices available during every match">
         <span><Icons.seal size={17} /><b>Guard</b></span>
-        <span><Icons.users size={17} /><b>Swap</b></span>
-        <span><Icons.door size={17} /><b>Flee</b></span>
+        <span><Icons.users size={17} /><b>Tag</b></span>
+        <span><Icons.door size={17} /><b>Withdraw</b></span>
       </div>
       <button
         className="mortal-arena-covenant-hold"

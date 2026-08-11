@@ -4,7 +4,7 @@ import {
   restoreWildzArtifactForSurface,
   type WildzCommittedArtifactRestore
 } from "../../features/identity/wildz-restore";
-import type { WildzArtifactCodec, WildzArtifactInspection } from "./wildz-artifact-codec";
+import { WildzRetirementQuarantineError, type WildzArtifactCodec, type WildzArtifactInspection } from "./wildz-artifact-codec";
 import {
   wildzOwnerScope,
   type WildzIdentityRepository,
@@ -42,6 +42,7 @@ export interface WildzVaultLoginCoordinator {
 function inspectedPlayer(inspection: WildzArtifactInspection) {
   if (inspection.kind === "invalid") throw new Error(inspection.code);
   if (inspection.kind === "unsupported") throw new Error(inspection.code);
+  if (inspection.kind === "retirement-quarantine") throw new WildzRetirementQuarantineError(inspection);
   return inspection.player;
 }
 

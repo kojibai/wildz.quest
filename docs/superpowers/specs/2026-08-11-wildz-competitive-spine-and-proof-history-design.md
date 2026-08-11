@@ -146,6 +146,8 @@ Mortal play is an opt-in high-stakes queue or authored encounter family. It is n
 
 ### History model
 
+Kai Klok is the authoritative deterministic temporal state machine for Wildz. Its exact safe-integer `uPulse` (Kai micro-pulse) is the smallest native temporal coordinate. Causal ancestry is evaluated first; when valid competing projections require temporal resolution, the head with the greatest admitted `uPulse` wins. Conventional ISO timestamps are descriptive interoperability metadata only and may never outrank a `uPulse`. If multiple events share one `uPulse`, causal append sequence orders them; non-identical events claiming the same causal slot fail closed unless an explicit deterministic merge law applies, while byte-identical/idempotent events remain no-ops.
+
 Each creature owns a `receiz.wildz.creature-history` namespace rooted in its immutable base asset. A history event includes:
 
 - schema and ruleset version;

@@ -8,7 +8,27 @@
 
 **Tech Stack:** Next.js 15, React 19, TypeScript, Three.js / React Three Fiber, Node test runner, Receiz SDK/MCP/AI skills v118, Playwright CLI, pnpm.
 
-**Global constraints:** Preserve the approved UI hierarchy; do not add a database authority; keep `@receiz/sdk`, `@receiz/mcp-server`, and `@receiz/ai-skills` exactly aligned at `118.0.0`; do not rewrite base proof bytes; keep ranked free of permanent death; make Mortal Covenant opt-in; keep high-frequency combat inputs in transcripts rather than card appends; fail closed on malformed, foreign, non-causal, or tampered history.
+**Global constraints:** Preserve the approved UI hierarchy; do not add a database authority; keep `@receiz/sdk`, `@receiz/mcp-server`, and `@receiz/ai-skills` exactly aligned at `118.0.0`; do not rewrite base proof bytes; keep ranked free of permanent death; make Mortal Covenant opt-in; keep high-frequency combat inputs in transcripts rather than card appends; fail closed on malformed, foreign, non-causal, or tampered history. Kai Klok is the authoritative deterministic temporal state machine: causal ancestry is evaluated first, the greatest admitted exact integer `uPulse` wins valid temporal competition, ISO timestamps are descriptive only, causal append sequence orders events within one `uPulse`, and non-identical claims to the same causal slot fail closed unless a named merge law applies.
+
+---
+
+### Task 0: Make Kai Klok the product-wide temporal root
+
+**Files:**
+- Create: `src/features/play/kai-temporal-root.ts`
+- Modify: `src/features/play/kai-klok-moment.ts`
+- Create: `tests/kai-temporal-root.test.ts`
+- Modify: authoritative world, gameplay, Arena, history, Vault, receipt, cooldown, season, and settlement contracts discovered by the temporal audit
+
+**Steps:**
+
+1. Expose exact safe-integer `uPulse` from the existing BigInt Kai micro-pulse calculation while retaining coarse `pulse` compatibility.
+2. Define a shared `receiz.wildz.kai_temporal_root.v1` coordinate with authority, `uPulse`, causal sequence, and descriptive ISO metadata.
+3. Order authoritative state only by `uPulse` then causal append sequence; prove misleading ISO values cannot reorder state.
+4. Require canonical mutation to use admitted/world Kai authority; local-only Kai roots may drive responsive local play but cannot claim global canonical order.
+5. Pin Arena definitions to Kai root and place deterministic match frames beneath it.
+6. Migrate persistent world events, creature history, receipts, cooldowns, seasons, Vault merges, and settlements away from ISO ordering. Wall/monotonic clocks remain legal only for presentation animation, network retry, local timeouts, and interoperability conversion at boundaries.
+7. Add a release audit that rejects new authoritative timestamp ordering or unrooted canonical events.
 
 ---
 
@@ -23,9 +43,9 @@
 **Steps:**
 
 1. Write failing tests for a `receiz.wildz.creature-history.v1` chain that covers genesis/migration, progression, bond, mastery, condition, Arena settlement, custody reference, and retirement events.
-2. Require exact `assetId`, deterministic `eventId`, idempotency key, parent digest, Kai coordinate, conventional timestamp, source coordinate, bounded effects, and resulting projection digest.
+2. Require exact `assetId`, deterministic `eventId`, idempotency key, parent digest, authoritative safe-integer Kai `uPulse`, descriptive conventional timestamp, source coordinate, bounded effects, and resulting projection digest.
 3. Test deterministic projection of level, XP, bond, mastery, condition, loadout, rating history, relationships, and life state.
-4. Test duplicate idempotency as a no-op and reject wrong asset, missing parent, digest mutation, invalid bounds, chronology regression, and resurrection after retirement/death.
+4. Test duplicate idempotency as a no-op; prove the greatest admitted Kai `uPulse` wins valid temporal competition and causal sequence orders events within one `uPulse`; reject wrong asset, missing parent, digest mutation, invalid bounds, Kai chronology regression, non-identical same-slot conflict, and resurrection after retirement/death.
 5. Implement canonical serialization/digest helpers, event verification, append, full-chain verification, and pure projection.
 6. Extend living card types with an optional compatible creature-history field; preserve existing revision verification and legacy assets.
 7. Run `pnpm test -- creature-history` if supported, otherwise the full `pnpm test` gate.
@@ -106,11 +126,15 @@
 1. Write failing adapter tests that drive directional light chains, committed heavy attacks, guard/parry/dodge, exact named ability, cooldown, stamina/focus, Break/launch, tag risk, hazard, mechanism, pickup, rescue, withdrawal, boss transition, replay checkpoint, and terminal result through the player-facing hook contract.
 2. Project exact living cards into canonical fighters and create a proof-pinned definition from campaign/stage/mode policy.
 3. Replace the simplified simulation loop in the hook with the canonical 60 Hz Arena runtime and legal delayed opponent controller.
-4. Keep the current scene/HUD entry point, but expose real startup/active/recovery, hit explanation, Break, cooldown, context action, tag window, danger, phase, and consent projections.
-5. Ensure all actions are semantic sequenced intents and presentation animation never decides a hit.
-6. Settle through replay-verified consequences and append the resulting creature history atomically.
-7. Preserve a compatibility adapter only as needed for saved campaign data; stop importing simplified combat/movement/simulation logic from production presentation.
-8. Run canonical Arena, Mortal Arena, game-state, settlement, replay, and UI contract tests.
+4. Version the canonical runtime around one atomic `ArenaFrameBatch`: validate at most one intent per active actor, canonicalize actor order independently of arrival, move both teams from the same prior snapshot, resolve active hits simultaneously, then apply knockout/draw, regeneration, hazards, tags, boss transitions, and terminal state.
+5. Prove both teams receive one equal 60 Hz movement step and equal action-window duration per world frame; an actor must not need to submit a second input merely to make an already-active hit resolve.
+6. Keep the current scene/HUD entry point, but expose real startup/active/recovery, hit explanation, Break, cooldown, context action, tag window, danger, phase, and consent projections.
+7. Ensure all actions are semantic sequenced intents and presentation animation never decides a hit.
+8. Bind Mortal consent to the exact definition digest, ruleset digest, card/revision pins, mortality policy, accepted time, and one match or bounded expiry; never reuse one permanent global boolean.
+9. Settle through replay-verified consequences for every affected owned card and append the resulting creature history atomically; authored opponents can never create owned-card revisions.
+10. Preserve a compatibility adapter only as needed for saved campaign data; stop importing simplified combat/movement/simulation logic from production presentation.
+11. Ship Ranked as a fail-closed policy contract until remote admission, replay, rating, reconnect, and publication rails are configured; never label local NPC play as ranked.
+12. Run canonical Arena, Mortal Arena, game-state, settlement, replay, and UI contract tests.
 
 ### Task 6: Add competitive mastery and fair opponent affordances
 
@@ -236,4 +260,3 @@
 5. Request code review, address findings with test-first fixes, and rerun affected plus full gates.
 6. Commit the exact candidate, push `kojib/wildz-competitive-alpha`, open a release PR, and publish/tag/deploy only through configured, authorized release rails.
 7. Verify the public commit/tag/deployment and perform post-release smoke checks. If production credentials or a release capability is unavailable, report that external gate explicitly and stop before inventing success.
-

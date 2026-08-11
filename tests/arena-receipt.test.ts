@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { sealArenaReceipt, verifyArenaReceipt } from "../src/features/play/arena/receipt";
-import { arenaFixtureTerminal } from "./support/arena-fixtures";
+import { arenaFixtureTerminal, arenaFixtureVerification } from "./support/arena-fixtures";
 import { createArenaTranscript } from "../src/features/play/arena/transcript";
+import type { ArenaMode } from "../src/features/play/arena/mode";
 
-function receiptInput() {
-  const { definition, state } = arenaFixtureTerminal();
+function receiptInput(mode: ArenaMode = "mortal") {
+  const { definition, state } = arenaFixtureTerminal(mode);
   return {
     definition,
-    transcript: createArenaTranscript(definition, state),
+    transcript: createArenaTranscript(definition, state, arenaFixtureVerification),
     priorConditions: Object.fromEntries(definition.teams.flatMap((team) => team.fighters.map((fighter) => [fighter.assetId, fighter.condition]))),
     encounterId: "arena:encounter:receipt",
     checkpointId: "arena:checkpoint:receipt",
@@ -22,17 +23,18 @@ function receiptInput() {
 describe("self-verifying Arena receipt", () => {
   it("binds parents, definition, transcript, consequences, actor, authority, and publication", () => {
     const input = receiptInput();
-    const receipt = sealArenaReceipt(input);
+    const receipt = sealArenaReceipt(input, arenaFixtureVerification);
     assert.match(receipt.digest, /^sha256:[a-f0-9]{64}$/);
     assert.equal(receipt.actorId, input.actorId);
+    assert.deepEqual(receipt.kai, input.definition.kai);
     assert.equal(receipt.definitionDigest, input.transcript.definitionDigest);
     assert.deepEqual(receipt.parentRevisionDigests, Object.fromEntries(input.definition.teams.flatMap((team) => team.fighters.map((fighter) => [fighter.assetId, fighter.revisionDigest]))));
-    assert.deepEqual(verifyArenaReceipt(receipt), { ok: true, errors: [] });
-    assert.equal(sealArenaReceipt(input).digest, receipt.digest);
+    assert.deepEqual(verifyArenaReceipt(receipt, arenaFixtureVerification), { ok: true, errors: [] });
+    assert.equal(sealArenaReceipt(input, arenaFixtureVerification).digest, receipt.digest);
   });
 
   it("rejects mutation of every authority-sensitive receipt field", () => {
-    const receipt = sealArenaReceipt(receiptInput());
+    const receipt = sealArenaReceipt(receiptInput(), arenaFixtureVerification);
     const invalid = [
       { ...receipt, actorId: "player:other" },
       { ...receipt, definitionDigest: `sha256:${"0".repeat(64)}` },
@@ -43,13 +45,29 @@ describe("self-verifying Arena receipt", () => {
       { ...receipt, publication: { state: "published" as const, revision: 0 } },
       { ...receipt, digest: `sha256:${"4".repeat(64)}` },
     ];
-    for (const candidate of invalid) assert.equal(verifyArenaReceipt(candidate).ok, false);
+    for (const candidate of invalid) assert.equal(verifyArenaReceipt(candidate, arenaFixtureVerification).ok, false);
   });
 
   it("requires published global authority to carry a positive revision", () => {
     const input = receiptInput();
-    assert.throws(() => sealArenaReceipt({ ...input, authority: { kind: "global", deviceId: null }, publication: { state: "published", revision: 0 } }), /arena_receipt_publication_invalid/);
-    const receipt = sealArenaReceipt({ ...input, authority: { kind: "global", deviceId: null }, publication: { state: "published", revision: 8 } });
-    assert.equal(verifyArenaReceipt(receipt).ok, true);
+    assert.throws(() => sealArenaReceipt({ ...input, authority: { kind: "global", deviceId: null }, publication: { state: "published", revision: 0 } }, arenaFixtureVerification), /arena_receipt_publication_invalid/);
+    const receipt = sealArenaReceipt({ ...input, authority: { kind: "global", deviceId: null }, publication: { state: "published", revision: 8 } }, arenaFixtureVerification);
+    assert.equal(verifyArenaReceipt(receipt, arenaFixtureVerification).ok, true);
+  });
+
+  it("never seals a Ranked result with local pending authority", () => {
+    const input = receiptInput("ranked");
+    assert.throws(() => sealArenaReceipt(input, arenaFixtureVerification), /arena_receipt_ranked_authority_required/);
+    assert.throws(() => sealArenaReceipt({ ...input, authority: { kind: "global", deviceId: null }, publication: { state: "published", revision: 1 } }), /arena_ranked_global_admission_unavailable/);
+    const receipt = sealArenaReceipt({ ...input, authority: { kind: "global", deviceId: null }, publication: { state: "published", revision: 1 } }, arenaFixtureVerification);
+    assert.equal(verifyArenaReceipt(receipt, arenaFixtureVerification).ok, true);
+  });
+
+  it("revalidates Mortal covenant authority at settlement", () => {
+    const input = receiptInput("mortal");
+    assert.throws(() => sealArenaReceipt(input), /arena_mortal_covenant_verifier_required/);
+    const receipt = sealArenaReceipt(input, arenaFixtureVerification);
+    assert.equal(verifyArenaReceipt(receipt).ok, false);
+    assert.equal(verifyArenaReceipt(receipt, arenaFixtureVerification).ok, true);
   });
 });

@@ -17,7 +17,16 @@ import { discoverLivingCreature, validateLivingCreatureIdentity, type LivingCrea
 import { applyBattleAction, battleGrowthAwards, battleTranscriptDigest, startWildBattle, type BattleAction, type BattleState } from "./battle-engine";
 import type { FusionInheritance } from "./card-fusion";
 import { applyGrowthEvent, buildTransformationCandidate, growthReadiness, nextGrowthRequirements, type GrowthEvent } from "./growth-engine";
-import { admitLegacyCard, appendLivingCardRevision, currentLivingGenome, currentRevision, emptyLivingGrowth } from "./living-card-proof";
+import {
+  admitLegacyCard,
+  appendLivingCardHistory,
+  appendLivingCardRevision,
+  compareLivingCardHistoryHeads,
+  currentCreatureHistoryProjection,
+  currentLivingGenome,
+  currentRevision,
+  emptyLivingGrowth
+} from "./living-card-proof";
 import { deriveAscensionGenome } from "./heartbound-genome";
 import { isLivingCardAsset, type GrowthPath, type LivingGrowthSnapshot } from "./living-card-types";
 import { createLivingChildTransaction, lineageEligibility } from "./living-lineage";
@@ -39,6 +48,7 @@ import { verifyHearttreeReceipt, type HearttreeReceipt } from "./hearttree/recei
 import { emptyAdventureCondition, validateAdventureCondition, type AdventureCardCondition } from "./adventure/card-condition";
 import { healWildBattleCard, settleWildBattleCard } from "./wild-battle-life";
 import { sealRetirement } from "../games/lifecycle/creature-retirement";
+import type { ArenaSettlement } from "../games/mortal-arena/settlement";
 import {
   EMPTY_WILDS_SUPPORT_ASSET_IDS,
   type WildsBossFamilyId,
@@ -136,6 +146,7 @@ export type PlayState = {
     z: number;
   };
   pendingSyncAssetIds: string[];
+  appliedArenaSettlementIds: string[];
   rewardCards: RewardCard[];
   selectedCardId: string;
   selectedAssetId: string;
@@ -304,6 +315,7 @@ export const initialPlayState: PlayState = {
     z: -0.85
   },
   pendingSyncAssetIds: [],
+  appliedArenaSettlementIds: [],
   rewardCards: [],
   selectedCardId: "mintcub",
   selectedAssetId: starterCardAsset.id,
@@ -374,9 +386,12 @@ function admitAndMergeInventory(assets: PortableCardAsset[]) {
     }
     const existingRevision = isLivingCardAsset(existing) ? currentRevision(existing) : null;
     const candidateRevision = currentRevision(asset);
-    if (!existingRevision
-      || candidateRevision.revision > existingRevision.revision
-      || (candidateRevision.revision === existingRevision.revision && Date.parse(candidateRevision.sealedAt) > Date.parse(existingRevision.sealedAt))) {
+    if (isLivingCardAsset(existing) && existing.manifest.history && asset.manifest.history) {
+      const latest = compareLivingCardHistoryHeads(existing, asset);
+      if (latest === "right") merged.set(asset.id, asset);
+      continue;
+    }
+    if (!existingRevision || candidateRevision.revision > existingRevision.revision) {
       merged.set(asset.id, asset);
     }
   }
@@ -458,6 +473,18 @@ export function restorePlayState(value: string | null | undefined, ownerReceizId
       : [];
     const adventureConditions: Record<string, AdventureCardCondition> = Object.fromEntries(migratedInventory.map((asset) => {
       const originalId = [...migratedAssetIds].find(([, migratedId]) => migratedId === asset.id)?.[0] ?? asset.id;
+      if (isLivingCardAsset(asset) && asset.manifest.history) {
+        const sealed = currentCreatureHistoryProjection(asset).condition;
+        validateAdventureCondition(sealed);
+        if (sealed.assetId === asset.id) return [asset.id, {
+          ...sealed,
+          injuries: [...sealed.injuries],
+          xp: { ...sealed.xp },
+          mastery: { ...sealed.mastery },
+          upgradeIds: [...sealed.upgradeIds],
+          receiptDigests: [...sealed.receiptDigests]
+        }];
+      }
       const shared = saved.adventureConditions?.[asset.id] ?? saved.adventureConditions?.[originalId];
       if (shared) {
         try {
@@ -545,6 +572,9 @@ export function restorePlayState(value: string | null | undefined, ownerReceizId
           .map((id) => migratedAssetIds.get(id) ?? id)
           .filter((id) => migratedInventory.some((asset) => asset.id === id))
         : migratedInventory.filter((asset) => asset.status === "sealed_local").map((asset) => asset.id),
+      appliedArenaSettlementIds: Array.isArray(saved.appliedArenaSettlementIds)
+        ? Array.from(new Set(saved.appliedArenaSettlementIds.filter((id): id is string => typeof id === "string" && /^arena-settlement:[a-f0-9]{24}$/.test(id)))).slice(-512)
+        : [],
       companionProgress: {
         ...initialPlayState.companionProgress,
         ...(saved.companionProgress ?? {})
@@ -666,6 +696,76 @@ export function playableInventory(state: PlayState) {
   return state.inventory.filter((asset) => isPlayableAsset(state, asset.id));
 }
 
+export function applyCommittedArenaSettlement(state: PlayState, settlement: ArenaSettlement): PlayState {
+  if (settlement.status !== "committed") throw new Error("Arena settlement must be committed before it can change play state");
+  if ((state.appliedArenaSettlementIds ?? []).includes(settlement.id)) return state;
+  const cards = [...settlement.cards];
+  const pins = [...settlement.cardPins];
+  if (!cards.length
+    || new Set(cards.map((card) => card.id)).size !== cards.length
+    || pins.length !== cards.length
+    || new Set(pins.map((pin) => pin.assetId)).size !== pins.length) {
+    throw new Error("Arena settlement roster is invalid");
+  }
+  const cardById = new Map(cards.map((card) => [card.id, card]));
+  const pinById = new Map(pins.map((pin) => [pin.assetId, pin]));
+  for (const card of cards) {
+    const current = state.inventory.find((candidate) => candidate.id === card.id);
+    const pin = pinById.get(card.id);
+    if (!current || !pin || current.proof.digest !== pin.proofDigest) {
+      throw new Error(`Arena settlement proof pin is stale for ${card.id}`);
+    }
+    if (!verifyAnyWildsCard(card).ok) throw new Error(`Arena settlement card proof is invalid for ${card.id}`);
+  }
+
+  const inventory = state.inventory.map((card) => cardById.get(card.id) ?? card);
+  const livingProgress = { ...state.livingProgress };
+  const adventureConditions = { ...state.adventureConditions };
+  const hearttreeConditions = { ...state.hearttreeConditions };
+  for (const card of cards) {
+    if (!isLivingCardAsset(card)) continue;
+    livingProgress[card.id] = currentRevision(card).growth;
+    const condition = currentCreatureHistoryProjection(card).condition;
+    validateAdventureCondition(condition);
+    adventureConditions[card.id] = condition;
+    hearttreeConditions[card.id] = adventureConditionToHearttree(condition);
+  }
+
+  const provisional: PlayState = {
+    ...state,
+    inventory,
+    livingProgress,
+    adventureConditions,
+    hearttreeConditions,
+    pendingSyncAssetIds: Array.from(new Set([...state.pendingSyncAssetIds, ...cards.map((card) => card.id)])),
+    appliedArenaSettlementIds: [...(state.appliedArenaSettlementIds ?? []), settlement.id].slice(-512)
+  };
+  const selectedStillPlayable = isPlayableAsset(provisional, state.selectedAssetId);
+  const fallback = selectedStillPlayable ? null : playableInventory(provisional)[0] ?? null;
+  const selectedAssetId = selectedStillPlayable ? state.selectedAssetId : fallback?.id ?? "";
+  const selected = inventory.find((card) => card.id === selectedAssetId) ?? null;
+  const companionProgress = selected
+    ? { ...state.companionProgress, [selected.manifest.familyId]: exactCompanionProgress(provisional, selected) }
+    : state.companionProgress;
+  const mode = settlement.result.canonical?.mode ?? (settlement.result.mortal ? "mortal" : "adventure");
+  const retiredNames = cards
+    .filter((card) => settlement.result.retiredCreatureIds.includes(card.id))
+    .map((card) => card.manifest.name);
+
+  return {
+    ...provisional,
+    selectedAssetId,
+    selectedCardId: selected?.manifest.familyId ?? "",
+    companionProgress,
+    supportAssetIds: normalizeWildsSupportAssetIds(state.supportAssetIds, inventory, selectedAssetId),
+    lastEvent: retiredNames.length
+      ? `${retiredNames.join(", ")} ${retiredNames.length === 1 ? "was" : "were"} sealed into the memorial Vault after the Mortal Arena.`
+      : settlement.result.winnerSide === settlement.playerSide
+        ? `${mode === "mortal" ? "Mortal Arena" : "Arena"} victory was written into every affected creature's living history.`
+        : `${mode === "mortal" ? "Mortal Arena" : "Arena"} consequences were written into every affected creature's living history.`
+  };
+}
+
 export function discoveredCards(state: PlayState) {
   return creatureCards.filter((card) => state.discoveredCardIds.includes(card.id));
 }
@@ -689,6 +789,66 @@ function growthForAsset(state: PlayState, asset: PortableCardAsset) {
     ?? (isLivingCardAsset(asset) ? currentRevision(asset).growth : emptyLivingGrowth(state.companionProgress[asset.manifest.familyId]?.bond ?? 0));
 }
 
+function exactCompanionProgress(state: PlayState, asset: PortableCardAsset) {
+  if (isLivingCardAsset(asset)) {
+    const projection = currentCreatureHistoryProjection(asset);
+    return { level: projection.level, xp: projection.xp, bond: projection.bond };
+  }
+  return state.companionProgress[asset.manifest.familyId] ?? { level: 1, xp: 0, bond: 0 };
+}
+
+function appendRecordedGrowthToExactCard(state: PlayState, assetId: string, event: GrowthEvent): PlayState {
+  const asset = state.inventory.find((candidate) => candidate.id === assetId);
+  if (!asset || !isLivingCardAsset(asset)) return state;
+  const prior = currentCreatureHistoryProjection(asset);
+  const familyProgress = state.selectedAssetId === asset.id
+    ? state.companionProgress[asset.manifest.familyId] ?? { level: prior.level, xp: prior.xp, bond: prior.bond }
+    : { level: prior.level, xp: prior.xp, bond: prior.bond };
+  const recordedGrowth = growthForAsset(state, asset);
+  const growth = { ...recordedGrowth, bond: Math.max(recordedGrowth.bond, familyProgress.bond) };
+  const condition = state.adventureConditions[asset.id] ?? prior.condition;
+  try {
+    const updated = appendLivingCardHistory({
+      asset,
+      event: {
+        eventId: `history:${event.eventId}`,
+        rulesetVersion: "wildz.gameplay.v4-alpha",
+        occurredAt: event.occurredAt,
+        source: {
+          mode: event.kind === "bond_moment" ? "training" : "world",
+          activityId: event.eventId,
+          actorId: asset.manifest.ownerReceizId,
+          authority: "local"
+        },
+        evidence: { sourceEventIds: [event.eventId] },
+        effects: [{
+          kind: "legacy-checkpoint",
+          projection: {
+            ...prior,
+            level: familyProgress.level,
+            xp: familyProgress.xp,
+            bond: growth.bond,
+            growth,
+            condition,
+            mastery: { ...condition.mastery },
+            achievements: Array.from(new Set([...prior.achievements, ...growth.achievementIds])),
+            upgrades: Array.from(new Set([...prior.upgrades, ...condition.upgradeIds]))
+          }
+        }]
+      }
+    });
+    if (updated === asset) return state;
+    return {
+      ...state,
+      inventory: state.inventory.map((candidate) => candidate.id === updated.id ? updated : candidate),
+      livingProgress: { ...state.livingProgress, [updated.id]: growth },
+      pendingSyncAssetIds: Array.from(new Set([...state.pendingSyncAssetIds, updated.id]))
+    };
+  } catch {
+    return { ...state, lastEvent: "That creature history event could not be verified." };
+  }
+}
+
 function applyRecordedGrowth(state: PlayState, asset: PortableCardAsset, event: GrowthEvent): PlayState {
   const prior = growthForAsset(state, asset);
   let prepared = event;
@@ -707,12 +867,13 @@ function applyRecordedGrowth(state: PlayState, asset: PortableCardAsset, event: 
   const catalyst = event.achievementId?.startsWith("boss_victory")
     ? `ascension:tier:2:${event.eventId.replace(/[^a-zA-Z0-9_-]/g, "-")}`
     : null;
-  return {
+  const next = {
     ...state,
     livingProgress: { ...state.livingProgress, [asset.id]: progress },
     ascensionCatalysts: catalyst ? Array.from(new Set([...state.ascensionCatalysts, catalyst])) : state.ascensionCatalysts,
     lastEvent: event.achievementId ? `${asset.manifest.name} earned ${event.achievementId.replaceAll("_", " ")}.` : `${asset.manifest.name} grew through ${event.path}.`
   };
+  return appendRecordedGrowthToExactCard(next, asset.id, prepared);
 }
 
 function applyRecordedGrowthEvents(state: PlayState, asset: PortableCardAsset, events: GrowthEvent[]) {
@@ -740,7 +901,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     const ability = form?.abilities[input.abilityIndex];
     if (!ability) return state;
     const familyId = asset.manifest.familyId;
-    const current = state.companionProgress[familyId] ?? { level: 1, xp: 0, bond: 0 };
+    const current = exactCompanionProgress(state, asset);
     const xpGain = Math.max(1, Math.round(ability.power / 12));
     const totalXp = current.xp + xpGain;
     const levelGain = Math.floor(totalXp / 100);
@@ -749,13 +910,23 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       xp: totalXp % 100,
       bond: Math.min(100, current.bond + input.abilityIndex + 1)
     };
-    return {
+    const nextState: PlayState = {
       ...state,
       activeAction: "explore",
       companionProgress: { ...state.companionProgress, [familyId]: next },
       energy: Math.max(0, state.energy - input.abilityIndex - 1),
       lastEvent: `${asset.manifest.name} used ${ability.name}. ${ability.text}`
     };
+    const grown = applyRecordedGrowth(nextState, asset, {
+      eventId: `ability_mastery:${asset.id}:${input.abilityIndex}:${input.usedAt}`,
+      kind: "ability_mastery",
+      path: "battle",
+      amount: 1,
+      occurredAt: input.usedAt
+    });
+    return grown.lastEvent.endsWith("could not be verified.")
+      ? grown
+      : { ...grown, lastEvent: nextState.lastEvent };
   }
 
 
@@ -804,6 +975,40 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
           }, { verified: true, mortalOptIn: input.receipt.definition.mortal });
           inventory = inventory.map((candidate) => candidate.id === assetId ? sealed.card : candidate);
           livingProgress = { ...livingProgress, [assetId]: currentRevision(sealed.card).growth };
+          pendingSyncAssetIds = Array.from(new Set([...pendingSyncAssetIds, assetId]));
+        }
+        const exactCard = inventory.find((candidate) => candidate.id === assetId);
+        if (exactCard && isLivingCardAsset(exactCard)) {
+          const priorProjection = currentCreatureHistoryProjection(exactCard);
+          const condition = conditions[assetId]!;
+          const updated = appendLivingCardHistory({
+            asset: exactCard,
+            event: {
+              eventId: `history:hearttree:${input.receipt.digest}:${assetId}`,
+              rulesetVersion: "wildz.hearttree.v1",
+              occurredAt: input.receipt.createdAt,
+              source: {
+                mode: "hearttree",
+                activityId: input.receipt.definition.id,
+                actorId: input.receipt.actorId,
+                authority: "local"
+              },
+              evidence: {
+                receiptDigest: input.receipt.digest,
+                replayDigest: input.receipt.transcript.digest
+              },
+              effects: [{
+                kind: "legacy-checkpoint",
+                projection: {
+                  ...priorProjection,
+                  condition,
+                  mastery: { ...condition.mastery },
+                  upgrades: Array.from(new Set([...priorProjection.upgrades, ...condition.upgradeIds]))
+                }
+              }]
+            }
+          });
+          inventory = inventory.map((candidate) => candidate.id === assetId ? updated : candidate);
           pendingSyncAssetIds = Array.from(new Set([...pendingSyncAssetIds, assetId]));
         }
       }
@@ -896,6 +1101,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     const readiness = growthReadiness(asset, { progress, catalystIds: state.ascensionCatalysts }, input.at);
     if (!readiness.ready) return { ...state, lastEvent: `${asset.manifest.name} still needs ${readiness.missing.join(", ")}.` };
     const candidate = buildTransformationCandidate(asset, readiness, input.at);
+    const kai = deriveKaiKlokMoment({ occurredAt: input.at, authority: "local" });
     const prior = currentRevision(asset);
     const nextGrowth: LivingGrowthSnapshot = {
       ...progress,
@@ -907,7 +1113,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       rank: candidate.ascensionRank,
       achievementId: candidate.achievementId,
       questId: candidate.questId,
-      kaiPulse: String(Date.parse(input.at)),
+      kaiPulse: String(kai.uPulse),
       path: strongestGrowthPath(progress)
     });
     let ascended;
@@ -916,7 +1122,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
         asset,
         revision: {
           sealedAt: input.at,
-          kaiPulse: String(Date.parse(input.at)),
+          kaiPulse: String(kai.uPulse),
           reason: { kind: "ascension", label: `Ascension ${candidate.ascensionRank} earned through ${candidate.achievementId.replaceAll("_", " ")}` },
           stage: 3,
           ascensionRank: candidate.ascensionRank,
@@ -983,12 +1189,13 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     const parentA = state.inventory.find((asset) => asset.id === input.parentAId);
     const parentB = state.inventory.find((asset) => asset.id === input.parentBId);
     if (!parentA || !parentB || !isPlayableAsset(state, parentA.id) || !isPlayableAsset(state, parentB.id)) return state;
+    const kai = deriveKaiKlokMoment({ occurredAt: input.fusedAt, authority: "local" });
     const transactionInput = {
       parentA,
       parentB,
       inheritance: input.inheritance,
       sparkId: `spark:${input.fusedAt}`,
-      kaiPulse: String(Date.parse(input.fusedAt)),
+      kaiPulse: String(kai.uPulse),
       createdAt: input.fusedAt,
       fusionSparks: state.fusionSparks,
       recovery: state.fusionCooldowns
@@ -1070,7 +1277,14 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       const combatAsset = state.inventory.find((candidate) => candidate.id === battle.player.id);
       if (combatAsset) {
         const settledCard = settleWildBattleCard(combatAsset, battle, input.at ?? state.encounter.searchedAt);
-        resolved = { ...resolved, inventory: state.inventory.map((asset) => asset.id === settledCard.id ? settledCard : asset) };
+        resolved = {
+          ...resolved,
+          inventory: state.inventory.map((asset) => asset.id === settledCard.id ? settledCard : asset),
+          ...(isLivingCardAsset(settledCard) ? {
+            livingProgress: { ...resolved.livingProgress, [settledCard.id]: currentRevision(settledCard).growth },
+            pendingSyncAssetIds: Array.from(new Set([...resolved.pendingSyncAssetIds, settledCard.id]))
+          } : {})
+        };
         if (!isPlayableAsset(resolved, settledCard.id)) {
           const fallback = playableInventory(resolved)[0];
           resolved = { ...resolved, selectedAssetId: fallback?.id ?? "", selectedCardId: fallback?.manifest.familyId ?? "" };
@@ -1276,6 +1490,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       ...state,
       selectedAssetId,
       selectedCardId: input.cardId,
+      companionProgress: { ...state.companionProgress, [asset.manifest.familyId]: exactCompanionProgress(state, asset) },
       supportAssetIds: normalizeWildsSupportAssetIds(state.supportAssetIds, state.inventory, selectedAssetId),
       lastEvent: `${cardName(input.cardId)} is now leading your deck.`
     };
@@ -1288,6 +1503,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       ...state,
       selectedAssetId: asset.id,
       selectedCardId: asset.manifest.familyId,
+      companionProgress: { ...state.companionProgress, [asset.manifest.familyId]: exactCompanionProgress(state, asset) },
       supportAssetIds: normalizeWildsSupportAssetIds(state.supportAssetIds, state.inventory, asset.id),
       lastEvent: `${asset.manifest.name} is now leading your active deck.`
     };
@@ -1340,9 +1556,16 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     const recovered = leader && input.at
       ? healWildBattleCard(leader, Math.max(1, Math.round((maxVitality ?? 20) * .25)), input.at)
       : leader;
+    const exactRecovery = Boolean(recovered && recovered !== leader && isLivingCardAsset(recovered));
     return {
       ...state,
       inventory: recovered ? state.inventory.map((asset) => asset.id === recovered.id ? recovered : asset) : state.inventory,
+      livingProgress: exactRecovery && recovered && isLivingCardAsset(recovered)
+        ? { ...state.livingProgress, [recovered.id]: currentRevision(recovered).growth }
+        : state.livingProgress,
+      pendingSyncAssetIds: exactRecovery && recovered
+        ? Array.from(new Set([...state.pendingSyncAssetIds, recovered.id]))
+        : state.pendingSyncAssetIds,
       activeAction: "explore",
       combo: 0,
       energy: Math.min(100, state.energy + 35),
@@ -1432,11 +1655,15 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     if (state.energy < 6) {
       return { ...state, lastEvent: "Not enough energy to train. Make camp before the next session." };
     }
-    const currentProgress = state.companionProgress[targetCardId] ?? { level: 1, xp: 0, bond: 0 };
+    const selectedTarget = state.inventory.find((asset) => asset.id === state.selectedAssetId
+      && asset.manifest.familyId === targetCardId
+      && isPlayableAsset(state, asset.id));
+    const targetAsset = selectedTarget
+      ?? [...state.inventory].reverse().find((asset) => asset.manifest.familyId === targetCardId && isPlayableAsset(state, asset.id));
+    if (!targetAsset) return state;
+    const currentProgress = exactCompanionProgress(state, targetAsset);
     const trainedAt = input.at ?? new Date(Date.UTC(2026, 6, 13, 12, currentProgress.bond * 15)).toISOString();
     if (!Number.isFinite(Date.parse(trainedAt))) return state;
-    const targetAsset = [...state.inventory].reverse().find((asset) => asset.manifest.familyId === targetCardId && isPlayableAsset(state, asset.id));
-    if (!targetAsset) return state;
     const cooldownUntil = state.bondCooldowns[targetAsset.id];
     if (cooldownUntil && Date.parse(cooldownUntil) > Date.parse(trainedAt)) {
       return { ...state, lastEvent: `${targetAsset.manifest.name} is resting after your last bond moment.` };

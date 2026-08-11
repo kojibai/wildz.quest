@@ -197,7 +197,9 @@ export function discoverLivingCreature(basis: LivingCreatureDiscoveryBasis, occu
     version: 3,
     encounterId: basis.encounterId,
     discoveredAt: basis.discoveredAt,
-    discovery: { location: { ...basis.location }, kaiPulse: basis.moment.pulse, ark: basis.moment.ark, geometry: basis.moment.gate, ownerScope: basis.ownerScope },
+    // The legacy field name is retained in the v3 proof schema, but every new
+    // identity stores the exact Kai micro-pulse rather than a rounded pulse.
+    discovery: { location: { ...basis.location }, kaiPulse: basis.moment.uPulse, ark: basis.moment.ark, geometry: basis.moment.gate, ownerScope: basis.ownerScope },
     family: { id: basis.form.familyId, name: basis.form.familyId, emotionalPromise: grammar.promise, silhouette: basis.form.anatomy.body, locomotion: grammar.locomotion, namingDialect: grammar.dialect },
     species: { id: `species:${basis.form.familyId}:${speciesToken}`, name: speciesRoot, branch, ecology: `${basis.form.habitat} ${grammar.promise}`, forms: [`${speciesRoot}ling`, `${speciesRoot}kin`, `${speciesRoot}crown`] },
     name,

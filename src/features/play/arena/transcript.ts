@@ -1,6 +1,7 @@
 import { canonicalPortableCardJson, sha256PortableBasis } from "../portable-card";
-import { advanceArenaMatch, createArenaMatch, type ArenaInputFrame, type ArenaMatchDefinition, type ArenaMatchState } from "./runtime";
-import { ARENA_RULESET_ID } from "./rules";
+import { advanceArenaFrame, advanceArenaMatch, createArenaMatch, type ArenaAdmissionVerification, type ArenaFrameIntent, type ArenaInputFrame, type ArenaMatchDefinition, type ArenaMatchState } from "./runtime";
+import { ARENA_RULESET_DIGEST, ARENA_RULESET_ID } from "./rules";
+import type { KaiTemporalRoot } from "../kai-temporal-root";
 
 export type ArenaCheckpoint = Readonly<{
   frame: number;
@@ -9,9 +10,11 @@ export type ArenaCheckpoint = Readonly<{
   stateDigest: string;
 }>;
 export type ArenaTranscript = Readonly<{
-  schema: "receiz.wilds.arena_transcript.v1";
+  schema: "receiz.wilds.arena_transcript.v2";
   matchId: string;
   rulesetId: string;
+  rulesetDigest: string;
+  kai: KaiTemporalRoot;
   definitionDigest: string;
   inputFrames: readonly ArenaInputFrame[];
   checkpoints: readonly ArenaCheckpoint[];
@@ -31,14 +34,30 @@ function checkpoint(state: ArenaMatchState, reason: ArenaCheckpoint["reason"]): 
   return { frame: state.frame, sequence: state.sequence, reason, stateDigest: digest(state) };
 }
 
-function replayInputs(definition: ArenaMatchDefinition, inputs: readonly ArenaInputFrame[]) {
-  let state = createArenaMatch(definition);
+function replayInputs(definition: ArenaMatchDefinition, inputs: readonly ArenaInputFrame[], verification: ArenaAdmissionVerification) {
+  let state = createArenaMatch(definition, verification);
   const checkpoints: ArenaCheckpoint[] = [checkpoint(state, "genesis")];
   let nextInterval = 120;
-  for (const input of inputs) {
+  for (let index = 0; index < inputs.length;) {
+    const input = inputs[index]!;
+    const sameFrame: ArenaInputFrame[] = [];
+    while (index < inputs.length && inputs[index]!.frame === input.frame) sameFrame.push(inputs[index++]!);
     const priorEventCount = state.events.length;
     try {
-      state = advanceArenaMatch(state, [input]);
+      const authoritative = definition.mode !== "practice";
+      if (authoritative && sameFrame.length !== definition.teams.length) throw new Error("arena_transcript_atomic_batch_required");
+      if (!authoritative && sameFrame.length === 1) {
+        state = advanceArenaMatch(state, sameFrame);
+      } else {
+        const priorInputCount = state.inputs.length;
+        state = advanceArenaFrame(state, {
+          frame: input.frame,
+          intents: sameFrame.map(({ sequence: _sequence, frame: _frame, ...intent }) => intent satisfies ArenaFrameIntent),
+        });
+        if (canonicalPortableCardJson(state.inputs.slice(priorInputCount)) !== canonicalPortableCardJson(sameFrame)) {
+          throw new Error("arena_transcript_input_canonical_invalid");
+        }
+      }
     } catch (error) {
       throw new Error(`arena_transcript_input_invalid:${error instanceof Error ? error.message : "unknown"}`);
     }
@@ -59,14 +78,16 @@ function unsignedTranscript(transcript: ArenaTranscript) {
   return unsigned;
 }
 
-export function createArenaTranscript(definition: ArenaMatchDefinition, terminalState: ArenaMatchState): ArenaTranscript {
+export function createArenaTranscript(definition: ArenaMatchDefinition, terminalState: ArenaMatchState, verification: ArenaAdmissionVerification = {}): ArenaTranscript {
   if (terminalState.phase !== "terminal") throw new Error("arena_transcript_terminal_required");
-  const replayed = replayInputs(definition, terminalState.inputs);
+  const replayed = replayInputs(definition, terminalState.inputs, verification);
   if (canonicalPortableCardJson(replayed.state) !== canonicalPortableCardJson(terminalState)) throw new Error("arena_transcript_state_invalid");
   const unsigned = {
-    schema: "receiz.wilds.arena_transcript.v1" as const,
+    schema: "receiz.wilds.arena_transcript.v2" as const,
     matchId: terminalState.id,
     rulesetId: terminalState.rulesetId,
+    rulesetDigest: terminalState.rulesetDigest,
+    kai: terminalState.kai,
     definitionDigest: terminalState.definitionDigest,
     inputFrames: terminalState.inputs,
     checkpoints: replayed.checkpoints,
@@ -74,13 +95,15 @@ export function createArenaTranscript(definition: ArenaMatchDefinition, terminal
   return { ...unsigned, digest: digest(unsigned) };
 }
 
-export function replayArenaTranscript(definition: ArenaMatchDefinition, transcript: ArenaTranscript): ArenaReplayResult {
-  const initial = createArenaMatch(definition);
-  if (transcript.schema !== "receiz.wilds.arena_transcript.v1") throw new Error("arena_transcript_schema_invalid");
-  if (transcript.rulesetId !== ARENA_RULESET_ID || transcript.rulesetId !== initial.rulesetId) throw new Error("arena_transcript_ruleset_invalid");
+export function replayArenaTranscript(definition: ArenaMatchDefinition, transcript: ArenaTranscript, verification: ArenaAdmissionVerification = {}): ArenaReplayResult {
+  const initial = createArenaMatch(definition, verification);
+    if (transcript.schema !== "receiz.wilds.arena_transcript.v2") throw new Error("arena_transcript_schema_invalid");
+    if (transcript.rulesetId !== ARENA_RULESET_ID || transcript.rulesetId !== initial.rulesetId) throw new Error("arena_transcript_ruleset_invalid");
+    if (transcript.rulesetDigest !== ARENA_RULESET_DIGEST || transcript.rulesetDigest !== initial.rulesetDigest) throw new Error("arena_transcript_ruleset_invalid");
+    if (canonicalPortableCardJson(transcript.kai) !== canonicalPortableCardJson(initial.kai)) throw new Error("arena_transcript_kai_invalid");
   if (transcript.definitionDigest !== initial.definitionDigest || transcript.matchId !== initial.id) throw new Error("arena_transcript_definition_invalid");
   if (digest(unsignedTranscript(transcript)) !== transcript.digest) throw new Error("arena_transcript_digest_invalid");
-  const replayed = replayInputs(definition, transcript.inputFrames);
+  const replayed = replayInputs(definition, transcript.inputFrames, verification);
   if (canonicalPortableCardJson(replayed.checkpoints) !== canonicalPortableCardJson(transcript.checkpoints)) throw new Error("arena_transcript_checkpoint_invalid");
   return { state: replayed.state, stateDigest: digest(replayed.state), transcriptDigest: transcript.digest };
 }

@@ -18,13 +18,13 @@ describe("Mortal Arena mobile combat zones", () => {
     const contextStart = source.indexOf('className="mortal-arena-context-actions"');
     const contextEnd = source.indexOf("</div>", contextStart);
     const context = source.slice(contextStart, contextEnd);
-    for (const label of ["Focus", "Swap", "Flee"]) assert.match(context, new RegExp(`<strong>${label}</strong>`));
+    for (const label of ["Dodge", "Parry", "Focus", "Tag", "Use", "Withdraw"]) assert.match(context, new RegExp(`<strong>${label}</strong>`));
   });
 
   it("maps primary controls onto the current deterministic simulation inputs", () => {
     assert.match(source, /mortal-arena-primary-strike[\s\S]*?arena\.pulse\(\{ light: true \}\)/);
     assert.match(source, /mortal-arena-guard[\s\S]*?arena\.hold\("guard", true\)/);
-    assert.match(source, /mortal-arena-ability[\s\S]*?arena\.pulse\(\{ heavy: true \}\)/);
+    assert.match(source, /mortal-arena-ability[\s\S]*?arena\.pulse\(\{ abilitySlot: 0 \}\)/);
     assert.match(source, /activeArenaCard\.manifest\.abilityNames\[0\]/);
   });
 

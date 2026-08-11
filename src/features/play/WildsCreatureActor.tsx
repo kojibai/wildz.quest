@@ -5,6 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { creatureForm } from "./creature-catalog";
 import { threeCreatureColor } from "./card-kai-appearance";
+import { useWildsReadability } from "./WildsReadabilityContext";
 
 export type WildsCreaturePose = "idle" | "curious" | "attack" | "impact" | "weakened" | "capture";
 
@@ -33,6 +34,7 @@ export function WildsCreatureActor({
   cadenceMs?: number;
   pose?: WildsCreaturePose;
 }) {
+  const readability = useWildsReadability();
   const root = useRef<THREE.Group>(null);
   const head = useRef<THREE.Group>(null);
   const limbs = useRef<THREE.Group>(null);
@@ -56,20 +58,21 @@ export function WildsCreatureActor({
     if (!root.current) return;
     const time = performance.now() / 1_000;
     const cadence = cadenceMs ? Math.max(0.7, Math.min(3.4, 3_000 / cadenceMs)) : 2.1;
-    const breath = Math.sin(time * cadence + identity.marking * 4) * 0.025;
+    const motion = readability.motionScale;
+    const breath = Math.sin(time * cadence + identity.marking * 4) * 0.025 * motion;
     const weakened = pose === "weakened";
     const impact = pose === "impact";
     const attack = pose === "attack";
-    root.current.position.y = 0.46 + (weakened ? -0.08 : Math.abs(Math.sin(time * 1.7)) * 0.035);
-    root.current.rotation.z = impact ? Math.sin(time * 18) * 0.08 : weakened ? -0.08 : 0;
-    root.current.scale.setScalar(pose === "capture" ? 0.9 + Math.sin(time * 5) * 0.035 : 1);
+    root.current.position.y = 0.46 + (weakened ? -0.08 : Math.abs(Math.sin(time * 1.7)) * 0.035 * motion);
+    root.current.rotation.z = impact ? Math.sin(time * 18) * 0.08 * motion : weakened ? -0.08 : 0;
+    root.current.scale.setScalar(pose === "capture" ? 0.9 + Math.sin(time * 5) * 0.035 * motion : 1);
     if (head.current) {
-      head.current.rotation.x = attack ? -0.22 : weakened ? 0.16 : Math.sin(time * 0.9) * 0.045;
-      head.current.rotation.y = pose === "curious" ? Math.sin(time * 1.4) * 0.18 : 0;
+      head.current.rotation.x = attack ? -0.22 : weakened ? 0.16 : Math.sin(time * 0.9) * 0.045 * motion;
+      head.current.rotation.y = pose === "curious" ? Math.sin(time * 1.4) * 0.18 * motion : 0;
       head.current.position.y = 0.31 + breath;
     }
-    if (limbs.current) limbs.current.rotation.x = attack ? Math.sin(time * 13) * 0.22 : weakened ? 0.18 : Math.sin(time * 2.4) * 0.04;
-    if (aura.current) aura.current.rotation.y = time * (pose === "capture" ? 2.4 : 0.7);
+    if (limbs.current) limbs.current.rotation.x = attack ? Math.sin(time * 13) * 0.22 * motion : weakened ? 0.18 : Math.sin(time * 2.4) * 0.04 * motion;
+    if (aura.current) aura.current.rotation.y = time * (pose === "capture" ? 2.4 : 0.7) * motion;
   });
 
   const bodyScale: [number, number, number] = body === "long" || body === "serpentine"
@@ -81,6 +84,7 @@ export function WildsCreatureActor({
         : [identity.width, identity.height, 0.94];
   const eyeScaleY = pose === "weakened" ? 0.42 : pose === "attack" ? 0.7 : 1;
   const bodyColorFloor = pose === "capture" ? 0.2 : 0.11;
+  const readableBodyColorFloor = Math.max(bodyColorFloor, readability.actorEmissive);
   const renderedPrimary = threeCreatureColor(primary);
   const renderedAccent = threeCreatureColor(accent);
 
@@ -89,7 +93,7 @@ export function WildsCreatureActor({
       <group name="wilds-creature-body" rotation={[0, 0, identity.asymmetry * 0.08]}>
         <mesh castShadow scale={bodyScale}>
           {body === "armored" ? <dodecahedronGeometry args={[0.4, 1]} /> : body === "serpentine" ? <capsuleGeometry args={[0.25, 0.62, 7, 12]} /> : <sphereGeometry args={[0.4, 22, 16]} />}
-          <meshStandardMaterial color={renderedPrimary} emissive={renderedPrimary} emissiveIntensity={bodyColorFloor} roughness={body === "armored" ? 0.78 : 0.6} />
+          <meshStandardMaterial color={renderedPrimary} emissive={renderedPrimary} emissiveIntensity={readableBodyColorFloor} roughness={body === "armored" ? 0.78 : 0.6} />
         </mesh>
         {body === "armored" ? [-0.22, 0, 0.22].map((x) => <mesh castShadow key={x} position={[x, 0.31, -0.06]} rotation={[0, 0, x * 0.6]}><coneGeometry args={[0.075, 0.28, 5]} /><meshStandardMaterial color={renderedAccent} roughness={0.46} /></mesh>) : null}
         {body === "serpentine" ? [0, 1, 2].map((index) => <mesh castShadow key={index} position={[0.12 + index * 0.15, -0.12 - index * 0.055, -0.3 - index * 0.18]} rotation={[0.5, 0, -0.5]} scale={1 - index * 0.14}><sphereGeometry args={[0.2, 12, 9]} /><meshStandardMaterial color={renderedPrimary} roughness={0.62} /></mesh>) : null}
@@ -101,7 +105,7 @@ export function WildsCreatureActor({
       </group>
 
       <group name="wilds-creature-face" position={[0, 0.31, 0.3]} ref={head} scale={identity.head}>
-        <mesh castShadow scale={[0.82, 0.72, 0.6]}><sphereGeometry args={[0.34, 20, 14]} /><meshStandardMaterial color={renderedAccent} emissive={renderedAccent} emissiveIntensity={0.07} roughness={0.58} /></mesh>
+        <mesh castShadow scale={[0.82, 0.72, 0.6]}><sphereGeometry args={[0.34, 20, 14]} /><meshStandardMaterial color={renderedAccent} emissive={renderedAccent} emissiveIntensity={0.07 + readability.actorEmissive * 0.45} roughness={0.58} /></mesh>
         {[-1, 1].map((side) => <group key={side} position={[side * 0.13, 0.045, 0.19]} scale={[1, eyeScaleY, 1]}>
           <mesh><sphereGeometry args={[0.072, 12, 9]} /><meshStandardMaterial color="#fffdf3" roughness={0.32} /></mesh>
           <mesh position={[side * 0.008, -0.006, 0.061]}><sphereGeometry args={[0.033, 10, 8]} /><meshStandardMaterial color="#17221d" roughness={0.3} /></mesh>

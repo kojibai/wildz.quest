@@ -22,6 +22,8 @@ export type KaiMonthName = "Aethon" | "Virelai" | "Solari" | "Amarin" | "Kaelus"
 export type KaiArkName = "Ignite" | "Integrate" | "Harmonize" | "Reflekt" | "Purify" | "Dream";
 export type KaiMomentAuthority = "admitted" | "world" | "local";
 
+const KAI_MOMENT_AUTHORITIES = new Set<KaiMomentAuthority>(["admitted", "world", "local"]);
+
 export const KAI_CHAKRA_GEOMETRY = {
   Root: { accent: "#CC3F3F", hue: 0, sides: 4, gate: "Earth Gate" },
   Sacral: { accent: "#E86428", hue: 24, sides: 6, gate: "Water Gate" },
@@ -34,6 +36,8 @@ export const KAI_CHAKRA_GEOMETRY = {
 
 export type KaiKlokMoment = {
   authority: KaiMomentAuthority;
+  /** Exact integer Kai micro-pulse since Genesis; authoritative temporal order. */
+  uPulse: number;
   pulse: number;
   beat: number;
   stepIndex: number;
@@ -122,16 +126,9 @@ export function millisecondsUntilNextKaiPulse(epochMs = Date.now()) {
   return Math.max(1, Math.ceil((Number(remainingMicro) / 1_000_000) * KAI_PULSE_DURATION_MS));
 }
 
-export function deriveKaiKlokMoment(input: {
-  occurredAt: string;
-  authority: KaiMomentAuthority;
-}): KaiKlokMoment {
-  const epochMs = Date.parse(input.occurredAt);
-  if (!Number.isFinite(epochMs) || new Date(epochMs).toISOString() !== input.occurredAt) {
-    throw new Error("wilds_kai_moment_time_invalid");
-  }
-
-  const microPulses = microPulsesFromEpochMs(epochMs);
+function momentFromMicroPulses(microPulses: bigint, authority: KaiMomentAuthority): KaiKlokMoment {
+  if (!KAI_MOMENT_AUTHORITIES.has(authority)) throw new Error("wilds_kai_moment_authority_invalid");
+  const uPulse = safeInteger(microPulses);
   const pulse = safeInteger(floorDivE(microPulses, 1_000_000n));
   const pulseFractionMicro = modE(microPulses, 1_000_000n);
   const percentIntoPulse = Number(pulseFractionMicro) / 1_000_000;
@@ -160,7 +157,8 @@ export function deriveKaiKlokMoment(input: {
   const coordinate = `Y${year}·M${month}·D${day}·${latticeCoordinate}·KAI${pulse}`;
 
   return {
-    authority: input.authority,
+    authority,
+    uPulse,
     pulse,
     beat,
     stepIndex,
@@ -183,4 +181,28 @@ export function deriveKaiKlokMoment(input: {
     coordinate,
     ...KAI_CHAKRA_GEOMETRY[chakra]
   };
+}
+
+export function deriveKaiKlokMomentFromUPulse(input: {
+  uPulse: number;
+  authority: KaiMomentAuthority;
+}): KaiKlokMoment {
+  if (!Number.isSafeInteger(input.uPulse) || input.uPulse < 0) throw new Error("wilds_kai_moment_upulse_invalid");
+  return momentFromMicroPulses(BigInt(input.uPulse), input.authority);
+}
+
+/**
+ * Conventional time is an interoperability boundary only. Authoritative
+ * callers that already possess an admitted Kai coordinate must use
+ * deriveKaiKlokMomentFromUPulse so no native micro-pulse is rounded away.
+ */
+export function deriveKaiKlokMoment(input: {
+  occurredAt: string;
+  authority: KaiMomentAuthority;
+}): KaiKlokMoment {
+  const epochMs = Date.parse(input.occurredAt);
+  if (!Number.isFinite(epochMs) || new Date(epochMs).toISOString() !== input.occurredAt) {
+    throw new Error("wilds_kai_moment_time_invalid");
+  }
+  return momentFromMicroPulses(microPulsesFromEpochMs(epochMs), input.authority);
 }

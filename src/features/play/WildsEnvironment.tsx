@@ -11,6 +11,7 @@ import { projectVisibleLandmarkEntrances, type WildsLandmarkDefinition } from "@
 import type { WildsWorldProjection } from "@/features/play/wilds-world-state";
 import { WildsSettlementEnvironment, type WildsSettlementWorldMode } from "@/features/play/WildsSettlementEnvironment";
 import { WAYFINDER_HOLLOW } from "@/features/play/wilds-settlements";
+import { useWildsReadability } from "@/features/play/WildsReadabilityContext";
 
 export const WILDS_TILE_SIZE = 12;
 const STREAM_RADIUS = 2;
@@ -186,14 +187,15 @@ function LandmarkEntranceBeacon({ landmark, distance }: { landmark: WildsLandmar
 }
 
 function MajorWorldRoutes({ player, palette }: { player: PlayState["player"]; palette: WildsBiomeTile["trail"] }) {
+  const readability = useWildsReadability();
   const routes = useMemo(() => WILDS_MAJOR_ROUTES.map((route) => ({
     ...route,
     curve: new THREE.CatmullRomCurve3(route.points.map((point) => new THREE.Vector3(point.x, .024, point.z)))
   })), []);
   return <group name="world-major-routes" position={[-player.x, 0, -player.z]}>
     {routes.map((route, index) => <group key={route.id} name={`world-route-${route.id}`}>
-      <mesh><tubeGeometry args={[route.curve, 160, index ? .42 : .54, 7, false]} /><meshStandardMaterial color={palette.edge} roughness={.98} /></mesh>
-      <mesh><tubeGeometry args={[route.curve, 160, index ? .28 : .36, 7, false]} /><meshStandardMaterial color={palette.base} roughness={.91} /></mesh>
+      <mesh><tubeGeometry args={[route.curve, 160, index ? .42 : .54, 7, false]} /><meshStandardMaterial color={palette.edge} emissive={palette.edge} emissiveIntensity={readability.pathEmissive * .45} roughness={.98} /></mesh>
+      <mesh><tubeGeometry args={[route.curve, 160, index ? .28 : .36, 7, false]} /><meshStandardMaterial color={palette.base} emissive={palette.base} emissiveIntensity={readability.pathEmissive} roughness={.91} /></mesh>
     </group>)}
   </group>;
 }
@@ -212,25 +214,26 @@ function GroundField({ centerX, centerZ, color, player }: { centerX: number; cen
 }
 
 function TrailNetwork({ player, palette }: { player: PlayState["player"]; palette: WildsBiomeTile["trail"] }) {
+  const readability = useWildsReadability();
   const offsetX = -(((player.x % WILDS_TILE_SIZE) + WILDS_TILE_SIZE) % WILDS_TILE_SIZE);
   const offsetZ = -(((player.z % WILDS_TILE_SIZE) + WILDS_TILE_SIZE) % WILDS_TILE_SIZE);
   return (
     <group position={[offsetX, 0.018, offsetZ]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[WILDS_TILE_SIZE * 5, 1.02]} />
-        <meshStandardMaterial color={palette.edge} roughness={0.96} />
+        <meshStandardMaterial color={palette.edge} emissive={palette.edge} emissiveIntensity={readability.pathEmissive * 0.45} roughness={0.96} />
       </mesh>
       <mesh position={[0, 0.009, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[WILDS_TILE_SIZE * 5, 0.72]} />
-        <meshStandardMaterial color={palette.base} roughness={0.88} />
+        <meshStandardMaterial color={palette.base} emissive={palette.base} emissiveIntensity={readability.pathEmissive} roughness={0.88} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, Math.PI / 2]}>
         <planeGeometry args={[WILDS_TILE_SIZE * 5, 0.82]} />
-        <meshStandardMaterial color={palette.edge} roughness={0.96} />
+        <meshStandardMaterial color={palette.edge} emissive={palette.edge} emissiveIntensity={readability.pathEmissive * 0.45} roughness={0.96} />
       </mesh>
       <mesh position={[0, 0.009, 0]} rotation={[-Math.PI / 2, 0, Math.PI / 2]}>
         <planeGeometry args={[WILDS_TILE_SIZE * 5, 0.56]} />
-        <meshStandardMaterial color={palette.base} roughness={0.88} />
+        <meshStandardMaterial color={palette.base} emissive={palette.base} emissiveIntensity={readability.pathEmissive} roughness={0.88} />
       </mesh>
     </group>
   );

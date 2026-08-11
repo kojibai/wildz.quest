@@ -11,6 +11,8 @@ import {
   sealCollectedCard,
   type PortableCardAsset
 } from "../src/features/play/portable-card";
+import { admitLegacyCard, currentRevision } from "../src/features/play/living-card-proof";
+import { sealRetirement } from "../src/features/games/lifecycle/creature-retirement";
 import {
   saveWildzRestoredPlayState,
   loadWildzRestoredPlayState,
@@ -365,6 +367,45 @@ test("card-only restore rejects a divergent same-ID proof fork without persistin
   const persistedAfter = await loadWildzRestoredPlayState({ database, session });
   assert.deepEqual(persistedAfter, persistedBefore);
   assert.equal(persistedAfter?.inventory.some((asset) => asset.id === earlierIncoming.id), false);
+});
+
+test("local self-hashed retirement cannot override a codec-admitted living card", async () => {
+  const { database, repository, codec } = createCodec();
+  const session = await repository.bootstrap();
+  const living = sealCollectedCard({
+    formId: "mintcub-1",
+    ownerReceizId: "retirement_poison_owner.receiz.id",
+    encounterId: "retirement-poison",
+    capturedAt: "2026-07-15T14:00:00.000Z"
+  });
+  const admitted = admitLegacyCard(living, living.manifest.capturedAt);
+  const forgedRetired = sealRetirement(admitted, {
+    creatureId: admitted.id,
+    previousRevisionDigest: currentRevision(admitted).digest,
+    matchReceiptDigest: `sha256:${"d".repeat(64)}`,
+    finalVitality: 0,
+    teamOutcome: "defeat",
+    retiredAt: "2026-07-15T14:01:00.000Z",
+    kaiUPulse: admitted.manifest.history!.events.at(-1)!.kai.uPulse + 1
+  }, { verified: true, mortalOptIn: true }).card;
+  const poisoned: PlayState = {
+    ...structuredClone(initialPlayState),
+    inventory: [forgedRetired],
+    selectedAssetId: forgedRetired.id,
+    selectedCardId: forgedRetired.manifest.familyId
+  };
+
+  await assert.rejects(restoreWildzArtifactForSurface({
+    surface: "card-vault",
+    bytes: embedPortableVaultInPng(BASE_PNG, [living]),
+    mimeType: "image/png",
+    codec,
+    repository,
+    database,
+    confirmCardOnly: true,
+    currentPlayState: poisoned
+  }), /wildz_restore_retirement_authority_untrusted/);
+  assert.equal((await loadWildzRestoredPlayState({ database, session }))?.inventory.some((card) => card.id === forgedRetired.id) ?? false, false);
 });
 
 test("portable proof tamper and conflicting duplicate IDs stage zero cards", async () => {

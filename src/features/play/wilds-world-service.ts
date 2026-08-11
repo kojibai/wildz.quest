@@ -5,7 +5,7 @@ import { advanceWildsEcologySite, deriveWildsEcologyChild, generateWildsEcologyE
 import { admitRaidPlayer, applyRaidContribution, createWildsRaid, type WildsRaid } from "./wilds-raid-core";
 import { applyWildsRaidIntent, createWildsRaidEncounter, type WildsRaidIntent } from "./wilds-raid-encounter";
 import { admitWildsRaidParticipant, createWildsRaidRound, renewWildsRaidLease, retreatWildsRaidParticipant, settleWildsRaidRound, type WildsRaidRound } from "./wilds-raid-round";
-import { deriveKaiKlokMoment, KAI_N_DAY_MICRO, KAI_PULSE_DURATION_MS } from "./kai-klok-moment";
+import { deriveKaiKlokMoment, deriveKaiKlokMomentFromUPulse, KAI_N_DAY_MICRO, KAI_PULSE_DURATION_MS } from "./kai-klok-moment";
 import type { PortableCardAsset } from "./portable-card";
 import { achievementGrantCandidates } from "./wilds-saga-achievements";
 import { wildsSagaFramework } from "./wilds-saga-content";
@@ -15,13 +15,21 @@ import { projectSagaTrainers, type WildsTrainerBattleMemory, type WildsTrainerPr
 import type { WildsGameplayVerb } from "./wilds-saga-types";
 import { createWildsTeam, joinWildsTeam, scoreWildsLeague } from "./wilds-team-league";
 import { acceptWildsInvite, assembleWildsSquad, changeWildsRole, inviteWildsPlayer, reportWildsAbuse, scheduleWildsTeamEvent, type WildsSocialTeam } from "./wilds-social-core";
-import { createWildsWorldEvent, type WildsWorldEvent, type WildsWorldEventKind } from "./wilds-world-event";
+import {
+  createWildsWorldEvent,
+  wildsWorldEventSequence,
+  wildsWorldEventUPulse,
+  type WildsWorldEvent,
+  type WildsWorldEventKind
+} from "./wilds-world-event";
 import { verifyWildsWorldCommandCard } from "./wilds-world-authority";
 import {
   checkpointWildsWorld,
   initialWildsWorldProjection,
   replayWildsWorld,
   reduceWildsWorldEvent,
+  wildsWorldCursorSequence,
+  wildsWorldCursorUPulse,
   type WildsWorldCheckpoint,
   type WildsWorldEcologyProjection,
   type WildsWorldProjection
@@ -55,8 +63,18 @@ export type WildsWorldAuthority = {
   canonical: boolean;
   pulse: string;
   occurredAt: string;
+  /** Exact admitted Kai root. ISO pulse is descriptive when this is present. */
+  uPulse?: number;
   card?: PortableCardAsset;
 };
+
+type WildsWorldTemporalAuthority = Pick<WildsWorldAuthority, "actorId" | "pulse" | "occurredAt" | "uPulse">;
+
+function authorityMoment(authority: Pick<WildsWorldAuthority, "pulse" | "uPulse">) {
+  return authority.uPulse === undefined
+    ? deriveKaiKlokMoment({ occurredAt: authority.pulse, authority: "world" })
+    : deriveKaiKlokMomentFromUPulse({ uPulse: authority.uPulse, authority: "world" });
+}
 
 function commandIdValid(value: string) {
   return value.length >= 6 && value.length <= 180 && /^[a-z0-9][a-z0-9:._-]*$/i.test(value);
@@ -71,7 +89,12 @@ export class WildsWorldService {
     this.eventTail = [];
     const checkpointCursor = input?.checkpoint?.projection.cursor ?? null;
     for (const event of input?.events ?? []) {
-      if (checkpointCursor && (event.pulse < checkpointCursor.pulse || (event.pulse === checkpointCursor.pulse && event.kaiKlok <= checkpointCursor.kaiKlok))) continue;
+      if (checkpointCursor) {
+        const eventUPulse = wildsWorldEventUPulse(event);
+        const cursorUPulse = wildsWorldCursorUPulse(checkpointCursor);
+        if (eventUPulse < cursorUPulse
+          || (eventUPulse === cursorUPulse && wildsWorldEventSequence(event) <= wildsWorldCursorSequence(checkpointCursor))) continue;
+      }
       this.appendExisting(event);
     }
   }
@@ -93,12 +116,16 @@ export class WildsWorldService {
     this.eventTail = [...this.eventTail, event].slice(-2_048);
   }
 
-  private append(kind: WildsWorldEventKind, payload: unknown, authority: Pick<WildsWorldAuthority, "actorId" | "pulse" | "occurredAt">, causeId: string) {
-    const kaiKlok = this.projection.cursor?.pulse === authority.pulse ? this.projection.cursor.kaiKlok + 1 : 1;
+  private append(kind: WildsWorldEventKind, payload: unknown, authority: WildsWorldTemporalAuthority, causeId: string) {
+    const moment = authorityMoment(authority);
+    const kaiKlok = this.projection.cursor && wildsWorldCursorUPulse(this.projection.cursor) === moment.uPulse
+      ? wildsWorldCursorSequence(this.projection.cursor) + 1
+      : 1;
     const event = createWildsWorldEvent({
       kind,
       actorId: authority.actorId,
       causeId,
+      uPulse: moment.uPulse,
       pulse: authority.pulse,
       kaiKlok,
       occurredAt: authority.occurredAt,
@@ -109,8 +136,8 @@ export class WildsWorldService {
     return event;
   }
 
-  private sagaAt(occurredAt: string) {
-    const moment = deriveKaiKlokMoment({ occurredAt, authority: "world" });
+  private sagaAt(authority: Pick<WildsWorldAuthority, "pulse" | "uPulse">) {
+    const moment = authorityMoment(authority);
     const saga = projectWildsSaga({ moment, framework: wildsSagaFramework(), memories: this.projection.story.memories });
     return { moment, saga };
   }
@@ -121,15 +148,15 @@ export class WildsWorldService {
     return projectSagaTrainers({ saga, playerLevel, battleMemories: memories });
   }
 
-  private settleTournamentForDay(dayId: string, occurredAt: string, authority: Pick<WildsWorldAuthority, "actorId" | "pulse" | "occurredAt">, causeId: string, events: WildsWorldEvent[]) {
+  private settleTournamentForDay(dayId: string, occurredAt: string, authority: WildsWorldTemporalAuthority, causeId: string, events: WildsWorldEvent[]) {
     const current = Object.values(this.projection.tournaments).find((tournament) => tournament.dayId === dayId && tournament.phase !== "settled") as WildsTournamentProjection | undefined;
     if (!current) return;
     const tournament = settleSagaTournament({ tournament: current, occurredAt });
     events.push(this.append("story.tournament_settled", { tournament }, authority, causeId));
   }
 
-  private advanceSaga(input: { occurredAt: string }, authority: Pick<WildsWorldAuthority, "actorId" | "pulse" | "occurredAt">, causeId: string, events: WildsWorldEvent[]) {
-    const { moment, saga } = this.sagaAt(input.occurredAt);
+  private advanceSaga(input: { occurredAt: string }, authority: WildsWorldTemporalAuthority, causeId: string, events: WildsWorldEvent[]) {
+    const { moment, saga } = this.sagaAt(authority);
     const prior = this.projection.story.activeChapter;
     if (prior && prior.dayId !== saga.dayId && !this.projection.story.settledDayIds.includes(prior.dayId)) {
       this.settleTournamentForDay(prior.dayId, input.occurredAt, authority, causeId, events);
@@ -173,18 +200,19 @@ export class WildsWorldService {
     }
   }
 
-  tick(input: { pulse: string; occurredAt: string; systemActorId: "receiz:pulse" }) {
+  tick(input: { pulse: string; occurredAt: string; uPulse?: number; systemActorId: "receiz:pulse" }) {
     if (input.systemActorId !== "receiz:pulse") throw new Error("wilds_world_pulse_authority_invalid");
     // A scheduler retry may arrive after a newer pulse has already been
     // committed (for example after a process restart).  Reject that stale
     // tick before generating any deterministic sites so it can never append
     // an out-of-order event or accidentally fork the world timeline.
-    if (this.projection.cursor && input.pulse < this.projection.cursor.pulse) {
+    const moment = authorityMoment(input);
+    if (this.projection.cursor && moment.uPulse < wildsWorldCursorUPulse(this.projection.cursor)) {
       throw new Error("wilds_world_pulse_order_invalid");
     }
-    const causeId = `pulse:${input.pulse}`;
+    const causeId = `pulse:${moment.uPulse}`;
     if (this.eventTail.some((event) => event.causeId === causeId)) return { events: [], projection: this.projection };
-    const authority = { actorId: input.systemActorId, pulse: input.pulse, occurredAt: input.occurredAt };
+    const authority = { actorId: input.systemActorId, pulse: input.pulse, occurredAt: input.occurredAt, uPulse: moment.uPulse };
     const events: WildsWorldEvent[] = [];
     this.advanceSaga(input, authority, causeId, events);
     const existingBosses = Object.values(this.projection.bosses) as WildsBossDefinition[];
@@ -241,14 +269,15 @@ export class WildsWorldService {
     return { events, projection: this.projection };
   }
 
-  tickEcology(input: { pulse: string; occurredAt: string; systemActorId: "receiz:pulse" }) {
+  tickEcology(input: { pulse: string; occurredAt: string; uPulse?: number; systemActorId: "receiz:pulse" }) {
     if (input.systemActorId !== "receiz:pulse") throw new Error("wilds_world_pulse_authority_invalid");
-    if (this.projection.cursor && input.pulse < this.projection.cursor.pulse) {
+    const moment = authorityMoment(input);
+    if (this.projection.cursor && moment.uPulse < wildsWorldCursorUPulse(this.projection.cursor)) {
       throw new Error("wilds_world_pulse_order_invalid");
     }
-    const causeId = `ecology-pulse:${input.pulse}`;
+    const causeId = `ecology-pulse:${moment.uPulse}`;
     if (this.eventTail.some((event) => event.causeId === causeId)) return { events: [], projection: this.projection };
-    const authority = { actorId: input.systemActorId, pulse: input.pulse, occurredAt: input.occurredAt };
+    const authority = { actorId: input.systemActorId, pulse: input.pulse, occurredAt: input.occurredAt, uPulse: moment.uPulse };
     const events: WildsWorldEvent[] = [];
     const pulseMs = Date.parse(input.pulse);
     const orderedSites = () => Object.values(this.projection.ecologySites)
@@ -322,7 +351,7 @@ export class WildsWorldService {
     const events: WildsWorldEvent[] = [];
 
     if (command.type === "story.contribute") {
-      const { saga } = this.sagaAt(authority.occurredAt);
+      const { saga } = this.sagaAt(authority);
       if (this.projection.story.activeChapter?.dayId !== command.dayId || saga.dayId !== command.dayId) throw new Error("wilds_story_chapter_inactive");
       const nodes = saga.chapter.missions.flatMap((mission) => mission.nodes);
       const node = nodes.find((candidate) => candidate.id === command.objectiveId);
@@ -366,7 +395,7 @@ export class WildsWorldService {
       const player = this.projection.players[authority.actorId];
       const grant = player?.achievementGrants[command.qualificationGrantId];
       if (!current || current.phase === "settled") throw new Error("wilds_story_tournament_inactive");
-      if (!grant || grant.playerId !== authority.actorId || grant.definitionId !== this.sagaAt(authority.occurredAt).saga.chapter.tournament.qualificationAchievementId) throw new Error("wilds_story_tournament_qualification_required");
+      if (!grant || grant.playerId !== authority.actorId || grant.definitionId !== this.sagaAt(authority).saga.chapter.tournament.qualificationAchievementId) throw new Error("wilds_story_tournament_qualification_required");
       const enteredPlayerIds = current.enteredPlayerIds?.includes(authority.actorId) ? current.enteredPlayerIds : [...(current.enteredPlayerIds ?? []), authority.actorId];
       events.push(this.append("story.tournament_entered", { tournament: { ...current, enteredPlayerIds } }, authority, command.commandId));
     } else if (command.type === "boss.track") {

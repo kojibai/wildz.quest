@@ -16,6 +16,7 @@ test("Kai Klok moment is deterministic at the genesis anchor", () => {
 
   assert.deepEqual(moment, {
     authority: "admitted",
+    uPulse: 0,
     pulse: 0,
     beat: 0,
     stepIndex: 0,
@@ -41,6 +42,19 @@ test("Kai Klok moment is deterministic at the genesis anchor", () => {
     sides: 4,
     gate: "Earth Gate"
   });
+});
+
+test("Kai uPulse is the exact deterministic temporal authority beneath a pulse", () => {
+  const atGenesis = deriveKaiKlokMoment({ occurredAt: "2024-05-10T06:45:41.888Z", authority: "admitted" });
+  const oneMillisecondLater = deriveKaiKlokMoment({ occurredAt: "2024-05-10T06:45:41.889Z", authority: "admitted" });
+  const sameAgain = deriveKaiKlokMoment({ occurredAt: "2024-05-10T06:45:41.889Z", authority: "admitted" });
+
+  assert.equal(atGenesis.uPulse, 0);
+  assert.equal(oneMillisecondLater.uPulse, 191);
+  assert.ok(oneMillisecondLater.uPulse > atGenesis.uPulse);
+  assert.equal(oneMillisecondLater.pulse, atGenesis.pulse);
+  assert.deepEqual(oneMillisecondLater, sameAgain);
+  assert.ok(Number.isSafeInteger(oneMillisecondLater.uPulse));
 });
 
 test("Kai day and Ark progress are exact normalized projections", () => {

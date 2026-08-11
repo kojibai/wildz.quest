@@ -16,17 +16,22 @@ import { nearbyHiddenHotspots } from "../src/features/play/hidden-hotspots.js";
 import { isLivingCardAsset } from "../src/features/play/living-card-types.js";
 import { livingCreatureIdentityDigest } from "../src/features/play/living-taxonomy.js";
 import { createWildsCivicEvent } from "../src/features/play/wilds-civic-history.js";
-import { createArenaSettlement, recoverArenaSettlement } from "../src/features/games/mortal-arena/settlement.js";
+import { sealRetirement } from "../src/features/games/lifecycle/creature-retirement.js";
+import { deriveKaiKlokMoment } from "../src/features/play/kai-klok-moment.js";
 
 describe("Receiz Wilds game state", () => {
   it("promotes a living Vault card when the selected Mortal Arena card is retired", () => {
     const retiredBase = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "wilds.player.receiz.id", encounterId: "retired-only", capturedAt: "2026-07-18T10:00:00.000Z" });
-    const retired = recoverArenaSettlement(createArenaSettlement({
-      card: retiredBase,
-      result: { matchId: "retired-only-match", winnerSide: 1, outcome: "defeat", mortal: true, finalVitality: [0, 400], retiredCreatureIds: [retiredBase.id] },
-      playerSide: 0,
-      completedAt: "2026-07-18T10:05:00.000Z"
-    })).card;
+    const admitted = admitLegacyCard(retiredBase, "2026-07-18T10:00:00.000Z");
+    const retired = sealRetirement(admitted, {
+      creatureId: admitted.id,
+      previousRevisionDigest: currentRevision(admitted).digest,
+      matchReceiptDigest: `sha256:${"a".repeat(64)}`,
+      finalVitality: 0,
+      teamOutcome: "defeat",
+      retiredAt: "2026-07-18T10:05:00.000Z",
+      kaiUPulse: admitted.manifest.history!.events.at(-1)!.kai.uPulse + 1
+    }, { verified: true, mortalOptIn: true }).card;
     const restoredCard = sealCollectedCard({ formId: "voltray-1", ownerReceizId: "wilds.player.receiz.id", encounterId: "vault-rescue", capturedAt: "2026-07-18T10:10:00.000Z" });
     const saved = {
       ...structuredClone(initialPlayState),
@@ -86,6 +91,7 @@ describe("Receiz Wilds game state", () => {
     assert.equal(ascended.inventory.length, 1);
     assert.equal(ascended.inventory[0]!.id, stageThree.id);
     assert.equal(currentRevision(ascended.inventory[0] as typeof stageThree).ascensionRank, 1);
+    assert.equal(currentRevision(ascended.inventory[0] as typeof stageThree).kaiPulse, String(deriveKaiKlokMoment({ occurredAt: at, authority: "local" }).uPulse));
     assert.equal((ascended.inventory[0] as typeof stageThree).manifest.revisions.length, stageThree.manifest.revisions.length + 1);
     assert.equal(ascended.ascensionCatalysts.includes(catalyst), false);
     assert.equal(ascended.transformation?.assetId, stageThree.id);
@@ -123,6 +129,7 @@ describe("Receiz Wilds game state", () => {
     assert.equal(merged.inventory.filter((asset) => asset.id === evolved.id).length, 1);
     assert.equal(restored?.manifest.formId, "voltray-2");
     assert.equal(isLivingCardAsset(restored) ? restored.manifest.revisions.length : 0, evolved.manifest.revisions.length);
+    assert.equal(currentRevision(evolved).kaiPulse, String(deriveKaiKlokMoment({ occurredAt: "2026-07-13T17:00:00.000Z", authority: "local" }).uPulse));
     assert.equal(merged.livingProgress[evolved.id]?.eventIds.length, currentRevision(evolved).growth.eventIds.length);
   });
 
@@ -140,6 +147,7 @@ describe("Receiz Wilds game state", () => {
     assert.equal(replay.inventory.length, fused.inventory.length);
     assert.equal(fused.inventory.every((asset) => isLivingCardAsset(asset)), true);
     assert.equal(fused.inventory.at(-1)?.manifest.variant.generatorVersion, 3);
+    assert.equal(fused.inventory.at(-1)?.manifest.variant.kaiPulse, String(deriveKaiKlokMoment({ occurredAt: input.fusedAt, authority: "local" }).uPulse));
     assert.match(fused.inventory.at(-1)?.manifest.name ?? "", /^[A-Z][a-z]{1,6}$/);
     assert.doesNotMatch(fused.inventory.at(-1)?.manifest.name ?? "", /flowkin/i);
     assert.equal(currentRevision(fused.inventory[0] as ReturnType<typeof admitLegacyCard>).childEventIds.length, 1);
@@ -227,6 +235,10 @@ describe("Receiz Wilds game state", () => {
     const capsule = battling;
     assert.equal(capsule.encounter.phase, "capsule");
     assert.equal(capsule.inventory.length, initialPlayState.inventory.length);
+    const settledLeader = capsule.inventory.find((asset) => asset.id === leaderId);
+    assert.ok(settledLeader && isLivingCardAsset(settledLeader));
+    assert.equal(capsule.pendingSyncAssetIds.includes(leaderId), true);
+    assert.deepEqual(capsule.livingProgress[leaderId], currentRevision(settledLeader).growth);
 
     const sealed = applyWildsInput(capsule, { type: "advance-encounter", at: "2026-07-13T15:00:02.000Z" });
     assert.equal(sealed.encounter.phase, "sealed");

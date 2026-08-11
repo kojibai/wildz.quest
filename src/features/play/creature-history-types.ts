@@ -1,0 +1,220 @@
+import type { AdventureCardCondition, AdventureConditionDelta } from "./adventure/card-condition";
+import type { CreatureStage } from "./creature-catalog";
+import type { GrowthEvent } from "./growth-engine";
+import type { LivingGrowthSnapshot } from "./living-card-types";
+
+export const CREATURE_HISTORY_NAMESPACE = "receiz.wildz.creature-history" as const;
+
+export type CreatureHistoryAuthority = "local" | "admitted" | "verified-receipt" | "canonical" | "legacy-migration";
+export type CreatureHistoryAdmittedAuthority = Extract<CreatureHistoryAuthority, "admitted" | "verified-receipt" | "canonical">;
+export type CreatureHistorySourceMode =
+  | "birth"
+  | "training"
+  | "world"
+  | "wild-battle"
+  | "arena"
+  | "hearttree"
+  | "market"
+  | "lineage"
+  | "transformation"
+  | "living-revision"
+  | "recovery"
+  | "migration";
+
+export type CreatureHistoryKaiCoordinate = Readonly<{
+  uPulse: number;
+  pulse: number;
+  beat: number;
+  stepIndex: number;
+  weekday: string;
+  chakra: string;
+  coordinate: string;
+}>;
+
+export type CreatureHistoryRecord = Readonly<{
+  wins: number;
+  losses: number;
+  draws: number;
+  retreats: number;
+  rescues: number;
+  tags: number;
+  bossVictories: number;
+}>;
+
+export type CreatureHistoryProjection = Readonly<{
+  schema: "receiz.wildz.creature_history_projection.v1";
+  assetId: string;
+  level: number;
+  xp: number;
+  bond: number;
+  growth: LivingGrowthSnapshot;
+  condition: AdventureCardCondition;
+  mastery: Readonly<Record<string, number>>;
+  record: CreatureHistoryRecord;
+  achievements: readonly string[];
+  relationships: readonly string[];
+  scars: readonly string[];
+  upgrades: readonly string[];
+  formId: string;
+  stage: CreatureStage;
+  ascensionRank: number;
+  livingRevisionDigest: string;
+}>;
+
+export type CreatureHistoryEffect =
+  | Readonly<{
+      kind: "progress";
+      xpDelta: number;
+      growthEvents: readonly GrowthEvent[];
+    }>
+  | Readonly<{
+      kind: "condition";
+      delta: AdventureConditionDelta;
+    }>
+  | Readonly<{
+      kind: "record";
+      counters: Partial<CreatureHistoryRecord>;
+      achievementIds: readonly string[];
+      relationshipIds: readonly string[];
+      scarIds: readonly string[];
+      upgradeIds: readonly string[];
+    }>
+  | Readonly<{
+      kind: "transformation";
+      fromRevisionDigest: string;
+      toRevisionDigest: string;
+      formId: string;
+      stage: CreatureStage;
+      ascensionRank: number;
+    }>
+  | Readonly<{
+      kind: "legacy-checkpoint";
+      projection: CreatureHistoryProjection;
+    }>;
+
+export type CreatureHistorySource = Readonly<{
+  mode: CreatureHistorySourceMode;
+  activityId: string;
+  actorId: string;
+  authority: CreatureHistoryAuthority;
+}>;
+
+export type CreatureHistoryEvidence = Readonly<{
+  receiptDigest?: string;
+  replayDigest?: string;
+  sourceEventDigest?: string;
+  sourceEventIds?: readonly string[];
+  admission?: CreatureHistoryAdmissionEnvelope;
+}>;
+
+export type CreatureHistoryAdmissionNode = Readonly<{
+  schema: "receiz.wildz.creature_history_admission_node.v1";
+  authority: CreatureHistoryAdmittedAuthority;
+  issuerId: string;
+  verificationDigest: string;
+  assetId: string;
+  rootProofDigest: string;
+  rootDigest: string;
+  parentDigest: string;
+  eventId: string;
+  rulesetVersion: string;
+  occurredAt: string;
+  kai: CreatureHistoryKaiCoordinate;
+  sourceDigest: string;
+  evidenceDigest: string;
+  effectsDigest: string;
+  resultingProjectionDigest: string;
+  receiptDigest: string;
+  replayDigest: string;
+}>;
+
+export type CreatureHistoryAdmissionEnvelope = Readonly<{
+  schema: "receiz.wildz.creature_history_admission.v1";
+  node: CreatureHistoryAdmissionNode;
+  digest: string;
+}>;
+
+/** The envelope digest is integrity, not authority. This verifier is the trust boundary. */
+export type CreatureHistoryAuthorityVerifier = Readonly<{
+  verifyAdmission(input: Readonly<{
+    envelope: CreatureHistoryAdmissionEnvelope;
+    event: CreatureHistoryEvent;
+    chain: CreatureHistoryChain;
+  }>): boolean;
+}>;
+
+export type CreatureRetirementAuthorityEvidence = Readonly<{
+  schema: "receiz.wildz.creature_retirement_authority_evidence.v1";
+  assetId: string;
+  cardProofDigest: string;
+  revisionDigest: string;
+  historyHeadDigest: string;
+  matchReceiptDigest: string;
+  retirementSealDigest: string;
+  retiredAt: string;
+  previousRevisionDigest: string;
+}>;
+
+/** Verifies the external receipt/signature behind an irreversible retirement. */
+export type CreatureRetirementAuthorityVerifier = Readonly<{
+  verifyRetirement(evidence: CreatureRetirementAuthorityEvidence): boolean;
+}>;
+
+export type CreateCreatureHistoryAdmissionInput = Readonly<{
+  chain: CreatureHistoryChain;
+  event: CreatureHistoryEventDraft;
+  issuerId: string;
+  verificationDigest: string;
+}>;
+
+export type CreatureHistoryEventDraft = Readonly<{
+  eventId: string;
+  rulesetVersion: string;
+  occurredAt: string;
+  kai?: CreatureHistoryKaiCoordinate;
+  source: CreatureHistorySource;
+  evidence: CreatureHistoryEvidence;
+  effects: readonly CreatureHistoryEffect[];
+}>;
+
+export type CreatureHistoryEvent = Readonly<{
+  schema: "receiz.wildz.creature_history_event.v1";
+  namespace: typeof CREATURE_HISTORY_NAMESPACE;
+  rulesetVersion: string;
+  sequence: number;
+  eventId: string;
+  assetId: string;
+  rootProofDigest: string;
+  parentDigest: string;
+  occurredAt: string;
+  kai: CreatureHistoryKaiCoordinate;
+  source: CreatureHistorySource;
+  evidence: CreatureHistoryEvidence;
+  effects: readonly CreatureHistoryEffect[];
+  resultingProjectionDigest: string;
+  digest: string;
+}>;
+
+export type CreatureHistoryChain = Readonly<{
+  schema: "receiz.wildz.creature_history.v1";
+  namespace: typeof CREATURE_HISTORY_NAMESPACE;
+  assetId: string;
+  rootProofDigest: string;
+  rootDigest: string;
+  completeness: "complete" | "legacy-checkpoint";
+  events: readonly CreatureHistoryEvent[];
+  headDigest: string;
+  projection: CreatureHistoryProjection;
+  projectionDigest: string;
+}>;
+
+export type CreateCreatureHistoryInput = Readonly<{
+  assetId: string;
+  rootProofDigest: string;
+  rulesetVersion: string;
+  occurredAt: string;
+  kai?: CreatureHistoryKaiCoordinate;
+  actorId: string;
+  projection: CreatureHistoryProjection;
+  completeness?: CreatureHistoryChain["completeness"];
+}>;

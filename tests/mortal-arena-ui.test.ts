@@ -5,7 +5,7 @@ import { describe, it } from "node:test";
 describe("Mortal Arena UI integration", () => {
   it("keeps the Wildz control language while exposing every survival choice", async () => {
     const source = await readFile("src/features/games/mortal-arena/MortalArenaExperience.tsx", "utf8");
-    for (const action of ["Strike", "Guard", "Focus", "Swap", "Flee"]) assert.match(source, new RegExp(action));
+    for (const action of ["Strike", "Guard", "Dodge", "Parry", "Focus", "Tag", "Use", "Withdraw"]) assert.match(source, new RegExp(action));
     assert.match(source, /MortalArenaTrackpad/);
     assert.match(source, /MortalArenaCovenant/);
     assert.doesNotMatch(source, /@dimforge|cannon-es|socket\.io/);
@@ -23,10 +23,12 @@ describe("Mortal Arena UI integration", () => {
     assert.doesNotMatch(source, /<mesh receiveShadow rotation=.*?>\s*<cylinderGeometry/s);
   });
 
-  it("does not advance the match clock before mortal consent", async () => {
+  it("does not advance the match clock before mode admission", async () => {
     const source = await readFile("src/features/games/mortal-arena/use-mortal-arena.ts", "utf8");
     assert.match(source, /active: boolean/);
-    assert.match(source, /if \(!active/);
+    assert.match(source, /if \(!playable/);
+    assert.match(source, /mortal_arena_ranked_global_session_required/);
+    assert.match(source, /mortal_arena_signed_covenant_required/);
   });
 
   it("captures the covenant hold without selecting text or cancelling on tiny pointer drift", async () => {
@@ -44,9 +46,18 @@ describe("Mortal Arena UI integration", () => {
     assert.match(source, /if \(!movedRef\.current\) onJump\(\)/);
   });
 
-  it("settles the creature actually active at the final blow", async () => {
+  it("settles every affected owned card from the canonical result", async () => {
     const source = await readFile("src/features/games/mortal-arena/use-mortal-arena.ts", "utf8");
-    assert.match(source, /roster\[state\.sides\[0\]\.activeIndex\]/);
-    assert.match(source, /card: settledCard/);
+    assert.match(source, /projectCanonicalArenaResult/);
+    assert.match(source, /createArenaSettlement\(\{ cards: roster, result/);
+  });
+
+  it("shows the one-match covenant only for Mortal and never persists global consent", async () => {
+    const experience = await readFile("src/features/games/mortal-arena/MortalArenaExperience.tsx", "utf8");
+    const covenant = await readFile("src/features/games/mortal-arena/MortalArenaCovenant.tsx", "utf8");
+    assert.match(experience, /requiresCovenant = mode === "mortal"/);
+    assert.match(experience, /mode = "adventure"/);
+    assert.doesNotMatch(covenant, /localStorage/);
+    assert.match(covenant, /one exact match/);
   });
 });

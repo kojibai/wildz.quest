@@ -1,6 +1,7 @@
 import { canonicalPortableCardJson, sha256PortableBasis } from "../portable-card";
+import { ARENA_MODE_POLICIES } from "./mode";
 
-export const ARENA_RULESET_ID = "wilds.arena.v1" as const;
+export const ARENA_RULESET_ID = "wilds.arena.v2" as const;
 export const ARENA_FIXED_HZ = 60 as const;
 export type ArenaFrame = number;
 export type ArenaVec3 = Readonly<{ x: number; y: number; z: number }>;
@@ -14,6 +15,10 @@ export const ARENA_RULESET_DIGEST = sha256PortableBasis(canonicalPortableCardJso
   positionQuantum: 0.001,
   velocityQuantum: 0.001,
   inputLimit: 1,
+  temporalRoot: "admitted-kai-upulse",
+  frameOrder: "match-local-beneath-kai-upulse",
+  frameBatch: "atomic-canonical-team-order",
+  modePolicies: ARENA_MODE_POLICIES,
 }));
 
 export function assertArenaVec3(value: ArenaVec3) {

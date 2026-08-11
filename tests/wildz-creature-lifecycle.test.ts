@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { initialPlayState } from "../src/features/play/game-state";
 import { isLivingCardAsset } from "../src/features/play/living-card-types";
-import { admitLegacyCard } from "../src/features/play/living-card-proof";
+import { admitLegacyCard, currentRevision } from "../src/features/play/living-card-proof";
 import type { LegacyPortableCardAsset } from "../src/features/play/portable-card";
 import { applyCreatureLifeEvent, createCreatureLife } from "../src/features/games/lifecycle/creature-life-event";
 import { projectCreatureAppearanceHistory } from "../src/features/games/lifecycle/creature-appearance";
@@ -25,16 +25,24 @@ describe("Wildz living creature lifecycle", () => {
 
   it("seals retirement into the living card and makes it permanently unplayable", () => {
     const card = livingCard();
+    const retirementUPulse = card.manifest.history!.events.at(-1)!.kai.uPulse + 1;
     const retired = sealRetirement(card, {
       creatureId: card.id,
       previousRevisionDigest: card.manifest.revisions.at(-1)!.digest,
       matchReceiptDigest: `sha256:${"a".repeat(64)}`,
       finalVitality: 0,
       teamOutcome: "victory",
-      retiredAt: "2026-07-16T13:00:00.000Z"
+      retiredAt: "2026-07-16T13:00:00.000Z",
+      kaiUPulse: retirementUPulse
     }, { verified: true, mortalOptIn: true });
     assert.throws(() => assertCreaturePlayable(retired.card), /canonically retired/i);
-    assert.equal(mergeCreatureBranches(retired.card, card).status, "retired");
+    assert.equal(mergeCreatureBranches(retired.card, card, {
+      retirementAuthorityVerifier: {
+        verifyRetirement: (evidence) => evidence.retirementSealDigest === currentRevision(retired.card).growth.life!.retirement!.sealDigest
+      }
+    }).status, "retired");
+    assert.equal(currentRevision(retired.card).kaiPulse, String(retirementUPulse));
+    assert.equal(retired.card.manifest.history!.events.at(-1)!.kai.uPulse, retirementUPulse);
     assert.equal(projectCreatureMemorial(retired.card).honor, "victorious-sacrifice");
   });
 

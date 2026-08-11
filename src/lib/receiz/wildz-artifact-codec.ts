@@ -11,6 +11,7 @@ import type {
   WildzIdentityRepository,
   WildzIdentitySession
 } from "./wildz-identity-repository";
+import type { CreatureRetirementAuthorityVerifier } from "../../features/play/creature-history-types";
 import type {
   ReceizCommerceVaultInspection,
   ReceizCommerceVaultProjection
@@ -47,6 +48,7 @@ export type WildzRestoreErrorCode =
   | "wildz_restore_artifact_too_large"
   | "wildz_restore_portable_signature_invalid"
   | "wildz_restore_card_proof_invalid"
+  | "wildz_restore_retirement_authority_untrusted"
   | "wildz_restore_duplicate_card_conflict"
   | "wildz_restore_player_digest_invalid"
   | "wildz_restore_binding_invalid"
@@ -72,6 +74,14 @@ export type WildzArtifactInspection =
       playerBinding: WildzPlayerBinding;
     }
   | {
+      kind: "retirement-quarantine";
+      code: "wildz_restore_retirement_authority_untrusted";
+      memorialAssets: PortableCardAsset[];
+      artifactBytes: Uint8Array;
+      player: null;
+      playerBinding: null;
+    }
+  | {
       kind: "card-vault";
       identity?: VerifiedWildzIdentity | null;
       assets: PortableCardAsset[];
@@ -92,6 +102,15 @@ export type WildzArtifactInspection =
     }
   | { kind: "unsupported"; code: "wildz_artifact_unsupported" }
   | { kind: "invalid"; code: WildzRestoreErrorCode; errors: string[] };
+
+export class WildzRetirementQuarantineError extends Error {
+  readonly quarantine: Extract<WildzArtifactInspection, { kind: "retirement-quarantine" }>;
+  constructor(quarantine: Extract<WildzArtifactInspection, { kind: "retirement-quarantine" }>) {
+    super(quarantine.code);
+    this.name = "WildzRetirementQuarantineError";
+    this.quarantine = quarantine;
+  }
+}
 
 export interface WildzArtifactCodec {
   inspect(input: { bytes: Uint8Array; mimeType: string; name?: string }): Promise<WildzArtifactInspection>;
@@ -128,6 +147,7 @@ function normalizedError(error: unknown): WildzRestoreErrorCode {
     return "wildz_restore_artifact_too_large";
   }
   if (message === "wildz_restore_owner_mismatch") return "wildz_restore_owner_mismatch";
+  if (message === "wildz_restore_retirement_authority_untrusted") return "wildz_restore_retirement_authority_untrusted";
   if (message === "wildz_restore_binding_invalid"
     || message === "wildz_restore_binding_missing"
     || message.startsWith("wildz_artifact_")
@@ -171,6 +191,7 @@ export function createWildzArtifactCodec(input: {
   identityRepository: Pick<WildzIdentityRepository, "prepare">;
   commerceVaultReader: ReceizCommerceVaultReader;
   artifactOpener?: WildzArtifactOpener;
+  retirementAuthorityVerifier?: CreatureRetirementAuthorityVerifier;
 }): WildzArtifactCodec {
   return {
     async inspect(artifact) {
@@ -275,9 +296,32 @@ export function createWildzArtifactCodec(input: {
           pngBasis,
           verifiedPortableSnapshot,
           restoredVaultFiles: commerce?.restoredFiles ?? [],
-          proofObjectPayload
+          proofObjectPayload,
+          retirementAuthorityVerifier: input.retirementAuthorityVerifier
         });
       } catch (error) {
+        if (error instanceof Error && error.message === "wildz_restore_retirement_authority_untrusted") {
+          try {
+            const quarantined = extractVerifiedWildzCards({
+              pngBasis,
+              verifiedPortableSnapshot,
+              restoredVaultFiles: commerce?.restoredFiles ?? [],
+              proofObjectPayload,
+              // Parsing only: these assets never enter authoritative gameplay.
+              retirementAuthorityVerifier: { verifyRetirement: () => true }
+            });
+            return {
+              kind: "retirement-quarantine",
+              code: "wildz_restore_retirement_authority_untrusted",
+              memorialAssets: quarantined.assets,
+              artifactBytes: bytes.slice(),
+              player: null,
+              playerBinding: null
+            };
+          } catch {
+            return invalid("wildz_restore_retirement_authority_untrusted");
+          }
+        }
         return invalid(normalizedError(error));
       }
 

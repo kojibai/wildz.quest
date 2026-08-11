@@ -3,38 +3,37 @@ import { describe, it } from "node:test";
 import { advanceArenaMatch, createArenaMatch, type ArenaMatchDefinition } from "../src/features/play/arena/runtime";
 import { projectArenaConsequences } from "../src/features/play/arena/consequences";
 import { createArenaTranscript, replayArenaTranscript } from "../src/features/play/arena/transcript";
-import { arenaFixtureDefinition, arenaFixtureInput } from "./support/arena-fixtures";
+import { arenaFixtureAuthorizeDefinition, arenaFixtureCreateMatch, arenaFixtureDefinition, arenaFixtureFighterHealth, arenaFixtureFrame, arenaFixtureVerification } from "./support/arena-fixtures";
+import type { ArenaMode } from "../src/features/play/arena/mode";
 
 function priorConditions(definition: ArenaMatchDefinition) {
   return Object.fromEntries(definition.teams.flatMap((team) => team.fighters.map((fighter) => [fighter.assetId, fighter.condition])));
 }
 
-function contributionMatch(mode: "practice" | "mortal" = "mortal") {
+function contributionMatch(mode: ArenaMode = "mortal") {
   const definition = arenaFixtureDefinition(mode, 2);
-  let state = createArenaMatch(definition);
+  let state = arenaFixtureCreateMatch(definition);
   const actorId = state.teams[0].activeAssetId;
   const reserveId = state.teams[0].order[1]!;
-  const opponentId = state.teams[1].activeAssetId;
-  state = advanceArenaMatch(state, [arenaFixtureInput(state, actorId, { contextTargetId: `rescue:${reserveId}` })]);
-  state = advanceArenaMatch(state, [arenaFixtureInput(state, actorId, { combat: { kind: "heavy", direction: { x: 1, y: 0, z: 0 } } })]);
-  state = advanceArenaMatch(state, [arenaFixtureInput(state, actorId, { frame: 14 })]);
-  state = advanceArenaMatch(state, [arenaFixtureInput(state, opponentId, { withdraw: true })]);
-  const transcript = createArenaTranscript(definition, state);
-  return { definition, replay: replayArenaTranscript(definition, transcript), transcript, actorId, reserveId };
+  state = arenaFixtureFrame(state, [{ contextTargetId: `rescue:${reserveId}` }, {}]);
+  state = arenaFixtureFrame(state, [{ combat: { kind: "heavy", direction: { x: 1, y: 0, z: 0 } } }, {}]);
+  while (state.frame < 13) state = arenaFixtureFrame(state);
+  state = arenaFixtureFrame(state, [{}, { withdraw: true }]);
+  const transcript = createArenaTranscript(definition, state, arenaFixtureVerification);
+  return { definition, replay: replayArenaTranscript(definition, transcript, arenaFixtureVerification), transcript, actorId, reserveId };
 }
 
 function sacrificeVictory() {
   const base = arenaFixtureDefinition("mortal", 2);
-  const fragile = { ...base.teams[0].fighters[0]!, maxVitality: 1 };
-  const definition = { ...base, teams: [{ ...base.teams[0], fighters: [fragile, base.teams[0].fighters[1]!] }, base.teams[1]] } as typeof base;
-  let state = createArenaMatch(definition);
+  const fragile = arenaFixtureFighterHealth(base.teams[0].fighters[0]!, 1);
+  const definition = arenaFixtureAuthorizeDefinition({ ...base, teams: [{ ...base.teams[0], fighters: [fragile, base.teams[0].fighters[1]!] }, base.teams[1]] });
+  let state = arenaFixtureCreateMatch(definition);
   const fallenId = state.teams[0].activeAssetId;
-  const attackerId = state.teams[1].activeAssetId;
-  state = advanceArenaMatch(state, [arenaFixtureInput(state, attackerId, { combat: { kind: "heavy", direction: { x: -1, y: 0, z: 0 } } })]);
-  state = advanceArenaMatch(state, [arenaFixtureInput(state, attackerId, { frame: 13 })]);
-  state = advanceArenaMatch(state, [arenaFixtureInput(state, attackerId, { withdraw: true })]);
-  const transcript = createArenaTranscript(definition, state);
-  return { definition, replay: replayArenaTranscript(definition, transcript), transcript, fallenId };
+  state = arenaFixtureFrame(state, [{}, { combat: { kind: "heavy", direction: { x: -1, y: 0, z: 0 } } }]);
+  while (state.frame < 12) state = arenaFixtureFrame(state);
+  state = arenaFixtureFrame(state, [{}, { withdraw: true }]);
+  const transcript = createArenaTranscript(definition, state, arenaFixtureVerification);
+  return { definition, replay: replayArenaTranscript(definition, transcript, arenaFixtureVerification), transcript, fallenId };
 }
 
 describe("replay-grounded Arena consequences", () => {
@@ -86,10 +85,27 @@ describe("replay-grounded Arena consequences", () => {
     assert.deepEqual(result.memorials, []);
   });
 
+  it("gives Adventure living progression without mortality and Ranked rating-only card effects", () => {
+    const adventure = contributionMatch("adventure");
+    const adventureResult = projectArenaConsequences({ ...adventure, priorConditions: priorConditions(adventure.definition), encounterId: "arena:adventure", checkpointId: "arena:adventure" });
+    assert.ok(adventureResult.cards[adventure.actorId]!.xp > 0);
+    assert.equal(Object.values(adventureResult.cards).every((card) => card.lifeAfter === card.lifeBefore), true);
+    assert.deepEqual(adventureResult.checkpointIds, ["arena:adventure"]);
+
+    const ranked = contributionMatch("ranked");
+    const rankedResult = projectArenaConsequences({ ...ranked, priorConditions: priorConditions(ranked.definition), encounterId: "arena:ranked", checkpointId: "arena:ranked" });
+    assert.equal(Object.values(rankedResult.cards).every((card) => card.xp === 0 && card.injuriesAdded.length === 0 && card.lifeAfter === card.lifeBefore), true);
+    assert.deepEqual(rankedResult.resourceAwards, {});
+    assert.deepEqual(rankedResult.checkpointIds, ["arena:ranked"]);
+  });
+
   it("rejects foreign prior conditions and a replay for another definition", () => {
     const fixture = contributionMatch();
     const prior = priorConditions(fixture.definition);
     delete prior[fixture.actorId];
     assert.throws(() => projectArenaConsequences({ ...fixture, priorConditions: prior, encounterId: "arena:bad", checkpointId: "arena:bad" }), /arena_consequences_condition_invalid/);
+    const altered = priorConditions(fixture.definition);
+    altered[fixture.actorId] = { ...altered[fixture.actorId]!, fatigue: altered[fixture.actorId]!.fatigue + 1 };
+    assert.throws(() => projectArenaConsequences({ ...fixture, priorConditions: altered, encounterId: "arena:altered", checkpointId: "arena:altered" }), /arena_consequences_condition_invalid/);
   });
 });

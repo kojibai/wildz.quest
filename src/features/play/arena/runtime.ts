@@ -1,18 +1,56 @@
 import { canonicalPortableCardJson, sha256PortableBasis } from "../portable-card";
+import { assertCanonicalKaiTemporalRoot, type KaiTemporalRoot } from "../kai-temporal-root";
 import type { ArenaFighterDefinition } from "./card-fighter";
 import { assertArenaFighterPlayable } from "./card-fighter";
-import { beginArenaAction, createArenaCombatantState, resolveArenaHit, type ArenaCombatIntent, type ArenaCombatantState } from "./combat";
+import { advanceArenaCombatantState, beginArenaAction, createArenaCombatantState, resolveArenaHit, type ArenaCombatIntent, type ArenaCombatantState } from "./combat";
+import { arenaModePolicy, assertArenaAuthority, type ArenaAuthorityKind, type ArenaMode } from "./mode";
 import { initialArenaKinematicState, stepArenaMovement, type ArenaKinematicState, type ArenaMovementInput, type ArenaStageDefinition } from "./movement";
-import { ARENA_RULESET_ID, type ArenaVec3 } from "./rules";
+import { ARENA_RULESET_DIGEST, ARENA_RULESET_ID, type ArenaVec3 } from "./rules";
 
 export type ArenaPickupDefinition = Readonly<{ id: string; kind: "heal"; amount: number; position: ArenaVec3 }>;
 export type ArenaMechanismDefinition = Readonly<{ id: string; kind: "bridge" | "gate"; position: ArenaVec3 }>;
 export type ArenaHazardDefinition = Readonly<{ id: string; damage: number; position: ArenaVec3; radius: number }>;
 export type ArenaBossPhaseRuntime = Readonly<{ id: string; vitalityThreshold: number; transitionFrame: number; weakness: string; hazard: string; legalActions: readonly string[] }>;
-export type ArenaTeamDefinition = Readonly<{ id: string; fighters: readonly ArenaFighterDefinition[]; items?: Readonly<Record<string, number>> }>;
+export type ArenaTeamDefinition = Readonly<{ id: string; fighters: readonly ArenaFighterDefinition[]; items?: Readonly<Record<string, number>>; controller?: "human" | "ai" }>;
+export type ArenaGlobalAdmissionPayload = Readonly<{
+  schema: "receiz.wilds.arena_global_admission_payload.v1";
+  definitionCommitment: string;
+  rulesetId: typeof ARENA_RULESET_ID;
+  rulesetDigest: typeof ARENA_RULESET_DIGEST;
+  admittedUPulse: number;
+  expiresUPulse: number;
+  issuerId: string;
+}>;
+export type ArenaGlobalAdmissionEnvelope = Readonly<{ schema: "receiz.wilds.arena_global_admission.v1"; payload: ArenaGlobalAdmissionPayload; signature: string }>;
+export type ArenaMortalCovenantPayload = Readonly<{
+  schema: "receiz.wilds.arena_mortal_covenant_payload.v1";
+  definitionCommitment: string;
+  rulesetId: typeof ARENA_RULESET_ID;
+  rulesetDigest: typeof ARENA_RULESET_DIGEST;
+  playerId: string;
+  signerId: string;
+  fighterPins: readonly Readonly<{ assetId: string; proofDigest: string; revisionDigest: string }>[];
+  admittedUPulse: number;
+  expiresUPulse: number;
+  nonce: string;
+  disclosure: "zero-vitality-permanently-retires";
+}>;
+export type ArenaMortalCovenantEnvelope = Readonly<{ schema: "receiz.wilds.arena_mortal_covenant.v1"; payload: ArenaMortalCovenantPayload; signature: string }>;
+export type ArenaAdmissionVerification = Readonly<{
+  verifyGlobalAdmission?: (envelope: ArenaGlobalAdmissionEnvelope, definitionCommitment: string) => boolean;
+  verifyMortalCovenant?: (envelope: ArenaMortalCovenantEnvelope, definitionCommitment: string) => boolean;
+  verifyFighterAdmission?: (fighter: ArenaFighterDefinition) => boolean;
+}>;
 export type ArenaMatchDefinition = Readonly<{
   seed: string;
-  mode: "practice" | "mortal";
+  kai: KaiTemporalRoot;
+  mode: ArenaMode;
+  authority: ArenaAuthorityKind;
+  timeScale?: number;
+  /** Deprecated digest-only consent is never authoritative. */
+  covenantDigest?: string;
+  globalAdmission?: ArenaGlobalAdmissionEnvelope;
+  mortalCovenant?: ArenaMortalCovenantEnvelope;
   teams: readonly [ArenaTeamDefinition, ArenaTeamDefinition];
   stage: ArenaStageDefinition;
   spawns: readonly [ArenaVec3, ArenaVec3];
@@ -51,7 +89,12 @@ export type ArenaStageState = Readonly<{
 }>;
 export type ArenaEventKind = "fighter.moved" | "fighter.action" | "fighter.hit" | "fighter.guarded" | "fighter.parried" | "fighter.dodged" | "fighter.tagged" | "fighter.tag-cancelled" | "fighter.rescued" | "fighter.knocked-out" | "fighter.retired" | "fighter.withdrew" | "item.used" | "pickup.consumed" | "mechanism.activated" | "hazard.hit" | "fighter.fell" | "boss.phase-transition";
 export type ArenaEvent = Readonly<{ id: string; sequence: number; frame: number; kind: ArenaEventKind; actorId: string; targetId: string | null; amount: number; detail: string }>;
-export type ArenaTerminalState = Readonly<{ reason: "withdrawal" | "team-defeat"; winnerTeamId: string; loserTeamId: string; frame: number }>;
+export type ArenaTerminalState = Readonly<{
+  reason: "withdrawal" | "team-defeat" | "double-defeat" | "mutual-withdrawal";
+  winnerTeamId: string | null;
+  loserTeamId: string | null;
+  frame: number;
+}>;
 export type ArenaInputFrame = Readonly<{
   sequence: number;
   frame: number;
@@ -62,12 +105,17 @@ export type ArenaInputFrame = Readonly<{
   contextTargetId: string | null;
   withdraw: boolean;
 }>;
+export type ArenaFrameIntent = Readonly<Omit<ArenaInputFrame, "sequence" | "frame">>;
+export type ArenaFrameBatch = Readonly<{ frame: number; intents: readonly ArenaFrameIntent[] }>;
 export type ArenaMatchState = Readonly<{
-  schema: "receiz.wilds.arena_match.v1";
+  schema: "receiz.wilds.arena_match.v2";
   id: string;
   rulesetId: typeof ARENA_RULESET_ID;
+  rulesetDigest: typeof ARENA_RULESET_DIGEST;
   seed: string;
-  mode: "practice" | "mortal";
+  kai: KaiTemporalRoot;
+  mode: ArenaMode;
+  authority: ArenaAuthorityKind;
   definitionDigest: string;
   frame: number;
   sequence: number;
@@ -83,6 +131,111 @@ export type ArenaMatchState = Readonly<{
 
 function digest(value: unknown) {
   return sha256PortableBasis(canonicalPortableCardJson(value));
+}
+
+const identityPattern = /^[a-z0-9:._-]{1,160}$/i;
+const digestPattern = /^sha256:[a-f0-9]{64}$/;
+
+function unsignedDefinition(definition: ArenaMatchDefinition) {
+  const { globalAdmission: _globalAdmission, mortalCovenant: _mortalCovenant, covenantDigest: _legacyConsent, ...unsigned } = definition;
+  return unsigned;
+}
+
+export function arenaDefinitionCommitment(definition: ArenaMatchDefinition) {
+  return digest({ rulesetId: ARENA_RULESET_ID, rulesetDigest: ARENA_RULESET_DIGEST, definition: unsignedDefinition(definition) });
+}
+
+export function arenaDefinitionDigest(definition: ArenaMatchDefinition) {
+  return digest({ rulesetId: ARENA_RULESET_ID, rulesetDigest: ARENA_RULESET_DIGEST, definition });
+}
+
+function fighterPins(definition: ArenaMatchDefinition) {
+  return definition.teams.flatMap((team) => team.fighters.map((fighter) => ({ assetId: fighter.assetId, proofDigest: fighter.proofDigest, revisionDigest: fighter.revisionDigest })));
+}
+
+export function createArenaMortalCovenantPayload(definition: ArenaMatchDefinition, input: { playerId: string; signerId: string; expiresUPulse: number; nonce: string }): ArenaMortalCovenantPayload {
+  return {
+    schema: "receiz.wilds.arena_mortal_covenant_payload.v1",
+    definitionCommitment: arenaDefinitionCommitment(definition),
+    rulesetId: ARENA_RULESET_ID,
+    rulesetDigest: ARENA_RULESET_DIGEST,
+    playerId: input.playerId,
+    signerId: input.signerId,
+    fighterPins: fighterPins(definition),
+    admittedUPulse: definition.kai.uPulse,
+    expiresUPulse: input.expiresUPulse,
+    nonce: input.nonce,
+    disclosure: "zero-vitality-permanently-retires",
+  };
+}
+
+function bounded(value: number, limit = 10_000) {
+  return Number.isFinite(value) && Math.abs(value) <= limit;
+}
+
+function validateFighterProjection(fighter: ArenaFighterDefinition, verification: ArenaAdmissionVerification) {
+  const stats = Object.values(fighter.stats);
+  if (!identityPattern.test(fighter.assetId)
+    || !digestPattern.test(fighter.proofDigest)
+    || !digestPattern.test(fighter.revisionDigest)
+    || fighter.condition.assetId !== fighter.assetId
+    || stats.some((value) => !Number.isFinite(value) || value < 0 || value > 10_000)
+    || fighter.maxVitality !== Math.max(1, fighter.stats.health * 2)
+    || fighter.maxBreak !== Math.max(10, Math.round(fighter.stats.guard * 1.15 + fighter.stats.health * 0.35))
+    || fighter.moveSpeed !== Number((3.2 + fighter.stats.speed / 38).toFixed(3))
+    || fighter.jumpImpulse !== Number((5.1 + fighter.stats.speed / 80).toFixed(3))
+    || !bounded(fighter.mass, 100) || fighter.mass <= 0
+    || !bounded(fighter.reach, 100) || fighter.reach <= 0
+    || fighter.abilityNames.length !== 2 || fighter.abilityPowers.length !== 2
+    || fighter.abilityPowers.some((value) => !Number.isFinite(value) || value < 0 || value > 10_000)
+    || (verification.verifyFighterAdmission && !verification.verifyFighterAdmission(fighter))) {
+    throw new Error("arena_fighter_projection_invalid");
+  }
+}
+
+function validateStageDefinition(definition: ArenaMatchDefinition) {
+  const stage = definition.stage;
+  const positionValid = (position: ArenaVec3) => [position.x, position.y, position.z].every((value) => bounded(value, 1_000));
+  if (!identityPattern.test(stage.id)
+    || ![stage.groundY, stage.fallY, stage.bounds.minX, stage.bounds.maxX, stage.bounds.minZ, stage.bounds.maxZ].every((value) => bounded(value, 1_000))
+    || stage.fallY >= stage.groundY || stage.bounds.minX >= stage.bounds.maxX || stage.bounds.minZ >= stage.bounds.maxZ
+    || stage.obstacles.length > 128 || (stage.ramps?.length ?? 0) > 128
+    || definition.pickups.length > 64 || definition.mechanisms.length > 64 || definition.hazards.length > 64
+    || !positionValid(stage.spawn) || definition.spawns.some((position) => !positionValid(position))
+    || stage.obstacles.some((obstacle) => !identityPattern.test(obstacle.id) || !positionValid(obstacle.min) || !positionValid(obstacle.max) || obstacle.min.x >= obstacle.max.x || obstacle.min.y >= obstacle.max.y || obstacle.min.z >= obstacle.max.z)
+    || definition.pickups.some((pickup) => !identityPattern.test(pickup.id) || !positionValid(pickup.position) || !Number.isFinite(pickup.amount) || pickup.amount <= 0 || pickup.amount > 10_000)
+    || definition.mechanisms.some((mechanism) => !identityPattern.test(mechanism.id) || !positionValid(mechanism.position))
+    || definition.hazards.some((hazard) => !identityPattern.test(hazard.id) || !positionValid(hazard.position) || !Number.isFinite(hazard.damage) || hazard.damage <= 0 || hazard.damage > 10_000 || !Number.isFinite(hazard.radius) || hazard.radius <= 0 || hazard.radius > 100)) {
+    throw new Error("arena_stage_invalid");
+  }
+}
+
+function validateAdmission(definition: ArenaMatchDefinition, verification: ArenaAdmissionVerification) {
+  const commitment = arenaDefinitionCommitment(definition);
+  if (definition.mode === "ranked") {
+    if (!definition.globalAdmission || !verification.verifyGlobalAdmission) throw new Error("arena_ranked_global_admission_unavailable");
+    const payload = definition.globalAdmission.payload;
+    if (definition.globalAdmission.schema !== "receiz.wilds.arena_global_admission.v1"
+      || payload.schema !== "receiz.wilds.arena_global_admission_payload.v1"
+      || payload.definitionCommitment !== commitment || payload.rulesetId !== ARENA_RULESET_ID || payload.rulesetDigest !== ARENA_RULESET_DIGEST
+      || payload.admittedUPulse !== definition.kai.uPulse || payload.expiresUPulse < definition.kai.uPulse
+      || !identityPattern.test(payload.issuerId) || !verification.verifyGlobalAdmission(definition.globalAdmission, commitment)) {
+      throw new Error("arena_ranked_global_admission_invalid");
+    }
+  }
+  if (definition.mode === "mortal") {
+    if (!definition.mortalCovenant) throw new Error("arena_mortal_covenant_required");
+    if (!verification.verifyMortalCovenant) throw new Error("arena_mortal_covenant_verifier_required");
+    const payload = definition.mortalCovenant.payload;
+    const expected = createArenaMortalCovenantPayload(definition, { playerId: definition.teams[0].id, signerId: payload.signerId, expiresUPulse: payload.expiresUPulse, nonce: payload.nonce });
+    if (definition.mortalCovenant.schema !== "receiz.wilds.arena_mortal_covenant.v1"
+      || canonicalPortableCardJson(payload) !== canonicalPortableCardJson(expected)
+      || payload.expiresUPulse < definition.kai.uPulse || payload.expiresUPulse > definition.kai.uPulse + 10_000_000
+      || !identityPattern.test(payload.signerId) || !identityPattern.test(payload.nonce)
+      || !verification.verifyMortalCovenant(definition.mortalCovenant, commitment)) {
+      throw new Error("arena_mortal_covenant_invalid");
+    }
+  }
 }
 
 function distance(left: ArenaVec3, right: ArenaVec3) {
@@ -115,18 +268,32 @@ function teamState(definition: ArenaTeamDefinition, spawn: ArenaVec3): ArenaTeam
   return { id: definition.id, order, activeAssetId, fighters, tagVulnerableUntil: 0, itemCharges, rescueCharges: 1 };
 }
 
-export function createArenaMatch(definition: ArenaMatchDefinition): ArenaMatchState {
+export function createArenaMatch(definition: ArenaMatchDefinition, verification: ArenaAdmissionVerification = {}): ArenaMatchState {
   if (!definition.seed.trim() || definition.teams[0].id === definition.teams[1].id) throw new Error("arena_definition_invalid");
+  assertCanonicalKaiTemporalRoot(definition.kai);
+  if (definition.kai.authority !== "admitted") throw new Error("arena_kai_authority_invalid");
+  assertArenaAuthority(definition.mode, definition.authority);
+  const policy = arenaModePolicy(definition.mode);
+  const timeScale = definition.timeScale ?? 1;
+  if (!Number.isFinite(timeScale) || timeScale <= 0 || timeScale > 2 || (policy.timeScale === "fixed" && timeScale !== 1)) throw new Error("arena_time_scale_invalid");
+  if (!policy.aiOpponentAllowed && definition.teams.some((team) => team.controller === "ai")) throw new Error("arena_mode_ai_opponent_forbidden");
+  validateStageDefinition(definition);
+  validateAdmission(definition, verification);
+  if (definition.mode !== "practice" && !verification.verifyFighterAdmission) throw new Error("arena_fighter_admission_verifier_required");
+  for (const fighter of definition.teams.flatMap((team) => team.fighters)) validateFighterProjection(fighter, verification);
   const allIds = definition.teams.flatMap((team) => team.fighters.map((fighter) => fighter.assetId));
   if (new Set(allIds).size !== allIds.length) throw new Error("arena_roster_duplicate");
-  const definitionDigest = digest(definition);
+  const definitionDigest = arenaDefinitionDigest(definition);
   if (definition.boss && !definition.teams.some((team) => team.id === definition.boss!.teamId)) throw new Error("arena_boss_team_invalid");
   return {
-    schema: "receiz.wilds.arena_match.v1",
+    schema: "receiz.wilds.arena_match.v2",
     id: `arena:match:${definitionDigest.slice(7, 31)}`,
     rulesetId: ARENA_RULESET_ID,
+    rulesetDigest: ARENA_RULESET_DIGEST,
     seed: definition.seed,
+    kai: definition.kai,
     mode: definition.mode,
+    authority: definition.authority,
     definitionDigest,
     frame: 0,
     sequence: 0,
@@ -191,7 +358,7 @@ function terminalFor(state: ArenaMatchState, loserIndex: 0 | 1, frame: number, r
 function settleZero(state: ArenaMatchState, input: ArenaInputFrame, teamIndex: 0 | 1, assetId: string) {
   const team = state.teams[teamIndex];
   const current = team.fighters[assetId]!;
-  const status: ArenaFighterRuntimeStatus = state.mode === "mortal" ? "retired" : "knocked-out";
+  const status: ArenaFighterRuntimeStatus = arenaModePolicy(state.mode).mortality === "retirement" ? "retired" : "knocked-out";
   let nextTeam = replaceFighter(team, { ...current, combat: { ...current.combat, vitality: 0 }, status });
   const nextId = nextTeam.order.find((id) => nextTeam.fighters[id]!.status === "ready");
   const zeroEvent = event(state, input, status === "retired" ? "fighter.retired" : "fighter.knocked-out", assetId, null, 0, status === "retired" ? "Verified zero Vitality sealed retirement." : "Practice knockout recorded without persistent mortality.");
@@ -359,4 +526,223 @@ function advanceOne(state: ArenaMatchState, input: ArenaInputFrame) {
 
 export function advanceArenaMatch(state: ArenaMatchState, inputs: readonly ArenaInputFrame[]): ArenaMatchState {
   return inputs.reduce(advanceOne, state);
+}
+
+const neutralMovement: ArenaMovementInput = { moveX: 0, moveZ: 0, jumpPressed: false, sprint: false };
+
+function canonicalFrameInputs(state: ArenaMatchState, batch: ArenaFrameBatch): readonly ArenaInputFrame[] {
+  if (state.phase === "terminal") throw new Error("arena_match_terminal");
+  if (!Number.isSafeInteger(batch.frame) || batch.frame !== state.frame + 1) throw new Error("arena_frame_invalid");
+  const byActor = new Map<string, ArenaFrameIntent>();
+  for (const intent of batch.intents) {
+    if (byActor.has(intent.actorId)) throw new Error("arena_frame_actor_duplicate");
+    byActor.set(intent.actorId, intent);
+  }
+  const activeIds = new Set(state.teams.map((team) => team.activeAssetId));
+  if ([...byActor.keys()].some((actorId) => !activeIds.has(actorId))) throw new Error("arena_input_actor_inactive");
+  return state.teams.map((team, index) => {
+    const actorId = team.activeAssetId;
+    const supplied = byActor.get(actorId);
+    return {
+      sequence: state.sequence + index + 1,
+      frame: batch.frame,
+      actorId,
+      movement: supplied?.movement ?? neutralMovement,
+      combat: supplied?.combat ?? null,
+      tagAssetId: supplied?.tagAssetId ?? null,
+      contextTargetId: supplied?.contextTargetId ?? null,
+      withdraw: supplied?.withdraw ?? false,
+    };
+  });
+}
+
+function applyFrameIntent(state: ArenaMatchState, input: ArenaInputFrame) {
+  const located = actorLocation(state, input.actorId);
+  const moved = stepArenaMovement(located.fighter.definition, state.stage.definition, located.fighter.movement, input.movement);
+  let combat = advanceArenaCombatantState(located.fighter.combat, input.frame);
+  if (input.combat) combat = beginArenaAction({ actor: located.fighter.definition, state: combat, frame: input.frame }, input.combat).state;
+  let fighter = { ...located.fighter, movement: moved.state, combat };
+  let team = replaceFighter(located.team, fighter);
+  const events = [...state.events];
+  if (input.combat) events.push(event(state, input, "fighter.action", input.actorId, null, 0, input.combat.kind));
+  if (team.tagVulnerableUntil >= input.frame && input.combat?.kind === "dodge") {
+    team = { ...team, tagVulnerableUntil: 0 };
+    events.push(event(state, input, "fighter.tag-cancelled", input.actorId, null, 0, "Incoming fighter spent a dodge to cancel tag vulnerability."));
+  }
+  const fall = moved.events.find((value) => value.kind === "fall-damage");
+  if (fall) {
+    fighter = { ...fighter, combat: { ...fighter.combat, vitality: Math.max(0, fighter.combat.vitality - fall.amount) } };
+    team = replaceFighter(team, fighter);
+    events.push(event(state, input, "fighter.fell", input.actorId, null, fall.amount, "Aerial recovery failed before the sealed fall plane."));
+  }
+  // Atomic v2 defers tags until committed active hits resolve against the
+  // fighter who was active at the beginning of this frame.
+  const teams: [ArenaTeamState, ArenaTeamState] = [...state.teams];
+  teams[located.teamIndex] = team;
+  let next: ArenaMatchState = {
+    ...state,
+    frame: input.frame,
+    sequence: input.sequence,
+    teams,
+    events,
+    inputs: [...state.inputs, input],
+  };
+  next = applyContextAction(next, input, located.teamIndex);
+  return next;
+}
+
+function applyFrameHazards(state: ArenaMatchState, input: ArenaInputFrame) {
+  const teamIndex = state.teams.findIndex((team) => team.fighters[input.actorId]) as 0 | 1;
+  if (teamIndex < 0) throw new Error("arena_input_actor_invalid");
+  const team = state.teams[teamIndex];
+  let actor = team.fighters[input.actorId]!;
+  let next = state;
+  const bossHazardIds = new Set(state.boss?.phases.map((phase) => phase.hazard) ?? []);
+  for (const hazard of state.stage.hazards) {
+    if (bossHazardIds.has(hazard.id) && state.stage.activeBossHazard !== hazard.id) continue;
+    const key = `${input.actorId}:${hazard.id}`;
+    if (distance(actor.movement.position, hazard.position) > hazard.radius || (next.stage.hazardCooldowns[key] ?? 0) > input.frame) continue;
+    actor = { ...actor, combat: { ...actor.combat, vitality: Math.max(0, actor.combat.vitality - hazard.damage) } };
+    const teams: [ArenaTeamState, ArenaTeamState] = [...next.teams];
+    teams[teamIndex] = replaceFighter(next.teams[teamIndex], actor);
+    next = {
+      ...next,
+      teams,
+      stage: { ...next.stage, hazardCooldowns: { ...next.stage.hazardCooldowns, [key]: input.frame + 60 } },
+      events: [...next.events, event(next, input, "hazard.hit", input.actorId, hazard.id, hazard.damage, "Sealed arena hazard applied.")],
+    };
+  }
+  return next;
+}
+
+function applyFrameTag(state: ArenaMatchState, input: ArenaInputFrame) {
+  if (!input.tagAssetId || state.phase === "terminal") return state;
+  const teamIndex = state.teams.findIndex((team) => team.fighters[input.actorId]) as 0 | 1;
+  if (teamIndex < 0) throw new Error("arena_input_actor_invalid");
+  const team = state.teams[teamIndex];
+  const outgoing = team.fighters[input.actorId];
+  const incoming = team.fighters[input.tagAssetId];
+  if (!outgoing || outgoing.status !== "active" || team.activeAssetId !== input.actorId || !incoming || incoming.status !== "ready") {
+    throw new Error("arena_tag_target_invalid");
+  }
+  let nextTeam = replaceFighter(team, { ...outgoing, status: "ready" });
+  nextTeam = replaceFighter(nextTeam, { ...incoming, status: "active" });
+  nextTeam = { ...nextTeam, activeAssetId: incoming.definition.assetId, tagVulnerableUntil: input.frame + 18 };
+  const teams: [ArenaTeamState, ArenaTeamState] = [...state.teams];
+  teams[teamIndex] = nextTeam;
+  return {
+    ...state,
+    teams,
+    events: [...state.events, event(state, input, "fighter.tagged", input.actorId, incoming.definition.assetId, 18, "Vulnerable tag window opened after committed hits resolved.")],
+  };
+}
+
+function applySimultaneousHits(state: ArenaMatchState, inputs: readonly ArenaInputFrame[]) {
+  const snapshot = state;
+  const resolutions = inputs.flatMap((input) => {
+    const attackerTeamIndex = snapshot.teams.findIndex((team) => team.activeAssetId === input.actorId) as 0 | 1;
+    if (attackerTeamIndex < 0) return [];
+    const targetTeamIndex = attackerTeamIndex === 0 ? 1 : 0;
+    const attacker = snapshot.teams[attackerTeamIndex].fighters[input.actorId]!;
+    const targetId = snapshot.teams[targetTeamIndex].activeAssetId;
+    const target = snapshot.teams[targetTeamIndex].fighters[targetId]!;
+    const hitId = `${input.actorId}:${attacker.combat.action.startedFrame}:${targetId}`;
+    if (snapshot.resolvedHitIds.includes(hitId)) return [];
+    const result = resolveArenaHit({
+      frame: input.frame,
+      attacker: attacker.definition,
+      attackerState: attacker.combat,
+      attackerPosition: attacker.movement.position,
+      target: target.definition,
+      targetState: target.combat,
+      targetPosition: target.movement.position,
+    });
+    if (result.outcome === "inactive" || result.outcome === "miss") return [];
+    return [{ input, targetTeamIndex, targetId, hitId, result }];
+  });
+  let next = state;
+  for (const resolution of resolutions) {
+    const target = next.teams[resolution.targetTeamIndex].fighters[resolution.targetId]!;
+    const targetState = {
+      ...resolution.result.targetState,
+      vitality: Math.max(0, target.combat.vitality - resolution.result.vitalityDamage),
+      break: Math.max(0, target.combat.break - resolution.result.breakDamage),
+      statuses: [...target.combat.statuses, ...resolution.result.statusesAdded],
+    };
+    const nextTarget = {
+      ...target,
+      combat: targetState,
+      movement: resolution.result.launch.length > 0
+        ? { ...target.movement, velocity: { x: resolution.result.launch.x, y: resolution.result.launch.y, z: resolution.result.launch.z }, grounded: false }
+        : target.movement,
+    };
+    const teams: [ArenaTeamState, ArenaTeamState] = [...next.teams];
+    teams[resolution.targetTeamIndex] = replaceFighter(next.teams[resolution.targetTeamIndex], nextTarget);
+    const kind = resolution.result.outcome === "guarded" ? "fighter.guarded" : resolution.result.outcome === "parried" ? "fighter.parried" : resolution.result.outcome === "dodged" ? "fighter.dodged" : "fighter.hit";
+    next = {
+      ...next,
+      teams,
+      resolvedHitIds: [...next.resolvedHitIds, resolution.hitId],
+      events: [...next.events, event(next, resolution.input, kind, resolution.input.actorId, resolution.targetId, resolution.result.vitalityDamage, `${resolution.result.outcome} resolved from atomic fixed-frame combat.`)],
+    };
+  }
+  return next;
+}
+
+function settleFrameZeros(state: ArenaMatchState, inputs: readonly ArenaInputFrame[]) {
+  let next = state;
+  const defeated: Array<0 | 1> = [];
+  for (const teamIndex of [0, 1] as const) {
+    const team = next.teams[teamIndex];
+    const assetId = team.activeAssetId;
+    const fighter = team.fighters[assetId]!;
+    if (fighter.combat.vitality > 0) continue;
+    const status: ArenaFighterRuntimeStatus = arenaModePolicy(next.mode).mortality === "retirement" ? "retired" : "knocked-out";
+    let nextTeam = replaceFighter(team, { ...fighter, combat: { ...fighter.combat, vitality: 0 }, status });
+    const replacementId = nextTeam.order.find((id) => nextTeam.fighters[id]!.status === "ready");
+    const sourceInput = inputs[teamIndex === 0 ? 1 : 0] ?? inputs[0]!;
+    next = {
+      ...next,
+      events: [...next.events, event(next, sourceInput, status === "retired" ? "fighter.retired" : "fighter.knocked-out", assetId, null, 0, status === "retired" ? "Verified zero Vitality sealed retirement." : "Non-mortal zero Vitality sealed a knockout.")],
+    };
+    if (replacementId) {
+      nextTeam = replaceFighter(nextTeam, { ...nextTeam.fighters[replacementId]!, status: "active" });
+      nextTeam = { ...nextTeam, activeAssetId: replacementId, tagVulnerableUntil: state.frame + 18 };
+    } else {
+      defeated.push(teamIndex);
+    }
+    const teams: [ArenaTeamState, ArenaTeamState] = [...next.teams];
+    teams[teamIndex] = nextTeam;
+    next = { ...next, teams };
+  }
+  if (defeated.length === 2) {
+    return { ...next, phase: "terminal" as const, terminal: { reason: "double-defeat" as const, winnerTeamId: null, loserTeamId: null, frame: state.frame } };
+  }
+  if (defeated.length === 1) return terminalFor(next, defeated[0]!, state.frame, "team-defeat");
+  return next;
+}
+
+export function advanceArenaFrame(state: ArenaMatchState, batch: ArenaFrameBatch): ArenaMatchState {
+  const inputs = canonicalFrameInputs(state, batch);
+  const withdrawals = inputs.filter((input) => input.withdraw);
+  if (withdrawals.length) {
+    const events = withdrawals.map((input) => event(state, input, "fighter.withdrew", input.actorId, null, 0, "Team withdrew before zero Vitality."));
+    const recorded: ArenaMatchState = {
+      ...state,
+      frame: batch.frame,
+      sequence: inputs.at(-1)!.sequence,
+      inputs: [...state.inputs, ...inputs],
+      events: [...state.events, ...events],
+    };
+    if (withdrawals.length === 2) return { ...recorded, phase: "terminal", terminal: { reason: "mutual-withdrawal", winnerTeamId: null, loserTeamId: null, frame: batch.frame } };
+    const loserIndex = recorded.teams.findIndex((team) => team.fighters[withdrawals[0]!.actorId]) as 0 | 1;
+    return terminalFor(recorded, loserIndex, batch.frame, "withdrawal");
+  }
+  let next = inputs.reduce(applyFrameIntent, state);
+  next = inputs.reduce(applyFrameHazards, next);
+  next = applySimultaneousHits(next, inputs);
+  next = settleFrameZeros(next, inputs);
+  if (next.phase === "terminal") return next;
+  next = inputs.reduce(applyFrameTag, next);
+  return applyBossTransition(next, inputs.at(-1)!);
 }

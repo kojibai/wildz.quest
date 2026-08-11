@@ -6,7 +6,9 @@ import { generateHearttreeExpedition } from "../src/features/play/hearttree/expe
 import { sealHearttreeReceipt } from "../src/features/play/hearttree/receipt";
 import { createHearttreeRuntime, hearttreeRuntimeStateDigest, stepHearttreeRuntime } from "../src/features/play/hearttree/runtime";
 import { hearttreeTranscript } from "../src/features/play/hearttree/transcript";
-import { applyWildsInput, initialPlayState, isPlayableAsset, playableInventory, restorePlayState, serializePlayState } from "../src/features/play/game-state";
+import { applyWildsInput, createOwnerBoundInitialPlayState, initialPlayState, isPlayableAsset, playableInventory, restorePlayState, serializePlayState } from "../src/features/play/game-state";
+import { admitLegacyCard, currentCreatureHistoryProjection, currentRevision } from "../src/features/play/living-card-proof";
+import { isLivingCardAsset } from "../src/features/play/living-card-types";
 
 function receiptFixture() {
   const card = initialPlayState.inventory[0]!;
@@ -22,6 +24,23 @@ function receiptFixture() {
   const consequences = projectHearttreeConsequences({ definition, replay, priorConditions: { [card.id]: condition }, mortalConsent: consent });
   const receipt = sealHearttreeReceipt({ definition, transcript, priorConditions: { [card.id]: condition }, consequences, actorId: "wilds.player.receiz.id", publicationRevision: 1, createdAt: "2026-07-16T19:01:00.000Z" });
   return { card, receipt };
+}
+
+function safeReceiptFixture() {
+  const initial = createOwnerBoundInitialPlayState("hearttree_history_keeper", "2026-07-16T17:00:00.000Z");
+  const baseCard = initial.inventory[0]!;
+  const card = isLivingCardAsset(baseCard) ? baseCard : admitLegacyCard(baseCard, "2026-07-16T17:00:00.000Z");
+  const playState = { ...initial, inventory: [card], livingProgress: { [card.id]: currentRevision(card).growth } };
+  const condition = emptyHearttreeCondition(card.id);
+  const capability = projectHearttreeCard(card, condition);
+  const definition = generateHearttreeExpedition({ seed: "safe-play-state", squad: [capability], history: [], mortal: false });
+  let state = createHearttreeRuntime(definition, [capability]);
+  state = stepHearttreeRuntime(state, { sequence: 1, tick: 1, kind: "extract" });
+  const transcript = hearttreeTranscript(state);
+  const replay = { ok: true as const, state, stateDigest: hearttreeRuntimeStateDigest(state), transcriptDigest: transcript.digest };
+  const consequences = projectHearttreeConsequences({ definition, replay, priorConditions: { [card.id]: condition }, mortalConsent: null });
+  const receipt = sealHearttreeReceipt({ definition, transcript, priorConditions: { [card.id]: condition }, consequences, actorId: "wilds.player.receiz.id", publicationRevision: 1, createdAt: "2026-07-16T18:01:00.000Z" });
+  return { card, playState, receipt };
 }
 
 describe("Hearttree Save V9 compatibility and dead-card guards", () => {
@@ -45,6 +64,17 @@ describe("Hearttree Save V9 compatibility and dead-card guards", () => {
     assert.equal(playableInventory(first).some((asset) => asset.id === card.id), false);
     assert.equal(first.hearttreeReceipts.length, 1);
     assert.deepEqual(duplicate, first);
+  });
+
+  it("appends a verified nonfatal Hearttree consequence to the exact card history", () => {
+    const { card, playState, receipt } = safeReceiptFixture();
+    assert.ok(isLivingCardAsset(card));
+    const before = card.manifest.history?.events.length ?? 0;
+    const admitted = applyWildsInput(playState, { type: "hearttree-admit", receipt });
+    const updated = admitted.inventory.find((asset) => asset.id === card.id);
+    assert.ok(updated && isLivingCardAsset(updated));
+    assert.equal(updated.manifest.history?.events.length, before + 1);
+    assert.deepEqual(currentCreatureHistoryProjection(updated).condition, admitted.adventureConditions[card.id]);
   });
 
   it("blocks dead cards from squads, selection, training, battle, lineage, growth, evolution, and listing", () => {

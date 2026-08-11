@@ -9,6 +9,7 @@ function revisionInput(assetId = "card:arena:one") {
     eventId: "arena:event:genesis",
     rulesetId: "wilds.arena.v1",
     occurredAt: "2026-07-16T20:00:00.000Z",
+    kai: { schema: "receiz.wildz.kai_temporal_root.v1" as const, authority: "admitted" as const, uPulse: 100, pulse: 0, sequence: 0, coordinate: "kai:arena:revision:100" },
     condition: emptyAdventureCondition(assetId),
     scarIds: [], relationshipIds: [], achievementIds: [], evolutionIds: [], matchReceiptDigests: [],
   } as const;
@@ -28,7 +29,7 @@ describe("Arena living revision chain", () => {
   it("requires an exact parent and advances one canonical revision", () => {
     const parent = createArenaLivingRevision(revisionInput());
     const child = createArenaLivingRevision({
-      ...revisionInput(), parent, eventId: "arena:event:match:one", occurredAt: "2026-07-16T20:05:00.000Z",
+      ...revisionInput(), parent, eventId: "arena:event:match:one", occurredAt: "2026-07-16T20:05:00.000Z", kai: { ...parent.kai, uPulse: 101, coordinate: "kai:arena:revision:101" },
       condition: { ...parent.condition, fatigue: 24 }, achievementIds: ["arena:first-step"],
     });
     assert.equal(child.revision, 2);
@@ -64,7 +65,7 @@ describe("Arena living revision chain", () => {
   it("rejects tampering, invalid chronology, duplicate history, and foreign assets", () => {
     const parent = createArenaLivingRevision(revisionInput());
     assert.throws(() => createArenaLivingRevision({ ...revisionInput("card:other"), parent }), /arena_revision_parent_asset_invalid/);
-    assert.throws(() => createArenaLivingRevision({ ...revisionInput(), parent, occurredAt: "2026-07-16T19:00:00.000Z" }), /arena_revision_time_invalid/);
+    assert.throws(() => createArenaLivingRevision({ ...revisionInput(), parent, occurredAt: "2030-01-01T00:00:00.000Z", kai: { ...parent.kai, uPulse: 99, coordinate: "kai:arena:revision:99" } }), /arena_revision_time_invalid/);
     assert.throws(() => createArenaLivingRevision({ ...revisionInput(), scarIds: ["scar:one", "scar:one"] }), /arena_revision_history_invalid/);
     assert.equal(verifyArenaLivingRevision({ ...parent, eventId: "arena:event:tampered" }).ok, false);
   });

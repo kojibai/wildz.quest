@@ -3,6 +3,7 @@ import { restorePlayState, serializePlayState, type PlayState } from "./game-sta
 import { parseWildzCharacter, type WildzCharacterGenesis } from "../identity/wildz-genesis";
 import { WILDS_WORLD_ID } from "./wilds-world-event";
 import type { WildsWorldProjection } from "./wilds-world-state";
+import { normalizeWildsVisualSettings, type WildsVisualSettings } from "./wilds-night-visibility";
 
 export type WildzCardOrder = "rarity" | "newest" | "oldest";
 
@@ -11,6 +12,8 @@ export type WildsPlayerVaultSettings = {
   movementMode: "walk" | "run";
   audio: Record<string, boolean | number>;
   cardOrder: WildzCardOrder;
+  /** Optional so previously sealed V3 Vaults retain their exact valid shape. */
+  visual?: WildsVisualSettings;
 };
 
 export type WildsPlayerVaultPayload = {
@@ -61,6 +64,16 @@ function normalizedInput(input: PlayerVaultInput): NormalizedPlayerVaultInput {
     || Object.values(input.settings.audio).some((value) => typeof value !== "boolean" && (typeof value !== "number" || !Number.isFinite(value)))) {
     throw new Error("wilds_player_vault_audio_invalid");
   }
+  if (input.settings.visual !== undefined && (
+    !input.settings.visual
+    || typeof input.settings.visual !== "object"
+    || Array.isArray(input.settings.visual)
+    || typeof input.settings.visual.lanternEnabled !== "boolean"
+    || !["cinematic", "balanced", "high"].includes(input.settings.visual.nightVisibility)
+  )) throw new Error("wilds_player_vault_visual_invalid");
+  const visual = input.settings.visual === undefined
+    ? undefined
+    : normalizeWildsVisualSettings(input.settings.visual);
   if (input.canonicalCursor.worldId !== WILDS_WORLD_ID
     || !Number.isSafeInteger(input.canonicalCursor.revision)
     || input.canonicalCursor.revision < 0) throw new Error("wilds_player_vault_cursor_invalid");
@@ -87,7 +100,8 @@ function normalizedInput(input: PlayerVaultInput): NormalizedPlayerVaultInput {
       avatarStyle: input.settings.avatarStyle,
       movementMode: input.settings.movementMode,
       audio: { ...input.settings.audio },
-      cardOrder
+      cardOrder,
+      ...(visual ? { visual } : {})
     },
     personalEvents: [...events.values()]
       .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt) || left.eventId.localeCompare(right.eventId))
@@ -163,7 +177,10 @@ export function reconcileWildsPlayerVault(input: {
   const mergedState: PlayState = {
     ...(input.preferLocalState ? restoredPlayState : input.local),
     ...(input.preferLocalState ? input.local : restoredPlayState),
-    inventory: mergeRecords(input.local.inventory, restoredPlayState.inventory),
+    // Preserve competing card heads until restore admission can resolve them by
+    // causal creature history and authoritative Kai uPulse. A generic map
+    // overwrite here would silently turn array order into temporal authority.
+    inventory: [...input.local.inventory, ...restoredPlayState.inventory],
     achievements: mergeRecords(input.local.achievements, restoredPlayState.achievements),
     completedMissionIds: mergeRecords(input.local.completedMissionIds, restoredPlayState.completedMissionIds),
     discoveredCardIds: mergeRecords(input.local.discoveredCardIds, restoredPlayState.discoveredCardIds),

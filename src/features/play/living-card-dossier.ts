@@ -5,7 +5,7 @@ import { deriveBirthGenome } from "./heartbound-genome";
 import { identityForGenome } from "./heartbound-identity";
 import { deriveKaiKlokMoment } from "./kai-klok-moment";
 import { deriveKaiMomentExpression, KAI_MATH_TEACHINGS } from "./kai-klok-teachings";
-import { currentLivingGenome, currentRevision } from "./living-card-proof";
+import { currentCreatureHistoryProjection, currentLivingGenome, currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import { canonicalPortableCardJson, verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
 
@@ -39,6 +39,14 @@ export type LivingCardDossier = {
     stats: CreatureStats;
     abilities: string[];
     growthPaths: Record<string, number>;
+    level: number;
+    xp: number;
+    bond: number;
+    mastery: Record<string, number>;
+    condition: { life: "alive" | "dead"; fatigue: number; injuryCount: number };
+    historyEvents: number;
+    historyHead: string | null;
+    historyCompleteness: "complete" | "legacy-checkpoint" | "legacy-card";
     nextRequirements: string[];
   };
   dna: {
@@ -102,8 +110,9 @@ export function projectLivingCardDossier(asset: PortableCardAsset, origin: strin
     : deriveBirthGenome({ formId: asset.manifest.formId, proofDigest: asset.proof.digest, variant: asset.manifest.variant.traits });
   const identity = identityForGenome(genome, asset.proof.digest);
   const revision = living ? currentRevision(asset) : null;
+  const historyProjection = living ? currentCreatureHistoryProjection(asset) : null;
   const verification = verifyAnyWildsCard(asset);
-  const growth = revision?.growth ?? {
+  const growth = historyProjection?.growth ?? revision?.growth ?? {
     bond: asset.manifest.stats.bond,
     paths: { bond: asset.manifest.stats.bond, battle: 0, exploration: 0, legacy: 0, community: 0, character: 0 }
   };
@@ -113,6 +122,7 @@ export function projectLivingCardDossier(asset: PortableCardAsset, origin: strin
     { label: "Proof digest", status: verification.errors.includes("digest_mismatch") ? "fail" : "pass", detail: asset.proof.digest },
     { label: "Canonicalization", status: asset.proof.canonicalization === "receiz.sorted-json.v1" ? "pass" : "fail", detail: asset.proof.canonicalization },
     { label: "Revision chain", status: verification.errors.some((error) => error.includes("revision")) ? "fail" : "pass", detail: living ? `${asset.manifest.revisions.length} linked revision${asset.manifest.revisions.length === 1 ? "" : "s"}` : "Legacy birth seal" },
+    { label: "Creature history", status: verification.errors.some((error) => error.includes("history")) ? "fail" : "pass", detail: living && asset.manifest.history ? `${asset.manifest.history.events.length} append-only event${asset.manifest.history.events.length === 1 ? "" : "s"} · uPulse ${asset.manifest.history.events.at(-1)?.kai.uPulse ?? 0}` : "Legacy card projection" },
     { label: "Visual genome", status: verification.errors.some((error) => error.includes("genome") || error.includes("art")) ? "fail" : "pass", detail: identity.signature }
   ];
   const body = identity.body;
@@ -180,6 +190,18 @@ export function projectLivingCardDossier(asset: PortableCardAsset, origin: strin
       stats: { ...asset.manifest.stats },
       abilities: [...asset.manifest.abilityNames],
       growthPaths: { ...growth.paths },
+      level: historyProjection?.level ?? 1,
+      xp: historyProjection?.xp ?? 0,
+      bond: historyProjection?.bond ?? growth.bond,
+      mastery: { ...(historyProjection?.mastery ?? {}) },
+      condition: {
+        life: historyProjection?.condition.life ?? "alive",
+        fatigue: historyProjection?.condition.fatigue ?? 0,
+        injuryCount: historyProjection?.condition.injuries.length ?? 0
+      },
+      historyEvents: living ? asset.manifest.history?.events.length ?? 0 : 0,
+      historyHead: living ? asset.manifest.history?.headDigest ?? null : null,
+      historyCompleteness: living ? asset.manifest.history?.completeness ?? "legacy-card" : "legacy-card",
       nextRequirements: living && revision?.stage === 3
         ? [`Earn the next unused achievement after Ascension ${revision.ascensionRank}.`, "Complete the card-specific quest, catalyst, bond, and recovery gates."]
         : ["Raise level and bond through active play.", "Complete the next stage-specific evolution requirement."]

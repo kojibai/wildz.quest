@@ -5,8 +5,8 @@ import { Icons } from "@/components/icons";
 import { Button, StatusPill } from "@/components/ui";
 import {
   applyWildsInput,
+  applyCommittedArenaSettlement,
   initialPlayState,
-  playableInventory,
   selectedAsset,
   selectedCard,
   type PlayState,
@@ -36,7 +36,7 @@ import {
   releaseModalAdmissionOwner,
   type ModalAdmissionToken
 } from "@/features/play/modal-admission";
-import { worldInputForKeyboardEvent } from "@/features/play/world-keyboard-routing";
+import { isWildsLanternKeyboardEvent, worldInputForKeyboardEvent } from "@/features/play/world-keyboard-routing";
 import { projectWildsAudioScene } from "@/features/play/wilds-audio-scene";
 import { projectWildsBiome } from "@/features/play/wilds-biome";
 import type { WildsSettlementDistrictId } from "@/features/play/wilds-settlements";
@@ -44,7 +44,8 @@ import { projectWorldProgression } from "@/features/play/world-progression";
 import type { WildsCommandItem, WildsCommandKey } from "@/features/play/WildsCommandDock";
 import { WildsCommandCenter } from "@/features/play/command-center/WildsCommandCenter";
 import { projectWildsCommandCenter, type WildsCommandAction } from "@/features/play/command-center/director";
-import { deriveKaiKlokMoment, KAI_GENESIS_TS, millisecondsUntilNextKaiPulse } from "@/features/play/kai-klok-moment";
+import { KAI_GENESIS_TS, millisecondsUntilNextKaiPulse } from "@/features/play/kai-klok-moment";
+import { resolveWildsRuntimeKaiMoment } from "@/features/play/wilds-kai-runtime";
 import { kaiTransition, projectKaiWorldExpression, type KaiWorldExpression } from "@/features/play/kai-moment-expression";
 import { WildzCommandInsight } from "@/features/play/WildzCommandInsight";
 import type { WildsMovementMode } from "@/features/play/wilds-movement";
@@ -58,6 +59,7 @@ import { WildzWorldControls } from "@/features/play/WildzWorldControls";
 import { WildsCreatureThumbnail } from "@/features/play/WildsCreatureThumbnail";
 import { creatureFamilies, creatureForm } from "@/features/play/creature-catalog";
 import { createWildsPlayerVault, type WildsPlayerVaultPayload, type WildzCardOrder } from "@/features/play/wilds-player-vault";
+import { normalizeWildsVisualSettings, type WildsVisualSettings } from "@/features/play/wilds-night-visibility";
 import type { WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
 import type {
   WildzCardOnlyConfirmation,
@@ -93,7 +95,11 @@ import {
   publicCardPublicationCandidates,
   usePublicCardPublisher
 } from "@/features/play/use-public-card-publisher";
-import type { ArenaSettlement } from "@/features/games/mortal-arena/settlement";
+import {
+  ARENA_SETTLEMENT_JOURNAL_PREFIX,
+  recoverArenaSettlementJournalEntry,
+  type ArenaSettlement
+} from "@/features/games/mortal-arena/settlement";
 import {
   advanceTrainerEncounter,
   createTrainerEncounter,
@@ -162,6 +168,24 @@ export function PlayCampaign({
   const [state, setState] = useState(() => initialState);
   const [saveRestored, setSaveRestored] = useState(false);
   const [memorialAssetId, setMemorialAssetId] = useState<string | null>(null);
+  useEffect(() => {
+    const serialized = Object.keys(window.localStorage)
+      .filter((key) => key.startsWith(ARENA_SETTLEMENT_JOURNAL_PREFIX))
+      .sort()
+      .slice(-128)
+      .map((key) => window.localStorage.getItem(key))
+      .filter((value): value is string => value !== null);
+    if (!serialized.length) return;
+    setState((current) => serialized.reduce((next, entry) => {
+      const settlement = recoverArenaSettlementJournalEntry(entry);
+      if (!settlement) return next;
+      try {
+        return applyCommittedArenaSettlement(next, settlement);
+      } catch {
+        return next;
+      }
+    }, current));
+  }, []);
   const explorerStyle = character.gender;
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
   const [mapOpen, setMapOpen] = useState(false);
@@ -174,6 +198,10 @@ export function PlayCampaign({
   const previousPlayerPosition = useRef(state.player);
   const [movementMode, setMovementMode] = useState<WildsMovementMode>(() => initialPlayerContinuity?.settings.movementMode ?? "walk");
   const [cardOrder, setCardOrder] = useState<WildzCardOrder>(() => initialPlayerContinuity?.settings.cardOrder ?? "rarity");
+  const [visualSettings, setVisualSettings] = useState<WildsVisualSettings>(() => normalizeWildsVisualSettings(initialPlayerContinuity?.settings.visual));
+  const handleLanternToggle = useCallback(() => {
+    setVisualSettings((current) => ({ ...current, lanternEnabled: !current.lanternEnabled }));
+  }, []);
   const [activeLandmarkId, setActiveLandmarkId] = useState<WildsLandmarkId | null>(null);
   const [activeDistrictId, setActiveDistrictId] = useState<WildsSettlementDistrictId>("trail-gate");
   const [activeEcologySiteId, setActiveEcologySiteId] = useState<string | null>(null);
@@ -402,9 +430,10 @@ export function PlayCampaign({
     activeCard: activeAsset ?? null,
     cardAdmission
   });
-  const kaiMoment = deriveKaiKlokMoment({
-    occurredAt: kaiOccurredAt,
-    authority: livingWorld.mode === "receiz_live" || livingWorld.mode === "kai_live" ? "world" : "local"
+  const kaiMoment = resolveWildsRuntimeKaiMoment({
+    observedAt: kaiOccurredAt,
+    mode: livingWorld.mode,
+    cursor: livingWorld.snapshot?.cursor ?? null
   });
   const saga = projectWildsSaga({
     moment: kaiMoment,
@@ -473,34 +502,7 @@ export function PlayCampaign({
   const sagaTournament = (Object.values(livingWorld.snapshot?.tournaments ?? {}).find((tournament) => tournament.dayId === saga.dayId) ?? null) as WildsTournamentProjection | null;
   const kaiExpression = projectKaiWorldExpression(kaiMoment);
   const commitArenaSettlement = useCallback((settlement: ArenaSettlement) => setState((current) => {
-    const retired = settlement.result.retiredCreatureIds.includes(settlement.card.id);
-    const inventory = current.inventory.map((asset) => asset.id === settlement.card.id ? settlement.card : asset);
-    const fallback = retired ? playableInventory({ ...current, inventory }).find((asset) => asset.id !== settlement.card.id) ?? null : null;
-    const progressKey = settlement.card.manifest.familyId;
-    const prior = current.companionProgress[progressKey] ?? { level: 1, xp: 0, bond: 0 };
-    const gainedXp = settlement.result.winnerSide === 0 ? 60 : settlement.result.outcome === "fled" ? 18 : 30;
-    const xp = prior.xp + gainedXp;
-    return {
-      ...current,
-      inventory,
-      selectedAssetId: retired ? fallback?.id ?? "" : current.selectedAssetId,
-      selectedCardId: retired ? fallback?.manifest.familyId ?? "" : current.selectedCardId,
-      companionProgress: {
-        ...current.companionProgress,
-        [progressKey]: {
-          ...prior,
-          xp,
-          bond: Math.min(100, prior.bond + (settlement.result.winnerSide === 0 ? 2 : settlement.result.outcome === "fled" ? 0 : 1)),
-          level: Math.max(prior.level, 1 + Math.floor(xp / 100))
-        }
-      },
-      pendingSyncAssetIds: Array.from(new Set([...current.pendingSyncAssetIds, settlement.card.id])),
-      lastEvent: retired
-        ? `${settlement.card.manifest.name} was sealed into the memorial Vault after the Mortal Arena.`
-        : settlement.result.winnerSide === 0
-          ? `${settlement.card.manifest.name} carried a Mortal Arena victory into living history.`
-          : `${settlement.card.manifest.name} survived the Mortal Arena and carries its marks.`
-    };
+    return applyCommittedArenaSettlement(current, settlement);
   }), []);
   const audioScene = useMemo(() => {
     const biome = projectWildsBiome(
@@ -594,6 +596,7 @@ export function PlayCampaign({
     }
     setMovementMode(initialPlayerContinuity?.settings.movementMode ?? "walk");
     setCardOrder(initialPlayerContinuity?.settings.cardOrder ?? "rarity");
+    setVisualSettings(normalizeWildsVisualSettings(initialPlayerContinuity?.settings.visual));
     setSaveRestored(true);
   }, [initialPlayerContinuity]);
 
@@ -604,7 +607,8 @@ export function PlayCampaign({
         avatarStyle: explorerStyle,
         movementMode,
         audio: presentation.audioSettings,
-        cardOrder
+        cardOrder,
+        visual: visualSettings
       },
       personalEvents: initialPlayerContinuity?.personalEvents ?? [],
       canonicalCursor: livingWorld.snapshot
@@ -625,7 +629,8 @@ export function PlayCampaign({
     onPlayStateChange,
     presentation.audioSettings,
     saveRestored,
-    state
+    state,
+    visualSettings
   ]);
 
   useEffect(() => {
@@ -644,6 +649,11 @@ export function PlayCampaign({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!worldInteractionEnabled) return;
+      if (isWildsLanternKeyboardEvent(event)) {
+        event.preventDefault();
+        handleLanternToggle();
+        return;
+      }
       const input = worldInputForKeyboardEvent(event);
       if (!input) return;
       event.preventDefault();
@@ -655,7 +665,7 @@ export function PlayCampaign({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onComplete, worldInteractionEnabled]);
+  }, [handleLanternToggle, onComplete, worldInteractionEnabled]);
 
   if (!enabled) {
     return (
@@ -1137,7 +1147,8 @@ export function PlayCampaign({
                 avatarStyle: explorerStyle,
                 movementMode,
                 audio: presentation.audioSettings,
-                cardOrder
+                cardOrder,
+                visual: visualSettings
               },
               personalEvents: initialPlayerContinuity?.personalEvents ?? [],
               canonicalCursor: livingWorld.snapshot
@@ -1164,6 +1175,7 @@ export function PlayCampaign({
               setState(outcome.playState);
               setMovementMode(outcome.playerContinuity.settings.movementMode);
               setCardOrder(outcome.playerContinuity.settings.cardOrder);
+              setVisualSettings(normalizeWildsVisualSettings(outcome.playerContinuity.settings.visual));
               presentation.setAudioSettings(normalizeWildsAudioSettings(outcome.playerContinuity.settings.audio));
               return outcome;
             }}
@@ -1206,6 +1218,7 @@ export function PlayCampaign({
               livingWorld={livingWorld.snapshot}
               worldMode={settlementWorldMode}
               kaiMoment={kaiMoment}
+              visualSettings={visualSettings}
               supportCards={trailSupportCards}
               onSelectPlayer={(player) => {
                 if (canUseWorldStage()) multiplayer.selectPlayer(player);
@@ -1271,6 +1284,7 @@ export function PlayCampaign({
               gestureCancelSignal={gestureCancelSignal}
               newRosterAssetId={newRosterAssetId}
               movementMode={movementMode}
+              visualSettings={visualSettings}
               nearbyCards={state.inventory}
               overlayDispatch={dispatchStageOverlay}
               overlayState={worldOverlayState}
@@ -1278,6 +1292,7 @@ export function PlayCampaign({
               onCardOrderChange={setCardOrder}
               onInput={dispatchWorldInput}
               onMovementModeChange={setMovementMode}
+              onLanternToggle={handleLanternToggle}
               onRequestedCommandHandled={() => setRequestedCommand(null)}
               onRest={() => dispatchWorldInput({ type: "rest", at: new Date().toISOString() })}
               onSelectCard={(assetId) => dispatchWorldInput({ type: "select-asset", assetId })}

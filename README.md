@@ -152,9 +152,9 @@ The current v118 SDK does not expose Wildz's required conditional market-ownersh
 
 ## Release status
 
-`v3.0.0` is the first public open-source release of the standalone Wildz product. The exact local candidate has passed the repository release gate. Production credentials, authorized strict-live verification, external multi-writer interoperability, remote mutation qualification, deployment, tagging, and publication are intentionally reported as separate gates—not implied by a green local build.
+`v4.0.0-alpha.0` is the official local competitive-gameplay alpha. It adds the canonical Arena, exact portable creature history, Kai-rooted micro-pulse time, dark celestial nights, player lantern visibility, and expanded Receiz operator/AI doctrine. The exact candidate has passed its local release evidence; production credentials, authorized strict-live verification, representative player studies, remote mutation qualification, deployment, and external publication remain separate gates—not implied by a green local build.
 
-Read the complete [v3.0.0 release notes](docs/release/v3.0.0.md), [verification record](docs/release/verification.md), and [changelog](CHANGELOG.md).
+Read the complete [v4.0.0-alpha.0 release notes](docs/release/v4.0.0-alpha.0.md), [verification record](docs/release/verification.md), [competitive gameplay scorecard](docs/release/gameplay-scorecard.md), and [changelog](CHANGELOG.md).
 
 ## Build your own Receiz-native product
 

@@ -101,6 +101,32 @@ describe("skill-based Arena combat", () => {
     assert.ok(advantage.statusesAdded.length > 0);
   });
 
+  it("spends accumulated focus for a stronger committed strike", () => {
+    const actor = fighter("voltray-1", "focused-strike");
+    const target = fighter("mintcub-1", "focused-target");
+    const base = beginArenaAction({ actor, state: createArenaCombatantState(actor), frame: 30 }, { kind: "heavy", direction: { x: 1, y: 0, z: 0 } });
+    const focusedState = { ...createArenaCombatantState(actor), focus: 60 };
+    const focused = beginArenaAction({ actor, state: focusedState, frame: 30 }, { kind: "heavy", direction: { x: 1, y: 0, z: 0 } });
+    const position = { x: actor.reach * 0.8, y: 0, z: 0 };
+    const common = {
+      frame: focused.action.activeFrom,
+      attacker: actor,
+      attackerPosition: { x: 0, y: 0, z: 0 },
+      target,
+      targetState: createArenaCombatantState(target),
+      targetPosition: position,
+    };
+    assert.equal(focused.state.focus, 0);
+    assert.ok(resolveArenaHit({ ...common, attackerState: focused.state }).vitalityDamage > resolveArenaHit({ ...common, attackerState: base.state }).vitalityDamage);
+  });
+
+  it("requires the target to be inside the committed attack cone", () => {
+    const front = hitContext();
+    const behind = { ...front, targetPosition: { x: -front.attacker.reach * 0.8, y: 0, z: 0 } };
+    assert.equal(resolveArenaHit(front).outcome, "hit");
+    assert.equal(resolveArenaHit(behind).outcome, "miss");
+  });
+
   it("depletes Break and reaches exact zero Vitality without going negative", () => {
     const context = hitContext("titanseal-1", "mintcub-1", "heavy");
     const result = resolveArenaHit({ ...context, targetState: { ...context.targetState, vitality: 1, break: 1 } });
