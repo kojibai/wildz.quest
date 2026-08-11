@@ -152,3 +152,5 @@ Browser replay at 390x844 produced:
 This is bounded direct DOM replay of the real component’s reducer callbacks and focus behavior, not a claim of physical pointer fidelity. The production live run above separately exercises the real keyboard/control path.
 
 Fixture screenshot: `output/playwright/task2-roster-browser-fixture.png`.
+
+Fix-round implementation commit: `e536944` (`fix: harden Slate drawer focus and layout`).
