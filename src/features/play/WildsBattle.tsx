@@ -78,9 +78,15 @@ export function WildsBattle({
         {ended ? (
           <button className="wilds-battle-primary" onClick={onDismiss} type="button">Return to discovery</button>
         ) : captureTransitioning ? (
-          <div aria-live="assertive" className="wilds-battle-capture-transition" role="status">
+          <div aria-live="assertive" className="wilds-battle-capture-transition" data-capture-phase={encounterPhase} role="status">
+            <small>{encounterPhase === "battle_intro" ? "Encounter admission" : "Receiz capture sequence"}</small>
             <strong>{encounterPhase === "battle_intro" ? "Entering the encounter" : encounterPhase === "emerging" ? "Capture locked" : encounterPhase === "capsule" ? "Sealing portable card" : "Verifying captured companion"}</strong>
-            <span>{encounterPhase === "battle_intro" ? "Reading the wild creature's intent…" : "Keep this screen open while the proof sequence completes."}</span>
+            <span>{encounterPhase === "battle_intro" ? "Reading the wild creature's intent…" : "Identity, stats, and custody are being sealed into the portable card."}</span>
+            {encounterPhase !== "battle_intro" ? <div aria-label="Capture proof progress" className="wilds-battle-capture-progress">
+              <i className="is-complete"><b>1</b><span>Locked</span></i>
+              <i className={encounterPhase === "capsule" || encounterPhase === "sealed" ? "is-complete" : ""}><b>2</b><span>Sealed</span></i>
+              <i className={encounterPhase === "sealed" ? "is-complete" : ""}><b>3</b><span>Verified</span></i>
+            </div> : null}
           </div>
         ) : (
           <>

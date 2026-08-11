@@ -55,7 +55,6 @@ test("expanded controls grow from their semantic homes and remain motion-safe", 
   assert.match(css, /\.wildz-tools-home \.wilds-world-tools-fan\s*\{[^}]*position:\s*absolute;[^}]*bottom:/);
   assert.match(css, /\.wildz-tools-home \.wilds-world-tools-fan \.wilds-command-dock\s*\{[^}]*grid-template-columns:\s*repeat\(2,/);
   assert.match(css, /\.wildz-tools-home \.wilds-command-button\[aria-controls="wilds-command-sheet-mission"\]\s*\{[^}]*display:\s*none;/);
-  assert.match(css, /\.wildz-companion-home \.wilds-companion-ability-wheel\s*\{[^}]*right:/);
   assert.match(css, /\.wildz-app \.wilds-event-toast\s*\{[^}]*bottom:\s*max\(180px,/);
   assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\)\s*\{[\s\S]*\.wildz-tools-home \.wilds-world-tools-fan \.wilds-command-dock\s*\{[^}]*grid-template-columns:\s*repeat\(4,/);
   assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\)\s*\{[\s\S]*\.wildz-companion-home \.wilds-companion-command\s*\{[^}]*width:\s*78px;/);
@@ -64,7 +63,7 @@ test("expanded controls grow from their semantic homes and remain motion-safe", 
   const reducedMotionStart = finalCss.lastIndexOf("@media (prefers-reduced-motion: reduce)");
   const reducedMotionRuleStart = finalCss.indexOf(".wilds-world-tools-fan,", reducedMotionStart);
   const reducedMotionRule = finalCss.slice(reducedMotionRuleStart, finalCss.indexOf("}", reducedMotionRuleStart));
-  for (const selector of ["wilds-world-tools-fan", "wildz-creature-drawer", "wilds-companion-ability-wheel", "wilds-living-world-sheet", "wilds-audio-sheet"]) {
+  for (const selector of ["wilds-world-tools-fan", "wildz-creature-drawer", "wilds-living-world-sheet", "wilds-audio-sheet"]) {
     assert.match(reducedMotionRule, new RegExp(selector));
   }
   assert.match(reducedMotionRule, /animation:\s*none !important;[\s\S]*transition:\s*none !important;/);
@@ -119,7 +118,7 @@ test("installed PWA surface controls share the stage safe-area offset", () => {
   assert.match(css, /\.wilds-stage\s*\{[^}]*--wildz-stage-safe-top:\s*env\(safe-area-inset-top\)/);
   assert.match(css, /\.wildz-player-capsule\s*\{[^}]*top:\s*calc\(14px \+ var\(--wildz-stage-safe-top\)\)/);
   assert.match(css, /\.wildz-status-rail\s*\{[^}]*top:\s*calc\(12px \+ var\(--wildz-stage-safe-top\)\)/);
-  assert.match(css, /\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(108px \+ var\(--wildz-stage-safe-top\)\)/);
+  assert.match(css, /\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(228px \+ var\(--wildz-stage-safe-top\)\)/);
   assert.match(css, /\.wilds-map-status-home\s*\{[^}]*top:\s*calc\([^}]*safe-area-inset-top[^}]*right:\s*max\([^}]*safe-area-inset-right/);
   assert.match(css, /\.wilds-left-instrument-home\s*\{[^}]*top:\s*calc\([^}]*safe-area-inset-top[^}]*left:\s*max\([^}]*safe-area-inset-left/);
   assert.match(css, /\.wilds-live-cluster\s*\{[^}]*top:\s*calc\(122px \+ var\(--wildz-stage-safe-top\)\)/);

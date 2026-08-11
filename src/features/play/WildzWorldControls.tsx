@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react";
 import { Icons } from "@/components/icons";
 import type { WildzCardSort } from "./card-sort";
-import { creatureForm } from "./creature-catalog";
 import type { PlayState, WildsInput } from "./game-state";
 import type { PortableCardAsset } from "./portable-card";
 import type { WildsAudioCue } from "./wilds-audio";
@@ -31,7 +30,6 @@ export function WildzWorldControls({
   activeCard,
   companionProgress,
   cardConditions,
-  action,
   cameraHeadingRef,
   movementMode,
   cardOrder,
@@ -41,16 +39,13 @@ export function WildzWorldControls({
   overlayState,
   overlayDispatch,
   gestureCancelSignal,
-  selectedAbilityIndex,
   newRosterAssetId,
   requestedCommand = null,
   onRequestedCommandHandled = ignore,
   onCardOrderChange,
   onInput,
-  onAction,
   onMovementModeChange,
   onSelectCard,
-  onSelectAbility,
   onRest,
   onAudioCue
 }: {
@@ -58,7 +53,6 @@ export function WildzWorldControls({
   activeCard: PortableCardAsset | null;
   companionProgress: PlayState["companionProgress"];
   cardConditions: PlayState["adventureConditions"];
-  action: { kind: string; label: string };
   cameraHeadingRef: RefObject<number>;
   movementMode: WildsMovementMode;
   cardOrder: WildzCardSort;
@@ -68,24 +62,19 @@ export function WildzWorldControls({
   overlayState: WorldOverlayState;
   overlayDispatch: (event: WorldOverlayEvent) => void;
   gestureCancelSignal: number;
-  selectedAbilityIndex: number;
   newRosterAssetId: string | null;
   requestedCommand?: WildsCommandKey | null;
   onRequestedCommandHandled?: () => void;
   onCardOrderChange: (order: WildzCardSort) => void;
   onInput: (input: WildsInput) => void;
-  onAction: (abilityIndex: number) => void;
   onMovementModeChange: (mode: WildsMovementMode) => void;
   onSelectCard: (assetId: string) => void;
-  onSelectAbility: (abilityIndex: number) => void;
   onRest: () => void;
   onAudioCue?: (cue: WildsAudioCue) => void;
 }) {
   const changeCardOrder = useStableEvent(onCardOrderChange);
   const selectCard = useStableEvent(onSelectCard);
-  const selectAbility = useStableEvent(onSelectAbility);
   const forwardInput = useStableEvent(onInput);
-  const invokeAction = useStableEvent(onAction);
   const changeMovementMode = useStableEvent(onMovementModeChange);
   const rest = useStableEvent(onRest);
   const requestHandled = useStableEvent(onRequestedCommandHandled);
@@ -142,23 +131,19 @@ export function WildzWorldControls({
   const handleSelectCard = useCallback((assetId: string) => {
     if (worldHomesEnabled) selectCard(assetId);
   }, [selectCard, worldHomesEnabled]);
-  const handleSelectAbility = useCallback((abilityIndex: number) => {
-    if (worldHomesEnabled) selectAbility(abilityIndex);
-  }, [selectAbility, worldHomesEnabled]);
-  const handleUsePower = useCallback((abilityIndex: number) => {
-    if (worldHomesEnabled) invokeAction(abilityIndex);
-  }, [invokeAction, worldHomesEnabled]);
   const handleRest = useCallback(() => {
     if (worldHomesEnabled) rest();
   }, [rest, worldHomesEnabled]);
+  const handleTrainCharacter = useCallback((familyId: string) => {
+    if (worldHomesEnabled) forwardInput({ type: "train", cardId: familyId, at: new Date().toISOString() });
+  }, [forwardInput, worldHomesEnabled]);
+  const handleOpenActiveCardInVault = useCallback(() => {
+    if (!worldHomesEnabled) return;
+    overlayDispatch({ type: "panel", key: "vault" });
+  }, [overlayDispatch, worldHomesEnabled]);
   const handleMovementModeChange = useCallback(() => {
     if (worldHomesEnabled) changeMovementMode(movementMode === "walk" ? "run" : "walk");
   }, [changeMovementMode, movementMode, worldHomesEnabled]);
-  const fieldPowers = useMemo(() => {
-    const form = activeCard ? creatureForm(activeCard.manifest.formId) : null;
-    return form?.abilities.map((ability, index) => ({ id: `${form.id}:${index}`, label: ability.name }))
-      ?? [{ id: "context", label: action.label }];
-  }, [action.label, activeCard]);
   const companionRoster = useMemo(() => projectVaultCompanionRoster({
     inventory: nearbyCards,
     companionProgress,
@@ -221,14 +206,13 @@ export function WildzWorldControls({
           activeEntry={activeEntry}
           cancelSignal={gestureCancelSignal}
           entries={companionRoster}
-          fieldPowers={fieldPowers}
           onCommandButtonReady={(button) => { companionCommandRef.current = button; }}
           onRequestDrawer={handleRequestDrawer}
+          onTrainCharacter={handleTrainCharacter}
+          onRecoverCharacter={handleRest}
+          onViewInVault={handleOpenActiveCardInVault}
           onAudioCue={worldHomesEnabled ? onAudioCue : undefined}
-          onSelectAbility={handleSelectAbility}
           onSelectCard={handleSelectCard}
-          onUsePower={handleUsePower}
-          selectedAbilityIndex={selectedAbilityIndex}
         />
       </div>
     </section>

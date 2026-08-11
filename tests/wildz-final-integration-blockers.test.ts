@@ -20,10 +20,6 @@ import {
   releaseModalAdmissionOwner
 } from "../src/features/play/modal-admission";
 import {
-  openCompanionKeyboardInteraction,
-  resetCompanionCommandInteraction
-} from "../src/features/play/companion-command-interaction";
-import {
   commitWildzArtifactContinuity,
   commitWildzBootstrapContinuity,
   resetWildzIdentityContinuity,
@@ -45,26 +41,19 @@ test("proof identity and Card Vault preserve reachable profile and market destin
   assert.match(campaign, /onOpenMarket\(origin\)/);
 });
 
-test("ability selection is controlled, causal, and keyboard-equivalent", () => {
+test("companion selector exposes only Vault characters and real card interactions", () => {
   const controls = read("src/features/play/WildzWorldControls.tsx");
   const command = read("src/features/play/WildsCompanionCommand.tsx");
   const campaign = read("src/features/play/PlayCampaign.tsx");
-  const gameState = read("src/features/play/game-state.ts");
-
-  assert.doesNotMatch(controls, /onSelectAbility=\{ignore\}/);
-  assert.match(controls, /selectedAbilityIndex: number/);
-  assert.match(controls, /onSelectAbility: \(abilityIndex: number\) => void/);
-  assert.match(controls, /onUsePower=\{handleUsePower\}/);
-  assert.match(command, /selectedAbilityIndex: number/);
-  assert.doesNotMatch(command, /useState\(0\)/);
-  assert.match(command, /event\.key\.toLowerCase\(\) === "a"/);
-  assert.match(command, /openKeyboardWheel/);
-  assert.match(command, /closeKeyboardWheel\(true\)/);
-  assert.match(command, /ref=\{abilityListboxRef\}[\s\S]*role="listbox"[\s\S]*tabIndex=\{0\}/);
-  assert.match(command, /restoreCommandFocus/);
-  assert.match(campaign, /const activateWorldPulse = \(abilityIndex: number\)/);
-  assert.match(campaign, /type: "use-field-ability"/);
-  assert.match(gameState, /input\.type === "use-field-ability"/);
+  assert.doesNotMatch(controls, /selectedAbilityIndex|onSelectAbility|onUsePower|fieldPowers/);
+  assert.doesNotMatch(command, /abilityListbox|ability-wheel|onUsePower|onSelectAbility|fieldPowers/);
+  assert.doesNotMatch(campaign, /activateWorldPulse|selectedAbilityByAssetId/);
+  assert.match(command, /open-quick-actions/);
+  assert.match(command, /Train/);
+  assert.match(command, /Recover/);
+  assert.match(command, /View in Vault/);
+  assert.match(controls, /type: "train"/);
+  assert.match(controls, /type: "panel", key: "vault"/);
 });
 
 test("different named field abilities produce different authoritative play effects", () => {
@@ -261,26 +250,6 @@ test("focused ability arrows change selection without producing world movement",
   const after = movementIntents.reduce((state, input) => input ? applyWildsInput(state, input) : state, initial);
   assert.deepEqual(movementIntents, [null, null, null, null]);
   assert.deepEqual(after.player, initial.player);
-});
-
-test("exclusive cancellation closes a keyboard wheel without stealing focus into the world", () => {
-  const opened = openCompanionKeyboardInteraction(1, 4);
-  assert.deepEqual(opened, {
-    mode: "ability-wheel",
-    activeAbilityIndex: 1,
-    keyboardWheelOpen: true,
-    restoreFocus: false
-  });
-
-  const cancelled = resetCompanionCommandInteraction("owner-cancel");
-  assert.deepEqual(cancelled, {
-    mode: "pending",
-    activeAbilityIndex: null,
-    keyboardWheelOpen: false,
-    restoreFocus: false
-  });
-  assert.equal(resetCompanionCommandInteraction("escape").restoreFocus, true);
-  assert.equal(resetCompanionCommandInteraction("commit").restoreFocus, true);
 });
 
 test("production bootstrap, artifact commit, and identity reset helpers preserve proof-derived rendering", () => {

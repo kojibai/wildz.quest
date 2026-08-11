@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 
 const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
 const companion = readFileSync("src/features/play/WildsCompanionCommand.tsx", "utf8");
+const companionGesture = readFileSync("src/features/play/companion-command-gesture.ts", "utf8");
 const trainer = readFileSync("src/features/play/WildsTrainerEncounter.tsx", "utf8");
 const arena = readFileSync("src/features/games/mortal-arena/MortalArenaExperience.tsx", "utf8");
 const css = readFileSync("app/globals.css", "utf8");
@@ -11,8 +12,9 @@ const css = readFileSync("app/globals.css", "utf8");
 describe("flagship mobile release contracts", () => {
   it("keeps primary gameplay interactions semantic and keyboard reachable", () => {
     assert.match(companion, /onKeyDown/);
-    for (const key of ["Enter", "ArrowLeft", "ArrowRight", "ArrowUp", "Escape"]) assert.match(companion, new RegExp(key));
-    assert.match(companion, /aria-activedescendant/);
+    for (const key of ["Enter", "ArrowLeft", "ArrowRight", "ArrowUp", "Escape"]) assert.match(`${companion}\n${companionGesture}`, new RegExp(key));
+    assert.match(companion, /aria-expanded=\{quickActionsOpen\}/);
+    assert.match(companion, /role="dialog"/);
     assert.match(trainer, /aria-modal="true"/);
     assert.match(trainer, /role="dialog"/);
     assert.match(trainer, /aria-live="assertive"/);

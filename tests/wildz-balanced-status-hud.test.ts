@@ -70,3 +70,15 @@ test("balanced homes remain touch-safe and collision-aware at phone and short-la
   assert.match(css, /\.wilds-live-chat label button\s*\{[^}]*min-height:\s*44px;/);
   assert.match(css, /\.wilds-audio-mute\s*\{[^}]*min-height:\s*44px;/);
 });
+
+test("top-right status uses one primary row, slimmer event rows, and elevated live popovers", () => {
+  const css = read("app/globals.css");
+  const finalCss = css.slice(css.lastIndexOf("/* Unified living-world overlay"));
+
+  assert.match(finalCss, /\.wilds-map-status-home\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*repeat\(3,\s*44px\)/s);
+  assert.match(finalCss, /\.wilds-map-status-home :is\(\.wilds-living-world-hud, \.wilds-live-cluster\)\s*\{[^}]*display:\s*contents/s);
+  assert.match(finalCss, /\.wilds-map-status-home \.wilds-live-pill\.event\s*\{[^}]*grid-column:\s*1\s*\/\s*-1[^}]*min-height:\s*44px/s);
+  assert.match(finalCss, /\.wilds-map-status-home \.wilds-live-pill\.event::before\s*\{[^}]*inset-block:\s*4px/s);
+  assert.match(finalCss, /\.wilds-stage\.multiplayer-roster-open \.wilds-map-status-home\s*\{[^}]*z-index:/s);
+  assert.match(css, /\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(228px \+ var\(--wildz-stage-safe-top\)\)/s);
+});

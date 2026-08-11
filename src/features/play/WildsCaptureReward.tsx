@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { Icons } from "@/components/icons";
 import type { PortableCardAsset } from "./portable-card";
 import { WildsCard } from "./WildsCard";
 
@@ -24,7 +25,14 @@ export function WildsCaptureReward({ asset, onClose }: { asset: PortableCardAsse
             <h2 id="wilds-capture-title" ref={titleRef} tabIndex={-1}>{asset.manifest.name} joined your Wilds</h2>
             <p id="wilds-capture-status">Portable, verified, and ready in your inventory.</p>
           </div>
-          <button className="button button-primary" onClick={onClose} type="button">Open inventory</button>
+          <div aria-label={`${asset.manifest.name} sealed stats`} className="wilds-capture-seal-facts">
+            <span><small>Health</small><strong>{asset.manifest.stats.health}</strong></span>
+            <span><small>Power</small><strong>{asset.manifest.stats.power}</strong></span>
+            <span><small>Guard</small><strong>{asset.manifest.stats.guard}</strong></span>
+            <span><small>Speed</small><strong>{asset.manifest.stats.speed}</strong></span>
+            <span><small>Bond</small><strong>{asset.manifest.stats.bond}</strong></span>
+          </div>
+          <button className="wilds-capture-action button button-primary" onClick={onClose} type="button"><Icons.collections aria-hidden="true" size={18} /><span>Open Card Vault</span><small>View sealed character</small></button>
         </div>
         <WildsCard asset={asset} />
       </section>

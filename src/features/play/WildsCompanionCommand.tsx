@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { Icons } from "@/components/icons";
 import {
   advanceCompanionGesture,
   cancelCompanionGesture,
+  companionCommandKeyResult,
+  COMPANION_HOLD_MS,
   createCompanionGesture,
   moveCompanionGesture,
   releaseCompanionGesture,
@@ -14,38 +17,28 @@ import { companionCarousel, cycleVaultCompanion } from "./companion-command-mode
 import { playWildsHaptic } from "./wilds-haptics";
 import type { WildsAudioCue } from "./wilds-audio";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
-import { nextCompanionAbilityIndex, type CompanionAbilityNavigationKey } from "./companion-ability-composite";
-import { canRestoreFocus } from "./focus-recovery";
 import type { VaultCompanionRosterEntry } from "./vault-companion-roster";
-import {
-  openCompanionKeyboardInteraction,
-  resetCompanionCommandInteraction,
-  type CompanionCommandInteractionState
-} from "./companion-command-interaction";
-
-export type WildsCompanionPower = { id: string; label: string };
+import { canRestoreFocus } from "./focus-recovery";
 
 export function WildsCompanionCommand({
   entries,
   activeEntry,
-  fieldPowers,
   onSelectCard,
-  onUsePower,
-  onSelectAbility,
-  selectedAbilityIndex,
   onRequestDrawer,
+  onTrainCharacter,
+  onRecoverCharacter,
+  onViewInVault,
   onCommandButtonReady,
   onAudioCue,
   cancelSignal = 0
 }: {
   entries: readonly VaultCompanionRosterEntry[];
   activeEntry: VaultCompanionRosterEntry | null;
-  fieldPowers: readonly WildsCompanionPower[];
   onSelectCard: (assetId: string) => void;
-  onUsePower: (abilityIndex: number) => void;
-  onSelectAbility: (abilityIndex: number) => void;
-  selectedAbilityIndex: number;
   onRequestDrawer: (snap: "preview" | "expanded") => void;
+  onTrainCharacter: (familyId: string) => void;
+  onRecoverCharacter: () => void;
+  onViewInVault: () => void;
   onCommandButtonReady?: (button: HTMLButtonElement | null) => void;
   onAudioCue?: (cue: WildsAudioCue) => void;
   cancelSignal?: number;
@@ -55,19 +48,14 @@ export function WildsCompanionCommand({
   const pointerCaptureTargetRef = useRef<HTMLButtonElement | null>(null);
   const holdTimerRef = useRef<number | null>(null);
   const renderFrameRef = useRef<number | null>(null);
-  const focusFrameRef = useRef<number | null>(null);
   const commandButtonRef = useRef<HTMLButtonElement | null>(null);
-  const abilityListboxRef = useRef<HTMLDivElement | null>(null);
+  const quickActionsRef = useRef<HTMLDivElement | null>(null);
   const [mode, setMode] = useState<CompanionGestureState["mode"]>("pending");
-  const [activeAbilityIndex, setActiveAbilityIndex] = useState<number | null>(null);
-  const [keyboardWheelOpen, setKeyboardWheelOpen] = useState(false);
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const projection = useMemo(
     () => companionCarousel(entries.map((entry) => ({ id: entry.asset.id })), activeEntry?.asset.id ?? null),
     [activeEntry?.asset.id, entries]
   );
-  const abilityCount = Math.max(1, Math.min(4, fieldPowers.length));
-  const normalizedActiveAbilityIndex = activeAbilityIndex === null ? null : activeAbilityIndex % abilityCount;
-
   const clearHold = () => {
     if (holdTimerRef.current !== null) window.clearTimeout(holdTimerRef.current);
     holdTimerRef.current = null;
@@ -78,14 +66,7 @@ export function WildsCompanionCommand({
     renderFrameRef.current = window.requestAnimationFrame(() => {
       renderFrameRef.current = null;
       setMode(gesture.mode);
-      setActiveAbilityIndex(gesture.activeAbilityIndex);
     });
-  };
-
-  const applyInteractionState = (state: CompanionCommandInteractionState) => {
-    setMode(state.mode);
-    setActiveAbilityIndex(state.activeAbilityIndex);
-    setKeyboardWheelOpen(state.keyboardWheelOpen);
   };
 
   const releaseActivePointerCapture = () => {
@@ -103,7 +84,6 @@ export function WildsCompanionCommand({
   useEffect(() => () => {
     clearHold();
     if (renderFrameRef.current !== null) window.cancelAnimationFrame(renderFrameRef.current);
-    if (focusFrameRef.current !== null) window.cancelAnimationFrame(focusFrameRef.current);
   }, []);
 
   const cycle = (direction: -1 | 1) => {
@@ -115,26 +95,20 @@ export function WildsCompanionCommand({
   };
 
   const consume = (result: CompanionGestureResult) => {
-    if (result.kind === "tap-power") {
-      playWildsHaptic("confirm");
-      onUsePower(selectedAbilityIndex);
+    if (result.kind === "open-quick-actions") {
+      playWildsHaptic("drawer-open");
+      setQuickActionsOpen(true);
+    } else if (result.kind === "open-drawer-expanded") {
+      playWildsHaptic("drawer-open");
+      onRequestDrawer("expanded");
     } else if (result.kind === "cycle-next") {
       cycle(1);
     } else if (result.kind === "cycle-previous") {
       cycle(-1);
-    } else if (result.kind === "open-drawer") {
-      playWildsHaptic("drawer-open");
-      onRequestDrawer("preview");
-    } else if (result.kind === "select-ability") {
-      const index = result.index % abilityCount;
-      onSelectAbility(index);
-      playWildsHaptic("confirm");
     } else if (result.kind === "cancel") {
       playWildsHaptic("cancel");
     }
     setMode("pending");
-    setActiveAbilityIndex(null);
-    setKeyboardWheelOpen(false);
   };
 
   const pointerPoint = (event: ReactPointerEvent<HTMLButtonElement>) => ({ x: event.clientX, y: event.clientY });
@@ -153,21 +127,14 @@ export function WildsCompanionCommand({
       if (!gestureRef.current) return;
       const advanced = advanceCompanionGesture(gestureRef.current, performance.now());
       gestureRef.current = advanced;
-      if (advanced.mode === "ability-wheel") playWildsHaptic("wheel-open");
-      if (advanced.mode === "ability-wheel") setKeyboardWheelOpen(false);
       renderGesture(advanced);
-    }, 96);
+    }, COMPANION_HOLD_MS);
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (!gestureRef.current || activePointerIdRef.current !== event.pointerId) return;
-    const previousIndex = gestureRef.current.activeAbilityIndex;
     const moved = moveCompanionGesture(gestureRef.current, pointerPoint(event), performance.now());
     gestureRef.current = moved;
-    if (moved.activeAbilityIndex !== previousIndex && moved.activeAbilityIndex !== null) {
-      playWildsHaptic("wheel-detent");
-      onAudioCue?.("companion-detent");
-    }
     if (moved.mode !== "pending") clearHold();
     renderGesture(moved);
   };
@@ -192,37 +159,14 @@ export function WildsCompanionCommand({
     consume(cancelCompanionGesture(gesture));
   };
 
-  const openKeyboardWheel = () => {
-    applyInteractionState(openCompanionKeyboardInteraction(selectedAbilityIndex, abilityCount));
-    playWildsHaptic("wheel-open");
-  };
-
-  const restoreCommandFocus = () => {
-    if (focusFrameRef.current !== null) window.cancelAnimationFrame(focusFrameRef.current);
-    focusFrameRef.current = window.requestAnimationFrame(() => {
-      focusFrameRef.current = null;
-      if (canRestoreFocus(commandButtonRef.current)) commandButtonRef.current.focus();
-    });
-  };
-
-  const closeKeyboardWheel = (commit: boolean) => {
-    const index = (activeAbilityIndex ?? selectedAbilityIndex) % abilityCount;
-    if (commit) onSelectAbility(index);
-    const reset = resetCompanionCommandInteraction(commit ? "commit" : "escape");
-    applyInteractionState(reset);
-    playWildsHaptic(commit ? "confirm" : "cancel");
-    if (reset.restoreFocus) restoreCommandFocus();
-  };
-
   const cancelAllInteractions = () => {
     clearHold();
     if (renderFrameRef.current !== null) window.cancelAnimationFrame(renderFrameRef.current);
     renderFrameRef.current = null;
-    if (focusFrameRef.current !== null) window.cancelAnimationFrame(focusFrameRef.current);
-    focusFrameRef.current = null;
     gestureRef.current = null;
     releaseActivePointerCapture();
-    applyInteractionState(resetCompanionCommandInteraction("owner-cancel"));
+    setQuickActionsOpen(false);
+    setMode("pending");
   };
   const cancelAllInteractionsRef = useRef(cancelAllInteractions);
   cancelAllInteractionsRef.current = cancelAllInteractions;
@@ -231,89 +175,57 @@ export function WildsCompanionCommand({
     cancelAllInteractionsRef.current();
   }, [cancelSignal]);
 
-  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key.toLowerCase() === "a") {
-      event.preventDefault();
-      openKeyboardWheel();
-      return;
-    }
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      onUsePower(selectedAbilityIndex);
-      playWildsHaptic("confirm");
-    } else if (event.key === "ArrowLeft") {
-      event.preventDefault();
-      cycle(-1);
-    } else if (event.key === "ArrowRight") {
-      event.preventDefault();
-      cycle(1);
-    } else if (event.key === "ArrowUp") {
-      event.preventDefault();
-      onRequestDrawer("preview");
-    } else if (event.key === "Escape") {
-      event.preventDefault();
-      cancelPointer();
-      setMode("pending");
-    }
-  };
-
-  const onAbilityKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      event.stopPropagation();
-      closeKeyboardWheel(true);
-      return;
-    }
-    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
-      event.preventDefault();
-      event.stopPropagation();
-      setActiveAbilityIndex((current) => nextCompanionAbilityIndex(
-        current ?? selectedAbilityIndex,
-        event.key as CompanionAbilityNavigationKey,
-        abilityCount
-      ));
-      playWildsHaptic("wheel-detent");
-      return;
-    }
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      closeKeyboardWheel(false);
-    }
-  };
-
-  const wheelOpen = mode === "ability-wheel";
   useEffect(() => {
-    if (!wheelOpen || !keyboardWheelOpen) return;
-    if (focusFrameRef.current !== null) window.cancelAnimationFrame(focusFrameRef.current);
-    focusFrameRef.current = window.requestAnimationFrame(() => {
-      focusFrameRef.current = null;
-      abilityListboxRef.current?.focus();
-    });
-  }, [keyboardWheelOpen, wheelOpen]);
+    if (!quickActionsOpen) return;
+    const frame = window.requestAnimationFrame(() => quickActionsRef.current?.querySelector<HTMLElement>("button")?.focus());
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setQuickActionsOpen(false);
+      window.requestAnimationFrame(() => commandButtonRef.current?.focus());
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [quickActionsOpen]);
 
-  return <div className={`wilds-companion-command-zone mode-${mode}`}>
-    {wheelOpen ? <div
-      aria-activedescendant={normalizedActiveAbilityIndex === null ? undefined : `wilds-companion-ability-${normalizedActiveAbilityIndex}`}
-      aria-label="Choose active companion ability"
-      className="wilds-companion-ability-wheel"
-      onKeyDown={onAbilityKeyDown}
-      ref={abilityListboxRef}
-      role="listbox"
-      tabIndex={0}
-    >
-      {fieldPowers.slice(0, 4).map((power, index) => <div
-        aria-selected={normalizedActiveAbilityIndex === index}
-        className={`wilds-companion-ability ability-${index}${normalizedActiveAbilityIndex === index ? " is-active" : ""}`}
-        id={`wilds-companion-ability-${index}`}
-        key={power.id}
-        role="option"
-      >{power.label}</div>)}
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const result = companionCommandKeyResult(event.key);
+    if (!result) return;
+    event.preventDefault();
+    if (result === "cycle-previous") cycle(-1);
+    else if (result === "cycle-next") cycle(1);
+    else if (result === "open-quick-actions") consume({ kind: result });
+    else if (result === "open-drawer-expanded") consume({ kind: result });
+    else cancelPointer();
+  };
+
+  const runQuickAction = (action: () => void) => {
+    setQuickActionsOpen(false);
+    action();
+    window.requestAnimationFrame(() => {
+      if (canRestoreFocus(commandButtonRef.current)) commandButtonRef.current.focus();
+    });
+  };
+
+  return <div className={`wilds-companion-command-zone mode-${mode}${quickActionsOpen ? " quick-actions-open" : ""}`}>
+    {quickActionsOpen && activeEntry ? <div aria-label={`${activeEntry.name} character actions`} className="wilds-companion-quick-actions" ref={quickActionsRef} role="dialog">
+      <header>
+        <WildsCreatureThumbnail asset={activeEntry.asset} className="wilds-companion-quick-portrait" />
+        <span><strong>{activeEntry.name}</strong><small>Lv. {activeEntry.level} · {activeEntry.xp} XP · Bond {activeEntry.bond}</small><b>{activeEntry.element} · {activeEntry.conditionLabel}</b></span>
+        <button aria-label="Close character actions" onClick={() => runQuickAction(() => {})} type="button"><Icons.close aria-hidden="true" size={17} /></button>
+      </header>
+      <div>
+        <button onClick={() => runQuickAction(() => onTrainCharacter(activeEntry.asset.manifest.familyId))} type="button">Train</button>
+        <button onClick={() => runQuickAction(onRecoverCharacter)} type="button">Recover</button>
+        <button onClick={() => runQuickAction(onViewInVault)} type="button">View in Vault</button>
+      </div>
     </div> : null}
     <button
-      aria-label={activeEntry ? `${activeEntry.name}. Tap to use ${fieldPowers[selectedAbilityIndex]?.label ?? "field power"}. Swipe sideways to change companion, swipe up for roster, or hold for abilities.` : "No selectable creature in this Vault."}
-      aria-expanded={wheelOpen}
-      aria-haspopup="listbox"
+      aria-expanded={quickActionsOpen}
+      aria-label={activeEntry ? `${activeEntry.name}. Open character actions. Swipe sideways to change character, flick up for the full roster, or hold for character actions.` : "No selectable creature in this Vault."}
       className="wilds-companion-command"
       disabled={!activeEntry}
       onKeyDown={onKeyDown}
@@ -331,7 +243,6 @@ export function WildsCompanionCommand({
       {activeEntry ? <>
         <WildsCreatureThumbnail asset={activeEntry.asset} className="wilds-companion-active-portrait" />
         <strong className="wilds-companion-real-name">{activeEntry.name}</strong>
-        <span className="wilds-companion-power-label">{fieldPowers[selectedAbilityIndex]?.label ?? "Power"}</span>
         <small>{projection.position}/{projection.total}</small>
       </> : <span className="wilds-companion-empty-copy">No selectable creature in this Vault.</span>}
     </button>

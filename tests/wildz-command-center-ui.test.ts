@@ -42,6 +42,7 @@ test("Eternal Pulse opens a contained, keyboard-safe Kai teaching inspector", as
 test("Kai teaching inspector remains inside the cockpit and scrolls without a blank surface", async () => {
   const css = await readFile("app/globals.css", "utf8");
   assert.match(css, /\.wilds-kai-inspector-popover\s*\{[\s\S]*position:\s*absolute[\s\S]*max-height:[\s\S]*overflow-y:\s*auto/s);
+  assert.match(css, /:is\(\.wilds-command-sheet-content, \.wilds-kai-inspector-popover, \.wilds-audio-sheet, \.wilds-living-world-sheet, \.wilds-live-sheet\)\s*\{[^}]*touch-action:\s*pan-y/s);
   assert.match(css, /\.wilds-kai-inspector-popover\s*\{[\s\S]*background:[^;]*(#030d12|rgb\()/s);
   assert.match(css, /\.wilds-kai-moment-utterance/);
   assert.match(css, /\.wilds-kai-moment-utterance\s*\{[^}]*white-space:\s*normal/s);

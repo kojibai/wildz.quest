@@ -91,7 +91,6 @@ function WorldControlsFocusRecoveryFixture() {
       {exclusiveOwner}:{overlayState.drawerSnap}
     </output>
     <WildzWorldControls
-      action={{ kind: "fixture", label: "Fixture power" }}
       activeCard={activeCard}
       cameraHeadingRef={cameraHeadingRef}
       cardConditions={{}}
@@ -104,16 +103,13 @@ function WorldControlsFocusRecoveryFixture() {
       movementMode="walk"
       nearbyCards={fixtureAssets}
       newRosterAssetId={null}
-      onAction={() => {}}
       onCardOrderChange={() => {}}
       onInput={() => {}}
       onMovementModeChange={() => {}}
       onRest={() => {}}
-      onSelectAbility={() => {}}
       onSelectCard={setSelectedAssetId}
       overlayDispatch={(event) => setOverlayState((state) => reduceWorldOverlay(state, event))}
       overlayState={overlayState}
-      selectedAbilityIndex={0}
     />
   </section>;
 }

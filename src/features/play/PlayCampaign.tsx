@@ -162,7 +162,6 @@ export function PlayCampaign({
   const [state, setState] = useState(() => initialState);
   const [saveRestored, setSaveRestored] = useState(false);
   const [memorialAssetId, setMemorialAssetId] = useState<string | null>(null);
-  const [selectedAbilityByAssetId, setSelectedAbilityByAssetId] = useState<Record<string, number>>({});
   const explorerStyle = character.gender;
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
   const [mapOpen, setMapOpen] = useState(false);
@@ -716,6 +715,7 @@ export function PlayCampaign({
   const proximityLabel = state.encounter.phase === "idle"
     ? "Tap terrain to scan"
     : `${activeProximity}${state.encounter.trend ? ` · ${state.encounter.trend}` : ""}`;
+  const captureToastActive = ["emerging", "capsule", "sealed", "revealed"].includes(state.encounter.phase);
   const currentLandmark = landmarkAtPosition(state.player);
   const civic = projectWildsCivicHistory(state.civicEvents);
   const civicActorId = normalizeWildsCivicActorId(ownerReceizId);
@@ -756,10 +756,6 @@ export function PlayCampaign({
   const pulse = nearbyEcology && (basePulse.kind === "scan" || basePulse.kind === "greet")
     ? { kind: "join" as const, label: `${nearbyEcology.site.phase === "foreshadowed" ? "Discover" : "Enter"} ${nearbyEcology.site.name}`, activityId: nearbyEcology.site.id }
     : basePulse;
-  const visiblePulse = pulse.kind === "enter" && currentLandmarkAccess && !currentLandmarkAccess.allowed
-    ? { ...pulse, label: `Inspect sealed ${currentLandmark?.name ?? "landmark"}` }
-    : pulse;
-  const selectedAbilityIndex = activeAsset ? selectedAbilityByAssetId[activeAsset.id] ?? 0 : 0;
   const heartbeatMood = state.energy < 30 ? "Protective" : state.encounter.phase === "idle" ? "Curious" : "Alert";
   const heartbeatMemory = state.lastEvent || "Your pack remembers the first trail into the Wilds.";
   const heartbeatWhispers = [
@@ -901,16 +897,6 @@ export function PlayCampaign({
       searchedAt: new Date().toISOString(),
       ownerReceizId
     });
-  };
-  const activateWorldPulse = (abilityIndex: number) => {
-    if (!canUseWorldStage()) return;
-    if (activeAsset) dispatch({
-      type: "use-field-ability",
-      assetId: activeAsset.id,
-      abilityIndex,
-      usedAt: new Date().toISOString()
-    });
-    activatePulse();
   };
   const activatePulseFromCommandPanel = () => {
     if (modalOwner !== "none" || worldOverlayState.panelKey !== "commandCenter") return;
@@ -1274,7 +1260,6 @@ export function PlayCampaign({
 
             <WildzWorldControls
               activeCard={activeAsset}
-              action={visiblePulse}
               cameraHeadingRef={cameraHeadingRef}
               cardConditions={state.adventureConditions}
               cardOrder={cardOrder}
@@ -1284,12 +1269,10 @@ export function PlayCampaign({
               exclusiveOwner={exclusiveOwner}
               gestureCancelSignal={gestureCancelSignal}
               newRosterAssetId={newRosterAssetId}
-              selectedAbilityIndex={selectedAbilityIndex}
               movementMode={movementMode}
               nearbyCards={state.inventory}
               overlayDispatch={dispatchStageOverlay}
               overlayState={worldOverlayState}
-              onAction={activateWorldPulse}
               onAudioCue={presentation.playCue}
               onCardOrderChange={setCardOrder}
               onInput={dispatchWorldInput}
@@ -1297,10 +1280,6 @@ export function PlayCampaign({
               onRequestedCommandHandled={() => setRequestedCommand(null)}
               onRest={() => dispatchWorldInput({ type: "rest", at: new Date().toISOString() })}
               onSelectCard={(assetId) => dispatchWorldInput({ type: "select-asset", assetId })}
-              onSelectAbility={(abilityIndex) => {
-                if (!activeAsset || !canUseWorldStage()) return;
-                setSelectedAbilityByAssetId((current) => ({ ...current, [activeAsset.id]: abilityIndex }));
-              }}
               requestedCommand={requestedCommand}
             />
 
@@ -1319,8 +1298,10 @@ export function PlayCampaign({
 
             {discoveryActive ? <div className={`wilds-search-reticle ${state.encounter.phase === "idle" ? "" : activeProximity}`} aria-live="polite">{proximityLabel}</div> : null}
 
-            <div className="wilds-event-toast" aria-live="polite">
-              {riftError || (activeLandmarkId ? `${currentLandmark?.name ?? "Landmark"} entrance awakened.` : state.lastEvent)}
+            <div className={`wilds-event-toast${captureToastActive ? " is-capture" : ""}`} aria-live="polite">
+              {captureToastActive ? <Icons.seal aria-hidden="true" size={19} /> : null}
+              <span>{riftError || (activeLandmarkId ? `${currentLandmark?.name ?? "Landmark"} entrance awakened.` : state.lastEvent)}</span>
+              {captureToastActive ? <small>Portable proof sequence</small> : null}
             </div>
           </div>
 
@@ -1542,6 +1523,7 @@ export function PlayCampaign({
       {exclusiveOwner === "reward" ? <WildsCaptureReward asset={captureRewardAsset} onClose={() => {
         releasePlayModalOwner("reward");
         dispatch({ type: "dismiss-reveal" });
+        window.requestAnimationFrame(() => setRequestedCommand("vault"));
       }} /> : null}
       {exclusiveOwner === "ceremony" ? <>
         <WildsTransformation state={state} onInput={dispatch} />

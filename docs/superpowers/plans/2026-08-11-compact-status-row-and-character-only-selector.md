@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Put the three top-right status controls in one collision-free row, slim the event bars beneath them without truncation, keep audio unchanged, and make the bottom-right companion control open only the owned-character roster.
+**Goal:** Put the three top-right status controls in one collision-free row, slim the event bars beneath them without truncation, keep audio unchanged, make the bottom-right companion control character-only, repair mobile sheet scrolling, and premiumize capture feedback.
 
 **Architecture:** Keep Kai Klok and all domain components intact. Change only final HUD composition CSS and the companion command’s activation contract; the existing Vault roster projection, drawer, selection reducer, focus restoration, and modal ownership remain authoritative.
 
@@ -16,7 +16,7 @@
 - The opened live roster stacks above Kai Klok, audio, and every resting HUD control.
 - Status/event visuals may shrink, but every semantic target remains at least 44 by 44 CSS pixels.
 - Audio control and icon dimensions remain unchanged.
-- Bottom-right tap/Enter/Space opens the compact Slate roster; upward flick or hold opens the expanded Slate roster; none opens or executes field abilities.
+- Bottom-right tap/hold/Enter/Space opens compact real character actions; upward flick opens expanded Slate; none opens or executes field abilities.
 - Character selection continues through the existing authoritative `select-asset` path using exact sealed Vault names and IDs.
 - Do not create a replacement field-ability HUD control.
 

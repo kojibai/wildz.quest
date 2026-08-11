@@ -4,7 +4,7 @@ import { test } from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("active companion command exposes one Vault portrait and the full semantic gesture surface", () => {
+test("active companion command is a character-only Vault selector", () => {
   const source = read("src/features/play/WildsCompanionCommand.tsx");
   assert.match(source, /WildsCreatureThumbnail/);
   assert.match(source, /asset=\{activeEntry\.asset\}/);
@@ -13,33 +13,23 @@ test("active companion command exposes one Vault portrait and the full semantic 
   assert.match(source, /setPointerCapture/);
   assert.match(source, /capture is optional/);
   assert.match(source, /releaseCompanionGesture/);
-  for (const result of ["tap-power", "cycle-next", "cycle-previous", "open-drawer", "select-ability"]) {
+  for (const result of ["open-drawer-expanded", "open-quick-actions", "cycle-next", "cycle-previous"]) {
     assert.match(source, new RegExp(result));
   }
+  assert.doesNotMatch(source, /fieldPowers|onUsePower|onSelectAbility|ability-wheel|role="listbox"|Grove Pulse/);
+  assert.match(source, /Bond \{activeEntry\.bond\}/);
 });
 
-test("hold and slide has accessible abilities and equivalent keyboard controls", () => {
+test("tap and hold expose real character actions while upward flick opens the full roster", () => {
   const source = read("src/features/play/WildsCompanionCommand.tsx");
-  assert.match(source, /role="listbox"/);
-  assert.match(source, /aria-activedescendant/);
-  assert.match(source, /event\.key === "Enter"|event\.key === " "/);
-  assert.match(source, /ArrowLeft/);
-  assert.match(source, /ArrowRight/);
-  assert.match(source, /ArrowUp/);
-  assert.match(source, /Escape/);
-  assert.match(source, /playWildsHaptic\("wheel-open"\)/);
-  assert.match(source, /playWildsHaptic\("wheel-detent"\)/);
-});
-
-test("raw wheel sectors visibly select the same normalized ability that release equips", () => {
-  const source = read("src/features/play/WildsCompanionCommand.tsx");
-  assert.match(source, /const normalizedActiveAbilityIndex = activeAbilityIndex === null \? null : activeAbilityIndex % abilityCount/);
-  assert.match(source, /aria-activedescendant=\{normalizedActiveAbilityIndex === null \? undefined : `wilds-companion-ability-\$\{normalizedActiveAbilityIndex\}`\}/);
-  assert.match(source, /aria-selected=\{normalizedActiveAbilityIndex === index\}/);
-  assert.match(source, /normalizedActiveAbilityIndex === index \? " is-active" : ""/);
-  assert.match(source, /const index = result\.index % abilityCount;[\s\S]*onSelectAbility\(index\)/);
-  assert.match(source, /selectedAbilityIndex: number/);
-  assert.doesNotMatch(source, /aria-selected=\{activeAbilityIndex === index\}/);
+  assert.match(source, /companionCommandKeyResult/);
+  assert.match(source, /setQuickActionsOpen\(true\)/);
+  assert.match(source, /onRequestDrawer\("expanded"\)/);
+  assert.match(source, /advanceCompanionGesture/);
+  assert.match(source, /Train/);
+  assert.match(source, /Recover/);
+  assert.match(source, /View in Vault/);
+  assert.match(source, /Swipe sideways to change character, flick up for the full roster, or hold for character actions/);
 });
 
 test("companion command is thumb-sized, safe-area aware, directional, and motion-safe", () => {
@@ -53,7 +43,7 @@ test("companion command is thumb-sized, safe-area aware, directional, and motion
 test("the command requests controlled drawer snaps and replaces the duplicate action rails", () => {
   const command = read("src/features/play/WildsCompanionCommand.tsx");
   const drawer = read("src/features/play/WildzCreatureDrawer.tsx");
-  assert.match(command, /onRequestDrawer\("preview"\)/);
+  assert.match(command, /open-quick-actions/);
   assert.match(drawer, /onSnapChange: \(snap: CreatureDrawerSnap\) => void/);
   assert.doesNotMatch(drawer, /useState<CreatureDrawerSnap>\("closed"\)/);
   assert.match(read("src/features/play/WildzWorldControls.tsx"), /<WildsCompanionCommand/);

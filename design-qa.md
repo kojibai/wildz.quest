@@ -1,35 +1,21 @@
-# Wildz reference redesign — design QA
+# Design QA — Compact HUD, Character Actions, and Capture Feedback
 
-Date: 2026-07-15
-Reference: supplied portrait creature-exploration UI
-Verified viewport: 390 × 844, production build, clean origin
+## Source and implementation comparison
 
-## Acceptance
+| User reference | Final implementation |
+| --- | --- |
+| ![User HUD reference](/var/folders/0v/qr5byqbx4971q67dn1f05tdr0000gn/T/TemporaryItems/NSIRD_screencaptureui_XwZTzf/Screenshot%202026-08-11%20at%209.14.15%E2%80%AFAM.png) | ![Final 390×844 HUD](/Users/bjklock/Kai-Turah/wildz.quest/output/playwright/final-compact-hud-390x844.png) |
 
-- Fullscreen world remains the primary surface.
-- Original control contract is preserved: scan, cold/warm/hot feedback, camp, walk/run, context action, train, mission, map, profile, market, rewards, Active Deck, Card Vault, audio, live players, and share.
-- Gameplay controls retain the original 3 / centered D-pad / 3 orientation.
-- Bottom sheet follows the reference hierarchy: companion/trade carousel above a six-icon sculpted navigation rail.
-- Sealcub uses a real illustrated portrait in the sheet and a rendered companion actor in the world.
-- Mission is a compact lower-right gameplay meter; the minimap and top overlay capsules use reduced footprints.
-- Audio/map and live/share controls sit in horizontal rows below their corresponding top capsules without overlap.
-- Active Deck and Card Vault open and close successfully as bottom sheets.
-- Console errors/warnings: none.
-- Mobile safe area and PWA standalone behavior remain intact.
+## Comparison findings
 
-## Visual scorecard
+- The three top-right controls now occupy one right-aligned row at x=238, 288, and 338 on the 390px viewport, leaving an 8px right safe margin.
+- The scan/warm action owns a separate vertical band at y=228. Its rectangle has zero intersection with any of the three status controls at 320×568, 390×844, and 844×390.
+- Kai Klok and the 44×44 audio control retain their prior left-side geometry and behavior.
+- The bottom-right control contains only the selected real Vault creature. Tap/hold opens real character actions; upward flick opens Slate; no ability wheel is mounted.
+- Card Vault and Kai Klok teaching both expose one `pan-y` outer scroller. A real browser wheel/touch-scroll advanced Card Vault 420px continuously and Kai teaching to its 172.5px maximum while nested content remained non-scrolling.
+- The live roster is visually and interactively above the resting HUD while open.
+- Capture locking, sealing, world toast, real five-stat reward, and Card Vault handoff share the new proof-seal treatment without changing capture authority.
 
-1. Composition and gameplay priority: pass
-2. Reference hierarchy fidelity: pass
-3. Creature art and identity: pass
-4. Control clarity and reachability: pass
-5. Typography and numeric readability: pass
-6. Surface/material consistency: pass
-7. Overlay density and occlusion: pass
-8. Responsive mobile fit: pass
-9. Interaction state clarity: pass
-10. Functional preservation: pass
+## Result
 
-Automatic failures observed: none.
-
-final result: passed
+Passed — no blocking overlap, truncation, target-size, scrolling, ownership, or character-selector regression found in the final responsive implementation.

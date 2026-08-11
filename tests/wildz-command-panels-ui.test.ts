@@ -55,6 +55,13 @@ test("Vault keeps its proof actions while using the compact premium header", () 
   assert.match(inventory, /aria-label="Sort card vault"/);
 });
 
+test("all mobile HUD popovers own one continuous vertical touch scroller", () => {
+  const css = source("app/globals.css");
+  assert.match(css, /:is\(\.wilds-command-sheet-content, \.wilds-kai-inspector-popover, \.wilds-audio-sheet, \.wilds-living-world-sheet, \.wilds-live-sheet\)\s*\{[^}]*touch-action:\s*pan-y;[^}]*-webkit-overflow-scrolling:\s*touch;/s);
+  assert.match(css, /\.wilds-command-sheet-content :is\(\.wilds-card-back-scroll, \.wilds-growth-panel ol\)\s*\{[^}]*height:\s*auto;[^}]*max-height:\s*none;[^}]*overflow:\s*visible;[^}]*overscroll-behavior:\s*auto;/s);
+  assert.match(css, /\.wilds-live-sheet \.wilds-live-chat > div\s*\{[^}]*max-height:\s*none;[^}]*overflow:\s*visible;/s);
+});
+
 test("Profile and Market show admitted impact without inventing authority", () => {
   const profile = source("src/features/profile/WildzProfileSheet.tsx");
   const market = source("src/features/market/WildzMarketSheet.tsx");

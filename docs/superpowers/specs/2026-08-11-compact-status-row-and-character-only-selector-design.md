@@ -36,16 +36,24 @@ Nearby world-event bars remain below the three-control primary row. Their semant
 
 The bottom-right companion control is exclusively for owned-character selection:
 
-- pressing or clicking it opens the compact Slate roster preview;
-- Enter or Space opens the same compact roster preview;
+- pressing or clicking it opens a compact active-character action panel;
+- Enter or Space opens the same active-character action panel;
 - horizontal character cycling may remain because it only changes the selected owned character;
 - an upward flick opens the expanded roster with full character stats;
-- press and hold opens that same expanded roster;
+- press and hold opens the same compact active-character action panel with a haptic acknowledgement;
 - the control never opens the field-ability wheel;
 - it never presents Grove Pulse, Bond, or any other field ability;
 - a simple press never executes a field ability.
 
-The opened roster continues to show only selectable living creatures from the admitted player Vault, using exact sealed names, portraits, stats, active state, and the existing authoritative `select-asset` path. Selecting a creature closes the roster and persists through reload as already qualified.
+The compact panel shows the active creature's exact sealed name, portrait, level, XP, bond, element, and condition, plus real Train, Recover, and View in Vault actions. The expanded roster continues to show only selectable living creatures from the admitted player Vault, using exact sealed names, portraits, stats, active state, and the existing authoritative `select-asset` path. Selecting a creature closes the roster and persists through reload as already qualified.
+
+## Mobile Popover Scrolling
+
+Card Vault, Kai Klok teaching, audio, living-world, and live-player surfaces each own one continuous vertical pan. Their outer sheet is the scroll container; nested card history, growth, and chat regions expand into it on mobile rather than trapping or section-snapping the same touch gesture.
+
+## Capture Presentation
+
+Capture logic and proof authority stay unchanged. The locked, sealing, and verifying states use one premium three-step proof treatment; the lower capture notice uses the same seal language; and the reward stage shows the exact sealed creature, five real stats, and a premium action that dismisses the reward and opens Card Vault.
 
 Field abilities are not moved to another world-HUD control in this change. Combat abilities remain available through their existing combat surfaces.
 
@@ -67,8 +75,8 @@ Implementation is complete only after strict red-green tests prove:
 - their semantic targets remain at least 44 by 44 pixels;
 - the audio control and icon remain unchanged;
 - event bars retain 44-pixel semantic targets, use a 36-pixel visible pill, and show complete name and distance text;
-- pointer click and keyboard activation on the bottom-right control open the compact character roster;
-- upward flick and press-and-hold open the expanded character roster;
+- pointer click, press-and-hold, and keyboard activation on the bottom-right control open compact real character actions;
+- upward flick opens the expanded character roster;
 - pointer click and keyboard activation do not open an ability wheel or execute a field ability;
 - Kai Klok source behavior and destination remain unchanged;
 - selecting a real owned creature still updates exact name, portrait, world actor, active ID, and reload state;
@@ -76,4 +84,4 @@ Implementation is complete only after strict red-green tests prove:
 
 ## Out of Scope
 
-This change does not redesign the Kai Klok, Command Center, creature generation, Card Vault, capture, combat, multiplayer behavior, or audio settings sheet. It does not create a replacement world field-ability control.
+This change does not redesign the Kai Klok, Command Center, creature generation, capture mechanics, combat, multiplayer behavior, or audio control/settings content. It does not create a replacement world field-ability control.

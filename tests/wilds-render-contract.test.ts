@@ -98,8 +98,9 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(campaign, /grant: result\.grant,[\s\S]*?playerId: result\.grant\.playerId/);
     assert.match(controls, /aria-label=\{movementMode === "walk" \? "Switch to running" : "Switch to walking"\}/);
     assert.match(controls, /<WildsCompanionCommand/);
-    assert.match(controls, /const handleUsePower = useCallback\(\(abilityIndex: number\) => \{[\s\S]*if \(worldHomesEnabled\) invokeAction\(abilityIndex\);/);
-    assert.match(controls, /onUsePower=\{handleUsePower\}/);
+    assert.match(controls, /const handleTrainCharacter = useCallback[\s\S]*if \(worldHomesEnabled\) forwardInput/);
+    assert.match(controls, /onTrainCharacter=\{handleTrainCharacter\}/);
+    assert.doesNotMatch(controls, /onUsePower|onSelectAbility/);
     assert.match(controls, /<WildzDpad[\s\S]*cameraHeadingRef=\{cameraHeadingRef\}[\s\S]*movementMode=\{movementMode\}/);
     assert.match(route, /getWildsAtlasPresence/);
     assert.match(route, /cache-control": "private, no-store"/);
@@ -124,7 +125,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(experience, /access\?\.summary/);
     assert.doesNotMatch(campaign, /WILDS_ACHIEVEMENTS_KEY|WILDS_TRAIL_PACK_KEY|WILDS_AVATAR_KEY|WILDS_MOVEMENT_MODE_KEY/);
     assert.match(campaign, /evaluateLandmarkAccess/);
-    assert.match(campaign, /Inspect sealed/);
+    assert.match(campaign, /evaluateLandmarkAccess/);
     assert.match(experience, /card\.proof\.digest/);
     assert.match(css, /\.wilds-landmark-experience\s*\{[^}]*position:\s*fixed;[^}]*height:\s*100dvh;[^}]*overflow:\s*hidden/s);
     assert.match(css, /\.wilds-arena-world/);
@@ -249,7 +250,7 @@ describe("Receiz Wilds rendering contract", () => {
     const commandDock = await readFile("src/features/play/WildsCommandDock.tsx", "utf8");
     const css = await readFile("app/globals.css", "utf8");
     const stageControls = source.indexOf("<WildzWorldControls");
-    const eventToast = source.indexOf('<div className="wilds-event-toast"');
+    const eventToast = source.indexOf('<div className={`wilds-event-toast');
 
     assert.ok(stageControls > source.indexOf("<WildsWorldCanvas") && stageControls < eventToast);
     assert.match(controls, /<WildsCommandDock/);
@@ -277,7 +278,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(hudMount, /character=\{character\}/);
     assert.doesNotMatch(hudMount, /activeCard|condition/);
     assert.doesNotMatch(source, /wilds-coordinate-badges/);
-    assert.match(controls, /fieldPowers=\{fieldPowers\}/);
+    assert.doesNotMatch(controls, /fieldPowers=\{fieldPowers\}|onUsePower|onSelectAbility/);
     assert.doesNotMatch(source, /setSearchArmed\(false\)/);
     assert.match(source, /state\.encounter\.proximity/);
   });
@@ -408,6 +409,23 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(css, /\.heartbound-card-art\s*\{[^}]*aspect-ratio:\s*16\s*\/\s*10;/s);
     assert.match(css, /\.wilds-capture-showcase\s*\{[^}]*isolation:\s*isolate/s);
     assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.wilds-capture-capsule/);
+  });
+
+  it("gives capture locking, world feedback, and reward one premium proof language", async () => {
+    const battle = await readFile("src/features/play/WildsBattle.tsx", "utf8");
+    const reward = await readFile("src/features/play/WildsCaptureReward.tsx", "utf8");
+    const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
+    const css = await readFile("app/globals.css", "utf8");
+
+    assert.match(battle, /data-capture-phase=\{encounterPhase\}/);
+    assert.match(battle, /wilds-battle-capture-progress/);
+    assert.match(reward, /wilds-capture-seal-facts/);
+    assert.match(reward, /asset\.manifest\.stats\.health/);
+    assert.match(reward, /className="wilds-capture-action/);
+    assert.match(campaign, /wilds-event-toast\$\{captureToastActive \? " is-capture" : ""\}/);
+    assert.match(campaign, /Icons\.seal/);
+    assert.match(css, /\.wilds-event-toast\.is-capture\s*\{[^}]*border-color:[^}]*background:/s);
+    assert.match(css, /\.wilds-capture-dialog\s*\{[^}]*isolation:\s*isolate/s);
   });
 
   it("renders a complete living character back with exact proof controls", async () => {

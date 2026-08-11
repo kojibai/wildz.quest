@@ -49,10 +49,11 @@ test("panel-owned actions remain available without reopening the world-stage act
   assert.match(campaign, /action\.type === "open-map"\) openWorldMapFromCommandPanel\(\)/);
 });
 
-test("companion actions synchronously consult the stage ownership ref", () => {
-  const campaign = read("src/features/play/PlayCampaign.tsx");
+test("companion roster and quick actions synchronously respect world-home ownership", () => {
+  const controls = read("src/features/play/WildzWorldControls.tsx");
 
-  assert.match(campaign, /const activateWorldPulse = \(abilityIndex: number\) => \{\s*if \(!canUseWorldStage\(\)\) return;[\s\S]*type: "use-field-ability",[\s\S]*abilityIndex,[\s\S]*activatePulse\(\);\s*\}/);
-  assert.match(campaign, /onAction=\{activateWorldPulse\}/);
-  assert.doesNotMatch(campaign, /onAction=\{activatePulse\}/);
+  assert.match(controls, /const handleSelectCard = useCallback[\s\S]*if \(worldHomesEnabled\) selectCard\(assetId\)/);
+  assert.match(controls, /const handleTrainCharacter = useCallback[\s\S]*if \(worldHomesEnabled\) forwardInput/);
+  assert.match(controls, /const handleOpenActiveCardInVault = useCallback[\s\S]*if \(!worldHomesEnabled\) return/);
+  assert.doesNotMatch(controls, /onUsePower|onSelectAbility|selectedAbilityIndex/);
 });
