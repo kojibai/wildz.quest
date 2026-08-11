@@ -17,6 +17,11 @@ import type { WildsAudioCue } from "./wilds-audio";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import { nextCompanionAbilityIndex, type CompanionAbilityNavigationKey } from "./companion-ability-composite";
 import { canRestoreFocus } from "./focus-recovery";
+import {
+  openCompanionKeyboardInteraction,
+  resetCompanionCommandInteraction,
+  type CompanionCommandInteractionState
+} from "./companion-command-interaction";
 
 export type WildsCompanionPower = { id: string; label: string };
 
@@ -45,6 +50,7 @@ export function WildsCompanionCommand({
 }) {
   const gestureRef = useRef<CompanionGestureState | null>(null);
   const activePointerIdRef = useRef<number | null>(null);
+  const pointerCaptureTargetRef = useRef<HTMLButtonElement | null>(null);
   const holdTimerRef = useRef<number | null>(null);
   const renderFrameRef = useRef<number | null>(null);
   const focusFrameRef = useRef<number | null>(null);
@@ -71,6 +77,24 @@ export function WildsCompanionCommand({
       setMode(gesture.mode);
       setActiveAbilityIndex(gesture.activeAbilityIndex);
     });
+  };
+
+  const applyInteractionState = (state: CompanionCommandInteractionState) => {
+    setMode(state.mode);
+    setActiveAbilityIndex(state.activeAbilityIndex);
+    setKeyboardWheelOpen(state.keyboardWheelOpen);
+  };
+
+  const releaseActivePointerCapture = () => {
+    const pointerId = activePointerIdRef.current;
+    const target = pointerCaptureTargetRef.current;
+    if (pointerId !== null && target) {
+      try {
+        if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
+      } catch { /* capture is optional */ }
+    }
+    activePointerIdRef.current = null;
+    pointerCaptureTargetRef.current = null;
   };
 
   useEffect(() => () => {
@@ -116,6 +140,7 @@ export function WildsCompanionCommand({
     if (!activeCard || activePointerIdRef.current !== null) return;
     event.preventDefault();
     activePointerIdRef.current = event.pointerId;
+    pointerCaptureTargetRef.current = event.currentTarget;
     const gesture = createCompanionGesture(pointerPoint(event), performance.now());
     gestureRef.current = gesture;
     try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* capture is optional */ }
@@ -150,10 +175,7 @@ export function WildsCompanionCommand({
     if (!gesture) return;
     clearHold();
     gestureRef.current = null;
-    activePointerIdRef.current = null;
-    try {
-      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-    } catch { /* capture is optional */ }
+    releaseActivePointerCapture();
     consume(releaseCompanionGesture(gesture, pointerPoint(event), performance.now()));
   };
 
@@ -163,20 +185,12 @@ export function WildsCompanionCommand({
     clearHold();
     const gesture = gestureRef.current;
     gestureRef.current = null;
-    activePointerIdRef.current = null;
+    releaseActivePointerCapture();
     consume(cancelCompanionGesture(gesture));
   };
-  const cancelPointerRef = useRef(cancelPointer);
-  cancelPointerRef.current = cancelPointer;
-
-  useEffect(() => {
-    cancelPointerRef.current();
-  }, [cancelSignal]);
 
   const openKeyboardWheel = () => {
-    setMode("ability-wheel");
-    setActiveAbilityIndex(selectedAbilityIndex % abilityCount);
-    setKeyboardWheelOpen(true);
+    applyInteractionState(openCompanionKeyboardInteraction(selectedAbilityIndex, abilityCount));
     playWildsHaptic("wheel-open");
   };
 
@@ -191,12 +205,28 @@ export function WildsCompanionCommand({
   const closeKeyboardWheel = (commit: boolean) => {
     const index = (activeAbilityIndex ?? selectedAbilityIndex) % abilityCount;
     if (commit) onSelectAbility(index);
-    setMode("pending");
-    setActiveAbilityIndex(null);
-    setKeyboardWheelOpen(false);
+    const reset = resetCompanionCommandInteraction(commit ? "commit" : "escape");
+    applyInteractionState(reset);
     playWildsHaptic(commit ? "confirm" : "cancel");
-    restoreCommandFocus();
+    if (reset.restoreFocus) restoreCommandFocus();
   };
+
+  const cancelAllInteractions = () => {
+    clearHold();
+    if (renderFrameRef.current !== null) window.cancelAnimationFrame(renderFrameRef.current);
+    renderFrameRef.current = null;
+    if (focusFrameRef.current !== null) window.cancelAnimationFrame(focusFrameRef.current);
+    focusFrameRef.current = null;
+    gestureRef.current = null;
+    releaseActivePointerCapture();
+    applyInteractionState(resetCompanionCommandInteraction("owner-cancel"));
+  };
+  const cancelAllInteractionsRef = useRef(cancelAllInteractions);
+  cancelAllInteractionsRef.current = cancelAllInteractions;
+
+  useEffect(() => {
+    cancelAllInteractionsRef.current();
+  }, [cancelSignal]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key.toLowerCase() === "a") {
@@ -227,11 +257,13 @@ export function WildsCompanionCommand({
   const onAbilityKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
+      event.stopPropagation();
       closeKeyboardWheel(true);
       return;
     }
     if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
       event.preventDefault();
+      event.stopPropagation();
       setActiveAbilityIndex((current) => nextCompanionAbilityIndex(
         current ?? selectedAbilityIndex,
         event.key as CompanionAbilityNavigationKey,
@@ -242,6 +274,7 @@ export function WildsCompanionCommand({
     }
     if (event.key === "Escape") {
       event.preventDefault();
+      event.stopPropagation();
       closeKeyboardWheel(false);
     }
   };

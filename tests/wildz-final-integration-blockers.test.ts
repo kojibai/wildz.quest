@@ -6,9 +6,20 @@ import { applyWildsInput, initialPlayState } from "../src/features/play/game-sta
 import { canRestoreFocus } from "../src/features/play/focus-recovery";
 import { canAcceptPlayShellInput, projectPlayShellOwner } from "../src/features/play/play-shell-owner";
 import { generateIdentityBoundWildzCharacter } from "../src/features/identity/wildz-genesis";
-import { projectWildzProofExplorer } from "../src/features/play/wildz-explorer-proof";
+import { projectWildzContinuityExplorer } from "../src/features/play/wildz-explorer-proof";
 import { nextCompanionAbilityIndex } from "../src/features/play/companion-ability-composite";
 import { shouldRefreshWildzMarket } from "../src/features/market/market-refresh-policy";
+import { worldInputForKeyboardEvent } from "../src/features/play/world-keyboard-routing";
+import {
+  openCompanionKeyboardInteraction,
+  resetCompanionCommandInteraction
+} from "../src/features/play/companion-command-interaction";
+import {
+  commitWildzArtifactContinuity,
+  commitWildzBootstrapContinuity,
+  resetWildzIdentityContinuity,
+  type WildzContinuitySnapshot
+} from "../src/lib/receiz/wildz-identity-adapter";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -165,28 +176,91 @@ test("ability composite navigation wraps independently before commit", () => {
   assert.equal(nextCompanionAbilityIndex(2, "ArrowUp", 4), 1);
 });
 
-test("bootstrap restore and reset ignore conflicting legacy avatar style", () => {
+test("focused ability arrows change selection without producing world movement", () => {
+  const initial = structuredClone(initialPlayState);
+  const movementIntents: ReturnType<typeof worldInputForKeyboardEvent>[] = [];
+  const listboxTarget = {
+    closest: (selector: string) => selector.includes("listbox") ? listboxTarget : null
+  } as unknown as EventTarget;
+  const expectedByKey = {
+    ArrowLeft: 0,
+    ArrowRight: 2,
+    ArrowUp: 0,
+    ArrowDown: 2
+  } as const;
+
+  for (const [key, expectedSelection] of Object.entries(expectedByKey)) {
+    const selection = nextCompanionAbilityIndex(1, key as keyof typeof expectedByKey, 4);
+    assert.equal(selection, expectedSelection);
+    assert.notEqual(selection, 1);
+    movementIntents.push(worldInputForKeyboardEvent({ key, defaultPrevented: true, target: listboxTarget }));
+    assert.equal(worldInputForKeyboardEvent({ key, defaultPrevented: false, target: listboxTarget }), null);
+  }
+
+  const after = movementIntents.reduce((state, input) => input ? applyWildsInput(state, input) : state, initial);
+  assert.deepEqual(movementIntents, [null, null, null, null]);
+  assert.deepEqual(after.player, initial.player);
+});
+
+test("exclusive cancellation closes a keyboard wheel without stealing focus into the world", () => {
+  const opened = openCompanionKeyboardInteraction(1, 4);
+  assert.deepEqual(opened, {
+    mode: "ability-wheel",
+    activeAbilityIndex: 1,
+    keyboardWheelOpen: true,
+    restoreFocus: false
+  });
+
+  const cancelled = resetCompanionCommandInteraction("owner-cancel");
+  assert.deepEqual(cancelled, {
+    mode: "pending",
+    activeAbilityIndex: null,
+    keyboardWheelOpen: false,
+    restoreFocus: false
+  });
+  assert.equal(resetCompanionCommandInteraction("escape").restoreFocus, true);
+  assert.equal(resetCompanionCommandInteraction("commit").restoreFocus, true);
+});
+
+test("production bootstrap, artifact commit, and identity reset helpers preserve proof-derived rendering", () => {
   const session = {
     keyId: "proof-explorer-key",
-    createdAt: "2026-08-10T12:00:00.000Z"
-  };
+    actorId: "proof-explorer",
+    username: "proof-explorer",
+    displayName: "Proof Explorer",
+    createdAt: "2026-08-10T12:00:00.000Z",
+    localAuthority: "verified"
+  } as WildzContinuitySnapshot["session"];
   const genesis = generateIdentityBoundWildzCharacter(session);
-  const conflictingStyle = genesis.gender === "female" ? "male" : "female";
-  const phases = [
-    { phase: "bootstrap", character: genesis, avatarStyle: conflictingStyle },
-    { phase: "artifact-restore", character: structuredClone(genesis), avatarStyle: conflictingStyle },
-    { phase: "reset", character: null, avatarStyle: conflictingStyle }
-  ] as const;
-  const expected = projectWildzProofExplorer({ session, character: genesis, legacyAvatarStyle: null });
+  const conflictingStyle: "male" | "female" = genesis.gender === "female" ? "male" : "female";
+  const playerContinuity = {
+    settings: { avatarStyle: conflictingStyle, movementMode: "walk" as const, audio: {}, cardOrder: "rarity" as const },
+    personalEvents: [],
+    canonicalCursor: { worldId: "wilds:global:v3" as const, revision: 0, eventId: null },
+    receipts: []
+  };
+  const bootstrap = commitWildzBootstrapContinuity({
+    session,
+    playState: initialPlayState,
+    character: genesis,
+    playerContinuity,
+    restoreEpoch: 1
+  });
+  const restored = commitWildzArtifactContinuity({
+    session,
+    playState: initialPlayState,
+    character: structuredClone(genesis),
+    playerContinuity,
+    restoreEpoch: 2
+  });
+  const reset = resetWildzIdentityContinuity(session, 3);
+  const projections = [bootstrap, restored, reset].map(projectWildzContinuityExplorer);
 
-  for (const fixture of phases) {
-    const projection = projectWildzProofExplorer({
-      session,
-      character: fixture.character,
-      legacyAvatarStyle: fixture.avatarStyle
-    });
-    assert.deepEqual(projection, expected, fixture.phase);
-    assert.equal(projection.style, genesis.gender, fixture.phase);
+  assert.deepEqual(projections[1], projections[0]);
+  assert.deepEqual(projections[2], projections[0]);
+  for (const projection of projections) {
+    assert.ok(projection);
+    assert.equal(projection.style, genesis.gender);
   }
 });
 

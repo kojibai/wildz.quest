@@ -27,6 +27,7 @@ import { useWildsPresentation } from "@/features/play/use-wilds-presentation";
 import { useWildsQualityProfile } from "@/features/play/use-wilds-quality-profile";
 import { useWorldOverlayDirector } from "@/features/play/use-world-overlay-director";
 import { canAcceptPlayShellInput, projectPlayShellOwner } from "@/features/play/play-shell-owner";
+import { worldInputForKeyboardEvent } from "@/features/play/world-keyboard-routing";
 import { projectWildsAudioScene } from "@/features/play/wilds-audio-scene";
 import { projectWildsBiome } from "@/features/play/wilds-biome";
 import type { WildsSettlementDistrictId } from "@/features/play/wilds-settlements";
@@ -632,18 +633,7 @@ export function PlayCampaign({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!worldInteractionEnabled) return;
-      const target = event.target as HTMLElement | null;
-      if (target?.matches("input, textarea, select, button, [contenteditable='true']")) return;
-      const key = event.key.toLowerCase();
-      const input: WildsInput | null =
-        key === "arrowup" || key === "w" ? { type: "move", direction: "north" }
-          : key === "arrowdown" || key === "s" ? { type: "move", direction: "south" }
-            : key === "arrowleft" || key === "a" ? { type: "move", direction: "west" }
-              : key === "arrowright" || key === "d" ? { type: "move", direction: "east" }
-                : key === "t" ? { type: "train", at: new Date().toISOString() }
-                    : key === "m" ? { type: "mission" }
-                      : key === "r" ? { type: "rest", at: new Date().toISOString() }
-                        : null;
+      const input = worldInputForKeyboardEvent(event);
       if (!input) return;
       event.preventDefault();
       setState((current) => {
@@ -654,7 +644,7 @@ export function PlayCampaign({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onComplete, ownerReceizId, worldInteractionEnabled]);
+  }, [onComplete, worldInteractionEnabled]);
 
   if (!enabled) {
     return (

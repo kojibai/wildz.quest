@@ -8,6 +8,7 @@ import type { WildzCardOnlyConfirmation } from "@/features/identity/wildz-restor
 import { removeWildzAssetsFromActiveVault } from "@/features/identity/wildz-ownership-reconciliation";
 import {
   bootstrapWildzContinuity,
+  commitWildzArtifactContinuity,
   alignWildzContinuityWithProofSession,
   claimWildzProfileIdentity,
   connectWildzProofSession,
@@ -46,7 +47,7 @@ import { proofSessionRetryDecision } from "@/features/shell/proof-session-retry"
 import { downloadBlob } from "@/features/play/card-export";
 import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-verifier";
 import { canRestoreFocus } from "@/features/play/focus-recovery";
-import { projectWildzExplorerRender, projectWildzProofExplorer } from "@/features/play/wildz-explorer-proof";
+import { projectWildzContinuityExplorer } from "@/features/play/wildz-explorer-proof";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -121,15 +122,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     reputation: viewingOwnProfile ? ownerPlayState.inventory.length * 12 : 0,
     record: { wins: 0, losses: 0, raids: 0 }
   }), [avatarImageUrl, character, identity, overlay, ownerPlayState.inventory, ownerUsername, viewingOwnProfile]);
-  const campaignExplorer = useMemo(() => {
-    if (!identity) return null;
-    if (identity.createdAt) return projectWildzProofExplorer({
-      session: identity,
-      character,
-      legacyAvatarStyle: continuity?.playerContinuity?.settings.avatarStyle ?? null
-    });
-    return character ? projectWildzExplorerRender(character) : null;
-  }, [character, continuity?.playerContinuity?.settings.avatarStyle, identity]);
+  const campaignExplorer = useMemo(() => continuity ? projectWildzContinuityExplorer(continuity) : null, [continuity]);
   const campaignCharacter = campaignExplorer?.character ?? null;
   const shellOverlayOwner = overlay?.kind === "profile" ? "profile" : overlay?.kind === "market" ? "market" : "none";
 
@@ -502,13 +495,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       currentPlayState ?? current.playState,
       intent
     );
-    const next: WildzContinuitySnapshot = {
-      session: outcome.session,
-      playState: outcome.playState,
-      character: outcome.character,
-      playerContinuity: outcome.playerContinuity,
-      restoreEpoch: outcome.restoreEpoch
-    };
+    const next = commitWildzArtifactContinuity(outcome);
     if (current.session.keyId !== outcome.session.keyId || current.session.actorId !== outcome.session.actorId) {
       publishedProfileRef.current = "";
     }

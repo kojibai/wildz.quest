@@ -120,6 +120,29 @@ export type WildzContinuitySnapshot = {
 export type WildzUiArtifactRestore = WildzCommittedArtifactRestore & { restoreEpoch: number };
 export type WildzRestoreIntent = "merge-vault" | "activate-identity";
 
+export function commitWildzBootstrapContinuity(input: WildzContinuitySnapshot): WildzContinuitySnapshot {
+  return {
+    session: input.session,
+    playState: input.playState,
+    character: input.character,
+    playerContinuity: input.playerContinuity,
+    restoreEpoch: input.restoreEpoch
+  };
+}
+
+export function commitWildzArtifactContinuity(
+  outcome: Pick<WildzUiArtifactRestore, "session" | "playState" | "character" | "playerContinuity" | "restoreEpoch">
+): WildzContinuitySnapshot {
+  return commitWildzBootstrapContinuity(outcome);
+}
+
+export function resetWildzIdentityContinuity(
+  session: WildzIdentitySession,
+  restoreEpoch: number
+): WildzContinuitySnapshot {
+  return { session, playState: null, character: null, playerContinuity: null, restoreEpoch };
+}
+
 function isWildzVaultBearingInspection(
   inspection: Awaited<ReturnType<WildzArtifactCodec["inspect"]>>
 ) {
@@ -378,7 +401,7 @@ export async function bootstrapWildzContinuity(
       }
       ownerState = await loadWildzRestoredOwnerState({ database: defaultContinuityDatabase, session });
     }
-    return {
+    return commitWildzBootstrapContinuity({
       session,
       playState,
       character: ownerState?.character ?? null,
@@ -389,7 +412,7 @@ export async function bootstrapWildzContinuity(
         receipts: ownerState.receipts
       } : null,
       restoreEpoch: continuityRestoreEpoch
-    };
+    });
   });
 }
 
@@ -420,13 +443,7 @@ export async function createNamedWildzIdentity(
       repository.writePrepared(tx, prepared, true)
     );
     continuityRestoreEpoch += 1;
-    return {
-      session: prepared.session,
-      playState: null,
-      character: null,
-      playerContinuity: null,
-      restoreEpoch: continuityRestoreEpoch
-    };
+    return resetWildzIdentityContinuity(prepared.session, continuityRestoreEpoch);
   });
 }
 
