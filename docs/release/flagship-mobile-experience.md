@@ -19,7 +19,7 @@ This qualification covers the rebuilt living-world controls and one complete tra
 | E11 | `automatedGates` |
 | E12 | `externalAssetSourcing` |
 | E13 | `claimIndex` |
-| E14 | `.superpowers/sdd/2026-08-10-wildz-unified-living-world-controls/final-integration-fix-report.md`, `output/playwright/final-integration-mobile-world.png`, and `output/playwright/final-integration-correction-mobile-world.png` — final integration browser and gate evidence |
+| E14 | `output/playwright/final-integration-evidence-manifest.json` (SHA-256 `5ce1bd5d78824a26364b5845ea4831dc263451ea588a44e3beaeeb6b8e5a105d`), saved replay script (SHA-256 `0cbc544102b97e5268f89a33f11e24a18446dbc311dd9f5fea9666254af314f9`), structured result (SHA-256 `0a7fd11f3c8589cd406a473a0fbf4ce751239f733363221f02cfcd48cd27fa9c`), five hashed screenshots, and `.superpowers/sdd/2026-08-10-wildz-unified-living-world-controls/final-integration-fix-report.md` — exact production commit/build, listener-before-navigation, modal lifetime, ability, owner-cancellation, and gate evidence |
 
 ## Release outcome
 
@@ -35,6 +35,7 @@ This qualification covers the rebuilt living-world controls and one complete tra
 - Companion ability selection is causal by keyboard and pointer: the final replay selected named abilities, changed authoritative energy/XP/bond by the selected ability's real reducer effect, and preserved the exact named event copy. Modal entry gated the background in the same snapshot; first-press Escape closed it and restored valid companion focus. [E14]
 - Profile and Market now retain shell-modal ownership for their complete open lifetime. The corrected production replay held the world inert and `aria-hidden`, rejected background keyboard and companion actions, trapped focus, closed on Escape, and restored focus to the profile identity or persistent world-tools origin. The ability listbox owned real DOM focus and its `aria-activedescendant`; both pointer and keyboard paths changed the selected named ability. Disconnected Market presentation made zero passive listings requests and retained route-side authority checks. [E14]
 - The focused ability composite now consumes all four arrow keys without producing explorer movement: production position remained exactly X -2, Z -1 while every arrow changed `aria-activedescendant`. Claiming Profile ownership from an A-open wheel synchronously removed the wheel, cancelled its focus RAF and any owned pointer capture, and kept focus inside the inert-gated modal; normal commit and Escape still restore companion focus. [E14]
+- E14's exact replay is product commit `c26ae652894db84868c0343c108c048aa32d0fb4`, Next build `pVMRsX8Mh21tHuB69B34C`, `http://127.0.0.1:49816/`, Chromium 152 at 390×844. Precise machine claims are `.listenerEvidence`, `.profile`, `.market`, `.keyboardAbility`, `.pointerAbility`, and `.ownerCancellation`. Profile's twelve-Tab sequence wrapped the four actually visible controls three times; the hidden file input is no longer a focus boundary. All seven artifact hashes and byte sizes were recomputed from disk. [E14]
 
 ## Skill-loading ledger
 
@@ -117,8 +118,8 @@ Desktop and mobile composited screenshots were visually inspected at rendered pi
 
 - The warm 120-frame representative sample recorded 29.51 ms average, 33.89 fps average, 33.4 ms p95, and 58 ms maximum. [E7]
 - The trainer transition measured 344 calls and 120,918 triangles and was over the configured renderer budget at all seven sizes. Challenge/combat/result also exceeded the draw-call budget at 844×390 and 1440×900. The trainer resize replay emitted 22 `GL_INVALID_OPERATION` vertex-buffer warnings; the separate clean resting profile remained clean. These are release residuals, not erased by the clean profile. [E9, E10]
-- `pnpm test` passed 1,057/1,057 across 109 suites; `pnpm typecheck` passed; `pnpm lint` exited zero with no warnings; `pnpm build` passed with the known `snarkjs` dynamic web-worker warnings. [E11, E14]
-- `pnpm release:check` passed: 1,057/1,057 tests, typecheck, Receiz v118 check, conformance 15/15, warning-free lint, secret scan across 745 text files, optimized 561 kB `/` first load, and doctor compatibility. [E11, E14]
+- `pnpm test` passed 1,058/1,058 across 109 suites; `pnpm typecheck` passed; `pnpm lint` exited zero with no warnings; `pnpm build` passed with the known `snarkjs` dynamic web-worker warnings. [E11, E14]
+- `pnpm release:check` passed: 1,058/1,058 tests, typecheck, Receiz v118 check, conformance 15/15, warning-free lint, secret scan across 745 text files, optimized 561 kB `/` first load, and doctor compatibility. [E11, E14]
 
 ## Ten-category AAA visual scorecard
 
