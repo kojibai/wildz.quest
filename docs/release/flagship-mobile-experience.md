@@ -1,6 +1,6 @@
 # Wildz flagship mobile experience — release evidence
 
-This qualification covers the rebuilt living-world controls and one complete trainer path. It does not represent every Wildz location as premium. The machine-readable source of truth is `output/playwright/task-8-browser-evidence.json`; this document deliberately points each release claim to a JSON record or named artifact.
+This qualification covers the rebuilt living-world controls and one complete trainer path. It does not represent every Wildz location as premium. The retained Task 8 source is complemented by the tracked Vault/Slate source under `docs/release/evidence/vault-roster-balanced-hud/`; this document deliberately points each release claim to a JSON record or named artifact.
 
 ## Evidence key
 
@@ -21,6 +21,7 @@ This qualification covers the rebuilt living-world controls and one complete tra
 | E13 | `claimIndex` |
 | E14 | Tracked bundle `docs/release/evidence/final-integration/`: manifest `final-integration-evidence-manifest.json` (SHA-256 `cdd1218471ea8363b3582a07bf27ad92234b97e123bea3296fa745b04c1e9cbe`), replay script (SHA-256 `0cbc544102b97e5268f89a33f11e24a18446dbc311dd9f5fea9666254af314f9`), structured result (SHA-256 `0a7fd11f3c8589cd406a473a0fbf4ce751239f733363221f02cfcd48cd27fa9c`), executable validator `validate-final-integration-evidence.mjs` (SHA-256 `991685e4eb5d1776c26fc34139d6c9b788bbc0ff5916eee8caeb285cb67df329`), five hashed screenshots, and tracked final report — recorded product-commit/build-ID metadata, listener-before-navigation, modal lifetime, ability, owner-cancellation, and gate evidence |
 | E15 | 2026-08-11 authoritative-modal qualification on production `http://127.0.0.1:49817/`: Map held exactly one visible `aria-modal`, all six non-owner world homes were `inert` and `aria-hidden`, forced world/companion actions did not change world state, and Escape left zero stale modal. A real capture reproduced and corrected the revealed-phase deadlock; phase-aware combat ownership and synchronous inventory-backed reward ownership now have regression coverage. |
+| E16 | Tracked bundle `docs/release/evidence/vault-roster-balanced-hud/`: manifest, executable independent validator, reproducible browser replay, structured production result, and ten hashed screenshots. It binds build `qW7HIxXbLMMm4UdSFwYsD` to product commit `cea7b57` and exact Toiusap/Neiatid asset ids, names, portraits, world actors, reload persistence, seven responsive rows, input/recovery, browser health, and disclosed residuals. |
 
 ## Release outcome
 
@@ -40,6 +41,10 @@ This qualification covers the rebuilt living-world controls and one complete tra
 - Modal admission is now epoch-guarded for delayed ecology and raid completion. A competing owner invalidates stale work before it can mount; only the projected winner renders. Combat ownership ends at `revealed` instead of remaining stuck on a retained battle object, and an inventory-backed revealed capture projects reward ownership synchronously, eliminating the world-interactive gap that caused the reported frozen or skipped capture-complete state. [E15]
 - Review correction aligns every combat-owned phase with a mounted winner: battle intro and capture sealing phases retain the Wilds combat dialog with actions replaced by a proof-transition status. Wild and live-player battles now expose exclusive dialog semantics and own their focus/Tab/Escape lifecycle; the live-player dialog portals outside the inert multiplayer home. Programmatic drawer callbacks also synchronously reject blocked-home dispatch. Focused modal/control coverage passed 28/28 and the complete shared-tree release gate exited zero. [E15]
 - A second race review now projects a single combat source before rendering: trainer outranks wild, and wild outranks PvP. Simultaneous legitimate battle states are preserved but only the winner may mount or own focus, preventing two `aria-modal` combat dialogs without destructively discarding the suppressed battle. Focused contextual/modal coverage passed 34/34; full tests, typecheck, lint, diff check, and a fresh 563 kB optimized build passed. [E15]
+- A real two-card production profile now proves both selection authorities. Card Vault selected Toiusap (`wilds:123e00f59899025a366d578f`) through its real “Set as active deck leader” control; command name/Stone Pulse, portrait title, world actor, exact active id, and reload all agreed. Slate then selected captured Neiatid (`wilds:223616f27f33bc5b5fa273d9`); command name/Tide Pulse, portrait title, world actor, exact active id, and reload again agreed. [E16]
+- The retained capture boundary is player-facing: inventory moved 1→2, exactly one reward modal appeared, and Neiatid entered the Vault. The six-second “New” badge was not directly retained before expiry, and the profile was outside a trainer interaction radius after selection, so neither badge observation nor next-battle leader is claimed. [E16]
+- The balanced HUD replay measured all seven required viewports against one optimized artifact. Every row has a full canvas/drawing buffer/DPR and renderer counters, budget `true`, no undersized persistent target, no safe-bound failure, no painted-surface collision, and zero horizontal overflow. Preview, expanded Slate, audio, Kai modal, live roster, and empty multiplayer state were exercised at each size. [E16]
+- Recovery passed for simultaneous D-pad/companion touch and release, owned-only horizontal cycle, tap power, named hold-slide ability selection, pointer cancel, lost capture, keyboard selection/focus restoration, resize cancellation, Escape, 200% text, reduced motion, offline/lifecycle, audio toggle/restore, and missing/non-callable/throwing vibration. Browser health recorded zero console warnings/errors, page errors, and HTTP errors; one reload-cancelled RSC prefetch is retained as `net::ERR_ABORTED`. [E16]
 
 ## Skill-loading ledger
 
@@ -102,6 +107,8 @@ Audio uses the existing gesture-unlocked, settings-aware Web Audio runtime for c
 | Trainer/combat/result/return | Physical travel plus challenge, one live seven-resize transition, covenant, Arena, safe retreat settlement, Continue, and world return pass; renderer budget failures remain disclosed below | E9 |
 | Clean production console/network | Baseline final profile: 0 errors, warnings, page errors, failed requests, and HTTP errors. The later isolated modal replay observed one expected unauthenticated multiplayer-session 422 and no application exception. | E10, E15 |
 | Modal authority/recovery | Map: exactly one visible modal; six of six non-owner homes inert and `aria-hidden`; background actions gated; Escape leaves no stale loser. Capture: phase-aware combat release plus synchronous reward regression coverage. | E15 |
+| Vault and Slate authority | Exact Toiusap Card Vault selection and exact Neiatid Slate selection each update command, portrait, world actor, and active asset id and persist through production reload | E16 |
+| Balanced HUD matrix | 7/7 full canvas, renderer budget, 44 px targets, safe bounds, painted-surface collisions, overflow, preview/expanded Slate, audio, Kai, live, and empty multiplayer records pass | E16 |
 
 ## Responsive browser geometry
 
@@ -123,8 +130,8 @@ Desktop and mobile composited screenshots were visually inspected at rendered pi
 
 - The warm 120-frame representative sample recorded 29.51 ms average, 33.89 fps average, 33.4 ms p95, and 58 ms maximum. [E7]
 - The trainer transition measured 344 calls and 120,918 triangles and was over the configured renderer budget at all seven sizes. Challenge/combat/result also exceeded the draw-call budget at 844×390 and 1440×900. The trainer resize replay emitted 22 `GL_INVALID_OPERATION` vertex-buffer warnings; the separate clean resting profile remained clean. These are release residuals, not erased by the clean profile. [E9, E10]
-- `pnpm test` passed 1,064/1,064 across 109 suites; `pnpm typecheck` passed; `pnpm lint` exited zero with no warnings; `pnpm build` passed with the known `snarkjs` dynamic web-worker warnings. [E11, E14, E15]
-- `pnpm release:check` passed: 1,064/1,064 tests, typecheck, Receiz v118 integration, conformance 15/15, warning-free lint, secret scan across 753 text files, optimized 562 kB `/` first load, and doctor compatibility. [E15]
+- `pnpm test` passed 1,086/1,086 across 109 suites; `pnpm typecheck` passed; `pnpm lint` exited zero with no warnings; `pnpm build` passed at 565 kB `/` first load with the known `snarkjs` dynamic web-worker warnings. [E11, E14–E16]
+- `pnpm release:check` passed with typecheck, Receiz v118 integration, conformance 15/15, warning-free lint, secret scan across 770 text files, optimized 565 kB `/` first load, and doctor compatibility; live API, checkout, and webhooks remain deployment-environment checks. [E16]
 
 ## Ten-category AAA visual scorecard
 
@@ -150,7 +157,7 @@ Automatic failures remaining:
 1. The evidence covers one complete trainer route, not every arena, settlement, raid, resident, or trainer. [E9]
 2. Externally authored encounter audio remains unqualified because the ElevenLabs credential probe was blank/inconclusive. [E12]
 3. Only the retained Lanternforge trainer imagery is identified as bespoke generated trainer art; the full cast is not equivalently evidenced. [E12]
-4. The player-facing capture path produced a second retired card. Horizontal cycle correctly no-opped at all seven sizes, so a visible sealed-name cycle remains unqualified. [E2]
+4. The real capture and both selection authorities are now qualified, but the six-second “New” marker expired before a retained assertion and the post-selection profile was outside trainer interaction range; those two claims remain explicitly unqualified. [E16]
 5. Trainer transition renderer budget fails at all seven sizes; challenge/combat/result exceed budget at 844×390 and 1440×900, and the trainer resize run emits 22 GL vertex-buffer warnings. [E7, E9]
 6. The core matrix records one cancelled Next.js card preload (`net::ERR_ABORTED`); it caused no console/page error or failed user action, but the route is not claimed network-clean. [E2]
 7. The final integration replay had no real retired-card QA profile, so memorial browser replay was not fabricated; memorial ownership, focus containment, Escape, and cleanup are qualified by automated lifecycle contracts only. [E14]
@@ -188,4 +195,4 @@ Flagship-slice average: **7.74 / 10**, up from **5.24 / 10**. Whole-game observe
 2. Give every arena and settlement a distinct art, encounter, and interaction identity, then add them to the retained visual matrix. [Gap: E9]
 3. Re-probe provider availability and replace fallback cues with authored spatial audio when a usable credential is confirmed. [Gap: E12]
 4. Optimize the trainer/Arena draw-call path and eliminate the vertex-buffer warnings before restoring a premium performance score. [Gap: E7, E9]
-5. Provide a reachable second non-retired companion in the fresh-player loop and re-run visible sealed-name cycle evidence. [Gap: E2]
+5. Repeat the short capture with the “New” marker assertion armed before settlement, then travel through visible controls to the next trainer and bind its battle leader to the same exact selected asset id. [Gap: E16]

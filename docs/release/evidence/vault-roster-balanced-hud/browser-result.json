@@ -1,0 +1,6920 @@
+{
+  "schema": "wildz.vault-roster-balanced-hud.browser.v1",
+  "capturedAt": "2026-08-11T11:00:09.756Z",
+  "baseUrl": "http://127.0.0.1:49817/",
+  "buildId": "qW7HIxXbLMMm4UdSFwYsD",
+  "productCommit": "cea7b57",
+  "userAgent": "Mozilla/5.0 (Linux; Android 16; Pixel 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.8 Mobile Safari/537.36",
+  "fixtureBoundary": "Existing production IndexedDB profile. Toiusap was the profile's legitimate starter; Neiatid was obtained through player-facing battle and Capture in this run. No storage injection or test fixture route was used.",
+  "capture": {
+    "inventoryBefore": 1,
+    "inventoryAfter": 2,
+    "rewardModalCount": 1,
+    "capturedCard": {
+      "id": "wilds:223616f27f33bc5b5fa273d9",
+      "name": "Neiatid",
+      "ability": "Tide Pulse"
+    },
+    "newMarkerDirectlyObserved": false,
+    "screenshot": "output/playwright/task5-capture-reward.png"
+  },
+  "selection": {
+    "initialActive": {
+      "command": "Neiatid. Tap to use Tide Pulse. Swipe sideways to change companion, swipe up for roster, or hold for abilities.",
+      "commandName": "Neiatid",
+      "commandAbility": "Tide Pulse",
+      "commandPosition": "2/2",
+      "portraitTitle": "Neiatid deck portrait full-body companion",
+      "portraitMarkupDigestBasis": "<svg xmlns=\"http://www.w3.org/2000/svg\" data-heartbound=\"heroic-companion\" data-identity-signature=\"sha256:9c9751f72cb816832cbd288f18ce428accef1473f64c5f97827984ad71993699\" data-bo",
+      "worldActorLabels": [
+        "Neiatid"
+      ],
+      "activeAssetId": "wilds:223616f27f33bc5b5fa273d9"
+    },
+    "vaultCards": [
+      "0 XPToiusapStage 1 · uncommon · Bond 079 PWR · Verified",
+      "24 XPNeiatidStage 1 · trail · Bond 661 PWR · Offline sealed"
+    ],
+    "vaultDetail": {
+      "namePresent": true,
+      "text": "ToiusapStone companionSTAGE 1WLD-040-1uncommonstandardHealth63Power79Guard76Speed77Bond53Stone Pulse32Improves collection streak rewards.Cloudbloom Bond39Gain 2 bond after a successful Glasswater Coast mission.verified117103a99dbfLiving companion dossierToiusapuncommon · Stage 1Character storyToiusap first answered your signal in the Glasswater Coast on August 11, 2026. Its curious nature comes through in every tail heart, and each earned battle, journey, and bond moment now extends the same living history instead ",
+      "standaloneHref": "/cards/wilds%3A123e00f59899025a366d578f"
+    },
+    "vaultSelected": {
+      "command": "Toiusap. Tap to use Stone Pulse. Swipe sideways to change companion, swipe up for roster, or hold for abilities.",
+      "commandName": "Toiusap",
+      "commandAbility": "Stone Pulse",
+      "commandPosition": "1/2",
+      "portraitTitle": "Toiusap deck portrait full-body companion",
+      "portraitMarkupDigestBasis": "<svg xmlns=\"http://www.w3.org/2000/svg\" data-heartbound=\"heroic-companion\" data-identity-signature=\"sha256:a96922d34a0f9df62ba97e59181c3608a8030fa5961fc0eeafaa5705afd98428\" data-bo",
+      "worldActorLabels": [
+        "Toiusap"
+      ],
+      "activeAssetId": "wilds:123e00f59899025a366d578f"
+    },
+    "vaultReloaded": {
+      "command": "Toiusap. Tap to use Stone Pulse. Swipe sideways to change companion, swipe up for roster, or hold for abilities.",
+      "commandName": "Toiusap",
+      "commandAbility": "Stone Pulse",
+      "commandPosition": "1/2",
+      "portraitTitle": "Toiusap deck portrait full-body companion",
+      "portraitMarkupDigestBasis": "<svg xmlns=\"http://www.w3.org/2000/svg\" data-heartbound=\"heroic-companion\" data-identity-signature=\"sha256:a96922d34a0f9df62ba97e59181c3608a8030fa5961fc0eeafaa5705afd98428\" data-bo",
+      "worldActorLabels": [
+        "Toiusap"
+      ],
+      "activeAssetId": "wilds:123e00f59899025a366d578f",
+      "serviceWorkerBypassed": true
+    },
+    "slateEntries": [
+      {
+        "id": "wilds:123e00f59899025a366d578f",
+        "label": "Toiusap, level 1, 0 XP, bond 0, Ready, active",
+        "active": true
+      },
+      {
+        "id": "wilds:223616f27f33bc5b5fa273d9",
+        "label": "Neiatid, level 1, 24 XP, bond 6, Ready",
+        "active": false
+      }
+    ],
+    "capturedButtonRect": {
+      "x": 290.40625,
+      "y": 635.546875,
+      "width": 184,
+      "height": 108
+    },
+    "slateSelected": {
+      "command": "Neiatid. Tap to use Tide Pulse. Swipe sideways to change companion, swipe up for roster, or hold for abilities.",
+      "commandName": "Neiatid",
+      "commandAbility": "Tide Pulse",
+      "commandPosition": "2/2",
+      "portraitTitle": "Neiatid deck portrait full-body companion",
+      "portraitMarkupDigestBasis": "<svg xmlns=\"http://www.w3.org/2000/svg\" data-heartbound=\"heroic-companion\" data-identity-signature=\"sha256:9c9751f72cb816832cbd288f18ce428accef1473f64c5f97827984ad71993699\" data-bo",
+      "worldActorLabels": [
+        "Neiatid"
+      ],
+      "activeAssetId": "wilds:223616f27f33bc5b5fa273d9"
+    },
+    "slateReloaded": {
+      "command": "Neiatid. Tap to use Tide Pulse. Swipe sideways to change companion, swipe up for roster, or hold for abilities.",
+      "commandName": "Neiatid",
+      "commandAbility": "Tide Pulse",
+      "commandPosition": "2/2",
+      "portraitTitle": "Neiatid deck portrait full-body companion",
+      "portraitMarkupDigestBasis": "<svg xmlns=\"http://www.w3.org/2000/svg\" data-heartbound=\"heroic-companion\" data-identity-signature=\"sha256:9c9751f72cb816832cbd288f18ce428accef1473f64c5f97827984ad71993699\" data-bo",
+      "worldActorLabels": [
+        "Neiatid"
+      ],
+      "activeAssetId": "wilds:223616f27f33bc5b5fa273d9",
+      "serviceWorkerBypassed": true
+    }
+  },
+  "matrix": [
+    {
+      "size": "320x568",
+      "resting": {
+        "viewport": {
+          "width": 320,
+          "height": 568,
+          "devicePixelRatio": 3
+        },
+        "document": {
+          "scrollWidth": 320,
+          "scrollHeight": 568,
+          "overflowX": 0,
+          "overflowY": 0
+        },
+        "canvas": {
+          "display": {
+            "x": 0,
+            "y": 0,
+            "width": 320,
+            "height": 568
+          },
+          "drawingBuffer": {
+            "width": 320,
+            "height": 568
+          }
+        },
+        "diagnostics": {
+          "canvas": {
+            "cssWidth": 320,
+            "cssHeight": 568,
+            "drawingBufferWidth": 320,
+            "drawingBufferHeight": 568,
+            "dpr": 1
+          },
+          "state": {
+            "player": {
+              "x": 3.689491840547254,
+              "z": -7.668656205207918
+            },
+            "selectedCardId": "mossbeak",
+            "discovered": 2,
+            "missionProgress": 50,
+            "energy": 56,
+            "combo": 1
+          },
+          "render": {
+            "calls": 99,
+            "triangles": 54606,
+            "points": 30,
+            "lines": 0
+          },
+          "memory": {
+            "geometries": 97,
+            "textures": 3
+          },
+          "quality": {
+            "tier": "low",
+            "dpr": 1
+          },
+          "budget": {
+            "withinBudget": true,
+            "drawCallRatio": 0.61875,
+            "triangleRatio": 0.3033666666666667
+          },
+          "warningFreeCompatibility": {
+            "three": "0.182.0",
+            "shadowType": "PCFShadowMap"
+          },
+          "camera": {
+            "position": [
+              4.6000000000000005,
+              5.799999999999999,
+              7.2
+            ],
+            "fov": 42
+          },
+          "scene": {
+            "children": 8
+          },
+          "boss": {
+            "detailedBosses": 0,
+            "bossFamilies": 8,
+            "maxDetailedBosses": 1
+          }
+        },
+        "homes": {
+          "explorer": {
+            "x": 8,
+            "y": 8,
+            "width": 112,
+            "height": 50,
+            "right": 120,
+            "bottom": 58
+          },
+          "mission": {
+            "x": 128,
+            "y": 8,
+            "width": 112,
+            "height": 58,
+            "right": 240,
+            "bottom": 66
+          },
+          "minimapStatus": {
+            "x": 218,
+            "y": 8,
+            "width": 94,
+            "height": 166,
+            "right": 312,
+            "bottom": 174
+          },
+          "kaiAudio": {
+            "x": 8,
+            "y": 68,
+            "width": 123.421875,
+            "height": 44,
+            "right": 131.421875,
+            "bottom": 112
+          },
+          "movement": {
+            "x": 12,
+            "y": 475.203125,
+            "width": 76.796875,
+            "height": 80.796875,
+            "right": 88.796875,
+            "bottom": 556
+          },
+          "tools": {
+            "x": 131,
+            "y": 508,
+            "width": 58,
+            "height": 44,
+            "right": 189,
+            "bottom": 552
+          },
+          "companion": {
+            "x": 236,
+            "y": 484,
+            "width": 72,
+            "height": 72,
+            "right": 308,
+            "bottom": 556
+          }
+        },
+        "safeBounds": [
+          {
+            "key": "explorer:0",
+            "pass": true
+          },
+          {
+            "key": "mission:0",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:0",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:1",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:2",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:3",
+            "pass": true
+          },
+          {
+            "key": "kaiAudio:0",
+            "pass": true
+          },
+          {
+            "key": "kaiAudio:1",
+            "pass": true
+          },
+          {
+            "key": "movement:0",
+            "pass": true
+          },
+          {
+            "key": "movement:1",
+            "pass": true
+          },
+          {
+            "key": "movement:2",
+            "pass": true
+          },
+          {
+            "key": "tools:0",
+            "pass": true
+          },
+          {
+            "key": "companion:0",
+            "pass": true
+          }
+        ],
+        "collisions": [
+          {
+            "a": "explorer:0",
+            "b": "mission:0",
+            "area": 0,
+            "width": 0,
+            "height": 50
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:0",
+            "area": 0,
+            "width": 0,
+            "height": 50
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:3",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 73.421875,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 32.578125,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 76.796875,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 46,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 46,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:0",
+            "area": 0,
+            "width": 0,
+            "height": 58
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:2",
+            "area": 0,
+            "width": 22,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:3",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 3.421875,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 58,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 4,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 4
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 4
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 60,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 32
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 32
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 40,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "companion:0",
+            "area": 0,
+            "width": 26,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "companion:0",
+            "area": 0,
+            "width": 40,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 69.421875,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 46,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 19.421875,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:0",
+            "area": 0,
+            "width": 1.375,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:2",
+            "area": 0,
+            "width": 20.578125,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0.421875,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 44
+          },
+          {
+            "a": "movement:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 68
+          },
+          {
+            "a": "movement:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:2",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:2",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "tools:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 44
+          }
+        ],
+        "positiveCollisions": [],
+        "targets": [
+          {
+            "label": "World reconnecting",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Open global live explorers · connected worldwide",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Share Wildz invite",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Open living Command Center. Beat step pulse 20:21:04",
+            "width": 73.421875,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Wilds audio settings",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Make camp and recover",
+            "width": 46,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Switch to walking",
+            "width": 46,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Movement trackpad. Running. Hold and drag in any direction to travel.",
+            "width": 76.796875,
+            "height": 76.796875,
+            "floor44": true
+          },
+          {
+            "label": "Open world tools",
+            "width": 58,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Toiusap, level 1, 0 XP, bond 0, Ready",
+            "width": 172,
+            "height": 96,
+            "floor44": true
+          },
+          {
+            "label": "Neiatid, level 1, 24 XP, bond 6, Ready, active",
+            "width": 172,
+            "height": 96,
+            "floor44": true
+          },
+          {
+            "label": "Neiatid. Tap to use Tide Pulse. Swipe sideways to change companion, swipe up for roster, or hold for abilities.",
+            "width": 72,
+            "height": 72,
+            "floor44": true
+          }
+        ],
+        "targetFloorFailures": []
+      },
+      "preview": {
+        "rect": {
+          "x": 36,
+          "y": 307.125,
+          "width": 272,
+          "height": 167.875,
+          "right": 308,
+          "bottom": 475
+        },
+        "className": "wildz-creature-drawer mode-preview ",
+        "entries": 2
+      },
+      "expanded": {
+        "rect": {
+          "x": 36,
+          "y": 181.484375,
+          "width": 272,
+          "height": 293.515625,
+          "right": 308,
+          "bottom": 475
+        },
+        "className": "wildz-creature-drawer mode-expanded ",
+        "entries": 2
+      },
+      "audio": {
+        "open": true,
+        "rect": {
+          "x": 87.421875,
+          "y": 68,
+          "width": 44,
+          "height": 44,
+          "right": 131.421875,
+          "bottom": 112
+        }
+      },
+      "kai": {
+        "dialogCount": 1,
+        "rect": {
+          "x": 10,
+          "y": 37.60332489013672,
+          "width": 300,
+          "height": 522.5468826293945,
+          "right": 310,
+          "bottom": 560.1502075195312
+        },
+        "homesInert": [
+          {
+            "selector": ".wildz-reference-hud",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wilds-map-status-home",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wilds-left-instrument-home",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wildz-world-controls",
+            "inert": false,
+            "ariaHidden": null
+          }
+        ]
+      },
+      "live": {
+        "rosterCount": 1,
+        "dialogCount": 0,
+        "text": false
+      },
+      "multiplayer": {
+        "liveBadgePresent": true,
+        "remoteCount": 0
+      }
+    },
+    {
+      "size": "360x800",
+      "resting": {
+        "viewport": {
+          "width": 360,
+          "height": 800,
+          "devicePixelRatio": 3
+        },
+        "document": {
+          "scrollWidth": 360,
+          "scrollHeight": 800,
+          "overflowX": 0,
+          "overflowY": 0
+        },
+        "canvas": {
+          "display": {
+            "x": 0,
+            "y": 0,
+            "width": 360,
+            "height": 800
+          },
+          "drawingBuffer": {
+            "width": 360,
+            "height": 800
+          }
+        },
+        "diagnostics": {
+          "canvas": {
+            "cssWidth": 360,
+            "cssHeight": 800,
+            "drawingBufferWidth": 360,
+            "drawingBufferHeight": 800,
+            "dpr": 1
+          },
+          "state": {
+            "player": {
+              "x": 3.689491840547254,
+              "z": -7.668656205207918
+            },
+            "selectedCardId": "mossbeak",
+            "discovered": 2,
+            "missionProgress": 50,
+            "energy": 56,
+            "combo": 1
+          },
+          "render": {
+            "calls": 97,
+            "triangles": 54568,
+            "points": 30,
+            "lines": 0
+          },
+          "memory": {
+            "geometries": 97,
+            "textures": 3
+          },
+          "quality": {
+            "tier": "low",
+            "dpr": 1
+          },
+          "budget": {
+            "withinBudget": true,
+            "drawCallRatio": 0.60625,
+            "triangleRatio": 0.30315555555555557
+          },
+          "warningFreeCompatibility": {
+            "three": "0.182.0",
+            "shadowType": "PCFShadowMap"
+          },
+          "camera": {
+            "position": [
+              4.6000000000000005,
+              5.799999999999999,
+              7.2
+            ],
+            "fov": 42
+          },
+          "scene": {
+            "children": 8
+          },
+          "boss": {
+            "detailedBosses": 0,
+            "bossFamilies": 8,
+            "maxDetailedBosses": 1
+          }
+        },
+        "homes": {
+          "explorer": {
+            "x": 8,
+            "y": 8,
+            "width": 151.1875,
+            "height": 50,
+            "right": 159.1875,
+            "bottom": 58
+          },
+          "mission": {
+            "x": 165.59375,
+            "y": 8,
+            "width": 112,
+            "height": 58,
+            "right": 277.59375,
+            "bottom": 66
+          },
+          "minimapStatus": {
+            "x": 19,
+            "y": 8,
+            "width": 333,
+            "height": 307.9375,
+            "right": 352,
+            "bottom": 315.9375
+          },
+          "kaiAudio": {
+            "x": 8,
+            "y": 68,
+            "width": 123.421875,
+            "height": 44,
+            "right": 131.421875,
+            "bottom": 112
+          },
+          "movement": {
+            "x": 12,
+            "y": 697.609375,
+            "width": 86.390625,
+            "height": 90.390625,
+            "right": 98.390625,
+            "bottom": 788
+          },
+          "tools": {
+            "x": 147.59375,
+            "y": 740,
+            "width": 64.796875,
+            "height": 44,
+            "right": 212.390625,
+            "bottom": 784
+          },
+          "companion": {
+            "x": 268.8125,
+            "y": 708.8125,
+            "width": 79.1875,
+            "height": 79.1875,
+            "right": 348,
+            "bottom": 788
+          }
+        },
+        "safeBounds": [
+          {
+            "key": "explorer:0",
+            "pass": true
+          },
+          {
+            "key": "mission:0",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:0",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:1",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:2",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:3",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:4",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:5",
+            "pass": true
+          },
+          {
+            "key": "kaiAudio:0",
+            "pass": true
+          },
+          {
+            "key": "kaiAudio:1",
+            "pass": true
+          },
+          {
+            "key": "movement:0",
+            "pass": true
+          },
+          {
+            "key": "movement:1",
+            "pass": true
+          },
+          {
+            "key": "movement:2",
+            "pass": true
+          },
+          {
+            "key": "tools:0",
+            "pass": true
+          },
+          {
+            "key": "companion:0",
+            "pass": true
+          }
+        ],
+        "collisions": [
+          {
+            "a": "explorer:0",
+            "b": "mission:0",
+            "area": 0,
+            "width": 0,
+            "height": 50
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:0",
+            "area": 0,
+            "width": 0,
+            "height": 50
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:3",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:4",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:5",
+            "area": 0,
+            "width": 140.1875,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 73.421875,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 44,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 86.390625,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 46,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 46,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 11.59375,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:0",
+            "area": 0,
+            "width": 0,
+            "height": 58
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:2",
+            "area": 0,
+            "width": 19.59375,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:3",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:4",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:5",
+            "area": 0,
+            "width": 112,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 46.796875,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 8.78125,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 8
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 8
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 64,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 28
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 28
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 40,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "companion:0",
+            "area": 0,
+            "width": 33.1875,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "companion:0",
+            "area": 0,
+            "width": 40,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 9
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 9
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "companion:0",
+            "area": 0,
+            "width": 44,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 62.421875,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 44,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "movement:0",
+            "area": 0,
+            "width": 79.390625,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "movement:1",
+            "area": 0,
+            "width": 39,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "movement:2",
+            "area": 0,
+            "width": 46,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "tools:0",
+            "area": 0,
+            "width": 64.796875,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "companion:0",
+            "area": 0,
+            "width": 64.1875,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 69.421875,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 46,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 19.421875,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:0",
+            "area": 0,
+            "width": 10.96875,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:2",
+            "area": 0,
+            "width": 20.578125,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 44
+          },
+          {
+            "a": "movement:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 75.1875
+          },
+          {
+            "a": "movement:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:2",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:2",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "tools:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 44
+          }
+        ],
+        "positiveCollisions": [],
+        "targets": [
+          {
+            "label": "World reconnecting",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Open global live explorers · connected worldwide",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Share Wildz invite",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Close live roster",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Open room chat",
+            "width": 314,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Open living Command Center. Beat step pulse 20:21:04",
+            "width": 73.421875,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Wilds audio settings",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Make camp and recover",
+            "width": 46,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Switch to walking",
+            "width": 46,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Movement trackpad. Running. Hold and drag in any direction to travel.",
+            "width": 86.390625,
+            "height": 86.390625,
+            "floor44": true
+          },
+          {
+            "label": "Open world tools",
+            "width": 64.796875,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Toiusap, level 1, 0 XP, bond 0, Ready",
+            "width": 184,
+            "height": 108,
+            "floor44": true
+          },
+          {
+            "label": "Neiatid, level 1, 24 XP, bond 6, Ready, active",
+            "width": 184,
+            "height": 108,
+            "floor44": true
+          },
+          {
+            "label": "Neiatid. Tap to use Tide Pulse. Swipe sideways to change companion, swipe up for roster, or hold for abilities.",
+            "width": 79.1875,
+            "height": 79.1875,
+            "floor44": true
+          }
+        ],
+        "targetFloorFailures": []
+      },
+      "preview": {
+        "rect": {
+          "x": 81.609375,
+          "y": 532.390625,
+          "width": 266.390625,
+          "height": 167.421875,
+          "right": 348,
+          "bottom": 699.8125
+        },
+        "className": "wildz-creature-drawer mode-preview ",
+        "entries": 2
+      },
+      "expanded": {
+        "rect": {
+          "x": 81.609375,
+          "y": 322.984375,
+          "width": 266.390625,
+          "height": 376.828125,
+          "right": 348,
+          "bottom": 699.8125
+        },
+        "className": "wildz-creature-drawer mode-expanded ",
+        "entries": 2
+      },
+      "audio": {
+        "open": true,
+        "rect": {
+          "x": 87.421875,
+          "y": 68,
+          "width": 44,
+          "height": 44,
+          "right": 131.421875,
+          "bottom": 112
+        }
+      },
+      "kai": {
+        "dialogCount": 1,
+        "rect": {
+          "x": 10,
+          "y": 56.561622619628906,
+          "width": 340,
+          "height": 736.0000228881836,
+          "right": 350,
+          "bottom": 792.5616455078125
+        },
+        "homesInert": [
+          {
+            "selector": ".wildz-reference-hud",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wilds-map-status-home",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wilds-left-instrument-home",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wildz-world-controls",
+            "inert": false,
+            "ariaHidden": null
+          }
+        ]
+      },
+      "live": {
+        "rosterCount": 1,
+        "dialogCount": 0,
+        "text": false
+      },
+      "multiplayer": {
+        "liveBadgePresent": true,
+        "remoteCount": 0
+      }
+    },
+    {
+      "size": "390x844",
+      "resting": {
+        "viewport": {
+          "width": 390,
+          "height": 844,
+          "devicePixelRatio": 3
+        },
+        "document": {
+          "scrollWidth": 390,
+          "scrollHeight": 844,
+          "overflowX": 0,
+          "overflowY": 0
+        },
+        "canvas": {
+          "display": {
+            "x": 0,
+            "y": 0,
+            "width": 390,
+            "height": 844
+          },
+          "drawingBuffer": {
+            "width": 487,
+            "height": 1055
+          }
+        },
+        "diagnostics": {
+          "canvas": {
+            "cssWidth": 390,
+            "cssHeight": 844,
+            "drawingBufferWidth": 487,
+            "drawingBufferHeight": 1055,
+            "dpr": 1.25
+          },
+          "state": {
+            "player": {
+              "x": 3.689491840547254,
+              "z": -7.668656205207918
+            },
+            "selectedCardId": "mossbeak",
+            "discovered": 2,
+            "missionProgress": 50,
+            "energy": 56,
+            "combo": 1
+          },
+          "render": {
+            "calls": 97,
+            "triangles": 54568,
+            "points": 30,
+            "lines": 0
+          },
+          "memory": {
+            "geometries": 97,
+            "textures": 3
+          },
+          "quality": {
+            "tier": "medium",
+            "dpr": 1.25
+          },
+          "budget": {
+            "withinBudget": true,
+            "drawCallRatio": 0.60625,
+            "triangleRatio": 0.30315555555555557
+          },
+          "warningFreeCompatibility": {
+            "three": "0.182.0",
+            "shadowType": "PCFShadowMap"
+          },
+          "camera": {
+            "position": [
+              4.6000000000000005,
+              5.799999999999999,
+              7.2
+            ],
+            "fov": 42
+          },
+          "scene": {
+            "children": 8
+          },
+          "boss": {
+            "detailedBosses": 0,
+            "bossFamilies": 8,
+            "maxDetailedBosses": 1
+          }
+        },
+        "homes": {
+          "explorer": {
+            "x": 8,
+            "y": 8,
+            "width": 163.796875,
+            "height": 50,
+            "right": 171.796875,
+            "bottom": 58
+          },
+          "mission": {
+            "x": 186.890625,
+            "y": 8,
+            "width": 112,
+            "height": 58,
+            "right": 298.890625,
+            "bottom": 66
+          },
+          "minimapStatus": {
+            "x": 19,
+            "y": 8,
+            "width": 363,
+            "height": 307.9375,
+            "right": 382,
+            "bottom": 315.9375
+          },
+          "kaiAudio": {
+            "x": 8,
+            "y": 68,
+            "width": 123.421875,
+            "height": 44,
+            "right": 131.421875,
+            "bottom": 112
+          },
+          "movement": {
+            "x": 12,
+            "y": 734.40625,
+            "width": 93.59375,
+            "height": 97.59375,
+            "right": 105.59375,
+            "bottom": 832
+          },
+          "tools": {
+            "x": 159.90625,
+            "y": 784,
+            "width": 70.1875,
+            "height": 44,
+            "right": 230.09375,
+            "bottom": 828
+          },
+          "companion": {
+            "x": 292.203125,
+            "y": 746.203125,
+            "width": 85.796875,
+            "height": 85.796875,
+            "right": 378,
+            "bottom": 832
+          }
+        },
+        "safeBounds": [
+          {
+            "key": "explorer:0",
+            "pass": true
+          },
+          {
+            "key": "mission:0",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:0",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:1",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:2",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:3",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:4",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:5",
+            "pass": true
+          },
+          {
+            "key": "kaiAudio:0",
+            "pass": true
+          },
+          {
+            "key": "kaiAudio:1",
+            "pass": true
+          },
+          {
+            "key": "movement:0",
+            "pass": true
+          },
+          {
+            "key": "movement:1",
+            "pass": true
+          },
+          {
+            "key": "movement:2",
+            "pass": true
+          },
+          {
+            "key": "tools:0",
+            "pass": true
+          },
+          {
+            "key": "companion:0",
+            "pass": true
+          }
+        ],
+        "collisions": [
+          {
+            "a": "explorer:0",
+            "b": "mission:0",
+            "area": 0,
+            "width": 0,
+            "height": 50
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:0",
+            "area": 0,
+            "width": 0,
+            "height": 50
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:3",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:4",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:5",
+            "area": 0,
+            "width": 152.796875,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 73.421875,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 44,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 93.59375,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 46,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 46,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 11.890625,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:0",
+            "area": 0,
+            "width": 0,
+            "height": 58
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:2",
+            "area": 0,
+            "width": 10.890625,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:3",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:4",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:5",
+            "area": 0,
+            "width": 112,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 43.203125,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 6.6875,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 8
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 8
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 64,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 28
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 28
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 40,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "companion:0",
+            "area": 0,
+            "width": 39.796875,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "companion:0",
+            "area": 0,
+            "width": 40,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 9
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 9
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "companion:0",
+            "area": 0,
+            "width": 44,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 62.421875,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 44,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "movement:0",
+            "area": 0,
+            "width": 86.59375,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "movement:1",
+            "area": 0,
+            "width": 39,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "movement:2",
+            "area": 0,
+            "width": 46,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "tools:0",
+            "area": 0,
+            "width": 70.1875,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "companion:0",
+            "area": 0,
+            "width": 70.796875,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 69.421875,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 46,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 19.421875,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:0",
+            "area": 0,
+            "width": 18.171875,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:2",
+            "area": 0,
+            "width": 20.578125,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 44
+          },
+          {
+            "a": "movement:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 81.796875
+          },
+          {
+            "a": "movement:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:2",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:2",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "tools:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 44
+          }
+        ],
+        "positiveCollisions": [],
+        "targets": [
+          {
+            "label": "World reconnecting",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Open global live explorers · connected worldwide",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Share Wildz invite",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Close live roster",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Open room chat",
+            "width": 344,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Open living Command Center. Beat step pulse 20:21:04",
+            "width": 73.421875,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Wilds audio settings",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Make camp and recover",
+            "width": 46,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Switch to walking",
+            "width": 46,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Movement trackpad. Running. Hold and drag in any direction to travel.",
+            "width": 93.59375,
+            "height": 93.59375,
+            "floor44": true
+          },
+          {
+            "label": "Open world tools",
+            "width": 70.1875,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Toiusap, level 1, 0 XP, bond 0, Ready",
+            "width": 184,
+            "height": 108,
+            "floor44": true
+          },
+          {
+            "label": "Neiatid, level 1, 24 XP, bond 6, Ready, active",
+            "width": 184,
+            "height": 108,
+            "floor44": true
+          },
+          {
+            "label": "Neiatid. Tap to use Tide Pulse. Swipe sideways to change companion, swipe up for roster, or hold for abilities.",
+            "width": 85.796875,
+            "height": 85.796875,
+            "floor44": true
+          }
+        ],
+        "targetFloorFailures": []
+      },
+      "preview": {
+        "rect": {
+          "x": 89.40625,
+          "y": 573.828125,
+          "width": 288.59375,
+          "height": 163.375,
+          "right": 378,
+          "bottom": 737.203125
+        },
+        "className": "wildz-creature-drawer mode-preview ",
+        "entries": 2
+      },
+      "expanded": {
+        "rect": {
+          "x": 89.40625,
+          "y": 342.296875,
+          "width": 288.59375,
+          "height": 394.90625,
+          "right": 378,
+          "bottom": 737.203125
+        },
+        "className": "wildz-creature-drawer mode-expanded ",
+        "entries": 2
+      },
+      "audio": {
+        "open": true,
+        "rect": {
+          "x": 87.421875,
+          "y": 68,
+          "width": 44,
+          "height": 44,
+          "right": 131.421875,
+          "bottom": 112
+        }
+      },
+      "kai": {
+        "dialogCount": 1,
+        "rect": {
+          "x": 10,
+          "y": 61.997859954833984,
+          "width": 370,
+          "height": 776.4687538146973,
+          "right": 380,
+          "bottom": 838.4666137695312
+        },
+        "homesInert": [
+          {
+            "selector": ".wildz-reference-hud",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wilds-map-status-home",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wilds-left-instrument-home",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wildz-world-controls",
+            "inert": false,
+            "ariaHidden": null
+          }
+        ]
+      },
+      "live": {
+        "rosterCount": 1,
+        "dialogCount": 0,
+        "text": false
+      },
+      "multiplayer": {
+        "liveBadgePresent": true,
+        "remoteCount": 0
+      }
+    },
+    {
+      "size": "430x932",
+      "resting": {
+        "viewport": {
+          "width": 430,
+          "height": 932,
+          "devicePixelRatio": 3
+        },
+        "document": {
+          "scrollWidth": 430,
+          "scrollHeight": 932,
+          "overflowX": 0,
+          "overflowY": 0
+        },
+        "canvas": {
+          "display": {
+            "x": 0,
+            "y": 0,
+            "width": 430,
+            "height": 932
+          },
+          "drawingBuffer": {
+            "width": 537,
+            "height": 1165
+          }
+        },
+        "diagnostics": {
+          "canvas": {
+            "cssWidth": 430,
+            "cssHeight": 932,
+            "drawingBufferWidth": 537,
+            "drawingBufferHeight": 1165,
+            "dpr": 1.25
+          },
+          "state": {
+            "player": {
+              "x": 3.689491840547254,
+              "z": -7.668656205207918
+            },
+            "selectedCardId": "mossbeak",
+            "discovered": 2,
+            "missionProgress": 50,
+            "energy": 56,
+            "combo": 1
+          },
+          "render": {
+            "calls": 99,
+            "triangles": 69666,
+            "points": 42,
+            "lines": 0
+          },
+          "memory": {
+            "geometries": 99,
+            "textures": 3
+          },
+          "quality": {
+            "tier": "medium",
+            "dpr": 1.25
+          },
+          "budget": {
+            "withinBudget": true,
+            "drawCallRatio": 0.61875,
+            "triangleRatio": 0.38703333333333334
+          },
+          "warningFreeCompatibility": {
+            "three": "0.182.0",
+            "shadowType": "PCFShadowMap"
+          },
+          "camera": {
+            "position": [
+              4.6000000000000005,
+              5.799999999999999,
+              7.2
+            ],
+            "fov": 42
+          },
+          "scene": {
+            "children": 8
+          },
+          "boss": {
+            "detailedBosses": 0,
+            "bossFamilies": 8,
+            "maxDetailedBosses": 1
+          }
+        },
+        "homes": {
+          "explorer": {
+            "x": 8,
+            "y": 8,
+            "width": 180.59375,
+            "height": 50,
+            "right": 188.59375,
+            "bottom": 58
+          },
+          "mission": {
+            "x": 215.296875,
+            "y": 8,
+            "width": 112,
+            "height": 58,
+            "right": 327.296875,
+            "bottom": 66
+          },
+          "minimapStatus": {
+            "x": 19,
+            "y": 8,
+            "width": 403,
+            "height": 292.9375,
+            "right": 422,
+            "bottom": 300.9375
+          },
+          "kaiAudio": {
+            "x": 8,
+            "y": 68,
+            "width": 123.421875,
+            "height": 44,
+            "right": 131.421875,
+            "bottom": 112
+          },
+          "movement": {
+            "x": 12,
+            "y": 822,
+            "width": 94,
+            "height": 98,
+            "right": 106,
+            "bottom": 920
+          },
+          "tools": {
+            "x": 179,
+            "y": 872,
+            "width": 72,
+            "height": 44,
+            "right": 251,
+            "bottom": 916
+          },
+          "companion": {
+            "x": 324,
+            "y": 826,
+            "width": 94,
+            "height": 94,
+            "right": 418,
+            "bottom": 920
+          }
+        },
+        "safeBounds": [
+          {
+            "key": "explorer:0",
+            "pass": true
+          },
+          {
+            "key": "mission:0",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:0",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:1",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:2",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:3",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:4",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:5",
+            "pass": true
+          },
+          {
+            "key": "kaiAudio:0",
+            "pass": true
+          },
+          {
+            "key": "kaiAudio:1",
+            "pass": true
+          },
+          {
+            "key": "movement:0",
+            "pass": true
+          },
+          {
+            "key": "movement:1",
+            "pass": true
+          },
+          {
+            "key": "movement:2",
+            "pass": true
+          },
+          {
+            "key": "tools:0",
+            "pass": true
+          },
+          {
+            "key": "companion:0",
+            "pass": true
+          }
+        ],
+        "collisions": [
+          {
+            "a": "explorer:0",
+            "b": "mission:0",
+            "area": 0,
+            "width": 0,
+            "height": 50
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:0",
+            "area": 0,
+            "width": 0,
+            "height": 50
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:3",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:4",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:5",
+            "area": 0,
+            "width": 169.59375,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 73.421875,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 44,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 94,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 46,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 46,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 9.59375,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:0",
+            "area": 0,
+            "width": 0,
+            "height": 58
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:3",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:4",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:5",
+            "area": 0,
+            "width": 112,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 35.703125,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 3.296875,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 8
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 8
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 64,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 28
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 28
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 40,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "companion:0",
+            "area": 0,
+            "width": 44,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "companion:0",
+            "area": 0,
+            "width": 40,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 9
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 9
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "companion:0",
+            "area": 0,
+            "width": 44,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 62.421875,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 44,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "movement:0",
+            "area": 0,
+            "width": 87,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "movement:1",
+            "area": 0,
+            "width": 39,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "movement:2",
+            "area": 0,
+            "width": 46,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "tools:0",
+            "area": 0,
+            "width": 72,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "companion:0",
+            "area": 0,
+            "width": 79,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 69.421875,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 46,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 19.421875,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:0",
+            "area": 0,
+            "width": 18.578125,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:2",
+            "area": 0,
+            "width": 20.578125,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 44
+          },
+          {
+            "a": "movement:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 90
+          },
+          {
+            "a": "movement:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:2",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:2",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "tools:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 44
+          }
+        ],
+        "positiveCollisions": [],
+        "targets": [
+          {
+            "label": "World reconnecting",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Open global live explorers · connected worldwide",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Share Wildz invite",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Close live roster",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Open room chat",
+            "width": 384,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Open living Command Center. Beat step pulse 20:21:04",
+            "width": 73.421875,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Wilds audio settings",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Make camp and recover",
+            "width": 46,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Switch to walking",
+            "width": 46,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Movement trackpad. Running. Hold and drag in any direction to travel.",
+            "width": 94,
+            "height": 94,
+            "floor44": true
+          },
+          {
+            "label": "Open world tools",
+            "width": 72,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Toiusap, level 1, 0 XP, bond 0, Ready",
+            "width": 184,
+            "height": 108,
+            "floor44": true
+          },
+          {
+            "label": "Neiatid, level 1, 24 XP, bond 6, Ready, active",
+            "width": 184,
+            "height": 108,
+            "floor44": true
+          },
+          {
+            "label": "Neiatid. Tap to use Tide Pulse. Swipe sideways to change companion, swipe up for roster, or hold for abilities.",
+            "width": 94,
+            "height": 94,
+            "floor44": true
+          }
+        ],
+        "targetFloorFailures": []
+      },
+      "preview": {
+        "rect": {
+          "x": 99.8125,
+          "y": 649.328125,
+          "width": 318.1875,
+          "height": 167.671875,
+          "right": 418,
+          "bottom": 817
+        },
+        "className": "wildz-creature-drawer mode-preview ",
+        "entries": 2
+      },
+      "expanded": {
+        "rect": {
+          "x": 99.8125,
+          "y": 414.03125,
+          "width": 318.1875,
+          "height": 402.96875,
+          "right": 418,
+          "bottom": 817
+        },
+        "className": "wildz-creature-drawer mode-expanded ",
+        "entries": 2
+      },
+      "audio": {
+        "open": true,
+        "rect": {
+          "x": 87.421875,
+          "y": 68,
+          "width": 44,
+          "height": 44,
+          "right": 131.421875,
+          "bottom": 112
+        }
+      },
+      "kai": {
+        "dialogCount": 1,
+        "rect": {
+          "x": 10,
+          "y": 67.02899932861328,
+          "width": 410,
+          "height": 857.4374923706055,
+          "right": 420,
+          "bottom": 924.4664916992188
+        },
+        "homesInert": [
+          {
+            "selector": ".wildz-reference-hud",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wilds-map-status-home",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wilds-left-instrument-home",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wildz-world-controls",
+            "inert": false,
+            "ariaHidden": null
+          }
+        ]
+      },
+      "live": {
+        "rosterCount": 1,
+        "dialogCount": 0,
+        "text": false
+      },
+      "multiplayer": {
+        "liveBadgePresent": true,
+        "remoteCount": 0
+      }
+    },
+    {
+      "size": "844x390",
+      "resting": {
+        "viewport": {
+          "width": 844,
+          "height": 390,
+          "devicePixelRatio": 3
+        },
+        "document": {
+          "scrollWidth": 844,
+          "scrollHeight": 390,
+          "overflowX": 0,
+          "overflowY": 0
+        },
+        "canvas": {
+          "display": {
+            "x": 0,
+            "y": 0,
+            "width": 844,
+            "height": 390
+          },
+          "drawingBuffer": {
+            "width": 1055,
+            "height": 487
+          }
+        },
+        "diagnostics": {
+          "canvas": {
+            "cssWidth": 844,
+            "cssHeight": 390,
+            "drawingBufferWidth": 1055,
+            "drawingBufferHeight": 487,
+            "dpr": 1.25
+          },
+          "state": {
+            "player": {
+              "x": 3.689491840547254,
+              "z": -7.668656205207918
+            },
+            "selectedCardId": "mossbeak",
+            "discovered": 2,
+            "missionProgress": 50,
+            "energy": 56,
+            "combo": 1
+          },
+          "render": {
+            "calls": 129,
+            "triangles": 71766,
+            "points": 42,
+            "lines": 0
+          },
+          "memory": {
+            "geometries": 127,
+            "textures": 3
+          },
+          "quality": {
+            "tier": "medium",
+            "dpr": 1.25
+          },
+          "budget": {
+            "withinBudget": true,
+            "drawCallRatio": 0.80625,
+            "triangleRatio": 0.3987
+          },
+          "warningFreeCompatibility": {
+            "three": "0.182.0",
+            "shadowType": "PCFShadowMap"
+          },
+          "camera": {
+            "position": [
+              4.6000000000000005,
+              5.799999999999999,
+              7.2
+            ],
+            "fov": 42
+          },
+          "scene": {
+            "children": 8
+          },
+          "boss": {
+            "detailedBosses": 0,
+            "bossFamilies": 8,
+            "maxDetailedBosses": 1
+          }
+        },
+        "homes": {
+          "explorer": {
+            "x": 8,
+            "y": 6,
+            "width": 190,
+            "height": 50,
+            "right": 198,
+            "bottom": 56
+          },
+          "mission": {
+            "x": 424,
+            "y": 6,
+            "width": 124,
+            "height": 51,
+            "right": 548,
+            "bottom": 57
+          },
+          "minimapStatus": {
+            "x": 507,
+            "y": 6,
+            "width": 329,
+            "height": 229.9375,
+            "right": 836,
+            "bottom": 235.9375
+          },
+          "kaiAudio": {
+            "x": 8,
+            "y": 62,
+            "width": 154,
+            "height": 44,
+            "right": 162,
+            "bottom": 106
+          },
+          "movement": {
+            "x": 8,
+            "y": 310,
+            "width": 68,
+            "height": 72,
+            "right": 76,
+            "bottom": 382
+          },
+          "tools": {
+            "x": 374,
+            "y": 336,
+            "width": 96,
+            "height": 44,
+            "right": 470,
+            "bottom": 380
+          },
+          "companion": {
+            "x": 758,
+            "y": 304,
+            "width": 78,
+            "height": 78,
+            "right": 836,
+            "bottom": 382
+          }
+        },
+        "safeBounds": [
+          {
+            "key": "explorer:0",
+            "pass": true
+          },
+          {
+            "key": "mission:0",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:0",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:1",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:2",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:3",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:4",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:5",
+            "pass": true
+          },
+          {
+            "key": "kaiAudio:0",
+            "pass": true
+          },
+          {
+            "key": "kaiAudio:1",
+            "pass": true
+          },
+          {
+            "key": "movement:0",
+            "pass": true
+          },
+          {
+            "key": "movement:1",
+            "pass": true
+          },
+          {
+            "key": "movement:2",
+            "pass": true
+          },
+          {
+            "key": "tools:0",
+            "pass": true
+          },
+          {
+            "key": "companion:0",
+            "pass": true
+          }
+        ],
+        "collisions": [
+          {
+            "a": "explorer:0",
+            "b": "mission:0",
+            "area": 0,
+            "width": 0,
+            "height": 50
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:0",
+            "area": 0,
+            "width": 0,
+            "height": 50
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:3",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:4",
+            "area": 0,
+            "width": 0,
+            "height": 33
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:5",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 104,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 44,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 68,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 48,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 48,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:0",
+            "area": 0,
+            "width": 0,
+            "height": 51
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:3",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:4",
+            "area": 0,
+            "width": 0,
+            "height": 34
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:5",
+            "area": 0,
+            "width": 41,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 46,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 6
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 6
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 62,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 32
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 32
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 78,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "companion:0",
+            "area": 0,
+            "width": 28,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "companion:0",
+            "area": 0,
+            "width": 44,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 5
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 5
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "companion:0",
+            "area": 0,
+            "width": 44,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "companion:0",
+            "area": 0,
+            "width": 59,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 68,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 28,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:1",
+            "area": 0,
+            "width": 14,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:2",
+            "area": 0,
+            "width": 28,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 42
+          },
+          {
+            "a": "movement:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 68
+          },
+          {
+            "a": "movement:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 42
+          },
+          {
+            "a": "movement:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 44
+          },
+          {
+            "a": "movement:2",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 42
+          },
+          {
+            "a": "movement:2",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 44
+          },
+          {
+            "a": "tools:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 44
+          }
+        ],
+        "positiveCollisions": [],
+        "targets": [
+          {
+            "label": "World reconnecting",
+            "width": 138.953125,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Open global live explorers · connected worldwide",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Share Wildz invite",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Close live roster",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Open room chat",
+            "width": 310,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Open living Command Center. Beat step pulse 20:21:04",
+            "width": 104,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Wilds audio settings",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Make camp and recover",
+            "width": 48,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Switch to walking",
+            "width": 48,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Movement trackpad. Running. Hold and drag in any direction to travel.",
+            "width": 68,
+            "height": 68,
+            "floor44": true
+          },
+          {
+            "label": "Open world tools",
+            "width": 96,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Toiusap, level 1, 0 XP, bond 0, Ready",
+            "width": 96.390625,
+            "height": 72,
+            "floor44": true
+          },
+          {
+            "label": "Neiatid, level 1, 24 XP, bond 6, Ready, active",
+            "width": 96.375,
+            "height": 72,
+            "floor44": true
+          },
+          {
+            "label": "Neiatid. Tap to use Tide Pulse. Swipe sideways to change companion, swipe up for roster, or hold for abilities.",
+            "width": 78,
+            "height": 78,
+            "floor44": true
+          }
+        ],
+        "targetFloorFailures": []
+      },
+      "preview": {
+        "rect": {
+          "x": 316,
+          "y": 142,
+          "width": 520,
+          "height": 156,
+          "right": 836,
+          "bottom": 298
+        },
+        "className": "wildz-creature-drawer mode-preview ",
+        "entries": 2
+      },
+      "expanded": {
+        "rect": {
+          "x": 316,
+          "y": 142,
+          "width": 520,
+          "height": 156,
+          "right": 836,
+          "bottom": 298
+        },
+        "className": "wildz-creature-drawer mode-expanded ",
+        "entries": 2
+      },
+      "audio": {
+        "open": true,
+        "rect": {
+          "x": 118,
+          "y": 62,
+          "width": 44,
+          "height": 44,
+          "right": 162,
+          "bottom": 106
+        }
+      },
+      "kai": {
+        "dialogCount": 1,
+        "rect": {
+          "x": 10,
+          "y": 23.712011337280273,
+          "width": 824,
+          "height": 358.7968692779541,
+          "right": 834,
+          "bottom": 382.5088806152344
+        },
+        "homesInert": [
+          {
+            "selector": ".wildz-reference-hud",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wilds-map-status-home",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wilds-left-instrument-home",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wildz-world-controls",
+            "inert": false,
+            "ariaHidden": null
+          }
+        ]
+      },
+      "live": {
+        "rosterCount": 1,
+        "dialogCount": 0,
+        "text": false
+      },
+      "multiplayer": {
+        "liveBadgePresent": true,
+        "remoteCount": 0
+      }
+    },
+    {
+      "size": "768x1024",
+      "resting": {
+        "viewport": {
+          "width": 768,
+          "height": 1024,
+          "devicePixelRatio": 3
+        },
+        "document": {
+          "scrollWidth": 768,
+          "scrollHeight": 1024,
+          "overflowX": 0,
+          "overflowY": 0
+        },
+        "canvas": {
+          "display": {
+            "x": 0,
+            "y": 0,
+            "width": 768,
+            "height": 1024
+          },
+          "drawingBuffer": {
+            "width": 960,
+            "height": 1280
+          }
+        },
+        "diagnostics": {
+          "canvas": {
+            "cssWidth": 768,
+            "cssHeight": 1024,
+            "drawingBufferWidth": 960,
+            "drawingBufferHeight": 1280,
+            "dpr": 1.25
+          },
+          "state": {
+            "player": {
+              "x": 3.689491840547254,
+              "z": -7.668656205207918
+            },
+            "selectedCardId": "mossbeak",
+            "discovered": 2,
+            "missionProgress": 50,
+            "energy": 56,
+            "combo": 1
+          },
+          "render": {
+            "calls": 106,
+            "triangles": 70130,
+            "points": 42,
+            "lines": 0
+          },
+          "memory": {
+            "geometries": 127,
+            "textures": 3
+          },
+          "quality": {
+            "tier": "medium",
+            "dpr": 1.25
+          },
+          "budget": {
+            "withinBudget": true,
+            "drawCallRatio": 0.6625,
+            "triangleRatio": 0.38961111111111113
+          },
+          "warningFreeCompatibility": {
+            "three": "0.182.0",
+            "shadowType": "PCFShadowMap"
+          },
+          "camera": {
+            "position": [
+              4.6000000000000005,
+              5.799999999999999,
+              7.2
+            ],
+            "fov": 42
+          },
+          "scene": {
+            "children": 8
+          },
+          "boss": {
+            "detailedBosses": 0,
+            "bossFamilies": 8,
+            "maxDetailedBosses": 1
+          }
+        },
+        "homes": {
+          "explorer": {
+            "x": 12,
+            "y": 10,
+            "width": 258,
+            "height": 66,
+            "right": 270,
+            "bottom": 76
+          },
+          "mission": {
+            "x": 382.59375,
+            "y": 10,
+            "width": 184,
+            "height": 51,
+            "right": 566.59375,
+            "bottom": 61
+          },
+          "minimapStatus": {
+            "x": 431,
+            "y": 10,
+            "width": 325,
+            "height": 305.9375,
+            "right": 756,
+            "bottom": 315.9375
+          },
+          "kaiAudio": {
+            "x": 12,
+            "y": 84,
+            "width": 129.421875,
+            "height": 44,
+            "right": 141.421875,
+            "bottom": 128
+          },
+          "movement": {
+            "x": 14,
+            "y": 912,
+            "width": 94,
+            "height": 98,
+            "right": 108,
+            "bottom": 1010
+          },
+          "tools": {
+            "x": 336,
+            "y": 962,
+            "width": 96,
+            "height": 44,
+            "right": 432,
+            "bottom": 1006
+          },
+          "companion": {
+            "x": 660,
+            "y": 916,
+            "width": 94,
+            "height": 94,
+            "right": 754,
+            "bottom": 1010
+          }
+        },
+        "safeBounds": [
+          {
+            "key": "explorer:0",
+            "pass": true
+          },
+          {
+            "key": "mission:0",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:0",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:1",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:2",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:3",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:4",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:5",
+            "pass": true
+          },
+          {
+            "key": "kaiAudio:0",
+            "pass": true
+          },
+          {
+            "key": "kaiAudio:1",
+            "pass": true
+          },
+          {
+            "key": "movement:0",
+            "pass": true
+          },
+          {
+            "key": "movement:1",
+            "pass": true
+          },
+          {
+            "key": "movement:2",
+            "pass": true
+          },
+          {
+            "key": "tools:0",
+            "pass": true
+          },
+          {
+            "key": "companion:0",
+            "pass": true
+          }
+        ],
+        "collisions": [
+          {
+            "a": "explorer:0",
+            "b": "mission:0",
+            "area": 0,
+            "width": 0,
+            "height": 51
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:0",
+            "area": 0,
+            "width": 0,
+            "height": 66
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:3",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:4",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:5",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 79.421875,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 44,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 94,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 48,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 48,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:0",
+            "area": 0,
+            "width": 0,
+            "height": 51
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:3",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:4",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:5",
+            "area": 0,
+            "width": 135.59375,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 49.40625,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 2.796875
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 2.796875
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 74.796875,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 2
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 2
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 94,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "companion:0",
+            "area": 0,
+            "width": 44,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "companion:0",
+            "area": 0,
+            "width": 42,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 25
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 25
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "companion:0",
+            "area": 0,
+            "width": 44,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "tools:0",
+            "area": 0,
+            "width": 1,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "companion:0",
+            "area": 0,
+            "width": 81,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 77.421875,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 48,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 27.421875,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:0",
+            "area": 0,
+            "width": 10.578125,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:2",
+            "area": 0,
+            "width": 14.578125,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 44
+          },
+          {
+            "a": "movement:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 90
+          },
+          {
+            "a": "movement:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:2",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:2",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "tools:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 44
+          }
+        ],
+        "positiveCollisions": [],
+        "targets": [
+          {
+            "label": "World reconnecting",
+            "width": 138.953125,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Open global live explorers · connected worldwide",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Share Wildz invite",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Close live roster",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Open room chat",
+            "width": 310,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Open living Command Center. Beat step pulse 20:21:04",
+            "width": 79.421875,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Wilds audio settings",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Make camp and recover",
+            "width": 48,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Switch to walking",
+            "width": 48,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Movement trackpad. Running. Hold and drag in any direction to travel.",
+            "width": 94,
+            "height": 94,
+            "floor44": true
+          },
+          {
+            "label": "Open world tools",
+            "width": 96,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Toiusap, level 1, 0 XP, bond 0, Ready",
+            "width": 184,
+            "height": 108,
+            "floor44": true
+          },
+          {
+            "label": "Neiatid, level 1, 24 XP, bond 6, Ready, active",
+            "width": 184,
+            "height": 108,
+            "floor44": true
+          },
+          {
+            "label": "Neiatid. Tap to use Tide Pulse. Swipe sideways to change companion, swipe up for roster, or hold for abilities.",
+            "width": 94,
+            "height": 94,
+            "floor44": true
+          }
+        ],
+        "targetFloorFailures": []
+      },
+      "preview": {
+        "rect": {
+          "x": 185.6875,
+          "y": 744.578125,
+          "width": 568.3125,
+          "height": 162.421875,
+          "right": 754,
+          "bottom": 907
+        },
+        "className": "wildz-creature-drawer mode-preview ",
+        "entries": 2
+      },
+      "expanded": {
+        "rect": {
+          "x": 185.6875,
+          "y": 540.078125,
+          "width": 568.3125,
+          "height": 366.921875,
+          "right": 754,
+          "bottom": 907
+        },
+        "className": "wildz-creature-drawer mode-expanded ",
+        "entries": 2
+      },
+      "audio": {
+        "open": true,
+        "rect": {
+          "x": 97.421875,
+          "y": 84,
+          "width": 44,
+          "height": 44,
+          "right": 141.421875,
+          "bottom": 128
+        }
+      },
+      "kai": {
+        "dialogCount": 1,
+        "rect": {
+          "x": 10,
+          "y": 264.3495788574219,
+          "width": 748,
+          "height": 754.1406555175781,
+          "right": 758,
+          "bottom": 1018.490234375
+        },
+        "homesInert": [
+          {
+            "selector": ".wildz-reference-hud",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wilds-map-status-home",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wilds-left-instrument-home",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wildz-world-controls",
+            "inert": false,
+            "ariaHidden": null
+          }
+        ]
+      },
+      "live": {
+        "rosterCount": 1,
+        "dialogCount": 0,
+        "text": false
+      },
+      "multiplayer": {
+        "liveBadgePresent": true,
+        "remoteCount": 0
+      }
+    },
+    {
+      "size": "1440x900",
+      "resting": {
+        "viewport": {
+          "width": 1440,
+          "height": 900,
+          "devicePixelRatio": 3
+        },
+        "document": {
+          "scrollWidth": 1440,
+          "scrollHeight": 900,
+          "overflowX": 0,
+          "overflowY": 0
+        },
+        "canvas": {
+          "display": {
+            "x": 0,
+            "y": 0,
+            "width": 1440,
+            "height": 900
+          },
+          "drawingBuffer": {
+            "width": 2160,
+            "height": 1350
+          }
+        },
+        "diagnostics": {
+          "canvas": {
+            "cssWidth": 1440,
+            "cssHeight": 900,
+            "drawingBufferWidth": 2160,
+            "drawingBufferHeight": 1350,
+            "dpr": 1.5
+          },
+          "state": {
+            "player": {
+              "x": 3.689491840547254,
+              "z": -7.668656205207918
+            },
+            "selectedCardId": "mossbeak",
+            "discovered": 2,
+            "missionProgress": 50,
+            "energy": 56,
+            "combo": 1
+          },
+          "render": {
+            "calls": 119,
+            "triangles": 70922,
+            "points": 42,
+            "lines": 0
+          },
+          "memory": {
+            "geometries": 127,
+            "textures": 3
+          },
+          "quality": {
+            "tier": "high",
+            "dpr": 1.5
+          },
+          "budget": {
+            "withinBudget": true,
+            "drawCallRatio": 0.74375,
+            "triangleRatio": 0.3940111111111111
+          },
+          "warningFreeCompatibility": {
+            "three": "0.182.0",
+            "shadowType": "PCFShadowMap"
+          },
+          "camera": {
+            "position": [
+              4.6000000000000005,
+              5.799999999999999,
+              7.2
+            ],
+            "fov": 42
+          },
+          "scene": {
+            "children": 8
+          },
+          "boss": {
+            "detailedBosses": 0,
+            "bossFamilies": 8,
+            "maxDetailedBosses": 1
+          }
+        },
+        "homes": {
+          "explorer": {
+            "x": 12,
+            "y": 10,
+            "width": 258,
+            "height": 66,
+            "right": 270,
+            "bottom": 76
+          },
+          "mission": {
+            "x": 703,
+            "y": 10,
+            "width": 184,
+            "height": 51,
+            "right": 887,
+            "bottom": 61
+          },
+          "minimapStatus": {
+            "x": 1103,
+            "y": 10,
+            "width": 325,
+            "height": 305.9375,
+            "right": 1428,
+            "bottom": 315.9375
+          },
+          "kaiAudio": {
+            "x": 12,
+            "y": 84,
+            "width": 129.421875,
+            "height": 44,
+            "right": 141.421875,
+            "bottom": 128
+          },
+          "movement": {
+            "x": 14,
+            "y": 788,
+            "width": 94,
+            "height": 98,
+            "right": 108,
+            "bottom": 886
+          },
+          "tools": {
+            "x": 672,
+            "y": 838,
+            "width": 96,
+            "height": 44,
+            "right": 768,
+            "bottom": 882
+          },
+          "companion": {
+            "x": 1332,
+            "y": 792,
+            "width": 94,
+            "height": 94,
+            "right": 1426,
+            "bottom": 886
+          }
+        },
+        "safeBounds": [
+          {
+            "key": "explorer:0",
+            "pass": true
+          },
+          {
+            "key": "mission:0",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:0",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:1",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:2",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:3",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:4",
+            "pass": true
+          },
+          {
+            "key": "minimapStatus:5",
+            "pass": true
+          },
+          {
+            "key": "kaiAudio:0",
+            "pass": true
+          },
+          {
+            "key": "kaiAudio:1",
+            "pass": true
+          },
+          {
+            "key": "movement:0",
+            "pass": true
+          },
+          {
+            "key": "movement:1",
+            "pass": true
+          },
+          {
+            "key": "movement:2",
+            "pass": true
+          },
+          {
+            "key": "tools:0",
+            "pass": true
+          },
+          {
+            "key": "companion:0",
+            "pass": true
+          }
+        ],
+        "collisions": [
+          {
+            "a": "explorer:0",
+            "b": "mission:0",
+            "area": 0,
+            "width": 0,
+            "height": 51
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:0",
+            "area": 0,
+            "width": 0,
+            "height": 66
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:3",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:4",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "minimapStatus:5",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 79.421875,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 44,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 94,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 48,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 48,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "explorer:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:0",
+            "area": 0,
+            "width": 0,
+            "height": 51
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:3",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:4",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "minimapStatus:5",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 65,
+            "height": 0
+          },
+          {
+            "a": "mission:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 34
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 34
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 94,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 94,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:2",
+            "b": "companion:0",
+            "area": 0,
+            "width": 44,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:3",
+            "b": "companion:0",
+            "area": 0,
+            "width": 42,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 25
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 25
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:4",
+            "b": "companion:0",
+            "area": 0,
+            "width": 44,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "kaiAudio:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "kaiAudio:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "movement:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "movement:2",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "minimapStatus:5",
+            "b": "companion:0",
+            "area": 0,
+            "width": 81,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:0",
+            "area": 0,
+            "width": 77.421875,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:1",
+            "area": 0,
+            "width": 48,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "movement:2",
+            "area": 0,
+            "width": 27.421875,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:0",
+            "area": 0,
+            "width": 10.578125,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:1",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "movement:2",
+            "area": 0,
+            "width": 14.578125,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "kaiAudio:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:0",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 44
+          },
+          {
+            "a": "movement:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 90
+          },
+          {
+            "a": "movement:1",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:1",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:2",
+            "b": "tools:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "movement:2",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 0
+          },
+          {
+            "a": "tools:0",
+            "b": "companion:0",
+            "area": 0,
+            "width": 0,
+            "height": 44
+          }
+        ],
+        "positiveCollisions": [],
+        "targets": [
+          {
+            "label": "World reconnecting",
+            "width": 138.953125,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Open global live explorers · connected worldwide",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Share Wildz invite",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Close live roster",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Open room chat",
+            "width": 310,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Open living Command Center. Beat step pulse 20:21:05",
+            "width": 79.421875,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Wilds audio settings",
+            "width": 44,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Make camp and recover",
+            "width": 48,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Switch to walking",
+            "width": 48,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Movement trackpad. Running. Hold and drag in any direction to travel.",
+            "width": 94,
+            "height": 94,
+            "floor44": true
+          },
+          {
+            "label": "Open world tools",
+            "width": 96,
+            "height": 44,
+            "floor44": true
+          },
+          {
+            "label": "Toiusap, level 1, 0 XP, bond 0, Ready",
+            "width": 184,
+            "height": 108,
+            "floor44": true
+          },
+          {
+            "label": "Neiatid, level 1, 24 XP, bond 6, Ready, active",
+            "width": 184,
+            "height": 108,
+            "floor44": true
+          },
+          {
+            "label": "Neiatid. Tap to use Tide Pulse. Swipe sideways to change companion, swipe up for roster, or hold for abilities.",
+            "width": 94,
+            "height": 94,
+            "floor44": true
+          }
+        ],
+        "targetFloorFailures": []
+      },
+      "preview": {
+        "rect": {
+          "x": 806,
+          "y": 615.59375,
+          "width": 620,
+          "height": 167.40625,
+          "right": 1426,
+          "bottom": 783
+        },
+        "className": "wildz-creature-drawer mode-preview ",
+        "entries": 2
+      },
+      "expanded": {
+        "rect": {
+          "x": 806,
+          "y": 388.046875,
+          "width": 620,
+          "height": 394.953125,
+          "right": 1426,
+          "bottom": 783
+        },
+        "className": "wildz-creature-drawer mode-expanded ",
+        "entries": 2
+      },
+      "audio": {
+        "open": true,
+        "rect": {
+          "x": 97.421875,
+          "y": 84,
+          "width": 44,
+          "height": 44,
+          "right": 141.421875,
+          "bottom": 128
+        }
+      },
+      "kai": {
+        "dialogCount": 1,
+        "rect": {
+          "x": 280,
+          "y": 159.5719451904297,
+          "width": 880,
+          "height": 732.9531402587891,
+          "right": 1160,
+          "bottom": 892.5250854492188
+        },
+        "homesInert": [
+          {
+            "selector": ".wildz-reference-hud",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wilds-map-status-home",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wilds-left-instrument-home",
+            "inert": true,
+            "ariaHidden": "true"
+          },
+          {
+            "selector": ".wildz-world-controls",
+            "inert": false,
+            "ariaHidden": null
+          }
+        ]
+      },
+      "live": {
+        "rosterCount": 1,
+        "dialogCount": 0,
+        "text": false
+      },
+      "multiplayer": {
+        "liveBadgePresent": true,
+        "remoteCount": 0
+      }
+    }
+  ],
+  "interaction": {
+    "twoTouchDuring": {
+      "dpadPressed": "true",
+      "companionMode": "wilds-companion-command-zone mode-ability-wheel"
+    },
+    "twoTouchReleased": "false",
+    "horizontalCycle": {
+      "before": "Neiatid",
+      "after": "Toiusap",
+      "restored": "Neiatid",
+      "ownedOnly": true
+    },
+    "tapPower": {
+      "eventText": "Arena of Echoes entrance awakened.",
+      "commandStillMounted": true
+    },
+    "holdSlide": {
+      "wheelVisible": true,
+      "selected": "Mossbeak Bond"
+    },
+    "pointerCancel": {
+      "wheelCount": 0,
+      "mode": "wilds-companion-command-zone mode-pending"
+    },
+    "lostCapture": {
+      "before": "true",
+      "after": "false"
+    },
+    "keyboard": {
+      "wheelOpened": true,
+      "focusRestored": true
+    },
+    "resizeCancellation": {
+      "wheelCount": 0,
+      "commandMode": "wilds-companion-command-zone mode-pending"
+    },
+    "escape": {
+      "drawerClosed": true
+    },
+    "text200": {
+      "fontSize": "32px",
+      "overflowX": 0
+    },
+    "reducedMotion": {
+      "matches": true,
+      "drawerTransition": "0s"
+    },
+    "offline": {
+      "online": false,
+      "canvasCount": 2,
+      "commandCount": 1
+    },
+    "lifecycle": {
+      "visibilityState": "visible",
+      "canvasCount": 2
+    },
+    "audioToggle": {
+      "before": false,
+      "after": true,
+      "restored": true
+    },
+    "hapticSafety": [
+      {
+        "variant": "missing",
+        "selected": "Toiusap",
+        "commandMounted": true
+      },
+      {
+        "variant": "non-callable",
+        "selected": "Neiatid",
+        "commandMounted": true
+      },
+      {
+        "variant": "throwing",
+        "selected": "Toiusap",
+        "commandMounted": true
+      }
+    ],
+    "finalActive": {
+      "command": "Neiatid. Tap to use Tide Pulse. Swipe sideways to change companion, swipe up for roster, or hold for abilities.",
+      "commandName": "Neiatid",
+      "commandAbility": "Tide Pulse",
+      "commandPosition": "2/2",
+      "portraitTitle": "Neiatid deck portrait full-body companion",
+      "portraitMarkupDigestBasis": "<svg xmlns=\"http://www.w3.org/2000/svg\" data-heartbound=\"heroic-companion\" data-identity-signature=\"sha256:9c9751f72cb816832cbd288f18ce428accef1473f64c5f97827984ad71993699\" data-bo",
+      "worldActorLabels": [
+        "Neiatid"
+      ],
+      "activeAssetId": "wilds:223616f27f33bc5b5fa273d9"
+    }
+  },
+  "battleLeader": {
+    "reached": false,
+    "reason": "The retained real QA profile was outside a player-facing trainer interaction radius after the core replay; no state injection or fixture was used to manufacture a battle."
+  },
+  "browserHealth": {
+    "consoleErrors": [],
+    "consoleWarnings": [],
+    "pageErrors": [],
+    "httpErrors": [],
+    "failedRequests": [
+      {
+        "method": "GET",
+        "url": "http://127.0.0.1:49817/cards/wilds%3A123e00f59899025a366d578f?_rsc=1p-R_iEY6bj0jY31",
+        "error": "net::ERR_ABORTED"
+      }
+    ]
+  },
+  "screenshots": [
+    "output/playwright/task5-capture-reward.png",
+    "output/playwright/task5-card-vault-toiusap-final.png",
+    "output/playwright/task5-slate-neiatid-final.png",
+    "output/playwright/task5-resting-320x568.png",
+    "output/playwright/task5-resting-360x800.png",
+    "output/playwright/task5-resting-390x844.png",
+    "output/playwright/task5-resting-430x932.png",
+    "output/playwright/task5-resting-844x390.png",
+    "output/playwright/task5-resting-768x1024.png",
+    "output/playwright/task5-resting-1440x900.png"
+  ]
+}
