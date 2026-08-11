@@ -300,8 +300,8 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 /* Three-way world bearing row: event / proximity / event. Each lane owns a
    fixed fraction of the viewport so labels scale but surfaces never collide. */
 @media (max-width: 640px) and (orientation: portrait) {
-  .wildz-app .wilds-search-reticle { top: calc(104px + var(--wildz-stage-safe-top)); left: 50%; width: 34vw; min-width: 0; max-width: 142px; padding-inline: clamp(5px, 1.8vw, 10px); overflow: visible; font-size: clamp(7px, 2.05vw, 10px); line-height: 1.12; white-space: nowrap; transform: translateX(-50%); }
-  .wilds-map-status-home .wilds-live-pill.event { position: fixed !important; top: calc(104px + var(--wildz-stage-safe-top)); grid-column: auto; width: 30vw; max-width: 132px; min-width: 0; height: 44px; padding-inline: clamp(4px, 1.5vw, 9px); justify-content: center; gap: 3px; font-size: clamp(6.5px, 1.95vw, 9px); letter-spacing: -.01em; }
+  .wildz-app .wilds-search-reticle { top: calc(104px + var(--wildz-stage-safe-top)); left: 50%; width: clamp(80px, 21vw, 92px); min-width: 0; max-width: none; padding-inline: 4px; overflow: visible; font-size: clamp(6.5px, 1.65vw, 8.5px); line-height: 1.12; white-space: nowrap; transform: translateX(-50%); }
+  .wilds-map-status-home .wilds-live-pill.event { position: fixed !important; top: calc(154px + var(--wildz-stage-safe-top)); grid-column: auto; width: 30vw; max-width: 132px; min-width: 0; height: 44px; padding-inline: clamp(4px, 1.5vw, 9px); justify-content: center; gap: 3px; font-size: clamp(6.5px, 1.95vw, 9px); letter-spacing: -.01em; }
   .wilds-map-status-home .wilds-live-pill.event:not(.ecology) { right: max(1.5vw, env(safe-area-inset-right)); }
   .wilds-map-status-home .wilds-live-pill.event.ecology { right: auto; left: max(1.5vw, env(safe-area-inset-left)); }
   .wilds-map-status-home .wilds-live-pill.event span,
@@ -15066,10 +15066,12 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 
 .wildz-app .wilds-event-toast {
   right: auto;
-  bottom: max(154px, calc(env(safe-area-inset-bottom) + 148px));
+  bottom: max(96px, calc(env(safe-area-inset-bottom) + 90px));
   left: 50%;
-  width: min(260px, calc(100vw - 128px));
+  width: clamp(168px, 46vw, 190px);
   max-width: none;
+  font-size: 10px;
+  text-align: center;
   transform: translateX(-50%);
 }
 
@@ -15427,10 +15429,15 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 .wilds-popover-layer.is-contained .wilds-popover-scroll { display: grid; align-content: start; gap: 9px; padding: 12px; }
 
 @media (max-width: 640px) and (orientation: portrait) {
-  .wildz-app .wilds-search-reticle { top: calc(104px + var(--wildz-stage-safe-top)); left: 50%; width: 34vw; min-width: 0; max-width: 142px; padding-inline: clamp(5px, 1.8vw, 10px); overflow: visible; font-size: clamp(7px, 2.05vw, 10px); line-height: 1.12; white-space: nowrap; transform: translateX(-50%); }
-  .wilds-map-status-home .wilds-live-pill.event { position: fixed !important; top: calc(104px + var(--wildz-stage-safe-top)); grid-column: auto; width: 30vw; max-width: 132px; min-width: 0; height: 44px; padding-inline: clamp(4px, 1.5vw, 9px); justify-content: center; gap: 3px; font-size: clamp(6.5px, 1.95vw, 9px); letter-spacing: -.01em; }
+  .wildz-app .wilds-search-reticle { top: calc(104px + var(--wildz-stage-safe-top)); left: 50%; width: clamp(80px, 21vw, 92px); min-width: 0; max-width: none; padding-inline: 4px; overflow: visible; font-size: clamp(6.5px, 1.65vw, 8.5px); line-height: 1.12; white-space: nowrap; transform: translateX(-50%); }
+  .wilds-map-status-home .wilds-live-pill.event { position: fixed !important; top: calc(154px + var(--wildz-stage-safe-top)); grid-column: auto; width: 30vw; max-width: 132px; min-width: 0; height: 44px; padding-inline: clamp(4px, 1.5vw, 9px); justify-content: center; gap: 3px; font-size: clamp(6.5px, 1.95vw, 9px); letter-spacing: -.01em; }
   .wilds-map-status-home .wilds-live-pill.event:not(.ecology) { right: max(1.5vw, env(safe-area-inset-right)); }
   .wilds-map-status-home .wilds-live-pill.event.ecology { right: auto; left: max(1.5vw, env(safe-area-inset-left)); }
   .wilds-map-status-home .wilds-live-pill.event span,
   .wilds-map-status-home .wilds-live-pill.event b { flex: 0 1 auto; overflow: visible; font-size: inherit; text-overflow: clip; white-space: nowrap; }
+}
+
+@media (max-width: 360px) and (orientation: portrait) {
+  .wildz-app .wilds-search-reticle { top: calc(154px + var(--wildz-stage-safe-top)); }
+  .wildz-app .wilds-event-toast { bottom: max(136px, calc(env(safe-area-inset-bottom) + 130px)); }
 }

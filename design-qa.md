@@ -5,6 +5,7 @@
 | User reference | Final implementation |
 | --- | --- |
 | ![User HUD reference](/Users/bjklock/Downloads/Screenshot%202026-08-11%20at%2010.43.17%E2%80%AFAM.png) | ![Final mobile HUD](/Users/bjklock/Kai-Turah/wildz.quest/output/playwright/final-mobile-polish-414x558.jpg) |
+| ![Boss-pill and message-spacing reference](/Users/bjklock/Downloads/IMG_6074.jpg) | ![Final separated event lanes](/Users/bjklock/Kai-Turah/wildz.quest/output/playwright/final-mobile-event-lanes-414x896.png) |
 
 ## Comparison findings
 
@@ -23,9 +24,12 @@
 - Capture locking, sealing, world toast, real five-stat reward, and Card Vault handoff share the new proof-seal treatment without changing capture authority.
 - Character quick actions now open Card Vault with the active asset selected and the pagination moved to that exact card.
 - Camera heading publication now comes directly from OrbitControls changes instead of a competing render-frame sampler, keeping walking direction synchronized with the latest look direction.
+- On portrait mobile, the centered scan/temperature pill stays in its established lane while destination and boss pills move to a dedicated lane 50px lower. The 44px top-right controls can no longer occupy the same vertical band as those event pills.
+- The bottom event message now measures 190px at 414px wide (responsive range 168–190px), uses centered 10px copy that resolves to two lines for the live experience message, and sits lower with a clear 36px gap above the center toggle. Its x=112–302 footprint remains between the D-pad (ending at x=106) and companion control (starting at x=311).
+- Held movement now advances from a stable 45ms deadline. A mildly late camera frame retains the original cadence, while a severe stall drops backlog rather than replaying a burst; movement speed, orbit damping, direction, and gesture ownership are unchanged.
 
 ## Result
 
-Production browser verification at 414×558 and 1280×720 found no blocked vertical gesture, nested scroller, world-input leak, header movement, or bottom-message/control collision. The fixed header remains visible while the native content viewport moves independently.
+Production browser verification at 320×568, 414×558, 414×896, and 1280×720 found no blocked vertical gesture, nested scroller, world-input leak, header movement, or bottom-message/control collision. At 414×896 the scan pill measured x=164–250 while the first right control began at x=262; the narrower message measured x=112–302 and y=757–800 while the toggle began at y=836. At 320×568 the scan moves to the y=154 event lane, four pixels below the top controls, with 16px reserved on either side for the destination pills. The fixed popover header remains visible while the native content viewport moves independently.
 
 final result: passed

@@ -2,6 +2,16 @@ export const WILDS_MOVEMENT_MODE_KEY = "receiz:wilds:movement-mode:v1";
 
 export type WildsMovementMode = "walk" | "run";
 
+export function advanceMovementEmissionDeadline(nextAt: number, now: number, intervalMs = 45) {
+  const interval = Number.isFinite(intervalMs) && intervalMs > 0 ? intervalMs : 45;
+  const deadline = Number.isFinite(nextAt) ? nextAt : now + interval;
+  if (now < deadline) return { emit: false, nextAt: deadline };
+  return {
+    emit: true,
+    nextAt: now - deadline >= interval ? now + interval : deadline + interval
+  };
+}
+
 export function normalizeWildsMovementMode(value: unknown): WildsMovementMode {
   return value === "run" ? "run" : "walk";
 }

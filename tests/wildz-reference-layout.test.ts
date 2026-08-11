@@ -56,7 +56,7 @@ test("expanded controls grow from their semantic homes and remain motion-safe", 
   assert.match(css, /\.wildz-tools-home \.wilds-world-tools-fan\s*\{[^}]*position:\s*absolute;[^}]*bottom:/);
   assert.match(css, /\.wildz-tools-home \.wilds-world-tools-fan \.wilds-command-dock\s*\{[^}]*grid-template-columns:\s*repeat\(2,/);
   assert.match(css, /\.wildz-tools-home \.wilds-command-button\[aria-controls="wilds-command-sheet-mission"\]\s*\{[^}]*display:\s*none;/);
-  assert.match(css, /\.wildz-app \.wilds-event-toast\s*\{[^}]*bottom:\s*max\(154px, calc\(env\(safe-area-inset-bottom\) \+ 148px\)\);[^}]*left:\s*50%;[^}]*width:\s*min\(260px, calc\(100vw - 128px\)\);[^}]*transform:\s*translateX\(-50%\);/s);
+  assert.match(css, /\.wildz-app \.wilds-event-toast\s*\{[^}]*bottom:\s*max\(96px, calc\(env\(safe-area-inset-bottom\) \+ 90px\)\);[^}]*left:\s*50%;[^}]*width:\s*clamp\(168px, 46vw, 190px\);[^}]*font-size:\s*10px;[^}]*text-align:\s*center;[^}]*transform:\s*translateX\(-50%\);/s);
   assert.match(campaign, /worldOverlayState\.toolsOpen \? " is-world-tools-open" : ""/);
   assert.match(css, /\.wilds-stage\.is-world-tools-open \.wilds-event-toast\s*\{[^}]*bottom:\s*max\(200px, calc\(env\(safe-area-inset-bottom\) \+ 194px\)\);/s);
   assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\)\s*\{[\s\S]*\.wildz-tools-home \.wilds-world-tools-fan \.wilds-command-dock\s*\{[^}]*grid-template-columns:\s*repeat\(4,/);
@@ -106,10 +106,11 @@ test("world event pills stay compact while trainer challenges come from directly
   assert.doesNotMatch(css, /\.wilds-living-world-hud\.has-event \.wilds-live-pill\[class\*="mode-"\]\s*\{[^}]*display:\s*none/);
 });
 
-test("mobile world bearings form a collision-proof three-way row", () => {
+test("mobile world bearings keep scan centered while event pills own a separate lower lane", () => {
   const css = readFileSync("app/globals.css", "utf8");
-  assert.match(css, /@media \(max-width: 640px\) and \(orientation: portrait\)[\s\S]*\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(104px \+ var\(--wildz-stage-safe-top\)\);[^}]*width:\s*34vw;[^}]*white-space:\s*nowrap;/s);
-  assert.match(css, /\.wilds-map-status-home \.wilds-live-pill\.event\s*\{[^}]*position:\s*fixed\s*!important;[^}]*top:\s*calc\(104px \+ var\(--wildz-stage-safe-top\)\);[^}]*width:\s*30vw;[^}]*height:\s*44px;/s);
+  assert.match(css, /@media \(max-width: 640px\) and \(orientation: portrait\)[\s\S]*\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(104px \+ var\(--wildz-stage-safe-top\)\);[^}]*width:\s*clamp\(80px, 21vw, 92px\);[^}]*white-space:\s*nowrap;/s);
+  assert.match(css, /\.wilds-map-status-home \.wilds-live-pill\.event\s*\{[^}]*position:\s*fixed\s*!important;[^}]*top:\s*calc\(154px \+ var\(--wildz-stage-safe-top\)\);[^}]*width:\s*30vw;[^}]*height:\s*44px;/s);
+  assert.match(css, /@media \(max-width: 360px\) and \(orientation: portrait\)\s*\{[^}]*\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(154px \+ var\(--wildz-stage-safe-top\)\);/s);
   assert.match(css, /\.wilds-live-pill\.event:not\(\.ecology\)\s*\{[^}]*right:/s);
   assert.match(css, /\.wilds-live-pill\.event\.ecology\s*\{[^}]*left:/s);
 });

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { applyWildsInput, initialPlayState, worldBounds } from "../src/features/play/game-state";
 import { resolveWildsContextAction } from "../src/features/play/wilds-context-action";
-import { cameraRelativeMovement, movementScale, normalizeWildsMovementMode } from "../src/features/play/wilds-movement";
+import { advanceMovementEmissionDeadline, cameraRelativeMovement, movementScale, normalizeWildsMovementMode } from "../src/features/play/wilds-movement";
 import { WILDS_FLAGSHIP_LANDMARKS } from "../src/features/play/wilds-landmarks";
 
 const emptyContext = {
@@ -97,5 +97,12 @@ describe("Wilds contextual world actions", () => {
     const reverseFromBehind = cameraRelativeMovement({ x: 0, z: 1 }, Math.PI);
     assert.ok(Math.abs(reverseFromBehind.x) < 0.0001);
     assert.ok(Math.abs(reverseFromBehind.z + 1) < 0.0001);
+  });
+
+  it("preserves held-movement cadence across one late render frame without replaying a burst", () => {
+    assert.deepEqual(advanceMovementEmissionDeadline(45, 44), { emit: false, nextAt: 45 });
+    assert.deepEqual(advanceMovementEmissionDeadline(45, 80), { emit: true, nextAt: 90 });
+    assert.deepEqual(advanceMovementEmissionDeadline(90, 96), { emit: true, nextAt: 135 });
+    assert.deepEqual(advanceMovementEmissionDeadline(135, 260), { emit: true, nextAt: 305 });
   });
 });
