@@ -4,12 +4,12 @@ import { test } from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("active companion command exposes portrait peeks and the full semantic gesture surface", () => {
+test("active companion command exposes one Vault portrait and the full semantic gesture surface", () => {
   const source = read("src/features/play/WildsCompanionCommand.tsx");
   assert.match(source, /WildsCreatureThumbnail/);
-  assert.match(source, /wilds-companion-peek previous/);
-  assert.match(source, /wilds-companion-peek next/);
-  assert.match(source, /aria-hidden="true"/);
+  assert.match(source, /asset=\{activeEntry\.asset\}/);
+  assert.match(source, /activeEntry\.name/);
+  assert.doesNotMatch(source, /wilds-companion-peek|previous \?|next \?/);
   assert.match(source, /setPointerCapture/);
   assert.match(source, /capture is optional/);
   assert.match(source, /releaseCompanionGesture/);
@@ -46,8 +46,7 @@ test("companion command is thumb-sized, safe-area aware, directional, and motion
   const css = read("app/globals.css");
   assert.match(css, /\.wilds-companion-command\s*\{[^}]*width:\s*(?:clamp\([^;]*72px[^;]*94px|[789]\dpx)/s);
   assert.match(css, /\.wilds-companion-command-zone\s*\{[^}]*env\(safe-area-inset-right\)/s);
-  assert.match(css, /\.wilds-companion-peek\.previous\s*\{[^}]*translate/s);
-  assert.match(css, /\.wilds-companion-peek\.next\s*\{[^}]*translate/s);
+  assert.doesNotMatch(css, /wilds-companion-peek/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.wilds-companion-command/s);
 });
 
@@ -62,6 +61,6 @@ test("the command requests controlled drawer snaps and replaces the duplicate ac
 
 test("the command visibly renders the proof-sealed individual name", () => {
   const companionSource = read("src/features/play/WildsCompanionCommand.tsx");
-  assert.match(companionSource, /className="wilds-companion-real-name"[^>]*>\{activeCard\.manifest\.name\}/);
+  assert.match(companionSource, /className="wilds-companion-real-name"[^>]*>\{activeEntry\.name\}/);
   assert.doesNotMatch(companionSource, /wilds-companion-real-name[^\n]*(familyId|species|formId)/);
 });

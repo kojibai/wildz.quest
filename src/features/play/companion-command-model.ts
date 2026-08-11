@@ -51,3 +51,11 @@ export function cycleCompanion(
   const origin = activeIndex >= 0 ? activeIndex : 0;
   return ids[(origin + direction + ids.length) % ids.length]!;
 }
+
+export function cycleVaultCompanion(
+  rosterIds: readonly string[],
+  activeId: string | null,
+  direction: -1 | 1
+): string | null {
+  return cycleCompanion(rosterIds.map((id) => ({ id })), activeId, direction);
+}

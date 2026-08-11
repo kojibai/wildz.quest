@@ -55,6 +55,13 @@ test("programmatic drawer callbacks cannot mutate overlay state while the compan
   assert.match(controls, /const handleRequestDrawer = useCallback[\s\S]*if \(worldHomesEnabled\) overlayDispatch\(\{ type: "drawer", snap \}\)/);
 });
 
+test("the companion command receives the same living Vault roster as the Slate", () => {
+  const controls = read("src/features/play/WildzWorldControls.tsx");
+  assert.match(controls, /const activeEntry = companionRoster\.find\(\(entry\) => entry\.active\) \?\? null/);
+  assert.match(controls, /<WildsCompanionCommand[\s\S]*activeEntry=\{activeEntry\}[\s\S]*entries=\{companionRoster\}/);
+  assert.doesNotMatch(controls, /<WildsCompanionCommand[\s\S]*cards=\{/);
+});
+
 test("command dismissal restores only a valid origin through a cancellable RAF", () => {
   const dock = read("src/features/play/WildsCommandDock.tsx");
   assert.match(dock, /originTriggerRef/);

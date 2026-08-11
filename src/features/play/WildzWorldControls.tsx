@@ -166,6 +166,7 @@ export function WildzWorldControls({
     activeAssetId: activeCard?.id ?? null,
     newAssetId: newRosterAssetId
   }), [activeCard?.id, cardConditions, companionProgress, nearbyCards, newRosterAssetId]);
+  const activeEntry = companionRoster.find((entry) => entry.active) ?? null;
 
   useEffect(() => {
     if (requestedCommand && exclusiveOwner !== "none") requestHandled();
@@ -217,9 +218,9 @@ export function WildzWorldControls({
           onSnapChange={handleDrawerSnapChange}
         />
         <WildsCompanionCommand
-          activeCard={activeCard}
+          activeEntry={activeEntry}
           cancelSignal={gestureCancelSignal}
-          cards={nearbyCards}
+          entries={companionRoster}
           fieldPowers={fieldPowers}
           onCommandButtonReady={(button) => { companionCommandRef.current = button; }}
           onRequestDrawer={handleRequestDrawer}

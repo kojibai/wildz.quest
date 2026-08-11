@@ -10,13 +10,13 @@ import {
   type CompanionGestureResult,
   type CompanionGestureState
 } from "./companion-command-gesture";
-import { companionCarousel, cycleCompanion } from "./companion-command-model";
+import { companionCarousel, cycleVaultCompanion } from "./companion-command-model";
 import { playWildsHaptic } from "./wilds-haptics";
-import type { PortableCardAsset } from "./portable-card";
 import type { WildsAudioCue } from "./wilds-audio";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import { nextCompanionAbilityIndex, type CompanionAbilityNavigationKey } from "./companion-ability-composite";
 import { canRestoreFocus } from "./focus-recovery";
+import type { VaultCompanionRosterEntry } from "./vault-companion-roster";
 import {
   openCompanionKeyboardInteraction,
   resetCompanionCommandInteraction,
@@ -26,8 +26,8 @@ import {
 export type WildsCompanionPower = { id: string; label: string };
 
 export function WildsCompanionCommand({
-  cards,
-  activeCard,
+  entries,
+  activeEntry,
   fieldPowers,
   onSelectCard,
   onUsePower,
@@ -38,8 +38,8 @@ export function WildsCompanionCommand({
   onAudioCue,
   cancelSignal = 0
 }: {
-  cards: readonly PortableCardAsset[];
-  activeCard: PortableCardAsset | null;
+  entries: readonly VaultCompanionRosterEntry[];
+  activeEntry: VaultCompanionRosterEntry | null;
   fieldPowers: readonly WildsCompanionPower[];
   onSelectCard: (assetId: string) => void;
   onUsePower: (abilityIndex: number) => void;
@@ -61,9 +61,10 @@ export function WildsCompanionCommand({
   const [mode, setMode] = useState<CompanionGestureState["mode"]>("pending");
   const [activeAbilityIndex, setActiveAbilityIndex] = useState<number | null>(null);
   const [keyboardWheelOpen, setKeyboardWheelOpen] = useState(false);
-  const projection = useMemo(() => companionCarousel(cards, activeCard?.id ?? null), [activeCard?.id, cards]);
-  const previous = cards.find((card) => card.id === projection.previousId) ?? null;
-  const next = cards.find((card) => card.id === projection.nextId) ?? null;
+  const projection = useMemo(
+    () => companionCarousel(entries.map((entry) => ({ id: entry.asset.id })), activeEntry?.asset.id ?? null),
+    [activeEntry?.asset.id, entries]
+  );
   const abilityCount = Math.max(1, Math.min(4, fieldPowers.length));
   const normalizedActiveAbilityIndex = activeAbilityIndex === null ? null : activeAbilityIndex % abilityCount;
 
@@ -106,8 +107,8 @@ export function WildsCompanionCommand({
   }, []);
 
   const cycle = (direction: -1 | 1) => {
-    const assetId = cycleCompanion(cards, activeCard?.id ?? null, direction);
-    if (!assetId || assetId === activeCard?.id) return;
+    const assetId = cycleVaultCompanion(entries.map((entry) => entry.asset.id), activeEntry?.asset.id ?? null, direction);
+    if (!assetId || assetId === activeEntry?.asset.id) return;
     playWildsHaptic("cycle");
     onAudioCue?.("companion-detent");
     onSelectCard(assetId);
@@ -139,7 +140,7 @@ export function WildsCompanionCommand({
   const pointerPoint = (event: ReactPointerEvent<HTMLButtonElement>) => ({ x: event.clientX, y: event.clientY });
 
   const onPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (!activeCard || activePointerIdRef.current !== null) return;
+    if (!activeEntry || activePointerIdRef.current !== null) return;
     event.preventDefault();
     activePointerIdRef.current = event.pointerId;
     pointerCaptureTargetRef.current = event.currentTarget;
@@ -310,11 +311,11 @@ export function WildsCompanionCommand({
       >{power.label}</div>)}
     </div> : null}
     <button
-      aria-label={activeCard ? `${activeCard.manifest.name}. Tap to use ${fieldPowers[selectedAbilityIndex]?.label ?? "field power"}. Swipe sideways to change companion, swipe up for roster, or hold for abilities.` : "No active companion"}
+      aria-label={activeEntry ? `${activeEntry.name}. Tap to use ${fieldPowers[selectedAbilityIndex]?.label ?? "field power"}. Swipe sideways to change companion, swipe up for roster, or hold for abilities.` : "No selectable creature in this Vault."}
       aria-expanded={wheelOpen}
       aria-haspopup="listbox"
       className="wilds-companion-command"
-      disabled={!activeCard}
+      disabled={!activeEntry}
       onKeyDown={onKeyDown}
       onLostPointerCapture={cancelPointer}
       onPointerCancel={cancelPointer}
@@ -327,12 +328,12 @@ export function WildsCompanionCommand({
       }}
       type="button"
     >
-      {previous ? <span aria-hidden="true" className="wilds-companion-peek previous"><WildsCreatureThumbnail asset={previous} /></span> : null}
-      {activeCard ? <WildsCreatureThumbnail asset={activeCard} className="wilds-companion-active-portrait" /> : null}
-      {next ? <span aria-hidden="true" className="wilds-companion-peek next"><WildsCreatureThumbnail asset={next} /></span> : null}
-      {activeCard ? <strong className="wilds-companion-real-name">{activeCard.manifest.name}</strong> : null}
-      <span className="wilds-companion-power-label">{fieldPowers[selectedAbilityIndex]?.label ?? "Power"}</span>
-      <small>{projection.position}/{projection.total}</small>
+      {activeEntry ? <>
+        <WildsCreatureThumbnail asset={activeEntry.asset} className="wilds-companion-active-portrait" />
+        <strong className="wilds-companion-real-name">{activeEntry.name}</strong>
+        <span className="wilds-companion-power-label">{fieldPowers[selectedAbilityIndex]?.label ?? "Power"}</span>
+        <small>{projection.position}/{projection.total}</small>
+      </> : <span className="wilds-companion-empty-copy">No selectable creature in this Vault.</span>}
     </button>
   </div>;
 }
