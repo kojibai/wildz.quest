@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Put the three top-right status controls in one collision-free row, slightly reduce the audio visual, and make the bottom-right companion control open only the owned-character roster.
+**Goal:** Put the three top-right status controls in one collision-free row, slim the event bars beneath them without truncation, keep audio unchanged, and make the bottom-right companion control open only the owned-character roster.
 
 **Architecture:** Keep Kai Klok and all domain components intact. Change only final HUD composition CSS and the companion command’s activation contract; the existing Vault roster projection, drawer, selection reducer, focus restoration, and modal ownership remain authoritative.
 
@@ -12,7 +12,10 @@
 
 - Kai Klok placement, appearance, content, click behavior, and Command Center destination remain unchanged.
 - Top-right order is living-world status, live explorers, share invite.
-- Visible mobile surfaces may shrink, but every semantic target remains at least 44 by 44 CSS pixels.
+- Nearby event bars occupy rows below the three-control primary row.
+- The opened live roster stacks above Kai Klok, audio, and every resting HUD control.
+- Status/event visuals may shrink, but every semantic target remains at least 44 by 44 CSS pixels.
+- Audio control and icon dimensions remain unchanged.
 - Bottom-right tap/Enter/Space opens the compact Slate roster; upward flick or hold opens the expanded Slate roster; none opens or executes field abilities.
 - Character selection continues through the existing authoritative `select-asset` path using exact sealed Vault names and IDs.
 - Do not create a replacement field-ability HUD control.
@@ -107,7 +110,7 @@ git commit -m "fix: make companion command character-only"
 
 ---
 
-### Task 2: One-row top-right controls and smaller audio visual
+### Task 2: One-row top-right controls and slimmer event bars
 
 **Files:**
 - Modify: `app/globals.css`
@@ -117,19 +120,21 @@ git commit -m "fix: make companion command character-only"
 
 **Interfaces:**
 - Consumes: existing `.wilds-map-status-home`, `.wilds-living-world-hud`, `.wilds-live-cluster`, `.wilds-live-pill`, `.wilds-live-badge`, `.wilds-live-share`, `.wilds-left-instrument-home`, and `.wilds-audio-settings > summary` DOM.
-- Produces: one visual row in order status/live/share, compact circular visuals inside 44-pixel semantic targets, and a smaller audio glyph/surface without changing Kai markup or behavior.
+- Produces: one visual row in order status/live/share, compact circular visuals inside 44-pixel semantic targets, slim untruncated event bars beneath it, and no Kai/audio change.
 
 - [ ] **Step 1: Write failing CSS contracts**
 
 Require the final unified CSS block to include:
 
 ```ts
-assert.match(finalCss, /\.wilds-map-status-home\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*row;[^}]*flex-wrap:\s*nowrap/);
+assert.match(finalCss, /\.wilds-map-status-home\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*repeat\(3, 44px\)/);
 assert.match(finalCss, /\.wilds-map-status-home \.wilds-living-world-hud\s*\{[^}]*display:\s*contents/);
 assert.match(finalCss, /\.wilds-map-status-home \.wilds-live-cluster\s*\{[^}]*display:\s*contents/);
+assert.match(finalCss, /\.wilds-map-status-home \.wilds-live-pill\.event\s*\{[^}]*grid-column:\s*1 \/ -1/);
+assert.match(finalCss, /\.wilds-map-status-home \.wilds-live-roster\s*\{[^}]*z-index:\s*calc\(var\(--wildz-layer-expanded-controls\) \+ 10\)/);
 assert.match(finalCss, /@media \(max-width: 640px\)[\s\S]*\.wilds-map-status-home :is\([^}]*\)\s*\{[^}]*width:\s*44px;[^}]*min-height:\s*44px/);
-assert.match(finalCss, /\.wilds-left-instrument-home \.wilds-audio-settings > summary::before/);
-assert.match(finalCss, /\.wilds-left-instrument-home \.wilds-audio-settings > summary svg\s*\{[^}]*width:\s*16px;[^}]*height:\s*16px/);
+assert.match(finalCss, /\.wilds-map-status-home \.wilds-live-pill\.event::before\s*\{[^}]*inset-block:\s*4px/);
+assert.match(finalCss, /\.wilds-map-status-home \.wilds-live-pill\.event\s*\{[^}]*min-height:\s*44px;[^}]*white-space:\s*nowrap/);
 ```
 
 Record the exact `WildsBalancedStatusHud.tsx` Kai button block before implementation and assert its existing class, title, accessible label, `kaiMoment` content, and `onOpenCommandCenter()` path remain unchanged afterward.
@@ -142,18 +147,22 @@ Run:
 pnpm test
 ```
 
-Expected: the new row/audio assertions fail against the grid/two-surface layout and current 32-pixel audio glyph.
+Expected: the new row/event assertions fail against the current stacked control layout and full-height event pills.
 
 - [ ] **Step 3: Implement final CSS geometry**
 
 In the last unified living-world CSS block:
 
-- make `.wilds-map-status-home` a right-aligned, no-wrap flex row;
-- use `display: contents` for the one-control living-world wrapper and multiplayer cluster so status/live/share share one flex formatting context in DOM order;
+- make `.wilds-map-status-home` a right-aligned three-column grid with 44-pixel semantic tracks;
+- use `display: contents` for the living-world wrapper and multiplayer cluster so status/live/share share one grid formatting context in DOM order;
+- explicitly place the mode pill, live badge, and share button in row one/columns one through three;
+- place each `.wilds-live-pill.event` across columns one through three so event bars flow into rows below;
 - keep fixed detail sheets unaffected through their existing fixed selectors;
+- give `.wilds-live-roster` an expanded-surface z-index above the left instrument home and other resting controls;
 - keep each semantic button at 44 by 44 pixels;
 - on mobile, draw a 36-pixel visible circle with an inset pseudo surface, without shrinking the 44-pixel button box;
-- keep the audio summary at 44 by 44 pixels, draw a 36-pixel visible surface, and set its icon to exactly 16 pixels;
+- give event buttons a 44-pixel semantic height with a 36-pixel inset visible pill, `white-space: nowrap`, content-sized width, and no text overflow/truncation for the supported viewports;
+- do not modify the audio summary, audio icon, or Kai button dimensions;
 - do not edit `.wilds-kai-command-pill` behavior, size, placement, or component source;
 - add narrow-phone and short-landscape gaps/maximum width so the three controls never wrap or overlap the minimap/viewport.
 
@@ -205,10 +214,13 @@ Expected: production is ready on `http://127.0.0.1:49817/`.
 At 320x568, 390x844, and 844x390 record:
 
 - status/live/share top-right button rectangles share one row (their vertical centers differ by no more than 1 CSS pixel);
+- every visible event bar begins below the bottom edge of that primary row;
 - all three semantic rectangles are at least 44 by 44 pixels;
 - no pairwise collision with minimap, mission, viewport edge, or one another;
-- audio semantic rectangle is at least 44 by 44 while its rendered icon/surface is smaller than before;
+- audio semantic/icon rectangles match the pre-change baseline;
+- every event bar is at least 44 pixels high semantically, has a 36-pixel visible pill, and satisfies `scrollWidth <= clientWidth`;
 - Kai Klok label, destination, and click behavior are unchanged;
+- opening “Everyone live now” places the roster above Kai/audio in hit testing and computed z-order;
 - zero horizontal document overflow.
 
 Capture a settled screenshot at each size.
