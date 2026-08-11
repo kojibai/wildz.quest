@@ -1,8 +1,8 @@
 async (page) => {
   const baseUrl = "http://127.0.0.1:49817/";
   const expected = {
-    vault: { id: "wilds:123e00f59899025a366d578f", name: "Toiusap", ability: "Stone Pulse" },
-    captured: { id: "wilds:223616f27f33bc5b5fa273d9", name: "Neiatid", ability: "Tide Pulse" }
+    vault: { id: "wilds:123e00f59899025a366d578f", name: "Toiusap", ability: "Stone Pulse", stats: { health: 63, power: 79, guard: 76, speed: 77, bond: 53 } },
+    slate: { id: "wilds:223616f27f33bc5b5fa273d9", name: "Neiatid", ability: "Tide Pulse", stats: { health: 87, power: 61, guard: 69, speed: 47, bond: 55 } }
   };
   const viewports = [
     { width: 320, height: 568 },
@@ -61,6 +61,10 @@ async (page) => {
       await page.keyboard.press("Escape");
       await page.waitForTimeout(35);
     }
+    for (const label of ["Close player interaction", "Close live roster"]) {
+      const close = page.getByRole("button", { name: label });
+      if (await close.count() && await close.first().isVisible()) await close.first().click();
+    }
     const audio = page.locator('.wilds-audio-settings[open] > summary');
     if (await audio.count()) await audio.click();
   };
@@ -77,7 +81,7 @@ async (page) => {
     const setupCommand = page.locator(".wilds-companion-command");
     await setupCommand.focus();
     await page.keyboard.press("ArrowRight");
-    await page.waitForFunction((name) => document.querySelector(".wilds-companion-command")?.getAttribute("aria-label")?.startsWith(`${name}.`), expected.captured.name);
+    await page.waitForFunction((name) => document.querySelector(".wilds-companion-command")?.getAttribute("aria-label")?.startsWith(`${name}.`), expected.slate.name);
     await page.waitForTimeout(600);
   }
   await page.getByRole("button", { name: "Open world tools" }).click();
@@ -85,14 +89,35 @@ async (page) => {
   await page.getByRole("dialog", { name: "Card Vault" }).waitFor();
   const vaultCards = await page.locator(".wilds-inventory-grid > button").evaluateAll((buttons) => buttons.map((button) => button.textContent?.replace(/\s+/g, " ").trim() ?? ""));
   if (vaultCards.length !== 2) throw new Error(`expected two real Vault cards, received ${vaultCards.length}`);
+  const readVaultManifest = async (card) => {
+    await page.locator(".wilds-inventory-grid > button").filter({ hasText: card.name }).click();
+    await page.waitForFunction((name) => document.querySelector(".wilds-inventory-detail")?.textContent?.includes(name), card.name);
+    const proof = await page.evaluate(({ name, id }) => {
+      const detail = document.querySelector(".wilds-inventory-detail");
+      const rawText = detail?.textContent ?? "";
+      const compactText = rawText.replace(/\s+/g, " ").trim();
+      const statsMatch = rawText.replace(/\s+/g, "").match(/Health(\d+)Power(\d+)Guard(\d+)Speed(\d+)Bond(\d+)/i);
+      const standalone = Array.from(detail?.querySelectorAll("a") ?? []).find((link) => link.textContent?.includes("standalone"));
+      return {
+        assetId: id,
+        manifestName: name,
+        namePresent: rawText.includes(name),
+        source: "live Card Vault sealed-manifest DOM",
+        stats: statsMatch ? { health: Number(statsMatch[1]), power: Number(statsMatch[2]), guard: Number(statsMatch[3]), speed: Number(statsMatch[4]), bond: Number(statsMatch[5]) } : null,
+        text: compactText.slice(0, 520),
+        standaloneHref: standalone?.getAttribute("href") ?? null
+      };
+    }, card);
+    if (proof.standaloneHref !== `/cards/${encodeURIComponent(card.id)}`) throw new Error(`${card.name} exact id href mismatch: ${proof.standaloneHref}`);
+    if (JSON.stringify(proof.stats) !== JSON.stringify(card.stats)) throw new Error(`${card.name} live manifest stats mismatch: ${JSON.stringify(proof.stats)}`);
+    return proof;
+  };
+  const vaultManifests = {
+    Toiusap: await readVaultManifest(expected.vault),
+    Neiatid: await readVaultManifest(expected.slate)
+  };
   await page.locator(".wilds-inventory-grid > button").filter({ hasText: expected.vault.name }).click();
   await page.waitForFunction((name) => document.querySelector(".wilds-inventory-detail")?.textContent?.includes(name), expected.vault.name);
-  const vaultDetail = await page.evaluate((name) => {
-    const detail = document.querySelector(".wilds-inventory-detail");
-    const standalone = Array.from(detail?.querySelectorAll("a") ?? []).find((link) => link.textContent?.includes("standalone"));
-    return { namePresent: detail?.textContent?.includes(name) ?? false, text: detail?.textContent?.replace(/\s+/g, " ").slice(0, 520) ?? null, standaloneHref: standalone?.getAttribute("href") ?? null };
-  }, expected.vault.name);
-  if (vaultDetail.standaloneHref !== `/cards/${encodeURIComponent(expected.vault.id)}`) throw new Error(`Vault exact id href mismatch: ${vaultDetail.standaloneHref}`);
   await page.getByRole("button", { name: "Set as active deck leader" }).click();
   await page.waitForFunction((name) => document.querySelector(".wilds-companion-command")?.getAttribute("aria-label")?.startsWith(`${name}.`), expected.vault.name);
   await page.screenshot({ path: "output/playwright/task5-card-vault-toiusap-final.png" });
@@ -112,16 +137,16 @@ async (page) => {
     label: shell.querySelector("button")?.getAttribute("aria-label") ?? null,
     active: shell.querySelector("button")?.getAttribute("aria-pressed") === "true"
   })));
-  const capturedButton = page.getByRole("button", { name: new RegExp(`^${expected.captured.name}, level`) });
-  const capturedBox = await capturedButton.boundingBox();
-  await capturedButton.click({ timeout: 3000 });
-  await page.waitForFunction((name) => document.querySelector(".wilds-companion-command")?.getAttribute("aria-label")?.startsWith(`${name}.`), expected.captured.name);
+  const neiatidButton = page.getByRole("button", { name: new RegExp(`^${expected.slate.name}, level`) });
+  const neiatidBox = await neiatidButton.boundingBox();
+  await neiatidButton.click({ timeout: 3000 });
+  await page.waitForFunction((name) => document.querySelector(".wilds-companion-command")?.getAttribute("aria-label")?.startsWith(`${name}.`), expected.slate.name);
   await page.screenshot({ path: "output/playwright/task5-slate-neiatid-final.png" });
   const slateSelected = await activeProof();
-  assertActive(slateSelected, expected.captured, "Slate selection");
+  assertActive(slateSelected, expected.slate, "Slate selection");
   await page.waitForTimeout(600);
   const slateReloaded = await reloadProof();
-  assertActive(slateReloaded, expected.captured, "Slate reload");
+  assertActive(slateReloaded, expected.slate, "Slate reload");
 
   const geometry = async () => page.evaluate(() => {
     const selectorMap = {
@@ -178,6 +203,13 @@ async (page) => {
     return {
       viewport: { width: innerWidth, height: innerHeight, devicePixelRatio },
       document: { scrollWidth: document.documentElement.scrollWidth, scrollHeight: document.documentElement.scrollHeight, overflowX: document.documentElement.scrollWidth - innerWidth, overflowY: document.documentElement.scrollHeight - innerHeight },
+      openSurfaces: {
+        slate: document.querySelector(".wildz-creature-drawer:not(.is-closed)") ? 1 : 0,
+        liveRoster: document.querySelectorAll(".wilds-live-roster").length,
+        playerInteraction: document.querySelectorAll(".wilds-player-sheet").length,
+        dialogs: document.querySelectorAll('[role="dialog"]').length,
+        audioSheets: document.querySelectorAll(".wilds-audio-settings[open]").length
+      },
       canvas: canvas && canvasRect ? { display: { x: canvasRect.x, y: canvasRect.y, width: canvasRect.width, height: canvasRect.height }, drawingBuffer: { width: canvas.width, height: canvas.height } } : null,
       diagnostics,
       homes: items,
@@ -253,7 +285,7 @@ async (page) => {
   const afterCycle = await activeProof();
   await page.keyboard.press("ArrowLeft"); await page.waitForTimeout(100);
   const restoredCycle = await activeProof();
-  interaction.horizontalCycle = { before: beforeCycle.commandName, after: afterCycle.commandName, restored: restoredCycle.commandName, ownedOnly: [expected.vault.name, expected.captured.name].includes(afterCycle.commandName) };
+  interaction.horizontalCycle = { before: beforeCycle.commandName, after: afterCycle.commandName, restored: restoredCycle.commandName, ownedOnly: [expected.vault.name, expected.slate.name].includes(afterCycle.commandName) };
 
   await command.focus(); await page.keyboard.press("Enter"); await page.waitForTimeout(80);
   interaction.tapPower = { eventText: await page.locator(".wilds-event-toast").textContent().catch(() => null), commandStillMounted: await command.count() === 1 };
@@ -321,17 +353,50 @@ async (page) => {
   for (const [index, variant] of ["missing", "non-callable", "throwing"].entries()) {
     await page.evaluate((kind) => Object.defineProperty(navigator, "vibrate", { configurable: true, value: kind === "missing" ? undefined : kind === "non-callable" ? {} : () => { throw new Error("qa vibration failure"); } }), variant);
     await command.focus(); await page.keyboard.press("ArrowUp");
-    const target = index % 2 === 0 ? expected.vault : expected.captured;
+    const target = index % 2 === 0 ? expected.vault : expected.slate;
     await page.getByRole("button", { name: new RegExp(`^${target.name}, level`) }).click({ timeout: 3000 });
     await page.waitForTimeout(60);
     hapticSafety.push({ variant, selected: (await activeProof()).commandName, commandMounted: await command.count() === 1 });
   }
   await page.evaluate(() => { try { delete navigator.vibrate; } catch {} });
   await command.focus(); await page.keyboard.press("ArrowUp");
-  await page.getByRole("button", { name: new RegExp(`^${expected.captured.name}, level`) }).click({ timeout: 3000 });
+  await page.getByRole("button", { name: new RegExp(`^${expected.slate.name}, level`) }).click({ timeout: 3000 });
   await page.waitForTimeout(80);
   interaction.hapticSafety = hapticSafety;
   interaction.finalActive = await activeProof();
+
+  await dismiss();
+  const preBattleActive = await activeProof();
+  await page.getByRole("button", { name: /Open mission details/ }).click();
+  const mission = page.getByRole("dialog", { name: "Living Story" });
+  await mission.waitFor({ state: "visible" });
+  const battleTrainer = mission.getByRole("button", { name: "Battle Trainer", exact: true }).first();
+  const battleLeader = { reached: false, via: ["Open mission details", "Battle Trainer"], activeAssetId: preBattleActive.activeAssetId, activeName: preBattleActive.commandName };
+  if (await battleTrainer.count() && await battleTrainer.isEnabled()) {
+    await battleTrainer.click();
+    const challenge = page.locator(".wilds-trainer-challenge");
+    await challenge.waitFor({ state: "visible" });
+    const lead = challenge.locator('.wilds-trainer-roster article').first();
+    const screenshotVisibleBefore = await challenge.isVisible();
+    if (!screenshotVisibleBefore) throw new Error("Battle Trainer roster disappeared before visual proof");
+    await challenge.screenshot({ path: "output/playwright/task5-battle-leader-neiatid-final.png" });
+    const screenshotVisibleAfter = await challenge.isVisible();
+    if (!screenshotVisibleAfter) throw new Error("Battle Trainer roster disappeared during visual proof");
+    Object.assign(battleLeader, {
+      reached: true,
+      surface: "Selected battle roster",
+      trainerName: await challenge.locator("h2").innerText(),
+      rosterCount: await challenge.locator('.wilds-trainer-roster article').count(),
+      leadName: await lead.locator("strong").innerText(),
+      leadRole: await lead.locator("small").innerText(),
+      leadPortraitTitle: await lead.locator("svg title").textContent().catch(() => null),
+      visualProof: { locator: ".wilds-trainer-challenge", visibleBefore: screenshotVisibleBefore, visibleAfter: screenshotVisibleAfter, screenshot: "output/playwright/task5-battle-leader-neiatid-final.png" }
+    });
+    await page.getByRole("button", { name: "Close trainer challenge" }).click();
+  } else {
+    Object.assign(battleLeader, { reason: "The visible Living Story Battle Trainer control was unavailable for this profile; no state was injected." });
+    await page.keyboard.press("Escape");
+  }
 
   const userAgent = await page.evaluate(() => navigator.userAgent);
   const errors = consoleEntries.filter((entry) => entry.type === "error");
@@ -340,17 +405,21 @@ async (page) => {
     schema: "wildz.vault-roster-balanced-hud.browser.v1",
     capturedAt: new Date().toISOString(),
     baseUrl,
-    buildId: "qW7HIxXbLMMm4UdSFwYsD",
+    buildId: "9sYHunZv9Fb2Jn8qLGnlF",
     productCommit: "cea7b57",
     userAgent,
-    fixtureBoundary: "Existing production IndexedDB profile. Toiusap was the profile's legitimate starter; Neiatid was obtained through player-facing battle and Capture in this run. No storage injection or test fixture route was used.",
-    capture: { inventoryBefore: 1, inventoryAfter: 2, rewardModalCount: 1, capturedCard: expected.captured, newMarkerDirectlyObserved: false, screenshot: "output/playwright/task5-capture-reward.png" },
-    selection: { initialActive, vaultCards, vaultDetail, vaultSelected, vaultReloaded, slateEntries, capturedButtonRect: capturedBox, slateSelected, slateReloaded },
+    fixtureBoundary: "Selection-only replay begins with an existing legitimate two-card production IndexedDB profile containing Toiusap and Neiatid. This replay does not qualify either card's acquisition provenance. No storage injection or test-fixture route was used.",
+    qualificationBoundary: {
+      selectionProfileInventoryCount: 2,
+      acquisitionReplayed: false,
+      newMarker: { browserQualified: false, evidence: "Automated implementation tests only; not asserted by this browser replay." }
+    },
+    selection: { initialActive, vaultCards, vaultManifests, vaultSelected, vaultReloaded, slateEntries, slateButtonRect: neiatidBox, slateSelected, slateReloaded },
     matrix,
     interaction,
-    battleLeader: { reached: false, reason: "The retained real QA profile was outside a player-facing trainer interaction radius after the core replay; no state injection or fixture was used to manufacture a battle." },
+    battleLeader,
     browserHealth: { consoleErrors: errors, consoleWarnings: warnings, pageErrors, httpErrors: responses.filter((response) => response.status >= 400), failedRequests },
-    screenshots: ["output/playwright/task5-capture-reward.png", "output/playwright/task5-card-vault-toiusap-final.png", "output/playwright/task5-slate-neiatid-final.png", ...viewports.map((viewport) => `output/playwright/task5-resting-${viewport.width}x${viewport.height}.png`)]
+    screenshots: ["output/playwright/task5-card-vault-toiusap-final.png", "output/playwright/task5-slate-neiatid-final.png", "output/playwright/task5-battle-leader-neiatid-final.png", ...viewports.map((viewport) => `output/playwright/task5-resting-${viewport.width}x${viewport.height}.png`)]
   };
   const downloadPromise = page.waitForEvent("download");
   await page.evaluate((json) => { const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([json], { type: "application/json" })); link.download = "task5-browser-result.json"; link.click(); }, JSON.stringify(result, null, 2));

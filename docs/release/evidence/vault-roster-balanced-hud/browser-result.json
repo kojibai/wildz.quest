@@ -1,22 +1,18 @@
 {
   "schema": "wildz.vault-roster-balanced-hud.browser.v1",
-  "capturedAt": "2026-08-11T11:00:09.756Z",
+  "capturedAt": "2026-08-11T11:25:30.899Z",
   "baseUrl": "http://127.0.0.1:49817/",
-  "buildId": "qW7HIxXbLMMm4UdSFwYsD",
+  "buildId": "9sYHunZv9Fb2Jn8qLGnlF",
   "productCommit": "cea7b57",
   "userAgent": "Mozilla/5.0 (Linux; Android 16; Pixel 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.8 Mobile Safari/537.36",
-  "fixtureBoundary": "Existing production IndexedDB profile. Toiusap was the profile's legitimate starter; Neiatid was obtained through player-facing battle and Capture in this run. No storage injection or test fixture route was used.",
-  "capture": {
-    "inventoryBefore": 1,
-    "inventoryAfter": 2,
-    "rewardModalCount": 1,
-    "capturedCard": {
-      "id": "wilds:223616f27f33bc5b5fa273d9",
-      "name": "Neiatid",
-      "ability": "Tide Pulse"
-    },
-    "newMarkerDirectlyObserved": false,
-    "screenshot": "output/playwright/task5-capture-reward.png"
+  "fixtureBoundary": "Selection-only replay begins with an existing legitimate two-card production IndexedDB profile containing Toiusap and Neiatid. This replay does not qualify either card's acquisition provenance. No storage injection or test-fixture route was used.",
+  "qualificationBoundary": {
+    "selectionProfileInventoryCount": 2,
+    "acquisitionReplayed": false,
+    "newMarker": {
+      "browserQualified": false,
+      "evidence": "Automated implementation tests only; not asserted by this browser replay."
+    }
   },
   "selection": {
     "initialActive": {
@@ -33,12 +29,39 @@
     },
     "vaultCards": [
       "0 XPToiusapStage 1 · uncommon · Bond 079 PWR · Verified",
-      "24 XPNeiatidStage 1 · trail · Bond 661 PWR · Offline sealed"
+      "44 XPNeiatidStage 1 · trail · Bond 1161 PWR · Offline sealed"
     ],
-    "vaultDetail": {
-      "namePresent": true,
-      "text": "ToiusapStone companionSTAGE 1WLD-040-1uncommonstandardHealth63Power79Guard76Speed77Bond53Stone Pulse32Improves collection streak rewards.Cloudbloom Bond39Gain 2 bond after a successful Glasswater Coast mission.verified117103a99dbfLiving companion dossierToiusapuncommon · Stage 1Character storyToiusap first answered your signal in the Glasswater Coast on August 11, 2026. Its curious nature comes through in every tail heart, and each earned battle, journey, and bond moment now extends the same living history instead ",
-      "standaloneHref": "/cards/wilds%3A123e00f59899025a366d578f"
+    "vaultManifests": {
+      "Toiusap": {
+        "assetId": "wilds:123e00f59899025a366d578f",
+        "manifestName": "Toiusap",
+        "namePresent": true,
+        "source": "live Card Vault sealed-manifest DOM",
+        "stats": {
+          "health": 63,
+          "power": 79,
+          "guard": 76,
+          "speed": 77,
+          "bond": 53
+        },
+        "text": "ToiusapStone companionSTAGE 1WLD-040-1uncommonstandardHealth63Power79Guard76Speed77Bond53Stone Pulse32Improves collection streak rewards.Cloudbloom Bond39Gain 2 bond after a successful Glasswater Coast mission.verified117103a99dbfLiving companion dossierToiusapuncommon · Stage 1Character storyToiusap first answered your signal in the Glasswater Coast on August 11, 2026. Its curious nature comes through in every tail heart, and each earned battle, journey, and bond moment now extends the same living history instead ",
+        "standaloneHref": "/cards/wilds%3A123e00f59899025a366d578f"
+      },
+      "Neiatid": {
+        "assetId": "wilds:223616f27f33bc5b5fa273d9",
+        "manifestName": "Neiatid",
+        "namePresent": true,
+        "source": "live Card Vault sealed-manifest DOM",
+        "stats": {
+          "health": 87,
+          "power": 61,
+          "guard": 69,
+          "speed": 47,
+          "bond": 55
+        },
+        "text": "NeiatidTide companionSTAGE 1WLD-025-1trailstandardHealth87Power61Guard69Speed47Bond55Tide Pulse43Guards the active companion during missions.Mossbeak Bond50Gain 2 bond after a successful Beryl Marsh mission.sealed local56a2ef15f380Living companion dossierNeiatidtrail · Stage 1Character storyNeiatid first answered your signal in the Beryl Marsh on August 11, 2026. Its mischievous nature comes through in every tail heart, and each earned battle, journey, and bond moment now extends the same living history instead of ",
+        "standaloneHref": "/cards/wilds%3A223616f27f33bc5b5fa273d9"
+      }
     },
     "vaultSelected": {
       "command": "Toiusap. Tap to use Stone Pulse. Swipe sideways to change companion, swipe up for roster, or hold for abilities.",
@@ -73,13 +96,13 @@
       },
       {
         "id": "wilds:223616f27f33bc5b5fa273d9",
-        "label": "Neiatid, level 1, 24 XP, bond 6, Ready",
+        "label": "Neiatid, level 1, 44 XP, bond 11, Ready",
         "active": false
       }
     ],
-    "capturedButtonRect": {
+    "slateButtonRect": {
       "x": 290.40625,
-      "y": 635.546875,
+      "y": 612.859375,
       "width": 184,
       "height": 108
     },
@@ -124,6 +147,13 @@
           "overflowX": 0,
           "overflowY": 0
         },
+        "openSurfaces": {
+          "slate": 0,
+          "liveRoster": 0,
+          "playerInteraction": 0,
+          "dialogs": 0,
+          "audioSheets": 0
+        },
         "canvas": {
           "display": {
             "x": 0,
@@ -146,23 +176,23 @@
           },
           "state": {
             "player": {
-              "x": 3.689491840547254,
-              "z": -7.668656205207918
+              "x": 4.6404511615158155,
+              "z": -11.984548508065226
             },
             "selectedCardId": "mossbeak",
             "discovered": 2,
             "missionProgress": 50,
-            "energy": 56,
+            "energy": 41,
             "combo": 1
           },
           "render": {
-            "calls": 99,
-            "triangles": 54606,
+            "calls": 89,
+            "triangles": 49850,
             "points": 30,
             "lines": 0
           },
           "memory": {
-            "geometries": 97,
+            "geometries": 88,
             "textures": 3
           },
           "quality": {
@@ -171,8 +201,8 @@
           },
           "budget": {
             "withinBudget": true,
-            "drawCallRatio": 0.61875,
-            "triangleRatio": 0.3033666666666667
+            "drawCallRatio": 0.55625,
+            "triangleRatio": 0.27694444444444444
           },
           "warningFreeCompatibility": {
             "three": "0.182.0",
@@ -806,7 +836,7 @@
             "floor44": true
           },
           {
-            "label": "Open living Command Center. Beat step pulse 20:21:04",
+            "label": "Open living Command Center. Beat step pulse 21:03:02",
             "width": 73.421875,
             "height": 44,
             "floor44": true
@@ -848,7 +878,7 @@
             "floor44": true
           },
           {
-            "label": "Neiatid, level 1, 24 XP, bond 6, Ready, active",
+            "label": "Neiatid, level 1, 44 XP, bond 11, Ready, active",
             "width": 172,
             "height": 96,
             "floor44": true
@@ -865,9 +895,9 @@
       "preview": {
         "rect": {
           "x": 36,
-          "y": 307.125,
+          "y": 304.578125,
           "width": 272,
-          "height": 167.875,
+          "height": 170.421875,
           "right": 308,
           "bottom": 475
         },
@@ -877,9 +907,9 @@
       "expanded": {
         "rect": {
           "x": 36,
-          "y": 181.484375,
+          "y": 177.484375,
           "width": 272,
-          "height": 293.515625,
+          "height": 297.515625,
           "right": 308,
           "bottom": 475
         },
@@ -901,11 +931,11 @@
         "dialogCount": 1,
         "rect": {
           "x": 10,
-          "y": 37.60332489013672,
+          "y": 37.61360549926758,
           "width": 300,
-          "height": 522.5468826293945,
+          "height": 522.5468559265137,
           "right": 310,
-          "bottom": 560.1502075195312
+          "bottom": 560.1604614257812
         },
         "homesInert": [
           {
@@ -954,6 +984,13 @@
           "overflowX": 0,
           "overflowY": 0
         },
+        "openSurfaces": {
+          "slate": 0,
+          "liveRoster": 0,
+          "playerInteraction": 0,
+          "dialogs": 0,
+          "audioSheets": 0
+        },
         "canvas": {
           "display": {
             "x": 0,
@@ -976,23 +1013,23 @@
           },
           "state": {
             "player": {
-              "x": 3.689491840547254,
-              "z": -7.668656205207918
+              "x": 4.6404511615158155,
+              "z": -11.984548508065226
             },
             "selectedCardId": "mossbeak",
             "discovered": 2,
             "missionProgress": 50,
-            "energy": 56,
+            "energy": 41,
             "combo": 1
           },
           "render": {
-            "calls": 97,
-            "triangles": 54568,
+            "calls": 88,
+            "triangles": 49840,
             "points": 30,
             "lines": 0
           },
           "memory": {
-            "geometries": 97,
+            "geometries": 88,
             "textures": 3
           },
           "quality": {
@@ -1001,8 +1038,8 @@
           },
           "budget": {
             "withinBudget": true,
-            "drawCallRatio": 0.60625,
-            "triangleRatio": 0.30315555555555557
+            "drawCallRatio": 0.55,
+            "triangleRatio": 0.2768888888888889
           },
           "warningFreeCompatibility": {
             "three": "0.182.0",
@@ -1043,12 +1080,12 @@
             "bottom": 66
           },
           "minimapStatus": {
-            "x": 19,
+            "x": 258,
             "y": 8,
-            "width": 333,
-            "height": 307.9375,
+            "width": 94,
+            "height": 170,
             "right": 352,
-            "bottom": 315.9375
+            "bottom": 178
           },
           "kaiAudio": {
             "x": 8,
@@ -1106,14 +1143,6 @@
           },
           {
             "key": "minimapStatus:3",
-            "pass": true
-          },
-          {
-            "key": "minimapStatus:4",
-            "pass": true
-          },
-          {
-            "key": "minimapStatus:5",
             "pass": true
           },
           {
@@ -1179,20 +1208,6 @@
             "b": "minimapStatus:3",
             "area": 0,
             "width": 0,
-            "height": 0
-          },
-          {
-            "a": "explorer:0",
-            "b": "minimapStatus:4",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "explorer:0",
-            "b": "minimapStatus:5",
-            "area": 0,
-            "width": 140.1875,
             "height": 0
           },
           {
@@ -1270,20 +1285,6 @@
             "b": "minimapStatus:3",
             "area": 0,
             "width": 0,
-            "height": 0
-          },
-          {
-            "a": "mission:0",
-            "b": "minimapStatus:4",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "mission:0",
-            "b": "minimapStatus:5",
-            "area": 0,
-            "width": 112,
             "height": 0
           },
           {
@@ -1532,104 +1533,6 @@
             "height": 0
           },
           {
-            "a": "minimapStatus:4",
-            "b": "kaiAudio:0",
-            "area": 0,
-            "width": 0,
-            "height": 9
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "kaiAudio:1",
-            "area": 0,
-            "width": 0,
-            "height": 9
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "movement:0",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "movement:1",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "movement:2",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "tools:0",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "companion:0",
-            "area": 0,
-            "width": 44,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "kaiAudio:0",
-            "area": 0,
-            "width": 62.421875,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "kaiAudio:1",
-            "area": 0,
-            "width": 44,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "movement:0",
-            "area": 0,
-            "width": 79.390625,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "movement:1",
-            "area": 0,
-            "width": 39,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "movement:2",
-            "area": 0,
-            "width": 46,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "tools:0",
-            "area": 0,
-            "width": 64.796875,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "companion:0",
-            "area": 0,
-            "width": 64.1875,
-            "height": 0
-          },
-          {
             "a": "kaiAudio:0",
             "b": "movement:0",
             "area": 0,
@@ -1770,19 +1673,7 @@
             "floor44": true
           },
           {
-            "label": "Close live roster",
-            "width": 44,
-            "height": 44,
-            "floor44": true
-          },
-          {
-            "label": "Open room chat",
-            "width": 314,
-            "height": 44,
-            "floor44": true
-          },
-          {
-            "label": "Open living Command Center. Beat step pulse 20:21:04",
+            "label": "Open living Command Center. Beat step pulse 21:03:02",
             "width": 73.421875,
             "height": 44,
             "floor44": true
@@ -1824,7 +1715,7 @@
             "floor44": true
           },
           {
-            "label": "Neiatid, level 1, 24 XP, bond 6, Ready, active",
+            "label": "Neiatid, level 1, 44 XP, bond 11, Ready, active",
             "width": 184,
             "height": 108,
             "floor44": true
@@ -1841,9 +1732,9 @@
       "preview": {
         "rect": {
           "x": 81.609375,
-          "y": 532.390625,
+          "y": 531.984375,
           "width": 266.390625,
-          "height": 167.421875,
+          "height": 167.828125,
           "right": 348,
           "bottom": 699.8125
         },
@@ -1853,9 +1744,9 @@
       "expanded": {
         "rect": {
           "x": 81.609375,
-          "y": 322.984375,
+          "y": 323.21875,
           "width": 266.390625,
-          "height": 376.828125,
+          "height": 376.59375,
           "right": 348,
           "bottom": 699.8125
         },
@@ -1877,11 +1768,11 @@
         "dialogCount": 1,
         "rect": {
           "x": 10,
-          "y": 56.561622619628906,
+          "y": 56.084468841552734,
           "width": 340,
-          "height": 736.0000228881836,
+          "height": 736.0000038146973,
           "right": 350,
-          "bottom": 792.5616455078125
+          "bottom": 792.08447265625
         },
         "homesInert": [
           {
@@ -1930,6 +1821,13 @@
           "overflowX": 0,
           "overflowY": 0
         },
+        "openSurfaces": {
+          "slate": 0,
+          "liveRoster": 0,
+          "playerInteraction": 0,
+          "dialogs": 0,
+          "audioSheets": 0
+        },
         "canvas": {
           "display": {
             "x": 0,
@@ -1952,23 +1850,23 @@
           },
           "state": {
             "player": {
-              "x": 3.689491840547254,
-              "z": -7.668656205207918
+              "x": 4.6404511615158155,
+              "z": -11.984548508065226
             },
             "selectedCardId": "mossbeak",
             "discovered": 2,
             "missionProgress": 50,
-            "energy": 56,
+            "energy": 41,
             "combo": 1
           },
           "render": {
-            "calls": 97,
-            "triangles": 54568,
+            "calls": 88,
+            "triangles": 49840,
             "points": 30,
             "lines": 0
           },
           "memory": {
-            "geometries": 97,
+            "geometries": 88,
             "textures": 3
           },
           "quality": {
@@ -1977,8 +1875,8 @@
           },
           "budget": {
             "withinBudget": true,
-            "drawCallRatio": 0.60625,
-            "triangleRatio": 0.30315555555555557
+            "drawCallRatio": 0.55,
+            "triangleRatio": 0.2768888888888889
           },
           "warningFreeCompatibility": {
             "three": "0.182.0",
@@ -2019,12 +1917,12 @@
             "bottom": 66
           },
           "minimapStatus": {
-            "x": 19,
+            "x": 288,
             "y": 8,
-            "width": 363,
-            "height": 307.9375,
+            "width": 94,
+            "height": 170,
             "right": 382,
-            "bottom": 315.9375
+            "bottom": 178
           },
           "kaiAudio": {
             "x": 8,
@@ -2082,14 +1980,6 @@
           },
           {
             "key": "minimapStatus:3",
-            "pass": true
-          },
-          {
-            "key": "minimapStatus:4",
-            "pass": true
-          },
-          {
-            "key": "minimapStatus:5",
             "pass": true
           },
           {
@@ -2155,20 +2045,6 @@
             "b": "minimapStatus:3",
             "area": 0,
             "width": 0,
-            "height": 0
-          },
-          {
-            "a": "explorer:0",
-            "b": "minimapStatus:4",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "explorer:0",
-            "b": "minimapStatus:5",
-            "area": 0,
-            "width": 152.796875,
             "height": 0
           },
           {
@@ -2246,20 +2122,6 @@
             "b": "minimapStatus:3",
             "area": 0,
             "width": 0,
-            "height": 0
-          },
-          {
-            "a": "mission:0",
-            "b": "minimapStatus:4",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "mission:0",
-            "b": "minimapStatus:5",
-            "area": 0,
-            "width": 112,
             "height": 0
           },
           {
@@ -2508,104 +2370,6 @@
             "height": 0
           },
           {
-            "a": "minimapStatus:4",
-            "b": "kaiAudio:0",
-            "area": 0,
-            "width": 0,
-            "height": 9
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "kaiAudio:1",
-            "area": 0,
-            "width": 0,
-            "height": 9
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "movement:0",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "movement:1",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "movement:2",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "tools:0",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "companion:0",
-            "area": 0,
-            "width": 44,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "kaiAudio:0",
-            "area": 0,
-            "width": 62.421875,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "kaiAudio:1",
-            "area": 0,
-            "width": 44,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "movement:0",
-            "area": 0,
-            "width": 86.59375,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "movement:1",
-            "area": 0,
-            "width": 39,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "movement:2",
-            "area": 0,
-            "width": 46,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "tools:0",
-            "area": 0,
-            "width": 70.1875,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "companion:0",
-            "area": 0,
-            "width": 70.796875,
-            "height": 0
-          },
-          {
             "a": "kaiAudio:0",
             "b": "movement:0",
             "area": 0,
@@ -2746,19 +2510,7 @@
             "floor44": true
           },
           {
-            "label": "Close live roster",
-            "width": 44,
-            "height": 44,
-            "floor44": true
-          },
-          {
-            "label": "Open room chat",
-            "width": 344,
-            "height": 44,
-            "floor44": true
-          },
-          {
-            "label": "Open living Command Center. Beat step pulse 20:21:04",
+            "label": "Open living Command Center. Beat step pulse 21:03:02",
             "width": 73.421875,
             "height": 44,
             "floor44": true
@@ -2800,7 +2552,7 @@
             "floor44": true
           },
           {
-            "label": "Neiatid, level 1, 24 XP, bond 6, Ready, active",
+            "label": "Neiatid, level 1, 44 XP, bond 11, Ready, active",
             "width": 184,
             "height": 108,
             "floor44": true
@@ -2817,9 +2569,9 @@
       "preview": {
         "rect": {
           "x": 89.40625,
-          "y": 573.828125,
+          "y": 566.671875,
           "width": 288.59375,
-          "height": 163.375,
+          "height": 170.53125,
           "right": 378,
           "bottom": 737.203125
         },
@@ -2829,9 +2581,9 @@
       "expanded": {
         "rect": {
           "x": 89.40625,
-          "y": 342.296875,
+          "y": 334.21875,
           "width": 288.59375,
-          "height": 394.90625,
+          "height": 402.984375,
           "right": 378,
           "bottom": 737.203125
         },
@@ -2853,11 +2605,11 @@
         "dialogCount": 1,
         "rect": {
           "x": 10,
-          "y": 61.997859954833984,
+          "y": 59.24565505981445,
           "width": 370,
-          "height": 776.4687538146973,
+          "height": 776.4687614440918,
           "right": 380,
-          "bottom": 838.4666137695312
+          "bottom": 835.7144165039062
         },
         "homesInert": [
           {
@@ -2906,6 +2658,13 @@
           "overflowX": 0,
           "overflowY": 0
         },
+        "openSurfaces": {
+          "slate": 0,
+          "liveRoster": 0,
+          "playerInteraction": 0,
+          "dialogs": 0,
+          "audioSheets": 0
+        },
         "canvas": {
           "display": {
             "x": 0,
@@ -2928,23 +2687,23 @@
           },
           "state": {
             "player": {
-              "x": 3.689491840547254,
-              "z": -7.668656205207918
+              "x": 4.6404511615158155,
+              "z": -11.984548508065226
             },
             "selectedCardId": "mossbeak",
             "discovered": 2,
             "missionProgress": 50,
-            "energy": 56,
+            "energy": 41,
             "combo": 1
           },
           "render": {
-            "calls": 99,
-            "triangles": 69666,
+            "calls": 89,
+            "triangles": 64936,
             "points": 42,
             "lines": 0
           },
           "memory": {
-            "geometries": 99,
+            "geometries": 89,
             "textures": 3
           },
           "quality": {
@@ -2953,8 +2712,8 @@
           },
           "budget": {
             "withinBudget": true,
-            "drawCallRatio": 0.61875,
-            "triangleRatio": 0.38703333333333334
+            "drawCallRatio": 0.55625,
+            "triangleRatio": 0.36075555555555555
           },
           "warningFreeCompatibility": {
             "three": "0.182.0",
@@ -2995,12 +2754,12 @@
             "bottom": 66
           },
           "minimapStatus": {
-            "x": 19,
+            "x": 328,
             "y": 8,
-            "width": 403,
-            "height": 292.9375,
+            "width": 94,
+            "height": 170,
             "right": 422,
-            "bottom": 300.9375
+            "bottom": 178
           },
           "kaiAudio": {
             "x": 8,
@@ -3058,14 +2817,6 @@
           },
           {
             "key": "minimapStatus:3",
-            "pass": true
-          },
-          {
-            "key": "minimapStatus:4",
-            "pass": true
-          },
-          {
-            "key": "minimapStatus:5",
             "pass": true
           },
           {
@@ -3131,20 +2882,6 @@
             "b": "minimapStatus:3",
             "area": 0,
             "width": 0,
-            "height": 0
-          },
-          {
-            "a": "explorer:0",
-            "b": "minimapStatus:4",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "explorer:0",
-            "b": "minimapStatus:5",
-            "area": 0,
-            "width": 169.59375,
             "height": 0
           },
           {
@@ -3222,20 +2959,6 @@
             "b": "minimapStatus:3",
             "area": 0,
             "width": 0,
-            "height": 0
-          },
-          {
-            "a": "mission:0",
-            "b": "minimapStatus:4",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "mission:0",
-            "b": "minimapStatus:5",
-            "area": 0,
-            "width": 112,
             "height": 0
           },
           {
@@ -3484,104 +3207,6 @@
             "height": 0
           },
           {
-            "a": "minimapStatus:4",
-            "b": "kaiAudio:0",
-            "area": 0,
-            "width": 0,
-            "height": 9
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "kaiAudio:1",
-            "area": 0,
-            "width": 0,
-            "height": 9
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "movement:0",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "movement:1",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "movement:2",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "tools:0",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "companion:0",
-            "area": 0,
-            "width": 44,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "kaiAudio:0",
-            "area": 0,
-            "width": 62.421875,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "kaiAudio:1",
-            "area": 0,
-            "width": 44,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "movement:0",
-            "area": 0,
-            "width": 87,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "movement:1",
-            "area": 0,
-            "width": 39,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "movement:2",
-            "area": 0,
-            "width": 46,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "tools:0",
-            "area": 0,
-            "width": 72,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "companion:0",
-            "area": 0,
-            "width": 79,
-            "height": 0
-          },
-          {
             "a": "kaiAudio:0",
             "b": "movement:0",
             "area": 0,
@@ -3722,19 +3347,7 @@
             "floor44": true
           },
           {
-            "label": "Close live roster",
-            "width": 44,
-            "height": 44,
-            "floor44": true
-          },
-          {
-            "label": "Open room chat",
-            "width": 384,
-            "height": 44,
-            "floor44": true
-          },
-          {
-            "label": "Open living Command Center. Beat step pulse 20:21:04",
+            "label": "Open living Command Center. Beat step pulse 21:03:02",
             "width": 73.421875,
             "height": 44,
             "floor44": true
@@ -3776,7 +3389,7 @@
             "floor44": true
           },
           {
-            "label": "Neiatid, level 1, 24 XP, bond 6, Ready, active",
+            "label": "Neiatid, level 1, 44 XP, bond 11, Ready, active",
             "width": 184,
             "height": 108,
             "floor44": true
@@ -3793,9 +3406,9 @@
       "preview": {
         "rect": {
           "x": 99.8125,
-          "y": 649.328125,
+          "y": 649.65625,
           "width": 318.1875,
-          "height": 167.671875,
+          "height": 167.34375,
           "right": 418,
           "bottom": 817
         },
@@ -3805,9 +3418,9 @@
       "expanded": {
         "rect": {
           "x": 99.8125,
-          "y": 414.03125,
+          "y": 423.046875,
           "width": 318.1875,
-          "height": 402.96875,
+          "height": 393.953125,
           "right": 418,
           "bottom": 817
         },
@@ -3829,11 +3442,11 @@
         "dialogCount": 1,
         "rect": {
           "x": 10,
-          "y": 67.02899932861328,
+          "y": 66.72383880615234,
           "width": 410,
-          "height": 857.4374923706055,
+          "height": 857.4374771118164,
           "right": 420,
-          "bottom": 924.4664916992188
+          "bottom": 924.1613159179688
         },
         "homesInert": [
           {
@@ -3882,6 +3495,13 @@
           "overflowX": 0,
           "overflowY": 0
         },
+        "openSurfaces": {
+          "slate": 0,
+          "liveRoster": 0,
+          "playerInteraction": 0,
+          "dialogs": 0,
+          "audioSheets": 0
+        },
         "canvas": {
           "display": {
             "x": 0,
@@ -3904,23 +3524,23 @@
           },
           "state": {
             "player": {
-              "x": 3.689491840547254,
-              "z": -7.668656205207918
+              "x": 4.6404511615158155,
+              "z": -11.984548508065226
             },
             "selectedCardId": "mossbeak",
             "discovered": 2,
             "missionProgress": 50,
-            "energy": 56,
+            "energy": 41,
             "combo": 1
           },
           "render": {
-            "calls": 129,
-            "triangles": 71766,
+            "calls": 125,
+            "triangles": 70670,
             "points": 42,
             "lines": 0
           },
           "memory": {
-            "geometries": 127,
+            "geometries": 122,
             "textures": 3
           },
           "quality": {
@@ -3929,8 +3549,8 @@
           },
           "budget": {
             "withinBudget": true,
-            "drawCallRatio": 0.80625,
-            "triangleRatio": 0.3987
+            "drawCallRatio": 0.78125,
+            "triangleRatio": 0.39261111111111113
           },
           "warningFreeCompatibility": {
             "three": "0.182.0",
@@ -3971,12 +3591,12 @@
             "bottom": 57
           },
           "minimapStatus": {
-            "x": 507,
+            "x": 697.046875,
             "y": 6,
-            "width": 329,
-            "height": 229.9375,
+            "width": 138.953125,
+            "height": 162,
             "right": 836,
-            "bottom": 235.9375
+            "bottom": 168
           },
           "kaiAudio": {
             "x": 8,
@@ -4034,14 +3654,6 @@
           },
           {
             "key": "minimapStatus:3",
-            "pass": true
-          },
-          {
-            "key": "minimapStatus:4",
-            "pass": true
-          },
-          {
-            "key": "minimapStatus:5",
             "pass": true
           },
           {
@@ -4105,20 +3717,6 @@
           {
             "a": "explorer:0",
             "b": "minimapStatus:3",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "explorer:0",
-            "b": "minimapStatus:4",
-            "area": 0,
-            "width": 0,
-            "height": 33
-          },
-          {
-            "a": "explorer:0",
-            "b": "minimapStatus:5",
             "area": 0,
             "width": 0,
             "height": 0
@@ -4198,20 +3796,6 @@
             "b": "minimapStatus:3",
             "area": 0,
             "width": 0,
-            "height": 0
-          },
-          {
-            "a": "mission:0",
-            "b": "minimapStatus:4",
-            "area": 0,
-            "width": 0,
-            "height": 34
-          },
-          {
-            "a": "mission:0",
-            "b": "minimapStatus:5",
-            "area": 0,
-            "width": 41,
             "height": 0
           },
           {
@@ -4460,104 +4044,6 @@
             "height": 0
           },
           {
-            "a": "minimapStatus:4",
-            "b": "kaiAudio:0",
-            "area": 0,
-            "width": 0,
-            "height": 5
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "kaiAudio:1",
-            "area": 0,
-            "width": 0,
-            "height": 5
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "movement:0",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "movement:1",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "movement:2",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "tools:0",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "companion:0",
-            "area": 0,
-            "width": 44,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "kaiAudio:0",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "kaiAudio:1",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "movement:0",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "movement:1",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "movement:2",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "tools:0",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "companion:0",
-            "area": 0,
-            "width": 59,
-            "height": 0
-          },
-          {
             "a": "kaiAudio:0",
             "b": "movement:0",
             "area": 0,
@@ -4698,19 +4184,7 @@
             "floor44": true
           },
           {
-            "label": "Close live roster",
-            "width": 44,
-            "height": 44,
-            "floor44": true
-          },
-          {
-            "label": "Open room chat",
-            "width": 310,
-            "height": 44,
-            "floor44": true
-          },
-          {
-            "label": "Open living Command Center. Beat step pulse 20:21:04",
+            "label": "Open living Command Center. Beat step pulse 21:03:02",
             "width": 104,
             "height": 44,
             "floor44": true
@@ -4752,7 +4226,7 @@
             "floor44": true
           },
           {
-            "label": "Neiatid, level 1, 24 XP, bond 6, Ready, active",
+            "label": "Neiatid, level 1, 44 XP, bond 11, Ready, active",
             "width": 96.375,
             "height": 72,
             "floor44": true
@@ -4805,11 +4279,11 @@
         "dialogCount": 1,
         "rect": {
           "x": 10,
-          "y": 23.712011337280273,
+          "y": 22.957719802856445,
           "width": 824,
-          "height": 358.7968692779541,
+          "height": 358.79688835144043,
           "right": 834,
-          "bottom": 382.5088806152344
+          "bottom": 381.7546081542969
         },
         "homesInert": [
           {
@@ -4858,6 +4332,13 @@
           "overflowX": 0,
           "overflowY": 0
         },
+        "openSurfaces": {
+          "slate": 0,
+          "liveRoster": 0,
+          "playerInteraction": 0,
+          "dialogs": 0,
+          "audioSheets": 0
+        },
         "canvas": {
           "display": {
             "x": 0,
@@ -4880,23 +4361,23 @@
           },
           "state": {
             "player": {
-              "x": 3.689491840547254,
-              "z": -7.668656205207918
+              "x": 4.6404511615158155,
+              "z": -11.984548508065226
             },
             "selectedCardId": "mossbeak",
             "discovered": 2,
             "missionProgress": 50,
-            "energy": 56,
+            "energy": 41,
             "combo": 1
           },
           "render": {
-            "calls": 106,
-            "triangles": 70130,
+            "calls": 95,
+            "triangles": 65008,
             "points": 42,
             "lines": 0
           },
           "memory": {
-            "geometries": 127,
+            "geometries": 122,
             "textures": 3
           },
           "quality": {
@@ -4905,8 +4386,8 @@
           },
           "budget": {
             "withinBudget": true,
-            "drawCallRatio": 0.6625,
-            "triangleRatio": 0.38961111111111113
+            "drawCallRatio": 0.59375,
+            "triangleRatio": 0.36115555555555556
           },
           "warningFreeCompatibility": {
             "three": "0.182.0",
@@ -4947,12 +4428,12 @@
             "bottom": 61
           },
           "minimapStatus": {
-            "x": 431,
+            "x": 617.046875,
             "y": 10,
-            "width": 325,
-            "height": 305.9375,
+            "width": 138.953125,
+            "height": 210,
             "right": 756,
-            "bottom": 315.9375
+            "bottom": 220
           },
           "kaiAudio": {
             "x": 12,
@@ -5010,14 +4491,6 @@
           },
           {
             "key": "minimapStatus:3",
-            "pass": true
-          },
-          {
-            "key": "minimapStatus:4",
-            "pass": true
-          },
-          {
-            "key": "minimapStatus:5",
             "pass": true
           },
           {
@@ -5081,20 +4554,6 @@
           {
             "a": "explorer:0",
             "b": "minimapStatus:3",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "explorer:0",
-            "b": "minimapStatus:4",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "explorer:0",
-            "b": "minimapStatus:5",
             "area": 0,
             "width": 0,
             "height": 0
@@ -5174,20 +4633,6 @@
             "b": "minimapStatus:3",
             "area": 0,
             "width": 0,
-            "height": 0
-          },
-          {
-            "a": "mission:0",
-            "b": "minimapStatus:4",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "mission:0",
-            "b": "minimapStatus:5",
-            "area": 0,
-            "width": 135.59375,
             "height": 0
           },
           {
@@ -5436,104 +4881,6 @@
             "height": 0
           },
           {
-            "a": "minimapStatus:4",
-            "b": "kaiAudio:0",
-            "area": 0,
-            "width": 0,
-            "height": 25
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "kaiAudio:1",
-            "area": 0,
-            "width": 0,
-            "height": 25
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "movement:0",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "movement:1",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "movement:2",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "tools:0",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "companion:0",
-            "area": 0,
-            "width": 44,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "kaiAudio:0",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "kaiAudio:1",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "movement:0",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "movement:1",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "movement:2",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "tools:0",
-            "area": 0,
-            "width": 1,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "companion:0",
-            "area": 0,
-            "width": 81,
-            "height": 0
-          },
-          {
             "a": "kaiAudio:0",
             "b": "movement:0",
             "area": 0,
@@ -5674,19 +5021,7 @@
             "floor44": true
           },
           {
-            "label": "Close live roster",
-            "width": 44,
-            "height": 44,
-            "floor44": true
-          },
-          {
-            "label": "Open room chat",
-            "width": 310,
-            "height": 44,
-            "floor44": true
-          },
-          {
-            "label": "Open living Command Center. Beat step pulse 20:21:04",
+            "label": "Open living Command Center. Beat step pulse 21:03:02",
             "width": 79.421875,
             "height": 44,
             "floor44": true
@@ -5728,7 +5063,7 @@
             "floor44": true
           },
           {
-            "label": "Neiatid, level 1, 24 XP, bond 6, Ready, active",
+            "label": "Neiatid, level 1, 44 XP, bond 11, Ready, active",
             "width": 184,
             "height": 108,
             "floor44": true
@@ -5745,9 +5080,9 @@
       "preview": {
         "rect": {
           "x": 185.6875,
-          "y": 744.578125,
+          "y": 736.546875,
           "width": 568.3125,
-          "height": 162.421875,
+          "height": 170.453125,
           "right": 754,
           "bottom": 907
         },
@@ -5757,9 +5092,9 @@
       "expanded": {
         "rect": {
           "x": 185.6875,
-          "y": 540.078125,
+          "y": 512.515625,
           "width": 568.3125,
-          "height": 366.921875,
+          "height": 394.484375,
           "right": 754,
           "bottom": 907
         },
@@ -5781,11 +5116,11 @@
         "dialogCount": 1,
         "rect": {
           "x": 10,
-          "y": 264.3495788574219,
+          "y": 325.1186218261719,
           "width": 748,
-          "height": 754.1406555175781,
+          "height": 691.0000305175781,
           "right": 758,
-          "bottom": 1018.490234375
+          "bottom": 1016.11865234375
         },
         "homesInert": [
           {
@@ -5834,6 +5169,13 @@
           "overflowX": 0,
           "overflowY": 0
         },
+        "openSurfaces": {
+          "slate": 0,
+          "liveRoster": 0,
+          "playerInteraction": 0,
+          "dialogs": 0,
+          "audioSheets": 0
+        },
         "canvas": {
           "display": {
             "x": 0,
@@ -5856,23 +5198,23 @@
           },
           "state": {
             "player": {
-              "x": 3.689491840547254,
-              "z": -7.668656205207918
+              "x": 4.6404511615158155,
+              "z": -11.984548508065226
             },
             "selectedCardId": "mossbeak",
             "discovered": 2,
             "missionProgress": 50,
-            "energy": 56,
+            "energy": 41,
             "combo": 1
           },
           "render": {
-            "calls": 119,
-            "triangles": 70922,
+            "calls": 118,
+            "triangles": 69998,
             "points": 42,
             "lines": 0
           },
           "memory": {
-            "geometries": 127,
+            "geometries": 122,
             "textures": 3
           },
           "quality": {
@@ -5881,8 +5223,8 @@
           },
           "budget": {
             "withinBudget": true,
-            "drawCallRatio": 0.74375,
-            "triangleRatio": 0.3940111111111111
+            "drawCallRatio": 0.7375,
+            "triangleRatio": 0.38887777777777777
           },
           "warningFreeCompatibility": {
             "three": "0.182.0",
@@ -5923,12 +5265,12 @@
             "bottom": 61
           },
           "minimapStatus": {
-            "x": 1103,
+            "x": 1289.046875,
             "y": 10,
-            "width": 325,
-            "height": 305.9375,
+            "width": 138.953125,
+            "height": 218,
             "right": 1428,
-            "bottom": 315.9375
+            "bottom": 228
           },
           "kaiAudio": {
             "x": 12,
@@ -5986,14 +5328,6 @@
           },
           {
             "key": "minimapStatus:3",
-            "pass": true
-          },
-          {
-            "key": "minimapStatus:4",
-            "pass": true
-          },
-          {
-            "key": "minimapStatus:5",
             "pass": true
           },
           {
@@ -6057,20 +5391,6 @@
           {
             "a": "explorer:0",
             "b": "minimapStatus:3",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "explorer:0",
-            "b": "minimapStatus:4",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "explorer:0",
-            "b": "minimapStatus:5",
             "area": 0,
             "width": 0,
             "height": 0
@@ -6148,20 +5468,6 @@
           {
             "a": "mission:0",
             "b": "minimapStatus:3",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "mission:0",
-            "b": "minimapStatus:4",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "mission:0",
-            "b": "minimapStatus:5",
             "area": 0,
             "width": 0,
             "height": 0
@@ -6412,104 +5718,6 @@
             "height": 0
           },
           {
-            "a": "minimapStatus:4",
-            "b": "kaiAudio:0",
-            "area": 0,
-            "width": 0,
-            "height": 25
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "kaiAudio:1",
-            "area": 0,
-            "width": 0,
-            "height": 25
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "movement:0",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "movement:1",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "movement:2",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "tools:0",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:4",
-            "b": "companion:0",
-            "area": 0,
-            "width": 44,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "kaiAudio:0",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "kaiAudio:1",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "movement:0",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "movement:1",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "movement:2",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "tools:0",
-            "area": 0,
-            "width": 0,
-            "height": 0
-          },
-          {
-            "a": "minimapStatus:5",
-            "b": "companion:0",
-            "area": 0,
-            "width": 81,
-            "height": 0
-          },
-          {
             "a": "kaiAudio:0",
             "b": "movement:0",
             "area": 0,
@@ -6650,19 +5858,7 @@
             "floor44": true
           },
           {
-            "label": "Close live roster",
-            "width": 44,
-            "height": 44,
-            "floor44": true
-          },
-          {
-            "label": "Open room chat",
-            "width": 310,
-            "height": 44,
-            "floor44": true
-          },
-          {
-            "label": "Open living Command Center. Beat step pulse 20:21:05",
+            "label": "Open living Command Center. Beat step pulse 21:03:03",
             "width": 79.421875,
             "height": 44,
             "floor44": true
@@ -6704,7 +5900,7 @@
             "floor44": true
           },
           {
-            "label": "Neiatid, level 1, 24 XP, bond 6, Ready, active",
+            "label": "Neiatid, level 1, 44 XP, bond 11, Ready, active",
             "width": 184,
             "height": 108,
             "floor44": true
@@ -6721,9 +5917,9 @@
       "preview": {
         "rect": {
           "x": 806,
-          "y": 615.59375,
+          "y": 612.5,
           "width": 620,
-          "height": 167.40625,
+          "height": 170.5,
           "right": 1426,
           "bottom": 783
         },
@@ -6733,9 +5929,9 @@
       "expanded": {
         "rect": {
           "x": 806,
-          "y": 388.046875,
+          "y": 372.015625,
           "width": 620,
-          "height": 394.953125,
+          "height": 410.984375,
           "right": 1426,
           "bottom": 783
         },
@@ -6757,11 +5953,11 @@
         "dialogCount": 1,
         "rect": {
           "x": 280,
-          "y": 159.5719451904297,
+          "y": 201.1571502685547,
           "width": 880,
-          "height": 732.9531402587891,
+          "height": 691.0000152587891,
           "right": 1160,
-          "bottom": 892.5250854492188
+          "bottom": 892.1571655273438
         },
         "homesInert": [
           {
@@ -6810,7 +6006,7 @@
       "ownedOnly": true
     },
     "tapPower": {
-      "eventText": "Arena of Echoes entrance awakened.",
+      "eventText": "Signal warm. Follow the search clue.",
       "commandStillMounted": true
     },
     "holdSlide": {
@@ -6889,8 +6085,25 @@
     }
   },
   "battleLeader": {
-    "reached": false,
-    "reason": "The retained real QA profile was outside a player-facing trainer interaction radius after the core replay; no state injection or fixture was used to manufacture a battle."
+    "reached": true,
+    "via": [
+      "Open mission details",
+      "Battle Trainer"
+    ],
+    "activeAssetId": "wilds:223616f27f33bc5b5fa273d9",
+    "activeName": "Neiatid",
+    "surface": "Selected battle roster",
+    "trainerName": "Reefway Toma",
+    "rosterCount": 2,
+    "leadName": "Neiatid",
+    "leadRole": "Lead",
+    "leadPortraitTitle": null,
+    "visualProof": {
+      "locator": ".wilds-trainer-challenge",
+      "visibleBefore": true,
+      "visibleAfter": true,
+      "screenshot": "output/playwright/task5-battle-leader-neiatid-final.png"
+    }
   },
   "browserHealth": {
     "consoleErrors": [],
@@ -6906,9 +6119,9 @@
     ]
   },
   "screenshots": [
-    "output/playwright/task5-capture-reward.png",
     "output/playwright/task5-card-vault-toiusap-final.png",
     "output/playwright/task5-slate-neiatid-final.png",
+    "output/playwright/task5-battle-leader-neiatid-final.png",
     "output/playwright/task5-resting-320x568.png",
     "output/playwright/task5-resting-360x800.png",
     "output/playwright/task5-resting-390x844.png",

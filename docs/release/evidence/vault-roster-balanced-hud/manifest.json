@@ -1,19 +1,22 @@
 {
-  "schema": "wildz.vault-roster-balanced-hud.manifest.v1",
-  "capturedAt": "2026-08-11T11:00:09.756Z",
+  "schema": "wildz.vault-roster-balanced-hud.manifest.v2",
+  "capturedAt": "2026-08-11T11:25:30.899Z",
   "baseCommit": "07a8e93",
+  "baseCommitFull": "07a8e93910aec06f5f04c035d9879a41fbdc969f",
   "productCommit": "cea7b57",
+  "productCommitFull": "cea7b57bc6f8e2e9e5d425d0007ed48dd8cb2ec1",
   "productFixCommits": [
     "f54622c",
     "cea7b57"
   ],
-  "buildId": "qW7HIxXbLMMm4UdSFwYsD",
+  "buildId": "9sYHunZv9Fb2Jn8qLGnlF",
   "artifact": {
     "kind": "Next.js optimized production build",
     "route": "/",
     "firstLoadJs": "565 kB",
     "knownWarning": "snarkjs via web-worker uses an expression-shaped dependency request",
-    "serviceWorkerPolicy": "CDP Network.setBypassServiceWorker=true before navigation and reload so the measured bytes are the named build"
+    "serviceWorkerPolicy": "CDP Network.setBypassServiceWorker=true before navigation and reload so the measured bytes are the named build",
+    "identityBoundary": "Build id and product commit are declared capture coordinates. This bundle proves the recorded behavior on the served optimized artifact but does not cryptographically attest source-to-build provenance."
   },
   "browser": {
     "userAgent": "Mozilla/5.0 (Linux; Android 16; Pixel 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.8 Mobile Safari/537.36",
@@ -31,7 +34,7 @@
     "server": "pnpm start -p 49817",
     "command": "/Users/bjklock/.codex/skills/playwright/scripts/playwright_cli.sh -s=modal-reward-clean run-code \"$(cat docs/release/evidence/vault-roster-balanced-hud/browser-replay.js)\"",
     "profile": "modal-reward-clean",
-    "profileBoundary": "Existing production IndexedDB profile; Toiusap was its legitimate starter and Neiatid was obtained by visible battle and Capture controls. No storage injection and no test-fixture route."
+    "profileBoundary": "Selection-only replay begins with an existing legitimate two-card production IndexedDB profile containing Toiusap and Neiatid. This replay does not qualify either card's acquisition provenance. No storage injection or test-fixture route was used."
   },
   "releaseGates": {
     "test": "1086/1086 tests, 109 suites",
@@ -44,39 +47,40 @@
     "diffCheck": "pass"
   },
   "claims": {
-    "capture": "docs/release/evidence/vault-roster-balanced-hud/browser-result.json#/capture",
     "selection": "docs/release/evidence/vault-roster-balanced-hud/browser-result.json#/selection",
+    "stats": "docs/release/evidence/vault-roster-balanced-hud/browser-result.json#/selection/vaultManifests",
     "matrix": "docs/release/evidence/vault-roster-balanced-hud/browser-result.json#/matrix",
     "recovery": "docs/release/evidence/vault-roster-balanced-hud/browser-result.json#/interaction",
+    "battleLeader": "docs/release/evidence/vault-roster-balanced-hud/browser-result.json#/battleLeader",
     "browserHealth": "docs/release/evidence/vault-roster-balanced-hud/browser-result.json#/browserHealth",
-    "residuals": "docs/release/evidence/vault-roster-balanced-hud/browser-result.json#/battleLeader"
+    "boundaries": "docs/release/evidence/vault-roster-balanced-hud/browser-result.json#/qualificationBoundary"
   },
   "rawToTracked": {
+    "output/playwright/task5-battle-leader-neiatid-final.png": "docs/release/evidence/vault-roster-balanced-hud/battle-leader-neiatid.png",
     "output/playwright/task5-browser-result.json": "docs/release/evidence/vault-roster-balanced-hud/browser-result.json",
-    "output/playwright/task5-capture-reward.png": "docs/release/evidence/vault-roster-balanced-hud/capture-reward.png",
     "output/playwright/task5-card-vault-toiusap-final.png": "docs/release/evidence/vault-roster-balanced-hud/card-vault-toiusap.png",
-    "output/playwright/task5-slate-neiatid-final.png": "docs/release/evidence/vault-roster-balanced-hud/slate-neiatid.png",
+    "output/playwright/task5-resting-1440x900.png": "docs/release/evidence/vault-roster-balanced-hud/resting-1440x900.png",
     "output/playwright/task5-resting-320x568.png": "docs/release/evidence/vault-roster-balanced-hud/resting-320x568.png",
     "output/playwright/task5-resting-360x800.png": "docs/release/evidence/vault-roster-balanced-hud/resting-360x800.png",
     "output/playwright/task5-resting-390x844.png": "docs/release/evidence/vault-roster-balanced-hud/resting-390x844.png",
     "output/playwright/task5-resting-430x932.png": "docs/release/evidence/vault-roster-balanced-hud/resting-430x932.png",
-    "output/playwright/task5-resting-844x390.png": "docs/release/evidence/vault-roster-balanced-hud/resting-844x390.png",
     "output/playwright/task5-resting-768x1024.png": "docs/release/evidence/vault-roster-balanced-hud/resting-768x1024.png",
-    "output/playwright/task5-resting-1440x900.png": "docs/release/evidence/vault-roster-balanced-hud/resting-1440x900.png"
+    "output/playwright/task5-resting-844x390.png": "docs/release/evidence/vault-roster-balanced-hud/resting-844x390.png",
+    "output/playwright/task5-slate-neiatid-final.png": "docs/release/evidence/vault-roster-balanced-hud/slate-neiatid.png"
   },
   "files": [
-    { "path": "docs/release/evidence/vault-roster-balanced-hud/browser-replay.js", "sha256": "2cb874cad96f303037d4a60328d070eefac58db522cf1b41850fc8b9cca78d05", "bytes": 27173, "mode": "0644" },
-    { "path": "docs/release/evidence/vault-roster-balanced-hud/browser-result.json", "sha256": "45ebd7cba47ba6f3b72c2b7a2e34e558b9244b67282bb52e404db40e5cdecc89", "bytes": 166640, "mode": "0644" },
-    { "path": "docs/release/evidence/vault-roster-balanced-hud/capture-reward.png", "sha256": "f94e70a997f0f86c159f956ae0152b72b2e9e8c6590c4cf3c130f255a12eefdc", "bytes": 146359, "mode": "0644" },
-    { "path": "docs/release/evidence/vault-roster-balanced-hud/card-vault-toiusap.png", "sha256": "86a5c7ab4247d359cf9333a3a08cfd2ad2de16ce06f02196469bae161212b8da", "bytes": 751873, "mode": "0644" },
-    { "path": "docs/release/evidence/vault-roster-balanced-hud/resting-1440x900.png", "sha256": "4cc655ac55e085767a5a3c176a2912aad0b3b68a9368612d51078886fe2245b8", "bytes": 1710194, "mode": "0644" },
-    { "path": "docs/release/evidence/vault-roster-balanced-hud/resting-320x568.png", "sha256": "32948c233553a2ca38f379c8afb0e648ca9ac41dfbfa2a38c7d9d789a6db6486", "bytes": 587074, "mode": "0644" },
-    { "path": "docs/release/evidence/vault-roster-balanced-hud/resting-360x800.png", "sha256": "594bf13d3d2fd4a1990bcfbea50e4edfbc6ccae9e403b2525d0f2ae4d36cfac9", "bytes": 781719, "mode": "0644" },
-    { "path": "docs/release/evidence/vault-roster-balanced-hud/resting-390x844.png", "sha256": "044535d36bfc30df6287235cb1c1b8116bb89d9071fde32c0f0debf95bd0951a", "bytes": 876806, "mode": "0644" },
-    { "path": "docs/release/evidence/vault-roster-balanced-hud/resting-430x932.png", "sha256": "f79fefdcbb2e3ca09ff742357f66361335609dd99a503174ef474320b84e019f", "bytes": 952711, "mode": "0644" },
-    { "path": "docs/release/evidence/vault-roster-balanced-hud/resting-768x1024.png", "sha256": "266ffa99f723c53f5e91d86828ee5b3d7c62ba4667fff85c62649bfedcacc67e", "bytes": 1411109, "mode": "0644" },
-    { "path": "docs/release/evidence/vault-roster-balanced-hud/resting-844x390.png", "sha256": "1882873cd72abea34e8ea4735ef13e35a4f3bf3f451dcf92de676a3cfd94904a", "bytes": 944920, "mode": "0644" },
-    { "path": "docs/release/evidence/vault-roster-balanced-hud/slate-neiatid.png", "sha256": "bac287de486e91b2e928e22ecbf71fd940156aba92891d2e7454cec8adc4a986", "bytes": 775043, "mode": "0644" },
-    { "path": "docs/release/evidence/vault-roster-balanced-hud/validate-vault-roster-hud.mjs", "sha256": "9f0fc3dcd029d92b0b36d4aa2bfbc93f7b496e7100ed5afa3e6d73a0d1c7a3d6", "bytes": 11161, "mode": "0755" }
+    { "path": "docs/release/evidence/vault-roster-balanced-hud/battle-leader-neiatid.png", "sha256": "35101ddf488032c3b242bb2039837566ae0d7e91ceee5223b92036537af2f89b", "bytes": 343344, "mode": "0644" },
+    { "path": "docs/release/evidence/vault-roster-balanced-hud/browser-replay.js", "sha256": "064ff90dd312f1dc56ce47540f0387a45f5b99492ae9b32de16faf1f10d8ffe0", "bytes": 31146, "mode": "0644" },
+    { "path": "docs/release/evidence/vault-roster-balanced-hud/browser-result.json", "sha256": "d51ff2f81144d20aab0e441200ee44cc0e41beedc678b3345f0f18ab8b86a4ac", "bytes": 148961, "mode": "0644" },
+    { "path": "docs/release/evidence/vault-roster-balanced-hud/card-vault-toiusap.png", "sha256": "5895c6f9e12e1504433f4e8970f7ea6b158bb12a7115402a3a201e07be5ff2ad", "bytes": 693194, "mode": "0644" },
+    { "path": "docs/release/evidence/vault-roster-balanced-hud/resting-1440x900.png", "sha256": "3f9889a69a50460d79fc5317bea9aaad03c91e3b964f923e0c4db9961bc1556f", "bytes": 1588297, "mode": "0644" },
+    { "path": "docs/release/evidence/vault-roster-balanced-hud/resting-320x568.png", "sha256": "2e5aa1d9dfafa65faa0b9881c849ef90c7de5f128583f55df30d9652f8491a53", "bytes": 544229, "mode": "0644" },
+    { "path": "docs/release/evidence/vault-roster-balanced-hud/resting-360x800.png", "sha256": "4240663c62ada9548b0e0d575b3c595471ea6e9099151487cc96d74025ec79c7", "bytes": 638805, "mode": "0644" },
+    { "path": "docs/release/evidence/vault-roster-balanced-hud/resting-390x844.png", "sha256": "86a43c010b07d2696a4a3f423a516738abfa4f9a82daad3180714210286513fe", "bytes": 733898, "mode": "0644" },
+    { "path": "docs/release/evidence/vault-roster-balanced-hud/resting-430x932.png", "sha256": "15888fd8ab9f5c40722de82120899bc9ca148d3b445db7dc613a1924b11e01f1", "bytes": 788121, "mode": "0644" },
+    { "path": "docs/release/evidence/vault-roster-balanced-hud/resting-768x1024.png", "sha256": "a79f89e393254b052423a57a8fe623418b1b964ac8b5dd7ade1183b5ff8b0e26", "bytes": 1123622, "mode": "0644" },
+    { "path": "docs/release/evidence/vault-roster-balanced-hud/resting-844x390.png", "sha256": "34a6f1a57d413f1323733e177231b486edb06cc7bb0e5f6f49b68796b0b0c91a", "bytes": 863436, "mode": "0644" },
+    { "path": "docs/release/evidence/vault-roster-balanced-hud/slate-neiatid.png", "sha256": "ac2ae630fa55e117a54237ffc8a79cbab2bdfda2f97a110ca47f347d6189227e", "bytes": 735422, "mode": "0644" },
+    { "path": "docs/release/evidence/vault-roster-balanced-hud/validate-vault-roster-hud.mjs", "sha256": "9b5da4597b6bee1abf65f424a759ffc098ad678db0b202d591672679605f80d7", "bytes": 19852, "mode": "0755" }
   ]
 }
