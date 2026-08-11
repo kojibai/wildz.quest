@@ -29,7 +29,8 @@ test("panel ownership ref closes the same-frame action window before React commi
   const hook = read("src/features/play/use-world-overlay-director.ts");
   const campaign = read("src/features/play/PlayCampaign.tsx");
   assert.match(hook, /if \(event\.type === "panel"\) panelOwnershipRef\.current = event\.key !== null/);
-  assert.match(hook, /return \{ state, dispatch, gestureCancelSignal, panelOwnershipRef, claimExclusiveOwner, releaseExclusiveOwner \}/);
+  assert.match(hook, /return \{ state, dispatch, gestureCancelSignal, panelOwnershipRef, exclusiveOriginRef, claimExclusiveOwner, releaseExclusiveOwner \}/);
+  assert.match(campaign, /usePlayModalLifecycle\(\{ onEscape: closeOwnedModal, originRef: exclusiveOriginRef, owner: modalOwner \}\)/);
   assert.match(campaign, /if \(!canUseWorldStage\(\)\) return;[\s\S]*dispatch\(input\)/);
   assert.match(campaign, /const openWorldMap = \(\) => \{[\s\S]*if \(!canUseWorldStage\(\)\) return/);
   assert.match(campaign, /if \(canUseWorldStage\(\)\) setRequestedCommand\("mission"\)/);

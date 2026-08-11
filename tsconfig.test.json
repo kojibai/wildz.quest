@@ -3,6 +3,7 @@
   "compilerOptions": {
     "allowImportingTsExtensions": false,
     "incremental": false,
+    "jsx": "react-jsx",
     "module": "esnext",
     "moduleResolution": "bundler",
     "noEmit": false,

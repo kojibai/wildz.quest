@@ -82,3 +82,57 @@ Interactive targets use a minimum 44x44 CSS contract. Safe-area offsets and dedi
 - Expanded surfaces are viewport-bound, and owned multiplayer dialogs escape inert ancestors through portals.
 - Existing Task 1-3 roster/Slate/command and modal production architecture was preserved; only authorized stale assertions were repaired.
 - Local browser verification did not synthesize a second multiplayer peer, so incoming challenge behavior is covered by ownership/source contracts rather than a live two-client browser exchange.
+
+## Fix round 1: multiplayer challenge lifecycle and target floors
+
+Review disposition: all three P1 findings addressed in a separate, non-amended follow-up commit. The final follow-up hash is reported in the handoff.
+
+### Root cause
+
+- `WildsMultiplayer` treated `modalOwned` as permission to retain roster, room-chat, message draft, and selected-player state even though the containing persistent home had become inert.
+- The incoming challenge installed an Escape/focus effect inside `WildsMultiplayer` while `PlayCampaign` independently installed its own Escape and generic modal-focus effects. Because the real answer operation is asynchronous, both native key listeners could submit decline before the challenge snapshot changed.
+- Reactive `multiplayer` ownership came from the incoming snapshot and did not pass through `claimExclusiveOwner`, so no durable restoration origin was captured.
+- Existing expanded CSS computed to 34px for roster/player close, 40px for chat toggle, 42px for chat input/send, and 36px for the audio mute row.
+
+### Strict TDD RED
+
+- Added a real server-rendered `WildsMultiplayer` component regression. It failed because modal-owned challenge state still rendered `wilds-player-sheet` / `Interact with Aster`.
+- Added a development-only runtime fixture using the real `WildsMultiplayer`, audio settings, and modal lifecycle boundary. Before the lifecycle fix:
+  - one Escape against the async incoming challenge produced `Declines: 2`;
+  - focus returned to the document body rather than a durable world control;
+  - computed targets measured 34, 40, 42, 42, and 36 pixels for the reviewed controls.
+
+### GREEN implementation
+
+- Challenge ownership now immediately excludes roster and selected-player sheets from render, then clears roster, chat, draft, and selected-player state through the existing dismissal effect.
+- `usePlayModalLifecycle` is the single non-combat lifecycle owner for initial focus, Tab containment, Escape, and connected focus restoration.
+- `PlayCampaign` delegates its modal lifecycle to that hook; `WildsMultiplayer` no longer installs any incoming-challenge Escape/focus listener. Its remaining key listener belongs only to the separate combat dialog.
+- Reactive multiplayer ownership resolves `data-play-modal-origin="multiplayer"`, the persistent live badge, rather than an ephemeral roster/chat control. Focus restoration still passes `canRestoreFocus`, preventing focus into inert, hidden, disabled, detached, or zero-geometry controls.
+- Multiplayer roster/player close controls, chat toggle, chat input/send, and the audio mute row now compute to at least 44px.
+
+### Behavioral and browser evidence
+
+The real WebKit fixture verified:
+
+- roster and room chat open -> incoming challenge: `{ roster: 0, dialog: 1 }`;
+- selected-player detail open -> incoming challenge: `{ playerSheet: 0, dialog: 1 }`;
+- one Escape -> exactly `Declines: 1`;
+- after dismissal, the persistent live badge is the active element;
+- computed boxes: close `44x44`, chat toggle `344x44`, input `230x44`, send `108x44`, audio mute `290x44`.
+
+The real world remained collision-free after the target changes:
+
+- `output/playwright/task4-fix-round1-world-390x844.png`
+- `output/playwright/task4-fix-round1-world-320x568.png`
+- `output/playwright/task4-fix-round1-world-844x390.png`
+- Browser console: 0 errors, 0 warnings.
+
+### Fix-round verification
+
+- Focused Task 4/modal set: PASS — 54/54.
+- `pnpm test`: PASS — 1,085/1,085 tests, 109 suites.
+- `pnpm typecheck`: PASS.
+- `pnpm lint`: PASS, 0 warnings.
+- `git diff --check`: PASS.
+
+Concern: the browser fixture uses a deterministic in-memory multiplayer controller to reproduce the real asynchronous answer timing; no external second peer or network mutation was required.

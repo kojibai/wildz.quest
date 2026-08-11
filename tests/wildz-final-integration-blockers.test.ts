@@ -120,15 +120,20 @@ test("every play-shell modal has an explicit exclusive owner", () => {
 test("the stage owns Escape lifecycle for every non-combat world modal", () => {
   const campaign = read("src/features/play/PlayCampaign.tsx");
   const director = read("src/features/play/use-world-overlay-director.ts");
+  const lifecycle = read("src/features/play/use-play-modal-lifecycle.ts");
+  const multiplayer = read("src/features/play/WildsMultiplayer.tsx");
 
-  assert.match(campaign, /const ESCAPE_OWNED_WORLD_OWNERS = new Set\(\[[\s\S]*"trainer"[\s\S]*"map"[\s\S]*"landmark"[\s\S]*"settlement"[\s\S]*"ecology"[\s\S]*"raid"[\s\S]*"reward"[\s\S]*"ceremony"[\s\S]*"memorial"[\s\S]*"multiplayer"[\s\S]*\]\)/);
-  assert.match(campaign, /ESCAPE_OWNED_WORLD_OWNERS\.has\(exclusiveOwner\)/);
+  assert.match(lifecycle, /const ESCAPE_OWNED_WORLD_OWNERS = new Set<WorldOverlayOwner>\(\[[\s\S]*"trainer"[\s\S]*"map"[\s\S]*"landmark"[\s\S]*"settlement"[\s\S]*"ecology"[\s\S]*"raid"[\s\S]*"reward"[\s\S]*"ceremony"[\s\S]*"memorial"[\s\S]*"multiplayer"[\s\S]*\]\)/);
+  assert.match(lifecycle, /event\.key === "Escape" && ESCAPE_OWNED_WORLD_OWNERS\.has\(owner\)[\s\S]*onEscape\(owner\)/);
+  assert.match(campaign, /usePlayModalLifecycle\(\{ onEscape: closeOwnedModal, originRef: exclusiveOriginRef, owner: modalOwner \}\)/);
   assert.match(campaign, /setMapOpen\(false\)/);
   assert.match(campaign, /setActiveLandmarkId\(null\)/);
   assert.match(campaign, /setActiveEcologySiteId\(null\)/);
   assert.match(campaign, /setActiveRaid\(null\)/);
   assert.match(campaign, /setMemorialAssetId\(null\)/);
   assert.match(campaign, /answerMultiplayerChallenge\([\s\S]*"decline"/);
+  assert.doesNotMatch(multiplayer, /challengeDialogRef|challengeFocusFrameRef/);
+  assert.equal(multiplayer.match(/window\.addEventListener\("keydown"/g)?.length, 1, "only the combat dialog retains a component-owned key listener");
   assert.match(director, /event\.key === "Escape" && exclusiveOwner === "none"/);
 });
 

@@ -3130,7 +3130,7 @@ a {
 
 .wilds-audio-mute {
   display: flex;
-  min-height: 36px;
+  min-height: 44px;
   align-items: center;
   gap: 9px;
 }
@@ -11190,7 +11190,7 @@ button.product-purchase-secondary-link {
 .wilds-live-sheet header div { display: grid; gap: 2px; }
 .wilds-live-sheet header span, .wilds-live-sheet > span { color: #76e9c6; font-size: 9px; font-weight: 900; letter-spacing: .15em; text-transform: uppercase; }
 .wilds-live-sheet header strong { font-size: 18px; }
-.wilds-live-sheet header > button { width: 34px; height: 34px; padding: 0; color: #eafff9; font-size: 22px; border: 1px solid rgb(255 255 255 / 14%); background: rgb(255 255 255 / 6%); border-radius: 50%; }
+.wilds-live-sheet header > button { width: 44px; height: 44px; padding: 0; color: #eafff9; font-size: 22px; border: 1px solid rgb(255 255 255 / 14%); background: rgb(255 255 255 / 6%); border-radius: 50%; }
 .wilds-live-sheet > p { margin: 7px 0 10px; color: rgb(230 255 248 / 68%); font-size: 11px; line-height: 1.45; }
 .wilds-live-roster { top: 120px; right: 12px; width: min(340px, calc(100% - 24px)); max-height: calc(100% - 138px); padding: 14px; overflow: auto; border-radius: 20px; }
 .wilds-live-player-list { display: grid; gap: 6px; }
@@ -11204,14 +11204,14 @@ button.product-purchase-secondary-link {
 .wilds-live-player-list b { color: #76e9c6; font-size: 8px; letter-spacing: .1em; text-transform: uppercase; }
 .wilds-live-empty { display: grid; gap: 4px; padding: 16px; text-align: center; border: 1px dashed rgb(126 235 205 / 28%); border-radius: 14px; }
 .wilds-live-empty span { color: rgb(230 255 248 / 60%); font-size: 11px; }
-.wilds-live-chat-toggle { width: 100%; min-height: 40px; margin-top: 8px; color: #dffff5; font-weight: 800; border: 1px solid rgb(126 235 205 / 24%); background: rgb(126 235 205 / 7%); border-radius: 12px; }
+.wilds-live-chat-toggle { width: 100%; min-height: 44px; margin-top: 8px; color: #dffff5; font-weight: 800; border: 1px solid rgb(126 235 205 / 24%); background: rgb(126 235 205 / 7%); border-radius: 12px; }
 .wilds-live-chat { display: grid; gap: 8px; margin-top: 8px; }
 .wilds-live-chat > div { display: grid; max-height: 160px; gap: 6px; overflow: auto; }
 .wilds-live-chat p { display: grid; grid-template-columns: 80px 1fr; gap: 8px; margin: 0; padding: 5px 7px; font-size: 10px; background: rgb(255 255 255 / 4%); border-radius: 8px; }
 .wilds-live-chat p b { overflow: hidden; color: #76e9c6; text-overflow: ellipsis; }
 .wilds-live-chat label { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
-.wilds-live-chat input { min-width: 0; min-height: 42px; padding: 0 12px; color: #effffa; border: 1px solid rgb(255 255 255 / 14%); outline: none; background: rgb(0 0 0 / 18%); border-radius: 12px; }
-.wilds-live-chat label button { min-height: 42px; padding-inline: 14px; color: #062019; font-weight: 900; background: #76e9c6; border: 0; border-radius: 12px; }
+.wilds-live-chat input { min-width: 0; min-height: 44px; padding: 0 12px; color: #effffa; border: 1px solid rgb(255 255 255 / 14%); outline: none; background: rgb(0 0 0 / 18%); border-radius: 12px; }
+.wilds-live-chat label button { min-height: 44px; padding-inline: 14px; color: #062019; font-weight: 900; background: #76e9c6; border: 0; border-radius: 12px; }
 
 .wilds-player-sheet { right: 12px; bottom: 12px; width: min(360px, calc(100% - 24px)); padding: 14px; border-radius: 20px; }
 .wilds-player-card-line { display: grid; grid-template-columns: 40px 1fr; align-items: center; gap: 10px; padding: 9px; background: rgb(255 255 255 / 4%); border-radius: 14px; }

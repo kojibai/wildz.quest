@@ -7,7 +7,6 @@ import {
   type WorldOverlayEvent,
   type WorldOverlayOwner
 } from "./world-overlay-state";
-import { canRestoreFocus } from "./focus-recovery";
 
 export function useWorldOverlayDirector({
   dismissSignal,
@@ -21,8 +20,6 @@ export function useWorldOverlayDirector({
   const priorDismissSignal = useRef(dismissSignal);
   const panelOwnershipRef = useRef(false);
   const exclusiveOriginRef = useRef<HTMLElement | null>(null);
-  const focusFrameRef = useRef<number | null>(null);
-  const priorExclusiveOwner = useRef(exclusiveOwner);
   const dispatch = useCallback((event: WorldOverlayEvent) => {
     if (event.type === "panel") panelOwnershipRef.current = event.key !== null;
     else if (event.type === "dismiss" || event.type === "viewport-change" || event.type === "exclusive") panelOwnershipRef.current = false;
@@ -79,22 +76,7 @@ export function useWorldOverlayDirector({
   useEffect(() => {
     cancelGestures();
     dispatch({ type: "exclusive", owner: exclusiveOwner });
-    const priorOwner = priorExclusiveOwner.current;
-    priorExclusiveOwner.current = exclusiveOwner;
-    if (focusFrameRef.current !== null) window.cancelAnimationFrame(focusFrameRef.current);
-    focusFrameRef.current = null;
-    if (priorOwner !== "none" && exclusiveOwner === "none") {
-      focusFrameRef.current = window.requestAnimationFrame(() => {
-        focusFrameRef.current = null;
-        const origin = exclusiveOriginRef.current;
-        if (canRestoreFocus(origin)) origin.focus();
-      });
-    }
   }, [dispatch, exclusiveOwner]);
 
-  useEffect(() => () => {
-    if (focusFrameRef.current !== null) window.cancelAnimationFrame(focusFrameRef.current);
-  }, []);
-
-  return { state, dispatch, gestureCancelSignal, panelOwnershipRef, claimExclusiveOwner, releaseExclusiveOwner };
+  return { state, dispatch, gestureCancelSignal, panelOwnershipRef, exclusiveOriginRef, claimExclusiveOwner, releaseExclusiveOwner };
 }

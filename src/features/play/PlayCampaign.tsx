@@ -25,6 +25,7 @@ import { WildsBalancedStatusHud } from "@/features/play/WildsBalancedStatusHud";
 import { useWildsPresentation } from "@/features/play/use-wilds-presentation";
 import { useWildsQualityProfile } from "@/features/play/use-wilds-quality-profile";
 import { useWorldOverlayDirector } from "@/features/play/use-world-overlay-director";
+import { usePlayModalLifecycle } from "@/features/play/use-play-modal-lifecycle";
 import { canAcceptPlayShellInput, isCaptureRewardModalOwner, isWildBattleModalOwner, projectPlayCombatSurface, projectPlayShellOwner } from "@/features/play/play-shell-owner";
 import {
   beginModalAdmission,
@@ -115,10 +116,6 @@ const WildsEcologyExperience = dynamic(() => import("@/features/play/WildsEcolog
 const WildsRaidExperience = dynamic(() => import("@/features/play/WildsRaidExperience").then((mod) => mod.WildsRaidExperience), { ssr: false });
 const WildsTrainerEncounter = dynamic(() => import("@/features/play/WildsTrainerEncounter").then((mod) => mod.WildsTrainerEncounter), { ssr: false });
 const MortalArenaExperience = dynamic(() => import("@/features/games/mortal-arena/MortalArenaExperience").then((mod) => mod.MortalArenaExperience), { ssr: false });
-const ESCAPE_OWNED_WORLD_OWNERS = new Set([
-  "trainer", "map", "landmark", "settlement", "ecology", "raid", "reward", "ceremony", "memorial", "multiplayer"
-]);
-
 export function PlayCampaign({
   campaignName = "Reward Challenge",
   enabled,
@@ -291,6 +288,7 @@ export function PlayCampaign({
     dispatch: dispatchWorldOverlay,
     gestureCancelSignal,
     panelOwnershipRef,
+    exclusiveOriginRef,
     claimExclusiveOwner
   } = useWorldOverlayDirector({ dismissSignal: commandDismissSignal, exclusiveOwner: modalOwner });
   const commandPanelOpen = modalOwner === "none" && worldOverlayState.panelKey !== null;
@@ -362,74 +360,34 @@ export function PlayCampaign({
       setMapOpen(false);
     }
   }, [exclusiveOwner, mapOpen]);
-  useEffect(() => {
-    if (exclusiveOwner === "none" || exclusiveOwner === "command" || exclusiveOwner === "combat") return;
-    let modal: HTMLElement | null = null;
-    const resolveModal = () => {
-      const candidates = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]');
-      modal = candidates[candidates.length - 1] ?? null;
-    };
-    resolveModal();
-    const observer = new MutationObserver(resolveModal);
-    observer.observe(document.body, { childList: true, subtree: true });
-    const focusable = () => Array.from(modal?.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), select:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
-    ) ?? []);
-    const containFocus = (event: FocusEvent) => {
-      if (modal && event.target instanceof Node && !modal.contains(event.target)) focusable()[0]?.focus();
-    };
-    const trapTab = (event: KeyboardEvent) => {
-      if (event.key !== "Tab" || !modal) return;
-      const items = focusable();
-      if (!items.length) return;
-      const first = items[0]!;
-      const last = items[items.length - 1]!;
-      if (event.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
-    };
-    document.addEventListener("focusin", containFocus);
-    window.addEventListener("keydown", trapTab);
-    return () => {
-      observer.disconnect();
-      document.removeEventListener("focusin", containFocus);
-      window.removeEventListener("keydown", trapTab);
-    };
-  }, [exclusiveOwner]);
   const incomingChallengeId = multiplayer.incomingChallenge?.id ?? null;
   const answerMultiplayerChallenge = multiplayer.answerChallenge;
-  useEffect(() => {
-    if (!ESCAPE_OWNED_WORLD_OWNERS.has(exclusiveOwner)) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      releasePlayModalOwner(exclusiveOwner);
-      if (exclusiveOwner === "trainer") {
-        setActiveTrainer(null);
-        setTrainerEncounter(null);
-      } else if (exclusiveOwner === "map") {
-        setMapOpen(false);
-      } else if (exclusiveOwner === "landmark" || exclusiveOwner === "settlement") {
-        setActiveLandmarkId(null);
-      } else if (exclusiveOwner === "ecology") {
-        setActiveEcologySiteId(null);
-      } else if (exclusiveOwner === "raid") {
-        setActiveRaid(null);
-      } else if (exclusiveOwner === "reward") {
-        setState((current) => applyWildsInput(current, { type: "dismiss-reveal" }));
-      } else if (exclusiveOwner === "ceremony") {
-        setState((current) => current.transformation
-          ? applyWildsInput(current, { type: "finish-transformation" })
-          : applyWildsInput(current, { type: "finish-lineage-reveal" }));
-      } else if (exclusiveOwner === "memorial") {
-        setMemorialAssetId(null);
-      } else if (exclusiveOwner === "multiplayer" && incomingChallengeId) {
-        void answerMultiplayerChallenge(incomingChallengeId, "decline");
-      }
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [answerMultiplayerChallenge, exclusiveOwner, incomingChallengeId, releasePlayModalOwner]);
+  const closeOwnedModal = useCallback((owner: typeof modalOwner) => {
+    releasePlayModalOwner(owner);
+    if (owner === "trainer") {
+      setActiveTrainer(null);
+      setTrainerEncounter(null);
+    } else if (owner === "map") {
+      setMapOpen(false);
+    } else if (owner === "landmark" || owner === "settlement") {
+      setActiveLandmarkId(null);
+    } else if (owner === "ecology") {
+      setActiveEcologySiteId(null);
+    } else if (owner === "raid") {
+      setActiveRaid(null);
+    } else if (owner === "reward") {
+      setState((current) => applyWildsInput(current, { type: "dismiss-reveal" }));
+    } else if (owner === "ceremony") {
+      setState((current) => current.transformation
+        ? applyWildsInput(current, { type: "finish-transformation" })
+        : applyWildsInput(current, { type: "finish-lineage-reveal" }));
+    } else if (owner === "memorial") {
+      setMemorialAssetId(null);
+    } else if (owner === "multiplayer" && incomingChallengeId) {
+      void answerMultiplayerChallenge(incomingChallengeId, "decline");
+    }
+  }, [answerMultiplayerChallenge, incomingChallengeId, releasePlayModalOwner]);
+  usePlayModalLifecycle({ onEscape: closeOwnedModal, originRef: exclusiveOriginRef, owner: modalOwner });
   useEffect(() => {
     if (!shouldDismissTrainerEncounterForExternalCombat(trainerEncounter?.phase ?? null, {
       wildBattleActive: Boolean(state.battle),

@@ -37,11 +37,18 @@ test("both persistent homes inherit modal ownership and gate their direct action
 
 test("live controls stay persistent while multiplayer modal content escapes the inert home", () => {
   const multiplayer = read("src/features/play/WildsMultiplayer.tsx");
+  const lifecycle = read("src/features/play/use-play-modal-lifecycle.ts");
 
   assert.doesNotMatch(multiplayer, /controlsExpanded/);
   assert.match(multiplayer, /id="wilds-live-controls"[^>]*className="wilds-live-cluster"/);
+  assert.match(multiplayer, /rosterOpen && !modalOwned/);
+  assert.match(multiplayer, /selected && !modalOwned/);
+  assert.match(multiplayer, /data-play-modal-origin="multiplayer"/);
   assert.match(multiplayer, /shouldShowIncomingChallenge[\s\S]*typeof document !== "undefined"[\s\S]*createPortal/);
   assert.match(multiplayer, /role="dialog" aria-modal="true" aria-label="Incoming Wilds battle challenge"/);
+  assert.doesNotMatch(multiplayer, /challengeDialogRef|challengeFocusFrameRef/);
+  assert.match(lifecycle, /owner === "multiplayer"[\s\S]*data-play-modal-origin/);
+  assert.match(lifecycle, /event\.stopImmediatePropagation\(\)[\s\S]*onEscape\(owner\)/);
 });
 
 test("balanced homes remain touch-safe and collision-aware at phone and short-landscape sizes", () => {
@@ -54,4 +61,9 @@ test("balanced homes remain touch-safe and collision-aware at phone and short-la
   assert.match(finalCss, /\.wilds-map-status-home :is\(\.wilds-live-badge, \.wilds-live-share, \.wilds-live-pill\),[\s\S]*\.wilds-left-instrument-home :is\(\.wilds-kai-command-pill, \.wilds-audio-settings > summary\)\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/);
   assert.match(finalCss, /@media \(max-width: 350px\)[\s\S]*\.wilds-map-status-home\s*\{[^}]*max-width:\s*calc\(100vw - 136px/);
   assert.match(finalCss, /@media \(orientation: landscape\) and \(max-height: 500px\)[\s\S]*\.wilds-left-instrument-home\s*\{[^}]*grid-template-columns:\s*104px 44px;/);
+  assert.match(css, /\.wilds-live-sheet header > button\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;/);
+  assert.match(css, /\.wilds-live-chat-toggle\s*\{[^}]*min-height:\s*44px;/);
+  assert.match(css, /\.wilds-live-chat input\s*\{[^}]*min-height:\s*44px;/);
+  assert.match(css, /\.wilds-live-chat label button\s*\{[^}]*min-height:\s*44px;/);
+  assert.match(css, /\.wilds-audio-mute\s*\{[^}]*min-height:\s*44px;/);
 });
