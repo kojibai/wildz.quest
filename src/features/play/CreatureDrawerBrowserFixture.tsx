@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { WildzCreatureDrawer } from "./WildzCreatureDrawer";
+import { WildzWorldControls } from "./WildzWorldControls";
 import type { CreatureDrawerSnap } from "./creature-drawer";
 import { sealCollectedCard } from "./portable-card";
 import type { VaultCompanionRosterEntry } from "./vault-companion-roster";
+import { initialWorldOverlayState, reduceWorldOverlay, type WorldOverlayOwner } from "./world-overlay-state";
 
 const fixtureAssets = Array.from({ length: 17 }, (_, index) => sealCollectedCard({
   formId: "mintcub-1",
@@ -42,7 +44,8 @@ export function CreatureDrawerBrowserFixture() {
     previousSnapRef.current = snap;
   }, [snap]);
 
-  return <main className="wildz-companion-home" data-testid="creature-drawer-browser-fixture">
+  return <>
+    <main className="wildz-companion-home" data-testid="creature-drawer-browser-fixture">
     <h1>Creature Drawer browser fixture</h1>
     <button
       onClick={() => setSnap("preview")}
@@ -64,5 +67,53 @@ export function CreatureDrawerBrowserFixture() {
       onSnapChange={setSnap}
       snap={snap}
     />
-  </main>;
+    </main>
+    <WorldControlsFocusRecoveryFixture />
+  </>;
+}
+
+function WorldControlsFocusRecoveryFixture() {
+  const [overlayState, setOverlayState] = useState(initialWorldOverlayState);
+  const [exclusiveOwner, setExclusiveOwner] = useState<WorldOverlayOwner>("none");
+  const [selectedAssetId, setSelectedAssetId] = useState(initialFixtureAssetId);
+  const cameraHeadingRef = useRef(0);
+  const setOwner = (owner: WorldOverlayOwner) => {
+    setExclusiveOwner(owner);
+    setOverlayState((state) => reduceWorldOverlay(state, { type: "exclusive", owner }));
+  };
+  const activeCard = fixtureAssets.find((asset) => asset.id === selectedAssetId) ?? fixtureAssets[2]!;
+
+  return <section data-testid="world-controls-focus-recovery-fixture">
+    <h2>World controls focus recovery fixture</h2>
+    <button onClick={() => setOwner("combat")} type="button">Exclusive fixture owner</button>
+    <button onClick={() => setOwner("none")} type="button">Release fixture owner</button>
+    <output data-exclusive-owner={exclusiveOwner} data-snap={overlayState.drawerSnap} id="world-controls-focus-state">
+      {exclusiveOwner}:{overlayState.drawerSnap}
+    </output>
+    <WildzWorldControls
+      action={{ kind: "fixture", label: "Fixture power" }}
+      activeCard={activeCard}
+      cameraHeadingRef={cameraHeadingRef}
+      cardConditions={{}}
+      cardOrder="newest"
+      commandItems={[]}
+      companionProgress={{ [activeCard.manifest.familyId]: { level: 3, xp: 20, bond: 2 } }}
+      dismissSignal={0}
+      exclusiveOwner={exclusiveOwner}
+      gestureCancelSignal={0}
+      movementMode="walk"
+      nearbyCards={fixtureAssets}
+      newRosterAssetId={null}
+      onAction={() => {}}
+      onCardOrderChange={() => {}}
+      onInput={() => {}}
+      onMovementModeChange={() => {}}
+      onRest={() => {}}
+      onSelectAbility={() => {}}
+      onSelectCard={setSelectedAssetId}
+      overlayDispatch={(event) => setOverlayState((state) => reduceWorldOverlay(state, event))}
+      overlayState={overlayState}
+      selectedAbilityIndex={0}
+    />
+  </section>;
 }

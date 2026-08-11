@@ -154,3 +154,53 @@ This is bounded direct DOM replay of the real component’s reducer callbacks an
 Fixture screenshot: `output/playwright/task2-roster-browser-fixture.png`.
 
 Fix-round implementation commit: `e536944` (`fix: harden Slate drawer focus and layout`).
+
+---
+
+## Fix round 2 — deferred exclusive-owner focus restoration
+
+### Finding and fix
+
+An exclusive owner forces the controlled Slate snap to `closed` while the companion home is inert. The previous close observer attempted focus immediately, failed `canRestoreFocus`, then marked the snap closed with no later retry.
+
+`WildzWorldControls` now records a pending drawer-origin restore on every open-to-closed controlled transition. It consumes that pending work only when `worldHomesEnabled` is true and `companionHomeBlocked` is false; the existing cancellable RAF and `canRestoreFocus` check remain the final safety gate. This preserves ordinary immediate restoration while carrying exclusive-close restoration through owner release.
+
+### RED
+
+Added the controller contract before production edits and ran:
+
+```sh
+pnpm test > /private/tmp/wildz-task2-round2-red.log 2>&1
+```
+
+Result: exit 1 with exactly one new failure: `controller defers a Slate origin restore until exclusive ownership releases the inert companion home`. The log is retained at `/private/tmp/wildz-task2-round2-red.log` for this session.
+
+### GREEN
+
+```sh
+pnpm test
+node --test .test-build/tests/wildz-creature-drawer-ui.test.js
+pnpm typecheck
+pnpm lint
+git diff --check
+```
+
+- Full `pnpm test` — exit 0.
+- Focused compiled drawer UI contract — 9/9 passed, 0 failed (97ms).
+- `pnpm typecheck` — exit 0.
+- `pnpm lint` — exit 0.
+- `git diff --check` — exit 0.
+
+### Production-controller runtime replay
+
+The development-only fixture now mounts the actual `WildzWorldControls` with the real overlay reducer, real command, and 17 sealed assets. Browser replay at 390x844 verified the required sequence:
+
+1. Focused the real companion command and pressed ArrowUp: overlay state `none:preview`; active Slate card focused.
+2. Clicked `Exclusive fixture owner`: overlay state `combat:closed`; companion home had `inert`; active element had no companion command label (no premature restore).
+3. Clicked `Release fixture owner`: overlay state `none:closed`; the real companion command regained focus.
+
+Screenshot: `output/playwright/task2-world-controls-exclusive-focus.png`.
+
+### Scope and concern
+
+Only the controller, existing development-only fixture, its focused contract, and this report changed. Memorial/Card Vault behavior and the approved modal/combat gates remain untouched. The fixture is development-gated and unavailable in production.

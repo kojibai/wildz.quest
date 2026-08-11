@@ -120,3 +120,15 @@ test("development browser fixture renders the real drawer with a non-first activ
   assert.match(fixture, /previousSnapRef/);
   assert.match(fixture, /originRef\.current\?\.focus\(\)/);
 });
+
+test("controller defers a Slate origin restore until exclusive ownership releases the inert companion home", () => {
+  const controls = readFileSync("src/features/play/WildzWorldControls.tsx", "utf8");
+  const fixture = readFileSync("src/features/play/CreatureDrawerBrowserFixture.tsx", "utf8");
+
+  assert.match(controls, /pendingDrawerOriginRestoreRef/);
+  assert.match(controls, /pendingDrawerOriginRestoreRef\.current = true/);
+  assert.match(controls, /if \(!pendingDrawerOriginRestoreRef\.current \|\| !worldHomesEnabled \|\| companionHomeBlocked\) return/);
+  assert.match(controls, /pendingDrawerOriginRestoreRef\.current = false;[\s\S]*restoreDrawerOrigin\(\)/);
+  assert.match(fixture, /WildzWorldControls/);
+  assert.match(fixture, /Exclusive fixture owner/);
+});
