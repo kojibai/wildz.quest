@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { deriveKaiKlokMoment } from "../src/features/play/kai-klok-moment";
+import * as dossierModule from "../src/features/play/living-card-dossier";
 import { projectLivingCardDossier } from "../src/features/play/living-card-dossier";
 import { sealCollectedCard } from "../src/features/play/portable-card";
 
@@ -47,4 +48,33 @@ test("card back uses the established caduceus Kai symbol instead of spelling the
   const source = readFileSync(resolve(process.cwd(), "src/features/play/WildsCardBack.tsx"), "utf8");
   assert.match(source, /aria-label="Caduceus KAI">☤ KAI</);
   assert.doesNotMatch(source, />Cadueus KAI</);
+});
+
+test("card proof fingerprints stay compact without discarding the exact digest", () => {
+  const compactProofFingerprint = (dossierModule as unknown as {
+    compactProofFingerprint?: (value: string) => string;
+  }).compactProofFingerprint;
+  assert.equal(typeof compactProofFingerprint, "function");
+  assert.equal(
+    compactProofFingerprint?.(`sha256:${"0123456789abcdef".repeat(4)}`),
+    "sha256:0123456789ab…89abcdef"
+  );
+});
+
+test("dossier distinguishes the immutable card seal from optional Groth16 carrier proof", () => {
+  const asset = sealCollectedCard({
+    formId: "mintcub-1",
+    ownerReceizId: "receiz:dossier",
+    encounterId: "encounter:proof-layers",
+    capturedAt: "2026-07-17T12:00:00.000Z",
+    generatorVersion: 2
+  });
+  const proofLayers = (projectLivingCardDossier(asset, "https://wildz.quest") as unknown as {
+    proofLayers?: {
+      card: { suite: string; digest: string };
+      carrier: { suite: string; state: string };
+    };
+  }).proofLayers;
+  assert.deepEqual(proofLayers?.card, { suite: "SHA-256", digest: asset.proof.digest });
+  assert.deepEqual(proofLayers?.carrier, { suite: "Groth16", state: "Receiz Proof Object only" });
 });

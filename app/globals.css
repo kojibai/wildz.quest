@@ -2728,6 +2728,7 @@ a {
 
 .wilds-stage {
   --wildz-stage-safe-top: env(safe-area-inset-top);
+  --wildz-combat-control-clearance: calc(max(var(--wildz-bottom-home-gap), env(safe-area-inset-bottom)) + clamp(68px, 24vw, 94px) + 12px);
   position: relative;
   min-height: 486px;
   overflow: hidden;
@@ -2757,6 +2758,7 @@ a {
   position: absolute;
   z-index: 90;
   inset: 8px;
+  bottom: var(--wildz-combat-control-clearance);
   display: grid;
   align-content: space-between;
   pointer-events: none;
@@ -2886,7 +2888,7 @@ a {
 .wilds-battle-meta select { max-width: 150px; min-height: 28px; border: 0; border-radius: 8px; font-size: 9px; }
 
 @media (max-width: 560px) {
-  .wilds-battle { inset: 7px; }
+  .wilds-battle { inset: 7px; bottom: var(--wildz-combat-control-clearance); }
   .wilds-battle-turn { min-height: 21px; padding: 3px 7px; }
   .wilds-battle-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .wilds-battle-actions button { min-height: 41px; padding: 5px; }
@@ -11403,6 +11405,9 @@ button.product-purchase-secondary-link {
 .wilds-card-back-birth { background: linear-gradient(145deg, rgb(10 31 39 / 76%), rgb(15 21 42 / 72%)) !important; border-color: rgb(131 240 206 / 22%) !important; box-shadow: inset 0 1px rgb(255 255 255 / 5%), 0 0 24px rgb(72 210 182 / 6%); }
 .wilds-card-back-birth > span { display: block; margin-bottom: 5px; }
 .wilds-card-back section h2, .wilds-card-back section p { margin: 0 0 6px; }
+.wilds-dna-fingerprint { display: flex; min-width: 0; max-width: 100%; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 7px; border: 1px solid rgb(131 240 206 / 14%); border-radius: 8px; background: rgb(131 240 206 / 5%); }
+.wilds-dna-fingerprint span { color: #71949f; font-size: 7px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.wilds-dna-fingerprint code { min-width: 0; overflow: hidden; color: #93e8cf; font-size: 6px; letter-spacing: .025em; text-overflow: ellipsis; white-space: nowrap; }
 .wilds-card-back section p, .wilds-card-back dd { color: #b7cdd5; font-size: 9px; line-height: 1.4; overflow-wrap: anywhere; }
 .wilds-card-back dl { display: grid; gap: 5px; margin: 5px 0 0; }
 .wilds-card-back dl div { display: grid; grid-template-columns: 74px 1fr; gap: 7px; }
@@ -11413,6 +11418,12 @@ button.product-purchase-secondary-link {
 .wilds-dossier-stat-grid span { display: grid; min-width: 42px; padding: 5px; text-align: center; background: rgb(255 255 255 / 6%); border-radius: 7px; }
 .wilds-dossier-stat-grid small { color: #7897a2; font-size: 6px; text-transform: uppercase; }
 .wilds-card-proof-dossier summary { cursor: pointer; color: #8ff2d2; font-size: 9px; font-weight: 900; }
+.wilds-proof-layers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 8px 0 5px; }
+.wilds-proof-layers > div { display: grid; min-width: 0; gap: 2px; padding: 7px; border: 1px solid rgb(131 240 206 / 12%); border-radius: 8px; background: rgb(255 255 255 / 3%); }
+.wilds-proof-layers span { color: #71949f; font-size: 6px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.wilds-proof-layers strong { color: #dffaf1; font-size: 8px; }
+.wilds-proof-layers :is(code, small) { min-width: 0; overflow: hidden; color: #88b8aa; font-size: 6px; text-overflow: ellipsis; white-space: nowrap; }
+.wilds-proof-layer-note { color: #7898a1 !important; font-size: 7px !important; }
 .wilds-card-proof-dossier pre { max-height: 190px; overflow: auto; padding: 8px; white-space: pre-wrap; overflow-wrap: anywhere; color: #9bb6c0; background: #020c11; border-radius: 8px; font-size: 6px; }
 .wilds-proof-checks { display: grid; gap: 4px; margin: 8px 0; }
 .wilds-proof-checks > div { display: flex; gap: 6px; font-size: 7px; }
@@ -14789,6 +14800,10 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
    callout feature and continues to use its native safe-area values. */
 @media (display-mode: standalone) and (pointer: coarse) {
   @supports not (-webkit-touch-callout: none) {
+    .wilds-stage {
+      --wildz-combat-control-clearance: calc(max(56px, calc(env(safe-area-inset-bottom) + 12px)) + clamp(68px, 24vw, 94px) + 12px);
+    }
+
     :is(.wildz-movement-home, .wildz-companion-home) {
       bottom: max(56px, calc(env(safe-area-inset-bottom) + 12px));
     }

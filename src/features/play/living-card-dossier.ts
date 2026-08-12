@@ -64,6 +64,10 @@ export type LivingCardDossier = {
     provenance: Record<string, string>;
   };
   lineage: { root: string; parents: string[]; children: string[] };
+  proofLayers: {
+    card: { suite: "SHA-256"; digest: string };
+    carrier: { suite: "Groth16"; state: "Receiz Proof Object only" };
+  };
   verification: {
     ok: boolean;
     checks: Array<{ label: string; status: "pass" | "fail"; detail: string }>;
@@ -72,6 +76,11 @@ export type LivingCardDossier = {
   };
   canonicalProofJson: string;
 };
+
+export function compactProofFingerprint(value: string) {
+  if (value.length <= 32) return value;
+  return `${value.slice(0, 19)}…${value.slice(-8)}`;
+}
 
 const title = (value: string) => value.replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 
@@ -226,6 +235,10 @@ export function projectLivingCardDossier(asset: PortableCardAsset, origin: strin
       root: asset.manifest.lineage.rootAssetId,
       parents: [...(asset.manifest.lineage.parentAssetIds ?? [])],
       children: living ? [...asset.manifest.lineage.childAssetIds] : []
+    },
+    proofLayers: {
+      card: { suite: "SHA-256", digest: asset.proof.digest },
+      carrier: { suite: "Groth16", state: "Receiz Proof Object only" }
     },
     verification: {
       ok: verification.ok && checks.every((check) => check.status === "pass"),

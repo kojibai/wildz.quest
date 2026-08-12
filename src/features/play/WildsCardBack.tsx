@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { portableCardPngBlob, readPortableCardFromPng, type PortableCardPngProof } from "./card-export";
-import { projectLivingCardDossier } from "./living-card-dossier";
+import { compactProofFingerprint, projectLivingCardDossier } from "./living-card-dossier";
 import { cardDeathRecord } from "./card-death-record";
 import type { AdventureCardCondition } from "./adventure/card-condition";
 import type { PortableCardAsset } from "./portable-card";
@@ -93,9 +93,12 @@ export function WildsCardBack({ asset, origin, qr, condition }: { asset: Portabl
           </dl>
         </section>
 
-        <section>
+        <section className="wilds-card-dna">
           <h2>Full visual DNA</h2>
-          <code>{dossier.dna.identityFingerprint}</code>
+          <div className="wilds-dna-fingerprint">
+            <span>Visual genome seal</span>
+            <code title={dossier.dna.identityFingerprint}>{compactProofFingerprint(dossier.dna.identityFingerprint)}</code>
+          </div>
           <dl>
             <div><dt>Face</dt><dd>{dossier.dna.face.join(" · ")}</dd></div>
             <div><dt>Body</dt><dd>{dossier.dna.body.join(" · ")}</dd></div>
@@ -118,6 +121,11 @@ export function WildsCardBack({ asset, origin, qr, condition }: { asset: Portabl
 
         <details className="wilds-card-proof-dossier">
           <summary>Complete offline proof <span>{dossier.verification.ok ? "All checks pass" : "Review errors"}</span></summary>
+          <div className="wilds-proof-layers" aria-label="Card and Receiz carrier proof layers">
+            <div><span>Card seal</span><strong>{dossier.proofLayers.card.suite}</strong><code title={dossier.proofLayers.card.digest}>{compactProofFingerprint(dossier.proofLayers.card.digest)}</code></div>
+            <div><span>Groth16 carrier</span><strong>{dossier.proofLayers.carrier.suite}</strong><small>{dossier.proofLayers.carrier.state}</small></div>
+          </div>
+          <p className="wilds-proof-layer-note">Exact Groth16 proof data belongs to the SDK-sealed outer Receiz Proof Object and is shown by its Receiz verifier. It is not copied into this immutable card seal.</p>
           <div className="wilds-proof-checks">{dossier.verification.checks.map((check) => <div key={check.label} data-status={check.status}><b>{check.status === "pass" ? "✓" : "!"}</b><span><strong>{check.label}</strong><small>{check.detail}</small></span></div>)}</div>
           <dl>
             <div><dt>Verification route</dt><dd>{dossier.verification.route}</dd></div>

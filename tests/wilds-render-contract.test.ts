@@ -440,6 +440,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(cardBack, /Personality/);
     assert.match(cardBack, /Gameplay intelligence/);
     assert.match(cardBack, /Full visual DNA/);
+    assert.match(cardBack, /wilds-dna-fingerprint/);
+    assert.match(cardBack, /Groth16 carrier/);
     assert.match(cardBack, /Complete offline proof/);
     assert.match(cardBack, /Copy canonical proof/);
     assert.match(cardBack, /Download canonical proof/);
@@ -606,6 +608,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(css, /\.wilds-stage\.wild-battle-active \.wilds-world-navigator-stack[\s\S]*?visibility:\s*hidden/);
     assert.match(css, /\.wilds-stage\.wild-battle-active \.wilds-live-cluster[\s\S]*?visibility:\s*hidden/);
     assert.match(css, /\.wilds-battle\s*\{[^}]*z-index:\s*90/s);
+    assert.match(css, /\.wilds-battle\s*\{[^}]*bottom:\s*var\(--wildz-combat-control-clearance\)/s);
+    assert.match(css, /@media \(display-mode:\s*standalone\) and \(pointer:\s*coarse\)[\s\S]*?--wildz-combat-control-clearance:/s);
     assert.doesNotMatch(battle, /function HealthBar/);
   });
 
