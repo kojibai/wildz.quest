@@ -79,7 +79,8 @@ test("long-form tools own one continuous vertical touch scroller", () => {
   assert.match(css, /\.wilds-popover-scroll\s*\{[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;[^}]*overscroll-behavior-y:\s*contain;[^}]*scroll-snap-type:\s*none;[^}]*touch-action:\s*pan-y;[^}]*-webkit-overflow-scrolling:\s*touch;/s);
   assert.match(css, /\.wilds-popover-scroll :is\(button, a, summary, label\)\s*\{[^}]*touch-action:\s*pan-y;/s);
   assert.doesNotMatch(css, /\.wilds-command-sheet-content \.wilds-kai-inspector-popover\s*\{[^}]*position:\s*relative;[^}]*overflow:\s*visible;/s);
-  assert.match(css, /\.wilds-command-sheet-content :is\(\.wilds-card-back-scroll, \.wilds-growth-panel ol\)\s*\{[^}]*height:\s*auto;[^}]*max-height:\s*none;[^}]*overflow:\s*visible;[^}]*overscroll-behavior:\s*auto;/s);
+  assert.match(css, /\.wilds-command-sheet-content \.wilds-card-back-scroll\s*\{[^}]*min-height:\s*0;[^}]*height:\s*100%;[^}]*max-height:\s*100%;[^}]*overflow-x:\s*hidden;[^}]*overflow-y:\s*auto;[^}]*overscroll-behavior:\s*contain;[^}]*touch-action:\s*pan-y;[^}]*-webkit-overflow-scrolling:\s*touch;/s);
+  assert.match(css, /\.wilds-command-sheet-content \.wilds-growth-panel ol\s*\{[^}]*height:\s*auto;[^}]*max-height:\s*none;[^}]*overflow:\s*visible;[^}]*overscroll-behavior:\s*auto;/s);
   assert.match(css, /\.wilds-command-sheet-content \.wilds-card-proof-dossier pre\s*\{[^}]*max-height:\s*none;[^}]*overflow:\s*visible;/s);
   assert.match(css, /\.wilds-live-sheet \.wilds-live-chat > div\s*\{[^}]*max-height:\s*none;[^}]*overflow:\s*visible;/s);
 });
