@@ -1,6 +1,6 @@
 # Wildz v4 competitive alpha release verification
 
-Date: 2026-08-11. Target application version: `4.0.0-alpha.0`. Receiz integration target: `118.0.0`.
+Date: 2026-08-11. Target application version: `4.0.0-alpha.1`. Receiz integration target: `118.0.0`.
 
 ## Qualification status
 
@@ -22,12 +22,12 @@ The qualification treats v118 as one coordinated SDK/MCP/AI/ruleset/registry/mat
 
 | Gate | Result |
 |---|---|
-| Full Node suite | Pass: 1,216/1,216 tests across 119 suites |
+| Full Node suite | Pass: 1,218/1,218 tests across 119 suites |
 | `pnpm typecheck` | Pass |
 | `pnpm lint` | Pass |
 | Production build | Pass: 16/16 static pages generated; existing SDK verifier `web-worker` dynamic-dependency warning retained |
-| Production browser | Pass in Chromium: desktop and 390×844 mobile, zero console errors, no horizontal overflow, keyboard lantern toggle, reduced-motion layout, and fixed-Kai deep-night readability |
-| `pnpm release:check` | Pass: 1,216 tests, typecheck, v118 checker, 15/15 conformance, lint, secret scan, production build, and default doctor |
+| Production browser | Pass in Chromium: desktop and 390×844 mobile, zero console errors, no horizontal overflow, automatic darkness lantern, reduced-motion layout, and fixed-Kai deep-night readability |
+| `pnpm release:check` | Pass: 1,218 tests, typecheck, v118 checker, 15/15 conformance, lint, secret scan, production build, and default doctor |
 | Historical migration compatibility | Pass: forward-only checkpoint retained; sealed artifacts, receipts, and heads preserved; current execution remains v118-only |
 | V118 offline authority | Pass: a queued proposal is not a global commitment; divergence resolution is structural-only |
 | Proof/Vault regressions | Pass in the full suite, including complete 97/98-card restore, canonical Identity Seal/key continuation, scoped legacy Vault recovery, compact historical-card custody admission, duplicate drops, revision reconciliation, pending-to-final admission, and atomic fork rejection |
@@ -66,4 +66,4 @@ There is no external database added by Wildz. Browser owner state is local Index
 
 ## Release decision
 
-Version `4.0.0-alpha.0` is locally qualified for commit and local release tagging. Production activation is conditional on the supplied environment, the strict-live doctor, representative player/device qualification, and the remaining authorized external gates.
+Version `4.0.0-alpha.1` is locally qualified for commit and local release tagging. Production activation is conditional on the supplied environment, the strict-live doctor, representative player/device qualification, and the remaining authorized external gates.

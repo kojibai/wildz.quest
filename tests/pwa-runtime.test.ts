@@ -10,8 +10,8 @@ test("PWA controller registers a release-distinct worker after paint", () => {
   assert.match(source, /requestIdleCallback|setTimeout/);
   assert.match(source, /\/sw\.js\?release=/);
   assert.match(source, /NEXT_PUBLIC_WILDZ_SW_RELEASE/);
-  assert.match(source, /v3\.0\.0-r118\.0/);
-  assert.match(env, /^NEXT_PUBLIC_WILDZ_SW_RELEASE=v3\.0\.0-r118\.0$/m);
+  assert.match(source, /v4\.0\.0-alpha\.1-r1/);
+  assert.match(env, /^NEXT_PUBLIC_WILDZ_SW_RELEASE=v4\.0\.0-alpha\.1-r1$/m);
 });
 
 test("installability is retained and shown only as explicit user consent", () => {
@@ -33,7 +33,7 @@ test("applying an update preserves state for a frame and uses the shared message
   assert.match(source, /WILDZ_APPLY_UPDATE_MESSAGE/);
 });
 
-test("update activation reports success without forcing a reload and can recover on timeout", () => {
+test("update activation preserves state and reloads into one coherent Next release", () => {
   const source = readFileSync("src/features/pwa/PwaController.tsx", "utf8");
 
   assert.match(source, /addEventListener\("controllerchange"/);
@@ -42,5 +42,5 @@ test("update activation reports success without forcing a reload and can recover
   assert.match(source, /Retry update/);
   assert.match(source, /clearTimeout/);
   assert.match(source, /updateRequestedRef/);
-  assert.doesNotMatch(source, /location\.reload/);
+  assert.match(source, /location\.reload/);
 });

@@ -14654,7 +14654,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   left: 0;
   inset-inline-start: 0;
   display: grid;
-  grid-template-columns: repeat(3, 44px);
+  grid-template-columns: repeat(2, 44px);
   grid-template-rows: 44px;
   gap: 6px;
   pointer-events: auto;
@@ -14782,6 +14782,17 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   bottom: max(var(--wildz-bottom-home-gap), env(safe-area-inset-bottom));
   width: clamp(72px, 22vw, 94px);
   min-height: 72px;
+}
+
+/* Chromium Android PWAs can report a zero safe-area inset while the system
+   navigation bar still overlays the visual viewport. Safari exposes the
+   callout feature and continues to use its native safe-area values. */
+@media (display-mode: standalone) and (pointer: coarse) {
+  @supports not (-webkit-touch-callout: none) {
+    :is(.wildz-movement-home, .wildz-companion-home) {
+      bottom: max(56px, calc(env(safe-area-inset-bottom) + 12px));
+    }
+  }
 }
 
 .wildz-companion-home > .wildz-creature-drawer {
@@ -15335,7 +15346,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   .wildz-quick-utilities {
     bottom: 0;
     left: calc(100% + 8px);
-    grid-template-columns: repeat(3, 44px);
+    grid-template-columns: repeat(2, 44px);
   }
 
   .wildz-tools-home {

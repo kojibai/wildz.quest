@@ -31,9 +31,3 @@ export function worldInputForKeyboardEvent(
               : key === "r" ? { type: "rest", at: occurredAt() }
                 : null;
 }
-
-export function isWildsLanternKeyboardEvent(event: WorldKeyboardEvent) {
-  if (event.defaultPrevented || event.key.toLowerCase() !== "l") return false;
-  const target = event.target as { closest?: (selector: string) => unknown } | null;
-  return !target?.closest?.(INTERACTIVE_KEYBOARD_TARGET);
-}

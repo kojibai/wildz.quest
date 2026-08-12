@@ -137,6 +137,15 @@ async function offlineResponse() {
 async function shellCacheFirst(request, url) {
   const cache = await caches.open(SHELL_CACHE);
   const cacheKey = url.pathname === "/" ? "/" : request;
+  if (request.mode === "navigate") {
+    try {
+      const response = await fetch(request);
+      if (isCacheableDocument(response)) await cache.put(cacheKey, response.clone());
+      return response;
+    } catch {
+      return await cache.match(cacheKey) || await offlineResponse();
+    }
+  }
   const cached = await cache.match(cacheKey);
   if (cached) return cached;
 
@@ -206,7 +215,7 @@ async function audioCacheFirst(request) {
 }
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(installPublicShell());
+  event.waitUntil(installPublicShell().then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {

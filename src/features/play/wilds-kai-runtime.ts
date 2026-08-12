@@ -1,9 +1,5 @@
-import {
-  deriveKaiKlokMoment,
-  deriveKaiKlokMomentFromUPulse,
-  type KaiKlokMoment
-} from "./kai-klok-moment";
-import { wildsWorldCursorUPulse, type WildsWorldProjection } from "./wilds-world-state";
+import { deriveKaiKlokMoment, type KaiKlokMoment } from "./kai-klok-moment";
+import type { WildsWorldProjection } from "./wilds-world-state";
 
 type WildsRuntimeMode = "receiz_live" | "kai_live" | "offline" | "local" | string;
 
@@ -12,11 +8,8 @@ export function resolveWildsRuntimeKaiMoment(input: {
   observedAt: string;
   cursor: WildsWorldProjection["cursor"];
 }): KaiKlokMoment {
-  if ((input.mode === "receiz_live" || input.mode === "kai_live") && input.cursor) {
-    return deriveKaiKlokMomentFromUPulse({
-      uPulse: wildsWorldCursorUPulse(input.cursor),
-      authority: "world"
-    });
-  }
-  return deriveKaiKlokMoment({ occurredAt: input.observedAt, authority: "local" });
+  // Restore the original live-clock contract: current Kai is always counted
+  // forward from Genesis. A persisted cursor orders events; it is never now.
+  const authority = input.mode === "receiz_live" || input.mode === "kai_live" ? "world" : "local";
+  return deriveKaiKlokMoment({ occurredAt: input.observedAt, authority });
 }

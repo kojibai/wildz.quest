@@ -43,9 +43,23 @@ test("visibility presets improve actors without changing canonical sky darkness"
   assert.ok(balanced.lanternIntensity < high.lanternIntensity);
   assert.equal(expression.sky.luminance, deepNight().sky.luminance);
 
-  const off = projectWildsNightRig(expression, { lanternEnabled: false, nightVisibility: "high" });
-  assert.equal(off.lanternIntensity, 0);
-  assert.equal(off.lanternVisible, false);
+  const legacyOff = projectWildsNightRig(expression, { lanternEnabled: false, nightVisibility: "high" });
+  assert.ok(legacyOff.lanternIntensity > 0);
+  assert.equal(legacyOff.lanternVisible, true);
+});
+
+test("the flashlight comes on automatically only when the world is dark", () => {
+  const expression = deepNight();
+  const darkness = projectWildsNightRig(expression, { lanternEnabled: false, nightVisibility: "balanced" });
+  const daylight = projectWildsNightRig({
+    ...expression,
+    night: { ...expression.night, amount: 0 }
+  }, { lanternEnabled: true, nightVisibility: "balanced" });
+
+  assert.equal(darkness.lanternVisible, true);
+  assert.ok(darkness.lanternIntensity > 0);
+  assert.equal(daylight.lanternVisible, false);
+  assert.equal(daylight.lanternIntensity, 0);
 });
 
 test("authored darkness enables the lantern while Ranked normalizes visibility", () => {

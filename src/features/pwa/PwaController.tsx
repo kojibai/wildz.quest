@@ -51,13 +51,14 @@ export function PwaController() {
     }
 
     const handleControllerChange = () => {
-      if (!updateRequestedRef.current) return;
       updateRequestedRef.current = false;
       applyingUpdateRef.current = false;
       clearUpdateTimeout();
       if (cancelled) return;
       setWaiting(null);
       setUpdateStatus("applied");
+      window.dispatchEvent(new Event("wildz:preserve-state"));
+      window.requestAnimationFrame(() => window.location.reload());
     };
 
     const watchWorker = (worker: ServiceWorker | null) => {
@@ -82,7 +83,7 @@ export function PwaController() {
 
     const handleUpdateFound = () => watchWorker(registration?.installing ?? null);
     const register = () => {
-      const release = process.env.NEXT_PUBLIC_WILDZ_SW_RELEASE ?? "v3.0.0-r118.0";
+      const release = process.env.NEXT_PUBLIC_WILDZ_SW_RELEASE ?? "v4.0.0-alpha.1-r1";
       const workerUrl = `/sw.js?release=${encodeURIComponent(release)}`;
       void navigator.serviceWorker.register(workerUrl, {
         scope: "/",

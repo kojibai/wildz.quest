@@ -29,18 +29,14 @@ test("Wilds visual settings travel in the player Vault without invalidating lega
   assert.throws(() => player({ lanternEnabled: "yes" as never, nightVisibility: "unknown" as never }), /wilds_player_vault_visual_invalid/);
 });
 
-test("the world exposes a persistent accessible lantern control", () => {
+test("the world has no manual lantern control because darkness controls it automatically", () => {
   const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
   const controls = readFileSync("src/features/play/WildzWorldControls.tsx", "utf8");
   const css = readFileSync("app/globals.css", "utf8");
   assert.match(campaign, /visualSettings={visualSettings}/);
   assert.match(campaign, /visual:\s*visualSettings/);
-  assert.match(campaign, /const handleLanternToggle = useCallback/);
-  assert.match(campaign, /onLanternToggle={handleLanternToggle}/);
-  assert.match(controls, /aria-pressed=\{visualSettings\.lanternEnabled\}/);
-  assert.match(controls, /Turn Wilds Lantern (?:on|off)/);
-  assert.match(controls, /Icons\.lantern/);
-  assert.match(controls, /onClick=\{handleLanternToggle\}/);
-  assert.match(css, /\.wildz-quick-utilities\s*\{[^}]*grid-template-columns:\s*repeat\(3, 44px\)/s);
+  assert.doesNotMatch(campaign, /handleLanternToggle|onLanternToggle/);
+  assert.doesNotMatch(controls, /lanternEnabled|Lantern|Icons\.lantern|onLanternToggle/);
+  assert.match(css, /\.wildz-quick-utilities\s*\{[^}]*grid-template-columns:\s*repeat\(2, 44px\)/s);
   assert.match(css, /\.wildz-quick-utilities > button\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px/s);
 });

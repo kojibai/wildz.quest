@@ -37,6 +37,7 @@ describe("flagship mobile release contracts", () => {
     assert.match(css, /\.wildz-companion-home\s*\{[^}]*right:\s*max\([^}]*safe-area-inset-right/);
     assert.match(css, /\.wildz-quick-utilities\s*>\s*button\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px/);
     assert.match(css, /\.wildz-movement-home\s+\.wildz-dpad\s*\{[^}]*width:\s*clamp\(68px,/);
+    assert.match(css, /@media \(display-mode: standalone\) and \(pointer: coarse\)[\s\S]*@supports not \(-webkit-touch-callout: none\)[\s\S]*:is\(\.wildz-movement-home, \.wildz-companion-home\)[\s\S]*bottom:\s*max\(56px, calc\(env\(safe-area-inset-bottom\) \+ 12px\)\)/);
   });
 
   it("keeps world, challenge, and combat as one uninterrupted state-owned journey", () => {

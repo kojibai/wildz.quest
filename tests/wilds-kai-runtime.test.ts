@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { deriveKaiKlokMoment } from "../src/features/play/kai-klok-moment";
 import { resolveWildsRuntimeKaiMoment } from "../src/features/play/wilds-kai-runtime";
 
 const cursor = {
@@ -10,14 +11,18 @@ const cursor = {
   sequence: 4
 };
 
-test("live world visuals consume the exact admitted cursor uPulse", () => {
+test("live world visuals show Genesis-derived now rather than a stale event cursor", () => {
+  const observedAt = "2026-08-11T12:00:00.000Z";
   const moment = resolveWildsRuntimeKaiMoment({
     mode: "receiz_live",
-    observedAt: "2026-08-11T12:00:00.000Z",
+    observedAt,
     cursor
   });
+  const expectedNow = deriveKaiKlokMoment({ occurredAt: observedAt, authority: "world" });
+
   assert.equal(moment.authority, "world");
-  assert.equal(moment.uPulse, cursor.uPulse);
+  assert.equal(moment.uPulse, expectedNow.uPulse);
+  assert.notEqual(moment.uPulse, cursor.uPulse);
 });
 
 test("a local clock is never relabeled as world authority", () => {

@@ -189,7 +189,7 @@ function WildsScene({
         dayPhase: kaiExpression.dayPhase,
         darknessSource: darkness.source,
         kaiCoordinate: kaiMoment.latticeCoordinate,
-        lanternEnabled: normalizedVisualSettings.lanternEnabled,
+        lanternEnabled: nightRig.lanternVisible,
         nightAmount: kaiExpression.night.amount,
         reducedMotion: qualityProfile.reducedMotion,
         starCount: wildsStarCountForTier(qualityProfile.tier)

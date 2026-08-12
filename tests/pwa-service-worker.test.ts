@@ -24,7 +24,7 @@ test("activation keeps only the current release caches and controls open clients
   assert.deepEqual(await worker.caches.keys(), ["other-library-cache", SHELL_CACHE, PUBLIC_CACHE]);
 });
 
-test("installation precaches the exact public shell without activating early", async () => {
+test("installation precaches the exact public shell and activates the repair immediately", async () => {
   const worker = createWorkerHarness({
     release: RELEASE,
     fetch: async (request) => new URL(request.url).pathname === "/"
@@ -60,7 +60,25 @@ test("installation precaches the exact public shell without activating early", a
   assert.ok(offlineRequest instanceof Request);
   assert.equal(offlineRequest.credentials, "omit");
   assert.equal(offlineRequest.cache, "no-store");
-  assert.equal(worker.skippedWaiting, false, "a new worker waits for explicit update approval");
+  assert.equal(worker.skippedWaiting, true, "a stale controller must not keep serving an old app shell");
+});
+
+test("root navigation prefers the deployed document over a stale cached Next shell", async () => {
+  const worker = createWorkerHarness({
+    release: RELEASE,
+    fetch: async () => new Response("fresh release", { headers: { "content-type": "text/html" } })
+  });
+  await worker.putCached(SHELL_CACHE, "/", new Response("stale release", { headers: { "content-type": "text/html" } }));
+
+  const result = await worker.dispatchFetch({
+    method: "GET",
+    mode: "navigate",
+    url: "https://wildz.quest/"
+  });
+
+  assert.equal(await result.response?.text(), "fresh release");
+  assert.equal(worker.fetchCalls.length, 1);
+  assert.equal(await (await worker.readCached(SHELL_CACHE, "/"))?.text(), "fresh release");
 });
 
 test("installation rejects a personalized root document", async () => {

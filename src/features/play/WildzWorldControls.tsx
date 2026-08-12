@@ -13,7 +13,6 @@ import { WildsCompanionCommand } from "./WildsCompanionCommand";
 import { WildzCreatureDrawer } from "./WildzCreatureDrawer";
 import { WildzDpad } from "./WildzDpad";
 import type { WildsMovementMode } from "./wilds-movement";
-import { DEFAULT_WILDS_VISUAL_SETTINGS, type WildsVisualSettings } from "./wilds-night-visibility";
 import type { WorldOverlayEvent, WorldOverlayOwner, WorldOverlayState } from "./world-overlay-state";
 
 const ignore = () => {};
@@ -33,7 +32,6 @@ export function WildzWorldControls({
   cardConditions,
   cameraHeadingRef,
   movementMode,
-  visualSettings = DEFAULT_WILDS_VISUAL_SETTINGS,
   cardOrder,
   commandItems,
   dismissSignal,
@@ -47,7 +45,6 @@ export function WildzWorldControls({
   onCardOrderChange,
   onInput,
   onMovementModeChange,
-  onLanternToggle = ignore,
   onSelectCard,
   onRest,
   onAudioCue
@@ -58,7 +55,6 @@ export function WildzWorldControls({
   cardConditions: PlayState["adventureConditions"];
   cameraHeadingRef: RefObject<number>;
   movementMode: WildsMovementMode;
-  visualSettings?: WildsVisualSettings;
   cardOrder: WildzCardSort;
   commandItems: readonly WildsCommandItem[];
   dismissSignal: number;
@@ -72,7 +68,6 @@ export function WildzWorldControls({
   onCardOrderChange: (order: WildzCardSort) => void;
   onInput: (input: WildsInput) => void;
   onMovementModeChange: (mode: WildsMovementMode) => void;
-  onLanternToggle?: () => void;
   onSelectCard: (assetId: string) => void;
   onRest: () => void;
   onAudioCue?: (cue: WildsAudioCue) => void;
@@ -81,7 +76,6 @@ export function WildzWorldControls({
   const selectCard = useStableEvent(onSelectCard);
   const forwardInput = useStableEvent(onInput);
   const changeMovementMode = useStableEvent(onMovementModeChange);
-  const toggleLantern = useStableEvent(onLanternToggle);
   const rest = useStableEvent(onRest);
   const requestHandled = useStableEvent(onRequestedCommandHandled);
   const drawerOriginRef = useRef<HTMLElement | null>(null);
@@ -150,9 +144,6 @@ export function WildzWorldControls({
   const handleMovementModeChange = useCallback(() => {
     if (worldHomesEnabled) changeMovementMode(movementMode === "walk" ? "run" : "walk");
   }, [changeMovementMode, movementMode, worldHomesEnabled]);
-  const handleLanternToggle = useCallback(() => {
-    if (worldHomesEnabled) toggleLantern();
-  }, [toggleLantern, worldHomesEnabled]);
   const companionRoster = useMemo(() => projectVaultCompanionRoster({
     inventory: nearbyCards,
     companionProgress,
@@ -178,17 +169,6 @@ export function WildzWorldControls({
             type="button"
           >
             {movementMode === "walk" ? <Icons.walk size={21} /> : <Icons.run size={21} />}
-          </button>
-          <button
-            aria-label={visualSettings.lanternEnabled ? "Turn Wilds Lantern off" : "Turn Wilds Lantern on"}
-            aria-pressed={visualSettings.lanternEnabled}
-            className={visualSettings.lanternEnabled ? "is-active" : undefined}
-            disabled={!worldHomesEnabled}
-            onClick={handleLanternToggle}
-            title={visualSettings.lanternEnabled ? "Wilds Lantern on" : "Wilds Lantern off"}
-            type="button"
-          >
-            <Icons.lantern aria-hidden="true" size={21} />
           </button>
         </div>
         <WildzDpad

@@ -36,7 +36,7 @@ import {
   releaseModalAdmissionOwner,
   type ModalAdmissionToken
 } from "@/features/play/modal-admission";
-import { isWildsLanternKeyboardEvent, worldInputForKeyboardEvent } from "@/features/play/world-keyboard-routing";
+import { worldInputForKeyboardEvent } from "@/features/play/world-keyboard-routing";
 import { projectWildsAudioScene } from "@/features/play/wilds-audio-scene";
 import { projectWildsBiome } from "@/features/play/wilds-biome";
 import type { WildsSettlementDistrictId } from "@/features/play/wilds-settlements";
@@ -199,9 +199,6 @@ export function PlayCampaign({
   const [movementMode, setMovementMode] = useState<WildsMovementMode>(() => initialPlayerContinuity?.settings.movementMode ?? "walk");
   const [cardOrder, setCardOrder] = useState<WildzCardOrder>(() => initialPlayerContinuity?.settings.cardOrder ?? "rarity");
   const [visualSettings, setVisualSettings] = useState<WildsVisualSettings>(() => normalizeWildsVisualSettings(initialPlayerContinuity?.settings.visual));
-  const handleLanternToggle = useCallback(() => {
-    setVisualSettings((current) => ({ ...current, lanternEnabled: !current.lanternEnabled }));
-  }, []);
   const [activeLandmarkId, setActiveLandmarkId] = useState<WildsLandmarkId | null>(null);
   const [activeDistrictId, setActiveDistrictId] = useState<WildsSettlementDistrictId>("trail-gate");
   const [activeEcologySiteId, setActiveEcologySiteId] = useState<string | null>(null);
@@ -649,11 +646,6 @@ export function PlayCampaign({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!worldInteractionEnabled) return;
-      if (isWildsLanternKeyboardEvent(event)) {
-        event.preventDefault();
-        handleLanternToggle();
-        return;
-      }
       const input = worldInputForKeyboardEvent(event);
       if (!input) return;
       event.preventDefault();
@@ -665,7 +657,7 @@ export function PlayCampaign({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleLanternToggle, onComplete, worldInteractionEnabled]);
+  }, [onComplete, worldInteractionEnabled]);
 
   if (!enabled) {
     return (
@@ -1284,7 +1276,6 @@ export function PlayCampaign({
               gestureCancelSignal={gestureCancelSignal}
               newRosterAssetId={newRosterAssetId}
               movementMode={movementMode}
-              visualSettings={visualSettings}
               nearbyCards={state.inventory}
               overlayDispatch={dispatchStageOverlay}
               overlayState={worldOverlayState}
@@ -1292,7 +1283,6 @@ export function PlayCampaign({
               onCardOrderChange={setCardOrder}
               onInput={dispatchWorldInput}
               onMovementModeChange={setMovementMode}
-              onLanternToggle={handleLanternToggle}
               onRequestedCommandHandled={() => setRequestedCommand(null)}
               onRest={() => dispatchWorldInput({ type: "rest", at: new Date().toISOString() })}
               onSelectCard={(assetId) => dispatchWorldInput({ type: "select-asset", assetId })}
