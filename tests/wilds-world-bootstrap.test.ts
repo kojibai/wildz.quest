@@ -3,6 +3,8 @@ import { afterEach, beforeEach, test } from "node:test";
 import { NextRequest } from "next/server";
 import { POST as bootstrapRoute } from "../app/api/wilds/world/bootstrap/route.js";
 import { WildsWorldService } from "../src/features/play/wilds-world-service.js";
+import { deriveKaiKlokMoment } from "../src/features/play/kai-klok-moment.js";
+import { createKaiTemporalRoot } from "../src/features/play/kai-temporal-root.js";
 import type { WildsWorldRecord } from "../src/features/play/wilds-world-record.js";
 import * as worldServer from "../src/lib/receiz/wilds-world-server.js";
 import {
@@ -21,6 +23,10 @@ const repositoryKey = Symbol.for("receiz.wilds.world.repository.v3");
 const mutationQueueKey = Symbol.for("receiz.wilds.world.mutation_queue.v3");
 let priorSecret: string | undefined;
 let priorFetch: typeof globalThis.fetch;
+
+function commandKai() {
+  return createKaiTemporalRoot(deriveKaiKlokMoment({ occurredAt: GENESIS_PULSE, authority: "world" }));
+}
 
 function clearWorldGlobals() {
   const root = globalThis as Record<symbol, unknown>;
@@ -295,7 +301,8 @@ test("a proof-native player command prepares an Identity Seal append and never d
     command: {
       type: "team.create",
       name: "Proof Keepers",
-      commandId: "command:team:create:identity-proof-test"
+      commandId: "command:team:create:identity-proof-test",
+      kai: commandKai()
     }
   });
 
@@ -322,7 +329,7 @@ test("a matching Receiz response token publishes a player command before acknowl
   };
 
   const result = await worldServer.executeWildsWorldCommand(proofRequest(true).request, {
-    command: { type: "team.create", name: "Global Keepers", commandId: "command:team:create:response-token" }
+    command: { type: "team.create", name: "Global Keepers", commandId: "command:team:create:response-token", kai: commandKai() }
   });
 
   assert.equal(result.mode, "receiz_live");
