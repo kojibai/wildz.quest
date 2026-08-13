@@ -44,8 +44,9 @@ import { projectWorldProgression } from "@/features/play/world-progression";
 import type { WildsCommandItem, WildsCommandKey } from "@/features/play/WildsCommandDock";
 import { WildsCommandCenter } from "@/features/play/command-center/WildsCommandCenter";
 import { projectWildsCommandCenter, type WildsCommandAction } from "@/features/play/command-center/director";
-import { millisecondsUntilNextKaiPulse } from "@/features/play/kai-klok-moment";
+import { kaiUPulseToISOString, millisecondsUntilNextKaiPulse } from "@/features/play/kai-klok-moment";
 import { createWildsKaiRuntimeClock, observeWildsKaiUPulse, resolveWildsRuntimeKaiMoment } from "@/features/play/wilds-kai-runtime";
+import { rootWildsInputInKai } from "@/features/play/wilds-input-temporal-root";
 import { friendlyWildsGameplayError, isWildsTemporalContinuityError } from "@/features/play/wilds-temporal-errors";
 import { kaiTransition, projectKaiWorldExpression, type KaiWorldExpression } from "@/features/play/kai-moment-expression";
 import { WildzCommandInsight } from "@/features/play/WildzCommandInsight";
@@ -648,13 +649,17 @@ export function PlayCampaign({
 
   useEffect(() => {
     if (state.encounter.phase === "battle_intro") {
-      const timer = window.setTimeout(() => setState((current) => applyWildsInput(current, { type: "start-battle", at: new Date().toISOString() })), 650);
+      const timer = window.setTimeout(() => {
+        const uPulse = kaiRuntimeClockRef.current?.read(performance.now(), observeWildsKaiUPulse()) ?? observeWildsKaiUPulse();
+        setState((current) => applyWildsInput(current, rootWildsInputInKai({ type: "start-battle", at: kaiUPulseToISOString(uPulse) }, uPulse)));
+      }, 650);
       return () => window.clearTimeout(timer);
     }
     const delay = state.encounter.phase === "emerging" ? 1_050 : state.encounter.phase === "capsule" ? 1_250 : state.encounter.phase === "sealed" ? 700 : null;
     if (delay === null) return;
     const timer = window.setTimeout(() => {
-      setState((current) => applyWildsInput(current, { type: "advance-encounter", at: new Date().toISOString() }));
+      const uPulse = kaiRuntimeClockRef.current?.read(performance.now(), observeWildsKaiUPulse()) ?? observeWildsKaiUPulse();
+      setState((current) => applyWildsInput(current, rootWildsInputInKai({ type: "advance-encounter", at: kaiUPulseToISOString(uPulse) }, uPulse)));
     }, delay);
     return () => window.clearTimeout(timer);
   }, [state.encounter.phase]);
@@ -665,8 +670,10 @@ export function PlayCampaign({
       const input = worldInputForKeyboardEvent(event);
       if (!input) return;
       event.preventDefault();
+      const uPulse = kaiRuntimeClockRef.current?.read(performance.now(), observeWildsKaiUPulse()) ?? observeWildsKaiUPulse();
+      const rootedInput = rootWildsInputInKai(input, uPulse);
       setState((current) => {
-        const next = applyWildsInput(current, input);
+        const next = applyWildsInput(current, rootedInput);
         if (!current.completed && next.completed) onComplete?.(next.beans);
         return next;
       });
@@ -690,8 +697,9 @@ export function PlayCampaign({
   const dispatch = (input: WildsInput) => {
     if (!interactionEnabled) return;
     if (input.type === "select-asset") setNewRosterAssetId(null);
+    const rootedInput = rootWildsInputInKai(input, kaiUPulse);
     setState((current) => {
-      const next = applyWildsInput(current, input);
+      const next = applyWildsInput(current, rootedInput);
       if (!current.completed && next.completed) {
         onComplete?.(next.beans);
       }

@@ -12,7 +12,8 @@ import {
 import { encounterFromSearch, idleEncounterState, isCapturableEncounter, type EncounterState } from "./encounter-state";
 import { nearbyHiddenHotspots, searchHiddenHotspots } from "./hidden-hotspots";
 import { applyKaiAffinityToHotspot } from "./kai-encounter-affinity";
-import { deriveKaiKlokMoment } from "./kai-klok-moment";
+import { deriveKaiKlokMoment, deriveKaiKlokMomentFromUPulse, kaiUPulseToISOString } from "./kai-klok-moment";
+import { rootWildsInputInKai } from "./wilds-input-temporal-root";
 import { discoverLivingCreature, validateLivingCreatureIdentity, type LivingCreatureIdentityV3 } from "./living-taxonomy";
 import { applyBattleAction, battleGrowthAwards, battleTranscriptDigest, startWildBattle, type BattleAction, type BattleState } from "./battle-engine";
 import type { FusionInheritance } from "./card-fusion";
@@ -60,7 +61,7 @@ export type { WildsSupportAssetIds } from "./wilds-v3-contracts";
 
 export type GameAction = "explore" | "train" | "mission";
 export type MoveDirection = "north" | "south" | "west" | "east";
-export type WildsInput =
+export type WildsInput = (
   | { type: "move"; direction: MoveDirection }
   | { type: "move-vector"; x: number; z: number; mode?: WildsMovementMode }
   | { type: "apply-rift-grant"; grant: RiftTravelGrant; playerId: string }
@@ -92,7 +93,8 @@ export type WildsInput =
   | { type: "select-card"; cardId: string }
   | { type: "select-asset"; assetId: string }
   | { type: "assign-support"; slot: 0 | 1; assetId: string | null }
-  | { type: "reset" };
+  | { type: "reset" }
+) & { /** Exact local gameplay time authority. */ kaiUPulse?: number };
 
 export type Vec3 = readonly [number, number, number];
 
@@ -807,6 +809,9 @@ function appendRecordedGrowthToExactCard(state: PlayState, assetId: string, even
   const recordedGrowth = growthForAsset(state, asset);
   const growth = { ...recordedGrowth, bond: Math.max(recordedGrowth.bond, familyProgress.bond) };
   const condition = state.adventureConditions[asset.id] ?? prior.condition;
+  const eventKai = event.kaiUPulse === undefined
+    ? null
+    : deriveKaiKlokMomentFromUPulse({ uPulse: event.kaiUPulse, authority: "local" });
   try {
     const updated = appendLivingCardHistory({
       asset,
@@ -814,6 +819,15 @@ function appendRecordedGrowthToExactCard(state: PlayState, assetId: string, even
         eventId: `history:${event.eventId}`,
         rulesetVersion: "wildz.gameplay.v4-alpha",
         occurredAt: event.occurredAt,
+        ...(eventKai ? { kai: {
+          uPulse: eventKai.uPulse,
+          pulse: eventKai.pulse,
+          beat: eventKai.beat,
+          stepIndex: eventKai.stepIndex,
+          weekday: eventKai.weekday,
+          chakra: eventKai.chakra,
+          coordinate: eventKai.coordinate
+        } } : {}),
         source: {
           mode: event.kind === "bond_moment" ? "training" : "world",
           activityId: event.eventId,
@@ -889,6 +903,7 @@ function awardWorldMastery(state: PlayState, verb: WorldMasteryVerb) {
 }
 
 export function applyWildsInput(state: PlayState, input: WildsInput): PlayState {
+  if (input.kaiUPulse !== undefined) input = rootWildsInputInKai(input, input.kaiUPulse);
   if (input.type === "reset") {
     const owner = selectedAsset(state)?.manifest.ownerReceizId ?? state.inventory[0]?.manifest.ownerReceizId;
     return owner ? createOwnerBoundInitialPlayState(owner) : initialPlayState;
@@ -922,7 +937,8 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       kind: "ability_mastery",
       path: "battle",
       amount: 1,
-      occurredAt: input.usedAt
+      occurredAt: input.usedAt,
+      kaiUPulse: input.kaiUPulse
     });
     return grown.lastEvent.endsWith("could not be verified.")
       ? grown
@@ -1091,7 +1107,9 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
 
   if (input.type === "record-growth") {
     const asset = state.inventory.find((candidate) => candidate.id === input.assetId);
-    return asset && isPlayableAsset(state, asset.id) ? applyRecordedGrowth(state, asset, input.event) : state;
+    return asset && isPlayableAsset(state, asset.id)
+      ? applyRecordedGrowth(state, asset, { ...input.event, kaiUPulse: input.kaiUPulse ?? input.event.kaiUPulse })
+      : state;
   }
 
   if (input.type === "ascend-card") {
@@ -1101,7 +1119,9 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     const readiness = growthReadiness(asset, { progress, catalystIds: state.ascensionCatalysts }, input.at);
     if (!readiness.ready) return { ...state, lastEvent: `${asset.manifest.name} still needs ${readiness.missing.join(", ")}.` };
     const candidate = buildTransformationCandidate(asset, readiness, input.at);
-    const kai = deriveKaiKlokMoment({ occurredAt: input.at, authority: "local" });
+    const kai = input.kaiUPulse === undefined
+      ? deriveKaiKlokMoment({ occurredAt: input.at, authority: "local" })
+      : deriveKaiKlokMomentFromUPulse({ uPulse: input.kaiUPulse, authority: "local" });
     const prior = currentRevision(asset);
     const nextGrowth: LivingGrowthSnapshot = {
       ...progress,
@@ -1189,7 +1209,9 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     const parentA = state.inventory.find((asset) => asset.id === input.parentAId);
     const parentB = state.inventory.find((asset) => asset.id === input.parentBId);
     if (!parentA || !parentB || !isPlayableAsset(state, parentA.id) || !isPlayableAsset(state, parentB.id)) return state;
-    const kai = deriveKaiKlokMoment({ occurredAt: input.fusedAt, authority: "local" });
+    const kai = input.kaiUPulse === undefined
+      ? deriveKaiKlokMoment({ occurredAt: input.fusedAt, authority: "local" })
+      : deriveKaiKlokMomentFromUPulse({ uPulse: input.kaiUPulse, authority: "local" });
     const transactionInput = {
       parentA,
       parentB,
@@ -1300,7 +1322,8 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     const progressed = applyRecordedGrowthEvents(resolved, asset, awards.map((award) => ({
       ...award,
       path: "battle" as const,
-      occurredAt
+      occurredAt,
+      kaiUPulse: input.kaiUPulse
     })));
     return awards.some((award) => award.kind === "battle_win")
       ? awardWorldMastery({ ...progressed, lastEvent: last }, "battle")
@@ -1314,7 +1337,9 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       z: clamp(input.z, worldBounds.min, worldBounds.max)
     };
     const ownerScope = input.ownerReceizId.trim();
-    const moment = deriveKaiKlokMoment({ occurredAt: input.searchedAt, authority: "world" });
+    const moment = input.kaiUPulse === undefined
+      ? deriveKaiKlokMoment({ occurredAt: input.searchedAt, authority: "world" })
+      : deriveKaiKlokMomentFromUPulse({ uPulse: input.kaiUPulse, authority: "world" });
     const spatialResult = searchHiddenHotspots(nearbyHiddenHotspots(point), point, state.capturedHotspotIds);
     const result = spatialResult.kind === "hit"
       ? { ...spatialResult, hotspot: applyKaiAffinityToHotspot(spatialResult.hotspot, moment, ownerScope) }
@@ -1359,7 +1384,8 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       kind: "habitat_discovery",
       path: "exploration",
       amount: 6,
-      occurredAt: input.searchedAt
+      occurredAt: input.searchedAt,
+      kaiUPulse: input.kaiUPulse
     });
     return { ...progressed, lastEvent };
   }
@@ -1545,7 +1571,10 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       kind: "active_travel",
       path: "bond",
       amount: 1,
-      occurredAt: new Date(Date.UTC(2026, 6, 13, 12, Math.abs(Math.floor(nextPlayer.x / 8)) % 60, Math.abs(Math.floor(nextPlayer.z / 8)) % 60)).toISOString()
+      occurredAt: input.kaiUPulse === undefined
+        ? new Date(Date.UTC(2026, 6, 13, 12, Math.abs(Math.floor(nextPlayer.x / 8)) % 60, Math.abs(Math.floor(nextPlayer.z / 8)) % 60)).toISOString()
+        : kaiUPulseToISOString(input.kaiUPulse),
+      kaiUPulse: input.kaiUPulse
     });
     return awardWorldMastery({ ...progressed, lastEvent: nearbyText }, "travel");
   }
@@ -1615,7 +1644,9 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
         discoveredAt: capturedAt,
         location: { ...state.player },
         ownerScope: ownerReceizId,
-        moment: deriveKaiKlokMoment({ occurredAt: capturedAt, authority: "world" })
+        moment: input.kaiUPulse === undefined
+          ? deriveKaiKlokMoment({ occurredAt: capturedAt, authority: "world" })
+          : deriveKaiKlokMomentFromUPulse({ uPulse: input.kaiUPulse, authority: "world" })
       }, new Set(state.inventory.map((asset) => asset.manifest.name.toLowerCase())));
       sealed = sealDiscoveredCard({
         identity,
@@ -1699,7 +1730,8 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       kind: "bond_moment",
       path: "bond",
       amount: 1,
-      occurredAt: trainedAt
+      occurredAt: trainedAt,
+      kaiUPulse: input.kaiUPulse
     });
     return { ...progressed, lastEvent: trained.lastEvent };
   }

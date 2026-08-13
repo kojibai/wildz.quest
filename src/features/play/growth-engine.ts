@@ -18,6 +18,8 @@ export type GrowthEvent = {
   path: GrowthPath;
   amount: number;
   occurredAt: string;
+  /** Exact Kai authority when the event originates in the current runtime. */
+  kaiUPulse?: number;
   achievementId?: string;
   questId?: string;
 };
