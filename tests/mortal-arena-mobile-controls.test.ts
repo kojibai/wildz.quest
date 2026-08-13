@@ -29,9 +29,12 @@ describe("Mortal Arena mobile combat zones", () => {
   });
 
   it("gives portrait controls thumb-sized geometry without a six-column footer", () => {
-    assert.match(css, /\.mortal-arena-actions\s*\{[^}]*grid-template-columns:\s*minmax\(96px, 128px\) minmax\(0, 1fr\) minmax\(58px, 84px\)/);
+    assert.match(css, /\.mortal-arena-context-actions\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)[^}]*grid-template-rows:\s*repeat\(2, minmax\(40px, 1fr\)\)/);
+    assert.match(css, /@media \(max-width: 430px\)[\s\S]*?\.mortal-arena-actions\s*\{[^}]*min-height:\s*104px/);
+    assert.match(css, /@media \(max-width: 430px\)[\s\S]*?\.mortal-arena-trackpad\s*\{[^}]*width:\s*72px;[^}]*height:\s*72px/);
     assert.match(css, /\.mortal-arena-primary-strike\s*\{[^}]*min-height:\s*68px/);
-    assert.match(css, /\.mortal-arena-guard, \.mortal-arena-ability\s*\{[^}]*min-height:\s*56px/);
+    assert.match(css, /\.mortal-arena-guard, \.mortal-arena-ability\s*\{[^}]*min-height:\s*48px/);
+    assert.doesNotMatch(css, /\.mortal-arena-actions\s*\{[^}]*min-height:\s*146px/);
     assert.doesNotMatch(css, /\.mortal-arena-actions\s*\{[^}]*grid-template-columns:\s*repeat\(2,[^}]*repeat\(3,/);
     assert.doesNotMatch(css, /@media \(max-width: 430px\)[\s\S]*?\.mortal-arena-actions\s*\{[^}]*repeat\(2,[^}]*repeat\(3,/);
   });
@@ -39,5 +42,6 @@ describe("Mortal Arena mobile combat zones", () => {
   it("keeps labels visible during mobile learning and respects safe areas", () => {
     assert.match(css, /padding-bottom:\s*max\(6px, env\(safe-area-inset-bottom\)\)/);
     assert.doesNotMatch(css, /\.mortal-arena-actions > button span\s*\{\s*display:\s*none/);
+    assert.doesNotMatch(css, /\.mortal-arena-context-actions button strong\s*\{[^}]*display:\s*none/);
   });
 });
