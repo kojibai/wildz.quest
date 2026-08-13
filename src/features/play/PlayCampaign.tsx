@@ -44,8 +44,8 @@ import { projectWorldProgression } from "@/features/play/world-progression";
 import type { WildsCommandItem, WildsCommandKey } from "@/features/play/WildsCommandDock";
 import { WildsCommandCenter } from "@/features/play/command-center/WildsCommandCenter";
 import { projectWildsCommandCenter, type WildsCommandAction } from "@/features/play/command-center/director";
-import { KAI_GENESIS_TS, millisecondsUntilNextKaiPulse } from "@/features/play/kai-klok-moment";
-import { resolveWildsRuntimeKaiMoment } from "@/features/play/wilds-kai-runtime";
+import { millisecondsUntilNextKaiPulse } from "@/features/play/kai-klok-moment";
+import { createWildsKaiRuntimeClock, observeWildsKaiUPulse, resolveWildsRuntimeKaiMoment } from "@/features/play/wilds-kai-runtime";
 import { kaiTransition, projectKaiWorldExpression, type KaiWorldExpression } from "@/features/play/kai-moment-expression";
 import { WildzCommandInsight } from "@/features/play/WildzCommandInsight";
 import type { WildsMovementMode } from "@/features/play/wilds-movement";
@@ -210,7 +210,8 @@ export function PlayCampaign({
   const [commandDismissSignal, setCommandDismissSignal] = useState(0);
   const [activeTrainer, setActiveTrainer] = useState<WildsTrainerProjection | null>(null);
   const [trainerEncounter, setTrainerEncounter] = useState<TrainerEncounterState | null>(null);
-  const [kaiOccurredAt, setKaiOccurredAt] = useState(() => new Date(KAI_GENESIS_TS).toISOString());
+  const [kaiUPulse, setKaiUPulse] = useState(0);
+  const kaiRuntimeClockRef = useRef<ReturnType<typeof createWildsKaiRuntimeClock> | null>(null);
   const worldProgression = projectWorldProgression(state.worldMastery);
   const activeCard = selectedCard(state);
   const activeAsset = selectedAsset(state);
@@ -428,7 +429,7 @@ export function PlayCampaign({
     cardAdmission
   });
   const kaiMoment = resolveWildsRuntimeKaiMoment({
-    observedAt: kaiOccurredAt,
+    uPulse: kaiUPulse,
     mode: livingWorld.mode,
     cursor: livingWorld.snapshot?.cursor ?? null
   });
@@ -557,7 +558,16 @@ export function PlayCampaign({
 
   useEffect(() => {
     let timer = 0;
-    const updateKaiMoment = () => setKaiOccurredAt(new Date().toISOString());
+    const elapsedNow = () => performance.now();
+    const updateKaiMoment = () => {
+      const observedUPulse = observeWildsKaiUPulse();
+      const elapsedMs = elapsedNow();
+      kaiRuntimeClockRef.current ??= createWildsKaiRuntimeClock({
+        baselineUPulse: observedUPulse,
+        baselineElapsedMs: elapsedMs
+      });
+      setKaiUPulse(kaiRuntimeClockRef.current.read(elapsedMs, observedUPulse));
+    };
     const scheduleNextKaiMoment = () => {
       updateKaiMoment();
       timer = window.setTimeout(scheduleNextKaiMoment, millisecondsUntilNextKaiPulse());
