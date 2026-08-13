@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { deriveKaiKlokMoment, type KaiArkName } from "../src/features/play/kai-klok-moment.js";
+import { createKaiTemporalRoot } from "../src/features/play/kai-temporal-root.js";
 import { sealCollectedCard } from "../src/features/play/portable-card.js";
 import { wildsSagaFramework } from "../src/features/play/wilds-saga-content.js";
 import { projectWildsSaga } from "../src/features/play/wilds-saga-director.js";
@@ -17,6 +18,83 @@ function fixtureForArk(ark: KaiArkName, after = Date.parse("2026-07-16T00:00:00.
 }
 
 describe("authoritative Kai saga lifecycle", () => {
+  it("derives and opens the active chapter from command uPulse without a scheduler tick", () => {
+    const ignite = fixtureForArk("Ignite");
+    const saga = projectWildsSaga({ moment: ignite.moment, framework: wildsSagaFramework(), memories: [] });
+    const objective = saga.chapter.missions.find((mission) => mission.primary)!.nodes[0]!;
+    const service = new WildsWorldService();
+    const kai = createKaiTemporalRoot(ignite.moment);
+
+    const result = service.execute({
+      type: "story.contribute",
+      dayId: saga.dayId,
+      objectiveId: objective.id,
+      verb: objective.acceptedVerbs[0]!,
+      amount: 1,
+      commandId: "command:story:no-tick",
+      kai
+    }, {
+      actorId: "player:ari",
+      canonical: true,
+      pulse: "2026-07-15T00:00:00.000Z",
+      occurredAt: "2026-07-15T00:00:00.000Z"
+    });
+
+    assert.equal(result.projection.story.activeChapter?.dayId, saga.dayId);
+    assert.ok(result.events.some((event) => event.kind === "story.chapter_opened"));
+    assert.equal(result.events.at(-1)?.kind, "story.objective_contributed");
+    assert.equal(result.projection.players["player:ari"]?.trainerXp, 1);
+  });
+
+  it("rejects a day that disagrees with the command uPulse rather than a stale chapter cache", () => {
+    const ignite = fixtureForArk("Ignite");
+    const saga = projectWildsSaga({ moment: ignite.moment, framework: wildsSagaFramework(), memories: [] });
+    const objective = saga.chapter.missions.find((mission) => mission.primary)!.nodes[0]!;
+    const service = new WildsWorldService();
+
+    assert.throws(() => service.execute({
+      type: "story.contribute",
+      dayId: "saga:day:Y999:M1:D1",
+      objectiveId: objective.id,
+      verb: objective.acceptedVerbs[0]!,
+      amount: 1,
+      commandId: "command:story:wrong-day",
+      kai: createKaiTemporalRoot(ignite.moment)
+    }, {
+      actorId: "player:ari",
+      canonical: true,
+      pulse: ignite.occurredAt,
+      occurredAt: ignite.occurredAt
+    }), /wilds_story_chapter_mismatch/);
+    assert.equal(service.snapshot().revision, 0);
+  });
+
+  it("produces the same chapter events when descriptive ISO metadata changes", () => {
+    const ignite = fixtureForArk("Ignite");
+    const saga = projectWildsSaga({ moment: ignite.moment, framework: wildsSagaFramework(), memories: [] });
+    const objective = saga.chapter.missions.find((mission) => mission.primary)!.nodes[0]!;
+    const command = {
+      type: "story.contribute" as const,
+      dayId: saga.dayId,
+      objectiveId: objective.id,
+      verb: objective.acceptedVerbs[0]!,
+      amount: 1,
+      commandId: "command:story:iso-independent",
+      kai: createKaiTemporalRoot(ignite.moment)
+    };
+    const executeAt = (occurredAt: string) => new WildsWorldService().execute(command, {
+      actorId: "player:ari",
+      canonical: true,
+      pulse: occurredAt,
+      occurredAt
+    });
+
+    assert.deepEqual(
+      executeAt("2020-01-01T00:00:00.000Z").events,
+      executeAt("2030-01-01T00:00:00.000Z").events
+    );
+  });
+
   it("opens once, admits play, opens Purify, and settles before the next day", () => {
     const ignite = fixtureForArk("Ignite");
     const service = new WildsWorldService();

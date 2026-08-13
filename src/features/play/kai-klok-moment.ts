@@ -191,6 +191,18 @@ export function deriveKaiKlokMomentFromUPulse(input: {
   return momentFromMicroPulses(BigInt(input.uPulse), input.authority);
 }
 
+/** Deterministic conventional-time projection for compatibility metadata only. */
+export function kaiUPulseToISOString(uPulse: number) {
+  if (!Number.isSafeInteger(uPulse) || uPulse < 0) throw new Error("wilds_kai_moment_upulse_invalid");
+  const epochMs = KAI_GENESIS_TS + (uPulse / 1_000_000) * KAI_PULSE_DURATION_MS;
+  if (!Number.isFinite(epochMs)) throw new Error("wilds_kai_moment_range_invalid");
+  try {
+    return new Date(Math.round(epochMs)).toISOString();
+  } catch {
+    throw new Error("wilds_kai_moment_range_invalid");
+  }
+}
+
 /**
  * Conventional time is an interoperability boundary only. Authoritative
  * callers that already possess an admitted Kai coordinate must use

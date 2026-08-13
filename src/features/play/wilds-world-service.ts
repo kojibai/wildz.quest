@@ -5,7 +5,7 @@ import { advanceWildsEcologySite, deriveWildsEcologyChild, generateWildsEcologyE
 import { admitRaidPlayer, applyRaidContribution, createWildsRaid, type WildsRaid } from "./wilds-raid-core";
 import { applyWildsRaidIntent, createWildsRaidEncounter, type WildsRaidIntent } from "./wilds-raid-encounter";
 import { admitWildsRaidParticipant, createWildsRaidRound, renewWildsRaidLease, retreatWildsRaidParticipant, settleWildsRaidRound, type WildsRaidRound } from "./wilds-raid-round";
-import { deriveKaiKlokMoment, deriveKaiKlokMomentFromUPulse, KAI_N_DAY_MICRO, KAI_PULSE_DURATION_MS } from "./kai-klok-moment";
+import { deriveKaiKlokMoment, deriveKaiKlokMomentFromUPulse, kaiUPulseToISOString, KAI_N_DAY_MICRO, KAI_PULSE_DURATION_MS } from "./kai-klok-moment";
 import type { KaiTemporalRoot } from "./kai-temporal-root";
 import type { PortableCardAsset } from "./portable-card";
 import { achievementGrantCandidates } from "./wilds-saga-achievements";
@@ -23,7 +23,7 @@ import {
   type WildsWorldEvent,
   type WildsWorldEventKind
 } from "./wilds-world-event";
-import { verifyWildsWorldCommandCard } from "./wilds-world-authority";
+import { verifyWildsWorldCommandCard, verifyWildsWorldCommandKai } from "./wilds-world-authority";
 import {
   checkpointWildsWorld,
   initialWildsWorldProjection,
@@ -349,12 +349,27 @@ export class WildsWorldService {
     if (!authority.canonical) throw new Error("wilds_world_canonical_authority_required");
     if (!commandIdValid(command.commandId)) throw new Error("wilds_world_command_id_invalid");
     if (this.eventTail.some((event) => event.causeId === command.commandId)) return { events: [], projection: this.projection };
-    authority = { ...authority, card: verifyWildsWorldCommandCard({ command, card: authority.card }) };
+    const commandKai = command.kai ? verifyWildsWorldCommandKai(command) : null;
+    const kaiOccurredAt = commandKai ? kaiUPulseToISOString(commandKai.uPulse) : null;
+    authority = {
+      ...authority,
+      ...(commandKai ? { uPulse: commandKai.uPulse, pulse: kaiOccurredAt!, occurredAt: kaiOccurredAt! } : {}),
+      card: verifyWildsWorldCommandCard({ command, card: authority.card })
+    };
     const events: WildsWorldEvent[] = [];
+    const storyCommand = command.type === "story.contribute"
+      || command.type === "story.trainer_battle"
+      || command.type === "story.tournament_enter";
+    if (storyCommand) {
+      const { saga } = this.sagaAt(authority);
+      if ((command.type === "story.contribute" || command.type === "story.trainer_battle") && command.dayId !== saga.dayId) {
+        throw new Error("wilds_story_chapter_mismatch");
+      }
+      this.advanceSaga({ occurredAt: authority.occurredAt }, authority, command.commandId, events);
+    }
 
     if (command.type === "story.contribute") {
       const { saga } = this.sagaAt(authority);
-      if (this.projection.story.activeChapter?.dayId !== command.dayId || saga.dayId !== command.dayId) throw new Error("wilds_story_chapter_inactive");
       const nodes = saga.chapter.missions.flatMap((mission) => mission.nodes);
       const node = nodes.find((candidate) => candidate.id === command.objectiveId);
       if (!node || !node.acceptedVerbs.includes(command.verb)) throw new Error("wilds_story_objective_invalid");
@@ -378,7 +393,6 @@ export class WildsWorldService {
       }
     } else if (command.type === "story.trainer_battle") {
       if (!authority.card) throw new Error("wilds_world_verified_card_required");
-      if (this.projection.story.activeChapter?.dayId !== command.dayId) throw new Error("wilds_story_chapter_inactive");
       const current = this.projection.trainers[command.trainerId] as WildsTrainerProjection & { battleMemories?: WildsTrainerBattleMemory[] } | undefined;
       if (!current) throw new Error("wilds_story_trainer_missing");
       const battleMemories = current.battleMemories ?? [];
