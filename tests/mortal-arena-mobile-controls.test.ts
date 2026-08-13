@@ -44,4 +44,11 @@ describe("Mortal Arena mobile combat zones", () => {
     assert.doesNotMatch(css, /\.mortal-arena-actions > button span\s*\{\s*display:\s*none/);
     assert.doesNotMatch(css, /\.mortal-arena-context-actions button strong\s*\{[^}]*display:\s*none/);
   });
+
+  it("keeps both life cards full-width above a separate compact resource rail", () => {
+    assert.match(css, /\.mortal-arena-life\.is-player\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*1/);
+    assert.match(css, /\.mortal-arena-round-mark\s*\{[^}]*grid-column:\s*2;[^}]*grid-row:\s*1/);
+    assert.match(css, /\.mortal-arena-life\.is-rival\s*\{[^}]*grid-column:\s*3;[^}]*grid-row:\s*1/);
+    assert.match(css, /\.mortal-arena-skill-state\s*\{[^}]*grid-column:\s*1 \/ -1;[^}]*grid-row:\s*2;[^}]*display:\s*flex/);
+  });
 });

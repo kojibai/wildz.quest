@@ -12775,6 +12775,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .mortal-arena-canvas canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 .mortal-arena-header { position: relative; z-index: 12; }
 .mortal-arena-hud { position: absolute; z-index: 4; top: 10px; right: max(10px, env(safe-area-inset-right)); left: max(10px, env(safe-area-inset-left)); display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: start; gap: 9px; pointer-events: none; }
+.mortal-arena-life.is-player { grid-column: 1; grid-row: 1; }
 .mortal-arena-life { display: grid; grid-template-columns: minmax(0, 1fr) 30px; gap: 5px 7px; padding: 8px 10px; border: 1px solid rgb(247 201 72 / 22%); border-radius: 16px; background: rgb(25 11 4 / 76%); box-shadow: 0 12px 28px rgb(0 0 0 / 24%); backdrop-filter: blur(16px); }
 .mortal-arena-life > span { display: grid; min-width: 0; }
 .mortal-arena-life > span strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
@@ -12782,13 +12783,15 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .mortal-arena-life > div { grid-column: 1 / -1; height: 6px; overflow: hidden; border-radius: 8px; background: rgb(255 255 255 / 10%); }
 .mortal-arena-life > div i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #57db93, #d8e852); box-shadow: 0 0 12px rgb(91 230 145 / 42%); transition: width .18s ease; }
 .mortal-arena-life > b { grid-column: 2; grid-row: 1; align-self: center; color: #ffe58a; font-size: 15px; font-variant-numeric: tabular-nums; text-align: right; }
-.mortal-arena-life.is-rival { text-align: right; }
+.mortal-arena-life.is-rival { grid-column: 3; grid-row: 1; text-align: right; }
 .mortal-arena-life.is-rival > div i { margin-left: auto; background: linear-gradient(90deg, #ff9b45, #ff5f45); }
 .mortal-arena-life.is-strained > div i { background: #f6be43; }
 .mortal-arena-life.is-grave > div i, .mortal-arena-life.is-final > div i { background: #ff5d45; box-shadow: 0 0 18px rgb(255 78 55 / 70%); animation: mortal-vitality-pulse .72s ease-in-out infinite alternate; }
-.mortal-arena-round-mark { display: flex; min-width: 48px; align-items: center; justify-content: center; gap: 4px; padding-top: 13px; color: #ffe38a; }
+.mortal-arena-round-mark { grid-column: 2; grid-row: 1; display: flex; min-width: 48px; align-items: center; justify-content: center; gap: 4px; padding-top: 13px; color: #ffe38a; }
 .mortal-arena-round-mark strong { max-width: 90px; overflow: hidden; font-size: 8px; letter-spacing: .06em; text-align: center; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .mortal-arena-round-mark i { width: 8px; height: 1px; background: #d99f31; }
+.mortal-arena-skill-state { grid-column: 1 / -1; grid-row: 2; display: flex; max-width: 100%; justify-self: center; gap: 8px; padding: 4px 9px; color: #c69a51; border: 1px solid rgb(247 201 72 / 16%); border-radius: 999px; background: rgb(25 11 4 / 72%); font-size: 7px; font-weight: 850; letter-spacing: .03em; white-space: nowrap; }
+.mortal-arena-skill-state span { display: flex; align-items: baseline; gap: 3px; }.mortal-arena-skill-state b { color: #fff1be; font-size: 8px; font-variant-numeric: tabular-nums; }
 .mortal-arena-warning { position: absolute; z-index: 5; bottom: 13px; left: 50%; display: flex; align-items: center; gap: 7px; padding: 8px 13px; color: #fff3de; border: 1px solid rgb(255 95 67 / 45%); border-radius: 999px; background: rgb(69 14 8 / 82%); box-shadow: 0 0 30px rgb(255 62 35 / 24%); backdrop-filter: blur(16px); transform: translateX(-50%); pointer-events: none; }
 .mortal-arena-warning span { font-size: 9px; font-weight: 900; white-space: nowrap; }
 .mortal-arena-warning > i { width: 4px; height: 4px; border-radius: 50%; background: #ffb54c; }
@@ -12827,6 +12830,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   .mortal-arena-hud { gap: 4px; }
   .mortal-arena-life { grid-template-columns: minmax(0, 1fr) 24px; padding: 7px 8px; }
   .mortal-arena-round-mark { min-width: 28px; }.mortal-arena-round-mark i { display: none; }.mortal-arena-round-mark strong { max-width: 42px; }
+  .mortal-arena-skill-state { gap: 5px; padding: 4px 7px; font-size: 6px; }.mortal-arena-skill-state b { font-size: 7px; }
   .mortal-arena-actions { grid-template-columns: minmax(72px, 78px) minmax(0, 1fr) minmax(108px, 132px) !important; min-height: 104px; gap: 4px; padding: 5px max(5px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(5px, env(safe-area-inset-left)); }
   .mortal-arena-movement-zone > small { display: none; }
   .mortal-arena-trackpad { width: 72px; height: 72px; min-height: 72px !important; }
