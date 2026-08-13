@@ -425,6 +425,7 @@ export function PlayCampaign({
     enabled: enabled && networkEnabled,
     actorId: ownerReceizId,
     guestId: multiplayer.guestId,
+    kaiUPulse,
     activeCard: activeAsset ?? null,
     cardAdmission
   });

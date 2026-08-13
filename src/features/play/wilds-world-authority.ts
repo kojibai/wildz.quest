@@ -1,5 +1,17 @@
 import { verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
 import type { WildsWorldCommand } from "./wilds-world-service";
+import { verifyKaiTemporalRoot, type KaiTemporalRoot } from "./kai-temporal-root";
+
+export type KaiRootedWildsWorldCommand = WildsWorldCommand & { kai: KaiTemporalRoot };
+
+export function withWildsWorldCommandKai<T extends WildsWorldCommand>(command: T, kai: KaiTemporalRoot): T & { kai: KaiTemporalRoot } {
+  return { ...command, kai: verifyKaiTemporalRoot(kai) };
+}
+
+export function verifyWildsWorldCommandKai(command: WildsWorldCommand): KaiTemporalRoot {
+  if (!command.kai) throw new Error("wilds_world_kai_root_required");
+  return verifyKaiTemporalRoot(command.kai);
+}
 
 export function worldCommandRequiresCard(command: WildsWorldCommand) {
   return command.type === "raid.act"

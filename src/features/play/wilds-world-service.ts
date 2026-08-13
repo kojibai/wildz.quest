@@ -6,6 +6,7 @@ import { admitRaidPlayer, applyRaidContribution, createWildsRaid, type WildsRaid
 import { applyWildsRaidIntent, createWildsRaidEncounter, type WildsRaidIntent } from "./wilds-raid-encounter";
 import { admitWildsRaidParticipant, createWildsRaidRound, renewWildsRaidLease, retreatWildsRaidParticipant, settleWildsRaidRound, type WildsRaidRound } from "./wilds-raid-round";
 import { deriveKaiKlokMoment, deriveKaiKlokMomentFromUPulse, KAI_N_DAY_MICRO, KAI_PULSE_DURATION_MS } from "./kai-klok-moment";
+import type { KaiTemporalRoot } from "./kai-temporal-root";
 import type { PortableCardAsset } from "./portable-card";
 import { achievementGrantCandidates } from "./wilds-saga-achievements";
 import { wildsSagaFramework } from "./wilds-saga-content";
@@ -35,7 +36,7 @@ import {
   type WildsWorldProjection
 } from "./wilds-world-state";
 
-export type WildsWorldCommand =
+export type WildsWorldCommand = (
   | { type: "boss.track"; bossId: string; position: { x: number; z: number }; commandId: string }
   | { type: "raid.enter"; bossId: string; roundId: string; position: { x: number; z: number }; preferredSquad?: number; commandId: string }
   | { type: "raid.act"; bossId: string; roundId: string; intent: WildsRaidIntent["type"]; commandId: string }
@@ -56,7 +57,8 @@ export type WildsWorldCommand =
   | { type: "ecology.contribute"; siteId: string; position: { x: number; z: number }; amount: number; cardProofDigest: string; commandId: string }
   | { type: "story.contribute"; dayId: string; objectiveId: string; verb: WildsGameplayVerb; amount: number; position?: { x: number; z: number }; cardProofDigest?: string; commandId: string }
   | { type: "story.trainer_battle"; dayId: string; trainerId: string; matchId: string; outcome: "player_victory" | "trainer_victory" | "fled"; cardProofDigest: string; commandId: string }
-  | { type: "story.tournament_enter"; tournamentId: string; qualificationGrantId: string; cardProofDigest: string; commandId: string };
+  | { type: "story.tournament_enter"; tournamentId: string; qualificationGrantId: string; cardProofDigest: string; commandId: string }
+) & { kai?: KaiTemporalRoot };
 
 export type WildsWorldAuthority = {
   actorId: string;

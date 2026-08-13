@@ -10,6 +10,9 @@ import type { WildsWorldSnapshot } from "./wilds-world-record";
 import type { WildsRaidIntent } from "./wilds-raid-encounter";
 import type { WildsGameplayVerb } from "./wilds-saga-types";
 import { worldCommandRequiresCard } from "./wilds-world-authority";
+import { withWildsWorldCommandKai } from "./wilds-world-authority";
+import { deriveKaiKlokMomentFromUPulse } from "./kai-klok-moment";
+import { createKaiTemporalRoot } from "./kai-temporal-root";
 import { publishActiveWildsWorldWithIdentityProof } from "@/lib/receiz/wilds-world-identity-publication";
 import {
   acknowledgeWildsWorldCommand,
@@ -89,6 +92,7 @@ export function useWildsWorld(input: {
   enabled: boolean;
   actorId: string;
   guestId: string;
+  kaiUPulse: number;
   activeCard: PortableCardAsset | null;
   cardAdmission: WildzVaultCardMembershipProof | null;
 }) {
@@ -204,12 +208,16 @@ export function useWildsWorld(input: {
 
   const post = useCallback(async (command: WildsWorldCommand) => {
     if (!input.enabled) throw new Error("wilds_world_session_required");
+    const kaiAuthority = mode === "receiz_live" || mode === "kai_live" ? "world" : "local";
+    const rootedCommand = withWildsWorldCommandKai(command, createKaiTemporalRoot(
+      deriveKaiKlokMomentFromUPulse({ uPulse: input.kaiUPulse, authority: kaiAuthority })
+    ));
     const entry: WildsWorldOutboxEntry = {
       schema: "receiz.wilds_world_outbox_entry.v1",
       actorId: input.actorId,
       guestId: input.guestId,
-      command,
-      ...(worldCommandRequiresCard(command) && input.activeCard ? { card: input.activeCard } : {}),
+      command: rootedCommand,
+      ...(worldCommandRequiresCard(rootedCommand) && input.activeCard ? { card: input.activeCard } : {}),
       ...(input.cardAdmission ? { cardAdmission: input.cardAdmission } : {}),
       queuedAt: new Date().toISOString()
     };
@@ -251,7 +259,7 @@ export function useWildsWorld(input: {
       commandPending.current = false;
       setPendingCommand(null);
     }
-  }, [input.activeCard, input.actorId, input.cardAdmission, input.enabled, input.guestId, sendEntry, snapshot]);
+  }, [input.activeCard, input.actorId, input.cardAdmission, input.enabled, input.guestId, input.kaiUPulse, mode, sendEntry, snapshot]);
 
   useEffect(() => {
     const resume = () => {

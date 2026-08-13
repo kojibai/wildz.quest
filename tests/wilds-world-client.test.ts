@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { initialWildsWorldProjection } from "../src/features/play/wilds-world-state.js";
+import { deriveKaiKlokMomentFromUPulse } from "../src/features/play/kai-klok-moment.js";
+import { createKaiTemporalRoot } from "../src/features/play/kai-temporal-root.js";
 import {
   acceptWildsWorldSnapshot,
   buildWildsWorldCommandBody,
@@ -12,6 +14,7 @@ import {
 } from "../src/features/play/use-wilds-world.js";
 
 describe("Wilds world client contract", () => {
+  const kai = createKaiTemporalRoot(deriveKaiKlokMomentFromUPulse({ uPulse: 7_654_321_000, authority: "local" }));
   it("never rolls a client back to an older canonical revision", () => {
     const current = { ...initialWildsWorldProjection(), revision: 8 };
     const stale = { ...initialWildsWorldProjection(), revision: 7 };
@@ -22,9 +25,9 @@ describe("Wilds world client contract", () => {
   });
 
   it("builds one explicit guest-aware command envelope", () => {
-    assert.deepEqual(buildWildsWorldCommandBody("guest-12345678", { type: "raid.join", bossId: "boss:one", commandId: "command:one" }), {
+    assert.deepEqual(buildWildsWorldCommandBody("guest-12345678", { type: "raid.join", bossId: "boss:one", commandId: "command:one", kai }), {
       guestId: "guest-12345678",
-      command: { type: "raid.join", bossId: "boss:one", commandId: "command:one" }
+      command: { type: "raid.join", bossId: "boss:one", commandId: "command:one", kai }
     });
   });
 

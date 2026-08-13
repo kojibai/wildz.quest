@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { WildsWorldService, type WildsWorldCommand } from "@/features/play/wilds-world-service";
 import { findWildsWorldRecord, selectWildsWorldSnapshot } from "@/features/play/wilds-world-record";
 import type { PortableCardAsset } from "@/features/play/portable-card";
-import { worldCommandRequiresCard } from "@/features/play/wilds-world-authority";
+import { verifyWildsWorldCommandKai, worldCommandRequiresCard } from "@/features/play/wilds-world-authority";
 import { platform } from "@/lib/platform";
 import { authorizeWildsMultiplayerCard, resolveWildsMultiplayerActor, type WildsMultiplayerActor } from "./wilds-multiplayer-server";
 import { createReceizWildsWorldRepository, type WildsWorldPublication, type WildsWorldRepository } from "./wilds-world-repository";
@@ -245,12 +245,13 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown) {
   const value = body && typeof body === "object" ? body as Record<string, unknown> : {};
   const actor = await resolveWildsMultiplayerActor(request, value.guestId);
   const command = value.command as WildsWorldCommand;
+  const kai = verifyWildsWorldCommandKai(command);
   const card = worldCommandRequiresCard(command) ? value.card as PortableCardAsset | undefined : undefined;
   if (worldCommandRequiresCard(command)) authorizeWildsMultiplayerCard(actor, card, value.cardAdmission);
   await hydrateWildsWorldFromReceiz(request);
   if (actor.practice) {
     const now = new Date().toISOString();
-    const result = practiceService().execute(command, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now, card });
+    const result = practiceService().execute(command, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now, uPulse: kai.uPulse, card });
     const publication = { published: false, mode: "local_practice" as const, revision: result.projection.revision };
     return {
       projection: result.projection,
@@ -262,7 +263,7 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown) {
   const current = await recoverCanonicalWorldBeforeMutation(request, actor);
   const before = { checkpoint: current.checkpoint(), events: current.events() };
   const now = new Date().toISOString();
-  const result = current.execute(command, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now, card });
+  const result = current.execute(command, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now, uPulse: kai.uPulse, card });
   const record = { checkpoint: current.checkpoint(), eventTail: current.events() };
   if (actor.accessToken) {
     let publication = await publish(request, actor, current, {
