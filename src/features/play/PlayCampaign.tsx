@@ -46,6 +46,7 @@ import { WildsCommandCenter } from "@/features/play/command-center/WildsCommandC
 import { projectWildsCommandCenter, type WildsCommandAction } from "@/features/play/command-center/director";
 import { millisecondsUntilNextKaiPulse } from "@/features/play/kai-klok-moment";
 import { createWildsKaiRuntimeClock, observeWildsKaiUPulse, resolveWildsRuntimeKaiMoment } from "@/features/play/wilds-kai-runtime";
+import { friendlyWildsGameplayError, isWildsTemporalContinuityError } from "@/features/play/wilds-temporal-errors";
 import { kaiTransition, projectKaiWorldExpression, type KaiWorldExpression } from "@/features/play/kai-moment-expression";
 import { WildzCommandInsight } from "@/features/play/WildzCommandInsight";
 import type { WildsMovementMode } from "@/features/play/wilds-movement";
@@ -429,6 +430,10 @@ export function PlayCampaign({
     activeCard: activeAsset ?? null,
     cardAdmission
   });
+  const handleStoryCommandError = useCallback((error: unknown, fallback: string) => {
+    if (isWildsTemporalContinuityError(error)) void livingWorld.refresh();
+    setRiftError(friendlyWildsGameplayError(error, fallback));
+  }, [livingWorld.refresh]);
   const kaiMoment = resolveWildsRuntimeKaiMoment({
     uPulse: kaiUPulse,
     mode: livingWorld.mode,
@@ -980,12 +985,12 @@ export function PlayCampaign({
             missions={sagaMissions}
             mode={livingWorld.mode}
             onBattleTrainer={(trainer) => openTrainerEncounter(trainer, "mission")}
-            onContribute={(node) => void livingWorld.contributeStory(saga.dayId, node.definition.id, node.definition.acceptedVerbs[0]!, 1, state.player).catch((error) => setRiftError(error instanceof Error ? error.message : "wilds_story_contribution_failed"))}
+            onContribute={(node) => void livingWorld.contributeStory(saga.dayId, node.definition.id, node.definition.acceptedVerbs[0]!, 1, state.player).catch((error) => handleStoryCommandError(error, "Story progress could not save. Try again."))}
             onEnterTournament={(tournamentId, qualificationGrantId) => {
               try {
-                void livingWorld.enterSagaTournament(tournamentId, qualificationGrantId).catch((error) => setRiftError(error instanceof Error ? error.message : "wilds_story_tournament_entry_failed"));
+                void livingWorld.enterSagaTournament(tournamentId, qualificationGrantId).catch((error) => handleStoryCommandError(error, "Tournament entry could not complete. Try again."));
               } catch (error) {
-                setRiftError(error instanceof Error ? error.message : "wilds_story_tournament_entry_failed");
+                handleStoryCommandError(error, "Tournament entry could not complete. Try again.");
               }
             }}
             pending={Boolean(livingWorld.pendingCommand)}
@@ -1413,7 +1418,7 @@ export function PlayCampaign({
           });
           if (livingWorld.mode === "receiz_live") {
             void livingWorld.settleTrainerBattle(saga.dayId, activeTrainer.id, outcome)
-              .catch((error) => setRiftError(error instanceof Error ? error.message : "wilds_story_trainer_battle_failed"));
+              .catch((error) => handleStoryCommandError(error, "Trainer battle progress could not save. Try again."));
           }
         }}
         onExit={() => {
