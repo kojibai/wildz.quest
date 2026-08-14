@@ -236,7 +236,9 @@ test("same-owner card-only restore atomically unions the freshest prior PlayStat
   });
   const ownerScopedFreshest = restorePlayState(serializePlayState(freshest), session.actorId);
   const expectedUnion = [...new Set([
-    ...ownerScopedFreshest.inventory.map((asset) => asset.id),
+    ...ownerScopedFreshest.inventory
+      .filter((asset) => asset.manifest.encounterId !== "starter-mintcub" && !asset.manifest.encounterId.startsWith("starter:"))
+      .map((asset) => asset.id),
     ...fixture.expectedWildzAssetIds
   ])].sort();
   assert.deepEqual(outcome.playState.inventory.map((asset) => asset.id).sort(), expectedUnion);
@@ -288,11 +290,7 @@ test("identity-bearing vault uploaded inside an active vault merges into the cur
   await saveWildzRestoredPlayState({ database, session, playState: currentPlayState });
   const inspected = await codec.inspect({ bytes: fixture.bytes, mimeType: fixture.mimeType, name: fixture.filename });
   assert.equal(inspected.kind, "commerce-vault");
-  const incomingAssets = inspected.kind === "commerce-vault" ? inspected.assets : [];
-  const normalizedCurrent = restorePlayState(serializePlayState(currentPlayState), session.actorId);
-  const expectedPlayState = restorePlayState(serializePlayState(
-    incomingAssets.reduce((state, asset) => applyWildsInput(state, { type: "import-card", asset }), normalizedCurrent)
-  ), session.actorId);
+  const expectedAssetIds = [...new Set([...fixture.expectedWildzAssetIds, priorOnly.id])].sort();
 
   const outcome = await restoreWildzArtifactForSurface({
     surface: "card-vault",
@@ -313,14 +311,14 @@ test("identity-bearing vault uploaded inside an active vault merges into the cur
   assert.deepEqual(outcome.verifiedAssetIds, fixture.expectedWildzAssetIds);
   assert.deepEqual(
     outcome.playState.inventory.map((asset) => asset.id).sort(),
-    expectedPlayState.inventory.map((asset) => asset.id).sort()
+    expectedAssetIds
   );
   assert.equal(outcome.playState.worldMastery, 91);
   assert.deepEqual(await repository.active(), session);
   const cold = await loadWildzRestoredPlayState({ database, session });
   assert.deepEqual(
     cold?.inventory.map((asset) => asset.id).sort(),
-    expectedPlayState.inventory.map((asset) => asset.id).sort()
+    expectedAssetIds
   );
 });
 

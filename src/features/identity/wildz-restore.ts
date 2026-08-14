@@ -149,35 +149,60 @@ function emptyVaultPlayState(): PlayState {
   };
 }
 
-function withoutPristineStarter(base: PlayState, starter: PortableCardAsset): PlayState {
-  const current = base.inventory[0];
-  if (base.inventory.length !== 1
-    || !current
-    || canonicalPortableCardJson(current) !== canonicalPortableCardJson(starter)) return base;
-  const { [starter.id]: _livingProgress, ...livingProgress } = base.livingProgress;
-  const { [starter.id]: _adventureCondition, ...adventureConditions } = base.adventureConditions;
-  const { [starter.id]: _hearttreeCondition, ...hearttreeConditions } = base.hearttreeConditions;
+function withoutAssets(base: PlayState, assetIds: ReadonlySet<string>): PlayState {
+  if (!assetIds.size) return base;
+  const inventory = base.inventory.filter((asset) => !assetIds.has(asset.id));
+  const remainingFamilies = new Set(inventory.map((asset) => asset.manifest.familyId));
+  const removedFamilies = new Set(base.inventory.filter((asset) => assetIds.has(asset.id)).map((asset) => asset.manifest.familyId));
+  const selected = inventory.find((asset) => asset.id === base.selectedAssetId) ?? inventory.at(-1) ?? null;
+  const keepAssetEntries = <T>(record: Record<string, T>) => Object.fromEntries(
+    Object.entries(record).filter(([assetId]) => !assetIds.has(assetId))
+  );
   return {
     ...base,
-    inventory: [],
-    discoveredCardIds: base.discoveredCardIds.filter((familyId) => familyId !== starter.manifest.familyId),
-    pendingSyncAssetIds: base.pendingSyncAssetIds.filter((assetId) => assetId !== starter.id),
-    selectedAssetId: "",
-    selectedCardId: "",
-    supportAssetIds: [null, null] as const,
-    livingProgress,
-    adventureConditions,
-    hearttreeConditions,
-    hearttreeSquadAssetIds: base.hearttreeSquadAssetIds.filter((assetId) => assetId !== starter.id)
+    inventory,
+    discoveredCardIds: base.discoveredCardIds.filter(
+      (familyId) => !removedFamilies.has(familyId) || remainingFamilies.has(familyId)
+    ),
+    pendingSyncAssetIds: base.pendingSyncAssetIds.filter((assetId) => !assetIds.has(assetId)),
+    selectedAssetId: selected?.id ?? "",
+    selectedCardId: selected?.manifest.familyId ?? "",
+    supportAssetIds: [
+      base.supportAssetIds[0] && assetIds.has(base.supportAssetIds[0]) ? null : base.supportAssetIds[0],
+      base.supportAssetIds[1] && assetIds.has(base.supportAssetIds[1]) ? null : base.supportAssetIds[1]
+    ],
+    livingProgress: keepAssetEntries(base.livingProgress),
+    adventureConditions: keepAssetEntries(base.adventureConditions),
+    hearttreeConditions: keepAssetEntries(base.hearttreeConditions),
+    hearttreeSquadAssetIds: base.hearttreeSquadAssetIds.filter((assetId) => !assetIds.has(assetId))
   };
 }
 
-function importAssets(base: PlayState, assets: readonly PortableCardAsset[], pristineStarter?: PortableCardAsset) {
-  const importBase = assets.length && pristineStarter ? withoutPristineStarter(base, pristineStarter) : base;
+function withoutPristineStarter(base: PlayState, starter: PortableCardAsset): PlayState {
+  const current = base.inventory[0];
+  return base.inventory.length === 1
+    && current
+    && canonicalPortableCardJson(current) === canonicalPortableCardJson(starter)
+    ? withoutAssets(base, new Set([starter.id]))
+    : base;
+}
+
+function withoutRedundantStarterFallbacks(base: PlayState) {
+  const redundant = new Set(base.inventory.filter((asset) => {
+    const encounterId = asset.manifest.encounterId;
+    const systemStarter = encounterId === "starter-mintcub" || encounterId.startsWith("starter:");
+    return systemStarter && base.inventory.some(
+      (candidate) => candidate.id !== asset.id && candidate.manifest.familyId === asset.manifest.familyId
+    );
+  }).map((asset) => asset.id));
+  return withoutAssets(base, redundant);
+}
+
+function importAssets(base: PlayState, assets: readonly PortableCardAsset[]) {
   const codecAdmittedProofs = new Set(assets.map((asset) => asset.proof.digest));
   extractVerifiedWildzCards({
     pngBasis: null,
-    verifiedPortableSnapshot: [importBase.inventory, assets],
+    verifiedPortableSnapshot: [base.inventory, assets],
     restoredVaultFiles: [],
     // Only exact proofs admitted by the codec's origin verifier carry retirement
     // authority here; local self-hashed state never promotes itself.
@@ -187,7 +212,7 @@ function importAssets(base: PlayState, assets: readonly PortableCardAsset[], pri
   });
   return assets.reduce(
     (state, asset) => applyWildsInput(state, { type: "import-card", asset }),
-    importBase
+    base
   );
 }
 
@@ -292,7 +317,9 @@ export function createStoredWildzPlayState(
   updatedAt = new Date().toISOString(),
   character?: WildzCharacterGenesis | null
 ): StoredWildzPlayState {
-  const normalizedPlayState = restorePlayState(serializePlayState(playState), session.actorId);
+  const normalizedPlayState = withoutRedundantStarterFallbacks(
+    restorePlayState(serializePlayState(playState), session.actorId)
+  );
   const continuity = normalizedPlayerContinuity(session, normalizedPlayState, player, updatedAt);
   const requestedCharacter = character === undefined && player && "playerId" in player ? player.character : character;
   const normalizedCharacter = requestedCharacter === null || requestedCharacter === undefined
@@ -455,10 +482,14 @@ export async function restoreWildzArtifactForSurface(input: {
           : assets.length
             ? emptyVaultPlayState()
             : createOwnerBoundInitialPlayState(session.actorId, session.createdAt);
-      const next = playerForSession
+      const pristineStarter = restorePlayState(serializePlayState(
+        createOwnerBoundInitialPlayState(session.actorId, session.createdAt)
+      ), session.actorId).inventory[0]!;
+      const mergeBase = assets.length ? withoutPristineStarter(current, pristineStarter) : current;
+      const merged = playerForSession
         ? input.currentPlayState && sameWildzPlayerCoordinate(playerForSession.playerId, session.actorId)
           ? reconcileWildsPlayerVault({
-              local: current,
+              local: mergeBase,
               restored: playerForSession,
               canonical: initialWildsWorldProjection(),
               actorId: session.actorId,
@@ -466,12 +497,10 @@ export async function restoreWildzArtifactForSurface(input: {
             }).state
           : prepareWildzPlayerPlayState(playerForSession, assets)
         : importAssets(
-            current,
-            assets,
-            restorePlayState(serializePlayState(
-              createOwnerBoundInitialPlayState(session.actorId, session.createdAt)
-            ), session.actorId).inventory[0]
+            mergeBase,
+            assets
           );
+      const next = withoutRedundantStarterFallbacks(merged);
       const localContinuity = input.currentPlayerContinuity ?? (previous ? continuityFromOwner(previous) : null);
       const carriedContinuity = input.carryCurrentVault
         ? localContinuity
