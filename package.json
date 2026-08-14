@@ -1,6 +1,6 @@
 {
   "name": "wildz-quest",
-  "version": "4.0.0-alpha.1",
+  "version": "5.0.0",
   "description": "Open-source living game world and end-to-end Receiz SDK, MCP, and AI-skills reference implementation.",
   "license": "MIT",
   "private": true,

@@ -4,6 +4,40 @@ All notable changes to Wildz are documented here. Wildz uses semantic versioning
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-08-13
+
+The first official Wildz release whose live chapter, world commands, and local progression share one Genesis-counted Kai `uPulse` state machine.
+
+### Added
+
+- A monotonic runtime Kai clock that establishes one observed `uPulse` boundary and advances without allowing browser clock corrections, stale projections, or server responses to rewind gameplay.
+- Exact `KaiTemporalRoot` admission on world commands, including causal coordinates and deterministic conventional-time projections retained only for compatibility metadata.
+- Exact Kai roots on local search, capture, battle, training, evolution, fusion, ascension, recovery, and creature-growth inputs.
+- Command-driven chapter reconciliation that opens and advances the current chapter without waiting for a server scheduler tick.
+- Player-safe continuity recovery: stale chapter responses refresh the projection and show actionable copy instead of internal error codes.
+- Permanent card-front character-story presentation and expanded regression coverage for exact Kai, chapter, command, progression, PWA, and mobile Arena behavior.
+
+### Changed
+
+- Kai Klok `uPulse`, counted monotonically from Genesis, is the gameplay temporal authority. ISO timestamps are derived interoperability metadata and cannot choose, delay, veto, or reorder gameplay.
+- Receiz/server state persists, proves, synchronizes, and publishes admitted consequences; it no longer decides whether the current Kai chapter is active.
+- The NPC Mortal Arena control chassis is compact and touch-friendly, returning height to the 3D stage and top combat HUD without adding runtime dependencies.
+- The service-worker release coordinate advances to `v5.0.0-r1`, forcing installed clients onto one coherent release shell.
+
+### Performance and reliability
+
+- Removed chapter readiness dependence on network polling and scheduler arrival from the player action path.
+- Kept the implementation dependency-free and arithmetic-only at runtime; no new render loop, polling loop, state library, or asset payload was added.
+- Added deterministic tests proving that different ISO metadata produces identical chapter events and event IDs when `uPulse` is unchanged.
+
+### Security and integrity
+
+- Network world mutation rejects commands without a valid exact Kai root.
+- Invalid or conflicting temporal roots fail closed before canonical mutation.
+- Existing Receiz v118 proof, artifact, replay, settlement, identity, market, and offline boundaries remain unchanged.
+
+See the [complete v5.0.0 release notes](docs/release/v5.0.0.md) and [verification record](docs/release/verification.md).
+
 ## [4.0.0-alpha.0] - 2026-08-11
 
 The first Wildz competitive-gameplay alpha: a deterministic, proof-native combat and creature-continuity release rooted in Kai Klok micro-pulses.
@@ -75,3 +109,4 @@ See the [complete v3.0.0 release notes](docs/release/v3.0.0.md) and [verificatio
 
 [3.0.0]: https://github.com/kojibai/wildz.quest/releases/tag/v3.0.0
 [4.0.0-alpha.0]: https://github.com/kojibai/wildz.quest/releases/tag/v4.0.0-alpha.0
+[5.0.0]: https://github.com/kojibai/wildz.quest/releases/tag/v5.0.0

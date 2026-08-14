@@ -431,10 +431,11 @@ export function PlayCampaign({
     activeCard: activeAsset ?? null,
     cardAdmission
   });
+  const refreshLivingWorld = livingWorld.refresh;
   const handleStoryCommandError = useCallback((error: unknown, fallback: string) => {
-    if (isWildsTemporalContinuityError(error)) void livingWorld.refresh();
+    if (isWildsTemporalContinuityError(error)) void refreshLivingWorld();
     setRiftError(friendlyWildsGameplayError(error, fallback));
-  }, [livingWorld.refresh]);
+  }, [refreshLivingWorld]);
   const kaiMoment = resolveWildsRuntimeKaiMoment({
     uPulse: kaiUPulse,
     mode: livingWorld.mode,

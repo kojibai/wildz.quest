@@ -4,13 +4,13 @@ import { test } from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("Wildz competitive alpha release doctrine names the exact Receiz v118 toolchain", () => {
+test("Wildz v5 official release doctrine names the exact Receiz v118 toolchain", () => {
   const pkg = JSON.parse(read("package.json")) as {
     version?: string;
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
   };
-  const release = read("docs/release/v4.0.0-alpha.1.md");
+  const release = read("docs/release/v5.0.0.md");
   const mcp = read("docs/MCP.md");
   const packageSourceDocs = [
     read("README.md"),
@@ -22,7 +22,7 @@ test("Wildz competitive alpha release doctrine names the exact Receiz v118 toolc
     read("ai-skills/wildz-release-skill/SKILL.md")
   ].join("\n");
 
-  assert.equal(pkg.version, "4.0.0-alpha.1");
+  assert.equal(pkg.version, "5.0.0");
   assert.equal(pkg.dependencies?.["@receiz/sdk"], "118.0.0");
   assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "118.0.0");
   assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "118.0.0");
@@ -41,7 +41,7 @@ test("Wildz competitive alpha release doctrine names the exact Receiz v118 toolc
 });
 
 test("release documentation states the real offline and remote authority boundaries", () => {
-  const release = read("docs/release/v4.0.0-alpha.1.md");
+  const release = read("docs/release/v5.0.0.md");
   const verification = read("docs/release/verification.md");
   const interoperability = read("docs/release/artifact-interoperability.md");
   const rails = read("docs/RECEIZ_RAILS.md");
@@ -61,7 +61,7 @@ test("release documentation states the real offline and remote authority boundar
 
 test("release doctrine contains no private artifact paths or assigned credentials", () => {
   const paths = [
-    "docs/release/v4.0.0-alpha.1.md",
+    "docs/release/v5.0.0.md",
     "docs/release/verification.md",
     "docs/release/feature-parity.md",
     "docs/release/artifact-interoperability.md",

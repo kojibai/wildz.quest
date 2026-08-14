@@ -10,8 +10,8 @@ test("PWA controller registers a release-distinct worker after paint", () => {
   assert.match(source, /requestIdleCallback|setTimeout/);
   assert.match(source, /\/sw\.js\?release=/);
   assert.match(source, /NEXT_PUBLIC_WILDZ_SW_RELEASE/);
-  assert.match(source, /v4\.0\.0-alpha\.1-r3/);
-  assert.match(env, /^NEXT_PUBLIC_WILDZ_SW_RELEASE=v4\.0\.0-alpha\.1-r3$/m);
+  assert.match(source, /v5\.0\.0-r1/);
+  assert.match(env, /^NEXT_PUBLIC_WILDZ_SW_RELEASE=v5\.0\.0-r1$/m);
 });
 
 test("installability is retained and shown only as explicit user consent", () => {

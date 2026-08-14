@@ -152,9 +152,9 @@ The current v118 SDK does not expose Wildz's required conditional market-ownersh
 
 ## Release status
 
-`v4.0.0-alpha.0` is the official local competitive-gameplay alpha. It adds the canonical Arena, exact portable creature history, Kai-rooted micro-pulse time, dark celestial nights, player lantern visibility, and expanded Receiz operator/AI doctrine. The exact candidate has passed its local release evidence; production credentials, authorized strict-live verification, representative player studies, remote mutation qualification, deployment, and external publication remain separate gates—not implied by a green local build.
+`v5.0.0` is the official Kai continuity release. One monotonic Genesis-counted `uPulse` now drives the current chapter, world commands, local progression, deterministic replay ordering, and creature-growth evidence. Receiz persists, proves, synchronizes, and publishes admitted consequences; a server scheduler or cached chapter projection cannot choose or delay the chapter a player is currently in. The NPC Arena controls are compact, the card front carries permanent character story, and installed PWAs move to the `v5.0.0-r1` shell without adding runtime weight.
 
-Read the complete [v4.0.0-alpha.0 release notes](docs/release/v4.0.0-alpha.0.md), [verification record](docs/release/verification.md), [competitive gameplay scorecard](docs/release/gameplay-scorecard.md), and [changelog](CHANGELOG.md).
+Read the complete [v5.0.0 release notes](docs/release/v5.0.0.md), [verification record](docs/release/verification.md), [competitive gameplay scorecard](docs/release/gameplay-scorecard.md), and [changelog](CHANGELOG.md).
 
 ## Build your own Receiz-native product
 

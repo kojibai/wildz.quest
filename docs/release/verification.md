@@ -1,10 +1,10 @@
-# Wildz v4 competitive alpha release verification
+# Wildz v5.0.0 official release verification
 
-Date: 2026-08-11. Target application version: `4.0.0-alpha.1`. Receiz integration target: `118.0.0`.
+Date: 2026-08-13. Target application version: `5.0.0`. Receiz integration target: `118.0.0`.
 
 ## Qualification status
 
-The exact local candidate passed the repository release gate and is qualified for commit. Production activation still requires the production Receiz environment, a successful authorized strict-live run, and the external interoperability and remote-mutation gates described below. This document does not declare the candidate deployed, tagged, pushed, strict-live qualified, or externally published.
+The exact v5 candidate passes the repository's deterministic qualification gates and is eligible for the official source release. Production Receiz activation still requires the production environment, a successful authorized strict-live run, and the external interoperability and remote-mutation gates described below. Source publication does not imply those external systems were activated.
 
 ## Versioned toolchain
 
@@ -22,12 +22,18 @@ The qualification treats v118 as one coordinated SDK/MCP/AI/ruleset/registry/mat
 
 | Gate | Result |
 |---|---|
-| Full Node suite | Pass: 1,218/1,218 tests across 119 suites |
+| Full Node suite | Pass: 1,232/1,232 tests across 122 suites |
 | `pnpm typecheck` | Pass |
 | `pnpm lint` | Pass |
 | Production build | Pass: 16/16 static pages generated; existing SDK verifier `web-worker` dynamic-dependency warning retained |
-| Production browser | Pass in Chromium: desktop and 390×844 mobile, zero console errors, no horizontal overflow, automatic darkness lantern, reduced-motion layout, and fixed-Kai deep-night readability |
-| `pnpm release:check` | Pass: 1,218 tests, typecheck, v118 checker, 15/15 conformance, lint, secret scan, production build, and default doctor |
+| Bundle report | Pass: `/` first load 597 kB including 103 kB shared JavaScript; no dependency or external asset added |
+| Production browser | Pass: desktop and 390×844 mobile, nonblank varied 3D canvas, live Kai chapter, compact controls, zero browser console errors, and no horizontal overflow |
+| `pnpm release:check` | Pass: 1,232 tests, typecheck, v118 checker, 15/15 conformance, lint, secret scan, production build, and default doctor |
+| Kai runtime continuity | Pass: monotonic runtime clock cannot rewind; exact `uPulse` derives the complete Kai moment without ISO round-trip |
+| Chapter continuity | Pass: current chapter opens from command `uPulse` without a scheduler tick; mismatched day rejects before mutation |
+| ISO independence | Pass: changing descriptive ISO metadata with fixed `uPulse` produces byte-identical chapter events and IDs |
+| Local progression | Pass: search, capture, battle, training, recovery, fusion, evolution, ascension, and exact growth history are rooted at dispatch |
+| Runtime weight | Pass: no dependency or external asset added by the v5 Kai alignment |
 | Historical migration compatibility | Pass: forward-only checkpoint retained; sealed artifacts, receipts, and heads preserved; current execution remains v118-only |
 | V118 offline authority | Pass: a queued proposal is not a global commitment; divergence resolution is structural-only |
 | Proof/Vault regressions | Pass in the full suite, including complete 97/98-card restore, canonical Identity Seal/key continuation, scoped legacy Vault recovery, compact historical-card custody admission, duplicate drops, revision reconciliation, pending-to-final admission, and atomic fork rejection |
@@ -47,6 +53,8 @@ The qualification treats v118 as one coordinated SDK/MCP/AI/ruleset/registry/mat
 
 The supplied production-shaped Vault was historically inspected without recording private bytes, paths, identity values, hashes, or card identifiers. It decoded to 98 cards with an embedded player. That result remains compatibility evidence, not a fresh v118 qualification. The server commits the historical-owner portion of an exact verified collection into the encrypted session, and gameplay accepts an older-owner card only with its compact membership proof. An artifact without an Identity Seal or v118 owner-continuity binding leaves canonical account-only writes Identity Seal/key-gated.
 
+The production browser captures, renderer measurements, interaction results, and checklist ledger are preserved in [`docs/release/evidence/v5.0.0`](./evidence/v5.0.0/README.md).
+
 ## Pending external evidence
 
 The following remain production or externally authorized gates and were not rewritten as local passes:
@@ -54,7 +62,7 @@ The following remain production or externally authorized gates and were not rewr
 - `pnpm receiz:doctor:strict` was attempted and failed closed before live probes because the production credentials and configuration were absent; strict-live qualification remains pending.
 - Remote world, public-profile, market, payment, transfer, settlement, and publication mutations remain pending. The shared-world bootstrap is implemented and fail-closed, but requires the server-only `RECEIZ_CONNECT_ACCESS_TOKEN` and authorized production qualification. V118 does not expose the Wildz-specific conditional market ownership append, and the local paths fail closed until the configured Receiz deployment admits every required capability.
 - The external six-writer artifact exercise remains pending; its six-writer local fixtures passed.
-- Deployment, tag, push, and production publication were not performed.
+- Production deployment and strict-live production publication remain separate from the official source tag and GitHub release.
 
 ## Offline verification contract
 
@@ -66,4 +74,4 @@ There is no external database added by Wildz. Browser owner state is local Index
 
 ## Release decision
 
-Version `4.0.0-alpha.1` is locally qualified for commit and local release tagging. Production activation is conditional on the supplied environment, the strict-live doctor, representative player/device qualification, and the remaining authorized external gates.
+Version `5.0.0` is qualified for official source commit, tagging, and GitHub publication. Production Receiz activation remains conditional on the supplied environment, the strict-live doctor, representative player/device qualification, and the remaining authorized external gates.
