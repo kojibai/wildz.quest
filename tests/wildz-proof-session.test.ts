@@ -141,7 +141,7 @@ test("a Vault proof session resolves as its embedded non-practice Wildz actor", 
   }
 });
 
-test("a verified Vault custody commitment authorizes historical-owner cards without weakening direct ownership", () => {
+test("a proof-valid uploaded bearer card is admitted without resynchronizing the mounted Vault session", () => {
   const handle = "vault_keeper.receiz.id";
   const currentCard = sealCollectedCard({
     formId: "mintcub-1",
@@ -167,13 +167,10 @@ test("a verified Vault custody commitment authorizes historical-owner cards with
 
   assert.equal(authorizeWildsMultiplayerCard(actor, currentCard).assetId, currentCard.id);
   assert.equal(authorizeWildsMultiplayerCard(actor, historicalCard, proof).assetId, historicalCard.id);
-  assert.throws(
-    () => authorizeWildsMultiplayerCard(actor, historicalCard),
-    /wilds_multiplayer_card_owner_invalid/
-  );
-  assert.throws(
-    () => authorizeWildsMultiplayerCard(actor, historicalCard, { ...proof, root: `sha256:${"0".repeat(64)}` }),
-    /wilds_multiplayer_card_owner_invalid/
+  assert.equal(authorizeWildsMultiplayerCard(actor, historicalCard).assetId, historicalCard.id);
+  assert.equal(
+    authorizeWildsMultiplayerCard(actor, historicalCard, { ...proof, root: `sha256:${"0".repeat(64)}` }).assetId,
+    historicalCard.id
   );
 });
 

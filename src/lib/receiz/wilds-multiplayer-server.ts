@@ -11,7 +11,6 @@ import { loadReceizConnectProfile } from "./connect-profile";
 import { playerReceizAccessToken, receizRequestSession } from "./session";
 import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import { readWildzProofSessionCookie, wildzProofPrincipalId } from "./wildz-proof-session";
-import { verifyWildzVaultCardMembershipProof } from "./wildz-vault-card-admission";
 
 export type WildsMultiplayerActor = {
   playerId: string;
@@ -80,24 +79,12 @@ export async function resolveWildsMultiplayerActor(request: NextRequest, guestVa
   };
 }
 
-export function authorizeWildsMultiplayerCard(actor: WildsMultiplayerActor, value: unknown, admission?: unknown) {
+export function authorizeWildsMultiplayerCard(_actor: WildsMultiplayerActor, value: unknown, _admission?: unknown) {
   if (!value || typeof value !== "object") throw new Error("wilds_multiplayer_card_required");
-  const asset = value as PortableCardAsset;
-  const owner = asset.manifest?.ownerReceizId;
-  const directlyOwned = sameWildzPlayerCoordinate(owner ?? "", actor.handle);
-  const admittedFromVault = !actor.practice
-    && !directlyOwned
-    && Boolean(actor.vaultCardRootSha256)
-    && verifyWildzVaultCardMembershipProof({
-      expectedRoot: actor.vaultCardRootSha256!,
-      expectedPlayerHandle: actor.handle,
-      card: asset,
-      proof: admission
-    });
-  if (!actor.practice && !directlyOwned && !admittedFromVault) {
-    throw new Error("wilds_multiplayer_card_owner_invalid");
-  }
-  return pvpCardFromAsset(asset);
+  // Portable cards are proof-bearing bearer artifacts. Once the complete card
+  // verifies, this request admits it; heartbeatCardCacheKey keeps later
+  // movement updates on the compact cardRef path without Vault resynchronizing.
+  return pvpCardFromAsset(value as PortableCardAsset);
 }
 
 const authorizedCardKey = Symbol.for("receiz.wilds.multiplayer-authorized-cards.v1");
