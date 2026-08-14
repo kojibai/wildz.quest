@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import type { JsonObject } from "@receiz/sdk";
 import { pvpCardFromAsset } from "@/features/play/multiplayer-card";
+import type { PvpCard } from "@/features/play/pvp-battle-engine";
 import { admitWildsMultiplayerRoom, type WildsMultiplayerRoom, type WildsMultiplayerSnapshot } from "@/features/play/multiplayer-ledger";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import { hostContextFromHost } from "@/lib/hosting/host-context";
@@ -97,6 +98,43 @@ export function authorizeWildsMultiplayerCard(actor: WildsMultiplayerActor, valu
     throw new Error("wilds_multiplayer_card_owner_invalid");
   }
   return pvpCardFromAsset(asset);
+}
+
+const authorizedCardKey = Symbol.for("receiz.wilds.multiplayer-authorized-cards.v1");
+
+function authorizedHeartbeatCards() {
+  const root = globalThis as typeof globalThis & { [authorizedCardKey]?: Map<string, PvpCard> };
+  return (root[authorizedCardKey] ??= new Map());
+}
+
+function heartbeatCardCacheKey(actor: WildsMultiplayerActor, assetId: string, proofDigest: string) {
+  return `${actor.playerId}\u0000${assetId}\u0000${proofDigest}`;
+}
+
+export function authorizeWildsMultiplayerHeartbeatCard(
+  actor: WildsMultiplayerActor,
+  value: unknown,
+  admission?: unknown,
+  reference?: unknown
+) {
+  if (value) {
+    const admitted = authorizeWildsMultiplayerCard(actor, value, admission);
+    authorizedHeartbeatCards().set(
+      heartbeatCardCacheKey(actor, admitted.assetId, admitted.proofDigest),
+      admitted
+    );
+    return admitted;
+  }
+  if (!reference || typeof reference !== "object") throw new Error("wilds_multiplayer_card_required");
+  const cardRef = reference as { assetId?: unknown; proofDigest?: unknown };
+  if (typeof cardRef.assetId !== "string" || typeof cardRef.proofDigest !== "string") {
+    throw new Error("wilds_multiplayer_card_required");
+  }
+  const admitted = authorizedHeartbeatCards().get(
+    heartbeatCardCacheKey(actor, cardRef.assetId, cardRef.proofDigest)
+  );
+  if (!admitted) throw new Error("wilds_multiplayer_card_required");
+  return admitted;
 }
 
 function requestOrigin(request: NextRequest) {

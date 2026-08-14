@@ -48,6 +48,32 @@ async function jsonRequest<T>(url: string, init?: RequestInit) {
 
 export type WildsMultiplayerController = ReturnType<typeof useWildsMultiplayer>;
 
+export function buildWildsMultiplayerHeartbeatBody(input: {
+  roomKey: string;
+  guestId: string;
+  style: "female" | "male";
+  x: number;
+  z: number;
+  heading: number;
+  card: PortableCardAsset;
+  cardAdmission: WildzVaultCardMembershipProof | null;
+}, cardAlreadyAdmitted: boolean) {
+  return {
+    roomKey: input.roomKey,
+    guestId: input.guestId,
+    style: input.style,
+    x: input.x,
+    z: input.z,
+    heading: input.heading,
+    ...(cardAlreadyAdmitted ? {
+      cardRef: { assetId: input.card.id, proofDigest: input.card.proof.digest }
+    } : {
+      card: input.card,
+      ...(input.cardAdmission ? { cardAdmission: input.cardAdmission } : {})
+    })
+  };
+}
+
 export function useWildsMultiplayer(input: {
   enabled: boolean;
   style: "female" | "male";
@@ -66,6 +92,7 @@ export function useWildsMultiplayer(input: {
   const [dismissedBattleIds, setDismissedBattleIds] = useState<Set<string>>(() => new Set());
   const latest = useRef(input);
   const retryAfter = useRef(0);
+  const admittedHeartbeatCards = useRef(new Set<string>());
   latest.current = input;
 
   useEffect(() => {
@@ -84,6 +111,7 @@ export function useWildsMultiplayer(input: {
       return;
     }
     if (Date.now() < retryAfter.current) return;
+    const admissionPin = `${guestId}:${current.activeCard.id}:${current.activeCard.proof.digest}`;
     try {
       const result = await jsonRequest<{
         actor: { playerId: string; practice: boolean };
@@ -92,7 +120,7 @@ export function useWildsMultiplayer(input: {
       }>("/api/wilds/multiplayer/session", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
+        body: JSON.stringify(buildWildsMultiplayerHeartbeatBody({
           roomKey,
           guestId,
           style: current.style,
@@ -101,8 +129,9 @@ export function useWildsMultiplayer(input: {
           heading: 0,
           card: current.activeCard,
           cardAdmission: current.cardAdmission
-        })
+        }, admittedHeartbeatCards.current.has(admissionPin)))
       });
+      admittedHeartbeatCards.current.add(admissionPin);
       setSelfId(result.actor.playerId);
       setSnapshot(result.snapshot);
       // A server-accepted heartbeat is shared internet presence. Publication
@@ -111,6 +140,9 @@ export function useWildsMultiplayer(input: {
       setError("");
       retryAfter.current = 0;
     } catch (cause) {
+      if (cause instanceof Error && cause.message === "wilds_multiplayer_card_required") {
+        admittedHeartbeatCards.current.delete(admissionPin);
+      }
       const opaqueFailure = isOpaqueWildsNetworkFailure(cause);
       if (opaqueFailure) retryAfter.current = Date.now() + WILDS_NETWORK_RETRY_BACKOFF_MS;
       const offline = !shouldAttemptWildsNetwork() || opaqueFailure;

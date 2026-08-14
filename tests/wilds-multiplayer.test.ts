@@ -22,6 +22,8 @@ import {
   type PvpCard
 } from "../src/features/play/pvp-battle-engine.js";
 import { applyAuthorizedRiftPresence, getWildsAtlasPresence, heartbeatWildsPresence } from "../src/features/play/multiplayer-ledger.js";
+import { initialPlayState } from "../src/features/play/game-state.js";
+import { buildWildsMultiplayerHeartbeatBody } from "../src/features/play/use-wilds-multiplayer.js";
 
 const card = (id: string, speed = 44): PvpCard => ({
   assetId: id,
@@ -32,6 +34,37 @@ const card = (id: string, speed = 44): PvpCard => ({
     { name: "Pulse", power: 32 },
     { name: "Bond", power: 39 }
   ]
+});
+
+it("sends a verified active card once and keeps later movement heartbeats card-free", () => {
+  const activeCard = initialPlayState.inventory[0]!;
+  const input = {
+    roomKey: "wilds:platform:0:0",
+    guestId: "guest-12345678",
+    style: "female" as const,
+    x: 12,
+    z: 8,
+    heading: 0,
+    card: activeCard,
+    cardAdmission: null
+  };
+
+  const admission = buildWildsMultiplayerHeartbeatBody(input, false);
+  assert.equal("card" in admission, true);
+  if ("card" in admission) assert.equal(admission.card, activeCard);
+
+  const movement = buildWildsMultiplayerHeartbeatBody(input, true);
+  assert.deepEqual(movement, {
+    roomKey: "wilds:platform:0:0",
+    guestId: "guest-12345678",
+    style: "female",
+    x: 12,
+    z: 8,
+    heading: 0,
+    cardRef: { assetId: activeCard.id, proofDigest: activeCard.proof.digest }
+  });
+  assert.equal("card" in movement, false);
+  assert.equal("cardAdmission" in movement, false);
 });
 
 it("keeps the Receiz response token server-side when returning the live actor", () => {

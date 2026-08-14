@@ -128,9 +128,11 @@ test("a newer snapshot supersedes a failed in-flight snapshot", async () => {
   assert.equal(scheduler.hasPending(), false);
 });
 
-test("card truth changes flush owner persistence immediately instead of waiting on movement debounce", () => {
+test("card truth stays queued for durable Vault persistence while movement uses runtime checkpoints", () => {
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
   assert.match(shell, /previousCardPins/);
   assert.match(shell, /nextCardPins/);
-  assert.match(shell, /if \(cardTruthChanged\) void scheduler\?\.flush\(\)/);
+  assert.match(shell, /if \(cardTruthChanged\) vaultSavePendingRef\.current = true/);
+  assert.match(shell, /kind: vaultSavePendingRef\.current \? "vault" : "runtime"/);
+  assert.doesNotMatch(shell, /if \(cardTruthChanged\) void scheduler\?\.flush\(\)/);
 });
