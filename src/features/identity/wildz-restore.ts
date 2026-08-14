@@ -149,11 +149,35 @@ function emptyVaultPlayState(): PlayState {
   };
 }
 
-function importAssets(base: PlayState, assets: readonly PortableCardAsset[]) {
+function withoutPristineStarter(base: PlayState, starter: PortableCardAsset): PlayState {
+  const current = base.inventory[0];
+  if (base.inventory.length !== 1
+    || !current
+    || canonicalPortableCardJson(current) !== canonicalPortableCardJson(starter)) return base;
+  const { [starter.id]: _livingProgress, ...livingProgress } = base.livingProgress;
+  const { [starter.id]: _adventureCondition, ...adventureConditions } = base.adventureConditions;
+  const { [starter.id]: _hearttreeCondition, ...hearttreeConditions } = base.hearttreeConditions;
+  return {
+    ...base,
+    inventory: [],
+    discoveredCardIds: base.discoveredCardIds.filter((familyId) => familyId !== starter.manifest.familyId),
+    pendingSyncAssetIds: base.pendingSyncAssetIds.filter((assetId) => assetId !== starter.id),
+    selectedAssetId: "",
+    selectedCardId: "",
+    supportAssetIds: [null, null] as const,
+    livingProgress,
+    adventureConditions,
+    hearttreeConditions,
+    hearttreeSquadAssetIds: base.hearttreeSquadAssetIds.filter((assetId) => assetId !== starter.id)
+  };
+}
+
+function importAssets(base: PlayState, assets: readonly PortableCardAsset[], pristineStarter?: PortableCardAsset) {
+  const importBase = assets.length && pristineStarter ? withoutPristineStarter(base, pristineStarter) : base;
   const codecAdmittedProofs = new Set(assets.map((asset) => asset.proof.digest));
   extractVerifiedWildzCards({
     pngBasis: null,
-    verifiedPortableSnapshot: [base.inventory, assets],
+    verifiedPortableSnapshot: [importBase.inventory, assets],
     restoredVaultFiles: [],
     // Only exact proofs admitted by the codec's origin verifier carry retirement
     // authority here; local self-hashed state never promotes itself.
@@ -163,7 +187,7 @@ function importAssets(base: PlayState, assets: readonly PortableCardAsset[]) {
   });
   return assets.reduce(
     (state, asset) => applyWildsInput(state, { type: "import-card", asset }),
-    base
+    importBase
   );
 }
 
@@ -441,7 +465,13 @@ export async function restoreWildzArtifactForSurface(input: {
               preferLocalState: shouldMergeIntoActiveVault
             }).state
           : prepareWildzPlayerPlayState(playerForSession, assets)
-        : importAssets(current, assets);
+        : importAssets(
+            current,
+            assets,
+            restorePlayState(serializePlayState(
+              createOwnerBoundInitialPlayState(session.actorId, session.createdAt)
+            ), session.actorId).inventory[0]
+          );
       const localContinuity = input.currentPlayerContinuity ?? (previous ? continuityFromOwner(previous) : null);
       const carriedContinuity = input.carryCurrentVault
         ? localContinuity

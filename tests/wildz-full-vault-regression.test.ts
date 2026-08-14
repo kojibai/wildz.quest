@@ -164,6 +164,35 @@ test("a first Identity Record login creates one real owner-bound starter creatur
   assert.notEqual(starter.manifest.name, "SealCub");
 });
 
+test("one card uploaded into a pristine starter Vault becomes the only Vault card", async () => {
+  const target = setup();
+  const session = await target.repository.bootstrap();
+  const currentPlayState = createOwnerBoundInitialPlayState(session.actorId, session.createdAt);
+  const starter = currentPlayState.inventory[0]!;
+  const uploaded = sealCollectedCard({
+    formId: `${starter.manifest.familyId}-1`,
+    ownerReceizId: session.actorId,
+    encounterId: "single-card-upload-replaces-starter",
+    capturedAt: "2026-07-15T16:30:00.000Z"
+  });
+
+  const outcome = await restoreWildzArtifactForSurface({
+    surface: "card-vault",
+    bytes: embedPortableVaultInPng(BASE_PNG, [uploaded]),
+    mimeType: "image/png",
+    name: "one-card.receized.png",
+    codec: target.codec,
+    repository: target.repository,
+    database: target.database,
+    confirmCardOnly: true,
+    currentPlayState
+  });
+
+  assert.deepEqual(outcome.playState.inventory.map((asset) => asset.id), [uploaded.id]);
+  assert.equal(outcome.playState.selectedAssetId, uploaded.id);
+  assert.equal(outcome.playState.selectedCardId, uploaded.manifest.familyId);
+});
+
 test("generated 97-card identity Vault survives inspection, both restore surfaces, PlayState, and cold reload", async () => {
   const fixture = await regressionArtifact();
 
