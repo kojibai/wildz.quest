@@ -15,7 +15,6 @@ import {
   type PlayState
 } from "../src/features/play/game-state";
 import {
-  embedPortableCardInPng,
   embedPortableVaultInPng,
   readWildzPlayerVaultAppendFromPng
 } from "../src/features/play/card-export";
@@ -24,7 +23,8 @@ import { sealCollectedCard, verifyAnyWildsCard } from "../src/features/play/port
 import { generateWildzCharacter } from "../src/features/identity/wildz-genesis";
 import {
   loadWildzRestoredPlayState,
-  restoreWildzArtifactForSurface
+  restoreWildzArtifactForSurface,
+  saveWildzRestoredPlayState
 } from "../src/features/identity/wildz-restore";
 import { inspectReceizCommerceVault } from "../src/lib/receiz/receiz-commerce-vault";
 import {
@@ -179,7 +179,7 @@ test("one card uploaded into a pristine starter Vault becomes the only Vault car
 
   const outcome = await restoreWildzArtifactForSurface({
     surface: "card-vault",
-    bytes: embedPortableVaultInPng(embedPortableCardInPng(BASE_PNG, uploaded), [uploaded]),
+    bytes: embedPortableVaultInPng(BASE_PNG, [uploaded]),
     mimeType: "image/png",
     name: "one-card.receized.png",
     codec: target.codec,
@@ -194,7 +194,7 @@ test("one card uploaded into a pristine starter Vault becomes the only Vault car
   assert.equal(outcome.playState.selectedCardId, uploaded.manifest.familyId);
 });
 
-test("one saved card with player continuity does not retain the local fallback starter", async () => {
+test("one player-bearing Vault card does not retain the local fallback starter", async () => {
   const target = setup();
   const session = await target.repository.bootstrap();
   const currentPlayState = createOwnerBoundInitialPlayState(session.actorId, session.createdAt);
@@ -218,7 +218,7 @@ test("one saved card with player continuity does not retain the local fallback s
 
   const outcome = await restoreWildzArtifactForSurface({
     surface: "card-vault",
-    bytes: embedPortableVaultInPng(embedPortableCardInPng(BASE_PNG, uploaded), [uploaded], player),
+    bytes: embedPortableVaultInPng(BASE_PNG, [uploaded], player),
     mimeType: "image/png",
     name: "one-player-card.receized.png",
     codec: target.codec,
@@ -233,7 +233,7 @@ test("one saved card with player continuity does not retain the local fallback s
   assert.equal(outcome.playState.selectedAssetId, uploaded.id);
 });
 
-test("a saved card repairs a same-family fallback duplicate already in the local inventory", async () => {
+test("a player Vault saved with the old same-family fallback duplicate repairs to the real card", async () => {
   const target = setup();
   const session = await target.repository.bootstrap();
   const currentPlayState = createOwnerBoundInitialPlayState(session.actorId, session.createdAt);
@@ -245,11 +245,10 @@ test("a saved card repairs a same-family fallback duplicate already in the local
     capturedAt: "2026-07-15T16:33:00.000Z"
   });
   const duplicatedState = applyWildsInput(currentPlayState, { type: "import-card", asset: uploaded });
-  const uploadedState = playStateWith([uploaded]);
   const player = createWildsPlayerVault({
     playerId: session.actorId,
     exportedAt: "2026-07-15T16:34:00.000Z",
-    playState: uploadedState,
+    playState: duplicatedState,
     settings: { avatarStyle: null, movementMode: "walk", audio: {} },
     personalEvents: [],
     canonicalCursor: { worldId: "wilds:global:v3", revision: 0, eventId: null },
@@ -258,19 +257,43 @@ test("a saved card repairs a same-family fallback duplicate already in the local
 
   const outcome = await restoreWildzArtifactForSurface({
     surface: "card-vault",
-    bytes: embedPortableVaultInPng(embedPortableCardInPng(BASE_PNG, uploaded), [uploaded], player),
+    bytes: embedPortableVaultInPng(BASE_PNG, duplicatedState.inventory, player),
     mimeType: "image/png",
     name: "old-fallback-duplicate.receized.png",
     codec: target.codec,
     repository: target.repository,
     database: target.database,
     confirmCardOnly: true,
-    currentPlayState: duplicatedState,
+    currentPlayState,
     preserveActiveIdentity: true
   });
 
   assert.deepEqual(outcome.playState.inventory.map((asset) => asset.id), [uploaded.id]);
   assert.equal(outcome.playState.selectedAssetId, uploaded.id);
+});
+
+test("cold loading an already-persisted fallback duplicate repairs it without another upload", async () => {
+  const target = setup();
+  const session = await target.repository.bootstrap();
+  const currentPlayState = createOwnerBoundInitialPlayState(session.actorId, session.createdAt);
+  const starter = currentPlayState.inventory[0]!;
+  const uploaded = sealCollectedCard({
+    formId: `${starter.manifest.familyId}-1`,
+    ownerReceizId: session.actorId,
+    encounterId: "repair-persisted-fallback-duplicate",
+    capturedAt: "2026-07-15T16:35:00.000Z"
+  });
+  const duplicatedState = applyWildsInput(currentPlayState, { type: "import-card", asset: uploaded });
+  await saveWildzRestoredPlayState({
+    database: target.database,
+    session,
+    playState: duplicatedState
+  });
+
+  const loaded = await loadWildzRestoredPlayState({ database: target.database, session });
+
+  assert.deepEqual(loaded?.inventory.map((asset) => asset.id), [uploaded.id]);
+  assert.equal(loaded?.selectedAssetId, uploaded.id);
 });
 
 test("generated 97-card identity Vault survives inspection, both restore surfaces, PlayState, and cold reload", async () => {
@@ -471,7 +494,7 @@ test("a different Identity Seal becomes active without discarding the working Va
   assert.ok(reloaded?.inventory.some((asset) => asset.id === existingCard.id));
 });
 
-test("an explicitly uploaded foreign Vault is adopted and saved by the active Identity Seal", async () => {
+test("an explicitly uploaded foreign Vault replaces the bootstrap starter and is saved by the active Identity Seal", async () => {
   const fixture = await regressionArtifact();
   const { database, repository, codec } = setup();
   const active = await repository.bootstrap();
@@ -492,7 +515,7 @@ test("an explicitly uploaded foreign Vault is adopted and saved by the active Id
 
   assert.equal(outcome.session.keyId, active.keyId);
   assert.equal(outcome.session.actorId, active.actorId);
-  assert.equal(outcome.playState.inventory.length, fixture.expectedIds.length + currentPlayState.inventory.length);
+  assert.equal(outcome.playState.inventory.length, fixture.expectedIds.length);
   for (const assetId of fixture.expectedIds) {
     assert.ok(outcome.playState.inventory.some((asset) => asset.id === assetId));
   }

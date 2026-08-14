@@ -85,7 +85,6 @@ export type WildzArtifactInspection =
       kind: "card-vault";
       identity?: VerifiedWildzIdentity | null;
       assets: PortableCardAsset[];
-      portableCardProofPresent: boolean;
       vaultDigest: string;
       player: WildsPlayerVaultPayload | null;
       playerBinding: WildzPlayerBinding;
@@ -369,7 +368,6 @@ export function createWildzArtifactCodec(input: {
           kind: "card-vault",
           identity,
           assets: extraction.assets,
-          portableCardProofPresent: extraction.portableCardProofPresent,
           vaultDigest: vaultDigest(extraction.assets),
           player: extraction.player,
           playerBinding,
@@ -393,7 +391,6 @@ export function createWildzArtifactCodec(input: {
         return {
           kind: "card-vault",
           assets: extraction.assets,
-          portableCardProofPresent: extraction.portableCardProofPresent,
           vaultDigest: vaultDigest(extraction.assets),
           player: extraction.player,
           playerBinding,

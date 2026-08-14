@@ -317,7 +317,9 @@ export function createStoredWildzPlayState(
   updatedAt = new Date().toISOString(),
   character?: WildzCharacterGenesis | null
 ): StoredWildzPlayState {
-  const normalizedPlayState = restorePlayState(serializePlayState(playState), session.actorId);
+  const normalizedPlayState = withoutRedundantStarterFallbacks(
+    restorePlayState(serializePlayState(playState), session.actorId)
+  );
   const continuity = normalizedPlayerContinuity(session, normalizedPlayState, player, updatedAt);
   const requestedCharacter = character === undefined && player && "playerId" in player ? player.character : character;
   const normalizedCharacter = requestedCharacter === null || requestedCharacter === undefined
@@ -483,10 +485,7 @@ export async function restoreWildzArtifactForSurface(input: {
       const pristineStarter = restorePlayState(serializePlayState(
         createOwnerBoundInitialPlayState(session.actorId, session.createdAt)
       ), session.actorId).inventory[0]!;
-      const importingStandaloneCard = inspection.kind === "card-vault"
-        && inspection.portableCardProofPresent
-        && assets.length === 1;
-      const mergeBase = importingStandaloneCard ? withoutPristineStarter(current, pristineStarter) : current;
+      const mergeBase = assets.length ? withoutPristineStarter(current, pristineStarter) : current;
       const merged = playerForSession
         ? input.currentPlayState && sameWildzPlayerCoordinate(playerForSession.playerId, session.actorId)
           ? reconcileWildsPlayerVault({
@@ -501,7 +500,7 @@ export async function restoreWildzArtifactForSurface(input: {
             mergeBase,
             assets
           );
-      const next = importingStandaloneCard ? withoutRedundantStarterFallbacks(merged) : merged;
+      const next = withoutRedundantStarterFallbacks(merged);
       const localContinuity = input.currentPlayerContinuity ?? (previous ? continuityFromOwner(previous) : null);
       const carriedContinuity = input.carryCurrentVault
         ? localContinuity
