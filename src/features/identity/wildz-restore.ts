@@ -149,55 +149,6 @@ function emptyVaultPlayState(): PlayState {
   };
 }
 
-function withoutAssets(base: PlayState, assetIds: ReadonlySet<string>): PlayState {
-  if (!assetIds.size) return base;
-  const inventory = base.inventory.filter((asset) => !assetIds.has(asset.id));
-  const remainingFamilies = new Set(inventory.map((asset) => asset.manifest.familyId));
-  const removedFamilies = new Set(base.inventory.filter((asset) => assetIds.has(asset.id)).map((asset) => asset.manifest.familyId));
-  const selected = inventory.find((asset) => asset.id === base.selectedAssetId) ?? inventory.at(-1) ?? null;
-  const keepAssetEntries = <T>(record: Record<string, T>) => Object.fromEntries(
-    Object.entries(record).filter(([assetId]) => !assetIds.has(assetId))
-  );
-  return {
-    ...base,
-    inventory,
-    discoveredCardIds: base.discoveredCardIds.filter(
-      (familyId) => !removedFamilies.has(familyId) || remainingFamilies.has(familyId)
-    ),
-    pendingSyncAssetIds: base.pendingSyncAssetIds.filter((assetId) => !assetIds.has(assetId)),
-    selectedAssetId: selected?.id ?? "",
-    selectedCardId: selected?.manifest.familyId ?? "",
-    supportAssetIds: [
-      base.supportAssetIds[0] && assetIds.has(base.supportAssetIds[0]) ? null : base.supportAssetIds[0],
-      base.supportAssetIds[1] && assetIds.has(base.supportAssetIds[1]) ? null : base.supportAssetIds[1]
-    ],
-    livingProgress: keepAssetEntries(base.livingProgress),
-    adventureConditions: keepAssetEntries(base.adventureConditions),
-    hearttreeConditions: keepAssetEntries(base.hearttreeConditions),
-    hearttreeSquadAssetIds: base.hearttreeSquadAssetIds.filter((assetId) => !assetIds.has(assetId))
-  };
-}
-
-function withoutPristineStarter(base: PlayState, starter: PortableCardAsset): PlayState {
-  const current = base.inventory[0];
-  return base.inventory.length === 1
-    && current
-    && canonicalPortableCardJson(current) === canonicalPortableCardJson(starter)
-    ? withoutAssets(base, new Set([starter.id]))
-    : base;
-}
-
-function withoutRedundantStarterFallbacks(base: PlayState) {
-  const redundant = new Set(base.inventory.filter((asset) => {
-    const encounterId = asset.manifest.encounterId;
-    const systemStarter = encounterId === "starter-mintcub" || encounterId.startsWith("starter:");
-    return systemStarter && base.inventory.some(
-      (candidate) => candidate.id !== asset.id && candidate.manifest.familyId === asset.manifest.familyId
-    );
-  }).map((asset) => asset.id));
-  return withoutAssets(base, redundant);
-}
-
 function importAssets(base: PlayState, assets: readonly PortableCardAsset[]) {
   const codecAdmittedProofs = new Set(assets.map((asset) => asset.proof.digest));
   extractVerifiedWildzCards({
@@ -317,9 +268,7 @@ export function createStoredWildzPlayState(
   updatedAt = new Date().toISOString(),
   character?: WildzCharacterGenesis | null
 ): StoredWildzPlayState {
-  const normalizedPlayState = withoutRedundantStarterFallbacks(
-    restorePlayState(serializePlayState(playState), session.actorId)
-  );
+  const normalizedPlayState = restorePlayState(serializePlayState(playState), session.actorId);
   const continuity = normalizedPlayerContinuity(session, normalizedPlayState, player, updatedAt);
   const requestedCharacter = character === undefined && player && "playerId" in player ? player.character : character;
   const normalizedCharacter = requestedCharacter === null || requestedCharacter === undefined
@@ -482,10 +431,7 @@ export async function restoreWildzArtifactForSurface(input: {
           : assets.length
             ? emptyVaultPlayState()
             : createOwnerBoundInitialPlayState(session.actorId, session.createdAt);
-      const pristineStarter = restorePlayState(serializePlayState(
-        createOwnerBoundInitialPlayState(session.actorId, session.createdAt)
-      ), session.actorId).inventory[0]!;
-      const mergeBase = assets.length ? withoutPristineStarter(current, pristineStarter) : current;
+      const mergeBase = current;
       const merged = playerForSession
         ? input.currentPlayState && sameWildzPlayerCoordinate(playerForSession.playerId, session.actorId)
           ? reconcileWildsPlayerVault({
@@ -500,7 +446,7 @@ export async function restoreWildzArtifactForSurface(input: {
             mergeBase,
             assets
           );
-      const next = withoutRedundantStarterFallbacks(merged);
+      const next = merged;
       const localContinuity = input.currentPlayerContinuity ?? (previous ? continuityFromOwner(previous) : null);
       const carriedContinuity = input.carryCurrentVault
         ? localContinuity

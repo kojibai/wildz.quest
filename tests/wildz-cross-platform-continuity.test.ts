@@ -236,9 +236,7 @@ test("same-owner card-only restore atomically unions the freshest prior PlayStat
   });
   const ownerScopedFreshest = restorePlayState(serializePlayState(freshest), session.actorId);
   const expectedUnion = [...new Set([
-    ...ownerScopedFreshest.inventory
-      .filter((asset) => asset.manifest.encounterId !== "starter-mintcub" && !asset.manifest.encounterId.startsWith("starter:"))
-      .map((asset) => asset.id),
+    ...ownerScopedFreshest.inventory.map((asset) => asset.id),
     ...fixture.expectedWildzAssetIds
   ])].sort();
   assert.deepEqual(outcome.playState.inventory.map((asset) => asset.id).sort(), expectedUnion);
@@ -290,7 +288,11 @@ test("identity-bearing vault uploaded inside an active vault merges into the cur
   await saveWildzRestoredPlayState({ database, session, playState: currentPlayState });
   const inspected = await codec.inspect({ bytes: fixture.bytes, mimeType: fixture.mimeType, name: fixture.filename });
   assert.equal(inspected.kind, "commerce-vault");
-  const expectedAssetIds = [...new Set([...fixture.expectedWildzAssetIds, priorOnly.id])].sort();
+  const ownerScopedCurrent = restorePlayState(serializePlayState(currentPlayState), session.actorId);
+  const expectedAssetIds = [...new Set([
+    ...fixture.expectedWildzAssetIds,
+    ...ownerScopedCurrent.inventory.map((asset) => asset.id)
+  ])].sort();
 
   const outcome = await restoreWildzArtifactForSurface({
     surface: "card-vault",

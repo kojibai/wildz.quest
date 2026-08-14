@@ -15,6 +15,7 @@ import {
   type PlayState
 } from "../src/features/play/game-state";
 import {
+  embedPortableCardInPng,
   embedPortableVaultInPng,
   readWildzPlayerVaultAppendFromPng
 } from "../src/features/play/card-export";
@@ -165,7 +166,7 @@ test("a first Identity Record login creates one real owner-bound starter creatur
   assert.notEqual(starter.manifest.name, "SealCub");
 });
 
-test("one card uploaded into a pristine starter Vault becomes the only Vault card", async () => {
+test("one standalone card upload preserves the original Vault card and adds exactly one card", async () => {
   const target = setup();
   const session = await target.repository.bootstrap();
   const currentPlayState = createOwnerBoundInitialPlayState(session.actorId, session.createdAt);
@@ -179,7 +180,7 @@ test("one card uploaded into a pristine starter Vault becomes the only Vault car
 
   const outcome = await restoreWildzArtifactForSurface({
     surface: "card-vault",
-    bytes: embedPortableVaultInPng(BASE_PNG, [uploaded]),
+    bytes: embedPortableCardInPng(BASE_PNG, uploaded),
     mimeType: "image/png",
     name: "one-card.receized.png",
     codec: target.codec,
@@ -189,12 +190,13 @@ test("one card uploaded into a pristine starter Vault becomes the only Vault car
     currentPlayState
   });
 
-  assert.deepEqual(outcome.playState.inventory.map((asset) => asset.id), [uploaded.id]);
+  assert.deepEqual(outcome.playState.inventory.map((asset) => asset.id), [starter.id, uploaded.id]);
+  assert.equal(outcome.playState.inventory[0]?.manifest.name, starter.manifest.name);
   assert.equal(outcome.playState.selectedAssetId, uploaded.id);
   assert.equal(outcome.playState.selectedCardId, uploaded.manifest.familyId);
 });
 
-test("one player-bearing Vault card does not retain the local fallback starter", async () => {
+test("one player-bearing Vault card preserves the distinct local starter", async () => {
   const target = setup();
   const session = await target.repository.bootstrap();
   const currentPlayState = createOwnerBoundInitialPlayState(session.actorId, session.createdAt);
@@ -229,11 +231,11 @@ test("one player-bearing Vault card does not retain the local fallback starter",
     preserveActiveIdentity: true
   });
 
-  assert.deepEqual(outcome.playState.inventory.map((asset) => asset.id), [uploaded.id]);
-  assert.equal(outcome.playState.selectedAssetId, uploaded.id);
+  assert.deepEqual(outcome.playState.inventory.map((asset) => asset.id), [starter.id, uploaded.id]);
+  assert.equal(outcome.playState.selectedAssetId, starter.id);
 });
 
-test("a player Vault saved with the old same-family fallback duplicate repairs to the real card", async () => {
+test("a player Vault preserves two distinct verified cards from the same family", async () => {
   const target = setup();
   const session = await target.repository.bootstrap();
   const currentPlayState = createOwnerBoundInitialPlayState(session.actorId, session.createdAt);
@@ -268,11 +270,11 @@ test("a player Vault saved with the old same-family fallback duplicate repairs t
     preserveActiveIdentity: true
   });
 
-  assert.deepEqual(outcome.playState.inventory.map((asset) => asset.id), [uploaded.id]);
-  assert.equal(outcome.playState.selectedAssetId, uploaded.id);
+  assert.deepEqual(outcome.playState.inventory.map((asset) => asset.id), [starter.id, uploaded.id]);
+  assert.equal(outcome.playState.selectedAssetId, starter.id);
 });
 
-test("cold loading an already-persisted fallback duplicate repairs it without another upload", async () => {
+test("cold loading preserves two distinct verified cards from the same family", async () => {
   const target = setup();
   const session = await target.repository.bootstrap();
   const currentPlayState = createOwnerBoundInitialPlayState(session.actorId, session.createdAt);
@@ -292,7 +294,7 @@ test("cold loading an already-persisted fallback duplicate repairs it without an
 
   const loaded = await loadWildzRestoredPlayState({ database: target.database, session });
 
-  assert.deepEqual(loaded?.inventory.map((asset) => asset.id), [uploaded.id]);
+  assert.deepEqual(loaded?.inventory.map((asset) => asset.id), [starter.id, uploaded.id]);
   assert.equal(loaded?.selectedAssetId, uploaded.id);
 });
 
@@ -494,7 +496,7 @@ test("a different Identity Seal becomes active without discarding the working Va
   assert.ok(reloaded?.inventory.some((asset) => asset.id === existingCard.id));
 });
 
-test("an explicitly uploaded foreign Vault replaces the bootstrap starter and is saved by the active Identity Seal", async () => {
+test("an explicitly uploaded foreign Vault preserves the bootstrap starter and is saved by the active Identity Seal", async () => {
   const fixture = await regressionArtifact();
   const { database, repository, codec } = setup();
   const active = await repository.bootstrap();
@@ -515,7 +517,8 @@ test("an explicitly uploaded foreign Vault replaces the bootstrap starter and is
 
   assert.equal(outcome.session.keyId, active.keyId);
   assert.equal(outcome.session.actorId, active.actorId);
-  assert.equal(outcome.playState.inventory.length, fixture.expectedIds.length);
+  assert.equal(outcome.playState.inventory.length, fixture.expectedIds.length + 1);
+  assert.ok(outcome.playState.inventory.some((asset) => asset.id === currentPlayState.inventory[0]?.id));
   for (const assetId of fixture.expectedIds) {
     assert.ok(outcome.playState.inventory.some((asset) => asset.id === assetId));
   }

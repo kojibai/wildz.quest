@@ -28,6 +28,7 @@ import { clampInventoryPage, inventoryPageForAsset, inventoryPageSize, shouldCap
 import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
 import { currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
+import { summarizeWildzInventoryImport } from "./inventory-import-result";
 import type {
   WildzCardOnlyConfirmation,
   WildzCommittedArtifactRestore
@@ -291,6 +292,7 @@ export function WildsInventory({
             const input = event.currentTarget;
             const files = Array.from(event.currentTarget.files ?? []);
             let imported = 0;
+            let updated = 0;
             let rejected = 0;
             let rejectionMessage = "";
             let currentPlayState = state;
@@ -301,9 +303,11 @@ export function WildsInventory({
                   const outcome = await onRestoreArtifact(file, () => window.confirm(
                     "Add every verified card from this file to the current Vault? The combined Vault stays tied to the Identity Seal used when you save it."
                   ), currentPlayState);
+                  const summary = summarizeWildzInventoryImport(currentPlayState, outcome);
                   currentPlayState = outcome.playState;
-                  imported += outcome.verifiedAssetIds.length;
-                  const selected = outcome.verifiedAssetIds.at(-1);
+                  imported += summary.addedAssetIds.length;
+                  updated += summary.updatedAssetIds.length;
+                  const selected = [...summary.addedAssetIds, ...summary.updatedAssetIds].at(-1);
                   if (selected) setSelectedId(selected);
                 } catch (cause) {
                   rejected += 1;
@@ -314,8 +318,12 @@ export function WildsInventory({
               input.value = "";
               setImporting(false);
             }
-            setImportMessage(imported
-              ? `${imported} verified card${imported === 1 ? "" : "s"} added${rejected ? ` · ${rejected} rejected` : ""}.`
+            setImportMessage(imported || updated
+              ? [
+                  imported ? `${imported} verified card${imported === 1 ? "" : "s"} added` : "",
+                  updated ? `${updated} verified card${updated === 1 ? "" : "s"} updated` : "",
+                  rejected ? `${rejected} rejected` : ""
+                ].filter(Boolean).join(" · ") + "."
               : rejectionMessage || "No card was added. Choose a Receiz sealed card, vault image, or Receiz Vault package.");
           }}
           type="file"
