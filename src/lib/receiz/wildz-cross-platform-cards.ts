@@ -38,6 +38,7 @@ export type RestoredReceizVaultFile = {
 
 export type WildzCrossPlatformCardExtraction = {
   assets: PortableCardAsset[];
+  portableCardProofPresent: boolean;
   sourceSchemas: string[];
   unrelatedDomainSchemas: string[];
   player: WildsPlayerVaultPayload | null;
@@ -134,6 +135,7 @@ export function extractVerifiedWildzCards(input: {
   let player: WildsPlayerVaultPayload | null = null;
   let playerCanonical: string | null = null;
   let playerSource: WildzCrossPlatformCardExtraction["playerSource"] = null;
+  let portableCardProofPresent = false;
 
   const rememberSchema = (schema: string | null) => {
     if (!schema) return;
@@ -328,6 +330,7 @@ export function extractVerifiedWildzCards(input: {
       if (!proofMissing(error, "card")) throw new Error("wildz_restore_card_proof_invalid");
     }
     if (cardProofPresent) {
+      portableCardProofPresent = true;
       const verified = verifyPortableCardPng(bytes);
       if (!verified.ok || !verified.asset) throw new Error("wildz_restore_card_proof_invalid");
       admit(verified.asset);
@@ -455,6 +458,7 @@ export function extractVerifiedWildzCards(input: {
 
   return {
     assets: [...assetsById.values()].sort((left, right) => left.id.localeCompare(right.id)),
+    portableCardProofPresent,
     sourceSchemas: [...sourceSchemas].sort(),
     unrelatedDomainSchemas: [...unrelatedDomainSchemas].sort(),
     player,
