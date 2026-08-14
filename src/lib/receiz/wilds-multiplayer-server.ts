@@ -11,6 +11,7 @@ import { loadReceizConnectProfile } from "./connect-profile";
 import { playerReceizAccessToken, receizRequestSession } from "./session";
 import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import { readWildzProofSessionCookie, wildzProofPrincipalId } from "./wildz-proof-session";
+import { verifyWildzVaultCardMembershipProof } from "./wildz-vault-card-admission";
 
 export type WildsMultiplayerActor = {
   playerId: string;
@@ -79,12 +80,24 @@ export async function resolveWildsMultiplayerActor(request: NextRequest, guestVa
   };
 }
 
-export function authorizeWildsMultiplayerCard(_actor: WildsMultiplayerActor, value: unknown, _admission?: unknown) {
+export function authorizeWildsMultiplayerCard(actor: WildsMultiplayerActor, value: unknown, admission?: unknown) {
   if (!value || typeof value !== "object") throw new Error("wilds_multiplayer_card_required");
-  // Portable cards are proof-bearing bearer artifacts. Once the complete card
-  // verifies, this request admits it; heartbeatCardCacheKey keeps later
-  // movement updates on the compact cardRef path without Vault resynchronizing.
-  return pvpCardFromAsset(value as PortableCardAsset);
+  const asset = value as PortableCardAsset;
+  const owner = asset.manifest?.ownerReceizId;
+  const directlyOwned = sameWildzPlayerCoordinate(owner ?? "", actor.handle);
+  const admittedFromVault = !actor.practice
+    && !directlyOwned
+    && Boolean(actor.vaultCardRootSha256)
+    && verifyWildzVaultCardMembershipProof({
+      expectedRoot: actor.vaultCardRootSha256!,
+      expectedPlayerHandle: actor.handle,
+      card: asset,
+      proof: admission
+    });
+  if (!actor.practice && !directlyOwned && !admittedFromVault) {
+    throw new Error("wilds_multiplayer_card_owner_invalid");
+  }
+  return pvpCardFromAsset(asset);
 }
 
 const authorizedCardKey = Symbol.for("receiz.wilds.multiplayer-authorized-cards.v1");
@@ -105,7 +118,16 @@ export function authorizeWildsMultiplayerHeartbeatCard(
   reference?: unknown
 ) {
   if (value) {
-    const admitted = authorizeWildsMultiplayerCard(actor, value, admission);
+    let admitted: PvpCard;
+    try {
+      admitted = authorizeWildsMultiplayerCard(actor, value, admission);
+    } catch (cause) {
+      if (!(cause instanceof Error) || cause.message !== "wilds_multiplayer_card_owner_invalid") throw cause;
+      // Presence is ephemeral and grants no world, battle, or ownership
+      // authority. A complete uploaded bearer card can therefore verify once
+      // here and use only its compact reference for later movement heartbeats.
+      admitted = pvpCardFromAsset(value as PortableCardAsset);
+    }
     authorizedHeartbeatCards().set(
       heartbeatCardCacheKey(actor, admitted.assetId, admitted.proofDigest),
       admitted

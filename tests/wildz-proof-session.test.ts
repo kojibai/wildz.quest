@@ -17,6 +17,7 @@ import {
 } from "../src/lib/receiz/wildz-proof-session";
 import {
   authorizeWildsMultiplayerCard,
+  authorizeWildsMultiplayerHeartbeatCard,
   resolveWildsMultiplayerActor
 } from "../src/lib/receiz/wilds-multiplayer-server";
 import { resolveWildzCookieActor } from "../src/lib/receiz/wildz-cookie-actor";
@@ -141,7 +142,7 @@ test("a Vault proof session resolves as its embedded non-practice Wildz actor", 
   }
 });
 
-test("a proof-valid uploaded bearer card is admitted without resynchronizing the mounted Vault session", () => {
+test("a verified Vault custody commitment authorizes historical-owner cards without weakening world authority", () => {
   const handle = "vault_keeper.receiz.id";
   const currentCard = sealCollectedCard({
     formId: "mintcub-1",
@@ -167,10 +168,42 @@ test("a proof-valid uploaded bearer card is admitted without resynchronizing the
 
   assert.equal(authorizeWildsMultiplayerCard(actor, currentCard).assetId, currentCard.id);
   assert.equal(authorizeWildsMultiplayerCard(actor, historicalCard, proof).assetId, historicalCard.id);
-  assert.equal(authorizeWildsMultiplayerCard(actor, historicalCard).assetId, historicalCard.id);
-  assert.equal(
-    authorizeWildsMultiplayerCard(actor, historicalCard, { ...proof, root: `sha256:${"0".repeat(64)}` }).assetId,
-    historicalCard.id
+  assert.throws(
+    () => authorizeWildsMultiplayerCard(actor, historicalCard),
+    /wilds_multiplayer_card_owner_invalid/
+  );
+  assert.throws(
+    () => authorizeWildsMultiplayerCard(actor, historicalCard, { ...proof, root: `sha256:${"0".repeat(64)}` }),
+    /wilds_multiplayer_card_owner_invalid/
+  );
+});
+
+test("a proof-valid uploaded bearer card enters the compact movement cache without Vault resynchronization", () => {
+  const historicalCard = sealCollectedCard({
+    formId: "mintcub-1",
+    ownerReceizId: "prior_keeper.receiz.id",
+    encounterId: "uploaded-bearer-card",
+    capturedAt: "2026-07-16T05:02:00.000Z"
+  });
+  const actor = {
+    playerId: "vault:uploaded-session",
+    handle: "vault_keeper.receiz.id",
+    receizActorId: "vault:uploaded-session",
+    practice: false
+  };
+
+  const admitted = authorizeWildsMultiplayerHeartbeatCard(actor, historicalCard);
+  assert.equal(admitted.assetId, historicalCard.id);
+  assert.deepEqual(
+    authorizeWildsMultiplayerHeartbeatCard(actor, undefined, undefined, {
+      assetId: historicalCard.id,
+      proofDigest: historicalCard.proof.digest
+    }),
+    admitted
+  );
+  assert.throws(
+    () => authorizeWildsMultiplayerCard(actor, historicalCard),
+    /wilds_multiplayer_card_owner_invalid/
   );
 });
 
