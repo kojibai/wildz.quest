@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
           transferId: `bearer:${admitted.claimId}:${asset.id}`,
           ledgerEventId: `bearer-ledger:${admitted.artifactSha256}:${asset.id}`,
           proofBundle: {
-            schema: "receiz.wilds_bearer_claim.v118",
+            schema: "receiz.wilds_bearer_claim.v119",
             artifactSha256: admitted.artifactSha256,
             payloadSha256: admitted.payloadSha256,
             claimId: admitted.claimId,

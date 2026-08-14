@@ -4,6 +4,14 @@ All notable changes to Wildz are documented here. Wildz uses semantic versioning
 
 ## [Unreleased]
 
+### Changed
+
+- Upgraded the coordinated Receiz toolchain to `@receiz/sdk@119.0.0`, `@receiz/mcp-server@119.0.0`, and `@receiz/ai-skills@119.0.0`, including published lockfile integrity values.
+- Raised the Node.js runtime and CI floor to `20.19.0` to satisfy the v119 dependency graph.
+- Migrated the application contract, generated evidence, doctor, checker, tests, runtime protocol labels, MCP guidance, release documentation, and checked-in Wildz AI skills to the v119 ruleset and `>=119.0.0 <120.0.0` compatibility range.
+- Adopted registry digest `49c167a437ec7c0e486412dd62c54af4abdf94eda1ebc18d263a027d105cecd9` and 16-operation matrix digest `53cf9d6862b2396e2fe7864f8607c00c4e3b6e31b082ab5c5c8dff088fcb52c1`.
+- Enforced the v119 authority guarantees that the enclosing artifact remains strongest, projections remain non-authoritative, known truth paints before discovery, Kai selects causal heads, Merkle roots commit exact appends, and Fibonacci links provide sparse ancestry.
+
 ## [5.0.0] - 2026-08-13
 
 The first official Wildz release whose live chapter, world commands, and local progression share one Genesis-counted Kai `uPulse` state machine.

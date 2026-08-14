@@ -167,7 +167,7 @@ test("authenticated v103 native export submits only the validated PNG and return
     idempotencyKey: observedOptions.idempotencyKey
   }, {
     filename: "wilds-vault.png",
-    idempotencyKey: `wildz-v118-${await crypto.subtle.digest("SHA-256", source.slice().buffer).then((value) => Buffer.from(value).toString("hex"))}`
+    idempotencyKey: `wildz-v119-${await crypto.subtle.digest("SHA-256", source.slice().buffer).then((value) => Buffer.from(value).toString("hex"))}`
   });
   assert.strictEqual(created.artifact, nativeArtifact);
   assert.deepEqual(created.admitted.artifactBytes, nativeBytes);
@@ -176,7 +176,7 @@ test("authenticated v103 native export submits only the validated PNG and return
   assert.equal(verifyPortableVaultPng(source).ok, true);
 });
 
-test("v118 export rejects native continuity that does not match the authenticated owner or verifier verdict", async () => {
+test("v119 export rejects native continuity that does not match the authenticated owner or verifier verdict", async () => {
   const source = vaultPng();
   const run = (result: ReceizSealedArtifact) => createWildzExportProofObject({
     actor: {

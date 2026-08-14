@@ -27,12 +27,12 @@ test("complete verified artifacts are retained exactly and duplicate admission i
   const second = await history.append(artifact());
 
   assert.deepEqual(second, first);
-  assert.equal(first.schema, "receiz.wildz.artifact_history.v118");
+  assert.equal(first.schema, "receiz.wildz.artifact_history.v119");
   assert.deepEqual((await history.read("a".repeat(64)))?.artifactBytes, new Uint8Array([1, 2, 3]));
   assert.equal((await history.list()).length, 1);
 });
 
-test("v108 history remains idempotent when the same verified artifact is admitted under v118", async () => {
+test("v108 history remains idempotent when the same verified artifact is admitted under v119", async () => {
   const database = createMemoryWildzContinuityDatabase();
   const admitted = artifact();
   await database.transaction(["artifacts"], "readwrite", async (tx) => {

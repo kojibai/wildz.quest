@@ -25,7 +25,7 @@ test("market remains embedded and every mutation trusts only the scoped cookie a
   }
 });
 
-test("bearer claim route admits complete artifacts through v118 ownership before projecting cards", () => {
+test("bearer claim route admits complete artifacts through v119 ownership before projecting cards", () => {
   const route = readFileSync("app/api/market/claims/route.ts", "utf8");
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
 
@@ -35,7 +35,7 @@ test("bearer claim route admits complete artifacts through v118 ownership before
   assert.match(route, /multipart\/form-data/);
   assert.match(route, /bearer-claim-admitted/);
   assert.match(route, /compareAndAppend/);
-  assert.match(route, /receiz\.wilds_bearer_claim\.v118/);
+  assert.match(route, /receiz\.wilds_bearer_claim\.v119/);
   assert.doesNotMatch(route, /request\.json/);
   assert.doesNotMatch(route, /body\.(actor|seller|buyer|owner|accessToken|recipientUserId)/);
   assert.match(shell, /\/api\/market\/claims/);

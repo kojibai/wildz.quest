@@ -132,7 +132,7 @@ Desktop and mobile composited screenshots were visually inspected at rendered pi
 - The warm 120-frame representative sample recorded 29.51 ms average, 33.89 fps average, 33.4 ms p95, and 58 ms maximum. [E7]
 - The trainer transition measured 344 calls and 120,918 triangles and was over the configured renderer budget at all seven sizes. Challenge/combat/result also exceeded the draw-call budget at 844×390 and 1440×900. The trainer resize replay emitted 22 `GL_INVALID_OPERATION` vertex-buffer warnings; the separate clean resting profile remained clean. These are release residuals, not erased by the clean profile. [E9, E10]
 - `pnpm test` passed 1,086/1,086 across 109 suites; `pnpm typecheck` passed; `pnpm lint` exited zero with no warnings; `pnpm build` passed at 565 kB `/` first load with the known `snarkjs` dynamic web-worker warnings. [E11, E14–E16]
-- `pnpm release:check` passed with typecheck, Receiz v118 integration, conformance 15/15, warning-free lint, secret scan across 770 text files, optimized 565 kB `/` first load, and doctor compatibility; live API, checkout, and webhooks remain deployment-environment checks. [E16]
+- `pnpm release:check` passed with typecheck, Receiz v119 integration, conformance 15/15, warning-free lint, secret scan across 770 text files, optimized 565 kB `/` first load, and doctor compatibility; live API, checkout, and webhooks remain deployment-environment checks. [E16]
 
 ## Ten-category AAA visual scorecard
 

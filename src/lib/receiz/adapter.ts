@@ -500,7 +500,7 @@ export function createReceizCommerceAdapter(
       return client.proofMemory.additionsQuery(value, limit);
     },
     verifyArtifact(file) {
-      // The v118 local verifier returns a runtime-custodied verification object
+      // The v119 local verifier returns a runtime-custodied verification object
       // for admission. This compatibility lane intentionally calls the Connect
       // document endpoint because callers still consume DocumentVerifyResponse.
       return client.connect.verifyArtifact(file);

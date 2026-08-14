@@ -33,7 +33,7 @@ Balance work may compare matchup outcomes, action selection, damage, stamina/foc
 
 Coaching may offer opt-in recommendations from public or player-authorized replays. Deterministic simulation may test counterfactual balance changes. Coaching and simulation are not gameplay, matchmaking, rating, settlement, or proof authority; they cannot expose hidden opponent input or choose live-player actions.
 
-MCP is a read-only audit and capability-inspection surface by default. It may help review artifacts, replay evidence, tournament health, publication state, and release readiness using installed v118 capabilities. Product-specific tools that do not exist must not be invented. AI and agents never sign or admit an Arena envelope, covenant, match, creature event, tournament result, publication, or release.
+MCP is a read-only audit and capability-inspection surface by default. It may help review artifacts, replay evidence, tournament health, publication state, and release readiness using installed v119 capabilities. Product-specific tools that do not exist must not be invented. AI and agents never sign or admit an Arena envelope, covenant, match, creature event, tournament result, publication, or release.
 
 Tournament administration, publication, settlement, deployment, and release are command-only. They require a verified actor, scoped capability, current head/revision, causal parents, idempotency, and explicit confirmation of the exact reviewed command or permit digest immediately before execution. Plan, attempt, admission, and delivery are recorded separately.
 
