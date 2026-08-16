@@ -195,7 +195,7 @@ export function CreatureConsciousnessPanel({
       </form>
       {disabled ? <p className="wilds-creature-observer-note">Memorial cards keep their complete mind, but retired creatures no longer answer.</p> : null}
       {error ? <p className="wilds-creature-observer-error" role="alert">{error}</p> : null}
-      <footer><span>Brain {brain.contextDigest.slice(7, 18)}</span><span>Receiz Twin · observer projection</span></footer>
+      <footer><span>Brain {brain.contextDigest.slice(7, 18)}</span><span>{transcript.at(-1)?.observer === "receiz-twin-local" ? "Receiz Twin · proof-local voice" : "Receiz Twin · live AI observer"}</span></footer>
     </section>
   );
 }

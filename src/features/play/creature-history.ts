@@ -119,7 +119,7 @@ function validateCreatureObserverTurn(
     || (assetId !== undefined && turn.assetId !== assetId)
     || !IDENTITY.test(turn.turnId)
     || !IDENTITY.test(turn.ownerActorId)
-    || turn.observer !== "receiz-twin"
+    || (turn.observer !== "receiz-twin" && turn.observer !== "receiz-twin-local")
     || !canonicalTime(turn.observedAt)
     || !validObserverText(turn.userText, MAX_CREATURE_OBSERVER_USER_TEXT)
     || !validObserverText(turn.creatureText, MAX_CREATURE_OBSERVER_REPLY_TEXT)
@@ -156,11 +156,12 @@ export function createCreatureObserverMemoryTurn(input: Readonly<{
   creatureText: string;
   contextDigest: string;
   previousTurnDigest: string | null;
+  observer?: CreatureObserverMemoryTurn["observer"];
 }>): CreatureObserverMemoryTurn {
   const unsigned = {
     schema: "receiz.wildz.creature_observer_turn.v1" as const,
     ...input,
-    observer: "receiz-twin" as const
+    observer: input.observer ?? "receiz-twin" as const
   };
   const turn = { ...unsigned, digest: digest(unsigned) };
   validateCreatureObserverTurn(turn, input.previousTurnDigest, input.assetId);

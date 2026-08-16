@@ -28,7 +28,7 @@ export type CreatureObserverMemoryTurn = Readonly<{
   assetId: string;
   turnId: string;
   observedAt: string;
-  observer: "receiz-twin";
+  observer: "receiz-twin" | "receiz-twin-local";
   ownerActorId: string;
   userText: string;
   creatureText: string;

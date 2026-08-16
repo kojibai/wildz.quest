@@ -5,6 +5,7 @@ import {
   createObservedCreatureTurn,
   creatureConsciousnessMotion,
   creatureObserverClientContext,
+  localCreatureTwinReply,
   normalizeCreatureTwinReply,
   parseCreatureObserverRequest,
   projectCreatureBrain
@@ -101,6 +102,10 @@ test("the creature brain gives the Twin exact proof context and model boundaries
   const motion = creatureConsciousnessMotion(asset, 0);
   assert.match(motion["--creature-blink"], /^\d+ms$/);
   assert.match(motion["--creature-gaze-range"], /^\d+(?:\.\d+)?px$/);
+
+  const fallback = localCreatureTwinReply(brain, "How are you feeling?");
+  assert.match(fallback, new RegExp(String(brain.embodiment.stats.health)));
+  assert.match(fallback, new RegExp(String(brain.embodiment.bond)));
 });
 
 test("Vault consciousness uses the SDK World Twin rail and card-scoped UI", () => {
@@ -110,7 +115,10 @@ test("Vault consciousness uses the SDK World Twin rail and card-scoped UI", () =
   const css = readFileSync("app/globals.css", "utf8");
 
   assert.match(route, /resolveWildzCookieActor\(request\)/);
-  assert.match(route, /adapter\.worldMessage\(actor\.actorId/);
+  assert.match(route, /adapter\.worldMessage\(twinHandle/);
+  assert.match(route, /clientOperationId/);
+  assert.match(route, /quoteExpiresAt/);
+  assert.match(route, /localCreatureTwinReply/);
   assert.match(route, /clientContext: creatureObserverClientContext\(brain\)/);
   assert.match(route, /createObservedCreatureTurn/);
   assert.match(panel, /record-creature-observation|onObserved/);

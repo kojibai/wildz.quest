@@ -254,6 +254,7 @@ export function createObservedCreatureTurn(input: Readonly<{
   reply: string;
   observedAt: string;
   clientUserMessageId?: string;
+  observer?: CreatureObserverMemoryTurn["observer"];
 }>) {
   const turnId = `observer:${sha256PortableBasis(canonicalPortableCardJson({
     assetId: input.brain.identity.assetId,
@@ -271,8 +272,59 @@ export function createObservedCreatureTurn(input: Readonly<{
     userText: compactText(input.message, MAX_CREATURE_OBSERVER_USER_TEXT),
     creatureText: compactText(input.reply, MAX_CREATURE_OBSERVER_REPLY_TEXT),
     contextDigest: input.brain.contextDigest,
-    previousTurnDigest: input.brain.memory.observerHead
+    previousTurnDigest: input.brain.memory.observerHead,
+    observer: input.observer
   });
+}
+
+function spokenList(values: readonly string[], empty: string) {
+  if (!values.length) return empty;
+  if (values.length === 1) return values[0]!.replaceAll("-", " ");
+  return `${values.slice(0, -1).map((value) => value.replaceAll("-", " ")).join(", ")}, and ${values.at(-1)!.replaceAll("-", " ")}`;
+}
+
+/**
+ * Always-available, deterministic Twin voice. It interprets only the verified
+ * brain projection and is used when the public Receiz AI rail cannot answer.
+ */
+export function localCreatureTwinReply(brain: CreatureBrainProjection, message: string) {
+  const question = message.toLowerCase();
+  const name = brain.identity.name;
+  const continuity = brain.memory.continuity;
+  const latestLife = continuity?.livedEvents.at(-1) ?? null;
+  const latestConversation = brain.memory.observedTurns.at(-1) ?? null;
+  if (/remember|happen|awak|away|journey|did you/.test(question)) {
+    if (latestLife) return `I remember it exactly: ${latestLife.summary} That memory is sealed at ${latestLife.digest.slice(7, 17)}, so I will not confuse it with something I only imagined.`;
+    if (latestConversation) return `I remember our last proof-sealed conversation. You said “${compactText(latestConversation.userText, 160)}” and I answered from the card brain I still carry.`;
+    return `I do not have a sealed lived event to remember yet. I know who I am, ${name}, but I will not pretend an adventure happened when it did not.`;
+  }
+  if (/feel|feeling|health|hurt|tired|condition/.test(question)) {
+    const condition = brain.embodiment.condition;
+    return condition.life === "dead"
+      ? `My living journey has ended, but my exact memories remain in this card.`
+      : `I feel ${condition.injuryCount ? `the weight of ${condition.injuryCount} recorded ${condition.injuryCount === 1 ? "injury" : "injuries"}` : "whole"} and ${condition.fatigue ? `${condition.fatigue} fatigue` : "rested"}. My health is ${brain.embodiment.stats.health}, and our bond is ${brain.embodiment.bond}.`;
+  }
+  if (/where|location|home/.test(question)) {
+    return continuity
+      ? `I am at ${continuity.locationId.replaceAll("-", " ")}. That is my latest proof-recorded location, not a guess.`
+      : `My home signal is ${brain.personality.habitat}, but I do not have a newer proof-recorded location yet.`;
+  }
+  if (/friend|know|relationship|meet|bond/.test(question)) {
+    const relationships = continuity?.relationships ?? [];
+    return relationships.length
+      ? `I know ${relationships.map((relationship) => `${relationship.name}, bond ${relationship.affinity}`).join("; ")}. Every one of those meetings is present in my lived history.`
+      : `I do not have another creature recorded as a relationship yet. Our own bond is ${brain.embodiment.bond}, and I can feel that truth in my exact stats.`;
+  }
+  if (/keep|inventory|carry|discover|found|trade/.test(question)) {
+    return `I carry ${spokenList(continuity?.keepsakes ?? [], "no proof-recorded keepsakes yet")}. I have discovered ${spokenList(continuity?.discoveries ?? [], "nothing new yet")}. I will only call a trade real when it appears in my event chain.`;
+  }
+  if (/explore|next|want|wish|motivat/.test(question)) {
+    return `I want to ${brain.personality.motivations[0]?.replace(/\.$/, "").toLowerCase() ?? "explore carefully"}. My ${brain.embodiment.stats.speed} speed and ${brain.embodiment.stats.bond} bond make ${brain.personality.habitat} feel like the right kind of trail—but that is a hope, not an event that already happened.`;
+  }
+  if (/who|name|what are you|yourself/.test(question)) {
+    return `I am ${name}, a ${brain.identity.species} of the ${brain.identity.familyId.replaceAll("-", " ")} lineage. I speak from proof ${brain.identity.proofDigest.slice(7, 19)}, with ${brain.personality.traits.slice(0, 3).join(", ").toLowerCase()} in my nature.`;
+  }
+  return `I hear you. I am ${name}, speaking from my exact card brain. Ask me about how I feel, what I remember, where I am, who I know, or what I carry, and I will answer only from what my proof actually contains.`;
 }
 
 function clamp01(value: number) {
