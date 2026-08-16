@@ -8,8 +8,8 @@ import {
   createReceizWildzMarketRepository,
   resolveWildzMarketConditionalAppendRail
 } from "@/lib/receiz/wildz-market-repository";
+import { publishWildzOwnershipSyncProjection } from "@/lib/receiz/wildz-ownership-reconcile";
 import { sameWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate";
-import { currentWildzOwner } from "@/lib/receiz/wildz-market-state";
 import { marketIdempotencyKey, marketRouteError } from "@/lib/receiz/wildz-market-route";
 
 export const runtime = "nodejs";
@@ -22,7 +22,8 @@ function json(body: unknown, status = 200) {
 function claimedArtifactResponse(
   admitted: Awaited<ReturnType<typeof claimWildzBearerArtifact>>,
   assetIds: readonly string[],
-  marketProjection: "admitted" | "unavailable"
+  marketProjection: "admitted" | "unavailable",
+  ownershipSync: "admitted" | "unavailable"
 ) {
   return new NextResponse(admitted.artifactBytes.slice().buffer, {
     status: 201,
@@ -35,7 +36,8 @@ function claimedArtifactResponse(
       "x-receiz-verify-path": admitted.verifyPath,
       "x-receiz-artifact-sha256": admitted.artifactSha256,
       "x-wildz-asset-ids": assetIds.join(","),
-      "x-wildz-market-projection": marketProjection
+      "x-wildz-market-projection": marketProjection,
+      "x-wildz-ownership-sync": ownershipSync
     }
   });
 }
@@ -66,6 +68,18 @@ export async function POST(request: NextRequest) {
       proofObjectPayload: { bytes: admitted.payloadBytes, mimeType: admitted.mimeType }
     });
     if (!extracted.assets.length) throw new Error("market_bearer_claim_card_invalid");
+    const ownershipWitness = admitted.ownershipWitness;
+    if (!ownershipWitness
+      || !sameWildzPlayerCoordinate(ownershipWitness.ownerReceizId, actor.actorId)) {
+      throw new Error("market_bearer_claim_witness_invalid");
+    }
+    const assetIds = extracted.assets.map((asset) => asset.id);
+    const ownershipSync = await publishWildzOwnershipSyncProjection(
+      adapter.client.appState,
+      ownershipWitness,
+      assetIds,
+      idempotencyKey
+    );
 
     const repository = createReceizWildzMarketRepository({
       rail: resolveWildzMarketConditionalAppendRail(adapter)
@@ -78,9 +92,9 @@ export async function POST(request: NextRequest) {
           marketProjection = "unavailable";
           break;
         }
-        const previousOwnerReceizId = currentWildzOwner(loaded.state, asset);
+        const previousOwnerReceizId = ownershipWitness.previousOwnerReceizId;
         if (sameWildzPlayerCoordinate(previousOwnerReceizId, actor.actorId)) break;
-        const occurredAt = new Date().toISOString();
+        const occurredAt = ownershipWitness.witnessedAt;
         const receipt: WildzOwnershipReceipt = {
           schema: "receiz.wilds_ownership_receipt.v1",
           assetId: asset.id,
@@ -96,7 +110,17 @@ export async function POST(request: NextRequest) {
             claimId: admitted.claimId,
             recordId: admitted.recordId,
             verifyPath: admitted.verifyPath,
-            ownerReceizId: admitted.ownerReceizId
+            ownerReceizId: admitted.ownerReceizId,
+            ownershipArtifactId: ownershipWitness.artifactId,
+            ownershipHeadReference: ownershipWitness.headReference,
+            ownershipHistoryDigestSha256: ownershipWitness.historyDigestSha256,
+            ownershipAppendCount: ownershipWitness.appendCount,
+            witnessedKaiPulse: ownershipWitness.witnessedKaiPulse,
+            witnessedAt: ownershipWitness.witnessedAt,
+            authority: {
+              claim: "witnessed-kai-pulse-in-sealed-artifact",
+              server: "synchronization-projection-only"
+            }
           },
           transferredAt: occurredAt
         };
@@ -118,7 +142,7 @@ export async function POST(request: NextRequest) {
         loaded = await repository.load();
       }
     }
-    return claimedArtifactResponse(admitted, extracted.assets.map((asset) => asset.id), marketProjection);
+    return claimedArtifactResponse(admitted, assetIds, marketProjection, ownershipSync);
   } catch (cause) {
     const failure = marketRouteError(cause, "market_bearer_claim_invalid");
     return json(failure.body, failure.status);

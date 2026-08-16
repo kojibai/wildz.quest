@@ -20,12 +20,12 @@ test("removed explorer selection leaves no hidden modal or dead mobile CSS", () 
   assert.doesNotMatch(styles, /wildz-in-world-onboarding|wildz-onboarding-card|wilds-avatar-select/);
 });
 
-test("the in-game Vault popover merges Vault files and saves the combined collection", () => {
+test("the in-game Vault popover claims Vault files before saving the combined collection", () => {
   const shell = read("src/features/shell/WildzApp.tsx");
   const vault = read("src/features/profile/WildzVaultSheet.tsx");
 
   assert.match(shell, /overlay\.kind === "vault"[\s\S]*onAddVault=/);
-  assert.match(shell, /onAddVault=[\s\S]*"merge-vault"/);
+  assert.match(shell, /onAddVault=[\s\S]*claimAndRestoreVaultArtifact/);
   assert.match(shell, /onSaveVault=/);
   assert.match(shell, /downloadWildzIdentityPlayerVault/);
   assert.match(vault, /Add Vault/);

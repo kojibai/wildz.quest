@@ -29,7 +29,10 @@ export async function claimWildzBearerArtifact(
   }
   const admitted = await downloadAndReopenWildzArtifact(claimed, port.artifacts);
   if (admitted.compatibility !== "current-native"
-    || admitted.payloadSha256 !== opened.admitted.payloadSha256) {
+    || admitted.payloadSha256 !== opened.admitted.payloadSha256
+    || !admitted.ownershipWitness
+    || admitted.ownershipWitness.ownerReceizId !== admitted.ownerReceizId
+    || admitted.ownershipWitness.headReference !== admitted.claimId) {
     throw new Error("wildz_bearer_claim_binding_mismatch");
   }
   return admitted;

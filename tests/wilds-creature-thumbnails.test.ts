@@ -30,7 +30,7 @@ test("the Slate selector and Vault rows show creature artwork without a circular
   assert.doesNotMatch(inventory, /manifest\.name\.slice\(0, 2\)/);
 });
 
-test("the in-game Card Vault owns the atomic merge boundary", () => {
+test("the in-game Card Vault claims first and owns the atomic merge boundary", () => {
   const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
   const adapter = readFileSync("src/lib/receiz/wildz-identity-adapter.ts", "utf8");
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
@@ -40,7 +40,8 @@ test("the in-game Card Vault owns the atomic merge boundary", () => {
   assert.match(inventory, /\.receizvault/);
   assert.match(shell, /"merge-vault"/);
   assert.match(shell, /"activate-identity"/);
-  assert.match(shell, /restoreArtifact\(file, "card-vault"/);
+  assert.match(shell, /onRestoreArtifact=\{claimAndRestoreVaultArtifact\}/);
+  assert.match(shell, /restoreArtifact\(\s*claimedFile,\s*"card-vault"/);
   assert.match(adapter, /restoreWildzArtifactForSurface/);
   assert.match(adapter, /continuityRestoreEpoch/);
   assert.doesNotMatch(inventory, /verifyPortableCardPng|verifyPortableVaultPng|inspectReceizCommerceVault|file\.arrayBuffer/);

@@ -380,6 +380,10 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(inventory, /onPointerCancel=/);
     assert.match(inventory, /onLostPointerCapture=/);
     assert.match(inventory, /inventorySwipePageDelta/);
+    const pointerDown = inventory.slice(inventory.indexOf("onPointerDown="), inventory.indexOf("onPointerMove="));
+    assert.match(pointerDown, /swipeStart\.current\s*=\s*\{\s*x:\s*event\.clientX,\s*y:\s*event\.clientY\s*\}/);
+    assert.match(pointerDown, /setPointerCapture\??\.\?\(event\.pointerId\)|setPointerCapture\(event\.pointerId\)/);
+    assert.ok(pointerDown.indexOf("swipeStart.current") < pointerDown.indexOf("setPointerCapture"));
     assert.match(inventory, /wilds-vault-page-dots/);
     assert.match(inventory, /downloadPreparedCardArtifact/);
     assert.match(inventory, /preparePortableCardArtifact/);

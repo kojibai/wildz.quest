@@ -17,12 +17,26 @@ test("market remains embedded and every mutation trusts only the scoped cookie a
   assert.match(actorSource, /loadReceizConnectProfile/);
   assert.doesNotMatch(actorSource, /session\.accessToken|delegatedAccessToken|RECEIZ_ACCESS_TOKEN|RECEIZ_CONNECT_ACCESS_TOKEN/);
 
-  for (const route of ["listings", "trades", "offers", "checkout", "claims"]) {
+  for (const route of ["listings", "trades", "offers", "checkout", "claims", "ownership/reconcile"]) {
     const source = readFileSync(`app/api/market/${route}/route.ts`, "utf8");
     assert.match(source, /resolveWildzCookieActor/);
     assert.doesNotMatch(source, /body\.(actor|seller|buyer|owner|accessToken|recipientUserId|amount|price)/);
     assert.doesNotMatch(source, /session\.accessToken|process\.env\.RECEIZ_ACCESS_TOKEN/);
   }
+});
+
+test("ownership reconciliation returns only foreign active asset IDs from the synced projection", () => {
+  const route = readFileSync("app/api/market/ownership/reconcile/route.ts", "utf8");
+
+  assert.match(route, /resolveWildzCookieActor/);
+  assert.match(route, /parseWildzOwnershipReconcileRequest/);
+  assert.match(route, /adapter\.client\.appState\.resolve/);
+  assert.match(route, /WILDZ_OWNERSHIP_SYNC_NAMESPACE/);
+  assert.match(route, /lostWildzOwnershipAssetIdsFromSync/);
+  assert.match(route, /lostAssetIds/);
+  assert.doesNotMatch(route, /resolveWildzMarketConditionalAppendRail/);
+  assert.doesNotMatch(route, /currentOwner|ownerReceizId/);
+  assert.doesNotMatch(route, /body\.(actor|owner|accessToken)/);
 });
 
 test("bearer claim route admits complete artifacts through v119 ownership before projecting cards", () => {
@@ -36,6 +50,13 @@ test("bearer claim route admits complete artifacts through v119 ownership before
   assert.match(route, /bearer-claim-admitted/);
   assert.match(route, /compareAndAppend/);
   assert.match(route, /receiz\.wilds_bearer_claim\.v119/);
+  assert.match(route, /admitted\.ownershipWitness/);
+  assert.match(route, /witnessedKaiPulse/);
+  assert.match(route, /witnessedAt/);
+  assert.match(route, /publishWildzOwnershipSyncProjection/);
+  assert.match(route, /adapter\.client\.appState/);
+  assert.doesNotMatch(route, /currentWildzOwner/);
+  assert.doesNotMatch(route, /new Date\(\)\.toISOString/);
   assert.doesNotMatch(route, /request\.json/);
   assert.doesNotMatch(route, /body\.(actor|seller|buyer|owner|accessToken|recipientUserId)/);
   assert.match(shell, /\/api\/market\/claims/);

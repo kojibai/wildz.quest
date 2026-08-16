@@ -6,6 +6,19 @@ import type {
 
 export type WildzArtifactPort = Pick<ReceizClient["artifacts"], "verifyAndOpen" | "download">;
 
+export type WildzOwnershipWitness = Readonly<{
+  artifactId: string;
+  namespace: string;
+  genesisOwnerReceizId: string;
+  previousOwnerReceizId: string;
+  ownerReceizId: string;
+  headReference: string;
+  historyDigestSha256: string;
+  appendCount: number;
+  witnessedKaiPulse: string;
+  witnessedAt: string;
+}>;
+
 export type WildzAdmittedArtifact = Readonly<{
   artifactBytes: Uint8Array;
   artifactSha256: string;
@@ -18,6 +31,7 @@ export type WildzAdmittedArtifact = Readonly<{
   verifyPath: string;
   recordId: string | null;
   compatibility: "current-native" | "verified-legacy-read";
+  ownershipWitness?: WildzOwnershipWitness | null;
 }>;
 
 function strictArrayBuffer(bytes: Uint8Array): ArrayBuffer {
@@ -31,6 +45,101 @@ export async function sha256WildzArtifactBytes(bytes: Uint8Array) {
 
 function nonEmpty(value: string) {
   return value.trim().length > 0;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function nonEmptyField(value: unknown) {
+  return typeof value === "string" && value.trim() === value && value.length > 0
+    ? value
+    : null;
+}
+
+function witnessedIso(bundle: Record<string, unknown>) {
+  const timestamp = nonEmptyField(bundle.ts);
+  if (timestamp && Number.isFinite(Date.parse(timestamp)) && new Date(timestamp).toISOString() === timestamp) {
+    return timestamp;
+  }
+  if (typeof bundle.createdAtMs !== "number" || !Number.isSafeInteger(bundle.createdAtMs) || bundle.createdAtMs < 0) {
+    return null;
+  }
+  try {
+    return new Date(bundle.createdAtMs).toISOString();
+  } catch {
+    return null;
+  }
+}
+
+function ownershipWitness(opened: ReceizOpenedArtifact): WildzOwnershipWitness | null {
+  const continuity = asRecord(opened.sealedArtifact.verification.assetContinuity);
+  const bundle = asRecord(opened.sealedArtifact.verification.bundle);
+  const nativeRecordSeal = asRecord(bundle?.nativeRecordSeal);
+  const signedOwnershipContinuity = asRecord(nativeRecordSeal?.ownershipContinuity);
+  const history = continuity && Array.isArray(continuity.history) ? continuity.history : null;
+  const appendCount = continuity?.appendCount;
+  const latest = history?.length ? asRecord(history.at(-1)) : null;
+  const artifactId = nonEmptyField(continuity?.artifactId);
+  const namespace = nonEmptyField(continuity?.namespace);
+  const genesisOwnerReceizId = nonEmptyField(continuity?.genesisOwnerReceizId);
+  const previousOwnerReceizId = nonEmptyField(latest?.fromOwnerReceizId);
+  const ownerReceizId = nonEmptyField(continuity?.ownerReceizId);
+  const headReference = nonEmptyField(continuity?.headReference);
+  const historyDigestSha256 = nonEmptyField(continuity?.historyDigestSha256);
+  const witnessedKaiPulse = nonEmptyField(bundle?.kaiPulseEternal);
+  const witnessedAt = bundle ? witnessedIso(bundle) : null;
+
+  if (!continuity
+    || continuity.state !== "verified"
+    || continuity.carrier !== "portable_asset"
+    || continuity.historyComplete !== true
+    || !Number.isSafeInteger(appendCount)
+    || Number(appendCount) < 1
+    || !history
+    || history.length !== Number(appendCount) + 1
+    || !latest
+    || latest.schema !== "receiz.native_ownership_transfer.v1"
+    || latest.index !== appendCount
+    || !artifactId
+    || !/^[a-f0-9]{64}$/.test(artifactId)
+    || !namespace
+    || !genesisOwnerReceizId?.endsWith(".receiz.id")
+    || !previousOwnerReceizId?.endsWith(".receiz.id")
+    || !ownerReceizId?.endsWith(".receiz.id")
+    || latest.toOwnerReceizId !== ownerReceizId
+    || !headReference
+    || latest.headReference !== headReference
+    || continuity.priorHeadReference !== latest.priorHeadReference
+    || !historyDigestSha256
+    || !/^[a-f0-9]{64}$/.test(historyDigestSha256)
+    || latest.historyDigestSha256 !== historyDigestSha256
+    || !signedOwnershipContinuity
+    || signedOwnershipContinuity.schema !== "receiz.native_ownership_continuity.v1"
+    || signedOwnershipContinuity.artifactId !== artifactId
+    || signedOwnershipContinuity.namespace !== namespace
+    || signedOwnershipContinuity.genesisOwnerReceizId !== genesisOwnerReceizId
+    || signedOwnershipContinuity.ownerReceizId !== ownerReceizId
+    || signedOwnershipContinuity.headReference !== headReference
+    || signedOwnershipContinuity.historyDigestSha256 !== historyDigestSha256
+    || signedOwnershipContinuity.appendCount !== appendCount
+    || !witnessedKaiPulse
+    || !witnessedAt) return null;
+
+  return {
+    artifactId,
+    namespace,
+    genesisOwnerReceizId,
+    previousOwnerReceizId,
+    ownerReceizId,
+    headReference,
+    historyDigestSha256,
+    appendCount: Number(appendCount),
+    witnessedKaiPulse,
+    witnessedAt
+  };
 }
 
 function requireOpenedArtifact(opened: ReceizOpenedArtifact) {
@@ -87,7 +196,8 @@ export async function openWildzArtifactEvidence(
     claimId: continuity.claimId,
     verifyPath: continuity.verifyPath,
     recordId: continuity.carrier === "native-record-seal" ? continuity.recordId : null,
-    compatibility: opened.legacyCompatibility
+    compatibility: opened.legacyCompatibility,
+    ownershipWitness: ownershipWitness(opened)
   };
   return { admitted, sealedArtifact: opened.sealedArtifact };
 }

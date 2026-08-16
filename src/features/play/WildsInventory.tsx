@@ -307,7 +307,7 @@ export function WildsInventory({
               for (const file of files) {
                 try {
                   const outcome = await onRestoreArtifact(file, () => window.confirm(
-                    "Add every verified card from this file to the current Vault? The combined Vault stays tied to the Identity Seal used when you save it."
+                    "Claim and add every verified card from this file to the current Vault? Receiz will create and download a new ownership artifact; the original history stays preserved."
                   ), currentPlayState);
                   const summary = summarizeWildzInventoryImport(currentPlayState, outcome);
                   currentPlayState = outcome.playState;
@@ -374,6 +374,7 @@ export function WildsInventory({
           onPointerDown={(event) => {
             swipeStart.current = { x: event.clientX, y: event.clientY };
             suppressCardClick.current = false;
+            try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* Pointer capture is optional. */ }
           }}
           onPointerMove={(event) => {
             if (!swipeStart.current) return;
