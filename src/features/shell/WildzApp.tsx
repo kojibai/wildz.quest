@@ -9,6 +9,7 @@ import {
   type WildzCardOnlyConfirmation
 } from "@/features/identity/wildz-restore";
 import {
+  locallyClaimedWildzAssetIds,
   locallyTransferredWildzAssetIds,
   recordLocalWildzOwnershipTransfer,
   removeWildzAssetsFromActiveVault
@@ -133,6 +134,15 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     () => continuity?.playState ?? (identity ? createOwnerBoundInitialPlayState(identity.actorId, identity.createdAt) : initialPlayState),
     [continuity?.playState, identity]
   );
+  const publishableOwnerAssets = useMemo(() => {
+    if (!identity || typeof window === "undefined") return ownerPlayState.inventory;
+    const locallyClaimed = new Set(locallyClaimedWildzAssetIds(
+      window.localStorage,
+      identity.actorId,
+      ownerPlayState.inventory.map((asset) => asset.id)
+    ));
+    return ownerPlayState.inventory.filter((asset) => !locallyClaimed.has(asset.id));
+  }, [identity, ownerPlayState.inventory]);
   const ownerUsername = identity?.username ?? identity?.actorId ?? "explorer";
   const vaultAdmission = useMemo(() => identity ? deriveWildzVaultCardAdmission({
     cards: ownerPlayState.inventory,
@@ -144,17 +154,17 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     displayName: viewingOwnProfile ? identity?.displayName ?? undefined : overlay?.kind === "profile" ? overlay.username.replace(/^@/, "") : undefined,
     avatarImageUrl: viewingOwnProfile ? avatarImageUrl : undefined,
     explorer: viewingOwnProfile ? character : null,
-    vault: viewingOwnProfile ? ownerPlayState.inventory.map((asset) => ({
+    vault: viewingOwnProfile ? publishableOwnerAssets.map((asset) => ({
       id: asset.id,
       name: asset.manifest.name,
       proofDigest: asset.proof.digest,
       visibility: "public",
       status: asset.status
     })) : [],
-    discoveries: viewingOwnProfile ? ownerPlayState.inventory.length : 0,
-    reputation: viewingOwnProfile ? ownerPlayState.inventory.length * 12 : 0,
+    discoveries: viewingOwnProfile ? publishableOwnerAssets.length : 0,
+    reputation: viewingOwnProfile ? publishableOwnerAssets.length * 12 : 0,
     record: { wins: 0, losses: 0, raids: 0 }
-  }), [avatarImageUrl, character, identity, overlay, ownerPlayState.inventory, ownerUsername, viewingOwnProfile]);
+  }), [avatarImageUrl, character, identity, overlay, ownerUsername, publishableOwnerAssets, viewingOwnProfile]);
   const campaignExplorer = useMemo(() => continuity ? projectWildzContinuityExplorer(continuity) : null, [continuity]);
   const campaignCharacter = campaignExplorer?.character ?? null;
   const shellOverlayOwner = overlay?.kind === "profile" ? "profile" : overlay?.kind === "market" ? "market" : "none";
@@ -341,7 +351,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         return () => { active = false; };
       }
       setProfileStatus("publishing");
-      void publishCurrentWildzProfile(localPublicProfile, ownerPlayState.inventory).then((published) => {
+      void publishCurrentWildzProfile(localPublicProfile, publishableOwnerAssets).then((published) => {
         if (!active) return;
         publishedProfileRef.current = publicationKey;
         setRemoteProfile(published);
@@ -361,7 +371,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       if (active) setProfileStatus("error");
     });
     return () => { active = false; };
-  }, [character, identity, localPublicProfile, overlay, ownerPlayState.inventory, proofSessionConnected, viewingOwnProfile]);
+  }, [character, identity, localPublicProfile, overlay, proofSessionConnected, publishableOwnerAssets, viewingOwnProfile]);
 
   useEffect(() => {
     let active = true;
@@ -606,34 +616,65 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     const current = continuityRef.current;
     if (!current) throw new Error("wildz_restore_identity_missing");
     const disposition = wildzVaultUploadDisposition(inspection, current.session.actorId);
-    if (disposition === "merge-owned") {
-      return restoreArtifact(
+    const restoreVerifiedBaseline = async () => {
+      const outcome = await restoreArtifact(
         file,
         "card-vault",
         true,
         currentPlayState,
         "merge-vault"
       );
+      if (disposition === "claim-bearer") {
+        recordLocalWildzOwnershipTransfer(
+          window.localStorage,
+          outcome.session.actorId,
+          outcome.verifiedAssetIds
+        );
+      }
+      return outcome;
+    };
+    if (disposition === "merge-owned") {
+      return restoreVerifiedBaseline();
     }
-    if (!proofSessionConnected) throw new Error("Connect your Receiz ID before claiming a bearer artifact.");
+    if (!proofSessionConnected) {
+      try {
+        const admission = deriveWildzVaultCardAdmission({
+          cards: current.playState?.inventory ?? currentPlayState?.inventory ?? [],
+          playerHandle: current.session.actorId
+        });
+        const remote = await connectWildzProofSession(current.session, { vaultAdmission: admission });
+        if (!wildzRemoteSessionMatchesIdentity(current.session, remote)) {
+          throw new Error("wildz_proof_session_identity_mismatch");
+        }
+        setProofSessionConnected(true);
+      } catch {
+        // dcb5552 baseline: a locally verified bearer artifact still restores
+        // into the active Vault. Global ownership is an additive reconciliation
+        // layer and must not make the proven offline restore path unavailable.
+        return restoreVerifiedBaseline();
+      }
+    }
 
     const stableName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 64) || "artifact";
     const response = await fetch("/api/market/claims", {
-      method: "POST",
-      credentials: "same-origin",
-      cache: "no-store",
-      headers: {
-        "content-type": file.type || "application/octet-stream",
-        "idempotency-key": `bearer:${file.size}:${file.lastModified}:${stableName}`.slice(0, 160),
-        "x-wildz-artifact-filename": encodeURIComponent(file.name)
-      },
-      body: new Uint8Array(await file.arrayBuffer())
-    });
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: {
+          "content-type": file.type || "application/octet-stream",
+          "idempotency-key": `bearer:${file.size}:${file.lastModified}:${stableName}`.slice(0, 160),
+          "x-wildz-artifact-filename": encodeURIComponent(file.name)
+        },
+        body: new Uint8Array(await file.arrayBuffer())
+      })
+      .catch(() => null);
+    if (!response) return restoreVerifiedBaseline();
     if (!response.ok) {
       const failure = await response.json().catch(() => null) as { error?: unknown } | null;
-      throw new Error(failure?.error === "wildz_bearer_claim_stale_ownership"
-        ? "This card has a newer owner. Its historical image cannot reclaim it."
-        : typeof failure?.error === "string" ? failure.error : "Receiz did not admit the bearer claim.");
+      if (failure?.error === "wildz_bearer_claim_stale_ownership") {
+        throw new Error("This card has a newer owner. Its historical image cannot reclaim it.");
+      }
+      return restoreVerifiedBaseline();
     }
 
     const bytes = new Uint8Array(await response.arrayBuffer());

@@ -46,6 +46,19 @@ export function locallyTransferredWildzAssetIds(
   });
 }
 
+/** Cards accepted through the local bearer fallback stay private until Receiz has reconciled custody. */
+export function locallyClaimedWildzAssetIds(
+  storage: Pick<Storage, "getItem">,
+  ownerActorId: string,
+  assetIds: readonly string[]
+) {
+  const transfers = readLocalTransfers(storage);
+  return assetIds.filter((assetId) => {
+    const transfer = transfers[assetId];
+    return Boolean(transfer && sameWildzPlayerCoordinate(transfer.ownerActorId, ownerActorId));
+  });
+}
+
 /** Removes active custody only. Historical events and proof receipts remain auditable. */
 export function removeWildzAssetsFromActiveVault(state: PlayState, assetIds: readonly string[]) {
   const removed = new Set(assetIds);

@@ -94,10 +94,6 @@ import {
   type WildzVaultCardMembershipProof
 } from "@/lib/receiz/wildz-vault-card-admission";
 import {
-  publicCardPublicationCandidates,
-  usePublicCardPublisher
-} from "@/features/play/use-public-card-publisher";
-import {
   ARENA_SETTLEMENT_JOURNAL_PREFIX,
   recoverArenaSettlementJournalEntry,
   type ArenaSettlement
@@ -234,14 +230,6 @@ export function PlayCampaign({
   const deckCards = state.inventory;
   const priorVaultIdsRef = useRef(new Set(state.inventory.map((asset) => asset.id)));
   const [newRosterAssetId, setNewRosterAssetId] = useState<string | null>(null);
-  const vaultAdmittedCardPins = useRef(new Set(initialState.inventory.map(
-    (asset) => `${asset.id}:${asset.proof.digest}`
-  )));
-  const publicCardCandidates = useMemo(() => publicCardPublicationCandidates(
-    deckCards,
-    new Set(state.pendingSyncAssetIds),
-    vaultAdmittedCardPins.current
-  ), [deckCards, state.pendingSyncAssetIds]);
   const [initialVaultAdmission] = useState<WildzVaultCardAdmission>(() => deriveWildzVaultCardAdmission({
     cards: initialState.inventory,
     playerHandle: ownerReceizId
@@ -263,7 +251,6 @@ export function PlayCampaign({
     }, 6_000);
     return () => window.clearTimeout(timeout);
   }, [newRosterAssetId]);
-  usePublicCardPublisher(publicCardCandidates, enabled && networkEnabled);
   const landmarkUnlocks = state.achievements;
   const activeProgress = state.companionProgress[activeCard.id] ?? { level: 1, xp: 0, bond: 0 };
   const { discoveredByFamily, discoveredKaiLineages, guideFamilies } = useMemo(() => {
@@ -1198,17 +1185,16 @@ export function PlayCampaign({
             onRestoreArtifact={async (file, confirmCardOnly, currentPlayState) => {
               const outcome = await onRestoreArtifact(file, confirmCardOnly, currentPlayState);
               const verifiedAssetIds = new Set(outcome.verifiedAssetIds);
-              for (const asset of outcome.playState.inventory) {
-                if (verifiedAssetIds.has(asset.id)) {
-                  vaultAdmittedCardPins.current.add(`${asset.id}:${asset.proof.digest}`);
-                }
-              }
-              setState(outcome.playState);
+              const restoredPlayState = {
+                ...outcome.playState,
+                pendingSyncAssetIds: outcome.playState.pendingSyncAssetIds.filter((assetId) => !verifiedAssetIds.has(assetId))
+              };
+              setState(restoredPlayState);
               setMovementMode(outcome.playerContinuity.settings.movementMode);
               setCardOrder(outcome.playerContinuity.settings.cardOrder);
               setVisualSettings(normalizeWildsVisualSettings(outcome.playerContinuity.settings.visual));
               presentation.setAudioSettings(normalizeWildsAudioSettings(outcome.playerContinuity.settings.audio));
-              return outcome;
+              return { ...outcome, playState: restoredPlayState };
             }}
           />
         </div>

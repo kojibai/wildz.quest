@@ -21,10 +21,11 @@ test("Wildz app owns the game and overlay state", () => {
 test("profiles publish only after the same-origin proof session is connected", () => {
   const source = read("src/features/shell/WildzApp.tsx");
   const connectedGate = source.indexOf("!proofSessionConnected");
-  const publication = source.indexOf("publishCurrentWildzProfile(localPublicProfile, ownerPlayState.inventory)");
+  const publication = source.indexOf("publishCurrentWildzProfile(localPublicProfile, publishableOwnerAssets)");
 
   assert.ok(connectedGate >= 0);
   assert.ok(publication > connectedGate);
+  assert.match(source, /locallyClaimedWildzAssetIds/);
 });
 
 test("Wildz creates identity before deterministic character genesis and enters play immediately", () => {

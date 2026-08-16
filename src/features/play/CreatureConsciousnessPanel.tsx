@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Icons } from "@/components/icons";
 import {
   CREATURE_OBSERVER_ROUTE,
+  creatureVoicePerformance,
   creatureVoiceProfile,
   projectCreatureBrain
 } from "./creature-consciousness";
@@ -11,6 +12,12 @@ import type { CreatureObserverMemoryTurn } from "./creature-history-types";
 import { currentCreatureHistoryProjection } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import type { PortableCardAsset } from "./portable-card";
+import {
+  cancelCreatureNeuralVoice,
+  playCreatureNeuralVoice,
+  unlockCreatureNeuralVoice,
+  warmCreatureNeuralVoice
+} from "./creature-neural-voice";
 
 type ObserverResponse = {
   ok?: boolean;
@@ -52,6 +59,7 @@ export function CreatureConsciousnessPanel({
   const [error, setError] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [voiceMode, setVoiceMode] = useState<"native" | "warming" | "neural">("native");
   const [ephemeralTurn, setEphemeralTurn] = useState<CreatureObserverMemoryTurn | null>(null);
   const transcript = useMemo(() => {
     const sealed = isLivingCardAsset(asset)
@@ -62,11 +70,18 @@ export function CreatureConsciousnessPanel({
   }, [asset, ephemeralTurn]);
   const brain = useMemo(() => projectCreatureBrain(asset), [asset]);
   const mounted = useRef(true);
+  const speechRun = useRef(0);
+  const speechTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const neuralSpeech = useRef<AbortController | null>(null);
 
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      speechRun.current += 1;
+      neuralSpeech.current?.abort();
+      cancelCreatureNeuralVoice();
+      if (speechTimer.current) clearTimeout(speechTimer.current);
       if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
     };
   }, []);
@@ -83,6 +98,11 @@ export function CreatureConsciousnessPanel({
     setDraft("");
     setError("");
     setEphemeralTurn(null);
+    speechRun.current += 1;
+    neuralSpeech.current?.abort();
+    cancelCreatureNeuralVoice();
+    if (speechTimer.current) clearTimeout(speechTimer.current);
+    if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
     onSpeakingChange?.(false);
   }, [asset.id, onSpeakingChange]);
 
@@ -90,27 +110,63 @@ export function CreatureConsciousnessPanel({
     if (mounted.current) onSpeakingChange?.(false);
   };
 
-  const speak = (text: string) => {
+  const speak = async (text: string) => {
     if (!voiceEnabled || typeof window === "undefined" || !("speechSynthesis" in window)) {
       finishSpeaking();
       return;
     }
+    speechRun.current += 1;
+    const run = speechRun.current;
+    neuralSpeech.current?.abort();
+    const neuralController = new AbortController();
+    neuralSpeech.current = neuralController;
+    if (speechTimer.current) clearTimeout(speechTimer.current);
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
+    const neuralPlayed = await playCreatureNeuralVoice(asset, text, neuralController.signal).catch(() => false);
+    if (neuralPlayed) {
+      if (run === speechRun.current) {
+        setVoiceMode("neural");
+        finishSpeaking();
+      }
+      return;
+    }
+    if (!mounted.current || run !== speechRun.current || neuralController.signal.aborted) return;
+    setVoiceMode("native");
     const profile = creatureVoiceProfile(asset, voices);
-    if (profile.voice) utterance.voice = profile.voice;
-    utterance.lang = profile.voice?.lang ?? "en-US";
-    utterance.rate = profile.rate;
-    utterance.pitch = profile.pitch;
-    utterance.volume = profile.volume;
-    utterance.onend = finishSpeaking;
-    utterance.onerror = finishSpeaking;
-    window.speechSynthesis.speak(utterance);
+    const performance = creatureVoicePerformance(asset, text);
+    const perform = (index: number) => {
+      if (!mounted.current || run !== speechRun.current) return;
+      const segment = performance[index];
+      if (!segment) {
+        finishSpeaking();
+        return;
+      }
+      const utterance = new SpeechSynthesisUtterance(segment.text);
+      if (profile.voice) utterance.voice = profile.voice;
+      utterance.lang = profile.voice?.lang ?? "en-US";
+      utterance.rate = Math.max(.86, Math.min(1.08, (profile.rate + segment.rate) / 2));
+      utterance.pitch = Math.max(.92, Math.min(1.08, (profile.pitch + segment.pitch) / 2));
+      utterance.volume = Math.min(profile.volume, segment.volume);
+      utterance.onend = () => {
+        if (!mounted.current || run !== speechRun.current) return;
+        speechTimer.current = setTimeout(() => perform(index + 1), segment.pauseAfterMs);
+      };
+      utterance.onerror = () => {
+        if (run === speechRun.current) finishSpeaking();
+      };
+      window.speechSynthesis.speak(utterance);
+    };
+    perform(0);
   };
 
   const submit = async (message = draft) => {
     const normalized = message.replace(/\s+/g, " ").trim();
     if (!normalized || loading || disabled) return;
+    if (voiceEnabled) {
+      setVoiceMode("warming");
+      void unlockCreatureNeuralVoice().catch(() => undefined);
+      void warmCreatureNeuralVoice();
+    }
     setLoading(true);
     setError("");
     onSpeakingChange?.(true);
@@ -127,7 +183,7 @@ export function CreatureConsciousnessPanel({
       setEphemeralTurn(result.turn);
       onObserved(result.turn);
       setDraft("");
-      speak(result.turn.creatureText);
+      void speak(result.turn.creatureText);
     } catch (cause) {
       finishSpeaking();
       setError(observerError(cause instanceof Error ? cause.message : undefined));
@@ -144,7 +200,7 @@ export function CreatureConsciousnessPanel({
         <div>
           <span><i aria-hidden="true" /> Live creature Twin</span>
           <strong>{asset.manifest.name}&apos;s brain</strong>
-          <small>{brain.memory.eventLedger.length + 1} proof memor{brain.memory.eventLedger.length ? "ies" : "y"} · origin plus every appended event</small>
+          <small>Innate self · capture bond · {brain.memory.eventLedger.length} proof event{brain.memory.eventLedger.length === 1 ? "" : "s"}</small>
         </div>
         <button
           aria-label={`${voiceEnabled ? "Turn off" : "Turn on"} creature voice`}
@@ -154,6 +210,10 @@ export function CreatureConsciousnessPanel({
             const next = !voiceEnabled;
             setVoiceEnabled(next);
             if (!next && "speechSynthesis" in window) {
+              speechRun.current += 1;
+              neuralSpeech.current?.abort();
+              cancelCreatureNeuralVoice();
+              if (speechTimer.current) clearTimeout(speechTimer.current);
               window.speechSynthesis.cancel();
               finishSpeaking();
             }
@@ -206,7 +266,7 @@ export function CreatureConsciousnessPanel({
       </form>
       {disabled ? <p className="wilds-creature-observer-note">Memorial cards keep their complete mind, but retired creatures no longer answer.</p> : null}
       {error ? <p className="wilds-creature-observer-error" role="alert">{error}</p> : null}
-      <footer><span>Brain {brain.contextDigest.slice(7, 18)}</span><span>{transcript.at(-1)?.observer === "receiz-twin-local" ? "Receiz Twin · proof-local voice" : "Receiz Twin · live AI observer"}</span></footer>
+      <footer><span>Brain {brain.contextDigest.slice(7, 18)}</span><span>{voiceMode === "neural" ? "Local neural character voice" : voiceMode === "warming" ? "Local neural voice awakening" : transcript.at(-1)?.observer === "receiz-twin-local" ? "Receiz Twin · expressive local voice" : "Receiz Twin · live AI observer"}</span></footer>
     </section>
   );
 }

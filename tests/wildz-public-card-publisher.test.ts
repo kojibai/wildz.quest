@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { sealCollectedCard } from "../src/features/play/portable-card.js";
 import {
@@ -35,6 +36,15 @@ test("Vault-admitted cards never enter the post-upload publication path", () => 
     ).map((asset) => asset.id),
     [caught.id]
   );
+});
+
+test("Vault restore clears verified upload ids before committing publisher state", () => {
+  const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
+  const restore = campaign.slice(campaign.indexOf("onRestoreArtifact={async"), campaign.indexOf("/>\n", campaign.indexOf("onRestoreArtifact={async")));
+
+  assert.match(restore, /const verifiedAssetIds = new Set\(outcome\.verifiedAssetIds\)/);
+  assert.match(restore, /pendingSyncAssetIds: outcome\.playState\.pendingSyncAssetIds\.filter\(\(assetId\) => !verifiedAssetIds\.has\(assetId\)\)/);
+  assert.ok(restore.indexOf("pendingSyncAssetIds:") < restore.indexOf("setState(restoredPlayState)"));
 });
 
 test("public card publisher queues every verified proof once in stable order", () => {

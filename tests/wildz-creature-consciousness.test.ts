@@ -5,6 +5,7 @@ import {
   createObservedCreatureTurn,
   creatureConsciousnessMotion,
   creatureObserverClientContext,
+  creatureVoicePerformance,
   creatureVoiceProfile,
   localCreatureTwinReply,
   normalizeCreatureTwinReply,
@@ -21,6 +22,7 @@ import {
   serializePlayState
 } from "../src/features/play/game-state";
 import { verifyAnyWildsCard } from "../src/features/play/portable-card";
+import { creatureNeuralVoiceIdentity } from "../src/features/play/creature-neural-voice";
 
 test("a Receiz Twin observation appends to the exact portable card brain", () => {
   const original = initialPlayState.inventory[0]!;
@@ -97,6 +99,16 @@ test("the creature brain gives the Twin exact proof context and model boundaries
   assert.equal(brain.memory.capture.occurredAt, asset.manifest.capturedAt);
   assert.equal(brain.memory.capture.encounterId, asset.manifest.encounterId);
   assert.equal(brain.memory.capture.proofDigest, asset.proof.digest);
+  assert.equal(brain.memory.capture.relationshipMeaning, "first-owner-shared-memory");
+  assert.equal(brain.memory.innateSelf.kind, "pre-capture-self");
+  assert.equal(brain.memory.innateSelf.communication.length > 0, true);
+  assert.deepEqual(
+    brain.memory.innateSelf.originalStats,
+    isLivingCardAsset(asset) ? asset.manifest.revisions[0]?.stats ?? asset.manifest.stats : asset.manifest.stats
+  );
+  assert.match(brain.performance.expression.voiceSignature, /^expression:[a-f0-9]{16}$/);
+  assert.equal(brain.performance.expression.evolvesOnlyFromProofState, true);
+  assert.ok(brain.performance.expression.emotionalOpenness >= 0 && brain.performance.expression.emotionalOpenness <= 1);
   if (isLivingCardAsset(asset) && asset.manifest.history) {
     assert.equal(brain.memory.eventLedger.length, asset.manifest.history.events.length);
     assert.deepEqual(
@@ -118,6 +130,7 @@ test("the creature brain gives the Twin exact proof context and model boundaries
   }
   assert.equal(context.creatureBrain.contextDigest, brain.contextDigest);
   assert.match(context.instruction, /never invent a canonical event/i);
+  assert.match(context.instruction, /capture did not create its mind/i);
   assert.equal(parseCreatureObserverRequest({ card: asset, message: "  Hello   there  " }).message, "Hello there");
   assert.throws(() => parseCreatureObserverRequest({ card: asset, message: "" }), /creature_observer_request_invalid/);
   assert.equal(normalizeCreatureTwinReply({ content: [{ text: "I am here." }] }), "I am here.");
@@ -134,12 +147,25 @@ test("the creature brain gives the Twin exact proof context and model boundaries
   const captureReply = localCreatureTwinReply(brain, "Do you remember when I captured you?");
   assert.match(captureReply, new RegExp(asset.manifest.encounterId));
   assert.match(captureReply, new RegExp(asset.manifest.capturedAt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(captureReply, /when our story began/i);
 
   const voice = creatureVoiceProfile(asset, [
     { name: "Robot Compact", lang: "en-US", localService: true },
     { name: "Ava Premium", lang: "en-US", localService: true }
   ]);
   assert.equal(voice.voice?.name, "Ava Premium");
+
+  const performance = creatureVoicePerformance(asset, "I remember our beginning. Shall we explore together?");
+  assert.equal(performance.length, 2);
+  assert.equal(performance[0]?.text, "I remember our beginning.");
+  assert.equal(performance[1]?.text, "Shall we explore together?");
+  assert.deepEqual(performance, creatureVoicePerformance(asset, "I remember our beginning. Shall we explore together?"));
+  assert.ok(performance.every((segment) => segment.rate >= .87 && segment.rate <= 1.055));
+  assert.ok(performance.every((segment) => segment.pitch >= .94 && segment.pitch <= 1.065));
+  const neuralVoice = creatureNeuralVoiceIdentity(asset);
+  assert.match(neuralVoice.signature, /^neural:[a-f0-9]{16}$/);
+  assert.deepEqual(neuralVoice, creatureNeuralVoiceIdentity(asset));
+  assert.ok(neuralVoice.speed >= .91 && neuralVoice.speed <= 1.09);
 });
 
 test("training becomes exact autobiographical memory without replacing capture", () => {
@@ -183,6 +209,8 @@ test("Vault consciousness uses the SDK World Twin rail and card-scoped UI", () =
   assert.match(route, /createObservedCreatureTurn/);
   assert.match(panel, /record-creature-observation|onObserved/);
   assert.match(panel, /speechSynthesis/);
+  assert.match(panel, /playCreatureNeuralVoice/);
+  assert.match(panel, /warmCreatureNeuralVoice/);
   assert.match(card, /data-speaking/);
   assert.match(css, /wilds-creature-blink/);
   assert.match(css, /wilds-creature-consciousness/);

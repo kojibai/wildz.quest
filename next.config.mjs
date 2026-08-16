@@ -1,7 +1,12 @@
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
+import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const root = dirname(fileURLToPath(import.meta.url));
+const kokoroVirtualNodeModules = dirname(realpathSync(resolve(root, "node_modules/kokoro-js")));
+const transformersRoot = realpathSync(resolve(kokoroVirtualNodeModules, "@huggingface/transformers"));
+const transformersVirtualNodeModules = dirname(dirname(transformersRoot));
+const onnxWebDist = resolve(transformersVirtualNodeModules, "onnxruntime-web/dist");
 
 export function contentSecurityPolicy(environment) {
   const scripts = environment === "development"
@@ -61,6 +66,22 @@ const nextConfig = {
   },
   reactStrictMode: true,
   webpack(config, { isServer, webpack }) {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      // kokoro-js publishes a browser-complete WebGPU/WASM bundle but its
+      // default export condition points webpack at the Node ONNX binary.
+      "kokoro-js": resolve(root, "node_modules/kokoro-js/dist/kokoro.web.js"),
+      "ort.bundle.min.mjs$": resolve(onnxWebDist, "ort.bundle.min.mjs"),
+      "ort-wasm-simd-threaded.jsep.wasm$": resolve(onnxWebDist, "ort-wasm-simd-threaded.jsep.wasm")
+    };
+    config.plugins.push(
+      new webpack.NormalModuleReplacementPlugin(/^ort\.bundle\.min\.mjs$/, resolve(onnxWebDist, "ort.bundle.min.mjs")),
+      new webpack.NormalModuleReplacementPlugin(/^ort-wasm-simd-threaded\.jsep\.wasm$/, resolve(onnxWebDist, "ort-wasm-simd-threaded.jsep.wasm"))
+    );
+    config.module.rules.push({
+      test: /ort-wasm-simd-threaded\.jsep\.wasm$/,
+      type: "asset/resource"
+    });
     if (!isServer) {
       // SDK v119 exposes its Node-only compilers through @receiz/sdk/compiler.
       // Keep those unused compiler built-ins outside client bundles until the

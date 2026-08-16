@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { initialPlayState } from "../src/features/play/game-state";
 import {
+  locallyClaimedWildzAssetIds,
   locallyTransferredWildzAssetIds,
   recordLocalWildzOwnershipTransfer,
   removeWildzAssetsFromActiveVault
@@ -55,6 +56,8 @@ test("a verified same-device bearer transfer removes the card when the previous 
   recordLocalWildzOwnershipTransfer(storage, "new_owner.receiz.id", [asset.id], "2026-08-16T12:00:00.000Z");
   assert.deepEqual(locallyTransferredWildzAssetIds(storage, "old_owner.receiz.id", [asset.id]), [asset.id]);
   assert.deepEqual(locallyTransferredWildzAssetIds(storage, "new_owner", [asset.id]), []);
+  assert.deepEqual(locallyClaimedWildzAssetIds(storage, "new_owner", [asset.id]), [asset.id]);
+  assert.deepEqual(locallyClaimedWildzAssetIds(storage, "old_owner", [asset.id]), []);
 });
 
 test("ownership reconciliation requests are exact and bounded", () => {
@@ -122,11 +125,16 @@ test("owned Vault uploads merge directly while foreign bearer artifacts claim fi
   assert.match(claimPath, /proofSessionConnected/);
   assert.match(claimPath, /inspectWildzRestore\(file\)/);
   assert.match(claimPath, /wildzVaultUploadDisposition\(inspection, current\.session\.actorId\)/);
+  assert.match(claimPath, /const restoreVerifiedBaseline = async/);
+  assert.match(claimPath, /return restoreVerifiedBaseline\(\)/);
   assert.match(claimPath, /disposition === "merge-owned"/);
+  assert.match(claimPath, /connectWildzProofSession\(current\.session, \{ vaultAdmission: admission \}\)/);
+  assert.match(claimPath, /wildzRemoteSessionMatchesIdentity\(current\.session, remote\)/);
   assert.match(claimPath, /fetch\("\/api\/market\/claims"/);
   assert.match(claimPath, /openWildzArtifactSameOrigin/);
   assert.match(claimPath, /x-receiz-artifact-sha256/);
   assert.match(claimPath, /downloadBlob/);
+  assert.match(claimPath, /wildz_bearer_claim_stale_ownership/);
   assert.match(claimPath, /restoreArtifact\(\s*claimedFile,\s*"card-vault",\s*true,[\s\S]*"merge-vault"/);
   assert.match(claimPath, /restoreArtifact\(\s*file,\s*"card-vault",\s*true,/);
   assert.ok(claimPath.indexOf("inspectWildzRestore(file)") < claimPath.indexOf('fetch("/api/market/claims"'));

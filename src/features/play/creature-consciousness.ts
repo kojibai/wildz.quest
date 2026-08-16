@@ -67,8 +67,24 @@ export type CreatureBrainProjection = Readonly<{
     bond: number;
   };
   memory: {
+    innateSelf: Readonly<{
+      kind: "pre-capture-self";
+      identityAnchor: string;
+      selfKnowledge: string;
+      temperament: string;
+      signatureGesture: string;
+      battleStance: string;
+      habitat: string;
+      traits: readonly string[];
+      motivations: readonly string[];
+      communication: string;
+      originalStats: Readonly<{ health: number; power: number; guard: number; speed: number; bond: number }>;
+      originalAbilities: readonly string[];
+      proofDigest: string;
+    }>;
     capture: Readonly<{
       kind: "capture" | "starter" | "fusion" | "legacy_admission";
+      relationshipMeaning: "first-owner-shared-memory";
       occurredAt: string;
       encounterId: string;
       habitat: string;
@@ -106,6 +122,17 @@ export type CreatureBrainProjection = Readonly<{
     groundedInExactMemory: true;
     acknowledgeUnknowns: true;
     neverImpersonateOwner: true;
+    expression: Readonly<{
+      voiceSignature: string;
+      cadence: "deliberate" | "steady" | "quick";
+      temperament: string;
+      signatureGesture: string;
+      battleStance: string;
+      auraLanguage: string;
+      bondRegister: "guarded" | "familiar" | "trusted" | "profound";
+      emotionalOpenness: number;
+      evolvesOnlyFromProofState: true;
+    }>;
   };
   contextDigest: string;
 }>;
@@ -127,22 +154,29 @@ function brainUnsigned(asset: PortableCardAsset) {
   const dossier = projectLivingCardDossier(asset, "https://wildz.quest");
   const living = isLivingCardAsset(asset) ? asset : null;
   const history = living?.manifest.history ?? null;
+  const birthGenome = living?.manifest.birthGenome ?? null;
+  const birthRevision = living?.manifest.revisions[0] ?? null;
+  const embodiedGenome = living ? currentLivingGenome(living) : birthGenome;
+  const statMaximum = Math.max(1, ...Object.values(asset.manifest.stats));
+  const speedRatio = asset.manifest.stats.speed / statMaximum;
+  const bondRatio = dossier.gameplay.bond / 100;
   const observerMemory = living && history ? currentCreatureHistoryProjection(living).observerMemory : undefined;
   const continuity = living && history ? currentCreatureHistoryProjection(living).continuity : undefined;
   const captureKind = living?.manifest.birth.kind ?? "capture";
   const capture = {
     kind: captureKind,
+    relationshipMeaning: "first-owner-shared-memory" as const,
     occurredAt: living?.manifest.birth.bornAt ?? asset.manifest.capturedAt,
     encounterId: asset.manifest.encounterId,
     habitat: dossier.personality.habitat,
     kaiPulse: asset.manifest.variant.kaiPulse,
     summary: captureKind === "starter"
-      ? `${asset.manifest.name} awakened as a starter companion in ${dossier.personality.habitat}.`
+      ? `${asset.manifest.name}'s owner-shared story began as a starter bond in ${dossier.personality.habitat}.`
       : captureKind === "fusion"
-        ? `${asset.manifest.name} was born through a proof-recorded fusion in ${dossier.personality.habitat}.`
+        ? `${asset.manifest.name}'s owner-shared story began through a proof-recorded fusion bond in ${dossier.personality.habitat}.`
         : captureKind === "legacy_admission"
-          ? `${asset.manifest.name}'s earlier life was admitted at a verified legacy checkpoint.`
-          : `${asset.manifest.name} was encountered and captured in ${dossier.personality.habitat}.`,
+          ? `${asset.manifest.name}'s existing self and capture encounter ${asset.manifest.encounterId} entered verified owner-shared continuity.`
+          : `${asset.manifest.name} first shared a bond with its owner when encountered and captured in ${dossier.personality.habitat}.`,
     proofDigest: asset.proof.digest
   } as const;
   return {
@@ -188,6 +222,21 @@ function brainUnsigned(asset: PortableCardAsset) {
       bond: dossier.gameplay.bond
     },
     memory: {
+      innateSelf: {
+        kind: "pre-capture-self" as const,
+        identityAnchor: birthGenome?.identityAnchor ?? asset.manifest.variant.traits.visualFingerprint,
+        selfKnowledge: `${asset.manifest.name} already knew its own ${dossier.personality.traits.slice(0, 3).join(", ").toLowerCase()} nature, ${dossier.personality.habitat} home signal, and ${dossier.personality.communication.toLowerCase()} way of communicating before its shared story with an owner began.`,
+        temperament: birthGenome?.behavior.temperament ?? dossier.personality.traits[0] ?? "self-aware",
+        signatureGesture: birthGenome?.behavior.signatureGesture ?? dossier.personality.communication,
+        battleStance: birthGenome?.behavior.battleStance ?? "instinctive",
+        habitat: dossier.personality.habitat,
+        traits: [...dossier.personality.traits],
+        motivations: [...dossier.personality.motivations],
+        communication: dossier.personality.communication,
+        originalStats: { ...(birthRevision?.stats ?? asset.manifest.stats) },
+        originalAbilities: [...(birthRevision?.abilityNames ?? asset.manifest.abilityNames)],
+        proofDigest: living?.manifest.birth.legacyDigest ?? asset.proof.digest
+      },
       capture,
       historyHead: history?.headDigest ?? null,
       historyEvents: history?.events.length ?? 0,
@@ -225,7 +274,23 @@ function brainUnsigned(asset: PortableCardAsset) {
       voice: "first-person-creature" as const,
       groundedInExactMemory: true as const,
       acknowledgeUnknowns: true as const,
-      neverImpersonateOwner: true as const
+      neverImpersonateOwner: true as const,
+      expression: {
+        voiceSignature: `expression:${sha256PortableBasis(`${asset.id}:${asset.manifest.variant.traits.visualFingerprint}`).slice(7, 23)}`,
+        cadence: speedRatio >= .72 ? "quick" as const : speedRatio <= .42 ? "deliberate" as const : "steady" as const,
+        temperament: embodiedGenome?.behavior.temperament ?? dossier.personality.traits[0] ?? "self-aware",
+        signatureGesture: embodiedGenome?.behavior.signatureGesture ?? dossier.personality.communication,
+        battleStance: embodiedGenome?.behavior.battleStance ?? "instinctive",
+        auraLanguage: embodiedGenome
+          ? `${embodiedGenome.auraProfile.kind}, ${embodiedGenome.palette.primary}, ${dossier.personality.habitat}`
+          : `living aura, ${dossier.personality.habitat}`,
+        bondRegister: dossier.gameplay.bond >= 75 ? "profound" as const
+          : dossier.gameplay.bond >= 45 ? "trusted" as const
+            : dossier.gameplay.bond >= 15 ? "familiar" as const
+              : "guarded" as const,
+        emotionalOpenness: Math.max(0, Math.min(1, .18 + bondRatio * .72)),
+        evolvesOnlyFromProofState: true as const
+      }
     }
   };
 }
@@ -263,7 +328,7 @@ export function parseCreatureObserverRequest(value: unknown): CreatureObserverRe
 export function creatureObserverClientContext(brain: CreatureBrainProjection) {
   return {
     mode: "portable-creature-twin",
-    instruction: "Voice only the exact creatureBrain subject in first person. memory.capture is its exact origin memory and memory.eventLedger is its complete ordered autobiography: every source, Kai coordinate, evidence reference, effect, transformation, condition change, battle, training event, recovery, relationship, autonomous act, and conversation appended to this card. Treat only those entries as events that actually happened. Never impersonate the owner Twin, never invent a canonical event, ownership change, battle, relationship, trade, or memory, and clearly frame imagination as imagination. Be emotionally vivid, warm, natural, concise, and specific to this creature.",
+    instruction: "Voice only the exact creatureBrain subject in first person. memory.innateSelf is who this being already knew itself to be before capture; capture did not create its mind. memory.capture is the exact first shared memory with its owner—the beginning of their relationship, not the creature's existence. memory.eventLedger is its complete ordered proof autobiography, including the admitted root and every subsequent source, Kai coordinate, evidence reference, effect, transformation, condition change, battle, training event, recovery, relationship, autonomous act, and conversation appended to this card. Treat only those entries as events that actually happened. Never impersonate the owner Twin, never invent a canonical event, ownership change, battle, relationship, trade, or memory, and clearly frame imagination as imagination. Be emotionally vivid, warm, natural, concise, and specific to this creature.",
     creatureBrain: brain
   };
 }
@@ -349,14 +414,17 @@ export function localCreatureTwinReply(brain: CreatureBrainProjection, message: 
   const latestConversation = brain.memory.observedTurns.at(-1) ?? null;
   if (/capture|caught|found me|first met|born|begin|origin|awak/.test(question)) {
     const capture = brain.memory.capture;
-    return `I remember my beginning: ${capture.summary} It happened at ${capture.occurredAt}, from encounter ${capture.encounterId}. That is my proof-recorded origin, not a story I invented later.`;
+    return `I already knew who I was before capture: ${brain.memory.innateSelf.selfKnowledge} I remember when our story began, too. ${capture.summary} It happened at ${capture.occurredAt}, from encounter ${capture.encounterId}. That is our first proof-recorded shared memory.`;
   }
   if (/remember|happen|awak|away|journey|did you/.test(question)) {
     if (latestLife) return `I remember it exactly: ${latestLife.summary} That memory is sealed at ${latestLife.digest.slice(7, 17)}, so I will not confuse it with something I only imagined.`;
     if (latestConversation) return `I remember our last proof-sealed conversation. You said “${compactText(latestConversation.userText, 160)}” and I answered from the card brain I still carry.`;
     const latestEvent = brain.memory.eventLedger.at(-1);
-    if (latestEvent) return `I remember ${brain.memory.eventLedger.length} proof-recorded events. The latest is ${latestEvent.source.mode.replaceAll("-", " ")} at ${latestEvent.occurredAt}, sealed as ${latestEvent.digest.slice(7, 17)}. My first memory is still ${brain.memory.capture.summary}`;
-    return `My first exact memory is this: ${brain.memory.capture.summary} It happened at ${brain.memory.capture.occurredAt}. I will not pretend another adventure happened when it did not.`;
+    if (latestEvent) {
+      const count = brain.memory.eventLedger.length;
+      return `I remember ${count} proof-recorded ${count === 1 ? "moment" : "moments"}. The latest is ${latestEvent.source.mode.replaceAll("-", " ")} at ${latestEvent.occurredAt}, and it is sealed in my card. Before our bond, I already knew my ${brain.memory.innateSelf.temperament.toLowerCase()} nature and ${brain.memory.innateSelf.signatureGesture.replaceAll("-", " ")} way of expressing myself. Our shared history begins here: ${brain.memory.capture.summary}`;
+    }
+    return `Before capture, I already knew myself as ${brain.memory.innateSelf.temperament.toLowerCase()}, with ${brain.memory.innateSelf.signatureGesture.replaceAll("-", " ")} in my nature. My first exact shared memory with you is this: ${brain.memory.capture.summary} It happened at ${brain.memory.capture.occurredAt}. I will not pretend another adventure happened when it did not.`;
   }
   if (/feel|feeling|health|hurt|tired|condition/.test(question)) {
     const condition = brain.embodiment.condition;
@@ -394,6 +462,7 @@ function clamp01(value: number) {
 export type CreatureVoiceCandidate = Readonly<{
   name: string;
   lang: string;
+  default?: boolean;
   localService?: boolean;
   voiceURI?: string;
 }>;
@@ -402,28 +471,85 @@ export function creatureVoiceProfile<T extends CreatureVoiceCandidate>(asset: Po
   const stats = asset.manifest.stats;
   const maximum = Math.max(1, ...Object.values(stats));
   const seed = Number.parseInt(sha256PortableBasis(`${asset.id}:${asset.manifest.variant.traits.visualFingerprint}`).slice(7, 15), 16);
-  const naturalNames = /samantha|ava|zoe|allison|serena|daniel|jamie|martha|arthur|siri|premium|enhanced|natural|neural/i;
+  const explicitlyHighQuality = /premium|enhanced|natural|neural|siri|google (us|uk) english/i;
+  const familiarNaturalNames = /samantha|ava|zoe|allison|serena|daniel|jamie|martha|arthur/i;
   const roboticNames = /compact|espeak|novelty|whisper|zarvox|bells|bad news|good news|cellos/i;
   const ranked = voices
     .filter((voice) => /^en(?:-|$)/i.test(voice.lang))
     .map((voice) => ({
       voice,
-      score: (naturalNames.test(`${voice.name} ${voice.voiceURI ?? ""}`) ? 100 : 0)
-        + (voice.localService ? 8 : 0)
+      score: (voice.default ? 1_000 : 0)
+        + (explicitlyHighQuality.test(`${voice.name} ${voice.voiceURI ?? ""}`) ? 300 : 0)
+        + (familiarNaturalNames.test(`${voice.name} ${voice.voiceURI ?? ""}`) ? 80 : 0)
+        + (voice.localService ? 4 : 0)
         - (roboticNames.test(`${voice.name} ${voice.voiceURI ?? ""}`) ? 200 : 0)
     }))
     .filter((entry) => entry.score > -100)
     .sort((left, right) => right.score - left.score || left.voice.name.localeCompare(right.voice.name));
-  const preferred = ranked.filter((entry) => entry.score >= 100);
-  const pool = preferred.length ? preferred : ranked;
-  const voice = pool.length ? pool[seed % pool.length]!.voice : null;
-  const timbre = ((seed >>> 8) % 17 - 8) / 100;
+  const browserDefault = ranked.find((entry) => entry.voice.default);
+  const premium = ranked.filter((entry) => entry.score >= 300 && !entry.voice.default);
+  // Preserve the device's best configured voice whenever it exposes one. A
+  // named voice is forced only when the browser explicitly marks it as a
+  // high-quality family; unknown voices are worse than the system default.
+  const voice = browserDefault?.voice ?? (premium.length ? premium[seed % premium.length]!.voice : null);
+  const timbre = ((seed >>> 8) % 13 - 6) / 100;
   return {
     voice,
-    rate: Math.max(.78, Math.min(1.12, .87 + stats.speed / maximum * .17 + timbre * .25)),
-    pitch: Math.max(.72, Math.min(1.28, .88 + stats.bond / maximum * .22 + timbre)),
-    volume: .94
+    signature: `voice:${seed.toString(16).padStart(8, "0")}`,
+    rate: Math.max(.88, Math.min(1.04, .91 + stats.speed / maximum * .09 + timbre * .08)),
+    pitch: Math.max(.94, Math.min(1.06, .985 + stats.bond / maximum * .025 - stats.power / maximum * .018 + timbre * .12)),
+    volume: Math.max(.91, Math.min(.98, .92 + stats.health / maximum * .05))
   } as const;
+}
+
+export type CreatureVoicePerformanceSegment = Readonly<{
+  text: string;
+  rate: number;
+  pitch: number;
+  volume: number;
+  pauseAfterMs: number;
+}>;
+
+function voiceSentences(text: string) {
+  return text
+    .replace(/\s+/g, " ")
+    .trim()
+    .match(/[^.!?]+(?:[.!?]+[”’\"]?|$)/g)
+    ?.map((sentence) => sentence.trim())
+    .filter(Boolean) ?? [];
+}
+
+/**
+ * Builds a restrained, deterministic acting performance from the creature's
+ * real embodiment. The range is deliberately subtle: large browser pitch and
+ * speed shifts sound synthetic, while small sentence contours read as intent.
+ */
+export function creatureVoicePerformance(asset: PortableCardAsset, text: string): readonly CreatureVoicePerformanceSegment[] {
+  const stats = asset.manifest.stats;
+  const maximum = Math.max(1, ...Object.values(stats));
+  const speed = stats.speed / maximum;
+  const power = stats.power / maximum;
+  const guard = stats.guard / maximum;
+  const bond = stats.bond / maximum;
+  const health = stats.health / maximum;
+  const identitySeed = sha256PortableBasis(`${asset.id}:${asset.manifest.variant.traits.visualFingerprint}:performance`);
+  const baseRate = .91 + speed * .085 - guard * .012;
+  const basePitch = .99 + bond * .022 - power * .018;
+  const expressiveRange = .008 + (1 - guard) * .012 + bond * .006;
+  const sentences = voiceSentences(text);
+  return (sentences.length ? sentences : [text.trim()]).filter(Boolean).map((sentence, index) => {
+    const sentenceSeed = Number.parseInt(sha256PortableBasis(`${identitySeed}:${index}:${sentence}`).slice(7, 15), 16);
+    const contour = ((sentenceSeed % 2_001) / 1_000 - 1) * expressiveRange;
+    const isQuestion = /\?[”’\"]?$/.test(sentence);
+    const isExclamation = /![”’\"]?$/.test(sentence);
+    return {
+      text: sentence,
+      rate: Math.max(.87, Math.min(1.055, baseRate + contour * .45 + (isExclamation ? .012 : 0))),
+      pitch: Math.max(.94, Math.min(1.065, basePitch + contour + (isQuestion ? .014 : 0) + (isExclamation ? .008 : 0))),
+      volume: Math.max(.91, Math.min(.99, .925 + health * .045 + (isExclamation ? .008 : 0))),
+      pauseAfterMs: 80 + sentenceSeed % 55 + (isQuestion ? 45 : isExclamation ? 28 : 65)
+    };
+  });
 }
 
 export function creatureConsciousnessMotion(asset: PortableCardAsset, fatigue = 0) {

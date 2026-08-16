@@ -162,14 +162,9 @@ export function WildsInventory({
   }, [origin, selected]);
 
   useEffect(() => {
-    if (!selected || selectedRetired) return;
     setCardSaveState("idle");
     setDownloadMessage("");
-    void preparedCardArtifacts.prepare(selected).catch(() => {
-      // Speculative preparation is silent. An explicit Save or Send retries
-      // through the cache and owns any visible error.
-    });
-  }, [preparedCardArtifacts, selected, selectedRetired]);
+  }, [selected?.id]);
 
   useEffect(() => () => {
     if (saveResetTimer.current !== null) window.clearTimeout(saveResetTimer.current);
@@ -313,7 +308,7 @@ export function WildsInventory({
               for (const file of files) {
                 try {
                   const outcome = await onRestoreArtifact(file, () => window.confirm(
-                    "Claim and add every verified card from this file to the current Vault? Receiz will create and download a new ownership artifact; the original history stays preserved."
+                    "Add every verified card from this file to the current Vault? The proven card history stays intact, and bearer ownership reconciles through Receiz when connected."
                   ), currentPlayState);
                   const summary = summarizeWildzInventoryImport(currentPlayState, outcome);
                   currentPlayState = outcome.playState;
