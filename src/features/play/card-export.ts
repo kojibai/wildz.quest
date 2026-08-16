@@ -512,6 +512,29 @@ export function downloadBlob(blob: Blob, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+/** Opens the platform save/share sheet when file sharing is available (notably
+ * iPhone/iPad), with the classic download rail as the desktop fallback. */
+export async function saveBlobToDevice(blob: Blob, filename: string) {
+  if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+    const file = new File([await blob.arrayBuffer()], filename, { type: blob.type || "application/octet-stream" });
+    const data: ShareData = { files: [file] };
+    if (typeof navigator.canShare !== "function" || navigator.canShare(data)) {
+      try {
+        await navigator.share(data);
+        return "native-share" as const;
+      } catch (cause) {
+        if (cause instanceof DOMException && cause.name === "AbortError") {
+          throw new Error("wilds_native_save_cancelled");
+        }
+        // Browsers may expose share() but reject file sharing. Preserve a
+        // working save rail in that case.
+      }
+    }
+  }
+  downloadBlob(blob, filename);
+  return "download" as const;
+}
+
 export function portableCreatureFilename(name: string) {
   const normalized = name.normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -535,12 +558,18 @@ export async function createReceizProofObjectArtifact(
   kind: "card" | "vault",
   verifyProofObject?: WildzDownloadedProofObjectVerifier
 ) {
-  const form = new FormData();
-  form.set("file", payload, filename);
-  form.set("kind", kind);
+  const payloadBytes = new Uint8Array(await payload.arrayBuffer());
   let response: Response;
   try {
-    response = await fetch("/api/receiz/proof-object", { method: "POST", body: form });
+    response = await fetch("/api/receiz/proof-object", {
+      method: "POST",
+      headers: {
+        "content-type": payload.type || "application/octet-stream",
+        "x-wildz-artifact-filename": encodeURIComponent(filename),
+        "x-wildz-proof-kind": kind
+      },
+      body: payloadBytes
+    });
   } catch {
     throw new Error("receiz_proof_object_unavailable");
   }
@@ -563,7 +592,7 @@ export async function createReceizProofObjectArtifact(
       proofObject,
       mimeType,
       artifactFilename,
-      new Uint8Array(await payload.arrayBuffer())
+      payloadBytes
     );
   }
   return { bytes: proofObject, filename: artifactFilename, mimeType };
@@ -581,7 +610,7 @@ export async function downloadReceizProofObject(
     kind,
     options.verifyProofObject
   );
-  downloadBlob(
+  await saveBlobToDevice(
     new Blob([artifact.bytes.slice().buffer], { type: artifact.mimeType }),
     options.outputFilename ?? artifact.filename
   );
@@ -601,7 +630,10 @@ async function svgPngBlob(svg: string, width = 750, height = 1050) {
     // Chromium can leave decode() pending indefinitely for a large SVG blob
     // after the image has already loaded. Either completed signal is sufficient
     // before drawing the exact same source bytes to the canvas.
-    await Promise.race([image.decode(), loaded]);
+    await Promise.race([
+      image.decode().catch(() => loaded),
+      loaded
+    ]);
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
@@ -612,6 +644,22 @@ async function svgPngBlob(svg: string, width = 750, height = 1050) {
   } finally {
     URL.revokeObjectURL(source);
   }
+}
+
+async function serverArtifactPng(kind: "card" | "vault", assets: PortableCardAsset[]) {
+  const response = await fetch("/api/wildz/artifact-image", {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ kind, assets })
+  });
+  if (!response.ok || response.headers.get("x-wildz-raster-authority") !== "verified-card-projection") {
+    throw new Error("wildz_artifact_image_failed");
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (!bytes.byteLength) throw new Error("wildz_artifact_image_empty");
+  return new Blob([bytes.slice().buffer], { type: "image/png" });
 }
 
 export async function downloadPortableCard(
@@ -663,14 +711,16 @@ export async function portableCardPngBlobForIdentityOwnership(asset: PortableCar
 }
 
 async function renderPortableCardPngBlob(asset: PortableCardAsset) {
-  const rendered = await svgPngBlob(renderWildsCardSvg(asset, { origin: WILDZ_PRODUCT.origin }));
+  const rendered = await svgPngBlob(renderWildsCardSvg(asset, { origin: WILDZ_PRODUCT.origin }))
+    .catch(() => serverArtifactPng("card", [asset]));
   const portable = embedPortableCardInPng(new Uint8Array(await rendered.arrayBuffer()), asset);
   return new Blob([portable.slice().buffer], { type: "image/png" });
 }
 
 export async function portableVaultPngBlob(assets: PortableCardAsset[], player?: WildsPlayerVaultPayload) {
   if (typeof document === "undefined") throw new Error("wilds_vault_png_browser_required");
-  const rendered = await svgPngBlob(renderWildsVaultSvg(assets), 1200, 900);
+  const rendered = await svgPngBlob(renderWildsVaultSvg(assets), 1200, 900)
+    .catch(() => serverArtifactPng("vault", assets));
   const portable = embedPortableVaultInPng(new Uint8Array(await rendered.arrayBuffer()), assets, player);
   return new Blob([portable.slice().buffer], { type: "image/png" });
 }

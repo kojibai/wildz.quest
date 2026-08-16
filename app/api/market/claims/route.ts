@@ -11,6 +11,7 @@ import {
 import { publishWildzOwnershipSyncProjection } from "@/lib/receiz/wildz-ownership-reconcile";
 import { sameWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate";
 import { marketIdempotencyKey, marketRouteError } from "@/lib/receiz/wildz-market-route";
+import { readWildzHttpArtifact } from "@/lib/receiz/wildz-http-artifact";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,13 +46,12 @@ function claimedArtifactResponse(
 export async function POST(request: NextRequest) {
   try {
     const actor = await resolveWildzCookieActor(request);
-    if (!(request.headers.get("content-type") ?? "").includes("multipart/form-data")) {
-      return json({ error: "market_bearer_artifact_required", ownershipTransferred: false }, 415);
-    }
-    const form = await request.formData();
-    const file = form.get("file");
-    if (!(file instanceof Blob)) return json({ error: "market_bearer_artifact_required", ownershipTransferred: false }, 400);
-    const filename = file instanceof File ? file.name : "wildz-bearer.receized";
+    const uploaded = await readWildzHttpArtifact(request, {
+      fallbackFilename: "wildz-bearer.receized",
+      maximumBytes: 64 * 1024 * 1024
+    });
+    const file = new File([uploaded.bytes.slice().buffer], uploaded.filename, { type: uploaded.mimeType });
+    const filename = uploaded.filename;
     const idempotencyKey = marketIdempotencyKey(request.headers);
     const adapter = createReceizCommerceAdapter({ accessToken: actor.accessToken });
     const admitted = await claimWildzBearerArtifact(file, filename, {

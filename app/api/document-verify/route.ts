@@ -11,25 +11,32 @@ import {
 } from "@/lib/receiz/wildz-proof-session";
 import { deriveWildzVaultCardAdmission } from "@/lib/receiz/wildz-vault-card-admission";
 import { openWildzArtifact } from "@/lib/receiz/wildz-artifact-custody";
+import { encodeWildzMultipartFile, readWildzHttpArtifact } from "@/lib/receiz/wildz-http-artifact";
 
 export const runtime = "nodejs";
+const MAX_ARTIFACT_BYTES = 64 * 1024 * 1024;
 
 export async function POST(request: Request) {
   const baseUrl = (process.env.RECEIZ_BASE_URL || "https://receiz.com").replace(/\/$/, "");
-  const contentType = request.headers.get("content-type") ?? "";
-  if (!contentType.includes("multipart/form-data")) {
-    return NextResponse.json({ ok: false, kind: "unknown", errors: ["unsupported_content_type"], warnings: [] }, { status: 415 });
+  let uploaded: Awaited<ReturnType<typeof readWildzHttpArtifact>>;
+  try {
+    uploaded = await readWildzHttpArtifact(request, {
+      fallbackFilename: "wildz-vault.receized.png",
+      maximumBytes: MAX_ARTIFACT_BYTES
+    });
+  } catch (cause) {
+    return NextResponse.json({
+      ok: false,
+      kind: "unknown",
+      errors: [cause instanceof Error ? cause.message : "wildz_artifact_upload_invalid"],
+      warnings: []
+    }, { status: 400 });
   }
-  const form = await request.formData();
-  const file = form.get("file");
-  if (!(file instanceof Blob)) {
-    return NextResponse.json({ ok: false, kind: "unknown", errors: ["file_required"], warnings: [] }, { status: 400 });
-  }
+  const file = new File([uploaded.bytes.slice().buffer], uploaded.filename, { type: uploaded.mimeType });
   if (request.headers.get("x-wildz-artifact-open") === "v119") {
     try {
-      const filename = file instanceof File ? file.name : "wildz.receized";
       const client = createReceizClient({ baseUrl });
-      const admitted = await openWildzArtifact(file, filename, client.artifacts);
+      const admitted = await openWildzArtifact(file, uploaded.filename, client.artifacts);
       return NextResponse.json({
         artifactSha256: admitted.artifactSha256,
         payloadSha256: admitted.payloadSha256,
@@ -49,11 +56,15 @@ export async function POST(request: Request) {
       });
     }
   }
-  const upstreamForm = new FormData();
-  upstreamForm.set("file", file, file instanceof File ? file.name : "wildz-vault.receized.png");
+  const upstreamMultipart = encodeWildzMultipartFile({
+    bytes: uploaded.bytes,
+    filename: uploaded.filename,
+    mimeType: uploaded.mimeType
+  });
   const upstream = await fetch(`${baseUrl}/api/document-verify`, {
     method: "POST",
-    body: upstreamForm,
+    headers: upstreamMultipart.headers,
+    body: upstreamMultipart.body,
     cache: "no-store"
   });
   const verification = await upstream.json().catch(() => ({
@@ -69,7 +80,7 @@ export async function POST(request: Request) {
 
   if (upstream.ok && request.headers.get("x-wildz-proof-login") === "vault") {
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
+      const bytes = uploaded.bytes;
       const codec = createWildzArtifactCodec({
         identityRepository: {
           prepare: async () => { throw new Error("wildz_server_identity_import_not_allowed"); }
@@ -78,8 +89,8 @@ export async function POST(request: Request) {
       });
       const verified = await verifyProofSealedWildzVault({
         bytes,
-        mimeType: file.type || "application/octet-stream",
-        name: file instanceof File ? file.name : null,
+        mimeType: uploaded.mimeType,
+        name: uploaded.filename,
         codec,
         verifier: { verifyArtifact: async () => verification }
       });

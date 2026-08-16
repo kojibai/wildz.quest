@@ -5,15 +5,17 @@ import {
   createObservedCreatureTurn,
   creatureConsciousnessMotion,
   creatureObserverClientContext,
+  creatureVoiceProfile,
   localCreatureTwinReply,
   normalizeCreatureTwinReply,
   parseCreatureObserverRequest,
   projectCreatureBrain
 } from "../src/features/play/creature-consciousness";
-import { currentCreatureHistoryProjection } from "../src/features/play/living-card-proof";
+import { admitLegacyCard, appendLivingCardHistory, currentCreatureHistoryProjection } from "../src/features/play/living-card-proof";
 import { isLivingCardAsset } from "../src/features/play/living-card-types";
 import {
   applyWildsInput,
+  createOwnerBoundInitialPlayState,
   initialPlayState,
   restorePlayState,
   serializePlayState
@@ -92,6 +94,28 @@ test("the creature brain gives the Twin exact proof context and model boundaries
   assert.deepEqual(brain.embodiment.stats, asset.manifest.stats);
   assert.equal(brain.authority.observer, "receiz-twin");
   assert.equal(brain.authority.modelMayRewriteProof, false);
+  assert.equal(brain.memory.capture.occurredAt, asset.manifest.capturedAt);
+  assert.equal(brain.memory.capture.encounterId, asset.manifest.encounterId);
+  assert.equal(brain.memory.capture.proofDigest, asset.proof.digest);
+  if (isLivingCardAsset(asset) && asset.manifest.history) {
+    assert.equal(brain.memory.eventLedger.length, asset.manifest.history.events.length);
+    assert.deepEqual(
+      brain.memory.eventLedger.map((event) => ({
+        eventId: event.eventId,
+        source: event.source,
+        evidence: event.evidence,
+        effects: event.effects,
+        digest: event.digest
+      })),
+      asset.manifest.history.events.map((event) => ({
+        eventId: event.eventId,
+        source: event.source,
+        evidence: event.evidence,
+        effects: event.effects,
+        digest: event.digest
+      }))
+    );
+  }
   assert.equal(context.creatureBrain.contextDigest, brain.contextDigest);
   assert.match(context.instruction, /never invent a canonical event/i);
   assert.equal(parseCreatureObserverRequest({ card: asset, message: "  Hello   there  " }).message, "Hello there");
@@ -106,6 +130,42 @@ test("the creature brain gives the Twin exact proof context and model boundaries
   const fallback = localCreatureTwinReply(brain, "How are you feeling?");
   assert.match(fallback, new RegExp(String(brain.embodiment.stats.health)));
   assert.match(fallback, new RegExp(String(brain.embodiment.bond)));
+
+  const captureReply = localCreatureTwinReply(brain, "Do you remember when I captured you?");
+  assert.match(captureReply, new RegExp(asset.manifest.encounterId));
+  assert.match(captureReply, new RegExp(asset.manifest.capturedAt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+
+  const voice = creatureVoiceProfile(asset, [
+    { name: "Robot Compact", lang: "en-US", localService: true },
+    { name: "Ava Premium", lang: "en-US", localService: true }
+  ]);
+  assert.equal(voice.voice?.name, "Ava Premium");
+});
+
+test("training becomes exact autobiographical memory without replacing capture", () => {
+  const state = createOwnerBoundInitialPlayState("autobiography_keeper", "2026-08-11T11:00:00.000Z");
+  const source = state.inventory[0]!;
+  const before = isLivingCardAsset(source) ? source : admitLegacyCard(source, source.manifest.capturedAt);
+  const occurredAt = new Date(Date.parse(before.proof.sealedAt) + 60_000).toISOString();
+  const after = appendLivingCardHistory({
+    asset: before,
+    event: {
+      eventId: `training:${before.id}:memory-test`,
+      rulesetVersion: "wildz.training.v1",
+      occurredAt,
+      source: { mode: "training", activityId: "training:memory-test", actorId: before.manifest.ownerReceizId, authority: "local" },
+      evidence: {},
+      effects: [{
+        kind: "progress",
+        xpDelta: 40,
+        growthEvents: [{ eventId: `bond:${before.id}:memory-test`, kind: "bond_moment", path: "bond", amount: 1, occurredAt }]
+      }]
+    }
+  });
+  const brain = projectCreatureBrain(after);
+  assert.equal(brain.memory.capture.occurredAt, before.manifest.capturedAt);
+  assert.equal(brain.memory.eventLedger.some((event) => event.source.mode === "training"), true);
+  assert.equal(brain.memory.eventLedger.length, isLivingCardAsset(after) ? after.manifest.history?.events.length : 0);
 });
 
 test("Vault consciousness uses the SDK World Twin rail and card-scoped UI", () => {

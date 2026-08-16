@@ -46,7 +46,7 @@ test("bearer claim route admits complete artifacts through v119 ownership before
   assert.match(route, /resolveWildzCookieActor/);
   assert.match(route, /claimWildzBearerArtifact/);
   assert.match(route, /adapter\.client\.ownership/);
-  assert.match(route, /multipart\/form-data/);
+  assert.match(route, /readWildzHttpArtifact/);
   assert.match(route, /bearer-claim-admitted/);
   assert.match(route, /compareAndAppend/);
   assert.match(route, /receiz\.wilds_bearer_claim\.v119/);

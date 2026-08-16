@@ -8,7 +8,11 @@ import {
   wildzVaultUploadDisposition,
   type WildzCardOnlyConfirmation
 } from "@/features/identity/wildz-restore";
-import { removeWildzAssetsFromActiveVault } from "@/features/identity/wildz-ownership-reconciliation";
+import {
+  locallyTransferredWildzAssetIds,
+  recordLocalWildzOwnershipTransfer,
+  removeWildzAssetsFromActiveVault
+} from "@/features/identity/wildz-ownership-reconciliation";
 import {
   bootstrapWildzContinuity,
   commitWildzArtifactContinuity,
@@ -606,22 +610,24 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       return restoreArtifact(
         file,
         "card-vault",
-        false,
+        true,
         currentPlayState,
         "merge-vault"
       );
     }
     if (!proofSessionConnected) throw new Error("Connect your Receiz ID before claiming a bearer artifact.");
 
-    const form = new FormData();
-    form.set("file", file, file.name);
     const stableName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 64) || "artifact";
     const response = await fetch("/api/market/claims", {
       method: "POST",
       credentials: "same-origin",
       cache: "no-store",
-      headers: { "idempotency-key": `bearer:${file.size}:${file.lastModified}:${stableName}`.slice(0, 160) },
-      body: form
+      headers: {
+        "content-type": file.type || "application/octet-stream",
+        "idempotency-key": `bearer:${file.size}:${file.lastModified}:${stableName}`.slice(0, 160),
+        "x-wildz-artifact-filename": encodeURIComponent(file.name)
+      },
+      body: new Uint8Array(await file.arrayBuffer())
     });
     if (!response.ok) {
       const failure = await response.json().catch(() => null) as { error?: unknown } | null;
@@ -643,9 +649,14 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     const outcome = await restoreArtifact(
       claimedFile,
       "card-vault",
-      false,
+      true,
       currentPlayState,
       "merge-vault"
+    );
+    recordLocalWildzOwnershipTransfer(
+      window.localStorage,
+      outcome.session.actorId,
+      outcome.verifiedAssetIds
     );
     return outcome;
   }, [proofSessionConnected, restoreArtifact]);
@@ -700,6 +711,14 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       playerContinuity: current.playerContinuity
     });
   }, [acceptSnapshot]);
+
+  useEffect(() => {
+    const current = continuityRef.current;
+    const assetIds = current?.playState?.inventory.map((asset) => asset.id) ?? [];
+    if (!current || !assetIds.length) return;
+    const locallyLost = locallyTransferredWildzAssetIds(window.localStorage, current.session.actorId, assetIds);
+    if (locallyLost.length) removeLostVaultAssets(locallyLost);
+  }, [removeLostVaultAssets, continuity?.session.actorId, continuity?.playState?.inventory]);
 
   useEffect(() => {
     if (!proofSessionConnected) return;

@@ -234,6 +234,7 @@ test("v102 keeps MCP and authenticated proof-object creation out of browser feat
   const browserRuntime = runtimeSourceText("src/features");
   const productionRuntime = `${runtimeSourceText("app")}\n${runtimeSourceText("src")}`;
   const proofObjectRoute = readFileSync("app/api/receiz/proof-object/route.ts", "utf8");
+  const artifactTransport = readFileSync("src/lib/receiz/wildz-http-artifact.ts", "utf8");
   const compatibilityRoute = readFileSync("app/api/receiz/seal/route.ts", "utf8");
   assert.doesNotMatch(productionRuntime, /@receiz\/mcp-server/);
   assert.doesNotMatch(browserRuntime, /\bcreateProofObject\s*\(/);
@@ -242,16 +243,16 @@ test("v102 keeps MCP and authenticated proof-object creation out of browser feat
   assert.doesNotMatch(proofObjectRoute, /verifyReceizArtifact/);
   assert.match(proofObjectRoute, /\/api\/document-seal/);
   assert.match(proofObjectRoute, /content-length/);
-  assert.match(proofObjectRoute, /file\.size/);
+  assert.match(artifactTransport, /value\.size <= 0 \|\| value\.size > input\.maximumBytes/);
   assert.doesNotMatch(proofObjectRoute, /wildz_proof_object_length_required/);
   assert.match(proofObjectRoute, /if \(contentLength !== null\)/);
   assert.ok(
-    proofObjectRoute.indexOf("content-length") < proofObjectRoute.indexOf("request.formData()"),
-    "known oversized multipart bodies must be rejected before form-data parsing while Safari uploads without the optional header continue"
+    proofObjectRoute.indexOf("content-length") < proofObjectRoute.indexOf("readWildzHttpArtifact(request"),
+    "known oversized bodies must be rejected before transport parsing while Safari uploads without the optional header continue"
   );
   assert.ok(
-    proofObjectRoute.indexOf("file.size") < proofObjectRoute.indexOf("file.arrayBuffer()"),
-    "oversized files must be rejected before arrayBuffer materialization"
+    artifactTransport.indexOf("value.size > input.maximumBytes") < artifactTransport.indexOf("value.arrayBuffer()"),
+    "oversized multipart files must be rejected before arrayBuffer materialization"
   );
   assert.doesNotMatch(browserRuntime, /\bsealArtifact\b|\/api\/document-seal/);
   assert.match(compatibilityRoute, /export const dynamic = "force-dynamic"/);

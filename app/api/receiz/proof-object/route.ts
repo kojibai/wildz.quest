@@ -5,6 +5,10 @@ import {
   requireVerifiedWildzPng
 } from "@/lib/receiz/wildz-proof-object-export";
 import { requireWildzIdentityBindingFromEnvelope } from "@/lib/receiz/wildz-identity-binding";
+import {
+  encodeWildzMultipartFile,
+  readWildzHttpArtifact
+} from "@/lib/receiz/wildz-http-artifact";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,16 +55,17 @@ export async function POST(request: NextRequest) {
         return json("wildz_proof_object_size_invalid", 413);
       }
     }
-    const form = await request.formData();
-    const file = form.get("file");
-    const kind = form.get("kind");
-    if (!(file instanceof File) || (kind !== "card" && kind !== "vault")) {
+    const uploaded = await readWildzHttpArtifact(request, {
+      fallbackFilename: "wildz-proof-object.png",
+      maximumBytes: MAX_WILDZ_PROOF_OBJECT_BYTES
+    });
+    const multipartKind = uploaded.form?.get("kind");
+    const headerKind = request.headers.get("x-wildz-proof-kind");
+    const kind = multipartKind ?? headerKind;
+    if (kind !== "card" && kind !== "vault") {
       return json("wildz_proof_object_request_invalid", 400);
     }
-    if (!file.size || file.size > MAX_WILDZ_PROOF_OBJECT_BYTES) {
-      return json("wildz_proof_object_size_invalid", 413);
-    }
-    const payloadBytes = new Uint8Array(await file.arrayBuffer());
+    const payloadBytes = uploaded.bytes;
     // The verified Card/Vault proof is the authority. A browser cookie or
     // external login must never outrank or gate the proof being sealed.
     if (kind === "vault") {
@@ -74,12 +79,16 @@ export async function POST(request: NextRequest) {
     } else {
       requireVerifiedWildzPng(kind, payloadBytes);
     }
-    const upstreamForm = new FormData();
-    upstreamForm.set("file", new File([payloadBytes.slice().buffer], file.name, { type: "image/png" }));
-    upstreamForm.set("visualStamp", "0");
+    const upstreamMultipart = encodeWildzMultipartFile({
+      bytes: payloadBytes,
+      filename: uploaded.filename,
+      mimeType: "image/png",
+      fields: { visualStamp: "0" }
+    });
     const upstream = await fetch(`${upstreamBaseUrl()}/api/document-seal`, {
       method: "POST",
-      body: upstreamForm,
+      headers: upstreamMultipart.headers,
+      body: upstreamMultipart.body,
       cache: "no-store"
     });
     if (!upstream.ok) {
@@ -88,7 +97,7 @@ export async function POST(request: NextRequest) {
     }
     const artifactBytes = new Uint8Array(await upstream.arrayBuffer());
     const mimeType = upstream.headers.get("content-type")?.split(";", 1)[0]?.trim() || "application/octet-stream";
-    const filename = safeDispositionFilename(upstream.headers.get("content-disposition"), file.name);
+    const filename = safeDispositionFilename(upstream.headers.get("content-disposition"), uploaded.filename);
     const headers = new Headers({
       "cache-control": "no-store",
       "content-disposition": `attachment; filename=${filename}`,

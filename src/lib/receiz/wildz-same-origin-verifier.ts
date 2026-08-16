@@ -21,14 +21,17 @@ export async function verifyWildzArtifactSameOrigin(
   file: Blob,
   fetchImpl: WildzVerifierFetch = fetch
 ): Promise<DocumentVerifyResponse> {
-  const form = new FormData();
-  form.set("file", file, "wildz-vault.receized.png");
+  const bytes = new Uint8Array(await file.arrayBuffer());
   const response = await fetchImpl("/api/document-verify", {
     method: "POST",
-    body: form,
+    body: bytes,
     cache: "no-store",
     credentials: "same-origin",
-    headers: { "x-wildz-proof-login": "vault" }
+    headers: {
+      "content-type": file.type || "application/octet-stream",
+      "x-wildz-artifact-filename": encodeURIComponent("wildz-vault.receized.png"),
+      "x-wildz-proof-login": "vault"
+    }
   });
   if (!response.ok) throw new Error(`receiz_document_verify_http_${response.status}`);
   const payload: unknown = await response.json();
@@ -66,14 +69,16 @@ export async function openWildzArtifactSameOrigin(
   input: { bytes: Uint8Array; mimeType: string; name?: string },
   fetchImpl: WildzVerifierFetch = fetch
 ): Promise<WildzAdmittedArtifact> {
-  const form = new FormData();
-  form.set("file", new Blob([input.bytes.slice().buffer], { type: input.mimeType }), input.name ?? "wildz.receized");
   const response = await fetchImpl("/api/document-verify", {
     method: "POST",
-    body: form,
+    body: input.bytes.slice(),
     cache: "no-store",
     credentials: "same-origin",
-    headers: { "x-wildz-artifact-open": "v119" }
+    headers: {
+      "content-type": input.mimeType || "application/octet-stream",
+      "x-wildz-artifact-filename": encodeURIComponent(input.name ?? "wildz.receized"),
+      "x-wildz-artifact-open": "v119"
+    }
   });
   if (!response.ok) throw new Error(`receiz_artifact_open_http_${response.status}`);
   const payload: unknown = await response.json();

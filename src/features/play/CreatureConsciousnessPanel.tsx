@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Icons } from "@/components/icons";
 import {
   CREATURE_OBSERVER_ROUTE,
+  creatureVoiceProfile,
   projectCreatureBrain
 } from "./creature-consciousness";
 import type { CreatureObserverMemoryTurn } from "./creature-history-types";
@@ -50,6 +51,7 @@ export function CreatureConsciousnessPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [ephemeralTurn, setEphemeralTurn] = useState<CreatureObserverMemoryTurn | null>(null);
   const transcript = useMemo(() => {
     const sealed = isLivingCardAsset(asset)
@@ -70,6 +72,14 @@ export function CreatureConsciousnessPanel({
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    const refresh = () => setVoices(window.speechSynthesis.getVoices());
+    refresh();
+    window.speechSynthesis.addEventListener?.("voiceschanged", refresh);
+    return () => window.speechSynthesis.removeEventListener?.("voiceschanged", refresh);
+  }, []);
+
+  useEffect(() => {
     setDraft("");
     setError("");
     setEphemeralTurn(null);
@@ -87,11 +97,12 @@ export function CreatureConsciousnessPanel({
     }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    const stats = asset.manifest.stats;
-    const maximum = Math.max(1, ...Object.values(stats));
-    utterance.rate = .86 + stats.speed / maximum * .22;
-    utterance.pitch = .88 + stats.bond / maximum * .28;
-    utterance.volume = .92;
+    const profile = creatureVoiceProfile(asset, voices);
+    if (profile.voice) utterance.voice = profile.voice;
+    utterance.lang = profile.voice?.lang ?? "en-US";
+    utterance.rate = profile.rate;
+    utterance.pitch = profile.pitch;
+    utterance.volume = profile.volume;
     utterance.onend = finishSpeaking;
     utterance.onerror = finishSpeaking;
     window.speechSynthesis.speak(utterance);
@@ -133,7 +144,7 @@ export function CreatureConsciousnessPanel({
         <div>
           <span><i aria-hidden="true" /> Live creature Twin</span>
           <strong>{asset.manifest.name}&apos;s brain</strong>
-          <small>{transcript.length} proof memor{transcript.length === 1 ? "y" : "ies"} · Twin observes, card remembers</small>
+          <small>{brain.memory.eventLedger.length + 1} proof memor{brain.memory.eventLedger.length ? "ies" : "y"} · origin plus every appended event</small>
         </div>
         <button
           aria-label={`${voiceEnabled ? "Turn off" : "Turn on"} creature voice`}

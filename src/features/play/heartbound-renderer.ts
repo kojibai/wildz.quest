@@ -38,7 +38,7 @@ function legacyHeartboundLayers(genome: LivingCardGenome, pose: HeartboundPose):
     layer("ears_back", ears),
     layer("head", `<path d="M154 101q18-91 126-96 109 5 126 96 19 62-18 113-35 49-108 52-73-3-108-52-37-51-18-113Z" fill="${p.primary}" stroke="${p.accent}" stroke-width="6"/>`),
     layer("face_markings", `<path d="M215 87q65-43 130 0" fill="none" stroke="${p.accent}" stroke-width="12" stroke-linecap="round"/>`),
-    layer("eyes", `<ellipse cx="221" cy="142" rx="27" ry="35" fill="#142c32"/><ellipse cx="339" cy="142" rx="27" ry="35" fill="#142c32"/><g data-heartbound-pupil><circle cx="230" cy="130" r="10" fill="#fff"/><circle cx="348" cy="130" r="10" fill="#fff"/></g>`),
+    layer("eyes", `<ellipse cx="221" cy="142" rx="27" ry="35" fill="#142c32"/><ellipse cx="339" cy="142" rx="27" ry="35" fill="#142c32"/><g data-heartbound-pupil=""><circle cx="230" cy="130" r="10" fill="#fff"/><circle cx="348" cy="130" r="10" fill="#fff"/></g>`),
     layer("mouth", `<path d="m280 169 15 13-15 15-15-15Z" fill="${p.accent}"/><path d="M250 209q30 29 60 0" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round"/>`),
     layer("crest_front", crest),
     layer("aura_front", `<circle cx="442" cy="94" r="8" fill="${p.glow}"/><circle cx="116" cy="175" r="6" fill="${p.glow}"/>`)

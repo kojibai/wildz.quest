@@ -87,6 +87,7 @@ test("the thirty-law custody matrix has executable repository and SDK evidence",
   const history = read("src/lib/receiz/wildz-artifact-history.ts");
   const ownership = read("src/lib/receiz/wildz-bearer-ownership.ts");
   const route = read("app/api/market/claims/route.ts");
+  const artifactTransport = read("src/lib/receiz/wildz-http-artifact.ts");
   const adapter = read("src/lib/receiz/adapter.ts");
   const evidence: Record<string, boolean> = {
     "ARTIFACT-001": /assets\.createProofObject|createProofObject/.test(exportSource),
@@ -99,7 +100,8 @@ test("the thirty-law custody matrix has executable repository and SDK evidence",
     "ARTIFACT-008": /verified-legacy-read/.test(custody) && !/extractLegacyReceizPortableAssetDocument/.test(codec),
     "ARTIFACT-009": /wildz_artifact_history_conflict/.test(history) && /artifactBytes/.test(history),
     "ARTIFACT-010": /claimBearerAsset\(\{ artifact: opened\.sealedArtifact \}\)/.test(ownership)
-      && /multipart\/form-data/.test(route),
+      && /readWildzHttpArtifact/.test(route)
+      && /multipart\/form-data/.test(artifactTransport),
     "ARTIFACT-011": /verifyAndOpen/.test(custody) && !/fetch\(/.test(custody),
     "ARTIFACT-012": /admitArtifact/.test(adapter),
     "ARTIFACT-013": /planArtifactRecovery/.test(adapter),

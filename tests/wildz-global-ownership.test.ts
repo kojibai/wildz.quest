@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { initialPlayState } from "../src/features/play/game-state";
-import { removeWildzAssetsFromActiveVault } from "../src/features/identity/wildz-ownership-reconciliation";
+import {
+  locallyTransferredWildzAssetIds,
+  recordLocalWildzOwnershipTransfer,
+  removeWildzAssetsFromActiveVault
+} from "../src/features/identity/wildz-ownership-reconciliation";
 import { wildzVaultUploadDisposition } from "../src/features/identity/wildz-restore";
 import {
   lostWildzOwnershipAssetIdsFromSync,
@@ -39,6 +43,18 @@ test("same-device ownership broadcasts retain active-custody removal", () => {
   assert.match(route, /claimedArtifactResponse\(admitted/);
   assert.match(route, /x-receiz-artifact-sha256/);
   assert.match(route, /marketProjection = "unavailable"/);
+});
+
+test("a verified same-device bearer transfer removes the card when the previous owner returns", () => {
+  const values = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => { values.set(key, value); }
+  };
+  const asset = initialPlayState.inventory[0]!;
+  recordLocalWildzOwnershipTransfer(storage, "new_owner.receiz.id", [asset.id], "2026-08-16T12:00:00.000Z");
+  assert.deepEqual(locallyTransferredWildzAssetIds(storage, "old_owner.receiz.id", [asset.id]), [asset.id]);
+  assert.deepEqual(locallyTransferredWildzAssetIds(storage, "new_owner", [asset.id]), []);
 });
 
 test("ownership reconciliation requests are exact and bounded", () => {
@@ -111,8 +127,8 @@ test("owned Vault uploads merge directly while foreign bearer artifacts claim fi
   assert.match(claimPath, /openWildzArtifactSameOrigin/);
   assert.match(claimPath, /x-receiz-artifact-sha256/);
   assert.match(claimPath, /downloadBlob/);
-  assert.match(claimPath, /restoreArtifact\(\s*claimedFile,[\s\S]*"merge-vault"/);
-  assert.match(claimPath, /restoreArtifact\(\s*file,/);
+  assert.match(claimPath, /restoreArtifact\(\s*claimedFile,\s*"card-vault",\s*true,[\s\S]*"merge-vault"/);
+  assert.match(claimPath, /restoreArtifact\(\s*file,\s*"card-vault",\s*true,/);
   assert.ok(claimPath.indexOf("inspectWildzRestore(file)") < claimPath.indexOf('fetch("/api/market/claims"'));
   assert.ok(claimPath.indexOf('disposition === "merge-owned"') < claimPath.indexOf('fetch("/api/market/claims"'));
   const claimedRestore = claimPath.indexOf("restoreArtifact(", claimPath.indexOf("const claimedFile"));
