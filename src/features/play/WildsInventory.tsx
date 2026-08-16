@@ -24,7 +24,13 @@ import type { WildsPlayerVaultPayload } from "./wilds-player-vault";
 import { WildsCardScene } from "./WildsCardScene";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import { WildsGrowthPanel } from "./WildsGrowthPanel";
-import { clampInventoryPage, inventoryPageForAsset, inventoryPageSize, shouldCaptureInventorySwipe } from "./inventory-pagination";
+import {
+  clampInventoryPage,
+  inventoryPageForAsset,
+  inventoryPageSize,
+  inventorySwipePageDelta,
+  shouldCaptureInventorySwipe
+} from "./inventory-pagination";
 import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
 import { currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
@@ -164,18 +170,18 @@ export function WildsInventory({
   }, []);
 
   const changePage = (nextPage: number) => setPage(clampInventoryPage(nextPage, matches.length, pageSize));
-  const endSwipe = (target: HTMLElement, pointerId: number) => {
+  const endSwipe = (
+    target: HTMLElement,
+    pointerId: number,
+    end: Readonly<{ x: number; y: number }>
+  ) => {
     const start = swipeStart.current;
     swipeStart.current = null;
+    const pageDelta = start ? inventorySwipePageDelta(start, end) : 0;
     if (target.hasPointerCapture?.(pointerId)) target.releasePointerCapture(pointerId);
-    if (!start) return;
-    const dx = (target as HTMLElement).dataset.swipeX ? Number((target as HTMLElement).dataset.swipeX) - start.x : 0;
-    const dy = (target as HTMLElement).dataset.swipeY ? Number((target as HTMLElement).dataset.swipeY) - start.y : 0;
-    delete (target as HTMLElement).dataset.swipeX;
-    delete (target as HTMLElement).dataset.swipeY;
-    if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy)) return;
+    if (!pageDelta) return;
     suppressCardClick.current = true;
-    changePage(page + (dx < 0 ? 1 : -1));
+    changePage(page + pageDelta);
   };
   const sendPortableCardToTarget = async () => {
     if (!selected) return;
@@ -363,22 +369,24 @@ export function WildsInventory({
       <div className="wilds-inventory-layout">
         <div
           className="wilds-inventory-page"
-          onLostPointerCapture={(event) => { swipeStart.current = null; delete event.currentTarget.dataset.swipeX; delete event.currentTarget.dataset.swipeY; }}
-          onPointerCancel={(event) => { swipeStart.current = null; delete event.currentTarget.dataset.swipeX; delete event.currentTarget.dataset.swipeY; }}
+          onLostPointerCapture={() => { swipeStart.current = null; }}
+          onPointerCancel={() => { swipeStart.current = null; }}
           onPointerDown={(event) => {
             swipeStart.current = { x: event.clientX, y: event.clientY };
             suppressCardClick.current = false;
           }}
           onPointerMove={(event) => {
             if (!swipeStart.current) return;
-            event.currentTarget.dataset.swipeX = String(event.clientX);
-            event.currentTarget.dataset.swipeY = String(event.clientY);
             if (
               shouldCaptureInventorySwipe(swipeStart.current, { x: event.clientX, y: event.clientY })
               && !event.currentTarget.hasPointerCapture(event.pointerId)
             ) event.currentTarget.setPointerCapture(event.pointerId);
           }}
-          onPointerUp={(event) => endSwipe(event.currentTarget, event.pointerId)}
+          onPointerUp={(event) => endSwipe(
+            event.currentTarget,
+            event.pointerId,
+            { x: event.clientX, y: event.clientY }
+          )}
           role="region"
           aria-label={`Vault page ${safePage + 1} of ${pages}`}
         >

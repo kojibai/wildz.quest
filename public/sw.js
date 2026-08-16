@@ -215,7 +215,7 @@ async function audioCacheFirst(request) {
 }
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(installPublicShell().then(() => self.skipWaiting()));
+  event.waitUntil(installPublicShell());
 });
 
 self.addEventListener("activate", (event) => {

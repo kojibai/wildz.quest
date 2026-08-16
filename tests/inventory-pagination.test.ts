@@ -67,3 +67,22 @@ test("Vault card taps stay clickable until a deliberate horizontal page swipe", 
   assert.equal(shouldCaptureInventorySwipe(start, { x: 148, y: 102 }), true);
   assert.equal(shouldCaptureInventorySwipe(start, { x: 52, y: 98 }), true);
 });
+
+test("Vault book swipes turn one page without stealing taps or vertical scrolling", async () => {
+  const pagination = await import("../src/features/play/inventory-pagination");
+  const inventorySwipePageDelta = (
+    pagination as typeof pagination & {
+      inventorySwipePageDelta?: (
+        start: Readonly<{ x: number; y: number }>,
+        end: Readonly<{ x: number; y: number }>
+      ) => -1 | 0 | 1;
+    }
+  ).inventorySwipePageDelta;
+  const start = { x: 100, y: 100 };
+
+  assert.equal(typeof inventorySwipePageDelta, "function");
+  assert.equal(inventorySwipePageDelta?.(start, { x: 40, y: 102 }), 1);
+  assert.equal(inventorySwipePageDelta?.(start, { x: 160, y: 98 }), -1);
+  assert.equal(inventorySwipePageDelta?.(start, { x: 140, y: 101 }), 0);
+  assert.equal(inventorySwipePageDelta?.(start, { x: 155, y: 180 }), 0);
+});

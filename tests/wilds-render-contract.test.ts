@@ -379,6 +379,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(inventory, /onPointerDown=/);
     assert.match(inventory, /onPointerCancel=/);
     assert.match(inventory, /onLostPointerCapture=/);
+    assert.match(inventory, /inventorySwipePageDelta/);
     assert.match(inventory, /wilds-vault-page-dots/);
     assert.match(inventory, /downloadPreparedCardArtifact/);
     assert.match(inventory, /preparePortableCardArtifact/);
@@ -408,6 +409,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(css, /\.wilds-command-badge/);
     assert.match(css, /\.wilds-command-sheet\s*\{[^}]*position:\s*absolute/s);
     assert.match(css, /env\(safe-area-inset-bottom\)/);
+    assert.match(css, /\.wilds-inventory-page\s*\{[^}]*touch-action:\s*pan-y/s);
     assert.match(css, /\.wilds-vault-page-dots/);
     assert.match(css, /prefers-reduced-motion/);
     assert.match(css, /\.heartbound-card-art\s*\{[^}]*aspect-ratio:\s*16\s*\/\s*10;/s);
