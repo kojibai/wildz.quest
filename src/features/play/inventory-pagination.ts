@@ -21,6 +21,14 @@ export function shouldCaptureInventorySwipe(
   return Math.abs(dx) >= 48 && Math.abs(dx) >= Math.abs(dy);
 }
 
+export function inventorySwipePageDelta(
+  start: Readonly<{ x: number; y: number }>,
+  end: Readonly<{ x: number; y: number }>
+): -1 | 0 | 1 {
+  if (!shouldCaptureInventorySwipe(start, end)) return 0;
+  return end.x < start.x ? 1 : -1;
+}
+
 export function clampInventoryPage(page: number, itemCount: number, pageSize: number) {
   const safePageSize = Math.max(1, Math.floor(pageSize));
   const pageCount = Math.max(1, Math.ceil(Math.max(0, itemCount) / safePageSize));

@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { WILDZ_APPLY_UPDATE_MESSAGE } from "@/features/pwa/pwa-events";
+import {
+  pwaControllerChangeAction,
+  WILDZ_APPLY_UPDATE_MESSAGE
+} from "@/features/pwa/pwa-events";
 
 type BeforeInstallPromptEvent = Event & {
   prompt(): Promise<void>;
@@ -51,6 +54,7 @@ export function PwaController() {
     }
 
     const handleControllerChange = () => {
+      if (pwaControllerChangeAction(updateRequestedRef.current) === "ignore") return;
       updateRequestedRef.current = false;
       applyingUpdateRef.current = false;
       clearUpdateTimeout();

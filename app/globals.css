@@ -11924,6 +11924,8 @@ button.product-purchase-secondary-link {
   align-items: start;
 }
 
+.wilds-inventory-page { touch-action: pan-y; }
+
 .wilds-inventory-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(138px, 1fr));

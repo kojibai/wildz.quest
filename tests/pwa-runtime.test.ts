@@ -2,6 +2,19 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
+test("first service-worker takeover does not reload an already rendered game", async () => {
+  const events = await import("../src/features/pwa/pwa-events");
+  const controllerChangeAction = (
+    events as typeof events & {
+      pwaControllerChangeAction?: (updateRequested: boolean) => "ignore" | "reload";
+    }
+  ).pwaControllerChangeAction;
+
+  assert.equal(typeof controllerChangeAction, "function");
+  assert.equal(controllerChangeAction?.(false), "ignore");
+  assert.equal(controllerChangeAction?.(true), "reload");
+});
+
 test("PWA controller registers a release-distinct worker after paint", () => {
   const source = readFileSync("src/features/pwa/PwaController.tsx", "utf8");
   const env = readFileSync(".env.example", "utf8");

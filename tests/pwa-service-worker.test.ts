@@ -24,7 +24,7 @@ test("activation keeps only the current release caches and controls open clients
   assert.deepEqual(await worker.caches.keys(), ["other-library-cache", SHELL_CACHE, PUBLIC_CACHE]);
 });
 
-test("installation precaches the exact public shell and activates the repair immediately", async () => {
+test("installation precaches the exact public shell and waits for explicit update consent", async () => {
   const worker = createWorkerHarness({
     release: RELEASE,
     fetch: async (request) => new URL(request.url).pathname === "/"
@@ -60,7 +60,7 @@ test("installation precaches the exact public shell and activates the repair imm
   assert.ok(offlineRequest instanceof Request);
   assert.equal(offlineRequest.credentials, "omit");
   assert.equal(offlineRequest.cache, "no-store");
-  assert.equal(worker.skippedWaiting, true, "a stale controller must not keep serving an old app shell");
+  assert.equal(worker.skippedWaiting, false, "install must not replace a running game before the player applies the update");
 });
 
 test("root navigation prefers the deployed document over a stale cached Next shell", async () => {
