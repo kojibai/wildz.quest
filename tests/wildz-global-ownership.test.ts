@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { initialPlayState } from "../src/features/play/game-state";
 import { removeWildzAssetsFromActiveVault } from "../src/features/identity/wildz-ownership-reconciliation";
+import { wildzVaultUploadDisposition } from "../src/features/identity/wildz-restore";
 import {
   lostWildzOwnershipAssetIdsFromSync,
   parseWildzOwnershipReconcileRequest,
@@ -95,7 +96,7 @@ test("v119 app-state reconciliation treats the server record as sync-only", () =
   ), []);
 });
 
-test("every active Vault upload claims the current ownership head before restoring returned bytes", () => {
+test("owned Vault uploads merge directly while foreign bearer artifacts claim first", () => {
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
   const claimStart = shell.indexOf("const claimAndRestoreVaultArtifact");
   const explicitClaimStart = shell.indexOf("const claimBearerArtifact", claimStart);
@@ -104,14 +105,18 @@ test("every active Vault upload claims the current ownership head before restori
   assert.ok(claimStart >= 0 && explicitClaimStart > claimStart);
   assert.match(claimPath, /proofSessionConnected/);
   assert.match(claimPath, /inspectWildzRestore\(file\)/);
+  assert.match(claimPath, /wildzVaultUploadDisposition\(inspection, current\.session\.actorId\)/);
+  assert.match(claimPath, /disposition === "merge-owned"/);
   assert.match(claimPath, /fetch\("\/api\/market\/claims"/);
   assert.match(claimPath, /openWildzArtifactSameOrigin/);
   assert.match(claimPath, /x-receiz-artifact-sha256/);
   assert.match(claimPath, /downloadBlob/);
   assert.match(claimPath, /restoreArtifact\(\s*claimedFile,[\s\S]*"merge-vault"/);
-  assert.doesNotMatch(claimPath, /restoreArtifact\(\s*file,/);
+  assert.match(claimPath, /restoreArtifact\(\s*file,/);
   assert.ok(claimPath.indexOf("inspectWildzRestore(file)") < claimPath.indexOf('fetch("/api/market/claims"'));
-  assert.ok(claimPath.indexOf('fetch("/api/market/claims"') < claimPath.indexOf("restoreArtifact("));
+  assert.ok(claimPath.indexOf('disposition === "merge-owned"') < claimPath.indexOf('fetch("/api/market/claims"'));
+  const claimedRestore = claimPath.indexOf("restoreArtifact(", claimPath.indexOf("const claimedFile"));
+  assert.ok(claimPath.indexOf('fetch("/api/market/claims"') < claimedRestore);
 
   assert.match(shell, /onRestoreArtifact=\{claimAndRestoreVaultArtifact\}/);
   assert.match(shell, /onAddVault=\{async \(file\) => \{[\s\S]*claimAndRestoreVaultArtifact\(file/);
@@ -123,6 +128,51 @@ test("every active Vault upload claims the current ownership head before restori
   const explicitClaim = shell.slice(explicitClaimStart, shell.indexOf("const persistPlayState", explicitClaimStart));
   assert.match(explicitClaim, /window\.confirm/);
   assert.match(explicitClaim, /claimAndRestoreVaultArtifact\(\s*file/);
+});
+
+test("Vault upload disposition treats bearer claiming as transfer-only", () => {
+  const asset = initialPlayState.inventory[0]!;
+  const base = {
+    kind: "card-vault" as const,
+    assets: [asset],
+    vaultDigest: "sha256:" + "a".repeat(64),
+    player: null,
+    playerBinding: null,
+    identity: null
+  };
+  assert.equal(wildzVaultUploadDisposition({ ...base, proofObject: null }, asset.manifest.ownerReceizId), "merge-owned");
+  assert.equal(wildzVaultUploadDisposition({
+    ...base,
+    proofObject: {
+      schema: "receiz.wildz.verified_artifact.v119",
+      compatibility: "current-native",
+      ownerReceizId: asset.manifest.ownerReceizId,
+      custody: "v119-verified-artifact",
+      proofRef: "proof-ref",
+      provenanceRoot: "root",
+      payloadSha256: "a".repeat(64),
+      payloadMimeType: "image/png",
+      artifactBasisSha256: "b".repeat(64),
+      artifactBytes: new Uint8Array([1]),
+      proofClaimId: "claim"
+    }
+  }, asset.manifest.ownerReceizId), "merge-owned");
+  assert.equal(wildzVaultUploadDisposition({
+    ...base,
+    proofObject: {
+      schema: "receiz.wildz.verified_artifact.v119",
+      compatibility: "current-native",
+      ownerReceizId: "another.receiz.id",
+      custody: "v119-verified-artifact",
+      proofRef: "proof-ref",
+      provenanceRoot: "root",
+      payloadSha256: "a".repeat(64),
+      payloadMimeType: "image/png",
+      artifactBasisSha256: "b".repeat(64),
+      artifactBytes: new Uint8Array([1]),
+      proofClaimId: "claim"
+    }
+  }, asset.manifest.ownerReceizId), "claim-bearer");
 });
 
 test("cross-device active Vault invalidation checks the admitted projection every two seconds", () => {

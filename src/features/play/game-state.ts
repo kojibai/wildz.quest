@@ -50,6 +50,8 @@ import { emptyAdventureCondition, validateAdventureCondition, type AdventureCard
 import { healWildBattleCard, settleWildBattleCard } from "./wild-battle-life";
 import { sealRetirement } from "../games/lifecycle/creature-retirement";
 import type { ArenaSettlement } from "../games/mortal-arena/settlement";
+import type { CreatureObserverMemoryTurn } from "./creature-history-types";
+import { livingSubjectContinuityV119 } from "./creature-continuity";
 import {
   EMPTY_WILDS_SUPPORT_ASSET_IDS,
   type WildsBossFamilyId,
@@ -74,6 +76,10 @@ export type WildsInput = (
   | { type: "dismiss-reveal" }
   | { type: "mark-synced"; assetId: string; synchronizedAt: string }
   | { type: "mark-listed"; assetId: string; synchronizedAt: string }
+  | { type: "record-creature-observation"; turn: CreatureObserverMemoryTurn }
+  | { type: "activate-creature-continuity"; assetId: string; ownerReceizId: string; at: string }
+  | { type: "pause-creature-continuity"; assetId: string; ownerReceizId: string; at: string }
+  | { type: "settle-creature-continuity"; assetId: string; ownerReceizId: string; at: string }
   | { type: "import-card"; asset: PortableCardAsset }
   | { type: "fuse-cards"; parentAId: string; parentBId: string; inheritance: FusionInheritance; fusedAt: string }
   | { type: "evolve"; assetId: string; evolvedAt: string }
@@ -907,6 +913,77 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
   if (input.type === "reset") {
     const owner = selectedAsset(state)?.manifest.ownerReceizId ?? state.inventory[0]?.manifest.ownerReceizId;
     return owner ? createOwnerBoundInitialPlayState(owner) : initialPlayState;
+  }
+
+  if (input.type === "record-creature-observation") {
+    const asset = state.inventory.find((candidate) => candidate.id === input.turn.assetId);
+    if (!asset || !isPlayableAsset(state, asset.id)) return state;
+    try {
+      const living = isLivingCardAsset(asset)
+        ? asset
+        : admitLegacyCard(asset, input.turn.observedAt);
+      const observed = appendLivingCardHistory({
+        asset: living,
+        event: {
+          eventId: `conversation:${input.turn.turnId}`,
+          rulesetVersion: "wildz.creature-observer.v1",
+          occurredAt: input.turn.observedAt,
+          source: {
+            mode: "conversation",
+            activityId: `creature:${input.turn.turnId}`,
+            actorId: input.turn.ownerActorId,
+            authority: "local"
+          },
+          evidence: { sourceEventDigest: input.turn.contextDigest },
+          effects: [{ kind: "observer-memory", turn: input.turn }]
+        }
+      });
+      return {
+        ...state,
+        inventory: state.inventory.map((candidate) => candidate.id === observed.id ? observed : candidate),
+        livingProgress: { ...state.livingProgress, [observed.id]: currentRevision(observed).growth },
+        pendingSyncAssetIds: Array.from(new Set([...state.pendingSyncAssetIds, observed.id])),
+        lastEvent: `${observed.manifest.name} remembered your conversation in its portable proof brain.`
+      };
+    } catch {
+      return { ...state, lastEvent: `${asset.manifest.name}'s observed reply could not be appended to its verified brain.` };
+    }
+  }
+
+  if (input.type === "activate-creature-continuity"
+    || input.type === "pause-creature-continuity"
+    || input.type === "settle-creature-continuity") {
+    const asset = state.inventory.find((candidate) => candidate.id === input.assetId);
+    if (!asset || !isPlayableAsset(state, asset.id)) return state;
+    const command = input.type === "activate-creature-continuity"
+      ? livingSubjectContinuityV119.activate
+      : input.type === "pause-creature-continuity"
+        ? livingSubjectContinuityV119.pause
+        : livingSubjectContinuityV119.settle;
+    const result = command({ asset, ownerReceizId: input.ownerReceizId, at: input.at });
+    if (!result.ok) {
+      if (result.code === "continuity_no_action_due") return state;
+      const message = result.code === "continuity_owner_mismatch"
+        ? `${asset.manifest.name}'s roaming mandate belongs to a different Receiz owner and remains inactive.`
+        : result.code === "continuity_mandate_missing" || result.code === "continuity_mandate_inactive"
+          ? `${asset.manifest.name} is resting in the Vault. Activate Life while away to let it roam.`
+          : `${asset.manifest.name}'s continuity command was denied. Its proof brain was not changed.`;
+      return { ...state, lastEvent: message };
+    }
+    const verb = input.type === "activate-creature-continuity"
+      ? "can now live between visits under your bounded roaming mandate"
+      : input.type === "pause-creature-continuity"
+        ? "is resting safely in the Vault; its lived history remains intact"
+        : `remembered ${result.appended} real ${result.appended === 1 ? "moment" : "moments"} that settled into its proof brain`;
+    return {
+      ...state,
+      inventory: state.inventory.map((candidate) => candidate.id === result.asset.id ? result.asset : candidate),
+      livingProgress: isLivingCardAsset(result.asset)
+        ? { ...state.livingProgress, [result.asset.id]: currentRevision(result.asset).growth }
+        : state.livingProgress,
+      pendingSyncAssetIds: Array.from(new Set([...state.pendingSyncAssetIds, result.asset.id])),
+      lastEvent: `${result.asset.manifest.name} ${verb}.`
+    };
   }
 
   if (input.type === "use-field-ability") {

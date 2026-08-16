@@ -16,7 +16,12 @@ import {
   type CreatureHistoryEventDraft,
   type CreatureHistoryKaiCoordinate,
   type CreatureHistoryProjection,
-  type CreatureHistoryRecord
+  type CreatureHistoryRecord,
+  type CreatureAutonomyMandate,
+  type CreatureContinuityEvent,
+  type CreatureContinuityProjection,
+  type CreatureObserverMemoryProjection,
+  type CreatureObserverMemoryTurn
 } from "./creature-history-types";
 
 const DIGEST = /^sha256:[a-f0-9]{64}$/;
@@ -24,6 +29,9 @@ const IDENTITY = /^[a-z0-9:._-]{1,180}$/i;
 const MAX_EVENTS = 16_384;
 const MAX_EFFECTS = 32;
 const MAX_REFERENCES = 512;
+export const MAX_CREATURE_OBSERVER_TURNS = 256;
+export const MAX_CREATURE_OBSERVER_USER_TEXT = 600;
+export const MAX_CREATURE_OBSERVER_REPLY_TEXT = 2_400;
 const ADMITTED_AUTHORITIES = new Set<CreatureHistoryAdmittedAuthority>(["admitted", "verified-receipt", "canonical"]);
 
 function digest(value: unknown) {
@@ -92,6 +100,259 @@ function validateGrowth(projection: CreatureHistoryProjection) {
   if (growth.recoveryUntil !== null && !canonicalTime(growth.recoveryUntil)) throw new Error("creature_history_growth_invalid");
 }
 
+function creatureObserverTurnUnsigned(turn: CreatureObserverMemoryTurn) {
+  const { digest: _digest, ...unsigned } = turn;
+  return unsigned;
+}
+
+function validObserverText(value: string, maximum: number) {
+  return value.length > 0 && value.length <= maximum && value.trim() === value;
+}
+
+function validateCreatureObserverTurn(
+  turn: CreatureObserverMemoryTurn,
+  expectedPrevious: string | null,
+  assetId?: string
+) {
+  if (turn.schema !== "receiz.wildz.creature_observer_turn.v1"
+    || !IDENTITY.test(turn.assetId)
+    || (assetId !== undefined && turn.assetId !== assetId)
+    || !IDENTITY.test(turn.turnId)
+    || !IDENTITY.test(turn.ownerActorId)
+    || turn.observer !== "receiz-twin"
+    || !canonicalTime(turn.observedAt)
+    || !validObserverText(turn.userText, MAX_CREATURE_OBSERVER_USER_TEXT)
+    || !validObserverText(turn.creatureText, MAX_CREATURE_OBSERVER_REPLY_TEXT)
+    || !DIGEST.test(turn.contextDigest)
+    || turn.previousTurnDigest !== expectedPrevious
+    || !DIGEST.test(turn.digest)
+    || turn.digest !== digest(creatureObserverTurnUnsigned(turn))) throw new Error("creature_observer_memory_invalid");
+}
+
+export function validateCreatureObserverMemory(
+  memory: CreatureObserverMemoryProjection,
+  assetId?: string
+) {
+  if (memory.schema !== "receiz.wildz.creature_observer_memory.v1"
+    || memory.turns.length > MAX_CREATURE_OBSERVER_TURNS) throw new Error("creature_observer_memory_invalid");
+  let head: string | null = null;
+  const turnIds = new Set<string>();
+  for (const turn of memory.turns) {
+    validateCreatureObserverTurn(turn, head, assetId);
+    if (turnIds.has(turn.turnId)) throw new Error("creature_observer_memory_invalid");
+    turnIds.add(turn.turnId);
+    head = turn.digest;
+  }
+  if (memory.headDigest !== head) throw new Error("creature_observer_memory_invalid");
+  return memory;
+}
+
+export function createCreatureObserverMemoryTurn(input: Readonly<{
+  assetId: string;
+  turnId: string;
+  observedAt: string;
+  ownerActorId: string;
+  userText: string;
+  creatureText: string;
+  contextDigest: string;
+  previousTurnDigest: string | null;
+}>): CreatureObserverMemoryTurn {
+  const unsigned = {
+    schema: "receiz.wildz.creature_observer_turn.v1" as const,
+    ...input,
+    observer: "receiz-twin" as const
+  };
+  const turn = { ...unsigned, digest: digest(unsigned) };
+  validateCreatureObserverTurn(turn, input.previousTurnDigest, input.assetId);
+  return turn;
+}
+
+function appendCreatureObserverTurn(
+  projection: CreatureHistoryProjection,
+  turn: CreatureObserverMemoryTurn
+): CreatureHistoryProjection {
+  const current = projection.observerMemory ?? {
+    schema: "receiz.wildz.creature_observer_memory.v1" as const,
+    turns: [],
+    headDigest: null
+  };
+  validateCreatureObserverMemory(current, projection.assetId);
+  if (current.turns.length >= MAX_CREATURE_OBSERVER_TURNS
+    || turn.assetId !== projection.assetId
+    || turn.previousTurnDigest !== current.headDigest) throw new Error("creature_observer_memory_invalid");
+  const observerMemory = {
+    schema: "receiz.wildz.creature_observer_memory.v1" as const,
+    turns: [...current.turns, turn],
+    headDigest: turn.digest
+  };
+  validateCreatureObserverMemory(observerMemory, projection.assetId);
+  return { ...projection, observerMemory };
+}
+
+const CONTINUITY_ACTIONS = new Set(["explore", "meet", "bond", "discover", "barter-keepsake"]);
+const CONTINUITY_KINDS = new Set([...CONTINUITY_ACTIONS, "mandate-activated", "mandate-paused"]);
+const MAX_CONTINUITY_EVENTS = 2_048;
+
+function unsignedMandate(mandate: CreatureAutonomyMandate) {
+  const { digest: _digest, ...unsigned } = mandate;
+  return unsigned;
+}
+
+function unsignedContinuityEvent(event: CreatureContinuityEvent) {
+  const { digest: _digest, ...unsigned } = event;
+  return unsigned;
+}
+
+export function validateCreatureAutonomyMandate(mandate: CreatureAutonomyMandate, assetId?: string) {
+  if (mandate.schema !== "receiz.wildz.creature_autonomy_mandate.v1"
+    || !IDENTITY.test(mandate.mandateId)
+    || !IDENTITY.test(mandate.assetId)
+    || (assetId !== undefined && mandate.assetId !== assetId)
+    || !IDENTITY.test(mandate.ownerReceizId)
+    || !["active", "paused"].includes(mandate.status)
+    || !mandate.allowedActions.length
+    || mandate.allowedActions.length > CONTINUITY_ACTIONS.size
+    || new Set(mandate.allowedActions).size !== mandate.allowedActions.length
+    || mandate.allowedActions.some((action) => !CONTINUITY_ACTIONS.has(action))
+    || !Number.isSafeInteger(mandate.maxActionsPerDay)
+    || mandate.maxActionsPerDay < 1
+    || mandate.maxActionsPerDay > 24
+    || !Number.isSafeInteger(mandate.maxAwayHours)
+    || mandate.maxAwayHours < 1
+    || mandate.maxAwayHours > 168
+    || !canonicalTime(mandate.issuedAt)
+    || !canonicalTime(mandate.changedAt)
+    || Date.parse(mandate.changedAt) < Date.parse(mandate.issuedAt)
+    || (mandate.previousMandateDigest !== null && !DIGEST.test(mandate.previousMandateDigest))
+    || !DIGEST.test(mandate.digest)
+    || mandate.digest !== digest(unsignedMandate(mandate))) throw new Error("creature_continuity_mandate_invalid");
+  return mandate;
+}
+
+function validateCreatureContinuityEvent(event: CreatureContinuityEvent, expectedPrevious: string | null, assetId: string) {
+  if (event.schema !== "receiz.wildz.creature_continuity_event.v1"
+    || !IDENTITY.test(event.eventId)
+    || !IDENTITY.test(event.commandId)
+    || !IDENTITY.test(event.attemptId)
+    || (event.transactionId !== null && !IDENTITY.test(event.transactionId))
+    || event.assetId !== assetId
+    || !IDENTITY.test(event.ownerReceizId)
+    || !DIGEST.test(event.mandateDigest)
+    || event.previousEventDigest !== expectedPrevious
+    || !CONTINUITY_KINDS.has(event.kind)
+    || !canonicalTime(event.occurredAt)
+    || !IDENTITY.test(event.locationId)
+    || (event.counterpartyId !== null && !IDENTITY.test(event.counterpartyId))
+    || (event.counterpartyName !== null && (!event.counterpartyName.trim() || event.counterpartyName.length > 120))
+    || !event.summary.trim()
+    || event.summary.length > 600
+    || !Number.isSafeInteger(event.relationshipDelta)
+    || event.relationshipDelta < 0
+    || event.relationshipDelta > 10
+    || (event.keepsakeGiven !== null && !IDENTITY.test(event.keepsakeGiven))
+    || (event.keepsakeReceived !== null && !IDENTITY.test(event.keepsakeReceived))
+    || (event.discoveryId !== null && !IDENTITY.test(event.discoveryId))
+    || !DIGEST.test(event.digest)
+    || event.digest !== digest(unsignedContinuityEvent(event))) throw new Error("creature_continuity_event_invalid");
+}
+
+export function validateCreatureContinuityProjection(continuity: CreatureContinuityProjection, assetId: string) {
+  if (continuity.schema !== "receiz.wildz.creature_continuity.v1"
+    || continuity.events.length > MAX_CONTINUITY_EVENTS
+    || (continuity.lastSettledAt !== null && !canonicalTime(continuity.lastSettledAt))
+    || !IDENTITY.test(continuity.locationId)
+    || continuity.relationships.length > 512
+    || continuity.keepsakes.length > 512
+    || continuity.discoveries.length > 512) throw new Error("creature_continuity_projection_invalid");
+  if (continuity.mandate) validateCreatureAutonomyMandate(continuity.mandate, assetId);
+  validateTextList(continuity.keepsakes, "creature_continuity_projection_invalid");
+  validateTextList(continuity.discoveries, "creature_continuity_projection_invalid");
+  let head: string | null = null;
+  const eventIds = new Set<string>();
+  for (const event of continuity.events) {
+    validateCreatureContinuityEvent(event, head, assetId);
+    if (eventIds.has(event.eventId)) throw new Error("creature_continuity_event_duplicate");
+    eventIds.add(event.eventId);
+    head = event.digest;
+  }
+  if (continuity.headDigest !== head) throw new Error("creature_continuity_projection_invalid");
+  const relationshipIds = new Set<string>();
+  for (const relationship of continuity.relationships) {
+    if (!IDENTITY.test(relationship.subjectId)
+      || relationshipIds.has(relationship.subjectId)
+      || !relationship.name.trim()
+      || relationship.name.length > 120
+      || !Number.isSafeInteger(relationship.affinity)
+      || relationship.affinity < 0
+      || relationship.affinity > 1_000_000
+      || !Number.isSafeInteger(relationship.meetings)
+      || relationship.meetings < 1
+      || !canonicalTime(relationship.lastMetAt)) throw new Error("creature_continuity_relationship_invalid");
+    relationshipIds.add(relationship.subjectId);
+  }
+  return continuity;
+}
+
+function appendContinuityMandate(projection: CreatureHistoryProjection, mandate: CreatureAutonomyMandate) {
+  validateCreatureAutonomyMandate(mandate, projection.assetId);
+  const current = projection.continuity;
+  if (mandate.previousMandateDigest !== (current?.mandate?.digest ?? null)) throw new Error("creature_continuity_mandate_parent_invalid");
+  const continuity: CreatureContinuityProjection = current
+    ? { ...current, mandate }
+    : {
+        schema: "receiz.wildz.creature_continuity.v1",
+        mandate,
+        headDigest: null,
+        lastSettledAt: mandate.changedAt,
+        events: [],
+        relationships: [],
+        keepsakes: [],
+        discoveries: [],
+        locationId: "wayfinder-hollow"
+      };
+  validateCreatureContinuityProjection(continuity, projection.assetId);
+  return { ...projection, continuity };
+}
+
+function appendContinuityEvent(projection: CreatureHistoryProjection, event: CreatureContinuityEvent) {
+  const current = projection.continuity;
+  if (!current?.mandate || current.mandate.status !== "active" || event.mandateDigest !== current.mandate.digest) {
+    throw new Error("creature_continuity_authority_denied");
+  }
+  validateCreatureContinuityEvent(event, current.headDigest, projection.assetId);
+  if (current.events.some((candidate) => candidate.commandId === event.commandId || candidate.attemptId === event.attemptId)) {
+    throw new Error("creature_continuity_command_duplicate");
+  }
+  const relationships = [...current.relationships];
+  if (event.counterpartyId && event.counterpartyName && event.relationshipDelta) {
+    const index = relationships.findIndex((relationship) => relationship.subjectId === event.counterpartyId);
+    const prior = relationships[index];
+    const next = {
+      subjectId: event.counterpartyId,
+      name: event.counterpartyName,
+      affinity: Math.min(1_000_000, (prior?.affinity ?? 0) + event.relationshipDelta),
+      meetings: (prior?.meetings ?? 0) + 1,
+      lastMetAt: event.occurredAt
+    };
+    if (index >= 0) relationships[index] = next;
+    else relationships.push(next);
+  }
+  const keepsakes = current.keepsakes.filter((item) => item !== event.keepsakeGiven);
+  if (event.keepsakeReceived) keepsakes.push(event.keepsakeReceived);
+  const continuity: CreatureContinuityProjection = {
+    ...current,
+    headDigest: event.digest,
+    lastSettledAt: event.occurredAt,
+    events: [...current.events, event],
+    relationships,
+    keepsakes: unique(keepsakes),
+    discoveries: event.discoveryId ? unique([...current.discoveries, event.discoveryId]) : current.discoveries,
+    locationId: event.locationId
+  };
+  validateCreatureContinuityProjection(continuity, projection.assetId);
+  return { ...projection, continuity };
+}
+
 export function validateCreatureHistoryProjection(projection: CreatureHistoryProjection) {
   if (projection.schema !== "receiz.wildz.creature_history_projection.v1"
     || !IDENTITY.test(projection.assetId)
@@ -124,6 +385,8 @@ export function validateCreatureHistoryProjection(projection: CreatureHistoryPro
   validateTextList(projection.relationships, "creature_history_projection_invalid");
   validateTextList(projection.scars, "creature_history_projection_invalid");
   validateTextList(projection.upgrades, "creature_history_projection_invalid");
+  if (projection.observerMemory) validateCreatureObserverMemory(projection.observerMemory, projection.assetId);
+  if (projection.continuity) validateCreatureContinuityProjection(projection.continuity, projection.assetId);
   return projection;
 }
 
@@ -181,7 +444,14 @@ function assertCheckpointDoesNotRegress(prior: CreatureHistoryProjection, next: 
     || !historyContains(prior.achievements, next.achievements)
     || !historyContains(prior.relationships, next.relationships)
     || !historyContains(prior.scars, next.scars)
-    || !historyContains(prior.upgrades, next.upgrades)) throw new Error("creature_history_projection_regression");
+    || !historyContains(prior.upgrades, next.upgrades)
+    || !historyContains(
+      prior.observerMemory?.turns.map((turn) => turn.digest) ?? [],
+      next.observerMemory?.turns.map((turn) => turn.digest) ?? []
+    ) || !historyContains(
+      prior.continuity?.events.map((event) => event.digest) ?? [],
+      next.continuity?.events.map((event) => event.digest) ?? []
+    )) throw new Error("creature_history_projection_regression");
 }
 
 function applyEffects(prior: CreatureHistoryProjection | null, effects: readonly CreatureHistoryEffect[]) {
@@ -201,6 +471,9 @@ function applyEffects(prior: CreatureHistoryProjection | null, effects: readonly
       projection = { ...projection, condition, mastery: { ...condition.mastery }, upgrades: unique([...projection.upgrades, ...condition.upgradeIds]) };
     }
     if (effect.kind === "record") projection = applyRecord(projection, effect);
+    if (effect.kind === "observer-memory") projection = appendCreatureObserverTurn(projection, effect.turn);
+    if (effect.kind === "continuity-mandate") projection = appendContinuityMandate(projection, effect.mandate);
+    if (effect.kind === "continuity-event") projection = appendContinuityEvent(projection, effect.event);
     if (effect.kind === "transformation") {
       if (effect.fromRevisionDigest !== projection.livingRevisionDigest
         || !DIGEST.test(effect.toRevisionDigest)

@@ -25,6 +25,18 @@
   color-scheme: dark;
 }
 
+/* Living creature continuity — the card's proof-native life between visits. */
+.wilds-creature-continuity{position:relative;overflow:hidden;margin-top:14px;padding:18px;border:1px solid rgba(151,180,203,.18);border-radius:24px;background:radial-gradient(circle at 8% 0%,rgba(83,204,172,.12),transparent 34%),linear-gradient(145deg,rgba(9,19,29,.96),rgba(13,23,38,.92));box-shadow:inset 0 1px rgba(255,255,255,.035);color:#e9f7f4}.wilds-creature-continuity.is-active{border-color:rgba(94,226,180,.32);box-shadow:inset 0 1px rgba(255,255,255,.045),0 14px 38px rgba(5,20,22,.18)}
+.wilds-creature-continuity>header{display:grid;grid-template-columns:auto 1fr auto;gap:13px;align-items:start}.wilds-creature-continuity header div>small{display:block;margin-bottom:3px;color:#71d7b9;font-size:.67rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase}.wilds-creature-continuity header div>strong{display:block;font-family:var(--font-display,inherit);font-size:1.24rem}.wilds-creature-continuity header p{max-width:550px;margin:5px 0 0;color:#a9bec7;font-size:.78rem;line-height:1.48}
+.wilds-continuity-orbit{position:relative;width:42px;height:42px;border:1px solid rgba(104,226,188,.3);border-radius:50%;background:rgba(57,197,156,.08)}.wilds-continuity-orbit i{position:absolute;border-radius:50%}.wilds-continuity-orbit i:first-child{inset:11px;background:#72e0bd;box-shadow:0 0 20px rgba(91,232,188,.8)}.wilds-continuity-orbit i:nth-child(2){inset:5px;border:1px solid rgba(111,228,193,.35);animation:wilds-continuity-pulse 2.8s ease-in-out infinite}.wilds-continuity-orbit i:last-child{width:5px;height:5px;left:1px;top:18px;background:#d9fff3;transform-origin:20px 3px;animation:wilds-continuity-orbit 4.4s linear infinite}.wilds-continuity-status{display:inline-flex;align-items:center;gap:6px;padding:7px 9px;border:1px solid rgba(255,255,255,.1);border-radius:999px;color:#adc1c7;font-size:.68rem;font-weight:800}.wilds-continuity-status i{width:6px;height:6px;border-radius:50%;background:#73868e}.is-active .wilds-continuity-status{color:#85e6c8;border-color:rgba(105,229,192,.24);background:rgba(65,190,153,.08)}.is-active .wilds-continuity-status i{background:#69e0b8;box-shadow:0 0 10px #69e0b8}
+.wilds-continuity-command{display:flex;flex-wrap:wrap;gap:8px;margin:15px 0}.wilds-continuity-command .button{min-height:42px;padding:0 14px;font-size:.74rem}.wilds-continuity-warning{margin:9px 0;padding:10px 12px;border:1px solid rgba(255,191,105,.2);border-radius:12px;background:rgba(255,170,61,.07);color:#ffd29a;font-size:.73rem;line-height:1.45}
+.wilds-continuity-vitals{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.wilds-continuity-vitals>span{display:grid;grid-template-columns:auto 1fr;gap:2px 7px;align-items:center;min-height:58px;padding:9px;border:1px solid rgba(255,255,255,.07);border-radius:13px;background:rgba(255,255,255,.025)}.wilds-continuity-vitals svg{grid-row:1/3;color:#61d5b2}.wilds-continuity-vitals small{color:#758d96;font-size:.61rem;text-transform:uppercase;letter-spacing:.08em}.wilds-continuity-vitals strong{overflow:hidden;color:#dcecea;font-size:.72rem;text-overflow:ellipsis;text-transform:capitalize;white-space:nowrap}
+.wilds-continuity-memory{margin-top:13px;padding-top:13px;border-top:1px solid rgba(255,255,255,.07)}.wilds-continuity-memory>div{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.wilds-continuity-memory>div strong{font-size:.84rem}.wilds-continuity-memory>div small{color:#748a94;font-size:.65rem}.wilds-continuity-memory article{display:grid;grid-template-columns:28px 1fr;gap:8px;margin-top:9px;padding:10px;border-radius:13px;background:rgba(255,255,255,.03)}.wilds-continuity-memory article>span{display:grid;width:28px;height:28px;place-items:center;border-radius:9px;background:rgba(86,211,173,.1);color:#75dfbd}.wilds-continuity-memory article p{margin:0;color:#aabfc6;font-size:.73rem;line-height:1.42}.wilds-continuity-memory article p>strong{display:block;color:#e7f6f2;font-size:.67rem;text-transform:capitalize}.wilds-continuity-memory article p>small{display:block;margin-top:3px;color:#667d86;font-size:.61rem}.wilds-continuity-empty{margin:10px 0 0;color:#81969e;font-size:.72rem;line-height:1.5}
+.wilds-continuity-bonds{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.wilds-continuity-bonds>strong{flex:0 0 100%;font-size:.75rem}.wilds-continuity-bonds>span{display:grid;grid-template-columns:27px auto;gap:0 7px;align-items:center;padding:7px 10px 7px 7px;border:1px solid rgba(255,255,255,.07);border-radius:999px}.wilds-continuity-bonds i{grid-row:1/3;display:grid;width:27px;height:27px;place-items:center;border-radius:50%;background:#183d3a;color:#77dfbd;font-style:normal;font-weight:900}.wilds-continuity-bonds b{font-size:.68rem}.wilds-continuity-bonds small{color:#70878f;font-size:.57rem}.wilds-creature-continuity>footer{display:flex;justify-content:space-between;gap:9px;margin-top:13px;padding-top:10px;border-top:1px solid rgba(255,255,255,.06);color:#657b84;font-size:.59rem}
+@keyframes wilds-continuity-pulse{50%{inset:2px;opacity:.3}}@keyframes wilds-continuity-orbit{to{transform:rotate(360deg)}}
+@media(max-width:620px){.wilds-creature-continuity{padding:15px;border-radius:20px}.wilds-creature-continuity>header{grid-template-columns:auto 1fr}.wilds-continuity-status{grid-column:2;justify-self:start}.wilds-continuity-vitals{grid-template-columns:repeat(2,minmax(0,1fr))}.wilds-continuity-command .button{flex:1 1 160px}.wilds-continuity-memory>div,.wilds-creature-continuity>footer{align-items:flex-start;flex-direction:column}}
+@media(prefers-reduced-motion:reduce){.wilds-continuity-orbit i{animation:none!important}}
+
 /* Wildz standalone shell */
 html,
 body {
@@ -12019,6 +12031,54 @@ button.product-purchase-secondary-link {
   gap: 8px;
 }
 
+.wilds-creature-consciousness {
+  display: grid;
+  width: min(100%, 380px);
+  gap: 10px;
+  padding: 14px;
+  color: #eafff9;
+  border: 1px solid rgb(113 232 195 / 30%);
+  border-radius: 19px;
+  background: radial-gradient(circle at 12% 0, rgb(113 232 195 / 14%), transparent 38%), linear-gradient(150deg, rgb(8 35 44 / 98%), rgb(4 17 25 / 98%));
+  box-shadow: inset 0 1px rgb(255 255 255 / 7%), 0 18px 42px rgb(0 0 0 / 22%);
+}
+.wilds-creature-consciousness > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.wilds-creature-consciousness > header > div { display: grid; min-width: 0; gap: 2px; }
+.wilds-creature-consciousness > header span { display: flex; align-items: center; gap: 6px; color: #79eac7; font-size: 8px; font-weight: 950; letter-spacing: .14em; text-transform: uppercase; }
+.wilds-creature-consciousness > header span i { width: 6px; height: 6px; border-radius: 50%; background: #76e9c6; box-shadow: 0 0 0 4px rgb(118 233 198 / 12%), 0 0 12px #76e9c6; animation: wilds-live-pulse 1.7s ease-in-out infinite; }
+.wilds-creature-consciousness > header strong { overflow: hidden; font-size: 17px; text-overflow: ellipsis; white-space: nowrap; }
+.wilds-creature-consciousness > header small { color: #7fa1aa; font-size: 8px; }
+.wilds-creature-voice-toggle { flex: 0 0 auto; min-height: 36px; padding: 0 10px; color: #dffaf2; border: 1px solid rgb(113 232 195 / 24%); border-radius: 999px; background: rgb(113 232 195 / 8%); font: 850 9px/1 var(--font-sans); }
+.wilds-creature-voice-toggle[aria-pressed="true"] { color: #062019; border-color: #76e9c6; background: #76e9c6; }
+.wilds-creature-transcript { display: grid; max-height: 300px; gap: 10px; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.wilds-creature-exchange { display: grid; gap: 5px; }
+.wilds-creature-exchange p { display: grid; gap: 3px; max-width: 92%; margin: 0; padding: 8px 10px; color: #dceef0; border-radius: 13px; font-size: 10px; line-height: 1.45; }
+.wilds-creature-exchange p span { color: #78dcbc; font-size: 7px; font-weight: 950; letter-spacing: .1em; text-transform: uppercase; }
+.wilds-creature-exchange .from-owner { justify-self: end; background: rgb(247 210 91 / 12%); border: 1px solid rgb(247 210 91 / 18%); }
+.wilds-creature-exchange .from-owner span { color: #f7d25b; }
+.wilds-creature-exchange .from-creature { justify-self: start; background: rgb(113 232 195 / 10%); border: 1px solid rgb(113 232 195 / 18%); }
+.wilds-creature-awakening { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 9px; padding: 11px; border: 1px dashed rgb(113 232 195 / 24%); border-radius: 14px; background: rgb(113 232 195 / 5%); }
+.wilds-creature-awakening > span { display: grid; width: 32px; height: 32px; place-items: center; color: #76e9c6; border-radius: 50%; background: rgb(118 233 198 / 10%); box-shadow: 0 0 22px rgb(118 233 198 / 22%); }
+.wilds-creature-awakening p { margin: 0; color: #9db8be; font-size: 9px; line-height: 1.45; }
+.wilds-creature-awakening strong { display: block; color: #eafff9; font-size: 11px; }
+.wilds-creature-thinking { display: flex; align-items: center; gap: 3px; margin: 0; color: #86a5ad; font-size: 9px; }
+.wilds-creature-thinking i { width: 4px; height: 4px; border-radius: 50%; background: #76e9c6; animation: wilds-live-pulse .8s ease-in-out infinite; }
+.wilds-creature-thinking i:nth-child(2) { animation-delay: 120ms; }
+.wilds-creature-thinking i:nth-child(3) { animation-delay: 240ms; margin-right: 4px; }
+.wilds-creature-prompts { display: flex; gap: 6px; padding-bottom: 2px; overflow-x: auto; scrollbar-width: none; }
+.wilds-creature-prompts button { flex: 0 0 auto; min-height: 36px; padding: 0 10px; color: #bfe9dc; border: 1px solid rgb(113 232 195 / 19%); border-radius: 999px; background: rgb(113 232 195 / 6%); font-size: 8px; }
+.wilds-creature-consciousness form { display: grid; gap: 5px; }
+.wilds-creature-consciousness form > label { color: #8bb0b6; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.wilds-creature-consciousness form > div { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: end; gap: 7px; }
+.wilds-creature-consciousness textarea { width: 100%; min-height: 48px; max-height: 110px; padding: 10px 11px; resize: vertical; color: #effffb; border: 1px solid rgb(255 255 255 / 13%); outline: 0; border-radius: 13px; background: rgb(0 0 0 / 20%); font: 10px/1.4 var(--font-sans); }
+.wilds-creature-consciousness textarea:focus { border-color: rgb(113 232 195 / 58%); box-shadow: 0 0 0 3px rgb(113 232 195 / 9%); }
+.wilds-creature-consciousness form button { display: grid; width: 44px; height: 44px; place-items: center; color: #062019; border: 0; border-radius: 13px; background: linear-gradient(145deg, #86f2cf, #52cfa8); box-shadow: 0 8px 20px rgb(67 218 169 / 18%); }
+.wilds-creature-consciousness button:disabled { opacity: .42; }
+.wilds-creature-observer-error, .wilds-creature-observer-note { margin: 0 !important; padding: 8px 9px; border-radius: 10px; font-size: 9px; line-height: 1.4; }
+.wilds-creature-observer-error { color: #ffd4cc !important; border: 1px solid rgb(255 126 103 / 24%); background: rgb(255 126 103 / 8%); }
+.wilds-creature-observer-note { color: #aab7b4 !important; border: 1px solid rgb(255 255 255 / 10%); background: rgb(255 255 255 / 4%); }
+.wilds-creature-consciousness > footer { display: flex; justify-content: space-between; gap: 8px; color: #63838b; font-size: 7px; font-family: var(--font-mono); }
+
 .wilds-growth-panel {
   display: grid;
   gap: 11px;
@@ -12311,7 +12371,12 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-atlas-trainer-label { display: block; padding: 4px 7px; color: #fff3b7; border: 1px solid rgb(247 210 91 / 32%); border-radius: 999px; background: rgb(7 25 29 / 88%); font-size: 7px; font-weight: 900; white-space: nowrap; }
 @media (max-width: 640px) { .wilds-trainer-navigator { width: min(230px, calc(100vw - 16px)); padding: 6px 10px; } }
 @keyframes wilds-command-sheet-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .wilds-command-sheet, .wilds-command-button, .wilds-vault-page-dots span { animation: none; transition: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .wilds-command-sheet, .wilds-command-button, .wilds-vault-page-dots span,
+  .wilds-collectible-card[data-conscious="true"] .heartbound-card-art [data-slot],
+  .wilds-creature-consciousness > header span i,
+  .wilds-creature-thinking i { animation: none; transition: none; }
+}
 @media (max-width: 560px) {
   .mobile-play-wrap .wilds-command-sheet {
     top: calc(52px + env(safe-area-inset-top));
@@ -12947,6 +13012,62 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   max-width: 100%;
   max-height: 100%;
   overflow: visible;
+}
+
+/* The sealed card stats drive the creature's live embodiment. */
+.wilds-collectible-card[data-conscious="true"] .heartbound-card-art [data-slot] { transform-box: fill-box; }
+.wilds-collectible-card[data-conscious="true"] .heartbound-card-art [data-slot="eyes"] {
+  transform-origin: center;
+  animation: wilds-creature-blink var(--creature-blink, 3600ms) linear infinite;
+}
+.wilds-collectible-card[data-conscious="true"] .heartbound-card-art [data-heartbound-pupil] {
+  transform: translate(var(--creature-gaze-x, 0), var(--creature-gaze-y, 0));
+  transition: transform 110ms ease-out;
+}
+.wilds-collectible-card[data-conscious="true"] .heartbound-card-art [data-slot="torso"] {
+  transform-origin: 50% 80%;
+  animation: wilds-creature-breathe var(--creature-breathe, 3600ms) ease-in-out infinite;
+}
+.wilds-collectible-card[data-conscious="true"] .heartbound-card-art [data-slot="tail"] {
+  transform-origin: 25% 70%;
+  animation: wilds-creature-tail var(--creature-tail, 2900ms) ease-in-out infinite;
+}
+.wilds-collectible-card[data-conscious="true"] .heartbound-card-art [data-slot="ears_back"] {
+  transform-origin: 50% 80%;
+  transform: rotate(var(--creature-guard-settle, 0deg));
+}
+.wilds-collectible-card[data-conscious="true"] .heartbound-card-art :is([data-slot="aura_back"], [data-slot="aura_front"]) {
+  transform-origin: center;
+  opacity: var(--creature-bond-glow, .7);
+  animation: wilds-creature-aura var(--creature-aura, 2400ms) ease-in-out infinite;
+}
+.wilds-collectible-card[data-speaking="true"] .heartbound-card-art [data-slot="mouth"] {
+  transform-origin: center;
+  animation: wilds-creature-speak 320ms ease-in-out infinite alternate;
+}
+.wilds-collectible-card[data-speaking="true"] .wilds-card-art {
+  box-shadow: inset 0 0 38px color-mix(in srgb, var(--card-glow) 36%, transparent), 0 0 26px color-mix(in srgb, var(--card-glow) 24%, transparent);
+}
+
+@keyframes wilds-creature-blink {
+  0%, 44%, 48%, 100% { transform: scaleY(1); }
+  45.2%, 46.8% { transform: scaleY(.06); }
+}
+@keyframes wilds-creature-breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(calc(-1 * var(--creature-body-lift, 2px))) scale(1.012); }
+}
+@keyframes wilds-creature-tail {
+  0%, 100% { transform: rotate(-1.5deg); }
+  50% { transform: rotate(3.8deg); }
+}
+@keyframes wilds-creature-aura {
+  0%, 100% { transform: scale(1); filter: brightness(.9); }
+  50% { transform: scale(var(--creature-aura-scale, 1.04)); filter: brightness(1.22); }
+}
+@keyframes wilds-creature-speak {
+  from { transform: scaleY(.84) translateY(-1px); }
+  to { transform: scaleY(1.13) translateY(2px); }
 }
 
 .wilds-card-creature-core {

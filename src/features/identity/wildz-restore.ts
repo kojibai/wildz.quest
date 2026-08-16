@@ -136,6 +136,41 @@ function identityFromInspection(inspection: WildzArtifactInspection) {
   return inspection.kind === "card-vault" ? inspection.identity ?? null : null;
 }
 
+export type WildzVaultUploadDisposition = "merge-owned" | "claim-bearer";
+
+function sameVaultOwner(left: string, right: string) {
+  return sameWildzPlayerCoordinate(left, right)
+    || left.trim().replace(/^@+/, "").toLowerCase() === right.trim().replace(/^@+/, "").toLowerCase();
+}
+
+/**
+ * A bearer claim is a transfer, not a generic restore primitive. Prefer the
+ * verified artifact ownership witness, then the sealed player coordinate, and
+ * finally the exact card owners for older portable Vaults that predate the
+ * ownership witness envelope.
+ */
+export function wildzVaultUploadDisposition(
+  inspection: WildzArtifactInspection,
+  activeActorId: string
+): WildzVaultUploadDisposition {
+  if (inspection.kind !== "card-vault" && inspection.kind !== "commerce-vault") {
+    throw new Error("wildz_vault_upload_artifact_required");
+  }
+  const witnessedOwner = inspection.kind === "card-vault"
+    ? inspection.proofObject?.ownerReceizId ?? null
+    : null;
+  if (witnessedOwner) {
+    return sameVaultOwner(witnessedOwner, activeActorId) ? "merge-owned" : "claim-bearer";
+  }
+  if (inspection.player?.playerId) {
+    return sameVaultOwner(inspection.player.playerId, activeActorId) ? "merge-owned" : "claim-bearer";
+  }
+  const cardOwners = [...new Set(inspection.assets.map((asset) => asset.manifest.ownerReceizId))];
+  return cardOwners.length > 0 && cardOwners.every((owner) => sameVaultOwner(owner, activeActorId))
+    ? "merge-owned"
+    : "claim-bearer";
+}
+
 function emptyVaultPlayState(): PlayState {
   return {
     ...structuredClone(initialPlayState),

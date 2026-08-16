@@ -4,7 +4,10 @@ import { PlayCampaign } from "@/features/play/PlayCampaign";
 import { generateIdentityBoundWildzCharacter, type WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
 import { createOwnerBoundInitialPlayState, initialPlayState, type PlayState } from "@/features/play/game-state";
 import { createWildsPlayerVault } from "@/features/play/wilds-player-vault";
-import type { WildzCardOnlyConfirmation } from "@/features/identity/wildz-restore";
+import {
+  wildzVaultUploadDisposition,
+  type WildzCardOnlyConfirmation
+} from "@/features/identity/wildz-restore";
 import { removeWildzAssetsFromActiveVault } from "@/features/identity/wildz-ownership-reconciliation";
 import {
   bootstrapWildzContinuity,
@@ -586,8 +589,6 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     confirmCardOnly: WildzCardOnlyConfirmation,
     currentPlayState?: PlayState
   ): Promise<WildzUiArtifactRestore> => {
-    if (!proofSessionConnected) throw new Error("Connect your Receiz ID before claiming a bearer artifact.");
-
     const inspection = await inspectWildzRestore(file);
     if (inspection.kind === "invalid"
       || inspection.kind === "unsupported"
@@ -597,6 +598,20 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     }
     const confirmed = typeof confirmCardOnly === "function" ? await confirmCardOnly() : confirmCardOnly;
     if (!confirmed) throw new Error("wildz_restore_confirmation_required");
+
+    const current = continuityRef.current;
+    if (!current) throw new Error("wildz_restore_identity_missing");
+    const disposition = wildzVaultUploadDisposition(inspection, current.session.actorId);
+    if (disposition === "merge-owned") {
+      return restoreArtifact(
+        file,
+        "card-vault",
+        false,
+        currentPlayState,
+        "merge-vault"
+      );
+    }
+    if (!proofSessionConnected) throw new Error("Connect your Receiz ID before claiming a bearer artifact.");
 
     const form = new FormData();
     form.set("file", file, file.name);

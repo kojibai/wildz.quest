@@ -18,8 +18,92 @@ export type CreatureHistorySourceMode =
   | "lineage"
   | "transformation"
   | "living-revision"
+  | "conversation"
+  | "continuity"
   | "recovery"
   | "migration";
+
+export type CreatureObserverMemoryTurn = Readonly<{
+  schema: "receiz.wildz.creature_observer_turn.v1";
+  assetId: string;
+  turnId: string;
+  observedAt: string;
+  observer: "receiz-twin";
+  ownerActorId: string;
+  userText: string;
+  creatureText: string;
+  contextDigest: string;
+  previousTurnDigest: string | null;
+  digest: string;
+}>;
+
+export type CreatureObserverMemoryProjection = Readonly<{
+  schema: "receiz.wildz.creature_observer_memory.v1";
+  turns: readonly CreatureObserverMemoryTurn[];
+  headDigest: string | null;
+}>;
+
+export type CreatureAutonomyAction = "explore" | "meet" | "bond" | "discover" | "barter-keepsake";
+
+export type CreatureAutonomyMandate = Readonly<{
+  schema: "receiz.wildz.creature_autonomy_mandate.v1";
+  mandateId: string;
+  assetId: string;
+  ownerReceizId: string;
+  status: "active" | "paused";
+  allowedActions: readonly CreatureAutonomyAction[];
+  maxActionsPerDay: number;
+  maxAwayHours: number;
+  issuedAt: string;
+  changedAt: string;
+  previousMandateDigest: string | null;
+  digest: string;
+}>;
+
+export type CreatureContinuityEventKind = CreatureAutonomyAction | "mandate-activated" | "mandate-paused";
+
+export type CreatureContinuityEvent = Readonly<{
+  schema: "receiz.wildz.creature_continuity_event.v1";
+  eventId: string;
+  commandId: string;
+  attemptId: string;
+  transactionId: string | null;
+  assetId: string;
+  ownerReceizId: string;
+  mandateDigest: string;
+  previousEventDigest: string | null;
+  kind: CreatureContinuityEventKind;
+  occurredAt: string;
+  locationId: string;
+  counterpartyId: string | null;
+  counterpartyName: string | null;
+  summary: string;
+  relationshipDelta: number;
+  keepsakeGiven: string | null;
+  keepsakeReceived: string | null;
+  discoveryId: string | null;
+  digest: string;
+}>;
+
+export type CreatureContinuityRelationship = Readonly<{
+  subjectId: string;
+  name: string;
+  affinity: number;
+  meetings: number;
+  lastMetAt: string;
+}>;
+
+export type CreatureContinuityProjection = Readonly<{
+  schema: "receiz.wildz.creature_continuity.v1";
+  mandate: CreatureAutonomyMandate | null;
+  headDigest: string | null;
+  lastSettledAt: string | null;
+  events: readonly CreatureContinuityEvent[];
+  relationships: readonly CreatureContinuityRelationship[];
+  keepsakes: readonly string[];
+  discoveries: readonly string[];
+  locationId: string;
+}>;
 
 export type CreatureHistoryKaiCoordinate = Readonly<{
   uPulse: number;
@@ -59,6 +143,8 @@ export type CreatureHistoryProjection = Readonly<{
   stage: CreatureStage;
   ascensionRank: number;
   livingRevisionDigest: string;
+  observerMemory?: CreatureObserverMemoryProjection;
+  continuity?: CreatureContinuityProjection;
 }>;
 
 export type CreatureHistoryEffect =
@@ -86,6 +172,18 @@ export type CreatureHistoryEffect =
       formId: string;
       stage: CreatureStage;
       ascensionRank: number;
+    }>
+  | Readonly<{
+      kind: "observer-memory";
+      turn: CreatureObserverMemoryTurn;
+    }>
+  | Readonly<{
+      kind: "continuity-mandate";
+      mandate: CreatureAutonomyMandate;
+    }>
+  | Readonly<{
+      kind: "continuity-event";
+      event: CreatureContinuityEvent;
     }>
   | Readonly<{
       kind: "legacy-checkpoint";

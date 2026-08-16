@@ -9,8 +9,9 @@ import { isLivingCardAsset } from "./living-card-types";
 import { cardDeathRecord } from "./card-death-record";
 import type { AdventureCardCondition } from "./adventure/card-condition";
 import type { PortableCardAsset } from "./portable-card";
+import { creatureConsciousnessMotion } from "./creature-consciousness";
 
-export const WildsCard = memo(function WildsCard({ asset, compact = false, condition }: { asset: PortableCardAsset; compact?: boolean; condition?: AdventureCardCondition | null }) {
+export const WildsCard = memo(function WildsCard({ asset, compact = false, condition, speaking = false }: { asset: PortableCardAsset; compact?: boolean; condition?: AdventureCardCondition | null; speaking?: boolean }) {
   const form = creatureForm(asset.manifest.formId);
   const variant = asset.manifest.variant.traits;
   const creatureSvg = useMemo(() => renderHeartboundSvg(
@@ -33,14 +34,16 @@ export const WildsCard = memo(function WildsCard({ asset, compact = false, condi
     <article
       aria-label={`${asset.manifest.name}, Stage ${form.stage}, ${form.rarity} Wilds card`}
       className={`wilds-collectible-card foil-${form.foil}${compact ? " compact" : ""}${death ? " is-dead" : ""}`}
-      style={{ "--card-primary": variant.palette.primary, "--card-accent": variant.palette.accent, "--card-glow": variant.palette.glow, "--card-body-scale": variant.bodyScale, "--card-motion": `${variant.animationMs}ms` } as React.CSSProperties}
+      data-conscious="true"
+      data-speaking={speaking ? "true" : "false"}
+      style={{ "--card-primary": variant.palette.primary, "--card-accent": variant.palette.accent, "--card-glow": variant.palette.glow, "--card-body-scale": variant.bodyScale, "--card-motion": `${variant.animationMs}ms`, ...creatureConsciousnessMotion(asset, condition?.fatigue ?? 0) } as React.CSSProperties}
     >
       <div className="wilds-card-foil" aria-hidden="true" />
       <header>
         <div><strong>{asset.manifest.name}</strong><span>{form.species}</span></div>
         <div><b>STAGE {form.stage}</b><small>{form.cardNumber}</small></div>
       </header>
-      <div className="wilds-card-art heartbound-card-art" dangerouslySetInnerHTML={{ __html: creatureSvg }} />
+      <div aria-label={`${asset.manifest.name} is alive on the card face${speaking ? " and speaking" : ""}`} className="wilds-card-art heartbound-card-art" dangerouslySetInnerHTML={{ __html: creatureSvg }} />
       {death ? <div className="wilds-card-death-mark"><span>Memorial</span><strong>Deceased</strong></div> : null}
       <div className="wilds-card-rarity"><span>{form.rarity}</span><b>{form.foil}</b></div>
       <dl className="wilds-card-stats">

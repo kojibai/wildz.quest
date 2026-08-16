@@ -466,7 +466,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(inventory, /Retired memorial/);
     assert.match(inventory, /selectedRetired/);
     assert.match(inventory, /selectedRetired \? <div className="wilds-vault-card-memorial"/);
-    assert.match(inventory, /: <WildsCardScene asset=\{selected\} condition=\{state\.adventureConditions\[selected\.id\]\} origin=\{origin\} qr=\{qr\} \/>/);
+    assert.match(inventory, /: <WildsCardScene asset=\{selected\} condition=\{state\.adventureConditions\[selected\.id\]\} origin=\{origin\} qr=\{qr\} speaking=\{speakingAssetId === selected\.id\} \/>/);
     assert.match(roster, /const retired = condition\.life === "dead"/);
     assert.match(roster, /if \(retired\) return \[\]/);
     assert.doesNotMatch(drawer, /is-retired|wildz-memorial-card-viewer/);

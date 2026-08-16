@@ -188,6 +188,20 @@ export function PlayCampaign({
       }
     }, current));
   }, []);
+  useEffect(() => {
+    const settleLivingCreatures = () => setState((current) => {
+      const at = new Date().toISOString();
+      return current.inventory.reduce((next, asset) => applyWildsInput(next, {
+        type: "settle-creature-continuity",
+        assetId: asset.id,
+        ownerReceizId,
+        at
+      }), current);
+    });
+    settleLivingCreatures();
+    const timer = window.setInterval(settleLivingCreatures, 5 * 60_000);
+    return () => window.clearInterval(timer);
+  }, [ownerReceizId]);
   const explorerStyle = character.gender;
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
   const [mapOpen, setMapOpen] = useState(false);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { Icons } from "@/components/icons";
@@ -24,6 +24,8 @@ import type { WildsPlayerVaultPayload } from "./wilds-player-vault";
 import { WildsCardScene } from "./WildsCardScene";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import { WildsGrowthPanel } from "./WildsGrowthPanel";
+import { CreatureConsciousnessPanel } from "./CreatureConsciousnessPanel";
+import { CreatureContinuityPanel } from "./CreatureContinuityPanel";
 import {
   clampInventoryPage,
   inventoryPageForAsset,
@@ -88,6 +90,7 @@ export function WildsInventory({
   const [cardSending, setCardSending] = useState(false);
   const [sendTarget, setSendTarget] = useState("");
   const [sendMessage, setSendMessage] = useState("");
+  const [speakingAssetId, setSpeakingAssetId] = useState<string | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const suppressCardClick = useRef(false);
@@ -118,6 +121,9 @@ export function WildsInventory({
   const canEvolve = Boolean(next && progress && progress.level >= next.evolution.level && progress.bond >= next.evolution.bond);
   const cardSave = cardSavePresentation(cardSaveState);
   const cardSaving = cardSave.busy;
+  const setSelectedCreatureSpeaking = useCallback((speaking: boolean) => {
+    setSpeakingAssetId(speaking && selected ? selected.id : null);
+  }, [selected]);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 820px)");
@@ -420,9 +426,16 @@ export function WildsInventory({
         {selected && selectedForm ? (
           <aside className={`wilds-inventory-detail${selectedRetired ? " is-retired" : ""}`}>
             <div className={`wilds-selected-card-stage${cardSaveState === "success" ? " is-secured" : ""}`}>
-              {selectedRetired ? <div className="wilds-vault-card-memorial"><WildsCardScene asset={selected} condition={state.adventureConditions[selected.id]} origin={origin} qr={qr} /><strong>Retired memorial · swipe to view death record</strong></div> : <WildsCardScene asset={selected} condition={state.adventureConditions[selected.id]} origin={origin} qr={qr} />}
+              {selectedRetired ? <div className="wilds-vault-card-memorial"><WildsCardScene asset={selected} condition={state.adventureConditions[selected.id]} origin={origin} qr={qr} speaking={false} /><strong>Retired memorial · swipe to view death record</strong></div> : <WildsCardScene asset={selected} condition={state.adventureConditions[selected.id]} origin={origin} qr={qr} speaking={speakingAssetId === selected.id} />}
               {cardSaveState === "success" ? <span aria-hidden="true" className="wilds-card-save-celebration"><i /><i /><i /><i /></span> : null}
             </div>
+            <CreatureConsciousnessPanel
+              asset={selected}
+              disabled={selectedRetired}
+              onObserved={(turn) => onInput({ type: "record-creature-observation", turn })}
+              onSpeakingChange={setSelectedCreatureSpeaking}
+            />
+            <CreatureContinuityPanel asset={selected} disabled={selectedRetired} onInput={onInput} />
             <div className="wilds-inventory-actions">
               <button className="button button-primary" disabled={selectedRetired || state.selectedAssetId === selected.id} onClick={() => onInput({ type: "select-asset", assetId: selected.id })} type="button">{selectedRetired ? "Retired · cannot enter game" : state.selectedAssetId === selected.id ? "Active deck leader" : "Set as active deck leader"}</button>
               <Link className="button button-outline" href={`/cards/${encodeURIComponent(selected.id)}`}>Open standalone card page</Link>

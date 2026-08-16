@@ -148,7 +148,8 @@ function historyProjectionForRevision(
     formId: revision.formId,
     stage: revision.stage,
     ascensionRank: revision.ascensionRank,
-    livingRevisionDigest: revision.digest
+    livingRevisionDigest: revision.digest,
+    ...(prior?.observerMemory ? { observerMemory: structuredClone(prior.observerMemory) } : {})
   };
 }
 
