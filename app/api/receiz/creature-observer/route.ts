@@ -35,7 +35,7 @@ function isTwinFailureBoundary(input: Readonly<{ model?: string; speech?: string
     || /could not form a response|no world event was created/i.test(input.speech ?? "");
 }
 
-function genuineWorldTwinSpeech(value: unknown) {
+function genuineWorldTwinSpeech(value: unknown, creatureName: string) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("creature_observer_intelligence_unavailable");
   }
@@ -43,7 +43,43 @@ function genuineWorldTwinSpeech(value: unknown) {
   if (reply.source !== "upstream") {
     throw new Error("creature_observer_intelligence_unavailable");
   }
-  return normalizeCreatureTwinReply(reply);
+  return normalizeCreatureTwinReply(reply, creatureName);
+}
+
+function worldTwinPerformance(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const reply = value as Record<string, unknown>;
+  const performance = reply.performance;
+  return performance && typeof performance === "object" && !Array.isArray(performance)
+    ? performance as Record<string, unknown>
+    : {};
+}
+
+function twinVoiceAsset(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const performance = value as Record<string, unknown>;
+  const assetValue = performance.audioAsset;
+  if (!assetValue || typeof assetValue !== "object" || Array.isArray(assetValue)) return null;
+  const asset = assetValue as Record<string, unknown>;
+  const dataUrl = typeof asset.dataUrl === "string" ? asset.dataUrl : "";
+  const mimeType = typeof asset.mimeType === "string" ? asset.mimeType : "";
+  if (!/^audio\/(?:wav|wave|mpeg|mp3|ogg|webm);base64,/i.test(dataUrl)
+    || !/^audio\/(?:wav|wave|mpeg|mp3|ogg|webm)$/i.test(mimeType)
+    || dataUrl.length > 6_000_000) return null;
+  const providerValue = performance.ttsProvider;
+  const provider = providerValue && typeof providerValue === "object" && !Array.isArray(providerValue)
+    ? providerValue as Record<string, unknown>
+    : {};
+  return {
+    source: "receiz-twin-generated" as const,
+    dataUrl,
+    mimeType,
+    durationMs: typeof asset.durationMs === "number" && Number.isFinite(asset.durationMs)
+      ? Math.max(0, Math.min(120_000, Math.round(asset.durationMs)))
+      : null,
+    provider: typeof provider.vendor === "string" ? provider.vendor : "receiz",
+    model: typeof provider.model === "string" ? provider.model : null
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -75,7 +111,7 @@ export async function POST(request: NextRequest) {
         const groundedMessage = [
           observerContext.instruction,
           `Present Kai causal context: ${JSON.stringify(observerContext.presentKaiMoment)}`,
-          `The owner says: ${input.message}`
+          `The person speaking with you says: ${input.message}`
         ].join("\n\n");
         const exactSubjectTwin = actor.accessToken ? receiz.subjects.twin.message(input.card.id, {
             message: groundedMessage,
@@ -99,7 +135,7 @@ export async function POST(request: NextRequest) {
               provider: response.proposedIntent.modelAudit.provider,
               model: response.proposedIntent.modelAudit.model,
               version: response.proposedIntent.modelAudit.version,
-              speech: normalizeCreatureTwinReply(response.spokenResponse),
+              speech: normalizeCreatureTwinReply(response.spokenResponse, subjectBrain.identity.name),
               performance: response.performance ?? {}
             };
           }) : null;
@@ -133,8 +169,8 @@ export async function POST(request: NextRequest) {
             provider: "receiz",
             model: "receiz-world-twin-upstream",
             version: "120.0.0",
-            speech: genuineWorldTwinSpeech(response.reply),
-            performance: {}
+            speech: genuineWorldTwinSpeech(response.reply, subjectBrain.identity.name),
+            performance: worldTwinPerformance(response.reply)
           };
         });
         const observerRequests = exactSubjectTwin
@@ -185,7 +221,7 @@ export async function POST(request: NextRequest) {
       : "receiz-twin" as const;
     const reply = fellThroughSdkFailureBoundary
       ? localCreatureTwinReply(brain, input.message)
-      : normalizeCreatureTwinReply(subjectObservation.twin.spokenResponse);
+      : normalizeCreatureTwinReply(subjectObservation.twin.spokenResponse, brain.identity.name);
     const turn = createObservedCreatureTurn({
       brain,
       ownerActorId: actor.actorId,
@@ -226,6 +262,7 @@ export async function POST(request: NextRequest) {
         version: modelAudit.version,
         outputDigest: modelAudit.outputDigest
       },
+      voice: twinVoiceAsset(subjectObservation.twin.performance),
       moment: presentKaiMoment,
       turn
     });

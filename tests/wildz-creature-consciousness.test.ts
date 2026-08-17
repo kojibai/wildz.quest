@@ -9,6 +9,7 @@ import {
   creatureVoicePerformance,
   creatureVoiceProfile,
   localCreatureTwinReply,
+  normalizeCreatureSpokenPerspective,
   normalizeCreatureTwinReply,
   parseCreatureObserverRequest,
   projectCreatureBrain
@@ -169,6 +170,14 @@ test("the creature brain gives the Twin exact proof context and model boundaries
   assert.throws(() => parseCreatureObserverRequest({ card: asset, message: "", kai }), /creature_observer_request_invalid/);
   assert.throws(() => parseCreatureObserverRequest({ card: asset, message: "hello" }), /creature_observer_kai_invalid/);
   assert.equal(normalizeCreatureTwinReply({ content: [{ text: "I am here." }] }), "I am here.");
+  assert.equal(
+    normalizeCreatureTwinReply({ content: [{ text: `${brain.identity.name} remembers its owner and ${brain.identity.name}'s first trail.` }] }, brain.identity.name),
+    "I remember you and my first trail."
+  );
+  assert.equal(
+    normalizeCreatureSpokenPerspective(`My owner says ${brain.identity.name} feels ready.`, brain.identity.name),
+    "you say I feel ready."
+  );
   assert.throws(() => normalizeCreatureTwinReply({ metadata: "no assistant text" }), /creature_observer_reply_missing/);
 
   for (const prompt of [
@@ -182,6 +191,8 @@ test("the creature brain gives the Twin exact proof context and model boundaries
     assert.ok(reply.length > 20);
     assert.doesNotMatch(reply, /could not form a response|no world event was created/i);
     assert.doesNotMatch(reply, /proof|card brain|digest|ledger|raw statistic/i);
+    assert.doesNotMatch(reply, new RegExp(`\\b${brain.identity.name}\\b`, "i"));
+    assert.doesNotMatch(reply, /\bowner\b/i);
   }
   assert.match(localCreatureTwinReply(brain, "Do you remember when I captured you?"), /first moment I carry with you/i);
 
@@ -250,6 +261,7 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
   assert.match(route, /RECEIZ_CREATURE_TWIN_HANDLE\?\.trim\(\) \|\| "wildz"/);
   assert.match(route, /receiz\.world\.message\(twinHandle/);
   assert.match(route, /message: groundedMessage/);
+  assert.match(route, /The person speaking with you says/);
   assert.match(route, /quoteExpiresAt: new Date\(Date\.now\(\) \+ 9 \* 60_000\)\.toISOString\(\)/);
   assert.match(route, /reply\.source !== "upstream"/);
   assert.match(route, /model: "receiz-world-twin-upstream"/);
@@ -273,15 +285,24 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
   assert.match(route, /creatureObserverMomentContext\(input\.kai, brain\)/);
   assert.match(route, /modelOutputIsWorldEvent/);
   assert.match(route, /createObservedCreatureTurn/);
+  assert.match(route, /normalizeCreatureTwinReply\(subjectObservation\.twin\.spokenResponse, brain\.identity\.name\)/);
+  assert.match(route, /performance: worldTwinPerformance\(response\.reply\)/);
+  assert.match(route, /voice: twinVoiceAsset\(subjectObservation\.twin\.performance\)/);
+  assert.match(route, /receiz-twin-generated/);
   assert.match(panel, /record-creature-observation|onObserved/);
   assert.match(panel, /speechSynthesis/);
   assert.match(panel, /playCreatureNeuralVoice/);
+  assert.match(panel, /playCreatureTwinVoice/);
   assert.match(panel, /warmCreatureNeuralVoice/);
   assert.match(panel, /isCreatureNeuralVoiceReady/);
   assert.match(panel, /neuralTimeoutMs = isCreatureNeuralVoiceReady\(asset\) \? 10_500 : 900/);
   assert.match(panel, /Promise\.race\(\[[\s\S]*playCreatureNeuralVoice/);
   assert.doesNotMatch(panel, /neuralController\.abort\(\);\s*if \([^)]+neuralController\.signal\.aborted/);
   assert.match(panel, /activeUtterances\.current = \[utterance\]/);
+  assert.match(panel, /const hasNativeVoice = "speechSynthesis" in window/);
+  assert.match(panel, /startWatchdog = setTimeout/);
+  assert.match(panel, /perform\(index, retry \+ 1\)/);
+  assert.match(panel, /Receiz Twin generated voice/);
   assert.match(inventory, /selectedSpeakingId = selected\?\.id/);
   assert.doesNotMatch(inventory, /setSelectedCreatureSpeaking[\s\S]{0,180}\}, \[selected\]\)/);
   assert.match(campaign, /requestIdleCallback\?\.\(prime\)/);
@@ -305,6 +326,8 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
   assert.match(neuralVoice, /model\.generate\([\s\S]*10_000/);
   assert.match(neuralVoice, /onEnded\?: \(\) => void/);
   assert.match(neuralVoice, /source\.start\(\);[\s\S]*return true/);
+  assert.match(neuralVoice, /export async function playCreatureTwinVoice/);
+  assert.match(neuralVoice, /decodeAudioData/);
   assert.match(neuralVoice, /createAnalyser\(\)/);
   assert.match(neuralVoice, /getByteTimeDomainData/);
   assert.match(card, /wildz-creature-mouth/);

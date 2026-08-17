@@ -17,6 +17,7 @@ import {
   cancelCreatureNeuralVoice,
   isCreatureNeuralVoiceReady,
   playCreatureNeuralVoice,
+  playCreatureTwinVoice,
   unlockCreatureNeuralVoice,
   warmCreatureNeuralVoice
 } from "./creature-neural-voice";
@@ -25,6 +26,14 @@ type ObserverResponse = {
   ok?: boolean;
   error?: string;
   turn?: CreatureObserverMemoryTurn;
+  voice?: {
+    source: "receiz-twin-generated";
+    dataUrl: string;
+    mimeType: string;
+    durationMs: number | null;
+    provider: string;
+    model: string | null;
+  } | null;
 };
 
 function clientMessageId() {
@@ -77,7 +86,7 @@ export function CreatureConsciousnessPanel({
   const [error, setError] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [voiceMode, setVoiceMode] = useState<"native" | "warming" | "neural">("native");
+  const [voiceMode, setVoiceMode] = useState<"native" | "warming" | "neural" | "twin">("native");
   const [ephemeralTurn, setEphemeralTurn] = useState<CreatureObserverMemoryTurn | null>(null);
   const transcript = useMemo(() => {
     const sealed = isLivingCardAsset(asset)
@@ -146,11 +155,12 @@ export function CreatureConsciousnessPanel({
     if (mounted.current) onSpeakingChange?.(false);
   };
 
-  const speak = async (text: string) => {
-    if (!voiceEnabled || typeof window === "undefined" || !("speechSynthesis" in window)) {
+  const speak = async (text: string, twinVoice?: NonNullable<ObserverResponse["voice"]>) => {
+    if (!voiceEnabled || typeof window === "undefined") {
       finishSpeaking();
       return;
     }
+    const hasNativeVoice = "speechSynthesis" in window && typeof window.SpeechSynthesisUtterance === "function";
     speechRun.current += 1;
     const run = speechRun.current;
     neuralSpeech.current?.abort();
@@ -161,13 +171,24 @@ export function CreatureConsciousnessPanel({
     neuralSpeech.current = neuralController;
     if (speechTimer.current) clearTimeout(speechTimer.current);
     activeUtterances.current = [];
-    window.speechSynthesis.cancel();
+    if (hasNativeVoice) window.speechSynthesis.cancel();
+    if (twinVoice?.dataUrl) {
+      const twinPlayed = await playCreatureTwinVoice(asset, twinVoice.dataUrl, neuralController.signal, () => {
+        if (mounted.current && run === speechRun.current) finishSpeaking();
+      });
+      if (twinPlayed) {
+        if (run === speechRun.current) setVoiceMode("twin");
+        return;
+      }
+      if (!mounted.current || run !== speechRun.current) return;
+    }
     const neuralTimeoutMs = isCreatureNeuralVoiceReady(asset) ? 10_500 : 900;
+    const neuralDeadlineMs = hasNativeVoice ? neuralTimeoutMs : 10_500;
     const neuralPlayed = await Promise.race([
       playCreatureNeuralVoice(asset, text, neuralController.signal, () => {
         if (mounted.current && run === speechRun.current) finishSpeaking();
       }).catch(() => false),
-      new Promise<false>((resolve) => setTimeout(() => resolve(false), neuralTimeoutMs))
+      new Promise<false>((resolve) => setTimeout(() => resolve(false), neuralDeadlineMs))
     ]);
     if (neuralPlayed) {
       if (run === speechRun.current) {
@@ -177,10 +198,16 @@ export function CreatureConsciousnessPanel({
     }
     neuralController.abort();
     if (!mounted.current || run !== speechRun.current) return;
+    if (!hasNativeVoice) {
+      setVoiceMode("native");
+      setError("This browser could not start its local or native voice. The complete creature reply is still shown above.");
+      finishSpeaking();
+      return;
+    }
     setVoiceMode("native");
     const profile = creatureVoiceProfile(asset, voices);
     const performance = creatureVoicePerformance(asset, text);
-    const perform = (index: number) => {
+    const perform = (index: number, retry = 0) => {
       if (!mounted.current || run !== speechRun.current) return;
       const segment = performance[index];
       if (!segment) {
@@ -194,6 +221,8 @@ export function CreatureConsciousnessPanel({
       utterance.pitch = Math.max(.92, Math.min(1.08, (profile.pitch + segment.pitch) / 2));
       utterance.volume = Math.min(profile.volume, segment.volume);
       const mouthStartedAt = window.performance.now();
+      let started = false;
+      let startWatchdog: ReturnType<typeof setTimeout> | null = null;
       const estimatedDuration = Math.max(520, segment.text.length * 58 / Math.max(.8, utterance.rate));
       const animateNativeMouth = (now: number) => {
         if (!mounted.current || run !== speechRun.current) return;
@@ -204,7 +233,12 @@ export function CreatureConsciousnessPanel({
         emitCreatureMouthMotion(asset.id, voiced * cadence);
         nativeMouthFrame.current = requestAnimationFrame(animateNativeMouth);
       };
+      utterance.onstart = () => {
+        started = true;
+        if (startWatchdog) clearTimeout(startWatchdog);
+      };
       utterance.onend = () => {
+        if (startWatchdog) clearTimeout(startWatchdog);
         if (!mounted.current || run !== speechRun.current) return;
         if (nativeMouthFrame.current) cancelAnimationFrame(nativeMouthFrame.current);
         nativeMouthFrame.current = null;
@@ -212,17 +246,35 @@ export function CreatureConsciousnessPanel({
         speechTimer.current = setTimeout(() => perform(index + 1), segment.pauseAfterMs);
       };
       utterance.onerror = () => {
-        if (run === speechRun.current) finishSpeaking();
+        if (startWatchdog) clearTimeout(startWatchdog);
+        if (run !== speechRun.current) return;
+        if (retry < 1) {
+          speechTimer.current = setTimeout(() => perform(index, retry + 1), 120);
+          return;
+        }
+        finishSpeaking();
       };
       activeUtterances.current = [utterance];
       window.speechSynthesis.speak(utterance);
       nativeMouthFrame.current = requestAnimationFrame(animateNativeMouth);
       if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+      startWatchdog = setTimeout(() => {
+        if (started || !mounted.current || run !== speechRun.current) return;
+        if (retry < 1) {
+          window.speechSynthesis.cancel();
+          perform(index, retry + 1);
+        } else {
+          finishSpeaking();
+        }
+      }, 1_200);
       speechTimer.current = setTimeout(() => {
         if (run === speechRun.current && window.speechSynthesis.paused) window.speechSynthesis.resume();
       }, 250);
     };
-    perform(0);
+    // Safari and Chromium can discard an utterance queued in the same task as
+    // cancel(). Moving the first segment one task forward makes start delivery
+    // deterministic while preserving the initiating user gesture's unlock.
+    speechTimer.current = setTimeout(() => perform(0), 0);
   };
 
   const submit = async (message = draft) => {
@@ -258,7 +310,7 @@ export function CreatureConsciousnessPanel({
       setEphemeralTurn(result.turn);
       onObserved(result.turn);
       setDraft("");
-      void speak(result.turn.creatureText);
+      void speak(result.turn.creatureText, result.voice ?? undefined);
     } catch (cause) {
       finishSpeaking();
       setError(observerError(cause instanceof Error ? cause.message : undefined));
@@ -348,7 +400,7 @@ export function CreatureConsciousnessPanel({
       <footer>
         <span>Brain {brain.contextDigest.slice(7, 18)}</span>
         <span>{transcript.at(-1)?.observer === "receiz-twin" ? "Receiz Twin · genuine upstream" : "Receiz Twin · proof-grounded local"}</span>
-        <span>{voiceMode === "neural" ? "Local neural character voice" : voiceMode === "warming" ? "Local neural voice awakening" : "Native character voice"}</span>
+        <span>{voiceMode === "twin" ? "Receiz Twin generated voice" : voiceMode === "neural" ? "Local neural character voice" : voiceMode === "warming" ? "Local neural voice awakening" : "Native character voice"}</span>
       </footer>
     </section>
   );

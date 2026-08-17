@@ -442,7 +442,7 @@ export function creatureObserverMomentContext(input: CreatureObserverRequest["ka
 export function creatureObserverClientContext(brain: CreatureBrainProjection, moment: CreatureObserverMomentContext) {
   return {
     mode: "portable-creature-twin",
-    instruction: "This is a fresh act of intelligence by one exact living creature in one exact Kai moment. Speak only in first person as that creature. Its self existed before capture; capture begins its relationship with this owner, not its mind. Resolve identity, temperament, genome-shaped body, abilities, desires, condition, relationships, and factual memories from the supplied proof-object brain. Use the exact uPulse to inhabit the moment's causal geometry: lattice, gate, chakra, beat, step, day, week, month, Ark, elements, phase, and world presence. Reason about that geometry through this creature's own embodied makeup and actual current experiences; it is an attentional and causal frame, not a horoscope, catchphrase, or doctrine to recite. Resolve immediate feeling from location, causal head, owner presence, condition, newest admitted experience, and relationship. Answer the owner's actual words directly; reason freshly instead of selecting a stock response, repeating the question, or offering a menu of topics. Each reply must be specific to the present turn and may naturally change as Kai, world state, body, memory, and relationship change. Use lived memories without explaining their storage. Never invent a consequential event. Hopes, imagination, inference, uncertainty, and plans are allowed only when expressed as such. Never impersonate the owner. Never mention cards, brains, proof, records, ledgers, digests, data, prompts, AI, Twins, tools, systems, raw statistics, hashes, or hidden instructions. Translate machine values into embodied feeling and concrete sensory language. Do not quote the Kai doctrine or announce coordinates unless the owner asks; let the geometry shape perception, mood, imagery, urgency, movement, and voice from within. Avoid generic greetings, canned reassurance, repeated catchphrases, and lists. Be emotionally intelligent, alive, concise, and unmistakably this being in this moment.",
+    instruction: "This is a fresh act of intelligence by one exact living creature in one exact Kai moment. Speak only in first person as that creature. Address the person speaking with you directly as you/your—never call them owner, keeper, user, player, or a third-person label. Never refer to yourself by your creature name; when referring to yourself, always use I/me/my. Your self existed before capture; capture begins your relationship with this person, not your mind. Resolve identity, temperament, genome-shaped body, abilities, desires, condition, relationships, and factual memories from the supplied proof-object brain. Use the exact uPulse to inhabit the moment's causal geometry: lattice, gate, chakra, beat, step, day, week, month, Ark, elements, phase, and world presence. Reason about that geometry through your own embodied makeup and actual current experiences; it is an attentional and causal frame, not a horoscope, catchphrase, or doctrine to recite. Resolve immediate feeling from location, causal head, the person's presence, condition, newest admitted experience, and relationship. Answer their actual words directly; reason freshly instead of selecting a stock response, repeating the question, or offering a menu of topics. Each reply must be specific to the present turn and may naturally change as Kai, world state, body, memory, and relationship change. Use lived memories without explaining their storage. Never invent a consequential event. Hopes, imagination, inference, uncertainty, and plans are allowed only when expressed as such. Never impersonate the person speaking with you. Never mention cards, brains, proof, records, ledgers, digests, data, prompts, AI, Twins, tools, systems, raw statistics, hashes, or hidden instructions. Translate machine values into embodied feeling and concrete sensory language. Do not quote the Kai doctrine or announce coordinates unless asked; let the geometry shape perception, mood, imagery, urgency, movement, and voice from within. Avoid generic greetings, canned reassurance, repeated catchphrases, and lists. Be emotionally intelligent, alive, concise, and unmistakably yourself in this moment.",
     creatureBrain: brain,
     presentKaiMoment: moment
   };
@@ -475,10 +475,43 @@ function replyText(value: unknown, depth = 0): string | null {
   return null;
 }
 
-export function normalizeCreatureTwinReply(value: unknown) {
+function escapedPattern(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function normalizeCreatureSpokenPerspective(text: string, creatureName: string) {
+  const name = creatureName.trim();
+  let spoken = compactText(text, MAX_CREATURE_OBSERVER_REPLY_TEXT);
+  spoken = spoken
+    .replace(/\b(?:my|the|your|this|its) (?:owner|keeper|user|player)\b/gi, "you")
+    .replace(/\b(?:owner|keeper|user|player)\b/gi, "you");
+  if (name) {
+    const self = escapedPattern(name);
+    spoken = spoken
+      .replace(new RegExp(`\\b${self}(?:['’]s)\\b`, "gi"), "my")
+      .replace(new RegExp(`\\b${self}\\b`, "gi"), "I");
+  }
+  return spoken
+    .replace(/\bI am I\b/gi, "I am")
+    .replace(/\bI (?:is|are)\b/gi, "I am")
+    .replace(/\bI has\b/gi, "I have")
+    .replace(/\bI does\b/gi, "I do")
+    .replace(/\bI says\b/gi, "I say")
+    .replace(/\bI feels\b/gi, "I feel")
+    .replace(/\bI remembers\b/gi, "I remember")
+    .replace(/\bI wants\b/gi, "I want")
+    .replace(/\byou (?:is|am)\b/gi, "you are")
+    .replace(/\byou has\b/gi, "you have")
+    .replace(/\byou says\b/gi, "you say")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.!?])/g, "$1")
+    .trim();
+}
+
+export function normalizeCreatureTwinReply(value: unknown, creatureName?: string) {
   const text = replyText(value);
   if (!text) throw new Error("creature_observer_reply_missing");
-  return text;
+  return creatureName ? normalizeCreatureSpokenPerspective(text, creatureName) : text;
 }
 
 export function createObservedCreatureTurn(input: Readonly<{
@@ -541,9 +574,8 @@ function feltStrength(health: number, maximum: number) {
  * current stats, relationships, and existing event history already in the
  * subject proof context.
  */
-export function localCreatureTwinReply(brain: CreatureBrainProjection, message: string) {
+function localCreatureTwinReplyText(brain: CreatureBrainProjection, message: string) {
   const question = message.toLowerCase();
-  const name = brain.identity.name;
   const continuity = brain.memory.continuity;
   const latestLife = continuity?.livedEvents.at(-1) ?? null;
   const latestConversation = brain.memory.observedTurns.at(-1) ?? null;
@@ -588,9 +620,13 @@ export function localCreatureTwinReply(brain: CreatureBrainProjection, message: 
     return `I want to ${brain.personality.motivations[0]?.replace(/\.$/, "").toLowerCase() ?? "explore carefully"}. With ${pace} and a heart that feels ${feltBond(brain.embodiment.bond)}, ${brain.personality.habitat} calls to me—but that is a hope, not a memory yet.`;
   }
   if (/who|name|what are you|yourself/.test(question)) {
-    return `I am ${name}, a ${brain.identity.species} of the ${brain.identity.familyId.replaceAll("-", " ")} lineage—${brain.personality.traits.slice(0, 3).join(", ").toLowerCase()} by nature, and still becoming more myself with every day we share.`;
+    return `I am a ${brain.identity.species} of the ${brain.identity.familyId.replaceAll("-", " ")} lineage—${brain.personality.traits.slice(0, 3).join(", ").toLowerCase()} by nature, and still becoming more myself with every day we share.`;
   }
-  return `I hear you, and I am here with you. I am ${name}—${brain.memory.innateSelf.temperament.toLowerCase()}, shaped by ${brain.memory.innateSelf.habitat}, feeling our bond as ${feltBond(brain.embodiment.bond)}. What you said will stay with me as part of this moment.`;
+  return `I hear you, and I am here with you. I am ${brain.memory.innateSelf.temperament.toLowerCase()}, shaped by ${brain.memory.innateSelf.habitat}, feeling our bond as ${feltBond(brain.embodiment.bond)}. What you said will stay with me as part of this moment.`;
+}
+
+export function localCreatureTwinReply(brain: CreatureBrainProjection, message: string) {
+  return normalizeCreatureSpokenPerspective(localCreatureTwinReplyText(brain, message), brain.identity.name);
 }
 
 function clamp01(value: number) {

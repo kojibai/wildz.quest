@@ -151,6 +151,74 @@ function within<T>(work: Promise<T>, milliseconds: number) {
   ]);
 }
 
+function playCreatureAudioBuffer(
+  assetId: string,
+  buffer: AudioBuffer,
+  context: AudioContext,
+  signal: AbortSignal,
+  onEnded?: () => void
+) {
+  if (signal.aborted || context.state !== "running") return false;
+  cancelCreatureNeuralVoice();
+  const source = context.createBufferSource();
+  const analyser = context.createAnalyser();
+  analyser.fftSize = 64;
+  analyser.smoothingTimeConstant = .28;
+  const waveform = new Uint8Array(analyser.fftSize);
+  source.buffer = buffer;
+  source.connect(analyser);
+  analyser.connect(context.destination);
+  activeSource = source;
+  let motionFrame = 0;
+  const animateMouth = () => {
+    analyser.getByteTimeDomainData(waveform);
+    const energy = waveform.reduce((sum, sample) => sum + Math.abs(sample - 128), 0) / waveform.length / 34;
+    emitCreatureMouthMotion(assetId, Math.max(.04, Math.min(1, energy)));
+    motionFrame = window.requestAnimationFrame(animateMouth);
+  };
+  const abort = () => {
+    if (activeSource === source) cancelCreatureNeuralVoice();
+    if (motionFrame) window.cancelAnimationFrame(motionFrame);
+    emitCreatureMouthMotion(assetId, 0);
+  };
+  signal.addEventListener("abort", abort, { once: true });
+  source.onended = () => {
+    signal.removeEventListener("abort", abort);
+    if (motionFrame) window.cancelAnimationFrame(motionFrame);
+    emitCreatureMouthMotion(assetId, 0);
+    if (activeSource === source) {
+      source.disconnect();
+      analyser.disconnect();
+      activeSource = null;
+    }
+    if (!signal.aborted) onEnded?.();
+  };
+  source.start();
+  animateMouth();
+  return true;
+}
+
+export async function playCreatureTwinVoice(
+  asset: PortableCardAsset,
+  dataUrl: string,
+  signal: AbortSignal,
+  onEnded?: () => void
+) {
+  if (typeof window === "undefined" || signal.aborted
+    || !/^data:audio\/(?:wav|wave|mpeg|mp3|ogg|webm);base64,/i.test(dataUrl)
+    || dataUrl.length > 6_000_000) return false;
+  try {
+    await unlockCreatureNeuralVoice();
+    const bytes = await fetch(dataUrl).then((response) => response.arrayBuffer());
+    if (signal.aborted || !bytes.byteLength) return false;
+    const context = audioContext();
+    const buffer = await context.decodeAudioData(bytes.slice(0));
+    return playCreatureAudioBuffer(asset.id, buffer, context, signal, onEnded);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Plays a generated local neural voice when the lazy model is ready. Returns
  * false quickly during first-load warming so the native expressive fallback
@@ -183,42 +251,7 @@ export async function playCreatureNeuralVoice(
   if (context.state !== "running") return false;
   const buffer = context.createBuffer(1, generated.audio.length, generated.sampling_rate);
   buffer.copyToChannel(Float32Array.from(generated.audio), 0);
-  cancelCreatureNeuralVoice();
-  const source = context.createBufferSource();
-  const analyser = context.createAnalyser();
-  analyser.fftSize = 64;
-  analyser.smoothingTimeConstant = .28;
-  const waveform = new Uint8Array(analyser.fftSize);
-  source.buffer = buffer;
-  source.connect(analyser);
-  analyser.connect(context.destination);
-  activeSource = source;
-  let motionFrame = 0;
-  const animateMouth = () => {
-    analyser.getByteTimeDomainData(waveform);
-    const energy = waveform.reduce((sum, sample) => sum + Math.abs(sample - 128), 0) / waveform.length / 34;
-    emitCreatureMouthMotion(asset.id, Math.max(.04, Math.min(1, energy)));
-    motionFrame = window.requestAnimationFrame(animateMouth);
-  };
-  const abort = () => {
-    if (activeSource === source) cancelCreatureNeuralVoice();
-    if (motionFrame) window.cancelAnimationFrame(motionFrame);
-    emitCreatureMouthMotion(asset.id, 0);
-  };
-  signal.addEventListener("abort", abort, { once: true });
-  source.onended = () => {
-    signal.removeEventListener("abort", abort);
-    if (motionFrame) window.cancelAnimationFrame(motionFrame);
-    emitCreatureMouthMotion(asset.id, 0);
-    if (activeSource === source) {
-      source.disconnect();
-      analyser.disconnect();
-      activeSource = null;
-    }
-    if (!signal.aborted) onEnded?.();
-  };
-  source.start();
-  animateMouth();
+  if (!playCreatureAudioBuffer(asset.id, buffer, context, signal, onEnded)) return false;
   // Success means that neural speech began. Waiting for the entire clip made
   // the UI safety timer stop healthy Kokoro playback mid-sentence.
   return true;
