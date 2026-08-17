@@ -35,6 +35,17 @@ function isTwinFailureBoundary(input: Readonly<{ model?: string; speech?: string
     || /could not form a response|no world event was created/i.test(input.speech ?? "");
 }
 
+function genuineWorldTwinSpeech(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("creature_observer_intelligence_unavailable");
+  }
+  const reply = value as Record<string, unknown>;
+  if (reply.source !== "upstream") {
+    throw new Error("creature_observer_intelligence_unavailable");
+  }
+  return normalizeCreatureTwinReply(reply);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const input = parseCreatureObserverRequest(await request.json().catch(() => null));
@@ -48,6 +59,11 @@ export async function POST(request: NextRequest) {
       ...(process.env.RECEIZ_BASE_URL ? { baseUrl: process.env.RECEIZ_BASE_URL } : {}),
       ...(actor.accessToken ? { accessToken: actor.accessToken } : {})
     });
+    // The automatic Wildz proof identity is a valid owner but does not have a
+    // configured public World Twin. Use the dedicated, public-ready inference
+    // Twin until the exact subject has been admitted to the owner's delegated
+    // remote subject runtime. This handle is model transport, never authority.
+    const twinHandle = process.env.RECEIZ_CREATURE_TWIN_HANDLE?.trim() || "bjklock";
     const clientOperationId = input.clientUserMessageId ?? `creature-message:${brain.contextDigest.slice(7, 39)}`;
     const subjectObservation = await observeCreatureThroughReceizV120({
       asset: input.card,
@@ -87,9 +103,12 @@ export async function POST(request: NextRequest) {
               performance: response.performance ?? {}
             };
           }) : null;
-        const receizIdTwinObserver = receiz.world.message(actor.actorId, {
+        const receizIdTwinObserver = receiz.world.message(twinHandle, {
           action: "message",
-          message: input.message,
+          // Receiz World does not treat arbitrary clientContext as its model
+          // instruction. The exact proof-grounded context must be carried in
+          // the actual model message so the upstream Twin inhabits the subject.
+          message: groundedMessage,
           visitorKey: creatureObserverVisitorKey(actor.actorId),
           threadKey: creatureObserverThreadKey(input.card.id),
           allowBrowserVoiceFallback: true,
@@ -106,14 +125,15 @@ export async function POST(request: NextRequest) {
             }
           },
           clientUserMessageId: clientOperationId,
-          clientOperationId
+          clientOperationId,
+          quoteExpiresAt: new Date(Date.now() + 9 * 60_000).toISOString()
         }).then((response) => {
           if (response.ok !== true) throw new Error(response.error || "creature_observer_intelligence_unavailable");
           return {
             provider: "receiz",
-            model: "receiz-id-twin-observer",
+            model: "receiz-world-twin-upstream",
             version: "120.0.0",
-            speech: normalizeCreatureTwinReply(response.reply),
+            speech: genuineWorldTwinSpeech(response.reply),
             performance: {}
           };
         });
@@ -195,6 +215,13 @@ export async function POST(request: NextRequest) {
         reducerDigest: subjectObservation.reducerDigest,
         observedEventIds: subjectObservation.twin.observedFacts.flatMap((fact) => fact.eventIds),
         modelOutputIsWorldEvent: subjectObservation.twin.authority.modelOutputIsWorldEvent
+      },
+      intelligence: {
+        genuine: observer === "receiz-twin",
+        provider: modelAudit.provider,
+        model: modelAudit.model,
+        version: modelAudit.version,
+        outputDigest: modelAudit.outputDigest
       },
       moment: presentKaiMoment,
       turn
