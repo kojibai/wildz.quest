@@ -14,7 +14,7 @@ const EXPECTED_CSP = [
   "object-src 'none'",
   "frame-ancestors 'none'",
   "form-action 'self' https:",
-  "script-src 'self' 'unsafe-inline'",
+  "script-src 'self' blob: 'unsafe-inline' 'wasm-unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
@@ -38,6 +38,7 @@ test("Next emits the complete global security-header contract", async () => {
   assert.equal(headers.get("x-frame-options"), "DENY");
   assert.equal(headers.get("permissions-policy"), "camera=(), microphone=(), geolocation=()");
   assert.equal(headers.get("cross-origin-opener-policy"), "same-origin");
+  assert.equal(headers.get("cross-origin-embedder-policy"), "require-corp");
   assert.ok(!headers.has("strict-transport-security"), "the deployment layer owns HSTS");
   assert.ok(!headers.has("access-control-allow-origin"), "there is no blanket CORS policy");
 });
@@ -59,8 +60,9 @@ test("development permits the framework evaluator without weakening production",
   const moduleUrl = pathToFileURL(resolve("next.config.mjs")).href;
   const configModule = await import(moduleUrl) as { contentSecurityPolicy(environment: "development" | "production"): string };
 
-  assert.match(configModule.contentSecurityPolicy("development"), /script-src 'self' 'unsafe-inline' 'unsafe-eval'/);
-  assert.doesNotMatch(configModule.contentSecurityPolicy("production"), /'unsafe-eval'/);
+  assert.match(configModule.contentSecurityPolicy("development"), /script-src 'self' blob: 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'/);
+  assert.doesNotMatch(configModule.contentSecurityPolicy("production"), /(?:^|\s)'unsafe-eval'(?:\s|;|$)/);
+  assert.match(configModule.contentSecurityPolicy("production"), /'wasm-unsafe-eval'/);
   assert.match(configModule.contentSecurityPolicy("production"), /object-src 'none'/);
   assert.match(configModule.contentSecurityPolicy("production"), /frame-ancestors 'none'/);
 });

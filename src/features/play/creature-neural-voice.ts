@@ -58,16 +58,24 @@ async function loadModel() {
   if (loadedModel) return loadedModel;
   if (!modelPromise) {
     modelPromise = import("kokoro-js")
-      .then(async ({ KokoroTTS }) => {
-        const hasWebGpu = "gpu" in navigator;
-        if (hasWebGpu) {
+      .then(async ({ KokoroTTS, env }) => {
+        // The unbundled Kokoro/Transformers entry preserves ONNX Runtime's
+        // native dynamic import. Point it at version-matched, same-origin
+        // runtime assets so neural speech never depends on a runtime CDN.
+        env.wasmPaths = `${window.location.origin}/vendor/onnxruntime/`;
+        const appleWebKit = /AppleWebKit/i.test(navigator.userAgent)
+          && !/(?:Chrome|Chromium|CriOS|Edg|OPR)/i.test(navigator.userAgent);
+        const hasReliableWebGpu = "gpu" in navigator && !appleWebKit;
+        if (hasReliableWebGpu) {
           try {
             return await KokoroTTS.from_pretrained(KOKORO_MODEL, { dtype: "q8", device: "webgpu" });
           } catch {
-            // WebGPU support varies across Safari releases. The quantized WASM
-            // path is slower, but keeps the voice entirely local and portable.
+            // The quantized WASM path keeps the voice local and portable when
+            // a non-WebKit WebGPU implementation still rejects this graph.
           }
         }
+        // Safari/iOS may expose navigator.gpu while ONNX session creation
+        // stalls indefinitely. Use WASM directly so priming always completes.
         return KokoroTTS.from_pretrained(KOKORO_MODEL, { dtype: "q8", device: "wasm" });
       })
       .then((model) => {
@@ -76,6 +84,7 @@ async function loadModel() {
       })
       .catch((cause) => {
         modelPromise = null;
+        console.warn("[Wildz voice] Kokoro model initialization failed", cause);
         throw cause;
       });
   }
@@ -102,7 +111,10 @@ export function warmCreatureNeuralVoice(asset?: PortableCardAsset) {
     }).then(() => {
       primedVoices.add(identity.signature);
       return true;
-    }).catch(() => false).finally(() => {
+    }).catch((cause) => {
+      console.warn("[Wildz voice] Kokoro voice priming failed", cause);
+      return false;
+    }).finally(() => {
       primingVoices.delete(identity.signature);
     });
     primingVoices.set(identity.signature, priming);

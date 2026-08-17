@@ -7,11 +7,12 @@ const kokoroVirtualNodeModules = dirname(realpathSync(resolve(root, "node_module
 const transformersRoot = realpathSync(resolve(kokoroVirtualNodeModules, "@huggingface/transformers"));
 const transformersVirtualNodeModules = dirname(dirname(transformersRoot));
 const onnxWebDist = resolve(transformersVirtualNodeModules, "onnxruntime-web/dist");
+const transformersWeb = resolve(transformersRoot, "dist/transformers.web.js");
 
 export function contentSecurityPolicy(environment) {
   const scripts = environment === "development"
-    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
-    : "script-src 'self' 'unsafe-inline'";
+    ? "script-src 'self' blob: 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'"
+    : "script-src 'self' blob: 'unsafe-inline' 'wasm-unsafe-eval'";
   return `default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https:; ${scripts}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: wss:; worker-src 'self' blob:; manifest-src 'self'; media-src 'self' blob:`;
 }
 
@@ -41,6 +42,12 @@ const securityHeaders = [
     value: "same-origin"
   },
   {
+    // ONNX Runtime's threaded WASM build requires a cross-origin-isolated
+    // document. Its model and voice fetches already use CORS-aware requests.
+    key: "Cross-Origin-Embedder-Policy",
+    value: "require-corp"
+  },
+  {
     key: "X-Permitted-Cross-Domain-Policies",
     value: "none"
   }
@@ -68,9 +75,11 @@ const nextConfig = {
   webpack(config, { isServer, webpack }) {
     config.resolve.alias = {
       ...config.resolve.alias,
-      // kokoro-js publishes a browser-complete WebGPU/WASM bundle but its
-      // default export condition points webpack at the Node ONNX binary.
-      "kokoro-js": resolve(root, "node_modules/kokoro-js/dist/kokoro.web.js"),
+      // Bundle Kokoro's ESM entry with its browser fallbacks. The pre-bundled
+      // web file strips ONNX Runtime's webpackIgnore marker, causing WebKit's
+      // runtime-module import to become an unresolvable webpack context.
+      "kokoro-js": resolve(root, "node_modules/kokoro-js/dist/kokoro.js"),
+      "@huggingface/transformers": transformersWeb,
       "ort.bundle.min.mjs$": resolve(onnxWebDist, "ort.bundle.min.mjs"),
       "ort-wasm-simd-threaded.jsep.wasm$": resolve(onnxWebDist, "ort-wasm-simd-threaded.jsep.wasm")
     };

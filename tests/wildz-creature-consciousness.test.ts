@@ -234,6 +234,13 @@ test("Vault consciousness uses the SDK World Twin rail and card-scoped UI", () =
   const neuralVoice = readFileSync("src/features/play/creature-neural-voice.ts", "utf8");
   assert.match(neuralVoice, /export function isCreatureNeuralVoiceReady/);
   assert.match(neuralVoice, /primedVoices/);
+  assert.match(neuralVoice, /appleWebKit/);
+  assert.match(neuralVoice, /hasReliableWebGpu/);
+  assert.match(neuralVoice, /env\.wasmPaths = `\$\{window\.location\.origin\}\/vendor\/onnxruntime\//);
+  const nextConfig = readFileSync("next.config.mjs", "utf8");
+  assert.match(nextConfig, /key: "Cross-Origin-Embedder-Policy",\s*value: "require-corp"/);
+  assert.match(nextConfig, /script-src 'self' blob:/);
+  assert.match(nextConfig, /'wasm-unsafe-eval'/);
   assert.match(neuralVoice, /model\.generate\([\s\S]*10_000/);
   assert.match(neuralVoice, /onEnded\?: \(\) => void/);
   assert.match(neuralVoice, /source\.start\(\);[\s\S]*return true/);
