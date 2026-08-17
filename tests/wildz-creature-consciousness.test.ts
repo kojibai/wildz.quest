@@ -247,12 +247,13 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
   assert.match(route, /actor\.accessToken \? \{ accessToken: actor\.accessToken \} : \{\}/);
   assert.doesNotMatch(route, /if \(!actor\.accessToken\) throw new Error\("receiz_authority_required"\)/);
   assert.match(route, /receiz\.subjects\.twin\.message\(input\.card\.id/);
-  assert.match(route, /RECEIZ_CREATURE_TWIN_HANDLE\?\.trim\(\) \|\| "bjklock"/);
+  assert.match(route, /RECEIZ_CREATURE_TWIN_HANDLE\?\.trim\(\) \|\| "wildz"/);
   assert.match(route, /receiz\.world\.message\(twinHandle/);
   assert.match(route, /message: groundedMessage/);
   assert.match(route, /quoteExpiresAt: new Date\(Date\.now\(\) \+ 9 \* 60_000\)\.toISOString\(\)/);
   assert.match(route, /reply\.source !== "upstream"/);
   assert.match(route, /model: "receiz-world-twin-upstream"/);
+  assert.match(route, /creature_observer_timeout"\)\), 45_000/);
   assert.match(route, /exactSubjectTwin[\s\S]*\[exactSubjectTwin, receizIdTwinObserver\][\s\S]*\[receizIdTwinObserver\]/);
   assert.match(route, /Promise\.any\(observerRequests\)/);
   assert.match(route, /contextHead: proofContext\.head\.subjectHead/);
@@ -265,6 +266,8 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
   assert.match(route, /model-failure-boundary/);
   assert.match(route, /could not form a response\|no world event was created/);
   assert.match(route, /genuine: observer === "receiz-twin"/);
+  assert.match(panel, /Receiz Twin · genuine upstream/);
+  assert.match(panel, /Receiz Twin · proof-grounded local/);
   assert.match(route, /observeCreatureThroughReceizV120/);
   assert.match(route, /creatureObserverClientContext\(subjectBrain, presentKaiMoment\)/);
   assert.match(route, /creatureObserverMomentContext\(input\.kai, brain\)/);

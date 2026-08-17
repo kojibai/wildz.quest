@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     // configured public World Twin. Use the dedicated, public-ready inference
     // Twin until the exact subject has been admitted to the owner's delegated
     // remote subject runtime. This handle is model transport, never authority.
-    const twinHandle = process.env.RECEIZ_CREATURE_TWIN_HANDLE?.trim() || "bjklock";
+    const twinHandle = process.env.RECEIZ_CREATURE_TWIN_HANDLE?.trim() || "wildz";
     const clientOperationId = input.clientUserMessageId ?? `creature-message:${brain.contextDigest.slice(7, 39)}`;
     const subjectObservation = await observeCreatureThroughReceizV120({
       asset: input.card,
@@ -142,7 +142,10 @@ export async function POST(request: NextRequest) {
           : [receizIdTwinObserver];
         const observed = await Promise.race([
           Promise.any(observerRequests),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("creature_observer_timeout")), 12_000))
+          // A cold upstream Twin can need longer than the local proof runtime.
+          // Do not discard a genuine in-flight answer at the former 12-second
+          // boundary merely to make the local fallback appear faster.
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("creature_observer_timeout")), 45_000))
         ]).catch(() => null);
         if (!observed || isTwinFailureBoundary({ model: observed.model, speech: observed.speech })) {
           return {

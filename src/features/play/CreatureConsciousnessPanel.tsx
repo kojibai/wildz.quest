@@ -345,7 +345,11 @@ export function CreatureConsciousnessPanel({
       </form>
       {disabled ? <p className="wilds-creature-observer-note">Memorial cards keep their complete mind, but retired creatures no longer answer.</p> : null}
       {error ? <p className="wilds-creature-observer-error" role="alert">{error}</p> : null}
-      <footer><span>Brain {brain.contextDigest.slice(7, 18)}</span><span>{voiceMode === "neural" ? "Local neural character voice" : voiceMode === "warming" ? "Local neural voice awakening" : transcript.at(-1)?.observer === "receiz-twin-local" ? "Receiz Twin · expressive local voice" : "Receiz Twin · live AI observer"}</span></footer>
+      <footer>
+        <span>Brain {brain.contextDigest.slice(7, 18)}</span>
+        <span>{transcript.at(-1)?.observer === "receiz-twin" ? "Receiz Twin · genuine upstream" : "Receiz Twin · proof-grounded local"}</span>
+        <span>{voiceMode === "neural" ? "Local neural character voice" : voiceMode === "warming" ? "Local neural voice awakening" : "Native character voice"}</span>
+      </footer>
     </section>
   );
 }
