@@ -89,7 +89,6 @@ requireMatch(route, /event\.type === ["']reply_delta["']/, "typed_reply_delta_mi
 requireMatch(route, /event\.type === ["']audio_chunk["']/, "typed_audio_chunk_missing");
 requireMatch(route, /event\.type === ["']reply_done["']/, "typed_reply_completion_missing");
 requireMatch(route, /receiz\.world\.message\(["']wildz["']/, "proven_world_twin_recovery_rail_missing");
-requireMatch(route, /proofGroundedCreatureReply\(/, "proof_grounded_response_boundary_missing");
 requireMatch(route, /could not form a response\|no world event was created/i, "twin_failure_boundary_missing");
 requireMatch(route, /createObservedCreatureTurn\(/, "proof_memory_turn_missing");
 forbidMatch(route, /if\s*\(\s*!audioSent\s*\)|generatedAudio\s*===\s*true[\s\S]{0,160}createObservedCreatureTurn/, "voice_gates_proof_memory");

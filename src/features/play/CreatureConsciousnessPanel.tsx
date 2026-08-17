@@ -22,7 +22,7 @@ import {
 type ObserverResponse = {
   ok?: boolean;
   error?: string;
-  observer?: "receiz-twin" | "receiz-twin-local";
+  observer?: "receiz-twin";
   turn?: CreatureObserverMemoryTurn;
 };
 

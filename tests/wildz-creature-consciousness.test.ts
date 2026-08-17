@@ -253,8 +253,7 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
   assert.match(route, /clientOperationId/);
   assert.match(route, /could not form a response\|no world event was created/);
   assert.match(route, /receiz\.world\.message\("wildz"/);
-  assert.match(route, /proofGroundedCreatureReply/);
-  assert.match(route, /proof-grounded-creature-twin/);
+  assert.doesNotMatch(route, /proofGroundedCreatureReply|proof-grounded-creature-twin/);
   assert.match(route, /type: "reply_reset"/);
   assert.match(route, /finalPerformanceAudio/);
   assert.match(route, /audioAsset/);

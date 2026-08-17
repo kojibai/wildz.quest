@@ -6,7 +6,6 @@ import {
   creatureObserverMomentContext,
   creatureObserverThreadKey,
   creatureObserverVisitorKey,
-  proofGroundedCreatureReply,
   normalizeCreatureTwinReply,
   parseCreatureObserverRequest,
   projectVerifiedCreatureBrain
@@ -201,21 +200,9 @@ export async function POST(request: NextRequest) {
                         responseRail: "receiz-world-twin-upstream"
                       }
                     };
-                  } catch { /* The exact 6dbc2a3 proof-brain boundary follows. */ }
-                  speech = proofGroundedCreatureReply(subjectBrain, input.message);
-                  send({ type: "reply_reset", text: speech });
-                  return {
-                    provider: "wildz-proof-brain",
-                    model: "proof-grounded-creature-twin",
-                    version: "120.0.0",
-                    speech,
-                    performance: {
-                      ...subjectBrain.performance.expression,
-                      proofContextDigest: proofContext.receipt.queryDigest,
-                      authoritative: false,
-                      responseRail: "proof-grounded-local"
-                    }
-                  };
+                  } catch {
+                    throw new Error("creature_observer_intelligence_unavailable");
+                  }
                 }
                 const finalAudio = audioSent ? null : finalPerformanceAudio(finalPerformance);
                 if (finalAudio) {
@@ -245,9 +232,7 @@ export async function POST(request: NextRequest) {
               }
             });
             const modelAudit = subjectObservation.twin.proposedIntent.modelAudit;
-            const observer = modelAudit.model === "proof-grounded-creature-twin"
-              ? "receiz-twin-local" as const
-              : "receiz-twin" as const;
+            const observer = "receiz-twin" as const;
             const reply = normalizeCreatureTwinReply(subjectObservation.twin.spokenResponse, brain.identity.name);
             const turn = createObservedCreatureTurn({
               brain,
