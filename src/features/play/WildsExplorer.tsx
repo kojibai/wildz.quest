@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
+import { useTexture } from "@react-three/drei";
 import * as THREE from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { PlayState } from "@/features/play/game-state";
 import type { WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
 import { projectWildzExplorerRender } from "@/features/play/wildz-explorer-proof";
@@ -33,6 +35,81 @@ function LimbSegment({
       <capsuleGeometry args={[radius, Math.max(0.04, length - radius * 2), 5, 9]} />
       <meshStandardMaterial color={color} roughness={0.72} />
     </mesh>
+  );
+}
+
+function transformedGeometry(
+  geometry: THREE.BufferGeometry,
+  position: readonly [number, number, number],
+  scale: readonly [number, number, number],
+  rotation: readonly [number, number, number] = [0, 0, 0]
+) {
+  const matrix = new THREE.Matrix4().compose(
+    new THREE.Vector3(...position),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(...rotation)),
+    new THREE.Vector3(...scale)
+  );
+  geometry.applyMatrix4(matrix);
+  return geometry;
+}
+
+function mergedBackpackGeometry() {
+  const parts = [
+    transformedGeometry(new THREE.CapsuleGeometry(0.27, 0.31, 6, 12), [0, 0.02, 0], [1, 1, 0.48]),
+    transformedGeometry(new THREE.BoxGeometry(0.5, 0.16, 0.12), [0, 0.2, 0.08], [1, 1, 1], [-0.18, 0, 0]),
+    transformedGeometry(new THREE.BoxGeometry(0.16, 0.27, 0.16), [-0.29, -0.07, 0.01], [1, 1, 1], [0, 0, -0.08]),
+    transformedGeometry(new THREE.BoxGeometry(0.16, 0.27, 0.16), [0.29, -0.07, 0.01], [1, 1, 1], [0, 0, 0.08]),
+    transformedGeometry(new THREE.CylinderGeometry(0.085, 0.085, 0.48, 10), [0, -0.31, 0.04], [1, 1, 1], [0, 0, Math.PI / 2])
+  ];
+  const merged = mergeGeometries(parts, false);
+  parts.forEach((part) => part.dispose());
+  if (!merged) throw new Error("wildz_backpack_geometry_merge_failed");
+  merged.computeVertexNormals();
+  return merged;
+}
+
+function mergedBackpackHardwareGeometry() {
+  const parts = [
+    transformedGeometry(new THREE.BoxGeometry(0.055, 0.075, 0.035), [-0.12, -0.08, 0.151], [1, 1, 1]),
+    transformedGeometry(new THREE.BoxGeometry(0.055, 0.075, 0.035), [0.12, -0.08, 0.151], [1, 1, 1]),
+    transformedGeometry(new THREE.TorusGeometry(0.12, 0.018, 5, 18, Math.PI), [0, 0.34, -0.02], [1, 1, 0.7], [Math.PI / 2, 0, 0])
+  ];
+  const merged = mergeGeometries(parts, false);
+  parts.forEach((part) => part.dispose());
+  if (!merged) throw new Error("wildz_backpack_hardware_merge_failed");
+  merged.computeVertexNormals();
+  return merged;
+}
+
+function ExplorerBackpack({
+  accent,
+  backpackRef
+}: {
+  accent: string;
+  backpackRef: React.RefObject<THREE.Group | null>;
+}) {
+  const badge = useTexture("/brand/explorer-pack-badge.svg");
+  const shellGeometry = useMemo(mergedBackpackGeometry, []);
+  const hardwareGeometry = useMemo(mergedBackpackHardwareGeometry, []);
+  badge.colorSpace = THREE.SRGBColorSpace;
+  badge.anisotropy = 4;
+  return (
+    <group name="trail-pack" position={[0, 0.24, 0.2]} ref={backpackRef} rotation={[0.03, 0, 0]}>
+      <mesh castShadow geometry={shellGeometry}>
+        <meshStandardMaterial color="#8a603d" emissive="#3c2518" emissiveIntensity={0.055} metalness={0.03} roughness={0.76} />
+      </mesh>
+      <mesh castShadow geometry={hardwareGeometry}>
+        <meshStandardMaterial color="#c7a85a" metalness={0.66} roughness={0.3} />
+      </mesh>
+      <mesh castShadow position={[0, 0.035, 0.151]}>
+        <boxGeometry args={[0.34, 0.34, 0.022]} />
+        <meshStandardMaterial color="#ffffff" emissive={accent} emissiveIntensity={0.025} map={badge} metalness={0.04} roughness={0.58} />
+      </mesh>
+      <mesh position={[0, -0.245, 0.147]}>
+        <boxGeometry args={[0.31, 0.025, 0.018]} />
+        <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.34} roughness={0.42} />
+      </mesh>
+    </group>
   );
 }
 
@@ -73,7 +150,7 @@ export function WildsExplorer({
   const rightElbow = useRef<THREE.Group>(null);
   const leftKnee = useRef<THREE.Group>(null);
   const rightKnee = useRef<THREE.Group>(null);
-  const satchel = useRef<THREE.Mesh>(null);
+  const satchel = useRef<THREE.Group>(null);
   const scarf = useRef<THREE.Mesh>(null);
   const previousPosition = useRef(worldPosition);
   const movingUntil = useRef(0);
@@ -121,7 +198,7 @@ export function WildsExplorer({
   const outfitWidth = appearance.outfitProfile === "canopy-guard" ? 1.08 : appearance.outfitProfile === "rift-scout" ? 0.92 : 1;
 
   return (
-    <group name={`wilds-explorer-${renderStyle}`} ref={root} scale={remote ? 0.62 : 0.68}>
+    <group name={`wilds-explorer-${renderStyle}`} ref={root} scale={remote ? 0.62 : 0.78}>
       <group name="hips" position={[0, 0.72, 0]} ref={hips}>
         <mesh castShadow scale={[0.86, 0.52, 0.66]}>
           <capsuleGeometry args={[0.18, 0.2, 6, 12]} />
@@ -136,16 +213,12 @@ export function WildsExplorer({
           <capsuleGeometry args={[0.24, 0.34, 8, 14]} />
           <meshStandardMaterial color={appearance.outfitPrimary} emissive={appearance.outfitPrimary} emissiveIntensity={readability.actorEmissive} roughness={appearance.materialRoughness} />
         </mesh>
-        <mesh castShadow position={[0, 0.24, 0.2]} scale={[0.78, 0.88, 0.52]}>
+        {remote ? <mesh castShadow position={[0, 0.24, 0.2]} scale={[0.78, 0.88, 0.52]}>
           <boxGeometry args={[0.42, 0.45, 0.22]} />
-          <meshStandardMaterial color="#d7a64a" roughness={0.76} />
-        </mesh>
+          <meshStandardMaterial color="#9a7845" roughness={0.82} />
+        </mesh> : <ExplorerBackpack accent={appearance.outfitPrimary} backpackRef={satchel} />}
         {!remote ? (
           <>
-            <mesh castShadow position={[0.3, 0.08, 0.17]} ref={satchel} rotation={[0.08, 0.12, -0.08]}>
-              <boxGeometry args={[0.23, 0.3, 0.18]} />
-              <meshStandardMaterial color={appearance.outfitSecondary} roughness={0.9} />
-            </mesh>
             <mesh castShadow name={appearance.accessory} position={[-0.13, 0.48, 0.08]} ref={scarf} rotation={[0.18, 0, 0.08]}>
               <capsuleGeometry args={[0.045, 0.32, 5, 8]} />
               <meshStandardMaterial color={appearance.outfitPrimary} emissive={appearance.outfitPrimary} emissiveIntensity={0.08} roughness={0.82} />
@@ -153,10 +226,6 @@ export function WildsExplorer({
             <mesh name={`signature-${appearance.signatureMark}`} position={[0, 0.24, -0.225]} rotation={[0, 0, appearance.signatureSeed * Math.PI]}>
               <torusGeometry args={[0.055, 0.012, 6, 10]} />
               <meshStandardMaterial color={appearance.outfitSecondary} emissive={appearance.outfitPrimary} emissiveIntensity={0.28} />
-            </mesh>
-            <mesh name={`trail-${appearance.trail}`} position={[0, -0.02, 0.28]} scale={0.5 + appearance.signatureSeed * 0.25}>
-              <octahedronGeometry args={[0.055, 0]} />
-              <meshStandardMaterial color={appearance.outfitPrimary} emissive={appearance.outfitPrimary} emissiveIntensity={0.72} transparent opacity={0.7} />
             </mesh>
           </>
         ) : null}

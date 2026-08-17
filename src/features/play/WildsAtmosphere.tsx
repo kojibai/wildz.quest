@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { PlayState } from "@/features/play/game-state";
@@ -127,12 +127,25 @@ function CanopyShadows() {
 function PollenDrift({ count, weather, speed, tint }: { count: number; weather: string; speed: number; tint: string }) {
   const readability = useWildsReadability();
   const group = useRef<THREE.Group>(null);
+  const mesh = useRef<THREE.InstancedMesh>(null);
   const motes = useMemo(() => Array.from({ length: count }, (_, index) => ({
     x: Math.sin(index * 91.7) * 5.6,
     y: 0.45 + ((index * 37) % 100) / 100 * 3.4,
     z: Math.cos(index * 47.3) * 5.6,
     scale: 0.018 + (index % 5) * 0.006
   })), [count]);
+  useLayoutEffect(() => {
+    const matrix = new THREE.Matrix4();
+    const quaternion = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    motes.forEach((mote, index) => {
+      scale.setScalar(mote.scale);
+      quaternion.setFromEuler(new THREE.Euler(index * 0.17, index * 0.31, index * 0.11));
+      matrix.compose(new THREE.Vector3(mote.x, mote.y, mote.z), quaternion, scale);
+      mesh.current?.setMatrixAt(index, matrix);
+    });
+    if (mesh.current) mesh.current.instanceMatrix.needsUpdate = true;
+  }, [motes]);
   useFrame(() => {
     if (!group.current) return;
     const elapsed = performance.now() / 1_000;
@@ -141,12 +154,10 @@ function PollenDrift({ count, weather, speed, tint }: { count: number; weather: 
   });
   return (
     <group name="pollen-drift" ref={group}>
-      {motes.map((mote, index) => (
-        <mesh key={index} position={[mote.x, mote.y, mote.z]} scale={mote.scale}>
-          <octahedronGeometry args={[1, 0]} />
-          <meshBasicMaterial color={weather === "sun-shower" ? "#d8fbff" : tint} transparent opacity={0.72} />
-        </mesh>
-      ))}
+      <instancedMesh args={[undefined, undefined, motes.length]} frustumCulled={false} ref={mesh}>
+        <octahedronGeometry args={[1, 0]} />
+        <meshBasicMaterial color={weather === "sun-shower" ? "#d8fbff" : tint} depthWrite={false} transparent opacity={0.72} />
+      </instancedMesh>
     </group>
   );
 }

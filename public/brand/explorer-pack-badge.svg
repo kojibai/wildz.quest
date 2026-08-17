@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="Wildz pack badge, carried by Receiz">
+  <defs>
+    <linearGradient id="badge" x1="42" y1="30" x2="211" y2="221" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#b8ff6a"/>
+      <stop offset=".58" stop-color="#5ee59b"/>
+      <stop offset="1" stop-color="#23b77c"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#f1dc8f"/>
+      <stop offset="1" stop-color="#8e6f35"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="42" fill="#10231d" stroke="url(#edge)" stroke-width="7"/>
+  <rect x="19" y="19" width="218" height="218" rx="34" fill="none" stroke="#d9c782" stroke-opacity=".48" stroke-width="3" stroke-dasharray="5 7"/>
+  <path d="M45 52 82 153l46-57 46 57 37-101-39 45-44-53-44 53Z" fill="url(#badge)"/>
+  <path d="M65 183h126" stroke="#d9c782" stroke-opacity=".55" stroke-width="3"/>
+  <circle cx="78" cy="207" r="6" fill="#5ee59b"/>
+  <text x="94" y="214" fill="#f7f4e8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="750" letter-spacing="5">RECEIZ</text>
+</svg>

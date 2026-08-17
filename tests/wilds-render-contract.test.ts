@@ -327,8 +327,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(world, /OrbitControls/);
     assert.match(world, /enableDamping/);
     assert.match(world, /enablePan=\{false\}/);
-    assert.match(world, /minDistance=\{4\.8\}/);
-    assert.match(world, /maxDistance=\{13\.5\}/);
+    assert.match(world, /minDistance=\{4\.4\}/);
+    assert.match(world, /maxDistance=\{12\.5\}/);
     assert.match(world, /minPolarAngle=\{(?:0)?\.38\}/);
     assert.match(world, /maxPolarAngle=\{Math\.PI \/ 2\.15\}/);
     assert.match(world, /touches=\{\{ ONE: THREE\.TOUCH\.ROTATE, TWO: THREE\.TOUCH\.DOLLY_ROTATE \}\}/);

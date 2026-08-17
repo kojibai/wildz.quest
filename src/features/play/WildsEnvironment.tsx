@@ -373,9 +373,9 @@ function ArenaOfEchoes({ detail }: { detail: boolean }) {
   }, [detail]);
   const arches = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
   return <group name="mortal-arena-world-anchor">
-    <mesh receiveShadow position={[0, .18, 0]} name="arena-foundation"><cylinderGeometry args={[11.25, 11.7, .36, 64]} /><meshStandardMaterial color="#302b2a" metalness={.16} roughness={.92} /></mesh>
-    <mesh receiveShadow position={[0, .39, 0]} name="arena-open-bowl"><cylinderGeometry args={[7.65, 8.15, .28, 64]} /><meshStandardMaterial color="#675b49" metalness={.08} roughness={.84} /></mesh>
-    <mesh position={[0, .455, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[1.25, 7.1, 64]} /><meshStandardMaterial color="#77684c" emissive="#2f2107" emissiveIntensity={.08} roughness={.72} /></mesh>
+    <mesh receiveShadow position={[0, .18, 0]} name="arena-foundation"><cylinderGeometry args={[11.25, 11.7, .36, 64]} /><meshStandardMaterial color="#37352f" metalness={.12} roughness={.94} /></mesh>
+    <mesh receiveShadow position={[0, .39, 0]} name="arena-open-bowl"><cylinderGeometry args={[7.65, 8.15, .28, 64]} /><meshStandardMaterial color="#76684f" metalness={.06} roughness={.88} /></mesh>
+    <mesh position={[0, .455, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[1.25, 7.1, 64]} /><meshStandardMaterial color="#897656" emissive="#4a340d" emissiveIntensity={.11} roughness={.78} /></mesh>
     <instancedMesh args={[undefined, undefined, 20]} ref={proofSeams} name="arena-proof-seams"><boxGeometry args={[1, 1, 1]} /><meshStandardMaterial color="#ffe288" emissive="#f7c948" emissiveIntensity={1.6} metalness={.4} roughness={.28} /></instancedMesh>
     {[7.5, 8.6, 10.35].map((radius, index) => <mesh key={radius} position={[0, .48 + index * .25, 0]} rotation={[Math.PI / 2, 0, 0]}>
       <torusGeometry args={[radius, index === 2 ? .34 : .16, 8, 72]} />
@@ -470,6 +470,7 @@ function SpringLandmark() {
 
 function FarCanopy({ centerX, centerZ, player }: { centerX: number; centerZ: number; player: PlayState["player"] }) {
   const farCanopyMesh = useRef<THREE.InstancedMesh>(null);
+  const farCliffMesh = useRef<THREE.InstancedMesh>(null);
   const silhouettes = useMemo(() => Array.from({ length: 14 }, (_, index) => {
     const angle = (index / 14) * Math.PI * 2;
     const radius = 24 + seededUnit(centerX * 31 + centerZ, index) * 8;
@@ -484,14 +485,25 @@ function FarCanopy({ centerX, centerZ, player }: { centerX: number; centerZ: num
         new THREE.Vector3(item.scale, item.scale, item.scale)
       );
       farCanopyMesh.current?.setMatrixAt(index, matrix);
+      matrix.compose(
+        new THREE.Vector3(item.x, item.scale * 0.82, item.z),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, index * 0.67, 0)),
+        new THREE.Vector3(item.scale * 0.7, item.scale * 1.18, item.scale * 0.72)
+      );
+      farCliffMesh.current?.setMatrixAt(index, matrix);
     });
     if (farCanopyMesh.current) farCanopyMesh.current.instanceMatrix.needsUpdate = true;
+    if (farCliffMesh.current) farCliffMesh.current.instanceMatrix.needsUpdate = true;
   }, [silhouettes]);
   return (
     <group position={[-(player.x % WILDS_TILE_SIZE), 0, -(player.z % WILDS_TILE_SIZE)]}>
+      <instancedMesh args={[undefined, undefined, silhouettes.length]} receiveShadow ref={farCliffMesh}>
+        <coneGeometry args={[0.72, 1.8, 7]} />
+        <meshStandardMaterial color="#29473a" fog roughness={0.98} />
+      </instancedMesh>
       <instancedMesh args={[undefined, undefined, silhouettes.length]} ref={farCanopyMesh}>
         <dodecahedronGeometry args={[0.72, 0]} />
-        <meshStandardMaterial color="#174f3b" fog roughness={1} />
+        <meshStandardMaterial color="#174f3b" emissive="#0d261e" emissiveIntensity={0.08} fog roughness={1} />
       </instancedMesh>
     </group>
   );
