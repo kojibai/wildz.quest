@@ -54,10 +54,12 @@ function HearttreeWorld({ cards, definition, reducedMotion, runtime }: { cards: 
         cadenceMs={appearance.cadenceMs}
         familyId={activeCard.manifest.familyId}
         formId={activeCard.manifest.formId}
+        glow={appearance.palette.glow}
         identityToken={appearance.fingerprint}
         morphology={appearance.morphology}
         pose={actor.health <= actor.maxHealth * 0.3 ? "weakened" : runtime.threatActive ? "attack" : "curious"}
         primary={appearance.palette.primary}
+        secondary={appearance.palette.secondary}
       />
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[0.48, 0.62, 36]} /><meshBasicMaterial color="#f6df75" transparent opacity={0.7} /></mesh>
     </group>

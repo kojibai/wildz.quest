@@ -22,7 +22,11 @@ test("legacy Wildz recover deterministic Kai appearance without changing their p
 
   assert.equal(first.source, "recovered");
   assert.equal(first.historicalPulse, legacy.manifest.variant.kaiPulse);
-  assert.deepEqual(first.palette, legacy.manifest.variant.traits.palette);
+  assert.deepEqual(
+    { primary: first.palette.primary, accent: first.palette.accent, glow: first.palette.glow },
+    legacy.manifest.variant.traits.palette
+  );
+  assert.equal(first.palette.secondary, first.profile.palette.glow);
   assert.deepEqual(first.profile.palette, legacy.manifest.variant.traits.palette);
   assert.deepEqual(first, second);
   assert.match(first.profile.cadueusKai, /^Y/);
@@ -43,5 +47,9 @@ test("Kai-born Wildz use their sealed birth profile", () => {
   assert.equal(appearance.historicalPulse, born.manifest.variant.kaiPulse);
   if (born.manifest.variant.generatorVersion !== 2) assert.fail("expected v2 card");
   assert.deepEqual(appearance.profile, born.manifest.variant.traits.birthProfile);
-  assert.deepEqual(appearance.palette, born.manifest.variant.traits.palette);
+  assert.deepEqual(
+    { primary: appearance.palette.primary, accent: appearance.palette.accent, glow: appearance.palette.glow },
+    born.manifest.variant.traits.palette
+  );
+  assert.equal(appearance.palette.secondary, appearance.profile.palette.glow);
 });

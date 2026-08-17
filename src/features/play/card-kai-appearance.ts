@@ -2,6 +2,7 @@ import { creatureForm } from "./creature-catalog";
 import type { CardVariantTraits } from "./card-variant";
 import { deriveKaiCreatureBirth, type KaiCreatureBirthProfile } from "./kai-creature-birth";
 import { deriveKaiKlokMoment } from "./kai-klok-moment";
+import { deriveBirthGenome } from "./heartbound-genome";
 import { currentLivingGenome } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import type { PortableCardAsset } from "./portable-card";
@@ -11,7 +12,13 @@ export type CardKaiAppearance = {
   source: "sealed" | "recovered";
   historicalPulse: string;
   profile: KaiCreatureBirthProfile;
-  palette: CardVariantTraits["palette"];
+  /** The creature-art palette, deliberately independent from the card frame. */
+  palette: {
+    primary: string;
+    secondary: string;
+    accent: string;
+    glow: string;
+  };
   morphology: { head: number; torso: number; limb: number; symmetry: number };
   cadenceMs: number;
   fingerprint: string;
@@ -31,11 +38,23 @@ export function projectCardKaiAppearance(asset: PortableCardAsset): CardKaiAppea
   if (!form) throw new Error("wilds_kai_appearance_form_unknown");
 
   const variant = asset.manifest.variant;
-  const livingPalette = isLivingCardAsset(asset) ? currentLivingGenome(asset).palette : null;
+  const creaturePalette = isLivingCardAsset(asset)
+    ? currentLivingGenome(asset).palette
+    : deriveBirthGenome({
+        formId: asset.manifest.formId,
+        proofDigest: asset.proof.digest,
+        variant: asset.manifest.variant.traits
+      }).palette;
   const palette = {
-    primary: livingPalette?.primary ?? variant.traits.palette.primary,
-    accent: livingPalette?.accent ?? variant.traits.palette.accent,
-    glow: livingPalette?.glow ?? variant.traits.palette.glow
+    primary: creaturePalette.primary,
+    secondary: creaturePalette.secondary,
+    accent: creaturePalette.accent,
+    glow: creaturePalette.glow
+  };
+  const profilePalette: CardVariantTraits["palette"] = {
+    primary: palette.primary,
+    accent: palette.accent,
+    glow: palette.glow
   };
 
   if (variant.generatorVersion === 3) {
@@ -45,7 +64,7 @@ export function projectCardKaiAppearance(asset: PortableCardAsset): CardKaiAppea
     return {
       source: "sealed",
       historicalPulse: variant.kaiPulse,
-      profile: { ...recovered, palette: { ...palette } },
+      profile: { ...recovered, palette: profilePalette },
       palette,
       morphology: {
         head: identity.anatomy.head,
@@ -76,7 +95,7 @@ export function projectCardKaiAppearance(asset: PortableCardAsset): CardKaiAppea
   return {
     source: "recovered",
     historicalPulse: variant.kaiPulse,
-    profile: { ...recovered, palette: { ...palette } },
+    profile: { ...recovered, palette: profilePalette },
     palette,
     morphology: recovered.morphology,
     cadenceMs: recovered.motion.cadenceMs,

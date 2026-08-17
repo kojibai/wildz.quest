@@ -10,6 +10,7 @@ import type { WildsQualityProfile } from "../../play/wilds-quality-profile";
 import type { ArenaCampaignOpponent } from "./campaign";
 import type { MortalArenaState } from "./types";
 import { mortalArenaCameraDistance, mortalArenaRivalCreature } from "./presentation";
+import { projectCardKaiAppearance } from "../../play/card-kai-appearance";
 
 declare global {
   interface Window {
@@ -130,13 +131,23 @@ function ArenaFighter({ card, fighter, opponent, side }: {
   });
   const primary = side === "player" ? card.manifest.variant.traits.palette.primary : opponent?.kind === "boss" ? "#ad2f28" : "#e29a2f";
   const accent = side === "player" ? card.manifest.variant.traits.palette.accent : opponent?.kind === "boss" ? "#ffcc58" : "#fff0a0";
+  const appearance = side === "player" ? projectCardKaiAppearance(card) : null;
   const rivalCreature = opponent ? mortalArenaRivalCreature(opponent.affinity) : null;
   const familyId = rivalCreature?.familyId ?? card.manifest.familyId;
   const formId = rivalCreature?.formId ?? card.manifest.formId;
   const pose = fighter.vitality <= fighter.maxVitality * .15 ? "weakened" : fighter.guarding ? "curious" : fighter.recoveryTicks > 10 ? "attack" : "idle";
   return (
     <group ref={group} name={`mortal-arena-${side}`} scale={opponent?.kind === "boss" ? 1.28 : 1}>
-      <WildsCreatureActor accent={accent} familyId={familyId} formId={formId} identityToken={opponent?.id ?? card.id} pose={pose} primary={primary} />
+      <WildsCreatureActor
+        accent={appearance?.palette.accent ?? accent}
+        familyId={familyId}
+        formId={formId}
+        glow={appearance?.palette.glow ?? accent}
+        identityToken={opponent?.id ?? card.id}
+        pose={pose}
+        primary={appearance?.palette.primary ?? primary}
+        secondary={appearance?.palette.secondary ?? primary}
+      />
       <mesh position={[0, -.43, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <torusGeometry args={[.5, .035, 8, 40]} />
         <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={fighter.guarding ? 2.2 : .65} transparent opacity={.9} />

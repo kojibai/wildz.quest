@@ -27,6 +27,7 @@ test("v3 cards project their exact discovery colors, anatomy, and motion", () =>
 
   const appearance = projectCardKaiAppearance(card);
   assert.equal(appearance.palette.primary, identity.palette.primary.css);
+  assert.equal(appearance.palette.secondary, identity.palette.secondary.css);
   assert.equal(appearance.palette.accent, identity.palette.accent.css);
   assert.equal(appearance.palette.glow, identity.palette.glow.css);
   assert.equal(threeCreatureColor(appearance.palette.primary), `hsl(${identity.palette.primary.hue}, ${identity.palette.primary.chroma}%, ${identity.palette.primary.lightness}%)`);

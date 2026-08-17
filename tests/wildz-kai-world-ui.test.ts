@@ -12,7 +12,9 @@ test("the 3D world consumes one shared Kai expression without recoloring authore
   assert.match(canvas, /<WildsKaiAtmosphereGeometry/);
   assert.match(canvas, /projectCardKaiAppearance/);
   assert.match(canvas, /appearance\.palette\.primary/);
+  assert.match(canvas, /appearance\.palette\.secondary/);
   assert.match(canvas, /appearance\.palette\.accent/);
+  assert.match(canvas, /appearance\.palette\.glow/);
   assert.match(canvas, /appearance\.morphology/);
   assert.match(atmosphere, /KaiWorldExpression/);
   assert.match(atmosphere, /expression\.sun/);
@@ -24,5 +26,9 @@ test("the 3D world consumes one shared Kai expression without recoloring authore
   assert.match(actor, /Math\.max\(bodyColorFloor, readability\.actorEmissive\)/);
   assert.match(actor, /emissiveIntensity=\{readableBodyColorFloor\}/);
   assert.match(actor, /const renderedAccent = threeCreatureColor\(accent\)/);
-  assert.match(actor, /emissive=\{renderedAccent\} emissiveIntensity=\{0\.07 \+ readability\.actorEmissive \* 0\.45\}/);
+  assert.match(actor, /const renderedSecondary = threeCreatureColor\(secondary\)/);
+  assert.match(actor, /const renderedGlow = threeCreatureColor\(glow\)/);
+  assert.match(actor, /emissive=\{renderedPrimary\} emissiveIntensity=\{0\.07 \+ readability\.actorEmissive \* 0\.45\}/);
+  assert.match(actor, /body === "winged"[\s\S]{0,500}color=\{renderedSecondary\}/);
+  assert.match(actor, /color=\{renderedGlow\} emissive=\{renderedGlow\} emissiveIntensity=\{0\.52\}/);
 });

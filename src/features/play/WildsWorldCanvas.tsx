@@ -288,7 +288,7 @@ function ActiveCompanion({ state }: { state: PlayState }) {
   const appearance = useMemo(() => asset ? projectCardKaiAppearance(asset) : null, [asset]);
   return (
     <group name="active-companion" position={[-1.08, 0.44, 0.42]} scale={0.82}>
-      <WildsCreatureActor accent={appearance?.palette.accent ?? card.accent} cadenceMs={appearance?.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} identityToken={appearance?.fingerprint} morphology={appearance?.morphology} pose="curious" primary={appearance?.palette.primary ?? card.color} />
+      <WildsCreatureActor accent={appearance?.palette.accent ?? card.accent} cadenceMs={appearance?.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} glow={appearance?.palette.glow ?? card.accent} identityToken={appearance?.fingerprint} morphology={appearance?.morphology} pose="curious" primary={appearance?.palette.primary ?? card.color} secondary={appearance?.palette.secondary ?? card.color} />
       <mesh position={[0, -0.37, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.46, 0.035, 8, 36]} />
         <meshStandardMaterial color="#f4fff6" emissive="#7cdea5" emissiveIntensity={0.55} transparent opacity={0.92} />
@@ -314,10 +314,12 @@ function SupportCompanions({ cards }: { cards: readonly PortableCardAsset[] }) {
         cadenceMs={appearance.cadenceMs}
         familyId={card.manifest.familyId}
         formId={card.manifest.formId}
+        glow={appearance.palette.glow}
         identityToken={appearance.fingerprint}
         morphology={appearance.morphology}
         pose={index === 0 ? "curious" : "idle"}
         primary={appearance.palette.primary}
+        secondary={appearance.palette.secondary}
       />
       <mesh position={[0, -0.39, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.4, 0.025, 8, 28]} />
@@ -500,10 +502,12 @@ function Creature({
           cadenceMs={identity?.motion.cadenceMs}
           familyId={card.id}
           formId={formId}
+          glow={identity?.palette.glow.css ?? card.accent}
           identityToken={identity?.visualFingerprint}
           morphology={identity ? { head: identity.anatomy.head, torso: identity.anatomy.torso, limb: identity.anatomy.limb, symmetry: identity.anatomy.asymmetry } : undefined}
           pose={pose}
           primary={identity?.palette.primary.css ?? card.color}
+          secondary={identity?.palette.secondary.css ?? card.color}
         />
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.34, 0]}>
           <torusGeometry args={[0.46, 0.035, 8, 36]} />
