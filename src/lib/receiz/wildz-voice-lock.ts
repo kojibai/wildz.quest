@@ -4,18 +4,20 @@ export function wildzVoiceSignatureBytes(signature: string) {
 }
 
 /**
- * Maps immutable creature proof into one stable neural generation identity.
- * These settings are prepared before reply deltas and the PCM stream receives
- * one final proof-derived timbre pass in the browser as samples arrive.
+ * Maps immutable creature proof into one stable Receiz v120 neural voice lock.
+ * Receiz renders the base neural performance on the existing Twin stream;
+ * these small parameters make that voice creature-specific during playback.
  */
 export function wildzStreamingVoiceProfile(signature: string) {
   const bytes = wildzVoiceSignatureBytes(signature);
   return {
+    schema: "receiz.wildz.proof_neural_voice.v1" as const,
+    engine: "receiz-v120-neural" as const,
+    signature,
     seed: (((bytes[0]! << 24) | (bytes[1]! << 16) | (bytes[2]! << 8) | bytes[3]!) >>> 0),
-    stability: Math.round((.38 + bytes[4]! / 255 * .24) * 1000) / 1000,
-    similarityBoost: Math.round((.72 + bytes[5]! / 255 * .18) * 1000) / 1000,
-    style: Math.round((.04 + bytes[6]! / 255 * .16) * 1000) / 1000,
-    speed: Math.round((.94 + bytes[7]! / 255 * .12) * 1000) / 1000,
+    rate: Math.round((.94 + bytes[7]! / 255 * .12) * 1000) / 1000,
+    pitch: Math.round((.94 + bytes[5]! / 255 * .12) * 1000) / 1000,
+    volume: Math.round((.92 + bytes[6]! / 255 * .07) * 1000) / 1000,
     brightnessHz: Math.round(1_400 + bytes[5]! / 255 * 2_200),
     mouthResponse: Math.round((.82 + bytes[6]! / 255 * .36) * 1000) / 1000
   } as const;

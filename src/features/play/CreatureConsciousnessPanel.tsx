@@ -12,7 +12,12 @@ import { isLivingCardAsset } from "./living-card-types";
 import type { PortableCardAsset } from "./portable-card";
 import type { KaiKlokMoment } from "./kai-klok-moment";
 import type { WildzVaultCardMembershipProof } from "@/lib/receiz/wildz-vault-card-admission";
-import { beginCreatureVoiceStream, cancelCreatureVoice, unlockCreatureVoice } from "./creature-voice-playback";
+import {
+  beginCreatureVoiceStream,
+  cancelCreatureVoice,
+  unlockCreatureVoice,
+  type CreatureVoiceChunk
+} from "./creature-voice-playback";
 
 type ObserverResponse = {
   ok?: boolean;
@@ -20,7 +25,7 @@ type ObserverResponse = {
   turn?: CreatureObserverMemoryTurn;
 };
 
-type ObserverStreamEvent = ObserverResponse & { type?: string; delta?: string };
+type ObserverStreamEvent = ObserverResponse & CreatureVoiceChunk & { type?: string; delta?: string };
 
 async function* observerEvents(response: Response) {
   if (!response.body) throw new Error("creature_observer_unavailable");
@@ -152,7 +157,7 @@ export function CreatureConsciousnessPanel({
     const controller = new AbortController();
     voicePlayback.current = controller;
     const voiceStream = voiceEnabled
-      ? beginCreatureVoiceStream(asset, cardAdmission, controller.signal, () => {
+      ? beginCreatureVoiceStream(asset.id, brain.performance.neuralInterface, controller.signal, () => {
           if (mounted.current && run === voiceRun.current) finishSpeaking();
         }, () => {
           if (mounted.current && run === voiceRun.current) onSpeakingChange?.(true);
@@ -185,7 +190,8 @@ export function CreatureConsciousnessPanel({
         if (event.type === "reply_delta" && event.delta) {
           setStreamingExchange((current) => current ? { ...current, reply: current.reply + event.delta } : current);
           voiceStream?.pushText(event.delta);
-        } else if (event.type === "reply_done") result = event;
+        } else if (event.type === "audio_chunk") voiceStream?.pushAudio(event);
+        else if (event.type === "reply_done") result = event;
         else if (event.type === "error") throw new Error(event.error || "creature_observer_unavailable");
       }
       if (result?.ok !== true || !result.turn) throw new Error(result?.error || "creature_observer_reply_missing");
@@ -196,7 +202,7 @@ export function CreatureConsciousnessPanel({
       setStreamingExchange(null);
       if (voiceStream) void voiceStream.completed.then((played) => {
         if (!played && mounted.current && run === voiceRun.current && !controller.signal.aborted) {
-          setError("This creature's unique neural voice could not stream. No substitute voice was used.");
+          setError("This creature's unique neural voice could not play on this device. Its genuine response was still remembered; no substitute voice was used.");
           finishSpeaking();
         }
       });
@@ -296,7 +302,7 @@ export function CreatureConsciousnessPanel({
       {error ? <p className="wilds-creature-observer-error" role="alert">{error}</p> : null}
       <footer>
         <span>Brain {brain.contextDigest.slice(7, 18)}</span>
-        <span>{transcript.at(-1)?.observer === "receiz-twin" ? "Receiz Twin · genuine upstream" : "Receiz Twin · proof-grounded local"}</span>
+        <span>{transcript.length ? "Receiz v120 Twin · genuine neural performance" : "Receiz v120 Twin · ready"}</span>
         <span>Unique Receiz character voice · zero client warm-up</span>
       </footer>
     </section>

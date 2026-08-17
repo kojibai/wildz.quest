@@ -6,9 +6,6 @@ import {
   creatureConsciousnessMotion,
   creatureObserverClientContext,
   creatureObserverMomentContext,
-  creatureVoicePerformance,
-  creatureVoiceProfile,
-  localCreatureTwinReply,
   normalizeCreatureSpokenPerspective,
   normalizeCreatureTwinReply,
   parseCreatureObserverRequest,
@@ -66,8 +63,10 @@ test("a Receiz Twin observation appends to the exact portable card brain", () =>
 
 test("Receiz v120 observes the exact creature through a proof brain without creating a world event", async () => {
   const asset = initialPlayState.inventory[0]!;
+  const brain = projectCreatureBrain(asset);
   const observation = await observeCreatureThroughReceizV120({
     asset,
+    brain,
     ownerReceizId: asset.manifest.ownerReceizId,
     message: "What do you remember about meeting me?",
     clientMessageId: "wildz:test:v120:message",
@@ -145,6 +144,8 @@ test("the creature brain gives the Twin exact proof context and model boundaries
     isLivingCardAsset(asset) ? asset.manifest.revisions[0]?.stats ?? asset.manifest.stats : asset.manifest.stats
   );
   assert.match(brain.performance.expression.voiceSignature, /^expression:[a-f0-9]{16}$/);
+  assert.equal(brain.performance.neuralInterface.signature, brain.performance.expression.voiceSignature);
+  assert.equal(brain.performance.neuralInterface.engine, "receiz-v120-neural");
   assert.equal(brain.performance.expression.evolvesOnlyFromProofState, true);
   assert.ok(brain.performance.expression.emotionalOpenness >= 0 && brain.performance.expression.emotionalOpenness <= 1);
   if (isLivingCardAsset(asset) && asset.manifest.history) {
@@ -187,39 +188,9 @@ test("the creature brain gives the Twin exact proof context and model boundaries
   );
   assert.throws(() => normalizeCreatureTwinReply({ metadata: "no assistant text" }), /creature_observer_reply_missing/);
 
-  for (const prompt of [
-    "How are you feeling?",
-    "What do you remember about us?",
-    "What should we explore next?",
-    "Do you remember when I captured you?",
-    "I am glad you are here."
-  ]) {
-    const reply = localCreatureTwinReply(brain, prompt);
-    assert.ok(reply.length > 20);
-    assert.doesNotMatch(reply, /could not form a response|no world event was created/i);
-    assert.doesNotMatch(reply, /proof|card brain|digest|ledger|raw statistic/i);
-    assert.doesNotMatch(reply, new RegExp(`\\b${brain.identity.name}\\b`, "i"));
-    assert.doesNotMatch(reply, /\bowner\b/i);
-  }
-  assert.match(localCreatureTwinReply(brain, "Do you remember when I captured you?"), /first moment I carry with you/i);
-
   const motion = creatureConsciousnessMotion(asset, 0);
   assert.match(motion["--creature-blink"], /^\d+ms$/);
   assert.match(motion["--creature-gaze-range"], /^\d+(?:\.\d+)?px$/);
-
-  const voice = creatureVoiceProfile(asset, [
-    { name: "Robot Compact", lang: "en-US", localService: true },
-    { name: "Ava Premium", lang: "en-US", localService: true }
-  ]);
-  assert.equal(voice.voice?.name, "Ava Premium");
-
-  const performance = creatureVoicePerformance(asset, "I remember our beginning. Shall we explore together?");
-  assert.equal(performance.length, 2);
-  assert.equal(performance[0]?.text, "I remember our beginning.");
-  assert.equal(performance[1]?.text, "Shall we explore together?");
-  assert.deepEqual(performance, creatureVoicePerformance(asset, "I remember our beginning. Shall we explore together?"));
-  assert.ok(performance.every((segment) => segment.rate >= .87 && segment.rate <= 1.055));
-  assert.ok(performance.every((segment) => segment.pitch >= .94 && segment.pitch <= 1.065));
 });
 
 test("training becomes exact autobiographical memory without replacing capture", () => {
@@ -252,7 +223,6 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
   const route = readFileSync("app/api/receiz/creature-observer/route.ts", "utf8");
   const panel = readFileSync("src/features/play/CreatureConsciousnessPanel.tsx", "utf8");
   const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
-  const sessionRoute = readFileSync("app/api/receiz/creature-voice/session/route.ts", "utf8");
   const voicePlayback = readFileSync("src/features/play/creature-voice-playback.ts", "utf8");
   const cookieActor = readFileSync("src/lib/receiz/wildz-cookie-actor.ts", "utf8");
   const card = readFileSync("src/features/play/WildsCard.tsx", "utf8");
@@ -262,55 +232,62 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
   assert.match(route, /createReceizClient/);
   assert.match(route, /actor\.accessToken \? \{ accessToken: actor\.accessToken \} : \{\}/);
   assert.doesNotMatch(route, /if \(!actor\.accessToken\) throw new Error\("receiz_authority_required"\)/);
-  assert.match(route, /RECEIZ_CREATURE_TWIN_HANDLE\?\.trim\(\) \|\| "wildz"/);
-  assert.match(route, /receiz\.world\.streamProfile\(twinHandle/);
+  assert.doesNotMatch(route, /RECEIZ_CREATURE_TWIN_HANDLE|receiz\.world\.streamProfile/);
+  assert.match(route, /receiz\.subjects\.twin\.streamPerformance\(input\.card\.id/);
   assert.match(route, /message: groundedMessage/);
   assert.match(route, /The person speaking with you says/);
-  assert.match(route, /quoteExpiresAt: new Date\(Date\.now\(\) \+ 9 \* 60_000\)\.toISOString\(\)/);
+  assert.match(route, /contextHead: proofContext\.head\.subjectHead/);
+  assert.match(route, /expectedSubjectDigest: proofContext\.head\.subjectDigest/);
+  assert.match(route, /clientMessageId: clientOperationId/);
   assert.match(route, /type: "reply_delta"/);
   assert.match(route, /text\/event-stream/);
-  assert.match(route, /responseMode: "text"/);
+  assert.match(route, /responseMode: "performance"/);
+  assert.match(route, /event\.type === "audio_chunk"/);
+  assert.match(route, /event\.type === "reply_done"/);
+  assert.match(route, /type: "performance_event"/);
+  assert.match(route, /voiceSignature: subjectBrain\.performance\.expression\.voiceSignature/);
+  assert.match(route, /receiz-v120-proof-performance/);
   assert.doesNotMatch(route, /Promise\.any|generateWildzCreatureVoice|audioDataUrl/);
   assert.doesNotMatch(route, /RECEIZ_CONNECT_ACCESS_TOKEN/);
   assert.match(route, /creature_observer_owner_mismatch/);
   assert.match(route, /clientOperationId/);
-  assert.match(route, /localCreatureTwinReply/);
-  assert.match(route, /proof-grounded-creature-twin/);
+  assert.doesNotMatch(route, /localCreatureTwinReply|proof-grounded-creature-twin/);
+  assert.doesNotMatch(route, /if \(!audioSent\) throw/);
+  assert.match(route, /if \(!completed \|\| !speech\.trim\(\)\) throw new Error\("creature_observer_intelligence_unavailable"\)/);
   assert.match(route, /genuine: observer === "receiz-twin"/);
-  assert.match(panel, /Receiz Twin · genuine upstream/);
-  assert.match(panel, /Receiz Twin · proof-grounded local/);
+  assert.match(panel, /Receiz v120 Twin · genuine neural performance/);
+  assert.doesNotMatch(panel, /proof-grounded local/);
   assert.match(route, /observeCreatureThroughReceizV120/);
   assert.match(route, /creatureObserverClientContext\(subjectBrain, presentKaiMoment\)/);
   assert.match(route, /creatureObserverMomentContext\(input\.kai, brain\)/);
   assert.match(route, /modelOutputIsWorldEvent/);
   assert.match(route, /createObservedCreatureTurn/);
   assert.match(route, /normalizeCreatureTwinReply\(subjectObservation\.twin\.spokenResponse, brain\.identity\.name\)/);
-  assert.match(route, /allowBrowserVoiceFallback: false/);
+  assert.doesNotMatch(route, /allowBrowserVoiceFallback|reply_preview|quoteExpiresAt/);
   assert.match(route, /export const maxDuration = 90/);
-  assert.match(sessionRoute, /single-use-token\/tts_websocket/);
-  assert.match(sessionRoute, /eleven_flash_v2_5/);
-  assert.match(sessionRoute, /pcm_24000/);
-  assert.match(sessionRoute, /wildzStreamingVoiceProfile\(signature\)/);
-  assert.match(sessionRoute, /RECEIZ_CREATURE_VOICE_API_KEY/);
   assert.match(panel, /record-creature-observation|onObserved/);
   assert.doesNotMatch(panel, /speechSynthesis|NeuralVoice|native character voice/i);
   assert.match(panel, /unlockCreatureVoice\(\)/);
-  assert.match(panel, /beginCreatureVoiceStream\(asset, cardAdmission/);
+  assert.match(panel, /beginCreatureVoiceStream\(asset\.id, brain\.performance\.neuralInterface, controller\.signal/);
   assert.match(panel, /voiceStream\?\.pushText\(event\.delta\)/);
+  assert.match(panel, /voiceStream\?\.pushAudio\(event\)/);
+  assert.match(panel, /voiceStream\.completed\.then\(\(played\)/);
+  assert.match(panel, /genuine response was still remembered/);
+  assert.match(panel, /onObserved\(result\.turn\)/);
   assert.match(panel, /setStreamingExchange/);
   assert.match(panel, /No substitute voice was used/);
   assert.match(panel, /Unique Receiz character voice · zero client warm-up/);
   assert.match(inventory, /selectedSpeakingId = selected\?\.id/);
   assert.doesNotMatch(inventory, /setSelectedCreatureSpeaking[\s\S]{0,180}\}, \[selected\]\)/);
   assert.match(panel, /wildz-creature-mouth/);
-  assert.match(voicePlayback, /new WebSocket/);
-  assert.match(voicePlayback, /auto_mode: "true"/);
-  assert.match(voicePlayback, /createBuffer\(1, frameCount, 24_000\)/);
+  assert.match(voicePlayback, /decodeAudioData\(bytes\.slice\(0\)\)/);
+  assert.match(voicePlayback, /source\.playbackRate\.value = neural\.rate/);
+  assert.match(voicePlayback, /source\.detune\.value/);
   assert.match(voicePlayback, /getByteTimeDomainData/);
   assert.match(voicePlayback, /wildz-creature-voice-latency/);
   assert.match(voicePlayback, /targetMs: 300/);
   assert.match(voicePlayback, /requestAnimationFrame\(animate\)/);
-  assert.doesNotMatch(voicePlayback, /kokoro|onnx|transformers|speechSynthesis/i);
+  assert.doesNotMatch(voicePlayback, /projectCreatureBrain|kokoro|onnx|transformers|speechSynthesis|WebSocket|elevenlabs/i);
   assert.match(cookieActor, /Read-only gameplay uses the already authenticated proof session directly/);
   const nextConfig = readFileSync("next.config.mjs", "utf8");
   assert.match(nextConfig, /script-src 'self' blob:/);

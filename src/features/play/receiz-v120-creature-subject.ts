@@ -8,7 +8,7 @@ import {
   type ReceizSubjectProofContextV1,
   type ReceizSubjectTwinResultV1
 } from "@receiz/sdk";
-import { projectCreatureBrain, type CreatureBrainProjection } from "./creature-consciousness";
+import type { CreatureBrainProjection } from "./creature-consciousness";
 import {
   canonicalPortableCardJson,
   sha256PortableBasis,
@@ -144,6 +144,7 @@ function namespaces(brain: CreatureBrainProjection) {
 
 export async function observeCreatureThroughReceizV120(input: Readonly<{
   asset: PortableCardAsset;
+  brain: CreatureBrainProjection;
   ownerReceizId: string;
   message: string;
   clientMessageId: string;
@@ -152,7 +153,10 @@ export async function observeCreatureThroughReceizV120(input: Readonly<{
     proofContext: ReceizSubjectProofContextV1;
   }>) => Promise<CreatureSubjectSpeech>;
 }>) : Promise<CreatureSubjectV120Observation> {
-  const brain = projectCreatureBrain(input.asset);
+  const brain = input.brain;
+  if (brain.identity.assetId !== input.asset.id || brain.identity.proofDigest !== input.asset.proof.digest) {
+    throw new Error("creature_observer_brain_mismatch");
+  }
   const model: ReceizLivingSubjectModel = async ({ proofContext }) => {
     const response = await input.speak({ brain, proofContext });
     return {

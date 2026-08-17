@@ -7,7 +7,9 @@ Wildz welcomes focused contributions that improve the product without weakening 
 - Search existing issues and pull requests before opening new work.
 - Use an issue for substantial features, new canonical mutations, schema changes, or changes to authority semantics.
 - Never include real credentials, identity keys, private artifacts, player data, or production proof objects in an issue, test, fixture, prompt, log, or commit.
-- Read the [architecture](docs/ARCHITECTURE.md) and the relevant Receiz documentation before editing `src/lib/receiz`.
+- Read the [Receiz-first engineering law](docs/RECEIZ_FIRST_ENGINEERING.md), [architecture](docs/ARCHITECTURE.md), and relevant Receiz documentation before any Receiz-related design or edit.
+- All Receiz reasoning must start in this order: exact installed SDK inventory, same-release MCP inventory/schema, applicable AI skills, existing exact proof path, then the smallest native composition.
+- Custom infrastructure requires a reviewed, checked-in [capability-gap decision](docs/receiz-decisions/TEMPLATE.md) before implementation. Not finding or not understanding the native primitive is not a gap.
 
 ## Development setup
 
@@ -46,6 +48,7 @@ pnpm release:check
 For a faster iteration loop, use the individual commands:
 
 ```bash
+pnpm receiz:architecture-lock
 pnpm test
 pnpm typecheck
 pnpm lint
@@ -69,6 +72,7 @@ A strong pull request explains:
 - The product problem and user-visible result.
 - The authority boundary touched, if any.
 - Receiz SDK, MCP, AI-skill, contract, or operation-matrix changes.
+- The exact SDK primitives, MCP tools/schemas, and AI skills inspected before the design; or the approved capability-gap decision when no native composition exists.
 - Offline and failure behavior.
 - Verification performed and any intentionally pending external evidence.
 - Screenshots or recordings for material UI changes.

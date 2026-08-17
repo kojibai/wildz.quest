@@ -1,33 +1,25 @@
 "use client";
 
-import type { PortableCardAsset } from "./portable-card";
+import type { wildzStreamingVoiceProfile } from "@/lib/receiz/wildz-voice-lock";
 
 let sharedAudioContext: AudioContext | null = null;
 let activeStreamCancel: (() => void) | null = null;
 
+export type CreatureVoiceChunk = Readonly<{
+  audioB64u?: string;
+  startMs?: number;
+  endMs?: number;
+  confidence?: number;
+  contextDigest?: string;
+  voiceSignature?: string;
+}>;
+
 export type CreatureVoiceStream = Readonly<{
   pushText: (delta: string) => void;
+  pushAudio: (chunk: CreatureVoiceChunk) => void;
   finish: () => void;
   abort: () => void;
   completed: Promise<boolean>;
-}>;
-
-type VoiceSessionResponse = Readonly<{
-  ok?: boolean;
-  token?: string;
-  voiceId?: string;
-  signature?: string;
-  model?: string;
-  outputFormat?: string;
-  sampleRate?: number;
-  seed?: number;
-  settings?: Readonly<{
-    stability?: number;
-    similarityBoost?: number;
-    style?: number;
-    speed?: number;
-  }>;
-  articulation?: Readonly<{ brightnessHz?: number; mouthResponse?: number }>;
 }>;
 
 function audioContext() {
@@ -45,6 +37,15 @@ function emitMouth(assetId: string, openness: number) {
   }));
 }
 
+function encodedAudio(chunk: CreatureVoiceChunk) {
+  const encoded = chunk.audioB64u?.replace(/-/g, "+").replace(/_/g, "/") ?? "";
+  if (!encoded || encoded.length > 6_000_000) throw new Error("creature_observer_voice_unavailable");
+  const binary = atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "="));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes.buffer;
+}
+
 export async function unlockCreatureVoice() {
   if (typeof window === "undefined") return false;
   const context = audioContext();
@@ -57,215 +58,173 @@ export function cancelCreatureVoice() {
   activeStreamCancel = null;
 }
 
-function pcmBytes(value: string, carry: number | null) {
-  const binary = atob(value);
-  const joined = new Uint8Array(binary.length + (carry === null ? 0 : 1));
-  let offset = 0;
-  if (carry !== null) joined[offset++] = carry;
-  for (let index = 0; index < binary.length; index += 1) joined[offset + index] = binary.charCodeAt(index);
-  const evenLength = joined.length - (joined.length % 2);
-  return { bytes: joined.slice(0, evenLength), carry: evenLength < joined.length ? joined[evenLength]! : null };
-}
-
+/**
+ * Plays Receiz v120 neural performance chunks and applies only a tiny,
+ * proof-derived real-time timbre pass. The model and voice generation remain
+ * inside Receiz; this client path is decoder, character lock, and mouth sync.
+ */
 export function beginCreatureVoiceStream(
-  asset: PortableCardAsset,
-  cardAdmission: unknown,
+  assetId: string,
+  neural: ReturnType<typeof wildzStreamingVoiceProfile>,
   signal: AbortSignal,
   onEnded?: () => void,
   onStarted?: () => void
 ): CreatureVoiceStream {
-  let socket: WebSocket | null = null;
-  let pendingText = "";
+  let context: AudioContext | null = null;
+  let analyser: AnalyserNode | null = null;
+  let filter: BiquadFilterNode | null = null;
+  let gain: GainNode | null = null;
   let firstTextAt = 0;
   let finishing = false;
   let settled = false;
   let started = false;
+  let pendingDecodes = 0;
   let nextStartAt = 0;
-  let byteCarry: number | null = null;
-  let low = 0;
-  let sampleIndex = 0;
   let animationFrame = 0;
+  let decodeChain = Promise.resolve();
   const sources = new Set<AudioBufferSourceNode>();
-  let analyser: AnalyserNode | null = null;
-  let filter: BiquadFilterNode | null = null;
-  let mouthResponse = 1;
   let resolveCompleted!: (played: boolean) => void;
   const completed = new Promise<boolean>((resolve) => { resolveCompleted = resolve; });
+
+  const stopMouth = () => {
+    if (animationFrame) cancelAnimationFrame(animationFrame);
+    animationFrame = 0;
+    emitMouth(assetId, 0);
+  };
 
   const settle = (played: boolean) => {
     if (settled) return;
     settled = true;
-    if (animationFrame) cancelAnimationFrame(animationFrame);
-    emitMouth(asset.id, 0);
+    stopMouth();
+    analyser?.disconnect();
+    filter?.disconnect();
+    gain?.disconnect();
     resolveCompleted(played);
     if (played) onEnded?.();
   };
 
+  const maybeFinish = () => {
+    if (finishing && pendingDecodes === 0 && sources.size === 0) settle(started);
+  };
+
   const abort = () => {
     if (settled) return;
-    try { socket?.close(); } catch { /* already closed */ }
     for (const source of sources) {
-      try { source.stop(); } catch { /* already ended */ }
+      try { source.stop(); } catch { /* already stopped */ }
       source.disconnect();
     }
     sources.clear();
-    analyser?.disconnect();
-    filter?.disconnect();
     settle(false);
+  };
+
+  const startMouth = () => {
+    if (!analyser || animationFrame) return;
+    const waveform = new Uint8Array(analyser.fftSize);
+    const animate = () => {
+      if (!analyser || settled || sources.size === 0) {
+        animationFrame = 0;
+        emitMouth(assetId, 0);
+        return;
+      }
+      analyser.getByteTimeDomainData(waveform);
+      const energy = waveform.reduce((sum, value) => sum + Math.abs(value - 128), 0) / waveform.length / 31;
+      emitMouth(assetId, Math.max(.02, Math.min(1, energy * neural.mouthResponse)));
+      animationFrame = requestAnimationFrame(animate);
+    };
+    animate();
+  };
+
+  const ensureGraph = async () => {
+    if (context && analyser && filter && gain) return { context, analyser, filter, gain };
+    context = audioContext();
+    if (context.state !== "running") await context.resume();
+    if (context.state !== "running") throw new Error("creature_voice_audio_locked");
+    analyser = context.createAnalyser();
+    analyser.fftSize = 64;
+    analyser.smoothingTimeConstant = .2;
+    filter = context.createBiquadFilter();
+    filter.type = "peaking";
+    filter.frequency.value = neural.brightnessHz;
+    filter.Q.value = .72;
+    filter.gain.value = (neural.pitch - 1) * 28;
+    gain = context.createGain();
+    gain.gain.value = neural.volume;
+    filter.connect(gain);
+    gain.connect(analyser);
+    analyser.connect(context.destination);
+    return { context, analyser, filter, gain };
+  };
+
+  const queueChunk = async (chunk: CreatureVoiceChunk) => {
+    if (settled || signal.aborted) return;
+    if (chunk.voiceSignature && chunk.voiceSignature !== neural.signature) {
+      throw new Error("creature_voice_signature_mismatch");
+    }
+    pendingDecodes += 1;
+    try {
+      const graph = await ensureGraph();
+      const bytes = encodedAudio(chunk);
+      let buffer: AudioBuffer;
+      try {
+        buffer = await graph.context.decodeAudioData(bytes.slice(0));
+      } catch {
+        if (graph.context.state !== "running") await graph.context.resume();
+        buffer = await graph.context.decodeAudioData(bytes.slice(0));
+      }
+      if (settled || signal.aborted) return;
+      const source = graph.context.createBufferSource();
+      source.buffer = buffer;
+      source.playbackRate.value = neural.rate;
+      source.detune.value = (neural.pitch - 1) * 240;
+      source.connect(graph.filter);
+      sources.add(source);
+      const startAt = Math.max(graph.context.currentTime + .012, nextStartAt);
+      nextStartAt = startAt + buffer.duration / source.playbackRate.value;
+      source.onended = () => {
+        sources.delete(source);
+        source.disconnect();
+        if (sources.size === 0) stopMouth();
+        maybeFinish();
+      };
+      source.start(startAt);
+      if (!started) {
+        started = true;
+        onStarted?.();
+        const ttfaMs = firstTextAt ? Math.max(0, performance.now() - firstTextAt) : 0;
+        window.dispatchEvent(new CustomEvent("wildz-creature-voice-latency", {
+          detail: {
+            assetId,
+            signature: neural.signature,
+            ttfaMs: Math.round(ttfaMs * 10) / 10,
+            targetMs: 300,
+            withinTarget: ttfaMs <= 300,
+            engine: "receiz-v120-proof-performance"
+          }
+        }));
+      }
+      startMouth();
+    } finally {
+      pendingDecodes -= 1;
+      maybeFinish();
+    }
   };
 
   cancelCreatureVoice();
   activeStreamCancel = abort;
   signal.addEventListener("abort", abort, { once: true });
 
-  void (async () => {
-    try {
-      const context = audioContext();
-      if (context.state !== "running") await context.resume();
-      if (context.state !== "running" || signal.aborted) throw new Error("creature_voice_audio_locked");
-      const response = await fetch("/api/receiz/creature-voice/session", {
-        method: "POST",
-        credentials: "same-origin",
-        cache: "no-store",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ card: asset, ...(cardAdmission ? { cardAdmission } : {}) }),
-        signal
-      });
-      const session = await response.json().catch(() => null) as VoiceSessionResponse | null;
-      if (!response.ok || session?.ok !== true || !session.token || !session.voiceId
-        || !session.signature || session.model !== "eleven_flash_v2_5"
-        || session.outputFormat !== "pcm_24000" || session.sampleRate !== 24_000) {
-        throw new Error("creature_observer_voice_unavailable");
-      }
-
-      analyser = context.createAnalyser();
-      analyser.fftSize = 64;
-      analyser.smoothingTimeConstant = .22;
-      filter = context.createBiquadFilter();
-      filter.type = "peaking";
-      filter.frequency.value = session.articulation?.brightnessHz ?? 2_400;
-      filter.Q.value = .7;
-      filter.gain.value = ((session.seed ?? 0) % 700) / 100 - 3.5;
-      filter.connect(analyser);
-      analyser.connect(context.destination);
-      mouthResponse = session.articulation?.mouthResponse ?? 1;
-
-      const query = new URLSearchParams({
-        model_id: session.model,
-        output_format: session.outputFormat,
-        single_use_token: session.token,
-        auto_mode: "true",
-        apply_text_normalization: "off",
-        inactivity_timeout: "60",
-        seed: String(session.seed ?? 0)
-      });
-      socket = new WebSocket(`wss://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(session.voiceId)}/stream-input?${query}`);
-      socket.onopen = () => {
-        socket?.send(JSON.stringify({
-          text: " ",
-          voice_settings: {
-            stability: session.settings?.stability ?? .5,
-            similarity_boost: session.settings?.similarityBoost ?? .8,
-            style: session.settings?.style ?? .1,
-            use_speaker_boost: false,
-            speed: session.settings?.speed ?? 1
-          }
-        }));
-        if (pendingText) {
-          socket?.send(JSON.stringify({ text: pendingText }));
-          pendingText = "";
-        }
-        if (finishing) socket?.send(JSON.stringify({ text: "" }));
-      };
-      socket.onmessage = (event) => {
-        if (signal.aborted || settled) return;
-        const message = JSON.parse(String(event.data)) as { audio?: unknown; is_final?: unknown; isFinal?: unknown };
-        if (typeof message.audio === "string" && message.audio) {
-          const decoded = pcmBytes(message.audio, byteCarry);
-          byteCarry = decoded.carry;
-          if (decoded.bytes.length) {
-            const view = new DataView(decoded.bytes.buffer, decoded.bytes.byteOffset, decoded.bytes.byteLength);
-            const frameCount = decoded.bytes.length / 2;
-            const buffer = context.createBuffer(1, frameCount, 24_000);
-            const channel = buffer.getChannelData(0);
-            const identity = session.seed ?? 0;
-            const warmth = ((identity & 255) / 255 - .5) * .1;
-            const harmonic = .008 + ((identity >>> 8) & 255) / 255 * .012;
-            for (let index = 0; index < frameCount; index += 1) {
-              const sample = view.getInt16(index * 2, true) / 32768;
-              low += .07 * (sample - low);
-              const pulse = 1 + Math.sin(sampleIndex++ / 24_000 * Math.PI * 2 * (4 + ((identity >>> 16) & 255) / 100)) * .003;
-              channel[index] = Math.max(-1, Math.min(1, (sample + warmth * low + harmonic * sample * Math.abs(sample)) * pulse));
-            }
-            const source = context.createBufferSource();
-            source.buffer = buffer;
-            source.connect(filter!);
-            sources.add(source);
-            const startAt = Math.max(context.currentTime + .012, nextStartAt);
-            nextStartAt = startAt + buffer.duration;
-            source.onended = () => {
-              sources.delete(source);
-              source.disconnect();
-              if (finishing && socket?.readyState === WebSocket.CLOSED && sources.size === 0) settle(started);
-            };
-            source.start(startAt);
-            if (!started) {
-              onStarted?.();
-              const ttfaMs = firstTextAt ? Math.max(0, performance.now() - firstTextAt) : 0;
-              window.dispatchEvent(new CustomEvent("wildz-creature-voice-latency", {
-                detail: {
-                  assetId: asset.id,
-                  signature: session.signature,
-                  ttfaMs: Math.round(ttfaMs * 10) / 10,
-                  targetMs: 300,
-                  withinTarget: ttfaMs <= 300
-                }
-              }));
-            }
-            started = true;
-            if (!animationFrame) {
-              const waveform = new Uint8Array(analyser!.fftSize);
-              const animate = () => {
-                analyser!.getByteTimeDomainData(waveform);
-                const energy = waveform.reduce((sum, value) => sum + Math.abs(value - 128), 0) / waveform.length / 32;
-                emitMouth(asset.id, Math.max(.025, Math.min(1, energy * mouthResponse)));
-                animationFrame = requestAnimationFrame(animate);
-              };
-              animate();
-            }
-          }
-        }
-        if (message.is_final === true || message.isFinal === true) {
-          finishing = true;
-          socket?.close();
-          if (sources.size === 0) settle(started);
-        }
-      };
-      socket.onerror = abort;
-      socket.onclose = () => {
-        if (!finishing && !signal.aborted) return abort();
-        if (sources.size === 0) settle(started);
-      };
-    } catch {
-      abort();
-    }
-  })();
-
   return {
     pushText(delta) {
-      if (!delta || finishing || settled) return;
-      if (!firstTextAt) firstTextAt = performance.now();
-      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ text: delta }));
-      else pendingText += delta;
+      if (delta && !firstTextAt) firstTextAt = performance.now();
+    },
+    pushAudio(chunk) {
+      if (finishing || settled) return;
+      decodeChain = decodeChain.then(() => queueChunk(chunk)).catch(() => settle(false));
     },
     finish() {
       if (finishing || settled) return;
       finishing = true;
-      if (socket?.readyState === WebSocket.OPEN) {
-        if (pendingText) socket.send(JSON.stringify({ text: pendingText, flush: true }));
-        pendingText = "";
-        socket.send(JSON.stringify({ text: "" }));
-      }
+      void decodeChain.finally(maybeFinish);
     },
     abort,
     completed

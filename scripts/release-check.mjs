@@ -12,6 +12,7 @@ function run(command, args) {
 }
 
 run(process.execPath, ["scripts/next-runtime-guard.mjs", "assert-idle"]);
+run("pnpm", ["receiz:architecture-lock"]);
 run("pnpm", ["test"]);
 run("pnpm", ["typecheck"]);
 run("pnpm", ["receiz:check"]);

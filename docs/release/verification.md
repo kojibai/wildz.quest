@@ -1,6 +1,6 @@
-# Wildz v6.0.0 release verification
+# Wildz v6.1.0 release verification
 
-Date: 2026-08-17. Target application version: `6.0.0`. Receiz integration target: `120.0.0`.
+Date: 2026-08-17. Target application version: `6.1.0`. Receiz integration target: `120.0.0`.
 
 This record distinguishes repository evidence from external production evidence. A passing local gate proves the source, deterministic contracts, compilation, and configured local browser paths observed in the run. It does not manufacture credentials, remote authority, deployment, payment settlement, or literal creature sentience.
 
@@ -18,9 +18,40 @@ All three exact public npm packages use published SHA-512 integrity values pinne
 
 ## Release gate
 
-`pnpm release:check` passed on 2026-08-17: 1,271/1,271 Node tests, typecheck, v120 repository checker, 15/15 MCP conformance checks, warning-free ESLint, secret scan across 868 text files, optimized Next.js production build, and default Receiz doctor. The build emitted the known upstream `web-worker` dynamic-dependency advisory through `snarkjs`; compilation, type validation, static generation, and trace collection completed successfully. The root, robots, standard sitemap, image sitemap, manifest, and social metadata are statically generated; no SEO or preview-image work was added to the gameplay render loop.
+The final source gate passed on 2026-08-17:
 
-An additional WebKit smoke run against the optimized production server opened a verified creature in the Vault, rendered its v120 brain summary, proof-event count, conversation surface, voice state, and continuity panel, and submitted a conversation turn. Because that browser session had not connected a Receiz ID, the owner-scoped Twin call declined the turn: the UI displayed no fabricated creature speech and the card brain received no conversation event. This verifies the production fail-closed boundary, not remote inference availability. An authenticated Receiz ID browser run remains required to prove an accepted live reply. Creature conversation never reads a player token from an environment variable.
+| Gate | Observed result |
+|---|---|
+| Receiz architecture lock | Pass; 411 runtime files checked |
+| Node law/regression suite | Pass; 1,284 tests across 122 suites, zero failures |
+| Typecheck | Pass |
+| Official v120 repository checker | Pass; `receiz.integration.check.v1`, exact release/registry/matrix/authority identity |
+| MCP/SDK conformance | Pass; 15/15 checks, zero network calls, zero database calls |
+| ESLint | Pass |
+| Secret scan | Pass; 878 text files checked without printing values |
+| Optimized Next.js build | Pass; 19 static pages generated and all application routes compiled |
+| Receiz doctor | Pass; SDK/MCP/AI skills requested and installed at exact compatible `120.0.0` |
+
+The optimized build retains two upstream `web-worker` dynamic-require warnings in the Receiz `snarkjs` verifier import chain. They are not application exceptions, do not add a Wildz voice dependency, and were disclosed rather than mislabeled as a warning-free build. The root, robots, standard sitemap, image sitemap, manifest, and social metadata remain outside the gameplay render loop.
+
+The earlier v6 WebKit smoke run remains historical evidence for the fail-closed unauthenticated boundary. V6.1 browser qualification separately verifies the production shell, desktop/mobile canvas, navigation, Send focus behavior, and source-level subject-performance contract. An authenticated Receiz ID run remains required to record live neural audio availability and production latency percentiles; that external observation is not fabricated from source tests. Creature conversation never reads a player token from an environment variable.
+
+## V6.1 production-browser evidence
+
+The optimized build was served locally in production mode and checked in the in-app browser:
+
+| Surface | Observed result |
+|---|---|
+| Desktop root, 1280×720 | Full 1280×720 world canvas with 1920×1080 drawing buffer; companion canvas present; body exactly viewport-sized; no horizontal/vertical overflow; no console warnings/errors |
+| Mobile root, 390×844 | Full 390×844 world canvas with 487×1055 drawing buffer; body exactly viewport-sized; no horizontal/vertical overflow; HUD and controls remained visible and nonblank |
+| Card Vault | Exact active card opened in the Vault; Talk, Life while away, transfer, growth, and standalone-card controls rendered |
+| Mobile Send field | Computed font size exactly 16 px, satisfying the iOS no-zoom floor; source regression tests additionally enforce active-field blur on Send |
+| Standalone card | `/cards/wilds%3A17d4c696691d5d2861114766` loaded the exact locally verified Mooyhaz card with the expected title and proof dossier; no console warnings/errors |
+| Browser runtime health | Root and standalone tabs recorded zero warnings/errors; both desktop and mobile canvases were nonblank by direct visual inspection |
+
+The browser session was intentionally unauthenticated/offline and did not submit a conversation or mutate proof memory. Live Receiz neural audio and first-text-to-first-audio percentiles therefore remain an explicit strict-live gate, not a fabricated pass.
+
+The Three.js director release report audit passed with premium and audio requirements against the retained flagship evidence. The current credential probe returned literal blank values for `TRIPO_API_KEY`, `GEMINI_API_KEY`, and `ELEVENLABS_API_KEY`; these are recorded as blank/inconclusive, not as present or missing. No external asset generation was attempted because this correction changes the Receiz voice adapter and repository doctrine, the user explicitly required no external dependency, and existing visual assets were not replaced.
 
 ## V120 living-subject evidence
 
@@ -29,9 +60,9 @@ An additional WebKit smoke run against the optimized production server opened a 
 | Subject construction | Exact verified card identity plus primary objects for innate self, capture, history, conversations, and continuity |
 | Proof brain | Stable subject/head/Merkle coordinates; index explicitly non-authoritative; unknown namespaces byte-exact |
 | Factual memory | Every consequential remembered fact cites an admitted event object |
-| Twin intelligence | Real v120 subject-Twin inference over the exact proof brain; deterministic phrase templates removed from the live route and source |
+| Twin intelligence | Direct v120 `subjects.twin.streamPerformance` over the exact live context head and expected subject digest; deterministic phrase templates removed from the live route and source |
 | Kai grounding | Exact current `uPulse`, temporal root, lattice, gate, chakra, beat/step, day/week/month/Ark geometry, world position, condition, relationship, causal head, and recent experience supplied to each turn |
-| Dialogue admission | Model reply is not a world event; unavailable intelligence appends no turn and changes no card brain |
+| Dialogue admission | Model reply is not a world event; the route/server has no authority; the unchanged deterministic append targets the exact verified card proof head |
 | Continuity | Accepted conversation appends to the exact card and becomes available on its next proof-brain projection |
 | Autonomous life | Owner mandate is bounded and reverified; due events deterministic; multi-creature effects atomic; failures write zero including Kai |
 | Transfer | Subject identity and brain survive; former-owner authority and mandates are revoked immediately |
@@ -53,11 +84,13 @@ The implementation guarantees a genuine model inference from the configured Rece
 ## Voice and embodiment evidence
 
 - Creature voice identity is deterministic from the exact asset/genome fingerprint.
-- Receiz voice mode receives the exact proof-derived creature voice signature.
+- The observer consumes native v120 `subjects.twin.streamPerformance` reply, audio, viseme, gaze, blink, breath, emotion, gesture, intent, and completion events.
+- The exact live context head, expected subject digest, owner, subject ID, and client message ID bind the performance request; voice identity is carried in the proof self model.
 - The browser loads no neural model, ONNX runtime, or voice binary and needs no voice warm-up.
-- A production WebKit playback check decoded and started returned generated audio without invoking browser speech.
+- The client decodes only the typed v120 `audioB64u` primitive and applies a bounded proof-deterministic native Web Audio transform.
 - Actual waveform analysis drives mouth openness; expression state drives eyes, ears, tail, aura, posture, and gesture.
-- Missing generated audio fails closed; no browser or generic synthesized substitute is used.
+- Voice playback is non-authoritative and cannot gate, rewrite, reorder, or erase the exact-head conversation-memory append. No browser or generic synthesized substitute is used.
+- No voice provider environment variable, provider-session route, provider socket, browser neural dependency, warm-up, or local phrase-reply success rail remains.
 
 ## Compatibility
 
@@ -73,4 +106,4 @@ The earlier production-shaped 98-card artifact result remains historical compati
 - Representative-device certification, external deployment, tag, push, GitHub release publication, and store distribution are distinct actions.
 - A queued runtime job or proposal is not a global commitment. `receiz.com/global/v1` is a named coordination domain, not universal consensus.
 
-Version `6.0.0` is qualified for a local source commit. Tagging and external publication must preserve the same commit and require their own observed evidence.
+Version `6.1.0` is qualified for a local source commit only after the final release gate and browser evidence recorded in this file pass. Tagging and external publication must preserve that same commit and require their own observed evidence.

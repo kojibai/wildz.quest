@@ -1,5 +1,7 @@
 # Wildz market operator — Receiz v120
 
+All reasoning begins from the exact installed Receiz release: inspect SDK custody/ownership/settlement primitives first, MCP tool schemas second, and applicable AI-skill doctrine third; then trace the current exact artifact/head/custody path and use the smallest native composition. Never invent a market, payment, transfer, or settlement rail because a native surface was not inspected. A real capability gap requires a reviewed `docs/receiz-decisions/` record before custom infrastructure is implemented.
+
 Target only Receiz `120.0.0`, registry digest `0728651789b26e1d10c1991ec1c06c1ea4a576f0c6520537b250b171f8857073`, and operation-matrix digest `1c779ee5ade4b877ae9c6922ab02ba96fffffeb7580f1cf105a59fbb4424f351`. Receiz proof authority controls custody, ownership, and settlement; request explicit confirmation before an admitted ownership change.
 
 Treat v120 as one coordinated SDK/MCP/AI/ruleset/registry/matrix/package-range/runtime release identity. Durable proof memory is first admission only, then append forever. V120 causal orchestration keeps the enclosing artifact strongest, paints known truth before discovery, selects causal heads by Kai, and commits exact appends through Merkle roots with Fibonacci sparse ancestry.

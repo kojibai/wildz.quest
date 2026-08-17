@@ -4,6 +4,45 @@ All notable changes to Wildz are documented here. Wildz uses semantic versioning
 
 ## [Unreleased]
 
+## [6.1.0] - 2026-08-17
+
+The Proof-Locked Neural Continuity release: preserves the v120 live proof head and portable conversation-memory append while routing real speech and embodied performance through the official subject Twin stream.
+
+### Added
+
+- Direct `subjects.twin.streamPerformance` consumption for typed streaming reply, neural audio, viseme, gaze, blink, breath, emotion, gesture, intent, and completion events.
+- A proof-derived, deterministic creature voice lock applied as a bounded native Web Audio transform to the Receiz-generated neural performance.
+- Complete voice architecture, hot-path allowlist/denylist, v6.1 reasoning postmortem, and SDK/MCP/AI-skill developer guardrails.
+- A mandatory Receiz architecture-lock script inside the standard release gate, making those guardrails executable.
+- Exact verified-card session handoff for standalone card routes.
+- Current-Vault membership evidence for chatting with uploaded/claimed historical-owner cards.
+
+### Changed
+
+- Streamed creature text begins on native v120 reply deltas; audio and mouth motion progress from the same subject-performance stream.
+- Removed repeated client/server brain projection from the Send path while preserving the identical v120 proof head, primary objects, conversation append, and cross-platform artifact memory.
+- Increased bounded roaming activity to 24 acts/day with a first real meeting due within the next five-minute world check.
+- Preserved the card currently being viewed across roaming settlement, conversation append, and inventory refresh.
+- Reused already-connected identity proof sessions instead of repeating verification during gameplay.
+- Advanced the installed PWA coordinate to `v6.1.0-r1`.
+
+### Fixed
+
+- Standalone card pages again resolve the exact locally verified card immediately.
+- Uploaded/claimed cards can talk through the current verified Vault owner without rewriting historical capture ownership.
+- Previous-owner Vault projections reconcile transferred cards out and previous mandates remain revoked.
+- Proof-object capture/sealing now fails with a bounded timeout instead of an intermittent platform application termination.
+- Mobile Send blurs the active field and uses the iOS-safe input font floor, avoiding involuntary zoom.
+- Connected gameplay no longer flashes stale card-requirement/network errors over already-established truth.
+- Live creatures use the same exact proof-derived appearance palette as their cards.
+
+### Removed
+
+- Kokoro, ONNX Runtime Web, bundled WASM/model warm-up, browser speech fallback, provider-specific session tokens/routes, voice provider environment variables, direct browser provider sockets, and local phrase-template success paths.
+- Any claim that MCP or AI skills are application authority; SDK runtime consumes proof, while MCP and skills remain conformance/audit and engineering doctrine.
+
+See the [complete v6.1.0 release notes](docs/release/v6.1.0.md), [voice architecture](docs/RECEIZ_V120_CREATURE_VOICE.md), and [reasoning postmortem](docs/release/v6.1.0-reasoning-postmortem.md).
+
 ## [6.0.0] - 2026-08-17
 
 The Living Creature Continuity release: verified cards become persistent Receiz v120 subjects with proof-grounded minds, factual memory, direct conversation, embodied neural voice, autonomous continuity, and identity-preserving bearer transfer.
@@ -155,3 +194,4 @@ See the [complete v3.0.0 release notes](docs/release/v3.0.0.md) and [verificatio
 [4.0.0-alpha.0]: https://github.com/kojibai/wildz.quest/releases/tag/v4.0.0-alpha.0
 [5.0.0]: https://github.com/kojibai/wildz.quest/releases/tag/v5.0.0
 [6.0.0]: https://github.com/kojibai/wildz.quest/releases/tag/v6.0.0
+[6.1.0]: https://github.com/kojibai/wildz.quest/releases/tag/v6.1.0

@@ -4,6 +4,8 @@ Wildz pins `@receiz/sdk@120.0.0` as application/runtime authority and `@receiz/m
 
 The packaged MCP runtime remains operator tooling, and the packaged AI skills remain doctrine for builders and agents. Neither outranks verified artifact continuity or server admission.
 
+The repository-wide [Receiz-first engineering law](RECEIZ_FIRST_ENGINEERING.md) is mandatory: inspect exact SDK primitives first, matching MCP tools/schemas second, applicable AI skills third, and the existing proof path fourth before designing the smallest native composition. Custom infrastructure is blocked unless an approved capability-gap record proves the installed coordinated release cannot supply the result. `pnpm receiz:architecture-lock` enforces this process and its runtime boundaries inside every release check.
+
 Run MCP from an agent host with `pnpm exec receiz-mcp`. Public reads need no bearer token. Delegated writes require a Receiz-issued Connect/OIDC token supplied to the MCP process as `RECEIZ_ACCESS_TOKEN` or `RECEIZ_CONNECT_ACCESS_TOKEN`. Keep MCP imports out of `app/`, `src/`, client components, and browser bundles.
 
 ## v120 application contract, registry, and checker
@@ -57,6 +59,8 @@ The v120 package adds 37 typed living-subject tools in five coherent groups:
 - proof brain and custody: brain head/search/resolve/stream plus bearer transfer preview, instrument issue/inspect/claim, cancel, and status.
 
 Wildz uses the official subject Twin at the application observer boundary. The Twin receives exact proof references and may return speech, performance, and proposed intents. Speech is an observation; an intent is zero-write until a separate world command validates and executes. Factual memory must cite admitted event objects. Multi-subject effects commit atomically, failed decisions write zero—including zero Kai—and active mandates are reverified at execution.
+
+Creature conversation consumes the SDK's official `subjects.twin.streamPerformance` surface with the exact live subject head and expected digest. Typed reply, audio, viseme, gaze, blink, breath, emotion, gesture, intent, and completion events remain non-authoritative projections. The exact card proof object remains authority; the route/server is only verifier, observer, and transport. The existing deterministic conversation append to the exact live proof head remains independent of voice playback. MCP validates and audits this contract but is not imported into runtime code. The matching AI skill forbids provider-specific application voice infrastructure, browser neural models, warm-up, generic voice fallback, and local phrase replies.
 
 Bearer tools preserve the subject identity and proof brain while changing custody. Claim revokes former-owner authority immediately. Transfer preview, an issued instrument, inspection output, status, or a local projection is not custody by itself; claim must return exact evidence that the receiver independently verifies.
 

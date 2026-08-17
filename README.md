@@ -144,19 +144,19 @@ V120 exposes direct bearer transfer preview, instrument issue, inspection, claim
 
 | Path | Purpose |
 |---|---|
-| [`app`](app) | Next.js pages, public routes, and 31 API route handlers |
+| [`app`](app) | Next.js pages, public routes, and 34 API route handlers |
 | [`src/features`](src/features) | Identity, world, games, market, profile, shell, and PWA product modules |
 | [`src/lib/receiz`](src/lib/receiz) | Receiz adapters, artifact custody, sessions, repositories, verification, and publication |
-| [`tests`](tests) | 212 contract, game, continuity, PWA, market, and release test files |
+| [`tests`](tests) | 272 contract, game, continuity, PWA, market, and release test files |
 | [`ai-skills`](ai-skills) | Agent-readable build, market, and release doctrine |
 | [`docs`](docs) | Architecture, Receiz boundaries, interoperability, and release evidence |
 | [`scripts`](scripts) | Release gate, doctor, checker, conformance support, and secret scanning |
 
 ## Release status
 
-`v6.0.0` is the Living Creature Continuity release. Every verified card can become a v120 living subject with an exact proof brain, innate pre-capture self, append-only factual memory, relationships, inventory, mandates, and a non-authoritative AI Twin. Owners can speak with the exact creature on its live card through a deterministic neural voice and synchronized embodied expression. Card/Vault upload, merge, native save, bearer ownership reconciliation, and transfer continuity are part of the same portable experience. Installed PWAs advance to `v6.0.0-r1`.
+`v6.1.0` is the Proof-Locked Neural Continuity release. It preserves the v120 live-head and cross-platform proof-memory system from v6 while routing creature speech directly through `subjects.twin.streamPerformance`: genuine streaming text, Receiz neural audio, typed performance events, proof-deterministic character shaping, and waveform mouth sync with no Wildz voice provider, browser model, warm-up, or substitute voice. It also stabilizes current-Vault chat custody, card selection, standalone pages, roaming pace, capture timeouts, connected identity responsiveness, mobile Send focus, and exact card-to-world appearance. Installed PWAs advance to `v6.1.0-r1`.
 
-Read the complete [v6.0.0 release notes](docs/release/v6.0.0.md), [Living Creature Continuity contract](docs/WILDZ_LIVING_CREATURE_CONTINUITY_V120.md), [verification record](docs/release/verification.md), and [changelog](CHANGELOG.md).
+Read the complete [v6.1.0 release notes](docs/release/v6.1.0.md), [Receiz v120 creature voice architecture](docs/RECEIZ_V120_CREATURE_VOICE.md), [reasoning postmortem](docs/release/v6.1.0-reasoning-postmortem.md), [Living Creature Continuity contract](docs/WILDZ_LIVING_CREATURE_CONTINUITY_V120.md), [verification record](docs/release/verification.md), and [changelog](CHANGELOG.md).
 
 ## Build your own Receiz-native product
 

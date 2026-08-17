@@ -115,9 +115,12 @@ When building a new product or feature from Wildz:
 8. Update the application contract, MCP doctrine, AI skill, and release evidence when their surfaces change.
 9. Run `pnpm release:check` before proposing a release.
 
+Creature voice follows the same boundary: the exact card proof and live head remain authority; the server only verifies, observes, and transports events. Wildz consumes v120 `subjects.twin.streamPerformance` directly and projects its neural audio through a proof-deterministic Web Audio character lock. Voice playback cannot authorize, block, rewrite, reorder, or erase the existing proof-history conversation append. See [Receiz v120 creature voice](RECEIZ_V120_CREATURE_VOICE.md).
+
 ## Further reading
 
 - [Receiz rails](RECEIZ_RAILS.md)
+- [Receiz v120 creature voice](RECEIZ_V120_CREATURE_VOICE.md)
 - [MCP contract](MCP.md)
 - [Artifact interoperability](release/artifact-interoperability.md)
 - [Feature implementation map](release/feature-parity.md)
