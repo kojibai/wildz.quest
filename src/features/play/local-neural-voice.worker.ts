@@ -36,6 +36,7 @@ if (wasmBackend) {
 kokoroEnv.wasmPaths = LOCAL_WASM_ROOT;
 
 let rendererPromise: ReturnType<typeof KokoroTTS.from_pretrained> | null = null;
+let rendererBackend: "webgpu" | "wasm" = "wasm";
 
 async function seedLocalVoice(voice: VoiceName) {
   const cache = await caches.open(KOKORO_VOICE_CACHE);
@@ -48,13 +49,22 @@ async function seedLocalVoice(voice: VoiceName) {
 
 async function renderer() {
   if (!rendererPromise) {
-    rendererPromise = Promise.all([
+    const voicesReady = Promise.all([
       seedLocalVoice("af_heart"),
       seedLocalVoice("am_michael")
-    ]).then(() => KokoroTTS.from_pretrained(MODEL_ID, {
-      dtype: "q8",
-      device: "wasm"
-    }));
+    ]);
+    const webgpuAvailable = "gpu" in navigator;
+    rendererBackend = webgpuAvailable ? "webgpu" : "wasm";
+    rendererPromise = voicesReady.then(async () => {
+      if (webgpuAvailable) {
+        try {
+          return await KokoroTTS.from_pretrained(MODEL_ID, { dtype: "q8", device: "webgpu" });
+        } catch {
+          rendererBackend = "wasm";
+        }
+      }
+      return KokoroTTS.from_pretrained(MODEL_ID, { dtype: "q8", device: "wasm" });
+    });
   }
   return rendererPromise;
 }
@@ -62,7 +72,7 @@ async function renderer() {
 workerScope.addEventListener("message", (event: MessageEvent<WorkerRequest>) => {
   if (event.data.type === "prepare") {
     void renderer().then(() => {
-      workerScope.postMessage({ type: "ready" });
+      workerScope.postMessage({ type: "ready", backend: rendererBackend });
     }).catch(() => {
       rendererPromise = null;
       workerScope.postMessage({ type: "unavailable" });
@@ -81,6 +91,7 @@ workerScope.addEventListener("message", (event: MessageEvent<WorkerRequest>) => 
       type: "rendered",
       id: request.id,
       sampleRate: output.sampling_rate,
+      backend: rendererBackend,
       samples: samples.buffer
     }, [samples.buffer]);
   }).catch(() => {

@@ -7,6 +7,7 @@ import {
 } from "./kai-klok-moment";
 import {
   localNeuralVoiceReady,
+  localNeuralVoiceBackend,
   prepareLocalNeuralVoice,
   renderLocalNeuralVoice
 } from "./local-neural-voice";
@@ -210,14 +211,18 @@ function conditionNeuralVoice(
 function nextNeuralPhraseEnd(text: string, cursor: number, final: boolean) {
   const remaining = text.slice(cursor);
   if (!remaining) return cursor;
-  if (final) return Math.min(text.length, cursor + 280);
   const bounded = remaining.slice(0, 280);
-  let punctuationEnd = -1;
-  for (const match of bounded.matchAll(/[.!?;:](?:\s|$)/g)) punctuationEnd = (match.index ?? 0) + match[0].length;
-  if (punctuationEnd >= 24) return cursor + punctuationEnd;
-  if (remaining.length < 150) return cursor;
-  const wordEnd = bounded.lastIndexOf(" ", 220);
-  return cursor + (wordEnd >= 80 ? wordEnd + 1 : Math.min(220, bounded.length));
+  // First-audio latency is governed by the first inference length. Select the
+  // first natural clause instead of the last punctuation in the whole reply.
+  const punctuation = /[,.!?;:](?:\s|$)/g;
+  for (const match of bounded.matchAll(punctuation)) {
+    const end = (match.index ?? 0) + match[0].length;
+    if (end >= 28) return cursor + end;
+  }
+  if (!final && remaining.length < 56) return cursor;
+  const ceiling = Math.min(bounded.length, 72);
+  const wordEnd = bounded.lastIndexOf(" ", ceiling);
+  return cursor + (wordEnd >= 36 ? wordEnd + 1 : ceiling);
 }
 
 function audioContext() {
@@ -392,7 +397,8 @@ export function beginCreatureVoiceStream(
             ttfaMs: Math.round(ttfaMs * 10) / 10,
             targetMs: 300,
             withinTarget: ttfaMs <= 300,
-            engine
+            engine,
+            backend: engine === "receiz-proof-neural-offline" ? localNeuralVoiceBackend() : "proof-dsp"
           }
         }));
       }

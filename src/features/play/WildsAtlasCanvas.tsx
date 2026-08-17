@@ -47,6 +47,7 @@ export function WildsAtlasCanvas({
         <pointLight color="#ff72bf" intensity={13} position={[6, 2, -5]} distance={13} />
         <AtlasHorizon />
         <OrganicWorldSurface onDrop={onDrop} projection={projection} />
+        <AtlasTerrainDetails projection={projection} />
         <MapRoutes />
         <RegionNames projection={projection} />
         <LandmarkBeacons projection={projection} selectedId={selectedId} onSelect={onSelect} />
@@ -105,12 +106,19 @@ function AtlasHorizon() {
         <circleGeometry args={[15.8, 96]} />
         <meshBasicMaterial color="#0d5260" transparent opacity={0.4} />
       </mesh>
+      {[9.4, 11.7, 14.1].map((radius, index) => <mesh key={radius} position={[0, -.375 + index * .004, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[radius, radius + .035, 96]} />
+        <meshBasicMaterial color="#61c8bd" transparent opacity={.12 - index * .02} />
+      </mesh>)}
     </group>
   );
 }
 
 function terrainNoise(x: number, z: number) {
-  return Math.sin(x * 0.72) * 0.11 + Math.cos(z * 0.57) * 0.09 + Math.sin((x + z) * 1.31) * 0.045;
+  const broad = Math.sin(x * .48 + z * .13) * .24 + Math.cos(z * .41 - x * .17) * .2;
+  const ridges = Math.abs(Math.sin(x * .92 + z * .63)) * .17;
+  const detail = Math.sin((x + z) * 1.31) * .07 + Math.cos((x - z) * 1.77) * .045;
+  return broad + ridges + detail;
 }
 
 function OrganicWorldSurface({ projection, onDrop }: { projection: WildsAtlasProjection; onDrop: (position: { x: number; z: number }) => void }) {
@@ -130,8 +138,8 @@ function OrganicWorldSurface({ projection, onDrop }: { projection: WildsAtlasPro
       const regionX = Math.round(centerRegionX + x / 1.35);
       const regionZ = Math.round(centerRegionZ + z / 1.35);
       const node = nodesByRegion.get(`${regionX}:${regionZ}`) ?? fallback;
-      const height = (terrainNoise(x + regionX * 0.19, z + regionZ * 0.17) + node.biome.luminosity * 0.12) * (1 - coast * .62);
-      const color = new THREE.Color(node.biome.ground.base).offsetHSL(0, .12, .08 + height * .2 - coast * .035);
+      const height = (terrainNoise(x + regionX * .19, z + regionZ * .17) + node.biome.luminosity * .18) * (1 - coast * .72);
+      const color = new THREE.Color(node.biome.ground.base).offsetHSL(0, .1, .045 + height * .16 - coast * .04);
       positions.push(x, height, z);
       colors.push(color.r, color.g, color.b);
     };
@@ -161,22 +169,73 @@ function OrganicWorldSurface({ projection, onDrop }: { projection: WildsAtlasPro
     next.computeVertexNormals();
     return next;
   }, [centerRegionX, centerRegionZ, nodes, size]);
-  return (
-    <mesh
-      geometry={geometry}
-      name="organic-world-surface"
-      onClick={(event) => {
-        event.stopPropagation();
-        onDrop({
-          x: Number(((projection.centerRegion.x + event.point.x / 1.35) * WILDS_REGION_SIZE).toFixed(2)),
-          z: Number(((projection.centerRegion.z + event.point.z / 1.35) * WILDS_REGION_SIZE).toFixed(2))
-        });
-      }}
-      receiveShadow
-    >
-      <meshStandardMaterial emissive="#123b32" emissiveIntensity={0.18} metalness={0.02} roughness={0.83} vertexColors />
+  return <group name="organic-world-island">
+    <mesh geometry={geometry} position={[0, -.18, 0]} scale={[1.018, 1, 1.018]}>
+      <meshStandardMaterial color="#071f25" roughness={.96} />
     </mesh>
-  );
+    <mesh
+        geometry={geometry}
+        name="organic-world-surface"
+        onClick={(event) => {
+          event.stopPropagation();
+          onDrop({
+            x: Number(((projection.centerRegion.x + event.point.x / 1.35) * WILDS_REGION_SIZE).toFixed(2)),
+            z: Number(((projection.centerRegion.z + event.point.z / 1.35) * WILDS_REGION_SIZE).toFixed(2))
+          });
+        }}
+        receiveShadow
+      >
+        <meshStandardMaterial emissive="#0d3029" emissiveIntensity={0.14} metalness={0.02} roughness={0.88} vertexColors />
+      </mesh>
+  </group>;
+}
+
+function AtlasTerrainDetails({ projection }: { projection: WildsAtlasProjection }) {
+  const trunks = useRef<THREE.InstancedMesh>(null);
+  const crowns = useRef<THREE.InstancedMesh>(null);
+  const peaks = useRef<THREE.InstancedMesh>(null);
+  const samples = useMemo(() => projection.nodes.flatMap((node, nodeIndex) => Array.from({ length: 4 }, (_, index) => {
+    const seed = Math.sin((node.regionX * 97.1 + node.regionZ * 131.7 + index * 41.3)) * 43758.5453;
+    const unit = seed - Math.floor(seed);
+    const angle = unit * Math.PI * 2;
+    const radius = .16 + ((unit * 7.31) % 1) * .42;
+    return {
+      x: (node.regionX - projection.centerRegion.x) * 1.35 + Math.cos(angle) * radius,
+      z: (node.regionZ - projection.centerRegion.z) * 1.35 + Math.sin(angle) * radius,
+      scale: .11 + ((unit * 5.17) % 1) * .09,
+      mountain: (nodeIndex + index) % 9 === 0,
+      color: node.biome.canopy.mid
+    };
+  })), [projection]);
+  useLayoutEffect(() => {
+    const matrix = new THREE.Matrix4();
+    const quaternion = new THREE.Quaternion();
+    const color = new THREE.Color();
+    samples.forEach((sample, index) => {
+      const height = terrainNoise(sample.x, sample.z);
+      const visible = Math.hypot(sample.x, sample.z) < Math.max(3.45, Math.sqrt(projection.nodes.length) * .66);
+      const scale = visible ? sample.scale : 0;
+      matrix.compose(new THREE.Vector3(sample.x, height + scale * 1.5, sample.z), quaternion, new THREE.Vector3(scale * .48, scale * 2.3, scale * .48));
+      trunks.current?.setMatrixAt(index, matrix);
+      matrix.compose(new THREE.Vector3(sample.x, height + scale * 3.2, sample.z), quaternion, new THREE.Vector3(scale * 2.15, scale * 2.3, scale * 2.15));
+      crowns.current?.setMatrixAt(index, matrix);
+      color.set(sample.color).offsetHSL(0, .06, ((index % 4) - 1.5) * .025);
+      crowns.current?.setColorAt(index, color);
+      const peakScale = sample.mountain && visible ? scale * 3.8 : 0;
+      matrix.compose(new THREE.Vector3(sample.x, height + peakScale * .7, sample.z), quaternion, new THREE.Vector3(peakScale, peakScale * 1.75, peakScale));
+      peaks.current?.setMatrixAt(index, matrix);
+    });
+    for (const mesh of [trunks.current, crowns.current, peaks.current]) {
+      if (!mesh) continue;
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    }
+  }, [projection.nodes.length, samples]);
+  return <group name="atlas-instanced-terrain-detail">
+    <instancedMesh args={[undefined, undefined, samples.length]} ref={trunks}><cylinderGeometry args={[1, 1.35, 1, 5]} /><meshStandardMaterial color="#493527" roughness={1} /></instancedMesh>
+    <instancedMesh args={[undefined, undefined, samples.length]} ref={crowns}><coneGeometry args={[1, 1.8, 6]} /><meshStandardMaterial vertexColors roughness={.9} /></instancedMesh>
+    <instancedMesh args={[undefined, undefined, samples.length]} ref={peaks}><coneGeometry args={[1, 2, 6]} /><meshStandardMaterial color="#63736c" emissive="#122b27" emissiveIntensity={.1} roughness={.96} /></instancedMesh>
+  </group>;
 }
 
 function MapRoutes() {

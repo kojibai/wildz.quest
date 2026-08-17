@@ -192,6 +192,19 @@ export function WildsWorldMap({
             <i aria-hidden="true" />
             <span>{projection.exactPlayers.length + projection.playerClusters.reduce((sum, cluster) => sum + cluster.count, 0)} live</span>
           </div>
+          <aside className="wilds-atlas-intelligence" aria-label="Current expedition">
+            <span>Active expedition</span>
+            <strong>The world reacts</strong>
+            <p>Explore real paths. Discover living events. Let every choice become remembered experience.</p>
+            <div className="wilds-atlas-mission-meter" role="progressbar" aria-label="Mission progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={missionProgress}>
+              <i style={{ width: `${Math.max(0, Math.min(100, missionProgress))}%` }} />
+            </div>
+            <dl>
+              <div><dt>Mission</dt><dd>{missionProgress}%</dd></div>
+              <div><dt>Mastery</dt><dd>{worldMastery}%</dd></div>
+              <div><dt>Known</dt><dd>{discoveredLandmarkIds.length}</dd></div>
+            </dl>
+          </aside>
         </div>
 
       </div>

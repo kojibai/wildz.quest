@@ -5,13 +5,15 @@ import type { wildzStreamingVoiceProfile } from "@/lib/receiz/wildz-voice-lock";
 type ProofVoiceProfile = ReturnType<typeof wildzStreamingVoiceProfile>;
 type RenderedVoice = Readonly<{ samples: Float32Array; sampleRate: number }>;
 type WorkerReply =
-  | Readonly<{ type: "ready" | "unavailable" }>
-  | Readonly<{ type: "rendered"; id: number; samples: ArrayBuffer; sampleRate: number }>
+  | Readonly<{ type: "ready"; backend?: "webgpu" | "wasm" }>
+  | Readonly<{ type: "unavailable" }>
+  | Readonly<{ type: "rendered"; id: number; samples: ArrayBuffer; sampleRate: number; backend?: "webgpu" | "wasm" }>
   | Readonly<{ type: "render_failed"; id: number }>;
 
 let worker: Worker | null = null;
 let preparing = false;
 let ready = false;
+let backend: "webgpu" | "wasm" = "wasm";
 let requestId = 0;
 const pending = new Map<number, {
   resolve: (voice: RenderedVoice) => void;
@@ -28,6 +30,7 @@ function ensureWorker() {
   worker.addEventListener("message", (event: MessageEvent<WorkerReply>) => {
     if (event.data.type === "ready") {
       ready = true;
+      backend = event.data.backend ?? "wasm";
       preparing = false;
       window.dispatchEvent(new Event("wildz-local-neural-voice-ready"));
       return;
@@ -73,6 +76,10 @@ export function prepareLocalNeuralVoice() {
 
 export function localNeuralVoiceReady() {
   return ready;
+}
+
+export function localNeuralVoiceBackend() {
+  return backend;
 }
 
 /** Renders words already authored by the proof Twin; the renderer has no semantic authority. */

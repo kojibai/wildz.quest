@@ -90,7 +90,7 @@ export function WildsWorldCanvas({
       onDragStart={(event) => event.preventDefault()}
     >
       <Canvas
-        camera={{ fov: 40, near: 0.1, far: 80, position: [4.2, 4.5, 6.6] }}
+        camera={{ fov: 40, near: 0.1, far: 80, position: [4.2, 3.7, 6.6] }}
         dpr={qualityProfile.dpr}
         gl={{ antialias: true, powerPreference: "high-performance" }}
         onCreated={({ gl, size }) => {
@@ -414,7 +414,7 @@ function CameraRig({ onCameraHeadingChange }: { onCameraHeadingChange: (heading:
       minDistance={4.4}
       minPolarAngle={.38}
       rotateSpeed={.62}
-      target={[0, .72, 0]}
+      target={[0, .9, 0]}
       touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE }}
       zoomSpeed={.82}
     />

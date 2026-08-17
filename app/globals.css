@@ -12724,6 +12724,16 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-atlas-zoom button[aria-pressed="true"] { color: #071a1e; background: linear-gradient(145deg, #f7d25b, #6fe6bd); }
 .wilds-atlas-current { position: absolute; right: max(14px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom)); z-index: 3; display: flex; min-height: 38px; align-items: center; gap: 7px; padding: 0 11px; color: #dffdf4; border: 1px solid rgb(131 235 207 / 18%); border-radius: 999px; background: rgb(5 20 27 / 76%); font-size: 10px; font-weight: 850; box-shadow: 0 12px 36px rgb(0 0 0 / 24%); backdrop-filter: blur(15px); }
 .wilds-atlas-current > i { width: 4px; height: 4px; border-radius: 50%; background: #71e8c3; box-shadow: 0 0 10px #71e8c3; }
+.wilds-atlas-intelligence { position: absolute; bottom: max(14px, env(safe-area-inset-bottom)); left: max(14px, env(safe-area-inset-left)); z-index: 3; width: min(264px, calc(100vw - 28px)); padding: 15px; color: #effffb; border: 1px solid rgb(247 210 91 / 34%); border-radius: 21px; background: linear-gradient(145deg, rgb(3 22 27 / 91%), rgb(7 31 34 / 78%)); box-shadow: 0 18px 54px rgb(0 0 0 / 38%); backdrop-filter: blur(18px); }
+.wilds-atlas-intelligence > span { color: #7ee6ad; font-size: 9px; font-weight: 950; letter-spacing: .14em; text-transform: uppercase; }
+.wilds-atlas-intelligence > strong { display: block; margin-top: 5px; font-size: 19px; line-height: 1.05; }
+.wilds-atlas-intelligence > p { margin: 7px 0 11px; color: #a8c4c5; font-size: 11px; line-height: 1.35; }
+.wilds-atlas-mission-meter { height: 5px; overflow: hidden; border-radius: 999px; background: rgb(255 255 255 / 10%); }
+.wilds-atlas-mission-meter > i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #f7d25b, #71e8c3); box-shadow: 0 0 14px rgb(113 232 195 / 55%); }
+.wilds-atlas-intelligence dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 0; }
+.wilds-atlas-intelligence dl > div { min-width: 0; }
+.wilds-atlas-intelligence dt { color: #789aa0; font-size: 8px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.wilds-atlas-intelligence dd { margin: 2px 0 0; color: #fff5b6; font-size: 13px; font-weight: 900; font-variant-numeric: tabular-nums; }
 
 .wilds-atlas-map-label {
   display: flex;
@@ -12763,6 +12773,9 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   .wilds-world-map-header .eyebrow { font-size: 9px; }
   .wilds-atlas-zoom { top: max(94px, calc(env(safe-area-inset-top) + 94px)); left: 10px; }
   .wilds-atlas-current { right: 10px; bottom: max(10px, env(safe-area-inset-bottom)); }
+  .wilds-atlas-intelligence { bottom: max(56px, calc(env(safe-area-inset-bottom) + 48px)); left: 10px; width: min(226px, calc(100vw - 20px)); padding: 11px; border-radius: 17px; }
+  .wilds-atlas-intelligence > strong { font-size: 16px; }
+  .wilds-atlas-intelligence > p { display: none; }
   .wilds-atlas-zoom button { min-height: 34px; padding: 0 8px; font-size: 7.5px; }
   .wilds-atlas-region-name { font-size: 6.5px; letter-spacing: .1em; }
 }

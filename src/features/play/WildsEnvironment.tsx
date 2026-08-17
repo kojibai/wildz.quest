@@ -201,6 +201,26 @@ function MajorWorldRoutes({ player, palette }: { player: PlayState["player"]; pa
 }
 
 function GroundField({ centerX, centerZ, color, player }: { centerX: number; centerZ: number; color: string; player: PlayState["player"] }) {
+  const terrainMap = useMemo(() => {
+    const size = 64;
+    const data = new Uint8Array(size * size * 4);
+    const tint = new THREE.Color(color);
+    for (let y = 0; y < size; y += 1) for (let x = 0; x < size; x += 1) {
+      const grain = .7 + seededUnit(centerX * 193 + centerZ * 389 + x * 17, y * 23) * .3;
+      const vein = Math.abs(Math.sin(x * .23 + y * .31)) < .075 ? .72 : 1;
+      const index = (y * size + x) * 4;
+      data[index] = Math.round(tint.r * 255 * grain * vein);
+      data[index + 1] = Math.round(tint.g * 255 * grain * vein);
+      data[index + 2] = Math.round(tint.b * 255 * grain * vein);
+      data[index + 3] = 255;
+    }
+    const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(5, 5);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.needsUpdate = true;
+    return texture;
+  }, [centerX, centerZ, color]);
   return (
     <mesh
       receiveShadow
@@ -208,7 +228,7 @@ function GroundField({ centerX, centerZ, color, player }: { centerX: number; cen
       rotation={[-Math.PI / 2, 0, 0]}
     >
       <planeGeometry args={[WILDS_TILE_SIZE * 5 + 0.06, WILDS_TILE_SIZE * 5 + 0.06]} />
-      <meshStandardMaterial color={color} roughness={0.92} />
+      <meshStandardMaterial color="#d5efe0" map={terrainMap} roughness={0.96} />
     </mesh>
   );
 }
@@ -265,9 +285,10 @@ function EcologyInstances({
   const shrubScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.56, item.scale * 0.38, item.scale * 0.52], []);
   const rockScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.32, item.scale * 0.21, item.scale * 0.38], []);
   const flowerScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.09, item.scale * 0.22, item.scale * 0.09], []);
-  useInstances(trunks, trees, player, 0.64, treeScale, 7.2);
-  useInstances(lowerCrowns, trees, player, 1.65, crownScale, 7.2);
-  useInstances(upperCrowns, trees, player, 2.16, crownScale, 7.2);
+  const treeClearRadius = Math.hypot(player.x, player.z) < 14 ? 13.6 : 7.2;
+  useInstances(trunks, trees, player, 0.64, treeScale, treeClearRadius);
+  useInstances(lowerCrowns, trees, player, 1.65, crownScale, treeClearRadius);
+  useInstances(upperCrowns, trees, player, 2.16, crownScale, treeClearRadius);
   useInstances(shrubMesh, bushes, player, 0.23, shrubScale, 1.45);
   useInstances(rockMesh, rocks, player, 0.13, rockScale, 1.2);
   useInstances(flowerMesh, flowers, player, 0.15, flowerScale);
@@ -373,23 +394,23 @@ function ArenaOfEchoes({ detail }: { detail: boolean }) {
   }, [detail]);
   const arches = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
   return <group name="mortal-arena-world-anchor">
-    <mesh receiveShadow position={[0, .18, 0]} name="arena-foundation"><cylinderGeometry args={[11.25, 11.7, .36, 64]} /><meshStandardMaterial color="#37352f" metalness={.12} roughness={.94} /></mesh>
-    <mesh receiveShadow position={[0, .39, 0]} name="arena-open-bowl"><cylinderGeometry args={[7.65, 8.15, .28, 64]} /><meshStandardMaterial color="#76684f" metalness={.06} roughness={.88} /></mesh>
-    <mesh position={[0, .455, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[1.25, 7.1, 64]} /><meshStandardMaterial color="#897656" emissive="#4a340d" emissiveIntensity={.11} roughness={.78} /></mesh>
+    <mesh receiveShadow position={[0, .18, 0]} name="arena-foundation"><cylinderGeometry args={[11.25, 11.7, .36, 64]} /><meshStandardMaterial color="#172d2a" metalness={.12} roughness={.94} /></mesh>
+    <mesh receiveShadow position={[0, .39, 0]} name="arena-open-bowl"><cylinderGeometry args={[7.65, 8.15, .28, 64]} /><meshStandardMaterial color="#324c3f" metalness={.06} roughness={.88} /></mesh>
+    <mesh position={[0, .455, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[1.25, 7.1, 64]} /><meshStandardMaterial color="#426653" emissive="#173f31" emissiveIntensity={.16} roughness={.78} /></mesh>
     <instancedMesh args={[undefined, undefined, 20]} ref={proofSeams} name="arena-proof-seams"><boxGeometry args={[1, 1, 1]} /><meshStandardMaterial color="#ffe288" emissive="#f7c948" emissiveIntensity={1.6} metalness={.4} roughness={.28} /></instancedMesh>
     {[7.5, 8.6, 10.35].map((radius, index) => <mesh key={radius} position={[0, .48 + index * .25, 0]} rotation={[Math.PI / 2, 0, 0]}>
       <torusGeometry args={[radius, index === 2 ? .34 : .16, 8, 72]} />
-      <meshStandardMaterial color={index === 2 ? "#35302d" : "#d0b464"} emissive="#f7c948" emissiveIntensity={index === 1 ? .3 : .08} metalness={.24} roughness={.66} />
+      <meshStandardMaterial color={index === 2 ? "#17312d" : "#bfae67"} emissive="#f7c948" emissiveIntensity={index === 1 ? .3 : .08} metalness={.24} roughness={.66} />
     </mesh>)}
     {arches.map((rotation, index) => <group key={rotation} name={`arena-split-arch-${index + 1}`} rotation={[0, rotation, 0]}>
       {[-1, 1].map((side) => <group key={side} position={[side * 2.25, 2.25, -8.15]} rotation={[0, 0, side * -.14]}>
-        <mesh castShadow><cylinderGeometry args={[.42, .72, 4.5, 7]} /><meshStandardMaterial color="#4b443e" metalness={.18} roughness={.78} /></mesh>
-        <mesh position={[side * -.42, 2.1, 0]} rotation={[Math.PI / 2, 0, side * .32]}><torusGeometry args={[1.48, .36, 7, 28, Math.PI * .58]} /><meshStandardMaterial color="#8a784e" emissive="#f7c948" emissiveIntensity={.2} metalness={.22} roughness={.62} /></mesh>
+        <mesh castShadow><cylinderGeometry args={[.42, .72, 4.5, 7]} /><meshStandardMaterial color="#25443c" metalness={.18} roughness={.78} /></mesh>
+        <mesh position={[side * -.42, 2.1, 0]} rotation={[Math.PI / 2, 0, side * .32]}><torusGeometry args={[1.48, .36, 7, 28, Math.PI * .58]} /><meshStandardMaterial color="#8f8357" emissive="#f7c948" emissiveIntensity={.2} metalness={.22} roughness={.62} /></mesh>
         <mesh position={[0, -.55, .39]} scale={[.55, 1.1, .12]}><octahedronGeometry args={[.7, 0]} /><meshStandardMaterial color={index % 2 ? "#ff724f" : "#f7c948"} emissive={index % 2 ? "#ff3d27" : "#f7c948"} emissiveIntensity={.82} roughness={.34} /></mesh>
       </group>)}
       {detail ? <mesh position={[0, 3.35, -9]}><planeGeometry args={[2.8, 1.25]} /><meshStandardMaterial color={index % 2 ? "#5f1d18" : "#332507"} emissive={index % 2 ? "#ff4f37" : "#f7c948"} emissiveIntensity={.25} side={THREE.DoubleSide} roughness={.72} /></mesh> : null}
     </group>)}
-    <instancedMesh args={[undefined, undefined, detail ? 48 : 24]} ref={spectators} name="arena-spectator-silhouettes"><capsuleGeometry args={[1, 2.3, 3, 6]} /><meshStandardMaterial color="#171618" emissive="#6f4912" emissiveIntensity={.22} roughness={.92} /></instancedMesh>
+    <instancedMesh args={[undefined, undefined, detail ? 48 : 24]} ref={spectators} name="arena-spectator-silhouettes"><capsuleGeometry args={[1, 2.3, 3, 6]} /><meshStandardMaterial color="#101c1b" emissive="#1e5941" emissiveIntensity={.22} roughness={.92} /></instancedMesh>
     <mesh position={[0, .62, 0]} rotation={[-Math.PI / 2, 0, 0]} name="arena-canonical-seal"><torusGeometry args={[1.1, .095, 8, 48]} /><meshStandardMaterial color="#fff0a8" emissive="#f7c948" emissiveIntensity={1.8} metalness={.46} roughness={.22} /></mesh>
     <pointLight color="#f7c948" distance={18} intensity={detail ? 5.2 : 3.2} position={[0, 4.8, 0]} />
     <pointLight color="#ff4f37" distance={10} intensity={detail ? 2.4 : 1.2} position={[0, 2.4, -7]} />

@@ -149,6 +149,9 @@ export function CreatureConsciousnessPanel({
 
   const completeFromLocalProofTwin = async (message: string, run: number, voiceStream: ReturnType<typeof beginCreatureVoiceStream> | null) => {
     const reply = proofGroundedCreatureReply(brain, message, kaiMoment.uPulse);
+    // The full deterministic answer is already known. Start local acoustic
+    // rendering immediately while the same words reveal progressively in UI.
+    voiceStream?.pushText(reply);
     const chunks = reply.match(/\S+\s*/g) ?? [reply];
     let streamed = "";
     for (let index = 0; index < chunks.length; index += 3) {
@@ -157,7 +160,6 @@ export function CreatureConsciousnessPanel({
       const delta = chunks.slice(index, index + 3).join("");
       streamed += delta;
       setStreamingExchange((current) => current ? { ...current, reply: streamed } : current);
-      voiceStream?.pushText(delta);
     }
     const latestProofTime = Math.max(Date.parse(asset.proof.sealedAt), Date.parse(asset.manifest.capturedAt));
     const turn = createObservedCreatureTurn({
