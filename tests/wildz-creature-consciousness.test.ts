@@ -229,10 +229,12 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
 
   assert.match(route, /resolveWildzCookieActor\(request\)/);
   assert.match(route, /createReceizClient/);
-  assert.match(route, /actor\.accessToken/);
+  assert.match(route, /actor\.accessToken \? \{ accessToken: actor\.accessToken \} : \{\}/);
+  assert.doesNotMatch(route, /if \(!actor\.accessToken\) throw new Error\("receiz_authority_required"\)/);
   assert.match(route, /receiz\.subjects\.twin\.message\(input\.card\.id/);
-  assert.match(route, /receiz\.world\.message\(actor\.profileHandle/);
-  assert.match(route, /Promise\.any\(\[exactSubjectTwin, receizIdTwinObserver\]\)/);
+  assert.match(route, /receiz\.world\.message\(actor\.actorId/);
+  assert.match(route, /exactSubjectTwin[\s\S]*\[exactSubjectTwin, receizIdTwinObserver\][\s\S]*\[receizIdTwinObserver\]/);
+  assert.match(route, /Promise\.any\(observerRequests\)/);
   assert.match(route, /contextHead: proofContext\.head\.subjectHead/);
   assert.match(route, /expectedSubjectDigest: proofContext\.head\.subjectDigest/);
   assert.doesNotMatch(route, /RECEIZ_CONNECT_ACCESS_TOKEN|CREATURE_TWIN_HANDLE/);

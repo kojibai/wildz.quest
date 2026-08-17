@@ -35,13 +35,12 @@ export async function POST(request: NextRequest) {
     const brain = projectCreatureBrain(input.card);
     const presentKaiMoment = creatureObserverMomentContext(input.kai, brain);
     const actor = await resolveWildzCookieActor(request);
-    if (!actor.accessToken) throw new Error("receiz_authority_required");
     if (actor.actorId !== input.card.manifest.ownerReceizId) {
       throw new Error("creature_observer_owner_mismatch");
     }
     const receiz = createReceizClient({
       ...(process.env.RECEIZ_BASE_URL ? { baseUrl: process.env.RECEIZ_BASE_URL } : {}),
-      accessToken: actor.accessToken
+      ...(actor.accessToken ? { accessToken: actor.accessToken } : {})
     });
     const clientOperationId = input.clientUserMessageId ?? `creature-message:${brain.contextDigest.slice(7, 39)}`;
     const subjectObservation = await observeCreatureThroughReceizV120({
@@ -56,7 +55,7 @@ export async function POST(request: NextRequest) {
           `Present Kai causal context: ${JSON.stringify(observerContext.presentKaiMoment)}`,
           `The owner says: ${input.message}`
         ].join("\n\n");
-        const exactSubjectTwin = receiz.subjects.twin.message(input.card.id, {
+        const exactSubjectTwin = actor.accessToken ? receiz.subjects.twin.message(input.card.id, {
             message: groundedMessage,
             ownerReceizId: actor.actorId,
             threadKey: creatureObserverThreadKey(input.card.id),
@@ -81,8 +80,8 @@ export async function POST(request: NextRequest) {
               speech: normalizeCreatureTwinReply(response.spokenResponse),
               performance: response.performance ?? {}
             };
-          });
-        const receizIdTwinObserver = receiz.world.message(actor.profileHandle, {
+          }) : null;
+        const receizIdTwinObserver = receiz.world.message(actor.actorId, {
           action: "message",
           message: input.message,
           visitorKey: creatureObserverVisitorKey(actor.actorId),
@@ -112,8 +111,11 @@ export async function POST(request: NextRequest) {
             performance: {}
           };
         });
+        const observerRequests = exactSubjectTwin
+          ? [exactSubjectTwin, receizIdTwinObserver]
+          : [receizIdTwinObserver];
         const observed = await Promise.race([
-          Promise.any([exactSubjectTwin, receizIdTwinObserver]),
+          Promise.any(observerRequests),
           new Promise<never>((_, reject) => setTimeout(() => reject(new Error("creature_observer_timeout")), 24_000))
         ]).catch(() => null);
         if (!observed) throw new Error("creature_observer_intelligence_unavailable");

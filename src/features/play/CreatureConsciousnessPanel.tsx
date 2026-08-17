@@ -42,7 +42,7 @@ function emitCreatureMouthMotion(assetId: string, openness: number) {
 
 function observerError(error: string | undefined) {
   if (error === "receiz_authority_required" || error === "receiz_profile_required" || error === "receiz_identity_key_required") {
-    return "Connect your Receiz ID so this creature can reach its Twin observer.";
+    return "Wildz could not verify the active Receiz identity for this card. Reopen your Identity Seal or Vault and try again.";
   }
   if (error === "creature_observer_owner_mismatch") {
     return "This creature can answer only through its current owner's Receiz ID.";
