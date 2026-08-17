@@ -58,6 +58,10 @@ test("a verified same-device bearer transfer removes the card when the previous 
   assert.deepEqual(locallyTransferredWildzAssetIds(storage, "new_owner", [asset.id]), []);
   assert.deepEqual(locallyClaimedWildzAssetIds(storage, "new_owner", [asset.id]), [asset.id]);
   assert.deepEqual(locallyClaimedWildzAssetIds(storage, "old_owner", [asset.id]), []);
+
+  recordLocalWildzOwnershipTransfer(storage, "new_owner.receiz.id", [asset.id], "2026-08-16T12:00:01.000Z", "published");
+  assert.deepEqual(locallyClaimedWildzAssetIds(storage, "new_owner", [asset.id]), []);
+  assert.deepEqual(locallyTransferredWildzAssetIds(storage, "old_owner", [asset.id]), [asset.id]);
 });
 
 test("ownership reconciliation requests are exact and bounded", () => {
@@ -126,6 +130,7 @@ test("owned Vault uploads merge directly while foreign bearer artifacts claim fi
   assert.match(claimPath, /inspectWildzRestore\(file\)/);
   assert.match(claimPath, /wildzVaultUploadDisposition\(inspection, current\.session\.actorId\)/);
   assert.match(claimPath, /const restoreVerifiedBaseline = async/);
+  assert.match(claimPath, /const artifactAssetIds = inspection\.assets\.map/);
   assert.match(claimPath, /return restoreVerifiedBaseline\(\)/);
   assert.match(claimPath, /disposition === "merge-owned"/);
   assert.match(claimPath, /connectWildzProofSession\(current\.session, \{ vaultAdmission: admission \}\)/);
@@ -211,6 +216,8 @@ test("cross-device active Vault invalidation checks the admitted projection ever
   assert.match(shell, /reconcileInFlight/);
   assert.match(shell, /fetch\("\/api\/market\/ownership\/reconcile"/);
   assert.match(shell, /JSON\.stringify\(\{\s*assetIds\s*\}\)/);
+  assert.match(shell, /pendingBearerClaims/);
+  assert.match(shell, /filter\(\(assetId\) => !pendingBearerClaims\.has\(assetId\)\)/);
   assert.match(shell, /removeLostVaultAssets\(result\.lostAssetIds(?: as string\[\])?\)/);
   assert.match(shell, /window\.setInterval\([\s\S]*WILDZ_OWNERSHIP_RECONCILE_INTERVAL_MS/);
   assert.match(shell, /window\.addEventListener\("focus"/);

@@ -3,7 +3,13 @@ import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordin
 
 const LOCAL_TRANSFER_KEY = "receiz:wildz:ownership-transfers:v119";
 
-type LocalOwnershipTransfers = Record<string, { ownerActorId: string; witnessedAt: string }>;
+type LocalOwnershipTransfer = {
+  ownerActorId: string;
+  witnessedAt: string;
+  projection: "pending" | "published";
+};
+
+type LocalOwnershipTransfers = Record<string, LocalOwnershipTransfer>;
 
 function readLocalTransfers(storage: Pick<Storage, "getItem">): LocalOwnershipTransfers {
   try {
@@ -14,7 +20,12 @@ function readLocalTransfers(storage: Pick<Storage, "getItem">): LocalOwnershipTr
       && transfer && typeof transfer === "object" && !Array.isArray(transfer)
       && typeof (transfer as { ownerActorId?: unknown }).ownerActorId === "string"
       && typeof (transfer as { witnessedAt?: unknown }).witnessedAt === "string"
-    ))) as LocalOwnershipTransfers;
+    )).map(([assetId, transfer]) => [assetId, {
+      ownerActorId: (transfer as { ownerActorId: string }).ownerActorId,
+      witnessedAt: (transfer as { witnessedAt: string }).witnessedAt,
+      // v119 records written before projection tracking represent local fallback claims.
+      projection: (transfer as { projection?: unknown }).projection === "published" ? "published" : "pending"
+    }])) as LocalOwnershipTransfers;
   } catch {
     return {};
   }
@@ -24,10 +35,11 @@ export function recordLocalWildzOwnershipTransfer(
   storage: Pick<Storage, "getItem" | "setItem">,
   ownerActorId: string,
   assetIds: readonly string[],
-  witnessedAt = new Date().toISOString()
+  witnessedAt = new Date().toISOString(),
+  projection: LocalOwnershipTransfer["projection"] = "pending"
 ) {
   const current = readLocalTransfers(storage);
-  for (const assetId of assetIds) current[assetId] = { ownerActorId, witnessedAt };
+  for (const assetId of assetIds) current[assetId] = { ownerActorId, witnessedAt, projection };
   const bounded = Object.fromEntries(Object.entries(current)
     .sort((left, right) => right[1].witnessedAt.localeCompare(left[1].witnessedAt))
     .slice(0, 2_000));
@@ -55,7 +67,9 @@ export function locallyClaimedWildzAssetIds(
   const transfers = readLocalTransfers(storage);
   return assetIds.filter((assetId) => {
     const transfer = transfers[assetId];
-    return Boolean(transfer && sameWildzPlayerCoordinate(transfer.ownerActorId, ownerActorId));
+    return Boolean(transfer
+      && transfer.projection === "pending"
+      && sameWildzPlayerCoordinate(transfer.ownerActorId, ownerActorId));
   });
 }
 

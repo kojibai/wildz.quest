@@ -616,6 +616,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     const current = continuityRef.current;
     if (!current) throw new Error("wildz_restore_identity_missing");
     const disposition = wildzVaultUploadDisposition(inspection, current.session.actorId);
+    const artifactAssetIds = inspection.assets.map((asset) => asset.id);
     const restoreVerifiedBaseline = async () => {
       const outcome = await restoreArtifact(
         file,
@@ -628,7 +629,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         recordLocalWildzOwnershipTransfer(
           window.localStorage,
           outcome.session.actorId,
-          outcome.verifiedAssetIds
+          artifactAssetIds
         );
       }
       return outcome;
@@ -697,7 +698,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     recordLocalWildzOwnershipTransfer(
       window.localStorage,
       outcome.session.actorId,
-      outcome.verifiedAssetIds
+      artifactAssetIds,
+      new Date().toISOString(),
+      "published"
     );
     return outcome;
   }, [proofSessionConnected, restoreArtifact]);
@@ -770,9 +773,13 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     const reconcileActiveVaultOwnership = async () => {
       if (disposed || reconcileInFlight || document.visibilityState === "hidden") return;
       const current = continuityRef.current;
-      const assetIds = current?.playState?.inventory
-        .slice(0, WILDZ_OWNERSHIP_RECONCILE_MAX_ASSETS)
-        .map((asset) => asset.id) ?? [];
+      const activeAssetIds = current?.playState?.inventory.map((asset) => asset.id) ?? [];
+      const pendingBearerClaims = new Set(current
+        ? locallyClaimedWildzAssetIds(window.localStorage, current.session.actorId, activeAssetIds)
+        : []);
+      const assetIds = activeAssetIds
+        .filter((assetId) => !pendingBearerClaims.has(assetId))
+        .slice(0, WILDZ_OWNERSHIP_RECONCILE_MAX_ASSETS);
       if (!current || !assetIds.length) return;
       const requestedActorId = current.session.actorId;
       reconcileInFlight = true;
