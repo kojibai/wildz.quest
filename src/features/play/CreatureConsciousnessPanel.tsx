@@ -20,6 +20,7 @@ import {
   unlockCreatureVoice,
   type CreatureVoiceChunk
 } from "./creature-voice-playback";
+import { prepareLocalNeuralVoice } from "./local-neural-voice";
 
 type ObserverResponse = {
   ok?: boolean;
@@ -117,6 +118,9 @@ export function CreatureConsciousnessPanel({
 
   useEffect(() => {
     mounted.current = true;
+    // The acoustic payload initializes in its own worker while the owner reads
+    // the creature panel; response generation and gameplay never await it.
+    prepareLocalNeuralVoice();
     return () => {
       mounted.current = false;
       voiceRun.current += 1;
@@ -264,6 +268,9 @@ export function CreatureConsciousnessPanel({
       const proofTwinCanRecover = code === "creature_observer_unavailable"
         || code === "creature_observer_intelligence_unavailable"
         || code === "creature_observer_timeout"
+        || code === "receiz_authority_required"
+        || code === "receiz_profile_required"
+        || code === "receiz_identity_key_required"
         || cause instanceof TypeError;
       if (proofTwinCanRecover && mounted.current && run === voiceRun.current) {
         try {

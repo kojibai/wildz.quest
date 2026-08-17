@@ -8,7 +8,7 @@ import {
   publicCardPublicationQueueCooperatively
 } from "../src/features/play/use-public-card-publisher.js";
 
-test("Vault-admitted cards never enter the post-upload publication path", () => {
+test("verified card publication is not gated by stale upload bookkeeping", () => {
   const uploaded = sealCollectedCard({
     formId: "voltray-1",
     ownerReceizId: "publisher",
@@ -36,6 +36,12 @@ test("Vault-admitted cards never enter the post-upload publication path", () => 
     ).map((asset) => asset.id),
     [caught.id]
   );
+});
+
+test("the live campaign publishes every currently owned verified card off the gameplay hot path", () => {
+  const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
+  assert.match(campaign, /usePublicCardPublisher\(deckCards, enabled && networkEnabled\)/);
+  assert.doesNotMatch(campaign, /usePublicCardPublisher\(publicCardCandidates/);
 });
 
 test("Vault restore clears verified upload ids before committing publisher state", () => {

@@ -88,11 +88,11 @@ The implementation guarantees a deterministic proof-grounded Twin observation fo
 - Creature voice identity is deterministic from the exact asset/genome fingerprint.
 - The observer uses the v120 local living-subject runtime over the exact admitted proof objects. Owner, subject ID, context digest, client message ID, and Kai moment bind the observation.
 - Proof signature plus exact birth timestamp establishes vocal anatomy; current Kai `uPulse` contributes only bounded performance variation.
-- The browser loads no neural model, ONNX runtime, or voice binary and needs no voice warm-up.
-- The client constructs the audible voice locally through deterministic glottal/noise excitation and vocal-tract formant filters. An early matching v120 `audioB64u` primitive may contribute only bounded duration/emphasis data; its waveform never replaces the proof voice.
+- The PWA prepares an integrity-pinned q8 acoustic graph, tokenizer, two timbre vectors, and one-thread ONNX/WASM runtime in background storage. Runtime model discovery is disabled and no provider is contacted for acoustic rendering.
+- The conversation surface initializes that payload inside a dedicated worker before Send when possible. The ready worker renders proof-authored phrases into human PCM; the compact deterministic glottal/formant instrument remains the immediate local acoustic floor while installation is incomplete.
 - Actual waveform analysis drives mouth openness; expression state drives eyes, ears, tail, aura, posture, and gesture.
 - Voice playback is non-authoritative and cannot gate, rewrite, reorder, or erase the exact-head conversation-memory append. No device-selected generic voice is used.
-- No voice provider environment variable, provider-session route, provider socket, browser neural dependency, warm-up, or player-visible enrichment failure remains.
+- No voice provider environment variable, provider-session route, provider socket, remote model loading, response/memory warm-up gate, or player-visible enrichment failure remains.
 
 ## V7 care and PWA evidence
 

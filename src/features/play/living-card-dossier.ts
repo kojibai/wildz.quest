@@ -77,6 +77,11 @@ export type LivingCardDossier = {
   canonicalProofJson: string;
 };
 
+export type LivingCardStory = Readonly<{
+  full: string;
+  excerpt: string;
+}>;
+
 export function compactProofFingerprint(value: string) {
   if (value.length <= 32) return value;
   return `${value.slice(0, 19)}…${value.slice(-8)}`;
@@ -90,14 +95,33 @@ function battleRole(stats: CreatureStats) {
   return strongest === "guard" || strongest === "health" ? "Guardian" : strongest === "speed" ? "Swift scout" : strongest === "power" ? "Striker" : "Bond keeper";
 }
 
-function storyFor(asset: PortableCardAsset, temperament: string, gesture: string) {
+function storyFor(asset: PortableCardAsset, temperament: string, gesture: string, posture: string): LivingCardStory {
   const habitat = creatureForm(asset.manifest.formId)?.habitat ?? "Wilds";
+  const nature = title(temperament).toLowerCase();
+  const signal = title(gesture).toLowerCase();
+  const presence = title(posture).toLowerCase();
   if (isLivingCardAsset(asset) && asset.manifest.birth.kind === "fusion") {
     const parents = asset.manifest.lineage.parentAssetIds ?? [];
-    return `${asset.manifest.name} was born where two living lineages met beneath the ${habitat} Kai Pulse. Traits from both parents—${parents.join(" and ")}—became a new independent companion with a ${temperament.toLowerCase()} heart. Watch for the ${title(gesture)}: it is how this one-of-one character chooses to say, “I am here with you.”`;
+    return {
+      excerpt: `${asset.manifest.name} carries two living lineages into the ${habitat}. Its ${nature} heart, ${presence} presence, and ${signal} make every bond a story only this companion can tell.`,
+      full: `${asset.manifest.name} was born where two living lineages met beneath the ${habitat} Kai Pulse. Traits from both parents—${parents.join(" and ")}—became a new independent companion with a ${nature} heart. Watch for the ${title(gesture)}: it is how this one-of-one character chooses to say, “I am here with you.”`
+    };
   }
   const moment = new Date(asset.manifest.capturedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
-  return `${asset.manifest.name} first answered your signal in the ${habitat} on ${moment}. Its ${temperament.toLowerCase()} nature comes through in every ${title(gesture).toLowerCase()}, and each earned battle, journey, and bond moment now extends the same living history instead of replacing the companion you met.`;
+  return {
+    excerpt: `${asset.manifest.name} is a ${nature} spirit of the ${habitat}. With a ${presence} presence and a signature ${signal}, it turns trust into a living story no other companion could carry.`,
+    full: `${asset.manifest.name} first answered your signal in the ${habitat} on ${moment}. Its ${nature} nature comes through in every ${signal}, and each earned battle, journey, and bond moment now extends the same living history instead of replacing the companion you met.`
+  };
+}
+
+export function projectLivingCardStory(asset: PortableCardAsset): LivingCardStory {
+  const form = creatureForm(asset.manifest.formId);
+  if (!form) throw new Error("wilds_dossier_form_unknown");
+  const genome = isLivingCardAsset(asset)
+    ? currentLivingGenome(asset)
+    : deriveBirthGenome({ formId: asset.manifest.formId, proofDigest: asset.proof.digest, variant: asset.manifest.variant.traits });
+  const identity = identityForGenome(genome, asset.proof.digest);
+  return storyFor(asset, genome.face.expressionSet, identity.behavior.gesture, identity.behavior.posture);
 }
 
 export function safePublicProofObject(asset: PortableCardAsset) {
@@ -176,7 +200,7 @@ export function projectLivingCardDossier(asset: PortableCardAsset, origin: strin
     statShift: []
   };
   return {
-    story: storyFor(asset, temperament, gesture),
+    story: storyFor(asset, temperament, gesture, identity.behavior.posture).full,
     birth,
     personality: {
       motivations: [

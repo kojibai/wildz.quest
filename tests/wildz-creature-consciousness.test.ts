@@ -236,6 +236,8 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
   const panel = readFileSync("src/features/play/CreatureConsciousnessPanel.tsx", "utf8");
   const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
   const voicePlayback = readFileSync("src/features/play/creature-voice-playback.ts", "utf8");
+  const localVoice = readFileSync("src/features/play/local-neural-voice.ts", "utf8");
+  const localVoiceWorker = readFileSync("src/features/play/local-neural-voice.worker.ts", "utf8");
   const cookieActor = readFileSync("src/lib/receiz/wildz-cookie-actor.ts", "utf8");
   const card = readFileSync("src/features/play/WildsCard.tsx", "utf8");
   const css = readFileSync("app/globals.css", "utf8");
@@ -280,7 +282,7 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
   assert.doesNotMatch(route, /reply_preview/);
   assert.match(route, /export const maxDuration = 90/);
   assert.match(panel, /record-creature-observation|onObserved/);
-  assert.doesNotMatch(panel, /speechSynthesis|NeuralVoice|native character voice/i);
+  assert.doesNotMatch(panel, /speechSynthesis|native character voice/i);
   assert.match(panel, /unlockCreatureVoice\(\)/);
   assert.match(panel, /beginCreatureVoiceStream\(asset\.id, brain\.performance\.neuralInterface, \{/);
   assert.match(panel, /birthMomentMs: Date\.parse\(asset\.manifest\.capturedAt\)/);
@@ -288,6 +290,8 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
   assert.match(panel, /voiceStream\?\.pushAudio\(event\)/);
   assert.match(panel, /event\.type === "reply_reset"/);
   assert.match(panel, /voiceStream\.completed\.then\(\(played\)/);
+  assert.match(panel, /code === "receiz_authority_required"/);
+  assert.doesNotMatch(panel, /proofTwinCanRecover[\s\S]{0,320}creature_observer_owner_mismatch/);
   assert.match(panel, /onObserved\(result\.turn\)/);
   assert.match(panel, /setStreamingExchange/);
   assert.doesNotMatch(panel, /unique neural voice could not play|No substitute voice|enrichment unavailable/i);
@@ -297,7 +301,7 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
   assert.match(panel, /wildz-creature-mouth/);
   assert.match(voicePlayback, /decodeAudioData\(bytes\.slice\(0\)\)/);
   assert.match(voicePlayback, /source\.playbackRate\.value = 1/);
-  assert.match(voicePlayback, /source\.detune\.value = 0/);
+  assert.match(voicePlayback, /Math\.log2\(neural\.pitch\)/);
   assert.match(voicePlayback, /remote waveform is not played|never replaces the creature's audible proof voice/i);
   assert.match(voicePlayback, /getByteTimeDomainData/);
   assert.match(voicePlayback, /wildz-creature-voice-latency/);
@@ -312,6 +316,12 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
   assert.match(voicePlayback, /receiz-proof-source-filter/);
   assert.match(voicePlayback, /requestAnimationFrame\(animate\)/);
   assert.doesNotMatch(voicePlayback, /projectCreatureBrain|kokoro|onnx|transformers|speechSynthesis|WebSocket|elevenlabs/i);
+  assert.match(localVoice, /new Worker\(new URL\(/);
+  assert.match(localVoice, /momentCadence/);
+  assert.match(localVoiceWorker, /allowRemoteModels = false/);
+  assert.match(localVoiceWorker, /numThreads = 1/);
+  assert.match(localVoiceWorker, /device: "wasm"/);
+  assert.doesNotMatch(localVoiceWorker, /fetch\(["'`]https?:\/\//);
   assert.match(cookieActor, /Read-only gameplay uses the already authenticated proof session directly/);
   const nextConfig = readFileSync("next.config.mjs", "utf8");
   assert.match(nextConfig, /script-src 'self' blob:/);

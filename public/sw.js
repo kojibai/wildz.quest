@@ -1,5 +1,6 @@
 const WILDZ_APPLY_UPDATE_MESSAGE = "WILDZ_APPLY_UPDATE";
 const WILDZ_CARE_SCHEDULE_MESSAGE = "WILDZ_CARE_SCHEDULE";
+const WILDZ_PREPARE_LOCAL_VOICE_MESSAGE = "WILDZ_PREPARE_LOCAL_VOICE";
 const CARE_SCHEDULE_CACHE = "wildz-private-care-schedule-v1";
 const CARE_SCHEDULE_URL = "/__wildz/private-care-schedule";
 const CARE_LEVELS = new Set(["needs-care", "urgent", "sick", "dead"]);
@@ -7,6 +8,20 @@ const release = new URL(self.location.href).searchParams.get("release") || "v3.0
 const SHELL_CACHE = `wildz-shell-${release}`;
 const PUBLIC_CACHE = `wildz-public-${release}`;
 const AUDIO_CACHE = "wildz-audio-dcf17ad4caf7";
+const LOCAL_VOICE_CACHE = "wildz-local-proof-voice-kokoro82m-q8-v1";
+const LOCAL_VOICE_URLS = [
+  "/models/onnx-community/Kokoro-82M-v1.0-ONNX/config.json",
+  "/models/onnx-community/Kokoro-82M-v1.0-ONNX/tokenizer.json",
+  "/models/onnx-community/Kokoro-82M-v1.0-ONNX/tokenizer_config.json",
+  "/models/onnx-community/Kokoro-82M-v1.0-ONNX/wildz-manifest.json",
+  "/models/onnx-community/Kokoro-82M-v1.0-ONNX/onnx/model_quantized.onnx",
+  "/models/onnx-community/Kokoro-82M-v1.0-ONNX/voices/af_heart.bin",
+  "/models/onnx-community/Kokoro-82M-v1.0-ONNX/voices/am_michael.bin",
+  "/vendor/onnxruntime/ort-wasm-simd-threaded.mjs",
+  "/vendor/onnxruntime/ort-wasm-simd-threaded.wasm",
+  "/vendor/onnxruntime/ort-wasm-simd-threaded.jsep.mjs",
+  "/vendor/onnxruntime/ort-wasm-simd-threaded.jsep.wasm"
+];
 const SHELL_URLS = [
   "/",
   "/offline",
@@ -37,6 +52,11 @@ function isWildzAudio(pathname) {
   return pathname.startsWith("/audio/wildz/");
 }
 
+function isLocalVoiceAsset(pathname) {
+  return pathname.startsWith("/models/onnx-community/Kokoro-82M-v1.0-ONNX/")
+    || pathname.startsWith("/vendor/onnxruntime/");
+}
+
 function matchesPrefix(pathname, prefix) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
@@ -51,6 +71,7 @@ function classifyWildzRequest(request, url = new URL(request.url)) {
     return "shell";
   }
   if (isWildzAudio(url.pathname)) return "audio";
+  if (isLocalVoiceAsset(url.pathname)) return "local-voice";
   if (request.mode === "navigate" && PUBLIC_DOCUMENT.test(url.pathname)) return "public-document";
   if (request.credentials === "omit" && PUBLIC_PROFILE_GET.test(url.pathname)) return "public-profile-get";
   if (CARD_GET.test(url.pathname)) return "card-get";
@@ -127,8 +148,8 @@ async function activateCurrentCaches() {
   await Promise.all(keys
     .filter((key) => (
       key.startsWith("wildz-shell-") || key.startsWith("wildz-public-")
-      || key.startsWith("wildz-audio-")
-    ) && key !== SHELL_CACHE && key !== PUBLIC_CACHE && key !== AUDIO_CACHE)
+      || key.startsWith("wildz-audio-") || key.startsWith("wildz-local-proof-voice-")
+    ) && key !== SHELL_CACHE && key !== PUBLIC_CACHE && key !== AUDIO_CACHE && key !== LOCAL_VOICE_CACHE)
     .map((key) => caches.delete(key)));
   await self.clients.claim();
 }
@@ -218,6 +239,29 @@ async function audioCacheFirst(request) {
   }
 }
 
+async function localVoiceCacheFirst(request) {
+  const cache = await caches.open(LOCAL_VOICE_CACHE);
+  const cached = await cache.match(request);
+  if (cached) return cached;
+  const response = await fetch(request);
+  if (isBaseCacheable(response)) await cache.put(request, response.clone());
+  return response;
+}
+
+async function prepareLocalVoicePayload() {
+  const cache = await caches.open(LOCAL_VOICE_CACHE);
+  for (const pathname of LOCAL_VOICE_URLS) {
+    const request = new Request(`${self.location.origin}${pathname}`, {
+      cache: "reload",
+      credentials: "omit"
+    });
+    if (await cache.match(request)) continue;
+    const response = await fetch(request);
+    if (!isBaseCacheable(response)) throw new Error("wildz_local_voice_payload_unavailable");
+    await cache.put(request, response);
+  }
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(installPublicShell());
 });
@@ -258,6 +302,9 @@ self.addEventListener("message", (event) => {
         headers: { "content-type": "application/json", "cache-control": "no-store" }
       }));
     })());
+  }
+  if (event.data?.type === WILDZ_PREPARE_LOCAL_VOICE_MESSAGE) {
+    event.waitUntil(prepareLocalVoicePayload());
   }
 });
 
@@ -323,6 +370,9 @@ self.addEventListener("fetch", (event) => {
       return;
     case "audio":
       event.respondWith(audioCacheFirst(request));
+      return;
+    case "local-voice":
+      event.respondWith(localVoiceCacheFirst(request));
       return;
     default:
       event.respondWith(networkOnly(request));

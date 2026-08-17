@@ -108,6 +108,7 @@ import {
 } from "@/features/play/trainer-encounter";
 import { creatureCareNotificationSchedule, WILDZ_CARE_PERIODIC_TAG } from "@/features/pwa/creature-care-schedule";
 import { WILDZ_CARE_NOTIFICATIONS_READY, WILDZ_CARE_SCHEDULE_MESSAGE } from "@/features/pwa/pwa-events";
+import { usePublicCardPublisher } from "@/features/play/use-public-card-publisher";
 
 const WildsWorldCanvas = dynamic(
   () => import("@/features/play/WildsWorldCanvas").then((mod) => mod.WildsWorldCanvas),
@@ -283,6 +284,11 @@ export function PlayCampaign({
   const activeCard = selectedCard(state);
   const activeAsset = selectedAsset(state);
   const deckCards = state.inventory;
+  // Public card pages and the QR printed into card artifacts resolve from the
+  // verified public projection. Publish every currently owned, valid proof in
+  // cooperative background batches; this is deliberately outside input,
+  // capture, movement, restore, and card-export hot paths.
+  usePublicCardPublisher(deckCards, enabled && networkEnabled);
   const priorVaultIdsRef = useRef(new Set(state.inventory.map((asset) => asset.id)));
   const [newRosterAssetId, setNewRosterAssetId] = useState<string | null>(null);
   const [initialVaultAdmission] = useState<WildzVaultCardAdmission>(() => deriveWildzVaultCardAdmission({

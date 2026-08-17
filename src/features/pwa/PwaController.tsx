@@ -5,7 +5,8 @@ import {
   pwaControllerChangeAction,
   WILDZ_CARE_NOTIFICATIONS_READY,
   WILDZ_ENABLE_CARE_NOTIFICATIONS,
-  WILDZ_APPLY_UPDATE_MESSAGE
+  WILDZ_APPLY_UPDATE_MESSAGE,
+  WILDZ_PREPARE_LOCAL_VOICE_MESSAGE
 } from "@/features/pwa/pwa-events";
 
 type BeforeInstallPromptEvent = Event & {
@@ -97,7 +98,7 @@ export function PwaController() {
 
     const handleUpdateFound = () => watchWorker(registration?.installing ?? null);
     const register = () => {
-      const release = process.env.NEXT_PUBLIC_WILDZ_SW_RELEASE ?? "v7.0.0-r1";
+      const release = process.env.NEXT_PUBLIC_WILDZ_SW_RELEASE ?? "v7.0.0-r2";
       const workerUrl = `/sw.js?release=${encodeURIComponent(release)}`;
       void navigator.serviceWorker.register(workerUrl, {
         scope: "/",
@@ -112,6 +113,13 @@ export function PwaController() {
         }
         registration.addEventListener("updatefound", handleUpdateFound);
         watchWorker(registration.installing);
+        const voiceWorker = activeRegistration.active ?? navigator.serviceWorker.controller;
+        if (voiceWorker) {
+          // Download-only preparation runs after app registration and never
+          // participates in capture, identity, movement, or response timing.
+          voiceWorker.postMessage({ type: WILDZ_PREPARE_LOCAL_VOICE_MESSAGE });
+          void navigator.storage?.persist?.().catch(() => false);
+        }
       }).catch(() => {
         // Wildz remains browser-usable when installability is unavailable.
       });

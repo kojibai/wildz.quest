@@ -5,6 +5,11 @@ import {
   KAI_BREATH_INHALE_SHARE,
   KAI_PULSE_DURATION_MS
 } from "./kai-klok-moment";
+import {
+  localNeuralVoiceReady,
+  prepareLocalNeuralVoice,
+  renderLocalNeuralVoice
+} from "./local-neural-voice";
 
 let sharedAudioContext: AudioContext | null = null;
 let activeStreamCancel: (() => void) | null = null;
@@ -178,6 +183,43 @@ function synthesizeProofVoice(
   return buffer;
 }
 
+function conditionNeuralVoice(
+  samples: Float32Array,
+  sampleRate: number,
+  profile: ProofVoiceProfile,
+  speakingMoment: SpeakingMoment
+) {
+  const initialBreathPhase = (Math.trunc(speakingMoment.uPulse) % 1_000_000) / 1_000_000;
+  const breathCycleSeconds = KAI_PULSE_DURATION_MS / 1_000;
+  const fadeSamples = Math.max(1, Math.round(sampleRate * .008));
+  const momentSeed = (Math.trunc(speakingMoment.uPulse) ^ profile.seed) >>> 0;
+  const momentPresence = .985 + (momentSeed % 31) / 1_000;
+  for (let index = 0; index < samples.length; index += 1) {
+    const phase = (initialBreathPhase + index / sampleRate / breathCycleSeconds) % 1;
+    const goldenBreath = phase < KAI_BREATH_INHALE_SHARE
+      ? .94 + Math.sin(phase / KAI_BREATH_INHALE_SHARE * Math.PI / 2) * .06
+      : 1 - Math.sin((phase - KAI_BREATH_INHALE_SHARE)
+        / (1 - KAI_BREATH_INHALE_SHARE) * Math.PI / 2) * .06;
+    const fadeIn = Math.min(1, index / fadeSamples);
+    const fadeOut = Math.min(1, (samples.length - index - 1) / fadeSamples);
+    samples[index] *= goldenBreath * momentPresence * Math.max(0, Math.min(fadeIn, fadeOut));
+  }
+  return samples;
+}
+
+function nextNeuralPhraseEnd(text: string, cursor: number, final: boolean) {
+  const remaining = text.slice(cursor);
+  if (!remaining) return cursor;
+  if (final) return Math.min(text.length, cursor + 280);
+  const bounded = remaining.slice(0, 280);
+  let punctuationEnd = -1;
+  for (const match of bounded.matchAll(/[.!?;:](?:\s|$)/g)) punctuationEnd = (match.index ?? 0) + match[0].length;
+  if (punctuationEnd >= 24) return cursor + punctuationEnd;
+  if (remaining.length < 150) return cursor;
+  const wordEnd = bounded.lastIndexOf(" ", 220);
+  return cursor + (wordEnd >= 80 ? wordEnd + 1 : Math.min(220, bounded.length));
+}
+
 function audioContext() {
   if (sharedAudioContext && sharedAudioContext.state !== "closed") return sharedAudioContext;
   const Constructor = window.AudioContext
@@ -319,13 +361,15 @@ export function beginCreatureVoiceStream(
   const scheduleBuffer = (
     buffer: AudioBuffer,
     graph: Awaited<ReturnType<typeof ensureGraph>>,
-    engine: "receiz-proof-source-filter"
+    engine: "receiz-proof-source-filter" | "receiz-proof-neural-offline"
   ) => {
       if (settled || signal.aborted) return;
       const source = graph.context.createBufferSource();
       source.buffer = buffer;
       source.playbackRate.value = 1;
-      source.detune.value = 0;
+      source.detune.value = engine === "receiz-proof-neural-offline"
+        ? 1_200 * Math.log2(neural.pitch)
+        : 0;
       source.connect(graph.filter);
       sources.add(source);
       const startAt = Math.max(graph.context.currentTime + .012, nextStartAt);
@@ -407,14 +451,59 @@ export function beginCreatureVoiceStream(
     }
   };
 
+  let useLocalNeural = localNeuralVoiceReady();
+  let neuralTextCursor = 0;
+  let neuralChain = Promise.resolve();
+
+  const queueNeuralPhrase = (phrase: string) => {
+    pendingDecodes += 1;
+    neuralChain = neuralChain.then(async () => {
+      if (settled || signal.aborted) return;
+      const graph = await ensureGraph();
+      try {
+        const rendered = await renderLocalNeuralVoice(phrase, neural, speakingMoment.uPulse);
+        const samples = Float32Array.from(conditionNeuralVoice(
+          rendered.samples,
+          rendered.sampleRate,
+          neural,
+          speakingMoment
+        ));
+        const buffer = graph.context.createBuffer(1, samples.length, rendered.sampleRate);
+        buffer.copyToChannel(samples, 0);
+        scheduleBuffer(buffer, graph, "receiz-proof-neural-offline");
+      } catch {
+        // The proof instrument is an always-local acoustic floor. This affects
+        // neither authored text nor memory and is never surfaced as a failure.
+        const buffer = synthesizeProofVoice(graph.context, phrase, neural, speakingMoment, performanceEnrichment);
+        scheduleBuffer(buffer, graph, "receiz-proof-source-filter");
+      }
+    }).finally(() => {
+      pendingDecodes -= 1;
+      maybeFinish();
+    });
+  };
+
+  const queueAvailableNeuralPhrases = (final: boolean) => {
+    for (;;) {
+      const end = nextNeuralPhraseEnd(accumulatedText, neuralTextCursor, final);
+      if (end <= neuralTextCursor) break;
+      const phrase = accumulatedText.slice(neuralTextCursor, end).trim();
+      neuralTextCursor = end;
+      if (phrase) queueNeuralPhrase(phrase);
+      if (!final) break;
+    }
+  };
+
   cancelCreatureVoice();
   activeStreamCancel = abort;
   signal.addEventListener("abort", abort, { once: true });
+  prepareLocalNeuralVoice();
 
   return {
     pushText(delta) {
       if (delta && !firstTextAt) firstTextAt = performance.now();
       accumulatedText += delta;
+      if (useLocalNeural) queueAvailableNeuralPhrases(false);
     },
     pushAudio(chunk) {
       if (finishing || settled) return;
@@ -423,10 +512,16 @@ export function beginCreatureVoiceStream(
     finish() {
       if (finishing || settled) return;
       finishing = true;
-      // Local proof voice starts immediately. Enrichment participates only if
-      // it has already decoded; it is never awaited by the audible hot path.
-      void queueLocalProofVoice().catch(() => settle(false));
+      useLocalNeural ||= localNeuralVoiceReady();
+      if (useLocalNeural) queueAvailableNeuralPhrases(true);
+      else {
+        // The compact proof instrument starts without waiting for installation;
+        // neural readiness is never placed in the response or memory hot path.
+        void queueLocalProofVoice().catch(() => settle(false));
+      }
       void decodeChain.finally(maybeFinish);
+      void neuralChain.finally(maybeFinish);
+      maybeFinish();
     },
     abort,
     completed
