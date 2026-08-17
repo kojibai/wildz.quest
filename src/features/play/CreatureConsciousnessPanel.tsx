@@ -12,22 +12,36 @@ import { isLivingCardAsset } from "./living-card-types";
 import type { PortableCardAsset } from "./portable-card";
 import type { KaiKlokMoment } from "./kai-klok-moment";
 import type { WildzVaultCardMembershipProof } from "@/lib/receiz/wildz-vault-card-admission";
-import { cancelCreatureVoice, playCreatureVoice, unlockCreatureVoice } from "./creature-voice-playback";
+import { beginCreatureVoiceStream, cancelCreatureVoice, unlockCreatureVoice } from "./creature-voice-playback";
 
 type ObserverResponse = {
   ok?: boolean;
   error?: string;
   turn?: CreatureObserverMemoryTurn;
-  voice?: {
-    source: "receiz-twin-generated";
-    dataUrl: string;
-    mimeType: string;
-    durationMs: number | null;
-    provider: string;
-    model: string | null;
-    signature: string;
-  } | null;
 };
+
+type ObserverStreamEvent = ObserverResponse & { type?: string; delta?: string };
+
+async function* observerEvents(response: Response) {
+  if (!response.body) throw new Error("creature_observer_unavailable");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, "\n");
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary >= 0) {
+      const raw = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      const data = raw.split("\n").filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trimStart()).join("\n");
+      if (data) yield JSON.parse(data) as ObserverStreamEvent;
+      boundary = buffer.indexOf("\n\n");
+    }
+    if (done) break;
+  }
+}
 
 function clientMessageId() {
   const token = typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -84,6 +98,7 @@ export function CreatureConsciousnessPanel({
   const [error, setError] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [ephemeralTurn, setEphemeralTurn] = useState<CreatureObserverMemoryTurn | null>(null);
+  const [streamingExchange, setStreamingExchange] = useState<{ user: string; reply: string } | null>(null);
   const transcript = useMemo(() => {
     const sealed = isLivingCardAsset(asset)
       ? currentCreatureHistoryProjection(asset).observerMemory?.turns ?? []
@@ -111,6 +126,7 @@ export function CreatureConsciousnessPanel({
     setDraft("");
     setError("");
     setEphemeralTurn(null);
+    setStreamingExchange(null);
     voiceRun.current += 1;
     voicePlayback.current?.abort();
     cancelCreatureVoice();
@@ -123,31 +139,25 @@ export function CreatureConsciousnessPanel({
     if (mounted.current) onSpeakingChange?.(false);
   };
 
-  const speak = async (voice: NonNullable<ObserverResponse["voice"]>) => {
-    if (!voiceEnabled || typeof window === "undefined") {
-      finishSpeaking();
-      return;
-    }
-    voiceRun.current += 1;
-    const run = voiceRun.current;
-    voicePlayback.current?.abort();
-    const controller = new AbortController();
-    voicePlayback.current = controller;
-    const played = await playCreatureVoice(asset, voice.dataUrl, controller.signal, () => {
-      if (mounted.current && run === voiceRun.current) finishSpeaking();
-    });
-    if (played || !mounted.current || run !== voiceRun.current) return;
-    setError("This creature's unique Receiz voice could not play. No substitute voice was used.");
-    finishSpeaking();
-  };
-
   const submit = async (message = draft) => {
     const normalized = message.replace(/\s+/g, " ").trim();
     if (!normalized || loading || disabled) return;
     if (voiceEnabled) void unlockCreatureVoice().catch(() => false);
     setLoading(true);
     setError("");
-    onSpeakingChange?.(true);
+    setStreamingExchange({ user: normalized, reply: "" });
+    voiceRun.current += 1;
+    const run = voiceRun.current;
+    voicePlayback.current?.abort();
+    const controller = new AbortController();
+    voicePlayback.current = controller;
+    const voiceStream = voiceEnabled
+      ? beginCreatureVoiceStream(asset, cardAdmission, controller.signal, () => {
+          if (mounted.current && run === voiceRun.current) finishSpeaking();
+        }, () => {
+          if (mounted.current && run === voiceRun.current) onSpeakingChange?.(true);
+        })
+      : null;
     try {
       const response = await fetch(CREATURE_OBSERVER_ROUTE, {
         method: "POST",
@@ -166,16 +176,35 @@ export function CreatureConsciousnessPanel({
           }
         })
       });
-      const result = await response.json().catch(() => null) as ObserverResponse | null;
-      if (!response.ok || result?.ok !== true || !result.turn || !result.voice) {
-        throw new Error(result?.error || "creature_observer_voice_unavailable");
+      if (!response.ok) {
+        const failure = await response.json().catch(() => null) as ObserverResponse | null;
+        throw new Error(failure?.error || "creature_observer_unavailable");
       }
+      let result: ObserverResponse | null = null;
+      for await (const event of observerEvents(response)) {
+        if (event.type === "reply_delta" && event.delta) {
+          setStreamingExchange((current) => current ? { ...current, reply: current.reply + event.delta } : current);
+          voiceStream?.pushText(event.delta);
+        } else if (event.type === "reply_done") result = event;
+        else if (event.type === "error") throw new Error(event.error || "creature_observer_unavailable");
+      }
+      if (result?.ok !== true || !result.turn) throw new Error(result?.error || "creature_observer_reply_missing");
+      voiceStream?.finish();
       setEphemeralTurn(result.turn);
       onObserved(result.turn);
       setDraft("");
-      void speak(result.voice);
+      setStreamingExchange(null);
+      if (voiceStream) void voiceStream.completed.then((played) => {
+        if (!played && mounted.current && run === voiceRun.current && !controller.signal.aborted) {
+          setError("This creature's unique neural voice could not stream. No substitute voice was used.");
+          finishSpeaking();
+        }
+      });
+      else finishSpeaking();
     } catch (cause) {
+      voiceStream?.abort();
       finishSpeaking();
+      setStreamingExchange(null);
       setError(observerError(cause instanceof Error ? cause.message : undefined));
     } finally {
       if (mounted.current) setLoading(false);
@@ -223,6 +252,10 @@ export function CreatureConsciousnessPanel({
             <p><strong>{asset.manifest.name} is listening.</strong> Its real stats, lineage, condition, personality, and lived proof history are loaded as its brain.</p>
           </div>
         )}
+        {streamingExchange ? <div className="wilds-creature-exchange" aria-live="polite">
+          <p className="from-owner"><span>You</span>{streamingExchange.user}</p>
+          <p className="from-creature"><span>{asset.manifest.name}</span>{streamingExchange.reply || "…"}</p>
+        </div> : null}
         {loading ? <p className="wilds-creature-thinking"><i /><i /><i /> {asset.manifest.name} is forming a memory…</p> : null}
       </div>
 

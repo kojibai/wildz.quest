@@ -1,26 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { resolveWildzCreatureVoiceAsset } from "../src/lib/receiz/wildz-creature-voice-asset";
+import { wildzStreamingVoiceProfile } from "../src/lib/receiz/wildz-voice-lock";
 
-test("Receiz unique creature voice admits real data URLs without a client model", () => {
-  const voice = resolveWildzCreatureVoiceAsset({
-    audioAsset: {
-      dataUrl: "data:audio/wav;base64,UklGRg==",
-      mimeType: "audio/wav",
-      durationMs: 480
-    },
-    ttsProvider: { vendor: "receiz", model: "unique-creature-v1" }
-  }, "expression:0123456789abcdef");
+test("proof signatures produce stable low-latency neural voice and articulation settings", () => {
+  const signature = "expression:0123456789abcdef";
+  const first = wildzStreamingVoiceProfile(signature);
+  const replay = wildzStreamingVoiceProfile(signature);
+  const other = wildzStreamingVoiceProfile("expression:fedcba9876543210");
 
-  assert.equal(voice?.dataUrl, "data:audio/wav;base64,UklGRg==");
-  assert.equal(voice?.signature, "expression:0123456789abcdef");
-  assert.equal(voice?.model, "unique-creature-v1");
-});
-
-test("Receiz voice normalizes streamed base64url and rejects non-audio payloads", () => {
-  assert.equal(resolveWildzCreatureVoiceAsset({ audioB64u: "UklGRg", audioMimeType: "audio/wav" }, "expression:voice")?.dataUrl,
-    "data:audio/wav;base64,UklGRg==");
-  assert.equal(resolveWildzCreatureVoiceAsset({
-    audioAsset: { dataUrl: "data:text/plain;base64,SGVsbG8=", mimeType: "text/plain" }
-  }, "expression:voice"), null);
+  assert.deepEqual(first, replay);
+  assert.notDeepEqual(first, other);
+  assert.ok(first.seed >= 0 && first.seed <= 0xffff_ffff);
+  assert.ok(first.speed >= .94 && first.speed <= 1.06);
+  assert.ok(first.brightnessHz >= 1_400 && first.brightnessHz <= 3_600);
+  assert.ok(first.mouthResponse >= .82 && first.mouthResponse <= 1.18);
 });

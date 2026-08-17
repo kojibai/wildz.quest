@@ -59,3 +59,22 @@ export async function resolveWildzCookieActor(request: NextRequest): Promise<Wil
   if (!profile?.id || !profile.handle) throw new Error("receiz_profile_required");
   return wildzCookieActorFromReceizProfile(profile, cookieAccessToken);
 }
+
+/** Read-only gameplay uses the already authenticated proof session directly.
+ * Routes with delegated account authority must continue using
+ * resolveWildzCookieActor so the bearer token is rebound to its live profile.
+ */
+export async function resolveWildzGameplayCookieActor(request: NextRequest): Promise<WildzCookieActor> {
+  try {
+    const proofSession = readWildzProofSessionCookie(request);
+    if (proofSession.authority === "proof-sealed-vault") throw new Error("receiz_identity_key_required");
+    return {
+      actorId: proofSession.actorId,
+      profileHandle: proofSession.profileHandle,
+      receizUserId: `proof:${proofSession.subjectKey}`
+    };
+  } catch (cause) {
+    if (cause instanceof Error && cause.message === "receiz_identity_key_required") throw cause;
+    return resolveWildzCookieActor(request);
+  }
+}

@@ -20,7 +20,7 @@ import {
   authorizeWildsMultiplayerHeartbeatCard,
   resolveWildsMultiplayerActor
 } from "../src/lib/receiz/wilds-multiplayer-server";
-import { resolveWildzCookieActor } from "../src/lib/receiz/wildz-cookie-actor";
+import { resolveWildzCookieActor, resolveWildzGameplayCookieActor } from "../src/lib/receiz/wildz-cookie-actor";
 import { WILDZ_RECEIZ_SESSION_SCOPE } from "../src/lib/receiz/wildz-auth-url";
 import { sealCollectedCard } from "../src/features/play/portable-card";
 import {
@@ -297,6 +297,32 @@ test("a matching Receiz response token is retained beside proof-native identity 
     else process.env.RECEIZ_OAUTH_STATE_SECRET = priorSecret;
     if (priorBase === undefined) delete process.env.RECEIZ_BASE_URL;
     else process.env.RECEIZ_BASE_URL = priorBase;
+  }
+});
+
+test("proof-verified gameplay never re-fetches the already verified Identity Seal profile", async () => {
+  const priorSecret = process.env.RECEIZ_OAUTH_STATE_SECRET;
+  const priorFetch = globalThis.fetch;
+  process.env.RECEIZ_OAUTH_STATE_SECRET = SECRET;
+  try {
+    const session = createWildzReceizIdProofSession({
+      keyId: "receiz_identity_key_gameplay_fast_path",
+      username: "fast_keeper",
+      displayName: "Fast Keeper",
+      issuedAt: Date.now()
+    }, SECRET);
+    const proofToken = packWildzProofSession(session, SECRET);
+    globalThis.fetch = async () => { throw new Error("gameplay_must_not_refetch_profile"); };
+    const actor = await resolveWildzGameplayCookieActor({
+      cookies: { get: (name: string) => name === WILDZ_PROOF_SESSION_COOKIE ? { value: proofToken } : undefined }
+    } as never);
+    assert.equal(actor.actorId, "fast_keeper");
+    assert.equal(actor.profileHandle, "fast_keeper.receiz.id");
+    assert.equal(actor.accessToken, undefined);
+  } finally {
+    globalThis.fetch = priorFetch;
+    if (priorSecret === undefined) delete process.env.RECEIZ_OAUTH_STATE_SECRET;
+    else process.env.RECEIZ_OAUTH_STATE_SECRET = priorSecret;
   }
 });
 
