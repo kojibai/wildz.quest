@@ -18,9 +18,9 @@ All three exact public npm packages use published SHA-512 integrity values pinne
 
 ## Release gate
 
-`pnpm release:check` passed on 2026-08-17: 1,268/1,268 Node tests, typecheck, v120 repository checker, 15/15 MCP conformance checks, warning-free ESLint, secret scan across 863 text files, optimized Next.js production build, and default Receiz doctor. The build emitted the known upstream `web-worker` dynamic-dependency advisory through `snarkjs`; compilation, type validation, static generation, and trace collection completed successfully.
+`pnpm release:check` passed on 2026-08-17: 1,271/1,271 Node tests, typecheck, v120 repository checker, 15/15 MCP conformance checks, warning-free ESLint, secret scan across 868 text files, optimized Next.js production build, and default Receiz doctor. The build emitted the known upstream `web-worker` dynamic-dependency advisory through `snarkjs`; compilation, type validation, static generation, and trace collection completed successfully. The root, robots, standard sitemap, image sitemap, manifest, and social metadata are statically generated; no SEO or preview-image work was added to the gameplay render loop.
 
-An additional WebKit smoke run against the optimized production server opened a verified creature in the Vault, rendered its v120 brain summary, proof-event count, conversation surface, voice state, and continuity panel, and submitted a conversation turn. Because this workspace intentionally contains no `RECEIZ_CONNECT_ACCESS_TOKEN` or `RECEIZ_CREATURE_TWIN_HANDLE`, the strict-live Twin call declined the turn: the UI displayed no fabricated creature speech and the card brain received no conversation event. This verifies the production fail-closed boundary, not remote inference availability. An authenticated deployment smoke run remains required to prove an accepted live reply.
+An additional WebKit smoke run against the optimized production server opened a verified creature in the Vault, rendered its v120 brain summary, proof-event count, conversation surface, voice state, and continuity panel, and submitted a conversation turn. Because that browser session had not connected a Receiz ID, the owner-scoped Twin call declined the turn: the UI displayed no fabricated creature speech and the card brain received no conversation event. This verifies the production fail-closed boundary, not remote inference availability. An authenticated Receiz ID browser run remains required to prove an accepted live reply. Creature conversation never reads a player token from an environment variable.
 
 ## V120 living-subject evidence
 
@@ -67,7 +67,7 @@ The earlier production-shaped 98-card artifact result remains historical compati
 
 ## External gates not fabricated
 
-- Strict-live authenticated remote qualification requires configured deployment credentials and a separately recorded run.
+- Strict-live authenticated remote qualification requires a user-connected Receiz ID with the v120 subject-Twin scopes and a separately recorded run.
 - Remote public/world/market/payment/settlement/publication mutations require genuine scoped capabilities and observed receipts plus effect status.
 - Bearer instruments do not automatically satisfy the marketplace's separate conditional listing/payment/settlement append.
 - Representative-device certification, external deployment, tag, push, GitHub release publication, and store distribution are distinct actions.

@@ -11,7 +11,12 @@ export async function generateMetadata({ params }: { params: Promise<{ assetId: 
   const parsed = parsePublicCardParam(assetId);
   return {
     title: `Wildz Card · ${parsed.assetId}`,
-    description: "A standalone portable Wildz card proof surface."
+    description: "A standalone portable Wildz living creature card and proof-native history.",
+    alternates: { canonical: `/cards/${encodeURIComponent(parsed.assetId)}` },
+    openGraph: {
+      type: "website",
+      images: [WILDZ_PRODUCT.socialImage]
+    }
   };
 }
 

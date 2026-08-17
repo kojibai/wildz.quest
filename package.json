@@ -46,7 +46,8 @@
     "receiz:conformance": "receiz conformance",
     "receiz:webhooks:create": "node scripts/receiz-create-webhooks.mjs",
     "secret:scan": "node scripts/release-secret-scan.mjs",
-    "release:check": "node scripts/release-check.mjs"
+    "release:check": "node scripts/release-check.mjs",
+    "social:build": "node scripts/build-social-preview.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

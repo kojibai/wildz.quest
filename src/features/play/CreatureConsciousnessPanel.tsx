@@ -41,8 +41,11 @@ function emitCreatureMouthMotion(assetId: string, openness: number) {
 }
 
 function observerError(error: string | undefined) {
-  if (error === "receiz_authority_required" || error === "receiz_identity_key_required") {
+  if (error === "receiz_authority_required" || error === "receiz_profile_required" || error === "receiz_identity_key_required") {
     return "Connect your Receiz ID so this creature can reach its Twin observer.";
+  }
+  if (error === "creature_observer_owner_mismatch") {
+    return "This creature can answer only through its current owner's Receiz ID.";
   }
   if (error === "creature_observer_reply_missing") return "The Twin returned without a voice. Try asking in a different way.";
   if (error === "creature_observer_intelligence_unavailable" || error === "creature_observer_timeout") {

@@ -35,7 +35,19 @@ function uniqueScopes(scopes: string[]) {
 }
 
 export const WILDZ_RECEIZ_OIDC_SCOPES = uniqueScopes([
-  ...receizOidcScopesForRails("identity", "appState", "publicStore", "wallet", "payments", "proofStore")
+  ...receizOidcScopesForRails(
+    "identity",
+    "appState",
+    "publicStore",
+    "wallet",
+    "payments",
+    "proofStore",
+    "twin",
+    "world",
+    "subjects",
+    "subjectTwin",
+    "subjectMemory"
+  )
 ]);
 
 export const RECEIZ_BASE_OIDC_SCOPES = [

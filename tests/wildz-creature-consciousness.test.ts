@@ -219,7 +219,7 @@ test("training becomes exact autobiographical memory without replacing capture",
   assert.equal(brain.memory.eventLedger.length, isLivingCardAsset(after) ? after.manifest.history?.events.length : 0);
 });
 
-test("Vault consciousness uses the SDK World Twin rail and card-scoped UI", () => {
+test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and card-scoped UI", () => {
   const route = readFileSync("app/api/receiz/creature-observer/route.ts", "utf8");
   const panel = readFileSync("src/features/play/CreatureConsciousnessPanel.tsx", "utf8");
   const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
@@ -228,9 +228,16 @@ test("Vault consciousness uses the SDK World Twin rail and card-scoped UI", () =
   const css = readFileSync("app/globals.css", "utf8");
 
   assert.match(route, /resolveWildzCookieActor\(request\)/);
-  assert.match(route, /adapter\.worldMessage\(twinHandle/);
+  assert.match(route, /createReceizClient/);
+  assert.match(route, /actor\.accessToken/);
+  assert.match(route, /receiz\.subjects\.twin\.message\(input\.card\.id/);
+  assert.match(route, /receiz\.world\.message\(actor\.profileHandle/);
+  assert.match(route, /Promise\.any\(\[exactSubjectTwin, receizIdTwinObserver\]\)/);
+  assert.match(route, /contextHead: proofContext\.head\.subjectHead/);
+  assert.match(route, /expectedSubjectDigest: proofContext\.head\.subjectDigest/);
+  assert.doesNotMatch(route, /RECEIZ_CONNECT_ACCESS_TOKEN|CREATURE_TWIN_HANDLE/);
+  assert.match(route, /creature_observer_owner_mismatch/);
   assert.match(route, /clientOperationId/);
-  assert.match(route, /quoteExpiresAt/);
   assert.doesNotMatch(route, /localCreatureTwinReply/);
   assert.match(route, /creature_observer_intelligence_unavailable/);
   assert.match(route, /observeCreatureThroughReceizV120/);

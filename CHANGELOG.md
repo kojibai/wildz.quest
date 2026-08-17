@@ -12,13 +12,14 @@ The Living Creature Continuity release: verified cards become persistent Receiz 
 
 - First-class Receiz v120 `wildz.creature` subjects built from exact innate, capture, history, conversation, and continuity proof objects.
 - Proof-brain identity, head, Merkle root, object count, memory citation, registry, and reducer coordinates on creature observations.
-- Direct talk-to-card experience in the Vault with persistent conversation memory and a local proof-grounded Twin fallback.
+- Direct talk-to-card experience in the Vault with persistent conversation memory, an exact v120 subject Twin, and the connected owner's Receiz ID Twin as its live proof-context observer.
 - Innate pre-capture self-model derived from discovery, species, genome, traits, statistics, form, provenance, and capture conditions.
 - Owner-bound autonomy mandates for deterministic exploration, meetings, relationships, discoveries, and keepsake barter, with atomic multi-creature settlement.
 - Deterministic creature-specific Kokoro neural voices, self-hosted ONNX Runtime Web, background prewarm, Safari/WebKit WASM routing, and browser-speech fallback.
 - Waveform-synchronized mouth movement and personality/genome/state-shaped eyes, ears, tail, aura, posture, and performance.
 - Raw binary plus multipart artifact transport, card-only and full-Vault merge, full-collection union regression coverage, and native Apple save/share behavior.
 - V120 bearer receipt schema and integration boundary for transfer preview, instrument issue, inspection, claim, cancellation, and status.
+- Production search and social discovery surfaces: canonical metadata, crawler policy, standard and image sitemaps, `VideoGame`/`SoftwareApplication` structured data, large-image preview policy, and bespoke Open Graph/iMessage/Discover artwork.
 
 ### Changed
 
@@ -28,6 +29,7 @@ The Living Creature Continuity release: verified cards become persistent Receiz 
 - Kept AI as observer and performer: model output cannot become a world event without separate command admission, and factual memory requires admitted-event citations.
 - Made subject identity survive ownership changes while invalidating prior-owner mandates and authority immediately.
 - Advanced the installed PWA shell coordinate to `v6.0.0-r1`.
+- Bound creature conversation exclusively to the current owner's user-consented Receiz ID session. No creature route reads a player token from an environment variable.
 
 ### Fixed
 

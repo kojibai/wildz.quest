@@ -152,13 +152,23 @@ test("the Wildz session requests only the scoped rails used by live V3 gameplay"
     "receiz:payments.create",
     "receiz:record",
     "receiz:seal",
-    "receiz:verify"
+    "receiz:verify",
+    "receiz:subjects.read",
+    "receiz:subjects.write",
+    "receiz:subject_twin.read",
+    "receiz:subject_twin.write",
+    "receiz:subject_memory.read",
+    "receiz:subject_memory.write",
+    "receiz:twin.read",
+    "receiz:twin.write",
+    "receiz:world.read",
+    "receiz:world.write"
   ]) {
     assert.equal(WILDZ_RECEIZ_OIDC_SCOPES.includes(scope), true, scope);
   }
   assert.equal(WILDZ_RECEIZ_OIDC_SCOPES.includes("offline_access"), false);
-  assert.equal(WILDZ_RECEIZ_OIDC_SCOPES.some((scope) => scope.startsWith("receiz:twin.")), false);
-  assert.equal(WILDZ_RECEIZ_OIDC_SCOPES.some((scope) => scope.startsWith("receiz:world.")), false);
+  assert.equal(WILDZ_RECEIZ_OIDC_SCOPES.some((scope) => scope.startsWith("receiz:twin.")), true);
+  assert.equal(WILDZ_RECEIZ_OIDC_SCOPES.some((scope) => scope.startsWith("receiz:world.")), true);
 
   const interoperability = readFileSync("docs/release/artifact-interoperability.md", "utf8");
   assert.match(interoperability, /receiz:record[\s\S]*receiz:seal[\s\S]*receiz:verify/);
