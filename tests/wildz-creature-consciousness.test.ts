@@ -8,6 +8,7 @@ import {
   creatureObserverMomentContext,
   creatureVoicePerformance,
   creatureVoiceProfile,
+  localCreatureTwinReply,
   normalizeCreatureTwinReply,
   parseCreatureObserverRequest,
   projectCreatureBrain
@@ -170,6 +171,20 @@ test("the creature brain gives the Twin exact proof context and model boundaries
   assert.equal(normalizeCreatureTwinReply({ content: [{ text: "I am here." }] }), "I am here.");
   assert.throws(() => normalizeCreatureTwinReply({ metadata: "no assistant text" }), /creature_observer_reply_missing/);
 
+  for (const prompt of [
+    "How are you feeling?",
+    "What do you remember about us?",
+    "What should we explore next?",
+    "Do you remember when I captured you?",
+    "I am glad you are here."
+  ]) {
+    const reply = localCreatureTwinReply(brain, prompt);
+    assert.ok(reply.length > 20);
+    assert.doesNotMatch(reply, /could not form a response|no world event was created/i);
+    assert.doesNotMatch(reply, /proof|card brain|digest|ledger|raw statistic/i);
+  }
+  assert.match(localCreatureTwinReply(brain, "Do you remember when I captured you?"), /first moment I carry with you/i);
+
   const motion = creatureConsciousnessMotion(asset, 0);
   assert.match(motion["--creature-blink"], /^\d+ms$/);
   assert.match(motion["--creature-gaze-range"], /^\d+(?:\.\d+)?px$/);
@@ -240,8 +255,10 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
   assert.doesNotMatch(route, /RECEIZ_CONNECT_ACCESS_TOKEN|CREATURE_TWIN_HANDLE/);
   assert.match(route, /creature_observer_owner_mismatch/);
   assert.match(route, /clientOperationId/);
-  assert.doesNotMatch(route, /localCreatureTwinReply/);
-  assert.match(route, /creature_observer_intelligence_unavailable/);
+  assert.match(route, /localCreatureTwinReply/);
+  assert.match(route, /proof-grounded-creature-twin/);
+  assert.match(route, /model-failure-boundary/);
+  assert.match(route, /could not form a response\|no world event was created/);
   assert.match(route, /observeCreatureThroughReceizV120/);
   assert.match(route, /creatureObserverClientContext\(subjectBrain, presentKaiMoment\)/);
   assert.match(route, /creatureObserverMomentContext\(input\.kai, brain\)/);

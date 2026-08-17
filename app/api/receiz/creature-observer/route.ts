@@ -6,6 +6,7 @@ import {
   creatureObserverMomentContext,
   creatureObserverThreadKey,
   creatureObserverVisitorKey,
+  localCreatureTwinReply,
   normalizeCreatureTwinReply,
   parseCreatureObserverRequest,
   projectCreatureBrain
@@ -27,6 +28,11 @@ function failureStatus(error: string) {
     || error === "creature_observer_owner_mismatch") return 403;
   if (error === "creature_observer_request_invalid" || error === "creature_observer_card_invalid") return 422;
   return 502;
+}
+
+function isTwinFailureBoundary(input: Readonly<{ model?: string; speech?: string }>) {
+  return input.model === "model-failure-boundary"
+    || /could not form a response|no world event was created/i.test(input.speech ?? "");
 }
 
 export async function POST(request: NextRequest) {
@@ -116,9 +122,22 @@ export async function POST(request: NextRequest) {
           : [receizIdTwinObserver];
         const observed = await Promise.race([
           Promise.any(observerRequests),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("creature_observer_timeout")), 24_000))
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("creature_observer_timeout")), 12_000))
         ]).catch(() => null);
-        if (!observed) throw new Error("creature_observer_intelligence_unavailable");
+        if (!observed || isTwinFailureBoundary({ model: observed.model, speech: observed.speech })) {
+          return {
+            provider: "wildz-proof-brain",
+            model: "proof-grounded-creature-twin",
+            version: "120.0.0",
+            speech: localCreatureTwinReply(subjectBrain, input.message),
+            performance: {
+              ...subjectBrain.performance.expression,
+              proofContextDigest: proofContext.receipt.queryDigest,
+              authoritative: false,
+              responseRail: "proof-grounded-local"
+            }
+          };
+        }
         return {
           provider: observed.provider,
           model: observed.model,
@@ -133,8 +152,17 @@ export async function POST(request: NextRequest) {
         };
       }
     });
-    const observer = "receiz-twin" as const;
-    const reply = subjectObservation.twin.spokenResponse;
+    const modelAudit = subjectObservation.twin.proposedIntent.modelAudit;
+    const fellThroughSdkFailureBoundary = isTwinFailureBoundary({
+      model: modelAudit.model,
+      speech: subjectObservation.twin.spokenResponse
+    });
+    const observer = modelAudit.model === "proof-grounded-creature-twin" || fellThroughSdkFailureBoundary
+      ? "receiz-twin-local" as const
+      : "receiz-twin" as const;
+    const reply = fellThroughSdkFailureBoundary
+      ? localCreatureTwinReply(brain, input.message)
+      : normalizeCreatureTwinReply(subjectObservation.twin.spokenResponse);
     const turn = createObservedCreatureTurn({
       brain,
       ownerActorId: actor.actorId,
