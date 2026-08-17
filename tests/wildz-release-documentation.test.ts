@@ -4,13 +4,13 @@ import { test } from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("Wildz v6.1 official release doctrine names the exact Receiz v120 toolchain", () => {
+test("Wildz v7 official release doctrine names the exact Receiz v120 toolchain", () => {
   const pkg = JSON.parse(read("package.json")) as {
     version?: string;
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
   };
-  const release = read("docs/release/v6.1.0.md");
+  const release = read("docs/release/v7.0.0.md");
   const mcp = read("docs/MCP.md");
   const packageSourceDocs = [
     read("README.md"),
@@ -22,7 +22,7 @@ test("Wildz v6.1 official release doctrine names the exact Receiz v120 toolchain
     read("ai-skills/wildz-release-skill/SKILL.md")
   ].join("\n");
 
-  assert.equal(pkg.version, "6.1.0");
+  assert.equal(pkg.version, "7.0.0");
   assert.equal(pkg.dependencies?.["@receiz/sdk"], "120.0.0");
   assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "120.0.0");
   assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "120.0.0");

@@ -4,7 +4,7 @@ import { memo, useEffect, useMemo, useRef } from "react";
 import { creatureForm } from "./creature-catalog";
 import { deriveBirthGenome } from "./heartbound-genome";
 import { renderHeartboundSvg } from "./heartbound-renderer";
-import { currentLivingGenome } from "./living-card-proof";
+import { currentCreatureHistoryProjection, currentLivingGenome } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import { cardDeathRecord } from "./card-death-record";
 import type { AdventureCardCondition } from "./adventure/card-condition";
@@ -23,6 +23,18 @@ export const WildsCard = memo(function WildsCard({ asset, compact = false, condi
     { width: 640, height: 405, title: asset.manifest.name, fit: "full-body" }
   ), [asset, variant]);
   const death = cardDeathRecord(asset, condition);
+  const livedAppearance = useMemo(() => {
+    if (!isLivingCardAsset(asset)) return { events: 0, bonds: 0, discoveries: 0, care: "none" };
+    const continuity = currentCreatureHistoryProjection(asset).continuity;
+    const events = continuity?.events ?? [];
+    const lastCare = [...events].reverse().find((event) => ["feed", "comfort", "treat", "neglect"].includes(event.kind));
+    return {
+      events: Math.min(24, events.length),
+      bonds: Math.min(12, continuity?.relationships.length ?? 0),
+      discoveries: Math.min(12, continuity?.discoveries.length ?? 0),
+      care: lastCare?.kind ?? "none"
+    };
+  }, [asset]);
   const stats = [
     ["Health", asset.manifest.stats.health],
     ["Power", asset.manifest.stats.power],
@@ -50,9 +62,21 @@ export const WildsCard = memo(function WildsCard({ asset, compact = false, condi
       aria-label={`${asset.manifest.name}, Stage ${form.stage}, ${form.rarity} Wilds card`}
       className={`wilds-collectible-card foil-${form.foil}${compact ? " compact" : ""}${death ? " is-dead" : ""}`}
       data-conscious="true"
+      data-care-memory={livedAppearance.care}
+      data-lived={livedAppearance.events > 0 ? "true" : "false"}
       data-speaking={speaking ? "true" : "false"}
       ref={card}
-      style={{ "--card-primary": variant.palette.primary, "--card-accent": variant.palette.accent, "--card-glow": variant.palette.glow, "--card-body-scale": variant.bodyScale, "--card-motion": `${variant.animationMs}ms`, ...creatureConsciousnessMotion(asset, condition?.fatigue ?? 0) } as React.CSSProperties}
+      style={{
+        "--card-primary": variant.palette.primary,
+        "--card-accent": variant.palette.accent,
+        "--card-glow": variant.palette.glow,
+        "--card-body-scale": variant.bodyScale,
+        "--card-motion": `${variant.animationMs}ms`,
+        "--lived-foil": String(.12 + livedAppearance.events * .012),
+        "--lived-saturation": String(1 + livedAppearance.bonds * .025),
+        "--lived-hue": `${livedAppearance.discoveries * 2}deg`,
+        ...creatureConsciousnessMotion(asset, condition?.fatigue ?? 0)
+      } as React.CSSProperties}
     >
       <div className="wilds-card-foil" aria-hidden="true" />
       <header>

@@ -154,9 +154,9 @@ V120 exposes direct bearer transfer preview, instrument issue, inspection, claim
 
 ## Release status
 
-`v6.1.0` is the Proof-Locked Neural Continuity release. It preserves the v120 live-head and cross-platform proof-memory system from v6 while routing creature speech directly through `subjects.twin.streamPerformance`: genuine streaming text, Receiz neural audio, typed performance events, proof-deterministic character shaping, and waveform mouth sync with no Wildz voice provider, browser model, warm-up, or substitute voice. It also stabilizes current-Vault chat custody, card selection, standalone pages, roaming pace, capture timeouts, connected identity responsiveness, mobile Send focus, and exact card-to-world appearance. Installed PWAs advance to `v6.1.0-r1`.
+`v7.0.0` is the Living Responsibility release. It keeps the proof-locked v6.1 reply, voice, Vault, roaming, market, and world behavior intact while adding an optional real-care mandate: active roaming creates deterministic hunger, attention, wellness, sickness, and mortality; play-earned trail beans fund care; proof-chained experiences alter the card face; and permissioned installed-PWA alerts are scheduled entirely outside gameplay. Apply update now keeps `skipWaiting()` alive through the service-worker event. Installed PWAs advance to `v7.0.0-r1`.
 
-Read the complete [v6.1.0 release notes](docs/release/v6.1.0.md), [Receiz v120 creature voice architecture](docs/RECEIZ_V120_CREATURE_VOICE.md), [reasoning postmortem](docs/release/v6.1.0-reasoning-postmortem.md), [Living Creature Continuity contract](docs/WILDZ_LIVING_CREATURE_CONTINUITY_V120.md), [verification record](docs/release/verification.md), and [changelog](CHANGELOG.md).
+Read the complete [v7.0.0 release notes](docs/release/v7.0.0.md), [v6.1.0 voice baseline](docs/release/v6.1.0.md), [Receiz v120 creature voice architecture](docs/RECEIZ_V120_CREATURE_VOICE.md), [Living Creature Continuity contract](docs/WILDZ_LIVING_CREATURE_CONTINUITY_V120.md), [verification record](docs/release/verification.md), and [changelog](CHANGELOG.md).
 
 ## Build your own Receiz-native product
 

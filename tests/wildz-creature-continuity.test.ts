@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { projectCreatureBrain } from "../src/features/play/creature-consciousness";
+import { projectCreatureCare } from "../src/features/play/creature-care";
 import {
   CREATURE_CONTINUITY_FIRST_EXPERIENCE_MS,
   creatureContinuityProjection
@@ -109,4 +110,79 @@ test("returning to a suspended app immediately settles due roaming life", () => 
   const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
   assert.match(campaign, /window\.addEventListener\("focus", settleLivingCreatures\)/);
   assert.match(campaign, /document\.addEventListener\("visibilitychange", settleWhenVisible\)/);
+  assert.match(campaign, /type: "settle-creature-care"/);
+});
+
+test("active creatures develop deterministic real-time needs and earned care restores them", () => {
+  const state = structuredClone(initialPlayState);
+  const asset = state.inventory[0]!;
+  const ownerReceizId = asset.manifest.ownerReceizId;
+  const start = new Date(Date.parse(asset.proof.sealedAt) + 1_000).toISOString();
+  const active = applyWildsInput(state, { type: "activate-creature-continuity", assetId: asset.id, ownerReceizId, at: start });
+  const hungryAt = new Date(Date.parse(start) + 30 * 3_600_000).toISOString();
+  const hungryCard = active.inventory.find((candidate) => candidate.id === asset.id)!;
+  const hungry = projectCreatureCare(hungryCard, hungryAt);
+  assert.equal(hungry.active, true);
+  assert.equal(hungry.hunger, 40);
+  assert.equal(hungry.attention, 70);
+
+  const fed = applyWildsInput(active, { type: "care-for-creature", assetId: asset.id, ownerReceizId, action: "feed", at: hungryAt });
+  const fedCard = fed.inventory.find((candidate) => candidate.id === asset.id)!;
+  assert.equal(fed.beans, active.beans - 3);
+  assert.equal(projectCreatureCare(fedCard, hungryAt).hunger, 88);
+  assert.equal(verifyAnyWildsCard(fedCard).ok, true);
+});
+
+test("care never spends resources or mutates proof when the player lacks supplies", () => {
+  const state = { ...structuredClone(initialPlayState), beans: 0 };
+  const asset = state.inventory[0]!;
+  const ownerReceizId = asset.manifest.ownerReceizId;
+  const start = new Date(Date.parse(asset.proof.sealedAt) + 1_000).toISOString();
+  const active = applyWildsInput(state, { type: "activate-creature-continuity", assetId: asset.id, ownerReceizId, at: start });
+  const before = active.inventory.find((candidate) => candidate.id === asset.id)!;
+  const denied = applyWildsInput(active, { type: "care-for-creature", assetId: asset.id, ownerReceizId, action: "treat", at: start });
+  const after = denied.inventory.find((candidate) => candidate.id === asset.id)!;
+  assert.equal(after.proof.digest, before.proof.digest);
+  assert.equal(denied.beans, 0);
+  assert.match(denied.lastEvent, /Play the world to earn 8 more trail beans/);
+});
+
+test("care immediately after activation uses a later click time and appends once", () => {
+  const state = structuredClone(initialPlayState);
+  const asset = state.inventory[0]!;
+  const ownerReceizId = asset.manifest.ownerReceizId;
+  const startMs = Date.parse(asset.proof.sealedAt) + 1_000;
+  const active = applyWildsInput(state, {
+    type: "activate-creature-continuity",
+    assetId: asset.id,
+    ownerReceizId,
+    at: new Date(startMs).toISOString()
+  });
+  const cared = applyWildsInput(active, {
+    type: "care-for-creature",
+    assetId: asset.id,
+    ownerReceizId,
+    action: "feed",
+    at: new Date(startMs + 1).toISOString()
+  });
+  assert.equal(cared.beans, active.beans - 3);
+  assert.equal(creatureContinuityProjection(cared.inventory[0]!)?.events.at(-1)?.kind, "feed");
+});
+
+test("an explicitly active care mandate can settle irreversible neglect at zero wellness", () => {
+  const state = structuredClone(initialPlayState);
+  const asset = state.inventory[0]!;
+  const ownerReceizId = asset.manifest.ownerReceizId;
+  const start = new Date(Date.parse(asset.proof.sealedAt) + 1_000).toISOString();
+  const active = applyWildsInput(state, { type: "activate-creature-continuity", assetId: asset.id, ownerReceizId, at: start });
+  const fatalAt = new Date(Date.parse(start) + 120 * 3_600_000).toISOString();
+  const before = active.inventory.find((candidate) => candidate.id === asset.id)!;
+  assert.equal(projectCreatureCare(before, fatalAt).status, "dead");
+  const settled = applyWildsInput(active, { type: "settle-creature-care", assetId: asset.id, ownerReceizId, at: fatalAt });
+  const after = settled.inventory.find((candidate) => candidate.id === asset.id)!;
+  assert.equal(isLivingCardAsset(after), true);
+  if (!isLivingCardAsset(after)) return;
+  assert.equal(currentCreatureHistoryProjection(after).condition.life, "dead");
+  assert.equal(creatureContinuityProjection(after)?.events.at(-1)?.kind, "neglect");
+  assert.equal(verifyAnyWildsCard(after).ok, true);
 });

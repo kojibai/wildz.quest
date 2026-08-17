@@ -1,4 +1,8 @@
 const WILDZ_APPLY_UPDATE_MESSAGE = "WILDZ_APPLY_UPDATE";
+const WILDZ_CARE_SCHEDULE_MESSAGE = "WILDZ_CARE_SCHEDULE";
+const CARE_SCHEDULE_CACHE = "wildz-private-care-schedule-v1";
+const CARE_SCHEDULE_URL = "/__wildz/private-care-schedule";
+const CARE_LEVELS = new Set(["needs-care", "urgent", "sick", "dead"]);
 const release = new URL(self.location.href).searchParams.get("release") || "v3.0.0";
 const SHELL_CACHE = `wildz-shell-${release}`;
 const PUBLIC_CACHE = `wildz-public-${release}`;
@@ -223,7 +227,80 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("message", (event) => {
-  if (event.data?.type === WILDZ_APPLY_UPDATE_MESSAGE) self.skipWaiting();
+  if (event.data?.type === WILDZ_APPLY_UPDATE_MESSAGE) {
+    event.waitUntil(self.skipWaiting());
+  }
+  if (event.data?.type === WILDZ_CARE_SCHEDULE_MESSAGE) {
+    event.waitUntil((async () => {
+      const cache = await caches.open(CARE_SCHEDULE_CACHE);
+      const priorResponse = await cache.match(`${CARE_SCHEDULE_URL}:notified`);
+      const prior = await priorResponse?.json().catch(() => null);
+      const notifiedIds = new Set(Array.isArray(prior?.notifiedIds) ? prior.notifiedIds.filter((id) => typeof id === "string").slice(-256) : []);
+      const entries = (Array.isArray(event.data.entries) ? event.data.entries : []).filter((entry) => (
+        entry && typeof entry.id === "string" && entry.id.length <= 240
+        && typeof entry.assetId === "string" && entry.assetId.length <= 160
+        && typeof entry.name === "string" && entry.name.length <= 80
+        && typeof entry.body === "string" && entry.body.length <= 240
+        && CARE_LEVELS.has(entry.level)
+        && Number.isFinite(Date.parse(entry.notifyAt))
+      )).slice(0, 128).map((entry) => ({
+        id: entry.id,
+        assetId: entry.assetId,
+        name: entry.name,
+        body: entry.body,
+        level: entry.level,
+        notifyAt: new Date(entry.notifyAt).toISOString()
+      }));
+      await cache.put(CARE_SCHEDULE_URL, new Response(JSON.stringify({ entries }), {
+        headers: { "content-type": "application/json", "cache-control": "no-store" }
+      }));
+      await cache.put(`${CARE_SCHEDULE_URL}:notified`, new Response(JSON.stringify({ notifiedIds: [...notifiedIds] }), {
+        headers: { "content-type": "application/json", "cache-control": "no-store" }
+      }));
+    })());
+  }
+});
+
+async function notifyDueCreatureCare() {
+  const cache = await caches.open(CARE_SCHEDULE_CACHE);
+  const response = await cache.match(CARE_SCHEDULE_URL);
+  const notifiedResponse = await cache.match(`${CARE_SCHEDULE_URL}:notified`);
+  const schedule = await response?.json().catch(() => null);
+  const notifiedState = await notifiedResponse?.json().catch(() => null);
+  const notifiedIds = new Set(Array.isArray(notifiedState?.notifiedIds) ? notifiedState.notifiedIds : []);
+  const now = Date.now();
+  const due = Array.isArray(schedule?.entries)
+    ? schedule.entries.filter((entry) => Number.isFinite(Date.parse(entry.notifyAt)) && Date.parse(entry.notifyAt) <= now && !notifiedIds.has(entry.id)).slice(0, 3)
+    : [];
+  for (const entry of due) {
+    await self.registration.showNotification(`${entry.name} needs you`, {
+      body: entry.body,
+      tag: `wildz-care:${entry.assetId}:${entry.level}`,
+      renotify: false,
+      data: { url: "/", assetId: entry.assetId }
+    });
+    notifiedIds.add(entry.id);
+  }
+  if (due.length) await cache.put(`${CARE_SCHEDULE_URL}:notified`, new Response(JSON.stringify({ notifiedIds: [...notifiedIds].slice(-256) }), {
+    headers: { "content-type": "application/json", "cache-control": "no-store" }
+  }));
+}
+
+self.addEventListener("periodicsync", (event) => {
+  if (event.tag === "wildz-creature-care") event.waitUntil(notifyDueCreatureCare());
+});
+
+self.addEventListener("notificationclick", (event) => {
+  if (!event.notification?.tag?.startsWith("wildz-care:")) return;
+  event.notification.close();
+  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
+    const existing = clients[0];
+    if (existing) {
+      await existing.focus();
+      return;
+    }
+    await self.clients.openWindow(event.notification.data?.url || "/");
+  }));
 });
 
 self.addEventListener("fetch", (event) => {

@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
   pwaControllerChangeAction,
+  WILDZ_CARE_NOTIFICATIONS_READY,
+  WILDZ_ENABLE_CARE_NOTIFICATIONS,
   WILDZ_APPLY_UPDATE_MESSAGE
 } from "@/features/pwa/pwa-events";
 
@@ -44,12 +46,20 @@ export function PwaController() {
     window.addEventListener("online", updateOnlineStatus);
     window.addEventListener("offline", updateOnlineStatus);
     window.addEventListener("beforeinstallprompt", captureInstallPrompt);
+    const enableCareNotifications = () => {
+      if (!("Notification" in window) || Notification.permission === "denied") return;
+      void Notification.requestPermission().then((permission) => {
+        if (permission === "granted") window.dispatchEvent(new Event(WILDZ_CARE_NOTIFICATIONS_READY));
+      });
+    };
+    window.addEventListener(WILDZ_ENABLE_CARE_NOTIFICATIONS, enableCareNotifications);
 
     if (!("serviceWorker" in navigator)) {
       return () => {
         window.removeEventListener("online", updateOnlineStatus);
         window.removeEventListener("offline", updateOnlineStatus);
         window.removeEventListener("beforeinstallprompt", captureInstallPrompt);
+        window.removeEventListener(WILDZ_ENABLE_CARE_NOTIFICATIONS, enableCareNotifications);
       };
     }
 
@@ -87,7 +97,7 @@ export function PwaController() {
 
     const handleUpdateFound = () => watchWorker(registration?.installing ?? null);
     const register = () => {
-      const release = process.env.NEXT_PUBLIC_WILDZ_SW_RELEASE ?? "v6.1.0-r1";
+      const release = process.env.NEXT_PUBLIC_WILDZ_SW_RELEASE ?? "v7.0.0-r1";
       const workerUrl = `/sw.js?release=${encodeURIComponent(release)}`;
       void navigator.serviceWorker.register(workerUrl, {
         scope: "/",
@@ -120,6 +130,7 @@ export function PwaController() {
       window.removeEventListener("online", updateOnlineStatus);
       window.removeEventListener("offline", updateOnlineStatus);
       window.removeEventListener("beforeinstallprompt", captureInstallPrompt);
+      window.removeEventListener(WILDZ_ENABLE_CARE_NOTIFICATIONS, enableCareNotifications);
       navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
       registration?.removeEventListener("updatefound", handleUpdateFound);
       for (const [worker, listener] of stateListeners) worker.removeEventListener("statechange", listener);

@@ -106,6 +106,8 @@ import {
   type TrainerEncounterEvent,
   type TrainerEncounterState
 } from "@/features/play/trainer-encounter";
+import { creatureCareNotificationSchedule, WILDZ_CARE_PERIODIC_TAG } from "@/features/pwa/creature-care-schedule";
+import { WILDZ_CARE_NOTIFICATIONS_READY, WILDZ_CARE_SCHEDULE_MESSAGE } from "@/features/pwa/pwa-events";
 
 const WildsWorldCanvas = dynamic(
   () => import("@/features/play/WildsWorldCanvas").then((mod) => mod.WildsWorldCanvas),
@@ -197,7 +199,12 @@ export function PlayCampaign({
         assetId: asset.id,
         ownerReceizId,
         at
-      }), current);
+      }), current.inventory.reduce((next, asset) => applyWildsInput(next, {
+        type: "settle-creature-care",
+        assetId: asset.id,
+        ownerReceizId,
+        at
+      }), current));
     });
     settleLivingCreatures();
     const timer = window.setInterval(settleLivingCreatures, 5 * 60_000);
@@ -212,6 +219,40 @@ export function PlayCampaign({
       document.removeEventListener("visibilitychange", settleWhenVisible);
     };
   }, [ownerReceizId]);
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || !("Notification" in window)) return;
+    let cancelled = false;
+    const publishCareSchedule = async () => {
+      if (Notification.permission !== "granted") return;
+      const at = new Date().toISOString();
+      const entries = creatureCareNotificationSchedule(state.inventory, at);
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        if (cancelled) return;
+        (registration.active ?? navigator.serviceWorker.controller)?.postMessage({
+          type: WILDZ_CARE_SCHEDULE_MESSAGE,
+          entries
+        });
+        const periodicSync = (registration as ServiceWorkerRegistration & {
+          periodicSync?: { register(tag: string, options: { minInterval: number }): Promise<void> };
+        }).periodicSync;
+        if (periodicSync) await periodicSync.register(WILDZ_CARE_PERIODIC_TAG, { minInterval: 15 * 60_000 });
+      } catch {
+        // Notification scheduling is advisory and never blocks proof state or gameplay.
+      }
+    };
+    const refresh = () => void publishCareSchedule();
+    refresh();
+    const timer = window.setInterval(refresh, 5 * 60_000);
+    window.addEventListener("focus", refresh);
+    window.addEventListener(WILDZ_CARE_NOTIFICATIONS_READY, refresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener(WILDZ_CARE_NOTIFICATIONS_READY, refresh);
+    };
+  }, [state.inventory]);
   const explorerStyle = character.gender;
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
   const [mapOpen, setMapOpen] = useState(false);

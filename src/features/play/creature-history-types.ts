@@ -44,6 +44,7 @@ export type CreatureObserverMemoryProjection = Readonly<{
 }>;
 
 export type CreatureAutonomyAction = "explore" | "meet" | "bond" | "discover" | "barter-keepsake";
+export type CreatureCareAction = "feed" | "comfort" | "treat";
 
 export type CreatureAutonomyMandate = Readonly<{
   schema: "receiz.wildz.creature_autonomy_mandate.v1";
@@ -60,7 +61,7 @@ export type CreatureAutonomyMandate = Readonly<{
   digest: string;
 }>;
 
-export type CreatureContinuityEventKind = CreatureAutonomyAction | "mandate-activated" | "mandate-paused";
+export type CreatureContinuityEventKind = CreatureAutonomyAction | CreatureCareAction | "neglect" | "mandate-activated" | "mandate-paused";
 
 export type CreatureContinuityEvent = Readonly<{
   schema: "receiz.wildz.creature_continuity_event.v1";

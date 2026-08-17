@@ -52,6 +52,7 @@ import { sealRetirement } from "../games/lifecycle/creature-retirement";
 import type { ArenaSettlement } from "../games/mortal-arena/settlement";
 import type { CreatureObserverMemoryTurn } from "./creature-history-types";
 import { livingSubjectContinuityV120 } from "./creature-continuity";
+import { careForCreature, settleCreatureCare, type CreatureCareAction } from "./creature-care";
 import {
   EMPTY_WILDS_SUPPORT_ASSET_IDS,
   type WildsBossFamilyId,
@@ -80,6 +81,8 @@ export type WildsInput = (
   | { type: "activate-creature-continuity"; assetId: string; ownerReceizId: string; at: string }
   | { type: "pause-creature-continuity"; assetId: string; ownerReceizId: string; at: string }
   | { type: "settle-creature-continuity"; assetId: string; ownerReceizId: string; at: string }
+  | { type: "care-for-creature"; assetId: string; ownerReceizId: string; action: CreatureCareAction; at: string }
+  | { type: "settle-creature-care"; assetId: string; ownerReceizId: string; at: string }
   | { type: "import-card"; asset: PortableCardAsset }
   | { type: "fuse-cards"; parentAId: string; parentBId: string; inheritance: FusionInheritance; fusedAt: string }
   | { type: "evolve"; assetId: string; evolvedAt: string }
@@ -948,6 +951,54 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     } catch {
       return { ...state, lastEvent: `${asset.manifest.name}'s observed reply could not be appended to its verified brain.` };
     }
+  }
+
+  if (input.type === "care-for-creature") {
+    const asset = state.inventory.find((candidate) => candidate.id === input.assetId);
+    if (!asset || !isPlayableAsset(state, asset.id)) return state;
+    const requiredBeans = input.action === "feed" ? 3 : input.action === "treat" ? 8 : 0;
+    if (state.beans < requiredBeans) {
+      return { ...state, lastEvent: `Play the world to earn ${requiredBeans - state.beans} more trail bean${requiredBeans - state.beans === 1 ? "" : "s"} for ${asset.manifest.name}.` };
+    }
+    const result = careForCreature({ asset, ownerReceizId: input.ownerReceizId, action: input.action, at: input.at });
+    if (!result.ok) {
+      const message = result.code === "care_mandate_inactive"
+        ? `Awaken ${asset.manifest.name}'s Life while away before beginning its care cycle.`
+        : result.code === "care_creature_dead"
+          ? `${asset.manifest.name}'s living journey has ended; its proof memory remains.`
+          : `${asset.manifest.name}'s care action was denied. Nothing was spent or appended.`;
+      return { ...state, lastEvent: message };
+    }
+    return {
+      ...state,
+      beans: state.beans - result.cost,
+      inventory: state.inventory.map((candidate) => candidate.id === result.asset.id ? result.asset : candidate),
+      livingProgress: isLivingCardAsset(result.asset)
+        ? { ...state.livingProgress, [result.asset.id]: currentRevision(result.asset).growth }
+        : state.livingProgress,
+      pendingSyncAssetIds: Array.from(new Set([...state.pendingSyncAssetIds, result.asset.id])),
+      lastEvent: input.action === "feed"
+        ? `${result.asset.manifest.name} ate 3 trail beans earned through play.`
+        : input.action === "comfort"
+          ? `${result.asset.manifest.name} felt your attention and grew calmer.`
+          : `${result.asset.manifest.name} received restorative care using 8 trail beans.`
+    };
+  }
+
+  if (input.type === "settle-creature-care") {
+    const asset = state.inventory.find((candidate) => candidate.id === input.assetId);
+    if (!asset || !isPlayableAsset(state, asset.id)) return state;
+    const result = settleCreatureCare({ asset, ownerReceizId: input.ownerReceizId, at: input.at });
+    if (!result.ok) return state;
+    return {
+      ...state,
+      inventory: state.inventory.map((candidate) => candidate.id === result.asset.id ? result.asset : candidate),
+      adventureConditions: isLivingCardAsset(result.asset)
+        ? { ...state.adventureConditions, [result.asset.id]: currentCreatureHistoryProjection(result.asset).condition }
+        : state.adventureConditions,
+      pendingSyncAssetIds: Array.from(new Set([...state.pendingSyncAssetIds, result.asset.id])),
+      lastEvent: `${result.asset.manifest.name}'s active care mandate went unanswered until its wellness reached zero. Its living journey is now permanently remembered.`
+    };
   }
 
   if (input.type === "activate-creature-continuity"

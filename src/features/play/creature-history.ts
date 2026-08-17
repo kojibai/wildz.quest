@@ -191,7 +191,7 @@ function appendCreatureObserverTurn(
 }
 
 const CONTINUITY_ACTIONS = new Set(["explore", "meet", "bond", "discover", "barter-keepsake"]);
-const CONTINUITY_KINDS = new Set([...CONTINUITY_ACTIONS, "mandate-activated", "mandate-paused"]);
+const CONTINUITY_KINDS = new Set([...CONTINUITY_ACTIONS, "feed", "comfort", "treat", "neglect", "mandate-activated", "mandate-paused"]);
 const MAX_CONTINUITY_EVENTS = 2_048;
 
 function unsignedMandate(mandate: CreatureAutonomyMandate) {

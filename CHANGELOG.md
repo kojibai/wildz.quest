@@ -4,6 +4,36 @@ All notable changes to Wildz are documented here. Wildz uses semantic versioning
 
 ## [Unreleased]
 
+## [7.0.0] - 2026-08-17
+
+The Living Responsibility release: an optional, proof-chained care mandate turns roaming creatures into persistent companions with real needs while preserving the v6.1 live-head, conversation, voice, Vault, world, and settlement boundaries.
+
+### Added
+
+- Deterministic hunger, attention, wellness, sickness, and irreversible mortality projected from the exact card history.
+- Proof-chained feed, attention, restorative-treat, and neglect events; play-earned trail beans are the only paid care resource.
+- Explicit mortality disclosure before roaming activation and a safe resting state that pauses all decline.
+- Permissioned installed-PWA care schedules with bounded, private, validated service-worker data and deduplicated device notifications.
+- Proof-lived card appearance changes derived from real experiences, relationships, discoveries, and remembered care.
+
+### Changed
+
+- Returning to the app, foregrounding it, and each five-minute background checkpoint now settle both due care and the existing roaming continuity without entering movement, capture, render, or reply hot paths.
+- The installed PWA coordinate advances to `v7.0.0-r1`.
+- Package version advances to `7.0.0`; the coordinated Receiz SDK, MCP, and AI-skills identity remains exact `120.0.0`.
+
+### Fixed
+
+- Apply update now extends the service-worker message lifetime through `skipWaiting()`, allowing an accepted update to actually activate and reload.
+- Care alerts cannot inject executable or unbounded schedule fields and do not cache proof objects, conversation, identity authority, or private Vault contents.
+
+### Preserved
+
+- Exact v6.1 streaming replies, genuine Receiz neural voice, proof-memory append, waveform mouth sync, uploaded-card ownership/chat, selected-card continuity, standalone routes, capture bounds, identity responsiveness, and no-zoom Send behavior.
+- Existing Receiz market confirmation, conditional append, wallet transfer, ledger proof, ownership admission, and recovery rails. Payment or capability failure remains zero-transfer and fail-closed; checkout success alone is never ownership.
+
+See the [complete v7.0.0 release notes](docs/release/v7.0.0.md).
+
 ## [6.1.0] - 2026-08-17
 
 The Proof-Locked Neural Continuity release: preserves the v120 live proof head and portable conversation-memory append while routing real speech and embodied performance through the official subject Twin stream.
@@ -195,3 +225,4 @@ See the [complete v3.0.0 release notes](docs/release/v3.0.0.md) and [verificatio
 [5.0.0]: https://github.com/kojibai/wildz.quest/releases/tag/v5.0.0
 [6.0.0]: https://github.com/kojibai/wildz.quest/releases/tag/v6.0.0
 [6.1.0]: https://github.com/kojibai/wildz.quest/releases/tag/v6.1.0
+[7.0.0]: https://github.com/kojibai/wildz.quest/releases/tag/v7.0.0

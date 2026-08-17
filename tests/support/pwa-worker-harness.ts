@@ -150,8 +150,14 @@ export function createWorkerHarness(options: {
       return { response, waitCount: waits.length };
     },
     async dispatchMessage(data: unknown) {
-      listeners.get("message")?.({ data });
-      await Promise.resolve();
+      const waits: Promise<unknown>[] = [];
+      listeners.get("message")?.({
+        data,
+        waitUntil(promise: Promise<unknown>) {
+          waits.push(promise);
+        }
+      });
+      await Promise.all(waits);
     },
     async putCached(name: string, request: RequestInfo | URL | RequestLike, response: Response) {
       const cache = await caches.open(name);

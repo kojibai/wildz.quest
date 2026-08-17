@@ -1,6 +1,6 @@
-# Wildz v6.1.0 release verification
+# Wildz v7.0.0 release verification
 
-Date: 2026-08-17. Target application version: `6.1.0`. Receiz integration target: `120.0.0`.
+Date: 2026-08-17. Target application version: `7.0.0`. Receiz integration target: `120.0.0`.
 
 This record distinguishes repository evidence from external production evidence. A passing local gate proves the source, deterministic contracts, compilation, and configured local browser paths observed in the run. It does not manufacture credentials, remote authority, deployment, payment settlement, or literal creature sentience.
 
@@ -22,13 +22,13 @@ The final source gate passed on 2026-08-17:
 
 | Gate | Observed result |
 |---|---|
-| Receiz architecture lock | Pass; 411 runtime files checked |
-| Node law/regression suite | Pass; 1,284 tests across 122 suites, zero failures |
+| Receiz architecture lock | Pass; 413 runtime files checked |
+| Node law/regression suite | Pass; 1,292 tests across 122 suites, zero failures |
 | Typecheck | Pass |
 | Official v120 repository checker | Pass; `receiz.integration.check.v1`, exact release/registry/matrix/authority identity |
 | MCP/SDK conformance | Pass; 15/15 checks, zero network calls, zero database calls |
 | ESLint | Pass |
-| Secret scan | Pass; 878 text files checked without printing values |
+| Secret scan | Pass; 882 text files checked without printing values |
 | Optimized Next.js build | Pass; 19 static pages generated and all application routes compiled |
 | Receiz doctor | Pass; SDK/MCP/AI skills requested and installed at exact compatible `120.0.0` |
 
@@ -36,7 +36,7 @@ The optimized build retains two upstream `web-worker` dynamic-require warnings i
 
 The earlier v6 WebKit smoke run remains historical evidence for the fail-closed unauthenticated boundary. V6.1 browser qualification separately verifies the production shell, desktop/mobile canvas, navigation, Send focus behavior, and source-level subject-performance contract. An authenticated Receiz ID run remains required to record live neural audio availability and production latency percentiles; that external observation is not fabricated from source tests. Creature conversation never reads a player token from an environment variable.
 
-## V6.1 production-browser evidence
+## V6.1 baseline production-browser evidence
 
 The optimized build was served locally in production mode and checked in the in-app browser:
 
@@ -50,6 +50,8 @@ The optimized build was served locally in production mode and checked in the in-
 | Browser runtime health | Root and standalone tabs recorded zero warnings/errors; both desktop and mobile canvases were nonblank by direct visual inspection |
 
 The browser session was intentionally unauthenticated/offline and did not submit a conversation or mutate proof memory. Live Receiz neural audio and first-text-to-first-audio percentiles therefore remain an explicit strict-live gate, not a fabricated pass.
+
+V7 changes are isolated to deterministic proof-care commands, a Vault care panel, proof-lived card styling, a separate notification-schedule effect, and service-worker update/notification events. Source contracts prove that settlement runs only at mount/five-minute/focus/visibility boundaries and that notification scheduling is advisory. A final authenticated installed-PWA/device run remains required before claiming observed OS delivery timing; source qualification does not fabricate browser background execution.
 
 The Three.js director release report audit passed with premium and audio requirements against the retained flagship evidence. The current credential probe returned literal blank values for `TRIPO_API_KEY`, `GEMINI_API_KEY`, and `ELEVENLABS_API_KEY`; these are recorded as blank/inconclusive, not as present or missing. No external asset generation was attempted because this correction changes the Receiz voice adapter and repository doctrine, the user explicitly required no external dependency, and existing visual assets were not replaced.
 
@@ -92,6 +94,17 @@ The implementation guarantees a genuine model inference from the configured Rece
 - Voice playback is non-authoritative and cannot gate, rewrite, reorder, or erase the exact-head conversation-memory append. No browser or generic synthesized substitute is used.
 - No voice provider environment variable, provider-session route, provider socket, browser neural dependency, warm-up, or local phrase-reply success rail remains.
 
+## V7 care and PWA evidence
+
+- Active care is bound to the exact owner-controlled roaming mandate; resting pauses decline and activation discloses irreversible mortality.
+- Hunger, attention, wellness, care effects, sickness, and death are deterministic whole-hour projections with bounded work and no network/model input.
+- Feed and treatment spend play-earned trail beans only after the exact proof append succeeds; failed commands are zero-write and zero-spend.
+- Neglect settles one irreversible `alive -> dead` condition delta and one chained event in the exact card history.
+- Notification schedules contain no proof object, identity key, conversation, Vault payload, or token; every display field, status, and timestamp is bounded and validated by the worker.
+- Stable threshold IDs deduplicate notifications. Scheduling failure cannot gate gameplay, card proof, capture, conversation, or voice.
+- Apply update now extends `skipWaiting()` with `event.waitUntil()` and retains the existing controller-change state-preservation boundary.
+- Lived card appearance is a bounded projection of admitted experience, relationship, discovery, and care events and introduces no frame loop or dependency.
+
 ## Compatibility
 
 Existing v5/v119 cards and Vaults do not need to be redownloaded to open in v6. Historical sealed bytes remain eligible for v120 verification and unknown namespaces remain byte-exact. Historical admissions, actors, capabilities, plans, confirmations, stores, and receipts cannot authorize current v120 operations. A fresh export is needed only to carry events appended after the prior download.
@@ -106,4 +119,4 @@ The earlier production-shaped 98-card artifact result remains historical compati
 - Representative-device certification, external deployment, tag, push, GitHub release publication, and store distribution are distinct actions.
 - A queued runtime job or proposal is not a global commitment. `receiz.com/global/v1` is a named coordination domain, not universal consensus.
 
-Version `6.1.0` is qualified for a local source commit only after the final release gate and browser evidence recorded in this file pass. Tagging and external publication must preserve that same commit and require their own observed evidence.
+Version `7.0.0` is qualified for a local source commit only after the final release gate passes. Tagging and external publication must preserve that same commit and require their own observed authenticated voice, installed-PWA notification, and remote market evidence.

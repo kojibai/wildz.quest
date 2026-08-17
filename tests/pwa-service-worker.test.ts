@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { createWorkerHarness } from "./support/pwa-worker-harness";
 
@@ -103,6 +104,19 @@ test("only the shared update message activates a waiting worker", async () => {
 
   await worker.dispatchMessage({ type: "WILDZ_APPLY_UPDATE" });
   assert.equal(worker.skippedWaiting, true);
+});
+
+test("apply update keeps skipWaiting alive through the service-worker event", () => {
+  const source = readFileSync("public/sw.js", "utf8");
+  assert.match(source, /event\.waitUntil\(self\.skipWaiting\(\)\)/);
+});
+
+test("private care alerts are scheduled without entering the gameplay fetch path", () => {
+  const source = readFileSync("public/sw.js", "utf8");
+  assert.match(source, /WILDZ_CARE_SCHEDULE/);
+  assert.match(source, /periodicsync/);
+  assert.match(source, /showNotification/);
+  assert.doesNotMatch(source, /SHELL_URLS\s*=\s*\[[^\]]*private-care-schedule/s);
 });
 
 test("network-only APIs are fetched but never cached", async () => {

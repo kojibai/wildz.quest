@@ -502,7 +502,7 @@ export function WildsInventory({
               onObserved={(turn) => onInput({ type: "record-creature-observation", turn })}
               onSpeakingChange={setSelectedCreatureSpeaking}
             />
-            <CreatureContinuityPanel asset={selected} disabled={selectedRetired} onInput={onInput} />
+            <CreatureContinuityPanel asset={selected} beans={state.beans} disabled={selectedRetired} onInput={onInput} />
             <div className="wilds-inventory-actions">
               <button className="button button-primary" disabled={selectedRetired || state.selectedAssetId === selected.id} onClick={() => onInput({ type: "select-asset", assetId: selected.id })} type="button">{selectedRetired ? "Retired · cannot enter game" : state.selectedAssetId === selected.id ? "Active deck leader" : "Set as active deck leader"}</button>
               <Link className="button button-outline" href={`/cards/${encodeURIComponent(selected.id)}`} onClick={() => { rememberStandaloneWildzCard(selected); }}>Open standalone card page</Link>
