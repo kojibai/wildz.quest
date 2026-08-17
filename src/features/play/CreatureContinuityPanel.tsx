@@ -67,7 +67,7 @@ export function CreatureContinuityPanel({
       </div>
 
       <div className="wilds-continuity-memory">
-        <div><strong>Lived memory</strong><small>{continuity?.events.length ?? 0} replayable events · settled on return in v119</small></div>
+        <div><strong>Lived memory</strong><small>{continuity?.events.length ?? 0} replayable events · settled on return in v120</small></div>
         {recent.length ? recent.map((event) => (
           <article key={event.digest}>
             <span aria-hidden="true">{event.kind === "discover" ? "✦" : event.kind === "barter-keepsake" ? "⇄" : event.kind === "explore" ? "⌁" : "●"}</span>

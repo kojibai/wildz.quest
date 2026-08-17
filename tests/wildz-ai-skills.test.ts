@@ -2,18 +2,18 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-test("Wildz AI skills state v119 artifact authority and confirmation law", () => {
+test("Wildz AI skills state v120 artifact authority and confirmation law", () => {
   for (const name of ["wildz-builder-skill", "wildz-market-operator-skill", "wildz-release-skill"]) {
     const source = readFileSync(`ai-skills/${name}/SKILL.md`, "utf8");
-    assert.match(source, /119\.0\.0/i);
+    assert.match(source, /120\.0\.0/i);
     assert.match(source, /Receiz proof authority/i);
     assert.match(source, /confirmation/i);
-    assert.match(source, /49c167a437ec7c0e486412dd62c54af4abdf94eda1ebc18d263a027d105cecd9/i);
-    assert.match(source, /53cf9d6862b2396e2fe7864f8607c00c4e3b6e31b082ab5c5c8dff088fcb52c1/i);
+    assert.match(source, /0728651789b26e1d10c1991ec1c06c1ea4a576f0c6520537b250b171f8857073/i);
+    assert.match(source, /1c779ee5ade4b877ae9c6922ab02ba96fffffeb7580f1cf105a59fbb4424f351/i);
     assert.match(source, /command-only|command admission|ownership\.claimBearerAsset/i);
     assert.match(source, /queued[\s\S]*not (?:a )?global(?:ly)? commit/i);
     assert.match(source, /first admission only, then append forever/i);
-    assert.match(source, /v119[\s\S]*(?:enclosing artifact|known truth|Merkle|Fibonacci)/i);
+    assert.match(source, /v120[\s\S]*(?:enclosing artifact|known truth|Merkle|Fibonacci)/i);
     assert.doesNotMatch(source, /major 102|major 103|major 105|major 106|107\.0\.0|111\.0\.0|Bearer\s+[A-Za-z0-9_-]{12}/);
   }
 });

@@ -4,13 +4,47 @@ All notable changes to Wildz are documented here. Wildz uses semantic versioning
 
 ## [Unreleased]
 
+## [6.0.0] - 2026-08-17
+
+The Living Creature Continuity release: verified cards become persistent Receiz v120 subjects with proof-grounded minds, factual memory, direct conversation, embodied neural voice, autonomous continuity, and identity-preserving bearer transfer.
+
+### Added
+
+- First-class Receiz v120 `wildz.creature` subjects built from exact innate, capture, history, conversation, and continuity proof objects.
+- Proof-brain identity, head, Merkle root, object count, memory citation, registry, and reducer coordinates on creature observations.
+- Direct talk-to-card experience in the Vault with persistent conversation memory and a local proof-grounded Twin fallback.
+- Innate pre-capture self-model derived from discovery, species, genome, traits, statistics, form, provenance, and capture conditions.
+- Owner-bound autonomy mandates for deterministic exploration, meetings, relationships, discoveries, and keepsake barter, with atomic multi-creature settlement.
+- Deterministic creature-specific Kokoro neural voices, self-hosted ONNX Runtime Web, background prewarm, Safari/WebKit WASM routing, and browser-speech fallback.
+- Waveform-synchronized mouth movement and personality/genome/state-shaped eyes, ears, tail, aura, posture, and performance.
+- Raw binary plus multipart artifact transport, card-only and full-Vault merge, full-collection union regression coverage, and native Apple save/share behavior.
+- V120 bearer receipt schema and integration boundary for transfer preview, instrument issue, inspection, claim, cancellation, and status.
+
 ### Changed
 
-- Upgraded the coordinated Receiz toolchain to `@receiz/sdk@119.0.0`, `@receiz/mcp-server@119.0.0`, and `@receiz/ai-skills@119.0.0`, including published lockfile integrity values.
-- Raised the Node.js runtime and CI floor to `20.19.0` to satisfy the v119 dependency graph.
-- Migrated the application contract, generated evidence, doctor, checker, tests, runtime protocol labels, MCP guidance, release documentation, and checked-in Wildz AI skills to the v119 ruleset and `>=119.0.0 <120.0.0` compatibility range.
-- Adopted registry digest `49c167a437ec7c0e486412dd62c54af4abdf94eda1ebc18d263a027d105cecd9` and 16-operation matrix digest `53cf9d6862b2396e2fe7864f8607c00c4e3b6e31b082ab5c5c8dff088fcb52c1`.
-- Enforced the v119 authority guarantees that the enclosing artifact remains strongest, projections remain non-authoritative, known truth paints before discovery, Kai selects causal heads, Merkle roots commit exact appends, and Fibonacci links provide sparse ancestry.
+- Upgraded the coordinated Receiz toolchain to exact public `@receiz/sdk@120.0.0`, `@receiz/mcp-server@120.0.0`, and `@receiz/ai-skills@120.0.0`, with published integrity pinned in the lockfile.
+- Migrated the application contract, generated evidence, checker, tests, MCP guidance, release documentation, and checked-in Wildz AI skills to the v120 ruleset and `>=120.0.0 <121.0.0` compatibility range.
+- Adopted registry digest `0728651789b26e1d10c1991ec1c06c1ea4a576f0c6520537b250b171f8857073`, 30-operation matrix digest `1c779ee5ade4b877ae9c6922ab02ba96fffffeb7580f1cf105a59fbb4424f351`, and living-subject reducer digest `5694662e2acc8b886ac9697ffad202b411d7e66c5f26f9106ee0768df7c7b8c8`.
+- Kept AI as observer and performer: model output cannot become a world event without separate command admission, and factual memory requires admitted-event citations.
+- Made subject identity survive ownership changes while invalidating prior-owner mandates and authority immediately.
+- Advanced the installed PWA shell coordinate to `v6.0.0-r1`.
+
+### Fixed
+
+- Eliminated silent card/Vault upload failures and the `Failed to parse body as FormData` binary transport error.
+- Restored additive Vault merge behavior so uploading a valid card or Vault preserves the current collection and adds every verified new card.
+- Reconciled transferred creatures out of a previous owner's active Vault after verified ownership changes.
+- Restored reliable production neural audio in Safari/WebKit by serving exact version-matched local ONNX runtime assets and avoiding stalled WebGPU selection.
+- Preserved audible response through a truthful browser fallback when neural synthesis is unavailable.
+
+### Integrity
+
+- Subject identity survives transfer; proof-brain indexes and projections never become authority.
+- Unknown proof namespaces remain byte-exact through v120 projection and transfer.
+- Failed decisions and invalid multi-subject operations write zero state, including zero Kai advancement.
+- Historical v119 artifact/idempotency/channel coordinates remain stable where changing them would break compatibility; historical authority objects cannot authorize current v120 work.
+
+See the [complete v6.0.0 release notes](docs/release/v6.0.0.md) and [Living Creature Continuity contract](docs/WILDZ_LIVING_CREATURE_CONTINUITY_V120.md).
 
 ## [5.0.0] - 2026-08-13
 
@@ -118,3 +152,4 @@ See the [complete v3.0.0 release notes](docs/release/v3.0.0.md) and [verificatio
 [3.0.0]: https://github.com/kojibai/wildz.quest/releases/tag/v3.0.0
 [4.0.0-alpha.0]: https://github.com/kojibai/wildz.quest/releases/tag/v4.0.0-alpha.0
 [5.0.0]: https://github.com/kojibai/wildz.quest/releases/tag/v5.0.0
+[6.0.0]: https://github.com/kojibai/wildz.quest/releases/tag/v6.0.0

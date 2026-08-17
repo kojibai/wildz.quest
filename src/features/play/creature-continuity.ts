@@ -21,7 +21,7 @@ import {
   type PortableCardAsset
 } from "./portable-card";
 
-export const CREATURE_CONTINUITY_RULESET = "wildz.creature-continuity.v119.1" as const;
+export const CREATURE_CONTINUITY_RULESET = "wildz.creature-continuity.v120.0" as const;
 export const CREATURE_CONTINUITY_ACTIONS = ["explore", "meet", "bond", "discover", "barter-keepsake"] as const;
 export const CREATURE_CONTINUITY_MAX_ACTIONS_PER_DAY = 4;
 export const CREATURE_CONTINUITY_MAX_AWAY_HOURS = 72;
@@ -294,15 +294,15 @@ function mandateActor(event: CreatureContinuityEvent) {
 }
 
 export interface LivingSubjectContinuityAdapter {
-  readonly version: "v119-card-history" | "v120-generic-subject";
+  readonly version: "v120-card-history" | "v120-generic-subject";
   activate(input: Parameters<typeof activateCreatureContinuity>[0]): CreatureContinuityCommandResult;
   pause(input: Parameters<typeof pauseCreatureContinuity>[0]): CreatureContinuityCommandResult;
   settle(input: Parameters<typeof settleCreatureContinuity>[0]): CreatureContinuityCommandResult;
 }
 
 /** v120 swaps this adapter for generic subjects/UoW receipts without changing gameplay commands. */
-export const livingSubjectContinuityV119: LivingSubjectContinuityAdapter = {
-  version: "v119-card-history",
+export const livingSubjectContinuityV120: LivingSubjectContinuityAdapter = {
+  version: "v120-card-history",
   activate: activateCreatureContinuity,
   pause: pauseCreatureContinuity,
   settle: settleCreatureContinuity

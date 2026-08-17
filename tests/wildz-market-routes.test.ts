@@ -39,7 +39,7 @@ test("ownership reconciliation returns only foreign active asset IDs from the sy
   assert.doesNotMatch(route, /body\.(actor|owner|accessToken)/);
 });
 
-test("bearer claim route admits complete artifacts through v119 ownership before projecting cards", () => {
+test("bearer claim route admits complete artifacts through v120 ownership before projecting cards", () => {
   const route = readFileSync("app/api/market/claims/route.ts", "utf8");
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
 
@@ -49,7 +49,7 @@ test("bearer claim route admits complete artifacts through v119 ownership before
   assert.match(route, /readWildzHttpArtifact/);
   assert.match(route, /bearer-claim-admitted/);
   assert.match(route, /compareAndAppend/);
-  assert.match(route, /receiz\.wilds_bearer_claim\.v119/);
+  assert.match(route, /receiz\.wilds_bearer_claim\.v120/);
   assert.match(route, /admitted\.ownershipWitness/);
   assert.match(route, /witnessedKaiPulse/);
   assert.match(route, /witnessedAt/);

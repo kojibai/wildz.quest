@@ -1,6 +1,6 @@
 {
   "name": "wildz-quest",
-  "version": "5.0.0",
+  "version": "6.0.0",
   "description": "Open-source living game world and end-to-end Receiz SDK, MCP, and AI-skills reference implementation.",
   "license": "MIT",
   "private": true,
@@ -42,7 +42,7 @@
     "lint": "eslint .",
     "receiz:doctor": "node scripts/receiz-doctor.mjs",
     "receiz:doctor:strict": "node scripts/receiz-doctor.mjs --strict-live",
-    "receiz:check": "node scripts/receiz-v119-check.mjs",
+    "receiz:check": "node scripts/receiz-v120-check.mjs",
     "receiz:conformance": "receiz conformance",
     "receiz:webhooks:create": "node scripts/receiz-create-webhooks.mjs",
     "secret:scan": "node scripts/release-secret-scan.mjs",
@@ -51,7 +51,7 @@
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
-    "@receiz/sdk": "119.0.0",
+    "@receiz/sdk": "120.0.0",
     "jszip": "^3.10.1",
     "kokoro-js": "^1.2.1",
     "lucide-react": "^0.468.0",
@@ -63,8 +63,8 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
-    "@receiz/ai-skills": "119.0.0",
-    "@receiz/mcp-server": "119.0.0",
+    "@receiz/ai-skills": "120.0.0",
+    "@receiz/mcp-server": "120.0.0",
     "@types/node": "^22.0.0",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.0",

@@ -1,32 +1,32 @@
 # Wildz Receiz SDK, MCP, and AI-skills contract
 
-Wildz pins `@receiz/sdk@119.0.0` as application/runtime authority and `@receiz/mcp-server@119.0.0` plus `@receiz/ai-skills@119.0.0` as development tooling. All three exact packages resolve from the public npm registry, and `pnpm-lock.yaml` pins their published integrity values. No fork, patch, third-party database, or external database is introduced.
+Wildz pins `@receiz/sdk@120.0.0` as application/runtime authority and `@receiz/mcp-server@120.0.0` plus `@receiz/ai-skills@120.0.0` as development tooling. All three exact packages resolve from the public npm registry, and `pnpm-lock.yaml` pins their published integrity values. No fork, patch, third-party database, or external database is introduced.
 
 The packaged MCP runtime remains operator tooling, and the packaged AI skills remain doctrine for builders and agents. Neither outranks verified artifact continuity or server admission.
 
 Run MCP from an agent host with `pnpm exec receiz-mcp`. Public reads need no bearer token. Delegated writes require a Receiz-issued Connect/OIDC token supplied to the MCP process as `RECEIZ_ACCESS_TOKEN` or `RECEIZ_CONNECT_ACCESS_TOKEN`. Keep MCP imports out of `app/`, `src/`, client components, and browser bundles.
 
-## v119 application contract, registry, and checker
+## v120 application contract, registry, and checker
 
-`receiz.app.json` defines Wildz as a v119 `receiz.app.contract.v1` application with the `identity`, `proof`, `proofMemory`, `publicStore`, and `commerce` features. It selects `artifact-first` authority and sets `allowDatabaseAuthority` to `false`. The SDK's compiler APIs compile that declaration into a deterministic integration plan; the checked-in `receiz.generated.json` records repository evidence for Record-before-Seal, durable proof memory, continuity verification, idempotency, and browser-safe secrets. Constitutional operations bind to registry digest `49c167a437ec7c0e486412dd62c54af4abdf94eda1ebc18d263a027d105cecd9` and application-operation matrix digest `53cf9d6862b2396e2fe7864f8607c00c4e3b6e31b082ab5c5c8dff088fcb52c1`.
+`receiz.app.json` defines Wildz as a v120 `receiz.app.contract.v1` application with the `identity`, `proof`, `proofMemory`, `publicStore`, and `commerce` features. It selects `artifact-first` authority and sets `allowDatabaseAuthority` to `false`. The SDK's compiler APIs compile that declaration into a deterministic integration plan; the checked-in `receiz.generated.json` records repository evidence for Record-before-Seal, durable proof memory, continuity verification, idempotency, and browser-safe secrets. Constitutional operations bind to registry digest `0728651789b26e1d10c1991ec1c06c1ea4a576f0c6520537b250b171f8857073` and application-operation matrix digest `1c779ee5ade4b877ae9c6922ab02ba96fffffeb7580f1cf105a59fbb4424f351`.
 
-V119 coordinates the SDK, MCP, AI manifests, ruleset, registry, operation matrix, compatible package range, and packed runtime as one release identity. Durable proof memory is first admission only, then append forever. V119 causal orchestration keeps the enclosing artifact strongest, paints known truth before discovery, selects causal heads by Kai, and commits exact appends through Merkle roots with Fibonacci sparse ancestry.
+V120 coordinates the SDK, MCP, AI manifests, ruleset, registry, operation matrix, compatible package range, and packed runtime as one release identity. Durable proof memory is first admission only, then append forever. V120 causal orchestration keeps the enclosing artifact strongest, paints known truth before discovery, selects causal heads by Kai, and commits exact appends through Merkle roots with Fibonacci sparse ancestry.
 
-Run `pnpm receiz:check` to invoke the official v119 repository checker against target `119.0.0` and verify the exact release, ruleset, registry digest, 30 numbered artifact laws, 16-operation matrix, protocol limits, and authority flags. The command is also part of the release gate. A clean checker result confirms that the declared repository integration requirements have evidence; it is not a substitute for artifact verification, strict-live qualification, or remote mutation evidence.
+Run `pnpm receiz:check` to invoke the official v120 repository checker against target `120.0.0` and verify the exact release, ruleset, registry digest, 30 numbered artifact laws, 30-operation matrix, protocol limits, and authority flags. The command is also part of the release gate. A clean checker result confirms that the declared repository integration requirements have evidence; it is not a substitute for artifact verification, strict-live qualification, or remote mutation evidence.
 
-The checked-in historical migration checkpoint remains forward-only evidence: no sealed artifact, receipt, or proof head was rewritten. The current runtime and checker are v119-only. Historical sealed bytes remain eligible for current verification, but historical admissions, actors, plans, capabilities, stores, confirmations, or receipts cannot authorize a current receiver. A queued proposal is not a global commitment.
+The checked-in historical migration checkpoint remains forward-only evidence: no sealed artifact, receipt, or proof head was rewritten. The current runtime and checker are v120-only. Historical sealed bytes remain eligible for current verification, but historical admissions, actors, plans, capabilities, stores, confirmations, or receipts cannot authorize a current receiver. A queued proposal is not a global commitment.
 
-## v119 artifact operation boundary
+## v120 artifact operation boundary
 
-The v119 operation matrix contains the prior artifact/global rails and retains `profile-showcase.genesis.plan`, `profile-showcase.append.plan`, `economy-showcase.genesis.plan`, `economy-showcase.append.plan`, and `economy-showcase.merge.plan`. Profile showcases use the literal `profile-showcase:<owner>` identity—not a payload digest—and successor history travels in the sealed bytes without introducing a new signer, issuer, or head authority. Economy merges require verified sibling heads. Admission is eligibility, never operation authority. Planning performs zero writes and binds the v119 registry and operation matrix, runtime-custodied actor/history evidence, literal identity, canonical body/event, expected head, idempotency identity, and named commit domain. Only a verified plan-bound capability may seal; staging stores immutable candidate bytes without advancing a head; commit independently resolves and reverifies the staged bytes before atomic acceptance. Receipts are report-only and cannot re-enter an authority-bearing API.
+The v120 operation matrix contains the prior artifact/global rails and retains `profile-showcase.genesis.plan`, `profile-showcase.append.plan`, `economy-showcase.genesis.plan`, `economy-showcase.append.plan`, and `economy-showcase.merge.plan`. Profile showcases use the literal `profile-showcase:<owner>` identity—not a payload digest—and successor history travels in the sealed bytes without introducing a new signer, issuer, or head authority. Economy merges require verified sibling heads. Admission is eligibility, never operation authority. Planning performs zero writes and binds the v120 registry and operation matrix, runtime-custodied actor/history evidence, literal identity, canonical body/event, expected head, idempotency identity, and named commit domain. Only a verified plan-bound capability may seal; staging stores immutable candidate bytes without advancing a head; commit independently resolves and reverifies the staged bytes before atomic acceptance. Receipts are report-only and cannot re-enter an authority-bearing API.
 
-V119 also retains the v115 native-capture and PBI-authorship laws: native capture attests only a dedicated camera ceremony, authorship requires the canonical verified enclosing predecessor, does not transfer ownership or alter media truth, and appends in verified order. Offline settlement does not wait for global publication.
+V120 also retains the v115 native-capture and PBI-authorship laws: native capture attests only a dedicated camera ceremony, authorship requires the canonical verified enclosing predecessor, does not transfer ownership or alter media truth, and appends in verified order. Offline settlement does not wait for global publication.
 
-The SDK v119 commerce clients do not expose the Wildz-specific verified conditional market ownership append required by the game contract. The market adapter therefore reports missing capability and fails closed when that append is unavailable. MCP must not synthesize it, and IndexedDB or process memory must not be presented as durable market authority.
+V120 exposes direct bearer transfer instruments, but a bearer instrument is not the Wildz marketplace's separate conditional listing/payment/settlement append. The market adapter reports missing capability and fails closed when that append is unavailable. MCP must not synthesize it, and IndexedDB or process memory must not be presented as durable market authority.
 
-## v119 native proof objects
+## v120 native proof objects
 
-New card and Vault exports use the SDK v119 native Record → Seal operation. Wildz supplies only the artifact type and exact payload bytes. The authenticated Receiz service resolves owner, claim, verification path, and native continuity; application code does not author ownership, namespace, provenance, settlement, or prior-head authority.
+New card and Vault exports use the SDK v120 native Record → Seal operation. Wildz supplies only the artifact type and exact payload bytes. The authenticated Receiz service resolves owner, claim, verification path, and native continuity; application code does not author ownership, namespace, provenance, settlement, or prior-head authority.
 
 An export is accepted only when all of these agree:
 
@@ -36,19 +36,33 @@ An export is accepted only when all of these agree:
 - the claim and path in the SDK verification bundle; and
 - successful SDK verification with no integrity errors.
 
-The SDK-returned native artifact is the final download. Its bytes and MIME type are preserved exactly; Wildz never wraps a new v119 artifact in a legacy portable-asset envelope. The `wildz-v119` idempotency namespace binds retries to the exact payload digest. Verification obeys the published v119 protocol limits and fails closed when the local runtime cannot safely materialize an otherwise protocol-valid artifact.
+The SDK-returned native artifact is the final download. Its bytes and MIME type are preserved exactly; Wildz never wraps a new v120 artifact in a legacy portable-asset envelope. The `wildz-v120` idempotency namespace binds retries to the exact payload digest. Verification obeys the published v120 protocol limits and fails closed when the local runtime cannot safely materialize an otherwise protocol-valid artifact.
 
 ## Legacy v102 read compatibility
 
-Existing `receiz.portable_asset.v1` artifacts remain importable only after v119 `artifacts.verifyAndOpen` returns `verified-legacy-read`. Wildz may parse the returned `verifiedPayload.bytes`; it never parses the enclosing artifact itself. Compatibility is read-only and isolated from all current proof creation.
+Existing `receiz.portable_asset.v1` artifacts remain importable only after v120 `artifacts.verifyAndOpen` returns `verified-legacy-read`. Wildz may parse the returned `verifiedPayload.bytes`; it never parses the enclosing artifact itself. Compatibility is read-only and isolated from all current proof creation.
 
 Cryptographic authority comes from complete-artifact `artifacts.verifyAndOpen`. Local decoding, filenames, visual previews, MCP inspection, and model output cannot authenticate an artifact.
 
 An offline Identity-Seal Vault is a separate supported authority path. It retains the official Receiz Identity Seal plus the Wildz signed V3 binding. Protected keys request their passphrase for that export operation only; the passphrase is neither persisted nor written to the artifact.
 
+## MCP v120 living-subject surface
+
+The v120 package adds 37 typed living-subject tools in five coherent groups:
+
+- subject resolution and projections: resolve, state, history, memory query, relationships, inventory;
+- Twin: profile, message, portable-mind export, and mind-import plan;
+- mandates: get, plan, activate, pause, and revoke;
+- deterministic world/runtime: additions, command plan/validate/execute, transaction plan/execute, receipt, replay, job enqueue/status/cancel, and conformance;
+- proof brain and custody: brain head/search/resolve/stream plus bearer transfer preview, instrument issue/inspect/claim, cancel, and status.
+
+Wildz uses the official subject Twin at the application observer boundary. The Twin receives exact proof references and may return speech, performance, and proposed intents. Speech is an observation; an intent is zero-write until a separate world command validates and executes. Factual memory must cite admitted event objects. Multi-subject effects commit atomically, failed decisions write zero—including zero Kai—and active mandates are reverified at execution.
+
+Bearer tools preserve the subject identity and proof brain while changing custody. Claim revokes former-owner authority immediately. Transfer preview, an issued instrument, inspection output, status, or a local projection is not custody by itself; claim must return exact evidence that the receiver independently verifies.
+
 ## MCP authority boundary
 
-MCP may inspect capabilities, resolve public proof/app-state records, and prepare delegated operations. The single current v119 artifact inventory is exactly `receiz_artifact_verify`, `receiz_artifact_admit`, `receiz_artifact_append_plan`, `receiz_artifact_transition_seal_and_stage`, `receiz_artifact_transition_commit`, `receiz_artifact_global_resolve`, `receiz_artifact_reconcile_plan`, `receiz_artifact_reconcile_stage`, and `receiz_artifact_reconcile_commit`. The first five also describe the historical v112 compatibility inventory; they do not form a second current surface. Bearer ownership uses complete artifact bytes. MCP never reconstructs a smaller local claim.
+MCP may inspect capabilities, resolve public proof/app-state records, and prepare delegated operations. The current artifact inventory remains exactly nine tools: `receiz_artifact_verify`, `receiz_artifact_admit`, `receiz_artifact_append_plan`, `receiz_artifact_transition_seal_and_stage`, `receiz_artifact_transition_commit`, `receiz_artifact_global_resolve`, `receiz_artifact_reconcile_plan`, `receiz_artifact_reconcile_stage`, and `receiz_artifact_reconcile_commit`. The 37 living-subject tools are an additional typed surface, not replacement proof authority. Bearer ownership uses complete artifact bytes. MCP never reconstructs a smaller local claim.
 
 Global means acceptance by the named `receiz.com/global/v1` coordination domain, not universal consensus. Known artifact truth paints before remote startup. Returned bytes are independently reverified, structural divergence is preserved for explicit resolution, and accepted-head status is reported separately from effect delivery. A Connect token coordinates a request but is not artifact, identity, or operation authority.
 
@@ -58,7 +72,7 @@ Identity signatures, native proof-object admission, ownership heads, settlement,
 
 Use MCP as a read-only audit surface first. An operator may inspect current capabilities and sanitized public/app-state records to compare tournament health, season participation, admission failures, ruleset distribution, replay commitments, disconnects, settlement latency, and unresolved publication states. A replay review must start from the exact Arena definition, signed admission envelope, pinned fighter revisions, Kai root, input transcript, checkpoints, and terminal digest; MCP output can organize that evidence but cannot make a replay valid. Creature review likewise begins with an SDK-verified card or Vault and then checks exact asset identity, parent linkage, event and projection digests, Kai chronology, bounded effects, and terminal life state.
 
-Do not invent a tournament, replay, balance, or creature-history MCP tool when the installed v119 inventory does not expose one. Use the nine current artifact tools for their documented artifact operations, SDK verification for enclosing artifacts, and repository/server audit adapters for product-specific projections. If a required read, audit, or conditional command is unavailable, report the capability as unavailable and leave the operation pending.
+Do not invent a tournament or balance tool when the installed v120 inventory does not expose one. Use the installed nine artifact and 37 living-subject tools only for their documented operations, SDK verification for enclosing artifacts, and repository/server audit adapters for product-specific projections. If a required read, audit, or conditional command is unavailable, report the capability as unavailable and leave the operation pending.
 
 Balance analysis and coaching may consume sanitized, already-admitted replays to produce simulations, matchup aggregates, counterfactuals, or recommendations. Those outputs are advisory: they do not alter matchmaking, ratings, cards, season standings, or proofs. AI and MCP never sign a covenant or admission envelope, never admit a match or creature event, and never choose a hidden live-player action.
 

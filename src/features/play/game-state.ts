@@ -51,7 +51,7 @@ import { healWildBattleCard, settleWildBattleCard } from "./wild-battle-life";
 import { sealRetirement } from "../games/lifecycle/creature-retirement";
 import type { ArenaSettlement } from "../games/mortal-arena/settlement";
 import type { CreatureObserverMemoryTurn } from "./creature-history-types";
-import { livingSubjectContinuityV119 } from "./creature-continuity";
+import { livingSubjectContinuityV120 } from "./creature-continuity";
 import {
   EMPTY_WILDS_SUPPORT_ASSET_IDS,
   type WildsBossFamilyId,
@@ -956,10 +956,10 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     const asset = state.inventory.find((candidate) => candidate.id === input.assetId);
     if (!asset || !isPlayableAsset(state, asset.id)) return state;
     const command = input.type === "activate-creature-continuity"
-      ? livingSubjectContinuityV119.activate
+      ? livingSubjectContinuityV120.activate
       : input.type === "pause-creature-continuity"
-        ? livingSubjectContinuityV119.pause
-        : livingSubjectContinuityV119.settle;
+        ? livingSubjectContinuityV120.pause
+        : livingSubjectContinuityV120.settle;
     const result = command({ asset, ownerReceizId: input.ownerReceizId, at: input.at });
     if (!result.ok) {
       if (result.code === "continuity_no_action_due") return state;

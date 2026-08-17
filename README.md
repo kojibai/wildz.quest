@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/kojibai/wildz.quest/actions/workflows/ci.yml/badge.svg)](https://github.com/kojibai/wildz.quest/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-2ea44f.svg)](LICENSE)
-[![Receiz SDK](https://img.shields.io/badge/Receiz%20SDK-119.0.0-6f42c1.svg)](https://www.npmjs.com/package/@receiz/sdk)
+[![Receiz SDK](https://img.shields.io/badge/Receiz%20SDK-120.0.0-6f42c1.svg)](https://www.npmjs.com/package/@receiz/sdk)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
 
 > Wildz is both a product and a reference implementation. The game is the product; the repository is the evidence that the Receiz application model can be reshaped into something genuinely different without replacing its proof authority.
@@ -20,13 +20,13 @@ It demonstrates four layers working together:
 | Layer | What Wildz uses it for | Authority boundary |
 |---|---|---|
 | [Receiz Commerce Kit](https://github.com/kojibai/Receiz-commerce) | The forkable application kernel and original commerce architecture | Starting point, not a runtime dependency |
-| `@receiz/sdk@119.0.0` | Identity, proof objects, custody, ownership, publication, audit, and settlement clients | The typed application/runtime boundary |
-| `@receiz/mcp-server@119.0.0` | Capability inspection and authorized operator workflows | Tooling only; it cannot manufacture proof or authority |
-| `@receiz/ai-skills@119.0.0` plus the checked-in Wildz skills | Proof-aware build, market, and release procedures for coding agents | Operating guidance only; verification still wins |
+| `@receiz/sdk@120.0.0` | Identity, proof objects, custody, ownership, publication, audit, and settlement clients | The typed application/runtime boundary |
+| `@receiz/mcp-server@120.0.0` | Capability inspection and authorized operator workflows | Tooling only; it cannot manufacture proof or authority |
+| `@receiz/ai-skills@120.0.0` plus the checked-in Wildz skills | Proof-aware build, market, and release procedures for coding agents | Operating guidance only; verification still wins |
 
-All three Receiz packages resolve at exact version `119.0.0` from the public npm registry, with their published SHA-512 integrity values pinned by `pnpm-lock.yaml`. The application contract in [`receiz.app.json`](receiz.app.json) selects artifact-first authority and explicitly disables database authority.
+All three Receiz packages resolve at exact version `120.0.0` from the public npm registry, with their published SHA-512 integrity values pinned by `pnpm-lock.yaml`. The application contract in [`receiz.app.json`](receiz.app.json) selects artifact-first authority and explicitly disables database authority.
 
-V119 coordinates the SDK, MCP server, AI skills, ruleset, registry, operation matrix, compatible package range, and packed runtime as one release identity. Durable proof memory remains first admission only, then append forever. V119 causal orchestration keeps the enclosing artifact strongest, paints known truth before discovery, selects causal heads by Kai, and commits exact appends through Merkle roots with Fibonacci sparse ancestry.
+V120 coordinates the SDK, MCP server, AI skills, ruleset, registry, 30-operation matrix, compatible package range, and packed runtime as one release identity. It adds native living subjects, proof brains, factual memory, subject Twins, portable minds, mandates, deterministic world transactions and jobs, and bearer instruments. Durable proof memory remains first admission only, then append forever.
 
 ## What was built
 
@@ -35,6 +35,7 @@ Wildz replaces the source repository's commerce-site experience with a game-firs
 - A no-signup first landing with local player genesis and later Receiz identity activation.
 - Identity Seal/key continuation and verified Vault recovery.
 - Living, portable creature cards with lineage, mastery, progression, export, import, and cross-application continuity.
+- A proof-grounded creature Twin: talk to the exact being from its card, hear its deterministic neural voice, and see genome/state-shaped expression synchronized to speech.
 - A deterministic world with ecology, settlements, social memory, routes, raids, bosses, and canonical event projections.
 - Mortal Arena, Hearttree, party play, competition, and multiplayer commands.
 - Sanitized public player profiles and public card routes.
@@ -66,7 +67,7 @@ Before changing code, establish a clean baseline:
 pnpm release:check
 ```
 
-That command runs the Node test suite, typecheck, Receiz v119 contract checker, MCP conformance, lint, tracked/untracked text secret scan, production build, and default Receiz doctor.
+That command runs the Node test suite, typecheck, Receiz v120 contract checker, MCP conformance, lint, tracked/untracked text secret scan, production build, and default Receiz doctor.
 
 ## The system in one view
 
@@ -94,9 +95,9 @@ Read the detailed [architecture](docs/ARCHITECTURE.md), [Receiz rail map](docs/R
 
 ### SDK application boundary
 
-Application-facing Receiz code lives in [`src/lib/receiz`](src/lib/receiz). UI and game modules consume these adapters instead of scattering SDK calls across components. New v119 artifacts use the native Record → Seal flow, preserve SDK-returned bytes exactly, and are independently reopened before acceptance.
+Application-facing Receiz code lives in [`src/lib/receiz`](src/lib/receiz). UI and game modules consume these adapters instead of scattering SDK calls across components. New v120 artifacts use the native Record → Seal flow, preserve SDK-returned bytes exactly, and are independently reopened before acceptance.
 
-The checked-in contract and generated evidence bind the application to the v119 ruleset, registry digest, 16-operation matrix, protocol limits, 30 numbered artifact laws, profile/economy showcase authority, and native-capture/PBI-authorship rules. The matrix retains profile-showcase genesis and append planning plus economy-showcase genesis, append, and merge planning while keeping plans non-authoritative and zero-write:
+The checked-in contract and generated evidence bind the application to the v120 ruleset, registry digest, 30-operation matrix, protocol limits, 30 numbered artifact laws, living-subject authority, profile/economy showcases, and native-capture/PBI-authorship rules. Twin output is non-authoritative; factual memory cites admitted events; multi-subject effects are atomic; and bearer transfer preserves subject identity while revoking the former owner.
 
 ```bash
 pnpm receiz:check
@@ -111,7 +112,7 @@ Run the pinned MCP server from an MCP-capable agent host:
 pnpm exec receiz-mcp
 ```
 
-Public reads do not require a bearer token. Authorized delegated operations require a scoped Receiz credential supplied to the MCP process. MCP packages must stay out of browser and application bundles. See [`docs/MCP.md`](docs/MCP.md) for the supported v119 inventory and credential boundary.
+Public reads do not require a bearer token. Authorized delegated operations require a scoped Receiz credential supplied to the MCP process. MCP packages must stay out of browser and application bundles. See [`docs/MCP.md`](docs/MCP.md) for the nine artifact tools, 37 living-subject tools, and credential boundary.
 
 ### AI-native repository operations
 
@@ -136,7 +137,7 @@ Wildz adds no external application database. Owner-scoped continuity is retained
 | Publication and public projection writes | Fail closed | Capability required | No |
 | Listing, trade, transfer, payment, settlement | Fail closed | Every required capability and proof required | No |
 
-The current v119 SDK does not expose Wildz's required conditional market-ownership append. Those live mutations therefore remain deliberately unavailable; the app does not substitute IndexedDB, process memory, or a successful checkout response for settlement authority.
+V120 exposes direct bearer transfer preview, instrument issue, inspection, claim, cancellation, and status. Wildz uses those surfaces only with genuine scoped capabilities and still independently verifies the complete returned artifact. Marketplace listing/payment settlement remains unavailable wherever its separate conditional market append is absent; the app never substitutes IndexedDB, process memory, a bearer receipt, or checkout success for settlement authority.
 
 ## Repository map
 
@@ -152,9 +153,9 @@ The current v119 SDK does not expose Wildz's required conditional market-ownersh
 
 ## Release status
 
-`v5.0.0` is the official Kai continuity release. One monotonic Genesis-counted `uPulse` now drives the current chapter, world commands, local progression, deterministic replay ordering, and creature-growth evidence. Receiz persists, proves, synchronizes, and publishes admitted consequences; a server scheduler or cached chapter projection cannot choose or delay the chapter a player is currently in. The NPC Arena controls are compact, the card front carries permanent character story, and installed PWAs move to the `v5.0.0-r1` shell without adding runtime weight.
+`v6.0.0` is the Living Creature Continuity release. Every verified card can become a v120 living subject with an exact proof brain, innate pre-capture self, append-only factual memory, relationships, inventory, mandates, and a non-authoritative AI Twin. Owners can speak with the exact creature on its live card through a deterministic neural voice and synchronized embodied expression. Card/Vault upload, merge, native save, bearer ownership reconciliation, and transfer continuity are part of the same portable experience. Installed PWAs advance to `v6.0.0-r1`.
 
-Read the complete [v5.0.0 release notes](docs/release/v5.0.0.md), [verification record](docs/release/verification.md), [competitive gameplay scorecard](docs/release/gameplay-scorecard.md), and [changelog](CHANGELOG.md).
+Read the complete [v6.0.0 release notes](docs/release/v6.0.0.md), [Living Creature Continuity contract](docs/WILDZ_LIVING_CREATURE_CONTINUITY_V120.md), [verification record](docs/release/verification.md), and [changelog](CHANGELOG.md).
 
 ## Build your own Receiz-native product
 

@@ -12,6 +12,7 @@ import type { CreatureObserverMemoryTurn } from "./creature-history-types";
 import { currentCreatureHistoryProjection } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import type { PortableCardAsset } from "./portable-card";
+import type { KaiKlokMoment } from "./kai-klok-moment";
 import {
   cancelCreatureNeuralVoice,
   isCreatureNeuralVoiceReady,
@@ -44,6 +45,9 @@ function observerError(error: string | undefined) {
     return "Connect your Receiz ID so this creature can reach its Twin observer.";
   }
   if (error === "creature_observer_reply_missing") return "The Twin returned without a voice. Try asking in a different way.";
+  if (error === "creature_observer_intelligence_unavailable" || error === "creature_observer_timeout") {
+    return "This creature's live intelligence could not answer yet. Nothing canned was substituted and no memory was changed—try once more.";
+  }
   if (error === "creature_observer_request_invalid" || error === "creature_observer_card_invalid") {
     return "This card brain did not pass its proof check, so no memory was appended.";
   }
@@ -52,11 +56,15 @@ function observerError(error: string | undefined) {
 
 export function CreatureConsciousnessPanel({
   asset,
+  kaiMoment,
+  playerPosition,
   disabled = false,
   onObserved,
   onSpeakingChange
 }: {
   asset: PortableCardAsset;
+  kaiMoment: KaiKlokMoment;
+  playerPosition: Readonly<{ x: number; z: number }>;
   disabled?: boolean;
   onObserved: (turn: CreatureObserverMemoryTurn) => void;
   onSpeakingChange?: (speaking: boolean) => void;
@@ -231,7 +239,16 @@ export function CreatureConsciousnessPanel({
         credentials: "same-origin",
         cache: "no-store",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ card: asset, message: normalized, clientUserMessageId: clientMessageId() })
+        body: JSON.stringify({
+          card: asset,
+          message: normalized,
+          clientUserMessageId: clientMessageId(),
+          kai: {
+            uPulse: kaiMoment.uPulse,
+            authority: kaiMoment.authority,
+            playerPosition
+          }
+        })
       });
       const result = await response.json().catch(() => null) as ObserverResponse | null;
       if (!response.ok || result?.ok !== true || !result.turn) throw new Error(result?.error || "creature_observer_unavailable");

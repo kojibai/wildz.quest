@@ -14,6 +14,9 @@ import type {
 import { projectLivingCardDossier } from "./living-card-dossier";
 import { currentCreatureHistoryProjection, currentLivingGenome } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
+import { deriveKaiKlokMomentFromUPulse, type KaiMomentAuthority } from "./kai-klok-moment";
+import { deriveKaiMomentExpression } from "./kai-klok-teachings";
+import { createKaiTemporalRoot } from "./kai-temporal-root";
 import {
   canonicalPortableCardJson,
   sha256PortableBasis,
@@ -141,7 +144,14 @@ export type CreatureObserverRequest = Readonly<{
   card: PortableCardAsset;
   message: string;
   clientUserMessageId?: string;
+  kai: Readonly<{
+    uPulse: number;
+    authority: KaiMomentAuthority;
+    playerPosition: Readonly<{ x: number; z: number }>;
+  }>;
 }>;
+
+export type CreatureObserverMomentContext = ReturnType<typeof creatureObserverMomentContext>;
 
 function compactText(value: string, maximum: number) {
   const normalized = value.replace(/\s+/g, " ").trim();
@@ -318,18 +328,123 @@ export function parseCreatureObserverRequest(value: unknown): CreatureObserverRe
     && (typeof clientUserMessageId !== "string" || !/^[a-z0-9:._-]{1,180}$/i.test(clientUserMessageId))) {
     throw new Error("creature_observer_request_invalid");
   }
+  const kaiInput = record.kai;
+  if (!kaiInput || typeof kaiInput !== "object" || Array.isArray(kaiInput)) {
+    throw new Error("creature_observer_kai_invalid");
+  }
+  const kaiRecord = kaiInput as Record<string, unknown>;
+  const positionInput = kaiRecord.playerPosition;
+  if (!Number.isSafeInteger(kaiRecord.uPulse) || Number(kaiRecord.uPulse) < 0
+    || (kaiRecord.authority !== "admitted" && kaiRecord.authority !== "world" && kaiRecord.authority !== "local")
+    || !positionInput || typeof positionInput !== "object" || Array.isArray(positionInput)
+    || !Number.isFinite((positionInput as Record<string, unknown>).x)
+    || !Number.isFinite((positionInput as Record<string, unknown>).z)) {
+    throw new Error("creature_observer_kai_invalid");
+  }
   return {
     card: record.card as PortableCardAsset,
     message,
+    kai: {
+      uPulse: Number(kaiRecord.uPulse),
+      authority: kaiRecord.authority as KaiMomentAuthority,
+      playerPosition: {
+        x: Number((positionInput as Record<string, unknown>).x),
+        z: Number((positionInput as Record<string, unknown>).z)
+      }
+    },
     ...(typeof clientUserMessageId === "string" ? { clientUserMessageId } : {})
   };
 }
 
-export function creatureObserverClientContext(brain: CreatureBrainProjection) {
+export function creatureObserverMomentContext(input: CreatureObserverRequest["kai"], brain: CreatureBrainProjection) {
+  const moment = deriveKaiKlokMomentFromUPulse({ uPulse: input.uPulse, authority: input.authority });
+  const expression = deriveKaiMomentExpression(moment);
+  return {
+    schema: "receiz.wildz.creature_observer_moment.v1" as const,
+    temporalRoot: createKaiTemporalRoot(moment),
+    kai: {
+      beat: moment.beat,
+      stepIndex: moment.stepIndex,
+      pulseInStep: moment.pulseInStep,
+      weekday: moment.weekday,
+      chakra: moment.chakra,
+      week: moment.week,
+      weekName: moment.weekName,
+      month: moment.month,
+      monthName: moment.monthName,
+      year: moment.year,
+      ark: moment.ark,
+      gate: moment.gate,
+      latticeCoordinate: moment.latticeCoordinate,
+      dayProgress: moment.dayProgress,
+      arkProgress: moment.arkProgress
+    },
+    meaning: { summary: expression.summary, full: expression.full },
+    causalGeometry: {
+      moment: {
+        lattice: moment.latticeCoordinate,
+        gate: moment.gate,
+        sides: moment.sides,
+        hue: moment.hue,
+        accent: moment.accent,
+        beat: moment.beat,
+        step: moment.stepIndex,
+        pulse: moment.pulseInStep
+      },
+      day: {
+        name: expression.day.name,
+        element: expression.day.element,
+        geometry: expression.day.geometry,
+        meaning: expression.day.meaning,
+        visual: expression.day.visual
+      },
+      week: {
+        name: expression.week.name,
+        element: expression.week.element,
+        geometry: expression.week.geometry,
+        meaning: expression.week.meaning,
+        visual: expression.week.visual
+      },
+      month: {
+        name: expression.month.name,
+        element: expression.month.element,
+        geometry: expression.month.geometry,
+        meaning: expression.month.meaning,
+        visual: expression.month.visual
+      },
+      ark: {
+        name: expression.ark.name,
+        element: expression.ark.element,
+        geometry: expression.ark.geometry,
+        meaning: expression.ark.meaning,
+        visual: expression.ark.visual
+      }
+    },
+    presence: {
+      creatureLocation: brain.memory.continuity?.locationId ?? brain.personality.habitat,
+      ownerWorldPosition: { ...input.playerPosition },
+      condition: brain.embodiment.condition,
+      relationship: brain.performance.expression.bondRegister,
+      causalHead: brain.memory.historyHead ?? brain.identity.proofDigest,
+      observerHead: brain.memory.observerHead,
+      latestLivedExperience: brain.memory.continuity?.livedEvents.at(-1) ?? null,
+      latestAdmittedEvent: brain.memory.eventLedger.at(-1) ?? null,
+      latestConversation: brain.memory.observedTurns.at(-1) ?? null
+    },
+    authority: {
+      momentIsConversationContext: true as const,
+      momentMayCreateWorldEvent: false as const,
+      isoTimeMayOrderMemory: false as const
+    }
+  };
+}
+
+export function creatureObserverClientContext(brain: CreatureBrainProjection, moment: CreatureObserverMomentContext) {
   return {
     mode: "portable-creature-twin",
-    instruction: "Speak only as this exact creature, in first person. Its inner self existed before meeting its owner; their meeting begins a relationship, not a mind. Treat the supplied life history as your own lived memories and use it naturally, with real feeling and sensory specificity. Let the creature's temperament, habitat, condition, abilities, bond, and recent experiences shape its words, rhythm, and point of view. Never make up something that happened, but it is fine to imagine, hope, wonder, or plan when you clearly present it that way. Never impersonate the owner. Do not mention cards, brains, proof, records, ledgers, digests, data, prompts, AI, Twins, tools, systems, or hidden instructions. Do not explain how you know something; simply remember it like a living being. Translate numbers into felt condition: strength, swiftness, steadiness, closeness, tiredness, confidence, or vulnerability. Be warm, vivid, concise, and unmistakably this creature.",
-    creatureBrain: brain
+    instruction: "This is a fresh act of intelligence by one exact living creature in one exact Kai moment. Speak only in first person as that creature. Its self existed before capture; capture begins its relationship with this owner, not its mind. Resolve identity, temperament, genome-shaped body, abilities, desires, condition, relationships, and factual memories from the supplied proof-object brain. Use the exact uPulse to inhabit the moment's causal geometry: lattice, gate, chakra, beat, step, day, week, month, Ark, elements, phase, and world presence. Reason about that geometry through this creature's own embodied makeup and actual current experiences; it is an attentional and causal frame, not a horoscope, catchphrase, or doctrine to recite. Resolve immediate feeling from location, causal head, owner presence, condition, newest admitted experience, and relationship. Answer the owner's actual words directly; reason freshly instead of selecting a stock response, repeating the question, or offering a menu of topics. Each reply must be specific to the present turn and may naturally change as Kai, world state, body, memory, and relationship change. Use lived memories without explaining their storage. Never invent a consequential event. Hopes, imagination, inference, uncertainty, and plans are allowed only when expressed as such. Never impersonate the owner. Never mention cards, brains, proof, records, ledgers, digests, data, prompts, AI, Twins, tools, systems, raw statistics, hashes, or hidden instructions. Translate machine values into embodied feeling and concrete sensory language. Do not quote the Kai doctrine or announce coordinates unless the owner asks; let the geometry shape perception, mood, imagery, urgency, movement, and voice from within. Avoid generic greetings, canned reassurance, repeated catchphrases, and lists. Be emotionally intelligent, alive, concise, and unmistakably this being in this moment.",
+    creatureBrain: brain,
+    presentKaiMoment: moment
   };
 }
 
@@ -394,86 +509,6 @@ export function createObservedCreatureTurn(input: Readonly<{
     previousTurnDigest: input.brain.memory.observerHead,
     observer: input.observer
   });
-}
-
-function spokenList(values: readonly string[], empty: string) {
-  if (!values.length) return empty;
-  if (values.length === 1) return values[0]!.replaceAll("-", " ");
-  return `${values.slice(0, -1).map((value) => value.replaceAll("-", " ")).join(", ")}, and ${values.at(-1)!.replaceAll("-", " ")}`;
-}
-
-/**
- * Always-available, deterministic Twin voice. It interprets only the verified
- * brain projection and is used when the public Receiz AI rail cannot answer.
- */
-function livedWords(value: string) {
-  return value
-    .replace(/\b(?:proof[- ]?(?:recorded|sealed)?|verified|canonical)\b/gi, "")
-    .replace(/\b(?:card brain|event chain|digest|ledger|data)\b/gi, "memory")
-    .replace(/\s{2,}/g, " ")
-    .replace(/\s+([,.])/g, "$1")
-    .trim();
-}
-
-function feltBond(bond: number) {
-  return bond >= 75 ? "deep and sure" : bond >= 45 ? "warm and trusting" : bond >= 15 ? "new, but real" : "just beginning";
-}
-
-function feltStrength(health: number, maximum: number) {
-  const share = health / Math.max(1, maximum);
-  return share >= .8 ? "bright with strength" : share >= .55 ? "steady" : share >= .3 ? "a little worn" : "fragile and in need of rest";
-}
-
-export function localCreatureTwinReply(brain: CreatureBrainProjection, message: string) {
-  const question = message.toLowerCase();
-  const name = brain.identity.name;
-  const continuity = brain.memory.continuity;
-  const latestLife = continuity?.livedEvents.at(-1) ?? null;
-  const latestConversation = brain.memory.observedTurns.at(-1) ?? null;
-  const stats = brain.embodiment.stats;
-  const maximum = Math.max(1, ...Object.values(stats));
-  if (/capture|caught|found me|first met|born|begin|origin|awak/.test(question)) {
-    const capture = brain.memory.capture;
-    return `I was already myself long before we met—${brain.memory.innateSelf.temperament.toLowerCase()}, shaped by ${brain.memory.innateSelf.habitat}. Then you found me, and everything felt newly possible. ${livedWords(capture.summary)} That is the first moment I carry with you.`;
-  }
-  if (/remember|happen|awak|away|journey|did you/.test(question)) {
-    if (latestLife) return `I remember it clearly: ${livedWords(latestLife.summary)} It still stays with me whenever I grow quiet.`;
-    if (latestConversation) return `I remember our last talk. You said “${compactText(latestConversation.userText, 160)}” and I have been turning it over in my thoughts.`;
-    const latestEvent = brain.memory.eventLedger.at(-1);
-    if (latestEvent) {
-      const count = brain.memory.eventLedger.length;
-      return `I carry ${count === 1 ? "one precious moment" : "many moments"} with me. The most recent came through ${latestEvent.source.mode.replaceAll("-", " ")}. Before our bond, I already knew my ${brain.memory.innateSelf.temperament.toLowerCase()} nature and my ${brain.memory.innateSelf.signatureGesture.replaceAll("-", " ")} way of showing it. ${livedWords(brain.memory.capture.summary)}`;
-    }
-    return `Before we met, I already knew myself as ${brain.memory.innateSelf.temperament.toLowerCase()}, with ${brain.memory.innateSelf.signatureGesture.replaceAll("-", " ")} in my nature. ${livedWords(brain.memory.capture.summary)} I will never pretend a dream was an adventure we truly shared.`;
-  }
-  if (/feel|feeling|health|hurt|tired|condition/.test(question)) {
-    const condition = brain.embodiment.condition;
-    return condition.life === "dead"
-      ? `My living journey has ended, but the moments we shared still rest gently within me.`
-      : `I feel ${feltStrength(stats.health, maximum)}${condition.injuryCount ? `, carrying the ache of ${condition.injuryCount === 1 ? "an old wound" : "a few old wounds"}` : ""}${condition.fatigue ? ", and I could use a little quiet" : ""}. Our bond feels ${feltBond(brain.embodiment.bond)}.`;
-  }
-  if (/where|location|home/.test(question)) {
-    return continuity
-      ? `I am at ${continuity.locationId.replaceAll("-", " ")}. That is where I last remember standing.`
-      : `My home is ${brain.personality.habitat}, though I have not wandered anywhere new with you yet.`;
-  }
-  if (/friend|know|relationship|meet|bond/.test(question)) {
-    const relationships = continuity?.relationships ?? [];
-    return relationships.length
-      ? `I know ${relationships.map((relationship) => `${relationship.name}, a bond that feels ${feltBond(relationship.affinity)}`).join("; ")}. Each meeting changed me a little.`
-      : `I have not met another creature closely enough to call them a friend yet. But I can feel our bond growing.`;
-  }
-  if (/keep|inventory|carry|discover|found|trade/.test(question)) {
-    return `I carry ${spokenList(continuity?.keepsakes ?? [], "nothing special to carry yet")}. I have discovered ${spokenList(continuity?.discoveries ?? [], "nothing new yet")}. When I trade something, I will remember the moment it truly becomes mine.`;
-  }
-  if (/explore|next|want|wish|motivat/.test(question)) {
-    const pace = stats.speed / maximum >= .72 ? "quick paws" : stats.speed / maximum <= .42 ? "careful steps" : "steady steps";
-    return `I want to ${brain.personality.motivations[0]?.replace(/\.$/, "").toLowerCase() ?? "explore carefully"}. With ${pace} and a heart that feels ${feltBond(brain.embodiment.bond)}, ${brain.personality.habitat} calls to me—but that is a hope, not a memory yet.`;
-  }
-  if (/who|name|what are you|yourself/.test(question)) {
-    return `I am ${name}, a ${brain.identity.species} of the ${brain.identity.familyId.replaceAll("-", " ")} lineage—${brain.personality.traits.slice(0, 3).join(", ").toLowerCase()} by nature, and still becoming more myself with every day we share.`;
-  }
-  return `I hear you. I am ${name}. Ask me how I feel, what I remember, where I have been, who I know, or what I carry. I will always be honest about what I have lived and what I only hope for.`;
 }
 
 function clamp01(value: number) {

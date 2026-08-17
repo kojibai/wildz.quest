@@ -5,9 +5,9 @@ import {
   createObservedCreatureTurn,
   creatureConsciousnessMotion,
   creatureObserverClientContext,
+  creatureObserverMomentContext,
   creatureVoicePerformance,
   creatureVoiceProfile,
-  localCreatureTwinReply,
   normalizeCreatureTwinReply,
   parseCreatureObserverRequest,
   projectCreatureBrain
@@ -23,6 +23,7 @@ import {
 } from "../src/features/play/game-state";
 import { verifyAnyWildsCard } from "../src/features/play/portable-card";
 import { creatureNeuralVoiceIdentity } from "../src/features/play/creature-neural-voice";
+import { observeCreatureThroughReceizV120 } from "../src/features/play/receiz-v120-creature-subject";
 
 test("a Receiz Twin observation appends to the exact portable card brain", () => {
   const original = initialPlayState.inventory[0]!;
@@ -52,6 +53,32 @@ test("a Receiz Twin observation appends to the exact portable card brain", () =>
   const restoredCard = restored.inventory.find((asset) => asset.id === original.id)!;
   assert.equal(verifyAnyWildsCard(restoredCard).ok, true);
   assert.equal(isLivingCardAsset(restoredCard) && currentCreatureHistoryProjection(restoredCard).observerMemory?.headDigest, turn.digest);
+});
+
+test("Receiz v120 observes the exact creature through a proof brain without creating a world event", async () => {
+  const asset = initialPlayState.inventory[0]!;
+  const observation = await observeCreatureThroughReceizV120({
+    asset,
+    ownerReceizId: asset.manifest.ownerReceizId,
+    message: "What do you remember about meeting me?",
+    clientMessageId: "wildz:test:v120:message",
+    speak: async ({ brain, proofContext }) => ({
+      provider: "wildz-test",
+      model: "deterministic",
+      version: "120.0.0",
+      speech: `${brain.memory.capture.summary} I still carry that beginning with me.`,
+      performance: { emotion: "remembering", contextObjects: proofContext.primaryObjects.length }
+    })
+  });
+
+  assert.equal(observation.registryDigest, "0728651789b26e1d10c1991ec1c06c1ea4a576f0c6520537b250b171f8857073");
+  assert.equal(observation.twin.schema, "receiz.subject.twin_result.v1");
+  assert.equal(observation.twin.authority.modelOutputIsWorldEvent, false);
+  assert.equal(observation.twin.authority.deterministicAdmissionRequired, true);
+  assert.deepEqual(observation.twin.worldEventIds, []);
+  assert.ok(Number(observation.objectCount) >= 3);
+  assert.ok(observation.twin.proofContext.primaryObjects.some((object) => object.text.some((text) => text.kind === "event")));
+  assert.match(observation.twin.spokenResponse, /carry that beginning/i);
 });
 
 test("creature observer memory is chained and tamper evident", () => {
@@ -89,7 +116,9 @@ test("creature observer memory is chained and tamper evident", () => {
 test("the creature brain gives the Twin exact proof context and model boundaries", () => {
   const asset = initialPlayState.inventory[0]!;
   const brain = projectCreatureBrain(asset);
-  const context = creatureObserverClientContext(brain);
+  const kai = { uPulse: 1_000_000, authority: "local" as const, playerPosition: { x: 4, z: -2 } };
+  const moment = creatureObserverMomentContext(kai, brain);
+  const context = creatureObserverClientContext(brain, moment);
 
   assert.equal(brain.identity.assetId, asset.id);
   assert.equal(brain.identity.proofDigest, asset.proof.digest);
@@ -129,28 +158,21 @@ test("the creature brain gives the Twin exact proof context and model boundaries
     );
   }
   assert.equal(context.creatureBrain.contextDigest, brain.contextDigest);
-  assert.match(context.instruction, /never make up something that happened/i);
-  assert.match(context.instruction, /inner self existed before meeting/i);
-  assert.match(context.instruction, /do not mention cards, brains, proof/i);
-  assert.equal(parseCreatureObserverRequest({ card: asset, message: "  Hello   there  " }).message, "Hello there");
-  assert.throws(() => parseCreatureObserverRequest({ card: asset, message: "" }), /creature_observer_request_invalid/);
+  assert.equal(context.presentKaiMoment.temporalRoot.uPulse, kai.uPulse);
+  assert.equal(context.presentKaiMoment.presence.ownerWorldPosition.x, 4);
+  assert.match(context.instruction, /never invent a consequential event/i);
+  assert.match(context.instruction, /self existed before capture/i);
+  assert.match(context.instruction, /never mention cards, brains, proof/i);
+  assert.match(context.instruction, /exact Kai moment/i);
+  assert.equal(parseCreatureObserverRequest({ card: asset, message: "  Hello   there  ", kai }).message, "Hello there");
+  assert.throws(() => parseCreatureObserverRequest({ card: asset, message: "", kai }), /creature_observer_request_invalid/);
+  assert.throws(() => parseCreatureObserverRequest({ card: asset, message: "hello" }), /creature_observer_kai_invalid/);
   assert.equal(normalizeCreatureTwinReply({ content: [{ text: "I am here." }] }), "I am here.");
   assert.throws(() => normalizeCreatureTwinReply({ metadata: "no assistant text" }), /creature_observer_reply_missing/);
 
   const motion = creatureConsciousnessMotion(asset, 0);
   assert.match(motion["--creature-blink"], /^\d+ms$/);
   assert.match(motion["--creature-gaze-range"], /^\d+(?:\.\d+)?px$/);
-
-  const fallback = localCreatureTwinReply(brain, "How are you feeling?");
-  assert.doesNotMatch(fallback, new RegExp(String(brain.embodiment.stats.health)));
-  assert.doesNotMatch(fallback, new RegExp(String(brain.embodiment.bond)));
-  assert.doesNotMatch(fallback, /proof|card brain|digest|data|stat/i);
-
-  const captureReply = localCreatureTwinReply(brain, "Do you remember when I captured you?");
-  assert.doesNotMatch(captureReply, new RegExp(asset.manifest.encounterId));
-  assert.doesNotMatch(captureReply, new RegExp(asset.manifest.capturedAt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  assert.match(captureReply, /first moment i carry with you/i);
-  assert.doesNotMatch(captureReply, /proof|card brain|digest|data|stat/i);
 
   const voice = creatureVoiceProfile(asset, [
     { name: "Robot Compact", lang: "en-US", localService: true },
@@ -209,8 +231,12 @@ test("Vault consciousness uses the SDK World Twin rail and card-scoped UI", () =
   assert.match(route, /adapter\.worldMessage\(twinHandle/);
   assert.match(route, /clientOperationId/);
   assert.match(route, /quoteExpiresAt/);
-  assert.match(route, /localCreatureTwinReply/);
-  assert.match(route, /clientContext: creatureObserverClientContext\(brain\)/);
+  assert.doesNotMatch(route, /localCreatureTwinReply/);
+  assert.match(route, /creature_observer_intelligence_unavailable/);
+  assert.match(route, /observeCreatureThroughReceizV120/);
+  assert.match(route, /creatureObserverClientContext\(subjectBrain, presentKaiMoment\)/);
+  assert.match(route, /creatureObserverMomentContext\(input\.kai, brain\)/);
+  assert.match(route, /modelOutputIsWorldEvent/);
   assert.match(route, /createObservedCreatureTurn/);
   assert.match(panel, /record-creature-observation|onObserved/);
   assert.match(panel, /speechSynthesis/);

@@ -4,13 +4,13 @@ import { test } from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("Wildz v5 official release doctrine names the exact Receiz v119 toolchain", () => {
+test("Wildz v6 official release doctrine names the exact Receiz v120 toolchain", () => {
   const pkg = JSON.parse(read("package.json")) as {
     version?: string;
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
   };
-  const release = read("docs/release/v5.0.0.md");
+  const release = read("docs/release/v6.0.0.md");
   const mcp = read("docs/MCP.md");
   const packageSourceDocs = [
     read("README.md"),
@@ -22,26 +22,28 @@ test("Wildz v5 official release doctrine names the exact Receiz v119 toolchain",
     read("ai-skills/wildz-release-skill/SKILL.md")
   ].join("\n");
 
-  assert.equal(pkg.version, "5.0.0");
-  assert.equal(pkg.dependencies?.["@receiz/sdk"], "119.0.0");
-  assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "119.0.0");
-  assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "119.0.0");
-  for (const version of ["@receiz/sdk 119.0.0", "@receiz/mcp-server 119.0.0", "@receiz/ai-skills 119.0.0"]) {
+  assert.equal(pkg.version, "6.0.0");
+  assert.equal(pkg.dependencies?.["@receiz/sdk"], "120.0.0");
+  assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "120.0.0");
+  assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "120.0.0");
+  for (const version of ["@receiz/sdk 120.0.0", "@receiz/mcp-server 120.0.0", "@receiz/ai-skills 120.0.0"]) {
     assert.match(release, new RegExp(version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
-  assert.match(mcp, /@receiz\/sdk@119\.0\.0/);
-  assert.match(mcp, /@receiz\/mcp-server@119\.0\.0/);
-  assert.match(mcp, /@receiz\/ai-skills@119\.0\.0/);
+  assert.match(mcp, /@receiz\/sdk@120\.0\.0/);
+  assert.match(mcp, /@receiz\/mcp-server@120\.0\.0/);
+  assert.match(mcp, /@receiz\/ai-skills@120\.0\.0/);
   assert.match(packageSourceDocs, /public npm/i);
   assert.match(packageSourceDocs, /published (?:SHA-512 )?integrity/i);
-  assert.match(packageSourceDocs, /49c167a437ec7c0e486412dd62c54af4abdf94eda1ebc18d263a027d105cecd9/i);
-  assert.match(packageSourceDocs, /53cf9d6862b2396e2fe7864f8607c00c4e3b6e31b082ab5c5c8dff088fcb52c1/i);
+  assert.match(packageSourceDocs, /0728651789b26e1d10c1991ec1c06c1ea4a576f0c6520537b250b171f8857073/i);
+  assert.match(packageSourceDocs, /1c779ee5ade4b877ae9c6922ab02ba96fffffeb7580f1cf105a59fbb4424f351/i);
   assert.match(packageSourceDocs, /first admission only, then append forever/i);
-  assert.match(packageSourceDocs, /v119[\s\S]*(?:enclosing artifact|known truth|Merkle|Fibonacci)/i);
+  assert.match(packageSourceDocs, /v120[\s\S]*(?:living subject|proof brain|Merkle|bearer)/i);
+  assert.match(release, /Kai[\s\S]*causal geometry/i);
+  assert.match(release, /phrase-template responder was removed/i);
 });
 
 test("release documentation states the real offline and remote authority boundaries", () => {
-  const release = read("docs/release/v5.0.0.md");
+  const release = read("docs/release/v6.0.0.md");
   const verification = read("docs/release/verification.md");
   const interoperability = read("docs/release/artifact-interoperability.md");
   const rails = read("docs/RECEIZ_RAILS.md");
@@ -61,7 +63,7 @@ test("release documentation states the real offline and remote authority boundar
 
 test("release doctrine contains no private artifact paths or assigned credentials", () => {
   const paths = [
-    "docs/release/v5.0.0.md",
+    "docs/release/v6.0.0.md",
     "docs/release/verification.md",
     "docs/release/feature-parity.md",
     "docs/release/artifact-interoperability.md",

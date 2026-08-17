@@ -1,77 +1,76 @@
-# Wildz v5.0.0 official release verification
+# Wildz v6.0.0 release verification
 
-Date: 2026-08-14. Target application version: `5.0.0`. Receiz integration target: `119.0.0`.
+Date: 2026-08-17. Target application version: `6.0.0`. Receiz integration target: `120.0.0`.
 
-## Qualification status
+This record distinguishes repository evidence from external production evidence. A passing local gate proves the source, deterministic contracts, compilation, and configured local browser paths observed in the run. It does not manufacture credentials, remote authority, deployment, payment settlement, or literal creature sentience.
 
-The exact v5 candidate passes the repository's deterministic qualification gates and is eligible for the official source release. Production Receiz activation still requires the production environment, a successful authorized strict-live run, and the external interoperability and remote-mutation gates described below. Source publication does not imply those external systems were activated.
+## Coordinated release identity
 
-## Versioned toolchain
+| Package | Requested | Installed | Role |
+|---|---:|---:|---|
+| `@receiz/sdk` | `120.0.0` | `120.0.0` | Artifact, living-subject, proof-brain, Twin, world, memory, mandate, runtime, and bearer application boundary |
+| `@receiz/mcp-server` | `120.0.0` | `120.0.0` | Nine artifact and 37 living-subject operator tools; never proof authority |
+| `@receiz/ai-skills` | `120.0.0` | `120.0.0` | 39 proof-aware operating skills; never proof authority |
 
-| Package | Requested version | Installed version | Role |
-|---|---|---|---|
-| `@receiz/sdk` | `119.0.0` | `119.0.0` | Application identity, artifact, native proof-object, constitutional compiler, command admission, causal replay, checker, and remote-rail client |
-| `@receiz/mcp-server` | `119.0.0` | `119.0.0` | Operator tooling; never application authority |
-| `@receiz/ai-skills` | `119.0.0` | `119.0.0` | V119 operator procedure guidance; never proof authority |
+All three exact public npm packages use published SHA-512 integrity values pinned in `pnpm-lock.yaml`. The v120 registry digest is `0728651789b26e1d10c1991ec1c06c1ea4a576f0c6520537b250b171f8857073`; the 30-operation matrix digest is `1c779ee5ade4b877ae9c6922ab02ba96fffffeb7580f1cf105a59fbb4424f351`; the living-subject reducer digest is `5694662e2acc8b886ac9697ffad202b411d7e66c5f26f9106ee0768df7c7b8c8`.
 
-The finalized v119 SDK, MCP, and AI-skills packages resolve from the public npm registry at exact version `119.0.0`, with published integrity values pinned in `pnpm-lock.yaml`. `receiz.app.json` declares artifact-first authority with database authority disabled; the v119 compiler and `pnpm receiz:check` validate the repository integration plan, release identity, ruleset, registry digest `49c167a437ec7c0e486412dd62c54af4abdf94eda1ebc18d263a027d105cecd9`, 16-operation matrix digest `53cf9d6862b2396e2fe7864f8607c00c4e3b6e31b082ab5c5c8dff088fcb52c1`, 30 numbered artifact laws, v119 profile-showcase authority rules, and protocol/runtime limits.
+`receiz.app.json` remains artifact-first with database authority disabled. First admission only, then append forever remains the durable-memory law. The enclosing artifact remains strongest; the proof-brain index, model output, projection, receipt, cache, database row, MCP output, and AI explanation remain non-authoritative.
 
-The qualification treats v119 as one coordinated SDK/MCP/AI/ruleset/registry/matrix/package-range/runtime release identity. Durable proof memory is first admission only, then append forever. V119 causal orchestration keeps the enclosing artifact strongest, paints known truth before discovery, selects causal heads by Kai, and commits exact appends through Merkle roots with Fibonacci sparse ancestry.
+## Release gate
 
-## Local evidence
+`pnpm release:check` passed on 2026-08-17: 1,268/1,268 Node tests, typecheck, v120 repository checker, 15/15 MCP conformance checks, warning-free ESLint, secret scan across 863 text files, optimized Next.js production build, and default Receiz doctor. The build emitted the known upstream `web-worker` dynamic-dependency advisory through `snarkjs`; compilation, type validation, static generation, and trace collection completed successfully.
 
-| Gate | Result |
+An additional WebKit smoke run against the optimized production server opened a verified creature in the Vault, rendered its v120 brain summary, proof-event count, conversation surface, voice state, and continuity panel, and submitted a conversation turn. Because this workspace intentionally contains no `RECEIZ_CONNECT_ACCESS_TOKEN` or `RECEIZ_CREATURE_TWIN_HANDLE`, the strict-live Twin call declined the turn: the UI displayed no fabricated creature speech and the card brain received no conversation event. This verifies the production fail-closed boundary, not remote inference availability. An authenticated deployment smoke run remains required to prove an accepted live reply.
+
+## V120 living-subject evidence
+
+| Boundary | Evidence required |
 |---|---|
-| Full Node suite | Pass: 1,232/1,232 tests across 122 suites |
-| `pnpm typecheck` | Pass |
-| `pnpm lint` | Pass |
-| Production build | Pass: 16/16 static pages generated; existing SDK verifier `web-worker` dynamic-dependency warning retained |
-| Bundle report | Pass: `/` first load 597 kB including 103 kB shared JavaScript; no dependency or external asset added |
-| Production browser | Pass: desktop and 390×844 mobile, nonblank varied 3D canvas, live Kai chapter, compact controls, zero browser console errors, and no horizontal overflow |
-| `pnpm release:check` | Pass: 1,232 tests, typecheck, v119 checker, 15/15 conformance, lint, secret scan, production build, and default doctor |
-| Kai runtime continuity | Pass: monotonic runtime clock cannot rewind; exact `uPulse` derives the complete Kai moment without ISO round-trip |
-| Chapter continuity | Pass: current chapter opens from command `uPulse` without a scheduler tick; mismatched day rejects before mutation |
-| ISO independence | Pass: changing descriptive ISO metadata with fixed `uPulse` produces byte-identical chapter events and IDs |
-| Local progression | Pass: search, capture, battle, training, recovery, fusion, evolution, ascension, and exact growth history are rooted at dispatch |
-| Runtime weight | Pass: no dependency or external asset added by the v5 Kai alignment |
-| Historical migration compatibility | Pass: forward-only checkpoint retained; sealed artifacts, receipts, and heads preserved; current execution remains v119-only |
-| V119 offline authority | Pass: a queued proposal is not a global commitment; divergence resolution is structural-only |
-| Proof/Vault regressions | Pass in the full suite, including complete 97/98-card restore, canonical Identity Seal/key continuation, scoped legacy Vault recovery, compact historical-card custody admission, duplicate drops, revision reconciliation, pending-to-final admission, and atomic fork rejection |
-| Native proof-object continuity | Pass: v119 Record → Seal artifact, owner, record, claim, verify path, Signature V4, exact download digest, and exact-file reopen; `wildz-v119` retries bind to the payload digest |
-| Artifact transitions and reconciliation | Pass: admission is non-authoritative, planning is zero-write, capability is plan-bound, staging is immutable, commit independently resolves bytes and atomically advances one named domain, receipts are report-only, and the nine MCP tools match AI doctrine |
-| Profile/economy showcase contract | Pass: all five v119 planning operations are declared; profile identity is literal and owner-scoped, carried successor history remains sealed, no new signer/issuer/head authority is introduced, and economy merge planning requires verified sibling heads |
-| Native capture and PBI authorship | Pass: camera-ceremony capture is explicit; authorship requires a canonical verified predecessor, preserves ownership and media truth, and appends in verified order |
-| Legacy compatibility | Pass: strict bounded app-owned reader plus payload digest, owner, namespace, prior-head, and revision checks |
-| Owner continuity | Pass: bearer claims consume only an SDK-opened complete artifact, return and reopen a native claimed artifact, exact duplicates drop, and divergent immutable origins or proof forks fail |
-| Public-profile continuity | Pass: verified cards publish before a non-empty owner profile; only marked sanitized anonymous profile JSON is cached by exact URL |
-| V3 ecology lifecycle | Pass: activation, resolution, historicization, expiry, cap release, causal replay, and retry idempotency |
-| Market settlement coordinator | Pass with local contract doubles: admitted trade, Receiz Connect transfer proof, corroborating wallet ledger event, conditional ownership append, and idempotent recovery; v119 exposes no Wildz-specific conditional append, so the live adapter remains fail-closed without that capability |
-| Bearer claim product flow | Pass: the explicit online action requires the active proof session and player confirmation, submits the complete artifact to the v119 ownership route, independently reopens the returned artifact, downloads the exact admitted bytes, and only then projects verified cards locally; ordinary Vault restore remains independent of this online claim |
-| Mobile entry | Chromium 390×844 pass: no horizontal overflow and clean production logs; prior WebKit entry evidence remains valid |
-| Gameplay presentation | Chromium desktop/mobile production smoke passed; deep-night fixed-Kai capture confirms a dark world with the explorer and creature remaining visible under the lantern |
-| PWA boundary | Real Chromium worker activation and offline navigation passed; an unvisited public route rendered offline guidance without leaking another page |
+| Subject construction | Exact verified card identity plus primary objects for innate self, capture, history, conversations, and continuity |
+| Proof brain | Stable subject/head/Merkle coordinates; index explicitly non-authoritative; unknown namespaces byte-exact |
+| Factual memory | Every consequential remembered fact cites an admitted event object |
+| Twin intelligence | Real v120 subject-Twin inference over the exact proof brain; deterministic phrase templates removed from the live route and source |
+| Kai grounding | Exact current `uPulse`, temporal root, lattice, gate, chakra, beat/step, day/week/month/Ark geometry, world position, condition, relationship, causal head, and recent experience supplied to each turn |
+| Dialogue admission | Model reply is not a world event; unavailable intelligence appends no turn and changes no card brain |
+| Continuity | Accepted conversation appends to the exact card and becomes available on its next proof-brain projection |
+| Autonomous life | Owner mandate is bounded and reverified; due events deterministic; multi-creature effects atomic; failures write zero including Kai |
+| Transfer | Subject identity and brain survive; former-owner authority and mandates are revoked immediately |
 
-The supplied production-shaped Vault was historically inspected without recording private bytes, paths, identity values, hashes, or card identifiers. It decoded to 98 cards with an embedded player. That result remains compatibility evidence, not a fresh v119 qualification. The server commits the historical-owner portion of an exact verified collection into the encrypted session, and gameplay accepts an older-owner card only with its compact membership proof. An artifact without an Identity Seal or v119 owner-continuity binding leaves canonical account-only writes Identity Seal/key-gated.
+The implementation guarantees a genuine model inference from the configured Receiz Twin for every accepted reply. It does not claim biological consciousness. A static/template reply is not accepted as a successful intelligence turn.
 
-The production browser captures, renderer measurements, interaction results, and checklist ledger are preserved in [`docs/release/evidence/v5.0.0`](./evidence/v5.0.0/README.md).
+## Card, Vault, save, and ownership evidence
 
-## Pending external evidence
+- Artifact upload accepts bounded raw binary and multipart transports, eliminating dependence on parsing every request as FormData.
+- Same-owner card and complete-Vault imports union all verified assets while preserving existing cards and removing exact duplicates.
+- Full-collection regression coverage includes the historical 97/98-card boundary.
+- Structural proof/history conflicts fail closed; causal descendants advance only after verification.
+- Apple-capable clients use the native share/save presentation; other clients retain a non-blocking file/raster fallback.
+- A bearer claim requires explicit confirmation, complete artifact bytes, same-runtime verification, authenticated ownership witness, byte-exact returned artifact, and local reopen before projection.
+- New claim receipts use `receiz.wilds_bearer_claim.v120`. Historical v119 artifact/idempotency/channel namespaces remain stable compatibility coordinates.
+- V120 bearer preview/issue/inspect/claim/cancel/status is capability-gated. Preview, issue, inspection, notification, or receipt alone is not custody.
+- Previous-owner Vault removal is reconciliation from verified transfer evidence; the sync projection cannot create ownership.
 
-The following remain production or externally authorized gates and were not rewritten as local passes:
+## Voice and embodiment evidence
 
-- `pnpm receiz:doctor:strict` was attempted and failed closed before live probes because the production credentials and configuration were absent; strict-live qualification remains pending.
-- Remote world, public-profile, market, payment, transfer, settlement, and publication mutations remain pending. The shared-world bootstrap is implemented and fail-closed, but requires the server-only `RECEIZ_CONNECT_ACCESS_TOKEN` and authorized production qualification. V119 does not expose the Wildz-specific conditional market ownership append, and the local paths fail closed until the configured Receiz deployment admits every required capability.
-- The external six-writer artifact exercise remains pending; its six-writer local fixtures passed.
-- Production deployment and strict-live production publication remain separate from the official source tag and GitHub release.
+- Creature voice identity is deterministic from the exact asset/genome fingerprint.
+- Kokoro runs locally with self-hosted, exact version-matched ONNX Runtime Web assets.
+- Safari/WebKit selects WASM directly instead of an exposed but stalled WebGPU path.
+- Model and voice binaries prewarm outside the gameplay-critical render loop.
+- Actual waveform analysis drives mouth openness; expression state drives eyes, ears, tail, aura, posture, and gesture.
+- Browser speech is an audible last resort only. It does not replace subject intelligence or authority.
 
-## Offline verification contract
+## Compatibility
 
-The worker may cache the versioned app shell, previously visited public profile and card documents, and successful allowlisted card GET responses. Authentication, live world, social presence, market, Receiz, artifact-proxy, personalized, failed, and mutation responses are network-only. An unvisited public document falls back to `/offline`, never the cached root document.
+Existing v5/v119 cards and Vaults do not need to be redownloaded to open in v6. Historical sealed bytes remain eligible for v120 verification and unknown namespaces remain byte-exact. Historical admissions, actors, capabilities, plans, confirmations, stores, and receipts cannot authorize current v120 operations. A fresh export is needed only to carry events appended after the prior download.
 
-## Remote verification contract
+The earlier production-shaped 98-card artifact result remains historical compatibility evidence without private bytes, paths, identity values, hashes, or card identifiers. It is not substituted for the current release gate.
 
-There is no external database added by Wildz. Browser owner state is local IndexedDB state; durable shared state depends on configured Receiz rails. Those rails fail closed when missing, stale, unverifiable, or unreachable. A checkout session is not settlement, and ownership never transfers without admitted settlement evidence.
+## External gates not fabricated
 
-## Release decision
+- Strict-live authenticated remote qualification requires configured deployment credentials and a separately recorded run.
+- Remote public/world/market/payment/settlement/publication mutations require genuine scoped capabilities and observed receipts plus effect status.
+- Bearer instruments do not automatically satisfy the marketplace's separate conditional listing/payment/settlement append.
+- Representative-device certification, external deployment, tag, push, GitHub release publication, and store distribution are distinct actions.
+- A queued runtime job or proposal is not a global commitment. `receiz.com/global/v1` is a named coordination domain, not universal consensus.
 
-Version `5.0.0` is qualified for official source commit, tagging, and GitHub publication. Production Receiz activation remains conditional on the supplied environment, the strict-live doctor, representative player/device qualification, and the remaining authorized external gates.
+Version `6.0.0` is qualified for a local source commit. Tagging and external publication must preserve the same commit and require their own observed evidence.

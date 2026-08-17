@@ -20,6 +20,7 @@ import {
 } from "./card-export";
 import { createPreparedCardArtifactCache } from "./prepared-card-artifact";
 import type { PlayState, WildsInput } from "./game-state";
+import type { KaiKlokMoment } from "./kai-klok-moment";
 import type { WildsPlayerVaultPayload } from "./wilds-player-vault";
 import { WildsCardScene } from "./WildsCardScene";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
@@ -44,6 +45,7 @@ import type {
 
 export function WildsInventory({
   state,
+  kaiMoment,
   focusedAssetId,
   cardOrder,
   onCardOrderChange,
@@ -55,6 +57,7 @@ export function WildsInventory({
   onRestoreArtifact
 }: {
   state: PlayState;
+  kaiMoment: KaiKlokMoment;
   focusedAssetId: string | null;
   cardOrder: WildzCardSort;
   onCardOrderChange: (order: WildzCardSort) => void;
@@ -432,6 +435,8 @@ export function WildsInventory({
             </div>
             <CreatureConsciousnessPanel
               asset={selected}
+              kaiMoment={kaiMoment}
+              playerPosition={state.player}
               disabled={selectedRetired}
               onObserved={(turn) => onInput({ type: "record-creature-observation", turn })}
               onSpeakingChange={setSelectedCreatureSpeaking}
