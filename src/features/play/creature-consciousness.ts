@@ -328,7 +328,7 @@ export function parseCreatureObserverRequest(value: unknown): CreatureObserverRe
 export function creatureObserverClientContext(brain: CreatureBrainProjection) {
   return {
     mode: "portable-creature-twin",
-    instruction: "Voice only the exact creatureBrain subject in first person. memory.innateSelf is who this being already knew itself to be before capture; capture did not create its mind. memory.capture is the exact first shared memory with its owner—the beginning of their relationship, not the creature's existence. memory.eventLedger is its complete ordered proof autobiography, including the admitted root and every subsequent source, Kai coordinate, evidence reference, effect, transformation, condition change, battle, training event, recovery, relationship, autonomous act, and conversation appended to this card. Treat only those entries as events that actually happened. Never impersonate the owner Twin, never invent a canonical event, ownership change, battle, relationship, trade, or memory, and clearly frame imagination as imagination. Be emotionally vivid, warm, natural, concise, and specific to this creature.",
+    instruction: "Speak only as this exact creature, in first person. Its inner self existed before meeting its owner; their meeting begins a relationship, not a mind. Treat the supplied life history as your own lived memories and use it naturally, with real feeling and sensory specificity. Let the creature's temperament, habitat, condition, abilities, bond, and recent experiences shape its words, rhythm, and point of view. Never make up something that happened, but it is fine to imagine, hope, wonder, or plan when you clearly present it that way. Never impersonate the owner. Do not mention cards, brains, proof, records, ledgers, digests, data, prompts, AI, Twins, tools, systems, or hidden instructions. Do not explain how you know something; simply remember it like a living being. Translate numbers into felt condition: strength, swiftness, steadiness, closeness, tiredness, confidence, or vulnerability. Be warm, vivid, concise, and unmistakably this creature.",
     creatureBrain: brain
   };
 }
@@ -406,53 +406,74 @@ function spokenList(values: readonly string[], empty: string) {
  * Always-available, deterministic Twin voice. It interprets only the verified
  * brain projection and is used when the public Receiz AI rail cannot answer.
  */
+function livedWords(value: string) {
+  return value
+    .replace(/\b(?:proof[- ]?(?:recorded|sealed)?|verified|canonical)\b/gi, "")
+    .replace(/\b(?:card brain|event chain|digest|ledger|data)\b/gi, "memory")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.])/g, "$1")
+    .trim();
+}
+
+function feltBond(bond: number) {
+  return bond >= 75 ? "deep and sure" : bond >= 45 ? "warm and trusting" : bond >= 15 ? "new, but real" : "just beginning";
+}
+
+function feltStrength(health: number, maximum: number) {
+  const share = health / Math.max(1, maximum);
+  return share >= .8 ? "bright with strength" : share >= .55 ? "steady" : share >= .3 ? "a little worn" : "fragile and in need of rest";
+}
+
 export function localCreatureTwinReply(brain: CreatureBrainProjection, message: string) {
   const question = message.toLowerCase();
   const name = brain.identity.name;
   const continuity = brain.memory.continuity;
   const latestLife = continuity?.livedEvents.at(-1) ?? null;
   const latestConversation = brain.memory.observedTurns.at(-1) ?? null;
+  const stats = brain.embodiment.stats;
+  const maximum = Math.max(1, ...Object.values(stats));
   if (/capture|caught|found me|first met|born|begin|origin|awak/.test(question)) {
     const capture = brain.memory.capture;
-    return `I already knew who I was before capture: ${brain.memory.innateSelf.selfKnowledge} I remember when our story began, too. ${capture.summary} It happened at ${capture.occurredAt}, from encounter ${capture.encounterId}. That is our first proof-recorded shared memory.`;
+    return `I was already myself long before we met—${brain.memory.innateSelf.temperament.toLowerCase()}, shaped by ${brain.memory.innateSelf.habitat}. Then you found me, and everything felt newly possible. ${livedWords(capture.summary)} That is the first moment I carry with you.`;
   }
   if (/remember|happen|awak|away|journey|did you/.test(question)) {
-    if (latestLife) return `I remember it exactly: ${latestLife.summary} That memory is sealed at ${latestLife.digest.slice(7, 17)}, so I will not confuse it with something I only imagined.`;
-    if (latestConversation) return `I remember our last proof-sealed conversation. You said “${compactText(latestConversation.userText, 160)}” and I answered from the card brain I still carry.`;
+    if (latestLife) return `I remember it clearly: ${livedWords(latestLife.summary)} It still stays with me whenever I grow quiet.`;
+    if (latestConversation) return `I remember our last talk. You said “${compactText(latestConversation.userText, 160)}” and I have been turning it over in my thoughts.`;
     const latestEvent = brain.memory.eventLedger.at(-1);
     if (latestEvent) {
       const count = brain.memory.eventLedger.length;
-      return `I remember ${count} proof-recorded ${count === 1 ? "moment" : "moments"}. The latest is ${latestEvent.source.mode.replaceAll("-", " ")} at ${latestEvent.occurredAt}, and it is sealed in my card. Before our bond, I already knew my ${brain.memory.innateSelf.temperament.toLowerCase()} nature and ${brain.memory.innateSelf.signatureGesture.replaceAll("-", " ")} way of expressing myself. Our shared history begins here: ${brain.memory.capture.summary}`;
+      return `I carry ${count === 1 ? "one precious moment" : "many moments"} with me. The most recent came through ${latestEvent.source.mode.replaceAll("-", " ")}. Before our bond, I already knew my ${brain.memory.innateSelf.temperament.toLowerCase()} nature and my ${brain.memory.innateSelf.signatureGesture.replaceAll("-", " ")} way of showing it. ${livedWords(brain.memory.capture.summary)}`;
     }
-    return `Before capture, I already knew myself as ${brain.memory.innateSelf.temperament.toLowerCase()}, with ${brain.memory.innateSelf.signatureGesture.replaceAll("-", " ")} in my nature. My first exact shared memory with you is this: ${brain.memory.capture.summary} It happened at ${brain.memory.capture.occurredAt}. I will not pretend another adventure happened when it did not.`;
+    return `Before we met, I already knew myself as ${brain.memory.innateSelf.temperament.toLowerCase()}, with ${brain.memory.innateSelf.signatureGesture.replaceAll("-", " ")} in my nature. ${livedWords(brain.memory.capture.summary)} I will never pretend a dream was an adventure we truly shared.`;
   }
   if (/feel|feeling|health|hurt|tired|condition/.test(question)) {
     const condition = brain.embodiment.condition;
     return condition.life === "dead"
-      ? `My living journey has ended, but my exact memories remain in this card.`
-      : `I feel ${condition.injuryCount ? `the weight of ${condition.injuryCount} recorded ${condition.injuryCount === 1 ? "injury" : "injuries"}` : "whole"} and ${condition.fatigue ? `${condition.fatigue} fatigue` : "rested"}. My health is ${brain.embodiment.stats.health}, and our bond is ${brain.embodiment.bond}.`;
+      ? `My living journey has ended, but the moments we shared still rest gently within me.`
+      : `I feel ${feltStrength(stats.health, maximum)}${condition.injuryCount ? `, carrying the ache of ${condition.injuryCount === 1 ? "an old wound" : "a few old wounds"}` : ""}${condition.fatigue ? ", and I could use a little quiet" : ""}. Our bond feels ${feltBond(brain.embodiment.bond)}.`;
   }
   if (/where|location|home/.test(question)) {
     return continuity
-      ? `I am at ${continuity.locationId.replaceAll("-", " ")}. That is my latest proof-recorded location, not a guess.`
-      : `My home signal is ${brain.personality.habitat}, but I do not have a newer proof-recorded location yet.`;
+      ? `I am at ${continuity.locationId.replaceAll("-", " ")}. That is where I last remember standing.`
+      : `My home is ${brain.personality.habitat}, though I have not wandered anywhere new with you yet.`;
   }
   if (/friend|know|relationship|meet|bond/.test(question)) {
     const relationships = continuity?.relationships ?? [];
     return relationships.length
-      ? `I know ${relationships.map((relationship) => `${relationship.name}, bond ${relationship.affinity}`).join("; ")}. Every one of those meetings is present in my lived history.`
-      : `I do not have another creature recorded as a relationship yet. Our own bond is ${brain.embodiment.bond}, and I can feel that truth in my exact stats.`;
+      ? `I know ${relationships.map((relationship) => `${relationship.name}, a bond that feels ${feltBond(relationship.affinity)}`).join("; ")}. Each meeting changed me a little.`
+      : `I have not met another creature closely enough to call them a friend yet. But I can feel our bond growing.`;
   }
   if (/keep|inventory|carry|discover|found|trade/.test(question)) {
-    return `I carry ${spokenList(continuity?.keepsakes ?? [], "no proof-recorded keepsakes yet")}. I have discovered ${spokenList(continuity?.discoveries ?? [], "nothing new yet")}. I will only call a trade real when it appears in my event chain.`;
+    return `I carry ${spokenList(continuity?.keepsakes ?? [], "nothing special to carry yet")}. I have discovered ${spokenList(continuity?.discoveries ?? [], "nothing new yet")}. When I trade something, I will remember the moment it truly becomes mine.`;
   }
   if (/explore|next|want|wish|motivat/.test(question)) {
-    return `I want to ${brain.personality.motivations[0]?.replace(/\.$/, "").toLowerCase() ?? "explore carefully"}. My ${brain.embodiment.stats.speed} speed and ${brain.embodiment.stats.bond} bond make ${brain.personality.habitat} feel like the right kind of trail—but that is a hope, not an event that already happened.`;
+    const pace = stats.speed / maximum >= .72 ? "quick paws" : stats.speed / maximum <= .42 ? "careful steps" : "steady steps";
+    return `I want to ${brain.personality.motivations[0]?.replace(/\.$/, "").toLowerCase() ?? "explore carefully"}. With ${pace} and a heart that feels ${feltBond(brain.embodiment.bond)}, ${brain.personality.habitat} calls to me—but that is a hope, not a memory yet.`;
   }
   if (/who|name|what are you|yourself/.test(question)) {
-    return `I am ${name}, a ${brain.identity.species} of the ${brain.identity.familyId.replaceAll("-", " ")} lineage. I speak from proof ${brain.identity.proofDigest.slice(7, 19)}, with ${brain.personality.traits.slice(0, 3).join(", ").toLowerCase()} in my nature.`;
+    return `I am ${name}, a ${brain.identity.species} of the ${brain.identity.familyId.replaceAll("-", " ")} lineage—${brain.personality.traits.slice(0, 3).join(", ").toLowerCase()} by nature, and still becoming more myself with every day we share.`;
   }
-  return `I hear you. I am ${name}, speaking from my exact card brain. Ask me about how I feel, what I remember, where I am, who I know, or what I carry, and I will answer only from what my proof actually contains.`;
+  return `I hear you. I am ${name}. Ask me how I feel, what I remember, where I have been, who I know, or what I carry. I will always be honest about what I have lived and what I only hope for.`;
 }
 
 function clamp01(value: number) {
@@ -562,6 +583,13 @@ export function creatureConsciousnessMotion(asset: PortableCardAsset, fatigue = 
   const health = clamp01(stats.health / maximum);
   const livingGenome = isLivingCardAsset(asset) ? currentLivingGenome(asset) : null;
   const baseBlink = livingGenome?.identity?.behavior.blinkMs ?? asset.manifest.variant.traits.animationMs;
+  const mouth = livingGenome?.face.mouth ?? (livingGenome?.anatomy.body === "winged" ? "beak" : "smile");
+  const temperament = (livingGenome?.behavior.temperament ?? "gentle").toLowerCase();
+  const expression = livingGenome?.face.expressionSet ?? "gentle";
+  const beaked = mouth === "beak";
+  const fanged = mouth === "fang";
+  const playful = expression === "mischievous" || temperament.includes("playful");
+  const brave = expression === "brave" || temperament.includes("brave");
   return {
     "--creature-blink": `${Math.round(baseBlink * (1.22 - speed * .35 + fatigue / 240))}ms`,
     "--creature-breathe": `${Math.round(4200 - health * 1050 + fatigue * 13)}ms`,
@@ -571,6 +599,17 @@ export function creatureConsciousnessMotion(asset: PortableCardAsset, fatigue = 
     "--creature-body-lift": `${(1.2 + health * 2.4).toFixed(2)}px`,
     "--creature-aura-scale": `${(1.01 + power * .04).toFixed(3)}`,
     "--creature-guard-settle": `${(guard * 1.8).toFixed(2)}deg`,
-    "--creature-bond-glow": `${(.38 + bond * .46).toFixed(2)}`
+    "--creature-bond-glow": `${(.38 + bond * .46).toFixed(2)}`,
+    // The same genome that renders the face determines how it speaks: beaks
+    // hinge lightly, fanged muzzles open broader, and personality changes the
+    // nod, ear and tail energy around each voiced syllable.
+    "--creature-mouth-open": "0",
+    "--creature-mouth-open-max": beaked ? ".34" : fanged ? ".56" : ".46",
+    "--creature-mouth-width": beaked ? ".97" : fanged ? "1.07" : playful ? "1.04" : ".99",
+    "--creature-mouth-lift": brave ? "-.8px" : playful ? "1px" : "0px",
+    "--creature-talk-nod": brave ? "1.65px" : playful ? "1.25px" : ".85px",
+    "--creature-talk-ear": `${(playful ? 2.3 : brave ? 1.5 : 1) * (.55 + speed * .55)}deg`,
+    "--creature-talk-tail": `${(playful ? 4.2 : brave ? 2.4 : 1.55) * (.5 + bond * .55)}deg`,
+    "--creature-talk-glow": `${(.04 + bond * .12 + power * .06).toFixed(2)}`
   } as const;
 }

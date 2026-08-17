@@ -13043,7 +13043,21 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 }
 .wilds-collectible-card[data-speaking="true"] .heartbound-card-art [data-slot="mouth"] {
   transform-origin: center;
-  animation: wilds-creature-speak 320ms ease-in-out infinite alternate;
+  transform: translateY(calc(var(--creature-mouth-lift, 0px) + var(--creature-mouth-open, 0) * 2px)) scaleX(var(--creature-mouth-width, 1)) scaleY(calc(.9 + var(--creature-mouth-open, 0) * var(--creature-mouth-open-max, .46)));
+  transition: transform 34ms linear;
+}
+.wilds-collectible-card[data-speaking="true"] .heartbound-card-art [data-slot="head"] {
+  transform-origin: 50% 66%;
+  transform: translateY(calc(var(--creature-mouth-open, 0) * var(--creature-talk-nod, 1px)));
+  transition: transform 42ms ease-out;
+}
+.wilds-collectible-card[data-speaking="true"] .heartbound-card-art [data-slot="ears_back"] {
+  transform: rotate(calc(var(--creature-guard-settle, 0deg) + var(--creature-mouth-open, 0) * var(--creature-talk-ear, 1deg)));
+  transition: transform 42ms ease-out;
+}
+.wilds-collectible-card[data-speaking="true"] .heartbound-card-art [data-slot="aura_front"] {
+  filter: brightness(calc(1 + var(--creature-mouth-open, 0) * var(--creature-talk-glow, .1)));
+  transition: filter 42ms ease-out;
 }
 .wilds-collectible-card[data-speaking="true"] .wilds-card-art {
   box-shadow: inset 0 0 38px color-mix(in srgb, var(--card-glow) 36%, transparent), 0 0 26px color-mix(in srgb, var(--card-glow) 24%, transparent);
@@ -13058,8 +13072,8 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   50% { transform: translateY(calc(-1 * var(--creature-body-lift, 2px))) scale(1.012); }
 }
 @keyframes wilds-creature-tail {
-  0%, 100% { transform: rotate(-1.5deg); }
-  50% { transform: rotate(3.8deg); }
+  0%, 100% { transform: rotate(calc(-1.5deg - var(--creature-mouth-open, 0) * var(--creature-talk-tail, 1deg))); }
+  50% { transform: rotate(calc(3.8deg + var(--creature-mouth-open, 0) * var(--creature-talk-tail, 1deg))); }
 }
 @keyframes wilds-creature-aura {
   0%, 100% { transform: scale(1); filter: brightness(.9); }

@@ -121,9 +121,10 @@ export function WildsInventory({
   const canEvolve = Boolean(next && progress && progress.level >= next.evolution.level && progress.bond >= next.evolution.bond);
   const cardSave = cardSavePresentation(cardSaveState);
   const cardSaving = cardSave.busy;
+  const selectedSpeakingId = selected?.id ?? null;
   const setSelectedCreatureSpeaking = useCallback((speaking: boolean) => {
-    setSpeakingAssetId(speaking && selected ? selected.id : null);
-  }, [selected]);
+    setSpeakingAssetId(speaking ? selectedSpeakingId : null);
+  }, [selectedSpeakingId]);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 820px)");

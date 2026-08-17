@@ -14,6 +14,7 @@ import { isLivingCardAsset } from "./living-card-types";
 import type { PortableCardAsset } from "./portable-card";
 import {
   cancelCreatureNeuralVoice,
+  isCreatureNeuralVoiceReady,
   playCreatureNeuralVoice,
   unlockCreatureNeuralVoice,
   warmCreatureNeuralVoice
@@ -30,6 +31,12 @@ function clientMessageId() {
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   return `creature-message:${token}`;
+}
+
+function emitCreatureMouthMotion(assetId: string, openness: number) {
+  window.dispatchEvent(new CustomEvent("wildz-creature-mouth", {
+    detail: { assetId, openness: Math.max(0, Math.min(1, openness)) }
+  }));
 }
 
 function observerError(error: string | undefined) {
@@ -73,6 +80,8 @@ export function CreatureConsciousnessPanel({
   const speechRun = useRef(0);
   const speechTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const neuralSpeech = useRef<AbortController | null>(null);
+  const activeUtterances = useRef<SpeechSynthesisUtterance[]>([]);
+  const nativeMouthFrame = useRef<number | null>(null);
 
   useEffect(() => {
     mounted.current = true;
@@ -81,10 +90,13 @@ export function CreatureConsciousnessPanel({
       speechRun.current += 1;
       neuralSpeech.current?.abort();
       cancelCreatureNeuralVoice();
+      if (nativeMouthFrame.current) cancelAnimationFrame(nativeMouthFrame.current);
+      emitCreatureMouthMotion(asset.id, 0);
+      activeUtterances.current = [];
       if (speechTimer.current) clearTimeout(speechTimer.current);
       if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
     };
-  }, []);
+  }, [asset.id]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -101,12 +113,25 @@ export function CreatureConsciousnessPanel({
     speechRun.current += 1;
     neuralSpeech.current?.abort();
     cancelCreatureNeuralVoice();
+    if (nativeMouthFrame.current) cancelAnimationFrame(nativeMouthFrame.current);
+    nativeMouthFrame.current = null;
+    emitCreatureMouthMotion(asset.id, 0);
+    activeUtterances.current = [];
     if (speechTimer.current) clearTimeout(speechTimer.current);
     if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
     onSpeakingChange?.(false);
   }, [asset.id, onSpeakingChange]);
 
+  useEffect(() => {
+    // Begin model loading while the Vault card is visible. Once cached by the
+    // browser, later conversations start directly in the character voice.
+    void warmCreatureNeuralVoice(asset);
+  }, [asset]);
+
   const finishSpeaking = () => {
+    if (nativeMouthFrame.current) cancelAnimationFrame(nativeMouthFrame.current);
+    nativeMouthFrame.current = null;
+    if (typeof window !== "undefined") emitCreatureMouthMotion(asset.id, 0);
     if (mounted.current) onSpeakingChange?.(false);
   };
 
@@ -118,19 +143,29 @@ export function CreatureConsciousnessPanel({
     speechRun.current += 1;
     const run = speechRun.current;
     neuralSpeech.current?.abort();
+    if (nativeMouthFrame.current) cancelAnimationFrame(nativeMouthFrame.current);
+    nativeMouthFrame.current = null;
+    emitCreatureMouthMotion(asset.id, 0);
     const neuralController = new AbortController();
     neuralSpeech.current = neuralController;
     if (speechTimer.current) clearTimeout(speechTimer.current);
+    activeUtterances.current = [];
     window.speechSynthesis.cancel();
-    const neuralPlayed = await playCreatureNeuralVoice(asset, text, neuralController.signal).catch(() => false);
+    const neuralTimeoutMs = isCreatureNeuralVoiceReady(asset) ? 10_500 : 900;
+    const neuralPlayed = await Promise.race([
+      playCreatureNeuralVoice(asset, text, neuralController.signal, () => {
+        if (mounted.current && run === speechRun.current) finishSpeaking();
+      }).catch(() => false),
+      new Promise<false>((resolve) => setTimeout(() => resolve(false), neuralTimeoutMs))
+    ]);
     if (neuralPlayed) {
       if (run === speechRun.current) {
         setVoiceMode("neural");
-        finishSpeaking();
       }
       return;
     }
-    if (!mounted.current || run !== speechRun.current || neuralController.signal.aborted) return;
+    neuralController.abort();
+    if (!mounted.current || run !== speechRun.current) return;
     setVoiceMode("native");
     const profile = creatureVoiceProfile(asset, voices);
     const performance = creatureVoicePerformance(asset, text);
@@ -147,14 +182,34 @@ export function CreatureConsciousnessPanel({
       utterance.rate = Math.max(.86, Math.min(1.08, (profile.rate + segment.rate) / 2));
       utterance.pitch = Math.max(.92, Math.min(1.08, (profile.pitch + segment.pitch) / 2));
       utterance.volume = Math.min(profile.volume, segment.volume);
+      const mouthStartedAt = window.performance.now();
+      const estimatedDuration = Math.max(520, segment.text.length * 58 / Math.max(.8, utterance.rate));
+      const animateNativeMouth = (now: number) => {
+        if (!mounted.current || run !== speechRun.current) return;
+        const progress = Math.min(.999, (now - mouthStartedAt) / estimatedDuration);
+        const character = segment.text[Math.floor(progress * segment.text.length)] ?? " ";
+        const voiced = /[aeiouy]/i.test(character) ? .82 : /[bcdfgjklmnprstvwz]/i.test(character) ? .42 : .08;
+        const cadence = .72 + Math.sin((now - mouthStartedAt) * .038) * .18;
+        emitCreatureMouthMotion(asset.id, voiced * cadence);
+        nativeMouthFrame.current = requestAnimationFrame(animateNativeMouth);
+      };
       utterance.onend = () => {
         if (!mounted.current || run !== speechRun.current) return;
+        if (nativeMouthFrame.current) cancelAnimationFrame(nativeMouthFrame.current);
+        nativeMouthFrame.current = null;
+        emitCreatureMouthMotion(asset.id, 0);
         speechTimer.current = setTimeout(() => perform(index + 1), segment.pauseAfterMs);
       };
       utterance.onerror = () => {
         if (run === speechRun.current) finishSpeaking();
       };
+      activeUtterances.current = [utterance];
       window.speechSynthesis.speak(utterance);
+      nativeMouthFrame.current = requestAnimationFrame(animateNativeMouth);
+      if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+      speechTimer.current = setTimeout(() => {
+        if (run === speechRun.current && window.speechSynthesis.paused) window.speechSynthesis.resume();
+      }, 250);
     };
     perform(0);
   };
@@ -165,7 +220,7 @@ export function CreatureConsciousnessPanel({
     if (voiceEnabled) {
       setVoiceMode("warming");
       void unlockCreatureNeuralVoice().catch(() => undefined);
-      void warmCreatureNeuralVoice();
+      void warmCreatureNeuralVoice(asset);
     }
     setLoading(true);
     setError("");
@@ -213,6 +268,10 @@ export function CreatureConsciousnessPanel({
               speechRun.current += 1;
               neuralSpeech.current?.abort();
               cancelCreatureNeuralVoice();
+              if (nativeMouthFrame.current) cancelAnimationFrame(nativeMouthFrame.current);
+              nativeMouthFrame.current = null;
+              emitCreatureMouthMotion(asset.id, 0);
+              activeUtterances.current = [];
               if (speechTimer.current) clearTimeout(speechTimer.current);
               window.speechSynthesis.cancel();
               finishSpeaking();

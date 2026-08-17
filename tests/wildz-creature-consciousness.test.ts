@@ -129,8 +129,9 @@ test("the creature brain gives the Twin exact proof context and model boundaries
     );
   }
   assert.equal(context.creatureBrain.contextDigest, brain.contextDigest);
-  assert.match(context.instruction, /never invent a canonical event/i);
-  assert.match(context.instruction, /capture did not create its mind/i);
+  assert.match(context.instruction, /never make up something that happened/i);
+  assert.match(context.instruction, /inner self existed before meeting/i);
+  assert.match(context.instruction, /do not mention cards, brains, proof/i);
   assert.equal(parseCreatureObserverRequest({ card: asset, message: "  Hello   there  " }).message, "Hello there");
   assert.throws(() => parseCreatureObserverRequest({ card: asset, message: "" }), /creature_observer_request_invalid/);
   assert.equal(normalizeCreatureTwinReply({ content: [{ text: "I am here." }] }), "I am here.");
@@ -141,13 +142,15 @@ test("the creature brain gives the Twin exact proof context and model boundaries
   assert.match(motion["--creature-gaze-range"], /^\d+(?:\.\d+)?px$/);
 
   const fallback = localCreatureTwinReply(brain, "How are you feeling?");
-  assert.match(fallback, new RegExp(String(brain.embodiment.stats.health)));
-  assert.match(fallback, new RegExp(String(brain.embodiment.bond)));
+  assert.doesNotMatch(fallback, new RegExp(String(brain.embodiment.stats.health)));
+  assert.doesNotMatch(fallback, new RegExp(String(brain.embodiment.bond)));
+  assert.doesNotMatch(fallback, /proof|card brain|digest|data|stat/i);
 
   const captureReply = localCreatureTwinReply(brain, "Do you remember when I captured you?");
-  assert.match(captureReply, new RegExp(asset.manifest.encounterId));
-  assert.match(captureReply, new RegExp(asset.manifest.capturedAt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  assert.match(captureReply, /when our story began/i);
+  assert.doesNotMatch(captureReply, new RegExp(asset.manifest.encounterId));
+  assert.doesNotMatch(captureReply, new RegExp(asset.manifest.capturedAt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(captureReply, /first moment i carry with you/i);
+  assert.doesNotMatch(captureReply, /proof|card brain|digest|data|stat/i);
 
   const voice = creatureVoiceProfile(asset, [
     { name: "Robot Compact", lang: "en-US", localService: true },
@@ -197,6 +200,8 @@ test("training becomes exact autobiographical memory without replacing capture",
 test("Vault consciousness uses the SDK World Twin rail and card-scoped UI", () => {
   const route = readFileSync("app/api/receiz/creature-observer/route.ts", "utf8");
   const panel = readFileSync("src/features/play/CreatureConsciousnessPanel.tsx", "utf8");
+  const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
+  const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
   const card = readFileSync("src/features/play/WildsCard.tsx", "utf8");
   const css = readFileSync("app/globals.css", "utf8");
 
@@ -211,6 +216,32 @@ test("Vault consciousness uses the SDK World Twin rail and card-scoped UI", () =
   assert.match(panel, /speechSynthesis/);
   assert.match(panel, /playCreatureNeuralVoice/);
   assert.match(panel, /warmCreatureNeuralVoice/);
+  assert.match(panel, /isCreatureNeuralVoiceReady/);
+  assert.match(panel, /neuralTimeoutMs = isCreatureNeuralVoiceReady\(asset\) \? 10_500 : 900/);
+  assert.match(panel, /Promise\.race\(\[[\s\S]*playCreatureNeuralVoice/);
+  assert.doesNotMatch(panel, /neuralController\.abort\(\);\s*if \([^)]+neuralController\.signal\.aborted/);
+  assert.match(panel, /activeUtterances\.current = \[utterance\]/);
+  assert.match(inventory, /selectedSpeakingId = selected\?\.id/);
+  assert.doesNotMatch(inventory, /setSelectedCreatureSpeaking[\s\S]{0,180}\}, \[selected\]\)/);
+  assert.match(campaign, /requestIdleCallback\?\.\(prime\)/);
+  assert.match(campaign, /priority: "background"/);
+  assert.match(campaign, /cancelled \|\| started/);
+  assert.match(campaign, /import\("\.\/creature-neural-voice"\)/);
+  assert.match(campaign, /warmCreatureNeuralVoice\(asset\)/);
+  assert.match(panel, /wildz-creature-mouth/);
+  assert.match(panel, /requestAnimationFrame\(animateNativeMouth\)/);
+  assert.doesNotMatch(panel, /if \(neuralPlayed\)[\s\S]{0,180}finishSpeaking\(\)/);
+  const neuralVoice = readFileSync("src/features/play/creature-neural-voice.ts", "utf8");
+  assert.match(neuralVoice, /export function isCreatureNeuralVoiceReady/);
+  assert.match(neuralVoice, /primedVoices/);
+  assert.match(neuralVoice, /model\.generate\([\s\S]*10_000/);
+  assert.match(neuralVoice, /onEnded\?: \(\) => void/);
+  assert.match(neuralVoice, /source\.start\(\);[\s\S]*return true/);
+  assert.match(neuralVoice, /createAnalyser\(\)/);
+  assert.match(neuralVoice, /getByteTimeDomainData/);
+  assert.match(card, /wildz-creature-mouth/);
+  assert.match(css, /--creature-mouth-open/);
+  assert.match(css, /--creature-talk-tail/);
   assert.match(card, /data-speaking/);
   assert.match(css, /wilds-creature-blink/);
   assert.match(css, /wilds-creature-consciousness/);

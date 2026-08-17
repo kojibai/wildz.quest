@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import { creatureForm } from "./creature-catalog";
 import { deriveBirthGenome } from "./heartbound-genome";
 import { renderHeartboundSvg } from "./heartbound-renderer";
@@ -12,6 +12,7 @@ import type { PortableCardAsset } from "./portable-card";
 import { creatureConsciousnessMotion } from "./creature-consciousness";
 
 export const WildsCard = memo(function WildsCard({ asset, compact = false, condition, speaking = false }: { asset: PortableCardAsset; compact?: boolean; condition?: AdventureCardCondition | null; speaking?: boolean }) {
+  const card = useRef<HTMLElement>(null);
   const form = creatureForm(asset.manifest.formId);
   const variant = asset.manifest.variant.traits;
   const creatureSvg = useMemo(() => renderHeartboundSvg(
@@ -21,7 +22,6 @@ export const WildsCard = memo(function WildsCard({ asset, compact = false, condi
     "card",
     { width: 640, height: 405, title: asset.manifest.name, fit: "full-body" }
   ), [asset, variant]);
-  if (!form) return null;
   const death = cardDeathRecord(asset, condition);
   const stats = [
     ["Health", asset.manifest.stats.health],
@@ -30,12 +30,28 @@ export const WildsCard = memo(function WildsCard({ asset, compact = false, condi
     ["Speed", asset.manifest.stats.speed],
     ["Bond", asset.manifest.stats.bond]
   ] as const;
+  useEffect(() => {
+    const reset = () => card.current?.style.setProperty("--creature-mouth-open", "0");
+    const onMouthMotion = (event: Event) => {
+      const detail = (event as CustomEvent<{ assetId?: string; openness?: number }>).detail;
+      if (detail?.assetId !== asset.id) return;
+      card.current?.style.setProperty("--creature-mouth-open", String(Math.max(0, Math.min(1, detail.openness ?? 0))));
+    };
+    window.addEventListener("wildz-creature-mouth", onMouthMotion);
+    if (!speaking) reset();
+    return () => {
+      window.removeEventListener("wildz-creature-mouth", onMouthMotion);
+      reset();
+    };
+  }, [asset.id, speaking]);
+  if (!form) return null;
   return (
     <article
       aria-label={`${asset.manifest.name}, Stage ${form.stage}, ${form.rarity} Wilds card`}
       className={`wilds-collectible-card foil-${form.foil}${compact ? " compact" : ""}${death ? " is-dead" : ""}`}
       data-conscious="true"
       data-speaking={speaking ? "true" : "false"}
+      ref={card}
       style={{ "--card-primary": variant.palette.primary, "--card-accent": variant.palette.accent, "--card-glow": variant.palette.glow, "--card-body-scale": variant.bodyScale, "--card-motion": `${variant.animationMs}ms`, ...creatureConsciousnessMotion(asset, condition?.fatigue ?? 0) } as React.CSSProperties}
     >
       <div className="wilds-card-foil" aria-hidden="true" />
