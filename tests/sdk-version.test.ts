@@ -116,6 +116,7 @@ test("the production env template contains only standalone Wildz variables and a
     "NEXT_PUBLIC_WILDZ_SW_RELEASE",
     "WILDS_PULSE_TICK_SECRET",
     "RECEIZ_CONNECT_ACCESS_TOKEN",
+    "RECEIZ_CREATURE_TWIN_HANDLE",
     "NEXT_PUBLIC_CHECKOUT_MODE",
     "RECEIZ_CHECKOUT_MODE"
   ]);
