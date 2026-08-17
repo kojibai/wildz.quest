@@ -637,27 +637,29 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (disposition === "merge-owned") {
       return restoreVerifiedBaseline();
     }
-    if (!proofSessionConnected) {
-      try {
-        const admission = deriveWildzVaultCardAdmission({
-          cards: current.playState?.inventory ?? currentPlayState?.inventory ?? [],
-          playerHandle: current.session.actorId
-        });
-        const remote = await connectWildzProofSession(current.session, { vaultAdmission: admission });
-        if (!wildzRemoteSessionMatchesIdentity(current.session, remote)) {
-          throw new Error("wildz_proof_session_identity_mismatch");
+    // dcb5552 baseline is the user-facing transaction boundary. A proof-valid
+    // bearer artifact enters the active Vault immediately; remote projection is
+    // strictly additive and can never leave mobile upload waiting on a network.
+    const baseline = await restoreVerifiedBaseline();
+    const reconcileBearerProjection = async () => {
+      if (!proofSessionConnected) {
+        try {
+          const admission = deriveWildzVaultCardAdmission({
+            cards: baseline.playState.inventory,
+            playerHandle: current.session.actorId
+          });
+          const remote = await connectWildzProofSession(current.session, { vaultAdmission: admission });
+          if (!wildzRemoteSessionMatchesIdentity(current.session, remote)) return;
+          setProofSessionConnected(true);
+        } catch {
+          return;
         }
-        setProofSessionConnected(true);
-      } catch {
-        // dcb5552 baseline: a locally verified bearer artifact still restores
-        // into the active Vault. Global ownership is an additive reconciliation
-        // layer and must not make the proven offline restore path unavailable.
-        return restoreVerifiedBaseline();
       }
-    }
 
-    const stableName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 64) || "artifact";
-    const response = await fetch("/api/market/claims", {
+      const stableName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 64) || "artifact";
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 8_000);
+      const response = await fetch("/api/market/claims", {
         method: "POST",
         credentials: "same-origin",
         cache: "no-store",
@@ -666,43 +668,44 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           "idempotency-key": `bearer:${file.size}:${file.lastModified}:${stableName}`.slice(0, 160),
           "x-wildz-artifact-filename": encodeURIComponent(file.name)
         },
-        body: new Uint8Array(await file.arrayBuffer())
+        body: new Uint8Array(await file.arrayBuffer()),
+        signal: controller.signal
       })
       .catch(() => null);
-    if (!response) return restoreVerifiedBaseline();
-    if (!response.ok) {
-      const failure = await response.json().catch(() => null) as { error?: unknown } | null;
-      if (failure?.error === "wildz_bearer_claim_stale_ownership") {
-        throw new Error("This card has a newer owner. Its historical image cannot reclaim it.");
-      }
-      return restoreVerifiedBaseline();
-    }
+      window.clearTimeout(timeout);
+      if (!response?.ok) return;
 
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    const mimeType = response.headers.get("content-type")?.split(";", 1)[0]?.trim() || "application/octet-stream";
-    const contentDisposition = response.headers.get("content-disposition") ?? "";
-    const filename = /filename="([^"\\]+)"/.exec(contentDisposition)?.[1] ?? "wildz-claimed.receized";
-    const opened = await openWildzArtifactSameOrigin({ bytes, mimeType, name: filename });
-    const expectedDigest = response.headers.get("x-receiz-artifact-sha256");
-    if (expectedDigest && opened.artifactSha256 !== expectedDigest) throw new Error("wildz_bearer_claim_download_mismatch");
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      const mimeType = response.headers.get("content-type")?.split(";", 1)[0]?.trim() || "application/octet-stream";
+      const contentDisposition = response.headers.get("content-disposition") ?? "";
+      const filename = /filename="([^"\\]+)"/.exec(contentDisposition)?.[1] ?? "wildz-claimed.receized";
+      const opened = await openWildzArtifactSameOrigin({ bytes, mimeType, name: filename });
+      const expectedDigest = response.headers.get("x-receiz-artifact-sha256");
+      if (expectedDigest && opened.artifactSha256 !== expectedDigest) return;
+      if (!sameWildzPlayerCoordinate(
+        continuityRef.current?.session.actorId ?? "",
+        current.session.actorId
+      )) return;
 
-    downloadBlob(new Blob([bytes.slice().buffer], { type: mimeType }), filename);
-    const claimedFile = new File([bytes.slice().buffer], filename, { type: mimeType });
-    const outcome = await restoreArtifact(
-      claimedFile,
-      "card-vault",
-      true,
-      currentPlayState,
-      "merge-vault"
-    );
-    recordLocalWildzOwnershipTransfer(
-      window.localStorage,
-      outcome.session.actorId,
-      artifactAssetIds,
-      new Date().toISOString(),
-      "published"
-    );
-    return outcome;
+      downloadBlob(new Blob([bytes.slice().buffer], { type: mimeType }), filename);
+      const claimedFile = new File([bytes.slice().buffer], filename, { type: mimeType });
+      const outcome = await restoreArtifact(
+        claimedFile,
+        "card-vault",
+        true,
+        undefined,
+        "merge-vault"
+      );
+      recordLocalWildzOwnershipTransfer(
+        window.localStorage,
+        outcome.session.actorId,
+        artifactAssetIds,
+        new Date().toISOString(),
+        "published"
+      );
+    };
+    void reconcileBearerProjection().catch(() => undefined);
+    return baseline;
   }, [proofSessionConnected, restoreArtifact]);
 
   const claimBearerArtifact = useCallback(async (file: File): Promise<number | null> => {

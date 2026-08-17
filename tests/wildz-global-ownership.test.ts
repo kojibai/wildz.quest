@@ -139,11 +139,13 @@ test("owned Vault uploads merge directly while foreign bearer artifacts claim fi
   assert.match(claimPath, /openWildzArtifactSameOrigin/);
   assert.match(claimPath, /x-receiz-artifact-sha256/);
   assert.match(claimPath, /downloadBlob/);
-  assert.match(claimPath, /wildz_bearer_claim_stale_ownership/);
   assert.match(claimPath, /restoreArtifact\(\s*claimedFile,\s*"card-vault",\s*true,[\s\S]*"merge-vault"/);
   assert.match(claimPath, /restoreArtifact\(\s*file,\s*"card-vault",\s*true,/);
   assert.ok(claimPath.indexOf("inspectWildzRestore(file)") < claimPath.indexOf('fetch("/api/market/claims"'));
   assert.ok(claimPath.indexOf('disposition === "merge-owned"') < claimPath.indexOf('fetch("/api/market/claims"'));
+  assert.ok(claimPath.indexOf("const baseline = await restoreVerifiedBaseline()") < claimPath.indexOf('fetch("/api/market/claims"'));
+  assert.match(claimPath, /void reconcileBearerProjection\(\)\.catch/);
+  assert.match(claimPath, /return baseline/);
   const claimedRestore = claimPath.indexOf("restoreArtifact(", claimPath.indexOf("const claimedFile"));
   assert.ok(claimPath.indexOf('fetch("/api/market/claims"') < claimedRestore);
 

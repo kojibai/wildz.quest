@@ -268,7 +268,11 @@ export function WildsInventory({
       <header className="wilds-vault-compact-header">
         <div><span>Portable collection</span><h3>Wilds Inventory</h3><p>{state.inventory.length} sealed forms · unlimited unique variants</p></div>
         <div className="wilds-vault-actions">
-          <button aria-busy={importing} aria-label="Import card or vault" className={`wilds-import-card wilds-action-feedback${importing ? " wilds-action-busy" : ""}`} disabled={importing} onClick={() => importInput.current?.click()} title="Import card or vault" type="button">
+          <button aria-busy={importing} aria-label="Import card or vault" className={`wilds-import-card wilds-action-feedback${importing ? " wilds-action-busy" : ""}`} disabled={importing} onClick={() => {
+            if (!importInput.current) return;
+            importInput.current.value = "";
+            importInput.current.click();
+          }} title="Import card or vault" type="button">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v11m0-11L8 7m4-4 4 4M5 13v6h14v-6" /></svg>
             <span>Import card or vault</span>
           </button>
@@ -303,6 +307,7 @@ export function WildsInventory({
             let rejected = 0;
             let rejectionMessage = "";
             let currentPlayState = state;
+            setImportMessage(files.length ? "Verifying and adding to your Vault…" : "");
             setImporting(true);
             try {
               for (const file of files) {
