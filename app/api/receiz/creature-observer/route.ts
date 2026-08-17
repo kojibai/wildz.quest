@@ -5,6 +5,8 @@ import {
   creatureObserverClientContext,
   creatureObserverMomentContext,
   creatureObserverThreadKey,
+  creatureObserverVisitorKey,
+  proofGroundedCreatureReply,
   normalizeCreatureTwinReply,
   parseCreatureObserverRequest,
   projectVerifiedCreatureBrain
@@ -40,6 +42,38 @@ function asRecord(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : null;
+}
+
+function isTwinFailureBoundary(input: Readonly<{ model?: string; speech?: string }>) {
+  return input.model === "model-failure-boundary"
+    || /could not form a response|no world event was created/i.test(input.speech ?? "");
+}
+
+function finalPerformanceAudio(performance: Readonly<Record<string, unknown>>) {
+  const direct = typeof performance.audioB64u === "string" ? performance.audioB64u : "";
+  const asset = asRecord(performance.audioAsset);
+  const dataUrl = typeof asset?.dataUrl === "string" ? asset.dataUrl : "";
+  const encoded = dataUrl.match(/^data:audio\/(?:wav|wave|mpeg|mp3|ogg|webm|mp4);base64,([a-z0-9+/=_-]+)$/i)?.[1]
+    ?? direct;
+  if (!encoded || encoded.length > 6_000_000) return null;
+  return {
+    type: "audio_chunk" as const,
+    audioB64u: encoded.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""),
+    startMs: 0,
+    endMs: typeof asset?.durationMs === "number" && Number.isFinite(asset.durationMs)
+      ? Math.max(0, Math.min(120_000, Math.round(asset.durationMs)))
+      : 0
+  };
+}
+
+function upstreamWorldSpeech(value: unknown, creatureName: string) {
+  const reply = asRecord(value);
+  if (!reply || reply.source !== "upstream") throw new Error("creature_observer_intelligence_unavailable");
+  return normalizeCreatureTwinReply(reply, creatureName);
+}
+
+function upstreamWorldPerformance(value: unknown) {
+  return asRecord(asRecord(value)?.performance) ?? {};
 }
 
 export async function POST(request: NextRequest) {
@@ -87,7 +121,8 @@ export async function POST(request: NextRequest) {
                 let completed = false;
                 let audioSent = false;
                 let finalPerformance: Readonly<Record<string, unknown>> = {};
-                for await (const event of receiz.subjects.twin.streamPerformance(input.card.id, {
+                try {
+                  for await (const event of receiz.subjects.twin.streamPerformance(input.card.id, {
                     message: groundedMessage,
                     ownerReceizId: actor.actorId,
                     threadKey: creatureObserverThreadKey(input.card.id),
@@ -120,8 +155,77 @@ export async function POST(request: NextRequest) {
                         send({ type: "reply_delta", delta: speech });
                       }
                     }
+                  }
+                } catch {
+                  completed = false;
                 }
-                if (!completed || !speech.trim()) throw new Error("creature_observer_intelligence_unavailable");
+                const failedBoundary = isTwinFailureBoundary({
+                  model: typeof finalPerformance.model === "string" ? finalPerformance.model : undefined,
+                  speech
+                });
+                if (!completed || !speech.trim() || failedBoundary) {
+                  try {
+                    const worldResponse = await receiz.world.message("wildz", {
+                      action: "message",
+                      message: groundedMessage,
+                      visitorKey: creatureObserverVisitorKey(actor.actorId),
+                      threadKey: creatureObserverThreadKey(input.card.id),
+                      allowBrowserVoiceFallback: false,
+                      clientContext: observerContext,
+                      clientUserMessageId: clientOperationId,
+                      clientOperationId,
+                      quoteExpiresAt: new Date(Date.now() + 9 * 60_000).toISOString()
+                    });
+                    if (worldResponse.ok !== true) throw new Error(worldResponse.error || "creature_observer_intelligence_unavailable");
+                    const worldSpeech = upstreamWorldSpeech(worldResponse.reply, subjectBrain.identity.name);
+                    if (isTwinFailureBoundary({ speech: worldSpeech })) throw new Error("creature_observer_intelligence_unavailable");
+                    const worldPerformance = upstreamWorldPerformance(worldResponse.reply);
+                    send({ type: "reply_reset", text: worldSpeech });
+                    const worldAudio = finalPerformanceAudio(worldPerformance);
+                    if (worldAudio) send({
+                      ...worldAudio,
+                      voiceSignature: subjectBrain.performance.expression.voiceSignature,
+                      source: "receiz-v120-proof-performance"
+                    });
+                    return {
+                      provider: "receiz",
+                      model: "receiz-world-twin-upstream",
+                      version: "120.0.0",
+                      speech: worldSpeech,
+                      performance: {
+                        ...subjectBrain.performance.expression,
+                        ...worldPerformance,
+                        proofContextDigest: proofContext.receipt.queryDigest,
+                        generatedAudio: Boolean(worldAudio),
+                        authoritative: false,
+                        responseRail: "receiz-world-twin-upstream"
+                      }
+                    };
+                  } catch { /* The exact 6dbc2a3 proof-brain boundary follows. */ }
+                  speech = proofGroundedCreatureReply(subjectBrain, input.message);
+                  send({ type: "reply_reset", text: speech });
+                  return {
+                    provider: "wildz-proof-brain",
+                    model: "proof-grounded-creature-twin",
+                    version: "120.0.0",
+                    speech,
+                    performance: {
+                      ...subjectBrain.performance.expression,
+                      proofContextDigest: proofContext.receipt.queryDigest,
+                      authoritative: false,
+                      responseRail: "proof-grounded-local"
+                    }
+                  };
+                }
+                const finalAudio = audioSent ? null : finalPerformanceAudio(finalPerformance);
+                if (finalAudio) {
+                  audioSent = true;
+                  send({
+                    ...finalAudio,
+                    voiceSignature: subjectBrain.performance.expression.voiceSignature,
+                    source: "receiz-v120-proof-performance"
+                  });
+                }
                 return {
                   provider: "receiz",
                   model: "receiz-subject-twin-performance",
@@ -141,7 +245,9 @@ export async function POST(request: NextRequest) {
               }
             });
             const modelAudit = subjectObservation.twin.proposedIntent.modelAudit;
-            const observer = "receiz-twin" as const;
+            const observer = modelAudit.model === "proof-grounded-creature-twin"
+              ? "receiz-twin-local" as const
+              : "receiz-twin" as const;
             const reply = normalizeCreatureTwinReply(subjectObservation.twin.spokenResponse, brain.identity.name);
             const turn = createObservedCreatureTurn({
               brain,

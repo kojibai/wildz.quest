@@ -22,6 +22,7 @@ import {
 type ObserverResponse = {
   ok?: boolean;
   error?: string;
+  observer?: "receiz-twin" | "receiz-twin-local";
   turn?: CreatureObserverMemoryTurn;
 };
 
@@ -190,6 +191,10 @@ export function CreatureConsciousnessPanel({
         if (event.type === "reply_delta" && event.delta) {
           setStreamingExchange((current) => current ? { ...current, reply: current.reply + event.delta } : current);
           voiceStream?.pushText(event.delta);
+        } else if (event.type === "reply_reset" && typeof (event as { text?: unknown }).text === "string") {
+          const text = (event as { text: string }).text;
+          setStreamingExchange((current) => current ? { ...current, reply: text } : current);
+          voiceStream?.pushText(text);
         } else if (event.type === "audio_chunk") voiceStream?.pushAudio(event);
         else if (event.type === "reply_done") result = event;
         else if (event.type === "error") throw new Error(event.error || "creature_observer_unavailable");
@@ -201,7 +206,7 @@ export function CreatureConsciousnessPanel({
       setDraft("");
       setStreamingExchange(null);
       if (voiceStream) void voiceStream.completed.then((played) => {
-        if (!played && mounted.current && run === voiceRun.current && !controller.signal.aborted) {
+        if (!played && result?.observer === "receiz-twin" && mounted.current && run === voiceRun.current && !controller.signal.aborted) {
           setError("This creature's unique neural voice could not play on this device. Its genuine response was still remembered; no substitute voice was used.");
           finishSpeaking();
         }

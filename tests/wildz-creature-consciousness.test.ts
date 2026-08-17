@@ -251,9 +251,15 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
   assert.doesNotMatch(route, /RECEIZ_CONNECT_ACCESS_TOKEN/);
   assert.match(route, /creature_observer_owner_mismatch/);
   assert.match(route, /clientOperationId/);
-  assert.doesNotMatch(route, /localCreatureTwinReply|proof-grounded-creature-twin/);
+  assert.match(route, /could not form a response\|no world event was created/);
+  assert.match(route, /receiz\.world\.message\("wildz"/);
+  assert.match(route, /proofGroundedCreatureReply/);
+  assert.match(route, /proof-grounded-creature-twin/);
+  assert.match(route, /type: "reply_reset"/);
+  assert.match(route, /finalPerformanceAudio/);
+  assert.match(route, /audioAsset/);
   assert.doesNotMatch(route, /if \(!audioSent\) throw/);
-  assert.match(route, /if \(!completed \|\| !speech\.trim\(\)\) throw new Error\("creature_observer_intelligence_unavailable"\)/);
+  assert.match(route, /if \(!completed \|\| !speech\.trim\(\) \|\| failedBoundary\)/);
   assert.match(route, /genuine: observer === "receiz-twin"/);
   assert.match(panel, /Receiz v120 Twin · genuine neural performance/);
   assert.doesNotMatch(panel, /proof-grounded local/);
@@ -263,7 +269,8 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
   assert.match(route, /modelOutputIsWorldEvent/);
   assert.match(route, /createObservedCreatureTurn/);
   assert.match(route, /normalizeCreatureTwinReply\(subjectObservation\.twin\.spokenResponse, brain\.identity\.name\)/);
-  assert.doesNotMatch(route, /allowBrowserVoiceFallback|reply_preview|quoteExpiresAt/);
+  assert.match(route, /allowBrowserVoiceFallback: false/);
+  assert.doesNotMatch(route, /reply_preview/);
   assert.match(route, /export const maxDuration = 90/);
   assert.match(panel, /record-creature-observation|onObserved/);
   assert.doesNotMatch(panel, /speechSynthesis|NeuralVoice|native character voice/i);
@@ -271,6 +278,7 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
   assert.match(panel, /beginCreatureVoiceStream\(asset\.id, brain\.performance\.neuralInterface, controller\.signal/);
   assert.match(panel, /voiceStream\?\.pushText\(event\.delta\)/);
   assert.match(panel, /voiceStream\?\.pushAudio\(event\)/);
+  assert.match(panel, /event\.type === "reply_reset"/);
   assert.match(panel, /voiceStream\.completed\.then\(\(played\)/);
   assert.match(panel, /genuine response was still remembered/);
   assert.match(panel, /onObserved\(result\.turn\)/);

@@ -38,7 +38,9 @@ function emitMouth(assetId: string, openness: number) {
 }
 
 function encodedAudio(chunk: CreatureVoiceChunk) {
-  const encoded = chunk.audioB64u?.replace(/-/g, "+").replace(/_/g, "/") ?? "";
+  const encoded = chunk.audioB64u
+    ?.replace(/^data:audio\/(?:wav|wave|mpeg|mp3|ogg|webm|mp4);base64,/i, "")
+    .replace(/-/g, "+").replace(/_/g, "/") ?? "";
   if (!encoded || encoded.length > 6_000_000) throw new Error("creature_observer_voice_unavailable");
   const binary = atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "="));
   const bytes = new Uint8Array(binary.length);
