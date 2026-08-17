@@ -241,41 +241,6 @@ export function PlayCampaign({
   const worldProgression = projectWorldProgression(state.worldMastery);
   const activeCard = selectedCard(state);
   const activeAsset = selectedAsset(state);
-  const neuralPrewarmAsset = useRef<PortableCardAsset | null>(null);
-  neuralPrewarmAsset.current = activeAsset ?? null;
-  useEffect(() => {
-    if (!enabled || !neuralPrewarmAsset.current) return;
-    let cancelled = false;
-    let started = false;
-    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
-    const prime = () => {
-      if (cancelled || started) return;
-      const asset = neuralPrewarmAsset.current;
-      if (!asset) return;
-      started = true;
-      void import("./creature-neural-voice").then(({ warmCreatureNeuralVoice }) => {
-        if (!cancelled) void warmCreatureNeuralVoice(asset);
-      });
-    };
-    const idleWindow = window as typeof window & {
-      requestIdleCallback?: (callback: () => void) => number;
-      cancelIdleCallback?: (handle: number) => void;
-      scheduler?: { postTask?: (callback: () => void, options: { priority: "background"; delay: number }) => Promise<void> };
-    };
-    const idleHandle = idleWindow.requestIdleCallback?.(prime);
-    if (idleWindow.scheduler?.postTask) {
-      void idleWindow.scheduler.postTask(prime, { priority: "background", delay: 4_000 });
-    } else {
-      // Safari can starve idle callbacks during a continuous WebGL loop. Wait
-      // beyond first paint, then yield through a frame as a quiet backstop.
-      fallbackTimer = setTimeout(() => requestAnimationFrame(() => setTimeout(prime, 0)), 8_000);
-    }
-    return () => {
-      cancelled = true;
-      if (idleHandle !== undefined) idleWindow.cancelIdleCallback?.(idleHandle);
-      if (fallbackTimer) clearTimeout(fallbackTimer);
-    };
-  }, [activeAsset?.id, enabled]);
   const deckCards = state.inventory;
   const priorVaultIdsRef = useRef(new Set(state.inventory.map((asset) => asset.id)));
   const [newRosterAssetId, setNewRosterAssetId] = useState<string | null>(null);

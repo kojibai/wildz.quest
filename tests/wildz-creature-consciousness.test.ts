@@ -24,7 +24,6 @@ import {
   serializePlayState
 } from "../src/features/play/game-state";
 import { verifyAnyWildsCard } from "../src/features/play/portable-card";
-import { creatureNeuralVoiceIdentity } from "../src/features/play/creature-neural-voice";
 import { observeCreatureThroughReceizV120 } from "../src/features/play/receiz-v120-creature-subject";
 
 test("a Receiz Twin observation appends to the exact portable card brain", () => {
@@ -213,10 +212,6 @@ test("the creature brain gives the Twin exact proof context and model boundaries
   assert.deepEqual(performance, creatureVoicePerformance(asset, "I remember our beginning. Shall we explore together?"));
   assert.ok(performance.every((segment) => segment.rate >= .87 && segment.rate <= 1.055));
   assert.ok(performance.every((segment) => segment.pitch >= .94 && segment.pitch <= 1.065));
-  const neuralVoice = creatureNeuralVoiceIdentity(asset);
-  assert.match(neuralVoice.signature, /^neural:[a-f0-9]{16}$/);
-  assert.deepEqual(neuralVoice, creatureNeuralVoiceIdentity(asset));
-  assert.ok(neuralVoice.speed >= .91 && neuralVoice.speed <= 1.09);
 });
 
 test("training becomes exact autobiographical memory without replacing capture", () => {
@@ -286,50 +281,30 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
   assert.match(route, /modelOutputIsWorldEvent/);
   assert.match(route, /createObservedCreatureTurn/);
   assert.match(route, /normalizeCreatureTwinReply\(subjectObservation\.twin\.spokenResponse, brain\.identity\.name\)/);
-  assert.match(route, /performance: worldTwinPerformance\(response\.reply\)/);
-  assert.match(route, /voice: twinVoiceAsset\(subjectObservation\.twin\.performance\)/);
-  assert.match(route, /receiz-twin-generated/);
+  assert.match(route, /responseMode: "voice"/);
+  assert.match(route, /voiceSignature: subjectBrain\.performance\.expression\.voiceSignature/);
+  assert.match(route, /allowBrowserVoiceFallback: false/);
+  assert.match(route, /resolveWildzCreatureVoiceAsset/);
+  assert.match(route, /creature_observer_voice_unavailable/);
   assert.match(panel, /record-creature-observation|onObserved/);
-  assert.match(panel, /speechSynthesis/);
-  assert.match(panel, /playCreatureNeuralVoice/);
-  assert.match(panel, /playCreatureTwinVoice/);
-  assert.match(panel, /warmCreatureNeuralVoice/);
-  assert.match(panel, /isCreatureNeuralVoiceReady/);
-  assert.match(panel, /neuralTimeoutMs = isCreatureNeuralVoiceReady\(asset\) \? 10_500 : 900/);
-  assert.match(panel, /Promise\.race\(\[[\s\S]*playCreatureNeuralVoice/);
-  assert.doesNotMatch(panel, /neuralController\.abort\(\);\s*if \([^)]+neuralController\.signal\.aborted/);
-  assert.match(panel, /activeUtterances\.current = \[utterance\]/);
-  assert.match(panel, /const hasNativeVoice = "speechSynthesis" in window/);
-  assert.match(panel, /startWatchdog = setTimeout/);
-  assert.match(panel, /perform\(index, retry \+ 1\)/);
-  assert.match(panel, /Receiz Twin generated voice/);
+  assert.doesNotMatch(panel, /speechSynthesis|NeuralVoice|neural voice|native character voice/i);
+  assert.match(panel, /unlockCreatureVoice\(\)/);
+  assert.match(panel, /playCreatureVoice\(asset, voice\.dataUrl/);
+  assert.match(panel, /No substitute voice was used/);
+  assert.match(panel, /Unique Receiz character voice · zero client warm-up/);
   assert.match(inventory, /selectedSpeakingId = selected\?\.id/);
   assert.doesNotMatch(inventory, /setSelectedCreatureSpeaking[\s\S]{0,180}\}, \[selected\]\)/);
-  assert.match(campaign, /requestIdleCallback\?\.\(prime\)/);
-  assert.match(campaign, /priority: "background"/);
-  assert.match(campaign, /cancelled \|\| started/);
-  assert.match(campaign, /import\("\.\/creature-neural-voice"\)/);
-  assert.match(campaign, /warmCreatureNeuralVoice\(asset\)/);
+  assert.doesNotMatch(campaign, /import\("\.\/creature-neural-voice"\)/);
+  assert.doesNotMatch(campaign, /warmCreatureNeuralVoice/);
   assert.match(panel, /wildz-creature-mouth/);
-  assert.match(panel, /requestAnimationFrame\(animateNativeMouth\)/);
-  assert.doesNotMatch(panel, /if \(neuralPlayed\)[\s\S]{0,180}finishSpeaking\(\)/);
-  const neuralVoice = readFileSync("src/features/play/creature-neural-voice.ts", "utf8");
-  assert.match(neuralVoice, /export function isCreatureNeuralVoiceReady/);
-  assert.match(neuralVoice, /primedVoices/);
-  assert.match(neuralVoice, /appleWebKit/);
-  assert.match(neuralVoice, /hasReliableWebGpu/);
-  assert.match(neuralVoice, /env\.wasmPaths = `\$\{window\.location\.origin\}\/vendor\/onnxruntime\//);
+  const voicePlayback = readFileSync("src/features/play/creature-voice-playback.ts", "utf8");
+  assert.match(voicePlayback, /decodeAudioData/);
+  assert.match(voicePlayback, /requestAnimationFrame\(animate\)/);
+  assert.doesNotMatch(voicePlayback, /kokoro|onnx|transformers|speechSynthesis/i);
   const nextConfig = readFileSync("next.config.mjs", "utf8");
-  assert.match(nextConfig, /key: "Cross-Origin-Embedder-Policy",\s*value: "require-corp"/);
   assert.match(nextConfig, /script-src 'self' blob:/);
   assert.match(nextConfig, /'wasm-unsafe-eval'/);
-  assert.match(neuralVoice, /model\.generate\([\s\S]*10_000/);
-  assert.match(neuralVoice, /onEnded\?: \(\) => void/);
-  assert.match(neuralVoice, /source\.start\(\);[\s\S]*return true/);
-  assert.match(neuralVoice, /export async function playCreatureTwinVoice/);
-  assert.match(neuralVoice, /decodeAudioData/);
-  assert.match(neuralVoice, /createAnalyser\(\)/);
-  assert.match(neuralVoice, /getByteTimeDomainData/);
+  assert.doesNotMatch(nextConfig, /kokoro|onnxruntime/i);
   assert.match(card, /wildz-creature-mouth/);
   assert.match(css, /--creature-mouth-open/);
   assert.match(css, /--creature-talk-tail/);

@@ -15,6 +15,7 @@ import { resolveWildzCookieActor } from "@/lib/receiz/wildz-cookie-actor";
 import { observeCreatureThroughReceizV120 } from "@/features/play/receiz-v120-creature-subject";
 import { canCurrentWildzOwnerObserveCreature } from "@/lib/receiz/wildz-creature-observer-ownership";
 import { readWildzProofSessionCookie } from "@/lib/receiz/wildz-proof-session";
+import { resolveWildzCreatureVoiceAsset } from "@/lib/receiz/wildz-creature-voice-asset";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,33 +56,6 @@ function worldTwinPerformance(value: unknown) {
   return performance && typeof performance === "object" && !Array.isArray(performance)
     ? performance as Record<string, unknown>
     : {};
-}
-
-function twinVoiceAsset(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const performance = value as Record<string, unknown>;
-  const assetValue = performance.audioAsset;
-  if (!assetValue || typeof assetValue !== "object" || Array.isArray(assetValue)) return null;
-  const asset = assetValue as Record<string, unknown>;
-  const dataUrl = typeof asset.dataUrl === "string" ? asset.dataUrl : "";
-  const mimeType = typeof asset.mimeType === "string" ? asset.mimeType : "";
-  if (!/^audio\/(?:wav|wave|mpeg|mp3|ogg|webm);base64,/i.test(dataUrl)
-    || !/^audio\/(?:wav|wave|mpeg|mp3|ogg|webm)$/i.test(mimeType)
-    || dataUrl.length > 6_000_000) return null;
-  const providerValue = performance.ttsProvider;
-  const provider = providerValue && typeof providerValue === "object" && !Array.isArray(providerValue)
-    ? providerValue as Record<string, unknown>
-    : {};
-  return {
-    source: "receiz-twin-generated" as const,
-    dataUrl,
-    mimeType,
-    durationMs: typeof asset.durationMs === "number" && Number.isFinite(asset.durationMs)
-      ? Math.max(0, Math.min(120_000, Math.round(asset.durationMs)))
-      : null,
-    provider: typeof provider.vendor === "string" ? provider.vendor : "receiz",
-    model: typeof provider.model === "string" ? provider.model : null
-  };
 }
 
 export async function POST(request: NextRequest) {
@@ -129,7 +103,7 @@ export async function POST(request: NextRequest) {
             threadKey: creatureObserverThreadKey(input.card.id),
             contextHead: proofContext.head.subjectHead,
             expectedSubjectDigest: proofContext.head.subjectDigest,
-            responseMode: "performance",
+            responseMode: "voice",
             clientMessageId: clientOperationId
           }).then((response) => {
             if (response.schema !== "receiz.subject.twin_result.v1"
@@ -155,9 +129,11 @@ export async function POST(request: NextRequest) {
           // instruction. The exact proof-grounded context must be carried in
           // the actual model message so the upstream Twin inhabits the subject.
           message: groundedMessage,
+          responseMode: "voice",
+          voiceSignature: subjectBrain.performance.expression.voiceSignature,
+          allowBrowserVoiceFallback: false,
           visitorKey: creatureObserverVisitorKey(actor.actorId),
           threadKey: creatureObserverThreadKey(input.card.id),
-          allowBrowserVoiceFallback: true,
           clientContext: {
             ...observerContext,
             receizV120: {
@@ -232,6 +208,11 @@ export async function POST(request: NextRequest) {
     const reply = fellThroughSdkFailureBoundary
       ? localCreatureTwinReply(brain, input.message)
       : normalizeCreatureTwinReply(subjectObservation.twin.spokenResponse, brain.identity.name);
+    const voice = resolveWildzCreatureVoiceAsset(
+      subjectObservation.twin.performance,
+      brain.performance.expression.voiceSignature
+    );
+    if (!voice) throw new Error("creature_observer_voice_unavailable");
     const turn = createObservedCreatureTurn({
       brain,
       ownerActorId: actor.actorId,
@@ -272,7 +253,7 @@ export async function POST(request: NextRequest) {
         version: modelAudit.version,
         outputDigest: modelAudit.outputDigest
       },
-      voice: twinVoiceAsset(subjectObservation.twin.performance),
+      voice,
       moment: presentKaiMoment,
       turn
     });

@@ -53,11 +53,11 @@ The implementation guarantees a genuine model inference from the configured Rece
 ## Voice and embodiment evidence
 
 - Creature voice identity is deterministic from the exact asset/genome fingerprint.
-- Kokoro runs locally with self-hosted, exact version-matched ONNX Runtime Web assets.
-- Safari/WebKit selects WASM directly instead of an exposed but stalled WebGPU path.
-- Model and voice binaries prewarm outside the gameplay-critical render loop.
+- Receiz voice mode receives the exact proof-derived creature voice signature.
+- The browser loads no neural model, ONNX runtime, or voice binary and needs no voice warm-up.
+- A production WebKit playback check decoded and started returned generated audio without invoking browser speech.
 - Actual waveform analysis drives mouth openness; expression state drives eyes, ears, tail, aura, posture, and gesture.
-- Browser speech is an audible last resort only. It does not replace subject intelligence or authority.
+- Missing generated audio fails closed; no browser or generic synthesized substitute is used.
 
 ## Compatibility
 

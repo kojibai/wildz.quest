@@ -4,8 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Icons } from "@/components/icons";
 import {
   CREATURE_OBSERVER_ROUTE,
-  creatureVoicePerformance,
-  creatureVoiceProfile,
   projectCreatureBrain
 } from "./creature-consciousness";
 import type { CreatureObserverMemoryTurn } from "./creature-history-types";
@@ -13,15 +11,8 @@ import { currentCreatureHistoryProjection } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import type { PortableCardAsset } from "./portable-card";
 import type { KaiKlokMoment } from "./kai-klok-moment";
-import {
-  cancelCreatureNeuralVoice,
-  isCreatureNeuralVoiceReady,
-  playCreatureNeuralVoice,
-  playCreatureTwinVoice,
-  unlockCreatureNeuralVoice,
-  warmCreatureNeuralVoice
-} from "./creature-neural-voice";
 import type { WildzVaultCardMembershipProof } from "@/lib/receiz/wildz-vault-card-admission";
+import { cancelCreatureVoice, playCreatureVoice, unlockCreatureVoice } from "./creature-voice-playback";
 
 type ObserverResponse = {
   ok?: boolean;
@@ -34,6 +25,7 @@ type ObserverResponse = {
     durationMs: number | null;
     provider: string;
     model: string | null;
+    signature: string;
   } | null;
 };
 
@@ -58,6 +50,9 @@ function observerError(error: string | undefined) {
     return "This creature can answer only through its current owner's Receiz ID.";
   }
   if (error === "creature_observer_reply_missing") return "The Twin returned without a voice. Try asking in a different way.";
+  if (error === "creature_observer_voice_unavailable") {
+    return "This creature's unique Receiz voice was unavailable. No substitute voice was used—try once more.";
+  }
   if (error === "creature_observer_intelligence_unavailable" || error === "creature_observer_timeout") {
     return "This creature's live intelligence could not answer yet. Nothing canned was substituted and no memory was changed—try once more.";
   }
@@ -88,8 +83,6 @@ export function CreatureConsciousnessPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [voiceMode, setVoiceMode] = useState<"native" | "warming" | "neural" | "twin">("native");
   const [ephemeralTurn, setEphemeralTurn] = useState<CreatureObserverMemoryTurn | null>(null);
   const transcript = useMemo(() => {
     const sealed = isLivingCardAsset(asset)
@@ -100,194 +93,58 @@ export function CreatureConsciousnessPanel({
   }, [asset, ephemeralTurn]);
   const brain = useMemo(() => projectCreatureBrain(asset), [asset]);
   const mounted = useRef(true);
-  const speechRun = useRef(0);
-  const speechTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const neuralSpeech = useRef<AbortController | null>(null);
-  const activeUtterances = useRef<SpeechSynthesisUtterance[]>([]);
-  const nativeMouthFrame = useRef<number | null>(null);
+  const voiceRun = useRef(0);
+  const voicePlayback = useRef<AbortController | null>(null);
 
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
-      speechRun.current += 1;
-      neuralSpeech.current?.abort();
-      cancelCreatureNeuralVoice();
-      if (nativeMouthFrame.current) cancelAnimationFrame(nativeMouthFrame.current);
+      voiceRun.current += 1;
+      voicePlayback.current?.abort();
+      cancelCreatureVoice();
       emitCreatureMouthMotion(asset.id, 0);
-      activeUtterances.current = [];
-      if (speechTimer.current) clearTimeout(speechTimer.current);
-      if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
     };
   }, [asset.id]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    const refresh = () => setVoices(window.speechSynthesis.getVoices());
-    refresh();
-    window.speechSynthesis.addEventListener?.("voiceschanged", refresh);
-    return () => window.speechSynthesis.removeEventListener?.("voiceschanged", refresh);
-  }, []);
 
   useEffect(() => {
     setDraft("");
     setError("");
     setEphemeralTurn(null);
-    speechRun.current += 1;
-    neuralSpeech.current?.abort();
-    cancelCreatureNeuralVoice();
-    if (nativeMouthFrame.current) cancelAnimationFrame(nativeMouthFrame.current);
-    nativeMouthFrame.current = null;
+    voiceRun.current += 1;
+    voicePlayback.current?.abort();
+    cancelCreatureVoice();
     emitCreatureMouthMotion(asset.id, 0);
-    activeUtterances.current = [];
-    if (speechTimer.current) clearTimeout(speechTimer.current);
-    if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
     onSpeakingChange?.(false);
   }, [asset.id, onSpeakingChange]);
 
-  useEffect(() => {
-    // Begin model loading while the Vault card is visible. Once cached by the
-    // browser, later conversations start directly in the character voice.
-    void warmCreatureNeuralVoice(asset);
-  }, [asset]);
-
   const finishSpeaking = () => {
-    if (nativeMouthFrame.current) cancelAnimationFrame(nativeMouthFrame.current);
-    nativeMouthFrame.current = null;
     if (typeof window !== "undefined") emitCreatureMouthMotion(asset.id, 0);
     if (mounted.current) onSpeakingChange?.(false);
   };
 
-  const speak = async (text: string, twinVoice?: NonNullable<ObserverResponse["voice"]>) => {
+  const speak = async (voice: NonNullable<ObserverResponse["voice"]>) => {
     if (!voiceEnabled || typeof window === "undefined") {
       finishSpeaking();
       return;
     }
-    const hasNativeVoice = "speechSynthesis" in window && typeof window.SpeechSynthesisUtterance === "function";
-    speechRun.current += 1;
-    const run = speechRun.current;
-    neuralSpeech.current?.abort();
-    if (nativeMouthFrame.current) cancelAnimationFrame(nativeMouthFrame.current);
-    nativeMouthFrame.current = null;
-    emitCreatureMouthMotion(asset.id, 0);
-    const neuralController = new AbortController();
-    neuralSpeech.current = neuralController;
-    if (speechTimer.current) clearTimeout(speechTimer.current);
-    activeUtterances.current = [];
-    if (hasNativeVoice) window.speechSynthesis.cancel();
-    if (twinVoice?.dataUrl) {
-      const twinPlayed = await playCreatureTwinVoice(asset, twinVoice.dataUrl, neuralController.signal, () => {
-        if (mounted.current && run === speechRun.current) finishSpeaking();
-      });
-      if (twinPlayed) {
-        if (run === speechRun.current) setVoiceMode("twin");
-        return;
-      }
-      if (!mounted.current || run !== speechRun.current) return;
-    }
-    const neuralTimeoutMs = isCreatureNeuralVoiceReady(asset) ? 10_500 : 900;
-    const neuralDeadlineMs = hasNativeVoice ? neuralTimeoutMs : 10_500;
-    const neuralPlayed = await Promise.race([
-      playCreatureNeuralVoice(asset, text, neuralController.signal, () => {
-        if (mounted.current && run === speechRun.current) finishSpeaking();
-      }).catch(() => false),
-      new Promise<false>((resolve) => setTimeout(() => resolve(false), neuralDeadlineMs))
-    ]);
-    if (neuralPlayed) {
-      if (run === speechRun.current) {
-        setVoiceMode("neural");
-      }
-      return;
-    }
-    neuralController.abort();
-    if (!mounted.current || run !== speechRun.current) return;
-    if (!hasNativeVoice) {
-      setVoiceMode("native");
-      setError("This browser could not start its local or native voice. The complete creature reply is still shown above.");
-      finishSpeaking();
-      return;
-    }
-    setVoiceMode("native");
-    const profile = creatureVoiceProfile(asset, voices);
-    const performance = creatureVoicePerformance(asset, text);
-    const perform = (index: number, retry = 0) => {
-      if (!mounted.current || run !== speechRun.current) return;
-      const segment = performance[index];
-      if (!segment) {
-        finishSpeaking();
-        return;
-      }
-      const utterance = new SpeechSynthesisUtterance(segment.text);
-      if (profile.voice) utterance.voice = profile.voice;
-      utterance.lang = profile.voice?.lang ?? "en-US";
-      utterance.rate = Math.max(.86, Math.min(1.08, (profile.rate + segment.rate) / 2));
-      utterance.pitch = Math.max(.92, Math.min(1.08, (profile.pitch + segment.pitch) / 2));
-      utterance.volume = Math.min(profile.volume, segment.volume);
-      const mouthStartedAt = window.performance.now();
-      let started = false;
-      let startWatchdog: ReturnType<typeof setTimeout> | null = null;
-      const estimatedDuration = Math.max(520, segment.text.length * 58 / Math.max(.8, utterance.rate));
-      const animateNativeMouth = (now: number) => {
-        if (!mounted.current || run !== speechRun.current) return;
-        const progress = Math.min(.999, (now - mouthStartedAt) / estimatedDuration);
-        const character = segment.text[Math.floor(progress * segment.text.length)] ?? " ";
-        const voiced = /[aeiouy]/i.test(character) ? .82 : /[bcdfgjklmnprstvwz]/i.test(character) ? .42 : .08;
-        const cadence = .72 + Math.sin((now - mouthStartedAt) * .038) * .18;
-        emitCreatureMouthMotion(asset.id, voiced * cadence);
-        nativeMouthFrame.current = requestAnimationFrame(animateNativeMouth);
-      };
-      utterance.onstart = () => {
-        started = true;
-        if (startWatchdog) clearTimeout(startWatchdog);
-      };
-      utterance.onend = () => {
-        if (startWatchdog) clearTimeout(startWatchdog);
-        if (!mounted.current || run !== speechRun.current) return;
-        if (nativeMouthFrame.current) cancelAnimationFrame(nativeMouthFrame.current);
-        nativeMouthFrame.current = null;
-        emitCreatureMouthMotion(asset.id, 0);
-        speechTimer.current = setTimeout(() => perform(index + 1), segment.pauseAfterMs);
-      };
-      utterance.onerror = () => {
-        if (startWatchdog) clearTimeout(startWatchdog);
-        if (run !== speechRun.current) return;
-        if (retry < 1) {
-          speechTimer.current = setTimeout(() => perform(index, retry + 1), 120);
-          return;
-        }
-        finishSpeaking();
-      };
-      activeUtterances.current = [utterance];
-      window.speechSynthesis.speak(utterance);
-      nativeMouthFrame.current = requestAnimationFrame(animateNativeMouth);
-      if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-      startWatchdog = setTimeout(() => {
-        if (started || !mounted.current || run !== speechRun.current) return;
-        if (retry < 1) {
-          window.speechSynthesis.cancel();
-          perform(index, retry + 1);
-        } else {
-          finishSpeaking();
-        }
-      }, 1_200);
-      speechTimer.current = setTimeout(() => {
-        if (run === speechRun.current && window.speechSynthesis.paused) window.speechSynthesis.resume();
-      }, 250);
-    };
-    // Safari and Chromium can discard an utterance queued in the same task as
-    // cancel(). Moving the first segment one task forward makes start delivery
-    // deterministic while preserving the initiating user gesture's unlock.
-    speechTimer.current = setTimeout(() => perform(0), 0);
+    voiceRun.current += 1;
+    const run = voiceRun.current;
+    voicePlayback.current?.abort();
+    const controller = new AbortController();
+    voicePlayback.current = controller;
+    const played = await playCreatureVoice(asset, voice.dataUrl, controller.signal, () => {
+      if (mounted.current && run === voiceRun.current) finishSpeaking();
+    });
+    if (played || !mounted.current || run !== voiceRun.current) return;
+    setError("This creature's unique Receiz voice could not play. No substitute voice was used.");
+    finishSpeaking();
   };
 
   const submit = async (message = draft) => {
     const normalized = message.replace(/\s+/g, " ").trim();
     if (!normalized || loading || disabled) return;
-    if (voiceEnabled) {
-      setVoiceMode("warming");
-      void unlockCreatureNeuralVoice().catch(() => undefined);
-      void warmCreatureNeuralVoice(asset);
-    }
+    if (voiceEnabled) void unlockCreatureVoice().catch(() => false);
     setLoading(true);
     setError("");
     onSpeakingChange?.(true);
@@ -310,11 +167,13 @@ export function CreatureConsciousnessPanel({
         })
       });
       const result = await response.json().catch(() => null) as ObserverResponse | null;
-      if (!response.ok || result?.ok !== true || !result.turn) throw new Error(result?.error || "creature_observer_unavailable");
+      if (!response.ok || result?.ok !== true || !result.turn || !result.voice) {
+        throw new Error(result?.error || "creature_observer_voice_unavailable");
+      }
       setEphemeralTurn(result.turn);
       onObserved(result.turn);
       setDraft("");
-      void speak(result.turn.creatureText, result.voice ?? undefined);
+      void speak(result.voice);
     } catch (cause) {
       finishSpeaking();
       setError(observerError(cause instanceof Error ? cause.message : undefined));
@@ -340,16 +199,11 @@ export function CreatureConsciousnessPanel({
           onClick={() => {
             const next = !voiceEnabled;
             setVoiceEnabled(next);
-            if (!next && "speechSynthesis" in window) {
-              speechRun.current += 1;
-              neuralSpeech.current?.abort();
-              cancelCreatureNeuralVoice();
-              if (nativeMouthFrame.current) cancelAnimationFrame(nativeMouthFrame.current);
-              nativeMouthFrame.current = null;
+            if (!next) {
+              voiceRun.current += 1;
+              voicePlayback.current?.abort();
+              cancelCreatureVoice();
               emitCreatureMouthMotion(asset.id, 0);
-              activeUtterances.current = [];
-              if (speechTimer.current) clearTimeout(speechTimer.current);
-              window.speechSynthesis.cancel();
               finishSpeaking();
             }
           }}
@@ -410,7 +264,7 @@ export function CreatureConsciousnessPanel({
       <footer>
         <span>Brain {brain.contextDigest.slice(7, 18)}</span>
         <span>{transcript.at(-1)?.observer === "receiz-twin" ? "Receiz Twin · genuine upstream" : "Receiz Twin · proof-grounded local"}</span>
-        <span>{voiceMode === "twin" ? "Receiz Twin generated voice" : voiceMode === "neural" ? "Local neural character voice" : voiceMode === "warming" ? "Local neural voice awakening" : "Native character voice"}</span>
+        <span>Unique Receiz character voice · zero client warm-up</span>
       </footer>
     </section>
   );
