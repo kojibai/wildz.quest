@@ -218,7 +218,7 @@ export function WildsMultiplayer({
         </section>
       ), document.body) : null}
 
-      {notice || multiplayer.error ? <div className="wilds-live-notice" aria-live="polite">{notice || multiplayer.error}</div> : null}
+      {notice || (liveSurfaceOpen && multiplayer.error) ? <div className="wilds-live-notice" aria-live="polite">{notice || multiplayer.error}</div> : null}
     </>
   );
 }

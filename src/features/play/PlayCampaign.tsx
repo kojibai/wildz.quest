@@ -61,6 +61,7 @@ import { WildzWorldControls } from "@/features/play/WildzWorldControls";
 import { WildsCreatureThumbnail } from "@/features/play/WildsCreatureThumbnail";
 import { creatureFamilies, creatureForm } from "@/features/play/creature-catalog";
 import { createWildsPlayerVault, type WildsPlayerVaultPayload, type WildzCardOrder } from "@/features/play/wilds-player-vault";
+import type { WildzPreparedIdentityOwnedCard } from "@/lib/receiz/wildz-identity-adapter";
 import { normalizeWildsVisualSettings, type WildsVisualSettings } from "@/features/play/wilds-night-visibility";
 import type { WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
 import type {
@@ -136,8 +137,10 @@ export function PlayCampaign({
   initialState = initialPlayState,
   initialPlayerContinuity = null,
   onPlayStateChange,
+  onPrepareCard,
   onExportCard,
   onExportVault,
+  vaultAdmission,
   onRestoreArtifact
 }: {
   campaignName?: string;
@@ -155,8 +158,10 @@ export function PlayCampaign({
   initialState?: PlayState;
   initialPlayerContinuity?: WildzPlayerContinuity | null;
   onPlayStateChange: (state: PlayState, playerContinuity: WildzPlayerContinuity) => void;
-  onExportCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload) => Promise<unknown>;
+  onPrepareCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload) => Promise<WildzPreparedIdentityOwnedCard>;
+  onExportCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
   onExportVault: (assets: PortableCardAsset[], player: WildsPlayerVaultPayload) => Promise<unknown>;
+  vaultAdmission: WildzVaultCardAdmission | null;
   onRestoreArtifact: (
     file: File,
     confirmCardOnly: WildzCardOnlyConfirmation,
@@ -196,7 +201,16 @@ export function PlayCampaign({
     });
     settleLivingCreatures();
     const timer = window.setInterval(settleLivingCreatures, 5 * 60_000);
-    return () => window.clearInterval(timer);
+    const settleWhenVisible = () => {
+      if (document.visibilityState !== "hidden") settleLivingCreatures();
+    };
+    window.addEventListener("focus", settleLivingCreatures);
+    document.addEventListener("visibilitychange", settleWhenVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", settleLivingCreatures);
+      document.removeEventListener("visibilitychange", settleWhenVisible);
+    };
   }, [ownerReceizId]);
   const explorerStyle = character.gender;
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
@@ -269,6 +283,7 @@ export function PlayCampaign({
     cards: initialState.inventory,
     playerHandle: ownerReceizId
   }));
+  const currentVaultAdmission = vaultAdmission ?? initialVaultAdmission;
   useEffect(() => {
     const prior = priorVaultIdsRef.current;
     const added = state.inventory.filter((asset) => !prior.has(asset.id));
@@ -306,11 +321,11 @@ export function PlayCampaign({
   const cardAdmission = useMemo<WildzVaultCardMembershipProof | null>(() => {
     if (!activeAsset) return null;
     try {
-      return createWildzVaultCardMembershipProof(initialVaultAdmission, activeAsset);
+      return createWildzVaultCardMembershipProof(currentVaultAdmission, activeAsset);
     } catch {
       return null;
     }
-  }, [activeAsset, initialVaultAdmission]);
+  }, [activeAsset, currentVaultAdmission]);
   const multiplayer = useWildsMultiplayer({
     // Global presence is available to every internet-connected explorer.
     // networkEnabled still protects canonical world writes, but must not turn
@@ -1214,6 +1229,8 @@ export function PlayCampaign({
                 : initialPlayerContinuity?.canonicalCursor ?? { worldId: "wilds:global:v3", revision: 0, eventId: null },
               receipts: initialPlayerContinuity?.receipts ?? []
             })}
+            vaultAdmission={currentVaultAdmission}
+            onPrepareCard={onPrepareCard}
             onExportCard={onExportCard}
             onExportVault={onExportVault}
             onInput={dispatch}

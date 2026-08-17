@@ -22,6 +22,7 @@ import { createPreparedCardArtifactCache } from "./prepared-card-artifact";
 import type { PlayState, WildsInput } from "./game-state";
 import type { KaiKlokMoment } from "./kai-klok-moment";
 import type { WildsPlayerVaultPayload } from "./wilds-player-vault";
+import type { WildzPreparedIdentityOwnedCard } from "@/lib/receiz/wildz-identity-adapter";
 import { WildsCardScene } from "./WildsCardScene";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import { WildsGrowthPanel } from "./WildsGrowthPanel";
@@ -38,6 +39,12 @@ import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
 import { currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import { summarizeWildzInventoryImport } from "./inventory-import-result";
+import { resolveInventoryDetailSelection } from "./inventory-detail-selection";
+import { rememberStandaloneWildzCard } from "./standalone-card-handoff";
+import {
+  createWildzVaultCardMembershipProof,
+  type WildzVaultCardAdmission
+} from "@/lib/receiz/wildz-vault-card-admission";
 import type {
   WildzCardOnlyConfirmation,
   WildzCommittedArtifactRestore
@@ -50,6 +57,8 @@ export function WildsInventory({
   cardOrder,
   onCardOrderChange,
   playerVault,
+  vaultAdmission,
+  onPrepareCard,
   onExportCard,
   onExportVault,
   onInput,
@@ -62,7 +71,9 @@ export function WildsInventory({
   cardOrder: WildzCardSort;
   onCardOrderChange: (order: WildzCardSort) => void;
   playerVault: () => WildsPlayerVaultPayload;
-  onExportCard: (asset: PlayState["inventory"][number], player: WildsPlayerVaultPayload) => Promise<unknown>;
+  vaultAdmission: WildzVaultCardAdmission;
+  onPrepareCard: (asset: PlayState["inventory"][number], player: WildsPlayerVaultPayload) => Promise<WildzPreparedIdentityOwnedCard>;
+  onExportCard: (asset: PlayState["inventory"][number], player: WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
   onExportVault: (assets: PlayState["inventory"], player: WildsPlayerVaultPayload) => Promise<unknown>;
   onInput: (input: WildsInput) => void;
   onListAsset?: (asset: PlayState["inventory"][number], priceCents: number) => Promise<PlayState["inventory"][number] | null>;
@@ -98,6 +109,11 @@ export function WildsInventory({
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const suppressCardClick = useRef(false);
   const saveResetTimer = useRef<number | null>(null);
+  const preparedIdentityCard = useRef<WildzPreparedIdentityOwnedCard | null>(null);
+  const previousFocusedAssetId = useRef(focusedAssetId);
+  const playerVaultRef = useRef(playerVault);
+  const selectedCardRef = useRef<PlayState["inventory"][number] | undefined>(undefined);
+  const [identityCardPreparing, setIdentityCardPreparing] = useState(false);
   const preparedCardArtifacts = useMemo(
     () => createPreparedCardArtifactCache(preparePortableCardArtifact),
     []
@@ -114,6 +130,8 @@ export function WildsInventory({
   const safePage = clampInventoryPage(page, matches.length, pageSize);
   const visible = matches.slice(safePage * pageSize, safePage * pageSize + pageSize);
   const selected = state.inventory.find((asset) => asset.id === selectedId) ?? visible[0] ?? state.inventory[0];
+  playerVaultRef.current = playerVault;
+  selectedCardRef.current = selected;
   const selectedForm = selected ? creatureForm(selected.manifest.formId) : null;
   const selectedRetired = Boolean(selected && (
     state.adventureConditions[selected.id]?.life === "dead"
@@ -125,6 +143,14 @@ export function WildsInventory({
   const cardSave = cardSavePresentation(cardSaveState);
   const cardSaving = cardSave.busy;
   const selectedSpeakingId = selected?.id ?? null;
+  const selectedCardAdmission = useMemo(() => {
+    if (!selected) return null;
+    try {
+      return createWildzVaultCardMembershipProof(vaultAdmission, selected);
+    } catch {
+      return null;
+    }
+  }, [selected, vaultAdmission]);
   const setSelectedCreatureSpeaking = useCallback((speaking: boolean) => {
     setSpeakingAssetId(speaking ? selectedSpeakingId : null);
   }, [selectedSpeakingId]);
@@ -142,11 +168,20 @@ export function WildsInventory({
   }, [matches.length, pageSize]);
 
   useEffect(() => {
-    if (!focusedAssetId || !orderedInventory.some((asset) => asset.id === focusedAssetId)) return;
+    const priorFocusedAssetId = previousFocusedAssetId.current;
+    previousFocusedAssetId.current = focusedAssetId;
+    const inventoryIds = orderedInventory.map((asset) => asset.id);
+    const focusChanged = focusedAssetId !== priorFocusedAssetId;
+    setSelectedId((current) => resolveInventoryDetailSelection({
+      selectedId: current,
+      focusedAssetId,
+      previousFocusedAssetId: priorFocusedAssetId,
+      inventoryIds
+    }));
+    if (!focusChanged || !focusedAssetId || !inventoryIds.includes(focusedAssetId)) return;
     setQuery("");
     setRarity("all");
-    setSelectedId(focusedAssetId);
-    setPage(inventoryPageForAsset(orderedInventory.map((asset) => asset.id), focusedAssetId, pageSize));
+    setPage(inventoryPageForAsset(inventoryIds, focusedAssetId, pageSize));
   }, [focusedAssetId, orderedInventory, pageSize]);
 
   useEffect(() => {
@@ -169,6 +204,28 @@ export function WildsInventory({
     setCardSaveState("idle");
     setDownloadMessage("");
   }, [selected?.id]);
+
+  useEffect(() => {
+    preparedIdentityCard.current = null;
+    const selectedCard = selectedCardRef.current;
+    if (!selectedCard || selectedRetired) {
+      setIdentityCardPreparing(false);
+      return;
+    }
+    let active = true;
+    setIdentityCardPreparing(true);
+    void onPrepareCard(selectedCard, playerVaultRef.current())
+      .then((artifact) => {
+        if (!active || artifact.assetId !== selectedCard.id) return;
+        preparedIdentityCard.current = artifact;
+      })
+      .catch(() => {
+        // Encrypted identities and transient preparation failures retain the
+        // original click-time export rail.
+      })
+      .finally(() => { if (active) setIdentityCardPreparing(false); });
+    return () => { active = false; };
+  }, [onPrepareCard, selected?.id, selected?.proof.digest, selectedRetired]);
 
   useEffect(() => () => {
     if (saveResetTimer.current !== null) window.clearTimeout(saveResetTimer.current);
@@ -250,7 +307,10 @@ export function WildsInventory({
     try {
       setCardSaveState("saving");
       setDownloadMessage(cardSavePresentation("saving").message);
-      await onExportCard(asset, playerVault());
+      const prepared = preparedIdentityCard.current?.assetId === asset.id
+        ? preparedIdentityCard.current
+        : undefined;
+      await onExportCard(asset, playerVault(), prepared);
       setCardSaveState("success");
       setDownloadMessage(cardSavePresentation("success").message);
       triggerCardHaptic("success");
@@ -437,6 +497,7 @@ export function WildsInventory({
               asset={selected}
               kaiMoment={kaiMoment}
               playerPosition={state.player}
+              cardAdmission={selectedCardAdmission}
               disabled={selectedRetired}
               onObserved={(turn) => onInput({ type: "record-creature-observation", turn })}
               onSpeakingChange={setSelectedCreatureSpeaking}
@@ -444,18 +505,18 @@ export function WildsInventory({
             <CreatureContinuityPanel asset={selected} disabled={selectedRetired} onInput={onInput} />
             <div className="wilds-inventory-actions">
               <button className="button button-primary" disabled={selectedRetired || state.selectedAssetId === selected.id} onClick={() => onInput({ type: "select-asset", assetId: selected.id })} type="button">{selectedRetired ? "Retired · cannot enter game" : state.selectedAssetId === selected.id ? "Active deck leader" : "Set as active deck leader"}</button>
-              <Link className="button button-outline" href={`/cards/${encodeURIComponent(selected.id)}`}>Open standalone card page</Link>
+              <Link className="button button-outline" href={`/cards/${encodeURIComponent(selected.id)}`} onClick={() => { rememberStandaloneWildzCard(selected); }}>Open standalone card page</Link>
               <button
                 aria-busy={cardSaving}
-                aria-label={selectedRetired ? "Memorial card cannot be saved" : cardSave.button}
-                className={`button button-outline wilds-action-feedback wilds-save-card-button${cardSaving ? " wilds-action-busy" : ""}`}
+                aria-label={selectedRetired ? "Memorial card cannot be saved" : identityCardPreparing ? "Preparing verified card" : cardSave.button}
+                className={`button button-outline wilds-action-feedback wilds-save-card-button${cardSaving || identityCardPreparing ? " wilds-action-busy" : ""}`}
                 data-state={cardSaveState}
-                disabled={cardSaving || selectedRetired}
+                disabled={cardSaving || identityCardPreparing || selectedRetired}
                 onClick={() => { void saveVerifiedCard(selected); }}
                 type="button"
               >
                 {cardSaveState === "success" ? <Icons.check aria-hidden="true" size={17} /> : <Icons.seal aria-hidden="true" size={17} />}
-                <span>{selectedRetired ? "Memorial card cannot be saved" : cardSave.button}</span>
+                <span>{selectedRetired ? "Memorial card cannot be saved" : identityCardPreparing ? "Preparing verified card…" : cardSave.button}</span>
               </button>
               <div className="wilds-card-send-control">
                 <label>
@@ -475,7 +536,10 @@ export function WildsInventory({
                   aria-busy={cardSending}
                   className={`button button-outline wilds-action-feedback${cardSending ? " wilds-action-busy" : ""}`}
                   disabled={selectedRetired || cardSending || !sendTarget.trim()}
-                  onClick={sendPortableCardToTarget}
+                  onClick={() => {
+                    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+                    void sendPortableCardToTarget();
+                  }}
                   type="button"
                 >{cardSending ? "Preparing…" : "Send card"}</button>
               </div>

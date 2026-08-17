@@ -83,6 +83,27 @@ it("does not turn optional multiplayer projection publication into a repeating r
   assert.match(routes, /publishWildsRoomToReceiz/);
 });
 
+it("keeps authenticated walking off redundant multiplayer refresh loops", () => {
+  const hook = readFileSync("src/features/play/use-wilds-multiplayer.ts", "utf8");
+  const surface = readFileSync("src/features/play/WildsMultiplayer.tsx", "utf8");
+  assert.match(hook, /WILDS_MULTIPLAYER_HEARTBEAT_MS = 2_500/);
+  assert.match(hook, /mode !== "reconnecting"/);
+  assert.match(hook, /WILDS_GLOBAL_PRESENCE_REFRESH_MS = 3_000/);
+  assert.doesNotMatch(hook, /setInterval\(\(\) => void refresh\(\), 900\)/);
+  assert.doesNotMatch(hook, /setInterval\(\(\) => void refreshGlobalPresence\(\), 900\)/);
+  assert.match(surface, /liveSurfaceOpen && multiplayer\.error/);
+  const sessionRoute = readFileSync("app/api/wilds/multiplayer/session/route.ts", "utf8");
+  const atlasRoute = readFileSync("app/api/wilds/atlas/route.ts", "utf8");
+  const server = readFileSync("src/lib/receiz/wilds-multiplayer-server.ts", "utf8");
+  assert.match(sessionRoute, /resolveConnectProfile: false/);
+  assert.match(atlasRoute, /resolveConnectProfile: false/);
+  assert.match(sessionRoute, /publishWildsPresenceToReceiz/);
+  assert.match(server, /WILDS_PRESENCE_PUBLICATION_TTL_MS = 12_000/);
+  assert.match(server, /WILDS_RECEIZ_REMOTE_DEADLINE_MS = 750/);
+  assert.match(hook, /result = await sendHeartbeat\(false\)/);
+  assert.match(hook, /never[\s\S]*surface this expected protocol retry/);
+});
+
 describe("Wilds live multiplayer core", () => {
   it("partitions the infinite world into stable 48-unit regions", () => {
     assert.deepEqual(regionForPosition({ x: 0, z: 0 }), { x: 0, z: 0 });

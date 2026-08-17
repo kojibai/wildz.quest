@@ -73,10 +73,18 @@ test("Save verified card prewarms its exact proof and resolves with premium acce
   const exporter = readFileSync("src/features/play/card-export.ts", "utf8");
   const css = readFileSync("app/globals.css", "utf8");
 
-  assert.match(inventory, /onExportCard\(asset,\s*playerVault\(\)\)/);
+  assert.match(inventory, /onPrepareCard\(selectedCard, playerVaultRef\.current\(\)\)/);
+  assert.match(inventory, /preparedIdentityCard\.current/);
+  assert.match(inventory, /onExportCard\(asset, playerVault\(\), prepared\)/);
+  assert.match(inventory, /Preparing verified card…/);
   assert.match(campaign, /onExportCard=\{onExportCard\}/);
-  assert.match(shell, /onExportCard=\{\(asset,\s*player\) => downloadWildzIdentityOwnedCard\(identity,\s*asset,\s*player\)\}/);
+  assert.match(campaign, /onPrepareCard=\{onPrepareCard\}/);
+  assert.match(shell, /onPrepareCard=\{\(asset, player\) => prepareWildzIdentityOwnedCard\(identity, asset, player, \{ allowPrompt: false \}\)\}/);
+  assert.match(shell, /savePreparedWildzIdentityOwnedCard\(prepared\)/);
   assert.match(adapter, /export async function downloadWildzIdentityOwnedCard/);
+  assert.match(adapter, /export async function prepareWildzIdentityOwnedCard/);
+  assert.match(adapter, /export async function savePreparedWildzIdentityOwnedCard/);
+  assert.match(adapter, /await savePreparedWildzIdentityOwnedCard\(prepared\)/);
   assert.match(adapter, /portableCardPngBlobForIdentityOwnership\(asset\)/);
   assert.match(exporter, /export async function portableCardPngBlobForIdentityOwnership/);
   const identityOwnedRenderer = exporter.match(

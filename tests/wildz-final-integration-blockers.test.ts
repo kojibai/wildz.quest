@@ -55,7 +55,10 @@ test("companion selector exposes only Vault characters and real card interaction
   assert.match(controls, /type: "train"/);
   assert.match(controls, /type: "panel", key: "vault"/);
   assert.match(campaign, /focusedAssetId=\{state\.selectedAssetId\}/);
-  assert.match(read("src\/features\/play\/WildsInventory\.tsx"), /focusedAssetId[\s\S]*setSelectedId\(focusedAssetId\)[\s\S]*inventoryPageForAsset/);
+  const inventory = read("src/features/play/WildsInventory.tsx");
+  assert.match(inventory, /previousFocusedAssetId/);
+  assert.match(inventory, /resolveInventoryDetailSelection/);
+  assert.match(inventory, /inventoryPageForAsset\(inventoryIds, focusedAssetId, pageSize\)/);
 });
 
 test("different named field abilities produce different authoritative play effects", () => {

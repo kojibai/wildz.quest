@@ -21,6 +21,7 @@ import {
   unlockCreatureNeuralVoice,
   warmCreatureNeuralVoice
 } from "./creature-neural-voice";
+import type { WildzVaultCardMembershipProof } from "@/lib/receiz/wildz-vault-card-admission";
 
 type ObserverResponse = {
   ok?: boolean;
@@ -70,6 +71,7 @@ export function CreatureConsciousnessPanel({
   asset,
   kaiMoment,
   playerPosition,
+  cardAdmission = null,
   disabled = false,
   onObserved,
   onSpeakingChange
@@ -77,6 +79,7 @@ export function CreatureConsciousnessPanel({
   asset: PortableCardAsset;
   kaiMoment: KaiKlokMoment;
   playerPosition: Readonly<{ x: number; z: number }>;
+  cardAdmission?: WildzVaultCardMembershipProof | null;
   disabled?: boolean;
   onObserved: (turn: CreatureObserverMemoryTurn) => void;
   onSpeakingChange?: (speaking: boolean) => void;
@@ -296,6 +299,7 @@ export function CreatureConsciousnessPanel({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           card: asset,
+          ...(cardAdmission ? { cardAdmission } : {}),
           message: normalized,
           clientUserMessageId: clientMessageId(),
           kai: {
@@ -372,17 +376,23 @@ export function CreatureConsciousnessPanel({
         <button disabled={disabled || loading} key={suggestion} onClick={() => { setDraft(suggestion); void submit(suggestion); }} type="button">{suggestion}</button>
       ))}</div> : null}
 
-      <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+      <form onSubmit={(event) => {
+        event.preventDefault();
+        event.currentTarget.querySelector("textarea")?.blur();
+        void submit();
+      }}>
         <label htmlFor={`creature-chat-${asset.id}`}>Talk to {asset.manifest.name}</label>
         <div>
           <textarea
             disabled={disabled || loading}
+            enterKeyHint="send"
             id={`creature-chat-${asset.id}`}
             maxLength={600}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
+                event.currentTarget.blur();
                 void submit();
               }
             }}

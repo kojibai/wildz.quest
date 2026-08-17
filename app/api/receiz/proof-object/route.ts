@@ -12,10 +12,11 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 30;
 
 const MAX_MULTIPART_OVERHEAD_BYTES = 1024 * 1024;
 const MAX_PROOF_OBJECT_REQUEST_BYTES = MAX_WILDZ_PROOF_OBJECT_BYTES + MAX_MULTIPART_OVERHEAD_BYTES;
+const WILDZ_PROOF_OBJECT_UPSTREAM_TIMEOUT_MS = 12_000;
 
 function json(error: string, status: number) {
   return NextResponse.json({ ok: false, error }, {
@@ -25,6 +26,7 @@ function json(error: string, status: number) {
 }
 
 function statusFor(error: string) {
+  if (error === "wildz_proof_object_seal_timeout") return 504;
   if (error === "wildz_proof_object_continuity_invalid") return 502;
   if (error.startsWith("wildz_restore_")) return 400;
   if (error.startsWith("wildz_proof_object_")) return 400;
@@ -85,12 +87,26 @@ export async function POST(request: NextRequest) {
       mimeType: "image/png",
       fields: { visualStamp: "0" }
     });
-    const upstream = await fetch(`${upstreamBaseUrl()}/api/document-seal`, {
-      method: "POST",
-      headers: upstreamMultipart.headers,
-      body: upstreamMultipart.body,
-      cache: "no-store"
-    });
+    const upstreamController = new AbortController();
+    const upstreamTimeout = setTimeout(
+      () => upstreamController.abort(),
+      WILDZ_PROOF_OBJECT_UPSTREAM_TIMEOUT_MS
+    );
+    let upstream: Response;
+    try {
+      upstream = await fetch(`${upstreamBaseUrl()}/api/document-seal`, {
+        method: "POST",
+        headers: upstreamMultipart.headers,
+        body: upstreamMultipart.body,
+        cache: "no-store",
+        signal: upstreamController.signal
+      });
+    } catch (cause) {
+      if (upstreamController.signal.aborted) throw new Error("wildz_proof_object_seal_timeout");
+      throw cause;
+    } finally {
+      clearTimeout(upstreamTimeout);
+    }
     if (!upstream.ok) {
       const payload = await upstream.json().catch(() => null) as { error?: string; message?: string } | null;
       throw new Error(payload?.error || payload?.message || "wildz_proof_object_seal_failed");

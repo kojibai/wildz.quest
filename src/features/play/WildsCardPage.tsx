@@ -21,38 +21,35 @@ export function WildsCardPage({ assetId, initialRecord = null }: { assetId: stri
     void QRCode.toDataURL(standaloneCardUrl(assetId, window.location.origin), { errorCorrectionLevel: "M", margin: 4, width: 160 }).then(setQr);
   }, [assetId]);
   useEffect(() => {
-    if (initialRecord?.assetId === assetId) {
-      setAsset(initialRecord.asset);
-      setLoading(false);
-      return;
-    }
     const controller = new AbortController();
-    setLoading(true);
-    let publicAssetResolved = false;
-    let anyAssetResolved = false;
-    const localResolution = import("@/lib/receiz/wildz-local-card-resolver")
-      .then(({ resolveLocalWildzCard }) => resolveLocalWildzCard(assetId))
-      .then((localAsset) => {
-        if (!localAsset || controller.signal.aborted || publicAssetResolved) return;
-        anyAssetResolved = true;
-        setAsset(localAsset);
-        setLoading(false);
-      })
-      .catch(() => undefined);
-    const publicResolution = fetch(`/api/cards/${encodeURIComponent(assetId)}`, { signal: controller.signal })
-      .then(async (response) => response.ok ? await response.json() as { record?: { asset?: PortableCardAsset } } : null)
-      .then((result) => {
-        const publicAsset = result?.record?.asset ?? null;
-        if (!publicAsset || controller.signal.aborted) return;
-        publicAssetResolved = true;
-        anyAssetResolved = true;
-        setAsset(publicAsset);
-        setLoading(false);
-      })
-      .catch(() => undefined);
-    void Promise.allSettled([localResolution, publicResolution]).then(() => {
-      if (!controller.signal.aborted && !anyAssetResolved) setLoading(false);
-    });
+    const serverAsset = initialRecord?.assetId === assetId ? initialRecord.asset : null;
+    setAsset(serverAsset);
+    setLoading(!serverAsset);
+    void (async () => {
+      try {
+        // A verified card already held by this browser is stronger and fresher
+        // truth than an eventually consistent public projection.
+        const { resolveLocalWildzCard } = await import("@/lib/receiz/wildz-local-card-resolver");
+        const localAsset = await resolveLocalWildzCard(assetId);
+        if (controller.signal.aborted) return;
+        if (localAsset) {
+          setAsset(localAsset);
+          setLoading(false);
+          return;
+        }
+        if (serverAsset) return;
+        const response = await fetch(`/api/cards/${encodeURIComponent(assetId)}`, { signal: controller.signal });
+        const result = response.ok
+          ? await response.json() as { record?: { asset?: PortableCardAsset } }
+          : null;
+        if (controller.signal.aborted) return;
+        setAsset(result?.record?.asset ?? null);
+      } catch {
+        // The missing-state UI is the bounded failure surface.
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    })();
     return () => controller.abort();
   }, [assetId, initialRecord]);
   const detail = useMemo(() => {

@@ -1,4 +1,5 @@
 import { verifyAnyWildsCard, type PortableCardAsset } from "../../features/play/portable-card";
+import { recallStandaloneWildzCard } from "../../features/play/standalone-card-handoff";
 import {
   createWildzIdentityRepository,
   wildzOwnerScope,
@@ -45,6 +46,8 @@ export async function resolveLocalWildzCard(
     }) => Promise<LocalOwnerCards | null>;
   } = {}
 ): Promise<PortableCardAsset | null> {
+  const handedOff = recallStandaloneWildzCard(assetId);
+  if (handedOff) return handedOff;
   const database = dependencies.database ?? localCardDatabase;
   const repository = dependencies.repository ?? localCardIdentityRepository;
   const session = await repository.active();

@@ -21,10 +21,11 @@ import {
   type PortableCardAsset
 } from "./portable-card";
 
-export const CREATURE_CONTINUITY_RULESET = "wildz.creature-continuity.v120.0" as const;
+export const CREATURE_CONTINUITY_RULESET = "wildz.creature-continuity.v120.1" as const;
 export const CREATURE_CONTINUITY_ACTIONS = ["explore", "meet", "bond", "discover", "barter-keepsake"] as const;
-export const CREATURE_CONTINUITY_MAX_ACTIONS_PER_DAY = 4;
+export const CREATURE_CONTINUITY_MAX_ACTIONS_PER_DAY = 24;
 export const CREATURE_CONTINUITY_MAX_AWAY_HOURS = 72;
+export const CREATURE_CONTINUITY_FIRST_EXPERIENCE_MS = 2 * 60_000;
 
 export type CreatureContinuityDenialCode =
   | "continuity_asset_invalid"
@@ -189,8 +190,9 @@ function dueTimes(continuity: CreatureContinuityProjection, now: string) {
   const authorityStart = Date.parse(continuity.lastSettledAt ?? mandate.changedAt);
   const boundedStart = Math.max(authorityStart, end - mandate.maxAwayHours * 3_600_000);
   const times: string[] = [];
-  let cursor = authorityStart + interval;
-  if (cursor < boundedStart) cursor = boundedStart + interval;
+  const hasLivedExperience = continuity.events.some((event) => CREATURE_CONTINUITY_ACTIONS.includes(event.kind as CreatureAutonomyAction));
+  let cursor = authorityStart + (hasLivedExperience ? interval : CREATURE_CONTINUITY_FIRST_EXPERIENCE_MS);
+  if (cursor < boundedStart) cursor = boundedStart + (hasLivedExperience ? interval : 0);
   while (cursor <= end && times.length < mandate.maxActionsPerDay * Math.ceil(mandate.maxAwayHours / 24)) {
     times.push(new Date(cursor).toISOString());
     cursor += interval;
@@ -207,6 +209,8 @@ function eventFor(input: Readonly<{
   const mandate = input.continuity.mandate!;
   const seed = `${input.asset.id}:${mandate.digest}:${input.continuity.headDigest ?? "genesis"}:${input.at}:${input.ordinal}`;
   let action = mandate.allowedActions[seedInt(seed) % mandate.allowedActions.length] as CreatureAutonomyAction;
+  const hasLivedExperience = input.continuity.events.some((event) => CREATURE_CONTINUITY_ACTIONS.includes(event.kind as CreatureAutonomyAction));
+  if (!hasLivedExperience && mandate.allowedActions.includes("meet")) action = "meet";
   const locationId = LOCATIONS[seedInt(seed, 1) % LOCATIONS.length];
   const wanderer = WANDERERS[seedInt(seed, 2) % WANDERERS.length];
   const discovery = DISCOVERIES[seedInt(seed, 3) % DISCOVERIES.length];

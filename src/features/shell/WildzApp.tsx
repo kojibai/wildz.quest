@@ -26,6 +26,8 @@ import {
   inspectWildzRestore,
   restoreWildzFileForSurface,
   resumePendingWildzVault,
+  prepareWildzIdentityOwnedCard,
+  savePreparedWildzIdentityOwnedCard,
   saveWildzContinuityPlayState,
   type WildzContinuitySnapshot,
   type WildzRestoreIntent,
@@ -862,8 +864,12 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           playerDisplayName={identity.displayName ?? `@${ownerUsername}`}
           shellOverlayOwner={shellOverlayOwner}
           onPlayStateChange={persistPlayState}
-          onExportCard={(asset, player) => downloadWildzIdentityOwnedCard(identity, asset, player)}
+          onPrepareCard={(asset, player) => prepareWildzIdentityOwnedCard(identity, asset, player, { allowPrompt: false })}
+          onExportCard={(asset, player, prepared) => prepared
+            ? savePreparedWildzIdentityOwnedCard(prepared)
+            : downloadWildzIdentityOwnedCard(identity, asset, player)}
           onExportVault={(assets, player) => downloadWildzIdentityPlayerVault(identity, assets, player)}
+          vaultAdmission={vaultAdmission}
           onRestoreArtifact={claimAndRestoreVaultArtifact}
           onOpenProfile={(origin) => openShellOverlay({ kind: "profile", username: `@${ownerUsername}` }, origin)}
           onOpenMarket={(origin) => openShellOverlay({ kind: "market" }, origin)}

@@ -55,11 +55,14 @@ test("held movement stays on the render clock instead of a competing interval", 
   assert.doesNotMatch(dpad, /setInterval/);
 });
 
-test("Vault merges preserve the admitted multiplayer card set for the mounted session", () => {
+test("Vault merges refresh the admitted card set without coupling it to movement", () => {
   const campaign = source("src/features/play/PlayCampaign.tsx");
+  const shell = source("src/features/shell/WildzApp.tsx");
   assert.match(campaign, /const \[initialVaultAdmission\] = useState/);
   assert.match(campaign, /cards:\s*initialState\.inventory/);
-  assert.match(campaign, /createWildzVaultCardMembershipProof\(initialVaultAdmission, activeAsset\)/);
+  assert.match(campaign, /currentVaultAdmission = vaultAdmission \?\? initialVaultAdmission/);
+  assert.match(campaign, /createWildzVaultCardMembershipProof\(currentVaultAdmission, activeAsset\)/);
+  assert.match(shell, /vaultAdmission=\{vaultAdmission\}/);
   assert.doesNotMatch(campaign, /deriveWildzVaultCardAdmission\(\{\s*cards:\s*deckCards,[\s\S]*?createWildzVaultCardMembershipProof\(admission, activeAsset\)/);
 });
 

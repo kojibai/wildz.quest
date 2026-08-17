@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { Icons } from "@/components/icons";
 import { creatureContinuityProjection } from "./creature-continuity";
+import { CREATURE_CONTINUITY_ACTIONS } from "./creature-continuity";
 import type { WildsInput } from "./game-state";
 import type { PortableCardAsset } from "./portable-card";
 
@@ -27,7 +28,8 @@ export function CreatureContinuityPanel({
   const mandate = continuity?.mandate ?? null;
   const ownerMatches = !mandate || mandate.ownerReceizId === asset.manifest.ownerReceizId;
   const active = Boolean(mandate?.status === "active" && ownerMatches && !disabled);
-  const recent = continuity?.events.slice(-5).reverse() ?? [];
+  const livedExperiences = continuity?.events.filter((event) => CREATURE_CONTINUITY_ACTIONS.includes(event.kind as (typeof CREATURE_CONTINUITY_ACTIONS)[number])) ?? [];
+  const recent = livedExperiences.slice(-5).reverse();
   const command = (type: "activate-creature-continuity" | "pause-creature-continuity" | "settle-creature-continuity") => {
     onInput({ type, assetId: asset.id, ownerReceizId: asset.manifest.ownerReceizId, at: new Date().toISOString() });
   };
@@ -67,13 +69,13 @@ export function CreatureContinuityPanel({
       </div>
 
       <div className="wilds-continuity-memory">
-        <div><strong>Lived memory</strong><small>{continuity?.events.length ?? 0} replayable events · settled on return in v120</small></div>
+        <div><strong>Lived memory</strong><small>{livedExperiences.length} real roaming {livedExperiences.length === 1 ? "experience" : "experiences"} · proof-chained in v120</small></div>
         {recent.length ? recent.map((event) => (
           <article key={event.digest}>
             <span aria-hidden="true">{event.kind === "discover" ? "✦" : event.kind === "barter-keepsake" ? "⇄" : event.kind === "explore" ? "⌁" : "●"}</span>
             <p><strong>{event.kind.replaceAll("-", " ")}</strong>{event.summary}<small>{relativeMoment(event.occurredAt)} · proof {event.digest.slice(7, 17)}</small></p>
           </article>
-        )) : <p className="wilds-continuity-empty">No autonomous events yet. Once awakened, the first due moment is deterministic and cannot be invented by the creature&apos;s AI voice.</p>}
+        )) : <p className="wilds-continuity-empty">No roaming experience yet. Once awakened, the first real creature meeting settles within the next five-minute world check.</p>}
       </div>
 
       {continuity?.relationships.length ? <div className="wilds-continuity-bonds">
@@ -81,7 +83,7 @@ export function CreatureContinuityPanel({
         {continuity.relationships.slice(-4).map((relationship) => <span key={relationship.subjectId}><i>{relationship.name.slice(0, 1)}</i><b>{relationship.name}</b><small>{relationship.meetings} meeting{relationship.meetings === 1 ? "" : "s"} · bond {relationship.affinity}</small></span>)}
       </div> : null}
 
-      <footer><span>Owner-controlled · max 4 acts/day · 72h catch-up</span><span>{continuity?.headDigest ? `Head ${continuity.headDigest.slice(7, 18)}` : "Awaiting first event"}</span></footer>
+      <footer><span>You control roaming · up to {mandate?.maxActionsPerDay ?? 24} acts/day · 72h catch-up</span><span>{continuity?.headDigest ? `Head ${continuity.headDigest.slice(7, 18)}` : "Awaiting first event"}</span></footer>
     </section>
   );
 }

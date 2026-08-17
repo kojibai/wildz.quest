@@ -15,6 +15,22 @@ import {
 } from "./wilds-network-status";
 
 const GUEST_KEY = "receiz:wilds:multiplayer-guest:v1";
+const WILDS_MULTIPLAYER_HEARTBEAT_MS = 2_500;
+const WILDS_MULTIPLAYER_RECOVERY_REFRESH_MS = 5_000;
+const WILDS_GLOBAL_PRESENCE_REFRESH_MS = 3_000;
+
+function samePresence(left: WildsPresence[], right: WildsPresence[]) {
+  if (left.length !== right.length) return false;
+  return left.every((player, index) => {
+    const candidate = right[index];
+    return Boolean(candidate
+      && player.playerId === candidate.playerId
+      && player.x === candidate.x
+      && player.z === candidate.z
+      && player.status === candidate.status
+      && player.activeCard.proofDigest === candidate.activeCard.proofDigest);
+  });
+}
 
 function guestIdentity() {
   try {
@@ -105,15 +121,16 @@ export function useWildsMultiplayer(input: {
   const heartbeat = useCallback(async () => {
     const current = latest.current;
     if (!current.enabled || !current.activeCard || !guestId) return;
+    const activeCard = current.activeCard;
     if (!shouldAttemptWildsNetwork()) {
       setMode("reconnecting");
       setError(WILDS_MULTIPLAYER_OFFLINE_MESSAGE);
       return;
     }
     if (Date.now() < retryAfter.current) return;
-    const admissionPin = `${guestId}:${current.activeCard.id}:${current.activeCard.proof.digest}`;
+    const admissionPin = `${guestId}:${activeCard.id}:${activeCard.proof.digest}`;
     try {
-      const result = await jsonRequest<{
+      const sendHeartbeat = (cardAlreadyAdmitted: boolean) => jsonRequest<{
         actor: { playerId: string; practice: boolean };
         snapshot: WildsMultiplayerSnapshot;
         publication: { published: boolean; mode: "receiz_live" | "local_practice" | "receiz_recovery_pending" };
@@ -127,22 +144,34 @@ export function useWildsMultiplayer(input: {
           x: current.position.x,
           z: current.position.z,
           heading: 0,
-          card: current.activeCard,
+          card: activeCard,
           cardAdmission: current.cardAdmission
-        }, admittedHeartbeatCards.current.has(admissionPin)))
+        }, cardAlreadyAdmitted))
       });
+      const compactHeartbeat = admittedHeartbeatCards.current.has(admissionPin);
+      let result: Awaited<ReturnType<typeof sendHeartbeat>>;
+      try {
+        result = await sendHeartbeat(compactHeartbeat);
+      } catch (cause) {
+        if (!compactHeartbeat
+          || !(cause instanceof Error)
+          || cause.message !== "wilds_multiplayer_card_required") throw cause;
+        // Serverless instances do not share the compact admission cache. Heal a
+        // cold-instance miss immediately with the full verified card and never
+        // surface this expected protocol retry as a connection failure.
+        admittedHeartbeatCards.current.delete(admissionPin);
+        result = await sendHeartbeat(false);
+      }
       admittedHeartbeatCards.current.add(admissionPin);
       setSelfId(result.actor.playerId);
-      setSnapshot(result.snapshot);
+      setSnapshot((current) => current?.revision === result.snapshot.revision ? current : result.snapshot);
       // A server-accepted heartbeat is shared internet presence. Publication
       // controls durability; it does not decide whether other players see it.
       setMode("receiz_live");
       setError("");
       retryAfter.current = 0;
     } catch (cause) {
-      if (cause instanceof Error && cause.message === "wilds_multiplayer_card_required") {
-        admittedHeartbeatCards.current.delete(admissionPin);
-      }
+      if (cause instanceof Error && cause.message === "wilds_multiplayer_card_required") admittedHeartbeatCards.current.delete(admissionPin);
       const opaqueFailure = isOpaqueWildsNetworkFailure(cause);
       if (opaqueFailure) retryAfter.current = Date.now() + WILDS_NETWORK_RETRY_BACKOFF_MS;
       const offline = !shouldAttemptWildsNetwork() || opaqueFailure;
@@ -154,7 +183,7 @@ export function useWildsMultiplayer(input: {
   useEffect(() => {
     void heartbeat();
     if (!input.enabled) return;
-    const timer = window.setInterval(() => void heartbeat(), 2_000);
+    const timer = window.setInterval(() => void heartbeat(), WILDS_MULTIPLAYER_HEARTBEAT_MS);
     return () => window.clearInterval(timer);
   }, [heartbeat, input.enabled]);
 
@@ -168,7 +197,7 @@ export function useWildsMultiplayer(input: {
     if (Date.now() < retryAfter.current) return;
     try {
       const result = await jsonRequest<{ snapshot: WildsMultiplayerSnapshot }>(`/api/wilds/multiplayer/snapshot?room=${encodeURIComponent(roomKey)}`);
-      setSnapshot(result.snapshot);
+      setSnapshot((current) => current?.revision === result.snapshot.revision ? current : result.snapshot);
       if (mode === "reconnecting") setMode("connecting");
       setError("");
       retryAfter.current = 0;
@@ -182,11 +211,10 @@ export function useWildsMultiplayer(input: {
   }, [guestId, input.enabled, mode, roomKey]);
 
   useEffect(() => {
-    void refresh();
-    if (!input.enabled) return;
-    const timer = window.setInterval(() => void refresh(), 900);
+    if (!input.enabled || mode !== "reconnecting") return;
+    const timer = window.setInterval(() => void refresh(), WILDS_MULTIPLAYER_RECOVERY_REFRESH_MS);
     return () => window.clearInterval(timer);
-  }, [input.enabled, refresh]);
+  }, [input.enabled, mode, refresh]);
 
   useEffect(() => {
     const resume = () => {
@@ -208,7 +236,8 @@ export function useWildsMultiplayer(input: {
         guestId
       });
       const result = await jsonRequest<{ players: WildsPresence[] }>(`/api/wilds/atlas?${params.toString()}`, { cache: "no-store" });
-      setGlobalPlayers(result.players ?? []);
+      const players = result.players ?? [];
+      setGlobalPlayers((currentPlayers) => samePresence(currentPlayers, players) ? currentPlayers : players);
     } catch {
       // Retain the last short-lived atlas projection until the next heartbeat.
       // Server-side TTL enforcement prevents stale players from reappearing.
@@ -218,20 +247,24 @@ export function useWildsMultiplayer(input: {
   useEffect(() => {
     void refreshGlobalPresence();
     if (!input.enabled) return;
-    const timer = window.setInterval(() => void refreshGlobalPresence(), 900);
+    const timer = window.setInterval(() => void refreshGlobalPresence(), WILDS_GLOBAL_PRESENCE_REFRESH_MS);
     return () => window.clearInterval(timer);
   }, [input.enabled, refreshGlobalPresence]);
 
   const post = useCallback(async (path: "message" | "challenge" | "battle", body: Record<string, unknown>) => {
-    if (!latest.current.enabled) throw new Error("wilds_multiplayer_session_required");
-    if (!guestId) throw new Error("wilds_guest_identity_required");
-    const result = await jsonRequest<{ snapshot: WildsMultiplayerSnapshot }>(`/api/wilds/multiplayer/${path}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ...body, roomKey, guestId })
-    });
-    setSnapshot(result.snapshot);
-    return result.snapshot;
+    try {
+      if (!latest.current.enabled) throw new Error("wilds_multiplayer_session_required");
+      if (!guestId) throw new Error("wilds_guest_identity_required");
+      const result = await jsonRequest<{ snapshot: WildsMultiplayerSnapshot }>(`/api/wilds/multiplayer/${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...body, roomKey, guestId })
+      });
+      setSnapshot((current) => current?.revision === result.snapshot.revision ? current : result.snapshot);
+      return result.snapshot;
+    } catch (cause) {
+      throw new Error(wildsNetworkFailureMessage(cause, "multiplayer"));
+    }
   }, [guestId, roomKey]);
 
   const createInviteLink = useCallback(async () => {

@@ -32,14 +32,18 @@ export function parseWildsRoomKey(value: unknown) {
   return roomKey;
 }
 
-export async function resolveWildsMultiplayerActor(request: NextRequest, guestValue?: unknown): Promise<WildsMultiplayerActor> {
+export async function resolveWildsMultiplayerActor(
+  request: NextRequest,
+  guestValue?: unknown,
+  options: Readonly<{ resolveConnectProfile?: boolean }> = {}
+): Promise<WildsMultiplayerActor> {
   const playerToken = playerReceizAccessToken(receizRequestSession(request));
   try {
     const proofSession = readWildzProofSessionCookie(request);
     const principalId = wildzProofPrincipalId(proofSession);
     let matchingAccessToken: string | undefined;
     let matchingReceizActorId: string | undefined;
-    if (playerToken) {
+    if (playerToken && options.resolveConnectProfile !== false) {
       const profile = await loadReceizConnectProfile(playerToken).catch(() => null);
       if (profile?.handle && sameWildzPlayerCoordinate(profile.handle, proofSession.profileHandle)) {
         matchingAccessToken = playerToken;
@@ -168,21 +172,40 @@ function findRoomRecord(value: unknown): WildsMultiplayerRoom | null {
 }
 
 const hydrateKey = Symbol.for("receiz.wilds.multiplayer-hydration.v2");
+const presencePublicationKey = Symbol.for("receiz.wilds.multiplayer-presence-publication.v1");
+export const WILDS_ROOM_HYDRATE_TTL_MS = 12_000;
+export const WILDS_RECEIZ_REMOTE_DEADLINE_MS = 750;
+export const WILDS_PRESENCE_PUBLICATION_TTL_MS = 12_000;
+
 function hydratedUrls() {
   const root = globalThis as typeof globalThis & { [hydrateKey]?: Map<string, number> };
   return (root[hydrateKey] ??= new Map());
 }
 
+function presencePublicationTimes() {
+  const root = globalThis as typeof globalThis & { [presencePublicationKey]?: Map<string, number> };
+  return (root[presencePublicationKey] ??= new Map());
+}
+
+async function withReceizDeadline<T>(work: Promise<T>) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race<T | null>([
+      work,
+      new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), WILDS_RECEIZ_REMOTE_DEADLINE_MS); })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export async function hydrateWildsRoomFromReceiz(request: NextRequest, roomKey: string) {
   const sourceUrl = multiplayerSourceUrl(request, roomKey);
   const hydratedAt = hydratedUrls().get(sourceUrl) ?? 0;
-  if (Date.now() - hydratedAt < 1_000) return;
+  if (Date.now() - hydratedAt < WILDS_ROOM_HYDRATE_TTL_MS) return;
   hydratedUrls().set(sourceUrl, Date.now());
   try {
-    const recovered = await Promise.race([
-      createReceizCommerceAdapter().readAppStateByUrl(sourceUrl),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1_200))
-    ]);
+    const recovered = await withReceizDeadline(createReceizCommerceAdapter().readAppStateByUrl(sourceUrl));
     const room = findRoomRecord(recovered);
     if (room?.roomKey === roomKey) admitWildsMultiplayerRoom(room);
   } catch {
@@ -197,7 +220,7 @@ export async function publishWildsRoomToReceiz(request: NextRequest, actor: Wild
   const hostContext = hostContextFromHost(new URL(sourceUrl).host);
   const tenantHost = hostContext.tenantHost ?? hostContext.host ?? platform.domain;
   try {
-    const result = await createReceizCommerceAdapter(actor.accessToken ? { accessToken: actor.accessToken } : undefined).publishPublicStore({
+    const result = await withReceizDeadline(createReceizCommerceAdapter(actor.accessToken ? { accessToken: actor.accessToken } : undefined).publishPublicStore({
       tenantHost,
       merchantReceizId: actor.receizActorId,
       title: `Receiz Wilds live room ${room.roomKey}`,
@@ -206,10 +229,27 @@ export async function publishWildsRoomToReceiz(request: NextRequest, actor: Wild
       projectionState: "published",
       platform: platform.productName,
       state: room as unknown as JsonObject
-    }, { idempotencyKey: `${room.roomKey}:${room.revision}` });
+    }, { idempotencyKey: `${room.roomKey}:${room.revision}` }));
+    if (!result) return { published: false, mode: "receiz_recovery_pending" as const };
     const failed = Boolean(result && typeof result === "object" && "ok" in result && result.ok === false);
     return { published: !failed, mode: "receiz_live" as const };
   } catch {
     return { published: false, mode: "receiz_recovery_pending" as const };
   }
+}
+
+export async function publishWildsPresenceToReceiz(
+  request: NextRequest,
+  actor: WildsMultiplayerActor,
+  room: WildsMultiplayerSnapshot
+) {
+  if (actor.practice) return { published: false, mode: "local_practice" as const };
+  const sourceUrl = multiplayerSourceUrl(request, room.roomKey);
+  const attempts = presencePublicationTimes();
+  const now = Date.now();
+  if (now - (attempts.get(sourceUrl) ?? 0) < WILDS_PRESENCE_PUBLICATION_TTL_MS) {
+    return { published: false, mode: "receiz_live" as const, deferred: true as const };
+  }
+  attempts.set(sourceUrl, now);
+  return publishWildsRoomToReceiz(request, actor, room);
 }

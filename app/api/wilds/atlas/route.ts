@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     if (![x, z].every(Number.isFinite) || Math.abs(x) > 1_000_000 || Math.abs(z) > 1_000_000) {
       throw new Error("wilds_atlas_position_invalid");
     }
-    const actor = await resolveWildsMultiplayerActor(request, url.searchParams.get("guestId"));
+    const actor = await resolveWildsMultiplayerActor(request, url.searchParams.get("guestId"), { resolveConnectProfile: false });
     const presence = getWildsAtlasPresence({ actorId: actor.playerId, center: { x, z }, maxClusters: 64 });
     return NextResponse.json({ ok: true, ...presence }, {
       headers: { "cache-control": "private, no-store" }

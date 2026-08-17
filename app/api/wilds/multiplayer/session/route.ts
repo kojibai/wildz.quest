@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { heartbeatWildsPresence } from "@/features/play/multiplayer-ledger";
-import { authorizeWildsMultiplayerHeartbeatCard, hydrateWildsRoomFromReceiz, parseWildsRoomKey, publishWildsRoomToReceiz, resolveWildsMultiplayerActor } from "@/lib/receiz/wilds-multiplayer-server";
+import { authorizeWildsMultiplayerHeartbeatCard, hydrateWildsRoomFromReceiz, parseWildsRoomKey, publishWildsPresenceToReceiz, resolveWildsMultiplayerActor } from "@/lib/receiz/wilds-multiplayer-server";
 import { wildsMultiplayerError } from "@/lib/receiz/wilds-multiplayer-response";
 
 export const runtime = "nodejs";
@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   try {
     const roomKey = parseWildsRoomKey(body?.roomKey);
-    const actor = await resolveWildsMultiplayerActor(request, body?.guestId);
+    const actor = await resolveWildsMultiplayerActor(request, body?.guestId, { resolveConnectProfile: false });
     const style = body?.style === "male" ? "male" : body?.style === "female" ? "female" : null;
     if (!style) throw new Error("wilds_avatar_style_invalid");
     const x = Number(body?.x);
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
       practice: actor.practice,
       activeCard
     });
-    const publication = await publishWildsRoomToReceiz(request, actor, result.snapshot);
+    const publication = await publishWildsPresenceToReceiz(request, actor, result.snapshot);
     return NextResponse.json({
       ok: true,
       actor: { playerId: actor.playerId, handle: actor.handle, practice: actor.practice },

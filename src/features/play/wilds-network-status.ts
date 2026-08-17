@@ -30,5 +30,10 @@ export function wildsNetworkFailureMessage(
   if (message === "wilds_multiplayer_card_owner_invalid") {
     return "That companion is not admitted to this verified Vault session yet.";
   }
+  if (/^wilds_(?:multiplayer|guest)_(?:session_)?required$/.test(message)
+    || message === "wilds_multiplayer_card_required"
+    || message === "wilds_guest_identity_required") {
+    return "Shared world presence is reconnecting automatically.";
+  }
   return message;
 }

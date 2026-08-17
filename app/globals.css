@@ -12181,6 +12181,13 @@ button.product-purchase-secondary-link {
 
 .wilds-card-send-control > button { min-height: 38px; padding-inline: 12px; white-space: nowrap; }
 
+@media (max-width: 820px) {
+  .wilds-creature-consciousness textarea,
+  .wilds-card-send-control input { font-size: 16px; }
+  .wilds-creature-consciousness form button,
+  .wilds-card-send-control > button { touch-action: manipulation; }
+}
+
 .wilds-listing-control label {
   align-items: center;
   display: grid;

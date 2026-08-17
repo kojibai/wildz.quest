@@ -142,6 +142,7 @@ export type CreatureBrainProjection = Readonly<{
 
 export type CreatureObserverRequest = Readonly<{
   card: PortableCardAsset;
+  cardAdmission?: unknown;
   message: string;
   clientUserMessageId?: string;
   kai: Readonly<{
@@ -343,6 +344,7 @@ export function parseCreatureObserverRequest(value: unknown): CreatureObserverRe
   }
   return {
     card: record.card as PortableCardAsset,
+    ...(record.cardAdmission !== undefined ? { cardAdmission: record.cardAdmission } : {}),
     message,
     kai: {
       uPulse: Number(kaiRecord.uPulse),

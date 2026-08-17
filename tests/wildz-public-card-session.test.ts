@@ -38,7 +38,7 @@ test("public card publication accepts Identity Seal authority without making coo
   assert.match(route, /state:\s*transportRecord as unknown as JsonObject/);
 });
 
-test("standalone card recovery resolves the public projection for anonymous visitors and exact verified local card concurrently", () => {
+test("standalone card recovery prefers exact verified local truth before the public projection", () => {
   const route = readFileSync("app/api/cards/[assetId]/route.ts", "utf8");
   const resolver = readFileSync("src/lib/receiz/wildz-public-card-resolver.ts", "utf8");
   const serverPage = readFileSync("app/cards/[assetId]/page.tsx", "utf8");
@@ -55,7 +55,7 @@ test("standalone card recovery resolves the public projection for anonymous visi
   assert.match(page, /fetch\(`\/api\/cards\/\$\{encodeURIComponent\(assetId\)\}`/);
   assert.match(page, /resolveLocalWildzCard\(assetId\)/);
   assert.match(page, /wildz-local-card-resolver/);
-  assert.match(page, /Promise\.allSettled\(\[localResolution, publicResolution\]\)/);
+  assert.match(page, /if \(localAsset\) \{[\s\S]*?return;[\s\S]*?if \(serverAsset\) return;[\s\S]*?fetch\(`/);
   assert.doesNotMatch(page, /initialPlayState|restorePlayState|localStorage|receiz:wilds:save:v2/);
   const registry = readFileSync("src/features/play/public-card-registry.ts", "utf8");
   assert.match(registry, /identityProof|keyFile/);

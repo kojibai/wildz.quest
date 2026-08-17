@@ -13,6 +13,8 @@ import {
 } from "@/features/play/creature-consciousness";
 import { resolveWildzCookieActor } from "@/lib/receiz/wildz-cookie-actor";
 import { observeCreatureThroughReceizV120 } from "@/features/play/receiz-v120-creature-subject";
+import { canCurrentWildzOwnerObserveCreature } from "@/lib/receiz/wildz-creature-observer-ownership";
+import { readWildzProofSessionCookie } from "@/lib/receiz/wildz-proof-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,7 +90,15 @@ export async function POST(request: NextRequest) {
     const brain = projectCreatureBrain(input.card);
     const presentKaiMoment = creatureObserverMomentContext(input.kai, brain);
     const actor = await resolveWildzCookieActor(request);
-    if (actor.actorId !== input.card.manifest.ownerReceizId) {
+    let proofSession: ReturnType<typeof readWildzProofSessionCookie> | null = null;
+    try { proofSession = readWildzProofSessionCookie(request); } catch { /* Fail closed below. */ }
+    if (!canCurrentWildzOwnerObserveCreature({
+      actorId: actor.actorId,
+      profileHandle: actor.profileHandle,
+      proofSession,
+      card: input.card,
+      cardAdmission: input.cardAdmission
+    })) {
       throw new Error("creature_observer_owner_mismatch");
     }
     const receiz = createReceizClient({

@@ -25,4 +25,8 @@ test("opaque browser fetch failures are normalized while server authority errors
     wildsNetworkFailureMessage(new Error("wilds_multiplayer_card_owner_invalid"), "multiplayer", true),
     "That companion is not admitted to this verified Vault session yet."
   );
+  assert.equal(
+    wildsNetworkFailureMessage(new Error("wilds_multiplayer_session_required"), "multiplayer", true),
+    "Shared world presence is reconnecting automatically."
+  );
 });
