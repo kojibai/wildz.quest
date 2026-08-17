@@ -4,9 +4,9 @@ export function wildzVoiceSignatureBytes(signature: string) {
 }
 
 /**
- * Maps immutable creature proof into one stable Receiz v120 neural voice lock.
- * Receiz renders the base neural performance on the existing Twin stream;
- * these small parameters make that voice creature-specific during playback.
+ * Maps immutable creature proof into one stable Receiz v120 voice lock.
+ * The local proof instrument uses these parameters as its vocal identity;
+ * optional Twin performance may influence cadence without replacing it.
  */
 export function wildzStreamingVoiceProfile(signature: string) {
   const bytes = wildzVoiceSignatureBytes(signature);

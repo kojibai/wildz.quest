@@ -1,97 +1,100 @@
-# Receiz v120 creature voice architecture
+# Receiz v120 proof-voice architecture
 
-This document is the binding implementation rule for creature speech in Wildz `v6.1.0`. The goal is a real Receiz neural performance, unique to the exact creature, ready on the first spoken reply without a browser model, provider-specific application route, warm-up download, generic substitute, or added capture/gameplay latency.
+This is the binding Wildz v7 creature speech contract. The verified portable proof object is the authority for identity, memory, vocal identity, and response boundaries. A server, model, audio service, browser-selected system voice, or device cache is never required to form the creature's response or construct its voice.
 
-## The authority and runtime split
+## Receiz-first reasoning
 
-The exact verified card is authority. Its proof-derived creature brain carries an immutable `voiceSignature` and a deterministic `neuralInterface` projection. Speech, audio, visemes, expression, and mouth motion are performance projections; they cannot create a world event or rewrite the card.
+The implementation starts from the pinned Receiz inventory, in this order:
 
-The three Receiz packages have different jobs:
+1. `@receiz/sdk@120.0.0` admits the exact card into the local living-subject runtime and observes its proof brain through `runtime.subjects.twin.message`.
+2. `@receiz/mcp-server@120.0.0` is conformance and operator tooling. It is not imported into application runtime code.
+3. `@receiz/ai-skills@120.0.0` supplies repository doctrine: proof retrieval first, model output non-authoritative, deterministic admission, and zero-write failure.
 
-- `@receiz/sdk@120.0.0` is the application/runtime boundary. Wildz uses the v120 living-subject runtime to bind the exact proof brain and uses the existing Receiz Twin stream to request neural performance.
-- `@receiz/mcp-server@120.0.0` is operator and conformance tooling. It never belongs in the browser bundle or reply hot path and is not a second speech service.
-- `@receiz/ai-skills@120.0.0` is engineering doctrine. It requires exact proof retrieval, non-authoritative model output, zero-write failure, and explicit performance boundaries; it is not a runtime dependency or voice provider.
+The SDK, MCP, and AI skills do not create a second authority. The proof object remains strongest truth, the local v120 Twin is its bounded observer, and the server is optional transport/enrichment only.
 
-MCP output and AI instructions never outrank the verified card. The browser never calls a speech provider directly.
+## Immediate response path
 
-## End-to-end flow
+1. The already-rendered card has a memoized proof-brain projection.
+2. Send resumes the shared `AudioContext` under the same user gesture. It loads no model, binary, provider client, or voice asset.
+3. The v120 living-subject runtime admits the exact card objects and asks its local Twin to observe the message at the exact Kai moment.
+4. `proofGroundedCreatureReply` forms a bounded autobiographical answer from innate self, capture, admitted lived events, condition, relationships, prior conversations, the current message, and the current Kai `uPulse`.
+5. Text begins rendering immediately. The accepted turn appends through the unchanged exact-head proof-memory path at `reply_done`; it never waits for audio or stream closure.
+6. The client constructs speech locally from the proof voice lock, birth moment, speaking moment, and response text.
+7. Actual output waveform energy drives the creature's mouth.
 
-1. The card panel projects and memoizes the verified creature brain while rendering. This projection includes the exact proof-derived neural voice lock.
-2. A user Send gesture resumes the shared `AudioContext`, satisfying browser autoplay policy without a later warm-up ceremony. It does not load a model or fetch a voice.
-3. The panel starts one SSE request to `/api/receiz/creature-observer`. There is no second voice-session request.
-4. The route verifies the submitted proof object and current Vault custody once at its input boundary. This verification gives the route no authority; the exact proof object remains strongest truth.
-5. Wildz projects that exact proof into the v120 living-subject runtime as primary proof objects and byte-preserved namespaces. The runtime establishes the live subject head, complete proof context, and the rule that model output is not a world event.
-6. The observer consumes the official `receiz.subjects.twin.streamPerformance` API with the exact subject ID, owner, live `contextHead`, expected subject digest, and `responseMode: "performance"`. Voice identity comes from the proof-carried self model, not an application-selected provider voice.
-7. Native v120 `reply_delta` events are forwarded immediately. Text rendering never waits for the complete reply or complete audio.
-8. Native v120 `audio_chunk` and viseme/gaze/blink/breath/emotion/gesture events are forwarded on the same SSE response. No provider key, voice token, provider WebSocket, or browser model is added by Wildz.
-9. The client rejects a mismatched signature, decodes the Receiz audio with Web Audio, and applies only the already-memoized proof transform: a bounded rate, detune, peaking-filter brightness, and gain adjustment.
-10. An analyser reads the actual playing waveform each animation frame and emits mouth openness for the exact card. The mouth therefore follows audible energy rather than guessed text timing.
-11. Audio chunks are scheduled sequentially while text continues to stream. The first generated preview may play before the final reply is complete.
-12. The genuine Twin observation and the voice performance remain separate non-authoritative projections. The deterministic conversation append continues against the exact live proof head whether or not a device output succeeds; voice never gates, rewrites, or reorders memory.
+No unavailable enrichment status is shown to the player. Remote absence is not a product state.
 
-## How one creature gets one stable voice
+## How the local voice is constructed
 
-The voice lock is deterministic and portable:
+The voice is a deterministic source-filter vocal instrument, not a set of notification tones and not a device-selected generic voice.
 
 ```text
-exact card id + immutable visual fingerprint
--> SHA-256-derived expression signature
--> eight deterministic signature bytes
--> bounded rate, pitch, volume, brightness, and mouth-response values
+proof expression signature + exact birth timestamp
+  -> stable vocal anatomy
+     fundamental range, vocal-tract scale, brightness, breath character,
+     rate, gain, mouth response
+
+response graphemes
+  -> bounded speech units
+     vowels, voiced consonants, fricatives/plosives, pauses
+
+human vocal model
+  -> glottal excitation + breath/noise excitation
+  -> three vocal-tract formant resonators
+  -> consonant edges + coarticulated envelopes
+
+current Kai uPulse
+  -> subtle bounded cadence, stress, phrase fall, warmth, and airflow
+  -> one canonical 5.236... second Kai Pulse is one complete Golden breath
+     inhale = 1 + sqrt(5) seconds; exhale = 2 seconds
+
+Web Audio buffer
+  -> proof-character filter/gain -> waveform mouth analysis -> device output
 ```
 
-The signature is carried in the creature's proof-object self model and resolved by the v120 subject Twin. Receiz produces the real neural base performance. Wildz then makes a deliberately small live transformation so two creatures do not collapse to one presentation while the same creature does not change identity across reload, export/import, or bearer transfer.
+Birth establishes identity. The current speaking moment may influence performance only inside narrow bounds, so it cannot replace the creature's recognizable voice or alter what was said. The exact micro-pulse phase anchors a complete inhale/exhale airflow envelope to `KAI_PULSE_DURATION_MS = (3 + sqrt(5)) * 1000`. The split comes directly from `/klok`: inhale is `1 + sqrt(5)` seconds and exhale is `2` seconds, producing the canonical Fibonacci/Golden proportion rather than an invented 50/50 waveform. Syllables ride inside that deterministic Golden breath. Reopening, exporting/importing, or transferring the same exact creature preserves its identity inputs and therefore its voice.
 
-The transform is not a synthesizer. It does not create speech, infer text, choose facts, or load model weights. It is comparable to a stable character-specific playback instrument applied to already-generated neural audio.
+This design is fully local and deterministic. It adds no neural-model weights, ONNX/WASM voice runtime, provider key, environment variable, voice download, warm-up request, or new dependency. It also does not claim that a compact source-filter instrument is acoustically identical to a large trained studio neural model on every phoneme and device. Receiz Twin performance may improve cadence when available, but product correctness never depends on that enrichment.
+
+## Additive Receiz Twin enrichment
+
+The route may ask `receiz.world.message("wildz")` to perform the exact already-formed proof response. That work is bounded, non-authoritative, caught, and invisible.
+
+If a matching performance audio primitive arrives before local playback begins, Wildz decodes it only to derive a bounded duration ratio and normalized emphasis envelope. The remote waveform is not played as a replacement voice. The creature's local proof voice remains the sole audible carrier and applies any usable cadence/emphasis information inside its own anatomy. Late, missing, malformed, or mismatched enrichment contributes nothing and cannot delay, fail, or change the turn.
 
 ## Hot-path allowlist
 
-The explicit conversation path may contain only:
+- the existing Send gesture and shared `AudioContext` resume;
+- exact proof/Vault-custody verification;
+- local v120 subject admission and Twin observation;
+- bounded proof-grounded text composition;
+- SSE text parsing;
+- deterministic source-filter buffer construction;
+- native Web Audio scheduling; and
+- waveform mouth projection.
 
-- one already-required user gesture to resume the shared audio context;
-- one proof-object verification at the route input boundary, with no server authority;
-- current-owner/Vault-membership verification;
-- exact v120 subject/proof-brain construction;
-- one official v120 subject Twin performance stream carrying typed text, audio, and motion events;
-- bounded SSE parsing and audio-size/signature checks;
-- native browser audio decode;
-- the small proof-derived Web Audio graph;
-- sequential chunk scheduling; and
-- waveform-driven mouth projection.
+Capture, login, roaming, movement, rendering, and card selection contain none of this work. Optional server enrichment runs outside the required result path and cannot gate first text, proof append, or local speech.
 
-The capture and world-render loops contain none of this work. Roaming, movement, rendering, capture, card selection, and identity-session playback do not initialize a voice model or wait on speech.
+## Denylist
 
-## Explicit denylist
-
-Do not add any of the following without a new reviewed architecture decision:
-
-- a Wildz voice-provider API key or environment variable;
-- a provider-specific voice-session route;
-- a direct provider `fetch` or WebSocket from the browser;
-- Kokoro, ONNX Runtime, Transformers, or other browser neural-model weights;
-- `speechSynthesis` or a generic/base-voice substitute;
-- warm-up fetches during capture, login, roaming, first paint, or the render loop;
-- a local phrase/template reply presented as successful Twin intelligence;
-- duplicate proof verification or brain projection inside one observer request;
-- any voice condition that gates or changes the existing proof-memory append; or
-- MCP/AI-skill imports in application runtime code.
-
-## Latency contract
-
-Wildz adds no separate voice-session round trip and no client model initialization. Text and audio arrive through the typed v120 subject-performance stream, and audio is scheduled with a 12 ms browser lead once decoded. The client records time from first text delta to first scheduled audio against a 300 ms target.
-
-That metric is not permission to claim a universal end-to-end 300 ms network guarantee. Remote inference, transport, browser decode, device audio policy, and service availability are observable production conditions. Source qualification guarantees the absence of avoidable Wildz warm-up and duplicate provider work; authenticated production evidence is required before publishing a percentile latency claim.
+- server or model authority over identity, memory, response admission, or voice identity;
+- provider-specific voice routes, keys, sockets, or browser calls;
+- `speechSynthesis`, generic/base substitute voices, Kokoro, ONNX Runtime, Transformers, ElevenLabs, or downloaded browser models;
+- remote audio replacing the local proof voice;
+- enrichment waits in the reply, memory, capture, movement, or render hot paths;
+- visible “voice unavailable”, “no enrichment”, or substitute/degraded-mode copy;
+- voice success gating, rewriting, reordering, or erasing proof memory;
+- duplicate proof projection on Send; and
+- MCP or AI-skill packages imported into runtime code.
 
 ## Failure and ownership invariants
 
-- Proof memory depends on the genuine observation and deterministic exact-head append, never on audio playback.
-- A returned voice signature that conflicts with the proof lock is rejected by the presentation layer without changing memory.
-- A failed or aborted observation appends no conversation; a later device-output failure cannot erase an already-appended genuine observation.
-- A device decode/playback failure is handled only inside presentation and uses no substitute voice.
-- Turning voice off is an explicit user choice; it does not authorize a substitute voice.
-- A card admitted to the current verified Vault may be observed by that Vault owner even when the carried historical owner field predates the claim. The admission proof authorizes current custody without rewriting historical capture.
-- Bearer transfer preserves creature identity and voice signature while revoking former-owner authority.
+- A valid proof brain always forms its bounded local response without a network.
+- Conversation memory is independent of audio output and uses the existing exact-head append.
+- An explicit Voice off choice suppresses playback, not response or memory.
+- Browser autoplay/output policy can physically prevent sound; application code cannot truthfully override the operating system. Such a device condition remains presentation-only and is never reported as missing intelligence or missing enrichment.
+- A newly claimed card chats through current verified Vault custody even if its historical capture owner differs. Transfer preserves the brain, history, proof voice inputs, and creature identity while revoking former-owner authority.
 
-## Release enforcement
+## Mechanical enforcement
 
-Tests assert the exact v120 package pins, direct `subjects.twin.streamPerformance`, live head/digest binding, proof-signature projection, typed audio forwarding, native Web Audio transform, waveform mouth motion, zero local/browser/provider fallback, no voice environment variable, no duplicate client brain projection on Send, and unchanged proof-memory append semantics. `pnpm receiz:architecture-lock` mechanically rejects the displaced provider architecture and proof-authority violations. It runs inside `pnpm release:check` alongside `pnpm receiz:check` and `pnpm receiz:conformance`, so the SDK/MCP/AI release identity and authority laws are executable repository gates rather than optional guidance.
+`pnpm receiz:architecture-lock` rejects server-authoritative response rails, missing local v120 proof intelligence, missing proof voice construction, missing birth/Kai inputs, provider/browser-model dependencies, visible enrichment errors, voice-gated memory, or runtime MCP/AI-skill imports. It runs inside `pnpm release:check` with SDK conformance and the full release suite.

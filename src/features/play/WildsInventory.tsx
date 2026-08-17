@@ -52,6 +52,7 @@ import type {
 
 export function WildsInventory({
   state,
+  ownerReceizId,
   kaiMoment,
   focusedAssetId,
   cardOrder,
@@ -66,6 +67,7 @@ export function WildsInventory({
   onRestoreArtifact
 }: {
   state: PlayState;
+  ownerReceizId: string;
   kaiMoment: KaiKlokMoment;
   focusedAssetId: string | null;
   cardOrder: WildzCardSort;
@@ -495,6 +497,7 @@ export function WildsInventory({
             </div>
             <CreatureConsciousnessPanel
               asset={selected}
+              ownerReceizId={ownerReceizId}
               kaiMoment={kaiMoment}
               playerPosition={state.player}
               cardAdmission={selectedCardAdmission}

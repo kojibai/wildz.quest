@@ -81,15 +81,11 @@ try {
   failures.push("provider_voice_session_route_present");
 } catch { /* Required absence. */ }
 
-requireMatch(route, /receiz\.subjects\.twin\.streamPerformance\(input\.card\.id/, "subject_performance_sdk_rail_missing");
-requireMatch(route, /contextHead:\s*proofContext\.head\.subjectHead/, "live_subject_head_binding_missing");
-requireMatch(route, /expectedSubjectDigest:\s*proofContext\.head\.subjectDigest/, "subject_digest_binding_missing");
-requireMatch(route, /responseMode:\s*["']performance["']/, "subject_performance_mode_missing");
-requireMatch(route, /event\.type === ["']reply_delta["']/, "typed_reply_delta_missing");
-requireMatch(route, /event\.type === ["']audio_chunk["']/, "typed_audio_chunk_missing");
-requireMatch(route, /event\.type === ["']reply_done["']/, "typed_reply_completion_missing");
-requireMatch(route, /receiz\.world\.message\(["']wildz["']/, "proven_world_twin_recovery_rail_missing");
-requireMatch(route, /could not form a response\|no world event was created/i, "twin_failure_boundary_missing");
+requireMatch(route, /observeCreatureThroughReceizV120\(/, "local_v120_subject_twin_missing");
+requireMatch(route, /proofGroundedCreatureReply\(subjectBrain, input\.message, presentKaiMoment\.temporalRoot\.uPulse\)/, "proof_grounded_intelligence_missing");
+requireMatch(route, /type:\s*["']reply_reset["']/, "immediate_proof_reply_missing");
+requireMatch(route, /receiz\.world\.message\(["']wildz["']/, "optional_twin_enrichment_rail_missing");
+requireMatch(route, /PERFORMANCE_ENRICHMENT_BUDGET_MS/, "enrichment_budget_missing");
 requireMatch(route, /createObservedCreatureTurn\(/, "proof_memory_turn_missing");
 forbidMatch(route, /if\s*\(\s*!audioSent\s*\)|generatedAudio\s*===\s*true[\s\S]{0,160}createObservedCreatureTurn/, "voice_gates_proof_memory");
 
@@ -103,6 +99,15 @@ requireMatch(route, /projectVerifiedCreatureBrain\(input\.card\)/, "verified_bra
 requireMatch(playback, /decodeAudioData\(/, "native_audio_decode_missing");
 requireMatch(playback, /getByteTimeDomainData\(/, "waveform_mouth_sync_missing");
 requireMatch(playback, /chunk\.voiceSignature[^\n]*neural\.signature/, "proof_voice_signature_check_missing");
+requireMatch(playback, /synthesizeProofVoice\(/, "local_proof_voice_missing");
+requireMatch(playback, /VOWEL_FORMANTS/, "human_vocal_tract_formants_missing");
+requireMatch(playback, /birthMomentMs/, "birth_moment_voice_identity_missing");
+requireMatch(playback, /speakingMoment\.uPulse/, "speaking_moment_prosody_missing");
+requireMatch(playback, /KAI_PULSE_DURATION_MS/, "canonical_kai_breath_period_missing");
+requireMatch(playback, /KAI_BREATH_INHALE_SHARE/, "canonical_fibonacci_breath_split_missing");
+requireMatch(playback, /one complete Golden breath/i, "kai_pulse_breath_law_missing");
+requireMatch(playback, /receiz-proof-source-filter/, "proof_voice_engine_missing");
+forbidMatch(panel, /unique neural voice could not play|No substitute voice|enrichment unavailable/i, "player_visible_voice_degradation");
 const appendIndex = panel.indexOf("onObserved(result.turn)");
 const playbackResultIndex = panel.indexOf("voiceStream.completed.then");
 if (appendIndex < 0 || playbackResultIndex < 0 || appendIndex > playbackResultIndex) {
@@ -118,7 +123,7 @@ requireMatch(gapTemplate, /SDK inventory performed first/i, "capability_gap_sdk_
 requireMatch(gapTemplate, /MCP inventory performed second/i, "capability_gap_mcp_evidence_missing");
 requireMatch(gapTemplate, /AI-skill doctrine performed third/i, "capability_gap_ai_skill_evidence_missing");
 requireMatch(pullRequestTemplate, /Receiz-first reasoning record/i, "receiz_first_pr_gate_missing");
-requireMatch(doctrine, /subjects\.twin\.streamPerformance/, "sdk_voice_doctrine_missing");
+requireMatch(doctrine, /local[\s\S]{0,160}proof[\s\S]{0,160}(?:voice|intelligence)/i, "local_proof_twin_doctrine_missing");
 requireMatch(doctrine, /proof object remains (?:the )?(?:strongest )?authority/i, "proof_authority_doctrine_missing");
 requireMatch(doctrine, /server (?:is|remains) (?:only )?(?:transport|observer)/i, "server_boundary_doctrine_missing");
 requireMatch(doctrine, /voice[\s\S]{0,100}(?:never|cannot)[\s\S]{0,100}(?:gate|block)[\s\S]{0,100}(?:memory|append)/i, "voice_memory_independence_doctrine_missing");

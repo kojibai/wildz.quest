@@ -400,6 +400,10 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(transformation, /aria-live="assertive"/);
     assert.match(ceremony, /Both parents remain yours/);
     assert.match(ceremony, /aria-label="Living child ceremony"/);
+    assert.match(ceremony, /wilds-lineage-egg/);
+    assert.match(ceremony, /wilds-hatched-card/);
+    assert.match(ceremony, /phase === "revealed"/);
+    assert.match(card, /wilds-card-hatched-mark/);
     assert.match(inventory, /WildsGrowthPanel/);
     assert.match(campaign, /WildsTransformation/);
     assert.match(campaign, /WildsChildCeremony/);

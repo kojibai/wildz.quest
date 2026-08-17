@@ -1,7 +1,11 @@
 export const KAI_GENESIS_TS = 1_715_323_541_888 as const;
 export const KAI_N_DAY_MICRO = 17_491_270_421n;
 export const KAI_BASE_DAY_MICRO = 17_424_000_000n;
-export const KAI_PULSE_DURATION_MS = (3 + Math.sqrt(5)) * 1000;
+export const KAI_BREATH_INHALE_SECONDS = 1 + Math.sqrt(5);
+export const KAI_BREATH_EXHALE_SECONDS = 2 as const;
+export const KAI_PULSE_DURATION_MS = (KAI_BREATH_INHALE_SECONDS + KAI_BREATH_EXHALE_SECONDS) * 1000;
+export const KAI_BREATH_INHALE_SHARE = KAI_BREATH_INHALE_SECONDS
+  / (KAI_BREATH_INHALE_SECONDS + KAI_BREATH_EXHALE_SECONDS);
 export const KAI_PULSES_PER_STEP = 11 as const;
 export const KAI_STEPS_PER_BEAT = 44 as const;
 export const KAI_BEATS_PER_DAY = 36 as const;

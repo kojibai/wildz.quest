@@ -6,6 +6,7 @@ import {
   creatureObserverMomentContext,
   creatureObserverThreadKey,
   creatureObserverVisitorKey,
+  proofGroundedCreatureReply,
   normalizeCreatureTwinReply,
   parseCreatureObserverRequest,
   projectVerifiedCreatureBrain
@@ -20,6 +21,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 90;
 
 const encoder = new TextEncoder();
+const PERFORMANCE_ENRICHMENT_BUDGET_MS = 2_500;
 
 function json(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: { "cache-control": "no-store" } });
@@ -37,15 +39,22 @@ function eventBytes(value: unknown) {
   return encoder.encode(`data: ${JSON.stringify(value)}\n\n`);
 }
 
+function withinPerformanceBudget<T>(promise: Promise<T>) {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    promise,
+    new Promise<null>((resolve) => {
+      timeout = setTimeout(() => resolve(null), PERFORMANCE_ENRICHMENT_BUDGET_MS);
+    })
+  ]).finally(() => {
+    if (timeout) clearTimeout(timeout);
+  });
+}
+
 function asRecord(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : null;
-}
-
-function isTwinFailureBoundary(input: Readonly<{ model?: string; speech?: string }>) {
-  return input.model === "model-failure-boundary"
-    || /could not form a response|no world event was created/i.test(input.speech ?? "");
 }
 
 function finalPerformanceAudio(performance: Readonly<Record<string, unknown>>) {
@@ -63,12 +72,6 @@ function finalPerformanceAudio(performance: Readonly<Record<string, unknown>>) {
       ? Math.max(0, Math.min(120_000, Math.round(asset.durationMs)))
       : 0
   };
-}
-
-function upstreamWorldSpeech(value: unknown, creatureName: string) {
-  const reply = asRecord(value);
-  if (!reply || reply.source !== "upstream") throw new Error("creature_observer_intelligence_unavailable");
-  return normalizeCreatureTwinReply(reply, creatureName);
 }
 
 function upstreamWorldPerformance(value: unknown) {
@@ -99,7 +102,10 @@ export async function POST(request: NextRequest) {
 
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
-        const send = (value: unknown) => controller.enqueue(eventBytes(value));
+        let closed = false;
+        const send = (value: unknown) => {
+          if (!closed && !request.signal.aborted) controller.enqueue(eventBytes(value));
+        };
         send({ type: "reply_start", voiceSignature: brain.performance.expression.voiceSignature, startedAt: Date.now() });
         void (async () => {
           try {
@@ -111,128 +117,58 @@ export async function POST(request: NextRequest) {
               clientMessageId: clientOperationId,
               speak: async ({ brain: subjectBrain, proofContext }) => {
                 const observerContext = creatureObserverClientContext(subjectBrain, presentKaiMoment);
-                const groundedMessage = [
+                const speech = proofGroundedCreatureReply(subjectBrain, input.message, presentKaiMoment.temporalRoot.uPulse);
+                send({ type: "reply_reset", text: speech });
+                const performanceMessage = [
                   observerContext.instruction,
                   `Present Kai causal context: ${JSON.stringify(observerContext.presentKaiMoment)}`,
-                  `The person speaking with you says: ${input.message}`
+                  `The person's message was: ${input.message}`,
+                  `Perform this exact proof-derived response without changing its words: ${speech}`
                 ].join("\n\n");
-                let speech = "";
-                let completed = false;
-                let audioSent = false;
-                let finalPerformance: Readonly<Record<string, unknown>> = {};
-                try {
-                  for await (const event of receiz.subjects.twin.streamPerformance(input.card.id, {
-                    message: groundedMessage,
-                    ownerReceizId: actor.actorId,
-                    threadKey: creatureObserverThreadKey(input.card.id),
-                    contextHead: proofContext.head.subjectHead,
-                    expectedSubjectDigest: proofContext.head.subjectDigest,
-                    responseMode: "performance",
-                    clientMessageId: clientOperationId
-                  })) {
-                    if (request.signal.aborted) throw new Error("request_aborted");
-                    if (event.type === "reply_delta" && event.text) {
-                      speech += event.text;
-                      send({ type: "reply_delta", delta: event.text });
-                    }
-                    if (event.type === "audio_chunk") {
-                      audioSent = true;
-                      send({
-                        ...event,
-                        voiceSignature: subjectBrain.performance.expression.voiceSignature,
-                        source: "receiz-v120-proof-performance"
-                      });
-                    }
-                    if (["viseme", "gaze", "blink", "breath", "emotion", "gesture", "intent_proposed"].includes(event.type)) {
-                      send({ type: "performance_event", event });
-                    }
-                    if (event.type === "reply_done") {
-                      completed = true;
-                      finalPerformance = event.result.performance ?? {};
-                      if (!speech && event.result.spokenResponse) {
-                        speech = event.result.spokenResponse;
-                        send({ type: "reply_delta", delta: speech });
-                      }
-                    }
-                  }
-                } catch {
-                  completed = false;
-                }
-                const failedBoundary = isTwinFailureBoundary({
-                  model: typeof finalPerformance.model === "string" ? finalPerformance.model : undefined,
-                  speech
-                });
-                if (!completed || !speech.trim() || failedBoundary) {
-                  try {
-                    const worldResponse = await receiz.world.message("wildz", {
-                      action: "message",
-                      message: groundedMessage,
-                      visitorKey: creatureObserverVisitorKey(actor.actorId),
-                      threadKey: creatureObserverThreadKey(input.card.id),
-                      allowBrowserVoiceFallback: false,
-                      clientContext: observerContext,
-                      clientUserMessageId: clientOperationId,
-                      clientOperationId,
-                      quoteExpiresAt: new Date(Date.now() + 9 * 60_000).toISOString()
-                    });
-                    if (worldResponse.ok !== true) throw new Error(worldResponse.error || "creature_observer_intelligence_unavailable");
-                    const worldSpeech = upstreamWorldSpeech(worldResponse.reply, subjectBrain.identity.name);
-                    if (isTwinFailureBoundary({ speech: worldSpeech })) throw new Error("creature_observer_intelligence_unavailable");
-                    const worldPerformance = upstreamWorldPerformance(worldResponse.reply);
-                    send({ type: "reply_reset", text: worldSpeech });
-                    const worldAudio = finalPerformanceAudio(worldPerformance);
-                    if (worldAudio) send({
-                      ...worldAudio,
-                      voiceSignature: subjectBrain.performance.expression.voiceSignature,
-                      source: "receiz-v120-proof-performance"
-                    });
-                    return {
-                      provider: "receiz",
-                      model: "receiz-world-twin-upstream",
-                      version: "120.0.0",
-                      speech: worldSpeech,
-                      performance: {
-                        ...subjectBrain.performance.expression,
-                        ...worldPerformance,
-                        proofContextDigest: proofContext.receipt.queryDigest,
-                        generatedAudio: Boolean(worldAudio),
-                        authoritative: false,
-                        responseRail: "receiz-world-twin-upstream"
-                      }
-                    };
-                  } catch {
-                    throw new Error("creature_observer_intelligence_unavailable");
-                  }
-                }
-                const finalAudio = audioSent ? null : finalPerformanceAudio(finalPerformance);
-                if (finalAudio) {
-                  audioSent = true;
-                  send({
-                    ...finalAudio,
+                const enrichedAudio = withinPerformanceBudget(receiz.world.message("wildz", {
+                  action: "message",
+                  message: performanceMessage,
+                  visitorKey: creatureObserverVisitorKey(actor.actorId),
+                  threadKey: creatureObserverThreadKey(input.card.id),
+                  allowBrowserVoiceFallback: false,
+                  clientContext: observerContext,
+                  clientUserMessageId: clientOperationId,
+                  clientOperationId,
+                  quoteExpiresAt: new Date(Date.now() + 9 * 60_000).toISOString()
+                }).then((worldResponse) => {
+                  if (worldResponse.ok !== true) throw new Error(worldResponse.error || "creature_observer_intelligence_unavailable");
+                  const reply = asRecord(worldResponse.reply);
+                  if (!reply || reply.source !== "upstream") return null;
+                  return finalPerformanceAudio(upstreamWorldPerformance(reply));
+                }).catch(() => null));
+                void enrichedAudio.then((audio) => {
+                  if (audio && !request.signal.aborted) send({
+                    ...audio,
                     voiceSignature: subjectBrain.performance.expression.voiceSignature,
                     source: "receiz-v120-proof-performance"
                   });
-                }
+                }).catch(() => { /* Enrichment never affects the proof response rail. */ });
                 return {
-                  provider: "receiz",
-                  model: "receiz-subject-twin-performance",
+                  provider: "wildz-proof-brain",
+                  model: "proof-grounded-creature-twin",
                   version: "120.0.0",
-                  speech: normalizeCreatureTwinReply(speech, subjectBrain.identity.name),
+                  speech,
                   performance: {
                     ...subjectBrain.performance.expression,
-                    ...finalPerformance,
                     voiceSignature: subjectBrain.performance.expression.voiceSignature,
                     neuralInterface: subjectBrain.performance.neuralInterface,
                     proofContextDigest: proofContext.receipt.queryDigest,
-                    generatedAudio: audioSent,
+                    generatedAudio: false,
                     authoritative: false,
-                    responseRail: "receiz-subject-twin-performance"
+                    responseRail: "proof-grounded-local"
                   }
                 };
               }
             });
             const modelAudit = subjectObservation.twin.proposedIntent.modelAudit;
-            const observer = "receiz-twin" as const;
+            const observer = modelAudit.model === "proof-grounded-creature-twin"
+              ? "receiz-twin-local" as const
+              : "receiz-twin" as const;
             const reply = normalizeCreatureTwinReply(subjectObservation.twin.spokenResponse, brain.identity.name);
             const turn = createObservedCreatureTurn({
               brain,
@@ -286,6 +222,7 @@ export async function POST(request: NextRequest) {
           } catch (cause) {
             send({ type: "error", error: cause instanceof Error ? cause.message : "creature_observer_unavailable" });
           } finally {
+            closed = true;
             controller.close();
           }
         })();

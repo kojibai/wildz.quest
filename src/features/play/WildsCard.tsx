@@ -23,6 +23,7 @@ export const WildsCard = memo(function WildsCard({ asset, compact = false, condi
     { width: 640, height: 405, title: asset.manifest.name, fit: "full-body" }
   ), [asset, variant]);
   const death = cardDeathRecord(asset, condition);
+  const fusionBorn = isLivingCardAsset(asset) && asset.manifest.birth.kind === "fusion";
   const livedAppearance = useMemo(() => {
     if (!isLivingCardAsset(asset)) return { events: 0, bonds: 0, discoveries: 0, care: "none" };
     const continuity = currentCreatureHistoryProjection(asset).continuity;
@@ -81,7 +82,7 @@ export const WildsCard = memo(function WildsCard({ asset, compact = false, condi
       <div className="wilds-card-foil" aria-hidden="true" />
       <header>
         <div><strong>{asset.manifest.name}</strong><span>{form.species}</span></div>
-        <div><b>STAGE {form.stage}</b><small>{form.cardNumber}</small></div>
+        <div>{fusionBorn ? <span aria-label="Hatched from a lineage egg" className="wilds-card-hatched-mark"><i /><i /></span> : null}<b>STAGE {form.stage}</b><small>{form.cardNumber}</small></div>
       </header>
       <div aria-label={`${asset.manifest.name} is alive on the card face${speaking ? " and speaking" : ""}`} className="wilds-card-art heartbound-card-art" dangerouslySetInnerHTML={{ __html: creatureSvg }} />
       {death ? <div className="wilds-card-death-mark"><span>Memorial</span><strong>Deceased</strong></div> : null}

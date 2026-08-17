@@ -62,14 +62,14 @@ The Three.js director release report audit passed with premium and audio require
 | Subject construction | Exact verified card identity plus primary objects for innate self, capture, history, conversations, and continuity |
 | Proof brain | Stable subject/head/Merkle coordinates; index explicitly non-authoritative; unknown namespaces byte-exact |
 | Factual memory | Every consequential remembered fact cites an admitted event object |
-| Twin intelligence | Direct v120 `subjects.twin.streamPerformance` over the exact live context head and expected subject digest; deterministic phrase templates removed from the live route and source |
+| Twin intelligence | Local v120 living-subject Twin over the exact admitted proof brain; bounded autobiographical response is available offline and remote performance is optional enrichment |
 | Kai grounding | Exact current `uPulse`, temporal root, lattice, gate, chakra, beat/step, day/week/month/Ark geometry, world position, condition, relationship, causal head, and recent experience supplied to each turn |
 | Dialogue admission | Model reply is not a world event; the route/server has no authority; the unchanged deterministic append targets the exact verified card proof head |
 | Continuity | Accepted conversation appends to the exact card and becomes available on its next proof-brain projection |
 | Autonomous life | Owner mandate is bounded and reverified; due events deterministic; multi-creature effects atomic; failures write zero including Kai |
 | Transfer | Subject identity and brain survive; former-owner authority and mandates are revoked immediately |
 
-The implementation guarantees a genuine model inference from the configured Receiz Twin for every accepted reply. It does not claim biological consciousness. A static/template reply is not accepted as a successful intelligence turn.
+The implementation guarantees a deterministic proof-grounded Twin observation for every valid accepted reply. It does not claim biological consciousness or require remote model inference for product correctness. Optional model output remains non-authoritative enrichment and never invents admitted experience.
 
 ## Card, Vault, save, and ownership evidence
 
@@ -86,13 +86,13 @@ The implementation guarantees a genuine model inference from the configured Rece
 ## Voice and embodiment evidence
 
 - Creature voice identity is deterministic from the exact asset/genome fingerprint.
-- The observer consumes native v120 `subjects.twin.streamPerformance` reply, audio, viseme, gaze, blink, breath, emotion, gesture, intent, and completion events.
-- The exact live context head, expected subject digest, owner, subject ID, and client message ID bind the performance request; voice identity is carried in the proof self model.
+- The observer uses the v120 local living-subject runtime over the exact admitted proof objects. Owner, subject ID, context digest, client message ID, and Kai moment bind the observation.
+- Proof signature plus exact birth timestamp establishes vocal anatomy; current Kai `uPulse` contributes only bounded performance variation.
 - The browser loads no neural model, ONNX runtime, or voice binary and needs no voice warm-up.
-- The client decodes only the typed v120 `audioB64u` primitive and applies a bounded proof-deterministic native Web Audio transform.
+- The client constructs the audible voice locally through deterministic glottal/noise excitation and vocal-tract formant filters. An early matching v120 `audioB64u` primitive may contribute only bounded duration/emphasis data; its waveform never replaces the proof voice.
 - Actual waveform analysis drives mouth openness; expression state drives eyes, ears, tail, aura, posture, and gesture.
-- Voice playback is non-authoritative and cannot gate, rewrite, reorder, or erase the exact-head conversation-memory append. No browser or generic synthesized substitute is used.
-- No voice provider environment variable, provider-session route, provider socket, browser neural dependency, warm-up, or local phrase-reply success rail remains.
+- Voice playback is non-authoritative and cannot gate, rewrite, reorder, or erase the exact-head conversation-memory append. No device-selected generic voice is used.
+- No voice provider environment variable, provider-session route, provider socket, browser neural dependency, warm-up, or player-visible enrichment failure remains.
 
 ## V7 care and PWA evidence
 

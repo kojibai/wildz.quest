@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Icons } from "@/components/icons";
 import {
   CREATURE_OBSERVER_ROUTE,
+  createObservedCreatureTurn,
+  proofGroundedCreatureReply,
   projectCreatureBrain
 } from "./creature-consciousness";
 import type { CreatureObserverMemoryTurn } from "./creature-history-types";
@@ -22,7 +24,7 @@ import {
 type ObserverResponse = {
   ok?: boolean;
   error?: string;
-  observer?: "receiz-twin";
+  observer?: "receiz-twin" | "receiz-twin-local";
   turn?: CreatureObserverMemoryTurn;
 };
 
@@ -69,13 +71,7 @@ function observerError(error: string | undefined) {
   if (error === "creature_observer_owner_mismatch") {
     return "This creature can answer only through its current owner's Receiz ID.";
   }
-  if (error === "creature_observer_reply_missing") return "The Twin returned without a voice. Try asking in a different way.";
-  if (error === "creature_observer_voice_unavailable") {
-    return "This creature's unique Receiz voice was unavailable. No substitute voice was used—try once more.";
-  }
-  if (error === "creature_observer_intelligence_unavailable" || error === "creature_observer_timeout") {
-    return "This creature's live intelligence could not answer yet. Nothing canned was substituted and no memory was changed—try once more.";
-  }
+  if (error === "creature_observer_reply_missing") return "This creature could not complete that thought. Nothing was added to its memory.";
   if (error === "creature_observer_request_invalid" || error === "creature_observer_card_invalid") {
     return "This card brain did not pass its proof check, so no memory was appended.";
   }
@@ -84,6 +80,7 @@ function observerError(error: string | undefined) {
 
 export function CreatureConsciousnessPanel({
   asset,
+  ownerReceizId,
   kaiMoment,
   playerPosition,
   cardAdmission = null,
@@ -92,6 +89,7 @@ export function CreatureConsciousnessPanel({
   onSpeakingChange
 }: {
   asset: PortableCardAsset;
+  ownerReceizId: string;
   kaiMoment: KaiKlokMoment;
   playerPosition: Readonly<{ x: number; z: number }>;
   cardAdmission?: WildzVaultCardMembershipProof | null;
@@ -145,6 +143,36 @@ export function CreatureConsciousnessPanel({
     if (mounted.current) onSpeakingChange?.(false);
   };
 
+  const completeFromLocalProofTwin = async (message: string, run: number, voiceStream: ReturnType<typeof beginCreatureVoiceStream> | null) => {
+    const reply = proofGroundedCreatureReply(brain, message, kaiMoment.uPulse);
+    const chunks = reply.match(/\S+\s*/g) ?? [reply];
+    let streamed = "";
+    for (let index = 0; index < chunks.length; index += 3) {
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      if (!mounted.current || run !== voiceRun.current) throw new Error("creature_observer_cancelled");
+      const delta = chunks.slice(index, index + 3).join("");
+      streamed += delta;
+      setStreamingExchange((current) => current ? { ...current, reply: streamed } : current);
+      voiceStream?.pushText(delta);
+    }
+    const latestProofTime = Math.max(Date.parse(asset.proof.sealedAt), Date.parse(asset.manifest.capturedAt));
+    const turn = createObservedCreatureTurn({
+      brain,
+      ownerActorId: ownerReceizId,
+      message,
+      reply,
+      observedAt: new Date(Math.max(Date.now(), latestProofTime + 1)).toISOString(),
+      clientUserMessageId: clientMessageId(),
+      observer: "receiz-twin-local"
+    });
+    voiceStream?.finish();
+    setEphemeralTurn(turn);
+    onObserved(turn);
+    setDraft("");
+    setStreamingExchange(null);
+    finishSpeaking();
+  };
+
   const submit = async (message = draft) => {
     const normalized = message.replace(/\s+/g, " ").trim();
     if (!normalized || loading || disabled) return;
@@ -158,13 +186,20 @@ export function CreatureConsciousnessPanel({
     const controller = new AbortController();
     voicePlayback.current = controller;
     const voiceStream = voiceEnabled
-      ? beginCreatureVoiceStream(asset.id, brain.performance.neuralInterface, controller.signal, () => {
+      ? beginCreatureVoiceStream(asset.id, brain.performance.neuralInterface, {
+          uPulse: kaiMoment.uPulse,
+          birthMomentMs: Date.parse(asset.manifest.capturedAt)
+        }, controller.signal, () => {
           if (mounted.current && run === voiceRun.current) finishSpeaking();
         }, () => {
           if (mounted.current && run === voiceRun.current) onSpeakingChange?.(true);
         })
       : null;
     try {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        await completeFromLocalProofTwin(normalized, run, voiceStream);
+        return;
+      }
       const response = await fetch(CREATURE_OBSERVER_ROUTE, {
         method: "POST",
         credentials: "same-origin",
@@ -187,6 +222,7 @@ export function CreatureConsciousnessPanel({
         throw new Error(failure?.error || "creature_observer_unavailable");
       }
       let result: ObserverResponse | null = null;
+      let committed = false;
       for await (const event of observerEvents(response)) {
         if (event.type === "reply_delta" && event.delta) {
           setStreamingExchange((current) => current ? { ...current, reply: current.reply + event.delta } : current);
@@ -196,27 +232,54 @@ export function CreatureConsciousnessPanel({
           setStreamingExchange((current) => current ? { ...current, reply: text } : current);
           voiceStream?.pushText(text);
         } else if (event.type === "audio_chunk") voiceStream?.pushAudio(event);
-        else if (event.type === "reply_done") result = event;
+        else if (event.type === "reply_done") {
+          result = event;
+          if (event.ok === true && event.turn) {
+            // Proof memory commits at the reply boundary. It never waits for
+            // stream closure or optional performance enrichment.
+            voiceStream?.finish();
+            setEphemeralTurn(event.turn);
+            onObserved(event.turn);
+            setDraft("");
+            setStreamingExchange(null);
+            committed = true;
+          }
+        }
         else if (event.type === "error") throw new Error(event.error || "creature_observer_unavailable");
       }
       if (result?.ok !== true || !result.turn) throw new Error(result?.error || "creature_observer_reply_missing");
-      voiceStream?.finish();
-      setEphemeralTurn(result.turn);
-      onObserved(result.turn);
-      setDraft("");
-      setStreamingExchange(null);
+      if (!committed) {
+        voiceStream?.finish();
+        setEphemeralTurn(result.turn);
+        onObserved(result.turn);
+        setDraft("");
+        setStreamingExchange(null);
+      }
       if (voiceStream) void voiceStream.completed.then((played) => {
-        if (!played && result?.observer === "receiz-twin" && mounted.current && run === voiceRun.current && !controller.signal.aborted) {
-          setError("This creature's unique neural voice could not play on this device. Its genuine response was still remembered; no substitute voice was used.");
-          finishSpeaking();
-        }
+        if (!played && mounted.current && run === voiceRun.current && !controller.signal.aborted) finishSpeaking();
       });
       else finishSpeaking();
     } catch (cause) {
-      voiceStream?.abort();
-      finishSpeaking();
-      setStreamingExchange(null);
-      setError(observerError(cause instanceof Error ? cause.message : undefined));
+      const code = cause instanceof Error ? cause.message : "creature_observer_unavailable";
+      const proofTwinCanRecover = code === "creature_observer_unavailable"
+        || code === "creature_observer_intelligence_unavailable"
+        || code === "creature_observer_timeout"
+        || cause instanceof TypeError;
+      if (proofTwinCanRecover && mounted.current && run === voiceRun.current) {
+        try {
+          await completeFromLocalProofTwin(normalized, run, voiceStream);
+        } catch {
+          voiceStream?.abort();
+          finishSpeaking();
+          setStreamingExchange(null);
+          setError(observerError(code));
+        }
+      } else {
+        voiceStream?.abort();
+        finishSpeaking();
+        setStreamingExchange(null);
+        setError(observerError(code));
+      }
     } finally {
       if (mounted.current) setLoading(false);
     }
@@ -307,8 +370,8 @@ export function CreatureConsciousnessPanel({
       {error ? <p className="wilds-creature-observer-error" role="alert">{error}</p> : null}
       <footer>
         <span>Brain {brain.contextDigest.slice(7, 18)}</span>
-        <span>{transcript.length ? "Receiz v120 Twin · genuine neural performance" : "Receiz v120 Twin · ready"}</span>
-        <span>Unique Receiz character voice · zero client warm-up</span>
+        <span>Receiz v120 Twin · proof-bound intelligence</span>
+        <span>Unique proof voice · ready locally</span>
       </footer>
     </section>
   );

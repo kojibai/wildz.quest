@@ -38,7 +38,9 @@ test("Wildz v7 official release doctrine names the exact Receiz v120 toolchain",
   assert.match(packageSourceDocs, /1c779ee5ade4b877ae9c6922ab02ba96fffffeb7580f1cf105a59fbb4424f351/i);
   assert.match(packageSourceDocs, /first admission only, then append forever/i);
   assert.match(packageSourceDocs, /v120[\s\S]*(?:living subject|proof brain|Merkle|bearer)/i);
-  assert.match(release, /subjects\.twin\.streamPerformance/);
+  assert.match(release, /local v120 living-subject Twin/);
+  assert.match(release, /optional, invisible performance enrichment/);
+  assert.match(release, /never replace or delay/);
   assert.match(release, /proof object remains authority/i);
 });
 
