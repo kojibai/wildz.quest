@@ -154,9 +154,9 @@ V121 exposes direct bearer transfer preview, instrument issue, inspection, claim
 
 ## Release status
 
-`v7.0.0` is the Living Responsibility release. It keeps the proof-locked v6.1 reply, Vault, roaming, market, world, and exact-head memory behavior intact while adding an optional real-care mandate: active roaming creates deterministic hunger, attention, wellness, sickness, and mortality; play-earned trail beans fund care; proof-chained experiences alter the card face; and permissioned installed-PWA alerts are scheduled entirely outside gameplay. Creature speech now has an integrity-pinned offline neural/WASM acoustic renderer conditioned by proof and Kai moment; background preparation and its dedicated worker never gate play, response text, or memory. Apply update keeps `skipWaiting()` alive through the service-worker event. Installed PWAs advance to `v7.0.0-r2`.
+`v8.0.0` is the Proof-Native Living World release. An admitted Identity Seal or Vault restores its exact Receiz identity, complete Wildz continuity, selected creature, and eligible card collection, then gameplay begins from that local Proof Object truth without per-card re-verification or duplicate publication work. Single-card import stays exact, profiles publish independently of whether their panel is open, large Profile Vaults retain a compact card viewer and QR-backed cards, and the world gains genome-derived creature anatomy, deeper terrain, water, lighting, culling, instancing, and quality-aware LOD. The server and database remain transport/projection, never authority. Installed PWAs advance to `v8.0.0-r1`.
 
-Read the complete [v7.0.0 release notes](docs/release/v7.0.0.md), [v6.1.0 voice baseline](docs/release/v6.1.0.md), [Receiz v120 creature voice architecture](docs/RECEIZ_V120_CREATURE_VOICE.md), [Living Creature Continuity contract](docs/WILDZ_LIVING_CREATURE_CONTINUITY_V120.md), [verification record](docs/release/verification.md), and [changelog](CHANGELOG.md).
+Read the complete [v8.0.0 release notes](docs/release/v8.0.0.md), [v7.0.0 care baseline](docs/release/v7.0.0.md), [Receiz v120 creature voice architecture](docs/RECEIZ_V120_CREATURE_VOICE.md), [Living Creature Continuity contract](docs/WILDZ_LIVING_CREATURE_CONTINUITY_V120.md), [verification record](docs/release/verification.md), and [changelog](CHANGELOG.md).
 
 ## Build your own Receiz-native product
 

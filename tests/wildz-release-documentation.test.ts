@@ -22,7 +22,7 @@ test("Wildz current release doctrine names the exact Receiz v121 toolchain", () 
     read("ai-skills/wildz-release-skill/SKILL.md")
   ].join("\n");
 
-  assert.equal(pkg.version, "7.0.0");
+  assert.equal(pkg.version, "8.0.0");
   assert.equal(pkg.dependencies?.["@receiz/sdk"], "121.0.0");
   assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "121.0.0");
   assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "121.0.0");
@@ -42,6 +42,36 @@ test("Wildz current release doctrine names the exact Receiz v121 toolchain", () 
   assert.match(release, /optional performance enrichment/i);
   assert.match(release, /never replace or delay/);
   assert.match(release, /proof object remains authority/i);
+});
+
+test("v8 documents the complete Proof-Native Living World delta", () => {
+  const release = read("docs/release/v8.0.0.md");
+  const changelog = read("CHANGELOG.md");
+
+  assert.match(release, /^# Wildz v8\.0\.0 — Proof-Native Living World$/m);
+  assert.match(release, /Proof Object is authority/i);
+  assert.match(release, /server.*(?:transport|projection)/i);
+  assert.match(release, /(?:uploading one creature card|single-card import)/i);
+  assert.match(release, /complete identity and game-state restoration/i);
+  assert.match(release, /immediate gameplay after admission/i);
+  assert.match(release, /genome-derived anatomy/i);
+  for (const commit of [
+    "da3fb96",
+    "2d21be2",
+    "4f490c1",
+    "0b59f6a",
+    "a6630a6",
+    "e95ecfb",
+    "95e2958",
+    "5b42131",
+    "c2351a0",
+    "989829e",
+    "be6ab53"
+  ]) {
+    assert.match(release, new RegExp("\\| `" + commit + "` \\|"));
+  }
+  assert.match(changelog, /^## \[8\.0\.0\] - 2026-08-20$/m);
+  assert.match(changelog, /complete v8\.0\.0 release notes/i);
 });
 
 test("release documentation states the real offline and remote authority boundaries", () => {

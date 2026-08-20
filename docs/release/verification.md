@@ -1,6 +1,6 @@
-# Wildz v7.0.0 release verification
+# Wildz v8.0.0 release verification
 
-Date: 2026-08-19. Target application version: `7.0.0`. Receiz integration target: `121.0.0`.
+Date: 2026-08-20. Target application version: `8.0.0`. Receiz integration target: `121.0.0`.
 
 This record distinguishes repository evidence from external production evidence. A passing local gate proves the source, deterministic contracts, compilation, and configured local browser paths observed in the run. It does not manufacture credentials, remote authority, deployment, payment settlement, or literal creature sentience.
 
@@ -20,17 +20,17 @@ V121 is a non-breaking, source-first coordination release for Wildz. The local s
 
 ## Release gate
 
-The v121 source gate passed on 2026-08-19:
+The v8/v121 source gate passed on 2026-08-20:
 
 | Gate | Observed result |
 |---|---|
 | Receiz architecture lock | Pass; 415 runtime files checked |
-| Node law/regression suite | Pass; 1,295 tests across 122 suites, zero failures |
+| Node law/regression suite | Pass; 1,314 tests across 122 suites, zero failures |
 | Typecheck | Pass |
 | Official v121 repository checker | Pass; `receiz.integration.check.v1`, exact release/registry/matrix/authority identity |
 | MCP/SDK conformance | Pass; 15/15 checks, zero network calls, zero database calls |
 | ESLint | Pass |
-| Secret scan | Pass; 898 text files checked without printing values |
+| Secret scan | Pass; 901 text files checked without printing values |
 | Optimized Next.js build | Pass; 19 static pages generated and all application routes compiled |
 | Receiz doctor | Pass; SDK/MCP/AI skills requested and installed at exact compatible `121.0.0` |
 
@@ -54,6 +54,8 @@ The optimized build was served locally in production mode and checked in the in-
 The browser session was intentionally unauthenticated/offline and did not submit a conversation or mutate proof memory. Live Receiz neural audio and first-text-to-first-audio percentiles therefore remain an explicit strict-live gate, not a fabricated pass.
 
 V7 changes are isolated to deterministic proof-care commands, a Vault care panel, proof-lived card styling, a separate notification-schedule effect, and service-worker update/notification events. Source contracts prove that settlement runs only at mount/five-minute/focus/visibility boundaries and that notification scheduling is advisory. A final authenticated installed-PWA/device run remains required before claiming observed OS delivery timing; source qualification does not fabricate browser background execution.
+
+V8 changes are additive to that baseline. They cover identity/game-state restoration, exact single-card import, profile publication/gallery behavior, admitted Proof Object reuse, render/state hot-path work, and procedural world/creature fidelity. The application release coordinate advances independently of the exact Receiz `121.0.0` package identity.
 
 The Three.js director release report audit passed with premium and audio requirements against the retained flagship evidence. The current credential probe returned literal blank values for `TRIPO_API_KEY`, `GEMINI_API_KEY`, and `ELEVENLABS_API_KEY`; these are recorded as blank/inconclusive, not as present or missing. No external asset generation was attempted because this correction changes the Receiz voice adapter and repository doctrine, the user explicitly required no external dependency, and existing visual assets were not replaced.
 
@@ -107,6 +109,44 @@ The implementation guarantees a deterministic proof-grounded Twin observation fo
 - Apply update now extends `skipWaiting()` with `event.waitUntil()` and retains the existing controller-change state-preservation boundary.
 - Lived card appearance is a bounded projection of admitted experience, relationship, discovery, and care events and introduces no frame loop or dependency.
 
+## V8 Proof-Native Living World evidence
+
+### Identity and restoration
+
+- Upload preparation reads bounded bytes once, inspects once, and passes one prepared admission through the shell and selected restore surface.
+- An Identity Seal activates only its verified embedded identity. A Wildz continuity seal restores that identity's saved player projection instead of merging stale data from the previously mounted account.
+- A matching Identity Seal may authenticate an already-loaded proof Vault without dropping its current admitted cards.
+- Gameplay mounts from proof-native identity continuity without waiting for background publication or treating a server session as the source of identity truth.
+- Protected identity authority is not serialized into public profile projections or lightweight runtime checkpoints.
+
+### Card and Vault scope
+
+- A single-card upload imports and selects that exact admitted card without importing additional inventory hidden in carried player continuity.
+- Card-only Vault and identity-bearing complete-Vault uploads retain their separate verified merge and activation rules.
+- Exact duplicates are idempotent, causal admitted descendants may advance, structural forks fail closed, and the 97/98-card collection boundary remains covered.
+- Individual card export and complete-Vault/Identity export retain their distinct scopes; primary PNG asset IDs are preferred when cross-platform asset lists are built.
+
+### Profile and publication
+
+- A shared readiness projection requires identity, character continuity, and proof-session connectivity. It is evaluated by the application shell, not by whether Profile is open.
+- Profile publication publishes every required verified card before a non-empty owner projection and cancels obsolete work before starting the next card.
+- The owner profile paints admitted local Vault truth immediately. Remote publication status describes a non-authoritative projection and cannot invalidate local authentication or custody.
+- The complete Profile card scene uses a constrained viewer for long galleries and supplies generated QR PNG data to card backs.
+
+### Admission and latency boundary
+
+- Exact card objects admitted in the current runtime receive opaque reference-based admission. A caller-shaped copy with the same fields does not inherit that admission.
+- Background card publication reuses admitted Proof Objects without reloading keyfiles, reopening IndexedDB per card, or repeating client verification.
+- Bytes crossing a process or device boundary still require exact-byte verification. Same-runtime admission reuse is not transferable authority.
+- The shell passes one derived Vault admission into gameplay; post-login profile publication has one readiness-driven owner; concurrent card publishers share one registration for an exact revision.
+- Region lookup caching, circular frame buffering, direct D-pad paint, stable save scheduling, production diagnostic removal, scene suspension, distance culling, merged geometry, instancing, and LOD remain outside proof semantics.
+
+### World and embodiment
+
+- Atlas/world terrain uses shared topography, terrain-following routes, rivers/watercourses, organic distributions, ACES tone mapping, and quality-aware detail.
+- Genome-derived anatomy carries body, appendage, and surface traits from exact card appearance into live actors and Hearttree.
+- Visual density scales through the quality governor; distant or covered work is culled or suspended rather than changing deterministic gameplay results.
+
 ## Compatibility
 
 Existing v5/v119 cards and Vaults do not need to be redownloaded to open in v6. Historical sealed bytes remain eligible for v121 verification and unknown namespaces remain byte-exact. Historical admissions, actors, capabilities, plans, confirmations, stores, and receipts cannot authorize current v121 operations. A fresh export is needed only to carry events appended after the prior download.
@@ -121,4 +161,4 @@ The earlier production-shaped 98-card artifact result remains historical compati
 - Representative-device certification, external deployment, tag, push, GitHub release publication, and store distribution are distinct actions.
 - A queued runtime job or proposal is not a global commitment. `receiz.com/global/v1` is a named coordination domain, not universal consensus.
 
-Version `7.0.0` is qualified for a local source commit only after the final release gate passes. Tagging and external publication must preserve that same commit and require their own observed authenticated voice, installed-PWA notification, and remote market evidence.
+Version `8.0.0` is qualified for a local source commit only after the final release gate passes. Tagging and external publication must preserve that same commit and require their own observed authenticated voice, installed-PWA notification, remote profile/public-card publication, and remote market evidence.

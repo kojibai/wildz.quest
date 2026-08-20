@@ -4,15 +4,55 @@ All notable changes to Wildz are documented here. Wildz uses semantic versioning
 
 ## [Unreleased]
 
+## [8.0.0] - 2026-08-20
+
+The Proof-Native Living World release: admitted identity, complete game continuity, the Vault, public profiles, and immediate gameplay now operate as one coherent artifact-first system, while the world gains materially richer terrain and creature embodiment.
+
+### Added
+
+- Genome-derived creature anatomy across live actors and Hearttree presentation, carrying body, appendage, and surface traits from the exact card into the world.
+- Richer procedural world and atlas layers with terrain-following routes, rivers and watercourses, organic landforms, natural distributions, ACES tone mapping, tuned fog and light, quality-aware ecology, and more readable materials.
+- Opaque same-runtime admission for exact card Proof Object references so downstream profile and card publication can reuse already-admitted authority without reopening or re-verifying every card.
+- A shared profile-publication readiness contract for identity, character continuity, and proof-session connectivity.
+
 ### Changed
 
-- Upgraded the coordinated public Receiz SDK, MCP server, and AI-skills packages to exact `121.0.0`, with their published SHA-512 integrity values pinned in `pnpm-lock.yaml`.
-- Advanced the application contract, generated evidence, repository checker, doctor, tests, documentation, and Wildz operating skills to the v121 registry and 30-operation matrix without changing gameplay or application runtime logic.
-- Adopted v121 source-first continuity: sealed proof remains authority, global publication is an idempotent append, verified hydration is durable cold truth, and weaker projections cannot erase stronger known fields.
+- Identity Seal and identity-bearing Vault restoration now preserve the verified embedded Receiz identity and its exact saved Wildz player continuity instead of allowing stale mounted-account data to replace it.
+- Upload preparation reads bytes and inspects the artifact once, then carries that prepared admission through the restore surface.
+- A single-card upload imports and selects that card only; it no longer pulls inventory hidden inside carried player continuity. Complete-Vault restore remains a separately verified collection operation.
+- Profile continuity refreshes from admitted card truth without rerendering the gameplay shell, and public profile/card publication runs only after its prerequisites exist.
+- The application and installed-PWA coordinates advance to `8.0.0` and `v8.0.0-r1` while the Receiz SDK, MCP server, and AI-skills packages remain exact public `121.0.0` with published SHA-512 integrity pinned in `pnpm-lock.yaml`.
+- V121 source-first continuity remains the integration law: local sealed proof is admitted first, global publication is an idempotent append, verified hydration is durable cold truth, and weaker projections cannot erase stronger admitted fields.
+
+### Fixed
+
+- Restored profile-card QR PNG rendering on the back of the complete card scene.
+- Constrained the selected profile-card viewer so long galleries scroll behind a compact viewer instead of stretching it to the full collection height.
+- Preserved all current Vault cards when a matching Identity Seal authenticates an already-loaded proof Vault.
+- Prevented restored identity continuity from flashing briefly and falling back to the previously mounted account.
+- Kept local and remote profile status aligned without requiring Profile to be open before publication can begin.
+- Removed duplicate post-login publication work and stopped stale upload bookkeeping from preventing verified card publication.
+- Prevented weaker server publication responses from replacing stronger admitted local Proof Objects.
+
+### Performance
+
+- Reused one prepared upload inspection, one admitted Vault result, and the exact admitted card objects across restore and publication paths.
+- Removed per-card keyfile/IndexedDB loading and repeated client verification from background card publication after admission.
+- Cached nearby-region creature projections, moved D-pad knob paint outside React state, replaced frame-window slicing with a circular buffer, stabilized save scheduling, and disabled production diagnostics.
+- Suspended the world render loop while covered, culled distant actors, merged route geometry, and expanded quality-aware instancing and LOD so visual density scales without entering authority or gameplay logic.
+
+### Integrity
+
+- The enclosing admitted Proof Object is authority. Server routes, cookies, databases, caches, publication responses, MCP output, AI output, and UI state remain transport, index, projection, or explanation only.
+- Card publication verifies and transports a public projection through the configured store; server identity is not substituted for Proof Object authority.
+- Invalid artifacts still fail closed before state changes, and publication failure cannot invalidate admitted local identity, Vault custody, or gameplay.
 
 ### Preserved
 
-- Existing v120 HTTP routes, proof objects, idempotency coordinates, bearer receipt schema, living-subject behavior, gameplay, UI, storage, and proof-flow logic remain unchanged.
+- Deterministic care, mortality, exact-head conversation memory, neural performance, roaming, capture, market settlement, world history, card export, complete-Vault export, and append-only proof laws from v7 remain intact.
+- Existing v120 routes, proof objects, idempotency coordinates, bearer receipt schema, living-subject behavior, storage, and verified legacy reads remain compatible under the v121 integration.
+
+See the [complete v8.0.0 release notes](docs/release/v8.0.0.md) and [verification record](docs/release/verification.md).
 
 ## [7.0.0] - 2026-08-17
 
@@ -236,3 +276,4 @@ See the [complete v3.0.0 release notes](docs/release/v3.0.0.md) and [verificatio
 [6.0.0]: https://github.com/kojibai/wildz.quest/releases/tag/v6.0.0
 [6.1.0]: https://github.com/kojibai/wildz.quest/releases/tag/v6.1.0
 [7.0.0]: https://github.com/kojibai/wildz.quest/releases/tag/v7.0.0
+[8.0.0]: https://github.com/kojibai/wildz.quest/releases/tag/v8.0.0
