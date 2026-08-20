@@ -44,7 +44,11 @@ import {
   appendWildzIdentityBindingTrailer,
   createWildzIdentityBinding
 } from "./wildz-identity-binding";
-import { createWildzArtifactCodec, type WildzArtifactCodec } from "./wildz-artifact-codec";
+import {
+  createWildzArtifactCodec,
+  type WildzArtifactCodec,
+  type WildzArtifactInspection
+} from "./wildz-artifact-codec";
 import {
   createWildzAutomaticUsername,
   createWildzIdentityRepository,
@@ -367,9 +371,23 @@ export async function claimWildzProfileIdentity(
   });
 }
 
-export async function inspectWildzRestore(file: File, codec: WildzArtifactCodec = defaultArtifactCodec) {
+export type WildzPreparedRestore = Readonly<{
+  file: File;
+  bytes: Uint8Array;
+  inspection: WildzArtifactInspection;
+}>;
+
+export async function prepareWildzRestore(
+  file: File,
+  codec: WildzArtifactCodec = defaultArtifactCodec
+): Promise<WildzPreparedRestore> {
   const bytes = new Uint8Array(await file.arrayBuffer());
-  return codec.inspect({ bytes, mimeType: file.type, name: file.name });
+  const inspection = await codec.inspect({ bytes, mimeType: file.type, name: file.name });
+  return { file, bytes, inspection };
+}
+
+export async function inspectWildzRestore(file: File, codec: WildzArtifactCodec = defaultArtifactCodec) {
+  return (await prepareWildzRestore(file, codec)).inspection;
 }
 
 export async function bootstrapWildzContinuity(
@@ -455,18 +473,16 @@ export async function restoreWildzFileForSurface(
   confirmCardOnly: WildzCardOnlyConfirmation,
   current: WildzContinuitySnapshot,
   currentPlayState: PlayState | null = current.playState,
-  intent: WildzRestoreIntent
+  intent: WildzRestoreIntent,
+  prepared?: WildzPreparedRestore
 ): Promise<WildzUiArtifactRestore> {
-  const bytes = new Uint8Array(await file.arrayBuffer());
+  const admitted = prepared ?? await prepareWildzRestore(file);
+  if (admitted.file !== file) throw new Error("wildz_restore_prepared_file_mismatch");
+  const { bytes, inspection } = admitted;
   return enqueueContinuityOperation(async () => {
     if (current.restoreEpoch !== continuityRestoreEpoch) throw new Error("wildz_restore_cursor_stale");
     const active = await defaultIdentityRepository.active();
     if (!sameOwner(active, current.session)) throw new Error("wildz_restore_cursor_stale");
-    const inspection = await defaultArtifactCodec.inspect({
-      bytes,
-      mimeType: file.type,
-      name: file.name
-    });
     if (inspection.kind === "invalid" || inspection.kind === "unsupported") throw new Error(inspection.code);
     if (intent === "activate-identity" && inspection.kind !== "identity-seal") throw new Error("wildz_identity_seal_required");
     if (intent === "merge-vault" && !isWildzVaultBearingInspection(inspection)) throw new Error("wildz_vault_required");
@@ -475,6 +491,7 @@ export async function restoreWildzFileForSurface(
       bytes,
       mimeType: file.type,
       name: file.name,
+      inspection,
       codec: defaultArtifactCodec,
       repository: defaultIdentityRepository,
       database: defaultContinuityDatabase,

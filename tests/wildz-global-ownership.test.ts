@@ -127,7 +127,7 @@ test("owned Vault uploads merge directly while foreign bearer artifacts claim fi
 
   assert.ok(claimStart >= 0 && explicitClaimStart > claimStart);
   assert.match(claimPath, /proofSessionConnected/);
-  assert.match(claimPath, /inspectWildzRestore\(file\)/);
+  assert.match(claimPath, /prepareWildzRestore\(file\)/);
   assert.match(claimPath, /wildzVaultUploadDisposition\(inspection, current\.session\.actorId\)/);
   assert.match(claimPath, /const restoreVerifiedBaseline = async/);
   assert.match(claimPath, /const artifactAssetIds = inspection\.assets\.map/);
@@ -141,7 +141,7 @@ test("owned Vault uploads merge directly while foreign bearer artifacts claim fi
   assert.match(claimPath, /downloadBlob/);
   assert.match(claimPath, /restoreArtifact\(\s*claimedFile,\s*"card-vault",\s*true,[\s\S]*"merge-vault"/);
   assert.match(claimPath, /restoreArtifact\(\s*file,\s*"card-vault",\s*true,/);
-  assert.ok(claimPath.indexOf("inspectWildzRestore(file)") < claimPath.indexOf('fetch("/api/market/claims"'));
+  assert.ok(claimPath.indexOf("prepareWildzRestore(file)") < claimPath.indexOf('fetch("/api/market/claims"'));
   assert.ok(claimPath.indexOf('disposition === "merge-owned"') < claimPath.indexOf('fetch("/api/market/claims"'));
   assert.ok(claimPath.indexOf("const baseline = await restoreVerifiedBaseline()") < claimPath.indexOf('fetch("/api/market/claims"'));
   assert.match(claimPath, /void reconcileBearerProjection\(\)\.catch/);

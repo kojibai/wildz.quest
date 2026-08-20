@@ -452,6 +452,43 @@ test("the upload adapter reads a File exactly once", async () => {
   assert.equal(reads, 1);
 });
 
+test("an admitted upload commits without inspecting the Identity artifact again", async () => {
+  const identity = await createReceizIdentityKeyFile({
+    owner: { uid: "codec_single_admission_uid", username: "codec_single_admission", displayName: "Single Admission" },
+    portableState: null
+  });
+  const bytes = appendReceizIdentityArtifactTrailerToPng(BASE_PNG, identity.keyFile);
+  const inspection = await codec().inspect({
+    bytes,
+    mimeType: "image/png",
+    name: "single-admission.receized.png"
+  });
+  assert.equal(inspection.kind, "identity-seal");
+
+  let repeatedInspections = 0;
+  const database = createMemoryWildzContinuityDatabase();
+  const repository = createWildzIdentityRepository({ database });
+  const outcome = await restoreWildzArtifactForSurface({
+    surface: "genesis",
+    bytes,
+    mimeType: "image/png",
+    name: "single-admission.receized.png",
+    inspection,
+    codec: {
+      async inspect() {
+        repeatedInspections += 1;
+        throw new Error("admitted_artifact_reinspected");
+      }
+    },
+    repository,
+    database,
+    confirmCardOnly: true
+  } as Parameters<typeof restoreWildzArtifactForSurface>[0] & { inspection: typeof inspection });
+
+  assert.equal(outcome.session.username, "codec_single_admission");
+  assert.equal(repeatedInspections, 0);
+});
+
 test("portable traversal enforces node, depth, and restored-file bounds", () => {
   let deep: unknown = { value: "leaf" };
   for (let index = 0; index < 13; index += 1) deep = { child: deep };

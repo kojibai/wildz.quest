@@ -30,11 +30,18 @@ test("explicit uploads adopt ownership in both directions", () => {
   assert.match(shell, /const activateIdentitySeal/);
   assert.match(shell, /activateIdentitySeal[\s\S]*connectWildzProofSession/);
   assert.match(shell, /activateIdentitySeal[\s\S]*wildzRemoteSessionMatchesIdentity/);
+  const activation = shell.slice(
+    shell.indexOf("const activateIdentitySeal"),
+    shell.indexOf("const claimAndRestoreVaultArtifact")
+  );
+  assert.match(activation, /setOverlay\(\{ kind: "profile"/);
+  assert.match(activation, /void reconcileIdentityProjection\(\)\.catch/);
+  assert.ok(activation.indexOf('setOverlay({ kind: "profile"') < activation.indexOf("void reconcileIdentityProjection()"));
   assert.match(shell, /onAuthenticateIdentitySeal=\{activateIdentitySeal\}/);
   assert.match(shell, /const claimAndRestoreVaultArtifact/);
   assert.match(shell, /onRestoreArtifact=\{claimAndRestoreVaultArtifact\}/);
   assert.match(shell, /onAddVault=\{async \(file\) => \{[\s\S]*claimAndRestoreVaultArtifact\(file/);
-  assert.match(shell, /claimAndRestoreVaultArtifact[\s\S]*inspectWildzRestore\(file\)[\s\S]*\/api\/market\/claims[\s\S]*restoreArtifact\(\s*claimedFile/);
+  assert.match(shell, /claimAndRestoreVaultArtifact[\s\S]*prepareWildzRestore\(file\)[\s\S]*\/api\/market\/claims[\s\S]*restoreArtifact\(\s*claimedFile/);
   assert.match(shell, /playerId:\s*current\.session\.username \?\? current\.session\.actorId/);
 });
 

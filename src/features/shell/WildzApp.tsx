@@ -23,7 +23,7 @@ import {
   downloadWildzIdentityPlayerCard,
   downloadWildzIdentityOwnedCard,
   downloadWildzIdentityPlayerVault,
-  inspectWildzRestore,
+  prepareWildzRestore,
   restoreWildzFileForSurface,
   resumePendingWildzVault,
   prepareWildzIdentityOwnedCard,
@@ -31,6 +31,7 @@ import {
   saveWildzContinuityPlayState,
   type WildzContinuitySnapshot,
   type WildzRestoreIntent,
+  type WildzPreparedRestore,
   type WildzUiArtifactRestore
 } from "@/lib/receiz/wildz-identity-adapter";
 import { shouldClearWildzResumeAfterError } from "@/lib/receiz/wildz-resume-errors";
@@ -534,7 +535,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     surface: "genesis" | "card-vault",
     confirmCardOnly: WildzCardOnlyConfirmation,
     currentPlayState?: PlayState,
-    intent: WildzRestoreIntent = surface === "genesis" ? "activate-identity" : "merge-vault"
+    intent: WildzRestoreIntent = surface === "genesis" ? "activate-identity" : "merge-vault",
+    prepared?: WildzPreparedRestore
   ): Promise<WildzUiArtifactRestore> => {
     const current = continuityRef.current;
     if (!current) throw new Error("wildz_restore_identity_missing");
@@ -544,7 +546,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       confirmCardOnly,
       current,
       currentPlayState ?? current.playState,
-      intent
+      intent,
+      prepared
     );
     const next = commitWildzArtifactContinuity(outcome);
     clearWildzRuntimeCheckpoint(window.localStorage, {
@@ -580,24 +583,31 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       throw new Error("wildz_identity_activation_failed");
     }
 
-    const restoredAdmission = deriveWildzVaultCardAdmission({
-      cards: outcome.playState.inventory,
-      playerHandle: outcome.session.actorId
-    });
-    try {
-      const remote = await connectWildzProofSession(outcome.session, { vaultAdmission: restoredAdmission });
-      if (wildzRemoteSessionMatchesIdentity(outcome.session, remote)) {
-        const aligned = await alignWildzContinuityWithProofSession(restored, remote);
-        acceptSnapshot(aligned);
-        setProofSessionConnected(true);
-      } else {
-        setProofSessionConnected(false);
-      }
-    } catch {
-      // The verified Seal still activates local authority; the connection effect retries.
-      setProofSessionConnected(false);
-    }
     setOverlay({ kind: "profile", username: `@${outcome.session.username ?? outcome.session.actorId}` });
+    const identityStillActive = () => continuityRef.current?.session.keyId === outcome.session.keyId
+      && continuityRef.current.session.actorId === outcome.session.actorId;
+    const reconcileIdentityProjection = async () => {
+      const restoredAdmission = deriveWildzVaultCardAdmission({
+        cards: outcome.playState.inventory,
+        playerHandle: outcome.session.actorId
+      });
+      try {
+        const remote = await connectWildzProofSession(outcome.session, { vaultAdmission: restoredAdmission });
+        if (!identityStillActive()) return;
+        if (wildzRemoteSessionMatchesIdentity(outcome.session, remote)) {
+          const aligned = await alignWildzContinuityWithProofSession(restored, remote);
+          if (!identityStillActive()) return;
+          acceptSnapshot(aligned);
+          setProofSessionConnected(true);
+        } else {
+          setProofSessionConnected(false);
+        }
+      } catch {
+        // The verified Seal still activates local authority; the connection effect retries.
+        if (identityStillActive()) setProofSessionConnected(false);
+      }
+    };
+    void reconcileIdentityProjection().catch(() => undefined);
   }, [acceptSnapshot, restoreArtifact]);
 
   const claimAndRestoreVaultArtifact = useCallback(async (
@@ -605,7 +615,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     confirmCardOnly: WildzCardOnlyConfirmation,
     currentPlayState?: PlayState
   ): Promise<WildzUiArtifactRestore> => {
-    const inspection = await inspectWildzRestore(file);
+    const prepared = await prepareWildzRestore(file);
+    const inspection = prepared.inspection;
     if (inspection.kind === "invalid"
       || inspection.kind === "unsupported"
       || inspection.kind === "retirement-quarantine") throw new Error(inspection.code);
@@ -625,7 +636,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         "card-vault",
         true,
         currentPlayState,
-        "merge-vault"
+        "merge-vault",
+        prepared
       );
       if (disposition === "claim-bearer") {
         recordLocalWildzOwnershipTransfer(
@@ -670,7 +682,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           "idempotency-key": `bearer:${file.size}:${file.lastModified}:${stableName}`.slice(0, 160),
           "x-wildz-artifact-filename": encodeURIComponent(file.name)
         },
-        body: new Uint8Array(await file.arrayBuffer()),
+        body: prepared.bytes.slice(),
         signal: controller.signal
       })
       .catch(() => null);

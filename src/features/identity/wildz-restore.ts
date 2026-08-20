@@ -392,6 +392,7 @@ export async function restoreWildzArtifactForSurface(input: {
   bytes: Uint8Array;
   mimeType: string;
   name?: string;
+  inspection?: WildzArtifactInspection;
   codec: WildzArtifactCodec;
   repository: Pick<WildzIdentityRepository, "active" | "writePrepared">;
   database: WildzContinuityDatabase;
@@ -403,7 +404,7 @@ export async function restoreWildzArtifactForSurface(input: {
   carryCurrentVault?: boolean;
   proofSealedPlayer?: boolean;
 }): Promise<WildzCommittedArtifactRestore> {
-  const inspection = await input.codec.inspect({
+  const inspection = input.inspection ?? await input.codec.inspect({
     bytes: input.bytes,
     mimeType: input.mimeType,
     ...(input.name ? { name: input.name } : {})
