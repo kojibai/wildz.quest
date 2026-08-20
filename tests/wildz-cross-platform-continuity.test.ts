@@ -408,7 +408,7 @@ test("local self-hashed retirement cannot override a codec-admitted living card"
   assert.equal((await loadWildzRestoredPlayState({ database, session }))?.inventory.some((card) => card.id === forgedRetired.id) ?? false, false);
 });
 
-test("portable proof tamper and conflicting duplicate IDs stage zero cards", async () => {
+test("signed segmented state outranks weaker snapshot mutation and conflicting duplicate IDs stage zero cards", async () => {
   const cards = verifiedAssets();
   const identity = await createReceizIdentityKeyFile({
     owner: { uid: "tamper_fixture", username: "tamper_fixture", displayName: "Tamper Fixture" },
@@ -416,17 +416,22 @@ test("portable proof tamper and conflicting duplicate IDs stage zero cards", asy
   });
   const tampered = structuredClone(identity.keyFile);
   assert.ok(tampered.portableState);
-  tampered.portableState.snapshot = { cards: [...cards, sealCollectedCard({
+  const injected = sealCollectedCard({
     formId: "mintcub-1",
     ownerReceizId: "cross_platform_owner",
     encounterId: "tampered-extra",
     capturedAt: "2026-07-15T14:00:00.000Z"
-  })] };
-  const invalidPortable = await createCodec().codec.inspect({
+  });
+  tampered.portableState.snapshot = { cards: [...cards, injected] };
+  const sourceFirstPortable = await createCodec().codec.inspect({
     bytes: new TextEncoder().encode(serializeReceizIdentityArtifact(tampered)),
     mimeType: "application/json"
   });
-  assert.equal(invalidPortable.kind, "invalid");
+  assert.equal(sourceFirstPortable.kind, "identity-seal");
+  if (sourceFirstPortable.kind === "identity-seal") {
+    assert.deepEqual(sourceFirstPortable.portableAssets.map((asset) => asset.id), cards.map((asset) => asset.id).sort());
+    assert.equal(sourceFirstPortable.portableAssets.some((asset) => asset.id === injected.id), false);
+  }
 
   const conflicting = structuredClone(cards[0]!) as PortableCardAsset;
   conflicting.status = "listed";

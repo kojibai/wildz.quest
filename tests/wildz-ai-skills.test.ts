@@ -2,18 +2,18 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-test("Wildz AI skills state v120 artifact authority and confirmation law", () => {
+test("Wildz AI skills state v121 artifact authority and confirmation law", () => {
   for (const name of ["wildz-builder-skill", "wildz-market-operator-skill", "wildz-release-skill"]) {
     const source = readFileSync(`ai-skills/${name}/SKILL.md`, "utf8");
-    assert.match(source, /120\.0\.0/i);
+    assert.match(source, /121\.0\.0/i);
     assert.match(source, /Receiz proof authority/i);
     assert.match(source, /confirmation/i);
-    assert.match(source, /0728651789b26e1d10c1991ec1c06c1ea4a576f0c6520537b250b171f8857073/i);
-    assert.match(source, /1c779ee5ade4b877ae9c6922ab02ba96fffffeb7580f1cf105a59fbb4424f351/i);
+    assert.match(source, /29a793a5bcc0195ab41d30614d37ac51df66023af354fa4335460764eb0af413/i);
+    assert.match(source, /208553829ba78a5536524b864577ce59989e2d0a994fad9598d39ae3d557c4f5/i);
     assert.match(source, /command-only|command admission|ownership\.claimBearerAsset/i);
     assert.match(source, /queued[\s\S]*not (?:a )?global(?:ly)? commit/i);
     assert.match(source, /first admission only, then append forever/i);
-    assert.match(source, /v120[\s\S]*(?:enclosing artifact|known truth|Merkle|Fibonacci)/i);
+    assert.match(source, /v121[\s\S]*(?:enclosing artifact|known truth|Merkle|Fibonacci)/i);
     assert.doesNotMatch(source, /major 102|major 103|major 105|major 106|107\.0\.0|111\.0\.0|Bearer\s+[A-Za-z0-9_-]{12}/);
   }
 });

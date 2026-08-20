@@ -129,10 +129,11 @@ test("a Vault saved by Wildz remains a card Vault when it carries its Identity S
   assert.deepEqual(inspected.assets.map((asset) => asset.id), expected.map((asset) => asset.id).sort());
 });
 
-test("a present but invalid SDK portable state closes the whole inspection", async () => {
+test("a weaker mutated portable snapshot cannot replace the signed segmented source", async () => {
+  const expected = assets(2);
   const identity = await createReceizIdentityKeyFile({
     owner: { uid: "codec_tamper", username: "codec_tamper", displayName: "Codec Tamper" },
-    portableState: { snapshot: { cards: assets(2) } }
+    portableState: { snapshot: { cards: expected } }
   });
   const tampered = structuredClone(identity.keyFile);
   assert.ok(tampered.portableState);
@@ -141,8 +142,10 @@ test("a present but invalid SDK portable state closes the whole inspection", asy
     bytes: new TextEncoder().encode(serializeReceizIdentityArtifact(tampered)),
     mimeType: "application/json"
   });
-  assert.equal(inspected.kind, "invalid");
-  if (inspected.kind === "invalid") assert.equal(inspected.code, "wildz_restore_portable_signature_invalid");
+  assert.equal(inspected.kind, "identity-seal");
+  if (inspected.kind === "identity-seal") {
+    assert.deepEqual(inspected.portableAssets.map((asset) => asset.id), expected.map((asset) => asset.id).sort());
+  }
 });
 
 test("SDK identity Seals ignore verified non-card Wildz boss proof objects", async () => {

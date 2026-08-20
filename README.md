@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/kojibai/wildz.quest/actions/workflows/ci.yml/badge.svg)](https://github.com/kojibai/wildz.quest/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-2ea44f.svg)](LICENSE)
-[![Receiz SDK](https://img.shields.io/badge/Receiz%20SDK-120.0.0-6f42c1.svg)](https://www.npmjs.com/package/@receiz/sdk)
+[![Receiz SDK](https://img.shields.io/badge/Receiz%20SDK-121.0.0-6f42c1.svg)](https://www.npmjs.com/package/@receiz/sdk)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
 
 > Wildz is both a product and a reference implementation. The game is the product; the repository is the evidence that the Receiz application model can be reshaped into something genuinely different without replacing its proof authority.
@@ -20,13 +20,13 @@ It demonstrates four layers working together:
 | Layer | What Wildz uses it for | Authority boundary |
 |---|---|---|
 | [Receiz Commerce Kit](https://github.com/kojibai/Receiz-commerce) | The forkable application kernel and original commerce architecture | Starting point, not a runtime dependency |
-| `@receiz/sdk@120.0.0` | Identity, proof objects, custody, ownership, publication, audit, and settlement clients | The typed application/runtime boundary |
-| `@receiz/mcp-server@120.0.0` | Capability inspection and authorized operator workflows | Tooling only; it cannot manufacture proof or authority |
-| `@receiz/ai-skills@120.0.0` plus the checked-in Wildz skills | Proof-aware build, market, and release procedures for coding agents | Operating guidance only; verification still wins |
+| `@receiz/sdk@121.0.0` | Identity, proof objects, custody, ownership, publication, audit, and settlement clients | The typed application/runtime boundary |
+| `@receiz/mcp-server@121.0.0` | Capability inspection and authorized operator workflows | Tooling only; it cannot manufacture proof or authority |
+| `@receiz/ai-skills@121.0.0` plus the checked-in Wildz skills | Proof-aware build, market, and release procedures for coding agents | Operating guidance only; verification still wins |
 
-All three Receiz packages resolve at exact version `120.0.0` from the public npm registry, with their published SHA-512 integrity values pinned by `pnpm-lock.yaml`. The application contract in [`receiz.app.json`](receiz.app.json) selects artifact-first authority and explicitly disables database authority.
+All three Receiz packages resolve at exact version `121.0.0` from the public npm registry, with their published SHA-512 integrity values pinned by `pnpm-lock.yaml`. The application contract in [`receiz.app.json`](receiz.app.json) selects artifact-first authority and explicitly disables database authority.
 
-V120 coordinates the SDK, MCP server, AI skills, ruleset, registry, 30-operation matrix, compatible package range, and packed runtime as one release identity. It adds native living subjects, proof brains, factual memory, subject Twins, portable minds, mandates, deterministic world transactions and jobs, and bearer instruments. Durable proof memory remains first admission only, then append forever.
+V121 coordinates the SDK, MCP server, AI skills, ruleset, registry, 30-operation matrix, compatible package range, and packed runtime as one release identity. It preserves the established v120 runtime routes and proof objects while promoting source-first continuity: local sealed proof is admitted immediately, global publication is an idempotent append, and weaker projections cannot erase stronger verified fields. Durable proof memory remains first admission only, then append forever.
 
 ## What was built
 
@@ -68,7 +68,7 @@ Before changing code, establish a clean baseline:
 pnpm release:check
 ```
 
-That command runs the Node test suite, typecheck, Receiz v120 contract checker, MCP conformance, lint, tracked/untracked text secret scan, production build, and default Receiz doctor.
+That command runs the Node test suite, typecheck, Receiz v121 contract checker, MCP conformance, lint, tracked/untracked text secret scan, production build, and default Receiz doctor.
 
 ## The system in one view
 
@@ -96,9 +96,9 @@ Read the detailed [architecture](docs/ARCHITECTURE.md), [Receiz rail map](docs/R
 
 ### SDK application boundary
 
-Application-facing Receiz code lives in [`src/lib/receiz`](src/lib/receiz). UI and game modules consume these adapters instead of scattering SDK calls across components. New v120 artifacts use the native Record → Seal flow, preserve SDK-returned bytes exactly, and are independently reopened before acceptance.
+Application-facing Receiz code lives in [`src/lib/receiz`](src/lib/receiz). UI and game modules consume these adapters instead of scattering SDK calls across components. New v121 artifacts use the native Record → Seal flow, preserve SDK-returned bytes exactly, and are independently reopened before acceptance.
 
-The checked-in contract and generated evidence bind the application to the v120 ruleset, registry digest, 30-operation matrix, protocol limits, 30 numbered artifact laws, living-subject authority, profile/economy showcases, and native-capture/PBI-authorship rules. Twin output is non-authoritative; factual memory cites admitted events; multi-subject effects are atomic; and bearer transfer preserves subject identity while revoking the former owner.
+The checked-in contract and generated evidence bind the application to the v121 ruleset, registry digest, 30-operation matrix, protocol limits, 30 numbered artifact laws, living-subject authority, profile/economy showcases, and native-capture/PBI-authorship rules. Twin output is non-authoritative; factual memory cites admitted events; multi-subject effects are atomic; and bearer transfer preserves subject identity while revoking the former owner.
 
 ```bash
 pnpm receiz:check
@@ -138,7 +138,7 @@ Wildz adds no external application database. Owner-scoped continuity is retained
 | Publication and public projection writes | Fail closed | Capability required | No |
 | Listing, trade, transfer, payment, settlement | Fail closed | Every required capability and proof required | No |
 
-V120 exposes direct bearer transfer preview, instrument issue, inspection, claim, cancellation, and status. Wildz uses those surfaces only with genuine scoped capabilities and still independently verifies the complete returned artifact. Marketplace listing/payment settlement remains unavailable wherever its separate conditional market append is absent; the app never substitutes IndexedDB, process memory, a bearer receipt, or checkout success for settlement authority.
+V121 exposes direct bearer transfer preview, instrument issue, inspection, claim, cancellation, and status. Wildz uses those surfaces only with genuine scoped capabilities and still independently verifies the complete returned artifact. Marketplace listing/payment settlement remains unavailable wherever its separate conditional market append is absent; the app never substitutes IndexedDB, process memory, a bearer receipt, or checkout success for settlement authority.
 
 ## Repository map
 

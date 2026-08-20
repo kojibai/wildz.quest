@@ -197,7 +197,10 @@ test("invalid portable identity state is never admitted as verified local author
   const identity = await createReceizIdIdentity({ username: "tampered_state", displayName: "Tampered State" });
   const keyFile = structuredClone(identity.keyFile);
   assert.ok(keyFile.portableState);
-  keyFile.portableState.snapshot = { schema: "receiz.device.identity.v1", tampered: true };
+  assert.ok(keyFile.portableState.proof);
+  keyFile.portableState.proof.signatureB64u = `${
+    keyFile.portableState.proof.signatureB64u.startsWith("A") ? "B" : "A"
+  }${keyFile.portableState.proof.signatureB64u.slice(1)}`;
   assert.equal((await projectReceizIdentityAccount(keyFile)).portableStateStatus, "invalid");
 
   await assert.rejects(repository.prepare(keyFile), /wildz_identity_portable_state_invalid/);

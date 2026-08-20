@@ -4,6 +4,16 @@ All notable changes to Wildz are documented here. Wildz uses semantic versioning
 
 ## [Unreleased]
 
+### Changed
+
+- Upgraded the coordinated public Receiz SDK, MCP server, and AI-skills packages to exact `121.0.0`, with their published SHA-512 integrity values pinned in `pnpm-lock.yaml`.
+- Advanced the application contract, generated evidence, repository checker, doctor, tests, documentation, and Wildz operating skills to the v121 registry and 30-operation matrix without changing gameplay or application runtime logic.
+- Adopted v121 source-first continuity: sealed proof remains authority, global publication is an idempotent append, verified hydration is durable cold truth, and weaker projections cannot erase stronger known fields.
+
+### Preserved
+
+- Existing v120 HTTP routes, proof objects, idempotency coordinates, bearer receipt schema, living-subject behavior, gameplay, UI, storage, and proof-flow logic remain unchanged.
+
 ## [7.0.0] - 2026-08-17
 
 The Living Responsibility release: an optional, proof-chained care mandate turns roaming creatures into persistent companions with real needs while preserving the v6.1 live-head, conversation, voice, Vault, world, and settlement boundaries.

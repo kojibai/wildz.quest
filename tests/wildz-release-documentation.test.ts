@@ -4,13 +4,13 @@ import { test } from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("Wildz v7 official release doctrine names the exact Receiz v120 toolchain", () => {
+test("Wildz current release doctrine names the exact Receiz v121 toolchain", () => {
   const pkg = JSON.parse(read("package.json")) as {
     version?: string;
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
   };
-  const release = read("docs/release/v7.0.0.md");
+  const release = read("docs/release/verification.md");
   const mcp = read("docs/MCP.md");
   const packageSourceDocs = [
     read("README.md"),
@@ -23,23 +23,23 @@ test("Wildz v7 official release doctrine names the exact Receiz v120 toolchain",
   ].join("\n");
 
   assert.equal(pkg.version, "7.0.0");
-  assert.equal(pkg.dependencies?.["@receiz/sdk"], "120.0.0");
-  assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "120.0.0");
-  assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "120.0.0");
+  assert.equal(pkg.dependencies?.["@receiz/sdk"], "121.0.0");
+  assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "121.0.0");
+  assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "121.0.0");
   for (const packageName of ["@receiz/sdk", "@receiz/mcp-server", "@receiz/ai-skills"]) {
-    assert.match(release, new RegExp(`${packageName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}@120\\.0\\.0`));
+    assert.match(packageSourceDocs, new RegExp(`${packageName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}@121\\.0\\.0`));
   }
-  assert.match(mcp, /@receiz\/sdk@120\.0\.0/);
-  assert.match(mcp, /@receiz\/mcp-server@120\.0\.0/);
-  assert.match(mcp, /@receiz\/ai-skills@120\.0\.0/);
+  assert.match(mcp, /@receiz\/sdk@121\.0\.0/);
+  assert.match(mcp, /@receiz\/mcp-server@121\.0\.0/);
+  assert.match(mcp, /@receiz\/ai-skills@121\.0\.0/);
   assert.match(packageSourceDocs, /public npm/i);
   assert.match(packageSourceDocs, /published (?:SHA-512 )?integrity/i);
-  assert.match(packageSourceDocs, /0728651789b26e1d10c1991ec1c06c1ea4a576f0c6520537b250b171f8857073/i);
-  assert.match(packageSourceDocs, /1c779ee5ade4b877ae9c6922ab02ba96fffffeb7580f1cf105a59fbb4424f351/i);
+  assert.match(packageSourceDocs, /29a793a5bcc0195ab41d30614d37ac51df66023af354fa4335460764eb0af413/i);
+  assert.match(packageSourceDocs, /208553829ba78a5536524b864577ce59989e2d0a994fad9598d39ae3d557c4f5/i);
   assert.match(packageSourceDocs, /first admission only, then append forever/i);
-  assert.match(packageSourceDocs, /v120[\s\S]*(?:living subject|proof brain|Merkle|bearer)/i);
-  assert.match(release, /local v120 living-subject Twin/);
-  assert.match(release, /optional, invisible performance enrichment/);
+  assert.match(packageSourceDocs, /v121[\s\S]*(?:living subject|proof brain|Merkle|bearer)/i);
+  assert.match(release, /local v121 living-subject Twin/i);
+  assert.match(release, /optional performance enrichment/i);
   assert.match(release, /never replace or delay/);
   assert.match(release, /proof object remains authority/i);
 });

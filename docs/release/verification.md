@@ -1,6 +1,6 @@
 # Wildz v7.0.0 release verification
 
-Date: 2026-08-17. Target application version: `7.0.0`. Receiz integration target: `120.0.0`.
+Date: 2026-08-19. Target application version: `7.0.0`. Receiz integration target: `121.0.0`.
 
 This record distinguishes repository evidence from external production evidence. A passing local gate proves the source, deterministic contracts, compilation, and configured local browser paths observed in the run. It does not manufacture credentials, remote authority, deployment, payment settlement, or literal creature sentience.
 
@@ -8,29 +8,31 @@ This record distinguishes repository evidence from external production evidence.
 
 | Package | Requested | Installed | Role |
 |---|---:|---:|---|
-| `@receiz/sdk` | `120.0.0` | `120.0.0` | Artifact, living-subject, proof-brain, Twin, world, memory, mandate, runtime, and bearer application boundary |
-| `@receiz/mcp-server` | `120.0.0` | `120.0.0` | Nine artifact and 37 living-subject operator tools; never proof authority |
-| `@receiz/ai-skills` | `120.0.0` | `120.0.0` | 39 proof-aware operating skills; never proof authority |
+| `@receiz/sdk` | `121.0.0` | `121.0.0` | Artifact, living-subject, proof-brain, Twin, world, memory, mandate, runtime, and bearer application boundary |
+| `@receiz/mcp-server` | `121.0.0` | `121.0.0` | Nine artifact and 37 living-subject operator tools; never proof authority |
+| `@receiz/ai-skills` | `121.0.0` | `121.0.0` | 39 proof-aware operating skills; never proof authority |
 
-All three exact public npm packages use published SHA-512 integrity values pinned in `pnpm-lock.yaml`. The v120 registry digest is `0728651789b26e1d10c1991ec1c06c1ea4a576f0c6520537b250b171f8857073`; the 30-operation matrix digest is `1c779ee5ade4b877ae9c6922ab02ba96fffffeb7580f1cf105a59fbb4424f351`; the living-subject reducer digest is `5694662e2acc8b886ac9697ffad202b411d7e66c5f26f9106ee0768df7c7b8c8`.
+All three exact public npm packages use published SHA-512 integrity values pinned in `pnpm-lock.yaml`. The v121 registry digest is `29a793a5bcc0195ab41d30614d37ac51df66023af354fa4335460764eb0af413`; the 30-operation matrix digest is `208553829ba78a5536524b864577ce59989e2d0a994fad9598d39ae3d557c4f5`; the living-subject reducer digest is `5694662e2acc8b886ac9697ffad202b411d7e66c5f26f9106ee0768df7c7b8c8`.
 
 `receiz.app.json` remains artifact-first with database authority disabled. First admission only, then append forever remains the durable-memory law. The enclosing artifact remains strongest; the proof-brain index, model output, projection, receipt, cache, database row, MCP output, and AI explanation remain non-authoritative.
 
+V121 is a non-breaking, source-first coordination release for Wildz. The local sealed proof object remains authority and is admitted before idempotent global publication; server/database projections accelerate distribution and restore only. Settled surfaces never wait for global projection, verified hydration becomes durable cold truth, and weaker projections cannot erase stronger known fields. Optional performance enrichment can never replace or delay the proof response or its memory append.
+
 ## Release gate
 
-The final source gate passed on 2026-08-17:
+The v121 source gate passed on 2026-08-19:
 
 | Gate | Observed result |
 |---|---|
-| Receiz architecture lock | Pass; 413 runtime files checked |
-| Node law/regression suite | Pass; 1,292 tests across 122 suites, zero failures |
+| Receiz architecture lock | Pass; 415 runtime files checked |
+| Node law/regression suite | Pass; 1,295 tests across 122 suites, zero failures |
 | Typecheck | Pass |
-| Official v120 repository checker | Pass; `receiz.integration.check.v1`, exact release/registry/matrix/authority identity |
+| Official v121 repository checker | Pass; `receiz.integration.check.v1`, exact release/registry/matrix/authority identity |
 | MCP/SDK conformance | Pass; 15/15 checks, zero network calls, zero database calls |
 | ESLint | Pass |
-| Secret scan | Pass; 882 text files checked without printing values |
+| Secret scan | Pass; 898 text files checked without printing values |
 | Optimized Next.js build | Pass; 19 static pages generated and all application routes compiled |
-| Receiz doctor | Pass; SDK/MCP/AI skills requested and installed at exact compatible `120.0.0` |
+| Receiz doctor | Pass; SDK/MCP/AI skills requested and installed at exact compatible `121.0.0` |
 
 The optimized build retains two upstream `web-worker` dynamic-require warnings in the Receiz `snarkjs` verifier import chain. They are not application exceptions, do not add a Wildz voice dependency, and were disclosed rather than mislabeled as a warning-free build. The root, robots, standard sitemap, image sitemap, manifest, and social metadata remain outside the gameplay render loop.
 
@@ -55,14 +57,14 @@ V7 changes are isolated to deterministic proof-care commands, a Vault care panel
 
 The Three.js director release report audit passed with premium and audio requirements against the retained flagship evidence. The current credential probe returned literal blank values for `TRIPO_API_KEY`, `GEMINI_API_KEY`, and `ELEVENLABS_API_KEY`; these are recorded as blank/inconclusive, not as present or missing. No external asset generation was attempted because this correction changes the Receiz voice adapter and repository doctrine, the user explicitly required no external dependency, and existing visual assets were not replaced.
 
-## V120 living-subject evidence
+## V121 living-subject evidence
 
 | Boundary | Evidence required |
 |---|---|
 | Subject construction | Exact verified card identity plus primary objects for innate self, capture, history, conversations, and continuity |
 | Proof brain | Stable subject/head/Merkle coordinates; index explicitly non-authoritative; unknown namespaces byte-exact |
 | Factual memory | Every consequential remembered fact cites an admitted event object |
-| Twin intelligence | Local v120 living-subject Twin over the exact admitted proof brain; bounded autobiographical response is available offline and remote performance is optional enrichment |
+| Twin intelligence | Local v121 living-subject Twin over the exact admitted proof brain; bounded autobiographical response is available offline and remote performance is optional enrichment |
 | Kai grounding | Exact current `uPulse`, temporal root, lattice, gate, chakra, beat/step, day/week/month/Ark geometry, world position, condition, relationship, causal head, and recent experience supplied to each turn |
 | Dialogue admission | Model reply is not a world event; the route/server has no authority; the unchanged deterministic append targets the exact verified card proof head |
 | Continuity | Accepted conversation appends to the exact card and becomes available on its next proof-brain projection |
@@ -80,13 +82,13 @@ The implementation guarantees a deterministic proof-grounded Twin observation fo
 - Apple-capable clients use the native share/save presentation; other clients retain a non-blocking file/raster fallback.
 - A bearer claim requires explicit confirmation, complete artifact bytes, same-runtime verification, authenticated ownership witness, byte-exact returned artifact, and local reopen before projection.
 - New claim receipts use `receiz.wilds_bearer_claim.v120`. Historical v119 artifact/idempotency/channel namespaces remain stable compatibility coordinates.
-- V120 bearer preview/issue/inspect/claim/cancel/status is capability-gated. Preview, issue, inspection, notification, or receipt alone is not custody.
+- V121 bearer preview/issue/inspect/claim/cancel/status is capability-gated. Preview, issue, inspection, notification, or receipt alone is not custody.
 - Previous-owner Vault removal is reconciliation from verified transfer evidence; the sync projection cannot create ownership.
 
 ## Voice and embodiment evidence
 
 - Creature voice identity is deterministic from the exact asset/genome fingerprint.
-- The observer uses the v120 local living-subject runtime over the exact admitted proof objects. Owner, subject ID, context digest, client message ID, and Kai moment bind the observation.
+- The observer uses the v121 local living-subject runtime over the exact admitted proof objects. Owner, subject ID, context digest, client message ID, and Kai moment bind the observation.
 - Proof signature plus exact birth timestamp establishes vocal anatomy; current Kai `uPulse` contributes only bounded performance variation.
 - The PWA prepares an integrity-pinned q8 acoustic graph, tokenizer, two timbre vectors, and one-thread ONNX/WASM runtime in background storage. Runtime model discovery is disabled and no provider is contacted for acoustic rendering.
 - The conversation surface initializes that payload inside a dedicated worker before Send when possible. The ready worker renders proof-authored phrases into human PCM; the compact deterministic glottal/formant instrument remains the immediate local acoustic floor while installation is incomplete.
@@ -107,13 +109,13 @@ The implementation guarantees a deterministic proof-grounded Twin observation fo
 
 ## Compatibility
 
-Existing v5/v119 cards and Vaults do not need to be redownloaded to open in v6. Historical sealed bytes remain eligible for v120 verification and unknown namespaces remain byte-exact. Historical admissions, actors, capabilities, plans, confirmations, stores, and receipts cannot authorize current v120 operations. A fresh export is needed only to carry events appended after the prior download.
+Existing v5/v119 cards and Vaults do not need to be redownloaded to open in v6. Historical sealed bytes remain eligible for v121 verification and unknown namespaces remain byte-exact. Historical admissions, actors, capabilities, plans, confirmations, stores, and receipts cannot authorize current v121 operations. A fresh export is needed only to carry events appended after the prior download.
 
 The earlier production-shaped 98-card artifact result remains historical compatibility evidence without private bytes, paths, identity values, hashes, or card identifiers. It is not substituted for the current release gate.
 
 ## External gates not fabricated
 
-- Strict-live authenticated remote qualification requires a user-connected Receiz ID with the v120 subject-Twin scopes and a separately recorded run.
+- Strict-live authenticated remote qualification requires a user-connected Receiz ID with the v121 subject-Twin scopes and a separately recorded run.
 - Remote public/world/market/payment/settlement/publication mutations require genuine scoped capabilities and observed receipts plus effect status.
 - Bearer instruments do not automatically satisfy the marketplace's separate conditional listing/payment/settlement append.
 - Representative-device certification, external deployment, tag, push, GitHub release publication, and store distribution are distinct actions.

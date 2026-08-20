@@ -44,4 +44,4 @@ Absence of documentation, unfamiliarity, time pressure, a temporary integration 
 
 `pnpm receiz:architecture-lock` enforces the coordinated package identity, runtime/tooling separation, current high-risk path invariants, checked-in doctrine, and capability-gap process. It runs inside `pnpm release:check`, and CI runs that release gate on every pull request and push to `main`.
 
-The lock is intentionally only one layer. Contributors must also run the official v120 repository checker and MCP conformance, update the application contract when appropriate, and supply live evidence for claims that source inspection cannot prove.
+The lock is intentionally only one layer. Contributors must also run the official v121 repository checker and MCP conformance, update the application contract when appropriate, and supply live evidence for claims that source inspection cannot prove.
