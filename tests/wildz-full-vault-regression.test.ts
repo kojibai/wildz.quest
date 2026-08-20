@@ -447,6 +447,42 @@ test("generated 97-card identity Vault survives inspection, both restore surface
   assert.deepEqual(inventoryOutcome.playState.inventory.map((asset) => asset.id).sort(), fixture.expectedIds);
 });
 
+test("Profile activation of a Wildz continuity seal replaces the prior account with its exact saved player", async () => {
+  const fixture = await regressionArtifact();
+  const target = setup();
+  const previous = await target.repository.bootstrap();
+  const previousState = createOwnerBoundInitialPlayState(previous.actorId, previous.createdAt);
+  const previousStarterId = previousState.inventory[0]!.id;
+
+  const outcome = await restoreWildzArtifactForSurface({
+    surface: "card-vault",
+    bytes: fixture.identityCardBytes,
+    mimeType: "image/png",
+    name: "vault__keeper_97.receiz-id-card.png",
+    codec: target.codec,
+    repository: target.repository,
+    database: target.database,
+    confirmCardOnly: true,
+    currentPlayState: previousState,
+    currentPlayerContinuity: {
+      settings: { avatarStyle: null, movementMode: "walk", audio: {}, cardOrder: "rarity" },
+      personalEvents: [],
+      canonicalCursor: { worldId: "wilds:global:v3", revision: 0, eventId: null },
+      receipts: []
+    },
+    carryCurrentVault: true
+  });
+
+  assert.equal(outcome.session.username, fixture.embeddedUsername);
+  assert.deepEqual(outcome.playState.inventory.map((asset) => asset.id).sort(), fixture.expectedIds);
+  assert.equal(outcome.playState.inventory.some((asset) => asset.id === previousStarterId), false);
+  assert.equal(outcome.playState.selectedAssetId, fixture.playerState.selectedAssetId);
+  assert.equal(outcome.playState.worldMastery, 41);
+  assert.equal(outcome.character?.digest, fixture.character.digest);
+  assert.equal(outcome.playerContinuity.settings.movementMode, "run");
+  assert.equal(outcome.playerContinuity.settings.cardOrder, "newest");
+});
+
 test("matching Identity Seal authenticates an already loaded proof vault without dropping current cards", async () => {
   const { database, repository, codec } = setup();
   const identity = await createReceizIdentityKeyFile({

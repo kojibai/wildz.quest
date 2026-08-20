@@ -421,7 +421,11 @@ export async function restoreWildzArtifactForSurface(input: {
   if (!cardOnlyConfirmed) throw new Error("wildz_restore_confirmation_required");
   const active = await input.repository.active();
   const player = inspectionPlayer(inspection);
-  const shouldMergeIntoActiveVault = Boolean(input.preserveActiveIdentity) || (input.surface === "card-vault"
+  const activatesVerifiedIdentity = Boolean(input.carryCurrentVault && verifiedIdentity);
+  const restoresEmbeddedIdentityContinuity = Boolean(activatesVerifiedIdentity && player);
+  const shouldCarryCurrentVault = Boolean(input.carryCurrentVault && !restoresEmbeddedIdentityContinuity);
+  const shouldMergeIntoActiveVault = Boolean(input.preserveActiveIdentity) || (!activatesVerifiedIdentity
+    && input.surface === "card-vault"
     && Boolean(input.currentPlayState)
     && Boolean(active)
     && inspection.kind !== "identity-seal"
@@ -458,7 +462,7 @@ export async function restoreWildzArtifactForSurface(input: {
         ? sameActiveOwner || sameWildzPlayerCoordinate(active.actorId, session.actorId)
         : false;
       const previous = storedOwnerState(stored, session);
-      const current = input.carryCurrentVault && input.currentPlayState
+      const current = shouldCarryCurrentVault && input.currentPlayState
         ? restorePlayState(serializePlayState(input.currentPlayState), session.actorId)
         : sameActivePlayer && input.currentPlayState
         ? restorePlayState(serializePlayState(input.currentPlayState), session.actorId)
@@ -499,7 +503,7 @@ export async function restoreWildzArtifactForSurface(input: {
           );
       const next = merged;
       const localContinuity = input.currentPlayerContinuity ?? (previous ? continuityFromOwner(previous) : null);
-      const carriedContinuity = input.carryCurrentVault
+      const carriedContinuity = shouldCarryCurrentVault
         ? localContinuity
         : shouldMergeIntoActiveVault
           ? mergePlayerContinuity(localContinuity, playerForSession)
@@ -509,11 +513,11 @@ export async function restoreWildzArtifactForSurface(input: {
         next,
         carriedContinuity ?? (playerForSession && !shouldMergeIntoActiveVault ? playerForSession : previous ? continuityFromOwner(previous) : null),
         new Date().toISOString(),
-        input.carryCurrentVault
+        shouldCarryCurrentVault
           ? input.currentCharacter ?? previous?.character ?? null
           : playerForSession && !shouldMergeIntoActiveVault ? playerForSession.character : previous?.character ?? null
       );
-      const custodyAssetIds = input.carryCurrentVault
+      const custodyAssetIds = shouldCarryCurrentVault
         && verifiedIdentity
         && active
         && !sameWildzPlayerCoordinate(active.actorId, session.actorId)
