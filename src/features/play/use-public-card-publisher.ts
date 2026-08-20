@@ -3,6 +3,10 @@
 import { useEffect, useRef } from "react";
 import { attemptPublicWildsCardRegistration } from "./public-card-registry";
 import { verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
+import {
+  wildzVaultAdmissionCarriesProofObject,
+  type WildzAdmittedVaultProofObjects
+} from "../../lib/receiz/wildz-vault-card-admission";
 
 const RETRY_AFTER_MS = 30_000;
 
@@ -36,17 +40,24 @@ const yieldToBrowser = () => new Promise<void>((resolve) => setTimeout(resolve, 
 export async function publicCardPublicationQueueCooperatively(
   assets: readonly PortableCardAsset[],
   publishedPins: ReadonlySet<string>,
-  options: { batchSize?: number; yieldControl?: () => Promise<void> } = {}
+  options: {
+    batchSize?: number;
+    yieldControl?: () => Promise<void>;
+    proofObjects?: WildzAdmittedVaultProofObjects;
+    verifyCard?: (asset: PortableCardAsset) => boolean;
+  } = {}
 ) {
   const batchSize = Math.max(1, Math.floor(options.batchSize ?? 1));
   const yieldControl = options.yieldControl ?? yieldToBrowser;
+  const verifyCard = options.verifyCard ?? ((asset: PortableCardAsset) => verifyAnyWildsCard(asset).ok);
   const candidates = [...assets].sort((left, right) =>
     left.id.localeCompare(right.id) || left.proof.digest.localeCompare(right.proof.digest));
   const waiting: PortableCardAsset[] = [];
   for (let index = 0; index < candidates.length; index += 1) {
     const asset = candidates[index]!;
     try {
-      if (verifyAnyWildsCard(asset).ok && !publishedPins.has(`${asset.id}:${asset.proof.digest}`)) {
+      const admitted = wildzVaultAdmissionCarriesProofObject(options.proofObjects, asset);
+      if ((admitted || verifyCard(asset)) && !publishedPins.has(`${asset.id}:${asset.proof.digest}`)) {
         waiting.push(asset);
       }
     } catch {
@@ -57,7 +68,11 @@ export async function publicCardPublicationQueueCooperatively(
   return waiting;
 }
 
-export function usePublicCardPublisher(assets: readonly PortableCardAsset[], enabled: boolean) {
+export function usePublicCardPublisher(
+  assets: readonly PortableCardAsset[],
+  enabled: boolean,
+  proofObjects?: WildzAdmittedVaultProofObjects
+) {
   const publishedPins = useRef(new Set<string>());
   const retryAt = useRef(new Map<string, number>());
 
@@ -69,12 +84,12 @@ export function usePublicCardPublisher(assets: readonly PortableCardAsset[], ena
     const publish = async () => {
       if (cancelled) return;
       const now = Date.now();
-      const waiting = await publicCardPublicationQueueCooperatively(assets, publishedPins.current);
+      const waiting = await publicCardPublicationQueueCooperatively(assets, publishedPins.current, { proofObjects });
       const queue = waiting.filter((asset) => (retryAt.current.get(`${asset.id}:${asset.proof.digest}`) ?? 0) <= now);
       for (const asset of queue) {
         if (cancelled) break;
         const pin = `${asset.id}:${asset.proof.digest}`;
-        const result = await attemptPublicWildsCardRegistration(asset);
+        const result = await attemptPublicWildsCardRegistration(asset, { proofObjects });
         if (result.published) {
           publishedPins.current.add(pin);
           retryAt.current.delete(pin);
@@ -98,5 +113,5 @@ export function usePublicCardPublisher(assets: readonly PortableCardAsset[], ena
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [assets, enabled]);
+  }, [assets, enabled, proofObjects]);
 }

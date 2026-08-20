@@ -41,7 +41,10 @@ import {
   WILDZ_OWNERSHIP_RECONCILE_INTERVAL_MS,
   WILDZ_OWNERSHIP_RECONCILE_MAX_ASSETS
 } from "@/lib/receiz/wildz-ownership-reconcile";
-import { deriveWildzVaultCardAdmission } from "@/lib/receiz/wildz-vault-card-admission";
+import {
+  admitWildzVaultProofObjects,
+  deriveWildzVaultCardAdmission
+} from "@/lib/receiz/wildz-vault-card-admission";
 import {
   bootstrapWildzSharedWorld,
   wildzRemoteSessionMatchesIdentity
@@ -154,10 +157,12 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     return ownerPlayState.inventory.filter((asset) => !locallyClaimed.has(asset.id));
   }, [identity, ownerPlayState.inventory]);
   const ownerUsername = identity?.username ?? identity?.actorId ?? "explorer";
-  const vaultAdmission = useMemo(() => identity ? deriveWildzVaultCardAdmission({
+  const admittedVault = useMemo(() => identity ? admitWildzVaultProofObjects({
     cards: ownerPlayState.inventory,
     playerHandle: identity.actorId
   }) : null, [identity, ownerPlayState.inventory]);
+  const vaultAdmission = admittedVault?.admission ?? null;
+  const admittedProofObjects = admittedVault?.proofObjects;
   const viewingOwnProfile = !overlay || overlay.kind !== "profile" || overlay.username.toLowerCase() === `@${ownerUsername}`.toLowerCase();
   const localPublicProfile = useMemo(() => createOwnerPublicWildzProfile({
     username: ownerUsername,
@@ -341,7 +346,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (publishedProfileRef.current === publicationKey) return;
     setProfileStatus("publishing");
     void publishCurrentWildzProfile(localPublicProfile, publishableOwnerAssets, globalThis.fetch, {
-      signal: controller.signal
+      signal: controller.signal,
+      proofObjects: admittedProofObjects
     }).then(() => {
       if (!active) return;
       publishedProfileRef.current = publicationKey;
@@ -354,7 +360,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       active = false;
       controller.abort();
     };
-  }, [localPublicProfile, profilePublicationReadiness, publishableOwnerAssets]);
+  }, [admittedProofObjects, localPublicProfile, profilePublicationReadiness, publishableOwnerAssets]);
 
   useEffect(() => {
     if (overlay?.kind !== "profile") {
@@ -896,6 +902,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             : downloadWildzIdentityOwnedCard(identity, asset, player)}
           onExportVault={(assets, player) => downloadWildzIdentityPlayerVault(identity, assets, player)}
           vaultAdmission={vaultAdmission}
+          admittedProofObjects={admittedProofObjects}
           onRestoreArtifact={claimAndRestoreVaultArtifact}
           onOpenProfile={(origin) => openShellOverlay({ kind: "profile", username: `@${ownerUsername}` }, origin)}
           onOpenMarket={(origin) => openShellOverlay({ kind: "market" }, origin)}

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { sealCollectedCard } from "../src/features/play/portable-card.js";
+import * as vaultAdmission from "../src/lib/receiz/wildz-vault-card-admission.js";
 import {
   publicCardPublicationCandidates,
   publicCardPublicationQueue,
@@ -40,7 +41,7 @@ test("verified card publication is not gated by stale upload bookkeeping", () =>
 
 test("the live campaign publishes every currently owned verified card off the gameplay hot path", () => {
   const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
-  assert.match(campaign, /usePublicCardPublisher\(deckCards, enabled && networkEnabled\)/);
+  assert.match(campaign, /usePublicCardPublisher\(deckCards, enabled && networkEnabled, admittedProofObjects\)/);
   assert.doesNotMatch(campaign, /usePublicCardPublisher\(publicCardCandidates/);
 });
 
@@ -98,4 +99,39 @@ test("default background publication yields after every card proof", async () =>
 
   assert.equal(queue.length, 4);
   assert.equal(yields, 3);
+});
+
+test("background publication reuses admitted Proof Objects without verifying every card again", async () => {
+  const cards = [
+    sealCollectedCard({
+      formId: "voltray-1",
+      ownerReceizId: "publisher",
+      encounterId: "publisher-admitted-first",
+      capturedAt: "2026-08-20T20:00:00.000Z"
+    }),
+    sealCollectedCard({
+      formId: "mintcub-1",
+      ownerReceizId: "publisher",
+      encounterId: "publisher-admitted-second",
+      capturedAt: "2026-08-20T20:01:00.000Z"
+    })
+  ];
+  const admit = (vaultAdmission as Record<string, unknown>).admitWildzVaultProofObjects as ((input: {
+    cards: typeof cards;
+    playerHandle: string;
+  }) => { proofObjects: unknown }) | undefined;
+  assert.equal(typeof admit, "function");
+  const { proofObjects } = admit!({ cards, playerHandle: "publisher" });
+  let verifications = 0;
+
+  const queue = await publicCardPublicationQueueCooperatively(cards, new Set(), {
+    proofObjects,
+    verifyCard: () => {
+      verifications += 1;
+      return false;
+    }
+  } as never);
+
+  assert.deepEqual(queue.map((asset) => asset.id).sort(), cards.map((asset) => asset.id).sort());
+  assert.equal(verifications, 0);
 });

@@ -1,4 +1,8 @@
 import { verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
+import {
+  wildzVaultAdmissionCarriesProofObject,
+  type WildzAdmittedVaultProofObjects
+} from "../../lib/receiz/wildz-vault-card-admission";
 
 export type PublicCardParam = {
   assetId: string;
@@ -13,9 +17,8 @@ export type PublicWildsCardRecord = {
   asset: PortableCardAsset;
 };
 
-export type PublicWildsCardIdentityProof = {
-  keyFile: unknown;
-  passphrase?: string;
+export type PublicWildsCardRegistrationOptions = {
+  proofObjects?: WildzAdmittedVaultProofObjects;
 };
 
 export type PublicWildsCardTransportRecord = {
@@ -166,7 +169,7 @@ export function parsePublicWildsCardRecord(value: unknown): PublicWildsCardRecor
 export async function registerPublicWildsCard(
   asset: PortableCardAsset,
   fetcher: typeof fetch = globalThis.fetch,
-  options: { identityProof?: PublicWildsCardIdentityProof } = {}
+  options: PublicWildsCardRegistrationOptions = {}
 ) {
   const pin = `${asset.id}:${asset.proof.digest}`;
   const state = publicCardRegistrationState(fetcher);
@@ -189,33 +192,25 @@ export async function registerPublicWildsCard(
 async function registerPublicWildsCardRevision(
   asset: PortableCardAsset,
   fetcher: typeof fetch,
-  options: { identityProof?: PublicWildsCardIdentityProof }
+  options: PublicWildsCardRegistrationOptions
 ) {
-  if (!verifyAnyWildsCard(asset).ok) throw new Error("wildz_public_card_verification_failed");
-  let identityProof = options.identityProof;
-  if (!identityProof && typeof indexedDB !== "undefined") {
-    try {
-      const { defaultIdentityRepository } = await import("../../lib/receiz/wildz-identity-adapter");
-      const session = await defaultIdentityRepository.active();
-      if (session?.localAuthority === "verified") {
-        identityProof = await defaultIdentityRepository.withKeyFile(session.keyId, async (keyFile) => ({ keyFile }));
-      }
-    } catch {
-      // A connected Receiz session can publish without a local identity key.
-    }
-  }
+  const needsClientVerification = publicCardNeedsClientVerification(asset, options.proofObjects);
+  if (needsClientVerification
+    && !verifyAnyWildsCard(asset).ok) throw new Error("wildz_public_card_verification_failed");
   const response = await fetcher(`/api/cards/${encodeURIComponent(asset.id)}`, {
     method: "POST",
     credentials: "same-origin",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ asset, ...(identityProof ? { identityProof } : {}) })
+    body: JSON.stringify({ asset })
   });
   const payload = await response.json().catch(() => null) as {
     ok?: boolean;
     record?: PublicWildsCardRecord;
     error?: string;
   } | null;
-  const record = parsePublicWildsCardRecord(payload?.record);
+  const record = needsClientVerification
+    ? parsePublicWildsCardRecord(payload?.record)
+    : publicationRecordForAdmittedProofObject(payload?.record, asset);
   if (!response.ok
     || payload?.ok !== true
     || record?.assetId !== asset.id
@@ -223,6 +218,38 @@ async function registerPublicWildsCardRevision(
     throw new Error(payload?.error ?? "wildz_public_card_registration_failed");
   }
   return record;
+}
+
+function publicationRecordForAdmittedProofObject(
+  value: unknown,
+  asset: PortableCardAsset
+): PublicWildsCardRecord | null {
+  if (!isRecord(value)
+    || value.schema !== "receiz.wilds_public_card.v1"
+    || value.assetId !== asset.id
+    || typeof value.sourceUrl !== "string"
+    || typeof value.registeredAt !== "string") return null;
+  try {
+    const sourceUrl = new URL(value.sourceUrl).toString();
+    const expectedSourceUrl = `${new URL(sourceUrl).origin}${canonicalPublicCardPath(asset.id)}`;
+    if (sourceUrl !== expectedSourceUrl) return null;
+    return {
+      schema: "receiz.wilds_public_card.v1",
+      assetId: asset.id,
+      sourceUrl,
+      registeredAt: admittedIso(value.registeredAt),
+      asset
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function publicCardNeedsClientVerification(
+  asset: PortableCardAsset,
+  proofObjects: unknown
+) {
+  return !wildzVaultAdmissionCarriesProofObject(proofObjects, asset);
 }
 
 /**
@@ -255,10 +282,11 @@ export async function requireGloballyAvailablePublicWildsCard(
 }
 
 export async function attemptPublicWildsCardRegistration(
-  asset: PortableCardAsset
+  asset: PortableCardAsset,
+  options: PublicWildsCardRegistrationOptions = {}
 ): Promise<{ published: true; record: PublicWildsCardRecord } | { published: false; error: string }> {
   try {
-    return { published: true, record: await registerPublicWildsCard(asset) };
+    return { published: true, record: await registerPublicWildsCard(asset, globalThis.fetch, options) };
   } catch (error) {
     return {
       published: false,

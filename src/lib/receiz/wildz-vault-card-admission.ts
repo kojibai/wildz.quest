@@ -34,6 +34,13 @@ export type WildzVaultCardAdmission = {
   leaves: WildzVaultCardAdmissionLeaf[];
 };
 
+export type WildzAdmittedVaultProofObjects = Readonly<{
+  schema: "receiz.wilds.admitted_vault_proof_objects.v1";
+  admissionRoot: string;
+}>;
+
+const admittedVaultProofObjectSets = new WeakMap<WildzAdmittedVaultProofObjects, WeakSet<PortableCardAsset>>();
+
 export type WildzVaultCardMembershipStep = {
   side: "left" | "right";
   digest: string;
@@ -151,6 +158,30 @@ export function deriveWildzVaultCardAdmission(input: {
     leafCount: leaves.length,
     leaves
   };
+}
+
+export function admitWildzVaultProofObjects(input: {
+  cards: readonly PortableCardAsset[];
+  playerHandle: string;
+}) {
+  const admission = deriveWildzVaultCardAdmission(input);
+  const proofObjects = Object.freeze({
+    schema: "receiz.wilds.admitted_vault_proof_objects.v1" as const,
+    admissionRoot: admission.root
+  });
+  admittedVaultProofObjectSets.set(proofObjects, new WeakSet(input.cards));
+  return { admission, proofObjects };
+}
+
+export function wildzVaultAdmissionCarriesProofObject(
+  proofObjects: unknown,
+  asset: PortableCardAsset
+) {
+  return Boolean(
+    proofObjects
+    && typeof proofObjects === "object"
+    && admittedVaultProofObjectSets.get(proofObjects as WildzAdmittedVaultProofObjects)?.has(asset)
+  );
 }
 
 function assertAdmission(value: WildzVaultCardAdmission) {

@@ -6,6 +6,7 @@ import {
 } from "@/features/profile/public-profile";
 import { registerPublicWildsCard } from "@/features/play/public-card-registry";
 import type { PortableCardAsset } from "@/features/play/portable-card";
+import type { WildzAdmittedVaultProofObjects } from "./wildz-vault-card-admission";
 import { createReceizCommerceAdapter } from "./adapter";
 import { WILDZ_PRODUCT } from "@/lib/wildz/product";
 import type { WildzPublicProjectionRepository } from "./wildz-public-repository";
@@ -220,7 +221,7 @@ export async function publishCurrentWildzProfile(
   profile: PublicWildzProfile,
   assetsOrFetcher: readonly PortableCardAsset[] | typeof fetch = [],
   suppliedFetcher: typeof fetch = globalThis.fetch,
-  options: { signal?: AbortSignal } = {}
+  options: { signal?: AbortSignal; proofObjects?: WildzAdmittedVaultProofObjects } = {}
 ) {
   const assets = typeof assetsOrFetcher === "function" ? [] : assetsOrFetcher;
   const fetcher = typeof assetsOrFetcher === "function" ? assetsOrFetcher : suppliedFetcher;
@@ -230,7 +231,7 @@ export async function publishCurrentWildzProfile(
     if (!asset || asset.proof.digest !== requested.proofDigest) {
       throw new Error("wildz_public_profile_card_unverified");
     }
-    await registerPublicWildsCard(asset, fetcher);
+    await registerPublicWildsCard(asset, fetcher, { proofObjects: options.proofObjects });
     options.signal?.throwIfAborted();
   }
   options.signal?.throwIfAborted();

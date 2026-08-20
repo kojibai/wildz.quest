@@ -9,6 +9,8 @@ import {
 } from "../src/features/play/public-card-registry";
 import { initialPlayState } from "../src/features/play/game-state";
 import { resolveLocalWildzCard } from "../src/lib/receiz/wildz-local-card-resolver";
+import * as vaultAdmission from "../src/lib/receiz/wildz-vault-card-admission";
+import * as publicCardRegistry from "../src/features/play/public-card-registry";
 
 test("full and compact card parameters resolve one canonical asset", () => {
   assert.deepEqual(parsePublicCardParam("wilds:0123456789abcdef01234567"), {
@@ -46,18 +48,53 @@ test("concurrent publishers share one registration for the same verified card re
   assert.equal(second.asset.proof.digest, asset.proof.digest);
 });
 
-test("public card publication accepts Identity Seal authority without making cookies superior", () => {
+test("an admitted Proof Object bypasses client re-verification but an unadmitted copy does not", () => {
+  const admit = (vaultAdmission as Record<string, unknown>).admitWildzVaultProofObjects as ((input: {
+    cards: typeof initialPlayState.inventory;
+    playerHandle: string;
+  }) => { proofObjects: unknown });
+  const needsVerification = (publicCardRegistry as Record<string, unknown>).publicCardNeedsClientVerification as ((
+    asset: typeof initialPlayState.inventory[number],
+    proofObjects: unknown
+  ) => boolean) | undefined;
+  assert.equal(typeof needsVerification, "function");
+  const asset = initialPlayState.inventory[0]!;
+  const { proofObjects } = admit({ cards: [asset], playerHandle: "publisher" });
+
+  assert.equal(needsVerification!(asset, proofObjects), false);
+  assert.equal(needsVerification!(structuredClone(asset), proofObjects), true);
+  assert.equal(needsVerification!(asset, {}), true);
+});
+
+test("a weaker publication response cannot replace or re-verify an admitted local Proof Object", async () => {
+  const admit = (vaultAdmission as Record<string, unknown>).admitWildzVaultProofObjects as ((input: {
+    cards: typeof initialPlayState.inventory;
+    playerHandle: string;
+  }) => { proofObjects: never });
+  const asset = initialPlayState.inventory[0]!;
+  const { proofObjects } = admit({ cards: [asset], playerHandle: "publisher" });
+  const projected = createPublicWildsCardRecord(asset, "https://wildz.quest", "2026-08-20T20:00:00.000Z");
+  const weakerProjection = structuredClone(projected);
+  weakerProjection.asset.proof.digest = `sha256:${"0".repeat(64)}`;
+  const fetcher = (async () => new Response(JSON.stringify({ ok: true, record: weakerProjection }), {
+    status: 201,
+    headers: { "content-type": "application/json" }
+  })) as typeof fetch;
+
+  const registered = await registerPublicWildsCard(asset, fetcher, { proofObjects });
+
+  assert.equal(registered.asset, asset);
+  assert.equal(registered.asset.proof.digest, asset.proof.digest);
+  assert.equal(registered.sourceUrl, projected.sourceUrl);
+});
+
+test("public card publication treats the Proof Object as authority and the server as transport", () => {
   const route = readFileSync("app/api/cards/[assetId]/route.ts", "utf8");
-  assert.match(route, /resolveWildzCookieActor/);
-  assert.match(route, /if \(identityKeyFile\)/);
-  assert.match(route, /else \{\s*const actor = await resolveWildzCookieActor/);
-  assert.match(route, /sameWildzPlayerCoordinate\(asset\.manifest\.ownerReceizId, actor\.profileHandle\)/);
-  assert.match(route, /publishPublicStoreWithIdentityProof/);
-  assert.match(route, /storeStateRecord:\s*transportRecord as unknown as JsonObject/);
+  assert.doesNotMatch(route, /resolveWildzCookieActor|isReceizKeyFile|identityProof|publishPublicStoreWithIdentityProof/);
+  assert.match(route, /verifyAnyWildsCard\(asset\)/);
+  assert.match(route, /publishPublicStore\(\{\s*\.\.\.base,\s*state:/);
   assert.match(route, /merchantReceizId:\s*ownerCoordinate\.profileHandle/);
   assert.doesNotMatch(route, /createReceizWildzPublicRepository|loadVerifiedWildzPublicOwnershipAuthority|advanceWildzPublicState/);
-  assert.match(route, /status:\s*401/);
-  assert.match(route, /status:\s*403/);
   assert.match(route, /status:\s*503/);
   assert.match(route, /namespace:\s*`wildz-card:\$\{record\.assetId\}`/);
   assert.match(route, /state:\s*transportRecord as unknown as JsonObject/);
@@ -83,7 +120,7 @@ test("standalone card recovery prefers exact verified local truth before the pub
   assert.match(page, /if \(localAsset\) \{[\s\S]*?return;[\s\S]*?if \(serverAsset\) return;[\s\S]*?fetch\(`/);
   assert.doesNotMatch(page, /initialPlayState|restorePlayState|localStorage|receiz:wilds:save:v2/);
   const registry = readFileSync("src/features/play/public-card-registry.ts", "utf8");
-  assert.match(registry, /identityProof|keyFile/);
+  assert.doesNotMatch(registry, /identityProof|keyFile|defaultIdentityRepository|indexedDB/);
   assert.doesNotMatch(registry, /registryKey|Symbol\.for|resolveLocalPublicWildsCard/);
 });
 

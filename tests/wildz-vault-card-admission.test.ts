@@ -63,6 +63,27 @@ test("Vault admission deterministically commits historical-owner cards and drops
   assert.equal(forward.leaves.some((leaf) => leaf.assetId === playerOwned.id), false);
 });
 
+test("one Vault admission retains exact proof-object authority for downstream publication", async () => {
+  const utility = await admissionUtility() as Record<string, unknown>;
+  const admit = utility.admitWildzVaultProofObjects as ((input: {
+    cards: ReturnType<typeof card>[];
+    playerHandle: string;
+  }) => { admission: { root: string }; proofObjects: unknown }) | undefined;
+  const carries = utility.wildzVaultAdmissionCarriesProofObject as ((authority: unknown, asset: ReturnType<typeof card>) => boolean) | undefined;
+  assert.equal(typeof admit, "function");
+  assert.equal(typeof carries, "function");
+  const first = card(PLAYER, "authority-first");
+  const second = card("historical.receiz.id", "authority-second");
+
+  const admitted = admit!({ cards: [first, second], playerHandle: PLAYER });
+
+  assert.match(admitted.admission.root, /^sha256:[a-f0-9]{64}$/);
+  assert.equal(carries!(admitted.proofObjects, first), true);
+  assert.equal(carries!(admitted.proofObjects, second), true);
+  assert.equal(carries!(admitted.proofObjects, structuredClone(first)), false);
+  assert.equal(carries!({}, first), false);
+});
+
 test("a compact proof admits a legitimate later revision of a historical-owner card", async () => {
   const {
     createWildzVaultCardMembershipProof,

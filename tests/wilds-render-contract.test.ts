@@ -501,9 +501,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.doesNotMatch(css, /\.wilds-card-flip-control/);
     assert.match(cardExport, /requireGloballyAvailablePublicWildsCard/);
     assert.doesNotMatch(cardExport, /BROWSER_RECEIZ_ID_SESSION_KEY|keyFile|passphrase/);
-    assert.match(cardRoute, /resolveWildzCookieActor/);
-    assert.match(cardRoute, /publishPublicStoreWithIdentityProof/);
-    assert.match(cardRoute, /storeStateRecord:\s*transportRecord as unknown as JsonObject/);
+    assert.doesNotMatch(cardRoute, /resolveWildzCookieActor|publishPublicStoreWithIdentityProof|identityProof/);
+    assert.match(cardRoute, /publishPublicStore\(\{\s*\.\.\.base,\s*state:/);
     assert.match(cardRoute, /status:\s*503/);
     assert.doesNotMatch(cardRoute, /createReceizWildzPublicRepository|hasPublicationAuthority|published:\s*false/);
     assert.match(inventory, /cardSavePresentation\("preparing"\)/);

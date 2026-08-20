@@ -91,6 +91,7 @@ import { deriveLoadoutSynergy, projectWildsCardMastery } from "@/features/play/w
 import {
   createWildzVaultCardMembershipProof,
   deriveWildzVaultCardAdmission,
+  type WildzAdmittedVaultProofObjects,
   type WildzVaultCardAdmission,
   type WildzVaultCardMembershipProof
 } from "@/lib/receiz/wildz-vault-card-admission";
@@ -138,6 +139,7 @@ export function PlayCampaign({
   onExportCard,
   onExportVault,
   vaultAdmission,
+  admittedProofObjects,
   onRestoreArtifact
 }: {
   campaignName?: string;
@@ -159,6 +161,7 @@ export function PlayCampaign({
   onExportCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
   onExportVault: (assets: PortableCardAsset[], player: WildsPlayerVaultPayload) => Promise<unknown>;
   vaultAdmission: WildzVaultCardAdmission | null;
+  admittedProofObjects?: WildzAdmittedVaultProofObjects;
   onRestoreArtifact: (
     file: File,
     confirmCardOnly: WildzCardOnlyConfirmation,
@@ -282,10 +285,10 @@ export function PlayCampaign({
   // verified public projection. Publish every currently owned, valid proof in
   // cooperative background batches; this is deliberately outside input,
   // capture, movement, restore, and card-export hot paths.
-  usePublicCardPublisher(deckCards, enabled && networkEnabled);
+  usePublicCardPublisher(deckCards, enabled && networkEnabled, admittedProofObjects);
   const priorVaultIdsRef = useRef(new Set(state.inventory.map((asset) => asset.id)));
   const [newRosterAssetId, setNewRosterAssetId] = useState<string | null>(null);
-  const [initialVaultAdmission] = useState<WildzVaultCardAdmission>(() => deriveWildzVaultCardAdmission({
+  const [initialVaultAdmission] = useState<WildzVaultCardAdmission>(() => vaultAdmission ?? deriveWildzVaultCardAdmission({
     cards: initialState.inventory,
     playerHandle: ownerReceizId
   }));
