@@ -20,6 +20,13 @@ export type CardKaiAppearance = {
     glow: string;
   };
   morphology: { head: number; torso: number; limb: number; symmetry: number };
+  anatomy: {
+    body: "round" | "long" | "winged" | "serpentine" | "armored";
+    detail: string;
+    locomotion: "biped" | "quadruped" | "flying" | "serpentine";
+    surface: string;
+    appendages: { ears: string; horns: string; wings: string; tail: string; crest: string };
+  };
   cadenceMs: number;
   fingerprint: string;
   discoveryIdentity?: LivingCreatureIdentityV3;
@@ -38,13 +45,14 @@ export function projectCardKaiAppearance(asset: PortableCardAsset): CardKaiAppea
   if (!form) throw new Error("wilds_kai_appearance_form_unknown");
 
   const variant = asset.manifest.variant;
-  const creaturePalette = isLivingCardAsset(asset)
-    ? currentLivingGenome(asset).palette
+  const genome = isLivingCardAsset(asset)
+    ? currentLivingGenome(asset)
     : deriveBirthGenome({
         formId: asset.manifest.formId,
         proofDigest: asset.proof.digest,
         variant: asset.manifest.variant.traits
-      }).palette;
+      });
+  const creaturePalette = genome.palette;
   const palette = {
     primary: creaturePalette.primary,
     secondary: creaturePalette.secondary,
@@ -56,6 +64,13 @@ export function projectCardKaiAppearance(asset: PortableCardAsset): CardKaiAppea
     accent: palette.accent,
     glow: palette.glow
   };
+  const anatomy: CardKaiAppearance["anatomy"] = {
+    body: genome.anatomy.body,
+    detail: genome.anatomy.detail,
+    locomotion: genome.skeleton.locomotion,
+    surface: genome.surface.kind,
+    appendages: { ...genome.appendages }
+  };
 
   if (variant.generatorVersion === 3) {
     const identity = variant.traits.identity;
@@ -66,6 +81,7 @@ export function projectCardKaiAppearance(asset: PortableCardAsset): CardKaiAppea
       historicalPulse: variant.kaiPulse,
       profile: { ...recovered, palette: profilePalette },
       palette,
+      anatomy,
       morphology: {
         head: identity.anatomy.head,
         torso: identity.anatomy.torso,
@@ -84,6 +100,7 @@ export function projectCardKaiAppearance(asset: PortableCardAsset): CardKaiAppea
       historicalPulse: variant.kaiPulse,
       profile: variant.traits.birthProfile,
       palette,
+      anatomy,
       morphology: variant.traits.birthProfile.morphology,
       cadenceMs: variant.traits.birthProfile.motion.cadenceMs,
       fingerprint: variant.traits.birthProfile.fingerprint
@@ -97,6 +114,7 @@ export function projectCardKaiAppearance(asset: PortableCardAsset): CardKaiAppea
     historicalPulse: variant.kaiPulse,
     profile: { ...recovered, palette: profilePalette },
     palette,
+    anatomy,
     morphology: recovered.morphology,
     cadenceMs: recovered.motion.cadenceMs,
     fingerprint: recovered.fingerprint

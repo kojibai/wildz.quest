@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { Icons } from "@/components/icons";
@@ -107,6 +108,10 @@ export function WildsInventory({
   const [sendTarget, setSendTarget] = useState("");
   const [sendMessage, setSendMessage] = useState("");
   const [speakingAssetId, setSpeakingAssetId] = useState<string | null>(null);
+  const [selectedCardAdmissionState, setSelectedCardAdmissionState] = useState<{
+    assetId: string;
+    admission: ReturnType<typeof createWildzVaultCardMembershipProof>;
+  } | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const suppressCardClick = useRef(false);
@@ -145,14 +150,9 @@ export function WildsInventory({
   const cardSave = cardSavePresentation(cardSaveState);
   const cardSaving = cardSave.busy;
   const selectedSpeakingId = selected?.id ?? null;
-  const selectedCardAdmission = useMemo(() => {
-    if (!selected) return null;
-    try {
-      return createWildzVaultCardMembershipProof(vaultAdmission, selected);
-    } catch {
-      return null;
-    }
-  }, [selected, vaultAdmission]);
+  const selectedCardAdmission = selectedCardAdmissionState?.assetId === selected?.id
+    ? selectedCardAdmissionState.admission
+    : null;
   const setSelectedCreatureSpeaking = useCallback((speaking: boolean) => {
     setSpeakingAssetId(speaking ? selectedSpeakingId : null);
   }, [selectedSpeakingId]);
@@ -206,6 +206,22 @@ export function WildsInventory({
     setCardSaveState("idle");
     setDownloadMessage("");
   }, [selected?.id]);
+
+  useEffect(() => {
+    setSelectedCardAdmissionState(null);
+    if (!selected) return;
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        setSelectedCardAdmissionState({
+          assetId: selected.id,
+          admission: createWildzVaultCardMembershipProof(vaultAdmission, selected)
+        });
+      } catch {
+        setSelectedCardAdmissionState(null);
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [selected, vaultAdmission]);
 
   useEffect(() => {
     preparedIdentityCard.current = null;
@@ -469,7 +485,7 @@ export function WildsInventory({
             const cardProgress = state.companionProgress[asset.manifest.familyId] ?? { level: 1, xp: 0, bond: 0 };
             const retired = state.adventureConditions[asset.id]?.life === "dead"
               || (isLivingCardAsset(asset) && Boolean(currentRevision(asset).growth.life?.retired));
-            return <button aria-pressed={selected?.id === asset.id} className={retired ? "is-retired" : ""} key={asset.id} onClick={() => { if (suppressCardClick.current) { suppressCardClick.current = false; return; } setSelectedId(asset.id); }} type="button">
+            return <button aria-pressed={selected?.id === asset.id} className={retired ? "is-retired" : ""} key={asset.id} onClick={() => { if (suppressCardClick.current) { suppressCardClick.current = false; return; } flushSync(() => setSelectedId(asset.id)); }} type="button">
               <WildsCreatureThumbnail asset={asset} className="wilds-vault-creature-art" />
               <span className="wilds-vault-card-copy">
                 <span className="wilds-inventory-card-xp">{cardProgress.xp} XP</span>

@@ -4,7 +4,7 @@ import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { creatureForm } from "./creature-catalog";
-import { threeCreatureColor } from "./card-kai-appearance";
+import { threeCreatureColor, type CardKaiAppearance } from "./card-kai-appearance";
 import { useWildsReadability } from "./WildsReadabilityContext";
 
 export type WildsCreaturePose = "idle" | "curious" | "attack" | "impact" | "weakened" | "capture";
@@ -24,6 +24,7 @@ export function WildsCreatureActor({
   glow,
   identityToken,
   morphology,
+  anatomy,
   cadenceMs,
   pose = "idle"
 }: {
@@ -35,6 +36,7 @@ export function WildsCreatureActor({
   glow: string;
   identityToken?: string;
   morphology?: { head: number; torso: number; limb: number; symmetry: number };
+  anatomy?: CardKaiAppearance["anatomy"];
   cadenceMs?: number;
   pose?: WildsCreaturePose;
 }) {
@@ -44,9 +46,15 @@ export function WildsCreatureActor({
   const limbs = useRef<THREE.Group>(null);
   const aura = useRef<THREE.Group>(null);
   const form = creatureForm(formId) ?? creatureForm(`${familyId}-1`);
-  const body = form?.anatomy.body ?? "round";
-  const detail = form?.anatomy.detail ?? "ears";
+  const body = anatomy?.body ?? form?.anatomy.body ?? "round";
+  const detail = anatomy?.detail ?? form?.anatomy.detail ?? "ears";
   const auraKind = form?.anatomy.aura ?? "prism";
+  const hasWings = anatomy ? anatomy.appendages.wings !== "none" : body === "winged" || detail === "wings" || familyId === "voltray";
+  const hasEars = anatomy ? anatomy.appendages.ears !== "none" : detail === "ears" || familyId === "mintcub";
+  const hasHorns = anatomy ? anatomy.appendages.horns !== "none" : detail === "horns" || familyId === "titanseal";
+  const hasTail = anatomy ? anatomy.appendages.tail !== "none" : detail === "tail" || body === "long" || familyId === "ledgerfox";
+  const hasCrest = anatomy ? anatomy.appendages.crest !== "none" : detail === "crest";
+  const hasShell = anatomy ? anatomy.surface === "shell" : detail === "shell" || body === "armored";
   const identity = useMemo(() => {
     const token = identityToken ?? formId;
     return {
@@ -106,7 +114,7 @@ export function WildsCreatureActor({
       </group>
 
       <group name="wilds-creature-limbs" ref={limbs}>
-        {body === "winged" ? [-1, 1].map((side) => <mesh castShadow key={side} position={[side * 0.46, 0.08, -0.08]} rotation={[0.15, 0, side * -0.72]} scale={[0.48, 1.3, 0.18]}><tetrahedronGeometry args={[0.46, 0]} /><meshStandardMaterial color={renderedSecondary} emissive={renderedSecondary} emissiveIntensity={0.12} roughness={0.46} /></mesh>) : null}
+        {body === "winged" || hasWings ? [-1, 1].map((side) => <mesh castShadow key={side} position={[side * 0.46, 0.08, -0.08]} rotation={[0.15, 0, side * -0.72]} scale={[0.48, 1.3, 0.18]}><tetrahedronGeometry args={[0.46, 0]} /><meshStandardMaterial color={renderedSecondary} emissive={renderedSecondary} emissiveIntensity={0.12} roughness={0.46} /></mesh>) : null}
         {body === "round" || body === "long" || body === "armored" ? [-1, 1].flatMap((side) => [-1, 1].map((front) => <mesh castShadow key={`${side}:${front}`} position={[side * 0.26, -0.3, front * 0.2]} rotation={[front * 0.14, 0, side * -0.08]}><capsuleGeometry args={[0.07, 0.22, 5, 8]} /><meshStandardMaterial color={renderedPrimary} roughness={0.7} /></mesh>)) : null}
       </group>
 
@@ -120,7 +128,7 @@ export function WildsCreatureActor({
         <mesh position={[0, -0.055, 0.255]} scale={[1, 0.72, 0.7]}><sphereGeometry args={[0.038, 9, 7]} /><meshStandardMaterial color="#5b3b35" roughness={0.48} /></mesh>
         <mesh position={[0, -0.125, 0.246]} rotation={[Math.PI / 2, 0, 0]} scale={[1, pose === "attack" ? 1.35 : 0.55, 1]}><torusGeometry args={[0.055, 0.012, 6, 18, Math.PI]} /><meshStandardMaterial color="#7d3f50" roughness={0.54} /></mesh>
         {[-1, 1].map((side) => <mesh key={side} position={[side * 0.2, -0.08, 0.19]} scale={[1.1, 0.55, 0.5]}><sphereGeometry args={[0.042, 8, 6]} /><meshStandardMaterial color="#ff9baa" transparent opacity={0.62} /></mesh>)}
-        <CreatureIdentityDetail accent={renderedAccent} detail={detail} familyId={familyId} glow={renderedGlow} secondary={renderedSecondary} />
+        <CreatureIdentityDetail accent={renderedAccent} glow={renderedGlow} hasCrest={hasCrest} hasEars={hasEars} hasHorns={hasHorns} hasShell={hasShell} hasTail={hasTail} secondary={renderedSecondary} />
       </group>
 
       <group name={`wilds-creature-aura-${auraKind}`} ref={aura} position={[0, -0.35, 0]}>
@@ -131,12 +139,12 @@ export function WildsCreatureActor({
   );
 }
 
-function CreatureIdentityDetail({ accent, detail, familyId, glow, secondary }: { accent: string; detail: string; familyId: string; glow: string; secondary: string }) {
-  if (familyId === "mintcub" || detail === "ears") return <>{[-1, 1].map((side) => <mesh castShadow key={side} position={[side * 0.22, 0.27, -0.03]} rotation={[0, 0, side * -0.36]} scale={[0.7, 1.1, 0.5]}><coneGeometry args={[0.12, 0.34, 5]} /><meshStandardMaterial color={secondary} roughness={0.66} /></mesh>)}</>;
-  if (familyId === "voltray" || detail === "wings") return <>{[-1, 1].map((side) => <mesh key={side} position={[side * 0.31, 0.08, -0.08]} rotation={[0, 0, side * -0.7]}><tetrahedronGeometry args={[0.2, 0]} /><meshStandardMaterial color={secondary} emissive={secondary} emissiveIntensity={0.18} /></mesh>)}</>;
-  if (familyId === "ledgerfox" || detail === "tail") return <mesh castShadow position={[0.34, -0.22, -0.36]} rotation={[0.15, 0, -0.68]}><capsuleGeometry args={[0.06, 0.42, 5, 8]} /><meshStandardMaterial color={secondary} roughness={0.72} /></mesh>;
-  if (familyId === "titanseal" || detail === "horns") return <>{[-1, 1].map((side) => <mesh castShadow key={side} position={[side * 0.2, 0.25, 0]} rotation={[0.2, 0, side * -0.22]}><coneGeometry args={[0.055, 0.26, 7]} /><meshStandardMaterial color={glow} roughness={0.44} /></mesh>)}</>;
-  if (detail === "crest") return <mesh position={[0, 0.3, -0.03]}><octahedronGeometry args={[0.14, 0]} /><meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.12} /></mesh>;
-  if (detail === "shell") return <mesh castShadow position={[0, -0.13, -0.32]} scale={[1.05, 0.82, 0.36]}><sphereGeometry args={[0.28, 12, 9]} /><meshStandardMaterial color={secondary} roughness={0.8} /></mesh>;
-  return null;
+function CreatureIdentityDetail({ accent, glow, hasCrest, hasEars, hasHorns, hasShell, hasTail, secondary }: { accent: string; glow: string; hasCrest: boolean; hasEars: boolean; hasHorns: boolean; hasShell: boolean; hasTail: boolean; secondary: string }) {
+  return <>
+    {hasEars ? [-1, 1].map((side) => <mesh castShadow key={`ear-${side}`} position={[side * 0.22, 0.27, -0.03]} rotation={[0, 0, side * -0.36]} scale={[0.7, 1.1, 0.5]}><coneGeometry args={[0.12, 0.34, 5]} /><meshStandardMaterial color={secondary} roughness={0.66} /></mesh>) : null}
+    {hasTail ? <mesh castShadow position={[0.34, -0.22, -0.36]} rotation={[0.15, 0, -0.68]}><capsuleGeometry args={[0.06, 0.42, 5, 8]} /><meshStandardMaterial color={secondary} roughness={0.72} /></mesh> : null}
+    {hasHorns ? [-1, 1].map((side) => <mesh castShadow key={`horn-${side}`} position={[side * 0.2, 0.25, 0]} rotation={[0.2, 0, side * -0.22]}><coneGeometry args={[0.055, 0.26, 7]} /><meshStandardMaterial color={glow} roughness={0.44} /></mesh>) : null}
+    {hasCrest ? <mesh position={[0, 0.3, -0.03]}><octahedronGeometry args={[0.14, 0]} /><meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.12} /></mesh> : null}
+    {hasShell ? <mesh castShadow position={[0, -0.13, -0.32]} scale={[1.05, 0.82, 0.36]}><sphereGeometry args={[0.28, 12, 9]} /><meshStandardMaterial color={secondary} roughness={0.8} /></mesh> : null}
+  </>;
 }

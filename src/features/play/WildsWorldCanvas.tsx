@@ -64,7 +64,8 @@ export function WildsWorldCanvas({
   kaiMoment,
   visualSettings = DEFAULT_WILDS_VISUAL_SETTINGS,
   supportCards = [],
-  trainers = []
+  trainers = [],
+  suspended = false
 }: {
   state: PlayState;
   character: WildzCharacterGenesis;
@@ -82,6 +83,7 @@ export function WildsWorldCanvas({
   supportCards?: readonly PortableCardAsset[];
   trainers?: readonly WildsTrainerProjection[];
   onSelectTrainer: (trainer: WildsTrainerProjection) => void;
+  suspended?: boolean;
 }) {
   return (
     <div
@@ -92,6 +94,7 @@ export function WildsWorldCanvas({
       <Canvas
         camera={{ fov: 40, near: 0.1, far: 80, position: [4.2, 3.7, 6.6] }}
         dpr={qualityProfile.dpr}
+        frameloop={suspended ? "never" : "always"}
         gl={{ antialias: true, powerPreference: "high-performance" }}
         onCreated={({ gl, size }) => {
           gl.outputColorSpace = THREE.SRGBColorSpace;
@@ -176,6 +179,9 @@ function WildsScene({
     .lerp(new THREE.Color("#050811"), darkness.amount * 0.72)
     .getStyle(), [darkness.amount, kaiExpression.sky.zenith]);
   const worldSparkleCount = Math.round(54 * qualityProfile.particles);
+  const visibleRemotePlayers = useMemo(() => remotePlayers
+    .filter((player) => Math.hypot(player.x - state.player.x, player.z - state.player.z) <= 28)
+    .slice(0, 12), [remotePlayers, state.player.x, state.player.z]);
   return (
     <WildsReadabilityProvider value={readability}>
       <color attach="background" args={[kaiSky]} />
@@ -208,8 +214,12 @@ function WildsScene({
         <WildsEcologyEnvironment livingWorld={livingWorld} player={state.player} worldMode={worldMode} />
         <WildsBossEnvironment livingWorld={livingWorld} player={state.player} qualityProfile={qualityProfile} />
         <EncounterSequence state={state} />
-        {remotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} />)}
-        {trainers.map((trainer) => <TrainerExplorer key={trainer.id} trainer={trainer} localPlayer={state.player} onSelect={onSelectTrainer} />)}
+        {visibleRemotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} />)}
+        {trainers.map((trainer, index) => (
+          index < 10 && Math.hypot(trainer.position[0] - state.player.x, trainer.position[2] - state.player.z) <= 28
+            ? <TrainerExplorer key={trainer.id} trainer={trainer} localPlayer={state.player} onSelect={onSelectTrainer} />
+            : null
+        ))}
       </SmoothWorldFrame>
       <WildsExplorer character={character} style={character.gender} worldPosition={state.player} />
       <ActiveCompanion state={state} />
@@ -288,7 +298,7 @@ function ActiveCompanion({ state }: { state: PlayState }) {
   const appearance = useMemo(() => asset ? projectCardKaiAppearance(asset) : null, [asset]);
   return (
     <group name="active-companion" position={[-1.08, 0.44, 0.42]} scale={0.82}>
-      <WildsCreatureActor accent={appearance?.palette.accent ?? card.accent} cadenceMs={appearance?.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} glow={appearance?.palette.glow ?? card.accent} identityToken={appearance?.fingerprint} morphology={appearance?.morphology} pose="curious" primary={appearance?.palette.primary ?? card.color} secondary={appearance?.palette.secondary ?? card.color} />
+      <WildsCreatureActor accent={appearance?.palette.accent ?? card.accent} anatomy={appearance?.anatomy} cadenceMs={appearance?.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} glow={appearance?.palette.glow ?? card.accent} identityToken={appearance?.fingerprint} morphology={appearance?.morphology} pose="curious" primary={appearance?.palette.primary ?? card.color} secondary={appearance?.palette.secondary ?? card.color} />
       <mesh position={[0, -0.37, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.46, 0.035, 8, 36]} />
         <meshStandardMaterial color="#f4fff6" emissive="#7cdea5" emissiveIntensity={0.55} transparent opacity={0.92} />
@@ -311,6 +321,7 @@ function SupportCompanions({ cards }: { cards: readonly PortableCardAsset[] }) {
     {appearances.map(({ card, appearance }, index) => <group key={card.id} name={`trail-support-${index + 1}`} position={positions[index]} scale={index === 0 ? 0.62 : 0.54}>
       <WildsCreatureActor
         accent={appearance.palette.accent}
+        anatomy={appearance.anatomy}
         cadenceMs={appearance.cadenceMs}
         familyId={card.manifest.familyId}
         formId={card.manifest.formId}

@@ -51,6 +51,7 @@ function HearttreeWorld({ cards, definition, reducedMotion, runtime }: { cards: 
     <group position={[actor.position.x, 0, actor.position.z]} rotation={[0, Math.PI, 0]}>
       <WildsCreatureActor
         accent={appearance.palette.accent}
+        anatomy={appearance.anatomy}
         cadenceMs={appearance.cadenceMs}
         familyId={activeCard.manifest.familyId}
         formId={activeCard.manifest.formId}

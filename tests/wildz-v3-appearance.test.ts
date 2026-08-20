@@ -39,6 +39,9 @@ test("v3 cards project their exact discovery colors, anatomy, and motion", () =>
     limb: identity.anatomy.limb,
     symmetry: identity.anatomy.asymmetry
   });
+  assert.equal(appearance.anatomy.body, form.anatomy.body);
+  assert.equal(appearance.anatomy.locomotion, "flying");
+  assert.notEqual(appearance.anatomy.appendages.wings, "none");
   assert.equal(appearance.cadenceMs, identity.motion.cadenceMs);
   assert.equal(appearance.fingerprint, identity.visualFingerprint);
   assert.equal(appearance.discoveryIdentity?.identityDigest, identity.identityDigest);

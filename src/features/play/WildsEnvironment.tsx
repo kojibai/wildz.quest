@@ -3,6 +3,7 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { PlayState } from "@/features/play/game-state";
 import { projectWildsBiome, type WildsBiomeTile } from "@/features/play/wilds-biome";
 import type { WildsQualityProfile } from "@/features/play/wilds-quality-profile";
@@ -132,7 +133,7 @@ export function WildsEnvironment({
 
 function LivingWorldSites({ player, world }: { player: PlayState["player"]; world?: WildsWorldProjection | null }) {
   if (!world) return null;
-  const sites = Object.values(world.sites).filter((site) => site.phase !== "expired" && Math.hypot(site.position.x - player.x, site.position.z - player.z) <= 54);
+  const sites = Object.values(world.sites).filter((site) => site.phase !== "expired" && Math.hypot(site.position.x - player.x, site.position.z - player.z) <= 30);
   return <group name="world-living-sites">
     {sites.map((site) => {
       const boss = site.bossId ? world.bosses[site.bossId] : null;
@@ -156,18 +157,18 @@ function LivingWorldSites({ player, world }: { player: PlayState["player"]; worl
 }
 
 function FlagshipLandmarkEntrances({ detail, livingWorld, player, worldMode }: { detail: boolean; livingWorld?: WildsWorldProjection | null; player: PlayState["player"]; worldMode: WildsSettlementWorldMode }) {
-  const entrances = projectVisibleLandmarkEntrances(player);
+  const entrances = projectVisibleLandmarkEntrances(player).filter(({ distance }) => distance <= 30);
   return <group name="world-flagship-landmarks">
     {entrances.map(({ landmark, relative, distance }) => (
       <group key={landmark.id} name={`world-entrance-${landmark.id}`} position={[relative.x, 0, relative.z]}>
-        {landmark.id === "hearttree-sanctum" ? (
+        {landmark.id === "hearttree-sanctum" && distance <= 26 ? (
           <group position={distance < landmark.radius + 2 ? [2.6, 0, -2.4] : [0, 0, 0]} scale={distance < landmark.radius + 2 ? 0.44 : 1}>
             <HearttreeSanctum />
           </group>
         ) : null}
-        {landmark.id === "arena-of-echoes" ? <ArenaOfEchoes detail={detail} /> : null}
-        {landmark.id === "prism-arcade" ? <PrismArcade /> : null}
-        {landmark.id === "wayfinder-hollow" ? <WildsSettlementEnvironment livingWorld={livingWorld} relative={{ x: 0, z: 0 }} settlement={WAYFINDER_HOLLOW} worldMode={worldMode} /> : null}
+        {landmark.id === "arena-of-echoes" && distance <= 26 ? <ArenaOfEchoes detail={detail && distance <= 18} /> : null}
+        {landmark.id === "prism-arcade" && distance <= 26 ? <PrismArcade /> : null}
+        {landmark.id === "wayfinder-hollow" && distance <= 26 ? <WildsSettlementEnvironment livingWorld={livingWorld} relative={{ x: 0, z: 0 }} settlement={WAYFINDER_HOLLOW} worldMode={worldMode} /> : null}
         <LandmarkEntranceBeacon distance={distance} landmark={landmark} />
       </group>
     ))}
@@ -200,11 +201,11 @@ function MajorWorldRoutes({ player, palette }: { player: PlayState["player"]; pa
     ...route,
     curve: new THREE.CatmullRomCurve3(route.points.map((point) => new THREE.Vector3(point.x, .024, point.z)))
   })), []);
+  const edgeGeometry = useMemo(() => mergeGeometries(routes.map((route, index) => new THREE.TubeGeometry(route.curve, 160, index ? .42 : .54, 7, false)), false)!, [routes]);
+  const trailGeometry = useMemo(() => mergeGeometries(routes.map((route, index) => new THREE.TubeGeometry(route.curve, 160, index ? .28 : .36, 7, false)), false)!, [routes]);
   return <group name="world-major-routes" position={[-player.x, 0, -player.z]}>
-    {routes.map((route, index) => <group key={route.id} name={`world-route-${route.id}`}>
-      <mesh><tubeGeometry args={[route.curve, 160, index ? .42 : .54, 7, false]} /><meshStandardMaterial color={palette.edge} emissive={palette.edge} emissiveIntensity={readability.pathEmissive * .45} roughness={.98} /></mesh>
-      <mesh><tubeGeometry args={[route.curve, 160, index ? .28 : .36, 7, false]} /><meshStandardMaterial color={palette.base} emissive={palette.base} emissiveIntensity={readability.pathEmissive} roughness={.91} /></mesh>
-    </group>)}
+    <mesh geometry={edgeGeometry} name="world-route-edges"><meshStandardMaterial color={palette.edge} emissive={palette.edge} emissiveIntensity={readability.pathEmissive * .45} roughness={.98} /></mesh>
+    <mesh geometry={trailGeometry} name="world-route-surfaces"><meshStandardMaterial color={palette.base} emissive={palette.base} emissiveIntensity={readability.pathEmissive} roughness={.91} /></mesh>
   </group>;
 }
 
@@ -306,22 +307,22 @@ function TrailNetwork({ player, palette }: { player: PlayState["player"]; palett
   const readability = useWildsReadability();
   const offsetX = -(((player.x % WILDS_TILE_SIZE) + WILDS_TILE_SIZE) % WILDS_TILE_SIZE);
   const offsetZ = -(((player.z % WILDS_TILE_SIZE) + WILDS_TILE_SIZE) % WILDS_TILE_SIZE);
+  const edgeGeometry = useMemo(() => {
+    const eastWest = new THREE.PlaneGeometry(WILDS_TILE_SIZE * 5, 1.02).applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)));
+    const northSouth = new THREE.PlaneGeometry(WILDS_TILE_SIZE * 5, .82).applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(-Math.PI / 2, 0, Math.PI / 2)));
+    return mergeGeometries([eastWest, northSouth], false)!;
+  }, []);
+  const trailGeometry = useMemo(() => {
+    const eastWest = new THREE.PlaneGeometry(WILDS_TILE_SIZE * 5, .72).applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)));
+    const northSouth = new THREE.PlaneGeometry(WILDS_TILE_SIZE * 5, .56).applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(-Math.PI / 2, 0, Math.PI / 2)));
+    return mergeGeometries([eastWest, northSouth], false)!;
+  }, []);
   return (
     <group position={[offsetX, 0.018, offsetZ]}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[WILDS_TILE_SIZE * 5, 1.02]} />
+      <mesh geometry={edgeGeometry}>
         <meshStandardMaterial color={palette.edge} emissive={palette.edge} emissiveIntensity={readability.pathEmissive * 0.45} roughness={0.96} />
       </mesh>
-      <mesh position={[0, 0.009, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[WILDS_TILE_SIZE * 5, 0.72]} />
-        <meshStandardMaterial color={palette.base} emissive={palette.base} emissiveIntensity={readability.pathEmissive} roughness={0.88} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, Math.PI / 2]}>
-        <planeGeometry args={[WILDS_TILE_SIZE * 5, 0.82]} />
-        <meshStandardMaterial color={palette.edge} emissive={palette.edge} emissiveIntensity={readability.pathEmissive * 0.45} roughness={0.96} />
-      </mesh>
-      <mesh position={[0, 0.009, 0]} rotation={[-Math.PI / 2, 0, Math.PI / 2]}>
-        <planeGeometry args={[WILDS_TILE_SIZE * 5, 0.56]} />
+      <mesh geometry={trailGeometry} position={[0, 0.009, 0]}>
         <meshStandardMaterial color={palette.base} emissive={palette.base} emissiveIntensity={readability.pathEmissive} roughness={0.88} />
       </mesh>
     </group>
@@ -377,23 +378,23 @@ function EcologyInstances({
         <cylinderGeometry args={[0.16, 0.29, 1.2, 8]} />
         <meshStandardMaterial color="#64462f" roughness={0.94} />
       </instancedMesh>
-      <instancedMesh args={[undefined, undefined, trees.length]} castShadow ref={lowerCrowns}>
+      <instancedMesh args={[undefined, undefined, trees.length]} ref={lowerCrowns}>
         <dodecahedronGeometry args={[0.72, 1]} />
         <meshStandardMaterial color={palette?.deep ?? "#246b46"} emissive="#123c27" emissiveIntensity={.05 + readability.darkness * .15} roughness={0.82} />
       </instancedMesh>
-      <instancedMesh args={[undefined, undefined, trees.length]} castShadow ref={upperCrowns}>
+      <instancedMesh args={[undefined, undefined, trees.length]} ref={upperCrowns}>
         <dodecahedronGeometry args={[0.56, 1]} />
         <meshStandardMaterial color={palette?.mid ?? "#3d9250"} emissive="#174c2d" emissiveIntensity={.05 + readability.darkness * .16} roughness={0.78} />
       </instancedMesh>
-      <instancedMesh args={[undefined, undefined, trees.length]} castShadow={qualityProfile.tier === "high"} ref={middleCrowns}>
+      <instancedMesh args={[undefined, undefined, trees.length]} ref={middleCrowns}>
         <icosahedronGeometry args={[.52, 1]} />
         <meshStandardMaterial color={palette?.highlight ?? "#4f9f58"} emissive="#1b512d" emissiveIntensity={.04 + readability.darkness * .14} roughness={.8} />
       </instancedMesh>
-      <instancedMesh args={[undefined, undefined, bushes.length]} castShadow ref={shrubMesh}>
+      <instancedMesh args={[undefined, undefined, bushes.length]} ref={shrubMesh}>
         <dodecahedronGeometry args={[1, 1]} />
         <meshStandardMaterial color={palette?.highlight ?? "#3b8d49"} emissive="#174329" emissiveIntensity={.04 + readability.darkness * .12} roughness={0.88} />
       </instancedMesh>
-      <instancedMesh args={[undefined, undefined, rocks.length]} castShadow receiveShadow ref={rockMesh}>
+      <instancedMesh args={[undefined, undefined, rocks.length]} receiveShadow ref={rockMesh}>
         <dodecahedronGeometry args={[1, 0]} />
         <meshStandardMaterial color="#67776c" roughness={0.98} />
       </instancedMesh>
@@ -456,10 +457,30 @@ function ArenaOfEchoes({ detail }: { detail: boolean }) {
   const spectators = useRef<THREE.InstancedMesh>(null);
   const proofSeams = useRef<THREE.InstancedMesh>(null);
   const floorStones = useRef<THREE.InstancedMesh>(null);
+  const archColumns = useRef<THREE.InstancedMesh>(null);
+  const archCrowns = useRef<THREE.InstancedMesh>(null);
+  const archEmblems = useRef<THREE.InstancedMesh>(null);
+  const archBanners = useRef<THREE.InstancedMesh>(null);
+  const arenaStoneMaterial = useMemo(() => new THREE.MeshStandardMaterial({
+    color: "#29483d",
+    emissive: "#163b29",
+    emissiveIntensity: .28,
+    metalness: .12,
+    roughness: .86
+  }), []);
+  const arenaRingsGeometry = useMemo(() => mergeGeometries([7.5, 8.6, 10.35].map((radius, index) => {
+    const geometry = new THREE.TorusGeometry(radius, index === 2 ? .34 : .16, 8, 72);
+    geometry.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2));
+    geometry.translate(0, .48 + index * .25, 0);
+    const color = new THREE.Color(index === 2 ? "#17312d" : "#bfae67");
+    geometry.setAttribute("color", new THREE.Float32BufferAttribute(Array.from({ length: geometry.attributes.position.count }, () => color.toArray()).flat(), 3));
+    return geometry;
+  }), false)!, []);
   useLayoutEffect(() => {
     const matrix = new THREE.Matrix4();
     const quaternion = new THREE.Quaternion();
     const scale = new THREE.Vector3();
+    const position = new THREE.Vector3();
     const spectatorCount = detail ? 48 : 24;
     for (let index = 0; index < spectatorCount; index += 1) {
       const angle = index / spectatorCount * Math.PI * 2;
@@ -488,10 +509,46 @@ function ArenaOfEchoes({ detail }: { detail: boolean }) {
       floorStones.current?.setMatrixAt(index, matrix);
     }
     floorStones.current && (floorStones.current.instanceMatrix.needsUpdate = true);
+
+    const rotations = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
+    const root = new THREE.Matrix4();
+    const local = new THREE.Matrix4();
+    const child = new THREE.Matrix4();
+    rotations.forEach((rotation, archIndex) => {
+      root.makeRotationY(rotation);
+      [-1, 1].forEach((side, sideIndex) => {
+        const instanceIndex = archIndex * 2 + sideIndex;
+        quaternion.setFromEuler(new THREE.Euler(0, 0, side * -.14));
+        local.compose(position.set(side * 2.25, 2.25, -8.15), quaternion, scale.set(1, 1, 1));
+        matrix.copy(root).multiply(local);
+        archColumns.current?.setMatrixAt(instanceIndex, matrix);
+
+        quaternion.setFromEuler(new THREE.Euler(Math.PI / 2, 0, side * .32));
+        child.compose(position.set(side * -.42, 2.1, 0), quaternion, scale.set(1, 1, 1));
+        matrix.copy(root).multiply(local).multiply(child);
+        archCrowns.current?.setMatrixAt(instanceIndex, matrix);
+
+        quaternion.identity();
+        child.compose(position.set(0, -.55, .39), quaternion, scale.set(.55, 1.1, .12));
+        matrix.copy(root).multiply(local).multiply(child);
+        archEmblems.current?.setMatrixAt(instanceIndex, matrix);
+        archEmblems.current?.setColorAt(instanceIndex, new THREE.Color(archIndex % 2 ? "#ff724f" : "#f7c948"));
+      });
+
+      quaternion.identity();
+      local.compose(position.set(0, 3.35, -9), quaternion, scale.set(1, 1, 1));
+      matrix.copy(root).multiply(local);
+      archBanners.current?.setMatrixAt(archIndex, matrix);
+      archBanners.current?.setColorAt(archIndex, new THREE.Color(archIndex % 2 ? "#5f1d18" : "#332507"));
+    });
+    [archColumns, archCrowns, archEmblems, archBanners].forEach((ref) => {
+      if (ref.current) ref.current.instanceMatrix.needsUpdate = true;
+    });
+    if (archEmblems.current?.instanceColor) archEmblems.current.instanceColor.needsUpdate = true;
+    if (archBanners.current?.instanceColor) archBanners.current.instanceColor.needsUpdate = true;
   }, [detail]);
-  const arches = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
   return <group name="mortal-arena-world-anchor">
-    <mesh receiveShadow position={[0, .18, 0]} name="arena-foundation"><cylinderGeometry args={[11.25, 11.7, .36, 64]} /><meshStandardMaterial color="#304b3c" emissive="#163b29" emissiveIntensity={.42} metalness={.06} roughness={.96} /></mesh>
+    <mesh receiveShadow position={[0, .18, 0]} name="arena-foundation"><cylinderGeometry args={[11.25, 11.7, .36, 64]} /><primitive attach="material" object={arenaStoneMaterial} /></mesh>
     <mesh receiveShadow position={[0, .39, 0]} name="arena-open-bowl"><cylinderGeometry args={[7.65, 8.15, .28, 64]} /><meshStandardMaterial color="#58775e" emissive="#1c4930" emissiveIntensity={.38} metalness={.03} roughness={.92} /></mesh>
     <mesh position={[0, .455, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[1.25, 7.1, 64]} /><meshStandardMaterial color="#5e8263" emissive="#205037" emissiveIntensity={.36} roughness={.84} /></mesh>
     <instancedMesh args={[undefined, undefined, detail ? 36 : 20]} ref={floorStones} name="arena-floor-stones">
@@ -499,18 +556,25 @@ function ArenaOfEchoes({ detail }: { detail: boolean }) {
       <meshStandardMaterial color="#65746a" emissive="#1b3528" emissiveIntensity={.24} roughness={.99} />
     </instancedMesh>
     <instancedMesh args={[undefined, undefined, 20]} ref={proofSeams} name="arena-proof-seams"><boxGeometry args={[1, 1, 1]} /><meshStandardMaterial color="#ffe288" emissive="#f7c948" emissiveIntensity={1.6} metalness={.4} roughness={.28} /></instancedMesh>
-    {[7.5, 8.6, 10.35].map((radius, index) => <mesh key={radius} position={[0, .48 + index * .25, 0]} rotation={[Math.PI / 2, 0, 0]}>
-      <torusGeometry args={[radius, index === 2 ? .34 : .16, 8, 72]} />
-      <meshStandardMaterial color={index === 2 ? "#17312d" : "#bfae67"} emissive="#f7c948" emissiveIntensity={index === 1 ? .3 : .08} metalness={.24} roughness={.66} />
-    </mesh>)}
-    {arches.map((rotation, index) => <group key={rotation} name={`arena-split-arch-${index + 1}`} rotation={[0, rotation, 0]}>
-      {[-1, 1].map((side) => <group key={side} position={[side * 2.25, 2.25, -8.15]} rotation={[0, 0, side * -.14]}>
-        <mesh castShadow><cylinderGeometry args={[.42, .72, 4.5, 7]} /><meshStandardMaterial color="#25443c" metalness={.18} roughness={.78} /></mesh>
-        <mesh position={[side * -.42, 2.1, 0]} rotation={[Math.PI / 2, 0, side * .32]}><torusGeometry args={[1.48, .36, 7, 28, Math.PI * .58]} /><meshStandardMaterial color="#8f8357" emissive="#f7c948" emissiveIntensity={.2} metalness={.22} roughness={.62} /></mesh>
-        <mesh position={[0, -.55, .39]} scale={[.55, 1.1, .12]}><octahedronGeometry args={[.7, 0]} /><meshStandardMaterial color={index % 2 ? "#ff724f" : "#f7c948"} emissive={index % 2 ? "#ff3d27" : "#f7c948"} emissiveIntensity={.82} roughness={.34} /></mesh>
-      </group>)}
-      {detail ? <mesh position={[0, 3.35, -9]}><planeGeometry args={[2.8, 1.25]} /><meshStandardMaterial color={index % 2 ? "#5f1d18" : "#332507"} emissive={index % 2 ? "#ff4f37" : "#f7c948"} emissiveIntensity={.25} side={THREE.DoubleSide} roughness={.72} /></mesh> : null}
-    </group>)}
+    <mesh geometry={arenaRingsGeometry} name="arena-merged-tier-rings">
+      <meshStandardMaterial color="#ffffff" emissive="#f7c948" emissiveIntensity={.16} metalness={.24} roughness={.66} vertexColors />
+    </mesh>
+    <instancedMesh args={[undefined, undefined, 8]} name="arena-split-arch-columns" ref={archColumns}>
+      <cylinderGeometry args={[.42, .72, 4.5, 7]} />
+      <primitive attach="material" object={arenaStoneMaterial} />
+    </instancedMesh>
+    <instancedMesh args={[undefined, undefined, 8]} name="arena-arch-crowns" ref={archCrowns}>
+      <torusGeometry args={[1.48, .36, 7, 28, Math.PI * .58]} />
+      <meshStandardMaterial color="#8f8357" emissive="#f7c948" emissiveIntensity={.2} metalness={.22} roughness={.62} />
+    </instancedMesh>
+    <instancedMesh args={[undefined, undefined, 8]} name="arena-arch-emblems" ref={archEmblems}>
+      <octahedronGeometry args={[.7, 0]} />
+      <meshStandardMaterial color="#ffffff" emissive="#f7c948" emissiveIntensity={.76} roughness={.34} vertexColors />
+    </instancedMesh>
+    {detail ? <instancedMesh args={[undefined, undefined, 4]} name="arena-arch-banners" ref={archBanners}>
+      <planeGeometry args={[2.8, 1.25]} />
+      <meshStandardMaterial color="#ffffff" emissive="#f7c948" emissiveIntensity={.22} side={THREE.DoubleSide} roughness={.72} vertexColors />
+    </instancedMesh> : null}
     <instancedMesh args={[undefined, undefined, detail ? 48 : 24]} ref={spectators} name="arena-spectator-silhouettes"><capsuleGeometry args={[1, 2.3, 3, 6]} /><meshStandardMaterial color="#101c1b" emissive="#1e5941" emissiveIntensity={.22} roughness={.92} /></instancedMesh>
     <mesh position={[0, .62, 0]} rotation={[-Math.PI / 2, 0, 0]} name="arena-canonical-seal"><torusGeometry args={[1.1, .095, 8, 48]} /><meshStandardMaterial color="#fff0a8" emissive="#f7c948" emissiveIntensity={1.8} metalness={.46} roughness={.22} /></mesh>
     <pointLight color="#f7c948" distance={18} intensity={detail ? 5.2 : 3.2} position={[0, 4.8, 0]} />

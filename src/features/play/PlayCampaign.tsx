@@ -1303,6 +1303,7 @@ export function PlayCampaign({
               kaiMoment={kaiMoment}
               visualSettings={visualSettings}
               supportCards={trailSupportCards}
+              suspended={exclusiveOwner === "map" && mapOpen}
               onSelectPlayer={(player) => {
                 if (canUseWorldStage()) multiplayer.selectPlayer(player);
               }}
