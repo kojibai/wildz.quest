@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { sanitizePublicWildzProfile } from "../src/features/profile/public-profile";
 import { createOwnerBoundInitialPlayState } from "../src/features/play/game-state";
-import type { PortableCardAsset } from "../src/features/play/portable-card";
+import { sealCollectedCard, type PortableCardAsset } from "../src/features/play/portable-card";
 import {
   fetchPublicWildzProfile,
   parsePublicWildzProfileRecord,
@@ -174,5 +174,56 @@ describe("Receiz-backed public Wildz profiles", () => {
     assert.equal(calls[0]?.init?.method, "POST");
     assert.deepEqual(JSON.parse(String(calls[0]?.init?.body)), { asset });
     assert.equal(calls[1]?.init?.method, "POST");
+  });
+
+  test("stops an obsolete profile publication before starting another card", async () => {
+    const assets = [
+      sealCollectedCard({
+        formId: "voltray-1",
+        ownerReceizId: "fern",
+        encounterId: "profile-cancel-first",
+        capturedAt: "2026-08-20T20:00:00.000Z"
+      }),
+      sealCollectedCard({
+        formId: "mintcub-1",
+        ownerReceizId: "fern",
+        encounterId: "profile-cancel-second",
+        capturedAt: "2026-08-20T20:01:00.000Z"
+      })
+    ];
+    const profile = sanitizePublicWildzProfile({
+      ...fernProfile,
+      vault: assets.map((asset) => ({
+        id: asset.id,
+        name: asset.manifest.name,
+        proofDigest: asset.proof.digest,
+        visibility: "public" as const
+      }))
+    });
+    const controller = new AbortController();
+    const calls: string[] = [];
+    const fetcher = (async (url: string) => {
+      calls.push(url);
+      controller.abort();
+      return new Response(JSON.stringify({ ok: true, record: {
+        schema: "receiz.wilds_public_card.v1",
+        assetId: assets[0]!.id,
+        sourceUrl: `https://wildz.quest/cards/${encodeURIComponent(assets[0]!.id)}`,
+        registeredAt: "2026-08-20T20:00:00.000Z",
+        asset: assets[0]
+      } }), { status: 201, headers: { "content-type": "application/json" } });
+    }) as typeof fetch;
+
+    const publish = publishCurrentWildzProfile as unknown as (
+      input: typeof profile,
+      cards: readonly PortableCardAsset[],
+      request: typeof fetch,
+      options: { signal: AbortSignal }
+    ) => Promise<typeof profile>;
+    await assert.rejects(
+      publish(profile, assets, fetcher, { signal: controller.signal }),
+      { name: "AbortError" }
+    );
+    assert.equal(calls.length, 1);
   });
 });

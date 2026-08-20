@@ -1,6 +1,23 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { sanitizePublicWildzProfile } from "../src/features/profile/public-profile";
+import * as publicProfile from "../src/features/profile/public-profile";
+import { createOwnerBoundInitialPlayState } from "../src/features/play/game-state";
+
+test("owner publication projection is derived only from the signed-in owner state", () => {
+  const project = (publicProfile as Record<string, unknown>).createOwnerPublicWildzProfile as ((input: {
+    username: string;
+    displayName?: string;
+    assets: ReturnType<typeof createOwnerBoundInitialPlayState>["inventory"];
+  }) => ReturnType<typeof sanitizePublicWildzProfile>) | undefined;
+  assert.equal(typeof project, "function");
+  const assets = createOwnerBoundInitialPlayState("signed-in-owner").inventory;
+  const profile = project!({ username: "signed-in-owner", displayName: "Signed In", assets });
+
+  assert.equal(profile.username, "@signed-in-owner");
+  assert.equal(profile.displayName, "Signed In");
+  assert.deepEqual(profile.vault.map((card) => card.id), assets.map((asset) => asset.id));
+});
 
 test("public profile projection excludes identity authority and private vault entries", () => {
   const projected = sanitizePublicWildzProfile({

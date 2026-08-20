@@ -129,3 +129,33 @@ export function sanitizePublicWildzProfile(input: Record<string, unknown>): Publ
     }).slice(0, 24) : []
   };
 }
+
+export function createOwnerPublicWildzProfile(input: {
+  username: string;
+  displayName?: string;
+  avatarImageUrl?: string | null;
+  explorer?: WildzCharacterGenesis | null;
+  assets: readonly {
+    id: string;
+    manifest: { name: string };
+    proof: { digest: string };
+    status: string;
+  }[];
+}) {
+  return sanitizePublicWildzProfile({
+    username: input.username,
+    displayName: input.displayName,
+    avatarImageUrl: input.avatarImageUrl,
+    explorer: input.explorer,
+    vault: input.assets.map((asset) => ({
+      id: asset.id,
+      name: asset.manifest.name,
+      proofDigest: asset.proof.digest,
+      visibility: "public",
+      status: asset.status
+    })),
+    discoveries: input.assets.length,
+    reputation: input.assets.length * 12,
+    record: { wins: 0, losses: 0, raids: 0 }
+  });
+}

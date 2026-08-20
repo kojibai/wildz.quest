@@ -51,7 +51,7 @@ import {
   createLatestOnlySaveScheduler,
   type WildzLatestSaveScheduler
 } from "@/lib/receiz/wildz-save-scheduler";
-import { sanitizePublicWildzProfile } from "@/features/profile/public-profile";
+import { createOwnerPublicWildzProfile, sanitizePublicWildzProfile } from "@/features/profile/public-profile";
 import {
   fetchPublicWildzProfile,
   publishCurrentWildzProfile,
@@ -159,22 +159,13 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     playerHandle: identity.actorId
   }) : null, [identity, ownerPlayState.inventory]);
   const viewingOwnProfile = !overlay || overlay.kind !== "profile" || overlay.username.toLowerCase() === `@${ownerUsername}`.toLowerCase();
-  const localPublicProfile = useMemo(() => sanitizePublicWildzProfile({
-    username: overlay?.kind === "profile" ? overlay.username : ownerUsername,
-    displayName: viewingOwnProfile ? identity?.displayName ?? undefined : overlay?.kind === "profile" ? overlay.username.replace(/^@/, "") : undefined,
-    avatarImageUrl: viewingOwnProfile ? avatarImageUrl : undefined,
-    explorer: viewingOwnProfile ? character : null,
-    vault: viewingOwnProfile ? publishableOwnerAssets.map((asset) => ({
-      id: asset.id,
-      name: asset.manifest.name,
-      proofDigest: asset.proof.digest,
-      visibility: "public",
-      status: asset.status
-    })) : [],
-    discoveries: viewingOwnProfile ? publishableOwnerAssets.length : 0,
-    reputation: viewingOwnProfile ? publishableOwnerAssets.length * 12 : 0,
-    record: { wins: 0, losses: 0, raids: 0 }
-  }), [avatarImageUrl, character, identity, overlay, ownerUsername, publishableOwnerAssets, viewingOwnProfile]);
+  const localPublicProfile = useMemo(() => createOwnerPublicWildzProfile({
+    username: ownerUsername,
+    displayName: identity?.displayName ?? undefined,
+    avatarImageUrl,
+    explorer: character,
+    assets: publishableOwnerAssets
+  }), [avatarImageUrl, character, identity?.displayName, ownerUsername, publishableOwnerAssets]);
   const campaignExplorer = useMemo(() => continuity ? projectWildzContinuityExplorer(continuity) : null, [continuity]);
   const campaignCharacter = campaignExplorer?.character ?? null;
   const shellOverlayOwner = overlay?.kind === "profile" ? "profile" : overlay?.kind === "market" ? "market" : "none";
@@ -345,17 +336,24 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   useEffect(() => {
     if (profilePublicationReadiness !== "ready") return;
     let active = true;
+    const controller = new AbortController();
     const publicationKey = JSON.stringify(localPublicProfile);
     if (publishedProfileRef.current === publicationKey) return;
     setProfileStatus("publishing");
-    void publishCurrentWildzProfile(localPublicProfile, publishableOwnerAssets).then(() => {
+    void publishCurrentWildzProfile(localPublicProfile, publishableOwnerAssets, globalThis.fetch, {
+      signal: controller.signal
+    }).then(() => {
       if (!active) return;
       publishedProfileRef.current = publicationKey;
       setProfileStatus("ready");
-    }).catch(() => {
+    }).catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       if (active) setProfileStatus("unpublished");
     });
-    return () => { active = false; };
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [localPublicProfile, profilePublicationReadiness, publishableOwnerAssets]);
 
   useEffect(() => {

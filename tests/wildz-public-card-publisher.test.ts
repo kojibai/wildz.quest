@@ -82,3 +82,20 @@ test("large Vault publication yields between bounded proof-verification batches"
   assert.equal(queue.length, cards.length);
   assert.equal(yields, 3);
 });
+
+test("default background publication yields after every card proof", async () => {
+  const cards = Array.from({ length: 4 }, (_, index) => sealCollectedCard({
+    formId: index % 2 ? "voltray-1" : "mintcub-1",
+    ownerReceizId: "publisher",
+    encounterId: `publisher-frame-safe-${index}`,
+    capturedAt: new Date(Date.parse("2026-08-20T20:00:00.000Z") + index * 1_000).toISOString()
+  }));
+  let yields = 0;
+
+  const queue = await publicCardPublicationQueueCooperatively(cards, new Set(), {
+    yieldControl: async () => { yields += 1; }
+  });
+
+  assert.equal(queue.length, 4);
+  assert.equal(yields, 3);
+});

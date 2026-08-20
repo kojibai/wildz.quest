@@ -3,7 +3,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   canonicalPublicCardPath,
-  parsePublicCardParam
+  createPublicWildsCardRecord,
+  parsePublicCardParam,
+  registerPublicWildsCard
 } from "../src/features/play/public-card-registry";
 import { initialPlayState } from "../src/features/play/game-state";
 import { resolveLocalWildzCard } from "../src/lib/receiz/wildz-local-card-resolver";
@@ -19,6 +21,29 @@ test("full and compact card parameters resolve one canonical asset", () => {
   });
   assert.equal(canonicalPublicCardPath("wilds:0123456789abcdef01234567"), "/cards/wilds%3A0123456789abcdef01234567");
   assert.equal(existsSync("app/c/[assetId]/page.tsx"), true);
+});
+
+test("concurrent publishers share one registration for the same verified card revision", async () => {
+  const asset = initialPlayState.inventory[0]!;
+  const record = createPublicWildsCardRecord(asset, "https://wildz.quest", "2026-08-20T20:00:00.000Z");
+  let registrations = 0;
+  const fetcher = (async () => {
+    registrations += 1;
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    return new Response(JSON.stringify({ ok: true, record }), {
+      status: 201,
+      headers: { "content-type": "application/json" }
+    });
+  }) as typeof fetch;
+
+  const [first, second] = await Promise.all([
+    registerPublicWildsCard(asset, fetcher),
+    registerPublicWildsCard(asset, fetcher)
+  ]);
+
+  assert.equal(registrations, 1);
+  assert.equal(first.asset.proof.digest, asset.proof.digest);
+  assert.equal(second.asset.proof.digest, asset.proof.digest);
 });
 
 test("public card publication accepts Identity Seal authority without making cookies superior", () => {

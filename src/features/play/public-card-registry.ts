@@ -32,6 +32,22 @@ type CommittedPublicRestore = {
   playState?: { inventory: readonly PortableCardAsset[] };
 };
 
+type PublicCardRegistrationState = {
+  admitted: Map<string, PublicWildsCardRecord>;
+  inFlight: Map<string, Promise<PublicWildsCardRecord>>;
+};
+
+const publicCardRegistrationStates = new WeakMap<typeof fetch, PublicCardRegistrationState>();
+
+function publicCardRegistrationState(fetcher: typeof fetch) {
+  let state = publicCardRegistrationStates.get(fetcher);
+  if (!state) {
+    state = { admitted: new Map(), inFlight: new Map() };
+    publicCardRegistrationStates.set(fetcher, state);
+  }
+  return state;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -151,6 +167,29 @@ export async function registerPublicWildsCard(
   asset: PortableCardAsset,
   fetcher: typeof fetch = globalThis.fetch,
   options: { identityProof?: PublicWildsCardIdentityProof } = {}
+) {
+  const pin = `${asset.id}:${asset.proof.digest}`;
+  const state = publicCardRegistrationState(fetcher);
+  const admitted = state.admitted.get(pin);
+  if (admitted) return admitted;
+  const existing = state.inFlight.get(pin);
+  if (existing) return existing;
+
+  const registration = registerPublicWildsCardRevision(asset, fetcher, options);
+  state.inFlight.set(pin, registration);
+  try {
+    const record = await registration;
+    state.admitted.set(pin, record);
+    return record;
+  } finally {
+    if (state.inFlight.get(pin) === registration) state.inFlight.delete(pin);
+  }
+}
+
+async function registerPublicWildsCardRevision(
+  asset: PortableCardAsset,
+  fetcher: typeof fetch,
+  options: { identityProof?: PublicWildsCardIdentityProof }
 ) {
   if (!verifyAnyWildsCard(asset).ok) throw new Error("wildz_public_card_verification_failed");
   let identityProof = options.identityProof;

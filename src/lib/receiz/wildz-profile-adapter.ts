@@ -5,7 +5,7 @@ import {
   type PublicWildzProfile
 } from "@/features/profile/public-profile";
 import { registerPublicWildsCard } from "@/features/play/public-card-registry";
-import { verifyAnyWildsCard, type PortableCardAsset } from "@/features/play/portable-card";
+import type { PortableCardAsset } from "@/features/play/portable-card";
 import { createReceizCommerceAdapter } from "./adapter";
 import { WILDZ_PRODUCT } from "@/lib/wildz/product";
 import type { WildzPublicProjectionRepository } from "./wildz-public-repository";
@@ -219,20 +219,25 @@ export async function fetchPublicWildzProfile(username: string, fetcher: typeof 
 export async function publishCurrentWildzProfile(
   profile: PublicWildzProfile,
   assetsOrFetcher: readonly PortableCardAsset[] | typeof fetch = [],
-  suppliedFetcher: typeof fetch = globalThis.fetch
+  suppliedFetcher: typeof fetch = globalThis.fetch,
+  options: { signal?: AbortSignal } = {}
 ) {
   const assets = typeof assetsOrFetcher === "function" ? [] : assetsOrFetcher;
   const fetcher = typeof assetsOrFetcher === "function" ? assetsOrFetcher : suppliedFetcher;
   for (const requested of profile.vault) {
+    options.signal?.throwIfAborted();
     const asset = assets.find((candidate) => candidate.id === requested.id);
-    if (!asset || !verifyAnyWildsCard(asset).ok || asset.proof.digest !== requested.proofDigest) {
+    if (!asset || asset.proof.digest !== requested.proofDigest) {
       throw new Error("wildz_public_profile_card_unverified");
     }
     await registerPublicWildsCard(asset, fetcher);
+    options.signal?.throwIfAborted();
   }
+  options.signal?.throwIfAborted();
   const response = await fetcher(publicProfileEndpoint(profile.username), {
     method: "POST",
     credentials: "same-origin",
+    signal: options.signal,
     headers: { "content-type": "application/json" },
     body: JSON.stringify(profile)
   });

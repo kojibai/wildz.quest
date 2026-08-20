@@ -38,7 +38,7 @@ export async function publicCardPublicationQueueCooperatively(
   publishedPins: ReadonlySet<string>,
   options: { batchSize?: number; yieldControl?: () => Promise<void> } = {}
 ) {
-  const batchSize = Math.max(1, Math.floor(options.batchSize ?? 8));
+  const batchSize = Math.max(1, Math.floor(options.batchSize ?? 1));
   const yieldControl = options.yieldControl ?? yieldToBrowser;
   const candidates = [...assets].sort((left, right) =>
     left.id.localeCompare(right.id) || left.proof.digest.localeCompare(right.proof.digest));
