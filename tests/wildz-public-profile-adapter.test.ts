@@ -11,6 +11,7 @@ import {
   publishPublicWildzProfile,
   resolvePublicWildzProfile
 } from "../src/lib/receiz/wildz-profile-adapter";
+import * as profileAdapter from "../src/lib/receiz/wildz-profile-adapter";
 
 const fernProfile = {
   username: "@fern",
@@ -21,6 +22,19 @@ const fernProfile = {
 };
 
 describe("Receiz-backed public Wildz profiles", () => {
+  test("a fully authenticated owner is publication-ready before opening Profile", () => {
+    const readiness = (profileAdapter as Record<string, unknown>).wildzProfilePublicationReadiness;
+    assert.equal(typeof readiness, "function");
+    const evaluate = readiness as (input: {
+      hasIdentity: boolean;
+      hasCharacter: boolean;
+      proofSessionConnected: boolean;
+    }) => string;
+    assert.equal(evaluate({ hasIdentity: true, hasCharacter: true, proofSessionConnected: true }), "ready");
+    assert.equal(evaluate({ hasIdentity: true, hasCharacter: false, proofSessionConnected: true }), "waiting");
+    assert.equal(evaluate({ hasIdentity: true, hasCharacter: true, proofSessionConnected: false }), "waiting");
+  });
+
   test("uses canonical profile URLs across the request and production origins", () => {
     assert.deepEqual(
       publicWildzProfileRecoverySourceUrls("@Fern", "http://localhost:3000", "wildz.quest"),

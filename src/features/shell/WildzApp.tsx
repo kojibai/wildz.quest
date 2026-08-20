@@ -54,7 +54,8 @@ import {
 import { sanitizePublicWildzProfile } from "@/features/profile/public-profile";
 import {
   fetchPublicWildzProfile,
-  publishCurrentWildzProfile
+  publishCurrentWildzProfile,
+  wildzProfilePublicationReadiness
 } from "@/lib/receiz/wildz-profile-adapter";
 import { WildzProfileSheet } from "@/features/profile/WildzProfileSheet";
 import { WildzVaultSheet } from "@/features/profile/WildzVaultSheet";
@@ -134,6 +135,11 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const [avatarImageUrl, setAvatarImageUrl] = useState<string | null>(null);
   const publishedProfileRef = useRef("");
   const identity = continuity?.session ?? null;
+  const profilePublicationReadiness = wildzProfilePublicationReadiness({
+    hasIdentity: Boolean(identity),
+    hasCharacter: Boolean(character),
+    proofSessionConnected
+  });
   const ownerPlayState = useMemo(
     () => continuity?.playState ?? (identity ? createOwnerBoundInitialPlayState(identity.actorId, identity.createdAt) : initialPlayState),
     [continuity?.playState, identity]
@@ -337,6 +343,22 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   }, [acceptSnapshot, identity, vaultAdmission]);
 
   useEffect(() => {
+    if (profilePublicationReadiness !== "ready") return;
+    let active = true;
+    const publicationKey = JSON.stringify(localPublicProfile);
+    if (publishedProfileRef.current === publicationKey) return;
+    setProfileStatus("publishing");
+    void publishCurrentWildzProfile(localPublicProfile, publishableOwnerAssets).then(() => {
+      if (!active) return;
+      publishedProfileRef.current = publicationKey;
+      setProfileStatus("ready");
+    }).catch(() => {
+      if (active) setProfileStatus("unpublished");
+    });
+    return () => { active = false; };
+  }, [localPublicProfile, profilePublicationReadiness, publishableOwnerAssets]);
+
+  useEffect(() => {
     if (overlay?.kind !== "profile") {
       setRemoteProfile(null);
       setProfileStatus("idle");
@@ -346,23 +368,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (viewingOwnProfile) {
       setRemoteProfile(localPublicProfile);
       const publicationKey = JSON.stringify(localPublicProfile);
-      if (publishedProfileRef.current === publicationKey) {
-        setProfileStatus("ready");
-        return () => { active = false; };
-      }
-      if (!identity || !character || !proofSessionConnected) {
-        setProfileStatus("unpublished");
-        return () => { active = false; };
-      }
-      setProfileStatus("publishing");
-      void publishCurrentWildzProfile(localPublicProfile, publishableOwnerAssets).then((published) => {
-        if (!active) return;
-        publishedProfileRef.current = publicationKey;
-        setRemoteProfile(published);
-        setProfileStatus("ready");
-      }).catch(() => {
-        if (active) setProfileStatus("unpublished");
-      });
+      setProfileStatus(publishedProfileRef.current === publicationKey
+        ? "ready"
+        : profilePublicationReadiness === "ready" ? "publishing" : "unpublished");
       return () => { active = false; };
     }
     setRemoteProfile(null);
@@ -375,7 +383,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       if (active) setProfileStatus("error");
     });
     return () => { active = false; };
-  }, [character, identity, localPublicProfile, overlay, proofSessionConnected, publishableOwnerAssets, viewingOwnProfile]);
+  }, [localPublicProfile, overlay, profilePublicationReadiness, viewingOwnProfile]);
 
   useEffect(() => {
     let active = true;

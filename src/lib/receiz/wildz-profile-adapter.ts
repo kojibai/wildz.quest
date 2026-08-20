@@ -190,6 +190,16 @@ function publicProfileEndpoint(username: string) {
   return `/api/profiles/${encodeURIComponent(canonicalWildzHandle(username).slice(1))}`;
 }
 
+export function wildzProfilePublicationReadiness(input: {
+  hasIdentity: boolean;
+  hasCharacter: boolean;
+  proofSessionConnected: boolean;
+}) {
+  return input.hasIdentity && input.hasCharacter && input.proofSessionConnected
+    ? "ready"
+    : "waiting";
+}
+
 export async function fetchPublicWildzProfile(username: string, fetcher: typeof fetch = globalThis.fetch) {
   const handle = canonicalWildzHandle(username);
   const response = await fetcher(publicProfileEndpoint(handle), {
