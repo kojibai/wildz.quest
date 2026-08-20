@@ -235,6 +235,50 @@ test("one player-bearing Vault card preserves the distinct local starter", async
   assert.equal(outcome.playState.selectedAssetId, starter.id);
 });
 
+test("one uploaded card does not import additional inventory hidden in its player continuity", async () => {
+  const target = setup();
+  const session = await target.repository.bootstrap();
+  const currentPlayState = createOwnerBoundInitialPlayState(session.actorId, session.createdAt);
+  const starter = currentPlayState.inventory[0]!;
+  const uploaded = sealCollectedCard({
+    formId: "voltray-1",
+    ownerReceizId: session.actorId,
+    encounterId: "single-visible-card",
+    capturedAt: "2026-07-15T16:32:30.000Z"
+  });
+  const hidden = sealCollectedCard({
+    formId: "mintcub-1",
+    ownerReceizId: session.actorId,
+    encounterId: "hidden-player-inventory-card",
+    capturedAt: "2026-07-15T16:32:31.000Z"
+  });
+  const player = createWildsPlayerVault({
+    playerId: session.actorId,
+    exportedAt: "2026-07-15T16:32:32.000Z",
+    playState: playStateWith([uploaded, hidden]),
+    settings: { avatarStyle: null, movementMode: "walk", audio: {} },
+    personalEvents: [],
+    canonicalCursor: { worldId: "wilds:global:v3", revision: 0, eventId: null },
+    receipts: []
+  });
+
+  const outcome = await restoreWildzArtifactForSurface({
+    surface: "card-vault",
+    bytes: embedPortableVaultInPng(BASE_PNG, [uploaded], player),
+    mimeType: "image/png",
+    name: "one-visible-card.receized.png",
+    codec: target.codec,
+    repository: target.repository,
+    database: target.database,
+    confirmCardOnly: true,
+    currentPlayState,
+    preserveActiveIdentity: true
+  });
+
+  assert.deepEqual(outcome.verifiedAssetIds, [uploaded.id]);
+  assert.deepEqual(outcome.playState.inventory.map((asset) => asset.id), [starter.id, uploaded.id]);
+});
+
 test("a player Vault preserves two distinct verified cards from the same family", async () => {
   const target = setup();
   const session = await target.repository.bootstrap();

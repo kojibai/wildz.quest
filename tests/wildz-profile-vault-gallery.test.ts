@@ -87,6 +87,16 @@ test("Profile cards are responsive real images with native vertical scrolling", 
   assert.match(css, /\.wildz-profile-sheet\s*\{[^}]*touch-action:\s*pan-y[^}]*-webkit-overflow-scrolling:\s*touch/s);
 });
 
+test("a selected Profile card stays compact when the published gallery is long", () => {
+  const css = readFileSync("app/globals.css", "utf8");
+  const viewerRule = css.match(/\.wildz-profile-card-viewer\s*\{([^}]*)\}/s)?.[1] ?? "";
+
+  assert.match(viewerRule, /position:\s*fixed/);
+  assert.match(viewerRule, /height:\s*min\(/);
+  assert.match(viewerRule, /max-height:\s*calc\(100dvh/);
+  assert.doesNotMatch(viewerRule, /min-height:\s*min\(76dvh,\s*700px\)/);
+});
+
 test("game browser zoom is suppressed without changing custom world-map zoom", () => {
   const css = readFileSync("app/globals.css", "utf8");
   const layout = readFileSync("app/layout.tsx", "utf8");

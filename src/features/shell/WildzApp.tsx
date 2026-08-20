@@ -736,7 +736,10 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     const snapshot = { ...current, playState, playerContinuity };
     continuityRef.current = snapshot;
     const scheduler = playStateSaveSchedulerRef.current;
-    if (cardTruthChanged) vaultSavePendingRef.current = true;
+    if (cardTruthChanged) {
+      vaultSavePendingRef.current = true;
+      setContinuity(snapshot);
+    }
     scheduler?.schedule({
       kind: vaultSavePendingRef.current ? "vault" : "runtime",
       snapshot,

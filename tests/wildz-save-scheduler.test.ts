@@ -140,7 +140,17 @@ test("card truth stays queued for durable Vault persistence while movement uses 
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
   assert.match(shell, /previousCardPins/);
   assert.match(shell, /nextCardPins/);
-  assert.match(shell, /if \(cardTruthChanged\) vaultSavePendingRef\.current = true/);
+  assert.match(shell, /if \(cardTruthChanged\) \{[\s\S]*vaultSavePendingRef\.current = true/);
   assert.match(shell, /kind: vaultSavePendingRef\.current \? "vault" : "runtime"/);
   assert.doesNotMatch(shell, /if \(cardTruthChanged\) void scheduler\?\.flush\(\)/);
+});
+
+test("card truth refreshes the Profile projection without rerendering the shell for movement", () => {
+  const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
+  const persistStart = shell.indexOf("const persistPlayState");
+  const persist = shell.slice(persistStart, shell.indexOf("\n\n  return (", persistStart));
+
+  assert.ok(persistStart >= 0);
+  assert.match(persist, /if \(cardTruthChanged\) \{[\s\S]*setContinuity\(snapshot\)[\s\S]*\}/);
+  assert.doesNotMatch(persist, /continuityRef\.current = snapshot;\s*setContinuity\(snapshot\);/);
 });

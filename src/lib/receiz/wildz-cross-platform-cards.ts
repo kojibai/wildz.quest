@@ -131,6 +131,7 @@ export function extractVerifiedWildzCards(input: {
   const unrelatedDomainSchemas = new Set<string>();
   const canonicalById = new Map<string, string>();
   const assetsById = new Map<string, PortableCardAsset>();
+  const primaryPngAssetIds = new Set<string>();
   let player: WildsPlayerVaultPayload | null = null;
   let playerCanonical: string | null = null;
   let playerSource: WildzCrossPlatformCardExtraction["playerSource"] = null;
@@ -317,7 +318,7 @@ export function extractVerifiedWildzCards(input: {
     rememberSchema(candidate.schema);
   };
 
-  const inspectPng = (bytes: Uint8Array) => {
+  const inspectPng = (bytes: Uint8Array, primary = false) => {
     const basesById = new Map<string, string>();
     let cardProofPresent = false;
     try {
@@ -332,6 +333,7 @@ export function extractVerifiedWildzCards(input: {
       if (!verified.ok || !verified.asset) throw new Error("wildz_restore_card_proof_invalid");
       admit(verified.asset);
       basesById.set(verified.asset.id, verified.asset.proof.digest);
+      if (primary) primaryPngAssetIds.add(verified.asset.id);
     }
 
     let vaultProofPresent = false;
@@ -358,6 +360,7 @@ export function extractVerifiedWildzCards(input: {
       verified.assets.forEach((asset) => {
         admit(asset);
         basesById.set(asset.id, asset.proof.digest);
+        if (primary) primaryPngAssetIds.add(asset.id);
       });
       rememberPlayer(verified.player, "png");
     }
@@ -419,7 +422,7 @@ export function extractVerifiedWildzCards(input: {
     Object.values(record).forEach((child) => traverse(child, depth + 1, source));
   };
 
-  if (input.pngBasis) inspectPng(input.pngBasis);
+  if (input.pngBasis) inspectPng(input.pngBasis, true);
   if (input.verifiedPortableSnapshot !== null) traverse(input.verifiedPortableSnapshot, 0, "portable-snapshot");
   if (input.proofObjectPayload) {
     if (isWildzPng(input.proofObjectPayload.bytes)) {
@@ -454,7 +457,9 @@ export function extractVerifiedWildzCards(input: {
   }
 
   return {
-    assets: [...assetsById.values()].sort((left, right) => left.id.localeCompare(right.id)),
+    assets: [...assetsById.values()]
+      .filter((asset) => !primaryPngAssetIds.size || primaryPngAssetIds.has(asset.id))
+      .sort((left, right) => left.id.localeCompare(right.id)),
     sourceSchemas: [...sourceSchemas].sort(),
     unrelatedDomainSchemas: [...unrelatedDomainSchemas].sort(),
     player,

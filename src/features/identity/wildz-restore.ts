@@ -467,7 +467,22 @@ export async function restoreWildzArtifactForSurface(input: {
             ? emptyVaultPlayState()
             : createOwnerBoundInitialPlayState(session.actorId, session.createdAt);
       const mergeBase = current;
-      const merged = playerForSession
+      const importingSingleCard = input.surface === "card-vault"
+        && inspection.kind === "card-vault"
+        && shouldMergeIntoActiveVault
+        && assets.length === 1;
+      const merged = importingSingleCard
+        ? (() => {
+            const imported = importAssets(mergeBase, assets);
+            if (!playerForSession) return imported;
+            const selected = imported.inventory.find((asset) => asset.id === mergeBase.selectedAssetId);
+            return selected ? {
+              ...imported,
+              selectedAssetId: selected.id,
+              selectedCardId: selected.manifest.familyId
+            } : imported;
+          })()
+        : playerForSession
         ? input.currentPlayState && sameWildzPlayerCoordinate(playerForSession.playerId, session.actorId)
           ? reconcileWildsPlayerVault({
               local: mergeBase,
