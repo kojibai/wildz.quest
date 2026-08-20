@@ -8,6 +8,7 @@ import {
   parseProfileVaultPublicAsset,
   profileVaultCardImageUrl
 } from "../src/features/profile/profile-vault-card";
+import * as profileVaultCard from "../src/features/profile/profile-vault-card";
 
 const publicAsset = sealCollectedCard({
   capturedAt: "2026-08-11T12:00:00.000Z",
@@ -46,6 +47,20 @@ test("remote Profile accepts only an exact verified published record", () => {
 
 test("profile card image URLs encode the exact public asset ID", () => {
   assert.equal(profileVaultCardImageUrl("wilds:a/b"), "/api/cards/wilds%3Aa%2Fb/image");
+});
+
+test("Profile card backs receive an actual QR PNG instead of the standalone page URL", async () => {
+  const createQr = (profileVaultCard as Record<string, unknown>).profileVaultCardQrDataUrl;
+  assert.equal(typeof createQr, "function");
+  const qr = await (createQr as (assetId: string, origin: string) => Promise<string>)(
+    publicAsset.id,
+    "https://wildz.quest"
+  );
+  assert.match(qr, /^data:image\/png;base64,/);
+  assert.deepEqual(
+    Buffer.from(qr.slice(qr.indexOf(",") + 1), "base64").subarray(0, 8),
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
+  );
 });
 
 test("Profile mounts real published card artwork and only one complete selected card scene", () => {

@@ -11,7 +11,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ownerProfileVaultAssets,
   parseProfileVaultPublicAsset,
-  profileVaultCardImageUrl
+  profileVaultCardImageUrl,
+  profileVaultCardQrDataUrl
 } from "./profile-vault-card";
 
 type ViewerState = "idle" | "loading" | "ready" | "unavailable";
@@ -26,6 +27,7 @@ export function WildzProfileVaultGallery({ cards, ownerAssets }: {
   );
   const [selectedCard, setSelectedCard] = useState<PublicWildzCard | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<PortableCardAsset | null>(null);
+  const [selectedQr, setSelectedQr] = useState("");
   const [viewerState, setViewerState] = useState<ViewerState>("idle");
   const viewerRef = useRef<HTMLDivElement>(null);
   const originRef = useRef<HTMLButtonElement | null>(null);
@@ -115,6 +117,17 @@ export function WildzProfileVaultGallery({ cards, ownerAssets }: {
     };
   }, [closeViewer, selectedCard]);
 
+  useEffect(() => {
+    let current = true;
+    setSelectedQr("");
+    if (selectedAsset) {
+      void profileVaultCardQrDataUrl(selectedAsset.id, window.location.origin)
+        .then((qr) => { if (current) setSelectedQr(qr); })
+        .catch(() => undefined);
+    }
+    return () => { current = false; };
+  }, [selectedAsset]);
+
   useEffect(() => () => {
     requestRef.current?.abort();
     if (restoreFrameRef.current !== null) window.cancelAnimationFrame(restoreFrameRef.current);
@@ -169,7 +182,7 @@ export function WildzProfileVaultGallery({ cards, ownerAssets }: {
         {selectedAsset ? <WildsCardScene
           asset={selectedAsset}
           origin={window.location.origin}
-          qr={`${window.location.origin}/cards/${encodeURIComponent(selectedAsset.id)}`}
+          qr={selectedQr}
           tapToFlip
         /> : null}
       </div>

@@ -1,9 +1,19 @@
 import { parsePublicWildsCardRecord } from "@/features/play/public-card-registry";
+import { standaloneCardUrl } from "@/features/play/card-export";
 import type { PortableCardAsset } from "@/features/play/portable-card";
+import QRCode from "qrcode";
 import type { PublicWildzCard } from "./public-profile";
 
 export function profileVaultCardImageUrl(assetId: string) {
   return `/api/cards/${encodeURIComponent(assetId)}/image`;
+}
+
+export function profileVaultCardQrDataUrl(assetId: string, origin: string) {
+  return QRCode.toDataURL(standaloneCardUrl(assetId, origin), {
+    errorCorrectionLevel: "M",
+    margin: 4,
+    width: 160
+  });
 }
 
 function matchesPublicCard(card: PublicWildzCard, asset: PortableCardAsset) {
