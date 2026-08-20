@@ -11960,6 +11960,7 @@ button.product-purchase-secondary-link {
   border: 1px solid rgb(149 213 223 / 15%);
   border-radius: 15px;
   cursor: pointer;
+  transition: none;
 }
 
 .wilds-vault-card-copy {

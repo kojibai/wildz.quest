@@ -17,7 +17,7 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSigna
   const input = useRef(onInput);
   const mode = useRef(movementMode);
   const [active, setActive] = useState(false);
-  const [knob, setKnob] = useState({ x: 0, y: 0 });
+  const knobRef = useRef<HTMLElement>(null);
 
   input.current = onInput;
   mode.current = movementMode;
@@ -32,7 +32,7 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSigna
     dragging.current = false;
     activePointerIdRef.current = null;
     vector.current = { x: 0, z: 0 };
-    setKnob({ x: 0, y: 0 });
+    if (knobRef.current) knobRef.current.style.transform = "translate(0px, 0px)";
     setActive(false);
   }, []);
 
@@ -74,7 +74,7 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSigna
     const y = rawY * scale;
     const next = { x: x / radius, z: y / radius };
     vector.current = next;
-    setKnob({ x, y });
+    if (knobRef.current) knobRef.current.style.transform = `translate(${x}px, ${y}px)`;
     return next;
   };
 
@@ -118,7 +118,7 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSigna
       <Icons.chevronRight className="wildz-dpad-east" aria-hidden="true" size={18} />
       <Icons.chevronDown className="wildz-dpad-south" aria-hidden="true" size={18} />
       <Icons.chevronLeft className="wildz-dpad-west" aria-hidden="true" size={18} />
-      <i className="wildz-dpad-knob" aria-hidden="true" style={{ transform: `translate(${knob.x}px, ${knob.y}px)` }} />
+      <i className="wildz-dpad-knob" aria-hidden="true" ref={knobRef} />
     </button>
   );
 }

@@ -231,6 +231,7 @@ export const creatureCards: CreatureCard[] = creatureFamilies.map((family, index
 
 const MAX_NEARBY_CREATURES = 12;
 const ENCOUNTER_REGION_SIZE = 24;
+const nearbyCreatureRegionCache = new Map<string, CreatureCard[]>();
 
 function encounterUnit(x: number, z: number, salt: number) {
   const value = Math.sin(x * 127.1 + z * 311.7 + salt * 74.7) * 43758.5453123;
@@ -240,6 +241,9 @@ function encounterUnit(x: number, z: number, salt: number) {
 export function nearbyCreatureCards(player: Pick<PlayState, "player">["player"]): CreatureCard[] {
   const regionX = Math.floor(player.x / ENCOUNTER_REGION_SIZE);
   const regionZ = Math.floor(player.z / ENCOUNTER_REGION_SIZE);
+  const regionKey = `${regionX}:${regionZ}`;
+  const cached = nearbyCreatureRegionCache.get(regionKey);
+  if (cached) return cached;
   const regionSeed = Math.abs((regionX * 73856093) ^ (regionZ * 19349663));
   const cards: CreatureCard[] = [];
   if (Math.abs(regionX) <= 1 && Math.abs(regionZ) <= 1) cards.push(...creatureCards.slice(0, 4));
@@ -256,7 +260,13 @@ export function nearbyCreatureCards(player: Pick<PlayState, "player">["player"])
       ]
     });
   }
-  return cards.slice(0, MAX_NEARBY_CREATURES);
+  const nearby = cards.slice(0, MAX_NEARBY_CREATURES);
+  nearbyCreatureRegionCache.set(regionKey, nearby);
+  if (nearbyCreatureRegionCache.size > 64) {
+    const oldest = nearbyCreatureRegionCache.keys().next().value;
+    if (oldest !== undefined) nearbyCreatureRegionCache.delete(oldest);
+  }
+  return nearby;
 }
 
 export const habitatNodes: HabitatNode[] = [
@@ -782,12 +792,12 @@ export function discoveredCards(state: PlayState) {
 }
 
 export function nearestCreature(state: Pick<PlayState, "player">) {
-  return nearbyCreatureCards(state.player)
-    .map((card) => ({
-      card,
-      distance: distance2d(state.player, { x: card.position[0], z: card.position[2] })
-    }))
-    .sort((a, b) => a.distance - b.distance)[0];
+  let nearest: { card: CreatureCard; distance: number } | undefined;
+  for (const card of nearbyCreatureCards(state.player)) {
+    const distance = distance2d(state.player, { x: card.position[0], z: card.position[2] });
+    if (!nearest || distance < nearest.distance) nearest = { card, distance };
+  }
+  return nearest;
 }
 
 export function canDiscover(state: PlayState) {
@@ -1679,7 +1689,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       : movePlayerVector(state.player, input.x, input.z, movementScale(input.mode ?? "walk"));
     const nearest = nearestCreature({ player: nextPlayer });
     const nearbyText =
-      nearest.distance <= 1.25
+      nearest && nearest.distance <= 1.25
         ? `${nearest.card.name} is within discovery range.`
         : "Explore the wilds and look for companion signals.";
 

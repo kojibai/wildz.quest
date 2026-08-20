@@ -64,7 +64,7 @@ export function createLatestOnlySaveScheduler<
       if (cancelled) return;
       latest = value;
       hasLatest = true;
-      arm();
+      if (timer === undefined) arm();
     },
     async flush() {
       clearScheduled();

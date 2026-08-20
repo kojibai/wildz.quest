@@ -33,7 +33,9 @@ describe("Wilds runtime quality governor", () => {
 
   it("uses a bounded rolling frame window and clamps invalid samples", () => {
     let state = createWildsQualityGovernor("high");
+    const frameWindow = state.frameWindow;
     for (let index = 0; index < 240; index += 1) state = updateWildsQualityGovernor(state, { frameMs: index % 2 ? Number.NaN : 1_000, visible: true });
+    assert.equal(state.frameWindow, frameWindow, "frame sampling must reuse its bounded buffer instead of allocating every rendered frame");
     assert.ok(state.frameWindow.length <= 120);
     assert.ok(state.frameWindow.every((frameMs) => frameMs >= 4 && frameMs <= 100));
     assert.ok(Number.isFinite(state.averageFrameMs));
@@ -54,6 +56,8 @@ describe("Wilds adaptive quality integration", () => {
 
   it("loads noncritical world and encounter surfaces as independent chunks", () => {
     const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
+    assert.match(campaign, /import \{ WildsWorldCanvas \} from "@\/features\/play\/WildsWorldCanvas"/);
+    assert.doesNotMatch(campaign, /const WildsWorldCanvas = dynamic/);
     for (const surface of [
       "WildsWorldMap",
       "WildsLandmarkExperience",

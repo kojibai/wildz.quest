@@ -76,3 +76,21 @@ test("large Vault collection indexes are not rebuilt for every movement render",
     /const cardTruthChanged = current\.playState\?\.inventory === playState\.inventory\s*\?\s*false/
   );
 });
+
+test("nearby creature projections are reused while movement remains inside one region", () => {
+  const gameState = source("src/features/play/game-state.ts");
+  assert.match(gameState, /const nearbyCreatureRegionCache/);
+  assert.match(gameState, /nearbyCreatureRegionCache\.get\(regionKey\)/);
+});
+
+test("production rendering does not run the diagnostics sampler", () => {
+  const world = source("src/features/play/WildsWorldCanvas.tsx");
+  assert.match(world, /const WILDS_DIAGNOSTICS_ENABLED = process\.env\.NODE_ENV !== "production"/);
+  assert.match(world, /WILDS_DIAGNOSTICS_ENABLED \? <WildsDiagnostics/);
+});
+
+test("trackpad pointer motion updates the knob outside React's render path", () => {
+  const dpad = source("src/features/play/WildzDpad.tsx");
+  assert.match(dpad, /const knobRef = useRef<HTMLElement>/);
+  assert.doesNotMatch(dpad, /setKnob\(/);
+});

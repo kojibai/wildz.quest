@@ -12,6 +12,8 @@ export type WildsQualityGovernorState = {
   baseTier: WildsQualityTier;
   tier: WildsQualityTier;
   frameWindow: readonly number[];
+  frameWindowCursor: number;
+  frameWindowTotal: number;
   averageFrameMs: number;
   slowFrames: number;
   healthyFrames: number;
@@ -31,6 +33,8 @@ export function createWildsQualityGovernor(baseTier: WildsQualityTier): WildsQua
     baseTier,
     tier: baseTier,
     frameWindow: [],
+    frameWindowCursor: 0,
+    frameWindowTotal: 0,
     averageFrameMs: 0,
     slowFrames: 0,
     healthyFrames: 0,
@@ -52,8 +56,19 @@ export function updateWildsQualityGovernor(
   if (!sample.visible) return state;
   const frameMs = Math.max(4, Math.min(100, Number.isFinite(sample.frameMs) ? sample.frameMs : 16.7));
   const clockMs = Math.max(state.clockMs, sample.atMs ?? state.clockMs + frameMs);
-  const frameWindow = [...state.frameWindow, frameMs].slice(-WINDOW_SIZE);
-  const averageFrameMs = frameWindow.reduce((sum, value) => sum + value, 0) / frameWindow.length;
+  const frameWindow = state.frameWindow as number[];
+  let frameWindowCursor = state.frameWindowCursor;
+  let frameWindowTotal = state.frameWindowTotal;
+  if (frameWindow.length < WINDOW_SIZE) {
+    frameWindow.push(frameMs);
+    frameWindowTotal += frameMs;
+    frameWindowCursor = frameWindow.length % WINDOW_SIZE;
+  } else {
+    frameWindowTotal += frameMs - frameWindow[frameWindowCursor]!;
+    frameWindow[frameWindowCursor] = frameMs;
+    frameWindowCursor = (frameWindowCursor + 1) % WINDOW_SIZE;
+  }
+  const averageFrameMs = frameWindowTotal / frameWindow.length;
   const slowFrames = frameMs >= SLOW_FRAME_MS ? state.slowFrames + 1 : 0;
   const healthyFrames = frameMs <= HEALTHY_FRAME_MS ? state.healthyFrames + 1 : 0;
   const canTransition = clockMs >= state.cooldownUntilMs;
@@ -64,6 +79,8 @@ export function updateWildsQualityGovernor(
       ...state,
       tier: neighboringTier(state.tier, -1),
       frameWindow,
+      frameWindowCursor,
+      frameWindowTotal,
       averageFrameMs,
       slowFrames: 0,
       healthyFrames: 0,
@@ -77,6 +94,8 @@ export function updateWildsQualityGovernor(
       ...state,
       tier: neighboringTier(state.tier, 1),
       frameWindow,
+      frameWindowCursor,
+      frameWindowTotal,
       averageFrameMs,
       slowFrames: 0,
       healthyFrames: 0,
@@ -85,5 +104,5 @@ export function updateWildsQualityGovernor(
       transitions: state.transitions + 1
     };
   }
-  return { ...state, frameWindow, averageFrameMs, slowFrames, healthyFrames, clockMs };
+  return { ...state, frameWindow, frameWindowCursor, frameWindowTotal, averageFrameMs, slowFrames, healthyFrames, clockMs };
 }

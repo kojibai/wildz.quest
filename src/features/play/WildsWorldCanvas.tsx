@@ -48,6 +48,8 @@ import {
   projectWildsReadabilityProfile
 } from "@/features/play/wilds-night-readability";
 
+const WILDS_DIAGNOSTICS_ENABLED = process.env.NODE_ENV !== "production";
+
 export function WildsWorldCanvas({
   state,
   character,
@@ -100,7 +102,7 @@ export function WildsWorldCanvas({
           gl.outputColorSpace = THREE.SRGBColorSpace;
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = 1.08;
-          publishWildsDiagnostics(gl, size, state, qualityProfile);
+          if (WILDS_DIAGNOSTICS_ENABLED) publishWildsDiagnostics(gl, size, state, qualityProfile);
         }}
         shadows={{ type: THREE.PCFShadowMap }}
       >
@@ -190,7 +192,7 @@ function WildsScene({
       <WildsAtmosphere encounter={state.encounter} expression={kaiExpression} missionProgress={state.missionProgress} nightRig={nightRig} player={state.player} qualityProfile={qualityProfile} />
       <WildsKaiAtmosphereGeometry expression={kaiExpression} qualityProfile={qualityProfile} />
       <CameraRig onCameraHeadingChange={onCameraHeadingChange} />
-      <WildsDiagnostics environment={{
+      {WILDS_DIAGNOSTICS_ENABLED ? <WildsDiagnostics environment={{
         authoredDarkness: darkness.amount,
         dayPhase: kaiExpression.dayPhase,
         darknessSource: darkness.source,
@@ -199,7 +201,7 @@ function WildsScene({
         nightAmount: kaiExpression.night.amount,
         reducedMotion: qualityProfile.reducedMotion,
         starCount: wildsStarCountForTier(qualityProfile.tier)
-      }} qualityProfile={qualityProfile} state={state} />
+      }} qualityProfile={qualityProfile} state={state} /> : null}
       <SmoothWorldFrame player={state.player}>
         <SearchableTerrain
           enabled={searchEnabled}

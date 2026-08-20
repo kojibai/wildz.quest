@@ -57,7 +57,7 @@ test("D-pad preserves camera-relative analog movement and visible stick travel",
   assert.match(dpad, /onPointerMove/);
   assert.match(dpad, /setPointerCapture/);
   assert.match(dpad, /onLostPointerCapture/);
-  assert.match(dpad, /translate\(\$\{knob\.x\}px, \$\{knob\.y\}px\)/);
+  assert.match(dpad, /knobRef\.current\.style\.transform = `translate\(\$\{x\}px, \$\{y\}px\)`/);
   assert.match(dpad, /addEventListener\("blur"/);
   assert.match(controls, /movementMode/);
   assert.match(campaign, /cameraHeadingRef=\{cameraHeadingRef\}/);

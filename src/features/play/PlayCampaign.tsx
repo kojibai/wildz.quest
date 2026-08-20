@@ -109,14 +109,8 @@ import {
 import { creatureCareNotificationSchedule, WILDZ_CARE_PERIODIC_TAG } from "@/features/pwa/creature-care-schedule";
 import { WILDZ_CARE_NOTIFICATIONS_READY, WILDZ_CARE_SCHEDULE_MESSAGE } from "@/features/pwa/pwa-events";
 import { usePublicCardPublisher } from "@/features/play/use-public-card-publisher";
+import { WildsWorldCanvas } from "@/features/play/WildsWorldCanvas";
 
-const WildsWorldCanvas = dynamic(
-  () => import("@/features/play/WildsWorldCanvas").then((mod) => mod.WildsWorldCanvas),
-  {
-    ssr: false,
-    loading: () => <div className="wilds-canvas-fallback" aria-label="Loading 3D world" />
-  }
-);
 const WildsWorldMap = dynamic(() => import("@/features/play/WildsWorldMap").then((mod) => mod.WildsWorldMap), { ssr: false });
 const WildsLandmarkExperience = dynamic(() => import("@/features/play/WildsLandmarkExperience").then((mod) => mod.WildsLandmarkExperience), { ssr: false });
 const WildsSettlementExperience = dynamic(() => import("@/features/play/WildsSettlementExperience").then((mod) => mod.WildsSettlementExperience), { ssr: false });

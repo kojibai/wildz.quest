@@ -16,6 +16,12 @@ function fakeClock() {
     clearTimer(timer: FakeTimer) {
       timer.active = false;
     },
+    activeTimerCount() {
+      return timers.filter((timer) => timer.active).length;
+    },
+    timerCount() {
+      return timers.length;
+    },
     runLatest() {
       let timer: FakeTimer | undefined;
       for (let index = timers.length - 1; index >= 0; index -= 1) {
@@ -43,6 +49,8 @@ test("one hundred movement updates persist only the latest full Vault state", as
 
   for (let update = 1; update <= 100; update += 1) scheduler.schedule(update);
   assert.deepEqual(writes, []);
+  assert.equal(clock.activeTimerCount(), 1);
+  assert.equal(clock.timerCount(), 1, "movement bursts must not cancel and recreate a timer for every input");
 
   clock.runLatest();
   await scheduler.flush();

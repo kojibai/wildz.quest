@@ -102,6 +102,11 @@ test("the single-row rail is scroll-ready before opening and clears the final cr
   assert.match(css, /\.wildz-creature-window-end\s*\{[^}]*flex:\s*0 0 40px/s);
 });
 
+test("Vault selection chrome changes in the same paint as the selected card", () => {
+  const css = readFileSync("app/globals.css", "utf8");
+  assert.match(css, /\.wilds-inventory-grid\s*>\s*button\s*\{[^}]*transition:\s*none;/s);
+});
+
 test("preview height keeps the full stat card below the accessible sort control", () => {
   const metrics = readFileSync("src/features/play/creature-drawer.ts", "utf8");
 
