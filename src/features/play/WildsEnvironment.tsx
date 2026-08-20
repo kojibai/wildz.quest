@@ -15,6 +15,8 @@ import { useWildsReadability } from "@/features/play/WildsReadabilityContext";
 
 export const WILDS_TILE_SIZE = 12;
 const STREAM_RADIUS = 2;
+const PHI = (1 + Math.sqrt(5)) / 2;
+const GOLDEN_ANGLE = Math.PI * 2 / (PHI * PHI);
 
 type Tile = WildsBiomeTile & { key: string; tileX: number; tileZ: number };
 type Placement = { x: number; z: number; scale: number; variant: number };
@@ -27,12 +29,17 @@ function seededUnit(seed: number, salt: number) {
 function placements(tiles: Tile[], kind: keyof Tile["ecology"], salt: number, density: number) {
   return tiles.flatMap((tile) => {
     const count = Math.max(1, Math.round(tile.ecology[kind] * density));
-    return Array.from({ length: count }, (_, slot): Placement => ({
-      x: tile.tileX * WILDS_TILE_SIZE + 0.9 + seededUnit(tile.seed, salt + slot * 3) * 10.2,
-      z: tile.tileZ * WILDS_TILE_SIZE + 0.9 + seededUnit(tile.seed, salt + slot * 3 + 1) * 10.2,
-      scale: 0.72 + seededUnit(tile.seed, salt + slot * 3 + 2) * 0.62,
-      variant: Math.floor(seededUnit(tile.seed, salt + slot * 5 + 4) * 3)
-    }));
+    const phase = seededUnit(tile.seed, salt) * Math.PI * 2;
+    return Array.from({ length: count }, (_, slot): Placement => {
+      const angle = phase + slot * GOLDEN_ANGLE;
+      const radius = WILDS_TILE_SIZE * (.2 + .27 * Math.sqrt((slot + .5) / count));
+      return {
+        x: tile.tileX * WILDS_TILE_SIZE + WILDS_TILE_SIZE / 2 + Math.cos(angle) * radius,
+        z: tile.tileZ * WILDS_TILE_SIZE + WILDS_TILE_SIZE / 2 + Math.sin(angle) * radius,
+        scale: 0.72 + seededUnit(tile.seed, salt + slot * 3 + 2) * 0.62,
+        variant: Math.floor(seededUnit(tile.seed, salt + slot * 5 + 4) * 3)
+      };
+    });
   });
 }
 
@@ -104,11 +111,12 @@ export function WildsEnvironment({
     <group>
       <group name="world-layer-play">
         <GroundField centerX={centerX} centerZ={centerZ} color={tiles[12]?.ground.base ?? "#4f9254"} player={player} />
+        <WorldWatercourses player={player} qualityProfile={qualityProfile} />
         <TrailNetwork player={player} palette={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }} />
         <MajorWorldRoutes player={player} palette={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }} />
       </group>
       <group name="world-layer-mid">
-        <EcologyInstances bushes={bushes} flowers={flowers} palette={tiles[12]?.canopy} player={player} rocks={rocks} trees={trees} />
+        <EcologyInstances bushes={bushes} flowers={flowers} palette={tiles[12]?.canopy} player={player} qualityProfile={qualityProfile} rocks={rocks} trees={trees} />
         <FlagshipLandmarkEntrances detail={qualityProfile.tier !== "low"} livingWorld={livingWorld} player={player} worldMode={worldMode} />
         <LivingWorldSites player={player} world={livingWorld} />
         {tiles.filter((tile) => tile.landmark.kind !== "none" && tile.landmark.kind !== "hearttree-sanctum" && tile.landmark.kind !== "mortal-arena").map((tile) => (
@@ -169,12 +177,12 @@ function FlagshipLandmarkEntrances({ detail, livingWorld, player, worldMode }: {
 function LandmarkEntranceBeacon({ landmark, distance }: { landmark: WildsLandmarkDefinition; distance: number }) {
   return <group name={`entrance-beacon-${landmark.id}`}>
     <mesh position={[0, .035, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-      <torusGeometry args={[landmark.radius * .7, .08, 8, 64]} />
-      <meshStandardMaterial color={landmark.accent} emissive={landmark.accent} emissiveIntensity={1.3} transparent opacity={.82} />
+      <torusGeometry args={[Math.min(2.2, landmark.radius * .32), .022, 7, 48]} />
+      <meshStandardMaterial color="#59705b" emissive={landmark.accent} emissiveIntensity={.22} transparent opacity={.34} />
     </mesh>
     <mesh position={[0, 4.3, 0]}>
       <cylinderGeometry args={[.035, .16, 8.4, 10]} />
-      <meshBasicMaterial color={landmark.accent} transparent opacity={.34} />
+      <meshBasicMaterial color={landmark.accent} transparent opacity={.2} />
     </mesh>
     <Html center distanceFactor={9} occlude={false} position={[0, 6.15, 0]} zIndexRange={[14, 1]}>
       <div className="wilds-landmark-wayfinder" style={{ "--landmark-accent": landmark.accent } as React.CSSProperties}>
@@ -200,7 +208,67 @@ function MajorWorldRoutes({ player, palette }: { player: PlayState["player"]; pa
   </group>;
 }
 
+function riverRibbon(points: readonly { x: number; z: number }[], width: number) {
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  points.forEach((point, index) => {
+    const previous = points[Math.max(0, index - 1)]!;
+    const next = points[Math.min(points.length - 1, index + 1)]!;
+    const tangentX = next.x - previous.x;
+    const tangentZ = next.z - previous.z;
+    const length = Math.hypot(tangentX, tangentZ) || 1;
+    const normalX = -tangentZ / length;
+    const normalZ = tangentX / length;
+    const breadth = width * (.78 + Math.sin(index * GOLDEN_ANGLE) * .12);
+    positions.push(point.x + normalX * breadth, .028, point.z + normalZ * breadth);
+    positions.push(point.x - normalX * breadth, .028, point.z - normalZ * breadth);
+    uvs.push(0, index / Math.max(1, points.length - 1), 1, index / Math.max(1, points.length - 1));
+    if (index < points.length - 1) {
+      const a = index * 2;
+      indices.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+    }
+  });
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function WorldWatercourses({ player, qualityProfile }: { player: PlayState["player"]; qualityProfile: WildsQualityProfile }) {
+  const geometry = useMemo(() => riverRibbon([
+    { x: 148, z: -118 }, { x: 116, z: -88 }, { x: 82, z: -61 }, { x: 48, z: -34 },
+    { x: 18, z: -12 }, { x: 4, z: 2 }, { x: -21, z: 31 }, { x: -55, z: 66 },
+    { x: -86, z: 96 }, { x: -122, z: 126 }
+  ], qualityProfile.tier === "low" ? .72 : .92), [qualityProfile.tier]);
+  return <group name="world-watercourses" position={[-player.x, 0, -player.z]}>
+    <mesh geometry={geometry} receiveShadow>
+      <meshPhysicalMaterial color="#2c8790" emissive="#143f43" emissiveIntensity={.18} roughness={.22} metalness={.02} clearcoat={qualityProfile.tier === "low" ? .2 : .72} />
+    </mesh>
+  </group>;
+}
+
 function GroundField({ centerX, centerZ, color, player }: { centerX: number; centerZ: number; color: string; player: PlayState["player"] }) {
+  const readability = useWildsReadability();
+  const geometry = useMemo(() => {
+    const extent = WILDS_TILE_SIZE * 5 + .06;
+    const next = new THREE.PlaneGeometry(extent, extent, 48, 48);
+    const position = next.getAttribute("position") as THREE.BufferAttribute;
+    const worldCenterX = centerX * WILDS_TILE_SIZE + WILDS_TILE_SIZE / 2;
+    const worldCenterZ = centerZ * WILDS_TILE_SIZE + WILDS_TILE_SIZE / 2;
+    for (let index = 0; index < position.count; index += 1) {
+      const worldX = worldCenterX + position.getX(index);
+      const worldZ = worldCenterZ + position.getY(index);
+      const broad = Math.sin(worldX * .115 + worldZ * .043) * .035 + Math.cos(worldZ * .097 - worldX * .052) * .028;
+      const detail = Math.sin((worldX + worldZ) * .32) * .012;
+      position.setZ(index, .06 + broad + detail);
+    }
+    position.needsUpdate = true;
+    next.computeVertexNormals();
+    return next;
+  }, [centerX, centerZ]);
   const terrainMap = useMemo(() => {
     const size = 64;
     const data = new Uint8Array(size * size * 4);
@@ -208,10 +276,11 @@ function GroundField({ centerX, centerZ, color, player }: { centerX: number; cen
     for (let y = 0; y < size; y += 1) for (let x = 0; x < size; x += 1) {
       const grain = .7 + seededUnit(centerX * 193 + centerZ * 389 + x * 17, y * 23) * .3;
       const vein = Math.abs(Math.sin(x * .23 + y * .31)) < .075 ? .72 : 1;
+      const mottling = .9 + Math.sin(x * .71 + y * .29) * .045 + Math.cos(y * .82 - x * .18) * .035;
       const index = (y * size + x) * 4;
-      data[index] = Math.round(tint.r * 255 * grain * vein);
-      data[index + 1] = Math.round(tint.g * 255 * grain * vein);
-      data[index + 2] = Math.round(tint.b * 255 * grain * vein);
+      data[index] = Math.round(tint.r * 255 * grain * vein * mottling);
+      data[index + 1] = Math.round(tint.g * 255 * grain * vein * mottling);
+      data[index + 2] = Math.round(tint.b * 255 * grain * vein * mottling);
       data[index + 3] = 255;
     }
     const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
@@ -223,12 +292,12 @@ function GroundField({ centerX, centerZ, color, player }: { centerX: number; cen
   }, [centerX, centerZ, color]);
   return (
     <mesh
+      geometry={geometry}
       receiveShadow
-      position={[centerX * WILDS_TILE_SIZE + WILDS_TILE_SIZE / 2 - player.x, -0.04, centerZ * WILDS_TILE_SIZE + WILDS_TILE_SIZE / 2 - player.z]}
+      position={[centerX * WILDS_TILE_SIZE + WILDS_TILE_SIZE / 2 - player.x, -0.1, centerZ * WILDS_TILE_SIZE + WILDS_TILE_SIZE / 2 - player.z]}
       rotation={[-Math.PI / 2, 0, 0]}
     >
-      <planeGeometry args={[WILDS_TILE_SIZE * 5 + 0.06, WILDS_TILE_SIZE * 5 + 0.06]} />
-      <meshStandardMaterial color="#d5efe0" map={terrainMap} roughness={0.96} />
+      <meshStandardMaterial color="#d5efe0" emissive="#183d28" emissiveIntensity={.06 + readability.darkness * .16} map={terrainMap} roughness={0.96} />
     </mesh>
   );
 }
@@ -264,6 +333,7 @@ function EcologyInstances({
   flowers,
   palette,
   player,
+  qualityProfile,
   rocks,
   trees
 }: {
@@ -271,27 +341,35 @@ function EcologyInstances({
   flowers: Placement[];
   palette?: WildsBiomeTile["canopy"];
   player: PlayState["player"];
+  qualityProfile: WildsQualityProfile;
   rocks: Placement[];
   trees: Placement[];
 }) {
+  const readability = useWildsReadability();
   const trunks = useRef<THREE.InstancedMesh>(null);
   const lowerCrowns = useRef<THREE.InstancedMesh>(null);
   const upperCrowns = useRef<THREE.InstancedMesh>(null);
+  const middleCrowns = useRef<THREE.InstancedMesh>(null);
   const shrubMesh = useRef<THREE.InstancedMesh>(null);
   const rockMesh = useRef<THREE.InstancedMesh>(null);
   const flowerMesh = useRef<THREE.InstancedMesh>(null);
-  const treeScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale, item.scale * (1.35 + item.variant * 0.12), item.scale], []);
-  const crownScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * (1 + item.variant * 0.08), item.scale, item.scale * (1 - item.variant * 0.05)], []);
+  const grassMesh = useRef<THREE.InstancedMesh>(null);
+  const treeScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale, item.scale * (1.55 + item.variant * 0.14), item.scale], []);
+  const crownScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * (1.18 + item.variant * 0.08), item.scale * .92, item.scale * (1.08 - item.variant * 0.04)], []);
+  const middleCrownScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * .92, item.scale * .72, item.scale * .88], []);
   const shrubScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.56, item.scale * 0.38, item.scale * 0.52], []);
   const rockScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.32, item.scale * 0.21, item.scale * 0.38], []);
   const flowerScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.09, item.scale * 0.22, item.scale * 0.09], []);
+  const grassScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * .035, item.scale * (qualityProfile.tier === "low" ? .13 : .2), item.scale * .025], [qualityProfile.tier]);
   const treeClearRadius = Math.hypot(player.x, player.z) < 14 ? 13.6 : 7.2;
   useInstances(trunks, trees, player, 0.64, treeScale, treeClearRadius);
   useInstances(lowerCrowns, trees, player, 1.65, crownScale, treeClearRadius);
   useInstances(upperCrowns, trees, player, 2.16, crownScale, treeClearRadius);
+  useInstances(middleCrowns, trees, player, 2.68, middleCrownScale, treeClearRadius);
   useInstances(shrubMesh, bushes, player, 0.23, shrubScale, 1.45);
   useInstances(rockMesh, rocks, player, 0.13, rockScale, 1.2);
   useInstances(flowerMesh, flowers, player, 0.15, flowerScale);
+  useInstances(grassMesh, flowers, player, .11, grassScale, .8);
 
   return (
     <group>
@@ -301,15 +379,19 @@ function EcologyInstances({
       </instancedMesh>
       <instancedMesh args={[undefined, undefined, trees.length]} castShadow ref={lowerCrowns}>
         <dodecahedronGeometry args={[0.72, 1]} />
-        <meshStandardMaterial color={palette?.deep ?? "#246b46"} roughness={0.82} />
+        <meshStandardMaterial color={palette?.deep ?? "#246b46"} emissive="#123c27" emissiveIntensity={.05 + readability.darkness * .15} roughness={0.82} />
       </instancedMesh>
       <instancedMesh args={[undefined, undefined, trees.length]} castShadow ref={upperCrowns}>
         <dodecahedronGeometry args={[0.56, 1]} />
-        <meshStandardMaterial color={palette?.mid ?? "#3d9250"} roughness={0.78} />
+        <meshStandardMaterial color={palette?.mid ?? "#3d9250"} emissive="#174c2d" emissiveIntensity={.05 + readability.darkness * .16} roughness={0.78} />
+      </instancedMesh>
+      <instancedMesh args={[undefined, undefined, trees.length]} castShadow={qualityProfile.tier === "high"} ref={middleCrowns}>
+        <icosahedronGeometry args={[.52, 1]} />
+        <meshStandardMaterial color={palette?.highlight ?? "#4f9f58"} emissive="#1b512d" emissiveIntensity={.04 + readability.darkness * .14} roughness={.8} />
       </instancedMesh>
       <instancedMesh args={[undefined, undefined, bushes.length]} castShadow ref={shrubMesh}>
         <dodecahedronGeometry args={[1, 1]} />
-        <meshStandardMaterial color={palette?.highlight ?? "#3b8d49"} roughness={0.88} />
+        <meshStandardMaterial color={palette?.highlight ?? "#3b8d49"} emissive="#174329" emissiveIntensity={.04 + readability.darkness * .12} roughness={0.88} />
       </instancedMesh>
       <instancedMesh args={[undefined, undefined, rocks.length]} castShadow receiveShadow ref={rockMesh}>
         <dodecahedronGeometry args={[1, 0]} />
@@ -318,6 +400,10 @@ function EcologyInstances({
       <instancedMesh args={[undefined, undefined, flowers.length]} ref={flowerMesh}>
         <octahedronGeometry args={[1, 0]} />
         <meshStandardMaterial color="#ffd66f" emissive="#ff8da6" emissiveIntensity={0.12} roughness={0.7} />
+      </instancedMesh>
+      <instancedMesh args={[undefined, undefined, flowers.length]} ref={grassMesh}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial color={palette?.highlight ?? "#5da857"} roughness={.96} />
       </instancedMesh>
     </group>
   );
@@ -369,6 +455,7 @@ function HearttreeSanctum() {
 function ArenaOfEchoes({ detail }: { detail: boolean }) {
   const spectators = useRef<THREE.InstancedMesh>(null);
   const proofSeams = useRef<THREE.InstancedMesh>(null);
+  const floorStones = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {
     const matrix = new THREE.Matrix4();
     const quaternion = new THREE.Quaternion();
@@ -391,12 +478,26 @@ function ArenaOfEchoes({ detail }: { detail: boolean }) {
       proofSeams.current?.setMatrixAt(index, matrix);
     }
     proofSeams.current && (proofSeams.current.instanceMatrix.needsUpdate = true);
+    const floorStoneCount = detail ? 36 : 20;
+    for (let index = 0; index < floorStoneCount; index += 1) {
+      const angle = index * GOLDEN_ANGLE;
+      const radius = 1.7 + Math.sqrt((index + .5) / floorStoneCount) * 4.9;
+      quaternion.setFromEuler(new THREE.Euler(0, angle + index * .17, 0));
+      scale.set(.38 + index % 3 * .08, .07 + index % 2 * .02, .58 + index % 4 * .08);
+      matrix.compose(new THREE.Vector3(Math.cos(angle) * radius, .55, Math.sin(angle) * radius), quaternion, scale);
+      floorStones.current?.setMatrixAt(index, matrix);
+    }
+    floorStones.current && (floorStones.current.instanceMatrix.needsUpdate = true);
   }, [detail]);
   const arches = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
   return <group name="mortal-arena-world-anchor">
-    <mesh receiveShadow position={[0, .18, 0]} name="arena-foundation"><cylinderGeometry args={[11.25, 11.7, .36, 64]} /><meshStandardMaterial color="#172d2a" metalness={.12} roughness={.94} /></mesh>
-    <mesh receiveShadow position={[0, .39, 0]} name="arena-open-bowl"><cylinderGeometry args={[7.65, 8.15, .28, 64]} /><meshStandardMaterial color="#324c3f" metalness={.06} roughness={.88} /></mesh>
-    <mesh position={[0, .455, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[1.25, 7.1, 64]} /><meshStandardMaterial color="#426653" emissive="#173f31" emissiveIntensity={.16} roughness={.78} /></mesh>
+    <mesh receiveShadow position={[0, .18, 0]} name="arena-foundation"><cylinderGeometry args={[11.25, 11.7, .36, 64]} /><meshStandardMaterial color="#304b3c" emissive="#163b29" emissiveIntensity={.42} metalness={.06} roughness={.96} /></mesh>
+    <mesh receiveShadow position={[0, .39, 0]} name="arena-open-bowl"><cylinderGeometry args={[7.65, 8.15, .28, 64]} /><meshStandardMaterial color="#58775e" emissive="#1c4930" emissiveIntensity={.38} metalness={.03} roughness={.92} /></mesh>
+    <mesh position={[0, .455, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[1.25, 7.1, 64]} /><meshStandardMaterial color="#5e8263" emissive="#205037" emissiveIntensity={.36} roughness={.84} /></mesh>
+    <instancedMesh args={[undefined, undefined, detail ? 36 : 20]} ref={floorStones} name="arena-floor-stones">
+      <dodecahedronGeometry args={[1, 0]} />
+      <meshStandardMaterial color="#65746a" emissive="#1b3528" emissiveIntensity={.24} roughness={.99} />
+    </instancedMesh>
     <instancedMesh args={[undefined, undefined, 20]} ref={proofSeams} name="arena-proof-seams"><boxGeometry args={[1, 1, 1]} /><meshStandardMaterial color="#ffe288" emissive="#f7c948" emissiveIntensity={1.6} metalness={.4} roughness={.28} /></instancedMesh>
     {[7.5, 8.6, 10.35].map((radius, index) => <mesh key={radius} position={[0, .48 + index * .25, 0]} rotation={[Math.PI / 2, 0, 0]}>
       <torusGeometry args={[radius, index === 2 ? .34 : .16, 8, 72]} />
@@ -482,7 +583,7 @@ function SpringLandmark() {
         <meshStandardMaterial color="#748278" roughness={0.98} />
       </instancedMesh>
       <instancedMesh args={[undefined, undefined, 4]} ref={springReeds}>
-        <coneGeometry args={[0.08, 0.76, 5]} />
+        <capsuleGeometry args={[.045, .62, 3, 6]} />
         <meshStandardMaterial color="#4a9852" roughness={0.83} />
       </instancedMesh>
     </group>
@@ -519,8 +620,8 @@ function FarCanopy({ centerX, centerZ, player }: { centerX: number; centerZ: num
   return (
     <group position={[-(player.x % WILDS_TILE_SIZE), 0, -(player.z % WILDS_TILE_SIZE)]}>
       <instancedMesh args={[undefined, undefined, silhouettes.length]} receiveShadow ref={farCliffMesh}>
-        <coneGeometry args={[0.72, 1.8, 7]} />
-        <meshStandardMaterial color="#29473a" fog roughness={0.98} />
+        <dodecahedronGeometry args={[.82, 1]} />
+        <meshStandardMaterial color="#354d43" fog roughness={0.99} />
       </instancedMesh>
       <instancedMesh args={[undefined, undefined, silhouettes.length]} ref={farCanopyMesh}>
         <dodecahedronGeometry args={[0.72, 0]} />

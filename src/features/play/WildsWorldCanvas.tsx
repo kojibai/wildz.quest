@@ -650,7 +650,11 @@ function HabitatCover({ cover, open }: { cover: HotspotCover; open: boolean }) {
     <group rotation={[0, open ? 0.62 : 0, open ? -0.24 : 0]}>
       {[-1, -0.5, 0, 0.5, 1].map((offset, index) => (
         <mesh key={offset} castShadow position={[offset * 0.25, 0.2 + Math.abs(offset) * 0.08, index % 2 ? -0.1 : 0.08]} rotation={[0.12, offset * 0.4, offset * -0.32]}>
-          {cover === "rock" || cover === "cave" || cover === "ruin" ? <dodecahedronGeometry args={[0.24, 0]} /> : <coneGeometry args={[0.15, 0.52, cover === "water" ? 8 : 5]} />}
+          {cover === "rock" || cover === "cave" || cover === "ruin"
+            ? <dodecahedronGeometry args={[0.24, 0]} />
+            : cover === "water" || cover === "energy"
+              ? <icosahedronGeometry args={[.19, 1]} />
+              : <capsuleGeometry args={[.055, .42, 3, 6]} />}
           <meshStandardMaterial color={colors[String(cover)] ?? colors.grass} roughness={0.78} metalness={cover === "energy" ? 0.24 : 0} emissive={cover === "energy" ? "#f7c948" : colors[String(cover)] ?? colors.grass} emissiveIntensity={cover === "energy" ? 0.28 : readability.threatEmissive * 0.55} />
         </mesh>
       ))}
