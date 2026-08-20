@@ -84,11 +84,18 @@ async function regressionArtifact() {
     pendingSyncAssetIds: [cards[13]!.id],
     worldMastery: 41
   };
+  const character = generateWildzCharacter({
+    identityRef: projection.keyId,
+    kaiPulse: "13734042",
+    gender: "female",
+    version: 1
+  });
   const player = createWildsPlayerVault({
     playerId: projection.owner.username!,
     exportedAt: "2026-07-15T16:00:00.000Z",
     playState: playerState,
-    settings: { avatarStyle: "female", movementMode: "walk", audio: {} },
+    character,
+    settings: { avatarStyle: "female", movementMode: "run", audio: {}, cardOrder: "newest" },
     personalEvents: [],
     canonicalCursor: { worldId: "wilds:global:v3", revision: 0, eventId: null },
     receipts: []
@@ -117,7 +124,8 @@ async function regressionArtifact() {
     identityBytes: appendReceizIdentityArtifactTrailerToPng(identityBasis, identity.keyFile),
     identityCardBytes,
     cardOnlyBytes: cardOnlyBasis,
-    playerState
+    playerState,
+    character
   };
 }
 
@@ -397,6 +405,9 @@ test("generated 97-card identity Vault survives inspection, both restore surface
   assert.equal(idCardOutcome.playState.selectedAssetId, fixture.playerState.selectedAssetId);
   assert.deepEqual(idCardOutcome.playState.pendingSyncAssetIds, fixture.playerState.pendingSyncAssetIds);
   assert.equal(idCardOutcome.playState.worldMastery, 41);
+  assert.equal(idCardOutcome.character?.digest, fixture.character.digest);
+  assert.equal(idCardOutcome.playerContinuity.settings.movementMode, "run");
+  assert.equal(idCardOutcome.playerContinuity.settings.cardOrder, "newest");
   const idCardColdRepository = createWildzIdentityRepository({ database: idCard.database });
   const idCardColdSession = await idCardColdRepository.active();
   assert.ok(idCardColdSession);

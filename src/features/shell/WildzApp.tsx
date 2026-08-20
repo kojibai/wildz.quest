@@ -23,6 +23,7 @@ import {
   downloadWildzIdentityPlayerCard,
   downloadWildzIdentityOwnedCard,
   downloadWildzIdentityPlayerVault,
+  isWildzIdentityActivationInspection,
   prepareWildzRestore,
   restoreWildzFileForSurface,
   resumePendingWildzVault,
@@ -567,14 +568,18 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   }, [acceptSnapshot]);
 
   const activateIdentitySeal = useCallback(async (file: File) => {
+    const prepared = await prepareWildzRestore(file);
+    if (!isWildzIdentityActivationInspection(prepared.inspection)) {
+      throw new Error("wildz_identity_seal_required");
+    }
     const outcome = await restoreArtifact(
       file,
       "card-vault",
       false,
       continuityRef.current?.playState ?? undefined,
-      "activate-identity"
+      "activate-identity",
+      prepared
     );
-    if (outcome.artifactKind !== "identity-seal") throw new Error("wildz_identity_seal_required");
 
     const restored = continuityRef.current;
     if (!restored

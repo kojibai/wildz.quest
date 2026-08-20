@@ -18,7 +18,10 @@ import {
   type ReceizCommerceVaultReader
 } from "../src/lib/receiz/wildz-artifact-codec";
 import { createWildzIdentityRepository } from "../src/lib/receiz/wildz-identity-repository";
-import { inspectWildzRestore } from "../src/lib/receiz/wildz-identity-adapter";
+import {
+  inspectWildzRestore,
+  isWildzIdentityActivationInspection
+} from "../src/lib/receiz/wildz-identity-adapter";
 import { restoreWildzArtifactForSurface } from "../src/features/identity/wildz-restore";
 import { createWildzIdentityBoundPlayerVault } from "../src/lib/receiz/wildz-identity-adapter";
 import { splitWildzPngEnvelope } from "../src/lib/receiz/wildz-png-envelope";
@@ -83,6 +86,7 @@ test("legacy card Vault never claims identity authority", async () => {
   assert.equal(inspected.kind, "card-vault");
   if (inspected.kind !== "card-vault") return;
   assert.equal("identity" in inspected, false);
+  assert.equal(isWildzIdentityActivationInspection(inspected), false);
   assert.deepEqual(inspected.assets.map((asset) => asset.id), expected.map((asset) => asset.id).sort());
 });
 
@@ -126,6 +130,7 @@ test("a Vault saved by Wildz remains a card Vault when it carries its Identity S
   if (inspected.kind !== "card-vault") return;
   assert.equal(inspected.identity?.session.username, "codec_saved_vault");
   assert.equal(inspected.playerBinding, "identity-v3-binding");
+  assert.equal(isWildzIdentityActivationInspection(inspected), true);
   assert.deepEqual(inspected.assets.map((asset) => asset.id), expected.map((asset) => asset.id).sort());
 });
 

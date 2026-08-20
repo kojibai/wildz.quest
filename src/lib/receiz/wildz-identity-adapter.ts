@@ -157,6 +157,15 @@ function isWildzVaultBearingInspection(
     && Boolean(inspection.player);
 }
 
+export function isWildzIdentityActivationInspection(
+  inspection: Awaited<ReturnType<WildzArtifactCodec["inspect"]>>
+) {
+  if (inspection.kind === "identity-seal") return true;
+  return inspection.kind === "card-vault"
+    && Boolean(inspection.identity)
+    && inspection.playerBinding === "identity-v3-binding";
+}
+
 export async function alignWildzContinuityWithProofSession(
   snapshot: WildzContinuitySnapshot,
   remote: WildzRemoteSession,
@@ -484,7 +493,9 @@ export async function restoreWildzFileForSurface(
     const active = await defaultIdentityRepository.active();
     if (!sameOwner(active, current.session)) throw new Error("wildz_restore_cursor_stale");
     if (inspection.kind === "invalid" || inspection.kind === "unsupported") throw new Error(inspection.code);
-    if (intent === "activate-identity" && inspection.kind !== "identity-seal") throw new Error("wildz_identity_seal_required");
+    if (intent === "activate-identity" && !isWildzIdentityActivationInspection(inspection)) {
+      throw new Error("wildz_identity_seal_required");
+    }
     if (intent === "merge-vault" && !isWildzVaultBearingInspection(inspection)) throw new Error("wildz_vault_required");
     const outcome = await restoreWildzArtifactForSurface({
       surface,
