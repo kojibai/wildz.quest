@@ -1,4 +1,5 @@
 import { regionForPosition, WILDS_REGION_SIZE } from "./multiplayer-core";
+import { isCanonicalWildsDiscoverySiteKey } from "./wilds-discovery-sites";
 
 export const WILDS_EXPLORATION_VERSION = 1 as const;
 
@@ -11,6 +12,7 @@ export type WildsExplorationRow = Readonly<{ z: number; ranges: readonly WildsEx
 export type WildsExplorationAtlas = Readonly<{
   version: typeof WILDS_EXPLORATION_VERSION;
   rows: readonly WildsExplorationRow[];
+  siteKeys: readonly string[];
 }>;
 
 type MutableRows = Map<number, WildsExplorationRange[]>;
@@ -75,13 +77,21 @@ function addInitial(rows: MutableRows) {
   }
 }
 
-function atlasFromRows(rows: MutableRows): WildsExplorationAtlas {
+function normalizeSiteKeys(values: unknown): string[] {
+  if (!Array.isArray(values)) return [];
+  return [...new Set(values.filter((value): value is string =>
+    isCanonicalWildsDiscoverySiteKey(value)
+  ))].sort();
+}
+
+function atlasFromRows(rows: MutableRows, siteKeys: readonly string[] = []): WildsExplorationAtlas {
   return {
     version: WILDS_EXPLORATION_VERSION,
     rows: [...rows.entries()]
       .filter(([, ranges]) => ranges.length > 0)
       .sort(([leftZ], [rightZ]) => leftZ - rightZ)
-      .map(([z, ranges]) => ({ z, ranges: normalizeRanges(ranges) }))
+      .map(([z, ranges]) => ({ z, ranges: normalizeRanges(ranges) })),
+    siteKeys: normalizeSiteKeys(siteKeys)
   };
 }
 
@@ -102,11 +112,13 @@ export function normalizeWildsExplorationAtlas(
   currentPosition: { x: number; z: number }
 ): WildsExplorationAtlas {
   const rows: MutableRows = new Map();
+  let siteKeys: string[] = [];
   addInitial(rows);
 
   if (value && typeof value === "object") {
     const candidate = value as { version?: unknown; rows?: unknown };
     if (candidate.version === WILDS_EXPLORATION_VERSION && Array.isArray(candidate.rows)) {
+      siteKeys = normalizeSiteKeys((candidate as { siteKeys?: unknown }).siteKeys);
       for (const valueRow of candidate.rows) {
         if (!valueRow || typeof valueRow !== "object") continue;
         const row = valueRow as { z?: unknown; ranges?: unknown };
@@ -117,7 +129,7 @@ export function normalizeWildsExplorationAtlas(
   }
 
   addSight(rows, currentPosition);
-  return atlasFromRows(rows);
+  return atlasFromRows(rows, siteKeys);
 }
 
 export function wildsExplorationContainsRegion(
@@ -160,7 +172,7 @@ export function revealWildsExplorationAt(
 
   const rows = rowsFromAtlas(atlas);
   addSight(rows, position);
-  return atlasFromRows(rows);
+  return atlasFromRows(rows, atlas.siteKeys);
 }
 
 export function mergeWildsExplorationAtlases(
@@ -169,7 +181,17 @@ export function mergeWildsExplorationAtlases(
 ): WildsExplorationAtlas {
   const rows = rowsFromAtlas(left);
   for (const row of right.rows) addRanges(rows, row.z, row.ranges);
-  return atlasFromRows(rows);
+  return atlasFromRows(rows, [...left.siteKeys, ...right.siteKeys]);
+}
+
+export function wildsExplorationContainsSite(atlas: WildsExplorationAtlas, siteKey: string) {
+  return atlas.siteKeys.includes(siteKey);
+}
+
+export function discoverWildsExplorationSite(atlas: WildsExplorationAtlas, siteKey: string): WildsExplorationAtlas {
+  const normalized = normalizeSiteKeys([siteKey]);
+  if (normalized.length === 0 || atlas.siteKeys.includes(normalized[0]!)) return atlas;
+  return { ...atlas, siteKeys: normalizeSiteKeys([...atlas.siteKeys, normalized[0]!]) };
 }
 
 export function wildsExplorationBounds(atlas: WildsExplorationAtlas) {

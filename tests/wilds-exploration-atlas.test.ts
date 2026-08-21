@@ -2,14 +2,17 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   createInitialWildsExplorationAtlas,
+  discoverWildsExplorationSite,
   mergeWildsExplorationAtlases,
   normalizeWildsExplorationAtlas,
   revealWildsExplorationAt,
   wildsExplorationBounds,
   wildsExplorationContainsRegion,
+  wildsExplorationContainsSite,
   wildsExplorationContainsWorld,
   wildsExplorationRegions
 } from "../src/features/play/wilds-exploration-atlas.js";
+import { wildsDiscoverySitesForRegion } from "../src/features/play/wilds-discovery-sites.js";
 
 test("a new explorer begins with the exact original nine by nine atlas", () => {
   const atlas = createInitialWildsExplorationAtlas();
@@ -59,4 +62,22 @@ test("normalization discards malformed rows, clamps released coordinates, and so
   assert.deepEqual(regions.slice(0, 2), [{ x: -4, z: -4 }, { x: -3, z: -4 }]);
   assert.deepEqual(regions.at(-1), { x: 6, z: 8 });
   assert.equal(wildsExplorationBounds(restored).count, 83);
+});
+
+test("exploration continuity stores only stable discovered site keys", () => {
+  const initial = createInitialWildsExplorationAtlas();
+  const siteKey = wildsDiscoverySitesForRegion(3, -2)[1]!.key;
+  const discovered = discoverWildsExplorationSite(initial, siteKey);
+  assert.equal(wildsExplorationContainsSite(discovered, siteKey), true);
+  assert.equal(discoverWildsExplorationSite(discovered, siteKey), discovered);
+  assert.deepEqual(discovered.siteKeys, [siteKey]);
+  assert.equal(discoverWildsExplorationSite(discovered, "wildz.site.v1:3:-2:1:0123456789abcdef"), discovered);
+  assert.equal(discoverWildsExplorationSite(discovered, "wildz.site.v1:999999999:-2:9:0123456789abcdef"), discovered);
+  assert.equal(discoverWildsExplorationSite(discovered, "wildz.excavation.v1:private:0123456789abcdef"), discovered);
+
+  const restored = normalizeWildsExplorationAtlas({
+    ...discovered,
+    siteKeys: ["bad", discovered.siteKeys[0], discovered.siteKeys[0]]
+  }, { x: 0, z: 0 });
+  assert.deepEqual(restored.siteKeys, discovered.siteKeys);
 });
