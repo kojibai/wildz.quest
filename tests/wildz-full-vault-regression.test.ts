@@ -492,6 +492,8 @@ test("Profile activation of a Wildz continuity seal replaces the prior account w
   assert.deepEqual(outcome.playState.inventory.map((asset) => asset.id).sort(), fixture.expectedIds);
   assert.equal(outcome.playState.inventory.some((asset) => asset.id === previousStarterId), false);
   assert.equal(outcome.playState.selectedAssetId, fixture.playerState.selectedAssetId);
+  assert.deepEqual(outcome.playState.player, fixture.playerState.player);
+  assert.deepEqual(outcome.playState.siteSpace, fixture.playerState.siteSpace);
   assert.equal(outcome.playState.worldMastery, 41);
   assert.equal(outcome.character?.digest, fixture.character.digest);
   assert.equal(outcome.playerContinuity.settings.movementMode, "run");
@@ -648,6 +650,8 @@ test("an explicitly uploaded foreign Vault preserves the bootstrap starter and i
 
   assert.equal(outcome.session.keyId, active.keyId);
   assert.equal(outcome.session.actorId, active.actorId);
+  assert.deepEqual(outcome.playState.player, currentPlayState.player);
+  assert.deepEqual(outcome.playState.siteSpace, currentPlayState.siteSpace);
   assert.equal(outcome.playState.inventory.length, fixture.expectedIds.length + 1);
   assert.ok(outcome.playState.inventory.some((asset) => asset.id === currentPlayState.inventory[0]?.id));
   for (const assetId of fixture.expectedIds) {

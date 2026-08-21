@@ -5,10 +5,17 @@ import {
   sealDiscoveredCard,
   sealCollectedCard,
   sha256PortableBasis,
-  verifyAnyWildsCard,
   verifyPortableCard,
   type PortableCardAsset
 } from "./portable-card";
+import {
+  admitLocallySealedWildsInventory,
+  isAdmittedWildsCard,
+  restoreAdmittedWildsInventory,
+  retainAdmittedWildsInventory,
+  verifyAndAdmitWildsCard,
+  type AdmittedWildsInventory
+} from "./admitted-inventory";
 import { encounterFromSearch, idleEncounterState, isCapturableEncounter, type EncounterState } from "./encounter-state";
 import { hotspotsForRegion, nearbyHiddenHotspots, searchHiddenHotspots } from "./hidden-hotspots";
 import { applyKaiAffinityToHotspot } from "./kai-encounter-affinity";
@@ -348,7 +355,7 @@ export const initialPlayState: PlayState = {
   discoveredCardIds: ["mintcub"],
   energy: 84,
   encounter: idleEncounterState,
-  inventory: [{ ...starterCardAsset, status: "verified", synchronizedAt: "2026-06-29T12:00:00.000Z" }],
+  inventory: admitLocallySealedWildsInventory([{ ...starterCardAsset, status: "verified", synchronizedAt: "2026-06-29T12:00:00.000Z" }]),
   lastEvent: "SealCub joined your deck. Walk near another wild companion.",
   level: 7,
   missionProgress: 38,
@@ -401,7 +408,7 @@ export function createOwnerBoundInitialPlayState(ownerReceizId: string, createdA
   return {
     ...structuredClone(initialPlayState),
     discoveredCardIds: [starter.manifest.familyId],
-    inventory: [{ ...starter, status: "verified", synchronizedAt: starter.manifest.capturedAt }],
+    inventory: admitLocallySealedWildsInventory([{ ...starter, status: "verified", synchronizedAt: starter.manifest.capturedAt }]),
     lastEvent: `${starter.manifest.name} joined your deck. Walk near another wild companion.`,
     selectedCardId: starter.manifest.familyId,
     selectedAssetId: starter.id,
@@ -474,7 +481,7 @@ export function normalizeWildsSupportAssetIds(
   leaderAssetId: string
 ): WildsSupportAssetIds {
   const input = Array.isArray(values) ? values : [];
-  const admitted = new Set(inventory.filter((asset) => verifyAnyWildsCard(asset).ok).map((asset) => asset.id));
+  const admitted = new Set(inventory.map((asset) => asset.id));
   const seen = new Set<string>();
   const normalized = [0, 1].map((slot) => {
     const value = input[slot];
@@ -485,7 +492,11 @@ export function normalizeWildsSupportAssetIds(
   return [normalized[0] ?? null, normalized[1] ?? null];
 }
 
-export function restorePlayState(value: string | null | undefined, ownerReceizId?: string): PlayState {
+export function restorePlayState(
+  value: string | null | undefined,
+  ownerReceizId?: string,
+  admittedInventory?: AdmittedWildsInventory
+): PlayState {
   const fallback = fallbackPlayState(ownerReceizId);
   if (!value) return fallback;
   try {
@@ -496,10 +507,11 @@ export function restorePlayState(value: string | null | undefined, ownerReceizId
     const discoveredCardIds = Array.isArray(saved.discoveredCardIds)
       ? saved.discoveredCardIds.filter((id): id is string => typeof id === "string" && creatureCards.some((card) => card.id === id))
       : fallback.discoveredCardIds;
-    const restoredInventory = Array.isArray(saved.inventory)
-      ? saved.inventory.filter((asset): asset is PortableCardAsset => Boolean(asset) && verifyAnyWildsCard(asset as PortableCardAsset).ok)
-      : [];
-    const ownerScopedInventory = ownerReceizId
+    const sameSessionInventory = ownerReceizId ? restoreAdmittedWildsInventory(admittedInventory, ownerReceizId) : null;
+    const restoredInventory = sameSessionInventory ?? (Array.isArray(saved.inventory)
+      ? saved.inventory.filter((asset): asset is PortableCardAsset => Boolean(asset) && verifyAndAdmitWildsCard(asset as PortableCardAsset))
+      : []);
+    const ownerScopedInventory = ownerReceizId && !sameSessionInventory
       ? restoredInventory.map((asset) => reissuePlaceholderAsset(asset, ownerReceizId))
       : restoredInventory;
     const migratedAssetIds = new Map(restoredInventory.map((asset, index) => [asset.id, ownerScopedInventory[index]?.id ?? asset.id]));
@@ -513,7 +525,7 @@ export function restorePlayState(value: string | null | undefined, ownerReceizId
       });
       return [...assets, sealed];
     }, ownerScopedInventory);
-    const migratedInventory = admitAndMergeInventory(inventoryWithMigrations);
+    const migratedInventory = sameSessionInventory ?? admitLocallySealedWildsInventory(admitAndMergeInventory(inventoryWithMigrations));
     const restoredHearttreeReceipts = Array.isArray(saved.hearttreeReceipts)
       ? saved.hearttreeReceipts.filter((receipt): receipt is HearttreeReceipt => Boolean(receipt) && verifyHearttreeReceipt(receipt as HearttreeReceipt).ok).slice(-512)
       : [];
@@ -813,7 +825,7 @@ export function selectedAsset(state: PlayState) {
 
 export function isPlayableAsset(state: PlayState, assetId: string) {
   const asset = state.inventory.find((candidate) => candidate.id === assetId);
-  if (!asset || !verifyAnyWildsCard(asset).ok || state.adventureConditions[assetId]?.life === "dead") return false;
+  if (!asset || (!isAdmittedWildsCard(asset) && !verifyAndAdmitWildsCard(asset)) || state.adventureConditions[assetId]?.life === "dead") return false;
   const life = isLivingCardAsset(asset) ? currentRevision(asset).growth.life : null;
   return !life || (!life.retired && life.vitality > 0);
 }
@@ -841,10 +853,10 @@ export function applyCommittedArenaSettlement(state: PlayState, settlement: Aren
     if (!current || !pin || current.proof.digest !== pin.proofDigest) {
       throw new Error(`Arena settlement proof pin is stale for ${card.id}`);
     }
-    if (!verifyAnyWildsCard(card).ok) throw new Error(`Arena settlement card proof is invalid for ${card.id}`);
+    if (!verifyAndAdmitWildsCard(card)) throw new Error(`Arena settlement card proof is invalid for ${card.id}`);
   }
 
-  const inventory = state.inventory.map((card) => cardById.get(card.id) ?? card);
+  const inventory = admitLocallySealedWildsInventory(state.inventory.map((card) => cardById.get(card.id) ?? card));
   const livingProgress = { ...state.livingProgress };
   const adventureConditions = { ...state.adventureConditions };
   const hearttreeConditions = { ...state.hearttreeConditions };
@@ -978,7 +990,7 @@ function appendRecordedGrowthToExactCard(state: PlayState, assetId: string, even
     if (updated === asset) return state;
     return {
       ...state,
-      inventory: state.inventory.map((candidate) => candidate.id === updated.id ? updated : candidate),
+      inventory: admitLocallySealedWildsInventory(state.inventory.map((candidate) => candidate.id === updated.id ? updated : candidate)),
       livingProgress: { ...state.livingProgress, [updated.id]: growth },
       pendingSyncAssetIds: Array.from(new Set([...state.pendingSyncAssetIds, updated.id]))
     };
@@ -1066,7 +1078,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       });
       return {
         ...state,
-        inventory: state.inventory.map((candidate) => candidate.id === observed.id ? observed : candidate),
+        inventory: admitLocallySealedWildsInventory(state.inventory.map((candidate) => candidate.id === observed.id ? observed : candidate)),
         livingProgress: { ...state.livingProgress, [observed.id]: currentRevision(observed).growth },
         pendingSyncAssetIds: Array.from(new Set([...state.pendingSyncAssetIds, observed.id])),
         lastEvent: `${observed.manifest.name} remembered your conversation in its portable proof brain.`
@@ -1095,7 +1107,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     return {
       ...state,
       beans: state.beans - result.cost,
-      inventory: state.inventory.map((candidate) => candidate.id === result.asset.id ? result.asset : candidate),
+      inventory: admitLocallySealedWildsInventory(state.inventory.map((candidate) => candidate.id === result.asset.id ? result.asset : candidate)),
       livingProgress: isLivingCardAsset(result.asset)
         ? { ...state.livingProgress, [result.asset.id]: currentRevision(result.asset).growth }
         : state.livingProgress,
@@ -1115,7 +1127,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     if (!result.ok) return state;
     return {
       ...state,
-      inventory: state.inventory.map((candidate) => candidate.id === result.asset.id ? result.asset : candidate),
+      inventory: admitLocallySealedWildsInventory(state.inventory.map((candidate) => candidate.id === result.asset.id ? result.asset : candidate)),
       adventureConditions: isLivingCardAsset(result.asset)
         ? { ...state.adventureConditions, [result.asset.id]: currentCreatureHistoryProjection(result.asset).condition }
         : state.adventureConditions,
@@ -1151,7 +1163,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
         : `remembered ${result.appended} real ${result.appended === 1 ? "moment" : "moments"} that settled into its proof brain`;
     return {
       ...state,
-      inventory: state.inventory.map((candidate) => candidate.id === result.asset.id ? result.asset : candidate),
+      inventory: admitLocallySealedWildsInventory(state.inventory.map((candidate) => candidate.id === result.asset.id ? result.asset : candidate)),
       livingProgress: isLivingCardAsset(result.asset)
         ? { ...state.livingProgress, [result.asset.id]: currentRevision(result.asset).growth }
         : state.livingProgress,
@@ -1413,7 +1425,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     }
     return awardWorldMastery({
       ...state,
-      inventory: state.inventory.map((item) => item.id === ascended.id ? ascended : item),
+      inventory: admitLocallySealedWildsInventory(state.inventory.map((item) => item.id === ascended.id ? ascended : item)),
       livingProgress: { ...state.livingProgress, [ascended.id]: nextGrowth },
       ascensionCatalysts: state.ascensionCatalysts.filter((id) => id !== candidate.catalystId),
       pendingSyncAssetIds: Array.from(new Set([...state.pendingSyncAssetIds, ascended.id])),
@@ -1424,7 +1436,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
 
   if (input.type === "import-card") {
     const asset = input.asset;
-    if (!verifyAnyWildsCard(asset).ok) return { ...state, lastEvent: "That PNG did not pass the offline card verifier." };
+    if (!verifyAndAdmitWildsCard(asset)) return { ...state, lastEvent: "That PNG did not pass the offline card verifier." };
     const importedCondition = state.adventureConditions[asset.id]
       ?? (isLivingCardAsset(asset)
         ? currentCreatureHistoryProjection(asset).condition
@@ -1447,7 +1459,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
         return withWorldProgress({
           ...state,
           ...importedConditions,
-          inventory: state.inventory.map((candidate) => candidate.id === asset.id ? asset : candidate),
+          inventory: retainAdmittedWildsInventory(state.inventory.map((candidate) => candidate.id === asset.id ? asset : candidate)),
           livingProgress: { ...state.livingProgress, [asset.id]: progress },
           pendingSyncAssetIds: Array.from(new Set([...state.pendingSyncAssetIds, asset.id])),
           selectedAssetId: asset.id,
@@ -1458,6 +1470,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       return {
         ...state,
         ...importedConditions,
+        inventory: retainAdmittedWildsInventory(state.inventory),
         selectedAssetId: asset.id,
         selectedCardId: asset.manifest.familyId,
         lastEvent: `${asset.manifest.name} is already in your inventory and now leads your active deck.`
@@ -1468,7 +1481,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       ...state,
       ...importedConditions,
       discoveredCardIds,
-      inventory: [...state.inventory, asset],
+      inventory: retainAdmittedWildsInventory([...state.inventory, asset]),
       selectedAssetId: asset.id,
       selectedCardId: asset.manifest.familyId,
       lastEvent: `${asset.manifest.name} passed offline verification and joined your playable inventory.`
@@ -1508,7 +1521,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       discoveredCardIds: Array.from(new Set([...state.discoveredCardIds, transaction.child.manifest.familyId])),
       fusionSparks: state.fusionSparks - transaction.sparkConsumed,
       fusionCooldowns: { ...state.fusionCooldowns, [parentA.id]: transaction.recoveryUntil, [parentB.id]: transaction.recoveryUntil },
-      inventory: [...state.inventory.map((asset) => replacements.get(asset.id) ?? asset), transaction.child],
+      inventory: admitLocallySealedWildsInventory([...state.inventory.map((asset) => replacements.get(asset.id) ?? asset), transaction.child]),
       livingProgress: {
         ...state.livingProgress,
         [transaction.parentA.id]: currentRevision(transaction.parentA).growth,
@@ -1571,7 +1584,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
         const settledCard = settleWildBattleCard(combatAsset, battle, input.at ?? state.encounter.searchedAt);
         resolved = {
           ...resolved,
-          inventory: state.inventory.map((asset) => asset.id === settledCard.id ? settledCard : asset),
+          inventory: admitLocallySealedWildsInventory(state.inventory.map((asset) => asset.id === settledCard.id ? settledCard : asset)),
           ...(isLivingCardAsset(settledCard) ? {
             livingProgress: { ...resolved.livingProgress, [settledCard.id]: currentRevision(settledCard).growth },
             pendingSyncAssetIds: Array.from(new Set([...resolved.pendingSyncAssetIds, settledCard.id]))
@@ -1760,7 +1773,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       combo: state.combo + 1,
       discoveredCardIds: nextDiscovered,
       encounter: { ...normalizedEncounter, phase: "sealed", assetId: sealed.id },
-      inventory: [...state.inventory, sealed],
+      inventory: admitLocallySealedWildsInventory([...state.inventory, sealed]),
       lastEvent: `${sealed.manifest.name} was captured and sealed as one portable card.`,
       level: nextDiscovered.length >= 3 ? Math.max(state.level, 8) : state.level,
       missionProgress: Math.min(100, state.missionProgress + 12),
@@ -1778,9 +1791,9 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     const nextStatus = input.type === "mark-listed" ? "listed" : "verified";
     return {
       ...state,
-      inventory: state.inventory.map((asset) => asset.id === input.assetId
+      inventory: admitLocallySealedWildsInventory(state.inventory.map((asset) => asset.id === input.assetId
         ? { ...asset, status: nextStatus, synchronizedAt: input.synchronizedAt }
-        : asset),
+        : asset)),
       pendingSyncAssetIds: state.pendingSyncAssetIds.filter((id) => id !== input.assetId),
       lastEvent: input.type === "mark-listed"
         ? `${target.manifest.name} passed offline verification and is listed on the Exchange.`
@@ -1799,7 +1812,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     const evolved = evolvePortableCard({ previous, nextFormId: next.id, evolvedAt: input.evolvedAt, growth: growthForAsset(state, previous) });
     return {
       ...state,
-      inventory: state.inventory.map((asset) => asset.id === evolved.id ? evolved : asset),
+      inventory: admitLocallySealedWildsInventory(state.inventory.map((asset) => asset.id === evolved.id ? evolved : asset)),
       pendingSyncAssetIds: Array.from(new Set([...state.pendingSyncAssetIds, evolved.id])),
       cardXp: state.cardXp + 25,
       lastEvent: `${previous.manifest.name} evolved into ${next.name}. Its living history was sealed in place.`
@@ -1984,7 +1997,9 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     const exactRecovery = Boolean(recovered && recovered !== leader && isLivingCardAsset(recovered));
     return {
       ...state,
-      inventory: recovered ? state.inventory.map((asset) => asset.id === recovered.id ? recovered : asset) : state.inventory,
+      inventory: recovered
+        ? admitLocallySealedWildsInventory(state.inventory.map((asset) => asset.id === recovered.id ? recovered : asset))
+        : state.inventory,
       livingProgress: exactRecovery && recovered && isLivingCardAsset(recovered)
         ? { ...state.livingProgress, [recovered.id]: currentRevision(recovered).growth }
         : state.livingProgress,
@@ -2064,7 +2079,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       beans: state.beans + 6,
       cardXp: state.cardXp + 12,
       discoveredCardIds: nextDiscovered,
-      inventory: [...state.inventory, sealed],
+      inventory: admitLocallySealedWildsInventory([...state.inventory, sealed]),
       lastEvent: `${nearest.card.name} card collected and sealed for offline use. ${nearest.card.businessLogic}.`,
       combo: state.combo + 1,
       level: nextDiscovered.length >= 3 ? Math.max(state.level, 8) : state.level,

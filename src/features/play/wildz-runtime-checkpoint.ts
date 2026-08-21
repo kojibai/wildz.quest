@@ -1,5 +1,7 @@
 import { restorePlayState, serializePlayState, type PlayState } from "./game-state";
+import { createAdmittedWildsInventory } from "./admitted-inventory";
 import { sha256PortableBasis } from "./portable-card";
+import { reuseWildsTraversalConditionReferences } from "./wilds-traversal-capabilities";
 
 const RUNTIME_SCHEMA = "receiz.wildz.runtime_checkpoint.v1" as const;
 const RUNTIME_KEY_PREFIX = "receiz:wildz:runtime:v1";
@@ -66,11 +68,25 @@ export function readWildzRuntimeCheckpoint(storage: RuntimeStorage, input: {
       storage.removeItem(key);
       return input.playState;
     }
+    const admittedInventory = createAdmittedWildsInventory(input.playState.inventory, input.actorId);
+    if (!admittedInventory) {
+      storage.removeItem(key);
+      return input.playState;
+    }
     const restored = restorePlayState(serializePlayState({
       ...checkpoint.playState,
       inventory: input.playState.inventory
-    } as PlayState), input.actorId);
-    return { ...restored, inventory: input.playState.inventory };
+    } as PlayState), input.actorId, admittedInventory);
+    const traversalAssetIds = [restored.selectedAssetId, ...restored.supportAssetIds].filter((assetId): assetId is string => Boolean(assetId));
+    return {
+      ...restored,
+      inventory: input.playState.inventory,
+      adventureConditions: reuseWildsTraversalConditionReferences(
+        restored.adventureConditions,
+        input.playState.adventureConditions,
+        traversalAssetIds
+      )
+    };
   } catch {
     storage.removeItem(key);
     return input.playState;

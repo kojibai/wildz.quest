@@ -94,3 +94,20 @@ export function wildsTraversalCapabilityCacheSize() {
 export function wildsTraversalProjectionDiagnostics() {
   return Object.freeze({ slowKeyBuilds, projectionsBuilt });
 }
+
+export function reuseWildsTraversalConditionReferences(
+  restored: Record<string, AdventureCardCondition>,
+  current: Record<string, AdventureCardCondition>,
+  assetIds: readonly string[]
+) {
+  let result = restored;
+  for (const assetId of new Set(assetIds)) {
+    const restoredCondition = restored[assetId];
+    const currentCondition = current[assetId];
+    if (!restoredCondition || !currentCondition || restoredCondition === currentCondition) continue;
+    if (canonicalPortableCardJson(restoredCondition) !== canonicalPortableCardJson(currentCondition)) continue;
+    if (result === restored) result = { ...restored };
+    result[assetId] = currentCondition;
+  }
+  return result;
+}
