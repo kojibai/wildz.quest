@@ -19,6 +19,24 @@ import { createWildsCivicEvent } from "../src/features/play/wilds-civic-history.
 import { sealRetirement } from "../src/features/games/lifecycle/creature-retirement.js";
 import { deriveKaiKlokMoment } from "../src/features/play/kai-klok-moment.js";
 
+function activeTravelState(): PlayState {
+  const capturedAt = "2026-07-13T11:00:00.000Z";
+  const asset = admitLegacyCard(sealCollectedCard({
+    formId: "mintcub-1",
+    ownerReceizId: "travel.player",
+    encounterId: "travel-player-card",
+    capturedAt
+  }), capturedAt);
+  return {
+    ...structuredClone(initialPlayState),
+    inventory: [asset],
+    selectedAssetId: asset.id,
+    selectedCardId: asset.manifest.familyId,
+    livingProgress: { [asset.id]: currentRevision(asset).growth },
+    player: { x: 7.9, z: 0 }
+  };
+}
+
 describe("Receiz Wilds game state", () => {
   it("promotes a living Vault card when the selected Mortal Arena card is retired", () => {
     const retiredBase = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "wilds.player.receiz.id", encounterId: "retired-only", capturedAt: "2026-07-18T10:00:00.000Z" });
@@ -387,13 +405,45 @@ describe("Receiz Wilds game state", () => {
     assert.match(leveled.lastEvent, new RegExp(`^${creature.manifest.name} reached Level 2`));
   });
 
-  it("records active travel only when the leading card crosses a bounded milestone", () => {
-    const ready: PlayState = { ...initialPlayState, player: { x: 7.9, z: 0 } };
+  it("queues active travel without changing card truth on the movement frame", () => {
+    const ready = activeTravelState();
     const crossed = applyWildsInput(ready, { type: "move", direction: "east" });
     const within = applyWildsInput(crossed, { type: "move-vector", x: 0.2, z: 0 });
+    const pending = (crossed as PlayState & { pendingTravelGrowthEvents?: unknown[] }).pendingTravelGrowthEvents;
 
-    assert.equal(crossed.livingProgress[ready.selectedAssetId]!.paths.bond, ready.livingProgress[ready.selectedAssetId]!.paths.bond + 1);
-    assert.equal(within.livingProgress[ready.selectedAssetId]!.paths.bond, crossed.livingProgress[ready.selectedAssetId]!.paths.bond);
+    assert.equal(crossed.inventory, ready.inventory);
+    assert.equal(crossed.livingProgress[ready.selectedAssetId]!.paths.bond, ready.livingProgress[ready.selectedAssetId]!.paths.bond);
+    assert.equal(pending?.length, 1);
+    assert.equal((within as PlayState & { pendingTravelGrowthEvents?: unknown[] }).pendingTravelGrowthEvents?.length, 1);
+  });
+
+  it("settles queued travel into the exact card only outside the walking path", () => {
+    const ready = activeTravelState();
+    const crossed = applyWildsInput(ready, { type: "move", direction: "east" });
+    const restored = restorePlayState(serializePlayState(crossed), "travel.player");
+    const settleInput = { type: "settle-pending-travel-growth" } as unknown as Parameters<typeof applyWildsInput>[1];
+    const settled = applyWildsInput(restored, settleInput);
+    const replay = applyWildsInput(settled, settleInput);
+
+    assert.equal(restored.pendingTravelGrowthEvents.length, 1);
+    assert.notEqual(settled.inventory, restored.inventory);
+    assert.equal(settled.livingProgress[ready.selectedAssetId]!.paths.bond, ready.livingProgress[ready.selectedAssetId]!.paths.bond + 1);
+    assert.deepEqual((settled as PlayState & { pendingTravelGrowthEvents?: unknown[] }).pendingTravelGrowthEvents, []);
+    assert.equal(replay, settled);
+  });
+
+  it("restored pending travel cannot smuggle growth authority", () => {
+    const crossed = applyWildsInput(activeTravelState(), { type: "move", direction: "east" });
+    const altered = structuredClone(crossed);
+    altered.pendingTravelGrowthEvents[0]!.event.achievementId = "forged_travel_achievement";
+    altered.pendingTravelGrowthEvents[0]!.event.questId = "forged_travel_quest";
+
+    const restored = restorePlayState(serializePlayState(altered), "travel.player");
+    const settled = applyWildsInput(restored, { type: "settle-pending-travel-growth" });
+    const progress = settled.livingProgress[settled.selectedAssetId]!;
+
+    assert.equal(progress.achievementIds.includes("forged_travel_achievement"), false);
+    assert.equal(progress.completedQuestIds.includes("forged_travel_quest"), false);
   });
 
   it("blocks exhausted actions and lets the scout make camp to recover", () => {

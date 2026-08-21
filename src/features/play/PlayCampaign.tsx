@@ -189,17 +189,18 @@ export function PlayCampaign({
   useEffect(() => {
     const settleLivingCreatures = () => setState((current) => {
       const at = new Date().toISOString();
-      return current.inventory.reduce((next, asset) => applyWildsInput(next, {
+      const travelSettled = applyWildsInput(current, { type: "settle-pending-travel-growth" });
+      return travelSettled.inventory.reduce((next, asset) => applyWildsInput(next, {
         type: "settle-creature-continuity",
         assetId: asset.id,
         ownerReceizId,
         at
-      }), current.inventory.reduce((next, asset) => applyWildsInput(next, {
+      }), travelSettled.inventory.reduce((next, asset) => applyWildsInput(next, {
         type: "settle-creature-care",
         assetId: asset.id,
         ownerReceizId,
         at
-      }), current));
+      }), travelSettled));
     });
     const settleWhenHidden = () => {
       if (shouldRunWildzOffHotPathWork({ visibility: document.visibilityState, surface: "gameplay" })) {
@@ -372,6 +373,10 @@ export function PlayCampaign({
   } = useWorldOverlayDirector({ dismissSignal: commandDismissSignal, exclusiveOwner: modalOwner });
   const commandPanelOpen = modalOwner === "none" && worldOverlayState.panelKey !== null;
   const exclusiveOwner = commandPanelOpen ? "command" : modalOwner;
+  useEffect(() => {
+    if (shellOverlayOwner === "none") return;
+    setState((current) => applyWildsInput(current, { type: "settle-pending-travel-growth" }));
+  }, [shellOverlayOwner]);
   const modalAdmissionRef = useRef(createModalAdmissionState(exclusiveOwner));
   if (modalAdmissionRef.current.owner !== exclusiveOwner) {
     modalAdmissionRef.current = claimModalAdmissionOwner(modalAdmissionRef.current, exclusiveOwner);

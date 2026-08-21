@@ -87,6 +87,7 @@ export type WildsInput = (
   | { type: "fuse-cards"; parentAId: string; parentBId: string; inheritance: FusionInheritance; fusedAt: string }
   | { type: "evolve"; assetId: string; evolvedAt: string }
   | { type: "record-growth"; assetId: string; event: GrowthEvent }
+  | { type: "settle-pending-travel-growth" }
   | { type: "record-civic-event"; event: WildsCivicEvent }
   | { type: "record-ecology-event"; event: WildsEcologyReceipt }
   | { type: "record-raid-event"; event: WildsRaidReceipt }
@@ -157,6 +158,7 @@ export type PlayState = {
     z: number;
   };
   pendingSyncAssetIds: string[];
+  pendingTravelGrowthEvents: Array<{ assetId: string; event: GrowthEvent }>;
   appliedArenaSettlementIds: string[];
   rewardCards: RewardCard[];
   selectedCardId: string;
@@ -336,6 +338,7 @@ export const initialPlayState: PlayState = {
     z: -0.85
   },
   pendingSyncAssetIds: [],
+  pendingTravelGrowthEvents: [],
   appliedArenaSettlementIds: [],
   rewardCards: [],
   selectedCardId: "mintcub",
@@ -593,6 +596,38 @@ export function restorePlayState(value: string | null | undefined, ownerReceizId
           .map((id) => migratedAssetIds.get(id) ?? id)
           .filter((id) => migratedInventory.some((asset) => asset.id === id))
         : migratedInventory.filter((asset) => asset.status === "sealed_local").map((asset) => asset.id),
+      pendingTravelGrowthEvents: Array.isArray(saved.pendingTravelGrowthEvents)
+        ? saved.pendingTravelGrowthEvents.flatMap((value) => {
+            if (!value || typeof value !== "object") return [];
+            const pending = value as { assetId?: unknown; event?: Partial<GrowthEvent> };
+            const assetId = typeof pending.assetId === "string" ? migratedAssetIds.get(pending.assetId) ?? pending.assetId : "";
+            const event = pending.event;
+            const eventPrefix = `active_travel:${assetId}:`;
+            if (!assetId
+              || !migratedInventory.some((asset) => asset.id === assetId)
+              || !event
+              || typeof event.eventId !== "string"
+              || !event.eventId.startsWith(eventPrefix)
+              || !/^-?\d+:-?\d+$/.test(event.eventId.slice(eventPrefix.length))
+              || event.kind !== "active_travel"
+              || event.path !== "bond"
+              || event.amount !== 1
+              || typeof event.occurredAt !== "string"
+              || !Number.isFinite(Date.parse(event.occurredAt))
+              || (event.kaiUPulse !== undefined && (!Number.isSafeInteger(event.kaiUPulse) || event.kaiUPulse < 0))) return [];
+            return [{
+              assetId,
+              event: {
+                eventId: event.eventId,
+                kind: "active_travel" as const,
+                path: "bond" as const,
+                amount: 1,
+                occurredAt: event.occurredAt,
+                ...(event.kaiUPulse !== undefined ? { kaiUPulse: event.kaiUPulse } : {})
+              }
+            }];
+          }).slice(-256)
+        : [],
       appliedArenaSettlementIds: Array.isArray(saved.appliedArenaSettlementIds)
         ? Array.from(new Set(saved.appliedArenaSettlementIds.filter((id): id is string => typeof id === "string" && /^arena-settlement:[a-f0-9]{24}$/.test(id)))).slice(-512)
         : [],
@@ -926,6 +961,14 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
   if (input.type === "reset") {
     const owner = selectedAsset(state)?.manifest.ownerReceizId ?? state.inventory[0]?.manifest.ownerReceizId;
     return owner ? createOwnerBoundInitialPlayState(owner) : initialPlayState;
+  }
+
+  if (input.type === "settle-pending-travel-growth") {
+    if (!state.pendingTravelGrowthEvents.length) return state;
+    return state.pendingTravelGrowthEvents.reduce<PlayState>((next, pending) => {
+      const asset = next.inventory.find((candidate) => candidate.id === pending.assetId);
+      return asset ? applyRecordedGrowth(next, asset, pending.event) : next;
+    }, { ...state, pendingTravelGrowthEvents: [] });
   }
 
   if (input.type === "record-creature-observation") {
@@ -1704,7 +1747,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     const leader = selectedAsset(state);
     if (!crossedMilestone || !leader) return moved;
     const milestoneId = `${Math.floor(nextPlayer.x / 8)}:${Math.floor(nextPlayer.z / 8)}`;
-    const progressed = applyRecordedGrowth(moved, leader, {
+    const event: GrowthEvent = {
       eventId: `active_travel:${leader.id}:${milestoneId}`,
       kind: "active_travel",
       path: "bond",
@@ -1713,8 +1756,14 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
         ? new Date(Date.UTC(2026, 6, 13, 12, Math.abs(Math.floor(nextPlayer.x / 8)) % 60, Math.abs(Math.floor(nextPlayer.z / 8)) % 60)).toISOString()
         : kaiUPulseToISOString(input.kaiUPulse),
       kaiUPulse: input.kaiUPulse
-    });
-    return awardWorldMastery({ ...progressed, lastEvent: nearbyText }, "travel");
+    };
+    const alreadyRecorded = growthForAsset(state, leader).eventIds.includes(event.eventId)
+      || state.pendingTravelGrowthEvents.some((pending) => pending.assetId === leader.id && pending.event.eventId === event.eventId);
+    const queued = alreadyRecorded ? moved : {
+      ...moved,
+      pendingTravelGrowthEvents: [...state.pendingTravelGrowthEvents, { assetId: leader.id, event }].slice(-256)
+    };
+    return awardWorldMastery({ ...queued, lastEvent: nearbyText }, "travel");
   }
 
   if (input.type === "rest") {
