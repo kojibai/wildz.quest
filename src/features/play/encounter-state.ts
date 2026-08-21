@@ -1,5 +1,6 @@
 import type { HotspotCover, HotspotSearchResult } from "./hidden-hotspots";
 import type { LivingCreatureIdentityV3 } from "./living-taxonomy";
+import type { WildsLayeredEncounterProjection } from "./wilds-layered-encounters";
 
 export type EncounterPhase = "idle" | "searching" | "hint" | "battle_intro" | "player_turn" | "capture_ready" | "fled" | "defeated" | "emerging" | "capsule" | "sealed" | "revealed";
 export type SearchProximity = "cold" | "warm" | "hot";
@@ -22,6 +23,7 @@ export type ActiveEncounterState = {
   trend: SearchTrend;
   assetId?: string;
   discoveryIdentity?: LivingCreatureIdentityV3;
+  placement?: WildsLayeredEncounterProjection;
 };
 
 export type EncounterState = IdleEncounterState | ActiveEncounterState;
@@ -52,12 +54,16 @@ export function encounterFromSearch(
     ? previousActive?.discoveryIdentity ?? discoveryIdentity
     : discoveryIdentity;
   const preserveDiscoveredForm = Boolean(preservedIdentity && previousActive?.hotspotId === hotspotId);
+  const placement = previousActive?.hotspotId === hotspotId && previousActive?.placement
+    ? previousActive.placement
+    : result.hotspot.placement;
   const hotspot = {
     hotspotId: result.hotspot.id,
     familyId: preserveDiscoveredForm ? previousActive?.familyId ?? result.hotspot.familyId : result.hotspot.familyId,
     formId: preserveDiscoveredForm ? previousActive?.formId ?? result.hotspot.formId : result.hotspot.formId,
     cover: preserveDiscoveredForm ? previousActive?.cover ?? result.hotspot.cover : result.hotspot.cover,
-    distance: result.distance
+    distance: result.distance,
+    placement
   };
   if (result.kind === "hit") return { phase: "battle_intro", ...shared, ...hotspot, discoveryIdentity: preservedIdentity };
   if (result.kind === "near_miss") return { phase: "hint", ...shared, ...hotspot, direction: { ...result.direction } };

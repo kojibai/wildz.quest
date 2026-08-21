@@ -14,7 +14,10 @@ function hashUnit(value: string) {
 
 export function kaiEncounterCandidates(hotspot: HiddenHotspot) {
   const aquatic = hotspot.cover === "water";
-  const partition = creatureForms.filter((form) => form.stage === 1 && isWildsAquaticForm(form) === aquatic);
+  const aerial = hotspot.layer === "air";
+  const partition = creatureForms.filter((form) => form.stage === 1
+    && isWildsAquaticForm(form) === aquatic
+    && (!aerial || form.anatomy.body === "winged" || form.anatomy.detail === "wings"));
   const candidates = partition.filter((form) => coverForHabitat(form.habitat, form.positionSeed) === hotspot.cover);
   return candidates.length ? candidates : partition;
 }

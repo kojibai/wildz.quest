@@ -50,6 +50,7 @@ import {
   projectWildsReadabilityProfile
 } from "@/features/play/wilds-night-readability";
 import { projectWildsTerrainActorPosition } from "@/features/play/wilds-terrain-rendering";
+import { wildsEncounterActorLocomotion, type WildsEncounterLayer } from "@/features/play/wilds-layered-encounters";
 import type { WildsAquaticPresentation } from "@/features/play/wilds-aquatic-presentation";
 import {
   createWildsAerialRuntimeResult,
@@ -819,12 +820,14 @@ function Creature({
   card,
   formId = `${card.id}-1`,
   pose = "idle",
-  identity
+  identity,
+  layer = "ground"
 }: {
   card: CreatureCard;
   formId?: string;
   pose?: WildsCreaturePose;
   identity?: Exclude<PlayState["encounter"], { phase: "idle" }>["discoveryIdentity"];
+  layer?: WildsEncounterLayer;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const appearance = useMemo(
@@ -849,6 +852,7 @@ function Creature({
           formId={appearance?.formId ?? formId}
           glow={appearance?.palette.glow ?? card.accent}
           identityToken={appearance?.fingerprint}
+          locomotion={wildsEncounterActorLocomotion(layer)}
           morphology={appearance?.morphology}
           pose={pose}
           primary={appearance?.palette.primary ?? card.color}
@@ -874,14 +878,14 @@ function Creature({
 function EncounterSequence({ state, terrainElevation }: { state: PlayState; terrainElevation: number }) {
   const encounter = state.encounter;
   if (encounter.phase === "idle") return null;
-  const position = projectWildsTerrainActorPosition(encounter.searchPoint, state.player, .04, { anchorElevation: terrainElevation });
+  const searchPosition = projectWildsTerrainActorPosition(encounter.searchPoint, state.player, .04, { anchorElevation: terrainElevation });
   if (encounter.phase === "searching") {
-    return <SearchPulse hint={false} position={position} />;
+    return <SearchPulse hint={false} position={searchPosition} />;
   }
   if (encounter.phase === "hint") {
     return (
       <>
-        <SearchPulse hint position={position} />
+        <SearchPulse hint position={searchPosition} />
         <RustlingClue encounter={encounter} player={state.player} terrainElevation={terrainElevation} />
       </>
     );
@@ -896,12 +900,16 @@ function EncounterSequence({ state, terrainElevation }: { state: PlayState; terr
         : lastBattleAction && lastBattleAction !== "capture" ? "attack"
         : encounter.phase === "battle_intro" ? "curious"
           : "idle";
+  const placement = encounter.placement;
+  const position: [number, number, number] = placement
+    ? [placement.x - state.player.x, placement.worldY - terrainElevation, placement.z - state.player.z]
+    : searchPosition;
   return (
-    <group position={position}>
+    <group position={position} userData={{ encounterLayer: placement?.layer ?? "ground", encounterWorldY: placement?.worldY ?? null, placementIdentity: placement?.identity ?? null }}>
       <SearchPulse hint position={[0, 0, 0]} />
       <HabitatCover cover={encounter.cover} open={encounter.phase !== "emerging"} />
       <group scale={encounter.phase === "capsule" ? 0.68 : encounter.phase === "sealed" || encounter.phase === "revealed" ? 0.01 : 1}>
-        <Creature card={localCard} formId={encounter.formId} identity={encounter.discoveryIdentity} pose={pose} />
+        <Creature card={localCard} formId={encounter.formId} identity={encounter.discoveryIdentity} layer={placement?.layer} pose={pose} />
       </group>
       {state.battle && isBattleTelemetryPhase(state.encounter.phase) ? (
         <BattleWorldTelemetry
@@ -932,11 +940,13 @@ function RustlingClue({
   const clueSparkleCount = hot ? 18 : 9;
   const distance = encounter.distance ?? 0;
   const direction = encounter.direction ?? { x: 0, z: 0 };
-  const clueWorld = {
+  const clueWorld = encounter.placement ? { x: encounter.placement.x, z: encounter.placement.z } : {
     x: encounter.searchPoint.x + direction.x * distance,
     z: encounter.searchPoint.z + direction.z * distance
   };
-  const position = projectWildsTerrainActorPosition(clueWorld, player, .03, { anchorElevation: terrainElevation });
+  const position: [number, number, number] = encounter.placement
+    ? [clueWorld.x - player.x, encounter.placement.worldY - terrainElevation, clueWorld.z - player.z]
+    : projectWildsTerrainActorPosition(clueWorld, player, .03, { anchorElevation: terrainElevation });
 
   useFrame(() => {
     if (!ref.current) return;
@@ -950,16 +960,18 @@ function RustlingClue({
 
   if (!encounter.cover) return null;
   return (
-    <group ref={ref} position={position}>
-      <HabitatCover cover={encounter.cover} open={false} />
-      <Sparkles
-        key={`wilds-clue-sparkles-${clueSparkleCount}`}
-        count={clueSparkleCount}
-        scale={hot ? [1.45, 1.05, 1.45] : [1.05, 0.7, 1.05]}
-        size={hot ? 4 : 2.4}
-        speed={hot ? 1.1 : 0.55}
-        color={hot ? "#fff0a6" : "#d8fff2"}
-      />
+    <group position={position}>
+      <group ref={ref}>
+        <HabitatCover cover={encounter.cover} open={false} />
+        <Sparkles
+          key={`wilds-clue-sparkles-${clueSparkleCount}`}
+          count={clueSparkleCount}
+          scale={hot ? [1.45, 1.05, 1.45] : [1.05, 0.7, 1.05]}
+          size={hot ? 4 : 2.4}
+          speed={hot ? 1.1 : 0.55}
+          color={hot ? "#fff0a6" : "#d8fff2"}
+        />
+      </group>
     </group>
   );
 }

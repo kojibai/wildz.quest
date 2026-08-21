@@ -1,4 +1,10 @@
 import { selectWildsHabitatForm } from "./wilds-creature-habitat";
+import {
+  projectWildsLayeredEncounter,
+  wildsEncounterIsInteractable,
+  type WildsEncounterSearchContext,
+  type WildsLayeredEncounterProjection
+} from "./wilds-layered-encounters";
 import { sampleWildsTerrain, type WildsTerrainSurface } from "./wilds-terrain-authority";
 
 export const ENCOUNTER_REGION_SIZE = 24;
@@ -11,7 +17,8 @@ const HOTSPOT_HIT_RADIUS = 1.15;
 
 export type HotspotCover = "grass" | "flowers" | "tree" | "rock" | "cave" | "water" | "ruin" | "energy";
 
-export type HiddenHotspot = {
+export type HiddenHotspot = WildsLayeredEncounterProjection & {
+  placement: WildsLayeredEncounterProjection;
   id: string;
   familyId: string;
   formId: string;
@@ -105,6 +112,7 @@ function buildRegionProjection(regionX: number, regionZ: number): readonly Hidde
       || seededUnit(regionX, regionZ, left.index + 4_001) - seededUnit(regionX, regionZ, right.index + 4_001)
       || left.index - right.index)
     .slice(0, HOTSPOTS_PER_REGION);
+  const firstLandSlot = selected.findIndex((candidate) => !isWater(candidate.surface));
   const hotspots = selected.map((candidate, slot) => {
     const form = selectWildsHabitatForm(candidate.surface, seededUnit(regionX, regionZ, candidate.index + 8_003));
     const habitatCover = coverForHabitat(form.habitat, form.positionSeed);
@@ -113,17 +121,28 @@ function buildRegionProjection(regionX: number, regionZ: number): readonly Hidde
       : habitatCover === "water"
         ? fallbackLandCover(candidate.surface)
         : habitatCover;
+    const placement = projectWildsLayeredEncounter({
+      regionX,
+      regionZ,
+      slot,
+      position: candidate.position,
+      surface: candidate.surface,
+      shoreReachable: isWater(candidate.surface) && candidate.shoreReachable,
+      bootstrapAerial: slot === firstLandSlot
+    });
     return Object.freeze({
       id: `hotspot:${regionX}:${regionZ}:${slot}:${form.familyId}`,
       familyId: form.familyId,
       formId: form.id,
       regionX,
       regionZ,
-      position: candidate.position,
+      position: Object.freeze({ x: placement.x, z: placement.z }),
       cover,
       shoreReachable: isWater(candidate.surface) && candidate.shoreReachable,
       hitRadius: HOTSPOT_HIT_RADIUS,
-      hintRadius: 4.5 as const
+      hintRadius: 4.5 as const,
+      placement,
+      ...placement
     });
   });
   regionsBuilt += 1;
@@ -176,9 +195,11 @@ function wasHotspotCaptured(hotspotId: string, capturedHotspotIds: readonly stri
 export function searchHiddenHotspots(
   hotspots: readonly HiddenHotspot[],
   point: { x: number; z: number },
-  capturedHotspotIds: readonly string[]
+  capturedHotspotIds: readonly string[],
+  context?: WildsEncounterSearchContext
 ): HotspotSearchResult {
   const closest = hotspots
+    .filter((hotspot) => !context || wildsEncounterIsInteractable(hotspot, context))
     .map((hotspot) => ({ hotspot, distance: distance(hotspot.position, point) }))
     .sort((left, right) => left.distance - right.distance)[0];
   if (!closest || closest.distance > closest.hotspot.hintRadius) return { kind: "empty" };

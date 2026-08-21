@@ -10,7 +10,7 @@ import {
   type PortableCardAsset
 } from "./portable-card";
 import { encounterFromSearch, idleEncounterState, isCapturableEncounter, type EncounterState } from "./encounter-state";
-import { nearbyHiddenHotspots, searchHiddenHotspots } from "./hidden-hotspots";
+import { hotspotsForRegion, nearbyHiddenHotspots, searchHiddenHotspots } from "./hidden-hotspots";
 import { applyKaiAffinityToHotspot } from "./kai-encounter-affinity";
 import { deriveKaiKlokMoment, deriveKaiKlokMomentFromUPulse, kaiUPulseToISOString } from "./kai-klok-moment";
 import { rootWildsInputInKai } from "./wilds-input-temporal-root";
@@ -46,6 +46,8 @@ import {
   projectWildsTraversalCapabilities,
   type WildsTraversalCapability
 } from "./wilds-traversal-capabilities";
+import type { WildsEncounterInteractionLayer, WildsLayeredEncounterProjection } from "./wilds-layered-encounters";
+import { wildsTerrainElevation } from "./wilds-terrain-authority";
 import { projectWildsCivicHistory, type WildsCivicEvent } from "./wilds-civic-history";
 import { projectWildsEcologyHistory, type WildsEcologyKnowledge, type WildsEcologyReceipt } from "./wilds-ecology-history";
 import { projectWildsRaidHistory, type WildsBossKnowledge, type WildsRaidReceipt } from "./wilds-raid-history";
@@ -82,7 +84,7 @@ export type WildsInput = (
   | { type: "apply-rift-grant"; grant: RiftTravelGrant; playerId: string }
   | { type: "discover" }
   | { type: "capture"; encounterId: string; capturedAt: string; ownerReceizId: string }
-  | { type: "search-point"; x: number; z: number; searchedAt: string; ownerReceizId: string }
+  | { type: "search-point"; x: number; z: number; searchedAt: string; ownerReceizId: string; verticalLayer?: WildsEncounterInteractionLayer; verticalWorldY?: number; verticalMinWorldY?: number; verticalMaxWorldY?: number; traversalCapabilities?: readonly WildsTraversalCapability[] }
   | { type: "advance-encounter"; at: string }
   | { type: "start-battle"; at: string }
   | { type: "battle-action"; action: BattleAction; at?: string }
@@ -717,6 +719,40 @@ function discoveredFormForIdentity(identity: LivingCreatureIdentityV3) {
     && form.anatomy.detail === identity.anatomy.detail);
 }
 
+function validEncounterPlacement(value: unknown): value is WildsLayeredEncounterProjection {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Record<string, unknown>;
+  const band = candidate.interactionBand as Record<string, unknown> | undefined;
+  return candidate.version === "wildz.encounter-placement.v1"
+    && typeof candidate.identity === "string"
+    && /^wildz\.layer\.v1:-?\d+:-?\d+:\d+:[a-f0-9]{16}$/.test(candidate.identity)
+    && typeof candidate.x === "number" && Number.isFinite(candidate.x)
+    && typeof candidate.z === "number" && Number.isFinite(candidate.z)
+    && typeof candidate.worldY === "number" && Number.isFinite(candidate.worldY)
+    && ["ground", "surface", "water-column", "seabed", "air"].includes(String(candidate.layer))
+    && (candidate.requiredCapability === null || ["swim", "climb", "glide", "flight"].includes(String(candidate.requiredCapability)))
+    && Boolean(band)
+    && typeof band!.minY === "number" && Number.isFinite(band!.minY)
+    && typeof band!.maxY === "number" && Number.isFinite(band!.maxY)
+    && band!.minY <= candidate.worldY && band!.maxY >= candidate.worldY;
+}
+
+function restoredEncounterPlacement(candidate: Record<string, unknown>) {
+  if (validEncounterPlacement(candidate.placement)) {
+    const placement = candidate.placement;
+    return Object.freeze({ ...placement, interactionBand: Object.freeze({ ...placement.interactionBand }) });
+  }
+  const match = typeof candidate.hotspotId === "string"
+    ? candidate.hotspotId.match(/^hotspot:(-?\d+):(-?\d+):(\d+)(?::|$)/)
+    : null;
+  if (!match) return undefined;
+  const regionX = Number(match[1]);
+  const regionZ = Number(match[2]);
+  const slot = Number(match[3]);
+  if (!Number.isSafeInteger(regionX) || !Number.isSafeInteger(regionZ) || !Number.isSafeInteger(slot)) return undefined;
+  return hotspotsForRegion(regionX, regionZ)[slot]?.placement;
+}
+
 function restoreEncounter(value: unknown, occupiedNames: ReadonlySet<string> = new Set()): EncounterState {
   if (!value || typeof value !== "object") return idleEncounterState;
   const candidate = value as Record<string, unknown>;
@@ -737,6 +773,7 @@ function restoreEncounter(value: unknown, occupiedNames: ReadonlySet<string> = n
     }
   }
   const visibleIdentityPhases = new Set(["battle_intro", "player_turn", "capture_ready", "fled", "defeated", "emerging", "capsule", "sealed", "revealed"]);
+  const placement = restoredEncounterPlacement(candidate);
   if (!discoveryIdentity && visibleIdentityPhases.has(String(candidate.phase))) {
     discoveryIdentity = reconstructEncounterDiscoveryIdentity({
       hotspotId: typeof candidate.hotspotId === "string" ? candidate.hotspotId : undefined,
@@ -752,6 +789,7 @@ function restoreEncounter(value: unknown, occupiedNames: ReadonlySet<string> = n
     proximity,
     trend,
     ...(canonicalForm ? { familyId: canonicalForm.familyId, formId: canonicalForm.id } : {}),
+    ...(placement ? { placement } : {}),
     discoveryIdentity
   } as EncounterState;
 }
@@ -1560,11 +1598,32 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       x: clamp(input.x, worldBounds.min, worldBounds.max),
       z: clamp(input.z, worldBounds.min, worldBounds.max)
     };
+    if (distance2d(point, state.player) > 8) return { ...state, lastEvent: "That signal is beyond reach. Move closer before scanning." };
     const ownerScope = input.ownerReceizId.trim();
     const moment = input.kaiUPulse === undefined
       ? deriveKaiKlokMoment({ occurredAt: input.searchedAt, authority: "world" })
       : deriveKaiKlokMomentFromUPulse({ uPulse: input.kaiUPulse, authority: "world" });
-    const spatialResult = searchHiddenHotspots(nearbyHiddenHotspots(point), point, state.capturedHotspotIds);
+    const leader = selectedAsset(state);
+    const admittedCapabilities = leader
+      ? projectWildsTraversalCapabilities(leader, state.adventureConditions[leader.id] ?? emptyAdventureCondition(leader.id)).capabilities
+      : [];
+    const suppliedCapabilities = input.traversalCapabilities ?? admittedCapabilities;
+    const searchCapabilities = suppliedCapabilities.filter((capability) => admittedCapabilities.includes(capability));
+    const verticalWorldY = Number.isFinite(input.verticalWorldY)
+      ? input.verticalWorldY!
+      : wildsTerrainElevation(state.player.x, state.player.z);
+    const verticalMinWorldY = Number.isFinite(input.verticalMinWorldY) ? input.verticalMinWorldY! : verticalWorldY - .65;
+    const verticalMaxWorldY = Number.isFinite(input.verticalMaxWorldY) ? input.verticalMaxWorldY! : verticalWorldY + .65;
+    const verticalLayer = input.verticalLayer === "air" || input.verticalLayer === "water" ? input.verticalLayer : "ground";
+    const spatialResult = searchHiddenHotspots(nearbyHiddenHotspots(point), point, state.capturedHotspotIds, {
+      layer: verticalLayer,
+      worldY: verticalWorldY,
+      interactionBand: {
+        minY: Math.min(verticalMinWorldY, verticalMaxWorldY),
+        maxY: Math.max(verticalMinWorldY, verticalMaxWorldY)
+      },
+      capabilities: searchCapabilities
+    });
     const result = spatialResult.kind === "hit"
       ? { ...spatialResult, hotspot: applyKaiAffinityToHotspot(spatialResult.hotspot, moment, ownerScope) }
       : spatialResult;
@@ -1583,7 +1642,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
             encounterId: result.hotspot.id,
             form,
             discoveredAt: input.searchedAt,
-            location: point,
+            location: result.hotspot.position,
             ownerScope,
             moment
           }, new Set(state.inventory.map((asset) => asset.manifest.name.toLowerCase())));
@@ -1601,7 +1660,6 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
           ? "This hotspot is quiet now. Its sealed card is already in your inventory."
           : "Signal cold. Try another point and keep moving.";
     const searched = { ...state, activeAction: "explore" as const, encounter, lastEvent, lastSearchPoint: point };
-    const leader = selectedAsset(state);
     if (result.kind !== "hit" || !leader) return searched;
     const progressed = applyRecordedGrowth(searched, leader, {
       eventId: `habitat_discovery:${result.hotspot.id}`,

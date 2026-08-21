@@ -862,6 +862,28 @@ export function PlayCampaign({
     }
     dispatch(input);
   };
+  const dispatchLayeredSearch = (point: { x: number; z: number }) => {
+    if (!canUseWorldStage()) return;
+    const vertical = verticalTraversalRef.current;
+    const layer = vertical.layer;
+    const groundY = aquaticPresentation.terrainElevation;
+    const worldY = layer === "ground" ? groundY : vertical.worldY;
+    const safeMinWorldY = layer === "ground" ? worldY - .65 : groundY + vertical.safeMin;
+    const safeMaxWorldY = layer === "ground" ? worldY + .65 : groundY + vertical.safeMax;
+    const minWorldY = Math.max(safeMinWorldY, worldY - .65);
+    const maxWorldY = Math.min(safeMaxWorldY, worldY + .65);
+    dispatch({
+      type: "search-point",
+      ...point,
+      searchedAt: new Date().toISOString(),
+      ownerReceizId,
+      verticalLayer: layer,
+      verticalWorldY: worldY,
+      verticalMinWorldY: minWorldY,
+      verticalMaxWorldY: maxWorldY,
+      traversalCapabilities: activeTraversalCapabilities
+    });
+  };
   const consumePendingAerialLanding = (reason: WildsAerialLandingReason) => {
     const runtime = aerialStateRef.current;
     if (!runtime.landingRequired) return;
@@ -1126,13 +1148,7 @@ export function PlayCampaign({
       return;
     }
     if (pulse.kind === "collect" || pulse.kind === "greet") return;
-    dispatch({
-      type: "search-point",
-      x: state.player.x,
-      z: state.player.z,
-      searchedAt: new Date().toISOString(),
-      ownerReceizId
-    });
+    dispatchLayeredSearch(state.player);
   };
   const activatePulseFromCommandPanel = () => {
     if (modalOwner !== "none" || worldOverlayState.panelKey !== "commandCenter") return;
@@ -1236,7 +1252,7 @@ export function PlayCampaign({
       content: (
         <div className="wilds-command-content wilds-field-guide">
           <WildzCommandInsight label="Live discovery lead" value={nextHabitat} detail="Scan from your current trail position. The result changes the Guide, Vault, and explorer record together.">
-            <button onClick={() => dispatch({ type: "search-point", x: state.player.x, z: state.player.z, searchedAt: new Date().toISOString(), ownerReceizId })} type="button">Pulse this trail</button>
+            <button onClick={() => dispatchLayeredSearch(state.player)} type="button">Pulse this trail</button>
           </WildzCommandInsight>
           <div className="wilds-command-content-lead">
             <span><small>Living species lineages</small><strong>{discoveredKaiLineages.size} deterministic lineages encountered</strong></span>
@@ -1480,9 +1496,7 @@ export function PlayCampaign({
               trainers={sagaTrainers}
               onSelectTrainer={(trainer) => openTrainerEncounter(trainer, "world")}
               onSearchPoint={(point) => {
-                if (canUseWorldStage()) {
-                  dispatch({ type: "search-point", ...point, searchedAt: new Date().toISOString(), ownerReceizId });
-                }
+                dispatchLayeredSearch(point);
               }}
               onSelectOverlook={(overlookId) => {
                 if (!canUseWorldStage() || aerialMode !== "ground" || nearbyOverlook?.id !== overlookId) return;
@@ -1567,6 +1581,7 @@ export function PlayCampaign({
               <WildsBattle
                 battle={state.battle}
                 encounterPhase={state.encounter.phase}
+                encounterPlacement={state.encounter.phase === "idle" ? undefined : state.encounter.placement}
                 inventory={state.inventory}
                 onAction={(action) => dispatch({ type: "battle-action", action, at: new Date().toISOString() })}
                 onDismiss={() => {

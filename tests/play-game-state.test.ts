@@ -12,7 +12,7 @@ import {
 import { admitLegacyCard, currentLivingGenome, currentRevision, emptyLivingGrowth } from "../src/features/play/living-card-proof.js";
 import { nextGrowthRequirements } from "../src/features/play/growth-engine.js";
 import { canonicalPortableCardJson, evolvePortableCard, sealCollectedCard, verifyAnyWildsCard, verifyPortableCard } from "../src/features/play/portable-card.js";
-import { nearbyHiddenHotspots } from "../src/features/play/hidden-hotspots.js";
+import { nearbyHiddenHotspots, wildsHotspotProjectionDiagnostics } from "../src/features/play/hidden-hotspots.js";
 import { isLivingCardAsset } from "../src/features/play/living-card-types.js";
 import { livingCreatureIdentityDigest } from "../src/features/play/living-taxonomy.js";
 import {
@@ -30,6 +30,7 @@ import {
   revealWildsExplorationAt,
   wildsExplorationContainsWorld
 } from "../src/features/play/wilds-exploration-atlas.js";
+import { sampleWildsTerrain } from "../src/features/play/wilds-terrain-authority.js";
 
 function activeTravelState(): PlayState {
   const capturedAt = "2026-07-13T11:00:00.000Z";
@@ -48,6 +49,111 @@ function activeTravelState(): PlayState {
     player: { x: 7.9, z: 0 }
   };
 }
+
+describe("layered encounter continuity", () => {
+  it("rejects a remote camera scan before generating a distant encounter", () => {
+    const far = { x: 240, z: -240 };
+    const before = structuredClone(initialPlayState);
+    const projectionsBefore = wildsHotspotProjectionDiagnostics();
+    const after = applyWildsInput(before, {
+      type: "search-point",
+      x: far.x,
+      z: far.z,
+      searchedAt: "2026-08-21T15:00:00.000Z",
+      ownerReceizId: "layered.remote.guard",
+      verticalLayer: "ground",
+      verticalWorldY: sampleWildsTerrain(before.player.x, before.player.z).elevation,
+      traversalCapabilities: []
+    });
+    assert.equal(after.encounter.phase, "idle");
+    assert.match(after.lastEvent, /move closer/i);
+    assert.deepEqual(wildsHotspotProjectionDiagnostics(), projectionsBefore);
+  });
+
+  it("preserves the canonical hotspot layer position and visual identity through battle capture and restore", () => {
+    const hotspot = nearbyHiddenHotspots(initialPlayState.player).find((candidate) => candidate.requiredCapability === null)!;
+    const player = { x: hotspot.position.x, z: hotspot.position.z };
+    let state = applyWildsInput({ ...structuredClone(initialPlayState), player }, {
+      type: "search-point",
+      x: hotspot.position.x,
+      z: hotspot.position.z,
+      searchedAt: "2026-08-21T15:10:00.000Z",
+      ownerReceizId: "layered.capture.player",
+      verticalLayer: hotspot.layer === "air" || hotspot.layer === "surface" ? "ground" : hotspot.layer === "water-column" || hotspot.layer === "seabed" ? "water" : "ground",
+      verticalWorldY: hotspot.layer === "air"
+        ? sampleWildsTerrain(player.x, player.z).elevation
+        : hotspot.worldY,
+      traversalCapabilities: []
+    });
+    assert.equal(state.encounter.phase, "battle_intro");
+    const placement = {
+      position: state.encounter.placement ? { x: state.encounter.placement.x, z: state.encounter.placement.z } : undefined,
+      layer: state.encounter.placement?.layer,
+      worldY: state.encounter.placement?.worldY
+    };
+    const identity = state.encounter.discoveryIdentity;
+    assert.deepEqual(placement.position, hotspot.position);
+    assert.equal(placement.layer, hotspot.layer);
+    assert.equal(placement.worldY, hotspot.worldY);
+    assert.ok(identity);
+
+    state = applyWildsInput(state, { type: "start-battle", at: "2026-08-21T15:10:01.000Z" });
+    assert.equal(state.encounter.phase, "player_turn");
+    assert.deepEqual({
+      position: state.encounter.placement ? { x: state.encounter.placement.x, z: state.encounter.placement.z } : undefined,
+      layer: state.encounter.placement?.layer,
+      worldY: state.encounter.placement?.worldY
+    }, placement);
+    for (let turn = 0; turn < 20 && state.encounter.phase === "player_turn"; turn += 1) state = applyWildsInput(state, {
+      type: "battle-action",
+      action: state.battle!.player.energy >= 12 ? { type: "ability", slot: 0 } : { type: "guard" }
+    });
+    for (let attempt = 0; attempt < 5 && state.encounter.phase === "capture_ready"; attempt += 1) state = applyWildsInput(state, {
+      type: "battle-action",
+      action: { type: "capture" }
+    });
+    assert.equal(state.encounter.phase, "capsule");
+    state = applyWildsInput(state, { type: "advance-encounter", at: "2026-08-21T15:10:02.000Z" });
+    assert.equal(state.encounter.phase, "sealed");
+    const restored = restorePlayState(serializePlayState(state));
+    assert.equal(restored.encounter.phase, "revealed");
+    assert.deepEqual({
+      position: restored.encounter.placement ? { x: restored.encounter.placement.x, z: restored.encounter.placement.z } : undefined,
+      layer: restored.encounter.placement?.layer,
+      worldY: restored.encounter.placement?.worldY
+    }, placement);
+    assert.equal(canonicalPortableCardJson(restored.encounter.discoveryIdentity), canonicalPortableCardJson(identity));
+    const captured = restored.inventory.find((asset) => asset.manifest.encounterId === hotspot.id)!;
+    assert.ok(captured);
+    assert.equal(canonicalPortableCardJson(projectCardCreatureVisualIdentity(captured)), canonicalPortableCardJson(projectEncounterCreatureVisualIdentity({
+      identity: restored.encounter.discoveryIdentity!,
+      formId: restored.encounter.formId!
+    })));
+  });
+
+  it("rederives a legacy missing placement from its stable region slot", () => {
+    const hotspot = nearbyHiddenHotspots(initialPlayState.player).find((candidate) => candidate.requiredCapability === null)!;
+    const player = { x: hotspot.position.x, z: hotspot.position.z };
+    const state = applyWildsInput({ ...structuredClone(initialPlayState), player }, {
+      type: "search-point",
+      x: hotspot.position.x,
+      z: hotspot.position.z,
+      searchedAt: "2026-08-21T15:20:00.000Z",
+      ownerReceizId: "layered.legacy.player",
+      verticalLayer: "ground",
+      verticalWorldY: sampleWildsTerrain(player.x, player.z).elevation,
+      traversalCapabilities: []
+    });
+    assert.equal(state.encounter.phase, "battle_intro");
+    const envelope = JSON.parse(serializePlayState(state));
+    delete envelope.state.encounter.placement;
+
+    const restored = restorePlayState(JSON.stringify(envelope));
+    if (restored.encounter.phase === "idle") throw new Error("expected active layered encounter");
+    assert.deepEqual(restored.encounter.placement, hotspot.placement);
+    assert.deepEqual(restored.encounter.searchPoint, state.encounter.searchPoint);
+  });
+});
 
 describe("Receiz Wilds game state", () => {
   it("reveals exploration only when admitted movement enters a new sight area", () => {

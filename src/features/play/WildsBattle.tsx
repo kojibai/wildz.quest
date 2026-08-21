@@ -4,16 +4,19 @@ import { useEffect, useRef } from "react";
 import { creatureForm } from "./creature-catalog";
 import type { BattleAction, BattleState } from "./battle-engine";
 import type { PortableCardAsset } from "./portable-card";
+import type { WildsLayeredEncounterProjection } from "./wilds-layered-encounters";
 
 export function WildsBattle({
   battle,
   encounterPhase,
+  encounterPlacement,
   inventory,
   onAction,
   onDismiss
 }: {
   battle: BattleState;
   encounterPhase: string;
+  encounterPlacement?: WildsLayeredEncounterProjection;
   inventory: PortableCardAsset[];
   onAction: (action: BattleAction) => void;
   onDismiss: () => void;
@@ -64,9 +67,9 @@ export function WildsBattle({
   }, [ended]);
 
   return (
-    <section aria-labelledby="wilds-battle-title" aria-modal="true" className={`wilds-battle phase-${battle.phase}`} ref={dialogRef} role="dialog" tabIndex={-1}>
+    <section aria-labelledby="wilds-battle-title" aria-modal="true" className={`wilds-battle phase-${battle.phase}`} data-encounter-layer={encounterPlacement?.layer ?? "ground"} data-encounter-world-y={encounterPlacement?.worldY} ref={dialogRef} role="dialog" tabIndex={-1}>
       <h2 className="sr-only" id="wilds-battle-title">Wild creature battle</h2>
-      <div className="wilds-battle-turn"><span>Turn {battle.turn}</span><small>{battle.player.name} · Wild {battle.wild.name}</small></div>
+      <div className="wilds-battle-turn"><span>Turn {battle.turn}</span><small>{battle.player.name} · Wild {battle.wild.name}{encounterPlacement ? ` · ${encounterPlacement.layer.replace("-", " ")}` : ""}</small></div>
       <div className="wilds-battle-console">
         <div className={`wilds-battle-intent intent-${battle.intent.kind}`} aria-label={`Wild intent: ${battle.intent.label}`}>
           <strong>{battle.intent.label}</strong><span>{battle.intent.detail}</span>
