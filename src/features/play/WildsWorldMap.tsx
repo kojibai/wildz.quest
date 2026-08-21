@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Icons } from "@/components/icons";
-import type { WildsPresence } from "./multiplayer-core";
+import { regionForPosition, type WildsPresence } from "./multiplayer-core";
 import { landmarkApproachPoint, type WildsLandmarkId } from "./wilds-landmarks";
 import type { WildsLandmarkProgress } from "./wilds-landmark-access";
 import {
@@ -73,8 +73,13 @@ export function WildsWorldMap({
   const previousFocus = useRef<HTMLElement | null>(null);
   const refreshInFlight = useRef(false);
   const refreshGeneration = useRef(0);
+  const atlasOrigin = useRef((() => {
+    const region = regionForPosition(currentPosition);
+    return { x: region.x + 0.5, z: region.z + 0.5 };
+  })());
   const staticProjection = useMemo(() => projectWildsAtlas({
     center: currentPosition,
+    atlasOrigin: atlasOrigin.current,
     zoom,
     missionProgress,
     worldMastery,

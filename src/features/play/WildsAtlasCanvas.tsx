@@ -18,7 +18,7 @@ import {
   wildsAtlasProjectedSpan,
   type WildsAtlasRenderTile
 } from "./wilds-atlas-render-tiles";
-import { atlasCameraFrame, translateWildsAtlasCamera } from "./wilds-atlas-camera";
+import { atlasCameraFrame, resolveWildsAtlasCameraPose, translateWildsAtlasCamera } from "./wilds-atlas-camera";
 
 const PHI = (1 + Math.sqrt(5)) / 2;
 const GOLDEN_ANGLE = Math.PI * 2 / (PHI * PHI);
@@ -126,7 +126,6 @@ export function WildsAtlasCanvas({
           recenterRequest={recenterRequest}
           reducedMotion={reducedMotion}
           regionUnit={projection.regionUnit}
-          zoom={projection.zoom}
         />
       </Canvas>
     </div>
@@ -156,7 +155,6 @@ function AtlasCameraRig({
   recenterRequest,
   reducedMotion,
   regionUnit,
-  zoom
 }: {
   bounds: WildsAtlasProjection["bounds"];
   centerRegion: WildsAtlasProjection["centerRegion"];
@@ -166,12 +164,10 @@ function AtlasCameraRig({
   recenterRequest: number;
   reducedMotion: boolean;
   regionUnit: number;
-  zoom: WildsAtlasProjection["zoom"];
 }) {
   const controls = useRef<ComponentRef<typeof MapControls>>(null);
   const lastRecenterRequest = useRef(recenterRequest);
-  const lastFitRequest = useRef(fitRequest);
-  const lastZoom = useRef<WildsAtlasProjection["zoom"] | null>(null);
+  const lastFitRequest = useRef<number | null>(null);
   const { camera, invalidate, size } = useThree();
   const frame = useMemo(
     () => atlasCameraFrame({ bounds, centerRegion, regionUnit }, size),
@@ -186,15 +182,22 @@ function AtlasCameraRig({
   }, [camera, far, frame.far, frame.fov, invalidate]);
   useLayoutEffect(() => {
     if (!(camera instanceof THREE.PerspectiveCamera) || !controls.current) return;
-    const shouldFit = lastZoom.current === null || lastZoom.current !== zoom || lastFitRequest.current !== fitRequest;
-    lastZoom.current = zoom;
+    const pose = resolveWildsAtlasCameraPose({
+      current: {
+        position: [camera.position.x, camera.position.y, camera.position.z],
+        target: [controls.current.target.x, controls.current.target.y, controls.current.target.z]
+      },
+      frame,
+      lastFitRequest: lastFitRequest.current,
+      fitRequest
+    });
     lastFitRequest.current = fitRequest;
-    if (!shouldFit) return;
-    camera.position.set(...frame.position);
-    controls.current.target.set(...frame.target);
+    if (!pose.fitted) return;
+    camera.position.set(...pose.position);
+    controls.current.target.set(...pose.target);
     controls.current.update();
     invalidate();
-  }, [camera, fitRequest, frame.position, frame.target, invalidate, zoom]);
+  }, [camera, fitRequest, frame, invalidate]);
   useLayoutEffect(() => {
     if (!(camera instanceof THREE.PerspectiveCamera) || !controls.current) return;
     if (lastRecenterRequest.current === recenterRequest) return;

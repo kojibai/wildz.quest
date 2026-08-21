@@ -85,6 +85,8 @@ export type WildsAtlasEcologySite = WildsAtlasEcologyCommon & (
 
 export type WildsAtlasInput = {
   center: { x: number; z: number };
+  /** Stable render-space origin for this atlas session. It must not follow discovery bounds. */
+  atlasOrigin?: { x: number; z: number };
   zoom: WildsAtlasZoom;
   missionProgress: number;
   worldMastery: number;
@@ -107,7 +109,8 @@ const radiusByZoom: Record<WildsAtlasZoom, number> = {
   landmark: 1
 };
 
-const DEFAULT_ATLAS_REGION_UNIT = 1.35;
+export const WILDS_ATLAS_REGION_UNIT = 1.35;
+const DEFAULT_ATLAS_ORIGIN = Object.freeze({ x: 0.5, z: 0.5 });
 
 type VisibleRegion = Pick<WildsAtlasNode, "regionX" | "regionZ">;
 
@@ -185,15 +188,10 @@ export function projectWildsAtlas(input: WildsAtlasInput): WildsAtlasProjection 
   const gridCenterRegion = input.zoom === "world"
     ? { x: (bounds.minX + bounds.maxX) / 2, z: (bounds.minZ + bounds.maxZ) / 2 }
     : regionForPosition(input.center);
-  // Region indices identify lower-left cell boundaries. Adding one half-region keeps the
-  // normalized render origin on the exact physical center of the selected region extent.
-  const centerRegion = input.zoom === "world"
-    ? { x: (bounds.minX + bounds.maxX + 1) / 2, z: (bounds.minZ + bounds.maxZ + 1) / 2 }
-    : { x: gridCenterRegion.x + 0.5, z: gridCenterRegion.z + 0.5 };
-  const maxSpan = Math.max(bounds.maxX - bounds.minX + 1, bounds.maxZ - bounds.minZ + 1);
-  const regionUnit = input.zoom === "world"
-    ? Math.min(DEFAULT_ATLAS_REGION_UNIT, 11.5 / Math.max(9, maxSpan))
-    : DEFAULT_ATLAS_REGION_UNIT;
+  // Keep one immutable physical projection. Discovery changes what exists, never the
+  // size or position of terrain that was already visible.
+  const centerRegion = input.atlasOrigin ?? DEFAULT_ATLAS_ORIGIN;
+  const regionUnit = WILDS_ATLAS_REGION_UNIT;
   const nodes: WildsAtlasNode[] = [];
   const regions = input.zoom === "world"
     ? wildsExplorationRegions(input.explorationAtlas)

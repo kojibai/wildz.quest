@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { MORTAL_ARENA_POSITION, WILDS_FLAGSHIP_LANDMARKS, landmarkAtPosition, landmarkApproachPoint, projectVisibleLandmarkEntrances } from "../src/features/play/wilds-landmarks";
-import { filterWildsAtlasPresence, projectWildsAtlas, projectWildsAtlasPresence } from "../src/features/play/wilds-world-atlas";
+import { filterWildsAtlasPresence, projectWildsAtlas, projectWildsAtlasPresence, WILDS_ATLAS_REGION_UNIT } from "../src/features/play/wilds-world-atlas";
+import { atlasLocalCoordinate } from "../src/features/play/wilds-atlas-render-tiles";
 import type { WildsPresence } from "../src/features/play/multiplayer-core";
 import { createInitialWildsExplorationAtlas, revealWildsExplorationAt } from "../src/features/play/wilds-exploration-atlas";
 
@@ -150,7 +151,7 @@ describe("Wilds world atlas", () => {
     assert.equal(atlas.playerClusters.length, 0);
   });
 
-  it("centers World view on the exact physical midpoint of all sparse discovered territory", () => {
+  it("keeps one physical atlas scale and origin when sparse discovered territory expands", () => {
     const distantAtlas = revealWildsExplorationAt(explorationAtlas, { x: 245, z: -1433 });
     const world = projectWildsAtlas({
       center: { x: 245, z: -1433 },
@@ -164,10 +165,53 @@ describe("Wilds world atlas", () => {
     });
 
     assert.deepEqual(world.bounds, { minX: -4, maxX: 6, minZ: -31, maxZ: 4, count: 90 });
-    assert.deepEqual(world.centerRegion, { x: 1.5, z: -13 });
+    assert.deepEqual(world.centerRegion, { x: 0.5, z: 0.5 });
     assert.equal(world.nodes.some((node) => node.regionX === 5 && node.regionZ === -30), true);
     assert.equal(world.nodes.some((node) => node.regionX === 0 && node.regionZ === -15), false);
-    assert.equal(world.regionUnit, 11.5 / 36);
+    assert.equal(world.regionUnit, WILDS_ATLAS_REGION_UNIT);
+
+    const initial = projectWildsAtlas({
+      center: { x: 0, z: 0 },
+      zoom: "world",
+      missionProgress: 38,
+      worldMastery: 11,
+      discoveredLandmarkIds: [],
+      selfId: "self",
+      players: [],
+      explorationAtlas
+    });
+    const physicalPoint = { x: 96, z: 144 };
+    assert.deepEqual(
+      [
+        atlasLocalCoordinate(physicalPoint.x, world.centerRegion.x, world.regionUnit),
+        atlasLocalCoordinate(physicalPoint.z, world.centerRegion.z, world.regionUnit)
+      ],
+      [
+        atlasLocalCoordinate(physicalPoint.x, initial.centerRegion.x, initial.regionUnit),
+        atlasLocalCoordinate(physicalPoint.z, initial.centerRegion.z, initial.regionUnit)
+      ]
+    );
+  });
+
+  it("uses the same physical scale and render origin at every detail level", () => {
+    const atlasOrigin = { x: 5.5, z: -30.5 };
+    const input = {
+      center: { x: 245, z: -1433 },
+      missionProgress: 38,
+      worldMastery: 11,
+      discoveredLandmarkIds: [],
+      selfId: "self",
+      players: [] as WildsPresence[],
+      explorationAtlas: revealWildsExplorationAt(explorationAtlas, { x: 245, z: -1433 }),
+      atlasOrigin
+    };
+    const projections = (["world", "region", "landmark"] as const).map((zoom) => projectWildsAtlas({ ...input, zoom }));
+    assert.deepEqual(projections.map((projection) => projection.centerRegion), [atlasOrigin, atlasOrigin, atlasOrigin]);
+    assert.deepEqual(projections.map((projection) => projection.regionUnit), [
+      WILDS_ATLAS_REGION_UNIT,
+      WILDS_ATLAS_REGION_UNIT,
+      WILDS_ATLAS_REGION_UNIT
+    ]);
   });
 
   it("does not project local or global presence outside projected discovered nodes", () => {

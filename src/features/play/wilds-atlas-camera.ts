@@ -11,6 +11,11 @@ export type WildsAtlasCameraFrame = Readonly<{
   far: number;
 }>;
 
+export type WildsAtlasCameraPose = Readonly<{
+  position: CameraVector;
+  target: CameraVector;
+}>;
+
 function finitePositive(value: number, fallback: number) {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
@@ -36,6 +41,8 @@ export function atlasCameraFrame(
   const fitDepth = spanZ / 2 / Math.max(.08, Math.tan(verticalFov / 2));
   const distance = Math.max(7.2, Math.hypot(fitWidth, fitDepth) * 1.08);
   const elevation = distance * (portrait ? .82 : .72);
+  const targetX = ((input.bounds.minX + input.bounds.maxX + 1) / 2 - input.centerRegion.x) * regionUnit;
+  const targetZ = ((input.bounds.minZ + input.bounds.maxZ + 1) / 2 - input.centerRegion.z) * regionUnit;
   // Keep the atlas camera genuinely map-like: explorers can descend close enough to
   // inspect one terrain cell, or pull far beyond the current fit without changing modes.
   // Pan remains intentionally unbounded; these limits only protect camera numerics.
@@ -43,13 +50,25 @@ export function atlasCameraFrame(
   const maxDistance = Math.max(512, distance * 64);
   const far = Math.max(96, maxDistance * 2.2);
   return Object.freeze({
-    target: Object.freeze([0, 0, 0]) as CameraVector,
-    position: Object.freeze([0, elevation, distance]) as CameraVector,
+    target: Object.freeze([targetX, 0, targetZ]) as CameraVector,
+    position: Object.freeze([targetX, elevation, targetZ + distance]) as CameraVector,
     minDistance,
     maxDistance,
     fov,
     far
   });
+}
+
+export function resolveWildsAtlasCameraPose(input: {
+  current: WildsAtlasCameraPose;
+  frame: WildsAtlasCameraFrame;
+  lastFitRequest: number | null;
+  fitRequest: number;
+}): WildsAtlasCameraPose & { fitted: boolean } {
+  if (input.lastFitRequest === null || input.lastFitRequest !== input.fitRequest) {
+    return Object.freeze({ position: input.frame.position, target: input.frame.target, fitted: true });
+  }
+  return Object.freeze({ position: input.current.position, target: input.current.target, fitted: false });
 }
 
 export function translateWildsAtlasCamera(input: {
