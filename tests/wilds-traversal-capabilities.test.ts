@@ -19,6 +19,16 @@ function card(formId: string, encounterId: string) {
 }
 
 describe("Wildz admitted-card traversal capability projection", () => {
+  it("grants only canonical defining movement at Level 1", () => {
+    const aquatic = card("amberbeak-1", "traversal-level-one-aquatic");
+    const powered = card("voltray-1", "traversal-level-one-powered");
+    const grounded = card("mintcub-1", "traversal-level-one-grounded");
+
+    assert.deepEqual(projectWildsTraversalCapabilities(aquatic, emptyAdventureCondition(aquatic.id)).capabilities, ["swim"]);
+    assert.deepEqual(projectWildsTraversalCapabilities(powered, emptyAdventureCondition(powered.id)).capabilities, ["glide", "flight"]);
+    assert.deepEqual(projectWildsTraversalCapabilities(grounded, emptyAdventureCondition(grounded.id)).capabilities, []);
+  });
+
   it("projects aquatic, climbing, and aerial anatomy deterministically", () => {
     const tide = card("amberbeak-1", "traversal-tide");
     const stone = card("titanseal-1", "traversal-stone");
@@ -31,17 +41,23 @@ describe("Wildz admitted-card traversal capability projection", () => {
 
   it("removes unsafe traversal for death, severe wing injury, and exhaustion", () => {
     const winged = card("voltray-1", "traversal-condition");
-    const base = { ...emptyAdventureCondition(winged.id), xp: { flight: 400 } };
+    const aquatic = card("amberbeak-1", "traversal-aquatic-condition");
+    const base = emptyAdventureCondition(winged.id);
     const injured = projectWildsTraversalCapabilities(winged, {
       ...base,
       injuries: [{ id: "injury:wing", kind: "wing", severity: 2, sourceEventId: "event:fall" }]
     });
     const exhausted = projectWildsTraversalCapabilities(winged, { ...base, fatigue: 90 });
     const dead = projectWildsTraversalCapabilities(winged, { ...base, life: "dead" });
+    const exhaustedAquatic = projectWildsTraversalCapabilities(aquatic, {
+      ...emptyAdventureCondition(aquatic.id),
+      fatigue: 100
+    });
 
     assert.deepEqual(injured.capabilities, []);
     assert.deepEqual(exhausted.capabilities, ["glide"]);
     assert.deepEqual(dead.capabilities, []);
+    assert.deepEqual(exhaustedAquatic.capabilities, []);
   });
 
   it("reuses a bounded projection for identical admitted state", () => {
@@ -56,11 +72,16 @@ describe("Wildz admitted-card traversal capability projection", () => {
 
   it("admits the known deep-current swim upgrade only through the structured registry", () => {
     const land = card("mintcub-1", "traversal-upgrade-swim");
+    const levelOne = projectWildsTraversalCapabilities(land, {
+      ...emptyAdventureCondition(land.id),
+      upgradeIds: ["deep-current-swim"]
+    });
     const projection = projectWildsTraversalCapabilities(land, {
       ...emptyAdventureCondition(land.id),
       xp: { swim: 100 },
       upgradeIds: ["deep-current-swim"]
     });
+    assert.equal(levelOne.capabilities.includes("swim"), false);
     assert.equal(projection.source.aquatic, true);
     assert.equal(projection.capabilities.includes("swim"), true);
   });

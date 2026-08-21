@@ -136,12 +136,6 @@ const ACTIONS: Readonly<Record<CreatureSpecialtyFamily, string>> = Object.freeze
   rescue: "Intervene when a traversal attempt becomes dangerous."
 });
 
-function traversalUnlockLevel(capability: WildsTraversalCapability) {
-  if (capability === "swim" || capability === "climb") return 2;
-  if (capability === "glide") return 3;
-  return 5;
-}
-
 function descriptor(name: string, specialtyValue: CreatureSpecialty, slot: number, options: { action?: string; tags?: readonly string[] } = {}): CreatureAbilityDescriptor {
   const traversalGrant = (["flight", "glide", "swim", "climb"] as const).find((value) => value === specialtyValue.family);
   const base = Math.round((specialtyValue.potential + specialtyValue.control + specialtyValue.endurance) / 6);
@@ -152,7 +146,7 @@ function descriptor(name: string, specialtyValue: CreatureSpecialty, slot: numbe
     tags: freezeArray(options.tags ? [...options.tags] : [specialtyValue.family, slot === 0 ? "family" : "signature"]),
     ...(traversalGrant ? { traversalGrant } : {}),
     powerCurve: freezeArray([base, base + 8, base + 18, base + 30]),
-    unlockLevel: slot === 0 ? 1 : traversalGrant ? traversalUnlockLevel(traversalGrant) : 2
+    unlockLevel: 1
   });
 }
 
@@ -287,8 +281,7 @@ export function projectCreatureRuntimeCapabilities(identity: CreatureCapabilityI
   const upgradeGrants = condition.upgradeIds.map((upgradeId) => STRUCTURED_TRAVERSAL_UPGRADES[upgradeId]).filter((grant): grant is Readonly<{ capability: WildsTraversalCapability; unlockLevel: number }> => Boolean(grant));
   const potential = [...new Set([...identity.traversalPotential, ...upgradeGrants.filter((grant) => level >= grant.unlockLevel).map((grant) => grant.capability)])];
   const capabilities = condition.life === "alive" ? potential.filter((capability) => {
-    const unavailable = level < traversalUnlockLevel(capability)
-      || (capability === "flight" && condition.fatigue >= 85)
+    const unavailable = (capability === "flight" && condition.fatigue >= 85)
       || (capability !== "flight" && condition.fatigue >= (capability === "climb" ? 95 : 100))
       || ((capability === "flight" || capability === "glide") && severeWingInjury)
       || (capability === "climb" && severeLimbInjury);

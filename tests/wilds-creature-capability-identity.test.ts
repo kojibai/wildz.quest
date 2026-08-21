@@ -109,7 +109,7 @@ describe("proof-derived creature capability identity", () => {
     assert.deepEqual(projectActorWingRenderPlan(matching.anatomy), { kind: "functional-wing", pairCount: 2 });
   });
 
-  it("unlocks structured traversal at levels 2, 3, and 5 while condition can only suppress it", () => {
+  it("expresses every canonical ability and defining traversal at Level 1 while progression increases power", () => {
     const winged = card("voltray-1", "capability:runtime");
     const identity = projectCreatureCapabilityIdentity(winged);
     const base = emptyAdventureCondition(winged.id);
@@ -120,10 +120,13 @@ describe("proof-derived creature capability identity", () => {
       injuries: [{ id: "injury:wing", kind: "wing", severity: 2, sourceEventId: "fall:1" }]
     });
 
-    assert.deepEqual(projectCreatureRuntimeCapabilities(identity, base).capabilities, []);
-    assert.deepEqual(levelThree.capabilities, ["glide"]);
+    const levelOne = projectCreatureRuntimeCapabilities(identity, base);
+    assert.deepEqual(levelOne.capabilities, ["glide", "flight"]);
+    assert.equal(identity.abilities.every((ability) => ability.unlockLevel === 1), true);
+    assert.equal(levelOne.abilities.every((ability) => ability.available), true);
+    assert.deepEqual(levelThree.capabilities, ["glide", "flight"]);
     assert.deepEqual(levelFive.capabilities, ["glide", "flight"]);
-    assert.ok(levelFive.abilities[0]!.currentPower >= projectCreatureRuntimeCapabilities(identity, base).abilities[0]!.currentPower);
+    assert.ok(levelFive.abilities[0]!.currentPower > levelOne.abilities[0]!.currentPower);
     for (const ability of levelFive.abilities) {
       if (ability.descriptor.traversalGrant) assert.equal(ability.available, levelFive.capabilities.includes(ability.descriptor.traversalGrant));
     }
@@ -160,7 +163,7 @@ describe("proof-derived creature capability identity", () => {
     const glide = projectWildsTraversalCapabilities(structuredClone(asset), levelThree);
     const flight = projectWildsTraversalCapabilities(structuredClone(asset), levelFive);
     assert.notEqual(glide, flight);
-    assert.deepEqual(glide.capabilities, ["glide"]);
+    assert.deepEqual(glide.capabilities, ["glide", "flight"]);
     assert.deepEqual(flight.capabilities, ["glide", "flight"]);
   });
 

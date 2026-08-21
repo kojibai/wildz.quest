@@ -1288,7 +1288,7 @@ describe("Receiz Wilds game state", () => {
     const blocked = applyWildsInput({ ...structuredClone(initialPlayState), player: { x: -94.42, z: -240 } }, { type: "move-vector", x: 1, z: 0 });
     const imported = applyWildsInput(initialPlayState, { type: "import-card", asset: tide });
     const selected = applyWildsInput(imported, { type: "select-asset", assetId: tide.id });
-    const swimming = applyWildsInput({ ...selected, player: { x: -94.42, z: -240 }, adventureConditions: { ...selected.adventureConditions, [tide.id]: { ...selected.adventureConditions[tide.id]!, xp: { swim: 100 } } } }, { type: "move-vector", x: 1, z: 0 });
+    const swimming = applyWildsInput({ ...selected, player: { x: -94.42, z: -240 } }, { type: "move-vector", x: 1, z: 0 });
 
     assert.deepEqual(blocked.player, { x: -94.42, z: -240 });
     assert.ok(swimming.player.x > -94.42);
@@ -1308,7 +1308,7 @@ describe("Receiz Wilds game state", () => {
     });
     const imported = applyWildsInput(initialPlayState, { type: "import-card", asset: winged });
     const selected = applyWildsInput(imported, { type: "select-asset", assetId: winged.id });
-    const flying = applyWildsInput({ ...selected, player: { x: -94.42, z: -240 }, adventureConditions: { ...selected.adventureConditions, [winged.id]: { ...selected.adventureConditions[winged.id]!, xp: { flight: 400 } } } }, {
+    const flying = applyWildsInput({ ...selected, player: { x: -94.42, z: -240 } }, {
       type: "move-vector", x: 1, z: 0, aerialMode: "flight"
     });
 
