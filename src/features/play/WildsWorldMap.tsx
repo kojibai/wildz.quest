@@ -7,12 +7,14 @@ import type { WildsPresence } from "./multiplayer-core";
 import { landmarkApproachPoint, type WildsLandmarkId } from "./wilds-landmarks";
 import type { WildsLandmarkProgress } from "./wilds-landmark-access";
 import {
+  filterWildsAtlasPresence,
   projectWildsAtlas,
   projectWildsAtlasPresence,
   type WildsAtlasExactPlayer,
   type WildsAtlasPlayerCluster,
   type WildsAtlasZoom
 } from "./wilds-world-atlas";
+import type { WildsExplorationAtlas } from "./wilds-exploration-atlas";
 import type { WildsQualityProfile } from "./wilds-quality-profile";
 import { WildsAtlasCanvas } from "./WildsAtlasCanvas";
 import type { WildsWorldProjection } from "./wilds-world-state";
@@ -27,6 +29,7 @@ export function WildsWorldMap({
   open,
   guestId,
   currentPosition,
+  explorationAtlas,
   remotePlayers,
   missionProgress,
   worldMastery,
@@ -43,6 +46,7 @@ export function WildsWorldMap({
   open: boolean;
   guestId: string;
   currentPosition: { x: number; z: number };
+  explorationAtlas: WildsExplorationAtlas;
   remotePlayers: WildsPresence[];
   missionProgress: number;
   worldMastery: number;
@@ -75,23 +79,31 @@ export function WildsWorldMap({
     discoveredLandmarkIds,
     selfId: "self",
     players: [],
+    explorationAtlas,
     dynamicSites: Object.values(livingWorld?.sites ?? {}),
     ecologySites: Object.values(livingWorld?.ecologySites ?? {}),
     ecologyKnowledge,
     bosses: Object.values(livingWorld?.bosses ?? {}),
     bossKnowledge,
     trainers
-  }), [bossKnowledge, currentPosition, discoveredLandmarkIds, ecologyKnowledge, livingWorld?.bosses, livingWorld?.ecologySites, livingWorld?.sites, missionProgress, trainers, worldMastery, zoom]);
+  }), [bossKnowledge, currentPosition, discoveredLandmarkIds, ecologyKnowledge, explorationAtlas, livingWorld?.bosses, livingWorld?.ecologySites, livingWorld?.sites, missionProgress, trainers, worldMastery, zoom]);
   const localPresence = useMemo(() => projectWildsAtlasPresence({
     center: currentPosition,
     players: remotePlayers,
-    selfId: "self"
-  }), [currentPosition, remotePlayers]);
-  const projection = useMemo(() => ({
-    ...staticProjection,
-    exactPlayers: atlasPresence.loaded ? atlasPresence.players : localPresence.exactPlayers,
-    playerClusters: atlasPresence.loaded ? atlasPresence.clusters : localPresence.playerClusters
-  }), [atlasPresence, localPresence.exactPlayers, localPresence.playerClusters, staticProjection]);
+    selfId: "self",
+    explorationAtlas,
+    visibleRegions: staticProjection.nodes
+  }), [currentPosition, explorationAtlas, remotePlayers, staticProjection.nodes]);
+  const projection = useMemo(() => {
+    const presence = atlasPresence.loaded
+      ? filterWildsAtlasPresence({ exactPlayers: atlasPresence.players, playerClusters: atlasPresence.clusters }, staticProjection.nodes)
+      : localPresence;
+    return {
+      ...staticProjection,
+      exactPlayers: presence.exactPlayers,
+      playerClusters: presence.playerClusters
+    };
+  }, [atlasPresence, localPresence, staticProjection]);
 
   useEffect(() => {
     if (!open) return;

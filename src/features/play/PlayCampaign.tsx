@@ -1480,6 +1480,7 @@ export function PlayCampaign({
       <WildsWorldMap
         currentPosition={state.player}
         discoveredLandmarkIds={discoveredLandmarkIds}
+        explorationAtlas={state.explorationAtlas}
         guestId={multiplayer.guestId}
         missionProgress={state.missionProgress}
         onClose={() => {

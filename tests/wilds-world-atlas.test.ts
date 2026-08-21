@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { MORTAL_ARENA_POSITION, WILDS_FLAGSHIP_LANDMARKS, landmarkAtPosition, landmarkApproachPoint, projectVisibleLandmarkEntrances } from "../src/features/play/wilds-landmarks";
-import { projectWildsAtlas, projectWildsAtlasPresence } from "../src/features/play/wilds-world-atlas";
+import { filterWildsAtlasPresence, projectWildsAtlas, projectWildsAtlasPresence } from "../src/features/play/wilds-world-atlas";
 import type { WildsPresence } from "../src/features/play/multiplayer-core";
+import { createInitialWildsExplorationAtlas, revealWildsExplorationAt } from "../src/features/play/wilds-exploration-atlas";
 
 function presence(index: number, position: { x: number; z: number }): WildsPresence {
   return {
@@ -26,6 +27,8 @@ function presence(index: number, position: { x: number; z: number }): WildsPrese
 }
 
 describe("Wilds world atlas", () => {
+  const explorationAtlas = createInitialWildsExplorationAtlas();
+
   it("keeps every flagship landmark at stable unique coordinates", () => {
     assert.deepEqual(WILDS_FLAGSHIP_LANDMARKS.map((landmark: { id: string }) => landmark.id), [
       "hearttree-sanctum",
@@ -62,6 +65,7 @@ describe("Wilds world atlas", () => {
       discoveredLandmarkIds: ["hearttree-sanctum"],
       selfId: "self",
       players: [] as WildsPresence[],
+      explorationAtlas,
       now: Date.parse("2026-07-15T12:00:00.000Z")
     };
     const world = projectWildsAtlas({ ...input, zoom: "world" });
@@ -69,7 +73,8 @@ describe("Wilds world atlas", () => {
     const landmark = projectWildsAtlas({ ...input, zoom: "landmark" });
 
     assert.deepEqual(world, projectWildsAtlas({ ...input, zoom: "world" }));
-    assert.deepEqual(world.centerRegion, { x: 0, z: 0 });
+    assert.deepEqual(world.centerRegion, { x: 0.5, z: 0.5 });
+    assert.deepEqual(world.bounds, { minX: -4, maxX: 4, minZ: -4, maxZ: 4, count: 81 });
     assert.equal(world.nodes.length, 81);
     assert.equal(region.nodes.length, 25);
     assert.equal(landmark.nodes.length, 9);
@@ -90,6 +95,7 @@ describe("Wilds world atlas", () => {
       discoveredLandmarkIds: ["hearttree-sanctum"],
       selfId: "self",
       players,
+      explorationAtlas,
       now: Date.parse("2026-07-15T12:00:00.000Z")
     });
 
@@ -104,6 +110,7 @@ describe("Wilds world atlas", () => {
       center: { x: 0, z: 0 },
       selfId: "self",
       players,
+      explorationAtlas,
       now: Date.parse("2026-07-15T12:00:00.000Z")
     };
     const presenceOnly = projectWildsAtlasPresence(input);
@@ -135,10 +142,61 @@ describe("Wilds world atlas", () => {
       discoveredLandmarkIds: [],
       selfId: "self",
       players: [self, stale],
+      explorationAtlas,
       now: Date.parse("2026-07-15T12:00:00.000Z")
     });
 
     assert.equal(atlas.exactPlayers.length, 0);
     assert.equal(atlas.playerClusters.length, 0);
+  });
+
+  it("centers World view on the exact physical midpoint of all sparse discovered territory", () => {
+    const distantAtlas = revealWildsExplorationAt(explorationAtlas, { x: 245, z: -1433 });
+    const world = projectWildsAtlas({
+      center: { x: 245, z: -1433 },
+      zoom: "world",
+      missionProgress: 38,
+      worldMastery: 11,
+      discoveredLandmarkIds: [],
+      selfId: "self",
+      players: [],
+      explorationAtlas: distantAtlas
+    });
+
+    assert.deepEqual(world.bounds, { minX: -4, maxX: 6, minZ: -31, maxZ: 4, count: 90 });
+    assert.deepEqual(world.centerRegion, { x: 1.5, z: -13 });
+    assert.equal(world.nodes.some((node) => node.regionX === 5 && node.regionZ === -30), true);
+    assert.equal(world.nodes.some((node) => node.regionX === 0 && node.regionZ === -15), false);
+    assert.equal(world.regionUnit, 11.5 / 36);
+  });
+
+  it("does not project local or global presence outside projected discovered nodes", () => {
+    const hidden = presence(1, { x: 9_000, z: 9_000 });
+    const world = projectWildsAtlas({
+      center: { x: 0, z: 0 },
+      zoom: "world",
+      missionProgress: 0,
+      worldMastery: 0,
+      discoveredLandmarkIds: [],
+      selfId: "self",
+      players: [hidden],
+      explorationAtlas
+    });
+    const presenceOnly = projectWildsAtlasPresence({
+      center: { x: 0, z: 0 },
+      players: [hidden],
+      selfId: "self",
+      explorationAtlas,
+      visibleRegions: world.nodes
+    });
+    const fetchedPresence = filterWildsAtlasPresence({
+      exactPlayers: [{ playerId: hidden.playerId, handle: hidden.handle, style: hidden.style, x: hidden.x, z: hidden.z, status: hidden.status }],
+      playerClusters: [{ id: "cluster:187:187", regionX: 187, regionZ: 187, count: 8, position: { x: 9_000, z: 9_000 } }]
+    }, world.nodes);
+
+    assert.equal(world.exactPlayers.length, 0);
+    assert.equal(presenceOnly.exactPlayers.length, 0);
+    assert.equal(presenceOnly.playerClusters.length, 0);
+    assert.deepEqual(fetchedPresence, { exactPlayers: [], playerClusters: [] });
   });
 });

@@ -15,6 +15,13 @@ import type { WildsWorldBossProjection } from "./wilds-world-state";
 import type { WildsBossKnowledge } from "./wilds-raid-history";
 import type { WildsBossFamilyId } from "./wilds-boss-ecology";
 import type { WildsTrainerProjection } from "./wilds-saga-trainers";
+import {
+  wildsExplorationBounds,
+  wildsExplorationContainsRegion,
+  wildsExplorationContainsWorld,
+  wildsExplorationRegions,
+  type WildsExplorationAtlas
+} from "./wilds-exploration-atlas";
 
 export type WildsAtlasZoom = "world" | "region" | "landmark";
 
@@ -40,7 +47,12 @@ export type WildsAtlasPlayerCluster = {
 };
 
 export type WildsAtlasProjection = {
+  /** Physical region-space origin used to normalize exact world coordinates for rendering. */
   centerRegion: { x: number; z: number };
+  /** Region-index center used to choose a bounded Region or Landmark grid window. */
+  gridCenterRegion: { x: number; z: number };
+  bounds: { minX: number; maxX: number; minZ: number; maxZ: number; count: number };
+  regionUnit: number;
   zoom: WildsAtlasZoom;
   nodes: WildsAtlasNode[];
   landmarks: WildsAtlasLandmark[];
@@ -79,6 +91,7 @@ export type WildsAtlasInput = {
   discoveredLandmarkIds: readonly (WildsLandmarkId | string)[];
   selfId: string;
   players: WildsPresence[];
+  explorationAtlas: WildsExplorationAtlas;
   dynamicSites?: readonly WildsWorldSiteProjection[];
   ecologySites?: readonly WildsWorldEcologyProjection[];
   ecologyKnowledge?: Record<string, WildsEcologyKnowledge>;
@@ -94,11 +107,49 @@ const radiusByZoom: Record<WildsAtlasZoom, number> = {
   landmark: 1
 };
 
-export function projectWildsAtlasPresence(
-  input: Pick<WildsAtlasInput, "center" | "now" | "players" | "selfId">
+const DEFAULT_ATLAS_REGION_UNIT = 1.35;
+
+type VisibleRegion = Pick<WildsAtlasNode, "regionX" | "regionZ">;
+
+function regionKey(regionX: number, regionZ: number) {
+  return `${regionX}:${regionZ}`;
+}
+
+function visibleRegionKeys(regions: readonly VisibleRegion[]) {
+  return new Set(regions.map((region) => regionKey(region.regionX, region.regionZ)));
+}
+
+function worldPositionBelongsToNodes(position: { x: number; z: number }, nodeKeys: ReadonlySet<string>) {
+  if (!Number.isFinite(position.x) || !Number.isFinite(position.z)) return false;
+  const region = regionForPosition(position);
+  return nodeKeys.has(regionKey(region.x, region.z));
+}
+
+export function filterWildsAtlasPresence(
+  presence: { exactPlayers: readonly WildsAtlasExactPlayer[]; playerClusters: readonly WildsAtlasPlayerCluster[] },
+  visibleRegions: readonly VisibleRegion[]
 ) {
+  const nodeKeys = visibleRegionKeys(visibleRegions);
+  return {
+    exactPlayers: presence.exactPlayers.filter((player) => worldPositionBelongsToNodes(player, nodeKeys)),
+    playerClusters: presence.playerClusters.filter((cluster) => nodeKeys.has(regionKey(cluster.regionX, cluster.regionZ)))
+  };
+}
+
+export function projectWildsAtlasPresence(
+  input: Pick<WildsAtlasInput, "center" | "now" | "players" | "selfId" | "explorationAtlas"> & {
+    visibleRegions?: readonly VisibleRegion[];
+  }
+) {
+  const projectedRegionKeys = input.visibleRegions ? visibleRegionKeys(input.visibleRegions) : null;
   const visiblePlayers = expirePresence(input.players, input.now)
     .filter((player) => player.playerId !== input.selfId)
+    .filter((player) => wildsExplorationContainsWorld(input.explorationAtlas, player))
+    .filter((player) => {
+      if (!projectedRegionKeys) return true;
+      const region = regionForPosition(player);
+      return projectedRegionKeys.has(regionKey(region.x, region.z));
+    })
     .sort((left, right) => presenceDistance(left, input.center) - presenceDistance(right, input.center))
     .slice(0, 24);
   const exactPlayers = visiblePlayers
@@ -130,45 +181,83 @@ export function projectWildsAtlasPresence(
 }
 
 export function projectWildsAtlas(input: WildsAtlasInput): WildsAtlasProjection {
-  // The world view is a stable, learnable atlas. Closer zooms follow the explorer.
-  const centerRegion = input.zoom === "world" ? { x: 0, z: 0 } : regionForPosition(input.center);
-  const radius = radiusByZoom[input.zoom];
+  const bounds = wildsExplorationBounds(input.explorationAtlas);
+  const gridCenterRegion = input.zoom === "world"
+    ? { x: (bounds.minX + bounds.maxX) / 2, z: (bounds.minZ + bounds.maxZ) / 2 }
+    : regionForPosition(input.center);
+  // Region indices identify lower-left cell boundaries. Adding one half-region keeps the
+  // normalized render origin on the exact physical center of the selected region extent.
+  const centerRegion = input.zoom === "world"
+    ? { x: (bounds.minX + bounds.maxX + 1) / 2, z: (bounds.minZ + bounds.maxZ + 1) / 2 }
+    : { x: gridCenterRegion.x + 0.5, z: gridCenterRegion.z + 0.5 };
+  const maxSpan = Math.max(bounds.maxX - bounds.minX + 1, bounds.maxZ - bounds.minZ + 1);
+  const regionUnit = input.zoom === "world"
+    ? Math.min(DEFAULT_ATLAS_REGION_UNIT, 11.5 / Math.max(9, maxSpan))
+    : DEFAULT_ATLAS_REGION_UNIT;
   const nodes: WildsAtlasNode[] = [];
-  for (let regionZ = centerRegion.z - radius; regionZ <= centerRegion.z + radius; regionZ += 1) {
-    for (let regionX = centerRegion.x - radius; regionX <= centerRegion.x + radius; regionX += 1) {
-      nodes.push({
-        id: `region:${regionX}:${regionZ}`,
-        regionX,
-        regionZ,
-        biome: projectWildsBiome(regionX, regionZ, input.missionProgress, input.worldMastery)
-      });
-    }
+  const regions = input.zoom === "world"
+    ? wildsExplorationRegions(input.explorationAtlas)
+    : localKnownRegions(input.explorationAtlas, gridCenterRegion, radiusByZoom[input.zoom]);
+  for (const { x: regionX, z: regionZ } of regions) {
+    nodes.push({
+      id: `region:${regionX}:${regionZ}`,
+      regionX,
+      regionZ,
+      biome: projectWildsBiome(regionX, regionZ, input.missionProgress, input.worldMastery)
+    });
   }
 
-  const presence = projectWildsAtlasPresence(input);
+  const nodeKeys = visibleRegionKeys(nodes);
+  const knownPosition = (position: { x: number; z: number }) => worldPositionBelongsToNodes(position, nodeKeys);
+  const presence = projectWildsAtlasPresence({ ...input, visibleRegions: nodes });
 
   const discovered = new Set(input.discoveredLandmarkIds);
   return {
     centerRegion,
+    gridCenterRegion,
+    bounds,
+    regionUnit,
     zoom: input.zoom,
     nodes,
-    landmarks: WILDS_FLAGSHIP_LANDMARKS.map((landmark) => ({ ...landmark, discovered: discovered.has(landmark.id) })),
+    landmarks: WILDS_FLAGSHIP_LANDMARKS
+      .filter((landmark) => knownPosition(landmark.position))
+      .map((landmark) => ({ ...landmark, discovered: discovered.has(landmark.id) })),
     exactPlayers: presence.exactPlayers,
     playerClusters: presence.playerClusters,
     dynamicSites: (input.dynamicSites ?? [])
       .filter((site) => site.phase !== "expired")
+      .filter((site) => knownPosition(site.position))
       .map((site) => ({
         ...site,
         visibility: site.phase === "rumored" ? "signal" as const : site.phase === "memorialized" ? "memorial" as const : "exact" as const
       })),
     ecologySites: (input.ecologySites ?? [])
       .filter((site) => site.phase !== "expired")
+      .filter((site) => knownPosition(site.position))
       .map((site) => projectEcologySite(site, input.ecologyKnowledge?.[site.id])),
     bosses: (input.bosses ?? [])
       .filter((boss) => boss.phase !== "withdrawn")
+      .filter((boss) => {
+        const position = boss.position as { x: number; z: number } | undefined;
+        return Boolean(position && knownPosition(position));
+      })
       .map((boss) => projectAtlasBoss(boss, input.bossKnowledge?.[boss.id])),
-    trainers: (input.trainers ?? []).filter((trainer) => trainer.available)
+    trainers: (input.trainers ?? [])
+      .filter((trainer) => trainer.available)
+      .filter((trainer) => knownPosition({ x: trainer.position[0], z: trainer.position[2] }))
   };
+}
+
+function *localKnownRegions(
+  explorationAtlas: WildsExplorationAtlas,
+  center: { x: number; z: number },
+  radius: number
+) {
+  for (let z = center.z - radius; z <= center.z + radius; z += 1) {
+    for (let x = center.x - radius; x <= center.x + radius; x += 1) {
+      if (wildsExplorationContainsRegion(explorationAtlas, x, z)) yield { x, z };
+    }
+  }
 }
 
 function projectAtlasBoss(boss: WildsWorldBossProjection, knowledge?: WildsBossKnowledge): WildsAtlasBoss {
