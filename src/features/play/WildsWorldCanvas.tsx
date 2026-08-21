@@ -34,6 +34,7 @@ import type { KaiKlokMoment } from "@/features/play/kai-klok-moment";
 import { projectKaiWorldExpression } from "@/features/play/kai-moment-expression";
 import { WildsKaiAtmosphereGeometry } from "@/features/play/WildsKaiAtmosphereGeometry";
 import { WildsCelestialSky } from "@/features/play/WildsCelestialSky";
+import { WildsAmbientLife } from "@/features/play/WildsAmbientLife";
 import { wildsStarCountForTier } from "@/features/play/wilds-celestial-model";
 import {
   DEFAULT_WILDS_VISUAL_SETTINGS,
@@ -343,6 +344,7 @@ function WildsScene({
           siteSpace={siteSpace}
           onSitePortal={onSitePortal}
         />
+        <WildsAmbientLife enabled={siteSpace.spaceId === "wildz.space.outer.v1"} player={state.player} qualityProfile={qualityProfile} terrainElevation={aquaticPresentation.terrainElevation} />
         <WildsEcologyEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={aquaticPresentation.terrainElevation} worldMode={worldMode} />
         <WildsBossEnvironment livingWorld={livingWorld} player={state.player} qualityProfile={qualityProfile} terrainElevation={aquaticPresentation.terrainElevation} />
         <EncounterSequence state={state} terrainElevation={activeFloorY} siteRuntime={siteRuntime} siteSpace={siteSpace} />

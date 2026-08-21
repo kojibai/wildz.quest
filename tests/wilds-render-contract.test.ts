@@ -3,6 +3,18 @@ import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 
 describe("Receiz Wilds rendering contract", () => {
+  it("renders bounded ambient life as non-catchable instanced world detail", async () => {
+    const ambient = await readFile("src/features/play/WildsAmbientLife.tsx", "utf8");
+    const authority = await readFile("src/features/play/wilds-ambient-life.ts", "utf8");
+    const world = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");
+
+    assert.match(world, /<WildsAmbientLife/);
+    assert.match(ambient, /instancedMesh/);
+    assert.match(ambient, /qualityProfile\.reducedMotion/);
+    assert.doesNotMatch(ambient, /Html|capture|signal|ring|fetch\(|verify|requestAnimationFrame/);
+    assert.doesNotMatch(authority, /fetch\(|verify|setTimeout|setInterval|requestAnimationFrame|useFrame/);
+  });
+
   it("renders swimming and flight as embodied traversal instead of grounded walking", async () => {
     const explorer = await readFile("src/features/play/WildsExplorer.tsx", "utf8");
     const creature = await readFile("src/features/play/WildsCreatureActor.tsx", "utf8");
