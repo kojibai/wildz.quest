@@ -106,10 +106,11 @@ test("settling the same due command twice is idempotent", () => {
   assert.equal(twice.proof.digest, once.proof.digest);
 });
 
-test("returning to a suspended app immediately settles due roaming life", () => {
+test("suspending the app settles due roaming life without blocking visible gameplay", () => {
   const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
-  assert.match(campaign, /window\.addEventListener\("focus", settleLivingCreatures\)/);
-  assert.match(campaign, /document\.addEventListener\("visibilitychange", settleWhenVisible\)/);
+  assert.doesNotMatch(campaign, /window\.addEventListener\("focus", settleLivingCreatures\)/);
+  assert.match(campaign, /document\.addEventListener\("visibilitychange", settleWhenHidden\)/);
+  assert.match(campaign, /shouldRunWildzOffHotPathWork\(\{ visibility: document\.visibilityState, surface: "gameplay" \}\)/);
   assert.match(campaign, /type: "settle-creature-care"/);
 });
 

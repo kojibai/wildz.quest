@@ -4,6 +4,15 @@ export const WILDS_NETWORK_RETRY_BACKOFF_MS = 15_000;
 
 type NetworkStatus = { onLine?: boolean } | null | undefined;
 
+export type WildzRuntimeSurface = "gameplay" | "profile" | "overlay";
+
+export function shouldRunWildzOffHotPathWork(input: {
+  visibility: DocumentVisibilityState;
+  surface: WildzRuntimeSurface;
+}) {
+  return input.visibility === "hidden" || input.surface !== "gameplay";
+}
+
 function browserNetworkStatus(): NetworkStatus {
   return typeof navigator === "undefined" ? undefined : navigator;
 }

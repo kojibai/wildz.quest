@@ -9,14 +9,14 @@ test("proof admission failures wait for an explicit reconnect trigger", () => {
   );
 });
 
-test("temporary proof failures back off and cap at one minute", () => {
+test("temporary proof failures never create a gameplay-time retry loop", () => {
   assert.deepEqual(
     proofSessionRetryDecision({ attempt: 0, online: true, code: "wildz_proof_challenge_unavailable" }),
-    { retry: true, delayMs: 5_000 }
+    { retry: false, delayMs: null }
   );
   assert.deepEqual(
     proofSessionRetryDecision({ attempt: 9, online: true, code: "wildz_proof_challenge_unavailable" }),
-    { retry: true, delayMs: 60_000 }
+    { retry: false, delayMs: null }
   );
 });
 

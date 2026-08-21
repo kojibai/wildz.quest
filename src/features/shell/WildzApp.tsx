@@ -63,7 +63,7 @@ import { WildzProfileSheet } from "@/features/profile/WildzProfileSheet";
 import { WildzVaultSheet } from "@/features/profile/WildzVaultSheet";
 import { WildzMarketSheet } from "@/features/market/WildzMarketSheet";
 import type { WildzOverlay } from "@/features/shell/wildz-overlay";
-import { proofSessionRetryDecision } from "@/features/shell/proof-session-retry";
+import { shouldRunWildzOffHotPathWork } from "@/features/play/wilds-network-status";
 import { downloadBlob } from "@/features/play/card-export";
 import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-verifier";
 import { canRestoreFocus } from "@/features/play/focus-recovery";
@@ -277,16 +277,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (!identity || !vaultAdmission) return;
     let active = true;
     let connecting = false;
-    let retryAttempt = 0;
-    let retryTimer: number | null = null;
-    const connect = (resetAttempt = false) => {
+    const connect = () => {
       if (connecting) return;
-      if (resetAttempt) retryAttempt = 0;
       connecting = true;
-      if (retryTimer !== null) {
-        window.clearTimeout(retryTimer);
-        retryTimer = null;
-      }
       void connectWildzProofSession(identity, { vaultAdmission }).then(async (session) => {
         if (!active || !wildzRemoteSessionMatchesIdentity(identity, session)) {
           if (active) setProofSessionConnected(false);
@@ -309,30 +302,18 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           || stillCurrent.session.keyId !== identity.keyId
           || stillCurrent.session.actorId !== identity.actorId) return;
         if (aligned !== current) acceptSnapshot(aligned);
-        retryAttempt = 0;
         setProofSessionConnected(true);
-      }).catch((error: unknown) => {
-        if (active) {
-          setProofSessionConnected(false);
-          const code = error instanceof Error ? error.message : "wildz_proof_unknown";
-          const decision = proofSessionRetryDecision({
-            attempt: retryAttempt,
-            online: navigator.onLine,
-            code
-          });
-          retryAttempt += 1;
-          if (decision.retry) retryTimer = window.setTimeout(() => connect(), decision.delayMs);
-        }
+      }).catch(() => {
+        if (active) setProofSessionConnected(false);
       }).finally(() => {
         connecting = false;
       });
     };
     connect();
-    const reconnectOnline = () => connect(true);
+    const reconnectOnline = () => connect();
     window.addEventListener("online", reconnectOnline);
     return () => {
       active = false;
-      if (retryTimer !== null) window.clearTimeout(retryTimer);
       window.removeEventListener("online", reconnectOnline);
     };
   }, [acceptSnapshot, identity, vaultAdmission]);
@@ -340,26 +321,51 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   useEffect(() => {
     if (profilePublicationReadiness !== "ready") return;
     let active = true;
-    const controller = new AbortController();
-    const publicationKey = JSON.stringify(localPublicProfile);
-    if (publishedProfileRef.current === publicationKey) return;
-    setProfileStatus("publishing");
-    void publishCurrentWildzProfile(localPublicProfile, publishableOwnerAssets, globalThis.fetch, {
-      signal: controller.signal,
-      proofObjects: admittedProofObjects
-    }).then(() => {
-      if (!active) return;
-      publishedProfileRef.current = publicationKey;
-      setProfileStatus("ready");
-    }).catch((error: unknown) => {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      if (active) setProfileStatus("unpublished");
-    });
+    let publishing = false;
+    let controller: AbortController | null = null;
+    const stopPublishing = () => {
+      controller?.abort();
+      controller = null;
+      publishing = false;
+    };
+    const publish = () => {
+      if (!active || publishing) return;
+      const publicationKey = JSON.stringify(localPublicProfile);
+      if (publishedProfileRef.current === publicationKey) return;
+      publishing = true;
+      controller = new AbortController();
+      const requestController = controller;
+      setProfileStatus("publishing");
+      void publishCurrentWildzProfile(localPublicProfile, publishableOwnerAssets, globalThis.fetch, {
+        signal: requestController.signal,
+        proofObjects: admittedProofObjects
+      }).then(() => {
+        if (!active || requestController.signal.aborted) return;
+        publishedProfileRef.current = publicationKey;
+        setProfileStatus("ready");
+      }).catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (active) setProfileStatus("unpublished");
+      }).finally(() => {
+        if (controller === requestController) {
+          controller = null;
+          publishing = false;
+        }
+      });
+    };
+    const syncPublication = () => {
+      const surface = overlay?.kind === "profile" ? "profile" : "gameplay";
+      if (shouldRunWildzOffHotPathWork({ visibility: document.visibilityState, surface })) publish();
+      else stopPublishing();
+    };
+    syncPublication();
+    document.addEventListener("visibilitychange", syncPublication);
     return () => {
       active = false;
-      controller.abort();
+      document.removeEventListener("visibilitychange", syncPublication);
+      stopPublishing();
     };
-  }, [admittedProofObjects, localPublicProfile, profilePublicationReadiness, publishableOwnerAssets]);
+  }, [admittedProofObjects, localPublicProfile, overlay?.kind, profilePublicationReadiness, publishableOwnerAssets]);
 
   useEffect(() => {
     if (overlay?.kind !== "profile") {

@@ -56,6 +56,7 @@ import { landmarkAtPosition, WILDS_FLAGSHIP_LANDMARKS, type WildsLandmarkId } fr
 import { evaluateLandmarkAccess, type WildsLandmarkProgress } from "@/features/play/wilds-landmark-access";
 import type { RiftTravelGrant } from "@/features/play/wilds-rift-travel";
 import { projectWildzHud } from "@/features/play/wildz-gameplay-hud";
+import { shouldRunWildzOffHotPathWork } from "@/features/play/wilds-network-status";
 import { WildzReferenceHud } from "@/features/play/WildzReferenceHud";
 import { WildzWorldControls } from "@/features/play/WildzWorldControls";
 import { WildsCreatureThumbnail } from "@/features/play/WildsCreatureThumbnail";
@@ -200,17 +201,14 @@ export function PlayCampaign({
         at
       }), current));
     });
-    settleLivingCreatures();
-    const timer = window.setInterval(settleLivingCreatures, 5 * 60_000);
-    const settleWhenVisible = () => {
-      if (document.visibilityState !== "hidden") settleLivingCreatures();
+    const settleWhenHidden = () => {
+      if (shouldRunWildzOffHotPathWork({ visibility: document.visibilityState, surface: "gameplay" })) {
+        settleLivingCreatures();
+      }
     };
-    window.addEventListener("focus", settleLivingCreatures);
-    document.addEventListener("visibilitychange", settleWhenVisible);
+    document.addEventListener("visibilitychange", settleWhenHidden);
     return () => {
-      window.clearInterval(timer);
-      window.removeEventListener("focus", settleLivingCreatures);
-      document.removeEventListener("visibilitychange", settleWhenVisible);
+      document.removeEventListener("visibilitychange", settleWhenHidden);
     };
   }, [ownerReceizId]);
   useEffect(() => {
@@ -235,16 +233,18 @@ export function PlayCampaign({
         // Notification scheduling is advisory and never blocks proof state or gameplay.
       }
     };
-    const refresh = () => void publishCareSchedule();
-    refresh();
-    const timer = window.setInterval(refresh, 5 * 60_000);
-    window.addEventListener("focus", refresh);
-    window.addEventListener(WILDZ_CARE_NOTIFICATIONS_READY, refresh);
+    const refreshWhenHidden = () => {
+      if (shouldRunWildzOffHotPathWork({ visibility: document.visibilityState, surface: "gameplay" })) {
+        void publishCareSchedule();
+      }
+    };
+    refreshWhenHidden();
+    document.addEventListener("visibilitychange", refreshWhenHidden);
+    window.addEventListener(WILDZ_CARE_NOTIFICATIONS_READY, refreshWhenHidden);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
-      window.removeEventListener("focus", refresh);
-      window.removeEventListener(WILDZ_CARE_NOTIFICATIONS_READY, refresh);
+      document.removeEventListener("visibilitychange", refreshWhenHidden);
+      window.removeEventListener(WILDZ_CARE_NOTIFICATIONS_READY, refreshWhenHidden);
     };
   }, [state.inventory]);
   const explorerStyle = character.gender;

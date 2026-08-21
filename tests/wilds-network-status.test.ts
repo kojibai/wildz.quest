@@ -5,9 +5,16 @@ import {
   WILDS_NETWORK_RETRY_BACKOFF_MS,
   WILDS_WORLD_OFFLINE_MESSAGE,
   isOpaqueWildsNetworkFailure,
+  shouldRunWildzOffHotPathWork,
   shouldAttemptWildsNetwork,
   wildsNetworkFailureMessage
 } from "../src/features/play/wilds-network-status";
+
+test("upload follow-up work cannot run while gameplay is visible", () => {
+  assert.equal(shouldRunWildzOffHotPathWork({ visibility: "visible", surface: "gameplay" }), false);
+  assert.equal(shouldRunWildzOffHotPathWork({ visibility: "visible", surface: "profile" }), true);
+  assert.equal(shouldRunWildzOffHotPathWork({ visibility: "hidden", surface: "gameplay" }), true);
+});
 
 test("offline Wildz surfaces skip network work and explain local continuity", () => {
   assert.equal(shouldAttemptWildsNetwork({ onLine: false }), false);

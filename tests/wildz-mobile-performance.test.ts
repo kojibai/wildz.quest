@@ -108,6 +108,21 @@ test("proof admission does not activate recurring work on the gameplay hot path"
   assert.doesNotMatch(ownership, /setInterval|addEventListener/);
 });
 
+test("artifact upload follow-up work stays off visible gameplay", () => {
+  const campaign = source("src/features/play/PlayCampaign.tsx");
+  const shell = source("src/features/shell/WildzApp.tsx");
+
+  assert.doesNotMatch(campaign, /\}\);\s*settleLivingCreatures\(\);/);
+  assert.doesNotMatch(campaign, /setInterval\(settleLivingCreatures/);
+  assert.doesNotMatch(campaign, /window\.addEventListener\("focus", settleLivingCreatures\)/);
+  assert.doesNotMatch(campaign, /const timer = window\.setInterval\(refresh/);
+  assert.match(campaign, /shouldRunWildzOffHotPathWork/);
+
+  assert.doesNotMatch(shell, /retryTimer|retryAttempt|proofSessionRetryDecision/);
+  assert.match(shell, /shouldRunWildzOffHotPathWork/);
+  assert.match(shell, /overlay\?\.kind === "profile" \? "profile" : "gameplay"/);
+});
+
 test("trackpad pointer motion updates the knob outside React's render path", () => {
   const dpad = source("src/features/play/WildzDpad.tsx");
   assert.match(dpad, /const knobRef = useRef<HTMLElement>/);
