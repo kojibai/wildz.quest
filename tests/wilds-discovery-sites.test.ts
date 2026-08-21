@@ -13,12 +13,29 @@ import {
   wildsDiscoverySitesForRegion,
   wildsDiscoveryPhysicalCacheSize,
   wildsDiscoverySiteRegionForPosition,
+  isCanonicalWildsDiscoverySiteKey,
   writeWildsSitePhysicalSample,
   wildsSiteSurfaceAt
 } from "../src/features/play/wilds-discovery-sites";
 import { sampleWildsTerrain } from "../src/features/play/wilds-terrain-authority";
 
 describe("persistent deterministic Wilds discovery sites", () => {
+  it("bounds site admission to canonical playable regions and clips edge neighborhoods", () => {
+    const positiveEdge = wildsDiscoverySiteRegionForPosition({ x: 500_000_000, z: 500_000_000 });
+    const negativeEdge = wildsDiscoverySiteRegionForPosition({ x: -500_000_000, z: -500_000_000 });
+    assert.deepEqual(positiveEdge, { x: 3_906_249, z: 3_906_249 });
+    assert.deepEqual(negativeEdge, { x: -3_906_250, z: -3_906_250 });
+    assert.throws(() => wildsDiscoverySitesForRegion(3_906_250, 0), /region_x_invalid/);
+    assert.throws(() => wildsDiscoverySitesForRegion(0, -3_906_251), /region_z_invalid/);
+    const positiveSites = admitWildsDiscoveryNeighborhood(positiveEdge.x, positiveEdge.z);
+    const negativeSites = admitWildsDiscoveryNeighborhood(negativeEdge.x, negativeEdge.z);
+    for (const site of [...positiveSites, ...negativeSites]) {
+      assert.equal(isCanonicalWildsDiscoverySiteKey(site.key), true);
+      assert.ok(site.entrance.x >= -500_000_000 && site.entrance.x <= 500_000_000);
+      assert.ok(site.entrance.z >= -500_000_000 && site.entrance.z <= 500_000_000);
+    }
+  });
+
   it("maps world positions to the canonical 128-unit site region across negative boundaries", () => {
     assert.deepEqual(wildsDiscoverySiteRegionForPosition({ x: 0, z: 127.999 }), { x: 0, z: 0 });
     assert.deepEqual(wildsDiscoverySiteRegionForPosition({ x: 128, z: -0.001 }), { x: 1, z: -1 });
@@ -27,15 +44,15 @@ describe("persistent deterministic Wilds discovery sites", () => {
 
   it("regenerates ordinary and extreme regions exactly after bounded cache eviction", () => {
     const ordinary = structuredClone(wildsDiscoverySitesForRegion(12, -9));
-    const extreme = structuredClone(wildsDiscoverySitesForRegion(4_000_000, -4_000_000));
+    const extreme = structuredClone(wildsDiscoverySitesForRegion(3_900_000, -3_900_000));
     const origin = structuredClone(wildsDiscoverySitesForRegion(0, 0));
-    const nonAliased = structuredClone(wildsDiscoverySitesForRegion(4_294_967_296, 0));
+    const nonAliased = structuredClone(wildsDiscoverySitesForRegion(3_900_000, 0));
     assert.notDeepEqual(nonAliased, origin);
 
     for (let index = 0; index < 180; index += 1) wildsDiscoverySitesForRegion(index + 20_000, -index - 30_000);
     assert.ok(wildsDiscoverySiteCacheSize() <= 96);
     assert.deepEqual(wildsDiscoverySitesForRegion(12, -9), ordinary);
-    assert.deepEqual(wildsDiscoverySitesForRegion(4_000_000, -4_000_000), extreme);
+    assert.deepEqual(wildsDiscoverySitesForRegion(3_900_000, -3_900_000), extreme);
   });
 
   it("keeps one physical identity from distant landmark through entrance and interior", () => {
@@ -92,6 +109,40 @@ describe("persistent deterministic Wilds discovery sites", () => {
     assert.equal(projectWildsDiscoverySiteFall(mountain, { capabilities: ["glide"], fallDistance: 18 }).outcome, "recovered");
     assert.equal(projectWildsDiscoverySiteOverflight(mountain, { lift: 20, endurance: 20, control: 20, weatherTolerance: 20 }).admitted, false);
     assert.equal(projectWildsDiscoverySiteOverflight(mountain, { lift: 100, endurance: 100, control: 100, weatherTolerance: 100 }).admitted, true);
+    for (const invalid of [
+      { lift: Number.POSITIVE_INFINITY, endurance: 100, control: 100, weatherTolerance: 100 },
+      { lift: 100, endurance: Number.NaN, control: 100, weatherTolerance: 100 },
+      { lift: -1, endurance: 100, control: 100, weatherTolerance: 100 },
+      { lift: 101, endurance: 100, control: 100, weatherTolerance: 100 }
+    ]) assert.equal(projectWildsDiscoverySiteOverflight(mountain, invalid).admitted, false);
+  });
+
+  it("keeps every ordinary mountain route clear of its own admitted ridge solids", () => {
+    for (let regionZ = -10; regionZ <= 10; regionZ += 1) {
+      for (let regionX = -10; regionX <= 10; regionX += 1) {
+        const physical = admitWildsDiscoveryPhysicalNeighborhood(regionX, regionZ);
+        for (const site of physical.sites.filter((candidate) => candidate.mountain)) {
+          const solids = physical.solids.filter((solid) => solid.siteKey === site.key);
+          const ordinary = site.routes.find((route) => route.safe && route.requirements.length === 0)!;
+          for (const point of ordinary.points) {
+            assert.equal(solids.some((solid) => Math.abs(point.x - solid.center.x) <= solid.halfExtents.x
+              && Math.abs(point.y - solid.center.y) <= solid.halfExtents.y
+              && Math.abs(point.z - solid.center.z) <= solid.halfExtents.z), false, ordinary.id);
+          }
+          for (let index = 1; index < ordinary.points.length; index += 1) {
+            const start = ordinary.points[index - 1]!;
+            const end = ordinary.points[index]!;
+            for (let step = 0; step <= 20; step += 1) {
+              const amount = step / 20;
+              const point = { x: start.x + (end.x - start.x) * amount, y: start.y + (end.y - start.y) * amount, z: start.z + (end.z - start.z) * amount };
+              assert.equal(solids.some((solid) => Math.abs(point.x - solid.center.x) <= solid.halfExtents.x
+                && Math.abs(point.y - solid.center.y) <= solid.halfExtents.y
+                && Math.abs(point.z - solid.center.z) <= solid.halfExtents.z), false, ordinary.id);
+            }
+          }
+        }
+      }
+    }
   });
 
   it("memoizes sparse neighborhoods and performs zero site generation during warmed movement", () => {
@@ -178,6 +229,13 @@ describe("persistent deterministic Wilds discovery sites", () => {
       flooded: false
     }, { x: 9, y: 2, z: 7 });
     assert.equal(canonicalFlooded.flooded, true);
+    for (const surface of floodedPhysical.surfaces.filter((candidate) => candidate.kind === "interior-floor" && candidate.flooded)) {
+      assert.equal(floodedPhysical.waterVolumes.some((volume) => volume.kind === "flooded-interior"
+        && volume.spaceId === surface.spaceId
+        && Math.abs(surface.center.x - volume.center.x) <= volume.halfExtents.x
+        && Math.abs(surface.center.y - volume.center.y) <= volume.halfExtents.y
+        && Math.abs(surface.center.z - volume.center.z) <= volume.halfExtents.z), true, surface.id);
+    }
 
     assert.deepEqual(normalizeWildsSiteSpaceState(undefined, { x: 9, y: 2, z: 7 }), {
       version: "wildz.site-space-state.v1",
@@ -249,10 +307,10 @@ describe("persistent deterministic Wilds discovery sites", () => {
   });
 
   it("bounds and exactly regenerates physical neighborhoods after eviction", () => {
-    const expected = structuredClone(admitWildsDiscoveryPhysicalNeighborhood(4_000_000, -4_000_000));
+    const expected = structuredClone(admitWildsDiscoveryPhysicalNeighborhood(3_900_000, -3_900_000));
     for (let index = 0; index < 80; index += 1) admitWildsDiscoveryPhysicalNeighborhood(index + 80_000, -index - 90_000);
     assert.ok(wildsDiscoveryPhysicalCacheSize() <= 48);
-    assert.deepEqual(admitWildsDiscoveryPhysicalNeighborhood(4_000_000, -4_000_000), expected);
+    assert.deepEqual(admitWildsDiscoveryPhysicalNeighborhood(3_900_000, -3_900_000), expected);
   });
 
   it("keeps current render and collision consumers on the same site objects through adversarial cache churn", () => {

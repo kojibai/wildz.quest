@@ -7,7 +7,9 @@ export const WILDS_DISCOVERY_SITE_REGION_SIZE = 128;
 const SITES_PER_REGION = 4;
 const MAX_REGION_CACHE_SIZE = 96;
 const MAX_NEIGHBORHOOD_CACHE_SIZE = 48;
-const MAX_SITE_REGION = Math.floor(500_000_000 / WILDS_DISCOVERY_SITE_REGION_SIZE);
+const WILDS_SITE_WORLD_LIMIT = 500_000_000;
+const MIN_SITE_REGION = Math.floor(-WILDS_SITE_WORLD_LIMIT / WILDS_DISCOVERY_SITE_REGION_SIZE);
+const MAX_SITE_REGION = Math.ceil(WILDS_SITE_WORLD_LIMIT / WILDS_DISCOVERY_SITE_REGION_SIZE) - 1;
 const SURFACE_INDEX_CELL_SIZE = 16;
 const EMPTY_INDEX_VALUES = Object.freeze([]) as readonly never[];
 
@@ -165,6 +167,11 @@ function assertedInteger(value: number, name: string) {
   return BigInt(value);
 }
 
+function assertedRegion(value: number, name: "region_x" | "region_z") {
+  assertedInteger(value, name);
+  if (value < MIN_SITE_REGION || value > MAX_SITE_REGION) throw new Error(`wilds_discovery_site_${name}_invalid`);
+}
+
 function hash64(regionX: number, regionZ: number, slot: number, salt: number) {
   let value = BigInt.asUintN(64,
     assertedInteger(regionX, "region_x") * 0x9e3779b185ebca87n
@@ -185,8 +192,9 @@ function hashUnit(regionX: number, regionZ: number, slot: number, salt: number) 
 }
 
 export function wildsDiscoverySiteRegionForPosition(position: Readonly<{ x: number; z: number }>) {
-  const x = Number.isFinite(position.x) ? Math.max(-500_000_000, Math.min(500_000_000, position.x)) : 0;
-  const z = Number.isFinite(position.z) ? Math.max(-500_000_000, Math.min(500_000_000, position.z)) : 0;
+  const maximumPlayable = WILDS_SITE_WORLD_LIMIT - .000001;
+  const x = Number.isFinite(position.x) ? Math.max(-WILDS_SITE_WORLD_LIMIT, Math.min(maximumPlayable, position.x)) : 0;
+  const z = Number.isFinite(position.z) ? Math.max(-WILDS_SITE_WORLD_LIMIT, Math.min(maximumPlayable, position.z)) : 0;
   return Object.freeze({
     x: Math.floor(x / WILDS_DISCOVERY_SITE_REGION_SIZE),
     z: Math.floor(z / WILDS_DISCOVERY_SITE_REGION_SIZE)
@@ -200,7 +208,9 @@ export function isCanonicalWildsDiscoverySiteKey(value: unknown): value is strin
   const regionX = Number(match[1]);
   const regionZ = Number(match[2]);
   const slot = Number(match[3]);
-  if (!Number.isSafeInteger(regionX) || !Number.isSafeInteger(regionZ) || Math.abs(regionX) > MAX_SITE_REGION || Math.abs(regionZ) > MAX_SITE_REGION) return false;
+  if (!Number.isSafeInteger(regionX) || !Number.isSafeInteger(regionZ)
+    || regionX < MIN_SITE_REGION || regionX > MAX_SITE_REGION
+    || regionZ < MIN_SITE_REGION || regionZ > MAX_SITE_REGION) return false;
   if (!Number.isSafeInteger(slot) || slot < 0 || slot >= SITES_PER_REGION) return false;
   return match[4] === hash64(regionX, regionZ, slot, 23).toString(16).padStart(16, "0");
 }
@@ -310,7 +320,8 @@ function buildSite(regionX: number, regionZ: number, slot: number): WildsDiscove
   const waterfall = waterfallFor(regionX, regionZ, slot, entrance, mountain?.summitY ?? null);
   const interiorAnchor = waterfall?.hiddenEntrance ?? entrance;
   const interior = interiorFor(regionX, regionZ, slot, interiorAnchor, family, waterfall?.hiddenEntrance !== null && waterfall !== null);
-  const ordinaryEnd = freezePoint(entrance.x + 5, entrance.y + (mountain ? 1.5 : 0), entrance.z + 4);
+  const ordinaryStart = freezePoint(entrance.x, entrance.y, entrance.z - 6);
+  const ordinaryEnd = freezePoint(entrance.x, entrance.y + (mountain ? 1.5 : 0), entrance.z + 5);
   const requirement: WildsDiscoveryRouteRequirement = layer === "water" ? "swim" : layer === "air" ? "glide" : mountain ? "climb" : "track";
   const routes = Object.freeze([
     Object.freeze({
@@ -318,7 +329,7 @@ function buildSite(regionX: number, regionZ: number, slot: number): WildsDiscove
       safe: true,
       requirements: Object.freeze([]) as readonly WildsDiscoveryRouteRequirement[],
       rewardTier: 0 as const,
-      points: Object.freeze([freezePoint(entrance.x - 6, entrance.y, entrance.z - 5), entrance, ordinaryEnd])
+      points: Object.freeze([ordinaryStart, entrance, ordinaryEnd])
     }),
     Object.freeze({
       id: `site-route:${regionX}:${regionZ}:${slot}:ability`,
@@ -408,8 +419,8 @@ function indexedValues<T>(
 }
 
 export function wildsDiscoverySitesForRegion(regionX: number, regionZ: number): readonly WildsDiscoverySiteProjection[] {
-  assertedInteger(regionX, "region_x");
-  assertedInteger(regionZ, "region_z");
+  assertedRegion(regionX, "region_x");
+  assertedRegion(regionZ, "region_z");
   const key = `${regionX}:${regionZ}`;
   const cached = regionCache.get(key);
   if (cached) return cached;
@@ -433,14 +444,20 @@ export function wildsDiscoverySitesForRegion(regionX: number, regionZ: number): 
 }
 
 export function admitWildsDiscoveryNeighborhood(regionX: number, regionZ: number): readonly WildsDiscoverySiteProjection[] {
-  assertedInteger(regionX, "region_x");
-  assertedInteger(regionZ, "region_z");
+  assertedRegion(regionX, "region_x");
+  assertedRegion(regionZ, "region_z");
   const key = `${regionX}:${regionZ}`;
   const cached = neighborhoodCache.get(key);
   if (cached) return cached;
   const sites: WildsDiscoverySiteProjection[] = [];
   for (let dz = -1; dz <= 1; dz += 1) {
-    for (let dx = -1; dx <= 1; dx += 1) sites.push(...wildsDiscoverySitesForRegion(regionX + dx, regionZ + dz));
+    const admittedRegionZ = regionZ + dz;
+    if (admittedRegionZ < MIN_SITE_REGION || admittedRegionZ > MAX_SITE_REGION) continue;
+    for (let dx = -1; dx <= 1; dx += 1) {
+      const admittedRegionX = regionX + dx;
+      if (admittedRegionX < MIN_SITE_REGION || admittedRegionX > MAX_SITE_REGION) continue;
+      sites.push(...wildsDiscoverySitesForRegion(admittedRegionX, admittedRegionZ));
+    }
   }
   const admitted = Object.freeze(sites);
   neighborhoodsBuilt += 1;
@@ -579,8 +596,9 @@ function buildPhysicalNeighborhood(regionX: number, regionZ: number): WildsDisco
         fromSpaceId: outerId,
         toSpaceId: spaceId
       }));
-      const firstFloor = surfaces.find((surface) => surface.spaceId === spaceId)!;
-      const lastFloor = [...surfaces].reverse().find((surface) => surface.spaceId === spaceId)!;
+      const interiorFloors = surfaces.filter((surface) => surface.spaceId === spaceId);
+      const firstFloor = interiorFloors[0]!;
+      const lastFloor = interiorFloors.at(-1)!;
       encounterVolumes.push(Object.freeze({
         id: `encounter-volume:${site.key}:interior`,
         siteKey: site.key,
@@ -590,21 +608,23 @@ function buildPhysicalNeighborhood(regionX: number, regionZ: number): WildsDisco
         halfExtents: freezePoint(Math.abs(lastFloor.center.x - firstFloor.center.x) / 2 + 5, 2.5, Math.abs(lastFloor.center.z - firstFloor.center.z) / 2 + 5)
       }));
       if (flooded) {
-        const pool = firstFloor.center;
-        const waterHalfExtent = Math.max(firstFloor.halfExtents.x, firstFloor.halfExtents.z);
-        waterVolumes.push(Object.freeze({
-          id: `water:${site.key}:interior`,
-          siteKey: site.key,
-          spaceId,
-          kind: "flooded-interior" as const,
-          center: freezePoint(pool.x, pool.y + 1.4, pool.z),
-          halfExtents: freezePoint(waterHalfExtent, 1.4, waterHalfExtent),
-          source: pool,
-          lip: pool,
-          flowPath: Object.freeze([pool]),
-          pool,
-          current: .18
-        }));
+        for (let floorIndex = 0; floorIndex < interiorFloors.length; floorIndex += 1) {
+          const floor = interiorFloors[floorIndex]!;
+          const pool = floor.center;
+          waterVolumes.push(Object.freeze({
+            id: floorIndex === 0 ? `water:${site.key}:interior` : `water:${site.key}:interior:${floorIndex}`,
+            siteKey: site.key,
+            spaceId,
+            kind: "flooded-interior" as const,
+            center: freezePoint(pool.x, pool.y + 1.4, pool.z),
+            halfExtents: freezePoint(floor.halfExtents.x, 1.5, floor.halfExtents.z),
+            source: pool,
+            lip: pool,
+            flowPath: Object.freeze([pool]),
+            pool,
+            current: .18
+          }));
+        }
       }
     }
 
@@ -657,8 +677,8 @@ function buildPhysicalNeighborhood(regionX: number, regionZ: number): WildsDisco
 }
 
 export function admitWildsDiscoveryPhysicalNeighborhood(regionX: number, regionZ: number) {
-  assertedInteger(regionX, "region_x");
-  assertedInteger(regionZ, "region_z");
+  assertedRegion(regionX, "region_x");
+  assertedRegion(regionZ, "region_z");
   const key = `${regionX}:${regionZ}`;
   const cached = physicalNeighborhoodCache.get(key);
   if (cached) return cached;
@@ -819,6 +839,10 @@ export function projectWildsDiscoverySiteOverflight(
   site: WildsDiscoverySiteProjection,
   input: Readonly<{ lift: number; endurance: number; control: number; weatherTolerance: number }>
 ) {
+  const values = [input.lift, input.endurance, input.control, input.weatherTolerance];
+  if (values.some((value) => !Number.isFinite(value) || value < 0 || value > 100)) {
+    return Object.freeze({ admitted: false, reason: "invalid-envelope" as const });
+  }
   if (!site.mountain) return Object.freeze({ admitted: true, reason: "clear" as const });
   const required = site.mountain.overflight;
   const admitted = input.lift >= required.lift
