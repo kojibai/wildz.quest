@@ -98,23 +98,23 @@
 - Consumes: existing authored overlook and landmark projections.
 - Produces: a recognizable sightglass overlook form and an authored entrance crown while preserving current interaction labels and distances.
 
-- [ ] **Step 1: Add failing source/interaction contracts**
+- [x] **Step 1: Add failing source/interaction contracts**
 
   Require named `overlook-sightglass`, `overlook-compass-inlay`, and `landmark-approach-crown` forms while retaining the exact accessible vista action and camera-restoration contract.
 
-- [ ] **Step 2: Observe focused failures**
+- [x] **Step 2: Observe focused failures**
 
   Run: `pnpm exec tsc -p tsconfig.test.json && node scripts/patch-test-imports.mjs && node --test .test-build/tests/wilds-aerial-integration.test.js .test-build/tests/wilds-render-contract.test.js`
 
-- [ ] **Step 3: Implement the authored forms**
+- [x] **Step 3: Implement the authored forms**
 
   Upgrade only already-streamed overlooks and entrances. Reuse materials and merge repeated compass/stone parts where practical; keep HTML labels within their existing short-distance gates and preserve exact click semantics.
 
-- [ ] **Step 4: Run focused gates and typecheck**
+- [x] **Step 4: Run focused gates and typecheck**
 
   Run: `pnpm exec tsc --noEmit && node --test .test-build/tests/wilds-aerial-integration.test.js .test-build/tests/wilds-render-contract.test.js`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   `git commit -m "feat: refine Wildz traversal landmarks"`
 

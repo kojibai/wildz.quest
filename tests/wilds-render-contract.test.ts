@@ -175,6 +175,16 @@ describe("Receiz Wilds rendering contract", () => {
     assert.doesNotMatch(worldArt, /useFrame|requestAnimationFrame|Math\.random/);
   });
 
+  it("gives traversal discoveries and approaches authored readable forms", async () => {
+    const environment = await readFile("src/features/play/WildsEnvironment.tsx", "utf8");
+
+    assert.match(environment, /name="overlook-compass-inlay"/);
+    assert.match(environment, /name="overlook-sightglass"/);
+    assert.match(environment, /name="landmark-approach-crown"/);
+    assert.match(environment, /Open \$\{overlook\.name\} vista/);
+    assert.match(environment, /overlook\.distance <= 2\.2/);
+  });
+
   it("builds the explorer from articulated anatomy and secondary motion", async () => {
     const explorer = await readFile("src/features/play/WildsExplorer.tsx", "utf8");
     const world = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");

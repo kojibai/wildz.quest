@@ -153,15 +153,19 @@ function AuthoredOverlooks({ onSelect, player }: { onSelect: (overlookId: WildsO
         <cylinderGeometry args={[1.3, 1.46, .14, 18]} />
         <meshStandardMaterial color="#405d54" emissive="#6edab5" emissiveIntensity={.16} roughness={.9} />
       </mesh>
-      <mesh position={[0, .1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh name="overlook-compass-inlay" position={[0, .1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <torusGeometry args={[1.02, .045, 8, 40]} />
         <meshStandardMaterial color="#d8f5bf" emissive="#74d99c" emissiveIntensity={.72} />
       </mesh>
-      <group position={[0, .98, -.7]}>
-        <mesh><cylinderGeometry args={[.035, .05, 1.8, 7]} /><meshStandardMaterial color="#d8e9d1" roughness={.65} /></mesh>
-        <mesh position={[.28, .54, 0]} rotation={[0, 0, -.18]}>
-          <planeGeometry args={[.58, .38]} />
-          <meshStandardMaterial color="#73d99b" emissive="#2c7e56" emissiveIntensity={.38} side={THREE.DoubleSide} />
+      <group name="overlook-sightglass" position={[0, .86, -.76]}>
+        <mesh position={[0, -.12, 0]}><cylinderGeometry args={[.055, .09, 1.48, 7]} /><meshStandardMaterial color="#c9d9c7" metalness={.24} roughness={.56} /></mesh>
+        <mesh position={[0, .5, 0]} rotation={[0, Math.PI / 2, 0]}>
+          <torusGeometry args={[.31, .075, 8, 28]} />
+          <meshStandardMaterial color="#d8f5bf" emissive="#73d99b" emissiveIntensity={.42} metalness={.18} roughness={.4} />
+        </mesh>
+        <mesh name="overlook-sightglass-lens" position={[0, .5, 0]} rotation={[0, Math.PI / 2, 0]}>
+          <circleGeometry args={[.265, 24]} />
+          <meshPhysicalMaterial color="#83e4cc" emissive="#2c7e68" emissiveIntensity={.3} opacity={.62} roughness={.16} side={THREE.DoubleSide} transparent transmission={.14} />
         </mesh>
       </group>
       {overlook.distance <= 12 ? <Html center className="wilds-overlook-label" distanceFactor={8} occlude={false} position={[0, 1.72, 0]} zIndexRange={[10, 0]}>
@@ -225,6 +229,16 @@ function LandmarkEntranceBeacon({ landmark, distance }: { landmark: WildsLandmar
       <cylinderGeometry args={[.035, .16, 8.4, 10]} />
       <meshBasicMaterial color={landmark.accent} transparent opacity={.2} />
     </mesh>
+    <group name="landmark-approach-crown" position={[0, 2.2, 0]}>
+      <mesh rotation={[0, Math.PI / 2, 0]}>
+        <torusGeometry args={[.72, .075, 8, 32, Math.PI]} />
+        <meshStandardMaterial color="#667b6b" emissive={landmark.accent} emissiveIntensity={.34} metalness={.14} roughness={.68} />
+      </mesh>
+      <mesh position={[0, .72, 0]} rotation={[0, Math.PI / 4, 0]}>
+        <octahedronGeometry args={[.18, 0]} />
+        <meshStandardMaterial color={landmark.accent} emissive={landmark.accent} emissiveIntensity={.84} roughness={.28} />
+      </mesh>
+    </group>
     <Html center distanceFactor={9} occlude={false} position={[0, 6.15, 0]} zIndexRange={[14, 1]}>
       <div className="wilds-landmark-wayfinder" style={{ "--landmark-accent": landmark.accent } as React.CSSProperties}>
         <span>{Math.max(0, Math.round(distance - landmark.radius))}m</span>
