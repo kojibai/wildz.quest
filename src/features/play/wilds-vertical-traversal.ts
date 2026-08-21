@@ -110,7 +110,12 @@ export function writeWildsVerticalTraversalStep(
     state.offset = quantize(bounded(state.offset, state.safeMin, state.safeMax));
   }
   const canClimb = input.powered === true && input.stamina > 0;
-  const direction = canClimb ? input.intent : -1;
+  const actorFootY = input.terrainElevation + state.offset;
+  const blockedBelowObstacle = Number.isFinite(input.obstacleTopY)
+    && actorFootY < input.obstacleTopY! + AIR_OBSTACLE_CLEARANCE - .000001;
+  const direction = canClimb
+    ? input.intent > 0 && blockedBelowObstacle ? 0 : input.intent
+    : -1;
   const speed = direction > 0 ? 1.6 + lift * 2.4 : direction < 0 ? 1.25 : 0;
   state.offset = quantize(bounded(state.offset + direction * speed * delta, state.safeMin, state.safeMax));
   state.worldY = quantize(input.terrainElevation + state.offset);

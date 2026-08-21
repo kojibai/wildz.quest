@@ -7,6 +7,7 @@ import {
 import {
   wildsObstacleBlocksVerticalBand,
   wildsObstacleVerticalBounds,
+  WILDS_RENDERED_PHYSICAL_OBSTACLES,
   wildsTerrainObstaclesForTile,
   type WildsTerrainObstacle
 } from "./wilds-terrain-obstacles";
@@ -79,11 +80,13 @@ export function writeWildsAerialCollisionSample(
   output.obstacleTopY = Number.NaN;
   output.ceilingY = Number.NaN;
   output.protectedAirspace = false;
+  for (let index = 0; index < WILDS_RENDERED_PHYSICAL_OBSTACLES.length; index += 1) {
+    writeObstacleConstraint(point, footY, actorHeight, capsuleRadius, WILDS_RENDERED_PHYSICAL_OBSTACLES[index]!, output);
+  }
   if (obstacles) {
     for (let index = 0; index < obstacles.length; index += 1) {
       writeObstacleConstraint(point, footY, actorHeight, capsuleRadius, obstacles[index]!, output);
     }
-    return output;
   }
   const tileX = Math.floor(point.x / WILDS_TERRAIN_TILE_SIZE);
   const tileZ = Math.floor(point.z / WILDS_TERRAIN_TILE_SIZE);
@@ -180,6 +183,15 @@ function movementObstacles(start: Point, target: Point, capsuleRadius: number) {
   const firstTileZ = Math.floor((Math.min(start.z, target.z) - margin) / WILDS_TERRAIN_TILE_SIZE);
   const lastTileZ = Math.floor((Math.max(start.z, target.z) + margin) / WILDS_TERRAIN_TILE_SIZE);
   const obstacles: WildsTerrainObstacle[] = [];
+  for (let index = 0; index < WILDS_RENDERED_PHYSICAL_OBSTACLES.length; index += 1) {
+    const obstacle = WILDS_RENDERED_PHYSICAL_OBSTACLES[index]!;
+    if (obstacle.kind === "aerial-hazard" || obstacle.kind === "ceiling") continue;
+    const reach = obstacle.radius + margin;
+    const centerX = (start.x + target.x) * .5;
+    const centerZ = (start.z + target.z) * .5;
+    const segmentReach = Math.hypot(target.x - start.x, target.z - start.z) * .5;
+    if (Math.hypot(obstacle.position.x - centerX, obstacle.position.z - centerZ) <= reach + segmentReach) obstacles.push(obstacle);
+  }
   for (let tileZ = firstTileZ; tileZ <= lastTileZ; tileZ += 1) {
     for (let tileX = firstTileX; tileX <= lastTileX; tileX += 1) {
       obstacles.push(...cachedTileObstacles(tileX, tileZ));
@@ -433,4 +445,20 @@ export function resolveWildsSafeLandingPosition(
     }
   }
   return null;
+}
+
+export function resolveWildsRequiredLandingPosition(
+  current: Point,
+  safeAnchor: Point,
+  options: {
+    capsuleRadius?: number;
+    capabilities?: readonly TraversalCapability[];
+    obstacles?: readonly WildsTerrainObstacle[];
+    searchRadius?: number;
+  } = {}
+) {
+  const currentLanding = finitePoint(current) ? resolveWildsSafeLandingPosition(current, options) : null;
+  if (currentLanding) return currentLanding;
+  if (!finitePoint(safeAnchor)) return null;
+  return resolveWildsSafeLandingPosition(safeAnchor, options);
 }

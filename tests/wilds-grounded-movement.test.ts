@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   createWildsAerialCollisionSample,
+  resolveWildsRequiredLandingPosition,
   resolveWildsGroundMovement,
   resolveWildsObstacleMotion,
   resolveWildsSafeLandingPosition,
@@ -9,9 +10,13 @@ import {
 } from "../src/features/play/wilds-grounded-movement";
 import { sampleWildsTerrain } from "../src/features/play/wilds-terrain-authority";
 import {
+  projectWildsRenderedLivingObstacles,
   wildsObstacleBlocksVerticalBand,
+  wildsTerrainObstaclesForTile,
   type WildsTerrainObstacle
 } from "../src/features/play/wilds-terrain-obstacles";
+import { initialWildsWorldProjection } from "../src/features/play/wilds-world-state";
+import { createWildsVerticalTraversalState, writeWildsVerticalTraversalStep } from "../src/features/play/wilds-vertical-traversal";
 
 function obstacle(id: string, x: number, z: number, radius: number, material: WildsTerrainObstacle["material"] = "solid"): WildsTerrainObstacle {
   return {
@@ -124,6 +129,66 @@ test("landing deterministically finds clear terrain and refuses inaccessible dee
   assert.deepEqual(first, replay);
   assert.equal(deepWater, null);
   assert.deepEqual(swimmer, { x: -94, z: -240 });
+});
+
+test("required landing never accepts an obstructed, stale, or inaccessible anchor", () => {
+  const deepWater = { x: -94, z: -240 };
+  const trunk = obstacle("tree:required-landing", 18, -24, 8);
+  trunk.position.y = sampleWildsTerrain(18, -24).elevation;
+
+  assert.equal(resolveWildsRequiredLandingPosition(deepWater, deepWater, {
+    capabilities: [], obstacles: [], searchRadius: 0
+  }), null);
+  assert.equal(resolveWildsRequiredLandingPosition({ x: 18, z: -24 }, { x: Number.NaN, z: 0 }, {
+    capabilities: [], obstacles: [trunk], searchRadius: 0
+  }), null);
+});
+
+test("production collision projection exposes the rendered Trail Gate ceiling and Arena protected airspace", () => {
+  const output = createWildsAerialCollisionSample();
+  const gateTerrain = sampleWildsTerrain(72, 40).elevation;
+  writeWildsAerialCollisionSample({ x: 80, z: 48 }, gateTerrain + .35, undefined, output);
+  assert.ok(Number.isFinite(output.ceilingY));
+  assert.ok(output.ceilingY > gateTerrain + 2);
+
+  const arenaTerrain = sampleWildsTerrain(0, 0).elevation;
+  writeWildsAerialCollisionSample({ x: 0, z: 0 }, arenaTerrain + 1, undefined, output);
+  assert.equal(output.protectedAirspace, true);
+});
+
+test("production collision projection includes an active rendered living-world boss", () => {
+  const world = initialWildsWorldProjection();
+  world.sites.site = {
+    id: "site", familyId: "family", name: "Site", position: { x: 30, z: 31 }, radius: 4,
+    phase: "engaged", spawnedAt: "2026-08-21T00:00:00.000Z", expiresAt: "2026-08-22T00:00:00.000Z",
+    bossId: "boss", seedDigest: "a".repeat(64)
+  };
+  world.bosses.boss = {
+    id: "boss", siteId: "site", phase: "engaged", health: 10, maxHealth: 10, defeatedAt: null
+  };
+  const obstacles = projectWildsRenderedLivingObstacles(world);
+  const terrain = sampleWildsTerrain(30, 31).elevation;
+  const output = createWildsAerialCollisionSample();
+  writeWildsAerialCollisionSample({ x: 30, z: 31 }, terrain + 1, obstacles, output);
+
+  assert.equal(output.protectedAirspace, true);
+  assert.ok(obstacles.some((entry) => entry.id === "wildz.rendered.v1:living-boss:boss"));
+});
+
+test("actual generated canopy projection blocks powered ascent until the actor leaves its footprint", () => {
+  let tree: WildsTerrainObstacle | undefined;
+  for (let z = -4; z <= 4 && !tree; z += 1) for (let x = -4; x <= 4 && !tree; x += 1) {
+    tree = wildsTerrainObstaclesForTile(x, z).find((entry) => entry.kind === "tree");
+  }
+  assert.ok(tree);
+  const sample = createWildsAerialCollisionSample();
+  writeWildsAerialCollisionSample(tree.position, tree.position.y + .35, undefined, sample);
+  const state = createWildsVerticalTraversalState();
+  writeWildsVerticalTraversalStep(state, {
+    deltaSeconds: .1, initialOffset: .35, intent: 1, layer: "air", liftPotential: 1,
+    obstacleTopY: sample.obstacleTopY, powered: true, stamina: 100, terrainElevation: tree.position.y
+  });
+  assert.equal(state.offset, .35);
 });
 
 test("airborne movement cannot cross terrain higher than its actual world altitude", () => {

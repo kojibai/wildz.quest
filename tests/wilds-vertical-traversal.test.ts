@@ -155,6 +155,59 @@ describe("Wildz bounded vertical traversal", () => {
     assert.equal(state.safeMin, .35);
   });
 
+  it("blocks powered ascent through a canopy until horizontal clearance is real", () => {
+    const state = createWildsVerticalTraversalState();
+    writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: 0,
+      initialOffset: .35,
+      intent: 0,
+      layer: "air",
+      liftPotential: 1,
+      obstacleTopY: 4,
+      powered: true,
+      stamina: 100,
+      terrainElevation: 0
+    });
+    for (let index = 0; index < 20; index += 1) writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: .1,
+      intent: 1,
+      layer: "air",
+      liftPotential: 1,
+      obstacleTopY: 4,
+      powered: true,
+      stamina: 100,
+      terrainElevation: 0
+    });
+    assert.equal(state.offset, .35);
+
+    writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: .1,
+      intent: 1,
+      layer: "air",
+      liftPotential: 1,
+      powered: true,
+      stamina: 100,
+      terrainElevation: 0
+    });
+    assert.ok(state.offset > .35);
+  });
+
+  it("allows an already-clear legitimate air start to keep ascending above canopy", () => {
+    const state = createWildsVerticalTraversalState();
+    writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: .1,
+      initialOffset: 5,
+      intent: 1,
+      layer: "air",
+      liftPotential: 1,
+      obstacleTopY: 4,
+      powered: true,
+      stamina: 100,
+      terrainElevation: 10
+    });
+    assert.ok(state.offset > 5);
+  });
+
   it("does not let an unpowered glide climb", () => {
     const state = createWildsVerticalTraversalState();
     writeWildsVerticalTraversalStep(state, {

@@ -130,7 +130,7 @@ import {
   type WildsVerticalTraversalIntent,
   type WildsVerticalTraversalState
 } from "@/features/play/wilds-vertical-traversal";
-import { resolveWildsSafeLandingPosition } from "@/features/play/wilds-grounded-movement";
+import { resolveWildsRequiredLandingPosition } from "@/features/play/wilds-grounded-movement";
 import { projectCreatureCapabilityIdentity } from "@/features/play/creature-capability-identity";
 import { wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
 
@@ -861,10 +861,10 @@ export function PlayCampaign({
     const runtime = aerialStateRef.current;
     if (!runtime.landingRequired) return;
     const anchor = runtime.safeAnchor;
-    const requested = resolveWildsSafeLandingPosition(state.player, { capabilities: activeTraversalCapabilities });
-    const landing = requested
-      ?? resolveWildsSafeLandingPosition(anchor, { capabilities: activeTraversalCapabilities, searchRadius: 0 })
-      ?? anchor;
+    const landing = resolveWildsRequiredLandingPosition(state.player, anchor, {
+      capabilities: activeTraversalCapabilities
+    });
+    if (!landing) return;
     completeWildsAerialLanding(runtime, landing.x, landing.z, wildsTerrainElevation(landing.x, landing.z));
     resetWildsVerticalTraversalState(verticalTraversalRef.current);
     verticalIntentRef.current = 0;

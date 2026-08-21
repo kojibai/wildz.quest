@@ -1,5 +1,6 @@
 import { projectWildsBiome } from "./wilds-biome";
 import { WILDS_FLAGSHIP_LANDMARKS } from "./wilds-landmarks";
+import type { WildsWorldProjection } from "./wilds-world-state";
 import {
   WILDS_TERRAIN_TILE_SIZE,
   WILDS_LANDMARK_BLEND_APRON,
@@ -28,6 +29,78 @@ export type WildsObstacleIndex = {
   cellSize: number;
   cells: ReadonlyMap<string, readonly WildsTerrainObstacle[]>;
 };
+
+function renderedTerrainY(x: number, z: number) {
+  return sampleWildsTerrain(x, z).elevation;
+}
+
+// These spans are the collision projection of geometry rendered by
+// ArenaOfEchoes and WildsSettlementEnvironment. Keep their dimensions paired
+// with the named meshes so traversal consumes the same physical world players see.
+export const WILDS_RENDERED_PHYSICAL_OBSTACLES: readonly WildsTerrainObstacle[] = [
+  {
+    id: "wildz.rendered.v1:arena-of-echoes:protected-airspace",
+    kind: "aerial-hazard",
+    material: "conditional",
+    position: { x: 0, y: renderedTerrainY(0, 0) + .45, z: 0 },
+    radius: 7.1,
+    shape: { kind: "cylinder", radius: 7.1, height: 7.55 },
+    visualScale: 1,
+    airbornePolicy: "persistent"
+  },
+  {
+    id: "wildz.rendered.v1:wayfinder-hollow:trail-gate-beam",
+    kind: "ceiling",
+    material: "solid",
+    position: { x: 80, y: renderedTerrainY(72, 40) + 2.48, z: 48 },
+    radius: 1.8,
+    shape: { kind: "box", halfX: 1.75, halfY: .14, halfZ: .21 },
+    visualScale: 1,
+    airbornePolicy: "persistent"
+  },
+  {
+    id: "wildz.rendered.v1:wayfinder-hollow:timber-hall",
+    kind: "structure",
+    material: "solid",
+    position: { x: 72, y: renderedTerrainY(72, 40) + 1.25, z: 42.25 },
+    radius: 2.25,
+    shape: { kind: "box", halfX: 2.2, halfY: 1.25, halfZ: 1.4 },
+    visualScale: 1,
+    airbornePolicy: "persistent"
+  }
+] as const;
+
+export function projectWildsRenderedLivingObstacles(world?: WildsWorldProjection | null) {
+  if (!world) return [] as WildsTerrainObstacle[];
+  const obstacles: WildsTerrainObstacle[] = [];
+  for (const site of Object.values(world.sites)) {
+    if (site.phase === "expired") continue;
+    const terrainY = renderedTerrainY(site.position.x, site.position.z);
+    obstacles.push({
+      id: `wildz.rendered.v1:living-site:${site.id}`,
+      kind: "structure",
+      material: "solid",
+      position: { x: site.position.x, y: terrainY + .4, z: site.position.z },
+      radius: 2.7,
+      shape: { kind: "cylinder", radius: 2.7, height: .8 },
+      visualScale: 1,
+      airbornePolicy: "persistent"
+    });
+    const boss = site.bossId ? world.bosses[site.bossId] : null;
+    if (!boss || boss.phase === "defeated" || boss.phase === "memorialized" || boss.phase === "withdrawn") continue;
+    obstacles.push({
+      id: `wildz.rendered.v1:living-boss:${boss.id}`,
+      kind: "aerial-hazard",
+      material: "conditional",
+      position: { x: site.position.x, y: terrainY + .3, z: site.position.z },
+      radius: 1.35,
+      shape: { kind: "cylinder", radius: 1.35, height: 2.7 },
+      visualScale: 1,
+      airbornePolicy: "persistent"
+    });
+  }
+  return obstacles.sort((left, right) => left.id.localeCompare(right.id));
+}
 
 export function wildsObstacleVerticalBounds(obstacle: WildsTerrainObstacle) {
   if (obstacle.shape.kind === "box") {

@@ -72,6 +72,7 @@ import {
   createWildsAerialCollisionSample,
   writeWildsAerialCollisionSample
 } from "@/features/play/wilds-grounded-movement";
+import { projectWildsRenderedLivingObstacles } from "@/features/play/wilds-terrain-obstacles";
 
 const WILDS_DIAGNOSTICS_ENABLED = process.env.NODE_ENV !== "production";
 
@@ -272,6 +273,7 @@ function WildsScene({
     [state.inventory, state.selectedAssetId]
   );
   const activeAppearance = useMemo(() => activeAsset ? projectCardKaiAppearance(activeAsset) : null, [activeAsset]);
+  const livingPhysicalObstacles = useMemo(() => projectWildsRenderedLivingObstacles(livingWorld), [livingWorld]);
   const actualCameraSubmergedRef = useRef(false);
   return (
     <WildsReadabilityProvider value={readability}>
@@ -315,7 +317,7 @@ function WildsScene({
             : null
         ))}
       </SmoothWorldFrame>
-      <AerialPlayerFrame aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} pressurePotential={pressurePotential} swimStamina={state.energy} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} player={state.player} runtime={aerialStateRef} verticalIntentRef={verticalIntentRef} verticalTraversalRef={verticalTraversalRef}>
+      <AerialPlayerFrame aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} livingPhysicalObstacles={livingPhysicalObstacles} pressurePotential={pressurePotential} swimStamina={state.energy} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} player={state.player} runtime={aerialStateRef} verticalIntentRef={verticalIntentRef} verticalTraversalRef={verticalTraversalRef}>
         <WildsExplorer
           aerialPalette={{
             primary: activeAppearance?.palette.primary ?? "#c9fff0",
@@ -339,12 +341,13 @@ function WildsScene({
   );
 }
 
-function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizontalAllowedRef, liftPotential, pressurePotential, swimStamina, onEnergyChange, onModeChange, onLandingRequired, onVerticalReadoutChange, player, runtime, verticalIntentRef, verticalTraversalRef }: {
+function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizontalAllowedRef, liftPotential, livingPhysicalObstacles, pressurePotential, swimStamina, onEnergyChange, onModeChange, onLandingRequired, onVerticalReadoutChange, player, runtime, verticalIntentRef, verticalTraversalRef }: {
   aquaticPresentation: WildsAquaticPresentation;
   capabilities: readonly WildsTraversalCapability[];
   children: ReactNode;
   horizontalAllowedRef: MutableRefObject<boolean>;
   liftPotential: number;
+  livingPhysicalObstacles: readonly import("@/features/play/wilds-terrain-obstacles").WildsTerrainObstacle[];
   pressurePotential: number;
   swimStamina: number;
   onEnergyChange: (energy: number) => void;
@@ -385,7 +388,7 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizo
     const collisionSample = writeWildsAerialCollisionSample(
       player,
       currentVertical.layer === "air" ? currentVertical.worldY : groundElevation + .35,
-      undefined,
+      livingPhysicalObstacles,
       collisionSampleRef.current
     );
     const aerialInput = runtimeStep.current;
