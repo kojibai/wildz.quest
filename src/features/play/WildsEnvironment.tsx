@@ -135,6 +135,7 @@ export function WildsEnvironment({
         <WildsWorldArt
           player={player}
           qualityProfile={qualityProfile}
+          terrainElevation={terrainElevation}
           trail={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }}
         />
       </group>

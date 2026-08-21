@@ -10,9 +10,10 @@ import type { WildsWorldEcologyProjection, WildsWorldProjection } from "./wilds-
 import { useWildsReadability } from "./WildsReadabilityContext";
 import { projectWildsTerrainActorPosition } from "./wilds-terrain-rendering";
 
-export function WildsEcologyEnvironment({ livingWorld, player, worldMode }: {
+export function WildsEcologyEnvironment({ livingWorld, player, terrainElevation, worldMode }: {
   livingWorld?: WildsWorldProjection | null;
   player: { x: number; z: number };
+  terrainElevation: number;
   worldMode: WildsSettlementWorldMode;
 }) {
   const sites = useMemo(() => Object.values(livingWorld?.ecologySites ?? {})
@@ -35,7 +36,7 @@ export function WildsEcologyEnvironment({ livingWorld, player, worldMode }: {
         geometry={geometry}
         key={site.id}
         materials={materials}
-        relative={projectWildsTerrainActorPosition(site.position, player)}
+        relative={projectWildsTerrainActorPosition(site.position, player, 0, { anchorElevation: terrainElevation })}
         site={site}
         worldMode={worldMode}
       />

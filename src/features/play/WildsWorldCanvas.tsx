@@ -251,8 +251,8 @@ function WildsScene({
           livingWorld={livingWorld}
           worldMode={worldMode}
         />
-        <WildsEcologyEnvironment livingWorld={livingWorld} player={state.player} worldMode={worldMode} />
-        <WildsBossEnvironment livingWorld={livingWorld} player={state.player} qualityProfile={qualityProfile} />
+        <WildsEcologyEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={aquaticPresentation.terrainElevation} worldMode={worldMode} />
+        <WildsBossEnvironment livingWorld={livingWorld} player={state.player} qualityProfile={qualityProfile} terrainElevation={aquaticPresentation.terrainElevation} />
         <EncounterSequence state={state} terrainElevation={aquaticPresentation.terrainElevation} />
         {visibleRemotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} terrainElevation={aquaticPresentation.terrainElevation} />)}
         {trainers.map((trainer, index) => (

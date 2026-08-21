@@ -5,7 +5,6 @@ import * as THREE from "three";
 import type { PlayState } from "./game-state";
 import type { WildsBiomeTile } from "./wilds-biome";
 import type { WildsQualityProfile } from "./wilds-quality-profile";
-import { wildsTerrainElevation } from "./wilds-terrain-authority";
 import {
   projectWildsRouteGuides,
   type WildsRouteGuide
@@ -14,24 +13,28 @@ import {
 export function WildsWorldArt({
   player,
   qualityProfile,
+  terrainElevation,
   trail
 }: {
   player: PlayState["player"];
   qualityProfile: WildsQualityProfile;
+  terrainElevation: number;
   trail: WildsBiomeTile["trail"];
 }) {
   return <group name="world-authored-art-layers">
-    <RouteWaystones player={player} qualityProfile={qualityProfile} trail={trail} />
+    <RouteWaystones player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} trail={trail} />
   </group>;
 }
 
 function RouteWaystones({
   player,
   qualityProfile,
+  terrainElevation,
   trail
 }: {
   player: PlayState["player"];
   qualityProfile: WildsQualityProfile;
+  terrainElevation: number;
   trail: WildsBiomeTile["trail"];
 }) {
   const radius = qualityProfile.tier === "low" ? 24 : qualityProfile.tier === "medium" ? 28 : 32;
@@ -47,7 +50,7 @@ function RouteWaystones({
   useLayoutEffect(() => positionRouteWaystones(guides, bases.current, crowns.current, signals.current), [guides]);
   return <group
     name="world-route-waystones"
-    position={[-player.x, -wildsTerrainElevation(player.x, player.z), -player.z]}
+    position={[-player.x, -terrainElevation, -player.z]}
   >
     <instancedMesh args={[undefined, undefined, guides.length]} name="route-waystone-bases" ref={bases}>
       <dodecahedronGeometry args={[.22, 0]} />

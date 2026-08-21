@@ -199,7 +199,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.doesNotMatch(worldArt, /WorldScaleSilhouettes|createFacetedRidgeGeometry|world-ridge-family/);
     assert.match(worldArt, /projectWildsRouteGuides/);
     assert.match(worldArt, /InstancedMesh/);
-    assert.match(worldArt, /wildsTerrainElevation\(player\.x, player\.z\)/);
+    assert.match(worldArt, /position=\{\[-player\.x, -terrainElevation, -player\.z\]\}/);
+    assert.doesNotMatch(worldArt, /wildsTerrainElevation\(player\.x, player\.z\)/);
     assert.match(environment, /instancedMesh/);
     assert.match(world, /<WildsEnvironment/);
   });

@@ -1,8 +1,28 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { test } from "node:test";
 
 const source = (path: string) => readFileSync(path, "utf8");
+
+function functionCalls(input: string, name: string) {
+  const calls: string[] = [];
+  const marker = `${name}(`;
+  let cursor = 0;
+  while ((cursor = input.indexOf(marker, cursor)) >= 0) {
+    let depth = 0;
+    let end = cursor + marker.length;
+    for (; end < input.length; end += 1) {
+      const character = input[end]!;
+      if (character === "(") depth += 1;
+      if (character !== ")") continue;
+      if (depth === 0) break;
+      depth -= 1;
+    }
+    calls.push(input.slice(cursor, end + 1));
+    cursor = end + 1;
+  }
+  return calls;
+}
 
 test("camera orbit publishes heading through a ref without React state or diagnostic restarts", () => {
   const campaign = source("src/features/play/PlayCampaign.tsx");
@@ -151,4 +171,21 @@ test("trainer frames and environment consumers reuse the admitted player terrain
   assert.match(trainer, /projectWildsTerrainActorPosition\(world, localPlayer, 0, \{ anchorElevation: terrainElevation \}\)/);
   assert.doesNotMatch(trainer, /wildsTerrainElevation|sampleWildsTerrain/);
   assert.doesNotMatch(environment, /wildsTerrainRelativeElevation\([^)]*, player\)/);
+});
+
+test("every production terrain-relative presentation call declares its anchor authority", () => {
+  const production = readdirSync("src/features/play")
+    .filter((name) => name.endsWith(".tsx"))
+    .map((name) => ({ name, contents: source(`src/features/play/${name}`) }));
+  const actorCalls = production.flatMap(({ name, contents }) => functionCalls(contents, "projectWildsTerrainActorPosition").map((call) => ({ call, name })));
+  const relativeCalls = production.flatMap(({ name, contents }) => functionCalls(contents, "wildsTerrainRelativeElevation").map((call) => ({ call, name })));
+
+  assert.ok(actorCalls.length >= 10);
+  assert.ok(relativeCalls.length >= 4);
+  for (const { call, name } of [...actorCalls, ...relativeCalls]) {
+    assert.match(call, /anchorElevation\s*:/, `${name}: ${call}`);
+  }
+  for (const { contents, name } of production) {
+    assert.doesNotMatch(contents, /wildsTerrainElevation\(player\.x, player\.z\)/, name);
+  }
 });

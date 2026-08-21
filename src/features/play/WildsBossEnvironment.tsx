@@ -19,10 +19,11 @@ const FAMILY_ART: Record<WildsBossFamilyId, { shell: string; core: string; signa
   "voidroot-devourer": { shell: "#17131f", core: "#e1a8ff", signal: "#9d5cff", scale: 1.25 }
 };
 
-export function WildsBossEnvironment({ livingWorld, player, qualityProfile }: {
+export function WildsBossEnvironment({ livingWorld, player, qualityProfile, terrainElevation }: {
   livingWorld?: WildsWorldProjection | null;
   player: { x: number; z: number };
   qualityProfile: WildsQualityProfile;
+  terrainElevation: number;
 }) {
   const visibleBosses = useMemo(() => Object.values(livingWorld?.bosses ?? {})
     .filter((boss) => boss.phase !== "withdrawn" && boss.phase !== "memorialized")
@@ -32,7 +33,7 @@ export function WildsBossEnvironment({ livingWorld, player, qualityProfile }: {
     .slice(0, 1), [livingWorld?.bosses, player]);
   return (
     <group name="wilds-boss-environment" userData={{ detailedBosses: visibleBosses.length, bossFamilies: WILDS_BOSS_FAMILIES.length, maxDetailedBosses: 1 }}>
-      {visibleBosses.map(({ boss }) => <BossActor boss={boss} key={boss.id} player={player} qualityProfile={qualityProfile} />)}
+      {visibleBosses.map(({ boss }) => <BossActor boss={boss} key={boss.id} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} />)}
     </group>
   );
 }
@@ -42,7 +43,7 @@ function bossDistance(boss: WildsWorldBossProjection, player: { x: number; z: nu
   return position ? Math.hypot(position.x - player.x, position.z - player.z) : Number.POSITIVE_INFINITY;
 }
 
-function BossActor({ boss, player, qualityProfile }: { boss: WildsWorldBossProjection; player: { x: number; z: number }; qualityProfile: WildsQualityProfile }) {
+function BossActor({ boss, player, qualityProfile, terrainElevation }: { boss: WildsWorldBossProjection; player: { x: number; z: number }; qualityProfile: WildsQualityProfile; terrainElevation: number }) {
   const root = useRef<THREE.Group>(null);
   const signals = useRef<THREE.InstancedMesh>(null);
   const familyId = boss.familyId as WildsBossFamilyId;
@@ -74,7 +75,7 @@ function BossActor({ boss, player, qualityProfile }: { boss: WildsWorldBossProje
   });
 
   return (
-    <group position={projectWildsTerrainActorPosition(position, player)}>
+    <group position={projectWildsTerrainActorPosition(position, player, 0, { anchorElevation: terrainElevation })}>
     <group ref={root} scale={art.scale * phaseScale}>
       <mesh position={[0, .08, 0]} receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[2.05, 2.32, 48]} />
