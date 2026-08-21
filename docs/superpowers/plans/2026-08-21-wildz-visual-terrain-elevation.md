@@ -67,9 +67,34 @@
 
 - Modify: `docs/superpowers/plans/2026-08-21-wildz-visual-terrain-elevation.md`
 
-- [ ] Run the full test suite.
-- [ ] Build the production application.
-- [ ] Verify `/world` in a mobile WebKit viewport: nonblank canvas, no console errors, terrain under the explorer, visible elevation, no cracks or obvious floating scenery.
-- [ ] Confirm existing save/proof/player coordinate types remain unchanged.
-- [ ] Mark every plan step complete and run `git diff --check`.
-- [ ] Commit Phase 2 qualification evidence.
+- [x] Run the full test suite.
+- [x] Build the production application.
+- [x] Verify `/world` in a mobile WebKit viewport: nonblank canvas, no console errors, terrain under the explorer, visible elevation, no cracks or obvious floating scenery.
+- [x] Confirm existing save/proof/player coordinate types remain unchanged.
+- [x] Mark every plan step complete and run `git diff --check`.
+- [x] Commit Phase 2 qualification evidence.
+
+## Phase 2 qualification evidence
+
+- Full repository tests: 1,342 passed, 0 failed across 122 suites.
+- Production build: passed with the pre-existing Receiz `web-worker` dynamic-import warning; route generation and type/lint gates passed.
+- Production WebKit mobile: 390×844 CSS pixels, 487×1054 drawing buffer, zero console errors.
+- Production WebKit desktop: 1280×720 CSS pixels, 1600×900 drawing buffer, zero console errors.
+- Interaction: continuous mobile trackpad travel moved the explorer from approximately `(-2, -1)` to `(-181, -288)` and streamed terrain without errors; production terrain click advanced the scan prompt to `Signal warm. Follow the search clue.`
+- Canvas variance fallback: isolated canvas RGB standard deviations were 56.92, 50.97, and 40.16; the canvas was nonblank and visually varied.
+- Renderer diagnostics: 96 calls, 77,120 triangles, 93 geometries, 5 textures, DPR 1.25; within the released 160-call and 180,000-triangle budget.
+- Save compatibility: no save, proof, player-coordinate, or world-record schema changed; elevation remains a deterministic projection of existing `x/z` coordinates.
+- Screenshots: `output/playwright/terrain-phase2-mobile-webkit.png`, `output/playwright/terrain-phase2-mobile-elevated-active.png`, and `output/playwright/terrain-phase2-desktop-webkit.png`.
+
+### QA reference ledger
+
+- Yes — `threejs-qa-release/references/qa-release-checklists.md`: browser, interaction, performance, and release evidence format.
+- Yes — `threejs-qa-release/references/checklists/visual-verification.md`: canvas dimensions, pixel variance, screenshots, and responsive checks.
+- Yes — `threejs-qa-release/references/checklists/playtest-qa.md`: movement, streaming, and terrain-scan state changes.
+- Yes — `threejs-qa-release/references/checklists/release.md`: fresh production build and production WebKit verification.
+- Yes — `threejs-aaa-graphics-builder/references/checklists/aaa-game-quality-gate.md` and linked visual/performance checklists: renderer budget and honest visual-gate assessment.
+- No — packaged `inspect-threejs-canvas.mjs`: unavailable because the skill runtime lacks `@playwright/test`; replaced with WebKit canvas capture plus Sharp channel statistics. This did not block equivalent canvas evidence.
+
+### Visual gate assessment
+
+Phase 2 passes its terrain-specific visual gate: deterministic relief, grounding, streaming, responsive framing, and performance evidence are present. It does not claim the complete AAA world gate yet; grounded collision, traversal abilities, vista composition, and the later material/detail pass remain intentionally assigned to subsequent architecture phases.
