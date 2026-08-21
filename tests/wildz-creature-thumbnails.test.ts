@@ -32,6 +32,14 @@ test("thumbnails retain functional wings carried by the sealed genome", () => {
   assert.match(thumbnail, /data-anatomy="functional-wing"/);
 });
 
+test("thumbnail markup carries identity blink hooks for a scoped portrait animation", () => {
+  const thumbnail = renderPortableCreatureThumbnail(trueWingCard);
+
+  assert.match(thumbnail, /data-identity-signature="[^"]+"/);
+  assert.match(thumbnail, /style="[^"]*--heartbound-blink:\d+ms;/);
+  assert.match(thumbnail, /data-slot="eyes"/);
+});
+
 test("thumbnail art retains a canonical glide membrane distinctly from powered lift", () => {
   const genome = deriveBirthGenome({
     formId: trueWingCard.manifest.formId,

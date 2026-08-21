@@ -13917,6 +13917,11 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-companion-command:active,
 .wilds-companion-command-zone.mode-ability-wheel .wilds-companion-command { transform: scale(.96); border-color: #e9d77e; box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 24px rgba(232, 210, 108, .18), inset 0 1px rgba(255,255,255,.14); }
 .wilds-companion-command > .wilds-companion-active-portrait { width: 58px; height: 58px; overflow: visible; border: 0; border-radius: 0; background: transparent; filter: drop-shadow(0 6px 8px rgba(0,0,0,.42)); }
+.wildz-companion-home:not([aria-hidden="true"]) .wilds-companion-active-portrait [data-slot] { transform-box: fill-box; }
+.wildz-companion-home:not([aria-hidden="true"]) .wilds-companion-active-portrait [data-slot="eyes"] {
+  transform-origin: center;
+  animation: wilds-creature-blink var(--heartbound-blink, 3600ms) linear infinite;
+}
 .wilds-companion-power-label { position: absolute; right: 5px; bottom: 5px; left: 5px; z-index: 3; overflow: hidden; padding: 3px 5px; border: 1px solid rgba(232, 217, 139, .28); border-radius: 999px; color: #fff4b5; background: rgba(4, 18, 16, .84); font-size: 7px; font-weight: 950; letter-spacing: .04em; line-height: 1; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; backdrop-filter: blur(8px); }
 .wilds-companion-command > small { position: absolute; top: 5px; right: 6px; z-index: 3; color: rgba(244,255,247,.7); font-size: 7px; font-weight: 900; }
 .wilds-companion-empty-copy { max-width: 66px; color: rgba(244,255,247,.76); font-size: 8px; font-weight: 800; line-height: 1.15; text-align: center; }
@@ -13943,6 +13948,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 @media (prefers-reduced-motion: reduce) {
   .wilds-companion-command,
   .wilds-companion-ability { transition: none; }
+  .wildz-companion-home:not([aria-hidden="true"]) .wilds-companion-active-portrait [data-slot="eyes"] { animation: none; }
 }
 
 /* Wilds V3 living-world, settlement, ecology, and raid surfaces. */

@@ -42,6 +42,16 @@ test("companion command is thumb-sized, safe-area aware, directional, and motion
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.wilds-companion-command/s);
 });
 
+test("only the visible active companion portrait blinks at its identity cadence", () => {
+  const css = read("app/globals.css");
+  const visiblePortrait = String.raw`\.wildz-companion-home:not\(\[aria-hidden="true"\]\) \.wilds-companion-active-portrait`;
+
+  assert.match(css, new RegExp(`${visiblePortrait} \\[data-slot\\]\\s*\\{[^}]*transform-box:\\s*fill-box;`, "s"));
+  assert.match(css, new RegExp(`${visiblePortrait} \\[data-slot="eyes"\\]\\s*\\{[^}]*animation:\\s*wilds-creature-blink var\\(--heartbound-blink, 3600ms\\) linear infinite;`, "s"));
+  assert.match(css, new RegExp(`@media \\(prefers-reduced-motion: reduce\\)\\s*\\{[\\s\\S]*${visiblePortrait} \\[data-slot="eyes"\\]\\s*\\{[^}]*animation:\\s*none;`));
+  assert.doesNotMatch(css, /\.wilds-creature-thumbnail\s+\[data-slot="eyes"\]\s*\{[^}]*animation:/s);
+});
+
 test("the command requests controlled drawer snaps and replaces the duplicate action rails", () => {
   const command = read("src/features/play/WildsCompanionCommand.tsx");
   const drawer = read("src/features/play/WildzCreatureDrawer.tsx");
