@@ -15537,7 +15537,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   }
 
   .wildz-creature-choice { min-height: 96px; grid-template-columns: 50px minmax(0, 1fr); gap: 6px; padding: 7px; }
-  .wildz-creature-choice-shell { width: 172px; min-width: 172px; min-height: 96px; }
+  .wildz-creature-choice-shell { min-height: 96px; }
   .wildz-creature-spread { grid-template-rows: repeat(4, minmax(96px, 1fr)); gap: 5px; }
   .wildz-creature-choice-copy { gap: 2px; }
 

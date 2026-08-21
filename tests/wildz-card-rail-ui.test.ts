@@ -84,7 +84,8 @@ test("loaded 100-card preview rail coalesces scroll updates without render feedb
   const css = readFileSync("app/globals.css", "utf8");
   assert.match(drawer, /railFrameRef/);
   assert.match(drawer, /window\.requestAnimationFrame/);
-  assert.match(drawer, /previous\.start === start && previous\.end === end \? previous/);
+  assert.match(drawer, /previous\.start === next\.start && previous\.end === next\.end \? previous : next/);
+  assert.match(drawer, /creatureRailRenderWindow/);
   assert.doesNotMatch(drawer, /beginRailScrollGuard|guardRailHorizontalScroll|railGesture/);
   assert.doesNotMatch(drawer, /onPointerDown=\{beginRailScrollGuard\}|onPointerMove=\{guardRailHorizontalScroll\}/);
   assert.match(drawer, /window\.cancelAnimationFrame/);
@@ -97,7 +98,8 @@ test("the single-row rail is scroll-ready before opening and clears the final cr
   const css = readFileSync("app/globals.css", "utf8");
 
   assert.match(drawer, /const windowStyle = mode !== "expanded"/);
-  assert.match(drawer, /creatureRailVirtualPadding\(sortedEntries\.length, range\.start, range\.end, RAIL_CARD_EXTENT, 0\)/);
+  assert.match(drawer, /creatureRailVirtualPadding\(sortedEntries\.length, range\.start, range\.end, RAIL_CARD_STRIDE, 0\)/);
+  assert.match(drawer, /target\.focus\(\{ preventScroll: true \}\)/);
   assert.match(drawer, /className="wildz-creature-window-end"/);
   assert.match(css, /\.wildz-creature-window-end\s*\{[^}]*flex:\s*0 0 40px/s);
 });

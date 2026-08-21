@@ -13,6 +13,7 @@ import type { WildsWorldProjection } from "@/features/play/wilds-world-state";
 import { WildsSettlementEnvironment, type WildsSettlementWorldMode } from "@/features/play/WildsSettlementEnvironment";
 import { WAYFINDER_HOLLOW } from "@/features/play/wilds-settlements";
 import { useWildsReadability } from "@/features/play/WildsReadabilityContext";
+import { projectWildsEcologyInstance } from "@/features/play/wilds-ecology-placement";
 
 export const WILDS_TILE_SIZE = 12;
 const STREAM_RADIUS = 2;
@@ -58,16 +59,10 @@ function useInstances(
     const scale = new THREE.Vector3();
     items.forEach((item, index) => {
       const shaped = shape(item);
-      const relativeX = item.x - player.x;
-      const relativeZ = item.z - player.z;
-      const insidePlayablePocket = Math.hypot(relativeX, relativeZ) < clearRadius;
-      scale.set(
-        insidePlayablePocket ? 0 : shaped[0],
-        insidePlayablePocket ? 0 : shaped[1],
-        insidePlayablePocket ? 0 : shaped[2]
-      );
+      const projected = projectWildsEcologyInstance(item, { x: player.x, z: player.z }, y, shaped, clearRadius);
+      scale.set(...projected.scale);
       quaternion.setFromEuler(new THREE.Euler(0, seededUnit(index, item.variant + 17) * Math.PI * 2, 0));
-      matrix.compose(new THREE.Vector3(relativeX, y, relativeZ), quaternion, scale);
+      matrix.compose(new THREE.Vector3(...projected.position), quaternion, scale);
       mesh.current?.setMatrixAt(index, matrix);
     });
     if (mesh.current) mesh.current.instanceMatrix.needsUpdate = true;
@@ -362,7 +357,7 @@ function EcologyInstances({
   const rockScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.32, item.scale * 0.21, item.scale * 0.38], []);
   const flowerScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.09, item.scale * 0.22, item.scale * 0.09], []);
   const grassScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * .035, item.scale * (qualityProfile.tier === "low" ? .13 : .2), item.scale * .025], [qualityProfile.tier]);
-  const treeClearRadius = Math.hypot(player.x, player.z) < 14 ? 13.6 : 7.2;
+  const treeClearRadius = 13.6;
   useInstances(trunks, trees, player, 0.64, treeScale, treeClearRadius);
   useInstances(lowerCrowns, trees, player, 1.65, crownScale, treeClearRadius);
   useInstances(upperCrowns, trees, player, 2.16, crownScale, treeClearRadius);

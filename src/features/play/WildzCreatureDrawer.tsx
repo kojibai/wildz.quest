@@ -6,6 +6,8 @@ import { sortWildzCards, type WildzCardSort } from "./card-sort";
 import {
   creatureBookWindow,
   creatureDrawerMetrics,
+  creatureRailOffsetForIndex,
+  creatureRailRenderWindow,
   creatureRailVirtualPadding,
   drawerHapticPattern,
   settleCreatureDrawer,
@@ -17,7 +19,9 @@ import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
 import { playHapticPattern } from "./wilds-haptics";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 
-const RAIL_CARD_EXTENT = 184;
+const RAIL_CARD_WIDTH = 184;
+const RAIL_CARD_GAP = 8;
+const RAIL_CARD_STRIDE = RAIL_CARD_WIDTH + RAIL_CARD_GAP;
 const RAIL_END_GUTTER = 40;
 
 function useStableEvent<Arguments extends unknown[]>(handler: (...args: Arguments) => void) {
@@ -94,6 +98,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
   const entryFocusFrameRef = useRef<number | null>(null);
   const pendingFocusAssetIdRef = useRef<string | null>(null);
   const previousSnapRef = useRef<CreatureDrawerSnap>(snap);
+  const railRef = useRef<HTMLDivElement>(null);
   const railFrameRef = useRef<number | null>(null);
   const dragHeight = useRef<number | null>(null);
   const drag = useRef<{ startY: number; startHeight: number; lastY: number; lastAt: number; velocityY: number; moved: boolean } | null>(null);
@@ -179,14 +184,17 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
       entryFocusFrameRef.current = null;
       const target = entryButtonRefs.current.get(assetId);
       if (!target) return;
-      target.focus();
+      if (snap === "preview" && activeIndex >= 0 && railRef.current) {
+        railRef.current.scrollLeft = creatureRailOffsetForIndex(activeIndex, RAIL_CARD_WIDTH, RAIL_CARD_GAP);
+      }
+      target.focus({ preventScroll: true });
       pendingFocusAssetIdRef.current = null;
     });
     return () => {
       if (entryFocusFrameRef.current !== null) window.cancelAnimationFrame(entryFocusFrameRef.current);
       entryFocusFrameRef.current = null;
     };
-  }, [bookPage, range, snap, sortedEntries]);
+  }, [activeIndex, bookPage, range, snap, sortedEntries]);
 
   useEffect(() => {
     if (snap === "closed") return;
@@ -300,10 +308,8 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
       railFrameRef.current = window.requestAnimationFrame(() => {
         railFrameRef.current = null;
         if (!target.isConnected) return;
-        const start = Math.max(0, Math.floor(target.scrollLeft / RAIL_CARD_EXTENT) - 4);
-        const count = Math.ceil(target.clientWidth / RAIL_CARD_EXTENT) + 10;
-        const end = Math.min(sortedEntries.length, start + count);
-        setRange((previous) => previous.start === start && previous.end === end ? previous : { start, end });
+        const next = creatureRailRenderWindow(sortedEntries.length, target.scrollLeft, target.clientWidth, RAIL_CARD_WIDTH, RAIL_CARD_GAP);
+        setRange((previous) => previous.start === next.start && previous.end === next.end ? previous : next);
       });
     }
   };
@@ -319,7 +325,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
 
   const windowedEntries = sortedEntries.slice(range.start, range.end);
   const windowStyle = mode !== "expanded"
-    ? creatureRailVirtualPadding(sortedEntries.length, range.start, range.end, RAIL_CARD_EXTENT, 0)
+    ? creatureRailVirtualPadding(sortedEntries.length, range.start, range.end, RAIL_CARD_STRIDE, 0)
     : undefined;
 
   return <section
@@ -387,6 +393,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
         aria-label="Scroll companions horizontally"
         className="wildz-creature-window"
         onScroll={updateVirtualRange}
+        ref={railRef}
         role="list"
         style={windowStyle}
       >

@@ -4,6 +4,8 @@ import {
   creatureBookWindow,
   creatureDrawerMetrics,
   creatureDrawerMode,
+  creatureRailOffsetForIndex,
+  creatureRailRenderWindow,
   creatureRailVirtualPadding,
   drawerHapticPattern,
   settleCreatureDrawer
@@ -73,5 +75,13 @@ test("single-row drawer rail keeps the final card reachable with end breathing r
   assert.deepEqual(creatureRailVirtualPadding(1, 0, 1, 184, 24), {
     paddingInlineStart: "0px",
     paddingInlineEnd: "24px"
+  });
+});
+
+test("large single-row Slate uses the complete card-and-gap stride", () => {
+  assert.equal(creatureRailOffsetForIndex(14, 184, 8), 2_688);
+  assert.deepEqual(creatureRailRenderWindow(17, 2_688, 320, 184, 8), {
+    start: 10,
+    end: 17
   });
 });

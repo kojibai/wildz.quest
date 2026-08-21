@@ -66,6 +66,27 @@ export function creatureRailVirtualPadding(
   };
 }
 
+export function creatureRailOffsetForIndex(index: number, itemWidth: number, gap: number) {
+  const safeIndex = Math.max(0, Math.trunc(Number.isFinite(index) ? index : 0));
+  const safeWidth = Math.max(0, Number.isFinite(itemWidth) ? itemWidth : 0);
+  const safeGap = Math.max(0, Number.isFinite(gap) ? gap : 0);
+  return safeIndex * (safeWidth + safeGap);
+}
+
+export function creatureRailRenderWindow(
+  totalItems: number,
+  scrollLeft: number,
+  viewportWidth: number,
+  itemWidth: number,
+  gap: number
+) {
+  const safeTotal = Math.max(0, Math.trunc(Number.isFinite(totalItems) ? totalItems : 0));
+  const stride = Math.max(1, Math.max(0, itemWidth) + Math.max(0, gap));
+  const start = Math.max(0, Math.floor(Math.max(0, scrollLeft) / stride) - 4);
+  const count = Math.ceil(Math.max(0, viewportWidth) / stride) + 10;
+  return { start, end: Math.min(safeTotal, start + count) };
+}
+
 export type CreatureBookWindow<Item> = {
   page: number;
   pageSize: 8;
