@@ -102,6 +102,23 @@ An explorer's atlas is private account state unless a future feature explicitly 
 
 The global world remains deterministic and shared: two players visiting the same coordinates reveal the same geography, but each retains an independent record of having discovered it.
 
+## Aquatic Discovery and Swimming Progression
+
+Water geography also becomes deterministic creature habitat. The encounter authority must sample the same terrain authority used by movement and rendering before admitting a water hotspot:
+
+- aquatic and Tide-aligned families are preferentially placed on actual shallow-water, deep-water-edge, marsh, and shoreline coordinates;
+- land families are not presented as submerged encounters unless their sealed habitat and anatomy support water;
+- every released deep-water area that spans multiple encounter regions deterministically receives reachable aquatic discovery opportunities;
+- the first aquatic catch remains possible from dry land or shallow water through the existing bounded scan radius, preventing a requirement to swim before owning a swimmer;
+- farther aquatic discoveries may require leading with an already-owned swimming creature and entering deep water;
+- caught creatures retain their exact generated identity and proof; terrain changes which valid habitat family is encountered, never the proof rules;
+- selecting a living aquatic creature continues to grant `swim` through the existing cached traversal-capability projection;
+- injury, fatigue, retirement, and ownership rules continue to govern whether that exact creature can provide swimming.
+
+Terrain-aware hotspot generation occurs only during the existing explicit search action. It examines a fixed candidate budget in nearby encounter regions, memoizes deterministic region projections, and performs no work during ordinary movement, rendering, identity restoration, or card verification. No background aquatic scan is introduced.
+
+The atlas paints water exactly where gameplay does but does not expose hidden aquatic encounters before discovery. Once an aquatic creature signal is legitimately found, normal encounter and capture feedback identify the water habitat clearly.
+
 ## Failure Behavior
 
 - Missing exploration state migrates without blocking login or gameplay.
@@ -110,6 +127,7 @@ The global world remains deterministic and shared: two players visiting the same
 - Atlas rendering failure does not affect walking, movement input, or world simulation.
 - Offline exploration works immediately and saves locally.
 - No atlas operation re-verifies already admitted cards, Vaults, or identity artifacts.
+- Aquatic hotspot selection failure falls back to another bounded deterministic candidate; it never stalls movement or the render loop.
 
 ## Testing and Release Gates
 
@@ -134,6 +152,10 @@ Integration and rendering contracts must prove:
 - Region and Landmark zooms remain bounded and usable;
 - runtime checkpoints, Vaults, and Identity Seals restore the exact atlas;
 - movement inside one region performs no exploration mutation;
+- aquatic hotspots occupy terrain-authorized water or shoreline coordinates;
+- every representative deep-water cluster has a shoreline-accessible aquatic opportunity;
+- catching and selecting an aquatic creature enables the existing swimming path without proof reverification;
+- ordinary movement frames invoke neither exploration expansion nor aquatic hotspot generation unless a region boundary or explicit scan requires it;
 - production build, full test suite, mobile WebKit visual checks, console checks, and gameplay frame-time checks pass.
 
 ## Non-Goals
@@ -144,3 +166,4 @@ Integration and rendering contracts must prove:
 - No automatic reveal of the rectangle between sparse discoveries.
 - No sharing, trading, or monetizing personal maps in this release.
 - No card or identity reverification is added to movement or atlas rendering.
+- No background encounter search or aquatic simulation is added to the gameplay loop.
