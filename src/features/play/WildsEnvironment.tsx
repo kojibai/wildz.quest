@@ -17,7 +17,7 @@ import { projectWildsEcologyInstance } from "@/features/play/wilds-ecology-place
 import { wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
 import { buildWildsTerrainPatchProjection, buildWildsTerrainRibbonProjection, wildsTerrainRelativeElevation } from "@/features/play/wilds-terrain-rendering";
 import { projectWildsObstaclePlacement, wildsTerrainObstaclesForTile } from "@/features/play/wilds-terrain-obstacles";
-import { projectWildsOverlooks } from "@/features/play/wilds-overlooks";
+import { projectWildsOverlooks, type WildsOverlookId } from "@/features/play/wilds-overlooks";
 
 export const WILDS_TILE_SIZE = 12;
 const STREAM_RADIUS = 2;
@@ -79,7 +79,8 @@ export function WildsEnvironment({
   worldMastery,
   qualityProfile,
   livingWorld,
-  worldMode
+  worldMode,
+  onSelectOverlook
 }: {
   player: PlayState["player"];
   missionProgress: number;
@@ -87,6 +88,7 @@ export function WildsEnvironment({
   qualityProfile: WildsQualityProfile;
   livingWorld?: WildsWorldProjection | null;
   worldMode: WildsSettlementWorldMode;
+  onSelectOverlook: (overlookId: WildsOverlookId) => void;
 }) {
   const centerX = Math.floor(player.x / WILDS_TILE_SIZE);
   const centerZ = Math.floor(player.z / WILDS_TILE_SIZE);
@@ -120,7 +122,7 @@ export function WildsEnvironment({
         <EcologyInstances bushes={bushes} flowers={flowers} palette={tiles[12]?.canopy} player={player} qualityProfile={qualityProfile} rocks={rocks} trees={trees} />
         <FlagshipLandmarkEntrances detail={qualityProfile.tier !== "low"} livingWorld={livingWorld} player={player} worldMode={worldMode} />
         <LivingWorldSites player={player} world={livingWorld} />
-        <AuthoredOverlooks player={player} />
+        <AuthoredOverlooks onSelect={onSelectOverlook} player={player} />
         {tiles.filter((tile) => tile.landmark.kind !== "none" && tile.landmark.kind !== "hearttree-sanctum" && tile.landmark.kind !== "mortal-arena").map((tile) => (
           <Landmark key={`landmark:${tile.key}`} player={player} tile={tile} />
         ))}
@@ -132,7 +134,7 @@ export function WildsEnvironment({
   );
 }
 
-function AuthoredOverlooks({ player }: { player: PlayState["player"] }) {
+function AuthoredOverlooks({ onSelect, player }: { onSelect: (overlookId: WildsOverlookId) => void; player: PlayState["player"] }) {
   const overlooks = projectWildsOverlooks(player);
   return <group name="world-authored-overlooks">
     {overlooks.map((overlook) => <group
@@ -156,8 +158,8 @@ function AuthoredOverlooks({ player }: { player: PlayState["player"] }) {
           <meshStandardMaterial color="#73d99b" emissive="#2c7e56" emissiveIntensity={.38} side={THREE.DoubleSide} />
         </mesh>
       </group>
-      {overlook.distance <= 12 ? <Html center className="wilds-world-label" distanceFactor={8} occlude={false} position={[0, 1.72, 0]} zIndexRange={[10, 0]}>
-        <span>{overlook.name}</span><small>Overlook · step onto the ring</small>
+      {overlook.distance <= 12 ? <Html center className="wilds-overlook-label" distanceFactor={8} occlude={false} position={[0, 1.72, 0]} zIndexRange={[10, 0]}>
+        <button aria-label={overlook.distance <= 2.2 ? `Open ${overlook.name} vista` : `Approach ${overlook.name} overlook`} disabled={overlook.distance > 2.2} onClick={(event) => { event.stopPropagation(); onSelect(overlook.id); }} type="button"><span>{overlook.name}</span><small>{overlook.distance <= 2.2 ? "Overlook · open vista" : "Overlook · step onto the ring"}</small></button>
       </Html> : null}
     </group>)}
   </group>;

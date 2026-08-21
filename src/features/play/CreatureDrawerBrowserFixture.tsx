@@ -92,6 +92,7 @@ function WorldControlsFocusRecoveryFixture() {
     </output>
     <WildzWorldControls
       activeCard={activeCard}
+      aerialMode="ground"
       cameraHeadingRef={cameraHeadingRef}
       cardConditions={{}}
       cardOrder="newest"
@@ -100,16 +101,19 @@ function WorldControlsFocusRecoveryFixture() {
       dismissSignal={0}
       exclusiveOwner={exclusiveOwner}
       gestureCancelSignal={0}
+      glideLaunchAvailable={false}
       movementMode="walk"
       nearbyCards={fixtureAssets}
       newRosterAssetId={null}
       onCardOrderChange={() => {}}
+      onAerialToggle={() => {}}
       onInput={() => {}}
       onMovementModeChange={() => {}}
       onRest={() => {}}
       onSelectCard={setSelectedAssetId}
       overlayDispatch={(event) => setOverlayState((state) => reduceWorldOverlay(state, event))}
       overlayState={overlayState}
+      traversalCapabilities={[]}
     />
   </section>;
 }

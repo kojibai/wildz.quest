@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, type ComponentRef, type MutableRefObject, type ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, OrbitControls, Sparkles } from "@react-three/drei";
 import * as THREE from "three";
@@ -49,6 +49,9 @@ import {
 } from "@/features/play/wilds-night-readability";
 import { wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
 import { projectWildsTerrainActorPosition } from "@/features/play/wilds-terrain-rendering";
+import { advanceWildsAerialTraversal, type WildsAerialMode, type WildsAerialTraversalState } from "@/features/play/wilds-aerial-traversal";
+import type { WildsTraversalCapability } from "@/features/play/wilds-traversal-capabilities";
+import type { WildsOverlookId } from "@/features/play/wilds-overlooks";
 
 const WILDS_DIAGNOSTICS_ENABLED = process.env.NODE_ENV !== "production";
 
@@ -62,6 +65,7 @@ export function WildsWorldCanvas({
   searchEnabled,
   onSelectPlayer,
   onSelectTrainer,
+  onSelectOverlook,
   onSearchPoint,
   livingWorld,
   worldMode,
@@ -69,6 +73,10 @@ export function WildsWorldCanvas({
   visualSettings = DEFAULT_WILDS_VISUAL_SETTINGS,
   supportCards = [],
   trainers = [],
+  aerialCapabilities,
+  aerialStateRef,
+  onAerialModeChange,
+  vistaHeading = null,
   suspended = false
 }: {
   state: PlayState;
@@ -86,7 +94,12 @@ export function WildsWorldCanvas({
   visualSettings?: Partial<WildsVisualSettings>;
   supportCards?: readonly PortableCardAsset[];
   trainers?: readonly WildsTrainerProjection[];
+  aerialCapabilities: readonly WildsTraversalCapability[];
+  aerialStateRef: MutableRefObject<WildsAerialTraversalState>;
+  onAerialModeChange: (mode: WildsAerialMode) => void;
+  vistaHeading?: number | null;
   onSelectTrainer: (trainer: WildsTrainerProjection) => void;
+  onSelectOverlook: (overlookId: WildsOverlookId) => void;
   suspended?: boolean;
 }) {
   return (
@@ -110,7 +123,7 @@ export function WildsWorldCanvas({
       >
         {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
-          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} />
+          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} onAerialModeChange={onAerialModeChange} vistaHeading={vistaHeading} />
         </Suspense>
       </Canvas>
     </div>
@@ -137,7 +150,12 @@ function WildsScene({
   visualSettings,
   supportCards,
   trainers,
-  onSelectTrainer
+  onSelectTrainer,
+  onSelectOverlook,
+  aerialCapabilities,
+  aerialStateRef,
+  onAerialModeChange,
+  vistaHeading
 }: {
   state: PlayState;
   character: WildzCharacterGenesis;
@@ -154,6 +172,11 @@ function WildsScene({
   supportCards: readonly PortableCardAsset[];
   trainers: readonly WildsTrainerProjection[];
   onSelectTrainer: (trainer: WildsTrainerProjection) => void;
+  onSelectOverlook: (overlookId: WildsOverlookId) => void;
+  aerialCapabilities: readonly WildsTraversalCapability[];
+  aerialStateRef: MutableRefObject<WildsAerialTraversalState>;
+  onAerialModeChange: (mode: WildsAerialMode) => void;
+  vistaHeading: number | null;
 }) {
   const world = projectWorldProgression(state.worldMastery);
   const kaiExpression = projectKaiWorldExpression(kaiMoment);
@@ -193,7 +216,7 @@ function WildsScene({
       <WildsCelestialSky expression={kaiExpression} qualityProfile={qualityProfile} />
       <WildsAtmosphere encounter={state.encounter} expression={kaiExpression} missionProgress={state.missionProgress} nightRig={nightRig} player={state.player} qualityProfile={qualityProfile} />
       <WildsKaiAtmosphereGeometry expression={kaiExpression} qualityProfile={qualityProfile} />
-      <CameraRig onCameraHeadingChange={onCameraHeadingChange} />
+      <CameraRig aerialStateRef={aerialStateRef} onCameraHeadingChange={onCameraHeadingChange} player={state.player} vistaHeading={vistaHeading} />
       {WILDS_DIAGNOSTICS_ENABLED ? <WildsDiagnostics environment={{
         authoredDarkness: darkness.amount,
         dayPhase: kaiExpression.dayPhase,
@@ -209,6 +232,7 @@ function WildsScene({
           enabled={searchEnabled}
           missionProgress={state.missionProgress}
           onSearchPoint={onSearchPoint}
+          onSelectOverlook={onSelectOverlook}
           player={state.player}
           qualityProfile={qualityProfile}
           worldMastery={state.worldMastery}
@@ -225,12 +249,50 @@ function WildsScene({
             : null
         ))}
       </SmoothWorldFrame>
-      <WildsExplorer character={character} style={character.gender} worldPosition={state.player} />
-      <ActiveCompanion state={state} />
-      <SupportCompanions cards={supportCards} player={state.player} />
+      <AerialPlayerFrame capabilities={aerialCapabilities} onModeChange={onAerialModeChange} player={state.player} runtime={aerialStateRef}>
+        <WildsExplorer character={character} style={character.gender} worldPosition={state.player} />
+        <ActiveCompanion state={state} />
+        <SupportCompanions cards={supportCards} player={state.player} />
+      </AerialPlayerFrame>
       <Sparkles key={`wilds-world-sparkles-${worldSparkleCount}`} count={worldSparkleCount} scale={[8, 2.4, 8]} size={2.1} speed={qualityProfile.reducedMotion ? 0 : kaiExpression.particleSpeed} color={kaiExpression.accent} />
     </WildsReadabilityProvider>
   );
+}
+
+function AerialPlayerFrame({ capabilities, children, onModeChange, player, runtime }: {
+  capabilities: readonly WildsTraversalCapability[];
+  children: ReactNode;
+  onModeChange: (mode: WildsAerialMode) => void;
+  player: PlayState["player"];
+  runtime: MutableRefObject<WildsAerialTraversalState>;
+}) {
+  const group = useRef<THREE.Group>(null);
+  const previousPlayer = useRef(player);
+  const publishedMode = useRef(runtime.current.mode);
+  useFrame((_, delta) => {
+    const prior = previousPlayer.current;
+    const horizontalDistance = Math.hypot(player.x - prior.x, player.z - prior.z);
+    previousPlayer.current = player;
+    const groundElevation = wildsTerrainElevation(player.x, player.z);
+    const clearance = runtime.current.altitude - groundElevation;
+    const advanced = advanceWildsAerialTraversal(runtime.current, {
+      capabilities,
+      deltaSeconds: delta,
+      groundElevation,
+      horizontalDistance,
+      position: player,
+      verticalIntent: runtime.current.mode === "flight" && clearance < 4.2 ? .82 : 0
+    });
+    runtime.current = advanced.state;
+    if (publishedMode.current !== advanced.state.mode) {
+      publishedMode.current = advanced.state.mode;
+      onModeChange(advanced.state.mode);
+    }
+    if (group.current) {
+      group.current.position.y = THREE.MathUtils.damp(group.current.position.y, Math.max(0, advanced.state.altitude - groundElevation), 8, delta);
+    }
+  });
+  return <group ref={group}>{children}</group>;
 }
 
 function SmoothWorldFrame({ player, children }: { player: PlayState["player"]; children: ReactNode }) {
@@ -421,9 +483,43 @@ function RemoteExplorer({
   );
 }
 
-function CameraRig({ onCameraHeadingChange }: { onCameraHeadingChange: (heading: number) => void }) {
+function CameraRig({ aerialStateRef, onCameraHeadingChange, player, vistaHeading }: {
+  aerialStateRef: MutableRefObject<WildsAerialTraversalState>;
+  onCameraHeadingChange: (heading: number) => void;
+  player: PlayState["player"];
+  vistaHeading: number | null;
+}) {
+  const { camera } = useThree();
+  const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
+  const priorVista = useRef<{ position: THREE.Vector3; target: THREE.Vector3 } | null>(null);
   const lastHeading = useRef(Number.NaN);
-  useFrame(({ camera }) => {
+  useEffect(() => {
+    const orbit = controls.current;
+    if (!orbit) return;
+    if (vistaHeading !== null && !priorVista.current) {
+      priorVista.current = { position: camera.position.clone(), target: orbit.target.clone() };
+      const distance = 9.2;
+      camera.position.set(Math.sin(vistaHeading) * distance, 5.8, Math.cos(vistaHeading) * distance);
+      orbit.target.set(0, 1.65, 0);
+      orbit.update();
+      return;
+    }
+    if (vistaHeading === null && priorVista.current) {
+      camera.position.copy(priorVista.current.position);
+      orbit.target.copy(priorVista.current.target);
+      priorVista.current = null;
+      orbit.update();
+    }
+  }, [camera, vistaHeading]);
+  useFrame((_, delta) => {
+    const orbit = controls.current;
+    if (orbit && vistaHeading === null) {
+      const clearance = Math.max(0, aerialStateRef.current.altitude - wildsTerrainElevation(player.x, player.z));
+      const desiredTargetY = .9 + clearance;
+      const priorTargetY = orbit.target.y;
+      orbit.target.y = THREE.MathUtils.damp(orbit.target.y, desiredTargetY, 8, delta);
+      camera.position.y += orbit.target.y - priorTargetY;
+    }
     const heading = Math.atan2(camera.position.x, camera.position.z);
     if (Number.isFinite(lastHeading.current) && Math.abs(heading - lastHeading.current) < .001) return;
     lastHeading.current = heading;
@@ -439,6 +535,7 @@ function CameraRig({ onCameraHeadingChange }: { onCameraHeadingChange: (heading:
       minDistance={4.4}
       minPolarAngle={.38}
       rotateSpeed={.62}
+      ref={controls}
       target={[0, .9, 0]}
       touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE }}
       zoomSpeed={.82}
@@ -457,6 +554,7 @@ function SearchableTerrain({
   qualityProfile,
   worldMastery,
   onSearchPoint,
+  onSelectOverlook,
   livingWorld,
   worldMode
 }: {
@@ -466,6 +564,7 @@ function SearchableTerrain({
   qualityProfile: WildsQualityProfile;
   worldMastery: number;
   onSearchPoint: (point: { x: number; z: number }) => void;
+  onSelectOverlook: (overlookId: WildsOverlookId) => void;
   livingWorld?: WildsWorldProjection | null;
   worldMode: WildsSettlementWorldMode;
 }) {
@@ -477,7 +576,7 @@ function SearchableTerrain({
         onSearchPoint({ x: player.x + event.point.x, z: player.z + event.point.z });
       }}
     >
-      <StreamedTerrain missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} />
+      <StreamedTerrain missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} onSelectOverlook={onSelectOverlook} />
     </group>
   );
 }
@@ -488,7 +587,8 @@ function StreamedTerrain({
   qualityProfile,
   worldMastery,
   livingWorld,
-  worldMode
+  worldMode,
+  onSelectOverlook
 }: {
   missionProgress: number;
   player: PlayState["player"];
@@ -496,8 +596,9 @@ function StreamedTerrain({
   worldMastery: number;
   livingWorld?: WildsWorldProjection | null;
   worldMode: WildsSettlementWorldMode;
+  onSelectOverlook: (overlookId: WildsOverlookId) => void;
 }) {
-  return <WildsEnvironment missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} />;
+  return <WildsEnvironment missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} onSelectOverlook={onSelectOverlook} />;
 }
 
 function Creature({

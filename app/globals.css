@@ -2998,6 +2998,24 @@ a {
   white-space: nowrap;
 }
 
+.wilds-overlook-label button {
+  display: grid;
+  min-width: 118px;
+  min-height: 44px;
+  place-items: center;
+  padding: 6px 10px;
+  border: 1px solid rgba(216, 245, 191, .48);
+  border-radius: 14px;
+  color: #f3ffe9;
+  background: rgba(18, 38, 30, .9);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .3), inset 0 1px rgba(255, 255, 255, .08);
+}
+
+.wilds-overlook-label button:disabled { opacity: .72; }
+.wilds-overlook-label span,
+.wilds-overlook-label small { display: block; }
+.wilds-overlook-label small { color: #a9c9b7; font-size: 9px; }
+
 .wilds-battle-world-stat {
   --battle-stat-accent: #7fe1a0;
   --battle-stat-glow: rgba(92, 218, 143, .18);

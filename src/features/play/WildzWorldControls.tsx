@@ -14,6 +14,8 @@ import { WildzCreatureDrawer } from "./WildzCreatureDrawer";
 import { WildzDpad } from "./WildzDpad";
 import type { WildsMovementMode } from "./wilds-movement";
 import type { WorldOverlayEvent, WorldOverlayOwner, WorldOverlayState } from "./world-overlay-state";
+import type { WildsAerialMode } from "./wilds-aerial-traversal";
+import type { WildsTraversalCapability } from "./wilds-traversal-capabilities";
 
 const ignore = () => {};
 
@@ -47,7 +49,11 @@ export function WildzWorldControls({
   onMovementModeChange,
   onSelectCard,
   onRest,
-  onAudioCue
+  onAudioCue,
+  aerialMode,
+  traversalCapabilities,
+  glideLaunchAvailable,
+  onAerialToggle
 }: {
   nearbyCards: readonly PortableCardAsset[];
   activeCard: PortableCardAsset | null;
@@ -71,12 +77,17 @@ export function WildzWorldControls({
   onSelectCard: (assetId: string) => void;
   onRest: () => void;
   onAudioCue?: (cue: WildsAudioCue) => void;
+  aerialMode: WildsAerialMode;
+  traversalCapabilities: readonly WildsTraversalCapability[];
+  glideLaunchAvailable: boolean;
+  onAerialToggle: () => void;
 }) {
   const changeCardOrder = useStableEvent(onCardOrderChange);
   const selectCard = useStableEvent(onSelectCard);
   const forwardInput = useStableEvent(onInput);
   const changeMovementMode = useStableEvent(onMovementModeChange);
   const rest = useStableEvent(onRest);
+  const toggleAerial = useStableEvent(onAerialToggle);
   const requestHandled = useStableEvent(onRequestedCommandHandled);
   const drawerOriginRef = useRef<HTMLElement | null>(null);
   const companionCommandRef = useRef<HTMLButtonElement | null>(null);
@@ -144,6 +155,9 @@ export function WildzWorldControls({
   const handleMovementModeChange = useCallback(() => {
     if (worldHomesEnabled) changeMovementMode(movementMode === "walk" ? "run" : "walk");
   }, [changeMovementMode, movementMode, worldHomesEnabled]);
+  const handleAerialToggle = useCallback(() => {
+    if (worldHomesEnabled) toggleAerial();
+  }, [toggleAerial, worldHomesEnabled]);
   const companionRoster = useMemo(() => projectVaultCompanionRoster({
     inventory: nearbyCards,
     companionProgress,
@@ -170,6 +184,12 @@ export function WildzWorldControls({
           >
             {movementMode === "walk" ? <Icons.walk size={21} /> : <Icons.run size={21} />}
           </button>
+          {(traversalCapabilities.includes("flight") || glideLaunchAvailable) ? <button
+            aria-label={aerialMode === "ground" ? (traversalCapabilities.includes("flight") ? "Take flight" : "Glide from overlook") : "Land safely"}
+            disabled={!worldHomesEnabled}
+            onClick={handleAerialToggle}
+            type="button"
+          ><Icons.sparkle size={20} /></button> : null}
         </div>
         <WildzDpad
           cameraHeadingRef={cameraHeadingRef}

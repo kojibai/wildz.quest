@@ -110,6 +110,17 @@ import {
 import { creatureCareNotificationSchedule, WILDZ_CARE_PERIODIC_TAG } from "@/features/pwa/creature-care-schedule";
 import { WILDZ_CARE_NOTIFICATIONS_READY, WILDZ_CARE_SCHEDULE_MESSAGE } from "@/features/pwa/pwa-events";
 import { WildsWorldCanvas } from "@/features/play/WildsWorldCanvas";
+import { emptyAdventureCondition } from "@/features/play/adventure/card-condition";
+import { projectWildsTraversalCapabilities } from "@/features/play/wilds-traversal-capabilities";
+import {
+  advanceWildsAerialTraversal,
+  beginWildsAerialTraversal,
+  createGroundedWildsAerialState,
+  type WildsAerialMode,
+  type WildsAerialTraversalState
+} from "@/features/play/wilds-aerial-traversal";
+import { wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
+import { wildsOverlookAt, type WildsOverlookId } from "@/features/play/wilds-overlooks";
 
 const WildsWorldMap = dynamic(() => import("@/features/play/WildsWorldMap").then((mod) => mod.WildsWorldMap), { ssr: false });
 const WildsLandmarkExperience = dynamic(() => import("@/features/play/WildsLandmarkExperience").then((mod) => mod.WildsLandmarkExperience), { ssr: false });
@@ -277,6 +288,19 @@ export function PlayCampaign({
   const worldProgression = projectWorldProgression(state.worldMastery);
   const activeCard = selectedCard(state);
   const activeAsset = selectedAsset(state);
+  const activeTraversalCapabilities = useMemo(() => activeAsset
+    ? projectWildsTraversalCapabilities(
+      activeAsset,
+      state.adventureConditions[activeAsset.id] ?? emptyAdventureCondition(activeAsset.id)
+    ).capabilities
+    : [], [activeAsset, state.adventureConditions]);
+  const [initialAerialState] = useState(() => createGroundedWildsAerialState(
+    state.player,
+    wildsTerrainElevation(state.player.x, state.player.z)
+  ));
+  const aerialStateRef = useRef<WildsAerialTraversalState>(initialAerialState);
+  const [aerialMode, setAerialMode] = useState<WildsAerialMode>("ground");
+  const [activeVistaId, setActiveVistaId] = useState<WildsOverlookId | null>(null);
   const deckCards = state.inventory;
   const priorVaultIdsRef = useRef(new Set(state.inventory.map((asset) => asset.id)));
   const [newRosterAssetId, setNewRosterAssetId] = useState<string | null>(null);
@@ -752,6 +776,8 @@ export function PlayCampaign({
     );
   }
 
+  const nearbyOverlook = wildsOverlookAt(state.player);
+
   const dispatch = (input: WildsInput) => {
     if (!interactionEnabled) return;
     if (input.type === "select-asset") setNewRosterAssetId(null);
@@ -766,7 +792,43 @@ export function PlayCampaign({
   };
   const dispatchWorldInput = (input: WildsInput) => {
     if (!canUseWorldStage()) return;
-    dispatch(input);
+    if ((input.type === "move" || input.type === "move-vector") && activeVistaId) setActiveVistaId(null);
+    const aerialInput = input.type === "move" || input.type === "move-vector"
+      ? { ...input, aerialMode: aerialMode === "ground" ? undefined : aerialMode }
+      : input;
+    dispatch(aerialInput);
+  };
+  const toggleAerialTraversal = () => {
+    if (!canUseWorldStage()) return;
+    const groundElevation = wildsTerrainElevation(state.player.x, state.player.z);
+    if (aerialMode !== "ground") {
+      const landed = advanceWildsAerialTraversal(aerialStateRef.current, {
+        capabilities: activeTraversalCapabilities,
+        deltaSeconds: 0,
+        groundElevation,
+        horizontalDistance: 0,
+        landingRequested: true,
+        position: state.player,
+        verticalIntent: 0
+      });
+      aerialStateRef.current = landed.state;
+      setAerialMode("ground");
+      return;
+    }
+    const kind = activeTraversalCapabilities.includes("flight")
+      ? "flight"
+      : activeTraversalCapabilities.includes("glide") && nearbyOverlook
+        ? "glide"
+        : null;
+    if (!kind) return;
+    const begun = beginWildsAerialTraversal(aerialStateRef.current, {
+      kind,
+      capabilities: activeTraversalCapabilities,
+      launchHeight: kind === "glide" ? 4 : undefined
+    });
+    aerialStateRef.current = begun.state;
+    setAerialMode(begun.state.mode);
+    if (activeVistaId) setActiveVistaId(null);
   };
   const openProfile = () => {
     if (!canUseWorldStage()) return;
@@ -1285,11 +1347,14 @@ export function PlayCampaign({
             aria-label="Receiz Wilds playable 3D world"
           >
             <WildsWorldCanvas
+              aerialCapabilities={activeTraversalCapabilities}
+              aerialStateRef={aerialStateRef}
               state={state}
               character={character}
               remotePlayers={multiplayer.remotePlayers}
               qualityProfile={qualityProfile}
               onFrameSample={reportFrameSample}
+              onAerialModeChange={setAerialMode}
               onCameraHeadingChange={updateCameraHeading}
               searchEnabled={worldInteractionEnabled && discoveryActive}
               livingWorld={livingWorld.snapshot}
@@ -1297,6 +1362,7 @@ export function PlayCampaign({
               kaiMoment={kaiMoment}
               visualSettings={visualSettings}
               supportCards={trailSupportCards}
+              vistaHeading={activeVistaId && nearbyOverlook?.id === activeVistaId ? nearbyOverlook.viewHeading : null}
               suspended={exclusiveOwner === "map" && mapOpen}
               onSelectPlayer={(player) => {
                 if (canUseWorldStage()) multiplayer.selectPlayer(player);
@@ -1307,6 +1373,10 @@ export function PlayCampaign({
                 if (canUseWorldStage()) {
                   dispatch({ type: "search-point", ...point, searchedAt: new Date().toISOString(), ownerReceizId });
                 }
+              }}
+              onSelectOverlook={(overlookId) => {
+                if (!canUseWorldStage() || aerialMode !== "ground" || nearbyOverlook?.id !== overlookId) return;
+                setActiveVistaId((current) => current === overlookId ? null : overlookId);
               }}
             />
 
@@ -1351,6 +1421,7 @@ export function PlayCampaign({
             />
 
             <WildzWorldControls
+              aerialMode={aerialMode}
               activeCard={activeAsset}
               cameraHeadingRef={cameraHeadingRef}
               cardConditions={state.adventureConditions}
@@ -1360,8 +1431,10 @@ export function PlayCampaign({
               dismissSignal={commandDismissSignal}
               exclusiveOwner={exclusiveOwner}
               gestureCancelSignal={gestureCancelSignal}
+              glideLaunchAvailable={Boolean(nearbyOverlook && activeTraversalCapabilities.includes("glide"))}
               newRosterAssetId={newRosterAssetId}
               movementMode={movementMode}
+              onAerialToggle={toggleAerialTraversal}
               nearbyCards={state.inventory}
               overlayDispatch={dispatchStageOverlay}
               overlayState={worldOverlayState}
@@ -1373,6 +1446,7 @@ export function PlayCampaign({
               onRest={() => dispatchWorldInput({ type: "rest", at: new Date().toISOString() })}
               onSelectCard={(assetId) => dispatchWorldInput({ type: "select-asset", assetId })}
               requestedCommand={requestedCommand}
+              traversalCapabilities={activeTraversalCapabilities}
             />
 
             {exclusiveOwner === "combat" && combatSurface === "wild" && wildBattleActive && state.battle ? (

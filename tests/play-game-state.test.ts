@@ -828,4 +828,25 @@ describe("Receiz Wilds game state", () => {
     assert.match(swimming.lastEvent, /swimming/i);
     assert.deepEqual(Object.keys(swimming.player).sort(), ["x", "z"]);
   });
+
+  it("admits aerial terrain crossing only when the selected creature has that exact capability", () => {
+    const winged = sealCollectedCard({
+      formId: "voltray-1",
+      ownerReceizId: "wilds.player.receiz.id",
+      encounterId: "movement-flight",
+      capturedAt: "2026-08-21T12:05:00.000Z"
+    });
+    const ordinary = applyWildsInput({ ...structuredClone(initialPlayState), player: { x: -94.42, z: -240 } }, {
+      type: "move-vector", x: 1, z: 0, aerialMode: "flight"
+    });
+    const imported = applyWildsInput(initialPlayState, { type: "import-card", asset: winged });
+    const selected = applyWildsInput(imported, { type: "select-asset", assetId: winged.id });
+    const flying = applyWildsInput({ ...selected, player: { x: -94.42, z: -240 } }, {
+      type: "move-vector", x: 1, z: 0, aerialMode: "flight"
+    });
+
+    assert.deepEqual(ordinary.player, { x: -94.42, z: -240 });
+    assert.ok(flying.player.x > -94.42);
+    assert.match(flying.lastEvent, /flying/i);
+  });
 });

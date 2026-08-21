@@ -17,7 +17,7 @@ export type WildsGroundMovementResult = {
   elevation: number;
   surface: ReturnType<typeof sampleWildsTerrain>["surface"];
   speedMultiplier: number;
-  traversalMode: "walk" | "wade" | "swim" | "climb";
+  traversalMode: "walk" | "wade" | "swim" | "climb" | "glide" | "flight";
   blockedBy: readonly string[];
   traversalBlockedBy: TraversalCapability | null;
 };
@@ -45,6 +45,8 @@ function speedForTraversalMode(mode: WildsGroundMovementResult["traversalMode"])
   if (mode === "wade") return SHALLOW_WATER_SPEED;
   if (mode === "swim") return SWIM_SPEED;
   if (mode === "climb") return CLIMB_SPEED;
+  if (mode === "glide") return 1.1;
+  if (mode === "flight") return 1.25;
   return 1;
 }
 
@@ -192,6 +194,7 @@ export function resolveWildsGroundMovement(
   options: {
     capsuleRadius?: number;
     capabilities?: readonly TraversalCapability[];
+    aerialMode?: "glide" | "flight";
     obstacles?: readonly WildsTerrainObstacle[];
   } = {}
 ): WildsGroundMovementResult {
@@ -199,7 +202,7 @@ export function resolveWildsGroundMovement(
   const capsuleRadius = options.capsuleRadius ?? DEFAULT_CAPSULE_RADIUS;
   const intendedTerrain = sampleWildsTerrain(intended.x, intended.z);
   const capabilities = new Set(options.capabilities ?? []);
-  const intendedMode = traversalModeFor(intendedTerrain, capabilities);
+  const intendedMode = options.aerialMode ?? traversalModeFor(intendedTerrain, capabilities);
   const speedMultiplier = speedForTraversalMode(intendedMode);
   const target = {
     x: quantize(start.x + (intended.x - start.x) * speedMultiplier),

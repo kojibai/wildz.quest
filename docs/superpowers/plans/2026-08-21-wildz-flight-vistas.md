@@ -22,11 +22,11 @@
 
 ## Task 3: Frame-local world integration
 
-- [ ] Add a capability-aware traversal control without changing ordinary movement controls.
-- [ ] Advance altitude and camera composition through refs on the render frame.
-- [ ] Keep player `{x,z}` saves and proof schemas unchanged.
-- [ ] Add player-controlled vista entry/exit and restore prior camera control.
-- [ ] Commit integration.
+- [x] Add a capability-aware traversal control without changing ordinary movement controls.
+- [x] Advance altitude and camera composition through refs on the render frame.
+- [x] Keep player `{x,z}` saves and proof schemas unchanged.
+- [x] Add player-controlled vista entry/exit and restore prior camera control.
+- [x] Commit integration.
 
 ## Task 4: Qualification
 
