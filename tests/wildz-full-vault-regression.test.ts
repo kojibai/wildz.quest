@@ -35,6 +35,10 @@ import {
 import { createWildzIdentityRepository, type WildzIdentitySession } from "../src/lib/receiz/wildz-identity-repository";
 import { createWildzIdentityPlayerCard } from "../src/lib/receiz/wildz-identity-adapter";
 import { createMemoryWildzContinuityDatabase } from "./support/memory-wildz-continuity-database";
+import {
+  revealWildsExplorationAt,
+  wildsExplorationContainsWorld
+} from "../src/features/play/wilds-exploration-atlas";
 
 const BASE_PNG = Uint8Array.from(Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
@@ -77,8 +81,10 @@ async function regressionArtifact() {
     }
   });
   const projection = await projectReceizIdentityAccount(identity.keyFile);
+  const playerStateBase = playStateWith(cards);
   const playerState = {
-    ...playStateWith(cards),
+    ...playerStateBase,
+    explorationAtlas: revealWildsExplorationAt(playerStateBase.explorationAtlas, { x: 0, z: -1_400 }),
     selectedAssetId: cards[42]!.id,
     selectedCardId: cards[42]!.manifest.familyId,
     pendingSyncAssetIds: [cards[13]!.id],
@@ -177,7 +183,11 @@ test("a first Identity Record login creates one real owner-bound starter creatur
 test("one standalone card upload preserves the original Vault card and adds exactly one card", async () => {
   const target = setup();
   const session = await target.repository.bootstrap();
-  const currentPlayState = createOwnerBoundInitialPlayState(session.actorId, session.createdAt);
+  const currentBase = createOwnerBoundInitialPlayState(session.actorId, session.createdAt);
+  const currentPlayState = {
+    ...currentBase,
+    explorationAtlas: revealWildsExplorationAt(currentBase.explorationAtlas, { x: 1_400, z: 0 })
+  };
   const starter = currentPlayState.inventory[0]!;
   const uploaded = sealCollectedCard({
     formId: `${starter.manifest.familyId}-1`,
@@ -202,6 +212,7 @@ test("one standalone card upload preserves the original Vault card and adds exac
   assert.equal(outcome.playState.inventory[0]?.manifest.name, starter.manifest.name);
   assert.equal(outcome.playState.selectedAssetId, uploaded.id);
   assert.equal(outcome.playState.selectedCardId, uploaded.manifest.familyId);
+  assert.deepEqual(outcome.playState.explorationAtlas, currentPlayState.explorationAtlas);
 });
 
 test("one player-bearing Vault card preserves the distinct local starter", async () => {
@@ -451,7 +462,11 @@ test("Profile activation of a Wildz continuity seal replaces the prior account w
   const fixture = await regressionArtifact();
   const target = setup();
   const previous = await target.repository.bootstrap();
-  const previousState = createOwnerBoundInitialPlayState(previous.actorId, previous.createdAt);
+  const previousBase = createOwnerBoundInitialPlayState(previous.actorId, previous.createdAt);
+  const previousState = {
+    ...previousBase,
+    explorationAtlas: revealWildsExplorationAt(previousBase.explorationAtlas, { x: 1_400, z: 0 })
+  };
   const previousStarterId = previousState.inventory[0]!.id;
 
   const outcome = await restoreWildzArtifactForSurface({
@@ -481,6 +496,8 @@ test("Profile activation of a Wildz continuity seal replaces the prior account w
   assert.equal(outcome.character?.digest, fixture.character.digest);
   assert.equal(outcome.playerContinuity.settings.movementMode, "run");
   assert.equal(outcome.playerContinuity.settings.cardOrder, "newest");
+  assert.equal(wildsExplorationContainsWorld(outcome.playState.explorationAtlas, { x: 0, z: -1_400 }), true);
+  assert.equal(wildsExplorationContainsWorld(outcome.playState.explorationAtlas, { x: 1_400, z: 0 }), false);
 });
 
 test("matching Identity Seal authenticates an already loaded proof vault without dropping current cards", async () => {

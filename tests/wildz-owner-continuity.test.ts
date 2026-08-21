@@ -18,6 +18,10 @@ import {
 } from "../src/features/identity/wildz-restore";
 import type { WildzIdentitySession } from "../src/lib/receiz/wildz-identity-repository";
 import { createMemoryWildzContinuityDatabase } from "./support/memory-wildz-continuity-database";
+import {
+  revealWildsExplorationAt,
+  wildsExplorationContainsWorld
+} from "../src/features/play/wilds-exploration-atlas";
 
 const SESSION: WildzIdentitySession = {
   schema: "receiz.wildz.identity_session.v1",
@@ -165,13 +169,17 @@ test("Commerce Vault reconciliation preserves both Vaults and every continuity c
     selectedAssetId: "",
     selectedCardId: ""
   };
+  const localBase = applyWildsInput(empty, { type: "import-card", asset: localCard });
   const local = {
-    ...applyWildsInput(empty, { type: "import-card", asset: localCard }),
+    ...localBase,
+    explorationAtlas: revealWildsExplorationAt(localBase.explorationAtlas, { x: 900, z: 0 }),
     achievements: ["local-achievement"],
     completedMissionIds: ["local-mission"]
   };
+  const uploadedBase = applyWildsInput(empty, { type: "import-card", asset: uploadedCard });
   const uploadedState = {
-    ...applyWildsInput(empty, { type: "import-card", asset: uploadedCard }),
+    ...uploadedBase,
+    explorationAtlas: revealWildsExplorationAt(uploadedBase.explorationAtlas, { x: 0, z: -1_400 }),
     achievements: ["uploaded-achievement"],
     completedMissionIds: ["uploaded-mission"]
   };
@@ -195,4 +203,6 @@ test("Commerce Vault reconciliation preserves both Vaults and every continuity c
   assert.deepEqual(new Set(restored.inventory.map((asset) => asset.id)), new Set([localCard.id, uploadedCard.id]));
   assert.deepEqual(new Set(restored.achievements), new Set(["local-achievement", "uploaded-achievement"]));
   assert.deepEqual(new Set(restored.completedMissionIds), new Set(["local-mission", "uploaded-mission"]));
+  assert.equal(wildsExplorationContainsWorld(restored.explorationAtlas, { x: 900, z: 0 }), true);
+  assert.equal(wildsExplorationContainsWorld(restored.explorationAtlas, { x: 0, z: -1_400 }), true);
 });

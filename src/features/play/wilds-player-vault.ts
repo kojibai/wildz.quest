@@ -1,5 +1,6 @@
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import { restorePlayState, serializePlayState, type PlayState } from "./game-state";
+import { mergeWildsExplorationAtlases } from "./wilds-exploration-atlas";
 import { parseWildzCharacter, type WildzCharacterGenesis } from "../identity/wildz-genesis";
 import { WILDS_WORLD_ID } from "./wilds-world-event";
 import type { WildsWorldProjection } from "./wilds-world-state";
@@ -181,6 +182,10 @@ export function reconcileWildsPlayerVault(input: {
     // causal creature history and authoritative Kai uPulse. A generic map
     // overwrite here would silently turn array order into temporal authority.
     inventory: [...input.local.inventory, ...restoredPlayState.inventory],
+    explorationAtlas: mergeWildsExplorationAtlases(
+      input.local.explorationAtlas,
+      restoredPlayState.explorationAtlas
+    ),
     achievements: mergeRecords(input.local.achievements, restoredPlayState.achievements),
     completedMissionIds: mergeRecords(input.local.completedMissionIds, restoredPlayState.completedMissionIds),
     discoveredCardIds: mergeRecords(input.local.discoveredCardIds, restoredPlayState.discoveredCardIds),
