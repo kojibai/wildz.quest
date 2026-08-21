@@ -18,12 +18,12 @@ describe("Wildz transient aerial traversal", () => {
     assert.equal(beginWildsAerialTraversal(grounded, { kind: "glide", capabilities: ["glide"], launchHeight: 4 }).state.mode, "glide");
   });
 
-  it("bounds flight ceiling, stamina, and deterministic landing", () => {
+  it("warns before flight exhaustion, falls back safely, and recharges on the ground", () => {
     let state = beginWildsAerialTraversal(createGroundedWildsAerialState(point, 4), {
       kind: "flight",
       capabilities: ["flight", "glide"]
     }).state;
-    for (let index = 0; index < 1_000; index += 1) {
+    for (let index = 0; index < 1_000 && state.mode !== "ground"; index += 1) {
       state = advanceWildsAerialTraversal(state, {
         capabilities: ["flight", "glide"],
         deltaSeconds: 0.1,
@@ -35,8 +35,34 @@ describe("Wildz transient aerial traversal", () => {
     }
 
     assert.ok(state.altitude <= 16);
-    assert.ok(state.stamina >= 0);
-    assert.notEqual(state.mode, "flight");
+    assert.equal(state.stamina, 0);
+    assert.equal(state.mode, "ground");
+
+    const blocked = beginWildsAerialTraversal(state, { kind: "flight", capabilities: ["flight", "glide"] });
+    assert.equal(blocked.reason, "flight-recharging");
+    assert.equal(blocked.state.mode, "ground");
+
+    for (let index = 0; index < 50; index += 1) {
+      state = advanceWildsAerialTraversal(state, {
+        capabilities: ["flight", "glide"], deltaSeconds: 0.1, groundElevation: 4,
+        horizontalDistance: 0, position: point, verticalIntent: 0
+      }).state;
+    }
+    assert.equal(state.stamina, 100);
+    assert.equal(beginWildsAerialTraversal(state, { kind: "flight", capabilities: ["flight", "glide"] }).state.mode, "flight");
+  });
+
+  it("reports low energy before it forces a glide", () => {
+    const flying = { ...beginWildsAerialTraversal(createGroundedWildsAerialState(point, 4), {
+      kind: "flight", capabilities: ["flight", "glide"]
+    }).state, stamina: 20 };
+    const warning = advanceWildsAerialTraversal(flying, {
+      capabilities: ["flight", "glide"], deltaSeconds: 0.1, groundElevation: 4,
+      horizontalDistance: 0.2, position: point, verticalIntent: 0
+    });
+
+    assert.equal(warning.state.mode, "flight");
+    assert.equal(warning.reason, "flight-energy-low");
   });
 
   it("turns height into bounded glide range and never passes through rising terrain", () => {

@@ -129,15 +129,16 @@ test("trackpad pointer motion updates the knob outside React's render path", () 
   assert.doesNotMatch(dpad, /setKnob\(/);
 });
 
-test("world-art terrain sampling is cell-bound instead of movement-bound", () => {
+test("authoritative terrain and route art are cell-bound instead of movement-bound", () => {
   const worldArt = source("src/features/play/WildsWorldArt.tsx");
+  const environment = source("src/features/play/WildsEnvironment.tsx");
 
-  assert.match(worldArt, /const horizonCellX = Math\.floor\(player\.x \/ 12\)/);
-  assert.match(worldArt, /const horizonCellZ = Math\.floor\(player\.z \/ 12\)/);
-  assert.match(worldArt, /\[horizonCellX, horizonCellZ, qualityProfile\.tier\]/);
+  assert.doesNotMatch(worldArt, /horizonCell|Horizon|world-ridge/);
+  assert.match(environment, /buildWildsTerrainPatchProjection\(centerX, centerZ, terrainRadius, segments\)/);
+  assert.match(environment, /buildWildsTerrainWaterProjection\(/);
+  assert.doesNotMatch(environment, /buildWildsTerrain(?:Patch|Water)Projection\(player/);
   assert.match(worldArt, /const routeCellX = Math\.floor\(player\.x \/ 6\)/);
   assert.match(worldArt, /const routeCellZ = Math\.floor\(player\.z \/ 6\)/);
   assert.match(worldArt, /\[radius, routeCellX, routeCellZ\]/);
-  assert.doesNotMatch(worldArt, /projectWildsHorizonAnchors\(player/);
   assert.doesNotMatch(worldArt, /projectWildsRouteGuides\(player/);
 });

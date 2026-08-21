@@ -75,6 +75,7 @@ export function WildsWorldCanvas({
   trainers = [],
   aerialCapabilities,
   aerialStateRef,
+  onAerialEnergyChange,
   onAerialModeChange,
   vistaHeading = null,
   suspended = false
@@ -96,6 +97,7 @@ export function WildsWorldCanvas({
   trainers?: readonly WildsTrainerProjection[];
   aerialCapabilities: readonly WildsTraversalCapability[];
   aerialStateRef: MutableRefObject<WildsAerialTraversalState>;
+  onAerialEnergyChange: (energy: number) => void;
   onAerialModeChange: (mode: WildsAerialMode) => void;
   vistaHeading?: number | null;
   onSelectTrainer: (trainer: WildsTrainerProjection) => void;
@@ -123,7 +125,7 @@ export function WildsWorldCanvas({
       >
         {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
-          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} onAerialModeChange={onAerialModeChange} vistaHeading={vistaHeading} />
+          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} vistaHeading={vistaHeading} />
         </Suspense>
       </Canvas>
     </div>
@@ -154,6 +156,7 @@ function WildsScene({
   onSelectOverlook,
   aerialCapabilities,
   aerialStateRef,
+  onAerialEnergyChange,
   onAerialModeChange,
   vistaHeading
 }: {
@@ -175,6 +178,7 @@ function WildsScene({
   onSelectOverlook: (overlookId: WildsOverlookId) => void;
   aerialCapabilities: readonly WildsTraversalCapability[];
   aerialStateRef: MutableRefObject<WildsAerialTraversalState>;
+  onAerialEnergyChange: (energy: number) => void;
   onAerialModeChange: (mode: WildsAerialMode) => void;
   vistaHeading: number | null;
 }) {
@@ -207,7 +211,7 @@ function WildsScene({
     .getStyle(), [darkness.amount, kaiExpression.sky.zenith]);
   const worldSparkleCount = Math.round(54 * qualityProfile.particles);
   const fogNear = qualityProfile.tier === "low" ? 9 : 10;
-  const fogFar = qualityProfile.tier === "low" ? 34 : qualityProfile.tier === "medium" ? 40 : 46;
+  const fogFar = qualityProfile.tier === "low" ? 38 : qualityProfile.tier === "medium" ? 46 : 52;
   const visibleRemotePlayers = useMemo(() => remotePlayers
     .filter((player) => Math.hypot(player.x - state.player.x, player.z - state.player.z) <= 28)
     .slice(0, 12), [remotePlayers, state.player.x, state.player.z]);
@@ -251,7 +255,7 @@ function WildsScene({
             : null
         ))}
       </SmoothWorldFrame>
-      <AerialPlayerFrame capabilities={aerialCapabilities} onModeChange={onAerialModeChange} player={state.player} runtime={aerialStateRef}>
+      <AerialPlayerFrame capabilities={aerialCapabilities} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} player={state.player} runtime={aerialStateRef}>
         <WildsExplorer character={character} style={character.gender} worldPosition={state.player} />
         <ActiveCompanion state={state} />
         <SupportCompanions cards={supportCards} player={state.player} />
@@ -261,9 +265,10 @@ function WildsScene({
   );
 }
 
-function AerialPlayerFrame({ capabilities, children, onModeChange, player, runtime }: {
+function AerialPlayerFrame({ capabilities, children, onEnergyChange, onModeChange, player, runtime }: {
   capabilities: readonly WildsTraversalCapability[];
   children: ReactNode;
+  onEnergyChange: (energy: number) => void;
   onModeChange: (mode: WildsAerialMode) => void;
   player: PlayState["player"];
   runtime: MutableRefObject<WildsAerialTraversalState>;
@@ -271,6 +276,7 @@ function AerialPlayerFrame({ capabilities, children, onModeChange, player, runti
   const group = useRef<THREE.Group>(null);
   const previousPlayer = useRef(player);
   const publishedMode = useRef(runtime.current.mode);
+  const publishedEnergy = useRef(100);
   useFrame((_, delta) => {
     const prior = previousPlayer.current;
     const horizontalDistance = Math.hypot(player.x - prior.x, player.z - prior.z);
@@ -286,6 +292,11 @@ function AerialPlayerFrame({ capabilities, children, onModeChange, player, runti
       verticalIntent: runtime.current.mode === "flight" && clearance < 4.2 ? .82 : 0
     });
     runtime.current = advanced.state;
+    const energyBucket = Math.max(0, Math.min(100, Math.round(advanced.state.stamina / 5) * 5));
+    if (publishedEnergy.current !== energyBucket) {
+      publishedEnergy.current = energyBucket;
+      onEnergyChange(energyBucket);
+    }
     if (publishedMode.current !== advanced.state.mode) {
       publishedMode.current = advanced.state.mode;
       onModeChange(advanced.state.mode);

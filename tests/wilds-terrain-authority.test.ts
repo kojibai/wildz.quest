@@ -45,6 +45,16 @@ test("major route centers are flattened by the same authority", () => {
   assert.ok(Math.abs(wildsTerrainElevation(0, 0) - wildsTerrainElevation(0.25, 0.1)) < 0.08);
 });
 
+test("major routes remain dry causeways through low terrain so walkers can leave land pockets", () => {
+  for (const point of [{ x: -92, z: -38 }, { x: -54, z: 74 }, { x: 52, z: -88 }]) {
+    assert.equal(distanceToWildsMajorRoute(point.x, point.z), 0);
+    const sample = sampleWildsTerrain(point.x, point.z);
+    assert.equal(sample.surface, "trail");
+    assert.ok(sample.elevation >= -0.82);
+    assert.equal(sample.waterDepth, 0);
+  }
+});
+
 test("terrain changes across distant geography without exceeding released bounds", () => {
   const values = [
     sampleWildsTerrain(220, 190).elevation,

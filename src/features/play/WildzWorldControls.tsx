@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, type CSSProperties, type RefObject } from "react";
 import { Icons } from "@/components/icons";
 import type { WildzCardSort } from "./card-sort";
 import type { PlayState, WildsInput } from "./game-state";
@@ -14,7 +14,7 @@ import { WildzCreatureDrawer } from "./WildzCreatureDrawer";
 import { WildzDpad } from "./WildzDpad";
 import type { WildsMovementMode } from "./wilds-movement";
 import type { WorldOverlayEvent, WorldOverlayOwner, WorldOverlayState } from "./world-overlay-state";
-import type { WildsAerialMode } from "./wilds-aerial-traversal";
+import { WILDS_FLIGHT_RELAUNCH_ENERGY, type WildsAerialMode } from "./wilds-aerial-traversal";
 import type { WildsTraversalCapability } from "./wilds-traversal-capabilities";
 
 const ignore = () => {};
@@ -50,6 +50,7 @@ export function WildzWorldControls({
   onSelectCard,
   onRest,
   onAudioCue,
+  aerialEnergy,
   aerialMode,
   traversalCapabilities,
   glideLaunchAvailable,
@@ -77,6 +78,7 @@ export function WildzWorldControls({
   onSelectCard: (assetId: string) => void;
   onRest: () => void;
   onAudioCue?: (cue: WildsAudioCue) => void;
+  aerialEnergy: number;
   aerialMode: WildsAerialMode;
   traversalCapabilities: readonly WildsTraversalCapability[];
   glideLaunchAvailable: boolean;
@@ -102,6 +104,21 @@ export function WildzWorldControls({
   const toolsHomeBlocked = exclusiveOwner !== "none" && exclusiveOwner !== "command";
   const companionHomeBlocked = exclusiveOwner !== "none" || panelOpen;
   const controlledDrawerSnap = worldHomesEnabled ? overlayState.drawerSnap : "closed";
+  const hasFlight = traversalCapabilities.includes("flight");
+  const flightRecharging = hasFlight && aerialMode === "ground" && aerialEnergy < WILDS_FLIGHT_RELAUNCH_ENERGY;
+  const flightStatus = !hasFlight
+    ? null
+    : aerialMode === "flight" && aerialEnergy <= 25
+      ? `Flight energy low · ${aerialEnergy}%`
+      : aerialMode === "glide" && aerialEnergy === 0
+        ? "Flight exhausted · land to recharge"
+        : aerialMode === "ground" && aerialEnergy < 100
+          ? aerialEnergy < WILDS_FLIGHT_RELAUNCH_ENERGY
+            ? `Recharge on the ground · ${aerialEnergy}%`
+            : `Flight ready · ${aerialEnergy}%`
+          : aerialMode === "flight"
+            ? `Flight energy · ${aerialEnergy}%`
+            : null;
   const handleInput = useCallback((input: WildsInput) => {
     if (worldHomesEnabled) forwardInput(input);
   }, [forwardInput, worldHomesEnabled]);
@@ -184,12 +201,15 @@ export function WildzWorldControls({
           >
             {movementMode === "walk" ? <Icons.walk size={21} /> : <Icons.run size={21} />}
           </button>
-          {(traversalCapabilities.includes("flight") || glideLaunchAvailable) ? <button
-            aria-label={aerialMode === "ground" ? (traversalCapabilities.includes("flight") ? "Take flight" : "Glide from overlook") : "Land safely"}
-            disabled={!worldHomesEnabled}
+          {(hasFlight || glideLaunchAvailable) ? <button
+            aria-label={aerialMode === "ground" ? (hasFlight ? flightRecharging ? `Flight recharging, ${aerialEnergy} percent. Recharge on the ground` : `Take flight, ${aerialEnergy} percent energy` : "Glide from overlook") : `Land safely, ${aerialEnergy} percent flight energy`}
+            className={aerialMode !== "ground" ? "is-active wildz-flight-control" : "wildz-flight-control"}
+            disabled={!worldHomesEnabled || flightRecharging}
             onClick={handleAerialToggle}
+            style={{ "--wildz-flight-energy": `${aerialEnergy}%` } as CSSProperties}
             type="button"
-          ><Icons.sparkle size={20} /></button> : null}
+          ><Icons.sparkle size={20} /><i aria-hidden="true" /></button> : null}
+          {flightStatus ? <span aria-live="polite" className={`wildz-flight-status${aerialEnergy <= 25 ? " is-low" : ""}`}>{flightStatus}</span> : null}
         </div>
         <WildzDpad
           cameraHeadingRef={cameraHeadingRef}

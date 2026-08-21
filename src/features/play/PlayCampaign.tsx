@@ -300,6 +300,7 @@ export function PlayCampaign({
   ));
   const aerialStateRef = useRef<WildsAerialTraversalState>(initialAerialState);
   const [aerialMode, setAerialMode] = useState<WildsAerialMode>("ground");
+  const [aerialEnergy, setAerialEnergy] = useState(100);
   const [activeVistaId, setActiveVistaId] = useState<WildsOverlookId | null>(null);
   const deckCards = state.inventory;
   const priorVaultIdsRef = useRef(new Set(state.inventory.map((asset) => asset.id)));
@@ -1356,6 +1357,7 @@ export function PlayCampaign({
               qualityProfile={qualityProfile}
               onFrameSample={reportFrameSample}
               onAerialModeChange={setAerialMode}
+              onAerialEnergyChange={setAerialEnergy}
               onCameraHeadingChange={updateCameraHeading}
               searchEnabled={worldInteractionEnabled && discoveryActive}
               livingWorld={livingWorld.snapshot}
@@ -1422,6 +1424,7 @@ export function PlayCampaign({
             />
 
             <WildzWorldControls
+              aerialEnergy={aerialEnergy}
               aerialMode={aerialMode}
               activeCard={activeAsset}
               cameraHeadingRef={cameraHeadingRef}

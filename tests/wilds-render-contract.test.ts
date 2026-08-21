@@ -140,6 +140,10 @@ describe("Receiz Wilds rendering contract", () => {
 
     assert.match(environment, /name="world-layer-play"/);
     assert.match(environment, /function GroundField/);
+    assert.match(environment, /function TerrainWaterField/);
+    assert.match(environment, /name="world-shallow-water"/);
+    assert.match(environment, /name="world-deep-water"/);
+    assert.match(environment, /buildWildsTerrainWaterProjection/);
     assert.match(environment, /name="world-layer-mid"/);
     assert.match(environment, /name="world-layer-far"/);
     assert.match(environment, /function HearttreeSanctum/);
@@ -153,10 +157,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(environment, /function SpringLandmark/);
     assert.match(environment, /const springStones = useRef<THREE\.InstancedMesh>/);
     assert.match(environment, /<WildsWorldArt/);
-    assert.match(worldArt, /function WorldScaleSilhouettes/);
     assert.match(worldArt, /function RouteWaystones/);
-    assert.match(worldArt, /function createFacetedRidgeGeometry/);
-    assert.match(worldArt, /projectWildsHorizonAnchors/);
+    assert.doesNotMatch(worldArt, /WorldScaleSilhouettes|createFacetedRidgeGeometry|world-ridge-family/);
     assert.match(worldArt, /projectWildsRouteGuides/);
     assert.match(worldArt, /InstancedMesh/);
     assert.match(worldArt, /wildsTerrainElevation\(player\.x, player\.z\)/);
@@ -167,10 +169,12 @@ describe("Receiz Wilds rendering contract", () => {
   it("reveals terrain scale with bounded quality-aware depth", async () => {
     const world = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");
     const worldArt = await readFile("src/features/play/WildsWorldArt.tsx", "utf8");
+    const environment = await readFile("src/features/play/WildsEnvironment.tsx", "utf8");
 
-    assert.match(world, /const fogFar = qualityProfile\.tier === "low" \? 34 : qualityProfile\.tier === "medium" \? 40 : 46/);
+    assert.match(world, /const fogFar = qualityProfile\.tier === "low" \? 38 : qualityProfile\.tier === "medium" \? 46 : 52/);
     assert.match(world, /<fog attach="fog" args=\{\[kaiFog, fogNear, fogFar\]\}/);
-    assert.match(worldArt, /name="world-scale-silhouettes"/);
+    assert.match(environment, /terrainRadius = qualityProfile\.tier === "low" \? 2 : qualityProfile\.tier === "medium" \? 3 : 4/);
+    assert.match(environment, /name="world-physical-water"/);
     assert.match(worldArt, /name="world-route-waystones"/);
     assert.doesNotMatch(worldArt, /useFrame|requestAnimationFrame|Math\.random/);
   });

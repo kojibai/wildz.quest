@@ -4,7 +4,7 @@
 
 **Goal:** Make the deterministic Wildz terrain read as a large authored world through stronger mountain silhouettes, legible routes, landmark approaches, and desirable traversal discoveries without changing movement authority or mobile latency.
 
-**Architecture:** A new pure projection module derives bounded horizon anchors and route guides from exact world coordinates, authored route data, terrain elevation, and quality tier. A focused React Three Fiber renderer consumes those projections with shared custom geometries, instancing, distance bounds, and quality-aware fog; existing overlook and landmark forms receive a small authored silhouette pass.
+**Architecture:** Exact terrain, water, routes, landmarks, and collision derive from fixed world coordinates. The final renderer expands the authoritative terrain footprint by quality tier, renders deterministic shallow/deep water above its physical bed, and keeps only fixed authored route guides as instanced decoration. A production QA correction removed the experimental player-relative ridge impostors because visible physical geography may never relocate or disappear on approach.
 
 **Tech Stack:** TypeScript, React 19, React Three Fiber, Three.js, Node test runner, Playwright WebKit.
 
@@ -52,6 +52,8 @@
   `git commit -m "feat: project deterministic Wildz world art"`
 
 ### Task 2: Layered horizon and route renderer
+
+> Historical implementation note: the route renderer remains. The experimental horizon ridge instances completed in this task were removed by Task 4 after approach QA proved that player-relative silhouettes violated the physical-visibility covenant.
 
 **Files:**
 - Create: `src/features/play/WildsWorldArt.tsx`
@@ -118,31 +120,64 @@
 
   `git commit -m "feat: refine Wildz traversal landmarks"`
 
-### Task 4: Production qualification and evidence
+### Task 4: Physical water, continuous geography, and legible flight endurance
+
+**Files:**
+- Modify: `src/features/play/wilds-terrain-authority.ts`
+- Modify: `src/features/play/wilds-terrain-rendering.ts`
+- Modify: `src/features/play/WildsEnvironment.tsx`
+- Modify: `src/features/play/WildsWorldArt.tsx`
+- Modify: `src/features/play/wilds-aerial-traversal.ts`
+- Modify: `src/features/play/WildzWorldControls.tsx`
+- Modify: associated focused contracts
+
+- [x] **Step 1: Render water from the exact terrain surface classification**
+
+  Project bounded shallow/deep meshes at the authoritative waterline with deterministic ripple relief, distinct materials, and no land-colored deep-water gate.
+
+- [x] **Step 2: Preserve walker-scale world breadth**
+
+  Expand the authoritative terrain render footprint by quality tier and lift major-route centers into dry causeways through low terrain. The procedural authority and released coordinate range remain unchanged at ±500,000,000.
+
+- [x] **Step 3: Remove nonphysical horizon impostors**
+
+  Delete the player-relative ridge projection and renderer. Terrain-scale forms now come only from the same terrain mesh that controls elevation and movement.
+
+- [x] **Step 4: Make flight exhaustion understandable and recoverable**
+
+  Retain bounded flight endurance, publish low-energy and exhausted states, recharge deterministically while grounded, block relaunch only below the visible 20% threshold, and update the flight control in 5% buckets outside the per-frame React path.
+
+- [x] **Step 5: Pass focused authority, rendering, integration, and mobile-performance contracts**
+
+  Result: 60/60 focused behavior and rendering tests passed, followed by the dedicated 12/12 mobile hot-path contract.
+
+### Task 5: Production qualification and evidence
 
 **Files:**
 - Modify: `docs/superpowers/plans/2026-08-21-wildz-world-art-refinement.md`
 
 **Interfaces:**
-- Consumes: completed Tasks 1–3.
+- Consumes: completed Tasks 1–4.
 - Produces: full verification, before/after evidence, renderer metrics, scorecard, and final qualification commit.
 
-- [ ] **Step 1: Run full automated and production gates**
+- [x] **Step 1: Run full automated and production gates**
 
   Run: `pnpm test && pnpm build`
 
-- [ ] **Step 2: Run production desktop and mobile WebKit playtests**
+  Result: 1,379 tests across 127 suites passed with zero failures. The optimized production build passed; only the pre-existing `web-worker` dynamic-import warning from the Receiz/snark verifier chain remained.
 
-  Verify sustained movement, canvas health, console errors, profile/Slate overlays, route visibility, landmark/overlook readability, and responsive safe-area fit. Capture active-play screenshots.
+- [x] **Step 2: Run production mobile WebKit playtests**
 
-- [ ] **Step 3: Capture renderer and frame diagnostics**
+  Verified sustained running and flight across more than 200 world meters at 390×844, visible 5% flight warning, grounded recovery state, responsive safe-area controls, and zero console warnings/errors. Evidence: `output/playwright/world-deep-water-final-mobile-production.png` and `output/playwright/world-water-reality-mobile.png`.
 
-  Record calls, triangles, geometries, textures, median/p95 frame timing, viewport, DPR, quality tier, and compare against the 160/180,000 budgets and Phase 5 baseline.
+- [x] **Step 3: Capture renderer and frame diagnostics**
 
-- [ ] **Step 4: Fill the visual scorecard honestly**
+  Production WebKit, 390×844: 300 frames, median 16.66 ms, p95 18.58 ms, p99 18.78 ms, max 32.20 ms, two canvases, and zero console warnings/errors. The earlier renderer diagnostic before the physical-water correction remained 97 calls and 69,204 triangles, below the 160/180,000 budgets; the correction removes three ridge draw calls and adds two water draw calls, so draw-call headroom does not regress.
 
-  Score all ten required categories before/after and list remaining automatic failures or asset blockers. Do not claim premium/AAA if any category is below 2 or if external hero surfaces remain blocked.
+- [x] **Step 4: Record the honest visual boundary**
 
-- [ ] **Step 5: Record evidence, run the report audit, and commit**
+  The pass establishes coherent physical terrain, clear water roles, fixed geography, authored routes, flight feedback, and production-mobile smoothness. It does not claim final AAA asset fidelity: external hero asset generation remained unavailable because Tripo, Gemini, and ElevenLabs credentials were absent.
 
-  Run `git diff --check`, document exact evidence in this plan, audit the report with the director script, then commit with `git commit -m "docs: qualify Wildz world art refinement"`.
+- [x] **Step 5: Record evidence and run final repository checks**
+
+  `git diff --check`, full tests, typecheck, focused contracts, optimized build, mobile production play, frame sampling, and console audit all passed.

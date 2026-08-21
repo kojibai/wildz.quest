@@ -1,4 +1,4 @@
-import { WILDS_TERRAIN_TILE_SIZE, wildsTerrainElevation } from "./wilds-terrain-authority";
+import { WILDS_TERRAIN_TILE_SIZE, sampleWildsTerrain, wildsTerrainElevation, type WildsTerrainSurface } from "./wilds-terrain-authority";
 import { buildWildsTerrainTile } from "./wilds-terrain-tiles";
 
 type WorldPoint = Readonly<{ x: number; z: number }>;
@@ -8,6 +8,20 @@ export type WildsTerrainMeshVertex = {
   world: { x: number; z: number };
   position: { x: number; y: number; z: number };
   normal: { x: number; y: number; z: number };
+  surface: WildsTerrainSurface;
+};
+
+export type WildsTerrainWaterLayer = {
+  positions: readonly number[];
+  normals: readonly number[];
+  indices: readonly number[];
+};
+
+export type WildsTerrainWaterProjection = {
+  origin: { x: number; z: number };
+  waterline: number;
+  shallow: WildsTerrainWaterLayer;
+  deep: WildsTerrainWaterLayer;
 };
 
 export type WildsTerrainMeshProjection = {
@@ -58,7 +72,8 @@ export function buildWildsTerrainMeshProjection(tileX: number, tileZ: number, se
         y: vertex.elevation,
         z: vertex.z - origin.z
       },
-      normal: { ...vertex.normal }
+      normal: { ...vertex.normal },
+      surface: vertex.surface
     };
     positions.push(projected.position.x, projected.position.y, projected.position.z);
     normals.push(projected.normal.x, projected.normal.y, projected.normal.z);
@@ -78,6 +93,60 @@ export function buildWildsTerrainMeshProjection(tileX: number, tileZ: number, se
   }
 
   return { origin, segments, positions, normals, uvs, indices, vertices };
+}
+
+export function buildWildsTerrainWaterProjection(
+  centerTileX: number,
+  centerTileZ: number,
+  radius: number,
+  segments: number
+): WildsTerrainWaterProjection {
+  if (!Number.isInteger(radius) || radius < 0 || radius > 4) throw new Error("wilds_terrain_water_radius_invalid");
+  if (!Number.isInteger(segments) || segments < 1 || segments > 64) throw new Error("wilds_terrain_water_segments_invalid");
+  const origin = {
+    x: (centerTileX - radius) * WILDS_TERRAIN_TILE_SIZE,
+    z: (centerTileZ - radius) * WILDS_TERRAIN_TILE_SIZE
+  };
+  const waterline = -1.06;
+  const shallow = { positions: [] as number[], normals: [] as number[], indices: [] as number[] };
+  const deep = { positions: [] as number[], normals: [] as number[], indices: [] as number[] };
+  const cellSize = WILDS_TERRAIN_TILE_SIZE / segments;
+  const surfaceY = (x: number, z: number, deepWater: boolean) => quantizedWaterHeight(
+    waterline + (deepWater ? 0.012 : 0) + Math.sin(x * .43 + z * .17) * .022 + Math.cos(z * .37 - x * .11) * .014
+  );
+
+  for (let tileZ = centerTileZ - radius; tileZ <= centerTileZ + radius; tileZ += 1) {
+    for (let tileX = centerTileX - radius; tileX <= centerTileX + radius; tileX += 1) {
+      for (let gridZ = 0; gridZ < segments; gridZ += 1) {
+        for (let gridX = 0; gridX < segments; gridX += 1) {
+          const worldX = tileX * WILDS_TERRAIN_TILE_SIZE + gridX * cellSize;
+          const worldZ = tileZ * WILDS_TERRAIN_TILE_SIZE + gridZ * cellSize;
+          const surface = sampleWildsTerrain(worldX + cellSize / 2, worldZ + cellSize / 2).surface;
+          if (surface !== "shallow-water" && surface !== "deep-water") continue;
+          const layer = surface === "deep-water" ? deep : shallow;
+          const deepWater = surface === "deep-water";
+          const vertexOffset = layer.positions.length / 3;
+          const x0 = worldX - origin.x;
+          const z0 = worldZ - origin.z;
+          const x1 = x0 + cellSize;
+          const z1 = z0 + cellSize;
+          layer.positions.push(
+            x0, surfaceY(worldX, worldZ, deepWater), z0,
+            x0, surfaceY(worldX, worldZ + cellSize, deepWater), z1,
+            x1, surfaceY(worldX + cellSize, worldZ, deepWater), z0,
+            x1, surfaceY(worldX + cellSize, worldZ + cellSize, deepWater), z1
+          );
+          layer.normals.push(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0);
+          layer.indices.push(vertexOffset, vertexOffset + 1, vertexOffset + 2, vertexOffset + 2, vertexOffset + 1, vertexOffset + 3);
+        }
+      }
+    }
+  }
+  return { origin, waterline, shallow, deep };
+}
+
+function quantizedWaterHeight(value: number) {
+  return Math.round(value * 1_000_000) / 1_000_000;
 }
 
 export function buildWildsTerrainPatchProjection(centerTileX: number, centerTileZ: number, radius: number, segments: number): WildsTerrainMeshProjection {

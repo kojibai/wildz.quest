@@ -4,6 +4,7 @@ import { wildsTerrainElevation } from "../src/features/play/wilds-terrain-author
 import {
   buildWildsTerrainPatchProjection,
   buildWildsTerrainMeshProjection,
+  buildWildsTerrainWaterProjection,
   buildWildsTerrainRibbonProjection,
   projectWildsTerrainActorPosition,
   wildsTerrainRelativeElevation
@@ -67,6 +68,18 @@ test("streamed terrain patch combines a five-by-five tile footprint into one ind
   assert.equal(patch.indices.length, tiles * 4 * 4 * 6);
   assert.equal(patch.vertices[0]?.world.x, 12);
   assert.equal(patch.vertices.at(-1)?.world.z, 12);
+});
+
+test("streamed physical water projects distinct shallow and deep surfaces above the terrain bed", () => {
+  const water = buildWildsTerrainWaterProjection(-1, -9, 2, 8);
+
+  assert.ok(water.shallow.indices.length > 0);
+  assert.ok(water.deep.indices.length > 0);
+  const shallowHeights = water.shallow.positions.filter((_, index) => index % 3 === 1);
+  const deepHeights = water.deep.positions.filter((_, index) => index % 3 === 1);
+  assert.ok(shallowHeights.every((y) => Math.abs(y - water.waterline) <= 0.037));
+  assert.ok(deepHeights.every((y) => Math.abs(y - (water.waterline + 0.012)) <= 0.037));
+  assert.ok(new Set(deepHeights).size > 8);
 });
 
 test("authored ribbons sample both edges from deterministic terrain", () => {

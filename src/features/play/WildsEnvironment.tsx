@@ -15,7 +15,7 @@ import { WAYFINDER_HOLLOW } from "@/features/play/wilds-settlements";
 import { useWildsReadability } from "@/features/play/WildsReadabilityContext";
 import { projectWildsEcologyInstance } from "@/features/play/wilds-ecology-placement";
 import { wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
-import { buildWildsTerrainPatchProjection, buildWildsTerrainRibbonProjection, wildsTerrainRelativeElevation } from "@/features/play/wilds-terrain-rendering";
+import { buildWildsTerrainPatchProjection, buildWildsTerrainRibbonProjection, buildWildsTerrainWaterProjection, wildsTerrainRelativeElevation } from "@/features/play/wilds-terrain-rendering";
 import { projectWildsObstaclePlacement, wildsTerrainObstaclesForTile } from "@/features/play/wilds-terrain-obstacles";
 import { projectWildsOverlooks, type WildsOverlookId } from "@/features/play/wilds-overlooks";
 import { WildsWorldArt } from "@/features/play/WildsWorldArt";
@@ -115,6 +115,7 @@ export function WildsEnvironment({
     <group>
       <group name="world-layer-play">
         <GroundField centerX={centerX} centerZ={centerZ} color={tiles[12]?.ground.base ?? "#4f9254"} player={player} qualityProfile={qualityProfile} />
+        <TerrainWaterField centerX={centerX} centerZ={centerZ} player={player} qualityProfile={qualityProfile} />
         <WorldWatercourses player={player} qualityProfile={qualityProfile} />
         <TrailNetwork player={player} palette={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }} />
         <MajorWorldRoutes player={player} palette={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }} />
@@ -130,7 +131,6 @@ export function WildsEnvironment({
       </group>
       <group name="world-layer-far">
         <WildsWorldArt
-          canopy={tiles[12]?.canopy ?? { deep: "#174f3b", mid: "#4f9254", highlight: "#d9ff9f" }}
           player={player}
           qualityProfile={qualityProfile}
           trail={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }}
@@ -284,9 +284,10 @@ function WorldWatercourses({ player, qualityProfile }: { player: PlayState["play
 
 function GroundField({ centerX, centerZ, color, player, qualityProfile }: { centerX: number; centerZ: number; color: string; player: PlayState["player"]; qualityProfile: WildsQualityProfile }) {
   const readability = useWildsReadability();
+  const terrainRadius = qualityProfile.tier === "low" ? 2 : qualityProfile.tier === "medium" ? 3 : 4;
   const geometry = useMemo(() => {
     const segments = qualityProfile.tier === "low" ? 4 : qualityProfile.tier === "medium" ? 6 : 8;
-    const projection = buildWildsTerrainPatchProjection(centerX, centerZ, STREAM_RADIUS, segments);
+    const projection = buildWildsTerrainPatchProjection(centerX, centerZ, terrainRadius, segments);
     const next = new THREE.BufferGeometry();
     next.setAttribute("position", new THREE.Float32BufferAttribute(projection.positions, 3));
     next.setAttribute("normal", new THREE.Float32BufferAttribute(projection.normals, 3));
@@ -294,7 +295,7 @@ function GroundField({ centerX, centerZ, color, player, qualityProfile }: { cent
     next.setIndex(Array.from(projection.indices));
     next.computeBoundingSphere();
     return next;
-  }, [centerX, centerZ, qualityProfile.tier]);
+  }, [centerX, centerZ, qualityProfile.tier, terrainRadius]);
   const terrainMap = useMemo(() => {
     const size = 64;
     const data = new Uint8Array(size * size * 4);
@@ -320,11 +321,50 @@ function GroundField({ centerX, centerZ, color, player, qualityProfile }: { cent
     <mesh
       geometry={geometry}
       receiveShadow
-      position={[(centerX - STREAM_RADIUS) * WILDS_TILE_SIZE - player.x, -wildsTerrainElevation(player.x, player.z) - .04, (centerZ - STREAM_RADIUS) * WILDS_TILE_SIZE - player.z]}
+      position={[(centerX - terrainRadius) * WILDS_TILE_SIZE - player.x, -wildsTerrainElevation(player.x, player.z) - .04, (centerZ - terrainRadius) * WILDS_TILE_SIZE - player.z]}
     >
       <meshStandardMaterial color="#d5efe0" emissive="#183d28" emissiveIntensity={.06 + readability.darkness * .16} map={terrainMap} roughness={0.96} />
     </mesh>
   );
+}
+
+function TerrainWaterField({ centerX, centerZ, player, qualityProfile }: {
+  centerX: number;
+  centerZ: number;
+  player: PlayState["player"];
+  qualityProfile: WildsQualityProfile;
+}) {
+  const terrainRadius = qualityProfile.tier === "low" ? 2 : qualityProfile.tier === "medium" ? 3 : 4;
+  const projection = useMemo(() => buildWildsTerrainWaterProjection(
+    centerX,
+    centerZ,
+    terrainRadius,
+    qualityProfile.tier === "low" ? 4 : qualityProfile.tier === "medium" ? 6 : 8
+  ), [centerX, centerZ, qualityProfile.tier, terrainRadius]);
+  const shallowGeometry = useMemo(() => waterLayerGeometry(projection.shallow), [projection]);
+  const deepGeometry = useMemo(() => waterLayerGeometry(projection.deep), [projection]);
+  const position: [number, number, number] = [
+    projection.origin.x - player.x,
+    -wildsTerrainElevation(player.x, player.z),
+    projection.origin.z - player.z
+  ];
+  return <group name="world-physical-water" position={position}>
+    <mesh geometry={shallowGeometry} name="world-shallow-water" receiveShadow>
+      <meshPhysicalMaterial color="#35d5d5" emissive="#087b8c" emissiveIntensity={.52} fog={false} metalness={.03} opacity={.96} roughness={.12} transparent clearcoat={qualityProfile.tier === "low" ? .48 : .94} clearcoatRoughness={.14} depthWrite />
+    </mesh>
+    <mesh geometry={deepGeometry} name="world-deep-water" receiveShadow>
+      <meshPhysicalMaterial color="#047dab" emissive="#023d74" emissiveIntensity={.72} fog={false} metalness={.06} roughness={.08} clearcoat={qualityProfile.tier === "low" ? .56 : 1} clearcoatRoughness={.1} depthWrite />
+    </mesh>
+  </group>;
+}
+
+function waterLayerGeometry(layer: { positions: readonly number[]; normals: readonly number[]; indices: readonly number[] }) {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(layer.positions, 3));
+  geometry.setAttribute("normal", new THREE.Float32BufferAttribute(layer.normals, 3));
+  geometry.setIndex(Array.from(layer.indices));
+  geometry.computeBoundingSphere();
+  return geometry;
 }
 
 function TrailNetwork({ player, palette }: { player: PlayState["player"]; palette: WildsBiomeTile["trail"] }) {

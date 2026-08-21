@@ -15,12 +15,15 @@ export type WildsAerialTraversalState = Readonly<{
 
 export type WildsAerialTraversalResult = Readonly<{
   state: WildsAerialTraversalState;
-  reason: "flight-required" | "glide-required" | "launch-height-required" | "protected-airspace" | "landed" | null;
+  reason: "flight-required" | "glide-required" | "launch-height-required" | "flight-recharging" | "flight-energy-low" | "flight-exhausted" | "protected-airspace" | "landed" | null;
   horizontalAllowed: boolean;
 }>;
 
 const FLIGHT_CEILING = 12;
 const GLIDE_LAUNCH_HEIGHT = 2;
+export const WILDS_FLIGHT_RELAUNCH_ENERGY = 20;
+const FLIGHT_LOW_ENERGY = 25;
+const GROUND_ENERGY_RECOVERY_PER_SECOND = 24;
 
 function quantize(value: number) {
   return Math.round(value * 1_000_000) / 1_000_000;
@@ -60,6 +63,7 @@ export function beginWildsAerialTraversal(
 ): WildsAerialTraversalResult {
   const capabilities = new Set(input.capabilities);
   if (input.kind === "flight" && !capabilities.has("flight")) return { state, reason: "flight-required", horizontalAllowed: false };
+  if (input.kind === "flight" && state.stamina < WILDS_FLIGHT_RELAUNCH_ENERGY) return { state, reason: "flight-recharging", horizontalAllowed: false };
   if (input.kind === "glide" && !capabilities.has("glide")) return { state, reason: "glide-required", horizontalAllowed: false };
   const launchHeight = input.launchHeight ?? Math.max(0, state.altitude - state.safeAnchor.elevation);
   if (input.kind === "glide" && launchHeight < GLIDE_LAUNCH_HEIGHT) {
@@ -107,7 +111,10 @@ export function advanceWildsAerialTraversal(
     horizontalAllowed: reason !== "protected-airspace"
   });
 
-  if (state.mode === "ground") return { state: grounded(input.position, input.groundElevation, state.stamina, state.distance), reason: null, horizontalAllowed: true };
+  if (state.mode === "ground") {
+    const stamina = Math.min(100, state.stamina + delta * GROUND_ENERGY_RECOVERY_PER_SECOND);
+    return { state: grounded(input.position, input.groundElevation, stamina, state.distance), reason: null, horizontalAllowed: true };
+  }
   if (input.landingRequested) return land();
   if (input.protectedAirspace) return land("protected-airspace");
   if (state.mode === "flight" && !capabilities.has("flight")) {
@@ -132,9 +139,9 @@ export function advanceWildsAerialTraversal(
     ));
     if (stamina <= 0) {
       if (!capabilities.has("glide")) return land();
-      return { state: { ...state, mode: "glide", altitude, verticalVelocity: -0.72, stamina, distance }, reason: null, horizontalAllowed: true };
+      return { state: { ...state, mode: "glide", altitude, verticalVelocity: -0.72, stamina, distance }, reason: "flight-exhausted", horizontalAllowed: true };
     }
-    return { state: { ...state, altitude, verticalVelocity, stamina, distance }, reason: null, horizontalAllowed: true };
+    return { state: { ...state, altitude, verticalVelocity, stamina, distance }, reason: stamina <= FLIGHT_LOW_ENERGY ? "flight-energy-low" : null, horizontalAllowed: true };
   }
 
   const stamina = quantize(Math.max(0, state.stamina - delta * (0.8 + horizontalDistance * 0.35)));

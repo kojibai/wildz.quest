@@ -30,8 +30,10 @@ describe("Wildz aerial and vista integration", () => {
       readFile("src/features/play/WildsWorldCanvas.tsx", "utf8")
     ]);
 
-    assert.match(controls, /"Take flight"/);
-    assert.match(controls, /"Land safely"/);
+    assert.match(controls, /Take flight/);
+    assert.match(controls, /Flight energy/);
+    assert.match(controls, /Recharge on the ground/);
+    assert.match(controls, /Land safely/);
     assert.match(environment, /Open \$\{overlook\.name\} vista/);
     assert.match(environment, /name="overlook-sightglass"/);
     assert.match(canvas, /priorVista\.current = \{ position: camera\.position\.clone\(\), target: orbit\.target\.clone\(\) \}/);

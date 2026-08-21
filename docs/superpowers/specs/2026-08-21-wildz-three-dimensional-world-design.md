@@ -160,7 +160,15 @@ Loss of capability, stamina, or valid surface produces a deterministic safe tran
 
 Gliding requires an airborne start and an eligible active creature capability. It converts height and forward momentum into bounded range while preserving collision against terrain and major obstacles. Flight, when earned, provides broader controlled elevation but still respects declared ceilings, protected interiors, world boundaries, and authored encounter constraints.
 
+Flight endurance is explicit player-facing state. The flight control shows remaining energy, changes to a low-energy warning before exhaustion, explains the automatic glide or landing, and shows grounded recharge progress. A player may relaunch after the declared minimum energy returns; there is no unexplained lockout.
+
 Flight is progression, not a debug bypass. Distant terrain must retain navigable silhouettes, landing zones, and meaningful aerial routes. Streaming budgets anticipate higher visibility and speed before flight ships.
+
+### Physical visibility covenant
+
+A large visible form is a promise that the form exists at a fixed world coordinate. Mountains and terrain-scale silhouettes are rendered from the terrain authority itself, never from player-relative horizon impostors that relocate or disappear on approach. Fog may continuously attenuate visibility and quality tiers may reduce detail, but proximity cannot delete or replace physical geography.
+
+Deep and shallow water render as dedicated surfaces above the authoritative terrain bed. Deep water uses an unmistakable blue depth layer; shallow water provides a brighter shoreline transition; both use deterministic bounded ripple relief. A water traversal gate is never represented by land-colored ground or an invisible wall.
 
 ### Creature capability projection
 

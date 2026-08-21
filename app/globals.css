@@ -14932,6 +14932,51 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   box-shadow: 0 8px 22px rgba(0, 0, 0, .34), 0 0 18px rgba(255, 198, 109, .22), inset 0 1px rgba(255, 255, 255, .12);
 }
 
+.wildz-quick-utilities > .wildz-flight-control {
+  position: relative;
+  overflow: hidden;
+}
+
+.wildz-flight-control > svg {
+  position: relative;
+  z-index: 1;
+}
+
+.wildz-flight-control > i {
+  position: absolute;
+  right: 5px;
+  bottom: 4px;
+  left: 5px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ffcf62 var(--wildz-flight-energy), rgba(255, 255, 255, .12) var(--wildz-flight-energy));
+  box-shadow: 0 0 8px rgba(255, 207, 98, .42);
+}
+
+.wildz-flight-status {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: max-content;
+  max-width: min(220px, calc(100vw - 24px));
+  padding: 6px 9px;
+  border: 1px solid rgba(255, 220, 141, .34);
+  border-radius: 10px;
+  color: #fff2c5;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: .035em;
+  background: rgba(17, 31, 27, .92);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .32);
+  pointer-events: none;
+}
+
+.wildz-flight-status.is-low {
+  border-color: rgba(255, 143, 107, .58);
+  color: #ffd0b7;
+}
+
 .wildz-tools-home {
   position: absolute;
   bottom: max(18px, env(safe-area-inset-bottom));

@@ -93,6 +93,7 @@ function WorldControlsFocusRecoveryFixture() {
     <WildzWorldControls
       activeCard={activeCard}
       aerialMode="ground"
+      aerialEnergy={100}
       cameraHeadingRef={cameraHeadingRef}
       cardConditions={{}}
       cardOrder="newest"

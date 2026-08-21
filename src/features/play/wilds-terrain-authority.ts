@@ -103,7 +103,7 @@ export function distanceToWildsMajorRoute(x: number, z: number) {
 function routeMaskedElevation(x: number, z: number, elevation: number) {
   const projection = nearestRouteProjection(x, z);
   if (projection.distance >= 1.1) return elevation;
-  const routeGrade = unmaskedElevation(projection.x, projection.z);
+  const routeGrade = Math.max(-0.82, unmaskedElevation(projection.x, projection.z));
   const blend = 1 - smoothstep(projection.distance / 1.1);
   return elevation + (routeGrade - elevation) * blend;
 }
