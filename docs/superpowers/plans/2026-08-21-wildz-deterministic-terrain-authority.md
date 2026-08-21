@@ -174,8 +174,9 @@ test("negative and positive world coordinates resolve to stable absolute tiles",
 test("adjacent terrain tiles share byte-identical edge samples", () => {
   const left = buildWildsTerrainTile(3, -2, 8);
   const right = buildWildsTerrainTile(4, -2, 8);
-  const leftEdge = left.vertices.filter((vertex) => vertex.gridX === 8);
-  const rightEdge = right.vertices.filter((vertex) => vertex.gridX === 0);
+  const authority = ({ x, z, elevation, normal, surface }: WildsTerrainTileVertex) => ({ x, z, elevation, normal, surface });
+  const leftEdge = left.vertices.filter((vertex) => vertex.gridX === 8).map(authority);
+  const rightEdge = right.vertices.filter((vertex) => vertex.gridX === 0).map(authority);
   assert.deepEqual(leftEdge, rightEdge);
 });
 
