@@ -93,6 +93,20 @@ Initial capability families include:
 - heat, cold, pressure, and storm resistance;
 - buoyancy, anchoring, and rescue support.
 
+These capabilities create player verbs rather than passive labels:
+
+- tracking reveals concealed signals and narrows discovery direction;
+- illumination exposes cave paths, nocturnal markings, and abyssal creatures;
+- climbing opens cliff faces, canopy routes, ruins, and summit shortcuts;
+- burrowing opens deterministic underground entrances and hidden chambers;
+- breaking clears explicitly authored cracked barriers without replacing ordinary collision;
+- camouflage permits closer observation or safer approach to skittish creatures;
+- current riding turns discovered water currents into fast travel routes;
+- pressure, heat, cold, and storm resistance admit otherwise hostile environmental bands;
+- anchoring prevents current or wind displacement at exposed interaction points;
+- rescue abilities improve recovery from exhaustion without bypassing injury or mortality rules;
+- balance opens narrow branches, ledges, ropes, and unstable crossings.
+
 Structured ability descriptors use stable IDs, action tags, explicit traversal grants, deterministic power curves, cooldown or endurance behavior, and player-facing explanations. Runtime code does not infer authority by regular expressions over display names.
 
 ## Progression and differentiation
@@ -142,6 +156,39 @@ In deep water with an admitted swimmer:
 
 The initial implementation uses an automatically stable swim depth so mobile controls remain cognitively light. Diving specialists may later expose deliberate depth control through the same aquatic projection without changing the horizontal movement contract.
 
+Deep water also supports deliberate ascent and descent. A player may remain near the surface, descend through the water column, or reach the visible floor when the selected creature's dive depth and pressure tolerance permit it. The camera, explorer, companion, encounter targeting, and depth status consume the same bounded depth authority. The player cannot fall through the seabed or disappear below the rendered world.
+
+## Aquatic creature identity
+
+Aquatic creatures must read as aquatic before the player opens a capability panel. Their canonical projection may include fins, flippers, webbing, gills, shells, streamlined bodies, rudder tails, buoyancy organs, pressure adaptations, and bioluminescent markings. Fins never reuse the functional-wing silhouette. A creature that has both fins and wings renders both in distinct anatomical positions and receives only the capabilities supported by each functional organ.
+
+Aquatic movement is anatomy-specific. Propulsive tails undulate, fins steer, flippers stroke, serpentine swimmers coil, buoyant creatures pulse, and bottom dwellers crawl or anchor. The card art, wild actor, captured actor, and capability UI use the same aquatic anatomy terms.
+
+## Layered living encounters
+
+Discovery exists across ground, water, and air while retaining the coherent scan, reveal, battle, capture, and seal loop.
+
+- Ground encounters remain positioned on authoritative terrain.
+- Shore and surface-water encounters are reachable by wading or swimming.
+- Underwater encounters occupy a deterministic depth in the water column or a position on the seabed.
+- Air encounters occupy a deterministic altitude and flight path above authoritative terrain.
+
+Each encounter carries a derived spatial layer and bounded vertical coordinate in addition to its existing world x/z location. Vertical placement is deterministic from the encounter identity and physical environment; it is not server authority and does not alter the proof law.
+
+Underwater life includes visible ambient swimmers as well as discoverable creatures. Schools, solitary swimmers, drifting luminous creatures, reef or rock dwellers, and rare abyssal individuals use quality-bounded local projections. Ambient creatures never masquerade as catchable encounters: a discoverable creature has the same existing signal, reveal, battle, and capture language used on land.
+
+Rare aerial creatures become discoverable only when their altitude intersects the player's current flight or glide capability. They move through deterministic local flight paths and remain real once revealed; they do not appear at range and disappear on approach. Aerial battle and capture preserve altitude context, then seal the exact creature that was seen.
+
+Encounter eligibility is physical and capability-aware:
+
+- non-swimmers can still obtain a first swimmer from an admitted shore or shallow-water approach;
+- deeper and rarer aquatic creatures require swimming, dive depth, illumination, current handling, or pressure tolerance;
+- initial aerial discoveries remain reachable through early glide or low-altitude routes;
+- higher, faster, stormborne, or nocturnal aerial creatures require developed flight, control, tracking, or weather resistance;
+- no required progression route depends on already owning the capability it awards.
+
+Habitat generation and ambient-life projection are cached outside the movement frame loop. Movement never generates encounter populations, verifies cards, or performs network work.
+
 ## Underwater camera and presentation
 
 When swimming, preserve the player's orbit angle and distance while damping camera and target below the shared water surface. A small hysteresis band prevents rapid surface flicker. Returning to shore restores the prior orbit relationship smoothly.
@@ -166,6 +213,8 @@ The existing traversal status area shows one persistent, mutually exclusive stat
 - `Swimming with <creature> · <specialty>`;
 - `Diving with <creature> · <depth/control state>`;
 - flight and glide states when airborne.
+
+During vertical exploration it also shows exact depth or altitude, the active creature's safe operating band, and the input for returning to a safe layer. Discovery cues indicate whether a signal is above, level, or below the player without adding a separate cognitive system.
 
 The active creature surface exposes capability type, current strength, progression requirement, fatigue or injury suppression, and recovery behavior. A player never has to guess why flight or swimming stopped.
 
@@ -206,6 +255,11 @@ Identity Seal and full Vault restore preserve the exact account and selected cre
 11. Ten thousand warm movement/submersion ticks add zero verifier calls, fetches, slow capability-key builds, capability projections, timers, workers, or hotspot generations.
 12. Dry and underwater mobile frame median, p95, long-task, draw-call, and memory budgets remain within the existing release thresholds.
 13. Production build, full deterministic suite, mobile browser input path, canvas screenshots, and console/page-error checks pass.
+14. Aquatic anatomy is visually distinct from wings in cards and 3D actors; mixed wing-and-fin creatures render both correctly.
+15. Surface, water-column, seabed, and aerial encounters preserve deterministic vertical placement through reveal, battle, capture, save, and restore.
+16. A swimmer can descend to the visible floor, discover and capture an underwater creature, ascend, and return to shore without clipping, bottom-walking, or camera loss.
+17. A flight-capable player can intersect, reveal, battle, and capture a rare aerial creature without terrain teleportation or disappearing encounter geometry.
+18. Ambient airborne and aquatic life stays quality-bounded, cannot be mistaken for catchable signals, and performs zero generation work during steady movement.
 
 ## Implementation phases
 
@@ -217,5 +271,7 @@ Identity Seal and full Vault restore preserve the exact account and selected cre
 6. Persistent capability/status UI and progression explanations.
 7. Restore admission optimization and hot-path instrumentation.
 8. Cross-device, mobile performance, visual, and release verification.
+
+The layered encounter work is implemented after canonical visual identity and capability projection, so underwater and aerial creatures cannot reintroduce wild-to-captured appearance divergence.
 
 Each phase ships only when its compatibility, determinism, and performance gates pass.
