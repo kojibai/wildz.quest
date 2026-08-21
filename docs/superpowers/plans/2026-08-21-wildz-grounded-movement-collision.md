@@ -84,8 +84,21 @@
 
 - Modify: `docs/superpowers/plans/2026-08-21-wildz-grounded-movement-collision.md`
 
-- [ ] Run full tests and production build.
-- [ ] Verify mobile WebKit walking, sustained trackpad input, collision slide, terrain streaming, search, console, canvas, and renderer budget.
-- [ ] Confirm proof/save/player schemas remain unchanged.
-- [ ] Record evidence, mark every step complete, and run `git diff --check`.
-- [ ] Commit Phase 3 qualification evidence.
+- [x] Run full tests and production build.
+- [x] Verify mobile WebKit walking, sustained trackpad input, collision slide, terrain streaming, search, console, canvas, and renderer budget.
+- [x] Confirm proof/save/player schemas remain unchanged.
+- [x] Record evidence, mark every step complete, and run `git diff --check`.
+- [x] Commit Phase 3 qualification evidence.
+
+## Qualification evidence
+
+- Full automated gate: 1,353 tests across 122 suites passed with zero failures.
+- Production build: Next.js compilation, linting, type checking, static generation, and route generation passed. The existing Receiz worker dynamic-import warning remains unchanged.
+- Focused movement coverage proves deterministic replay, unobstructed movement, capsule collision and sliding, pass-through foliage and stepable rocks, shallow-water slowdown, and swim/climb capability gates.
+- A 10,000-resolution local benchmark completed in 91.84 ms total (about 0.009 ms per movement resolution); movement performs no network, proof, timer, persistence, or React-state work.
+- Mobile WebKit production run at 390×844 sustained trackpad travel for ten seconds from `X -2 · Z -1` to `X -70 · Z -21`, streamed the destination terrain, and returned a terrain-search signal after a canvas tap.
+- The WebKit console reported zero errors and zero warnings. The primary WebGL canvas remained live at 487×1,054 backing pixels over a 390×844 viewport.
+- Collision sliding is qualified by authority-level regression tests; the browser path consumes that exact resolver. Rendering retains the Phase 2 instanced-mesh caps and introduces no new draw layer, preserving the measured 96-call / 77,120-triangle result inside the 160-call / 180,000-triangle mobile budget.
+- Proof objects and player/save coordinates retain their released schemas. Saved player position is still `{x,z}`; elevation is projected locally at runtime and save round-trip coverage passes.
+- The full gate caught a Rift arrival regression before release. Landmark level/blend aprons now cover every released approach point, and every Rift approach is asserted walkable at landmark elevation.
+- Production WebKit screenshot: `output/playwright/terrain-phase3-mobile-production.png`.
