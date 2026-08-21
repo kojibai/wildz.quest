@@ -792,11 +792,12 @@ export function PlayCampaign({
   };
   const dispatchWorldInput = (input: WildsInput) => {
     if (!canUseWorldStage()) return;
-    if ((input.type === "move" || input.type === "move-vector") && activeVistaId) setActiveVistaId(null);
-    const aerialInput = input.type === "move" || input.type === "move-vector"
-      ? { ...input, aerialMode: aerialMode === "ground" ? undefined : aerialMode }
-      : input;
-    dispatch(aerialInput);
+    if (input.type === "move" || input.type === "move-vector") {
+      if (activeVistaId) setActiveVistaId(null);
+      dispatch({ ...input, aerialMode: aerialMode === "ground" ? undefined : aerialMode });
+      return;
+    }
+    dispatch(input);
   };
   const toggleAerialTraversal = () => {
     if (!canUseWorldStage()) return;
