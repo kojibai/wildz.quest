@@ -8,6 +8,8 @@ import {
 } from "../src/features/play/hidden-hotspots";
 import {
   projectWildsLayeredEncounter,
+  projectWildsEncounterActorOuterFrame,
+  writeWildsEncounterActorOuterFrame,
   wildsEncounterActorLocomotion,
   wildsEncounterActorOffsetY,
   wildsLayeredEncounterCacheSize,
@@ -120,6 +122,37 @@ describe("deterministic layered Wilds encounters", () => {
     assert.equal(wildsEncounterActorOffsetY("air", 1, 4), 0);
     assert.equal(wildsEncounterActorOffsetY("air", 7, 4), 0);
     assert.notEqual(wildsEncounterActorOffsetY("ground", 1, 4), wildsEncounterActorOffsetY("ground", 2, 4));
+  });
+
+  it("keeps the complete aerial encounter group still when reduced motion is enabled", () => {
+    const outerGroup = { position: { y: 99 }, rotation: { y: 99 } };
+    const reduced = projectWildsEncounterActorOuterFrame({
+      layer: "air",
+      timeSeconds: 1,
+      positionX: 4,
+      positionZ: 7,
+      motionScale: 0
+    });
+    const reducedLater = projectWildsEncounterActorOuterFrame({
+      layer: "air",
+      timeSeconds: 7,
+      positionX: 4,
+      positionZ: 7,
+      motionScale: 0
+    });
+    const animated = projectWildsEncounterActorOuterFrame({
+      layer: "air",
+      timeSeconds: 1,
+      positionX: 4,
+      positionZ: 7,
+      motionScale: 1
+    });
+
+    assert.deepEqual(reduced, { offsetY: 0, yaw: 0 });
+    assert.deepEqual(reducedLater, reduced);
+    assert.notEqual(animated.yaw, 0);
+    writeWildsEncounterActorOuterFrame(outerGroup, reducedLater);
+    assert.deepEqual(outerGroup, { position: { y: 0 }, rotation: { y: 0 } });
   });
 
   it("keeps every shore-reachable first swimmer on the surface without a swim requirement", () => {

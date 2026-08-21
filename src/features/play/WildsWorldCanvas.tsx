@@ -50,7 +50,7 @@ import {
   projectWildsReadabilityProfile
 } from "@/features/play/wilds-night-readability";
 import { projectWildsTerrainActorPosition } from "@/features/play/wilds-terrain-rendering";
-import { wildsEncounterActorLocomotion, wildsEncounterActorOffsetY, type WildsEncounterLayer } from "@/features/play/wilds-layered-encounters";
+import { projectWildsEncounterActorOuterFrame, wildsEncounterActorLocomotion, writeWildsEncounterActorOuterFrame, type WildsEncounterLayer } from "@/features/play/wilds-layered-encounters";
 import type { WildsAquaticPresentation } from "@/features/play/wilds-aquatic-presentation";
 import {
   createWildsAerialRuntimeResult,
@@ -830,6 +830,7 @@ function Creature({
   layer?: WildsEncounterLayer;
 }) {
   const groupRef = useRef<THREE.Group>(null);
+  const readability = useWildsReadability();
   const appearance = useMemo(
     () => identity ? projectEncounterCreatureVisualIdentity({ identity, formId }) : null,
     [formId, identity]
@@ -838,8 +839,14 @@ function Creature({
   useFrame(() => {
     if (!groupRef.current) return;
     const elapsed = frameSeconds();
-    groupRef.current.position.y = wildsEncounterActorOffsetY(layer, elapsed, card.position[0]);
-    groupRef.current.rotation.y = Math.sin(elapsed * 0.85 + card.position[2]) * 0.18;
+    const frame = projectWildsEncounterActorOuterFrame({
+      layer,
+      timeSeconds: elapsed,
+      positionX: card.position[0],
+      positionZ: card.position[2],
+      motionScale: readability.motionScale
+    });
+    writeWildsEncounterActorOuterFrame(groupRef.current, frame);
   });
 
   return (
