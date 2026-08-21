@@ -17,6 +17,18 @@ test("fit-all framing includes the complete discovered extent on portrait and la
   }
 });
 
+test("atlas zoom spans close terrain inspection through a far whole-world overview", () => {
+  const frame = atlasCameraFrame({
+    bounds: { minX: 0, maxX: 0, minZ: 0, maxZ: 0, count: 1 },
+    centerRegion: { x: .5, z: .5 },
+    regionUnit: 1.35
+  }, { width: 390, height: 844 });
+
+  assert.ok(frame.minDistance <= .5, `expected close inspection, got ${frame.minDistance}`);
+  assert.ok(frame.maxDistance >= 512, `expected atlas-wide zoom out, got ${frame.maxDistance}`);
+  assert.ok(frame.maxDistance / frame.minDistance >= 1_000);
+});
+
 test("recenter translates camera and target together without changing zoom distance", () => {
   const translated = translateWildsAtlasCamera({
     position: [3, 9, 12],

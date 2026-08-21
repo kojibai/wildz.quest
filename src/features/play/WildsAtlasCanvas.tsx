@@ -225,7 +225,6 @@ function AtlasCameraRig({
     minDistance={frame.minDistance}
     minPolarAngle={0.35}
     mouseButtons={{ LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }}
-    onChange={() => invalidate()}
     panSpeed={0.72}
     ref={controls}
     rotateSpeed={0.5}
@@ -243,7 +242,7 @@ function TrainerLights({ projection }: { projection: WildsAtlasProjection }) {
     return <group key={trainer.id} position={[x, .44, z]}>
       <mesh><capsuleGeometry args={[.11, .28, 4, 8]} /><meshStandardMaterial color="#fff2b0" emissive="#d9982b" emissiveIntensity={1.65} /></mesh>
       <mesh position={[0, -.17, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[.22, .025, 6, 20]} /><meshBasicMaterial color="#f7d25b" /></mesh>
-      {projection.zoom === "world" ? null : <Html center position={[0, .55, 0]} zIndexRange={[2, 1]}><span className="wilds-atlas-trainer-label">{trainer.name} · Trainer</span></Html>}
+      {projection.zoom === "world" ? null : <Html center position={[0, .55, 0]} wrapperClass="wilds-atlas-pass-through-label" zIndexRange={[2, 1]}><span className="wilds-atlas-trainer-label">{trainer.name} · Trainer</span></Html>}
     </group>;
   })}</group>;
 }
@@ -528,7 +527,7 @@ function LandmarkBeacons({
           <torusGeometry args={[active ? 0.48 : 0.4, 0.025, 8, 30]} />
           <meshBasicMaterial color={landmark.accent} transparent opacity={active ? 0.92 : 0.5} />
         </mesh>
-        <Html center position={[Math.cos(landmarkIndex * GOLDEN_ANGLE) * .22, 0.86 + (landmarkIndex % 2) * .11, Math.sin(landmarkIndex * GOLDEN_ANGLE) * .22]} zIndexRange={[2, 1]}>
+        <Html center position={[Math.cos(landmarkIndex * GOLDEN_ANGLE) * .22, 0.86 + (landmarkIndex % 2) * .11, Math.sin(landmarkIndex * GOLDEN_ANGLE) * .22]} wrapperClass="wilds-atlas-pass-through-label" zIndexRange={[2, 1]}>
           <div
             className={`wilds-atlas-map-label${active ? " is-active" : ""}`}
             style={{
@@ -584,7 +583,7 @@ function RegionNames({ projection }: { projection: WildsAtlasProjection }) {
   )).map((region, index) => {
     const x = atlasLocalCoordinate(region.position.x, projection.centerRegion.x, projection.regionUnit);
     const z = atlasLocalCoordinate(region.position.z, projection.centerRegion.z, projection.regionUnit);
-    return <Html center key={region.id} position={[x + Math.cos(index * GOLDEN_ANGLE) * .16, atlasTerrainHeight(region.position.x, region.position.z, projection.regionUnit) + .38 + (index % 2) * .08, z + Math.sin(index * GOLDEN_ANGLE) * .16]} zIndexRange={[1, 0]}><span className="wilds-atlas-region-name">{region.name}</span></Html>;
+    return <Html center key={region.id} position={[x + Math.cos(index * GOLDEN_ANGLE) * .16, atlasTerrainHeight(region.position.x, region.position.z, projection.regionUnit) + .38 + (index % 2) * .08, z + Math.sin(index * GOLDEN_ANGLE) * .16]} wrapperClass="wilds-atlas-pass-through-label" zIndexRange={[1, 0]}><span className="wilds-atlas-region-name">{region.name}</span></Html>;
   })}</group>;
 }
 
@@ -643,7 +642,7 @@ function CurrentPositionBeam({ position, projection }: { position: { x: number; 
   const z = atlasLocalCoordinate(position.z, projection.centerRegion.z, projection.regionUnit);
   return (
     <group name="atlas-current-position" position={[x, 0, z]}>
-      <Html center position={[0, 1.9, 0]} zIndexRange={[3, 2]}>
+      <Html center position={[0, 1.9, 0]} wrapperClass="wilds-atlas-pass-through-label" zIndexRange={[3, 2]}>
         <span className="wilds-atlas-you-are-here">You are here</span>
       </Html>
       <mesh position={[0, 0.48, 0]}>

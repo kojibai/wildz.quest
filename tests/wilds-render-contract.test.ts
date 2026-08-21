@@ -60,6 +60,23 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.wilds-world-map-header h2\s*\{[^}]*white-space:\s*normal/s);
   });
 
+  it("keeps Google Earth gestures connected across live atlas refreshes", async () => {
+    const canvas = await readFile("src/features/play/WildsAtlasCanvas.tsx", "utf8");
+    const css = await readFile("app/globals.css", "utf8");
+    const cameraRig = canvas.slice(canvas.indexOf("function AtlasCameraRig"), canvas.indexOf("function TrainerLights"));
+    const htmlLabels = canvas.match(/<Html\b/g) ?? [];
+    const passThroughLabels = canvas.match(/<Html\b[^>]*wrapperClass="wilds-atlas-pass-through-label"/g) ?? [];
+
+    assert.match(cameraRig, /enablePan/);
+    assert.match(cameraRig, /enableRotate/);
+    assert.match(cameraRig, /zoomToCursor/);
+    assert.match(cameraRig, /touches=\{\{ ONE: THREE\.TOUCH\.PAN, TWO: THREE\.TOUCH\.DOLLY_ROTATE \}\}/);
+    assert.doesNotMatch(cameraRig, /minAzimuthAngle|maxAzimuthAngle/);
+    assert.doesNotMatch(cameraRig, /onChange=\{/);
+    assert.equal(passThroughLabels.length, htmlLabels.length);
+    assert.match(css, /\.wilds-atlas-pass-through-label\s*\{[^}]*pointer-events:\s*none/);
+  });
+
   it("renders the continuous authoritative world and lets explorers Rift from any terrain coordinate", async () => {
     const map = await readFile("src/features/play/WildsWorldMap.tsx", "utf8");
     const canvas = await readFile("src/features/play/WildsAtlasCanvas.tsx", "utf8");

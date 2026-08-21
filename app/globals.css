@@ -12738,6 +12738,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-atlas-canvas,
 .wilds-atlas-canvas > div { width: 100%; height: 100%; min-height: 0; }
 .wilds-atlas-canvas canvas { display: block; touch-action: none; }
+.wilds-atlas-pass-through-label { pointer-events: none; }
 .wilds-atlas-zoom { position: absolute; top: max(100px, calc(env(safe-area-inset-top) + 100px)); left: max(12px, env(safe-area-inset-left)); z-index: 3; display: flex; gap: 4px; padding: 4px; border: 1px solid rgb(131 235 207 / 18%); border-radius: 999px; background: rgb(5 20 27 / 72%); box-shadow: 0 12px 36px rgb(0 0 0 / 24%); backdrop-filter: blur(15px); }
 .wilds-atlas-zoom button { min-height: 36px; padding: 0 11px; color: #86a8b2; border: 0; border-radius: 10px; background: transparent; font-size: 9px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
 .wilds-atlas-zoom button[aria-pressed="true"] { color: #071a1e; background: linear-gradient(145deg, #f7d25b, #6fe6bd); }

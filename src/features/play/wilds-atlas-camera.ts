@@ -36,8 +36,11 @@ export function atlasCameraFrame(
   const fitDepth = spanZ / 2 / Math.max(.08, Math.tan(verticalFov / 2));
   const distance = Math.max(7.2, Math.hypot(fitWidth, fitDepth) * 1.08);
   const elevation = distance * (portrait ? .82 : .72);
-  const minDistance = Math.max(3.8, distance * .42);
-  const maxDistance = Math.max(48, distance * 8);
+  // Keep the atlas camera genuinely map-like: explorers can descend close enough to
+  // inspect one terrain cell, or pull far beyond the current fit without changing modes.
+  // Pan remains intentionally unbounded; these limits only protect camera numerics.
+  const minDistance = Math.max(.45, regionUnit * .28);
+  const maxDistance = Math.max(512, distance * 64);
   const far = Math.max(96, maxDistance * 2.2);
   return Object.freeze({
     target: Object.freeze([0, 0, 0]) as CameraVector,
