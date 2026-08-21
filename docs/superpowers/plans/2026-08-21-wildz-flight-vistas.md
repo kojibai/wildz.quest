@@ -15,10 +15,10 @@
 
 ## Task 2: Authored overlooks and reveal
 
-- [ ] Add failing tests for deterministic ids, safe walkable approaches, stable platforms, landmark reveal, and vista exit.
-- [ ] Add authored overlook definitions and local reveal projection.
-- [ ] Render visible overlook markers from the same definitions.
-- [ ] Commit overlooks.
+- [x] Add failing tests for deterministic ids, safe walkable approaches, stable platforms, landmark reveal, and vista exit.
+- [x] Add authored overlook definitions and local reveal projection.
+- [x] Render visible overlook markers from the same definitions.
+- [x] Commit overlooks.
 
 ## Task 3: Frame-local world integration
 

@@ -21,6 +21,33 @@ export const WILDS_MAJOR_ROUTES = [
   }
 ] as const;
 
+export const WILDS_AUTHORED_OVERLOOKS = [
+  {
+    id: "prism-watch",
+    name: "Prism Watch",
+    position: { x: -118, z: 164 },
+    approach: { x: -116.26, z: 161.56 },
+    viewHeading: 2.52,
+    revealLandmarkIds: ["prism-arcade", "wayfinder-hollow"]
+  },
+  {
+    id: "echo-crown",
+    name: "Echo Crown",
+    position: { x: 80, z: -122 },
+    approach: { x: 78.1, z: -119.7 },
+    viewHeading: -0.58,
+    revealLandmarkIds: ["arena-of-echoes", "hearttree-sanctum"]
+  },
+  {
+    id: "northreach-aerie",
+    name: "Northreach Aerie",
+    position: { x: 116, z: -166 },
+    approach: { x: 114.1, z: -163.7 },
+    viewHeading: -2.28,
+    revealLandmarkIds: ["hearttree-sanctum", "prism-arcade", "wayfinder-hollow"]
+  }
+] as const;
+
 export function describeWildsPoint(position: { x: number; z: number }) {
   const nearestLandmark = WILDS_FLAGSHIP_LANDMARKS
     .map((landmark) => ({ landmark, distance: Math.hypot(landmark.position.x - position.x, landmark.position.z - position.z) }))

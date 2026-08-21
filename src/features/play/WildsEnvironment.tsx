@@ -17,6 +17,7 @@ import { projectWildsEcologyInstance } from "@/features/play/wilds-ecology-place
 import { wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
 import { buildWildsTerrainPatchProjection, buildWildsTerrainRibbonProjection, wildsTerrainRelativeElevation } from "@/features/play/wilds-terrain-rendering";
 import { projectWildsObstaclePlacement, wildsTerrainObstaclesForTile } from "@/features/play/wilds-terrain-obstacles";
+import { projectWildsOverlooks } from "@/features/play/wilds-overlooks";
 
 export const WILDS_TILE_SIZE = 12;
 const STREAM_RADIUS = 2;
@@ -119,6 +120,7 @@ export function WildsEnvironment({
         <EcologyInstances bushes={bushes} flowers={flowers} palette={tiles[12]?.canopy} player={player} qualityProfile={qualityProfile} rocks={rocks} trees={trees} />
         <FlagshipLandmarkEntrances detail={qualityProfile.tier !== "low"} livingWorld={livingWorld} player={player} worldMode={worldMode} />
         <LivingWorldSites player={player} world={livingWorld} />
+        <AuthoredOverlooks player={player} />
         {tiles.filter((tile) => tile.landmark.kind !== "none" && tile.landmark.kind !== "hearttree-sanctum" && tile.landmark.kind !== "mortal-arena").map((tile) => (
           <Landmark key={`landmark:${tile.key}`} player={player} tile={tile} />
         ))}
@@ -128,6 +130,37 @@ export function WildsEnvironment({
       </group>
     </group>
   );
+}
+
+function AuthoredOverlooks({ player }: { player: PlayState["player"] }) {
+  const overlooks = projectWildsOverlooks(player);
+  return <group name="world-authored-overlooks">
+    {overlooks.map((overlook) => <group
+      key={overlook.id}
+      name={`world-overlook-${overlook.id}`}
+      position={[overlook.relative.x, wildsTerrainRelativeElevation(overlook.position.x, overlook.position.z, player), overlook.relative.z]}
+      rotation={[0, overlook.viewHeading, 0]}
+    >
+      <mesh receiveShadow position={[0, .07, 0]}>
+        <cylinderGeometry args={[1.3, 1.46, .14, 18]} />
+        <meshStandardMaterial color="#405d54" emissive="#6edab5" emissiveIntensity={.16} roughness={.9} />
+      </mesh>
+      <mesh position={[0, .1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[1.02, .045, 8, 40]} />
+        <meshStandardMaterial color="#d8f5bf" emissive="#74d99c" emissiveIntensity={.72} />
+      </mesh>
+      <group position={[0, .98, -.7]}>
+        <mesh><cylinderGeometry args={[.035, .05, 1.8, 7]} /><meshStandardMaterial color="#d8e9d1" roughness={.65} /></mesh>
+        <mesh position={[.28, .54, 0]} rotation={[0, 0, -.18]}>
+          <planeGeometry args={[.58, .38]} />
+          <meshStandardMaterial color="#73d99b" emissive="#2c7e56" emissiveIntensity={.38} side={THREE.DoubleSide} />
+        </mesh>
+      </group>
+      {overlook.distance <= 12 ? <Html center className="wilds-world-label" distanceFactor={8} occlude={false} position={[0, 1.72, 0]} zIndexRange={[10, 0]}>
+        <span>{overlook.name}</span><small>Overlook · step onto the ring</small>
+      </Html> : null}
+    </group>)}
+  </group>;
 }
 
 function LivingWorldSites({ player, world }: { player: PlayState["player"]; world?: WildsWorldProjection | null }) {

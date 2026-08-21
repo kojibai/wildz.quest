@@ -1,5 +1,5 @@
 import { WILDS_FLAGSHIP_LANDMARKS } from "./wilds-landmarks";
-import { WILDS_MAJOR_ROUTES, WILDS_NAMED_REGIONS } from "./wilds-world-geography";
+import { WILDS_AUTHORED_OVERLOOKS, WILDS_MAJOR_ROUTES, WILDS_NAMED_REGIONS } from "./wilds-world-geography";
 
 export const WILDS_TERRAIN_VERSION = "wildz.terrain.v1" as const;
 export const WILDS_TERRAIN_TILE_SIZE = 12;
@@ -125,6 +125,18 @@ function landmarkMaskedElevation(x: number, z: number, elevation: number) {
   return result;
 }
 
+function overlookMaskedElevation(x: number, z: number, elevation: number) {
+  let result = elevation;
+  for (const overlook of WILDS_AUTHORED_OVERLOOKS) {
+    const distance = Math.hypot(x - overlook.position.x, z - overlook.position.z);
+    if (distance >= 4.4) continue;
+    const centerElevation = unmaskedElevation(overlook.position.x, overlook.position.z);
+    if (distance <= 3.25) result = centerElevation;
+    else result += (centerElevation - result) * (1 - smoothstep((distance - 3.25) / 1.15));
+  }
+  return result;
+}
+
 function finiteCoordinate(value: number) {
   return Number.isFinite(value) ? clamp(value, -500_000_000, 500_000_000) : 0;
 }
@@ -133,7 +145,7 @@ export function wildsTerrainElevation(x: number, z: number) {
   const safeX = finiteCoordinate(x);
   const safeZ = finiteCoordinate(z);
   const base = unmaskedElevation(safeX, safeZ);
-  return quantize(clamp(landmarkMaskedElevation(safeX, safeZ, routeMaskedElevation(safeX, safeZ, base)), TERRAIN_MIN, TERRAIN_MAX));
+  return quantize(clamp(overlookMaskedElevation(safeX, safeZ, landmarkMaskedElevation(safeX, safeZ, routeMaskedElevation(safeX, safeZ, base))), TERRAIN_MIN, TERRAIN_MAX));
 }
 
 function regionIdFor(x: number, z: number) {
