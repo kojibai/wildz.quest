@@ -202,6 +202,22 @@ Each site has:
 
 Ordinary routes remain accessible. Capability-gated branches reward ownership without trapping players or making a required first capability inaccessible. Caves can use climbing, illumination, tracking, breaking, burrowing, pressure resistance, or underwater breathing; mountains can use climbing, balance, glide, flight, cold resistance, or storm anchoring; underwater sites can use dive depth, current handling, illumination, pressure tolerance, and aquatic propulsion.
 
+Burrowing may also create persistent player-authored geography. A qualified creature can excavate a physical entrance in soil, rock, or a mountain side, extend a traversable tunnel below the terrain, widen a chamber, or connect two admitted surfaces. The result is not a temporary animation or teleport: its entrance, path, floor, walls, clearance, colliders, stability, exits, and discovery identity remain real on return and may be discovered and traversed by other players.
+
+Each excavation is an append-only world proof event binding the exact terrain region, start and end coordinates, tunnel profile, material class, stability, ventilation, creator identity, contributing creature proof, capability projection, Kai root, parent tunnel head, and idempotency identity. The deterministic reducer admits the segment atomically or writes nothing. Receiz distribution may deliver the addition to other players, but neither a server row nor a local render mesh becomes excavation authority.
+
+Burrowers remain individual. Soft-soil diggers work quickly but cannot cut hard mountain stone; rock borers open stone routes; stabilizers create wider safer passages; compact diggers create narrow shortcuts; ventilation, illumination, rescue, sensing, and structural reinforcement can be separate specialties. Stamina, material hardness, depth, slope, water pressure, collapse risk, protected landmarks, existing routes, and underground-world envelopes bound each action. Every authored excavation retains at least one safe exit or an explicit rescue path, and cannot silently undermine protected structures or erase deterministic geography.
+
+Excavations are represented as sparse tunnel graphs and streamed only near an admitted entrance or occupied segment. Ordinary movement samples the already-projected local collision surface and performs no proof verification, world-history scan, remeshing of distant tunnels, or network work.
+
+The same graph is the foundation for physical construction. Players can turn an excavated chamber into a home inside a mountain, reinforce walls, add doors, bridges, stairs, air shafts, windows, storage, creature habitats, lighting, water control, and public or private route markers. Construction consumes or equips proof-native materials and tools through atomic player/item/world appends; a decorative preview never changes the shared world.
+
+An excavation can continue until it reaches another safe surface, an existing compatible tunnel, a cave interior, or a submerged route. Underwater excavation requires admitted swimming plus the pressure, current, breath, sealing, drainage, or structural capabilities demanded by the exact depth and material. A flooded passage remains visibly and physically flooded unless an admitted construction changes its water boundary; it cannot masquerade as dry land.
+
+Every constructed space has explicit access policy and public-world semantics. An owner may keep a dwelling private, invite named identities, open a route publicly, or transfer stewardship without changing the immutable creation history. Public navigation exposes only admitted entrances and routes the explorer has discovered. Protected settlements, player homes, ecology sanctuaries, and authored structures cannot be overwritten by an intersecting sibling command.
+
+Player action leaves a durable trail. Entrances, tunnels, repairs, expansions, collapses, rescues, discoveries, stewardship changes, and public openings append provenance to the world feature. The visible world projects its current admitted head while retaining the full history of how players and creatures changed it. Old actions never require recurring API discovery and never disappear merely because their creator is offline.
+
 Encounter eligibility is physical and capability-aware:
 
 - non-swimmers can still obtain a first swimmer from an admitted shore or shallow-water approach;
@@ -300,6 +316,8 @@ Identity Seal and full Vault restore preserve the exact account and selected cre
 23. Takeoff, hover, forward flight, glide, descent, and landing have distinct airborne body/leg/wing poses and never run walking animation in the sky.
 24. Mountains span stable hill-to-massif scale classes, waterfalls remain route-fed physical features, and caves span shelters through streamed underground worlds with stable entrances/exits.
 25. Mountain altitude changes camera/horizon/atmosphere; exposed falls carry deterministic consequences and capability-based recovery opportunities; high peak overflight requires sufficient aerial specialties.
+26. Qualified burrowers can create persistent physical entrances, tunnels, chambers, and mountain passages that other players may discover and traverse; the append-only tunnel graph prevents duplication, impossible geometry, protected-site damage, and movement-path latency.
+27. Excavated chambers can become proof-built mountain homes and shared structures; routes may connect safe surfaces or continue underwater when exact aquatic/pressure/sealing requirements are met; access policy and complete creator/creature provenance persist for other players.
 
 ## Implementation phases
 

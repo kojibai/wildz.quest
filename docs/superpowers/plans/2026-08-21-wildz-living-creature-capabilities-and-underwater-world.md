@@ -360,21 +360,27 @@ Commit: `feat: add underwater and aerial creature encounters`
 
 **Files:**
 - Create: `src/features/play/wilds-discovery-sites.ts`
+- Create: `src/features/play/wilds-excavation.ts`
 - Create: `src/features/play/WildsDiscoverySites.tsx`
 - Modify: `src/features/play/WildsEnvironment.tsx`
 - Modify: `src/features/play/game-state.ts`
 - Modify: `src/features/play/wilds-exploration-atlas.ts`
 - Test: `tests/wilds-discovery-sites.test.ts`
+- Test: `tests/wilds-excavation.test.ts`
 - Test: `tests/play-game-state.test.ts`
 
 **Interfaces:**
-- Produces: `WildsDiscoverySiteProjection` for caves, mountain interiors/passes, valleys, canyons, grottos, reefs, trenches, ruins, canopy routes, springs, caverns, and sky islands.
+- Produces: `WildsDiscoverySiteProjection` for caves, mountain interiors/passes, valleys, canyons, grottos, reefs, trenches, ruins, canopy routes, springs, caverns, and sky islands; plus an append-only sparse `WildsExcavationGraph` for player-authored burrows.
 
 - [ ] **Step 1: Write failing deterministic persistence and approach tests**
 
 Generate representative sites at ordinary and extreme coordinates, evict caches, regenerate, and assert exact equality. Advance the player from far LOD through the entrance and assert the same site identity remains visible and physical. Assert ability-gated branches never block the ordinary route or the first source of their required capability.
 
 Cover hill, mountain, and massive-massif scale classes; route-fed waterfalls with persistent pools/entrances; shallow caves, branching caverns, and bounded underground-world interiors. Assert altitude affects camera/horizon/atmosphere, exposed ledges admit deterministic falls, and flight/glide/grip/rescue recovery remains capability-gated.
+
+Add RED tests for player-authored excavation: a qualified soil digger opens a persistent soil tunnel; a rock borer opens a mountain-side passage; an unqualified creature and a soft-soil-only digger fail against hard rock with zero writes; replaying the same command is idempotent; conflicting sibling segments admit at most one head; every segment has physical clearance/colliders and at least one safe exit or rescue route; another player can discover and traverse an admitted public tunnel; protected structures and canonical routes cannot be undermined. Assert movement through a warmed tunnel performs zero proof, network, distant-remesh, or full-graph work.
+
+Cover construction and evolving-world history: expand a mountain chamber into a home, consume or equip exact proof-native building materials atomically, install a door/light/storage/habitat element, and prove private/invited/public access modes. Connect a tunnel to a second safe surface and to an existing compatible tunnel. Build a submerged tunnel only with swimming plus required pressure/current/breath/sealing support, preserve physically flooded state where applicable, and reject impossible water/terrain intersections with zero writes. Restore on a second player and prove the admitted public feature, creator/creature provenance, repairs, expansions, and current head remain traversable without the creator online.
 
 - [ ] **Step 2: Implement sparse deterministic site admission**
 
@@ -388,7 +394,13 @@ Stream only nearby site geometry. Entrances, colliders, habitat layers, and exit
 
 Feed site layer/position into the layered encounter authority from Task 7. Keep ambient creatures distinct from catchable signals and preserve the exact wild-to-caught visual identity.
 
-- [ ] **Step 5: Run determinism, collision, exploration-continuity, and render tests; commit**
+- [ ] **Step 5: Implement persistent player-authored excavation**
+
+Represent authored tunnels as a sparse append-only graph of deterministic physical segments anchored to exact terrain coordinates and material authority. Admit each segment against the current graph head with creator, creature, capability, Kai, geometry, stability, and idempotency evidence. Project only nearby entrance/segment meshes and colliders. Specialize burrowers by soil/stone capability, width, speed, stability, ventilation, sensing, illumination, and rescue. Preserve public traversal without treating distribution as authority.
+
+Extend the graph with proof-built chamber and structure appends: mountain homes, reinforcement, doors, bridges, stairs, ventilation, storage, habitat fixtures, lighting, water boundaries, route markers, and access policy. Bind every mutation to exact player, creature, material/tool, prior world head, geometry, and Kai evidence; update every affected subject atomically or write nothing. Preserve immutable creation history and current stewardship while allowing the shared world to evolve visibly for later explorers.
+
+- [ ] **Step 6: Run determinism, collision, exploration-continuity, excavation, and render tests; commit**
 
 Commit: `feat: add persistent caves mountains and hidden world sites`
 
