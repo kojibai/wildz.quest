@@ -28,8 +28,16 @@ test("3D actors render only canonical powered-lift or glide wing pairs", () => {
       wings: { ...visual.appendages.wings, presence: "functional" as const, function: "glide" as const, variant: "glide-membrane-test" }
     }
   };
+  const vestigialWingAnatomy = {
+    ...visual.anatomy,
+    appendages: {
+      ...visual.appendages,
+      wings: { presence: "vestigial" as const, kind: "wing" as const, function: "glide" as const, variant: "vestigial-wing-test" }
+    }
+  };
 
   assert.deepEqual(projectActorWingRenderPlan({ ...visual.anatomy, appendages: projectCardCreatureVisualIdentity(pseudoWingCard).appendages }), { kind: "none", pairCount: 0 });
+  assert.deepEqual(projectActorWingRenderPlan(vestigialWingAnatomy), { kind: "none", pairCount: 0 });
   assert.deepEqual(projectActorWingRenderPlan({ ...visual.anatomy, appendages: visual.appendages }), { kind: "functional-wing", pairCount: 2 });
   assert.deepEqual(projectActorWingRenderPlan(glideAnatomy), { kind: "glide-membrane", pairCount: 2 });
 });
