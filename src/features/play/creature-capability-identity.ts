@@ -239,11 +239,24 @@ export function projectCreatureCapabilityIdentity(asset: PortableCardAsset): Cre
 
 function runtimeKey(identity: CreatureCapabilityIdentityV1, condition: AdventureCardCondition) {
   runtimeSlowBuilds += 1;
-  const injuries = condition.injuries.map((injury) => `${injury.id}:${injury.kind}:${injury.severity}:${injury.sourceEventId}`).sort().join("|");
-  const xp = Object.entries(condition.xp).sort(([left], [right]) => left.localeCompare(right)).map(([key, value]) => `${key}:${value}`).join("|");
-  const mastery = Object.entries(condition.mastery).sort(([left], [right]) => left.localeCompare(right)).map(([key, value]) => `${key}:${value}`).join("|");
-  const upgrades = [...condition.upgradeIds].sort().join("|");
-  return `${identity.assetId}:${identity.digestInput.proofDigest}:${identity.digestInput.revisionDigest}:${identity.digestInput.visualFingerprint}:${identity.progression.level}:${identity.progression.bond}:${identity.progression.mastery}:${canonicalPortableCardJson(identity.traversalPotential)}:${canonicalPortableCardJson(identity.abilities)}:${condition.life}:${condition.fatigue}:${injuries}:${xp}:${mastery}:${upgrades}`;
+  const injuries = [...condition.injuries].sort((left, right) => canonicalPortableCardJson(left).localeCompare(canonicalPortableCardJson(right)));
+  return canonicalPortableCardJson({
+    identity: {
+      assetId: identity.assetId,
+      digestInput: identity.digestInput,
+      progression: identity.progression,
+      traversalPotential: identity.traversalPotential,
+      abilities: identity.abilities
+    },
+    condition: {
+      life: condition.life,
+      fatigue: condition.fatigue,
+      injuries,
+      xp: condition.xp,
+      mastery: condition.mastery,
+      upgradeIds: [...condition.upgradeIds].sort()
+    }
+  });
 }
 
 const STRUCTURED_TRAVERSAL_UPGRADES: Readonly<Record<string, Readonly<{ capability: WildsTraversalCapability; unlockLevel: number }>>> = Object.freeze({

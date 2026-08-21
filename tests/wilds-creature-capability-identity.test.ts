@@ -164,6 +164,39 @@ describe("proof-derived creature capability identity", () => {
     assert.deepEqual(flight.capabilities, ["glide", "flight"]);
   });
 
+  it("cannot collide harmless and severe valid injury structures in runtime or outer caches", () => {
+    const asset = card("voltray-1", "capability:collision-safe-cache");
+    const identity = projectCreatureCapabilityIdentity(asset);
+    const base = { ...emptyAdventureCondition(asset.id), xp: { flight: 400 } };
+    const harmless = {
+      ...base,
+      injuries: [{ id: "x:wing:2:y", kind: "limb" as const, severity: 1 as const, sourceEventId: "z" }]
+    };
+    const severe = {
+      ...base,
+      injuries: [{ id: "x", kind: "wing" as const, severity: 2 as const, sourceEventId: "y:limb:1:z" }]
+    };
+
+    const harmlessRuntime = projectCreatureRuntimeCapabilities(identity, harmless);
+    const severeRuntime = projectCreatureRuntimeCapabilities(identity, severe);
+    const harmlessOuter = projectWildsTraversalCapabilities(asset, harmless);
+    const severeOuter = projectWildsTraversalCapabilities(asset, severe);
+
+    assert.notEqual(harmlessRuntime, severeRuntime);
+    assert.deepEqual(harmlessRuntime.capabilities, ["glide", "flight"]);
+    assert.deepEqual(severeRuntime.capabilities, []);
+    assert.notEqual(harmlessOuter, severeOuter);
+    assert.deepEqual(harmlessOuter.capabilities, ["glide", "flight"]);
+    assert.deepEqual(severeOuter.capabilities, []);
+
+    const warm = projectCreatureCapabilityIdentityDiagnostics();
+    assert.equal(projectCreatureRuntimeCapabilities(identity, severe), severeRuntime);
+    assert.equal(projectWildsTraversalCapabilities(asset, severe), severeOuter);
+    assert.deepEqual(projectCreatureCapabilityIdentityDiagnostics(), warm);
+    assert.equal(projectCreatureRuntimeCapabilities(identity, structuredClone(severe)), severeRuntime);
+    assert.equal(projectWildsTraversalCapabilities(structuredClone(asset), structuredClone(severe)), severeOuter);
+  });
+
   it("keeps family slot names and actions coherent for Grove, Spark, Stone, and Tide", () => {
     for (const [formId, element] of [["mintcub-1", "Grove"], ["voltray-1", "Spark"], ["titanseal-1", "Stone"], ["ledgerfox-1", "Tide"]] as const) {
       const asset = card(formId, `capability:family:${element}`);

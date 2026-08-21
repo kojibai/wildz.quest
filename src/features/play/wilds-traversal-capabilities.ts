@@ -1,6 +1,6 @@
 import type { AdventureCardCondition } from "./adventure/card-condition";
 import { projectCreatureCapabilityIdentity, projectCreatureRuntimeCapabilities } from "./creature-capability-identity";
-import type { PortableCardAsset } from "./portable-card";
+import { canonicalPortableCardJson, type PortableCardAsset } from "./portable-card";
 
 export type WildsTraversalCapability = "swim" | "climb" | "glide" | "flight";
 
@@ -23,14 +23,24 @@ let projectionsBuilt = 0;
 function projectionKey(asset: PortableCardAsset, condition: AdventureCardCondition) {
   slowKeyBuilds += 1;
   const identity = projectCreatureCapabilityIdentity(asset);
-  const injuries = condition.injuries
-    .map((injury) => `${injury.id}:${injury.kind}:${injury.severity}:${injury.sourceEventId}`)
-    .sort()
-    .join("|");
-  const upgrades = [...condition.upgradeIds].sort().join("|");
-  const xp = Object.entries(condition.xp).sort(([left], [right]) => left.localeCompare(right)).map(([key, value]) => `${key}:${value}`).join("|");
-  const mastery = Object.entries(condition.mastery).sort(([left], [right]) => left.localeCompare(right)).map(([key, value]) => `${key}:${value}`).join("|");
-  return `${asset.id}:${asset.proof.digest}:${identity.digestInput.revisionDigest}:${identity.digestInput.visualFingerprint}:${identity.progression.level}:${identity.progression.bond}:${identity.progression.mastery}:${condition.life}:${condition.fatigue}:${injuries}:${xp}:${mastery}:${upgrades}`;
+  const injuries = [...condition.injuries].sort((left, right) => canonicalPortableCardJson(left).localeCompare(canonicalPortableCardJson(right)));
+  return canonicalPortableCardJson({
+    identity: {
+      assetId: identity.assetId,
+      proofDigest: asset.proof.digest,
+      digestInput: identity.digestInput,
+      progression: identity.progression,
+      traversalPotential: identity.traversalPotential
+    },
+    condition: {
+      life: condition.life,
+      fatigue: condition.fatigue,
+      injuries,
+      xp: condition.xp,
+      mastery: condition.mastery,
+      upgradeIds: [...condition.upgradeIds].sort()
+    }
+  });
 }
 
 function cacheProjection(key: string, projection: WildsTraversalCapabilityProjection) {
