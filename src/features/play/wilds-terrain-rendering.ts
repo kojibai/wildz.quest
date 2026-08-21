@@ -31,6 +31,14 @@ export function wildsTerrainRelativeElevation(x: number, z: number, anchor: Worl
   return wildsTerrainElevation(x, z) - wildsTerrainElevation(anchor.x, anchor.z);
 }
 
+export function projectWildsTerrainActorPosition(actor: WorldPoint, anchor: WorldPoint, baseY = 0): [number, number, number] {
+  return [
+    actor.x - anchor.x,
+    baseY + wildsTerrainRelativeElevation(actor.x, actor.z, anchor),
+    actor.z - anchor.z
+  ];
+}
+
 export function buildWildsTerrainMeshProjection(tileX: number, tileZ: number, segments: number): WildsTerrainMeshProjection {
   const tile = buildWildsTerrainTile(tileX, tileZ, segments);
   const origin = {

@@ -71,12 +71,12 @@
 - Modify: `src/features/play/WildsEnvironment.tsx`
 - Modify: `tests/wilds-terrain-rendering.test.ts`
 
-- [ ] Add pure projection coverage for actor-relative ground height.
-- [ ] Ground remote explorers, trainers, encounters, bosses, and ecology actors against the same player-relative elevation.
-- [ ] Keep the local explorer at the released local origin while terrain moves beneath it.
-- [ ] Smooth camera target height only; do not seize orbit control or add per-frame React state.
-- [ ] Run focused tests, typecheck, and lint.
-- [ ] Commit grounded actors and camera framing.
+- [x] Add pure projection coverage for actor-relative ground height.
+- [x] Ground remote explorers, trainers, encounters, bosses, and ecology actors against the same player-relative elevation.
+- [x] Keep the local explorer at the released local origin while terrain moves beneath it.
+- [x] Smooth camera target height only; do not seize orbit control or add per-frame React state.
+- [x] Run focused tests, typecheck, and lint.
+- [x] Commit grounded actors and camera framing.
 
 ## Task 5: Qualification
 

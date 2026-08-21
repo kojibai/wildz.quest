@@ -6,6 +6,7 @@ import * as THREE from "three";
 import { WILDS_BOSS_FAMILIES, type WildsBossFamilyId } from "./wilds-boss-ecology";
 import type { WildsWorldBossProjection, WildsWorldProjection } from "./wilds-world-state";
 import type { WildsQualityProfile } from "./wilds-quality-profile";
+import { projectWildsTerrainActorPosition } from "./wilds-terrain-rendering";
 
 const FAMILY_ART: Record<WildsBossFamilyId, { shell: string; core: string; signal: string; scale: number }> = {
   "crystal-burrower": { shell: "#25313c", core: "#aef7ff", signal: "#76dfff", scale: 1.15 },
@@ -73,7 +74,8 @@ function BossActor({ boss, player, qualityProfile }: { boss: WildsWorldBossProje
   });
 
   return (
-    <group position={[position.x - player.x, 0, position.z - player.z]} ref={root} scale={art.scale * phaseScale}>
+    <group position={projectWildsTerrainActorPosition(position, player)}>
+    <group ref={root} scale={art.scale * phaseScale}>
       <mesh position={[0, .08, 0]} receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[2.05, 2.32, 48]} />
         <meshStandardMaterial color={art.signal} emissive={art.signal} emissiveIntensity={boss.phase === "vulnerable" ? 1.2 : .45} transparent opacity={.72} />
@@ -91,6 +93,7 @@ function BossActor({ boss, player, qualityProfile }: { boss: WildsWorldBossProje
         <boxGeometry args={[.18, .12, .62]} />
         <meshStandardMaterial color={art.signal} emissive={art.signal} emissiveIntensity={.72} metalness={.35} roughness={.3} />
       </instancedMesh>
+    </group>
     </group>
   );
 }

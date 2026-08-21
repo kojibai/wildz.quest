@@ -5,6 +5,7 @@ import {
   buildWildsTerrainPatchProjection,
   buildWildsTerrainMeshProjection,
   buildWildsTerrainRibbonProjection,
+  projectWildsTerrainActorPosition,
   wildsTerrainRelativeElevation
 } from "../src/features/play/wilds-terrain-rendering";
 
@@ -80,4 +81,15 @@ test("authored ribbons sample both edges from deterministic terrain", () => {
   for (const vertex of ribbon.vertices) {
     assert.equal(vertex.position.y, wildsTerrainElevation(vertex.world.x, vertex.world.z) + 0.03);
   }
+});
+
+test("world actors share exact player-relative horizontal and ground coordinates", () => {
+  const player = { x: 37.25, z: -18.5 };
+  const actor = { x: 45.25, z: -23.75 };
+
+  assert.deepEqual(projectWildsTerrainActorPosition(actor, player, 0.42), [
+    8,
+    0.42 + wildsTerrainRelativeElevation(actor.x, actor.z, player),
+    -5.25
+  ]);
 });

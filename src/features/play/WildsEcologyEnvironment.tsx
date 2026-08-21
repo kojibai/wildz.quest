@@ -8,6 +8,7 @@ import { WILDS_ECOLOGY_FAMILIES, type WildsEcologyFamilyId } from "./wilds-ecolo
 import type { WildsSettlementWorldMode } from "./WildsSettlementEnvironment";
 import type { WildsWorldEcologyProjection, WildsWorldProjection } from "./wilds-world-state";
 import { useWildsReadability } from "./WildsReadabilityContext";
+import { projectWildsTerrainActorPosition } from "./wilds-terrain-rendering";
 
 export function WildsEcologyEnvironment({ livingWorld, player, worldMode }: {
   livingWorld?: WildsWorldProjection | null;
@@ -34,7 +35,7 @@ export function WildsEcologyEnvironment({ livingWorld, player, worldMode }: {
         geometry={geometry}
         key={site.id}
         materials={materials}
-        relative={{ x: site.position.x - player.x, z: site.position.z - player.z }}
+        relative={projectWildsTerrainActorPosition(site.position, player)}
         site={site}
         worldMode={worldMode}
       />
@@ -74,11 +75,11 @@ type Geometry = ReturnType<typeof createGeometry>;
 function EcologyManifestation({ geometry, materials, relative, site, worldMode }: {
   geometry: Geometry;
   materials: Materials;
-  relative: { x: number; z: number };
+  relative: [number, number, number];
   site: WildsWorldEcologyProjection;
   worldMode: WildsSettlementWorldMode;
 }) {
-  return <group name={`ecology-${site.familyId}`} position={[relative.x, 0, relative.z]}>
+  return <group name={`ecology-${site.familyId}`} position={relative}>
     <mesh position={[0, .04, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[site.radius * .66, site.radius * .66, 1]}>
       <circleGeometry args={[1, 32]} />
       <primitive attach="material" object={materials.earth} />
