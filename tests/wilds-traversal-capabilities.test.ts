@@ -54,7 +54,7 @@ describe("Wildz admitted-card traversal capability projection", () => {
   });
 
   it("contains no proof verification in the gameplay projector", async () => {
-    const source = await readFile(new URL("../src/features/play/wilds-traversal-capabilities.ts", import.meta.url), "utf8");
+    const source = await readFile("src/features/play/wilds-traversal-capabilities.ts", "utf8");
     assert.doesNotMatch(source, /verifyAnyWildsCard|verifyPortableCard|verifyLiving/);
   });
 });
