@@ -253,18 +253,18 @@ function WildsScene({
         />
         <WildsEcologyEnvironment livingWorld={livingWorld} player={state.player} worldMode={worldMode} />
         <WildsBossEnvironment livingWorld={livingWorld} player={state.player} qualityProfile={qualityProfile} />
-        <EncounterSequence state={state} />
-        {visibleRemotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} />)}
+        <EncounterSequence state={state} terrainElevation={aquaticPresentation.terrainElevation} />
+        {visibleRemotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} terrainElevation={aquaticPresentation.terrainElevation} />)}
         {trainers.map((trainer, index) => (
           index < 10 && Math.hypot(trainer.position[0] - state.player.x, trainer.position[2] - state.player.z) <= 28
-            ? <TrainerExplorer key={trainer.id} trainer={trainer} localPlayer={state.player} onSelect={onSelectTrainer} />
+            ? <TrainerExplorer key={trainer.id} trainer={trainer} localPlayer={state.player} onSelect={onSelectTrainer} terrainElevation={aquaticPresentation.terrainElevation} />
             : null
         ))}
       </SmoothWorldFrame>
       <AerialPlayerFrame aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} player={state.player} runtime={aerialStateRef}>
         <WildsExplorer character={character} style={character.gender} worldPosition={state.player} />
-        <ActiveCompanion state={state} />
-        <SupportCompanions cards={supportCards} player={state.player} />
+        <ActiveCompanion state={state} terrainElevation={aquaticPresentation.terrainElevation} />
+        <SupportCompanions cards={supportCards} player={state.player} terrainElevation={aquaticPresentation.terrainElevation} />
       </AerialPlayerFrame>
       <Sparkles key={`wilds-world-sparkles-${worldSparkleCount}`} count={worldSparkleCount} scale={[8, 2.4, 8]} size={2.1} speed={qualityProfile.reducedMotion ? 0 : kaiExpression.particleSpeed} color={kaiExpression.accent} />
     </WildsReadabilityProvider>
@@ -338,10 +338,11 @@ function SmoothWorldFrame({ player, terrainElevation, children }: { player: Play
   return <group ref={group}>{children}</group>;
 }
 
-function TrainerExplorer({ trainer, localPlayer, onSelect }: {
+function TrainerExplorer({ trainer, localPlayer, onSelect, terrainElevation }: {
   trainer: WildsTrainerProjection;
   localPlayer: PlayState["player"];
   onSelect: (trainer: WildsTrainerProjection) => void;
+  terrainElevation: number;
 }) {
   const group = useRef<THREE.Group>(null);
   const style = trainer.seed % 2 ? "female" as const : "male" as const;
@@ -352,7 +353,7 @@ function TrainerExplorer({ trainer, localPlayer, onSelect }: {
       x: trainer.position[0] + Math.sin(phase) * 0.7,
       z: trainer.position[2] + Math.cos(phase * 0.83) * 0.7
     };
-    group.current.position.set(...projectWildsTerrainActorPosition(world, localPlayer));
+    group.current.position.set(...projectWildsTerrainActorPosition(world, localPlayer, 0, { anchorElevation: terrainElevation }));
     group.current.rotation.y = -phase;
   });
   const rosterName = creatureForm(trainer.rosterFormIds[0])?.name ?? trainer.affinity;
@@ -360,7 +361,7 @@ function TrainerExplorer({ trainer, localPlayer, onSelect }: {
   return <group
     name={`trainer-${trainer.id}`}
     onClick={(event) => { event.stopPropagation(); onSelect(trainer); }}
-    position={projectWildsTerrainActorPosition({ x: trainer.position[0], z: trainer.position[2] }, localPlayer)}
+    position={projectWildsTerrainActorPosition({ x: trainer.position[0], z: trainer.position[2] }, localPlayer, 0, { anchorElevation: terrainElevation })}
     ref={group}
   >
     <WildsExplorer remote style={style} worldPosition={{ x: trainer.position[0], z: trainer.position[2] }} />
@@ -382,12 +383,17 @@ function isBattleTelemetryPhase(phase: PlayState["encounter"]["phase"]) {
   return phase === "player_turn" || phase === "capture_ready" || phase === "fled" || phase === "defeated";
 }
 
-function ActiveCompanion({ state }: { state: PlayState }) {
+function ActiveCompanion({ state, terrainElevation }: { state: PlayState; terrainElevation: number }) {
   const card = selectedCard(state);
   const asset = state.inventory.find((candidate) => candidate.id === state.selectedAssetId);
   const formId = asset?.manifest.formId ?? `${card.id}-1`;
   const appearance = useMemo(() => asset ? projectCardKaiAppearance(asset) : null, [asset]);
-  const position = projectWildsTerrainActorPosition({ x: state.player.x - 1.08, z: state.player.z + .42 }, state.player, .44);
+  const position = useMemo(() => projectWildsTerrainActorPosition(
+    { x: state.player.x - 1.08, z: state.player.z + .42 },
+    state.player,
+    .44,
+    { anchorElevation: terrainElevation }
+  ), [state.player.x, state.player.z, terrainElevation]);
   return (
     <group name="active-companion" position={position} scale={0.82}>
       <WildsCreatureActor accent={appearance?.palette.accent ?? card.accent} anatomy={appearance?.anatomy} cadenceMs={appearance?.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} glow={appearance?.palette.glow ?? card.accent} identityToken={appearance?.fingerprint} morphology={appearance?.morphology} pose="curious" primary={appearance?.palette.primary ?? card.color} secondary={appearance?.palette.secondary ?? card.color} />
@@ -406,11 +412,11 @@ function ActiveCompanion({ state }: { state: PlayState }) {
   );
 }
 
-function SupportCompanions({ cards, player }: { cards: readonly PortableCardAsset[]; player: PlayState["player"] }) {
-  const positions = [
-    projectWildsTerrainActorPosition({ x: player.x + 1.05, z: player.z + .72 }, player, .34),
-    projectWildsTerrainActorPosition({ x: player.x + 1.62, z: player.z + 1.34 }, player, .28)
-  ] as const;
+function SupportCompanions({ cards, player, terrainElevation }: { cards: readonly PortableCardAsset[]; player: PlayState["player"]; terrainElevation: number }) {
+  const positions = useMemo(() => [
+    projectWildsTerrainActorPosition({ x: player.x + 1.05, z: player.z + .72 }, player, .34, { anchorElevation: terrainElevation }),
+    projectWildsTerrainActorPosition({ x: player.x + 1.62, z: player.z + 1.34 }, player, .28, { anchorElevation: terrainElevation })
+  ] as const, [player.x, player.z, terrainElevation]);
   const appearances = useMemo(() => cards.slice(0, 2).map((card) => ({ card, appearance: projectCardKaiAppearance(card) })), [cards]);
   return <group name="trail-pack-support-companions">
     {appearances.map(({ card, appearance }, index) => <group key={card.id} name={`trail-support-${index + 1}`} position={positions[index]} scale={index === 0 ? 0.62 : 0.54}>
@@ -467,17 +473,21 @@ function BattleWorldTelemetry({
 function RemoteExplorer({
   player,
   localPlayer,
-  onSelect
+  onSelect,
+  terrainElevation
 }: {
   player: WildsPresence;
   localPlayer: PlayState["player"];
   onSelect: (player: WildsPresence) => void;
+  terrainElevation: number;
 }) {
   const group = useRef<THREE.Group>(null);
   const actorPosition = useMemo(() => projectWildsTerrainActorPosition(
     { x: player.x, z: player.z },
-    { x: localPlayer.x, z: localPlayer.z }
-  ), [localPlayer.x, localPlayer.z, player.x, player.z]);
+    { x: localPlayer.x, z: localPlayer.z },
+    0,
+    { anchorElevation: terrainElevation }
+  ), [localPlayer.x, localPlayer.z, player.x, player.z, terrainElevation]);
   const target = useRef(new THREE.Vector3(...actorPosition));
   useEffect(() => {
     target.current.set(...actorPosition);
@@ -684,10 +694,10 @@ function Creature({
   );
 }
 
-function EncounterSequence({ state }: { state: PlayState }) {
+function EncounterSequence({ state, terrainElevation }: { state: PlayState; terrainElevation: number }) {
   const encounter = state.encounter;
   if (encounter.phase === "idle") return null;
-  const position = projectWildsTerrainActorPosition(encounter.searchPoint, state.player, .04);
+  const position = projectWildsTerrainActorPosition(encounter.searchPoint, state.player, .04, { anchorElevation: terrainElevation });
   if (encounter.phase === "searching") {
     return <SearchPulse hint={false} position={position} />;
   }
@@ -695,7 +705,7 @@ function EncounterSequence({ state }: { state: PlayState }) {
     return (
       <>
         <SearchPulse hint position={position} />
-        <RustlingClue encounter={encounter} player={state.player} />
+        <RustlingClue encounter={encounter} player={state.player} terrainElevation={terrainElevation} />
       </>
     );
   }
@@ -733,10 +743,12 @@ function EncounterSequence({ state }: { state: PlayState }) {
 
 function RustlingClue({
   encounter,
-  player
+  player,
+  terrainElevation
 }: {
   encounter: Exclude<PlayState["encounter"], { phase: "idle" }>;
   player: PlayState["player"];
+  terrainElevation: number;
 }) {
   const ref = useRef<THREE.Group>(null);
   const hot = encounter.proximity === "hot";
@@ -747,7 +759,7 @@ function RustlingClue({
     x: encounter.searchPoint.x + direction.x * distance,
     z: encounter.searchPoint.z + direction.z * distance
   };
-  const position = projectWildsTerrainActorPosition(clueWorld, player, .03);
+  const position = projectWildsTerrainActorPosition(clueWorld, player, .03, { anchorElevation: terrainElevation });
 
   useFrame(() => {
     if (!ref.current) return;

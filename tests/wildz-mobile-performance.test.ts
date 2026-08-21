@@ -142,3 +142,13 @@ test("authoritative terrain and route art are cell-bound instead of movement-bou
   assert.match(worldArt, /\[radius, routeCellX, routeCellZ\]/);
   assert.doesNotMatch(worldArt, /projectWildsRouteGuides\(player/);
 });
+
+test("trainer frames and environment consumers reuse the admitted player terrain anchor", () => {
+  const world = source("src/features/play/WildsWorldCanvas.tsx");
+  const environment = source("src/features/play/WildsEnvironment.tsx");
+  const trainer = world.slice(world.indexOf("function TrainerExplorer"), world.indexOf("function RemoteExplorer"));
+
+  assert.match(trainer, /projectWildsTerrainActorPosition\(world, localPlayer, 0, \{ anchorElevation: terrainElevation \}\)/);
+  assert.doesNotMatch(trainer, /wildsTerrainElevation|sampleWildsTerrain/);
+  assert.doesNotMatch(environment, /wildsTerrainRelativeElevation\([^)]*, player\)/);
+});

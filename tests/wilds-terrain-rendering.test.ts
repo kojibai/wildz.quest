@@ -8,6 +8,7 @@ import {
   buildWildsTerrainWaterProjection,
   buildWildsTerrainRibbonProjection,
   projectWildsTerrainActorPosition,
+  wildsTerrainProjectionDiagnostics,
   wildsTerrainRelativeElevation
 } from "../src/features/play/wilds-terrain-rendering";
 
@@ -106,4 +107,25 @@ test("world actors share exact player-relative horizontal and ground coordinates
     0.42 + wildsTerrainRelativeElevation(actor.x, actor.z, player),
     -5.25
   ]);
+});
+
+test("steady trainer projection reuses the admitted anchor elevation for 300 frames", () => {
+  const player = { x: 37.25, z: -18.5 };
+  const anchorElevation = wildsTerrainElevation(player.x, player.z);
+  const before = wildsTerrainProjectionDiagnostics();
+
+  for (let frame = 0; frame < 300; frame += 1) {
+    const phase = frame / 60;
+    const actor = { x: 45.25 + Math.sin(phase) * 0.7, z: -23.75 + Math.cos(phase * 0.83) * 0.7 };
+    const position = projectWildsTerrainActorPosition(actor, player, 0, { anchorElevation });
+    assert.deepEqual(position, [
+      actor.x - player.x,
+      wildsTerrainElevation(actor.x, actor.z) - anchorElevation,
+      actor.z - player.z
+    ]);
+  }
+
+  const after = wildsTerrainProjectionDiagnostics();
+  assert.equal(after.anchorTerrainSamples, before.anchorTerrainSamples);
+  assert.equal(after.actorTerrainSamples, before.actorTerrainSamples + 300);
 });

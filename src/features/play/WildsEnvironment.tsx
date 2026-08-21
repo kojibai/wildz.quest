@@ -53,6 +53,7 @@ function useInstances(
   mesh: React.RefObject<THREE.InstancedMesh | null>,
   items: Placement[],
   player: PlayState["player"],
+  terrainElevation: number,
   y: number,
   shape: (item: Placement) => [number, number, number],
   clearRadius = 0
@@ -63,14 +64,14 @@ function useInstances(
     const scale = new THREE.Vector3();
     items.forEach((item, index) => {
       const shaped = shape(item);
-      const projected = projectWildsEcologyInstance(item, { x: player.x, z: player.z }, y, shaped, clearRadius);
+      const projected = projectWildsEcologyInstance(item, { x: player.x, z: player.z }, y, shaped, clearRadius, terrainElevation);
       scale.set(...projected.scale);
       quaternion.setFromEuler(new THREE.Euler(0, seededUnit(index, item.variant + 17) * Math.PI * 2, 0));
       matrix.compose(new THREE.Vector3(...projected.position), quaternion, scale);
       mesh.current?.setMatrixAt(index, matrix);
     });
     if (mesh.current) mesh.current.instanceMatrix.needsUpdate = true;
-  }, [clearRadius, items, mesh, player.x, player.z, shape, y]);
+  }, [clearRadius, items, mesh, player.x, player.z, shape, terrainElevation, y]);
 }
 
 export function WildsEnvironment({
@@ -122,12 +123,12 @@ export function WildsEnvironment({
         <MajorWorldRoutes player={player} palette={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }} terrainElevation={terrainElevation} />
       </group>
       <group name="world-layer-mid">
-        <EcologyInstances bushes={bushes} flowers={flowers} palette={tiles[12]?.canopy} player={player} qualityProfile={qualityProfile} rocks={rocks} trees={trees} />
-        <FlagshipLandmarkEntrances detail={qualityProfile.tier !== "low"} livingWorld={livingWorld} player={player} worldMode={worldMode} />
-        <LivingWorldSites player={player} world={livingWorld} />
-        <AuthoredOverlooks onSelect={onSelectOverlook} player={player} />
+        <EcologyInstances bushes={bushes} flowers={flowers} palette={tiles[12]?.canopy} player={player} qualityProfile={qualityProfile} rocks={rocks} terrainElevation={terrainElevation} trees={trees} />
+        <FlagshipLandmarkEntrances detail={qualityProfile.tier !== "low"} livingWorld={livingWorld} player={player} terrainElevation={terrainElevation} worldMode={worldMode} />
+        <LivingWorldSites player={player} terrainElevation={terrainElevation} world={livingWorld} />
+        <AuthoredOverlooks onSelect={onSelectOverlook} player={player} terrainElevation={terrainElevation} />
         {tiles.filter((tile) => tile.landmark.kind !== "none" && tile.landmark.kind !== "hearttree-sanctum" && tile.landmark.kind !== "mortal-arena").map((tile) => (
-          <Landmark key={`landmark:${tile.key}`} player={player} tile={tile} />
+          <Landmark key={`landmark:${tile.key}`} player={player} terrainElevation={terrainElevation} tile={tile} />
         ))}
       </group>
       <group name="world-layer-far">
@@ -141,13 +142,13 @@ export function WildsEnvironment({
   );
 }
 
-function AuthoredOverlooks({ onSelect, player }: { onSelect: (overlookId: WildsOverlookId) => void; player: PlayState["player"] }) {
+function AuthoredOverlooks({ onSelect, player, terrainElevation }: { onSelect: (overlookId: WildsOverlookId) => void; player: PlayState["player"]; terrainElevation: number }) {
   const overlooks = projectWildsOverlooks(player);
   return <group name="world-authored-overlooks">
     {overlooks.map((overlook) => <group
       key={overlook.id}
       name={`world-overlook-${overlook.id}`}
-      position={[overlook.relative.x, wildsTerrainRelativeElevation(overlook.position.x, overlook.position.z, player), overlook.relative.z]}
+      position={[overlook.relative.x, wildsTerrainRelativeElevation(overlook.position.x, overlook.position.z, player, { anchorElevation: terrainElevation }), overlook.relative.z]}
       rotation={[0, overlook.viewHeading, 0]}
     >
       <mesh receiveShadow position={[0, .07, 0]}>
@@ -176,14 +177,14 @@ function AuthoredOverlooks({ onSelect, player }: { onSelect: (overlookId: WildsO
   </group>;
 }
 
-function LivingWorldSites({ player, world }: { player: PlayState["player"]; world?: WildsWorldProjection | null }) {
+function LivingWorldSites({ player, terrainElevation, world }: { player: PlayState["player"]; terrainElevation: number; world?: WildsWorldProjection | null }) {
   if (!world) return null;
   const sites = Object.values(world.sites).filter((site) => site.phase !== "expired" && Math.hypot(site.position.x - player.x, site.position.z - player.z) <= 30);
   return <group name="world-living-sites">
     {sites.map((site) => {
       const boss = site.bossId ? world.bosses[site.bossId] : null;
       const memorial = site.phase === "memorialized";
-      return <group key={site.id} name={`world-site-${site.id}`} position={[site.position.x - player.x, wildsTerrainRelativeElevation(site.position.x, site.position.z, player), site.position.z - player.z]}>
+      return <group key={site.id} name={`world-site-${site.id}`} position={[site.position.x - player.x, wildsTerrainRelativeElevation(site.position.x, site.position.z, player, { anchorElevation: terrainElevation }), site.position.z - player.z]}>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
           <torusGeometry args={[site.radius * 0.58, 0.18, 10, 48]} />
           <meshStandardMaterial color={memorial ? "#8edcff" : "#9f6cff"} emissive={memorial ? "#2582a8" : "#5624a8"} emissiveIntensity={0.8} />
@@ -201,11 +202,11 @@ function LivingWorldSites({ player, world }: { player: PlayState["player"]; worl
   </group>;
 }
 
-function FlagshipLandmarkEntrances({ detail, livingWorld, player, worldMode }: { detail: boolean; livingWorld?: WildsWorldProjection | null; player: PlayState["player"]; worldMode: WildsSettlementWorldMode }) {
+function FlagshipLandmarkEntrances({ detail, livingWorld, player, terrainElevation, worldMode }: { detail: boolean; livingWorld?: WildsWorldProjection | null; player: PlayState["player"]; terrainElevation: number; worldMode: WildsSettlementWorldMode }) {
   const entrances = projectVisibleLandmarkEntrances(player).filter(({ distance }) => distance <= 30);
   return <group name="world-flagship-landmarks">
     {entrances.map(({ landmark, relative, distance }) => (
-      <group key={landmark.id} name={`world-entrance-${landmark.id}`} position={[relative.x, wildsTerrainRelativeElevation(landmark.position.x, landmark.position.z, player), relative.z]}>
+      <group key={landmark.id} name={`world-entrance-${landmark.id}`} position={[relative.x, wildsTerrainRelativeElevation(landmark.position.x, landmark.position.z, player, { anchorElevation: terrainElevation }), relative.z]}>
         {landmark.id === "hearttree-sanctum" && distance <= 26 ? (
           <group position={distance < landmark.radius + 2 ? [2.6, 0, -2.4] : [0, 0, 0]} scale={distance < landmark.radius + 2 ? 0.44 : 1}>
             <HearttreeSanctum />
@@ -406,6 +407,7 @@ function EcologyInstances({
   player,
   qualityProfile,
   rocks,
+  terrainElevation,
   trees
 }: {
   bushes: Placement[];
@@ -414,6 +416,7 @@ function EcologyInstances({
   player: PlayState["player"];
   qualityProfile: WildsQualityProfile;
   rocks: Placement[];
+  terrainElevation: number;
   trees: Placement[];
 }) {
   const readability = useWildsReadability();
@@ -433,14 +436,14 @@ function EcologyInstances({
   const flowerScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.09, item.scale * 0.22, item.scale * 0.09], []);
   const grassScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * .035, item.scale * (qualityProfile.tier === "low" ? .13 : .2), item.scale * .025], [qualityProfile.tier]);
   const treeClearRadius = 13.6;
-  useInstances(trunks, trees, player, 0.64, treeScale, treeClearRadius);
-  useInstances(lowerCrowns, trees, player, 1.65, crownScale, treeClearRadius);
-  useInstances(upperCrowns, trees, player, 2.16, crownScale, treeClearRadius);
-  useInstances(middleCrowns, trees, player, 2.68, middleCrownScale, treeClearRadius);
-  useInstances(shrubMesh, bushes, player, 0.23, shrubScale, 1.45);
-  useInstances(rockMesh, rocks, player, 0.13, rockScale, 1.2);
-  useInstances(flowerMesh, flowers, player, 0.15, flowerScale);
-  useInstances(grassMesh, flowers, player, .11, grassScale, .8);
+  useInstances(trunks, trees, player, terrainElevation, 0.64, treeScale, treeClearRadius);
+  useInstances(lowerCrowns, trees, player, terrainElevation, 1.65, crownScale, treeClearRadius);
+  useInstances(upperCrowns, trees, player, terrainElevation, 2.16, crownScale, treeClearRadius);
+  useInstances(middleCrowns, trees, player, terrainElevation, 2.68, middleCrownScale, treeClearRadius);
+  useInstances(shrubMesh, bushes, player, terrainElevation, 0.23, shrubScale, 1.45);
+  useInstances(rockMesh, rocks, player, terrainElevation, 0.13, rockScale, 1.2);
+  useInstances(flowerMesh, flowers, player, terrainElevation, 0.15, flowerScale);
+  useInstances(grassMesh, flowers, player, terrainElevation, .11, grassScale, .8);
 
   return (
     <group>
@@ -480,12 +483,12 @@ function EcologyInstances({
   );
 }
 
-function Landmark({ player, tile }: { player: PlayState["player"]; tile: Tile }) {
+function Landmark({ player, terrainElevation, tile }: { player: PlayState["player"]; terrainElevation: number; tile: Tile }) {
   const worldX = tile.tileX * WILDS_TILE_SIZE + WILDS_TILE_SIZE * 0.7;
   const worldZ = tile.tileZ * WILDS_TILE_SIZE + WILDS_TILE_SIZE * 0.72;
   const position: [number, number, number] = [
     worldX - player.x,
-    wildsTerrainRelativeElevation(worldX, worldZ, player),
+    wildsTerrainRelativeElevation(worldX, worldZ, player, { anchorElevation: terrainElevation }),
     worldZ - player.z
   ];
   return (

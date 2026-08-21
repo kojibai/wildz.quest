@@ -43,16 +43,43 @@ export type WildsTerrainRibbonProjection = {
   vertices: readonly Pick<WildsTerrainMeshVertex, "world" | "position">[];
 };
 
-export function wildsTerrainRelativeElevation(x: number, z: number, anchor: WorldPoint) {
-  return wildsTerrainElevation(x, z) - wildsTerrainElevation(anchor.x, anchor.z);
+let actorTerrainSamples = 0;
+let anchorTerrainSamples = 0;
+
+export type WildsTerrainActorProjectionInput = Readonly<{
+  actorElevation?: number;
+  anchorElevation?: number;
+}>;
+
+export function wildsTerrainRelativeElevation(x: number, z: number, anchor: WorldPoint, projection: WildsTerrainActorProjectionInput = {}) {
+  let actorElevation = projection.actorElevation;
+  if (actorElevation === undefined) {
+    actorTerrainSamples += 1;
+    actorElevation = wildsTerrainElevation(x, z);
+  }
+  let anchorElevation = projection.anchorElevation;
+  if (anchorElevation === undefined) {
+    anchorTerrainSamples += 1;
+    anchorElevation = wildsTerrainElevation(anchor.x, anchor.z);
+  }
+  return actorElevation - anchorElevation;
 }
 
-export function projectWildsTerrainActorPosition(actor: WorldPoint, anchor: WorldPoint, baseY = 0): [number, number, number] {
+export function projectWildsTerrainActorPosition(
+  actor: WorldPoint,
+  anchor: WorldPoint,
+  baseY = 0,
+  projection: WildsTerrainActorProjectionInput = {}
+): [number, number, number] {
   return [
     actor.x - anchor.x,
-    baseY + wildsTerrainRelativeElevation(actor.x, actor.z, anchor),
+    baseY + wildsTerrainRelativeElevation(actor.x, actor.z, anchor, projection),
     actor.z - anchor.z
   ];
+}
+
+export function wildsTerrainProjectionDiagnostics() {
+  return Object.freeze({ actorTerrainSamples, anchorTerrainSamples });
 }
 
 export function buildWildsTerrainMeshProjection(tileX: number, tileZ: number, segments: number): WildsTerrainMeshProjection {
