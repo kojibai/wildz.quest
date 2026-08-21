@@ -38,10 +38,13 @@ import { resolveWildsGroundMovement } from "./wilds-grounded-movement";
 import { regionForPosition } from "./multiplayer-core";
 import {
   createInitialWildsExplorationAtlas,
+  discoverWildsExplorationSite,
   normalizeWildsExplorationAtlas,
   revealWildsExplorationAt,
   type WildsExplorationAtlas
 } from "./wilds-exploration-atlas";
+import { admitWildsDiscoveryPhysicalNeighborhood, isCanonicalWildsDiscoverySiteKey, normalizeWildsSiteSpaceState, type WildsSiteSpaceState } from "./wilds-discovery-sites";
+import { enterWildsSiteRuntime, exitWildsSiteRuntime, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeMovement, type WildsSiteDiscoveryOutput, type WildsSiteMovementOutput, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 import {
   projectWildsTraversalCapabilities,
   type WildsTraversalCapability
@@ -79,12 +82,13 @@ export type { WildsSupportAssetIds } from "./wilds-v3-contracts";
 export type GameAction = "explore" | "train" | "mission";
 export type MoveDirection = "north" | "south" | "west" | "east";
 export type WildsInput = (
-  | { type: "move"; direction: MoveDirection; aerialMode?: "glide" | "flight"; verticalClearance?: number; verticalWorldY?: number }
-  | { type: "move-vector"; x: number; z: number; mode?: WildsMovementMode; aerialMode?: "glide" | "flight"; verticalClearance?: number; verticalWorldY?: number }
+  | { type: "move"; direction: MoveDirection; aerialMode?: "glide" | "flight"; verticalClearance?: number; verticalWorldY?: number; siteRuntime?: WildsSiteRuntimeProjection; siteMovementOutput?: WildsSiteMovementOutput; siteDiscoveryOutput?: WildsSiteDiscoveryOutput }
+  | { type: "move-vector"; x: number; z: number; mode?: WildsMovementMode; aerialMode?: "glide" | "flight"; verticalClearance?: number; verticalWorldY?: number; siteRuntime?: WildsSiteRuntimeProjection; siteMovementOutput?: WildsSiteMovementOutput; siteDiscoveryOutput?: WildsSiteDiscoveryOutput }
+  | { type: "site-portal"; direction: "enter" | "exit"; siteKey: string; siteRuntime: WildsSiteRuntimeProjection }
   | { type: "apply-rift-grant"; grant: RiftTravelGrant; playerId: string }
   | { type: "discover" }
   | { type: "capture"; encounterId: string; capturedAt: string; ownerReceizId: string }
-  | { type: "search-point"; x: number; z: number; searchedAt: string; ownerReceizId: string; verticalLayer?: WildsEncounterInteractionLayer; verticalWorldY?: number; verticalMinWorldY?: number; verticalMaxWorldY?: number; traversalCapabilities?: readonly WildsTraversalCapability[] }
+  | { type: "search-point"; x: number; z: number; searchedAt: string; ownerReceizId: string; verticalLayer?: WildsEncounterInteractionLayer; verticalWorldY?: number; verticalMinWorldY?: number; verticalMaxWorldY?: number; traversalCapabilities?: readonly WildsTraversalCapability[]; siteKey?: string | null; siteSpaceId?: string }
   | { type: "advance-encounter"; at: string }
   | { type: "start-battle"; at: string }
   | { type: "battle-action"; action: BattleAction; at?: string }
@@ -172,6 +176,7 @@ export type PlayState = {
     z: number;
   };
   explorationAtlas: WildsExplorationAtlas;
+  siteSpace: WildsSiteSpaceState;
   pendingSyncAssetIds: string[];
   pendingTravelGrowthEvents: Array<{ assetId: string; event: GrowthEvent }>;
   appliedArenaSettlementIds: string[];
@@ -353,6 +358,7 @@ export const initialPlayState: PlayState = {
     z: -0.85
   },
   explorationAtlas: createInitialWildsExplorationAtlas(),
+  siteSpace: normalizeWildsSiteSpaceState(undefined, { x: -2.15, y: wildsTerrainElevation(-2.15, -.85), z: -.85 }),
   pendingSyncAssetIds: [],
   pendingTravelGrowthEvents: [],
   appliedArenaSettlementIds: [],
@@ -589,6 +595,7 @@ export function restorePlayState(value: string | null | undefined, ownerReceizId
       ...fallback,
       ...saved,
       player: restoredPlayer,
+      siteSpace: normalizeWildsSiteSpaceState(saved.siteSpace, { x: restoredPlayer.x, y: wildsTerrainElevation(restoredPlayer.x, restoredPlayer.z), z: restoredPlayer.z }),
       explorationAtlas: normalizeWildsExplorationAtlas(saved.explorationAtlas, restoredPlayer),
       discoveredCardIds,
       inventory: migratedInventory,
@@ -731,6 +738,26 @@ function restoredEncounterPlacement(candidate: Record<string, unknown>) {
   return hotspotsForRegion(regionX, regionZ)[slot]?.placement;
 }
 
+function canonicalEncounterSiteContext(siteKey: unknown, spaceId: unknown, placement: ReturnType<typeof restoredEncounterPlacement>) {
+  if (typeof siteKey !== "string" || typeof spaceId !== "string" || !placement || !isCanonicalWildsDiscoverySiteKey(siteKey)) return undefined;
+  const match = siteKey.match(/^wildz\.site\.v1:(-?\d+):(-?\d+):/);
+  if (!match) return undefined;
+  const regionX = Number(match[1]), regionZ = Number(match[2]);
+  if (!Number.isSafeInteger(regionX) || !Number.isSafeInteger(regionZ)) return undefined;
+  try {
+    const physical = admitWildsDiscoveryPhysicalNeighborhood(regionX, regionZ);
+    const volume = physical.encounterVolumes.find((entry) => entry.siteKey === siteKey && entry.spaceId === spaceId
+      && Math.abs(placement.x - entry.center.x) <= entry.halfExtents.x && Math.abs(placement.z - entry.center.z) <= entry.halfExtents.z
+      && placement.worldY >= entry.center.y - entry.halfExtents.y && placement.worldY <= entry.center.y + entry.halfExtents.y);
+    return volume ? Object.freeze({ siteKey: volume.siteKey, spaceId: volume.spaceId }) : undefined;
+  } catch { return undefined; }
+}
+
+function restoredEncounterSiteContext(candidate: Record<string, unknown>, placement: ReturnType<typeof restoredEncounterPlacement>) {
+  const context = candidate.siteContext as Record<string, unknown> | undefined;
+  return canonicalEncounterSiteContext(context?.siteKey, context?.spaceId, placement);
+}
+
 function restoreEncounter(value: unknown, occupiedNames: ReadonlySet<string> = new Set()): EncounterState {
   if (!value || typeof value !== "object") return idleEncounterState;
   const candidate = value as Record<string, unknown>;
@@ -752,6 +779,8 @@ function restoreEncounter(value: unknown, occupiedNames: ReadonlySet<string> = n
   }
   const visibleIdentityPhases = new Set(["battle_intro", "player_turn", "capture_ready", "fled", "defeated", "emerging", "capsule", "sealed", "revealed"]);
   const placement = restoredEncounterPlacement(candidate);
+  const siteContext = restoredEncounterSiteContext(candidate, placement);
+  if (candidate.siteContext !== undefined && !siteContext) return idleEncounterState;
   if (!discoveryIdentity && visibleIdentityPhases.has(String(candidate.phase))) {
     discoveryIdentity = reconstructEncounterDiscoveryIdentity({
       hotspotId: typeof candidate.hotspotId === "string" ? candidate.hotspotId : undefined,
@@ -768,6 +797,7 @@ function restoreEncounter(value: unknown, occupiedNames: ReadonlySet<string> = n
     trend,
     ...(canonicalForm ? { familyId: canonicalForm.familyId, formId: canonicalForm.id } : {}),
     ...(placement ? { placement } : {}),
+    ...(siteContext ? { siteContext } : { siteContext: undefined }),
     discoveryIdentity
   } as EncounterState;
 }
@@ -1629,7 +1659,11 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
         }
       }
     }
-    const encounter = encounterFromSearch(result, point, input.searchedAt, ownerScope, state.encounter, discoveryIdentity);
+    const baseEncounter = encounterFromSearch(result, point, input.searchedAt, ownerScope, state.encounter, discoveryIdentity);
+    const canonicalSiteContext = canonicalEncounterSiteContext(input.siteKey, input.siteSpaceId, baseEncounter.placement);
+    const encounter = canonicalSiteContext
+      ? { ...baseEncounter, siteContext: canonicalSiteContext }
+      : baseEncounter;
     const lastEvent = result.kind === "hit"
       ? `${discoveryIdentity?.name.display ?? "A living signal"} revealed itself beneath the ${result.hotspot.cover}. This is its permanent name.`
       : result.kind === "near_miss"
@@ -1807,8 +1841,33 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       ...state,
       activeAction: "explore",
       player,
+      siteSpace: normalizeWildsSiteSpaceState(undefined, { x: player.x, y: wildsTerrainElevation(player.x, player.z), z: player.z }),
       explorationAtlas: revealWildsExplorationAt(state.explorationAtlas, player),
       lastEvent: "Rift complete. Walk the surrounding world to reach the landmark entrance."
+    };
+  }
+
+  if (input.type === "site-portal") {
+    const currentSpace = state.siteSpace ?? normalizeWildsSiteSpaceState(undefined, {
+      x: state.player.x,
+      y: wildsTerrainElevation(state.player.x, state.player.z),
+      z: state.player.z
+    });
+    const nextSpace = input.direction === "enter"
+      ? enterWildsSiteRuntime(input.siteRuntime, input.siteKey, {
+        x: state.player.x,
+        y: wildsTerrainElevation(state.player.x, state.player.z),
+        z: state.player.z
+      })
+      : exitWildsSiteRuntime(input.siteRuntime, currentSpace, input.siteKey);
+    if (!nextSpace) return state;
+    return {
+      ...state,
+      activeAction: "explore",
+      player: { x: nextSpace.position.x, z: nextSpace.position.z },
+      siteSpace: nextSpace,
+      explorationAtlas: discoverWildsExplorationSite(state.explorationAtlas, nextSpace.siteKey ?? currentSpace.siteKey ?? input.siteKey),
+      lastEvent: input.direction === "enter" ? "Entered a persistent hidden world site." : "Returned to the living outer world."
     };
   }
 
@@ -1826,15 +1885,38 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
         ? traversalCapabilities.includes("glide")
         : false;
     const movementCapabilities = traversalCapabilities;
-    const movement = input.type === "move"
-      ? movePlayer(state.player, input.direction, movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, input.verticalWorldY)
-      : movePlayerVector(state.player, input.x, input.z, movementScale(input.mode ?? "walk"), movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, input.verticalWorldY);
-    const nextPlayer = movement.position;
+    const currentSpace = state.siteSpace ?? normalizeWildsSiteSpaceState(undefined, {
+      x: state.player.x,
+      y: wildsTerrainElevation(state.player.x, state.player.z),
+      z: state.player.z
+    });
+    const movement = currentSpace.spaceId === "wildz.space.outer.v1"
+      ? input.type === "move"
+        ? movePlayer(state.player, input.direction, movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, input.verticalWorldY)
+        : movePlayerVector(state.player, input.x, input.z, movementScale(input.mode ?? "walk"), movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, input.verticalWorldY)
+      : movePlayerInsideSite(state.player, input);
+    const siteMovement = input.siteRuntime ? writeWildsSiteRuntimeMovement(
+      input.siteMovementOutput ?? { x: movement.position.x, z: movement.position.z, floorY: movement.elevation, ceilingY: Number.POSITIVE_INFINITY, surfaceId: null, flooded: false, blocked: false },
+      input.siteRuntime,
+      currentSpace.spaceId,
+      state.player.x,
+      currentSpace.spaceId === "wildz.space.outer.v1" ? wildsTerrainElevation(state.player.x, state.player.z) : currentSpace.position.y,
+      state.player.z,
+      movement.position.x,
+      movement.position.z,
+      .38,
+      movement.elevation
+    ) : null;
+    const nextPlayer = siteMovement ? { x: siteMovement.x, z: siteMovement.z } : movement.position;
     const previousRegion = regionForPosition(state.player);
     const nextRegion = regionForPosition(nextPlayer);
-    const explorationAtlas = previousRegion.x === nextRegion.x && previousRegion.z === nextRegion.z
+    let explorationAtlas = previousRegion.x === nextRegion.x && previousRegion.z === nextRegion.z
       ? state.explorationAtlas
       : revealWildsExplorationAt(state.explorationAtlas, nextPlayer);
+    if (input.siteRuntime) {
+      const discovery = writeWildsSiteRuntimeDiscovery(input.siteDiscoveryOutput ?? { siteKey: null }, input.siteRuntime, currentSpace.spaceId, nextPlayer.x, siteMovement?.floorY ?? movement.elevation, nextPlayer.z);
+      if (discovery.siteKey) explorationAtlas = discoverWildsExplorationSite(explorationAtlas, discovery.siteKey);
+    }
     const nearest = nearestCreature({ player: nextPlayer });
     const nearbyText = movement.traversalBlockedBy === "swim"
       ? "Deep water ahead. Lead with an aquatic creature to swim."
@@ -1855,6 +1937,19 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       activeAction: "explore",
       energy: Math.max(0, state.energy - 1),
       explorationAtlas,
+      siteSpace: currentSpace.spaceId === "wildz.space.outer.v1" ? {
+        version: "wildz.site-space-state.v1",
+        spaceId: "wildz.space.outer.v1",
+        siteKey: null,
+        surfaceId: siteMovement?.surfaceId ?? null,
+        position: { x: nextPlayer.x, y: siteMovement?.floorY ?? movement.elevation, z: nextPlayer.z },
+        flooded: siteMovement?.flooded ?? false
+      } : {
+        ...currentSpace,
+        surfaceId: siteMovement?.surfaceId ?? currentSpace.surfaceId,
+        position: { x: nextPlayer.x, y: siteMovement?.floorY ?? currentSpace.position.y, z: nextPlayer.z },
+        flooded: siteMovement?.flooded ?? currentSpace.flooded
+      },
       lastEvent: nearbyText,
       player: nextPlayer
     };
@@ -2125,6 +2220,29 @@ function movePlayerVector(
     z: clamp(player.z + safeZ * scale, worldBounds.min, worldBounds.max)
   };
   return resolveWildsGroundMovement(player, intended, { capabilities, aerialMode, verticalClearance, verticalWorldY });
+}
+
+function movePlayerInsideSite(player: PlayState["player"], input: Extract<WildsInput, { type: "move" | "move-vector" }>) {
+  let dx = 0, dz = 0;
+  if (input.type === "move") {
+    if (input.direction === "north") dz = -worldBounds.step;
+    if (input.direction === "south") dz = worldBounds.step;
+    if (input.direction === "west") dx = -worldBounds.step;
+    if (input.direction === "east") dx = worldBounds.step;
+  } else {
+    const safeX = Number.isFinite(input.x) ? input.x : 0, safeZ = Number.isFinite(input.z) ? input.z : 0;
+    const magnitude = Math.hypot(safeX, safeZ);
+    if (magnitude >= .08) { const scale = worldBounds.analogStep * movementScale(input.mode ?? "walk") / Math.max(1, magnitude); dx = safeX * scale; dz = safeZ * scale; }
+  }
+  return {
+    position: { x: clamp(player.x + dx, worldBounds.min, worldBounds.max), z: clamp(player.z + dz, worldBounds.min, worldBounds.max) },
+    elevation: 0,
+    surface: "land" as const,
+    speedMultiplier: 1,
+    traversalMode: input.aerialMode ?? "walk" as const,
+    blockedBy: [] as readonly string[],
+    traversalBlockedBy: null
+  };
 }
 
 function distance2d(a: { x: number; z: number }, b: { x: number; z: number }) {

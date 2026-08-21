@@ -19,7 +19,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(creature, /WildsCreatureLocomotion = "ground" \| "swim" \| "air"/);
     assert.match(creature, /projectWildsCreatureLocomotionFrame/);
     assert.match(world, /aquaticPresentation\.actorLocalY/);
-    assert.match(world, /visible=\{aquaticPresentation\.mode !== "swim"\}/);
+    assert.match(world, /visible=\{!swimming\}/);
     assert.match(world, /<WildsUnderwaterAtmosphere/);
     assert.match(world, /actualCameraSubmergedRef/);
     assert.match(controls, /Swimming with \$\{activeEntry\.name\}/);

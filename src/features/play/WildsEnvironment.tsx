@@ -18,6 +18,9 @@ import { buildWildsTerrainPatchProjection, buildWildsTerrainRibbonProjection, bu
 import { projectWildsObstaclePlacement, wildsTerrainObstaclesForTile } from "@/features/play/wilds-terrain-obstacles";
 import { projectWildsOverlooks, type WildsOverlookId } from "@/features/play/wilds-overlooks";
 import { WildsWorldArt } from "@/features/play/WildsWorldArt";
+import { WildsDiscoverySites } from "@/features/play/WildsDiscoverySites";
+import type { WildsSiteSpaceState } from "@/features/play/wilds-discovery-sites";
+import type { WildsSiteRuntimeProjection } from "@/features/play/wilds-site-runtime";
 
 export const WILDS_TILE_SIZE = 12;
 const STREAM_RADIUS = 2;
@@ -26,6 +29,9 @@ const GOLDEN_ANGLE = Math.PI * 2 / (PHI * PHI);
 
 type Tile = WildsBiomeTile & { key: string; tileX: number; tileZ: number };
 type Placement = { x: number; z: number; scale: number; variant: number };
+const EMPTY_TILES = Object.freeze([]) as unknown as Tile[];
+const EMPTY_PLACEMENTS = Object.freeze([]) as unknown as Placement[];
+const EMPTY_VALUES = Object.freeze([]) as readonly never[];
 
 function seededUnit(seed: number, salt: number) {
   const value = Math.sin(seed * 0.0000137 + salt * 91.733) * 43758.5453123;
@@ -82,6 +88,9 @@ export function WildsEnvironment({
   terrainElevation,
   livingWorld,
   worldMode,
+  siteRuntime,
+  siteSpace,
+  onSitePortal,
   onSelectOverlook
 }: {
   player: PlayState["player"];
@@ -91,11 +100,16 @@ export function WildsEnvironment({
   terrainElevation: number;
   livingWorld?: WildsWorldProjection | null;
   worldMode: WildsSettlementWorldMode;
+  siteRuntime: WildsSiteRuntimeProjection;
+  siteSpace: WildsSiteSpaceState;
+  onSitePortal: (siteKey: string, direction: "enter" | "exit") => void;
   onSelectOverlook: (overlookId: WildsOverlookId) => void;
 }) {
+  const outer = siteSpace.spaceId === "wildz.space.outer.v1";
   const centerX = Math.floor(player.x / WILDS_TILE_SIZE);
   const centerZ = Math.floor(player.z / WILDS_TILE_SIZE);
   const tiles = useMemo(() => {
+    if (!outer) return EMPTY_TILES;
     const projected: Tile[] = [];
     for (let dz = -STREAM_RADIUS; dz <= STREAM_RADIUS; dz += 1) {
       for (let dx = -STREAM_RADIUS; dx <= STREAM_RADIUS; dx += 1) {
@@ -105,39 +119,40 @@ export function WildsEnvironment({
       }
     }
     return projected;
-  }, [centerX, centerZ, missionProgress, worldMastery]);
+  }, [centerX, centerZ, missionProgress, outer, worldMastery]);
 
-  const physicalObstacles = useMemo(() => tiles.flatMap((tile) => wildsTerrainObstaclesForTile(tile.tileX, tile.tileZ)), [tiles]);
-  const trees = useMemo(() => physicalObstacles.filter((obstacle) => obstacle.kind === "tree").map(projectWildsObstaclePlacement), [physicalObstacles]);
-  const bushes = useMemo(() => placements(tiles, "bushCount", 211, qualityProfile.foliage), [qualityProfile.foliage, tiles]);
-  const rocks = useMemo(() => physicalObstacles.filter((obstacle) => obstacle.kind === "rock").map(projectWildsObstaclePlacement), [physicalObstacles]);
-  const flowers = useMemo(() => placements(tiles, "flowerCount", 401, qualityProfile.foliage), [qualityProfile.foliage, tiles]);
+  const physicalObstacles = useMemo(() => outer ? tiles.flatMap((tile) => wildsTerrainObstaclesForTile(tile.tileX, tile.tileZ)) : EMPTY_VALUES, [outer, tiles]);
+  const trees = useMemo(() => outer ? physicalObstacles.filter((obstacle) => obstacle.kind === "tree").map(projectWildsObstaclePlacement) : EMPTY_PLACEMENTS, [outer, physicalObstacles]);
+  const bushes = useMemo(() => outer ? placements(tiles, "bushCount", 211, qualityProfile.foliage) : EMPTY_PLACEMENTS, [outer, qualityProfile.foliage, tiles]);
+  const rocks = useMemo(() => outer ? physicalObstacles.filter((obstacle) => obstacle.kind === "rock").map(projectWildsObstaclePlacement) : EMPTY_PLACEMENTS, [outer, physicalObstacles]);
+  const flowers = useMemo(() => outer ? placements(tiles, "flowerCount", 401, qualityProfile.foliage) : EMPTY_PLACEMENTS, [outer, qualityProfile.foliage, tiles]);
 
   return (
     <group>
       <group name="world-layer-play">
-        <GroundField centerX={centerX} centerZ={centerZ} color={tiles[12]?.ground.base ?? "#4f9254"} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} />
+        {outer ? <><GroundField centerX={centerX} centerZ={centerZ} color={tiles[12]?.ground.base ?? "#4f9254"} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} />
         <TerrainWaterField centerX={centerX} centerZ={centerZ} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} />
         <WorldWatercourses player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} />
         <TrailNetwork player={player} palette={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }} terrainElevation={terrainElevation} />
-        <MajorWorldRoutes player={player} palette={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }} terrainElevation={terrainElevation} />
+        <MajorWorldRoutes player={player} palette={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }} terrainElevation={terrainElevation} /></> : null}
       </group>
       <group name="world-layer-mid">
-        <EcologyInstances bushes={bushes} flowers={flowers} palette={tiles[12]?.canopy} player={player} qualityProfile={qualityProfile} rocks={rocks} terrainElevation={terrainElevation} trees={trees} />
+        <WildsDiscoverySites onPortal={onSitePortal} player={player} runtime={siteRuntime} space={siteSpace} />
+        {outer ? <><EcologyInstances bushes={bushes} flowers={flowers} palette={tiles[12]?.canopy} player={player} qualityProfile={qualityProfile} rocks={rocks} terrainElevation={terrainElevation} trees={trees} />
         <FlagshipLandmarkEntrances detail={qualityProfile.tier !== "low"} livingWorld={livingWorld} player={player} terrainElevation={terrainElevation} worldMode={worldMode} />
         <LivingWorldSites player={player} terrainElevation={terrainElevation} world={livingWorld} />
         <AuthoredOverlooks onSelect={onSelectOverlook} player={player} terrainElevation={terrainElevation} />
         {tiles.filter((tile) => tile.landmark.kind !== "none" && tile.landmark.kind !== "hearttree-sanctum" && tile.landmark.kind !== "mortal-arena").map((tile) => (
           <Landmark key={`landmark:${tile.key}`} player={player} terrainElevation={terrainElevation} tile={tile} />
-        ))}
+        ))}</> : null}
       </group>
       <group name="world-layer-far">
-        <WildsWorldArt
+        {outer ? <WildsWorldArt
           player={player}
           qualityProfile={qualityProfile}
           terrainElevation={terrainElevation}
           trail={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }}
-        />
+        /> : null}
       </group>
     </group>
   );

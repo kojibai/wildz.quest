@@ -72,12 +72,16 @@ import {
 import {
   createWildsAerialCollisionSample,
   projectWildsAerialObstacleNeighborhood,
-  writeWildsAerialCollisionSample
+  writeWildsAerialCollisionSample,
+  type WildsAerialObstacleNeighborhood
 } from "@/features/play/wilds-grounded-movement";
 import type { WildsTerrainObstacle } from "@/features/play/wilds-terrain-obstacles";
 import { WILDS_TERRAIN_TILE_SIZE } from "@/features/play/wilds-terrain-authority";
+import type { WildsSiteSpaceState } from "@/features/play/wilds-discovery-sites";
+import { wildsSiteRuntimeDiagnostics, writeWildsSiteRuntimeAerialCollision, writeWildsSiteRuntimeCamera, writeWildsSiteRuntimeEncounter, type WildsSiteRuntimeProjection } from "@/features/play/wilds-site-runtime";
 
 const WILDS_DIAGNOSTICS_ENABLED = process.env.NODE_ENV !== "production";
+const EMPTY_AERIAL_OBSTACLE_NEIGHBORHOOD = Object.freeze({ tileX: 0, tileZ: 0, obstacles: Object.freeze([]) }) as WildsAerialObstacleNeighborhood;
 
 export function WildsWorldCanvas({
   state,
@@ -93,6 +97,9 @@ export function WildsWorldCanvas({
   onSearchPoint,
   livingWorld,
   livingPhysicalObstacles,
+  siteRuntime,
+  siteSpace,
+  onSitePortal,
   worldMode,
   kaiMoment,
   visualSettings = DEFAULT_WILDS_VISUAL_SETTINGS,
@@ -124,6 +131,9 @@ export function WildsWorldCanvas({
   onSearchPoint: (point: { x: number; z: number }) => void;
   livingWorld?: WildsWorldProjection | null;
   livingPhysicalObstacles: readonly WildsTerrainObstacle[];
+  siteRuntime: WildsSiteRuntimeProjection;
+  siteSpace: WildsSiteSpaceState;
+  onSitePortal: (siteKey: string, direction: "enter" | "exit") => void;
   worldMode: WildsSettlementWorldMode;
   kaiMoment: KaiKlokMoment;
   visualSettings?: Partial<WildsVisualSettings>;
@@ -167,7 +177,7 @@ export function WildsWorldCanvas({
       >
         {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
-          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} />
+          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} />
         </Suspense>
       </Canvas>
     </div>
@@ -190,6 +200,9 @@ function WildsScene({
   onSearchPoint,
   livingWorld,
   livingPhysicalObstacles,
+  siteRuntime,
+  siteSpace,
+  onSitePortal,
   worldMode,
   kaiMoment,
   visualSettings,
@@ -221,6 +234,9 @@ function WildsScene({
   onSearchPoint: (point: { x: number; z: number }) => void;
   livingWorld?: WildsWorldProjection | null;
   livingPhysicalObstacles: readonly WildsTerrainObstacle[];
+  siteRuntime: WildsSiteRuntimeProjection;
+  siteSpace: WildsSiteSpaceState;
+  onSitePortal: (siteKey: string, direction: "enter" | "exit") => void;
   worldMode: WildsSettlementWorldMode;
   kaiMoment: KaiKlokMoment;
   visualSettings: Partial<WildsVisualSettings>;
@@ -280,13 +296,16 @@ function WildsScene({
     [state.inventory, state.selectedAssetId]
   );
   const activeAppearance = useMemo(() => activeAsset ? projectCardKaiAppearance(activeAsset) : null, [activeAsset]);
+  const swimming = (siteSpace.spaceId === "wildz.space.outer.v1" ? aquaticPresentation.mode === "swim" : siteSpace.flooded)
+    && aerialCapabilities.includes("swim");
+  const activeFloorY = siteSpace.spaceId === "wildz.space.outer.v1" ? aquaticPresentation.terrainElevation : siteSpace.position.y;
   const terrainTileX = Math.floor(state.player.x / WILDS_TERRAIN_TILE_SIZE);
   const terrainTileZ = Math.floor(state.player.z / WILDS_TERRAIN_TILE_SIZE);
   const terrainObstacleNeighborhood = useMemo(
-    () => projectWildsAerialObstacleNeighborhood(state.player),
+    () => siteSpace.spaceId === "wildz.space.outer.v1" ? projectWildsAerialObstacleNeighborhood(state.player) : EMPTY_AERIAL_OBSTACLE_NEIGHBORHOOD,
     // Player coordinates deliberately do not rebuild this immutable projection inside a tile.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [terrainTileX, terrainTileZ]
+    [siteSpace.spaceId, terrainTileX, terrainTileZ]
   );
   const actualCameraSubmergedRef = useRef(false);
   return (
@@ -296,7 +315,7 @@ function WildsScene({
       <WildsCelestialSky expression={kaiExpression} qualityProfile={qualityProfile} />
       <WildsAtmosphere encounter={state.encounter} expression={kaiExpression} missionProgress={state.missionProgress} nightRig={nightRig} player={state.player} qualityProfile={qualityProfile} />
       <WildsKaiAtmosphereGeometry expression={kaiExpression} qualityProfile={qualityProfile} />
-      <CameraRig actualCameraSubmergedRef={actualCameraSubmergedRef} verticalTraversalRef={verticalTraversalRef} aquaticPresentation={aquaticPresentation} onCameraHeadingChange={onCameraHeadingChange} vistaHeading={vistaHeading} />
+      <CameraRig actualCameraSubmergedRef={actualCameraSubmergedRef} verticalTraversalRef={verticalTraversalRef} aquaticPresentation={aquaticPresentation} onCameraHeadingChange={onCameraHeadingChange} vistaHeading={vistaHeading} siteRuntime={siteRuntime} siteSpace={siteSpace} player={state.player} />
       <WildsUnderwaterAtmosphere cameraSubmergedRef={actualCameraSubmergedRef} qualityProfile={qualityProfile} surfaceFog={kaiFog} surfaceFogFar={fogFar} surfaceFogNear={fogNear} surfaceSky={kaiSky} />
       {WILDS_DIAGNOSTICS_ENABLED ? <WildsDiagnostics environment={{
         authoredDarkness: darkness.amount,
@@ -307,8 +326,8 @@ function WildsScene({
         nightAmount: kaiExpression.night.amount,
         reducedMotion: qualityProfile.reducedMotion,
         starCount: wildsStarCountForTier(qualityProfile.tier)
-      }} qualityProfile={qualityProfile} state={state} /> : null}
-      <SmoothWorldFrame player={state.player} terrainElevation={aquaticPresentation.terrainElevation}>
+      }} qualityProfile={qualityProfile} siteRuntime={siteRuntime} state={state} /> : null}
+      <SmoothWorldFrame player={state.player} terrainElevation={activeFloorY}>
         <SearchableTerrain
           enabled={searchEnabled}
           missionProgress={state.missionProgress}
@@ -320,10 +339,13 @@ function WildsScene({
           worldMastery={state.worldMastery}
           livingWorld={livingWorld}
           worldMode={worldMode}
+          siteRuntime={siteRuntime}
+          siteSpace={siteSpace}
+          onSitePortal={onSitePortal}
         />
         <WildsEcologyEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={aquaticPresentation.terrainElevation} worldMode={worldMode} />
         <WildsBossEnvironment livingWorld={livingWorld} player={state.player} qualityProfile={qualityProfile} terrainElevation={aquaticPresentation.terrainElevation} />
-        <EncounterSequence state={state} terrainElevation={aquaticPresentation.terrainElevation} />
+        <EncounterSequence state={state} terrainElevation={activeFloorY} siteRuntime={siteRuntime} siteSpace={siteSpace} />
         {visibleRemotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} terrainElevation={aquaticPresentation.terrainElevation} />)}
         {trainers.map((trainer, index) => (
           index < 10 && Math.hypot(trainer.position[0] - state.player.x, trainer.position[2] - state.player.z) <= 28
@@ -331,7 +353,7 @@ function WildsScene({
             : null
         ))}
       </SmoothWorldFrame>
-      <AerialPlayerFrame aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} livingPhysicalObstacles={livingPhysicalObstacles} pressurePotential={pressurePotential} swimStamina={state.energy} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} player={state.player} runtime={aerialStateRef} terrainObstacleNeighborhood={terrainObstacleNeighborhood} verticalIntentRef={verticalIntentRef} verticalTraversalRef={verticalTraversalRef}>
+      <AerialPlayerFrame aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} livingPhysicalObstacles={livingPhysicalObstacles} pressurePotential={pressurePotential} swimStamina={state.energy} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} player={state.player} runtime={aerialStateRef} terrainObstacleNeighborhood={terrainObstacleNeighborhood} verticalIntentRef={verticalIntentRef} verticalTraversalRef={verticalTraversalRef} siteRuntime={siteRuntime} siteSpace={siteSpace}>
         <WildsExplorer
           aerialPalette={{
             primary: activeAppearance?.palette.primary ?? "#c9fff0",
@@ -340,14 +362,14 @@ function WildsScene({
           }}
           aerialStateRef={aerialStateRef}
           character={character}
-          locomotion={aquaticPresentation.mode === "swim" ? "swim" : "ground"}
-          scubaVisible={aquaticPresentation.scubaVisible}
+          locomotion={swimming ? "swim" : "ground"}
+          scubaVisible={swimming}
           style={character.gender}
           worldPosition={state.player}
         />
-        <ActiveCompanion locomotion={aquaticPresentation.mode === "swim" ? "swim" : "ground"} state={state} terrainElevation={aquaticPresentation.terrainElevation} />
+        <ActiveCompanion locomotion={swimming ? "swim" : "ground"} state={state} terrainElevation={activeFloorY} />
       </AerialPlayerFrame>
-      <group name="grounded-support-companions" visible={aquaticPresentation.mode !== "swim"}>
+      <group name="grounded-support-companions" visible={!swimming}>
         <SupportCompanions cards={supportCards} player={state.player} terrainElevation={aquaticPresentation.terrainElevation} />
       </group>
       <Sparkles key={`wilds-world-sparkles-${worldSparkleCount}`} count={worldSparkleCount} scale={[8, 2.4, 8]} size={2.1} speed={qualityProfile.reducedMotion ? 0 : kaiExpression.particleSpeed} color={kaiExpression.accent} />
@@ -355,7 +377,7 @@ function WildsScene({
   );
 }
 
-function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizontalAllowedRef, liftPotential, livingPhysicalObstacles, pressurePotential, swimStamina, onEnergyChange, onModeChange, onLandingRequired, onVerticalReadoutChange, player, runtime, terrainObstacleNeighborhood, verticalIntentRef, verticalTraversalRef }: {
+function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizontalAllowedRef, liftPotential, livingPhysicalObstacles, pressurePotential, swimStamina, onEnergyChange, onModeChange, onLandingRequired, onVerticalReadoutChange, player, runtime, terrainObstacleNeighborhood, verticalIntentRef, verticalTraversalRef, siteRuntime, siteSpace }: {
   aquaticPresentation: WildsAquaticPresentation;
   capabilities: readonly WildsTraversalCapability[];
   children: ReactNode;
@@ -373,6 +395,8 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizo
   terrainObstacleNeighborhood: import("@/features/play/wilds-grounded-movement").WildsAerialObstacleNeighborhood;
   verticalIntentRef: MutableRefObject<WildsVerticalTraversalIntent>;
   verticalTraversalRef: MutableRefObject<WildsVerticalTraversalState>;
+  siteRuntime: WildsSiteRuntimeProjection;
+  siteSpace: WildsSiteSpaceState;
 }) {
   const group = useRef<THREE.Group>(null);
   const previousPlayer = useRef(player);
@@ -381,6 +405,7 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizo
   const publishedVertical = useRef({ layer: "ground" as WildsVerticalTraversalState["layer"], value: Number.NaN, safeMin: Number.NaN, safeMax: Number.NaN });
   const runtimeResult = useRef(createWildsAerialRuntimeResult());
   const collisionSampleRef = useRef(createWildsAerialCollisionSample());
+  const siteCollisionSampleRef = useRef({ ...createWildsAerialCollisionSample(), floorY: Number.NaN, flooded: false, waterSurfaceY: Number.NaN });
   const publishedLandingRequired = useRef(false);
   const runtimeStep = useRef<WildsAerialRuntimeStep>({
     deltaSeconds: 0, groundElevation: 0, hasFlight: false, hasGlide: false,
@@ -400,18 +425,32 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizo
     previousPlayer.current = player;
     const groundElevation = aquaticPresentation.terrainElevation;
     const currentVertical = verticalTraversalRef.current;
-    const collisionSample = writeWildsAerialCollisionSample(
-      player,
+    const siteInterior = siteSpace.spaceId !== "wildz.space.outer.v1";
+    const collisionSample = collisionSampleRef.current;
+    if (siteInterior) {
+      collisionSample.obstacleTopY = Number.NaN;
+      collisionSample.ceilingY = Number.NaN;
+      collisionSample.protectedAirspace = false;
+    } else {
+      writeWildsAerialCollisionSample(player, currentVertical.layer === "air" ? currentVertical.worldY : groundElevation + .35, livingPhysicalObstacles, collisionSample, 1.55, .38, terrainObstacleNeighborhood.obstacles);
+    }
+    const siteCollision = writeWildsSiteRuntimeAerialCollision(
+      siteCollisionSampleRef.current,
+      siteRuntime,
+      siteSpace.spaceId,
+      player.x,
       currentVertical.layer === "air" ? currentVertical.worldY : groundElevation + .35,
-      livingPhysicalObstacles,
-      collisionSampleRef.current,
+      player.z,
       1.55,
-      .38,
-      terrainObstacleNeighborhood.obstacles
+      .38
     );
+    if (Number.isFinite(siteCollision.obstacleTopY) && (!Number.isFinite(collisionSample.obstacleTopY) || siteCollision.obstacleTopY > collisionSample.obstacleTopY)) collisionSample.obstacleTopY = siteCollision.obstacleTopY;
+    if (Number.isFinite(siteCollision.ceilingY) && (!Number.isFinite(collisionSample.ceilingY) || siteCollision.ceilingY < collisionSample.ceilingY)) collisionSample.ceilingY = siteCollision.ceilingY;
+    const activeGroundElevation = typeof siteCollision.floorY === "number" && Number.isFinite(siteCollision.floorY) ? siteCollision.floorY : groundElevation;
+    const activeWaterSurfaceY = typeof siteCollision.waterSurfaceY === "number" && Number.isFinite(siteCollision.waterSurfaceY) ? siteCollision.waterSurfaceY : aquaticPresentation.waterSurfaceY;
     const aerialInput = runtimeStep.current;
     aerialInput.deltaSeconds = delta;
-    aerialInput.groundElevation = groundElevation;
+    aerialInput.groundElevation = activeGroundElevation;
     aerialInput.hasFlight = hasFlight;
     aerialInput.hasGlide = hasGlide;
     aerialInput.horizontalDistance = horizontalDistance;
@@ -422,14 +461,16 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizo
     const advanced = writeWildsAerialRuntimeStep(runtime.current, aerialInput, runtimeResult.current);
     const layer = runtime.current.mode !== "ground"
       ? "air" as const
-      : aquaticPresentation.mode === "swim" && hasSwim
+      : (siteCollision.flooded || aquaticPresentation.mode === "swim") && hasSwim
         ? "water" as const
         : "ground" as const;
     const verticalInput = verticalStep.current;
     verticalInput.deltaSeconds = delta;
     verticalInput.initialOffset = layer === "air"
-        ? Math.max(.35, runtime.current.altitude - groundElevation)
-        : aquaticPresentation.actorLocalY;
+        ? Math.max(.35, runtime.current.altitude - activeGroundElevation)
+        : siteCollision.flooded
+          ? Math.max(.35, activeWaterSurfaceY - activeGroundElevation - .8)
+          : aquaticPresentation.actorLocalY;
     verticalInput.intent = verticalIntentRef.current;
     verticalInput.layer = layer;
     verticalInput.liftPotential = liftPotential;
@@ -438,8 +479,8 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizo
     verticalInput.powered = runtime.current.mode === "flight";
     verticalInput.pressurePotential = pressurePotential;
     verticalInput.stamina = layer === "water" ? swimStamina : runtime.current.stamina;
-    verticalInput.terrainElevation = groundElevation;
-    verticalInput.waterSurfaceY = aquaticPresentation.waterSurfaceY;
+    verticalInput.terrainElevation = activeGroundElevation;
+    verticalInput.waterSurfaceY = activeWaterSurfaceY;
     writeWildsVerticalTraversalStep(currentVertical, verticalInput);
     runtime.current.altitude = currentVertical.worldY;
     if (runtime.current.landingRequired && !publishedLandingRequired.current) {
@@ -459,7 +500,7 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizo
       onModeChange(runtime.current.mode);
     }
     const readoutValue = layer === "water"
-      ? Math.max(0, aquaticPresentation.waterSurfaceY - (groundElevation + currentVertical.offset))
+      ? Math.max(0, activeWaterSurfaceY - (activeGroundElevation + currentVertical.offset))
       : currentVertical.offset;
     const readoutBucket = Math.round(readoutValue * 4);
     const minimumBucket = Math.round(currentVertical.safeMin * 4);
@@ -681,18 +722,24 @@ function RemoteExplorer({
   );
 }
 
-function CameraRig({ actualCameraSubmergedRef, verticalTraversalRef, aquaticPresentation, onCameraHeadingChange, vistaHeading }: {
+function CameraRig({ actualCameraSubmergedRef, verticalTraversalRef, aquaticPresentation, onCameraHeadingChange, vistaHeading, siteRuntime, siteSpace, player }: {
   actualCameraSubmergedRef: MutableRefObject<boolean>;
   verticalTraversalRef: MutableRefObject<WildsVerticalTraversalState>;
   aquaticPresentation: WildsAquaticPresentation;
   onCameraHeadingChange: (heading: number) => void;
   vistaHeading: number | null;
+  siteRuntime: WildsSiteRuntimeProjection;
+  siteSpace: WildsSiteSpaceState;
+  player: PlayState["player"];
 }) {
   const { camera } = useThree();
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const priorVista = useRef<{ position: THREE.Vector3; target: THREE.Vector3 } | null>(null);
   const cameraProjection = useRef<MutableUnderwaterCameraProjection>({ underwaterTargetActive: false, localWaterSurfaceY: 0, targetY: .9, cameraY: 0 });
   const lastHeading = useRef(Number.NaN);
+  const siteCameraRef = useRef({ floorY: 0, ceilingY: Number.POSITIVE_INFINITY, flooded: false, waterSurfaceY: Number.NaN });
+  const siteAquaticRef = useRef({ mode: "swim" as const, terrainElevation: 0, waterSurfaceY: 0, waterDepth: 0, actorLocalY: 0, actorWorldY: 0, cameraSubmersionAllowed: true, scubaVisible: true });
+  const siteDryRef = useRef({ mode: "land" as const, terrainElevation: 0, waterSurfaceY: 0, waterDepth: 0, actorLocalY: 0, actorWorldY: 0, cameraSubmersionAllowed: false, scubaVisible: false });
   useEffect(() => {
     const orbit = controls.current;
     if (!orbit) return;
@@ -714,18 +761,41 @@ function CameraRig({ actualCameraSubmergedRef, verticalTraversalRef, aquaticPres
   useFrame((_, delta) => {
     const orbit = controls.current;
     if (orbit && vistaHeading === null) {
+      const siteWorldY = siteSpace.spaceId === "wildz.space.outer.v1" ? aquaticPresentation.terrainElevation : siteSpace.position.y;
+      const siteCamera = writeWildsSiteRuntimeCamera(siteCameraRef.current, siteRuntime, siteSpace.spaceId, player.x, siteWorldY, player.z);
       const clearance = verticalTraversalRef.current.layer === "ground" ? 0 : verticalTraversalRef.current.offset;
       const surfaceTargetY = .9 + clearance;
       const projection = cameraProjection.current;
-      writeUnderwaterCameraTarget(aquaticPresentation, surfaceTargetY, camera.position.y - orbit.target.y, projection, clearance);
+      let activeAquatic = aquaticPresentation;
+      if (siteCamera.flooded && Number.isFinite(siteCamera.waterSurfaceY)) {
+          const siteAquatic = siteAquaticRef.current;
+          siteAquatic.terrainElevation = siteCamera.floorY;
+          siteAquatic.waterSurfaceY = siteCamera.waterSurfaceY;
+          siteAquatic.waterDepth = Math.max(0, siteCamera.waterSurfaceY - siteCamera.floorY);
+          siteAquatic.actorWorldY = siteWorldY + clearance;
+          siteAquatic.actorLocalY = siteAquatic.actorWorldY - siteCamera.floorY;
+          activeAquatic = siteAquatic;
+      } else if (siteSpace.spaceId !== "wildz.space.outer.v1") {
+          const siteDry = siteDryRef.current;
+          siteDry.terrainElevation = siteCamera.floorY;
+          siteDry.waterSurfaceY = siteCamera.floorY;
+          siteDry.actorWorldY = siteWorldY + clearance;
+          activeAquatic = siteDry;
+      }
+      writeUnderwaterCameraTarget(activeAquatic, surfaceTargetY, camera.position.y - orbit.target.y, projection, clearance);
       const priorTargetY = orbit.target.y;
       orbit.target.y = THREE.MathUtils.damp(orbit.target.y, projection.targetY, 8, delta);
       camera.position.y += orbit.target.y - priorTargetY;
+      if (Number.isFinite(siteCamera.ceilingY)) {
+        const localCeiling = siteCamera.ceilingY - siteWorldY - .18;
+        camera.position.y = Math.min(camera.position.y, localCeiling);
+        orbit.target.y = Math.min(orbit.target.y, localCeiling - .4);
+      }
       actualCameraSubmergedRef.current = isUnderwaterCameraSubmerged(
         camera.position.y,
         projection.localWaterSurfaceY,
         actualCameraSubmergedRef.current,
-        aquaticPresentation.cameraSubmersionAllowed,
+        activeAquatic.cameraSubmersionAllowed,
         false
       );
     } else if (vistaHeading !== null) {
@@ -768,7 +838,10 @@ function SearchableTerrain({
   onSearchPoint,
   onSelectOverlook,
   livingWorld,
-  worldMode
+  worldMode,
+  siteRuntime,
+  siteSpace,
+  onSitePortal
 }: {
   player: PlayState["player"];
   enabled: boolean;
@@ -780,6 +853,9 @@ function SearchableTerrain({
   onSelectOverlook: (overlookId: WildsOverlookId) => void;
   livingWorld?: WildsWorldProjection | null;
   worldMode: WildsSettlementWorldMode;
+  siteRuntime: WildsSiteRuntimeProjection;
+  siteSpace: WildsSiteSpaceState;
+  onSitePortal: (siteKey: string, direction: "enter" | "exit") => void;
 }) {
   return (
     <group
@@ -789,7 +865,7 @@ function SearchableTerrain({
         onSearchPoint({ x: player.x + event.point.x, z: player.z + event.point.z });
       }}
     >
-      <StreamedTerrain missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} onSelectOverlook={onSelectOverlook} />
+      <StreamedTerrain missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} onSelectOverlook={onSelectOverlook} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} />
     </group>
   );
 }
@@ -802,7 +878,10 @@ function StreamedTerrain({
   worldMastery,
   livingWorld,
   worldMode,
-  onSelectOverlook
+  onSelectOverlook,
+  siteRuntime,
+  siteSpace,
+  onSitePortal
 }: {
   missionProgress: number;
   player: PlayState["player"];
@@ -812,8 +891,11 @@ function StreamedTerrain({
   livingWorld?: WildsWorldProjection | null;
   worldMode: WildsSettlementWorldMode;
   onSelectOverlook: (overlookId: WildsOverlookId) => void;
+  siteRuntime: WildsSiteRuntimeProjection;
+  siteSpace: WildsSiteSpaceState;
+  onSitePortal: (siteKey: string, direction: "enter" | "exit") => void;
 }) {
-  return <WildsEnvironment missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} onSelectOverlook={onSelectOverlook} />;
+  return <WildsEnvironment missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} onSelectOverlook={onSelectOverlook} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} />;
 }
 
 function Creature({
@@ -882,7 +964,7 @@ function Creature({
   );
 }
 
-function EncounterSequence({ state, terrainElevation }: { state: PlayState; terrainElevation: number }) {
+function EncounterSequence({ state, terrainElevation, siteRuntime, siteSpace }: { state: PlayState; terrainElevation: number; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState }) {
   const encounter = state.encounter;
   if (encounter.phase === "idle") return null;
   const searchPosition = projectWildsTerrainActorPosition(encounter.searchPoint, state.player, .04, { anchorElevation: terrainElevation });
@@ -908,11 +990,19 @@ function EncounterSequence({ state, terrainElevation }: { state: PlayState; terr
         : encounter.phase === "battle_intro" ? "curious"
           : "idle";
   const placement = encounter.placement;
+  const siteEncounter = placement ? writeWildsSiteRuntimeEncounter(
+    { siteKey: null, spaceId: siteSpace.spaceId, layer: placement.layer, minY: placement.interactionBand.minY, maxY: placement.interactionBand.maxY },
+    siteRuntime,
+    siteSpace.spaceId,
+    placement.x,
+    placement.worldY,
+    placement.z
+  ) : null;
   const position: [number, number, number] = placement
     ? [placement.x - state.player.x, placement.worldY - terrainElevation, placement.z - state.player.z]
     : searchPosition;
   return (
-    <group position={position} userData={{ encounterLayer: placement?.layer ?? "ground", encounterWorldY: placement?.worldY ?? null, placementIdentity: placement?.identity ?? null }}>
+    <group position={position} userData={{ encounterLayer: placement?.layer ?? "ground", encounterWorldY: placement?.worldY ?? null, placementIdentity: placement?.identity ?? null, siteKey: encounter.siteContext?.siteKey ?? siteEncounter?.siteKey ?? null, siteSpaceId: encounter.siteContext?.spaceId ?? siteEncounter?.spaceId ?? siteSpace.spaceId }}>
       <SearchPulse hint position={[0, 0, 0]} />
       <HabitatCover cover={encounter.cover} open={encounter.phase !== "emerging"} />
       <group scale={encounter.phase === "capsule" ? 0.68 : encounter.phase === "sealed" || encounter.phase === "revealed" ? 0.01 : 1}>
@@ -1157,10 +1247,12 @@ function CreatureDetails({ cardId, color, accent }: { cardId: string; color: str
 function WildsDiagnostics({
   environment,
   qualityProfile,
+  siteRuntime,
   state
 }: {
   environment: { authoredDarkness: number; dayPhase: string; darknessSource: string; kaiCoordinate: string; lanternEnabled: boolean; nightAmount: number; reducedMotion: boolean; starCount: number };
   qualityProfile: WildsQualityProfile;
+  siteRuntime: WildsSiteRuntimeProjection;
   state: PlayState;
 }) {
   const { camera, gl, scene, size } = useThree();
@@ -1177,6 +1269,12 @@ function WildsDiagnostics({
       camera: { position: camera.position.toArray(), fov: camera instanceof THREE.PerspectiveCamera ? camera.fov : null },
       scene: { children: scene.children.length },
       environment: environmentRef.current,
+      siteRuntime: {
+        diagnostics: wildsSiteRuntimeDiagnostics(),
+        physicalVersion: siteRuntime.physical.version,
+        runtimeVersion: siteRuntime.version,
+        siteCount: siteRuntime.sites.length
+      },
       boss: scene.getObjectByName("wilds-boss-environment")?.userData ?? { detailedBosses: 0, maxDetailedBosses: 1 }
     };
     publishWildsDiagnostics(gl, size, currentState, qualityProfile, extra);
@@ -1193,7 +1291,7 @@ function WildsDiagnostics({
     sample();
     const interval = window.setInterval(sample, 500);
     return () => window.clearInterval(interval);
-  }, [camera, gl, qualityProfile, scene, size]);
+  }, [camera, gl, qualityProfile, scene, siteRuntime, size]);
 
   return (
     <Html className="wilds-diagnostics-anchor">

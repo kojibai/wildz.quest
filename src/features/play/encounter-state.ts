@@ -24,6 +24,7 @@ export type ActiveEncounterState = {
   assetId?: string;
   discoveryIdentity?: LivingCreatureIdentityV3;
   placement?: WildsLayeredEncounterProjection;
+  siteContext?: Readonly<{ siteKey: string; spaceId: string }>;
 };
 
 export type EncounterState = IdleEncounterState | ActiveEncounterState;

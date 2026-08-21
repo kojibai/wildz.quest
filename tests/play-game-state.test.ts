@@ -31,6 +31,8 @@ import {
   wildsExplorationContainsWorld
 } from "../src/features/play/wilds-exploration-atlas.js";
 import { sampleWildsTerrain } from "../src/features/play/wilds-terrain-authority.js";
+import { admitWildsDiscoveryPhysicalNeighborhood, normalizeWildsSiteSpaceState } from "../src/features/play/wilds-discovery-sites.js";
+import { prepareWildsSiteRuntime } from "../src/features/play/wilds-site-runtime.js";
 
 function activeTravelState(): PlayState {
   const capturedAt = "2026-07-13T11:00:00.000Z";
@@ -49,6 +51,108 @@ function activeTravelState(): PlayState {
     player: { x: 7.9, z: 0 }
   };
 }
+
+describe("persistent discovery-site play continuity", () => {
+  it("moves inside the canonical dry cave even where the hidden outer terrain is deep water", () => {
+    const runtime = prepareWildsSiteRuntime(admitWildsDiscoveryPhysicalNeighborhood(-49, -51));
+    const siteKey = "wildz.site.v1:-49:-51:2:e06d3f20d8147d7d";
+    const portal = runtime.physical.portals.find((candidate) => candidate.siteKey === siteKey)!;
+    assert.ok(portal);
+    let state: PlayState = {
+      ...structuredClone(initialPlayState),
+      player: { x: portal.position.x, z: portal.position.z },
+      siteSpace: normalizeWildsSiteSpaceState(undefined, portal.position)
+    };
+    state = applyWildsInput(state, { type: "site-portal", direction: "enter", siteKey, siteRuntime: runtime });
+    const moved = applyWildsInput(state, { type: "move-vector", x: 1, z: 0, mode: "walk", siteRuntime: runtime });
+    assert.ok(moved.player.x > state.player.x);
+    assert.doesNotMatch(moved.lastEvent, /Deep water/);
+  });
+
+  it("enters, moves, serializes, restores, and exits the exact admitted interior space", () => {
+    const runtime = prepareWildsSiteRuntime(admitWildsDiscoveryPhysicalNeighborhood(3, 2));
+    const portal = runtime.physical.portals[0]!;
+    let state: PlayState = {
+      ...structuredClone(initialPlayState),
+      player: { x: portal.position.x, z: portal.position.z },
+      siteSpace: normalizeWildsSiteSpaceState(undefined, portal.position)
+    };
+    state = applyWildsInput(state, { type: "site-portal", direction: "enter", siteKey: portal.siteKey, siteRuntime: runtime });
+    assert.equal(state.siteSpace.spaceId, portal.toSpaceId);
+    assert.equal(state.siteSpace.siteKey, portal.siteKey);
+    assert.equal(state.explorationAtlas.siteKeys.includes(portal.siteKey), true);
+
+    const moved = applyWildsInput(state, { type: "move-vector", x: .25, z: .1, mode: "walk", siteRuntime: runtime });
+    assert.equal(moved.siteSpace.spaceId, portal.toSpaceId);
+    assert.ok(moved.siteSpace.surfaceId);
+    const restored = restorePlayState(serializePlayState(moved));
+    assert.deepEqual(restored.siteSpace, moved.siteSpace);
+    assert.deepEqual(restored.player, moved.player);
+
+    const exited = applyWildsInput(restored, { type: "site-portal", direction: "exit", siteKey: portal.siteKey, siteRuntime: runtime });
+    assert.equal(exited.siteSpace.spaceId, "wildz.space.outer.v1");
+    assert.deepEqual(exited.player, { x: portal.position.x, z: portal.position.z });
+  });
+
+  it("rejects forged interior continuity during restore", () => {
+    const forged = structuredClone(initialPlayState);
+    forged.siteSpace = {
+      version: "wildz.site-space-state.v1",
+      spaceId: "wildz.space.v1:wildz.site.v1:3:2:1:0000000000000000:interior",
+      siteKey: "wildz.site.v1:3:2:1:0000000000000000",
+      surfaceId: "surface:forged",
+      position: { x: 999_999, y: 999_999, z: 999_999 },
+      flooded: false
+    };
+    const restored = restorePlayState(serializePlayState(forged));
+    assert.equal(restored.siteSpace.spaceId, "wildz.space.outer.v1");
+    assert.deepEqual({ x: restored.siteSpace.position.x, z: restored.siteSpace.position.z }, restored.player);
+  });
+});
+
+describe("site-qualified encounter continuity", () => {
+  it("persists only the canonical site and space through restore", () => {
+    const runtime = prepareWildsSiteRuntime(admitWildsDiscoveryPhysicalNeighborhood(0, 0));
+    const found = runtime.physical.encounterVolumes.flatMap((volume) => nearbyHiddenHotspots(volume.center).map((hotspot) => ({ hotspot, volume }))).find(({ hotspot, volume }) =>
+      hotspot.requiredCapability === null
+      && Math.abs(hotspot.placement.x - volume.center.x) <= volume.halfExtents.x
+      && Math.abs(hotspot.placement.z - volume.center.z) <= volume.halfExtents.z
+      && hotspot.placement.worldY >= volume.center.y - volume.halfExtents.y
+      && hotspot.placement.worldY <= volume.center.y + volume.halfExtents.y);
+    assert.ok(found);
+    const base = activeTravelState();
+    const state = { ...base, player: { x: found.hotspot.placement.x, z: found.hotspot.placement.z } };
+    const searched = applyWildsInput(state, {
+      type: "search-point",
+      x: found.hotspot.placement.x,
+      z: found.hotspot.placement.z,
+      searchedAt: "2026-08-21T12:00:00.000Z",
+      ownerReceizId: "@site-explorer",
+      verticalLayer: found.hotspot.placement.layer === "air" ? "air" : found.hotspot.placement.layer === "water-column" || found.hotspot.placement.layer === "seabed" ? "water" : "ground",
+      verticalWorldY: found.hotspot.placement.worldY,
+      verticalMinWorldY: found.hotspot.placement.interactionBand.minY,
+      verticalMaxWorldY: found.hotspot.placement.interactionBand.maxY,
+      siteKey: found.volume.siteKey,
+      siteSpaceId: found.volume.spaceId
+    });
+    assert.notEqual(searched.encounter.phase, "idle");
+    if (searched.encounter.phase === "idle") return;
+    assert.deepEqual(searched.encounter.siteContext, { siteKey: found.volume.siteKey, spaceId: found.volume.spaceId });
+    const restored = restorePlayState(serializePlayState(searched));
+    assert.notEqual(restored.encounter.phase, "idle");
+    if (restored.encounter.phase === "idle") return;
+    assert.deepEqual(restored.encounter.siteContext, searched.encounter.siteContext);
+    const tampered = structuredClone(searched);
+    if (tampered.encounter.phase !== "idle") tampered.encounter.siteContext = { siteKey: found.volume.siteKey, spaceId: "wildz.space.outer.v1:forged" };
+    const rejected = restorePlayState(serializePlayState(tampered));
+    assert.equal(rejected.encounter.phase, "idle");
+
+    const capturable = { ...searched, encounter: { ...searched.encounter, phase: "capsule" as const } } as PlayState;
+    const sealed = applyWildsInput(capturable, { type: "advance-encounter", at: "2026-08-21T12:00:01.000Z" });
+    assert.notEqual(sealed.encounter.phase, "idle");
+    if (sealed.encounter.phase !== "idle") assert.deepEqual(sealed.encounter.siteContext, searched.encounter.siteContext);
+  });
+});
 
 describe("layered encounter continuity", () => {
   it("rejects a remote camera scan before generating a distant encounter", () => {

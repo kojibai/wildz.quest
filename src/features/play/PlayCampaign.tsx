@@ -134,6 +134,9 @@ import { resolveWildsRequiredLandingPosition } from "@/features/play/wilds-groun
 import { projectCreatureCapabilityIdentity } from "@/features/play/creature-capability-identity";
 import { wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
 import { projectWildsRenderedLivingObstacles } from "@/features/play/wilds-terrain-obstacles";
+import { admitWildsDiscoveryPhysicalNeighborhood, wildsDiscoverySiteRegionForPosition } from "@/features/play/wilds-discovery-sites";
+import { prepareWildsSiteRuntime, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeEncounter, writeWildsSiteRuntimeLanding, writeWildsSiteRuntimeMovement } from "@/features/play/wilds-site-runtime";
+import { discoverWildsExplorationSite } from "@/features/play/wilds-exploration-atlas";
 
 const WildsWorldMap = dynamic(() => import("@/features/play/WildsWorldMap").then((mod) => mod.WildsWorldMap), { ssr: false });
 const WildsLandmarkExperience = dynamic(() => import("@/features/play/WildsLandmarkExperience").then((mod) => mod.WildsLandmarkExperience), { ssr: false });
@@ -566,6 +569,15 @@ export function PlayCampaign({
     () => projectWildsRenderedLivingObstacles(livingWorld.snapshot),
     [livingWorld.snapshot]
   );
+  const siteRegion = wildsDiscoverySiteRegionForPosition(state.player);
+  const sitePhysical = useMemo(
+    () => admitWildsDiscoveryPhysicalNeighborhood(siteRegion.x, siteRegion.z),
+    [siteRegion.x, siteRegion.z]
+  );
+  const siteRuntime = useMemo(() => prepareWildsSiteRuntime(sitePhysical), [sitePhysical]);
+  const siteMovementOutputRef = useRef({ x: 0, z: 0, floorY: 0, ceilingY: Number.POSITIVE_INFINITY, surfaceId: null as string | null, flooded: false, blocked: false });
+  const siteDiscoveryOutputRef = useRef({ siteKey: null as string | null });
+  const siteLandingOutputRef = useRef({ x: 0, z: 0, floorY: 0, found: false });
   const refreshLivingWorld = livingWorld.refresh;
   const handleStoryCommandError = useCallback((error: unknown, fallback: string) => {
     if (isWildsTemporalContinuityError(error)) void refreshLivingWorld();
@@ -854,6 +866,9 @@ export function PlayCampaign({
       const airborne = liveAerialMode !== "ground";
       dispatch({
         ...input,
+        siteRuntime,
+        siteMovementOutput: siteMovementOutputRef.current,
+        siteDiscoveryOutput: siteDiscoveryOutputRef.current,
         aerialMode: airborne ? liveAerialMode : undefined,
         verticalClearance: verticalTraversalRef.current.offset,
         verticalWorldY: verticalTraversalRef.current.worldY
@@ -865,13 +880,29 @@ export function PlayCampaign({
   const dispatchLayeredSearch = (point: { x: number; z: number }) => {
     if (!canUseWorldStage()) return;
     const vertical = verticalTraversalRef.current;
-    const layer = vertical.layer;
+    let layer = vertical.layer;
     const groundY = aquaticPresentation.terrainElevation;
     const worldY = layer === "ground" ? groundY : vertical.worldY;
     const safeMinWorldY = layer === "ground" ? worldY - .65 : groundY + vertical.safeMin;
     const safeMaxWorldY = layer === "ground" ? worldY + .65 : groundY + vertical.safeMax;
-    const minWorldY = Math.max(safeMinWorldY, worldY - .65);
-    const maxWorldY = Math.min(safeMaxWorldY, worldY + .65);
+    let minWorldY = Math.max(safeMinWorldY, worldY - .65);
+    let maxWorldY = Math.min(safeMaxWorldY, worldY + .65);
+    const siteQueryY = state.siteSpace.spaceId === "wildz.space.outer.v1"
+      ? layer === "ground" ? wildsTerrainElevation(point.x, point.z) : worldY
+      : state.siteSpace.position.y + .8;
+    const siteEncounter = writeWildsSiteRuntimeEncounter(
+      { siteKey: null, spaceId: state.siteSpace.spaceId, layer: "ground", minY: 0, maxY: 0 },
+      siteRuntime,
+      state.siteSpace.spaceId,
+      point.x,
+      siteQueryY,
+      point.z
+    );
+    if (siteEncounter.siteKey) {
+      layer = siteEncounter.layer === "air" ? "air" : siteEncounter.layer === "water-column" || siteEncounter.layer === "seabed" ? "water" : "ground";
+      minWorldY = siteEncounter.minY;
+      maxWorldY = siteEncounter.maxY;
+    }
     dispatch({
       type: "search-point",
       ...point,
@@ -881,32 +912,44 @@ export function PlayCampaign({
       verticalWorldY: worldY,
       verticalMinWorldY: minWorldY,
       verticalMaxWorldY: maxWorldY,
-      traversalCapabilities: activeTraversalCapabilities
+      traversalCapabilities: activeTraversalCapabilities,
+      siteKey: siteEncounter.siteKey,
+      siteSpaceId: siteEncounter.spaceId
     });
   };
   const consumePendingAerialLanding = (reason: WildsAerialLandingReason) => {
     const runtime = aerialStateRef.current;
     if (!runtime.landingRequired) return;
     const anchor = runtime.safeAnchor;
-    const landing = resolveWildsRequiredLandingPosition(state.player, anchor, {
-      capabilities: activeTraversalCapabilities,
-      obstacles: livingPhysicalObstacles
-    });
+    const outer = state.siteSpace.spaceId === "wildz.space.outer.v1";
+    const landing = outer
+      ? resolveWildsRequiredLandingPosition(state.player, anchor, { capabilities: activeTraversalCapabilities, obstacles: livingPhysicalObstacles })
+      : { x: anchor.x, z: anchor.z };
     if (!landing) return;
-    completeWildsAerialLanding(runtime, landing.x, landing.z, wildsTerrainElevation(landing.x, landing.z));
+    const landingY = outer ? wildsTerrainElevation(landing.x, landing.z) : state.siteSpace.position.y;
+    const siteLanding = writeWildsSiteRuntimeLanding(siteLandingOutputRef.current, siteRuntime, state.siteSpace.spaceId, landing.x, landingY, landing.z);
+    if (!siteLanding.found) return;
+    const siteSurface = writeWildsSiteRuntimeMovement(siteMovementOutputRef.current, siteRuntime, state.siteSpace.spaceId, state.player.x, landingY, state.player.z, siteLanding.x, siteLanding.z, .38, siteLanding.floorY);
+    completeWildsAerialLanding(runtime, siteLanding.x, siteLanding.z, siteLanding.floorY);
     resetWildsVerticalTraversalState(verticalTraversalRef.current);
     verticalIntentRef.current = 0;
     horizontalAllowedRef.current = true;
     setAerialMode("ground");
-    if (landing.x !== state.player.x || landing.z !== state.player.z) {
-      setState((current) => ({
+    setState((current) => {
+      const siteKey = writeWildsSiteRuntimeDiscovery(siteDiscoveryOutputRef.current, siteRuntime, current.siteSpace.spaceId, siteLanding.x, siteSurface.floorY, siteLanding.z).siteKey;
+      return {
         ...current,
-        player: { x: landing.x, z: landing.z },
-        lastEvent: reason === "protected-airspace"
-          ? "Returned to the nearest safe landing outside protected airspace."
-          : "Landed on the nearest clear surface."
-      }));
-    }
+        player: { x: siteLanding.x, z: siteLanding.z },
+        siteSpace: {
+          ...current.siteSpace,
+          surfaceId: siteSurface.surfaceId,
+          position: { x: siteLanding.x, y: siteSurface.floorY, z: siteLanding.z },
+          flooded: siteSurface.flooded
+        },
+        explorationAtlas: siteKey ? discoverWildsExplorationSite(current.explorationAtlas, siteKey) : current.explorationAtlas,
+        lastEvent: reason === "protected-airspace" ? "Returned to the nearest safe landing outside protected airspace." : "Landed on the nearest clear surface."
+      };
+    });
   };
   const toggleAerialTraversal = () => {
     if (!canUseWorldStage()) return;
@@ -1484,6 +1527,8 @@ export function PlayCampaign({
               searchEnabled={worldInteractionEnabled && discoveryActive}
               livingWorld={livingWorld.snapshot}
               livingPhysicalObstacles={livingPhysicalObstacles}
+              siteRuntime={siteRuntime}
+              siteSpace={state.siteSpace}
               worldMode={settlementWorldMode}
               kaiMoment={kaiMoment}
               visualSettings={visualSettings}
@@ -1497,6 +1542,20 @@ export function PlayCampaign({
               onSelectTrainer={(trainer) => openTrainerEncounter(trainer, "world")}
               onSearchPoint={(point) => {
                 dispatchLayeredSearch(point);
+              }}
+              onSitePortal={(siteKey, direction) => {
+                if (!canUseWorldStage()) return;
+                const discovery = writeWildsSiteRuntimeDiscovery({ siteKey: null }, siteRuntime, state.siteSpace.spaceId, state.player.x, state.siteSpace.position.y, state.player.z, 14);
+                if (direction === "enter" && discovery.siteKey !== siteKey) return;
+                if (direction === "enter") {
+                  const portal = siteRuntime.physical.portals.find((candidate) => candidate.siteKey === siteKey);
+                  const firstSurface = portal ? siteRuntime.physical.surfaces.find((surface) => surface.spaceId === portal.toSpaceId) : null;
+                  if (firstSurface?.flooded && !activeTraversalCapabilities.includes("swim")) {
+                    setRiftError("This entrance opens underwater. Lead with a creature that can swim.");
+                    return;
+                  }
+                }
+                dispatch({ type: "site-portal", direction, siteKey, siteRuntime });
               }}
               onSelectOverlook={(overlookId) => {
                 if (!canUseWorldStage() || aerialMode !== "ground" || nearbyOverlook?.id !== overlookId) return;
