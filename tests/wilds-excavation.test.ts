@@ -31,12 +31,23 @@ import {
   type WildsExcavationAdmissionJournal,
   type WildsExcavationPendingAdmission,
   wildsExcavationWorldIdForSite,
+  WILDS_EXCAVATION_REDUCER_DIGEST,
+  WILDS_EXCAVATION_REGISTRY_DIGEST,
   type WildsExcavationReceizPort
 } from "../src/features/play/wilds-excavation";
 import { admitWildsDiscoveryPhysicalNeighborhood, wildsDiscoverySitesForRegion } from "../src/features/play/wilds-discovery-sites";
 import { sampleWildsTerrain } from "../src/features/play/wilds-terrain-authority";
 import { createPersistentWildsExcavationJournal } from "../src/features/play/wilds-excavation-journal";
 import type { WildzContinuityDatabase, WildzContinuityTransaction, WildzStoreName } from "../src/lib/storage/wildz-indexed-db";
+import {
+  composeWildsAuthoredPhysicalNeighborhood,
+  appendWildsAuthoredMutation,
+  emptyWildsAuthoredWorldGraph,
+  hydrateWildsAuthoredWorld,
+  wildsAuthoredWorldDiagnostics,
+  type WildsAuthoredWorldCheckpoint,
+  type WildsAuthoredWorldStore
+} from "../src/features/play/wilds-authored-world";
 
 const SITE_KEY = wildsDiscoverySitesForRegion(0, 0)[0]!.key;
 const WORLD_ID = wildsExcavationWorldIdForSite(SITE_KEY);
@@ -805,5 +816,196 @@ describe("Receiz-backed player excavation", () => {
     const viewer = compileWildsExcavationViewerAccess("explorer:friend", [grant]);
     assert.equal(viewer.grants.get(access.grantsDigest)?.admitted, true);
     assert.deepEqual(projectWildsExcavationPublicFeatureRefs(emptyWildsExcavationGraph(WORLD_ID)), []);
+  });
+});
+
+function authoredEventFixture() {
+  const base = emptyWildsAuthoredWorldGraph(WORLD_ID);
+  const result = previewWildsExcavation(previewInput({ priorGraphHead: base.graphHead }));
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error("authored_fixture_invalid");
+  const preview = result.preview;
+  const authorityPreview = {
+    schema: preview.schema,
+    physical: false,
+    previewDigest: preview.previewDigest,
+    worldId: preview.worldId,
+    siteKey: preview.siteKey,
+    actorSubjectId: preview.actorSubjectId,
+    creatureSubjectId: preview.creatureSubjectId,
+    capability: preview.capability,
+    substrate: preview.substrate,
+    geometry: preview.geometry,
+    safety: preview.safety,
+    safetyDigest: preview.safetyDigest,
+    physicalAuthority: preview.physicalAuthority,
+    access: { mode: "public", grantsDigest: preview.access.grantsDigest },
+    creationKai: preview.creationKai,
+    priorGraphHead: preview.priorGraphHead,
+    idempotencyKey: preview.idempotencyKey,
+    candidateEventDigest: preview.candidateEventDigest
+  };
+  const command = {
+    worldId: WORLD_ID,
+    actorSubjectId: "explorer:one",
+    kind: "wildz.excavation.append.v1",
+    targetIds: ["creature:borer"],
+    payload: {
+      schema: "wildz.excavation.command_payload.v1",
+      applicationId: "wildz.quest",
+      worldRegion: preview.siteKey,
+      domainRegistryDigest: WILDS_EXCAVATION_REGISTRY_DIGEST,
+      domainReducerDigest: WILDS_EXCAVATION_REDUCER_DIGEST,
+      priorGraphHead: preview.priorGraphHead,
+      candidateEventDigest: preview.candidateEventDigest,
+      preview: authorityPreview
+    },
+    expectedHeads: { "creature:borer": "creature:head", "explorer:one": "explorer:head" },
+    expectedWorldHead: base.worldHead,
+    attemptId: "attempt:authored",
+    idempotencyKey: preview.idempotencyKey
+  };
+  const event = {
+    schema: "receiz.world.event.v1" as const,
+    eventId: "event:authored:one",
+    commandId: "transaction:authored:one",
+    worldId: WORLD_ID,
+    kind: "world.transaction",
+    actorSubjectId: "explorer:one",
+    participantSubjectIds: ["creature:borer", "explorer:one"],
+    payload: { commands: [command, { ...command, actorSubjectId: "creature:borer", kind: "wildz.excavation.creature_labor.v1", payload: { schema: "wildz.excavation.creature_labor_payload.v1" } }] },
+    causalParents: [base.worldHead, "creature:head", "explorer:head"],
+    priorHeads: command.expectedHeads,
+    nextHeads: { "creature:borer": "creature:next", "explorer:one": "explorer:next" },
+    priorWorldHead: base.worldHead,
+    worldHead: "world:authored:one",
+    kai: "123457",
+    registryDigest: "sdk:registry",
+    reducerDigest: "sdk:reducer"
+  };
+  return { base, event, preview };
+}
+
+function authoredStore() {
+  let checkpoint: WildsAuthoredWorldCheckpoint | null = null;
+  let commits = 0;
+  const store: WildsAuthoredWorldStore = {
+    read: async () => checkpoint,
+    compareAndSwap: async (_worldId, expectedRevision, next) => {
+      if ((checkpoint?.revision ?? 0) !== expectedRevision) return false;
+      checkpoint = next;
+      commits += 1;
+      return true;
+    }
+  };
+  return { store, checkpoint: () => checkpoint, commits: () => commits };
+}
+
+describe("persistent authored Wilds additions", () => {
+  it("rebuilds a replayable physical graph from privacy-safe Receiz additions and commits graph+cursor atomically", async () => {
+    const { event, preview } = authoredEventFixture();
+    const persisted = authoredStore();
+    let replays = 0;
+    const graph = await hydrateWildsAuthoredWorld({
+      worldId: WORLD_ID,
+      store: persisted.store,
+      rail: {
+        additions: async () => [event],
+        replay: async () => { replays += 1; return { schema: "receiz.world.checkpoint.v1", worldId: WORLD_ID, throughHead: event.worldHead, subjectHeads: event.nextHeads, events: [event] }; }
+      },
+      resolveEvidence: async () => preview.physicalAuthority
+    });
+    assert.equal(replays, 0);
+    assert.equal(persisted.commits(), 1);
+    assert.equal(persisted.checkpoint()?.graph, graph);
+    assert.equal(graph.worldHead, event.worldHead);
+    assert.equal(graph.features.length, 1);
+    assert.equal(JSON.stringify(event.payload).includes("proof:creature"), false);
+    assert.equal(JSON.stringify(event.payload).includes("Stonewing"), false);
+  });
+
+  it("fails closed for physical tampering and uses full replay for an additions gap without advancing the checkpoint", async () => {
+    const { event, preview } = authoredEventFixture();
+    const persisted = authoredStore();
+    await assert.rejects(hydrateWildsAuthoredWorld({
+      worldId: WORLD_ID,
+      store: persisted.store,
+      rail: { additions: async () => [event], replay: async () => { throw new Error("not expected"); } },
+      resolveEvidence: async () => ({ ...preview.physicalAuthority, flooded: !preview.physicalAuthority.flooded })
+    }), /physical_evidence_invalid/);
+    assert.equal(persisted.commits(), 0);
+
+    const gap = { ...event, priorWorldHead: "foreign:head", causalParents: ["foreign:head", ...event.causalParents.slice(1)] };
+    const rebuilt = await hydrateWildsAuthoredWorld({
+      worldId: WORLD_ID,
+      store: persisted.store,
+      rail: {
+        additions: async () => [gap],
+        replay: async () => ({ schema: "receiz.world.checkpoint.v1", worldId: WORLD_ID, throughHead: event.worldHead, subjectHeads: event.nextHeads, events: [event] })
+      },
+      resolveEvidence: async () => preview.physicalAuthority
+    });
+    assert.equal(rebuilt.worldHead, event.worldHead);
+    assert.equal(persisted.commits(), 1);
+  });
+
+  it("shares one immutable composed projection with every runtime consumer and performs zero warm rebuilds", async () => {
+    const { event, preview } = authoredEventFixture();
+    const persisted = authoredStore();
+    const graph = await hydrateWildsAuthoredWorld({
+      worldId: WORLD_ID,
+      store: persisted.store,
+      rail: { additions: async () => [event], replay: async () => { throw new Error("not expected"); } },
+      resolveEvidence: async () => preview.physicalAuthority
+    });
+    const natural = admitWildsDiscoveryPhysicalNeighborhood(0, 0);
+    const viewer = compileWildsExcavationViewerAccess("explorer:one", []);
+    const before = wildsAuthoredWorldDiagnostics();
+    const composed = composeWildsAuthoredPhysicalNeighborhood(natural, graph, viewer);
+    const afterBuild = wildsAuthoredWorldDiagnostics();
+    assert.equal(afterBuild.composedBuilds, before.composedBuilds + 1);
+    assert.ok(composed.surfaces.some((surface) => surface.id.includes(graph.features[0]!.featureId)));
+    for (let frame = 0; frame < 10_000; frame += 1) {
+      assert.equal(composeWildsAuthoredPhysicalNeighborhood(natural, graph, viewer), composed);
+    }
+    assert.equal(wildsAuthoredWorldDiagnostics().composedBuilds, afterBuild.composedBuilds);
+    assert.equal(Object.isFrozen(composed), true);
+  });
+
+  it("appends connected bare chambers without material spend and enforces head-bound access and atomic stewardship", async () => {
+    const { event, preview } = authoredEventFixture();
+    const persisted = authoredStore();
+    let graph = await hydrateWildsAuthoredWorld({
+      worldId: WORLD_ID,
+      store: persisted.store,
+      rail: { additions: async () => [event], replay: async () => { throw new Error("not expected"); } },
+      resolveEvidence: async () => preview.physicalAuthority
+    });
+    const segment = graph.features[0]!;
+    graph = appendWildsAuthoredMutation(graph, {
+      schema: "wildz.authored-world.mutation.v1", kind: "append-chamber", eventId: "event:chamber", idempotencyKey: "chamber:one",
+      priorGraphHead: graph.graphHead, actorSubjectId: "explorer:one", participantSubjectIds: ["explorer:one"],
+      parentFeatureId: segment.featureId, center: { ...preview.geometry.to, x: preview.geometry.to.x + 1 }, radius: 3, flooded: false
+    });
+    assert.equal(graph.features[1]?.kind, "chamber");
+    assert.equal(JSON.stringify(graph).includes("materialBalance"), false);
+    graph = appendWildsAuthoredMutation(graph, {
+      schema: "wildz.authored-world.mutation.v1", kind: "access-policy", eventId: "event:access", idempotencyKey: "access:one",
+      priorGraphHead: graph.graphHead, actorSubjectId: "explorer:one", participantSubjectIds: ["explorer:one"],
+      featureId: segment.featureId, access: { mode: "invited", grantsDigest: "sha256:private-envelope" }
+    });
+    const priorCreator = graph.features[0]?.ownerSubjectId;
+    graph = appendWildsAuthoredMutation(graph, {
+      schema: "wildz.authored-world.mutation.v1", kind: "stewardship-transfer", eventId: "event:steward", idempotencyKey: "steward:one",
+      priorGraphHead: graph.graphHead, actorSubjectId: "explorer:one", participantSubjectIds: ["explorer:friend", "explorer:one"],
+      featureId: segment.featureId, recipientSubjectId: "explorer:friend", accepted: true
+    });
+    assert.equal(graph.features[0]?.ownerSubjectId, priorCreator);
+    assert.equal(graph.features[0]?.stewardSubjectId, "explorer:friend");
+    assert.throws(() => appendWildsAuthoredMutation(graph, {
+      schema: "wildz.authored-world.mutation.v1", kind: "access-policy", eventId: "event:stale", idempotencyKey: "access:stale",
+      priorGraphHead: "stale", actorSubjectId: "explorer:friend", participantSubjectIds: ["explorer:friend"],
+      featureId: segment.featureId, access: { mode: "public", grantsDigest: "sha256:public" }
+    }), /mutation_stale/);
   });
 });

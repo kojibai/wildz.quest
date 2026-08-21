@@ -1,11 +1,13 @@
 import type { NextRequest } from "next/server";
 import { WILDZ_RECEIZ_SESSION_SCOPE } from "./wildz-auth-url";
+import { RECEIZ_WORLD_AUTHORITY_OIDC_SCOPES } from "./oauth-scopes";
 
 export type ReceizRequestSession = {
   accessToken: string | undefined;
   cookieAccessToken: string | undefined;
   delegatedAccessToken: string | undefined;
   sessionScope: string | undefined;
+  grantedScopes: readonly string[];
   source: "cookie" | "delegated" | null;
 };
 
@@ -22,8 +24,15 @@ export function receizRequestSession(request: NextRequest): ReceizRequestSession
     cookieAccessToken,
     delegatedAccessToken,
     sessionScope: request.cookies.get("receiz_session_scope")?.value,
+    grantedScopes: [...new Set((request.cookies.get("receiz_granted_scopes")?.value ?? "").split(/\s+/).filter(Boolean))].sort(),
     source: cookieAccessToken ? "cookie" : delegatedAccessToken ? "delegated" : null
   };
+}
+
+export function playerReceizWorldAuthorityAccessToken(session: ReceizRequestSession) {
+  const token = playerReceizAccessToken(session);
+  if (!token) return undefined;
+  return RECEIZ_WORLD_AUTHORITY_OIDC_SCOPES.every((scope) => session.grantedScopes.includes(scope)) ? token : undefined;
 }
 
 export function receizAccessTokenFromRequest(request: NextRequest) {

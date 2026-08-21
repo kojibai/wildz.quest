@@ -53,6 +53,13 @@ export async function GET(request: NextRequest) {
       sameSite: "lax",
       secure
     });
+    response.cookies.set("receiz_granted_scopes", session.grantedScopes ?? "", {
+      httpOnly: true,
+      maxAge: accessMaxAge,
+      path: "/",
+      sameSite: "lax",
+      secure
+    });
     return response;
   } catch {
     return failure(origin, "invalid_ticket");

@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const response = json(UNKNOWN);
   const secure = request.nextUrl.protocol === "https:";
-  for (const name of ["receiz_access_token", "receiz_refresh_token", "receiz_session_scope"]) {
+  for (const name of ["receiz_access_token", "receiz_refresh_token", "receiz_session_scope", "receiz_granted_scopes"]) {
     response.cookies.set(name, "", {
       httpOnly: true,
       maxAge: 0,

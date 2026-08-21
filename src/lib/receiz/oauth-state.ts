@@ -23,6 +23,7 @@ export type ReceizSessionTicketPayload = {
   sessionScope: string;
   flowNonce: string;
   startOrigin: string;
+  grantedScopes?: string;
   issuedAt?: number;
 };
 
@@ -121,6 +122,7 @@ export function packReceizSessionTicket(payload: ReceizSessionTicketPayload, sec
     sessionScope: payload.sessionScope,
     flowNonce: payload.flowNonce,
     startOrigin: payload.startOrigin,
+    ...(payload.grantedScopes === undefined ? {} : { grantedScopes: payload.grantedScopes }),
     ...(payload.issuedAt === undefined ? {} : { issuedAt: payload.issuedAt })
   }, secret, TICKET_PURPOSE);
 }

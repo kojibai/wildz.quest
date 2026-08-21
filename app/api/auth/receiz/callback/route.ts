@@ -25,6 +25,7 @@ function applySessionCookies(response: NextResponse, input: {
   accessToken: string;
   expiresIn: number;
   secure: boolean;
+  grantedScopes: string;
 }) {
   const accessMaxAge = Math.max(60, input.expiresIn || 3_600);
   response.cookies.set("receiz_access_token", input.accessToken, {
@@ -35,6 +36,13 @@ function applySessionCookies(response: NextResponse, input: {
     secure: input.secure
   });
   response.cookies.set("receiz_session_scope", WILDZ_RECEIZ_SESSION_SCOPE, {
+    httpOnly: true,
+    maxAge: accessMaxAge,
+    path: "/",
+    sameSite: "lax",
+    secure: input.secure
+  });
+  response.cookies.set("receiz_granted_scopes", input.grantedScopes, {
     httpOnly: true,
     maxAge: accessMaxAge,
     path: "/",
@@ -100,7 +108,8 @@ export async function GET(request: NextRequest) {
       returnTo: normalizeWildzReturnTo(oauthState.returnTo),
       sessionScope: WILDZ_RECEIZ_SESSION_SCOPE,
       flowNonce: oauthState.flowNonce,
-      startOrigin: oauthState.startOrigin
+      startOrigin: oauthState.startOrigin,
+      grantedScopes: token.scope ?? ""
     });
     const target = new URL("/api/auth/receiz/complete", oauthState.startOrigin);
     target.searchParams.set("ticket", ticket);
@@ -115,7 +124,8 @@ export async function GET(request: NextRequest) {
   applySessionCookies(response, {
     accessToken: token.access_token,
     expiresIn: token.expires_in,
-    secure: origin.startsWith("https://")
+    secure: origin.startsWith("https://"),
+    grantedScopes: token.scope ?? ""
   });
   return response;
 }

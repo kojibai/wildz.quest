@@ -298,6 +298,25 @@ function digest(value: unknown) {
   return sha256PortableBasis(canonicalPortableCardJson(value));
 }
 
+function authorityCandidateBasis(preview: Omit<WildsExcavationPreview, "previewDigest" | "candidateEventDigest" | "idempotencyKey">) {
+  return immutable({
+    schema: "wildz.excavation.authority_event.v1" as const,
+    worldId: preview.worldId,
+    siteKey: preview.siteKey,
+    actorSubjectId: preview.actorSubjectId,
+    creatureSubjectId: preview.creatureSubjectId,
+    capability: preview.capability,
+    substrate: preview.substrate,
+    geometry: preview.geometry,
+    safety: preview.safety,
+    safetyDigest: preview.safetyDigest,
+    physicalAuthority: preview.physicalAuthority,
+    access: preview.access,
+    creationKai: preview.creationKai,
+    priorGraphHead: preview.priorGraphHead
+  });
+}
+
 export function digestWildsExcavationCapabilityIdentity(identity: CreatureCapabilityIdentityV1) {
   return digest(identity);
 }
@@ -482,8 +501,9 @@ export function previewWildsExcavation(input: Readonly<{
     creationKai: input.creationKai,
     priorGraphHead: input.priorGraphHead
   };
-  const candidateEventDigest = digest({ ...basis, domainRegistryDigest: WILDS_EXCAVATION_REGISTRY_DIGEST, domainReducerDigest: WILDS_EXCAVATION_REDUCER_DIGEST });
-  const idempotencyKey = `wildz.excavation.v1:${digest({ basis, candidateEventDigest }).slice(-32)}`;
+  const authorityBasis = authorityCandidateBasis(basis);
+  const candidateEventDigest = digest({ ...authorityBasis, domainRegistryDigest: WILDS_EXCAVATION_REGISTRY_DIGEST, domainReducerDigest: WILDS_EXCAVATION_REDUCER_DIGEST });
+  const idempotencyKey = `wildz.excavation.v1:${digest({ authorityBasis, candidateEventDigest }).slice(-32)}`;
   if (input.idempotencyKey && input.idempotencyKey !== idempotencyKey) return rejection("idempotency_key_invalid");
   const preview = immutable({ ...basis, previewDigest: digest(basis), candidateEventDigest, idempotencyKey });
   return immutable({ ok: true, preview });
@@ -506,9 +526,10 @@ function excavationPayload(preview: WildsExcavationPreview) {
     capability: preview.capability,
     substrate: preview.substrate,
     geometry: preview.geometry,
+    safety: preview.safety,
     safetyDigest: preview.safetyDigest,
     physicalAuthority: preview.physicalAuthority,
-    access: { mode: "public" as const },
+    access: { mode: "public" as const, grantsDigest: preview.access.grantsDigest },
     creationKai: preview.creationKai,
     priorGraphHead: preview.priorGraphHead,
     idempotencyKey: preview.idempotencyKey,
@@ -669,18 +690,20 @@ function canonicalPreviewRulesValid(preview: WildsExcavationPreview) {
 
 function domainPreviewValid(preview: WildsExcavationPreview) {
   const basis = previewBasis(preview);
-  const candidateEventDigest = digest({ ...basis, domainRegistryDigest: WILDS_EXCAVATION_REGISTRY_DIGEST, domainReducerDigest: WILDS_EXCAVATION_REDUCER_DIGEST });
+  const authorityBasis = authorityCandidateBasis(basis);
+  const candidateEventDigest = digest({ ...authorityBasis, domainRegistryDigest: WILDS_EXCAVATION_REGISTRY_DIGEST, domainReducerDigest: WILDS_EXCAVATION_REDUCER_DIGEST });
   return canonicalPreviewRulesValid(preview)
     && preview.previewDigest === digest(basis)
     && preview.candidateEventDigest === candidateEventDigest
-    && preview.idempotencyKey === `wildz.excavation.v1:${digest({ basis, candidateEventDigest }).slice(-32)}`;
+    && preview.idempotencyKey === `wildz.excavation.v1:${digest({ authorityBasis, candidateEventDigest }).slice(-32)}`;
 }
 
 function domainEventValid(graph: WildsExcavationGraph, event: WildsExcavationEvent) {
   const basis = previewBasis(event.preview);
   const previewDigest = digest(basis);
-  const candidateEventDigest = digest({ ...basis, domainRegistryDigest: WILDS_EXCAVATION_REGISTRY_DIGEST, domainReducerDigest: WILDS_EXCAVATION_REDUCER_DIGEST });
-  const idempotencyKey = `wildz.excavation.v1:${digest({ basis, candidateEventDigest }).slice(-32)}`;
+  const authorityBasis = authorityCandidateBasis(basis);
+  const candidateEventDigest = digest({ ...authorityBasis, domainRegistryDigest: WILDS_EXCAVATION_REGISTRY_DIGEST, domainReducerDigest: WILDS_EXCAVATION_REDUCER_DIGEST });
+  const idempotencyKey = `wildz.excavation.v1:${digest({ authorityBasis, candidateEventDigest }).slice(-32)}`;
   const graphHead = digest({
     schema: "wildz.excavation.graph.append.v1",
     priorGraphHead: graph.head,
