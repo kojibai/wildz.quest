@@ -143,25 +143,17 @@ export function wildsEncounterActorOffsetY(layer: WildsEncounterLayer, timeSecon
   return layer === "air" ? 0 : .5 + Math.sin(timeSeconds * 1.8 + positionX) * .06;
 }
 
-export function projectWildsEncounterActorOuterFrame(input: {
-  layer: WildsEncounterLayer;
-  timeSeconds: number;
-  positionX: number;
-  positionZ: number;
-  motionScale: number;
-}) {
-  return Object.freeze({
-    offsetY: wildsEncounterActorOffsetY(input.layer, input.timeSeconds, input.positionX),
-    yaw: Math.sin(input.timeSeconds * .85 + input.positionZ) * .18 * input.motionScale
-  });
-}
-
 export function writeWildsEncounterActorOuterFrame(
   target: { position: { y: number }; rotation: { y: number } },
-  frame: { offsetY: number; yaw: number }
+  layer: WildsEncounterLayer,
+  timeSeconds: number,
+  positionX: number,
+  positionZ: number,
+  motionScale: number
 ) {
-  target.position.y = frame.offsetY;
-  target.rotation.y = frame.yaw;
+  target.position.y = wildsEncounterActorOffsetY(layer, timeSeconds, positionX);
+  target.rotation.y = motionScale === 0 ? 0 : Math.sin(timeSeconds * .85 + positionZ) * .18 * motionScale;
+  return target;
 }
 
 export function projectWildsLayeredEncounter(input: ProjectionInput) {
