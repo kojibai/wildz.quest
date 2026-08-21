@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { applyWildsInput, initialPlayState } from "../src/features/play/game-state.js";
+import {
+  projectCardCreatureVisualIdentity,
+  projectEncounterCreatureVisualIdentity
+} from "../src/features/play/creature-visual-identity.js";
 import { nearbyHiddenHotspots } from "../src/features/play/hidden-hotspots.js";
 import {
   livingCreatureIdentityDigest,
@@ -13,6 +17,30 @@ import {
 } from "../src/features/play/portable-card.js";
 
 describe("Wildz discovery-sealed identity", () => {
+  it("preserves the exact creature visual identity across capture", () => {
+    const hotspot = nearbyHiddenHotspots(initialPlayState.player)[0]!;
+    const discovered = applyWildsInput(initialPlayState, {
+      type: "search-point",
+      x: hotspot.position.x,
+      z: hotspot.position.z,
+      searchedAt: "2026-07-17T12:00:00.000Z",
+      ownerReceizId: "player.receiz.id"
+    });
+    assert.notEqual(discovered.encounter.phase, "idle");
+    if (discovered.encounter.phase === "idle" || !discovered.encounter.discoveryIdentity || !discovered.encounter.formId) return;
+    const before = projectEncounterCreatureVisualIdentity({
+      identity: discovered.encounter.discoveryIdentity,
+      formId: discovered.encounter.formId
+    });
+
+    const capsule = { ...discovered, encounter: { ...discovered.encounter, phase: "capsule" as const } };
+    const captured = applyWildsInput(capsule, { type: "advance-encounter", at: "2026-07-17T12:00:08.000Z" });
+    assert.equal(captured.encounter.phase, "sealed");
+    const after = projectCardCreatureVisualIdentity(captured.inventory.at(-1)!);
+
+    assert.deepEqual(after, before);
+  });
+
   it("creates one permanent identity at first discovery and carries its name into battle", () => {
     const hotspot = nearbyHiddenHotspots(initialPlayState.player)[0]!;
     const discovered = applyWildsInput(initialPlayState, {

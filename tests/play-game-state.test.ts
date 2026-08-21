@@ -15,6 +15,7 @@ import { canonicalPortableCardJson, evolvePortableCard, sealCollectedCard, verif
 import { nearbyHiddenHotspots } from "../src/features/play/hidden-hotspots.js";
 import { isLivingCardAsset } from "../src/features/play/living-card-types.js";
 import { livingCreatureIdentityDigest } from "../src/features/play/living-taxonomy.js";
+import { projectEncounterCreatureVisualIdentity } from "../src/features/play/creature-visual-identity.js";
 import { createWildsCivicEvent } from "../src/features/play/wilds-civic-history.js";
 import { sealRetirement } from "../src/features/games/lifecycle/creature-retirement.js";
 import { deriveKaiKlokMoment } from "../src/features/play/kai-klok-moment.js";
@@ -668,6 +669,61 @@ describe("Receiz Wilds game state", () => {
       assert.equal(restored.encounter.proximity, "cold");
       assert.equal(restored.encounter.trend, null);
     }
+  });
+
+  it("restores the exact wild creature visual identity from a saved encounter", () => {
+    const hotspot = nearbyHiddenHotspots(initialPlayState.player)[0]!;
+    const discovered = applyWildsInput(initialPlayState, {
+      type: "search-point",
+      x: hotspot.position.x,
+      z: hotspot.position.z,
+      searchedAt: "2026-07-17T12:00:00.000Z",
+      ownerReceizId: "player.receiz.id"
+    });
+    assert.notEqual(discovered.encounter.phase, "idle");
+    if (discovered.encounter.phase === "idle" || !discovered.encounter.discoveryIdentity || !discovered.encounter.formId) return;
+    const original = projectEncounterCreatureVisualIdentity({
+      identity: discovered.encounter.discoveryIdentity,
+      formId: discovered.encounter.formId
+    });
+
+    const restored = restorePlayState(serializePlayState(discovered));
+    assert.notEqual(restored.encounter.phase, "idle");
+    if (restored.encounter.phase === "idle" || !restored.encounter.discoveryIdentity || !restored.encounter.formId) return;
+    assert.deepEqual(projectEncounterCreatureVisualIdentity({
+      identity: restored.encounter.discoveryIdentity,
+      formId: restored.encounter.formId
+    }), original);
+  });
+
+  it("reconstructs the same wild appearance for a legacy encounter without embedded identity", () => {
+    const hotspot = nearbyHiddenHotspots(initialPlayState.player)[0]!;
+    const discovered = applyWildsInput(initialPlayState, {
+      type: "search-point",
+      x: hotspot.position.x,
+      z: hotspot.position.z,
+      searchedAt: "2026-07-17T12:00:00.000Z",
+      ownerReceizId: "player.receiz.id"
+    });
+    assert.notEqual(discovered.encounter.phase, "idle");
+    if (discovered.encounter.phase === "idle" || !discovered.encounter.discoveryIdentity || !discovered.encounter.formId) return;
+    const original = projectEncounterCreatureVisualIdentity({
+      identity: discovered.encounter.discoveryIdentity,
+      formId: discovered.encounter.formId
+    });
+    const envelope = JSON.parse(serializePlayState({
+      ...discovered,
+      encounter: { ...discovered.encounter, phase: "capsule" }
+    }));
+    delete envelope.state.encounter.discoveryIdentity;
+
+    const restored = restorePlayState(JSON.stringify(envelope));
+    assert.equal(restored.encounter.phase, "capsule");
+    if (!restored.encounter.discoveryIdentity || !restored.encounter.formId) return;
+    assert.deepEqual(projectEncounterCreatureVisualIdentity({
+      identity: restored.encounter.discoveryIdentity,
+      formId: restored.encounter.formId
+    }), original);
   });
 
   it("reconstructs a missing discovery identity and completes capture after refresh", () => {

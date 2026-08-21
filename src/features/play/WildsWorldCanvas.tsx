@@ -18,6 +18,7 @@ import { WildsEnvironment } from "@/features/play/WildsEnvironment";
 import { WildsExplorer } from "@/features/play/WildsExplorer";
 import { WildsAtmosphere } from "@/features/play/WildsAtmosphere";
 import { WildsCreatureActor, type WildsCreaturePose } from "@/features/play/WildsCreatureActor";
+import { projectEncounterCreatureVisualIdentity } from "@/features/play/creature-visual-identity";
 import { projectWorldProgression } from "@/features/play/world-progression";
 import {
   rendererBudgetStatus,
@@ -626,6 +627,10 @@ function Creature({
   identity?: Exclude<PlayState["encounter"], { phase: "idle" }>["discoveryIdentity"];
 }) {
   const groupRef = useRef<THREE.Group>(null);
+  const appearance = useMemo(
+    () => identity ? projectEncounterCreatureVisualIdentity({ identity, formId }) : null,
+    [formId, identity]
+  );
 
   useFrame(() => {
     if (!groupRef.current) return;
@@ -637,16 +642,17 @@ function Creature({
   return (
       <group ref={groupRef} position={[card.position[0], 0.42, card.position[2]]}>
         <WildsCreatureActor
-          accent={identity?.palette.accent.css ?? card.accent}
-          cadenceMs={identity?.motion.cadenceMs}
+          accent={appearance?.palette.accent ?? card.accent}
+          anatomy={appearance ? { ...appearance.anatomy, appendages: appearance.appendages } : undefined}
+          cadenceMs={appearance?.cadenceMs}
           familyId={card.id}
           formId={formId}
-          glow={identity?.palette.glow.css ?? card.accent}
-          identityToken={identity?.visualFingerprint}
-          morphology={identity ? { head: identity.anatomy.head, torso: identity.anatomy.torso, limb: identity.anatomy.limb, symmetry: identity.anatomy.asymmetry } : undefined}
+          glow={appearance?.palette.glow ?? card.accent}
+          identityToken={appearance?.fingerprint}
+          morphology={appearance?.morphology}
           pose={pose}
-          primary={identity?.palette.primary.css ?? card.color}
-          secondary={identity?.palette.secondary.css ?? card.color}
+          primary={appearance?.palette.primary ?? card.color}
+          secondary={appearance?.palette.secondary ?? card.color}
         />
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.34, 0]}>
           <torusGeometry args={[0.46, 0.035, 8, 36]} />

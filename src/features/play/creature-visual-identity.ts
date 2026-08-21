@@ -4,6 +4,8 @@ import { deriveKaiKlokMoment } from "./kai-klok-moment";
 import { deriveBirthGenome } from "./heartbound-genome";
 import { currentLivingGenome } from "./living-card-proof";
 import { isLivingCardAsset, type LivingCardGenome } from "./living-card-types";
+import { deriveCardVariantV3 } from "./card-variant";
+import { validateLivingCreatureIdentity, type LivingCreatureIdentityV3 } from "./living-taxonomy";
 import type { PortableCardAsset } from "./portable-card";
 
 export type FunctionalAppendage = Readonly<{
@@ -102,9 +104,48 @@ export function projectGenomeCreatureVisualAppendages(genome: LivingCardGenome):
   return appendages;
 }
 
+/**
+ * Projects the sealed visual identity while a creature is still wild. The
+ * discovery identity is the appearance authority; capture custody and timing
+ * must never reroll the creature that the player met.
+ */
+export function projectEncounterCreatureVisualIdentity(input: {
+  identity: LivingCreatureIdentityV3;
+  formId: string;
+}): CreatureVisualIdentity {
+  const form = creatureForm(input.formId);
+  if (!form || form.stage !== 1) throw new Error("wilds_encounter_visual_form_unknown");
+  if (!validateLivingCreatureIdentity(input.identity).ok
+    || input.identity.family.id !== form.familyId
+    || input.identity.anatomy.body !== form.anatomy.body
+    || input.identity.anatomy.detail !== form.anatomy.detail) {
+    throw new Error("wilds_encounter_visual_identity_mismatch");
+  }
+  const traits = deriveCardVariantV3(input.identity.identityDigest, input.identity);
+  const genome = deriveBirthGenome({
+    formId: form.id,
+    proofDigest: input.identity.identityDigest,
+    variant: traits
+  }, { generatorVersion: 3 });
+  return projectLivingGenomeCreatureVisualIdentity(genome, form.id, {
+    morphology: {
+      head: input.identity.anatomy.head,
+      torso: input.identity.anatomy.torso,
+      limb: input.identity.anatomy.limb,
+      symmetry: input.identity.anatomy.asymmetry
+    },
+    cadenceMs: input.identity.motion.cadenceMs,
+    fingerprint: input.identity.visualFingerprint
+  });
+}
+
 export function projectCardCreatureVisualIdentity(asset: PortableCardAsset): CreatureVisualIdentity {
   const form = creatureForm(asset.manifest.formId);
   if (!form) throw new Error("wilds_creature_visual_form_unknown");
+  const variant = asset.manifest.variant;
+  if (variant.generatorVersion === 3 && form.stage === 1) {
+    return projectEncounterCreatureVisualIdentity({ identity: variant.traits.identity, formId: form.id });
+  }
   const genome = isLivingCardAsset(asset)
     ? currentLivingGenome(asset)
     : deriveBirthGenome({
@@ -112,7 +153,6 @@ export function projectCardCreatureVisualIdentity(asset: PortableCardAsset): Cre
         proofDigest: asset.proof.digest,
         variant: asset.manifest.variant.traits
       });
-  const variant = asset.manifest.variant;
   if (variant.generatorVersion === 3) {
     const identity = variant.traits.identity;
     return projectLivingGenomeCreatureVisualIdentity(genome, form.id, {
