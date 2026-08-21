@@ -239,6 +239,8 @@ Powered flight supports deliberate climb and descent inside the active creature'
 
 During admitted aerial traversal, the local explorer's backpack unfolds a transient aerial capability harness. Paired luminous wings inherit the active creature's palette and functional wing language without pretending to be the explorer's permanent anatomy. They open during takeoff, use restrained graceful flaps during powered flight, spread into a stable soaring silhouette during gliding, react to ascent and descent, and fold fully into the backpack on landing. Reduced-motion mode keeps the readable open/spread/fold states while suppressing continuous flap motion. The harness is pre-mounted and quality-bounded; it never mutates or persists the explorer's proof-derived appearance.
 
+Airborne explorer animation never reuses grounded walking. Takeoff and hover keep the torso upright with feet hanging toward the ground while wings actively support lift. Horizontal forward velocity—not merely the flight-mode label—smoothly pitches the body belly-down, streams the legs behind, and selects traveling wing strokes. Releasing forward movement smoothly returns the body upright, feet downward, and wings to a hovering flap. Gliding holds the belly-down streamlined pose with broad wings and small control corrections. Descent raises the torso, returns the feet downward, and flares the wings into landing. Ground stride, foot planting, and walking bob are disabled for every airborne mode.
+
 Collision is height-aware. Takeoff moves the explorer out of the grounded obstacle layer; tree trunks, small rocks, and ordinary ground clutter cannot snag an admitted airborne player. Sufficient clearance passes over tree canopies and low obstacles cleanly. Mountains, cliffs, cave ceilings, large structures, the world terrain envelope, and authored aerial hazards remain physical. Landing chooses an admitted clear surface and never places the explorer inside a tree, rock, or structure.
 
 The active creature surface exposes capability type, current strength, progression requirement, fatigue or injury suppression, and recovery behavior. A player never has to guess why flight or swimming stopped.
@@ -289,6 +291,7 @@ Identity Seal and full Vault restore preserve the exact account and selected cre
 20. Discovered caves, mountains, grottos, trenches, ruins, canopy routes, and sky islands replay deterministically and remain visible/physical on approach and return.
 21. Powered flight supports bounded player-controlled ascent/descent, clears grounded tree/rock collision, passes above canopies at sufficient altitude, and still respects mountains, ceilings, structures, and aerial hazards.
 22. The explorer's backpack deploys a paired, palette-derived aerial harness on takeoff, presents distinct powered-flight and glide poses, respects reduced motion, and folds completely on landing without changing saved identity.
+23. Takeoff, hover, forward flight, glide, descent, and landing have distinct airborne body/leg/wing poses and never run walking animation in the sky.
 
 ## Implementation phases
 

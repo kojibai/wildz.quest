@@ -279,6 +279,8 @@ Move the explorer/active companion group to `presentation.actorLocalY`, damp tra
 
 Add a pre-mounted backpack aerial harness to `WildsExplorer`. On takeoff, deploy paired luminous wings using the active creature palette; during powered flight use restrained asymmetric flap articulation, during glide hold a broad soaring pose, during ascent/descent adjust sweep and pitch, and on landing fold both wings fully into the backpack. Reduced motion switches discretely between open/spread/fold poses without continuous flapping.
 
+Replace grounded animation while airborne: hover/takeoff is upright with feet down; horizontal forward velocity smoothly pitches powered flight belly-down with legs extended behind; releasing forward input smoothly returns upright with feet down and a hovering flap; glide is belly-down and streamlined; descent/landing raises the torso, lowers the feet, and flares the wings. Disable stride, foot planting, and walking bob in all aerial modes.
+
 - [ ] **Step 4: Implement underwater camera and atmosphere**
 
 Preserve orbit offset while translating camera and target beneath the surface. Mutate preallocated fog/background/light colors and one bounded particle group. Add no postprocessing pass and no React setter in `useFrame`.
