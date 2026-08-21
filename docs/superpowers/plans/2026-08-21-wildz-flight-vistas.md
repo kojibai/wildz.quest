@@ -30,6 +30,19 @@
 
 ## Task 4: Qualification
 
-- [ ] Run focused/full tests, production build, benchmarks, and mobile WebKit flight/vista checks.
-- [ ] Confirm aerial visibility remains inside renderer and streaming budgets.
-- [ ] Record evidence, run `git diff --check`, and commit Phase 5 qualification.
+- [x] Run focused/full tests, production build, benchmarks, and mobile WebKit flight/vista checks.
+- [x] Confirm aerial visibility remains inside renderer and streaming budgets.
+- [x] Record evidence, run `git diff --check`, and commit Phase 5 qualification.
+
+## Qualification evidence
+
+- Focused gates passed for aerial authority (5), authored overlooks (3), aerial integration (3), game state (39), render contracts (33), mobile performance (11), controls recovery (7), controls UI (1), and stage modal ownership (4).
+- Full automated gate: 1,371 tests across 126 suites passed with zero failures.
+- Production build passed compilation, linting, type checking, static generation, and route generation. The pre-existing Receiz worker dynamic-import warning remains unchanged.
+- A 100,000-advance aerial-controller benchmark completed in 10.304 ms total (0.000103 ms per frame-local advance).
+- Mobile WebKit production run at 390×844 sustained trackpad travel for eight seconds from `X -2 · Z -1` to `X -36 · Z -50`; measured animation frames were 16.66 ms median, 17.76 ms p95, and 17.82 ms maximum. Both canvases remained live and the console reported zero errors and zero warnings.
+- Aerial advancement runs from a render-frame ref and changes React state only when the traversal mode changes. Ordinary horizontal movement remains the same synchronous analytical path.
+- Overlook rendering is streamed by the existing player-relative projection: only authored markers within 34 metres exist in the scene, and HTML guidance is restricted to 12 metres. No global terrain, physics, or particle layer was added.
+- Flight authority requires the exact selected admitted creature capability. Capability loss falls back to gliding or safe grounding; protected airspace fails closed; vista exit restores the exact prior camera.
+- Player saves remain `{x,z}` and the PlayState, proof, Identity Seal, card, and Vault schemas contain no aerial or vista state. No verifier, network request, persistence call, timer, or React dependency exists in the pure aerial controller.
+- Production WebKit screenshot: `output/playwright/terrain-phase5-mobile-production.png`.
