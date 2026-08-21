@@ -35,6 +35,10 @@ import { worldMasteryAward, type WorldMasteryVerb } from "./world-progression";
 import { validateRiftGrant, type RiftTravelGrant } from "./wilds-rift-travel";
 import { movementScale, type WildsMovementMode } from "./wilds-movement";
 import { resolveWildsGroundMovement } from "./wilds-grounded-movement";
+import {
+  projectWildsTraversalCapabilities,
+  type WildsTraversalCapability
+} from "./wilds-traversal-capabilities";
 import { projectWildsCivicHistory, type WildsCivicEvent } from "./wilds-civic-history";
 import { projectWildsEcologyHistory, type WildsEcologyKnowledge, type WildsEcologyReceipt } from "./wilds-ecology-history";
 import { projectWildsRaidHistory, type WildsBossKnowledge, type WildsRaidReceipt } from "./wilds-raid-history";
@@ -1728,12 +1732,27 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
   }
 
   if (input.type === "move" || input.type === "move-vector") {
-    const nextPlayer = input.type === "move"
-      ? movePlayer(state.player, input.direction)
-      : movePlayerVector(state.player, input.x, input.z, movementScale(input.mode ?? "walk"));
+    const leader = selectedAsset(state);
+    const traversalCapabilities = leader
+      ? projectWildsTraversalCapabilities(
+        leader,
+        state.adventureConditions[leader.id] ?? emptyAdventureCondition(leader.id)
+      ).capabilities
+      : [];
+    const movement = input.type === "move"
+      ? movePlayer(state.player, input.direction, traversalCapabilities)
+      : movePlayerVector(state.player, input.x, input.z, movementScale(input.mode ?? "walk"), traversalCapabilities);
+    const nextPlayer = movement.position;
     const nearest = nearestCreature({ player: nextPlayer });
-    const nearbyText =
-      nearest && nearest.distance <= 1.25
+    const nearbyText = movement.traversalBlockedBy === "swim"
+      ? "Deep water ahead. Lead with an aquatic creature to swim."
+      : movement.traversalBlockedBy === "climb"
+        ? "A climb route rises ahead. Lead with a creature built to climb."
+        : movement.traversalMode === "swim" && leader
+          ? `Swimming with ${leader.manifest.name}.`
+          : movement.traversalMode === "climb" && leader
+            ? `Climbing with ${leader.manifest.name}.`
+            : nearest && nearest.distance <= 1.25
         ? `${nearest.card.name} is within discovery range.`
         : "Explore the wilds and look for companion signals.";
 
@@ -1745,7 +1764,6 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       player: nextPlayer
     };
     const crossedMilestone = Math.floor(state.player.x / 8) !== Math.floor(nextPlayer.x / 8) || Math.floor(state.player.z / 8) !== Math.floor(nextPlayer.z / 8);
-    const leader = selectedAsset(state);
     if (!crossedMilestone || !leader) return moved;
     const milestoneId = `${Math.floor(nextPlayer.x / 8)}:${Math.floor(nextPlayer.z / 8)}`;
     const event: GrowthEvent = {
@@ -1970,7 +1988,11 @@ function withWorldProgress(state: PlayState): PlayState {
   return { ...state, bossUnlocked, worldRank };
 }
 
-function movePlayer(player: PlayState["player"], direction: MoveDirection) {
+function movePlayer(
+  player: PlayState["player"],
+  direction: MoveDirection,
+  capabilities: readonly WildsTraversalCapability[]
+) {
   const next = { ...player };
 
   if (direction === "north") next.z -= worldBounds.step;
@@ -1982,20 +2004,26 @@ function movePlayer(player: PlayState["player"], direction: MoveDirection) {
     x: clamp(next.x, worldBounds.min, worldBounds.max),
     z: clamp(next.z, worldBounds.min, worldBounds.max)
   };
-  return resolveWildsGroundMovement(player, intended).position;
+  return resolveWildsGroundMovement(player, intended, { capabilities });
 }
 
-function movePlayerVector(player: PlayState["player"], x: number, z: number, movementMultiplier: number) {
+function movePlayerVector(
+  player: PlayState["player"],
+  x: number,
+  z: number,
+  movementMultiplier: number,
+  capabilities: readonly WildsTraversalCapability[]
+) {
   const safeX = Number.isFinite(x) ? x : 0;
   const safeZ = Number.isFinite(z) ? z : 0;
   const magnitude = Math.hypot(safeX, safeZ);
-  if (magnitude < 0.08) return player;
+  if (magnitude < 0.08) return resolveWildsGroundMovement(player, player, { capabilities, obstacles: [] });
   const scale = worldBounds.analogStep * movementMultiplier / Math.max(1, magnitude);
   const intended = {
     x: clamp(player.x + safeX * scale, worldBounds.min, worldBounds.max),
     z: clamp(player.z + safeZ * scale, worldBounds.min, worldBounds.max)
   };
-  return resolveWildsGroundMovement(player, intended).position;
+  return resolveWildsGroundMovement(player, intended, { capabilities });
 }
 
 function distance2d(a: { x: number; z: number }, b: { x: number; z: number }) {

@@ -15,15 +15,15 @@
 
 ## Task 2: Swimming and climbing resolution
 
-- [ ] Add failing tests for distinct walk/wade/swim/climb modes, bounded speeds, safe blocked entry, and shore/ledge exit.
-- [ ] Extend analytical movement results without changing saved `{x,z}` coordinates.
-- [ ] Integrate selected-creature capabilities into digital and analog movement.
-- [ ] Preserve ordinary walking behavior and latency.
-- [ ] Commit water and climbing integration.
+- [x] Add failing tests for distinct walk/wade/swim/climb modes, bounded speeds, safe blocked entry, and shore/ledge exit.
+- [x] Extend analytical movement results without changing saved `{x,z}` coordinates.
+- [x] Integrate selected-creature capabilities into digital and analog movement.
+- [x] Preserve ordinary walking behavior and latency.
+- [x] Commit water and climbing integration.
 
 ## Task 3: Player-facing teaching and qualification
 
-- [ ] Surface concise capability/blocked-route feedback without interrupting control.
+- [x] Surface concise capability/blocked-route feedback without interrupting control.
 - [ ] Run focused tests, full tests, production build, WebKit traversal checks, and benchmark.
 - [ ] Confirm proof/save schemas and offline behavior remain unchanged.
 - [ ] Record evidence and commit Phase 4 qualification.

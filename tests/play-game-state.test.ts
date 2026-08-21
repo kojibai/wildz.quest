@@ -810,4 +810,22 @@ describe("Receiz Wilds game state", () => {
     assert.deepEqual(restored.player, moved.player);
     assert.deepEqual(Object.keys(restored.player).sort(), ["x", "z"]);
   });
+
+  it("uses the selected admitted creature capability for local swimming without reverification", () => {
+    const tide = sealCollectedCard({
+      formId: "ledgerfox-1",
+      ownerReceizId: "wilds.player.receiz.id",
+      encounterId: "movement-swimmer",
+      capturedAt: "2026-08-21T12:00:00.000Z"
+    });
+    const blocked = applyWildsInput({ ...structuredClone(initialPlayState), player: { x: -94.42, z: -240 } }, { type: "move-vector", x: 1, z: 0 });
+    const imported = applyWildsInput(initialPlayState, { type: "import-card", asset: tide });
+    const selected = applyWildsInput(imported, { type: "select-asset", assetId: tide.id });
+    const swimming = applyWildsInput({ ...selected, player: { x: -94.42, z: -240 } }, { type: "move-vector", x: 1, z: 0 });
+
+    assert.deepEqual(blocked.player, { x: -94.42, z: -240 });
+    assert.ok(swimming.player.x > -94.42);
+    assert.match(swimming.lastEvent, /swimming/i);
+    assert.deepEqual(Object.keys(swimming.player).sort(), ["x", "z"]);
+  });
 });

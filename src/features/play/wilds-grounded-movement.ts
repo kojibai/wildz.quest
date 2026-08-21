@@ -17,16 +17,36 @@ export type WildsGroundMovementResult = {
   elevation: number;
   surface: ReturnType<typeof sampleWildsTerrain>["surface"];
   speedMultiplier: number;
+  traversalMode: "walk" | "wade" | "swim" | "climb";
   blockedBy: readonly string[];
   traversalBlockedBy: TraversalCapability | null;
 };
 
 const DEFAULT_CAPSULE_RADIUS = 0.38;
 const SHALLOW_WATER_SPEED = 0.65;
+const SWIM_SPEED = 0.48;
+const CLIMB_SPEED = 0.42;
 const CONTACT_EPSILON = 0.000001;
 const MAX_COLLISION_PASSES = 4;
 const MAX_CACHED_TILES = 64;
 const obstacleTileCache = new Map<string, readonly WildsTerrainObstacle[]>();
+
+function traversalModeFor(
+  terrain: ReturnType<typeof sampleWildsTerrain>,
+  capabilities: ReadonlySet<TraversalCapability>
+): WildsGroundMovementResult["traversalMode"] {
+  if (terrain.surface === "deep-water" && capabilities.has("swim")) return "swim";
+  if (terrain.traversal.some((requirement) => requirement.kind === "climb") && capabilities.has("climb")) return "climb";
+  if (terrain.surface === "shallow-water") return "wade";
+  return "walk";
+}
+
+function speedForTraversalMode(mode: WildsGroundMovementResult["traversalMode"]) {
+  if (mode === "wade") return SHALLOW_WATER_SPEED;
+  if (mode === "swim") return SWIM_SPEED;
+  if (mode === "climb") return CLIMB_SPEED;
+  return 1;
+}
 
 function quantize(value: number) {
   return Math.round(value * 1_000_000) / 1_000_000;
@@ -178,14 +198,17 @@ export function resolveWildsGroundMovement(
   if (!finitePoint(start) || !finitePoint(intended)) throw new Error("wilds_ground_movement_invalid");
   const capsuleRadius = options.capsuleRadius ?? DEFAULT_CAPSULE_RADIUS;
   const intendedTerrain = sampleWildsTerrain(intended.x, intended.z);
-  const speedMultiplier = intendedTerrain.surface === "shallow-water" ? SHALLOW_WATER_SPEED : 1;
+  const capabilities = new Set(options.capabilities ?? []);
+  const intendedMode = traversalModeFor(intendedTerrain, capabilities);
+  const speedMultiplier = speedForTraversalMode(intendedMode);
   const target = {
     x: quantize(start.x + (intended.x - start.x) * speedMultiplier),
     z: quantize(start.z + (intended.z - start.z) * speedMultiplier)
   };
   const targetTerrain = sampleWildsTerrain(target.x, target.z);
-  const capabilities = new Set(options.capabilities ?? []);
-  const missingTraversal = targetTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind ?? null;
+  const missingTraversal = intendedTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind
+    ?? targetTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind
+    ?? null;
   if (missingTraversal) {
     const startTerrain = sampleWildsTerrain(start.x, start.z);
     return {
@@ -193,6 +216,7 @@ export function resolveWildsGroundMovement(
       elevation: wildsTerrainElevation(start.x, start.z),
       surface: startTerrain.surface,
       speedMultiplier,
+      traversalMode: traversalModeFor(startTerrain, capabilities),
       blockedBy: [],
       traversalBlockedBy: missingTraversal
     };
@@ -208,6 +232,7 @@ export function resolveWildsGroundMovement(
       elevation: wildsTerrainElevation(start.x, start.z),
       surface: startTerrain.surface,
       speedMultiplier,
+      traversalMode: traversalModeFor(startTerrain, capabilities),
       blockedBy: collision.blockedBy,
       traversalBlockedBy: pushedIntoMissingTraversal
     };
@@ -217,6 +242,7 @@ export function resolveWildsGroundMovement(
     elevation: resolvedTerrain.elevation,
     surface: resolvedTerrain.surface,
     speedMultiplier,
+    traversalMode: intendedMode,
     blockedBy: collision.blockedBy,
     traversalBlockedBy: null
   };

@@ -68,7 +68,9 @@ test("deep water and climb-grade rock require their named capabilities", () => {
 
   assert.deepEqual(deepWater.position, { x: -94.42, z: -240 });
   assert.equal(deepWater.traversalBlockedBy, "swim");
-  assert.deepEqual(swimming.position, { x: -94, z: -240 });
+  assert.deepEqual(swimming.position, { x: -94.2184, z: -240 });
+  assert.equal(swimming.traversalMode, "swim");
+  assert.equal(swimming.speedMultiplier, 0.48);
   assert.deepEqual(steep.position, { x: 79.58, z: 28 });
   assert.equal(steep.traversalBlockedBy, "climb");
 });
@@ -77,5 +79,25 @@ test("shallow water slows ordinary grounded movement", () => {
   const result = resolveWildsGroundMovement({ x: -102, z: -240 }, { x: -101.58, z: -240 }, { obstacles: [] });
 
   assert.equal(result.speedMultiplier, 0.65);
+  assert.equal(result.traversalMode, "wade");
   assert.deepEqual(result.position, { x: -101.727, z: -240 });
+});
+
+test("declared climb traversal is slower and exits safely without a retained capability", () => {
+  const climbing = resolveWildsGroundMovement(
+    { x: 79.58, z: 28 },
+    { x: 80, z: 28 },
+    { obstacles: [], capabilities: ["climb"] }
+  );
+  const exit = resolveWildsGroundMovement(
+    { x: 80, z: 28 },
+    { x: 79.58, z: 28 },
+    { obstacles: [], capabilities: [] }
+  );
+
+  assert.equal(climbing.traversalMode, "climb");
+  assert.equal(climbing.speedMultiplier, 0.42);
+  assert.deepEqual(climbing.position, { x: 79.7564, z: 28 });
+  assert.equal(exit.traversalBlockedBy, null);
+  assert.ok(exit.position.x < 80);
 });
