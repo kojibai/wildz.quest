@@ -1,7 +1,7 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef } from "react";
-import { Canvas, useThree } from "@react-three/fiber";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Html, OrbitControls, Sparkles } from "@react-three/drei";
 import * as THREE from "three";
 import { WILDS_REGION_SIZE } from "./multiplayer-core";
@@ -9,21 +9,31 @@ import type { WildsAtlasProjection } from "./wilds-world-atlas";
 import type { WildsQualityProfile } from "./wilds-quality-profile";
 import { sampleWildsTerrain, type WildsTerrainSurface } from "./wilds-terrain-authority";
 import { WILDS_MAJOR_ROUTES, WILDS_NAMED_REGIONS } from "./wilds-world-geography";
+import {
+  atlasLocalCoordinate,
+  atlasWorldCoordinate,
+  buildWildsAtlasRenderTiles,
+  clipWildsAtlasRouteSegments,
+  wildsAtlasContainsWorld,
+  wildsAtlasProjectedSpan,
+  type WildsAtlasRenderTile
+} from "./wilds-atlas-render-tiles";
 
 const PHI = (1 + Math.sqrt(5)) / 2;
 const GOLDEN_ANGLE = Math.PI * 2 / (PHI * PHI);
-const ATLAS_SCALE = 1.35;
+const ATLAS_MAX_TERRAIN_VERTICES = 16_384;
+const ATLAS_MAX_TERRAIN_TILES = 96;
+const ATLAS_MAX_DETAIL_INSTANCES = 384;
+const ATLAS_MAX_ROUTE_SEGMENTS = 64;
+const ATLAS_CLICK_DRAG_THRESHOLD = 6;
+const ATLAS_REFERENCE_REGION_UNIT = 27 / 20;
 
-function atlasWorldCoordinate(local: number, centerRegion: number) {
-  return (centerRegion + local / ATLAS_SCALE) * WILDS_REGION_SIZE;
+function atlasTerrainHeightScale(regionUnit: number) {
+  return Math.max(.018, Math.min(.072, regionUnit / ATLAS_REFERENCE_REGION_UNIT * .072));
 }
 
-function atlasLocalCoordinate(world: number, centerRegion: number) {
-  return (world / WILDS_REGION_SIZE - centerRegion) * ATLAS_SCALE;
-}
-
-function atlasTerrainHeight(worldX: number, worldZ: number) {
-  return sampleWildsTerrain(worldX, worldZ).elevation * .072;
+function atlasTerrainHeight(worldX: number, worldZ: number, regionUnit: number) {
+  return sampleWildsTerrain(worldX, worldZ).elevation * atlasTerrainHeightScale(regionUnit);
 }
 
 const SURFACE_COLORS: Record<WildsTerrainSurface, string> = {
@@ -56,10 +66,12 @@ export function WildsAtlasCanvas({
   onDrop: (position: { x: number; z: number }) => void;
 }) {
   const atlasSparkleCount = reducedMotion ? 12 : Math.round(38 * qualityProfile.particles);
+  const atlasSpan = wildsAtlasProjectedSpan(projection.nodes, projection.regionUnit);
+  const fogFar = Math.max(29, Math.min(72, atlasSpan * 1.8 + 18));
   return (
     <div aria-hidden="true" className="wilds-atlas-canvas">
       <Canvas
-        camera={{ fov: 40, near: 0.1, far: 80, position: [0, 9.6, 11.5] }}
+        camera={{ fov: 40, near: 0.1, far: Math.max(80, fogFar * 1.6), position: [0, 9.6, 11.5] }}
         dpr={qualityProfile.dpr}
         frameloop={reducedMotion ? "demand" : "always"}
         gl={{ antialias: true, powerPreference: "high-performance" }}
@@ -71,14 +83,13 @@ export function WildsAtlasCanvas({
         shadows={false}
       >
         <color attach="background" args={["#061820"]} />
-        <fog attach="fog" args={["#061820", 12, 29]} />
-        <AtlasCameraFraming />
+        <fog attach="fog" args={["#061820", Math.max(12, fogFar * .38), fogFar]} />
+        <AtlasCameraFraming atlasSpan={atlasSpan} fogFar={fogFar} />
         <ambientLight intensity={1.12} />
         <hemisphereLight color="#bffff0" groundColor="#071719" intensity={1.08} />
         <directionalLight color="#fff2a8" intensity={2.35} position={[4, 10, 3]} />
         <pointLight color="#71e8c3" intensity={24} position={[-5, 3, 2]} distance={16} />
         <pointLight color="#ff72bf" intensity={13} position={[6, 2, -5]} distance={13} />
-        <AtlasBackdrop />
         <ContinuousWorldSurface onDrop={onDrop} projection={projection} />
         <AtlasTerrainDetails projection={projection} qualityProfile={qualityProfile} />
         <MapRoutes projection={projection} />
@@ -94,7 +105,7 @@ export function WildsAtlasCanvas({
           count={atlasSparkleCount}
           color="#b9fff0"
           opacity={0.45}
-          scale={[16, 5, 16]}
+          scale={[Math.max(16, Math.min(40, atlasSpan)), 5, Math.max(16, Math.min(40, atlasSpan))]}
           size={1.5}
           speed={reducedMotion ? 0 : 0.2}
         />
@@ -102,7 +113,7 @@ export function WildsAtlasCanvas({
           dampingFactor={0.08}
           enableDamping={!reducedMotion}
           enablePan
-          maxDistance={19}
+          maxDistance={Math.max(19, Math.min(48, atlasSpan * 2))}
           maxPolarAngle={Math.PI / 2.25}
           minDistance={6.8}
           minPolarAngle={0.35}
@@ -116,22 +127,24 @@ export function WildsAtlasCanvas({
   );
 }
 
-function AtlasCameraFraming() {
+function AtlasCameraFraming({ atlasSpan, fogFar }: { atlasSpan: number; fogFar: number }) {
   const { camera, size } = useThree();
   useLayoutEffect(() => {
     if (!(camera instanceof THREE.PerspectiveCamera)) return;
     const portrait = size.height > size.width * 1.25;
+    const distance = Math.max(9.6, Math.min(28, atlasSpan * (portrait ? 1.18 : .92)));
     camera.fov = portrait ? 53 : 40;
-    camera.position.set(0, portrait ? 11.8 : 9.6, portrait ? 14.4 : 11.5);
+    camera.far = Math.max(80, fogFar * 1.6);
+    camera.position.set(0, distance * (portrait ? .82 : .72), distance);
     camera.updateProjectionMatrix();
-  }, [camera, size.height, size.width]);
+  }, [atlasSpan, camera, fogFar, size.height, size.width]);
   return null;
 }
 
 function TrainerLights({ projection }: { projection: WildsAtlasProjection }) {
   return <group name="atlas-trainers">{projection.trainers.map((trainer) => {
-    const x = (trainer.position[0] / WILDS_REGION_SIZE - projection.centerRegion.x) * 1.35;
-    const z = (trainer.position[2] / WILDS_REGION_SIZE - projection.centerRegion.z) * 1.35;
+    const x = atlasLocalCoordinate(trainer.position[0], projection.centerRegion.x, projection.regionUnit);
+    const z = atlasLocalCoordinate(trainer.position[2], projection.centerRegion.z, projection.regionUnit);
     return <group key={trainer.id} position={[x, .44, z]}>
       <mesh><capsuleGeometry args={[.11, .28, 4, 8]} /><meshStandardMaterial color="#fff2b0" emissive="#d9982b" emissiveIntensity={1.65} /></mesh>
       <mesh position={[0, -.17, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[.22, .025, 6, 20]} /><meshBasicMaterial color="#f7d25b" /></mesh>
@@ -140,37 +153,52 @@ function TrainerLights({ projection }: { projection: WildsAtlasProjection }) {
   })}</group>;
 }
 
-function AtlasBackdrop() {
-  return (
-    <group name="atlas-backdrop">
-      <mesh position={[0, -0.42, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[40, 40]} />
-        <meshStandardMaterial color="#082d3c" emissive="#061c27" emissiveIntensity={0.4} roughness={0.34} metalness={0.08} />
-      </mesh>
-    </group>
-  );
+function ContinuousWorldSurface({ projection, onDrop }: { projection: WildsAtlasProjection; onDrop: (position: { x: number; z: number }) => void }) {
+  const tiles = useMemo(() => buildWildsAtlasRenderTiles(projection.nodes, {
+    maxTiles: ATLAS_MAX_TERRAIN_TILES,
+    maxVertices: ATLAS_MAX_TERRAIN_VERTICES
+  }), [projection.nodes]);
+  const nodesByRegion = useMemo(() => new Map(projection.nodes.map((node) => [`${node.regionX}:${node.regionZ}`, node])), [projection.nodes]);
+  const handleClick = (event: ThreeEvent<MouseEvent>) => {
+    event.stopPropagation();
+    if (event.delta > ATLAS_CLICK_DRAG_THRESHOLD) return;
+    const destination = {
+      x: Number(atlasWorldCoordinate(event.point.x, projection.centerRegion.x, projection.regionUnit).toFixed(2)),
+      z: Number(atlasWorldCoordinate(event.point.z, projection.centerRegion.z, projection.regionUnit).toFixed(2))
+    };
+    if (!wildsAtlasContainsWorld(projection.nodes, destination)) return;
+    onDrop(destination);
+  };
+  return <group name="continuous-world-map">{tiles.map((tile, index) => tile.renderMode === "instanced-cells"
+    ? <AtlasInstancedCellFallback handleClick={handleClick} key={`fallback:${index}`} nodesByRegion={nodesByRegion} projection={projection} tile={tile} />
+    : <AtlasTerrainTile handleClick={handleClick} key={`tile:${tile.minRegionX}:${tile.minRegionZ}:${index}`} nodesByRegion={nodesByRegion} projection={projection} tile={tile} />
+  )}</group>;
 }
 
-function ContinuousWorldSurface({ projection, onDrop }: { projection: WildsAtlasProjection; onDrop: (position: { x: number; z: number }) => void }) {
-  const centerRegionX = projection.centerRegion.x;
-  const centerRegionZ = projection.centerRegion.z;
-  const nodes = projection.nodes;
-  const span = Math.max(3, Math.round(Math.sqrt(nodes.length))) * ATLAS_SCALE;
+function AtlasTerrainTile({
+  handleClick,
+  nodesByRegion,
+  projection,
+  tile
+}: {
+  handleClick: (event: ThreeEvent<MouseEvent>) => void;
+  nodesByRegion: ReadonlyMap<string, WildsAtlasProjection["nodes"][number]>;
+  projection: WildsAtlasProjection;
+  tile: WildsAtlasRenderTile;
+}) {
   const geometry = useMemo(() => {
-    const segments = 96;
     const positions: number[] = [];
     const colors: number[] = [];
     const indices: number[] = [];
-    const nodesByRegion = new Map(nodes.map((node) => [`${node.regionX}:${node.regionZ}`, node]));
-    const fallback = nodes[Math.floor(nodes.length / 2)]!;
-    const addVertex = (x: number, z: number) => {
-      const worldX = atlasWorldCoordinate(x, centerRegionX);
-      const worldZ = atlasWorldCoordinate(z, centerRegionZ);
-      const regionX = Math.round(worldX / WILDS_REGION_SIZE);
-      const regionZ = Math.round(worldZ / WILDS_REGION_SIZE);
-      const node = nodesByRegion.get(`${regionX}:${regionZ}`) ?? fallback;
+    const addVertex = (regionX: number, regionZ: number, biomeRegionX: number, biomeRegionZ: number) => {
+      const worldX = regionX * WILDS_REGION_SIZE;
+      const worldZ = regionZ * WILDS_REGION_SIZE;
+      const x = atlasLocalCoordinate(worldX, projection.centerRegion.x, projection.regionUnit);
+      const z = atlasLocalCoordinate(worldZ, projection.centerRegion.z, projection.regionUnit);
+      const node = nodesByRegion.get(`${biomeRegionX}:${biomeRegionZ}`);
+      if (!node) return false;
       const terrain = sampleWildsTerrain(worldX, worldZ);
-      const height = terrain.elevation * .072;
+      const height = terrain.elevation * atlasTerrainHeightScale(projection.regionUnit);
       const surfaceColor = new THREE.Color(SURFACE_COLORS[terrain.surface]);
       const biomeColor = new THREE.Color(node.biome.ground.base);
       const color = terrain.surface === "deep-water" || terrain.surface === "shallow-water"
@@ -179,22 +207,37 @@ function ContinuousWorldSurface({ projection, onDrop }: { projection: WildsAtlas
       color.offsetHSL(0, .025, Math.max(-.05, Math.min(.1, height * .035)));
       positions.push(x, height, z);
       colors.push(color.r, color.g, color.b);
+      return true;
     };
-    for (let row = 0; row <= segments; row += 1) {
-      const z = (row / segments - .5) * span;
-      for (let column = 0; column <= segments; column += 1) {
-        const x = (column / segments - .5) * span;
-        addVertex(x, z);
+
+    const addGrid = (minRegionX: number, maxRegionX: number, minRegionZ: number, maxRegionZ: number, segmentsX: number, segmentsZ: number) => {
+      const vertexStart = positions.length / 3;
+      const width = maxRegionX - minRegionX + 1;
+      const depth = maxRegionZ - minRegionZ + 1;
+      for (let row = 0; row <= segmentsZ; row += 1) {
+        const regionZ = minRegionZ + row / segmentsZ * depth;
+        const biomeRegionZ = Math.min(maxRegionZ, Math.floor(regionZ - (row === segmentsZ ? 1e-9 : 0)));
+        for (let column = 0; column <= segmentsX; column += 1) {
+          const regionX = minRegionX + column / segmentsX * width;
+          const biomeRegionX = Math.min(maxRegionX, Math.floor(regionX - (column === segmentsX ? 1e-9 : 0)));
+          addVertex(regionX, regionZ, biomeRegionX, biomeRegionZ);
+        }
       }
-    }
-    for (let row = 0; row < segments; row += 1) {
-      for (let column = 0; column < segments; column += 1) {
-        const a = row * (segments + 1) + column;
-        const b = a + 1;
-        const c = a + segments + 1;
-        const d = c + 1;
-        indices.push(a, c, b, b, c, d);
+      for (let row = 0; row < segmentsZ; row += 1) {
+        for (let column = 0; column < segmentsX; column += 1) {
+          const a = vertexStart + row * (segmentsX + 1) + column;
+          const b = a + 1;
+          const c = a + segmentsX + 1;
+          const d = c + 1;
+          indices.push(a, c, b, b, c, d);
+        }
       }
+    };
+
+    if (tile.cells) {
+      for (const cell of tile.cells) addGrid(cell.regionX, cell.regionX, cell.regionZ, cell.regionZ, 1, 1);
+    } else {
+      addGrid(tile.minRegionX, tile.maxRegionX, tile.minRegionZ, tile.maxRegionZ, tile.segmentsX, tile.segmentsZ);
     }
     const next = new THREE.BufferGeometry();
     next.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
@@ -202,23 +245,58 @@ function ContinuousWorldSurface({ projection, onDrop }: { projection: WildsAtlas
     next.setIndex(indices);
     next.computeVertexNormals();
     return next;
-  }, [centerRegionX, centerRegionZ, nodes, span]);
-  return <group name="continuous-world-map">
-    <mesh
-        geometry={geometry}
-        name="continuous-world-surface"
-        onClick={(event) => {
-          event.stopPropagation();
-          onDrop({
-            x: Number(atlasWorldCoordinate(event.point.x, projection.centerRegion.x).toFixed(2)),
-            z: Number(atlasWorldCoordinate(event.point.z, projection.centerRegion.z).toFixed(2))
-          });
-        }}
-        receiveShadow
-      >
-        <meshStandardMaterial emissive="#09261e" emissiveIntensity={0.08} metalness={0.01} roughness={0.94} vertexColors />
-      </mesh>
-  </group>;
+  }, [nodesByRegion, projection.centerRegion.x, projection.centerRegion.z, projection.regionUnit, tile]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return <mesh geometry={geometry} name="continuous-world-surface" onClick={handleClick} receiveShadow>
+    <meshStandardMaterial emissive="#09261e" emissiveIntensity={0.08} metalness={0.01} roughness={0.94} vertexColors />
+  </mesh>;
+}
+
+function AtlasInstancedCellFallback({
+  handleClick,
+  nodesByRegion,
+  projection,
+  tile
+}: {
+  handleClick: (event: ThreeEvent<MouseEvent>) => void;
+  nodesByRegion: ReadonlyMap<string, WildsAtlasProjection["nodes"][number]>;
+  projection: WildsAtlasProjection;
+  tile: WildsAtlasRenderTile;
+}) {
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  const cells = tile.cells ?? [];
+  useLayoutEffect(() => {
+    if (!mesh.current) return;
+    const matrix = new THREE.Matrix4();
+    const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+    cells.forEach((cell, index) => {
+      const worldX = (cell.regionX + .5) * WILDS_REGION_SIZE;
+      const worldZ = (cell.regionZ + .5) * WILDS_REGION_SIZE;
+      const terrain = sampleWildsTerrain(worldX, worldZ);
+      const node = nodesByRegion.get(`${cell.regionX}:${cell.regionZ}`);
+      const surfaceColor = new THREE.Color(SURFACE_COLORS[terrain.surface]);
+      const color = terrain.surface === "deep-water" || terrain.surface === "shallow-water"
+        ? surfaceColor
+        : new THREE.Color(node?.biome.ground.base ?? SURFACE_COLORS.grass).lerp(surfaceColor, .72);
+      matrix.compose(
+        new THREE.Vector3(
+          atlasLocalCoordinate(worldX, projection.centerRegion.x, projection.regionUnit),
+          terrain.elevation * atlasTerrainHeightScale(projection.regionUnit),
+          atlasLocalCoordinate(worldZ, projection.centerRegion.z, projection.regionUnit)
+        ),
+        rotation,
+        new THREE.Vector3(projection.regionUnit, projection.regionUnit, 1)
+      );
+      mesh.current!.setMatrixAt(index, matrix);
+      mesh.current!.setColorAt(index, color);
+    });
+    mesh.current.instanceMatrix.needsUpdate = true;
+    if (mesh.current.instanceColor) mesh.current.instanceColor.needsUpdate = true;
+  }, [cells, nodesByRegion, projection.centerRegion.x, projection.centerRegion.z, projection.regionUnit]);
+  return <instancedMesh args={[undefined, undefined, cells.length]} name="continuous-world-surface" onClick={handleClick} ref={mesh}>
+    <planeGeometry args={[1, 1]} />
+    <meshStandardMaterial emissive="#09261e" emissiveIntensity={0.08} metalness={0.01} roughness={0.94} vertexColors />
+  </instancedMesh>;
 }
 
 function AtlasTerrainDetails({ projection, qualityProfile }: { projection: WildsAtlasProjection; qualityProfile: WildsQualityProfile }) {
@@ -227,25 +305,33 @@ function AtlasTerrainDetails({ projection, qualityProfile }: { projection: Wilds
   const understory = useRef<THREE.InstancedMesh>(null);
   const rocks = useRef<THREE.InstancedMesh>(null);
   const perNode = qualityProfile.tier === "low" ? 2 : qualityProfile.tier === "medium" ? 3 : 4;
-  const samples = useMemo(() => projection.nodes.flatMap((node, nodeIndex) => Array.from({ length: perNode }, (_, index) => {
+  const sampledNodes = useMemo(() => {
+    const maximumNodes = Math.max(1, Math.floor(ATLAS_MAX_DETAIL_INSTANCES / perNode));
+    if (projection.nodes.length <= maximumNodes) return projection.nodes;
+    return Array.from({ length: maximumNodes }, (_, index) => projection.nodes[Math.floor(index * projection.nodes.length / maximumNodes)]!);
+  }, [perNode, projection.nodes]);
+  const samples = useMemo(() => sampledNodes.flatMap((node, nodeIndex) => Array.from({ length: perNode }, (_, index) => {
     const seed = Math.sin((node.regionX * 97.1 + node.regionZ * 131.7 + index * 41.3)) * 43758.5453;
     const unit = seed - Math.floor(seed);
     const angle = (nodeIndex * perNode + index) * GOLDEN_ANGLE + unit * .34;
-    const radius = .18 + Math.sqrt((index + .5) / perNode) * .43;
-    const x = (node.regionX - projection.centerRegion.x) * ATLAS_SCALE + Math.cos(angle) * radius;
-    const z = (node.regionZ - projection.centerRegion.z) * ATLAS_SCALE + Math.sin(angle) * radius;
-    const worldX = atlasWorldCoordinate(x, projection.centerRegion.x);
-    const worldZ = atlasWorldCoordinate(z, projection.centerRegion.z);
+    const radius = (.18 + Math.sqrt((index + .5) / perNode) * .3) * projection.regionUnit;
+    const worldCenterX = (node.regionX + .5) * WILDS_REGION_SIZE;
+    const worldCenterZ = (node.regionZ + .5) * WILDS_REGION_SIZE;
+    const x = atlasLocalCoordinate(worldCenterX, projection.centerRegion.x, projection.regionUnit) + Math.cos(angle) * radius;
+    const z = atlasLocalCoordinate(worldCenterZ, projection.centerRegion.z, projection.regionUnit) + Math.sin(angle) * radius;
+    const worldX = atlasWorldCoordinate(x, projection.centerRegion.x, projection.regionUnit);
+    const worldZ = atlasWorldCoordinate(z, projection.centerRegion.z, projection.regionUnit);
     const terrain = sampleWildsTerrain(worldX, worldZ);
+    const visualScale = Math.max(.45, Math.min(1, projection.regionUnit / ATLAS_REFERENCE_REGION_UNIT));
     return {
       x,
       z,
-      height: terrain.elevation * .072,
-      scale: .095 + ((unit * 5.17) % 1) * .085,
+      height: terrain.elevation * atlasTerrainHeightScale(projection.regionUnit),
+      scale: (.095 + ((unit * 5.17) % 1) * .085) * visualScale,
       rock: terrain.surface === "rock",
       visible: terrain.surface !== "deep-water" && terrain.surface !== "shallow-water"
     };
-  })), [perNode, projection]);
+  })), [perNode, projection.centerRegion.x, projection.centerRegion.z, projection.regionUnit, sampledNodes]);
   useLayoutEffect(() => {
     const matrix = new THREE.Matrix4();
     const quaternion = new THREE.Quaternion();
@@ -253,14 +339,14 @@ function AtlasTerrainDetails({ projection, qualityProfile }: { projection: Wilds
       const treeScale = sample.visible && !sample.rock ? sample.scale : 0;
       const rockScale = sample.visible && sample.rock ? sample.scale * 1.8 : 0;
       quaternion.setFromEuler(new THREE.Euler(0, index * GOLDEN_ANGLE, 0));
-      matrix.compose(new THREE.Vector3(sample.x, sample.height + treeScale * 1.35, sample.z), quaternion, new THREE.Vector3(treeScale * .42, treeScale * 2.7, treeScale * .42));
+      matrix.compose(new THREE.Vector3(sample.x, sample.height + treeScale * 1.34, sample.z), quaternion, new THREE.Vector3(treeScale * .42, treeScale * 2.7, treeScale * .42));
       trunks.current?.setMatrixAt(index, matrix);
       matrix.compose(new THREE.Vector3(sample.x, sample.height + treeScale * 3.05, sample.z), quaternion, new THREE.Vector3(treeScale * 2.35, treeScale * 2.05, treeScale * 2.15));
       crowns.current?.setMatrixAt(index, matrix);
-      matrix.compose(new THREE.Vector3(sample.x + treeScale * .42, sample.height + treeScale * 2.62, sample.z - treeScale * .18), quaternion, new THREE.Vector3(treeScale * 1.5, treeScale * 1.35, treeScale * 1.42));
+      matrix.compose(new THREE.Vector3(sample.x + treeScale * .42, sample.height + treeScale * 2.62, sample.z - treeScale * .18), quaternion, new THREE.Vector3(treeScale * 1.5, treeScale * 1.34, treeScale * 1.42));
       understory.current?.setMatrixAt(index, matrix);
       quaternion.setFromEuler(new THREE.Euler((index % 3 - 1) * .13, index * GOLDEN_ANGLE, .08));
-      matrix.compose(new THREE.Vector3(sample.x, sample.height + rockScale * .35, sample.z), quaternion, new THREE.Vector3(rockScale * 1.35, rockScale * .72, rockScale));
+      matrix.compose(new THREE.Vector3(sample.x, sample.height + rockScale * .35, sample.z), quaternion, new THREE.Vector3(rockScale * 1.34, rockScale * .72, rockScale));
       rocks.current?.setMatrixAt(index, matrix);
     });
     for (const mesh of [trunks.current, crowns.current, understory.current, rocks.current]) {
@@ -270,7 +356,7 @@ function AtlasTerrainDetails({ projection, qualityProfile }: { projection: Wilds
     }
   }, [samples]);
   return <group name="atlas-instanced-terrain-detail">
-    <instancedMesh args={[undefined, undefined, samples.length]} ref={trunks}><cylinderGeometry args={[1, 1.35, 1, 7]} /><meshStandardMaterial color="#493527" roughness={1} /></instancedMesh>
+    <instancedMesh args={[undefined, undefined, samples.length]} ref={trunks}><cylinderGeometry args={[1, 1.34, 1, 7]} /><meshStandardMaterial color="#493527" roughness={1} /></instancedMesh>
     <instancedMesh args={[undefined, undefined, samples.length]} ref={crowns}><icosahedronGeometry args={[.88, 1]} /><meshStandardMaterial color="#326f43" emissive="#173d25" emissiveIntensity={.28} roughness={.9} /></instancedMesh>
     <instancedMesh args={[undefined, undefined, samples.length]} ref={understory}><dodecahedronGeometry args={[.86, 0]} /><meshStandardMaterial color="#4c8250" emissive="#1a4027" emissiveIntensity={.2} roughness={.92} /></instancedMesh>
     <instancedMesh args={[undefined, undefined, samples.length]} ref={rocks}><dodecahedronGeometry args={[1, 1]} /><meshStandardMaterial color="#657169" roughness={.99} /></instancedMesh>
@@ -278,23 +364,25 @@ function AtlasTerrainDetails({ projection, qualityProfile }: { projection: Wilds
 }
 
 function MapRoutes({ projection }: { projection: WildsAtlasProjection }) {
-  const routes = useMemo(() => WILDS_MAJOR_ROUTES.map((route) => new THREE.CatmullRomCurve3(
-    route.points.map((point) => {
-      const x = atlasLocalCoordinate(point.x, projection.centerRegion.x);
-      const z = atlasLocalCoordinate(point.z, projection.centerRegion.z);
-      return new THREE.Vector3(x, atlasTerrainHeight(point.x, point.z) + .045, z);
+  const routes = useMemo(() => WILDS_MAJOR_ROUTES.flatMap((route) => (
+    clipWildsAtlasRouteSegments(route.points, projection.nodes).map((segment) => new THREE.CatmullRomCurve3(
+      segment.map((point) => {
+      const x = atlasLocalCoordinate(point.x, projection.centerRegion.x, projection.regionUnit);
+      const z = atlasLocalCoordinate(point.z, projection.centerRegion.z, projection.regionUnit);
+      return new THREE.Vector3(x, atlasTerrainHeight(point.x, point.z, projection.regionUnit) + .045, z);
     })
-  )), [projection.centerRegion.x, projection.centerRegion.z]);
+    ))
+  )).slice(0, ATLAS_MAX_ROUTE_SEGMENTS), [projection.centerRegion.x, projection.centerRegion.z, projection.nodes, projection.regionUnit]);
   return <group name="atlas-routes">{routes.map((route, index) => <group key={index}>
-    <mesh><tubeGeometry args={[route, 64, index ? .052 : .072, 7, false]} /><meshStandardMaterial color="#263a31" roughness={.98} /></mesh>
-    <mesh><tubeGeometry args={[route, 64, index ? .026 : .036, 7, false]} /><meshStandardMaterial color={index ? "#a3c7b3" : "#e8d69a"} emissive={index ? "#285e51" : "#695f39"} emissiveIntensity={0.2} roughness={0.78} /></mesh>
+    <mesh><tubeGeometry args={[route, 32, index ? .052 : .072, 7, false]} /><meshStandardMaterial color="#263a31" roughness={.98} /></mesh>
+    <mesh><tubeGeometry args={[route, 32, index ? .026 : .036, 7, false]} /><meshStandardMaterial color={index ? "#a3c7b3" : "#e8d69a"} emissive={index ? "#285e51" : "#695f39"} emissiveIntensity={0.2} roughness={0.78} /></mesh>
   </group>)}</group>;
 }
 
 function DropPin({ position, projection }: { position: { x: number; z: number } | null; projection: WildsAtlasProjection }) {
-  if (!position) return null;
-  const x = (position.x / WILDS_REGION_SIZE - projection.centerRegion.x) * 1.35;
-  const z = (position.z / WILDS_REGION_SIZE - projection.centerRegion.z) * 1.35;
+  if (!position || !wildsAtlasContainsWorld(projection.nodes, position)) return null;
+  const x = atlasLocalCoordinate(position.x, projection.centerRegion.x, projection.regionUnit);
+  const z = atlasLocalCoordinate(position.z, projection.centerRegion.z, projection.regionUnit);
   return <group name="atlas-drop-pin" position={[x, .42, z]}>
     <mesh position={[0, .24, 0]}><sphereGeometry args={[.16, 16, 12]} /><meshStandardMaterial color="#fff3a0" emissive="#f7c948" emissiveIntensity={2.2} /></mesh>
     <mesh position={[0, .06, 0]}><cylinderGeometry args={[.035, .055, .32, 10]} /><meshStandardMaterial color="#f7d25b" roughness={.44} /></mesh>
@@ -312,10 +400,8 @@ function LandmarkBeacons({
   onSelect: (landmarkId: string) => void;
 }) {
   return projection.landmarks.map((landmark, landmarkIndex) => {
-    const regionX = landmark.position.x / WILDS_REGION_SIZE;
-    const regionZ = landmark.position.z / WILDS_REGION_SIZE;
-    const x = (regionX - projection.centerRegion.x) * 1.35;
-    const z = (regionZ - projection.centerRegion.z) * 1.35;
+    const x = atlasLocalCoordinate(landmark.position.x, projection.centerRegion.x, projection.regionUnit);
+    const z = atlasLocalCoordinate(landmark.position.z, projection.centerRegion.z, projection.regionUnit);
     const active = landmark.id === selectedId;
     return (
       <group
@@ -392,16 +478,18 @@ function LandmarkMiniature({ icon, accent, active }: { icon: "tree" | "trophy" |
     <mesh position={[0, .05, 0]}><sphereGeometry args={[.07, 12, 8]} /><meshBasicMaterial color="#fff6c8" /></mesh>
   </group>;
   return <group name="map-building-prism" position={[0, .26, 0]}>
-    {[-.18, 0, .18].map((x, index) => <mesh key={x} position={[x, index === 1 ? .28 : .16, 0]} rotation={[0, 0, index === 1 ? 0 : x]}><octahedronGeometry args={[index === 1 ? .2 : .14]} /><meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={1.35} metalness={.22} roughness={.3} /></mesh>)}
+    {[-.18, 0, .18].map((x, index) => <mesh key={x} position={[x, index === 1 ? .28 : .16, 0]} rotation={[0, 0, index === 1 ? 0 : x]}><octahedronGeometry args={[index === 1 ? .2 : .14]} /><meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={1.34} metalness={.22} roughness={.3} /></mesh>)}
   </group>;
 }
 
 function RegionNames({ projection }: { projection: WildsAtlasProjection }) {
   if (projection.zoom !== "world") return null;
-  return <group name="atlas-region-names">{WILDS_NAMED_REGIONS.map((region, index) => {
-    const x = atlasLocalCoordinate(region.position.x, projection.centerRegion.x);
-    const z = atlasLocalCoordinate(region.position.z, projection.centerRegion.z);
-    return <Html center key={region.id} position={[x + Math.cos(index * GOLDEN_ANGLE) * .16, atlasTerrainHeight(region.position.x, region.position.z) + .38 + (index % 2) * .08, z + Math.sin(index * GOLDEN_ANGLE) * .16]} zIndexRange={[1, 0]}><span className="wilds-atlas-region-name">{region.name}</span></Html>;
+  return <group name="atlas-region-names">{WILDS_NAMED_REGIONS.filter((region) => (
+    wildsAtlasContainsWorld(projection.nodes, region.position)
+  )).map((region, index) => {
+    const x = atlasLocalCoordinate(region.position.x, projection.centerRegion.x, projection.regionUnit);
+    const z = atlasLocalCoordinate(region.position.z, projection.centerRegion.z, projection.regionUnit);
+    return <Html center key={region.id} position={[x + Math.cos(index * GOLDEN_ANGLE) * .16, atlasTerrainHeight(region.position.x, region.position.z, projection.regionUnit) + .38 + (index % 2) * .08, z + Math.sin(index * GOLDEN_ANGLE) * .16]} zIndexRange={[1, 0]}><span className="wilds-atlas-region-name">{region.name}</span></Html>;
   })}</group>;
 }
 
@@ -411,8 +499,8 @@ function PresenceLights({ projection }: { projection: WildsAtlasProjection }) {
   useLayoutEffect(() => {
     if (!clusters.current) return;
     projection.playerClusters.forEach((cluster, index) => {
-      const x = (cluster.regionX - projection.centerRegion.x) * 1.35;
-      const z = (cluster.regionZ - projection.centerRegion.z) * 1.35;
+      const x = atlasLocalCoordinate((cluster.regionX + .5) * WILDS_REGION_SIZE, projection.centerRegion.x, projection.regionUnit);
+      const z = atlasLocalCoordinate((cluster.regionZ + .5) * WILDS_REGION_SIZE, projection.centerRegion.z, projection.regionUnit);
       const size = 0.08 + Math.min(0.2, cluster.count * 0.012);
       matrix.compose(new THREE.Vector3(x, 0.36, z), new THREE.Quaternion(), new THREE.Vector3(size, size, size));
       clusters.current!.setMatrixAt(index, matrix);
@@ -433,8 +521,8 @@ function ExactPlayerLights({ projection }: { projection: WildsAtlasProjection })
   const matrix = useMemo(() => new THREE.Matrix4(), []);
   useLayoutEffect(() => {
     projection.exactPlayers.forEach((player, index) => {
-      const x = (player.x / WILDS_REGION_SIZE - projection.centerRegion.x) * 1.35;
-      const z = (player.z / WILDS_REGION_SIZE - projection.centerRegion.z) * 1.35;
+      const x = atlasLocalCoordinate(player.x, projection.centerRegion.x, projection.regionUnit);
+      const z = atlasLocalCoordinate(player.z, projection.centerRegion.z, projection.regionUnit);
       matrix.compose(new THREE.Vector3(x, .48, z), new THREE.Quaternion(), new THREE.Vector3(.14, .14, .14));
       players.current?.setMatrixAt(index, matrix);
       matrix.compose(new THREE.Vector3(x, .32, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)), new THREE.Vector3(.2, .2, .2));
@@ -456,8 +544,8 @@ function ExactPlayerLights({ projection }: { projection: WildsAtlasProjection })
 }
 
 function CurrentPositionBeam({ position, projection }: { position: { x: number; z: number }; projection: WildsAtlasProjection }) {
-  const x = (position.x / WILDS_REGION_SIZE - projection.centerRegion.x) * 1.35;
-  const z = (position.z / WILDS_REGION_SIZE - projection.centerRegion.z) * 1.35;
+  const x = atlasLocalCoordinate(position.x, projection.centerRegion.x, projection.regionUnit);
+  const z = atlasLocalCoordinate(position.z, projection.centerRegion.z, projection.regionUnit);
   return (
     <group name="atlas-current-position" position={[x, 0, z]}>
       <Html center position={[0, 1.9, 0]} zIndexRange={[3, 2]}>
