@@ -53,3 +53,13 @@ test("Kai affinity never moves a creature across the physical water partition", 
     assert.equal(isWildsAquaticForm(creatureForm(applyKaiAffinityToHotspot(land, moment, `owner:${arkIndex}`).formId)!), false);
   }
 });
+
+test("Kai affinity gives powered-flight encounters only powered-flight forms", () => {
+  let aerial = hotspotsForRegion(0, 0).find((hotspot) => hotspot.layer === "air")!;
+  for (let region = 1; !aerial && region < 20; region += 1) aerial = hotspotsForRegion(region, -region).find((hotspot) => hotspot.layer === "air")!;
+  assert.ok(aerial);
+  const powered = { ...aerial, requiredCapability: "flight" as const };
+  const candidates = kaiEncounterCandidates(powered);
+  assert.ok(candidates.length > 0);
+  assert.equal(candidates.every((form) => form.anatomy.body === "winged"), true);
+});

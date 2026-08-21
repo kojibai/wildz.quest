@@ -9,6 +9,7 @@ import {
 import {
   projectWildsLayeredEncounter,
   wildsEncounterActorLocomotion,
+  wildsEncounterActorOffsetY,
   wildsLayeredEncounterCacheSize,
   wildsLayeredEncounterDiagnostics,
   type WildsEncounterSearchContext
@@ -16,6 +17,7 @@ import {
 import { sampleWildsTerrain } from "../src/features/play/wilds-terrain-authority";
 import { WILDS_WATERLINE_ELEVATION } from "../src/features/play/wilds-terrain-rendering";
 import { applyWildsInput, initialPlayState } from "../src/features/play/game-state";
+import { projectWildsCreatureLocomotionFrame } from "../src/features/play/WildsCreatureActor";
 
 describe("deterministic layered Wilds encounters", () => {
   it("regenerates the exact layer and world height after bounded cache eviction at extreme coordinates", () => {
@@ -76,7 +78,48 @@ describe("deterministic layered Wilds encounters", () => {
     assert.equal(wildsEncounterActorLocomotion("water-column"), "swim");
     assert.equal(wildsEncounterActorLocomotion("seabed"), "swim");
     assert.equal(wildsEncounterActorLocomotion("ground"), "ground");
-    assert.equal(wildsEncounterActorLocomotion("air"), "ground");
+    assert.equal(wildsEncounterActorLocomotion("air"), "air");
+  });
+
+  it("gives aerial actors a real flight pose and a stable reduced-motion hover", () => {
+    const flying = projectWildsCreatureLocomotionFrame({
+      locomotion: "air",
+      timeSeconds: 1,
+      motionScale: 1,
+      marking: .25,
+      pose: "idle"
+    });
+    const later = projectWildsCreatureLocomotionFrame({
+      locomotion: "air",
+      timeSeconds: 2,
+      motionScale: 1,
+      marking: .25,
+      pose: "idle"
+    });
+    const reduced = projectWildsCreatureLocomotionFrame({
+      locomotion: "air",
+      timeSeconds: 1,
+      motionScale: 0,
+      marking: .25,
+      pose: "idle"
+    });
+    const reducedLater = projectWildsCreatureLocomotionFrame({
+      locomotion: "air",
+      timeSeconds: 7,
+      motionScale: 0,
+      marking: .25,
+      pose: "idle"
+    });
+
+    assert.ok(flying.rootPitch < -.15);
+    assert.notEqual(flying.wingAngle, 0);
+    assert.notEqual(flying.rootY, later.rootY);
+    assert.deepEqual(reduced, reducedLater);
+    assert.ok(reduced.rootPitch < -.15);
+    assert.equal(projectWildsCreatureLocomotionFrame({ locomotion: "ground", timeSeconds: 1, motionScale: 1, marking: .25, pose: "idle" }).wingAngle, 0);
+    assert.equal(wildsEncounterActorOffsetY("air", 1, 4), 0);
+    assert.equal(wildsEncounterActorOffsetY("air", 7, 4), 0);
+    assert.notEqual(wildsEncounterActorOffsetY("ground", 1, 4), wildsEncounterActorOffsetY("ground", 2, 4));
   });
 
   it("keeps every shore-reachable first swimmer on the surface without a swim requirement", () => {

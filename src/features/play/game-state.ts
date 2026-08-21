@@ -46,7 +46,7 @@ import {
   projectWildsTraversalCapabilities,
   type WildsTraversalCapability
 } from "./wilds-traversal-capabilities";
-import type { WildsEncounterInteractionLayer, WildsLayeredEncounterProjection } from "./wilds-layered-encounters";
+import type { WildsEncounterInteractionLayer } from "./wilds-layered-encounters";
 import { wildsTerrainElevation } from "./wilds-terrain-authority";
 import { projectWildsCivicHistory, type WildsCivicEvent } from "./wilds-civic-history";
 import { projectWildsEcologyHistory, type WildsEcologyKnowledge, type WildsEcologyReceipt } from "./wilds-ecology-history";
@@ -690,7 +690,7 @@ function reconstructEncounterDiscoveryIdentity(
     hotspotId?: string;
     formId?: string;
     searchedAt: string;
-    searchPoint: { x: number; z: number };
+    location: { x: number; z: number };
     ownerReceizId: string;
   },
   occupiedNames: ReadonlySet<string>
@@ -703,7 +703,7 @@ function reconstructEncounterDiscoveryIdentity(
       encounterId: encounter.hotspotId,
       form,
       discoveredAt: encounter.searchedAt,
-      location: encounter.searchPoint,
+      location: encounter.location,
       ownerScope: encounter.ownerReceizId,
       moment: deriveKaiKlokMoment({ occurredAt: encounter.searchedAt, authority: "world" })
     }, occupiedNames);
@@ -719,29 +719,7 @@ function discoveredFormForIdentity(identity: LivingCreatureIdentityV3) {
     && form.anatomy.detail === identity.anatomy.detail);
 }
 
-function validEncounterPlacement(value: unknown): value is WildsLayeredEncounterProjection {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Record<string, unknown>;
-  const band = candidate.interactionBand as Record<string, unknown> | undefined;
-  return candidate.version === "wildz.encounter-placement.v1"
-    && typeof candidate.identity === "string"
-    && /^wildz\.layer\.v1:-?\d+:-?\d+:\d+:[a-f0-9]{16}$/.test(candidate.identity)
-    && typeof candidate.x === "number" && Number.isFinite(candidate.x)
-    && typeof candidate.z === "number" && Number.isFinite(candidate.z)
-    && typeof candidate.worldY === "number" && Number.isFinite(candidate.worldY)
-    && ["ground", "surface", "water-column", "seabed", "air"].includes(String(candidate.layer))
-    && (candidate.requiredCapability === null || ["swim", "climb", "glide", "flight"].includes(String(candidate.requiredCapability)))
-    && Boolean(band)
-    && typeof band!.minY === "number" && Number.isFinite(band!.minY)
-    && typeof band!.maxY === "number" && Number.isFinite(band!.maxY)
-    && band!.minY <= candidate.worldY && band!.maxY >= candidate.worldY;
-}
-
 function restoredEncounterPlacement(candidate: Record<string, unknown>) {
-  if (validEncounterPlacement(candidate.placement)) {
-    const placement = candidate.placement;
-    return Object.freeze({ ...placement, interactionBand: Object.freeze({ ...placement.interactionBand }) });
-  }
   const match = typeof candidate.hotspotId === "string"
     ? candidate.hotspotId.match(/^hotspot:(-?\d+):(-?\d+):(\d+)(?::|$)/)
     : null;
@@ -779,7 +757,7 @@ function restoreEncounter(value: unknown, occupiedNames: ReadonlySet<string> = n
       hotspotId: typeof candidate.hotspotId === "string" ? candidate.hotspotId : undefined,
       formId: typeof candidate.formId === "string" ? candidate.formId : undefined,
       searchedAt: candidate.searchedAt,
-      searchPoint: { x: point.x, z: point.z },
+      location: placement ? { x: placement.x, z: placement.z } : { x: point.x, z: point.z },
       ownerReceizId: candidate.ownerReceizId
     }, occupiedNames);
   }
@@ -1694,7 +1672,12 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     const discoveryIdentity = restoredIdentity && restoredForm
       ? restoredIdentity
       : reconstructEncounterDiscoveryIdentity(
-          encounter,
+          {
+            ...encounter,
+            location: encounter.placement
+              ? { x: encounter.placement.x, z: encounter.placement.z }
+              : encounter.searchPoint
+          },
           new Set(state.inventory.map((asset) => asset.manifest.name.toLowerCase()))
         );
     if (!discoveryIdentity) {

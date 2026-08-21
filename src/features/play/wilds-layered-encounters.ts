@@ -134,8 +134,13 @@ function buildProjection(input: ProjectionInput): WildsLayeredEncounterProjectio
   });
 }
 
-export function wildsEncounterActorLocomotion(layer: WildsEncounterLayer): "ground" | "swim" {
-  return layer === "surface" || layer === "water-column" || layer === "seabed" ? "swim" : "ground";
+export function wildsEncounterActorLocomotion(layer: WildsEncounterLayer): "ground" | "swim" | "air" {
+  if (layer === "surface" || layer === "water-column" || layer === "seabed") return "swim";
+  return layer === "air" ? "air" : "ground";
+}
+
+export function wildsEncounterActorOffsetY(layer: WildsEncounterLayer, timeSeconds: number, positionX: number) {
+  return layer === "air" ? 0 : .5 + Math.sin(timeSeconds * 1.8 + positionX) * .06;
 }
 
 export function projectWildsLayeredEncounter(input: ProjectionInput) {

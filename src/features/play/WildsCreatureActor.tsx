@@ -8,6 +8,33 @@ import { threeCreatureColor, type CardKaiAppearance } from "./card-kai-appearanc
 import { useWildsReadability } from "./WildsReadabilityContext";
 
 export type WildsCreaturePose = "idle" | "curious" | "attack" | "impact" | "weakened" | "capture";
+export type WildsCreatureLocomotion = "ground" | "swim" | "air";
+
+export function projectWildsCreatureLocomotionFrame(input: {
+  locomotion: WildsCreatureLocomotion;
+  timeSeconds: number;
+  motionScale: number;
+  marking: number;
+  pose: WildsCreaturePose;
+}) {
+  const weakened = input.pose === "weakened";
+  const impact = input.pose === "impact";
+  if (input.locomotion === "air") return Object.freeze({
+    rootY: .58 + Math.sin(input.timeSeconds * 1.35 + input.marking * 2) * .055 * input.motionScale,
+    rootPitch: -.3 + Math.sin(input.timeSeconds * .75 + input.marking) * .025 * input.motionScale,
+    rootRoll: impact ? Math.sin(input.timeSeconds * 18) * .08 * input.motionScale : Math.sin(input.timeSeconds * 1.1 + input.marking) * .04 * input.motionScale,
+    limbPitch: -.18 + Math.sin(input.timeSeconds * 2.4) * .06 * input.motionScale,
+    wingAngle: .14 + Math.sin(input.timeSeconds * 4.6 + input.marking * 3) * .42 * input.motionScale
+  });
+  const swimming = input.locomotion === "swim";
+  return Object.freeze({
+    rootY: .46 + (weakened ? -.08 : swimming ? Math.sin(input.timeSeconds * 1.55) * .018 * input.motionScale : Math.abs(Math.sin(input.timeSeconds * 1.7)) * .035 * input.motionScale),
+    rootPitch: swimming ? -.36 + Math.sin(input.timeSeconds * 1.25) * .035 * input.motionScale : 0,
+    rootRoll: impact ? Math.sin(input.timeSeconds * 18) * .08 * input.motionScale : weakened ? -.08 : swimming ? Math.sin(input.timeSeconds * 1.8) * .055 * input.motionScale : 0,
+    limbPitch: input.pose === "attack" ? Math.sin(input.timeSeconds * 13) * .22 * input.motionScale : weakened ? .18 : swimming ? Math.sin(input.timeSeconds * 3.2) * .18 * input.motionScale : Math.sin(input.timeSeconds * 2.4) * .04 * input.motionScale,
+    wingAngle: 0
+  });
+}
 
 export type ActorWingRenderPlan = Readonly<{ kind: "none" | "functional-wing" | "glide-membrane"; pairCount: 0 | 2 }>;
 export type ActorGripRenderPlan = Readonly<{ kind: "none" | "functional-grip"; padCount: 0 | 4 }>;
@@ -60,12 +87,13 @@ export function WildsCreatureActor({
   anatomy?: CardKaiAppearance["anatomy"];
   cadenceMs?: number;
   pose?: WildsCreaturePose;
-  locomotion?: "ground" | "swim";
+  locomotion?: WildsCreatureLocomotion;
 }) {
   const readability = useWildsReadability();
   const root = useRef<THREE.Group>(null);
   const head = useRef<THREE.Group>(null);
   const limbs = useRef<THREE.Group>(null);
+  const wings = useRef<THREE.Group>(null);
   const aura = useRef<THREE.Group>(null);
   const form = creatureForm(formId) ?? creatureForm(`${familyId}-1`);
   const body = anatomy?.body ?? form?.anatomy.body ?? "round";
@@ -98,20 +126,19 @@ export function WildsCreatureActor({
     const cadence = cadenceMs ? Math.max(0.7, Math.min(3.4, 3_000 / cadenceMs)) : 2.1;
     const motion = readability.motionScale;
     const breath = Math.sin(time * cadence + identity.marking * 4) * 0.025 * motion;
-    const weakened = pose === "weakened";
-    const impact = pose === "impact";
     const attack = pose === "attack";
-    const swimming = locomotion === "swim";
-    root.current.position.y = 0.46 + (weakened ? -0.08 : swimming ? Math.sin(time * 1.55) * 0.018 * motion : Math.abs(Math.sin(time * 1.7)) * 0.035 * motion);
-    root.current.rotation.x = swimming ? -0.36 + Math.sin(time * 1.25) * 0.035 * motion : 0;
-    root.current.rotation.z = impact ? Math.sin(time * 18) * 0.08 * motion : weakened ? -0.08 : swimming ? Math.sin(time * 1.8) * 0.055 * motion : 0;
+    const frame = projectWildsCreatureLocomotionFrame({ locomotion, timeSeconds: time, motionScale: motion, marking: identity.marking, pose });
+    root.current.position.y = frame.rootY;
+    root.current.rotation.x = frame.rootPitch;
+    root.current.rotation.z = frame.rootRoll;
     root.current.scale.setScalar(pose === "capture" ? 0.9 + Math.sin(time * 5) * 0.035 * motion : 1);
     if (head.current) {
-      head.current.rotation.x = attack ? -0.22 : weakened ? 0.16 : Math.sin(time * 0.9) * 0.045 * motion;
+      head.current.rotation.x = attack ? -0.22 : pose === "weakened" ? 0.16 : Math.sin(time * 0.9) * 0.045 * motion;
       head.current.rotation.y = pose === "curious" ? Math.sin(time * 1.4) * 0.18 * motion : 0;
       head.current.position.y = 0.31 + breath;
     }
-    if (limbs.current) limbs.current.rotation.x = attack ? Math.sin(time * 13) * 0.22 * motion : weakened ? 0.18 : swimming ? Math.sin(time * 3.2) * 0.18 * motion : Math.sin(time * 2.4) * 0.04 * motion;
+    if (limbs.current) limbs.current.rotation.x = frame.limbPitch;
+    if (wings.current) wings.current.rotation.x = frame.wingAngle;
     if (aura.current) aura.current.rotation.y = time * (pose === "capture" ? 2.4 : 0.7) * motion;
   });
 
@@ -142,7 +169,7 @@ export function WildsCreatureActor({
       </group>
 
       <group name="wilds-creature-limbs" ref={limbs}>
-        {wingPlan.pairCount ? <group name={wingPlan.kind}>{[-1, 1].map((side) => <mesh castShadow key={side} position={[side * 0.46, 0.08, -0.08]} rotation={[0.15, 0, side * -0.72]} scale={[0.48, 1.3, 0.18]}><tetrahedronGeometry args={[0.46, 0]} /><meshStandardMaterial color={renderedSecondary} emissive={renderedSecondary} emissiveIntensity={0.12} roughness={0.46} /></mesh>)}</group> : null}
+        {wingPlan.pairCount ? <group name={wingPlan.kind} ref={wings}>{[-1, 1].map((side) => <mesh castShadow key={side} position={[side * 0.46, 0.08, -0.08]} rotation={[0.15, 0, side * -0.72]} scale={[0.48, 1.3, 0.18]}><tetrahedronGeometry args={[0.46, 0]} /><meshStandardMaterial color={renderedSecondary} emissive={renderedSecondary} emissiveIntensity={0.12} roughness={0.46} /></mesh>)}</group> : null}
         {body === "round" || body === "long" || body === "armored" ? [-1, 1].flatMap((side) => [-1, 1].map((front) => <mesh castShadow key={`${side}:${front}`} position={[side * 0.26, -0.3, front * 0.2]} rotation={[front * 0.14, 0, side * -0.08]}><capsuleGeometry args={[0.07, 0.22, 5, 8]} /><meshStandardMaterial color={renderedPrimary} roughness={0.7} /></mesh>)) : null}
         {gripPlan.padCount ? [-1, 1].flatMap((side) => [-1, 1].map((front) => <mesh castShadow key={`grip:${side}:${front}`} name="functional-grip-pad" position={[side * 0.27, -0.43, front * 0.2]} scale={[0.09, 0.035, 0.11]}><sphereGeometry args={[1, 10, 7]} /><meshStandardMaterial color={renderedAccent} roughness={0.82} /></mesh>)) : null}
       </group>

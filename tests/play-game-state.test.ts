@@ -153,6 +153,83 @@ describe("layered encounter continuity", () => {
     assert.deepEqual(restored.encounter.placement, hotspot.placement);
     assert.deepEqual(restored.encounter.searchPoint, state.encounter.searchPoint);
   });
+
+  it("replaces every shape-valid placement splice with the canonical region-slot placement", () => {
+    const hotspot = nearbyHiddenHotspots(initialPlayState.player).find((candidate) => candidate.requiredCapability === null)!;
+    const player = { x: hotspot.position.x, z: hotspot.position.z };
+    const state = applyWildsInput({ ...structuredClone(initialPlayState), player }, {
+      type: "search-point",
+      x: hotspot.position.x,
+      z: hotspot.position.z,
+      searchedAt: "2026-08-21T15:30:00.000Z",
+      ownerReceizId: "layered.tamper.player",
+      verticalLayer: "ground",
+      verticalWorldY: sampleWildsTerrain(player.x, player.z).elevation,
+      traversalCapabilities: []
+    });
+    assert.equal(state.encounter.phase, "battle_intro");
+    const preservedIdentity = canonicalPortableCardJson(state.encounter.discoveryIdentity);
+    const splices = [
+      { x: hotspot.x + .5 },
+      { z: hotspot.z - .5 },
+      { worldY: hotspot.worldY + 1 },
+      { layer: hotspot.layer === "ground" ? "air" : "ground" },
+      { requiredCapability: hotspot.requiredCapability === "flight" ? "swim" : "flight" },
+      { identity: "wildz.layer.v1:9:9:9:0000000000000009" }
+    ];
+
+    for (const splice of splices) {
+      const envelope = JSON.parse(serializePlayState(state));
+      Object.assign(envelope.state.encounter.placement, splice);
+      const restored = restorePlayState(JSON.stringify(envelope));
+      if (restored.encounter.phase === "idle") throw new Error("expected restored encounter");
+      assert.deepEqual(restored.encounter.placement, hotspot.placement, JSON.stringify(splice));
+      assert.equal(canonicalPortableCardJson(restored.encounter.discoveryIdentity), preservedIdentity, JSON.stringify(splice));
+    }
+  });
+
+  it("reconstructs a missing identity from canonical placement and seals the same creature after a displaced click", () => {
+    const hotspot = nearbyHiddenHotspots(initialPlayState.player).find((candidate) => candidate.requiredCapability === null)!;
+    const player = { x: hotspot.position.x, z: hotspot.position.z };
+    const discovered = applyWildsInput({ ...structuredClone(initialPlayState), player }, {
+      type: "search-point",
+      x: hotspot.position.x,
+      z: hotspot.position.z,
+      searchedAt: "2026-08-21T15:40:00.000Z",
+      ownerReceizId: "layered.identity.player",
+      verticalLayer: "ground",
+      verticalWorldY: sampleWildsTerrain(player.x, player.z).elevation,
+      traversalCapabilities: []
+    });
+    assert.equal(discovered.encounter.phase, "battle_intro");
+    if (!discovered.encounter.discoveryIdentity || !discovered.encounter.formId) throw new Error("expected discovered identity");
+    const expectedIdentity = discovered.encounter.discoveryIdentity;
+    const expectedVisual = projectEncounterCreatureVisualIdentity({ identity: expectedIdentity, formId: discovered.encounter.formId });
+    const envelope = JSON.parse(serializePlayState({
+      ...discovered,
+      encounter: {
+        ...discovered.encounter,
+        phase: "capsule",
+        searchPoint: { x: hotspot.position.x + .75, z: hotspot.position.z - .5 }
+      }
+    }));
+    delete envelope.state.encounter.discoveryIdentity;
+
+    const restored = restorePlayState(JSON.stringify(envelope));
+    assert.equal(restored.encounter.phase, "capsule");
+    if (!restored.encounter.discoveryIdentity || !restored.encounter.formId) throw new Error("expected reconstructed identity");
+    assert.equal(restored.encounter.discoveryIdentity.name.display, expectedIdentity.name.display);
+    assert.deepEqual(projectEncounterCreatureVisualIdentity({
+      identity: restored.encounter.discoveryIdentity,
+      formId: restored.encounter.formId
+    }), expectedVisual);
+
+    const sealed = applyWildsInput(restored, { type: "advance-encounter", at: "2026-08-21T15:40:08.000Z" });
+    const captured = sealed.inventory.find((asset) => asset.manifest.encounterId === hotspot.id)!;
+    assert.ok(captured);
+    assert.equal(captured.manifest.name, expectedIdentity.name.display);
+    assert.deepEqual(projectCardCreatureVisualIdentity(captured), expectedVisual);
+  });
 });
 
 describe("Receiz Wilds game state", () => {

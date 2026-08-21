@@ -50,7 +50,7 @@ import {
   projectWildsReadabilityProfile
 } from "@/features/play/wilds-night-readability";
 import { projectWildsTerrainActorPosition } from "@/features/play/wilds-terrain-rendering";
-import { wildsEncounterActorLocomotion, type WildsEncounterLayer } from "@/features/play/wilds-layered-encounters";
+import { wildsEncounterActorLocomotion, wildsEncounterActorOffsetY, type WildsEncounterLayer } from "@/features/play/wilds-layered-encounters";
 import type { WildsAquaticPresentation } from "@/features/play/wilds-aquatic-presentation";
 import {
   createWildsAerialRuntimeResult,
@@ -838,7 +838,7 @@ function Creature({
   useFrame(() => {
     if (!groupRef.current) return;
     const elapsed = frameSeconds();
-    groupRef.current.position.y = 0.5 + Math.sin(elapsed * 1.8 + card.position[0]) * 0.06;
+    groupRef.current.position.y = wildsEncounterActorOffsetY(layer, elapsed, card.position[0]);
     groupRef.current.rotation.y = Math.sin(elapsed * 0.85 + card.position[2]) * 0.18;
   });
 
