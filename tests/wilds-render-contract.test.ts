@@ -34,22 +34,27 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(canvas, /maxDistance/);
     assert.match(canvas, /qualityProfile\.dpr/);
     assert.match(canvas, /instancedMesh/);
-    assert.match(canvas, /function AtlasHorizon/);
+    assert.match(canvas, /function AtlasBackdrop/);
     assert.match(map, /refreshInFlight/);
     assert.match(map, /refreshGeneration/);
     assert.match(map, /const staticProjection = useMemo/);
     assert.match(map, /players:\s*\[\]/);
-    assert.match(canvas, /\[centerRegionX,\s*centerRegionZ,\s*nodes,\s*size\]/);
+    assert.match(canvas, /\[centerRegionX,\s*centerRegionZ,\s*nodes,\s*span\]/);
     assert.doesNotMatch(canvas, /\}, \[projection, size\]\)/);
     assert.doesNotMatch(canvas, /gridHelper/);
     assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.wilds-world-map-header h2\s*\{[^}]*white-space:\s*normal/s);
   });
 
-  it("renders an organic world map and lets explorers Rift from any terrain coordinate", async () => {
+  it("renders the continuous authoritative world and lets explorers Rift from any terrain coordinate", async () => {
     const map = await readFile("src/features/play/WildsWorldMap.tsx", "utf8");
     const canvas = await readFile("src/features/play/WildsAtlasCanvas.tsx", "utf8");
 
-    assert.match(canvas, /function OrganicWorldSurface/);
+    assert.match(canvas, /function ContinuousWorldSurface/);
+    assert.match(canvas, /sampleWildsTerrain/);
+    assert.match(canvas, /name="continuous-world-surface"/);
+    assert.match(canvas, /surface === "deep-water"/);
+    assert.match(canvas, /MapRoutes projection=\{projection\}/);
+    assert.doesNotMatch(canvas, /OrganicWorldSurface|organic-world-island|islandRadius|AtlasWaters|geographicTopography/);
     assert.match(canvas, /onDrop/);
     assert.match(canvas, /DropPin/);
     assert.match(canvas, /ExactPlayerLights/);
