@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { digestWildsExcavationCapabilityIdentity } from "@/features/play/wilds-excavation";
-import { resolveWildsExcavationRouteAuthority } from "@/lib/receiz/wilds-excavation-route-authority";
+import {
+  resolveWildsExcavationRouteAuthority,
+  wildsExcavationStatusFor
+} from "@/lib/receiz/wilds-excavation-route-authority";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,15 +11,6 @@ export const dynamic = "force-dynamic";
 
 function json(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: { "cache-control": "no-store" } });
-}
-
-export function wildsExcavationStatusFor(code: string) {
-  if (code.includes("scope_required") || code.includes("identity_key_required") || code === "receiz_authority_required") return 401;
-  if (code.includes("binding_invalid") || code.includes("subject_invalid") || code.includes("card_owner_invalid") || code.includes("profile_required")) return 403;
-  if (code.includes("admission_required")) return 409;
-  if (code === "receiz_subject_namespace_authority_required" || code === "receiz_subject_resolution_unavailable" || code === "receiz_profile_resolution_unavailable") return 503;
-  if (code === "wilds_excavation_request_invalid") return 422;
-  return 502;
 }
 
 export async function POST(request: NextRequest) {

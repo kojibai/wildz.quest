@@ -12,8 +12,10 @@ import {
   packWildzProofSession,
   WILDZ_PROOF_SESSION_COOKIE
 } from "../src/lib/receiz/wildz-proof-session";
-import { resolveWildsExcavationRouteAuthority } from "../src/lib/receiz/wilds-excavation-route-authority";
-import { wildsExcavationStatusFor } from "../app/api/wilds/excavation/route";
+import {
+  resolveWildsExcavationRouteAuthority,
+  wildsExcavationStatusFor
+} from "../src/lib/receiz/wilds-excavation-route-authority";
 
 const SECRET = "wilds-excavation-route-authority-test-secret-32-bytes";
 process.env.RECEIZ_OAUTH_STATE_SECRET = SECRET;
