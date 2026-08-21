@@ -39,10 +39,11 @@ test("physical obstacles are deterministic stable records", () => {
 });
 
 test("arrival, routes, and landmark aprons contain no generated solid obstacle", () => {
-  const anchors = [
+  const routePoints: Array<{ x: number; z: number }> = WILDS_MAJOR_ROUTES.flatMap((route) => route.points.map((point) => ({ ...point })));
+  const anchors: Array<{ x: number; z: number }> = [
     { x: 0, z: 0 },
     ...WILDS_FLAGSHIP_LANDMARKS.map((landmark) => landmark.position),
-    ...WILDS_MAJOR_ROUTES.flatMap((route) => route.points)
+    ...routePoints
   ];
   const tileKeys = new Set<string>();
   for (const anchor of anchors) {

@@ -1,6 +1,6 @@
 # Wildz Deterministic Terrain Authority Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build Phase 1 of the approved three-dimensional world: one pure, versioned authority for terrain samples, authored clearances, seamless tile data, physical obstacle records, and safe projection of existing horizontal coordinates.
 
@@ -60,7 +60,7 @@
   - `wildsTerrainElevation(x: number, z: number): number`
   - `distanceToWildsMajorRoute(x: number, z: number): number`
 
-- [ ] **Step 1: Write failing authority tests**
+- [x] **Step 1: Write failing authority tests**
 
 ```ts
 import assert from "node:assert/strict";
@@ -107,13 +107,13 @@ test("terrain changes across distant geography without exceeding released bounds
 });
 ```
 
-- [ ] **Step 2: Run the authority test and verify RED**
+- [x] **Step 2: Run the authority test and verify RED**
 
 Run: `npx tsx --test tests/wilds-terrain-authority.test.ts`
 
 Expected: compilation fails because `wilds-terrain-authority.ts` does not exist.
 
-- [ ] **Step 3: Implement the minimal pure authority**
+- [x] **Step 3: Implement the minimal pure authority**
 
 Create the declared types and functions. Use integer-coordinate value noise with smooth interpolation at broad, regional, and local frequencies. Clamp final elevation to `[-8, 28]`, calculate the normal from central differences at `0.25` world units, and quantize public numeric values to six decimal places.
 
@@ -127,13 +127,13 @@ Apply authored masks in this exact order:
 
 Classify `trail` when route distance is at most `0.55`, `deep-water` below `-2.4`, `shallow-water` below `-1.1`, `rock` for slope at least `0.62`, `soil` below elevation `0.25`, and `grass` otherwise. Deep water returns `[{ kind: "swim" }]`; rock at slope `0.78` or greater returns `[{ kind: "climb" }]`; all other samples return no traversal requirement.
 
-- [ ] **Step 4: Run authority tests and verify GREEN**
+- [x] **Step 4: Run authority tests and verify GREEN**
 
 Run: `npx tsx --test tests/wilds-terrain-authority.test.ts`
 
 Expected: all four tests pass with no warnings.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
 ```bash
 git add src/features/play/wilds-terrain-authority.ts tests/wilds-terrain-authority.test.ts
@@ -158,7 +158,7 @@ git commit -m "feat: add deterministic terrain authority"
   - `wildsTerrainTileKey(tileX: number, tileZ: number): string`
   - `buildWildsTerrainTile(tileX: number, tileZ: number, segments: number): WildsTerrainTileData`
 
-- [ ] **Step 1: Write failing seam tests**
+- [x] **Step 1: Write failing seam tests**
 
 ```ts
 import assert from "node:assert/strict";
@@ -190,23 +190,23 @@ test("visual tessellation changes density without changing authority samples", (
 });
 ```
 
-- [ ] **Step 2: Run seam tests and verify RED**
+- [x] **Step 2: Run seam tests and verify RED**
 
 Run: `npx tsx --test tests/wilds-terrain-tiles.test.ts`
 
 Expected: compilation fails because `wilds-terrain-tiles.ts` does not exist.
 
-- [ ] **Step 3: Implement tile projection**
+- [x] **Step 3: Implement tile projection**
 
 Validate `segments` as an integer from `1` through `64`. Iterate grid rows in `gridZ` order and columns in `gridX` order, including both edges. Derive every vertex world coordinate from the absolute tile origin plus `grid / segments * 12`; never increment a floating accumulator. Store the complete authority normal and surface with each vertex.
 
-- [ ] **Step 4: Run seam and authority tests**
+- [x] **Step 4: Run seam and authority tests**
 
 Run: `npx tsx --test tests/wilds-terrain-authority.test.ts tests/wilds-terrain-tiles.test.ts`
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 
 ```bash
 git add src/features/play/wilds-terrain-tiles.ts tests/wilds-terrain-tiles.test.ts
@@ -231,7 +231,7 @@ git commit -m "feat: add seamless terrain tile data"
   - `buildWildsObstacleIndex(obstacles: readonly WildsTerrainObstacle[], cellSize?: number): WildsObstacleIndex`
   - `queryWildsObstacles(index: WildsObstacleIndex, bounds: { minX: number; maxX: number; minZ: number; maxZ: number }): readonly WildsTerrainObstacle[]`
 
-- [ ] **Step 1: Write failing obstacle tests**
+- [x] **Step 1: Write failing obstacle tests**
 
 ```ts
 import assert from "node:assert/strict";
@@ -269,7 +269,8 @@ test("physical obstacles are deterministic stable records", () => {
 });
 
 test("arrival, routes, and landmark aprons contain no generated solid obstacle", () => {
-  const anchors = [{ x: 0, z: 0 }, ...WILDS_FLAGSHIP_LANDMARKS.map((landmark) => landmark.position), ...WILDS_MAJOR_ROUTES.flatMap((route) => route.points)];
+  const routePoints: Array<{ x: number; z: number }> = WILDS_MAJOR_ROUTES.flatMap((route) => route.points.map((point) => ({ ...point })));
+  const anchors: Array<{ x: number; z: number }> = [{ x: 0, z: 0 }, ...WILDS_FLAGSHIP_LANDMARKS.map((landmark) => landmark.position), ...routePoints];
   const tileKeys = new Set<string>();
   for (const anchor of anchors) {
     const centerX = Math.floor(anchor.x / WILDS_TERRAIN_TILE_SIZE);
@@ -297,25 +298,25 @@ test("spatial queries return only intersecting records in stable id order", () =
 });
 ```
 
-- [ ] **Step 2: Run obstacle tests and verify RED**
+- [x] **Step 2: Run obstacle tests and verify RED**
 
 Run: `npx tsx --test tests/wilds-terrain-obstacles.test.ts`
 
 Expected: compilation fails because the obstacle module does not exist.
 
-- [ ] **Step 3: Implement obstacle records and index**
+- [x] **Step 3: Implement obstacle records and index**
 
 Generate quality-independent tree and rock candidates from the biome tile seed using stable integer hashing. Reject candidates inside `15` units of the origin, inside `landmark.radius + 4`, within `1.4` units of a major route, on water, or on terrain whose slope exceeds `0.62`. Trees use solid cylinders; rocks use solid cylinders when radius is at least `0.34` and stepable cylinders otherwise. Do not generate grass, flowers, bushes, or decorative debris as obstacles.
 
 Index every obstacle into each horizontal cell touched by its radius. Query only touched cells, deduplicate by stable id, filter exact bounds, and sort by id before returning.
 
-- [ ] **Step 4: Run obstacle, tile, and authority tests**
+- [x] **Step 4: Run obstacle, tile, and authority tests**
 
 Run: `npx tsx --test tests/wilds-terrain-authority.test.ts tests/wilds-terrain-tiles.test.ts tests/wilds-terrain-obstacles.test.ts`
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3**
 
 ```bash
 git add src/features/play/wilds-terrain-obstacles.ts tests/wilds-terrain-obstacles.test.ts
@@ -337,7 +338,7 @@ git commit -m "feat: add deterministic world obstacles"
   - `isWildsGroundPositionClear(position: { x: number; z: number }, index: WildsObstacleIndex, capsuleRadius?: number): boolean`
   - `restoreWildsGroundedPosition(position: { x: number; z: number }, index: WildsObstacleIndex, capsuleRadius?: number): WildsGroundedPosition`
 
-- [ ] **Step 1: Write failing compatibility tests**
+- [x] **Step 1: Write failing compatibility tests**
 
 ```ts
 import assert from "node:assert/strict";
@@ -346,50 +347,57 @@ import { sampleWildsTerrain } from "../src/features/play/wilds-terrain-authority
 import { buildWildsObstacleIndex, type WildsTerrainObstacle } from "../src/features/play/wilds-terrain-obstacles";
 import { restoreWildsGroundedPosition } from "../src/features/play/wilds-terrain-compatibility";
 
+const obstacle: WildsTerrainObstacle = {
+  id: "test:tree",
+  material: "solid",
+  position: { x: 0, y: 0, z: 0 },
+  radius: 0.8,
+  shape: { kind: "cylinder", radius: 0.8, height: 3 }
+};
+
 test("an unobstructed old save keeps exact horizontal coordinates", () => {
-  const restored = restoreWildsGroundedPosition({ x: 18.25, z: -7.5 }, buildWildsObstacleIndex([]));
-  assert.deepEqual(restored, { x: 18.25, y: sampleWildsTerrain(18.25, -7.5).elevation, z: -7.5, adjusted: false });
+  const restored = restoreWildsGroundedPosition({ x: 0.5, z: -0.5 }, buildWildsObstacleIndex([]));
+  assert.deepEqual(restored, { x: 0.5, y: sampleWildsTerrain(0.5, -0.5).elevation, z: -0.5, adjusted: false });
 });
 
 test("an obstructed old save moves through one deterministic bounded search", () => {
-  const obstacle: WildsTerrainObstacle = {
-    id: "test:tree",
-    material: "solid",
-    position: { x: 20, y: 0, z: 20 },
-    radius: 0.8,
-    shape: { kind: "cylinder", radius: 0.8, height: 3 }
-  };
   const index = buildWildsObstacleIndex([obstacle]);
-  const first = restoreWildsGroundedPosition({ x: 20, z: 20 }, index);
-  assert.deepEqual(first, restoreWildsGroundedPosition({ x: 20, z: 20 }, index));
+  const first = restoreWildsGroundedPosition({ x: 0, z: 0 }, index);
+  assert.deepEqual(first, restoreWildsGroundedPosition({ x: 0, z: 0 }, index));
   assert.equal(first.adjusted, true);
-  assert.ok(Math.hypot(first.x - 20, first.z - 20) <= 4);
+  assert.ok(Math.hypot(first.x, first.z) <= 4);
+});
+
+test("safe projection fails closed when the bounded search has no clear point", () => {
+  const index = buildWildsObstacleIndex([{ ...obstacle, id: "test:block", radius: 10, shape: { kind: "cylinder", radius: 10, height: 3 } }]);
+  assert.throws(() => restoreWildsGroundedPosition({ x: 0, z: 0 }, index), /wilds_ground_position_unresolved/);
+  assert.throws(() => restoreWildsGroundedPosition({ x: Number.NaN, z: 0 }, index), /wilds_ground_position_invalid/);
 });
 ```
 
-- [ ] **Step 2: Run compatibility tests and verify RED**
+- [x] **Step 2: Run compatibility tests and verify RED**
 
 Run: `npx tsx --test tests/wilds-terrain-compatibility.test.ts`
 
 Expected: compilation fails because the compatibility module does not exist.
 
-- [ ] **Step 3: Implement bounded safe projection**
+- [x] **Step 3: Implement bounded safe projection**
 
-Reject non-finite input with `wilds_ground_position_invalid`. Test the exact coordinate first. If blocked, test radii `[0.75, 1.5, 2.25, 3, 4]` with eight stable compass/intercardinal offsets in clockwise order beginning north. Accept only clear samples whose surface is not deep water and whose traversal list is empty. If no candidate succeeds, return the exact horizontal coordinate grounded to its terrain elevation with `adjusted: false`; Phase 3 will supply a last-safe runtime checkpoint before this fallback becomes player-facing.
+Reject non-finite input with `wilds_ground_position_invalid`. Test the exact coordinate first. If blocked, test radii `[0.75, 1.5, 2.25, 3, 4]` with eight stable compass/intercardinal offsets in clockwise order beginning north. Accept only clear samples whose surface is not deep water and whose traversal list is empty. If no candidate succeeds, fail closed with `wilds_ground_position_unresolved`; Phase 3 will supply a last-safe runtime checkpoint before this boundary becomes player-facing.
 
-- [ ] **Step 4: Run all Phase 1 tests**
+- [x] **Step 4: Run all Phase 1 tests**
 
 Run: `npx tsx --test tests/wilds-terrain-authority.test.ts tests/wilds-terrain-tiles.test.ts tests/wilds-terrain-obstacles.test.ts tests/wilds-terrain-compatibility.test.ts`
 
 Expected: all Phase 1 tests pass.
 
-- [ ] **Step 5: Run the repository release gate**
+- [x] **Step 5: Run the repository release gate**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
 Expected: TypeScript and ESLint exit successfully; the complete Node test suite reports zero failures.
 
-- [ ] **Step 6: Commit Task 4 and Phase 1 qualification**
+- [x] **Step 6: Commit Task 4 and Phase 1 qualification**
 
 ```bash
 git add src/features/play/wilds-terrain-compatibility.ts tests/wilds-terrain-compatibility.test.ts docs/superpowers/plans/2026-08-21-wildz-deterministic-terrain-authority.md

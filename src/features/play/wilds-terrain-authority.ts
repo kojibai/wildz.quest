@@ -135,7 +135,7 @@ export function wildsTerrainElevation(x: number, z: number) {
 }
 
 function regionIdFor(x: number, z: number) {
-  let nearest = WILDS_NAMED_REGIONS[0]!;
+  let nearest: (typeof WILDS_NAMED_REGIONS)[number] = WILDS_NAMED_REGIONS[0]!;
   let nearestDistance = Number.POSITIVE_INFINITY;
   for (const region of WILDS_NAMED_REGIONS) {
     const distance = Math.hypot(region.position.x - x, region.position.z - z);
