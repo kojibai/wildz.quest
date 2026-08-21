@@ -147,6 +147,14 @@ export type ReceizCommerceAdapter = {
   worldSnapshot(): Promise<ReceizWorldPublicSnapshotResponse>;
   worldProfile(username: string, query?: ReceizWorldProfileQuery): Promise<ReceizWorldProfileResponse>;
   worldMessage(username: string, body: ReceizWorldProfileMessageRequest): Promise<ReceizWorldProfileResponse>;
+  resolveWorldSubject: ReceizClient["subjects"]["resolve"];
+  replayWorld: ReceizClient["world"]["replay"];
+  worldAdditions: ReceizClient["world"]["additions"];
+  planWorldCommand: ReceizClient["world"]["planCommand"];
+  validateWorldCommand: ReceizClient["world"]["validateCommand"];
+  executeWorldCommand: ReceizClient["world"]["executeCommand"];
+  planWorldTransaction: ReceizClient["world"]["planTransaction"];
+  executeWorldTransaction: ReceizClient["world"]["executeTransaction"];
   twinMarketMandate(): Promise<TwinMarketMandateResponse>;
   saveTwinMarketMandate(body: SaveTwinMarketMandateInput): Promise<TwinMarketMandateResponse>;
   twinMarketIntents(): Promise<TwinMarketIntentsResponse>;
@@ -543,6 +551,30 @@ export function createReceizCommerceAdapter(
     },
     worldMessage(username, body) {
       return client.world.message(username, body);
+    },
+    resolveWorldSubject(subjectId) {
+      return client.subjects.resolve(subjectId);
+    },
+    replayWorld(input) {
+      return client.world.replay(input);
+    },
+    worldAdditions(input) {
+      return client.world.additions(input);
+    },
+    planWorldCommand(input) {
+      return client.world.planCommand(input);
+    },
+    validateWorldCommand(plan) {
+      return client.world.validateCommand(plan);
+    },
+    executeWorldCommand(plan, authority) {
+      return client.world.executeCommand(plan, authority);
+    },
+    planWorldTransaction(input) {
+      return client.world.planTransaction(input);
+    },
+    executeWorldTransaction(plan, authority) {
+      return client.world.executeTransaction(plan, authority);
     },
     twinMarketMandate() {
       return client.twin.marketMandate();
