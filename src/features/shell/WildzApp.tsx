@@ -38,7 +38,6 @@ import {
 import { shouldClearWildzResumeAfterError } from "@/lib/receiz/wildz-resume-errors";
 import { sameWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate";
 import {
-  WILDZ_OWNERSHIP_RECONCILE_INTERVAL_MS,
   WILDZ_OWNERSHIP_RECONCILE_MAX_ASSETS
 } from "@/lib/receiz/wildz-ownership-reconcile";
 import {
@@ -802,13 +801,13 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   }, [removeLostVaultAssets, continuity?.session.actorId, continuity?.playState?.inventory]);
 
   useEffect(() => {
-    if (!proofSessionConnected) return;
+    if (!proofSessionConnected || overlay?.kind !== "market") return;
     let disposed = false;
     let reconcileInFlight = false;
     let controller: AbortController | null = null;
 
     const reconcileActiveVaultOwnership = async () => {
-      if (disposed || reconcileInFlight || document.visibilityState === "hidden") return;
+      if (disposed || reconcileInFlight) return;
       const current = continuityRef.current;
       const activeAssetIds = current?.playState?.inventory.map((asset) => asset.id) ?? [];
       const pendingBearerClaims = new Set(current
@@ -842,29 +841,18 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           || !sameWildzPlayerCoordinate(continuityRef.current?.session.actorId ?? "", requestedActorId)) return;
         removeLostVaultAssets(result.lostAssetIds as string[]);
       } catch {
-        // Sync unavailability changes no local custody; the next check retries.
+        // Sync unavailability changes no local custody; reopening Market retries.
       } finally {
         reconcileInFlight = false;
         controller = null;
       }
     };
-    const refresh = () => { void reconcileActiveVaultOwnership(); };
-    const refreshWhenVisible = () => {
-      if (document.visibilityState !== "hidden") refresh();
-    };
-
-    refresh();
-    const interval = window.setInterval(refresh, WILDZ_OWNERSHIP_RECONCILE_INTERVAL_MS);
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
+    void reconcileActiveVaultOwnership();
     return () => {
       disposed = true;
       controller?.abort();
-      window.clearInterval(interval);
-      window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [proofSessionConnected, removeLostVaultAssets]);
+  }, [overlay?.kind, proofSessionConnected, removeLostVaultAssets]);
 
   useEffect(() => {
     if (typeof BroadcastChannel === "undefined") return;
@@ -902,7 +890,6 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             : downloadWildzIdentityOwnedCard(identity, asset, player)}
           onExportVault={(assets, player) => downloadWildzIdentityPlayerVault(identity, assets, player)}
           vaultAdmission={vaultAdmission}
-          admittedProofObjects={admittedProofObjects}
           onRestoreArtifact={claimAndRestoreVaultArtifact}
           onOpenProfile={(origin) => openShellOverlay({ kind: "profile", username: `@${ownerUsername}` }, origin)}
           onOpenMarket={(origin) => openShellOverlay({ kind: "market" }, origin)}

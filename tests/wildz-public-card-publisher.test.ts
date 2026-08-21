@@ -39,10 +39,12 @@ test("verified card publication is not gated by stale upload bookkeeping", () =>
   );
 });
 
-test("the live campaign publishes every currently owned verified card off the gameplay hot path", () => {
+test("the shell owns automatic publication without mounting a second gameplay publisher", () => {
   const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
-  assert.match(campaign, /usePublicCardPublisher\(deckCards, enabled && networkEnabled, admittedProofObjects\)/);
-  assert.doesNotMatch(campaign, /usePublicCardPublisher\(publicCardCandidates/);
+  const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
+  assert.doesNotMatch(campaign, /usePublicCardPublisher/);
+  assert.match(shell, /publishCurrentWildzProfile\(localPublicProfile, publishableOwnerAssets/);
+  assert.match(shell, /proofObjects:\s*admittedProofObjects/);
 });
 
 test("Vault restore clears verified upload ids before committing publisher state", () => {

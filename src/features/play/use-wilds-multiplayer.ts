@@ -16,7 +16,6 @@ import {
 
 const GUEST_KEY = "receiz:wilds:multiplayer-guest:v1";
 const WILDS_MULTIPLAYER_HEARTBEAT_MS = 2_500;
-const WILDS_MULTIPLAYER_RECOVERY_REFRESH_MS = 5_000;
 const WILDS_GLOBAL_PRESENCE_REFRESH_MS = 3_000;
 
 function samePresence(left: WildsPresence[], right: WildsPresence[]) {
@@ -92,6 +91,7 @@ export function buildWildsMultiplayerHeartbeatBody(input: {
 
 export function useWildsMultiplayer(input: {
   enabled: boolean;
+  live: boolean;
   style: "female" | "male";
   position: { x: number; z: number };
   activeCard: PortableCardAsset | null;
@@ -120,7 +120,7 @@ export function useWildsMultiplayer(input: {
 
   const heartbeat = useCallback(async () => {
     const current = latest.current;
-    if (!current.enabled || !current.activeCard || !guestId) return;
+    if (!current.enabled || !current.live || !current.activeCard || !guestId) return;
     const activeCard = current.activeCard;
     if (!shouldAttemptWildsNetwork()) {
       setMode("reconnecting");
@@ -181,11 +181,21 @@ export function useWildsMultiplayer(input: {
   }, [guestId, roomKey]);
 
   useEffect(() => {
-    void heartbeat();
-    if (!input.enabled) return;
-    const timer = window.setInterval(() => void heartbeat(), WILDS_MULTIPLAYER_HEARTBEAT_MS);
-    return () => window.clearInterval(timer);
-  }, [heartbeat, input.enabled]);
+    if (!input.live) return;
+    let stopped = false;
+    let timer: number | null = null;
+    const tickHeartbeat = () => {
+      if (stopped) return;
+      void heartbeat().finally(() => {
+        if (!stopped) timer = window.setTimeout(tickHeartbeat, WILDS_MULTIPLAYER_HEARTBEAT_MS);
+      });
+    };
+    tickHeartbeat();
+    return () => {
+      stopped = true;
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [heartbeat, input.live]);
 
   const refresh = useCallback(async () => {
     if (!input.enabled || !guestId) return;
@@ -211,13 +221,8 @@ export function useWildsMultiplayer(input: {
   }, [guestId, input.enabled, mode, roomKey]);
 
   useEffect(() => {
-    if (!input.enabled || mode !== "reconnecting") return;
-    const timer = window.setInterval(() => void refresh(), WILDS_MULTIPLAYER_RECOVERY_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, [input.enabled, mode, refresh]);
-
-  useEffect(() => {
     const resume = () => {
+      if (!latest.current.live) return;
       retryAfter.current = 0;
       void heartbeat();
       void refresh();
@@ -227,7 +232,7 @@ export function useWildsMultiplayer(input: {
   }, [heartbeat, refresh]);
 
   const refreshGlobalPresence = useCallback(async () => {
-    if (!latest.current.enabled || !guestId || !shouldAttemptWildsNetwork()) return;
+    if (!latest.current.enabled || !latest.current.live || !guestId || !shouldAttemptWildsNetwork()) return;
     const current = latest.current;
     try {
       const params = new URLSearchParams({
@@ -245,11 +250,21 @@ export function useWildsMultiplayer(input: {
   }, [guestId]);
 
   useEffect(() => {
-    void refreshGlobalPresence();
-    if (!input.enabled) return;
-    const timer = window.setInterval(() => void refreshGlobalPresence(), WILDS_GLOBAL_PRESENCE_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, [input.enabled, refreshGlobalPresence]);
+    if (!input.live) return;
+    let stopped = false;
+    let timer: number | null = null;
+    const tickPresence = () => {
+      if (stopped) return;
+      void refreshGlobalPresence().finally(() => {
+        if (!stopped) timer = window.setTimeout(tickPresence, WILDS_GLOBAL_PRESENCE_REFRESH_MS);
+      });
+    };
+    tickPresence();
+    return () => {
+      stopped = true;
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [input.live, refreshGlobalPresence]);
 
   const post = useCallback(async (path: "message" | "challenge" | "battle", body: Record<string, unknown>) => {
     try {

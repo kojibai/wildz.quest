@@ -4,7 +4,6 @@ import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import { WILDZ_PRODUCT } from "../wildz/product";
 
 export const WILDZ_OWNERSHIP_RECONCILE_MAX_ASSETS = 1_000;
-export const WILDZ_OWNERSHIP_RECONCILE_INTERVAL_MS = 2_000;
 export const WILDZ_OWNERSHIP_SYNC_NAMESPACE = "wildz.quest:ownership:v119";
 export const WILDZ_OWNERSHIP_SYNC_SCHEMA = "receiz.wilds_ownership_sync.v119";
 

@@ -14,7 +14,6 @@ import {
   parseWildzOwnershipReconcileRequest,
   WILDZ_OWNERSHIP_SYNC_NAMESPACE,
   WILDZ_OWNERSHIP_SYNC_SCHEMA,
-  WILDZ_OWNERSHIP_RECONCILE_INTERVAL_MS,
   WILDZ_OWNERSHIP_RECONCILE_MAX_ASSETS
 } from "../src/lib/receiz/wildz-ownership-reconcile";
 
@@ -206,24 +205,23 @@ test("Vault upload disposition treats bearer claiming as transfer-only", () => {
   }, asset.manifest.ownerReceizId), "claim-bearer");
 });
 
-test("cross-device active Vault invalidation checks the admitted projection every two seconds", () => {
+test("cross-device Vault invalidation runs only at the explicit Market boundary", () => {
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
 
-  assert.equal(WILDZ_OWNERSHIP_RECONCILE_INTERVAL_MS, 2_000);
   assert.match(shell, /const removeLostVaultAssets = useCallback/);
   assert.match(shell, /removeWildzAssetsFromActiveVault/);
   assert.match(shell, /kind:\s*"vault"/);
   assert.match(shell, /proofSessionConnected/);
-  assert.match(shell, /document\.visibilityState === "hidden"/);
   assert.match(shell, /reconcileInFlight/);
   assert.match(shell, /fetch\("\/api\/market\/ownership\/reconcile"/);
   assert.match(shell, /JSON\.stringify\(\{\s*assetIds\s*\}\)/);
   assert.match(shell, /pendingBearerClaims/);
   assert.match(shell, /filter\(\(assetId\) => !pendingBearerClaims\.has\(assetId\)\)/);
   assert.match(shell, /removeLostVaultAssets\(result\.lostAssetIds(?: as string\[\])?\)/);
-  assert.match(shell, /window\.setInterval\([\s\S]*WILDZ_OWNERSHIP_RECONCILE_INTERVAL_MS/);
-  assert.match(shell, /window\.addEventListener\("focus"/);
-  assert.match(shell, /document\.addEventListener\("visibilitychange"/);
-  assert.match(shell, /window\.removeEventListener\("focus"/);
-  assert.match(shell, /document\.removeEventListener\("visibilitychange"/);
+  const reconciliation = shell.slice(
+    shell.lastIndexOf("useEffect(() => {", shell.indexOf("const reconcileActiveVaultOwnership")),
+    shell.indexOf("useEffect(() => {", shell.indexOf("const reconcileActiveVaultOwnership") + 1)
+  );
+  assert.match(reconciliation, /overlay\?\.kind !== "market"/);
+  assert.doesNotMatch(reconciliation, /setInterval|addEventListener/);
 });

@@ -91,7 +91,6 @@ import { deriveLoadoutSynergy, projectWildsCardMastery } from "@/features/play/w
 import {
   createWildzVaultCardMembershipProof,
   deriveWildzVaultCardAdmission,
-  type WildzAdmittedVaultProofObjects,
   type WildzVaultCardAdmission,
   type WildzVaultCardMembershipProof
 } from "@/lib/receiz/wildz-vault-card-admission";
@@ -109,7 +108,6 @@ import {
 } from "@/features/play/trainer-encounter";
 import { creatureCareNotificationSchedule, WILDZ_CARE_PERIODIC_TAG } from "@/features/pwa/creature-care-schedule";
 import { WILDZ_CARE_NOTIFICATIONS_READY, WILDZ_CARE_SCHEDULE_MESSAGE } from "@/features/pwa/pwa-events";
-import { usePublicCardPublisher } from "@/features/play/use-public-card-publisher";
 import { WildsWorldCanvas } from "@/features/play/WildsWorldCanvas";
 
 const WildsWorldMap = dynamic(() => import("@/features/play/WildsWorldMap").then((mod) => mod.WildsWorldMap), { ssr: false });
@@ -139,7 +137,6 @@ export function PlayCampaign({
   onExportCard,
   onExportVault,
   vaultAdmission,
-  admittedProofObjects,
   onRestoreArtifact
 }: {
   campaignName?: string;
@@ -161,7 +158,6 @@ export function PlayCampaign({
   onExportCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
   onExportVault: (assets: PortableCardAsset[], player: WildsPlayerVaultPayload) => Promise<unknown>;
   vaultAdmission: WildzVaultCardAdmission | null;
-  admittedProofObjects?: WildzAdmittedVaultProofObjects;
   onRestoreArtifact: (
     file: File,
     confirmCardOnly: WildzCardOnlyConfirmation,
@@ -281,11 +277,6 @@ export function PlayCampaign({
   const activeCard = selectedCard(state);
   const activeAsset = selectedAsset(state);
   const deckCards = state.inventory;
-  // Public card pages and the QR printed into card artifacts resolve from the
-  // verified public projection. Publish every currently owned, valid proof in
-  // cooperative background batches; this is deliberately outside input,
-  // capture, movement, restore, and card-export hot paths.
-  usePublicCardPublisher(deckCards, enabled && networkEnabled, admittedProofObjects);
   const priorVaultIdsRef = useRef(new Set(state.inventory.map((asset) => asset.id)));
   const [newRosterAssetId, setNewRosterAssetId] = useState<string | null>(null);
   const [initialVaultAdmission] = useState<WildzVaultCardAdmission>(() => vaultAdmission ?? deriveWildzVaultCardAdmission({
@@ -340,6 +331,7 @@ export function PlayCampaign({
     // networkEnabled still protects canonical world writes, but must not turn
     // unauthenticated live players into an isolated local session.
     enabled: enabled && Boolean(activeAsset),
+    live: multiplayerRosterOpen,
     style: explorerStyle,
     position: state.player,
     activeCard: activeAsset,

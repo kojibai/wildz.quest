@@ -89,6 +89,25 @@ test("production rendering does not run the diagnostics sampler", () => {
   assert.match(world, /WILDS_DIAGNOSTICS_ENABLED \? <WildsDiagnostics/);
 });
 
+test("proof admission does not activate recurring work on the gameplay hot path", () => {
+  const campaign = source("src/features/play/PlayCampaign.tsx");
+  const multiplayer = source("src/features/play/use-wilds-multiplayer.ts");
+  const world = source("src/features/play/use-wilds-world.ts");
+  const shell = source("src/features/shell/WildzApp.tsx");
+
+  assert.doesNotMatch(campaign, /usePublicCardPublisher/);
+  assert.match(campaign, /live:\s*multiplayerRosterOpen/);
+  assert.doesNotMatch(world, /setInterval/);
+  assert.doesNotMatch(multiplayer, /setInterval/);
+
+  const ownership = shell.slice(
+    shell.lastIndexOf("useEffect(() => {", shell.indexOf("const reconcileActiveVaultOwnership")),
+    shell.indexOf("useEffect(() => {", shell.indexOf("const reconcileActiveVaultOwnership") + 1)
+  );
+  assert.match(ownership, /overlay\?\.kind !== "market"/);
+  assert.doesNotMatch(ownership, /setInterval|addEventListener/);
+});
+
 test("trackpad pointer motion updates the knob outside React's render path", () => {
   const dpad = source("src/features/play/WildzDpad.tsx");
   assert.match(dpad, /const knobRef = useRef<HTMLElement>/);

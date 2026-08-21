@@ -195,15 +195,11 @@ export function useWildsWorld(input: {
   }, [input.enabled]);
 
   useEffect(() => {
-    void refresh();
-    if (!input.enabled) return;
-    const timer = window.setInterval(() => void refresh(), 2_000);
-    return () => window.clearInterval(timer);
-  }, [input.enabled, refresh]);
-
-  useEffect(() => () => {
-    for (const controller of controllers.current) controller.abort();
-    controllers.current.clear();
+    const activeControllers = controllers.current;
+    return () => {
+      for (const controller of activeControllers) controller.abort();
+      activeControllers.clear();
+    };
   }, []);
 
   const post = useCallback(async (command: WildsWorldCommand) => {

@@ -83,14 +83,16 @@ it("does not turn optional multiplayer projection publication into a repeating r
   assert.match(routes, /publishWildsRoomToReceiz/);
 });
 
-it("keeps authenticated walking off redundant multiplayer refresh loops", () => {
+it("keeps authenticated walking completely free of multiplayer refresh loops", () => {
   const hook = readFileSync("src/features/play/use-wilds-multiplayer.ts", "utf8");
   const surface = readFileSync("src/features/play/WildsMultiplayer.tsx", "utf8");
+  assert.match(hook, /live:\s*boolean/);
+  assert.match(hook, /if \(!input\.live\) return/);
+  assert.doesNotMatch(hook, /setInterval/);
   assert.match(hook, /WILDS_MULTIPLAYER_HEARTBEAT_MS = 2_500/);
-  assert.match(hook, /mode !== "reconnecting"/);
   assert.match(hook, /WILDS_GLOBAL_PRESENCE_REFRESH_MS = 3_000/);
-  assert.doesNotMatch(hook, /setInterval\(\(\) => void refresh\(\), 900\)/);
-  assert.doesNotMatch(hook, /setInterval\(\(\) => void refreshGlobalPresence\(\), 900\)/);
+  assert.match(hook, /setTimeout\(tickHeartbeat, WILDS_MULTIPLAYER_HEARTBEAT_MS\)/);
+  assert.match(hook, /setTimeout\(tickPresence, WILDS_GLOBAL_PRESENCE_REFRESH_MS\)/);
   assert.match(surface, /liveSurfaceOpen && multiplayer\.error/);
   const sessionRoute = readFileSync("app/api/wilds/multiplayer/session/route.ts", "utf8");
   const atlasRoute = readFileSync("app/api/wilds/atlas/route.ts", "utf8");
