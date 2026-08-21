@@ -72,7 +72,10 @@ export function WildsAtlasCanvas({
 }) {
   const atlasSparkleCount = reducedMotion ? 12 : Math.round(38 * qualityProfile.particles);
   const atlasSpan = wildsAtlasProjectedSpan(projection.nodes, projection.regionUnit);
-  const viewBounds = projectedNodeBounds(projection);
+  const viewBounds = useMemo(
+    () => projectedNodeBounds(projection.nodes, projection.bounds),
+    [projection.bounds, projection.nodes]
+  );
   const fogFar = Math.max(29, Math.min(72, atlasSpan * 1.8 + 18));
   return (
     <div aria-hidden="true" className="wilds-atlas-canvas">
@@ -130,14 +133,17 @@ export function WildsAtlasCanvas({
   );
 }
 
-function projectedNodeBounds(projection: WildsAtlasProjection): WildsAtlasProjection["bounds"] {
-  if (projection.nodes.length === 0) return projection.bounds;
+function projectedNodeBounds(
+  nodes: WildsAtlasProjection["nodes"],
+  fallback: WildsAtlasProjection["bounds"]
+): WildsAtlasProjection["bounds"] {
+  if (nodes.length === 0) return fallback;
   return {
-    minX: Math.min(...projection.nodes.map((node) => node.regionX)),
-    maxX: Math.max(...projection.nodes.map((node) => node.regionX)),
-    minZ: Math.min(...projection.nodes.map((node) => node.regionZ)),
-    maxZ: Math.max(...projection.nodes.map((node) => node.regionZ)),
-    count: projection.nodes.length
+    minX: Math.min(...nodes.map((node) => node.regionX)),
+    maxX: Math.max(...nodes.map((node) => node.regionX)),
+    minZ: Math.min(...nodes.map((node) => node.regionZ)),
+    maxZ: Math.max(...nodes.map((node) => node.regionZ)),
+    count: nodes.length
   };
 }
 
@@ -167,17 +173,10 @@ function AtlasCameraRig({
   const lastFitRequest = useRef(fitRequest);
   const lastZoom = useRef<WildsAtlasProjection["zoom"] | null>(null);
   const { camera, invalidate, size } = useThree();
-  const frame = useMemo(() => atlasCameraFrame({ bounds, centerRegion, regionUnit }, size), [
-    bounds.maxX,
-    bounds.maxZ,
-    bounds.minX,
-    bounds.minZ,
-    centerRegion.x,
-    centerRegion.z,
-    regionUnit,
-    size.height,
-    size.width
-  ]);
+  const frame = useMemo(
+    () => atlasCameraFrame({ bounds, centerRegion, regionUnit }, size),
+    [bounds, centerRegion, regionUnit, size]
+  );
   useLayoutEffect(() => {
     if (!(camera instanceof THREE.PerspectiveCamera)) return;
     camera.fov = frame.fov;
@@ -360,7 +359,7 @@ function AtlasInstancedCellFallback({
   tile: WildsAtlasRenderTile;
 }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
-  const cells = tile.cells ?? [];
+  const cells = useMemo(() => tile.cells ?? [], [tile.cells]);
   useLayoutEffect(() => {
     if (!mesh.current) return;
     const matrix = new THREE.Matrix4();
