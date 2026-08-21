@@ -9,13 +9,17 @@ import {
   serializePlayState,
   type PlayState
 } from "../src/features/play/game-state";
-import { admitLegacyCard, currentRevision, emptyLivingGrowth } from "../src/features/play/living-card-proof.js";
+import { admitLegacyCard, currentLivingGenome, currentRevision, emptyLivingGrowth } from "../src/features/play/living-card-proof.js";
 import { nextGrowthRequirements } from "../src/features/play/growth-engine.js";
 import { canonicalPortableCardJson, evolvePortableCard, sealCollectedCard, verifyAnyWildsCard, verifyPortableCard } from "../src/features/play/portable-card.js";
 import { nearbyHiddenHotspots } from "../src/features/play/hidden-hotspots.js";
 import { isLivingCardAsset } from "../src/features/play/living-card-types.js";
 import { livingCreatureIdentityDigest } from "../src/features/play/living-taxonomy.js";
-import { projectEncounterCreatureVisualIdentity } from "../src/features/play/creature-visual-identity.js";
+import {
+  projectCardCreatureVisualIdentity,
+  projectEncounterCreatureVisualIdentity,
+  projectLivingGenomeCreatureVisualIdentity
+} from "../src/features/play/creature-visual-identity.js";
 import { createWildsCivicEvent } from "../src/features/play/wilds-civic-history.js";
 import { sealRetirement } from "../src/features/games/lifecycle/creature-retirement.js";
 import { deriveKaiKlokMoment } from "../src/features/play/kai-klok-moment.js";
@@ -241,6 +245,14 @@ describe("Receiz Wilds game state", () => {
     assert.doesNotMatch(fused.inventory.at(-1)?.manifest.name ?? "", /flowkin/i);
     assert.equal(currentRevision(fused.inventory[0] as ReturnType<typeof admitLegacyCard>).childEventIds.length, 1);
     assert.equal(currentRevision(fused.inventory[1] as ReturnType<typeof admitLegacyCard>).childEventIds.length, 1);
+    const child = fused.inventory.at(-1)!;
+    assert.equal(isLivingCardAsset(child), true);
+    if (!isLivingCardAsset(child)) return;
+    assert.equal(child.manifest.birth.kind, "fusion");
+    assert.deepEqual(
+      projectCardCreatureVisualIdentity(child),
+      projectLivingGenomeCreatureVisualIdentity(currentLivingGenome(child), child.manifest.formId)
+    );
   });
 
   it("selects any exact inventory asset as the active battle card", () => {
@@ -672,7 +684,8 @@ describe("Receiz Wilds game state", () => {
   });
 
   it("restores the exact wild creature visual identity from a saved encounter", () => {
-    const hotspot = nearbyHiddenHotspots(initialPlayState.player)[0]!;
+    const hotspots = nearbyHiddenHotspots(initialPlayState.player);
+    const hotspot = hotspots[0]!;
     const discovered = applyWildsInput(initialPlayState, {
       type: "search-point",
       x: hotspot.position.x,
@@ -682,14 +695,22 @@ describe("Receiz Wilds game state", () => {
     });
     assert.notEqual(discovered.encounter.phase, "idle");
     if (discovered.encounter.phase === "idle" || !discovered.encounter.discoveryIdentity || !discovered.encounter.formId) return;
+    const identity = discovered.encounter.discoveryIdentity;
+    const canonicalFormId = discovered.encounter.formId;
     const original = projectEncounterCreatureVisualIdentity({
-      identity: discovered.encounter.discoveryIdentity,
-      formId: discovered.encounter.formId
+      identity,
+      formId: canonicalFormId
     });
+    const staleFormId = hotspots.find((candidate) => candidate.familyId !== identity.family.id)!.formId;
 
-    const restored = restorePlayState(serializePlayState(discovered));
+    const restored = restorePlayState(serializePlayState({
+      ...discovered,
+      encounter: { ...discovered.encounter, familyId: "stale-family", formId: staleFormId }
+    }));
     assert.notEqual(restored.encounter.phase, "idle");
     if (restored.encounter.phase === "idle" || !restored.encounter.discoveryIdentity || !restored.encounter.formId) return;
+    assert.equal(restored.encounter.formId, canonicalFormId);
+    assert.equal(restored.encounter.familyId, identity.family.id);
     assert.deepEqual(projectEncounterCreatureVisualIdentity({
       identity: restored.encounter.discoveryIdentity,
       formId: restored.encounter.formId
@@ -724,6 +745,39 @@ describe("Receiz Wilds game state", () => {
       identity: restored.encounter.discoveryIdentity,
       formId: restored.encounter.formId
     }), original);
+  });
+
+  it("reconstructs identity for every visible legacy encounter phase", () => {
+    const hotspot = nearbyHiddenHotspots(initialPlayState.player)[0]!;
+    const discovered = applyWildsInput(initialPlayState, {
+      type: "search-point",
+      x: hotspot.position.x,
+      z: hotspot.position.z,
+      searchedAt: "2026-07-17T12:00:00.000Z",
+      ownerReceizId: "player.receiz.id"
+    });
+    assert.notEqual(discovered.encounter.phase, "idle");
+    if (discovered.encounter.phase === "idle" || !discovered.encounter.discoveryIdentity || !discovered.encounter.formId) return;
+    const original = projectEncounterCreatureVisualIdentity({
+      identity: discovered.encounter.discoveryIdentity,
+      formId: discovered.encounter.formId
+    });
+    const visiblePhases = ["battle_intro", "player_turn", "capture_ready", "fled", "defeated", "emerging", "capsule", "sealed", "revealed"] as const;
+
+    for (const phase of visiblePhases) {
+      const envelope = JSON.parse(serializePlayState({
+        ...discovered,
+        encounter: { ...discovered.encounter, phase }
+      }));
+      delete envelope.state.encounter.discoveryIdentity;
+      const restored = restorePlayState(JSON.stringify(envelope));
+      assert.equal(restored.encounter.phase, phase === "sealed" ? "revealed" : phase);
+      if (!restored.encounter.discoveryIdentity || !restored.encounter.formId) continue;
+      assert.deepEqual(projectEncounterCreatureVisualIdentity({
+        identity: restored.encounter.discoveryIdentity,
+        formId: restored.encounter.formId
+      }), original, phase);
+    }
   });
 
   it("reconstructs a missing discovery identity and completes capture after refresh", () => {

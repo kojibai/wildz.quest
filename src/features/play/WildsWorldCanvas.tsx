@@ -645,8 +645,8 @@ function Creature({
           accent={appearance?.palette.accent ?? card.accent}
           anatomy={appearance ? { ...appearance.anatomy, appendages: appearance.appendages } : undefined}
           cadenceMs={appearance?.cadenceMs}
-          familyId={card.id}
-          formId={formId}
+          familyId={identity?.family.id ?? card.id}
+          formId={appearance?.formId ?? formId}
           glow={appearance?.palette.glow ?? card.accent}
           identityToken={appearance?.fingerprint}
           morphology={appearance?.morphology}

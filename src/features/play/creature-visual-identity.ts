@@ -1,11 +1,11 @@
-import { creatureForm } from "./creature-catalog";
+import { creatureForm, creatureForms } from "./creature-catalog";
 import { deriveKaiCreatureBirth } from "./kai-creature-birth";
 import { deriveKaiKlokMoment } from "./kai-klok-moment";
 import { deriveBirthGenome } from "./heartbound-genome";
 import { currentLivingGenome } from "./living-card-proof";
 import { isLivingCardAsset, type LivingCardGenome } from "./living-card-types";
 import { deriveCardVariantV3 } from "./card-variant";
-import { validateLivingCreatureIdentity, type LivingCreatureIdentityV3 } from "./living-taxonomy";
+import type { LivingCreatureIdentityV3 } from "./living-taxonomy";
 import type { PortableCardAsset } from "./portable-card";
 
 export type FunctionalAppendage = Readonly<{
@@ -113,14 +113,16 @@ export function projectEncounterCreatureVisualIdentity(input: {
   identity: LivingCreatureIdentityV3;
   formId: string;
 }): CreatureVisualIdentity {
-  const form = creatureForm(input.formId);
-  if (!form || form.stage !== 1) throw new Error("wilds_encounter_visual_form_unknown");
-  if (!validateLivingCreatureIdentity(input.identity).ok
-    || input.identity.family.id !== form.familyId
-    || input.identity.anatomy.body !== form.anatomy.body
-    || input.identity.anatomy.detail !== form.anatomy.detail) {
-    throw new Error("wilds_encounter_visual_identity_mismatch");
-  }
+  const requestedForm = creatureForm(input.formId);
+  const requestedMatchesIdentity = requestedForm?.stage === 1
+    && requestedForm.familyId === input.identity.family.id
+    && requestedForm.anatomy.body === input.identity.anatomy.body
+    && requestedForm.anatomy.detail === input.identity.anatomy.detail;
+  const form = requestedMatchesIdentity ? requestedForm : creatureForms.find((candidate) => candidate.stage === 1
+    && candidate.familyId === input.identity.family.id
+    && candidate.anatomy.body === input.identity.anatomy.body
+    && candidate.anatomy.detail === input.identity.anatomy.detail);
+  if (!form) throw new Error("wilds_encounter_visual_form_unknown");
   const traits = deriveCardVariantV3(input.identity.identityDigest, input.identity);
   const genome = deriveBirthGenome({
     formId: form.id,
@@ -143,10 +145,11 @@ export function projectCardCreatureVisualIdentity(asset: PortableCardAsset): Cre
   const form = creatureForm(asset.manifest.formId);
   if (!form) throw new Error("wilds_creature_visual_form_unknown");
   const variant = asset.manifest.variant;
-  if (variant.generatorVersion === 3 && form.stage === 1) {
+  const living = isLivingCardAsset(asset);
+  if (variant.generatorVersion === 3 && form.stage === 1 && (!living || asset.manifest.birth.kind !== "fusion")) {
     return projectEncounterCreatureVisualIdentity({ identity: variant.traits.identity, formId: form.id });
   }
-  const genome = isLivingCardAsset(asset)
+  const genome = living
     ? currentLivingGenome(asset)
     : deriveBirthGenome({
         formId: asset.manifest.formId,
@@ -154,6 +157,9 @@ export function projectCardCreatureVisualIdentity(asset: PortableCardAsset): Cre
         variant: asset.manifest.variant.traits
       });
   if (variant.generatorVersion === 3) {
+    if (living && asset.manifest.birth.kind === "fusion") {
+      return projectLivingGenomeCreatureVisualIdentity(genome, form.id);
+    }
     const identity = variant.traits.identity;
     return projectLivingGenomeCreatureVisualIdentity(genome, form.id, {
       morphology: { head: identity.anatomy.head, torso: identity.anatomy.torso, limb: identity.anatomy.limb, symmetry: identity.anatomy.asymmetry },

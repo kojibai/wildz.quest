@@ -15,6 +15,7 @@ import {
   sealDiscoveredCard,
   verifyPortableCard
 } from "../src/features/play/portable-card.js";
+import { projectActorWingRenderPlan } from "../src/features/play/WildsCreatureActor.js";
 
 describe("Wildz discovery-sealed identity", () => {
   it("preserves the exact creature visual identity across capture", () => {
@@ -39,6 +40,39 @@ describe("Wildz discovery-sealed identity", () => {
     const after = projectCardCreatureVisualIdentity(captured.inventory.at(-1)!);
 
     assert.deepEqual(after, before);
+  });
+
+  it("uses the identity's canonical form when migrated encounter metadata is stale", () => {
+    const hotspots = nearbyHiddenHotspots(initialPlayState.player);
+    const hotspot = hotspots[0]!;
+    const discovered = applyWildsInput(initialPlayState, {
+      type: "search-point",
+      x: hotspot.position.x,
+      z: hotspot.position.z,
+      searchedAt: "2026-07-17T12:00:00.000Z",
+      ownerReceizId: "player.receiz.id"
+    });
+    assert.notEqual(discovered.encounter.phase, "idle");
+    if (discovered.encounter.phase === "idle" || !discovered.encounter.discoveryIdentity || !discovered.encounter.formId) return;
+    const identity = discovered.encounter.discoveryIdentity;
+    const canonicalFormId = discovered.encounter.formId;
+    const staleFormId = hotspots.find((candidate) => candidate.familyId !== identity.family.id)!.formId;
+
+    const canonical = projectEncounterCreatureVisualIdentity({
+      identity,
+      formId: canonicalFormId
+    });
+    const migrated = projectEncounterCreatureVisualIdentity({
+      identity,
+      formId: staleFormId
+    });
+
+    assert.deepEqual(migrated, canonical);
+    assert.equal(migrated.formId, canonicalFormId);
+    assert.deepEqual(
+      projectActorWingRenderPlan({ ...migrated.anatomy, appendages: migrated.appendages }),
+      projectActorWingRenderPlan({ ...canonical.anatomy, appendages: canonical.appendages })
+    );
   });
 
   it("creates one permanent identity at first discovery and carries its name into battle", () => {

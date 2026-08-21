@@ -736,7 +736,8 @@ function restoreEncounter(value: unknown, occupiedNames: ReadonlySet<string> = n
       discoveryIdentity = undefined;
     }
   }
-  if (!discoveryIdentity && (candidate.phase === "emerging" || candidate.phase === "capsule")) {
+  const visibleIdentityPhases = new Set(["battle_intro", "player_turn", "capture_ready", "fled", "defeated", "emerging", "capsule", "sealed", "revealed"]);
+  if (!discoveryIdentity && visibleIdentityPhases.has(String(candidate.phase))) {
     discoveryIdentity = reconstructEncounterDiscoveryIdentity({
       hotspotId: typeof candidate.hotspotId === "string" ? candidate.hotspotId : undefined,
       formId: typeof candidate.formId === "string" ? candidate.formId : undefined,
@@ -745,7 +746,14 @@ function restoreEncounter(value: unknown, occupiedNames: ReadonlySet<string> = n
       ownerReceizId: candidate.ownerReceizId
     }, occupiedNames);
   }
-  return { ...candidate, proximity, trend, discoveryIdentity } as EncounterState;
+  const canonicalForm = discoveryIdentity ? discoveredFormForIdentity(discoveryIdentity) : undefined;
+  return {
+    ...candidate,
+    proximity,
+    trend,
+    ...(canonicalForm ? { familyId: canonicalForm.familyId, formId: canonicalForm.id } : {}),
+    discoveryIdentity
+  } as EncounterState;
 }
 
 export function selectedCard(state: PlayState) {
