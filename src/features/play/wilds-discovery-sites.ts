@@ -103,13 +103,26 @@ export type WildsSiteSurface = Readonly<{
   flooded: boolean;
 }>;
 
+export type WildsMountainFieldNode = Readonly<{ x: number; z: number; baseY: number; topY: number }>;
+export type WildsMountainField = Readonly<{
+  id: string;
+  siteKey: string;
+  spaceId: "wildz.space.outer.v1";
+  center: Point3;
+  halfExtents: Point3;
+  columns: number;
+  rows: number;
+  nodes: readonly WildsMountainFieldNode[];
+}>;
+
 export type WildsDiscoveryPhysicalNeighborhood = Readonly<{
   version: "wildz.site-physical-neighborhood.v1";
   regionX: number;
   regionZ: number;
   sites: readonly WildsDiscoverySiteProjection[];
   surfaces: readonly WildsSiteSurface[];
-  solids: readonly Readonly<{ id: string; siteKey: string; spaceId: string; center: Point3; halfExtents: Point3 }>[];
+  solids: readonly Readonly<{ id: string; siteKey: string; spaceId: string; center: Point3; halfExtents: Point3; kind?: "mountain-envelope" }>[];
+  mountainFields: readonly WildsMountainField[];
   ceilings: readonly Readonly<{ id: string; siteKey: string; spaceId: string; center: Point3; halfExtents: Point3 }>[];
   portals: readonly Readonly<{ id: string; siteKey: string; position: Point3; fromSpaceId: "wildz.space.outer.v1"; toSpaceId: string }>[];
   waterVolumes: readonly Readonly<{
@@ -160,6 +173,32 @@ let terrainSamples = 0;
 
 function quantize(value: number) {
   return Math.round(value * 1_000_000) / 1_000_000;
+}
+
+export function wildsMountainFieldValue(
+  field: WildsMountainField,
+  x: number,
+  z: number,
+  key: "baseY" | "topY"
+) {
+  const minX = field.center.x - field.halfExtents.x;
+  const minZ = field.center.z - field.halfExtents.z;
+  const width = field.halfExtents.x * 2;
+  const depth = field.halfExtents.z * 2;
+  if (x < minX || x > minX + width || z < minZ || z > minZ + depth) return Number.NaN;
+  const gridX = width === 0 ? 0 : (x - minX) / width * (field.columns - 1);
+  const gridZ = depth === 0 ? 0 : (z - minZ) / depth * (field.rows - 1);
+  const column = Math.min(field.columns - 2, Math.max(0, Math.floor(gridX)));
+  const row = Math.min(field.rows - 2, Math.max(0, Math.floor(gridZ)));
+  const amountX = Math.min(1, Math.max(0, gridX - column));
+  const amountZ = Math.min(1, Math.max(0, gridZ - row));
+  const northwest = field.nodes[row * field.columns + column]![key];
+  const northeast = field.nodes[row * field.columns + column + 1]![key];
+  const southwest = field.nodes[(row + 1) * field.columns + column]![key];
+  const southeast = field.nodes[(row + 1) * field.columns + column + 1]![key];
+  return quantize(amountX + amountZ <= 1
+    ? northwest + (northeast - northwest) * amountX + (southwest - northwest) * amountZ
+    : southeast + (southwest - southeast) * (1 - amountX) + (northeast - southeast) * (1 - amountZ));
 }
 
 function assertedInteger(value: number, name: string) {
@@ -478,6 +517,7 @@ function buildPhysicalNeighborhood(regionX: number, regionZ: number): WildsDisco
   const sites = admitWildsDiscoveryNeighborhood(regionX, regionZ);
   const surfaces: WildsSiteSurface[] = [];
   const solids: Array<WildsDiscoveryPhysicalNeighborhood["solids"][number]> = [];
+  const mountainFields: WildsMountainField[] = [];
   const ceilings: Array<WildsDiscoveryPhysicalNeighborhood["ceilings"][number]> = [];
   const portals: Array<WildsDiscoveryPhysicalNeighborhood["portals"][number]> = [];
   const waterVolumes: Array<WildsDiscoveryPhysicalNeighborhood["waterVolumes"][number]> = [];
@@ -521,20 +561,50 @@ function buildPhysicalNeighborhood(regionX: number, regionZ: number): WildsDisco
     if (site.mountain) {
       const height = site.mountain.summitY - site.entrance.y;
       const width = site.mountain.scaleClass === "massif" ? 34 : site.mountain.scaleClass === "mountain" ? 20 : 9;
-      solids.push(Object.freeze({
-        id: `solid:${site.key}:ridge-west`,
-        siteKey: site.key,
-        spaceId: outerId,
-        center: freezePoint(site.entrance.x - width * .62, site.entrance.y + height / 2, site.entrance.z),
-        halfExtents: freezePoint(width * .45, height / 2, width)
-      }));
-      solids.push(Object.freeze({
-        id: `solid:${site.key}:ridge-east`,
-        siteKey: site.key,
-        spaceId: outerId,
-        center: freezePoint(site.entrance.x + width * .62, site.entrance.y + height / 2, site.entrance.z),
-        halfExtents: freezePoint(width * .45, height / 2, width)
-      }));
+      for (const side of [-1, 1] as const) {
+        const columns = 5;
+        const rows = 7;
+        const halfX = width * .45;
+        const halfZ = width;
+        const centerX = site.entrance.x + side * width * .62;
+        const nodes: WildsMountainFieldNode[] = [];
+        for (let row = 0; row < rows; row += 1) {
+          const zAmount = row / (rows - 1);
+          const z = quantize(site.entrance.z - halfZ + zAmount * halfZ * 2);
+          for (let column = 0; column < columns; column += 1) {
+            const xAmount = column / (columns - 1);
+            const x = quantize(centerX - halfX + xAmount * halfX * 2);
+            const terrain = sampleWildsTerrain(x, z);
+            terrainSamples += 1;
+            const normalizedX = Math.abs(x - centerX) / halfX;
+            const normalizedZ = Math.abs(z - site.entrance.z) / halfZ;
+            const profile = Math.pow(Math.max(0, 1 - Math.max(normalizedX, normalizedZ)), 1.35);
+            const topY = Math.max(terrain.elevation + .65, site.entrance.y + height * profile);
+            nodes.push(Object.freeze({ x, z, baseY: quantize(terrain.elevation), topY: quantize(topY) }));
+          }
+        }
+        const minimumBase = Math.min(...nodes.map((node) => node.baseY)) - .25;
+        const maximumTop = Math.max(...nodes.map((node) => node.topY));
+        const field = Object.freeze({
+          id: `mountain-field:${site.key}:${side < 0 ? "west" : "east"}`,
+          siteKey: site.key,
+          spaceId: outerId,
+          center: freezePoint(centerX, (minimumBase + maximumTop) / 2, site.entrance.z),
+          halfExtents: freezePoint(halfX, (maximumTop - minimumBase) / 2, halfZ),
+          columns,
+          rows,
+          nodes: Object.freeze(nodes)
+        });
+        mountainFields.push(field);
+        solids.push(Object.freeze({
+          id: `solid:${site.key}:ridge-${side < 0 ? "west" : "east"}`,
+          siteKey: site.key,
+          spaceId: outerId,
+          center: field.center,
+          halfExtents: field.halfExtents,
+          kind: "mountain-envelope" as const
+        }));
+      }
     }
 
     if (site.interior.kind === "cave") {
@@ -667,6 +737,7 @@ function buildPhysicalNeighborhood(regionX: number, regionZ: number): WildsDisco
     sites,
     surfaces: Object.freeze(surfaces),
     solids: Object.freeze(solids),
+    mountainFields: Object.freeze(mountainFields),
     ceilings: Object.freeze(ceilings),
     portals: Object.freeze(portals),
     waterVolumes: Object.freeze(waterVolumes),
@@ -753,8 +824,6 @@ export function normalizeWildsSiteSpaceState(value: unknown, legacyPosition: Poi
   const position = candidate.position as Record<string, unknown> | undefined;
   if (candidate.version !== "wildz.site-space-state.v1"
     || typeof candidate.spaceId !== "string"
-    || typeof candidate.siteKey !== "string"
-    || typeof candidate.surfaceId !== "string"
     || !position
     || typeof position.x !== "number" || !Number.isFinite(position.x)
     || typeof position.y !== "number" || !Number.isFinite(position.y)
@@ -762,6 +831,29 @@ export function normalizeWildsSiteSpaceState(value: unknown, legacyPosition: Poi
   const restoredX = position.x as number;
   const restoredY = position.y as number;
   const restoredZ = position.z as number;
+  if (candidate.spaceId === outerSpaceId()) {
+    const region = wildsDiscoverySiteRegionForPosition({ x: restoredX, z: restoredZ });
+    const physical = admitWildsDiscoveryPhysicalNeighborhood(region.x, region.z);
+    let selected: WildsMountainField | null = null;
+    let selectedTop = Number.NEGATIVE_INFINITY;
+    for (const field of physical.mountainFields) {
+      const top = wildsMountainFieldValue(field, restoredX, restoredZ, "topY");
+      if (Number.isFinite(top) && top > selectedTop) {
+        selected = field;
+        selectedTop = top;
+      }
+    }
+    if (!selected) return legacyOuterSpace(legacyPosition);
+    return Object.freeze({
+      version: "wildz.site-space-state.v1" as const,
+      spaceId: outerSpaceId(),
+      siteKey: null,
+      surfaceId: selected.id,
+      position: freezePoint(restoredX, selectedTop, restoredZ),
+      flooded: false
+    });
+  }
+  if (typeof candidate.siteKey !== "string" || typeof candidate.surfaceId !== "string") return legacyOuterSpace(legacyPosition);
   if (!isCanonicalWildsDiscoverySiteKey(candidate.siteKey)) return legacyOuterSpace(legacyPosition);
   const match = candidate.siteKey.match(/^wildz\.site\.v1:(-?\d+):(-?\d+):(\d+):([a-f0-9]{16})$/)!;
   const regionX = Number(match[1]);

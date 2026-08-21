@@ -96,6 +96,32 @@ describe("persistent deterministic Wilds discovery sites", () => {
     assert.ok(caves.every((site) => site.interior.exits.length >= 1 && site.interior.chambers.length <= 12));
   });
 
+  it("keeps v1 mountain identity stable while footing every ridge node on canonical terrain", () => {
+    const historical = wildsDiscoverySitesForRegion(-7, 4).find((site) => site.slot === 0)!;
+    assert.equal(historical.key, "wildz.site.v1:-7:4:0:3a3388a98dd233cf");
+    assert.equal(historical.family, "mountain-pass");
+    assert.ok(historical.mountain);
+
+    for (let regionZ = -10; regionZ <= 10; regionZ += 1) {
+      for (let regionX = -10; regionX <= 10; regionX += 1) {
+        const physical = admitWildsDiscoveryPhysicalNeighborhood(regionX, regionZ);
+        for (const field of physical.mountainFields) {
+          let hasPublicFoothill = false;
+          let hasUpperClimb = false;
+          for (const node of field.nodes) {
+            const terrain = sampleWildsTerrain(node.x, node.z);
+            assert.ok(Math.abs(node.baseY - terrain.elevation) <= .000001, field.id);
+            assert.ok(node.topY >= node.baseY, field.id);
+            if (node.topY - node.baseY <= 1.25) hasPublicFoothill = true;
+            if (node.topY - node.baseY > 2.2) hasUpperClimb = true;
+          }
+          assert.equal(hasPublicFoothill, true, field.id);
+          assert.equal(hasUpperClimb, true, field.id);
+        }
+      }
+    }
+  });
+
   it("keeps ordinary progression routes open while making risk and recovery explicit", () => {
     const sites = wildsDiscoverySitesForRegion(-7, 11);
     for (const site of sites) {
@@ -253,6 +279,25 @@ describe("persistent deterministic Wilds discovery sites", () => {
       flooded: false
     });
     assert.equal(wildsSiteSurfaceAt(physical, interiorSpaceId, portal.position.x, portal.position.z, portal.position.y + 1_000), undefined);
+  });
+
+  it("restores an outer mountain position onto the exact admitted ridge instead of beneath it", () => {
+    const physical = admitWildsDiscoveryPhysicalNeighborhood(0, 0);
+    const field = physical.mountainFields[0]!;
+    const node = field.nodes[Math.floor(field.nodes.length / 2)]!;
+    const restored = normalizeWildsSiteSpaceState({
+      version: "wildz.site-space-state.v1",
+      spaceId: "wildz.space.outer.v1",
+      siteKey: null,
+      surfaceId: field.id,
+      position: { x: node.x, y: node.baseY, z: node.z },
+      flooded: false
+    }, { x: node.x, y: node.baseY, z: node.z });
+    assert.equal(restored.spaceId, "wildz.space.outer.v1");
+    assert.equal(restored.surfaceId, field.id);
+    assert.equal(restored.position.x, node.x);
+    assert.equal(restored.position.y, node.topY);
+    assert.equal(restored.position.z, node.z);
   });
 
   it("shares waterfall anchors and site-qualified encounter space without changing terrain v1", () => {

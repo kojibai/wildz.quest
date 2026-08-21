@@ -1,9 +1,10 @@
 "use client";
 
 import { Html } from "@react-three/drei";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import type { PlayState } from "./game-state";
+import { projectWildsDiscoverySiteVisuals } from "./wilds-discovery-site-visuals";
 import { projectWildsDiscoverySiteApproach, type WildsDiscoverySiteProjection, type WildsSiteSpaceState } from "./wilds-discovery-sites";
 import { WILDS_SITE_PORTAL_INTERACTION_RADIUS, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 
@@ -13,17 +14,12 @@ export function WildsDiscoverySites({ runtime, player, space, onPortal }: {
   space: WildsSiteSpaceState;
   onPortal: (siteKey: string, direction: "enter" | "exit") => void;
 }) {
-  const solidsBySite = useMemo(() => {
-    const groups = new Map<string, typeof runtime.physical.solids>();
-    for (const site of runtime.sites) groups.set(site.key, Object.freeze(runtime.physical.solids.filter((solid) => solid.siteKey === site.key)));
-    return groups;
-  }, [runtime]);
   const portalsBySite = useMemo(() => new Map(runtime.physical.portals.map((portal) => [portal.siteKey, portal])), [runtime]);
-  const watersBySite = useMemo(() => {
-    const groups = new Map<string, typeof runtime.physical.waterVolumes>();
-    for (const site of runtime.sites) groups.set(site.key, Object.freeze(runtime.physical.waterVolumes.filter((water) => water.siteKey === site.key && water.spaceId === "wildz.space.outer.v1")));
-    return groups;
-  }, [runtime]);
+  const visualsBySite = useMemo(() => new Map(runtime.sites.map((site) => [site.key, projectWildsDiscoverySiteVisuals(
+    site,
+    runtime.physical.mountainFields.filter((field) => field.siteKey === site.key),
+    runtime.physical.waterVolumes.filter((water) => water.siteKey === site.key && water.spaceId === "wildz.space.outer.v1")
+  )])), [runtime]);
   const interiorGeometry = useMemo(() => ({
     floors: Object.freeze(runtime.physical.surfaces.filter((surface) => surface.spaceId === space.spaceId)),
     ceilings: Object.freeze(runtime.physical.ceilings.filter((ceiling) => ceiling.spaceId === space.spaceId)),
@@ -37,12 +33,12 @@ export function WildsDiscoverySites({ runtime, player, space, onPortal }: {
         <boxGeometry args={[floor.halfExtents.x * 2, .16, floor.halfExtents.z * 2]} />
         <meshStandardMaterial color={floor.flooded ? "#174f63" : "#3a3d43"} roughness={.94} />
       </mesh>)}
-      {interiorGeometry.ceilings.map((ceiling) => <mesh key={ceiling.id} name={ceiling.id} position={[ceiling.center.x - player.x, ceiling.center.y - space.position.y, ceiling.center.z - player.z]}>
-        <boxGeometry args={[ceiling.halfExtents.x * 2, ceiling.halfExtents.y * 2, ceiling.halfExtents.z * 2]} />
+      {interiorGeometry.ceilings.map((ceiling) => <mesh key={ceiling.id} name={ceiling.id} position={[ceiling.center.x - player.x, ceiling.center.y - ceiling.halfExtents.y - space.position.y, ceiling.center.z - player.z]} rotation={[Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[ceiling.halfExtents.x * 2, ceiling.halfExtents.z * 2, 3, 3]} />
         <meshStandardMaterial color="#24272d" roughness={1} side={2} />
       </mesh>)}
-      {interiorGeometry.waters.map((water) => <mesh key={water.id} name={water.id} position={[water.center.x - player.x, water.center.y - space.position.y, water.center.z - player.z]}>
-        <boxGeometry args={[water.halfExtents.x * 2, water.halfExtents.y * 2, water.halfExtents.z * 2]} />
+      {interiorGeometry.waters.map((water) => <mesh key={water.id} name={water.id} position={[water.center.x - player.x, water.center.y + water.halfExtents.y - space.position.y, water.center.z - player.z]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[water.halfExtents.x * 2, water.halfExtents.z * 2]} />
         <meshPhysicalMaterial color="#197c9d" emissive="#0f4d67" emissiveIntensity={.22} opacity={.56} roughness={.16} side={2} transparent />
       </mesh>)}
       {interiorGeometry.portal && Math.hypot(interiorGeometry.portal.position.x - space.position.x, interiorGeometry.portal.position.z - space.position.z) <= WILDS_SITE_PORTAL_INTERACTION_RADIUS ? <group position={[interiorGeometry.portal.position.x - player.x, interiorGeometry.portal.position.y - space.position.y + 1, interiorGeometry.portal.position.z - player.z]}>
@@ -57,20 +53,16 @@ export function WildsDiscoverySites({ runtime, player, space, onPortal }: {
       const z = site.entrance.z - player.z;
       const distance = Math.hypot(x, z);
       const approach = projectWildsDiscoverySiteApproach(site, distance);
-      const siteSolids = solidsBySite.get(site.key) ?? [];
       const mountainScaleClass = site.mountain?.scaleClass;
       const portal = portalsBySite.get(site.key);
       const portalDistance = portal ? Math.hypot(portal.position.x - player.x, portal.position.z - player.z) : Number.POSITIVE_INFINITY;
-      const waters = watersBySite.get(site.key) ?? [];
+      const visuals = visualsBySite.get(site.key)!;
       return <group key={site.key} name={`discovery-site:${site.key}`} position={[x, site.entrance.y - space.position.y, z]} userData={{ lod: approach.lod, physical: approach.physical, siteKey: approach.siteKey }}>
         {approach.lod === "distant" ? site.mountain ? <mesh name={`discovery-site-proxy:${site.key}`} position={[0, site.collisionEnvelope.halfExtents.y * .45, 0]} scale={[site.collisionEnvelope.halfExtents.x, site.collisionEnvelope.halfExtents.y * .9, site.collisionEnvelope.halfExtents.z]}>
           <dodecahedronGeometry args={[1, 0]} /><meshStandardMaterial color="#66716c" emissive="#173a31" emissiveIntensity={.16} opacity={.72} transparent /></mesh> : <mesh name={`discovery-site-beacon:${site.key}`} position={[0, 2.4, 0]}>
-          <ringGeometry args={[.32, .48, 20]} /><meshBasicMaterial color="#7fe8c4" opacity={.58} side={2} transparent /></mesh> : site.mountain ? siteSolids.map((solid) => <mesh key={solid.id} name={solid.id} position={[solid.center.x - site.entrance.x, solid.center.y - site.entrance.y, solid.center.z - site.entrance.z]}>
-          <boxGeometry args={[solid.halfExtents.x * 2, solid.halfExtents.y * 2, solid.halfExtents.z * 2]} />
-          <meshStandardMaterial color={mountainScaleClass === "massif" ? "#5b6570" : "#687263"} roughness={.98} />
-        </mesh>) : null}
-        {approach.lod !== "distant" ? waters.map((water) => <mesh key={water.id} name={water.id} position={[water.center.x - site.entrance.x, water.center.y - site.entrance.y, water.center.z - site.entrance.z]}>
-          <boxGeometry args={[water.halfExtents.x * 2, water.halfExtents.y * 2, water.halfExtents.z * 2]} />
+          <ringGeometry args={[.32, .48, 20]} /><meshBasicMaterial color="#7fe8c4" opacity={.58} side={2} transparent /></mesh> : site.mountain ? visuals.mountainSurfaces.map((surface) => <MountainSurface color={mountainScaleClass === "massif" ? "#5b6570" : "#687263"} key={surface.id} site={site} surface={surface} />) : null}
+        {approach.lod !== "distant" ? visuals.waterSurfaces.map((water) => <mesh key={water.id} name={water.id} position={[water.x - site.entrance.x, water.y - site.entrance.y, water.z - site.entrance.z]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[water.width, water.depth]} />
           <meshPhysicalMaterial color="#2395ad" emissive="#155c73" emissiveIntensity={.18} opacity={.58} roughness={.14} side={2} transparent />
         </mesh>) : null}
         {site.waterfall && approach.lod !== "distant" ? <group name={`waterfall:${site.key}`}>
@@ -83,6 +75,30 @@ export function WildsDiscoverySites({ runtime, player, space, onPortal }: {
       </group>;
     })}
   </group>;
+}
+
+function MountainSurface({ color, site, surface }: {
+  color: string;
+  site: WildsDiscoverySiteProjection;
+  surface: ReturnType<typeof projectWildsDiscoverySiteVisuals>["mountainSurfaces"][number];
+}) {
+  const geometry = useMemo(() => {
+    const positions = new Float32Array(surface.positions.length);
+    for (let index = 0; index < surface.positions.length; index += 3) {
+      positions[index] = surface.positions[index]! - site.entrance.x;
+      positions[index + 1] = surface.positions[index + 1]! - site.entrance.y;
+      positions[index + 2] = surface.positions[index + 2]! - site.entrance.z;
+    }
+    const next = new THREE.BufferGeometry();
+    next.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    next.setIndex(new THREE.BufferAttribute(new Uint32Array(surface.indices), 1));
+    next.computeVertexNormals();
+    return next;
+  }, [site, surface]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return <mesh castShadow geometry={geometry} name={surface.id} receiveShadow>
+    <meshStandardMaterial color={color} roughness={.98} side={2} />
+  </mesh>;
 }
 
 function WaterfallFlow({ site }: { site: WildsDiscoverySiteProjection }) {

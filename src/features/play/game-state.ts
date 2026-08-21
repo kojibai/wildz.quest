@@ -1918,7 +1918,8 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       movement.position.x,
       movement.position.z,
       .38,
-      movement.elevation
+      movement.elevation,
+      movementCapabilities.includes("climb")
     ) : null;
     const nextPlayer = siteMovement ? { x: siteMovement.x, z: siteMovement.z } : movement.position;
     const previousRegion = regionForPosition(state.player);
