@@ -16,6 +16,7 @@ import { useWildsReadability } from "@/features/play/WildsReadabilityContext";
 import { projectWildsEcologyInstance } from "@/features/play/wilds-ecology-placement";
 import { wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
 import { buildWildsTerrainPatchProjection, buildWildsTerrainRibbonProjection, wildsTerrainRelativeElevation } from "@/features/play/wilds-terrain-rendering";
+import { projectWildsObstaclePlacement, wildsTerrainObstaclesForTile } from "@/features/play/wilds-terrain-obstacles";
 
 export const WILDS_TILE_SIZE = 12;
 const STREAM_RADIUS = 2;
@@ -100,9 +101,10 @@ export function WildsEnvironment({
     return projected;
   }, [centerX, centerZ, missionProgress, worldMastery]);
 
-  const trees = useMemo(() => placements(tiles, "treeCount", 101, qualityProfile.foliage), [qualityProfile.foliage, tiles]);
+  const physicalObstacles = useMemo(() => tiles.flatMap((tile) => wildsTerrainObstaclesForTile(tile.tileX, tile.tileZ)), [tiles]);
+  const trees = useMemo(() => physicalObstacles.filter((obstacle) => obstacle.kind === "tree").map(projectWildsObstaclePlacement), [physicalObstacles]);
   const bushes = useMemo(() => placements(tiles, "bushCount", 211, qualityProfile.foliage), [qualityProfile.foliage, tiles]);
-  const rocks = useMemo(() => placements(tiles, "rockCount", 307, qualityProfile.foliage), [qualityProfile.foliage, tiles]);
+  const rocks = useMemo(() => physicalObstacles.filter((obstacle) => obstacle.kind === "rock").map(projectWildsObstaclePlacement), [physicalObstacles]);
   const flowers = useMemo(() => placements(tiles, "flowerCount", 401, qualityProfile.foliage), [qualityProfile.foliage, tiles]);
 
   return (

@@ -9,10 +9,12 @@ import { restoreWildsGroundedPosition } from "../src/features/play/wilds-terrain
 
 const obstacle: WildsTerrainObstacle = {
   id: "test:tree",
+  kind: "tree",
   material: "solid",
   position: { x: 0, y: 0, z: 0 },
   radius: 0.8,
-  shape: { kind: "cylinder", radius: 0.8, height: 3 }
+  shape: { kind: "cylinder", radius: 0.8, height: 3 },
+  visualScale: 1
 };
 
 test("an unobstructed old save keeps exact horizontal coordinates", () => {

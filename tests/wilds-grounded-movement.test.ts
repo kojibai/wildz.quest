@@ -9,10 +9,12 @@ import type { WildsTerrainObstacle } from "../src/features/play/wilds-terrain-ob
 function obstacle(id: string, x: number, z: number, radius: number, material: WildsTerrainObstacle["material"] = "solid"): WildsTerrainObstacle {
   return {
     id,
+    kind: "tree",
     material,
     position: { x, y: 0, z },
     radius,
-    shape: { kind: "cylinder", radius, height: 3 }
+    shape: { kind: "cylinder", radius, height: 3 },
+    visualScale: 1
   };
 }
 

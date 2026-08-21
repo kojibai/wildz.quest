@@ -40,13 +40,13 @@
 - Modify: `src/features/play/wilds-terrain-obstacles.ts`
 - Modify: `tests/wilds-terrain-obstacles.test.ts`
 
-- [ ] Add failing assertions that every physical render placement retains its authoritative obstacle id, world position, and kind.
-- [ ] Expose explicit tree/rock kind and deterministic visual scale on obstacle records.
-- [ ] Render trunks and rocks from obstacle records rather than a second placement algorithm.
-- [ ] Keep bushes, grass, and flowers cosmetic and pass-through.
-- [ ] Ensure every blocking obstacle remains visible at every quality tier.
-- [ ] Run focused tests, typecheck, and lint.
-- [ ] Commit physical scenery alignment.
+- [x] Add failing assertions that every physical render placement retains its authoritative obstacle id, world position, and kind.
+- [x] Expose explicit tree/rock kind and deterministic visual scale on obstacle records.
+- [x] Render trunks and rocks from obstacle records rather than a second placement algorithm.
+- [x] Keep bushes, grass, and flowers cosmetic and pass-through.
+- [x] Ensure every blocking obstacle remains visible at every quality tier.
+- [x] Run focused tests, typecheck, and lint.
+- [x] Commit physical scenery alignment.
 
 ## Task 3: Integrate terrain movement without changing saves
 

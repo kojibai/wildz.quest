@@ -7,16 +7,19 @@ import {
 } from "./wilds-terrain-authority";
 
 export type WildsObstacleMaterial = "solid" | "stepable" | "soft" | "conditional";
+export type WildsObstacleKind = "tree" | "rock";
 export type WildsObstacleShape =
   | { kind: "cylinder"; radius: number; height: number }
   | { kind: "box"; halfX: number; halfY: number; halfZ: number };
 
 export type WildsTerrainObstacle = {
   id: string;
+  kind: WildsObstacleKind;
   material: WildsObstacleMaterial;
   position: { x: number; y: number; z: number };
   radius: number;
   shape: WildsObstacleShape;
+  visualScale: number;
 };
 
 export type WildsObstacleIndex = {
@@ -63,20 +66,36 @@ function obstacleForCandidate(tileX: number, tileZ: number, seed: number, slot: 
     const height = quantize(2.5 + hashUnit(seed, 0x9e3779b9 + slot * 23) * 2);
     return {
       id: `wildz.terrain.v1:${tileX}:${tileZ}:tree:${slot}`,
+      kind: "tree",
       material: "solid",
       position: { ...position, y: terrain.elevation },
       radius,
-      shape: { kind: "cylinder", radius, height }
+      shape: { kind: "cylinder", radius, height },
+      visualScale: quantize(height / 3.6)
     };
   }
   const radius = quantize(0.22 + hashUnit(seed, 0x6d2b79f5 + slot * 29) * 0.4);
   const height = quantize(0.18 + radius * (0.7 + hashUnit(seed, 0x1b873593 + slot * 31) * 0.8));
   return {
     id: `wildz.terrain.v1:${tileX}:${tileZ}:rock:${slot}`,
+    kind: "rock",
     material: radius >= 0.34 ? "solid" : "stepable",
     position: { ...position, y: terrain.elevation },
     radius,
-    shape: { kind: "cylinder", radius, height }
+    shape: { kind: "cylinder", radius, height },
+    visualScale: quantize(radius / 0.38)
+  };
+}
+
+export function projectWildsObstaclePlacement(obstacle: WildsTerrainObstacle) {
+  const slot = Number(obstacle.id.split(":").at(-1));
+  return {
+    id: obstacle.id,
+    kind: obstacle.kind,
+    x: obstacle.position.x,
+    z: obstacle.position.z,
+    scale: obstacle.visualScale,
+    variant: Number.isInteger(slot) ? Math.abs(slot) % 3 : 0
   };
 }
 

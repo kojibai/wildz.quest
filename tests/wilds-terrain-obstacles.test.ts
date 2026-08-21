@@ -5,6 +5,7 @@ import { distanceToWildsMajorRoute, WILDS_TERRAIN_TILE_SIZE } from "../src/featu
 import { WILDS_MAJOR_ROUTES } from "../src/features/play/wilds-world-geography";
 import {
   buildWildsObstacleIndex,
+  projectWildsObstaclePlacement,
   queryWildsObstacles,
   wildsTerrainObstaclesForTile,
   type WildsTerrainObstacle
@@ -13,10 +14,12 @@ import {
 function obstacle(id: string, x: number, z: number, radius: number): WildsTerrainObstacle {
   return {
     id,
+    kind: "tree",
     material: "solid",
     position: { x, y: 0, z },
     radius,
-    shape: { kind: "cylinder", radius, height: 3 }
+    shape: { kind: "cylinder", radius, height: 3 },
+    visualScale: 1
   };
 }
 
@@ -36,6 +39,23 @@ test("physical obstacles are deterministic stable records", () => {
   assert.deepEqual(first, replay);
   assert.equal(new Set(first.map((candidate) => candidate.id)).size, first.length);
   assert.ok(first.every((candidate) => candidate.material === "solid" || candidate.material === "stepable"));
+  assert.ok(first.every((candidate) => candidate.kind === "tree" || candidate.kind === "rock"));
+  assert.ok(first.every((candidate) => candidate.id.includes(`:${candidate.kind}:`)));
+  assert.ok(first.every((candidate) => Number.isFinite(candidate.visualScale) && candidate.visualScale > 0));
+});
+
+test("physical render placements preserve exact obstacle authority", () => {
+  const records = wildsTerrainObstaclesForTile(-20, -20);
+  assert.ok(records.length > 0);
+
+  for (const record of records) {
+    const placement = projectWildsObstaclePlacement(record);
+    assert.equal(placement.id, record.id);
+    assert.equal(placement.kind, record.kind);
+    assert.equal(placement.x, record.position.x);
+    assert.equal(placement.z, record.position.z);
+    assert.equal(placement.scale, record.visualScale);
+  }
 });
 
 test("arrival, routes, and landmark aprons contain no generated solid obstacle", () => {
