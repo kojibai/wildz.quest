@@ -179,6 +179,23 @@ Underwater life includes visible ambient swimmers as well as discoverable creatu
 
 Rare aerial creatures become discoverable only when their altitude intersects the player's current flight or glide capability. They move through deterministic local flight paths and remain real once revealed; they do not appear at range and disappear on approach. Aerial battle and capture preserve altitude context, then seal the exact creature that was seen.
 
+## Persistent world discoveries
+
+The endless terrain contains deterministic discovery sites that make exploration surprising without making the world disposable. Site families include caves, mountain passes and interiors, hidden valleys, canyons, submerged grottos, reefs, trenches, ruins, canopy routes, springs, caverns, and rare sky islands.
+
+Sites are selected from exact world coordinates, terrain, Kai context, and stable world seeds. Discovery feels unknown to the player, but generation is deterministic: returning to the same place restores the same site's entrance, geometry, habitat, inhabitants, and recorded discoveries. A visible entrance or distant landmark cannot disappear because the player approached it or because an LOD changed.
+
+Each site has:
+
+- a physical entrance anchored to authoritative terrain, water depth, cliff geometry, or air altitude;
+- an admitted interior or traversal space with bounded streaming;
+- one or more ability-readable routes rather than an invisible capability wall;
+- habitat-specific ambient and catchable creatures;
+- optional rare discoveries, overlooks, resources, ecology events, or world-history evidence;
+- a persistent discovery key stored in the player's exploration continuity.
+
+Ordinary routes remain accessible. Capability-gated branches reward ownership without trapping players or making a required first capability inaccessible. Caves can use climbing, illumination, tracking, breaking, burrowing, pressure resistance, or underwater breathing; mountains can use climbing, balance, glide, flight, cold resistance, or storm anchoring; underwater sites can use dive depth, current handling, illumination, pressure tolerance, and aquatic propulsion.
+
 Encounter eligibility is physical and capability-aware:
 
 - non-swimmers can still obtain a first swimmer from an admitted shore or shallow-water approach;
@@ -215,6 +232,12 @@ The existing traversal status area shows one persistent, mutually exclusive stat
 - flight and glide states when airborne.
 
 During vertical exploration it also shows exact depth or altitude, the active creature's safe operating band, and the input for returning to a safe layer. Discovery cues indicate whether a signal is above, level, or below the player without adding a separate cognitive system.
+
+## Controllable flight altitude and obstacle clearance
+
+Powered flight supports deliberate climb and descent inside the active creature's current lift, endurance, and control envelope. Gliding trades altitude for distance and cannot climb without an explicit lift source. The HUD shows altitude, safe operating band, stamina, and the reason an ascent is capped or flight is ending.
+
+Collision is height-aware. Takeoff moves the explorer out of the grounded obstacle layer; tree trunks, small rocks, and ordinary ground clutter cannot snag an admitted airborne player. Sufficient clearance passes over tree canopies and low obstacles cleanly. Mountains, cliffs, cave ceilings, large structures, the world terrain envelope, and authored aerial hazards remain physical. Landing chooses an admitted clear surface and never places the explorer inside a tree, rock, or structure.
 
 The active creature surface exposes capability type, current strength, progression requirement, fatigue or injury suppression, and recovery behavior. A player never has to guess why flight or swimming stopped.
 
@@ -260,6 +283,9 @@ Identity Seal and full Vault restore preserve the exact account and selected cre
 16. A swimmer can descend to the visible floor, discover and capture an underwater creature, ascend, and return to shore without clipping, bottom-walking, or camera loss.
 17. A flight-capable player can intersect, reveal, battle, and capture a rare aerial creature without terrain teleportation or disappearing encounter geometry.
 18. Ambient airborne and aquatic life stays quality-bounded, cannot be mistaken for catchable signals, and performs zero generation work during steady movement.
+19. A card with functional flight wings always renders the corresponding paired wings on every 3D actor; a flight-capable winged card can never produce a wingless gameplay creature.
+20. Discovered caves, mountains, grottos, trenches, ruins, canopy routes, and sky islands replay deterministically and remain visible/physical on approach and return.
+21. Powered flight supports bounded player-controlled ascent/descent, clears grounded tree/rock collision, passes above canopies at sufficient altitude, and still respects mountains, ceilings, structures, and aerial hazards.
 
 ## Implementation phases
 
