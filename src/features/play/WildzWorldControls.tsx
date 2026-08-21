@@ -16,6 +16,7 @@ import type { WildsMovementMode } from "./wilds-movement";
 import type { WorldOverlayEvent, WorldOverlayOwner, WorldOverlayState } from "./world-overlay-state";
 import { WILDS_FLIGHT_RELAUNCH_ENERGY, type WildsAerialMode } from "./wilds-aerial-traversal";
 import type { WildsTraversalCapability } from "./wilds-traversal-capabilities";
+import type { WildsAquaticPresentation } from "./wilds-aquatic-presentation";
 
 const ignore = () => {};
 
@@ -52,6 +53,7 @@ export function WildzWorldControls({
   onAudioCue,
   aerialEnergy,
   aerialMode,
+  aquaticPresentation: _aquaticPresentation,
   traversalCapabilities,
   glideLaunchAvailable,
   onAerialToggle
@@ -80,6 +82,7 @@ export function WildzWorldControls({
   onAudioCue?: (cue: WildsAudioCue) => void;
   aerialEnergy: number;
   aerialMode: WildsAerialMode;
+  aquaticPresentation?: WildsAquaticPresentation;
   traversalCapabilities: readonly WildsTraversalCapability[];
   glideLaunchAvailable: boolean;
   onAerialToggle: () => void;

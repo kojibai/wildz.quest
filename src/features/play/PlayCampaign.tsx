@@ -119,7 +119,7 @@ import {
   type WildsAerialMode,
   type WildsAerialTraversalState
 } from "@/features/play/wilds-aerial-traversal";
-import { wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
+import { projectWildsAquaticPresentationAtPosition } from "@/features/play/wilds-aquatic-presentation";
 import { wildsOverlookAt, type WildsOverlookId } from "@/features/play/wilds-overlooks";
 
 const WildsWorldMap = dynamic(() => import("@/features/play/WildsWorldMap").then((mod) => mod.WildsWorldMap), { ssr: false });
@@ -294,12 +294,19 @@ export function PlayCampaign({
       state.adventureConditions[activeAsset.id] ?? emptyAdventureCondition(activeAsset.id)
     ).capabilities
     : [], [activeAsset, state.adventureConditions]);
+  const [aerialMode, setAerialMode] = useState<WildsAerialMode>("ground");
+  const canSwim = activeTraversalCapabilities.includes("swim");
+  const aquaticPresentation = useMemo(() => projectWildsAquaticPresentationAtPosition({
+    x: state.player.x,
+    z: state.player.z,
+    canSwim,
+    airborne: aerialMode !== "ground"
+  }), [aerialMode, canSwim, state.player.x, state.player.z]);
   const [initialAerialState] = useState(() => createGroundedWildsAerialState(
     state.player,
-    wildsTerrainElevation(state.player.x, state.player.z)
+    aquaticPresentation.terrainElevation
   ));
   const aerialStateRef = useRef<WildsAerialTraversalState>(initialAerialState);
-  const [aerialMode, setAerialMode] = useState<WildsAerialMode>("ground");
   const [aerialEnergy, setAerialEnergy] = useState(100);
   const [activeVistaId, setActiveVistaId] = useState<WildsOverlookId | null>(null);
   const deckCards = state.inventory;
@@ -802,7 +809,7 @@ export function PlayCampaign({
   };
   const toggleAerialTraversal = () => {
     if (!canUseWorldStage()) return;
-    const groundElevation = wildsTerrainElevation(state.player.x, state.player.z);
+    const groundElevation = aquaticPresentation.terrainElevation;
     if (aerialMode !== "ground") {
       const landed = advanceWildsAerialTraversal(aerialStateRef.current, {
         capabilities: activeTraversalCapabilities,
@@ -1351,6 +1358,7 @@ export function PlayCampaign({
             <WildsWorldCanvas
               aerialCapabilities={activeTraversalCapabilities}
               aerialStateRef={aerialStateRef}
+              aquaticPresentation={aquaticPresentation}
               state={state}
               character={character}
               remotePlayers={multiplayer.remotePlayers}
@@ -1426,6 +1434,7 @@ export function PlayCampaign({
             <WildzWorldControls
               aerialEnergy={aerialEnergy}
               aerialMode={aerialMode}
+              aquaticPresentation={aquaticPresentation}
               activeCard={activeAsset}
               cameraHeadingRef={cameraHeadingRef}
               cardConditions={state.adventureConditions}

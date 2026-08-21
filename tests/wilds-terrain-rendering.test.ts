@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { wildsTerrainElevation } from "../src/features/play/wilds-terrain-authority";
+import { WILDS_WATERLINE_ELEVATION } from "../src/features/play/wilds-aquatic-presentation";
 import {
   buildWildsTerrainPatchProjection,
   buildWildsTerrainMeshProjection,
@@ -77,9 +78,9 @@ test("streamed physical water projects distinct shallow and deep surfaces above 
   assert.ok(water.deep.indices.length > 0);
   const shallowHeights = water.shallow.positions.filter((_, index) => index % 3 === 1);
   const deepHeights = water.deep.positions.filter((_, index) => index % 3 === 1);
-  assert.ok(shallowHeights.every((y) => Math.abs(y - water.waterline) <= 0.037));
-  assert.ok(deepHeights.every((y) => Math.abs(y - (water.waterline + 0.012)) <= 0.037));
-  assert.ok(new Set(deepHeights).size > 8);
+  assert.equal(water.waterline, WILDS_WATERLINE_ELEVATION);
+  assert.ok(shallowHeights.every((y) => y === WILDS_WATERLINE_ELEVATION));
+  assert.ok(deepHeights.every((y) => y === WILDS_WATERLINE_ELEVATION));
 });
 
 test("authored ribbons sample both edges from deterministic terrain", () => {

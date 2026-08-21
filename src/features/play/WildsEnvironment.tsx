@@ -14,7 +14,6 @@ import { WildsSettlementEnvironment, type WildsSettlementWorldMode } from "@/fea
 import { WAYFINDER_HOLLOW } from "@/features/play/wilds-settlements";
 import { useWildsReadability } from "@/features/play/WildsReadabilityContext";
 import { projectWildsEcologyInstance } from "@/features/play/wilds-ecology-placement";
-import { wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
 import { buildWildsTerrainPatchProjection, buildWildsTerrainRibbonProjection, buildWildsTerrainWaterProjection, wildsTerrainRelativeElevation } from "@/features/play/wilds-terrain-rendering";
 import { projectWildsObstaclePlacement, wildsTerrainObstaclesForTile } from "@/features/play/wilds-terrain-obstacles";
 import { projectWildsOverlooks, type WildsOverlookId } from "@/features/play/wilds-overlooks";
@@ -79,6 +78,7 @@ export function WildsEnvironment({
   missionProgress,
   worldMastery,
   qualityProfile,
+  terrainElevation,
   livingWorld,
   worldMode,
   onSelectOverlook
@@ -87,6 +87,7 @@ export function WildsEnvironment({
   missionProgress: number;
   worldMastery: number;
   qualityProfile: WildsQualityProfile;
+  terrainElevation: number;
   livingWorld?: WildsWorldProjection | null;
   worldMode: WildsSettlementWorldMode;
   onSelectOverlook: (overlookId: WildsOverlookId) => void;
@@ -114,11 +115,11 @@ export function WildsEnvironment({
   return (
     <group>
       <group name="world-layer-play">
-        <GroundField centerX={centerX} centerZ={centerZ} color={tiles[12]?.ground.base ?? "#4f9254"} player={player} qualityProfile={qualityProfile} />
-        <TerrainWaterField centerX={centerX} centerZ={centerZ} player={player} qualityProfile={qualityProfile} />
-        <WorldWatercourses player={player} qualityProfile={qualityProfile} />
-        <TrailNetwork player={player} palette={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }} />
-        <MajorWorldRoutes player={player} palette={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }} />
+        <GroundField centerX={centerX} centerZ={centerZ} color={tiles[12]?.ground.base ?? "#4f9254"} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} />
+        <TerrainWaterField centerX={centerX} centerZ={centerZ} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} />
+        <WorldWatercourses player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} />
+        <TrailNetwork player={player} palette={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }} terrainElevation={terrainElevation} />
+        <MajorWorldRoutes player={player} palette={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }} terrainElevation={terrainElevation} />
       </group>
       <group name="world-layer-mid">
         <EcologyInstances bushes={bushes} flowers={flowers} palette={tiles[12]?.canopy} player={player} qualityProfile={qualityProfile} rocks={rocks} trees={trees} />
@@ -249,11 +250,11 @@ function LandmarkEntranceBeacon({ landmark, distance }: { landmark: WildsLandmar
   </group>;
 }
 
-function MajorWorldRoutes({ player, palette }: { player: PlayState["player"]; palette: WildsBiomeTile["trail"] }) {
+function MajorWorldRoutes({ player, palette, terrainElevation }: { player: PlayState["player"]; palette: WildsBiomeTile["trail"]; terrainElevation: number }) {
   const readability = useWildsReadability();
   const edgeGeometry = useMemo(() => mergeGeometries(WILDS_MAJOR_ROUTES.map((route, index) => terrainRibbonGeometry(route.points, index ? .42 : .54, .026)), false)!, []);
   const trailGeometry = useMemo(() => mergeGeometries(WILDS_MAJOR_ROUTES.map((route, index) => terrainRibbonGeometry(route.points, index ? .28 : .36, .032)), false)!, []);
-  return <group name="world-major-routes" position={[-player.x, -wildsTerrainElevation(player.x, player.z), -player.z]}>
+  return <group name="world-major-routes" position={[-player.x, -terrainElevation, -player.z]}>
     <mesh geometry={edgeGeometry} name="world-route-edges"><meshStandardMaterial color={palette.edge} emissive={palette.edge} emissiveIntensity={readability.pathEmissive * .45} roughness={.98} /></mesh>
     <mesh geometry={trailGeometry} name="world-route-surfaces"><meshStandardMaterial color={palette.base} emissive={palette.base} emissiveIntensity={readability.pathEmissive} roughness={.91} /></mesh>
   </group>;
@@ -269,20 +270,20 @@ function terrainRibbonGeometry(points: readonly { x: number; z: number }[], widt
   return geometry;
 }
 
-function WorldWatercourses({ player, qualityProfile }: { player: PlayState["player"]; qualityProfile: WildsQualityProfile }) {
+function WorldWatercourses({ player, qualityProfile, terrainElevation }: { player: PlayState["player"]; qualityProfile: WildsQualityProfile; terrainElevation: number }) {
   const geometry = useMemo(() => terrainRibbonGeometry([
     { x: 148, z: -118 }, { x: 116, z: -88 }, { x: 82, z: -61 }, { x: 48, z: -34 },
     { x: 18, z: -12 }, { x: 4, z: 2 }, { x: -21, z: 31 }, { x: -55, z: 66 },
     { x: -86, z: 96 }, { x: -122, z: 126 }
   ], qualityProfile.tier === "low" ? .72 : .92, .028), [qualityProfile.tier]);
-  return <group name="world-watercourses" position={[-player.x, -wildsTerrainElevation(player.x, player.z), -player.z]}>
+  return <group name="world-watercourses" position={[-player.x, -terrainElevation, -player.z]}>
     <mesh geometry={geometry} receiveShadow>
       <meshPhysicalMaterial color="#2c8790" emissive="#143f43" emissiveIntensity={.18} roughness={.22} metalness={.02} clearcoat={qualityProfile.tier === "low" ? .2 : .72} />
     </mesh>
   </group>;
 }
 
-function GroundField({ centerX, centerZ, color, player, qualityProfile }: { centerX: number; centerZ: number; color: string; player: PlayState["player"]; qualityProfile: WildsQualityProfile }) {
+function GroundField({ centerX, centerZ, color, player, qualityProfile, terrainElevation }: { centerX: number; centerZ: number; color: string; player: PlayState["player"]; qualityProfile: WildsQualityProfile; terrainElevation: number }) {
   const readability = useWildsReadability();
   const terrainRadius = qualityProfile.tier === "low" ? 2 : qualityProfile.tier === "medium" ? 3 : 4;
   const geometry = useMemo(() => {
@@ -321,18 +322,19 @@ function GroundField({ centerX, centerZ, color, player, qualityProfile }: { cent
     <mesh
       geometry={geometry}
       receiveShadow
-      position={[(centerX - terrainRadius) * WILDS_TILE_SIZE - player.x, -wildsTerrainElevation(player.x, player.z) - .04, (centerZ - terrainRadius) * WILDS_TILE_SIZE - player.z]}
+      position={[(centerX - terrainRadius) * WILDS_TILE_SIZE - player.x, -terrainElevation - .04, (centerZ - terrainRadius) * WILDS_TILE_SIZE - player.z]}
     >
       <meshStandardMaterial color="#d5efe0" emissive="#183d28" emissiveIntensity={.06 + readability.darkness * .16} map={terrainMap} roughness={0.96} />
     </mesh>
   );
 }
 
-function TerrainWaterField({ centerX, centerZ, player, qualityProfile }: {
+function TerrainWaterField({ centerX, centerZ, player, qualityProfile, terrainElevation }: {
   centerX: number;
   centerZ: number;
   player: PlayState["player"];
   qualityProfile: WildsQualityProfile;
+  terrainElevation: number;
 }) {
   const terrainRadius = qualityProfile.tier === "low" ? 2 : qualityProfile.tier === "medium" ? 3 : 4;
   const projection = useMemo(() => buildWildsTerrainWaterProjection(
@@ -345,15 +347,15 @@ function TerrainWaterField({ centerX, centerZ, player, qualityProfile }: {
   const deepGeometry = useMemo(() => waterLayerGeometry(projection.deep), [projection]);
   const position: [number, number, number] = [
     projection.origin.x - player.x,
-    -wildsTerrainElevation(player.x, player.z),
+    -terrainElevation,
     projection.origin.z - player.z
   ];
   return <group name="world-physical-water" position={position}>
     <mesh geometry={shallowGeometry} name="world-shallow-water" receiveShadow>
-      <meshPhysicalMaterial color="#35d5d5" emissive="#087b8c" emissiveIntensity={.52} fog={false} metalness={.03} opacity={.96} roughness={.12} transparent clearcoat={qualityProfile.tier === "low" ? .48 : .94} clearcoatRoughness={.14} depthWrite />
+      <meshPhysicalMaterial color="#35d5d5" emissive="#087b8c" emissiveIntensity={.52} fog={false} metalness={.03} opacity={.96} roughness={.12} side={THREE.DoubleSide} transparent clearcoat={qualityProfile.tier === "low" ? .48 : .94} clearcoatRoughness={.14} depthWrite />
     </mesh>
     <mesh geometry={deepGeometry} name="world-deep-water" receiveShadow>
-      <meshPhysicalMaterial color="#047dab" emissive="#023d74" emissiveIntensity={.72} fog={false} metalness={.06} roughness={.08} clearcoat={qualityProfile.tier === "low" ? .56 : 1} clearcoatRoughness={.1} depthWrite />
+      <meshPhysicalMaterial color="#047dab" emissive="#023d74" emissiveIntensity={.72} fog={false} metalness={.06} roughness={.08} side={THREE.DoubleSide} clearcoat={qualityProfile.tier === "low" ? .56 : 1} clearcoatRoughness={.1} depthWrite />
     </mesh>
   </group>;
 }
@@ -367,7 +369,7 @@ function waterLayerGeometry(layer: { positions: readonly number[]; normals: read
   return geometry;
 }
 
-function TrailNetwork({ player, palette }: { player: PlayState["player"]; palette: WildsBiomeTile["trail"] }) {
+function TrailNetwork({ player, palette, terrainElevation }: { player: PlayState["player"]; palette: WildsBiomeTile["trail"]; terrainElevation: number }) {
   const readability = useWildsReadability();
   const centerX = Math.floor(player.x / WILDS_TILE_SIZE);
   const centerZ = Math.floor(player.z / WILDS_TILE_SIZE);
@@ -386,7 +388,7 @@ function TrailNetwork({ player, palette }: { player: PlayState["player"]; palett
     return mergeGeometries([eastWest, northSouth], false)!;
   }, [centerX, centerZ, endX, endZ, startX, startZ]);
   return (
-    <group position={[-player.x, -wildsTerrainElevation(player.x, player.z), -player.z]}>
+    <group position={[-player.x, -terrainElevation, -player.z]}>
       <mesh geometry={edgeGeometry}>
         <meshStandardMaterial color={palette.edge} emissive={palette.edge} emissiveIntensity={readability.pathEmissive * 0.45} roughness={0.96} />
       </mesh>
