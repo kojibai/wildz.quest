@@ -24,14 +24,14 @@ describe("Wildz admitted-card traversal capability projection", () => {
     const stone = card("titanseal-1", "traversal-stone");
     const winged = card("voltray-1", "traversal-winged");
 
-    assert.deepEqual(projectWildsTraversalCapabilities(tide, emptyAdventureCondition(tide.id)).capabilities, ["swim"]);
-    assert.deepEqual(projectWildsTraversalCapabilities(stone, emptyAdventureCondition(stone.id)).capabilities, ["swim", "climb"]);
-    assert.deepEqual(projectWildsTraversalCapabilities(winged, emptyAdventureCondition(winged.id)).capabilities, ["glide", "flight"]);
+    assert.deepEqual(projectWildsTraversalCapabilities(tide, { ...emptyAdventureCondition(tide.id), xp: { swim: 100 } }).capabilities, ["swim"]);
+    assert.deepEqual(projectWildsTraversalCapabilities(stone, { ...emptyAdventureCondition(stone.id), xp: { climb: 100 } }).capabilities, ["swim"]);
+    assert.deepEqual(projectWildsTraversalCapabilities(winged, { ...emptyAdventureCondition(winged.id), xp: { flight: 400 } }).capabilities, ["glide", "flight"]);
   });
 
   it("removes unsafe traversal for death, severe wing injury, and exhaustion", () => {
     const winged = card("voltray-1", "traversal-condition");
-    const base = emptyAdventureCondition(winged.id);
+    const base = { ...emptyAdventureCondition(winged.id), xp: { flight: 400 } };
     const injured = projectWildsTraversalCapabilities(winged, {
       ...base,
       injuries: [{ id: "injury:wing", kind: "wing", severity: 2, sourceEventId: "event:fall" }]
@@ -54,14 +54,15 @@ describe("Wildz admitted-card traversal capability projection", () => {
     assert.ok(wildsTraversalCapabilityCacheSize() <= 128);
   });
 
-  it("never lets an upgrade invent missing aquatic anatomy", () => {
+  it("admits the known deep-current swim upgrade only through the structured registry", () => {
     const land = card("mintcub-1", "traversal-upgrade-swim");
     const projection = projectWildsTraversalCapabilities(land, {
       ...emptyAdventureCondition(land.id),
+      xp: { swim: 100 },
       upgradeIds: ["deep-current-swim"]
     });
-    assert.equal(projection.source.aquatic, false);
-    assert.equal(projection.capabilities.includes("swim"), false);
+    assert.equal(projection.source.aquatic, true);
+    assert.equal(projection.capabilities.includes("swim"), true);
   });
 
   it("takes the object-identity fast path before rebuilding canonical cache keys", () => {

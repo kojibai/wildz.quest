@@ -10,6 +10,7 @@ import { useWildsReadability } from "./WildsReadabilityContext";
 export type WildsCreaturePose = "idle" | "curious" | "attack" | "impact" | "weakened" | "capture";
 
 export type ActorWingRenderPlan = Readonly<{ kind: "none" | "functional-wing" | "glide-membrane"; pairCount: 0 | 2 }>;
+export type ActorGripRenderPlan = Readonly<{ kind: "none" | "functional-grip"; padCount: 0 | 4 }>;
 
 /** The actor accepts wings only from an explicit canonical appendage projection. */
 export function projectActorWingRenderPlan(anatomy?: CardKaiAppearance["anatomy"]): ActorWingRenderPlan {
@@ -18,6 +19,14 @@ export function projectActorWingRenderPlan(anatomy?: CardKaiAppearance["anatomy"
   if (wings.function === "powered-lift") return { kind: "functional-wing", pairCount: 2 };
   if (wings.function === "glide") return { kind: "glide-membrane", pairCount: 2 };
   return { kind: "none", pairCount: 0 };
+}
+
+/** Functional grip pads are rendered from the same canonical appendage that grants climb. */
+export function projectActorGripRenderPlan(anatomy?: CardKaiAppearance["anatomy"]): ActorGripRenderPlan {
+  const grip = anatomy?.appendages.grip;
+  return grip?.presence === "functional" && grip.kind === "grip" && grip.function === "grip"
+    ? { kind: "functional-grip", padCount: 4 }
+    : { kind: "none", padCount: 0 };
 }
 
 function identityNumber(value: string, salt: number) {
@@ -61,6 +70,7 @@ export function WildsCreatureActor({
   const detail = anatomy?.detail ?? form?.anatomy.detail ?? "ears";
   const auraKind = form?.anatomy.aura ?? "prism";
   const wingPlan = projectActorWingRenderPlan(anatomy);
+  const gripPlan = projectActorGripRenderPlan(anatomy);
   const hasFins = anatomy ? anatomy.appendages.fins.presence === "functional" : false;
   const hasFrills = anatomy ? anatomy.appendages.frills.presence === "functional" : false;
   const hasVoltrayCrown = familyId === "voltray" && !hasFrills;
@@ -130,6 +140,7 @@ export function WildsCreatureActor({
       <group name="wilds-creature-limbs" ref={limbs}>
         {wingPlan.pairCount ? <group name={wingPlan.kind}>{[-1, 1].map((side) => <mesh castShadow key={side} position={[side * 0.46, 0.08, -0.08]} rotation={[0.15, 0, side * -0.72]} scale={[0.48, 1.3, 0.18]}><tetrahedronGeometry args={[0.46, 0]} /><meshStandardMaterial color={renderedSecondary} emissive={renderedSecondary} emissiveIntensity={0.12} roughness={0.46} /></mesh>)}</group> : null}
         {body === "round" || body === "long" || body === "armored" ? [-1, 1].flatMap((side) => [-1, 1].map((front) => <mesh castShadow key={`${side}:${front}`} position={[side * 0.26, -0.3, front * 0.2]} rotation={[front * 0.14, 0, side * -0.08]}><capsuleGeometry args={[0.07, 0.22, 5, 8]} /><meshStandardMaterial color={renderedPrimary} roughness={0.7} /></mesh>)) : null}
+        {gripPlan.padCount ? [-1, 1].flatMap((side) => [-1, 1].map((front) => <mesh castShadow key={`grip:${side}:${front}`} name="functional-grip-pad" position={[side * 0.27, -0.43, front * 0.2]} scale={[0.09, 0.035, 0.11]}><sphereGeometry args={[1, 10, 7]} /><meshStandardMaterial color={renderedAccent} roughness={0.82} /></mesh>)) : null}
       </group>
 
       <group name="wilds-creature-face" position={[0, 0.31, 0.3]} ref={head} scale={identity.head}>

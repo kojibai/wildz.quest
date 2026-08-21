@@ -22,12 +22,15 @@ let projectionsBuilt = 0;
 
 function projectionKey(asset: PortableCardAsset, condition: AdventureCardCondition) {
   slowKeyBuilds += 1;
+  const identity = projectCreatureCapabilityIdentity(asset);
   const injuries = condition.injuries
     .map((injury) => `${injury.id}:${injury.kind}:${injury.severity}:${injury.sourceEventId}`)
     .sort()
     .join("|");
   const upgrades = [...condition.upgradeIds].sort().join("|");
-  return `${asset.id}:${asset.proof.digest}:${condition.life}:${condition.fatigue}:${injuries}:${upgrades}`;
+  const xp = Object.entries(condition.xp).sort(([left], [right]) => left.localeCompare(right)).map(([key, value]) => `${key}:${value}`).join("|");
+  const mastery = Object.entries(condition.mastery).sort(([left], [right]) => left.localeCompare(right)).map(([key, value]) => `${key}:${value}`).join("|");
+  return `${asset.id}:${asset.proof.digest}:${identity.digestInput.revisionDigest}:${identity.digestInput.visualFingerprint}:${identity.progression.level}:${identity.progression.bond}:${identity.progression.mastery}:${condition.life}:${condition.fatigue}:${injuries}:${xp}:${mastery}:${upgrades}`;
 }
 
 function cacheProjection(key: string, projection: WildsTraversalCapabilityProjection) {
@@ -58,8 +61,8 @@ export function projectWildsTraversalCapabilities(
 
   const identity = projectCreatureCapabilityIdentity(asset);
   const runtime = projectCreatureRuntimeCapabilities(identity, condition);
-  const aquatic = identity.traversalPotential.includes("swim");
-  const climbing = identity.traversalPotential.includes("climb");
+  const aquatic = runtime.capabilities.includes("swim") || identity.traversalPotential.includes("swim");
+  const climbing = runtime.capabilities.includes("climb") || identity.traversalPotential.includes("climb");
   const winged = identity.traversalPotential.includes("glide") || identity.traversalPotential.includes("flight");
 
   projectionsBuilt += 1;

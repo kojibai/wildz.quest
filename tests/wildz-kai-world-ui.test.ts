@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
+import { projectActorWingRenderPlan } from "../src/features/play/WildsCreatureActor";
+import { projectCardKaiAppearance } from "../src/features/play/card-kai-appearance";
+import { sealCollectedCard } from "../src/features/play/portable-card";
 
 test("the 3D world consumes one shared Kai expression without recoloring authored environments", async () => {
   const canvas = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");
@@ -29,6 +32,11 @@ test("the 3D world consumes one shared Kai expression without recoloring authore
   assert.match(actor, /const renderedSecondary = threeCreatureColor\(secondary\)/);
   assert.match(actor, /const renderedGlow = threeCreatureColor\(glow\)/);
   assert.match(actor, /emissive=\{renderedPrimary\} emissiveIntensity=\{0\.07 \+ readability\.actorEmissive \* 0\.45\}/);
-  assert.match(actor, /body === "winged"[\s\S]{0,500}color=\{renderedSecondary\}/);
+  const powered = projectCardKaiAppearance(sealCollectedCard({ formId: "voltray-1", ownerReceizId: "kai-world", encounterId: "kai-world:powered", capturedAt: "2026-08-21T12:00:00.000Z" })).anatomy;
+  const absent = projectCardKaiAppearance(sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "kai-world", encounterId: "kai-world:absent", capturedAt: "2026-08-21T12:00:00.000Z" })).anatomy;
+  assert.deepEqual(projectActorWingRenderPlan(absent), { kind: "none", pairCount: 0 });
+  assert.deepEqual(projectActorWingRenderPlan({ ...powered, appendages: { ...powered.appendages, wings: { ...powered.appendages.wings, presence: "vestigial" } } }), { kind: "none", pairCount: 0 });
+  assert.deepEqual(projectActorWingRenderPlan({ ...powered, appendages: { ...powered.appendages, wings: { ...powered.appendages.wings, function: "glide" } } }), { kind: "glide-membrane", pairCount: 2 });
+  assert.deepEqual(projectActorWingRenderPlan(powered), { kind: "functional-wing", pairCount: 2 });
   assert.match(actor, /color=\{renderedGlow\} emissive=\{renderedGlow\} emissiveIntensity=\{0\.52\}/);
 });

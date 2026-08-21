@@ -20,6 +20,7 @@ export type CreatureVisualAppendages = Readonly<{
   fins: FunctionalAppendage;
   frills: FunctionalAppendage;
   tail: FunctionalAppendage;
+  grip: FunctionalAppendage;
   ears: FunctionalAppendage;
   horns: FunctionalAppendage;
   crest: FunctionalAppendage;
@@ -97,6 +98,7 @@ export function projectGenomeCreatureVisualAppendages(genome: LivingCardGenome):
     fins: hasFins ? appendage("functional", "fin", "aquatic-propulsion", genome.surface.kind === "shell" ? "shell-fin" : genome.anatomy.detail) : absent("fin", "aquatic-propulsion"),
     frills: hasFrill ? appendage("functional", "frill", "display", genome.appendages.crest !== "none" ? genome.appendages.crest : genome.appendages.horns) : absent("frill", "display"),
     tail: hasTail ? appendage("functional", "tail", genome.skeleton.locomotion === "flying" ? "steering" : "balance", genome.appendages.tail) : absent("tail", "balance"),
+    grip: absent("grip", "grip"),
     ears: genome.appendages.ears === "none" ? absent("frill", "display") : appendage("functional", "frill", "display", genome.appendages.ears),
     horns: genome.appendages.horns === "none" ? absent("frill", "display") : appendage("functional", "frill", "display", genome.appendages.horns),
     crest: genome.appendages.crest === "none" ? absent("frill", "display") : appendage("functional", "frill", "display", genome.appendages.crest)

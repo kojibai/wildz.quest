@@ -1,8 +1,9 @@
 import type { AdventureCardCondition } from "./adventure/card-condition";
+import { creatureForm } from "./creature-catalog";
 import { projectCardCreatureVisualIdentity, type CreatureVisualIdentity } from "./creature-visual-identity";
 import { currentCreatureHistoryProjection, currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
-import type { PortableCardAsset } from "./portable-card";
+import { canonicalPortableCardJson, type PortableCardAsset } from "./portable-card";
 import type { WildsTraversalCapability } from "./wilds-traversal-capabilities";
 
 export type CreatureSpecialtyFamily = "flight" | "glide" | "swim" | "dive" | "current" | "climb" | "burrow" | "balance" | "light" | "camouflage" | "track" | "break" | "resist" | "anchor" | "rescue";
@@ -88,7 +89,7 @@ export function capabilityPotentialForVisualIdentity(visual: CreatureVisualIdent
   const wings = visual.appendages.wings;
   const fins = visual.appendages.fins;
   if (fins.presence === "functional" && fins.kind === "fin" && fins.function === "aquatic-propulsion") capabilities.push("swim");
-  if (visual.anatomy.body === "armored" || visual.anatomy.body === "serpentine" || (visual.appendages.tail.presence === "functional" && visual.appendages.tail.function === "grip")) capabilities.push("climb");
+  if (visual.appendages.grip.presence === "functional" && visual.appendages.grip.kind === "grip" && visual.appendages.grip.function === "grip") capabilities.push("climb");
   if (wings.presence === "functional" && wings.kind === "wing" && wings.function === "glide") capabilities.push("glide");
   if (wings.presence === "functional" && wings.kind === "wing" && wings.function === "powered-lift") capabilities.push("glide", "flight");
   return freezeArray([...new Set(capabilities)]);
@@ -135,17 +136,43 @@ const ACTIONS: Readonly<Record<CreatureSpecialtyFamily, string>> = Object.freeze
   rescue: "Intervene when a traversal attempt becomes dangerous."
 });
 
-function descriptor(name: string, specialtyValue: CreatureSpecialty, slot: number): CreatureAbilityDescriptor {
+function traversalUnlockLevel(capability: WildsTraversalCapability) {
+  if (capability === "swim" || capability === "climb") return 2;
+  if (capability === "glide") return 3;
+  return 5;
+}
+
+function descriptor(name: string, specialtyValue: CreatureSpecialty, slot: number, options: { action?: string; tags?: readonly string[] } = {}): CreatureAbilityDescriptor {
   const traversalGrant = (["flight", "glide", "swim", "climb"] as const).find((value) => value === specialtyValue.family);
   const base = Math.round((specialtyValue.potential + specialtyValue.control + specialtyValue.endurance) / 6);
   return Object.freeze({
     id: `ability:${specialtyValue.id}`,
     name,
-    action: ACTIONS[specialtyValue.family],
-    tags: freezeArray([specialtyValue.family, slot === 0 ? "family" : "signature"]),
+    action: options.action ?? ACTIONS[specialtyValue.family],
+    tags: freezeArray(options.tags ? [...options.tags] : [specialtyValue.family, slot === 0 ? "family" : "signature"]),
     ...(traversalGrant ? { traversalGrant } : {}),
     powerCurve: freezeArray([base, base + 8, base + 18, base + 30]),
-    unlockLevel: slot === 0 ? 1 : 2
+    unlockLevel: slot === 0 ? 1 : traversalGrant ? traversalUnlockLevel(traversalGrant) : 2
+  });
+}
+
+const FAMILY_AFFINITY = Object.freeze({
+  Grove: { family: "rescue", action: "Channel Grove affinity to protect bonds and restore a living path." },
+  Spark: { family: "light", action: "Channel Spark affinity to reveal signals and energize a decisive opening." },
+  Tide: { family: "current", action: "Channel Tide affinity to read currents and redirect their flow." },
+  Ember: { family: "break", action: "Channel Ember affinity to fracture compatible obstacles and pressure." },
+  Prism: { family: "camouflage", action: "Channel Prism affinity to bend light and conceal the expedition." },
+  Stone: { family: "anchor", action: "Channel Stone affinity to anchor allies against force and impact." }
+} satisfies Record<string, { family: CreatureSpecialtyFamily; action: string }>);
+
+function familySpecialty(asset: PortableCardAsset, family: CreatureSpecialtyFamily): CreatureSpecialty {
+  const stats = asset.manifest.stats;
+  return Object.freeze({
+    id: `family:${asset.manifest.familyId}:${family}`,
+    family,
+    potential: Math.max(1, Math.round((stats.power + stats.bond) / 2)),
+    control: Math.max(1, Math.round((stats.guard + stats.speed) / 2)),
+    endurance: Math.max(1, Math.round((stats.health + stats.bond) / 2))
   });
 }
 
@@ -163,7 +190,24 @@ export function projectCreatureCapabilityIdentity(asset: PortableCardAsset): Cre
   const objectCached = identityObjectCache.get(asset);
   if (objectCached) return objectCached;
   const revisionDigest = isLivingCardAsset(asset) ? currentRevision(asset).digest : asset.proof.digest;
-  const canonicalKey = `${asset.id}:${asset.proof.digest}:${revisionDigest}`;
+  const visual = projectCardCreatureVisualIdentity(asset);
+  const traversalPotential = capabilityPotentialForVisualIdentity(visual);
+  const progression = Object.freeze(identityProgression(asset));
+  const abilityNames = isLivingCardAsset(asset) ? currentRevision(asset).abilityNames : asset.manifest.abilityNames;
+  const form = creatureForm(asset.manifest.formId);
+  if (!form) throw new Error("wilds_capability_form_unknown");
+  const affinity = FAMILY_AFFINITY[form.element as keyof typeof FAMILY_AFFINITY] ?? FAMILY_AFFINITY.Prism;
+  const canonicalKey = canonicalPortableCardJson({
+    assetId: asset.id,
+    proofDigest: asset.proof.digest,
+    revisionDigest,
+    visualFingerprint: visual.fingerprint,
+    traversalPotential,
+    progression,
+    abilityNames,
+    element: form.element,
+    stats: asset.manifest.stats
+  });
   const canonicalCached = identityCanonicalCache.get(canonicalKey);
   if (canonicalCached) {
     identityObjectCache.set(asset, canonicalCached);
@@ -171,24 +215,22 @@ export function projectCreatureCapabilityIdentity(asset: PortableCardAsset): Cre
   }
 
   identitySlowBuilds += 1;
-  const visual = projectCardCreatureVisualIdentity(asset);
-  const traversalPotential = capabilityPotentialForVisualIdentity(visual);
   const families = specialtyFamilies(visual, traversalPotential);
   const seed = `${asset.proof.digest}:${revisionDigest}:${visual.fingerprint}`;
-  const familyIndex = integerHash(seed, 17) % families.length;
-  const family = families[familyIndex]!;
+  const family = affinity.family;
   const signaturePool = families.filter((candidate) => candidate !== family);
   const signature = signaturePool[integerHash(seed, 29) % signaturePool.length] ?? family;
-  const specialties = freezeArray([specialty(seed, family, 0), specialty(seed, signature, 1)]);
-  const abilityNames = isLivingCardAsset(asset) ? currentRevision(asset).abilityNames : asset.manifest.abilityNames;
-  const progression = Object.freeze(identityProgression(asset));
+  const specialties = freezeArray([familySpecialty(asset, family), specialty(seed, signature, 1)]);
   const identity = Object.freeze({
     schema: "receiz.wilds.creature_capability_identity.v1" as const,
     assetId: asset.id,
     digestInput: Object.freeze({ proofDigest: asset.proof.digest, revisionDigest, visualFingerprint: visual.fingerprint }),
     traversalPotential,
     specialties,
-    abilities: freezeArray([descriptor(abilityNames[0], specialties[0]!, 0), descriptor(abilityNames[1], specialties[1]!, 1)]),
+    abilities: freezeArray([
+      descriptor(abilityNames[0], specialties[0]!, 0, { action: affinity.action, tags: [form.element.toLowerCase(), "family", "affinity"] }),
+      descriptor(abilityNames[1], specialties[1]!, 1)
+    ]),
     progression
   });
   identityObjectCache.set(asset, identity);
@@ -200,8 +242,13 @@ function runtimeKey(identity: CreatureCapabilityIdentityV1, condition: Adventure
   const injuries = condition.injuries.map((injury) => `${injury.id}:${injury.kind}:${injury.severity}:${injury.sourceEventId}`).sort().join("|");
   const xp = Object.entries(condition.xp).sort(([left], [right]) => left.localeCompare(right)).map(([key, value]) => `${key}:${value}`).join("|");
   const mastery = Object.entries(condition.mastery).sort(([left], [right]) => left.localeCompare(right)).map(([key, value]) => `${key}:${value}`).join("|");
-  return `${identity.assetId}:${identity.digestInput.proofDigest}:${condition.life}:${condition.fatigue}:${injuries}:${xp}:${mastery}`;
+  const upgrades = [...condition.upgradeIds].sort().join("|");
+  return `${identity.assetId}:${identity.digestInput.proofDigest}:${identity.digestInput.revisionDigest}:${identity.digestInput.visualFingerprint}:${identity.progression.level}:${identity.progression.bond}:${identity.progression.mastery}:${canonicalPortableCardJson(identity.traversalPotential)}:${canonicalPortableCardJson(identity.abilities)}:${condition.life}:${condition.fatigue}:${injuries}:${xp}:${mastery}:${upgrades}`;
 }
+
+const STRUCTURED_TRAVERSAL_UPGRADES: Readonly<Record<string, Readonly<{ capability: WildsTraversalCapability; unlockLevel: number }>>> = Object.freeze({
+  "deep-current-swim": Object.freeze({ capability: "swim", unlockLevel: 2 })
+});
 
 export function projectCreatureRuntimeCapabilities(identity: CreatureCapabilityIdentityV1, condition: AdventureCardCondition): CreatureRuntimeCapabilities {
   if (condition.assetId !== identity.assetId) throw new Error("wilds_capability_condition_asset_mismatch");
@@ -224,21 +271,26 @@ export function projectCreatureRuntimeCapabilities(identity: CreatureCapabilityI
   const severeWingInjury = condition.injuries.some((injury) => injury.kind === "wing" && injury.severity >= 2);
   const severeLimbInjury = condition.injuries.some((injury) => injury.kind === "limb" && injury.severity >= 2);
   const suppressed: string[] = [];
-  const capabilities = condition.life === "alive" ? identity.traversalPotential.filter((capability) => {
-    const unavailable = (capability === "flight" && condition.fatigue >= 85)
+  const upgradeGrants = condition.upgradeIds.map((upgradeId) => STRUCTURED_TRAVERSAL_UPGRADES[upgradeId]).filter((grant): grant is Readonly<{ capability: WildsTraversalCapability; unlockLevel: number }> => Boolean(grant));
+  const potential = [...new Set([...identity.traversalPotential, ...upgradeGrants.filter((grant) => level >= grant.unlockLevel).map((grant) => grant.capability)])];
+  const capabilities = condition.life === "alive" ? potential.filter((capability) => {
+    const unavailable = level < traversalUnlockLevel(capability)
+      || (capability === "flight" && condition.fatigue >= 85)
       || (capability !== "flight" && condition.fatigue >= (capability === "climb" ? 95 : 100))
       || ((capability === "flight" || capability === "glide") && severeWingInjury)
       || (capability === "climb" && severeLimbInjury);
     if (unavailable) suppressed.push(capability);
     return !unavailable;
   }) : [];
-  if (condition.life !== "alive") suppressed.push(...identity.traversalPotential);
+  if (condition.life !== "alive") suppressed.push(...potential);
   const progressionGain = Math.min(45, Math.floor(level * 2 + bond / 10 + mastery / 20));
   const fatiguePenalty = Math.floor(condition.fatigue / 8);
   const abilities = identity.abilities.map((ability) => Object.freeze({
     descriptor: ability,
     currentPower: Math.max(1, ability.powerCurve[Math.min(ability.powerCurve.length - 1, Math.floor((level - 1) / 4))]! + progressionGain - fatiguePenalty),
-    available: condition.life === "alive" && level >= ability.unlockLevel
+    available: condition.life === "alive"
+      && level >= ability.unlockLevel
+      && (!ability.traversalGrant || capabilities.includes(ability.traversalGrant))
   }));
   const runtime = Object.freeze({
     assetId: identity.assetId,

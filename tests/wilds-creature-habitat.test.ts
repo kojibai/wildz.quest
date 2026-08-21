@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { emptyAdventureCondition } from "../src/features/play/adventure/card-condition";
 import { creatureForm } from "../src/features/play/creature-catalog";
 import { applyWildsInput, initialPlayState } from "../src/features/play/game-state";
 import {
@@ -121,6 +122,7 @@ describe("Wildz terrain-authorized creature habitat", () => {
     const aquatic = state.inventory.at(-1)!;
     assert.equal(isWildsAquaticForm(creatureForm(aquatic.manifest.formId)!), true);
     state = applyWildsInput(state, { type: "select-asset", assetId: aquatic.id });
+    state = { ...state, adventureConditions: { ...state.adventureConditions, [aquatic.id]: { ...(state.adventureConditions[aquatic.id] ?? emptyAdventureCondition(aquatic.id)), xp: { swim: 100 } } } };
     const deepWater = { ...state, player: { x: -94.42, z: -240 } };
     const swimming = applyWildsInput(deepWater, { type: "move-vector", x: 1, z: 0 });
     assert.ok(swimming.player.x > deepWater.player.x);
