@@ -408,7 +408,68 @@ Project one optional instanced maker marker per admitted public entrance, select
 
 Commit: `feat: add persistent caves mountains and hidden world sites`
 
-### Task 9: Quality-Bounded Ambient Aquatic and Aerial Life
+### Task 9: Proof-Native Harvesting, Creature Work, Construction, and Authored Gameplay
+
+**Files:**
+- Create: `src/features/play/wilds-resource-authority.ts`
+- Create: `src/features/play/wilds-world-construction.ts`
+- Create: `src/features/play/wilds-creature-work.ts`
+- Create: `src/features/play/wilds-authored-experience.ts`
+- Create: `src/features/play/WildsBuildMode.tsx`
+- Modify: `src/features/play/WildsEnvironment.tsx`
+- Modify: `src/features/play/WildzWorldControls.tsx`
+- Modify: `src/features/play/game-state.ts`
+- Modify: `src/lib/receiz/adapter.ts`
+- Test: `tests/wilds-resource-authority.test.ts`
+- Test: `tests/wilds-world-construction.test.ts`
+- Test: `tests/wilds-creature-work.test.ts`
+- Test: `tests/wilds-authored-experience.test.ts`
+- Test: `tests/play-game-state.test.ts`
+
+**Interfaces:**
+- Produces proof-native resource objects, an append-only physical structure graph, bounded autonomous creature work plans, collaboration/damage transitions, and declarative player-authored gameplay.
+
+- [ ] **Step 1: Write failing harvest and ecological-authority tests**
+
+Assert only qualified creature/tool combinations fell eligible trees, quarry stone, mine seams, recover cave/mountain/underwater materials, or expose buried deposits. Admission changes the physical source once, creates exact inventory, leaves stump/debris/exhaustion state where appropriate, and replays idempotently. Protected features, incompatible materials, exhausted sources, and sibling duplicates reject with zero writes. Regrowth/replenishment follows deterministic Kai/world policy without a server loot table or timer.
+
+- [ ] **Step 2: Implement sparse proof-native resource authority**
+
+Bind source, terrain/material, quantity/capacity, quality, explorer, creature, tool, Kai root, world head, and idempotency identity. Commit world-source and inventory effects atomically. Project only admitted nearby state and perform zero generation, verification, or history reduction during movement.
+
+- [ ] **Step 3: Write failing construction and collaboration tests**
+
+Build an inhabitable foundation, room, roof, door, stair, bridge, storage, workshop, habitat, light, and water element from exact materials. Prove preview is zero-write and admitted geometry has collision, clearance, support, entrances, interior, utilities, access, provenance, and repair state. Invite another builder, contribute materials/creature labor, and require every participant, inventory, creature/job, and structure head to advance atomically or none.
+
+- [ ] **Step 4: Implement intuitive physical build mode**
+
+Provide touch/pointer placement, rotate, height, snap, undo-preview, confirm, and concise validity cues. Snap to terrain, tunnels, water, foundations, and structural anchors. Use a bounded component catalog, and bake/cache admitted nearby geometry, collision, and navigation without rebuilding distant structures.
+
+- [ ] **Step 5: Implement bounded creature work while playing or offline**
+
+Compile each blueprint into deterministic stages for exact professions: lumber, quarry, mine, haul, burrow, shape, masonry, stabilize, underwater build, illuminate, survey, rescue, and finish. Require explicit material/tool allocation and a Receiz living-subject mandate binding blueprint digest, region, resource/action budgets, creature heads/capabilities, expiry, safety, pause, and revocation. Queue/resume through the official subject-runtime job rail; admit independently verified stage additions only. Stale, exceeded, failed, paused, or revoked work writes nothing further. First paint uses carried local heads and never waits for job polling.
+
+- [ ] **Step 6: Write failing authored-gameplay safety and replay tests**
+
+Compose a playable structure from start/finish, checkpoint, door, switch, pressure plate, key, Kai timer, puzzle, traversal gate, habitat, battle arena, race, hazard, processor, shop, reward, score, and reset primitives. Reject arbitrary code, unreachable exits, unbounded effects/rewards, authority outside the structure/participants, nondeterminism, and missing accessibility metadata. A second player completes and restores the same experience deterministically.
+
+- [ ] **Step 7: Implement bounded declarative gameplay experiences**
+
+Compile authoring primitives into a pure bounded state machine with exact structure and participant heads. Validate/publish through one explicit command; previews stay zero-write. Consequences append through existing battle, inventory, creature, Φ, and world boundaries without allowing authored content to manufacture authority.
+
+- [ ] **Step 8: Implement policy-bound damage, repair, salvage, and destruction**
+
+Admit damage only for owner dismantling, explicitly destructible public play, consensual siege/battle, or current policy. Derive support failure from exact geometry/material/capability/environment. Preserve ruins and bounded salvage; repairs append to the same identity. Reject private/protected griefing with zero writes.
+
+- [ ] **Step 9: Implement resource gifts and Φ sales**
+
+Support exact capacity split/merge, gift, listing, purchase, and sale. Atomically advance seller resource custody, buyer receipt, buyer Φ subtraction, seller Φ addition, and all heads. Use local verified balance/inventory projections and event-driven unknown additions; never poll balances or treat listing/preview/API success as settlement.
+
+- [ ] **Step 10: Run harvesting, construction, jobs, collaboration, authored-play, destruction, trade, restore, latency, and render suites; commit**
+
+Commit: `feat: let players and creatures build the living Wildz world`
+
+### Task 10: Quality-Bounded Ambient Aquatic and Aerial Life
 
 **Files:**
 - Create: `src/features/play/WildsAmbientLife.tsx`
@@ -432,7 +493,7 @@ Generate only at region admission/explicit scan, cap by quality profile, freeze 
 
 Commit: `feat: populate water and sky with living ambient creatures`
 
-### Task 10: Admitted Restore and Hot-Path Freeze
+### Task 11: Admitted Restore and Hot-Path Freeze
 
 **Files:**
 - Create: `src/features/play/admitted-inventory.ts`
@@ -461,7 +522,7 @@ Assert foreign imports never merge exploration, position, depth, selection, or i
 
 Commit: `perf: keep admitted creature gameplay verification-free`
 
-### Task 11: Atlas Scale Invariance as Discovery Grows
+### Task 12: Atlas Scale Invariance as Discovery Grows
 
 **Files:**
 - Modify: `src/features/play/wilds-world-atlas.ts`
@@ -495,7 +556,7 @@ Restore the prior World camera relationship when available or open near the curr
 
 Commit: `fix: keep atlas geography scale invariant`
 
-### Task 12: Full Mobile Visual and Release Verification
+### Task 13: Full Mobile Visual and Release Verification
 
 **Files:**
 - Modify: `tests/wilds-render-contract.test.ts`

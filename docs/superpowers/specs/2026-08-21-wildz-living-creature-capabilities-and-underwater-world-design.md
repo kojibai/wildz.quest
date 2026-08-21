@@ -220,6 +220,28 @@ Player action leaves a durable trail. Entrances, tunnels, repairs, expansions, c
 
 Public entrances may carry one tasteful physical maker mark: a small timber trail post, carved stone plaque, metal seal, cave etching, buoy marker, or other biome-native form. It remains quiet at distance and reveals concise detail only when approached or selected: the admitted route/home name, creating explorer, contributing creature, creation Kai, and optional current steward. The mark projects verified feature provenance, respects the creator's public identity/privacy settings, and never becomes a floating billboard, repeated label field, advertisement, or substitute for the underlying proof history.
 
+## Resource Harvesting, Creature Work, and Player-Built Gameplay
+
+Exact creature specialties and proof-native tools authorize physical resource work. Qualified creatures may fell eligible trees, quarry exposed stone, mine admitted seams, gather mountain/cave materials, recover underwater resources, or expose buried deposits. The visible source changes only after one admitted harvest event, and the resulting resource enters inventory as a proof object carrying exact origin, quantity/capacity, quality, explorer, contributing creature, Kai root, and custody history.
+
+Harvestability is ecological and physical. Protected landmarks, settlements, sanctuaries, homes, critical routes, young habitats, incompatible materials, and exhausted deposits fail closed. Deterministic regrowth, replenishment, erosion, and scarcity policy replaces server loot tables and background polling. Replay, reconnect, LOD changes, and competing commands cannot duplicate a resource.
+
+Players construct inhabitable physical structures through an intuitive in-world build mode. Placement previews snap to terrain, foundations, tunnel graphs, water boundaries, and structural anchors while writing nothing. Admitted pieces include foundations, walls, roofs, floors, stairs, bridges, doors, windows, supports, platforms, storage, workshops, creature habitats, lighting, water systems, signs, defenses, and biome-specific forms. Every structure has real geometry, collision, clearance, entrances, interiors, stability, utilities, access, provenance, stewardship, and repair state.
+
+Creatures are persistent collaborators rather than cosmetic build boosts. Their exact specialties determine professions such as lumber work, quarrying, mining, hauling, burrowing, shaping, masonry, stabilization, underwater construction, illumination, surveying, rescue, and finishing. Players visually define a validated blueprint, allocate exact materials/tools, assign creatures and priorities, and approve a bounded work mandate. Creatures can advance deterministic work stages while the player explores or is offline through the Receiz living-subject job/mandate rails. Each job remains limited to the exact blueprint, area, resource budget, actions, expiry, safety policy, and creature capability head; pause, revoke, failure, or exhaustion stops with no unauthorized writes.
+
+Offline work does not make a server authoritative. The runtime stages exact proof events and independently verifiable progress additions; the shared structure changes only when the planned capability-bound append is admitted. Reopening the game paints the carried structure/job head immediately and admits only unknown later additions. Creature labor cannot invent resources, exceed allocation, bypass collision/safety, or continue under a stale/revoked mandate.
+
+Structures can contain gameplay other players can play. Authors compose a bounded declarative kit—not arbitrary executable scripts—including starts, finishes, checkpoints, doors, switches, pressure plates, keys, Kai timers, puzzles, traversal gates, capture habitats, battle arenas, races, hazards, processors, shops, rewards, score rules, and reset conditions. Publication proves reachable exits, bounded effects and rewards, deterministic replay, accessibility metadata, and zero authority outside the structure and exact participants.
+
+Collaboration is first-class. Owners can invite builders, accept materials, assign roles, publish goals, and attribute every contribution to the exact explorer, creature, tool, material, and Kai event. Multi-player construction advances every affected inventory, creature/job, participant, and structure head atomically or none. Stewardship may transfer without rewriting creation or contributor history.
+
+Damage, repair, dismantling, collapse, salvage, and destruction are physical admitted transitions. Damage is allowed only for owner-authorized dismantling, explicitly destructible public play, consensual siege/battle targets, or current policy. Private and protected structures cannot be griefed. Material strength, support, capabilities, and environmental force determine consequences. Destruction leaves persistent ruins and bounded salvage; repair/reconstruction appends to the same feature identity.
+
+Resources are tradeable proof objects. Players may gift, split, merge, list, purchase, or sell admitted resource capacity for Φ. Settlement atomically advances seller resource custody, buyer resource receipt, buyer spendable Φ capacity, seller Φ receipt, and all involved heads—or writes nothing. Local deterministic balances and resource inventory update once from verified additions; marketplace rows, previews, or API responses never become value/custody authority.
+
+Shared construction remains sparse and streamed. Far structures use stable bounded LODs; nearby structures reuse admitted baked geometry, collision, navigation, and declarative gameplay projections. Movement/rendering never scans world history, evaluates build validity, verifies resources, runs job reducers, polls balances, or contacts the network.
+
 Encounter eligibility is physical and capability-aware:
 
 - non-swimmers can still obtain a first swimmer from an admitted shore or shallow-water approach;
@@ -321,6 +343,10 @@ Identity Seal and full Vault restore preserve the exact account and selected cre
 26. Qualified burrowers can create persistent physical entrances, tunnels, chambers, and mountain passages that other players may discover and traverse; the append-only tunnel graph prevents duplication, impossible geometry, protected-site damage, and movement-path latency.
 27. Excavated chambers can become proof-built mountain homes and shared structures; routes may connect safe surfaces or continue underwater when exact aquatic/pressure/sealing requirements are met; access policy and complete creator/creature provenance persist for other players.
 28. Public player-built entrances may show one small biome-native maker post or plaque whose approach detail truthfully identifies the admitted explorer, creature, creation Kai, route/home, and current stewardship without visual clutter or privacy leakage.
+29. Capability-qualified harvesting physically changes eligible trees, stone, seams, and deposits exactly once and produces tradeable proof-native resources without replay duplication, protected-world damage, or movement-path work.
+30. Creatures can execute bounded blueprint work while the player explores or is offline only under an exact revocable mandate; every verified stage preserves capability, resource, safety, provenance, and zero-unauthorized-write guarantees.
+31. Players can intuitively build inhabitable physical structures and bounded declarative gameplay experiences that others can enter and play; collaboration, access, rewards, damage, repair, salvage, destruction, and history advance atomically.
+32. Admitted resources can be gifted or sold for Φ through atomic custody and settlement transitions while balances and inventory remain deterministic local proof projections with no recurring polling.
 
 ## Implementation phases
 
@@ -330,8 +356,9 @@ Identity Seal and full Vault restore preserve the exact account and selected cre
 4. Shared aquatic presentation and true swim pose.
 5. Underwater camera, water ceiling, atmosphere, and scuba overlay.
 6. Persistent capability/status UI and progression explanations.
-7. Restore admission optimization and hot-path instrumentation.
-8. Cross-device, mobile performance, visual, and release verification.
+7. Persistent sites, proof-native harvesting, creature work mandates, construction, and authored gameplay.
+8. Restore admission optimization and hot-path instrumentation.
+9. Cross-device, mobile performance, visual, and release verification.
 
 The layered encounter work is implemented after canonical visual identity and capability projection, so underwater and aerial creatures cannot reintroduce wild-to-captured appearance divergence.
 
