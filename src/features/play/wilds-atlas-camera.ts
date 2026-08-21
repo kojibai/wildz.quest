@@ -1,4 +1,5 @@
 import type { WildsAtlasProjection } from "./wilds-world-atlas";
+import { WILDS_REGION_SIZE } from "./multiplayer-core";
 
 type CameraVector = readonly [number, number, number];
 
@@ -14,6 +15,11 @@ export type WildsAtlasCameraFrame = Readonly<{
 export type WildsAtlasCameraPose = Readonly<{
   position: CameraVector;
   target: CameraVector;
+}>;
+
+export type WildsAtlasFloatingPose = WildsAtlasCameraPose & Readonly<{
+  centerRegion: Readonly<{ x: number; z: number }>;
+  rebased: boolean;
 }>;
 
 function finitePositive(value: number, fallback: number) {
@@ -59,13 +65,94 @@ export function atlasCameraFrame(
   });
 }
 
+export function atlasCameraOpeningFrame(
+  input: {
+    currentPosition: Readonly<{ x: number; z: number }>;
+    centerRegion: Readonly<{ x: number; z: number }>;
+    regionUnit: number;
+  },
+  viewport: { width: number; height: number }
+): WildsAtlasCameraPose {
+  const width = finitePositive(viewport.width, 1);
+  const height = finitePositive(viewport.height, 1);
+  const regionUnit = finitePositive(input.regionUnit, 1);
+  const portrait = height > width * 1.25;
+  const distance = portrait ? 10.5 : 9.2;
+  const elevation = distance * (portrait ? .82 : .72);
+  const targetX = (input.currentPosition.x / WILDS_REGION_SIZE - input.centerRegion.x) * regionUnit;
+  const targetZ = (input.currentPosition.z / WILDS_REGION_SIZE - input.centerRegion.z) * regionUnit;
+  return Object.freeze({
+    target: Object.freeze([targetX, 0, targetZ]) as CameraVector,
+    position: Object.freeze([targetX, elevation, targetZ + distance]) as CameraVector
+  });
+}
+
+export function atlasCameraOpeningLimits(regionUnit: number) {
+  const safeRegionUnit = finitePositive(regionUnit, 1);
+  const maxDistance = 512;
+  return Object.freeze({
+    minDistance: Math.max(.45, safeRegionUnit * .28),
+    maxDistance,
+    far: maxDistance * 2.2
+  });
+}
+
+export function rebaseWildsAtlasCameraPose(input: {
+  centerRegion: Readonly<{ x: number; z: number }>;
+  current: WildsAtlasCameraPose;
+  regionUnit: number;
+  threshold: number;
+}): WildsAtlasFloatingPose {
+  const regionUnit = finitePositive(input.regionUnit, 1);
+  const threshold = finitePositive(input.threshold, 96);
+  if (Math.abs(input.current.target[0]) <= threshold && Math.abs(input.current.target[2]) <= threshold) {
+    return Object.freeze({ ...input.current, centerRegion: input.centerRegion, rebased: false });
+  }
+  const shiftRegionX = Math.trunc(input.current.target[0] / regionUnit);
+  const shiftRegionZ = Math.trunc(input.current.target[2] / regionUnit);
+  const shiftX = shiftRegionX * regionUnit;
+  const shiftZ = shiftRegionZ * regionUnit;
+  return Object.freeze({
+    centerRegion: Object.freeze({
+      x: input.centerRegion.x + shiftRegionX,
+      z: input.centerRegion.z + shiftRegionZ
+    }),
+    position: Object.freeze([
+      input.current.position[0] - shiftX,
+      input.current.position[1],
+      input.current.position[2] - shiftZ
+    ]) as CameraVector,
+    target: Object.freeze([
+      input.current.target[0] - shiftX,
+      input.current.target[1],
+      input.current.target[2] - shiftZ
+    ]) as CameraVector,
+    rebased: true
+  });
+}
+
+export function preserveWildsAtlasCameraLimits(
+  current: Pick<WildsAtlasCameraFrame, "minDistance" | "maxDistance" | "far">,
+  next: Pick<WildsAtlasCameraFrame, "minDistance" | "maxDistance" | "far">
+) {
+  return Object.freeze({
+    minDistance: Math.min(current.minDistance, next.minDistance),
+    maxDistance: Math.max(current.maxDistance, next.maxDistance),
+    far: Math.max(current.far, next.far)
+  });
+}
+
 export function resolveWildsAtlasCameraPose(input: {
   current: WildsAtlasCameraPose;
   frame: WildsAtlasCameraFrame;
+  openingFrame: WildsAtlasCameraPose;
   lastFitRequest: number | null;
   fitRequest: number;
 }): WildsAtlasCameraPose & { fitted: boolean } {
-  if (input.lastFitRequest === null || input.lastFitRequest !== input.fitRequest) {
+  if (input.lastFitRequest === null) {
+    return Object.freeze({ position: input.openingFrame.position, target: input.openingFrame.target, fitted: true });
+  }
+  if (input.lastFitRequest !== input.fitRequest) {
     return Object.freeze({ position: input.frame.position, target: input.frame.target, fitted: true });
   }
   return Object.freeze({ position: input.current.position, target: input.current.target, fitted: false });

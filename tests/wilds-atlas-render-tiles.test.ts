@@ -5,6 +5,7 @@ import {
   atlasWorldCoordinate,
   buildWildsAtlasRenderTiles,
   clipWildsAtlasRouteSegments,
+  wildsAtlasProjectedBounds,
   wildsAtlasProjectedSpan,
   wildsAtlasTileContainsRegion,
   type WildsAtlasRenderTile
@@ -46,6 +47,20 @@ test("tiling walks sparse rows instead of the enormous empty bounding rectangle"
     [-10_000_000, -10_000_000],
     [10_000_000, 10_000_000]
   ]);
+});
+
+test("projected bounds reduce huge sparse node sets without argument spreading", () => {
+  const nodes = Array.from({ length: 200_000 }, (_, index) => ({
+    regionX: index - 100_000,
+    regionZ: index % 2 === 0 ? -20_000_000 : 20_000_000
+  }));
+  assert.deepEqual(wildsAtlasProjectedBounds(nodes), {
+    minX: -100_000,
+    maxX: 99_999,
+    minZ: -20_000_000,
+    maxZ: 20_000_000,
+    count: 200_000
+  });
 });
 
 test("draw and vertex caps batch every discovered cell without ever filling hidden cells", () => {

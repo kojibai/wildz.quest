@@ -38,20 +38,28 @@ export function atlasLocalCoordinate(world: number, centerRegion: number, region
 }
 
 export function wildsAtlasProjectedSpan(nodes: readonly AtlasRegion[], regionUnit: number) {
-  const regions = normalizedRegions(nodes);
-  if (regions.length === 0) return Math.max(0, regionUnit);
-  const bounds = regions.reduce((result, region) => ({
-    minX: Math.min(result.minX, region.regionX),
-    maxX: Math.max(result.maxX, region.regionX),
-    minZ: Math.min(result.minZ, region.regionZ),
-    maxZ: Math.max(result.maxZ, region.regionZ)
-  }), {
-    minX: regions[0]!.regionX,
-    maxX: regions[0]!.regionX,
-    minZ: regions[0]!.regionZ,
-    maxZ: regions[0]!.regionZ
-  });
+  const bounds = wildsAtlasProjectedBounds(nodes);
+  if (bounds.count === 0) return Math.max(0, regionUnit);
   return Math.max(bounds.maxX - bounds.minX + 1, bounds.maxZ - bounds.minZ + 1) * Math.max(0, regionUnit);
+}
+
+export function wildsAtlasProjectedBounds(nodes: readonly AtlasRegion[]) {
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minZ = Number.POSITIVE_INFINITY;
+  let maxZ = Number.NEGATIVE_INFINITY;
+  let count = 0;
+  for (const node of nodes) {
+    if (!Number.isSafeInteger(node.regionX) || !Number.isSafeInteger(node.regionZ)) continue;
+    minX = Math.min(minX, node.regionX);
+    maxX = Math.max(maxX, node.regionX);
+    minZ = Math.min(minZ, node.regionZ);
+    maxZ = Math.max(maxZ, node.regionZ);
+    count += 1;
+  }
+  return count === 0
+    ? { minX: 0, maxX: 0, minZ: 0, maxZ: 0, count: 0 }
+    : { minX, maxX, minZ, maxZ, count };
 }
 
 function regionKey(regionX: number, regionZ: number) {
