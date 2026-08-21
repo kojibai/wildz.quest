@@ -20,10 +20,12 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(world, /aquaticPresentation\.actorLocalY/);
     assert.match(world, /visible=\{aquaticPresentation\.mode !== "swim"\}/);
     assert.match(world, /<WildsUnderwaterAtmosphere/);
+    assert.match(world, /actualCameraSubmergedRef/);
     assert.match(controls, /Swimming with \$\{activeEntry\.name\}/);
     assert.match(atmosphere, /useFrame/);
     assert.doesNotMatch(atmosphere, /useState|set[A-Z][A-Za-z]*\(/);
     assert.doesNotMatch(atmosphere, /EffectComposer|postprocessing/);
+    assert.doesNotMatch(atmosphere, /presentation\.cameraSubmersionAllowed/);
   });
 
   it("keeps the atlas unobstructed and makes the map itself the travel control", async () => {

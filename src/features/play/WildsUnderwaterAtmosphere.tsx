@@ -1,23 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import type { WildsAquaticPresentation } from "./wilds-aquatic-presentation";
 import type { WildsQualityProfile } from "./wilds-quality-profile";
 
 const UNDERWATER_FOG_NEAR = 1.8;
 const UNDERWATER_FOG_FAR = 18;
 
 export function WildsUnderwaterAtmosphere({
-  presentation,
+  cameraSubmergedRef,
   qualityProfile,
   surfaceFog,
   surfaceFogFar,
   surfaceFogNear,
   surfaceSky
 }: {
-  presentation: WildsAquaticPresentation;
+  cameraSubmergedRef: MutableRefObject<boolean>;
   qualityProfile: WildsQualityProfile;
   surfaceFog: string;
   surfaceFogFar: number;
@@ -60,7 +59,7 @@ export function WildsUnderwaterAtmosphere({
   }, [gl, scene, surfaceFogColor, surfaceFogFar, surfaceFogNear, surfaceSkyColor]);
 
   useFrame(({ clock }, delta) => {
-    const target = presentation.cameraSubmersionAllowed ? 1 : 0;
+    const target = cameraSubmergedRef.current ? 1 : 0;
     mix.current = THREE.MathUtils.damp(mix.current, target, 6.5, delta);
     const amount = mix.current;
     blendedSky.copy(surfaceSkyColor).lerp(underwaterSkyColor, amount);

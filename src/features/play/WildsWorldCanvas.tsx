@@ -54,7 +54,7 @@ import type { WildsAquaticPresentation } from "@/features/play/wilds-aquatic-pre
 import { advanceWildsAerialTraversal, type WildsAerialMode, type WildsAerialTraversalState } from "@/features/play/wilds-aerial-traversal";
 import type { WildsTraversalCapability } from "@/features/play/wilds-traversal-capabilities";
 import type { WildsOverlookId } from "@/features/play/wilds-overlooks";
-import { writeUnderwaterCameraTarget, type MutableUnderwaterCameraProjection } from "@/features/play/wilds-underwater-camera";
+import { isUnderwaterCameraSubmerged, writeUnderwaterCameraTarget, type MutableUnderwaterCameraProjection } from "@/features/play/wilds-underwater-camera";
 
 const WILDS_DIAGNOSTICS_ENABLED = process.env.NODE_ENV !== "production";
 
@@ -227,6 +227,7 @@ function WildsScene({
     [state.inventory, state.selectedAssetId]
   );
   const activeAppearance = useMemo(() => activeAsset ? projectCardKaiAppearance(activeAsset) : null, [activeAsset]);
+  const actualCameraSubmergedRef = useRef(false);
   return (
     <WildsReadabilityProvider value={readability}>
       <color attach="background" args={[kaiSky]} />
@@ -234,8 +235,8 @@ function WildsScene({
       <WildsCelestialSky expression={kaiExpression} qualityProfile={qualityProfile} />
       <WildsAtmosphere encounter={state.encounter} expression={kaiExpression} missionProgress={state.missionProgress} nightRig={nightRig} player={state.player} qualityProfile={qualityProfile} />
       <WildsKaiAtmosphereGeometry expression={kaiExpression} qualityProfile={qualityProfile} />
-      <WildsUnderwaterAtmosphere presentation={aquaticPresentation} qualityProfile={qualityProfile} surfaceFog={kaiFog} surfaceFogFar={fogFar} surfaceFogNear={fogNear} surfaceSky={kaiSky} />
-      <CameraRig aerialStateRef={aerialStateRef} aquaticPresentation={aquaticPresentation} onCameraHeadingChange={onCameraHeadingChange} vistaHeading={vistaHeading} />
+      <CameraRig actualCameraSubmergedRef={actualCameraSubmergedRef} aerialStateRef={aerialStateRef} aquaticPresentation={aquaticPresentation} onCameraHeadingChange={onCameraHeadingChange} vistaHeading={vistaHeading} />
+      <WildsUnderwaterAtmosphere cameraSubmergedRef={actualCameraSubmergedRef} qualityProfile={qualityProfile} surfaceFog={kaiFog} surfaceFogFar={fogFar} surfaceFogNear={fogNear} surfaceSky={kaiSky} />
       {WILDS_DIAGNOSTICS_ENABLED ? <WildsDiagnostics environment={{
         authoredDarkness: darkness.amount,
         dayPhase: kaiExpression.dayPhase,
@@ -544,7 +545,8 @@ function RemoteExplorer({
   );
 }
 
-function CameraRig({ aerialStateRef, aquaticPresentation, onCameraHeadingChange, vistaHeading }: {
+function CameraRig({ actualCameraSubmergedRef, aerialStateRef, aquaticPresentation, onCameraHeadingChange, vistaHeading }: {
+  actualCameraSubmergedRef: MutableRefObject<boolean>;
   aerialStateRef: MutableRefObject<WildsAerialTraversalState>;
   aquaticPresentation: WildsAquaticPresentation;
   onCameraHeadingChange: (heading: number) => void;
@@ -553,8 +555,7 @@ function CameraRig({ aerialStateRef, aquaticPresentation, onCameraHeadingChange,
   const { camera } = useThree();
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const priorVista = useRef<{ position: THREE.Vector3; target: THREE.Vector3 } | null>(null);
-  const submerged = useRef(false);
-  const cameraProjection = useRef<MutableUnderwaterCameraProjection>({ submerged: false, localWaterSurfaceY: 0, targetY: .9, cameraY: 0 });
+  const cameraProjection = useRef<MutableUnderwaterCameraProjection>({ underwaterTargetActive: false, localWaterSurfaceY: 0, targetY: .9, cameraY: 0 });
   const lastHeading = useRef(Number.NaN);
   useEffect(() => {
     const orbit = controls.current;
@@ -580,11 +581,19 @@ function CameraRig({ aerialStateRef, aquaticPresentation, onCameraHeadingChange,
       const clearance = Math.max(0, aerialStateRef.current.altitude - aquaticPresentation.terrainElevation);
       const surfaceTargetY = .9 + clearance;
       const projection = cameraProjection.current;
-      writeUnderwaterCameraTarget(aquaticPresentation, submerged.current, surfaceTargetY, camera.position.y - orbit.target.y, projection);
-      submerged.current = projection.submerged;
+      writeUnderwaterCameraTarget(aquaticPresentation, surfaceTargetY, camera.position.y - orbit.target.y, projection);
       const priorTargetY = orbit.target.y;
       orbit.target.y = THREE.MathUtils.damp(orbit.target.y, projection.targetY, 8, delta);
       camera.position.y += orbit.target.y - priorTargetY;
+      actualCameraSubmergedRef.current = isUnderwaterCameraSubmerged(
+        camera.position.y,
+        projection.localWaterSurfaceY,
+        actualCameraSubmergedRef.current,
+        aquaticPresentation.cameraSubmersionAllowed,
+        false
+      );
+    } else if (vistaHeading !== null) {
+      actualCameraSubmergedRef.current = false;
     }
     const heading = Math.atan2(camera.position.x, camera.position.z);
     if (Number.isFinite(lastHeading.current) && Math.abs(heading - lastHeading.current) < .001) return;

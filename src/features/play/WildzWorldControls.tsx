@@ -18,6 +18,7 @@ import { WILDS_FLIGHT_RELAUNCH_ENERGY, type WildsAerialMode } from "./wilds-aeri
 import type { WildsTraversalCapability } from "./wilds-traversal-capabilities";
 import type { WildsAquaticPresentation } from "./wilds-aquatic-presentation";
 import { projectCreatureCapabilityIdentity } from "./creature-capability-identity";
+import { projectWildsTraversalStatus } from "./wilds-traversal-status";
 
 const ignore = () => {};
 
@@ -204,7 +205,12 @@ export function WildzWorldControls({
       : aquaticPresentation?.mode === "wade"
         ? "Shallow water · wading"
         : null;
-  const traversalStatus = flightStatus ?? aquaticStatus;
+  const traversalStatus = projectWildsTraversalStatus({
+    aerialMode,
+    aquaticMode: aquaticPresentation?.mode ?? "land",
+    aquaticStatus,
+    flightStatus
+  });
 
   useEffect(() => {
     if (requestedCommand && exclusiveOwner !== "none") requestHandled();

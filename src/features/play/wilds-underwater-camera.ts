@@ -4,14 +4,14 @@ export const UNDERWATER_CAMERA_ENTER_DEPTH = 0.18;
 export const UNDERWATER_CAMERA_EXIT_DEPTH = 0.08;
 
 export type UnderwaterCameraProjection = Readonly<{
-  submerged: boolean;
+  underwaterTargetActive: boolean;
   localWaterSurfaceY: number;
   targetY: number;
   cameraY: number;
 }>;
 
 export type MutableUnderwaterCameraProjection = {
-  submerged: boolean;
+  underwaterTargetActive: boolean;
   localWaterSurfaceY: number;
   targetY: number;
   cameraY: number;
@@ -19,19 +19,16 @@ export type MutableUnderwaterCameraProjection = {
 
 export function writeUnderwaterCameraTarget(
   presentation: WildsAquaticPresentation,
-  wasSubmerged: boolean,
   surfaceTargetY: number,
   orbitOffsetY: number,
   output: MutableUnderwaterCameraProjection
 ) {
   if (!Number.isFinite(surfaceTargetY) || !Number.isFinite(orbitOffsetY)) throw new Error("wilds_underwater_camera_input_invalid");
   const localWaterSurfaceY = presentation.waterSurfaceY - presentation.terrainElevation;
-  const depthBelowSurface = localWaterSurfaceY - presentation.actorLocalY;
-  const submerged = presentation.cameraSubmersionAllowed
-    && (wasSubmerged ? depthBelowSurface >= -UNDERWATER_CAMERA_EXIT_DEPTH : depthBelowSurface >= UNDERWATER_CAMERA_ENTER_DEPTH);
-  output.submerged = submerged;
+  const underwaterTargetActive = presentation.cameraSubmersionAllowed;
+  output.underwaterTargetActive = underwaterTargetActive;
   output.localWaterSurfaceY = localWaterSurfaceY;
-  if (!submerged) {
+  if (!underwaterTargetActive) {
     output.targetY = surfaceTargetY;
     output.cameraY = surfaceTargetY + orbitOffsetY;
     return;
@@ -40,13 +37,36 @@ export function writeUnderwaterCameraTarget(
   output.cameraY = output.targetY + orbitOffsetY;
 }
 
+export function isUnderwaterCameraSubmerged(
+  cameraY: number,
+  localWaterSurfaceY: number,
+  wasSubmerged: boolean,
+  submersionAllowed: boolean,
+  vistaActive: boolean
+) {
+  if (!Number.isFinite(cameraY) || !Number.isFinite(localWaterSurfaceY)) throw new Error("wilds_underwater_camera_position_invalid");
+  if (!submersionAllowed || vistaActive) return false;
+  return wasSubmerged
+    ? cameraY < localWaterSurfaceY + UNDERWATER_CAMERA_EXIT_DEPTH
+    : cameraY <= localWaterSurfaceY - UNDERWATER_CAMERA_ENTER_DEPTH;
+}
+
+export function projectUnderwaterCameraSubmersion(input: Readonly<{
+  cameraY: number;
+  localWaterSurfaceY: number;
+  wasSubmerged: boolean;
+  submersionAllowed: boolean;
+  vistaActive: boolean;
+}>) {
+  return isUnderwaterCameraSubmerged(input.cameraY, input.localWaterSurfaceY, input.wasSubmerged, input.submersionAllowed, input.vistaActive);
+}
+
 export function projectUnderwaterCameraTarget(input: Readonly<{
   presentation: WildsAquaticPresentation;
-  wasSubmerged: boolean;
   surfaceTargetY: number;
   orbitOffsetY: number;
 }>): UnderwaterCameraProjection {
-  const output: MutableUnderwaterCameraProjection = { submerged: false, localWaterSurfaceY: 0, targetY: 0, cameraY: 0 };
-  writeUnderwaterCameraTarget(input.presentation, input.wasSubmerged, input.surfaceTargetY, input.orbitOffsetY, output);
+  const output: MutableUnderwaterCameraProjection = { underwaterTargetActive: false, localWaterSurfaceY: 0, targetY: 0, cameraY: 0 };
+  writeUnderwaterCameraTarget(input.presentation, input.surfaceTargetY, input.orbitOffsetY, output);
   return Object.freeze(output);
 }
