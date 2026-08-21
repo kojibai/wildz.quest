@@ -185,6 +185,12 @@ The endless terrain contains deterministic discovery sites that make exploration
 
 Sites are selected from exact world coordinates, terrain, Kai context, and stable world seeds. Discovery feels unknown to the player, but generation is deterministic: returning to the same place restores the same site's entrance, geometry, habitat, inhabitants, and recorded discoveries. A visible entrance or distant landmark cannot disappear because the player approached it or because an LOD changed.
 
+Mountain scale ranges from small climbable hills to massive multi-route massifs. Large mountains contain foothills, valleys, passes, cliffs, high-altitude weather bands, summit overlooks, rare habitats, and possible interior cave networks. Their full elevation remains visible and physical from the ground and during flight. Low-altitude flyers use valleys and passes; peak overflight requires sufficient lift, endurance, control, and weather tolerance.
+
+Waterfalls follow actual elevated water routes, remain visible on approach, and create physical pools, mist, current, sound, and possible concealed entrances below. Cave scale ranges from shallow shelters to branching caverns and bounded streamed underground worlds containing chambers, rivers, shafts, luminous ecosystems, ruins, rare habitats, and stable alternate exits.
+
+Altitude is embodied. Camera elevation and horizon follow the player; wind and atmosphere respond to height. Exposed ledges admit a deterministic falling state and impact consequence. Flight, glide, grip, or rescue capabilities may recover a fall. Safe authored routes remain available, while dangerous climbs, dives, currents, caves, storm flights, and narrow ledges trade risk for speed, access, or rare rewards.
+
 Each site has:
 
 - a physical entrance anchored to authoritative terrain, water depth, cliff geometry, or air altitude;
@@ -292,6 +298,8 @@ Identity Seal and full Vault restore preserve the exact account and selected cre
 21. Powered flight supports bounded player-controlled ascent/descent, clears grounded tree/rock collision, passes above canopies at sufficient altitude, and still respects mountains, ceilings, structures, and aerial hazards.
 22. The explorer's backpack deploys a paired, palette-derived aerial harness on takeoff, presents distinct powered-flight and glide poses, respects reduced motion, and folds completely on landing without changing saved identity.
 23. Takeoff, hover, forward flight, glide, descent, and landing have distinct airborne body/leg/wing poses and never run walking animation in the sky.
+24. Mountains span stable hill-to-massif scale classes, waterfalls remain route-fed physical features, and caves span shelters through streamed underground worlds with stable entrances/exits.
+25. Mountain altitude changes camera/horizon/atmosphere; exposed falls carry deterministic consequences and capability-based recovery opportunities; high peak overflight requires sufficient aerial specialties.
 
 ## Implementation phases
 

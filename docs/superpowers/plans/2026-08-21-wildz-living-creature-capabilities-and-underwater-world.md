@@ -374,6 +374,8 @@ Commit: `feat: add underwater and aerial creature encounters`
 
 Generate representative sites at ordinary and extreme coordinates, evict caches, regenerate, and assert exact equality. Advance the player from far LOD through the entrance and assert the same site identity remains visible and physical. Assert ability-gated branches never block the ordinary route or the first source of their required capability.
 
+Cover hill, mountain, and massive-massif scale classes; route-fed waterfalls with persistent pools/entrances; shallow caves, branching caverns, and bounded underground-world interiors. Assert altitude affects camera/horizon/atmosphere, exposed ledges admit deterministic falls, and flight/glide/grip/rescue recovery remains capability-gated.
+
 - [ ] **Step 2: Implement sparse deterministic site admission**
 
 Use integer-hashed world regions plus actual terrain/depth/altitude constraints. Separate immutable site identity from bounded local render detail. Record only discovered site keys in exploration continuity; reconstruct geometry and inhabitants from authority.
@@ -443,7 +445,41 @@ Assert foreign imports never merge exploration, position, depth, selection, or i
 
 Commit: `perf: keep admitted creature gameplay verification-free`
 
-### Task 11: Full Mobile Visual and Release Verification
+### Task 11: Atlas Scale Invariance as Discovery Grows
+
+**Files:**
+- Modify: `src/features/play/wilds-world-atlas.ts`
+- Modify: `src/features/play/wilds-atlas-camera.ts`
+- Modify: `src/features/play/WildsAtlasCanvas.tsx`
+- Modify: `src/features/play/WildsWorldMap.tsx`
+- Test: `tests/wilds-world-atlas.test.ts`
+- Test: `tests/wilds-atlas-camera.test.ts`
+- Test: `tests/wilds-render-contract.test.ts`
+
+**Interfaces:**
+- Preserves one constant World-view region scale while Fit discoveries changes camera framing only.
+
+- [ ] **Step 1: Write failing scale-invariance tests**
+
+Project the starting atlas, add distant sparse discoveries, and assert identical `regionUnit` plus identical terrain-cell, route, landmark, building, label, presence, and marker scale factors. Assert bounds expansion does not change camera distance/target/orbit for an open atlas. Assert explicit Fit discoveries still frames the complete bounds.
+
+- [ ] **Step 2: Verify RED**
+
+Expected: FAIL because World projection currently reduces `regionUnit` as `maxSpan` grows and opening framing compresses all discoveries.
+
+- [ ] **Step 3: Implement constant physical map scale**
+
+Remove discovery-span scaling from World `regionUnit`. Convert every atlas world/local mapping and positioned object through the same constant region authority. Newly discovered coordinates extend sparse geometry and pannable coordinates without resizing existing geography.
+
+- [ ] **Step 4: Preserve camera scale across open and bounds expansion**
+
+Restore the prior World camera relationship when available or open near the current marker at the canonical scale. Bounds/presence refreshes never refit. Keep You as translation without zoom and Fit discoveries as the only whole-bounds framing action.
+
+- [ ] **Step 5: Run atlas projection/camera/render tests and commit**
+
+Commit: `fix: keep atlas geography scale invariant`
+
+### Task 12: Full Mobile Visual and Release Verification
 
 **Files:**
 - Modify: `tests/wilds-render-contract.test.ts`

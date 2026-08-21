@@ -16,7 +16,7 @@ The atlas is a different view of the gameplay world, not a second geography syst
 - Crossing into a region outside known territory reveals that region and a one-region sight fringe around it. The fringe creates a natural painted edge instead of an isolated square.
 - Revealed terrain appears with the same art and physical geography the player encounters in the world.
 - Unrevealed terrain remains an atmospheric dark void. It does not expose terrain shapes, landmarks, routes, encounters, bosses, ecology sites, or other player locations.
-- The World view fits the complete discovered bounds when opened. The explorer can pan, rotate, and zoom to every revealed area instead of being held at the origin or current position.
+- The World view opens at one stable geographic scale near the current or last camera position. Discovery growth extends the navigable canvas instead of shrinking previously known land. The dedicated Fit discoveries action remains available when the explorer wants the complete bounds on screen.
 - The current location is always marked, even when the user moves the camera elsewhere.
 - Region and Landmark zooms remain local detail views centered on the explorer.
 - Selecting revealed terrain may initiate Rift travel. Selecting hidden space does nothing and provides concise “Unexplored—travel there to chart it” feedback.
@@ -88,9 +88,11 @@ The full discovered map may be sparse. Atlas terrain meshes are generated per co
 
 ## Camera and Navigation
 
-When World view opens, the atlas camera calculates the discovered width and depth, fits them within the safe viewport, and targets the discovered-bounds center. Map controls then allow free pan, zoom, and rotation. World-view panning has no discovered-bounds clamp, origin clamp, or invisible camera wall: the player may move the camera indefinitely through uncharted darkness while only discovered geography remains painted and interactive.
+World view uses one constant physical region scale. Terrain cells, routes, buildings, monuments, labels, presence, and markers retain the same proportions no matter how far the atlas expands. Newly discovered coordinates extend the canvas; they never reduce `regionUnit`, squeeze the starting island, or cluster fixed-size landmarks together.
 
-Camera framing changes only when the atlas opens, the zoom mode changes, or discovered bounds expand. It does not fight intentional camera movement while the map is open.
+When World view opens, the atlas restores its last camera relationship when available or starts at the stable geographic scale near the current location. Map controls then allow free pan, zoom, and rotation. World-view panning has no discovered-bounds clamp, origin clamp, or invisible camera wall: the player may move the camera indefinitely through uncharted darkness while only discovered geography remains painted and interactive.
+
+Discovered-bounds expansion never changes camera distance, pan target, orbit angle, or world scale. Camera framing changes only through an explicit zoom-mode choice, the You action, or Fit discoveries. It does not fight intentional camera movement while the map is open.
 
 Mobile and pointer interaction follows map conventions instead of the default orbit-camera gestures:
 
@@ -101,7 +103,7 @@ Mobile and pointer interaction follows map conventions instead of the default or
 - momentum is short, bounded, and disabled under reduced motion;
 - panning can continue beyond every discovered edge without an artificial limit;
 - releasing a gesture never springs the camera back to the starting territory or current player position;
-- opening World view initially fits all discovered territory, while a dedicated “You” action can recenter on the current marker without changing discovery;
+- opening World view restores the prior view or uses the stable geographic scale near the current marker, while a dedicated “You” action can recenter without changing discovery or zoom;
 - a dedicated “Fit discoveries” action can restore the complete painted atlas to view without changing discovery or imposing a later camera constraint;
 - Region and Landmark views may recenter when their zoom mode is explicitly selected, but remain freely pannable within their projected bounds.
 
@@ -162,7 +164,8 @@ Integration and rendering contracts must prove:
 - hidden terrain and hidden facts are absent from the projection;
 - clicks work anywhere on revealed meshes and fail on hidden gaps;
 - one-finger pan and pinch zoom reach the entire discovered atlas without snapping back to origin;
-- the World view initially fits both the starting territory and every distant discovered extension;
+- World-view region, terrain, route, building, monument, label, presence, and marker proportions remain invariant as discovered bounds grow;
+- opening or expanding the World view does not automatically compress the complete discovered extent;
 - the current-location action recenters deliberately while ordinary gestures preserve their chosen camera target;
 - the fit-discoveries action restores full discovered bounds after unrestricted panning;
 - World-view camera targets are never clamped to origin or discovered bounds;
