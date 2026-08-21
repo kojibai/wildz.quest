@@ -2,6 +2,7 @@ import { projectWildsBiome } from "./wilds-biome";
 import { WILDS_FLAGSHIP_LANDMARKS } from "./wilds-landmarks";
 import {
   WILDS_TERRAIN_TILE_SIZE,
+  WILDS_LANDMARK_BLEND_APRON,
   distanceToWildsMajorRoute,
   sampleWildsTerrain
 } from "./wilds-terrain-authority";
@@ -52,7 +53,7 @@ function candidatePosition(tileX: number, tileZ: number, seed: number, slot: num
 function candidateIsClear(x: number, z: number) {
   if (Math.hypot(x, z) < 15) return false;
   if (distanceToWildsMajorRoute(x, z) < 1.4) return false;
-  if (WILDS_FLAGSHIP_LANDMARKS.some((landmark) => Math.hypot(x - landmark.position.x, z - landmark.position.z) < landmark.radius + 4)) return false;
+  if (WILDS_FLAGSHIP_LANDMARKS.some((landmark) => Math.hypot(x - landmark.position.x, z - landmark.position.z) < landmark.radius + WILDS_LANDMARK_BLEND_APRON)) return false;
   const terrain = sampleWildsTerrain(x, z);
   return terrain.slope <= 0.62 && terrain.surface !== "shallow-water" && terrain.surface !== "deep-water";
 }

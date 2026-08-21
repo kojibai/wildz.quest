@@ -3,6 +3,8 @@ import { WILDS_MAJOR_ROUTES, WILDS_NAMED_REGIONS } from "./wilds-world-geography
 
 export const WILDS_TERRAIN_VERSION = "wildz.terrain.v1" as const;
 export const WILDS_TERRAIN_TILE_SIZE = 12;
+export const WILDS_LANDMARK_LEVEL_APRON = 4.25;
+export const WILDS_LANDMARK_BLEND_APRON = 6.25;
 
 export type WildsTerrainSurface = "trail" | "soil" | "grass" | "rock" | "sand" | "shallow-water" | "deep-water";
 export type WildsTraversalRequirement = { kind: "swim" | "climb" | "glide" | "flight" };
@@ -110,8 +112,8 @@ function landmarkMaskedElevation(x: number, z: number, elevation: number) {
   let result = elevation;
   for (const landmark of WILDS_FLAGSHIP_LANDMARKS) {
     const distance = Math.hypot(x - landmark.position.x, z - landmark.position.z);
-    const innerRadius = landmark.radius + 1;
-    const outerRadius = landmark.radius + 3;
+    const innerRadius = landmark.radius + WILDS_LANDMARK_LEVEL_APRON;
+    const outerRadius = landmark.radius + WILDS_LANDMARK_BLEND_APRON;
     if (distance >= outerRadius) continue;
     const centerElevation = Math.max(0.08, unmaskedElevation(landmark.position.x, landmark.position.z));
     if (distance <= innerRadius) result = centerElevation;

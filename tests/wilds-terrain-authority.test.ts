@@ -6,6 +6,7 @@ import {
   sampleWildsTerrain,
   wildsTerrainElevation
 } from "../src/features/play/wilds-terrain-authority";
+import { landmarkApproachPoint, WILDS_FLAGSHIP_LANDMARKS } from "../src/features/play/wilds-landmarks";
 
 test("terrain samples are deterministic finite world facts", () => {
   const first = sampleWildsTerrain(83.25, -61.75);
@@ -25,6 +26,17 @@ test("authored arrival and landmark footprints remain level and walkable", () =>
     assert.equal(sample.slope, 0);
     assert.notEqual(sample.surface, "deep-water");
     assert.deepEqual(sample.traversal, []);
+  }
+});
+
+test("every released Rift approach lands on its landmark's walkable apron", () => {
+  for (const landmark of WILDS_FLAGSHIP_LANDMARKS) {
+    const approach = landmarkApproachPoint(landmark);
+    const center = sampleWildsTerrain(landmark.position.x, landmark.position.z);
+    const sample = sampleWildsTerrain(approach.x, approach.z);
+
+    assert.equal(sample.elevation, center.elevation, landmark.id);
+    assert.deepEqual(sample.traversal, [], landmark.id);
   }
 });
 

@@ -64,12 +64,12 @@ test("small stepable rocks and soft foliage remain pass-through", () => {
 test("deep water and climb-grade rock require their named capabilities", () => {
   const deepWater = resolveWildsGroundMovement({ x: -94.42, z: -240 }, { x: -94, z: -240 }, { obstacles: [] });
   const swimming = resolveWildsGroundMovement({ x: -94.42, z: -240 }, { x: -94, z: -240 }, { obstacles: [], capabilities: ["swim"] });
-  const steep = resolveWildsGroundMovement({ x: -2.42, z: 14 }, { x: -2, z: 14 }, { obstacles: [] });
+  const steep = resolveWildsGroundMovement({ x: 79.58, z: 28 }, { x: 80, z: 28 }, { obstacles: [] });
 
   assert.deepEqual(deepWater.position, { x: -94.42, z: -240 });
   assert.equal(deepWater.traversalBlockedBy, "swim");
   assert.deepEqual(swimming.position, { x: -94, z: -240 });
-  assert.deepEqual(steep.position, { x: -2.42, z: 14 });
+  assert.deepEqual(steep.position, { x: 79.58, z: 28 });
   assert.equal(steep.traversalBlockedBy, "climb");
 });
 
