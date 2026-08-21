@@ -1477,7 +1477,7 @@ export function PlayCampaign({
 
         </div>
       </div>
-      <WildsWorldMap
+      {exclusiveOwner === "map" && mapOpen ? <WildsWorldMap
         currentPosition={state.player}
         discoveredLandmarkIds={discoveredLandmarkIds}
         explorationAtlas={state.explorationAtlas}
@@ -1488,7 +1488,7 @@ export function PlayCampaign({
           setMapOpen(false);
         }}
         onRift={riftTo}
-        open={exclusiveOwner === "map" && mapOpen}
+        open
         qualityProfile={qualityProfile}
         reducedMotion={reducedMotion}
         remotePlayers={multiplayer.remotePlayers}
@@ -1498,7 +1498,7 @@ export function PlayCampaign({
         ecologyKnowledge={state.ecologyKnowledge}
         bossKnowledge={state.bossKnowledge}
         trainers={sagaTrainers}
-      />
+      /> : null}
       <WildsLandmarkExperience
         access={activeLandmarkId && activeLandmarkId !== "wayfinder-hollow" ? evaluateLandmarkAccess(WILDS_FLAGSHIP_LANDMARKS.find((item) => item.id === activeLandmarkId)!, landmarkProgress) : null}
         card={activeAsset}
