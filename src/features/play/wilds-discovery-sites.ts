@@ -250,8 +250,8 @@ function mountainFor(regionX: number, regionZ: number, slot: number, entrance: P
 
 function waterfallFor(regionX: number, regionZ: number, slot: number, entrance: Point3, summitY: number | null) {
   if (slot !== 0 || hashUnit(regionX, regionZ, slot, 107) >= .42 || summitY === null) return null;
-  const source = freezePoint(entrance.x - 2.4, summitY - 2, entrance.z + 1.6);
-  const lip = freezePoint(entrance.x - 1.4, (source.y + entrance.y) / 2, entrance.z + .8);
+  const source = freezePoint(entrance.x, summitY - 2, entrance.z + 1.6);
+  const lip = freezePoint(entrance.x, (source.y + entrance.y) / 2, entrance.z + .8);
   const pool = freezePoint(entrance.x, entrance.y - .18, entrance.z);
   return Object.freeze({
     source,

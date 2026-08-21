@@ -140,6 +140,13 @@ describe("persistent deterministic Wilds discovery sites", () => {
                 && Math.abs(point.z - solid.center.z) <= solid.halfExtents.z), false, ordinary.id);
             }
           }
+          if (site.waterfall) {
+            for (const point of site.waterfall.flowPath) {
+              assert.equal(solids.some((solid) => Math.abs(point.x - solid.center.x) <= solid.halfExtents.x
+                && Math.abs(point.y - solid.center.y) <= solid.halfExtents.y
+                && Math.abs(point.z - solid.center.z) <= solid.halfExtents.z), false, `waterfall:${site.key}`);
+            }
+          }
         }
       }
     }
