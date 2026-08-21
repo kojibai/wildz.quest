@@ -5,7 +5,7 @@ import { deriveBirthGenome } from "./heartbound-genome";
 import { currentLivingGenome } from "./living-card-proof";
 import { isLivingCardAsset, type LivingCardGenome } from "./living-card-types";
 import { deriveCardVariantV3 } from "./card-variant";
-import type { LivingCreatureIdentityV3 } from "./living-taxonomy";
+import { validateLivingCreatureIdentity, type LivingCreatureIdentityV3 } from "./living-taxonomy";
 import type { PortableCardAsset } from "./portable-card";
 
 export type FunctionalAppendage = Readonly<{
@@ -113,6 +113,9 @@ export function projectEncounterCreatureVisualIdentity(input: {
   identity: LivingCreatureIdentityV3;
   formId: string;
 }): CreatureVisualIdentity {
+  if (!validateLivingCreatureIdentity(input.identity).ok) {
+    throw new Error("wilds_encounter_visual_identity_invalid");
+  }
   const requestedForm = creatureForm(input.formId);
   const requestedMatchesIdentity = requestedForm?.stage === 1
     && requestedForm.familyId === input.identity.family.id

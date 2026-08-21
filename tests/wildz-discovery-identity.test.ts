@@ -75,6 +75,27 @@ describe("Wildz discovery-sealed identity", () => {
     );
   });
 
+  it("rejects a digest-tampered encounter identity before canonical projection", () => {
+    const hotspot = nearbyHiddenHotspots(initialPlayState.player)[0]!;
+    const discovered = applyWildsInput(initialPlayState, {
+      type: "search-point",
+      x: hotspot.position.x,
+      z: hotspot.position.z,
+      searchedAt: "2026-07-17T12:00:00.000Z",
+      ownerReceizId: "player.receiz.id"
+    });
+    assert.notEqual(discovered.encounter.phase, "idle");
+    if (discovered.encounter.phase === "idle" || !discovered.encounter.discoveryIdentity || !discovered.encounter.formId) return;
+    const tampered = structuredClone(discovered.encounter.discoveryIdentity);
+    const formId = discovered.encounter.formId;
+    tampered.identityDigest = `sha256:${"0".repeat(64)}`;
+
+    assert.throws(
+      () => projectEncounterCreatureVisualIdentity({ identity: tampered, formId }),
+      /wilds_encounter_visual_identity_invalid/
+    );
+  });
+
   it("creates one permanent identity at first discovery and carries its name into battle", () => {
     const hotspot = nearbyHiddenHotspots(initialPlayState.player)[0]!;
     const discovered = applyWildsInput(initialPlayState, {

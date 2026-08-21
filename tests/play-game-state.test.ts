@@ -772,7 +772,8 @@ describe("Receiz Wilds game state", () => {
       delete envelope.state.encounter.discoveryIdentity;
       const restored = restorePlayState(JSON.stringify(envelope));
       assert.equal(restored.encounter.phase, phase === "sealed" ? "revealed" : phase);
-      if (!restored.encounter.discoveryIdentity || !restored.encounter.formId) continue;
+      assert.ok(restored.encounter.discoveryIdentity, `${phase}: discovery identity must be reconstructed`);
+      assert.ok(restored.encounter.formId, `${phase}: canonical form must be reconstructed`);
       assert.deepEqual(projectEncounterCreatureVisualIdentity({
         identity: restored.encounter.discoveryIdentity,
         formId: restored.encounter.formId
