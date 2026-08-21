@@ -218,6 +218,8 @@ Every constructed space has explicit access policy and public-world semantics. A
 
 Player action leaves a durable trail. Entrances, tunnels, repairs, expansions, collapses, rescues, discoveries, stewardship changes, and public openings append provenance to the world feature. The visible world projects its current admitted head while retaining the full history of how players and creatures changed it. Old actions never require recurring API discovery and never disappear merely because their creator is offline.
 
+Public entrances may carry one tasteful physical maker mark: a small timber trail post, carved stone plaque, metal seal, cave etching, buoy marker, or other biome-native form. It remains quiet at distance and reveals concise detail only when approached or selected: the admitted route/home name, creating explorer, contributing creature, creation Kai, and optional current steward. The mark projects verified feature provenance, respects the creator's public identity/privacy settings, and never becomes a floating billboard, repeated label field, advertisement, or substitute for the underlying proof history.
+
 Encounter eligibility is physical and capability-aware:
 
 - non-swimmers can still obtain a first swimmer from an admitted shore or shallow-water approach;
@@ -318,6 +320,7 @@ Identity Seal and full Vault restore preserve the exact account and selected cre
 25. Mountain altitude changes camera/horizon/atmosphere; exposed falls carry deterministic consequences and capability-based recovery opportunities; high peak overflight requires sufficient aerial specialties.
 26. Qualified burrowers can create persistent physical entrances, tunnels, chambers, and mountain passages that other players may discover and traverse; the append-only tunnel graph prevents duplication, impossible geometry, protected-site damage, and movement-path latency.
 27. Excavated chambers can become proof-built mountain homes and shared structures; routes may connect safe surfaces or continue underwater when exact aquatic/pressure/sealing requirements are met; access policy and complete creator/creature provenance persist for other players.
+28. Public player-built entrances may show one small biome-native maker post or plaque whose approach detail truthfully identifies the admitted explorer, creature, creation Kai, route/home, and current stewardship without visual clutter or privacy leakage.
 
 ## Implementation phases
 

@@ -382,6 +382,8 @@ Add RED tests for player-authored excavation: a qualified soil digger opens a pe
 
 Cover construction and evolving-world history: expand a mountain chamber into a home, consume or equip exact proof-native building materials atomically, install a door/light/storage/habitat element, and prove private/invited/public access modes. Connect a tunnel to a second safe surface and to an existing compatible tunnel. Build a submerged tunnel only with swimming plus required pressure/current/breath/sealing support, preserve physically flooded state where applicable, and reject impossible water/terrain intersections with zero writes. Restore on a second player and prove the admitted public feature, creator/creature provenance, repairs, expansions, and current head remain traversable without the creator online.
 
+Assert each public entrance has at most one quality-bounded biome-native maker post/plaque; it is unobtrusive beyond approach range, exposes only verified route/home, explorer, creature, creation-Kai, and current-steward fields on interaction, respects public identity settings, and never creates floating/repeated billboard labels or advertising surfaces.
+
 - [ ] **Step 2: Implement sparse deterministic site admission**
 
 Use integer-hashed world regions plus actual terrain/depth/altitude constraints. Separate immutable site identity from bounded local render detail. Record only discovered site keys in exploration continuity; reconstruct geometry and inhabitants from authority.
@@ -399,6 +401,8 @@ Feed site layer/position into the layered encounter authority from Task 7. Keep 
 Represent authored tunnels as a sparse append-only graph of deterministic physical segments anchored to exact terrain coordinates and material authority. Admit each segment against the current graph head with creator, creature, capability, Kai, geometry, stability, and idempotency evidence. Project only nearby entrance/segment meshes and colliders. Specialize burrowers by soil/stone capability, width, speed, stability, ventilation, sensing, illumination, and rescue. Preserve public traversal without treating distribution as authority.
 
 Extend the graph with proof-built chamber and structure appends: mountain homes, reinforcement, doors, bridges, stairs, ventilation, storage, habitat fixtures, lighting, water boundaries, route markers, and access policy. Bind every mutation to exact player, creature, material/tool, prior world head, geometry, and Kai evidence; update every affected subject atomically or write nothing. Preserve immutable creation history and current stewardship while allowing the shared world to evolve visibly for later explorers.
+
+Project one optional instanced maker marker per admitted public entrance, selecting a restrained timber, stone, metal, etched, or buoy form from the biome/material authority. Reveal its verified provenance detail only within interaction range. Keep maker-marker geometry cached with the entrance and outside movement-time proof/history work.
 
 - [ ] **Step 6: Run determinism, collision, exploration-continuity, excavation, and render tests; commit**
 
