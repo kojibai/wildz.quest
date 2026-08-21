@@ -2,9 +2,7 @@ import { creatureForm } from "./creature-catalog";
 import type { CardVariantTraits } from "./card-variant";
 import { deriveKaiCreatureBirth, type KaiCreatureBirthProfile } from "./kai-creature-birth";
 import { deriveKaiKlokMoment } from "./kai-klok-moment";
-import { deriveBirthGenome } from "./heartbound-genome";
-import { currentLivingGenome } from "./living-card-proof";
-import { isLivingCardAsset } from "./living-card-types";
+import { projectCardCreatureVisualIdentity, type CreatureVisualAppendages } from "./creature-visual-identity";
 import type { PortableCardAsset } from "./portable-card";
 import type { LivingCreatureIdentityV3 } from "./living-taxonomy";
 
@@ -25,7 +23,7 @@ export type CardKaiAppearance = {
     detail: string;
     locomotion: "biped" | "quadruped" | "flying" | "serpentine";
     surface: string;
-    appendages: { ears: string; horns: string; wings: string; tail: string; crest: string };
+    appendages: CreatureVisualAppendages;
   };
   cadenceMs: number;
   fingerprint: string;
@@ -45,32 +43,14 @@ export function projectCardKaiAppearance(asset: PortableCardAsset): CardKaiAppea
   if (!form) throw new Error("wilds_kai_appearance_form_unknown");
 
   const variant = asset.manifest.variant;
-  const genome = isLivingCardAsset(asset)
-    ? currentLivingGenome(asset)
-    : deriveBirthGenome({
-        formId: asset.manifest.formId,
-        proofDigest: asset.proof.digest,
-        variant: asset.manifest.variant.traits
-      });
-  const creaturePalette = genome.palette;
-  const palette = {
-    primary: creaturePalette.primary,
-    secondary: creaturePalette.secondary,
-    accent: creaturePalette.accent,
-    glow: creaturePalette.glow
-  };
+  const visual = projectCardCreatureVisualIdentity(asset);
+  const palette = visual.palette;
   const profilePalette: CardVariantTraits["palette"] = {
     primary: palette.primary,
     accent: palette.accent,
     glow: palette.glow
   };
-  const anatomy: CardKaiAppearance["anatomy"] = {
-    body: genome.anatomy.body,
-    detail: genome.anatomy.detail,
-    locomotion: genome.skeleton.locomotion,
-    surface: genome.surface.kind,
-    appendages: { ...genome.appendages }
-  };
+  const anatomy: CardKaiAppearance["anatomy"] = { ...visual.anatomy, appendages: visual.appendages };
 
   if (variant.generatorVersion === 3) {
     const identity = variant.traits.identity;
@@ -82,14 +62,9 @@ export function projectCardKaiAppearance(asset: PortableCardAsset): CardKaiAppea
       profile: { ...recovered, palette: profilePalette },
       palette,
       anatomy,
-      morphology: {
-        head: identity.anatomy.head,
-        torso: identity.anatomy.torso,
-        limb: identity.anatomy.limb,
-        symmetry: identity.anatomy.asymmetry
-      },
-      cadenceMs: identity.motion.cadenceMs,
-      fingerprint: identity.visualFingerprint,
+      morphology: visual.morphology,
+      cadenceMs: visual.cadenceMs,
+      fingerprint: visual.fingerprint,
       discoveryIdentity: identity
     };
   }
@@ -101,9 +76,9 @@ export function projectCardKaiAppearance(asset: PortableCardAsset): CardKaiAppea
       profile: variant.traits.birthProfile,
       palette,
       anatomy,
-      morphology: variant.traits.birthProfile.morphology,
-      cadenceMs: variant.traits.birthProfile.motion.cadenceMs,
-      fingerprint: variant.traits.birthProfile.fingerprint
+      morphology: visual.morphology,
+      cadenceMs: visual.cadenceMs,
+      fingerprint: visual.fingerprint
     };
   }
 
@@ -115,8 +90,8 @@ export function projectCardKaiAppearance(asset: PortableCardAsset): CardKaiAppea
     profile: { ...recovered, palette: profilePalette },
     palette,
     anatomy,
-    morphology: recovered.morphology,
-    cadenceMs: recovered.motion.cadenceMs,
-    fingerprint: recovered.fingerprint
+    morphology: visual.morphology,
+    cadenceMs: visual.cadenceMs,
+    fingerprint: visual.fingerprint
   };
 }

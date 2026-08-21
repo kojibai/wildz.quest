@@ -1,6 +1,7 @@
 import type { HeartboundPresentationV3 } from "./heartbound-anime-types";
 import type { HeartboundPose } from "./heartbound-renderer";
 import type { LivingCardGenome } from "./living-card-types";
+import { projectLivingGenomeCreatureVisualIdentity } from "./creature-visual-identity";
 
 type Palette = LivingCardGenome["palette"];
 
@@ -51,14 +52,19 @@ export function animeHeartboundMarkup(genome: LivingCardGenome, p: HeartboundPre
   const stride = pose === "run" ? 17 : pose === "walk" ? 9 : 0;
   const baby = p.maturity === "baby";
   const paw = Math.round(18 * p.body.paw);
-  const winged = p.archetype === "bird" || p.archetype === "dragon" || p.appendages.wings !== "none";
+  const visual = projectLivingGenomeCreatureVisualIdentity(genome);
+  const wings = visual.appendages.wings;
   const longEars = p.archetype === "long-ear";
   const ears = p.appendages.ears === "none" && !longEars ? "" : longEars
     ? `<path d="M207 94Q137 21 178 4Q224 30 239 82M353 94Q423 21 382 4Q336 30 321 82" fill="${color.secondary}" stroke="${color.accent}" stroke-width="5"/>`
     : `<path d="M202 100Q153 42 174 20Q220 43 239 88M358 100Q407 42 386 20Q340 43 321 88" fill="${color.secondary}" stroke="${color.accent}" stroke-width="5"/>`;
   const horns = p.appendages.horns === "none" ? "" : `<path d="M202 89Q168 47 193 25L231 82M358 89Q392 47 367 25L329 82" fill="${color.glow}" stroke="${color.accent}" stroke-width="4"/>`;
-  const wings = !winged ? "" : `<path d="M207 226Q102 118 72 225Q112 293 220 289M353 226Q458 118 488 225Q448 293 340 289" fill="${color.secondary}" stroke="${color.accent}" stroke-width="5" opacity=".92"/>`;
-  const tail = p.body.build === "serpentine" || p.appendages.tail === "none" ? "" : `<path d="M374 290Q474 221 495 285Q503 341 420 351Q464 320 426 291Q407 277 374 302Z" fill="${color.secondary}" stroke="${color.accent}" stroke-width="4"/>`;
+  const wingMarkup = wings.presence !== "functional" ? "" : wings.function === "powered-lift"
+    ? `<path data-anatomy="functional-wing" d="M207 226Q102 118 72 225Q112 293 220 289M353 226Q458 118 488 225Q448 293 340 289" fill="${color.secondary}" stroke="${color.accent}" stroke-width="5" opacity=".92"/>`
+    : `<path data-anatomy="glide-membrane" d="M207 226Q102 118 72 225Q112 293 220 289M353 226Q458 118 488 225Q448 293 340 289" fill="${color.secondary}" stroke="${color.accent}" stroke-width="5" opacity=".92"/>`;
+  const fins = visual.appendages.fins.presence !== "functional" ? "" : `<path data-anatomy="fin" d="M207 275Q154 241 142 306Q180 328 225 304M353 275Q406 241 418 306Q380 328 335 304" fill="${color.secondary}" stroke="${color.accent}" stroke-width="5" opacity=".9"/>`;
+  const frills = visual.appendages.frills.presence !== "functional" ? "" : `<path data-anatomy="frill" d="M221 221L205 178 242 205 280 165 318 205 355 178 339 221" fill="${color.accent}" stroke="${color.secondary}" stroke-width="4" opacity=".88"/>`;
+  const tail = p.body.build === "serpentine" || visual.appendages.tail.presence !== "functional" ? "" : `<path data-anatomy="tail" d="M374 290Q474 221 495 285Q503 341 420 351Q464 320 426 291Q407 277 374 302Z" fill="${color.secondary}" stroke="${color.accent}" stroke-width="4"/>`;
   const limbWidth = baby ? 25 : 19;
   const limbs = p.body.build === "serpentine" || p.body.build === "floating" ? { hind: "", fore: "" } : {
     hind: `<path d="M230 308q-31 38-25 77l-${paw} 14q-12 15 8 19h${58 + paw}q17-5 7-20l-12-19 ${stride - 8}-67Z" fill="${color.primary}"/><path d="M330 308q31 38 25 77l${paw} 14q12 15-8 19h-${58 + paw}q-17-5-7-20l12-19 ${8 - stride}-67Z" fill="${color.primary}"/>`,
@@ -74,7 +80,7 @@ export function animeHeartboundMarkup(genome: LivingCardGenome, p: HeartboundPre
   const adornment = p.adornments.length ? `<path d="M177 79Q280 5 383 79" fill="none" stroke="${color.glow}" stroke-width="5" stroke-dasharray="5 11" opacity=".8"/>` : "";
   return {
     auraBack: `<ellipse cx="280" cy="226" rx="205" ry="174" fill="${color.glow}" opacity="${p.maturity === "legendary" ? .28 : .16}"/><circle cx="280" cy="219" r="${p.maturity === "legendary" ? 194 : 173}" fill="none" stroke="${color.glow}" stroke-width="3" stroke-dasharray="4 17" opacity=".45"/>`,
-    tail: `${tail}${wings}`,
+    tail: `${tail}${wingMarkup}${fins}${frills}`,
     hind: limbs.hind,
     torso: `<g transform="translate(0 ${lift})"><path d="${bodyPath(p)}" fill="${color.primary}" stroke="${color.accent}" stroke-width="5"/><path d="M224 241Q280 214 336 241Q326 325 280 357Q234 325 224 241Z" fill="${color.secondary}" opacity=".2"/></g>`,
     fore: limbs.fore,

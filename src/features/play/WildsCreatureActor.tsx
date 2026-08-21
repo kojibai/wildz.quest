@@ -49,11 +49,14 @@ export function WildsCreatureActor({
   const body = anatomy?.body ?? form?.anatomy.body ?? "round";
   const detail = anatomy?.detail ?? form?.anatomy.detail ?? "ears";
   const auraKind = form?.anatomy.aura ?? "prism";
-  const hasWings = anatomy ? anatomy.appendages.wings !== "none" : body === "winged" || detail === "wings" || familyId === "voltray";
-  const hasEars = anatomy ? anatomy.appendages.ears !== "none" : detail === "ears" || familyId === "mintcub";
-  const hasHorns = anatomy ? anatomy.appendages.horns !== "none" : detail === "horns" || familyId === "titanseal";
-  const hasTail = anatomy ? anatomy.appendages.tail !== "none" : detail === "tail" || body === "long" || familyId === "ledgerfox";
-  const hasCrest = anatomy ? anatomy.appendages.crest !== "none" : detail === "crest";
+  const hasFunctionalWings = anatomy ? anatomy.appendages.wings.presence === "functional" && anatomy.appendages.wings.function === "powered-lift" : body === "winged" || detail === "wings" || familyId === "voltray";
+  const hasGlideMembranes = anatomy ? anatomy.appendages.wings.presence === "functional" && anatomy.appendages.wings.function === "glide" : false;
+  const hasFins = anatomy ? anatomy.appendages.fins.presence === "functional" : false;
+  const hasFrills = anatomy ? anatomy.appendages.frills.presence === "functional" : false;
+  const hasEars = anatomy ? anatomy.appendages.ears.presence === "functional" : detail === "ears" || familyId === "mintcub";
+  const hasHorns = anatomy ? anatomy.appendages.horns.presence === "functional" : detail === "horns" || familyId === "titanseal";
+  const hasTail = anatomy ? anatomy.appendages.tail.presence === "functional" : detail === "tail" || body === "long" || familyId === "ledgerfox";
+  const hasCrest = anatomy ? anatomy.appendages.crest.presence === "functional" : detail === "crest";
   const hasShell = anatomy ? anatomy.surface === "shell" : detail === "shell" || body === "armored";
   const identity = useMemo(() => {
     const token = identityToken ?? formId;
@@ -114,7 +117,7 @@ export function WildsCreatureActor({
       </group>
 
       <group name="wilds-creature-limbs" ref={limbs}>
-        {body === "winged" || hasWings ? [-1, 1].map((side) => <mesh castShadow key={side} position={[side * 0.46, 0.08, -0.08]} rotation={[0.15, 0, side * -0.72]} scale={[0.48, 1.3, 0.18]}><tetrahedronGeometry args={[0.46, 0]} /><meshStandardMaterial color={renderedSecondary} emissive={renderedSecondary} emissiveIntensity={0.12} roughness={0.46} /></mesh>) : null}
+        {hasFunctionalWings || hasGlideMembranes ? <group name={hasFunctionalWings ? "functional-wing" : "glide-membrane"}>{[-1, 1].map((side) => <mesh castShadow key={side} position={[side * 0.46, 0.08, -0.08]} rotation={[0.15, 0, side * -0.72]} scale={[0.48, 1.3, 0.18]}><tetrahedronGeometry args={[0.46, 0]} /><meshStandardMaterial color={renderedSecondary} emissive={renderedSecondary} emissiveIntensity={0.12} roughness={0.46} /></mesh>)}</group> : null}
         {body === "round" || body === "long" || body === "armored" ? [-1, 1].flatMap((side) => [-1, 1].map((front) => <mesh castShadow key={`${side}:${front}`} position={[side * 0.26, -0.3, front * 0.2]} rotation={[front * 0.14, 0, side * -0.08]}><capsuleGeometry args={[0.07, 0.22, 5, 8]} /><meshStandardMaterial color={renderedPrimary} roughness={0.7} /></mesh>)) : null}
       </group>
 
@@ -128,7 +131,7 @@ export function WildsCreatureActor({
         <mesh position={[0, -0.055, 0.255]} scale={[1, 0.72, 0.7]}><sphereGeometry args={[0.038, 9, 7]} /><meshStandardMaterial color="#5b3b35" roughness={0.48} /></mesh>
         <mesh position={[0, -0.125, 0.246]} rotation={[Math.PI / 2, 0, 0]} scale={[1, pose === "attack" ? 1.35 : 0.55, 1]}><torusGeometry args={[0.055, 0.012, 6, 18, Math.PI]} /><meshStandardMaterial color="#7d3f50" roughness={0.54} /></mesh>
         {[-1, 1].map((side) => <mesh key={side} position={[side * 0.2, -0.08, 0.19]} scale={[1.1, 0.55, 0.5]}><sphereGeometry args={[0.042, 8, 6]} /><meshStandardMaterial color="#ff9baa" transparent opacity={0.62} /></mesh>)}
-        <CreatureIdentityDetail accent={renderedAccent} glow={renderedGlow} hasCrest={hasCrest} hasEars={hasEars} hasHorns={hasHorns} hasShell={hasShell} hasTail={hasTail} secondary={renderedSecondary} />
+        <CreatureIdentityDetail accent={renderedAccent} glow={renderedGlow} hasCrest={hasCrest} hasEars={hasEars} hasFins={hasFins} hasFrills={hasFrills} hasHorns={hasHorns} hasShell={hasShell} hasTail={hasTail} secondary={renderedSecondary} />
       </group>
 
       <group name={`wilds-creature-aura-${auraKind}`} ref={aura} position={[0, -0.35, 0]}>
@@ -139,11 +142,13 @@ export function WildsCreatureActor({
   );
 }
 
-function CreatureIdentityDetail({ accent, glow, hasCrest, hasEars, hasHorns, hasShell, hasTail, secondary }: { accent: string; glow: string; hasCrest: boolean; hasEars: boolean; hasHorns: boolean; hasShell: boolean; hasTail: boolean; secondary: string }) {
+function CreatureIdentityDetail({ accent, glow, hasCrest, hasEars, hasFins, hasFrills, hasHorns, hasShell, hasTail, secondary }: { accent: string; glow: string; hasCrest: boolean; hasEars: boolean; hasFins: boolean; hasFrills: boolean; hasHorns: boolean; hasShell: boolean; hasTail: boolean; secondary: string }) {
   return <>
     {hasEars ? [-1, 1].map((side) => <mesh castShadow key={`ear-${side}`} position={[side * 0.22, 0.27, -0.03]} rotation={[0, 0, side * -0.36]} scale={[0.7, 1.1, 0.5]}><coneGeometry args={[0.12, 0.34, 5]} /><meshStandardMaterial color={secondary} roughness={0.66} /></mesh>) : null}
     {hasTail ? <mesh castShadow position={[0.34, -0.22, -0.36]} rotation={[0.15, 0, -0.68]}><capsuleGeometry args={[0.06, 0.42, 5, 8]} /><meshStandardMaterial color={secondary} roughness={0.72} /></mesh> : null}
     {hasHorns ? [-1, 1].map((side) => <mesh castShadow key={`horn-${side}`} position={[side * 0.2, 0.25, 0]} rotation={[0.2, 0, side * -0.22]}><coneGeometry args={[0.055, 0.26, 7]} /><meshStandardMaterial color={glow} roughness={0.44} /></mesh>) : null}
+    {hasFins ? [-1, 1].map((side) => <mesh castShadow key={`fin-${side}`} name="fin" position={[side * 0.34, -0.04, -0.18]} rotation={[0, 0, side * -0.85]} scale={[0.22, 0.42, 0.12]}><coneGeometry args={[0.22, 1, 3]} /><meshStandardMaterial color={secondary} roughness={0.48} /></mesh>) : null}
+    {hasFrills ? <mesh name="frill" position={[0, 0.33, -0.05]} rotation={[0, Math.PI / 4, 0]} scale={[0.22, 0.22, 0.12]}><octahedronGeometry args={[1, 0]} /><meshStandardMaterial color={accent} roughness={0.42} /></mesh> : null}
     {hasCrest ? <mesh position={[0, 0.3, -0.03]}><octahedronGeometry args={[0.14, 0]} /><meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.12} /></mesh> : null}
     {hasShell ? <mesh castShadow position={[0, -0.13, -0.32]} scale={[1.05, 0.82, 0.36]}><sphereGeometry args={[0.28, 12, 9]} /><meshStandardMaterial color={secondary} roughness={0.8} /></mesh> : null}
   </>;
