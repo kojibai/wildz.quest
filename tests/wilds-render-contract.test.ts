@@ -135,6 +135,7 @@ describe("Receiz Wilds rendering contract", () => {
 
   it("layers an authored biome around meaningful landmarks", async () => {
     const environment = await readFile("src/features/play/WildsEnvironment.tsx", "utf8");
+    const worldArt = await readFile("src/features/play/WildsWorldArt.tsx", "utf8");
     const world = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");
 
     assert.match(environment, /name="world-layer-play"/);
@@ -151,10 +152,27 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(environment, /<mesh position=\{\[0, 1\.14, 0\]\}>/);
     assert.match(environment, /function SpringLandmark/);
     assert.match(environment, /const springStones = useRef<THREE\.InstancedMesh>/);
-    assert.match(environment, /const farCanopyMesh = useRef<THREE\.InstancedMesh>/);
-    assert.match(environment, /args=\{\[undefined, undefined, silhouettes\.length\]\}/);
+    assert.match(environment, /<WildsWorldArt/);
+    assert.match(worldArt, /function WorldScaleSilhouettes/);
+    assert.match(worldArt, /function RouteWaystones/);
+    assert.match(worldArt, /function createFacetedRidgeGeometry/);
+    assert.match(worldArt, /projectWildsHorizonAnchors/);
+    assert.match(worldArt, /projectWildsRouteGuides/);
+    assert.match(worldArt, /InstancedMesh/);
+    assert.match(worldArt, /wildsTerrainElevation\(player\.x, player\.z\)/);
     assert.match(environment, /instancedMesh/);
     assert.match(world, /<WildsEnvironment/);
+  });
+
+  it("reveals terrain scale with bounded quality-aware depth", async () => {
+    const world = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");
+    const worldArt = await readFile("src/features/play/WildsWorldArt.tsx", "utf8");
+
+    assert.match(world, /const fogFar = qualityProfile\.tier === "low" \? 34 : qualityProfile\.tier === "medium" \? 40 : 46/);
+    assert.match(world, /<fog attach="fog" args=\{\[kaiFog, fogNear, fogFar\]\}/);
+    assert.match(worldArt, /name="world-scale-silhouettes"/);
+    assert.match(worldArt, /name="world-route-waystones"/);
+    assert.doesNotMatch(worldArt, /useFrame|requestAnimationFrame|Math\.random/);
   });
 
   it("builds the explorer from articulated anatomy and secondary motion", async () => {

@@ -206,13 +206,15 @@ function WildsScene({
     .lerp(new THREE.Color("#050811"), darkness.amount * 0.72)
     .getStyle(), [darkness.amount, kaiExpression.sky.zenith]);
   const worldSparkleCount = Math.round(54 * qualityProfile.particles);
+  const fogNear = qualityProfile.tier === "low" ? 9 : 10;
+  const fogFar = qualityProfile.tier === "low" ? 34 : qualityProfile.tier === "medium" ? 40 : 46;
   const visibleRemotePlayers = useMemo(() => remotePlayers
     .filter((player) => Math.hypot(player.x - state.player.x, player.z - state.player.z) <= 28)
     .slice(0, 12), [remotePlayers, state.player.x, state.player.z]);
   return (
     <WildsReadabilityProvider value={readability}>
       <color attach="background" args={[kaiSky]} />
-      <fog attach="fog" args={[kaiFog, 8 + kaiExpression.sky.luminance * 3, 21 + (1 - kaiExpression.sky.fogDensity) * 4]} />
+      <fog attach="fog" args={[kaiFog, fogNear, fogFar]} />
       <WildsCelestialSky expression={kaiExpression} qualityProfile={qualityProfile} />
       <WildsAtmosphere encounter={state.encounter} expression={kaiExpression} missionProgress={state.missionProgress} nightRig={nightRig} player={state.player} qualityProfile={qualityProfile} />
       <WildsKaiAtmosphereGeometry expression={kaiExpression} qualityProfile={qualityProfile} />

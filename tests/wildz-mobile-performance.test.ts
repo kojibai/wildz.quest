@@ -128,3 +128,16 @@ test("trackpad pointer motion updates the knob outside React's render path", () 
   assert.match(dpad, /const knobRef = useRef<HTMLElement>/);
   assert.doesNotMatch(dpad, /setKnob\(/);
 });
+
+test("world-art terrain sampling is cell-bound instead of movement-bound", () => {
+  const worldArt = source("src/features/play/WildsWorldArt.tsx");
+
+  assert.match(worldArt, /const horizonCellX = Math\.floor\(player\.x \/ 12\)/);
+  assert.match(worldArt, /const horizonCellZ = Math\.floor\(player\.z \/ 12\)/);
+  assert.match(worldArt, /\[horizonCellX, horizonCellZ, qualityProfile\.tier\]/);
+  assert.match(worldArt, /const routeCellX = Math\.floor\(player\.x \/ 6\)/);
+  assert.match(worldArt, /const routeCellZ = Math\.floor\(player\.z \/ 6\)/);
+  assert.match(worldArt, /\[radius, routeCellX, routeCellZ\]/);
+  assert.doesNotMatch(worldArt, /projectWildsHorizonAnchors\(player/);
+  assert.doesNotMatch(worldArt, /projectWildsRouteGuides\(player/);
+});

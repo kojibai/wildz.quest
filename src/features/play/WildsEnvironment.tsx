@@ -18,6 +18,7 @@ import { wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
 import { buildWildsTerrainPatchProjection, buildWildsTerrainRibbonProjection, wildsTerrainRelativeElevation } from "@/features/play/wilds-terrain-rendering";
 import { projectWildsObstaclePlacement, wildsTerrainObstaclesForTile } from "@/features/play/wilds-terrain-obstacles";
 import { projectWildsOverlooks, type WildsOverlookId } from "@/features/play/wilds-overlooks";
+import { WildsWorldArt } from "@/features/play/WildsWorldArt";
 
 export const WILDS_TILE_SIZE = 12;
 const STREAM_RADIUS = 2;
@@ -128,7 +129,12 @@ export function WildsEnvironment({
         ))}
       </group>
       <group name="world-layer-far">
-        <FarCanopy centerX={centerX} centerZ={centerZ} player={player} />
+        <WildsWorldArt
+          canopy={tiles[12]?.canopy ?? { deep: "#174f3b", mid: "#4f9254", highlight: "#d9ff9f" }}
+          player={player}
+          qualityProfile={qualityProfile}
+          trail={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }}
+        />
       </group>
     </group>
   );
@@ -659,47 +665,6 @@ function SpringLandmark() {
       <instancedMesh args={[undefined, undefined, 4]} ref={springReeds}>
         <capsuleGeometry args={[.045, .62, 3, 6]} />
         <meshStandardMaterial color="#4a9852" roughness={0.83} />
-      </instancedMesh>
-    </group>
-  );
-}
-
-function FarCanopy({ centerX, centerZ, player }: { centerX: number; centerZ: number; player: PlayState["player"] }) {
-  const farCanopyMesh = useRef<THREE.InstancedMesh>(null);
-  const farCliffMesh = useRef<THREE.InstancedMesh>(null);
-  const silhouettes = useMemo(() => Array.from({ length: 14 }, (_, index) => {
-    const angle = (index / 14) * Math.PI * 2;
-    const radius = 24 + seededUnit(centerX * 31 + centerZ, index) * 8;
-    return { x: Math.cos(angle) * radius, z: Math.sin(angle) * radius, scale: 3.2 + seededUnit(index, centerX - centerZ) * 2.4 };
-  }), [centerX, centerZ]);
-  useLayoutEffect(() => {
-    const matrix = new THREE.Matrix4();
-    silhouettes.forEach((item, index) => {
-      matrix.compose(
-        new THREE.Vector3(item.x, item.scale * 0.42, item.z),
-        new THREE.Quaternion(),
-        new THREE.Vector3(item.scale, item.scale, item.scale)
-      );
-      farCanopyMesh.current?.setMatrixAt(index, matrix);
-      matrix.compose(
-        new THREE.Vector3(item.x, item.scale * 0.82, item.z),
-        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, index * 0.67, 0)),
-        new THREE.Vector3(item.scale * 0.7, item.scale * 1.18, item.scale * 0.72)
-      );
-      farCliffMesh.current?.setMatrixAt(index, matrix);
-    });
-    if (farCanopyMesh.current) farCanopyMesh.current.instanceMatrix.needsUpdate = true;
-    if (farCliffMesh.current) farCliffMesh.current.instanceMatrix.needsUpdate = true;
-  }, [silhouettes]);
-  return (
-    <group position={[-(player.x % WILDS_TILE_SIZE), 0, -(player.z % WILDS_TILE_SIZE)]}>
-      <instancedMesh args={[undefined, undefined, silhouettes.length]} receiveShadow ref={farCliffMesh}>
-        <dodecahedronGeometry args={[.82, 1]} />
-        <meshStandardMaterial color="#354d43" fog roughness={0.99} />
-      </instancedMesh>
-      <instancedMesh args={[undefined, undefined, silhouettes.length]} ref={farCanopyMesh}>
-        <dodecahedronGeometry args={[0.72, 0]} />
-        <meshStandardMaterial color="#174f3b" emissive="#0d261e" emissiveIntensity={0.08} fog roughness={1} />
       </instancedMesh>
     </group>
   );

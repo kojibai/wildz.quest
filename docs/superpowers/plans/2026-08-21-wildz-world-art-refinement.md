@@ -63,27 +63,27 @@
 - Consumes: Task 1 projection functions, player position, biome trail palette, and quality profile.
 - Produces: `WildsWorldArt`, `WorldScaleSilhouettes`, and `RouteWaystones` scene groups.
 
-- [ ] **Step 1: Add failing render-contract tests**
+- [x] **Step 1: Add failing render-contract tests**
 
   Require a dedicated world-art component, custom faceted ridge geometry, instanced route guides, terrain-relative placement, shared material roles, quality-tier counts, and quality-aware fog depth.
 
-- [ ] **Step 2: Run the render-contract test and observe failure**
+- [x] **Step 2: Run the render-contract test and observe failure**
 
   Run: `pnpm exec tsc -p tsconfig.test.json && node scripts/patch-test-imports.mjs && node --test .test-build/tests/wilds-render-contract.test.js`
 
-- [ ] **Step 3: Implement shared custom geometry and instanced rendering**
+- [x] **Step 3: Implement shared custom geometry and instanced rendering**
 
   Build three asymmetric faceted ridge families with custom `BufferGeometry`; instance only the deterministic anchors for each family. Build route waystones from two shared instanced parts. Place every instance from exact projected elevation relative to the player and perform no per-frame React updates.
 
-- [ ] **Step 4: Integrate quality-aware view depth**
+- [x] **Step 4: Integrate quality-aware view depth**
 
   Retain the existing camera far plane and renderer pipeline. Expand fog depth by quality tier only enough to reveal the streamed terrain and horizon layer; do not add post-processing, dynamic shadow lights, or a new render loop.
 
-- [ ] **Step 5: Run focused tests and typecheck**
+- [x] **Step 5: Run focused tests and typecheck**
 
   Run: `pnpm exec tsc --noEmit && node --test .test-build/tests/wilds-render-contract.test.js .test-build/tests/wildz-mobile-performance.test.js`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
   `git commit -m "feat: render layered Wildz world art"`
 
