@@ -237,6 +237,8 @@ During vertical exploration it also shows exact depth or altitude, the active cr
 
 Powered flight supports deliberate climb and descent inside the active creature's current lift, endurance, and control envelope. Gliding trades altitude for distance and cannot climb without an explicit lift source. The HUD shows altitude, safe operating band, stamina, and the reason an ascent is capped or flight is ending.
 
+During admitted aerial traversal, the local explorer's backpack unfolds a transient aerial capability harness. Paired luminous wings inherit the active creature's palette and functional wing language without pretending to be the explorer's permanent anatomy. They open during takeoff, use restrained graceful flaps during powered flight, spread into a stable soaring silhouette during gliding, react to ascent and descent, and fold fully into the backpack on landing. Reduced-motion mode keeps the readable open/spread/fold states while suppressing continuous flap motion. The harness is pre-mounted and quality-bounded; it never mutates or persists the explorer's proof-derived appearance.
+
 Collision is height-aware. Takeoff moves the explorer out of the grounded obstacle layer; tree trunks, small rocks, and ordinary ground clutter cannot snag an admitted airborne player. Sufficient clearance passes over tree canopies and low obstacles cleanly. Mountains, cliffs, cave ceilings, large structures, the world terrain envelope, and authored aerial hazards remain physical. Landing chooses an admitted clear surface and never places the explorer inside a tree, rock, or structure.
 
 The active creature surface exposes capability type, current strength, progression requirement, fatigue or injury suppression, and recovery behavior. A player never has to guess why flight or swimming stopped.
@@ -286,6 +288,7 @@ Identity Seal and full Vault restore preserve the exact account and selected cre
 19. A card with functional flight wings always renders the corresponding paired wings on every 3D actor; a flight-capable winged card can never produce a wingless gameplay creature.
 20. Discovered caves, mountains, grottos, trenches, ruins, canopy routes, and sky islands replay deterministically and remain visible/physical on approach and return.
 21. Powered flight supports bounded player-controlled ascent/descent, clears grounded tree/rock collision, passes above canopies at sufficient altitude, and still respects mountains, ceilings, structures, and aerial hazards.
+22. The explorer's backpack deploys a paired, palette-derived aerial harness on takeoff, presents distinct powered-flight and glide poses, respects reduced motion, and folds completely on landing without changing saved identity.
 
 ## Implementation phases
 
