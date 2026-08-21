@@ -88,7 +88,7 @@ The full discovered map may be sparse. Atlas terrain meshes are generated per co
 
 ## Camera and Navigation
 
-When World view opens, the atlas camera calculates the discovered width and depth, fits them within the safe viewport, and targets the discovered-bounds center. `OrbitControls` then allow free pan, zoom, and rotation across that complete extent. Pan limits are derived from discovered bounds with a small visual margin, preventing the map from being lost while never snapping the user back to the original island.
+When World view opens, the atlas camera calculates the discovered width and depth, fits them within the safe viewport, and targets the discovered-bounds center. Map controls then allow free pan, zoom, and rotation. World-view panning has no discovered-bounds clamp, origin clamp, or invisible camera wall: the player may move the camera indefinitely through uncharted darkness while only discovered geography remains painted and interactive.
 
 Camera framing changes only when the atlas opens, the zoom mode changes, or discovered bounds expand. It does not fight intentional camera movement while the map is open.
 
@@ -99,9 +99,10 @@ Mobile and pointer interaction follows map conventions instead of the default or
 - optional rotation requires a deliberate two-finger gesture and never replaces one-finger pan;
 - drag direction follows the finger so the map feels physically held;
 - momentum is short, bounded, and disabled under reduced motion;
-- panning can reach every discovered edge plus a small orientation margin;
+- panning can continue beyond every discovered edge without an artificial limit;
 - releasing a gesture never springs the camera back to the starting territory or current player position;
 - opening World view initially fits all discovered territory, while a dedicated “You” action can recenter on the current marker without changing discovery;
+- a dedicated “Fit discoveries” action can restore the complete painted atlas to view without changing discovery or imposing a later camera constraint;
 - Region and Landmark views may recenter when their zoom mode is explicitly selected, but remain freely pannable within their projected bounds.
 
 Atlas clicks convert the exact mesh intersection back to world coordinates. A click is admitted only when the resulting coordinate is revealed. Landmark Rift actions follow the same rule. The current marker and selected destination use the same dynamic atlas center and scale as terrain, routes, labels, and player presence.
@@ -163,6 +164,8 @@ Integration and rendering contracts must prove:
 - one-finger pan and pinch zoom reach the entire discovered atlas without snapping back to origin;
 - the World view initially fits both the starting territory and every distant discovered extension;
 - the current-location action recenters deliberately while ordinary gestures preserve their chosen camera target;
+- the fit-discoveries action restores full discovered bounds after unrestricted panning;
+- World-view camera targets are never clamped to origin or discovered bounds;
 - Region and Landmark zooms remain bounded and usable;
 - runtime checkpoints, Vaults, and Identity Seals restore the exact atlas;
 - movement inside one region performs no exploration mutation;
