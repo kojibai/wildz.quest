@@ -85,7 +85,7 @@ export function WildsCardBack({ asset, origin, qr, condition }: { asset: Portabl
           <strong className="wilds-dossier-role">{dossier.gameplay.role}</strong>
           <div className="wilds-dossier-stat-grid">{Object.entries(dossier.gameplay.stats).map(([name, value]) => <span key={name}><small>{label(name)}</small><b>{value}</b></span>)}</div>
           <dl>
-            <div><dt>Abilities</dt><dd>{dossier.gameplay.abilities.join(" · ")}</dd></div>
+            <div><dt>Abilities</dt><dd>{dossier.gameplay.abilities.map((ability) => `${ability.name}: ${ability.action}`).join(" · ")}</dd></div>
             <div><dt>Strengths</dt><dd>{dossier.gameplay.strengths.join(" · ")}</dd></div>
             <div><dt>Needs support</dt><dd>{dossier.gameplay.vulnerabilities.join(" · ")}</dd></div>
             <div><dt>Team fit</dt><dd>{dossier.gameplay.teammates.join(" ")}</dd></div>

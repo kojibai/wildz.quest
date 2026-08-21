@@ -1,9 +1,6 @@
 import type { AdventureCardCondition } from "./adventure/card-condition";
-import { creatureForm } from "./creature-catalog";
-import { currentLivingGenome, currentRevision } from "./living-card-proof";
-import { isLivingCardAsset } from "./living-card-types";
+import { projectCreatureCapabilityIdentity, projectCreatureRuntimeCapabilities } from "./creature-capability-identity";
 import type { PortableCardAsset } from "./portable-card";
-import { isWildsAquaticProfile } from "./wilds-creature-habitat";
 
 export type WildsTraversalCapability = "swim" | "climb" | "glide" | "flight";
 
@@ -59,36 +56,16 @@ export function projectWildsTraversalCapabilities(
     return cached;
   }
 
-  const formId = isLivingCardAsset(asset) ? currentRevision(asset).formId : asset.manifest.formId;
-  const form = creatureForm(formId);
-  if (!form) throw new Error("wilds_traversal_form_unknown");
-  const anatomy = isLivingCardAsset(asset) ? currentLivingGenome(asset).anatomy : form.anatomy;
-  const abilityNames = isLivingCardAsset(asset) ? currentRevision(asset).abilityNames : asset.manifest.abilityNames;
-  const abilityLanguage = `${abilityNames.join(" ")} ${condition.upgradeIds.join(" ")}`.toLowerCase();
-  const wingInjury = condition.injuries.some((injury) => injury.kind === "wing" && injury.severity >= 2);
-  const limbInjury = condition.injuries.some((injury) => injury.kind === "limb" && injury.severity >= 2);
-  const living = condition.life === "alive";
-  const aquatic = isWildsAquaticProfile({
-    element: form.element,
-    anatomy,
-    abilityNames: [...abilityNames, ...condition.upgradeIds]
-  });
-  const climbing = anatomy.body === "armored"
-    || anatomy.body === "serpentine"
-    || anatomy.detail === "horns"
-    || /climb|grip|scale|crag/.test(abilityLanguage);
-  const winged = anatomy.body === "winged" || anatomy.detail === "wings" || /wing|glide|flight/.test(abilityLanguage);
-  const capabilities: WildsTraversalCapability[] = [];
-
-  if (living && aquatic && condition.fatigue < 100) capabilities.push("swim");
-  if (living && climbing && !limbInjury && condition.fatigue < 95) capabilities.push("climb");
-  if (living && winged && !wingInjury && condition.fatigue < 100) capabilities.push("glide");
-  if (living && winged && !wingInjury && condition.fatigue < 85) capabilities.push("flight");
+  const identity = projectCreatureCapabilityIdentity(asset);
+  const runtime = projectCreatureRuntimeCapabilities(identity, condition);
+  const aquatic = identity.traversalPotential.includes("swim");
+  const climbing = identity.traversalPotential.includes("climb");
+  const winged = identity.traversalPotential.includes("glide") || identity.traversalPotential.includes("flight");
 
   projectionsBuilt += 1;
   const projection = cacheProjection(key, Object.freeze({
     assetId: asset.id,
-    capabilities: Object.freeze(capabilities),
+    capabilities: runtime.capabilities,
     source: Object.freeze({ aquatic, climbing, winged })
   }));
   const assetCache = identityProjectionCache.get(asset) ?? new WeakMap<AdventureCardCondition, WildsTraversalCapabilityProjection>();

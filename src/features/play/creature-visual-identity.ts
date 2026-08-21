@@ -89,7 +89,7 @@ export function projectLivingGenomeCreatureVisualIdentity(
 /** Semantic appendages for renderers that have a genome but no card form. */
 export function projectGenomeCreatureVisualAppendages(genome: LivingCardGenome): CreatureVisualAppendages {
   const wingFunction: FunctionalAppendage["function"] = genome.skeleton.locomotion === "flying" ? "powered-lift" : "glide";
-  const hasFins = genome.surface.kind === "shell" || genome.anatomy.detail === "shell";
+  const hasFins = genome.anatomy.aura === "tide" || genome.surface.kind === "shell" || genome.anatomy.detail === "shell";
   const hasFrill = genome.appendages.horns !== "none" || genome.appendages.crest !== "none";
   const hasTail = genome.appendages.tail !== "none";
   const appendages: CreatureVisualAppendages = {

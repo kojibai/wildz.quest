@@ -8,8 +8,10 @@ import { currentCreatureHistoryProjection, currentLivingGenome } from "./living-
 import { isLivingCardAsset } from "./living-card-types";
 import { cardDeathRecord } from "./card-death-record";
 import type { AdventureCardCondition } from "./adventure/card-condition";
+import { emptyAdventureCondition } from "./adventure/card-condition";
 import type { PortableCardAsset } from "./portable-card";
 import { creatureConsciousnessMotion } from "./creature-consciousness";
+import { projectCreatureCapabilityIdentity, projectCreatureRuntimeCapabilities } from "./creature-capability-identity";
 
 export const WildsCard = memo(function WildsCard({ asset, compact = false, condition, speaking = false }: { asset: PortableCardAsset; compact?: boolean; condition?: AdventureCardCondition | null; speaking?: boolean }) {
   const card = useRef<HTMLElement>(null);
@@ -43,6 +45,10 @@ export const WildsCard = memo(function WildsCard({ asset, compact = false, condi
     ["Speed", asset.manifest.stats.speed],
     ["Bond", asset.manifest.stats.bond]
   ] as const;
+  const capabilityRuntime = useMemo(() => projectCreatureRuntimeCapabilities(
+    projectCreatureCapabilityIdentity(asset),
+    condition ?? emptyAdventureCondition(asset.id)
+  ), [asset, condition]);
   useEffect(() => {
     const reset = () => card.current?.style.setProperty("--creature-mouth-open", "0");
     const onMouthMotion = (event: Event) => {
@@ -91,7 +97,7 @@ export const WildsCard = memo(function WildsCard({ asset, compact = false, condi
         {stats.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
       </dl>
       <div className="wilds-card-abilities">
-        {form.abilities.map((ability) => <div key={ability.name}><strong>{ability.name}</strong><b>{ability.power}</b><p>{ability.text}</p></div>)}
+        {capabilityRuntime.abilities.map((ability) => <div key={ability.descriptor.id}><strong>{ability.descriptor.name}</strong><b>{ability.currentPower}</b><p>{ability.descriptor.action}</p></div>)}
       </div>
       <footer>
         <span>{asset.status.replace("_", " ")}</span>

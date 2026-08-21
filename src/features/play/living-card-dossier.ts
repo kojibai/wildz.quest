@@ -8,6 +8,7 @@ import { deriveKaiMomentExpression, KAI_MATH_TEACHINGS } from "./kai-klok-teachi
 import { currentCreatureHistoryProjection, currentLivingGenome, currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import { canonicalPortableCardJson, verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
+import { projectCreatureCapabilityIdentity, type CreatureAbilityDescriptor } from "./creature-capability-identity";
 
 export type LivingCardDossier = {
   story: string;
@@ -37,7 +38,7 @@ export type LivingCardDossier = {
     vulnerabilities: string[];
     teammates: string[];
     stats: CreatureStats;
-    abilities: string[];
+    abilities: CreatureAbilityDescriptor[];
     growthPaths: Record<string, number>;
     level: number;
     xp: number;
@@ -144,6 +145,7 @@ export function projectLivingCardDossier(asset: PortableCardAsset, origin: strin
   const identity = identityForGenome(genome, asset.proof.digest);
   const revision = living ? currentRevision(asset) : null;
   const historyProjection = living ? currentCreatureHistoryProjection(asset) : null;
+  const capabilityIdentity = projectCreatureCapabilityIdentity(asset);
   const verification = verifyAnyWildsCard(asset);
   const growth = historyProjection?.growth ?? revision?.growth ?? {
     bond: asset.manifest.stats.bond,
@@ -221,7 +223,7 @@ export function projectLivingCardDossier(asset: PortableCardAsset, origin: strin
       vulnerabilities: powerEntries.slice(-2).map(([key, value]) => `${title(key)} ${value} needs tactical support`),
       teammates: [`A ${identity.family.locomotion === "flying" ? "grounded guardian" : "swift aerial scout"} balances its movement style.`, `A companion with strong ${powerEntries.at(-1)?.[0] ?? "bond"} covers its lowest current stat.`],
       stats: { ...asset.manifest.stats },
-      abilities: [...asset.manifest.abilityNames],
+      abilities: [...capabilityIdentity.abilities],
       growthPaths: { ...growth.paths },
       level: historyProjection?.level ?? 1,
       xp: historyProjection?.xp ?? 0,

@@ -20,12 +20,12 @@ function card(formId: string, encounterId: string) {
 
 describe("Wildz admitted-card traversal capability projection", () => {
   it("projects aquatic, climbing, and aerial anatomy deterministically", () => {
-    const tide = card("ledgerfox-1", "traversal-tide");
+    const tide = card("amberbeak-1", "traversal-tide");
     const stone = card("titanseal-1", "traversal-stone");
     const winged = card("voltray-1", "traversal-winged");
 
     assert.deepEqual(projectWildsTraversalCapabilities(tide, emptyAdventureCondition(tide.id)).capabilities, ["swim"]);
-    assert.deepEqual(projectWildsTraversalCapabilities(stone, emptyAdventureCondition(stone.id)).capabilities, ["climb"]);
+    assert.deepEqual(projectWildsTraversalCapabilities(stone, emptyAdventureCondition(stone.id)).capabilities, ["swim", "climb"]);
     assert.deepEqual(projectWildsTraversalCapabilities(winged, emptyAdventureCondition(winged.id)).capabilities, ["glide", "flight"]);
   });
 
@@ -45,7 +45,7 @@ describe("Wildz admitted-card traversal capability projection", () => {
   });
 
   it("reuses a bounded projection for identical admitted state", () => {
-    const tide = card("ledgerfox-1", "traversal-cache");
+    const tide = card("amberbeak-1", "traversal-cache");
     const condition = emptyAdventureCondition(tide.id);
     const first = projectWildsTraversalCapabilities(tide, condition);
     const second = projectWildsTraversalCapabilities(tide, condition);
@@ -54,18 +54,18 @@ describe("Wildz admitted-card traversal capability projection", () => {
     assert.ok(wildsTraversalCapabilityCacheSize() <= 128);
   });
 
-  it("keeps upgrade-granted swimming when using the shared aquatic classifier", () => {
+  it("never lets an upgrade invent missing aquatic anatomy", () => {
     const land = card("mintcub-1", "traversal-upgrade-swim");
     const projection = projectWildsTraversalCapabilities(land, {
       ...emptyAdventureCondition(land.id),
       upgradeIds: ["deep-current-swim"]
     });
-    assert.equal(projection.source.aquatic, true);
-    assert.equal(projection.capabilities.includes("swim"), true);
+    assert.equal(projection.source.aquatic, false);
+    assert.equal(projection.capabilities.includes("swim"), false);
   });
 
   it("takes the object-identity fast path before rebuilding canonical cache keys", () => {
-    const tide = card("ledgerfox-1", "traversal-identity-fast-path");
+    const tide = card("amberbeak-1", "traversal-identity-fast-path");
     const condition = emptyAdventureCondition(tide.id);
     projectWildsTraversalCapabilities(tide, condition);
     const warm = wildsTraversalProjectionDiagnostics();
