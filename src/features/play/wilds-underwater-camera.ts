@@ -21,7 +21,8 @@ export function writeUnderwaterCameraTarget(
   presentation: WildsAquaticPresentation,
   surfaceTargetY: number,
   orbitOffsetY: number,
-  output: MutableUnderwaterCameraProjection
+  output: MutableUnderwaterCameraProjection,
+  actorLocalY = presentation.actorLocalY
 ) {
   if (!Number.isFinite(surfaceTargetY) || !Number.isFinite(orbitOffsetY)) throw new Error("wilds_underwater_camera_input_invalid");
   const localWaterSurfaceY = presentation.waterSurfaceY - presentation.terrainElevation;
@@ -33,7 +34,7 @@ export function writeUnderwaterCameraTarget(
     output.cameraY = surfaceTargetY + orbitOffsetY;
     return;
   }
-  output.targetY = Math.min(presentation.actorLocalY, localWaterSurfaceY - UNDERWATER_CAMERA_EXIT_DEPTH - orbitOffsetY);
+  output.targetY = Math.min(actorLocalY, localWaterSurfaceY - UNDERWATER_CAMERA_EXIT_DEPTH - orbitOffsetY);
   output.cameraY = output.targetY + orbitOffsetY;
 }
 
@@ -65,8 +66,9 @@ export function projectUnderwaterCameraTarget(input: Readonly<{
   presentation: WildsAquaticPresentation;
   surfaceTargetY: number;
   orbitOffsetY: number;
+  actorLocalY?: number;
 }>): UnderwaterCameraProjection {
   const output: MutableUnderwaterCameraProjection = { underwaterTargetActive: false, localWaterSurfaceY: 0, targetY: 0, cameraY: 0 };
-  writeUnderwaterCameraTarget(input.presentation, input.surfaceTargetY, input.orbitOffsetY, output);
+  writeUnderwaterCameraTarget(input.presentation, input.surfaceTargetY, input.orbitOffsetY, output, input.actorLocalY);
   return Object.freeze(output);
 }

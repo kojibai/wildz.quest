@@ -77,8 +77,8 @@ export type { WildsSupportAssetIds } from "./wilds-v3-contracts";
 export type GameAction = "explore" | "train" | "mission";
 export type MoveDirection = "north" | "south" | "west" | "east";
 export type WildsInput = (
-  | { type: "move"; direction: MoveDirection; aerialMode?: "glide" | "flight" }
-  | { type: "move-vector"; x: number; z: number; mode?: WildsMovementMode; aerialMode?: "glide" | "flight" }
+  | { type: "move"; direction: MoveDirection; aerialMode?: "glide" | "flight"; verticalClearance?: number }
+  | { type: "move-vector"; x: number; z: number; mode?: WildsMovementMode; aerialMode?: "glide" | "flight"; verticalClearance?: number }
   | { type: "apply-rift-grant"; grant: RiftTravelGrant; playerId: string }
   | { type: "discover" }
   | { type: "capture"; encounterId: string; capturedAt: string; ownerReceizId: string }
@@ -1788,8 +1788,8 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       ? [...new Set([...traversalCapabilities, "swim" as const, "climb" as const])]
       : traversalCapabilities;
     const movement = input.type === "move"
-      ? movePlayer(state.player, input.direction, movementCapabilities, admittedAirborne ? input.aerialMode : undefined)
-      : movePlayerVector(state.player, input.x, input.z, movementScale(input.mode ?? "walk"), movementCapabilities, admittedAirborne ? input.aerialMode : undefined);
+      ? movePlayer(state.player, input.direction, movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance)
+      : movePlayerVector(state.player, input.x, input.z, movementScale(input.mode ?? "walk"), movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance);
     const nextPlayer = movement.position;
     const previousRegion = regionForPosition(state.player);
     const nextRegion = regionForPosition(nextPlayer);
@@ -2048,7 +2048,8 @@ function movePlayer(
   player: PlayState["player"],
   direction: MoveDirection,
   capabilities: readonly WildsTraversalCapability[],
-  aerialMode?: "glide" | "flight"
+  aerialMode?: "glide" | "flight",
+  verticalClearance?: number
 ) {
   const next = { ...player };
 
@@ -2061,7 +2062,7 @@ function movePlayer(
     x: clamp(next.x, worldBounds.min, worldBounds.max),
     z: clamp(next.z, worldBounds.min, worldBounds.max)
   };
-  return resolveWildsGroundMovement(player, intended, { capabilities, aerialMode });
+  return resolveWildsGroundMovement(player, intended, { capabilities, aerialMode, verticalClearance });
 }
 
 function movePlayerVector(
@@ -2070,18 +2071,19 @@ function movePlayerVector(
   z: number,
   movementMultiplier: number,
   capabilities: readonly WildsTraversalCapability[],
-  aerialMode?: "glide" | "flight"
+  aerialMode?: "glide" | "flight",
+  verticalClearance?: number
 ) {
   const safeX = Number.isFinite(x) ? x : 0;
   const safeZ = Number.isFinite(z) ? z : 0;
   const magnitude = Math.hypot(safeX, safeZ);
-  if (magnitude < 0.08) return resolveWildsGroundMovement(player, player, { capabilities, aerialMode, obstacles: [] });
+  if (magnitude < 0.08) return resolveWildsGroundMovement(player, player, { capabilities, aerialMode, obstacles: [], verticalClearance });
   const scale = worldBounds.analogStep * movementMultiplier / Math.max(1, magnitude);
   const intended = {
     x: clamp(player.x + safeX * scale, worldBounds.min, worldBounds.max),
     z: clamp(player.z + safeZ * scale, worldBounds.min, worldBounds.max)
   };
-  return resolveWildsGroundMovement(player, intended, { capabilities, aerialMode });
+  return resolveWildsGroundMovement(player, intended, { capabilities, aerialMode, verticalClearance });
 }
 
 function distance2d(a: { x: number; z: number }, b: { x: number; z: number }) {

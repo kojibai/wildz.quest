@@ -8,7 +8,7 @@ import {
 } from "./wilds-terrain-authority";
 
 export type WildsObstacleMaterial = "solid" | "stepable" | "soft" | "conditional";
-export type WildsObstacleKind = "tree" | "rock";
+export type WildsObstacleKind = "tree" | "rock" | "structure" | "ceiling" | "aerial-hazard";
 export type WildsObstacleShape =
   | { kind: "cylinder"; radius: number; height: number }
   | { kind: "box"; halfX: number; halfY: number; halfZ: number };
@@ -21,12 +21,34 @@ export type WildsTerrainObstacle = {
   radius: number;
   shape: WildsObstacleShape;
   visualScale: number;
+  airbornePolicy?: "clearable" | "persistent";
 };
 
 export type WildsObstacleIndex = {
   cellSize: number;
   cells: ReadonlyMap<string, readonly WildsTerrainObstacle[]>;
 };
+
+export function wildsObstacleVerticalBounds(obstacle: WildsTerrainObstacle) {
+  if (obstacle.shape.kind === "box") {
+    return {
+      minimum: obstacle.position.y - obstacle.shape.halfY,
+      maximum: obstacle.position.y + obstacle.shape.halfY
+    };
+  }
+  return { minimum: obstacle.position.y, maximum: obstacle.position.y + obstacle.shape.height };
+}
+
+export function wildsObstacleBlocksVerticalBand(
+  obstacle: WildsTerrainObstacle,
+  footY: number,
+  height = 1.55
+) {
+  if (!Number.isFinite(footY) || !Number.isFinite(height) || height <= 0) return true;
+  if (obstacle.airbornePolicy === "persistent") return true;
+  const bounds = wildsObstacleVerticalBounds(obstacle);
+  return footY <= bounds.maximum + 0.000001 && footY + height >= bounds.minimum - 0.000001;
+}
 
 type CandidateKind = "tree" | "rock";
 

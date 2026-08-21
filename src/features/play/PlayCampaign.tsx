@@ -121,6 +121,15 @@ import {
 } from "@/features/play/wilds-aerial-traversal";
 import { projectWildsAquaticPresentationAtPosition } from "@/features/play/wilds-aquatic-presentation";
 import { wildsOverlookAt, type WildsOverlookId } from "@/features/play/wilds-overlooks";
+import {
+  createWildsVerticalTraversalState,
+  resetWildsVerticalTraversalState,
+  writeWildsVerticalTraversalStep,
+  type WildsVerticalTraversalIntent,
+  type WildsVerticalTraversalState
+} from "@/features/play/wilds-vertical-traversal";
+import { resolveWildsSafeLandingPosition } from "@/features/play/wilds-grounded-movement";
+import { projectCreatureCapabilityIdentity } from "@/features/play/creature-capability-identity";
 
 const WildsWorldMap = dynamic(() => import("@/features/play/WildsWorldMap").then((mod) => mod.WildsWorldMap), { ssr: false });
 const WildsLandmarkExperience = dynamic(() => import("@/features/play/WildsLandmarkExperience").then((mod) => mod.WildsLandmarkExperience), { ssr: false });
@@ -294,6 +303,19 @@ export function PlayCampaign({
       state.adventureConditions[activeAsset.id] ?? emptyAdventureCondition(activeAsset.id)
     ).capabilities
     : [], [activeAsset, state.adventureConditions]);
+  const traversalPotentials = useMemo(() => {
+    if (!activeAsset) return { lift: 0, pressure: 0 };
+    const specialties = projectCreatureCapabilityIdentity(activeAsset).specialties;
+    const potential = (families: readonly string[]) => {
+      const specialty = specialties.find((candidate) => families.includes(candidate.family));
+      if (!specialty) return .45;
+      return Math.max(.2, Math.min(1, (specialty.potential + specialty.control + specialty.endurance) / 300));
+    };
+    return {
+      lift: activeTraversalCapabilities.includes("flight") ? potential(["flight", "glide", "balance"]) : activeTraversalCapabilities.includes("glide") ? potential(["glide", "balance"]) * .6 : 0,
+      pressure: activeTraversalCapabilities.includes("swim") ? potential(["dive", "current", "swim", "anchor"]) : 0
+    };
+  }, [activeAsset, activeTraversalCapabilities]);
   const [aerialMode, setAerialMode] = useState<WildsAerialMode>("ground");
   const canSwim = activeTraversalCapabilities.includes("swim");
   const aquaticPresentation = useMemo(() => projectWildsAquaticPresentationAtPosition({
@@ -307,7 +329,23 @@ export function PlayCampaign({
     aquaticPresentation.terrainElevation
   ));
   const aerialStateRef = useRef<WildsAerialTraversalState>(initialAerialState);
+  const verticalTraversalRef = useRef<WildsVerticalTraversalState>(createWildsVerticalTraversalState());
+  const verticalIntentRef = useRef<WildsVerticalTraversalIntent>(0);
+  const horizontalAllowedRef = useRef(true);
   const [aerialEnergy, setAerialEnergy] = useState(100);
+  const [verticalReadout, setTraversalReadout] = useState({ layer: "ground" as WildsVerticalTraversalState["layer"], value: 0, safeMin: 0, safeMax: 0 });
+  const publishVerticalReadout = useCallback((layer: WildsVerticalTraversalState["layer"], value: number, safeMin: number, safeMax: number) => {
+    setTraversalReadout({ layer, value, safeMin, safeMax });
+  }, []);
+  const resetTransientTraversal = useCallback((position = state.player, elevation = aquaticPresentation.terrainElevation) => {
+    aerialStateRef.current = createGroundedWildsAerialState(position, elevation);
+    resetWildsVerticalTraversalState(verticalTraversalRef.current);
+    verticalIntentRef.current = 0;
+    horizontalAllowedRef.current = true;
+    setAerialMode("ground");
+    setAerialEnergy(100);
+    setTraversalReadout({ layer: "ground", value: 0, safeMin: 0, safeMax: 0 });
+  }, [aquaticPresentation.terrainElevation, state.player]);
   const [activeVistaId, setActiveVistaId] = useState<WildsOverlookId | null>(null);
   const deckCards = state.inventory;
   const priorVaultIdsRef = useRef(new Set(state.inventory.map((asset) => asset.id)));
@@ -683,8 +721,9 @@ export function PlayCampaign({
     const deltaX = state.player.x - previous.x;
     const deltaZ = state.player.z - previous.z;
     previousPlayerPosition.current = state.player;
+    if (Math.hypot(deltaX, deltaZ) > 3) resetTransientTraversal(state.player, aquaticPresentation.terrainElevation);
     if (Math.hypot(deltaX, deltaZ) > 0.0001) setPlayerHeading(Math.atan2(deltaX, -deltaZ));
-  }, [state.player]);
+  }, [aquaticPresentation.terrainElevation, resetTransientTraversal, state.player]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -802,7 +841,13 @@ export function PlayCampaign({
     if (!canUseWorldStage()) return;
     if (input.type === "move" || input.type === "move-vector") {
       if (activeVistaId) setActiveVistaId(null);
-      dispatch({ ...input, aerialMode: aerialMode === "ground" ? undefined : aerialMode });
+      const liveAerialMode = aerialStateRef.current.mode;
+      const airborne = liveAerialMode !== "ground" && horizontalAllowedRef.current;
+      dispatch({
+        ...input,
+        aerialMode: airborne ? liveAerialMode : undefined,
+        verticalClearance: verticalTraversalRef.current.offset
+      });
       return;
     }
     dispatch(input);
@@ -810,7 +855,10 @@ export function PlayCampaign({
   const toggleAerialTraversal = () => {
     if (!canUseWorldStage()) return;
     const groundElevation = aquaticPresentation.terrainElevation;
-    if (aerialMode !== "ground") {
+    const liveAerialMode = aerialStateRef.current.mode;
+    if (liveAerialMode !== "ground") {
+      const landing = resolveWildsSafeLandingPosition(state.player, { capabilities: activeTraversalCapabilities });
+      if (!landing) return;
       const landed = advanceWildsAerialTraversal(aerialStateRef.current, {
         capabilities: activeTraversalCapabilities,
         deltaSeconds: 0,
@@ -821,6 +869,11 @@ export function PlayCampaign({
         verticalIntent: 0
       });
       aerialStateRef.current = landed.state;
+      verticalIntentRef.current = 0;
+      horizontalAllowedRef.current = true;
+      if (landing.x !== state.player.x || landing.z !== state.player.z) {
+        setState((current) => ({ ...current, player: landing, lastEvent: "Landed on the nearest clear surface." }));
+      }
       setAerialMode("ground");
       return;
     }
@@ -836,6 +889,16 @@ export function PlayCampaign({
       launchHeight: kind === "glide" ? 4 : undefined
     });
     aerialStateRef.current = begun.state;
+    writeWildsVerticalTraversalStep(verticalTraversalRef.current, {
+      deltaSeconds: 0,
+      initialOffset: Math.max(.35, begun.state.altitude - groundElevation),
+      intent: 0,
+      layer: begun.state.mode === "ground" ? "ground" : "air",
+      liftPotential: traversalPotentials.lift,
+      powered: kind === "flight",
+      stamina: begun.state.stamina,
+      terrainElevation: groundElevation
+    });
     setAerialMode(begun.state.mode);
     if (activeVistaId) setActiveVistaId(null);
   };
@@ -1092,6 +1155,11 @@ export function PlayCampaign({
         grant: result.grant,
         playerId: result.grant.playerId
       });
+      resetTransientTraversal(result.grant.destination, projectWildsAquaticPresentationAtPosition({
+        ...result.grant.destination,
+        airborne: false,
+        canSwim
+      }).terrainElevation);
       multiplayer.selectPlayer(null);
       setActiveLandmarkId(null);
       releasePlayModalOwner("map");
@@ -1321,6 +1389,11 @@ export function PlayCampaign({
                 pendingSyncAssetIds: outcome.playState.pendingSyncAssetIds.filter((assetId) => !verifiedAssetIds.has(assetId))
               };
               setState(restoredPlayState);
+              resetTransientTraversal(restoredPlayState.player, projectWildsAquaticPresentationAtPosition({
+                ...restoredPlayState.player,
+                airborne: false,
+                canSwim: false
+              }).terrainElevation);
               setMovementMode(outcome.playerContinuity.settings.movementMode);
               setCardOrder(outcome.playerContinuity.settings.cardOrder);
               setVisualSettings(normalizeWildsVisualSettings(outcome.playerContinuity.settings.visual));
@@ -1358,6 +1431,11 @@ export function PlayCampaign({
             <WildsWorldCanvas
               aerialCapabilities={activeTraversalCapabilities}
               aerialStateRef={aerialStateRef}
+              verticalTraversalRef={verticalTraversalRef}
+              verticalIntentRef={verticalIntentRef}
+              horizontalAllowedRef={horizontalAllowedRef}
+              liftPotential={traversalPotentials.lift}
+              pressurePotential={traversalPotentials.pressure}
               aquaticPresentation={aquaticPresentation}
               state={state}
               character={character}
@@ -1366,6 +1444,7 @@ export function PlayCampaign({
               onFrameSample={reportFrameSample}
               onAerialModeChange={setAerialMode}
               onAerialEnergyChange={setAerialEnergy}
+              onVerticalReadoutChange={publishVerticalReadout}
               onCameraHeadingChange={updateCameraHeading}
               searchEnabled={worldInteractionEnabled && discoveryActive}
               livingWorld={livingWorld.snapshot}
@@ -1435,6 +1514,8 @@ export function PlayCampaign({
               aerialEnergy={aerialEnergy}
               aerialMode={aerialMode}
               aquaticPresentation={aquaticPresentation}
+              verticalIntentRef={verticalIntentRef}
+              verticalReadout={verticalReadout}
               activeCard={activeAsset}
               cameraHeadingRef={cameraHeadingRef}
               cardConditions={state.adventureConditions}

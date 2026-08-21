@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, type CSSProperties, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, type CSSProperties, type MutableRefObject, type RefObject } from "react";
 import { Icons } from "@/components/icons";
 import type { WildzCardSort } from "./card-sort";
 import type { PlayState, WildsInput } from "./game-state";
@@ -19,8 +19,10 @@ import type { WildsTraversalCapability } from "./wilds-traversal-capabilities";
 import type { WildsAquaticPresentation } from "./wilds-aquatic-presentation";
 import { projectCreatureCapabilityIdentity } from "./creature-capability-identity";
 import { projectWildsTraversalStatus } from "./wilds-traversal-status";
+import type { WildsVerticalTraversalIntent, WildsVerticalTraversalState } from "./wilds-vertical-traversal";
 
 const ignore = () => {};
+const DEFAULT_VERTICAL_READOUT = { layer: "ground", value: 0, safeMin: 0, safeMax: 0 } as const;
 
 function useStableEvent<Arguments extends unknown[]>(handler: (...args: Arguments) => void) {
   const handlerRef = useRef(handler);
@@ -56,6 +58,8 @@ export function WildzWorldControls({
   aerialEnergy,
   aerialMode,
   aquaticPresentation,
+  verticalIntentRef: suppliedVerticalIntentRef,
+  verticalReadout = DEFAULT_VERTICAL_READOUT,
   traversalCapabilities,
   glideLaunchAvailable,
   onAerialToggle
@@ -85,11 +89,15 @@ export function WildzWorldControls({
   aerialEnergy: number;
   aerialMode: WildsAerialMode;
   aquaticPresentation?: WildsAquaticPresentation;
+  verticalIntentRef?: MutableRefObject<WildsVerticalTraversalIntent>;
+  verticalReadout?: Readonly<{ layer: WildsVerticalTraversalState["layer"]; value: number; safeMin: number; safeMax: number }>;
   traversalCapabilities: readonly WildsTraversalCapability[];
   glideLaunchAvailable: boolean;
   onAerialToggle: () => void;
 }) {
   const changeCardOrder = useStableEvent(onCardOrderChange);
+  const fallbackVerticalIntentRef = useRef<WildsVerticalTraversalIntent>(0);
+  const verticalIntentRef = suppliedVerticalIntentRef ?? fallbackVerticalIntentRef;
   const selectCard = useStableEvent(onSelectCard);
   const forwardInput = useStableEvent(onInput);
   const changeMovementMode = useStableEvent(onMovementModeChange);
@@ -180,6 +188,25 @@ export function WildzWorldControls({
   const handleAerialToggle = useCallback(() => {
     if (worldHomesEnabled) toggleAerial();
   }, [toggleAerial, worldHomesEnabled]);
+  const verticalControlsVisible = aerialMode === "flight" || aquaticPresentation?.mode === "swim";
+  const stopVerticalIntent = useCallback(() => {
+    verticalIntentRef.current = 0;
+  }, [verticalIntentRef]);
+  const startVerticalIntent = useCallback((intent: WildsVerticalTraversalIntent) => {
+    if (worldHomesEnabled && verticalControlsVisible) verticalIntentRef.current = intent;
+  }, [verticalControlsVisible, verticalIntentRef, worldHomesEnabled]);
+  useEffect(() => {
+    if (!worldHomesEnabled || !verticalControlsVisible) stopVerticalIntent();
+  }, [stopVerticalIntent, verticalControlsVisible, worldHomesEnabled]);
+  useEffect(() => {
+    const stop = () => stopVerticalIntent();
+    window.addEventListener("blur", stop);
+    document.addEventListener("visibilitychange", stop);
+    return () => {
+      window.removeEventListener("blur", stop);
+      document.removeEventListener("visibilitychange", stop);
+    };
+  }, [stopVerticalIntent]);
   const companionRoster = useMemo(() => projectVaultCompanionRoster({
     inventory: nearbyCards,
     companionProgress,
@@ -211,6 +238,11 @@ export function WildzWorldControls({
     aquaticStatus,
     flightStatus
   });
+  const verticalStatus = verticalReadout.layer === "air"
+    ? `${verticalReadout.value.toFixed(1)} m altitude · safe ${verticalReadout.safeMin.toFixed(1)}–${verticalReadout.safeMax.toFixed(1)} m`
+    : verticalReadout.layer === "water" && aquaticPresentation
+      ? `${verticalReadout.value.toFixed(1)} m deep · safe ${(aquaticPresentation.waterDepth - verticalReadout.safeMax).toFixed(1)}–${(aquaticPresentation.waterDepth - verticalReadout.safeMin).toFixed(1)} m`
+      : null;
 
   useEffect(() => {
     if (requestedCommand && exclusiveOwner !== "none") requestHandled();
@@ -237,7 +269,36 @@ export function WildzWorldControls({
             style={{ "--wildz-flight-energy": `${aerialEnergy}%` } as CSSProperties}
             type="button"
           ><Icons.sparkle size={20} /><i aria-hidden="true" /></button> : null}
+          {verticalControlsVisible ? <div aria-label="Vertical traversal controls" className="wildz-vertical-controls">
+            <button
+              aria-label={verticalReadout.layer === "water" ? "Ascend toward the water surface" : "Ascend"}
+              disabled={!worldHomesEnabled}
+              onBlur={stopVerticalIntent}
+              onKeyDown={(event) => { if (event.key === " " || event.key === "Enter") startVerticalIntent(1); }}
+              onKeyUp={stopVerticalIntent}
+              onLostPointerCapture={stopVerticalIntent}
+              onPointerCancel={stopVerticalIntent}
+              onPointerDown={(event) => { event.currentTarget.setPointerCapture?.(event.pointerId); startVerticalIntent(1); }}
+              onPointerUp={stopVerticalIntent}
+              style={{ touchAction: "none" }}
+              type="button"
+            ><Icons.chevronUp size={18} /></button>
+            <button
+              aria-label={verticalReadout.layer === "water" ? "Descend toward the seabed" : "Descend"}
+              disabled={!worldHomesEnabled}
+              onBlur={stopVerticalIntent}
+              onKeyDown={(event) => { if (event.key === " " || event.key === "Enter") startVerticalIntent(-1); }}
+              onKeyUp={stopVerticalIntent}
+              onLostPointerCapture={stopVerticalIntent}
+              onPointerCancel={stopVerticalIntent}
+              onPointerDown={(event) => { event.currentTarget.setPointerCapture?.(event.pointerId); startVerticalIntent(-1); }}
+              onPointerUp={stopVerticalIntent}
+              style={{ touchAction: "none" }}
+              type="button"
+            ><Icons.chevronDown size={18} /></button>
+          </div> : null}
           {traversalStatus ? <span aria-live="polite" className={`wildz-flight-status wildz-traversal-status${aerialEnergy <= 25 ? " is-low" : ""}`}>{traversalStatus}</span> : null}
+          {verticalStatus ? <span aria-live="polite" className="wildz-vertical-status">{verticalStatus}</span> : null}
         </div>
         <WildzDpad
           cameraHeadingRef={cameraHeadingRef}

@@ -5,6 +5,8 @@ import {
   type WildsTraversalRequirement
 } from "./wilds-terrain-authority";
 import {
+  wildsObstacleBlocksVerticalBand,
+  wildsObstacleVerticalBounds,
   wildsTerrainObstaclesForTile,
   type WildsTerrainObstacle
 } from "./wilds-terrain-obstacles";
@@ -21,6 +23,27 @@ export type WildsGroundMovementResult = {
   blockedBy: readonly string[];
   traversalBlockedBy: TraversalCapability | null;
 };
+
+export function wildsObstacleTopAtPosition(point: Point, capsuleRadius = DEFAULT_CAPSULE_RADIUS) {
+  if (!finitePoint(point)) return null;
+  const tileX = Math.floor(point.x / WILDS_TERRAIN_TILE_SIZE);
+  const tileZ = Math.floor(point.z / WILDS_TERRAIN_TILE_SIZE);
+  let top: number | null = null;
+  for (let offsetZ = -1; offsetZ <= 1; offsetZ += 1) {
+    for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
+      const obstacles = cachedTileObstacles(tileX + offsetX, tileZ + offsetZ);
+      for (let index = 0; index < obstacles.length; index += 1) {
+        const obstacle = obstacles[index]!;
+        if (!blockingObstacle(obstacle)) continue;
+        const distance = Math.hypot(point.x - obstacle.position.x, point.z - obstacle.position.z);
+        if (distance > obstacle.radius + capsuleRadius) continue;
+        const maximum = wildsObstacleVerticalBounds(obstacle).maximum;
+        if (top === null || maximum > top) top = maximum;
+      }
+    }
+  }
+  return top;
+}
 
 const DEFAULT_CAPSULE_RADIUS = 0.38;
 const SHALLOW_WATER_SPEED = 0.65;
@@ -195,11 +218,13 @@ export function resolveWildsGroundMovement(
     capsuleRadius?: number;
     capabilities?: readonly TraversalCapability[];
     aerialMode?: "glide" | "flight";
+    verticalClearance?: number;
     obstacles?: readonly WildsTerrainObstacle[];
   } = {}
 ): WildsGroundMovementResult {
   if (!finitePoint(start) || !finitePoint(intended)) throw new Error("wilds_ground_movement_invalid");
   const capsuleRadius = options.capsuleRadius ?? DEFAULT_CAPSULE_RADIUS;
+  const startTerrain = sampleWildsTerrain(start.x, start.z);
   const intendedTerrain = sampleWildsTerrain(intended.x, intended.z);
   const capabilities = new Set(options.capabilities ?? []);
   const intendedMode = options.aerialMode ?? traversalModeFor(intendedTerrain, capabilities);
@@ -209,11 +234,46 @@ export function resolveWildsGroundMovement(
     z: quantize(start.z + (intended.z - start.z) * speedMultiplier)
   };
   const targetTerrain = sampleWildsTerrain(target.x, target.z);
+  const airborneClearance = options.aerialMode && Number.isFinite(options.verticalClearance)
+    ? Math.max(0, options.verticalClearance ?? 0)
+    : null;
+  if (airborneClearance !== null) {
+    const worldFootY = startTerrain.elevation + airborneClearance;
+    const distance = Math.hypot(target.x - start.x, target.z - start.z);
+    const steps = Math.max(1, Math.ceil(distance / .2));
+    for (let step = 1; step <= steps; step += 1) {
+      const amount = step / steps;
+      const elevation = wildsTerrainElevation(
+        start.x + (target.x - start.x) * amount,
+        start.z + (target.z - start.z) * amount
+      );
+      if (elevation + .35 <= worldFootY + CONTACT_EPSILON) continue;
+      return {
+        position: { ...start },
+        elevation: startTerrain.elevation,
+        surface: startTerrain.surface,
+        speedMultiplier,
+        traversalMode: intendedMode,
+        blockedBy: [],
+        traversalBlockedBy: "climb"
+      };
+    }
+    if (airborneClearance < 2.5 && targetTerrain.traversal.some((requirement) => requirement.kind === "climb")) {
+      return {
+        position: { ...start },
+        elevation: startTerrain.elevation,
+        surface: startTerrain.surface,
+        speedMultiplier,
+        traversalMode: intendedMode,
+        blockedBy: [],
+        traversalBlockedBy: "climb"
+      };
+    }
+  }
   const missingTraversal = intendedTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind
     ?? targetTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind
     ?? null;
   if (missingTraversal) {
-    const startTerrain = sampleWildsTerrain(start.x, start.z);
     return {
       position: { ...start },
       elevation: wildsTerrainElevation(start.x, start.z),
@@ -224,12 +284,17 @@ export function resolveWildsGroundMovement(
       traversalBlockedBy: missingTraversal
     };
   }
-  const obstacles = options.obstacles ?? movementObstacles(start, target, capsuleRadius);
+  const allObstacles = options.obstacles ?? movementObstacles(start, target, capsuleRadius);
+  const obstacles = airborneClearance === null
+    ? allObstacles
+    : allObstacles.filter((obstacle) => wildsObstacleBlocksVerticalBand(
+      obstacle,
+      startTerrain.elevation + airborneClearance
+    ));
   const collision = resolveWildsObstacleMotion(start, target, obstacles, capsuleRadius);
   const resolvedTerrain = sampleWildsTerrain(collision.position.x, collision.position.z);
   const pushedIntoMissingTraversal = resolvedTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind ?? null;
   if (pushedIntoMissingTraversal) {
-    const startTerrain = sampleWildsTerrain(start.x, start.z);
     return {
       position: { ...start },
       elevation: wildsTerrainElevation(start.x, start.z),
@@ -249,4 +314,40 @@ export function resolveWildsGroundMovement(
     blockedBy: collision.blockedBy,
     traversalBlockedBy: null
   };
+}
+
+export function resolveWildsSafeLandingPosition(
+  requested: Point,
+  options: {
+    capsuleRadius?: number;
+    capabilities?: readonly TraversalCapability[];
+    obstacles?: readonly WildsTerrainObstacle[];
+    searchRadius?: number;
+  } = {}
+) {
+  if (!finitePoint(requested)) throw new Error("wilds_landing_position_invalid");
+  const capsuleRadius = options.capsuleRadius ?? DEFAULT_CAPSULE_RADIUS;
+  const searchRadius = Math.max(0, Math.min(6, options.searchRadius ?? 3.2));
+  const capabilities = new Set(options.capabilities ?? []);
+  const rings = Math.ceil(searchRadius / .8);
+  for (let ring = 0; ring <= rings; ring += 1) {
+    const radius = Math.min(searchRadius, ring * .8);
+    const slots = ring === 0 ? 1 : 12;
+    for (let slot = 0; slot < slots; slot += 1) {
+      const angle = slot * Math.PI * 2 / slots;
+      const candidate = {
+        x: quantize(requested.x + Math.cos(angle) * radius),
+        z: quantize(requested.z + Math.sin(angle) * radius)
+      };
+      const terrain = sampleWildsTerrain(candidate.x, candidate.z);
+      if (terrain.traversal.some((requirement) => !capabilities.has(requirement.kind))) continue;
+      const obstacles = options.obstacles ?? movementObstacles(candidate, candidate, capsuleRadius);
+      if (obstacles.some((obstacle) => blockingObstacle(obstacle)
+        && Math.hypot(candidate.x - obstacle.position.x, candidate.z - obstacle.position.z) < obstacle.radius + capsuleRadius)) continue;
+      const collision = resolveWildsObstacleMotion(candidate, candidate, obstacles, capsuleRadius);
+      if (collision.position.x !== candidate.x || collision.position.z !== candidate.z) continue;
+      return candidate;
+    }
+  }
+  return null;
 }

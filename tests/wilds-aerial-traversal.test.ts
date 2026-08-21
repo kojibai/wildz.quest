@@ -4,7 +4,9 @@ import { describe, it } from "node:test";
 import {
   advanceWildsAerialTraversal,
   beginWildsAerialTraversal,
-  createGroundedWildsAerialState
+  createGroundedWildsAerialState,
+  createWildsAerialRuntimeResult,
+  writeWildsAerialRuntimeStep
 } from "../src/features/play/wilds-aerial-traversal";
 
 const point = { x: 12, z: -8 };
@@ -99,5 +101,41 @@ describe("Wildz transient aerial traversal", () => {
   it("contains no authority, network, persistence, timer, or React work", async () => {
     const source = await readFile("src/features/play/wilds-aerial-traversal.ts", "utf8");
     assert.doesNotMatch(source, /verify|fetch|localStorage|indexedDB|setTimeout|setInterval|react/i);
+  });
+
+  it("updates runtime stamina and horizontal admission without allocating replacement state", () => {
+    const state = beginWildsAerialTraversal(createGroundedWildsAerialState(point, 4), {
+      kind: "flight", capabilities: ["flight", "glide"]
+    }).state;
+    const result = createWildsAerialRuntimeResult();
+    const returned = writeWildsAerialRuntimeStep(state, {
+      deltaSeconds: .1,
+      groundElevation: 4,
+      hasFlight: true,
+      hasGlide: true,
+      horizontalDistance: .2,
+      positionX: point.x,
+      positionZ: point.z,
+      verticalOffset: 3
+    }, result);
+
+    assert.equal(returned, result);
+    assert.equal(result.state, state);
+    assert.equal(state.altitude, 7);
+    assert.equal(result.horizontalAllowed, true);
+
+    state.stamina = 0;
+    writeWildsAerialRuntimeStep(state, {
+      deltaSeconds: .1,
+      groundElevation: 4,
+      hasFlight: false,
+      hasGlide: false,
+      horizontalDistance: 0,
+      positionX: point.x,
+      positionZ: point.z,
+      verticalOffset: .35
+    }, result);
+    assert.equal(state.mode, "ground");
+    assert.equal(result.horizontalAllowed, false);
   });
 });

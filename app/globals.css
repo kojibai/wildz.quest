@@ -14967,6 +14967,36 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   box-shadow: 0 0 8px rgba(255, 207, 98, .42);
 }
 
+.wildz-vertical-controls {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, 44px);
+  gap: 6px;
+  touch-action: none;
+}
+
+.wildz-vertical-controls > button {
+  display: grid;
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(118, 243, 207, .34);
+  border-radius: 15px;
+  color: #dffef3;
+  background: linear-gradient(145deg, rgba(12, 57, 53, .94), rgba(7, 27, 29, .96));
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .34), inset 0 1px rgba(255, 255, 255, .08);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
+
+.wildz-vertical-controls > button:active {
+  border-color: rgba(255, 218, 137, .72);
+  color: #fff2bf;
+  transform: translateY(1px);
+}
+
 .wildz-flight-status {
   position: absolute;
   bottom: calc(100% + 8px);
@@ -14994,6 +15024,25 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wildz-traversal-status {
   max-width: min(56vw, 290px);
   text-wrap: balance;
+}
+
+.wildz-vertical-status {
+  position: absolute;
+  bottom: calc(100% + 36px);
+  left: 0;
+  width: max-content;
+  max-width: min(64vw, 320px);
+  padding: 5px 8px;
+  border: 1px solid rgba(118, 243, 207, .28);
+  border-radius: 9px;
+  color: #c9f7e9;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: .025em;
+  background: rgba(8, 31, 31, .9);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .28);
+  pointer-events: none;
 }
 
 .wildz-tools-home {

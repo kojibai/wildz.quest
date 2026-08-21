@@ -40,6 +40,18 @@ test("admitted swimming translates camera and target below the exact shared wate
   assert.ok(Math.abs((projected.cameraY - projected.targetY) - orbitOffsetY) < 1e-9);
 });
 
+test("camera target follows the current dive offset instead of the fixed surface-swim pose", () => {
+  const surface = projectUnderwaterCameraTarget({
+    presentation: presentation(), surfaceTargetY: .9, orbitOffsetY: .8, actorLocalY: 2.1
+  });
+  const deep = projectUnderwaterCameraTarget({
+    presentation: presentation(), surfaceTargetY: .9, orbitOffsetY: .8, actorLocalY: .4
+  });
+
+  assert.ok(deep.targetY < surface.targetY);
+  assert.ok(Math.abs((deep.cameraY - deep.targetY) - .8) < 1e-9);
+});
+
 test("actual damped camera crossing owns enter, hold, exit, and vista submersion", () => {
   const localWaterSurfaceY = WILDS_WATERLINE_ELEVATION + 4;
   const notYetEntered = projectUnderwaterCameraSubmersion({

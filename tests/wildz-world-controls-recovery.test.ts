@@ -31,7 +31,12 @@ test("movement and companion gestures own only their initiating pointer", () => 
   assert.match(companion, /activePointerIdRef\.current !== event\.pointerId/);
   assert.match(dpad, /activePointerIdRef/);
   assert.match(dpad, /activePointerIdRef\.current !== event\.pointerId/);
-  assert.doesNotMatch(controls, /onPointer(?:Down|Move|Up|Cancel|Capture)/);
+  const verticalControlsStart = controls.indexOf("{verticalControlsVisible ? <div");
+  const verticalControlsEnd = controls.indexOf("{traversalStatus ?", verticalControlsStart);
+  assert.ok(verticalControlsStart >= 0 && verticalControlsEnd > verticalControlsStart);
+  const controlsWithoutDedicatedVerticalHoldButtons = controls.slice(0, verticalControlsStart)
+    + controls.slice(verticalControlsEnd);
+  assert.doesNotMatch(controlsWithoutDedicatedVerticalHoldButtons, /onPointer(?:Down|Move|Up|Cancel|Capture)/);
   assert.doesNotMatch(controls, /preventDefault\(\)/);
 
   const roster = reduceWorldOverlay(initialWorldOverlayState, { type: "drawer", snap: "preview" });

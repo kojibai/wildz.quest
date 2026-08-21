@@ -4,20 +4,122 @@ type Point = Readonly<{ x: number; z: number }>;
 
 export type WildsAerialMode = "ground" | "glide" | "flight";
 
-export type WildsAerialTraversalState = Readonly<{
+export type WildsAerialTraversalState = {
   mode: WildsAerialMode;
   altitude: number;
   verticalVelocity: number;
   stamina: number;
   distance: number;
-  safeAnchor: Readonly<{ x: number; z: number; elevation: number }>;
-}>;
+  safeAnchor: { x: number; z: number; elevation: number };
+};
 
 export type WildsAerialTraversalResult = Readonly<{
   state: WildsAerialTraversalState;
   reason: "flight-required" | "glide-required" | "launch-height-required" | "flight-recharging" | "flight-energy-low" | "flight-exhausted" | "protected-airspace" | "landed" | null;
   horizontalAllowed: boolean;
 }>;
+
+export type MutableWildsAerialRuntimeResult = {
+  state: WildsAerialTraversalState;
+  reason: WildsAerialTraversalResult["reason"];
+  horizontalAllowed: boolean;
+};
+
+export type WildsAerialRuntimeStep = {
+  deltaSeconds: number;
+  groundElevation: number;
+  hasFlight: boolean;
+  hasGlide: boolean;
+  horizontalDistance: number;
+  positionX: number;
+  positionZ: number;
+  verticalOffset: number;
+  protectedAirspace?: boolean;
+};
+
+export function createWildsAerialRuntimeResult(): MutableWildsAerialRuntimeResult {
+  return {
+    state: createGroundedWildsAerialState({ x: 0, z: 0 }, 0),
+    reason: null,
+    horizontalAllowed: true
+  };
+}
+
+export function writeWildsAerialRuntimeStep(
+  state: WildsAerialTraversalState,
+  input: WildsAerialRuntimeStep,
+  output: MutableWildsAerialRuntimeResult
+) {
+  if (!Number.isFinite(input.deltaSeconds)
+    || !Number.isFinite(input.groundElevation)
+    || !Number.isFinite(input.horizontalDistance)
+    || !Number.isFinite(input.positionX)
+    || !Number.isFinite(input.positionZ)
+    || !Number.isFinite(input.verticalOffset)) {
+    throw new Error("wilds_aerial_runtime_input_invalid");
+  }
+  const delta = bounded(input.deltaSeconds, 0, .1);
+  const distance = bounded(input.horizontalDistance, 0, 4);
+  output.state = state;
+  output.reason = null;
+  output.horizontalAllowed = true;
+
+  if (state.mode === "ground") {
+    state.altitude = quantize(input.groundElevation);
+    state.verticalVelocity = 0;
+    state.stamina = quantize(Math.min(100, state.stamina + delta * GROUND_ENERGY_RECOVERY_PER_SECOND));
+    state.safeAnchor.x = quantize(input.positionX);
+    state.safeAnchor.z = quantize(input.positionZ);
+    state.safeAnchor.elevation = quantize(input.groundElevation);
+    return output;
+  }
+
+  if (input.protectedAirspace || (state.mode === "flight" && !input.hasFlight) || (state.mode === "glide" && !input.hasGlide)) {
+    state.mode = "ground";
+    state.altitude = quantize(input.groundElevation);
+    state.verticalVelocity = 0;
+    state.safeAnchor.x = quantize(input.positionX);
+    state.safeAnchor.z = quantize(input.positionZ);
+    state.safeAnchor.elevation = quantize(input.groundElevation);
+    output.reason = input.protectedAirspace ? "protected-airspace" : "landed";
+    output.horizontalAllowed = false;
+    return output;
+  }
+
+  state.distance = quantize(state.distance + distance);
+  state.altitude = quantize(input.groundElevation + Math.max(0, input.verticalOffset));
+  if (state.mode === "flight") {
+    state.stamina = quantize(Math.max(0, state.stamina - delta * (1.4 + distance * .8)));
+    if (state.stamina <= 0) {
+      if (input.hasGlide) {
+        state.mode = "glide";
+        state.verticalVelocity = -.72;
+        output.reason = "flight-exhausted";
+      } else {
+        state.mode = "ground";
+        state.altitude = quantize(input.groundElevation);
+        state.verticalVelocity = 0;
+        output.reason = "flight-exhausted";
+        output.horizontalAllowed = false;
+      }
+    } else if (state.stamina <= FLIGHT_LOW_ENERGY) {
+      output.reason = "flight-energy-low";
+    }
+    return output;
+  }
+
+  state.stamina = quantize(Math.max(0, state.stamina - delta * (.8 + distance * .35)));
+  if (state.stamina <= 0 || input.verticalOffset <= AIR_GROUND_CLEARANCE) {
+    state.mode = "ground";
+    state.altitude = quantize(input.groundElevation);
+    state.verticalVelocity = 0;
+    output.reason = "landed";
+    output.horizontalAllowed = false;
+  }
+  return output;
+}
+
+const AIR_GROUND_CLEARANCE = .35;
 
 const FLIGHT_CEILING = 12;
 const GLIDE_LAUNCH_HEIGHT = 2;

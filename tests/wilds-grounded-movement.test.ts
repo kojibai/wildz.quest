@@ -2,9 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   resolveWildsGroundMovement,
-  resolveWildsObstacleMotion
+  resolveWildsObstacleMotion,
+  resolveWildsSafeLandingPosition
 } from "../src/features/play/wilds-grounded-movement";
-import type { WildsTerrainObstacle } from "../src/features/play/wilds-terrain-obstacles";
+import { sampleWildsTerrain } from "../src/features/play/wilds-terrain-authority";
+import {
+  wildsObstacleBlocksVerticalBand,
+  type WildsTerrainObstacle
+} from "../src/features/play/wilds-terrain-obstacles";
 
 function obstacle(id: string, x: number, z: number, radius: number, material: WildsTerrainObstacle["material"] = "solid"): WildsTerrainObstacle {
   return {
@@ -40,6 +45,71 @@ test("a capsule cannot cross a solid trunk", () => {
 
   assert.ok(result.position.x < 1 - trunk.radius - 0.38 + 0.001);
   assert.deepEqual(result.blockedBy, [trunk.id]);
+});
+
+test("actual airborne clearance passes above trees and small rocks only after clearing their tops", () => {
+  const trunk = obstacle("tree:clearance", 1, 0, .34);
+  trunk.position.y = sampleWildsTerrain(0, 0).elevation;
+  const low = resolveWildsGroundMovement({ x: 0, z: 0 }, { x: 1.4, z: 0 }, {
+    aerialMode: "flight", capabilities: ["flight"], obstacles: [trunk], verticalClearance: 2.9
+  });
+  const high = resolveWildsGroundMovement({ x: 0, z: 0 }, { x: 1.4, z: 0 }, {
+    aerialMode: "flight", capabilities: ["flight"], obstacles: [trunk], verticalClearance: 3.5
+  });
+
+  assert.deepEqual(low.blockedBy, [trunk.id]);
+  assert.deepEqual(high.position, { x: 1.75, z: 0 });
+  assert.deepEqual(high.blockedBy, []);
+});
+
+test("vertical collision uses absolute world spans and keeps structures, ceilings, and aerial hazards physical", () => {
+  const structure = {
+    ...obstacle("structure:absolute", 1, 0, .8),
+    airbornePolicy: "persistent" as const,
+    kind: "structure" as const,
+    position: { x: 1, y: 24, z: 0 },
+    shape: { kind: "box" as const, halfX: .8, halfY: 2, halfZ: .8 }
+  };
+  const clearable = { ...structure, id: "tree:absolute", kind: "tree" as const, airbornePolicy: "clearable" as const };
+
+  assert.equal(wildsObstacleBlocksVerticalBand(clearable, 20, 1.55), false);
+  assert.equal(wildsObstacleBlocksVerticalBand(clearable, 23, 1.55), true);
+  assert.equal(wildsObstacleBlocksVerticalBand(structure, 40, 1.55), true);
+});
+
+test("landing deterministically finds clear terrain and refuses inaccessible deep water", () => {
+  const requested = { x: 18, z: -24 };
+  const trunk = obstacle("tree:landing", requested.x, requested.z, .8);
+  trunk.position.y = sampleWildsTerrain(requested.x, requested.z).elevation;
+  const first = resolveWildsSafeLandingPosition(requested, { capabilities: [], obstacles: [trunk] });
+  const replay = resolveWildsSafeLandingPosition(requested, { capabilities: [], obstacles: [trunk] });
+  const deepWater = resolveWildsSafeLandingPosition({ x: -94, z: -240 }, {
+    capabilities: [], obstacles: [], searchRadius: 0
+  });
+  const swimmer = resolveWildsSafeLandingPosition({ x: -94, z: -240 }, {
+    capabilities: ["swim"], obstacles: [], searchRadius: 0
+  });
+
+  assert.ok(first);
+  assert.notDeepEqual(first, requested);
+  assert.deepEqual(first, replay);
+  assert.equal(deepWater, null);
+  assert.deepEqual(swimmer, { x: -94, z: -240 });
+});
+
+test("airborne movement cannot cross terrain higher than its actual world altitude", () => {
+  const start = { x: 79.58, z: 28 };
+  const intended = { x: 80, z: 28 };
+  const low = resolveWildsGroundMovement(start, intended, {
+    aerialMode: "flight", capabilities: ["flight", "climb"], obstacles: [], verticalClearance: .35
+  });
+  const high = resolveWildsGroundMovement(start, intended, {
+    aerialMode: "flight", capabilities: ["flight", "climb"], obstacles: [], verticalClearance: 8
+  });
+
+  assert.deepEqual(low.position, start);
+  assert.equal(low.traversalBlockedBy, "climb");
+  assert.notDeepEqual(high.position, start);
 });
 
 test("diagonal capsule motion slides along a solid obstacle", () => {
