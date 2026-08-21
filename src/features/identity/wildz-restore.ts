@@ -488,13 +488,16 @@ export async function restoreWildzArtifactForSurface(input: {
             } : imported;
           })()
         : playerForSession
-        ? input.currentPlayState && sameWildzPlayerCoordinate(playerForSession.playerId, session.actorId)
+        ? !restoresEmbeddedIdentityContinuity
+          && input.currentPlayState
+          && sameWildzPlayerCoordinate(playerForSession.playerId, session.actorId)
           ? reconcileWildsPlayerVault({
               local: mergeBase,
               restored: playerForSession,
               canonical: initialWildsWorldProjection(),
               actorId: session.actorId,
-              preferLocalState: shouldMergeIntoActiveVault
+              preferLocalState: shouldMergeIntoActiveVault,
+              mergeExploration: Boolean(player && sameWildzPlayerCoordinate(player.playerId, session.actorId))
             }).state
           : prepareWildzPlayerPlayState(playerForSession, assets)
         : importAssets(

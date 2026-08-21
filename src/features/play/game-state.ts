@@ -579,14 +579,15 @@ export function restorePlayState(value: string | null | undefined, ownerReceizId
     const hearttreeSquadAssetIds = [...new Set(requestedHearttreeSquad)]
       .filter((id): id is string => typeof id === "string" && livingInventory.some((asset) => asset.id === id))
       .slice(0, 3);
+    const restoredPlayer = {
+      x: clamp(saved.player.x, worldBounds.min, worldBounds.max),
+      z: clamp(saved.player.z, worldBounds.min, worldBounds.max)
+    };
     return withWorldProgress({
       ...fallback,
       ...saved,
-      player: {
-        x: clamp(saved.player.x, worldBounds.min, worldBounds.max),
-        z: clamp(saved.player.z, worldBounds.min, worldBounds.max)
-      },
-      explorationAtlas: normalizeWildsExplorationAtlas(saved.explorationAtlas, saved.player),
+      player: restoredPlayer,
+      explorationAtlas: normalizeWildsExplorationAtlas(saved.explorationAtlas, restoredPlayer),
       discoveredCardIds,
       inventory: migratedInventory,
       selectedAssetId: restoredSelectedAssetId,

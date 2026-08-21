@@ -166,6 +166,7 @@ export function reconcileWildsPlayerVault(input: {
   canonical: WildsWorldProjection;
   actorId: string;
   preferLocalState?: boolean;
+  mergeExploration?: boolean;
 }) {
   if (input.restored.playerId !== input.actorId) throw new Error("wilds_player_vault_owner_invalid");
   const verified = verifyWildsPlayerVault(input.restored);
@@ -182,10 +183,12 @@ export function reconcileWildsPlayerVault(input: {
     // causal creature history and authoritative Kai uPulse. A generic map
     // overwrite here would silently turn array order into temporal authority.
     inventory: [...input.local.inventory, ...restoredPlayState.inventory],
-    explorationAtlas: mergeWildsExplorationAtlases(
-      input.local.explorationAtlas,
-      restoredPlayState.explorationAtlas
-    ),
+    explorationAtlas: input.mergeExploration === false
+      ? input.local.explorationAtlas
+      : mergeWildsExplorationAtlases(
+          input.local.explorationAtlas,
+          restoredPlayState.explorationAtlas
+        ),
     achievements: mergeRecords(input.local.achievements, restoredPlayState.achievements),
     completedMissionIds: mergeRecords(input.local.completedMissionIds, restoredPlayState.completedMissionIds),
     discoveredCardIds: mergeRecords(input.local.discoveredCardIds, restoredPlayState.discoveredCardIds),

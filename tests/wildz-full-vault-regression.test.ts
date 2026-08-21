@@ -498,6 +498,25 @@ test("Profile activation of a Wildz continuity seal replaces the prior account w
   assert.equal(outcome.playerContinuity.settings.cardOrder, "newest");
   assert.equal(wildsExplorationContainsWorld(outcome.playState.explorationAtlas, { x: 0, z: -1_400 }), true);
   assert.equal(wildsExplorationContainsWorld(outcome.playState.explorationAtlas, { x: 1_400, z: 0 }), false);
+
+  const locallyAdvanced = {
+    ...outcome.playState,
+    explorationAtlas: revealWildsExplorationAt(outcome.playState.explorationAtlas, { x: 1_400, z: 0 })
+  };
+  const restoredAgain = await restoreWildzArtifactForSurface({
+    surface: "card-vault",
+    bytes: fixture.identityCardBytes,
+    mimeType: "image/png",
+    name: "vault__keeper_97.receiz-id-card.png",
+    codec: target.codec,
+    repository: target.repository,
+    database: target.database,
+    confirmCardOnly: true,
+    currentPlayState: locallyAdvanced,
+    carryCurrentVault: true
+  });
+  assert.equal(wildsExplorationContainsWorld(restoredAgain.playState.explorationAtlas, { x: 0, z: -1_400 }), true);
+  assert.equal(wildsExplorationContainsWorld(restoredAgain.playState.explorationAtlas, { x: 1_400, z: 0 }), false);
 });
 
 test("matching Identity Seal authenticates an already loaded proof vault without dropping current cards", async () => {
@@ -608,7 +627,11 @@ test("an explicitly uploaded foreign Vault preserves the bootstrap starter and i
   const fixture = await regressionArtifact();
   const { database, repository, codec } = setup();
   const active = await repository.bootstrap();
-  const currentPlayState = createOwnerBoundInitialPlayState(active.actorId, active.createdAt);
+  const currentBase = createOwnerBoundInitialPlayState(active.actorId, active.createdAt);
+  const currentPlayState = {
+    ...currentBase,
+    explorationAtlas: revealWildsExplorationAt(currentBase.explorationAtlas, { x: 1_400, z: 0 })
+  };
 
   const outcome = await restoreWildzArtifactForSurface({
     surface: "card-vault",
@@ -630,6 +653,8 @@ test("an explicitly uploaded foreign Vault preserves the bootstrap starter and i
   for (const assetId of fixture.expectedIds) {
     assert.ok(outcome.playState.inventory.some((asset) => asset.id === assetId));
   }
+  assert.equal(wildsExplorationContainsWorld(outcome.playState.explorationAtlas, { x: 1_400, z: 0 }), true);
+  assert.equal(wildsExplorationContainsWorld(outcome.playState.explorationAtlas, { x: 0, z: -1_400 }), false);
 
   const adoptedPlayer = createWildsPlayerVault({
     playerId: outcome.session.username ?? outcome.session.actorId,

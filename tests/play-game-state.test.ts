@@ -79,6 +79,16 @@ describe("Receiz Wilds game state", () => {
     assert.equal(wildsExplorationContainsWorld(next.explorationAtlas, { x: 2_400, z: -4_800 }), false);
   });
 
+  it("normalizes restored exploration against the same clamped player position", () => {
+    const saved = {
+      ...structuredClone(initialPlayState),
+      player: { x: 500_000_048, z: 0 }
+    };
+    const restored = restorePlayState(serializePlayState(saved));
+    assert.deepEqual(restored.player, { x: 500_000_000, z: 0 });
+    assert.equal(wildsExplorationContainsWorld(restored.explorationAtlas, restored.player), true);
+  });
+
   it("promotes a living Vault card when the selected Mortal Arena card is retired", () => {
     const retiredBase = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "wilds.player.receiz.id", encounterId: "retired-only", capturedAt: "2026-07-18T10:00:00.000Z" });
     const admitted = admitLegacyCard(retiredBase, "2026-07-18T10:00:00.000Z");
