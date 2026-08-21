@@ -1371,6 +1371,17 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
   if (input.type === "import-card") {
     const asset = input.asset;
     if (!verifyAnyWildsCard(asset).ok) return { ...state, lastEvent: "That PNG did not pass the offline card verifier." };
+    const importedCondition = state.adventureConditions[asset.id]
+      ?? (isLivingCardAsset(asset)
+        ? currentCreatureHistoryProjection(asset).condition
+        : emptyAdventureCondition(asset.id));
+    const importedConditions = {
+      adventureConditions: { ...state.adventureConditions, [asset.id]: importedCondition },
+      hearttreeConditions: {
+        ...state.hearttreeConditions,
+        [asset.id]: adventureConditionToHearttree(importedCondition)
+      }
+    };
     const existing = state.inventory.find((candidate) => candidate.id === asset.id);
     if (existing) {
       const canExtend = isLivingCardAsset(asset) && (!isLivingCardAsset(existing) || (
@@ -1381,6 +1392,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
         const progress = currentRevision(asset).growth;
         return withWorldProgress({
           ...state,
+          ...importedConditions,
           inventory: state.inventory.map((candidate) => candidate.id === asset.id ? asset : candidate),
           livingProgress: { ...state.livingProgress, [asset.id]: progress },
           pendingSyncAssetIds: Array.from(new Set([...state.pendingSyncAssetIds, asset.id])),
@@ -1389,11 +1401,18 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
           lastEvent: `${asset.manifest.name}'s newer verified proof history merged into your living card.`
         });
       }
-      return { ...state, selectedAssetId: asset.id, selectedCardId: asset.manifest.familyId, lastEvent: `${asset.manifest.name} is already in your inventory and now leads your active deck.` };
+      return {
+        ...state,
+        ...importedConditions,
+        selectedAssetId: asset.id,
+        selectedCardId: asset.manifest.familyId,
+        lastEvent: `${asset.manifest.name} is already in your inventory and now leads your active deck.`
+      };
     }
     const discoveredCardIds = Array.from(new Set([...state.discoveredCardIds, asset.manifest.familyId]));
     return withWorldProgress({
       ...state,
+      ...importedConditions,
       discoveredCardIds,
       inventory: [...state.inventory, asset],
       selectedAssetId: asset.id,

@@ -19,6 +19,7 @@ import { createWildsCivicEvent } from "../src/features/play/wilds-civic-history.
 import { sealRetirement } from "../src/features/games/lifecycle/creature-retirement.js";
 import { deriveKaiKlokMoment } from "../src/features/play/kai-klok-moment.js";
 import { wildsTerrainObstaclesForTile } from "../src/features/play/wilds-terrain-obstacles.js";
+import { wildsTraversalProjectionDiagnostics } from "../src/features/play/wilds-traversal-capabilities.js";
 import { authorizeRiftTravel } from "../src/features/play/wilds-rift-travel.js";
 import {
   revealWildsExplorationAt,
@@ -87,6 +88,24 @@ describe("Receiz Wilds game state", () => {
     const restored = restorePlayState(serializePlayState(saved));
     assert.deepEqual(restored.player, { x: 500_000_000, z: 0 });
     assert.equal(wildsExplorationContainsWorld(restored.explorationAtlas, restored.player), true);
+  });
+
+  it("keeps traversal projection allocation-free after selecting an uploaded card", () => {
+    const uploaded = sealCollectedCard({
+      formId: "ledgerfox-1",
+      ownerReceizId: "upload-traversal-player",
+      encounterId: "upload-traversal-fast-path",
+      capturedAt: "2026-08-21T13:00:00.000Z"
+    });
+    let state = applyWildsInput(initialPlayState, { type: "import-card", asset: uploaded });
+    assert.ok(state.adventureConditions[uploaded.id]);
+    assert.ok(state.hearttreeConditions[uploaded.id]);
+    state = applyWildsInput(state, { type: "move-vector", x: 1, z: 0 });
+    const warm = wildsTraversalProjectionDiagnostics();
+    for (let index = 0; index < 300; index += 1) {
+      state = applyWildsInput(state, { type: "move-vector", x: index % 2 === 0 ? -1 : 1, z: 0 });
+    }
+    assert.deepEqual(wildsTraversalProjectionDiagnostics(), warm);
   });
 
   it("promotes a living Vault card when the selected Mortal Arena card is retired", () => {
