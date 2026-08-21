@@ -31,23 +31,23 @@
 - Consumes: `sampleWildsTerrain`, `WILDS_MAJOR_ROUTES`, and `WildsQualityTier`.
 - Produces: `projectWildsHorizonAnchors(player, tier)` and `projectWildsRouteGuides(player, radius)`.
 
-- [ ] **Step 1: Write failing deterministic projection tests**
+- [x] **Step 1: Write failing deterministic projection tests**
 
   Assert stable ids and byte-identical output, quality-bounded horizon counts, terrain-authority elevation, bounded radii, nearby route-guide projection, and a source audit rejecting network, React, storage, timers, proof verification, and `Math.random`.
 
-- [ ] **Step 2: Run the focused test and observe the missing-module failure**
+- [x] **Step 2: Run the focused test and observe the missing-module failure**
 
   Run: `pnpm exec tsc -p tsconfig.test.json && node scripts/patch-test-imports.mjs && node --test .test-build/tests/wilds-world-art.test.js`
 
-- [ ] **Step 3: Implement the minimal pure projection**
+- [x] **Step 3: Implement the minimal pure projection**
 
   Use deterministic scalar hashing, fixed ring counts by quality tier, exact terrain sampling, precomputed authored-route arc-length guides, radius filtering, stable sorting, and a fixed maximum result count.
 
-- [ ] **Step 4: Re-run focused tests and typecheck**
+- [x] **Step 4: Re-run focused tests and typecheck**
 
   Run: `pnpm exec tsc --noEmit && pnpm exec tsc -p tsconfig.test.json && node scripts/patch-test-imports.mjs && node --test .test-build/tests/wilds-world-art.test.js`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   `git commit -m "feat: project deterministic Wildz world art"`
 
