@@ -17,6 +17,7 @@ import type { WorldOverlayEvent, WorldOverlayOwner, WorldOverlayState } from "./
 import { WILDS_FLIGHT_RELAUNCH_ENERGY, type WildsAerialMode } from "./wilds-aerial-traversal";
 import type { WildsTraversalCapability } from "./wilds-traversal-capabilities";
 import type { WildsAquaticPresentation } from "./wilds-aquatic-presentation";
+import { projectCreatureCapabilityIdentity } from "./creature-capability-identity";
 
 const ignore = () => {};
 
@@ -53,7 +54,7 @@ export function WildzWorldControls({
   onAudioCue,
   aerialEnergy,
   aerialMode,
-  aquaticPresentation: _aquaticPresentation,
+  aquaticPresentation,
   traversalCapabilities,
   glideLaunchAvailable,
   onAerialToggle
@@ -186,6 +187,24 @@ export function WildzWorldControls({
     newAssetId: newRosterAssetId
   }), [activeCard?.id, cardConditions, companionProgress, nearbyCards, newRosterAssetId]);
   const activeEntry = companionRoster.find((entry) => entry.active) ?? null;
+  const swimSpecialty = useMemo(() => {
+    if (!activeCard) return "aquatic movement";
+    const specialties = projectCreatureCapabilityIdentity(activeCard).specialties;
+    const specialty = specialties.find((candidate) => candidate.family === "swim")
+      ?? specialties.find((candidate) => candidate.family === "dive")
+      ?? specialties.find((candidate) => candidate.family === "current");
+    if (!specialty) return "aquatic movement";
+    const family = specialty.family[0]!.toUpperCase() + specialty.family.slice(1);
+    return `${family} control ${specialty.control}`;
+  }, [activeCard]);
+  const aquaticStatus = aquaticPresentation?.mode === "swim" && activeEntry
+    ? `Swimming with ${activeEntry.name} · ${swimSpecialty}`
+    : aquaticPresentation?.mode === "blocked"
+      ? "Deep water · lead with a swimmer"
+      : aquaticPresentation?.mode === "wade"
+        ? "Shallow water · wading"
+        : null;
+  const traversalStatus = flightStatus ?? aquaticStatus;
 
   useEffect(() => {
     if (requestedCommand && exclusiveOwner !== "none") requestHandled();
@@ -212,7 +231,7 @@ export function WildzWorldControls({
             style={{ "--wildz-flight-energy": `${aerialEnergy}%` } as CSSProperties}
             type="button"
           ><Icons.sparkle size={20} /><i aria-hidden="true" /></button> : null}
-          {flightStatus ? <span aria-live="polite" className={`wildz-flight-status${aerialEnergy <= 25 ? " is-low" : ""}`}>{flightStatus}</span> : null}
+          {traversalStatus ? <span aria-live="polite" className={`wildz-flight-status wildz-traversal-status${aerialEnergy <= 25 ? " is-low" : ""}`}>{traversalStatus}</span> : null}
         </div>
         <WildzDpad
           cameraHeadingRef={cameraHeadingRef}

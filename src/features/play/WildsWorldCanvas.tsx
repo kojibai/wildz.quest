@@ -17,6 +17,7 @@ import type { WildsPresence } from "@/features/play/multiplayer-core";
 import { WildsEnvironment } from "@/features/play/WildsEnvironment";
 import { WildsExplorer } from "@/features/play/WildsExplorer";
 import { WildsAtmosphere } from "@/features/play/WildsAtmosphere";
+import { WildsUnderwaterAtmosphere } from "@/features/play/WildsUnderwaterAtmosphere";
 import { WildsCreatureActor, type WildsCreaturePose } from "@/features/play/WildsCreatureActor";
 import { projectEncounterCreatureVisualIdentity } from "@/features/play/creature-visual-identity";
 import { projectWorldProgression } from "@/features/play/world-progression";
@@ -53,6 +54,7 @@ import type { WildsAquaticPresentation } from "@/features/play/wilds-aquatic-pre
 import { advanceWildsAerialTraversal, type WildsAerialMode, type WildsAerialTraversalState } from "@/features/play/wilds-aerial-traversal";
 import type { WildsTraversalCapability } from "@/features/play/wilds-traversal-capabilities";
 import type { WildsOverlookId } from "@/features/play/wilds-overlooks";
+import { writeUnderwaterCameraTarget, type MutableUnderwaterCameraProjection } from "@/features/play/wilds-underwater-camera";
 
 const WILDS_DIAGNOSTICS_ENABLED = process.env.NODE_ENV !== "production";
 
@@ -220,6 +222,11 @@ function WildsScene({
   const visibleRemotePlayers = useMemo(() => remotePlayers
     .filter((player) => Math.hypot(player.x - state.player.x, player.z - state.player.z) <= 28)
     .slice(0, 12), [remotePlayers, state.player.x, state.player.z]);
+  const activeAsset = useMemo(
+    () => state.inventory.find((candidate) => candidate.id === state.selectedAssetId) ?? null,
+    [state.inventory, state.selectedAssetId]
+  );
+  const activeAppearance = useMemo(() => activeAsset ? projectCardKaiAppearance(activeAsset) : null, [activeAsset]);
   return (
     <WildsReadabilityProvider value={readability}>
       <color attach="background" args={[kaiSky]} />
@@ -227,6 +234,7 @@ function WildsScene({
       <WildsCelestialSky expression={kaiExpression} qualityProfile={qualityProfile} />
       <WildsAtmosphere encounter={state.encounter} expression={kaiExpression} missionProgress={state.missionProgress} nightRig={nightRig} player={state.player} qualityProfile={qualityProfile} />
       <WildsKaiAtmosphereGeometry expression={kaiExpression} qualityProfile={qualityProfile} />
+      <WildsUnderwaterAtmosphere presentation={aquaticPresentation} qualityProfile={qualityProfile} surfaceFog={kaiFog} surfaceFogFar={fogFar} surfaceFogNear={fogNear} surfaceSky={kaiSky} />
       <CameraRig aerialStateRef={aerialStateRef} aquaticPresentation={aquaticPresentation} onCameraHeadingChange={onCameraHeadingChange} vistaHeading={vistaHeading} />
       {WILDS_DIAGNOSTICS_ENABLED ? <WildsDiagnostics environment={{
         authoredDarkness: darkness.amount,
@@ -262,10 +270,24 @@ function WildsScene({
         ))}
       </SmoothWorldFrame>
       <AerialPlayerFrame aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} player={state.player} runtime={aerialStateRef}>
-        <WildsExplorer character={character} style={character.gender} worldPosition={state.player} />
-        <ActiveCompanion state={state} terrainElevation={aquaticPresentation.terrainElevation} />
-        <SupportCompanions cards={supportCards} player={state.player} terrainElevation={aquaticPresentation.terrainElevation} />
+        <WildsExplorer
+          aerialPalette={{
+            primary: activeAppearance?.palette.primary ?? "#c9fff0",
+            accent: activeAppearance?.palette.accent ?? "#f5d46c",
+            glow: activeAppearance?.palette.glow ?? "#76f3cf"
+          }}
+          aerialStateRef={aerialStateRef}
+          character={character}
+          locomotion={aquaticPresentation.mode === "swim" ? "swim" : "ground"}
+          scubaVisible={aquaticPresentation.scubaVisible}
+          style={character.gender}
+          worldPosition={state.player}
+        />
+        <ActiveCompanion locomotion={aquaticPresentation.mode === "swim" ? "swim" : "ground"} state={state} terrainElevation={aquaticPresentation.terrainElevation} />
       </AerialPlayerFrame>
+      <group name="grounded-support-companions" visible={aquaticPresentation.mode !== "swim"}>
+        <SupportCompanions cards={supportCards} player={state.player} terrainElevation={aquaticPresentation.terrainElevation} />
+      </group>
       <Sparkles key={`wilds-world-sparkles-${worldSparkleCount}`} count={worldSparkleCount} scale={[8, 2.4, 8]} size={2.1} speed={qualityProfile.reducedMotion ? 0 : kaiExpression.particleSpeed} color={kaiExpression.accent} />
     </WildsReadabilityProvider>
   );
@@ -309,7 +331,13 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, onEner
       onModeChange(advanced.state.mode);
     }
     if (group.current) {
-      group.current.position.y = THREE.MathUtils.damp(group.current.position.y, Math.max(0, advanced.state.altitude - groundElevation), 8, delta);
+      const airborne = advanced.state.mode !== "ground";
+      const actorLocalY = airborne
+        ? Math.max(0, advanced.state.altitude - groundElevation)
+        : aquaticPresentation.mode === "swim"
+          ? aquaticPresentation.actorLocalY
+          : 0;
+      group.current.position.y = THREE.MathUtils.damp(group.current.position.y, actorLocalY, 8, delta);
     }
   });
   return <group ref={group}>{children}</group>;
@@ -383,7 +411,7 @@ function isBattleTelemetryPhase(phase: PlayState["encounter"]["phase"]) {
   return phase === "player_turn" || phase === "capture_ready" || phase === "fled" || phase === "defeated";
 }
 
-function ActiveCompanion({ state, terrainElevation }: { state: PlayState; terrainElevation: number }) {
+function ActiveCompanion({ locomotion, state, terrainElevation }: { locomotion: "ground" | "swim"; state: PlayState; terrainElevation: number }) {
   const card = selectedCard(state);
   const asset = state.inventory.find((candidate) => candidate.id === state.selectedAssetId);
   const formId = asset?.manifest.formId ?? `${card.id}-1`;
@@ -393,10 +421,10 @@ function ActiveCompanion({ state, terrainElevation }: { state: PlayState; terrai
     state.player,
     .44,
     { anchorElevation: terrainElevation }
-  ), [state.player.x, state.player.z, terrainElevation]);
+  ), [state.player, terrainElevation]);
   return (
     <group name="active-companion" position={position} scale={0.82}>
-      <WildsCreatureActor accent={appearance?.palette.accent ?? card.accent} anatomy={appearance?.anatomy} cadenceMs={appearance?.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} glow={appearance?.palette.glow ?? card.accent} identityToken={appearance?.fingerprint} morphology={appearance?.morphology} pose="curious" primary={appearance?.palette.primary ?? card.color} secondary={appearance?.palette.secondary ?? card.color} />
+      <WildsCreatureActor accent={appearance?.palette.accent ?? card.accent} anatomy={appearance?.anatomy} cadenceMs={appearance?.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} glow={appearance?.palette.glow ?? card.accent} identityToken={appearance?.fingerprint} locomotion={locomotion} morphology={appearance?.morphology} pose="curious" primary={appearance?.palette.primary ?? card.color} secondary={appearance?.palette.secondary ?? card.color} />
       <mesh position={[0, -0.37, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.46, 0.035, 8, 36]} />
         <meshStandardMaterial color="#f4fff6" emissive="#7cdea5" emissiveIntensity={0.55} transparent opacity={0.92} />
@@ -416,7 +444,7 @@ function SupportCompanions({ cards, player, terrainElevation }: { cards: readonl
   const positions = useMemo(() => [
     projectWildsTerrainActorPosition({ x: player.x + 1.05, z: player.z + .72 }, player, .34, { anchorElevation: terrainElevation }),
     projectWildsTerrainActorPosition({ x: player.x + 1.62, z: player.z + 1.34 }, player, .28, { anchorElevation: terrainElevation })
-  ] as const, [player.x, player.z, terrainElevation]);
+  ] as const, [player, terrainElevation]);
   const appearances = useMemo(() => cards.slice(0, 2).map((card) => ({ card, appearance: projectCardKaiAppearance(card) })), [cards]);
   return <group name="trail-pack-support-companions">
     {appearances.map(({ card, appearance }, index) => <group key={card.id} name={`trail-support-${index + 1}`} position={positions[index]} scale={index === 0 ? 0.62 : 0.54}>
@@ -525,6 +553,8 @@ function CameraRig({ aerialStateRef, aquaticPresentation, onCameraHeadingChange,
   const { camera } = useThree();
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const priorVista = useRef<{ position: THREE.Vector3; target: THREE.Vector3 } | null>(null);
+  const submerged = useRef(false);
+  const cameraProjection = useRef<MutableUnderwaterCameraProjection>({ submerged: false, localWaterSurfaceY: 0, targetY: .9, cameraY: 0 });
   const lastHeading = useRef(Number.NaN);
   useEffect(() => {
     const orbit = controls.current;
@@ -548,9 +578,12 @@ function CameraRig({ aerialStateRef, aquaticPresentation, onCameraHeadingChange,
     const orbit = controls.current;
     if (orbit && vistaHeading === null) {
       const clearance = Math.max(0, aerialStateRef.current.altitude - aquaticPresentation.terrainElevation);
-      const desiredTargetY = .9 + clearance;
+      const surfaceTargetY = .9 + clearance;
+      const projection = cameraProjection.current;
+      writeUnderwaterCameraTarget(aquaticPresentation, submerged.current, surfaceTargetY, camera.position.y - orbit.target.y, projection);
+      submerged.current = projection.submerged;
       const priorTargetY = orbit.target.y;
-      orbit.target.y = THREE.MathUtils.damp(orbit.target.y, desiredTargetY, 8, delta);
+      orbit.target.y = THREE.MathUtils.damp(orbit.target.y, projection.targetY, 8, delta);
       camera.position.y += orbit.target.y - priorTargetY;
     }
     const heading = Math.atan2(camera.position.x, camera.position.z);

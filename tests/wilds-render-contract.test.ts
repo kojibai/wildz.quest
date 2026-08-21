@@ -3,6 +3,29 @@ import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 
 describe("Receiz Wilds rendering contract", () => {
+  it("renders swimming and flight as embodied traversal instead of grounded walking", async () => {
+    const explorer = await readFile("src/features/play/WildsExplorer.tsx", "utf8");
+    const creature = await readFile("src/features/play/WildsCreatureActor.tsx", "utf8");
+    const world = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");
+    const controls = await readFile("src/features/play/WildzWorldControls.tsx", "utf8");
+    const atmosphere = await readFile("src/features/play/WildsUnderwaterAtmosphere.tsx", "utf8");
+
+    assert.match(explorer, /locomotion\?:\s*"ground" \| "swim"/);
+    assert.match(explorer, /name="wilds-scuba-kit"/);
+    assert.match(explorer, /name="wilds-aerial-harness"/);
+    assert.match(explorer, /const grounded = locomotion === "ground" && aerialMode === "ground"/);
+    assert.match(explorer, /const stride = grounded && moving/);
+    assert.match(explorer, /const swimStroke = locomotion === "swim"/);
+    assert.match(creature, /locomotion\?:\s*"ground" \| "swim"/);
+    assert.match(world, /aquaticPresentation\.actorLocalY/);
+    assert.match(world, /visible=\{aquaticPresentation\.mode !== "swim"\}/);
+    assert.match(world, /<WildsUnderwaterAtmosphere/);
+    assert.match(controls, /Swimming with \$\{activeEntry\.name\}/);
+    assert.match(atmosphere, /useFrame/);
+    assert.doesNotMatch(atmosphere, /useState|set[A-Z][A-Za-z]*\(/);
+    assert.doesNotMatch(atmosphere, /EffectComposer|postprocessing/);
+  });
+
   it("keeps the atlas unobstructed and makes the map itself the travel control", async () => {
     const map = await readFile("src/features/play/WildsWorldMap.tsx", "utf8");
 

@@ -14991,6 +14991,11 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   color: #ffd0b7;
 }
 
+.wildz-traversal-status {
+  max-width: min(56vw, 290px);
+  text-wrap: balance;
+}
+
 .wildz-tools-home {
   position: absolute;
   bottom: max(18px, env(safe-area-inset-bottom));

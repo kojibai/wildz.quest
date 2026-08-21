@@ -46,7 +46,8 @@ export function WildsCreatureActor({
   morphology,
   anatomy,
   cadenceMs,
-  pose = "idle"
+  pose = "idle",
+  locomotion = "ground"
 }: {
   formId: string;
   familyId: string;
@@ -59,6 +60,7 @@ export function WildsCreatureActor({
   anatomy?: CardKaiAppearance["anatomy"];
   cadenceMs?: number;
   pose?: WildsCreaturePose;
+  locomotion?: "ground" | "swim";
 }) {
   const readability = useWildsReadability();
   const root = useRef<THREE.Group>(null);
@@ -99,15 +101,17 @@ export function WildsCreatureActor({
     const weakened = pose === "weakened";
     const impact = pose === "impact";
     const attack = pose === "attack";
-    root.current.position.y = 0.46 + (weakened ? -0.08 : Math.abs(Math.sin(time * 1.7)) * 0.035 * motion);
-    root.current.rotation.z = impact ? Math.sin(time * 18) * 0.08 * motion : weakened ? -0.08 : 0;
+    const swimming = locomotion === "swim";
+    root.current.position.y = 0.46 + (weakened ? -0.08 : swimming ? Math.sin(time * 1.55) * 0.018 * motion : Math.abs(Math.sin(time * 1.7)) * 0.035 * motion);
+    root.current.rotation.x = swimming ? -0.36 + Math.sin(time * 1.25) * 0.035 * motion : 0;
+    root.current.rotation.z = impact ? Math.sin(time * 18) * 0.08 * motion : weakened ? -0.08 : swimming ? Math.sin(time * 1.8) * 0.055 * motion : 0;
     root.current.scale.setScalar(pose === "capture" ? 0.9 + Math.sin(time * 5) * 0.035 * motion : 1);
     if (head.current) {
       head.current.rotation.x = attack ? -0.22 : weakened ? 0.16 : Math.sin(time * 0.9) * 0.045 * motion;
       head.current.rotation.y = pose === "curious" ? Math.sin(time * 1.4) * 0.18 * motion : 0;
       head.current.position.y = 0.31 + breath;
     }
-    if (limbs.current) limbs.current.rotation.x = attack ? Math.sin(time * 13) * 0.22 * motion : weakened ? 0.18 : Math.sin(time * 2.4) * 0.04 * motion;
+    if (limbs.current) limbs.current.rotation.x = attack ? Math.sin(time * 13) * 0.22 * motion : weakened ? 0.18 : swimming ? Math.sin(time * 3.2) * 0.18 * motion : Math.sin(time * 2.4) * 0.04 * motion;
     if (aura.current) aura.current.rotation.y = time * (pose === "capture" ? 2.4 : 0.7) * motion;
   });
 
