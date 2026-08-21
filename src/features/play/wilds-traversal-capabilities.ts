@@ -3,6 +3,7 @@ import { creatureForm } from "./creature-catalog";
 import { currentLivingGenome, currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import type { PortableCardAsset } from "./portable-card";
+import { isWildsAquaticProfile } from "./wilds-creature-habitat";
 
 export type WildsTraversalCapability = "swim" | "climb" | "glide" | "flight";
 
@@ -18,8 +19,12 @@ export type WildsTraversalCapabilityProjection = Readonly<{
 
 const MAX_CACHE_SIZE = 128;
 const projectionCache = new Map<string, WildsTraversalCapabilityProjection>();
+const identityProjectionCache = new WeakMap<PortableCardAsset, WeakMap<AdventureCardCondition, WildsTraversalCapabilityProjection>>();
+let slowKeyBuilds = 0;
+let projectionsBuilt = 0;
 
 function projectionKey(asset: PortableCardAsset, condition: AdventureCardCondition) {
+  slowKeyBuilds += 1;
   const injuries = condition.injuries
     .map((injury) => `${injury.id}:${injury.kind}:${injury.severity}:${injury.sourceEventId}`)
     .sort()
@@ -43,9 +48,16 @@ export function projectWildsTraversalCapabilities(
   condition: AdventureCardCondition
 ): WildsTraversalCapabilityProjection {
   if (condition.assetId !== asset.id) throw new Error("wilds_traversal_condition_asset_mismatch");
+  const identityCached = identityProjectionCache.get(asset)?.get(condition);
+  if (identityCached) return identityCached;
   const key = projectionKey(asset, condition);
   const cached = projectionCache.get(key);
-  if (cached) return cached;
+  if (cached) {
+    const assetCache = identityProjectionCache.get(asset) ?? new WeakMap<AdventureCardCondition, WildsTraversalCapabilityProjection>();
+    assetCache.set(condition, cached);
+    identityProjectionCache.set(asset, assetCache);
+    return cached;
+  }
 
   const formId = isLivingCardAsset(asset) ? currentRevision(asset).formId : asset.manifest.formId;
   const form = creatureForm(formId);
@@ -56,7 +68,11 @@ export function projectWildsTraversalCapabilities(
   const wingInjury = condition.injuries.some((injury) => injury.kind === "wing" && injury.severity >= 2);
   const limbInjury = condition.injuries.some((injury) => injury.kind === "limb" && injury.severity >= 2);
   const living = condition.life === "alive";
-  const aquatic = anatomy.aura === "tide" || form.element === "Tide" || /swim|aqua|current|tide/.test(abilityLanguage);
+  const aquatic = isWildsAquaticProfile({
+    element: form.element,
+    anatomy,
+    abilityNames: [...abilityNames, ...condition.upgradeIds]
+  });
   const climbing = anatomy.body === "armored"
     || anatomy.body === "serpentine"
     || anatomy.detail === "horns"
@@ -69,13 +85,22 @@ export function projectWildsTraversalCapabilities(
   if (living && winged && !wingInjury && condition.fatigue < 100) capabilities.push("glide");
   if (living && winged && !wingInjury && condition.fatigue < 85) capabilities.push("flight");
 
-  return cacheProjection(key, Object.freeze({
+  projectionsBuilt += 1;
+  const projection = cacheProjection(key, Object.freeze({
     assetId: asset.id,
     capabilities: Object.freeze(capabilities),
     source: Object.freeze({ aquatic, climbing, winged })
   }));
+  const assetCache = identityProjectionCache.get(asset) ?? new WeakMap<AdventureCardCondition, WildsTraversalCapabilityProjection>();
+  assetCache.set(condition, projection);
+  identityProjectionCache.set(asset, assetCache);
+  return projection;
 }
 
 export function wildsTraversalCapabilityCacheSize() {
   return projectionCache.size;
+}
+
+export function wildsTraversalProjectionDiagnostics() {
+  return Object.freeze({ slowKeyBuilds, projectionsBuilt });
 }

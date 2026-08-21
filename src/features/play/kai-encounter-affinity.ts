@@ -1,6 +1,7 @@
 import { creatureForms, type CreatureForm } from "./creature-catalog";
 import { coverForHabitat, type HiddenHotspot } from "./hidden-hotspots";
 import type { KaiKlokMoment } from "./kai-klok-moment";
+import { isWildsAquaticForm } from "./wilds-creature-habitat";
 
 function hashUnit(value: string) {
   let hash = 2_166_136_261;
@@ -12,8 +13,10 @@ function hashUnit(value: string) {
 }
 
 export function kaiEncounterCandidates(hotspot: HiddenHotspot) {
-  const candidates = creatureForms.filter((form) => form.stage === 1 && coverForHabitat(form.habitat, form.positionSeed) === hotspot.cover);
-  return candidates.length ? candidates : creatureForms.filter((form) => form.stage === 1);
+  const aquatic = hotspot.cover === "water";
+  const partition = creatureForms.filter((form) => form.stage === 1 && isWildsAquaticForm(form) === aquatic);
+  const candidates = partition.filter((form) => coverForHabitat(form.habitat, form.positionSeed) === hotspot.cover);
+  return candidates.length ? candidates : partition;
 }
 
 export function scoreKaiEncounter(form: CreatureForm, moment: KaiKlokMoment) {

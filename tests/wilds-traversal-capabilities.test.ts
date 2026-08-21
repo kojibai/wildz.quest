@@ -5,7 +5,8 @@ import { emptyAdventureCondition } from "../src/features/play/adventure/card-con
 import { sealCollectedCard } from "../src/features/play/portable-card";
 import {
   projectWildsTraversalCapabilities,
-  wildsTraversalCapabilityCacheSize
+  wildsTraversalCapabilityCacheSize,
+  wildsTraversalProjectionDiagnostics
 } from "../src/features/play/wilds-traversal-capabilities";
 
 function card(formId: string, encounterId: string) {
@@ -51,6 +52,25 @@ describe("Wildz admitted-card traversal capability projection", () => {
 
     assert.equal(first, second);
     assert.ok(wildsTraversalCapabilityCacheSize() <= 128);
+  });
+
+  it("keeps upgrade-granted swimming when using the shared aquatic classifier", () => {
+    const land = card("mintcub-1", "traversal-upgrade-swim");
+    const projection = projectWildsTraversalCapabilities(land, {
+      ...emptyAdventureCondition(land.id),
+      upgradeIds: ["deep-current-swim"]
+    });
+    assert.equal(projection.source.aquatic, true);
+    assert.equal(projection.capabilities.includes("swim"), true);
+  });
+
+  it("takes the object-identity fast path before rebuilding canonical cache keys", () => {
+    const tide = card("ledgerfox-1", "traversal-identity-fast-path");
+    const condition = emptyAdventureCondition(tide.id);
+    projectWildsTraversalCapabilities(tide, condition);
+    const warm = wildsTraversalProjectionDiagnostics();
+    for (let index = 0; index < 300; index += 1) projectWildsTraversalCapabilities(tide, condition);
+    assert.deepEqual(wildsTraversalProjectionDiagnostics(), warm);
   });
 
   it("contains no proof verification in the gameplay projector", async () => {
