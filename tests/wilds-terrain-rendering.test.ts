@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { wildsTerrainElevation } from "../src/features/play/wilds-terrain-authority";
 import {
+  buildWildsTerrainPatchProjection,
   buildWildsTerrainMeshProjection,
   wildsTerrainRelativeElevation
 } from "../src/features/play/wilds-terrain-rendering";
@@ -11,6 +12,7 @@ test("terrain mesh projection has stable indexed geometry dimensions", () => {
 
   assert.equal(mesh.positions.length, 25 * 3);
   assert.equal(mesh.normals.length, 25 * 3);
+  assert.equal(mesh.uvs.length, 25 * 2);
   assert.equal(mesh.indices.length, 4 * 4 * 6);
   assert.deepEqual(mesh.origin, { x: 24, z: -36 });
 });
@@ -50,4 +52,17 @@ test("relative terrain keeps the explorer grounded without changing absolute coo
     wildsTerrainRelativeElevation(nearby.x, nearby.z, player),
     wildsTerrainElevation(nearby.x, nearby.z) - wildsTerrainElevation(player.x, player.z)
   );
+});
+
+test("streamed terrain patch combines a five-by-five tile footprint into one indexed mesh", () => {
+  const patch = buildWildsTerrainPatchProjection(3, -2, 2, 4);
+  const tiles = 25;
+
+  assert.deepEqual(patch.origin, { x: 12, z: -48 });
+  assert.equal(patch.positions.length, tiles * 25 * 3);
+  assert.equal(patch.normals.length, tiles * 25 * 3);
+  assert.equal(patch.uvs.length, tiles * 25 * 2);
+  assert.equal(patch.indices.length, tiles * 4 * 4 * 6);
+  assert.equal(patch.vertices[0]?.world.x, 12);
+  assert.equal(patch.vertices.at(-1)?.world.z, 12);
 });

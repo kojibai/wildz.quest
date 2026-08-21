@@ -15,6 +15,7 @@ export type WildsTerrainMeshProjection = {
   segments: number;
   positions: readonly number[];
   normals: readonly number[];
+  uvs: readonly number[];
   indices: readonly number[];
   vertices: readonly WildsTerrainMeshVertex[];
 };
@@ -31,6 +32,7 @@ export function buildWildsTerrainMeshProjection(tileX: number, tileZ: number, se
   };
   const positions: number[] = [];
   const normals: number[] = [];
+  const uvs: number[] = [];
   const indices: number[] = [];
   const vertices = tile.vertices.map((vertex): WildsTerrainMeshVertex => {
     const projected = {
@@ -45,6 +47,7 @@ export function buildWildsTerrainMeshProjection(tileX: number, tileZ: number, se
     };
     positions.push(projected.position.x, projected.position.y, projected.position.z);
     normals.push(projected.normal.x, projected.normal.y, projected.normal.z);
+    uvs.push(vertex.gridX / segments, vertex.gridZ / segments);
     return projected;
   });
 
@@ -59,5 +62,43 @@ export function buildWildsTerrainMeshProjection(tileX: number, tileZ: number, se
     }
   }
 
-  return { origin, segments, positions, normals, indices, vertices };
+  return { origin, segments, positions, normals, uvs, indices, vertices };
+}
+
+export function buildWildsTerrainPatchProjection(centerTileX: number, centerTileZ: number, radius: number, segments: number): WildsTerrainMeshProjection {
+  if (!Number.isInteger(radius) || radius < 0 || radius > 4) throw new Error("wilds_terrain_patch_radius_invalid");
+  const origin = {
+    x: (centerTileX - radius) * WILDS_TERRAIN_TILE_SIZE,
+    z: (centerTileZ - radius) * WILDS_TERRAIN_TILE_SIZE
+  };
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  const vertices: WildsTerrainMeshVertex[] = [];
+  const patchExtent = (radius * 2 + 1) * WILDS_TERRAIN_TILE_SIZE;
+
+  for (let offsetZ = -radius; offsetZ <= radius; offsetZ += 1) {
+    for (let offsetX = -radius; offsetX <= radius; offsetX += 1) {
+      const tile = buildWildsTerrainMeshProjection(centerTileX + offsetX, centerTileZ + offsetZ, segments);
+      const vertexOffset = vertices.length;
+      for (const vertex of tile.vertices) {
+        const projected: WildsTerrainMeshVertex = {
+          ...vertex,
+          position: {
+            x: vertex.world.x - origin.x,
+            y: vertex.position.y,
+            z: vertex.world.z - origin.z
+          }
+        };
+        vertices.push(projected);
+        positions.push(projected.position.x, projected.position.y, projected.position.z);
+        normals.push(projected.normal.x, projected.normal.y, projected.normal.z);
+        uvs.push(projected.position.x / patchExtent, projected.position.z / patchExtent);
+      }
+      for (const index of tile.indices) indices.push(index + vertexOffset);
+    }
+  }
+
+  return { origin, segments, positions, normals, uvs, indices, vertices };
 }

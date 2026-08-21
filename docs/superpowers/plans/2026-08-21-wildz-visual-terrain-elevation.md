@@ -37,12 +37,12 @@
 - Modify: `src/features/play/WildsEnvironment.tsx`
 - Modify: `tests/wilds-terrain-rendering.test.ts`
 
-- [ ] Add a regression assertion that player-local ground height remains zero while absolute terrain varies.
-- [ ] Replace the decorative sine plane with the deterministic indexed terrain projection.
-- [ ] Select tessellation by existing quality tier and rebuild only at tile boundaries or tier changes.
-- [ ] Preserve the current texture, materials, search click surface, shadows, and five-by-five stream footprint.
-- [ ] Run focused tests, typecheck, and lint.
-- [ ] Commit elevated streamed ground.
+- [x] Add a regression assertion that player-local ground height remains zero while absolute terrain varies.
+- [x] Replace the decorative sine plane with the deterministic indexed terrain projection.
+- [x] Select tessellation by existing quality tier and rebuild only at tile boundaries or tier changes.
+- [x] Preserve the current texture, materials, search click surface, shadows, and five-by-five stream footprint.
+- [x] Run focused tests, typecheck, and lint.
+- [x] Commit elevated streamed ground.
 
 ## Task 3: Ground world dressing and authored paths
 

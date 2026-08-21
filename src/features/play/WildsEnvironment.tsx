@@ -14,6 +14,8 @@ import { WildsSettlementEnvironment, type WildsSettlementWorldMode } from "@/fea
 import { WAYFINDER_HOLLOW } from "@/features/play/wilds-settlements";
 import { useWildsReadability } from "@/features/play/WildsReadabilityContext";
 import { projectWildsEcologyInstance } from "@/features/play/wilds-ecology-placement";
+import { wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
+import { buildWildsTerrainPatchProjection } from "@/features/play/wilds-terrain-rendering";
 
 export const WILDS_TILE_SIZE = 12;
 const STREAM_RADIUS = 2;
@@ -106,7 +108,7 @@ export function WildsEnvironment({
   return (
     <group>
       <group name="world-layer-play">
-        <GroundField centerX={centerX} centerZ={centerZ} color={tiles[12]?.ground.base ?? "#4f9254"} player={player} />
+        <GroundField centerX={centerX} centerZ={centerZ} color={tiles[12]?.ground.base ?? "#4f9254"} player={player} qualityProfile={qualityProfile} />
         <WorldWatercourses player={player} qualityProfile={qualityProfile} />
         <TrailNetwork player={player} palette={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }} />
         <MajorWorldRoutes player={player} palette={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }} />
@@ -246,25 +248,19 @@ function WorldWatercourses({ player, qualityProfile }: { player: PlayState["play
   </group>;
 }
 
-function GroundField({ centerX, centerZ, color, player }: { centerX: number; centerZ: number; color: string; player: PlayState["player"] }) {
+function GroundField({ centerX, centerZ, color, player, qualityProfile }: { centerX: number; centerZ: number; color: string; player: PlayState["player"]; qualityProfile: WildsQualityProfile }) {
   const readability = useWildsReadability();
   const geometry = useMemo(() => {
-    const extent = WILDS_TILE_SIZE * 5 + .06;
-    const next = new THREE.PlaneGeometry(extent, extent, 48, 48);
-    const position = next.getAttribute("position") as THREE.BufferAttribute;
-    const worldCenterX = centerX * WILDS_TILE_SIZE + WILDS_TILE_SIZE / 2;
-    const worldCenterZ = centerZ * WILDS_TILE_SIZE + WILDS_TILE_SIZE / 2;
-    for (let index = 0; index < position.count; index += 1) {
-      const worldX = worldCenterX + position.getX(index);
-      const worldZ = worldCenterZ + position.getY(index);
-      const broad = Math.sin(worldX * .115 + worldZ * .043) * .035 + Math.cos(worldZ * .097 - worldX * .052) * .028;
-      const detail = Math.sin((worldX + worldZ) * .32) * .012;
-      position.setZ(index, .06 + broad + detail);
-    }
-    position.needsUpdate = true;
-    next.computeVertexNormals();
+    const segments = qualityProfile.tier === "low" ? 4 : qualityProfile.tier === "medium" ? 6 : 8;
+    const projection = buildWildsTerrainPatchProjection(centerX, centerZ, STREAM_RADIUS, segments);
+    const next = new THREE.BufferGeometry();
+    next.setAttribute("position", new THREE.Float32BufferAttribute(projection.positions, 3));
+    next.setAttribute("normal", new THREE.Float32BufferAttribute(projection.normals, 3));
+    next.setAttribute("uv", new THREE.Float32BufferAttribute(projection.uvs, 2));
+    next.setIndex(Array.from(projection.indices));
+    next.computeBoundingSphere();
     return next;
-  }, [centerX, centerZ]);
+  }, [centerX, centerZ, qualityProfile.tier]);
   const terrainMap = useMemo(() => {
     const size = 64;
     const data = new Uint8Array(size * size * 4);
@@ -290,8 +286,7 @@ function GroundField({ centerX, centerZ, color, player }: { centerX: number; cen
     <mesh
       geometry={geometry}
       receiveShadow
-      position={[centerX * WILDS_TILE_SIZE + WILDS_TILE_SIZE / 2 - player.x, -0.1, centerZ * WILDS_TILE_SIZE + WILDS_TILE_SIZE / 2 - player.z]}
-      rotation={[-Math.PI / 2, 0, 0]}
+      position={[(centerX - STREAM_RADIUS) * WILDS_TILE_SIZE - player.x, -wildsTerrainElevation(player.x, player.z) - .04, (centerZ - STREAM_RADIUS) * WILDS_TILE_SIZE - player.z]}
     >
       <meshStandardMaterial color="#d5efe0" emissive="#183d28" emissiveIntensity={.06 + readability.darkness * .16} map={terrainMap} roughness={0.96} />
     </mesh>
