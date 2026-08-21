@@ -150,6 +150,28 @@ test("required landing never accepts an obstructed, stale, or inaccessible ancho
   }), null);
 });
 
+test("required landing refuses a live boss hazard and uses only a validated safe anchor", () => {
+  const world = initialWildsWorldProjection();
+  world.sites.site = {
+    id: "site", familyId: "family", name: "Site", position: { x: 30, z: 31 }, radius: 4,
+    phase: "engaged", spawnedAt: "2026-08-21T00:00:00.000Z", expiresAt: "2026-08-22T00:00:00.000Z",
+    bossId: "boss", seedDigest: "a".repeat(64)
+  };
+  world.bosses.boss = {
+    id: "boss", siteId: "site", familyId: "mirecrown-colossus", position: { x: 32, z: 33 },
+    phase: "engaged", health: 10, maxHealth: 10, defeatedAt: null
+  };
+  const obstacles = projectWildsRenderedLivingObstacles(world);
+  const safeAnchor = { x: 48, z: 48 };
+
+  assert.deepEqual(resolveWildsRequiredLandingPosition({ x: 32, z: 33 }, safeAnchor, {
+    capabilities: [], obstacles, searchRadius: 0
+  }), safeAnchor);
+  assert.equal(resolveWildsRequiredLandingPosition({ x: 32, z: 33 }, { x: 31, z: 32 }, {
+    capabilities: [], obstacles, searchRadius: 0
+  }), null);
+});
+
 test("production collision projection exposes the rendered Trail Gate ceiling and Arena protected airspace", () => {
   const output = createWildsAerialCollisionSample();
   const gateTerrain = sampleWildsTerrain(72, 40).elevation;
@@ -204,15 +226,16 @@ test("steady aerial frames consume one immutable neighborhood without tile proje
   const output = createWildsAerialCollisionSample();
   const before = { ...diagnostics };
   for (let frame = 0; frame < 300; frame += 1) {
-    writeWildsAerialCollisionSample({ x: 18, z: -24 }, 4, undefined, output, 1.55, .38, neighborhood.obstacles);
+    writeWildsAerialCollisionSample({ x: 18, z: -24 }, 4, undefined, output, 1.55, .38, neighborhood.obstacles, diagnostics);
   }
-  assert.deepEqual(diagnostics, before);
-  assert.equal(diagnostics.cacheKeyBuilds, 0);
+  assert.equal(diagnostics.neighborhoodProjectionBuilds, before.neighborhoodProjectionBuilds);
+  assert.equal(diagnostics.terrainTileProjectionCalls, before.terrainTileProjectionCalls);
+  assert.equal(diagnostics.frameWriterCalls, before.frameWriterCalls + 300);
+  assert.ok(diagnostics.terrainObstacleIterations >= before.terrainObstacleIterations);
 
   projectWildsAerialObstacleNeighborhood({ x: 18 + 16, z: -24 }, diagnostics);
-  assert.equal(diagnostics.neighborhoodBuilds, before.neighborhoodBuilds + 1);
-  assert.equal(diagnostics.tileProjections, before.tileProjections + 9);
-  assert.ok(diagnostics.arrayAllocations - before.arrayAllocations <= 10);
+  assert.equal(diagnostics.neighborhoodProjectionBuilds, before.neighborhoodProjectionBuilds + 1);
+  assert.equal(diagnostics.terrainTileProjectionCalls, before.terrainTileProjectionCalls + 9);
 });
 
 test("rendered Timber Hall roof and collision share one complete authored envelope", () => {

@@ -113,6 +113,9 @@ describe("Wildz aerial and vista integration", () => {
 
     assert.match(campaign, /if \(!horizontalAllowedRef\.current\) return;/);
     assert.match(campaign, /resolveWildsRequiredLandingPosition[\s\S]*safeAnchor/);
+    assert.match(campaign, /projectWildsRenderedLivingObstacles\(livingWorld\.snapshot\)/);
+    assert.match(campaign, /resolveWildsRequiredLandingPosition\([\s\S]*obstacles:\s*livingPhysicalObstacles/);
+    assert.match(campaign, /livingPhysicalObstacles=\{livingPhysicalObstacles\}/);
     assert.doesNotMatch(campaign, /\?\?\s*anchor/);
     assert.match(campaign, /completeWildsAerialLanding/);
     assert.doesNotMatch(campaign, /advanceWildsAerialTraversal/);
@@ -132,7 +135,6 @@ describe("Wildz aerial and vista integration", () => {
     assert.match(canvas, /verticalInput\.ceilingY = collisionSample\.ceilingY/);
     assert.match(canvas, /verticalInput\.obstacleTopY = collisionSample\.obstacleTopY/);
     assert.match(canvas, /runtime\.current\.altitude = currentVertical\.worldY/);
-    assert.match(canvas, /projectWildsRenderedLivingObstacles/);
     assert.match(canvas, /projectWildsAerialObstacleNeighborhood/);
     assert.match(canvas, /useMemo\([\s\S]*terrainTileX[\s\S]*terrainTileZ/);
     assert.match(canvas, /writeWildsAerialCollisionSample\([\s\S]*livingPhysicalObstacles/);

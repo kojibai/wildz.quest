@@ -38,14 +38,19 @@ export type WildsAerialObstacleNeighborhood = Readonly<{
 }>;
 
 export type WildsAerialNeighborhoodDiagnostics = {
-  neighborhoodBuilds: number;
-  tileProjections: number;
-  cacheKeyBuilds: number;
-  arrayAllocations: number;
+  neighborhoodProjectionBuilds: number;
+  terrainTileProjectionCalls: number;
+  frameWriterCalls: number;
+  terrainObstacleIterations: number;
 };
 
 export function createWildsAerialNeighborhoodDiagnostics(): WildsAerialNeighborhoodDiagnostics {
-  return { neighborhoodBuilds: 0, tileProjections: 0, cacheKeyBuilds: 0, arrayAllocations: 0 };
+  return { neighborhoodProjectionBuilds: 0, terrainTileProjectionCalls: 0, frameWriterCalls: 0, terrainObstacleIterations: 0 };
+}
+
+function projectAerialTerrainTile(tileX: number, tileZ: number, diagnostics?: WildsAerialNeighborhoodDiagnostics) {
+  if (diagnostics) diagnostics.terrainTileProjectionCalls += 1;
+  return wildsTerrainObstaclesForTile(tileX, tileZ);
 }
 
 export function projectWildsAerialObstacleNeighborhood(
@@ -56,15 +61,11 @@ export function projectWildsAerialObstacleNeighborhood(
   const tileX = Math.floor(point.x / WILDS_TERRAIN_TILE_SIZE);
   const tileZ = Math.floor(point.z / WILDS_TERRAIN_TILE_SIZE);
   const obstacles: WildsTerrainObstacle[] = [];
+  if (diagnostics) diagnostics.neighborhoodProjectionBuilds += 1;
   for (let offsetZ = -1; offsetZ <= 1; offsetZ += 1) {
     for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
-      obstacles.push(...wildsTerrainObstaclesForTile(tileX + offsetX, tileZ + offsetZ));
+      obstacles.push(...projectAerialTerrainTile(tileX + offsetX, tileZ + offsetZ, diagnostics));
     }
-  }
-  if (diagnostics) {
-    diagnostics.neighborhoodBuilds += 1;
-    diagnostics.tileProjections += 9;
-    diagnostics.arrayAllocations += 10;
   }
   return Object.freeze({ tileX, tileZ, obstacles: Object.freeze(obstacles) });
 }
@@ -111,7 +112,8 @@ export function writeWildsAerialCollisionSample(
   output: WildsAerialCollisionSample,
   actorHeight = 1.55,
   capsuleRadius = DEFAULT_CAPSULE_RADIUS,
-  terrainObstacles: readonly WildsTerrainObstacle[] = EMPTY_AERIAL_OBSTACLES
+  terrainObstacles: readonly WildsTerrainObstacle[] = EMPTY_AERIAL_OBSTACLES,
+  diagnostics?: WildsAerialNeighborhoodDiagnostics
 ) {
   if (!finitePoint(point) || !Number.isFinite(footY) || !Number.isFinite(actorHeight) || actorHeight <= 0) {
     throw new Error("wilds_aerial_collision_sample_invalid");
@@ -119,6 +121,7 @@ export function writeWildsAerialCollisionSample(
   output.obstacleTopY = Number.NaN;
   output.ceilingY = Number.NaN;
   output.protectedAirspace = false;
+  if (diagnostics) diagnostics.frameWriterCalls += 1;
   for (let index = 0; index < WILDS_RENDERED_PHYSICAL_OBSTACLES.length; index += 1) {
     writeObstacleConstraint(point, footY, actorHeight, capsuleRadius, WILDS_RENDERED_PHYSICAL_OBSTACLES[index]!, output);
   }
@@ -128,6 +131,7 @@ export function writeWildsAerialCollisionSample(
     }
   }
   for (let index = 0; index < terrainObstacles.length; index += 1) {
+    if (diagnostics) diagnostics.terrainObstacleIterations += 1;
     writeObstacleConstraint(point, footY, actorHeight, capsuleRadius, terrainObstacles[index]!, output);
   }
   return output;
@@ -469,7 +473,10 @@ export function resolveWildsSafeLandingPosition(
       };
       const terrain = sampleWildsTerrain(candidate.x, candidate.z);
       if (terrain.traversal.some((requirement) => !capabilities.has(requirement.kind))) continue;
-      const obstacles = options.obstacles ?? movementObstacles(candidate, candidate, capsuleRadius);
+      const terrainObstacles = movementObstacles(candidate, candidate, capsuleRadius);
+      const obstacles = options.obstacles?.length
+        ? [...terrainObstacles, ...options.obstacles]
+        : terrainObstacles;
       if (obstacles.some((obstacle) => blockingObstacle(obstacle)
         && Math.hypot(candidate.x - obstacle.position.x, candidate.z - obstacle.position.z) < obstacle.radius + capsuleRadius)) continue;
       const collision = resolveWildsObstacleMotion(candidate, candidate, obstacles, capsuleRadius);

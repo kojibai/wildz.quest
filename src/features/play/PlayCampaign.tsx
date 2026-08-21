@@ -133,6 +133,7 @@ import {
 import { resolveWildsRequiredLandingPosition } from "@/features/play/wilds-grounded-movement";
 import { projectCreatureCapabilityIdentity } from "@/features/play/creature-capability-identity";
 import { wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
+import { projectWildsRenderedLivingObstacles } from "@/features/play/wilds-terrain-obstacles";
 
 const WildsWorldMap = dynamic(() => import("@/features/play/WildsWorldMap").then((mod) => mod.WildsWorldMap), { ssr: false });
 const WildsLandmarkExperience = dynamic(() => import("@/features/play/WildsLandmarkExperience").then((mod) => mod.WildsLandmarkExperience), { ssr: false });
@@ -561,6 +562,10 @@ export function PlayCampaign({
     activeCard: activeAsset ?? null,
     cardAdmission
   });
+  const livingPhysicalObstacles = useMemo(
+    () => projectWildsRenderedLivingObstacles(livingWorld.snapshot),
+    [livingWorld.snapshot]
+  );
   const refreshLivingWorld = livingWorld.refresh;
   const handleStoryCommandError = useCallback((error: unknown, fallback: string) => {
     if (isWildsTemporalContinuityError(error)) void refreshLivingWorld();
@@ -862,7 +867,8 @@ export function PlayCampaign({
     if (!runtime.landingRequired) return;
     const anchor = runtime.safeAnchor;
     const landing = resolveWildsRequiredLandingPosition(state.player, anchor, {
-      capabilities: activeTraversalCapabilities
+      capabilities: activeTraversalCapabilities,
+      obstacles: livingPhysicalObstacles
     });
     if (!landing) return;
     completeWildsAerialLanding(runtime, landing.x, landing.z, wildsTerrainElevation(landing.x, landing.z));
@@ -1461,6 +1467,7 @@ export function PlayCampaign({
               onCameraHeadingChange={updateCameraHeading}
               searchEnabled={worldInteractionEnabled && discoveryActive}
               livingWorld={livingWorld.snapshot}
+              livingPhysicalObstacles={livingPhysicalObstacles}
               worldMode={settlementWorldMode}
               kaiMoment={kaiMoment}
               visualSettings={visualSettings}

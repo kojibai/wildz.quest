@@ -73,7 +73,7 @@ import {
   projectWildsAerialObstacleNeighborhood,
   writeWildsAerialCollisionSample
 } from "@/features/play/wilds-grounded-movement";
-import { projectWildsRenderedLivingObstacles } from "@/features/play/wilds-terrain-obstacles";
+import type { WildsTerrainObstacle } from "@/features/play/wilds-terrain-obstacles";
 import { WILDS_TERRAIN_TILE_SIZE } from "@/features/play/wilds-terrain-authority";
 
 const WILDS_DIAGNOSTICS_ENABLED = process.env.NODE_ENV !== "production";
@@ -91,6 +91,7 @@ export function WildsWorldCanvas({
   onSelectOverlook,
   onSearchPoint,
   livingWorld,
+  livingPhysicalObstacles,
   worldMode,
   kaiMoment,
   visualSettings = DEFAULT_WILDS_VISUAL_SETTINGS,
@@ -121,6 +122,7 @@ export function WildsWorldCanvas({
   onSelectPlayer: (player: WildsPresence | null) => void;
   onSearchPoint: (point: { x: number; z: number }) => void;
   livingWorld?: WildsWorldProjection | null;
+  livingPhysicalObstacles: readonly WildsTerrainObstacle[];
   worldMode: WildsSettlementWorldMode;
   kaiMoment: KaiKlokMoment;
   visualSettings?: Partial<WildsVisualSettings>;
@@ -164,7 +166,7 @@ export function WildsWorldCanvas({
       >
         {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
-          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} />
+          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} />
         </Suspense>
       </Canvas>
     </div>
@@ -186,6 +188,7 @@ function WildsScene({
   onSelectPlayer,
   onSearchPoint,
   livingWorld,
+  livingPhysicalObstacles,
   worldMode,
   kaiMoment,
   visualSettings,
@@ -216,6 +219,7 @@ function WildsScene({
   onSelectPlayer: (player: WildsPresence | null) => void;
   onSearchPoint: (point: { x: number; z: number }) => void;
   livingWorld?: WildsWorldProjection | null;
+  livingPhysicalObstacles: readonly WildsTerrainObstacle[];
   worldMode: WildsSettlementWorldMode;
   kaiMoment: KaiKlokMoment;
   visualSettings: Partial<WildsVisualSettings>;
@@ -275,7 +279,6 @@ function WildsScene({
     [state.inventory, state.selectedAssetId]
   );
   const activeAppearance = useMemo(() => activeAsset ? projectCardKaiAppearance(activeAsset) : null, [activeAsset]);
-  const livingPhysicalObstacles = useMemo(() => projectWildsRenderedLivingObstacles(livingWorld), [livingWorld]);
   const terrainTileX = Math.floor(state.player.x / WILDS_TERRAIN_TILE_SIZE);
   const terrainTileZ = Math.floor(state.player.z / WILDS_TERRAIN_TILE_SIZE);
   const terrainObstacleNeighborhood = useMemo(
