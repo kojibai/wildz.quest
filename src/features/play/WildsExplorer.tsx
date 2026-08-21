@@ -10,6 +10,7 @@ import type { WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
 import { projectWildzExplorerRender } from "@/features/play/wildz-explorer-proof";
 import { useWildsReadability } from "@/features/play/WildsReadabilityContext";
 import type { WildsAerialTraversalState } from "@/features/play/wilds-aerial-traversal";
+import { writeWildsExplorerWingFlightPose } from "@/features/play/wilds-explorer-flight-pose";
 
 type ExplorerStyle = "female" | "male";
 
@@ -271,11 +272,15 @@ export function WildsExplorer({
     if (satchel.current) satchel.current.rotation.z = grounded ? stride * -0.09 : 0;
     if (scarf.current) scarf.current.rotation.x = 0.18 + Math.sin(elapsed * 5.5) * (moving ? 0.12 : 0.035) * readability.motionScale;
     if (aerialHarness.current) aerialHarness.current.visible = airborne && !remote;
-    const reduced = readability.motionScale === 0;
-    const wingStroke = reduced || !airborne || aerialMode === "glide" ? 0 : Math.sin(elapsed * 4.4) * 0.16;
-    const flare = verticalVelocity < -0.2 ? 0.18 : verticalVelocity > 0.2 ? -0.1 : 0;
-    if (leftWing.current) leftWing.current.rotation.z = airborne ? -1.1 + flare + wingStroke : -1.42;
-    if (rightWing.current) rightWing.current.rotation.z = airborne ? 1.1 - flare - wingStroke * 0.88 : 1.42;
+    if (leftWing.current && rightWing.current) writeWildsExplorerWingFlightPose(
+      leftWing.current,
+      rightWing.current,
+      airborne,
+      aerialMode === "glide",
+      elapsed,
+      readability.motionScale,
+      verticalVelocity
+    );
   });
 
   const hairLength = appearance.hairProfile === "river-braid" || appearance.hairProfile === "fern-locks" ? 1.2 : 0.82;

@@ -6,6 +6,7 @@ import {
   completeWildsAerialLanding,
   createGroundedWildsAerialState,
   createWildsAerialRuntimeResult,
+  projectWildsFlightEndurancePotential,
   writeWildsAerialRuntimeStep
 } from "../src/features/play/wilds-aerial-traversal";
 
@@ -69,6 +70,42 @@ describe("Wildz transient aerial traversal", () => {
 
     assert.equal(flying.mode, "flight");
     assert.equal(warning.reason, "flight-energy-low");
+  });
+
+  it("keeps Level-1 flight duration intact and rewards progression with longer finite airtime", () => {
+    assert.equal(projectWildsFlightEndurancePotential(1), 0);
+    assert.ok(projectWildsFlightEndurancePotential(8) > 0);
+    assert.equal(projectWildsFlightEndurancePotential(20), 1);
+    assert.equal(projectWildsFlightEndurancePotential(200), 1);
+    const poweredTicks = (flightEndurancePotential: number) => {
+      const state = beginWildsAerialTraversal(createGroundedWildsAerialState(point, 4), {
+        kind: "flight",
+        capabilities: ["flight"]
+      }).state;
+      const result = createWildsAerialRuntimeResult();
+      let ticks = 0;
+      while (!state.landingRequired && ticks < 2_000) {
+        writeWildsAerialRuntimeStep(state, {
+          deltaSeconds: .1,
+          flightEndurancePotential,
+          groundElevation: 4,
+          hasFlight: true,
+          hasGlide: false,
+          horizontalDistance: .2,
+          positionX: point.x,
+          positionZ: point.z,
+          verticalOffset: 6
+        }, result);
+        ticks += 1;
+      }
+      return ticks;
+    };
+
+    const levelOneTicks = poweredTicks(0);
+    const veteranTicks = poweredTicks(1);
+    assert.ok(levelOneTicks > 400);
+    assert.ok(veteranTicks > levelOneTicks * 1.9);
+    assert.ok(veteranTicks < 2_000);
   });
 
   it("turns admitted gliding into bounded stamina and distance", () => {

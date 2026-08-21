@@ -209,7 +209,14 @@ export function wildsSiteRuntimeCameraIsFlooded(camera: Readonly<{ floorY: numbe
 export function writeWildsSiteRuntimeAerialCollision(output: { obstacleTopY: number; ceilingY: number; protectedAirspace: boolean; floorY?: number; flooded?: boolean; waterSurfaceY?: number }, runtime: WildsSiteRuntimeProjection, spaceId: string, x: number, footY: number, z: number, height: number, radius: number) {
   aerialWrites += 1; output.obstacleTopY = Number.NaN; output.ceilingY = Number.NaN; output.protectedAirspace = false; const headY = footY + height;
   if ("floorY" in output && "flooded" in output) floorAndCeiling(output as { floorY: number; ceilingY: number; flooded: boolean; waterSurfaceY?: number }, runtime, spaceId, x, footY, z, footY);
-  for (const ceiling of at(indexFor(runtime).ceilings, spaceId, x, z)) { if (Math.abs(x - ceiling.center.x) > ceiling.halfExtents.x + radius || Math.abs(z - ceiling.center.z) > ceiling.halfExtents.z + radius) continue; const underside = ceiling.center.y - ceiling.halfExtents.y; if (headY <= underside + .000001 && (!Number.isFinite(output.ceilingY) || underside < output.ceilingY)) output.ceilingY = underside; }
+  for (const ceiling of at(indexFor(runtime).ceilings, spaceId, x, z)) {
+    if (Math.abs(x - ceiling.center.x) > ceiling.halfExtents.x + radius || Math.abs(z - ceiling.center.z) > ceiling.halfExtents.z + radius) continue;
+    const underside = ceiling.center.y - ceiling.halfExtents.y;
+    const top = ceiling.center.y + ceiling.halfExtents.y;
+    if (footY >= top + .000001) continue;
+    if (!Number.isFinite(output.ceilingY) || underside < output.ceilingY) output.ceilingY = underside;
+    if (headY > underside + .000001) output.protectedAirspace = true;
+  }
   const mountainTop = mountainCircleValue(runtime, spaceId, x, z, radius, "topY");
   if (Number.isFinite(mountainTop)) output.obstacleTopY = mountainTop;
   for (const solid of at(indexFor(runtime).solids, spaceId, x, z)) { if (solid.kind === "mountain-envelope" || Math.abs(x - solid.center.x) > solid.halfExtents.x + radius || Math.abs(z - solid.center.z) > solid.halfExtents.z + radius) continue; const min = solid.center.y - solid.halfExtents.y, max = solid.center.y + solid.halfExtents.y; if (footY <= max && headY >= min && (!Number.isFinite(output.obstacleTopY) || max > output.obstacleTopY)) output.obstacleTopY = max; }

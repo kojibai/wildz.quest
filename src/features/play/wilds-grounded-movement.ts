@@ -74,6 +74,16 @@ export function createWildsAerialCollisionSample(): WildsAerialCollisionSample {
   return { obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false };
 }
 
+export function mergeWildsAerialCollisionSample(
+  output: WildsAerialCollisionSample,
+  input: Readonly<WildsAerialCollisionSample>
+) {
+  if (Number.isFinite(input.obstacleTopY) && (!Number.isFinite(output.obstacleTopY) || input.obstacleTopY > output.obstacleTopY)) output.obstacleTopY = input.obstacleTopY;
+  if (Number.isFinite(input.ceilingY) && (!Number.isFinite(output.ceilingY) || input.ceilingY < output.ceilingY)) output.ceilingY = input.ceilingY;
+  if (input.protectedAirspace) output.protectedAirspace = true;
+  return output;
+}
+
 function writeObstacleConstraint(
   point: Point,
   footY: number,

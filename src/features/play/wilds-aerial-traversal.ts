@@ -30,6 +30,7 @@ export type MutableWildsAerialRuntimeResult = {
 
 export type WildsAerialRuntimeStep = {
   deltaSeconds: number;
+  flightEndurancePotential?: number;
   groundElevation: number;
   hasFlight: boolean;
   hasGlide: boolean;
@@ -54,6 +55,7 @@ export function writeWildsAerialRuntimeStep(
   output: MutableWildsAerialRuntimeResult
 ) {
   if (!Number.isFinite(input.deltaSeconds)
+    || (input.flightEndurancePotential !== undefined && !Number.isFinite(input.flightEndurancePotential))
     || !Number.isFinite(input.groundElevation)
     || !Number.isFinite(input.horizontalDistance)
     || !Number.isFinite(input.positionX)
@@ -93,7 +95,9 @@ export function writeWildsAerialRuntimeStep(
 
   state.distance = quantize(state.distance + distance);
   if (state.mode === "flight") {
-    state.stamina = quantize(Math.max(0, state.stamina - delta * (1.4 + distance * .8)));
+    const endurance = bounded(input.flightEndurancePotential ?? 0, 0, 1);
+    const enduranceMultiplier = 1 - endurance * .5;
+    state.stamina = quantize(Math.max(0, state.stamina - delta * (1.4 + distance * .8) * enduranceMultiplier));
     if (state.stamina <= 0) {
       if (input.hasGlide) {
         state.mode = "glide";
@@ -126,6 +130,11 @@ const GLIDE_LAUNCH_HEIGHT = 2;
 export const WILDS_FLIGHT_RELAUNCH_ENERGY = 20;
 const FLIGHT_LOW_ENERGY = 25;
 const GROUND_ENERGY_RECOVERY_PER_SECOND = 24;
+
+export function projectWildsFlightEndurancePotential(level: number) {
+  if (!Number.isFinite(level)) throw new Error("wilds_flight_level_invalid");
+  return bounded((Math.max(1, Math.floor(level)) - 1) / 19, 0, 1);
+}
 
 function quantize(value: number) {
   return Math.round(value * 1_000_000) / 1_000_000;

@@ -72,11 +72,13 @@ import {
 } from "@/features/play/wilds-vertical-traversal";
 import {
   createWildsAerialCollisionSample,
+  mergeWildsAerialCollisionSample,
   projectWildsAerialObstacleNeighborhood,
   writeWildsAerialCollisionSample,
   type WildsAerialObstacleNeighborhood
 } from "@/features/play/wilds-grounded-movement";
 import type { WildsTerrainObstacle } from "@/features/play/wilds-terrain-obstacles";
+import { WILDS_PLAYER_BODY_HEIGHT, WILDS_PLAYER_BODY_RADIUS } from "@/features/play/wilds-player-body";
 import { WILDS_TERRAIN_TILE_SIZE } from "@/features/play/wilds-terrain-authority";
 import type { WildsSiteSpaceState } from "@/features/play/wilds-discovery-sites";
 import { wildsSiteRuntimeCameraIsFlooded, wildsSiteRuntimeDiagnostics, writeWildsSiteRuntimeAerialCollision, writeWildsSiteRuntimeCamera, writeWildsSiteRuntimeEncounter, type WildsSiteRuntimeProjection } from "@/features/play/wilds-site-runtime";
@@ -111,6 +113,7 @@ export function WildsWorldCanvas({
   verticalTraversalRef,
   verticalIntentRef,
   horizontalAllowedRef,
+  flightEndurancePotential,
   liftPotential,
   pressurePotential,
   aquaticPresentation,
@@ -145,6 +148,7 @@ export function WildsWorldCanvas({
   verticalTraversalRef: MutableRefObject<WildsVerticalTraversalState>;
   verticalIntentRef: MutableRefObject<WildsVerticalTraversalIntent>;
   horizontalAllowedRef: MutableRefObject<boolean>;
+  flightEndurancePotential: number;
   liftPotential: number;
   pressurePotential: number;
   aquaticPresentation: WildsAquaticPresentation;
@@ -178,7 +182,7 @@ export function WildsWorldCanvas({
       >
         {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
-          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} />
+          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} />
         </Suspense>
       </Canvas>
     </div>
@@ -216,6 +220,7 @@ function WildsScene({
   verticalTraversalRef,
   verticalIntentRef,
   horizontalAllowedRef,
+  flightEndurancePotential,
   liftPotential,
   pressurePotential,
   aquaticPresentation,
@@ -250,6 +255,7 @@ function WildsScene({
   verticalTraversalRef: MutableRefObject<WildsVerticalTraversalState>;
   verticalIntentRef: MutableRefObject<WildsVerticalTraversalIntent>;
   horizontalAllowedRef: MutableRefObject<boolean>;
+  flightEndurancePotential: number;
   liftPotential: number;
   pressurePotential: number;
   aquaticPresentation: WildsAquaticPresentation;
@@ -355,7 +361,7 @@ function WildsScene({
             : null
         ))}
       </SmoothWorldFrame>
-      <AerialPlayerFrame aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} livingPhysicalObstacles={livingPhysicalObstacles} pressurePotential={pressurePotential} swimStamina={state.energy} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} player={state.player} runtime={aerialStateRef} terrainObstacleNeighborhood={terrainObstacleNeighborhood} verticalIntentRef={verticalIntentRef} verticalTraversalRef={verticalTraversalRef} siteRuntime={siteRuntime} siteSpace={siteSpace}>
+      <AerialPlayerFrame aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} flightEndurancePotential={flightEndurancePotential} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} livingPhysicalObstacles={livingPhysicalObstacles} pressurePotential={pressurePotential} swimStamina={state.energy} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} player={state.player} runtime={aerialStateRef} terrainObstacleNeighborhood={terrainObstacleNeighborhood} verticalIntentRef={verticalIntentRef} verticalTraversalRef={verticalTraversalRef} siteRuntime={siteRuntime} siteSpace={siteSpace}>
         <WildsExplorer
           aerialPalette={{
             primary: activeAppearance?.palette.primary ?? "#c9fff0",
@@ -379,10 +385,11 @@ function WildsScene({
   );
 }
 
-function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizontalAllowedRef, liftPotential, livingPhysicalObstacles, pressurePotential, swimStamina, onEnergyChange, onModeChange, onLandingRequired, onVerticalReadoutChange, player, runtime, terrainObstacleNeighborhood, verticalIntentRef, verticalTraversalRef, siteRuntime, siteSpace }: {
+function AerialPlayerFrame({ aquaticPresentation, capabilities, children, flightEndurancePotential, horizontalAllowedRef, liftPotential, livingPhysicalObstacles, pressurePotential, swimStamina, onEnergyChange, onModeChange, onLandingRequired, onVerticalReadoutChange, player, runtime, terrainObstacleNeighborhood, verticalIntentRef, verticalTraversalRef, siteRuntime, siteSpace }: {
   aquaticPresentation: WildsAquaticPresentation;
   capabilities: readonly WildsTraversalCapability[];
   children: ReactNode;
+  flightEndurancePotential: number;
   horizontalAllowedRef: MutableRefObject<boolean>;
   liftPotential: number;
   livingPhysicalObstacles: readonly import("@/features/play/wilds-terrain-obstacles").WildsTerrainObstacle[];
@@ -410,7 +417,7 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizo
   const siteCollisionSampleRef = useRef({ ...createWildsAerialCollisionSample(), floorY: Number.NaN, flooded: false, waterSurfaceY: Number.NaN });
   const publishedLandingRequired = useRef(false);
   const runtimeStep = useRef<WildsAerialRuntimeStep>({
-    deltaSeconds: 0, groundElevation: 0, hasFlight: false, hasGlide: false,
+    deltaSeconds: 0, flightEndurancePotential: 0, groundElevation: 0, hasFlight: false, hasGlide: false,
     horizontalDistance: 0, positionX: 0, positionZ: 0, verticalOffset: 0
   });
   const verticalStep = useRef<WildsVerticalTraversalStep>({
@@ -434,7 +441,7 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizo
       collisionSample.ceilingY = Number.NaN;
       collisionSample.protectedAirspace = false;
     } else {
-      writeWildsAerialCollisionSample(player, currentVertical.layer === "air" ? currentVertical.worldY : groundElevation + .35, livingPhysicalObstacles, collisionSample, 1.55, .38, terrainObstacleNeighborhood.obstacles);
+      writeWildsAerialCollisionSample(player, currentVertical.layer === "air" ? currentVertical.worldY : groundElevation + .35, livingPhysicalObstacles, collisionSample, WILDS_PLAYER_BODY_HEIGHT, WILDS_PLAYER_BODY_RADIUS, terrainObstacleNeighborhood.obstacles);
     }
     const siteCollision = writeWildsSiteRuntimeAerialCollision(
       siteCollisionSampleRef.current,
@@ -443,15 +450,15 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizo
       player.x,
       currentVertical.layer === "air" ? currentVertical.worldY : groundElevation + .35,
       player.z,
-      1.55,
-      .38
+      WILDS_PLAYER_BODY_HEIGHT,
+      WILDS_PLAYER_BODY_RADIUS
     );
-    if (Number.isFinite(siteCollision.obstacleTopY) && (!Number.isFinite(collisionSample.obstacleTopY) || siteCollision.obstacleTopY > collisionSample.obstacleTopY)) collisionSample.obstacleTopY = siteCollision.obstacleTopY;
-    if (Number.isFinite(siteCollision.ceilingY) && (!Number.isFinite(collisionSample.ceilingY) || siteCollision.ceilingY < collisionSample.ceilingY)) collisionSample.ceilingY = siteCollision.ceilingY;
+    mergeWildsAerialCollisionSample(collisionSample, siteCollision);
     const activeGroundElevation = typeof siteCollision.floorY === "number" && Number.isFinite(siteCollision.floorY) ? siteCollision.floorY : groundElevation;
     const activeWaterSurfaceY = typeof siteCollision.waterSurfaceY === "number" && Number.isFinite(siteCollision.waterSurfaceY) ? siteCollision.waterSurfaceY : aquaticPresentation.waterSurfaceY;
     const aerialInput = runtimeStep.current;
     aerialInput.deltaSeconds = delta;
+    aerialInput.flightEndurancePotential = flightEndurancePotential;
     aerialInput.groundElevation = activeGroundElevation;
     aerialInput.hasFlight = hasFlight;
     aerialInput.hasGlide = hasGlide;

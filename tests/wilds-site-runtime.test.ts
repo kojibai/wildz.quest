@@ -42,6 +42,12 @@ describe("production Wilds site runtime", () => {
     const aerial = { obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false };
     assert.equal(writeWildsSiteRuntimeAerialCollision(aerial, runtime, entered.spaceId, movement.x, movement.floorY, movement.z, 1.55, .38), aerial);
     assert.equal(aerial.ceilingY, movement.ceilingY);
+    const ceiling = runtime.physical.ceilings.find((candidate) => candidate.spaceId === entered.spaceId)!;
+    const underside = ceiling.center.y - ceiling.halfExtents.y;
+    writeWildsSiteRuntimeAerialCollision(aerial, runtime, entered.spaceId, ceiling.center.x, underside - 1, ceiling.center.z, 1.55, .38);
+    assert.ok(Number.isFinite(aerial.ceilingY));
+    assert.ok(aerial.ceilingY <= underside);
+    assert.equal(aerial.protectedAirspace, true);
     const encounter = { siteKey: null as string | null, spaceId: "", layer: "ground" as "ground" | "surface" | "water-column" | "seabed" | "air", minY: 0, maxY: 0 };
     assert.equal(writeWildsSiteRuntimeEncounter(encounter, runtime, entered.spaceId, movement.x, movement.floorY + 1, movement.z), encounter);
     assert.equal(encounter.siteKey, portal.siteKey);

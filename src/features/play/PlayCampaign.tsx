@@ -116,6 +116,7 @@ import {
   beginWildsAerialTraversal,
   completeWildsAerialLanding,
   createGroundedWildsAerialState,
+  projectWildsFlightEndurancePotential,
   requestWildsAerialLanding,
   type WildsAerialLandingReason,
   type WildsAerialMode,
@@ -131,7 +132,7 @@ import {
   type WildsVerticalTraversalState
 } from "@/features/play/wilds-vertical-traversal";
 import { resolveWildsRequiredLandingPosition } from "@/features/play/wilds-grounded-movement";
-import { projectCreatureCapabilityIdentity } from "@/features/play/creature-capability-identity";
+import { projectCreatureCapabilityIdentity, projectCreatureRuntimeCapabilities } from "@/features/play/creature-capability-identity";
 import { wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
 import { projectWildsRenderedLivingObstacles } from "@/features/play/wilds-terrain-obstacles";
 import { admitWildsDiscoveryPhysicalNeighborhood, wildsDiscoverySiteRegionForPosition } from "@/features/play/wilds-discovery-sites";
@@ -311,18 +312,24 @@ export function PlayCampaign({
     ).capabilities
     : [], [activeAsset, state.adventureConditions]);
   const traversalPotentials = useMemo(() => {
-    if (!activeAsset) return { lift: 0, pressure: 0 };
-    const specialties = projectCreatureCapabilityIdentity(activeAsset).specialties;
+    if (!activeAsset) return { flightEndurance: 0, lift: 0, pressure: 0 };
+    const identity = projectCreatureCapabilityIdentity(activeAsset);
+    const specialties = identity.specialties;
+    const runtime = projectCreatureRuntimeCapabilities(
+      identity,
+      state.adventureConditions[activeAsset.id] ?? emptyAdventureCondition(activeAsset.id)
+    );
     const potential = (families: readonly string[]) => {
       const specialty = specialties.find((candidate) => families.includes(candidate.family));
       if (!specialty) return .45;
       return Math.max(.2, Math.min(1, (specialty.potential + specialty.control + specialty.endurance) / 300));
     };
     return {
+      flightEndurance: activeTraversalCapabilities.includes("flight") ? projectWildsFlightEndurancePotential(runtime.level) : 0,
       lift: activeTraversalCapabilities.includes("flight") ? potential(["flight", "glide", "balance"]) : activeTraversalCapabilities.includes("glide") ? potential(["glide", "balance"]) * .6 : 0,
       pressure: activeTraversalCapabilities.includes("swim") ? potential(["dive", "current", "swim", "anchor"]) : 0
     };
-  }, [activeAsset, activeTraversalCapabilities]);
+  }, [activeAsset, activeTraversalCapabilities, state.adventureConditions]);
   const [aerialMode, setAerialMode] = useState<WildsAerialMode>("ground");
   const canSwim = activeTraversalCapabilities.includes("swim");
   const aquaticPresentation = useMemo(() => projectWildsAquaticPresentationAtPosition({
@@ -1511,6 +1518,7 @@ export function PlayCampaign({
               verticalTraversalRef={verticalTraversalRef}
               verticalIntentRef={verticalIntentRef}
               horizontalAllowedRef={horizontalAllowedRef}
+              flightEndurancePotential={traversalPotentials.flightEndurance}
               liftPotential={traversalPotentials.lift}
               pressurePotential={traversalPotentials.pressure}
               aquaticPresentation={aquaticPresentation}

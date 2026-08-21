@@ -1,0 +1,2 @@
+export const WILDS_PLAYER_BODY_HEIGHT = 1.55;
+export const WILDS_PLAYER_BODY_RADIUS = .38;

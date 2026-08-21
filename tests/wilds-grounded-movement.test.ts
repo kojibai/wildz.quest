@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   createWildsAerialCollisionSample,
   createWildsAerialNeighborhoodDiagnostics,
+  mergeWildsAerialCollisionSample,
   projectWildsAerialObstacleNeighborhood,
   resolveWildsRequiredLandingPosition,
   resolveWildsGroundMovement,
@@ -20,6 +21,7 @@ import {
 } from "../src/features/play/wilds-terrain-obstacles";
 import { initialWildsWorldProjection } from "../src/features/play/wilds-world-state";
 import { createWildsVerticalTraversalState, writeWildsVerticalTraversalStep } from "../src/features/play/wilds-vertical-traversal";
+import { beginWildsAerialTraversal, createGroundedWildsAerialState, createWildsAerialRuntimeResult, writeWildsAerialRuntimeStep } from "../src/features/play/wilds-aerial-traversal";
 import { WILDS_BOSS_FAMILIES } from "../src/features/play/wilds-boss-ecology";
 import { wildsBossPhysicalEnvelope } from "../src/features/play/wilds-boss-physical-envelope";
 import { WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS } from "../src/features/play/wilds-physical-dimensions";
@@ -218,6 +220,33 @@ test("actual generated canopy projection blocks powered ascent until the actor l
     obstacleTopY: sample.obstacleTopY, powered: true, stamina: 100, terrainElevation: tree.position.y
   });
   assert.equal(state.offset, .35);
+});
+
+test("merges an interior ceiling overlap into the runtime landing block", () => {
+  const outer = { obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false };
+  const site = { obstacleTopY: Number.NaN, ceilingY: 3.2, protectedAirspace: true };
+  assert.equal(mergeWildsAerialCollisionSample(outer, site), outer);
+  assert.equal(outer.ceilingY, 3.2);
+  assert.equal(outer.protectedAirspace, true);
+
+  const state = beginWildsAerialTraversal(createGroundedWildsAerialState({ x: 0, z: 0 }, 0), {
+    kind: "flight",
+    capabilities: ["flight"]
+  }).state;
+  const result = createWildsAerialRuntimeResult();
+  writeWildsAerialRuntimeStep(state, {
+    deltaSeconds: .1,
+    groundElevation: 0,
+    hasFlight: true,
+    hasGlide: false,
+    horizontalDistance: .2,
+    positionX: 0,
+    positionZ: 0,
+    protectedAirspace: outer.protectedAirspace,
+    verticalOffset: 2
+  }, result);
+  assert.equal(state.landingRequired, true);
+  assert.equal(result.horizontalAllowed, false);
 });
 
 test("steady aerial frames consume one immutable neighborhood without tile projection or allocation work", () => {

@@ -1,3 +1,5 @@
+import { WILDS_PLAYER_BODY_HEIGHT } from "./wilds-player-body";
+
 export type WildsVerticalTraversalLayer = "ground" | "water" | "air";
 export type WildsVerticalTraversalIntent = -1 | 0 | 1;
 
@@ -30,6 +32,7 @@ const WATER_SURFACE_CLEARANCE = .35;
 const AIR_GROUND_CLEARANCE = .35;
 const AIR_OBSTACLE_CLEARANCE = .35;
 const AIR_CEILING_CLEARANCE = .45;
+export const WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE = 6;
 
 function bounded(value: number, minimum: number, maximum: number) {
   return Math.max(minimum, Math.min(maximum, value));
@@ -98,12 +101,37 @@ export function writeWildsVerticalTraversalStep(
     ? input.obstacleTopY! - input.terrainElevation + AIR_OBSTACLE_CLEARANCE
     : AIR_GROUND_CLEARANCE;
   const aboveObstacle = priorLayer === "air" && state.offset >= obstacleFloor - .000001;
-  state.safeMin = quantize(aboveObstacle ? Math.max(AIR_GROUND_CLEARANCE, obstacleFloor) : AIR_GROUND_CLEARANCE);
-  const liftCeiling = 2 + lift * 10;
+  const baseLiftCeiling = input.powered === true ? 10 + lift * 10 : 2 + lift * 10;
+  const liftCeiling = input.powered !== true && priorLayer === "air"
+    ? Math.max(baseLiftCeiling, state.offset)
+    : baseLiftCeiling;
   const physicalCeiling = Number.isFinite(input.ceilingY)
-    ? input.ceilingY! - input.terrainElevation - AIR_CEILING_CLEARANCE
+    ? input.ceilingY! - input.terrainElevation - WILDS_PLAYER_BODY_HEIGHT - AIR_CEILING_CLEARANCE
     : liftCeiling;
-  state.safeMax = quantize(Math.max(state.safeMin, Math.min(liftCeiling, physicalCeiling)));
+  const admittedCeiling = Math.max(AIR_GROUND_CLEARANCE, Math.min(liftCeiling, physicalCeiling));
+  const ceilingIntersectsActor = priorLayer === "air"
+    && Number.isFinite(input.ceilingY)
+    && input.terrainElevation + state.offset + WILDS_PLAYER_BODY_HEIGHT > input.ceilingY! + .000001;
+  if (ceilingIntersectsActor) {
+    state.safeMin = state.offset;
+    state.safeMax = state.offset;
+    state.worldY = quantize(input.terrainElevation + state.offset);
+    return state;
+  }
+  const continuousCeiling = priorLayer === "air" ? Math.max(admittedCeiling, state.offset) : admittedCeiling;
+  const poweredCruiseActive = input.powered === true && input.stamina > 0;
+  const poweredCruiseTarget = poweredCruiseActive
+    ? Math.min(WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE, admittedCeiling)
+    : AIR_GROUND_CLEARANCE;
+  const reachedPoweredCruise = poweredCruiseActive
+    && priorLayer === "air"
+    && state.offset >= poweredCruiseTarget - .000001;
+  const flightFloor = reachedPoweredCruise ? poweredCruiseTarget : AIR_GROUND_CLEARANCE;
+  state.safeMax = quantize(continuousCeiling);
+  state.safeMin = quantize(Math.min(
+    state.safeMax,
+    aboveObstacle ? Math.max(flightFloor, obstacleFloor) : flightFloor
+  ));
   if (priorLayer !== "air") {
     state.offset = quantize(bounded(input.initialOffset ?? state.safeMin, state.safeMin, state.safeMax));
   } else {
@@ -113,11 +141,19 @@ export function writeWildsVerticalTraversalStep(
   const actorFootY = input.terrainElevation + state.offset;
   const blockedBelowObstacle = Number.isFinite(input.obstacleTopY)
     && actorFootY < input.obstacleTopY! + AIR_OBSTACLE_CLEARANCE - .000001;
+  const risingToPoweredCruise = canClimb && state.offset < poweredCruiseTarget - .000001;
   const direction = canClimb
-    ? input.intent > 0 && blockedBelowObstacle ? 0 : input.intent
+    ? (input.intent > 0 || risingToPoweredCruise) && blockedBelowObstacle
+      ? 0
+      : risingToPoweredCruise
+        ? 1
+        : input.intent
     : -1;
-  const speed = direction > 0 ? 1.6 + lift * 2.4 : direction < 0 ? 1.25 : 0;
-  state.offset = quantize(bounded(state.offset + direction * speed * delta, state.safeMin, state.safeMax));
+  const speed = direction > 0 ? risingToPoweredCruise ? 5.4 : 1.6 + lift * 2.4 : direction < 0 ? 1.25 : 0;
+  const poweredCruiseCeiling = risingToPoweredCruise
+    ? poweredCruiseTarget
+    : state.safeMax;
+  state.offset = quantize(bounded(state.offset + direction * speed * delta, state.safeMin, poweredCruiseCeiling));
   state.worldY = quantize(input.terrainElevation + state.offset);
   return state;
 }

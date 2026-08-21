@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   createWildsVerticalTraversalState,
+  WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE,
   writeWildsVerticalTraversalStep
 } from "../src/features/play/wilds-vertical-traversal";
+import { WILDS_PLAYER_BODY_HEIGHT } from "../src/features/play/wilds-player-body";
 
 describe("Wildz bounded vertical traversal", () => {
   it("dives and rises only inside the exact water surface and seabed band", () => {
@@ -106,9 +108,9 @@ describe("Wildz bounded vertical traversal", () => {
       stamina: 100,
       terrainElevation: 1
     });
-    assert.equal(state.safeMin, 2.35);
+    assert.equal(state.safeMin, 5);
     assert.equal(state.offset, state.safeMax);
-    assert.ok(1 + state.offset < 8);
+    assert.ok(1 + state.offset + WILDS_PLAYER_BODY_HEIGHT < 8);
 
     const atCeiling = state.offset;
     writeWildsVerticalTraversalStep(state, {
@@ -190,6 +192,123 @@ describe("Wildz bounded vertical traversal", () => {
       terrainElevation: 0
     });
     assert.ok(state.offset > .35);
+  });
+
+  it("raises every powered flyer into a tree-clearing minimum cruise without tunneling canopies", () => {
+    const state = createWildsVerticalTraversalState();
+    writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: 0,
+      initialOffset: .35,
+      intent: 0,
+      layer: "air",
+      liftPotential: .2,
+      powered: true,
+      stamina: 100,
+      terrainElevation: 0
+    });
+    for (let index = 0; index < 30; index += 1) writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: .1,
+      intent: 0,
+      layer: "air",
+      liftPotential: .2,
+      powered: true,
+      stamina: 100,
+      terrainElevation: 0
+    });
+    assert.equal(state.offset, WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE);
+    assert.equal(state.safeMin, WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE);
+    assert.ok(state.safeMax > WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE);
+
+    writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: .1,
+      intent: -1,
+      layer: "air",
+      liftPotential: .2,
+      powered: true,
+      stamina: 100,
+      terrainElevation: 0
+    });
+    assert.equal(state.offset, WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE);
+  });
+
+  it("transitions from high powered flight into a glide without snapping altitude", () => {
+    const state = createWildsVerticalTraversalState();
+    writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: 0,
+      initialOffset: 20,
+      intent: 0,
+      layer: "air",
+      liftPotential: 1,
+      powered: true,
+      stamina: 100,
+      terrainElevation: 0
+    });
+    const poweredHeight = state.offset;
+    writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: .1,
+      intent: 0,
+      layer: "air",
+      liftPotential: 1,
+      powered: false,
+      stamina: 90,
+      terrainElevation: 0
+    });
+    assert.equal(poweredHeight, 20);
+    assert.equal(state.offset, 19.875);
+  });
+
+  it("lets a real ceiling outrank cruise height without snapping an airborne actor", () => {
+    const belowCeiling = createWildsVerticalTraversalState();
+    writeWildsVerticalTraversalStep(belowCeiling, {
+      ceilingY: 5,
+      deltaSeconds: 0,
+      initialOffset: 3,
+      intent: 0,
+      layer: "air",
+      liftPotential: 1,
+      powered: true,
+      stamina: 100,
+      terrainElevation: 0
+    });
+    for (let index = 0; index < 30; index += 1) writeWildsVerticalTraversalStep(belowCeiling, {
+      ceilingY: 5,
+      deltaSeconds: .1,
+      intent: 0,
+      layer: "air",
+      liftPotential: 1,
+      powered: true,
+      stamina: 100,
+      terrainElevation: 0
+    });
+    assert.equal(belowCeiling.safeMax, 3);
+    assert.equal(belowCeiling.safeMin, 3);
+    assert.equal(belowCeiling.offset, 3);
+    assert.ok(belowCeiling.worldY + WILDS_PLAYER_BODY_HEIGHT < 5);
+
+    const alreadyAbove = createWildsVerticalTraversalState();
+    writeWildsVerticalTraversalStep(alreadyAbove, {
+      deltaSeconds: 0,
+      initialOffset: 8,
+      intent: 0,
+      layer: "air",
+      liftPotential: 1,
+      powered: true,
+      stamina: 100,
+      terrainElevation: 0
+    });
+    writeWildsVerticalTraversalStep(alreadyAbove, {
+      ceilingY: 7,
+      deltaSeconds: .1,
+      intent: 0,
+      layer: "air",
+      liftPotential: 1,
+      powered: true,
+      stamina: 100,
+      terrainElevation: 0
+    });
+    assert.equal(alreadyAbove.offset, 8);
+    assert.equal(alreadyAbove.safeMin, 8);
+    assert.equal(alreadyAbove.safeMax, 8);
   });
 
   it("allows an already-clear legitimate air start to keep ascending above canopy", () => {
