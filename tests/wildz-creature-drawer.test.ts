@@ -6,7 +6,7 @@ import {
   creatureDrawerMode,
   creatureRailOffsetForIndex,
   creatureRailRenderWindow,
-  creatureRailVirtualPadding,
+  creatureRailSlots,
   drawerHapticPattern,
   settleCreatureDrawer
 } from "../src/features/play/creature-drawer";
@@ -63,25 +63,21 @@ test("book windows remain valid for empty and out-of-range collections", () => {
   assert.deepEqual(window.visible, cards);
 });
 
-test("single-row drawer rail keeps the final card reachable with end breathing room", () => {
-  assert.deepEqual(creatureRailVirtualPadding(100, 92, 100, 184, 24), {
-    paddingInlineStart: "16928px",
-    paddingInlineEnd: "24px"
-  });
-  assert.deepEqual(creatureRailVirtualPadding(100, 0, 8, 184, 24), {
-    paddingInlineStart: "0px",
-    paddingInlineEnd: "16952px"
-  });
-  assert.deepEqual(creatureRailVirtualPadding(1, 0, 1, 184, 24), {
-    paddingInlineStart: "0px",
-    paddingInlineEnd: "24px"
-  });
-});
-
 test("large single-row Slate uses the complete card-and-gap stride", () => {
   assert.equal(creatureRailOffsetForIndex(14, 184, 8), 2_688);
   assert.deepEqual(creatureRailRenderWindow(17, 2_688, 320, 184, 8), {
     start: 10,
     end: 17
   });
+});
+
+test("large single-row Slate keeps every native snap slot mounted", () => {
+  const cards = Array.from({ length: 100 }, (_, index) => `card-${index}`);
+  const slots = creatureRailSlots(cards, 40, 52, 70);
+
+  assert.equal(slots.length, 100);
+  assert.deepEqual(slots.map((slot) => slot.index), Array.from({ length: 100 }, (_, index) => index));
+  assert.deepEqual(slots.filter((slot) => slot.renderContent).map((slot) => slot.index), [
+    40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 70
+  ]);
 });

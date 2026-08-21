@@ -118,7 +118,8 @@ test("development browser fixture renders the real drawer with a non-first activ
   assert.match(fixture, /sealCollectedCard/);
   assert.match(fixture, /initialFixtureAssetId = fixtureAssets\[2\]!\.id/);
   assert.match(fixture, /selection-count/);
-  assert.match(fixture, /data-expected-active-index="14"/);
+  assert.match(fixture, /length: 100/);
+  assert.match(fixture, /data-expected-active-index="97"/);
   assert.match(fixture, /previousSnapRef/);
   assert.match(fixture, /originRef\.current\?\.focus\(\)/);
 });

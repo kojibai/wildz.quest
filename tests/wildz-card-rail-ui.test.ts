@@ -15,7 +15,7 @@ test("the active creature selector uses a bounded memoized drawer with roster so
   assert.match(controls, /<WildzCreatureDrawer/);
   assert.match(drawer, /memo\(function WildzCreatureDrawer/);
   assert.match(drawer, /sortWildzCards\(entries\.map\(\(entry\) => entry\.asset\), cardOrder\)/);
-  assert.match(drawer, /sortedEntries\.slice\(range\.start, range\.end\)/);
+  assert.match(drawer, /creatureRailSlots\(sortedEntries, range\.start, range\.end, activeIndex\)/);
   assert.doesNotMatch(drawer, /nearbyCards/);
   assert.match(drawer, /aria-label="Sort creature selector"/);
   assert.match(drawer, /<option value="rarity">Rarity<\/option>/);
@@ -57,8 +57,8 @@ test("automatic scrolling replaces manual creature page controls", () => {
   assert.match(drawer, /scrollLeft/);
   assert.match(drawer, /mode === "preview"/);
   assert.match(drawer, /mode === "expanded"/);
-  assert.match(drawer, /aria-posinset=\{logicalPosition\}/);
-  assert.match(drawer, /aria-setsize=\{total\}/);
+  assert.match(drawer, /aria-posinset=\{logicalIndex \+ 1\}/);
+  assert.match(drawer, /aria-setsize=\{sortedEntries\.length\}/);
   assert.doesNotMatch(drawer, /Previous card rail page|Next card rail page/);
 });
 
@@ -93,12 +93,13 @@ test("loaded 100-card preview rail coalesces scroll updates without render feedb
   assert.match(css, /\.wildz-creature-window\s*\{[^}]*touch-action:\s*pan-x/s);
 });
 
-test("the single-row rail is scroll-ready before opening and clears the final creature", () => {
+test("the single-row rail keeps native snap slots stable and clears the final creature", () => {
   const drawer = drawerSource();
   const css = readFileSync("app/globals.css", "utf8");
 
-  assert.match(drawer, /const windowStyle = mode !== "expanded"/);
-  assert.match(drawer, /creatureRailVirtualPadding\(sortedEntries\.length, range\.start, range\.end, RAIL_CARD_STRIDE, 0\)/);
+  assert.match(drawer, /railSlots\.map\(\(slot\) => renderChoiceShell\(slot\.item, slot\.index, slot\.renderContent\)\)/);
+  assert.match(drawer, /aria-hidden=\{renderContent \? undefined : true\}/);
+  assert.doesNotMatch(drawer, /creatureRailVirtualPadding|windowStyle/);
   assert.match(drawer, /target\.focus\(\{ preventScroll: true \}\)/);
   assert.match(drawer, /className="wildz-creature-window-end"/);
   assert.match(css, /\.wildz-creature-window-end\s*\{[^}]*flex:\s*0 0 40px/s);

@@ -8,7 +8,7 @@ import {
   creatureDrawerMetrics,
   creatureRailOffsetForIndex,
   creatureRailRenderWindow,
-  creatureRailVirtualPadding,
+  creatureRailSlots,
   drawerHapticPattern,
   settleCreatureDrawer,
   type CreatureDrawerSnap
@@ -21,7 +21,6 @@ import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 
 const RAIL_CARD_WIDTH = 184;
 const RAIL_CARD_GAP = 8;
-const RAIL_CARD_STRIDE = RAIL_CARD_WIDTH + RAIL_CARD_GAP;
 const RAIL_END_GUTTER = 40;
 
 function useStableEvent<Arguments extends unknown[]>(handler: (...args: Arguments) => void) {
@@ -34,25 +33,14 @@ function useStableEvent<Arguments extends unknown[]>(handler: (...args: Argument
 
 const CreatureChoice = memo(function CreatureChoice({
   entry,
-  logicalPosition,
-  total,
   selectAndClose,
   buttonRef
 }: {
   entry: VaultCompanionRosterEntry;
-  logicalPosition: number;
-  total: number;
   selectAndClose: (assetId: string) => void;
   buttonRef: (element: HTMLButtonElement | null) => void;
 }) {
-  return <article
-    aria-posinset={logicalPosition}
-    aria-setsize={total}
-    className="wildz-creature-choice-shell"
-    data-wildz-card-id={entry.asset.id}
-    role="listitem"
-  >
-    <button
+  return <button
       aria-label={`${entry.name}, level ${entry.level}, ${entry.xp} XP, bond ${entry.bond}, ${entry.conditionLabel}${entry.active ? ", active" : ""}${entry.newlyCaptured ? ", new" : ""}`}
       aria-pressed={entry.active}
       className="wildz-creature-choice"
@@ -70,8 +58,7 @@ const CreatureChoice = memo(function CreatureChoice({
       </span>
       {entry.newlyCaptured ? <span className="wildz-creature-new">New</span> : null}
       {entry.active ? <span className="wildz-creature-choice-active">Active</span> : null}
-    </button>
-  </article>;
+    </button>;
 });
 
 export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
@@ -314,19 +301,25 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
     }
   };
 
-  const renderChoice = (entry: VaultCompanionRosterEntry, logicalIndex: number) => <CreatureChoice
+  const renderChoice = (entry: VaultCompanionRosterEntry) => <CreatureChoice
     buttonRef={(element) => registerEntryButton(entry.asset.id, element)}
     entry={entry}
-    key={entry.asset.id}
-    logicalPosition={logicalIndex + 1}
     selectAndClose={selectAndClose}
-    total={sortedEntries.length}
   />;
 
-  const windowedEntries = sortedEntries.slice(range.start, range.end);
-  const windowStyle = mode !== "expanded"
-    ? creatureRailVirtualPadding(sortedEntries.length, range.start, range.end, RAIL_CARD_STRIDE, 0)
-    : undefined;
+  const renderChoiceShell = (entry: VaultCompanionRosterEntry, logicalIndex: number, renderContent = true) => <article
+    aria-hidden={renderContent ? undefined : true}
+    aria-posinset={logicalIndex + 1}
+    aria-setsize={sortedEntries.length}
+    className="wildz-creature-choice-shell"
+    data-wildz-card-id={entry.asset.id}
+    key={entry.asset.id}
+    role="listitem"
+  >
+    {renderContent ? renderChoice(entry) : null}
+  </article>;
+
+  const railSlots = creatureRailSlots(sortedEntries, range.start, range.end, activeIndex);
 
   return <section
     aria-label="Active creature selector"
@@ -386,7 +379,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
           const withinWindow = page >= bookWindow.windowStartPage && page < bookWindow.windowEndPage;
           const start = page * bookWindow.pageSize;
           return <div className="wildz-creature-spread" key={page} role="list">
-            {withinWindow ? sortedEntries.slice(start, start + bookWindow.pageSize).map((entry, index) => renderChoice(entry, start + index)) : null}
+            {withinWindow ? sortedEntries.slice(start, start + bookWindow.pageSize).map((entry, index) => renderChoiceShell(entry, start + index)) : null}
           </div>;
         })}
       </div> : <div
@@ -395,9 +388,8 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
         onScroll={updateVirtualRange}
         ref={railRef}
         role="list"
-        style={windowStyle}
       >
-        {windowedEntries.map((entry, index) => renderChoice(entry, range.start + index))}
+        {railSlots.map((slot) => renderChoiceShell(slot.item, slot.index, slot.renderContent))}
         {sortedEntries.length ? <span aria-hidden="true" className="wildz-creature-window-end" style={{ flexBasis: RAIL_END_GUTTER }} /> : null}
         {!sortedEntries.length ? <p className="wildz-card-rail-empty">No living companions in the Vault yet.</p> : null}
       </div>}

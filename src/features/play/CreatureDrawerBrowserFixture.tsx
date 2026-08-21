@@ -8,11 +8,11 @@ import { sealCollectedCard } from "./portable-card";
 import type { VaultCompanionRosterEntry } from "./vault-companion-roster";
 import { initialWorldOverlayState, reduceWorldOverlay, type WorldOverlayOwner } from "./world-overlay-state";
 
-const fixtureAssets = Array.from({ length: 17 }, (_, index) => sealCollectedCard({
+const fixtureAssets = Array.from({ length: 100 }, (_, index) => sealCollectedCard({
   formId: "mintcub-1",
   ownerReceizId: "browser.fixture",
   encounterId: `drawer-fixture-${index}`,
-  capturedAt: `2026-08-11T14:30:${String(index).padStart(2, "0")}.000Z`
+  capturedAt: new Date(Date.UTC(2026, 7, 11, 14, 30, index)).toISOString()
 }));
 const initialFixtureAssetId = fixtureAssets[2]!.id;
 
@@ -53,7 +53,7 @@ export function CreatureDrawerBrowserFixture() {
       type="button"
     >Open fixture Slate</button>
     <button onClick={() => setSnap("closed")} type="button">Controlled close fixture Slate</button>
-    <output data-active-id={selectedAssetId} data-expected-active-index="14" data-selection-count={selectionCount} id="selection-count">
+    <output data-active-id={selectedAssetId} data-expected-active-index="97" data-selection-count={selectionCount} id="selection-count">
       {selectionCount}:{selectedAssetId}
     </output>
     <WildzCreatureDrawer

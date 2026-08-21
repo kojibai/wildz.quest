@@ -48,24 +48,6 @@ export function drawerHapticPattern(previous: CreatureDrawerSnap, next: Creature
   return next === "expanded" ? [9, 28, 14] : [9];
 }
 
-export function creatureRailVirtualPadding(
-  totalItems: number,
-  start: number,
-  end: number,
-  itemExtent: number,
-  endGutter = 24
-) {
-  const safeTotal = Math.max(0, Math.trunc(Number.isFinite(totalItems) ? totalItems : 0));
-  const safeStart = clamp(Math.trunc(Number.isFinite(start) ? start : 0), 0, safeTotal);
-  const safeEnd = clamp(Math.trunc(Number.isFinite(end) ? end : safeStart), safeStart, safeTotal);
-  const safeExtent = Math.max(0, Number.isFinite(itemExtent) ? itemExtent : 0);
-  const safeGutter = Math.max(0, Number.isFinite(endGutter) ? endGutter : 0);
-  return {
-    paddingInlineStart: `${safeStart * safeExtent}px`,
-    paddingInlineEnd: `${Math.max(0, safeTotal - safeEnd) * safeExtent + (safeTotal > 0 ? safeGutter : 0)}px`
-  };
-}
-
 export function creatureRailOffsetForIndex(index: number, itemWidth: number, gap: number) {
   const safeIndex = Math.max(0, Math.trunc(Number.isFinite(index) ? index : 0));
   const safeWidth = Math.max(0, Number.isFinite(itemWidth) ? itemWidth : 0);
@@ -85,6 +67,22 @@ export function creatureRailRenderWindow(
   const start = Math.max(0, Math.floor(Math.max(0, scrollLeft) / stride) - 4);
   const count = Math.ceil(Math.max(0, viewportWidth) / stride) + 10;
   return { start, end: Math.min(safeTotal, start + count) };
+}
+
+export function creatureRailSlots<Item>(
+  items: readonly Item[],
+  start: number,
+  end: number,
+  activeIndex: number
+) {
+  const safeStart = clamp(Math.trunc(Number.isFinite(start) ? start : 0), 0, items.length);
+  const safeEnd = clamp(Math.trunc(Number.isFinite(end) ? end : safeStart), safeStart, items.length);
+  const safeActive = Number.isFinite(activeIndex) ? Math.trunc(activeIndex) : -1;
+  return items.map((item, index) => ({
+    item,
+    index,
+    renderContent: (index >= safeStart && index < safeEnd) || index === safeActive
+  }));
 }
 
 export type CreatureBookWindow<Item> = {
