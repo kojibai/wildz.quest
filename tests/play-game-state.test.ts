@@ -19,6 +19,11 @@ import { createWildsCivicEvent } from "../src/features/play/wilds-civic-history.
 import { sealRetirement } from "../src/features/games/lifecycle/creature-retirement.js";
 import { deriveKaiKlokMoment } from "../src/features/play/kai-klok-moment.js";
 import { wildsTerrainObstaclesForTile } from "../src/features/play/wilds-terrain-obstacles.js";
+import { authorizeRiftTravel } from "../src/features/play/wilds-rift-travel.js";
+import {
+  revealWildsExplorationAt,
+  wildsExplorationContainsWorld
+} from "../src/features/play/wilds-exploration-atlas.js";
 
 function activeTravelState(): PlayState {
   const capturedAt = "2026-07-13T11:00:00.000Z";
@@ -39,6 +44,41 @@ function activeTravelState(): PlayState {
 }
 
 describe("Receiz Wilds game state", () => {
+  it("reveals exploration only when admitted movement enters a new sight area", () => {
+    const player = { x: 245, z: -1433 };
+    const migrated = {
+      ...initialPlayState,
+      player,
+      explorationAtlas: revealWildsExplorationAt(initialPlayState.explorationAtlas, player)
+    };
+    const inside = applyWildsInput(migrated, { type: "move-vector", x: 0.1, z: 0 });
+    assert.equal(inside.explorationAtlas, migrated.explorationAtlas);
+
+    const edge = { ...migrated, player: { x: 287.9, z: -1433 } };
+    const crossed = applyWildsInput(edge, { type: "move-vector", x: 1, z: 0 });
+    assert.notEqual(crossed.explorationAtlas, edge.explorationAtlas);
+    assert.equal(wildsExplorationContainsWorld(crossed.explorationAtlas, crossed.player), true);
+  });
+
+  it("an admitted Rift reveals destination sight without painting its corridor", () => {
+    const destination = { x: 4_800, z: -9_600 };
+    const result = authorizeRiftTravel({
+      idempotencyKey: "rift-exploration-test",
+      source: initialPlayState.player,
+      destination
+    }, { playerId: "player-1", coordinationPulse: "42", locked: false });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+
+    const next = applyWildsInput(initialPlayState, {
+      type: "apply-rift-grant",
+      grant: result.grant,
+      playerId: "player-1"
+    });
+    assert.equal(wildsExplorationContainsWorld(next.explorationAtlas, destination), true);
+    assert.equal(wildsExplorationContainsWorld(next.explorationAtlas, { x: 2_400, z: -4_800 }), false);
+  });
+
   it("promotes a living Vault card when the selected Mortal Arena card is retired", () => {
     const retiredBase = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "wilds.player.receiz.id", encounterId: "retired-only", capturedAt: "2026-07-18T10:00:00.000Z" });
     const admitted = admitLegacyCard(retiredBase, "2026-07-18T10:00:00.000Z");

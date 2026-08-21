@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createOwnerBoundInitialPlayState } from "../src/features/play/game-state.js";
+import { applyWildsInput, createOwnerBoundInitialPlayState } from "../src/features/play/game-state.js";
 import {
   readWildzRuntimeCheckpoint,
   writeWildzRuntimeCheckpoint
@@ -16,7 +16,11 @@ class MemoryStorage implements Pick<Storage, "getItem" | "setItem" | "removeItem
 test("runtime checkpoints persist gameplay without serializing verified Vault cards", () => {
   const storage = new MemoryStorage();
   const base = createOwnerBoundInitialPlayState("runtime_keeper");
-  const moved = { ...base, player: { x: 18, z: -7 }, energy: 63 };
+  const moved = applyWildsInput({ ...base, player: { x: 239.9, z: -1433 }, energy: 64 }, {
+    type: "move-vector",
+    x: 1,
+    z: 0
+  });
 
   writeWildzRuntimeCheckpoint(storage, {
     keyId: "runtime-key",
@@ -34,9 +38,10 @@ test("runtime checkpoints persist gameplay without serializing verified Vault ca
     actorId: "runtime_keeper",
     playState: base
   });
-  assert.deepEqual(restored.player, { x: 18, z: -7 });
+  assert.deepEqual(restored.player, moved.player);
   assert.equal(restored.energy, 63);
   assert.equal(restored.inventory, base.inventory);
+  assert.deepEqual(restored.explorationAtlas, moved.explorationAtlas);
 });
 
 test("a runtime checkpoint cannot attach to a changed Vault", () => {

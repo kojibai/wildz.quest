@@ -35,6 +35,13 @@ import { worldMasteryAward, type WorldMasteryVerb } from "./world-progression";
 import { validateRiftGrant, type RiftTravelGrant } from "./wilds-rift-travel";
 import { movementScale, type WildsMovementMode } from "./wilds-movement";
 import { resolveWildsGroundMovement } from "./wilds-grounded-movement";
+import { regionForPosition } from "./multiplayer-core";
+import {
+  createInitialWildsExplorationAtlas,
+  normalizeWildsExplorationAtlas,
+  revealWildsExplorationAt,
+  type WildsExplorationAtlas
+} from "./wilds-exploration-atlas";
 import {
   projectWildsTraversalCapabilities,
   type WildsTraversalCapability
@@ -162,6 +169,7 @@ export type PlayState = {
     x: number;
     z: number;
   };
+  explorationAtlas: WildsExplorationAtlas;
   pendingSyncAssetIds: string[];
   pendingTravelGrowthEvents: Array<{ assetId: string; event: GrowthEvent }>;
   appliedArenaSettlementIds: string[];
@@ -342,6 +350,7 @@ export const initialPlayState: PlayState = {
     x: -2.15,
     z: -0.85
   },
+  explorationAtlas: createInitialWildsExplorationAtlas(),
   pendingSyncAssetIds: [],
   pendingTravelGrowthEvents: [],
   appliedArenaSettlementIds: [],
@@ -577,6 +586,7 @@ export function restorePlayState(value: string | null | undefined, ownerReceizId
         x: clamp(saved.player.x, worldBounds.min, worldBounds.max),
         z: clamp(saved.player.z, worldBounds.min, worldBounds.max)
       },
+      explorationAtlas: normalizeWildsExplorationAtlas(saved.explorationAtlas, saved.player),
       discoveredCardIds,
       inventory: migratedInventory,
       selectedAssetId: restoredSelectedAssetId,
@@ -1723,10 +1733,12 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
 
   if (input.type === "apply-rift-grant") {
     if (!validateRiftGrant(input.grant, { playerId: input.playerId }).ok) return state;
+    const player = { ...input.grant.destination };
     return {
       ...state,
       activeAction: "explore",
-      player: { ...input.grant.destination },
+      player,
+      explorationAtlas: revealWildsExplorationAt(state.explorationAtlas, player),
       lastEvent: "Rift complete. Walk the surrounding world to reach the landmark entrance."
     };
   }
@@ -1751,6 +1763,11 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       ? movePlayer(state.player, input.direction, movementCapabilities, admittedAirborne ? input.aerialMode : undefined)
       : movePlayerVector(state.player, input.x, input.z, movementScale(input.mode ?? "walk"), movementCapabilities, admittedAirborne ? input.aerialMode : undefined);
     const nextPlayer = movement.position;
+    const previousRegion = regionForPosition(state.player);
+    const nextRegion = regionForPosition(nextPlayer);
+    const explorationAtlas = previousRegion.x === nextRegion.x && previousRegion.z === nextRegion.z
+      ? state.explorationAtlas
+      : revealWildsExplorationAt(state.explorationAtlas, nextPlayer);
     const nearest = nearestCreature({ player: nextPlayer });
     const nearbyText = movement.traversalBlockedBy === "swim"
       ? "Deep water ahead. Lead with an aquatic creature to swim."
@@ -1770,6 +1787,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       ...state,
       activeAction: "explore",
       energy: Math.max(0, state.energy - 1),
+      explorationAtlas,
       lastEvent: nearbyText,
       player: nextPlayer
     };

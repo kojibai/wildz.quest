@@ -34,6 +34,7 @@ import { createWildzPendingVaultRepository } from "../src/lib/receiz/wildz-pendi
 import { verifyProofSealedWildzVault } from "../src/lib/receiz/wildz-proof-sealed-vault";
 import { createWildzVaultLoginCoordinator } from "../src/lib/receiz/wildz-vault-login-coordinator";
 import { createMemoryWildzContinuityDatabase } from "./support/memory-wildz-continuity-database";
+import { revealWildsExplorationAt } from "../src/features/play/wilds-exploration-atlas";
 
 const BASE_PNG = Uint8Array.from(Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
@@ -92,6 +93,7 @@ function playerWith(assets: readonly PortableCardAsset[], owner = "proof_keeper.
     empty
   );
   playState.worldMastery = assets.length;
+  playState.explorationAtlas = revealWildsExplorationAt(playState.explorationAtlas, { x: 245, z: -1433 });
   return createWildsPlayerVault({
     playerId: owner,
     exportedAt,
@@ -234,6 +236,7 @@ test("SDK v102 proof objects recover the owner-bound player and all 98 cards onl
   if (inspected.kind !== "card-vault") return;
   assert.equal(inspected.assets.length, 98);
   assert.equal(inspected.player?.payloadDigest, value.player.payloadDigest);
+  assert.deepEqual(inspected.player?.playState.explorationAtlas, value.player.playState.explorationAtlas);
   assert.equal(inspected.playerBinding, "artifact-v4-required");
   assert.equal(inspected.proofObject?.ownerReceizId, "proof_keeper.receiz.id");
   assert.equal(inspected.proofObject?.artifactBasisSha256, value.artifactBasisSha256);
