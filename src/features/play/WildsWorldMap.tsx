@@ -62,6 +62,8 @@ export function WildsWorldMap({
   onRift: (destination: { x: number; z: number }) => void | Promise<void>;
 }) {
   const [zoom, setZoom] = useState<WildsAtlasZoom>("world");
+  const [recenterRequest, setRecenterRequest] = useState(0);
+  const [fitRequest, setFitRequest] = useState(0);
   const [atlasPresence, setAtlasPresence] = useState<{
     loaded: boolean;
     players: WildsAtlasExactPlayer[];
@@ -187,6 +189,8 @@ export function WildsWorldMap({
             }}
             projection={projection}
             qualityProfile={qualityProfile}
+            recenterRequest={recenterRequest}
+            fitRequest={fitRequest}
             reducedMotion={reducedMotion}
             selectedDrop={null}
             selectedId={null}
@@ -197,6 +201,27 @@ export function WildsWorldMap({
                 {level}
               </button>
             ))}
+          </div>
+          <div aria-label="Atlas navigation" className="wilds-atlas-navigation" role="group">
+            <button
+              aria-label="Center map on your current location"
+              onClick={() => setRecenterRequest((value) => value + 1)}
+              type="button"
+            >
+              <Icons.home aria-hidden="true" size={16} />
+              You
+            </button>
+            <button
+              aria-label="Fit all discovered territory"
+              onClick={() => {
+                setZoom("world");
+                setFitRequest((value) => value + 1);
+              }}
+              type="button"
+            >
+              <Icons.map aria-hidden="true" size={16} />
+              Fit
+            </button>
           </div>
           <div className="wilds-atlas-current" aria-label={`Current position X ${Math.round(currentPosition.x)}, Z ${Math.round(currentPosition.z)}`}>
             <Icons.home aria-hidden="true" size={15} />

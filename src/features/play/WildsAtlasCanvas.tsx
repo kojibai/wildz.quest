@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, type ComponentRef } from "react";
 import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
-import { Html, OrbitControls, Sparkles } from "@react-three/drei";
+import { Html, MapControls, Sparkles } from "@react-three/drei";
 import * as THREE from "three";
 import { WILDS_REGION_SIZE } from "./multiplayer-core";
 import type { WildsAtlasProjection } from "./wilds-world-atlas";
@@ -18,6 +18,7 @@ import {
   wildsAtlasProjectedSpan,
   type WildsAtlasRenderTile
 } from "./wilds-atlas-render-tiles";
+import { atlasCameraFrame, translateWildsAtlasCamera } from "./wilds-atlas-camera";
 
 const PHI = (1 + Math.sqrt(5)) / 2;
 const GOLDEN_ANGLE = Math.PI * 2 / (PHI * PHI);
@@ -52,6 +53,8 @@ export function WildsAtlasCanvas({
   qualityProfile,
   selectedId,
   selectedDrop,
+  recenterRequest,
+  fitRequest,
   reducedMotion,
   onSelect,
   onDrop
@@ -61,12 +64,15 @@ export function WildsAtlasCanvas({
   qualityProfile: WildsQualityProfile;
   selectedId: string | null;
   selectedDrop: { x: number; z: number } | null;
+  recenterRequest: number;
+  fitRequest: number;
   reducedMotion: boolean;
   onSelect: (landmarkId: string) => void;
   onDrop: (position: { x: number; z: number }) => void;
 }) {
   const atlasSparkleCount = reducedMotion ? 12 : Math.round(38 * qualityProfile.particles);
   const atlasSpan = wildsAtlasProjectedSpan(projection.nodes, projection.regionUnit);
+  const viewBounds = projectedNodeBounds(projection);
   const fogFar = Math.max(29, Math.min(72, atlasSpan * 1.8 + 18));
   return (
     <div aria-hidden="true" className="wilds-atlas-canvas">
@@ -84,7 +90,6 @@ export function WildsAtlasCanvas({
       >
         <color attach="background" args={["#061820"]} />
         <fog attach="fog" args={["#061820", Math.max(12, fogFar * .38), fogFar]} />
-        <AtlasCameraFraming atlasSpan={atlasSpan} fogFar={fogFar} />
         <ambientLight intensity={1.12} />
         <hemisphereLight color="#bffff0" groundColor="#071719" intensity={1.08} />
         <directionalLight color="#fff2a8" intensity={2.35} position={[4, 10, 3]} />
@@ -109,36 +114,127 @@ export function WildsAtlasCanvas({
           size={1.5}
           speed={reducedMotion ? 0 : 0.2}
         />
-        <OrbitControls
-          dampingFactor={0.08}
-          enableDamping={!reducedMotion}
-          enablePan
-          maxDistance={Math.max(19, Math.min(48, atlasSpan * 2))}
-          maxPolarAngle={Math.PI / 2.25}
-          minDistance={6.8}
-          minPolarAngle={0.35}
-          panSpeed={0.65}
-          rotateSpeed={0.55}
-          target={[0, 0, 0]}
-          zoomSpeed={0.75}
+        <AtlasCameraRig
+          bounds={viewBounds}
+          centerRegion={projection.centerRegion}
+          currentPosition={currentPosition}
+          far={fogFar}
+          fitRequest={fitRequest}
+          recenterRequest={recenterRequest}
+          reducedMotion={reducedMotion}
+          regionUnit={projection.regionUnit}
+          zoom={projection.zoom}
         />
       </Canvas>
     </div>
   );
 }
 
-function AtlasCameraFraming({ atlasSpan, fogFar }: { atlasSpan: number; fogFar: number }) {
-  const { camera, size } = useThree();
+function projectedNodeBounds(projection: WildsAtlasProjection): WildsAtlasProjection["bounds"] {
+  if (projection.nodes.length === 0) return projection.bounds;
+  return {
+    minX: Math.min(...projection.nodes.map((node) => node.regionX)),
+    maxX: Math.max(...projection.nodes.map((node) => node.regionX)),
+    minZ: Math.min(...projection.nodes.map((node) => node.regionZ)),
+    maxZ: Math.max(...projection.nodes.map((node) => node.regionZ)),
+    count: projection.nodes.length
+  };
+}
+
+function AtlasCameraRig({
+  bounds,
+  centerRegion,
+  currentPosition,
+  far,
+  fitRequest,
+  recenterRequest,
+  reducedMotion,
+  regionUnit,
+  zoom
+}: {
+  bounds: WildsAtlasProjection["bounds"];
+  centerRegion: WildsAtlasProjection["centerRegion"];
+  currentPosition: { x: number; z: number };
+  far: number;
+  fitRequest: number;
+  recenterRequest: number;
+  reducedMotion: boolean;
+  regionUnit: number;
+  zoom: WildsAtlasProjection["zoom"];
+}) {
+  const controls = useRef<ComponentRef<typeof MapControls>>(null);
+  const lastRecenterRequest = useRef(recenterRequest);
+  const lastFitRequest = useRef(fitRequest);
+  const lastZoom = useRef<WildsAtlasProjection["zoom"] | null>(null);
+  const { camera, invalidate, size } = useThree();
+  const frame = useMemo(() => atlasCameraFrame({ bounds, centerRegion, regionUnit }, size), [
+    bounds.maxX,
+    bounds.maxZ,
+    bounds.minX,
+    bounds.minZ,
+    centerRegion.x,
+    centerRegion.z,
+    regionUnit,
+    size.height,
+    size.width
+  ]);
   useLayoutEffect(() => {
     if (!(camera instanceof THREE.PerspectiveCamera)) return;
-    const portrait = size.height > size.width * 1.25;
-    const distance = Math.max(9.6, Math.min(28, atlasSpan * (portrait ? 1.18 : .92)));
-    camera.fov = portrait ? 53 : 40;
-    camera.far = Math.max(80, fogFar * 1.6);
-    camera.position.set(0, distance * (portrait ? .82 : .72), distance);
+    camera.fov = frame.fov;
+    camera.far = Math.max(frame.far, far * 1.6);
     camera.updateProjectionMatrix();
-  }, [atlasSpan, camera, fogFar, size.height, size.width]);
-  return null;
+    invalidate();
+  }, [camera, far, frame.far, frame.fov, invalidate]);
+  useLayoutEffect(() => {
+    if (!(camera instanceof THREE.PerspectiveCamera) || !controls.current) return;
+    const shouldFit = lastZoom.current === null || lastZoom.current !== zoom || lastFitRequest.current !== fitRequest;
+    lastZoom.current = zoom;
+    lastFitRequest.current = fitRequest;
+    if (!shouldFit) return;
+    camera.position.set(...frame.position);
+    controls.current.target.set(...frame.target);
+    controls.current.update();
+    invalidate();
+  }, [camera, fitRequest, frame.position, frame.target, invalidate, zoom]);
+  useLayoutEffect(() => {
+    if (!(camera instanceof THREE.PerspectiveCamera) || !controls.current) return;
+    if (lastRecenterRequest.current === recenterRequest) return;
+    lastRecenterRequest.current = recenterRequest;
+    const nextTarget = Object.freeze([
+      atlasLocalCoordinate(currentPosition.x, centerRegion.x, regionUnit),
+      0,
+      atlasLocalCoordinate(currentPosition.z, centerRegion.z, regionUnit)
+    ]) as readonly [number, number, number];
+    const translated = translateWildsAtlasCamera({
+      position: [camera.position.x, camera.position.y, camera.position.z],
+      target: [controls.current.target.x, controls.current.target.y, controls.current.target.z],
+      nextTarget
+    });
+    camera.position.set(...translated.position);
+    controls.current.target.set(...translated.target);
+    controls.current.update();
+    invalidate();
+  }, [camera, centerRegion.x, centerRegion.z, currentPosition.x, currentPosition.z, invalidate, recenterRequest, regionUnit]);
+  return <MapControls
+    dampingFactor={0.08}
+    enableDamping={!reducedMotion}
+    enablePan
+    enableRotate
+    makeDefault
+    maxDistance={frame.maxDistance}
+    maxPolarAngle={Math.PI / 2.25}
+    minDistance={frame.minDistance}
+    minPolarAngle={0.35}
+    mouseButtons={{ LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }}
+    onChange={() => invalidate()}
+    panSpeed={0.72}
+    ref={controls}
+    rotateSpeed={0.5}
+    screenSpacePanning={false}
+    touches={{ ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE }}
+    zoomSpeed={0.82}
+    zoomToCursor
+  />;
 }
 
 function TrainerLights({ projection }: { projection: WildsAtlasProjection }) {

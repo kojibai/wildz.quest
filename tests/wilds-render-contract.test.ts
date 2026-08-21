@@ -30,7 +30,11 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(map, /event\.key === "Escape"/);
     assert.match(map, /previousFocus/);
     assert.match(canvas, /<Canvas/);
-    assert.match(canvas, /OrbitControls/);
+    assert.match(canvas, /MapControls/);
+    assert.match(canvas, /mouseButtons=\{\{[^}]*LEFT:\s*THREE\.MOUSE\.PAN/);
+    assert.match(canvas, /touches=\{\{[^}]*ONE:\s*THREE\.TOUCH\.PAN/);
+    assert.doesNotMatch(canvas, /<OrbitControls/);
+    assert.doesNotMatch(canvas, /minPan|maxPan|clamp.*target|target.*clamp/);
     assert.match(canvas, /maxDistance/);
     assert.match(canvas, /qualityProfile\.dpr/);
     assert.match(canvas, /instancedMesh/);
@@ -39,6 +43,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(map, /refreshGeneration/);
     assert.match(map, /const staticProjection = useMemo/);
     assert.match(map, /players:\s*\[\]/);
+    assert.match(map, /aria-label="Center map on your current location"/);
+    assert.match(map, /aria-label="Fit all discovered territory"/);
     assert.match(canvas, /projection\.regionUnit/);
     assert.match(canvas, /buildWildsAtlasRenderTiles/);
     assert.match(canvas, /clipWildsAtlasRouteSegments/);
