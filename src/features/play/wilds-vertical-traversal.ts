@@ -4,6 +4,7 @@ export type WildsVerticalTraversalIntent = -1 | 0 | 1;
 export type WildsVerticalTraversalState = {
   layer: WildsVerticalTraversalLayer;
   offset: number;
+  worldY: number;
   intent: WildsVerticalTraversalIntent;
   safeMin: number;
   safeMax: number;
@@ -39,12 +40,13 @@ function quantize(value: number) {
 }
 
 export function createWildsVerticalTraversalState(): WildsVerticalTraversalState {
-  return { layer: "ground", offset: 0, intent: 0, safeMin: 0, safeMax: 0 };
+  return { layer: "ground", offset: 0, worldY: 0, intent: 0, safeMin: 0, safeMax: 0 };
 }
 
 export function resetWildsVerticalTraversalState(state: WildsVerticalTraversalState) {
   state.layer = "ground";
   state.offset = 0;
+  state.worldY = 0;
   state.intent = 0;
   state.safeMin = 0;
   state.safeMax = 0;
@@ -64,7 +66,11 @@ export function writeWildsVerticalTraversalStep(
   state.layer = input.layer;
   state.intent = input.intent;
 
-  if (input.layer === "ground") return resetWildsVerticalTraversalState(state);
+  if (input.layer === "ground") {
+    resetWildsVerticalTraversalState(state);
+    state.worldY = quantize(input.terrainElevation);
+    return state;
+  }
 
   if (input.layer === "water") {
     if (!Number.isFinite(input.waterSurfaceY)) throw new Error("wilds_vertical_waterline_invalid");
@@ -75,15 +81,19 @@ export function writeWildsVerticalTraversalStep(
     state.safeMax = quantize(Math.max(state.safeMin, column - WATER_SURFACE_CLEARANCE));
     if (priorLayer !== "water") {
       state.offset = quantize(bounded(input.initialOffset ?? state.safeMax, state.safeMin, state.safeMax));
+    } else {
+      state.offset = quantize(bounded(state.worldY - input.terrainElevation, state.safeMin, state.safeMax));
     }
     const exhausted = input.stamina <= 0;
     const direction = exhausted ? 1 : input.intent;
     const speed = direction > 0 ? 1.35 : .9 + pressure * .85;
     state.offset = quantize(bounded(state.offset + direction * speed * delta, state.safeMin, state.safeMax));
+    state.worldY = quantize(input.terrainElevation + state.offset);
     return state;
   }
 
   const lift = bounded(input.liftPotential ?? 0, 0, 1);
+  if (priorLayer === "air") state.offset = quantize(state.worldY - input.terrainElevation);
   const obstacleFloor = Number.isFinite(input.obstacleTopY)
     ? input.obstacleTopY! - input.terrainElevation + AIR_OBSTACLE_CLEARANCE
     : AIR_GROUND_CLEARANCE;
@@ -96,10 +106,13 @@ export function writeWildsVerticalTraversalStep(
   state.safeMax = quantize(Math.max(state.safeMin, Math.min(liftCeiling, physicalCeiling)));
   if (priorLayer !== "air") {
     state.offset = quantize(bounded(input.initialOffset ?? state.safeMin, state.safeMin, state.safeMax));
+  } else {
+    state.offset = quantize(bounded(state.offset, state.safeMin, state.safeMax));
   }
   const canClimb = input.powered === true && input.stamina > 0;
   const direction = canClimb ? input.intent : -1;
   const speed = direction > 0 ? 1.6 + lift * 2.4 : direction < 0 ? 1.25 : 0;
   state.offset = quantize(bounded(state.offset + direction * speed * delta, state.safeMin, state.safeMax));
+  state.worldY = quantize(input.terrainElevation + state.offset);
   return state;
 }

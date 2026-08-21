@@ -207,6 +207,9 @@ export function WildzWorldControls({
       document.removeEventListener("visibilitychange", stop);
     };
   }, [stopVerticalIntent]);
+  useEffect(() => {
+    stopVerticalIntent();
+  }, [gestureCancelSignal, stopVerticalIntent]);
   const companionRoster = useMemo(() => projectVaultCompanionRoster({
     inventory: nearbyCards,
     companionProgress,

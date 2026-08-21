@@ -21,6 +21,7 @@ describe("Wildz aerial and vista integration", () => {
     const gameState = await readFile("src/features/play/game-state.ts", "utf8");
     assert.match(gameState, /input\.aerialMode === "flight"[\s\S]*traversalCapabilities\.includes\("flight"\)/);
     assert.match(gameState, /admittedAirborne[\s\S]*movementCapabilities/);
+    assert.doesNotMatch(gameState, /admittedAirborne[\s\S]{0,180}"swim" as const, "climb" as const/);
   });
 
   it("offers explicit takeoff, landing, overlook entry, and exact camera restoration", async () => {
@@ -71,8 +72,9 @@ describe("Wildz aerial and vista integration", () => {
     const playStateContract = gameState.slice(gameState.indexOf("export type PlayState"), gameState.indexOf("export const worldBounds"));
 
     assert.match(campaign, /verticalClearance:\s*verticalTraversalRef\.current\.offset/);
+    assert.match(campaign, /verticalWorldY:\s*verticalTraversalRef\.current\.worldY/);
     assert.match(gameState, /verticalClearance\?: number/);
-    assert.match(gameState, /resolveWildsGroundMovement\(player, intended, \{ capabilities, aerialMode, verticalClearance \}\)/);
+    assert.match(gameState, /resolveWildsGroundMovement\(player, intended, \{ capabilities, aerialMode, verticalClearance, verticalWorldY \}\)/);
     assert.doesNotMatch(playStateContract, /verticalTraversal|verticalClearance|safeMin|safeMax/);
   });
 
@@ -96,8 +98,34 @@ describe("Wildz aerial and vista integration", () => {
     assert.match(controls, /onPointerCancel=\{stopVerticalIntent\}/);
     assert.match(controls, /onLostPointerCapture=\{stopVerticalIntent\}/);
     assert.match(controls, /visibilitychange/);
+    assert.match(controls, /\[gestureCancelSignal[^\]]*stopVerticalIntent|\[stopVerticalIntent[^\]]*gestureCancelSignal/);
     assert.match(controls, /verticalControlsVisible \? <div/);
     assert.match(css, /\.wildz-vertical-controls[\s\S]*touch-action:\s*none/);
     assert.match(css, /\.wildz-vertical-status/);
+  });
+
+  it("rejects movement during pending landing and consumes one deterministic landing authority", async () => {
+    const [campaign, canvas, aerial] = await Promise.all([
+      readFile("src/features/play/PlayCampaign.tsx", "utf8"),
+      readFile("src/features/play/WildsWorldCanvas.tsx", "utf8"),
+      readFile("src/features/play/wilds-aerial-traversal.ts", "utf8")
+    ]);
+
+    assert.match(campaign, /if \(!horizontalAllowedRef\.current\) return;/);
+    assert.match(campaign, /resolveWildsSafeLandingPosition[\s\S]*safeAnchor/);
+    assert.match(campaign, /completeWildsAerialLanding/);
+    assert.doesNotMatch(campaign, /advanceWildsAerialTraversal/);
+    assert.match(canvas, /landingRequired[\s\S]*onLandingRequired/);
+    assert.doesNotMatch(aerial, /export function advanceWildsAerialTraversal/);
+  });
+
+  it("feeds live physical ceiling and protected-airspace samples into the same frame authority", async () => {
+    const canvas = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");
+
+    assert.match(canvas, /writeWildsAerialCollisionSample/);
+    assert.match(canvas, /aerialInput\.protectedAirspace = collisionSample\.protectedAirspace/);
+    assert.match(canvas, /verticalInput\.ceilingY = collisionSample\.ceilingY/);
+    assert.match(canvas, /verticalInput\.obstacleTopY = collisionSample\.obstacleTopY/);
+    assert.match(canvas, /runtime\.current\.altitude = currentVertical\.worldY/);
   });
 });

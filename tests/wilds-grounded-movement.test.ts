@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  createWildsAerialCollisionSample,
   resolveWildsGroundMovement,
   resolveWildsObstacleMotion,
-  resolveWildsSafeLandingPosition
+  resolveWildsSafeLandingPosition,
+  writeWildsAerialCollisionSample
 } from "../src/features/play/wilds-grounded-movement";
 import { sampleWildsTerrain } from "../src/features/play/wilds-terrain-authority";
 import {
@@ -74,7 +76,34 @@ test("vertical collision uses absolute world spans and keeps structures, ceiling
 
   assert.equal(wildsObstacleBlocksVerticalBand(clearable, 20, 1.55), false);
   assert.equal(wildsObstacleBlocksVerticalBand(clearable, 23, 1.55), true);
-  assert.equal(wildsObstacleBlocksVerticalBand(structure, 40, 1.55), true);
+  assert.equal(wildsObstacleBlocksVerticalBand(structure, 40, 1.55), false);
+  assert.equal(wildsObstacleBlocksVerticalBand(structure, 23, 1.55), true);
+});
+
+test("aerial collision sampling writes exact canopy, ceiling, structure, and hazard constraints without replacement", () => {
+  const tree = obstacle("tree:sample", 0, 0, .5);
+  tree.position.y = 2;
+  const ceiling = {
+    ...obstacle("ceiling:sample", 0, 0, 1),
+    kind: "ceiling" as const,
+    position: { x: 0, y: 9, z: 0 },
+    shape: { kind: "box" as const, halfX: 1, halfY: 1, halfZ: 1 },
+    airbornePolicy: "persistent" as const
+  };
+  const hazard = {
+    ...obstacle("hazard:sample", 0, 0, 1),
+    kind: "aerial-hazard" as const,
+    position: { x: 0, y: 5, z: 0 },
+    shape: { kind: "box" as const, halfX: 1, halfY: .5, halfZ: 1 },
+    airbornePolicy: "persistent" as const
+  };
+  const output = createWildsAerialCollisionSample();
+  const returned = writeWildsAerialCollisionSample({ x: 0, z: 0 }, 4.5, [tree, ceiling, hazard], output);
+
+  assert.equal(returned, output);
+  assert.equal(output.obstacleTopY, 5);
+  assert.equal(output.ceilingY, 8);
+  assert.equal(output.protectedAirspace, true);
 });
 
 test("landing deterministically finds clear terrain and refuses inaccessible deep water", () => {
@@ -110,6 +139,35 @@ test("airborne movement cannot cross terrain higher than its actual world altitu
   assert.deepEqual(low.position, start);
   assert.equal(low.traversalBlockedBy, "climb");
   assert.notDeepEqual(high.position, start);
+});
+
+test("canonical absolute world height overrides stale terrain-relative clearance during horizontal travel", () => {
+  const start = { x: 79.58, z: 28 };
+  const intended = { x: 80, z: 28 };
+  const startElevation = sampleWildsTerrain(start.x, start.z).elevation;
+  const result = resolveWildsGroundMovement(start, intended, {
+    aerialMode: "flight",
+    capabilities: ["flight", "climb"],
+    obstacles: [],
+    verticalClearance: .35,
+    verticalWorldY: startElevation + 8
+  });
+
+  assert.notDeepEqual(result.position, start);
+});
+
+test("admitted flight crosses traversal surfaces without inventing swim or climb capabilities", () => {
+  const start = { x: -94.42, z: -240 };
+  const result = resolveWildsGroundMovement(start, { x: -94, z: -240 }, {
+    aerialMode: "flight",
+    capabilities: ["flight"],
+    obstacles: [],
+    verticalWorldY: sampleWildsTerrain(start.x, start.z).elevation + 4
+  });
+
+  assert.notDeepEqual(result.position, start);
+  assert.equal(result.traversalMode, "flight");
+  assert.equal(result.traversalBlockedBy, null);
 });
 
 test("diagonal capsule motion slides along a solid obstacle", () => {

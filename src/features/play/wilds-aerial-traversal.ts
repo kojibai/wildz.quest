@@ -3,6 +3,7 @@ import type { WildsTraversalCapability } from "./wilds-traversal-capabilities";
 type Point = Readonly<{ x: number; z: number }>;
 
 export type WildsAerialMode = "ground" | "glide" | "flight";
+export type WildsAerialLandingReason = "flight-exhausted" | "protected-airspace" | "landed";
 
 export type WildsAerialTraversalState = {
   mode: WildsAerialMode;
@@ -11,6 +12,8 @@ export type WildsAerialTraversalState = {
   stamina: number;
   distance: number;
   safeAnchor: { x: number; z: number; elevation: number };
+  landingRequired: boolean;
+  landingReason: WildsAerialLandingReason | null;
 };
 
 export type WildsAerialTraversalResult = Readonly<{
@@ -64,6 +67,12 @@ export function writeWildsAerialRuntimeStep(
   output.reason = null;
   output.horizontalAllowed = true;
 
+  if (state.landingRequired) {
+    output.reason = state.landingReason;
+    output.horizontalAllowed = false;
+    return output;
+  }
+
   if (state.mode === "ground") {
     state.altitude = quantize(input.groundElevation);
     state.verticalVelocity = 0;
@@ -75,19 +84,14 @@ export function writeWildsAerialRuntimeStep(
   }
 
   if (input.protectedAirspace || (state.mode === "flight" && !input.hasFlight) || (state.mode === "glide" && !input.hasGlide)) {
-    state.mode = "ground";
-    state.altitude = quantize(input.groundElevation);
-    state.verticalVelocity = 0;
-    state.safeAnchor.x = quantize(input.positionX);
-    state.safeAnchor.z = quantize(input.positionZ);
-    state.safeAnchor.elevation = quantize(input.groundElevation);
-    output.reason = input.protectedAirspace ? "protected-airspace" : "landed";
+    const reason = input.protectedAirspace ? "protected-airspace" : "landed";
+    requestWildsAerialLanding(state, reason);
+    output.reason = reason;
     output.horizontalAllowed = false;
     return output;
   }
 
   state.distance = quantize(state.distance + distance);
-  state.altitude = quantize(input.groundElevation + Math.max(0, input.verticalOffset));
   if (state.mode === "flight") {
     state.stamina = quantize(Math.max(0, state.stamina - delta * (1.4 + distance * .8)));
     if (state.stamina <= 0) {
@@ -96,9 +100,7 @@ export function writeWildsAerialRuntimeStep(
         state.verticalVelocity = -.72;
         output.reason = "flight-exhausted";
       } else {
-        state.mode = "ground";
-        state.altitude = quantize(input.groundElevation);
-        state.verticalVelocity = 0;
+        requestWildsAerialLanding(state, "flight-exhausted");
         output.reason = "flight-exhausted";
         output.horizontalAllowed = false;
       }
@@ -110,10 +112,9 @@ export function writeWildsAerialRuntimeStep(
 
   state.stamina = quantize(Math.max(0, state.stamina - delta * (.8 + distance * .35)));
   if (state.stamina <= 0 || input.verticalOffset <= AIR_GROUND_CLEARANCE) {
-    state.mode = "ground";
-    state.altitude = quantize(input.groundElevation);
-    state.verticalVelocity = 0;
-    output.reason = "landed";
+    const reason = state.stamina <= 0 ? "flight-exhausted" : "landed";
+    requestWildsAerialLanding(state, reason);
+    output.reason = reason;
     output.horizontalAllowed = false;
   }
   return output;
@@ -121,7 +122,6 @@ export function writeWildsAerialRuntimeStep(
 
 const AIR_GROUND_CLEARANCE = .35;
 
-const FLIGHT_CEILING = 12;
 const GLIDE_LAUNCH_HEIGHT = 2;
 export const WILDS_FLIGHT_RELAUNCH_ENERGY = 20;
 const FLIGHT_LOW_ENERGY = 25;
@@ -146,7 +146,9 @@ function grounded(position: Point, elevation: number, stamina: number, distance:
     verticalVelocity: 0,
     stamina: quantize(bounded(stamina, 0, 100)),
     distance: quantize(Math.max(0, distance)),
-    safeAnchor: { x: quantize(position.x), z: quantize(position.z), elevation: quantize(elevation) }
+    safeAnchor: { x: quantize(position.x), z: quantize(position.z), elevation: quantize(elevation) },
+    landingRequired: false,
+    landingReason: null
   };
 }
 
@@ -179,76 +181,42 @@ export function beginWildsAerialTraversal(
       ...state,
       mode: input.kind,
       altitude: quantize(altitude),
-      verticalVelocity: input.kind === "flight" ? 2.2 : -0.72
+      verticalVelocity: input.kind === "flight" ? 2.2 : -0.72,
+      landingRequired: false,
+      landingReason: null
     },
     reason: null,
     horizontalAllowed: true
   };
 }
 
-export function advanceWildsAerialTraversal(
+export function requestWildsAerialLanding(
   state: WildsAerialTraversalState,
-  input: {
-    capabilities: readonly WildsTraversalCapability[];
-    deltaSeconds: number;
-    groundElevation: number;
-    horizontalDistance: number;
-    position: Point;
-    verticalIntent: number;
-    landingRequested?: boolean;
-    protectedAirspace?: boolean;
-  }
-): WildsAerialTraversalResult {
-  if (!finitePoint(input.position)
-    || !Number.isFinite(input.deltaSeconds)
-    || !Number.isFinite(input.groundElevation)
-    || !Number.isFinite(input.horizontalDistance)
-    || !Number.isFinite(input.verticalIntent)) throw new Error("wilds_aerial_input_invalid");
-  const delta = bounded(input.deltaSeconds, 0, 0.1);
-  const horizontalDistance = bounded(input.horizontalDistance, 0, 4);
-  const capabilities = new Set(input.capabilities);
-  const land = (reason: WildsAerialTraversalResult["reason"] = "landed"): WildsAerialTraversalResult => ({
-    state: grounded(input.position, input.groundElevation, state.stamina, state.distance),
-    reason,
-    horizontalAllowed: reason !== "protected-airspace"
-  });
+  reason: WildsAerialLandingReason = "landed"
+) {
+  if (state.mode === "ground") return state;
+  state.landingRequired = true;
+  state.landingReason = reason;
+  state.verticalVelocity = Math.min(0, state.verticalVelocity);
+  return state;
+}
 
-  if (state.mode === "ground") {
-    const stamina = Math.min(100, state.stamina + delta * GROUND_ENERGY_RECOVERY_PER_SECOND);
-    return { state: grounded(input.position, input.groundElevation, stamina, state.distance), reason: null, horizontalAllowed: true };
+export function completeWildsAerialLanding(
+  state: WildsAerialTraversalState,
+  x: number,
+  z: number,
+  elevation: number
+) {
+  if (!Number.isFinite(x) || !Number.isFinite(z) || !Number.isFinite(elevation)) {
+    throw new Error("wilds_aerial_landing_invalid");
   }
-  if (input.landingRequested) return land();
-  if (input.protectedAirspace) return land("protected-airspace");
-  if (state.mode === "flight" && !capabilities.has("flight")) {
-    if (!capabilities.has("glide") || state.altitude <= input.groundElevation + 0.15) return land();
-    return {
-      state: { ...state, mode: "glide", verticalVelocity: -0.72 },
-      reason: null,
-      horizontalAllowed: true
-    };
-  }
-  if (state.mode === "glide" && !capabilities.has("glide")) return land();
-
-  const distance = quantize(state.distance + horizontalDistance);
-  if (state.mode === "flight") {
-    const stamina = quantize(Math.max(0, state.stamina - delta * (1.4 + horizontalDistance * 0.8)));
-    const targetVelocity = bounded(input.verticalIntent, -1, 1) * 3;
-    const verticalVelocity = quantize(state.verticalVelocity + (targetVelocity - state.verticalVelocity) * Math.min(1, delta * 5));
-    const altitude = quantize(bounded(
-      state.altitude + verticalVelocity * delta,
-      input.groundElevation + 0.35,
-      input.groundElevation + FLIGHT_CEILING
-    ));
-    if (stamina <= 0) {
-      if (!capabilities.has("glide")) return land();
-      return { state: { ...state, mode: "glide", altitude, verticalVelocity: -0.72, stamina, distance }, reason: "flight-exhausted", horizontalAllowed: true };
-    }
-    return { state: { ...state, altitude, verticalVelocity, stamina, distance }, reason: stamina <= FLIGHT_LOW_ENERGY ? "flight-energy-low" : null, horizontalAllowed: true };
-  }
-
-  const stamina = quantize(Math.max(0, state.stamina - delta * (0.8 + horizontalDistance * 0.35)));
-  const verticalVelocity = quantize(Math.max(-2.4, state.verticalVelocity - delta * 0.38));
-  const altitude = quantize(state.altitude + verticalVelocity * delta - horizontalDistance * 0.06);
-  if (altitude <= input.groundElevation + 0.15 || stamina <= 0) return land();
-  return { state: { ...state, altitude, verticalVelocity, stamina, distance }, reason: null, horizontalAllowed: true };
+  state.mode = "ground";
+  state.altitude = quantize(elevation);
+  state.verticalVelocity = 0;
+  state.safeAnchor.x = quantize(x);
+  state.safeAnchor.z = quantize(z);
+  state.safeAnchor.elevation = quantize(elevation);
+  state.landingRequired = false;
+  state.landingReason = null;
+  return state;
 }

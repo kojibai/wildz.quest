@@ -24,6 +24,80 @@ export type WildsGroundMovementResult = {
   traversalBlockedBy: TraversalCapability | null;
 };
 
+export type WildsAerialCollisionSample = {
+  obstacleTopY: number;
+  ceilingY: number;
+  protectedAirspace: boolean;
+};
+
+export function createWildsAerialCollisionSample(): WildsAerialCollisionSample {
+  return { obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false };
+}
+
+function writeObstacleConstraint(
+  point: Point,
+  footY: number,
+  actorHeight: number,
+  capsuleRadius: number,
+  obstacle: WildsTerrainObstacle,
+  output: WildsAerialCollisionSample
+) {
+  if (!blockingObstacle(obstacle)) return;
+  if (Math.hypot(point.x - obstacle.position.x, point.z - obstacle.position.z) > obstacle.radius + capsuleRadius) return;
+  const minimum = obstacle.shape.kind === "box"
+    ? obstacle.position.y - obstacle.shape.halfY
+    : obstacle.position.y;
+  const maximum = obstacle.shape.kind === "box"
+    ? obstacle.position.y + obstacle.shape.halfY
+    : obstacle.position.y + obstacle.shape.height;
+  const headY = footY + actorHeight;
+  const intersects = footY <= maximum + CONTACT_EPSILON && headY >= minimum - CONTACT_EPSILON;
+  if (obstacle.kind === "aerial-hazard" && intersects) output.protectedAirspace = true;
+  if (obstacle.kind === "ceiling" || (obstacle.kind === "structure" && headY <= minimum + CONTACT_EPSILON)) {
+    if (!Number.isFinite(output.ceilingY) || minimum < output.ceilingY) output.ceilingY = minimum;
+    return;
+  }
+  if (obstacle.kind === "structure" && footY < maximum - CONTACT_EPSILON) {
+    if (!Number.isFinite(output.ceilingY) || minimum < output.ceilingY) output.ceilingY = minimum;
+    return;
+  }
+  if (obstacle.kind === "aerial-hazard") return;
+  if (!Number.isFinite(output.obstacleTopY) || maximum > output.obstacleTopY) output.obstacleTopY = maximum;
+}
+
+export function writeWildsAerialCollisionSample(
+  point: Point,
+  footY: number,
+  obstacles: readonly WildsTerrainObstacle[] | undefined,
+  output: WildsAerialCollisionSample,
+  actorHeight = 1.55,
+  capsuleRadius = DEFAULT_CAPSULE_RADIUS
+) {
+  if (!finitePoint(point) || !Number.isFinite(footY) || !Number.isFinite(actorHeight) || actorHeight <= 0) {
+    throw new Error("wilds_aerial_collision_sample_invalid");
+  }
+  output.obstacleTopY = Number.NaN;
+  output.ceilingY = Number.NaN;
+  output.protectedAirspace = false;
+  if (obstacles) {
+    for (let index = 0; index < obstacles.length; index += 1) {
+      writeObstacleConstraint(point, footY, actorHeight, capsuleRadius, obstacles[index]!, output);
+    }
+    return output;
+  }
+  const tileX = Math.floor(point.x / WILDS_TERRAIN_TILE_SIZE);
+  const tileZ = Math.floor(point.z / WILDS_TERRAIN_TILE_SIZE);
+  for (let offsetZ = -1; offsetZ <= 1; offsetZ += 1) {
+    for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
+      const entries = cachedTileObstacles(tileX + offsetX, tileZ + offsetZ);
+      for (let index = 0; index < entries.length; index += 1) {
+        writeObstacleConstraint(point, footY, actorHeight, capsuleRadius, entries[index]!, output);
+      }
+    }
+  }
+  return output;
+}
+
 export function wildsObstacleTopAtPosition(point: Point, capsuleRadius = DEFAULT_CAPSULE_RADIUS) {
   if (!finitePoint(point)) return null;
   const tileX = Math.floor(point.x / WILDS_TERRAIN_TILE_SIZE);
@@ -219,6 +293,7 @@ export function resolveWildsGroundMovement(
     capabilities?: readonly TraversalCapability[];
     aerialMode?: "glide" | "flight";
     verticalClearance?: number;
+    verticalWorldY?: number;
     obstacles?: readonly WildsTerrainObstacle[];
   } = {}
 ): WildsGroundMovementResult {
@@ -234,8 +309,12 @@ export function resolveWildsGroundMovement(
     z: quantize(start.z + (intended.z - start.z) * speedMultiplier)
   };
   const targetTerrain = sampleWildsTerrain(target.x, target.z);
-  const airborneClearance = options.aerialMode && Number.isFinite(options.verticalClearance)
-    ? Math.max(0, options.verticalClearance ?? 0)
+  const airborneClearance = options.aerialMode
+    ? Math.max(0, Number.isFinite(options.verticalWorldY)
+      ? options.verticalWorldY! - startTerrain.elevation
+      : Number.isFinite(options.verticalClearance)
+        ? options.verticalClearance!
+        : .35)
     : null;
   if (airborneClearance !== null) {
     const worldFootY = startTerrain.elevation + airborneClearance;
@@ -270,9 +349,11 @@ export function resolveWildsGroundMovement(
       };
     }
   }
-  const missingTraversal = intendedTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind
-    ?? targetTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind
-    ?? null;
+  const missingTraversal = airborneClearance !== null
+    ? null
+    : intendedTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind
+      ?? targetTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind
+      ?? null;
   if (missingTraversal) {
     return {
       position: { ...start },
@@ -293,7 +374,9 @@ export function resolveWildsGroundMovement(
     ));
   const collision = resolveWildsObstacleMotion(start, target, obstacles, capsuleRadius);
   const resolvedTerrain = sampleWildsTerrain(collision.position.x, collision.position.z);
-  const pushedIntoMissingTraversal = resolvedTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind ?? null;
+  const pushedIntoMissingTraversal = airborneClearance !== null
+    ? null
+    : resolvedTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind ?? null;
   if (pushedIntoMissingTraversal) {
     return {
       position: { ...start },

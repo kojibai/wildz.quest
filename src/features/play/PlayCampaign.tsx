@@ -113,9 +113,11 @@ import { WildsWorldCanvas } from "@/features/play/WildsWorldCanvas";
 import { emptyAdventureCondition } from "@/features/play/adventure/card-condition";
 import { projectWildsTraversalCapabilities } from "@/features/play/wilds-traversal-capabilities";
 import {
-  advanceWildsAerialTraversal,
   beginWildsAerialTraversal,
+  completeWildsAerialLanding,
   createGroundedWildsAerialState,
+  requestWildsAerialLanding,
+  type WildsAerialLandingReason,
   type WildsAerialMode,
   type WildsAerialTraversalState
 } from "@/features/play/wilds-aerial-traversal";
@@ -130,6 +132,7 @@ import {
 } from "@/features/play/wilds-vertical-traversal";
 import { resolveWildsSafeLandingPosition } from "@/features/play/wilds-grounded-movement";
 import { projectCreatureCapabilityIdentity } from "@/features/play/creature-capability-identity";
+import { wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
 
 const WildsWorldMap = dynamic(() => import("@/features/play/WildsWorldMap").then((mod) => mod.WildsWorldMap), { ssr: false });
 const WildsLandmarkExperience = dynamic(() => import("@/features/play/WildsLandmarkExperience").then((mod) => mod.WildsLandmarkExperience), { ssr: false });
@@ -840,41 +843,50 @@ export function PlayCampaign({
   const dispatchWorldInput = (input: WildsInput) => {
     if (!canUseWorldStage()) return;
     if (input.type === "move" || input.type === "move-vector") {
+      if (!horizontalAllowedRef.current) return;
       if (activeVistaId) setActiveVistaId(null);
       const liveAerialMode = aerialStateRef.current.mode;
-      const airborne = liveAerialMode !== "ground" && horizontalAllowedRef.current;
+      const airborne = liveAerialMode !== "ground";
       dispatch({
         ...input,
         aerialMode: airborne ? liveAerialMode : undefined,
-        verticalClearance: verticalTraversalRef.current.offset
+        verticalClearance: verticalTraversalRef.current.offset,
+        verticalWorldY: verticalTraversalRef.current.worldY
       });
       return;
     }
     dispatch(input);
+  };
+  const consumePendingAerialLanding = (reason: WildsAerialLandingReason) => {
+    const runtime = aerialStateRef.current;
+    if (!runtime.landingRequired) return;
+    const anchor = runtime.safeAnchor;
+    const requested = resolveWildsSafeLandingPosition(state.player, { capabilities: activeTraversalCapabilities });
+    const landing = requested
+      ?? resolveWildsSafeLandingPosition(anchor, { capabilities: activeTraversalCapabilities, searchRadius: 0 })
+      ?? anchor;
+    completeWildsAerialLanding(runtime, landing.x, landing.z, wildsTerrainElevation(landing.x, landing.z));
+    resetWildsVerticalTraversalState(verticalTraversalRef.current);
+    verticalIntentRef.current = 0;
+    horizontalAllowedRef.current = true;
+    setAerialMode("ground");
+    if (landing.x !== state.player.x || landing.z !== state.player.z) {
+      setState((current) => ({
+        ...current,
+        player: { x: landing.x, z: landing.z },
+        lastEvent: reason === "protected-airspace"
+          ? "Returned to the nearest safe landing outside protected airspace."
+          : "Landed on the nearest clear surface."
+      }));
+    }
   };
   const toggleAerialTraversal = () => {
     if (!canUseWorldStage()) return;
     const groundElevation = aquaticPresentation.terrainElevation;
     const liveAerialMode = aerialStateRef.current.mode;
     if (liveAerialMode !== "ground") {
-      const landing = resolveWildsSafeLandingPosition(state.player, { capabilities: activeTraversalCapabilities });
-      if (!landing) return;
-      const landed = advanceWildsAerialTraversal(aerialStateRef.current, {
-        capabilities: activeTraversalCapabilities,
-        deltaSeconds: 0,
-        groundElevation,
-        horizontalDistance: 0,
-        landingRequested: true,
-        position: state.player,
-        verticalIntent: 0
-      });
-      aerialStateRef.current = landed.state;
-      verticalIntentRef.current = 0;
-      horizontalAllowedRef.current = true;
-      if (landing.x !== state.player.x || landing.z !== state.player.z) {
-        setState((current) => ({ ...current, player: landing, lastEvent: "Landed on the nearest clear surface." }));
-      }
-      setAerialMode("ground");
+      requestWildsAerialLanding(aerialStateRef.current, "landed");
+      consumePendingAerialLanding("landed");
       return;
     }
     const kind = activeTraversalCapabilities.includes("flight")
@@ -1443,6 +1455,7 @@ export function PlayCampaign({
               qualityProfile={qualityProfile}
               onFrameSample={reportFrameSample}
               onAerialModeChange={setAerialMode}
+              onLandingRequired={consumePendingAerialLanding}
               onAerialEnergyChange={setAerialEnergy}
               onVerticalReadoutChange={publishVerticalReadout}
               onCameraHeadingChange={updateCameraHeading}

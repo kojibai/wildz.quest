@@ -45,7 +45,6 @@ export function wildsObstacleBlocksVerticalBand(
   height = 1.55
 ) {
   if (!Number.isFinite(footY) || !Number.isFinite(height) || height <= 0) return true;
-  if (obstacle.airbornePolicy === "persistent") return true;
   const bounds = wildsObstacleVerticalBounds(obstacle);
   return footY <= bounds.maximum + 0.000001 && footY + height >= bounds.minimum - 0.000001;
 }

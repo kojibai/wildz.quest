@@ -180,6 +180,59 @@ describe("Wildz bounded vertical traversal", () => {
     assert.ok(state.offset < before);
   });
 
+  it("preserves absolute world height while horizontal travel changes terrain elevation", () => {
+    const state = createWildsVerticalTraversalState();
+    writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: 0,
+      initialOffset: 5,
+      intent: 0,
+      layer: "air",
+      liftPotential: 1,
+      powered: true,
+      stamina: 100,
+      terrainElevation: 2
+    });
+    assert.equal(state.worldY, 7);
+
+    writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: 0,
+      intent: 0,
+      layer: "air",
+      liftPotential: 1,
+      powered: true,
+      stamina: 100,
+      terrainElevation: 4
+    });
+    assert.equal(state.worldY, 7);
+    assert.equal(state.offset, 3);
+
+    writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: 0,
+      intent: 0,
+      layer: "air",
+      liftPotential: 1,
+      powered: true,
+      stamina: 100,
+      terrainElevation: -1
+    });
+    assert.equal(state.worldY, 7);
+    assert.equal(state.offset, 8);
+  });
+
+  it("keeps canonical world height truthful when traversal returns to ground", () => {
+    const state = createWildsVerticalTraversalState();
+    writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: 0,
+      intent: 0,
+      layer: "ground",
+      stamina: 100,
+      terrainElevation: 6.25
+    });
+
+    assert.equal(state.offset, 0);
+    assert.equal(state.worldY, 6.25);
+  });
+
   it("mutates and returns the same scalar state object without persistence or authority work", async () => {
     const state = createWildsVerticalTraversalState();
     const returned = writeWildsVerticalTraversalStep(state, {

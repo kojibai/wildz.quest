@@ -55,6 +55,7 @@ import {
   createWildsAerialRuntimeResult,
   writeWildsAerialRuntimeStep,
   type WildsAerialRuntimeStep,
+  type WildsAerialLandingReason,
   type WildsAerialMode,
   type WildsAerialTraversalState
 } from "@/features/play/wilds-aerial-traversal";
@@ -67,7 +68,10 @@ import {
   type WildsVerticalTraversalState,
   type WildsVerticalTraversalStep
 } from "@/features/play/wilds-vertical-traversal";
-import { wildsObstacleTopAtPosition } from "@/features/play/wilds-grounded-movement";
+import {
+  createWildsAerialCollisionSample,
+  writeWildsAerialCollisionSample
+} from "@/features/play/wilds-grounded-movement";
 
 const WILDS_DIAGNOSTICS_ENABLED = process.env.NODE_ENV !== "production";
 
@@ -99,6 +103,7 @@ export function WildsWorldCanvas({
   aquaticPresentation,
   onAerialEnergyChange,
   onAerialModeChange,
+  onLandingRequired,
   onVerticalReadoutChange,
   vistaHeading = null,
   suspended = false
@@ -128,6 +133,7 @@ export function WildsWorldCanvas({
   aquaticPresentation: WildsAquaticPresentation;
   onAerialEnergyChange: (energy: number) => void;
   onAerialModeChange: (mode: WildsAerialMode) => void;
+  onLandingRequired: (reason: WildsAerialLandingReason) => void;
   onVerticalReadoutChange: (layer: WildsVerticalTraversalState["layer"], value: number, safeMin: number, safeMax: number) => void;
   vistaHeading?: number | null;
   onSelectTrainer: (trainer: WildsTrainerProjection) => void;
@@ -155,7 +161,7 @@ export function WildsWorldCanvas({
       >
         {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
-          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} />
+          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} livingWorld={livingWorld} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} />
         </Suspense>
       </Canvas>
     </div>
@@ -194,6 +200,7 @@ function WildsScene({
   aquaticPresentation,
   onAerialEnergyChange,
   onAerialModeChange,
+  onLandingRequired,
   onVerticalReadoutChange,
   vistaHeading
 }: {
@@ -223,6 +230,7 @@ function WildsScene({
   aquaticPresentation: WildsAquaticPresentation;
   onAerialEnergyChange: (energy: number) => void;
   onAerialModeChange: (mode: WildsAerialMode) => void;
+  onLandingRequired: (reason: WildsAerialLandingReason) => void;
   onVerticalReadoutChange: (layer: WildsVerticalTraversalState["layer"], value: number, safeMin: number, safeMax: number) => void;
   vistaHeading: number | null;
 }) {
@@ -307,7 +315,7 @@ function WildsScene({
             : null
         ))}
       </SmoothWorldFrame>
-      <AerialPlayerFrame aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} pressurePotential={pressurePotential} swimStamina={state.energy} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} onVerticalReadoutChange={onVerticalReadoutChange} player={state.player} runtime={aerialStateRef} verticalIntentRef={verticalIntentRef} verticalTraversalRef={verticalTraversalRef}>
+      <AerialPlayerFrame aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} pressurePotential={pressurePotential} swimStamina={state.energy} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} player={state.player} runtime={aerialStateRef} verticalIntentRef={verticalIntentRef} verticalTraversalRef={verticalTraversalRef}>
         <WildsExplorer
           aerialPalette={{
             primary: activeAppearance?.palette.primary ?? "#c9fff0",
@@ -331,7 +339,7 @@ function WildsScene({
   );
 }
 
-function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizontalAllowedRef, liftPotential, pressurePotential, swimStamina, onEnergyChange, onModeChange, onVerticalReadoutChange, player, runtime, verticalIntentRef, verticalTraversalRef }: {
+function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizontalAllowedRef, liftPotential, pressurePotential, swimStamina, onEnergyChange, onModeChange, onLandingRequired, onVerticalReadoutChange, player, runtime, verticalIntentRef, verticalTraversalRef }: {
   aquaticPresentation: WildsAquaticPresentation;
   capabilities: readonly WildsTraversalCapability[];
   children: ReactNode;
@@ -341,6 +349,7 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizo
   swimStamina: number;
   onEnergyChange: (energy: number) => void;
   onModeChange: (mode: WildsAerialMode) => void;
+  onLandingRequired: (reason: WildsAerialLandingReason) => void;
   onVerticalReadoutChange: (layer: WildsVerticalTraversalState["layer"], value: number, safeMin: number, safeMax: number) => void;
   player: PlayState["player"];
   runtime: MutableRefObject<WildsAerialTraversalState>;
@@ -353,6 +362,8 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizo
   const publishedEnergy = useRef(100);
   const publishedVertical = useRef({ layer: "ground" as WildsVerticalTraversalState["layer"], value: Number.NaN, safeMin: Number.NaN, safeMax: Number.NaN });
   const runtimeResult = useRef(createWildsAerialRuntimeResult());
+  const collisionSampleRef = useRef(createWildsAerialCollisionSample());
+  const publishedLandingRequired = useRef(false);
   const runtimeStep = useRef<WildsAerialRuntimeStep>({
     deltaSeconds: 0, groundElevation: 0, hasFlight: false, hasGlide: false,
     horizontalDistance: 0, positionX: 0, positionZ: 0, verticalOffset: 0
@@ -365,18 +376,18 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizo
   const hasFlight = capabilities.includes("flight");
   const hasGlide = capabilities.includes("glide");
   const hasSwim = capabilities.includes("swim");
-  const playerX = player.x;
-  const playerZ = player.z;
-  const obstacleTopY = useMemo(
-    () => wildsObstacleTopAtPosition({ x: playerX, z: playerZ }),
-    [playerX, playerZ]
-  );
   useFrame((_, delta) => {
     const prior = previousPlayer.current;
     const horizontalDistance = Math.hypot(player.x - prior.x, player.z - prior.z);
     previousPlayer.current = player;
     const groundElevation = aquaticPresentation.terrainElevation;
     const currentVertical = verticalTraversalRef.current;
+    const collisionSample = writeWildsAerialCollisionSample(
+      player,
+      currentVertical.layer === "air" ? currentVertical.worldY : groundElevation + .35,
+      undefined,
+      collisionSampleRef.current
+    );
     const aerialInput = runtimeStep.current;
     aerialInput.deltaSeconds = delta;
     aerialInput.groundElevation = groundElevation;
@@ -385,6 +396,7 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizo
     aerialInput.horizontalDistance = horizontalDistance;
     aerialInput.positionX = player.x;
     aerialInput.positionZ = player.z;
+    aerialInput.protectedAirspace = collisionSample.protectedAirspace;
     aerialInput.verticalOffset = currentVertical.offset;
     const advanced = writeWildsAerialRuntimeStep(runtime.current, aerialInput, runtimeResult.current);
     const layer = runtime.current.mode !== "ground"
@@ -400,15 +412,22 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizo
     verticalInput.intent = verticalIntentRef.current;
     verticalInput.layer = layer;
     verticalInput.liftPotential = liftPotential;
-    verticalInput.obstacleTopY = layer === "air" ? obstacleTopY ?? undefined : undefined;
+    verticalInput.ceilingY = collisionSample.ceilingY;
+    verticalInput.obstacleTopY = collisionSample.obstacleTopY;
     verticalInput.powered = runtime.current.mode === "flight";
     verticalInput.pressurePotential = pressurePotential;
     verticalInput.stamina = layer === "water" ? swimStamina : runtime.current.stamina;
     verticalInput.terrainElevation = groundElevation;
     verticalInput.waterSurfaceY = aquaticPresentation.waterSurfaceY;
     writeWildsVerticalTraversalStep(currentVertical, verticalInput);
-    runtime.current.altitude = groundElevation + currentVertical.offset;
-    horizontalAllowedRef.current = advanced.horizontalAllowed;
+    runtime.current.altitude = currentVertical.worldY;
+    if (runtime.current.landingRequired && !publishedLandingRequired.current) {
+      publishedLandingRequired.current = true;
+      onLandingRequired(runtime.current.landingReason ?? "landed");
+    } else if (!runtime.current.landingRequired) {
+      publishedLandingRequired.current = false;
+    }
+    horizontalAllowedRef.current = runtime.current.landingRequired ? false : advanced.horizontalAllowed;
     const energyBucket = Math.max(0, Math.min(100, Math.round(runtime.current.stamina / 5) * 5));
     if (publishedEnergy.current !== energyBucket) {
       publishedEnergy.current = energyBucket;
