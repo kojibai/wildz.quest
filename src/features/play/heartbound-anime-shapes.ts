@@ -1,7 +1,7 @@
 import type { HeartboundPresentationV3 } from "./heartbound-anime-types";
 import type { HeartboundPose } from "./heartbound-renderer";
 import type { LivingCardGenome } from "./living-card-types";
-import { projectLivingGenomeCreatureVisualIdentity } from "./creature-visual-identity";
+import { projectGenomeCreatureVisualAppendages } from "./creature-visual-identity";
 
 type Palette = LivingCardGenome["palette"];
 
@@ -52,8 +52,8 @@ export function animeHeartboundMarkup(genome: LivingCardGenome, p: HeartboundPre
   const stride = pose === "run" ? 17 : pose === "walk" ? 9 : 0;
   const baby = p.maturity === "baby";
   const paw = Math.round(18 * p.body.paw);
-  const visual = projectLivingGenomeCreatureVisualIdentity(genome);
-  const wings = visual.appendages.wings;
+  const appendages = projectGenomeCreatureVisualAppendages(genome);
+  const wings = appendages.wings;
   const longEars = p.archetype === "long-ear";
   const ears = p.appendages.ears === "none" && !longEars ? "" : longEars
     ? `<path d="M207 94Q137 21 178 4Q224 30 239 82M353 94Q423 21 382 4Q336 30 321 82" fill="${color.secondary}" stroke="${color.accent}" stroke-width="5"/>`
@@ -62,9 +62,9 @@ export function animeHeartboundMarkup(genome: LivingCardGenome, p: HeartboundPre
   const wingMarkup = wings.presence !== "functional" ? "" : wings.function === "powered-lift"
     ? `<path data-anatomy="functional-wing" d="M207 226Q102 118 72 225Q112 293 220 289M353 226Q458 118 488 225Q448 293 340 289" fill="${color.secondary}" stroke="${color.accent}" stroke-width="5" opacity=".92"/>`
     : `<path data-anatomy="glide-membrane" d="M207 226Q102 118 72 225Q112 293 220 289M353 226Q458 118 488 225Q448 293 340 289" fill="${color.secondary}" stroke="${color.accent}" stroke-width="5" opacity=".92"/>`;
-  const fins = visual.appendages.fins.presence !== "functional" ? "" : `<path data-anatomy="fin" d="M207 275Q154 241 142 306Q180 328 225 304M353 275Q406 241 418 306Q380 328 335 304" fill="${color.secondary}" stroke="${color.accent}" stroke-width="5" opacity=".9"/>`;
-  const frills = visual.appendages.frills.presence !== "functional" ? "" : `<path data-anatomy="frill" d="M221 221L205 178 242 205 280 165 318 205 355 178 339 221" fill="${color.accent}" stroke="${color.secondary}" stroke-width="4" opacity=".88"/>`;
-  const tail = p.body.build === "serpentine" || visual.appendages.tail.presence !== "functional" ? "" : `<path data-anatomy="tail" d="M374 290Q474 221 495 285Q503 341 420 351Q464 320 426 291Q407 277 374 302Z" fill="${color.secondary}" stroke="${color.accent}" stroke-width="4"/>`;
+  const fins = appendages.fins.presence !== "functional" ? "" : `<path data-anatomy="fin" d="M207 275Q154 241 142 306Q180 328 225 304M353 275Q406 241 418 306Q380 328 335 304" fill="${color.secondary}" stroke="${color.accent}" stroke-width="5" opacity=".9"/>`;
+  const frills = appendages.frills.presence !== "functional" ? "" : `<path data-anatomy="frill" d="M221 221L205 178 242 205 280 165 318 205 355 178 339 221" fill="${color.accent}" stroke="${color.secondary}" stroke-width="4" opacity=".88"/>`;
+  const tail = p.body.build === "serpentine" || appendages.tail.presence !== "functional" ? "" : `<path data-anatomy="tail" d="M374 290Q474 221 495 285Q503 341 420 351Q464 320 426 291Q407 277 374 302Z" fill="${color.secondary}" stroke="${color.accent}" stroke-width="4"/>`;
   const limbWidth = baby ? 25 : 19;
   const limbs = p.body.build === "serpentine" || p.body.build === "floating" ? { hind: "", fore: "" } : {
     hind: `<path d="M230 308q-31 38-25 77l-${paw} 14q-12 15 8 19h${58 + paw}q17-5 7-20l-12-19 ${stride - 8}-67Z" fill="${color.primary}"/><path d="M330 308q31 38 25 77l${paw} 14q12 15-8 19h-${58 + paw}q-17-5-7-20l12-19 ${8 - stride}-67Z" fill="${color.primary}"/>`,

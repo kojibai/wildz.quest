@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { renderPortableCreatureThumbnail } from "../src/features/play/WildsCreatureThumbnail.js";
+import { deriveBirthGenome } from "../src/features/play/heartbound-genome.js";
+import { renderHeartboundSvg } from "../src/features/play/heartbound-renderer.js";
 import { sealCollectedCard } from "../src/features/play/portable-card.js";
 
 const pseudoWingCard = sealCollectedCard({
@@ -28,4 +30,21 @@ test("thumbnails retain functional wings carried by the sealed genome", () => {
   const thumbnail = renderPortableCreatureThumbnail(trueWingCard);
 
   assert.match(thumbnail, /data-anatomy="functional-wing"/);
+});
+
+test("thumbnail art retains a canonical glide membrane distinctly from powered lift", () => {
+  const genome = deriveBirthGenome({
+    formId: trueWingCard.manifest.formId,
+    proofDigest: trueWingCard.proof.digest,
+    variant: trueWingCard.manifest.variant.traits
+  });
+  const glideGenome = {
+    ...genome,
+    skeleton: { ...genome.skeleton, locomotion: "quadruped" as const }
+  };
+
+  const thumbnail = renderHeartboundSvg(glideGenome, "idle", { width: 180, height: 180, title: "glide thumbnail", fit: "full-body" });
+
+  assert.match(thumbnail, /data-anatomy="glide-membrane"/);
+  assert.doesNotMatch(thumbnail, /data-anatomy="functional-wing"/);
 });

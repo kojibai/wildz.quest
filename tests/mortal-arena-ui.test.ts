@@ -19,6 +19,10 @@ describe("Mortal Arena UI integration", () => {
     assert.match(source, /ArenaImpactVfx/);
     assert.match(source, /mortalArenaCameraDistance/);
     assert.match(source, /mortalArenaRivalCreature/);
+    assert.match(source, /anatomy=\{appearance\?\.anatomy\}/);
+    assert.match(source, /cadenceMs=\{appearance\?\.cadenceMs\}/);
+    assert.match(source, /identityToken=\{appearance\?\.fingerprint \?\? opponent\?\.id \?\? card\.id\}/);
+    assert.match(source, /morphology=\{appearance\?\.morphology\}/);
     assert.match(source, /<mesh receiveShadow>\s*<cylinderGeometry/s);
     assert.doesNotMatch(source, /<mesh receiveShadow rotation=.*?>\s*<cylinderGeometry/s);
   });

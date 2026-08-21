@@ -140,10 +140,13 @@ function ArenaFighter({ card, fighter, opponent, side }: {
     <group ref={group} name={`mortal-arena-${side}`} scale={opponent?.kind === "boss" ? 1.28 : 1}>
       <WildsCreatureActor
         accent={appearance?.palette.accent ?? accent}
+        anatomy={appearance?.anatomy}
+        cadenceMs={appearance?.cadenceMs}
         familyId={familyId}
         formId={formId}
         glow={appearance?.palette.glow ?? accent}
-        identityToken={opponent?.id ?? card.id}
+        identityToken={appearance?.fingerprint ?? opponent?.id ?? card.id}
+        morphology={appearance?.morphology}
         pose={pose}
         primary={appearance?.palette.primary ?? primary}
         secondary={appearance?.palette.secondary ?? primary}

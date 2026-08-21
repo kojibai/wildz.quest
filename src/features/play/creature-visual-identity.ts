@@ -60,9 +60,32 @@ function absent(kind: FunctionalAppendage["kind"], function_: FunctionalAppendag
  */
 export function projectLivingGenomeCreatureVisualIdentity(
   genome: LivingCardGenome,
-  formId: string = genome.anatomy.body,
+  formId: string,
   overrides: VisualIdentityOverrides = {}
 ): CreatureVisualIdentity {
+  return {
+    formId,
+    palette: { ...genome.palette },
+    anatomy: {
+      body: genome.anatomy.body,
+      detail: genome.anatomy.detail,
+      locomotion: genome.skeleton.locomotion,
+      surface: genome.surface.kind
+    },
+    appendages: projectGenomeCreatureVisualAppendages(genome),
+    morphology: overrides.morphology ?? {
+      head: genome.skeleton.head,
+      torso: genome.skeleton.torso,
+      limb: genome.skeleton.limb,
+      symmetry: 0
+    },
+    cadenceMs: overrides.cadenceMs ?? genome.behavior.idleCadenceMs,
+    fingerprint: overrides.fingerprint ?? genome.identityAnchor
+  };
+}
+
+/** Semantic appendages for renderers that have a genome but no card form. */
+export function projectGenomeCreatureVisualAppendages(genome: LivingCardGenome): CreatureVisualAppendages {
   const wingFunction: FunctionalAppendage["function"] = genome.skeleton.locomotion === "flying" ? "powered-lift" : "glide";
   const hasFins = genome.surface.kind === "shell" || genome.anatomy.detail === "shell";
   const hasFrill = genome.appendages.horns !== "none" || genome.appendages.crest !== "none";
@@ -76,25 +99,7 @@ export function projectLivingGenomeCreatureVisualIdentity(
     horns: genome.appendages.horns === "none" ? absent("frill", "display") : appendage("functional", "frill", "display", genome.appendages.horns),
     crest: genome.appendages.crest === "none" ? absent("frill", "display") : appendage("functional", "frill", "display", genome.appendages.crest)
   };
-  return {
-    formId,
-    palette: { ...genome.palette },
-    anatomy: {
-      body: genome.anatomy.body,
-      detail: genome.anatomy.detail,
-      locomotion: genome.skeleton.locomotion,
-      surface: genome.surface.kind
-    },
-    appendages,
-    morphology: overrides.morphology ?? {
-      head: genome.skeleton.head,
-      torso: genome.skeleton.torso,
-      limb: genome.skeleton.limb,
-      symmetry: 0
-    },
-    cadenceMs: overrides.cadenceMs ?? genome.behavior.idleCadenceMs,
-    fingerprint: overrides.fingerprint ?? genome.identityAnchor
-  };
+  return appendages;
 }
 
 export function projectCardCreatureVisualIdentity(asset: PortableCardAsset): CreatureVisualIdentity {
