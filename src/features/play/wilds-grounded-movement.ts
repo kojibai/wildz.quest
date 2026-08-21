@@ -31,6 +31,44 @@ export type WildsAerialCollisionSample = {
   protectedAirspace: boolean;
 };
 
+export type WildsAerialObstacleNeighborhood = Readonly<{
+  tileX: number;
+  tileZ: number;
+  obstacles: readonly WildsTerrainObstacle[];
+}>;
+
+export type WildsAerialNeighborhoodDiagnostics = {
+  neighborhoodBuilds: number;
+  tileProjections: number;
+  cacheKeyBuilds: number;
+  arrayAllocations: number;
+};
+
+export function createWildsAerialNeighborhoodDiagnostics(): WildsAerialNeighborhoodDiagnostics {
+  return { neighborhoodBuilds: 0, tileProjections: 0, cacheKeyBuilds: 0, arrayAllocations: 0 };
+}
+
+export function projectWildsAerialObstacleNeighborhood(
+  point: Point,
+  diagnostics?: WildsAerialNeighborhoodDiagnostics
+): WildsAerialObstacleNeighborhood {
+  if (!finitePoint(point)) throw new Error("wilds_aerial_neighborhood_invalid");
+  const tileX = Math.floor(point.x / WILDS_TERRAIN_TILE_SIZE);
+  const tileZ = Math.floor(point.z / WILDS_TERRAIN_TILE_SIZE);
+  const obstacles: WildsTerrainObstacle[] = [];
+  for (let offsetZ = -1; offsetZ <= 1; offsetZ += 1) {
+    for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
+      obstacles.push(...wildsTerrainObstaclesForTile(tileX + offsetX, tileZ + offsetZ));
+    }
+  }
+  if (diagnostics) {
+    diagnostics.neighborhoodBuilds += 1;
+    diagnostics.tileProjections += 9;
+    diagnostics.arrayAllocations += 10;
+  }
+  return Object.freeze({ tileX, tileZ, obstacles: Object.freeze(obstacles) });
+}
+
 export function createWildsAerialCollisionSample(): WildsAerialCollisionSample {
   return { obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false };
 }
@@ -72,7 +110,8 @@ export function writeWildsAerialCollisionSample(
   obstacles: readonly WildsTerrainObstacle[] | undefined,
   output: WildsAerialCollisionSample,
   actorHeight = 1.55,
-  capsuleRadius = DEFAULT_CAPSULE_RADIUS
+  capsuleRadius = DEFAULT_CAPSULE_RADIUS,
+  terrainObstacles: readonly WildsTerrainObstacle[] = EMPTY_AERIAL_OBSTACLES
 ) {
   if (!finitePoint(point) || !Number.isFinite(footY) || !Number.isFinite(actorHeight) || actorHeight <= 0) {
     throw new Error("wilds_aerial_collision_sample_invalid");
@@ -88,15 +127,8 @@ export function writeWildsAerialCollisionSample(
       writeObstacleConstraint(point, footY, actorHeight, capsuleRadius, obstacles[index]!, output);
     }
   }
-  const tileX = Math.floor(point.x / WILDS_TERRAIN_TILE_SIZE);
-  const tileZ = Math.floor(point.z / WILDS_TERRAIN_TILE_SIZE);
-  for (let offsetZ = -1; offsetZ <= 1; offsetZ += 1) {
-    for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
-      const entries = cachedTileObstacles(tileX + offsetX, tileZ + offsetZ);
-      for (let index = 0; index < entries.length; index += 1) {
-        writeObstacleConstraint(point, footY, actorHeight, capsuleRadius, entries[index]!, output);
-      }
-    }
+  for (let index = 0; index < terrainObstacles.length; index += 1) {
+    writeObstacleConstraint(point, footY, actorHeight, capsuleRadius, terrainObstacles[index]!, output);
   }
   return output;
 }
@@ -129,6 +161,7 @@ const CLIMB_SPEED = 0.42;
 const CONTACT_EPSILON = 0.000001;
 const MAX_COLLISION_PASSES = 4;
 const MAX_CACHED_TILES = 64;
+const EMPTY_AERIAL_OBSTACLES: readonly WildsTerrainObstacle[] = Object.freeze([]);
 const obstacleTileCache = new Map<string, readonly WildsTerrainObstacle[]>();
 
 function traversalModeFor(

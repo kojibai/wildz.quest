@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   createWildsAerialCollisionSample,
+  createWildsAerialNeighborhoodDiagnostics,
+  projectWildsAerialObstacleNeighborhood,
   resolveWildsRequiredLandingPosition,
   resolveWildsGroundMovement,
   resolveWildsObstacleMotion,
@@ -11,12 +13,16 @@ import {
 import { sampleWildsTerrain } from "../src/features/play/wilds-terrain-authority";
 import {
   projectWildsRenderedLivingObstacles,
+  WILDS_RENDERED_PHYSICAL_OBSTACLES,
   wildsObstacleBlocksVerticalBand,
   wildsTerrainObstaclesForTile,
   type WildsTerrainObstacle
 } from "../src/features/play/wilds-terrain-obstacles";
 import { initialWildsWorldProjection } from "../src/features/play/wilds-world-state";
 import { createWildsVerticalTraversalState, writeWildsVerticalTraversalStep } from "../src/features/play/wilds-vertical-traversal";
+import { WILDS_BOSS_FAMILIES } from "../src/features/play/wilds-boss-ecology";
+import { wildsBossPhysicalEnvelope } from "../src/features/play/wilds-boss-physical-envelope";
+import { WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS } from "../src/features/play/wilds-physical-dimensions";
 
 function obstacle(id: string, x: number, z: number, radius: number, material: WildsTerrainObstacle["material"] = "solid"): WildsTerrainObstacle {
   return {
@@ -181,14 +187,67 @@ test("actual generated canopy projection blocks powered ascent until the actor l
     tree = wildsTerrainObstaclesForTile(x, z).find((entry) => entry.kind === "tree");
   }
   assert.ok(tree);
+  const neighborhood = projectWildsAerialObstacleNeighborhood(tree.position);
   const sample = createWildsAerialCollisionSample();
-  writeWildsAerialCollisionSample(tree.position, tree.position.y + .35, undefined, sample);
+  writeWildsAerialCollisionSample(tree.position, tree.position.y + .35, undefined, sample, 1.55, .38, neighborhood.obstacles);
   const state = createWildsVerticalTraversalState();
   writeWildsVerticalTraversalStep(state, {
     deltaSeconds: .1, initialOffset: .35, intent: 1, layer: "air", liftPotential: 1,
     obstacleTopY: sample.obstacleTopY, powered: true, stamina: 100, terrainElevation: tree.position.y
   });
   assert.equal(state.offset, .35);
+});
+
+test("steady aerial frames consume one immutable neighborhood without tile projection or allocation work", () => {
+  const diagnostics = createWildsAerialNeighborhoodDiagnostics();
+  const neighborhood = projectWildsAerialObstacleNeighborhood({ x: 18, z: -24 }, diagnostics);
+  const output = createWildsAerialCollisionSample();
+  const before = { ...diagnostics };
+  for (let frame = 0; frame < 300; frame += 1) {
+    writeWildsAerialCollisionSample({ x: 18, z: -24 }, 4, undefined, output, 1.55, .38, neighborhood.obstacles);
+  }
+  assert.deepEqual(diagnostics, before);
+  assert.equal(diagnostics.cacheKeyBuilds, 0);
+
+  projectWildsAerialObstacleNeighborhood({ x: 18 + 16, z: -24 }, diagnostics);
+  assert.equal(diagnostics.neighborhoodBuilds, before.neighborhoodBuilds + 1);
+  assert.equal(diagnostics.tileProjections, before.tileProjections + 9);
+  assert.ok(diagnostics.arrayAllocations - before.arrayAllocations <= 10);
+});
+
+test("rendered Timber Hall roof and collision share one complete authored envelope", () => {
+  const hall = WILDS_RENDERED_PHYSICAL_OBSTACLES.find((entry) => entry.id.endsWith(":timber-hall"));
+  assert.ok(hall);
+  const bounds = hall.shape.kind === "box"
+    ? hall.position.y + hall.shape.halfY
+    : hall.position.y + hall.shape.height;
+  const base = sampleWildsTerrain(72, 40).elevation;
+  assert.equal(bounds, base + WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.timberHall.topY);
+  assert.ok(WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.timberHall.topY >= 3.72);
+});
+
+test("every rendered boss family and phase uses its shared scaled attachment envelope", () => {
+  const phases = ["emerged", "contested", "engaged", "transforming", "vulnerable"] as const;
+  for (const familyId of WILDS_BOSS_FAMILIES) for (const phase of phases) {
+    const world = initialWildsWorldProjection();
+    world.sites.site = {
+      id: "site", familyId: "family", name: "Site", position: { x: 30, z: 31 }, radius: 4,
+      phase: "engaged", spawnedAt: "2026-08-21T00:00:00.000Z", expiresAt: "2026-08-22T00:00:00.000Z",
+      bossId: "boss", seedDigest: "a".repeat(64)
+    };
+    world.bosses.boss = {
+      id: "boss", siteId: "site", familyId, position: { x: 32, z: 33 }, phase,
+      health: 10, maxHealth: 10, defeatedAt: null
+    };
+    const boss = projectWildsRenderedLivingObstacles(world).find((entry) => entry.id === "wildz.rendered.v1:living-boss:boss");
+    assert.ok(boss);
+    const envelope = wildsBossPhysicalEnvelope(familyId, phase);
+    const base = sampleWildsTerrain(32, 33).elevation;
+    assert.equal(boss.position.x, 32);
+    assert.equal(boss.position.z, 33);
+    assert.equal(boss.radius, envelope.radius);
+    assert.equal(boss.position.y + (boss.shape.kind === "cylinder" ? boss.shape.height : boss.shape.halfY), base + envelope.topY);
+  }
 });
 
 test("airborne movement cannot cross terrain higher than its actual world altitude", () => {

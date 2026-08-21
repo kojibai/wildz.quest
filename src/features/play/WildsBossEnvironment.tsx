@@ -7,17 +7,7 @@ import { WILDS_BOSS_FAMILIES, type WildsBossFamilyId } from "./wilds-boss-ecolog
 import type { WildsWorldBossProjection, WildsWorldProjection } from "./wilds-world-state";
 import type { WildsQualityProfile } from "./wilds-quality-profile";
 import { projectWildsTerrainActorPosition } from "./wilds-terrain-rendering";
-
-const FAMILY_ART: Record<WildsBossFamilyId, { shell: string; core: string; signal: string; scale: number }> = {
-  "crystal-burrower": { shell: "#25313c", core: "#aef7ff", signal: "#76dfff", scale: 1.15 },
-  "skycoil-tempest": { shell: "#344968", core: "#f8fbff", signal: "#8ec8ff", scale: 1.05 },
-  "mirecrown-colossus": { shell: "#334a37", core: "#d9f29b", signal: "#82cf75", scale: 1.28 },
-  "embermane-siegebeast": { shell: "#552f27", core: "#fff0a6", signal: "#ff7448", scale: 1.16 },
-  "tidal-prism-leviathan": { shell: "#17445b", core: "#b8fff2", signal: "#45d6cc", scale: 1.2 },
-  "echo-antler-warden": { shell: "#473d5b", core: "#f2d8ff", signal: "#cb91ff", scale: 1.06 },
-  "lumen-moth-sovereign": { shell: "#493f68", core: "#fff8c7", signal: "#ffe780", scale: 1.02 },
-  "voidroot-devourer": { shell: "#17131f", core: "#e1a8ff", signal: "#9d5cff", scale: 1.25 }
-};
+import { WILDS_BOSS_FAMILY_ART, wildsBossPhysicalEnvelope } from "./wilds-boss-physical-envelope";
 
 export function WildsBossEnvironment({ livingWorld, player, qualityProfile, terrainElevation }: {
   livingWorld?: WildsWorldProjection | null;
@@ -47,9 +37,9 @@ function BossActor({ boss, player, qualityProfile, terrainElevation }: { boss: W
   const root = useRef<THREE.Group>(null);
   const signals = useRef<THREE.InstancedMesh>(null);
   const familyId = boss.familyId as WildsBossFamilyId;
-  const art = FAMILY_ART[familyId] ?? FAMILY_ART["crystal-burrower"];
+  const art = WILDS_BOSS_FAMILY_ART[familyId] ?? WILDS_BOSS_FAMILY_ART["crystal-burrower"];
   const position = boss.position as { x: number; z: number };
-  const phaseScale = boss.phase === "transforming" ? 1.22 : boss.phase === "vulnerable" ? 0.94 : 1;
+  const physicalEnvelope = wildsBossPhysicalEnvelope(familyId, boss.phase);
   const signalCount = qualityProfile.tier === "low" ? 8 : 12;
 
   useLayoutEffect(() => {
@@ -76,7 +66,7 @@ function BossActor({ boss, player, qualityProfile, terrainElevation }: { boss: W
 
   return (
     <group position={projectWildsTerrainActorPosition(position, player, 0, { anchorElevation: terrainElevation })}>
-    <group ref={root} scale={art.scale * phaseScale}>
+    <group ref={root} scale={physicalEnvelope.scale} userData={{ physicalRadius: physicalEnvelope.radius, physicalTopY: physicalEnvelope.topY }}>
       <mesh position={[0, .08, 0]} receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[2.05, 2.32, 48]} />
         <meshStandardMaterial color={art.signal} emissive={art.signal} emissiveIntensity={boss.phase === "vulnerable" ? 1.2 : .45} transparent opacity={.72} />
@@ -99,7 +89,7 @@ function BossActor({ boss, player, qualityProfile, terrainElevation }: { boss: W
   );
 }
 
-function FamilyAttachments({ art, familyId, phase }: { art: (typeof FAMILY_ART)[WildsBossFamilyId]; familyId: WildsBossFamilyId; phase: WildsWorldBossProjection["phase"] }) {
+function FamilyAttachments({ art, familyId, phase }: { art: (typeof WILDS_BOSS_FAMILY_ART)[WildsBossFamilyId]; familyId: WildsBossFamilyId; phase: WildsWorldBossProjection["phase"] }) {
   const sides = [-1, 1] as const;
   if (familyId === "skycoil-tempest") return <group>{[-1, 0, 1].map((lane) => <mesh key={lane} position={[lane * .72, 1.5 + Math.abs(lane) * .2, 0]} rotation={[Math.PI / 2, 0, lane * .3]}><torusGeometry args={[.82, .12, 8, 28]} /><meshStandardMaterial color={art.signal} emissive={art.signal} emissiveIntensity={.65} /></mesh>)}</group>;
   if (familyId === "mirecrown-colossus" || familyId === "voidroot-devourer") return <group>{[-2, -1, 0, 1, 2].map((root) => <mesh key={root} position={[root * .42, .48, -.2]} rotation={[0, 0, root * .12]}><cylinderGeometry args={[.08, .28, 1.8 + Math.abs(root) * .2, 7]} /><meshStandardMaterial color={familyId === "voidroot-devourer" ? "#08070b" : art.shell} roughness={.88} /></mesh>)}</group>;

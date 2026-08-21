@@ -121,7 +121,11 @@ describe("Wildz aerial and vista integration", () => {
   });
 
   it("feeds live physical ceiling and protected-airspace samples into the same frame authority", async () => {
-    const canvas = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");
+    const [canvas, bosses, settlement] = await Promise.all([
+      readFile("src/features/play/WildsWorldCanvas.tsx", "utf8"),
+      readFile("src/features/play/WildsBossEnvironment.tsx", "utf8"),
+      readFile("src/features/play/WildsSettlementEnvironment.tsx", "utf8")
+    ]);
 
     assert.match(canvas, /writeWildsAerialCollisionSample/);
     assert.match(canvas, /aerialInput\.protectedAirspace = collisionSample\.protectedAirspace/);
@@ -129,6 +133,12 @@ describe("Wildz aerial and vista integration", () => {
     assert.match(canvas, /verticalInput\.obstacleTopY = collisionSample\.obstacleTopY/);
     assert.match(canvas, /runtime\.current\.altitude = currentVertical\.worldY/);
     assert.match(canvas, /projectWildsRenderedLivingObstacles/);
+    assert.match(canvas, /projectWildsAerialObstacleNeighborhood/);
+    assert.match(canvas, /useMemo\([\s\S]*terrainTileX[\s\S]*terrainTileZ/);
     assert.match(canvas, /writeWildsAerialCollisionSample\([\s\S]*livingPhysicalObstacles/);
+    assert.match(canvas, /livingPhysicalObstacles[\s\S]*terrainObstacleNeighborhood\.obstacles/);
+    assert.match(bosses, /wildsBossPhysicalEnvelope\(familyId, boss\.phase\)/);
+    assert.match(bosses, /physicalRadius:\s*physicalEnvelope\.radius/);
+    assert.match(settlement, /WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS\.timberHall/);
   });
 });

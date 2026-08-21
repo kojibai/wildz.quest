@@ -6,6 +6,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { WildsSettlementDefinition } from "./wilds-settlements";
 import type { WildsWorldProjection } from "./wilds-world-state";
+import { WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS } from "./wilds-physical-dimensions";
 
 export type WildsSettlementWorldMode = "receiz_live" | "kai_live" | "local_practice" | "connecting";
 
@@ -77,9 +78,10 @@ function SettlementPaths({ material }: { material: THREE.Material }) {
 }
 
 function TrailGate({ geometry, materials }: { geometry: Geometry; materials: Materials }) {
-  return <group name="district-trail-gate" position={[8, 0, 8]} rotation={[0, Math.PI / 4, 0]}>
+  const dimensions = WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.trailGate;
+  return <group name="district-trail-gate" position={dimensions.local} rotation={[0, Math.PI / 4, 0]}>
     {[-1, 1].map((side) => <SharedMesh castShadow geometry={geometry.post} key={side} material={materials.timber} position={[side * 1.45, 1.25, 0]} />)}
-    <SharedMesh castShadow geometry={geometry.beam} material={materials.timberLight} position={[0, 2.48, 0]} scale={[3.5, .28, .42]} />
+    <SharedMesh castShadow geometry={geometry.beam} material={materials.timberLight} position={[0, dimensions.beamCenterY, 0]} scale={dimensions.beamScale} />
     <SharedMesh geometry={geometry.beam} material={materials.gold} position={[0, 2.5, .24]} rotation={[0, 0, Math.PI / 4]} scale={[.72, .12, .08]} />
     <SharedMesh geometry={geometry.beam} material={materials.gold} position={[0, 2.5, .25]} rotation={[0, 0, -Math.PI / 4]} scale={[.72, .12, .08]} />
     <mesh castShadow position={[-1.45, 2.65, 0]}><coneGeometry args={[.34, .8, 6]} /><primitive attach="material" object={materials.roof} /></mesh>
@@ -96,10 +98,11 @@ function DawnCommons({ geometry, materials }: { geometry: Geometry; materials: M
 }
 
 function TimberHall({ materials }: { materials: Materials }) {
-  return <group name="wayfinder-timber-hall" position={[0, 0, 1.25]}>
-    <mesh castShadow position={[0, 1.25, 0]}><boxGeometry args={[4.4, 2.5, 2.8]} /><primitive attach="material" object={materials.plaster} /></mesh>
+  const dimensions = WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.timberHall;
+  return <group name="wayfinder-timber-hall" position={dimensions.districtLocal}>
+    <mesh castShadow position={[0, dimensions.bodyCenterY, 0]}><boxGeometry args={dimensions.bodySize} /><primitive attach="material" object={materials.plaster} /></mesh>
     {[-1.65, 1.65].map((x) => <mesh castShadow key={x} position={[x, 1.3, 1.43]}><boxGeometry args={[.2, 2.6, .18]} /><primitive attach="material" object={materials.timber} /></mesh>)}
-    <mesh castShadow position={[0, 2.72, 0]} rotation={[0, Math.PI / 4, 0]} scale={[3.25, 1, 2.25]}><octahedronGeometry args={[1, 0]} /><primitive attach="material" object={materials.roof} /></mesh>
+    <mesh castShadow position={[0, dimensions.roofCenterY, 0]} rotation={[0, Math.PI / 4, 0]} scale={dimensions.roofScale}><octahedronGeometry args={[1, 0]} /><primitive attach="material" object={materials.roof} /></mesh>
     <mesh position={[0, 1.12, 1.47]}><boxGeometry args={[.92, 1.72, .12]} /><primitive attach="material" object={materials.timber} /></mesh>
     {[-1.22, 1.22].map((x) => <mesh key={x} position={[x, 1.42, 1.47]}><boxGeometry args={[.62, .72, .1]} /><primitive attach="material" object={materials.glass} /></mesh>)}
   </group>;

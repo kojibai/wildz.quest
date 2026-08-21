@@ -1,6 +1,9 @@
 import { projectWildsBiome } from "./wilds-biome";
 import { WILDS_FLAGSHIP_LANDMARKS } from "./wilds-landmarks";
 import type { WildsWorldProjection } from "./wilds-world-state";
+import { WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS } from "./wilds-physical-dimensions";
+import { wildsBossPhysicalEnvelope } from "./wilds-boss-physical-envelope";
+import { WILDS_BOSS_FAMILIES, type WildsBossFamilyId } from "./wilds-boss-ecology";
 import {
   WILDS_TERRAIN_TILE_SIZE,
   WILDS_LANDMARK_BLEND_APRON,
@@ -52,9 +55,19 @@ export const WILDS_RENDERED_PHYSICAL_OBSTACLES: readonly WildsTerrainObstacle[] 
     id: "wildz.rendered.v1:wayfinder-hollow:trail-gate-beam",
     kind: "ceiling",
     material: "solid",
-    position: { x: 80, y: renderedTerrainY(72, 40) + 2.48, z: 48 },
+    position: {
+      x: WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.anchor.x + WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.trailGate.local[0],
+      y: renderedTerrainY(WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.anchor.x, WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.anchor.z)
+        + WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.trailGate.beamCenterY,
+      z: WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.anchor.z + WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.trailGate.local[2]
+    },
     radius: 1.8,
-    shape: { kind: "box", halfX: 1.75, halfY: .14, halfZ: .21 },
+    shape: {
+      kind: "box",
+      halfX: WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.trailGate.beamHalf[0],
+      halfY: WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.trailGate.beamHalf[1],
+      halfZ: WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.trailGate.beamHalf[2]
+    },
     visualScale: 1,
     airbornePolicy: "persistent"
   },
@@ -62,9 +75,13 @@ export const WILDS_RENDERED_PHYSICAL_OBSTACLES: readonly WildsTerrainObstacle[] 
     id: "wildz.rendered.v1:wayfinder-hollow:timber-hall",
     kind: "structure",
     material: "solid",
-    position: { x: 72, y: renderedTerrainY(72, 40) + 1.25, z: 42.25 },
-    radius: 2.25,
-    shape: { kind: "box", halfX: 2.2, halfY: 1.25, halfZ: 1.4 },
+    position: {
+      x: WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.anchor.x + WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.timberHall.settlementLocal[0],
+      y: renderedTerrainY(WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.anchor.x, WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.anchor.z),
+      z: WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.anchor.z + WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.timberHall.settlementLocal[2]
+    },
+    radius: WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.timberHall.radius,
+    shape: { kind: "cylinder", radius: WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.timberHall.radius, height: WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.timberHall.topY },
     visualScale: 1,
     airbornePolicy: "persistent"
   }
@@ -88,13 +105,19 @@ export function projectWildsRenderedLivingObstacles(world?: WildsWorldProjection
     });
     const boss = site.bossId ? world.bosses[site.bossId] : null;
     if (!boss || boss.phase === "defeated" || boss.phase === "memorialized" || boss.phase === "withdrawn") continue;
+    const familyId = WILDS_BOSS_FAMILIES.includes(boss.familyId as WildsBossFamilyId)
+      ? boss.familyId as WildsBossFamilyId
+      : "crystal-burrower";
+    const bossPosition = boss.position as { x: number; z: number } | undefined ?? site.position;
+    const bossTerrainY = renderedTerrainY(bossPosition.x, bossPosition.z);
+    const envelope = wildsBossPhysicalEnvelope(familyId, boss.phase);
     obstacles.push({
       id: `wildz.rendered.v1:living-boss:${boss.id}`,
       kind: "aerial-hazard",
       material: "conditional",
-      position: { x: site.position.x, y: terrainY + .3, z: site.position.z },
-      radius: 1.35,
-      shape: { kind: "cylinder", radius: 1.35, height: 2.7 },
+      position: { x: bossPosition.x, y: bossTerrainY, z: bossPosition.z },
+      radius: envelope.radius,
+      shape: { kind: "cylinder", radius: envelope.radius, height: envelope.topY },
       visualScale: 1,
       airbornePolicy: "persistent"
     });

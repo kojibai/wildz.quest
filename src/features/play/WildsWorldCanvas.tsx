@@ -70,9 +70,11 @@ import {
 } from "@/features/play/wilds-vertical-traversal";
 import {
   createWildsAerialCollisionSample,
+  projectWildsAerialObstacleNeighborhood,
   writeWildsAerialCollisionSample
 } from "@/features/play/wilds-grounded-movement";
 import { projectWildsRenderedLivingObstacles } from "@/features/play/wilds-terrain-obstacles";
+import { WILDS_TERRAIN_TILE_SIZE } from "@/features/play/wilds-terrain-authority";
 
 const WILDS_DIAGNOSTICS_ENABLED = process.env.NODE_ENV !== "production";
 
@@ -274,6 +276,14 @@ function WildsScene({
   );
   const activeAppearance = useMemo(() => activeAsset ? projectCardKaiAppearance(activeAsset) : null, [activeAsset]);
   const livingPhysicalObstacles = useMemo(() => projectWildsRenderedLivingObstacles(livingWorld), [livingWorld]);
+  const terrainTileX = Math.floor(state.player.x / WILDS_TERRAIN_TILE_SIZE);
+  const terrainTileZ = Math.floor(state.player.z / WILDS_TERRAIN_TILE_SIZE);
+  const terrainObstacleNeighborhood = useMemo(
+    () => projectWildsAerialObstacleNeighborhood(state.player),
+    // Player coordinates deliberately do not rebuild this immutable projection inside a tile.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [terrainTileX, terrainTileZ]
+  );
   const actualCameraSubmergedRef = useRef(false);
   return (
     <WildsReadabilityProvider value={readability}>
@@ -317,7 +327,7 @@ function WildsScene({
             : null
         ))}
       </SmoothWorldFrame>
-      <AerialPlayerFrame aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} livingPhysicalObstacles={livingPhysicalObstacles} pressurePotential={pressurePotential} swimStamina={state.energy} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} player={state.player} runtime={aerialStateRef} verticalIntentRef={verticalIntentRef} verticalTraversalRef={verticalTraversalRef}>
+      <AerialPlayerFrame aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} livingPhysicalObstacles={livingPhysicalObstacles} pressurePotential={pressurePotential} swimStamina={state.energy} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} player={state.player} runtime={aerialStateRef} terrainObstacleNeighborhood={terrainObstacleNeighborhood} verticalIntentRef={verticalIntentRef} verticalTraversalRef={verticalTraversalRef}>
         <WildsExplorer
           aerialPalette={{
             primary: activeAppearance?.palette.primary ?? "#c9fff0",
@@ -341,7 +351,7 @@ function WildsScene({
   );
 }
 
-function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizontalAllowedRef, liftPotential, livingPhysicalObstacles, pressurePotential, swimStamina, onEnergyChange, onModeChange, onLandingRequired, onVerticalReadoutChange, player, runtime, verticalIntentRef, verticalTraversalRef }: {
+function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizontalAllowedRef, liftPotential, livingPhysicalObstacles, pressurePotential, swimStamina, onEnergyChange, onModeChange, onLandingRequired, onVerticalReadoutChange, player, runtime, terrainObstacleNeighborhood, verticalIntentRef, verticalTraversalRef }: {
   aquaticPresentation: WildsAquaticPresentation;
   capabilities: readonly WildsTraversalCapability[];
   children: ReactNode;
@@ -356,6 +366,7 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizo
   onVerticalReadoutChange: (layer: WildsVerticalTraversalState["layer"], value: number, safeMin: number, safeMax: number) => void;
   player: PlayState["player"];
   runtime: MutableRefObject<WildsAerialTraversalState>;
+  terrainObstacleNeighborhood: import("@/features/play/wilds-grounded-movement").WildsAerialObstacleNeighborhood;
   verticalIntentRef: MutableRefObject<WildsVerticalTraversalIntent>;
   verticalTraversalRef: MutableRefObject<WildsVerticalTraversalState>;
 }) {
@@ -389,7 +400,10 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, horizo
       player,
       currentVertical.layer === "air" ? currentVertical.worldY : groundElevation + .35,
       livingPhysicalObstacles,
-      collisionSampleRef.current
+      collisionSampleRef.current,
+      1.55,
+      .38,
+      terrainObstacleNeighborhood.obstacles
     );
     const aerialInput = runtimeStep.current;
     aerialInput.deltaSeconds = delta;
