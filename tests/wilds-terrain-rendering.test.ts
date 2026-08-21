@@ -4,6 +4,7 @@ import { wildsTerrainElevation } from "../src/features/play/wilds-terrain-author
 import {
   buildWildsTerrainPatchProjection,
   buildWildsTerrainMeshProjection,
+  buildWildsTerrainRibbonProjection,
   wildsTerrainRelativeElevation
 } from "../src/features/play/wilds-terrain-rendering";
 
@@ -65,4 +66,18 @@ test("streamed terrain patch combines a five-by-five tile footprint into one ind
   assert.equal(patch.indices.length, tiles * 4 * 4 * 6);
   assert.equal(patch.vertices[0]?.world.x, 12);
   assert.equal(patch.vertices.at(-1)?.world.z, 12);
+});
+
+test("authored ribbons sample both edges from deterministic terrain", () => {
+  const ribbon = buildWildsTerrainRibbonProjection([
+    { x: 20, z: -8 },
+    { x: 28, z: -2 },
+    { x: 34, z: 6 }
+  ], 0.5, 0.03, 2);
+
+  assert.ok(ribbon.vertices.length > 6);
+  assert.equal(ribbon.indices.length, (ribbon.vertices.length / 2 - 1) * 6);
+  for (const vertex of ribbon.vertices) {
+    assert.equal(vertex.position.y, wildsTerrainElevation(vertex.world.x, vertex.world.z) + 0.03);
+  }
 });

@@ -1,3 +1,5 @@
+import { wildsTerrainRelativeElevation } from "./wilds-terrain-rendering";
+
 type WorldPoint = Readonly<{ x: number; z: number }>;
 
 export function projectWildsEcologyInstance(
@@ -9,7 +11,7 @@ export function projectWildsEcologyInstance(
 ) {
   const insideArrivalClearing = Math.hypot(item.x, item.z) < arrivalClearRadius;
   return {
-    position: [item.x - player.x, y, item.z - player.z] as [number, number, number],
+    position: [item.x - player.x, y + wildsTerrainRelativeElevation(item.x, item.z, player), item.z - player.z] as [number, number, number],
     scale: insideArrivalClearing
       ? [0, 0, 0] as [number, number, number]
       : [...shape] as [number, number, number]

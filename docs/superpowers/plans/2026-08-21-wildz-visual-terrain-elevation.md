@@ -53,13 +53,13 @@
 - Modify: `tests/wilds-ecology-placement.test.ts`
 - Modify: `tests/wilds-terrain-rendering.test.ts`
 
-- [ ] Write failing tests that ecology and authored ribbon vertices use the same relative terrain authority.
-- [ ] Ground trees, bushes, rocks, flowers, landmarks, living sites, and flagship entrances.
-- [ ] Drape major routes and watercourses over deterministic elevation.
-- [ ] Replace flat local trail planes with sampled terrain ribbons.
-- [ ] Keep render quality cosmetic; no quality tier may alter authoritative positions.
-- [ ] Run focused tests, typecheck, and lint.
-- [ ] Commit grounded world dressing.
+- [x] Write failing tests that ecology and authored ribbon vertices use the same relative terrain authority.
+- [x] Ground trees, bushes, rocks, flowers, landmarks, living sites, and flagship entrances.
+- [x] Drape major routes and watercourses over deterministic elevation.
+- [x] Replace flat local trail planes with sampled terrain ribbons.
+- [x] Keep render quality cosmetic; no quality tier may alter authoritative positions.
+- [x] Run focused tests, typecheck, and lint.
+- [x] Commit grounded world dressing.
 
 ## Task 4: Visual and repository verification
 

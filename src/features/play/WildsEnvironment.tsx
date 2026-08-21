@@ -15,7 +15,7 @@ import { WAYFINDER_HOLLOW } from "@/features/play/wilds-settlements";
 import { useWildsReadability } from "@/features/play/WildsReadabilityContext";
 import { projectWildsEcologyInstance } from "@/features/play/wilds-ecology-placement";
 import { wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
-import { buildWildsTerrainPatchProjection } from "@/features/play/wilds-terrain-rendering";
+import { buildWildsTerrainPatchProjection, buildWildsTerrainRibbonProjection, wildsTerrainRelativeElevation } from "@/features/play/wilds-terrain-rendering";
 
 export const WILDS_TILE_SIZE = 12;
 const STREAM_RADIUS = 2;
@@ -135,7 +135,7 @@ function LivingWorldSites({ player, world }: { player: PlayState["player"]; worl
     {sites.map((site) => {
       const boss = site.bossId ? world.bosses[site.bossId] : null;
       const memorial = site.phase === "memorialized";
-      return <group key={site.id} name={`world-site-${site.id}`} position={[site.position.x - player.x, 0, site.position.z - player.z]}>
+      return <group key={site.id} name={`world-site-${site.id}`} position={[site.position.x - player.x, wildsTerrainRelativeElevation(site.position.x, site.position.z, player), site.position.z - player.z]}>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
           <torusGeometry args={[site.radius * 0.58, 0.18, 10, 48]} />
           <meshStandardMaterial color={memorial ? "#8edcff" : "#9f6cff"} emissive={memorial ? "#2582a8" : "#5624a8"} emissiveIntensity={0.8} />
@@ -157,7 +157,7 @@ function FlagshipLandmarkEntrances({ detail, livingWorld, player, worldMode }: {
   const entrances = projectVisibleLandmarkEntrances(player).filter(({ distance }) => distance <= 30);
   return <group name="world-flagship-landmarks">
     {entrances.map(({ landmark, relative, distance }) => (
-      <group key={landmark.id} name={`world-entrance-${landmark.id}`} position={[relative.x, 0, relative.z]}>
+      <group key={landmark.id} name={`world-entrance-${landmark.id}`} position={[relative.x, wildsTerrainRelativeElevation(landmark.position.x, landmark.position.z, player), relative.z]}>
         {landmark.id === "hearttree-sanctum" && distance <= 26 ? (
           <group position={distance < landmark.radius + 2 ? [2.6, 0, -2.4] : [0, 0, 0]} scale={distance < landmark.radius + 2 ? 0.44 : 1}>
             <HearttreeSanctum />
@@ -194,54 +194,31 @@ function LandmarkEntranceBeacon({ landmark, distance }: { landmark: WildsLandmar
 
 function MajorWorldRoutes({ player, palette }: { player: PlayState["player"]; palette: WildsBiomeTile["trail"] }) {
   const readability = useWildsReadability();
-  const routes = useMemo(() => WILDS_MAJOR_ROUTES.map((route) => ({
-    ...route,
-    curve: new THREE.CatmullRomCurve3(route.points.map((point) => new THREE.Vector3(point.x, .024, point.z)))
-  })), []);
-  const edgeGeometry = useMemo(() => mergeGeometries(routes.map((route, index) => new THREE.TubeGeometry(route.curve, 160, index ? .42 : .54, 7, false)), false)!, [routes]);
-  const trailGeometry = useMemo(() => mergeGeometries(routes.map((route, index) => new THREE.TubeGeometry(route.curve, 160, index ? .28 : .36, 7, false)), false)!, [routes]);
-  return <group name="world-major-routes" position={[-player.x, 0, -player.z]}>
+  const edgeGeometry = useMemo(() => mergeGeometries(WILDS_MAJOR_ROUTES.map((route, index) => terrainRibbonGeometry(route.points, index ? .42 : .54, .026)), false)!, []);
+  const trailGeometry = useMemo(() => mergeGeometries(WILDS_MAJOR_ROUTES.map((route, index) => terrainRibbonGeometry(route.points, index ? .28 : .36, .032)), false)!, []);
+  return <group name="world-major-routes" position={[-player.x, -wildsTerrainElevation(player.x, player.z), -player.z]}>
     <mesh geometry={edgeGeometry} name="world-route-edges"><meshStandardMaterial color={palette.edge} emissive={palette.edge} emissiveIntensity={readability.pathEmissive * .45} roughness={.98} /></mesh>
     <mesh geometry={trailGeometry} name="world-route-surfaces"><meshStandardMaterial color={palette.base} emissive={palette.base} emissiveIntensity={readability.pathEmissive} roughness={.91} /></mesh>
   </group>;
 }
 
-function riverRibbon(points: readonly { x: number; z: number }[], width: number) {
-  const positions: number[] = [];
-  const uvs: number[] = [];
-  const indices: number[] = [];
-  points.forEach((point, index) => {
-    const previous = points[Math.max(0, index - 1)]!;
-    const next = points[Math.min(points.length - 1, index + 1)]!;
-    const tangentX = next.x - previous.x;
-    const tangentZ = next.z - previous.z;
-    const length = Math.hypot(tangentX, tangentZ) || 1;
-    const normalX = -tangentZ / length;
-    const normalZ = tangentX / length;
-    const breadth = width * (.78 + Math.sin(index * GOLDEN_ANGLE) * .12);
-    positions.push(point.x + normalX * breadth, .028, point.z + normalZ * breadth);
-    positions.push(point.x - normalX * breadth, .028, point.z - normalZ * breadth);
-    uvs.push(0, index / Math.max(1, points.length - 1), 1, index / Math.max(1, points.length - 1));
-    if (index < points.length - 1) {
-      const a = index * 2;
-      indices.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
-    }
-  });
+function terrainRibbonGeometry(points: readonly { x: number; z: number }[], width: number, verticalOffset: number) {
+  const projection = buildWildsTerrainRibbonProjection(points, width, verticalOffset);
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
-  geometry.setIndex(indices);
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(projection.positions, 3));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(projection.uvs, 2));
+  geometry.setIndex(Array.from(projection.indices));
   geometry.computeVertexNormals();
   return geometry;
 }
 
 function WorldWatercourses({ player, qualityProfile }: { player: PlayState["player"]; qualityProfile: WildsQualityProfile }) {
-  const geometry = useMemo(() => riverRibbon([
+  const geometry = useMemo(() => terrainRibbonGeometry([
     { x: 148, z: -118 }, { x: 116, z: -88 }, { x: 82, z: -61 }, { x: 48, z: -34 },
     { x: 18, z: -12 }, { x: 4, z: 2 }, { x: -21, z: 31 }, { x: -55, z: 66 },
     { x: -86, z: 96 }, { x: -122, z: 126 }
-  ], qualityProfile.tier === "low" ? .72 : .92), [qualityProfile.tier]);
-  return <group name="world-watercourses" position={[-player.x, 0, -player.z]}>
+  ], qualityProfile.tier === "low" ? .72 : .92, .028), [qualityProfile.tier]);
+  return <group name="world-watercourses" position={[-player.x, -wildsTerrainElevation(player.x, player.z), -player.z]}>
     <mesh geometry={geometry} receiveShadow>
       <meshPhysicalMaterial color="#2c8790" emissive="#143f43" emissiveIntensity={.18} roughness={.22} metalness={.02} clearcoat={qualityProfile.tier === "low" ? .2 : .72} />
     </mesh>
@@ -295,20 +272,24 @@ function GroundField({ centerX, centerZ, color, player, qualityProfile }: { cent
 
 function TrailNetwork({ player, palette }: { player: PlayState["player"]; palette: WildsBiomeTile["trail"] }) {
   const readability = useWildsReadability();
-  const offsetX = -(((player.x % WILDS_TILE_SIZE) + WILDS_TILE_SIZE) % WILDS_TILE_SIZE);
-  const offsetZ = -(((player.z % WILDS_TILE_SIZE) + WILDS_TILE_SIZE) % WILDS_TILE_SIZE);
+  const centerX = Math.floor(player.x / WILDS_TILE_SIZE);
+  const centerZ = Math.floor(player.z / WILDS_TILE_SIZE);
+  const startX = (centerX - STREAM_RADIUS) * WILDS_TILE_SIZE;
+  const endX = (centerX + STREAM_RADIUS + 1) * WILDS_TILE_SIZE;
+  const startZ = (centerZ - STREAM_RADIUS) * WILDS_TILE_SIZE;
+  const endZ = (centerZ + STREAM_RADIUS + 1) * WILDS_TILE_SIZE;
   const edgeGeometry = useMemo(() => {
-    const eastWest = new THREE.PlaneGeometry(WILDS_TILE_SIZE * 5, 1.02).applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)));
-    const northSouth = new THREE.PlaneGeometry(WILDS_TILE_SIZE * 5, .82).applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(-Math.PI / 2, 0, Math.PI / 2)));
+    const eastWest = terrainRibbonGeometry([{ x: startX, z: centerZ * WILDS_TILE_SIZE }, { x: endX, z: centerZ * WILDS_TILE_SIZE }], .51, .018);
+    const northSouth = terrainRibbonGeometry([{ x: centerX * WILDS_TILE_SIZE, z: startZ }, { x: centerX * WILDS_TILE_SIZE, z: endZ }], .41, .018);
     return mergeGeometries([eastWest, northSouth], false)!;
-  }, []);
+  }, [centerX, centerZ, endX, endZ, startX, startZ]);
   const trailGeometry = useMemo(() => {
-    const eastWest = new THREE.PlaneGeometry(WILDS_TILE_SIZE * 5, .72).applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)));
-    const northSouth = new THREE.PlaneGeometry(WILDS_TILE_SIZE * 5, .56).applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(-Math.PI / 2, 0, Math.PI / 2)));
+    const eastWest = terrainRibbonGeometry([{ x: startX, z: centerZ * WILDS_TILE_SIZE }, { x: endX, z: centerZ * WILDS_TILE_SIZE }], .36, .027);
+    const northSouth = terrainRibbonGeometry([{ x: centerX * WILDS_TILE_SIZE, z: startZ }, { x: centerX * WILDS_TILE_SIZE, z: endZ }], .28, .027);
     return mergeGeometries([eastWest, northSouth], false)!;
-  }, []);
+  }, [centerX, centerZ, endX, endZ, startX, startZ]);
   return (
-    <group position={[offsetX, 0.018, offsetZ]}>
+    <group position={[-player.x, -wildsTerrainElevation(player.x, player.z), -player.z]}>
       <mesh geometry={edgeGeometry}>
         <meshStandardMaterial color={palette.edge} emissive={palette.edge} emissiveIntensity={readability.pathEmissive * 0.45} roughness={0.96} />
       </mesh>
@@ -401,10 +382,12 @@ function EcologyInstances({
 }
 
 function Landmark({ player, tile }: { player: PlayState["player"]; tile: Tile }) {
+  const worldX = tile.tileX * WILDS_TILE_SIZE + WILDS_TILE_SIZE * 0.7;
+  const worldZ = tile.tileZ * WILDS_TILE_SIZE + WILDS_TILE_SIZE * 0.72;
   const position: [number, number, number] = [
-    tile.tileX * WILDS_TILE_SIZE + WILDS_TILE_SIZE * 0.7 - player.x,
-    0,
-    tile.tileZ * WILDS_TILE_SIZE + WILDS_TILE_SIZE * 0.72 - player.z
+    worldX - player.x,
+    wildsTerrainRelativeElevation(worldX, worldZ, player),
+    worldZ - player.z
   ];
   return (
     <group position={position} rotation={[0, tile.landmark.rotation, 0]} scale={tile.landmark.scale}>

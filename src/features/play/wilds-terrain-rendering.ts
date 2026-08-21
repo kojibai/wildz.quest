@@ -20,6 +20,13 @@ export type WildsTerrainMeshProjection = {
   vertices: readonly WildsTerrainMeshVertex[];
 };
 
+export type WildsTerrainRibbonProjection = {
+  positions: readonly number[];
+  uvs: readonly number[];
+  indices: readonly number[];
+  vertices: readonly Pick<WildsTerrainMeshVertex, "world" | "position">[];
+};
+
 export function wildsTerrainRelativeElevation(x: number, z: number, anchor: WorldPoint) {
   return wildsTerrainElevation(x, z) - wildsTerrainElevation(anchor.x, anchor.z);
 }
@@ -101,4 +108,58 @@ export function buildWildsTerrainPatchProjection(centerTileX: number, centerTile
   }
 
   return { origin, segments, positions, normals, uvs, indices, vertices };
+}
+
+export function buildWildsTerrainRibbonProjection(
+  points: readonly WorldPoint[],
+  halfWidth: number,
+  verticalOffset = 0.03,
+  maxSegmentLength = 2
+): WildsTerrainRibbonProjection {
+  if (points.length < 2 || !Number.isFinite(halfWidth) || halfWidth <= 0 || !Number.isFinite(maxSegmentLength) || maxSegmentLength <= 0) {
+    throw new Error("wilds_terrain_ribbon_invalid");
+  }
+  const centers: WorldPoint[] = [{ ...points[0]! }];
+  for (let pointIndex = 1; pointIndex < points.length; pointIndex += 1) {
+    const start = points[pointIndex - 1]!;
+    const end = points[pointIndex]!;
+    const steps = Math.max(1, Math.ceil(Math.hypot(end.x - start.x, end.z - start.z) / maxSegmentLength));
+    for (let step = 1; step <= steps; step += 1) {
+      const amount = step / steps;
+      centers.push({
+        x: start.x + (end.x - start.x) * amount,
+        z: start.z + (end.z - start.z) * amount
+      });
+    }
+  }
+
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  const vertices: Pick<WildsTerrainMeshVertex, "world" | "position">[] = [];
+  centers.forEach((center, index) => {
+    const previous = centers[Math.max(0, index - 1)]!;
+    const next = centers[Math.min(centers.length - 1, index + 1)]!;
+    const tangentX = next.x - previous.x;
+    const tangentZ = next.z - previous.z;
+    const tangentLength = Math.hypot(tangentX, tangentZ) || 1;
+    const normalX = -tangentZ / tangentLength;
+    const normalZ = tangentX / tangentLength;
+    [-1, 1].forEach((side, sideIndex) => {
+      const world = {
+        x: center.x + normalX * halfWidth * side,
+        z: center.z + normalZ * halfWidth * side
+      };
+      const position = { x: world.x, y: wildsTerrainElevation(world.x, world.z) + verticalOffset, z: world.z };
+      vertices.push({ world, position });
+      positions.push(position.x, position.y, position.z);
+      uvs.push(sideIndex, index / Math.max(1, centers.length - 1));
+    });
+    if (index < centers.length - 1) {
+      const start = index * 2;
+      indices.push(start, start + 2, start + 1, start + 1, start + 2, start + 3);
+    }
+  });
+
+  return { positions, uvs, indices, vertices };
 }
