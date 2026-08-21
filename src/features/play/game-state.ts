@@ -34,6 +34,7 @@ import { createLivingChildTransaction, lineageEligibility } from "./living-linea
 import { worldMasteryAward, type WorldMasteryVerb } from "./world-progression";
 import { validateRiftGrant, type RiftTravelGrant } from "./wilds-rift-travel";
 import { movementScale, type WildsMovementMode } from "./wilds-movement";
+import { resolveWildsGroundMovement } from "./wilds-grounded-movement";
 import { projectWildsCivicHistory, type WildsCivicEvent } from "./wilds-civic-history";
 import { projectWildsEcologyHistory, type WildsEcologyKnowledge, type WildsEcologyReceipt } from "./wilds-ecology-history";
 import { projectWildsRaidHistory, type WildsBossKnowledge, type WildsRaidReceipt } from "./wilds-raid-history";
@@ -1977,10 +1978,11 @@ function movePlayer(player: PlayState["player"], direction: MoveDirection) {
   if (direction === "west") next.x -= worldBounds.step;
   if (direction === "east") next.x += worldBounds.step;
 
-  return {
+  const intended = {
     x: clamp(next.x, worldBounds.min, worldBounds.max),
     z: clamp(next.z, worldBounds.min, worldBounds.max)
   };
+  return resolveWildsGroundMovement(player, intended).position;
 }
 
 function movePlayerVector(player: PlayState["player"], x: number, z: number, movementMultiplier: number) {
@@ -1989,10 +1991,11 @@ function movePlayerVector(player: PlayState["player"], x: number, z: number, mov
   const magnitude = Math.hypot(safeX, safeZ);
   if (magnitude < 0.08) return player;
   const scale = worldBounds.analogStep * movementMultiplier / Math.max(1, magnitude);
-  return {
+  const intended = {
     x: clamp(player.x + safeX * scale, worldBounds.min, worldBounds.max),
     z: clamp(player.z + safeZ * scale, worldBounds.min, worldBounds.max)
   };
+  return resolveWildsGroundMovement(player, intended).position;
 }
 
 function distance2d(a: { x: number; z: number }, b: { x: number; z: number }) {

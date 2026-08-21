@@ -56,12 +56,12 @@
 - Modify: `tests/play-game-state.test.ts`
 - Modify: `tests/wilds-context-action.test.ts`
 
-- [ ] Add regression tests proving ordinary movement uses the resolver while unchanged `{x,z}` saves round-trip exactly.
-- [ ] Route digital and analog movement through the analytical resolver.
-- [ ] Preserve input cadence, energy, discovery proximity, milestones, growth events, world bounds, and movement modes.
-- [ ] Keep movement entirely synchronous and local; add no network, proof verification, timers, or persistence work.
-- [ ] Run focused tests, typecheck, and lint.
-- [ ] Commit grounded movement integration.
+- [x] Add regression tests proving ordinary movement uses the resolver while unchanged `{x,z}` saves round-trip exactly.
+- [x] Route digital and analog movement through the analytical resolver.
+- [x] Preserve input cadence, energy, discovery proximity, milestones, growth events, world bounds, and movement modes.
+- [x] Keep movement entirely synchronous and local; add no network, proof verification, timers, or persistence work.
+- [x] Run focused tests, typecheck, and lint.
+- [x] Commit grounded movement integration.
 
 ## Task 4: Ground actors and smooth camera framing
 

@@ -18,6 +18,7 @@ import { livingCreatureIdentityDigest } from "../src/features/play/living-taxono
 import { createWildsCivicEvent } from "../src/features/play/wilds-civic-history.js";
 import { sealRetirement } from "../src/features/games/lifecycle/creature-retirement.js";
 import { deriveKaiKlokMoment } from "../src/features/play/kai-klok-moment.js";
+import { wildsTerrainObstaclesForTile } from "../src/features/play/wilds-terrain-obstacles.js";
 
 function activeTravelState(): PlayState {
   const capturedAt = "2026-07-13T11:00:00.000Z";
@@ -791,5 +792,22 @@ describe("Receiz Wilds game state", () => {
     assert.ok(moved.player.z < initialPlayState.player.z);
     assert.equal(clamped.player.x, 500_000_000);
     assert.equal(clamped.player.z, -500_000_000);
+  });
+
+  it("slides ordinary movement against visible physical authority without changing the save schema", () => {
+    const physical = wildsTerrainObstaclesForTile(-20, -20).find((obstacle) => obstacle.material === "solid")!;
+    const capsuleRadius = 0.38;
+    const boundary = physical.position.x - physical.radius - capsuleRadius;
+    const ready: PlayState = {
+      ...structuredClone(initialPlayState),
+      player: { x: boundary - 0.2, z: physical.position.z }
+    };
+    const moved = applyWildsInput(ready, { type: "move-vector", x: 1, z: 0, mode: "walk" });
+    const restored = restorePlayState(serializePlayState(moved));
+
+    assert.ok(moved.player.x > ready.player.x);
+    assert.ok(moved.player.x <= boundary + 0.000001);
+    assert.deepEqual(restored.player, moved.player);
+    assert.deepEqual(Object.keys(restored.player).sort(), ["x", "z"]);
   });
 });

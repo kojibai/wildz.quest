@@ -56,10 +56,10 @@ function cachedTileObstacles(tileX: number, tileZ: number) {
 
 function movementObstacles(start: Point, target: Point, capsuleRadius: number) {
   const margin = capsuleRadius + 1;
-  const firstTileX = Math.floor((Math.min(start.x, target.x) - margin) / WILDS_TERRAIN_TILE_SIZE) - 1;
-  const lastTileX = Math.floor((Math.max(start.x, target.x) + margin) / WILDS_TERRAIN_TILE_SIZE) + 1;
-  const firstTileZ = Math.floor((Math.min(start.z, target.z) - margin) / WILDS_TERRAIN_TILE_SIZE) - 1;
-  const lastTileZ = Math.floor((Math.max(start.z, target.z) + margin) / WILDS_TERRAIN_TILE_SIZE) + 1;
+  const firstTileX = Math.floor((Math.min(start.x, target.x) - margin) / WILDS_TERRAIN_TILE_SIZE);
+  const lastTileX = Math.floor((Math.max(start.x, target.x) + margin) / WILDS_TERRAIN_TILE_SIZE);
+  const firstTileZ = Math.floor((Math.min(start.z, target.z) - margin) / WILDS_TERRAIN_TILE_SIZE);
+  const lastTileZ = Math.floor((Math.max(start.z, target.z) + margin) / WILDS_TERRAIN_TILE_SIZE);
   const obstacles: WildsTerrainObstacle[] = [];
   for (let tileZ = firstTileZ; tileZ <= lastTileZ; tileZ += 1) {
     for (let tileX = firstTileX; tileX <= lastTileX; tileX += 1) {
