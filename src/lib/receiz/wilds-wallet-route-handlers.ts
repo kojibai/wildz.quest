@@ -27,7 +27,11 @@ import {
   type WildsWalletPhiTransferProjection,
   type WildsWalletProofAuthorityAdmissionPort
 } from "./wilds-wallet-transfer";
-import type { WildsWalletTransferJournalPort } from "./wilds-wallet-transfer-journal";
+import type {
+  WildsWalletTransferJournalPort,
+  WildsWalletTransferTerminalIntegrityBasis,
+  WildsWalletTransferTerminalIntegrityPort
+} from "./wilds-wallet-transfer-journal";
 import { receizOidcScopesForRails, type ReceizValueRailV122 } from "@receiz/sdk";
 
 const RECIPIENT_LOOKUP_LIMIT = 6;
@@ -118,6 +122,7 @@ type AttemptPayload = Readonly<{
 
 const ATTEMPT_PURPOSE = "receiz.wildz.wallet_transfer_attempt.v1";
 const RECEIVE_PURPOSE = "receiz.wildz.wallet_receive_locator.v1";
+const TERMINAL_PURPOSE = "receiz.wildz.wallet_transfer_terminal.v1";
 const ATTEMPT_VERSION = "v1";
 // V123 proof-authority fixtures use the same 120-Kai consent interval. At the
 // canonical ~5.236 second pulse this is about 10.5 minutes.
@@ -129,6 +134,16 @@ const OPERATION_NONCE = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9
 
 function purposeKey(secret: string, purpose: string) {
   return createHash("sha256").update(purpose).update("\0").update(secret).digest();
+}
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
+  if (typeof value === "number" && Number.isSafeInteger(value)) return String(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value as Record<string, unknown>).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`).join(",")}}`;
+  }
+  throw new Error("wilds_wallet_transfer_journal_invalid");
 }
 
 function validAttemptText(value: unknown) {
@@ -311,6 +326,12 @@ export function createWildsWalletTransferRouteRuntime(input: Readonly<{
   }
   const secret = input.secret ?? receizOAuthSecret();
   if (Buffer.byteLength(secret, "utf8") < 32) throw new Error("receiz_wallet_transfer_dependencies_unavailable");
+  const terminalIntegrity: WildsWalletTransferTerminalIntegrityPort = Object.freeze({
+    serverDerived: true as const,
+    async digest(basis: WildsWalletTransferTerminalIntegrityBasis) {
+      return createHmac("sha256", purposeKey(secret, TERMINAL_PURPOSE)).update(canonicalJson(basis)).digest("hex");
+    }
+  });
   const openBoundAttempt = async (authority: WildsWalletReadAuthority, attempt: string) => {
     const payload = openAttempt(attempt, secret);
     assertAttemptActor(payload, authority);
@@ -350,7 +371,8 @@ export function createWildsWalletTransferRouteRuntime(input: Readonly<{
       const required = receizOidcScopesForRails(command.rail);
       if (!required.every((scope) => resolved.grantedScopes.includes(scope))) throw new Error("receiz_wallet_phi_scope_required");
       const staged = exactTransferProjection(await stageWildsWalletPhiTransfer(resolved, {
-        rail: input.createAdapter(authority.accessToken), journal: input.journal, authorityAdmission: input.authorityAdmission
+        rail: input.createAdapter(authority.accessToken), journal: input.journal,
+        authorityAdmission: input.authorityAdmission, terminalIntegrity
       }));
       if (staged.status !== "staged") throw new Error("wilds_wallet_transfer_projection_invalid");
       const issuedAtKai = await input.authorityAdmission.currentKai();
@@ -391,7 +413,12 @@ export function createWildsWalletTransferRouteRuntime(input: Readonly<{
         ownerBinding: payload.ownerBinding,
         idempotencyKey: payload.idempotencyKey,
         authorityContext
-      }, { rail: adapter, journal: input.journal, authorityAdmission: input.authorityAdmission }));
+      }, {
+        rail: adapter,
+        journal: input.journal,
+        authorityAdmission: input.authorityAdmission,
+        terminalIntegrity
+      }));
     },
     async status(authority: WildsWalletReadAuthority, attempt: string) {
       const { payload, now } = await openBoundAttempt(authority, attempt);
@@ -402,7 +429,8 @@ export function createWildsWalletTransferRouteRuntime(input: Readonly<{
       }, {
         rail: input.createAdapter(authority.accessToken),
         journal: input.journal,
-        authorityAdmission: input.authorityAdmission
+        authorityAdmission: input.authorityAdmission,
+        terminalIntegrity
       }));
     },
     async receive(authority: WildsWalletReadAuthority, amountPhiMicro: string | null) {
@@ -662,6 +690,7 @@ export function createWildsWalletRouteHandlers(
           || typeof body.operationNonce !== "string" || !OPERATION_NONCE.test(body.operationNonce)) {
           throw new Error("wilds_wallet_transfer_request_invalid");
         }
+        if (recipientUsername) await consumeRecipientLookup(dependencies.recipientLookupLimiter, authority.actorId);
         const value = await transferRuntimeOrThrow(dependencies.transferRuntime).preview(authority, {
           ...(recipientUsername ? { recipientUsername } : { recipientLocator: recipientLocator! }),
           amountPhiMicro, rail: body.rail, operationNonce: body.operationNonce

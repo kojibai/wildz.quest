@@ -17,7 +17,11 @@ import {
   requireWildsWalletTransferJournal,
   WILDS_WALLET_TERMINAL_RETENTION_KAI,
   type WildsWalletTransferJournalEntry,
-  type WildsWalletTransferJournalPort
+  type WildsWalletTransferJournalPort,
+  type WildsWalletTransferTerminalIntegrityBasis,
+  type WildsWalletTransferTerminalIntegrityPort,
+  type WildsWalletTransferTerminalProjection,
+  type WildsWalletTransferTerminalRecord
 } from "./wilds-wallet-transfer-journal";
 
 type WildsWalletPhiRail = Pick<
@@ -79,6 +83,7 @@ type TransferDependencies = Readonly<{
   rail: WildsWalletPhiRail;
   journal?: WildsWalletTransferJournalPort;
   authorityAdmission?: WildsWalletProofAuthorityAdmissionPort;
+  terminalIntegrity?: WildsWalletTransferTerminalIntegrityPort;
 }>;
 
 const SAFE_ZERO_WRITE_CODES = new Set([
@@ -280,12 +285,108 @@ async function planExactIntent(input: WildsWalletPhiTransferInput, rail: WildsWa
 
 async function exactTerminal(
   journal: WildsWalletTransferJournalPort,
+  integrityInput: WildsWalletTransferTerminalIntegrityPort | undefined,
   ownerBinding: string,
   idempotencyKey: string,
   applicationId?: string
 ) {
   const value = await journal.loadTerminal(ownerBinding, idempotencyKey);
-  return value ? admitWildsWalletTransferTerminalRecord(value, { ownerBinding, idempotencyKey, applicationId }) : null;
+  if (!value) return null;
+  const integrity = terminalIntegrityOrThrow(integrityInput);
+  const terminal = await admitWildsWalletTransferTerminalRecord(value, { ownerBinding, idempotencyKey, applicationId });
+  await assertTerminalIntegrity(terminal, integrity);
+  return terminal;
+}
+
+function terminalIntegrityOrThrow(integrity: WildsWalletTransferTerminalIntegrityPort | undefined) {
+  if (!integrity || integrity.serverDerived !== true) throw new Error("wilds_wallet_terminal_integrity_required");
+  return integrity;
+}
+
+function terminalBasis(
+  entry: WildsWalletTransferJournalEntry,
+  projection: WildsWalletTransferTerminalProjection,
+  terminalizedAtKai: number,
+  retainUntilKai: number
+): WildsWalletTransferTerminalIntegrityBasis {
+  return Object.freeze({
+    schema: "wildz.wallet.phi-transfer-terminal.v1" as const,
+    entry,
+    projection,
+    terminalizedAtKai,
+    retainUntilKai
+  });
+}
+
+async function terminalDigest(
+  basis: WildsWalletTransferTerminalIntegrityBasis,
+  integrity: WildsWalletTransferTerminalIntegrityPort
+) {
+  const digest = await integrity.digest(basis);
+  if (typeof digest !== "string" || !SHA256.test(digest)) throw new Error("wilds_wallet_transfer_journal_invalid");
+  return digest;
+}
+
+async function assertTerminalIntegrity(
+  terminal: WildsWalletTransferTerminalRecord,
+  integrity: WildsWalletTransferTerminalIntegrityPort
+) {
+  const expected = await terminalDigest(terminalBasis(
+    terminal.entry,
+    terminal.projection,
+    terminal.terminalizedAtKai,
+    terminal.retainUntilKai
+  ), integrity);
+  if (terminal.terminalIntegrityDigest !== expected) throw new Error("wilds_wallet_transfer_journal_invalid");
+}
+
+function sameExactEntry(left: WildsWalletTransferJournalEntry, right: WildsWalletTransferJournalEntry) {
+  return left.schema === right.schema
+    && left.ownerBinding === right.ownerBinding
+    && left.applicationId === right.applicationId
+    && left.idempotencyKey === right.idempotencyKey
+    && left.rail === right.rail
+    && left.authorityDigest === right.authorityDigest
+    && sameExactIntent(left.intent, right.intent);
+}
+
+function sameExactTerminalProjection(
+  left: WildsWalletTransferTerminalProjection,
+  right: WildsWalletTransferTerminalProjection
+) {
+  if (left.status !== right.status || left.rail !== right.rail) return false;
+  return left.status === "committed"
+    ? right.status === "committed" && left.amountPhiMicro === right.amountPhiMicro
+    : right.status === "zero-write" && left.code === right.code;
+}
+
+async function terminalizeExact(
+  entry: WildsWalletTransferJournalEntry,
+  projection: WildsWalletTransferTerminalProjection,
+  terminalizedAtKai: number,
+  dependencies: TransferDependencies
+) {
+  const journal = requireWildsWalletTransferJournal(dependencies.journal);
+  const integrity = terminalIntegrityOrThrow(dependencies.terminalIntegrity);
+  const retainUntilKai = terminalizedAtKai + WILDS_WALLET_TERMINAL_RETENTION_KAI;
+  const basis = terminalBasis(entry, projection, terminalizedAtKai, retainUntilKai);
+  const integrityDigest = await terminalDigest(basis, integrity);
+  const value = await journal.terminalize(entry, projection, terminalizedAtKai, retainUntilKai, integrityDigest);
+  if (!value) return null;
+  const terminal = await admitWildsWalletTransferTerminalRecord(value, {
+    ownerBinding: entry.ownerBinding,
+    applicationId: entry.applicationId,
+    idempotencyKey: entry.idempotencyKey
+  });
+  await assertTerminalIntegrity(terminal, integrity);
+  if (!sameExactEntry(terminal.entry, entry)
+    || !sameExactTerminalProjection(terminal.projection, projection)
+    || terminal.terminalizedAtKai !== terminalizedAtKai
+    || terminal.retainUntilKai !== retainUntilKai
+    || terminal.terminalIntegrityDigest !== integrityDigest) {
+    throw new Error("wilds_wallet_transfer_journal_invalid");
+  }
+  return terminal;
 }
 
 function stageProjection(
@@ -321,7 +422,7 @@ export async function stageWildsWalletPhiTransfer(
 ): Promise<WildsWalletPhiTransferProjection> {
   const journal = requireWildsWalletTransferJournal(dependencies.journal);
   assertTransferInput(input);
-  const terminal = await exactTerminal(journal, input.ownerBinding, input.idempotencyKey, input.applicationId);
+  const terminal = await exactTerminal(journal, dependencies.terminalIntegrity, input.ownerBinding, input.idempotencyKey, input.applicationId);
   if (terminal) {
     const candidate = await planExactIntent(input, dependencies.rail);
     if (!entryMatchesInput(terminal.entry, input) || !sameExactIntent(terminal.entry.intent, candidate)) {
@@ -413,13 +514,9 @@ async function finalizeOutcome(
     });
     const admission = proofAuthorityAdmissionOrThrow(dependencies.authorityAdmission);
     const now = await currentKai(admission);
-    const terminal = await journal.terminalize(admittedEntry, projection, now, now + WILDS_WALLET_TERMINAL_RETENTION_KAI);
+    const terminal = await terminalizeExact(admittedEntry, projection, now, dependencies);
     return terminal
-      ? (await admitWildsWalletTransferTerminalRecord(terminal, {
-        ownerBinding: admittedEntry.ownerBinding,
-        applicationId: admittedEntry.applicationId,
-        idempotencyKey: admittedEntry.idempotencyKey
-      })).projection
+      ? terminal.projection
       : unknownProjection(admittedEntry);
   }
   if (!admittedEntry.authorityDigest
@@ -436,13 +533,9 @@ async function finalizeOutcome(
   });
   const admission = proofAuthorityAdmissionOrThrow(dependencies.authorityAdmission);
   const now = await currentKai(admission);
-  const terminal = await journal.terminalize(admittedEntry, projection, now, now + WILDS_WALLET_TERMINAL_RETENTION_KAI);
+  const terminal = await terminalizeExact(admittedEntry, projection, now, dependencies);
   return terminal
-    ? (await admitWildsWalletTransferTerminalRecord(terminal, {
-      ownerBinding: admittedEntry.ownerBinding,
-      applicationId: admittedEntry.applicationId,
-      idempotencyKey: admittedEntry.idempotencyKey
-    })).projection
+    ? terminal.projection
     : unknownProjection(admittedEntry);
 }
 
@@ -455,7 +548,7 @@ export async function recoverWildsWalletPhiTransfer(
   dependencies: TransferDependencies
 ): Promise<WildsWalletPhiTransferProjection> {
   const journal = requireWildsWalletTransferJournal(dependencies.journal);
-  const terminal = await exactTerminal(journal, input.ownerBinding, input.idempotencyKey);
+  const terminal = await exactTerminal(journal, dependencies.terminalIntegrity, input.ownerBinding, input.idempotencyKey);
   if (terminal) return terminal.projection;
   const loaded = await journal.load(input.ownerBinding, input.idempotencyKey);
   if (!loaded) throw new Error("wilds_wallet_transfer_not_staged");
@@ -492,7 +585,7 @@ export async function executeWildsWalletPhiTransfer(
   dependencies: TransferDependencies
 ): Promise<WildsWalletPhiTransferProjection> {
   const journal = requireWildsWalletTransferJournal(dependencies.journal);
-  const terminal = await exactTerminal(journal, input.ownerBinding, input.idempotencyKey);
+  const terminal = await exactTerminal(journal, dependencies.terminalIntegrity, input.ownerBinding, input.idempotencyKey);
   if (terminal) return terminal.projection;
   const loaded = await journal.load(input.ownerBinding, input.idempotencyKey);
   if (!loaded) throw new Error("wilds_wallet_transfer_not_staged");

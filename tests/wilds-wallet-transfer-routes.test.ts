@@ -8,6 +8,7 @@ import * as statusRoute from "../app/api/wilds/wallet/transfer/status/route";
 import {
   createWildsWalletRouteHandlers,
   createWildsWalletTransferRouteRuntime,
+  type WildsWalletRecipientLookupLimiter,
   type WildsWalletTransferRouteRuntime
 } from "../src/lib/receiz/wilds-wallet-route-handlers";
 import type { WildsWalletTransferJournalEntry } from "../src/lib/receiz/wilds-wallet-transfer-journal";
@@ -62,7 +63,12 @@ function runtime(overrides: Partial<WildsWalletTransferRouteRuntime> = {}): Wild
   };
 }
 
-function handlers(transferRuntime: WildsWalletTransferRouteRuntime | null = runtime()) {
+function handlers(
+  transferRuntime: WildsWalletTransferRouteRuntime | null = runtime(),
+  recipientLookupLimiter: WildsWalletRecipientLookupLimiter | null = {
+    consume: async () => "allowed"
+  }
+) {
   return createWildsWalletRouteHandlers({
     resolveAuthority: async () => ACTOR,
     createAdapter: () => ({
@@ -70,6 +76,7 @@ function handlers(transferRuntime: WildsWalletTransferRouteRuntime | null = runt
       walletLedger: async () => ({ ok: true, cursor: null, nextCursor: null, since: null, events: [] }),
       worldProfile: async () => ({ ok: false })
     }),
+    recipientLookupLimiter: recipientLookupLimiter ?? undefined,
     transferRuntime: transferRuntime ?? undefined
   });
 }
@@ -131,6 +138,34 @@ describe("Wilds wallet V123 transfer routes", () => {
       assert.deepEqual(await body(response), { error: "wilds_wallet_transfer_request_invalid" });
     }
     assert.equal(calls, 0);
+  });
+
+  it("fails username transfer preview closed without the durable recipient limiter while locator preview remains available", async () => {
+    let previewCalls = 0;
+    const live = runtime({
+      preview: async (_authority, input) => {
+        previewCalls += 1;
+        return {
+          status: "staged", rail: input.rail, amountPhiMicro: input.amountPhiMicro,
+          quotedUsdCents: "1", attempt: ATTEMPT, expiresAtKai: 1_000
+        };
+      }
+    });
+    const routes = handlers(live, null);
+    const username = await routes.transferPreview(request("/api/wilds/wallet/transfer/preview", "POST", {
+      recipientUsername: "friend_2", amountPhiMicro: "25", rail: "settlement",
+      operationNonce: "8c64cb0e-6958-41cb-b16d-1fe9f1b96f30"
+    }));
+    assert.equal(username.status, 503);
+    assert.deepEqual(await body(username), { error: "receiz_wallet_recipient_lookup_unavailable" });
+    assert.equal(previewCalls, 0);
+
+    const locator = await routes.transferPreview(request("/api/wilds/wallet/transfer/preview", "POST", {
+      recipientLocator: `wildz:receive:${ATTEMPT}`, amountPhiMicro: "25", rail: "settlement",
+      operationNonce: "8c64cb0e-6958-41cb-b16d-1fe9f1b96f30"
+    }));
+    assert.equal(locator.status, 200);
+    assert.equal(previewCalls, 1);
   });
 
   it("keeps proof-authority exchange in-game and returns only sanitized terminal outcomes", async () => {

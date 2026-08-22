@@ -47,13 +47,22 @@ export type WildsWalletTransferTerminalProjection = Readonly<
   | { status: "committed"; rail: "settlement" | "reserve"; amountPhiMicro: string }
 >;
 
-export type WildsWalletTransferTerminalRecord = Readonly<{
+export type WildsWalletTransferTerminalIntegrityBasis = Readonly<{
   schema: "wildz.wallet.phi-transfer-terminal.v1";
   entry: WildsWalletTransferJournalEntry;
   projection: WildsWalletTransferTerminalProjection;
   terminalizedAtKai: number;
   retainUntilKai: number;
 }>;
+
+export type WildsWalletTransferTerminalRecord = Readonly<WildsWalletTransferTerminalIntegrityBasis & {
+  terminalIntegrityDigest: string;
+}>;
+
+export interface WildsWalletTransferTerminalIntegrityPort {
+  readonly serverDerived: true;
+  digest(basis: WildsWalletTransferTerminalIntegrityBasis): Promise<string>;
+}
 
 export const WILDS_WALLET_TERMINAL_RETENTION_KAI = 86_400;
 
@@ -82,7 +91,8 @@ export interface WildsWalletTransferJournalPort {
     entry: WildsWalletTransferJournalEntry,
     projection: WildsWalletTransferTerminalProjection,
     terminalizedAtKai: number,
-    retainUntilKai: number
+    retainUntilKai: number,
+    terminalIntegrityDigest: string
   ): Promise<WildsWalletTransferTerminalRecord | null>;
   /** Bounded cleanup; implementations must never scan or delete more than limit rows. */
   purgeTerminal(currentKai: number, limit: number): Promise<number>;
@@ -167,7 +177,7 @@ export async function admitWildsWalletTransferTerminalRecord(
   value: unknown,
   expected: JournalEntryExpectation = {}
 ): Promise<WildsWalletTransferTerminalRecord> {
-  if (!isRecord(value) || !hasExactKeys(value, ["entry", "projection", "retainUntilKai", "schema", "terminalizedAtKai"]) || !isRecord(value.projection)) {
+  if (!isRecord(value) || !hasExactKeys(value, ["entry", "projection", "retainUntilKai", "schema", "terminalIntegrityDigest", "terminalizedAtKai"]) || !isRecord(value.projection)) {
     invalidJournal();
   }
   const entry = await admitWildsWalletTransferJournalEntry(value.entry, expected);
@@ -186,6 +196,8 @@ export async function admitWildsWalletTransferTerminalRecord(
     || (!committed && !zeroWrite)
     || !Number.isSafeInteger(value.terminalizedAtKai)
     || !Number.isSafeInteger(value.retainUntilKai)
+    || typeof value.terminalIntegrityDigest !== "string"
+    || !SHA256.test(value.terminalIntegrityDigest)
     || (value.terminalizedAtKai as number) < 0
     || (value.retainUntilKai as number) <= (value.terminalizedAtKai as number)
     || (value.retainUntilKai as number) - (value.terminalizedAtKai as number) > WILDS_WALLET_TERMINAL_RETENTION_KAI) {
@@ -196,7 +208,8 @@ export async function admitWildsWalletTransferTerminalRecord(
     entry,
     projection: Object.freeze({ ...projection }) as WildsWalletTransferTerminalProjection,
     terminalizedAtKai: value.terminalizedAtKai as number,
-    retainUntilKai: value.retainUntilKai as number
+    retainUntilKai: value.retainUntilKai as number,
+    terminalIntegrityDigest: value.terminalIntegrityDigest as string
   });
 }
 

@@ -15,6 +15,8 @@ import type { ReceizCommerceAdapter } from "../src/lib/receiz/adapter";
 import type {
   WildsWalletTransferJournalEntry,
   WildsWalletTransferJournalPort,
+  WildsWalletTransferTerminalIntegrityBasis,
+  WildsWalletTransferTerminalIntegrityPort,
   WildsWalletTransferTerminalProjection,
   WildsWalletTransferTerminalRecord
 } from "../src/lib/receiz/wilds-wallet-transfer-journal";
@@ -30,6 +32,12 @@ import {
 
 const ARTIFACT = "server-only-exact-artifact";
 const ARTIFACT_DIGEST = createHash("sha256").update(ARTIFACT).digest("hex");
+const terminalIntegrity: WildsWalletTransferTerminalIntegrityPort = Object.freeze({
+  serverDerived: true as const,
+  async digest(basis: WildsWalletTransferTerminalIntegrityBasis) {
+    return createHash("sha256").update(JSON.stringify(basis)).digest("hex");
+  }
+});
 
 const H = {
   source: "1".repeat(64),
@@ -91,7 +99,13 @@ class DurableTestJournal implements WildsWalletTransferJournalPort {
     return structuredClone(stored);
   }
 
-  async terminalize(entry: WildsWalletTransferJournalEntry, projection: WildsWalletTransferTerminalProjection, terminalizedAtKai: number, retainUntilKai: number) {
+  async terminalize(
+    entry: WildsWalletTransferJournalEntry,
+    projection: WildsWalletTransferTerminalProjection,
+    terminalizedAtKai: number,
+    retainUntilKai: number,
+    terminalIntegrityDigest: string
+  ) {
     const key = `${entry.ownerBinding}\u0000${entry.idempotencyKey}`;
     const existing = this.entries.get(key);
     if (!existing || !isDeepStrictEqual(existing, entry)) return null;
@@ -100,7 +114,8 @@ class DurableTestJournal implements WildsWalletTransferJournalPort {
       entry,
       projection,
       terminalizedAtKai,
-      retainUntilKai
+      retainUntilKai,
+      terminalIntegrityDigest
     });
     this.entries.delete(key);
     this.terminals.set(key, record);
@@ -296,7 +311,7 @@ describe("Wilds wallet V123 Phi authority", () => {
       ownerBinding: transferInput.ownerBinding,
       idempotencyKey: transferInput.idempotencyKey,
       authorityContext
-    }, { rail: exactRail, journal, authorityAdmission });
+    }, { rail: exactRail, journal, authorityAdmission, terminalIntegrity });
     assert.equal(first.status, "committed");
 
     // Simulate the HTTP response being lost after the server completed, then a
@@ -304,12 +319,12 @@ describe("Wilds wallet V123 Phi authority", () => {
     const recovered = await recoverWildsWalletPhiTransfer({
       ownerBinding: transferInput.ownerBinding,
       idempotencyKey: transferInput.idempotencyKey
-    }, { rail: exactRail, journal, authorityAdmission });
+    }, { rail: exactRail, journal, authorityAdmission, terminalIntegrity });
     assert.deepEqual(recovered, first);
     const duplicate = await recoverWildsWalletPhiTransfer({
       ownerBinding: transferInput.ownerBinding,
       idempotencyKey: transferInput.idempotencyKey
-    }, { rail: exactRail, journal, authorityAdmission });
+    }, { rail: exactRail, journal, authorityAdmission, terminalIntegrity });
     assert.deepEqual(duplicate, first);
     assert.equal(lookups, 1);
     assert.equal(typeof (journal as unknown as { purgeTerminal?: unknown }).purgeTerminal, "function");
@@ -372,7 +387,7 @@ describe("Wilds wallet V123 Phi authority", () => {
       ownerBinding: transferInput.ownerBinding,
       idempotencyKey: transferInput.idempotencyKey,
       authorityContext
-    }, { rail: valueRail, journal, authorityAdmission }), {
+    }, { rail: valueRail, journal, authorityAdmission, terminalIntegrity }), {
       status: "unknown",
       rail: "settlement",
       amountPhiMicro: "2500000"
@@ -383,7 +398,7 @@ describe("Wilds wallet V123 Phi authority", () => {
       ownerBinding: transferInput.ownerBinding,
       idempotencyKey: transferInput.idempotencyKey,
       authorityContext
-    }, { rail: valueRail, journal, authorityAdmission });
+    }, { rail: valueRail, journal, authorityAdmission, terminalIntegrity });
     assert.equal(adopted.status, "committed");
     assert.equal(executionCalls, 1);
     assert.equal(recoveryCalls, 2);
@@ -456,7 +471,8 @@ describe("Wilds wallet V123 Phi authority", () => {
         })
       }),
       journal,
-      authorityAdmission
+      authorityAdmission,
+      terminalIntegrity
     });
     assert.deepEqual(zeroWrite, {
       status: "zero-write",
@@ -594,12 +610,72 @@ describe("Wilds wallet V123 Phi authority", () => {
       ownerBinding: transferInput.ownerBinding,
       idempotencyKey: transferInput.idempotencyKey,
       authorityContext
-    }, { rail: valueRail, journal, authorityAdmission }), {
+    }, { rail: valueRail, journal, authorityAdmission, terminalIntegrity }), {
       status: "unknown",
       rail: "settlement",
       amountPhiMicro: "2500000"
     });
     assert.ok(await backing.load(transferInput.ownerBinding, transferInput.idempotencyKey));
+  });
+
+  it("rejects a forged terminal row that invents a commit without authenticated outcome evidence", async () => {
+    const journal = new DurableTestJournal();
+    await stageWildsWalletPhiTransfer(transferInput, { rail: rail(), journal });
+    const entry = await journal.load(transferInput.ownerBinding, transferInput.idempotencyKey);
+    assert.ok(entry);
+    const key = `${entry.ownerBinding}\u0000${entry.idempotencyKey}`;
+    journal.entries.delete(key);
+    journal.terminals.set(key, {
+      schema: "wildz.wallet.phi-transfer-terminal.v1",
+      entry,
+      projection: { status: "committed", rail: entry.rail, amountPhiMicro: entry.intent.amountPhiMicro },
+      terminalizedAtKai: 1,
+      retainUntilKai: 2,
+      terminalIntegrityDigest: "0".repeat(64)
+    });
+
+    await assert.rejects(recoverWildsWalletPhiTransfer({
+      ownerBinding: transferInput.ownerBinding,
+      idempotencyKey: transferInput.idempotencyKey
+    }, { rail: rail(), journal, terminalIntegrity }), /wilds_wallet_transfer_journal_invalid/);
+  });
+
+  it("returns unknown when terminalize changes the exact projection or retention winner", async () => {
+    const backing = new DurableTestJournal();
+    const journal: WildsWalletTransferJournalPort = {
+      durable: true,
+      load: backing.load.bind(backing),
+      loadTerminal: backing.loadTerminal.bind(backing),
+      stage: backing.stage.bind(backing),
+      bindAuthority: backing.bindAuthority.bind(backing),
+      terminalize: async (entry, _projection, terminalizedAtKai, retainUntilKai, terminalIntegrityDigest) => ({
+        schema: "wildz.wallet.phi-transfer-terminal.v1",
+        entry,
+        projection: { status: "zero-write", rail: entry.rail, code: "SOURCE_HEAD_STALE" },
+        terminalizedAtKai,
+        retainUntilKai: retainUntilKai - 1,
+        terminalIntegrityDigest
+      }),
+      purgeTerminal: backing.purgeTerminal.bind(backing)
+    };
+    const proofAuthority = await authority();
+    const authorityAdmission = new ExactAuthorityAdmission();
+    const authorityContext = await admitAuthority(proofAuthority, authorityAdmission);
+    const valueRail = rail({
+      phiExecutionByIdempotencyKeyV123: async () => ({ status: "unknown" }),
+      executePhiSettlementV123: async (intent) => committed(intent, proofAuthority)
+    });
+    await stageWildsWalletPhiTransfer(transferInput, { rail: valueRail, journal });
+
+    assert.deepEqual(await executeWildsWalletPhiTransfer({
+      ownerBinding: transferInput.ownerBinding,
+      idempotencyKey: transferInput.idempotencyKey,
+      authorityContext
+    }, { rail: valueRail, journal, authorityAdmission, terminalIntegrity }), {
+      status: "unknown",
+      rail: "settlement",
+      amountPhiMicro: "2500000"
+    });
   });
 
   it("rejects expired or revoked admitted contexts without poisoning a staged journal", async () => {
@@ -640,7 +716,7 @@ describe("Wilds wallet V123 Phi authority", () => {
       ownerBinding: transferInput.ownerBinding,
       idempotencyKey: transferInput.idempotencyKey,
       authorityContext: freshContext
-    }, { rail: valueRail, journal, authorityAdmission })).status, "committed");
+    }, { rail: valueRail, journal, authorityAdmission, terminalIntegrity })).status, "committed");
     assert.equal(await journal.load(transferInput.ownerBinding, transferInput.idempotencyKey), null);
   });
 
