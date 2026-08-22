@@ -10,6 +10,41 @@ import { useWildsReadability } from "./WildsReadabilityContext";
 export type WildsCreaturePose = "idle" | "curious" | "attack" | "impact" | "weakened" | "capture";
 export type WildsCreatureLocomotion = "ground" | "swim" | "air";
 
+export type MutableWildsCreatureLocomotionFrame = {
+  rootY: number;
+  rootPitch: number;
+  rootRoll: number;
+  limbPitch: number;
+  wingAngle: number;
+};
+
+export function writeWildsCreatureLocomotionFrame(
+  target: MutableWildsCreatureLocomotionFrame,
+  locomotion: WildsCreatureLocomotion,
+  timeSeconds: number,
+  motionScale: number,
+  marking: number,
+  pose: WildsCreaturePose
+): MutableWildsCreatureLocomotionFrame {
+  const weakened = pose === "weakened";
+  const impact = pose === "impact";
+  if (locomotion === "air") {
+    target.rootY = .58 + Math.sin(timeSeconds * 1.35 + marking * 2) * .055 * motionScale;
+    target.rootPitch = -.3 + Math.sin(timeSeconds * .75 + marking) * .025 * motionScale;
+    target.rootRoll = impact ? Math.sin(timeSeconds * 18) * .08 * motionScale : Math.sin(timeSeconds * 1.1 + marking) * .04 * motionScale;
+    target.limbPitch = -.18 + Math.sin(timeSeconds * 2.4) * .06 * motionScale;
+    target.wingAngle = .14 + Math.sin(timeSeconds * 4.6 + marking * 3) * .42 * motionScale;
+    return target;
+  }
+  const swimming = locomotion === "swim";
+  target.rootY = .46 + (weakened ? -.08 : swimming ? Math.sin(timeSeconds * 1.55) * .018 * motionScale : Math.abs(Math.sin(timeSeconds * 1.7)) * .035 * motionScale);
+  target.rootPitch = swimming ? -.36 + Math.sin(timeSeconds * 1.25) * .035 * motionScale : 0;
+  target.rootRoll = impact ? Math.sin(timeSeconds * 18) * .08 * motionScale : weakened ? -.08 : swimming ? Math.sin(timeSeconds * 1.8) * .055 * motionScale : 0;
+  target.limbPitch = pose === "attack" ? Math.sin(timeSeconds * 13) * .22 * motionScale : weakened ? .18 : swimming ? Math.sin(timeSeconds * 3.2) * .18 * motionScale : Math.sin(timeSeconds * 2.4) * .04 * motionScale;
+  target.wingAngle = 0;
+  return target;
+}
+
 export function projectWildsCreatureLocomotionFrame(input: {
   locomotion: WildsCreatureLocomotion;
   timeSeconds: number;
@@ -17,23 +52,14 @@ export function projectWildsCreatureLocomotionFrame(input: {
   marking: number;
   pose: WildsCreaturePose;
 }) {
-  const weakened = input.pose === "weakened";
-  const impact = input.pose === "impact";
-  if (input.locomotion === "air") return Object.freeze({
-    rootY: .58 + Math.sin(input.timeSeconds * 1.35 + input.marking * 2) * .055 * input.motionScale,
-    rootPitch: -.3 + Math.sin(input.timeSeconds * .75 + input.marking) * .025 * input.motionScale,
-    rootRoll: impact ? Math.sin(input.timeSeconds * 18) * .08 * input.motionScale : Math.sin(input.timeSeconds * 1.1 + input.marking) * .04 * input.motionScale,
-    limbPitch: -.18 + Math.sin(input.timeSeconds * 2.4) * .06 * input.motionScale,
-    wingAngle: .14 + Math.sin(input.timeSeconds * 4.6 + input.marking * 3) * .42 * input.motionScale
-  });
-  const swimming = input.locomotion === "swim";
-  return Object.freeze({
-    rootY: .46 + (weakened ? -.08 : swimming ? Math.sin(input.timeSeconds * 1.55) * .018 * input.motionScale : Math.abs(Math.sin(input.timeSeconds * 1.7)) * .035 * input.motionScale),
-    rootPitch: swimming ? -.36 + Math.sin(input.timeSeconds * 1.25) * .035 * input.motionScale : 0,
-    rootRoll: impact ? Math.sin(input.timeSeconds * 18) * .08 * input.motionScale : weakened ? -.08 : swimming ? Math.sin(input.timeSeconds * 1.8) * .055 * input.motionScale : 0,
-    limbPitch: input.pose === "attack" ? Math.sin(input.timeSeconds * 13) * .22 * input.motionScale : weakened ? .18 : swimming ? Math.sin(input.timeSeconds * 3.2) * .18 * input.motionScale : Math.sin(input.timeSeconds * 2.4) * .04 * input.motionScale,
-    wingAngle: 0
-  });
+  return writeWildsCreatureLocomotionFrame(
+    { rootY: 0, rootPitch: 0, rootRoll: 0, limbPitch: 0, wingAngle: 0 },
+    input.locomotion,
+    input.timeSeconds,
+    input.motionScale,
+    input.marking,
+    input.pose
+  );
 }
 
 export type ActorWingRenderPlan = Readonly<{ kind: "none" | "functional-wing" | "glide-membrane"; pairCount: 0 | 2 }>;
@@ -119,6 +145,7 @@ export function WildsCreatureActor({
       asymmetry: morphology?.symmetry ?? identityNumber(token, 37) * 0.18
     };
   }, [formId, identityToken, morphology?.head, morphology?.limb, morphology?.symmetry, morphology?.torso]);
+  const locomotionFrame = useRef<MutableWildsCreatureLocomotionFrame>({ rootY: 0, rootPitch: 0, rootRoll: 0, limbPitch: 0, wingAngle: 0 });
 
   useFrame(() => {
     if (!root.current) return;
@@ -127,7 +154,7 @@ export function WildsCreatureActor({
     const motion = readability.motionScale;
     const breath = Math.sin(time * cadence + identity.marking * 4) * 0.025 * motion;
     const attack = pose === "attack";
-    const frame = projectWildsCreatureLocomotionFrame({ locomotion, timeSeconds: time, motionScale: motion, marking: identity.marking, pose });
+    const frame = writeWildsCreatureLocomotionFrame(locomotionFrame.current, locomotion, time, motion, identity.marking, pose);
     root.current.position.y = frame.rootY;
     root.current.rotation.x = frame.rootPitch;
     root.current.rotation.z = frame.rootRoll;

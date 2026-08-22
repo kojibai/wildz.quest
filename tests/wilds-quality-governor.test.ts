@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import { createWildsQualityGovernor, updateWildsQualityGovernor } from "../src/features/play/wilds-quality-governor";
+import {
+  createWildsQualityGovernor,
+  readWildsLearnedQualityTier,
+  updateWildsQualityGovernor,
+  writeWildsLearnedQualityTier,
+  writeWildsQualityGovernor
+} from "../src/features/play/wilds-quality-governor";
 
 describe("Wilds runtime quality governor", () => {
   it("lowers one tier after 120 sustained slow visible frames without oscillating", () => {
@@ -39,6 +45,34 @@ describe("Wilds runtime quality governor", () => {
     assert.ok(state.frameWindow.length <= 120);
     assert.ok(state.frameWindow.every((frameMs) => frameMs >= 4 && frameMs <= 100));
     assert.ok(Number.isFinite(state.averageFrameMs));
+  });
+
+  it("reuses one governor object across the rendered frame hot path", () => {
+    const state = createWildsQualityGovernor("high");
+    for (let index = 0; index < 10_000; index += 1) {
+      assert.equal(writeWildsQualityGovernor(state, index % 2 ? 16 : 17, true, index * 17), state);
+    }
+    assert.equal(state.frameWindow.length, 120);
+  });
+
+  it("restores the learned tier after refresh without exceeding the current device tier", () => {
+    const values = new Map<string, string>();
+    let writes = 0;
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        writes += 1;
+        values.set(key, value);
+      }
+    };
+
+    writeWildsLearnedQualityTier(storage, "medium");
+    assert.equal(writes, 1);
+    assert.equal(readWildsLearnedQualityTier(storage, "high"), "medium");
+    assert.equal(readWildsLearnedQualityTier(storage, "low"), "low", "a stored tier must never exceed a weaker current device base");
+
+    values.set("wildz:quality:v1", "broken");
+    assert.equal(readWildsLearnedQualityTier(storage, "high"), "high");
   });
 });
 

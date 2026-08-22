@@ -78,6 +78,30 @@ export function projectWildsTerrainActorPosition(
   ];
 }
 
+export function writeWildsTerrainActorPosition<T extends { set: (x: number, y: number, z: number) => unknown }>(
+  target: T,
+  actorX: number,
+  actorZ: number,
+  anchorX: number,
+  anchorZ: number,
+  baseY = 0,
+  admittedActorElevation?: number,
+  admittedAnchorElevation?: number
+): T {
+  let actorElevation = admittedActorElevation;
+  if (actorElevation === undefined) {
+    actorTerrainSamples += 1;
+    actorElevation = wildsTerrainElevation(actorX, actorZ);
+  }
+  let anchorElevation = admittedAnchorElevation;
+  if (anchorElevation === undefined) {
+    anchorTerrainSamples += 1;
+    anchorElevation = wildsTerrainElevation(anchorX, anchorZ);
+  }
+  target.set(actorX - anchorX, baseY + actorElevation - anchorElevation, actorZ - anchorZ);
+  return target;
+}
+
 export function wildsTerrainProjectionDiagnostics() {
   return Object.freeze({ actorTerrainSamples, anchorTerrainSamples });
 }

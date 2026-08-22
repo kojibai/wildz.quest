@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createWildsQualityGovernor, updateWildsQualityGovernor } from "./wilds-quality-governor";
+import {
+  createWildsQualityGovernor,
+  readWildsLearnedQualityTier,
+  writeWildsLearnedQualityTier,
+  writeWildsQualityGovernor,
+  type WildsQualityGovernorState
+} from "./wilds-quality-governor";
 import {
   selectWildsQualityProfile,
   wildsQualityProfileForTier,
@@ -18,16 +24,29 @@ function deviceProfile(reducedMotion: boolean) {
   });
 }
 
+function qualityStorage(): Storage | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
 export function useWildsQualityProfile(): {
   profile: WildsQualityProfile;
   reportFrameSample: (frameMs: number) => void;
   reducedMotion: boolean;
 } {
-  const initialReducedMotion = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const [reducedMotion, setReducedMotion] = useState(initialReducedMotion);
-  const initialProfile = deviceProfile(initialReducedMotion);
-  const governorRef = useRef(createWildsQualityGovernor(initialProfile.tier));
-  const [tier, setTier] = useState(initialProfile.tier);
+  const [initial] = useState(() => {
+    const reducedMotion = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const baseTier = deviceProfile(reducedMotion).tier;
+    return { reducedMotion, baseTier, tier: readWildsLearnedQualityTier(qualityStorage(), baseTier) };
+  });
+  const [reducedMotion, setReducedMotion] = useState(initial.reducedMotion);
+  const governorRef = useRef<WildsQualityGovernorState | null>(null);
+  if (!governorRef.current) governorRef.current = createWildsQualityGovernor(initial.baseTier, initial.tier);
+  const [tier, setTier] = useState(initial.tier);
 
   useEffect(() => {
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -37,9 +56,10 @@ export function useWildsQualityProfile(): {
       frame = window.requestAnimationFrame(() => {
         const reduced = motion.matches;
         const base = deviceProfile(reduced);
+        const learnedTier = readWildsLearnedQualityTier(qualityStorage(), base.tier);
         setReducedMotion(reduced);
-        governorRef.current = createWildsQualityGovernor(base.tier);
-        setTier(base.tier);
+        governorRef.current = createWildsQualityGovernor(base.tier, learnedTier);
+        setTier(learnedTier);
       });
     };
     window.addEventListener("resize", recompute);
@@ -55,13 +75,18 @@ export function useWildsQualityProfile(): {
 
   const reportFrameSample = useCallback((frameMs: number) => {
     const current = governorRef.current;
-    const next = updateWildsQualityGovernor(current, {
+    if (!current) return;
+    const previousTier = current.tier;
+    writeWildsQualityGovernor(
+      current,
       frameMs,
-      visible: typeof document === "undefined" || document.visibilityState === "visible",
-      atMs: typeof performance === "undefined" ? undefined : performance.now()
-    });
-    governorRef.current = next;
-    if (next.tier !== current.tier) setTier(next.tier);
+      typeof document === "undefined" || document.visibilityState === "visible",
+      typeof performance === "undefined" ? undefined : performance.now()
+    );
+    if (current.tier !== previousTier) {
+      writeWildsLearnedQualityTier(qualityStorage(), current.tier);
+      setTier(current.tier);
+    }
   }, []);
 
   const profile = useMemo(() => wildsQualityProfileForTier(tier, reducedMotion), [reducedMotion, tier]);

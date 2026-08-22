@@ -8,6 +8,7 @@ import {
   buildWildsTerrainWaterProjection,
   buildWildsTerrainRibbonProjection,
   projectWildsTerrainActorPosition,
+  writeWildsTerrainActorPosition,
   wildsTerrainProjectionDiagnostics,
   wildsTerrainRelativeElevation
 } from "../src/features/play/wilds-terrain-rendering";
@@ -138,4 +139,18 @@ test("steady trainer projection reuses the admitted anchor elevation for 300 fra
   const after = wildsTerrainProjectionDiagnostics();
   assert.equal(after.anchorTerrainSamples, before.anchorTerrainSamples);
   assert.equal(after.actorTerrainSamples, before.actorTerrainSamples + 300);
+});
+
+test("steady trainer frame positioning reuses one mutable target", () => {
+  const target = { x: 0, y: 0, z: 0, set(x: number, y: number, z: number) { this.x = x; this.y = y; this.z = z; } };
+  const anchorElevation = wildsTerrainElevation(37.25, -18.5);
+  for (let frame = 0; frame < 10_000; frame += 1) {
+    const phase = frame / 60;
+    const x = 45.25 + Math.sin(phase) * .7;
+    const z = -23.75 + Math.cos(phase * .83) * .7;
+    assert.equal(writeWildsTerrainActorPosition(target, x, z, 37.25, -18.5, 0, undefined, anchorElevation), target);
+  }
+  assert.ok(Number.isFinite(target.x));
+  assert.ok(Number.isFinite(target.y));
+  assert.ok(Number.isFinite(target.z));
 });

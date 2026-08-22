@@ -7,6 +7,9 @@ const HEALTHY_FRAME_MS = 16.7;
 const SLOW_FRAMES_TO_LOWER = 120;
 const HEALTHY_FRAMES_TO_RAISE = 600;
 const COOLDOWN_MS = 30_000;
+const QUALITY_TIER_STORAGE_KEY = "wildz:quality:v1";
+
+type WildsQualityStorage = Pick<Storage, "getItem" | "setItem">;
 
 export type WildsQualityGovernorState = {
   baseTier: WildsQualityTier;
@@ -28,10 +31,33 @@ export type WildsQualityFrameSample = {
   atMs?: number;
 };
 
-export function createWildsQualityGovernor(baseTier: WildsQualityTier): WildsQualityGovernorState {
+function tierAtOrBelow(candidate: WildsQualityTier, baseTier: WildsQualityTier): WildsQualityTier {
+  return TIERS[Math.min(TIERS.indexOf(candidate), TIERS.indexOf(baseTier))]!;
+}
+
+export function readWildsLearnedQualityTier(storage: Pick<WildsQualityStorage, "getItem"> | null, baseTier: WildsQualityTier): WildsQualityTier {
+  if (!storage) return baseTier;
+  try {
+    const stored = storage.getItem(QUALITY_TIER_STORAGE_KEY);
+    return stored === "low" || stored === "medium" || stored === "high" ? tierAtOrBelow(stored, baseTier) : baseTier;
+  } catch {
+    return baseTier;
+  }
+}
+
+export function writeWildsLearnedQualityTier(storage: Pick<WildsQualityStorage, "setItem"> | null, tier: WildsQualityTier): void {
+  if (!storage) return;
+  try {
+    storage.setItem(QUALITY_TIER_STORAGE_KEY, tier);
+  } catch {
+    // Quality memory is optional in restricted/private browsing contexts.
+  }
+}
+
+export function createWildsQualityGovernor(baseTier: WildsQualityTier, initialTier: WildsQualityTier = baseTier): WildsQualityGovernorState {
   return {
     baseTier,
-    tier: baseTier,
+    tier: tierAtOrBelow(initialTier, baseTier),
     frameWindow: [],
     frameWindowCursor: 0,
     frameWindowTotal: 0,
@@ -53,9 +79,18 @@ export function updateWildsQualityGovernor(
   state: WildsQualityGovernorState,
   sample: WildsQualityFrameSample
 ): WildsQualityGovernorState {
-  if (!sample.visible) return state;
-  const frameMs = Math.max(4, Math.min(100, Number.isFinite(sample.frameMs) ? sample.frameMs : 16.7));
-  const clockMs = Math.max(state.clockMs, sample.atMs ?? state.clockMs + frameMs);
+  return writeWildsQualityGovernor(state, sample.frameMs, sample.visible, sample.atMs);
+}
+
+export function writeWildsQualityGovernor(
+  state: WildsQualityGovernorState,
+  sampleFrameMs: number,
+  visible: boolean,
+  atMs?: number
+): WildsQualityGovernorState {
+  if (!visible) return state;
+  const frameMs = Math.max(4, Math.min(100, Number.isFinite(sampleFrameMs) ? sampleFrameMs : 16.7));
+  const clockMs = Math.max(state.clockMs, atMs ?? state.clockMs + frameMs);
   const frameWindow = state.frameWindow as number[];
   let frameWindowCursor = state.frameWindowCursor;
   let frameWindowTotal = state.frameWindowTotal;
@@ -75,34 +110,24 @@ export function updateWildsQualityGovernor(
   const canRaise = TIERS.indexOf(state.tier) < TIERS.indexOf(state.baseTier);
 
   if (canTransition && slowFrames >= SLOW_FRAMES_TO_LOWER && state.tier !== "low") {
-    return {
-      ...state,
-      tier: neighboringTier(state.tier, -1),
-      frameWindow,
-      frameWindowCursor,
-      frameWindowTotal,
-      averageFrameMs,
-      slowFrames: 0,
-      healthyFrames: 0,
-      cooldownUntilMs: clockMs + COOLDOWN_MS,
-      clockMs,
-      transitions: state.transitions + 1
-    };
+    state.tier = neighboringTier(state.tier, -1);
+    state.slowFrames = 0;
+    state.healthyFrames = 0;
+    state.cooldownUntilMs = clockMs + COOLDOWN_MS;
+    state.transitions += 1;
+  } else if (canTransition && canRaise && healthyFrames >= HEALTHY_FRAMES_TO_RAISE) {
+    state.tier = neighboringTier(state.tier, 1);
+    state.slowFrames = 0;
+    state.healthyFrames = 0;
+    state.cooldownUntilMs = clockMs + COOLDOWN_MS;
+    state.transitions += 1;
+  } else {
+    state.slowFrames = slowFrames;
+    state.healthyFrames = healthyFrames;
   }
-  if (canTransition && canRaise && healthyFrames >= HEALTHY_FRAMES_TO_RAISE) {
-    return {
-      ...state,
-      tier: neighboringTier(state.tier, 1),
-      frameWindow,
-      frameWindowCursor,
-      frameWindowTotal,
-      averageFrameMs,
-      slowFrames: 0,
-      healthyFrames: 0,
-      cooldownUntilMs: clockMs + COOLDOWN_MS,
-      clockMs,
-      transitions: state.transitions + 1
-    };
-  }
-  return { ...state, frameWindow, frameWindowCursor, frameWindowTotal, averageFrameMs, slowFrames, healthyFrames, clockMs };
+  state.frameWindowCursor = frameWindowCursor;
+  state.frameWindowTotal = frameWindowTotal;
+  state.averageFrameMs = averageFrameMs;
+  state.clockMs = clockMs;
+  return state;
 }

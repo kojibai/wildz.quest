@@ -168,8 +168,8 @@ test("trainer frames and environment consumers reuse the admitted player terrain
   const environment = source("src/features/play/WildsEnvironment.tsx");
   const trainer = world.slice(world.indexOf("function TrainerExplorer"), world.indexOf("function RemoteExplorer"));
 
-  assert.match(trainer, /wildsSiteRuntimeGroundY\(siteRuntime, siteSpace\.spaceId, world\.x, world\.z, Number\.NaN\)/);
-  assert.match(trainer, /projectWildsTerrainActorPosition\(world, localPlayer, 0, \{ actorElevation: Number\.isFinite\(mountainElevation\) \? mountainElevation : undefined, anchorElevation: terrainElevation \}\)/);
+  assert.match(trainer, /wildsSiteRuntimeGroundY\(siteRuntime, siteSpace\.spaceId, worldX, worldZ, Number\.NaN\)/);
+  assert.match(trainer, /writeWildsTerrainActorPosition\([\s\S]*?localPlayer\.x,[\s\S]*?localPlayer\.z,[\s\S]*?terrainElevation[\s\S]*?\);/);
   assert.doesNotMatch(trainer, /wildsTerrainElevation|sampleWildsTerrain/);
   assert.doesNotMatch(environment, /wildsTerrainRelativeElevation\([^)]*, player\)/);
 });
@@ -179,13 +179,15 @@ test("every production terrain-relative presentation call declares its anchor au
     .filter((name) => name.endsWith(".tsx"))
     .map((name) => ({ name, contents: source(`src/features/play/${name}`) }));
   const actorCalls = production.flatMap(({ name, contents }) => functionCalls(contents, "projectWildsTerrainActorPosition").map((call) => ({ call, name })));
+  const actorWriterCalls = production.flatMap(({ name, contents }) => functionCalls(contents, "writeWildsTerrainActorPosition").map((call) => ({ call, name })));
   const relativeCalls = production.flatMap(({ name, contents }) => functionCalls(contents, "wildsTerrainRelativeElevation").map((call) => ({ call, name })));
 
-  assert.ok(actorCalls.length >= 10);
+  assert.ok(actorCalls.length + actorWriterCalls.length >= 10);
   assert.ok(relativeCalls.length >= 4);
   for (const { call, name } of [...actorCalls, ...relativeCalls]) {
     assert.match(call, /anchorElevation\s*:/, `${name}: ${call}`);
   }
+  for (const { call, name } of actorWriterCalls) assert.match(call, /terrainElevation/, `${name}: ${call}`);
   for (const { contents, name } of production) {
     assert.doesNotMatch(contents, /wildsTerrainElevation\(player\.x, player\.z\)/, name);
   }

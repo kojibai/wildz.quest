@@ -50,7 +50,7 @@ import {
   projectWildsAuthoredDarkness,
   projectWildsReadabilityProfile
 } from "@/features/play/wilds-night-readability";
-import { projectWildsTerrainActorPosition } from "@/features/play/wilds-terrain-rendering";
+import { projectWildsTerrainActorPosition, writeWildsTerrainActorPosition } from "@/features/play/wilds-terrain-rendering";
 import { wildsEncounterActorLocomotion, writeWildsEncounterActorOuterFrame, type WildsEncounterLayer } from "@/features/play/wilds-layered-encounters";
 import type { WildsAquaticPresentation } from "@/features/play/wilds-aquatic-presentation";
 import {
@@ -574,12 +574,19 @@ function TrainerExplorer({ trainer, localPlayer, onSelect, siteRuntime, siteSpac
   useFrame(({ clock }) => {
     if (!group.current) return;
     const phase = clock.elapsedTime * (0.18 + trainer.seed % 5 * 0.015) + trainer.seed % 97;
-    const world = {
-      x: trainer.position[0] + Math.sin(phase) * 0.7,
-      z: trainer.position[2] + Math.cos(phase * 0.83) * 0.7
-    };
-    const mountainElevation = wildsSiteRuntimeGroundY(siteRuntime, siteSpace.spaceId, world.x, world.z, Number.NaN);
-    group.current.position.set(...projectWildsTerrainActorPosition(world, localPlayer, 0, { actorElevation: Number.isFinite(mountainElevation) ? mountainElevation : undefined, anchorElevation: terrainElevation }));
+    const worldX = trainer.position[0] + Math.sin(phase) * 0.7;
+    const worldZ = trainer.position[2] + Math.cos(phase * 0.83) * 0.7;
+    const mountainElevation = wildsSiteRuntimeGroundY(siteRuntime, siteSpace.spaceId, worldX, worldZ, Number.NaN);
+    writeWildsTerrainActorPosition(
+      group.current.position,
+      worldX,
+      worldZ,
+      localPlayer.x,
+      localPlayer.z,
+      0,
+      Number.isFinite(mountainElevation) ? mountainElevation : undefined,
+      terrainElevation
+    );
     group.current.rotation.y = -phase;
   });
   const rosterName = creatureForm(trainer.rosterFormIds[0])?.name ?? trainer.affinity;

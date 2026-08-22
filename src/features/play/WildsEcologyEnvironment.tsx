@@ -9,6 +9,7 @@ import type { WildsSettlementWorldMode } from "./WildsSettlementEnvironment";
 import type { WildsWorldEcologyProjection, WildsWorldProjection } from "./wilds-world-state";
 import { useWildsReadability } from "./WildsReadabilityContext";
 import { projectWildsTerrainActorPosition } from "./wilds-terrain-rendering";
+import { createWildsMovingInstancesRuntime, writeWildsMovingInstances, type WildsMovingInstancesRuntime } from "./wilds-moving-instances";
 
 export function WildsEcologyEnvironment({ livingWorld, player, terrainElevation, worldMode }: {
   livingWorld?: WildsWorldProjection | null;
@@ -193,19 +194,10 @@ function SignalInstances({ geometry, materials, radius }: { geometry: Geometry; 
 
 function MovingInstances({ count, geometry, material, vertical = false }: { count: number; geometry: THREE.BufferGeometry; material: THREE.Material; vertical?: boolean }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
+  const runtime = useRef<WildsMovingInstancesRuntime | null>(null);
+  if (!runtime.current) runtime.current = createWildsMovingInstancesRuntime();
   useFrame(({ clock }) => {
-    const matrix = new THREE.Matrix4();
-    for (let index = 0; index < count; index += 1) {
-      const angle = index / count * Math.PI * 2 + clock.elapsedTime * (vertical ? .08 : .16);
-      const radius = 1.2 + (index % 3) * .72;
-      matrix.compose(
-        new THREE.Vector3(Math.cos(angle) * radius, vertical ? .42 + Math.sin(clock.elapsedTime * 1.5 + index) * .2 : .34, Math.sin(angle) * radius),
-        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -angle, vertical ? .2 : 0)),
-        new THREE.Vector3(vertical ? .7 : 1.2, vertical ? 1.6 : .78, vertical ? .7 : .9)
-      );
-      mesh.current?.setMatrixAt(index, matrix);
-    }
-    if (mesh.current) mesh.current.instanceMatrix.needsUpdate = true;
+    writeWildsMovingInstances(runtime.current!, mesh.current, count, clock.elapsedTime, vertical);
   });
   return <instancedMesh args={[geometry, material, count]} ref={mesh} />;
 }
