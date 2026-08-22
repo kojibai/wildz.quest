@@ -140,8 +140,10 @@ test("card truth stays queued for durable Vault persistence while movement uses 
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
   assert.match(shell, /previousCardPins/);
   assert.match(shell, /nextCardPins/);
-  assert.match(shell, /if \(cardTruthChanged\) \{[\s\S]*vaultSavePendingRef\.current = true/);
-  assert.match(shell, /kind: vaultSavePendingRef\.current \? "vault" : "runtime"/);
+  assert.match(shell, /createWildzPlayStatePersistenceCoordinator/);
+  assert.match(shell, /}, cardTruthChanged\)/);
+  assert.doesNotMatch(shell, /vaultSavePendingRef/);
+  assert.doesNotMatch(shell, /kind: vaultSavePendingRef/);
   assert.doesNotMatch(shell, /if \(cardTruthChanged\) void scheduler\?\.flush\(\)/);
 });
 

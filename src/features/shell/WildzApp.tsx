@@ -50,9 +50,9 @@ import {
 } from "@/lib/receiz/wildz-session-bridge";
 import { publishWildsWorldWithIdentityProof } from "@/lib/receiz/wilds-world-identity-publication";
 import {
-  createLatestOnlySaveScheduler,
-  type WildzLatestSaveScheduler
-} from "@/lib/receiz/wildz-save-scheduler";
+  createWildzPlayStatePersistenceCoordinator,
+  type WildzPlayStatePersistenceCoordinator
+} from "@/lib/receiz/wildz-play-state-persistence";
 import { createOwnerPublicWildzProfile, sanitizePublicWildzProfile } from "@/features/profile/public-profile";
 import {
   fetchPublicWildzProfile,
@@ -69,15 +69,16 @@ import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-veri
 import { canRestoreFocus } from "@/features/play/focus-recovery";
 import { projectWildzContinuityExplorer } from "@/features/play/wildz-explorer-proof";
 import {
+  clearWildzPendingInventoryCheckpoint,
   clearWildzRuntimeCheckpoint,
   readWildzRuntimeCheckpoint,
+  writeWildzPendingInventoryCheckpoint,
   writeWildzRuntimeCheckpoint
 } from "@/features/play/wildz-runtime-checkpoint";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type PendingPlayStateSave = {
-  kind: "runtime" | "vault";
   snapshot: WildzContinuitySnapshot;
   playState: PlayState;
   playerContinuity: NonNullable<WildzContinuitySnapshot["playerContinuity"]>;
@@ -101,29 +102,37 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const priorShellOverlayOpenRef = useRef(Boolean(initialOverlay));
   const [continuity, setContinuity] = useState<WildzContinuitySnapshot | null>(null);
   const continuityRef = useRef<WildzContinuitySnapshot | null>(null);
-  const vaultSavePendingRef = useRef(false);
-  const playStateSaveSchedulerRef = useRef<WildzLatestSaveScheduler<PendingPlayStateSave> | null>(null);
+  const playStateSaveSchedulerRef = useRef<WildzPlayStatePersistenceCoordinator<PendingPlayStateSave> | null>(null);
   if (!playStateSaveSchedulerRef.current) {
-    playStateSaveSchedulerRef.current = createLatestOnlySaveScheduler({
+    playStateSaveSchedulerRef.current = createWildzPlayStatePersistenceCoordinator({
       delayMs: 400,
-      write: async ({ kind, snapshot, playState, playerContinuity }: PendingPlayStateSave) => {
-        if (kind === "runtime") {
-          writeWildzRuntimeCheckpoint(window.localStorage, {
+      stagePendingVault: ({ snapshot, playState }: PendingPlayStateSave) => {
+        writeWildzPendingInventoryCheckpoint(window.localStorage, {
+          keyId: snapshot.session.keyId,
+          actorId: snapshot.session.actorId,
+          playState
+        });
+      },
+      writeRuntime: ({ snapshot, playState }: PendingPlayStateSave) => {
+        writeWildzRuntimeCheckpoint(window.localStorage, {
+          keyId: snapshot.session.keyId,
+          actorId: snapshot.session.actorId,
+          playState
+        });
+      },
+      writeVault: async ({ snapshot, playState, playerContinuity }: PendingPlayStateSave) => {
+        const saved = await saveWildzContinuityPlayState(
+          snapshot,
+          playState,
+          playerContinuity,
+          snapshot.character
+        );
+        if (saved) {
+          clearWildzPendingInventoryCheckpoint(window.localStorage, {
             keyId: snapshot.session.keyId,
             actorId: snapshot.session.actorId,
-            playState
+            expectedInventory: playState.inventory
           });
-          return;
-        }
-        try {
-          await saveWildzContinuityPlayState(
-            snapshot,
-            playState,
-            playerContinuity,
-            snapshot.character
-          );
-        } finally {
-          vaultSavePendingRef.current = false;
         }
       }
     });
@@ -454,6 +463,21 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         playState: checkpointBaseline
       });
       acceptSnapshot(snapshot);
+      if (snapshot.playState.inventory !== checkpointBaseline.inventory && snapshot.playerContinuity) {
+        void saveWildzContinuityPlayState(
+          snapshot,
+          snapshot.playState,
+          snapshot.playerContinuity,
+          snapshot.character
+        ).then((saved) => {
+          if (!saved) return;
+          clearWildzPendingInventoryCheckpoint(window.localStorage, {
+            keyId: snapshot.session.keyId,
+            actorId: snapshot.session.actorId,
+            expectedInventory: snapshot.playState!.inventory
+          });
+        }).catch(() => undefined);
+      }
     };
     void initialize().catch((cause) => {
       if (active) setIdentityError(cause instanceof Error ? cause.message : "Unable to prepare your Receiz ID.");
@@ -588,6 +612,10 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     );
     const next = commitWildzArtifactContinuity(outcome);
     clearWildzRuntimeCheckpoint(window.localStorage, {
+      keyId: outcome.session.keyId,
+      actorId: outcome.session.actorId
+    });
+    clearWildzPendingInventoryCheckpoint(window.localStorage, {
       keyId: outcome.session.keyId,
       actorId: outcome.session.actorId
     });
@@ -788,17 +816,14 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         })();
     const snapshot = { ...current, playState, playerContinuity };
     continuityRef.current = snapshot;
-    const scheduler = playStateSaveSchedulerRef.current;
     if (cardTruthChanged) {
-      vaultSavePendingRef.current = true;
       setContinuity(snapshot);
     }
-    scheduler?.schedule({
-      kind: vaultSavePendingRef.current ? "vault" : "runtime",
+    playStateSaveSchedulerRef.current?.schedule({
       snapshot,
       playState,
       playerContinuity
-    });
+    }, cardTruthChanged);
   }, []);
 
   const removeLostVaultAssets = useCallback((assetIds: readonly string[]) => {
@@ -808,13 +833,11 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (reconciled === current.playState) return;
     const snapshot = { ...current, playState: reconciled };
     acceptSnapshot(snapshot);
-    vaultSavePendingRef.current = true;
     playStateSaveSchedulerRef.current?.schedule({
-      kind: "vault",
       snapshot,
       playState: reconciled,
       playerContinuity: current.playerContinuity
-    });
+    }, true);
   }, [acceptSnapshot]);
 
   useEffect(() => {

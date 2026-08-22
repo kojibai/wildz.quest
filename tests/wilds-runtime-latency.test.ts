@@ -11,7 +11,11 @@ import {
   projectWildsTraversalCapabilities,
   wildsTraversalProjectionDiagnostics
 } from "../src/features/play/wilds-traversal-capabilities";
-import { readWildzRuntimeCheckpoint, writeWildzRuntimeCheckpoint } from "../src/features/play/wildz-runtime-checkpoint";
+import {
+  readWildzRuntimeCheckpoint,
+  writeWildzPendingInventoryCheckpoint,
+  writeWildzRuntimeCheckpoint
+} from "../src/features/play/wildz-runtime-checkpoint";
 
 class MemoryStorage implements Pick<Storage, "getItem" | "setItem" | "removeItem"> {
   private values = new Map<string, string>();
@@ -95,4 +99,79 @@ test("admitted checkpoint restore and ten thousand movement/submersion ticks sta
   assert.deepEqual(admittedInventoryDiagnostics(), admittedWarm);
   assert.deepEqual(wildsTraversalProjectionDiagnostics(), traversalWarm);
   assert.deepEqual(wildsHotspotProjectionDiagnostics(), hotspotWarm);
+});
+
+test("refresh during a pending capture restores the caught card and exact world progress", () => {
+  const owner = "runtime_capture_keeper";
+  const baseline = createOwnerBoundInitialPlayState(owner);
+  const caught = sealCollectedCard({
+    formId: "amberbeak-1",
+    ownerReceizId: owner,
+    encounterId: "runtime-pending-capture",
+    capturedAt: "2026-08-21T20:00:00.000Z"
+  });
+  let current = applyWildsInput(baseline, { type: "import-card", asset: caught });
+  current = {
+    ...current,
+    player: { x: -145.5, z: 288.25 },
+    missionProgress: 73,
+    worldMastery: 81
+  };
+  const storage = new MemoryStorage();
+
+  writeWildzPendingInventoryCheckpoint(storage, {
+    keyId: "runtime-capture-key",
+    actorId: owner,
+    playState: current
+  });
+  writeWildzRuntimeCheckpoint(storage, {
+    keyId: "runtime-capture-key",
+    actorId: owner,
+    playState: current
+  });
+
+  const restored = readWildzRuntimeCheckpoint(storage, {
+    keyId: "runtime-capture-key",
+    actorId: owner,
+    playState: baseline
+  });
+  assert.equal(restored.inventory.length, 2);
+  assert.ok(restored.inventory.some((asset) => asset.id === caught.id));
+  assert.deepEqual(restored.player, { x: -145.5, z: 288.25 });
+  assert.equal(restored.missionProgress, 73);
+  assert.equal(restored.worldMastery, 81);
+  for (const row of current.explorationAtlas.rows) {
+    const restoredRow = restored.explorationAtlas.rows.find((candidate) => candidate.z === row.z);
+    assert.ok(restoredRow);
+    assert.deepEqual(restoredRow.ranges, row.ranges);
+  }
+});
+
+test("a missing pending card backup never discards unrelated world progress", () => {
+  const owner = "runtime_world_keeper";
+  const baseline = createOwnerBoundInitialPlayState(owner);
+  const caught = sealCollectedCard({
+    formId: "amberbeak-1",
+    ownerReceizId: owner,
+    encounterId: "runtime-missing-card-backup",
+    capturedAt: "2026-08-21T20:05:00.000Z"
+  });
+  const current = {
+    ...applyWildsInput(baseline, { type: "import-card", asset: caught }),
+    player: { x: 312.5, z: -411.75 },
+    missionProgress: 64,
+    worldMastery: 77
+  };
+  const storage = new MemoryStorage();
+  writeWildzRuntimeCheckpoint(storage, { keyId: "runtime-world-key", actorId: owner, playState: current });
+
+  const restored = readWildzRuntimeCheckpoint(storage, {
+    keyId: "runtime-world-key",
+    actorId: owner,
+    playState: baseline
+  });
+  assert.equal(restored.inventory.length, baseline.inventory.length);
+  assert.deepEqual(restored.player, { x: 312.5, z: -411.75 });
+  assert.equal(restored.missionProgress, 64);
+  assert.equal(restored.worldMastery, 77);
 });

@@ -126,17 +126,19 @@ test("matching Identity Seal upgrades a proof Vault login without clearing the l
   assert.doesNotMatch(campaign, /restoreEpoch/);
 });
 
-test("large Vault movement coalesces full-state persistence and flushes the latest state", () => {
+test("large Vault movement coalesces runtime state without repeating durable Vault persistence", () => {
   const source = read("src/features/shell/WildzApp.tsx");
   const persistStart = source.indexOf("const persistPlayState");
   const persist = source.slice(persistStart, source.indexOf("\n\n  return (", persistStart));
 
   assert.ok(persistStart >= 0);
-  assert.match(source, /createLatestOnlySaveScheduler/);
+  assert.match(source, /createWildzPlayStatePersistenceCoordinator/);
   assert.match(source, /wildz:preserve-state/);
   assert.match(source, /pagehide/);
   assert.match(source, /visibilitychange/);
   assert.match(persist, /\.schedule\(\{/);
+  assert.match(persist, /}, cardTruthChanged\)/);
+  assert.doesNotMatch(source, /vaultSavePendingRef/);
   assert.doesNotMatch(persist, /void saveWildzContinuityPlayState\(/);
 });
 
