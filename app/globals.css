@@ -379,7 +379,7 @@ body {
 .wilds-wallet-surface label { color: #b8c9c2; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .wilds-wallet-surface input { width: 100%; min-width: 0; padding: 0 13px; border: 1px solid rgba(177,208,193,.24); border-radius: 5px; color: #f0f7f4; background: rgba(0,0,0,.28); font: 700 16px/1 ui-monospace, monospace; }
 .wilds-wallet-surface button, .wilds-wallet-primary-actions button { min-width: 0; padding: 0 16px; border: 1px solid rgba(241,207,103,.3); border-radius: 5px; color: #071012; background: #f1cf67; font-size: 11px; font-weight: 900; }
-.wilds-wallet-balance-band { display: flex; align-items: end; justify-content: space-between; gap: 20px; min-width: 0; padding-bottom: 20px; border-bottom: 1px solid rgba(241,207,103,.2); }
+.wilds-wallet-balance-band { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; min-width: 0; padding-bottom: 20px; border-bottom: 1px solid rgba(241,207,103,.2); }
 .wilds-wallet-balance-band > span { display: grid; min-width: 0; gap: 7px; }
 .wilds-wallet-balance-band strong { max-width: 100%; color: #f1cf67; font: 700 clamp(25px, 4.5vw, 45px)/1 ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .wilds-wallet-balance-band i { font: normal .55em Georgia, serif; }

@@ -138,7 +138,21 @@ Every authority-bearing operation remains server-only. Server routes resolve the
 - In-game authority: `identity.exchangeProofAuthority` grants a short-lived, non-refreshable, narrowly scoped authority after explicit proof-bound consent.
 - OAuth scopes: only SDK-derived `wallet`, `settlement`, `reserve`, world, subject, mandate, and inventory scopes may be requested or admitted.
 
-V123 exposes every authority surface required for live Phi execution and canonical authored-world planning. Wildz must still fail closed when a deployment dependency outside Receiz authority is absent, including durable distributed recipient-search rate limiting. No legacy Connect transfer, local balance mutation, app-authored transaction digest, process-local idempotency ledger, or preview-shaped completion is permitted.
+V123 exposes every SDK authority surface required for live Phi execution and canonical authored-world planning. Wildz must still fail closed when a deployment dependency outside Receiz authority is absent. The shipped route/controller foundation requires all of the following before it advertises Send: an injected cross-instance durable transfer journal with authenticated terminal records, a server-derived proof-authority admission/context resolver, an exact transfer-context resolver, an encrypted attempt/receive-locator secret, and a durable distributed recipient-search limiter. Presence of a browser signer alone is never capability admission. No legacy Connect transfer, local balance mutation, app-authored transaction digest, process-local idempotency ledger, or preview-shaped completion is permitted.
+
+### Current V123 release matrix
+
+| Surface | Released state |
+|---|---|
+| Wallet summary and bounded ledger | Live only when the authenticated Receiz read authority and corresponding remote rail admit the request; otherwise explicit unavailable/authority-required state |
+| Receive proposal | Plain public-coordinate proposal is non-authoritative; an exact encrypted destination/head locator is emitted only by the configured durable runtime |
+| Phi preview, execute, and recovery | Server-only implementation complete; production defaults fail closed until every durable runtime dependency above is injected |
+| Username recipient lookup | Available only with a `durable: true` distributed limiter; the capability projection and browser both require it |
+| Browser proof authorization | Optional injected identity-key signer boundary; absent in the default app wiring, therefore Send remains unavailable |
+| Resources and creature-card transfer | Explicitly unavailable; no UI or route may imply otherwise until exact multi-participant inventory/ownership execution is implemented |
+| USD | Verified display quote only, never transfer authority |
+
+This matrix distinguishes implemented authority code from live deployment evidence. Unit tests, fixtures, capability-shaped JSON, and local projections do not establish that a production transfer can execute. A live-transfer claim additionally requires authenticated plan, execute, lost-response recovery, duplicate-idempotency, and terminal-reload evidence against the configured V123 deployment.
 
 Authorization occurs inside the Wildz experience. If a one-time Receiz identity grant is legally required, Wildz presents its own secure authorization surface and returns to the exact terminal state. Silent OAuth, hidden consent, iframe credential entry, or a redirect that discards gameplay state is prohibited. Once granted, normal reads and transfers remain in-game.
 

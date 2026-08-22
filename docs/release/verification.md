@@ -1,6 +1,6 @@
 # Wildz v8.0.0 release verification
 
-Date: 2026-08-21. Target application version: `8.0.0`. Receiz integration target: `122.0.0`.
+Date: 2026-08-22. Target application version: `8.0.0`. Receiz integration target: `123.0.0`.
 
 This record distinguishes repository evidence from external production evidence. A passing local gate proves the source, deterministic contracts, compilation, and configured local browser paths observed in the run. It does not manufacture credentials, remote authority, deployment, payment settlement, or literal creature sentience.
 
@@ -8,33 +8,30 @@ This record distinguishes repository evidence from external production evidence.
 
 | Package | Requested | Installed | Role |
 |---|---:|---:|---|
-| `@receiz/sdk` | `122.0.0` | `122.0.0` | Artifact, durable subject, private-world, exact transaction, multi-world, and Phi value boundary |
-| `@receiz/mcp-server` | `122.0.0` | `122.0.0` | Coordinated operator tools; never proof authority |
-| `@receiz/ai-skills` | `122.0.0` | `122.0.0` | Coordinated proof-aware operating skills; never proof authority |
+| `@receiz/sdk` | `123.0.0` | `123.0.0` | Artifact, durable subject, private-world, exact transaction, proof-authority, multi-world, and Phi execution boundary |
+| `@receiz/mcp-server` | `123.0.0` | `123.0.0` | Coordinated operator tools; never proof authority |
+| `@receiz/ai-skills` | `123.0.0` | `123.0.0` | Coordinated proof-aware operating skills; never proof authority |
 
-All three exact public npm packages use published SHA-512 integrity values pinned in `pnpm-lock.yaml`. The v122 registry digest is `ed65956a16dd5f0d76d04db2f4a651fc43eb0a71cef64afd53576aa782dc9896`; the operation-matrix digest is `bd1d7ccf1543e2484df68e3025c7376f8ae37cafe1ca0d7c9cd9f52f6342b325`.
-
-All three exact public npm packages use published SHA-512 integrity values pinned in `pnpm-lock.yaml`. The v121 registry digest is `29a793a5bcc0195ab41d30614d37ac51df66023af354fa4335460764eb0af413`; the 30-operation matrix digest is `208553829ba78a5536524b864577ce59989e2d0a994fad9598d39ae3d557c4f5`; the living-subject reducer digest is `5694662e2acc8b886ac9697ffad202b411d7e66c5f26f9106ee0768df7c7b8c8`.
+All three exact public npm packages use published SHA-512 integrity values pinned in `pnpm-lock.yaml`. The V123 registry digest is `945a581d1fc49c2dc18fbe8c129771ef464b8a58b96188bce561e88ae8b6ceeb`; the 36-operation matrix digest is `e08cec3e3ad22c20ddd6c08169ece19f094c366214d6d6b4dc432cd97558e2c5`.
 
 `receiz.app.json` remains artifact-first with database authority disabled. First admission only, then append forever remains the durable-memory law. The enclosing artifact remains strongest; the proof-brain index, model output, projection, receipt, cache, database row, MCP output, and AI explanation remain non-authoritative.
 
-V121 is a non-breaking, source-first coordination release for Wildz. The local sealed proof object remains authority and is admitted before idempotent global publication; server/database projections accelerate distribution and restore only. Settled surfaces never wait for global projection, verified hydration becomes durable cold truth, and weaker projections cannot erase stronger known fields. Optional performance enrichment can never replace or delay the proof response or its memory append.
+V123 preserves the source-first authority law and adds exact-head namespace resolution, proof-authority exchange, SDK-derived Settlement/Reserve scopes, Phi execution/recovery, durable subject admission, private world envelopes, and multi-world planning. The local sealed proof object remains authority; projections, receipts, caches, databases, MCP output, and AI explanations remain non-authoritative. Optional performance enrichment can never replace or delay the proof response or its memory append. Deployment ports are still required before the application may advertise a live shared mutation.
 
 ## Release gate
 
-The v8/v121 source gate passed on 2026-08-20:
+The V123 wallet release gate passed on 2026-08-22:
 
 | Gate | Observed result |
 |---|---|
-| Receiz architecture lock | Pass; 415 runtime files checked |
-| Node law/regression suite | Pass; 1,663 tests across 154 suites, zero failures |
+| Receiz architecture lock | Pass; 491 runtime files checked |
+| Node law/regression suite | Pass; 1,765 tests across 161 suites, zero failures |
 | Typecheck | Pass |
-| Official v122 repository checker | Pass; exact release/registry/matrix/authority identity |
+| Official V123 repository checker | Pass; exact release, 36-operation registry/matrix, and authority identity |
 | MCP/SDK conformance | Pass; 15/15 checks, zero network calls, zero database calls |
 | ESLint | Pass |
-| Secret scan | Pass; 901 text files checked without printing values |
 | Optimized Next.js build | Pass; 19 static pages generated and all application routes compiled |
-| Receiz doctor | Pass; SDK/MCP/AI skills requested and installed at exact compatible `122.0.0` |
+| Receiz packages | Pass; SDK/MCP/AI skills requested and installed at exact compatible `123.0.0` |
 
 The optimized build retains two upstream `web-worker` dynamic-require warnings in the Receiz `snarkjs` verifier import chain. They are not application exceptions, do not add a Wildz voice dependency, and were disclosed rather than mislabeled as a warning-free build. The root, robots, standard sitemap, image sitemap, manifest, and social metadata remain outside the gameplay render loop.
 
