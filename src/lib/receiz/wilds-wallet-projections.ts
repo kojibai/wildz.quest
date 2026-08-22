@@ -44,6 +44,7 @@ export type WalletRecipientProjection = Readonly<{
 export type WalletCapabilityProjection = Readonly<{
   read: "available";
   receive: "available";
+  recipientLookup: WalletCapabilityState;
   send: WalletCapabilityState;
   resourceTransfer: WalletCapabilityState;
   cardTransfer: WalletCapabilityState;
@@ -227,7 +228,8 @@ export function projectWildsWalletRecipient(value: unknown): WalletRecipientProj
 }
 
 export function projectWildsWalletCapabilities(
-  admission?: WalletCapabilityAdmission
+  admission?: WalletCapabilityAdmission,
+  recipientLookupAvailable = false
 ): WalletCapabilityProjection {
   const unavailable = Object.freeze({
     available: false as const,
@@ -237,6 +239,7 @@ export function projectWildsWalletCapabilities(
     return Object.freeze({
       read: "available" as const,
       receive: "available" as const,
+      recipientLookup: recipientLookupAvailable ? Object.freeze({ available: true as const }) : unavailable,
       send: unavailable,
       resourceTransfer: unavailable,
       cardTransfer: unavailable,
@@ -270,6 +273,7 @@ export function projectWildsWalletCapabilities(
   return Object.freeze({
     read: "available" as const,
     receive: "available" as const,
+    recipientLookup: recipientLookupAvailable ? Object.freeze({ available: true as const }) : unavailable,
     send,
     resourceTransfer: unavailable,
     cardTransfer: unavailable,

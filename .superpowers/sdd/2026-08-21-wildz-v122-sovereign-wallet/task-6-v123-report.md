@@ -77,3 +77,11 @@ The independent UI review was closed with a second RED/GREEN round:
 - Terminal tabs use roving `tabIndex` with Arrow, Home, and End movement. Keyboard authorization requires the same 900 ms deliberate hold using Space or Enter; key release, blur, visibility, orientation, and ownership changes cancel it, and synthesized clicks have no authorization handler.
 
 Review-fix verification: focused wallet/UI/controller/ownership tranche 50/50 pass; project and test typechecks pass; scoped ESLint and `git diff --check` are clean.
+
+### Residual capability and lookup binding closure
+
+- `recipientLookup` is now an explicit sanitized server capability. It is available only when the route has an injected limiter carrying the exact `durable: true` contract; the lookup route also checks this runtime marker before consuming.
+- Client send remains unavailable unless both the server-admitted recipient lookup capability and the injected proof-authorization port are available. Client code cannot manufacture the limiter capability.
+- Recipient lookup normalizes the requested public username before sending, strictly admits the response, and then requires the response username to equal the exact normalized request. A valid projection for another username is treated as failed and never selected.
+
+Residual focused verification: wallet UI/controller/driver/projection/read-route/transfer-route tranche 66/66 pass, with both typechecks, scoped ESLint, and diff-check clean.

@@ -66,6 +66,7 @@ function runtime(overrides: Partial<WildsWalletTransferRouteRuntime> = {}): Wild
 function handlers(
   transferRuntime: WildsWalletTransferRouteRuntime | null = runtime(),
   recipientLookupLimiter: WildsWalletRecipientLookupLimiter | null = {
+    durable: true,
     consume: async () => "allowed"
   }
 ) {
@@ -224,9 +225,12 @@ describe("Wilds wallet V123 transfer routes", () => {
     assert.deepEqual(projection.phiSettlement, { available: true });
     assert.deepEqual(projection.phiReserve, { available: false, reason: "receiz_v123_scope_required" });
     assert.deepEqual(projection.send, { available: true });
+    assert.deepEqual(projection.recipientLookup, { available: true });
 
     const closed = await handlers(null).capabilities(request("/api/wilds/wallet/capabilities", "GET"));
     assert.deepEqual((await body(closed)).send, { available: false, reason: "receiz_v123_execution_unavailable" });
+    const lookupClosed = await handlers(runtime(), null).capabilities(request("/api/wilds/wallet/capabilities", "GET"));
+    assert.deepEqual((await body(lookupClosed)).recipientLookup, { available: false, reason: "receiz_v123_execution_unavailable" });
   });
 
   it("seals exact receive binding and reopens it across instances without public lookup", async () => {

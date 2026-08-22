@@ -35,6 +35,7 @@ function verifiedState(identityKey = "explorer") {
     capabilities: {
       read: "available",
       receive: "available",
+      recipientLookup: { available: false, reason: "receiz_v123_execution_unavailable" },
       send: { available: false, reason: "receiz_v123_execution_unavailable" },
       resourceTransfer: { available: false, reason: "receiz_v123_execution_unavailable" },
       cardTransfer: { available: false, reason: "receiz_v123_execution_unavailable" },
@@ -59,6 +60,7 @@ function readResponse() {
     capabilities: {
       read: "available",
       receive: "available",
+      recipientLookup: { available: false, reason: "receiz_v123_execution_unavailable" },
       send: { available: false, reason: "receiz_v123_execution_unavailable" },
       resourceTransfer: { available: false, reason: "receiz_v123_execution_unavailable" },
       cardTransfer: { available: false, reason: "receiz_v123_execution_unavailable" },

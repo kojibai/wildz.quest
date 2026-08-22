@@ -80,9 +80,9 @@ const AUTHORITY_REQUIRED_CODES = new Set(["receiz_wallet_authority_required", "r
 
 export function gateWildsWalletClientCapabilities(
   capabilities: WalletCapabilityProjection,
-  ports: Readonly<{ recipientLookup: boolean; proofAuthorization: boolean }>
+  ports: Readonly<{ proofAuthorization: boolean }>
 ): WalletCapabilityProjection {
-  if (ports.recipientLookup && ports.proofAuthorization) return capabilities;
+  if (capabilities.recipientLookup.available && ports.proofAuthorization) return capabilities;
   const unavailable = Object.freeze({ available: false as const, reason: V123_UNAVAILABLE });
   return Object.freeze({ ...capabilities, send: unavailable, phiSettlement: unavailable, phiReserve: unavailable });
 }
@@ -260,7 +260,7 @@ function isSummary(value: unknown): value is WalletSummaryProjection {
 function capability(value: unknown) { const item = record(value); return Boolean(item && ((exact(item, ["available"]) && item.available === true) || (exact(item, ["available", "reason"]) && item.available === false && (item.reason === V123_UNAVAILABLE || item.reason === "receiz_v123_scope_required")))); }
 function isCapabilities(value: unknown): value is WalletCapabilityProjection {
   const item = record(value);
-  return Boolean(item && exact(item, ["read", "receive", "send", "resourceTransfer", "cardTransfer", "phiSettlement", "phiReserve"]) && item.read === "available" && item.receive === "available" && capability(item.send) && capability(item.resourceTransfer) && capability(item.cardTransfer) && capability(item.phiSettlement) && capability(item.phiReserve));
+  return Boolean(item && exact(item, ["read", "receive", "recipientLookup", "send", "resourceTransfer", "cardTransfer", "phiSettlement", "phiReserve"]) && item.read === "available" && item.receive === "available" && capability(item.recipientLookup) && capability(item.send) && capability(item.resourceTransfer) && capability(item.cardTransfer) && capability(item.phiSettlement) && capability(item.phiReserve));
 }
 function isLedgerEntry(value: unknown): value is WalletLedgerEntryProjection {
   const item = record(value);

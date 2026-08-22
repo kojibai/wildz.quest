@@ -6,7 +6,7 @@ import { writeWildsCreatureLocomotionFrame } from "../src/features/play/WildsCre
 
 const response = () => ({
   summary: { status: "verified", admittedPhiMicro: "1", displayUsdCents: null, assetCountsStatus: "unknown", transferableResourceCount: null, transferableCardCount: null, reservedCardCount: null, pendingCount: null },
-  capabilities: { read: "available", receive: "available", send: { available: false, reason: "receiz_v123_execution_unavailable" }, resourceTransfer: { available: false, reason: "receiz_v123_execution_unavailable" }, cardTransfer: { available: false, reason: "receiz_v123_execution_unavailable" }, phiSettlement: { available: false, reason: "receiz_v123_execution_unavailable" }, phiReserve: { available: false, reason: "receiz_v123_execution_unavailable" } },
+  capabilities: { read: "available", receive: "available", recipientLookup: { available: false, reason: "receiz_v123_execution_unavailable" }, send: { available: false, reason: "receiz_v123_execution_unavailable" }, resourceTransfer: { available: false, reason: "receiz_v123_execution_unavailable" }, cardTransfer: { available: false, reason: "receiz_v123_execution_unavailable" }, phiSettlement: { available: false, reason: "receiz_v123_execution_unavailable" }, phiReserve: { available: false, reason: "receiz_v123_execution_unavailable" } },
   ledger: { cursor: null, nextCursor: null, entries: [] }
 });
 
@@ -164,4 +164,15 @@ test("driver performs bounded live recipient lookup and admits only the sanitize
   await driver.lookupRecipient("friend_2");
   assert.deepEqual(bodies, [{ username: "friend_2" }]);
   assert.deepEqual(driver.state.recipient.projection, { username: "friend_2", profileMark: "F2", allowedTransferKinds: ["phi"] });
+});
+
+test("driver rejects a valid but crossed recipient response that does not match the normalized request", async () => {
+  const driver = createWildsWalletControllerDriver({
+    identityKey: "private-actor-coordinate", authorityGeneration: "issued-1", publish: () => {},
+    fetcher: async () => ({ ok: true, status: 200, json: async () => ({ username: "different_user", profileMark: null, allowedTransferKinds: ["phi"] }) })
+  });
+  driver.open();
+  await driver.lookupRecipient("@Friend_2.RECEIZ.ID");
+  assert.equal(driver.state.recipient.status, "failed");
+  assert.equal(driver.state.recipient.projection, null);
 });

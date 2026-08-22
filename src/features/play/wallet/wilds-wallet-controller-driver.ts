@@ -1,4 +1,5 @@
 import type { WorldOverlayOwner } from "@/features/play/world-overlay-state";
+import { normalizeWildsWalletPublicUsername } from "@/lib/receiz/wilds-wallet-projections";
 import {
   admitWildsWalletStagedTransferResponse,
   admitWildsWalletTransferResponse,
@@ -112,10 +113,12 @@ export function createWildsWalletControllerDriver(input: {
     publish({ type: "recipient-start", requestId: request.id, username });
     return (async () => {
       try {
+        const requestedUsername = normalizeWildsWalletPublicUsername(username);
         const response = await input.fetcher("/api/wilds/wallet/recipient", {
-          method: "POST", body: JSON.stringify({ username }), signal: request.controller.signal
+          method: "POST", body: JSON.stringify({ username: requestedUsername }), signal: request.controller.signal
         });
         const projection = admitWildsWalletRecipientResponse(await json(response));
+        if (projection.username !== requestedUsername) throw new Error("wilds_wallet_recipient_projection_crossed");
         if (recipientRequest?.id === request.id && !request.controller.signal.aborted) publish({ type: "recipient-resolved", requestId: request.id, projection });
       } catch (cause) {
         if (recipientRequest?.id !== request.id || request.controller.signal.aborted) return;

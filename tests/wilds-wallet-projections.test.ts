@@ -159,6 +159,7 @@ describe("Wilds wallet projections", () => {
     assert.deepEqual(projectWildsWalletCapabilities(), {
       read: "available",
       receive: "available",
+      recipientLookup: { available: false, reason: "receiz_v123_execution_unavailable" },
       send: { available: false, reason: "receiz_v123_execution_unavailable" },
       resourceTransfer: { available: false, reason: "receiz_v123_execution_unavailable" },
       cardTransfer: { available: false, reason: "receiz_v123_execution_unavailable" },
@@ -191,7 +192,8 @@ describe("Wilds wallet projections", () => {
       sdkVersion: "123.0.0",
       rails,
       grantedScopes: exactScopes
-    });
+    }, true);
+    assert.deepEqual(admitted.recipientLookup, { available: true });
     assert.deepEqual(admitted.phiSettlement, { available: true });
     assert.deepEqual(admitted.phiReserve, { available: true });
     assert.deepEqual(admitted.send, { available: true });

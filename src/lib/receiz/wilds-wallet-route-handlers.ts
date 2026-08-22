@@ -454,6 +454,7 @@ export function createWildsWalletTransferRouteRuntime(input: Readonly<{
 }
 
 export type WildsWalletRecipientLookupLimiter = Readonly<{
+  durable: true;
   consume(input: Readonly<{
     actorId: string;
     limit: number;
@@ -571,7 +572,7 @@ async function readJsonBody(request: NextRequest) {
 }
 
 async function consumeRecipientLookup(limiter: WildsWalletRecipientLookupLimiter | undefined, actorId: string) {
-  if (!limiter) throw new Error("receiz_wallet_recipient_lookup_unavailable");
+  if (!limiter || limiter.durable !== true) throw new Error("receiz_wallet_recipient_lookup_unavailable");
   try {
     const result = await limiter.consume({
       actorId,
@@ -668,7 +669,7 @@ export function createWildsWalletRouteHandlers(
         const admission = dependencies.transferRuntime?.durable === true
           ? await dependencies.transferRuntime.capabilityAdmission(authority)
           : undefined;
-        return json(projectWildsWalletCapabilities(admission));
+        return json(projectWildsWalletCapabilities(admission, dependencies.recipientLookupLimiter?.durable === true));
       } catch (cause) {
         return failure(cause, "receiz_wallet_capabilities_unavailable");
       }

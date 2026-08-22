@@ -40,7 +40,7 @@ export function useWildsWalletController(
   const openTerminal = useCallback(() => { driver.open(); void driver.refresh(); }, [driver]);
   const visible = state.identityKey === identityKey && state.authorityGeneration === authorityGeneration ? state : createWildsWalletControllerState(identityKey, authorityGeneration);
   const capabilities = visible.capabilities
-    ? gateWildsWalletClientCapabilities(visible.capabilities, { recipientLookup: true, proofAuthorization: Boolean(options.authorization) })
+    ? gateWildsWalletClientCapabilities(visible.capabilities, { proofAuthorization: Boolean(options.authorization) })
     : null;
   const authorizeTransfer = useCallback(async (pointerId: number) => {
     const authorization = options.authorization;

@@ -26,6 +26,7 @@ function state(overrides: Record<string, unknown> = {}) {
     capabilities: {
       read: "available" as const,
       receive: "available" as const,
+      recipientLookup: { available: false as const, reason: "receiz_v123_execution_unavailable" as const },
       send: { available: false as const, reason: "receiz_v123_execution_unavailable" as const },
       resourceTransfer: { available: false as const, reason: "receiz_v123_execution_unavailable" as const },
       cardTransfer: { available: false as const, reason: "receiz_v123_execution_unavailable" as const },
@@ -75,10 +76,10 @@ test("terminal is one modal dialog with five named surfaces and fail-closed send
 
 test("client capability projection refuses to advertise send without both lookup and proof authorization ports", () => {
   const live = state().capabilities!;
-  const serverLive = { ...live, send: { available: true as const }, phiSettlement: { available: true as const } };
-  assert.equal(gateWildsWalletClientCapabilities(serverLive, { recipientLookup: true, proofAuthorization: false }).send.available, false);
-  assert.equal(gateWildsWalletClientCapabilities(serverLive, { recipientLookup: false, proofAuthorization: true }).send.available, false);
-  assert.equal(gateWildsWalletClientCapabilities(serverLive, { recipientLookup: true, proofAuthorization: true }).send.available, true);
+  const serverLive = { ...live, recipientLookup: { available: true as const }, send: { available: true as const }, phiSettlement: { available: true as const } };
+  assert.equal(gateWildsWalletClientCapabilities(serverLive, { proofAuthorization: false }).send.available, false);
+  assert.equal(gateWildsWalletClientCapabilities({ ...serverLive, recipientLookup: { available: false as const, reason: "receiz_v123_execution_unavailable" as const } }, { proofAuthorization: true }).send.available, false);
+  assert.equal(gateWildsWalletClientCapabilities(serverLive, { proofAuthorization: true }).send.available, true);
 });
 
 test("compact Phi formatting uses exact K M B T tiers without Number precision", () => {

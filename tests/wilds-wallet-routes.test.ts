@@ -65,6 +65,7 @@ function adapter(overrides: Partial<Record<"walletSummary" | "walletLedger" | "w
 function durableLimiter() {
   const usage = new Map<string, number>();
   return {
+    durable: true as const,
     usage,
     consume: async ({ actorId, limit }: { actorId: string; limit: number }) => {
       const next = (usage.get(actorId) ?? 0) + 1;
@@ -202,6 +203,7 @@ describe("Wilds wallet read and receive handlers", () => {
     assert.equal(capabilities.status, 200);
     assert.deepEqual(await responseBody(capabilities), {
       read: "available", receive: "available",
+      recipientLookup: { available: true },
       send: { available: false, reason: "receiz_v123_execution_unavailable" },
       resourceTransfer: { available: false, reason: "receiz_v123_execution_unavailable" },
       cardTransfer: { available: false, reason: "receiz_v123_execution_unavailable" },
