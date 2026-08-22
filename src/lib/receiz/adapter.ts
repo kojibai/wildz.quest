@@ -100,6 +100,7 @@ export type ReceizCommerceAdapter = {
     options?: { authorization?: string }
   ): Promise<OidcTokenResponse>;
   userinfo(): Promise<JsonObject>;
+  introspectAccessToken(): Promise<JsonObject>;
   createReceizId(input: {
     username: string;
     displayName: string;
@@ -197,6 +198,7 @@ export type ReceizCommerceAdapter = {
   checkout(body: CheckoutRequest): Promise<CheckoutSessionResponse>;
   checkoutSession(query: { checkoutSessionId?: string; sessionId?: string }): Promise<CheckoutSessionResponse>;
   connectWallet(): Promise<ConnectWalletResponse>;
+  walletSummary(): Promise<ConnectWalletResponse>;
   connectTransfer(body: ConnectTransferRequest, idempotencyKey?: string): Promise<ConnectTransferResponse>;
   connectRecord(body: JsonObject): Promise<JsonObject>;
   uploadMedia(file: Blob, options?: ReceizMediaUploadOptions): Promise<ReceizMediaUploadResponse>;
@@ -476,6 +478,9 @@ export function createReceizCommerceAdapter(
     userinfo() {
       return client.identity.userinfo();
     },
+    introspectAccessToken() {
+      return client.identity.introspect({ token: options.accessToken ?? "" });
+    },
     async createReceizId(input) {
       const identity = await client.identity.createReceizId({
         username: input.username,
@@ -707,6 +712,9 @@ export function createReceizCommerceAdapter(
       return client.connect.checkoutSession(query);
     },
     connectWallet() {
+      return client.connect.wallet();
+    },
+    walletSummary() {
       return client.connect.wallet();
     },
     connectTransfer(body, idempotencyKey) {
