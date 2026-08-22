@@ -13,6 +13,7 @@ import {
 type DriverResponse = Readonly<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 type DriverFetcher = (path: string, init: Readonly<{ method?: string; body?: string; signal: AbortSignal }>) => Promise<DriverResponse>;
 export type WildsWalletControllerDriver = ReturnType<typeof createWildsWalletControllerDriver>;
+export const wildsWalletSharedSessionCache = createWildsWalletSessionCache(4);
 
 async function json(response: DriverResponse) {
   const body = await response.json().catch(() => null);
@@ -29,7 +30,7 @@ export function createWildsWalletControllerDriver(input: {
   publish(state: WildsWalletControllerState): void;
   cache?: ReturnType<typeof createWildsWalletSessionCache>;
 }) {
-  const cache = input.cache ?? createWildsWalletSessionCache(4);
+  const cache = input.cache ?? wildsWalletSharedSessionCache;
   const runtime = createWildsWalletRequestRuntime();
   let state = hydrateWildsWalletControllerState(input.identityKey, input.authorityGeneration, cache);
   let refreshPromise: Promise<void> | null = null;

@@ -27,9 +27,17 @@ import {
   createWildzVaultCardMembershipProof,
   deriveWildzVaultCardAdmission
 } from "../src/lib/receiz/wildz-vault-card-admission";
+import { wildzProofSessionGeneration } from "../src/lib/receiz/wildz-session-bridge";
 
 const SECRET = "wildz-proof-session-test-secret-at-least-thirty-two-bytes";
 const NOW = 1_784_172_800_000;
+
+test("public proof-session generation changes when the same key receives a renewed issuedAt", () => {
+  const base = { status: "connected" as const, subjectKey: "a".repeat(64), sessionKeyId: "receiz_identity_key_12345678", authority: "identity-key" as const, actorId: "kai", profileHandle: "kai.receiz.id", displayName: "Kai" };
+  assert.equal(wildzProofSessionGeneration({ ...base, issuedAt: 100 }), "100");
+  assert.equal(wildzProofSessionGeneration({ ...base, issuedAt: 101 }), "101");
+  assert.equal(wildzProofSessionGeneration({ status: "offline", actorId: null, profileHandle: null, displayName: null }), "");
+});
 
 test("Receiz continuation admits only the canonical upstream account username", () => {
   const admitted = createWildzReceizIdProofSession({

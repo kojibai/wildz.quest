@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createWildsWalletControllerDriver } from "../src/features/play/wallet/wilds-wallet-controller-driver";
 import { createWildsWalletSessionCache } from "../src/features/play/wallet/wilds-wallet-controller";
+import { writeWildsCreatureLocomotionFrame } from "../src/features/play/WildsCreatureActor";
 
 const response = () => ({
   summary: { status: "verified", admittedPhiMicro: "1", displayUsdCents: null, assetCountsStatus: "unknown", transferableResourceCount: null, transferableCardCount: null, reservedCardCount: null, pendingCount: null },
@@ -53,4 +54,34 @@ test("driver revokes verified state from exact server code and synchronously hid
   assert.equal(driver.state.summary, null);
   driver.setAuthority("kai", "issued-2");
   assert.equal(driver.state.summary, null);
+});
+
+test("ambiguous HTTP 401 clears the shared cache and live diagnostics stay unchanged through world frames", async () => {
+  const cache = createWildsWalletSessionCache(4);
+  cache.write("kai:issued-1", response());
+  const driver = createWildsWalletControllerDriver({
+    identityKey: "kai", authorityGeneration: "issued-1", cache, publish: () => {},
+    fetcher: async (path) => path.endsWith("summary")
+      ? { ok: false, status: 401, json: async () => ({}) }
+      : { ok: true, status: 200, json: async () => path.endsWith("capabilities") ? response().capabilities : response().ledger }
+  });
+  driver.open();
+  await driver.refresh();
+  assert.equal(driver.state.status, "revoked");
+  assert.equal(cache.read("kai:issued-1"), null);
+
+  const working = createWildsWalletControllerDriver({
+    identityKey: "other", authorityGeneration: "issued-2", cache, publish: () => {},
+    fetcher: async (path) => path.endsWith("request")
+      ? { ok: true, status: 200, json: async () => ({ locator: "wildz:receive:other" }) }
+      : { ok: true, status: 200, json: async () => path.endsWith("summary") ? response().summary : path.endsWith("capabilities") ? response().capabilities : response().ledger }
+  });
+  working.open();
+  await working.refresh();
+  await working.requestReceive();
+  const baseline = working.diagnostics();
+  const frame = { rootY: 0, rootPitch: 0, rootRoll: 0, limbPitch: 0, wingAngle: 0 };
+  for (let index = 0; index < 10_000; index += 1) writeWildsCreatureLocomotionFrame(frame, "air", index / 60, 1, .25, "idle");
+  assert.ok(baseline.refreshStarts > 0 && baseline.cacheWrites > 0 && baseline.receiveStarts > 0 && baseline.publications > 0);
+  assert.deepEqual(working.diagnostics(), baseline);
 });

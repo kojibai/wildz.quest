@@ -148,10 +148,10 @@ test("does not enable recipient lookup before a durable limiter is injected", ()
   assert.equal(isWildsWalletRecipientLookupAllowed(true), true);
 });
 
-test("only explicit revocation error codes revoke a wallet, regardless of HTTP status", () => {
+test("initial authority codes remain distinct while ambiguous HTTP 401 revokes a wallet", () => {
   assert.equal(classifyWildsWalletRefreshFailure({ status: 401, code: "receiz_wallet_token_revoked" }), "revoked");
   assert.equal(classifyWildsWalletRefreshFailure({ status: 401, code: "receiz_wallet_authority_required" }), "authority-required");
-  assert.equal(classifyWildsWalletRefreshFailure({ status: 401, code: null }), "failed");
+  assert.equal(classifyWildsWalletRefreshFailure({ status: 401, code: null }), "revoked");
 });
 
 test("revocation clears every private wallet projection and staged locator", () => {

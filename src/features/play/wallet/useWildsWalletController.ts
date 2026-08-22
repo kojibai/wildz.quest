@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorldOverlayOwner } from "@/features/play/world-overlay-state";
-import { createWildsWalletControllerState, type WildsWalletControllerState, type WildsWalletPage } from "./wilds-wallet-controller";
-import { createWildsWalletControllerDriver, type WildsWalletControllerDriver } from "./wilds-wallet-controller-driver";
+import { createWildsWalletControllerState, hydrateWildsWalletControllerState, type WildsWalletControllerState, type WildsWalletPage } from "./wilds-wallet-controller";
+import { createWildsWalletControllerDriver, type WildsWalletControllerDriver, wildsWalletSharedSessionCache } from "./wilds-wallet-controller-driver";
 
 type FetchResponse = Readonly<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
 export function useWildsWalletController(identityKey: string, authorityGeneration: string) {
-  const [state, setState] = useState<WildsWalletControllerState>(() => createWildsWalletControllerState(identityKey, authorityGeneration));
+  const [state, setState] = useState<WildsWalletControllerState>(() => hydrateWildsWalletControllerState(identityKey, authorityGeneration, wildsWalletSharedSessionCache));
   const stateRef = useRef(state);
   const driverRef = useRef<WildsWalletControllerDriver | null>(null);
   if (!driverRef.current) {

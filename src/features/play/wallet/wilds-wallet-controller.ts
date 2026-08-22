@@ -73,6 +73,7 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
 export function classifyWildsWalletRefreshFailure({ status, code }: Readonly<{ status: number | null; code: string | null }>): WildsWalletFailureReason {
   if (code && REVOKED_CODES.has(code)) return "revoked";
   if (code && AUTHORITY_REQUIRED_CODES.has(code)) return "authority-required";
+  if (status === 401) return "revoked";
   return status === null ? "network" : "failed";
 }
 type WalletRequest = Readonly<{ id: number; controller: AbortController }>;

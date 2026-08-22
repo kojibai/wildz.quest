@@ -31,6 +31,10 @@ export interface WildzRemoteSessionBridge {
   disconnect(): Promise<WildzRemoteSession>;
 }
 
+export function wildzProofSessionGeneration(session: WildzRemoteSession) {
+  return session.status === "connected" && session.issuedAt ? String(session.issuedAt) : "";
+}
+
 export type WildzSharedWorldBootstrap = {
   ok: true;
   mode: "receiz_live" | "kai_live";

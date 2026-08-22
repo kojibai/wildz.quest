@@ -46,6 +46,7 @@ import {
 } from "@/lib/receiz/wildz-vault-card-admission";
 import {
   bootstrapWildzSharedWorld,
+  wildzProofSessionGeneration,
   wildzRemoteSessionMatchesIdentity
 } from "@/lib/receiz/wildz-session-bridge";
 import { publishWildsWorldWithIdentityProof } from "@/lib/receiz/wilds-world-identity-publication";
@@ -257,6 +258,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     setCharacter(snapshot.character);
     if (!previous || !sameWildzPlayerCoordinate(previous.session.actorId, snapshot.session.actorId)) {
       setProofSessionConnected(false);
+      setProofSessionGeneration("");
     }
   }, []);
 
@@ -307,11 +309,11 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       connecting = true;
       void connectWildzProofSession(identity, { vaultAdmission }).then(async (session) => {
         if (!active || !wildzRemoteSessionMatchesIdentity(identity, session)) {
-          if (active) setProofSessionConnected(false);
+          if (active) { setProofSessionConnected(false); setProofSessionGeneration(""); }
           return;
         }
         setProofSessionConnected(true);
-        setProofSessionGeneration("issuedAt" in session && session.issuedAt ? String(session.issuedAt) : "");
+        setProofSessionGeneration(wildzProofSessionGeneration(session));
         void bootstrapWildzSharedWorld().then(async (world) => {
           if (world.publication?.required !== "identity_proof" || identity.localAuthority !== "verified") return;
           await publishWildsWorldWithIdentityProof(identity, world.publication.draft);
@@ -329,8 +331,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           || stillCurrent.session.actorId !== identity.actorId) return;
         if (aligned !== current) acceptSnapshot(aligned);
         setProofSessionConnected(true);
+        setProofSessionGeneration(wildzProofSessionGeneration(session));
       }).catch(() => {
-        if (active) setProofSessionConnected(false);
+        if (active) { setProofSessionConnected(false); setProofSessionGeneration(""); }
       }).finally(() => {
         connecting = false;
       });
@@ -670,12 +673,14 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           if (!identityStillActive()) return;
           acceptSnapshot(aligned);
           setProofSessionConnected(true);
+          setProofSessionGeneration(wildzProofSessionGeneration(remote));
         } else {
           setProofSessionConnected(false);
+          setProofSessionGeneration("");
         }
       } catch {
         // The verified Seal still activates local authority; the connection effect retries.
-        if (identityStillActive()) setProofSessionConnected(false);
+        if (identityStillActive()) { setProofSessionConnected(false); setProofSessionGeneration(""); }
       }
     };
     void reconcileIdentityProjection().catch(() => undefined);
@@ -736,6 +741,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           const remote = await connectWildzProofSession(current.session, { vaultAdmission: admission });
           if (!wildzRemoteSessionMatchesIdentity(current.session, remote)) return;
           setProofSessionConnected(true);
+          setProofSessionGeneration(wildzProofSessionGeneration(remote));
         } catch {
           return;
         }

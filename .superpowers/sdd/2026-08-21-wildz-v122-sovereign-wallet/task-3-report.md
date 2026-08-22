@@ -115,3 +115,12 @@ Result: all commands exit 0; focused suite 46/46 tests passed.
 - Threaded non-secret proof-session `issuedAt` through the public proof-session projection and remote bridge. `WildzApp` passes that issued session generation to `PlayCampaign`; cache keys remain identity plus generation rather than key ID alone.
 - Ledger counterparties now run through the shared exact public username normalizer before admission.
 - Added the lifecycle release helper used by `usePlayModalLifecycle`; the wallet → profile takeover → release fixture restores focus once and never changes wallet ownership.
+
+## Fix round 3 — ambiguous authority and shared cold cache
+
+### RED/GREEN evidence
+
+- Added the shared-cache ambiguous-401 driver regression. RED: an empty-code HTTP 401 ended in `failed` and retained the seeded cache. GREEN: unknown/empty 401 now classifies revoked, clears visible private state, and deletes the matching cache entry; only exact initial authority/scope codes remain authority-required.
+- The same live driver first performs refresh/cache/receive work and proves all diagnostic counters increment. After that baseline, 10,000 real creature frame writes leave the same driver counters unchanged.
+- The default driver cache is now a module-shared bounded four-entry cache; hook first render hydrates from exactly that cache and returns `offline-verified` rather than a blank independent initializer. Generation changes synchronously mask prior identity state.
+- Public proof-session `issuedAt` is exposed as a non-secret generation. The remote session bridge projects it, and every WildzApp success/failure path around the primary connection, restoration reconciliation, and bearer reconciliation sets/clears it with connection state. The same key ID with renewed issuedAt produces a distinct generation.
