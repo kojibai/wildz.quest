@@ -78,6 +78,15 @@ const V123_UNAVAILABLE = "receiz_v123_execution_unavailable";
 const REVOKED_CODES = new Set(["receiz_wallet_authority_revoked", "receiz_wallet_token_revoked", "receiz_wallet_token_expired", "receiz_wallet_profile_binding_invalid", "receiz_wallet_token_binding_invalid"]);
 const AUTHORITY_REQUIRED_CODES = new Set(["receiz_wallet_authority_required", "receiz_wallet_read_scope_required"]);
 
+export function gateWildsWalletClientCapabilities(
+  capabilities: WalletCapabilityProjection,
+  ports: Readonly<{ recipientLookup: boolean; proofAuthorization: boolean }>
+): WalletCapabilityProjection {
+  if (ports.recipientLookup && ports.proofAuthorization) return capabilities;
+  const unavailable = Object.freeze({ available: false as const, reason: V123_UNAVAILABLE });
+  return Object.freeze({ ...capabilities, send: unavailable, phiSettlement: unavailable, phiReserve: unavailable });
+}
+
 export function createWildsWalletControllerState(identityKey: string, authorityGeneration = ""): WildsWalletControllerState {
   return Object.freeze({ identityKey, authorityGeneration, open: false, page: "overview", status: "idle", requestId: null, receiveRequestId: null, summary: null, capabilities: null, ledger: null, recipient: emptyRecipient, receiveLocator: null, stagedTransactionId: null, transfer: emptyTransfer });
 }
@@ -217,6 +226,15 @@ function cursor(value: unknown) { return value === null || (typeof value === "st
 function createdAt(value: unknown) { return typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) && new Date(value).toISOString() === value; }
 function positiveMicro(value: unknown) { return typeof value === "string" && /^[1-9][0-9]{0,29}$/.test(value); }
 function transferRail(value: unknown): value is "settlement" | "reserve" { return value === "settlement" || value === "reserve"; }
+export function admitWildsWalletRecipientResponse(value: unknown): WalletRecipientProjection {
+  const item = record(value);
+  if (!item || !exact(item, ["username", "profileMark", "allowedTransferKinds"])) throw new Error("wilds_wallet_recipient_projection_invalid");
+  const username = normalizeWildsWalletPublicUsername(item.username);
+  if (item.username !== username || (item.profileMark !== null && (typeof item.profileMark !== "string" || item.profileMark.length > 12 || !/^[A-Za-z0-9 ._-]+$/.test(item.profileMark)))) throw new Error("wilds_wallet_recipient_projection_invalid");
+  if (!Array.isArray(item.allowedTransferKinds) || item.allowedTransferKinds.length > 3 || new Set(item.allowedTransferKinds).size !== item.allowedTransferKinds.length
+    || item.allowedTransferKinds.some((kind) => kind !== "phi" && kind !== "resource" && kind !== "card")) throw new Error("wilds_wallet_recipient_projection_invalid");
+  return Object.freeze({ username, profileMark: item.profileMark as string | null, allowedTransferKinds: Object.freeze(item.allowedTransferKinds as Array<"phi" | "resource" | "card">) });
+}
 export function admitWildsWalletStagedTransferResponse(value: unknown): WildsWalletStagedTransferResponse {
   const item = record(value);
   if (!item || !exact(item, ["status", "rail", "amountPhiMicro", "quotedUsdCents", "attempt", "expiresAtKai"])

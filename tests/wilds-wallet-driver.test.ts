@@ -149,3 +149,19 @@ test("driver converts malformed execution success to unknown and cancellation ca
   assert.equal(driver.state.transfer.phase, "unknown");
   assert.equal(driver.state.stagedTransactionId, "v1.opaque");
 });
+
+test("driver performs bounded live recipient lookup and admits only the sanitized projection", async () => {
+  const bodies: unknown[] = [];
+  const driver = createWildsWalletControllerDriver({
+    identityKey: "private-actor-coordinate", authorityGeneration: "issued-1", publish: () => {},
+    fetcher: async (path, init) => {
+      assert.equal(path, "/api/wilds/wallet/recipient");
+      bodies.push(JSON.parse(init.body ?? "null"));
+      return { ok: true, status: 200, json: async () => ({ username: "friend_2", profileMark: "F2", allowedTransferKinds: ["phi"] }) };
+    }
+  });
+  driver.open();
+  await driver.lookupRecipient("friend_2");
+  assert.deepEqual(bodies, [{ username: "friend_2" }]);
+  assert.deepEqual(driver.state.recipient.projection, { username: "friend_2", profileMark: "F2", allowedTransferKinds: ["phi"] });
+});

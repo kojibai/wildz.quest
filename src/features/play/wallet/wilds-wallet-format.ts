@@ -8,8 +8,8 @@ export function formatWildsPhiExact(microPhi: string) {
 export function formatWildsPhiCompact(microPhi: string) {
   const exact = formatWildsPhiExact(microPhi);
   const [whole = "0"] = exact.split(".");
-  if (whole.length <= 6) return exact;
-  const suffixes = ["", "M", "B", "T", "Q"];
+  if (whole.length <= 3) return exact;
+  const suffixes = ["", "K", "M", "B", "T", "Q"];
   const tier = Math.min(Math.floor((whole.length - 1) / 3), suffixes.length - 1);
   const headLength = whole.length - tier * 3;
   const decimal = whole.slice(headLength, headLength + 1);

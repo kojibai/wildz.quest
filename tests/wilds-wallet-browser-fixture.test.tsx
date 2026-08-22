@@ -21,7 +21,19 @@ test("wallet CSS owns responsive geometry, safe areas, touch floors, long text, 
   assert.match(css, /\.wilds-wallet-terminal :is\(button, input, select\)[^{]*\{[^}]*min-height:\s*44px/);
   assert.match(css, /overflow-wrap:\s*anywhere/);
   assert.match(css, /\.wilds-left-instrument-home > \.wilds-wallet-instrument\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*2/);
+  assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\)[\s\S]*\.wilds-wallet-terminal-header\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.wilds-wallet-terminal/);
+});
+
+test("shell passes a private wallet cache key separately from an optional public username", () => {
+  const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
+  const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
+  assert.match(shell, /walletIdentityKey=\{identity\.actorId\}/);
+  assert.match(shell, /walletPublicUsername=\{identity\.username \?\? null\}/);
+  assert.match(campaign, /useWildsWalletController\(walletIdentityKey, walletAuthorityGeneration/);
+  assert.match(campaign, /walletAuthorization\?: WildsWalletClientAuthorizationPort/);
+  assert.match(campaign, /authorization: walletAuthorization/);
+  assert.match(campaign, /onAuthorize=\{walletController\.authorizeTransfer \?\? undefined\}/);
 });
 
 test("campaign mounts the terminal outside the Canvas and instrument directly after Kai Klok", () => {

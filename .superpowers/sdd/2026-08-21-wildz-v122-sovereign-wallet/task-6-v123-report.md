@@ -64,3 +64,16 @@ Placement RED: the responsive CSS test proved the instrument was only source-adj
 ## Remaining deployment boundary
 
 The UI is production-honest but live send remains unavailable until the complete Task 5 runtime and proof-authorizing browser integration are admitted. The terminal never substitutes a local consent object, fake recipient, process-local journal, or preview-shaped completion. Resource/card row detail also remains unavailable until their strict sanitized projections and authoritative transfer rails exist; current counts are labeled as admitted summary counts only.
+
+## Review fix round
+
+The independent UI review was closed with a second RED/GREEN round:
+
+- The controller driver now performs the live bounded `/api/wilds/wallet/recipient` lookup, strictly admits its sanitized projection, replaces prior lookup work, and cancels it on close, authority change, visibility cancellation, or exclusive takeover.
+- `WildsWalletClientAuthorizationPort` is an explicit optional PlayCampaign composition boundary. Without that real proof signer, client-projected Settlement, Reserve, and aggregate send capabilities are forced unavailable even if a server response advertises them. WildzApp intentionally omits the port until a real signer exists.
+- The private actor/cache key and optional public username are separate props. Only `identity.username` can enter terminal/receive UI; actor fallback remains private. An absent handle is redacted while the server-authored receive locator can still be requested.
+- Compact Phi suffixes now use exact string tiers for K, M, B, and T without `Number` conversion.
+- Short-landscape headers span both terminal columns.
+- Terminal tabs use roving `tabIndex` with Arrow, Home, and End movement. Keyboard authorization requires the same 900 ms deliberate hold using Space or Enter; key release, blur, visibility, orientation, and ownership changes cancel it, and synthesized clicks have no authorization handler.
+
+Review-fix verification: focused wallet/UI/controller/ownership tranche 50/50 pass; project and test typechecks pass; scoped ESLint and `git diff --check` are clean.

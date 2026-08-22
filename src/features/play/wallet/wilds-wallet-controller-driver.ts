@@ -3,6 +3,7 @@ import {
   admitWildsWalletStagedTransferResponse,
   admitWildsWalletTransferResponse,
   admitWildsWalletReadResponse,
+  admitWildsWalletRecipientResponse,
   classifyWildsWalletRefreshFailure,
   createWildsWalletRequestRuntime,
   createWildsWalletSessionCache,
@@ -38,6 +39,8 @@ export function createWildsWalletControllerDriver(input: {
   let refreshPromise: Promise<void> | null = null;
   let receivePromise: Promise<void> | null = null;
   let transferPromise: Promise<void> | null = null;
+  let recipientRequest: Readonly<{ id: number; controller: AbortController }> | null = null;
+  let recipientSequence = 0;
   const publish = (event: Parameters<typeof reduceWildsWalletController>[1]) => {
     state = reduceWildsWalletController(state, event);
     runtime.recordPublication();
@@ -101,6 +104,28 @@ export function createWildsWalletControllerDriver(input: {
     receivePromise = operation;
     void operation.finally(() => { if (receivePromise === operation) receivePromise = null; });
     return operation;
+  };
+  const lookupRecipient = (username: string) => {
+    recipientRequest?.controller.abort();
+    const request = { id: ++recipientSequence, controller: new AbortController() };
+    recipientRequest = request;
+    publish({ type: "recipient-start", requestId: request.id, username });
+    return (async () => {
+      try {
+        const response = await input.fetcher("/api/wilds/wallet/recipient", {
+          method: "POST", body: JSON.stringify({ username }), signal: request.controller.signal
+        });
+        const projection = admitWildsWalletRecipientResponse(await json(response));
+        if (recipientRequest?.id === request.id && !request.controller.signal.aborted) publish({ type: "recipient-resolved", requestId: request.id, projection });
+      } catch (cause) {
+        if (recipientRequest?.id !== request.id || request.controller.signal.aborted) return;
+        const code = cause && typeof cause === "object" && "code" in cause ? (cause as { code?: unknown }).code : null;
+        if (code === "receiz_wallet_recipient_lookup_unavailable") publish({ type: "recipient-lookup-unavailable", username });
+        else publish({ type: "recipient-failed", requestId: request.id });
+      } finally {
+        if (recipientRequest?.id === request.id) recipientRequest = null;
+      }
+    })();
   };
   const stageTransfer = () => {
     if (transferPromise) return transferPromise;
@@ -203,12 +228,13 @@ export function createWildsWalletControllerDriver(input: {
     get state() { return state; },
     diagnostics: runtime.diagnostics,
     open() { publish({ type: "open" }); },
-    close() { runtime.cancelAll(); refreshPromise = null; receivePromise = null; transferPromise = null; publish({ type: "close" }); },
-    cancelPending() { runtime.cancelAll(); refreshPromise = null; receivePromise = null; transferPromise = null; publish({ type: "cancel-pending" }); },
-    cancelForExclusiveOwner(owner: WorldOverlayOwner) { if (owner !== "none" && owner !== "wallet") { runtime.cancelAll(); refreshPromise = null; receivePromise = null; transferPromise = null; publish({ type: "exclusive-owner-changed", owner }); } },
-    setAuthority(identityKey: string, authorityGeneration: string) { cache.delete(walletAuthorityCacheKey(state.identityKey, state.authorityGeneration)); runtime.cancelAll(); refreshPromise = null; receivePromise = null; transferPromise = null; state = hydrateWildsWalletControllerState(identityKey, authorityGeneration, cache); runtime.recordPublication(); input.publish(state); },
+    close() { runtime.cancelAll(); recipientRequest?.controller.abort(); recipientRequest = null; refreshPromise = null; receivePromise = null; transferPromise = null; publish({ type: "close" }); },
+    cancelPending() { runtime.cancelAll(); recipientRequest?.controller.abort(); recipientRequest = null; refreshPromise = null; receivePromise = null; transferPromise = null; publish({ type: "cancel-pending" }); },
+    cancelForExclusiveOwner(owner: WorldOverlayOwner) { if (owner !== "none" && owner !== "wallet") { runtime.cancelAll(); recipientRequest?.controller.abort(); recipientRequest = null; refreshPromise = null; receivePromise = null; transferPromise = null; publish({ type: "exclusive-owner-changed", owner }); } },
+    setAuthority(identityKey: string, authorityGeneration: string) { cache.delete(walletAuthorityCacheKey(state.identityKey, state.authorityGeneration)); runtime.cancelAll(); recipientRequest?.controller.abort(); recipientRequest = null; refreshPromise = null; receivePromise = null; transferPromise = null; state = hydrateWildsWalletControllerState(identityKey, authorityGeneration, cache); runtime.recordPublication(); input.publish(state); },
     navigate(page: WildsWalletControllerState["page"]) { publish({ type: "navigate", page }); },
     recipientUnavailable(username: string) { publish({ type: "recipient-lookup-unavailable", username }); },
+    lookupRecipient,
     selectTransferRecipient(username: string) { publish({ type: "transfer-recipient-selected", username }); },
     reviewTransferAmount(rail: "settlement" | "reserve", amountPhiMicro: string, operationNonce: string) { publish({ type: "transfer-amount-reviewed", rail, amountPhiMicro, operationNonce }); },
     authorizationPointerStart(pointerId: number) { publish({ type: "authorization-pointer-start", pointerId }); },

@@ -110,7 +110,7 @@ import {
 import { creatureCareNotificationSchedule, WILDZ_CARE_PERIODIC_TAG } from "@/features/pwa/creature-care-schedule";
 import { WILDZ_CARE_NOTIFICATIONS_READY, WILDZ_CARE_SCHEDULE_MESSAGE } from "@/features/pwa/pwa-events";
 import { WildsWorldCanvas } from "@/features/play/WildsWorldCanvas";
-import { useWildsWalletController } from "@/features/play/wallet/useWildsWalletController";
+import { useWildsWalletController, type WildsWalletClientAuthorizationPort } from "@/features/play/wallet/useWildsWalletController";
 import { canCloseWildsWalletTerminal, WildsWalletTerminal } from "@/features/play/wallet/WildsWalletTerminal";
 import { emptyAdventureCondition } from "@/features/play/adventure/card-condition";
 import { projectWildsTraversalCapabilities } from "@/features/play/wilds-traversal-capabilities";
@@ -154,6 +154,9 @@ export function PlayCampaign({
   interactionEnabled = true,
   networkEnabled,
   walletAuthorityGeneration,
+  walletAuthorization,
+  walletIdentityKey,
+  walletPublicUsername,
   onComplete,
   ownerReceizId,
   character,
@@ -176,6 +179,9 @@ export function PlayCampaign({
   interactionEnabled?: boolean;
   networkEnabled: boolean;
   walletAuthorityGeneration: string;
+  walletAuthorization?: WildsWalletClientAuthorizationPort;
+  walletIdentityKey: string;
+  walletPublicUsername: string | null;
   onComplete?: (beans: number) => void;
   ownerReceizId: string;
   character: WildzCharacterGenesis;
@@ -284,7 +290,7 @@ export function PlayCampaign({
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
   const [mapOpen, setMapOpen] = useState(false);
   const [multiplayerRosterOpen, setMultiplayerRosterOpen] = useState(false);
-  const walletController = useWildsWalletController(ownerReceizId, walletAuthorityGeneration);
+  const walletController = useWildsWalletController(walletIdentityKey, walletAuthorityGeneration, { authorization: walletAuthorization });
   const { cancelForExclusiveOwner: cancelWalletForExclusiveOwner } = walletController;
   const cameraHeadingRef = useRef(0);
   const updateCameraHeading = useCallback((heading: number) => {
@@ -1633,6 +1639,7 @@ export function PlayCampaign({
             />
 
             {exclusiveOwner === "wallet" ? <WildsWalletTerminal
+              publicUsername={walletPublicUsername}
               state={walletController}
               onClose={() => closeOwnedModal("wallet")}
               onNavigate={walletController.navigate}
@@ -1642,6 +1649,7 @@ export function PlayCampaign({
               onStage={() => { void walletController.stageTransfer(); }}
               onAuthorizationPointerStart={walletController.authorizationPointerStart}
               onAuthorizationPointerCancel={walletController.authorizationPointerCancel}
+              onAuthorize={walletController.authorizeTransfer ?? undefined}
               onRecover={() => { void walletController.recoverTransfer(); }}
               onResetTransfer={walletController.resetTransfer}
               onRequestReceive={() => { void walletController.requestReceive(); }}

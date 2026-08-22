@@ -1,10 +1,46 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { WildsWalletControllerState } from "./wilds-wallet-controller";
 import { formatWildsPhiExact, parseWildsPhiInput } from "./wilds-wallet-format";
 
 const HOLD_MILLISECONDS = 900;
+const KEYBOARD_AUTHORIZATION_GESTURE_ID = -1;
+
+export function isWildsWalletAuthorizationHoldKey(key: string) { return key === "Enter" || key === " "; }
+
+export function createWildsWalletAuthorizationHoldRuntime(input: Readonly<{
+  onArm(id: number): void;
+  onCancel(id: number): void;
+  onComplete(id: number): void;
+  schedule?: (operation: () => void, milliseconds: number) => unknown;
+  cancelSchedule?: (handle: unknown) => void;
+}>) {
+  const schedule = input.schedule ?? ((operation: () => void, milliseconds: number) => setTimeout(operation, milliseconds));
+  const cancelSchedule = input.cancelSchedule ?? ((handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>));
+  let active: Readonly<{ id: number; handle: unknown }> | null = null;
+  return {
+    start(id: number) {
+      if (active) return false;
+      input.onArm(id);
+      const handle = schedule(() => {
+        if (!active || active.id !== id) return;
+        active = null;
+        input.onComplete(id);
+      }, HOLD_MILLISECONDS);
+      active = { id, handle };
+      return true;
+    },
+    cancel(id?: number) {
+      if (!active || (id !== undefined && active.id !== id)) return false;
+      const gesture = active;
+      active = null;
+      cancelSchedule(gesture.handle);
+      input.onCancel(gesture.id);
+      return true;
+    }
+  };
+}
 
 export type WildsWalletSendActions = Readonly<{
   onLookupRecipient(username: string): void;
@@ -28,17 +64,20 @@ function unavailableReason(state: WildsWalletControllerState) {
 export function WildsWalletSend({ state, ...actions }: { state: WildsWalletControllerState } & WildsWalletSendActions) {
   const [username, setUsername] = useState(state.transfer.recipientUsername ?? "");
   const [amount, setAmount] = useState("");
-  const holdRef = useRef<{ pointerId: number; timer: ReturnType<typeof setTimeout> } | null>(null);
   const onAuthorizationPointerCancel = actions.onAuthorizationPointerCancel;
+  const holdCallbacksRef = useRef({ onArm: actions.onAuthorizationPointerStart, onCancel: onAuthorizationPointerCancel, onComplete: actions.onAuthorize });
+  holdCallbacksRef.current = { onArm: actions.onAuthorizationPointerStart, onCancel: onAuthorizationPointerCancel, onComplete: actions.onAuthorize };
+  const holdRuntimeRef = useRef<ReturnType<typeof createWildsWalletAuthorizationHoldRuntime> | null>(null);
+  if (!holdRuntimeRef.current) holdRuntimeRef.current = createWildsWalletAuthorizationHoldRuntime({
+    onArm: (id) => holdCallbacksRef.current.onArm(id),
+    onCancel: (id) => holdCallbacksRef.current.onCancel(id),
+    onComplete: (id) => holdCallbacksRef.current.onComplete?.(id)
+  });
   const unavailable = unavailableReason(state);
   const transfer = state.transfer;
   const cancelHold = useCallback((pointerId?: number) => {
-    const hold = holdRef.current;
-    if (!hold || (pointerId !== undefined && hold.pointerId !== pointerId)) return;
-    clearTimeout(hold.timer);
-    holdRef.current = null;
-    onAuthorizationPointerCancel(hold.pointerId);
-  }, [onAuthorizationPointerCancel]);
+    holdRuntimeRef.current?.cancel(pointerId);
+  }, []);
   useEffect(() => {
     const cancel = () => cancelHold();
     const visibility = () => { if (document.visibilityState !== "visible") cancel(); };
@@ -52,16 +91,25 @@ export function WildsWalletSend({ state, ...actions }: { state: WildsWalletContr
       document.removeEventListener("visibilitychange", visibility);
     };
   }, [cancelHold]);
+  const armHold = (pointerId: number) => {
+    if (!actions.onAuthorize || transfer.phase !== "authorize") return;
+    holdRuntimeRef.current?.start(pointerId);
+  };
   const startHold = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (!actions.onAuthorize || transfer.phase !== "authorize") return;
     cancelHold();
     event.currentTarget.setPointerCapture(event.pointerId);
-    actions.onAuthorizationPointerStart(event.pointerId);
-    const pointerId = event.pointerId;
-    holdRef.current = { pointerId, timer: setTimeout(() => {
-      holdRef.current = null;
-      actions.onAuthorize?.(pointerId);
-    }, HOLD_MILLISECONDS) };
+    armHold(event.pointerId);
+  };
+  const startKeyboardHold = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (!isWildsWalletAuthorizationHoldKey(event.key) || event.repeat) return;
+    event.preventDefault();
+    armHold(KEYBOARD_AUTHORIZATION_GESTURE_ID);
+  };
+  const endKeyboardHold = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (!isWildsWalletAuthorizationHoldKey(event.key)) return;
+    event.preventDefault();
+    cancelHold(KEYBOARD_AUTHORIZATION_GESTURE_ID);
   };
   if (transfer.phase === "unknown") return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface"><header><small>EXACT ATTEMPT RETAINED</small><h2 id="wilds-wallet-send-title">Recovery pending</h2></header><p>The outcome is ambiguous. Wildz will not create or send another transfer.</p><button disabled={transfer.requestId !== null} onClick={actions.onRecover} type="button">Check exact outcome</button></section>;
   if (transfer.phase === "zero-write") return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface"><header><small>ZERO-WRITE REJECTION</small><h2 id="wilds-wallet-send-title">Nothing moved</h2></header><p>The authoritative rail rejected this attempt. Balance, assets, and ownership remain unchanged.</p><button onClick={actions.onResetTransfer} type="button">Start again</button></section>;
@@ -89,6 +137,9 @@ export function WildsWalletSend({ state, ...actions }: { state: WildsWalletContr
       <p><span>Final amount</span><b>{transfer.amountPhiMicro ? formatWildsPhiExact(transfer.amountPhiMicro) : "—"} Φ</b></p>
       <button
         disabled={!actions.onAuthorize || transfer.phase === "authorize-pending"}
+        onBlur={() => cancelHold(KEYBOARD_AUTHORIZATION_GESTURE_ID)}
+        onKeyDown={startKeyboardHold}
+        onKeyUp={endKeyboardHold}
         onLostPointerCapture={(event) => cancelHold(event.pointerId)}
         onPointerCancel={(event) => cancelHold(event.pointerId)}
         onPointerDown={startHold}
@@ -96,7 +147,7 @@ export function WildsWalletSend({ state, ...actions }: { state: WildsWalletContr
         onPointerUp={(event) => cancelHold(event.pointerId)}
         type="button"
       >{actions.onAuthorize ? (transfer.phase === "authorize-pending" ? "Authorization in progress…" : "Hold to authorize exact transfer") : "Proof authorization unavailable"}</button>
-      <small>Releasing or leaving this control cancels authorization.</small>
+      <small>Keep pointer, Space, or Enter held. Releasing or leaving cancels authorization.</small>
     </div> : null}
   </section>;
 }
