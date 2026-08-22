@@ -23,7 +23,9 @@ const RECEIZ_APP_RAILS: ReceizRailScopeKey[] = [
   "portability",
   "notifications",
   "offline",
-  "releases"
+  "releases",
+  "settlement",
+  "reserve"
 ];
 
 const RECEIZ_NOTE_SCOPES = ["receiz:notes.mint", "receiz:notes.claim", "receiz:notes.read"];
@@ -36,6 +38,9 @@ export const RECEIZ_WORLD_AUTHORITY_OIDC_SCOPES = receizOidcScopesForRails(
   "subjectInventory"
 );
 export const RECEIZ_TWIN_OIDC_SCOPES = ["receiz:twin.read", "receiz:twin.write"];
+export const RECEIZ_PHI_SETTLEMENT_OIDC_SCOPES = receizOidcScopesForRails("settlement");
+export const RECEIZ_PHI_RESERVE_OIDC_SCOPES = receizOidcScopesForRails("reserve");
+export const RECEIZ_PHI_VALUE_OIDC_SCOPES = receizOidcScopesForRails("settlement", "reserve");
 
 function uniqueScopes(scopes: string[]) {
   return Array.from(new Set(scopes));
@@ -57,7 +62,9 @@ export const WILDZ_RECEIZ_OIDC_SCOPES = uniqueScopes([
     "subjectMandates",
     "subjectInventory",
     "worldCommands",
-    "worldEvents"
+    "worldEvents",
+    "settlement",
+    "reserve"
   )
 ]);
 

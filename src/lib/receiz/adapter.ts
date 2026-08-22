@@ -127,6 +127,7 @@ export type ReceizCommerceAdapter = {
     signatureB64Url: string;
   }): Promise<boolean>;
   continueReceizId(identity: ReceizDeviceIdentity, next?: string): Promise<JsonObject>;
+  exchangeProofAuthorityV123: ReceizClient["identity"]["exchangeProofAuthority"];
   ensureTenantSession(input: ReceizEnsureTenantSessionInput): ReceizEnsureTenantSessionResult;
   createProofRegister(ownerId?: string): ReceizProofRegister;
   createProofMemory(options?: ReceizProofMemoryOptions): Promise<ReceizProofMemory>;
@@ -150,15 +151,18 @@ export type ReceizCommerceAdapter = {
   worldMessage(username: string, body: ReceizWorldProfileMessageRequest): Promise<ReceizWorldProfileResponse>;
   resolveWorldSubject: ReceizClient["subjects"]["resolve"];
   admitSubjectV122: ReceizClient["subjects"]["admit"];
+  resolveSubjectNamespacesV123: ReceizClient["subjects"]["resolveNamespaces"];
   subjectStateV122: ReceizClient["subjects"]["state"];
   createSubjectAccessKeyV122: ReceizClient["subjects"]["createAccessKey"];
   publishSubjectAccessKeyV122: ReceizClient["subjects"]["publishAccessKey"];
   replayWorld: ReceizClient["world"]["replay"];
   worldAdditions: ReceizClient["world"]["additions"];
   planWorldCommand: ReceizClient["world"]["planCommand"];
+  planWorldCommandV122: ReceizClient["world"]["planCommandV122"];
   validateWorldCommand: ReceizClient["world"]["validateCommand"];
   executeWorldCommand: ReceizClient["world"]["executeCommand"];
   planWorldTransaction: ReceizClient["world"]["planTransaction"];
+  planWorldTransactionV122: ReceizClient["world"]["planTransactionV122"];
   executeWorldTransaction: ReceizClient["world"]["executeTransaction"];
   planPrivateWorldCommandV122: ReceizClient["world"]["planPrivateCommand"];
   validateWorldTransactionV122: ReceizClient["world"]["validateTransaction"];
@@ -171,6 +175,12 @@ export type ReceizCommerceAdapter = {
   planPhiSettlementV122: ReceizClient["value"]["planSettlement"];
   planPhiReserveV122: ReceizClient["value"]["planReserve"];
   validatePhiIntentV122: ReceizClient["value"]["validateIntent"];
+  planPhiSettlementV123: ReceizClient["value"]["planSettlement"];
+  planPhiReserveV123: ReceizClient["value"]["planReserve"];
+  validatePhiIntentV123: ReceizClient["value"]["validateIntent"];
+  executePhiSettlementV123: ReceizClient["value"]["executeSettlement"];
+  executePhiReserveV123: ReceizClient["value"]["executeReserve"];
+  phiExecutionByIdempotencyKeyV123: ReceizClient["value"]["executionByIdempotencyKey"];
   quotePhiDisplayUsdV122: ReceizClient["value"]["quoteDisplayUsd"];
   twinMarketMandate(): Promise<TwinMarketMandateResponse>;
   saveTwinMarketMandate(body: SaveTwinMarketMandateInput): Promise<TwinMarketMandateResponse>;
@@ -516,6 +526,9 @@ export function createReceizCommerceAdapter(
     continueReceizId(identity, next) {
       return client.identity.continueReceizId(identity, { next });
     },
+    exchangeProofAuthorityV123(input) {
+      return client.identity.exchangeProofAuthority(input);
+    },
     ensureTenantSession(input) {
       return client.identity.ensureTenantSession(input);
     },
@@ -579,6 +592,9 @@ export function createReceizCommerceAdapter(
     admitSubjectV122(input) {
       return client.subjects.admit(input);
     },
+    resolveSubjectNamespacesV123(input) {
+      return client.subjects.resolveNamespaces(input);
+    },
     subjectStateV122(subjectId) {
       return client.subjects.state(subjectId);
     },
@@ -597,6 +613,9 @@ export function createReceizCommerceAdapter(
     planWorldCommand(input) {
       return client.world.planCommand(input);
     },
+    planWorldCommandV122(input) {
+      return client.world.planCommandV122(input);
+    },
     validateWorldCommand(plan) {
       return client.world.validateCommand(plan);
     },
@@ -605,6 +624,9 @@ export function createReceizCommerceAdapter(
     },
     planWorldTransaction(input) {
       return client.world.planTransaction(input);
+    },
+    planWorldTransactionV122(input) {
+      return client.world.planTransactionV122(input);
     },
     executeWorldTransaction(plan, authority) {
       return client.world.executeTransaction(plan, authority);
@@ -641,6 +663,24 @@ export function createReceizCommerceAdapter(
     },
     validatePhiIntentV122(input) {
       return client.value.validateIntent(input);
+    },
+    planPhiSettlementV123(input) {
+      return client.value.planSettlement(input);
+    },
+    planPhiReserveV123(input) {
+      return client.value.planReserve(input);
+    },
+    validatePhiIntentV123(input) {
+      return client.value.validateIntent(input);
+    },
+    executePhiSettlementV123(intent, authority) {
+      return client.value.executeSettlement(intent, authority);
+    },
+    executePhiReserveV123(intent, authority) {
+      return client.value.executeReserve(intent, authority);
+    },
+    phiExecutionByIdempotencyKeyV123(idempotencyKey, authority) {
+      return client.value.executionByIdempotencyKey(idempotencyKey, authority);
     },
     quotePhiDisplayUsdV122(amountPhiMicro, usdPerPhiMicrocents) {
       return client.value.quoteDisplayUsd(amountPhiMicro, usdPerPhiMicrocents);

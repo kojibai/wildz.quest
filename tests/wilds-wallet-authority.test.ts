@@ -9,8 +9,10 @@ import {
 } from "../src/lib/receiz/wildz-proof-session";
 import {
   resolveWildsWalletReadAuthority,
+  requireWildsWalletPhiAuthorityScopes,
   wildsWalletAuthorityStatusFor
 } from "../src/lib/receiz/wilds-wallet-route-authority";
+import { receizOidcScopesForRails } from "@receiz/sdk";
 
 const SECRET = "wilds-wallet-authority-test-secret-32-bytes";
 process.env.RECEIZ_OAUTH_STATE_SECRET = SECRET;
@@ -130,5 +132,19 @@ describe("authenticated Wilds wallet read authority", () => {
     assert.equal(wildsWalletAuthorityStatusFor("receiz_wallet_token_binding_invalid"), 403);
     assert.equal(wildsWalletAuthorityStatusFor("receiz_wallet_profile_resolution_unavailable"), 503);
     assert.equal(wildsWalletAuthorityStatusFor("receiz_wallet_introspection_unavailable"), 503);
+    assert.equal(wildsWalletAuthorityStatusFor("receiz_wallet_phi_scope_required"), 401);
+  });
+
+  it("admits only the exact SDK-derived Settlement or Reserve scope set", () => {
+    const settlementScopes = receizOidcScopesForRails("settlement");
+    assert.deepEqual(requireWildsWalletPhiAuthorityScopes(settlementScopes, "settlement"), settlementScopes);
+    assert.throws(
+      () => requireWildsWalletPhiAuthorityScopes(settlementScopes.filter((scope) => !scope.endsWith(".write")), "settlement"),
+      /receiz_wallet_phi_scope_required/
+    );
+    assert.throws(
+      () => requireWildsWalletPhiAuthorityScopes(["receiz:settlement.read", "receiz:settlement.write"], "reserve"),
+      /receiz_wallet_phi_scope_required/
+    );
   });
 });

@@ -7,14 +7,14 @@ import {
   RECEIZ_V114_PROTOCOL_LIMITS,
   RECEIZ_V121_REGISTRY_DIGEST,
   RECEIZ_V121_RELEASE_AUTHORITY,
-  RECEIZ_V122_REGISTRY_DIGEST,
-  RECEIZ_V122_AUTHORITY_BOUNDARY,
+  RECEIZ_V123_REGISTRY_DIGEST,
+  RECEIZ_V123_AUTHORITY_BOUNDARY,
   RECEIZ_V114_RUNTIME_MATERIALIZATION_LIMITS
 } from "@receiz/sdk";
 import {
   RECEIZ_V121_APPLICATION_OPERATIONS,
   RECEIZ_V121_APPLICATION_OPERATION_MATRIX_DIGEST,
-  RECEIZ_V122_APPLICATION_OPERATION_MATRIX_DIGEST
+  RECEIZ_V123_APPLICATION_OPERATION_MATRIX_DIGEST
 } from "@receiz/sdk/compiler";
 
 const read = (path: string) => readFileSync(path, "utf8");
@@ -136,14 +136,16 @@ test("the thirty-law custody matrix has executable repository and SDK evidence",
   assert.ok(Object.values(evidence).every(Boolean), JSON.stringify(evidence));
 });
 
-test("v122 MCP and AI Skills expose artifact and living-subject operation maps", () => {
+test("v123 MCP and AI Skills expose artifact, living-subject, and exact execution operation maps", () => {
   const mcpOperations = read("node_modules/@receiz/mcp-server/dist/operations.d.ts");
+  const mcpV123Operations = read("node_modules/@receiz/mcp-server/dist/v123Operations.d.ts");
   const aiIndex = JSON.parse(read("node_modules/@receiz/ai-skills/skills.json")) as {
     version: string;
     registryDigest: string;
     operationMatrixDigest: string;
     currentMcpArtifactTools: string[];
     currentMcpLivingSubjectTools: string[];
+    currentMcpV123Tools: string[];
   };
   const expectedTools = [
     "receiz_artifact_verify",
@@ -158,9 +160,9 @@ test("v122 MCP and AI Skills expose artifact and living-subject operation maps",
   ];
   assert.deepEqual(aiIndex.currentMcpArtifactTools, expectedTools);
   for (const operation of expectedTools) assert.match(mcpOperations, new RegExp(operation));
-  assert.equal(aiIndex.version, "122.0.0");
-  assert.equal(aiIndex.registryDigest, RECEIZ_V122_REGISTRY_DIGEST);
-  assert.equal(aiIndex.operationMatrixDigest, RECEIZ_V122_APPLICATION_OPERATION_MATRIX_DIGEST);
+  assert.equal(aiIndex.version, "123.0.0");
+  assert.equal(aiIndex.registryDigest, RECEIZ_V123_REGISTRY_DIGEST);
+  assert.equal(aiIndex.operationMatrixDigest, RECEIZ_V123_APPLICATION_OPERATION_MATRIX_DIGEST);
   assert.equal(aiIndex.currentMcpLivingSubjectTools.length, 37);
   for (const operation of [
     "receiz_subject_twin_message",
@@ -172,8 +174,21 @@ test("v122 MCP and AI Skills expose artifact and living-subject operation maps",
     assert.ok(aiIndex.currentMcpLivingSubjectTools.includes(operation));
     assert.match(mcpOperations, new RegExp(operation));
   }
-  assert.equal(RECEIZ_V122_AUTHORITY_BOUNDARY.authority.subjectIdentitySurvivesOwnership, true);
-  assert.equal(RECEIZ_V122_AUTHORITY_BOUNDARY.authority.modelOutputRequiresCommandAdmission, true);
-  assert.equal(RECEIZ_V122_AUTHORITY_BOUNDARY.authority.multiSubjectEffectsAreAtomic, true);
+  assert.deepEqual(aiIndex.currentMcpV123Tools, [
+    "receiz_v123_world_plan_command_v122",
+    "receiz_v123_world_plan_transaction_v122",
+    "receiz_v123_value_execute_settlement",
+    "receiz_v123_value_execute_reserve",
+    "receiz_v123_value_execution_by_idempotency",
+    "receiz_v123_subject_resolve_namespaces",
+    "receiz_v123_identity_exchange_proof_authority",
+    "receiz_v123_auth_granted_scopes"
+  ]);
+  for (const operation of aiIndex.currentMcpV123Tools) {
+    assert.match(mcpV123Operations, new RegExp(operation));
+  }
+  assert.equal(RECEIZ_V123_AUTHORITY_BOUNDARY.authority.subjectIdentitySurvivesOwnership, true);
+  assert.equal(RECEIZ_V123_AUTHORITY_BOUNDARY.authority.modelOutputRequiresCommandAdmission, true);
+  assert.equal(RECEIZ_V123_AUTHORITY_BOUNDARY.authority.multiSubjectEffectsAreAtomic, true);
   assert.equal(RECEIZ_V121_RELEASE_AUTHORITY.formerOwnerAuthorityRevokedImmediately, true);
 });

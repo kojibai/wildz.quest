@@ -9,6 +9,7 @@ import {
   projectWildsWalletRecipient,
   projectWildsWalletSummary
 } from "../src/lib/receiz/wilds-wallet-projections";
+import { receizOidcScopesForRails } from "@receiz/sdk";
 
 describe("Wilds wallet projections", () => {
   it("keeps absent SDK asset counts explicitly unknown instead of claiming zero inventory", () => {
@@ -163,6 +164,49 @@ describe("Wilds wallet projections", () => {
       cardTransfer: { available: false, reason: "receiz_v123_execution_unavailable" },
       phiSettlement: { available: false, reason: "receiz_v123_execution_unavailable" },
       phiReserve: { available: false, reason: "receiz_v123_execution_unavailable" }
+    });
+  });
+
+  it("admits live V123 Phi capabilities only for exact installed rails and SDK-derived granted scopes", () => {
+    const rails = {
+      proofAuthorityExchange: true,
+      settlementExecution: true,
+      reserveExecution: true,
+      valueExecutionRecovery: true,
+      worldPlanning: true,
+      worldExecution: true,
+      subjectNamespaces: true
+    } as const;
+    const exactScopes = receizOidcScopesForRails("settlement", "reserve");
+
+    const admitted = projectWildsWalletCapabilities({
+      sdkVersion: "123.0.0",
+      rails,
+      grantedScopes: exactScopes
+    });
+    assert.deepEqual(admitted.phiSettlement, { available: true });
+    assert.deepEqual(admitted.phiReserve, { available: true });
+    assert.deepEqual(admitted.send, { available: true });
+
+    const partial = projectWildsWalletCapabilities({
+      sdkVersion: "123.0.0",
+      rails,
+      grantedScopes: exactScopes.filter((scope) => scope !== "receiz:reserve.write")
+    });
+    assert.deepEqual(partial.phiReserve, {
+      available: false,
+      reason: "receiz_v123_scope_required"
+    });
+    assert.deepEqual(partial.send, { available: true });
+
+    const packageOnly = projectWildsWalletCapabilities({
+      sdkVersion: "123.0.0",
+      rails: { ...rails, valueExecutionRecovery: false },
+      grantedScopes: exactScopes
+    });
+    assert.deepEqual(packageOnly.send, {
+      available: false,
+      reason: "receiz_v123_execution_unavailable"
     });
   });
 });

@@ -1,4 +1,9 @@
 import { parseWildzPlayerCoordinate } from "./wildz-player-coordinate";
+import {
+  RECEIZ_PHI_RESERVE_OIDC_SCOPES,
+  RECEIZ_PHI_SETTLEMENT_OIDC_SCOPES,
+  RECEIZ_WORLD_AUTHORITY_OIDC_SCOPES
+} from "./oauth-scopes";
 
 const MAX_CURSOR_LENGTH = 256;
 const MAX_LEDGER_ENTRIES = 50;
@@ -40,11 +45,30 @@ export type WalletRecipientProjection = Readonly<{
 export type WalletCapabilityProjection = Readonly<{
   read: "available";
   receive: "available";
-  send: Readonly<{ available: false; reason: "receiz_v123_execution_unavailable" }>;
-  resourceTransfer: Readonly<{ available: false; reason: "receiz_v123_execution_unavailable" }>;
-  cardTransfer: Readonly<{ available: false; reason: "receiz_v123_execution_unavailable" }>;
-  phiSettlement: Readonly<{ available: false; reason: "receiz_v123_execution_unavailable" }>;
-  phiReserve: Readonly<{ available: false; reason: "receiz_v123_execution_unavailable" }>;
+  send: WalletCapabilityState;
+  resourceTransfer: WalletCapabilityState;
+  cardTransfer: WalletCapabilityState;
+  phiSettlement: WalletCapabilityState;
+  phiReserve: WalletCapabilityState;
+}>;
+
+export type WalletCapabilityState = Readonly<
+  | { available: true }
+  | { available: false; reason: "receiz_v123_execution_unavailable" | "receiz_v123_scope_required" }
+>;
+
+export type WalletCapabilityAdmission = Readonly<{
+  sdkVersion: string;
+  rails: Readonly<{
+    proofAuthorityExchange: boolean;
+    settlementExecution: boolean;
+    reserveExecution: boolean;
+    valueExecutionRecovery: boolean;
+    worldPlanning: boolean;
+    worldExecution: boolean;
+    subjectNamespaces: boolean;
+  }>;
+  grantedScopes: readonly string[];
 }>;
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -203,15 +227,61 @@ export function projectWildsWalletRecipient(value: unknown): WalletRecipientProj
   return Object.freeze({ username, profileMark, allowedTransferKinds: Object.freeze(allowedTransferKinds) });
 }
 
-export function projectWildsWalletCapabilities(): WalletCapabilityProjection {
-  const unavailable = Object.freeze({ available: false as const, reason: "receiz_v123_execution_unavailable" as const });
+export function projectWildsWalletCapabilities(
+  admission?: WalletCapabilityAdmission
+): WalletCapabilityProjection {
+  const unavailable = Object.freeze({
+    available: false as const,
+    reason: "receiz_v123_execution_unavailable" as const
+  });
+  if (!admission || admission.sdkVersion !== "123.0.0") {
+    return Object.freeze({
+      read: "available" as const,
+      receive: "available" as const,
+      send: unavailable,
+      resourceTransfer: unavailable,
+      cardTransfer: unavailable,
+      phiSettlement: unavailable,
+      phiReserve: unavailable
+    });
+  }
+
+  const granted = new Set(admission.grantedScopes);
+  const exactScopeState = (installed: boolean, scopes: readonly string[]): WalletCapabilityState => {
+    if (!installed) return unavailable;
+    if (!scopes.every((scope) => granted.has(scope))) {
+      return Object.freeze({ available: false as const, reason: "receiz_v123_scope_required" as const });
+    }
+    return Object.freeze({ available: true as const });
+  };
+  const valueBase = admission.rails.proofAuthorityExchange && admission.rails.valueExecutionRecovery;
+  const phiSettlement = exactScopeState(
+    valueBase && admission.rails.settlementExecution,
+    RECEIZ_PHI_SETTLEMENT_OIDC_SCOPES
+  );
+  const phiReserve = exactScopeState(
+    valueBase && admission.rails.reserveExecution,
+    RECEIZ_PHI_RESERVE_OIDC_SCOPES
+  );
+  const send = phiSettlement.available || phiReserve.available
+    ? Object.freeze({ available: true as const })
+    : phiSettlement.reason === "receiz_v123_scope_required" || phiReserve.reason === "receiz_v123_scope_required"
+      ? Object.freeze({ available: false as const, reason: "receiz_v123_scope_required" as const })
+      : unavailable;
+  const world = exactScopeState(
+    admission.rails.proofAuthorityExchange
+      && admission.rails.worldPlanning
+      && admission.rails.worldExecution
+      && admission.rails.subjectNamespaces,
+    RECEIZ_WORLD_AUTHORITY_OIDC_SCOPES
+  );
   return Object.freeze({
     read: "available" as const,
     receive: "available" as const,
-    send: unavailable,
-    resourceTransfer: unavailable,
-    cardTransfer: unavailable,
-    phiSettlement: unavailable,
-    phiReserve: unavailable
+    send,
+    resourceTransfer: world,
+    cardTransfer: world,
+    phiSettlement,
+    phiReserve
   });
 }

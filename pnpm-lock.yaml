@@ -21,8 +21,8 @@ importers:
         specifier: ^9.6.1
         version: 9.6.1(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(three@0.182.0)
       '@receiz/sdk':
-        specifier: 122.0.0
-        version: 122.0.0(react@19.2.7)
+        specifier: 123.0.0
+        version: 123.0.0(react@19.2.7)
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
@@ -52,11 +52,11 @@ importers:
         specifier: ^3.3.5
         version: 3.3.5
       '@receiz/ai-skills':
-        specifier: 122.0.0
-        version: 122.0.0
+        specifier: 123.0.0
+        version: 123.0.0
       '@receiz/mcp-server':
-        specifier: 122.0.0
-        version: 122.0.0(react@19.2.7)
+        specifier: 123.0.0
+        version: 123.0.0(react@19.2.7)
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.0
@@ -651,15 +651,15 @@ packages:
       react-native:
         optional: true
 
-  '@receiz/ai-skills@122.0.0':
-    resolution: {integrity: sha512-5s1exUwz8WLEu0nTS0wQ0d4iwoHgr4hs/QKreBldrEbpI7Ff1foZi977hNa/SQK7qcXXcts3ORaZoNQ1y0xI8Q==}
+  '@receiz/ai-skills@123.0.0':
+    resolution: {integrity: sha512-3mRPoSnp5AWy2WWY/BpNFzQ8yruJPZiCTNFF2R9G3MJ5x8EMORlhrumUjMk7OnvhHRNHDSk+UB4wxepRSJCqXg==}
 
-  '@receiz/mcp-server@122.0.0':
-    resolution: {integrity: sha512-WwnrAJmL9eg6tzBDs7ZluIABt0IPeaLkDVsPT2SvMUvQIcMfkPFlX4T87fkqwDerXNnrW1VwVUMPHXoVW2DC5g==}
+  '@receiz/mcp-server@123.0.0':
+    resolution: {integrity: sha512-9VFgp2r0kjkX9/CZeng/HXoZQoVOYjVZ69C16IgcUR1CjOLB1QdNGz9GT5erTLIqtAAIz97mNJnM+9026Q/VPQ==}
     hasBin: true
 
-  '@receiz/sdk@122.0.0':
-    resolution: {integrity: sha512-z29p3Q67L++p+gSClu+cz4m6Knf7e/Cl3vXzCE8LwK0/vm8Lx7hPWi1J7ZG2h7C43RetXzGYGjkkRC1tx/L+zQ==}
+  '@receiz/sdk@123.0.0':
+    resolution: {integrity: sha512-GLpd6TpvDW8pbTWVNRu3TXYu2Dp93UaPKXwnHz/ZRtVexm6awThA31AQJLP/AhZgpqRJ7wM5f8LbmFk1oOQ45w==}
     hasBin: true
     peerDependencies:
       react: '>=18.0.0 <20.0.0'
@@ -2946,19 +2946,19 @@ snapshots:
       - '@types/react'
       - immer
 
-  '@receiz/ai-skills@122.0.0': {}
+  '@receiz/ai-skills@123.0.0': {}
 
-  '@receiz/mcp-server@122.0.0(react@19.2.7)':
+  '@receiz/mcp-server@123.0.0(react@19.2.7)':
     dependencies:
-      '@receiz/ai-skills': 122.0.0
-      '@receiz/sdk': 122.0.0(react@19.2.7)
+      '@receiz/ai-skills': 123.0.0
+      '@receiz/sdk': 123.0.0(react@19.2.7)
     transitivePeerDependencies:
       - react
 
-  '@receiz/sdk@122.0.0(react@19.2.7)':
+  '@receiz/sdk@123.0.0(react@19.2.7)':
     dependencies:
       '@noble/hashes': 2.3.0
-      '@receiz/ai-skills': 122.0.0
+      '@receiz/ai-skills': 123.0.0
       snarkjs: 0.7.6
     optionalDependencies:
       react: 19.2.7

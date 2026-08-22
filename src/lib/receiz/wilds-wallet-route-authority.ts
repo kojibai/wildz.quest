@@ -4,6 +4,7 @@ import { loadReceizConnectProfile, type ReceizConnectProfile } from "./connect-p
 import { playerReceizAccessToken, receizRequestSession } from "./session";
 import { readWildzProofSessionCookie } from "./wildz-proof-session";
 import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
+import { receizOidcScopesForRails, type ReceizValueRailV122 } from "@receiz/sdk";
 
 const WALLET_READ_SCOPE = "receiz:wallet.read";
 
@@ -65,10 +66,22 @@ async function introspectOrThrow(
 }
 
 export function wildsWalletAuthorityStatusFor(code: string) {
-  if (code === "receiz_wallet_authority_required" || code === "receiz_wallet_authority_revoked" || code === "receiz_wallet_read_scope_required") return 401;
+  if (code === "receiz_wallet_authority_required" || code === "receiz_wallet_authority_revoked" || code === "receiz_wallet_read_scope_required" || code === "receiz_wallet_phi_scope_required") return 401;
   if (code === "receiz_wallet_profile_binding_invalid" || code === "receiz_wallet_token_binding_invalid") return 403;
   if (code === "receiz_wallet_profile_resolution_unavailable" || code === "receiz_wallet_introspection_unavailable") return 503;
   return 502;
+}
+
+export function requireWildsWalletPhiAuthorityScopes(
+  grantedScopes: readonly string[],
+  rail: ReceizValueRailV122
+) {
+  const granted = new Set(grantedScopes);
+  const required = receizOidcScopesForRails(rail);
+  if (!required.every((scope) => granted.has(scope))) {
+    throw new Error("receiz_wallet_phi_scope_required");
+  }
+  return Object.freeze(required);
 }
 
 export async function resolveWildsWalletReadAuthority(

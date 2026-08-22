@@ -179,6 +179,7 @@ test("same-origin Receiz ID continuation trusts only the canonical upstream acco
     assert.equal(upstreamUrl, "https://receiz.example/api/auth/receiz-id/continue");
     assert.deepEqual(JSON.parse(upstreamBody), continuation);
     const body = await response.json();
+    assert.equal(Number.isSafeInteger(body.issuedAt), true);
     assert.deepEqual(body, {
       status: "connected",
       subjectKey: body.subjectKey,
@@ -187,6 +188,7 @@ test("same-origin Receiz ID continuation trusts only the canonical upstream acco
       profileHandle: "canonical_owner.receiz.id",
       displayName: "Canonical Owner",
       authority: "identity-key",
+      issuedAt: body.issuedAt,
       vaultCardRootSha256: priorVault.vaultCardRootSha256
     });
     assert.match(body.subjectKey, /^[a-f0-9]{64}$/);

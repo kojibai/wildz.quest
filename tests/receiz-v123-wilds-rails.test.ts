@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import {
   deriveReceizSubjectIdV122,
@@ -8,23 +7,32 @@ import {
   planReceizSettlementV122,
   snapshotReceizArtifactInput,
   validateReceizSubjectAdmissionInputV122,
-  validateReceizValueIntentV122
+  validateReceizValueIntentV122,
+  receizOidcScopesForRails
 } from "@receiz/sdk";
+import { createReceizCommerceAdapter } from "../src/lib/receiz/adapter";
 
-describe("Wildz Receiz v122 rails", () => {
-  it("exposes every production v122 subject, recovery, privacy, multi-world, and Phi adapter rail", () => {
-    const source = readFileSync("src/lib/receiz/adapter.ts", "utf8");
+describe("Wildz Receiz v123 rails", () => {
+  it("exposes every exact V123 authority, namespace, world-planning, recovery, and Phi adapter rail", () => {
+    const adapter = createReceizCommerceAdapter();
     for (const name of [
-      "admitSubjectV122", "subjectStateV122", "createSubjectAccessKeyV122", "publishSubjectAccessKeyV122",
-      "planPrivateWorldCommandV122", "validateWorldTransactionV122", "executeWorldTransactionV122",
+      "exchangeProofAuthorityV123", "admitSubjectV122", "resolveSubjectNamespacesV123",
+      "planWorldCommandV122", "planWorldTransactionV122", "validateWorldTransactionV122", "executeWorldTransactionV122",
       "worldExecutionV122", "worldExecutionByIdempotencyKeyV122", "worldAdditionsV122",
       "planMultiWorldTransactionV122", "executeMultiWorldTransactionV122",
-      "planPhiSettlementV122", "planPhiReserveV122", "validatePhiIntentV122", "quotePhiDisplayUsdV122"
-    ]) assert.match(source, new RegExp(`\\b${name}\\b`));
+      "planPhiSettlementV123", "planPhiReserveV123", "validatePhiIntentV123",
+      "executePhiSettlementV123", "executePhiReserveV123", "phiExecutionByIdempotencyKeyV123"
+    ] as const) assert.equal(typeof adapter[name], "function", `${name} must be callable`);
+    assert.deepEqual(receizOidcScopesForRails("settlement", "reserve"), [
+      "receiz:settlement.read",
+      "receiz:settlement.write",
+      "receiz:reserve.read",
+      "receiz:reserve.write"
+    ]);
   });
 
   it("derives durable subject identity from exact proof bytes and snapshots admission input", async () => {
-    const proofObject = new Blob(["wildz-v122-proof"], { type: "application/json" });
+    const proofObject = new Blob(["wildz-v123-proof"], { type: "application/json" });
     const snapshot = await snapshotReceizArtifactInput(proofObject);
     const subjectId = await deriveReceizSubjectIdV122(snapshot.artifactDigest.value);
     const input = await validateReceizSubjectAdmissionInputV122({

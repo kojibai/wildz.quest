@@ -4,23 +4,22 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import {
   RECEIZ_CURRENT_CONSTITUTION_REGISTRY,
-  RECEIZ_GENERATED_V122_REGISTRY_DIGEST,
   RECEIZ_RELEASE_VERSION,
   RECEIZ_RULESET_VERSION,
-  RECEIZ_V122_APPLICATION_OPERATIONS,
-  RECEIZ_V122_APPLICATION_OPERATION_MATRIX,
-  RECEIZ_V122_APPLICATION_OPERATION_MATRIX_DIGEST,
-  RECEIZ_V122_APP_COMPATIBLE_SDK_RANGE,
-  RECEIZ_V122_AUTHORITY_BOUNDARY,
-  RECEIZ_V122_REGISTRY_DIGEST
+  RECEIZ_V123_APPLICATION_OPERATIONS,
+  RECEIZ_V123_APPLICATION_OPERATION_MATRIX,
+  RECEIZ_V123_APPLICATION_OPERATION_MATRIX_DIGEST,
+  RECEIZ_V123_APP_COMPATIBLE_SDK_RANGE,
+  RECEIZ_V123_AUTHORITY_BOUNDARY,
+  RECEIZ_V123_REGISTRY_DIGEST
 } from "@receiz/sdk";
 import { checkReceizIntegration } from "@receiz/sdk/compiler";
 
-const TARGET_VERSION = "122.0.0";
-const TARGET_REGISTRY_DIGEST = "ed65956a16dd5f0d76d04db2f4a651fc43eb0a71cef64afd53576aa782dc9896";
-const TARGET_OPERATION_MATRIX_DIGEST = "bd1d7ccf1543e2484df68e3025c7376f8ae37cafe1ca0d7c9cd9f52f6342b325";
+const TARGET_VERSION = "123.0.0";
+const TARGET_REGISTRY_DIGEST = "945a581d1fc49c2dc18fbe8c129771ef464b8a58b96188bce561e88ae8b6ceeb";
+const TARGET_OPERATION_MATRIX_DIGEST = "e08cec3e3ad22c20ddd6c08169ece19f094c366214d6d6b4dc432cd97558e2c5";
 const sourceRoot = resolve(process.cwd());
-const snapshotRoot = await mkdtemp(join(tmpdir(), "wildz-receiz-v122-check-"));
+const snapshotRoot = await mkdtemp(join(tmpdir(), "wildz-receiz-v123-check-"));
 const ignoredDirectories = new Set([
   ".git", ".next", ".playwright-cli", ".pnpm-store", ".superpowers", ".test-build", ".worktrees",
   "build", "coverage", "dist", "node_modules", "out", "output", "tmp", "vendor"
@@ -44,31 +43,31 @@ async function assertCompilerBoundary(directory) {
     for (const match of source.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s+from\s*["']@receiz\/sdk["']/g)) {
       const imported = (match[1] ?? "").split(",").map((value) => value.replace(/^type\s+/, "").trim().split(/\s+as\s+/)[0]);
       const compilerImport = imported.find((name) => compilerSymbols.has(name));
-      if (compilerImport) throw new Error(`receiz_v122_compiler_import_on_runtime:${compilerImport}`);
+      if (compilerImport) throw new Error(`receiz_v123_compiler_import_on_runtime:${compilerImport}`);
     }
   }
 }
 
 function assertReleaseIdentity() {
   if (RECEIZ_RELEASE_VERSION !== TARGET_VERSION || RECEIZ_RULESET_VERSION !== TARGET_VERSION) {
-    throw new Error("receiz_v122_release_identity_mismatch");
+    throw new Error("receiz_v123_release_identity_mismatch");
   }
-  if (RECEIZ_V122_REGISTRY_DIGEST !== TARGET_REGISTRY_DIGEST
-    || RECEIZ_GENERATED_V122_REGISTRY_DIGEST !== TARGET_REGISTRY_DIGEST) {
-    throw new Error("receiz_v122_registry_digest_mismatch");
+  if (RECEIZ_V123_REGISTRY_DIGEST !== TARGET_REGISTRY_DIGEST
+    || RECEIZ_CURRENT_CONSTITUTION_REGISTRY.version !== TARGET_VERSION) {
+    throw new Error("receiz_v123_registry_digest_mismatch");
   }
-  if (RECEIZ_V122_APPLICATION_OPERATION_MATRIX_DIGEST !== TARGET_OPERATION_MATRIX_DIGEST
-    || RECEIZ_V122_APPLICATION_OPERATION_MATRIX.length !== RECEIZ_V122_APPLICATION_OPERATIONS.length
-    || RECEIZ_V122_APPLICATION_OPERATIONS.length !== 30
-    || RECEIZ_V122_APP_COMPATIBLE_SDK_RANGE !== ">=122.0.0 <123.0.0") {
-    throw new Error("receiz_v122_operation_matrix_mismatch");
+  if (RECEIZ_V123_APPLICATION_OPERATION_MATRIX_DIGEST !== TARGET_OPERATION_MATRIX_DIGEST
+    || RECEIZ_V123_APPLICATION_OPERATION_MATRIX.length !== RECEIZ_V123_APPLICATION_OPERATIONS.length
+    || RECEIZ_V123_APPLICATION_OPERATIONS.length !== 36
+    || RECEIZ_V123_APP_COMPATIBLE_SDK_RANGE !== ">=123.0.0 <124.0.0") {
+    throw new Error("receiz_v123_operation_matrix_mismatch");
   }
   if (RECEIZ_CURRENT_CONSTITUTION_REGISTRY.version !== TARGET_VERSION
-    || RECEIZ_V122_AUTHORITY_BOUNDARY.authority.enclosingArtifact !== "strongest"
-    || RECEIZ_V122_AUTHORITY_BOUNDARY.authority.projectionIsAuthority !== false
-    || RECEIZ_V122_AUTHORITY_BOUNDARY.authority.multiSubjectEffectsAreAtomic !== true
-    || RECEIZ_V122_AUTHORITY_BOUNDARY.authority.settledSurfaceNeverWaitsForProjection !== true) {
-    throw new Error("receiz_v122_authority_mismatch");
+    || RECEIZ_V123_AUTHORITY_BOUNDARY.authority.enclosingArtifact !== "strongest"
+    || RECEIZ_V123_AUTHORITY_BOUNDARY.authority.projectionIsAuthority !== false
+    || RECEIZ_V123_AUTHORITY_BOUNDARY.authority.multiSubjectEffectsAreAtomic !== true
+    || RECEIZ_V123_AUTHORITY_BOUNDARY.authority.settledSurfaceNeverWaitsForProjection !== true) {
+    throw new Error("receiz_v123_authority_mismatch");
   }
 }
 
@@ -99,12 +98,12 @@ try {
     releaseIdentity: {
       releaseVersion: RECEIZ_RELEASE_VERSION,
       rulesetVersion: RECEIZ_RULESET_VERSION,
-      registryDigest: RECEIZ_V122_REGISTRY_DIGEST,
-      operationMatrixDigest: RECEIZ_V122_APPLICATION_OPERATION_MATRIX_DIGEST
+      registryDigest: RECEIZ_V123_REGISTRY_DIGEST,
+      operationMatrixDigest: RECEIZ_V123_APPLICATION_OPERATION_MATRIX_DIGEST
     },
-    releaseAuthority: RECEIZ_V122_AUTHORITY_BOUNDARY,
-    applicationOperations: RECEIZ_V122_APPLICATION_OPERATION_MATRIX,
-    reviewedV122ScannerFinding: officialResult.blockingFindings.some((finding) => finding.code === reviewedScannerCode)
+    releaseAuthority: RECEIZ_V123_AUTHORITY_BOUNDARY,
+    applicationOperations: RECEIZ_V123_APPLICATION_OPERATION_MATRIX,
+    reviewedV123ScannerFinding: officialResult.blockingFindings.some((finding) => finding.code === reviewedScannerCode)
       ? "Runtime-only named imports were independently parsed; no compiler symbols use the universal runtime entrypoint."
       : null
   };
