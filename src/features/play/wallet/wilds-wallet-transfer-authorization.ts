@@ -11,8 +11,9 @@ import {
   type ReceizIdentityLoginProof
 } from "@receiz/sdk";
 import { defaultIdentityRepository } from "@/lib/receiz/wildz-identity-adapter";
-import { observeWildsKaiUPulse } from "@/features/play/wilds-kai-runtime";
+import { observeWildsKaiPulse } from "@/features/play/wilds-kai-runtime";
 import { wildsWalletTransferConsentStatementDigest } from "@/lib/receiz/wilds-wallet-transfer-consent";
+import { WILDS_WALLET_AUTHORITY_WINDOW_PULSES } from "@/lib/receiz/wilds-wallet-authority-scopes";
 
 type TransferAuthorizationInput = Readonly<{
   attempt: string;
@@ -44,7 +45,7 @@ const DEFAULT_DEPENDENCIES: TransferAuthorizationDependencies = {
       sign: async (challengeB64Url) => signReceizIdentityLoginProof({ keyFile, challengeB64Url })
     };
   }),
-  nowKai: observeWildsKaiUPulse,
+  nowKai: observeWildsKaiPulse,
   nonce: () => crypto.randomUUID(),
   statementDigest: wildsWalletTransferConsentStatementDigest,
   challengeText: canonicalizeReceizV122
@@ -71,7 +72,7 @@ export async function authorizeWildsWalletTransferWithIdentity(
     audience: "wildz.quest",
     nonce,
     issuedAtKai,
-    expiresAtKai: issuedAtKai + 120,
+    expiresAtKai: issuedAtKai + WILDS_WALLET_AUTHORITY_WINDOW_PULSES,
     consent: Object.freeze({ approved: true, statementDigest: await dependencies.statementDigest(input) })
   });
   const basis = proofAuthorityChallengeBasisV123({

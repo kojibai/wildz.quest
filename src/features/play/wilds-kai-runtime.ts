@@ -21,6 +21,11 @@ export function observeWildsKaiUPulse(epochMs = Date.now()) {
   }).uPulse;
 }
 
+/** Receiz V123 authority challenges use whole Kai pulses, not micro-pulses. */
+export function observeWildsKaiPulse(epochMs = Date.now()) {
+  return Math.floor(observeWildsKaiUPulse(epochMs) / 1_000_000);
+}
+
 export function createWildsKaiRuntimeClock(input: {
   baselineUPulse: number;
   baselineElapsedMs?: number;

@@ -58,6 +58,17 @@ test("wallet instrument announces exact admitted value while abbreviating the vi
   assert.doesNotMatch(markup, /98765432109876543210/);
 });
 
+test("a verified edge Receiz ID stays authenticated while its global wallet projection is syncing", () => {
+  const edgeState = state({ status: "authority-required", summary: null, capabilities: null, ledger: null, edgeAuthorityVerified: true });
+  const instrument = renderToStaticMarkup(createElement(WildsWalletInstrument, { disabled: false, state: edgeState, onOpen() {} }));
+  const terminal = renderToStaticMarkup(createElement(WildsWalletTerminal, { publicUsername: "explorer", state: edgeState, ...actions }));
+  assert.match(instrument, /data-wallet-status="pending"/);
+  assert.match(instrument, /Phi reserve sync pending/);
+  assert.match(terminal, /EDGE VERIFIED · SYNC PENDING/);
+  assert.match(terminal, /Receiz ID verified/);
+  assert.doesNotMatch(terminal, /Authorization required/i);
+});
+
 test("verified display quote preserves every admitted cent beyond Number precision", () => {
   const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, { publicUsername: "explorer", state: state(), ...actions }));
   assert.match(markup, /\$987,654,321,098,765,432\.10/);

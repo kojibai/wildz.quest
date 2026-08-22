@@ -1,7 +1,11 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import type { ReceizProofAuthorityChallengeV123, ReceizProofAuthorityV123 } from "@receiz/sdk";
-import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
-import { hasExactWildsWalletReadAuthorityScopes, WILDS_WALLET_READ_AUTHORITY_SCOPES } from "./wilds-wallet-authority-scopes";
+import { parseWildzPlayerCoordinate, sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
+import {
+  hasExactWildsWalletReadAuthorityScopes,
+  WILDS_WALLET_AUTHORITY_WINDOW_PULSES,
+  WILDS_WALLET_READ_AUTHORITY_SCOPES
+} from "./wilds-wallet-authority-scopes";
 
 const APPLICATION_ID = "wildz.quest";
 const WALLET_READ_SCOPE = "receiz:wallet.read";
@@ -10,15 +14,15 @@ const TICKET_VERSION = "v1";
 
 export type WildsWalletIdentitySession = Readonly<{
   keyId: string;
-  actorId: string;
-  profileHandle: string;
+  actorId?: string;
+  profileHandle?: string;
 }>;
 
 type WalletAuthorityTicket = Readonly<{
   applicationId: typeof APPLICATION_ID;
   keyId: string;
-  actorId: string;
-  profileHandle: string;
+  actorId?: string;
+  profileHandle?: string;
   nonce: string;
   issuedAtKai: number;
   expiresAtKai: number;
@@ -69,24 +73,25 @@ export function issueWildsWalletIdentityAuthorityChallenge(input: Readonly<{
   nowKai: number;
   nonce: string;
 }>, secret: string) {
-  if (!/^[a-f0-9]{64}$/.test(input.session.keyId) || !input.session.actorId || !input.session.profileHandle
+  const hasCompleteSessionBinding = Boolean(input.session.actorId && input.session.profileHandle);
+  if (!/^[a-f0-9]{64}$/.test(input.session.keyId)
+    || Boolean(input.session.actorId) !== Boolean(input.session.profileHandle)
     || !Number.isSafeInteger(input.nowKai) || !input.nonce || input.nonce.length > 256) {
     throw new Error("receiz_wallet_identity_authority_challenge_invalid");
   }
-  const statementDigest = sha256Text("Wildz may identify this Receiz ID and refresh its wallet projection for 120 Kai micro-pulses. Moving value requires a fresh exact edge signature from this Receiz ID.");
+  const statementDigest = sha256Text("Wildz may identify this Receiz ID and refresh its wallet projection for 60 Kai pulses. Moving value requires a fresh exact edge signature from this Receiz ID.");
   const unsigned = Object.freeze({
     schema: "receiz.identity.proof-authority-challenge.v123" as const,
     audience: APPLICATION_ID,
     nonce: input.nonce,
     issuedAtKai: input.nowKai,
-    expiresAtKai: input.nowKai + 120,
+    expiresAtKai: input.nowKai + WILDS_WALLET_AUTHORITY_WINDOW_PULSES,
     consent: Object.freeze({ approved: true, statementDigest })
   });
   const ticket = packTicket({
     applicationId: APPLICATION_ID,
     keyId: input.session.keyId,
-    actorId: input.session.actorId,
-    profileHandle: input.session.profileHandle,
+    ...(hasCompleteSessionBinding ? { actorId: input.session.actorId, profileHandle: input.session.profileHandle } : {}),
     nonce: input.nonce,
     issuedAtKai: unsigned.issuedAtKai,
     expiresAtKai: unsigned.expiresAtKai,
@@ -108,13 +113,16 @@ type CompletionDependencies = Readonly<{
 }>;
 
 export async function completeWildsWalletIdentityAuthority(input: Readonly<{
-  session: WildsWalletIdentitySession;
+  session?: WildsWalletIdentitySession;
   ticket: string;
   body: unknown;
 }>, dependencies: CompletionDependencies) {
   const ticket = unpackTicket(input.ticket, dependencies.secret);
-  if (ticket.applicationId !== APPLICATION_ID || ticket.keyId !== input.session.keyId
-    || ticket.actorId !== input.session.actorId || !sameWildzPlayerCoordinate(ticket.profileHandle, input.session.profileHandle)) {
+  if (ticket.applicationId !== APPLICATION_ID
+    || (input.session && (ticket.keyId !== input.session.keyId
+      || ticket.actorId !== input.session.actorId
+      || !ticket.profileHandle || !input.session.profileHandle
+      || !sameWildzPlayerCoordinate(ticket.profileHandle, input.session.profileHandle)))) {
     throw new Error("receiz_wallet_identity_authority_binding_invalid");
   }
   const body = exactRecord(input.body, ["artifact", "challenge"]);
@@ -136,11 +144,12 @@ export async function completeWildsWalletIdentityAuthority(input: Readonly<{
   if (authority.applicationId !== APPLICATION_ID || authority.keyId !== ticket.keyId
     || authority.artifactDigest !== artifactDigest || authority.nonce !== ticket.nonce
     || authority.issuedAtKai !== ticket.issuedAtKai || authority.expiresAtKai !== ticket.expiresAtKai
-    || authority.expiresIn <= 0 || authority.expiresIn > 120 || !hasExactWildsWalletReadAuthorityScopes(authority.grantedScopes)) {
+    || authority.expiresIn !== 300 || !hasExactWildsWalletReadAuthorityScopes(authority.grantedScopes)) {
     throw new Error("receiz_wallet_identity_authority_response_invalid");
   }
   const profile = await dependencies.loadProfile(authority.accessToken);
-  if (!profile?.id || !profile.handle || !sameWildzPlayerCoordinate(profile.handle, input.session.profileHandle)) {
+  const coordinate = profile?.handle ? parseWildzPlayerCoordinate(profile.handle) : null;
+  if (!profile?.id || !coordinate || (ticket.profileHandle && !sameWildzPlayerCoordinate(coordinate.profileHandle, ticket.profileHandle))) {
     throw new Error("receiz_wallet_identity_authority_profile_invalid");
   }
   const introspectionValue = await dependencies.introspect(authority.accessToken);
@@ -152,5 +161,12 @@ export async function completeWildsWalletIdentityAuthority(input: Readonly<{
   if (introspection.active !== true || introspection.sub !== profile.id || !scopes.includes(WALLET_READ_SCOPE)) {
     throw new Error("receiz_wallet_identity_authority_token_invalid");
   }
-  return Object.freeze({ accessToken: authority.accessToken, expiresIn: authority.expiresIn, grantedScopes: WILDS_WALLET_READ_AUTHORITY_SCOPES });
+  return Object.freeze({
+    accessToken: authority.accessToken,
+    expiresIn: authority.expiresIn,
+    grantedScopes: WILDS_WALLET_READ_AUTHORITY_SCOPES,
+    keyId: authority.keyId,
+    actorId: coordinate.actorId,
+    profileHandle: coordinate.profileHandle
+  });
 }

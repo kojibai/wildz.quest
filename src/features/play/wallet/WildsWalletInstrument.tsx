@@ -1,12 +1,13 @@
 "use client";
 
-import type { WildsWalletControllerState } from "./wilds-wallet-controller";
+import type { WildsWalletPresentationState } from "./wilds-wallet-controller";
 import { formatWildsPhiCompact, formatWildsPhiExact } from "./wilds-wallet-format";
 import { Icons } from "@/components/icons";
 
-function instrumentState(state: WildsWalletControllerState) {
+function instrumentState(state: WildsWalletPresentationState) {
   if (state.status === "verified") return { tone: "verified", spoken: "verified" };
   if (state.status === "loading") return { tone: "pending", spoken: "verifying" };
+  if (state.status === "authority-required" && state.edgeAuthorityVerified) return { tone: "pending", spoken: "sync pending" };
   if (state.status === "authority-required") return { tone: "secure", spoken: "authorization required" };
   if (state.status === "offline-verified") return { tone: "offline", spoken: "offline verified" };
   if (state.status === "failed" || state.status === "revoked") return { tone: "failed", spoken: "unavailable" };
@@ -20,7 +21,7 @@ export function WildsWalletInstrument({
 }: {
   disabled: boolean;
   onOpen: (origin: HTMLButtonElement) => void;
-  state: WildsWalletControllerState;
+  state: WildsWalletPresentationState;
 }) {
   const status = instrumentState(state);
   const exact = state.summary ? formatWildsPhiExact(state.summary.admittedPhiMicro) : null;

@@ -942,9 +942,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           enabled={true}
           interactionEnabled={Boolean(campaignCharacter)}
           networkEnabled={Boolean(character) && proofSessionConnected}
-          walletAuthorityGeneration={proofSessionConnected ? proofSessionGeneration : ""}
+          walletAuthorityGeneration={proofSessionGeneration || identity.keyId}
           walletIdentityKey={identity.actorId}
-          walletReadIdentityKey={proofSessionConnected && identity.localAuthority === "verified" ? identity.keyId : undefined}
+          walletReadIdentityKey={identity.localAuthority === "verified" ? identity.keyId : undefined}
           walletPublicUsername={identity.username ?? null}
           initialState={ownerPlayState}
           initialPlayerContinuity={continuity.playerContinuity}

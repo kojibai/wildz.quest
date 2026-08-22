@@ -64,7 +64,7 @@ function challengeEnvelope(value: unknown): ChallengeEnvelope | null {
 export async function authorizeWildsWalletReadWithIdentity(keyId: string, dependencies: ReadAuthorizationDependencies = DEFAULT_DEPENDENCIES) {
   const identity = await dependencies.loadIdentity(keyId);
   if (identity.keyId !== keyId) return false;
-  const issued = await dependencies.request("/api/auth/wildz/wallet-authority");
+  const issued = await dependencies.request(`/api/auth/wildz/wallet-authority?keyId=${encodeURIComponent(keyId)}`);
   const envelope = issued.ok ? challengeEnvelope(issued.value) : null;
   if (!envelope || envelope.keyId !== keyId || envelope.applicationId !== "wildz.quest"
     || !hasExactWildsWalletReadAuthorityScopes(envelope.scopes)) return false;

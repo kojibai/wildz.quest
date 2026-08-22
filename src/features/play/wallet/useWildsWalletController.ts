@@ -87,6 +87,7 @@ export function useWildsWalletController(
   }, [driver, options.authorization]);
   return {
     ...visible,
+    edgeAuthorityVerified: Boolean(authorityGeneration && options.readAuthorization),
     capabilities,
     openTerminal,
     closeTerminal: driver.close,

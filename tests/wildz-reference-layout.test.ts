@@ -106,14 +106,14 @@ test("world event pills stay compact while trainer challenges come from directly
   assert.doesNotMatch(css, /\.wilds-living-world-hud\.has-event \.wilds-live-pill\[class\*="mode-"\]\s*\{[^}]*display:\s*none/);
 });
 
-test("mobile world bearings keep scan centered while event pills shrink and stack in a collision-safe right lane", () => {
+test("mobile world bearings keep scan centered while event pills use the open far edges", () => {
   const css = readFileSync("app/globals.css", "utf8");
   assert.match(css, /@media \(max-width: 640px\) and \(orientation: portrait\)[\s\S]*\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(104px \+ var\(--wildz-stage-safe-top\)\);[^}]*width:\s*clamp\(80px, 21vw, 92px\);[^}]*white-space:\s*nowrap;/s);
   assert.match(css, /\.wilds-map-status-home \.wilds-live-pill\.event\s*\{[^}]*position:\s*fixed\s*!important;[^}]*width:\s*min\(30vw, 132px\);[^}]*min-height:\s*clamp\(32px, 10vw, 44px\);/s);
+  assert.match(css, /\.wilds-map-status-home \.wilds-live-pill\.event\.ecology\s*\{[^}]*top:\s*calc\(154px \+ var\(--wildz-stage-safe-top\)\);[^}]*right:\s*auto;[^}]*left:\s*max\(1\.5vw, env\(safe-area-inset-left\)\);/s);
   assert.match(css, /@media \(max-width: 360px\) and \(orientation: portrait\)\s*\{[^}]*\.wildz-app \.wilds-search-reticle\s*\{[^}]*top:\s*calc\(154px \+ var\(--wildz-stage-safe-top\)\);/s);
   assert.match(css, /\.wilds-live-pill\.event:not\(\.ecology\)\s*\{[^}]*top:\s*calc\(154px \+ var\(--wildz-stage-safe-top\)\);[^}]*right:/s);
-  assert.match(css, /\.wilds-live-pill\.event\.ecology\s*\{[^}]*top:\s*calc\(clamp\(192px, 53vw, 206px\) \+ var\(--wildz-stage-safe-top\)\);[^}]*right:[^}]*left:\s*auto;/s);
-  assert.doesNotMatch(css.slice(css.lastIndexOf("/* Unified living-world overlay")), /\.wilds-live-pill\.event\.ecology\s*\{[^}]*left:\s*max/s);
+  assert.match(css, /\.wilds-live-pill\.event\.ecology\s*\{[^}]*top:\s*calc\(154px \+ var\(--wildz-stage-safe-top\)\);[^}]*right:\s*auto;[^}]*left:\s*max/);
 });
 
 test("trainer-facing UI uses world language instead of implementation jargon", () => {

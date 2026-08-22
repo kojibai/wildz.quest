@@ -5,12 +5,18 @@ import { createReceizCommerceAdapter, receizCommerceAdapter } from "@/lib/receiz
 import { loadReceizConnectProfile } from "@/lib/receiz/connect-profile";
 import { receizOAuthSecret } from "@/lib/receiz/oauth-state";
 import { WILDZ_RECEIZ_SESSION_SCOPE } from "@/lib/receiz/wildz-auth-url";
-import { readWildzProofSessionCookie } from "@/lib/receiz/wildz-proof-session";
+import {
+  WILDZ_PROOF_SESSION_COOKIE,
+  createWildzReceizIdProofSession,
+  packWildzProofSession,
+  readWildzProofSessionCookie,
+  wildzProofSessionCookieOptions
+} from "@/lib/receiz/wildz-proof-session";
 import {
   completeWildsWalletIdentityAuthority,
   issueWildsWalletIdentityAuthorityChallenge
 } from "@/lib/receiz/wilds-wallet-identity-authority";
-import { observeWildsKaiUPulse } from "@/features/play/wilds-kai-runtime";
+import { observeWildsKaiPulse } from "@/features/play/wilds-kai-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,9 +28,26 @@ function cookieOptions(maxAge = 180) {
 }
 
 function proofSession(request: NextRequest) {
-  const session = readWildzProofSessionCookie(request);
-  if (session.authority !== "identity-key") throw new Error("receiz_wallet_identity_authority_required");
-  return { keyId: session.keyId, actorId: session.actorId, profileHandle: session.profileHandle };
+  try {
+    const session = readWildzProofSessionCookie(request);
+    if (session.authority !== "identity-key") return undefined;
+    return { keyId: session.keyId, actorId: session.actorId, profileHandle: session.profileHandle };
+  } catch {
+    return undefined;
+  }
+}
+
+function edgeIdentity(request: NextRequest) {
+  const session = proofSession(request);
+  const requestedKeyId = request.nextUrl.searchParams.get("keyId");
+  if (session) {
+    if (requestedKeyId && requestedKeyId !== session.keyId) throw new Error("receiz_wallet_identity_authority_binding_invalid");
+    return session;
+  }
+  if (!requestedKeyId || !/^[a-f0-9]{64}$/.test(requestedKeyId)) {
+    throw new Error("receiz_wallet_identity_authority_required");
+  }
+  return { keyId: requestedKeyId };
 }
 
 function failure(cause: unknown) {
@@ -36,8 +59,8 @@ function failure(cause: unknown) {
 export async function GET(request: NextRequest) {
   try {
     const issued = issueWildsWalletIdentityAuthorityChallenge({
-      session: proofSession(request),
-      nowKai: observeWildsKaiUPulse(),
+      session: edgeIdentity(request),
+      nowKai: observeWildsKaiPulse(),
       nonce: randomBytes(24).toString("base64url")
     }, receizOAuthSecret());
     const response = NextResponse.json(issued.challenge, { headers: { "cache-control": "no-store" } });
@@ -70,6 +93,12 @@ export async function POST(request: NextRequest) {
     response.cookies.set("receiz_access_token", admitted.accessToken, sessionCookie);
     response.cookies.set("receiz_session_scope", WILDZ_RECEIZ_SESSION_SCOPE, sessionCookie);
     response.cookies.set("receiz_granted_scopes", admitted.grantedScopes.join(" "), sessionCookie);
+    const establishedSession = createWildzReceizIdProofSession({
+      keyId: admitted.keyId,
+      username: admitted.profileHandle,
+      displayName: null
+    });
+    response.cookies.set(WILDZ_PROOF_SESSION_COOKIE, packWildzProofSession(establishedSession), wildzProofSessionCookieOptions());
     response.cookies.set(TICKET_COOKIE, "", { ...cookieOptions(0), maxAge: 0 });
     return response;
   } catch (cause) {

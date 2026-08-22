@@ -9,7 +9,7 @@ import { WildsMultiplayer } from "./WildsMultiplayer";
 import type { useWildsWorld } from "./use-wilds-world";
 import type { WildsMultiplayerController } from "./use-wilds-multiplayer";
 import { WildsWalletInstrument } from "./wallet/WildsWalletInstrument";
-import type { WildsWalletControllerState } from "./wallet/wilds-wallet-controller";
+import type { WildsWalletPresentationState } from "./wallet/wilds-wallet-controller";
 
 export function WildsBalancedStatusHud({
   audio,
@@ -27,6 +27,7 @@ export function WildsBalancedStatusHud({
   onRosterOpenChange,
   player,
   wallet,
+  walletEnabled,
   world
 }: {
   audio: {
@@ -48,7 +49,8 @@ export function WildsBalancedStatusHud({
   onOpenWallet: (origin: HTMLButtonElement) => void;
   onRosterOpenChange?: (open: boolean) => void;
   player: { x: number; z: number };
-  wallet: WildsWalletControllerState;
+  wallet: WildsWalletPresentationState;
+  walletEnabled: boolean;
   world: ReturnType<typeof useWildsWorld>;
 }) {
   const homeInteractionEnabled = interactionEnabled && !blocked;
@@ -89,7 +91,7 @@ export function WildsBalancedStatusHud({
           ready={audio.ready}
           settings={audio.settings}
         />
-        <WildsWalletInstrument disabled={!interactionEnabled} onOpen={onOpenWallet} state={wallet} />
+        {walletEnabled ? <WildsWalletInstrument disabled={!interactionEnabled} onOpen={onOpenWallet} state={wallet} /> : null}
       </>
     </div>
   </>;

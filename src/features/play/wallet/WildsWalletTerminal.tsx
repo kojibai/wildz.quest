@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import type { WildsWalletControllerState, WildsWalletPage } from "./wilds-wallet-controller";
+import type { WildsWalletControllerState, WildsWalletPage, WildsWalletPresentationState } from "./wilds-wallet-controller";
 import { WildsWalletAssets } from "./WildsWalletAssets";
 import { WildsWalletLedger } from "./WildsWalletLedger";
 import { WildsWalletOverview } from "./WildsWalletOverview";
@@ -33,7 +33,7 @@ export type WildsWalletTerminalActions = WildsWalletSendActions & Readonly<{
   onRequestReceive(): void;
 }>;
 
-export function WildsWalletTerminal({ publicUsername, state, ...actions }: { publicUsername: string | null; state: WildsWalletControllerState } & WildsWalletTerminalActions) {
+export function WildsWalletTerminal({ publicUsername, state, ...actions }: { publicUsername: string | null; state: WildsWalletPresentationState } & WildsWalletTerminalActions) {
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   if (!state.open) return null;
   const moveTab = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
@@ -45,7 +45,7 @@ export function WildsWalletTerminal({ publicUsername, state, ...actions }: { pub
     window.requestAnimationFrame(() => tabRefs.current[index]?.focus());
   };
   const closeAllowed = canCloseWildsWalletTerminal(state);
-  const authority = state.status === "verified" ? "VERIFIED" : state.status === "offline-verified" ? "OFFLINE VERIFIED" : state.status === "authority-required" ? "AUTHORIZATION REQUIRED" : state.transfer.phase === "unknown" ? "RECOVERY PENDING" : "UNAVAILABLE";
+  const authority = state.status === "verified" ? "VERIFIED" : state.status === "offline-verified" ? "OFFLINE VERIFIED" : state.status === "authority-required" && state.edgeAuthorityVerified ? "EDGE VERIFIED · SYNC PENDING" : state.status === "authority-required" ? "AUTHORIZATION REQUIRED" : state.transfer.phase === "unknown" ? "RECOVERY PENDING" : "UNAVAILABLE";
   return <div className="wilds-wallet-layer" data-wallet-page={state.page}>
     <button aria-label="Close sovereign wallet" className="wilds-wallet-scrim" disabled={!closeAllowed} onClick={actions.onClose} tabIndex={-1} type="button" />
     <section aria-labelledby="wilds-wallet-terminal-title" aria-modal="true" className="wilds-wallet-terminal" role="dialog" tabIndex={-1}>

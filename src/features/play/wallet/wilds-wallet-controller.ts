@@ -39,6 +39,7 @@ export type WildsWalletControllerState = Readonly<{
   ledger: WalletLedgerPageProjection | null; recipient: WildsWalletRecipientState; receiveLocator: string | null; stagedTransactionId: string | null;
   transfer: WildsWalletTransferState;
 }>;
+export type WildsWalletPresentationState = WildsWalletControllerState & Readonly<{ edgeAuthorityVerified?: boolean }>;
 export type WildsWalletControllerEvent =
   | { type: "open" }
   | { type: "close" | "cancel-pending" }
