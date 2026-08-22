@@ -15,6 +15,7 @@ import type {
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import { isCanonicalWildsDiscoverySiteKey, type WildsDiscoveryPhysicalNeighborhood } from "./wilds-discovery-sites";
 import { sampleWildsTerrain } from "./wilds-terrain-authority";
+import { WILDZ_RECEIZ_APPLICATION_ID } from "@/lib/receiz/wildz-application";
 
 export const WILDS_EXCAVATION_VERSION = "wildz.excavation.v1" as const;
 export const WILDS_EXCAVATION_REGISTRY_DIGEST = sha256PortableBasis("wildz.excavation.registry.v1");
@@ -537,7 +538,7 @@ function excavationPayload(preview: WildsExcavationPreview) {
   });
   return immutable({
     schema: "wildz.excavation.command_payload.v1",
-    applicationId: "wildz.quest",
+    applicationId: WILDZ_RECEIZ_APPLICATION_ID,
     worldRegion: preview.siteKey,
     domainRegistryDigest: WILDS_EXCAVATION_REGISTRY_DIGEST,
     domainReducerDigest: WILDS_EXCAVATION_REDUCER_DIGEST,
@@ -550,7 +551,7 @@ function excavationPayload(preview: WildsExcavationPreview) {
 function creatureLaborPayload(preview: WildsExcavationPreview) {
   return immutable({
     schema: "wildz.excavation.creature_labor_payload.v1",
-    applicationId: "wildz.quest",
+    applicationId: WILDZ_RECEIZ_APPLICATION_ID,
     worldRegion: preview.siteKey,
     candidateEventDigest: preview.candidateEventDigest,
     creatureIdentityDigest: preview.capability.identityDigest,

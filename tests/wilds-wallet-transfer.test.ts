@@ -55,7 +55,7 @@ const H = {
 
 const transferInput = {
   ownerBinding: "receiz:owner:private",
-  applicationId: "wildz.quest",
+  applicationId: "wildz",
   rail: "settlement" as const,
   amountPhiMicro: "2500000",
   sourceProofObjectId: "proof:source:private",
@@ -165,7 +165,7 @@ type TransferRail = Pick<
 
 async function authority(
   rail: "settlement" | "reserve" = "settlement",
-  applicationId = "wildz.quest",
+  applicationId = "wildz",
   overrides: Partial<Omit<ReceizProofAuthorityV123, "authorityDigest">> = {}
 ): Promise<ReceizProofAuthorityV123> {
   const basis = {
@@ -204,7 +204,7 @@ function exchangeInput(overrides: Record<string, unknown> = {}) {
     artifact: ARTIFACT,
     challenge: {
       schema: "receiz.identity.proof-authority-challenge.v123" as const,
-      audience: "wildz.quest",
+      audience: "wildz",
       nonce: "wallet-proof-authority-0001",
       issuedAtKai: 13731001,
       expiresAtKai: 13731121,
@@ -217,7 +217,7 @@ function exchangeInput(overrides: Record<string, unknown> = {}) {
         signatureB64Url: "signature"
       }
     },
-    applicationId: "wildz.quest",
+    applicationId: "wildz",
     ...overrides
   };
 }
@@ -357,7 +357,7 @@ describe("Wilds wallet V123 Phi authority", () => {
     const entry = await journal.load(transferInput.ownerBinding, transferInput.idempotencyKey);
     assert.equal(entry?.intent.valueIntentDigest.length, 64);
     assert.equal(entry?.intent.idempotencyKey, transferInput.idempotencyKey);
-    assert.equal(entry?.applicationId, "wildz.quest");
+    assert.equal(entry?.applicationId, "wildz");
     assert.equal(entry?.authorityDigest, null);
     assert.doesNotMatch(JSON.stringify(entry), /accessToken|server-only-proof-authority-token/);
   });
@@ -693,7 +693,7 @@ describe("Wilds wallet V123 Phi authority", () => {
     }, { rail: rail(), journal, authorityAdmission }), /wilds_wallet_proof_authority_expired/);
     assert.equal((await journal.load(transferInput.ownerBinding, transferInput.idempotencyKey))?.authorityDigest, null);
 
-    const freshAuthority = await authority("settlement", "wildz.quest", {
+    const freshAuthority = await authority("settlement", "wildz", {
       issuedAtKai: 13731121,
       expiresAtKai: 13731241,
       nonce: "wallet-proof-authority-0002"
@@ -841,17 +841,17 @@ describe("Wilds wallet V123 Phi authority", () => {
     }> = [
       {
         name: "artifact digest",
-        response: await authority("settlement", "wildz.quest", { artifactDigest: "c".repeat(64) }),
+        response: await authority("settlement", "wildz", { artifactDigest: "c".repeat(64) }),
         code: /wilds_wallet_proof_authority_artifact_mismatch/
       },
       {
         name: "proof key",
-        response: await authority("settlement", "wildz.quest", { keyId: "c".repeat(64) }),
+        response: await authority("settlement", "wildz", { keyId: "c".repeat(64) }),
         code: /wilds_wallet_proof_authority_key_mismatch/
       },
       {
         name: "nonce",
-        response: await authority("settlement", "wildz.quest", { nonce: "foreign-nonce" }),
+        response: await authority("settlement", "wildz", { nonce: "foreign-nonce" }),
         code: /wilds_wallet_proof_authority_nonce_mismatch/
       },
       {
@@ -861,12 +861,12 @@ describe("Wilds wallet V123 Phi authority", () => {
       },
       {
         name: "invalid ordering",
-        response: await authority("settlement", "wildz.quest", { issuedAtKai: 13731121, expiresAtKai: 13731001 }),
+        response: await authority("settlement", "wildz", { issuedAtKai: 13731121, expiresAtKai: 13731001 }),
         code: /wilds_wallet_proof_authority_time_invalid/
       },
       {
         name: "expired",
-        response: await authority("settlement", "wildz.quest", { issuedAtKai: 13730881, expiresAtKai: 13731001 }),
+        response: await authority("settlement", "wildz", { issuedAtKai: 13730881, expiresAtKai: 13731001 }),
         code: /wilds_wallet_proof_authority_expired/
       },
       {

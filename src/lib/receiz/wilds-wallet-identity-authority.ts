@@ -6,8 +6,9 @@ import {
   WILDS_WALLET_AUTHORITY_WINDOW_PULSES,
   WILDS_WALLET_READ_AUTHORITY_SCOPES
 } from "./wilds-wallet-authority-scopes";
+import { WILDZ_RECEIZ_APPLICATION_ID } from "./wildz-application";
 
-const APPLICATION_ID = "wildz.quest";
+const APPLICATION_ID = WILDZ_RECEIZ_APPLICATION_ID;
 const WALLET_READ_SCOPE = "receiz:wallet.read";
 const TICKET_PURPOSE = "receiz.wildz.wallet_read_authority.v1";
 const TICKET_VERSION = "v1";

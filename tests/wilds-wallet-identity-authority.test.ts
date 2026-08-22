@@ -24,7 +24,7 @@ describe("Receiz ID wallet read authority", () => {
       nonce: "wallet-read-nonce-00000001"
     }, "s".repeat(32));
     assert.deepEqual(issued.challenge.scopes, readAuthorityScopes);
-    assert.equal(issued.challenge.applicationId, "wildz.quest");
+    assert.equal(issued.challenge.applicationId, "wildz");
     assert.equal(issued.challenge.keyId, H.key);
     assert.equal(issued.challenge.unsigned.consent.approved, true);
     assert.equal(issued.challenge.unsigned.expiresAtKai, 13_731_061);
@@ -37,7 +37,7 @@ describe("Receiz ID wallet read authority", () => {
     const issued = issueWildsWalletIdentityAuthorityChallenge({ session, nowKai: 13_731_001, nonce: "wallet-read-nonce-00000001" }, secret);
     const authority = {
       schema: "receiz.identity.proof-authority.v123" as const,
-      applicationId: "wildz.quest",
+      applicationId: "wildz",
       keyId: H.key,
       artifactDigest: H.artifact,
       grantedScopes: readAuthorityScopes,
@@ -87,7 +87,7 @@ describe("Receiz ID wallet read authority", () => {
       }),
       request: async (path, body) => {
         requests.push({ path, body });
-        if (!body) return { ok: true, value: { applicationId: "wildz.quest", scopes: readAuthorityScopes, keyId: H.key, unsigned: { schema: "receiz.identity.proof-authority-challenge.v123", audience: "wildz.quest", nonce: "wallet-read-nonce-00000001", issuedAtKai: 13_731_001, expiresAtKai: 13_731_061, consent: { approved: true, statementDigest: H.authority } } } };
+        if (!body) return { ok: true, value: { applicationId: "wildz", scopes: readAuthorityScopes, keyId: H.key, unsigned: { schema: "receiz.identity.proof-authority-challenge.v123", audience: "wildz", nonce: "wallet-read-nonce-00000001", issuedAtKai: 13_731_001, expiresAtKai: 13_731_061, consent: { approved: true, statementDigest: H.authority } } } };
         return { ok: true, value: { status: "connected", scopes: readAuthorityScopes } };
       },
       challengeText: () => "canonical-challenge"
@@ -107,7 +107,7 @@ describe("Receiz ID wallet read authority", () => {
     }, secret);
     const authority = {
       schema: "receiz.identity.proof-authority.v123" as const,
-      applicationId: "wildz.quest",
+      applicationId: "wildz",
       keyId: H.key,
       artifactDigest: H.artifact,
       grantedScopes: readAuthorityScopes,
@@ -165,8 +165,8 @@ describe("Receiz ID wallet read authority", () => {
     assert.equal(consent.artifact, "identity-artifact");
     assert.deepEqual(signedBasis, {
       schema: "receiz.identity.proof-authority-challenge.v123",
-      applicationId: "wildz.quest",
-      audience: "wildz.quest",
+      applicationId: "wildz",
+      audience: "wildz",
       artifactDigest: H.artifact,
       scopes: ["receiz:settlement.read", "receiz:settlement.write"],
       nonce: "transfer-nonce-00000001",

@@ -14,6 +14,7 @@ import { defaultIdentityRepository } from "@/lib/receiz/wildz-identity-adapter";
 import { observeWildsKaiPulse } from "@/features/play/wilds-kai-runtime";
 import { wildsWalletTransferConsentStatementDigest } from "@/lib/receiz/wilds-wallet-transfer-consent";
 import { WILDS_WALLET_AUTHORITY_WINDOW_PULSES } from "@/lib/receiz/wilds-wallet-authority-scopes";
+import { WILDZ_RECEIZ_APPLICATION_ID } from "@/lib/receiz/wildz-application";
 
 type TransferAuthorizationInput = Readonly<{
   attempt: string;
@@ -69,7 +70,7 @@ export async function authorizeWildsWalletTransferWithIdentity(
   }
   const unsigned = Object.freeze({
     schema: "receiz.identity.proof-authority-challenge.v123" as const,
-    audience: "wildz.quest",
+    audience: WILDZ_RECEIZ_APPLICATION_ID,
     nonce,
     issuedAtKai,
     expiresAtKai: issuedAtKai + WILDS_WALLET_AUTHORITY_WINDOW_PULSES,
@@ -77,7 +78,7 @@ export async function authorizeWildsWalletTransferWithIdentity(
   });
   const basis = proofAuthorityChallengeBasisV123({
     challenge: unsigned,
-    applicationId: "wildz.quest",
+    applicationId: WILDZ_RECEIZ_APPLICATION_ID,
     artifactDigest: identity.artifactDigest,
     scopes: receizOidcScopesForRails(input.rail)
   });

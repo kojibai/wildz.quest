@@ -253,7 +253,7 @@ describe("Wilds wallet V123 transfer routes", () => {
       terminalize: async () => null,
       purgeTerminal: async () => 0
     };
-    const destination = { applicationId: "wildz.quest", destinationSubjectId: "subject:private-destination", expectedDestinationHead: "2".repeat(64) };
+    const destination = { applicationId: "wildz", destinationSubjectId: "subject:private-destination", expectedDestinationHead: "2".repeat(64) };
     const context = {
       serverDerived: true as const,
       capabilityAdmission: runtime().capabilityAdmission,

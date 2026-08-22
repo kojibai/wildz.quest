@@ -11,6 +11,7 @@ import {
 } from "@receiz/sdk";
 import { defaultIdentityRepository } from "@/lib/receiz/wildz-identity-adapter";
 import { hasExactWildsWalletReadAuthorityScopes } from "@/lib/receiz/wilds-wallet-authority-scopes";
+import { WILDZ_RECEIZ_APPLICATION_ID } from "@/lib/receiz/wildz-application";
 
 type ChallengeEnvelope = Readonly<{
   applicationId: string;
@@ -66,7 +67,7 @@ export async function authorizeWildsWalletReadWithIdentity(keyId: string, depend
   if (identity.keyId !== keyId) return false;
   const issued = await dependencies.request(`/api/auth/wildz/wallet-authority?keyId=${encodeURIComponent(keyId)}`);
   const envelope = issued.ok ? challengeEnvelope(issued.value) : null;
-  if (!envelope || envelope.keyId !== keyId || envelope.applicationId !== "wildz.quest"
+  if (!envelope || envelope.keyId !== keyId || envelope.applicationId !== WILDZ_RECEIZ_APPLICATION_ID
     || !hasExactWildsWalletReadAuthorityScopes(envelope.scopes)) return false;
   const basis = proofAuthorityChallengeBasisV123({
     challenge: envelope.unsigned,

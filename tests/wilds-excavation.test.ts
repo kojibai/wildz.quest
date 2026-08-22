@@ -852,7 +852,7 @@ function authoredEventFixture() {
     targetIds: ["creature:borer"],
     payload: {
       schema: "wildz.excavation.command_payload.v1",
-      applicationId: "wildz.quest",
+      applicationId: "wildz",
       worldRegion: preview.siteKey,
       domainRegistryDigest: WILDS_EXCAVATION_REGISTRY_DIGEST,
       domainReducerDigest: WILDS_EXCAVATION_REDUCER_DIGEST,
