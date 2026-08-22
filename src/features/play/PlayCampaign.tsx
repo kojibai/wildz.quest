@@ -111,6 +111,7 @@ import { creatureCareNotificationSchedule, WILDZ_CARE_PERIODIC_TAG } from "@/fea
 import { WILDZ_CARE_NOTIFICATIONS_READY, WILDZ_CARE_SCHEDULE_MESSAGE } from "@/features/pwa/pwa-events";
 import { WildsWorldCanvas } from "@/features/play/WildsWorldCanvas";
 import { useWildsWalletController } from "@/features/play/wallet/useWildsWalletController";
+import { canCloseWildsWalletTerminal, WildsWalletTerminal } from "@/features/play/wallet/WildsWalletTerminal";
 import { emptyAdventureCondition } from "@/features/play/adventure/card-condition";
 import { projectWildsTraversalCapabilities } from "@/features/play/wilds-traversal-capabilities";
 import {
@@ -540,6 +541,7 @@ export function PlayCampaign({
   const incomingChallengeId = multiplayer.incomingChallenge?.id ?? null;
   const answerMultiplayerChallenge = multiplayer.answerChallenge;
   const closeOwnedModal = useCallback((owner: typeof modalOwner) => {
+    if (owner === "wallet" && !canCloseWildsWalletTerminal(walletController)) return;
     releasePlayModalOwner(owner);
     if (owner === "trainer") {
       setActiveTrainer(null);
@@ -1619,10 +1621,31 @@ export function PlayCampaign({
                 if (!canUseWorldStage()) return;
                 setRequestedCommand("commandCenter");
               }}
+              onOpenWallet={(origin) => {
+                if (!canUseWorldStage()) return;
+                claimPlayModalOwner("wallet", origin);
+                walletController.openTerminal();
+              }}
               onRosterOpenChange={handleMultiplayerRosterOpenChange}
               player={state.player}
+              wallet={walletController}
               world={livingWorld}
             />
+
+            {exclusiveOwner === "wallet" ? <WildsWalletTerminal
+              state={walletController}
+              onClose={() => closeOwnedModal("wallet")}
+              onNavigate={walletController.navigate}
+              onLookupRecipient={walletController.lookupRecipient}
+              onSelectRecipient={walletController.selectTransferRecipient}
+              onReviewAmount={walletController.reviewTransferAmount}
+              onStage={() => { void walletController.stageTransfer(); }}
+              onAuthorizationPointerStart={walletController.authorizationPointerStart}
+              onAuthorizationPointerCancel={walletController.authorizationPointerCancel}
+              onRecover={() => { void walletController.recoverTransfer(); }}
+              onResetTransfer={walletController.resetTransfer}
+              onRequestReceive={() => { void walletController.requestReceive(); }}
+            /> : null}
 
             <WildzWorldControls
               aerialEnergy={aerialEnergy}

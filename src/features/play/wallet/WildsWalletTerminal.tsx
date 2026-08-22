@@ -1,0 +1,50 @@
+"use client";
+
+import type { WildsWalletControllerState, WildsWalletPage } from "./wilds-wallet-controller";
+import { WildsWalletAssets } from "./WildsWalletAssets";
+import { WildsWalletLedger } from "./WildsWalletLedger";
+import { WildsWalletOverview } from "./WildsWalletOverview";
+import { WildsWalletReceive } from "./WildsWalletReceive";
+import { WildsWalletSend, type WildsWalletSendActions } from "./WildsWalletSend";
+
+const pages: readonly Readonly<{ page: WildsWalletPage; label: string; mark: string }>[] = [
+  { page: "overview", label: "Overview", mark: "◫" }, { page: "send", label: "Send", mark: "↗" },
+  { page: "receive", label: "Receive", mark: "↙" }, { page: "assets", label: "Assets", mark: "◇" },
+  { page: "ledger", label: "Ledger", mark: "≡" }
+];
+
+export function canCloseWildsWalletTerminal(state: WildsWalletControllerState) {
+  return !["stage", "authorize-pending"].includes(state.transfer.phase) && state.transfer.authorizationPointerId === null;
+}
+
+export type WildsWalletTerminalActions = WildsWalletSendActions & Readonly<{
+  onClose(): void;
+  onNavigate(page: WildsWalletPage): void;
+  onRequestReceive(): void;
+}>;
+
+export function WildsWalletTerminal({ state, ...actions }: { state: WildsWalletControllerState } & WildsWalletTerminalActions) {
+  if (!state.open) return null;
+  const closeAllowed = canCloseWildsWalletTerminal(state);
+  const authority = state.status === "verified" ? "VERIFIED" : state.status === "offline-verified" ? "OFFLINE VERIFIED" : state.status === "authority-required" ? "AUTHORIZATION REQUIRED" : state.transfer.phase === "unknown" ? "RECOVERY PENDING" : "UNAVAILABLE";
+  return <div className="wilds-wallet-layer" data-wallet-page={state.page}>
+    <button aria-label="Close sovereign wallet" className="wilds-wallet-scrim" disabled={!closeAllowed} onClick={actions.onClose} tabIndex={-1} type="button" />
+    <section aria-labelledby="wilds-wallet-terminal-title" aria-modal="true" className="wilds-wallet-terminal" role="dialog" tabIndex={-1}>
+      <header className="wilds-wallet-terminal-header">
+        <span aria-hidden="true" className="wilds-wallet-phi-seal">Φ</span>
+        <span><small>PRIVATE VALUE AUTHORITY</small><h1 id="wilds-wallet-terminal-title">WILDZ SOVEREIGN TERMINAL</h1></span>
+        <span className="wilds-wallet-identity"><b title={`@${state.identityKey}`}>@{state.identityKey}</b><small data-wallet-authority={authority.toLowerCase().replaceAll(" ", "-")}>{authority}</small></span>
+        <button aria-label="Close sovereign wallet" disabled={!closeAllowed} onClick={actions.onClose} type="button">×</button>
+      </header>
+      <nav aria-label="Wallet terminal" className="wilds-wallet-navigation" role="tablist">{pages.map((item) => <button aria-controls={`wilds-wallet-panel-${item.page}`} aria-selected={state.page === item.page} key={item.page} onClick={() => actions.onNavigate(item.page)} role="tab" type="button"><i aria-hidden="true">{item.mark}</i><span>{item.label}</span></button>)}</nav>
+      <main className="wilds-wallet-terminal-content" id={`wilds-wallet-panel-${state.page}`} role="tabpanel">
+        {state.page === "overview" ? <WildsWalletOverview state={state} onNavigate={actions.onNavigate} /> : null}
+        {state.page === "send" ? <WildsWalletSend state={state} {...actions} /> : null}
+        {state.page === "receive" ? <WildsWalletReceive state={state} onRequestReceive={actions.onRequestReceive} /> : null}
+        {state.page === "assets" ? <WildsWalletAssets state={state} /> : null}
+        {state.page === "ledger" ? <WildsWalletLedger state={state} /> : null}
+      </main>
+      <footer><span>RECEIZ V123 · PROOF-NATIVE CUSTODY</span><span>PRIVATE · NO-STORE</span></footer>
+    </section>
+  </div>;
+}

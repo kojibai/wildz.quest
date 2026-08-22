@@ -8,6 +8,8 @@ import { WildsLivingWorldHud } from "./WildsLivingWorldHud";
 import { WildsMultiplayer } from "./WildsMultiplayer";
 import type { useWildsWorld } from "./use-wilds-world";
 import type { WildsMultiplayerController } from "./use-wilds-multiplayer";
+import { WildsWalletInstrument } from "./wallet/WildsWalletInstrument";
+import type { WildsWalletControllerState } from "./wallet/wilds-wallet-controller";
 
 export function WildsBalancedStatusHud({
   audio,
@@ -21,8 +23,10 @@ export function WildsBalancedStatusHud({
   multiplayer,
   onEnterRaid,
   onOpenCommandCenter,
+  onOpenWallet,
   onRosterOpenChange,
   player,
+  wallet,
   world
 }: {
   audio: {
@@ -41,8 +45,10 @@ export function WildsBalancedStatusHud({
   multiplayer: WildsMultiplayerController;
   onEnterRaid: (bossId: string) => void;
   onOpenCommandCenter: () => void;
+  onOpenWallet: (origin: HTMLButtonElement) => void;
   onRosterOpenChange?: (open: boolean) => void;
   player: { x: number; z: number };
+  wallet: WildsWalletControllerState;
   world: ReturnType<typeof useWildsWorld>;
 }) {
   const homeInteractionEnabled = interactionEnabled && !blocked;
@@ -61,7 +67,7 @@ export function WildsBalancedStatusHud({
       />
     </div>
     <div aria-hidden={blocked} className="wilds-left-instrument-home" inert={blocked ? true : undefined}>
-      {blocked ? null : <>
+      <>
         <button
           aria-label={`Open living Command Center. Beat step pulse ${kaiMoment.latticeCoordinate}`}
           className="wilds-kai-command-pill"
@@ -77,13 +83,14 @@ export function WildsBalancedStatusHud({
           <small>BEAT:STEP:PULSE</small>
           <span>{kaiMoment.latticeCoordinate}</span>
         </button>
+        <WildsWalletInstrument disabled={!interactionEnabled} onOpen={onOpenWallet} state={wallet} />
         <WildsAudioSettings
           onChange={audio.onChange}
           onUnlock={audio.onUnlock}
           ready={audio.ready}
           settings={audio.settings}
         />
-      </>}
+      </>
     </div>
   </>;
 }

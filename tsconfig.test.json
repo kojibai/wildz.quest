@@ -13,6 +13,7 @@
   },
   "include": [
     "tests/**/*.ts",
+    "tests/**/*.tsx",
     "src/lib/receiz/proof-state.ts",
     "src/lib/receiz/proof-state-store.ts",
     "src/lib/receiz/connect-url.ts",
