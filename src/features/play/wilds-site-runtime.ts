@@ -90,6 +90,10 @@ function mountainFieldAt(runtime: WildsSiteRuntimeProjection, spaceId: string, x
   }
   return selected;
 }
+export function wildsSiteRuntimeGroundY(runtime: WildsSiteRuntimeProjection, spaceId: string, x: number, z: number, fallback: number) {
+  const mountain = mountainFieldAt(runtime, spaceId, x, z);
+  return mountain ? wildsMountainFieldValue(mountain, x, z, "topY") : fallback;
+}
 function triangleContains(ax: number, az: number, bx: number, bz: number, cx: number, cz: number, x: number, z: number) {
   const first = (bx - ax) * (z - az) - (bz - az) * (x - ax);
   const second = (cx - bx) * (z - bz) - (cz - bz) * (x - bx);

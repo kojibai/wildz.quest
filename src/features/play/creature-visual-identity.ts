@@ -93,12 +93,13 @@ export function projectGenomeCreatureVisualAppendages(genome: LivingCardGenome):
   const hasFins = genome.anatomy.aura === "tide" || genome.surface.kind === "shell" || genome.anatomy.detail === "shell";
   const hasFrill = genome.appendages.horns !== "none" || genome.appendages.crest !== "none";
   const hasTail = genome.appendages.tail !== "none";
+  const hasGrip = genome.anatomy.body === "long" && genome.anatomy.detail === "horns";
   const appendages: CreatureVisualAppendages = {
     wings: genome.appendages.wings === "none" ? absent("wing", wingFunction) : appendage("functional", "wing", wingFunction, genome.appendages.wings),
     fins: hasFins ? appendage("functional", "fin", "aquatic-propulsion", genome.surface.kind === "shell" ? "shell-fin" : genome.anatomy.detail) : absent("fin", "aquatic-propulsion"),
     frills: hasFrill ? appendage("functional", "frill", "display", genome.appendages.crest !== "none" ? genome.appendages.crest : genome.appendages.horns) : absent("frill", "display"),
     tail: hasTail ? appendage("functional", "tail", genome.skeleton.locomotion === "flying" ? "steering" : "balance", genome.appendages.tail) : absent("tail", "balance"),
-    grip: absent("grip", "grip"),
+    grip: hasGrip ? appendage("functional", "grip", "grip", "mountain-pad") : absent("grip", "grip"),
     ears: genome.appendages.ears === "none" ? absent("frill", "display") : appendage("functional", "frill", "display", genome.appendages.ears),
     horns: genome.appendages.horns === "none" ? absent("frill", "display") : appendage("functional", "frill", "display", genome.appendages.horns),
     crest: genome.appendages.crest === "none" ? absent("frill", "display") : appendage("functional", "frill", "display", genome.appendages.crest)

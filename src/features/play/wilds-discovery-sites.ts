@@ -766,6 +766,22 @@ export function admitWildsDiscoveryPhysicalNeighborhood(regionX: number, regionZ
   return projection;
 }
 
+export function wildsMountainSurfaceAt(physical: WildsDiscoveryPhysicalNeighborhood, x: number, z: number) {
+  let selected: Readonly<{ fieldId: string; siteKey: string; worldY: number; rise: number }> | null = null;
+  for (const field of physical.mountainFields) {
+    const worldY = wildsMountainFieldValue(field, x, z, "topY");
+    const baseY = wildsMountainFieldValue(field, x, z, "baseY");
+    if (!Number.isFinite(worldY) || !Number.isFinite(baseY) || worldY - baseY <= .05) continue;
+    if (!selected || worldY > selected.worldY) selected = Object.freeze({
+      fieldId: field.id,
+      siteKey: field.siteKey,
+      worldY: quantize(worldY),
+      rise: quantize(worldY - baseY)
+    });
+  }
+  return selected;
+}
+
 export function wildsSiteSurfaceAt(
   physical: WildsDiscoveryPhysicalNeighborhood,
   spaceId: string,

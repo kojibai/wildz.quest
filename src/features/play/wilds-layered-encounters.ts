@@ -31,6 +31,7 @@ type ProjectionInput = Readonly<{
   surface: WildsTerrainSurface;
   shoreReachable: boolean;
   bootstrapAerial?: boolean;
+  groundWorldY?: number;
 }>;
 
 const MAX_CACHE_SIZE = 128;
@@ -69,7 +70,8 @@ function hashUnit(regionX: number, regionZ: number, slot: number, salt: number) 
 
 function projectionKey(input: ProjectionInput) {
   if (!Number.isFinite(input.position.x) || !Number.isFinite(input.position.z)) throw new Error("wilds_layered_encounter_position_invalid");
-  return `${input.regionX}:${input.regionZ}:${input.slot}:${quantize(input.position.x)}:${quantize(input.position.z)}:${input.surface}:${input.shoreReachable ? 1 : 0}:${input.bootstrapAerial ? 1 : 0}`;
+  if (input.groundWorldY !== undefined && !Number.isFinite(input.groundWorldY)) throw new Error("wilds_layered_encounter_ground_y_invalid");
+  return `${input.regionX}:${input.regionZ}:${input.slot}:${quantize(input.position.x)}:${quantize(input.position.z)}:${input.surface}:${input.shoreReachable ? 1 : 0}:${input.bootstrapAerial ? 1 : 0}:${input.groundWorldY === undefined ? "base" : quantize(input.groundWorldY)}`;
 }
 
 function buildProjection(input: ProjectionInput): WildsLayeredEncounterProjection {
@@ -81,7 +83,11 @@ function buildProjection(input: ProjectionInput): WildsLayeredEncounterProjectio
   let worldY: number;
   let requiredCapability: WildsTraversalCapability | null;
 
-  if (aquatic) {
+  if (input.groundWorldY !== undefined) {
+    layer = "ground";
+    worldY = input.groundWorldY;
+    requiredCapability = null;
+  } else if (aquatic) {
     const depth = Math.max(0, WILDS_WATERLINE_ELEVATION - terrain.elevation);
     if (input.shoreReachable || input.surface === "shallow-water") {
       layer = "surface";

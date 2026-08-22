@@ -168,7 +168,8 @@ test("trainer frames and environment consumers reuse the admitted player terrain
   const environment = source("src/features/play/WildsEnvironment.tsx");
   const trainer = world.slice(world.indexOf("function TrainerExplorer"), world.indexOf("function RemoteExplorer"));
 
-  assert.match(trainer, /projectWildsTerrainActorPosition\(world, localPlayer, 0, \{ anchorElevation: terrainElevation \}\)/);
+  assert.match(trainer, /wildsSiteRuntimeGroundY\(siteRuntime, siteSpace\.spaceId, world\.x, world\.z, Number\.NaN\)/);
+  assert.match(trainer, /projectWildsTerrainActorPosition\(world, localPlayer, 0, \{ actorElevation: Number\.isFinite\(mountainElevation\) \? mountainElevation : undefined, anchorElevation: terrainElevation \}\)/);
   assert.doesNotMatch(trainer, /wildsTerrainElevation|sampleWildsTerrain/);
   assert.doesNotMatch(environment, /wildsTerrainRelativeElevation\([^)]*, player\)/);
 });

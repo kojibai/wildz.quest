@@ -6,6 +6,7 @@ import {
   type WildsLayeredEncounterProjection
 } from "./wilds-layered-encounters";
 import { sampleWildsTerrain, type WildsTerrainSurface } from "./wilds-terrain-authority";
+import { admitWildsDiscoveryPhysicalNeighborhood, wildsDiscoverySiteRegionForPosition, wildsMountainSurfaceAt } from "./wilds-discovery-sites";
 
 export const ENCOUNTER_REGION_SIZE = 24;
 const HOTSPOTS_PER_REGION = 6;
@@ -68,6 +69,7 @@ type HotspotCandidate = Readonly<{
   position: Readonly<{ x: number; z: number }>;
   surface: WildsTerrainSurface;
   shoreReachable: boolean;
+  mountainWorldY?: number;
 }>;
 
 const regionCache = new Map<string, readonly HiddenHotspot[]>();
@@ -84,12 +86,14 @@ function fallbackLandCover(surface: WildsTerrainSurface): HotspotCover {
 
 function candidatePriority(candidate: HotspotCandidate) {
   if (isWater(candidate.surface) && candidate.shoreReachable) return 0;
-  if (candidate.surface === "deep-water") return 1;
-  return 2;
+  if (candidate.mountainWorldY !== undefined) return 1;
+  if (candidate.surface === "deep-water") return 2;
+  return 3;
 }
 
 function buildRegionProjection(regionX: number, regionZ: number): readonly HiddenHotspot[] {
   const cellSize = ENCOUNTER_REGION_SIZE / CANDIDATE_GRID_SIZE;
+  const physicalByRegion = new Map<string, ReturnType<typeof admitWildsDiscoveryPhysicalNeighborhood>>();
   const sampled = Array.from({ length: CANDIDATES_PER_REGION }, (_, index) => {
     const column = index % CANDIDATE_GRID_SIZE;
     const row = Math.floor(index / CANDIDATE_GRID_SIZE);
@@ -97,8 +101,18 @@ function buildRegionProjection(regionX: number, regionZ: number): readonly Hidde
       x: regionX * ENCOUNTER_REGION_SIZE + column * cellSize + cellSize * (0.32 + seededUnit(regionX, regionZ, index * 2 + 1) * 0.36),
       z: regionZ * ENCOUNTER_REGION_SIZE + row * cellSize + cellSize * (0.32 + seededUnit(regionZ, regionX, index * 2 + 2) * 0.36)
     });
+    const admittedPosition = Object.freeze({ x: Math.round(position.x * 1_000_000) / 1_000_000, z: Math.round(position.z * 1_000_000) / 1_000_000 });
+    const siteRegion = wildsDiscoverySiteRegionForPosition(admittedPosition);
+    const siteKey = `${siteRegion.x}:${siteRegion.z}`;
+    let physical = physicalByRegion.get(siteKey);
+    if (!physical) {
+      physical = admitWildsDiscoveryPhysicalNeighborhood(siteRegion.x, siteRegion.z);
+      physicalByRegion.set(siteKey, physical);
+    }
+    const terrain = sampleWildsTerrain(admittedPosition.x, admittedPosition.z);
+    const mountain = isWater(terrain.surface) ? null : wildsMountainSurfaceAt(physical, admittedPosition.x, admittedPosition.z);
     terrainSamples += 1;
-    return { index, position, surface: sampleWildsTerrain(position.x, position.z).surface };
+    return { index, position: admittedPosition, surface: terrain.surface, ...(mountain ? { mountainWorldY: mountain.worldY } : {}) };
   });
   const candidates: HotspotCandidate[] = sampled.map((candidate) => Object.freeze({
     ...candidate,
@@ -114,7 +128,7 @@ function buildRegionProjection(regionX: number, regionZ: number): readonly Hidde
     .slice(0, HOTSPOTS_PER_REGION);
   const firstLandSlot = selected.findIndex((candidate) => !isWater(candidate.surface));
   const hotspots = selected.map((candidate, slot) => {
-    const form = selectWildsHabitatForm(candidate.surface, seededUnit(regionX, regionZ, candidate.index + 8_003));
+    const form = selectWildsHabitatForm(candidate.surface, seededUnit(regionX, regionZ, candidate.index + 8_003), { climbing: candidate.mountainWorldY !== undefined });
     const habitatCover = coverForHabitat(form.habitat, form.positionSeed);
     const cover = isWater(candidate.surface)
       ? "water" as const
@@ -128,7 +142,8 @@ function buildRegionProjection(regionX: number, regionZ: number): readonly Hidde
       position: candidate.position,
       surface: candidate.surface,
       shoreReachable: isWater(candidate.surface) && candidate.shoreReachable,
-      bootstrapAerial: slot === firstLandSlot
+      bootstrapAerial: candidate.mountainWorldY === undefined && slot === firstLandSlot,
+      groundWorldY: candidate.mountainWorldY
     });
     return Object.freeze({
       id: `hotspot:${regionX}:${regionZ}:${slot}:${form.familyId}`,

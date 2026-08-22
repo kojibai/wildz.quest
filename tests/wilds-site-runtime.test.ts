@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 import { admitWildsDiscoveryPhysicalNeighborhood, wildsMountainFieldValue } from "../src/features/play/wilds-discovery-sites";
-import { enterWildsSiteRuntime, exitWildsSiteRuntime, prepareWildsSiteRuntime, projectWildsSitePortalCue, wildsSiteRuntimeCameraIsFlooded, wildsSiteRuntimeDiagnostics, writeWildsSiteRuntimeAerialCollision, writeWildsSiteRuntimeCamera, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeEncounter, writeWildsSiteRuntimeLanding, writeWildsSiteRuntimeMovement } from "../src/features/play/wilds-site-runtime";
+import { enterWildsSiteRuntime, exitWildsSiteRuntime, prepareWildsSiteRuntime, projectWildsSitePortalCue, wildsSiteRuntimeCameraIsFlooded, wildsSiteRuntimeDiagnostics, wildsSiteRuntimeGroundY, writeWildsSiteRuntimeAerialCollision, writeWildsSiteRuntimeCamera, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeEncounter, writeWildsSiteRuntimeLanding, writeWildsSiteRuntimeMovement } from "../src/features/play/wilds-site-runtime";
 import { createWildsVerticalTraversalState, writeWildsVerticalTraversalStep } from "../src/features/play/wilds-vertical-traversal";
 
 describe("production Wilds site runtime", () => {
@@ -18,6 +18,18 @@ describe("production Wilds site runtime", () => {
     assert.equal(runtime.physical, physical);
     assert.equal(runtime.sites, physical.sites);
     assert.equal(Object.isFrozen(runtime), true);
+  });
+
+  it("places every ground actor on the admitted mountain skin instead of below it", () => {
+    const runtime = prepareWildsSiteRuntime(admitWildsDiscoveryPhysicalNeighborhood(0, 0));
+    const field = runtime.physical.mountainFields[0]!;
+    const x = field.center.x;
+    const z = field.center.z;
+    const top = wildsMountainFieldValue(field, x, z, "topY");
+
+    assert.ok(Number.isFinite(top));
+    assert.equal(wildsSiteRuntimeGroundY(runtime, field.spaceId, x, z, -100), top);
+    assert.equal(wildsSiteRuntimeGroundY(runtime, field.spaceId, x + 200, z + 200, 7), 7);
   });
 
   it("enters and exits through the exact portal", () => {
@@ -256,9 +268,10 @@ describe("production Wilds site runtime", () => {
   });
 
   it("wires one prepared runtime through every production consumer", async () => {
-    const [campaign, canvas, environment, renderer] = await Promise.all([
+    const [campaign, canvas, environment, renderer, ambient] = await Promise.all([
       readFile("src/features/play/PlayCampaign.tsx", "utf8"), readFile("src/features/play/WildsWorldCanvas.tsx", "utf8"),
-      readFile("src/features/play/WildsEnvironment.tsx", "utf8"), readFile("src/features/play/WildsDiscoverySites.tsx", "utf8")
+      readFile("src/features/play/WildsEnvironment.tsx", "utf8"), readFile("src/features/play/WildsDiscoverySites.tsx", "utf8"),
+      readFile("src/features/play/WildsAmbientLife.tsx", "utf8")
     ]);
     assert.match(campaign, /prepareWildsSiteRuntime/);
     assert.match(campaign, /writeWildsSiteRuntimeDiscovery/);
@@ -266,6 +279,8 @@ describe("production Wilds site runtime", () => {
     assert.match(canvas, /writeWildsSiteRuntimeCamera/);
     assert.match(canvas, /writeWildsSiteRuntimeEncounter/);
     assert.match(canvas, /wildsSiteRuntimeDiagnostics/);
+    assert.ok((canvas.match(/wildsSiteRuntimeGroundY/g)?.length ?? 0) >= 7);
+    assert.match(ambient, /wildsSiteRuntimeGroundY/);
     assert.match(environment, /<WildsDiscoverySites/);
     assert.match(renderer, /runtime\.physical/);
     assert.match(renderer, /projectWildsDiscoverySiteApproach/);

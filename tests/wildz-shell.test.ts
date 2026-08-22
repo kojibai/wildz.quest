@@ -140,6 +140,19 @@ test("large Vault movement coalesces full-state persistence and flushes the late
   assert.doesNotMatch(persist, /void saveWildzContinuityPlayState\(/);
 });
 
+test("refresh restores the latest runtime position even before a durable play snapshot exists", () => {
+  const source = read("src/features/shell/WildzApp.tsx");
+  const initialize = source.slice(source.indexOf("const initialize"), source.indexOf("const completeGenesis"));
+  const preservation = source.slice(source.indexOf("const flushLatestRuntimeCheckpoint"), source.indexOf("const connect", source.indexOf("const flushLatestRuntimeCheckpoint")));
+
+  assert.match(initialize, /const checkpointBaseline = snapshot\.playState \?\? createOwnerBoundInitialPlayState/);
+  assert.match(initialize, /snapshot\.playState = readWildzRuntimeCheckpoint/);
+  assert.doesNotMatch(initialize, /if \(snapshot\.playState\) snapshot\.playState = readWildzRuntimeCheckpoint/);
+  assert.match(preservation, /writeWildzRuntimeCheckpoint\(window\.localStorage/);
+  assert.match(preservation, /window\.addEventListener\("pagehide", flushLatestRuntimeCheckpoint\)/);
+  assert.match(preservation, /document\.visibilityState === "hidden"/);
+});
+
 test("legacy OAuth callback query parameters are cleared without restarting an external login", () => {
   const source = read("src/features/shell/WildzApp.tsx");
   const initialize = source.slice(source.indexOf("const initialize"), source.indexOf("const completeGenesis"));

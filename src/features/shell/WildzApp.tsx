@@ -259,17 +259,32 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     const scheduler = playStateSaveSchedulerRef.current;
     if (!scheduler) return;
     const flush = () => { void scheduler.flush().catch(() => undefined); };
-    const flushWhenHidden = () => {
-      if (document.visibilityState === "hidden") flush();
+    const flushLatestRuntimeCheckpoint = () => {
+      const current = continuityRef.current;
+      if (current?.playState) {
+        try {
+          writeWildzRuntimeCheckpoint(window.localStorage, {
+            keyId: current.session.keyId,
+            actorId: current.session.actorId,
+            playState: current.playState
+          });
+        } catch {
+          // The debounced durable path remains queued if browser storage is unavailable.
+        }
+      }
+      flush();
     };
-    window.addEventListener("pagehide", flush);
-    window.addEventListener("wildz:preserve-state", flush);
+    const flushWhenHidden = () => {
+      if (document.visibilityState === "hidden") flushLatestRuntimeCheckpoint();
+    };
+    window.addEventListener("pagehide", flushLatestRuntimeCheckpoint);
+    window.addEventListener("wildz:preserve-state", flushLatestRuntimeCheckpoint);
     document.addEventListener("visibilitychange", flushWhenHidden);
     return () => {
-      window.removeEventListener("pagehide", flush);
-      window.removeEventListener("wildz:preserve-state", flush);
+      window.removeEventListener("pagehide", flushLatestRuntimeCheckpoint);
+      window.removeEventListener("wildz:preserve-state", flushLatestRuntimeCheckpoint);
       document.removeEventListener("visibilitychange", flushWhenHidden);
-      flush();
+      flushLatestRuntimeCheckpoint();
     };
   }, []);
 
@@ -429,10 +444,14 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       }
       const snapshot = await bootstrapWildzContinuity(window.localStorage);
       if (!active) return;
-      if (snapshot.playState) snapshot.playState = readWildzRuntimeCheckpoint(window.localStorage, {
+      const checkpointBaseline = snapshot.playState ?? createOwnerBoundInitialPlayState(
+        snapshot.session.actorId,
+        snapshot.session.createdAt
+      );
+      snapshot.playState = readWildzRuntimeCheckpoint(window.localStorage, {
         keyId: snapshot.session.keyId,
         actorId: snapshot.session.actorId,
-        playState: snapshot.playState
+        playState: checkpointBaseline
       });
       acceptSnapshot(snapshot);
     };

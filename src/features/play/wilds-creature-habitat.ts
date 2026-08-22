@@ -25,14 +25,20 @@ export function isWildsAquaticForm(form: CreatureForm) {
 const stageOneForms = Object.freeze(creatureForms.filter((form) => form.stage === 1));
 const aquaticForms = Object.freeze(stageOneForms.filter(isWildsAquaticForm));
 const landForms = Object.freeze(stageOneForms.filter((form) => !isWildsAquaticForm(form)));
+export function isWildsClimbingForm(form: CreatureForm) {
+  return form.anatomy.body === "long" && form.anatomy.detail === "horns";
+}
+const climbingForms = Object.freeze(landForms.filter(isWildsClimbingForm));
 
 function seedIndex(seed: number, length: number) {
   const normalized = Number.isFinite(seed) ? ((seed % 1) + 1) % 1 : 0;
   return Math.min(length - 1, Math.floor(normalized * length));
 }
 
-export function selectWildsHabitatForm(surface: WildsTerrainSurface, seed: number) {
-  const forms = surface === "shallow-water" || surface === "deep-water" ? aquaticForms : landForms;
+export function selectWildsHabitatForm(surface: WildsTerrainSurface, seed: number, options: Readonly<{ climbing?: boolean }> = {}) {
+  const forms = options.climbing
+    ? climbingForms
+    : surface === "shallow-water" || surface === "deep-water" ? aquaticForms : landForms;
   const form = forms[seedIndex(seed, forms.length)];
   if (!form) throw new Error("wilds_habitat_form_partition_empty");
   return form;

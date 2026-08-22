@@ -10,6 +10,7 @@ import {
   WILDS_AMBIENT_REGION_SIZE,
   type WildsAmbientLifeProjection
 } from "./wilds-ambient-life";
+import { wildsSiteRuntimeGroundY, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 
 type AmbientMember = Readonly<{ life: WildsAmbientLifeProjection; member: number }>;
 type AmbientRuntime = {
@@ -38,6 +39,7 @@ function writeAmbientInstances(
   playerX: number,
   playerZ: number,
   terrainElevation: number,
+  siteRuntime: WildsSiteRuntimeProjection,
   runtime: AmbientRuntime
 ) {
   if (!mesh) return;
@@ -54,10 +56,16 @@ function writeAmbientInstances(
     const separation = (entry.member - (entry.life.members - 1) / 2) * .13;
     const directionX = next.x - point.x;
     const directionZ = next.z - point.z;
+    const worldX = point.x + directionX * amount - directionZ * separation;
+    const worldZ = point.z + directionZ * amount + directionX * separation;
+    const rawWorldY = point.y + (next.y - point.y) * amount + (entry.life.medium === "aerial" ? separation * .24 : separation * .08);
+    const worldY = entry.life.medium === "aerial"
+      ? Math.max(rawWorldY, wildsSiteRuntimeGroundY(siteRuntime, "wildz.space.outer.v1", worldX, worldZ, rawWorldY) + .65)
+      : rawWorldY;
     runtime.position.set(
-      point.x + directionX * amount - playerX - directionZ * separation,
-      point.y + (next.y - point.y) * amount - terrainElevation + (entry.life.medium === "aerial" ? separation * .24 : separation * .08),
-      point.z + directionZ * amount - playerZ + directionX * separation
+      worldX - playerX,
+      worldY - terrainElevation,
+      worldZ - playerZ
     );
     runtime.rotation.set(
       entry.life.medium === "aquatic" ? Math.sin(progress * Math.PI * 2) * .08 : -.08,
@@ -77,11 +85,13 @@ export function WildsAmbientLife({
   enabled,
   player,
   qualityProfile,
+  siteRuntime,
   terrainElevation
 }: {
   enabled: boolean;
   player: PlayState["player"];
   qualityProfile: WildsQualityProfile;
+  siteRuntime: WildsSiteRuntimeProjection;
   terrainElevation: number;
 }) {
   const regionX = Math.floor(player.x / WILDS_AMBIENT_REGION_SIZE);
@@ -115,8 +125,8 @@ export function WildsAmbientLife({
     const currentPlayer = playerRef.current;
     const timeSeconds = qualityProfile.reducedMotion ? 0 : clock.elapsedTime;
     const runtime = runtimeRef.current!;
-    writeAmbientInstances(aquaticMesh.current, aquatic, timeSeconds, currentPlayer.x, currentPlayer.z, terrainElevationRef.current, runtime);
-    writeAmbientInstances(aerialMesh.current, aerial, timeSeconds, currentPlayer.x, currentPlayer.z, terrainElevationRef.current, runtime);
+    writeAmbientInstances(aquaticMesh.current, aquatic, timeSeconds, currentPlayer.x, currentPlayer.z, terrainElevationRef.current, siteRuntime, runtime);
+    writeAmbientInstances(aerialMesh.current, aerial, timeSeconds, currentPlayer.x, currentPlayer.z, terrainElevationRef.current, siteRuntime, runtime);
   });
 
   if (!enabled) return null;

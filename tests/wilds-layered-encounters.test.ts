@@ -19,8 +19,30 @@ import { sampleWildsTerrain } from "../src/features/play/wilds-terrain-authority
 import { WILDS_WATERLINE_ELEVATION } from "../src/features/play/wilds-terrain-rendering";
 import { applyWildsInput, initialPlayState } from "../src/features/play/game-state";
 import { projectWildsCreatureLocomotionFrame } from "../src/features/play/WildsCreatureActor";
+import { isWildsClimbingForm } from "../src/features/play/wilds-creature-habitat";
+import { admitWildsDiscoveryPhysicalNeighborhood, wildsDiscoverySiteRegionForPosition, wildsMountainSurfaceAt } from "../src/features/play/wilds-discovery-sites";
+import { creatureForm } from "../src/features/play/creature-catalog";
 
 describe("deterministic layered Wilds encounters", () => {
+  it("puts mountain encounters on the mountain skin and gives them functional climbing forms", () => {
+    let checked = 0;
+    for (let regionZ = -4; regionZ <= 4; regionZ += 1) {
+      for (let regionX = -4; regionX <= 4; regionX += 1) {
+        for (const hotspot of hotspotsForRegion(regionX, regionZ)) {
+          const siteRegion = wildsDiscoverySiteRegionForPosition(hotspot.position);
+          const physical = admitWildsDiscoveryPhysicalNeighborhood(siteRegion.x, siteRegion.z);
+          const mountain = wildsMountainSurfaceAt(physical, hotspot.x, hotspot.z);
+          const terrain = sampleWildsTerrain(hotspot.x, hotspot.z);
+          if (!mountain || terrain.surface === "shallow-water" || terrain.surface === "deep-water") continue;
+          checked += 1;
+          assert.equal(hotspot.layer, "ground");
+          assert.equal(hotspot.worldY, mountain.worldY);
+          assert.equal(isWildsClimbingForm(creatureForm(hotspot.formId)!), true);
+        }
+      }
+    }
+    assert.ok(checked > 0);
+  });
   it("regenerates the exact layer and world height after bounded cache eviction at extreme coordinates", () => {
     const input = {
       regionX: 20_000_001,
