@@ -14,7 +14,9 @@ import {
 import type { ReceizCommerceAdapter } from "../src/lib/receiz/adapter";
 import type {
   WildsWalletTransferJournalEntry,
-  WildsWalletTransferJournalPort
+  WildsWalletTransferJournalPort,
+  WildsWalletTransferTerminalProjection,
+  WildsWalletTransferTerminalRecord
 } from "../src/lib/receiz/wilds-wallet-transfer-journal";
 import {
   exchangeWildsWalletProofAuthority,
@@ -60,9 +62,14 @@ const transferInput = {
 class DurableTestJournal implements WildsWalletTransferJournalPort {
   readonly durable = true as const;
   readonly entries = new Map<string, WildsWalletTransferJournalEntry>();
+  readonly terminals = new Map<string, WildsWalletTransferTerminalRecord>();
 
   async load(ownerBinding: string, idempotencyKey: string) {
     return this.entries.get(`${ownerBinding}\u0000${idempotencyKey}`) ?? null;
+  }
+
+  async loadTerminal(ownerBinding: string, idempotencyKey: string) {
+    return this.terminals.get(`${ownerBinding}\u0000${idempotencyKey}`) ?? null;
   }
 
   async stage(entry: WildsWalletTransferJournalEntry) {
@@ -84,12 +91,32 @@ class DurableTestJournal implements WildsWalletTransferJournalPort {
     return structuredClone(stored);
   }
 
-  async remove(entry: WildsWalletTransferJournalEntry) {
+  async terminalize(entry: WildsWalletTransferJournalEntry, projection: WildsWalletTransferTerminalProjection, terminalizedAtKai: number, retainUntilKai: number) {
     const key = `${entry.ownerBinding}\u0000${entry.idempotencyKey}`;
     const existing = this.entries.get(key);
-    if (!existing || !isDeepStrictEqual(existing, entry)) return false;
+    if (!existing || !isDeepStrictEqual(existing, entry)) return null;
+    const record: WildsWalletTransferTerminalRecord = structuredClone({
+      schema: "wildz.wallet.phi-transfer-terminal.v1" as const,
+      entry,
+      projection,
+      terminalizedAtKai,
+      retainUntilKai
+    });
     this.entries.delete(key);
-    return true;
+    this.terminals.set(key, record);
+    return structuredClone(record);
+  }
+
+  async purgeTerminal(currentKai: number, limit: number) {
+    let removed = 0;
+    for (const [key, record] of this.terminals) {
+      if (removed >= limit) break;
+      if (record.retainUntilKai <= currentKai) {
+        this.terminals.delete(key);
+        removed += 1;
+      }
+    }
+    return removed;
   }
 }
 
@@ -249,6 +276,44 @@ function rail(overrides: Partial<TransferRail> = {}): TransferRail {
 }
 
 describe("Wilds wallet V123 Phi authority", () => {
+  it("terminalizes an exact commit so a lost response, restart, and duplicate status recover identically", async () => {
+    const journal = new DurableTestJournal();
+    const authorityAdmission = new ExactAuthorityAdmission();
+    const proofAuthority = await authority();
+    await stageWildsWalletPhiTransfer(transferInput, { rail: rail(), journal, authorityAdmission });
+    let lookups = 0;
+    const exactRail = rail({
+      phiExecutionByIdempotencyKeyV123: async () => {
+        lookups += 1;
+        const entry = await journal.load(transferInput.ownerBinding, transferInput.idempotencyKey);
+        assert.ok(entry);
+        return committed(entry.intent, proofAuthority);
+      },
+      executePhiSettlementV123: async (intent) => committed(intent, proofAuthority)
+    });
+    const authorityContext = await admitAuthority(proofAuthority, authorityAdmission);
+    const first = await executeWildsWalletPhiTransfer({
+      ownerBinding: transferInput.ownerBinding,
+      idempotencyKey: transferInput.idempotencyKey,
+      authorityContext
+    }, { rail: exactRail, journal, authorityAdmission });
+    assert.equal(first.status, "committed");
+
+    // Simulate the HTTP response being lost after the server completed, then a
+    // fresh instance/status request reading only durable terminal state.
+    const recovered = await recoverWildsWalletPhiTransfer({
+      ownerBinding: transferInput.ownerBinding,
+      idempotencyKey: transferInput.idempotencyKey
+    }, { rail: exactRail, journal, authorityAdmission });
+    assert.deepEqual(recovered, first);
+    const duplicate = await recoverWildsWalletPhiTransfer({
+      ownerBinding: transferInput.ownerBinding,
+      idempotencyKey: transferInput.idempotencyKey
+    }, { rail: exactRail, journal, authorityAdmission });
+    assert.deepEqual(duplicate, first);
+    assert.equal(lookups, 1);
+    assert.equal(typeof (journal as unknown as { purgeTerminal?: unknown }).purgeTerminal, "function");
+  });
   it("previews only sanitized Phi facts and refuses to stage without an injected durable journal", async () => {
     const preview = await previewWildsWalletPhiTransfer(transferInput, rail());
     assert.deepEqual(preview, {
@@ -326,7 +391,7 @@ describe("Wilds wallet V123 Phi authority", () => {
     assert.doesNotMatch(JSON.stringify(adopted), /proof:|subject:|head|authority|accessToken|execution:/i);
   });
 
-  it("retains ambiguous or unattributable outcomes and removes only an exact bound zero-write", async () => {
+  it("retains ambiguous or unattributable outcomes and terminalizes only an exact bound zero-write", async () => {
     const journal = new DurableTestJournal();
     const proofAuthority = await authority();
     const authorityAdmission = new ExactAuthorityAdmission();
@@ -416,7 +481,7 @@ describe("Wilds wallet V123 Phi authority", () => {
     assert.equal((await journal.load(transferInput.ownerBinding, transferInput.idempotencyKey))?.intent.amountPhiMicro, "2500000");
   });
 
-  it("rejects every tampered durable row before lookup, execution, or removal", async () => {
+  it("rejects every tampered durable row before lookup, execution, or terminalization", async () => {
     const mutations: Array<(entry: WildsWalletTransferJournalEntry) => unknown> = [
       (entry) => ({ ...entry, schema: "wildz.wallet.phi-transfer-journal.v0" }),
       (entry) => ({ ...entry, ownerBinding: "foreign-owner" }),
@@ -459,9 +524,11 @@ describe("Wilds wallet V123 Phi authority", () => {
     const malformedStage: WildsWalletTransferJournalPort = {
       durable: true,
       load: backing.load.bind(backing),
+      loadTerminal: backing.loadTerminal.bind(backing),
       stage: async (entry) => ({ ...entry, rail: "reserve" }),
       bindAuthority: backing.bindAuthority.bind(backing),
-      remove: backing.remove.bind(backing)
+      terminalize: backing.terminalize.bind(backing),
+      purgeTerminal: backing.purgeTerminal.bind(backing)
     };
     await assert.rejects(stageWildsWalletPhiTransfer(transferInput, {
       rail: rail(),
@@ -476,12 +543,14 @@ describe("Wilds wallet V123 Phi authority", () => {
     const malformedBind: WildsWalletTransferJournalPort = {
       durable: true,
       load: journal.load.bind(journal),
+      loadTerminal: journal.loadTerminal.bind(journal),
       stage: journal.stage.bind(journal),
       bindAuthority: async (ownerBinding, idempotencyKey, authorityDigest) => {
         const entry = await journal.load(ownerBinding, idempotencyKey);
         return entry ? { ...entry, rail: "reserve", authorityDigest } : null;
       },
-      remove: journal.remove.bind(journal)
+      terminalize: journal.terminalize.bind(journal),
+      purgeTerminal: journal.purgeTerminal.bind(journal)
     };
     await assert.rejects(executeWildsWalletPhiTransfer({
       ownerBinding: transferInput.ownerBinding,
@@ -501,14 +570,16 @@ describe("Wilds wallet V123 Phi authority", () => {
     assert.equal((await journal.load(transferInput.ownerBinding, transferInput.idempotencyKey))?.authorityDigest, null);
   });
 
-  it("retains reconciliation state when exact conditional removal loses its CAS", async () => {
+  it("retains reconciliation state when exact terminalization loses its CAS", async () => {
     const backing = new DurableTestJournal();
     const journal: WildsWalletTransferJournalPort = {
       durable: true,
       load: backing.load.bind(backing),
+      loadTerminal: backing.loadTerminal.bind(backing),
       stage: backing.stage.bind(backing),
       bindAuthority: backing.bindAuthority.bind(backing),
-      remove: async () => false
+      terminalize: async () => null,
+      purgeTerminal: backing.purgeTerminal.bind(backing)
     };
     const proofAuthority = await authority();
     const authorityAdmission = new ExactAuthorityAdmission();

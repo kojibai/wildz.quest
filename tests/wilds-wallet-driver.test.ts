@@ -85,3 +85,67 @@ test("ambiguous HTTP 401 clears the shared cache and live diagnostics stay uncha
   assert.ok(baseline.refreshStarts > 0 && baseline.cacheWrites > 0 && baseline.receiveStarts > 0 && baseline.publications > 0);
   assert.deepEqual(working.diagnostics(), baseline);
 });
+
+test("driver deduplicates staging, requires an armed pointer, and recovers an ambiguous exact attempt", async () => {
+  const calls: string[] = [];
+  const driver = createWildsWalletControllerDriver({
+    identityKey: "kai", authorityGeneration: "issued-1", publish: () => {},
+    fetcher: async (path) => {
+      calls.push(path);
+      if (path.endsWith("/preview")) return {
+        ok: true, status: 200,
+        json: async () => ({ status: "staged", rail: "settlement", amountPhiMicro: "25", quotedUsdCents: "1", attempt: "v1.opaque", expiresAtKai: 100 })
+      };
+      if (path.endsWith("/execute")) return {
+        ok: true, status: 202,
+        json: async () => ({ status: "unknown", rail: "settlement", amountPhiMicro: "25" })
+      };
+      if (path.includes("/status?")) return {
+        ok: true, status: 200,
+        json: async () => ({ status: "committed", rail: "settlement", amountPhiMicro: "25" })
+      };
+      const part = path.endsWith("summary") ? response().summary : path.endsWith("capabilities") ? response().capabilities : response().ledger;
+      return { ok: true, status: 200, json: async () => part };
+    }
+  });
+  driver.open();
+  driver.selectTransferRecipient("friend");
+  driver.reviewTransferAmount("settlement", "25", "nonce-1");
+  const stage = driver.stageTransfer();
+  assert.equal(driver.stageTransfer(), stage);
+  await stage;
+  assert.equal(driver.state.transfer.phase, "authorize");
+
+  await driver.authorizeTransfer(7, { artifact: "signed", challenge: {} });
+  assert.equal(calls.filter((path) => path.endsWith("/execute")).length, 0);
+  driver.authorizationPointerStart(7);
+  await driver.authorizeTransfer(7, { artifact: "signed", challenge: {} });
+  assert.equal(driver.state.transfer.phase, "unknown");
+  await driver.recoverTransfer();
+  assert.equal(driver.state.transfer.phase, "committed");
+  assert.equal(driver.state.stagedTransactionId, null);
+  assert.equal(calls.filter((path) => path.endsWith("/preview")).length, 1);
+});
+
+test("driver converts malformed execution success to unknown and cancellation cannot publish a late commit", async () => {
+  let resolveExecute!: (value: { ok: boolean; status: number; json(): Promise<unknown> }) => void;
+  const driver = createWildsWalletControllerDriver({
+    identityKey: "kai", authorityGeneration: "issued-1", publish: () => {},
+    fetcher: async (path) => {
+      if (path.endsWith("/preview")) return { ok: true, status: 200, json: async () => ({ status: "staged", rail: "settlement", amountPhiMicro: "25", quotedUsdCents: "1", attempt: "v1.opaque", expiresAtKai: 100 }) };
+      if (path.endsWith("/execute")) return new Promise((resolve) => { resolveExecute = resolve; });
+      return { ok: true, status: 200, json: async () => response().ledger };
+    }
+  });
+  driver.open();
+  driver.selectTransferRecipient("friend");
+  driver.reviewTransferAmount("settlement", "25", "nonce-1");
+  await driver.stageTransfer();
+  driver.authorizationPointerStart(9);
+  const execution = driver.authorizeTransfer(9, { artifact: "signed", challenge: {} });
+  driver.cancelPending();
+  resolveExecute({ ok: true, status: 200, json: async () => ({ status: "committed", rail: "settlement", amountPhiMicro: "25", executionId: "private" }) });
+  await execution;
+  assert.equal(driver.state.transfer.phase, "unknown");
+  assert.equal(driver.state.stagedTransactionId, "v1.opaque");
+});

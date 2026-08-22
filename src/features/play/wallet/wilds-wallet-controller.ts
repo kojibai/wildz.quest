@@ -7,10 +7,37 @@ export type WildsWalletPage = "overview" | "send" | "receive" | "assets" | "ledg
 export type WildsWalletFailureReason = "network" | "failed" | "authority-required" | "revoked";
 export type WildsWalletReadResponse = Readonly<{ summary: WalletSummaryProjection; capabilities: WalletCapabilityProjection; ledger: WalletLedgerPageProjection | null }>;
 export type WildsWalletRecipientState = Readonly<{ status: "idle" | "loading" | "verified" | "unavailable" | "failed"; requestId: number | null; username: string | null; projection: WalletRecipientProjection | null }>;
+export type WildsWalletTransferProjection = Readonly<
+  | { status: "staged"; rail: "settlement" | "reserve"; amountPhiMicro: string; quotedUsdCents: string }
+  | { status: "unknown"; rail: "settlement" | "reserve"; amountPhiMicro: string }
+  | { status: "zero-write"; rail: "settlement" | "reserve"; code: string }
+  | { status: "committed"; rail: "settlement" | "reserve"; amountPhiMicro: string }
+>;
+export type WildsWalletStagedTransferResponse = Readonly<{
+  status: "staged";
+  rail: "settlement" | "reserve";
+  amountPhiMicro: string;
+  quotedUsdCents: string;
+  attempt: string;
+  expiresAtKai: number;
+}>;
+export type WildsWalletTransferState = Readonly<{
+  phase: "recipient" | "amount" | "review" | "stage" | "authorize" | "authorize-pending" | "unknown" | "zero-write" | "committed";
+  recipientUsername: string | null;
+  amountPhiMicro: string | null;
+  rail: "settlement" | "reserve" | null;
+  operationNonce: string | null;
+  attempt: string | null;
+  expiresAtKai: number | null;
+  requestId: number | null;
+  authorizationPointerId: number | null;
+  result: WildsWalletTransferProjection | null;
+}>;
 export type WildsWalletControllerState = Readonly<{
   identityKey: string; authorityGeneration: string; open: boolean; page: WildsWalletPage; status: WildsWalletControllerStatus;
   requestId: number | null; receiveRequestId: number | null; summary: WalletSummaryProjection | null; capabilities: WalletCapabilityProjection | null;
   ledger: WalletLedgerPageProjection | null; recipient: WildsWalletRecipientState; receiveLocator: string | null; stagedTransactionId: string | null;
+  transfer: WildsWalletTransferState;
 }>;
 export type WildsWalletControllerEvent =
   | { type: "open" }
@@ -27,24 +54,46 @@ export type WildsWalletControllerEvent =
   | { type: "recipient-lookup-unavailable"; username: string }
   | { type: "receive-request-start"; requestId: number; identityKey: string }
   | { type: "receive-request-resolved"; requestId: number; identityKey: string; locator: string }
-  | { type: "receive-request-cleared" };
+  | { type: "receive-request-cleared" }
+  | { type: "transfer-reset" }
+  | { type: "transfer-recipient-selected"; username: string }
+  | { type: "transfer-amount-reviewed"; rail: "settlement" | "reserve"; amountPhiMicro: string; operationNonce: string }
+  | { type: "transfer-stage-start"; requestId: number; identityKey: string; authorityGeneration: string }
+  | { type: "transfer-stage-resolved"; requestId: number; identityKey: string; authorityGeneration: string; projection: WildsWalletStagedTransferResponse }
+  | { type: "transfer-stage-failed"; requestId: number }
+  | { type: "authorization-pointer-start"; pointerId: number }
+  | { type: "authorization-pointer-cancel"; pointerId: number }
+  | { type: "transfer-authorize-start"; requestId: number; pointerId: number }
+  | { type: "transfer-recovery-start"; requestId: number }
+  | { type: "transfer-result"; requestId: number; identityKey: string; authorityGeneration: string; projection: WildsWalletTransferProjection }
+  | { type: "transfer-review-expired"; currentKai: number };
 
 const emptyRecipient: WildsWalletRecipientState = Object.freeze({ status: "idle", requestId: null, username: null, projection: null });
+const emptyTransfer: WildsWalletTransferState = Object.freeze({
+  phase: "recipient", recipientUsername: null, amountPhiMicro: null, rail: null,
+  operationNonce: null, attempt: null, expiresAtKai: null, requestId: null,
+  authorizationPointerId: null, result: null
+});
 const V123_UNAVAILABLE = "receiz_v123_execution_unavailable";
 const REVOKED_CODES = new Set(["receiz_wallet_authority_revoked", "receiz_wallet_token_revoked", "receiz_wallet_token_expired", "receiz_wallet_profile_binding_invalid", "receiz_wallet_token_binding_invalid"]);
 const AUTHORITY_REQUIRED_CODES = new Set(["receiz_wallet_authority_required", "receiz_wallet_read_scope_required"]);
 
 export function createWildsWalletControllerState(identityKey: string, authorityGeneration = ""): WildsWalletControllerState {
-  return Object.freeze({ identityKey, authorityGeneration, open: false, page: "overview", status: "idle", requestId: null, receiveRequestId: null, summary: null, capabilities: null, ledger: null, recipient: emptyRecipient, receiveLocator: null, stagedTransactionId: null });
+  return Object.freeze({ identityKey, authorityGeneration, open: false, page: "overview", status: "idle", requestId: null, receiveRequestId: null, summary: null, capabilities: null, ledger: null, recipient: emptyRecipient, receiveLocator: null, stagedTransactionId: null, transfer: emptyTransfer });
 }
 export function isWildsWalletRecipientLookupAllowed(hasDurableLimiter: boolean) { return hasDurableLimiter; }
 export function walletAuthorityCacheKey(identityKey: string, authorityGeneration: string) { return authorityGeneration ? `${identityKey}:${authorityGeneration}` : null; }
 function hasRetainedProjection(state: WildsWalletControllerState) { return state.summary !== null && state.capabilities !== null; }
 function afterCancellation(state: WildsWalletControllerState, open: boolean): WildsWalletControllerState {
-  return { ...state, open, status: state.status === "loading" ? (hasRetainedProjection(state) ? "offline-verified" : "idle") : state.status, requestId: null, receiveRequestId: null, recipient: emptyRecipient, receiveLocator: null };
+  const transfer = state.transfer.phase === "authorize-pending"
+    ? { ...state.transfer, phase: "unknown" as const, requestId: null, authorizationPointerId: null }
+    : state.transfer.phase === "stage"
+      ? { ...state.transfer, phase: "review" as const, requestId: null, authorizationPointerId: null }
+      : { ...state.transfer, requestId: null, authorizationPointerId: null };
+  return { ...state, open, status: state.status === "loading" ? (hasRetainedProjection(state) ? "offline-verified" : "idle") : state.status, requestId: null, receiveRequestId: null, recipient: emptyRecipient, receiveLocator: null, transfer };
 }
 function clearPrivate(state: WildsWalletControllerState, status: Extract<WildsWalletControllerStatus, "authority-required" | "failed" | "revoked">): WildsWalletControllerState {
-  return { ...state, status, requestId: null, receiveRequestId: null, summary: null, capabilities: null, ledger: null, recipient: emptyRecipient, receiveLocator: null, stagedTransactionId: null };
+  return { ...state, status, requestId: null, receiveRequestId: null, summary: null, capabilities: null, ledger: null, recipient: emptyRecipient, receiveLocator: null, stagedTransactionId: null, transfer: emptyTransfer };
 }
 export function reduceWildsWalletController(state: WildsWalletControllerState, event: WildsWalletControllerEvent): WildsWalletControllerState {
   switch (event.type) {
@@ -68,6 +117,62 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
     case "receive-request-start": return state.open && state.identityKey === event.identityKey ? { ...state, receiveRequestId: event.requestId, receiveLocator: null } : state;
     case "receive-request-resolved": return state.open && state.identityKey === event.identityKey && state.receiveRequestId === event.requestId ? { ...state, receiveRequestId: null, receiveLocator: event.locator } : state;
     case "receive-request-cleared": return state.receiveLocator === null && state.receiveRequestId === null ? state : { ...state, receiveRequestId: null, receiveLocator: null };
+    case "transfer-reset": return { ...state, stagedTransactionId: null, transfer: emptyTransfer };
+    case "transfer-recipient-selected":
+      return { ...state, transfer: { ...emptyTransfer, phase: "amount", recipientUsername: event.username } };
+    case "transfer-amount-reviewed":
+      return state.transfer.recipientUsername
+        ? { ...state, transfer: { ...state.transfer, phase: "review", amountPhiMicro: event.amountPhiMicro, rail: event.rail, operationNonce: event.operationNonce, attempt: null, expiresAtKai: null, requestId: null, result: null } }
+        : state;
+    case "transfer-stage-start":
+      return state.open && state.identityKey === event.identityKey && state.authorityGeneration === event.authorityGeneration
+        && state.transfer.phase === "review"
+        ? { ...state, transfer: { ...state.transfer, phase: "stage", requestId: event.requestId } }
+        : state;
+    case "transfer-stage-resolved":
+      if (!state.open || state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration
+        || state.transfer.phase !== "stage" || state.transfer.requestId !== event.requestId
+        || state.transfer.rail !== event.projection.rail || state.transfer.amountPhiMicro !== event.projection.amountPhiMicro) return state;
+      return {
+        ...state,
+        stagedTransactionId: event.projection.attempt,
+        transfer: { ...state.transfer, phase: "authorize", attempt: event.projection.attempt, expiresAtKai: event.projection.expiresAtKai, requestId: null, authorizationPointerId: null, result: { status: "staged", rail: event.projection.rail, amountPhiMicro: event.projection.amountPhiMicro, quotedUsdCents: event.projection.quotedUsdCents } }
+      };
+    case "transfer-stage-failed":
+      return state.transfer.phase === "stage" && state.transfer.requestId === event.requestId
+        ? { ...state, transfer: { ...state.transfer, phase: "review", requestId: null } } : state;
+    case "authorization-pointer-start":
+      return state.transfer.phase === "authorize"
+        ? { ...state, transfer: { ...state.transfer, authorizationPointerId: event.pointerId } } : state;
+    case "authorization-pointer-cancel":
+      return state.transfer.authorizationPointerId === event.pointerId
+        ? { ...state, transfer: { ...state.transfer, authorizationPointerId: null } } : state;
+    case "transfer-authorize-start":
+      return state.transfer.phase === "authorize" && state.transfer.authorizationPointerId === event.pointerId
+        ? { ...state, transfer: { ...state.transfer, phase: "authorize-pending", requestId: event.requestId, authorizationPointerId: null } }
+        : state;
+    case "transfer-recovery-start":
+      return state.transfer.phase === "unknown" && state.transfer.attempt
+        ? { ...state, transfer: { ...state.transfer, requestId: event.requestId } } : state;
+    case "transfer-result": {
+      if (!state.open || state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration
+        || state.transfer.requestId !== event.requestId || !state.transfer.attempt) return state;
+      const exact = event.projection.rail === state.transfer.rail
+        && (event.projection.status === "zero-write" || event.projection.amountPhiMicro === state.transfer.amountPhiMicro);
+      const projection = exact ? event.projection : { status: "unknown" as const, rail: state.transfer.rail!, amountPhiMicro: state.transfer.amountPhiMicro! };
+      const phase = projection.status === "committed" ? "committed" as const
+        : projection.status === "zero-write" ? "zero-write" as const
+          : "unknown" as const;
+      return {
+        ...state,
+        stagedTransactionId: phase === "unknown" ? state.stagedTransactionId : null,
+        transfer: { ...state.transfer, phase, requestId: null, authorizationPointerId: null, result: projection }
+      };
+    }
+    case "transfer-review-expired":
+      return state.transfer.phase === "authorize" && state.transfer.expiresAtKai !== null && event.currentKai >= state.transfer.expiresAtKai
+        ? { ...state, stagedTransactionId: null, transfer: { ...state.transfer, phase: "review", attempt: null, expiresAtKai: null, requestId: null, authorizationPointerId: null, result: null } }
+        : state;
   }
 }
 export function classifyWildsWalletRefreshFailure({ status, code }: Readonly<{ status: number | null; code: string | null }>): WildsWalletFailureReason {
@@ -81,21 +186,25 @@ export function createWildsWalletRequestRuntime() {
   let sequence = 0;
   let refresh: WalletRequest | null = null;
   let receive: WalletRequest | null = null;
-  const diagnostics = { refreshStarts: 0, receiveStarts: 0, cacheWrites: 0, publications: 0 };
-  const begin = (kind: "refresh" | "receive", replace = false) => {
-    const current = kind === "refresh" ? refresh : receive;
+  let transfer: WalletRequest | null = null;
+  const diagnostics = { refreshStarts: 0, receiveStarts: 0, transferStarts: 0, cacheWrites: 0, publications: 0 };
+  const begin = (kind: "refresh" | "receive" | "transfer", replace = false) => {
+    const current = kind === "refresh" ? refresh : kind === "receive" ? receive : transfer;
     if (current && !replace) return null;
     current?.controller.abort();
     const next = { id: ++sequence, controller: new AbortController() };
-    if (kind === "refresh") { refresh = next; diagnostics.refreshStarts += 1; } else { receive = next; diagnostics.receiveStarts += 1; }
+    if (kind === "refresh") { refresh = next; diagnostics.refreshStarts += 1; }
+    else if (kind === "receive") { receive = next; diagnostics.receiveStarts += 1; }
+    else { transfer = next; diagnostics.transferStarts += 1; }
     return next;
   };
   return {
     beginRefresh(options: Readonly<{ replace?: boolean }> = {}) { return begin("refresh", options.replace); },
     beginReceive() { return begin("receive"); },
-    isCurrentRefresh(id: number) { return refresh?.id === id; }, isCurrentReceive(id: number) { return receive?.id === id; },
-    finishRefresh(id: number) { if (refresh?.id === id) refresh = null; }, finishReceive(id: number) { if (receive?.id === id) receive = null; },
-    cancelAll() { refresh?.controller.abort(); receive?.controller.abort(); refresh = null; receive = null; },
+    beginTransfer(options: Readonly<{ replace?: boolean }> = {}) { return begin("transfer", options.replace); },
+    isCurrentRefresh(id: number) { return refresh?.id === id; }, isCurrentReceive(id: number) { return receive?.id === id; }, isCurrentTransfer(id: number) { return transfer?.id === id; },
+    finishRefresh(id: number) { if (refresh?.id === id) refresh = null; }, finishReceive(id: number) { if (receive?.id === id) receive = null; }, finishTransfer(id: number) { if (transfer?.id === id) transfer = null; },
+    cancelAll() { refresh?.controller.abort(); receive?.controller.abort(); transfer?.controller.abort(); refresh = null; receive = null; transfer = null; },
     recordCacheWrite() { diagnostics.cacheWrites += 1; }, recordPublication() { diagnostics.publications += 1; },
     diagnostics() { return { ...diagnostics }; }
   };
@@ -106,14 +215,34 @@ function count(value: unknown) { return Number.isInteger(value) && typeof value 
 function micro(value: unknown) { return typeof value === "string" && /^[0-9]{1,30}$/.test(value); }
 function cursor(value: unknown) { return value === null || (typeof value === "string" && value.length <= 256 && /^[A-Za-z0-9_-]+$/.test(value)); }
 function createdAt(value: unknown) { return typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) && new Date(value).toISOString() === value; }
+function positiveMicro(value: unknown) { return typeof value === "string" && /^[1-9][0-9]{0,29}$/.test(value); }
+function transferRail(value: unknown): value is "settlement" | "reserve" { return value === "settlement" || value === "reserve"; }
+export function admitWildsWalletStagedTransferResponse(value: unknown): WildsWalletStagedTransferResponse {
+  const item = record(value);
+  if (!item || !exact(item, ["status", "rail", "amountPhiMicro", "quotedUsdCents", "attempt", "expiresAtKai"])
+    || item.status !== "staged" || !transferRail(item.rail) || !positiveMicro(item.amountPhiMicro)
+    || typeof item.quotedUsdCents !== "string" || !/^[0-9]{1,30}$/.test(item.quotedUsdCents)
+    || typeof item.attempt !== "string" || item.attempt.length < 8 || item.attempt.length > 4_096
+    || !Number.isSafeInteger(item.expiresAtKai) || (item.expiresAtKai as number) < 0) throw new Error("wilds_wallet_transfer_projection_invalid");
+  return Object.freeze(item) as WildsWalletStagedTransferResponse;
+}
+export function admitWildsWalletTransferResponse(value: unknown): WildsWalletTransferProjection {
+  const item = record(value);
+  if (!item || !transferRail(item.rail)) throw new Error("wilds_wallet_transfer_projection_invalid");
+  if (item.status === "staged" && exact(item, ["status", "rail", "amountPhiMicro", "quotedUsdCents"])
+    && positiveMicro(item.amountPhiMicro) && typeof item.quotedUsdCents === "string" && /^[0-9]{1,30}$/.test(item.quotedUsdCents)) return Object.freeze(item) as WildsWalletTransferProjection;
+  if ((item.status === "unknown" || item.status === "committed") && exact(item, ["status", "rail", "amountPhiMicro"]) && positiveMicro(item.amountPhiMicro)) return Object.freeze(item) as WildsWalletTransferProjection;
+  if (item.status === "zero-write" && exact(item, ["status", "rail", "code"]) && typeof item.code === "string" && /^[A-Z_]{3,64}$/.test(item.code)) return Object.freeze(item) as WildsWalletTransferProjection;
+  throw new Error("wilds_wallet_transfer_projection_invalid");
+}
 function isSummary(value: unknown): value is WalletSummaryProjection {
   const item = record(value);
   return Boolean(item && exact(item, ["status", "admittedPhiMicro", "displayUsdCents", "assetCountsStatus", "transferableResourceCount", "transferableCardCount", "reservedCardCount", "pendingCount"]) && item.status === "verified" && micro(item.admittedPhiMicro) && (item.displayUsdCents === null || micro(item.displayUsdCents)) && ((item.assetCountsStatus === "unknown" && item.transferableResourceCount === null && item.transferableCardCount === null && item.reservedCardCount === null && item.pendingCount === null) || (item.assetCountsStatus === "available" && count(item.transferableResourceCount) && count(item.transferableCardCount) && count(item.reservedCardCount) && count(item.pendingCount))));
 }
-function unavailableCapability(value: unknown) { const item = record(value); return Boolean(item && exact(item, ["available", "reason"]) && item.available === false && item.reason === V123_UNAVAILABLE); }
+function capability(value: unknown) { const item = record(value); return Boolean(item && ((exact(item, ["available"]) && item.available === true) || (exact(item, ["available", "reason"]) && item.available === false && (item.reason === V123_UNAVAILABLE || item.reason === "receiz_v123_scope_required")))); }
 function isCapabilities(value: unknown): value is WalletCapabilityProjection {
   const item = record(value);
-  return Boolean(item && exact(item, ["read", "receive", "send", "resourceTransfer", "cardTransfer", "phiSettlement", "phiReserve"]) && item.read === "available" && item.receive === "available" && unavailableCapability(item.send) && unavailableCapability(item.resourceTransfer) && unavailableCapability(item.cardTransfer) && unavailableCapability(item.phiSettlement) && unavailableCapability(item.phiReserve));
+  return Boolean(item && exact(item, ["read", "receive", "send", "resourceTransfer", "cardTransfer", "phiSettlement", "phiReserve"]) && item.read === "available" && item.receive === "available" && capability(item.send) && capability(item.resourceTransfer) && capability(item.cardTransfer) && capability(item.phiSettlement) && capability(item.phiReserve));
 }
 function isLedgerEntry(value: unknown): value is WalletLedgerEntryProjection {
   const item = record(value);

@@ -42,6 +42,21 @@ export type WildsWalletTransferJournalEntry = Readonly<{
   authorityDigest: string | null;
 }>;
 
+export type WildsWalletTransferTerminalProjection = Readonly<
+  | { status: "zero-write"; rail: "settlement" | "reserve"; code: string }
+  | { status: "committed"; rail: "settlement" | "reserve"; amountPhiMicro: string }
+>;
+
+export type WildsWalletTransferTerminalRecord = Readonly<{
+  schema: "wildz.wallet.phi-transfer-terminal.v1";
+  entry: WildsWalletTransferJournalEntry;
+  projection: WildsWalletTransferTerminalProjection;
+  terminalizedAtKai: number;
+  retainUntilKai: number;
+}>;
+
+export const WILDS_WALLET_TERMINAL_RETENTION_KAI = 86_400;
+
 /**
  * Server-only durable storage boundary. Implementations must be cross-instance,
  * encrypted at rest, and owner-scoped. There is intentionally no process-local
@@ -50,6 +65,7 @@ export type WildsWalletTransferJournalEntry = Readonly<{
 export interface WildsWalletTransferJournalPort {
   readonly durable: true;
   load(ownerBinding: string, idempotencyKey: string): Promise<WildsWalletTransferJournalEntry | null>;
+  loadTerminal(ownerBinding: string, idempotencyKey: string): Promise<WildsWalletTransferTerminalRecord | null>;
   /** Atomically inserts when absent and otherwise returns the existing exact winner. */
   stage(entry: WildsWalletTransferJournalEntry): Promise<WildsWalletTransferJournalEntry>;
   /** Atomically binds once; a different existing digest must never be overwritten. */
@@ -58,8 +74,18 @@ export interface WildsWalletTransferJournalPort {
     idempotencyKey: string,
     authorityDigest: string
   ): Promise<WildsWalletTransferJournalEntry | null>;
-  /** Atomically removes only when the entire supplied entry is still current. */
-  remove(entry: WildsWalletTransferJournalEntry): Promise<boolean>;
+  /**
+   * Atomically replaces the exact pending entry with its terminal result.
+   * A different row, result, or semantic basis must return null unchanged.
+   */
+  terminalize(
+    entry: WildsWalletTransferJournalEntry,
+    projection: WildsWalletTransferTerminalProjection,
+    terminalizedAtKai: number,
+    retainUntilKai: number
+  ): Promise<WildsWalletTransferTerminalRecord | null>;
+  /** Bounded cleanup; implementations must never scan or delete more than limit rows. */
+  purgeTerminal(currentKai: number, limit: number): Promise<number>;
 }
 
 type JournalEntryExpectation = Readonly<{
@@ -134,6 +160,43 @@ export async function admitWildsWalletTransferJournalEntry(
     rail: snapshot.rail,
     intent: Object.freeze({ ...intent }),
     authorityDigest: snapshot.authorityDigest as string | null
+  });
+}
+
+export async function admitWildsWalletTransferTerminalRecord(
+  value: unknown,
+  expected: JournalEntryExpectation = {}
+): Promise<WildsWalletTransferTerminalRecord> {
+  if (!isRecord(value) || !hasExactKeys(value, ["entry", "projection", "retainUntilKai", "schema", "terminalizedAtKai"]) || !isRecord(value.projection)) {
+    invalidJournal();
+  }
+  const entry = await admitWildsWalletTransferJournalEntry(value.entry, expected);
+  const projection = value.projection;
+  const keys = Object.keys(projection).sort();
+  const committed = projection.status === "committed"
+    && keys.join("\0") === ["amountPhiMicro", "rail", "status"].sort().join("\0")
+    && projection.rail === entry.rail
+    && projection.amountPhiMicro === entry.intent.amountPhiMicro;
+  const zeroWrite = projection.status === "zero-write"
+    && keys.join("\0") === ["code", "rail", "status"].sort().join("\0")
+    && projection.rail === entry.rail
+    && typeof projection.code === "string"
+    && /^[A-Z_]{3,64}$/.test(projection.code);
+  if (value.schema !== "wildz.wallet.phi-transfer-terminal.v1"
+    || (!committed && !zeroWrite)
+    || !Number.isSafeInteger(value.terminalizedAtKai)
+    || !Number.isSafeInteger(value.retainUntilKai)
+    || (value.terminalizedAtKai as number) < 0
+    || (value.retainUntilKai as number) <= (value.terminalizedAtKai as number)
+    || (value.retainUntilKai as number) - (value.terminalizedAtKai as number) > WILDS_WALLET_TERMINAL_RETENTION_KAI) {
+    invalidJournal();
+  }
+  return Object.freeze({
+    schema: "wildz.wallet.phi-transfer-terminal.v1",
+    entry,
+    projection: Object.freeze({ ...projection }) as WildsWalletTransferTerminalProjection,
+    terminalizedAtKai: value.terminalizedAtKai as number,
+    retainUntilKai: value.retainUntilKai as number
   });
 }
 

@@ -13,7 +13,9 @@ import {
 import type { ReceizCommerceAdapter } from "./adapter";
 import {
   admitWildsWalletTransferJournalEntry,
+  admitWildsWalletTransferTerminalRecord,
   requireWildsWalletTransferJournal,
+  WILDS_WALLET_TERMINAL_RETENTION_KAI,
   type WildsWalletTransferJournalEntry,
   type WildsWalletTransferJournalPort
 } from "./wilds-wallet-transfer-journal";
@@ -276,6 +278,16 @@ async function planExactIntent(input: WildsWalletPhiTransferInput, rail: WildsWa
   return intent;
 }
 
+async function exactTerminal(
+  journal: WildsWalletTransferJournalPort,
+  ownerBinding: string,
+  idempotencyKey: string,
+  applicationId?: string
+) {
+  const value = await journal.loadTerminal(ownerBinding, idempotencyKey);
+  return value ? admitWildsWalletTransferTerminalRecord(value, { ownerBinding, idempotencyKey, applicationId }) : null;
+}
+
 function stageProjection(
   status: "preview" | "staged",
   intent: ReceizWorldValueIntentV122
@@ -309,6 +321,14 @@ export async function stageWildsWalletPhiTransfer(
 ): Promise<WildsWalletPhiTransferProjection> {
   const journal = requireWildsWalletTransferJournal(dependencies.journal);
   assertTransferInput(input);
+  const terminal = await exactTerminal(journal, input.ownerBinding, input.idempotencyKey, input.applicationId);
+  if (terminal) {
+    const candidate = await planExactIntent(input, dependencies.rail);
+    if (!entryMatchesInput(terminal.entry, input) || !sameExactIntent(terminal.entry.intent, candidate)) {
+      throw new Error("wilds_wallet_idempotency_conflict");
+    }
+    return terminal.projection;
+  }
   const existingValue = await journal.load(input.ownerBinding, input.idempotencyKey);
   if (existingValue) {
     const existing = await admitWildsWalletTransferJournalEntry(existingValue, {
@@ -366,8 +386,9 @@ function exactProofReferences(
 async function finalizeOutcome(
   entry: WildsWalletTransferJournalEntry,
   outcome: ReceizValueExecutionOutcomeV123,
-  journal: WildsWalletTransferJournalPort
+  dependencies: TransferDependencies
 ): Promise<WildsWalletPhiTransferProjection> {
+  const journal = requireWildsWalletTransferJournal(dependencies.journal);
   const admittedEntry = await admitWildsWalletTransferJournalEntry(entry, {
     ownerBinding: entry.ownerBinding,
     applicationId: entry.applicationId,
@@ -383,19 +404,23 @@ async function finalizeOutcome(
   if (validated.rail !== admittedEntry.rail) return unknownProjection(admittedEntry);
   if (validated.status === "zero-write") {
     if (!admittedEntry.authorityDigest) return unknownProjection(admittedEntry);
-    const removable = await admitWildsWalletTransferJournalEntry(admittedEntry, {
-      ownerBinding: admittedEntry.ownerBinding,
-      applicationId: admittedEntry.applicationId,
-      idempotencyKey: admittedEntry.idempotencyKey
-    });
-    if (!await journal.remove(removable)) return unknownProjection(admittedEntry);
-    return Object.freeze({
+    const projection = Object.freeze({
       status: "zero-write" as const,
       rail: admittedEntry.rail,
       code: SAFE_ZERO_WRITE_CODES.has(validated.failure.code)
         ? validated.failure.code
         : "TRANSFER_REJECTED"
     });
+    const admission = proofAuthorityAdmissionOrThrow(dependencies.authorityAdmission);
+    const now = await currentKai(admission);
+    const terminal = await journal.terminalize(admittedEntry, projection, now, now + WILDS_WALLET_TERMINAL_RETENTION_KAI);
+    return terminal
+      ? (await admitWildsWalletTransferTerminalRecord(terminal, {
+        ownerBinding: admittedEntry.ownerBinding,
+        applicationId: admittedEntry.applicationId,
+        idempotencyKey: admittedEntry.idempotencyKey
+      })).projection
+      : unknownProjection(admittedEntry);
   }
   if (!admittedEntry.authorityDigest
     || validated.receipt.authorityDigest !== admittedEntry.authorityDigest
@@ -404,17 +429,21 @@ async function finalizeOutcome(
     || !exactProofReferences(validated, admittedEntry.intent)) {
     return unknownProjection(admittedEntry);
   }
-  const removable = await admitWildsWalletTransferJournalEntry(admittedEntry, {
-    ownerBinding: admittedEntry.ownerBinding,
-    applicationId: admittedEntry.applicationId,
-    idempotencyKey: admittedEntry.idempotencyKey
-  });
-  if (!await journal.remove(removable)) return unknownProjection(admittedEntry);
-  return Object.freeze({
+  const projection = Object.freeze({
     status: "committed" as const,
     rail: admittedEntry.rail,
     amountPhiMicro: admittedEntry.intent.amountPhiMicro
   });
+  const admission = proofAuthorityAdmissionOrThrow(dependencies.authorityAdmission);
+  const now = await currentKai(admission);
+  const terminal = await journal.terminalize(admittedEntry, projection, now, now + WILDS_WALLET_TERMINAL_RETENTION_KAI);
+  return terminal
+    ? (await admitWildsWalletTransferTerminalRecord(terminal, {
+      ownerBinding: admittedEntry.ownerBinding,
+      applicationId: admittedEntry.applicationId,
+      idempotencyKey: admittedEntry.idempotencyKey
+    })).projection
+    : unknownProjection(admittedEntry);
 }
 
 export async function recoverWildsWalletPhiTransfer(
@@ -426,6 +455,8 @@ export async function recoverWildsWalletPhiTransfer(
   dependencies: TransferDependencies
 ): Promise<WildsWalletPhiTransferProjection> {
   const journal = requireWildsWalletTransferJournal(dependencies.journal);
+  const terminal = await exactTerminal(journal, input.ownerBinding, input.idempotencyKey);
+  if (terminal) return terminal.projection;
   const loaded = await journal.load(input.ownerBinding, input.idempotencyKey);
   if (!loaded) throw new Error("wilds_wallet_transfer_not_staged");
   const entry = await admitWildsWalletTransferJournalEntry(loaded, {
@@ -446,7 +477,7 @@ export async function recoverWildsWalletPhiTransfer(
       entry.idempotencyKey,
       context?.authority
     );
-    return await finalizeOutcome(entry, outcome, journal);
+    return await finalizeOutcome(entry, outcome, dependencies);
   } catch {
     return unknownProjection(entry);
   }
@@ -461,6 +492,8 @@ export async function executeWildsWalletPhiTransfer(
   dependencies: TransferDependencies
 ): Promise<WildsWalletPhiTransferProjection> {
   const journal = requireWildsWalletTransferJournal(dependencies.journal);
+  const terminal = await exactTerminal(journal, input.ownerBinding, input.idempotencyKey);
+  if (terminal) return terminal.projection;
   const loaded = await journal.load(input.ownerBinding, input.idempotencyKey);
   if (!loaded) throw new Error("wilds_wallet_transfer_not_staged");
   let entry = await admitWildsWalletTransferJournalEntry(loaded, {
@@ -518,7 +551,7 @@ export async function executeWildsWalletPhiTransfer(
     const outcome = entry.rail === "settlement"
       ? await dependencies.rail.executePhiSettlementV123(entry.intent, authority)
       : await dependencies.rail.executePhiReserveV123(entry.intent, authority);
-    return await finalizeOutcome(entry, outcome, journal);
+    return await finalizeOutcome(entry, outcome, dependencies);
   } catch {
     return unknownProjection(entry);
   }

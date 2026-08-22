@@ -1,5 +1,7 @@
 import type { WorldOverlayOwner } from "@/features/play/world-overlay-state";
 import {
+  admitWildsWalletStagedTransferResponse,
+  admitWildsWalletTransferResponse,
   admitWildsWalletReadResponse,
   classifyWildsWalletRefreshFailure,
   createWildsWalletRequestRuntime,
@@ -35,6 +37,7 @@ export function createWildsWalletControllerDriver(input: {
   let state = hydrateWildsWalletControllerState(input.identityKey, input.authorityGeneration, cache);
   let refreshPromise: Promise<void> | null = null;
   let receivePromise: Promise<void> | null = null;
+  let transferPromise: Promise<void> | null = null;
   const publish = (event: Parameters<typeof reduceWildsWalletController>[1]) => {
     state = reduceWildsWalletController(state, event);
     runtime.recordPublication();
@@ -99,16 +102,122 @@ export function createWildsWalletControllerDriver(input: {
     void operation.finally(() => { if (receivePromise === operation) receivePromise = null; });
     return operation;
   };
+  const stageTransfer = () => {
+    if (transferPromise) return transferPromise;
+    const transfer = state.transfer;
+    if (transfer.phase !== "review" || !transfer.recipientUsername || !transfer.amountPhiMicro || !transfer.rail || !transfer.operationNonce) return Promise.resolve();
+    const request = runtime.beginTransfer();
+    if (!request) return transferPromise ?? Promise.resolve();
+    const identityKey = state.identityKey;
+    const authorityGeneration = state.authorityGeneration;
+    publish({ type: "transfer-stage-start", requestId: request.id, identityKey, authorityGeneration });
+    const operation = (async () => {
+      try {
+        const response = await input.fetcher("/api/wilds/wallet/transfer/preview", {
+          method: "POST",
+          body: JSON.stringify({
+            recipientUsername: transfer.recipientUsername,
+            amountPhiMicro: transfer.amountPhiMicro,
+            rail: transfer.rail,
+            operationNonce: transfer.operationNonce
+          }),
+          signal: request.controller.signal
+        });
+        const projection = admitWildsWalletStagedTransferResponse(await json(response));
+        if (!runtime.isCurrentTransfer(request.id) || request.controller.signal.aborted) return;
+        publish({ type: "transfer-stage-resolved", requestId: request.id, identityKey, authorityGeneration, projection });
+      } catch {
+        if (runtime.isCurrentTransfer(request.id) && !request.controller.signal.aborted) publish({ type: "transfer-stage-failed", requestId: request.id });
+      } finally {
+        runtime.finishTransfer(request.id);
+      }
+    })();
+    transferPromise = operation;
+    void operation.finally(() => { if (transferPromise === operation) transferPromise = null; });
+    return operation;
+  };
+  const transferUnknown = (requestId: number, identityKey: string, authorityGeneration: string) => {
+    const current = state.transfer;
+    if (!current.rail || !current.amountPhiMicro) return;
+    publish({
+      type: "transfer-result", requestId, identityKey, authorityGeneration,
+      projection: { status: "unknown", rail: current.rail, amountPhiMicro: current.amountPhiMicro }
+    });
+  };
+  const authorizeTransfer = (pointerId: number, consent: Readonly<{ artifact: unknown; challenge: unknown }>) => {
+    if (transferPromise) return transferPromise;
+    const request = runtime.beginTransfer();
+    if (!request) return transferPromise ?? Promise.resolve();
+    const identityKey = state.identityKey;
+    const authorityGeneration = state.authorityGeneration;
+    publish({ type: "transfer-authorize-start", requestId: request.id, pointerId });
+    if (state.transfer.phase !== "authorize-pending" || !state.transfer.attempt) {
+      runtime.finishTransfer(request.id);
+      return Promise.resolve();
+    }
+    const attempt = state.transfer.attempt;
+    const operation = (async () => {
+      try {
+        const response = await input.fetcher("/api/wilds/wallet/transfer/execute", {
+          method: "POST", body: JSON.stringify({ attempt, consent }), signal: request.controller.signal
+        });
+        const projection = admitWildsWalletTransferResponse(await json(response));
+        if (!runtime.isCurrentTransfer(request.id) || request.controller.signal.aborted) return;
+        publish({ type: "transfer-result", requestId: request.id, identityKey, authorityGeneration, projection });
+      } catch {
+        if (runtime.isCurrentTransfer(request.id) && !request.controller.signal.aborted) transferUnknown(request.id, identityKey, authorityGeneration);
+      } finally {
+        runtime.finishTransfer(request.id);
+      }
+    })();
+    transferPromise = operation;
+    void operation.finally(() => { if (transferPromise === operation) transferPromise = null; });
+    return operation;
+  };
+  const recoverTransfer = () => {
+    if (transferPromise) return transferPromise;
+    const attempt = state.transfer.attempt;
+    if (state.transfer.phase !== "unknown" || !attempt) return Promise.resolve();
+    const request = runtime.beginTransfer();
+    if (!request) return transferPromise ?? Promise.resolve();
+    const identityKey = state.identityKey;
+    const authorityGeneration = state.authorityGeneration;
+    publish({ type: "transfer-recovery-start", requestId: request.id });
+    const operation = (async () => {
+      try {
+        const response = await input.fetcher(`/api/wilds/wallet/transfer/status?attempt=${encodeURIComponent(attempt)}`, { signal: request.controller.signal });
+        const projection = admitWildsWalletTransferResponse(await json(response));
+        if (!runtime.isCurrentTransfer(request.id) || request.controller.signal.aborted) return;
+        publish({ type: "transfer-result", requestId: request.id, identityKey, authorityGeneration, projection });
+      } catch {
+        if (runtime.isCurrentTransfer(request.id) && !request.controller.signal.aborted) transferUnknown(request.id, identityKey, authorityGeneration);
+      } finally {
+        runtime.finishTransfer(request.id);
+      }
+    })();
+    transferPromise = operation;
+    void operation.finally(() => { if (transferPromise === operation) transferPromise = null; });
+    return operation;
+  };
   return {
     get state() { return state; },
     diagnostics: runtime.diagnostics,
     open() { publish({ type: "open" }); },
-    close() { runtime.cancelAll(); refreshPromise = null; receivePromise = null; publish({ type: "close" }); },
-    cancelPending() { runtime.cancelAll(); refreshPromise = null; receivePromise = null; publish({ type: "cancel-pending" }); },
-    cancelForExclusiveOwner(owner: WorldOverlayOwner) { if (owner !== "none" && owner !== "wallet") { runtime.cancelAll(); refreshPromise = null; receivePromise = null; publish({ type: "exclusive-owner-changed", owner }); } },
-    setAuthority(identityKey: string, authorityGeneration: string) { cache.delete(walletAuthorityCacheKey(state.identityKey, state.authorityGeneration)); runtime.cancelAll(); refreshPromise = null; receivePromise = null; state = hydrateWildsWalletControllerState(identityKey, authorityGeneration, cache); runtime.recordPublication(); input.publish(state); },
+    close() { runtime.cancelAll(); refreshPromise = null; receivePromise = null; transferPromise = null; publish({ type: "close" }); },
+    cancelPending() { runtime.cancelAll(); refreshPromise = null; receivePromise = null; transferPromise = null; publish({ type: "cancel-pending" }); },
+    cancelForExclusiveOwner(owner: WorldOverlayOwner) { if (owner !== "none" && owner !== "wallet") { runtime.cancelAll(); refreshPromise = null; receivePromise = null; transferPromise = null; publish({ type: "exclusive-owner-changed", owner }); } },
+    setAuthority(identityKey: string, authorityGeneration: string) { cache.delete(walletAuthorityCacheKey(state.identityKey, state.authorityGeneration)); runtime.cancelAll(); refreshPromise = null; receivePromise = null; transferPromise = null; state = hydrateWildsWalletControllerState(identityKey, authorityGeneration, cache); runtime.recordPublication(); input.publish(state); },
     navigate(page: WildsWalletControllerState["page"]) { publish({ type: "navigate", page }); },
     recipientUnavailable(username: string) { publish({ type: "recipient-lookup-unavailable", username }); },
+    selectTransferRecipient(username: string) { publish({ type: "transfer-recipient-selected", username }); },
+    reviewTransferAmount(rail: "settlement" | "reserve", amountPhiMicro: string, operationNonce: string) { publish({ type: "transfer-amount-reviewed", rail, amountPhiMicro, operationNonce }); },
+    authorizationPointerStart(pointerId: number) { publish({ type: "authorization-pointer-start", pointerId }); },
+    authorizationPointerCancel(pointerId: number) { publish({ type: "authorization-pointer-cancel", pointerId }); },
+    resetTransfer() { publish({ type: "transfer-reset" }); },
+    expireTransferReview(currentKai: number) { publish({ type: "transfer-review-expired", currentKai }); },
+    stageTransfer,
+    authorizeTransfer,
+    recoverTransfer,
     refresh,
     requestReceive
   };

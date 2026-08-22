@@ -269,5 +269,103 @@ test("ten thousand world frame writes leave wallet runtime diagnostics at zero",
     writeWildsCreatureLocomotionFrame(frame, "air", index / 60, 1, .25, "idle");
   }
 
-  assert.deepEqual(runtime.diagnostics(), { refreshStarts: 0, receiveStarts: 0, cacheWrites: 0, publications: 0 });
+  assert.deepEqual(runtime.diagnostics(), { refreshStarts: 0, receiveStarts: 0, transferStarts: 0, cacheWrites: 0, publications: 0 });
+});
+
+test("binds recipient, amount, review, and staged authorization to one exact identity generation", () => {
+  let state = reduceWildsWalletController(verifiedState("explorer"), {
+    type: "recipient-resolved", requestId: 0,
+    projection: { username: "friend", profileMark: null, allowedTransferKinds: ["phi"] }
+  });
+  state = reduceWildsWalletController(state, { type: "transfer-recipient-selected", username: "friend" });
+  state = reduceWildsWalletController(state, { type: "transfer-amount-reviewed", rail: "settlement", amountPhiMicro: "25", operationNonce: "nonce-1" });
+  state = reduceWildsWalletController(state, { type: "transfer-stage-start", requestId: 11, identityKey: "explorer", authorityGeneration: "" });
+  state = reduceWildsWalletController(state, {
+    type: "transfer-stage-resolved", requestId: 11, identityKey: "explorer", authorityGeneration: "",
+    projection: { status: "staged", rail: "settlement", amountPhiMicro: "25", quotedUsdCents: "1", attempt: "v1.opaque", expiresAtKai: 90 }
+  });
+
+  assert.equal(state.transfer.phase, "authorize");
+  assert.equal(state.transfer.attempt, "v1.opaque");
+  const stale = reduceWildsWalletController(state, {
+    type: "transfer-result", requestId: 12, identityKey: "other", authorityGeneration: "",
+    projection: { status: "committed", rail: "settlement", amountPhiMicro: "25" }
+  });
+  assert.equal(stale, state);
+});
+
+test("pointer cancellation cannot authorize and overlay takeover preserves exact staged recovery", () => {
+  const staged = {
+    ...verifiedState(),
+    transfer: {
+      phase: "authorize" as const, recipientUsername: "friend", amountPhiMicro: "25", rail: "settlement" as const,
+      operationNonce: "nonce-1", attempt: "v1.opaque", expiresAtKai: 90, requestId: null,
+      authorizationPointerId: null, result: null
+    },
+    stagedTransactionId: "v1.opaque"
+  };
+  const pressed = reduceWildsWalletController(staged, { type: "authorization-pointer-start", pointerId: 7 });
+  const cancelled = reduceWildsWalletController(pressed, { type: "authorization-pointer-cancel", pointerId: 7 });
+  const accidental = reduceWildsWalletController(cancelled, { type: "transfer-authorize-start", requestId: 14, pointerId: 7 });
+  assert.equal(accidental.transfer.phase, "authorize");
+  assert.equal(accidental.transfer.requestId, null);
+
+  const taken = reduceWildsWalletController(cancelled, { type: "exclusive-owner-changed", owner: "combat" });
+  assert.equal(taken.open, false);
+  assert.equal(taken.transfer.attempt, "v1.opaque");
+  assert.equal(taken.transfer.authorizationPointerId, null);
+});
+
+test("adopts unknown, zero-write, and committed only from exact sanitized execution results", () => {
+  const authorizing = {
+    ...verifiedState(),
+    transfer: {
+      phase: "authorize-pending" as const, recipientUsername: "friend", amountPhiMicro: "25", rail: "settlement" as const,
+      operationNonce: "nonce-1", attempt: "v1.opaque", expiresAtKai: 90, requestId: 21,
+      authorizationPointerId: null, result: null
+    },
+    stagedTransactionId: "v1.opaque"
+  };
+  const unknown = reduceWildsWalletController(authorizing, {
+    type: "transfer-result", requestId: 21, identityKey: "explorer", authorityGeneration: "",
+    projection: { status: "unknown", rail: "settlement", amountPhiMicro: "25" }
+  });
+  assert.equal(unknown.transfer.phase, "unknown");
+  assert.equal(unknown.stagedTransactionId, "v1.opaque");
+
+  const committed = reduceWildsWalletController({ ...unknown, transfer: { ...unknown.transfer, requestId: 22 } }, {
+    type: "transfer-result", requestId: 22, identityKey: "explorer", authorityGeneration: "",
+    projection: { status: "committed", rail: "settlement", amountPhiMicro: "25" }
+  });
+  assert.equal(committed.transfer.phase, "committed");
+  assert.equal(committed.stagedTransactionId, null);
+
+  const zeroWrite = reduceWildsWalletController({ ...authorizing, transfer: { ...authorizing.transfer, requestId: 23 } }, {
+    type: "transfer-result", requestId: 23, identityKey: "explorer", authorityGeneration: "",
+    projection: { status: "zero-write", rail: "settlement", code: "SOURCE_HEAD_STALE" }
+  });
+  assert.equal(zeroWrite.transfer.phase, "zero-write");
+  assert.equal(zeroWrite.stagedTransactionId, null);
+});
+
+test("never adopts a staged preview as execution success and expires review authorization exactly", () => {
+  const state = {
+    ...verifiedState(),
+    transfer: {
+      phase: "authorize-pending" as const, recipientUsername: "friend", amountPhiMicro: "25", rail: "settlement" as const,
+      operationNonce: "nonce-1", attempt: "v1.opaque", expiresAtKai: 90, requestId: 30,
+      authorizationPointerId: null, result: null
+    },
+    stagedTransactionId: "v1.opaque"
+  };
+  const staged = reduceWildsWalletController(state, {
+    type: "transfer-result", requestId: 30, identityKey: "explorer", authorityGeneration: "",
+    projection: { status: "staged", rail: "settlement", amountPhiMicro: "25", quotedUsdCents: "1" }
+  });
+  assert.equal(staged.transfer.phase, "unknown");
+  assert.equal(staged.stagedTransactionId, "v1.opaque");
+
+  const expired = reduceWildsWalletController({ ...state, transfer: { ...state.transfer, phase: "authorize" as const, requestId: null } }, { type: "transfer-review-expired", currentKai: 90 });
+  assert.equal(expired.transfer.phase, "review");
+  assert.equal(expired.transfer.attempt, null);
 });
