@@ -926,6 +926,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           enabled={true}
           interactionEnabled={Boolean(campaignCharacter)}
           networkEnabled={Boolean(character) && proofSessionConnected}
+          walletAuthorityGeneration={identity.keyId}
           initialState={ownerPlayState}
           initialPlayerContinuity={continuity.playerContinuity}
           ownerReceizId={ownerUsername}

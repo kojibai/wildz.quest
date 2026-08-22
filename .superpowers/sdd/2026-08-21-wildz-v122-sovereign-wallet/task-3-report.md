@@ -68,3 +68,32 @@ Result: all exit 0.
 - The durable identity-keyed distributed limiter is still absent, so production recipient discovery is deliberately unavailable. This is surfaced as `unavailable` without a network request.
 - The available V122 routes have no assets endpoint, and V123 execution rails remain unavailable. Task 4 should render those constraints plainly; it must not infer an asset balance or send authority.
 - Commit: this Task 3 snapshot commit (SHA supplied in the parent handoff).
+
+## Fix round 1 — authority, runtime, cache, and ownership hardening
+
+### RED evidence
+
+1. Added error-code revocation, request-runtime, cache, identity-bound receive, strict projection, and owner-takeover behavior tests to `tests/wilds-wallet-controller.test.ts`. The focused compile failed as expected because the controller did not export the runtime/cache/admission APIs, did not support generation-bound identity events, and accepted the old status-only failure classifier.
+2. Added strict scalar validation cases for negative display cents and malformed ledger cursors. The focused test then failed as expected with `Missing expected exception`, proving that the prior client boundary admitted malformed projection values.
+3. Added the 10,000 frame diagnostic assertion before exposing wallet runtime diagnostics. The test build failed as expected because `diagnostics` did not exist on the request runtime.
+
+### GREEN evidence
+
+- Replaced status-only failure inference with exact safe error-code classification. Explicit revoked/expired/binding-invalid codes produce `revoked` even at HTTP 401, while only exact authority-required codes produce `authority-required`; ambiguous HTTP 401 fails closed.
+- Revocation clears summary, capabilities, ledger, recipient, receive locator, staged transaction ID, active request IDs, and the matching identity-plus-generation cache entry.
+- Added a synchronous request runtime used by the hook. It deduplicates same-turn refresh/receive work, aborts and replaces an explicit refresh, and prevents aborted/stale/closed/identity-mismatched completions from publishing.
+- The bounded four-entry cache is keyed by exact identity plus explicit authority generation, restores only as `offline-verified`, deterministically evicts oldest entries, and is synchronously hidden on an identity/generation prop change. `WildzApp` now passes the active proof-session `keyId` as the generation.
+- Added full admission validation for every summary, capability, nested V123-unavailable reason, ledger page, cursor, and ledger-entry field before state/cache publication.
+- Exclusive combat/profile ownership dispatches a wallet cancellation; the wallet state remains closed after the other owner releases.
+- Wallet runtime diagnostics count refresh starts, receive starts, cache writes, and controller publications. The 10,000 real creature-frame-write test holds all four counters at zero.
+
+Final fix-round command:
+
+```sh
+node scripts/clean-test-build.mjs && pnpm exec tsc -p tsconfig.test.json && node scripts/patch-test-imports.mjs && node --test .test-build/tests/wilds-wallet-controller.test.js .test-build/tests/world-overlay-state.test.js .test-build/tests/wildz-final-integration-blockers.test.js .test-build/tests/wilds-render-hot-path.test.js
+pnpm typecheck
+pnpm exec eslint src/features/play/wallet src/features/play/world-overlay-state.ts src/features/play/play-shell-owner.ts src/features/play/use-play-modal-lifecycle.ts src/features/play/PlayCampaign.tsx src/features/shell/WildzApp.tsx tests/wilds-wallet-controller.test.ts tests/world-overlay-state.test.ts tests/wildz-final-integration-blockers.test.ts
+git diff --check
+```
+
+Result: all commands exit 0; focused suite 46/46 tests passed.

@@ -152,6 +152,7 @@ export function PlayCampaign({
   enabled,
   interactionEnabled = true,
   networkEnabled,
+  walletAuthorityGeneration,
   onComplete,
   ownerReceizId,
   character,
@@ -173,6 +174,7 @@ export function PlayCampaign({
   enabled: boolean;
   interactionEnabled?: boolean;
   networkEnabled: boolean;
+  walletAuthorityGeneration: string;
   onComplete?: (beans: number) => void;
   ownerReceizId: string;
   character: WildzCharacterGenesis;
@@ -281,7 +283,8 @@ export function PlayCampaign({
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
   const [mapOpen, setMapOpen] = useState(false);
   const [multiplayerRosterOpen, setMultiplayerRosterOpen] = useState(false);
-  const walletController = useWildsWalletController(ownerReceizId);
+  const walletController = useWildsWalletController(ownerReceizId, walletAuthorityGeneration);
+  const { cancelForExclusiveOwner: cancelWalletForExclusiveOwner } = walletController;
   const cameraHeadingRef = useRef(0);
   const updateCameraHeading = useCallback((heading: number) => {
     cameraHeadingRef.current = heading;
@@ -450,6 +453,9 @@ export function PlayCampaign({
     multiplayer: Boolean(multiplayer.incomingChallenge),
     command: false
   });
+  useEffect(() => {
+    cancelWalletForExclusiveOwner(modalOwner);
+  }, [cancelWalletForExclusiveOwner, modalOwner]);
   const {
     state: worldOverlayState,
     dispatch: dispatchWorldOverlay,
