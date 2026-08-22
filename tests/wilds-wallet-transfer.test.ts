@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { describe, it } from "node:test";
+import { isDeepStrictEqual } from "node:util";
 import {
   digestReceizCanonicalV122,
   planReceizReserveV122,
@@ -19,8 +21,13 @@ import {
   executeWildsWalletPhiTransfer,
   previewWildsWalletPhiTransfer,
   recoverWildsWalletPhiTransfer,
-  stageWildsWalletPhiTransfer
+  stageWildsWalletPhiTransfer,
+  type WildsWalletAdmittedProofAuthority,
+  type WildsWalletProofAuthorityAdmissionPort
 } from "../src/lib/receiz/wilds-wallet-transfer";
+
+const ARTIFACT = "server-only-exact-artifact";
+const ARTIFACT_DIGEST = createHash("sha256").update(ARTIFACT).digest("hex");
 
 const H = {
   source: "1".repeat(64),
@@ -32,7 +39,7 @@ const H = {
   sourceProof: "7".repeat(64),
   destinationProof: "8".repeat(64),
   key: "9".repeat(64),
-  artifact: "a".repeat(64),
+  artifact: ARTIFACT_DIGEST,
   revocation: "b".repeat(64)
 } as const;
 
@@ -80,11 +87,26 @@ class DurableTestJournal implements WildsWalletTransferJournalPort {
   async remove(entry: WildsWalletTransferJournalEntry) {
     const key = `${entry.ownerBinding}\u0000${entry.idempotencyKey}`;
     const existing = this.entries.get(key);
-    if (!existing
-      || existing.intent.valueIntentDigest !== entry.intent.valueIntentDigest
-      || existing.authorityDigest !== entry.authorityDigest) return false;
+    if (!existing || !isDeepStrictEqual(existing, entry)) return false;
     this.entries.delete(key);
     return true;
+  }
+}
+
+class ExactAuthorityAdmission implements WildsWalletProofAuthorityAdmissionPort {
+  readonly serverDerived = true as const;
+  current = 13731002;
+  revocationHead: string | null = H.revocation;
+  ownerBinding = transferInput.ownerBinding;
+
+  async currentKai() {
+    return this.current;
+  }
+
+  async resolveAuthorityBinding() {
+    return this.revocationHead
+      ? { revocationHead: this.revocationHead, ownerBinding: this.ownerBinding }
+      : null;
   }
 }
 
@@ -101,7 +123,8 @@ type TransferRail = Pick<
 
 async function authority(
   rail: "settlement" | "reserve" = "settlement",
-  applicationId = "wildz.quest"
+  applicationId = "wildz.quest",
+  overrides: Partial<Omit<ReceizProofAuthorityV123, "authorityDigest">> = {}
 ): Promise<ReceizProofAuthorityV123> {
   const basis = {
     schema: "receiz.identity.proof-authority.v123" as const,
@@ -119,7 +142,8 @@ async function authority(
     authority: {
       grantIsIdentityAuthority: false as const,
       strongerTruth: "receiz-identity-artifact" as const
-    }
+    },
+    ...overrides
   };
   return Object.freeze({
     ...basis,
@@ -128,6 +152,43 @@ async function authority(
       grantedScopes: [...basis.grantedScopes].sort()
     }),
     accessToken: "server-only-proof-authority-token"
+  });
+}
+
+function exchangeInput(overrides: Record<string, unknown> = {}) {
+  return {
+    ownerBinding: transferInput.ownerBinding,
+    rail: "settlement" as const,
+    artifact: ARTIFACT,
+    challenge: {
+      schema: "receiz.identity.proof-authority-challenge.v123" as const,
+      audience: "wildz.quest",
+      nonce: "wallet-proof-authority-0001",
+      issuedAtKai: 13731001,
+      expiresAtKai: 13731121,
+      consent: { approved: true as const, statementDigest: H.registry },
+      proof: {
+        schema: "receiz.identity.login_proof.v1" as const,
+        keyId: H.key,
+        alg: "Ed25519" as const,
+        challengeB64Url: "challenge",
+        signatureB64Url: "signature"
+      }
+    },
+    applicationId: "wildz.quest",
+    ...overrides
+  };
+}
+
+async function admitAuthority(
+  proofAuthority: ReceizProofAuthorityV123 | undefined = undefined,
+  admission = new ExactAuthorityAdmission(),
+  input = exchangeInput()
+): Promise<WildsWalletAdmittedProofAuthority> {
+  const admittedAuthority = proofAuthority ?? await authority();
+  return exchangeWildsWalletProofAuthority(input, {
+    rail: rail({ exchangeProofAuthorityV123: async () => admittedAuthority }),
+    authorityAdmission: admission
   });
 }
 
@@ -224,6 +285,8 @@ describe("Wilds wallet V123 Phi authority", () => {
   it("checks exact idempotency recovery before execute and adopts a commit after a lost response", async () => {
     const journal = new DurableTestJournal();
     const proofAuthority = await authority();
+    const authorityAdmission = new ExactAuthorityAdmission();
+    const authorityContext = await admitAuthority(proofAuthority, authorityAdmission);
     let executionCalls = 0;
     let recoveryCalls = 0;
     let recovered: ReceizValueExecutionOutcomeV123 = { status: "unknown" };
@@ -243,8 +306,8 @@ describe("Wilds wallet V123 Phi authority", () => {
     assert.deepEqual(await executeWildsWalletPhiTransfer({
       ownerBinding: transferInput.ownerBinding,
       idempotencyKey: transferInput.idempotencyKey,
-      authority: proofAuthority
-    }, { rail: valueRail, journal }), {
+      authorityContext
+    }, { rail: valueRail, journal, authorityAdmission }), {
       status: "unknown",
       rail: "settlement",
       amountPhiMicro: "2500000"
@@ -254,8 +317,8 @@ describe("Wilds wallet V123 Phi authority", () => {
     const adopted = await executeWildsWalletPhiTransfer({
       ownerBinding: transferInput.ownerBinding,
       idempotencyKey: transferInput.idempotencyKey,
-      authority: proofAuthority
-    }, { rail: valueRail, journal });
+      authorityContext
+    }, { rail: valueRail, journal, authorityAdmission });
     assert.equal(adopted.status, "committed");
     assert.equal(executionCalls, 1);
     assert.equal(recoveryCalls, 2);
@@ -266,6 +329,8 @@ describe("Wilds wallet V123 Phi authority", () => {
   it("retains ambiguous or unattributable outcomes and removes only an exact bound zero-write", async () => {
     const journal = new DurableTestJournal();
     const proofAuthority = await authority();
+    const authorityAdmission = new ExactAuthorityAdmission();
+    const authorityContext = await admitAuthority(proofAuthority, authorityAdmission);
     await stageWildsWalletPhiTransfer(transferInput, { rail: rail(), journal });
     const entry = await journal.load(transferInput.ownerBinding, transferInput.idempotencyKey);
     assert.ok(entry);
@@ -313,7 +378,7 @@ describe("Wilds wallet V123 Phi authority", () => {
     const zeroWrite = await executeWildsWalletPhiTransfer({
       ownerBinding: transferInput.ownerBinding,
       idempotencyKey: transferInput.idempotencyKey,
-      authority: proofAuthority
+      authorityContext
     }, {
       rail: rail({
         phiExecutionByIdempotencyKeyV123: async () => ({ status: "unknown" }),
@@ -325,7 +390,8 @@ describe("Wilds wallet V123 Phi authority", () => {
           currentDestinationHead: H.destination
         })
       }),
-      journal
+      journal,
+      authorityAdmission
     });
     assert.deepEqual(zeroWrite, {
       status: "zero-write",
@@ -343,18 +409,245 @@ describe("Wilds wallet V123 Phi authority", () => {
       ...transferInput,
       amountPhiMicro: "2500001"
     }, { rail: valueRail, journal }), /wilds_wallet_idempotency_conflict/);
+    await assert.rejects(stageWildsWalletPhiTransfer({
+      ...transferInput,
+      priceBasis: { source: "different-canonical-price", head: H.registry }
+    }, { rail: valueRail, journal }), /wilds_wallet_idempotency_conflict/);
     assert.equal((await journal.load(transferInput.ownerBinding, transferInput.idempotencyKey))?.intent.amountPhiMicro, "2500000");
   });
 
-  it("rejects a valid proof authority issued to another application", async () => {
+  it("rejects every tampered durable row before lookup, execution, or removal", async () => {
+    const mutations: Array<(entry: WildsWalletTransferJournalEntry) => unknown> = [
+      (entry) => ({ ...entry, schema: "wildz.wallet.phi-transfer-journal.v0" }),
+      (entry) => ({ ...entry, ownerBinding: "foreign-owner" }),
+      (entry) => ({ ...entry, applicationId: "" }),
+      (entry) => ({ ...entry, rail: "reserve" }),
+      (entry) => ({ ...entry, idempotencyKey: "different-key" }),
+      (entry) => ({ ...entry, authorityDigest: "not-a-digest" }),
+      (entry) => ({ ...entry, intent: { ...entry.intent, valueIntentDigest: H.registry } }),
+      (entry) => ({ ...entry, intent: { ...entry.intent, amountPhiMicro: "not-canonical" } }),
+      (entry) => ({ ...entry, unexpectedAuthority: "poison" })
+    ];
+
+    for (const mutate of mutations) {
+      const journal = new DurableTestJournal();
+      await stageWildsWalletPhiTransfer(transferInput, { rail: rail(), journal });
+      const key = `${transferInput.ownerBinding}\u0000${transferInput.idempotencyKey}`;
+      const original = journal.entries.get(key);
+      assert.ok(original);
+      journal.entries.set(key, mutate(original) as WildsWalletTransferJournalEntry);
+      let lookupCalls = 0;
+      await assert.rejects(recoverWildsWalletPhiTransfer({
+        ownerBinding: transferInput.ownerBinding,
+        idempotencyKey: transferInput.idempotencyKey
+      }, {
+        rail: rail({
+          phiExecutionByIdempotencyKeyV123: async () => {
+            lookupCalls += 1;
+            return { status: "unknown" };
+          }
+        }),
+        journal
+      }), /wilds_wallet_transfer_journal_invalid/);
+      assert.equal(lookupCalls, 0);
+      assert.ok(journal.entries.has(key));
+    }
+  });
+
+  it("validates journal entries returned by atomic stage and authority binding", async () => {
+    const backing = new DurableTestJournal();
+    const malformedStage: WildsWalletTransferJournalPort = {
+      durable: true,
+      load: backing.load.bind(backing),
+      stage: async (entry) => ({ ...entry, rail: "reserve" }),
+      bindAuthority: backing.bindAuthority.bind(backing),
+      remove: backing.remove.bind(backing)
+    };
+    await assert.rejects(stageWildsWalletPhiTransfer(transferInput, {
+      rail: rail(),
+      journal: malformedStage
+    }), /wilds_wallet_transfer_journal_invalid/);
+
     const journal = new DurableTestJournal();
+    await stageWildsWalletPhiTransfer(transferInput, { rail: rail(), journal });
+    const authorityAdmission = new ExactAuthorityAdmission();
+    const authorityContext = await admitAuthority(await authority(), authorityAdmission);
+    let executionCalls = 0;
+    const malformedBind: WildsWalletTransferJournalPort = {
+      durable: true,
+      load: journal.load.bind(journal),
+      stage: journal.stage.bind(journal),
+      bindAuthority: async (ownerBinding, idempotencyKey, authorityDigest) => {
+        const entry = await journal.load(ownerBinding, idempotencyKey);
+        return entry ? { ...entry, rail: "reserve", authorityDigest } : null;
+      },
+      remove: journal.remove.bind(journal)
+    };
+    await assert.rejects(executeWildsWalletPhiTransfer({
+      ownerBinding: transferInput.ownerBinding,
+      idempotencyKey: transferInput.idempotencyKey,
+      authorityContext
+    }, {
+      rail: rail({
+        executePhiSettlementV123: async () => {
+          executionCalls += 1;
+          return { status: "unknown" };
+        }
+      }),
+      journal: malformedBind,
+      authorityAdmission
+    }), /wilds_wallet_transfer_journal_invalid/);
+    assert.equal(executionCalls, 0);
+    assert.equal((await journal.load(transferInput.ownerBinding, transferInput.idempotencyKey))?.authorityDigest, null);
+  });
+
+  it("retains reconciliation state when exact conditional removal loses its CAS", async () => {
+    const backing = new DurableTestJournal();
+    const journal: WildsWalletTransferJournalPort = {
+      durable: true,
+      load: backing.load.bind(backing),
+      stage: backing.stage.bind(backing),
+      bindAuthority: backing.bindAuthority.bind(backing),
+      remove: async () => false
+    };
+    const proofAuthority = await authority();
+    const authorityAdmission = new ExactAuthorityAdmission();
+    const authorityContext = await admitAuthority(proofAuthority, authorityAdmission);
+    const valueRail = rail({
+      phiExecutionByIdempotencyKeyV123: async () => ({ status: "unknown" }),
+      executePhiSettlementV123: async (intent) => committed(intent, proofAuthority)
+    });
+    await stageWildsWalletPhiTransfer(transferInput, { rail: valueRail, journal });
+
+    assert.deepEqual(await executeWildsWalletPhiTransfer({
+      ownerBinding: transferInput.ownerBinding,
+      idempotencyKey: transferInput.idempotencyKey,
+      authorityContext
+    }, { rail: valueRail, journal, authorityAdmission }), {
+      status: "unknown",
+      rail: "settlement",
+      amountPhiMicro: "2500000"
+    });
+    assert.ok(await backing.load(transferInput.ownerBinding, transferInput.idempotencyKey));
+  });
+
+  it("rejects expired or revoked admitted contexts without poisoning a staged journal", async () => {
+    const journal = new DurableTestJournal();
+    const authorityAdmission = new ExactAuthorityAdmission();
+    const firstAuthority = await authority();
+    const firstContext = await admitAuthority(firstAuthority, authorityAdmission);
+    await stageWildsWalletPhiTransfer(transferInput, { rail: rail(), journal });
+
+    authorityAdmission.current = firstAuthority.expiresAtKai;
+    await assert.rejects(executeWildsWalletPhiTransfer({
+      ownerBinding: transferInput.ownerBinding,
+      idempotencyKey: transferInput.idempotencyKey,
+      authorityContext: firstContext
+    }, { rail: rail(), journal, authorityAdmission }), /wilds_wallet_proof_authority_expired/);
+    assert.equal((await journal.load(transferInput.ownerBinding, transferInput.idempotencyKey))?.authorityDigest, null);
+
+    const freshAuthority = await authority("settlement", "wildz.quest", {
+      issuedAtKai: 13731121,
+      expiresAtKai: 13731241,
+      nonce: "wallet-proof-authority-0002"
+    });
+    authorityAdmission.current = 13731122;
+    const baseInput = exchangeInput();
+    const freshContext = await admitAuthority(freshAuthority, authorityAdmission, exchangeInput({
+      challenge: {
+        ...baseInput.challenge,
+        issuedAtKai: 13731121,
+        expiresAtKai: 13731241,
+        nonce: "wallet-proof-authority-0002"
+      }
+    }));
+    const valueRail = rail({
+      phiExecutionByIdempotencyKeyV123: async () => ({ status: "unknown" }),
+      executePhiSettlementV123: async (intent) => committed(intent, freshAuthority)
+    });
+    assert.equal((await executeWildsWalletPhiTransfer({
+      ownerBinding: transferInput.ownerBinding,
+      idempotencyKey: transferInput.idempotencyKey,
+      authorityContext: freshContext
+    }, { rail: valueRail, journal, authorityAdmission })).status, "committed");
+    assert.equal(await journal.load(transferInput.ownerBinding, transferInput.idempotencyKey), null);
+  });
+
+  it("rechecks the exact current revocation head before binding an admitted context", async () => {
+    const journal = new DurableTestJournal();
+    const authorityAdmission = new ExactAuthorityAdmission();
+    const authorityContext = await admitAuthority(await authority(), authorityAdmission);
     await stageWildsWalletPhiTransfer(transferInput, { rail: rail(), journal });
     await assert.rejects(executeWildsWalletPhiTransfer({
       ownerBinding: transferInput.ownerBinding,
       idempotencyKey: transferInput.idempotencyKey,
-      authority: await authority("settlement", "other.example")
-    }, { rail: rail(), journal }), /wilds_wallet_proof_authority_application_mismatch/);
-    assert.ok(await journal.load(transferInput.ownerBinding, transferInput.idempotencyKey));
+      authorityContext: { ...authorityContext, admittedAtKai: 0 }
+    }, { rail: rail(), journal, authorityAdmission }), /wilds_wallet_proof_authority_context_invalid/);
+    assert.equal((await journal.load(transferInput.ownerBinding, transferInput.idempotencyKey))?.authorityDigest, null);
+
+    authorityAdmission.revocationHead = "c".repeat(64);
+
+    await assert.rejects(executeWildsWalletPhiTransfer({
+      ownerBinding: transferInput.ownerBinding,
+      idempotencyKey: transferInput.idempotencyKey,
+      authorityContext
+    }, { rail: rail(), journal, authorityAdmission }), /wilds_wallet_proof_authority_revoked/);
+    assert.equal((await journal.load(transferInput.ownerBinding, transferInput.idempotencyKey))?.authorityDigest, null);
+  });
+
+  it("rejects a valid proof authority issued to another application", async () => {
+    const journal = new DurableTestJournal();
+    const authorityAdmission = new ExactAuthorityAdmission();
+    const baseInput = exchangeInput();
+    const authorityContext = await admitAuthority(
+      await authority("settlement", "other.example"),
+      authorityAdmission,
+      exchangeInput({
+        applicationId: "other.example",
+        challenge: { ...baseInput.challenge, audience: "other.example" }
+      })
+    );
+    await stageWildsWalletPhiTransfer(transferInput, { rail: rail(), journal });
+    await assert.rejects(executeWildsWalletPhiTransfer({
+      ownerBinding: transferInput.ownerBinding,
+      idempotencyKey: transferInput.idempotencyKey,
+      authorityContext
+    }, { rail: rail(), journal, authorityAdmission }), /wilds_wallet_proof_authority_application_mismatch/);
+    assert.equal((await journal.load(transferInput.ownerBinding, transferInput.idempotencyKey))?.authorityDigest, null);
+  });
+
+  it("rejects a live same-application authority admitted for another owner before recovery or binding", async () => {
+    const journal = new DurableTestJournal();
+    await stageWildsWalletPhiTransfer(transferInput, { rail: rail(), journal });
+    const authorityAdmission = new ExactAuthorityAdmission();
+    authorityAdmission.ownerBinding = "foreign-owner";
+    const authorityContext = await admitAuthority(await authority(), authorityAdmission, exchangeInput({
+      ownerBinding: "foreign-owner"
+    }));
+    let recoveryCalls = 0;
+    let executionCalls = 0;
+
+    await assert.rejects(executeWildsWalletPhiTransfer({
+      ownerBinding: transferInput.ownerBinding,
+      idempotencyKey: transferInput.idempotencyKey,
+      authorityContext
+    }, {
+      rail: rail({
+        phiExecutionByIdempotencyKeyV123: async () => {
+          recoveryCalls += 1;
+          return { status: "unknown" };
+        },
+        executePhiSettlementV123: async () => {
+          executionCalls += 1;
+          return { status: "unknown" };
+        }
+      }),
+      journal,
+      authorityAdmission
+    }), /wilds_wallet_proof_authority_owner_mismatch/);
+    assert.equal(recoveryCalls, 0);
+    assert.equal(executionCalls, 0);
+    assert.equal((await journal.load(transferInput.ownerBinding, transferInput.idempotencyKey))?.authorityDigest, null);
   });
 
   it("derives the minimum rail scopes for proof-authority exchange and rejects partial grants", async () => {
@@ -367,27 +660,10 @@ describe("Wilds wallet V123 Phi authority", () => {
         return complete;
       }
     });
-    const input = {
-      rail: "reserve" as const,
-      artifact: "server-only-exact-artifact",
-      challenge: {
-        schema: "receiz.identity.proof-authority-challenge.v123" as const,
-        audience: "wildz.quest",
-        nonce: "wallet-proof-authority-0001",
-        issuedAtKai: 13731001,
-        expiresAtKai: 13731121,
-        consent: { approved: true as const, statementDigest: H.registry },
-        proof: {
-          schema: "receiz.identity.login_proof.v1" as const,
-          keyId: H.key,
-          alg: "Ed25519" as const,
-          challengeB64Url: "challenge",
-          signatureB64Url: "signature"
-        }
-      },
-      applicationId: "wildz.quest"
-    };
-    assert.equal((await exchangeWildsWalletProofAuthority(input, adapter)).authorityDigest, complete.authorityDigest);
+    const input = { ...exchangeInput(), rail: "reserve" as const };
+    const authorityAdmission = new ExactAuthorityAdmission();
+    const admitted = await exchangeWildsWalletProofAuthority(input, { rail: adapter, authorityAdmission });
+    assert.equal(admitted.authority.authorityDigest, complete.authorityDigest);
     assert.deepEqual(requestedScopes, expectedScopes);
 
     const partialBasis = {
@@ -402,8 +678,112 @@ describe("Wilds wallet V123 Phi authority", () => {
       authorityDigest: await digestReceizCanonicalV122(partialDigestBasis),
       accessToken: complete.accessToken
     } as ReceizProofAuthorityV123;
-    await assert.rejects(exchangeWildsWalletProofAuthority(input, rail({
-      exchangeProofAuthorityV123: async () => partial
-    })), /wilds_wallet_proof_authority_scope_mismatch/);
+    await assert.rejects(exchangeWildsWalletProofAuthority(input, {
+      rail: rail({ exchangeProofAuthorityV123: async () => partial }),
+      authorityAdmission
+    }), /wilds_wallet_proof_authority_scope_mismatch/);
+  });
+
+  it("binds exchanged authority to exact artifact, challenge, key, nonce, application, and Kai window", async () => {
+    const authorityAdmission = new ExactAuthorityAdmission();
+    const cases: ReadonlyArray<{
+      name: string;
+      response: ReceizProofAuthorityV123;
+      input?: ReturnType<typeof exchangeInput>;
+      code: RegExp;
+    }> = [
+      {
+        name: "artifact digest",
+        response: await authority("settlement", "wildz.quest", { artifactDigest: "c".repeat(64) }),
+        code: /wilds_wallet_proof_authority_artifact_mismatch/
+      },
+      {
+        name: "proof key",
+        response: await authority("settlement", "wildz.quest", { keyId: "c".repeat(64) }),
+        code: /wilds_wallet_proof_authority_key_mismatch/
+      },
+      {
+        name: "nonce",
+        response: await authority("settlement", "wildz.quest", { nonce: "foreign-nonce" }),
+        code: /wilds_wallet_proof_authority_nonce_mismatch/
+      },
+      {
+        name: "application",
+        response: await authority("settlement", "other.example"),
+        code: /wilds_wallet_proof_authority_application_mismatch/
+      },
+      {
+        name: "invalid ordering",
+        response: await authority("settlement", "wildz.quest", { issuedAtKai: 13731121, expiresAtKai: 13731001 }),
+        code: /wilds_wallet_proof_authority_time_invalid/
+      },
+      {
+        name: "expired",
+        response: await authority("settlement", "wildz.quest", { issuedAtKai: 13730881, expiresAtKai: 13731001 }),
+        code: /wilds_wallet_proof_authority_expired/
+      },
+      {
+        name: "challenge proof key",
+        response: await authority(),
+        input: exchangeInput({
+          challenge: {
+            ...exchangeInput().challenge,
+            proof: { ...exchangeInput().challenge.proof, keyId: "c".repeat(64) }
+          }
+        }),
+        code: /wilds_wallet_proof_authority_key_mismatch/
+      }
+    ];
+
+    for (const scenario of cases) {
+      await assert.rejects(exchangeWildsWalletProofAuthority(scenario.input ?? exchangeInput(), {
+        rail: rail({ exchangeProofAuthorityV123: async () => scenario.response }),
+        authorityAdmission
+      }), scenario.code, scenario.name);
+    }
+
+    authorityAdmission.revocationHead = "c".repeat(64);
+    await assert.rejects(exchangeWildsWalletProofAuthority(exchangeInput(), {
+      rail: rail({ exchangeProofAuthorityV123: async () => authority() }),
+      authorityAdmission
+    }), /wilds_wallet_proof_authority_revoked/);
+  });
+
+  it("fails proof-authority exchange closed without server-derived Kai and revocation admission", async () => {
+    await assert.rejects(exchangeWildsWalletProofAuthority(exchangeInput(), {
+      rail: rail({ exchangeProofAuthorityV123: async () => authority() })
+    }), /wilds_wallet_proof_authority_admission_required/);
+
+    const authorityAdmission = new ExactAuthorityAdmission();
+    let exchangeCalls = 0;
+    const adapter = rail({
+      exchangeProofAuthorityV123: async () => {
+        exchangeCalls += 1;
+        return authority();
+      }
+    });
+    await assert.rejects(exchangeWildsWalletProofAuthority(exchangeInput({
+      challenge: { ...exchangeInput().challenge, audience: "other.example" }
+    }), {
+      rail: adapter,
+      authorityAdmission
+    }), /wilds_wallet_proof_authority_challenge_invalid/);
+    await assert.rejects(exchangeWildsWalletProofAuthority(exchangeInput({
+      challenge: { ...exchangeInput().challenge, issuedAtKai: 13731121, expiresAtKai: 13731001 }
+    }), {
+      rail: adapter,
+      authorityAdmission
+    }), /wilds_wallet_proof_authority_challenge_invalid/);
+    authorityAdmission.current = 13731121;
+    await assert.rejects(exchangeWildsWalletProofAuthority(exchangeInput(), {
+      rail: rail({
+        exchangeProofAuthorityV123: async () => {
+          exchangeCalls += 1;
+          return authority();
+        }
+      }),
+      authorityAdmission
+    }), /wilds_wallet_proof_authority_challenge_expired/);
+    assert.equal(exchangeCalls, 0);
   });
 });

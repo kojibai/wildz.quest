@@ -78,3 +78,86 @@ The third failure was not caused by V123 runtime behavior. Prior Task 3 producti
 ## Deployment boundary carried to Task 5
 
 Task 4 intentionally defines but does not instantiate the durable server journal. Thin routes, production storage wiring, distributed recipient limiter admission, and the controller state machine remain Task 5. Until those dependencies are explicitly admitted, the current production capability endpoint continues to call the projection without a V123 admission object and therefore reports sends unavailable.
+
+## Review fix round — 2026-08-22
+
+Base reviewed commit: `54492d940b8ebfc9a4fb204aa34e0e02d3654650`.
+
+### Closed findings
+
+- Proof-authority exchange now derives the artifact digest from the exact artifact bytes with the SDK `sha256ReceizBytes` helper and binds the SDK-validated result to the challenge proof key, nonce, application/audience, exact SDK-derived scopes, issued/expiry Kai interval, and a server-derived current Kai.
+- A required server-only admission port resolves the current revocation head and authenticated owner binding for the exact application/key/artifact tuple. Missing freshness/revocation/owner resolution fails closed. The returned server-only admitted context is revalidated before recovery or execution, and a foreign owner, foreign application, expired interval, stale revocation head, or altered context is rejected before recovery, authority binding, or remote execution. Consequently an invalid authority cannot permanently poison an unbound journal row.
+- Both transfer orchestration modules now carry the enforced `import "server-only"` boundary. The test emission shim removes only that exact side-effect marker from `.test-build`, allowing Node unit tests to run while preserving the production Next.js boundary. No browser controller or IndexedDB surface receives the proof authority, artifact, raw intent, heads, subject IDs, or owner binding.
+- Every loaded, locally constructed, staged-winner, bound, finalized, and removal-candidate journal row passes one async exact admission validator. It enforces the complete top-level and intent schemas, exact key sets, owner/application/idempotency expectations, top-level rail/key equality with the nested intent, null-or-64-hex authority digest, canonical scalar fields, and SDK `validateReceizValueIntentV122` validation.
+- Journal compare-and-swap tests now compare the entire admitted entry. A failed exact conditional removal produces `unknown` and retains reconciliation state; no committed or zero-write projection is returned until removal succeeds. Tampered durable rows are rejected before lookup, binding, execution, or removal.
+- Duplicate-idempotency admission now plans the incoming semantic candidate and compares every exact intent field, including `priceBasisDigest` and `valueIntentDigest`. The same key with a distinct price basis conflicts.
+- `resourceTransfer` and `cardTransfer` remain unavailable even when generic world rails/scopes are admitted because their exact orchestration is not implemented. Only the exact Phi Settlement/Reserve surfaces can become live.
+- The independent architecture lock now pins all three exact `123.0.0` packages and enforces the server-only transfer boundary. Current release doctrine in `README.md`, `docs/RECEIZ_RAILS.md`, and `ai-skills/wildz-release-skill/SKILL.md` is exact V123. Per-file tests prevent stale V122 text from passing through concatenation; explicitly scoped V122 builder/market doctrine remains historical/current for those separate skills.
+
+### Review RED evidence
+
+1. Authority/context contract RED:
+
+   ```text
+   pnpm exec tsc -p tsconfig.test.json --pretty false
+   ```
+
+   Exit `2`: the adversarial tests required the missing server-derived admission port/context, exchange dependency shape, and `authorityContext` execution input. A follow-up owner-binding RED also exited `2` because the old port exposed no authenticated owner resolution.
+
+2. Authority tamper RED after the initial context shape existed:
+
+   ```text
+   node --test .test-build/tests/wilds-wallet-transfer.test.js
+   ```
+
+   Result: 15 tests, 14 pass, 1 fail. An altered `admittedAtKai` context was accepted instead of being rejected as `wilds_wallet_proof_authority_context_invalid`.
+
+3. Release lock RED:
+
+   ```text
+   pnpm receiz:architecture-lock
+   ```
+
+   Exit `1`: `receiz_sdk_pin_mismatch`, `receiz_mcp_pin_mismatch`, and `receiz_ai_skills_pin_mismatch` because the independent lock still required exact V122.
+
+4. Capability/doctrine RED:
+
+   ```text
+   npx tsx --test tests/wildz-release-documentation.test.ts tests/wilds-wallet-projections.test.ts
+   ```
+
+   Result: 18 tests, 15 pass, 3 fail. Generic world rails incorrectly advertised `resourceTransfer`; README still asserted `@receiz/sdk@122`; and the independent architecture lock rejected the V123 pins.
+
+5. Full-suite release assertion RED:
+
+   ```text
+   npx tsx --test tests/wildz-ai-skills.test.ts
+   ```
+
+   Result: 3 tests, 2 pass, 1 fail. `Wildz AI skills state v122 artifact authority and confirmation law` required `122.0.0` from the now-current V123 release skill. The corrected test checks common authority law independently and then asserts exact V123 release version/digests/36-operation doctrine per file.
+
+6. Exact third full-suite failure:
+
+   ```text
+   pnpm test
+   ```
+
+   Result: 1,731 tests, 1,730 pass, 1 fail. `pending signatures reject content, digest, identity, and signature tampering` expected `false` but got `true` at the signature-tamper assertion. The old test replaced the final two base64url characters with `aa`; for a 64-byte P-256 signature, non-canonical ignored padding bits can make that textual mutation decode to the original signature bytes. This was a pre-existing randomized test-vector defect, not V123 behavior. The test now flips one decoded signature byte, asserts the decoded bytes differ, and leaves production verification unchanged.
+
+### Review GREEN evidence
+
+- Focused authority/journal/capability/doctrine set: 33 tests, 33 pass, 0 fail.
+- Focused release-skill test: 3 tests, 3 pass, 0 fail.
+- Focused device-signature test after deterministic byte tamper: 3 tests, 3 pass, 0 fail.
+- `pnpm test`: 1,731 tests, 159 suites, 1,731 pass, 0 fail; duration 32.13 s.
+- `pnpm typecheck`: exit 0.
+- `pnpm exec tsc -p tsconfig.test.json --pretty false`: exit 0.
+- `pnpm receiz:check`: exit 0, `ok: true`, target `123.0.0`, exact V123 compatible range and 36-operation inventory.
+- `pnpm receiz:architecture-lock`: exit 0, 479 runtime files checked.
+- `pnpm receiz:conformance`: exit 0, 15 pass, 0 fail, 0 network calls, 0 database calls. The package's historical top-level `sdkVersion: 121.0.0` label remains beneath the passing exact package-compatibility ranges `>=123.0.0 <124.0.0`.
+- Scoped ESLint across all changed TypeScript/MJS implementation and tests: exit 0.
+- `git diff --check`: exit 0.
+
+### Boundary retained for Task 5
+
+The proof-authority freshness/revocation/owner resolver and durable journal remain injected server ports with no permissive fallback. Task 5 must supply production cross-instance storage and authenticated binding resolution, plus route/controller wiring and the durable distributed recipient limiter. Until then, missing ports and unsupported resource/card orchestration fail closed.

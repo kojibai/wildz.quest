@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { Buffer } from "node:buffer";
 import test from "node:test";
 import {
   createArenaDeviceIdentity,
@@ -14,6 +15,12 @@ const basis = {
   parentDigests: ["sha256:" + "1".repeat(64)],
   payload: { receiptDigest: "sha256:" + "2".repeat(64), xp: 12 },
 };
+
+function tamperSignatureByte(signature: string): string {
+  const bytes = Buffer.from(signature, "base64url");
+  bytes[bytes.length - 1] ^= 1;
+  return bytes.toString("base64url");
+}
 
 test("P-256 identities retain a non-exportable private key and expose only public verification material", async () => {
   const store = new MemoryArenaKeyStore();
@@ -33,7 +40,9 @@ test("pending signatures reject content, digest, identity, and signature tamperi
   const signed = await signArenaPendingReceipt("device-a", basis, store);
   assert.equal(await verifyArenaPendingReceipt({ ...signed, basis: { ...basis, actorId: "attacker" } }), false);
   assert.equal(await verifyArenaPendingReceipt({ ...signed, contentDigest: "sha256:" + "0".repeat(64) }), false);
-  assert.equal(await verifyArenaPendingReceipt({ ...signed, signature: signed.signature.slice(0, -2) + "aa" }), false);
+  const tamperedSignature = tamperSignatureByte(signed.signature);
+  assert.notDeepEqual(Buffer.from(tamperedSignature, "base64url"), Buffer.from(signed.signature, "base64url"));
+  assert.equal(await verifyArenaPendingReceipt({ ...signed, signature: tamperedSignature }), false);
 });
 
 test("an imported Vault can create a new signing identity without discarding old public identities", async () => {

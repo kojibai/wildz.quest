@@ -1,5 +1,8 @@
+import "server-only";
+
 import {
   receizOidcScopesForRails,
+  sha256ReceizBytes,
   validateReceizProofAuthorityV123,
   validateReceizValueExecutionOutcomeV123,
   type ReceizProofAuthorityV123,
@@ -9,6 +12,7 @@ import {
 } from "@receiz/sdk";
 import type { ReceizCommerceAdapter } from "./adapter";
 import {
+  admitWildsWalletTransferJournalEntry,
   requireWildsWalletTransferJournal,
   type WildsWalletTransferJournalEntry,
   type WildsWalletTransferJournalPort
@@ -25,6 +29,28 @@ type WildsWalletPhiRail = Pick<
 >;
 
 type WildsWalletProofAuthorityRail = Pick<ReceizCommerceAdapter, "exchangeProofAuthorityV123">;
+
+export interface WildsWalletProofAuthorityAdmissionPort {
+  readonly serverDerived: true;
+  currentKai(): Promise<number>;
+  resolveAuthorityBinding(input: Readonly<{
+    applicationId: string;
+    keyId: string;
+    artifactDigest: string;
+  }>): Promise<Readonly<{ revocationHead: string; ownerBinding: string }> | null>;
+}
+
+export type WildsWalletAdmittedProofAuthority = Readonly<{
+  schema: "wildz.wallet.proof-authority-admission.v1";
+  authority: ReceizProofAuthorityV123;
+  ownerBinding: string;
+  applicationId: string;
+  keyId: string;
+  artifactDigest: string;
+  nonce: string;
+  revocationHead: string;
+  admittedAtKai: number;
+}>;
 
 export type WildsWalletPhiTransferInput = Readonly<{
   ownerBinding: string;
@@ -50,6 +76,7 @@ export type WildsWalletPhiTransferProjection = Readonly<
 type TransferDependencies = Readonly<{
   rail: WildsWalletPhiRail;
   journal?: WildsWalletTransferJournalPort;
+  authorityAdmission?: WildsWalletProofAuthorityAdmissionPort;
 }>;
 
 const SAFE_ZERO_WRITE_CODES = new Set([
@@ -59,9 +86,130 @@ const SAFE_ZERO_WRITE_CODES = new Set([
   "SCOPE_NOT_GRANTED",
   "RAIL_MISMATCH"
 ]);
+const SHA256 = /^[0-9a-f]{64}$/;
+const AUTHORITY_CONTEXT_KEYS = [
+  "admittedAtKai",
+  "applicationId",
+  "artifactDigest",
+  "authority",
+  "keyId",
+  "nonce",
+  "ownerBinding",
+  "revocationHead",
+  "schema"
+] as const;
 
-function validPrivateCoordinate(value: string) {
-  return value.trim().length > 0 && value.length <= 256;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]) {
+  const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+}
+
+function proofAuthorityAdmissionOrThrow(
+  admission: WildsWalletProofAuthorityAdmissionPort | undefined
+): WildsWalletProofAuthorityAdmissionPort {
+  if (!admission || admission.serverDerived !== true) {
+    throw new Error("wilds_wallet_proof_authority_admission_required");
+  }
+  return admission;
+}
+
+async function exactArtifactBytes(input: Blob | ArrayBuffer | Uint8Array | string) {
+  if (typeof input === "string") return new TextEncoder().encode(input);
+  if (input instanceof Uint8Array) return input;
+  if (input instanceof ArrayBuffer) return new Uint8Array(input);
+  if (typeof Blob !== "undefined" && input instanceof Blob) return new Uint8Array(await input.arrayBuffer());
+  throw new Error("wilds_wallet_proof_authority_artifact_invalid");
+}
+
+async function currentKai(admission: WildsWalletProofAuthorityAdmissionPort) {
+  const current = await admission.currentKai();
+  if (!Number.isSafeInteger(current) || current < 0) {
+    throw new Error("wilds_wallet_proof_authority_freshness_unavailable");
+  }
+  return current;
+}
+
+function assertAuthorityTime(authority: ReceizProofAuthorityV123, current: number) {
+  if (authority.expiresAtKai <= authority.issuedAtKai || authority.expiresIn <= 0) {
+    throw new Error("wilds_wallet_proof_authority_time_invalid");
+  }
+  if (current < authority.issuedAtKai) throw new Error("wilds_wallet_proof_authority_time_invalid");
+  if (current >= authority.expiresAtKai) throw new Error("wilds_wallet_proof_authority_expired");
+}
+
+async function assertCurrentRevocation(
+  authority: ReceizProofAuthorityV123,
+  admission: WildsWalletProofAuthorityAdmissionPort
+): Promise<Readonly<{ revocationHead: string; ownerBinding: string }>> {
+  const binding = await admission.resolveAuthorityBinding({
+    applicationId: authority.applicationId,
+    keyId: authority.keyId,
+    artifactDigest: authority.artifactDigest
+  });
+  if (!binding || !SHA256.test(binding.revocationHead)
+    || binding.revocationHead !== authority.revocationHead
+    || !validPrivateCoordinate(binding.ownerBinding)) {
+    throw new Error("wilds_wallet_proof_authority_revoked");
+  }
+  return Object.freeze(binding);
+}
+
+async function revalidateAdmittedProofAuthority(
+  value: unknown,
+  admissionInput: WildsWalletProofAuthorityAdmissionPort | undefined
+): Promise<WildsWalletAdmittedProofAuthority> {
+  const admission = proofAuthorityAdmissionOrThrow(admissionInput);
+  if (!isRecord(value) || !hasExactKeys(value, AUTHORITY_CONTEXT_KEYS)
+    || value.schema !== "wildz.wallet.proof-authority-admission.v1") {
+    throw new Error("wilds_wallet_proof_authority_context_invalid");
+  }
+  let authority: ReceizProofAuthorityV123;
+  try {
+    authority = await validateReceizProofAuthorityV123(value.authority);
+  } catch {
+    throw new Error("wilds_wallet_proof_authority_invalid");
+  }
+  if (value.applicationId !== authority.applicationId
+    || value.keyId !== authority.keyId
+    || value.artifactDigest !== authority.artifactDigest
+    || value.nonce !== authority.nonce
+    || value.revocationHead !== authority.revocationHead
+    || !validPrivateCoordinate(value.ownerBinding)
+    || !Number.isSafeInteger(value.admittedAtKai)) {
+    throw new Error("wilds_wallet_proof_authority_context_invalid");
+  }
+  const now = await currentKai(admission);
+  assertAuthorityTime(authority, now);
+  const admittedAtKai = value.admittedAtKai as number;
+  if (admittedAtKai < authority.issuedAtKai
+    || admittedAtKai >= authority.expiresAtKai
+    || admittedAtKai > now) {
+    throw new Error("wilds_wallet_proof_authority_context_invalid");
+  }
+  const binding = await assertCurrentRevocation(authority, admission);
+  if (binding.ownerBinding !== value.ownerBinding) {
+    throw new Error("wilds_wallet_proof_authority_owner_mismatch");
+  }
+  return Object.freeze({
+    schema: "wildz.wallet.proof-authority-admission.v1",
+    authority,
+    ownerBinding: value.ownerBinding as string,
+    applicationId: authority.applicationId,
+    keyId: authority.keyId,
+    artifactDigest: authority.artifactDigest,
+    nonce: authority.nonce,
+    revocationHead: authority.revocationHead,
+    admittedAtKai
+  });
+}
+
+function validPrivateCoordinate(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0 && value.length <= 256;
 }
 
 function assertTransferInput(input: WildsWalletPhiTransferInput) {
@@ -161,9 +309,15 @@ export async function stageWildsWalletPhiTransfer(
 ): Promise<WildsWalletPhiTransferProjection> {
   const journal = requireWildsWalletTransferJournal(dependencies.journal);
   assertTransferInput(input);
-  const existing = await journal.load(input.ownerBinding, input.idempotencyKey);
-  if (existing) {
-    if (!entryMatchesInput(existing, input)) {
+  const existingValue = await journal.load(input.ownerBinding, input.idempotencyKey);
+  if (existingValue) {
+    const existing = await admitWildsWalletTransferJournalEntry(existingValue, {
+      ownerBinding: input.ownerBinding,
+      applicationId: input.applicationId,
+      idempotencyKey: input.idempotencyKey
+    });
+    const candidate = await planExactIntent(input, dependencies.rail);
+    if (!entryMatchesInput(existing, input) || !sameExactIntent(existing.intent, candidate)) {
       throw new Error("wilds_wallet_idempotency_conflict");
     }
     return stageProjection("staged", existing.intent);
@@ -179,8 +333,17 @@ export async function stageWildsWalletPhiTransfer(
     intent,
     authorityDigest: null
   });
-  const staged = await journal.stage(entry);
-  if (!entryMatchesInput(staged, input)) {
+  const admittedEntry = await admitWildsWalletTransferJournalEntry(entry, {
+    ownerBinding: input.ownerBinding,
+    applicationId: input.applicationId,
+    idempotencyKey: input.idempotencyKey
+  });
+  const staged = await admitWildsWalletTransferJournalEntry(await journal.stage(admittedEntry), {
+    ownerBinding: input.ownerBinding,
+    applicationId: input.applicationId,
+    idempotencyKey: input.idempotencyKey
+  });
+  if (!entryMatchesInput(staged, input) || !sameExactIntent(staged.intent, intent)) {
     throw new Error("wilds_wallet_idempotency_conflict");
   }
   return stageProjection("staged", staged.intent);
@@ -205,51 +368,83 @@ async function finalizeOutcome(
   outcome: ReceizValueExecutionOutcomeV123,
   journal: WildsWalletTransferJournalPort
 ): Promise<WildsWalletPhiTransferProjection> {
+  const admittedEntry = await admitWildsWalletTransferJournalEntry(entry, {
+    ownerBinding: entry.ownerBinding,
+    applicationId: entry.applicationId,
+    idempotencyKey: entry.idempotencyKey
+  });
   let validated: ReceizValueExecutionOutcomeV123;
   try {
     validated = await validateReceizValueExecutionOutcomeV123(outcome);
   } catch {
-    return unknownProjection(entry);
+    return unknownProjection(admittedEntry);
   }
-  if (validated.status === "unknown") return unknownProjection(entry);
-  if (validated.rail !== entry.rail) return unknownProjection(entry);
+  if (validated.status === "unknown") return unknownProjection(admittedEntry);
+  if (validated.rail !== admittedEntry.rail) return unknownProjection(admittedEntry);
   if (validated.status === "zero-write") {
-    if (!entry.authorityDigest) return unknownProjection(entry);
-    await journal.remove(entry);
+    if (!admittedEntry.authorityDigest) return unknownProjection(admittedEntry);
+    const removable = await admitWildsWalletTransferJournalEntry(admittedEntry, {
+      ownerBinding: admittedEntry.ownerBinding,
+      applicationId: admittedEntry.applicationId,
+      idempotencyKey: admittedEntry.idempotencyKey
+    });
+    if (!await journal.remove(removable)) return unknownProjection(admittedEntry);
     return Object.freeze({
       status: "zero-write" as const,
-      rail: entry.rail,
+      rail: admittedEntry.rail,
       code: SAFE_ZERO_WRITE_CODES.has(validated.failure.code)
         ? validated.failure.code
         : "TRANSFER_REJECTED"
     });
   }
-  if (!entry.authorityDigest
-    || validated.receipt.authorityDigest !== entry.authorityDigest
-    || validated.receipt.idempotencyKey !== entry.idempotencyKey
-    || !sameExactIntent(validated.intent, entry.intent)
-    || !exactProofReferences(validated, entry.intent)) {
-    return unknownProjection(entry);
+  if (!admittedEntry.authorityDigest
+    || validated.receipt.authorityDigest !== admittedEntry.authorityDigest
+    || validated.receipt.idempotencyKey !== admittedEntry.idempotencyKey
+    || !sameExactIntent(validated.intent, admittedEntry.intent)
+    || !exactProofReferences(validated, admittedEntry.intent)) {
+    return unknownProjection(admittedEntry);
   }
-  await journal.remove(entry);
+  const removable = await admitWildsWalletTransferJournalEntry(admittedEntry, {
+    ownerBinding: admittedEntry.ownerBinding,
+    applicationId: admittedEntry.applicationId,
+    idempotencyKey: admittedEntry.idempotencyKey
+  });
+  if (!await journal.remove(removable)) return unknownProjection(admittedEntry);
   return Object.freeze({
     status: "committed" as const,
-    rail: entry.rail,
-    amountPhiMicro: entry.intent.amountPhiMicro
+    rail: admittedEntry.rail,
+    amountPhiMicro: admittedEntry.intent.amountPhiMicro
   });
 }
 
 export async function recoverWildsWalletPhiTransfer(
-  input: Readonly<{ ownerBinding: string; idempotencyKey: string; authority?: ReceizProofAuthorityV123 }>,
+  input: Readonly<{
+    ownerBinding: string;
+    idempotencyKey: string;
+    authorityContext?: WildsWalletAdmittedProofAuthority;
+  }>,
   dependencies: TransferDependencies
 ): Promise<WildsWalletPhiTransferProjection> {
   const journal = requireWildsWalletTransferJournal(dependencies.journal);
-  const entry = await journal.load(input.ownerBinding, input.idempotencyKey);
-  if (!entry) throw new Error("wilds_wallet_transfer_not_staged");
+  const loaded = await journal.load(input.ownerBinding, input.idempotencyKey);
+  if (!loaded) throw new Error("wilds_wallet_transfer_not_staged");
+  const entry = await admitWildsWalletTransferJournalEntry(loaded, {
+    ownerBinding: input.ownerBinding,
+    idempotencyKey: input.idempotencyKey
+  });
+  const context = input.authorityContext
+    ? await revalidateAdmittedProofAuthority(input.authorityContext, dependencies.authorityAdmission)
+    : null;
+  if (context && context.applicationId !== entry.applicationId) {
+    throw new Error("wilds_wallet_proof_authority_application_mismatch");
+  }
+  if (context && context.ownerBinding !== entry.ownerBinding) {
+    throw new Error("wilds_wallet_proof_authority_owner_mismatch");
+  }
   try {
     const outcome = await dependencies.rail.phiExecutionByIdempotencyKeyV123(
       entry.idempotencyKey,
-      input.authority
+      context?.authority
     );
     return await finalizeOutcome(entry, outcome, journal);
   } catch {
@@ -261,39 +456,55 @@ export async function executeWildsWalletPhiTransfer(
   input: Readonly<{
     ownerBinding: string;
     idempotencyKey: string;
-    authority: ReceizProofAuthorityV123;
+    authorityContext: WildsWalletAdmittedProofAuthority;
   }>,
   dependencies: TransferDependencies
 ): Promise<WildsWalletPhiTransferProjection> {
   const journal = requireWildsWalletTransferJournal(dependencies.journal);
-  let entry = await journal.load(input.ownerBinding, input.idempotencyKey);
-  if (!entry) throw new Error("wilds_wallet_transfer_not_staged");
+  const loaded = await journal.load(input.ownerBinding, input.idempotencyKey);
+  if (!loaded) throw new Error("wilds_wallet_transfer_not_staged");
+  let entry = await admitWildsWalletTransferJournalEntry(loaded, {
+    ownerBinding: input.ownerBinding,
+    idempotencyKey: input.idempotencyKey
+  });
 
-  let authority: ReceizProofAuthorityV123;
-  try {
-    authority = await validateReceizProofAuthorityV123(input.authority);
-  } catch {
-    throw new Error("wilds_wallet_proof_authority_invalid");
-  }
+  const context = await revalidateAdmittedProofAuthority(
+    input.authorityContext,
+    dependencies.authorityAdmission
+  );
+  const authority = context.authority;
   const requiredScopes = receizOidcScopesForRails(entry.rail);
   if (!requiredScopes.every((scope) => authority.grantedScopes.includes(scope))) {
     throw new Error("wilds_wallet_proof_authority_scope_mismatch");
   }
-  if (authority.applicationId !== entry.applicationId) {
+  if (context.applicationId !== entry.applicationId) {
     throw new Error("wilds_wallet_proof_authority_application_mismatch");
   }
-
-  const recovered = await recoverWildsWalletPhiTransfer(input, dependencies);
+  if (context.ownerBinding !== entry.ownerBinding) {
+    throw new Error("wilds_wallet_proof_authority_owner_mismatch");
+  }
+  const recovered = await recoverWildsWalletPhiTransfer({
+    ownerBinding: input.ownerBinding,
+    idempotencyKey: input.idempotencyKey,
+    authorityContext: context
+  }, dependencies);
   if (recovered.status !== "unknown") return recovered;
   if (entry.authorityDigest && entry.authorityDigest !== authority.authorityDigest) {
     return recovered;
   }
   if (!entry.authorityDigest) {
-    const bound = await journal.bindAuthority(
+    const boundValue = await journal.bindAuthority(
       entry.ownerBinding,
       entry.idempotencyKey,
       authority.authorityDigest
     );
+    const bound = boundValue
+      ? await admitWildsWalletTransferJournalEntry(boundValue, {
+        ownerBinding: entry.ownerBinding,
+        applicationId: entry.applicationId,
+        idempotencyKey: entry.idempotencyKey
+      })
+      : null;
     if (!bound
       || !sameExactIntent(bound.intent, entry.intent)
       || bound.applicationId !== entry.applicationId
@@ -316,16 +527,37 @@ export async function executeWildsWalletPhiTransfer(
 type ProofAuthorityInput = Omit<
   Parameters<WildsWalletProofAuthorityRail["exchangeProofAuthorityV123"]>[0],
   "scopes"
-> & Readonly<{ rail: ReceizValueRailV122 }>;
+> & Readonly<{ rail: ReceizValueRailV122; ownerBinding: string }>;
+
+type ProofAuthorityDependencies = Readonly<{
+  rail: WildsWalletProofAuthorityRail;
+  authorityAdmission?: WildsWalletProofAuthorityAdmissionPort;
+}>;
 
 export async function exchangeWildsWalletProofAuthority(
   input: ProofAuthorityInput,
-  rail: WildsWalletProofAuthorityRail
-): Promise<ReceizProofAuthorityV123> {
+  dependencies: ProofAuthorityDependencies
+): Promise<WildsWalletAdmittedProofAuthority> {
+  const admission = proofAuthorityAdmissionOrThrow(dependencies.authorityAdmission);
+  const now = await currentKai(admission);
   const scopes = receizOidcScopesForRails(input.rail);
-  const exchanged = await rail.exchangeProofAuthorityV123({
+  const challenge = input.challenge;
+  if (!validPrivateCoordinate(input.ownerBinding)
+    || challenge.audience !== input.applicationId
+    || challenge.proof.keyId.length !== 64
+    || !SHA256.test(challenge.proof.keyId)
+    || !challenge.nonce.trim()
+    || !Number.isSafeInteger(challenge.issuedAtKai)
+    || !Number.isSafeInteger(challenge.expiresAtKai)
+    || challenge.expiresAtKai <= challenge.issuedAtKai) {
+    throw new Error("wilds_wallet_proof_authority_challenge_invalid");
+  }
+  if (now < challenge.issuedAtKai) throw new Error("wilds_wallet_proof_authority_challenge_invalid");
+  if (now >= challenge.expiresAtKai) throw new Error("wilds_wallet_proof_authority_challenge_expired");
+  const artifactDigest = await sha256ReceizBytes(await exactArtifactBytes(input.artifact));
+  const exchanged = await dependencies.rail.exchangeProofAuthorityV123({
     artifact: input.artifact,
-    challenge: input.challenge,
+    challenge,
     applicationId: input.applicationId,
     scopes
   });
@@ -335,10 +567,40 @@ export async function exchangeWildsWalletProofAuthority(
   } catch {
     throw new Error("wilds_wallet_proof_authority_invalid");
   }
-  if (authority.applicationId !== input.applicationId
-    || authority.grantedScopes.length !== scopes.length
+  assertAuthorityTime(authority, now);
+  if (authority.applicationId !== input.applicationId) {
+    throw new Error("wilds_wallet_proof_authority_application_mismatch");
+  }
+  if (authority.artifactDigest !== artifactDigest) {
+    throw new Error("wilds_wallet_proof_authority_artifact_mismatch");
+  }
+  if (authority.keyId !== challenge.proof.keyId) {
+    throw new Error("wilds_wallet_proof_authority_key_mismatch");
+  }
+  if (authority.nonce !== challenge.nonce) {
+    throw new Error("wilds_wallet_proof_authority_nonce_mismatch");
+  }
+  if (authority.issuedAtKai !== challenge.issuedAtKai
+    || authority.expiresAtKai !== challenge.expiresAtKai) {
+    throw new Error("wilds_wallet_proof_authority_time_invalid");
+  }
+  if (authority.grantedScopes.length !== scopes.length
     || !scopes.every((scope) => authority.grantedScopes.includes(scope))) {
     throw new Error("wilds_wallet_proof_authority_scope_mismatch");
   }
-  return authority;
+  const binding = await assertCurrentRevocation(authority, admission);
+  if (binding.ownerBinding !== input.ownerBinding) {
+    throw new Error("wilds_wallet_proof_authority_owner_mismatch");
+  }
+  return Object.freeze({
+    schema: "wildz.wallet.proof-authority-admission.v1" as const,
+    authority,
+    ownerBinding: binding.ownerBinding,
+    applicationId: authority.applicationId,
+    keyId: authority.keyId,
+    artifactDigest: authority.artifactDigest,
+    nonce: authority.nonce,
+    revocationHead: authority.revocationHead,
+    admittedAtKai: now
+  });
 }

@@ -2,20 +2,32 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-test("Wildz AI skills state v122 artifact authority and confirmation law", () => {
+test("Wildz AI skills state exact release authority and confirmation law", () => {
   for (const name of ["wildz-builder-skill", "wildz-market-operator-skill", "wildz-release-skill"]) {
     const source = readFileSync(`ai-skills/${name}/SKILL.md`, "utf8");
-    assert.match(source, /122\.0\.0/i);
     assert.match(source, /Receiz proof authority/i);
     assert.match(source, /confirmation/i);
-    assert.match(source, /ed65956a16dd5f0d76d04db2f4a651fc43eb0a71cef64afd53576aa782dc9896/i);
-    assert.match(source, /bd1d7ccf1543e2484df68e3025c7376f8ae37cafe1ca0d7c9cd9f52f6342b325/i);
     assert.match(source, /command-only|command admission|ownership\.claimBearerAsset/i);
     assert.match(source, /queued[\s\S]*not (?:a )?global(?:ly)? commit/i);
     assert.match(source, /first admission only, then append forever/i);
-    assert.match(source, /v122[\s\S]*(?:enclosing artifact|known truth|Merkle|Fibonacci)/i);
     assert.doesNotMatch(source, /major 102|major 103|major 105|major 106|107\.0\.0|111\.0\.0|Bearer\s+[A-Za-z0-9_-]{12}/);
   }
+
+  for (const name of ["wildz-builder-skill", "wildz-market-operator-skill"]) {
+    const source = readFileSync(`ai-skills/${name}/SKILL.md`, "utf8");
+    assert.match(source, /122\.0\.0/i);
+    assert.match(source, /ed65956a16dd5f0d76d04db2f4a651fc43eb0a71cef64afd53576aa782dc9896/i);
+    assert.match(source, /bd1d7ccf1543e2484df68e3025c7376f8ae37cafe1ca0d7c9cd9f52f6342b325/i);
+    assert.match(source, /v122[\s\S]*(?:enclosing artifact|known truth|Merkle|Fibonacci)/i);
+  }
+
+  const release = readFileSync("ai-skills/wildz-release-skill/SKILL.md", "utf8");
+  assert.match(release, /123\.0\.0/i);
+  assert.match(release, /945a581d1fc49c2dc18fbe8c129771ef464b8a58b96188bce561e88ae8b6ceeb/i);
+  assert.match(release, /e08cec3e3ad22c20ddd6c08169ece19f094c366214d6d6b4dc432cd97558e2c5/i);
+  assert.match(release, /36 v123 application operations/i);
+  assert.match(release, /v123[\s\S]*(?:enclosing artifact|known truth|Merkle|Fibonacci)/i);
+  assert.doesNotMatch(release, /122\.0\.0|ed65956a|bd1d7ccf/i);
 });
 
 test("the builder skill teaches Kai-rooted competitive and creature-history authority", () => {

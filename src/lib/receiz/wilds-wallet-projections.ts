@@ -1,8 +1,7 @@
 import { parseWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import {
   RECEIZ_PHI_RESERVE_OIDC_SCOPES,
-  RECEIZ_PHI_SETTLEMENT_OIDC_SCOPES,
-  RECEIZ_WORLD_AUTHORITY_OIDC_SCOPES
+  RECEIZ_PHI_SETTLEMENT_OIDC_SCOPES
 } from "./oauth-scopes";
 
 const MAX_CURSOR_LENGTH = 256;
@@ -268,19 +267,12 @@ export function projectWildsWalletCapabilities(
     : phiSettlement.reason === "receiz_v123_scope_required" || phiReserve.reason === "receiz_v123_scope_required"
       ? Object.freeze({ available: false as const, reason: "receiz_v123_scope_required" as const })
       : unavailable;
-  const world = exactScopeState(
-    admission.rails.proofAuthorityExchange
-      && admission.rails.worldPlanning
-      && admission.rails.worldExecution
-      && admission.rails.subjectNamespaces,
-    RECEIZ_WORLD_AUTHORITY_OIDC_SCOPES
-  );
   return Object.freeze({
     read: "available" as const,
     receive: "available" as const,
     send,
-    resourceTransfer: world,
-    cardTransfer: world,
+    resourceTransfer: unavailable,
+    cardTransfer: unavailable,
     phiSettlement,
     phiReserve
   });

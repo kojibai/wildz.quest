@@ -27,6 +27,8 @@ function patchSpecifier(file, specifier) {
 for (const file of files(root)) {
   const original = readFileSync(file, "utf8");
   const patched = original
+    .replaceAll('import "server-only";', "")
+    .replaceAll("import 'server-only';", "")
     .replaceAll('"next/server"', '"next/server.js"')
     .replaceAll("'next/server'", "'next/server.js'")
     .replace(

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
@@ -12,32 +13,32 @@ test("Wildz current release doctrine names the exact Receiz v123 toolchain", () 
   };
   const release = read("docs/release/verification.md");
   const mcp = read("docs/MCP.md");
-  const packageSourceDocs = [
-    read("README.md"),
-    mcp,
-    read("docs/RECEIZ_RAILS.md"),
-    read("docs/release/verification.md"),
-    release,
-    read("ai-skills/README.md"),
-    read("ai-skills/wildz-release-skill/SKILL.md")
-  ].join("\n");
+  const currentDoctrine = {
+    readme: read("README.md"),
+    rails: read("docs/RECEIZ_RAILS.md"),
+    releaseSkill: read("ai-skills/wildz-release-skill/SKILL.md"),
+    mcp
+  };
 
   assert.equal(pkg.version, "8.0.0");
   assert.equal(pkg.dependencies?.["@receiz/sdk"], "123.0.0");
   assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "123.0.0");
   assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "123.0.0");
-  for (const packageName of ["@receiz/sdk", "@receiz/mcp-server", "@receiz/ai-skills"]) {
-    assert.match(packageSourceDocs, new RegExp(`${packageName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}@123\\.0\\.0`));
+  for (const [name, source] of Object.entries(currentDoctrine)) {
+    for (const packageName of ["@receiz/sdk", "@receiz/mcp-server", "@receiz/ai-skills"]) {
+      assert.match(source, new RegExp(`${packageName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}@123\\.0\\.0`), name);
+    }
+    assert.match(source, /945a581d1fc49c2dc18fbe8c129771ef464b8a58b96188bce561e88ae8b6ceeb/i, name);
+    assert.match(source, /e08cec3e3ad22c20ddd6c08169ece19f094c366214d6d6b4dc432cd97558e2c5/i, name);
+    assert.doesNotMatch(source, /@receiz\/(?:sdk|mcp-server|ai-skills)@122\.0\.0/i, name);
   }
   assert.match(mcp, /@receiz\/sdk@123\.0\.0/);
   assert.match(mcp, /@receiz\/mcp-server@123\.0\.0/);
   assert.match(mcp, /@receiz\/ai-skills@123\.0\.0/);
-  assert.match(packageSourceDocs, /public npm/i);
-  assert.match(packageSourceDocs, /published (?:SHA-512 )?integrity/i);
-  assert.match(packageSourceDocs, /945a581d1fc49c2dc18fbe8c129771ef464b8a58b96188bce561e88ae8b6ceeb/i);
-  assert.match(packageSourceDocs, /e08cec3e3ad22c20ddd6c08169ece19f094c366214d6d6b4dc432cd97558e2c5/i);
-  assert.match(packageSourceDocs, /first admission only, then append forever/i);
-  assert.match(packageSourceDocs, /v121[\s\S]*(?:living subject|proof brain|Merkle|bearer)/i);
+  assert.match(currentDoctrine.readme, /public npm/i);
+  assert.match(currentDoctrine.readme, /published (?:SHA-512 )?integrity/i);
+  assert.match(currentDoctrine.releaseSkill, /first admission only, then append forever/i);
+  assert.match(currentDoctrine.rails, /v121[\s\S]*(?:living subject|proof brain|Merkle|bearer)/i);
   assert.match(release, /local v121 living-subject Twin/i);
   assert.match(release, /optional performance enrichment/i);
   assert.match(release, /never replace or delay/);
@@ -135,6 +136,11 @@ test("Receiz-first reasoning is a mandatory repository and CI gate", () => {
   assert.match(architectureLock, /forbidden_voice_runtime/);
   assert.match(architectureLock, /tooling_imported_into_runtime/);
   assert.match(architectureLock, /voice_precedes_or_gates_proof_memory_append/);
+  const result = spawnSync(process.execPath, ["scripts/receiz-architecture-lock.mjs"], {
+    cwd: process.cwd(),
+    encoding: "utf8"
+  });
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
 
 test("release doctrine contains no private artifact paths or assigned credentials", () => {

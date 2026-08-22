@@ -177,7 +177,15 @@ describe("Wilds wallet projections", () => {
       worldExecution: true,
       subjectNamespaces: true
     } as const;
-    const exactScopes = receizOidcScopesForRails("settlement", "reserve");
+    const exactScopes = receizOidcScopesForRails(
+      "settlement",
+      "reserve",
+      "worldCommands",
+      "worldEvents",
+      "subjects",
+      "subjectMandates",
+      "subjectInventory"
+    );
 
     const admitted = projectWildsWalletCapabilities({
       sdkVersion: "123.0.0",
@@ -187,6 +195,14 @@ describe("Wilds wallet projections", () => {
     assert.deepEqual(admitted.phiSettlement, { available: true });
     assert.deepEqual(admitted.phiReserve, { available: true });
     assert.deepEqual(admitted.send, { available: true });
+    assert.deepEqual(admitted.resourceTransfer, {
+      available: false,
+      reason: "receiz_v123_execution_unavailable"
+    });
+    assert.deepEqual(admitted.cardTransfer, {
+      available: false,
+      reason: "receiz_v123_execution_unavailable"
+    });
 
     const partial = projectWildsWalletCapabilities({
       sdkVersion: "123.0.0",
