@@ -4,7 +4,7 @@ import { test } from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("Wildz current release doctrine names the exact Receiz v121 toolchain", () => {
+test("Wildz current release doctrine names the exact Receiz v122 toolchain", () => {
   const pkg = JSON.parse(read("package.json")) as {
     version?: string;
     dependencies?: Record<string, string>;
@@ -23,19 +23,19 @@ test("Wildz current release doctrine names the exact Receiz v121 toolchain", () 
   ].join("\n");
 
   assert.equal(pkg.version, "8.0.0");
-  assert.equal(pkg.dependencies?.["@receiz/sdk"], "121.0.0");
-  assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "121.0.0");
-  assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "121.0.0");
+  assert.equal(pkg.dependencies?.["@receiz/sdk"], "122.0.0");
+  assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "122.0.0");
+  assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "122.0.0");
   for (const packageName of ["@receiz/sdk", "@receiz/mcp-server", "@receiz/ai-skills"]) {
-    assert.match(packageSourceDocs, new RegExp(`${packageName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}@121\\.0\\.0`));
+    assert.match(packageSourceDocs, new RegExp(`${packageName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}@122\\.0\\.0`));
   }
-  assert.match(mcp, /@receiz\/sdk@121\.0\.0/);
-  assert.match(mcp, /@receiz\/mcp-server@121\.0\.0/);
-  assert.match(mcp, /@receiz\/ai-skills@121\.0\.0/);
+  assert.match(mcp, /@receiz\/sdk@122\.0\.0/);
+  assert.match(mcp, /@receiz\/mcp-server@122\.0\.0/);
+  assert.match(mcp, /@receiz\/ai-skills@122\.0\.0/);
   assert.match(packageSourceDocs, /public npm/i);
   assert.match(packageSourceDocs, /published (?:SHA-512 )?integrity/i);
-  assert.match(packageSourceDocs, /29a793a5bcc0195ab41d30614d37ac51df66023af354fa4335460764eb0af413/i);
-  assert.match(packageSourceDocs, /208553829ba78a5536524b864577ce59989e2d0a994fad9598d39ae3d557c4f5/i);
+  assert.match(packageSourceDocs, /ed65956a16dd5f0d76d04db2f4a651fc43eb0a71cef64afd53576aa782dc9896/i);
+  assert.match(packageSourceDocs, /bd1d7ccf1543e2484df68e3025c7376f8ae37cafe1ca0d7c9cd9f52f6342b325/i);
   assert.match(packageSourceDocs, /first admission only, then append forever/i);
   assert.match(packageSourceDocs, /v121[\s\S]*(?:living subject|proof brain|Merkle|bearer)/i);
   assert.match(release, /local v121 living-subject Twin/i);

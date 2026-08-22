@@ -7,11 +7,14 @@ import {
   RECEIZ_V114_PROTOCOL_LIMITS,
   RECEIZ_V121_REGISTRY_DIGEST,
   RECEIZ_V121_RELEASE_AUTHORITY,
+  RECEIZ_V122_REGISTRY_DIGEST,
+  RECEIZ_V122_AUTHORITY_BOUNDARY,
   RECEIZ_V114_RUNTIME_MATERIALIZATION_LIMITS
 } from "@receiz/sdk";
 import {
   RECEIZ_V121_APPLICATION_OPERATIONS,
-  RECEIZ_V121_APPLICATION_OPERATION_MATRIX_DIGEST
+  RECEIZ_V121_APPLICATION_OPERATION_MATRIX_DIGEST,
+  RECEIZ_V122_APPLICATION_OPERATION_MATRIX_DIGEST
 } from "@receiz/sdk/compiler";
 
 const read = (path: string) => readFileSync(path, "utf8");
@@ -133,7 +136,7 @@ test("the thirty-law custody matrix has executable repository and SDK evidence",
   assert.ok(Object.values(evidence).every(Boolean), JSON.stringify(evidence));
 });
 
-test("v121 MCP and AI Skills expose artifact and living-subject operation maps", () => {
+test("v122 MCP and AI Skills expose artifact and living-subject operation maps", () => {
   const mcpOperations = read("node_modules/@receiz/mcp-server/dist/operations.d.ts");
   const aiIndex = JSON.parse(read("node_modules/@receiz/ai-skills/skills.json")) as {
     version: string;
@@ -155,9 +158,9 @@ test("v121 MCP and AI Skills expose artifact and living-subject operation maps",
   ];
   assert.deepEqual(aiIndex.currentMcpArtifactTools, expectedTools);
   for (const operation of expectedTools) assert.match(mcpOperations, new RegExp(operation));
-  assert.equal(aiIndex.version, "121.0.0");
-  assert.equal(aiIndex.registryDigest, RECEIZ_V121_REGISTRY_DIGEST);
-  assert.equal(aiIndex.operationMatrixDigest, RECEIZ_V121_APPLICATION_OPERATION_MATRIX_DIGEST);
+  assert.equal(aiIndex.version, "122.0.0");
+  assert.equal(aiIndex.registryDigest, RECEIZ_V122_REGISTRY_DIGEST);
+  assert.equal(aiIndex.operationMatrixDigest, RECEIZ_V122_APPLICATION_OPERATION_MATRIX_DIGEST);
   assert.equal(aiIndex.currentMcpLivingSubjectTools.length, 37);
   for (const operation of [
     "receiz_subject_twin_message",
@@ -169,9 +172,8 @@ test("v121 MCP and AI Skills expose artifact and living-subject operation maps",
     assert.ok(aiIndex.currentMcpLivingSubjectTools.includes(operation));
     assert.match(mcpOperations, new RegExp(operation));
   }
-  assert.equal(RECEIZ_V121_RELEASE_AUTHORITY.subjectIdentitySurvivesOwnershipTransfer, true);
-  assert.equal(RECEIZ_V121_RELEASE_AUTHORITY.modelOutputRequiresCommandAdmission, true);
-  assert.equal(RECEIZ_V121_RELEASE_AUTHORITY.factualMemoryRequiresAdmittedEventCitations, true);
-  assert.equal(RECEIZ_V121_RELEASE_AUTHORITY.bearerClaimPreservesSubjectIdentity, true);
+  assert.equal(RECEIZ_V122_AUTHORITY_BOUNDARY.authority.subjectIdentitySurvivesOwnership, true);
+  assert.equal(RECEIZ_V122_AUTHORITY_BOUNDARY.authority.modelOutputRequiresCommandAdmission, true);
+  assert.equal(RECEIZ_V122_AUTHORITY_BOUNDARY.authority.multiSubjectEffectsAreAtomic, true);
   assert.equal(RECEIZ_V121_RELEASE_AUTHORITY.formerOwnerAuthorityRevokedImmediately, true);
 });

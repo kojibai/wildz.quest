@@ -148,6 +148,10 @@ export type ReceizCommerceAdapter = {
   worldProfile(username: string, query?: ReceizWorldProfileQuery): Promise<ReceizWorldProfileResponse>;
   worldMessage(username: string, body: ReceizWorldProfileMessageRequest): Promise<ReceizWorldProfileResponse>;
   resolveWorldSubject: ReceizClient["subjects"]["resolve"];
+  admitSubjectV122: ReceizClient["subjects"]["admit"];
+  subjectStateV122: ReceizClient["subjects"]["state"];
+  createSubjectAccessKeyV122: ReceizClient["subjects"]["createAccessKey"];
+  publishSubjectAccessKeyV122: ReceizClient["subjects"]["publishAccessKey"];
   replayWorld: ReceizClient["world"]["replay"];
   worldAdditions: ReceizClient["world"]["additions"];
   planWorldCommand: ReceizClient["world"]["planCommand"];
@@ -155,6 +159,18 @@ export type ReceizCommerceAdapter = {
   executeWorldCommand: ReceizClient["world"]["executeCommand"];
   planWorldTransaction: ReceizClient["world"]["planTransaction"];
   executeWorldTransaction: ReceizClient["world"]["executeTransaction"];
+  planPrivateWorldCommandV122: ReceizClient["world"]["planPrivateCommand"];
+  validateWorldTransactionV122: ReceizClient["world"]["validateTransaction"];
+  executeWorldTransactionV122: ReceizClient["world"]["executeTransactionV122"];
+  worldExecutionV122: ReceizClient["world"]["execution"];
+  worldExecutionByIdempotencyKeyV122: ReceizClient["world"]["executionByIdempotencyKey"];
+  worldAdditionsV122: ReceizClient["world"]["additionsV122"];
+  planMultiWorldTransactionV122: ReceizClient["world"]["planMultiWorldTransaction"];
+  executeMultiWorldTransactionV122: ReceizClient["world"]["executeMultiWorldTransaction"];
+  planPhiSettlementV122: ReceizClient["value"]["planSettlement"];
+  planPhiReserveV122: ReceizClient["value"]["planReserve"];
+  validatePhiIntentV122: ReceizClient["value"]["validateIntent"];
+  quotePhiDisplayUsdV122: ReceizClient["value"]["quoteDisplayUsd"];
   twinMarketMandate(): Promise<TwinMarketMandateResponse>;
   saveTwinMarketMandate(body: SaveTwinMarketMandateInput): Promise<TwinMarketMandateResponse>;
   twinMarketIntents(): Promise<TwinMarketIntentsResponse>;
@@ -555,6 +571,18 @@ export function createReceizCommerceAdapter(
     resolveWorldSubject(subjectId) {
       return client.subjects.resolve(subjectId);
     },
+    admitSubjectV122(input) {
+      return client.subjects.admit(input);
+    },
+    subjectStateV122(subjectId) {
+      return client.subjects.state(subjectId);
+    },
+    createSubjectAccessKeyV122(input) {
+      return client.subjects.createAccessKey(input);
+    },
+    publishSubjectAccessKeyV122(input) {
+      return client.subjects.publishAccessKey(input);
+    },
     replayWorld(input) {
       return client.world.replay(input);
     },
@@ -575,6 +603,42 @@ export function createReceizCommerceAdapter(
     },
     executeWorldTransaction(plan, authority) {
       return client.world.executeTransaction(plan, authority);
+    },
+    planPrivateWorldCommandV122(input) {
+      return client.world.planPrivateCommand(input);
+    },
+    validateWorldTransactionV122(transaction) {
+      return client.world.validateTransaction(transaction);
+    },
+    executeWorldTransactionV122(input) {
+      return client.world.executeTransactionV122(input);
+    },
+    worldExecutionV122(input) {
+      return client.world.execution(input);
+    },
+    worldExecutionByIdempotencyKeyV122(input) {
+      return client.world.executionByIdempotencyKey(input);
+    },
+    worldAdditionsV122(input) {
+      return client.world.additionsV122(input);
+    },
+    planMultiWorldTransactionV122(input) {
+      return client.world.planMultiWorldTransaction(input);
+    },
+    executeMultiWorldTransactionV122(input) {
+      return client.world.executeMultiWorldTransaction(input);
+    },
+    planPhiSettlementV122(input) {
+      return client.value.planSettlement(input);
+    },
+    planPhiReserveV122(input) {
+      return client.value.planReserve(input);
+    },
+    validatePhiIntentV122(input) {
+      return client.value.validateIntent(input);
+    },
+    quotePhiDisplayUsdV122(amountPhiMicro, usdPerPhiMicrocents) {
+      return client.value.quoteDisplayUsd(amountPhiMicro, usdPerPhiMicrocents);
     },
     twinMarketMandate() {
       return client.twin.marketMandate();

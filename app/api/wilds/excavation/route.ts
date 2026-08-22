@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { digestWildsExcavationCapabilityIdentity } from "@/features/play/wilds-excavation";
 import {
+  admitWildsCreatureSubjectForRequestV122,
   resolveWildsExcavationRouteAuthority,
   wildsExcavationStatusFor
 } from "@/lib/receiz/wilds-excavation-route-authority";
@@ -16,6 +17,22 @@ function json(body: unknown, status = 200) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+    if (body?.action === "admit-creature-subject") {
+      const subject = await admitWildsCreatureSubjectForRequestV122(request, {
+        card: body.card,
+        cardAdmission: body.cardAdmission
+      });
+      return json({
+        ok: true,
+        schema: "wildz.creature.subject_admission.v122",
+        subjectId: subject.subjectId,
+        head: subject.head,
+        proofObjectId: subject.proofObjectId,
+        admittedProofDigest: subject.admittedProofDigest,
+        registryDigest: subject.registryDigest,
+        reducerDigest: subject.reducerDigest
+      });
+    }
     if (!body || body.action !== "authority-preflight" || typeof body.actorSubjectId !== "string" || typeof body.creatureSubjectId !== "string") {
       throw new Error("wilds_excavation_request_invalid");
     }

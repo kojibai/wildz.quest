@@ -1,6 +1,6 @@
-# Wildz v121 AI operating doctrine
+# Wildz v122 AI operating doctrine
 
-Wildz is aligned only to the public npm releases `@receiz/ai-skills@121.0.0`, `@receiz/sdk@121.0.0`, and `@receiz/mcp-server@121.0.0`, with published integrity values pinned in `pnpm-lock.yaml`. All procedures bind to registry digest `29a793a5bcc0195ab41d30614d37ac51df66023af354fa4335460764eb0af413`, 30-operation matrix digest `208553829ba78a5536524b864577ce59989e2d0a994fad9598d39ae3d557c4f5`, artifact laws `ARTIFACT-001` through `ARTIFACT-030`, and the v121 profile/economy showcase authority rules.
+Wildz is aligned only to the public npm releases `@receiz/ai-skills@122.0.0`, `@receiz/sdk@122.0.0`, and `@receiz/mcp-server@122.0.0`, with published SHA-512 integrity values pinned in `pnpm-lock.yaml`. All current procedures bind to registry digest `ed65956a16dd5f0d76d04db2f4a651fc43eb0a71cef64afd53576aa782dc9896`, operation-matrix digest `bd1d7ccf1543e2484df68e3025c7376f8ae37cafe1ca0d7c9cd9f52f6342b325`, and artifact laws `ARTIFACT-001` through `ARTIFACT-030`.
 
 V121 is one coordinated release identity across SDK, MCP, AI manifests, ruleset, registry, operation matrix, compatible package range, and packed runtime. Durable proof memory is first admission only, then append forever. V121 causal orchestration keeps the enclosing artifact strongest, paints known truth before discovery, selects causal heads by Kai, and commits exact appends through Merkle roots with Fibonacci sparse ancestry.
 

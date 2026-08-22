@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/kojibai/wildz.quest/actions/workflows/ci.yml/badge.svg)](https://github.com/kojibai/wildz.quest/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-2ea44f.svg)](LICENSE)
-[![Receiz SDK](https://img.shields.io/badge/Receiz%20SDK-121.0.0-6f42c1.svg)](https://www.npmjs.com/package/@receiz/sdk)
+[![Receiz SDK](https://img.shields.io/badge/Receiz%20SDK-122.0.0-6f42c1.svg)](https://www.npmjs.com/package/@receiz/sdk)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
 
 > Wildz is both a product and a reference implementation. The game is the product; the repository is the evidence that the Receiz application model can be reshaped into something genuinely different without replacing its proof authority.
@@ -20,13 +20,13 @@ It demonstrates four layers working together:
 | Layer | What Wildz uses it for | Authority boundary |
 |---|---|---|
 | [Receiz Commerce Kit](https://github.com/kojibai/Receiz-commerce) | The forkable application kernel and original commerce architecture | Starting point, not a runtime dependency |
-| `@receiz/sdk@121.0.0` | Identity, proof objects, custody, ownership, publication, audit, and settlement clients | The typed application/runtime boundary |
-| `@receiz/mcp-server@121.0.0` | Capability inspection and authorized operator workflows | Tooling only; it cannot manufacture proof or authority |
-| `@receiz/ai-skills@121.0.0` plus the checked-in Wildz skills | Proof-aware build, market, and release procedures for coding agents | Operating guidance only; verification still wins |
+| `@receiz/sdk@122.0.0` | Identity, proof objects, durable subjects, private world events, atomic transactions, and Phi value rails | The typed application/runtime boundary |
+| `@receiz/mcp-server@122.0.0` | Capability inspection and authorized operator workflows | Tooling only; it cannot manufacture proof or authority |
+| `@receiz/ai-skills@122.0.0` plus the checked-in Wildz skills | Proof-aware build, market, and release procedures for coding agents | Operating guidance only; verification still wins |
 
-All three Receiz packages resolve at exact version `121.0.0` from the public npm registry, with their published SHA-512 integrity values pinned by `pnpm-lock.yaml`. The application contract in [`receiz.app.json`](receiz.app.json) selects artifact-first authority and explicitly disables database authority.
+All three Receiz packages resolve at exact version `122.0.0` from the public npm registry, with their published SHA-512 integrity values pinned by `pnpm-lock.yaml`. The v122 registry digest is `ed65956a16dd5f0d76d04db2f4a651fc43eb0a71cef64afd53576aa782dc9896` and its operation-matrix digest is `bd1d7ccf1543e2484df68e3025c7376f8ae37cafe1ca0d7c9cd9f52f6342b325`. The application contract in [`receiz.app.json`](receiz.app.json) selects artifact-first authority and explicitly disables database authority.
 
-V121 coordinates the SDK, MCP server, AI skills, ruleset, registry, 30-operation matrix, compatible package range, and packed runtime as one release identity. It preserves the established v120 runtime routes and proof objects while promoting source-first continuity: local sealed proof is admitted immediately, global publication is an idempotent append, and weaker projections cannot erase stronger verified fields. Durable proof memory remains first admission only, then append forever.
+V122 keeps that source-first continuity and adds durable subject admission, exact private-event envelopes, authenticated transaction validation/recovery, atomic multi-world planning, and explicit Phi Settlement/Reserve rails. Wildz uses only the exact SDK-custodied primitives that the published client exposes; missing normal public command planning and delegated value-scope discovery remain fail-closed instead of being recreated locally.
 
 ## What was built
 

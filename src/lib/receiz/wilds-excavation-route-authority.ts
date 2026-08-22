@@ -14,6 +14,7 @@ import { loadReceizConnectProfile } from "./connect-profile";
 import { playerReceizWorldAuthorityAccessToken, receizRequestSession } from "./session";
 import { readWildzProofSessionCookie } from "./wildz-proof-session";
 import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
+import { admitWildsCreatureSubjectV122 } from "./wilds-v122-subjects";
 
 type RemoteSubject = Awaited<ReturnType<ReceizCommerceAdapter["resolveWorldSubject"]>>;
 
@@ -35,7 +36,17 @@ export type WildsExcavationRouteAuthorityDependencies = Readonly<{
   }>>;
 }>;
 
+export type WildsCreatureSubjectAdmissionDependencies = Readonly<{
+  loadProfile(accessToken: string): ReturnType<typeof loadReceizConnectProfile>;
+  createAdapter(accessToken: string): Pick<ReceizCommerceAdapter, "admitSubjectV122" | "subjectStateV122">;
+}>;
+
 const DEFAULT_DEPENDENCIES: WildsExcavationRouteAuthorityDependencies = {
+  loadProfile: loadReceizConnectProfile,
+  createAdapter: (accessToken) => createReceizCommerceAdapter({ accessToken })
+};
+
+const DEFAULT_SUBJECT_ADMISSION_DEPENDENCIES: WildsCreatureSubjectAdmissionDependencies = {
   loadProfile: loadReceizConnectProfile,
   createAdapter: (accessToken) => createReceizCommerceAdapter({ accessToken })
 };
@@ -140,4 +151,43 @@ export async function resolveWildsExcavationRouteAuthority(
   if (atHead.capabilityIdentityDigest !== digestWildsExcavationCapabilityIdentity(identity)
     || atHead.conditionDigest !== capability.conditionDigest) throw new Error("wilds_excavation_capability_binding_invalid");
   return Object.freeze({ accessToken, ownerReceizId: profile.id, actorSubject: actorArtifact, creatureSubject: creatureArtifact, card, capability });
+}
+
+export async function admitWildsCreatureSubjectForRequestV122(
+  request: NextRequest,
+  input: Readonly<{ card: unknown; cardAdmission?: unknown }>,
+  dependencies: WildsCreatureSubjectAdmissionDependencies = DEFAULT_SUBJECT_ADMISSION_DEPENDENCIES
+) {
+  const session = receizRequestSession(request);
+  const accessToken = playerReceizWorldAuthorityAccessToken(session);
+  if (!accessToken) throw new Error("receiz_world_authority_scope_required");
+  const proofSession = readWildzProofSessionCookie(request);
+  if (proofSession.authority !== "identity-key") throw new Error("receiz_identity_key_required");
+  let profile: Awaited<ReturnType<typeof dependencies.loadProfile>>;
+  try {
+    profile = await dependencies.loadProfile(accessToken);
+  } catch (cause) {
+    throw profileResolutionError(cause);
+  }
+  if (!profile?.id || !profile.handle || !sameWildzPlayerCoordinate(profile.handle, proofSession.profileHandle)) {
+    throw new Error("receiz_profile_binding_invalid");
+  }
+  const actor = {
+    playerId: proofSession.actorId,
+    handle: proofSession.profileHandle,
+    receizActorId: profile.id,
+    practice: false,
+    accessToken,
+    ...(proofSession.vaultCardRootSha256 ? { vaultCardRootSha256: proofSession.vaultCardRootSha256 } : {})
+  };
+  const admitted = authorizeWildsMultiplayerCard(actor, input.card, input.cardAdmission);
+  const card = input.card as PortableCardAsset;
+  if (admitted.assetId !== card.id || admitted.proofDigest !== card.proof.digest) {
+    throw new Error("wilds_excavation_creature_subject_invalid");
+  }
+  return admitWildsCreatureSubjectV122({
+    card,
+    ownerReceizId: profile.id,
+    rail: dependencies.createAdapter(accessToken)
+  });
 }

@@ -1,6 +1,6 @@
 # Wildz v8.0.0 release verification
 
-Date: 2026-08-20. Target application version: `8.0.0`. Receiz integration target: `121.0.0`.
+Date: 2026-08-21. Target application version: `8.0.0`. Receiz integration target: `122.0.0`.
 
 This record distinguishes repository evidence from external production evidence. A passing local gate proves the source, deterministic contracts, compilation, and configured local browser paths observed in the run. It does not manufacture credentials, remote authority, deployment, payment settlement, or literal creature sentience.
 
@@ -8,9 +8,11 @@ This record distinguishes repository evidence from external production evidence.
 
 | Package | Requested | Installed | Role |
 |---|---:|---:|---|
-| `@receiz/sdk` | `121.0.0` | `121.0.0` | Artifact, living-subject, proof-brain, Twin, world, memory, mandate, runtime, and bearer application boundary |
-| `@receiz/mcp-server` | `121.0.0` | `121.0.0` | Nine artifact and 37 living-subject operator tools; never proof authority |
-| `@receiz/ai-skills` | `121.0.0` | `121.0.0` | 39 proof-aware operating skills; never proof authority |
+| `@receiz/sdk` | `122.0.0` | `122.0.0` | Artifact, durable subject, private-world, exact transaction, multi-world, and Phi value boundary |
+| `@receiz/mcp-server` | `122.0.0` | `122.0.0` | Coordinated operator tools; never proof authority |
+| `@receiz/ai-skills` | `122.0.0` | `122.0.0` | Coordinated proof-aware operating skills; never proof authority |
+
+All three exact public npm packages use published SHA-512 integrity values pinned in `pnpm-lock.yaml`. The v122 registry digest is `ed65956a16dd5f0d76d04db2f4a651fc43eb0a71cef64afd53576aa782dc9896`; the operation-matrix digest is `bd1d7ccf1543e2484df68e3025c7376f8ae37cafe1ca0d7c9cd9f52f6342b325`.
 
 All three exact public npm packages use published SHA-512 integrity values pinned in `pnpm-lock.yaml`. The v121 registry digest is `29a793a5bcc0195ab41d30614d37ac51df66023af354fa4335460764eb0af413`; the 30-operation matrix digest is `208553829ba78a5536524b864577ce59989e2d0a994fad9598d39ae3d557c4f5`; the living-subject reducer digest is `5694662e2acc8b886ac9697ffad202b411d7e66c5f26f9106ee0768df7c7b8c8`.
 
@@ -25,14 +27,14 @@ The v8/v121 source gate passed on 2026-08-20:
 | Gate | Observed result |
 |---|---|
 | Receiz architecture lock | Pass; 415 runtime files checked |
-| Node law/regression suite | Pass; 1,314 tests across 122 suites, zero failures |
+| Node law/regression suite | Pass; 1,663 tests across 154 suites, zero failures |
 | Typecheck | Pass |
-| Official v121 repository checker | Pass; `receiz.integration.check.v1`, exact release/registry/matrix/authority identity |
+| Official v122 repository checker | Pass; exact release/registry/matrix/authority identity |
 | MCP/SDK conformance | Pass; 15/15 checks, zero network calls, zero database calls |
 | ESLint | Pass |
 | Secret scan | Pass; 901 text files checked without printing values |
 | Optimized Next.js build | Pass; 19 static pages generated and all application routes compiled |
-| Receiz doctor | Pass; SDK/MCP/AI skills requested and installed at exact compatible `121.0.0` |
+| Receiz doctor | Pass; SDK/MCP/AI skills requested and installed at exact compatible `122.0.0` |
 
 The optimized build retains two upstream `web-worker` dynamic-require warnings in the Receiz `snarkjs` verifier import chain. They are not application exceptions, do not add a Wildz voice dependency, and were disclosed rather than mislabeled as a warning-free build. The root, robots, standard sitemap, image sitemap, manifest, and social metadata remain outside the gameplay render loop.
 
@@ -55,7 +57,7 @@ The browser session was intentionally unauthenticated/offline and did not submit
 
 V7 changes are isolated to deterministic proof-care commands, a Vault care panel, proof-lived card styling, a separate notification-schedule effect, and service-worker update/notification events. Source contracts prove that settlement runs only at mount/five-minute/focus/visibility boundaries and that notification scheduling is advisory. A final authenticated installed-PWA/device run remains required before claiming observed OS delivery timing; source qualification does not fabricate browser background execution.
 
-V8 changes are additive to that baseline. They cover identity/game-state restoration, exact single-card import, profile publication/gallery behavior, admitted Proof Object reuse, render/state hot-path work, and procedural world/creature fidelity. The application release coordinate advances independently of the exact Receiz `121.0.0` package identity.
+V8 changes are additive to that baseline. They cover identity/game-state restoration, exact single-card import, profile publication/gallery behavior, admitted Proof Object reuse, render/state hot-path work, and procedural world/creature fidelity. The application release coordinate advances independently of the current exact Receiz package identity.
 
 The Three.js director release report audit passed with premium and audio requirements against the retained flagship evidence. The current credential probe returned literal blank values for `TRIPO_API_KEY`, `GEMINI_API_KEY`, and `ELEVENLABS_API_KEY`; these are recorded as blank/inconclusive, not as present or missing. No external asset generation was attempted because this correction changes the Receiz voice adapter and repository doctrine, the user explicitly required no external dependency, and existing visual assets were not replaced.
 

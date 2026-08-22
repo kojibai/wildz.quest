@@ -54,9 +54,9 @@ const postmortem = await read("docs/release/v6.1.0-reasoning-postmortem.md");
 const v121VoiceRequest = await read("docs/RECEIZ_V121_OFFLINE_VOICE_REQUEST.md");
 const offlineVoiceDecision = await read("docs/receiz-decisions/2026-08-17-offline-acoustic-renderer.md");
 
-if (pkg.dependencies?.["@receiz/sdk"] !== "121.0.0") failures.push("receiz_sdk_pin_mismatch");
-if (pkg.devDependencies?.["@receiz/mcp-server"] !== "121.0.0") failures.push("receiz_mcp_pin_mismatch");
-if (pkg.devDependencies?.["@receiz/ai-skills"] !== "121.0.0") failures.push("receiz_ai_skills_pin_mismatch");
+if (pkg.dependencies?.["@receiz/sdk"] !== "122.0.0") failures.push("receiz_sdk_pin_mismatch");
+if (pkg.devDependencies?.["@receiz/mcp-server"] !== "122.0.0") failures.push("receiz_mcp_pin_mismatch");
+if (pkg.devDependencies?.["@receiz/ai-skills"] !== "122.0.0") failures.push("receiz_ai_skills_pin_mismatch");
 if (pkg.scripts?.["receiz:architecture-lock"] !== "node scripts/receiz-architecture-lock.mjs") {
   failures.push("receiz_architecture_lock_script_unwired");
 }
