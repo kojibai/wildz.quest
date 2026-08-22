@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { RECEIZ_V123_REGISTRY_DIGEST, validateReceizNamespaceResolutionV123 } from "@receiz/sdk";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import { canonicalPortableCardJson, sha256PortableBasis } from "@/features/play/portable-card";
 import { currentCreatureHistoryProjection } from "@/features/play/living-card-proof";
@@ -29,7 +30,7 @@ export type WildsExcavationRouteAuthority = Readonly<{
 
 export type WildsExcavationRouteAuthorityDependencies = Readonly<{
   loadProfile(accessToken: string): ReturnType<typeof loadReceizConnectProfile>;
-  createAdapter(accessToken: string): Pick<ReceizCommerceAdapter, "resolveWorldSubject">;
+  createAdapter(accessToken: string): Pick<ReceizCommerceAdapter, "resolveWorldSubject"> & Partial<Pick<ReceizCommerceAdapter, "resolveSubjectNamespacesV123">>;
   resolveCapabilityAtHead?(input: Readonly<{ subjectId: string; subjectHead: string }>): Promise<Readonly<{
     capabilityIdentityDigest: string;
     conditionDigest: string;
@@ -58,6 +59,59 @@ function normalizeDigest(value: string) {
 function conditionDigest(card: PortableCardAsset) {
   if (!isLivingCardAsset(card)) throw new Error("wilds_excavation_living_card_required");
   return sha256PortableBasis(canonicalPortableCardJson(currentCreatureHistoryProjection(card).condition));
+}
+
+function decodeNamespace(exactBytesB64u: string) {
+  return JSON.parse(Buffer.from(exactBytesB64u, "base64url").toString("utf8")) as unknown;
+}
+
+export async function resolveWildsCapabilityNamespacesV123(
+  rail: Pick<ReceizCommerceAdapter, "resolveSubjectNamespacesV123">,
+  input: Readonly<{
+    subjectId: string;
+    subjectHead: string;
+    admittedProofDigest?: string;
+    ownershipHead?: string;
+    registryDigest?: string;
+    reducerDigest?: string;
+  }>
+) {
+  const request = Object.freeze({ subjectId: input.subjectId, atHead: input.subjectHead, names: Object.freeze(["abilities", "condition"]) });
+  let resolution: Awaited<ReturnType<typeof validateReceizNamespaceResolutionV123>>;
+  try {
+    resolution = await validateReceizNamespaceResolutionV123(await rail.resolveSubjectNamespacesV123(request), request);
+  } catch {
+    throw new Error("receiz_subject_namespace_authority_required");
+  }
+  if ("ok" in resolution) throw new Error("receiz_subject_namespace_authority_required");
+  if (resolution.subjectId !== input.subjectId || resolution.atHead !== input.subjectHead) {
+    throw new Error("receiz_subject_namespace_authority_required");
+  }
+  if (input.admittedProofDigest !== undefined && resolution.admittedProofDigest !== input.admittedProofDigest
+    || input.ownershipHead !== undefined && resolution.ownershipHead !== input.ownershipHead
+    || input.registryDigest !== undefined && resolution.registryDigest !== input.registryDigest
+    || input.reducerDigest !== undefined && resolution.reducerDigest !== input.reducerDigest
+    || resolution.registryDigest !== RECEIZ_V123_REGISTRY_DIGEST) {
+    throw new Error("receiz_subject_namespace_authority_required");
+  }
+  const abilities = resolution.namespaces.find((entry) => entry.name === "abilities" && entry.found && entry.exactBytesB64u);
+  const condition = resolution.namespaces.find((entry) => entry.name === "condition" && entry.found && entry.exactBytesB64u);
+  if (!abilities?.exactBytesB64u || !condition?.exactBytesB64u) throw new Error("receiz_subject_namespace_authority_required");
+  let identity: unknown;
+  let conditionState: unknown;
+  try {
+    identity = decodeNamespace(abilities.exactBytesB64u);
+    conditionState = decodeNamespace(condition.exactBytesB64u);
+  } catch {
+    throw new Error("receiz_subject_namespace_authority_required");
+  }
+  if (!identity || typeof identity !== "object"
+    || (identity as { schema?: unknown }).schema !== "receiz.wilds.creature_capability_identity.v1"
+    || !conditionState || typeof conditionState !== "object") throw new Error("receiz_subject_namespace_authority_required");
+  return Object.freeze({
+    capabilityIdentityDigest: digestWildsExcavationCapabilityIdentity(identity as ReturnType<typeof projectCreatureCapabilityIdentity>),
+    conditionDigest: sha256PortableBasis(canonicalPortableCardJson(conditionState))
+  });
 }
 
 function subjectResolutionError(cause: unknown) {
@@ -146,8 +200,18 @@ export async function resolveWildsExcavationRouteAuthority(
     runtime: projectCreatureRuntimeCapabilities(identity, condition),
     conditionDigest: conditionDigest(card)
   });
-  if (!dependencies.resolveCapabilityAtHead) throw new Error("receiz_subject_namespace_authority_required");
-  const atHead = await dependencies.resolveCapabilityAtHead({ subjectId: creatureSubject.subjectId, subjectHead: creatureSubject.head });
+  const atHead = dependencies.resolveCapabilityAtHead
+    ? await dependencies.resolveCapabilityAtHead({ subjectId: creatureSubject.subjectId, subjectHead: creatureSubject.head })
+    : adapter.resolveSubjectNamespacesV123
+      ? await resolveWildsCapabilityNamespacesV123(adapter as Pick<ReceizCommerceAdapter, "resolveSubjectNamespacesV123">, {
+        subjectId: creatureSubject.subjectId,
+        subjectHead: creatureSubject.head,
+        admittedProofDigest: normalizeDigest(creatureSubject.identityDigest),
+        ownershipHead: creatureSubject.ownershipHead,
+        registryDigest: creatureArtifact.registryDigest,
+        reducerDigest: creatureArtifact.reducerDigest
+      })
+      : (() => { throw new Error("receiz_subject_namespace_authority_required"); })();
   if (atHead.capabilityIdentityDigest !== digestWildsExcavationCapabilityIdentity(identity)
     || atHead.conditionDigest !== capability.conditionDigest) throw new Error("wilds_excavation_capability_binding_invalid");
   return Object.freeze({ accessToken, ownerReceizId: profile.id, actorSubject: actorArtifact, creatureSubject: creatureArtifact, card, capability });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import { RECEIZ_V122_REGISTRY_DIGEST, digestReceizCanonicalV122, type ReceizSubjectStateV122 } from "@receiz/sdk";
+import { RECEIZ_V123_REGISTRY_DIGEST, digestReceizCanonicalV122, type ReceizSubjectStateV122 } from "@receiz/sdk";
 import { admitLegacyCard } from "../src/features/play/living-card-proof";
 import { sealCollectedCard } from "../src/features/play/portable-card";
 import { admitWildsCreatureSubjectV122, projectWildsCreatureSubjectAdmissionV122 } from "../src/lib/receiz/wilds-v122-subjects";
@@ -25,7 +25,7 @@ async function stateFor(projected: Awaited<ReturnType<typeof projectWildsCreatur
     ownerReceizId: "receiz:builder",
     ownerProofDigest: "1".repeat(64),
     genesisHead: "2".repeat(64),
-    registryDigest: RECEIZ_V122_REGISTRY_DIGEST,
+    registryDigest: RECEIZ_V123_REGISTRY_DIGEST,
     reducerDigest: "3".repeat(64),
     kai: 1,
     idempotencyIdentityDigest: "4".repeat(64),
@@ -45,7 +45,7 @@ async function stateFor(projected: Awaited<ReturnType<typeof projectWildsCreatur
     ownerReceizId: admissionReceipt.ownerReceizId,
     ownershipHead: "5".repeat(64),
     ownerProofDigest: admissionReceipt.ownerProofDigest,
-    registryDigest: RECEIZ_V122_REGISTRY_DIGEST,
+    registryDigest: RECEIZ_V123_REGISTRY_DIGEST,
     reducerDigest: admissionReceipt.reducerDigest,
     admissionReceipt,
     causalParents: [],

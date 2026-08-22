@@ -133,4 +133,20 @@ describe("Wildz v122 exact execution recovery", () => {
     assert.equal(result.code, "receiz_v122_zero_write");
     assert.equal(clears, 1);
   });
+
+  it("rejects a runtime-shaped non-committed outcome before receipt admission", async () => {
+    let clears = 0;
+    const result = await executeWildsV122Transaction({
+      transaction, authority: {}, authenticateReceipt: () => true,
+      journal: { stage: async () => undefined, clear: async () => { clears += 1; } },
+      rail: {
+        validateWorldTransactionV122: async () => ({ ok: true, transaction }),
+        executeWorldTransactionV122: async () => ({ status: "forged" } as never),
+        worldExecutionV122: async () => ({ status: "unknown" }),
+        worldExecutionByIdempotencyKeyV122: async () => ({ status: "unknown" })
+      }
+    });
+    assert.deepEqual(result, { ok: false, code: "receiz_v123_execution_outcome_invalid", writes: 0 });
+    assert.equal(clears, 0);
+  });
 });

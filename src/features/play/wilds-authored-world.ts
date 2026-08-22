@@ -9,8 +9,8 @@ import {
 import type { WildsDiscoveryPhysicalNeighborhood } from "./wilds-discovery-sites";
 
 // Pure, non-production foundation. Playable authored overlays remain gated
-// until the v122 remote-subject, checkpoint-verification, encrypted-envelope,
-// durable incremental store, and authored restore contracts documented in
+// until the V123 deployment supplies checkpoint verification, encrypted
+// envelopes, a durable incremental store, and authored restore contracts as
 // docs/receiz-decisions/2026-08-21-wilds-authored-world-authority.md exist.
 
 type Point3 = Readonly<{ x: number; y: number; z: number }>;

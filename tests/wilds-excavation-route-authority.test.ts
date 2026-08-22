@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { NextRequest } from "next/server";
+import { RECEIZ_V123_REGISTRY_DIGEST, projectReceizSubjectNamespacesV123, sha256ReceizBytes } from "@receiz/sdk";
 import { projectCreatureCapabilityIdentity } from "../src/features/play/creature-capability-identity";
 import { admitLegacyCard, currentCreatureHistoryProjection } from "../src/features/play/living-card-proof";
 import { canonicalPortableCardJson, sealCollectedCard, sha256PortableBasis } from "../src/features/play/portable-card";
@@ -13,6 +14,7 @@ import {
   WILDZ_PROOF_SESSION_COOKIE
 } from "../src/lib/receiz/wildz-proof-session";
 import {
+  resolveWildsCapabilityNamespacesV123,
   resolveWildsExcavationRouteAuthority,
   wildsExcavationStatusFor
 } from "../src/lib/receiz/wilds-excavation-route-authority";
@@ -51,14 +53,14 @@ function subjectArtifact(subjectId: string, ownerReceizId: string, identityDiges
       genesisDigest: `genesis:${subjectId}`,
       createdAtKai: "123",
       head: `head:${subjectId}`,
-      ownershipHead: `ownership:${subjectId}`,
+      ownershipHead: "2".repeat(64),
       currentOwnerReceizId: ownerReceizId,
       namespaces: {}
     },
     exactBytesB64u: "ZXhhY3Q",
     artifactDigest: `artifact:${subjectId}`,
-    registryDigest: "registry:v121",
-    reducerDigest: "reducer:v121",
+    registryDigest: RECEIZ_V123_REGISTRY_DIGEST,
+    reducerDigest: "4".repeat(64),
     authority: { artifactIsProofAuthority: true as const, modelOutputIsAuthority: false as const, indexIsAuthority: false as const }
   };
 }
@@ -129,6 +131,68 @@ describe("authenticated Wilds excavation route authority", () => {
       ...base,
       resolveCapabilityAtHead: async () => ({ ...capabilityAtHead(card), conditionDigest: "tampered" })
     }), /capability_binding_invalid/);
+  });
+
+  it("uses the installed V123 exact-head namespace rail without a test-only resolver", async () => {
+    const { card, proof } = fixture();
+    const identity = projectCreatureCapabilityIdentity(card);
+    const condition = currentCreatureHistoryProjection(card).condition;
+    const namespaceEntry = async (namespace: string, value: unknown) => {
+      const bytes = new TextEncoder().encode(canonicalPortableCardJson(value));
+      return { namespace, exactBytesB64u: Buffer.from(bytes).toString("base64url"), digest: await sha256ReceizBytes(bytes) };
+    };
+    const resolution = await projectReceizSubjectNamespacesV123({
+      subjectId: card.id,
+      head: `head:${card.id}`,
+      admittedProofDigest: card.proof.digest.replace(/^sha256:/, ""),
+      ownershipHead: "2".repeat(64),
+      registryDigest: RECEIZ_V123_REGISTRY_DIGEST,
+      reducerDigest: "4".repeat(64),
+      opaqueNamespaces: [await namespaceEntry("abilities", identity), await namespaceEntry("condition", condition)]
+    }, ["abilities", "condition"]);
+    const authority = await resolveWildsExcavationRouteAuthority(request(), {
+      card, actorSubjectId: proof.actorId, creatureSubjectId: card.id
+    }, {
+      loadProfile: async () => ({ id: "receiz:owner", handle: "arena_player.receiz.id" } as never),
+      createAdapter: () => ({
+        resolveWorldSubject: async (subjectId: string) => subjectArtifact(
+          subjectId,
+          "receiz:owner",
+          subjectId === card.id ? card.proof.digest : "sha256:actor"
+        ) as never,
+        resolveSubjectNamespacesV123: async () => resolution
+      })
+    });
+    assert.equal(authority.capability.conditionDigest, capabilityAtHead(card).conditionDigest);
+    await assert.rejects(resolveWildsCapabilityNamespacesV123({
+      resolveSubjectNamespacesV123: async () => resolution
+    }, {
+      subjectId: card.id,
+      subjectHead: `head:${card.id}`,
+      admittedProofDigest: card.proof.digest.replace(/^sha256:/, ""),
+      ownershipHead: "9".repeat(64),
+      registryDigest: RECEIZ_V123_REGISTRY_DIGEST,
+      reducerDigest: "4".repeat(64)
+    }), /receiz_subject_namespace_authority_required/);
+  });
+
+  it("maps authenticated but invalid namespace JSON to the explicit fail-closed authority code", async () => {
+    const bytes = new TextEncoder().encode("not-json");
+    const resolution = await projectReceizSubjectNamespacesV123({
+      subjectId: "subject:creature",
+      head: "1".repeat(64),
+      admittedProofDigest: "2".repeat(64),
+      ownershipHead: "3".repeat(64),
+      registryDigest: RECEIZ_V123_REGISTRY_DIGEST,
+      reducerDigest: "5".repeat(64),
+      opaqueNamespaces: [
+        { namespace: "abilities", exactBytesB64u: Buffer.from(bytes).toString("base64url"), digest: await sha256ReceizBytes(bytes) },
+        { namespace: "condition", exactBytesB64u: Buffer.from(bytes).toString("base64url"), digest: await sha256ReceizBytes(bytes) }
+      ]
+    }, ["abilities", "condition"]);
+    await assert.rejects(resolveWildsCapabilityNamespacesV123({
+      resolveSubjectNamespacesV123: async () => resolution
+    }, { subjectId: "subject:creature", subjectHead: "1".repeat(64) }), /receiz_subject_namespace_authority_required/);
   });
 
   it("distinguishes missing subjects from revoked authority and unavailable subject resolution", async () => {

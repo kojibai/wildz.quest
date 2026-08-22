@@ -43,6 +43,7 @@ export async function executeWildsV122Transaction(input: Readonly<{
   rail: WorldPort;
   journal: WildsV122TransactionJournal;
   authenticateReceipt(receipt: unknown): boolean | Promise<boolean>;
+  admitCommittedOutcome?(outcome: Extract<ReceizExecutionOutcomeV122, { status: "committed" }>, transaction: ReceizWorldTransactionV122): boolean | Promise<boolean>;
 }>) {
   const validation = await input.rail.validateWorldTransactionV122(input.transaction);
   if (validation !== null && typeof validation === "object" && (validation as { ok?: unknown }).ok !== true) {
@@ -68,6 +69,12 @@ export async function executeWildsV122Transaction(input: Readonly<{
     }
     await input.journal.clear(input.transaction.worldId, input.transaction.transactionId);
     return Object.freeze({ ok: false as const, code: "receiz_v122_zero_write", writes: 0 as const, outcome });
+  }
+  if (outcome.status !== "committed") {
+    return Object.freeze({ ok: false as const, code: "receiz_v123_execution_outcome_invalid", writes: 0 as const });
+  }
+  if (input.admitCommittedOutcome && !await input.admitCommittedOutcome(outcome, input.transaction)) {
+    return Object.freeze({ ok: false as const, code: "receiz_v123_committed_outcome_unadmitted", writes: 0 as const });
   }
   const receipt = await validateReceizExecutionReceiptV122({
     outcome,

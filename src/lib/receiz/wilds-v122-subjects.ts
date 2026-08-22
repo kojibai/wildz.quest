@@ -1,5 +1,5 @@
 import {
-  RECEIZ_V122_REGISTRY_DIGEST,
+  RECEIZ_V123_REGISTRY_DIGEST,
   deriveReceizSubjectIdV122,
   snapshotReceizArtifactInput,
   validateReceizSubjectAdmissionResultV122,
@@ -42,7 +42,7 @@ function assertBoundState(
     || state.subjectId !== expected.subjectId
     || state.admittedProofDigest !== expected.admittedProofDigest
     || state.ownerReceizId !== expected.ownerReceizId
-    || state.registryDigest !== RECEIZ_V122_REGISTRY_DIGEST) {
+    || state.registryDigest !== RECEIZ_V123_REGISTRY_DIGEST) {
     throw new Error("receiz_v122_subject_binding_invalid");
   }
   return state;

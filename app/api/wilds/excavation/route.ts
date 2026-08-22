@@ -5,6 +5,7 @@ import {
   resolveWildsExcavationRouteAuthority,
   wildsExcavationStatusFor
 } from "@/lib/receiz/wilds-excavation-route-authority";
+import { wildsV123AuthoredActivationCapability } from "@/lib/receiz/wilds-v123-authored-activation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +13,12 @@ export const dynamic = "force-dynamic";
 
 function json(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: { "cache-control": "no-store" } });
+}
+
+export async function GET() {
+  // Deployment must inject durable cross-instance ports into the execution
+  // service before this route may advertise a physical authored world.
+  return json(wildsV123AuthoredActivationCapability());
 }
 
 export async function POST(request: NextRequest) {
