@@ -1,5 +1,6 @@
 import type { WorldOverlayOwner } from "@/features/play/world-overlay-state";
 import type { WalletCapabilityProjection, WalletLedgerEntryProjection, WalletLedgerPageProjection, WalletRecipientProjection, WalletSummaryProjection } from "@/lib/receiz/wilds-wallet-projections";
+import { normalizeWildsWalletPublicUsername } from "@/lib/receiz/wilds-wallet-projections";
 
 export type WildsWalletControllerStatus = "idle" | "loading" | "verified" | "offline-verified" | "authority-required" | "failed" | "revoked";
 export type WildsWalletPage = "overview" | "send" | "receive" | "assets" | "ledger";
@@ -30,7 +31,7 @@ export type WildsWalletControllerEvent =
 
 const emptyRecipient: WildsWalletRecipientState = Object.freeze({ status: "idle", requestId: null, username: null, projection: null });
 const V123_UNAVAILABLE = "receiz_v123_execution_unavailable";
-const REVOKED_CODES = new Set(["receiz_wallet_token_revoked", "receiz_wallet_token_expired", "receiz_wallet_profile_binding_invalid", "receiz_wallet_token_binding_invalid"]);
+const REVOKED_CODES = new Set(["receiz_wallet_authority_revoked", "receiz_wallet_token_revoked", "receiz_wallet_token_expired", "receiz_wallet_profile_binding_invalid", "receiz_wallet_token_binding_invalid"]);
 const AUTHORITY_REQUIRED_CODES = new Set(["receiz_wallet_authority_required", "receiz_wallet_read_scope_required"]);
 
 export function createWildsWalletControllerState(identityKey: string, authorityGeneration = ""): WildsWalletControllerState {
@@ -42,8 +43,8 @@ function hasRetainedProjection(state: WildsWalletControllerState) { return state
 function afterCancellation(state: WildsWalletControllerState, open: boolean): WildsWalletControllerState {
   return { ...state, open, status: state.status === "loading" ? (hasRetainedProjection(state) ? "offline-verified" : "idle") : state.status, requestId: null, receiveRequestId: null, recipient: emptyRecipient, receiveLocator: null };
 }
-function clearPrivateForRevocation(state: WildsWalletControllerState): WildsWalletControllerState {
-  return { ...state, status: "revoked", requestId: null, receiveRequestId: null, summary: null, capabilities: null, ledger: null, recipient: emptyRecipient, receiveLocator: null, stagedTransactionId: null };
+function clearPrivate(state: WildsWalletControllerState, status: Extract<WildsWalletControllerStatus, "authority-required" | "failed" | "revoked">): WildsWalletControllerState {
+  return { ...state, status, requestId: null, receiveRequestId: null, summary: null, capabilities: null, ledger: null, recipient: emptyRecipient, receiveLocator: null, stagedTransactionId: null };
 }
 export function reduceWildsWalletController(state: WildsWalletControllerState, event: WildsWalletControllerEvent): WildsWalletControllerState {
   switch (event.type) {
@@ -55,8 +56,9 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
     case "refresh-resolved": return !state.open || state.requestId !== event.requestId || state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration ? state : { ...state, status: "verified", requestId: null, summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger };
     case "refresh-failed":
       if (state.requestId !== event.requestId) return state;
-      if (event.reason === "revoked") return clearPrivateForRevocation(state);
-      return hasRetainedProjection(state) && (event.reason === "network" || event.reason === "failed") ? { ...state, status: "offline-verified", requestId: null } : { ...state, requestId: null, status: event.reason === "authority-required" ? "authority-required" : "failed" };
+      if (event.reason === "revoked") return clearPrivate(state, "revoked");
+      if (event.reason === "network" && hasRetainedProjection(state)) return { ...state, status: "offline-verified", requestId: null };
+      return clearPrivate(state, event.reason === "authority-required" ? "authority-required" : "failed");
     case "identity-invalidated": return event.identityKey === state.identityKey && event.authorityGeneration === state.authorityGeneration ? state : createWildsWalletControllerState(event.identityKey, event.authorityGeneration);
     case "exclusive-owner-changed": return event.owner === "none" || event.owner === "wallet" ? state : afterCancellation(state, false);
     case "recipient-start": return { ...state, recipient: { status: "loading", requestId: event.requestId, username: event.username, projection: null } };
@@ -114,7 +116,11 @@ function isCapabilities(value: unknown): value is WalletCapabilityProjection {
 }
 function isLedgerEntry(value: unknown): value is WalletLedgerEntryProjection {
   const item = record(value);
-  return Boolean(item && exact(item, ["receiptReference", "direction", "state", "createdAt"], ["counterpartyUsername", "amountPhiMicro", "kaiPulse"]) && item.receiptReference === null && ["sent", "received", "unknown"].includes(String(item.direction)) && ["unknown", "committed", "pending", "rejected", "recovered", "reversed"].includes(String(item.state)) && createdAt(item.createdAt) && (item.counterpartyUsername === undefined || typeof item.counterpartyUsername === "string") && (item.amountPhiMicro === undefined || micro(item.amountPhiMicro)) && (item.kaiPulse === undefined || (Number.isSafeInteger(item.kaiPulse) && typeof item.kaiPulse === "number" && item.kaiPulse >= 0)));
+  let counterpartyValid = item?.counterpartyUsername === undefined;
+  if (item && typeof item.counterpartyUsername === "string") {
+    try { counterpartyValid = normalizeWildsWalletPublicUsername(item.counterpartyUsername) === item.counterpartyUsername; } catch { counterpartyValid = false; }
+  }
+  return Boolean(item && exact(item, ["receiptReference", "direction", "state", "createdAt"], ["counterpartyUsername", "amountPhiMicro", "kaiPulse"]) && item.receiptReference === null && ["sent", "received", "unknown"].includes(String(item.direction)) && ["unknown", "committed", "pending", "rejected", "recovered", "reversed"].includes(String(item.state)) && createdAt(item.createdAt) && counterpartyValid && (item.amountPhiMicro === undefined || micro(item.amountPhiMicro)) && (item.kaiPulse === undefined || (Number.isSafeInteger(item.kaiPulse) && typeof item.kaiPulse === "number" && item.kaiPulse >= 0)));
 }
 function isLedger(value: unknown): value is WalletLedgerPageProjection {
   const item = record(value);

@@ -12,6 +12,7 @@ export type WildzRemoteSession =
       actorId: string;
       profileHandle: string;
       displayName: string | null;
+      issuedAt?: number;
     }
   | {
       status: "unknown" | "pending" | "offline" | "unavailable";
@@ -69,6 +70,7 @@ function remoteSession(value: unknown): WildzRemoteSession {
     actorId?: unknown;
     profileHandle?: unknown;
     displayName?: unknown;
+    issuedAt?: unknown;
   };
   if (candidate.status === "connected"
     && typeof candidate.subjectKey === "string"
@@ -91,7 +93,8 @@ function remoteSession(value: unknown): WildzRemoteSession {
           ? { vaultCardRootSha256: candidate.vaultCardRootSha256 }
           : {}),
         ...coordinate,
-        displayName: candidate.displayName
+        displayName: candidate.displayName,
+        ...(Number.isSafeInteger(candidate.issuedAt) && Number(candidate.issuedAt) > 0 ? { issuedAt: Number(candidate.issuedAt) } : {})
       };
     }
   }

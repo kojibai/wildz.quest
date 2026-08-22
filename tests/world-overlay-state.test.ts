@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { initialWorldOverlayState, reduceWorldOverlay } from "../src/features/play/world-overlay-state";
+import { restorePlayModalFocusOnRelease } from "../src/features/play/use-play-modal-lifecycle";
 
 describe("living-world overlay authority", () => {
   it("keeps only one bottom expansion open", () => {
@@ -21,6 +22,14 @@ describe("living-world overlay authority", () => {
     const owned = reduceWorldOverlay(open, { type: "exclusive", owner: "wallet" });
     assert.deepEqual(owned, { drawerSnap: "closed", toolsOpen: false, panelKey: null, exclusiveOwner: "wallet" });
     assert.equal(reduceWorldOverlay(owned, { type: "tools", open: true }), owned);
+  });
+
+  it("restores the wallet origin exactly once after a takeover releases", () => {
+    let focusCalls = 0;
+    const origin = {} as HTMLElement;
+    assert.equal(restorePlayModalFocusOnRelease("wallet", "profile", origin, () => { focusCalls += 1; return true; }), false);
+    assert.equal(restorePlayModalFocusOnRelease("profile", "none", origin, () => { focusCalls += 1; return true; }), true);
+    assert.equal(focusCalls, 1);
   });
 
   it("cancels ambiguous state on viewport changes without changing data", () => {

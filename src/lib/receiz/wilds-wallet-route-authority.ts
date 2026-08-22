@@ -46,7 +46,7 @@ async function loadProfileOrThrow(
     return await dependencies.loadProfile(accessToken);
   } catch (cause) {
     throw new Error(isAuthorityFailure(cause)
-      ? "receiz_wallet_authority_required"
+      ? "receiz_wallet_authority_revoked"
       : "receiz_wallet_profile_resolution_unavailable");
   }
 }
@@ -59,13 +59,13 @@ async function introspectOrThrow(
     return asRecord(await dependencies.introspect(accessToken));
   } catch (cause) {
     throw new Error(isAuthorityFailure(cause)
-      ? "receiz_wallet_authority_required"
+      ? "receiz_wallet_authority_revoked"
       : "receiz_wallet_introspection_unavailable");
   }
 }
 
 export function wildsWalletAuthorityStatusFor(code: string) {
-  if (code === "receiz_wallet_authority_required" || code === "receiz_wallet_read_scope_required") return 401;
+  if (code === "receiz_wallet_authority_required" || code === "receiz_wallet_authority_revoked" || code === "receiz_wallet_read_scope_required") return 401;
   if (code === "receiz_wallet_profile_binding_invalid" || code === "receiz_wallet_token_binding_invalid") return 403;
   if (code === "receiz_wallet_profile_resolution_unavailable" || code === "receiz_wallet_introspection_unavailable") return 503;
   return 502;
@@ -93,7 +93,7 @@ export async function resolveWildsWalletReadAuthority(
     throw new Error("receiz_wallet_profile_binding_invalid");
   }
   const introspection = await introspectOrThrow(accessToken, dependencies);
-  if (introspection.active !== true) throw new Error("receiz_wallet_authority_required");
+  if (introspection.active !== true) throw new Error("receiz_wallet_authority_revoked");
   if (typeof introspection.sub !== "string" || introspection.sub !== profile.id) {
     throw new Error("receiz_wallet_token_binding_invalid");
   }

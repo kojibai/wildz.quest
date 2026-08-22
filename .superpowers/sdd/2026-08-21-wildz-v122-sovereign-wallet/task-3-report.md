@@ -97,3 +97,21 @@ git diff --check
 ```
 
 Result: all commands exit 0; focused suite 46/46 tests passed.
+
+## Fix round 2 — live revocation and driver boundary
+
+### RED evidence
+
+- Updated `tests/wilds-wallet-authority.test.ts` to require `receiz_wallet_authority_revoked` for inactive introspection and upstream 401 during a live profile/introspection validation. Focused authority tests failed with the previous `receiz_wallet_authority_required` response and unmapped status.
+- Added `tests/wilds-wallet-driver.test.ts`; the test build failed because no dependency-injected controller driver existed.
+- Added confusable ledger-counterparty validation; the controller test failed with `Missing expected exception`, proving the prior boundary admitted the malformed public username.
+- Added an executable focus-release test; the test build failed because the lifecycle had no callable release helper.
+
+### GREEN evidence
+
+- Initial missing cookie/proof/scope still maps to authority-required. Once live token/profile/introspection validation starts, inactive or upstream-401 authority is returned as exact `receiz_wallet_authority_revoked` at HTTP 401; the client maps it to revoked and clears projections/cache.
+- Non-network failures no longer retain an offline projection. `offline-verified` is retained only for a transport failure with a prior admitted projection.
+- Added `wilds-wallet-controller-driver.ts`, a dependency-injected execution boundary used by the React hook. Direct tests exercise fetch dedupe, abort-safe publication, exact revocation, malformed HTTP-200 receive clearing/retry, identity switching, and cache state.
+- Threaded non-secret proof-session `issuedAt` through the public proof-session projection and remote bridge. `WildzApp` passes that issued session generation to `PlayCampaign`; cache keys remain identity plus generation rather than key ID alone.
+- Ledger counterparties now run through the shared exact public username normalizer before admission.
+- Added the lifecycle release helper used by `usePlayModalLifecycle`; the wallet → profile takeover → release fixture restores focus once and never changes wallet ownership.

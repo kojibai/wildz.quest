@@ -96,10 +96,20 @@ describe("authenticated Wilds wallet read authority", () => {
     await assert.rejects(resolveWildsWalletReadAuthority(scoped("malformed"), dependencies()), /receiz_wallet_authority_required/);
   });
 
-  it("rejects a revoked token even when the cookie retains the read scope", async () => {
+  it("returns an exact revoked code for inactive live introspection", async () => {
     await assert.rejects(resolveWildsWalletReadAuthority(request({ scopes: ["receiz:wallet.read"] }), dependencies({
       introspection: { active: false, sub: "receiz:owner", scope: "receiz:wallet.read" }
-    })), /receiz_wallet_authority_required/);
+    })), /receiz_wallet_authority_revoked/);
+  });
+
+  it("treats upstream unauthorized profile or introspection during live validation as revoked", async () => {
+    const scoped = () => request({ scopes: ["receiz:wallet.read"] });
+    await assert.rejects(resolveWildsWalletReadAuthority(scoped(), dependencies({
+      profileFailure: Object.assign(new Error("unauthorized"), { status: 401 })
+    })), /receiz_wallet_authority_revoked/);
+    await assert.rejects(resolveWildsWalletReadAuthority(scoped(), dependencies({
+      introspectionFailure: Object.assign(new Error("unauthorized"), { status: 401 })
+    })), /receiz_wallet_authority_revoked/);
   });
 
   it("classifies profile and introspection upstream failures without an authority fallback", async () => {
@@ -115,6 +125,7 @@ describe("authenticated Wilds wallet read authority", () => {
   it("maps wallet authority failures to exact safe HTTP classes", () => {
     assert.equal(wildsWalletAuthorityStatusFor("receiz_wallet_read_scope_required"), 401);
     assert.equal(wildsWalletAuthorityStatusFor("receiz_wallet_authority_required"), 401);
+    assert.equal(wildsWalletAuthorityStatusFor("receiz_wallet_authority_revoked"), 401);
     assert.equal(wildsWalletAuthorityStatusFor("receiz_wallet_profile_binding_invalid"), 403);
     assert.equal(wildsWalletAuthorityStatusFor("receiz_wallet_token_binding_invalid"), 403);
     assert.equal(wildsWalletAuthorityStatusFor("receiz_wallet_profile_resolution_unavailable"), 503);

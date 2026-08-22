@@ -351,6 +351,7 @@ export function publicWildzProofSession(session: WildzProofSession) {
     profileHandle: session.profileHandle,
     displayName: session.displayName,
     authority: session.authority,
+    issuedAt: session.issuedAt,
     ...(session.vaultCardRootSha256 ? { vaultCardRootSha256: session.vaultCardRootSha256 } : {})
   };
 }

@@ -239,6 +239,18 @@ test("rejects malformed summary and ledger scalar fields before controller admis
   assert.throws(() => admitWildsWalletReadResponse(malformedLedger), /wilds_wallet_projection_invalid/);
 });
 
+test("rejects a confusable ledger counterparty username before controller admission", () => {
+  const malformed = {
+    ...readResponse(),
+    ledger: {
+      cursor: null,
+      nextCursor: null,
+      entries: [{ receiptReference: null, direction: "received", state: "committed", createdAt: "2026-08-22T12:00:00.000Z", counterpartyUsername: "kаi" }]
+    }
+  };
+  assert.throws(() => admitWildsWalletReadResponse(malformed), /wilds_wallet_projection_invalid/);
+});
+
 test("combat or profile takeover closes wallet state and cannot reopen it on release", () => {
   for (const owner of ["combat", "profile"] as const) {
     const wallet = reduceWildsWalletController(createWildsWalletControllerState("explorer"), { type: "open" });

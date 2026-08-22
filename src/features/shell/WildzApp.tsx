@@ -141,6 +141,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const genesisInFlightRef = useRef<string | null>(null);
   const [identityError, setIdentityError] = useState("");
   const [proofSessionConnected, setProofSessionConnected] = useState(false);
+  const [proofSessionGeneration, setProofSessionGeneration] = useState("");
   const [remoteProfile, setRemoteProfile] = useState<ReturnType<typeof sanitizePublicWildzProfile> | null>(null);
   const [profileStatus, setProfileStatus] = useState<"idle" | "loading" | "publishing" | "ready" | "unpublished" | "missing" | "error">("idle");
   const [avatarImageUrl, setAvatarImageUrl] = useState<string | null>(null);
@@ -310,6 +311,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           return;
         }
         setProofSessionConnected(true);
+        setProofSessionGeneration("issuedAt" in session && session.issuedAt ? String(session.issuedAt) : "");
         void bootstrapWildzSharedWorld().then(async (world) => {
           if (world.publication?.required !== "identity_proof" || identity.localAuthority !== "verified") return;
           await publishWildsWorldWithIdentityProof(identity, world.publication.draft);
@@ -926,7 +928,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           enabled={true}
           interactionEnabled={Boolean(campaignCharacter)}
           networkEnabled={Boolean(character) && proofSessionConnected}
-          walletAuthorityGeneration={identity.keyId}
+          walletAuthorityGeneration={proofSessionConnected ? proofSessionGeneration : ""}
           initialState={ownerPlayState}
           initialPlayerContinuity={continuity.playerContinuity}
           ownerReceizId={ownerUsername}

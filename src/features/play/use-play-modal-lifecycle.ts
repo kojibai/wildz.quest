@@ -14,6 +14,15 @@ function modalFocusable(dialog: HTMLElement | null) {
   ) ?? []);
 }
 
+export function restorePlayModalFocusOnRelease(
+  priorOwner: WorldOverlayOwner,
+  owner: WorldOverlayOwner,
+  origin: HTMLElement | null,
+  restore: (origin: HTMLElement | null) => boolean
+) {
+  return priorOwner !== "none" && owner === "none" ? restore(origin) : false;
+}
+
 export function usePlayModalLifecycle({
   onEscape,
   originRef,
@@ -48,7 +57,11 @@ export function usePlayModalLifecycle({
         restoreFrameRef.current = null;
         const origin = originRef.current;
         originRef.current = null;
-        if (canRestoreFocus(origin)) origin.focus();
+        restorePlayModalFocusOnRelease(priorOwner, owner, origin, (candidate) => {
+          if (!canRestoreFocus(candidate)) return false;
+          candidate.focus();
+          return true;
+        });
       });
     }
   }, [originRef, owner]);

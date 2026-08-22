@@ -43,6 +43,7 @@ type WalletRouteFallback =
 const SAFE_FAILURES = Object.freeze({
   receiz_wallet_read_scope_required: 401,
   receiz_wallet_authority_required: 401,
+  receiz_wallet_authority_revoked: 401,
   receiz_wallet_profile_binding_invalid: 403,
   receiz_wallet_token_binding_invalid: 403,
   receiz_wallet_profile_resolution_unavailable: 503,
