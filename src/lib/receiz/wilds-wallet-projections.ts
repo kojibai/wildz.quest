@@ -1,25 +1,24 @@
 import { parseWildzPlayerCoordinate } from "./wildz-player-coordinate";
 
-const MAX_MICRO_PHI_DIGITS = 30;
 const MAX_CURSOR_LENGTH = 256;
 const MAX_LEDGER_ENTRIES = 50;
-const MAX_RECEIPT_REFERENCE_LENGTH = 128;
 const MAX_PROFILE_MARK_LENGTH = 12;
 
 export type WalletSummaryProjection = Readonly<{
   status: "verified";
   admittedPhiMicro: string;
   displayUsdCents: string | null;
-  transferableResourceCount: number;
-  transferableCardCount: number;
-  reservedCardCount: number;
-  pendingCount: number;
+  assetCountsStatus: "available" | "unknown";
+  transferableResourceCount: number | null;
+  transferableCardCount: number | null;
+  reservedCardCount: number | null;
+  pendingCount: number | null;
 }>;
 
 export type WalletLedgerEntryProjection = Readonly<{
-  receiptReference: string;
+  receiptReference: null;
   direction: "sent" | "received" | "unknown";
-  state: "committed" | "pending" | "rejected" | "recovered" | "reversed";
+  state: "unknown" | "committed" | "pending" | "rejected" | "recovered" | "reversed";
   counterpartyUsername?: string;
   amountPhiMicro?: string;
   createdAt: string;
@@ -54,7 +53,6 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 function boundedCount(value: unknown, code: string) {
-  if (value === undefined) return 0;
   if (!Number.isInteger(value) || typeof value !== "number" || value < 0 || value > 10_000) {
     throw new Error(code);
   }
@@ -69,18 +67,13 @@ function stringField(record: Record<string, unknown>, keys: readonly string[]) {
   return null;
 }
 
-function normalizeReceiptReference(value: unknown) {
-  if (typeof value !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(value)) {
-    throw new Error("wilds_wallet_ledger_invalid");
-  }
-  return value;
-}
-
 function normalizeCreatedAt(value: unknown) {
-  if (typeof value !== "string" || Number.isNaN(Date.parse(value))) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) {
     throw new Error("wilds_wallet_ledger_invalid");
   }
-  return value;
+  const instant = new Date(value);
+  if (Number.isNaN(instant.valueOf()) || instant.toISOString() !== value) throw new Error("wilds_wallet_ledger_invalid");
+  return instant.toISOString();
 }
 
 function normalizePulse(value: unknown) {
@@ -102,13 +95,30 @@ function usernameFromPublicActor(value: unknown) {
   }
 }
 
-function stateForLedgerKind(value: unknown): WalletLedgerEntryProjection["state"] {
-  const kind = typeof value === "string" ? value.toLowerCase() : "";
-  if (kind.includes("pending")) return "pending";
-  if (kind.includes("reject")) return "rejected";
-  if (kind.includes("recover")) return "recovered";
-  if (kind.includes("revers")) return "reversed";
-  return "committed";
+function projectAssetCounts(summary: Record<string, unknown>) {
+  const values = [
+    summary.transferableResourceCount,
+    summary.transferableCardCount,
+    summary.reservedCardCount,
+    summary.pendingCount
+  ];
+  if (values.every((value) => value === undefined)) {
+    return {
+      assetCountsStatus: "unknown" as const,
+      transferableResourceCount: null,
+      transferableCardCount: null,
+      reservedCardCount: null,
+      pendingCount: null
+    };
+  }
+  if (values.some((value) => value === undefined)) throw new Error("wilds_wallet_summary_invalid");
+  return {
+    assetCountsStatus: "available" as const,
+    transferableResourceCount: boundedCount(summary.transferableResourceCount, "wilds_wallet_summary_invalid"),
+    transferableCardCount: boundedCount(summary.transferableCardCount, "wilds_wallet_summary_invalid"),
+    reservedCardCount: boundedCount(summary.reservedCardCount, "wilds_wallet_summary_invalid"),
+    pendingCount: boundedCount(summary.pendingCount, "wilds_wallet_summary_invalid")
+  };
 }
 
 export function parseWildsWalletMicroPhi(value: unknown) {
@@ -140,14 +150,12 @@ export function projectWildsWalletSummary(value: unknown): WalletSummaryProjecti
   const displayUsdCents = summary.balanceUsdCents === undefined || summary.balanceUsdCents === null
     ? null
     : parseWildsWalletMicroPhi(summary.balanceUsdCents);
+  const assetCounts = projectAssetCounts(summary);
   return Object.freeze({
     status: "verified" as const,
     admittedPhiMicro: balancePhiMicro,
     displayUsdCents,
-    transferableResourceCount: boundedCount(summary.transferableResourceCount, "wilds_wallet_summary_invalid"),
-    transferableCardCount: boundedCount(summary.transferableCardCount, "wilds_wallet_summary_invalid"),
-    reservedCardCount: boundedCount(summary.reservedCardCount, "wilds_wallet_summary_invalid"),
-    pendingCount: boundedCount(summary.pendingCount, "wilds_wallet_summary_invalid")
+    ...assetCounts
   });
 }
 
@@ -166,9 +174,9 @@ export function projectWildsWalletLedgerPage(value: unknown, ownerUsername: unkn
     const amountPhiMicro = source.amountPhiMicro === undefined ? undefined : parseWildsWalletMicroPhi(source.amountPhiMicro);
     const kaiPulse = normalizePulse(source.pulse);
     return Object.freeze({
-      receiptReference: normalizeReceiptReference(source.id),
+      receiptReference: null,
       direction,
-      state: stateForLedgerKind(source.kind),
+      state: "unknown" as const,
       ...(counterparty ? { counterpartyUsername: counterparty } : {}),
       ...(amountPhiMicro === undefined ? {} : { amountPhiMicro }),
       createdAt: normalizeCreatedAt(source.createdAt),

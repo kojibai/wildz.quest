@@ -11,7 +11,7 @@ import {
 } from "../src/lib/receiz/wilds-wallet-projections";
 
 describe("Wilds wallet projections", () => {
-  it("projects only bounded admitted Phi values and display-only price data", () => {
+  it("keeps absent SDK asset counts explicitly unknown instead of claiming zero inventory", () => {
     const projection = projectWildsWalletSummary({
       ok: true,
       balancePhiMicro: "2500000",
@@ -24,12 +24,33 @@ describe("Wilds wallet projections", () => {
       status: "verified",
       admittedPhiMicro: "2500000",
       displayUsdCents: "425",
-      transferableResourceCount: 0,
-      transferableCardCount: 0,
-      reservedCardCount: 0,
-      pendingCount: 0
+      assetCountsStatus: "unknown",
+      transferableResourceCount: null,
+      transferableCardCount: null,
+      reservedCardCount: null,
+      pendingCount: null
     });
     assert.doesNotMatch(JSON.stringify(projection), /private-owner|private-head/);
+  });
+
+  it("retains supplied bounded asset counts only when every count is present", () => {
+    assert.deepEqual(projectWildsWalletSummary({
+      ok: true,
+      balancePhiMicro: "1",
+      transferableResourceCount: 3,
+      transferableCardCount: 4,
+      reservedCardCount: 2,
+      pendingCount: 1
+    }), {
+      status: "verified",
+      admittedPhiMicro: "1",
+      displayUsdCents: null,
+      assetCountsStatus: "available",
+      transferableResourceCount: 3,
+      transferableCardCount: 4,
+      reservedCardCount: 2,
+      pendingCount: 1
+    });
   });
 
   it("rejects non-integer, negative, and unbounded micro-Phi values", () => {
@@ -54,7 +75,7 @@ describe("Wilds wallet projections", () => {
     }
   });
 
-  it("redacts private ledger and recipient fields while preserving public read facts", () => {
+  it("does not serialize raw ledger source IDs, proof material, or owner values", () => {
     const ledger = projectWildsWalletLedgerPage({
       ok: true,
       cursor: "first",
@@ -85,9 +106,9 @@ describe("Wilds wallet projections", () => {
       cursor: "first",
       nextCursor: "next_2",
       entries: [{
-        receiptReference: "receipt_001",
+        receiptReference: null,
         direction: "sent",
-        state: "committed",
+        state: "unknown",
         counterpartyUsername: "friend_2",
         amountPhiMicro: "2500000",
         createdAt: "2026-08-21T12:00:00.000Z",
@@ -99,7 +120,38 @@ describe("Wilds wallet projections", () => {
       profileMark: "FT",
       allowedTransferKinds: ["phi", "resource", "card"]
     });
-    assert.doesNotMatch(JSON.stringify({ ledger, recipient }), /private|example\.test|receiz:/);
+    assert.doesNotMatch(JSON.stringify({ ledger, recipient }), /receipt_001|private|example\.test|receiz:/);
+  });
+
+  it("does not turn an event kind into a committed settlement state", () => {
+    const ledger = projectWildsWalletLedgerPage({
+      ok: true,
+      cursor: null,
+      nextCursor: null,
+      events: [{
+        id: "raw_transfer_event",
+        kind: "transfer",
+        createdAt: "2026-08-21T12:00:00.000Z",
+        fromActor: { handle: "kai_01.receiz.id" },
+        toActor: { handle: "friend_2.receiz.id" }
+      }]
+    }, "kai_01");
+
+    assert.equal(ledger.entries[0]?.state, "unknown");
+  });
+
+  it("accepts only bounded canonical ISO instants for ledger timestamps", () => {
+    const page = (createdAt: string) => projectWildsWalletLedgerPage({
+      ok: true,
+      cursor: null,
+      nextCursor: null,
+      events: [{ id: "event_001", kind: "transfer", createdAt }]
+    }, "kai_01");
+
+    assert.equal(page("2026-08-21T12:00:00.000Z").entries[0]?.createdAt, "2026-08-21T12:00:00.000Z");
+    for (const invalid of ["0", "2026-08-21T12:00:00Z", "2026-08-21 12:00:00.000Z", "x".repeat(65)]) {
+      assert.throws(() => page(invalid), /wilds_wallet_ledger_invalid/);
+    }
   });
 
   it("marks every V123 execution surface unavailable while retaining V122 reads", () => {

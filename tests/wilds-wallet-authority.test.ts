@@ -15,17 +15,18 @@ import {
 const SECRET = "wilds-wallet-authority-test-secret-32-bytes";
 process.env.RECEIZ_OAUTH_STATE_SECRET = SECRET;
 
-function request(input: { scopes?: string[]; body?: unknown } = {}) {
+function request(input: { scopes?: string[]; body?: unknown; proof?: "missing" | "malformed" } = {}) {
   const proof = createWildzReceizIdProofSession({
     keyId: "key:wallet-authority",
     username: "kai_01",
     displayName: "Kai"
   }, SECRET);
   const cookies = [
-    `${WILDZ_PROOF_SESSION_COOKIE}=${packWildzProofSession(proof, SECRET)}`,
     "receiz_access_token=token:owner",
     `receiz_session_scope=${WILDZ_RECEIZ_SESSION_SCOPE}`
   ];
+  if (input.proof === "malformed") cookies.unshift(`${WILDZ_PROOF_SESSION_COOKIE}=tampered`);
+  if (!input.proof) cookies.unshift(`${WILDZ_PROOF_SESSION_COOKIE}=${packWildzProofSession(proof, SECRET)}`);
   if (input.scopes) cookies.push(`receiz_granted_scopes=${input.scopes.join("%20")}`);
   return new NextRequest("https://wildz.quest/api/wilds/wallet/summary", {
     method: input.body ? "POST" : "GET",
@@ -87,6 +88,12 @@ describe("authenticated Wilds wallet read authority", () => {
   it("fails closed when cookie granted scope is missing or omitted", async () => {
     await assert.rejects(resolveWildsWalletReadAuthority(request({ scopes: ["openid", "profile"] }), dependencies()), /receiz_wallet_read_scope_required/);
     await assert.rejects(resolveWildsWalletReadAuthority(request(), dependencies()), /receiz_wallet_read_scope_required/);
+  });
+
+  it("maps missing and tampered proof cookies to authority-required instead of upstream failure", async () => {
+    const scoped = (proof: "missing" | "malformed") => request({ scopes: ["receiz:wallet.read"], proof });
+    await assert.rejects(resolveWildsWalletReadAuthority(scoped("missing"), dependencies()), /receiz_wallet_authority_required/);
+    await assert.rejects(resolveWildsWalletReadAuthority(scoped("malformed"), dependencies()), /receiz_wallet_authority_required/);
   });
 
   it("rejects a revoked token even when the cookie retains the read scope", async () => {

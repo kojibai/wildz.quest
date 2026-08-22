@@ -80,7 +80,12 @@ export async function resolveWildsWalletReadAuthority(
   if (!accessToken || !session.grantedScopes.includes(WALLET_READ_SCOPE)) {
     throw new Error("receiz_wallet_read_scope_required");
   }
-  const proofSession = readWildzProofSessionCookie(request);
+  let proofSession: ReturnType<typeof readWildzProofSessionCookie>;
+  try {
+    proofSession = readWildzProofSessionCookie(request);
+  } catch {
+    throw new Error("receiz_wallet_authority_required");
+  }
   if (proofSession.authority !== "identity-key") throw new Error("receiz_wallet_authority_required");
 
   const profile = await loadProfileOrThrow(accessToken, dependencies);
