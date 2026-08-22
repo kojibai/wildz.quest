@@ -27,6 +27,7 @@ import {
   type WildsWalletPhiTransferProjection,
   type WildsWalletProofAuthorityAdmissionPort
 } from "./wilds-wallet-transfer";
+import { wildsWalletTransferConsentStatementDigest } from "./wilds-wallet-transfer-consent";
 import type {
   WildsWalletTransferJournalPort,
   WildsWalletTransferTerminalIntegrityBasis,
@@ -402,6 +403,14 @@ export function createWildsWalletTransferRouteRuntime(input: Readonly<{
         artifact: Parameters<typeof exchangeWildsWalletProofAuthority>[0]["artifact"];
         challenge: Parameters<typeof exchangeWildsWalletProofAuthority>[0]["challenge"];
       };
+      const expectedStatementDigest = await wildsWalletTransferConsentStatementDigest({
+        attempt: request.attempt,
+        amountPhiMicro: payload.amountPhiMicro,
+        rail: payload.rail
+      });
+      if (consent.challenge?.consent?.statementDigest !== expectedStatementDigest) {
+        throw new Error("wilds_wallet_transfer_consent_binding_invalid");
+      }
       const authorityContext = await exchangeWildsWalletProofAuthority({
         artifact: consent.artifact,
         challenge: consent.challenge,

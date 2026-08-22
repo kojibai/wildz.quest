@@ -7,7 +7,7 @@ export function WildsWalletLedger({ state }: { state: WildsWalletControllerState
     <div className="wilds-wallet-ledger" role="list">{state.ledger?.entries.length ? state.ledger.entries.map((entry, index) => <article key={`${entry.createdAt}-${index}`} role="listitem">
       <span className={`is-${entry.state}`} aria-hidden="true" />
       <p><b>{entry.direction === "sent" ? "Sent" : entry.direction === "received" ? "Received" : "Transfer"}</b><small>{entry.counterpartyUsername ? `@${entry.counterpartyUsername}` : "Privacy-safe counterparty"}</small></p>
-      <p><strong>{entry.amountPhiMicro ? `${formatWildsPhiExact(entry.amountPhiMicro)} Φ` : "—"}</strong><small>{entry.state} · {new Date(entry.createdAt).toLocaleDateString()}</small></p>
+      <p><strong>{entry.amountPhiMicro ? `Φ ${formatWildsPhiExact(entry.amountPhiMicro)}` : "—"}</strong><small>{entry.state} · {new Date(entry.createdAt).toLocaleDateString()}</small></p>
     </article>) : <p className="wilds-wallet-empty-ledger">No admitted ledger entries.</p>}</div>
   </section>;
 }

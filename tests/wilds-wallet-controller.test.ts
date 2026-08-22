@@ -12,6 +12,7 @@ import {
   reduceWildsWalletController,
   type WildsWalletControllerState
 } from "../src/features/play/wallet/wilds-wallet-controller";
+import { wildsWalletStatusNeedsIdentityReadAuthority } from "../src/features/play/wallet/useWildsWalletController";
 
 function verifiedState(identityKey = "explorer") {
   let state = createWildsWalletControllerState(identityKey);
@@ -154,6 +155,13 @@ test("initial authority codes remain distinct while ambiguous HTTP 401 revokes a
   assert.equal(classifyWildsWalletRefreshFailure({ status: 401, code: "receiz_wallet_token_revoked" }), "revoked");
   assert.equal(classifyWildsWalletRefreshFailure({ status: 401, code: "receiz_wallet_authority_required" }), "authority-required");
   assert.equal(classifyWildsWalletRefreshFailure({ status: 401, code: null }), "revoked");
+});
+
+test("Receiz ID replaces both missing and stale wallet read bearers without a second login", () => {
+  assert.equal(wildsWalletStatusNeedsIdentityReadAuthority("authority-required"), true);
+  assert.equal(wildsWalletStatusNeedsIdentityReadAuthority("revoked"), true);
+  assert.equal(wildsWalletStatusNeedsIdentityReadAuthority("failed"), false);
+  assert.equal(wildsWalletStatusNeedsIdentityReadAuthority("verified"), false);
 });
 
 test("revocation clears every private wallet projection and staged locator", () => {

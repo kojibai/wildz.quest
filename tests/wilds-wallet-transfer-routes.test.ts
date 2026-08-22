@@ -295,11 +295,15 @@ describe("Wilds wallet V123 transfer routes", () => {
     assert.doesNotMatch(receive.locator, /subject|private-destination|222222/);
 
     const command = { recipientLocator: receive.locator, amountPhiMicro: "25", rail: "settlement" as const, operationNonce: "8c64cb0e-6958-41cb-b16d-1fe9f1b96f30" };
-    const staged = await second.preview(ACTOR, command) as { status: string };
+    const staged = await second.preview(ACTOR, command) as { status: string; attempt: string };
     assert.equal(staged.status, "staged");
     const duplicate = await first.preview(ACTOR, command) as { status: string };
     assert.equal(duplicate.status, "staged");
     assert.equal(stages, 1);
+    await assert.rejects(second.execute(ACTOR, {
+      attempt: staged.attempt,
+      consent: { artifact: "identity-artifact", challenge: { consent: { statementDigest: "0".repeat(64) } } }
+    }), /wilds_wallet_transfer_consent_binding_invalid/);
 
     const locatorParts = receive.locator.slice("wildz:receive:".length).split(".");
     const ciphertext = Buffer.from(locatorParts[2], "base64url");

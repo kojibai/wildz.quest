@@ -130,11 +130,11 @@ export function WildsWalletSend({ state, ...actions }: { state: WildsWalletContr
       <button disabled={!parseWildsPhiInput(amount)} type="submit">Review exact amount</button>
     </form> : null}
     {transfer.phase === "review" || transfer.phase === "stage" ? <div className="wilds-wallet-review">
-      <p><span>Recipient</span><b>@{transfer.recipientUsername}</b></p><p><span>Exact amount</span><b>{transfer.amountPhiMicro ? formatWildsPhiExact(transfer.amountPhiMicro) : "—"} Φ</b></p><p><span>Rail</span><b>{transfer.rail}</b></p>
+      <p><span>Recipient</span><b>@{transfer.recipientUsername}</b></p><p><span>Exact amount</span><b>Φ {transfer.amountPhiMicro ? formatWildsPhiExact(transfer.amountPhiMicro) : "—"}</b></p><p><span>Rail</span><b>{transfer.rail}</b></p>
       <button disabled={transfer.phase === "stage"} onClick={actions.onStage} type="button">{transfer.phase === "stage" ? "Staging exact transfer…" : "Stage for authorization"}</button>
     </div> : null}
     {transfer.phase === "authorize" || transfer.phase === "authorize-pending" ? <div className="wilds-wallet-authorize">
-      <p><span>Final amount</span><b>{transfer.amountPhiMicro ? formatWildsPhiExact(transfer.amountPhiMicro) : "—"} Φ</b></p>
+      <p><span>Final amount</span><b>Φ {transfer.amountPhiMicro ? formatWildsPhiExact(transfer.amountPhiMicro) : "—"}</b></p>
       <button
         disabled={!actions.onAuthorize || transfer.phase === "authorize-pending"}
         onBlur={() => cancelHold(KEYBOARD_AUTHORIZATION_GESTURE_ID)}

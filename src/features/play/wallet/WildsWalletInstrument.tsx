@@ -35,6 +35,6 @@ export function WildsWalletInstrument({
     type="button"
   >
     <span aria-hidden="true" className="wilds-wallet-glyph"><Icons.wallet strokeWidth={1.8} /></span>
-    <strong aria-hidden="true">{state.summary ? `${formatWildsPhiCompact(state.summary.admittedPhiMicro)} Φ` : state.status === "loading" ? "… Φ" : "— Φ"}</strong>
+    <strong aria-hidden="true">{state.summary ? `Φ ${formatWildsPhiCompact(state.summary.admittedPhiMicro)}` : state.status === "loading" ? "Φ …" : "Φ —"}</strong>
   </button>;
 }

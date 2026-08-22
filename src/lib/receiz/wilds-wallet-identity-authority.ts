@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import type { ReceizProofAuthorityChallengeV123, ReceizProofAuthorityV123 } from "@receiz/sdk";
 import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
+import { hasExactWildsWalletReadAuthorityScopes, WILDS_WALLET_READ_AUTHORITY_SCOPES } from "./wilds-wallet-authority-scopes";
 
 const APPLICATION_ID = "wildz.quest";
 const WALLET_READ_SCOPE = "receiz:wallet.read";
@@ -72,7 +73,7 @@ export function issueWildsWalletIdentityAuthorityChallenge(input: Readonly<{
     || !Number.isSafeInteger(input.nowKai) || !input.nonce || input.nonce.length > 256) {
     throw new Error("receiz_wallet_identity_authority_challenge_invalid");
   }
-  const statementDigest = sha256Text("Wildz may read this Receiz ID wallet balance for 120 Kai micro-pulses. No transfer authority is granted.");
+  const statementDigest = sha256Text("Wildz may identify this Receiz ID and refresh its wallet projection for 120 Kai micro-pulses. Moving value requires a fresh exact edge signature from this Receiz ID.");
   const unsigned = Object.freeze({
     schema: "receiz.identity.proof-authority-challenge.v123" as const,
     audience: APPLICATION_ID,
@@ -92,7 +93,7 @@ export function issueWildsWalletIdentityAuthorityChallenge(input: Readonly<{
     statementDigest
   }, secret);
   return Object.freeze({
-    challenge: Object.freeze({ applicationId: APPLICATION_ID, scopes: Object.freeze([WALLET_READ_SCOPE]), keyId: input.session.keyId, unsigned }),
+    challenge: Object.freeze({ applicationId: APPLICATION_ID, scopes: WILDS_WALLET_READ_AUTHORITY_SCOPES, keyId: input.session.keyId, unsigned }),
     ticket
   });
 }
@@ -130,12 +131,12 @@ export async function completeWildsWalletIdentityAuthority(input: Readonly<{
     artifact: body.artifact,
     challenge: body.challenge as ReceizProofAuthorityChallengeV123,
     applicationId: APPLICATION_ID,
-    scopes: [WALLET_READ_SCOPE]
+    scopes: WILDS_WALLET_READ_AUTHORITY_SCOPES
   }));
   if (authority.applicationId !== APPLICATION_ID || authority.keyId !== ticket.keyId
     || authority.artifactDigest !== artifactDigest || authority.nonce !== ticket.nonce
     || authority.issuedAtKai !== ticket.issuedAtKai || authority.expiresAtKai !== ticket.expiresAtKai
-    || authority.expiresIn <= 0 || authority.expiresIn > 120 || authority.grantedScopes.length !== 1 || authority.grantedScopes[0] !== WALLET_READ_SCOPE) {
+    || authority.expiresIn <= 0 || authority.expiresIn > 120 || !hasExactWildsWalletReadAuthorityScopes(authority.grantedScopes)) {
     throw new Error("receiz_wallet_identity_authority_response_invalid");
   }
   const profile = await dependencies.loadProfile(authority.accessToken);
@@ -151,5 +152,5 @@ export async function completeWildsWalletIdentityAuthority(input: Readonly<{
   if (introspection.active !== true || introspection.sub !== profile.id || !scopes.includes(WALLET_READ_SCOPE)) {
     throw new Error("receiz_wallet_identity_authority_token_invalid");
   }
-  return Object.freeze({ accessToken: authority.accessToken, expiresIn: authority.expiresIn, grantedScopes: Object.freeze([WALLET_READ_SCOPE]) });
+  return Object.freeze({ accessToken: authority.accessToken, expiresIn: authority.expiresIn, grantedScopes: WILDS_WALLET_READ_AUTHORITY_SCOPES });
 }

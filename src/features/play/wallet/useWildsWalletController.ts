@@ -11,6 +11,10 @@ export type WildsWalletClientAuthorizationPort = Readonly<{
 }>;
 export type WildsWalletReadAuthorizationPort = Readonly<{ authorize(): Promise<boolean> }>;
 
+export function wildsWalletStatusNeedsIdentityReadAuthority(status: WildsWalletControllerState["status"]) {
+  return status === "authority-required" || status === "revoked";
+}
+
 export function useWildsWalletController(
   identityKey: string,
   authorityGeneration: string,
@@ -42,7 +46,7 @@ export function useWildsWalletController(
   }, [driver]);
   const refreshWithIdentityAuthority = useCallback(async () => {
     await driver.refresh();
-    if (driver.state.status !== "authority-required" || !options.readAuthorization) return;
+    if (!wildsWalletStatusNeedsIdentityReadAuthority(driver.state.status) || !options.readAuthorization) return;
     if (!readAuthorityPromiseRef.current) {
       const operation = options.readAuthorization.authorize().catch(() => false);
       readAuthorityPromiseRef.current = operation;

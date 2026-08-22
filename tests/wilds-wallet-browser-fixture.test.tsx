@@ -27,6 +27,9 @@ test("wallet CSS owns responsive geometry, safe areas, touch floors, long text, 
   assert.match(finalHud, /\.wilds-left-instrument-home > \.wilds-kai-command-pill\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*1/);
   assert.match(finalHud, /\.wilds-left-instrument-home > \.wilds-audio-settings\s*\{[^}]*grid-column:\s*2;[^}]*grid-row:\s*1/);
   assert.match(finalHud, /\.wilds-left-instrument-home > \.wilds-wallet-instrument\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*2/);
+  const walletValueRule = css.match(/\.wilds-wallet-instrument > strong\s*\{([^}]*)\}/)?.[1] ?? "";
+  assert.match(walletValueRule, /font:\s*800 clamp\(6px, 1\.75vw, 8px\)/);
+  assert.doesNotMatch(walletValueRule, /overflow:\s*hidden|text-overflow:/);
   assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\)[\s\S]*\.wilds-wallet-terminal-header\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.wilds-wallet-terminal/);
 });
@@ -37,8 +40,9 @@ test("shell passes a private wallet cache key separately from an optional public
   assert.match(shell, /walletIdentityKey=\{identity\.actorId\}/);
   assert.match(shell, /walletPublicUsername=\{identity\.username \?\? null\}/);
   assert.match(campaign, /useWildsWalletController\(walletIdentityKey, walletAuthorityGeneration/);
+  assert.match(campaign, /authorizeWildsWalletTransferWithIdentity\(walletReadIdentityKey, input\)/);
   assert.match(campaign, /walletAuthorization\?: WildsWalletClientAuthorizationPort/);
-  assert.match(campaign, /authorization: walletAuthorization/);
+  assert.match(campaign, /authorization: walletTransferAuthorization/);
   assert.match(campaign, /onAuthorize=\{walletController\.authorizeTransfer \?\? undefined\}/);
 });
 
@@ -72,7 +76,7 @@ test("wallet HUD control is a compact wallet icon with a stable Phi balance", ()
   }));
   assert.match(markup, /data-wallet-status="verified"/);
   assert.match(markup, /class="wilds-wallet-glyph"/);
-  assert.match(markup, />1\.25 Φ</);
+  assert.match(markup, />Φ 1\.25</);
   assert.doesNotMatch(markup, /PHI RESERVE|SECURE|VERIFYING/);
 });
 

@@ -113,6 +113,7 @@ import { WILDZ_CARE_NOTIFICATIONS_READY, WILDZ_CARE_SCHEDULE_MESSAGE } from "@/f
 import { WildsWorldCanvas } from "@/features/play/WildsWorldCanvas";
 import { useWildsWalletController, type WildsWalletClientAuthorizationPort } from "@/features/play/wallet/useWildsWalletController";
 import { authorizeWildsWalletReadWithIdentity } from "@/features/play/wallet/wilds-wallet-read-authorization";
+import { authorizeWildsWalletTransferWithIdentity } from "@/features/play/wallet/wilds-wallet-transfer-authorization";
 import { canCloseWildsWalletTerminal, WildsWalletTerminal } from "@/features/play/wallet/WildsWalletTerminal";
 import { emptyAdventureCondition } from "@/features/play/adventure/card-condition";
 import { projectWildsTraversalCapabilities } from "@/features/play/wilds-traversal-capabilities";
@@ -299,7 +300,10 @@ export function PlayCampaign({
   const walletReadAuthorization = useMemo(() => walletReadIdentityKey
     ? { authorize: () => authorizeWildsWalletReadWithIdentity(walletReadIdentityKey) }
     : undefined, [walletReadIdentityKey]);
-  const walletController = useWildsWalletController(walletIdentityKey, walletAuthorityGeneration, { authorization: walletAuthorization, readAuthorization: walletReadAuthorization });
+  const walletTransferAuthorization = useMemo(() => walletAuthorization ?? (walletReadIdentityKey
+    ? { authorize: (input: Parameters<WildsWalletClientAuthorizationPort["authorize"]>[0]) => authorizeWildsWalletTransferWithIdentity(walletReadIdentityKey, input) }
+    : undefined), [walletAuthorization, walletReadIdentityKey]);
+  const walletController = useWildsWalletController(walletIdentityKey, walletAuthorityGeneration, { authorization: walletTransferAuthorization, readAuthorization: walletReadAuthorization });
   const { cancelForExclusiveOwner: cancelWalletForExclusiveOwner } = walletController;
   const cameraHeadingRef = useRef(0);
   const updateCameraHeading = useCallback((heading: number) => {
