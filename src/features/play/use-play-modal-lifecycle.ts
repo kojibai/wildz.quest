@@ -5,7 +5,7 @@ import { canRestoreFocus } from "./focus-recovery";
 import type { WorldOverlayOwner } from "./world-overlay-state";
 
 const ESCAPE_OWNED_WORLD_OWNERS = new Set<WorldOverlayOwner>([
-  "trainer", "map", "landmark", "settlement", "ecology", "raid", "reward", "ceremony", "memorial", "multiplayer"
+  "trainer", "map", "landmark", "settlement", "ecology", "raid", "reward", "ceremony", "memorial", "wallet", "multiplayer"
 ]);
 
 function modalFocusable(dialog: HTMLElement | null) {

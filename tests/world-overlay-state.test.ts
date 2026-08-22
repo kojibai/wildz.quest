@@ -16,6 +16,13 @@ describe("living-world overlay authority", () => {
     assert.deepEqual(blocked, { drawerSnap: "closed", toolsOpen: false, panelKey: null, exclusiveOwner: "combat" });
   });
 
+  it("makes wallet one exact exclusive owner", () => {
+    const open = reduceWorldOverlay(initialWorldOverlayState, { type: "drawer", snap: "expanded" });
+    const owned = reduceWorldOverlay(open, { type: "exclusive", owner: "wallet" });
+    assert.deepEqual(owned, { drawerSnap: "closed", toolsOpen: false, panelKey: null, exclusiveOwner: "wallet" });
+    assert.equal(reduceWorldOverlay(owned, { type: "tools", open: true }), owned);
+  });
+
   it("cancels ambiguous state on viewport changes without changing data", () => {
     const open = reduceWorldOverlay(initialWorldOverlayState, { type: "tools", open: true });
     assert.deepEqual(reduceWorldOverlay(open, { type: "viewport-change" }), initialWorldOverlayState);

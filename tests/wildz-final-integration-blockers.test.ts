@@ -210,7 +210,7 @@ test("a controlled shell overlay owns the world for its entire open lifetime", (
     const owner = projectPlayShellOwner({
       combat: false, trainer: false, memorial: false, reward: false, ceremony: false,
       raid: false, ecology: false, settlement: false, landmark: false, map: false,
-      profile: shellOwner === "profile", market: shellOwner === "market",
+      profile: shellOwner === "profile", market: shellOwner === "market", wallet: false,
       multiplayer: false, command: false
     });
     attemptWorldAction(owner);
@@ -396,7 +396,7 @@ test("every exclusive owner hides and gates every non-owner world home", () => {
   const homes = ["reference", "multiplayer", "status", "movement", "tools", "companion"] as const;
   const owners: WorldOverlayOwner[] = [
     "map", "trainer", "combat", "landmark", "settlement", "ecology", "raid", "reward",
-    "ceremony", "memorial", "profile", "market", "multiplayer", "command"
+    "ceremony", "memorial", "profile", "market", "wallet", "multiplayer", "command"
   ];
   for (const owner of owners) {
     const available = homes.filter((home) => isPlayHomeAvailable(owner, home));
@@ -408,7 +408,7 @@ test("every exclusive owner hides and gates every non-owner world home", () => {
 test("the projected owner admits exactly one modal candidate and release admits no stale loser", () => {
   const candidates: WorldOverlayOwner[] = [
     "map", "trainer", "combat", "landmark", "settlement", "ecology", "raid",
-    "reward", "ceremony", "memorial", "profile", "market", "multiplayer", "command"
+    "reward", "ceremony", "memorial", "profile", "market", "wallet", "multiplayer", "command"
   ];
   for (const owner of candidates) {
     const claimed = claimModalAdmissionOwner(createModalAdmissionState(), owner);
@@ -416,6 +416,20 @@ test("the projected owner admits exactly one modal candidate and release admits 
     const released = releaseModalAdmissionOwner(claimed, owner);
     assert.deepEqual(candidates.filter((candidate) => isProjectedModalMounted(released.owner, candidate)), []);
   }
+});
+
+test("wallet controller remains outside Canvas and its exact owner restores its origin on close", () => {
+  const campaign = read("src/features/play/PlayCampaign.tsx");
+  const lifecycle = read("src/features/play/use-play-modal-lifecycle.ts");
+  const canvasStart = campaign.indexOf("<WildsWorldCanvas");
+  const controllerStart = campaign.indexOf("useWildsWalletController");
+
+  assert.ok(controllerStart >= 0 && controllerStart < canvasStart);
+  assert.match(campaign, /wallet:\s*walletController\.open/);
+  assert.match(campaign, /owner === "wallet"[\s\S]{0,120}walletController\.closeTerminal\(\)/);
+  assert.match(lifecycle, /"wallet"/);
+  assert.doesNotMatch(campaign, /<WildsWorldCanvas[^>]*key=/);
+  assert.doesNotMatch(campaign, /setInterval\([^)]*wallet|wallet[^\n]*setInterval/);
 });
 
 test("PlayCampaign mounts only the projected winner and guards delayed admissions", () => {

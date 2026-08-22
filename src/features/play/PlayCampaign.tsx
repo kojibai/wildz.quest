@@ -110,6 +110,7 @@ import {
 import { creatureCareNotificationSchedule, WILDZ_CARE_PERIODIC_TAG } from "@/features/pwa/creature-care-schedule";
 import { WILDZ_CARE_NOTIFICATIONS_READY, WILDZ_CARE_SCHEDULE_MESSAGE } from "@/features/pwa/pwa-events";
 import { WildsWorldCanvas } from "@/features/play/WildsWorldCanvas";
+import { useWildsWalletController } from "@/features/play/wallet/useWildsWalletController";
 import { emptyAdventureCondition } from "@/features/play/adventure/card-condition";
 import { projectWildsTraversalCapabilities } from "@/features/play/wilds-traversal-capabilities";
 import {
@@ -280,6 +281,7 @@ export function PlayCampaign({
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
   const [mapOpen, setMapOpen] = useState(false);
   const [multiplayerRosterOpen, setMultiplayerRosterOpen] = useState(false);
+  const walletController = useWildsWalletController(ownerReceizId);
   const cameraHeadingRef = useRef(0);
   const updateCameraHeading = useCallback((heading: number) => {
     cameraHeadingRef.current = heading;
@@ -444,6 +446,7 @@ export function PlayCampaign({
     map: mapOpen,
     profile: shellOverlayOwner === "profile",
     market: shellOverlayOwner === "market",
+    wallet: walletController.open,
     multiplayer: Boolean(multiplayer.incomingChallenge),
     command: false
   });
@@ -551,10 +554,12 @@ export function PlayCampaign({
         : applyWildsInput(current, { type: "finish-lineage-reveal" }));
     } else if (owner === "memorial") {
       setMemorialAssetId(null);
+    } else if (owner === "wallet") {
+      walletController.closeTerminal();
     } else if (owner === "multiplayer" && incomingChallengeId) {
       void answerMultiplayerChallenge(incomingChallengeId, "decline");
     }
-  }, [answerMultiplayerChallenge, incomingChallengeId, releasePlayModalOwner]);
+  }, [answerMultiplayerChallenge, incomingChallengeId, releasePlayModalOwner, walletController]);
   usePlayModalLifecycle({ onEscape: closeOwnedModal, originRef: exclusiveOriginRef, owner: modalOwner });
   useEffect(() => {
     if (!shouldDismissTrainerEncounterForExternalCombat(trainerEncounter?.phase ?? null, {
@@ -1509,7 +1514,7 @@ export function PlayCampaign({
       </div>
 
       <div className="wilds-shell wilds-playable-shell">
-        <div className="wilds-world">
+        <div className="wilds-world" data-wilds-wallet-state={walletController.status}>
           <div
             className={`wilds-stage${state.encounter.phase === "hint" ? ` signal-${state.encounter.proximity}` : ""}${combatSurface === "pvp" ? " pvp-active" : ""}${multiplayerRosterOpen ? " multiplayer-roster-open" : ""}${combatSurface === "wild" ? " wild-battle-active" : ""}${commandPanelOpen ? " is-command-panel-open" : ""}${worldOverlayState.toolsOpen ? " is-world-tools-open" : ""}`}
             aria-label="Receiz Wilds playable 3D world"

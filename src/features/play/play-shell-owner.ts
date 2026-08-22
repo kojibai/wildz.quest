@@ -13,6 +13,7 @@ export type PlayShellOwnerState = Readonly<{
   map: boolean;
   profile: boolean;
   market: boolean;
+  wallet: boolean;
   multiplayer: boolean;
   command: boolean;
 }>;
@@ -58,6 +59,7 @@ export function projectPlayShellOwner(state: PlayShellOwnerState): WorldOverlayO
   if (state.map) return "map";
   if (state.profile) return "profile";
   if (state.market) return "market";
+  if (state.wallet) return "wallet";
   if (state.multiplayer) return "multiplayer";
   if (state.command) return "command";
   return "none";

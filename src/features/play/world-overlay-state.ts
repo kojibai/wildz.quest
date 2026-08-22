@@ -15,6 +15,7 @@ export type WorldOverlayOwner =
   | "memorial"
   | "profile"
   | "market"
+  | "wallet"
   | "command"
   | "multiplayer";
 export type WorldOverlayState = Readonly<{
