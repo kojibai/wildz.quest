@@ -15,6 +15,8 @@ describe("Wilds flight camera control", () => {
     assert.ok(controls.maxDistance > 12.5);
     assert.ok(controls.minPolarAngle > .38);
     assert.ok(controls.maxPolarAngle < Math.PI / 2.15);
+    assert.ok(controls.rotateSpeed >= .55, "flight orbit must remain responsive to a deliberate touch");
+    assert.ok(controls.zoomSpeed >= .75, "flight positioning must not feel disconnected from touch");
 
     for (let frame = 0; frame < 300; frame += 1) {
       assert.equal(writeWildsFlightCameraControlState(controls, false, 1 / 60), identity);

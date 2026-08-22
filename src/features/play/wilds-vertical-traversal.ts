@@ -33,6 +33,10 @@ const AIR_GROUND_CLEARANCE = .35;
 const AIR_OBSTACLE_CLEARANCE = .35;
 const AIR_CEILING_CLEARANCE = .45;
 export const WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE = 6;
+const POWERED_TAKEOFF_SPEED = 2.15;
+const POWERED_ASCENT_BASE_SPEED = 1.2;
+const POWERED_ASCENT_LIFT_SPEED = .7;
+const POWERED_DESCENT_SPEED = 1.05;
 
 function bounded(value: number, minimum: number, maximum: number) {
   return Math.max(minimum, Math.min(maximum, value));
@@ -149,7 +153,13 @@ export function writeWildsVerticalTraversalStep(
         ? 1
         : input.intent
     : -1;
-  const speed = direction > 0 ? risingToPoweredCruise ? 5.4 : 1.6 + lift * 2.4 : direction < 0 ? 1.25 : 0;
+  const speed = direction > 0
+    ? risingToPoweredCruise
+      ? POWERED_TAKEOFF_SPEED
+      : POWERED_ASCENT_BASE_SPEED + lift * POWERED_ASCENT_LIFT_SPEED
+    : direction < 0
+      ? input.powered === true ? POWERED_DESCENT_SPEED : 1.25
+      : 0;
   const poweredCruiseCeiling = risingToPoweredCruise
     ? poweredCruiseTarget
     : state.safeMax;

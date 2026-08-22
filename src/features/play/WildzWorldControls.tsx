@@ -19,7 +19,7 @@ import type { WildsTraversalCapability } from "./wilds-traversal-capabilities";
 import type { WildsAquaticPresentation } from "./wilds-aquatic-presentation";
 import { projectCreatureCapabilityIdentity } from "./creature-capability-identity";
 import { projectWildsTraversalStatus } from "./wilds-traversal-status";
-import type { WildsVerticalTraversalIntent, WildsVerticalTraversalState } from "./wilds-vertical-traversal";
+import { WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE, type WildsVerticalTraversalIntent, type WildsVerticalTraversalState } from "./wilds-vertical-traversal";
 import { projectWildsFlightObstruction } from "./wilds-flight-obstruction";
 
 const ignore = () => {};
@@ -243,9 +243,17 @@ export function WildzWorldControls({
     flightStatus
   });
   const flightObstruction = projectWildsFlightObstruction(verticalReadout.blockerId);
+  const clearAirClimb = verticalReadout.layer === "air"
+    && aerialMode === "flight"
+    && !flightObstruction
+    && verticalReadout.value < WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE - .05
+      ? Math.max(0, Math.min(100, Math.round(verticalReadout.value / WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE * 100)))
+      : null;
   const verticalStatus = verticalReadout.layer === "air"
     ? flightObstruction
       ? `${verticalReadout.value.toFixed(1)} m altitude · ${flightObstruction.label} · ${flightObstruction.guidance}`
+      : clearAirClimb !== null
+        ? `${verticalReadout.value.toFixed(1)} m altitude · clear-air climb ${clearAirClimb}%`
       : `${verticalReadout.value.toFixed(1)} m altitude · open sky to ${verticalReadout.safeMax.toFixed(1)} m`
     : verticalReadout.layer === "water" && aquaticPresentation
       ? `${verticalReadout.value.toFixed(1)} m deep · safe ${(aquaticPresentation.waterDepth - verticalReadout.safeMax).toFixed(1)}–${(aquaticPresentation.waterDepth - verticalReadout.safeMin).toFixed(1)} m`
@@ -285,7 +293,10 @@ export function WildzWorldControls({
               onKeyUp={stopVerticalIntent}
               onLostPointerCapture={stopVerticalIntent}
               onPointerCancel={stopVerticalIntent}
-              onPointerDown={(event) => { event.currentTarget.setPointerCapture?.(event.pointerId); startVerticalIntent(1); }}
+              onPointerDown={(event) => {
+                startVerticalIntent(1);
+                try { event.currentTarget.setPointerCapture?.(event.pointerId); } catch { /* intent remains valid without capture */ }
+              }}
               onPointerUp={stopVerticalIntent}
               style={{ touchAction: "none" }}
               type="button"
@@ -298,7 +309,10 @@ export function WildzWorldControls({
               onKeyUp={stopVerticalIntent}
               onLostPointerCapture={stopVerticalIntent}
               onPointerCancel={stopVerticalIntent}
-              onPointerDown={(event) => { event.currentTarget.setPointerCapture?.(event.pointerId); startVerticalIntent(-1); }}
+              onPointerDown={(event) => {
+                startVerticalIntent(-1);
+                try { event.currentTarget.setPointerCapture?.(event.pointerId); } catch { /* intent remains valid without capture */ }
+              }}
               onPointerUp={stopVerticalIntent}
               style={{ touchAction: "none" }}
               type="button"

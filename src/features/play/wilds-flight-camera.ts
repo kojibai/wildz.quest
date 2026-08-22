@@ -9,7 +9,7 @@ export type WildsFlightCameraControlState = {
 };
 
 const GROUND = Object.freeze({ dampingFactor: .08, maxDistance: 12.5, minDistance: 4.4, minPolarAngle: .38, maxPolarAngle: Math.PI / 2.15, rotateSpeed: .62, zoomSpeed: .82 });
-const FLIGHT = Object.freeze({ dampingFactor: .145, maxDistance: 15.5, minDistance: 5.1, minPolarAngle: .5, maxPolarAngle: 1.18, rotateSpeed: .44, zoomSpeed: .68 });
+const FLIGHT = Object.freeze({ dampingFactor: .11, maxDistance: 15.5, minDistance: 5.1, minPolarAngle: .46, maxPolarAngle: 1.3, rotateSpeed: .56, zoomSpeed: .78 });
 
 export function createWildsFlightCameraControlState(): WildsFlightCameraControlState {
   return { ...GROUND };

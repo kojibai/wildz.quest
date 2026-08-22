@@ -1909,7 +1909,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
         : movePlayerVector(state.player, input.x, input.z, movementScale(input.mode ?? "walk"), movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, input.verticalWorldY)
       : movePlayerInsideSite(state.player, input);
     const siteMovement = input.siteRuntime ? writeWildsSiteRuntimeMovement(
-      input.siteMovementOutput ?? { x: movement.position.x, z: movement.position.z, floorY: movement.elevation, ceilingY: Number.POSITIVE_INFINITY, surfaceId: null, flooded: false, blocked: false },
+      input.siteMovementOutput ?? { x: movement.position.x, z: movement.position.z, floorY: movement.elevation, ceilingY: Number.POSITIVE_INFINITY, surfaceId: null, flooded: false, blocked: false, blockedByClimb: false },
       input.siteRuntime,
       currentSpace.spaceId,
       state.player.x,
@@ -1935,8 +1935,8 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     const nearest = nearestCreature({ player: nextPlayer });
     const nearbyText = movement.traversalBlockedBy === "swim"
       ? "Deep water ahead. Lead with an aquatic creature to swim."
-      : movement.traversalBlockedBy === "climb"
-        ? "A climb route rises ahead. Lead with a creature built to climb."
+      : movement.traversalBlockedBy === "climb" || siteMovement?.blockedByClimb
+        ? "Mountain slope too steep. Lead with a creature built to climb higher."
         : (movement.traversalMode === "flight" || movement.traversalMode === "glide") && leader
           ? `${movement.traversalMode === "flight" ? "Flying" : "Gliding"} with ${leader.manifest.name}.`
           : movement.traversalMode === "swim" && leader

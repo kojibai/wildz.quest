@@ -39,7 +39,7 @@ describe("production Wilds site runtime", () => {
     const runtime = prepareWildsSiteRuntime(admitWildsDiscoveryPhysicalNeighborhood(3, 2));
     const portal = runtime.physical.portals[0]!;
     const entered = enterWildsSiteRuntime(runtime, portal.siteKey, portal.position)!;
-    const movement = { x: 0, z: 0, floorY: 0, ceilingY: 0, surfaceId: null as string | null, flooded: false, blocked: false };
+    const movement = { x: 0, z: 0, floorY: 0, ceilingY: 0, surfaceId: null as string | null, flooded: false, blocked: false, blockedByClimb: false };
     assert.equal(writeWildsSiteRuntimeMovement(movement, runtime, entered.spaceId, entered.position.x, entered.position.y, entered.position.z, entered.position.x + .1, entered.position.z + .1, .38), movement);
     assert.ok(movement.surfaceId);
     const camera = { floorY: 0, ceilingY: 0, flooded: false, waterSurfaceY: Number.NaN };
@@ -84,7 +84,7 @@ describe("production Wilds site runtime", () => {
     const field = runtime.physical.mountainFields[0]!;
     const edge = field.nodes[0]!;
     const center = field.nodes[Math.floor(field.nodes.length / 2)]!;
-    const movement = { x: 0, z: 0, floorY: 0, ceilingY: 0, surfaceId: null as string | null, flooded: false, blocked: false };
+    const movement = { x: 0, z: 0, floorY: 0, ceilingY: 0, surfaceId: null as string | null, flooded: false, blocked: false, blockedByClimb: false };
 
     writeWildsSiteRuntimeMovement(movement, runtime, field.spaceId, edge.x - .2, edge.baseY, edge.z, edge.x, edge.z, .38, edge.baseY, false);
     assert.equal(movement.blocked, false);
@@ -92,6 +92,7 @@ describe("production Wilds site runtime", () => {
 
     writeWildsSiteRuntimeMovement(movement, runtime, field.spaceId, center.x - .2, center.baseY, center.z, center.x, center.z, .38, center.baseY, false);
     assert.equal(movement.blocked, true);
+    assert.equal(movement.blockedByClimb, true);
     writeWildsSiteRuntimeMovement(movement, runtime, field.spaceId, center.x - .2, center.baseY, center.z, center.x, center.z, .38, center.baseY, true);
     assert.equal(movement.blocked, false);
     assert.equal(movement.floorY, center.topY);
@@ -146,11 +147,21 @@ describe("production Wilds site runtime", () => {
     assert.equal(aerial.protectedAirspace, false);
   });
 
+  it("keeps the admitted outer terrain floor fixed while a flyer rises", () => {
+    const runtime = prepareWildsSiteRuntime(admitWildsDiscoveryPhysicalNeighborhood(0, 0));
+    const output = { obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false, blockerId: null as string | null, floorY: 0, flooded: false, waterSurfaceY: Number.NaN };
+    const x = -2.15;
+    const z = -.85;
+    const terrainFloorY = 8.224786;
+    writeWildsSiteRuntimeAerialCollision(output, runtime, "wildz.space.outer.v1", x, terrainFloorY + 9, z, 1.55, .38, terrainFloorY);
+    assert.equal(output.floorY, terrainFloorY);
+  });
+
   it("lets a flyer clear a mountain by world height without requiring climb anatomy", () => {
     const runtime = prepareWildsSiteRuntime(admitWildsDiscoveryPhysicalNeighborhood(0, 0));
     const field = runtime.physical.mountainFields[0]!;
     const center = field.nodes[Math.floor(field.nodes.length / 2)]!;
-    const movement = { x: 0, z: 0, floorY: 0, ceilingY: 0, surfaceId: null as string | null, flooded: false, blocked: false };
+    const movement = { x: 0, z: 0, floorY: 0, ceilingY: 0, surfaceId: null as string | null, flooded: false, blocked: false, blockedByClimb: false };
     writeWildsSiteRuntimeMovement(
       movement,
       runtime,
@@ -210,7 +221,7 @@ describe("production Wilds site runtime", () => {
     const x = -638.928744;
     const z = -640.502925;
     const y = wildsMountainFieldValue(field, x, z, "baseY");
-    const movement = { x, z, floorY: y, ceilingY: Number.POSITIVE_INFINITY, surfaceId: null as string | null, flooded: false, blocked: false };
+    const movement = { x, z, floorY: y, ceilingY: Number.POSITIVE_INFINITY, surfaceId: null as string | null, flooded: false, blocked: false, blockedByClimb: false };
     writeWildsSiteRuntimeMovement(movement, runtime, field.spaceId, x, y, z, x, z, .38, y, false);
     assert.equal(movement.blocked, true);
     writeWildsSiteRuntimeMovement(movement, runtime, field.spaceId, x, y, z, x, z, .38, y, true);
@@ -225,7 +236,7 @@ describe("production Wilds site runtime", () => {
   it("runs ten thousand warmed live-writer frames without rebuilding", () => {
     const runtime = prepareWildsSiteRuntime(admitWildsDiscoveryPhysicalNeighborhood(-12, 18));
     const site = runtime.sites[0]!;
-    const movement = { x: 0, z: 0, floorY: 0, ceilingY: 0, surfaceId: null as string | null, flooded: false, blocked: false };
+    const movement = { x: 0, z: 0, floorY: 0, ceilingY: 0, surfaceId: null as string | null, flooded: false, blocked: false, blockedByClimb: false };
     const camera = { floorY: 0, ceilingY: 0, flooded: false, waterSurfaceY: Number.NaN };
     const aerial = { obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false, blockerId: null as string | null };
     const encounter = { siteKey: null as string | null, spaceId: "", layer: "ground" as "ground" | "surface" | "water-column" | "seabed" | "air", minY: 0, maxY: 0 };

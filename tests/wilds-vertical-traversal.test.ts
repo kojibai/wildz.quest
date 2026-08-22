@@ -231,6 +231,52 @@ describe("Wildz bounded vertical traversal", () => {
     assert.equal(state.offset, WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE);
   });
 
+  it("reaches clear-air cruise progressively and keeps manual altitude changes precise", () => {
+    const state = createWildsVerticalTraversalState();
+    writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: 0,
+      initialOffset: .35,
+      intent: 0,
+      layer: "air",
+      liftPotential: 1,
+      powered: true,
+      stamina: 100,
+      terrainElevation: 0
+    });
+    for (let index = 0; index < 10; index += 1) writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: .1,
+      intent: 0,
+      layer: "air",
+      liftPotential: 1,
+      powered: true,
+      stamina: 100,
+      terrainElevation: 0
+    });
+    assert.ok(state.offset >= 2.1 && state.offset <= 2.5, `takeoff rose too abruptly: ${state.offset}`);
+    for (let index = 0; index < 30; index += 1) writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: .1,
+      intent: 0,
+      layer: "air",
+      liftPotential: 1,
+      powered: true,
+      stamina: 100,
+      terrainElevation: 0
+    });
+    assert.equal(state.offset, WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE);
+
+    const cruise = state.offset;
+    for (let index = 0; index < 10; index += 1) writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: .1,
+      intent: 1,
+      layer: "air",
+      liftPotential: 1,
+      powered: true,
+      stamina: 100,
+      terrainElevation: 0
+    });
+    assert.ok(state.offset - cruise >= 1.5 && state.offset - cruise <= 2.1, `manual climb was too coarse: ${state.offset - cruise}`);
+  });
+
   it("transitions from high powered flight into a glide without snapping altitude", () => {
     const state = createWildsVerticalTraversalState();
     writeWildsVerticalTraversalStep(state, {

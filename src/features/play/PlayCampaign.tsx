@@ -582,7 +582,7 @@ export function PlayCampaign({
     [siteRegion.x, siteRegion.z]
   );
   const siteRuntime = useMemo(() => prepareWildsSiteRuntime(sitePhysical), [sitePhysical]);
-  const siteMovementOutputRef = useRef({ x: 0, z: 0, floorY: 0, ceilingY: Number.POSITIVE_INFINITY, surfaceId: null as string | null, flooded: false, blocked: false });
+  const siteMovementOutputRef = useRef({ x: 0, z: 0, floorY: 0, ceilingY: Number.POSITIVE_INFINITY, surfaceId: null as string | null, flooded: false, blocked: false, blockedByClimb: false });
   const siteDiscoveryOutputRef = useRef({ siteKey: null as string | null });
   const siteLandingOutputRef = useRef({ x: 0, z: 0, floorY: 0, found: false });
   const refreshLivingWorld = livingWorld.refresh;

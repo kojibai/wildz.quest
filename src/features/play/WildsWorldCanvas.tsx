@@ -376,7 +376,7 @@ function WildsScene({
           style={character.gender}
           worldPosition={state.player}
         />
-        <ActiveCompanion locomotion={swimming ? "swim" : "ground"} state={state} terrainElevation={activeFloorY} />
+        <ActiveCompanion locomotion={swimming ? "swim" : aerialStateRef.current.mode !== "ground" ? "air" : "ground"} state={state} terrainElevation={activeFloorY} />
       </AerialPlayerFrame>
       <group name="grounded-support-companions" visible={!swimming}>
         <SupportCompanions cards={supportCards} player={state.player} terrainElevation={activeFloorY} />
@@ -453,7 +453,8 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, flight
       currentVertical.layer === "air" ? currentVertical.worldY : groundElevation + .35,
       player.z,
       WILDS_PLAYER_BODY_HEIGHT,
-      WILDS_PLAYER_BODY_RADIUS
+      WILDS_PLAYER_BODY_RADIUS,
+      groundElevation
     );
     mergeWildsAerialCollisionSample(collisionSample, siteCollision);
     const activeGroundElevation = typeof siteCollision.floorY === "number" && Number.isFinite(siteCollision.floorY) ? siteCollision.floorY : groundElevation;
@@ -605,7 +606,7 @@ function isBattleTelemetryPhase(phase: PlayState["encounter"]["phase"]) {
   return phase === "player_turn" || phase === "capture_ready" || phase === "fled" || phase === "defeated";
 }
 
-function ActiveCompanion({ locomotion, state, terrainElevation }: { locomotion: "ground" | "swim"; state: PlayState; terrainElevation: number }) {
+function ActiveCompanion({ locomotion, state, terrainElevation }: { locomotion: "ground" | "swim" | "air"; state: PlayState; terrainElevation: number }) {
   const card = selectedCard(state);
   const asset = state.inventory.find((candidate) => candidate.id === state.selectedAssetId);
   const formId = asset?.manifest.formId ?? `${card.id}-1`;

@@ -64,6 +64,37 @@ describe("Wildz aerial and vista integration", () => {
     assert.doesNotMatch(canvas, /useFrame\([\s\S]{0,1200}setVertical/);
   });
 
+  it("publishes a changing measured altitude and a visible clear-air climb state", async () => {
+    const [canvas, controls] = await Promise.all([
+      readFile("src/features/play/WildsWorldCanvas.tsx", "utf8"),
+      readFile("src/features/play/WildzWorldControls.tsx", "utf8")
+    ]);
+
+    assert.match(canvas, /readoutValue[\s\S]*currentVertical\.offset/);
+    assert.match(canvas, /Math\.round\(readoutValue \* 4\)/);
+    assert.match(canvas, /onVerticalReadoutChange\(layer, readoutValue/);
+    assert.match(controls, /clear-air climb/);
+    assert.match(controls, /WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE/);
+  });
+
+  it("keeps the selected creature in the same flight frame with an aerial pose", async () => {
+    const canvas = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");
+    const frame = canvas.slice(canvas.indexOf("<AerialPlayerFrame"), canvas.indexOf("</AerialPlayerFrame>") + "</AerialPlayerFrame>".length);
+    assert.match(frame, /<WildsExplorer/);
+    assert.match(frame, /<ActiveCompanion/);
+    assert.match(frame, /aerialStateRef\.current\.mode !== "ground" \? "air"/);
+  });
+
+  it("turns a physical upper-mountain refusal into a clear HUD explanation", async () => {
+    const [gameState, runtime] = await Promise.all([
+      readFile("src/features/play/game-state.ts", "utf8"),
+      readFile("src/features/play/wilds-site-runtime.ts", "utf8")
+    ]);
+    assert.match(runtime, /blockedByClimb/);
+    assert.match(gameState, /siteMovement\?\.blockedByClimb/);
+    assert.match(gameState, /Mountain slope too steep\. Lead with a creature built to climb higher\./);
+  });
+
   it("threads actual transient clearance into horizontal movement without changing PlayState persistence", async () => {
     const [campaign, gameState] = await Promise.all([
       readFile("src/features/play/PlayCampaign.tsx", "utf8"),
@@ -97,6 +128,7 @@ describe("Wildz aerial and vista integration", () => {
     assert.match(canvas, /writeUnderwaterCameraTarget\([\s\S]*clearance\)/);
     assert.match(controls, /onPointerCancel=\{stopVerticalIntent\}/);
     assert.match(controls, /onLostPointerCapture=\{stopVerticalIntent\}/);
+    assert.match(controls, /startVerticalIntent\(1\);[\s\S]{0,180}try \{ event\.currentTarget\.setPointerCapture/);
     assert.match(controls, /visibilitychange/);
     assert.match(controls, /\[gestureCancelSignal[^\]]*stopVerticalIntent|\[stopVerticalIntent[^\]]*gestureCancelSignal/);
     assert.match(controls, /verticalControlsVisible \? <div/);

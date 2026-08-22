@@ -19,7 +19,7 @@ type RuntimeIndex = Readonly<{
   interiorSites: ReadonlyMap<string, WildsDiscoverySiteProjection>;
 }>;
 export type WildsSiteRuntimeProjection = Readonly<{ version: "wildz.site-runtime.v1"; physical: WildsDiscoveryPhysicalNeighborhood; sites: readonly WildsDiscoverySiteProjection[] }>;
-export type WildsSiteMovementOutput = { x: number; z: number; floorY: number; ceilingY: number; surfaceId: string | null; flooded: boolean; blocked: boolean };
+export type WildsSiteMovementOutput = { x: number; z: number; floorY: number; ceilingY: number; surfaceId: string | null; flooded: boolean; blocked: boolean; blockedByClimb: boolean };
 export type WildsSiteDiscoveryOutput = { siteKey: string | null };
 
 export function projectWildsSitePortalCue(distance: number) {
@@ -210,17 +210,17 @@ function movementBlocked(runtime: WildsSiteRuntimeProjection, spaceId: string, x
   return obstruction > .05 && obstruction >= sourceObstruction - .000001;
 }
 export function writeWildsSiteRuntimeMovement(output: WildsSiteMovementOutput, runtime: WildsSiteRuntimeProjection, spaceId: string, sx: number, sy: number, sz: number, tx: number, tz: number, radius: number, fallback = sy, canClimb = false, airborneWorldY?: number) {
-  movementWrites += 1; const interior = spaceId !== OUTER; const targetY = Number.isFinite(airborneWorldY) ? airborneWorldY! : interior ? sy : fallback; const sourceObstruction = mountainObstruction(runtime, spaceId, sx, sy, sz, radius, canClimb); let x = tx, z = tz, surface = surfaceAt(runtime, spaceId, x, targetY, z); const blocked = movementBlocked(runtime, spaceId, x, targetY, z, radius, canClimb, sourceObstruction, airborneWorldY) || (interior && !surface);
+  movementWrites += 1; output.blockedByClimb = false; const interior = spaceId !== OUTER; const targetY = Number.isFinite(airborneWorldY) ? airborneWorldY! : interior ? sy : fallback; const sourceObstruction = mountainObstruction(runtime, spaceId, sx, sy, sz, radius, canClimb); const targetClimbObstruction = Number.isFinite(airborneWorldY) ? 0 : mountainObstruction(runtime, spaceId, tx, targetY, tz, radius, canClimb); let x = tx, z = tz, surface = surfaceAt(runtime, spaceId, x, targetY, z); const blocked = movementBlocked(runtime, spaceId, x, targetY, z, radius, canClimb, sourceObstruction, airborneWorldY) || (interior && !surface);
   if (blocked) { const xSurface = surfaceAt(runtime, spaceId, tx, targetY, sz); if ((!interior || xSurface) && !movementBlocked(runtime, spaceId, tx, targetY, sz, radius, canClimb, sourceObstruction, airborneWorldY)) { z = sz; surface = xSurface; } else { const zSurface = surfaceAt(runtime, spaceId, sx, targetY, tz); if ((!interior || zSurface) && !movementBlocked(runtime, spaceId, sx, targetY, tz, radius, canClimb, sourceObstruction, airborneWorldY)) { x = sx; surface = zSurface; } else { x = sx; z = sz; surface = surfaceAt(runtime, spaceId, x, sy, z); } } }
-  output.x = q(x); output.z = q(z); output.blocked = blocked && x === sx && z === sz; floorAndCeiling(output, runtime, spaceId, output.x, surface?.center.y ?? targetY, output.z, targetY); return output;
+  output.x = q(x); output.z = q(z); output.blocked = blocked && x === sx && z === sz; output.blockedByClimb = output.blocked && targetClimbObstruction > .05; floorAndCeiling(output, runtime, spaceId, output.x, surface?.center.y ?? targetY, output.z, targetY); return output;
 }
 export function writeWildsSiteRuntimeCamera(output: { floorY: number; ceilingY: number; flooded: boolean; waterSurfaceY: number }, runtime: WildsSiteRuntimeProjection, spaceId: string, x: number, y: number, z: number) { cameraWrites += 1; floorAndCeiling(output, runtime, spaceId, x, y, z, y); return output; }
 export function wildsSiteRuntimeCameraIsFlooded(camera: Readonly<{ floorY: number; flooded: boolean; waterSurfaceY: number }>) {
   return camera.flooded && Number.isFinite(camera.waterSurfaceY) && camera.floorY <= camera.waterSurfaceY + .05;
 }
-export function writeWildsSiteRuntimeAerialCollision(output: { obstacleTopY: number; ceilingY: number; protectedAirspace: boolean; blockerId: string | null; floorY?: number; flooded?: boolean; waterSurfaceY?: number }, runtime: WildsSiteRuntimeProjection, spaceId: string, x: number, footY: number, z: number, height: number, radius: number) {
+export function writeWildsSiteRuntimeAerialCollision(output: { obstacleTopY: number; ceilingY: number; protectedAirspace: boolean; blockerId: string | null; floorY?: number; flooded?: boolean; waterSurfaceY?: number }, runtime: WildsSiteRuntimeProjection, spaceId: string, x: number, footY: number, z: number, height: number, radius: number, fallbackFloorY = footY) {
   aerialWrites += 1; output.obstacleTopY = Number.NaN; output.ceilingY = Number.NaN; output.protectedAirspace = false; output.blockerId = null; const headY = footY + height;
-  if ("floorY" in output && "flooded" in output) floorAndCeiling(output as { floorY: number; ceilingY: number; flooded: boolean; waterSurfaceY?: number }, runtime, spaceId, x, footY, z, footY);
+  if ("floorY" in output && "flooded" in output) floorAndCeiling(output as { floorY: number; ceilingY: number; flooded: boolean; waterSurfaceY?: number }, runtime, spaceId, x, footY, z, fallbackFloorY);
   for (const ceiling of at(indexFor(runtime).ceilings, spaceId, x, z)) {
     if (Math.abs(x - ceiling.center.x) > ceiling.halfExtents.x + radius || Math.abs(z - ceiling.center.z) > ceiling.halfExtents.z + radius) continue;
     const underside = ceiling.center.y - ceiling.halfExtents.y;
