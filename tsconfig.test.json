@@ -52,6 +52,7 @@
     "src/lib/exchange/card-ledger.ts",
     "src/lib/exchange/sandbox-settlement.ts",
     "src/data/seed.ts",
-    "src/types/domain.ts"
+    "src/types/domain.ts",
+    "src/lib/receiz/wilds-wallet-route-handlers.ts"
   ]
 }

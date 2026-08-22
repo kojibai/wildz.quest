@@ -1,104 +1,228 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { NextRequest } from "next/server";
+import * as capabilitiesRoute from "../app/api/wilds/wallet/capabilities/route";
+import * as ledgerRoute from "../app/api/wilds/wallet/ledger/route";
+import * as recipientRoute from "../app/api/wilds/wallet/recipient/route";
+import * as requestRoute from "../app/api/wilds/wallet/request/route";
+import * as summaryRoute from "../app/api/wilds/wallet/summary/route";
 
-const routes = {
-  summary: "app/api/wilds/wallet/summary/route.ts",
-  ledger: "app/api/wilds/wallet/ledger/route.ts",
-  recipient: "app/api/wilds/wallet/recipient/route.ts",
-  request: "app/api/wilds/wallet/request/route.ts",
-  capabilities: "app/api/wilds/wallet/capabilities/route.ts"
-} as const;
+const handlerModulePath = ["../src/lib/receiz", "wilds-wallet-route-handlers.js"].join("/");
 
-function source(path: string) {
-  assert.equal(existsSync(path), true, `expected wallet route ${path}`);
-  return readFileSync(path, "utf8");
+async function createHandlers(dependencies: Record<string, unknown>) {
+  const handlerModule = await import(handlerModulePath) as {
+    createWildsWalletRouteHandlers: (input: Record<string, unknown>) => Record<string, (request: NextRequest) => Promise<Response>>;
+  };
+  return handlerModule.createWildsWalletRouteHandlers(dependencies);
 }
 
-function assertNoStore(route: string) {
-  assert.match(route, /cache-control["']:\s*["']no-store["']/);
+function walletRequest(path: string, method = "GET", body?: unknown) {
+  return new NextRequest(`https://wildz.quest${path}`, {
+    method,
+    ...(body === undefined ? {} : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
+  });
 }
 
-function exportedNames(route: string) {
-  return [...route.matchAll(/^export\s+(?:const|async function)\s+(\w+)/gm)].map((match) => match[1]);
+function malformedWalletRequest(path: string) {
+  return new NextRequest(`https://wildz.quest${path}`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: "{"
+  });
 }
 
-describe("Wilds wallet read and receive routes", () => {
-  it("returns the strict summary projection with a no-store response", () => {
-    const route = source(routes.summary);
-    assert.match(route, /resolveWildsWalletReadAuthority/);
-    assert.match(route, /adapter\.walletSummary\(\)/);
-    assert.match(route, /projectWildsWalletSummary/);
-    assert.match(route, /NextResponse\.json\(projectWildsWalletSummary/);
-    assertNoStore(route);
-    assert.doesNotMatch(route, /\.client\.connect\.wallet/);
-  });
+function authority() {
+  return { accessToken: "token:owner", ownerReceizId: "receiz:owner", actorId: "kai_01", profileHandle: "kai_01.receiz.id" };
+}
 
-  it("normalizes a bounded ledger cursor before returning one strict ledger page", () => {
-    const route = source(routes.ledger);
-    assert.match(route, /normalizeWildsWalletCursor\(request\.nextUrl\.searchParams\.get\(["']cursor["']\)\)/);
-    assert.match(route, /adapter\.walletLedger\(\{\s*limit:\s*50,\s*cursor:\s*cursor\s*\?\?\s*undefined\s*}\)/s);
-    assert.match(route, /projectWildsWalletLedgerPage\(/);
-    assert.match(route, /authority\.actorId/);
-    assertNoStore(route);
-    assert.doesNotMatch(route, /events:\s*[^,]*adapter/);
-  });
-
-  it("allows exactly one normalized recipient username and hides resolution details", () => {
-    const route = source(routes.recipient);
-    assert.match(route, /assertExactFields\(await readJsonBody\(request\),\s*\["username"\]\)/);
-    assert.match(route, /normalizeWildsWalletPublicUsername\(body\.username\)/);
-    assert.match(route, /projectWildsWalletRecipient/);
-    assert.match(route, /receiz_wallet_recipient_unavailable/);
-    assert.match(route, /RECIPIENT_LOOKUP_LIMIT/);
-    assert.match(route, /receiz_wallet_recipient_rate_limited/);
-    assertNoStore(route);
-    assert.doesNotMatch(route, /body\.(?:actor|owner|subject|head|balance|price|token|proof|id)/);
-    assert.match(route, /return json\(recipient\)/);
-    assert.doesNotMatch(route, /return json\(response\)/);
-  });
-
-  it("returns a non-authoritative receive request with an exact optional amount", () => {
-    const route = source(routes.request);
-    assert.match(route, /assertExactFields\(await readJsonBody\(request\),\s*\["amountPhiMicro"\]\)/);
-    assert.match(route, /parseWildsWalletMicroPhi\(body\.amountPhiMicro\)/);
-    assert.match(route, /non-authoritative/);
-    assert.match(route, /locator/);
-    assertNoStore(route);
-    assert.doesNotMatch(route, /(?:connectTransfer|planPhi|execute|reserve|walletLedger|walletSummary)/);
-    assert.doesNotMatch(route, /body\.(?:actor|owner|subject|head|balance|price|token|proof)/);
-  });
-
-  it("rejects malformed body, username, amount, cursor, and unauthenticated requests with safe codes", () => {
-    const sourceText = Object.values(routes).map(source).join("\n");
-    for (const code of [
-      "wilds_wallet_request_fields_invalid",
-      "wilds_wallet_username_invalid",
-      "wilds_wallet_micro_phi_invalid",
-      "wilds_wallet_cursor_invalid",
-      "resolveWildsWalletReadAuthority",
-      "wildsWalletAuthorityStatusFor"
-    ]) assert.match(sourceText, new RegExp(code));
-    for (const path of [routes.recipient, routes.request]) {
-      const route = source(path);
-      assert.match(route, /async function readJsonBody/);
-      assert.match(route, /throw new Error\("wilds_wallet_request_fields_invalid"\)/);
+function adapter(overrides: Partial<Record<"walletSummary" | "walletLedger" | "worldProfile", (...args: any[]) => Promise<unknown>>> = {}) {
+  const calls = { summary: 0, ledger: 0, profile: 0 };
+  return {
+    calls,
+    walletSummary: async () => {
+      calls.summary += 1;
+      return overrides.walletSummary?.() ?? { ok: true, balancePhiMicro: "2500000", userId: "receiz:private-owner" };
+    },
+    walletLedger: async (query: unknown) => {
+      calls.ledger += 1;
+      return overrides.walletLedger?.(query) ?? {
+        ok: true, cursor: null, nextCursor: "after_1", events: [{
+          id: "private-receipt", createdAt: "2026-08-21T12:00:00.000Z",
+          fromActor: { handle: "kai_01.receiz.id", ownerId: "receiz:private-owner" },
+          toActor: { handle: "friend_2.receiz.id", email: "friend@example.test" }, proofBundle: { digest: "private-proof" }
+        }]
+      };
+    },
+    worldProfile: async (username: unknown) => {
+      calls.profile += 1;
+      return overrides.worldProfile?.(username) ?? {
+        ok: true, world: {
+          username, profileMark: "FT", allowedTransferKinds: ["phi"], email: "friend@example.test", id: "receiz:friend"
+        }
+      };
     }
-    assert.doesNotMatch(sourceText, /error:\s*(?:cause|error\.message)/);
-  });
+  };
+}
 
-  it("exposes only the V123-gated capability projection", () => {
-    const route = source(routes.capabilities);
-    assert.match(route, /resolveWildsWalletReadAuthority/);
-    assert.match(route, /projectWildsWalletCapabilities\(\)/);
-    assert.match(route, /NextResponse\.json\(projectWildsWalletCapabilities\(\)/);
-    assertNoStore(route);
-    assert.doesNotMatch(route, /(?:connectTransfer|planPhi|execute|reserve)/);
-  });
-
-  it("exports only valid Next route fields", () => {
-    for (const path of Object.values(routes)) {
-      assert.deepEqual(exportedNames(source(path)).sort(), ["dynamic", "runtime", path.includes("recipient") || path.includes("request") ? "POST" : "GET"].sort());
+function durableLimiter() {
+  const usage = new Map<string, number>();
+  return {
+    usage,
+    consume: async ({ actorId, limit }: { actorId: string; limit: number }) => {
+      const next = (usage.get(actorId) ?? 0) + 1;
+      usage.set(actorId, next);
+      return next <= limit ? "allowed" : "limited";
     }
+  };
+}
+
+function dependencies(receiz = adapter(), limiter: unknown = durableLimiter()) {
+  return { resolveAuthority: async () => authority(), createAdapter: () => receiz, recipientLookupLimiter: limiter };
+}
+
+async function responseBody(response: Response) {
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  return response.json();
+}
+
+describe("Wilds wallet read and receive handlers", () => {
+  it("returns strict no-store summary and ledger projections without raw adapter redaction leaks", async () => {
+    const receiz = adapter();
+    const handlers = await createHandlers(dependencies(receiz));
+    const summary = await handlers.summary(walletRequest("/api/wilds/wallet/summary"));
+    const ledger = await handlers.ledger(walletRequest("/api/wilds/wallet/ledger?cursor=first"));
+
+    assert.equal(summary.status, 200);
+    assert.deepEqual(await responseBody(summary), {
+      status: "verified", admittedPhiMicro: "2500000", displayUsdCents: null,
+      assetCountsStatus: "unknown", transferableResourceCount: null, transferableCardCount: null,
+      reservedCardCount: null, pendingCount: null
+    });
+    assert.equal(ledger.status, 200);
+    const projectedLedger = await responseBody(ledger);
+    assert.deepEqual(projectedLedger, {
+      cursor: null, nextCursor: "after_1", entries: [{
+        receiptReference: null, direction: "sent", state: "unknown", counterpartyUsername: "friend_2",
+        createdAt: "2026-08-21T12:00:00.000Z"
+      }]
+    });
+    assert.doesNotMatch(JSON.stringify({ projectedLedger }), /private|example\.test|receiz:/);
+    assert.equal(receiz.calls.summary, 1);
+    assert.equal(receiz.calls.ledger, 1);
+  });
+
+  it("classifies malformed cursors and authenticated authority failures with exact safe responses", async () => {
+    const handlers = await createHandlers(dependencies());
+    const malformed = await handlers.ledger(walletRequest("/api/wilds/wallet/ledger?cursor=forged%3Dcursor"));
+    assert.equal(malformed.status, 400);
+    assert.deepEqual(await responseBody(malformed), { error: "wilds_wallet_cursor_invalid" });
+
+    const denied = await createHandlers({
+      ...dependencies(), resolveAuthority: async () => { throw new Error("receiz_wallet_read_scope_required"); }
+    });
+    const response = await denied.summary(walletRequest("/api/wilds/wallet/summary"));
+    assert.equal(response.status, 401);
+    assert.deepEqual(await responseBody(response), { error: "receiz_wallet_read_scope_required" });
+  });
+
+  it("collapses every recipient lookup miss into one exact response", async () => {
+    const cases = [
+      adapter({ worldProfile: async () => ({ ok: false, error: "not_found" }) }),
+      adapter({ worldProfile: async () => ({ ok: true, world: { malformed: true } }) }),
+      adapter({ worldProfile: async () => ({ ok: true, world: { username: "other_2.receiz.id" } }) }),
+      adapter({ worldProfile: async () => { throw new Error("upstream secret"); } })
+    ];
+    for (const receiz of cases) {
+      const handlers = await createHandlers(dependencies(receiz));
+      const response = await handlers.recipient(walletRequest("/api/wilds/wallet/recipient", "POST", { username: "friend_2" }));
+      assert.equal(response.status, 404);
+      assert.deepEqual(await responseBody(response), { error: "receiz_wallet_recipient_unavailable" });
+    }
+  });
+
+  it("accepts only exact recipient and receive request bodies, including malformed username, amount, and JSON", async () => {
+    const handlers = await createHandlers(dependencies());
+    const recipient = await handlers.recipient(walletRequest("/api/wilds/wallet/recipient", "POST", { username: "@Friend_2.RECEIZ.ID" }));
+    assert.equal(recipient.status, 200);
+    assert.deepEqual(await responseBody(recipient), { username: "friend_2", profileMark: "FT", allowedTransferKinds: ["phi"] });
+    for (const response of [
+      await handlers.recipient(walletRequest("/api/wilds/wallet/recipient", "POST", { username: "kаi_01" })),
+      await handlers.recipient(malformedWalletRequest("/api/wilds/wallet/recipient")),
+      await handlers.request(walletRequest("/api/wilds/wallet/request", "POST", { amountPhiMicro: "1.2" })),
+      await handlers.request(walletRequest("/api/wilds/wallet/request", "POST", { amountPhiMicro: "1", token: "forged" })),
+      await handlers.request(malformedWalletRequest("/api/wilds/wallet/request"))
+    ]) {
+      assert.equal(response.status, 400);
+      await responseBody(response);
+    }
+  });
+
+  it("returns a non-authoritative receive request and never invokes transfer-capable rails", async () => {
+    let transferCalls = 0;
+    const receiz = {
+      ...adapter(),
+      connectTransfer: async () => { transferCalls += 1; },
+      planPhiSettlementV122: async () => { transferCalls += 1; },
+      planPhiReserveV122: async () => { transferCalls += 1; },
+      executeWorldTransactionV122: async () => { transferCalls += 1; }
+    };
+    const handlers = await createHandlers(dependencies(receiz));
+    const response = await handlers.request(walletRequest("/api/wilds/wallet/request", "POST", { amountPhiMicro: "00025" }));
+    assert.equal(response.status, 200);
+    assert.deepEqual(await responseBody(response), {
+      locator: "wildz:receive:kai_01",
+      request: { kind: "phi", amountPhiMicro: "25", authority: "non-authoritative" }
+    });
+    assert.equal(transferCalls, 0);
+  });
+
+  it("uses an injected durable limiter across fresh handler instances and rejects the seventh lookup", async () => {
+    const limiter = durableLimiter();
+    const first = await createHandlers(dependencies(adapter(), limiter));
+    const second = await createHandlers(dependencies(adapter(), limiter));
+    for (let index = 0; index < 5; index += 1) {
+      assert.equal((await first.recipient(walletRequest("/api/wilds/wallet/recipient", "POST", { username: "friend_2" }))).status, 200);
+    }
+    assert.equal((await second.recipient(walletRequest("/api/wilds/wallet/recipient", "POST", { username: "friend_2" }))).status, 200);
+    const seventh = await second.recipient(walletRequest("/api/wilds/wallet/recipient", "POST", { username: "friend_2" }));
+    assert.equal(seventh.status, 429);
+    assert.deepEqual(await responseBody(seventh), { error: "receiz_wallet_recipient_rate_limited" });
+    assert.equal(limiter.usage.get("kai_01"), 7);
+  });
+
+  it("fails recipient lookup closed when no durable limiter is configured", async () => {
+    const { recipientLookupLimiter: _unused, ...withoutLimiter } = dependencies();
+    const handlers = await createHandlers(withoutLimiter);
+    const response = await handlers.recipient(walletRequest("/api/wilds/wallet/recipient", "POST", { username: "friend_2" }));
+    assert.equal(response.status, 503);
+    assert.deepEqual(await responseBody(response), { error: "receiz_wallet_recipient_lookup_unavailable" });
+  });
+
+  it("returns the V123-gated capability projection and collapses unknown failures", async () => {
+    const handlers = await createHandlers(dependencies());
+    const capabilities = await handlers.capabilities(walletRequest("/api/wilds/wallet/capabilities"));
+    assert.equal(capabilities.status, 200);
+    assert.deepEqual(await responseBody(capabilities), {
+      read: "available", receive: "available",
+      send: { available: false, reason: "receiz_v123_execution_unavailable" },
+      resourceTransfer: { available: false, reason: "receiz_v123_execution_unavailable" },
+      cardTransfer: { available: false, reason: "receiz_v123_execution_unavailable" },
+      phiSettlement: { available: false, reason: "receiz_v123_execution_unavailable" },
+      phiReserve: { available: false, reason: "receiz_v123_execution_unavailable" }
+    });
+    const unknown = await createHandlers({
+      ...dependencies(), createAdapter: () => adapter({ walletSummary: async () => { throw new Error("receiz_wallet_internal_secret"); } })
+    });
+    const response = await unknown.summary(walletRequest("/api/wilds/wallet/summary"));
+    assert.equal(response.status, 502);
+    assert.deepEqual(await responseBody(response), { error: "receiz_wallet_read_unavailable" });
+  });
+});
+
+describe("Wilds wallet Next route exports", () => {
+  it("imports routes that export only Next-supported fields", () => {
+    assert.deepEqual(Object.keys(summaryRoute).sort(), ["GET", "dynamic", "runtime"]);
+    assert.deepEqual(Object.keys(ledgerRoute).sort(), ["GET", "dynamic", "runtime"]);
+    assert.deepEqual(Object.keys(recipientRoute).sort(), ["POST", "dynamic", "runtime"]);
+    assert.deepEqual(Object.keys(requestRoute).sort(), ["POST", "dynamic", "runtime"]);
+    assert.deepEqual(Object.keys(capabilitiesRoute).sort(), ["GET", "dynamic", "runtime"]);
   });
 });

@@ -81,3 +81,53 @@ The recipient throttle is intentionally bounded process-local protection because
 ## Commit
 
 Created with `git commit -m "feat: add Wilds wallet read routes"`; final SHA is supplied in the task handoff.
+
+## Fix round 1/5 — durable recipient privacy boundary
+
+### Changes
+
+- Replaced source-regex route tests with behavioral tests that invoke injected handler functions and import each actual Next route only to verify its exports.
+- Moved all route behavior into `src/lib/receiz/wilds-wallet-route-handlers.ts`; the five route modules now export only `runtime`, `dynamic`, and `GET` or `POST`.
+- Added one exact safe-code/status allowlist classifier shared by every wallet handler. Unknown exceptions—including unknown `receiz_wallet_*` strings—collapse to each handler's generic safe unavailable code.
+- Removed the recipient module `Map` throttle. Recipient lookup consumes an injected durable limiter port with a six-per-60-second actor scope; absent, malformed, or failing limiter integration returns `503 { error: "receiz_wallet_recipient_lookup_unavailable" }` and makes no profile lookup.
+- Recipient SDK misses, malformed SDK profile shapes, exact-username mismatches, and SDK lookup throws now all return exactly `404 { error: "receiz_wallet_recipient_unavailable" }`.
+
+### RED evidence
+
+Command:
+
+```text
+pnpm exec tsc -p tsconfig.test.json && node scripts/patch-test-imports.mjs && node --test .test-build/tests/wilds-wallet-routes.test.js
+```
+
+Result before the handler module existed: 8 behavior tests failed (route export import check still passed) with the expected missing production-module error:
+
+```text
+ERR_MODULE_NOT_FOUND: Cannot find module .../wilds-wallet-route-handlers.js
+```
+
+Those tests specified the production behavior before implementation: sanitized summary/ledger projection, safe auth and input errors, recipient miss equivalence, malformed profile and upstream throw handling, non-authoritative receive requests, zero transfer-capable rail calls, durable six/seventh boundary across fresh factories, no-limiter failure, capability response, and actual route export imports.
+
+### GREEN evidence
+
+Command:
+
+```text
+pnpm exec tsc -p tsconfig.test.json && node scripts/patch-test-imports.mjs && node --test .test-build/tests/wilds-wallet-projections.test.js .test-build/tests/wilds-wallet-authority.test.js .test-build/tests/wilds-wallet-routes.test.js
+```
+
+Result: 25 tests passed, 0 failed.
+
+Command:
+
+```text
+pnpm typecheck
+pnpm exec eslint app/api/wilds/wallet src/lib/receiz/wilds-wallet-route-handlers.ts tests/wilds-wallet-routes.test.ts
+git diff --check
+```
+
+Result: all passed. The first scoped lint run found the Next rule prohibiting a local variable named `module`; renamed it to `handlerModule` and reran all checks cleanly.
+
+### Fix-round self-review and concern
+
+The route's production dependency deliberately supplies no limiter implementation, so public recipient lookup is unavailable until deployment wires an actual durable server/edge rate-limit port into the handler factory. This is intentional fail-closed behavior, not a fallback; summary, ledger, request, and capabilities remain available under Task 1 authority. The durable-port binding itself remains a deployment integration task.
