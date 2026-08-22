@@ -1,7 +1,7 @@
 # Wildz Sovereign Wallet Terminal Design
 
 Date: 2026-08-21  
-Status: Approved for V122-bounded implementation  
+Status: Approved for full V123 implementation
 Scope: One native in-game terminal for verified Phi, resources, creature cards, player-to-player transfer, receipt recovery, and wallet access without leaving the Wildz experience.
 
 ## Product intent
@@ -127,15 +127,18 @@ The browser receives only sanitized projections:
 
 Every authority-bearing operation remains server-only. Server routes resolve the authenticated cookie actor, exact granted scopes, exact subject/value/world heads, recipient identity, asset ownership, capability/condition, access policy, and current reservation state. Browser-supplied owner IDs, subject IDs, heads, prices, balances, recipient IDs, proof digests, and authority objects are rejected.
 
-## Receiz V122 rail mapping and fail-closed gaps
+## Receiz V123 rail mapping
 
-- Durable creature/card ownership: exact admitted V122 subjects.
-- Private/invited payloads: subject access keys and private world envelopes where supported.
-- Transaction execution/recovery: exact V122 validated transactions, staged before execute, recovered by exact transaction/idempotency lookup.
-- Cross-region resource/world effects: V122 multi-world transaction only.
-- Phi: explicit Settlement or Reserve intent only. USD is a display quote, never the transferred authority.
+- Durable creature/card ownership: exact admitted subjects plus head-bound V123 namespace resolution for abilities, condition, and inventory.
+- Private/invited payloads: subject access keys and private world envelopes.
+- Public authored-world commands: SDK-custodied `planCommandV122` and `planTransactionV122`; Wildz never manufactures command bytes or digests.
+- Transaction execution/recovery: exact validated transactions staged before execution and recovered by exact transaction/idempotency lookup.
+- Cross-region resource/world effects: the SDK multi-world transaction rail only.
+- Phi: explicit Settlement or Reserve intent followed by V123 proof-authority execution and exact idempotency recovery. USD remains a display quote, never transferred authority.
+- In-game authority: `identity.exchangeProofAuthority` grants a short-lived, non-refreshable, narrowly scoped authority after explicit proof-bound consent.
+- OAuth scopes: only SDK-derived `wallet`, `settlement`, `reserve`, world, subject, mandate, and inventory scopes may be requested or admitted.
 
-The current published V122 client does not expose SDK-custodied normal public `planCommandV122`/`planTransactionV122` bytes and does not expose Settlement/Reserve keys through the SDK scope helper. Those missing surfaces block live authored-world/resource/Phi publication. The terminal may ship read-only verified wallet state and fail-closed capability states, but it must not manufacture command bytes, handwrite delegated scopes, reuse V121 plans as V122 authority, or present a preview as completed value movement.
+V123 exposes every authority surface required for live Phi execution and canonical authored-world planning. Wildz must still fail closed when a deployment dependency outside Receiz authority is absent, including durable distributed recipient-search rate limiting. No legacy Connect transfer, local balance mutation, app-authored transaction digest, process-local idempotency ledger, or preview-shaped completion is permitted.
 
 Authorization occurs inside the Wildz experience. If a one-time Receiz identity grant is legally required, Wildz presents its own secure authorization surface and returns to the exact terminal state. Silent OAuth, hidden consent, iframe credential entry, or a redirect that discards gameplay state is prohibited. Once granted, normal reads and transfers remain in-game.
 
@@ -266,5 +269,5 @@ No wallet component owns simulation state, no gameplay reducer owns wallet state
 - No custom Wildz cryptocurrency, fabricated balance, or database-authoritative ledger.
 - No generic crypto swapping, speculative charts, yield, staking, leverage, seed phrases, or token promotion.
 - No raw proof/digest/debug telemetry in ordinary player UI.
-- No live transfer claim until the exact required SDK rail and authenticated production evidence exist.
+- No live transfer claim without authenticated production evidence from the exact V123 rail.
 - No wallet work in simulation, movement, render-frame, camera, creature, or restore hot paths.

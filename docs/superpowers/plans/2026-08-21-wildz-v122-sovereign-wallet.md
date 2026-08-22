@@ -1,19 +1,19 @@
-# Wildz V122 Sovereign Wallet Implementation Plan
+# Wildz V123 Sovereign Wallet Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship the complete safe V122 portion of the in-game sovereign wallet: verified Phi summary, bounded ledger, recipient/receive identity, native responsive terminal, exact authority states, and fail-closed V123-dependent transfer/publication actions without touching gameplay hot paths.
+**Goal:** Ship the complete in-game sovereign wallet on Receiz V123: verified Phi summary, bounded ledger, receive identity, proof-authorized Settlement/Reserve sends with exact recovery, and a native responsive terminal without touching gameplay hot paths.
 
-**Architecture:** Server routes bind the proof session, delegated token, live Receiz profile, and exact granted scopes before projecting strict privacy-safe wallet data from V122/legacy read rails. A dedicated client controller outside Canvas owns bounded reads and stable same-session cache state. The HUD and terminal consume only sanitized projections; V123-only execution is represented by an explicit capability state and never by fabricated transaction bytes or local balance mutation.
+**Architecture:** Server routes bind the proof session, delegated token, live Receiz profile, exact granted scopes, proof-authority grant, and value heads before projecting strict privacy-safe wallet data. Exact V123 Settlement/Reserve intents are staged before execution and recovered by idempotency key. A dedicated client controller outside Canvas owns bounded reads and stable same-session cache state; HUD and terminal consume only sanitized projections.
 
-**Tech Stack:** Next.js 15 App Router, React 19, TypeScript, Receiz SDK 122.0.0, existing Wildz modal ownership, CSS, Node test runner.
+**Tech Stack:** Next.js 15 App Router, React 19, TypeScript, Receiz SDK/MCP/AI Skills 123.0.0, existing Wildz modal ownership, CSS, Node test runner.
 
 **Spec:** `docs/superpowers/specs/2026-08-21-wildz-sovereign-wallet-terminal-design.md`
 
 ## Global Constraints
 
-- Pin `@receiz/sdk`, `@receiz/mcp-server`, and `@receiz/ai-skills` at exactly `122.0.0`; do not add a compatibility shim that manufactures missing V123 authority.
-- Never execute Phi Settlement/Reserve, public V122 world publication, resource transfer, or card transfer without an SDK-custodied execution rail and authoritative SDK-derived scopes.
+- Pin `@receiz/sdk`, `@receiz/mcp-server`, and `@receiz/ai-skills` at exactly `123.0.0`; do not add a compatibility shim or legacy authority fallback.
+- Never execute Phi Settlement/Reserve, public world publication, resource transfer, or card transfer without an SDK-custodied plan/execution rail and authoritative SDK-derived scopes.
 - Wallet routes require same-account proof/cookie/profile continuity; private responses use `cache-control: no-store` and sanitized error codes.
 - No token, Receiz owner/user/subject identifier, proof digest, raw receipt, command bytes, authority object, or private access membership reaches ordinary UI.
 - No wallet request, verifier, digest, filter/map/sort, timer, React setter, or controller work may occur in Canvas, `useFrame`, movement, camera, traversal, creature animation, card-switch, or restore paths.
@@ -90,7 +90,54 @@
 - [ ] Wire `wallet` through modal ownership and `PlayCampaign` without changing movement, restore, card-switch, or Canvas keys.
 - [ ] Run focused tests plus 10k hot-path diagnostics proving zero wallet counters; typecheck/diff-check; commit.
 
-### Task 4: Sovereign HUD instrument and responsive terminal
+### Task 4: Coordinated V123 adoption and live Phi execution authority
+
+**Files:**
+- Modify: `package.json`
+- Modify: `pnpm-lock.yaml`
+- Modify: `src/lib/receiz/adapter.ts`
+- Modify: `src/lib/receiz/oauth-scopes.ts`
+- Create: `src/lib/receiz/wilds-wallet-transfer.ts`
+- Create: `src/lib/receiz/wilds-wallet-transfer-journal.ts`
+- Modify: `src/lib/receiz/wilds-wallet-projections.ts`
+- Modify: `src/lib/receiz/wilds-wallet-route-authority.ts`
+- Modify: `scripts/receiz-v122-check.mjs` or replace it with a V123-named checker and update `package.json`
+- Create: `tests/wilds-wallet-transfer.test.ts`
+- Modify: `tests/wildz-receiz-v122-adoption.test.ts`
+
+**Interfaces:**
+- Adds exact indexed V123 proof-authority exchange, Settlement/Reserve execute/recovery, world planners, and namespace resolution to the adapter.
+- Produces preview/stage/execute/recover functions with stable semantic idempotency and zero-write/unknown/committed outcomes.
+- Produces live capabilities only after exact installed-rail and granted-scope admission.
+
+- [ ] Write failing V123 release-identity, scope, adapter, execution, lost-response, stale-head, and zero-write tests.
+- [ ] Verify RED against the V122 checker/capability projection.
+- [ ] Implement coordinated V123 adoption, exact proof-authority/value orchestration, and persistent minimum recovery journal.
+- [ ] Run focused tests, typechecks, checker/conformance, lint, and diff-check; commit.
+
+### Task 5: Live transfer routes and controller state machine
+
+**Files:**
+- Create: `app/api/wilds/wallet/transfer/preview/route.ts`
+- Create: `app/api/wilds/wallet/transfer/execute/route.ts`
+- Create: `app/api/wilds/wallet/transfer/status/route.ts`
+- Modify: `src/lib/receiz/wilds-wallet-route-handlers.ts`
+- Modify: `src/features/play/wallet/wilds-wallet-controller.ts`
+- Modify: `src/features/play/wallet/wilds-wallet-controller-driver.ts`
+- Modify: `src/features/play/wallet/useWildsWalletController.ts`
+- Create: `tests/wilds-wallet-transfer-routes.test.ts`
+- Modify: `tests/wilds-wallet-controller.test.ts`
+
+**Interfaces:**
+- Adds recipient/amount/review/stage/authorize/unknown/zero-write/committed states with exact cancellation and identity binding.
+- Browser never receives proof authority, raw intent, heads, subject IDs, or transaction bytes.
+
+- [ ] Write failing route/controller tests for injection, exact scopes, review expiry, pointer cancellation, ambiguous recovery, duplicate idempotency, and committed receipt adoption.
+- [ ] Verify RED.
+- [ ] Implement thin live routes and controller transitions over Task 4 authority.
+- [ ] Run focused tests, typechecks, lint, diff-check; commit.
+
+### Task 6: Sovereign HUD instrument and responsive terminal
 
 **Files:**
 - Create: `src/features/play/wallet/WildsWalletInstrument.tsx`
@@ -109,7 +156,7 @@
 **Interfaces:**
 - HUD instrument sits directly below Kai Klok and exposes exact accessible value/status.
 - Terminal owns Overview, Send, Receive, Assets, and Ledger navigation.
-- Send surface can stage local form state and explain V123 dependency, but cannot authorize or claim completion.
+- Send surface stages exact recipient/amount/review state, requests deliberate proof authorization, and renders unknown/zero-write/committed outcomes without exposing authority bytes.
 
 - [ ] Write failing behavioral render tests for instrument placement, exact states, exclusive dialog semantics, focus return, five surfaces, fail-closed send, reduced motion, and long-value/username fit.
 - [ ] Verify RED.
@@ -117,7 +164,7 @@
 - [ ] Add desktop side-terminal, tablet sheet, mobile full-screen/bottom-rail, safe-area, touch-target, and reduced-motion styling.
 - [ ] Run UI tests, typechecks, scoped lint, and diff-check; commit.
 
-### Task 5: Browser, performance, and release closure
+### Task 7: Browser, performance, and release closure
 
 **Files:**
 - Modify: `docs/receiz-decisions/2026-08-21-wilds-authored-world-authority.md`
@@ -125,7 +172,7 @@
 - Create or modify: focused browser/release tests under `tests/`
 
 **Interfaces:**
-- Records the exact V122 production capability matrix and the remaining V123 method signatures.
+- Records the exact V123 production capability matrix and any remaining non-SDK deployment dependencies.
 - Produces release evidence for desktop/mobile terminal, no console errors, no overflow, stable world state, and zero wallet hot-path work.
 
 - [ ] Add failing continuity/performance tests for open/close, refresh, card switching, Identity Seal restore, 10k traversal/frame diagnostics, and bounded route/controller work.
@@ -133,5 +180,4 @@
 - [ ] Run focused wallet suite, full `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm receiz:check`, `pnpm receiz:architecture-lock`, and cache-disabled production build.
 - [ ] Launch the production build and perform desktop/mobile browser smoke checks for HUD, terminal tabs, receive locator, ledger, capability explanation, focus, safe areas, console, and world continuity.
 - [ ] Request independent whole-tranche review; fix all critical/important findings and rerun affected gates.
-- [ ] Commit final release/doc changes and report exact V123 blockers only.
-
+- [ ] Commit final release/doc changes and report only evidence-backed remaining blockers.
