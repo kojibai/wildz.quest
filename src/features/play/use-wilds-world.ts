@@ -95,9 +95,10 @@ export function useWildsWorld(input: {
   kaiUPulse: number;
   activeCard: PortableCardAsset | null;
   cardAdmission: WildzVaultCardMembershipProof | null;
+  initialSnapshot?: { projection: WildsWorldProjection; mode: "receiz_live" | "kai_live" } | null;
 }) {
-  const [snapshot, setSnapshot] = useState<WildsWorldProjection | null>(null);
-  const [mode, setMode] = useState<WildsWorldClientMode>("connecting");
+  const [snapshot, setSnapshot] = useState<WildsWorldProjection | null>(() => input.initialSnapshot?.projection ?? null);
+  const [mode, setMode] = useState<WildsWorldClientMode>(() => input.initialSnapshot?.mode ?? "connecting");
   const [error, setError] = useState("");
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
   const commandPending = useRef(false);
@@ -193,6 +194,14 @@ export function useWildsWorld(input: {
   useEffect(() => {
     if (input.enabled) setMode(wildsWorldModeAfterConfirmedBootstrap);
   }, [input.enabled]);
+
+  useEffect(() => {
+    if (!input.enabled || !input.initialSnapshot || !validWildsWorldProjection(input.initialSnapshot.projection)) return;
+    canonicalSnapshot.current = input.initialSnapshot.projection;
+    setSnapshot(input.initialSnapshot.projection);
+    setMode(input.initialSnapshot.mode);
+    setError("");
+  }, [input.enabled, input.initialSnapshot]);
 
   useEffect(() => {
     const activeControllers = controllers.current;

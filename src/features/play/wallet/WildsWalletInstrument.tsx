@@ -2,14 +2,15 @@
 
 import type { WildsWalletControllerState } from "./wilds-wallet-controller";
 import { formatWildsPhiCompact, formatWildsPhiExact } from "./wilds-wallet-format";
+import { Icons } from "@/components/icons";
 
 function instrumentState(state: WildsWalletControllerState) {
-  if (state.status === "verified") return { label: "PHI RESERVE", tone: "verified", spoken: "verified" };
-  if (state.status === "loading") return { label: "VERIFYING", tone: "pending", spoken: "verifying" };
-  if (state.status === "authority-required") return { label: "SECURE", tone: "secure", spoken: "authorization required" };
-  if (state.status === "offline-verified") return { label: "OFFLINE", tone: "offline", spoken: "offline verified" };
-  if (state.status === "failed" || state.status === "revoked") return { label: "UNAVAILABLE", tone: "failed", spoken: "unavailable" };
-  return { label: "SECURE", tone: "secure", spoken: "not yet verified" };
+  if (state.status === "verified") return { tone: "verified", spoken: "verified" };
+  if (state.status === "loading") return { tone: "pending", spoken: "verifying" };
+  if (state.status === "authority-required") return { tone: "secure", spoken: "authorization required" };
+  if (state.status === "offline-verified") return { tone: "offline", spoken: "offline verified" };
+  if (state.status === "failed" || state.status === "revoked") return { tone: "failed", spoken: "unavailable" };
+  return { tone: "secure", spoken: "not yet verified" };
 }
 
 export function WildsWalletInstrument({
@@ -33,10 +34,7 @@ export function WildsWalletInstrument({
     onClick={(event) => onOpen(event.currentTarget)}
     type="button"
   >
-    <span aria-hidden="true" className="wilds-wallet-status-light" />
-    <span className="wilds-wallet-instrument-copy">
-      <small>{status.label}</small>
-      <strong aria-hidden="true">{state.summary ? `${formatWildsPhiCompact(state.summary.admittedPhiMicro)} Φ` : "— Φ"}</strong>
-    </span>
+    <span aria-hidden="true" className="wilds-wallet-glyph"><Icons.wallet strokeWidth={1.8} /></span>
+    <strong aria-hidden="true">{state.summary ? `${formatWildsPhiCompact(state.summary.admittedPhiMicro)} Φ` : state.status === "loading" ? "… Φ" : "— Φ"}</strong>
   </button>;
 }

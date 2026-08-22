@@ -111,7 +111,7 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
     case "cancel-pending": return afterCancellation(state, state.open);
     case "navigate": return state.page === event.page ? state : { ...state, page: event.page };
     case "refresh-start": return { ...state, status: "loading", requestId: event.requestId };
-    case "refresh-resolved": return !state.open || state.requestId !== event.requestId || state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration ? state : { ...state, status: "verified", requestId: null, summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger };
+    case "refresh-resolved": return state.requestId !== event.requestId || state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration ? state : { ...state, status: "verified", requestId: null, summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger };
     case "refresh-failed":
       if (state.requestId !== event.requestId) return state;
       if (event.reason === "revoked") return clearPrivate(state, "revoked");

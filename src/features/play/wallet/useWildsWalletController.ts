@@ -9,11 +9,12 @@ type FetchResponse = Readonly<{ ok: boolean; status: number; json(): Promise<unk
 export type WildsWalletClientAuthorizationPort = Readonly<{
   authorize(input: Readonly<{ attempt: string; recipientUsername: string; amountPhiMicro: string; rail: "settlement" | "reserve" }>): Promise<Readonly<{ artifact: unknown; challenge: unknown }>>;
 }>;
+export type WildsWalletReadAuthorizationPort = Readonly<{ authorize(): Promise<boolean> }>;
 
 export function useWildsWalletController(
   identityKey: string,
   authorityGeneration: string,
-  options: Readonly<{ authorization?: WildsWalletClientAuthorizationPort }> = {}
+  options: Readonly<{ authorization?: WildsWalletClientAuthorizationPort; readAuthorization?: WildsWalletReadAuthorizationPort }> = {}
 ) {
   const [state, setState] = useState<WildsWalletControllerState>(() => hydrateWildsWalletControllerState(identityKey, authorityGeneration, wildsWalletSharedSessionCache));
   const stateRef = useRef(state);
@@ -28,6 +29,8 @@ export function useWildsWalletController(
     stateRef.current = driverRef.current.state;
   }
   const driver = driverRef.current;
+  const readAuthorityPromiseRef = useRef<Promise<boolean> | null>(null);
+  const preloadGenerationRef = useRef("");
   useEffect(() => {
     if (stateRef.current.identityKey !== identityKey || stateRef.current.authorityGeneration !== authorityGeneration) driver.setAuthority(identityKey, authorityGeneration);
   }, [authorityGeneration, driver, identityKey]);
@@ -37,7 +40,28 @@ export function useWildsWalletController(
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
   }, [driver]);
-  const openTerminal = useCallback(() => { driver.open(); void driver.refresh(); }, [driver]);
+  const refreshWithIdentityAuthority = useCallback(async () => {
+    await driver.refresh();
+    if (driver.state.status !== "authority-required" || !options.readAuthorization) return;
+    if (!readAuthorityPromiseRef.current) {
+      const operation = options.readAuthorization.authorize().catch(() => false);
+      readAuthorityPromiseRef.current = operation;
+      void operation.finally(() => { if (readAuthorityPromiseRef.current === operation) readAuthorityPromiseRef.current = null; });
+    }
+    if (await readAuthorityPromiseRef.current) await driver.refresh({ replace: true });
+  }, [driver, options.readAuthorization]);
+  useEffect(() => {
+    if (!authorityGeneration || !options.readAuthorization || preloadGenerationRef.current === authorityGeneration) return;
+    preloadGenerationRef.current = authorityGeneration;
+    const schedule = typeof window.requestIdleCallback === "function"
+      ? window.requestIdleCallback(() => { void refreshWithIdentityAuthority(); }, { timeout: 1_500 })
+      : window.setTimeout(() => { void refreshWithIdentityAuthority(); }, 250);
+    return () => {
+      if (typeof window.cancelIdleCallback === "function" && typeof schedule === "number") window.cancelIdleCallback(schedule);
+      else window.clearTimeout(schedule);
+    };
+  }, [authorityGeneration, options.readAuthorization, refreshWithIdentityAuthority]);
+  const openTerminal = useCallback(() => { driver.open(); void refreshWithIdentityAuthority(); }, [driver, refreshWithIdentityAuthority]);
   const visible = state.identityKey === identityKey && state.authorityGeneration === authorityGeneration ? state : createWildsWalletControllerState(identityKey, authorityGeneration);
   const capabilities = visible.capabilities
     ? gateWildsWalletClientCapabilities(visible.capabilities, { proofAuthorization: Boolean(options.authorization) })
@@ -63,7 +87,7 @@ export function useWildsWalletController(
     openTerminal,
     closeTerminal: driver.close,
     navigate: (page: WildsWalletPage) => driver.navigate(page),
-    refresh: driver.refresh,
+    refresh: refreshWithIdentityAuthority,
     lookupRecipient: driver.lookupRecipient,
     selectTransferRecipient: driver.selectTransferRecipient,
     reviewTransferAmount: driver.reviewTransferAmount,

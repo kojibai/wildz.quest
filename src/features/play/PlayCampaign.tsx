@@ -21,6 +21,7 @@ import { WildsTransformation } from "@/features/play/WildsTransformation";
 import { WildsChildCeremony } from "@/features/play/WildsChildCeremony";
 import { useWildsMultiplayer } from "@/features/play/use-wilds-multiplayer";
 import { useWildsWorld } from "@/features/play/use-wilds-world";
+import type { WildsWorldProjection } from "@/features/play/wilds-world-state";
 import { WildsBalancedStatusHud } from "@/features/play/WildsBalancedStatusHud";
 import { useWildsPresentation } from "@/features/play/use-wilds-presentation";
 import { useWildsQualityProfile } from "@/features/play/use-wilds-quality-profile";
@@ -111,6 +112,7 @@ import { creatureCareNotificationSchedule, WILDZ_CARE_PERIODIC_TAG } from "@/fea
 import { WILDZ_CARE_NOTIFICATIONS_READY, WILDZ_CARE_SCHEDULE_MESSAGE } from "@/features/pwa/pwa-events";
 import { WildsWorldCanvas } from "@/features/play/WildsWorldCanvas";
 import { useWildsWalletController, type WildsWalletClientAuthorizationPort } from "@/features/play/wallet/useWildsWalletController";
+import { authorizeWildsWalletReadWithIdentity } from "@/features/play/wallet/wilds-wallet-read-authorization";
 import { canCloseWildsWalletTerminal, WildsWalletTerminal } from "@/features/play/wallet/WildsWalletTerminal";
 import { emptyAdventureCondition } from "@/features/play/adventure/card-condition";
 import { projectWildsTraversalCapabilities } from "@/features/play/wilds-traversal-capabilities";
@@ -156,6 +158,7 @@ export function PlayCampaign({
   walletAuthorityGeneration,
   walletAuthorization,
   walletIdentityKey,
+  walletReadIdentityKey,
   walletPublicUsername,
   onComplete,
   ownerReceizId,
@@ -167,6 +170,7 @@ export function PlayCampaign({
   onOpenMarket = () => {},
   initialState = initialPlayState,
   initialPlayerContinuity = null,
+  initialWorld = null,
   onPlayStateChange,
   onPrepareCard,
   onExportCard,
@@ -181,6 +185,7 @@ export function PlayCampaign({
   walletAuthorityGeneration: string;
   walletAuthorization?: WildsWalletClientAuthorizationPort;
   walletIdentityKey: string;
+  walletReadIdentityKey?: string;
   walletPublicUsername: string | null;
   onComplete?: (beans: number) => void;
   ownerReceizId: string;
@@ -192,6 +197,7 @@ export function PlayCampaign({
   onOpenMarket?: (restoreOrigin: HTMLElement | null) => void;
   initialState?: PlayState;
   initialPlayerContinuity?: WildzPlayerContinuity | null;
+  initialWorld?: { projection: WildsWorldProjection; mode: "receiz_live" | "kai_live" } | null;
   onPlayStateChange: (state: PlayState, playerContinuity: WildzPlayerContinuity) => void;
   onPrepareCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload) => Promise<WildzPreparedIdentityOwnedCard>;
   onExportCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
@@ -290,7 +296,10 @@ export function PlayCampaign({
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
   const [mapOpen, setMapOpen] = useState(false);
   const [multiplayerRosterOpen, setMultiplayerRosterOpen] = useState(false);
-  const walletController = useWildsWalletController(walletIdentityKey, walletAuthorityGeneration, { authorization: walletAuthorization });
+  const walletReadAuthorization = useMemo(() => walletReadIdentityKey
+    ? { authorize: () => authorizeWildsWalletReadWithIdentity(walletReadIdentityKey) }
+    : undefined, [walletReadIdentityKey]);
+  const walletController = useWildsWalletController(walletIdentityKey, walletAuthorityGeneration, { authorization: walletAuthorization, readAuthorization: walletReadAuthorization });
   const { cancelForExclusiveOwner: cancelWalletForExclusiveOwner } = walletController;
   const cameraHeadingRef = useRef(0);
   const updateCameraHeading = useCallback((heading: number) => {
@@ -589,7 +598,8 @@ export function PlayCampaign({
     guestId: multiplayer.guestId,
     kaiUPulse,
     activeCard: activeAsset ?? null,
-    cardAdmission
+    cardAdmission,
+    initialSnapshot: initialWorld
   });
   const livingPhysicalObstacles = useMemo(
     () => projectWildsRenderedLivingObstacles(livingWorld.snapshot),

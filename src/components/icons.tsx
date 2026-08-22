@@ -50,6 +50,7 @@ import {
   Trophy,
   User,
   Users,
+  WalletCards,
   X
 } from "lucide-react";
 
@@ -109,5 +110,6 @@ export const Icons = {
   store: Store,
   trophy: Trophy,
   user: User,
-  users: Users
+  users: Users,
+  wallet: WalletCards
 };

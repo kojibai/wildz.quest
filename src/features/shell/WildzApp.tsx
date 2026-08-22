@@ -69,6 +69,7 @@ import { downloadBlob } from "@/features/play/card-export";
 import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-verifier";
 import { canRestoreFocus } from "@/features/play/focus-recovery";
 import { projectWildzContinuityExplorer } from "@/features/play/wildz-explorer-proof";
+import type { WildsWorldProjection } from "@/features/play/wilds-world-state";
 import {
   clearWildzPendingInventoryCheckpoint,
   clearWildzRuntimeCheckpoint,
@@ -143,6 +144,10 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const [identityError, setIdentityError] = useState("");
   const [proofSessionConnected, setProofSessionConnected] = useState(false);
   const [proofSessionGeneration, setProofSessionGeneration] = useState("");
+  const [worldBootstrap, setWorldBootstrap] = useState<{
+    projection: WildsWorldProjection;
+    mode: "receiz_live" | "kai_live";
+  } | null>(null);
   const [remoteProfile, setRemoteProfile] = useState<ReturnType<typeof sanitizePublicWildzProfile> | null>(null);
   const [profileStatus, setProfileStatus] = useState<"idle" | "loading" | "publishing" | "ready" | "unpublished" | "missing" | "error">("idle");
   const [avatarImageUrl, setAvatarImageUrl] = useState<string | null>(null);
@@ -315,9 +320,12 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         setProofSessionConnected(true);
         setProofSessionGeneration(wildzProofSessionGeneration(session));
         void bootstrapWildzSharedWorld().then(async (world) => {
-          if (world.publication?.required !== "identity_proof" || identity.localAuthority !== "verified") return;
-          await publishWildsWorldWithIdentityProof(identity, world.publication.draft);
-          await bootstrapWildzSharedWorld();
+          let admitted = world;
+          if (world.publication?.required === "identity_proof" && identity.localAuthority === "verified") {
+            await publishWildsWorldWithIdentityProof(identity, world.publication.draft);
+            admitted = await bootstrapWildzSharedWorld();
+          }
+          if (active) setWorldBootstrap({ projection: admitted.projection as WildsWorldProjection, mode: admitted.mode });
         }).catch(() => undefined);
         const current = continuityRef.current;
         if (!current
@@ -936,9 +944,11 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           networkEnabled={Boolean(character) && proofSessionConnected}
           walletAuthorityGeneration={proofSessionConnected ? proofSessionGeneration : ""}
           walletIdentityKey={identity.actorId}
+          walletReadIdentityKey={proofSessionConnected && identity.localAuthority === "verified" ? identity.keyId : undefined}
           walletPublicUsername={identity.username ?? null}
           initialState={ownerPlayState}
           initialPlayerContinuity={continuity.playerContinuity}
+          initialWorld={worldBootstrap}
           ownerReceizId={ownerUsername}
           playerDisplayName={identity.displayName ?? `@${ownerUsername}`}
           shellOverlayOwner={shellOverlayOwner}

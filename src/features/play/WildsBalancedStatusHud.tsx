@@ -83,13 +83,13 @@ export function WildsBalancedStatusHud({
           <small>BEAT:STEP:PULSE</small>
           <span>{kaiMoment.latticeCoordinate}</span>
         </button>
-        <WildsWalletInstrument disabled={!interactionEnabled} onOpen={onOpenWallet} state={wallet} />
         <WildsAudioSettings
           onChange={audio.onChange}
           onUnlock={audio.onUnlock}
           ready={audio.ready}
           settings={audio.settings}
         />
+        <WildsWalletInstrument disabled={!interactionEnabled} onOpen={onOpenWallet} state={wallet} />
       </>
     </div>
   </>;

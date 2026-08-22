@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { bootstrapWildzSharedWorld } from "../src/lib/receiz/wildz-session-bridge";
 import { WildsWorldService } from "../src/features/play/wilds-world-service";
+import { readFileSync } from "node:fs";
 
 test("shared-world bootstrap accepts only an acknowledged live canonical projection", async () => {
   const requests: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
@@ -19,6 +20,16 @@ test("shared-world bootstrap accepts only an acknowledged live canonical project
   assert.equal(requests[0]?.input, "/api/wilds/world/bootstrap");
   assert.equal(requests[0]?.init?.method, "POST");
   assert.equal(requests[0]?.init?.credentials, "same-origin");
+});
+
+test("the admitted bootstrap projection reaches the living HUD instead of being discarded", () => {
+  const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
+  const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
+  const hook = readFileSync("src/features/play/use-wilds-world.ts", "utf8");
+  assert.match(shell, /setWorldBootstrap\(\{ projection: admitted\.projection/);
+  assert.match(shell, /initialWorld=\{worldBootstrap\}/);
+  assert.match(campaign, /initialSnapshot: initialWorld/);
+  assert.match(hook, /setSnapshot\(input\.initialSnapshot\.projection\)/);
 });
 
 test("shared-world bootstrap preserves an Identity Seal publication request without navigation", async () => {

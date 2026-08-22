@@ -4,6 +4,8 @@ import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { WildsWalletBrowserFixture } from "../src/features/play/wallet/WildsWalletBrowserFixture";
+import { WildsWalletInstrument } from "../src/features/play/wallet/WildsWalletInstrument";
+import { createWildsWalletControllerState } from "../src/features/play/wallet/wilds-wallet-controller";
 
 test("browser fixture exposes deterministic verified, offline, recovery, rejection, and committed states", () => {
   const markup = renderToStaticMarkup(createElement(WildsWalletBrowserFixture));
@@ -20,7 +22,11 @@ test("wallet CSS owns responsive geometry, safe areas, touch floors, long text, 
   assert.match(css, /env\(safe-area-inset-bottom\)/);
   assert.match(css, /\.wilds-wallet-terminal :is\(button, input, select\)[^{]*\{[^}]*min-height:\s*44px/);
   assert.match(css, /overflow-wrap:\s*anywhere/);
-  assert.match(css, /\.wilds-left-instrument-home > \.wilds-wallet-instrument\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*2/);
+  const finalHud = css.slice(css.lastIndexOf("/* Balanced persistent status homes"));
+  assert.match(finalHud, /\.wilds-left-instrument-home\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*104px 44px;[^}]*grid-template-rows:\s*44px 44px;/s);
+  assert.match(finalHud, /\.wilds-left-instrument-home > \.wilds-kai-command-pill\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*1/);
+  assert.match(finalHud, /\.wilds-left-instrument-home > \.wilds-audio-settings\s*\{[^}]*grid-column:\s*2;[^}]*grid-row:\s*1/);
+  assert.match(finalHud, /\.wilds-left-instrument-home > \.wilds-wallet-instrument\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*2/);
   assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\)[\s\S]*\.wilds-wallet-terminal-header\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.wilds-wallet-terminal/);
 });
@@ -41,7 +47,33 @@ test("campaign mounts the terminal outside the Canvas and instrument directly af
   const hud = readFileSync("src/features/play/WildsBalancedStatusHud.tsx", "utf8");
   assert.ok(campaign.indexOf("useWildsWalletController") < campaign.indexOf("<WildsWorldCanvas"));
   assert.ok(campaign.indexOf("<WildsWalletTerminal") > campaign.indexOf("</CanvasErrorBoundary>"));
-  assert.match(hud, /wilds-kai-command-pill[\s\S]*<WildsWalletInstrument[\s\S]*<WildsAudioSettings/);
+  assert.match(hud, /wilds-kai-command-pill[\s\S]*<WildsAudioSettings[\s\S]*<WildsWalletInstrument/);
+});
+
+test("wallet HUD control is a compact wallet icon with a stable Phi balance", () => {
+  const state = {
+    ...createWildsWalletControllerState("explorer", "generation"),
+    status: "verified" as const,
+    summary: {
+      status: "verified" as const,
+      admittedPhiMicro: "1250000",
+      displayUsdCents: null,
+      assetCountsStatus: "available" as const,
+      transferableResourceCount: 0,
+      transferableCardCount: 0,
+      reservedCardCount: 0,
+      pendingCount: 0
+    }
+  };
+  const markup = renderToStaticMarkup(createElement(WildsWalletInstrument, {
+    disabled: false,
+    onOpen() {},
+    state
+  }));
+  assert.match(markup, /data-wallet-status="verified"/);
+  assert.match(markup, /class="wilds-wallet-glyph"/);
+  assert.match(markup, />1\.25 Φ</);
+  assert.doesNotMatch(markup, /PHI RESERVE|SECURE|VERIFYING/);
 });
 
 test("an in-progress wallet authorization blocks owner release before modal admission changes", () => {

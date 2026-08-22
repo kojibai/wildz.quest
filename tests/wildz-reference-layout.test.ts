@@ -82,7 +82,7 @@ test("balanced persistent homes keep live status by the map and Kai audio on the
   assert.doesNotMatch(source, /worldStatusOpen|wilds-world-status-trigger|wilds-world-status-fan/);
   assert.match(source, /<WildsBalancedStatusHud/);
   assert.match(hud, /wilds-map-status-home[\s\S]*<WildsLivingWorldHud[\s\S]*<WildsMultiplayer/);
-  assert.match(hud, /wilds-left-instrument-home[\s\S]*wilds-kai-command-pill[\s\S]*<WildsAudioSettings/);
+  assert.match(hud, /wilds-left-instrument-home[\s\S]*wilds-kai-command-pill[\s\S]*<WildsAudioSettings[\s\S]*<WildsWalletInstrument/);
   assert.match(multiplayer, /id="wilds-live-controls"[^>]*className="wilds-live-cluster"/);
 
   const targetFloor = finalCss.slice(finalCss.indexOf(".wilds-map-status-home :is("));

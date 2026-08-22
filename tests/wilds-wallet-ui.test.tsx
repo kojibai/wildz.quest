@@ -50,7 +50,8 @@ test("wallet instrument announces exact admitted value while abbreviating the vi
     state: state(),
     onOpen() {}
   }));
-  assert.match(markup, /PHI RESERVE/);
+  assert.match(markup, /class="wilds-wallet-glyph"/);
+  assert.doesNotMatch(markup, /PHI RESERVE|SECURE|VERIFYING/);
   assert.match(markup, /aria-label="Open sovereign wallet\. Exact admitted Phi reserve: 123456789012345678901234\.56789 Phi\. Status: verified\."/);
   assert.match(markup, /data-wallet-status="verified"/);
   assert.doesNotMatch(markup, /98765432109876543210/);
