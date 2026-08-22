@@ -84,6 +84,16 @@ test("streamed physical water projects distinct shallow and deep surfaces above 
   assert.ok(deepHeights.every((y) => y === WILDS_WATERLINE_ELEVATION));
 });
 
+test("physical water has no square holes where a dry causeway crosses submerged terrain", () => {
+  const radius = 2;
+  const segments = 4;
+  const water = buildWildsTerrainWaterProjection(-8, -4, radius, segments);
+  const streamedTiles = (radius * 2 + 1) ** 2;
+  const expectedTriangleIndices = streamedTiles * segments * segments * 6;
+
+  assert.equal(water.shallow.indices.length + water.deep.indices.length, expectedTriangleIndices);
+});
+
 test("authored ribbons sample both edges from deterministic terrain", () => {
   const ribbon = buildWildsTerrainRibbonProjection([
     { x: 20, z: -8 },

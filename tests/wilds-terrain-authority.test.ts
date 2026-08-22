@@ -55,6 +55,17 @@ test("major routes remain dry causeways through low terrain so walkers can leave
   }
 });
 
+test("submerged route shoulders remain water instead of becoming walkable holes", () => {
+  const shallowShoulder = sampleWildsTerrain(-91.5, -37.5);
+  const deepShoulder = sampleWildsTerrain(-92, -37.5);
+
+  assert.equal(shallowShoulder.surface, "shallow-water");
+  assert.ok(shallowShoulder.waterDepth > 0);
+  assert.equal(deepShoulder.surface, "shallow-water");
+  assert.ok(deepShoulder.waterDepth > 0.9);
+  assert.ok(distanceToWildsMajorRoute(-92, -37.5) < 0.55);
+});
+
 test("terrain changes across distant geography without exceeding released bounds", () => {
   const values = [
     sampleWildsTerrain(220, 190).elevation,

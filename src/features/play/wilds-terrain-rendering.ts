@@ -148,8 +148,10 @@ export function buildWildsTerrainWaterProjection(
           const worldX = tileX * WILDS_TERRAIN_TILE_SIZE + gridX * cellSize;
           const worldZ = tileZ * WILDS_TERRAIN_TILE_SIZE + gridZ * cellSize;
           const surface = sampleWildsTerrain(worldX + cellSize / 2, worldZ + cellSize / 2).surface;
-          if (surface !== "shallow-water" && surface !== "deep-water") continue;
-          const layer = surface === "deep-water" ? deep : shallow;
+          // Keep a continuous water body below the terrain. Opaque terrain hides this
+          // plane on land, while submerged route shoulders can no longer punch square
+          // holes through the ocean merely because their cell center is a trail.
+          const layer = surface === "shallow-water" ? shallow : deep;
           const vertexOffset = layer.positions.length / 3;
           const x0 = worldX - origin.x;
           const z0 = worldZ - origin.z;

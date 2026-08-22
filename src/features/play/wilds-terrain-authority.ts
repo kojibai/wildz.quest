@@ -162,9 +162,9 @@ function regionIdFor(x: number, z: number) {
 }
 
 function classifySurface(elevation: number, slope: number, routeDistance: number): WildsTerrainSurface {
-  if (routeDistance <= 0.55) return "trail";
   if (elevation < -2.4) return "deep-water";
   if (elevation < -1.1) return "shallow-water";
+  if (routeDistance <= 0.55) return "trail";
   if (slope >= 0.62) return "rock";
   if (elevation < 0.25) return "soil";
   return "grass";
