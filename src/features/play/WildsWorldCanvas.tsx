@@ -82,6 +82,7 @@ import { WILDS_PLAYER_BODY_HEIGHT, WILDS_PLAYER_BODY_RADIUS } from "@/features/p
 import { WILDS_TERRAIN_TILE_SIZE } from "@/features/play/wilds-terrain-authority";
 import type { WildsSiteSpaceState } from "@/features/play/wilds-discovery-sites";
 import { wildsSiteRuntimeCameraIsFlooded, wildsSiteRuntimeDiagnostics, writeWildsSiteRuntimeAerialCollision, writeWildsSiteRuntimeCamera, writeWildsSiteRuntimeEncounter, type WildsSiteRuntimeProjection } from "@/features/play/wilds-site-runtime";
+import { createWildsFlightCameraControlState, writeWildsFlightCameraControlState } from "@/features/play/wilds-flight-camera";
 
 const WILDS_DIAGNOSTICS_ENABLED = process.env.NODE_ENV !== "production";
 const EMPTY_AERIAL_OBSTACLE_NEIGHBORHOOD = Object.freeze({ tileX: 0, tileZ: 0, obstacles: Object.freeze([]) }) as WildsAerialObstacleNeighborhood;
@@ -155,7 +156,7 @@ export function WildsWorldCanvas({
   onAerialEnergyChange: (energy: number) => void;
   onAerialModeChange: (mode: WildsAerialMode) => void;
   onLandingRequired: (reason: WildsAerialLandingReason) => void;
-  onVerticalReadoutChange: (layer: WildsVerticalTraversalState["layer"], value: number, safeMin: number, safeMax: number) => void;
+  onVerticalReadoutChange: (layer: WildsVerticalTraversalState["layer"], value: number, safeMin: number, safeMax: number, blockerId: string | null) => void;
   vistaHeading?: number | null;
   onSelectTrainer: (trainer: WildsTrainerProjection) => void;
   onSelectOverlook: (overlookId: WildsOverlookId) => void;
@@ -262,7 +263,7 @@ function WildsScene({
   onAerialEnergyChange: (energy: number) => void;
   onAerialModeChange: (mode: WildsAerialMode) => void;
   onLandingRequired: (reason: WildsAerialLandingReason) => void;
-  onVerticalReadoutChange: (layer: WildsVerticalTraversalState["layer"], value: number, safeMin: number, safeMax: number) => void;
+  onVerticalReadoutChange: (layer: WildsVerticalTraversalState["layer"], value: number, safeMin: number, safeMax: number, blockerId: string | null) => void;
   vistaHeading: number | null;
 }) {
   const world = projectWorldProgression(state.worldMastery);
@@ -398,7 +399,7 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, flight
   onEnergyChange: (energy: number) => void;
   onModeChange: (mode: WildsAerialMode) => void;
   onLandingRequired: (reason: WildsAerialLandingReason) => void;
-  onVerticalReadoutChange: (layer: WildsVerticalTraversalState["layer"], value: number, safeMin: number, safeMax: number) => void;
+  onVerticalReadoutChange: (layer: WildsVerticalTraversalState["layer"], value: number, safeMin: number, safeMax: number, blockerId: string | null) => void;
   player: PlayState["player"];
   runtime: MutableRefObject<WildsAerialTraversalState>;
   terrainObstacleNeighborhood: import("@/features/play/wilds-grounded-movement").WildsAerialObstacleNeighborhood;
@@ -411,7 +412,7 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, flight
   const previousPlayer = useRef(player);
   const publishedMode = useRef(runtime.current.mode);
   const publishedEnergy = useRef(100);
-  const publishedVertical = useRef({ layer: "ground" as WildsVerticalTraversalState["layer"], value: Number.NaN, safeMin: Number.NaN, safeMax: Number.NaN });
+  const publishedVertical = useRef({ layer: "ground" as WildsVerticalTraversalState["layer"], value: Number.NaN, safeMin: Number.NaN, safeMax: Number.NaN, blockerId: null as string | null });
   const runtimeResult = useRef(createWildsAerialRuntimeResult());
   const collisionSampleRef = useRef(createWildsAerialCollisionSample());
   const siteCollisionSampleRef = useRef({ ...createWildsAerialCollisionSample(), floorY: Number.NaN, flooded: false, waterSurfaceY: Number.NaN });
@@ -440,6 +441,7 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, flight
       collisionSample.obstacleTopY = Number.NaN;
       collisionSample.ceilingY = Number.NaN;
       collisionSample.protectedAirspace = false;
+      collisionSample.blockerId = null;
     } else {
       writeWildsAerialCollisionSample(player, currentVertical.layer === "air" ? currentVertical.worldY : groundElevation + .35, livingPhysicalObstacles, collisionSample, WILDS_PLAYER_BODY_HEIGHT, WILDS_PLAYER_BODY_RADIUS, terrainObstacleNeighborhood.obstacles);
     }
@@ -515,12 +517,17 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, flight
     const minimumBucket = Math.round(currentVertical.safeMin * 4);
     const maximumBucket = Math.round(currentVertical.safeMax * 4);
     const priorReadout = publishedVertical.current;
-    if (priorReadout.layer !== layer || priorReadout.value !== readoutBucket || priorReadout.safeMin !== minimumBucket || priorReadout.safeMax !== maximumBucket) {
+    const physicallyRestricted = collisionSample.protectedAirspace
+      || (Number.isFinite(collisionSample.ceilingY) && currentVertical.offset >= currentVertical.safeMax - .26)
+      || (Number.isFinite(collisionSample.obstacleTopY) && currentVertical.worldY < collisionSample.obstacleTopY + .35 - .000001);
+    const blockerId = layer === "air" && physicallyRestricted ? collisionSample.blockerId : null;
+    if (priorReadout.layer !== layer || priorReadout.value !== readoutBucket || priorReadout.safeMin !== minimumBucket || priorReadout.safeMax !== maximumBucket || priorReadout.blockerId !== blockerId) {
       priorReadout.layer = layer;
       priorReadout.value = readoutBucket;
       priorReadout.safeMin = minimumBucket;
       priorReadout.safeMax = maximumBucket;
-      onVerticalReadoutChange(layer, readoutValue, currentVertical.safeMin, currentVertical.safeMax);
+      priorReadout.blockerId = blockerId;
+      onVerticalReadoutChange(layer, readoutValue, currentVertical.safeMin, currentVertical.safeMax, blockerId);
     }
     if (group.current) {
       const actorLocalY = layer === "ground" ? 0 : currentVertical.offset;
@@ -749,6 +756,7 @@ function CameraRig({ actualCameraSubmergedRef, verticalTraversalRef, aquaticPres
   const siteCameraRef = useRef({ floorY: 0, ceilingY: Number.POSITIVE_INFINITY, flooded: false, waterSurfaceY: Number.NaN });
   const siteAquaticRef = useRef({ mode: "swim" as const, terrainElevation: 0, waterSurfaceY: 0, waterDepth: 0, actorLocalY: 0, actorWorldY: 0, cameraSubmersionAllowed: true, scubaVisible: true });
   const siteDryRef = useRef({ mode: "land" as const, terrainElevation: 0, waterSurfaceY: 0, waterDepth: 0, actorLocalY: 0, actorWorldY: 0, cameraSubmersionAllowed: false, scubaVisible: false });
+  const flightControls = useRef(createWildsFlightCameraControlState());
   useEffect(() => {
     const orbit = controls.current;
     if (!orbit) return;
@@ -770,6 +778,14 @@ function CameraRig({ actualCameraSubmergedRef, verticalTraversalRef, aquaticPres
   useFrame((_, delta) => {
     const orbit = controls.current;
     if (orbit && vistaHeading === null) {
+      const controlState = writeWildsFlightCameraControlState(flightControls.current, verticalTraversalRef.current.layer === "air", delta);
+      orbit.dampingFactor = controlState.dampingFactor;
+      orbit.maxDistance = controlState.maxDistance;
+      orbit.minDistance = controlState.minDistance;
+      orbit.minPolarAngle = controlState.minPolarAngle;
+      orbit.maxPolarAngle = controlState.maxPolarAngle;
+      orbit.rotateSpeed = controlState.rotateSpeed;
+      orbit.zoomSpeed = controlState.zoomSpeed;
       const siteWorldY = siteSpace.position.y;
       const siteCamera = writeWildsSiteRuntimeCamera(siteCameraRef.current, siteRuntime, siteSpace.spaceId, player.x, siteWorldY, player.z);
       const clearance = verticalTraversalRef.current.layer === "ground" ? 0 : verticalTraversalRef.current.offset;

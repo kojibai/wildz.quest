@@ -271,7 +271,7 @@ function mountainFor(regionX: number, regionZ: number, slot: number, entrance: P
   if (slot !== 0) return null;
   const lane = hashUnit(regionX, regionZ, slot, 101);
   const scaleClass = lane < 1 / 3 ? "hill" as const : lane < 2 / 3 ? "mountain" as const : "massif" as const;
-  const rise = scaleClass === "hill" ? 8 : scaleClass === "mountain" ? 26 : 74;
+  const rise = scaleClass === "hill" ? 4.2 : scaleClass === "mountain" ? 10 : 14.5;
   const threshold = scaleClass === "hill" ? 24 : scaleClass === "mountain" ? 55 : 86;
   return Object.freeze({
     scaleClass,
@@ -378,7 +378,7 @@ function buildSite(regionX: number, regionZ: number, slot: number): WildsDiscove
       points: Object.freeze([entrance, freezePoint(entrance.x + 2, mountain?.summitY ?? entrance.y + 4, entrance.z - 3)])
     })
   ]);
-  const extent = mountain?.scaleClass === "massif" ? 38 : mountain?.scaleClass === "mountain" ? 22 : 8;
+  const extent = mountain?.scaleClass === "massif" ? 46 : mountain?.scaleClass === "mountain" ? 28 : 14;
   return Object.freeze({
     version: WILDS_DISCOVERY_SITE_VERSION,
     key: `wildz.site.v1:${regionX}:${regionZ}:${slot}:${hash64(regionX, regionZ, slot, 23).toString(16).padStart(16, "0")}`,
@@ -560,13 +560,14 @@ function buildPhysicalNeighborhood(regionX: number, regionZ: number): WildsDisco
 
     if (site.mountain) {
       const height = site.mountain.summitY - site.entrance.y;
-      const width = site.mountain.scaleClass === "massif" ? 34 : site.mountain.scaleClass === "mountain" ? 20 : 9;
+      const radius = site.mountain.scaleClass === "massif" ? 46 : site.mountain.scaleClass === "mountain" ? 28 : 14;
       for (const side of [-1, 1] as const) {
-        const columns = 5;
-        const rows = 7;
-        const halfX = width * .45;
-        const halfZ = width;
-        const centerX = site.entrance.x + side * width * .62;
+        const columns = 11;
+        const rows = 11;
+        const halfX = radius * .82;
+        const halfZ = radius * .82;
+        const centerX = site.entrance.x + side * radius * .78;
+        const passWidth = site.mountain.scaleClass === "massif" ? 16 : site.mountain.scaleClass === "mountain" ? 10 : 5;
         const nodes: WildsMountainFieldNode[] = [];
         for (let row = 0; row < rows; row += 1) {
           const zAmount = row / (rows - 1);
@@ -576,10 +577,16 @@ function buildPhysicalNeighborhood(regionX: number, regionZ: number): WildsDisco
             const x = quantize(centerX - halfX + xAmount * halfX * 2);
             const terrain = sampleWildsTerrain(x, z);
             terrainSamples += 1;
-            const normalizedX = Math.abs(x - centerX) / halfX;
-            const normalizedZ = Math.abs(z - site.entrance.z) / halfZ;
-            const profile = Math.pow(Math.max(0, 1 - Math.max(normalizedX, normalizedZ)), 1.35);
-            const topY = Math.max(terrain.elevation + .65, site.entrance.y + height * profile);
+            const normalizedX = (x - centerX) / halfX;
+            const normalizedZ = (z - site.entrance.z) / halfZ;
+            const radial = Math.hypot(normalizedX, normalizedZ);
+            const edge = Math.max(0, 1 - radial);
+            const rounded = edge * edge * (3 - 2 * edge);
+            const passAmount = Math.min(1, Math.abs(x - site.entrance.x) / passWidth);
+            const valley = passAmount * passAmount * (3 - 2 * passAmount);
+            const shoulder = .9 + hashUnit(site.regionX, site.regionZ, site.slot, 401 + row * columns + column + (side < 0 ? 0 : 997)) * .1;
+            const profile = rounded * valley * shoulder;
+            const topY = terrain.elevation + height * profile;
             nodes.push(Object.freeze({ x, z, baseY: quantize(terrain.elevation), topY: quantize(topY) }));
           }
         }
@@ -601,7 +608,7 @@ function buildPhysicalNeighborhood(regionX: number, regionZ: number): WildsDisco
           siteKey: site.key,
           spaceId: outerId,
           center: field.center,
-          halfExtents: field.halfExtents,
+          halfExtents: freezePoint(radius * .28, field.halfExtents.y, radius * .58),
           kind: "mountain-envelope" as const
         }));
       }

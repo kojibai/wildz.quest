@@ -42,16 +42,6 @@ function renderedTerrainY(x: number, z: number) {
 // with the named meshes so traversal consumes the same physical world players see.
 export const WILDS_RENDERED_PHYSICAL_OBSTACLES: readonly WildsTerrainObstacle[] = [
   {
-    id: "wildz.rendered.v1:arena-of-echoes:protected-airspace",
-    kind: "aerial-hazard",
-    material: "conditional",
-    position: { x: 0, y: renderedTerrainY(0, 0) + .45, z: 0 },
-    radius: 7.1,
-    shape: { kind: "cylinder", radius: 7.1, height: 7.55 },
-    visualScale: 1,
-    airbornePolicy: "persistent"
-  },
-  {
     id: "wildz.rendered.v1:wayfinder-hollow:trail-gate-beam",
     kind: "ceiling",
     material: "solid",

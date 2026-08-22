@@ -6,7 +6,7 @@ import * as THREE from "three";
 import type { PlayState } from "./game-state";
 import { projectWildsDiscoverySiteVisuals } from "./wilds-discovery-site-visuals";
 import { projectWildsDiscoverySiteApproach, type WildsDiscoverySiteProjection, type WildsSiteSpaceState } from "./wilds-discovery-sites";
-import { WILDS_SITE_PORTAL_INTERACTION_RADIUS, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
+import { projectWildsSitePortalCue, WILDS_SITE_PORTAL_INTERACTION_RADIUS, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 
 export function WildsDiscoverySites({ runtime, player, space, onPortal }: {
   runtime: WildsSiteRuntimeProjection;
@@ -56,11 +56,11 @@ export function WildsDiscoverySites({ runtime, player, space, onPortal }: {
       const mountainScaleClass = site.mountain?.scaleClass;
       const portal = portalsBySite.get(site.key);
       const portalDistance = portal ? Math.hypot(portal.position.x - player.x, portal.position.z - player.z) : Number.POSITIVE_INFINITY;
+      const portalCue = projectWildsSitePortalCue(portalDistance);
       const visuals = visualsBySite.get(site.key)!;
       return <group key={site.key} name={`discovery-site:${site.key}`} position={[x, site.entrance.y - space.position.y, z]} userData={{ lod: approach.lod, physical: approach.physical, siteKey: approach.siteKey }}>
-        {approach.lod === "distant" ? site.mountain ? <mesh name={`discovery-site-proxy:${site.key}`} position={[0, site.collisionEnvelope.halfExtents.y * .45, 0]} scale={[site.collisionEnvelope.halfExtents.x, site.collisionEnvelope.halfExtents.y * .9, site.collisionEnvelope.halfExtents.z]}>
-          <dodecahedronGeometry args={[1, 0]} /><meshStandardMaterial color="#66716c" emissive="#173a31" emissiveIntensity={.16} opacity={.72} transparent /></mesh> : <mesh name={`discovery-site-beacon:${site.key}`} position={[0, 2.4, 0]}>
-          <ringGeometry args={[.32, .48, 20]} /><meshBasicMaterial color="#7fe8c4" opacity={.58} side={2} transparent /></mesh> : site.mountain ? visuals.mountainSurfaces.map((surface) => <MountainSurface color={mountainScaleClass === "massif" ? "#5b6570" : "#687263"} key={surface.id} site={site} surface={surface} />) : null}
+        {site.mountain ? visuals.mountainSurfaces.map((surface) => <MountainSurface color={mountainScaleClass === "massif" ? "#5b6570" : "#687263"} distant={approach.lod === "distant"} key={surface.id} site={site} surface={surface} />) : approach.lod === "distant" ? <mesh name={`discovery-site-beacon:${site.key}`} position={[0, 2.4, 0]}>
+          <ringGeometry args={[.32, .48, 20]} /><meshBasicMaterial color="#7fe8c4" opacity={.58} side={2} transparent /></mesh> : null}
         {approach.lod !== "distant" ? visuals.waterSurfaces.map((water) => <mesh key={water.id} name={water.id} position={[water.x - site.entrance.x, water.y - site.entrance.y, water.z - site.entrance.z]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[water.width, water.depth]} />
           <meshPhysicalMaterial color="#2395ad" emissive="#155c73" emissiveIntensity={.18} opacity={.58} roughness={.14} side={2} transparent />
@@ -68,17 +68,18 @@ export function WildsDiscoverySites({ runtime, player, space, onPortal }: {
         {site.waterfall && approach.lod !== "distant" ? <group name={`waterfall:${site.key}`}>
           <WaterfallFlow site={site} />
         </group> : null}
-        {portal && portalDistance <= 14 ? <group position={[portal.position.x - site.entrance.x, portal.position.y - site.entrance.y + 1, portal.position.z - site.entrance.z]}>
+        {portal && portalCue ? <group position={[portal.position.x - site.entrance.x, portal.position.y - site.entrance.y + 1, portal.position.z - site.entrance.z]}>
           <mesh><torusGeometry args={[1.05, .13, 10, 30]} /><meshStandardMaterial color="#b8f4dc" emissive="#3c9d7c" emissiveIntensity={.45} /></mesh>
-          {portalDistance <= WILDS_SITE_PORTAL_INTERACTION_RADIUS ? <Html center distanceFactor={8}><button onClick={(event) => { event.stopPropagation(); onPortal(site.key, "enter"); }} type="button">Enter {site.family.replaceAll("-", " ")}</button></Html> : null}
+          <Html center distanceFactor={8}>{portalCue.action === "enter" ? <button onClick={(event) => { event.stopPropagation(); onPortal(site.key, "enter"); }} type="button">Enter {site.family.replaceAll("-", " ")}</button> : <span className="wilds-cave-entrance-cue">Cave entrance</span>}</Html>
         </group> : null}
       </group>;
     })}
   </group>;
 }
 
-function MountainSurface({ color, site, surface }: {
+function MountainSurface({ color, distant, site, surface }: {
   color: string;
+  distant: boolean;
   site: WildsDiscoverySiteProjection;
   surface: ReturnType<typeof projectWildsDiscoverySiteVisuals>["mountainSurfaces"][number];
 }) {
@@ -96,7 +97,7 @@ function MountainSurface({ color, site, surface }: {
     return next;
   }, [site, surface]);
   useEffect(() => () => geometry.dispose(), [geometry]);
-  return <mesh castShadow geometry={geometry} name={surface.id} receiveShadow>
+  return <mesh castShadow={!distant} geometry={geometry} name={surface.id} receiveShadow>
     <meshStandardMaterial color={color} roughness={.98} side={2} />
   </mesh>;
 }

@@ -28,6 +28,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(explorer, /const grounded = locomotion === "ground" && aerialMode === "ground"/);
     assert.match(explorer, /const stride = grounded && moving/);
     assert.match(explorer, /const swimStroke = locomotion === "swim"/);
+    assert.match(explorer, /moving \? -1\.42 : -0\.78/);
     assert.match(creature, /WildsCreatureLocomotion = "ground" \| "swim" \| "air"/);
     assert.match(creature, /projectWildsCreatureLocomotionFrame/);
     assert.match(world, /aquaticPresentation\.actorLocalY/);

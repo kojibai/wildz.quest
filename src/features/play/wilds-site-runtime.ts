@@ -3,6 +3,7 @@ import { wildsDiscoverySiteDiagnostics, wildsMountainFieldValue, type WildsDisco
 const OUTER = "wildz.space.outer.v1";
 const CELL = 16;
 export const WILDS_SITE_PORTAL_INTERACTION_RADIUS = 3.2;
+export const WILDS_SITE_PORTAL_CUE_RADIUS = 14;
 const EMPTY = Object.freeze([]) as readonly never[];
 type Point3 = Readonly<{ x: number; y: number; z: number }>;
 type Box = Readonly<{ spaceId: string; center: Point3; halfExtents: Point3 }>;
@@ -20,6 +21,13 @@ type RuntimeIndex = Readonly<{
 export type WildsSiteRuntimeProjection = Readonly<{ version: "wildz.site-runtime.v1"; physical: WildsDiscoveryPhysicalNeighborhood; sites: readonly WildsDiscoverySiteProjection[] }>;
 export type WildsSiteMovementOutput = { x: number; z: number; floorY: number; ceilingY: number; surfaceId: string | null; flooded: boolean; blocked: boolean };
 export type WildsSiteDiscoveryOutput = { siteKey: string | null };
+
+export function projectWildsSitePortalCue(distance: number) {
+  if (!Number.isFinite(distance) || distance < 0 || distance > WILDS_SITE_PORTAL_CUE_RADIUS) return null;
+  return distance <= WILDS_SITE_PORTAL_INTERACTION_RADIUS
+    ? Object.freeze({ label: "Enter", action: "enter" as const })
+    : Object.freeze({ label: "Cave entrance", action: null });
+}
 
 const cache = new WeakMap<WildsDiscoveryPhysicalNeighborhood, WildsSiteRuntimeProjection>();
 const indexes = new WeakMap<WildsSiteRuntimeProjection, RuntimeIndex>();
@@ -192,34 +200,36 @@ function mountainObstruction(runtime: WildsSiteRuntimeProjection, spaceId: strin
   const rise = mountainCircleValue(runtime, spaceId, x, z, radius, "rise");
   return Number.isFinite(top) && rise > 2.2 ? Math.max(0, top - y) : 0;
 }
-function movementBlocked(runtime: WildsSiteRuntimeProjection, spaceId: string, x: number, y: number, z: number, radius: number, canClimb: boolean, sourceObstruction: number) {
+function movementBlocked(runtime: WildsSiteRuntimeProjection, spaceId: string, x: number, y: number, z: number, radius: number, canClimb: boolean, sourceObstruction: number, airborneWorldY?: number) {
   if (isBlocked(runtime, spaceId, x, y, z, radius)) return true;
+  if (Number.isFinite(airborneWorldY)) {
+    const top = mountainCircleValue(runtime, spaceId, x, z, radius, "topY");
+    return Number.isFinite(top) && top + .35 > airborneWorldY!;
+  }
   const obstruction = mountainObstruction(runtime, spaceId, x, y, z, radius, canClimb);
   return obstruction > .05 && obstruction >= sourceObstruction - .000001;
 }
-export function writeWildsSiteRuntimeMovement(output: WildsSiteMovementOutput, runtime: WildsSiteRuntimeProjection, spaceId: string, sx: number, sy: number, sz: number, tx: number, tz: number, radius: number, fallback = sy, canClimb = false) {
-  movementWrites += 1; const interior = spaceId !== OUTER; const targetY = interior ? sy : fallback; const sourceObstruction = mountainObstruction(runtime, spaceId, sx, sy, sz, radius, canClimb); let x = tx, z = tz, surface = surfaceAt(runtime, spaceId, x, targetY, z); const blocked = movementBlocked(runtime, spaceId, x, targetY, z, radius, canClimb, sourceObstruction) || (interior && !surface);
-  if (blocked) { const xSurface = surfaceAt(runtime, spaceId, tx, targetY, sz); if ((!interior || xSurface) && !movementBlocked(runtime, spaceId, tx, targetY, sz, radius, canClimb, sourceObstruction)) { z = sz; surface = xSurface; } else { const zSurface = surfaceAt(runtime, spaceId, sx, targetY, tz); if ((!interior || zSurface) && !movementBlocked(runtime, spaceId, sx, targetY, tz, radius, canClimb, sourceObstruction)) { x = sx; surface = zSurface; } else { x = sx; z = sz; surface = surfaceAt(runtime, spaceId, x, sy, z); } } }
+export function writeWildsSiteRuntimeMovement(output: WildsSiteMovementOutput, runtime: WildsSiteRuntimeProjection, spaceId: string, sx: number, sy: number, sz: number, tx: number, tz: number, radius: number, fallback = sy, canClimb = false, airborneWorldY?: number) {
+  movementWrites += 1; const interior = spaceId !== OUTER; const targetY = Number.isFinite(airborneWorldY) ? airborneWorldY! : interior ? sy : fallback; const sourceObstruction = mountainObstruction(runtime, spaceId, sx, sy, sz, radius, canClimb); let x = tx, z = tz, surface = surfaceAt(runtime, spaceId, x, targetY, z); const blocked = movementBlocked(runtime, spaceId, x, targetY, z, radius, canClimb, sourceObstruction, airborneWorldY) || (interior && !surface);
+  if (blocked) { const xSurface = surfaceAt(runtime, spaceId, tx, targetY, sz); if ((!interior || xSurface) && !movementBlocked(runtime, spaceId, tx, targetY, sz, radius, canClimb, sourceObstruction, airborneWorldY)) { z = sz; surface = xSurface; } else { const zSurface = surfaceAt(runtime, spaceId, sx, targetY, tz); if ((!interior || zSurface) && !movementBlocked(runtime, spaceId, sx, targetY, tz, radius, canClimb, sourceObstruction, airborneWorldY)) { x = sx; surface = zSurface; } else { x = sx; z = sz; surface = surfaceAt(runtime, spaceId, x, sy, z); } } }
   output.x = q(x); output.z = q(z); output.blocked = blocked && x === sx && z === sz; floorAndCeiling(output, runtime, spaceId, output.x, surface?.center.y ?? targetY, output.z, targetY); return output;
 }
 export function writeWildsSiteRuntimeCamera(output: { floorY: number; ceilingY: number; flooded: boolean; waterSurfaceY: number }, runtime: WildsSiteRuntimeProjection, spaceId: string, x: number, y: number, z: number) { cameraWrites += 1; floorAndCeiling(output, runtime, spaceId, x, y, z, y); return output; }
 export function wildsSiteRuntimeCameraIsFlooded(camera: Readonly<{ floorY: number; flooded: boolean; waterSurfaceY: number }>) {
   return camera.flooded && Number.isFinite(camera.waterSurfaceY) && camera.floorY <= camera.waterSurfaceY + .05;
 }
-export function writeWildsSiteRuntimeAerialCollision(output: { obstacleTopY: number; ceilingY: number; protectedAirspace: boolean; floorY?: number; flooded?: boolean; waterSurfaceY?: number }, runtime: WildsSiteRuntimeProjection, spaceId: string, x: number, footY: number, z: number, height: number, radius: number) {
-  aerialWrites += 1; output.obstacleTopY = Number.NaN; output.ceilingY = Number.NaN; output.protectedAirspace = false; const headY = footY + height;
+export function writeWildsSiteRuntimeAerialCollision(output: { obstacleTopY: number; ceilingY: number; protectedAirspace: boolean; blockerId: string | null; floorY?: number; flooded?: boolean; waterSurfaceY?: number }, runtime: WildsSiteRuntimeProjection, spaceId: string, x: number, footY: number, z: number, height: number, radius: number) {
+  aerialWrites += 1; output.obstacleTopY = Number.NaN; output.ceilingY = Number.NaN; output.protectedAirspace = false; output.blockerId = null; const headY = footY + height;
   if ("floorY" in output && "flooded" in output) floorAndCeiling(output as { floorY: number; ceilingY: number; flooded: boolean; waterSurfaceY?: number }, runtime, spaceId, x, footY, z, footY);
   for (const ceiling of at(indexFor(runtime).ceilings, spaceId, x, z)) {
     if (Math.abs(x - ceiling.center.x) > ceiling.halfExtents.x + radius || Math.abs(z - ceiling.center.z) > ceiling.halfExtents.z + radius) continue;
     const underside = ceiling.center.y - ceiling.halfExtents.y;
     const top = ceiling.center.y + ceiling.halfExtents.y;
     if (footY >= top + .000001) continue;
-    if (!Number.isFinite(output.ceilingY) || underside < output.ceilingY) output.ceilingY = underside;
-    if (headY > underside + .000001) output.protectedAirspace = true;
+    if (!Number.isFinite(output.ceilingY) || underside < output.ceilingY) { output.ceilingY = underside; output.blockerId = ceiling.id; }
+    if (headY > underside + .000001) { output.protectedAirspace = true; output.blockerId = ceiling.id; }
   }
-  const mountainTop = mountainCircleValue(runtime, spaceId, x, z, radius, "topY");
-  if (Number.isFinite(mountainTop)) output.obstacleTopY = mountainTop;
-  for (const solid of at(indexFor(runtime).solids, spaceId, x, z)) { if (solid.kind === "mountain-envelope" || Math.abs(x - solid.center.x) > solid.halfExtents.x + radius || Math.abs(z - solid.center.z) > solid.halfExtents.z + radius) continue; const min = solid.center.y - solid.halfExtents.y, max = solid.center.y + solid.halfExtents.y; if (footY <= max && headY >= min && (!Number.isFinite(output.obstacleTopY) || max > output.obstacleTopY)) output.obstacleTopY = max; }
+  for (const solid of at(indexFor(runtime).solids, spaceId, x, z)) { if (solid.kind === "mountain-envelope" || Math.abs(x - solid.center.x) > solid.halfExtents.x + radius || Math.abs(z - solid.center.z) > solid.halfExtents.z + radius) continue; const min = solid.center.y - solid.halfExtents.y, max = solid.center.y + solid.halfExtents.y; if (footY <= max && headY >= min && (!Number.isFinite(output.obstacleTopY) || max > output.obstacleTopY)) { output.obstacleTopY = max; output.blockerId = solid.id; } }
   return output;
 }
 export function writeWildsSiteRuntimeEncounter(output: { siteKey: string | null; spaceId: string; layer: WildsDiscoveryPhysicalNeighborhood["encounterVolumes"][number]["layer"]; minY: number; maxY: number }, runtime: WildsSiteRuntimeProjection, spaceId: string, x: number, y: number, z: number) {

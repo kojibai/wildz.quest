@@ -122,6 +122,46 @@ describe("persistent deterministic Wilds discovery sites", () => {
     }
   });
 
+  it("projects rounded mountain terrain with broad public foothills instead of walls or pyramids", () => {
+    for (const physical of [
+      admitWildsDiscoveryPhysicalNeighborhood(0, 0),
+      admitWildsDiscoveryPhysicalNeighborhood(-5, -5),
+      admitWildsDiscoveryPhysicalNeighborhood(8, -7)
+    ]) {
+      for (const field of physical.mountainFields) {
+        assert.ok(field.columns >= 9, field.id);
+        assert.ok(field.rows >= 9, field.id);
+        const rises = field.nodes.map((node) => node.topY - node.baseY);
+        const perimeter = field.nodes.filter((_, index) => {
+          const row = Math.floor(index / field.columns);
+          const column = index % field.columns;
+          return row === 0 || row === field.rows - 1 || column === 0 || column === field.columns - 1;
+        });
+        assert.ok(perimeter.every((node) => node.topY - node.baseY <= .05), field.id);
+        assert.ok(rises.some((rise) => rise > .25 && rise <= 2.2), field.id);
+        assert.ok(rises.some((rise) => rise > 2.2), field.id);
+        assert.ok(new Set(rises.map((rise) => Math.round(rise * 10))).size >= 7, field.id);
+
+        let maximumAddedGrade = 0;
+        for (let row = 0; row < field.rows; row += 1) {
+          for (let column = 0; column < field.columns; column += 1) {
+            const node = field.nodes[row * field.columns + column]!;
+            const rise = node.topY - node.baseY;
+            if (column + 1 < field.columns) {
+              const east = field.nodes[row * field.columns + column + 1]!;
+              maximumAddedGrade = Math.max(maximumAddedGrade, Math.abs(rise - (east.topY - east.baseY)) / Math.hypot(node.x - east.x, node.z - east.z));
+            }
+            if (row + 1 < field.rows) {
+              const south = field.nodes[(row + 1) * field.columns + column]!;
+              maximumAddedGrade = Math.max(maximumAddedGrade, Math.abs(rise - (south.topY - south.baseY)) / Math.hypot(node.x - south.x, node.z - south.z));
+            }
+          }
+        }
+        assert.ok(maximumAddedGrade <= .8, `${field.id}:${maximumAddedGrade}`);
+      }
+    }
+  });
+
   it("keeps ordinary progression routes open while making risk and recovery explicit", () => {
     const sites = wildsDiscoverySitesForRegion(-7, 11);
     for (const site of sites) {

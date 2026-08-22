@@ -2,9 +2,15 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 import { admitWildsDiscoveryPhysicalNeighborhood, wildsMountainFieldValue } from "../src/features/play/wilds-discovery-sites";
-import { enterWildsSiteRuntime, exitWildsSiteRuntime, prepareWildsSiteRuntime, wildsSiteRuntimeCameraIsFlooded, wildsSiteRuntimeDiagnostics, writeWildsSiteRuntimeAerialCollision, writeWildsSiteRuntimeCamera, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeEncounter, writeWildsSiteRuntimeLanding, writeWildsSiteRuntimeMovement } from "../src/features/play/wilds-site-runtime";
+import { enterWildsSiteRuntime, exitWildsSiteRuntime, prepareWildsSiteRuntime, projectWildsSitePortalCue, wildsSiteRuntimeCameraIsFlooded, wildsSiteRuntimeDiagnostics, writeWildsSiteRuntimeAerialCollision, writeWildsSiteRuntimeCamera, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeEncounter, writeWildsSiteRuntimeLanding, writeWildsSiteRuntimeMovement } from "../src/features/play/wilds-site-runtime";
+import { createWildsVerticalTraversalState, writeWildsVerticalTraversalStep } from "../src/features/play/wilds-vertical-traversal";
 
 describe("production Wilds site runtime", () => {
+  it("makes cave entrances legible before the interaction radius", () => {
+    assert.equal(projectWildsSitePortalCue(14.01), null);
+    assert.deepEqual(projectWildsSitePortalCue(6), { label: "Cave entrance", action: null });
+    assert.deepEqual(projectWildsSitePortalCue(3), { label: "Enter", action: "enter" });
+  });
   it("retains the exact immutable physical authority", () => {
     const physical = admitWildsDiscoveryPhysicalNeighborhood(3, 2);
     const runtime = prepareWildsSiteRuntime(physical);
@@ -39,7 +45,7 @@ describe("production Wilds site runtime", () => {
     const camera = { floorY: 0, ceilingY: 0, flooded: false, waterSurfaceY: Number.NaN };
     assert.equal(writeWildsSiteRuntimeCamera(camera, runtime, entered.spaceId, movement.x, movement.floorY, movement.z), camera);
     assert.equal(camera.ceilingY, movement.ceilingY);
-    const aerial = { obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false };
+    const aerial = { obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false, blockerId: null as string | null };
     assert.equal(writeWildsSiteRuntimeAerialCollision(aerial, runtime, entered.spaceId, movement.x, movement.floorY, movement.z, 1.55, .38), aerial);
     assert.equal(aerial.ceilingY, movement.ceilingY);
     const ceiling = runtime.physical.ceilings.find((candidate) => candidate.spaceId === entered.spaceId)!;
@@ -48,6 +54,7 @@ describe("production Wilds site runtime", () => {
     assert.ok(Number.isFinite(aerial.ceilingY));
     assert.ok(aerial.ceilingY <= underside);
     assert.equal(aerial.protectedAirspace, true);
+    assert.ok(aerial.blockerId?.startsWith(`ceiling:${portal.siteKey}:`));
     const encounter = { siteKey: null as string | null, spaceId: "", layer: "ground" as "ground" | "surface" | "water-column" | "seabed" | "air", minY: 0, maxY: 0 };
     assert.equal(writeWildsSiteRuntimeEncounter(encounter, runtime, entered.spaceId, movement.x, movement.floorY + 1, movement.z), encounter);
     assert.equal(encounter.siteKey, portal.siteKey);
@@ -99,6 +106,68 @@ describe("production Wilds site runtime", () => {
     assert.equal(movement.blocked, false);
   });
 
+  it("lets powered flight rise from a mountain slope instead of treating nearby terrain as a ceiling", () => {
+    const runtime = prepareWildsSiteRuntime(admitWildsDiscoveryPhysicalNeighborhood(-2, -2));
+    const field = runtime.physical.mountainFields.find((candidate) => candidate.nodes.some((node) => {
+      const rise = node.topY - node.baseY;
+      return rise > .4 && rise < 2;
+    }))!;
+    const launch = field.nodes.find((node) => {
+      const rise = node.topY - node.baseY;
+      return rise > .4 && rise < 2;
+    })!;
+    const vertical = createWildsVerticalTraversalState();
+    const aerial = { obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false, blockerId: null as string | null, floorY: Number.NaN, flooded: false, waterSurfaceY: Number.NaN };
+    writeWildsVerticalTraversalStep(vertical, {
+      deltaSeconds: 0,
+      initialOffset: .35,
+      intent: 0,
+      layer: "air",
+      liftPotential: .2,
+      powered: true,
+      stamina: 100,
+      terrainElevation: launch.topY
+    });
+    for (let frame = 0; frame < 30; frame += 1) {
+      writeWildsSiteRuntimeAerialCollision(aerial, runtime, field.spaceId, launch.x, vertical.worldY, launch.z, 1.55, .38);
+      writeWildsVerticalTraversalStep(vertical, {
+        ceilingY: aerial.ceilingY,
+        deltaSeconds: .1,
+        intent: 0,
+        layer: "air",
+        liftPotential: .2,
+        obstacleTopY: aerial.obstacleTopY,
+        powered: true,
+        stamina: 100,
+        terrainElevation: aerial.floorY
+      });
+    }
+    assert.equal(vertical.offset, 6);
+    assert.equal(aerial.protectedAirspace, false);
+  });
+
+  it("lets a flyer clear a mountain by world height without requiring climb anatomy", () => {
+    const runtime = prepareWildsSiteRuntime(admitWildsDiscoveryPhysicalNeighborhood(0, 0));
+    const field = runtime.physical.mountainFields[0]!;
+    const center = field.nodes[Math.floor(field.nodes.length / 2)]!;
+    const movement = { x: 0, z: 0, floorY: 0, ceilingY: 0, surfaceId: null as string | null, flooded: false, blocked: false };
+    writeWildsSiteRuntimeMovement(
+      movement,
+      runtime,
+      field.spaceId,
+      center.x - .2,
+      center.baseY,
+      center.z,
+      center.x,
+      center.z,
+      .38,
+      center.baseY,
+      false,
+      center.topY + 1
+    );
+    assert.equal(movement.blocked, false);
+  });
+
   it("uses the same triangle plane for rendered and physical mountain height", () => {
     const runtime = prepareWildsSiteRuntime(admitWildsDiscoveryPhysicalNeighborhood(0, 0));
     const field = runtime.physical.mountainFields[0]!;
@@ -115,24 +184,24 @@ describe("production Wilds site runtime", () => {
     assert.equal(camera.floorY, expected);
   });
 
-  it("collides an aerial capsule with a ridge triangle touched only by its radius", () => {
+  it("does not misreport a ridge triangle as an overhead flight obstacle", () => {
     const runtime = prepareWildsSiteRuntime(admitWildsDiscoveryPhysicalNeighborhood(0, 0));
     const field = runtime.physical.mountainFields[0]!;
     const x = field.center.x + field.halfExtents.x + .2;
     const z = field.center.z;
-    const aerial = { obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false };
+    const aerial = { obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false, blockerId: null as string | null };
     writeWildsSiteRuntimeAerialCollision(aerial, runtime, field.spaceId, x, field.center.y, z, 1.55, .38);
-    assert.ok(Number.isFinite(aerial.obstacleTopY));
+    assert.equal(Number.isFinite(aerial.obstacleTopY), false);
   });
 
-  it("collides an aerial capsule with a ridge corner between fixed compass samples", () => {
+  it("keeps ridge corners in the ground authority rather than inventing a ceiling", () => {
     const runtime = prepareWildsSiteRuntime(admitWildsDiscoveryPhysicalNeighborhood(0, 0));
     const field = runtime.physical.mountainFields[0]!;
     const x = field.center.x + field.halfExtents.x + .34;
     const z = field.center.z + field.halfExtents.z + .10;
-    const aerial = { obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false };
+    const aerial = { obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false, blockerId: null as string | null };
     writeWildsSiteRuntimeAerialCollision(aerial, runtime, field.spaceId, x, field.center.y, z, 1.55, .38);
-    assert.ok(Number.isFinite(aerial.obstacleTopY));
+    assert.equal(Number.isFinite(aerial.obstacleTopY), false);
   });
 
   it("gates climb from the maximum local rise instead of unrelated height maxima", () => {
@@ -149,11 +218,8 @@ describe("production Wilds site runtime", () => {
   });
 
   it("treats a mountain floor above overlapping water as dry camera space", () => {
-    const runtime = prepareWildsSiteRuntime(admitWildsDiscoveryPhysicalNeighborhood(0, 1));
-    const camera = { floorY: 0, ceilingY: 0, flooded: false, waterSurfaceY: Number.NaN };
-    writeWildsSiteRuntimeCamera(camera, runtime, "wildz.space.outer.v1", 33.415752, 4.929612, 159.442192);
-    assert.equal(camera.flooded, true);
-    assert.equal(wildsSiteRuntimeCameraIsFlooded(camera), false);
+    assert.equal(wildsSiteRuntimeCameraIsFlooded({ flooded: true, floorY: 2, waterSurfaceY: 1 }), false);
+    assert.equal(wildsSiteRuntimeCameraIsFlooded({ flooded: true, floorY: .9, waterSurfaceY: 1 }), true);
   });
 
   it("runs ten thousand warmed live-writer frames without rebuilding", () => {
@@ -161,7 +227,7 @@ describe("production Wilds site runtime", () => {
     const site = runtime.sites[0]!;
     const movement = { x: 0, z: 0, floorY: 0, ceilingY: 0, surfaceId: null as string | null, flooded: false, blocked: false };
     const camera = { floorY: 0, ceilingY: 0, flooded: false, waterSurfaceY: Number.NaN };
-    const aerial = { obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false };
+    const aerial = { obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false, blockerId: null as string | null };
     const encounter = { siteKey: null as string | null, spaceId: "", layer: "ground" as "ground" | "surface" | "water-column" | "seabed" | "air", minY: 0, maxY: 0 };
     const discovery = { siteKey: null as string | null };
     const before = wildsSiteRuntimeDiagnostics();
@@ -201,7 +267,7 @@ describe("production Wilds site runtime", () => {
     assert.doesNotMatch(renderer, /siteSolids\.map/);
     assert.doesNotMatch(renderer, /water\.halfExtents\.y \* 2/);
     assert.match(renderer, /portalDistance = portal \? Math\.hypot\(portal\.position\.x - player\.x, portal\.position\.z - player\.z\)/);
-    assert.match(renderer, /portalDistance <= WILDS_SITE_PORTAL_INTERACTION_RADIUS/);
+    assert.match(renderer, /projectWildsSitePortalCue\(portalDistance\)/);
     assert.doesNotMatch(renderer, /admitWildsDiscoveryPhysicalNeighborhood/);
     assert.doesNotMatch(campaign, /wildsSiteRuntimeDiscoveredKeys/);
   });

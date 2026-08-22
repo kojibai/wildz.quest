@@ -20,9 +20,10 @@ import type { WildsAquaticPresentation } from "./wilds-aquatic-presentation";
 import { projectCreatureCapabilityIdentity } from "./creature-capability-identity";
 import { projectWildsTraversalStatus } from "./wilds-traversal-status";
 import type { WildsVerticalTraversalIntent, WildsVerticalTraversalState } from "./wilds-vertical-traversal";
+import { projectWildsFlightObstruction } from "./wilds-flight-obstruction";
 
 const ignore = () => {};
-const DEFAULT_VERTICAL_READOUT = { layer: "ground", value: 0, safeMin: 0, safeMax: 0 } as const;
+const DEFAULT_VERTICAL_READOUT = { layer: "ground", value: 0, safeMin: 0, safeMax: 0, blockerId: null } as const;
 
 function useStableEvent<Arguments extends unknown[]>(handler: (...args: Arguments) => void) {
   const handlerRef = useRef(handler);
@@ -90,7 +91,7 @@ export function WildzWorldControls({
   aerialMode: WildsAerialMode;
   aquaticPresentation?: WildsAquaticPresentation;
   verticalIntentRef?: MutableRefObject<WildsVerticalTraversalIntent>;
-  verticalReadout?: Readonly<{ layer: WildsVerticalTraversalState["layer"]; value: number; safeMin: number; safeMax: number }>;
+  verticalReadout?: Readonly<{ layer: WildsVerticalTraversalState["layer"]; value: number; safeMin: number; safeMax: number; blockerId: string | null }>;
   traversalCapabilities: readonly WildsTraversalCapability[];
   glideLaunchAvailable: boolean;
   onAerialToggle: () => void;
@@ -241,8 +242,11 @@ export function WildzWorldControls({
     aquaticStatus,
     flightStatus
   });
+  const flightObstruction = projectWildsFlightObstruction(verticalReadout.blockerId);
   const verticalStatus = verticalReadout.layer === "air"
-    ? `${verticalReadout.value.toFixed(1)} m altitude · safe ${verticalReadout.safeMin.toFixed(1)}–${verticalReadout.safeMax.toFixed(1)} m`
+    ? flightObstruction
+      ? `${verticalReadout.value.toFixed(1)} m altitude · ${flightObstruction.label} · ${flightObstruction.guidance}`
+      : `${verticalReadout.value.toFixed(1)} m altitude · open sky to ${verticalReadout.safeMax.toFixed(1)} m`
     : verticalReadout.layer === "water" && aquaticPresentation
       ? `${verticalReadout.value.toFixed(1)} m deep · safe ${(aquaticPresentation.waterDepth - verticalReadout.safeMax).toFixed(1)}–${(aquaticPresentation.waterDepth - verticalReadout.safeMin).toFixed(1)} m`
       : null;

@@ -248,7 +248,7 @@ export function WildsExplorer({
     const breath = Math.sin(elapsed * 1.8) * 0.018 * readability.motionScale;
     root.current.rotation.y = THREE.MathUtils.lerp(root.current.rotation.y, facing.current, remote ? 0.11 : 0.18);
     const bodyPitch = locomotion === "swim"
-      ? moving ? -1.08 : -0.48
+      ? moving ? -1.42 : -0.78
       : airborne
         ? aerialMode === "glide" || moving ? -1.12 : verticalVelocity < -0.2 ? -0.32 : 0
         : 0;

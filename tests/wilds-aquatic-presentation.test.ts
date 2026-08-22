@@ -42,7 +42,8 @@ test("swimming suspends the actor inside the exact shared water column", () => {
   assert.equal(swimming.waterDepth, WILDS_WATERLINE_ELEVATION - deep.elevation);
   assert.ok(swimming.actorLocalY > 0);
   assert.ok(swimming.actorWorldY > deep.elevation);
-  assert.ok(swimming.actorWorldY < WILDS_WATERLINE_ELEVATION);
+    assert.ok(swimming.actorWorldY < WILDS_WATERLINE_ELEVATION);
+    assert.ok(WILDS_WATERLINE_ELEVATION - swimming.actorWorldY >= 1.35);
   assert.equal(swimming.cameraSubmersionAllowed, true);
   assert.equal(swimming.scubaVisible, true);
   assert.ok(Object.isFrozen(swimming));

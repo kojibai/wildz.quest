@@ -15883,3 +15883,17 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
   .wildz-app .wilds-search-reticle { top: calc(154px + var(--wildz-stage-safe-top)); }
   .wildz-app .wilds-event-toast { bottom: max(136px, calc(env(safe-area-inset-bottom) + 130px)); }
 }
+
+.wilds-cave-entrance-cue {
+  display: inline-flex;
+  padding: 5px 9px;
+  border: 1px solid rgb(184 244 220 / 58%);
+  border-radius: 999px;
+  background: rgb(10 28 27 / 82%);
+  color: #d8fff0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  white-space: nowrap;
+  box-shadow: 0 5px 18px rgb(0 0 0 / 28%);
+}

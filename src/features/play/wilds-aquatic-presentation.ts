@@ -44,7 +44,7 @@ export function projectWildsAquaticPresentation(input: WildsAquaticPresentationI
         ? "wade" as const
         : "land" as const;
   const actorWorldY = mode === "swim"
-    ? quantize(WILDS_WATERLINE_ELEVATION - Math.min(1.2, Math.max(0.55, waterDepth * 0.35)))
+    ? quantize(WILDS_WATERLINE_ELEVATION - Math.min(2.1, Math.max(1.35, waterDepth * 0.42)))
     : input.terrain.elevation;
 
   return Object.freeze({

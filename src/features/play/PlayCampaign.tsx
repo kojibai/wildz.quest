@@ -347,9 +347,9 @@ export function PlayCampaign({
   const verticalIntentRef = useRef<WildsVerticalTraversalIntent>(0);
   const horizontalAllowedRef = useRef(true);
   const [aerialEnergy, setAerialEnergy] = useState(100);
-  const [verticalReadout, setTraversalReadout] = useState({ layer: "ground" as WildsVerticalTraversalState["layer"], value: 0, safeMin: 0, safeMax: 0 });
-  const publishVerticalReadout = useCallback((layer: WildsVerticalTraversalState["layer"], value: number, safeMin: number, safeMax: number) => {
-    setTraversalReadout({ layer, value, safeMin, safeMax });
+  const [verticalReadout, setTraversalReadout] = useState({ layer: "ground" as WildsVerticalTraversalState["layer"], value: 0, safeMin: 0, safeMax: 0, blockerId: null as string | null });
+  const publishVerticalReadout = useCallback((layer: WildsVerticalTraversalState["layer"], value: number, safeMin: number, safeMax: number, blockerId: string | null) => {
+    setTraversalReadout({ layer, value, safeMin, safeMax, blockerId });
   }, []);
   const resetTransientTraversal = useCallback((position = state.player, elevation = aquaticPresentation.terrainElevation) => {
     aerialStateRef.current = createGroundedWildsAerialState(position, elevation);
@@ -358,7 +358,7 @@ export function PlayCampaign({
     horizontalAllowedRef.current = true;
     setAerialMode("ground");
     setAerialEnergy(100);
-    setTraversalReadout({ layer: "ground", value: 0, safeMin: 0, safeMax: 0 });
+    setTraversalReadout({ layer: "ground", value: 0, safeMin: 0, safeMax: 0, blockerId: null });
   }, [aquaticPresentation.terrainElevation, state.player]);
   const [activeVistaId, setActiveVistaId] = useState<WildsOverlookId | null>(null);
   const deckCards = state.inventory;
@@ -960,7 +960,9 @@ export function PlayCampaign({
   };
   const toggleAerialTraversal = () => {
     if (!canUseWorldStage()) return;
-    const groundElevation = aquaticPresentation.terrainElevation;
+    const groundElevation = Number.isFinite(state.siteSpace?.position.y)
+      ? state.siteSpace.position.y
+      : aquaticPresentation.terrainElevation;
     const liveAerialMode = aerialStateRef.current.mode;
     if (liveAerialMode !== "ground") {
       requestWildsAerialLanding(aerialStateRef.current, "landed");

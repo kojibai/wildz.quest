@@ -174,16 +174,46 @@ test("required landing refuses a live boss hazard and uses only a validated safe
   }), null);
 });
 
-test("production collision projection exposes the rendered Trail Gate ceiling and Arena protected airspace", () => {
+test("production collision projection preserves the Trail Gate beam without sealing the open Arena sky", () => {
   const output = createWildsAerialCollisionSample();
   const gateTerrain = sampleWildsTerrain(72, 40).elevation;
   writeWildsAerialCollisionSample({ x: 80, z: 48 }, gateTerrain + .35, undefined, output);
   assert.ok(Number.isFinite(output.ceilingY));
   assert.ok(output.ceilingY > gateTerrain + 2);
+  assert.equal(output.blockerId, "wildz.rendered.v1:wayfinder-hollow:trail-gate-beam");
 
   const arenaTerrain = sampleWildsTerrain(0, 0).elevation;
   writeWildsAerialCollisionSample({ x: 0, z: 0 }, arenaTerrain + 1, undefined, output);
-  assert.equal(output.protectedAirspace, true);
+  assert.equal(output.protectedAirspace, false);
+  assert.equal(Number.isFinite(output.ceilingY), false);
+  assert.equal(output.blockerId, null);
+
+  const vertical = createWildsVerticalTraversalState();
+  writeWildsVerticalTraversalStep(vertical, {
+    deltaSeconds: 0,
+    initialOffset: .35,
+    intent: 0,
+    layer: "air",
+    liftPotential: .2,
+    powered: true,
+    stamina: 100,
+    terrainElevation: arenaTerrain
+  });
+  for (let frame = 0; frame < 30; frame += 1) {
+    writeWildsAerialCollisionSample({ x: 0, z: 0 }, vertical.worldY, undefined, output);
+    writeWildsVerticalTraversalStep(vertical, {
+      ceilingY: output.ceilingY,
+      deltaSeconds: .1,
+      intent: 0,
+      layer: "air",
+      liftPotential: .2,
+      obstacleTopY: output.obstacleTopY,
+      powered: true,
+      stamina: 100,
+      terrainElevation: arenaTerrain
+    });
+  }
+  assert.equal(vertical.offset, 6);
 });
 
 test("production collision projection includes an active rendered living-world boss", () => {
@@ -223,8 +253,8 @@ test("actual generated canopy projection blocks powered ascent until the actor l
 });
 
 test("merges an interior ceiling overlap into the runtime landing block", () => {
-  const outer = { obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false };
-  const site = { obstacleTopY: Number.NaN, ceilingY: 3.2, protectedAirspace: true };
+  const outer = { obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false, blockerId: null as string | null };
+  const site = { obstacleTopY: Number.NaN, ceilingY: 3.2, protectedAirspace: true, blockerId: "ceiling:test" };
   assert.equal(mergeWildsAerialCollisionSample(outer, site), outer);
   assert.equal(outer.ceilingY, 3.2);
   assert.equal(outer.protectedAirspace, true);

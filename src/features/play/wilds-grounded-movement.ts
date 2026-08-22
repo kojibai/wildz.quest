@@ -29,6 +29,7 @@ export type WildsAerialCollisionSample = {
   obstacleTopY: number;
   ceilingY: number;
   protectedAirspace: boolean;
+  blockerId: string | null;
 };
 
 export type WildsAerialObstacleNeighborhood = Readonly<{
@@ -71,16 +72,16 @@ export function projectWildsAerialObstacleNeighborhood(
 }
 
 export function createWildsAerialCollisionSample(): WildsAerialCollisionSample {
-  return { obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false };
+  return { obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false, blockerId: null };
 }
 
 export function mergeWildsAerialCollisionSample(
   output: WildsAerialCollisionSample,
   input: Readonly<WildsAerialCollisionSample>
 ) {
-  if (Number.isFinite(input.obstacleTopY) && (!Number.isFinite(output.obstacleTopY) || input.obstacleTopY > output.obstacleTopY)) output.obstacleTopY = input.obstacleTopY;
-  if (Number.isFinite(input.ceilingY) && (!Number.isFinite(output.ceilingY) || input.ceilingY < output.ceilingY)) output.ceilingY = input.ceilingY;
-  if (input.protectedAirspace) output.protectedAirspace = true;
+  if (Number.isFinite(input.obstacleTopY) && (!Number.isFinite(output.obstacleTopY) || input.obstacleTopY > output.obstacleTopY)) { output.obstacleTopY = input.obstacleTopY; output.blockerId = input.blockerId; }
+  if (Number.isFinite(input.ceilingY) && (!Number.isFinite(output.ceilingY) || input.ceilingY < output.ceilingY)) { output.ceilingY = input.ceilingY; output.blockerId = input.blockerId; }
+  if (input.protectedAirspace) { output.protectedAirspace = true; output.blockerId = input.blockerId; }
   return output;
 }
 
@@ -102,17 +103,17 @@ function writeObstacleConstraint(
     : obstacle.position.y + obstacle.shape.height;
   const headY = footY + actorHeight;
   const intersects = footY <= maximum + CONTACT_EPSILON && headY >= minimum - CONTACT_EPSILON;
-  if (obstacle.kind === "aerial-hazard" && intersects) output.protectedAirspace = true;
+  if (obstacle.kind === "aerial-hazard" && intersects) { output.protectedAirspace = true; output.blockerId = obstacle.id; }
   if (obstacle.kind === "ceiling" || (obstacle.kind === "structure" && headY <= minimum + CONTACT_EPSILON)) {
-    if (!Number.isFinite(output.ceilingY) || minimum < output.ceilingY) output.ceilingY = minimum;
+    if (!Number.isFinite(output.ceilingY) || minimum < output.ceilingY) { output.ceilingY = minimum; output.blockerId = obstacle.id; }
     return;
   }
   if (obstacle.kind === "structure" && footY < maximum - CONTACT_EPSILON) {
-    if (!Number.isFinite(output.ceilingY) || minimum < output.ceilingY) output.ceilingY = minimum;
+    if (!Number.isFinite(output.ceilingY) || minimum < output.ceilingY) { output.ceilingY = minimum; output.blockerId = obstacle.id; }
     return;
   }
   if (obstacle.kind === "aerial-hazard") return;
-  if (!Number.isFinite(output.obstacleTopY) || maximum > output.obstacleTopY) output.obstacleTopY = maximum;
+  if (!Number.isFinite(output.obstacleTopY) || maximum > output.obstacleTopY) { output.obstacleTopY = maximum; output.blockerId = obstacle.id; }
 }
 
 export function writeWildsAerialCollisionSample(
@@ -131,6 +132,7 @@ export function writeWildsAerialCollisionSample(
   output.obstacleTopY = Number.NaN;
   output.ceilingY = Number.NaN;
   output.protectedAirspace = false;
+  output.blockerId = null;
   if (diagnostics) diagnostics.frameWriterCalls += 1;
   for (let index = 0; index < WILDS_RENDERED_PHYSICAL_OBSTACLES.length; index += 1) {
     writeObstacleConstraint(point, footY, actorHeight, capsuleRadius, WILDS_RENDERED_PHYSICAL_OBSTACLES[index]!, output);
