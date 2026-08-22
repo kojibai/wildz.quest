@@ -113,6 +113,7 @@ test("the production env template contains only standalone Wildz variables and a
     "RECEIZ_AUTH_MODE",
     "RECEIZ_ID_CALLBACK_URL",
     "NEXT_PUBLIC_SITE_URL",
+    "NEXT_PUBLIC_RECEIZ_WALLET_ENABLED",
     "NEXT_PUBLIC_WILDZ_SW_RELEASE",
     "WILDS_PULSE_TICK_SECRET",
     "RECEIZ_CONNECT_ACCESS_TOKEN",
