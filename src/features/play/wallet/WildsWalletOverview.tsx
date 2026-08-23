@@ -3,7 +3,7 @@ import { formatWildsPhiExact, formatWildsUsdCents } from "./wilds-wallet-format"
 
 export function WildsWalletOverview({ state, onNavigate }: { state: WildsWalletPresentationState; onNavigate(page: "send" | "receive"): void }) {
   if (state.status === "loading" && !state.summary) return <div className="wilds-wallet-message" role="status"><b>Verifying reserve</b><span>Reading admitted wallet state…</span></div>;
-  if (state.status === "authority-required" && state.edgeAuthorityVerified) return <div className="wilds-wallet-message" role="status"><b>Receiz ID verified</b><span>Global wallet sync is reconnecting. No value can move until the admitted projection arrives.</span></div>;
+  if (state.status === "authority-required" && state.edgeAuthorityVerified) return <div className="wilds-wallet-message" role="status"><b>Receiz ID verified</b><span>The edge identity remains authoritative. The exact global balance projection is unavailable, so value movement stays safely disabled until it arrives.</span></div>;
   if (state.status === "authority-required") return <div className="wilds-wallet-message" role="status"><b>Authorization required</b><span>Your world remains preserved while wallet access is secured.</span></div>;
   if (state.status === "revoked" || state.status === "failed" || !state.summary) return <div className="wilds-wallet-message is-danger" role="alert"><b>Wallet unavailable</b><span>No private value is displayed.</span></div>;
   const summary = state.summary;

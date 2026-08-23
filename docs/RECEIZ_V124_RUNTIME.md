@@ -17,6 +17,8 @@ Authority sessions, private additions, recipient locators, and durable execution
 
 For wallet read admission, a freshly signed local Receiz ID may replace a stale server proof-session projection. An existing actor/profile binding is retained only when it names the same identity key; a stale session can never outrank the exact signed source artifact.
 
+The proof exchange may issue any SDK-valid bounded short-lived bearer; Wildz does not invent an exact lifetime beyond the signed response. Token introspection uses the configured OAuth client credentials, while the bearer being inspected remains the subject token rather than being asked to authenticate its own introspection.
+
 Value movement remains preview → explicit edge consent → exact proof-authority exchange → durable stage/execute → resolution by execution ID or semantic idempotency key. Unknown outcomes are resolved before retry. Settlement and Reserve remain separate rails, and Phi—not USD—is the moved value.
 
 ## MCP and AI skills

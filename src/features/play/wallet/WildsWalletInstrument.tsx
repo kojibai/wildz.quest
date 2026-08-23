@@ -7,7 +7,7 @@ import { Icons } from "@/components/icons";
 function instrumentState(state: WildsWalletPresentationState) {
   if (state.status === "verified") return { tone: "verified", spoken: "verified" };
   if (state.status === "loading") return { tone: "pending", spoken: "verifying" };
-  if (state.status === "authority-required" && state.edgeAuthorityVerified) return { tone: "pending", spoken: "sync pending" };
+  if (state.status === "authority-required" && state.edgeAuthorityVerified) return { tone: "verified", spoken: "balance projection unavailable" };
   if (state.status === "authority-required") return { tone: "secure", spoken: "authorization required" };
   if (state.status === "offline-verified") return { tone: "offline", spoken: "offline verified" };
   if (state.status === "failed" || state.status === "revoked") return { tone: "failed", spoken: "unavailable" };

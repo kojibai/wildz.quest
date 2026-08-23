@@ -58,13 +58,14 @@ test("wallet instrument announces exact admitted value while abbreviating the vi
   assert.doesNotMatch(markup, /98765432109876543210/);
 });
 
-test("a verified edge Receiz ID stays authenticated while its global wallet projection is syncing", () => {
+test("a verified edge Receiz ID stays authenticated when its global balance projection is unavailable", () => {
   const edgeState = state({ status: "authority-required", summary: null, capabilities: null, ledger: null, edgeAuthorityVerified: true });
   const instrument = renderToStaticMarkup(createElement(WildsWalletInstrument, { disabled: false, state: edgeState, onOpen() {} }));
   const terminal = renderToStaticMarkup(createElement(WildsWalletTerminal, { publicUsername: "explorer", state: edgeState, ...actions }));
-  assert.match(instrument, /data-wallet-status="pending"/);
-  assert.match(instrument, /Phi reserve sync pending/);
-  assert.match(terminal, /EDGE VERIFIED · SYNC PENDING/);
+  assert.match(instrument, /data-wallet-status="verified"/);
+  assert.match(instrument, /Phi reserve balance projection unavailable/);
+  assert.match(terminal, />EDGE VERIFIED</);
+  assert.doesNotMatch(terminal, /SYNC PENDING/);
   assert.match(terminal, /Receiz ID verified/);
   assert.doesNotMatch(terminal, /Authorization required/i);
 });

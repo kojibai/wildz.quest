@@ -170,7 +170,8 @@ export async function completeWildsWalletIdentityAuthority(input: Readonly<{
   if (authority.applicationId !== APPLICATION_ID || authority.keyId !== ticket.keyId
     || authority.artifactDigest !== artifactDigest || authority.nonce !== ticket.nonce
     || authority.issuedAtKai !== ticket.issuedAtKai || authority.expiresAtKai !== ticket.expiresAtKai
-    || authority.expiresIn !== 300 || !hasExactWildsWalletReadAuthorityScopes(authority.grantedScopes)) {
+    || !Number.isSafeInteger(authority.expiresIn) || authority.expiresIn < 1 || authority.expiresIn > 600
+    || !hasExactWildsWalletReadAuthorityScopes(authority.grantedScopes)) {
     throw new Error("receiz_wallet_identity_authority_response_invalid");
   }
   const profile = await dependencies.loadProfile(authority.accessToken);

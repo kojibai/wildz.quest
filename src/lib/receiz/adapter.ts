@@ -399,6 +399,19 @@ function receizClientOptionsFromEnv(): ReceizClientOptions {
   };
 }
 
+export function receizOAuthClientAuthorization(
+  env?: Partial<Record<"RECEIZ_CLIENT_ID" | "RECEIZ_CLIENT_SECRET", string | undefined>>
+) {
+  const source = env ?? {
+    RECEIZ_CLIENT_ID: process.env.RECEIZ_CLIENT_ID,
+    RECEIZ_CLIENT_SECRET: process.env.RECEIZ_CLIENT_SECRET
+  };
+  const clientId = source.RECEIZ_CLIENT_ID?.trim();
+  const clientSecret = source.RECEIZ_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return undefined;
+  return `Basic ${Buffer.from(`${clientId}:${clientSecret}`, "utf8").toString("base64")}`;
+}
+
 function receizDoctorScopes() {
   return receizOidcScopesFromEnv(process.env);
 }
@@ -543,7 +556,11 @@ export function createReceizCommerceAdapter(
       return client.identity.userinfo();
     },
     introspectAccessToken() {
-      return client.identity.introspect({ token: options.accessToken ?? "" });
+      const authorization = receizOAuthClientAuthorization();
+      return client.identity.introspect(
+        { token: options.accessToken ?? "" },
+        authorization ? { authorization } : undefined
+      );
     },
     async createReceizId(input) {
       const identity = await client.identity.createReceizId({

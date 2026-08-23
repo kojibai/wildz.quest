@@ -8,6 +8,7 @@ import {
 } from "../src/lib/receiz/wilds-wallet-identity-authority";
 import { authorizeWildsWalletReadWithIdentity } from "../src/features/play/wallet/wilds-wallet-read-authorization";
 import { authorizeWildsWalletTransferWithIdentity } from "../src/features/play/wallet/wilds-wallet-transfer-authorization";
+import { receizOAuthClientAuthorization } from "../src/lib/receiz/adapter";
 
 const H = {
   artifact: "a".repeat(64),
@@ -18,6 +19,14 @@ const H = {
 
 describe("Receiz ID wallet read authority", () => {
   const readAuthorityScopes = ["openid", "profile", "receiz:wallet.read"];
+
+  it("authenticates token introspection with the configured OAuth client", () => {
+    assert.equal(receizOAuthClientAuthorization({
+      RECEIZ_CLIENT_ID: "wildz",
+      RECEIZ_CLIENT_SECRET: "full-v124-capability"
+    }), `Basic ${Buffer.from("wildz:full-v124-capability").toString("base64")}`);
+    assert.equal(receizOAuthClientAuthorization({ RECEIZ_CLIENT_ID: "wildz" }), undefined);
+  });
 
   it("issues the exact wallet-read and identity-binding scopes bound to the active Receiz ID", () => {
     const before = receizKaiNow().pulse;
@@ -51,7 +60,7 @@ describe("Receiz ID wallet read authority", () => {
       nonce: issued.challenge.unsigned.nonce,
       revocationHead: H.revocation,
       tokenType: "Bearer" as const,
-      expiresIn: 300,
+      expiresIn: 120,
       refreshable: false as const,
       authority: { grantIsIdentityAuthority: false as const, strongerTruth: "receiz-identity-artifact" as const },
       authorityDigest: H.authority,
@@ -72,7 +81,7 @@ describe("Receiz ID wallet read authority", () => {
     });
     assert.deepEqual(admitted, {
       accessToken: "opaque-read-bearer",
-      expiresIn: 300,
+      expiresIn: 120,
       grantedScopes: readAuthorityScopes,
       keyId: H.key,
       actorId: "explorer",
@@ -120,7 +129,7 @@ describe("Receiz ID wallet read authority", () => {
       nonce: issued.challenge.unsigned.nonce,
       revocationHead: H.revocation,
       tokenType: "Bearer" as const,
-      expiresIn: 300,
+      expiresIn: 120,
       refreshable: false as const,
       authority: { grantIsIdentityAuthority: false as const, strongerTruth: "receiz-identity-artifact" as const },
       authorityDigest: H.authority,
@@ -139,7 +148,7 @@ describe("Receiz ID wallet read authority", () => {
     });
     assert.deepEqual(admitted, {
       accessToken: "opaque-read-bearer",
-      expiresIn: 300,
+      expiresIn: 120,
       grantedScopes: readAuthorityScopes,
       keyId: H.key,
       actorId: "explorer",
