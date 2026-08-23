@@ -11512,6 +11512,9 @@ button.product-purchase-secondary-link {
 .wilds-live-badge span { display: grid; min-width: 17px; height: 17px; place-items: center; color: #07191f; font-size: 8px; font-weight: 900; background: #dffff5; border-radius: 999px; }
 .wilds-live-share { display: grid; width: 30px; padding: 0; place-items: center; border-radius: 50%; }
 .wilds-live-share svg { width: 14px; height: 14px; overflow: visible; fill: none; stroke: currentcolor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.9; }
+.wilds-live-messages { position: relative; display: grid; width: 30px; min-height: 30px; padding: 0; place-items: center; color: #effffa; border: 1px solid rgb(126 235 205 / 38%); background: rgb(3 20 27 / 84%); border-radius: 50%; box-shadow: 0 8px 22px rgb(0 0 0 / 18%); backdrop-filter: blur(16px); }
+.wilds-live-messages.has-unread { color: #07191f; border-color: #9df4d8; background: #9df4d8; box-shadow: 0 0 0 4px rgb(157 244 216 / 13%), 0 8px 22px rgb(0 0 0 / 18%); }
+.wilds-live-messages b { position: absolute; top: -5px; right: -6px; display: grid; min-width: 16px; height: 16px; padding: 0 4px; place-items: center; color: #fff; font-size: 7px; line-height: 1; background: #f25f85; border: 2px solid #07171c; border-radius: 99px; }
 @keyframes wilds-live-pulse { 50% { opacity: .38; transform: scale(.78); } }
 
 .wilds-live-sheet { position: absolute; z-index: 44; color: #eafff9; border: 1px solid rgb(126 235 205 / 36%); background: linear-gradient(160deg, rgb(8 37 45 / 97%), rgb(3 17 24 / 98%)); box-shadow: 0 24px 70px rgb(0 0 0 / 42%); backdrop-filter: blur(20px); }
@@ -11549,6 +11552,97 @@ button.product-purchase-secondary-link {
 .wilds-player-card-line { display: grid; grid-template-columns: 40px 1fr; align-items: center; gap: 10px; padding: 9px; background: rgb(255 255 255 / 4%); border-radius: 14px; }
 .wilds-player-card-line span { display: grid; gap: 2px; }
 .wilds-live-distance { color: #ffd88b !important; }
+.wilds-player-message { display: grid; grid-template-columns: 32px minmax(0, 1fr) 20px; width: 100%; min-height: 58px; align-items: center; gap: 10px; margin: 10px 0 8px; padding: 8px 10px; color: #effffa; text-align: left; border: 1px solid rgb(118 233 198 / 30%); background: linear-gradient(135deg, rgb(118 233 198 / 11%), rgb(126 148 255 / 7%)); border-radius: 14px; }
+.wilds-player-message > svg:first-child { padding: 7px; box-sizing: content-box; color: #07191f; background: #8df0cf; border-radius: 10px; }
+.wilds-player-message span { display: grid; min-width: 0; gap: 2px; }
+.wilds-player-message strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.wilds-player-message small { color: rgb(230 255 248 / 62%); font-size: 9px; }
+.wilds-player-message > svg:last-child { color: rgb(230 255 248 / 45%); }
+
+/* Receiz-ID direct messenger: a dedicated native surface, never a HUD overlay. */
+.wilds-messenger { --messenger-ink: #effff9; --messenger-muted: rgba(221, 245, 238, .6); --messenger-line: rgba(133, 224, 195, .17); position: fixed; z-index: 520; inset: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0; color: var(--messenger-ink); background: radial-gradient(circle at 8% -8%, rgba(68, 208, 184, .16), transparent 32%), radial-gradient(circle at 100% 100%, rgba(112, 96, 224, .12), transparent 42%), #031014; isolation: isolate; }
+.wilds-messenger::before { position: absolute; z-index: -1; inset: 0; background-image: linear-gradient(rgba(152, 232, 207, .025) 1px, transparent 1px), linear-gradient(90deg, rgba(152, 232, 207, .025) 1px, transparent 1px); background-size: 48px 48px; content: ""; mask-image: linear-gradient(to bottom, black, transparent 80%); pointer-events: none; }
+.wilds-messenger button, .wilds-messenger input, .wilds-messenger textarea { font: inherit; touch-action: manipulation; }
+.wilds-messenger-header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; min-height: calc(72px + env(safe-area-inset-top)); align-items: end; gap: 10px; padding: calc(10px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 10px max(12px, env(safe-area-inset-left)); border-bottom: 1px solid var(--messenger-line); background: rgba(2, 13, 17, .78); backdrop-filter: blur(26px) saturate(145%); }
+.wilds-messenger-header > div { display: grid; min-width: 0; align-self: center; gap: 2px; }
+.wilds-messenger-header small { color: #7ee9c8; font-size: 8px; font-weight: 850; letter-spacing: .13em; text-transform: uppercase; }
+.wilds-messenger-header strong { overflow: hidden; font-size: clamp(16px, 4.6vw, 21px); letter-spacing: -.025em; text-overflow: ellipsis; white-space: nowrap; }
+.wilds-messenger-mark, .wilds-messenger-back, .wilds-messenger-close { display: grid; width: 42px; height: 42px; padding: 0; place-items: center; color: var(--messenger-ink); border: 1px solid rgba(150, 230, 207, .2); background: rgba(255, 255, 255, .045); border-radius: 14px; }
+.wilds-messenger-mark { color: #061916; background: linear-gradient(135deg, #a6f7dc, #62d5c3); box-shadow: 0 8px 24px rgba(71, 222, 188, .19); }
+.wilds-messenger-sync { display: inline-flex; min-height: 28px; align-self: center; align-items: center; gap: 5px; padding: 0 8px; color: var(--messenger-muted); font-size: 8px; font-weight: 850; letter-spacing: .06em; border: 1px solid var(--messenger-line); border-radius: 99px; text-transform: uppercase; }
+.wilds-messenger-sync i { width: 6px; height: 6px; background: #75e7c3; border-radius: 50%; box-shadow: 0 0 10px #75e7c3; }
+.wilds-messenger-sync.is-syncing i { animation: wilds-live-pulse .9s ease-in-out infinite; }
+.wilds-messenger-inbox, .wilds-messenger-thread { min-width: 0; min-height: 0; overflow: hidden; }
+.wilds-messenger-inbox { display: grid; grid-template-rows: auto auto minmax(0, 1fr); width: min(760px, 100%); margin-inline: auto; padding: 16px max(12px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+.wilds-messenger-search { display: grid; grid-template-columns: auto minmax(0, 1fr); min-height: 46px; align-items: center; gap: 9px; padding: 0 14px; color: var(--messenger-muted); border: 1px solid var(--messenger-line); background: rgba(255, 255, 255, .045); border-radius: 15px; }
+.wilds-messenger-search input { min-width: 0; height: 100%; padding: 0; color: var(--messenger-ink); font-size: 16px; border: 0; outline: 0; background: transparent; }
+.wilds-messenger-search input::placeholder { color: rgba(221, 245, 238, .38); }
+.wilds-messenger-inbox-title { display: flex; min-height: 62px; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 3px; }
+.wilds-messenger-inbox-title span { display: grid; gap: 2px; }
+.wilds-messenger-inbox-title strong { font-size: 13px; }
+.wilds-messenger-inbox-title small { color: var(--messenger-muted); font-size: 9px; }
+.wilds-messenger-inbox-title button { min-height: 36px; padding: 0 11px; color: #8be9cb; font-size: 9px; font-weight: 800; border: 1px solid var(--messenger-line); background: rgba(255, 255, 255, .025); border-radius: 11px; }
+.wilds-messenger-conversations { min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.wilds-messenger-conversations > button { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; width: 100%; min-height: 70px; align-items: center; gap: 11px; padding: 9px 7px; color: var(--messenger-ink); text-align: left; border: 0; border-bottom: 1px solid var(--messenger-line); background: transparent; }
+.wilds-messenger-conversations > button.is-unread { background: linear-gradient(90deg, rgba(104, 231, 194, .08), transparent 70%); }
+.wilds-messenger-avatar { display: grid; width: 44px; height: 44px; flex: 0 0 auto; place-items: center; color: #061916; font-size: 12px; font-weight: 950; letter-spacing: .04em; background: linear-gradient(145deg, #bcf9e4, #61cfbe 60%, #6f78da); border: 1px solid rgba(255, 255, 255, .38); border-radius: 16px; box-shadow: 0 8px 20px rgba(0, 0, 0, .18); }
+.wilds-messenger-conversations > button > span:nth-child(2) { display: grid; min-width: 0; gap: 4px; }
+.wilds-messenger-conversations > button strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.wilds-messenger-conversations > button small { overflow: hidden; color: var(--messenger-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.wilds-messenger-conversation-meta { display: grid; min-width: 30px; justify-items: end; gap: 6px; color: var(--messenger-muted); }
+.wilds-messenger-conversation-meta time { font-size: 8px; white-space: nowrap; }
+.wilds-messenger-conversation-meta b { display: grid; min-width: 18px; height: 18px; padding: 0 5px; place-items: center; color: #062019; font-size: 8px; background: #85ebca; border-radius: 99px; }
+.wilds-messenger-empty, .wilds-messenger-thread-start { display: grid; max-width: 330px; justify-items: center; gap: 8px; margin: clamp(56px, 14vh, 120px) auto 0; padding: 24px; color: var(--messenger-muted); text-align: center; }
+.wilds-messenger-empty > span { display: grid; width: 52px; height: 52px; place-items: center; color: #8be9cb; border: 1px solid var(--messenger-line); background: rgba(110, 226, 194, .07); border-radius: 18px; }
+.wilds-messenger-empty strong, .wilds-messenger-thread-start strong { color: var(--messenger-ink); font-size: 14px; }
+.wilds-messenger-empty p, .wilds-messenger-thread-start p { margin: 0; font-size: 10px; line-height: 1.55; }
+.wilds-messenger-thread { display: grid; grid-template-rows: minmax(0, 1fr) auto; }
+.wilds-messenger-messages { min-height: 0; padding: 14px max(12px, calc((100vw - 760px) / 2)) 18px; overflow: auto; overscroll-behavior: contain; scroll-padding-bottom: 20px; }
+.wilds-messenger-thread-start { margin-top: clamp(42px, 12vh, 100px); }
+.wilds-message-block { display: grid; }
+.wilds-message-day { display: flex; align-items: center; gap: 10px; margin: 18px 0 12px; color: rgba(221, 245, 238, .45); font-size: 8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.wilds-message-day::before, .wilds-message-day::after { height: 1px; flex: 1; background: var(--messenger-line); content: ""; }
+.wilds-message-row { position: relative; display: grid; justify-items: start; margin: 2px 0; }
+.wilds-message-row.is-mine { justify-items: end; }
+.wilds-message-bubble { display: grid; max-width: min(82%, 620px); gap: 5px; padding: 9px 11px 7px; color: var(--messenger-ink); text-align: left; overflow-wrap: anywhere; white-space: pre-wrap; border: 1px solid rgba(255, 255, 255, .07); background: rgba(255, 255, 255, .065); border-radius: 6px 17px 17px 17px; box-shadow: 0 5px 16px rgba(0, 0, 0, .11); }
+.wilds-message-row.is-mine .wilds-message-bubble { color: #031b16; border-color: rgba(168, 255, 226, .3); background: linear-gradient(145deg, #a9f3db, #79dabe); border-radius: 17px 6px 17px 17px; }
+.wilds-message-bubble > span { font-size: 11px; line-height: 1.45; }
+.wilds-message-bubble > small { justify-self: end; color: rgba(221, 245, 238, .45); font-size: 7px; font-weight: 700; white-space: nowrap; }
+.wilds-message-row.is-mine .wilds-message-bubble > small { color: rgba(2, 27, 22, .54); }
+.wilds-message-reply { display: grid; gap: 2px; max-width: 100%; padding: 6px 8px; overflow: hidden; color: rgba(230, 255, 248, .66); font-size: 8px !important; border-left: 2px solid #79e8c6; background: rgba(0, 0, 0, .16); border-radius: 5px 8px 8px 5px; text-overflow: ellipsis; white-space: nowrap !important; }
+.wilds-message-row.is-mine .wilds-message-reply { color: rgba(2, 27, 22, .6); border-color: #14765e; background: rgba(0, 55, 42, .09); }
+.wilds-message-reply b { font-size: 7px; text-transform: uppercase; }
+.wilds-message-reactions { display: flex; z-index: 2; gap: 3px; margin: -4px 6px 2px; }
+.wilds-message-reactions button { min-height: 24px; padding: 1px 7px; border: 1px solid rgba(141, 234, 206, .24); background: #092127; border-radius: 99px; }
+.wilds-message-reactions b { margin-left: 3px; color: var(--messenger-muted); font-size: 7px; }
+.wilds-message-actions { display: flex; z-index: 4; max-width: calc(100vw - 24px); gap: 2px; margin: 5px 0 8px; padding: 4px; overflow-x: auto; border: 1px solid var(--messenger-line); background: rgba(4, 20, 25, .98); border-radius: 13px; box-shadow: 0 14px 34px rgba(0, 0, 0, .35); }
+.wilds-message-actions button { min-width: 34px; height: 34px; padding: 0 7px; color: var(--messenger-ink); font-size: 15px; border: 0; background: transparent; border-radius: 9px; white-space: nowrap; }
+.wilds-message-actions button:last-child { padding-inline: 10px; color: #8be9cb; font-size: 8px; font-weight: 850; text-transform: uppercase; }
+.wilds-message-retry { min-height: 30px; margin: 3px 4px; padding: 0 10px; color: #ff9c9c; font-size: 8px; font-weight: 850; border: 1px solid rgba(255, 120, 120, .3); background: rgba(255, 100, 100, .08); border-radius: 10px; }
+.wilds-messenger-composer { position: relative; display: grid; gap: 4px; padding: 8px max(10px, calc((100vw - 760px) / 2)) max(8px, env(safe-area-inset-bottom)); border-top: 1px solid var(--messenger-line); background: rgba(2, 13, 17, .92); backdrop-filter: blur(24px); }
+.wilds-messenger-composer > div:last-of-type { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: end; gap: 7px; }
+.wilds-messenger-composer textarea { width: 100%; min-height: 44px; max-height: 132px; resize: none; padding: 11px 14px; color: var(--messenger-ink); font-size: 16px; line-height: 1.4; border: 1px solid var(--messenger-line); outline: 0; background: rgba(255, 255, 255, .055); border-radius: 16px; }
+.wilds-messenger-composer textarea:focus { border-color: rgba(130, 238, 204, .48); box-shadow: 0 0 0 3px rgba(111, 225, 193, .07); }
+.wilds-messenger-composer > div:last-of-type > button { display: grid; width: 44px; height: 44px; padding: 0; place-items: center; color: #041914; border: 0; background: linear-gradient(145deg, #a8f4dc, #6dd7bc); border-radius: 15px; box-shadow: 0 8px 20px rgba(74, 217, 181, .16); }
+.wilds-messenger-composer > div:last-of-type > button:disabled { opacity: .28; filter: grayscale(.7); }
+.wilds-messenger-composer > small { justify-self: end; color: rgba(221, 245, 238, .34); font-size: 7px; }
+.wilds-messenger-replying { display: flex !important; min-height: 42px; align-items: center !important; justify-content: space-between; gap: 10px; padding: 5px 6px 5px 11px; border-left: 2px solid #7ce5c5; background: rgba(112, 229, 195, .06); border-radius: 8px; }
+.wilds-messenger-replying span { display: grid; min-width: 0; gap: 2px; }
+.wilds-messenger-replying small { color: #81e5c7; font-size: 7px; font-weight: 800; text-transform: uppercase; }
+.wilds-messenger-replying strong { overflow: hidden; color: var(--messenger-muted); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.wilds-messenger-replying button { display: grid; width: 32px; height: 32px; flex: 0 0 auto; padding: 0; place-items: center; color: var(--messenger-muted); border: 0; background: transparent; }
+.wilds-messenger-error { position: fixed; z-index: 2; right: max(12px, env(safe-area-inset-right)); bottom: max(78px, calc(64px + env(safe-area-inset-bottom))); left: max(12px, env(safe-area-inset-left)); width: fit-content; max-width: min(440px, calc(100vw - 24px)); margin-left: auto; padding: 10px 13px; color: #ffd0d0; font-size: 9px; font-weight: 750; border: 1px solid rgba(255, 124, 124, .28); background: rgba(48, 13, 18, .94); border-radius: 12px; box-shadow: 0 16px 36px rgba(0, 0, 0, .34); text-transform: capitalize; }
+@media (min-width: 820px) {
+  .wilds-messenger { inset: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); border: 1px solid rgba(133, 224, 195, .2); border-radius: 24px; box-shadow: 0 34px 100px rgba(0, 0, 0, .64); }
+  .wilds-messenger-header { min-height: 72px; padding: 10px 12px; border-radius: 24px 24px 0 0; }
+}
+@media (max-width: 430px) {
+  .wilds-messenger-header { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .wilds-messenger-sync { width: 28px; padding: 0; justify-content: center; }
+  .wilds-messenger-sync:not(.is-syncing) { font-size: 0; }
+  .wilds-messenger-sync.is-syncing { font-size: 0; }
+  .wilds-message-bubble { max-width: 88%; }
+}
 .wilds-challenge-modes { display: grid; gap: 6px; margin-top: 9px; }
 .wilds-challenge-modes button { display: grid; gap: 1px; min-height: 48px; padding: 8px 11px; color: #effffa; text-align: left; border: 1px solid rgb(126 235 205 / 24%); background: rgb(126 235 205 / 8%); border-radius: 12px; }
 .wilds-challenge-modes button:not(:disabled):hover { background: rgb(126 235 205 / 15%); }
