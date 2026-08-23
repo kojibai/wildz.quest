@@ -47,7 +47,7 @@ function verifiedState(identityKey = "explorer") {
   });
 }
 
-function readResponse(): WildsWalletReadResponse {
+function readResponse(overrides: Partial<WildsWalletReadResponse> = {}): WildsWalletReadResponse {
   return {
     summary: {
       status: "verified",
@@ -69,7 +69,8 @@ function readResponse(): WildsWalletReadResponse {
       phiSettlement: { available: false, reason: "receiz_v123_execution_unavailable" },
       phiReserve: { available: false, reason: "receiz_v123_execution_unavailable" }
     },
-    ledger: { cursor: null, nextCursor: null, entries: [] }
+    ledger: { cursor: null, nextCursor: null, entries: [] },
+    ...overrides
   };
 }
 
@@ -143,7 +144,7 @@ test("a verified Receiz ID source remains authoritative when global projection t
   assert.equal(state.summary?.admittedPhiMicro, "42");
 });
 
-test("identity authority stays active while admitted source URLs are discovered", () => {
+test("identity authority never depends on a remote representation", () => {
   const state = reduceWildsWalletController(createWildsWalletControllerState("explorer", "generation-1"), {
     type: "source-authority-resolved",
     identityKey: "explorer",
@@ -154,6 +155,25 @@ test("identity authority stays active while admitted source URLs are discovered"
   assert.equal(state.status, "source-verified");
   assert.equal(state.sourceAuthorityVerified, true);
   assert.equal(state.summary, null);
+});
+
+test("a remote wallet representation cannot replace source-carried holdings or ledger", () => {
+  let state = createWildsWalletControllerState("explorer", "generation-1");
+  state = reduceWildsWalletController(state, {
+    type: "source-authority-resolved", identityKey: "explorer", authorityGeneration: "generation-1", response: readResponse()
+  });
+  state = reduceWildsWalletController(state, { type: "refresh-start", requestId: 10 });
+  const remote = readResponse({
+    summary: { ...readResponse().summary, admittedPhiMicro: "999999999" },
+    ledger: null
+  });
+  state = reduceWildsWalletController(state, {
+    type: "refresh-resolved", requestId: 10, identityKey: "explorer", authorityGeneration: "generation-1", response: remote
+  });
+
+  assert.equal(state.status, "source-verified");
+  assert.equal(state.summary?.admittedPhiMicro, "42");
+  assert.equal(state.ledger?.entries.length, 0);
 });
 
 test("ignores a stale completion after identity invalidation", () => {

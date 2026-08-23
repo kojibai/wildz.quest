@@ -58,19 +58,16 @@ test("wallet instrument announces exact admitted value while abbreviating the vi
   assert.doesNotMatch(markup, /98765432109876543210/);
 });
 
-test("a verified Receiz ID stays authoritative while admitted source URLs are discovered", () => {
-  const edgeState = state({ status: "source-verified", sourceAuthorityVerified: true, summary: null, capabilities: null, ledger: null, edgeAuthorityVerified: true });
+test("a verified Receiz ID renders its carried wallet without a projection workflow", () => {
+  const edgeState = state({ status: "source-verified", sourceAuthorityVerified: true, edgeAuthorityVerified: true });
   const instrument = renderToStaticMarkup(createElement(WildsWalletInstrument, { disabled: false, state: edgeState, onOpen() {} }));
   const terminal = renderToStaticMarkup(createElement(WildsWalletTerminal, { publicUsername: "explorer", state: edgeState, ...actions }));
   assert.match(instrument, /data-wallet-status="verified"/);
-  assert.match(instrument, /Phi reserve source authority verified/);
-  assert.match(terminal, />SOURCE VERIFIED</);
+  assert.match(instrument, /Status: verified/);
+  assert.match(terminal, />VERIFIED</);
+  assert.match(terminal, /ADMITTED PHI/);
   assert.doesNotMatch(terminal, /SYNC PENDING/);
-  assert.match(terminal, /Receiz ID active/);
-  assert.match(terminal, /Source holdings/);
-  assert.match(terminal, /Discovering URLs/);
-  assert.match(terminal, /Resolve admitted sources/);
-  assert.doesNotMatch(terminal, /Authorization required|Safely locked|Awaiting projection/i);
+  assert.doesNotMatch(terminal, /discover|resolve|projection|preserved|source authority|authorization required|safely locked|awaiting/i);
 });
 
 test("verified display quote preserves every admitted cent beyond Number precision", () => {

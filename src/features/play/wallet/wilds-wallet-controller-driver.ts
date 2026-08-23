@@ -64,8 +64,12 @@ export function createWildsWalletControllerDriver(input: {
         ]);
         if (!runtime.isCurrentRefresh(request.id) || request.controller.signal.aborted) return;
         const response = admitWildsWalletReadResponse({ summary, capabilities, ledger });
-        cache.write(walletAuthorityCacheKey(identityKey, authorityGeneration), response);
-        runtime.recordCacheWrite();
+        // A remote representation may advertise live execution ports, but it
+        // never replaces the source-carried wallet projection in local cache.
+        if (!state.sourceAuthorityVerified) {
+          cache.write(walletAuthorityCacheKey(identityKey, authorityGeneration), response);
+          runtime.recordCacheWrite();
+        }
         publish({ type: "refresh-resolved", requestId: request.id, identityKey, authorityGeneration, response });
       } catch (cause) {
         if (!runtime.isCurrentRefresh(request.id) || request.controller.signal.aborted) return;

@@ -17,14 +17,19 @@ function identityAccount(overrides: Partial<ReceizIdentityAccountProjection> = {
     networkRequiredForProjection: false,
     verifiedState: {
       wallet: {
-        balancePhiMicro: "2500000",
-        balanceUsdCents: "500",
-        transferableResourceCount: 3,
-        transferableCardCount: 2,
-        reservedCardCount: 1,
-        pendingCount: 0
-      },
-      walletLedgerEntries: []
+        schema: "receiz.wallet.settlement-portable.v1",
+        routeSummary: {
+          userId: "receiz:explorer",
+          balancePhiMicro: "2500000",
+          balancePhi: "2.5",
+          balanceUsd: "5.00",
+          transferableResourceCount: 3,
+          transferableCardCount: 2,
+          reservedCardCount: 1,
+          pendingCount: 0
+        },
+        ledgerEntries: []
+      }
     },
     snapshot: null,
     domains: {
@@ -44,6 +49,22 @@ test("projects exact wallet holdings from the verified portable source without n
   assert.equal(projection?.capabilities.read, "available");
   assert.equal(projection?.capabilities.receive, "available");
   assert.equal(projection?.ledger?.entries.length, 0);
+});
+
+test("projects the exact older portable wallet account without a server read", () => {
+  const account = identityAccount({
+    verifiedState: {
+      wallet: {
+        schema: "receiz.wallet.settlement-portable.v1",
+        account: { balance_phi_micro: "9000000", balance_usd: "900.00" },
+        ledgerEntries: []
+      }
+    }
+  });
+
+  const projection = projectWildsWalletFromIdentityAccount(account);
+  assert.equal(projection?.summary.admittedPhiMicro, "9000000");
+  assert.equal(projection?.summary.displayUsdCents, "90000");
 });
 
 test("never projects unverified or non-wallet portable state as wallet truth", () => {

@@ -46,7 +46,7 @@ export function WildsWalletTerminal({ publicUsername, state, ...actions }: { pub
     window.requestAnimationFrame(() => tabRefs.current[index]?.focus());
   };
   const closeAllowed = canCloseWildsWalletTerminal(state);
-  const authority = state.status === "verified" ? "VERIFIED" : state.status === "source-verified" ? "SOURCE VERIFIED" : state.status === "offline-verified" ? "OFFLINE VERIFIED" : state.status === "authority-required" && state.edgeAuthorityVerified ? "SOURCE VERIFIED" : state.status === "authority-required" ? "AUTHORIZATION REQUIRED" : state.transfer.phase === "unknown" ? "RECOVERY PENDING" : "UNAVAILABLE";
+  const authority = state.status === "verified" || state.status === "source-verified" || (state.status === "authority-required" && state.edgeAuthorityVerified) ? "VERIFIED" : state.status === "offline-verified" ? "OFFLINE VERIFIED" : state.status === "authority-required" ? "AUTHORIZATION REQUIRED" : state.transfer.phase === "unknown" ? "RECOVERY PENDING" : "UNAVAILABLE";
   return <div className="wilds-wallet-layer" data-wallet-page={state.page}>
     <button aria-label="Close sovereign wallet" className="wilds-wallet-scrim" disabled={!closeAllowed} onClick={actions.onClose} tabIndex={-1} type="button" />
     <section aria-labelledby="wilds-wallet-terminal-title" aria-modal="true" className="wilds-wallet-terminal" role="dialog" tabIndex={-1}>
@@ -58,7 +58,7 @@ export function WildsWalletTerminal({ publicUsername, state, ...actions }: { pub
       </header>
       <nav aria-label="Wallet terminal" className="wilds-wallet-navigation" role="tablist">{pages.map((item, index) => <button aria-controls={`wilds-wallet-panel-${item.page}`} aria-selected={state.page === item.page} key={item.page} onClick={() => actions.onNavigate(item.page)} onKeyDown={moveTab} ref={(node) => { tabRefs.current[index] = node; }} role="tab" tabIndex={state.page === item.page ? 0 : -1} type="button"><i aria-hidden="true">{item.mark}</i><span>{item.label}</span></button>)}</nav>
       <main className="wilds-wallet-terminal-content" id={`wilds-wallet-panel-${state.page}`} role="tabpanel">
-        {state.page === "overview" ? <WildsWalletOverview state={state} onNavigate={actions.onNavigate} onRefresh={actions.onRefresh} /> : null}
+        {state.page === "overview" ? <WildsWalletOverview state={state} onNavigate={actions.onNavigate} /> : null}
         {state.page === "send" ? <WildsWalletSend state={state} {...actions} /> : null}
         {state.page === "receive" ? <WildsWalletReceive publicUsername={publicUsername} state={state} onRequestReceive={actions.onRequestReceive} /> : null}
         {state.page === "assets" ? <WildsWalletAssets state={state} /> : null}

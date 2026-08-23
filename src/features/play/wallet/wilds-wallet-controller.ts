@@ -117,7 +117,12 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
     case "source-authority-resolved":
       if (state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration || state.status === "verified") return state;
       return { ...state, status: "source-verified", sourceAuthorityVerified: true, ...(event.response ? { summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger } : {}) };
-    case "refresh-resolved": return state.requestId !== event.requestId || state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration ? state : { ...state, status: "verified", requestId: null, summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger };
+    case "refresh-resolved":
+      if (state.requestId !== event.requestId || state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration) return state;
+      // Transport reports whether an execution rail is available. It may enable
+      // operations, but its wallet representation never replaces source truth.
+      if (state.sourceAuthorityVerified) return { ...state, status: "source-verified", requestId: null, capabilities: event.response.capabilities };
+      return { ...state, status: "verified", requestId: null, summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger };
     case "refresh-failed":
       if (state.requestId !== event.requestId) return state;
       if (state.sourceAuthorityVerified) return { ...state, status: "source-verified", requestId: null };
