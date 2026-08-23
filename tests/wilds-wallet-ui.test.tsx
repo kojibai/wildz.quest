@@ -58,19 +58,19 @@ test("wallet instrument announces exact admitted value while abbreviating the vi
   assert.doesNotMatch(markup, /98765432109876543210/);
 });
 
-test("a verified edge Receiz ID stays authenticated when its global balance projection is unavailable", () => {
-  const edgeState = state({ status: "authority-required", summary: null, capabilities: null, ledger: null, edgeAuthorityVerified: true });
+test("a verified Receiz ID stays authoritative while admitted source URLs are discovered", () => {
+  const edgeState = state({ status: "source-verified", sourceAuthorityVerified: true, summary: null, capabilities: null, ledger: null, edgeAuthorityVerified: true });
   const instrument = renderToStaticMarkup(createElement(WildsWalletInstrument, { disabled: false, state: edgeState, onOpen() {} }));
   const terminal = renderToStaticMarkup(createElement(WildsWalletTerminal, { publicUsername: "explorer", state: edgeState, ...actions }));
   assert.match(instrument, /data-wallet-status="verified"/);
-  assert.match(instrument, /Phi reserve balance projection unavailable/);
-  assert.match(terminal, />EDGE VERIFIED</);
+  assert.match(instrument, /Phi reserve source authority verified/);
+  assert.match(terminal, />SOURCE VERIFIED</);
   assert.doesNotMatch(terminal, /SYNC PENDING/);
-  assert.match(terminal, /Receiz ID verified/);
-  assert.match(terminal, /Edge authority/);
-  assert.match(terminal, /Awaiting projection/);
-  assert.match(terminal, /Retry exact projection/);
-  assert.doesNotMatch(terminal, /Authorization required/i);
+  assert.match(terminal, /Receiz ID active/);
+  assert.match(terminal, /Source holdings/);
+  assert.match(terminal, /Discovering URLs/);
+  assert.match(terminal, /Resolve admitted sources/);
+  assert.doesNotMatch(terminal, /Authorization required|Safely locked|Awaiting projection/i);
 });
 
 test("verified display quote preserves every admitted cent beyond Number precision", () => {
@@ -84,7 +84,7 @@ test("terminal is one modal dialog with five named surfaces and fail-closed send
   assert.match(markup, /aria-modal="true"/);
   assert.match(markup, /WILDZ SOVEREIGN TERMINAL/);
   for (const label of ["Overview", "Send", "Receive", "Assets", "Ledger"]) assert.match(markup, new RegExp(`>${label}<`));
-  assert.match(markup, /Send authority is unavailable/);
+  assert.match(markup, /execution rail is unavailable\. Your Receiz ID authority is unchanged/);
   assert.doesNotMatch(markup, /Transfer complete/);
   assert.doesNotMatch(markup, /proofDigest|subjectId|ownerReceizId|accessToken/);
   assert.doesNotMatch(markup, /explorer-with-an-intentionally-long-coordinate/);

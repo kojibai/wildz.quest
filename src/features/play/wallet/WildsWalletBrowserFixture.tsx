@@ -14,7 +14,7 @@ function fixtureState(status: WildsWalletControllerState["status"], phase: Wilds
 const actions = { onClose() {}, onNavigate() {}, onRefresh() {}, onLookupRecipient() {}, onSelectRecipient() {}, onReviewAmount() {}, onStage() {}, onAuthorizationPointerStart() {}, onAuthorizationPointerCancel() {}, onRecover() {}, onResetTransfer() {}, onRequestReceive() {} };
 export function WildsWalletEdgeBrowserFixture() {
   const state = {
-    ...fixtureState("authority-required"), summary: null, capabilities: null, ledger: null, edgeAuthorityVerified: true
+    ...fixtureState("source-verified"), summary: null, capabilities: null, ledger: null, sourceAuthorityVerified: true, edgeAuthorityVerified: true
   };
   return <main className="wildz-app" data-testid="wallet-edge-browser-fixture"><WildsWalletTerminal publicUsername="explorer" state={state} {...actions} /></main>;
 }

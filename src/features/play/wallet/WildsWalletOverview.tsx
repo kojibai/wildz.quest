@@ -3,14 +3,14 @@ import { formatWildsPhiExact, formatWildsUsdCents } from "./wilds-wallet-format"
 
 export function WildsWalletOverview({ state, onNavigate, onRefresh }: { state: WildsWalletPresentationState; onNavigate(page: "send" | "receive"): void; onRefresh(): void }) {
   if (state.status === "loading" && !state.summary) return <div className="wilds-wallet-message" role="status"><b>Verifying reserve</b><span>Reading admitted wallet state…</span></div>;
-  if (state.status === "authority-required" && state.edgeAuthorityVerified) return <section aria-labelledby="wilds-wallet-edge-title" className="wilds-wallet-edge-status" role="status">
-    <header><small>LOCAL AUTHORITY</small><h2 id="wilds-wallet-edge-title">Receiz ID verified</h2><p>Your identity is active at the edge. Exact global value has not arrived, so Wildz will never estimate or display a false balance.</p></header>
+  if ((state.status === "source-verified" || state.status === "authority-required") && state.edgeAuthorityVerified && !state.summary) return <section aria-labelledby="wilds-wallet-edge-title" className="wilds-wallet-edge-status" role="status">
+    <header><small>SOURCE AUTHORITY</small><h2 id="wilds-wallet-edge-title">Receiz ID active</h2><p>Your proof object is the authority. Wildz is discovering its admitted source URLs for later additions; that projection cannot demote, replace, or lock your identity.</p></header>
     <dl>
-      <div><dt>Edge authority</dt><dd data-state="verified">Verified</dd></div>
-      <div><dt>Exact balance</dt><dd data-state="waiting">Awaiting projection</dd></div>
-      <div><dt>Value movement</dt><dd data-state="locked">Safely locked</dd></div>
+      <div><dt>Receiz ID authority</dt><dd data-state="verified">Active</dd></div>
+      <div><dt>Source holdings</dt><dd data-state="verified">Preserved</dd></div>
+      <div><dt>Global additions</dt><dd data-state="waiting">Discovering URLs</dd></div>
     </dl>
-    <button onClick={onRefresh} type="button">Retry exact projection</button>
+    <button onClick={onRefresh} type="button">Resolve admitted sources</button>
   </section>;
   if (state.status === "authority-required") return <div className="wilds-wallet-message" role="status"><b>Authorization required</b><span>Your world remains preserved while wallet access is secured.</span></div>;
   if (state.status === "revoked" || state.status === "failed" || !state.summary) return <div className="wilds-wallet-message is-danger" role="alert"><b>Wallet unavailable</b><span>No private value is displayed.</span></div>;
@@ -20,6 +20,7 @@ export function WildsWalletOverview({ state, onNavigate, onRefresh }: { state: W
       <span><small id="wilds-wallet-overview-title">ADMITTED PHI</small><strong><i>Φ</i> {formatWildsPhiExact(summary.admittedPhiMicro)}</strong></span>
       {summary.displayUsdCents === null ? null : <span className="wilds-wallet-display-quote"><small>VERIFIED DISPLAY BASIS</small><b>{formatWildsUsdCents(summary.displayUsdCents)}</b></span>}
     </header>
+    {state.status === "source-verified" ? <p className="wilds-wallet-state-strip is-source" role="status">Source verified · displaying exact holdings carried by this Receiz ID while global additions resolve.</p> : null}
     {state.status === "offline-verified" ? <p className="wilds-wallet-state-strip is-offline" role="status">Offline verified · sending is disabled until authority reconnects.</p> : null}
     {summary.pendingCount ? <p className="wilds-wallet-state-strip is-pending" role="status">{summary.pendingCount} exact transfer {summary.pendingCount === 1 ? "attempt requires" : "attempts require"} recovery.</p> : null}
     <dl className="wilds-wallet-holdings-band">

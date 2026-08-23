@@ -56,8 +56,10 @@ export type WildsWalletSendActions = Readonly<{
 
 function unavailableReason(state: WildsWalletControllerState) {
   if (state.status === "offline-verified") return "Sending is disabled while wallet truth is offline.";
-  if (state.status !== "verified") return "Secure and verify this wallet before sending.";
-  if (!state.capabilities?.send.available) return "Send authority is unavailable. No value can move from this deployment.";
+  if (state.status !== "verified" && state.status !== "source-verified") return "Secure and verify this wallet before sending.";
+  if (!state.capabilities?.send.available) return state.status === "source-verified"
+    ? "Your Receiz ID remains the transfer authority. The execution rail is reconnecting; no new login or authority grant is required."
+    : "The execution rail is unavailable. Your Receiz ID authority is unchanged.";
   return null;
 }
 
@@ -114,7 +116,7 @@ export function WildsWalletSend({ state, ...actions }: { state: WildsWalletContr
   if (transfer.phase === "unknown") return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface"><header><small>EXACT ATTEMPT RETAINED</small><h2 id="wilds-wallet-send-title">Recovery pending</h2></header><p>The outcome is ambiguous. Wildz will not create or send another transfer.</p><button disabled={transfer.requestId !== null} onClick={actions.onRecover} type="button">Check exact outcome</button></section>;
   if (transfer.phase === "zero-write") return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface"><header><small>ZERO-WRITE REJECTION</small><h2 id="wilds-wallet-send-title">Nothing moved</h2></header><p>The authoritative rail rejected this attempt. Balance, assets, and ownership remain unchanged.</p><button onClick={actions.onResetTransfer} type="button">Start again</button></section>;
   if (transfer.phase === "committed") return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface"><header><small>VERIFIED FINALITY</small><h2 id="wilds-wallet-send-title">Transfer committed</h2></header><p role="status">The exact transfer is admitted. No browser-held authority is retained.</p><button onClick={actions.onResetTransfer} type="button">Done</button></section>;
-  if (unavailable) return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface"><header><small>TRANSFER AUTHORITY</small><h2 id="wilds-wallet-send-title">Send</h2></header><p className="wilds-wallet-state-strip is-locked" role="status">{unavailable}</p><p>You can still inspect verified holdings and receive coordinates. Wildz never simulates settlement.</p></section>;
+  if (unavailable) return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface"><header><small>TRANSFER AUTHORITY</small><h2 id="wilds-wallet-send-title">Send</h2></header><p className="wilds-wallet-state-strip is-source" role="status">{unavailable}</p><p>You can still inspect verified holdings and receive coordinates. Wildz never simulates settlement.</p></section>;
 
   return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface">
     <header><small>PROOF-BOUND TRANSFER</small><h2 id="wilds-wallet-send-title">Send</h2></header>

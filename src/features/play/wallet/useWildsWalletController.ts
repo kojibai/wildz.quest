@@ -2,14 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorldOverlayOwner } from "@/features/play/world-overlay-state";
-import { createWildsWalletControllerState, gateWildsWalletClientCapabilities, hydrateWildsWalletControllerState, type WildsWalletControllerState, type WildsWalletPage } from "./wilds-wallet-controller";
+import { createWildsWalletControllerState, gateWildsWalletClientCapabilities, hydrateWildsWalletControllerState, type WildsWalletControllerState, type WildsWalletPage, type WildsWalletReadResponse } from "./wilds-wallet-controller";
 import { createWildsWalletControllerDriver, type WildsWalletControllerDriver, wildsWalletSharedSessionCache } from "./wilds-wallet-controller-driver";
 
 type FetchResponse = Readonly<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 export type WildsWalletClientAuthorizationPort = Readonly<{
   authorize(input: Readonly<{ attempt: string; recipientUsername: string; amountPhiMicro: string; rail: "settlement" | "reserve" }>): Promise<Readonly<{ artifact: unknown; challenge: unknown }>>;
 }>;
-export type WildsWalletReadAuthorizationPort = Readonly<{ authorize(): Promise<boolean> }>;
+export type WildsWalletReadAuthorizationPort = Readonly<{
+  authorize(): Promise<boolean>;
+  projectSource?(): Promise<WildsWalletReadResponse | null>;
+}>;
 
 export function wildsWalletStatusNeedsIdentityReadAuthority(status: WildsWalletControllerState["status"]) {
   return status === "authority-required" || status === "revoked";
@@ -34,6 +37,7 @@ export function useWildsWalletController(
   }
   const driver = driverRef.current;
   const readAuthorityPromiseRef = useRef<Promise<boolean> | null>(null);
+  const sourceAuthorityPromiseRef = useRef<Promise<void> | null>(null);
   const preloadGenerationRef = useRef("");
   useEffect(() => {
     if (stateRef.current.identityKey !== identityKey || stateRef.current.authorityGeneration !== authorityGeneration) driver.setAuthority(identityKey, authorityGeneration);
@@ -54,18 +58,29 @@ export function useWildsWalletController(
     }
     if (await readAuthorityPromiseRef.current) await driver.refresh({ replace: true });
   }, [driver, options.readAuthorization]);
+  const admitSourceThenRefresh = useCallback(async () => {
+    if (options.readAuthorization?.projectSource && !sourceAuthorityPromiseRef.current) {
+      const operation = options.readAuthorization.projectSource()
+        .then((response) => { driver.admitSourceAuthority(response); })
+        .catch(() => { driver.admitSourceAuthority(null); });
+      sourceAuthorityPromiseRef.current = operation;
+      void operation.finally(() => { if (sourceAuthorityPromiseRef.current === operation) sourceAuthorityPromiseRef.current = null; });
+    }
+    await sourceAuthorityPromiseRef.current;
+    await refreshWithIdentityAuthority();
+  }, [driver, options.readAuthorization, refreshWithIdentityAuthority]);
   useEffect(() => {
     if (!authorityGeneration || !options.readAuthorization || preloadGenerationRef.current === authorityGeneration) return;
     preloadGenerationRef.current = authorityGeneration;
     const schedule = typeof window.requestIdleCallback === "function"
-      ? window.requestIdleCallback(() => { void refreshWithIdentityAuthority(); }, { timeout: 1_500 })
-      : window.setTimeout(() => { void refreshWithIdentityAuthority(); }, 250);
+      ? window.requestIdleCallback(() => { void admitSourceThenRefresh(); }, { timeout: 1_500 })
+      : window.setTimeout(() => { void admitSourceThenRefresh(); }, 250);
     return () => {
       if (typeof window.cancelIdleCallback === "function" && typeof schedule === "number") window.cancelIdleCallback(schedule);
       else window.clearTimeout(schedule);
     };
-  }, [authorityGeneration, options.readAuthorization, refreshWithIdentityAuthority]);
-  const openTerminal = useCallback(() => { driver.open(); void refreshWithIdentityAuthority(); }, [driver, refreshWithIdentityAuthority]);
+  }, [admitSourceThenRefresh, authorityGeneration, options.readAuthorization]);
+  const openTerminal = useCallback(() => { driver.open(); void admitSourceThenRefresh(); }, [admitSourceThenRefresh, driver]);
   const visible = state.identityKey === identityKey && state.authorityGeneration === authorityGeneration ? state : createWildsWalletControllerState(identityKey, authorityGeneration);
   const capabilities = visible.capabilities
     ? gateWildsWalletClientCapabilities(visible.capabilities, { proofAuthorization: Boolean(options.authorization) })
@@ -87,12 +102,12 @@ export function useWildsWalletController(
   }, [driver, options.authorization]);
   return {
     ...visible,
-    edgeAuthorityVerified: Boolean(authorityGeneration && options.readAuthorization),
+    edgeAuthorityVerified: visible.sourceAuthorityVerified || Boolean(authorityGeneration && options.readAuthorization),
     capabilities,
     openTerminal,
     closeTerminal: driver.close,
     navigate: (page: WildsWalletPage) => driver.navigate(page),
-    refresh: refreshWithIdentityAuthority,
+    refresh: admitSourceThenRefresh,
     lookupRecipient: driver.lookupRecipient,
     selectTransferRecipient: driver.selectTransferRecipient,
     reviewTransferAmount: driver.reviewTransferAmount,

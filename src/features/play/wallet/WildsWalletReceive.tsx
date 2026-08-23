@@ -1,7 +1,7 @@
 import type { WildsWalletControllerState } from "./wilds-wallet-controller";
 
 export function WildsWalletReceive({ publicUsername, state, onRequestReceive }: { publicUsername: string | null; state: WildsWalletControllerState; onRequestReceive(): void }) {
-  const canReceive = state.status === "verified" && state.capabilities?.receive === "available";
+  const canReceive = (state.status === "verified" || state.status === "source-verified") && (state.capabilities?.receive === "available" || state.sourceAuthorityVerified);
   return <section aria-labelledby="wilds-wallet-receive-title" className="wilds-wallet-surface">
     <header><small>PUBLIC PLAYER COORDINATE</small><h2 id="wilds-wallet-receive-title">Receive</h2></header>
     <div className="wilds-wallet-coordinate"><span>{publicUsername ? `@${publicUsername}` : "Public handle unavailable"}</span><small>{publicUsername ? "Safe to share as your public Wildz username." : "Private identity coordinates are never displayed or shared."}</small></div>

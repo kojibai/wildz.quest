@@ -112,7 +112,7 @@ import { creatureCareNotificationSchedule, WILDZ_CARE_PERIODIC_TAG } from "@/fea
 import { WILDZ_CARE_NOTIFICATIONS_READY, WILDZ_CARE_SCHEDULE_MESSAGE } from "@/features/pwa/pwa-events";
 import { WildsWorldCanvas } from "@/features/play/WildsWorldCanvas";
 import { useWildsWalletController, type WildsWalletClientAuthorizationPort } from "@/features/play/wallet/useWildsWalletController";
-import { authorizeWildsWalletReadWithIdentity } from "@/features/play/wallet/wilds-wallet-read-authorization";
+import { authorizeWildsWalletReadWithIdentity, projectWildsWalletSourceAuthority } from "@/features/play/wallet/wilds-wallet-read-authorization";
 import { authorizeWildsWalletTransferWithIdentity } from "@/features/play/wallet/wilds-wallet-transfer-authorization";
 import { canCloseWildsWalletTerminal, WildsWalletTerminal } from "@/features/play/wallet/WildsWalletTerminal";
 import { emptyAdventureCondition } from "@/features/play/adventure/card-condition";
@@ -298,7 +298,10 @@ export function PlayCampaign({
   const [mapOpen, setMapOpen] = useState(false);
   const [multiplayerRosterOpen, setMultiplayerRosterOpen] = useState(false);
   const walletReadAuthorization = useMemo(() => walletReadIdentityKey
-    ? { authorize: () => authorizeWildsWalletReadWithIdentity(walletReadIdentityKey) }
+    ? {
+      authorize: () => authorizeWildsWalletReadWithIdentity(walletReadIdentityKey),
+      projectSource: () => projectWildsWalletSourceAuthority(walletReadIdentityKey)
+    }
     : undefined, [walletReadIdentityKey]);
   const walletTransferAuthorization = useMemo(() => walletAuthorization ?? (walletReadIdentityKey
     ? { authorize: (input: Parameters<WildsWalletClientAuthorizationPort["authorize"]>[0]) => authorizeWildsWalletTransferWithIdentity(walletReadIdentityKey, input) }

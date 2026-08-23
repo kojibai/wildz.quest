@@ -2,7 +2,7 @@ import type { WorldOverlayOwner } from "@/features/play/world-overlay-state";
 import type { WalletCapabilityProjection, WalletLedgerEntryProjection, WalletLedgerPageProjection, WalletRecipientProjection, WalletSummaryProjection } from "@/lib/receiz/wilds-wallet-projections";
 import { normalizeWildsWalletPublicUsername } from "@/lib/receiz/wilds-wallet-projections";
 
-export type WildsWalletControllerStatus = "idle" | "loading" | "verified" | "offline-verified" | "authority-required" | "failed" | "revoked";
+export type WildsWalletControllerStatus = "idle" | "loading" | "source-verified" | "verified" | "offline-verified" | "authority-required" | "failed" | "revoked";
 export type WildsWalletPage = "overview" | "send" | "receive" | "assets" | "ledger";
 export type WildsWalletFailureReason = "network" | "failed" | "authority-required" | "revoked";
 export type WildsWalletReadResponse = Readonly<{ summary: WalletSummaryProjection; capabilities: WalletCapabilityProjection; ledger: WalletLedgerPageProjection | null }>;
@@ -35,6 +35,7 @@ export type WildsWalletTransferState = Readonly<{
 }>;
 export type WildsWalletControllerState = Readonly<{
   identityKey: string; authorityGeneration: string; open: boolean; page: WildsWalletPage; status: WildsWalletControllerStatus;
+  sourceAuthorityVerified: boolean;
   requestId: number | null; receiveRequestId: number | null; summary: WalletSummaryProjection | null; capabilities: WalletCapabilityProjection | null;
   ledger: WalletLedgerPageProjection | null; recipient: WildsWalletRecipientState; receiveLocator: string | null; stagedTransactionId: string | null;
   transfer: WildsWalletTransferState;
@@ -46,6 +47,7 @@ export type WildsWalletControllerEvent =
   | { type: "navigate"; page: WildsWalletPage }
   | { type: "refresh-start"; requestId: number }
   | { type: "refresh-resolved"; requestId: number; identityKey: string; authorityGeneration: string; response: WildsWalletReadResponse }
+  | { type: "source-authority-resolved"; identityKey: string; authorityGeneration: string; response: WildsWalletReadResponse | null }
   | { type: "refresh-failed"; requestId: number; reason: WildsWalletFailureReason }
   | { type: "identity-invalidated"; identityKey: string; authorityGeneration: string }
   | { type: "exclusive-owner-changed"; owner: WorldOverlayOwner }
@@ -89,7 +91,7 @@ export function gateWildsWalletClientCapabilities(
 }
 
 export function createWildsWalletControllerState(identityKey: string, authorityGeneration = ""): WildsWalletControllerState {
-  return Object.freeze({ identityKey, authorityGeneration, open: false, page: "overview", status: "idle", requestId: null, receiveRequestId: null, summary: null, capabilities: null, ledger: null, recipient: emptyRecipient, receiveLocator: null, stagedTransactionId: null, transfer: emptyTransfer });
+  return Object.freeze({ identityKey, authorityGeneration, open: false, page: "overview", status: "idle", sourceAuthorityVerified: false, requestId: null, receiveRequestId: null, summary: null, capabilities: null, ledger: null, recipient: emptyRecipient, receiveLocator: null, stagedTransactionId: null, transfer: emptyTransfer });
 }
 export function isWildsWalletRecipientLookupAllowed(hasDurableLimiter: boolean) { return hasDurableLimiter; }
 export function walletAuthorityCacheKey(identityKey: string, authorityGeneration: string) { return authorityGeneration ? `${identityKey}:${authorityGeneration}` : null; }
@@ -112,9 +114,13 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
     case "cancel-pending": return afterCancellation(state, state.open);
     case "navigate": return state.page === event.page ? state : { ...state, page: event.page };
     case "refresh-start": return { ...state, status: "loading", requestId: event.requestId };
+    case "source-authority-resolved":
+      if (state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration || state.status === "verified") return state;
+      return { ...state, status: "source-verified", sourceAuthorityVerified: true, ...(event.response ? { summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger } : {}) };
     case "refresh-resolved": return state.requestId !== event.requestId || state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration ? state : { ...state, status: "verified", requestId: null, summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger };
     case "refresh-failed":
       if (state.requestId !== event.requestId) return state;
+      if (state.sourceAuthorityVerified) return { ...state, status: "source-verified", requestId: null };
       if (event.reason === "revoked") return clearPrivate(state, "revoked");
       if (event.reason === "network" && hasRetainedProjection(state)) return { ...state, status: "offline-verified", requestId: null };
       return clearPrivate(state, event.reason === "authority-required" ? "authority-required" : "failed");

@@ -11,7 +11,8 @@ import {
   hydrateWildsWalletControllerState,
   reduceWildsWalletController,
   walletAuthorityCacheKey,
-  type WildsWalletControllerState
+  type WildsWalletControllerState,
+  type WildsWalletReadResponse
 } from "./wilds-wallet-controller";
 
 type DriverResponse = Readonly<{ ok: boolean; status: number; json(): Promise<unknown> }>;
@@ -79,6 +80,15 @@ export function createWildsWalletControllerDriver(input: {
     refreshPromise = operation;
     void operation.finally(() => { if (refreshPromise === operation) refreshPromise = null; });
     return operation;
+  };
+  const admitSourceAuthority = (response: WildsWalletReadResponse | null) => {
+    const identityKey = state.identityKey;
+    const authorityGeneration = state.authorityGeneration;
+    if (response) {
+      cache.write(walletAuthorityCacheKey(identityKey, authorityGeneration), response);
+      runtime.recordCacheWrite();
+    }
+    publish({ type: "source-authority-resolved", identityKey, authorityGeneration, response });
   };
   const requestReceive = (amountPhiMicro?: string) => {
     if (receivePromise) return receivePromise;
@@ -248,6 +258,7 @@ export function createWildsWalletControllerDriver(input: {
     authorizeTransfer,
     recoverTransfer,
     refresh,
+    admitSourceAuthority,
     requestReceive
   };
 }

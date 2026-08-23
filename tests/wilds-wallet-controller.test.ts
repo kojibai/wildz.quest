@@ -10,7 +10,8 @@ import {
   hydrateWildsWalletControllerState,
   isWildsWalletRecipientLookupAllowed,
   reduceWildsWalletController,
-  type WildsWalletControllerState
+  type WildsWalletControllerState,
+  type WildsWalletReadResponse
 } from "../src/features/play/wallet/wilds-wallet-controller";
 import { wildsWalletStatusNeedsIdentityReadAuthority } from "../src/features/play/wallet/useWildsWalletController";
 
@@ -46,7 +47,7 @@ function verifiedState(identityKey = "explorer") {
   });
 }
 
-function readResponse() {
+function readResponse(): WildsWalletReadResponse {
   return {
     summary: {
       status: "verified",
@@ -119,6 +120,40 @@ test("retains verified value as explicit offline truth after a refresh failure",
   assert.equal(offline.status, "offline-verified");
   assert.equal(offline.summary?.admittedPhiMicro, "42");
   assert.equal(offline.capabilities?.send.available, false);
+});
+
+test("a verified Receiz ID source remains authoritative when global projection transport fails", () => {
+  let state = createWildsWalletControllerState("explorer", "generation-1");
+  state = reduceWildsWalletController(state, {
+    type: "source-authority-resolved",
+    identityKey: "explorer",
+    authorityGeneration: "generation-1",
+    response: readResponse()
+  });
+
+  assert.equal(state.status, "source-verified");
+  assert.equal(state.sourceAuthorityVerified, true);
+  assert.equal(state.summary?.admittedPhiMicro, "42");
+
+  state = reduceWildsWalletController(state, { type: "refresh-start", requestId: 9 });
+  state = reduceWildsWalletController(state, { type: "refresh-failed", requestId: 9, reason: "revoked" });
+
+  assert.equal(state.status, "source-verified");
+  assert.equal(state.sourceAuthorityVerified, true);
+  assert.equal(state.summary?.admittedPhiMicro, "42");
+});
+
+test("identity authority stays active while admitted source URLs are discovered", () => {
+  const state = reduceWildsWalletController(createWildsWalletControllerState("explorer", "generation-1"), {
+    type: "source-authority-resolved",
+    identityKey: "explorer",
+    authorityGeneration: "generation-1",
+    response: null
+  });
+
+  assert.equal(state.status, "source-verified");
+  assert.equal(state.sourceAuthorityVerified, true);
+  assert.equal(state.summary, null);
 });
 
 test("ignores a stale completion after identity invalidation", () => {
@@ -234,8 +269,8 @@ test("cache restores only bounded authority-keyed offline truth", () => {
 });
 
 test("rejects malformed nested wallet projections before controller admission", () => {
-  const malformed = readResponse();
-  malformed.capabilities.send.reason = "invented" as "receiz_v123_execution_unavailable";
+  const malformed = structuredClone(readResponse()) as { capabilities: { send: { available: false; reason: string } } };
+  malformed.capabilities.send.reason = "invented";
   assert.throws(() => admitWildsWalletReadResponse(malformed), /wilds_wallet_projection_invalid/);
 });
 

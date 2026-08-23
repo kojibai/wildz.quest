@@ -386,6 +386,7 @@ body {
 .wilds-wallet-display-quote b { color: #b7c9c2; font: 700 13px/1.2 ui-monospace, monospace; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .wilds-wallet-state-strip { margin: 0; padding: 10px 12px; border-left: 3px solid #dca848; color: #d8c28d; background: rgba(220,168,72,.08); font-size: 11px; }
 .wilds-wallet-state-strip.is-offline { border-color: #738d99; color: #a9bdc5; background: rgba(115,141,153,.09); }
+.wilds-wallet-state-strip.is-source { border-color: #69d7b2; color: #a9d9c8; background: rgba(105,215,178,.07); }
 .wilds-wallet-state-strip.is-locked { border-color: #b39c58; }
 .wilds-wallet-holdings-band { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); margin: 0; border-block: 1px solid rgba(177,208,193,.12); }
 .wilds-wallet-holdings-band div { display: grid; gap: 5px; min-width: 0; padding: 14px 12px; border-right: 1px solid rgba(177,208,193,.12); }

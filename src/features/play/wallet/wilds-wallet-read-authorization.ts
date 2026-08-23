@@ -2,6 +2,7 @@
 
 import {
   canonicalizeReceizV122,
+  projectReceizIdentityAccount,
   proofAuthorityChallengeBasisV123,
   receizBase64UrlEncode,
   serializeReceizIdentityArtifact,
@@ -12,6 +13,7 @@ import {
 import { defaultIdentityRepository } from "@/lib/receiz/wildz-identity-adapter";
 import { hasExactWildsWalletReadAuthorityScopes } from "@/lib/receiz/wilds-wallet-authority-scopes";
 import { WILDZ_RECEIZ_APPLICATION_ID } from "@/lib/receiz/wildz-application";
+import { projectWildsWalletFromIdentityAccount } from "./wilds-wallet-source-authority";
 
 type ChallengeEnvelope = Readonly<{
   applicationId: string;
@@ -84,4 +86,10 @@ export async function authorizeWildsWalletReadWithIdentity(keyId: string, depend
   const value = completed.value as { status?: unknown; scopes?: unknown } | null;
   return completed.ok && value?.status === "connected" && Array.isArray(value.scopes)
     && hasExactWildsWalletReadAuthorityScopes(value.scopes);
+}
+
+export async function projectWildsWalletSourceAuthority(keyId: string) {
+  return defaultIdentityRepository.withKeyFile(keyId, async (keyFile) =>
+    projectWildsWalletFromIdentityAccount(await projectReceizIdentityAccount(keyFile))
+  );
 }

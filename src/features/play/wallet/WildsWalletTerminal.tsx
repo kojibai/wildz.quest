@@ -46,7 +46,7 @@ export function WildsWalletTerminal({ publicUsername, state, ...actions }: { pub
     window.requestAnimationFrame(() => tabRefs.current[index]?.focus());
   };
   const closeAllowed = canCloseWildsWalletTerminal(state);
-  const authority = state.status === "verified" ? "VERIFIED" : state.status === "offline-verified" ? "OFFLINE VERIFIED" : state.status === "authority-required" && state.edgeAuthorityVerified ? "EDGE VERIFIED" : state.status === "authority-required" ? "AUTHORIZATION REQUIRED" : state.transfer.phase === "unknown" ? "RECOVERY PENDING" : "UNAVAILABLE";
+  const authority = state.status === "verified" ? "VERIFIED" : state.status === "source-verified" ? "SOURCE VERIFIED" : state.status === "offline-verified" ? "OFFLINE VERIFIED" : state.status === "authority-required" && state.edgeAuthorityVerified ? "SOURCE VERIFIED" : state.status === "authority-required" ? "AUTHORIZATION REQUIRED" : state.transfer.phase === "unknown" ? "RECOVERY PENDING" : "UNAVAILABLE";
   return <div className="wilds-wallet-layer" data-wallet-page={state.page}>
     <button aria-label="Close sovereign wallet" className="wilds-wallet-scrim" disabled={!closeAllowed} onClick={actions.onClose} tabIndex={-1} type="button" />
     <section aria-labelledby="wilds-wallet-terminal-title" aria-modal="true" className="wilds-wallet-terminal" role="dialog" tabIndex={-1}>
