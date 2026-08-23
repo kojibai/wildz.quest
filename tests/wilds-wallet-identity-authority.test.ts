@@ -3,7 +3,8 @@ import { describe, it } from "node:test";
 import { receizKaiNow } from "@receiz/sdk";
 import {
   completeWildsWalletIdentityAuthority,
-  issueWildsWalletIdentityAuthorityChallenge
+  issueWildsWalletIdentityAuthorityChallenge,
+  wildsWalletIdentitySessionForChallenge
 } from "../src/lib/receiz/wilds-wallet-identity-authority";
 import { authorizeWildsWalletReadWithIdentity } from "../src/features/play/wallet/wilds-wallet-read-authorization";
 import { authorizeWildsWalletTransferWithIdentity } from "../src/features/play/wallet/wilds-wallet-transfer-authorization";
@@ -144,6 +145,45 @@ describe("Receiz ID wallet read authority", () => {
       actorId: "explorer",
       profileHandle: "explorer.receiz.id"
     });
+  });
+
+  it("lets a freshly signed source Receiz ID supersede a stale proof-session projection", async () => {
+    const secret = "s".repeat(32);
+    const staleSession = { keyId: "e".repeat(64), actorId: "older", profileHandle: "older.receiz.id" };
+    const selected = wildsWalletIdentitySessionForChallenge(staleSession, H.key);
+    assert.deepEqual(selected, { keyId: H.key });
+    const issued = issueWildsWalletIdentityAuthorityChallenge({ session: selected, artifactDigest: H.artifact }, secret);
+    const authority = {
+      schema: "receiz.identity.proof-authority.v123" as const,
+      applicationId: "wildz",
+      keyId: H.key,
+      artifactDigest: H.artifact,
+      grantedScopes: readAuthorityScopes,
+      issuedAtKai: issued.challenge.unsigned.issuedAtKai,
+      expiresAtKai: issued.challenge.unsigned.expiresAtKai,
+      nonce: issued.challenge.unsigned.nonce,
+      revocationHead: H.revocation,
+      tokenType: "Bearer" as const,
+      expiresIn: 300,
+      refreshable: false as const,
+      authority: { grantIsIdentityAuthority: false as const, strongerTruth: "receiz-identity-artifact" as const },
+      authorityDigest: H.authority,
+      accessToken: "fresh-source-read-bearer"
+    };
+    const admitted = await completeWildsWalletIdentityAuthority({
+      session: staleSession,
+      ticket: issued.ticket,
+      body: { artifact: "fresh-identity-artifact", challenge: { ...issued.challenge.unsigned, proof: { schema: "receiz.identity.login_proof.v1", keyId: H.key, alg: "Ed25519", challengeB64Url: "challenge", signatureB64Url: "signature" } } }
+    }, {
+      secret,
+      exchange: async () => authority,
+      validate: async () => authority,
+      loadProfile: async () => ({ id: "owner-2", handle: "current.receiz.id" }),
+      introspect: async () => ({ active: true, sub: "owner-2", scope: readAuthorityScopes.join(" ") }),
+      artifactDigest: async () => H.artifact
+    });
+    assert.equal(admitted.keyId, H.key);
+    assert.equal(admitted.profileHandle, "current.receiz.id");
   });
 
   it("derives exact one-operation transfer authority from the edge Receiz ID", async () => {

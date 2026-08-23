@@ -14,7 +14,8 @@ import {
 } from "@/lib/receiz/wildz-proof-session";
 import {
   completeWildsWalletIdentityAuthority,
-  issueWildsWalletIdentityAuthorityChallenge
+  issueWildsWalletIdentityAuthorityChallenge,
+  wildsWalletIdentitySessionForChallenge
 } from "@/lib/receiz/wilds-wallet-identity-authority";
 
 export const runtime = "nodejs";
@@ -38,15 +39,7 @@ function proofSession(request: NextRequest) {
 
 function edgeIdentity(request: NextRequest) {
   const session = proofSession(request);
-  const requestedKeyId = request.nextUrl.searchParams.get("keyId");
-  if (session) {
-    if (requestedKeyId && requestedKeyId !== session.keyId) throw new Error("receiz_wallet_identity_authority_binding_invalid");
-    return session;
-  }
-  if (!requestedKeyId || !/^[a-f0-9]{64}$/.test(requestedKeyId)) {
-    throw new Error("receiz_wallet_identity_authority_required");
-  }
-  return { keyId: requestedKeyId };
+  return wildsWalletIdentitySessionForChallenge(session, request.nextUrl.searchParams.get("keyId"));
 }
 
 function failure(cause: unknown) {

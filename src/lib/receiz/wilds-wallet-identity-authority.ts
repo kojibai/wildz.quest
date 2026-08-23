@@ -23,6 +23,22 @@ export type WildsWalletIdentitySession = Readonly<{
   profileHandle?: string;
 }>;
 
+export function wildsWalletIdentitySessionForChallenge(
+  session: WildsWalletIdentitySession | undefined,
+  requestedKeyId: string | null
+): WildsWalletIdentitySession {
+  if (requestedKeyId === null) {
+    if (session) return session;
+    throw new Error("receiz_wallet_identity_authority_required");
+  }
+  if (!/^[a-f0-9]{64}$/.test(requestedKeyId)) {
+    throw new Error("receiz_wallet_identity_authority_required");
+  }
+  // A fresh exact Receiz ID source may replace a stale server projection.
+  // Carry the old actor/profile binding only when it names the same key.
+  return session?.keyId === requestedKeyId ? session : Object.freeze({ keyId: requestedKeyId });
+}
+
 type WalletAuthorityTicket = Readonly<{
   applicationId: typeof APPLICATION_ID;
   keyId: string;
@@ -124,8 +140,11 @@ export async function completeWildsWalletIdentityAuthority(input: Readonly<{
   body: unknown;
 }>, dependencies: CompletionDependencies) {
   const ticket = unpackTicket(input.ticket, dependencies.secret);
+  const ticketCarriesSessionBinding = Boolean(ticket.actorId || ticket.profileHandle);
   if (ticket.applicationId !== APPLICATION_ID
-    || (input.session && (ticket.keyId !== input.session.keyId
+    || Boolean(ticket.actorId) !== Boolean(ticket.profileHandle)
+    || (ticketCarriesSessionBinding && (!input.session
+      || ticket.keyId !== input.session.keyId
       || ticket.actorId !== input.session.actorId
       || !ticket.profileHandle || !input.session.profileHandle
       || !sameWildzPlayerCoordinate(ticket.profileHandle, input.session.profileHandle)))) {

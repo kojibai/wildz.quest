@@ -25,7 +25,7 @@ The V124 wallet release gate is being requalified on 2026-08-23:
 | Gate | Observed result |
 |---|---|
 | Receiz architecture lock | Pass; 501 runtime files checked |
-| Node law/regression suite | Pass; 1,793 tests across 164 suites, zero failures |
+| Node law/regression suite | Pass; 1,794 tests across 164 suites, zero failures |
 | Typecheck | Pass |
 | Official V124 repository checker | Pass; exact release, 53-operation registry/matrix, and authority identity |
 | MCP/SDK conformance | Pass; 15/15 checks, zero network calls, zero database calls |

@@ -15,6 +15,8 @@ Wildz uses the exact `@receiz/sdk`, `@receiz/mcp-server`, and `@receiz/ai-skills
 
 Authority sessions, private additions, recipient locators, and durable execution are invoked only for an operation that possesses their required exact artifacts, heads, grants, scopes, and explicit consent. They are not opened speculatively at login or on every frame. Session creation requires both the Receiz identity artifact and the exact subject source artifact; neither a browser cookie nor an MCP handle can substitute for them.
 
+For wallet read admission, a freshly signed local Receiz ID may replace a stale server proof-session projection. An existing actor/profile binding is retained only when it names the same identity key; a stale session can never outrank the exact signed source artifact.
+
 Value movement remains preview → explicit edge consent → exact proof-authority exchange → durable stage/execute → resolution by execution ID or semantic idempotency key. Unknown outcomes are resolved before retry. Settlement and Reserve remain separate rails, and Phi—not USD—is the moved value.
 
 ## MCP and AI skills
