@@ -1661,6 +1661,7 @@ export function PlayCampaign({
               state={walletController}
               onClose={() => closeOwnedModal("wallet")}
               onNavigate={walletController.navigate}
+              onRefresh={() => { void walletController.refresh(); }}
               onLookupRecipient={walletController.lookupRecipient}
               onSelectRecipient={walletController.selectTransferRecipient}
               onReviewAmount={walletController.reviewTransferAmount}

@@ -1,9 +1,17 @@
 import type { WildsWalletPresentationState } from "./wilds-wallet-controller";
 import { formatWildsPhiExact, formatWildsUsdCents } from "./wilds-wallet-format";
 
-export function WildsWalletOverview({ state, onNavigate }: { state: WildsWalletPresentationState; onNavigate(page: "send" | "receive"): void }) {
+export function WildsWalletOverview({ state, onNavigate, onRefresh }: { state: WildsWalletPresentationState; onNavigate(page: "send" | "receive"): void; onRefresh(): void }) {
   if (state.status === "loading" && !state.summary) return <div className="wilds-wallet-message" role="status"><b>Verifying reserve</b><span>Reading admitted wallet state…</span></div>;
-  if (state.status === "authority-required" && state.edgeAuthorityVerified) return <div className="wilds-wallet-message" role="status"><b>Receiz ID verified</b><span>The edge identity remains authoritative. The exact global balance projection is unavailable, so value movement stays safely disabled until it arrives.</span></div>;
+  if (state.status === "authority-required" && state.edgeAuthorityVerified) return <section aria-labelledby="wilds-wallet-edge-title" className="wilds-wallet-edge-status" role="status">
+    <header><small>LOCAL AUTHORITY</small><h2 id="wilds-wallet-edge-title">Receiz ID verified</h2><p>Your identity is active at the edge. Exact global value has not arrived, so Wildz will never estimate or display a false balance.</p></header>
+    <dl>
+      <div><dt>Edge authority</dt><dd data-state="verified">Verified</dd></div>
+      <div><dt>Exact balance</dt><dd data-state="waiting">Awaiting projection</dd></div>
+      <div><dt>Value movement</dt><dd data-state="locked">Safely locked</dd></div>
+    </dl>
+    <button onClick={onRefresh} type="button">Retry exact projection</button>
+  </section>;
   if (state.status === "authority-required") return <div className="wilds-wallet-message" role="status"><b>Authorization required</b><span>Your world remains preserved while wallet access is secured.</span></div>;
   if (state.status === "revoked" || state.status === "failed" || !state.summary) return <div className="wilds-wallet-message is-danger" role="alert"><b>Wallet unavailable</b><span>No private value is displayed.</span></div>;
   const summary = state.summary;

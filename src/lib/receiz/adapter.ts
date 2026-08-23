@@ -431,6 +431,11 @@ export function createReceizCommerceAdapter(
     ...options,
     applicationId: options.applicationId ?? WILDZ_RECEIZ_APPLICATION_ID
   });
+  const introspectionClient = createReceizClient({
+    ...options,
+    accessToken: undefined,
+    applicationId: options.applicationId ?? WILDZ_RECEIZ_APPLICATION_ID
+  });
   const hasAccessToken = Boolean(options.accessToken);
   const hasWebhookSecret = Boolean(process.env.RECEIZ_WEBHOOK_SECRET);
   const trail: ProofEvent[] = [];
@@ -557,10 +562,9 @@ export function createReceizCommerceAdapter(
     },
     introspectAccessToken() {
       const authorization = receizOAuthClientAuthorization();
-      return client.identity.introspect(
-        { token: options.accessToken ?? "" },
-        authorization ? { authorization } : undefined
-      );
+      return authorization
+        ? introspectionClient.identity.introspect({ token: options.accessToken ?? "" }, { authorization })
+        : client.identity.introspect({ token: options.accessToken ?? "" });
     },
     async createReceizId(input) {
       const identity = await client.identity.createReceizId({

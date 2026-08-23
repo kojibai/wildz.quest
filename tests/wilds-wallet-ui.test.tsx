@@ -41,7 +41,7 @@ function state(overrides: Record<string, unknown> = {}) {
 const actions = {
   onClose() {}, onNavigate() {}, onLookupRecipient() {}, onSelectRecipient() {}, onReviewAmount() {},
   onStage() {}, onAuthorizationPointerStart() {}, onAuthorizationPointerCancel() {}, onAuthorize() {},
-  onRecover() {}, onResetTransfer() {}, onRequestReceive() {}
+  onRecover() {}, onResetTransfer() {}, onRefresh() {}, onRequestReceive() {}
 };
 
 test("wallet instrument announces exact admitted value while abbreviating the visual HUD value", () => {
@@ -67,6 +67,9 @@ test("a verified edge Receiz ID stays authenticated when its global balance proj
   assert.match(terminal, />EDGE VERIFIED</);
   assert.doesNotMatch(terminal, /SYNC PENDING/);
   assert.match(terminal, /Receiz ID verified/);
+  assert.match(terminal, /Edge authority/);
+  assert.match(terminal, /Awaiting projection/);
+  assert.match(terminal, /Retry exact projection/);
   assert.doesNotMatch(terminal, /Authorization required/i);
 });
 

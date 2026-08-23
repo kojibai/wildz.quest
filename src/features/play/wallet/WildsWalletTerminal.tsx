@@ -30,6 +30,7 @@ export function canCloseWildsWalletTerminal(state: WildsWalletControllerState) {
 export type WildsWalletTerminalActions = WildsWalletSendActions & Readonly<{
   onClose(): void;
   onNavigate(page: WildsWalletPage): void;
+  onRefresh(): void;
   onRequestReceive(): void;
 }>;
 
@@ -57,7 +58,7 @@ export function WildsWalletTerminal({ publicUsername, state, ...actions }: { pub
       </header>
       <nav aria-label="Wallet terminal" className="wilds-wallet-navigation" role="tablist">{pages.map((item, index) => <button aria-controls={`wilds-wallet-panel-${item.page}`} aria-selected={state.page === item.page} key={item.page} onClick={() => actions.onNavigate(item.page)} onKeyDown={moveTab} ref={(node) => { tabRefs.current[index] = node; }} role="tab" tabIndex={state.page === item.page ? 0 : -1} type="button"><i aria-hidden="true">{item.mark}</i><span>{item.label}</span></button>)}</nav>
       <main className="wilds-wallet-terminal-content" id={`wilds-wallet-panel-${state.page}`} role="tabpanel">
-        {state.page === "overview" ? <WildsWalletOverview state={state} onNavigate={actions.onNavigate} /> : null}
+        {state.page === "overview" ? <WildsWalletOverview state={state} onNavigate={actions.onNavigate} onRefresh={actions.onRefresh} /> : null}
         {state.page === "send" ? <WildsWalletSend state={state} {...actions} /> : null}
         {state.page === "receive" ? <WildsWalletReceive publicUsername={publicUsername} state={state} onRequestReceive={actions.onRequestReceive} /> : null}
         {state.page === "assets" ? <WildsWalletAssets state={state} /> : null}

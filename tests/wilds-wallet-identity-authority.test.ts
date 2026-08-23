@@ -8,7 +8,7 @@ import {
 } from "../src/lib/receiz/wilds-wallet-identity-authority";
 import { authorizeWildsWalletReadWithIdentity } from "../src/features/play/wallet/wilds-wallet-read-authorization";
 import { authorizeWildsWalletTransferWithIdentity } from "../src/features/play/wallet/wilds-wallet-transfer-authorization";
-import { receizOAuthClientAuthorization } from "../src/lib/receiz/adapter";
+import { createReceizCommerceAdapter, receizOAuthClientAuthorization } from "../src/lib/receiz/adapter";
 
 const H = {
   artifact: "a".repeat(64),
@@ -26,6 +26,36 @@ describe("Receiz ID wallet read authority", () => {
       RECEIZ_CLIENT_SECRET: "full-v124-capability"
     }), `Basic ${Buffer.from("wildz:full-v124-capability").toString("base64")}`);
     assert.equal(receizOAuthClientAuthorization({ RECEIZ_CLIENT_ID: "wildz" }), undefined);
+  });
+
+  it("keeps client authentication separate from the bearer being introspected", async () => {
+    const previousId = process.env.RECEIZ_CLIENT_ID;
+    const previousSecret = process.env.RECEIZ_CLIENT_SECRET;
+    process.env.RECEIZ_CLIENT_ID = "wildz";
+    process.env.RECEIZ_CLIENT_SECRET = "full-v124-capability";
+    const requests: Array<{ authorization: string | null; body: string }> = [];
+    try {
+      const adapter = createReceizCommerceAdapter({
+        accessToken: "edge-issued-user-bearer",
+        baseUrl: "https://receiz.test",
+        fetchImpl: async (_url, init) => {
+          const headers = new Headers(init?.headers);
+          requests.push({ authorization: headers.get("authorization"), body: String(init?.body ?? "") });
+          return new Response(JSON.stringify({ active: true }), {
+            status: 200,
+            headers: { "content-type": "application/json" }
+          });
+        }
+      });
+      await adapter.introspectAccessToken();
+    } finally {
+      if (previousId === undefined) delete process.env.RECEIZ_CLIENT_ID;
+      else process.env.RECEIZ_CLIENT_ID = previousId;
+      if (previousSecret === undefined) delete process.env.RECEIZ_CLIENT_SECRET;
+      else process.env.RECEIZ_CLIENT_SECRET = previousSecret;
+    }
+    assert.equal(requests[0]?.authorization, `Basic ${Buffer.from("wildz:full-v124-capability").toString("base64")}`);
+    assert.equal(new URLSearchParams(requests[0]?.body).get("token"), "edge-issued-user-bearer");
   });
 
   it("issues the exact wallet-read and identity-binding scopes bound to the active Receiz ID", () => {
