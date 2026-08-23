@@ -121,7 +121,7 @@ export function CreatureContinuityPanel({
       </div>
 
       <div className="wilds-continuity-memory">
-        <div><strong>Lived memory</strong><small>{livedExperiences.length} real roaming {livedExperiences.length === 1 ? "experience" : "experiences"} · proof-chained in v120</small></div>
+        <div><strong>Lived memory</strong><small>{livedExperiences.length} real roaming {livedExperiences.length === 1 ? "experience" : "experiences"} · proof-chained</small></div>
         {recent.length ? recent.map((event) => (
           <article key={event.digest}>
             <span aria-hidden="true">{event.kind === "discover" ? "✦" : event.kind === "barter-keepsake" ? "⇄" : event.kind === "explore" ? "⌁" : "●"}</span>

@@ -1,6 +1,7 @@
 import {
   RECEIZ_DEFAULT_BASE_URL,
   RECEIZ_SDK_VERSION,
+  RECEIZ_V124_APPLICATION_OPERATIONS,
   appendReceizIdentityArtifactTrailerToPng,
   createReceizClient,
   type ActionLedgerFeed,
@@ -80,6 +81,7 @@ import type { GameResult, Product, ProofEvent, ReceizedAsset, Reward, VerifiedOb
 import { makeId } from "@/lib/utils";
 import { platform } from "@/lib/platform";
 import { receizOidcScopesFromEnv } from "./oauth-scopes";
+import { WILDZ_RECEIZ_APPLICATION_ID } from "./wildz-application";
 
 export type ReceizCommerceAdapter = {
   sdkVersion: string;
@@ -128,6 +130,18 @@ export type ReceizCommerceAdapter = {
   }): Promise<boolean>;
   continueReceizId(identity: ReceizDeviceIdentity, next?: string): Promise<JsonObject>;
   exchangeProofAuthorityV123: ReceizClient["identity"]["exchangeProofAuthority"];
+  grantedScopesV124: ReceizClient["auth"]["grantedScopes"];
+  qualifyRuntimeV124: ReceizClient["runtime"]["qualifyV124"];
+  openAuthoritySessionV124: ReceizClient["runtime"]["openAuthoritySessionV124"];
+  refreshAuthoritySessionV124: ReceizClient["runtime"]["refreshAuthoritySessionV124"];
+  closeAuthoritySessionV124: ReceizClient["runtime"]["closeAuthoritySessionV124"];
+  stageExecutionV124: ReceizClient["execution"]["stage"];
+  stagePreparedExecutionV124: ReceizClient["execution"]["stagePrepared"];
+  executeV124: ReceizClient["execution"]["execute"];
+  resolveExecutionV124: ReceizClient["execution"]["resolve"];
+  resolveExecutionByIdempotencyV124: ReceizClient["execution"]["resolveByIdempotencyKey"];
+  cancelExecutionV124: ReceizClient["execution"]["cancel"];
+  planAtomicOperationV124: ReceizClient["execution"]["planAtomicOperationV124"];
   ensureTenantSession(input: ReceizEnsureTenantSessionInput): ReceizEnsureTenantSessionResult;
   createProofRegister(ownerId?: string): ReceizProofRegister;
   createProofMemory(options?: ReceizProofMemoryOptions): Promise<ReceizProofMemory>;
@@ -152,6 +166,12 @@ export type ReceizCommerceAdapter = {
   resolveWorldSubject: ReceizClient["subjects"]["resolve"];
   admitSubjectV122: ReceizClient["subjects"]["admit"];
   resolveSubjectNamespacesV123: ReceizClient["subjects"]["resolveNamespaces"];
+  resolveSubjectNamespacesV124: ReceizClient["subjects"]["resolveNamespacesV124"];
+  subjectTwinProfile: ReceizClient["subjects"]["twin"]["profile"];
+  subjectTwinMessage: ReceizClient["subjects"]["twin"]["message"];
+  subjectTwinExportMind: ReceizClient["subjects"]["twin"]["exportMind"];
+  subjectTwinImportMind: ReceizClient["subjects"]["twin"]["importMind"];
+  subjectTwinMemorySummary: ReceizClient["subjects"]["twin"]["memorySummary"];
   subjectStateV122: ReceizClient["subjects"]["state"];
   createSubjectAccessKeyV122: ReceizClient["subjects"]["createAccessKey"];
   publishSubjectAccessKeyV122: ReceizClient["subjects"]["publishAccessKey"];
@@ -172,6 +192,14 @@ export type ReceizCommerceAdapter = {
   worldAdditionsV122: ReceizClient["world"]["additionsV122"];
   planMultiWorldTransactionV122: ReceizClient["world"]["planMultiWorldTransaction"];
   executeMultiWorldTransactionV122: ReceizClient["world"]["executeMultiWorldTransaction"];
+  verifiedDomainAdditionsV124: ReceizClient["domains"]["verifiedAdditionsV124"];
+  verifiedDomainReplayV124: ReceizClient["domains"]["verifiedReplayV124"];
+  verifiedDomainCheckpointV124: ReceizClient["domains"]["verifiedCheckpointV124"];
+  verifiedPrivateDomainAdditionsV124: ReceizClient["domains"]["verifiedPrivateAdditionsV124"];
+  exportDomainReplayProofObjectV124: ReceizClient["domains"]["exportVerifiedReplayProofObjectV124"];
+  restoreDomainReplayProofObjectV124: ReceizClient["domains"]["restoreVerifiedReplayProofObjectV124"];
+  resolvePublicRecipientV124: ReceizClient["identity"]["resolvePublicRecipientV124"];
+  publishSealedSourceV124: ReceizClient["sources"]["publishSealedSourceV124"];
   planPhiSettlementV122: ReceizClient["value"]["planSettlement"];
   planPhiReserveV122: ReceizClient["value"]["planReserve"];
   validatePhiIntentV122: ReceizClient["value"]["validateIntent"];
@@ -339,6 +367,11 @@ export type ReceizRailsStatus = {
     missing: ReceizDoctorReport["missing"];
     warnings: ReceizDoctorReport["warnings"];
   };
+  v124Runtime: {
+    qualified: boolean;
+    checkedOperations: number;
+    unavailableOperations: readonly string[];
+  };
   rails: Array<{
     key: ReceizRailKey;
     label: string;
@@ -361,7 +394,8 @@ function event(type: ProofEvent["type"], detail: string): ProofEvent {
 function receizClientOptionsFromEnv(): ReceizClientOptions {
   return {
     baseUrl: process.env.RECEIZ_BASE_URL || RECEIZ_DEFAULT_BASE_URL,
-    accessToken: process.env.RECEIZ_CONNECT_ACCESS_TOKEN || undefined
+    accessToken: process.env.RECEIZ_CONNECT_ACCESS_TOKEN || undefined,
+    applicationId: WILDZ_RECEIZ_APPLICATION_ID
   };
 }
 
@@ -380,7 +414,10 @@ function defaultDoctorOptions(): ReceizCapabilitiesOptions {
 export function createReceizCommerceAdapter(
   options: ReceizClientOptions = receizClientOptionsFromEnv()
 ): ReceizCommerceAdapter {
-  const client = createReceizClient(options);
+  const client = createReceizClient({
+    ...options,
+    applicationId: options.applicationId ?? WILDZ_RECEIZ_APPLICATION_ID
+  });
   const hasAccessToken = Boolean(options.accessToken);
   const hasWebhookSecret = Boolean(process.env.RECEIZ_WEBHOOK_SECRET);
   const trail: ProofEvent[] = [];
@@ -400,7 +437,15 @@ export function createReceizCommerceAdapter(
       return client.doctor(options);
     },
     async connectReceiz() {
-      const doctor = await client.doctor(defaultDoctorOptions());
+      const [doctor, operational] = await Promise.all([
+        client.doctor(defaultDoctorOptions()),
+        hasAccessToken
+          ? client.runtime.qualifyV124({
+              applicationId: WILDZ_RECEIZ_APPLICATION_ID,
+              operations: RECEIZ_V124_APPLICATION_OPERATIONS
+            }).catch(() => null)
+          : Promise.resolve(null)
+      ]);
       const capabilityStatus = (
         capability: keyof ReceizCapabilities["capabilities"],
         key: ReceizRailKey,
@@ -431,6 +476,15 @@ export function createReceizCommerceAdapter(
           ok: doctor.ok,
           missing: doctor.missing,
           warnings: doctor.warnings
+        },
+        v124Runtime: {
+          qualified: operational !== null
+            && operational.results.length === RECEIZ_V124_APPLICATION_OPERATIONS.length
+            && operational.results.every((result) => result.status === "available"),
+          checkedOperations: operational?.results.length ?? 0,
+          unavailableOperations: Object.freeze(operational?.results
+            .filter((result) => result.status !== "available")
+            .map((result) => result.operation) ?? [])
         },
         rails: [
           { key: "identity", label: "Receiz ID creation and continuation", status: "available" },
@@ -529,6 +583,42 @@ export function createReceizCommerceAdapter(
     exchangeProofAuthorityV123(input) {
       return client.identity.exchangeProofAuthority(input);
     },
+    grantedScopesV124() {
+      return client.auth.grantedScopes();
+    },
+    qualifyRuntimeV124(input) {
+      return client.runtime.qualifyV124(input);
+    },
+    openAuthoritySessionV124(input) {
+      return client.runtime.openAuthoritySessionV124(input);
+    },
+    refreshAuthoritySessionV124(input) {
+      return client.runtime.refreshAuthoritySessionV124(input);
+    },
+    closeAuthoritySessionV124(input) {
+      return client.runtime.closeAuthoritySessionV124(input);
+    },
+    stageExecutionV124(input) {
+      return client.execution.stage(input);
+    },
+    stagePreparedExecutionV124(plan, transitions) {
+      return client.execution.stagePrepared(plan, transitions);
+    },
+    executeV124(handle, session) {
+      return client.execution.execute(handle, session);
+    },
+    resolveExecutionV124(input) {
+      return client.execution.resolve(input);
+    },
+    resolveExecutionByIdempotencyV124(input) {
+      return client.execution.resolveByIdempotencyKey(input);
+    },
+    cancelExecutionV124(handle, session) {
+      return client.execution.cancel(handle, session);
+    },
+    planAtomicOperationV124(input) {
+      return client.execution.planAtomicOperationV124(input);
+    },
     ensureTenantSession(input) {
       return client.identity.ensureTenantSession(input);
     },
@@ -595,6 +685,24 @@ export function createReceizCommerceAdapter(
     resolveSubjectNamespacesV123(input) {
       return client.subjects.resolveNamespaces(input);
     },
+    resolveSubjectNamespacesV124(input) {
+      return client.subjects.resolveNamespacesV124(input);
+    },
+    subjectTwinProfile(subjectId) {
+      return client.subjects.twin.profile(subjectId);
+    },
+    subjectTwinMessage(subjectId, input) {
+      return client.subjects.twin.message(subjectId, input);
+    },
+    subjectTwinExportMind(subjectId) {
+      return client.subjects.twin.exportMind(subjectId);
+    },
+    subjectTwinImportMind(subjectId, artifact) {
+      return client.subjects.twin.importMind(subjectId, artifact);
+    },
+    subjectTwinMemorySummary(subjectId) {
+      return client.subjects.twin.memorySummary(subjectId);
+    },
     subjectStateV122(subjectId) {
       return client.subjects.state(subjectId);
     },
@@ -654,6 +762,30 @@ export function createReceizCommerceAdapter(
     },
     executeMultiWorldTransactionV122(input) {
       return client.world.executeMultiWorldTransaction(input);
+    },
+    verifiedDomainAdditionsV124(input) {
+      return client.domains.verifiedAdditionsV124(input);
+    },
+    verifiedDomainReplayV124(input) {
+      return client.domains.verifiedReplayV124(input);
+    },
+    verifiedDomainCheckpointV124(input) {
+      return client.domains.verifiedCheckpointV124(input);
+    },
+    verifiedPrivateDomainAdditionsV124(input) {
+      return client.domains.verifiedPrivateAdditionsV124(input);
+    },
+    exportDomainReplayProofObjectV124(input) {
+      return client.domains.exportVerifiedReplayProofObjectV124(input);
+    },
+    restoreDomainReplayProofObjectV124(input) {
+      return client.domains.restoreVerifiedReplayProofObjectV124(input);
+    },
+    resolvePublicRecipientV124(input) {
+      return client.identity.resolvePublicRecipientV124(input);
+    },
+    publishSealedSourceV124(input) {
+      return client.sources.publishSealedSourceV124(input);
     },
     planPhiSettlementV122(input) {
       return client.value.planSettlement(input);

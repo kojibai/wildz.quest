@@ -1,5 +1,7 @@
 # Receiz rails for Wildz v3
 
+The complete V124 production-runtime composition and its latency/authority boundaries are documented in [`RECEIZ_V124_RUNTIME.md`](./RECEIZ_V124_RUNTIME.md).
+
 Wildz targets the exact `@receiz/sdk@124.0.1` release. Application code uses SDK identity, artifact, durable subject admission, proof-authority exchange, authority sessions, durable execution, recipient resolution, and executable Phi clients. `@receiz/mcp-server@124.0.1` and `@receiz/ai-skills@124.0.1` are operator tooling only; neither can replace proof verification or independently admit a mutation. The packages resolve from the public npm registry, and their published SHA-512 lockfile integrity values keep installation reproducible. This patch retains the v124 registry digest `d02429151b0bcebdaeb89485792e377afc55130f9a25e07982c1c88221314247` and operation-matrix digest `540d1c1bf39f1b288b257c79a6e020bdcc5e587fc9b7dbf6b7aaa5d082e20ad5`.
 
 ## Authority map

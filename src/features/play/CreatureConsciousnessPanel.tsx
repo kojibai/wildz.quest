@@ -248,6 +248,9 @@ export function CreatureConsciousnessPanel({
             onObserved(event.turn);
             setDraft("");
             setStreamingExchange(null);
+            // V124 memory/audio enrichment may continue on the same stream,
+            // but the proof reply is complete and the player can speak again.
+            setLoading(false);
             committed = true;
           }
         }
@@ -379,7 +382,7 @@ export function CreatureConsciousnessPanel({
       {error ? <p className="wilds-creature-observer-error" role="alert">{error}</p> : null}
       <footer>
         <span>Brain {brain.contextDigest.slice(7, 18)}</span>
-        <span>Receiz v120 Twin · proof-bound intelligence</span>
+        <span>Receiz Twin · proof-bound intelligence</span>
         <span>Unique proof voice · ready locally</span>
       </footer>
     </section>

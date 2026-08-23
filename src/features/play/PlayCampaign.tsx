@@ -151,8 +151,6 @@ const WildsEcologyExperience = dynamic(() => import("@/features/play/WildsEcolog
 const WildsRaidExperience = dynamic(() => import("@/features/play/WildsRaidExperience").then((mod) => mod.WildsRaidExperience), { ssr: false });
 const WildsTrainerEncounter = dynamic(() => import("@/features/play/WildsTrainerEncounter").then((mod) => mod.WildsTrainerEncounter), { ssr: false });
 const MortalArenaExperience = dynamic(() => import("@/features/games/mortal-arena/MortalArenaExperience").then((mod) => mod.MortalArenaExperience), { ssr: false });
-const WILDS_WALLET_LAUNCHED = process.env.NEXT_PUBLIC_RECEIZ_WALLET_ENABLED !== "false";
-
 export function PlayCampaign({
   campaignName = "Reward Challenge",
   enabled,
@@ -306,8 +304,8 @@ export function PlayCampaign({
     ? { authorize: (input: Parameters<WildsWalletClientAuthorizationPort["authorize"]>[0]) => authorizeWildsWalletTransferWithIdentity(walletReadIdentityKey, input) }
     : undefined), [walletAuthorization, walletReadIdentityKey]);
   const walletController = useWildsWalletController(walletIdentityKey, walletAuthorityGeneration, {
-    authorization: WILDS_WALLET_LAUNCHED ? walletTransferAuthorization : undefined,
-    readAuthorization: WILDS_WALLET_LAUNCHED ? walletReadAuthorization : undefined
+    authorization: walletTransferAuthorization,
+    readAuthorization: walletReadAuthorization
   });
   const { cancelForExclusiveOwner: cancelWalletForExclusiveOwner } = walletController;
   const cameraHeadingRef = useRef(0);
@@ -1654,11 +1652,11 @@ export function PlayCampaign({
               onRosterOpenChange={handleMultiplayerRosterOpenChange}
               player={state.player}
               wallet={walletController}
-              walletEnabled={WILDS_WALLET_LAUNCHED}
+              walletEnabled
               world={livingWorld}
             />
 
-            {WILDS_WALLET_LAUNCHED && exclusiveOwner === "wallet" ? <WildsWalletTerminal
+            {exclusiveOwner === "wallet" ? <WildsWalletTerminal
               publicUsername={walletPublicUsername}
               state={walletController}
               onClose={() => closeOwnedModal("wallet")}

@@ -231,7 +231,7 @@ test("training becomes exact autobiographical memory without replacing capture",
   assert.equal(brain.memory.eventLedger.length, isLivingCardAsset(after) ? after.manifest.history?.events.length : 0);
 });
 
-test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and card-scoped UI", () => {
+test("Vault consciousness keeps the local subject Twin immediate and adds qualified V124 enrichment", () => {
   const route = readFileSync("app/api/receiz/creature-observer/route.ts", "utf8");
   const panel = readFileSync("src/features/play/CreatureConsciousnessPanel.tsx", "utf8");
   const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
@@ -256,12 +256,14 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
   assert.match(route, /type: "reply_done"/);
   assert.match(route, /type: "audio_chunk"/);
   assert.match(route, /voiceSignature: subjectBrain\.performance\.expression\.voiceSignature/);
-  assert.match(route, /receiz-v120-proof-performance/);
+  assert.match(route, /receiz-v124-qualified-proof-performance/);
   assert.doesNotMatch(route, /Promise\.any|generateWildzCreatureVoice|audioDataUrl/);
   assert.doesNotMatch(route, /RECEIZ_CONNECT_ACCESS_TOKEN/);
   assert.match(route, /creature_observer_owner_mismatch/);
   assert.match(route, /clientOperationId/);
-  assert.match(route, /receiz\.world\.message\("wildz"/);
+  assert.match(route, /receiz\.world\.message\(WILDZ_RECEIZ_APPLICATION_ID/);
+  assert.match(route, /receiz\.runtime\.qualifyV124/);
+  assert.match(route, /receiz\.subjects\.twin\.memorySummary/);
   assert.match(route, /proofGroundedCreatureReply/);
   assert.match(route, /proof-grounded-creature-twin/);
   assert.match(route, /type: "reply_reset"/);
@@ -270,7 +272,7 @@ test("Vault consciousness uses the owner-scoped SDK v120 subject Twin rail and c
   assert.doesNotMatch(route, /if \(!audioSent\) throw/);
   assert.match(route, /PERFORMANCE_ENRICHMENT_BUDGET_MS/);
   assert.match(route, /genuine: observer === "receiz-twin"/);
-  assert.match(panel, /Receiz v120 Twin · proof-bound intelligence/);
+  assert.match(panel, /Receiz Twin · proof-bound intelligence/);
   assert.doesNotMatch(panel, /proof-grounded local/);
   assert.match(route, /observeCreatureThroughReceizV120/);
   assert.match(route, /creatureObserverClientContext\(subjectBrain, presentKaiMoment\)/);

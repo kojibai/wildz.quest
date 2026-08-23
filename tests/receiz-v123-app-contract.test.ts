@@ -34,13 +34,15 @@ describe("Receiz v124 application contract", () => {
     assert.equal(RECEIZ_V124_AUTHORITY_BOUNDARY.authority.settledSurfaceNeverWaitsForProjection, true);
 
     const checkedIn = JSON.parse(readFileSync("receiz.app.json", "utf8"));
-    const contract = defineReceizApp({ ...checkedIn, operations: RECEIZ_V124_APPLICATION_OPERATION_MATRIX });
+    const contract = defineReceizApp(checkedIn);
     const plan = compileReceizAppContract(contract, { targetSdkVersion: "124.0.1" });
     assert.equal(plan.targetSdkVersion, "124.0.1");
     assert.equal(contract.authority.mode, "artifact-first");
     assert.equal(contract.authority.allowDatabaseAuthority, false);
     assert.deepEqual(contract.operations?.map((operation: { operation: string }) => operation.operation), RECEIZ_V124_APPLICATION_OPERATIONS);
     assert.ok(contract.operations?.every((operation: { compatibleSdkRange: string }) => operation.compatibleSdkRange === ">=124.0.0 <125.0.0"));
+    assert.deepEqual(contract.operations, RECEIZ_V124_APPLICATION_OPERATION_MATRIX);
+    assert.deepEqual(contract.features, ["identity", "proof", "proofMemory", "publicStore", "commerce", "media", "world", "subjects"]);
   });
 
   it("passes the v124 repository integration checker", () => {

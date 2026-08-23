@@ -166,8 +166,11 @@ test("the Wildz session requests only the scoped rails used by live V3 gameplay"
     "receiz:world_events.read",
     "receiz:twin.read",
     "receiz:twin.write",
+    "receiz:creator.execute",
+    "receiz:twin.execute",
     "receiz:world.read",
-    "receiz:world.write"
+    "receiz:world.write",
+    "receiz:world.private"
   ]) {
     assert.equal(WILDZ_RECEIZ_OIDC_SCOPES.includes(scope), true, scope);
   }

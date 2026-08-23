@@ -24,8 +24,8 @@ The V124 wallet release gate is being requalified on 2026-08-23:
 
 | Gate | Observed result |
 |---|---|
-| Receiz architecture lock | Pass; 500 runtime files checked |
-| Node law/regression suite | Pass; 1,788 tests across 163 suites, zero failures |
+| Receiz architecture lock | Pass; 501 runtime files checked |
+| Node law/regression suite | Pass; 1,793 tests across 164 suites, zero failures |
 | Typecheck | Pass |
 | Official V124 repository checker | Pass; exact release, 53-operation registry/matrix, and authority identity |
 | MCP/SDK conformance | Pass; 15/15 checks, zero network calls, zero database calls |
@@ -34,6 +34,8 @@ The V124 wallet release gate is being requalified on 2026-08-23:
 | Receiz packages | Pass; SDK/MCP/AI skills requested and installed at exact compatible `124.0.1` |
 
 The published `receiz conformance` command passes all 15 checks under the compatible V124 package set, but its report metadata still emits the stale label `sdkVersion: 121.0.0`. Installed SDK and release exports, package pins, the official V124 repository checker, and the application contract all report `124.0.1`; the stale CLI label is recorded as an upstream packaging issue rather than rewritten as application evidence.
+
+The checked-in V124 application contract now declares the complete exact 53-operation matrix. Wildz requests the SDK-derived world-private and Twin execution scopes, qualifies optional remote work before use, and exposes the canonical authority-session, replay, private-memory, durable-execution, atomic-planning, recipient-resolution, source-publication, and subject-Twin methods through its adapter. These capabilities are invoked only on relevant, consent-bound paths; registration or qualification alone is never represented as authority or completed execution.
 
 The optimized build retains two upstream `web-worker` dynamic-require warnings in the Receiz `snarkjs` verifier import chain. They are not application exceptions, do not add a Wildz voice dependency, and were disclosed rather than mislabeled as a warning-free build. The root, robots, standard sitemap, image sitemap, manifest, and social metadata remain outside the gameplay render loop.
 

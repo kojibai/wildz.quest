@@ -95,7 +95,7 @@ try {
 requireMatch(route, /observeCreatureThroughReceizV120\(/, "local_v120_subject_twin_missing");
 requireMatch(route, /proofGroundedCreatureReply\(subjectBrain, input\.message, presentKaiMoment\.temporalRoot\.uPulse\)/, "proof_grounded_intelligence_missing");
 requireMatch(route, /type:\s*["']reply_reset["']/, "immediate_proof_reply_missing");
-requireMatch(route, /receiz\.world\.message\(["']wildz["']/, "optional_twin_enrichment_rail_missing");
+requireMatch(route, /receiz\.world\.message\(WILDZ_RECEIZ_APPLICATION_ID/, "optional_twin_enrichment_rail_missing");
 requireMatch(route, /PERFORMANCE_ENRICHMENT_BUDGET_MS/, "enrichment_budget_missing");
 requireMatch(route, /createObservedCreatureTurn\(/, "proof_memory_turn_missing");
 forbidMatch(route, /if\s*\(\s*!audioSent\s*\)|generatedAudio\s*===\s*true[\s\S]{0,160}createObservedCreatureTurn/, "voice_gates_proof_memory");

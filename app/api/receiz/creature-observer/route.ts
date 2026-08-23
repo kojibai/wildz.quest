@@ -15,6 +15,8 @@ import { observeCreatureThroughReceizV120 } from "@/features/play/receiz-v120-cr
 import { resolveWildzGameplayCookieActor } from "@/lib/receiz/wildz-cookie-actor";
 import { canCurrentWildzOwnerObserveCreature } from "@/lib/receiz/wildz-creature-observer-ownership";
 import { readWildzProofSessionCookie } from "@/lib/receiz/wildz-proof-session";
+import { WILDZ_RECEIZ_APPLICATION_ID } from "@/lib/receiz/wildz-application";
+import { qualifyWildzV124Operations, WILDZ_V124_TWIN_OPERATIONS } from "@/lib/receiz/v124-runtime-policy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -96,13 +98,20 @@ export async function POST(request: NextRequest) {
 
     const receiz = createReceizClient({
       ...(process.env.RECEIZ_BASE_URL ? { baseUrl: process.env.RECEIZ_BASE_URL } : {}),
-      ...(actor.accessToken ? { accessToken: actor.accessToken } : {})
+      ...(actor.accessToken ? { accessToken: actor.accessToken } : {}),
+      applicationId: WILDZ_RECEIZ_APPLICATION_ID
     });
+    const twinQualification = actor.accessToken
+      ? qualifyWildzV124Operations({
+          qualifyRuntimeV124: (input) => receiz.runtime.qualifyV124(input)
+        }, WILDZ_V124_TWIN_OPERATIONS).then((qualification) => qualification.available).catch(() => false)
+      : Promise.resolve(false);
     const clientOperationId = input.clientUserMessageId ?? `creature-message:${brain.contextDigest.slice(7, 39)}`;
 
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
         let closed = false;
+        let enrichmentSettled: Promise<void> = Promise.resolve();
         const send = (value: unknown) => {
           if (!closed && !request.signal.aborted) controller.enqueue(eventBytes(value));
         };
@@ -125,27 +134,44 @@ export async function POST(request: NextRequest) {
                   `The person's message was: ${input.message}`,
                   `Perform this exact proof-derived response without changing its words: ${speech}`
                 ].join("\n\n");
-                const enrichedAudio = withinPerformanceBudget(receiz.world.message("wildz", {
-                  action: "message",
-                  message: performanceMessage,
-                  visitorKey: creatureObserverVisitorKey(actor.actorId),
-                  threadKey: creatureObserverThreadKey(input.card.id),
-                  allowBrowserVoiceFallback: false,
-                  clientContext: observerContext,
-                  clientUserMessageId: clientOperationId,
-                  clientOperationId,
-                  quoteExpiresAt: new Date(Date.now() + 9 * 60_000).toISOString()
-                }).then((worldResponse) => {
+                const enrichment = withinPerformanceBudget(twinQualification.then(async (qualified) => {
+                  if (!qualified) return null;
+                  const [worldResponse, remoteMemory] = await Promise.all([
+                    receiz.world.message(WILDZ_RECEIZ_APPLICATION_ID, {
+                      action: "message",
+                      message: performanceMessage,
+                      visitorKey: creatureObserverVisitorKey(actor.actorId),
+                      threadKey: creatureObserverThreadKey(input.card.id),
+                      allowBrowserVoiceFallback: false,
+                      clientContext: observerContext,
+                      clientUserMessageId: clientOperationId,
+                      clientOperationId,
+                      quoteExpiresAt: new Date(Date.now() + 9 * 60_000).toISOString()
+                    }),
+                    receiz.subjects.twin.memorySummary(input.card.id).catch(() => null)
+                  ]);
                   if (worldResponse.ok !== true) throw new Error(worldResponse.error || "creature_observer_intelligence_unavailable");
                   const reply = asRecord(worldResponse.reply);
-                  if (!reply || reply.source !== "upstream") return null;
-                  return finalPerformanceAudio(upstreamWorldPerformance(reply));
+                  return {
+                    audio: reply?.source === "upstream"
+                      ? finalPerformanceAudio(upstreamWorldPerformance(reply))
+                      : null,
+                    remoteMemory
+                  };
                 }).catch(() => null));
-                void enrichedAudio.then((audio) => {
-                  if (audio && !request.signal.aborted) send({
-                    ...audio,
+                enrichmentSettled = enrichment.then((result) => {
+                  if (!result || request.signal.aborted) return;
+                  if (result.remoteMemory) send({
+                    type: "memory_sync",
+                    subjectId: result.remoteMemory.subjectId,
+                    head: result.remoteMemory.head,
+                    projectionDigest: result.remoteMemory.projectionDigest,
+                    authority: false
+                  });
+                  if (result.audio) send({
+                    ...result.audio,
                     voiceSignature: subjectBrain.performance.expression.voiceSignature,
-                    source: "receiz-v120-proof-performance"
+                    source: "receiz-v124-qualified-proof-performance"
                   });
                 }).catch(() => { /* Enrichment never affects the proof response rail. */ });
                 return {
@@ -219,6 +245,9 @@ export async function POST(request: NextRequest) {
               },
               moment: presentKaiMoment
             });
+            // The proof-backed reply is already committed above. Keep only the
+            // stream open for bounded V124 audio/memory projection enrichment.
+            await enrichmentSettled;
           } catch (cause) {
             send({ type: "error", error: cause instanceof Error ? cause.message : "creature_observer_unavailable" });
           } finally {
