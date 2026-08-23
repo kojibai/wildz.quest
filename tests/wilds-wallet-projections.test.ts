@@ -155,7 +155,7 @@ describe("Wilds wallet projections", () => {
     }
   });
 
-  it("marks every V123 execution surface unavailable while retaining V122 reads", () => {
+  it("marks every execution surface unavailable while retaining reads without V124 admission", () => {
     assert.deepEqual(projectWildsWalletCapabilities(), {
       read: "available",
       receive: "available",
@@ -168,7 +168,7 @@ describe("Wilds wallet projections", () => {
     });
   });
 
-  it("admits live V123 Phi capabilities only for exact installed rails and SDK-derived granted scopes", () => {
+  it("admits live V124 Phi capabilities only for exact installed rails and SDK-derived granted scopes", () => {
     const rails = {
       proofAuthorityExchange: true,
       settlementExecution: true,
@@ -189,7 +189,7 @@ describe("Wilds wallet projections", () => {
     );
 
     const admitted = projectWildsWalletCapabilities({
-      sdkVersion: "123.0.0",
+      sdkVersion: "124.0.0",
       rails,
       grantedScopes: exactScopes
     }, true);
@@ -207,7 +207,7 @@ describe("Wilds wallet projections", () => {
     });
 
     const partial = projectWildsWalletCapabilities({
-      sdkVersion: "123.0.0",
+      sdkVersion: "124.0.0",
       rails,
       grantedScopes: exactScopes.filter((scope) => scope !== "receiz:reserve.write")
     });
@@ -218,7 +218,7 @@ describe("Wilds wallet projections", () => {
     assert.deepEqual(partial.send, { available: true });
 
     const packageOnly = projectWildsWalletCapabilities({
-      sdkVersion: "123.0.0",
+      sdkVersion: "124.0.0",
       rails: { ...rails, valueExecutionRecovery: false },
       grantedScopes: exactScopes
     });

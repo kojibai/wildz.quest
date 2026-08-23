@@ -1,6 +1,6 @@
 # Receiz rails for Wildz v3
 
-Wildz targets the exact `@receiz/sdk@123.0.0` release. Application code uses SDK identity, artifact, durable subject admission, private world events, exact transactions, proof-authority exchange, and executable Phi Settlement/Reserve clients. `@receiz/mcp-server@123.0.0` and `@receiz/ai-skills@123.0.0` are operator tooling only; neither can replace proof verification or independently admit a mutation. The packages resolve from the public npm registry, and their published SHA-512 lockfile integrity values keep installation reproducible. The v123 registry digest is `945a581d1fc49c2dc18fbe8c129771ef464b8a58b96188bce561e88ae8b6ceeb`; its operation-matrix digest is `e08cec3e3ad22c20ddd6c08169ece19f094c366214d6d6b4dc432cd97558e2c5`.
+Wildz targets the exact `@receiz/sdk@124.0.0` release. Application code uses SDK identity, artifact, durable subject admission, proof-authority exchange, authority sessions, durable execution, recipient resolution, and executable Phi clients. `@receiz/mcp-server@124.0.0` and `@receiz/ai-skills@124.0.0` are operator tooling only; neither can replace proof verification or independently admit a mutation. The packages resolve from the public npm registry, and their published SHA-512 lockfile integrity values keep installation reproducible. The v124 registry digest is `d02429151b0bcebdaeb89485792e377afc55130f9a25e07982c1c88221314247`; its operation-matrix digest is `540d1c1bf39f1b288b257c79a6e020bdcc5e587fc9b7dbf6b7aaa5d082e20ad5`.
 
 ## Authority map
 
@@ -46,7 +46,7 @@ Durable Receiz rails fail closed. Capability absence, network failure, stale rev
 
 ## V123 constitutional application boundary
 
-`receiz.app.json` is compiled by the official v123 compiler with artifact-first authority and `allowDatabaseAuthority: false`. The release is bound to registry digest `945a581d1fc49c2dc18fbe8c129771ef464b8a58b96188bce561e88ae8b6ceeb` and operation-matrix digest `e08cec3e3ad22c20ddd6c08169ece19f094c366214d6d6b4dc432cd97558e2c5`. Canonical changes are command-only and must carry same-runtime verified admission/history/actor evidence, the discovered registry law, named commit domain, exact plan-bound capability, expected head, canonical event, idempotency identity, and bounded effects. `pnpm receiz:check` runs the v123 repository checker and is included in the local release gate.
+`receiz.app.json` is compiled by the official v124 compiler with artifact-first authority and `allowDatabaseAuthority: false`. The release is bound to registry digest `d02429151b0bcebdaeb89485792e377afc55130f9a25e07982c1c88221314247` and operation-matrix digest `540d1c1bf39f1b288b257c79a6e020bdcc5e587fc9b7dbf6b7aaa5d082e20ad5`. Canonical changes are command-only and must carry same-runtime verified admission/history/actor evidence, the discovered registry law, named commit domain, exact plan-bound capability, expected head, canonical event, idempotency identity, and bounded effects. `pnpm receiz:check` runs the v124 repository checker and is included in the local release gate.
 
 V123 is one coordinated SDK/MCP/AI/ruleset/registry/matrix/package-range/runtime release identity. Durable proof memory is first admission only, then append forever. V123 causal orchestration keeps the enclosing artifact strongest, paints known truth before discovery, selects causal heads by Kai, and commits exact appends through Merkle roots with Fibonacci sparse ancestry.
 
@@ -56,7 +56,7 @@ V123 source-first continuity keeps the sealed proof object authoritative. Server
 
 Living-subject law extends that boundary: subject identity survives transfer; factual memory cites admitted events; the proof-brain index is non-authoritative; model output requires command admission; multi-subject effects are atomic; failed decisions write zero including Kai; mandates are reverified at execution; unknown namespaces remain byte-exact; bearer claims preserve identity; and former-owner authority is revoked immediately.
 
-The historical migration checkpoint records forward-only preservation and zero rewritten artifacts, receipts, or heads. It remains compatibility evidence only; current execution and qualification use v123. Historical sealed bytes may be reverified, but historical runtime authority objects cannot be reused. The migration verifier is not proof authority.
+The historical migration checkpoint records forward-only preservation and zero rewritten artifacts, receipts, or heads. It remains compatibility evidence only; current execution and qualification use v124. Historical sealed bytes may be reverified, but historical runtime authority objects cannot be reused. The migration verifier is not proof authority.
 
 Compiler, registry evaluation, MCP conformance, or checker success proves only that the repository matches its declared integration contract. It does not prove artifact truth, strict-live availability, or remote mutation admission. V123 retains direct bearer instruments for custody transfer, but they do not fabricate the marketplace's distinct conditional listing/payment/settlement append; those mutations remain fail-closed wherever that separate capability is unavailable.
 

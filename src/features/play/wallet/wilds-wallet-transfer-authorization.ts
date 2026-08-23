@@ -1,9 +1,7 @@
 "use client";
 
 import {
-  canonicalizeReceizV122,
-  proofAuthorityChallengeBasisV123,
-  receizBase64UrlEncode,
+  createReceizProofAuthorityChallenge,
   receizOidcScopesForRails,
   serializeReceizIdentityArtifact,
   sha256ReceizBytes,
@@ -11,7 +9,6 @@ import {
   type ReceizIdentityLoginProof
 } from "@receiz/sdk";
 import { defaultIdentityRepository } from "@/lib/receiz/wildz-identity-adapter";
-import { observeWildsKaiPulse } from "@/features/play/wilds-kai-runtime";
 import { wildsWalletTransferConsentStatementDigest } from "@/lib/receiz/wilds-wallet-transfer-consent";
 import { WILDS_WALLET_AUTHORITY_WINDOW_PULSES } from "@/lib/receiz/wilds-wallet-authority-scopes";
 import { WILDZ_RECEIZ_APPLICATION_ID } from "@/lib/receiz/wildz-application";
@@ -30,10 +27,8 @@ type TransferAuthorizationDependencies = Readonly<{
     keyId: string;
     sign(challengeB64Url: string): Promise<ReceizIdentityLoginProof>;
   }>>;
-  nowKai(): number;
-  nonce(): string;
   statementDigest(input: TransferAuthorizationInput): Promise<string>;
-  challengeText(basis: ReturnType<typeof proofAuthorityChallengeBasisV123>): string;
+  createChallenge: typeof createReceizProofAuthorityChallenge;
 }>;
 
 const DEFAULT_DEPENDENCIES: TransferAuthorizationDependencies = {
@@ -46,10 +41,8 @@ const DEFAULT_DEPENDENCIES: TransferAuthorizationDependencies = {
       sign: async (challengeB64Url) => signReceizIdentityLoginProof({ keyFile, challengeB64Url })
     };
   }),
-  nowKai: observeWildsKaiPulse,
-  nonce: () => crypto.randomUUID(),
   statementDigest: wildsWalletTransferConsentStatementDigest,
-  challengeText: canonicalizeReceizV122
+  createChallenge: createReceizProofAuthorityChallenge
 };
 
 export async function authorizeWildsWalletTransferWithIdentity(
@@ -63,26 +56,13 @@ export async function authorizeWildsWalletTransferWithIdentity(
   }
   const identity = await dependencies.loadIdentity(keyId);
   if (identity.keyId !== keyId) throw new Error("wilds_wallet_transfer_authorization_identity_mismatch");
-  const issuedAtKai = dependencies.nowKai();
-  const nonce = dependencies.nonce();
-  if (!Number.isSafeInteger(issuedAtKai) || issuedAtKai < 0 || !nonce || nonce.length > 256) {
-    throw new Error("wilds_wallet_transfer_authorization_challenge_invalid");
-  }
-  const unsigned = Object.freeze({
-    schema: "receiz.identity.proof-authority-challenge.v123" as const,
-    audience: WILDZ_RECEIZ_APPLICATION_ID,
-    nonce,
-    issuedAtKai,
-    expiresAtKai: issuedAtKai + WILDS_WALLET_AUTHORITY_WINDOW_PULSES,
-    consent: Object.freeze({ approved: true, statementDigest: await dependencies.statementDigest(input) })
-  });
-  const basis = proofAuthorityChallengeBasisV123({
-    challenge: unsigned,
+  const created = dependencies.createChallenge({
     applicationId: WILDZ_RECEIZ_APPLICATION_ID,
     artifactDigest: identity.artifactDigest,
-    scopes: receizOidcScopesForRails(input.rail)
+    scopes: receizOidcScopesForRails(input.rail),
+    consentStatementDigest: await dependencies.statementDigest(input),
+    ttlPulses: WILDS_WALLET_AUTHORITY_WINDOW_PULSES
   });
-  const challengeB64Url = receizBase64UrlEncode(new TextEncoder().encode(dependencies.challengeText(basis)));
-  const proof = await identity.sign(challengeB64Url);
-  return Object.freeze({ artifact: identity.artifact, challenge: Object.freeze({ ...unsigned, proof }) });
+  const proof = await identity.sign(created.challengeB64Url);
+  return Object.freeze({ artifact: identity.artifact, challenge: Object.freeze({ ...created.challenge, proof }) });
 }

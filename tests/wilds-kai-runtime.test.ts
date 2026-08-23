@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { deriveKaiKlokMoment } from "../src/features/play/kai-klok-moment";
-import { createWildsKaiRuntimeClock, resolveWildsRuntimeKaiMoment } from "../src/features/play/wilds-kai-runtime";
+import { receizKaiNow } from "@receiz/sdk";
+import { createWildsKaiRuntimeClock, observeWildsKaiPulse, resolveWildsRuntimeKaiMoment } from "../src/features/play/wilds-kai-runtime";
+
+test("wallet authority observes the canonical V124 Receiz Kai pulse", () => {
+  const before = receizKaiNow().pulse;
+  const observed = observeWildsKaiPulse();
+  const after = receizKaiNow().pulse;
+  assert.ok(observed >= before && observed <= after);
+});
 
 const cursor = {
   pulse: "2024-05-10T06:45:00.000Z",

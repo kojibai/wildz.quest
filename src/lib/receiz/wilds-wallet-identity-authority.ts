@@ -1,5 +1,9 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
-import type { ReceizProofAuthorityChallengeV123, ReceizProofAuthorityV123 } from "@receiz/sdk";
+import {
+  createReceizProofAuthorityChallenge,
+  type ReceizProofAuthorityChallengeV123,
+  type ReceizProofAuthorityV123
+} from "@receiz/sdk";
 import { parseWildzPlayerCoordinate, sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import {
   hasExactWildsWalletReadAuthorityScopes,
@@ -24,6 +28,7 @@ type WalletAuthorityTicket = Readonly<{
   keyId: string;
   actorId?: string;
   profileHandle?: string;
+  artifactDigest: string;
   nonce: string;
   issuedAtKai: number;
   expiresAtKai: number;
@@ -71,29 +76,29 @@ function sha256Text(value: string) {
 
 export function issueWildsWalletIdentityAuthorityChallenge(input: Readonly<{
   session: WildsWalletIdentitySession;
-  nowKai: number;
-  nonce: string;
+  artifactDigest: string;
 }>, secret: string) {
   const hasCompleteSessionBinding = Boolean(input.session.actorId && input.session.profileHandle);
   if (!/^[a-f0-9]{64}$/.test(input.session.keyId)
     || Boolean(input.session.actorId) !== Boolean(input.session.profileHandle)
-    || !Number.isSafeInteger(input.nowKai) || !input.nonce || input.nonce.length > 256) {
+    || !/^[a-f0-9]{64}$/.test(input.artifactDigest)) {
     throw new Error("receiz_wallet_identity_authority_challenge_invalid");
   }
   const statementDigest = sha256Text("Wildz may identify this Receiz ID and refresh its wallet projection for 60 Kai pulses. Moving value requires a fresh exact edge signature from this Receiz ID.");
-  const unsigned = Object.freeze({
-    schema: "receiz.identity.proof-authority-challenge.v123" as const,
-    audience: APPLICATION_ID,
-    nonce: input.nonce,
-    issuedAtKai: input.nowKai,
-    expiresAtKai: input.nowKai + WILDS_WALLET_AUTHORITY_WINDOW_PULSES,
-    consent: Object.freeze({ approved: true, statementDigest })
+  const created = createReceizProofAuthorityChallenge({
+    applicationId: APPLICATION_ID,
+    artifactDigest: input.artifactDigest,
+    scopes: WILDS_WALLET_READ_AUTHORITY_SCOPES,
+    consentStatementDigest: statementDigest,
+    ttlPulses: WILDS_WALLET_AUTHORITY_WINDOW_PULSES
   });
+  const unsigned = created.challenge;
   const ticket = packTicket({
     applicationId: APPLICATION_ID,
     keyId: input.session.keyId,
     ...(hasCompleteSessionBinding ? { actorId: input.session.actorId, profileHandle: input.session.profileHandle } : {}),
-    nonce: input.nonce,
+    artifactDigest: input.artifactDigest,
+    nonce: unsigned.nonce,
     issuedAtKai: unsigned.issuedAtKai,
     expiresAtKai: unsigned.expiresAtKai,
     statementDigest
@@ -136,6 +141,7 @@ export async function completeWildsWalletIdentityAuthority(input: Readonly<{
     throw new Error("receiz_wallet_identity_authority_challenge_invalid");
   }
   const artifactDigest = await dependencies.artifactDigest(body.artifact);
+  if (artifactDigest !== ticket.artifactDigest) throw new Error("receiz_wallet_identity_authority_binding_invalid");
   const authority = await dependencies.validate(await dependencies.exchange({
     artifact: body.artifact,
     challenge: body.challenge as ReceizProofAuthorityChallengeV123,

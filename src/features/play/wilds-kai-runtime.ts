@@ -5,6 +5,7 @@ import {
   type KaiKlokMoment
 } from "./kai-klok-moment";
 import type { WildsWorldProjection } from "./wilds-world-state";
+import { receizKaiNow } from "@receiz/sdk";
 
 type WildsRuntimeMode = "receiz_live" | "kai_live" | "offline" | "local" | string;
 
@@ -22,8 +23,10 @@ export function observeWildsKaiUPulse(epochMs = Date.now()) {
 }
 
 /** Receiz V123 authority challenges use whole Kai pulses, not micro-pulses. */
-export function observeWildsKaiPulse(epochMs = Date.now()) {
-  return Math.floor(observeWildsKaiUPulse(epochMs) / 1_000_000);
+export function observeWildsKaiPulse(epochMs?: number) {
+  return epochMs === undefined
+    ? receizKaiNow().pulse
+    : Math.floor(observeWildsKaiUPulse(epochMs) / 1_000_000);
 }
 
 export function createWildsKaiRuntimeClock(input: {

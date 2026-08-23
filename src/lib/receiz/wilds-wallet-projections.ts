@@ -235,7 +235,7 @@ export function projectWildsWalletCapabilities(
     available: false as const,
     reason: "receiz_v123_execution_unavailable" as const
   });
-  if (!admission || admission.sdkVersion !== "123.0.0") {
+  if (!admission || admission.sdkVersion !== "124.0.0") {
     return Object.freeze({
       read: "available" as const,
       receive: "available" as const,

@@ -63,7 +63,7 @@ export function WildsWalletTerminal({ publicUsername, state, ...actions }: { pub
         {state.page === "assets" ? <WildsWalletAssets state={state} /> : null}
         {state.page === "ledger" ? <WildsWalletLedger state={state} /> : null}
       </main>
-      <footer><span>RECEIZ V123 · PROOF-NATIVE CUSTODY</span><span>PRIVATE · NO-STORE</span></footer>
+      <footer><span>RECEIZ V124 · PROOF-NATIVE CUSTODY</span><span>PRIVATE · NO-STORE</span></footer>
     </section>
   </div>;
 }

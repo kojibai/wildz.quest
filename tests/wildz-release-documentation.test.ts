@@ -5,7 +5,7 @@ import { test } from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("Wildz current release doctrine names the exact Receiz v123 toolchain", () => {
+test("Wildz current release doctrine names the exact Receiz v124 toolchain", () => {
   const pkg = JSON.parse(read("package.json")) as {
     version?: string;
     dependencies?: Record<string, string>;
@@ -21,20 +21,20 @@ test("Wildz current release doctrine names the exact Receiz v123 toolchain", () 
   };
 
   assert.equal(pkg.version, "8.0.0");
-  assert.equal(pkg.dependencies?.["@receiz/sdk"], "123.0.0");
-  assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "123.0.0");
-  assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "123.0.0");
+  assert.equal(pkg.dependencies?.["@receiz/sdk"], "124.0.0");
+  assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "124.0.0");
+  assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "124.0.0");
   for (const [name, source] of Object.entries(currentDoctrine)) {
     for (const packageName of ["@receiz/sdk", "@receiz/mcp-server", "@receiz/ai-skills"]) {
-      assert.match(source, new RegExp(`${packageName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}@123\\.0\\.0`), name);
+      assert.match(source, new RegExp(`${packageName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}@124\\.0\\.0`), name);
     }
-    assert.match(source, /945a581d1fc49c2dc18fbe8c129771ef464b8a58b96188bce561e88ae8b6ceeb/i, name);
-    assert.match(source, /e08cec3e3ad22c20ddd6c08169ece19f094c366214d6d6b4dc432cd97558e2c5/i, name);
+    assert.match(source, /d02429151b0bcebdaeb89485792e377afc55130f9a25e07982c1c88221314247/i, name);
+    assert.match(source, /540d1c1bf39f1b288b257c79a6e020bdcc5e587fc9b7dbf6b7aaa5d082e20ad5/i, name);
     assert.doesNotMatch(source, /@receiz\/(?:sdk|mcp-server|ai-skills)@122\.0\.0/i, name);
   }
-  assert.match(mcp, /@receiz\/sdk@123\.0\.0/);
-  assert.match(mcp, /@receiz\/mcp-server@123\.0\.0/);
-  assert.match(mcp, /@receiz\/ai-skills@123\.0\.0/);
+  assert.match(mcp, /@receiz\/sdk@124\.0\.0/);
+  assert.match(mcp, /@receiz\/mcp-server@124\.0\.0/);
+  assert.match(mcp, /@receiz\/ai-skills@124\.0\.0/);
   assert.match(currentDoctrine.readme, /public npm/i);
   assert.match(currentDoctrine.readme, /published (?:SHA-512 )?integrity/i);
   assert.match(currentDoctrine.releaseSkill, /first admission only, then append forever/i);

@@ -53,7 +53,7 @@ test("campaign mounts the terminal outside the Canvas and instrument directly af
   assert.ok(campaign.indexOf("useWildsWalletController") < campaign.indexOf("<WildsWorldCanvas"));
   assert.ok(campaign.indexOf("<WildsWalletTerminal") > campaign.indexOf("</CanvasErrorBoundary>"));
   assert.match(hud, /wilds-kai-command-pill[\s\S]*<WildsAudioSettings[\s\S]*<WildsWalletInstrument/);
-  assert.match(campaign, /NEXT_PUBLIC_RECEIZ_WALLET_ENABLED === "true"/);
+  assert.match(campaign, /NEXT_PUBLIC_RECEIZ_WALLET_ENABLED !== "false"/);
   assert.match(campaign, /WILDS_WALLET_LAUNCHED && exclusiveOwner === "wallet"/);
   assert.match(hud, /walletEnabled \? <WildsWalletInstrument/);
 });

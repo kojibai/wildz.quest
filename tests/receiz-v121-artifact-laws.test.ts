@@ -136,7 +136,7 @@ test("the thirty-law custody matrix has executable repository and SDK evidence",
   assert.ok(Object.values(evidence).every(Boolean), JSON.stringify(evidence));
 });
 
-test("v123 MCP and AI Skills expose artifact, living-subject, and exact execution operation maps", () => {
+test("v124 MCP and AI Skills retain artifact, living-subject, and exact execution operation maps", () => {
   const mcpOperations = read("node_modules/@receiz/mcp-server/dist/operations.d.ts");
   const mcpV123Operations = read("node_modules/@receiz/mcp-server/dist/v123Operations.d.ts");
   const aiIndex = JSON.parse(read("node_modules/@receiz/ai-skills/skills.json")) as {
@@ -160,9 +160,9 @@ test("v123 MCP and AI Skills expose artifact, living-subject, and exact executio
   ];
   assert.deepEqual(aiIndex.currentMcpArtifactTools, expectedTools);
   for (const operation of expectedTools) assert.match(mcpOperations, new RegExp(operation));
-  assert.equal(aiIndex.version, "123.0.0");
-  assert.equal(aiIndex.registryDigest, RECEIZ_V123_REGISTRY_DIGEST);
-  assert.equal(aiIndex.operationMatrixDigest, RECEIZ_V123_APPLICATION_OPERATION_MATRIX_DIGEST);
+  assert.equal(aiIndex.version, "124.0.0");
+  assert.equal(aiIndex.registryDigest, "d02429151b0bcebdaeb89485792e377afc55130f9a25e07982c1c88221314247");
+  assert.equal(aiIndex.operationMatrixDigest, "540d1c1bf39f1b288b257c79a6e020bdcc5e587fc9b7dbf6b7aaa5d082e20ad5");
   assert.equal(aiIndex.currentMcpLivingSubjectTools.length, 37);
   for (const operation of [
     "receiz_subject_twin_message",

@@ -151,7 +151,7 @@ const WildsEcologyExperience = dynamic(() => import("@/features/play/WildsEcolog
 const WildsRaidExperience = dynamic(() => import("@/features/play/WildsRaidExperience").then((mod) => mod.WildsRaidExperience), { ssr: false });
 const WildsTrainerEncounter = dynamic(() => import("@/features/play/WildsTrainerEncounter").then((mod) => mod.WildsTrainerEncounter), { ssr: false });
 const MortalArenaExperience = dynamic(() => import("@/features/games/mortal-arena/MortalArenaExperience").then((mod) => mod.MortalArenaExperience), { ssr: false });
-const WILDS_WALLET_LAUNCHED = process.env.NEXT_PUBLIC_RECEIZ_WALLET_ENABLED === "true";
+const WILDS_WALLET_LAUNCHED = process.env.NEXT_PUBLIC_RECEIZ_WALLET_ENABLED !== "false";
 
 export function PlayCampaign({
   campaignName = "Reward Challenge",

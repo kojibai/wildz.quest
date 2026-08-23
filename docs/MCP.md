@@ -1,6 +1,6 @@
 # Wildz Receiz SDK, MCP, and AI-skills contract
 
-Wildz pins `@receiz/sdk@123.0.0` as application/runtime authority and `@receiz/mcp-server@123.0.0` plus `@receiz/ai-skills@123.0.0` as development tooling. All three exact packages resolve from the public npm registry, and `pnpm-lock.yaml` pins their published SHA-512 integrity values. The coordinated v123 registry digest is `945a581d1fc49c2dc18fbe8c129771ef464b8a58b96188bce561e88ae8b6ceeb`; its operation-matrix digest is `e08cec3e3ad22c20ddd6c08169ece19f094c366214d6d6b4dc432cd97558e2c5`. No fork, patch, third-party database, or external database is introduced.
+Wildz pins `@receiz/sdk@124.0.0` as application/runtime authority and `@receiz/mcp-server@124.0.0` plus `@receiz/ai-skills@124.0.0` as development tooling. All three exact packages resolve from the public npm registry, and `pnpm-lock.yaml` pins their published SHA-512 integrity values. The coordinated v124 registry digest is `d02429151b0bcebdaeb89485792e377afc55130f9a25e07982c1c88221314247`; its operation-matrix digest is `540d1c1bf39f1b288b257c79a6e020bdcc5e587fc9b7dbf6b7aaa5d082e20ad5`. No fork, patch, third-party database, or external database is introduced.
 
 The packaged MCP runtime remains operator tooling, and the packaged AI skills remain doctrine for builders and agents. Neither outranks verified artifact continuity or server admission.
 
@@ -8,15 +8,15 @@ The repository-wide [Receiz-first engineering law](RECEIZ_FIRST_ENGINEERING.md) 
 
 Run MCP from an agent host with `pnpm exec receiz-mcp`. Public reads need no bearer token. Delegated writes require a Receiz-issued Connect/OIDC token supplied to the MCP process as `RECEIZ_ACCESS_TOKEN` or `RECEIZ_CONNECT_ACCESS_TOKEN`. Keep MCP imports out of `app/`, `src/`, client components, and browser bundles.
 
-## v123 application contract, registry, and checker
+## v124 application contract, registry, and checker
 
-`receiz.app.json` defines Wildz with the stable `receiz.app.contract.v1` schema and selects `artifact-first` authority with `allowDatabaseAuthority: false`. The installed v123 compiler/checker binds the repository to registry digest `945a581d1fc49c2dc18fbe8c129771ef464b8a58b96188bce561e88ae8b6ceeb` and operation-matrix digest `e08cec3e3ad22c20ddd6c08169ece19f094c366214d6d6b4dc432cd97558e2c5`.
+`receiz.app.json` defines Wildz with the stable `receiz.app.contract.v1` schema and selects `artifact-first` authority with `allowDatabaseAuthority: false`. The installed v124 compiler/checker binds the repository to registry digest `d02429151b0bcebdaeb89485792e377afc55130f9a25e07982c1c88221314247` and operation-matrix digest `540d1c1bf39f1b288b257c79a6e020bdcc5e587fc9b7dbf6b7aaa5d082e20ad5`.
 
-V123 coordinates the SDK, MCP, AI manifests, ruleset, registry, operation matrix, compatible package range, and packed runtime as one release identity. It retains the V122 planning surfaces and adds proof-authority exchange, exact scope introspection, namespace resolution, Settlement/Reserve execution, and value-execution recovery by idempotency key.
+V124 coordinates the SDK, MCP, AI manifests, ruleset, registry, operation matrix, compatible package range, and packed runtime as one release identity. It retains the V123 value rails and adds canonical Kai time, challenge construction, authority sessions, runtime qualification, authenticated domain replay, durable execution, and public recipient resolution.
 
-V123 remains source-first and non-breaking for Wildz: sealed proof objects remain authority, projections only accelerate distribution and restoration, and weaker partial projections cannot erase stronger verified fields.
+V124 remains source-first and non-breaking for Wildz: sealed proof objects remain authority, projections only accelerate distribution and restoration, and weaker partial projections cannot erase stronger verified fields.
 
-Run `pnpm receiz:check` to invoke the official v123 repository checker against target `123.0.0` and verify the exact release, ruleset, registry digest, 36-operation matrix, protocol limits, and authority flags. The command is also part of the release gate. A clean checker result confirms that the declared repository integration requirements have evidence; it is not a substitute for artifact verification, strict-live qualification, or remote mutation evidence.
+Run `pnpm receiz:check` to invoke the official v124 repository checker against target `124.0.0` and verify the exact release, ruleset, registry digest, 53-operation matrix, protocol limits, and authority flags. The command is also part of the release gate. A clean checker result confirms that the declared repository integration requirements have evidence; it is not a substitute for artifact verification, strict-live qualification, or remote mutation evidence.
 
 The checked-in historical migration checkpoint remains forward-only evidence: no sealed artifact, receipt, or proof head was rewritten. Historical sealed bytes remain eligible for current verification, but historical admissions, actors, plans, capabilities, stores, confirmations, or receipts cannot authorize a current receiver. A queued proposal is not a global commitment.
 

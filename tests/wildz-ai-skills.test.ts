@@ -22,12 +22,12 @@ test("Wildz AI skills state exact release authority and confirmation law", () =>
   }
 
   const release = readFileSync("ai-skills/wildz-release-skill/SKILL.md", "utf8");
-  assert.match(release, /123\.0\.0/i);
-  assert.match(release, /945a581d1fc49c2dc18fbe8c129771ef464b8a58b96188bce561e88ae8b6ceeb/i);
-  assert.match(release, /e08cec3e3ad22c20ddd6c08169ece19f094c366214d6d6b4dc432cd97558e2c5/i);
-  assert.match(release, /36 v123 application operations/i);
-  assert.match(release, /v123[\s\S]*(?:enclosing artifact|known truth|Merkle|Fibonacci)/i);
-  assert.doesNotMatch(release, /122\.0\.0|ed65956a|bd1d7ccf/i);
+  assert.match(release, /124\.0\.0/i);
+  assert.match(release, /d02429151b0bcebdaeb89485792e377afc55130f9a25e07982c1c88221314247/i);
+  assert.match(release, /540d1c1bf39f1b288b257c79a6e020bdcc5e587fc9b7dbf6b7aaa5d082e20ad5/i);
+  assert.match(release, /53 v124 application operations/i);
+  assert.match(release, /v124[\s\S]*(?:enclosing artifact|known truth|Merkle|Fibonacci)/i);
+  assert.doesNotMatch(release, /123\.0\.0|945a581d|e08cec3e/i);
 });
 
 test("the builder skill teaches Kai-rooted competitive and creature-history authority", () => {

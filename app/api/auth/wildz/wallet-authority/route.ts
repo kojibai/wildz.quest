@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { validateReceizProofAuthorityV123, sha256ReceizBytes } from "@receiz/sdk";
 import { createReceizCommerceAdapter, receizCommerceAdapter } from "@/lib/receiz/adapter";
@@ -16,7 +15,6 @@ import {
   completeWildsWalletIdentityAuthority,
   issueWildsWalletIdentityAuthorityChallenge
 } from "@/lib/receiz/wilds-wallet-identity-authority";
-import { observeWildsKaiPulse } from "@/features/play/wilds-kai-runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,8 +58,7 @@ export async function GET(request: NextRequest) {
   try {
     const issued = issueWildsWalletIdentityAuthorityChallenge({
       session: edgeIdentity(request),
-      nowKai: observeWildsKaiPulse(),
-      nonce: randomBytes(24).toString("base64url")
+      artifactDigest: request.nextUrl.searchParams.get("artifactDigest") ?? ""
     }, receizOAuthSecret());
     const response = NextResponse.json(issued.challenge, { headers: { "cache-control": "no-store" } });
     response.cookies.set(TICKET_COOKIE, issued.ticket, cookieOptions());

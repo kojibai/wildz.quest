@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { receizKaiNow } from "@receiz/sdk";
 import {
   completeWildsWalletIdentityAuthority,
   issueWildsWalletIdentityAuthorityChallenge
@@ -18,32 +19,35 @@ describe("Receiz ID wallet read authority", () => {
   const readAuthorityScopes = ["openid", "profile", "receiz:wallet.read"];
 
   it("issues the exact wallet-read and identity-binding scopes bound to the active Receiz ID", () => {
+    const before = receizKaiNow().pulse;
     const issued = issueWildsWalletIdentityAuthorityChallenge({
       session: { keyId: H.key, actorId: "explorer", profileHandle: "explorer.receiz.id" },
-      nowKai: 13_731_001,
-      nonce: "wallet-read-nonce-00000001"
+      artifactDigest: H.artifact
     }, "s".repeat(32));
+    const after = receizKaiNow().pulse;
     assert.deepEqual(issued.challenge.scopes, readAuthorityScopes);
     assert.equal(issued.challenge.applicationId, "wildz");
     assert.equal(issued.challenge.keyId, H.key);
     assert.equal(issued.challenge.unsigned.consent.approved, true);
-    assert.equal(issued.challenge.unsigned.expiresAtKai, 13_731_061);
+    assert.ok(issued.challenge.unsigned.issuedAtKai >= before && issued.challenge.unsigned.issuedAtKai <= after);
+    assert.equal(issued.challenge.unsigned.expiresAtKai, issued.challenge.unsigned.issuedAtKai + 60);
+    assert.match(issued.challenge.unsigned.nonce, /^[A-Za-z0-9_-]{43}$/);
     assert.ok(issued.ticket.length > 40);
   });
 
   it("exchanges the signed identity proof into an exact short-lived read bearer", async () => {
     const secret = "s".repeat(32);
     const session = { keyId: H.key, actorId: "explorer", profileHandle: "explorer.receiz.id" };
-    const issued = issueWildsWalletIdentityAuthorityChallenge({ session, nowKai: 13_731_001, nonce: "wallet-read-nonce-00000001" }, secret);
+    const issued = issueWildsWalletIdentityAuthorityChallenge({ session, artifactDigest: H.artifact }, secret);
     const authority = {
       schema: "receiz.identity.proof-authority.v123" as const,
       applicationId: "wildz",
       keyId: H.key,
       artifactDigest: H.artifact,
       grantedScopes: readAuthorityScopes,
-      issuedAtKai: 13_731_001,
-      expiresAtKai: 13_731_061,
-      nonce: "wallet-read-nonce-00000001",
+      issuedAtKai: issued.challenge.unsigned.issuedAtKai,
+      expiresAtKai: issued.challenge.unsigned.expiresAtKai,
+      nonce: issued.challenge.unsigned.nonce,
       revocationHead: H.revocation,
       tokenType: "Bearer" as const,
       expiresIn: 300,
@@ -94,7 +98,7 @@ describe("Receiz ID wallet read authority", () => {
     });
     assert.equal(result, true);
     assert.equal(requests.length, 2);
-    assert.equal(requests[0]?.path, `/api/auth/wildz/wallet-authority?keyId=${H.key}`);
+    assert.equal(requests[0]?.path, `/api/auth/wildz/wallet-authority?keyId=${H.key}&artifactDigest=${H.artifact}`);
     assert.doesNotMatch(JSON.stringify(requests), /opaque-read-bearer|accessToken/);
   });
 
@@ -102,8 +106,7 @@ describe("Receiz ID wallet read authority", () => {
     const secret = "s".repeat(32);
     const issued = issueWildsWalletIdentityAuthorityChallenge({
       session: { keyId: H.key },
-      nowKai: 13_731_001,
-      nonce: "wallet-read-nonce-00000001"
+      artifactDigest: H.artifact
     }, secret);
     const authority = {
       schema: "receiz.identity.proof-authority.v123" as const,
@@ -111,9 +114,9 @@ describe("Receiz ID wallet read authority", () => {
       keyId: H.key,
       artifactDigest: H.artifact,
       grantedScopes: readAuthorityScopes,
-      issuedAtKai: 13_731_001,
-      expiresAtKai: 13_731_061,
-      nonce: "wallet-read-nonce-00000001",
+      issuedAtKai: issued.challenge.unsigned.issuedAtKai,
+      expiresAtKai: issued.challenge.unsigned.expiresAtKai,
+      nonce: issued.challenge.unsigned.nonce,
       revocationHead: H.revocation,
       tokenType: "Bearer" as const,
       expiresIn: 300,
@@ -144,7 +147,7 @@ describe("Receiz ID wallet read authority", () => {
   });
 
   it("derives exact one-operation transfer authority from the edge Receiz ID", async () => {
-    let signedBasis: unknown = null;
+    let challengeInput: unknown = null;
     const consent = await authorizeWildsWalletTransferWithIdentity(H.key, {
       attempt: "v1.exact-attempt",
       recipientUsername: "friend",
@@ -157,22 +160,29 @@ describe("Receiz ID wallet read authority", () => {
         keyId: H.key,
         sign: async (challengeB64Url) => ({ schema: "receiz.identity.login_proof.v1", keyId: H.key, alg: "Ed25519", challengeB64Url, signatureB64Url: "signature" })
       }),
-      nowKai: () => 13_731_001,
-      nonce: () => "transfer-nonce-00000001",
       statementDigest: async () => H.authority,
-      challengeText: (basis) => { signedBasis = basis; return "canonical-transfer-challenge"; }
+      createChallenge: (input) => {
+        challengeInput = input;
+        return {
+          challenge: {
+            schema: "receiz.identity.proof-authority-challenge.v123",
+            audience: "wildz",
+            nonce: "transfer-nonce-00000001",
+            issuedAtKai: 13_731_001,
+            expiresAtKai: 13_731_061,
+            consent: { approved: true, statementDigest: H.authority }
+          },
+          challengeB64Url: "canonical-transfer-challenge"
+        };
+      }
     });
     assert.equal(consent.artifact, "identity-artifact");
-    assert.deepEqual(signedBasis, {
-      schema: "receiz.identity.proof-authority-challenge.v123",
+    assert.deepEqual(challengeInput, {
       applicationId: "wildz",
-      audience: "wildz",
       artifactDigest: H.artifact,
       scopes: ["receiz:settlement.read", "receiz:settlement.write"],
-      nonce: "transfer-nonce-00000001",
-      issuedAtKai: 13_731_001,
-      expiresAtKai: 13_731_061,
-      consentStatementDigest: H.authority
+      consentStatementDigest: H.authority,
+      ttlPulses: 60
     });
     assert.deepEqual(consent.challenge.consent, { approved: true, statementDigest: H.authority });
     assert.equal(consent.challenge.proof.keyId, H.key);
