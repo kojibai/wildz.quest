@@ -2,6 +2,7 @@
 
 import { useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { WildsWalletControllerState, WildsWalletPage, WildsWalletPresentationState } from "./wilds-wallet-controller";
+import { PhiNetworkMark } from "./PhiNetworkMark";
 import { WildsWalletAssets } from "./WildsWalletAssets";
 import { WildsWalletLedger } from "./WildsWalletLedger";
 import { WildsWalletOverview } from "./WildsWalletOverview";
@@ -60,7 +61,7 @@ export function WildsWalletTerminal({ cards = [], cardConditions = {}, onPrepare
     <button aria-label="Close sovereign wallet" className="wilds-wallet-scrim" disabled={!closeAllowed} onClick={actions.onClose} tabIndex={-1} type="button" />
     <section aria-labelledby="wilds-wallet-terminal-title" aria-modal="true" className="wilds-wallet-terminal" role="dialog" tabIndex={-1}>
       <header className="wilds-wallet-terminal-header">
-        <span aria-hidden="true" className="wilds-wallet-phi-seal">Φ</span>
+        <PhiNetworkMark className="wilds-wallet-phi-seal" />
         <span><small>PRIVATE VALUE AUTHORITY</small><h1 id="wilds-wallet-terminal-title">WILDZ SOVEREIGN TERMINAL</h1></span>
         <span className="wilds-wallet-identity"><b title={publicUsername ? `@${publicUsername}` : undefined}>{publicUsername ? `@${publicUsername}` : "PUBLIC HANDLE NOT AVAILABLE"}</b><small data-wallet-authority={authority.toLowerCase().replaceAll(" ", "-")}>{authority}</small></span>
         <button aria-label="Close sovereign wallet" disabled={!closeAllowed} onClick={actions.onClose} type="button">×</button>

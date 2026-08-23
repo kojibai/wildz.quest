@@ -8,6 +8,7 @@ import type { PortableCardAsset } from "@/features/play/portable-card";
 import type { WildzPreparedIdentityOwnedCard } from "@/lib/receiz/wildz-identity-adapter";
 import type { WildsWalletControllerState } from "./wilds-wallet-controller";
 import { formatWildsPhiExact } from "./wilds-wallet-format";
+import { PhiNetworkAmount } from "./PhiNetworkMark";
 
 export function WildsWalletAssets({ cards, cardConditions, onPrepareCard, state }: {
   cards: readonly PortableCardAsset[];
@@ -51,7 +52,7 @@ export function WildsWalletAssets({ cards, cardConditions, onPrepareCard, state 
   return <section aria-labelledby="wilds-wallet-assets-title" className="wilds-wallet-surface">
     <header><small>ADMITTED CUSTODY</small><h2 id="wilds-wallet-assets-title">Assets</h2></header>
     {state.summary ? <dl className="wilds-wallet-asset-register">
-      <div><dt>Phi total</dt><dd>Φ {formatWildsPhiExact(state.summary.admittedPhiMicro)}</dd><small>Exact value carried by this Receiz ID.</small></div>
+      <div><dt>Phi total</dt><dd><PhiNetworkAmount value={formatWildsPhiExact(state.summary.admittedPhiMicro)} /></dd><small>Exact value carried by this Receiz ID.</small></div>
       <div><dt>Resource units</dt><dd>{state.summary.transferableResourceCount ?? "—"}</dd><small>Your current beans, fusion sparks, and catalysts.</small></div>
       <div><dt>Creature cards</dt><dd>{cards.length}</dd><small>Verified cards in your active Wildz Vault.</small></div>
       {state.summary.reservedCardCount ? <div><dt>Unavailable to send</dt><dd>{state.summary.reservedCardCount}</dd><small>Already listed, committed, suspended, or revoked.</small></div> : null}

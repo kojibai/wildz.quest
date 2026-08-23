@@ -3,6 +3,7 @@
 import type { WildsWalletPresentationState } from "./wilds-wallet-controller";
 import { formatWildsPhiCompact, formatWildsPhiExact } from "./wilds-wallet-format";
 import { Icons } from "@/components/icons";
+import { PhiNetworkAmount } from "./PhiNetworkMark";
 
 function instrumentState(state: WildsWalletPresentationState) {
   if (state.status === "verified") return { tone: "verified", spoken: "verified" };
@@ -37,6 +38,6 @@ export function WildsWalletInstrument({
     type="button"
   >
     <span aria-hidden="true" className="wilds-wallet-glyph"><Icons.wallet strokeWidth={1.8} /></span>
-    <strong aria-hidden="true">{state.summary ? `Φ ${formatWildsPhiCompact(state.summary.admittedPhiMicro)}` : state.status === "loading" ? "Φ …" : "Φ —"}</strong>
+    <strong aria-hidden="true"><PhiNetworkAmount value={state.summary ? formatWildsPhiCompact(state.summary.admittedPhiMicro) : state.status === "loading" ? "…" : "—"} /></strong>
   </button>;
 }

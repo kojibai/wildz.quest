@@ -92,7 +92,8 @@ test("wallet HUD control is a compact wallet icon with a stable Phi balance", ()
   }));
   assert.match(markup, /data-wallet-status="verified"/);
   assert.match(markup, /class="wilds-wallet-glyph"/);
-  assert.match(markup, />Φ 1\.25</);
+  assert.match(markup, /aria-label="1\.25 Phi"/);
+  assert.match(markup, /class="phi-network-mark"/);
   assert.doesNotMatch(markup, /PHI RESERVE|SECURE|VERIFYING/);
 });
 
