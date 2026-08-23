@@ -27,6 +27,16 @@ test("PWA controller registers a release-distinct worker after paint", () => {
   assert.match(env, /^NEXT_PUBLIC_WILDZ_SW_RELEASE=v8\.0\.0-r1$/m);
 });
 
+test("local neural voice preparation is complete-once and single-flight across rapid refreshes", () => {
+  const worker = readFileSync("public/sw.js", "utf8");
+
+  assert.match(worker, /LOCAL_VOICE_READY_URL/);
+  assert.match(worker, /localVoicePreparationPromise/);
+  assert.match(worker, /if \(await cache\.match\(LOCAL_VOICE_READY_URL\)\) return/);
+  assert.match(worker, /if \(localVoicePreparationPromise\) return localVoicePreparationPromise/);
+  assert.ok(worker.indexOf("cache.put(LOCAL_VOICE_READY_URL") > worker.indexOf("for (const pathname of LOCAL_VOICE_URLS)"));
+});
+
 test("installability is retained and shown only as explicit user consent", () => {
   const source = readFileSync("src/features/pwa/PwaController.tsx", "utf8");
 

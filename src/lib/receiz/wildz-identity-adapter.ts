@@ -412,10 +412,12 @@ export async function bootstrapWildzContinuity(
       );
       if (reconciliation.disconnect) await wildzRemoteSessionBridge.disconnect();
       session = reconciliation.session;
+      // Only a reconciled remote session needs rewriting. Local bootstrap
+      // already read (or atomically created) this exact active session.
+      await defaultContinuityDatabase.transaction(["meta"], "readwrite", (tx) =>
+        defaultIdentityRepository.writeSession(tx, session, true)
+      );
     }
-    await defaultContinuityDatabase.transaction(["meta"], "readwrite", (tx) =>
-      defaultIdentityRepository.writeSession(tx, session, true)
-    );
     let ownerState = await loadWildzRestoredOwnerState({ database: defaultContinuityDatabase, session });
     let playState = ownerState?.playState ?? null;
     const legacyRaw = playState === null ? legacyStorage?.getItem(LEGACY_PLAY_STATE_STORAGE_KEY) ?? null : null;

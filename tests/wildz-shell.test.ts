@@ -155,6 +155,8 @@ test("refresh restores the latest runtime position even before a durable play sn
   assert.match(preservation, /writeWildzRuntimeCheckpoint\(window\.localStorage/);
   assert.match(preservation, /window\.addEventListener\("pagehide", flushLatestRuntimeCheckpoint\)/);
   assert.match(preservation, /document\.visibilityState === "hidden"/);
+  assert.match(preservation, /if \(exitPreservationStarted\) return/);
+  assert.match(preservation, /exitPreservationStarted = false/);
 });
 
 test("legacy OAuth callback query parameters are cleared without restarting an external login", () => {

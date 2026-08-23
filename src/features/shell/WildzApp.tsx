@@ -275,8 +275,11 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   useEffect(() => {
     const scheduler = playStateSaveSchedulerRef.current;
     if (!scheduler) return;
+    let exitPreservationStarted = false;
     const flush = () => { void scheduler.flush().catch(() => undefined); };
     const flushLatestRuntimeCheckpoint = () => {
+      if (exitPreservationStarted) return;
+      exitPreservationStarted = true;
       const current = continuityRef.current;
       if (current?.playState) {
         try {
@@ -292,7 +295,13 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       flush();
     };
     const flushWhenHidden = () => {
-      if (document.visibilityState === "hidden") flushLatestRuntimeCheckpoint();
+      if (document.visibilityState === "hidden") {
+        flushLatestRuntimeCheckpoint();
+      } else {
+        // A background/foreground cycle is not a page exit. Permit the next
+        // real exit to preserve any gameplay performed after returning.
+        exitPreservationStarted = false;
+      }
     };
     window.addEventListener("pagehide", flushLatestRuntimeCheckpoint);
     window.addEventListener("wildz:preserve-state", flushLatestRuntimeCheckpoint);

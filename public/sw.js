@@ -9,6 +9,8 @@ const SHELL_CACHE = `wildz-shell-${release}`;
 const PUBLIC_CACHE = `wildz-public-${release}`;
 const AUDIO_CACHE = "wildz-audio-dcf17ad4caf7";
 const LOCAL_VOICE_CACHE = "wildz-local-proof-voice-kokoro82m-q8-v1";
+const LOCAL_VOICE_READY_URL = "/__wildz/local-proof-voice-ready";
+let localVoicePreparationPromise = null;
 const LOCAL_VOICE_URLS = [
   "/models/onnx-community/Kokoro-82M-v1.0-ONNX/config.json",
   "/models/onnx-community/Kokoro-82M-v1.0-ONNX/tokenizer.json",
@@ -248,8 +250,9 @@ async function localVoiceCacheFirst(request) {
   return response;
 }
 
-async function prepareLocalVoicePayload() {
+async function populateLocalVoicePayload() {
   const cache = await caches.open(LOCAL_VOICE_CACHE);
+  if (await cache.match(LOCAL_VOICE_READY_URL)) return;
   for (const pathname of LOCAL_VOICE_URLS) {
     const request = new Request(`${self.location.origin}${pathname}`, {
       cache: "reload",
@@ -260,6 +263,18 @@ async function prepareLocalVoicePayload() {
     if (!isBaseCacheable(response)) throw new Error("wildz_local_voice_payload_unavailable");
     await cache.put(request, response);
   }
+  await cache.put(LOCAL_VOICE_READY_URL, new Response("ready", {
+    headers: { "content-type": "text/plain", "cache-control": "no-store" }
+  }));
+}
+
+function prepareLocalVoicePayload() {
+  if (localVoicePreparationPromise) return localVoicePreparationPromise;
+  const operation = populateLocalVoicePayload().finally(() => {
+    if (localVoicePreparationPromise === operation) localVoicePreparationPromise = null;
+  });
+  localVoicePreparationPromise = operation;
+  return operation;
 }
 
 self.addEventListener("install", (event) => {
