@@ -23,13 +23,16 @@ function usdCentsFromExactUsd(value: unknown) {
 export function projectWildsWalletFromIdentityAccount(
   account: ReceizIdentityAccountProjection
 ): WildsWalletReadResponse | null {
-  if (!account.portableStateVerified || account.authority !== "verified-identity-portable-state" || !account.domains.wallet) return null;
+  if (account.authority === "rejected-portable-state") return null;
   const snapshot = record(account.verifiedState);
   const wallet = record(snapshot?.wallet);
   const routeSummary = record(wallet?.routeSummary);
   const walletAccount = record(wallet?.account);
   const sourceSummary = routeSummary ?? wallet;
-  const balancePhiMicro = sourceSummary?.balancePhiMicro ?? walletAccount?.balance_phi_micro ?? snapshot?.balancePhiMicro;
+  const carriedBalance = sourceSummary?.balancePhiMicro ?? walletAccount?.balance_phi_micro ?? snapshot?.balancePhiMicro;
+  // The Receiz ID is the wallet. Absence of a settlement history is its exact
+  // zero-value genesis state, not absence of wallet authority.
+  const balancePhiMicro = carriedBalance === undefined || carriedBalance === null ? "0" : carriedBalance;
   if (typeof balancePhiMicro !== "string") return null;
   const summary = projectWildsWalletSummary({
     ok: true,
