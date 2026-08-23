@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Icons } from "@/components/icons";
+import type { WildsRoomMessage } from "./multiplayer-core";
 import {
   WILDS_DIRECT_MESSAGE_MAX_LENGTH,
   WILDS_DIRECT_MESSAGE_REACTIONS,
@@ -29,8 +30,19 @@ function avatarLetters(handle: string) {
   return handle.replace(/^@/, "").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "W";
 }
 
-export function WildsMessenger({ messenger, selfId }: { messenger: WildsMessengerController; selfId: string }) {
+export function WildsMessenger({
+  messenger,
+  roomChat,
+  selfId
+}: {
+  messenger: WildsMessengerController;
+  roomChat: { messages: readonly WildsRoomMessage[]; onSend: (message: string) => Promise<unknown> };
+  selfId: string;
+}) {
   const [draft, setDraft] = useState("");
+  const [roomDraft, setRoomDraft] = useState("");
+  const [roomOpen, setRoomOpen] = useState(false);
+  const [roomError, setRoomError] = useState("");
   const [query, setQuery] = useState("");
   const [replyTo, setReplyTo] = useState<WildsDirectMessage | null>(null);
   const [reactionFor, setReactionFor] = useState<string | null>(null);
@@ -72,6 +84,7 @@ export function WildsMessenger({ messenger, selfId }: { messenger: WildsMessenge
       if (event.key === "Escape") {
         event.preventDefault();
         if (selectedPeer) selectConversation(null);
+        else if (roomOpen) setRoomOpen(false);
         else closeMessenger();
         return;
       }
@@ -89,7 +102,14 @@ export function WildsMessenger({ messenger, selfId }: { messenger: WildsMessenge
       window.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = priorOverflow;
     };
-  }, [closeMessenger, messenger.open, selectConversation, selectedPeer]);
+  }, [closeMessenger, messenger.open, roomOpen, selectConversation, selectedPeer]);
+
+  useEffect(() => {
+    if (messenger.open) return;
+    setRoomOpen(false);
+    setRoomDraft("");
+    setRoomError("");
+  }, [messenger.open]);
 
   useEffect(() => {
     if (!selectedPeerId) return;
@@ -100,10 +120,10 @@ export function WildsMessenger({ messenger, selfId }: { messenger: WildsMessenge
 
   useEffect(() => {
     const list = listRef.current;
-    if (!list || !selectedPeerId) return;
+    if (!list || (!selectedPeerId && !roomOpen)) return;
     const frame = requestAnimationFrame(() => list.scrollTo({ top: list.scrollHeight, behavior: "smooth" }));
     return () => cancelAnimationFrame(frame);
-  }, [messages.length, selectedPeerId]);
+  }, [messages.length, roomChat.messages.length, roomOpen, selectedPeerId]);
 
   useEffect(() => {
     const textarea = composerRef.current;
@@ -118,16 +138,21 @@ export function WildsMessenger({ messenger, selfId }: { messenger: WildsMessenge
   return createPortal((
     <section aria-label="Wildz messages" aria-modal="true" className="wilds-messenger" ref={dialogRef} role="dialog">
       <header className="wilds-messenger-header">
-        {messenger.selectedPeer ? <button aria-label="Back to conversations" className="wilds-messenger-back" onClick={() => messenger.selectConversation(null)} type="button"><Icons.chevronLeft size={20} /></button> : <span className="wilds-messenger-mark"><Icons.send size={18} /></span>}
-        <div><small>{messenger.selectedPeer ? "Private connection" : "Receiz ID messenger"}</small><strong>{messenger.selectedPeer?.handle ?? "Messages"}</strong></div>
+        {messenger.selectedPeer || roomOpen ? <button aria-label="Back to conversations" className="wilds-messenger-back" onClick={() => { messenger.selectConversation(null); setRoomOpen(false); }} type="button"><Icons.chevronLeft size={20} /></button> : <span className="wilds-messenger-mark"><Icons.send size={18} /></span>}
+        <div><small>{roomOpen ? "Shared live connection" : messenger.selectedPeer ? "Private connection" : "Receiz ID messenger"}</small><strong>{roomOpen ? "Shared room" : messenger.selectedPeer?.handle ?? "Messages"}</strong></div>
         <span className={`wilds-messenger-sync${messenger.syncing ? " is-syncing" : ""}`} title={messenger.syncing ? "Synchronizing" : "Source verified"}><i />{messenger.syncing ? "Syncing" : "Verified"}</span>
         <button aria-label="Close messages" className="wilds-messenger-close" onClick={messenger.closeMessenger} type="button"><Icons.close size={20} /></button>
       </header>
 
-      {!messenger.selectedPeer ? <div className="wilds-messenger-inbox">
+      {!messenger.selectedPeer && !roomOpen ? <div className="wilds-messenger-inbox">
         <div className="wilds-messenger-search"><Icons.search size={17} /><input aria-label="Search conversations" onChange={(event) => setQuery(event.target.value)} placeholder="Search explorers" value={query} /></div>
         <div className="wilds-messenger-inbox-title"><span><strong>Connections</strong><small>{messenger.unreadCount ? `${messenger.unreadCount} unread` : "You’re all caught up"}</small></span><button onClick={() => void messenger.refreshInbox()} type="button">Refresh</button></div>
         <div className="wilds-messenger-conversations">
+          <button className="wilds-messenger-room-entry" onClick={() => { setRoomError(""); setRoomOpen(true); }} type="button">
+            <span className="wilds-messenger-avatar"><Icons.users size={20} /></span>
+            <span><strong>Shared room</strong><small>{roomChat.messages.at(-1)?.text ?? "Create a chat room for everyone live with you"}</small></span>
+            <span className="wilds-messenger-conversation-meta"><time>{roomChat.messages.length ? shortTime(roomChat.messages.at(-1)!.sentAt) : ""}</time><Icons.chevronRight size={15} /></span>
+          </button>
           {visiblePeers.map((peer) => {
             const summary = messenger.summaries.find((item) => item.peer.id === peer.id);
             const latest = summary?.latestMessage;
@@ -139,9 +164,39 @@ export function WildsMessenger({ messenger, selfId }: { messenger: WildsMessenge
           })}
           {!visiblePeers.length ? <div className="wilds-messenger-empty"><span><Icons.users size={24} /></span><strong>Your next connection starts in the Wilds.</strong><p>Open a live explorer and choose Message. The conversation will stay here.</p></div> : null}
         </div>
+      </div> : roomOpen ? <div className="wilds-messenger-thread wilds-messenger-room-thread">
+        <div className="wilds-messenger-messages" ref={listRef}>
+          {!roomChat.messages.length ? <div className="wilds-messenger-thread-start"><span className="wilds-messenger-avatar"><Icons.users size={20} /></span><strong>Create the room.</strong><p>Send the first message to open a shared conversation with the explorers live in this room.</p></div> : null}
+          {roomChat.messages.slice(-50).map((message, index, messages) => {
+            const mine = message.senderId === selfId;
+            const prior = messages[index - 1];
+            const showDay = !prior || new Date(prior.sentAt).toDateString() !== new Date(message.sentAt).toDateString();
+            return <div className="wilds-message-block" key={message.id}>
+              {showDay ? <div className="wilds-message-day"><span>{dayLabel(message.sentAt)}</span></div> : null}
+              <div className={`wilds-message-row${mine ? " is-mine" : ""}`}>
+                <div className="wilds-message-bubble"><b className="wilds-room-message-sender">{mine ? "You" : message.senderHandle}</b><span>{message.text}</span><small>{shortTime(message.sentAt)}</small></div>
+              </div>
+            </div>;
+          })}
+        </div>
+        <form className="wilds-messenger-composer" onSubmit={async (event) => {
+          event.preventDefault();
+          const outgoing = roomDraft.trim();
+          if (!outgoing) return;
+          setRoomError("");
+          try {
+            await roomChat.onSend(outgoing);
+            setRoomDraft("");
+          } catch (cause) {
+            setRoomError(cause instanceof Error ? cause.message : "Room message not sent");
+          }
+        }}>
+          <div><textarea aria-label="Message shared room" maxLength={280} onChange={(event) => setRoomDraft(event.target.value)} placeholder="Message everyone live…" rows={1} value={roomDraft} /><button aria-label="Send room message" disabled={!roomDraft.trim()} type="submit"><Icons.send size={19} /></button></div>
+          <small>Shared with explorers in this live room</small>
+        </form>
       </div> : <div className="wilds-messenger-thread">
         <div className="wilds-messenger-messages" ref={listRef}>
-          {!messages.length ? <div className="wilds-messenger-thread-start"><span className="wilds-messenger-avatar">{avatarLetters(messenger.selectedPeer.handle)}</span><strong>Start something real.</strong><p>This is your private thread with {messenger.selectedPeer.handle}. Be yourself.</p></div> : null}
+          {!messages.length ? <div className="wilds-messenger-thread-start"><span className="wilds-messenger-avatar">{avatarLetters(selectedPeer?.handle ?? "Explorer")}</span><strong>Start something real.</strong><p>This is your private thread with {selectedPeer?.handle ?? "this explorer"}. Be yourself.</p></div> : null}
           {messages.map((message, index) => {
             const mine = message.senderId === selfId;
             const prior = messages[index - 1];
@@ -173,7 +228,7 @@ export function WildsMessenger({ messenger, selfId }: { messenger: WildsMessenge
           void messenger.send(outgoing, replyId);
         }}>
           {replyTo ? <div className="wilds-messenger-replying"><span><small>Replying to {replyTo.senderId === selfId ? "yourself" : replyTo.senderHandle}</small><strong>{replyTo.body}</strong></span><button aria-label="Cancel reply" onClick={() => setReplyTo(null)} type="button"><Icons.close size={15} /></button></div> : null}
-          <div><textarea aria-label={`Message ${messenger.selectedPeer.handle}`} maxLength={WILDS_DIRECT_MESSAGE_MAX_LENGTH} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
+          <div><textarea aria-label={`Message ${selectedPeer?.handle ?? "explorer"}`} maxLength={WILDS_DIRECT_MESSAGE_MAX_LENGTH} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && matchMedia("(pointer: fine)").matches) {
               event.preventDefault();
               event.currentTarget.form?.requestSubmit();
@@ -182,7 +237,7 @@ export function WildsMessenger({ messenger, selfId }: { messenger: WildsMessenge
           <small>{draft.length > WILDS_DIRECT_MESSAGE_MAX_LENGTH - 200 ? `${draft.length}/${WILDS_DIRECT_MESSAGE_MAX_LENGTH}` : "Messages originate from your Receiz ID"}</small>
         </form>
       </div>}
-      {messenger.error ? <div aria-live="polite" className="wilds-messenger-error">{messenger.error.replaceAll("_", " ")}</div> : null}
+      {messenger.error || roomError ? <div aria-live="polite" className="wilds-messenger-error">{(roomError || messenger.error).replaceAll("_", " ")}</div> : null}
     </section>
   ), document.body);
 }

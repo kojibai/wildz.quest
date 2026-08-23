@@ -1,12 +1,15 @@
 "use client";
 
 import type { CSSProperties } from "react";
+import { Icons } from "@/components/icons";
 import type { KaiKlokMoment } from "./kai-klok-moment";
 import type { WildsAudioSettings as WildsAudioSettingsValue } from "./wilds-audio";
 import { WildsAudioSettings } from "./WildsAudioSettings";
 import { WildsLivingWorldHud } from "./WildsLivingWorldHud";
 import { WildsMultiplayer } from "./WildsMultiplayer";
+import { WildsMessenger } from "./WildsMessenger";
 import type { useWildsWorld } from "./use-wilds-world";
+import { useWildsMessenger } from "./use-wilds-messenger";
 import type { WildsMultiplayerController } from "./use-wilds-multiplayer";
 import { WildsWalletInstrument } from "./wallet/WildsWalletInstrument";
 import type { WildsWalletPresentationState } from "./wallet/wilds-wallet-controller";
@@ -54,6 +57,15 @@ export function WildsBalancedStatusHud({
   world: ReturnType<typeof useWildsWorld>;
 }) {
   const homeInteractionEnabled = interactionEnabled && !blocked;
+  const selfHandle = multiplayer.snapshot?.players.find((entry) => entry.playerId === multiplayer.selfId)?.handle
+    ?? multiplayer.selfId.replace(/^guest:/, "Explorer ").slice(0, 80)
+    ?? "Explorer";
+  const messenger = useWildsMessenger({
+    guestId: multiplayer.guestId,
+    selfId: multiplayer.selfId,
+    selfHandle,
+    livePeers: multiplayer.remotePlayers.filter((entry) => !entry.practice).map((entry) => ({ id: entry.playerId, handle: entry.handle }))
+  });
 
   return <>
     <div aria-hidden={blocked} className="wilds-map-status-home" inert={blocked ? true : undefined}>
@@ -64,6 +76,7 @@ export function WildsBalancedStatusHud({
         interactionEnabled={homeInteractionEnabled}
         modalOwned={modalOwned}
         multiplayer={multiplayer}
+        messenger={messenger}
         onRosterOpenChange={onRosterOpenChange}
         position={player}
       />
@@ -92,7 +105,29 @@ export function WildsBalancedStatusHud({
           settings={audio.settings}
         />
         {walletEnabled ? <WildsWalletInstrument disabled={!interactionEnabled} onOpen={onOpenWallet} state={wallet} /> : null}
+        <button
+          aria-label={`Open messages${messenger.unreadCount ? ` · ${messenger.unreadCount} unread` : ""}`}
+          className={`wilds-message-instrument${messenger.unreadCount ? " has-unread" : ""}`}
+          disabled={!interactionEnabled}
+          onClick={() => {
+            if (!interactionEnabled) return;
+            multiplayer.selectPlayer(null);
+            messenger.openMessenger();
+          }}
+          type="button"
+        >
+          <Icons.send size={17} />
+          {messenger.unreadCount ? <b>{messenger.unreadCount > 99 ? "99+" : messenger.unreadCount}</b> : null}
+        </button>
       </>
     </div>
+    <WildsMessenger
+      messenger={messenger}
+      roomChat={{
+        messages: multiplayer.snapshot?.messages ?? [],
+        onSend: multiplayer.sendMessage
+      }}
+      selfId={multiplayer.selfId}
+    />
   </>;
 }

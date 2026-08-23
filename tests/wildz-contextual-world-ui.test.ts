@@ -51,7 +51,8 @@ test("exclusive ownership dismisses multiplayer expansions and blocks roster and
   assert.match(statusHud, /<WildsMultiplayer[\s\S]*dismissSignal=\{dismissSignal\}[\s\S]*interactionEnabled=\{homeInteractionEnabled\}/);
   assert.match(multiplayer, /dismissSignal: number/);
   assert.match(multiplayer, /interactionEnabled: boolean/);
-  assert.match(multiplayer, /setRosterOpen\(false\);[\s\S]*setChatOpen\(false\);[\s\S]*setMessage\(""\);[\s\S]*multiplayer\.selectPlayer\(null\)/);
+  assert.match(multiplayer, /setRosterOpen\(false\);[\s\S]*selectPlayer\(null\);/);
+  assert.match(multiplayer, /if \(interactionEnabled && !dismissalChanged\) return;[\s\S]*closeMessenger\(\)/);
   assert.match(multiplayer, /className=\{`wilds-live-badge[\s\S]*disabled=\{!interactionEnabled\}/);
   assert.match(multiplayer, /disabled=\{!interactionEnabled \|\| !canInteract\}/);
   assert.match(multiplayer, /if \(!interactionEnabled\) return;[\s\S]*multiplayer\.offerChallenge/);

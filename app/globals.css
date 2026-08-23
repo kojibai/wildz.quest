@@ -300,6 +300,7 @@ body {
 .wilds-left-instrument-home > .wilds-kai-command-pill { grid-column: 1; grid-row: 1; width: 104px; }
 .wilds-left-instrument-home > .wilds-wallet-instrument { grid-column: 1; grid-row: 2; margin-top: 6px; }
 .wilds-left-instrument-home > .wilds-audio-settings { grid-column: 2; grid-row: 1; }
+.wilds-left-instrument-home > .wilds-message-instrument { grid-column: 2; grid-row: 2; margin-top: 6px; }
 .wilds-wallet-instrument {
   position: relative;
   display: grid;
@@ -326,6 +327,10 @@ body {
 .wilds-wallet-instrument[data-wallet-status="failed"] .wilds-wallet-glyph { color: #c96f6b; }
 .wilds-wallet-instrument > strong { min-width: 0; color: #f4fbff; font: 800 clamp(6px, 1.75vw, 8px)/1.25 ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .wilds-wallet-instrument:focus-visible { outline: 2px solid #70e6ff; outline-offset: 2px; }
+.wilds-message-instrument { position: relative; display: grid; width: 44px; min-width: 44px; min-height: 44px; padding: 0; place-items: center; color: #dffaf3; border: 1px solid rgba(126, 227, 255, .3); border-radius: 15px; background: radial-gradient(circle at 30% 18%, rgba(100, 239, 207, .14), transparent 46%), linear-gradient(145deg, rgba(4, 11, 17, .97), rgba(8, 20, 29, .92)); box-shadow: inset 0 1px rgba(255,255,255,.08), 0 8px 24px rgba(0,0,0,.3); }
+.wilds-message-instrument.has-unread { color: #061916; border-color: rgba(157,244,216,.72); background: linear-gradient(145deg, #a6f7dc, #65d5c2); }
+.wilds-message-instrument b { position: absolute; top: -5px; right: -6px; display: grid; min-width: 17px; height: 17px; padding: 0 4px; place-items: center; color: #fff; font-size: 7px; line-height: 1; background: #f25f85; border: 2px solid #07171c; border-radius: 99px; }
+.wilds-message-instrument:focus-visible { outline: 2px solid #70e6ff; outline-offset: 2px; }
 
 .wilds-wallet-layer { position: fixed; z-index: 6900; inset: 0; display: flex; align-items: stretch; justify-content: flex-start; padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); overflow: hidden; pointer-events: auto; touch-action: none; }
 .wilds-wallet-scrim { position: absolute; z-index: 0; inset: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; background: radial-gradient(circle at 18% 14%, rgba(74, 209, 255, .1), transparent 32%), radial-gradient(circle at 10% 90%, rgba(198, 82, 255, .09), transparent 35%), rgba(0, 3, 8, .72); backdrop-filter: blur(10px) saturate(.76); }
@@ -11585,6 +11590,8 @@ button.product-purchase-secondary-link {
 .wilds-messenger-conversations { min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: none; }
 .wilds-messenger-conversations > button { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; width: 100%; min-height: 70px; align-items: center; gap: 11px; padding: 9px 7px; color: var(--messenger-ink); text-align: left; border: 0; border-bottom: 1px solid var(--messenger-line); background: transparent; }
 .wilds-messenger-conversations > button.is-unread { background: linear-gradient(90deg, rgba(104, 231, 194, .08), transparent 70%); }
+.wilds-messenger-conversations > button.wilds-messenger-room-entry { margin-bottom: 4px; border: 1px solid rgba(112, 228, 205, .2); border-radius: 16px; background: linear-gradient(110deg, rgba(73, 226, 198, .1), rgba(106, 98, 219, .08)); }
+.wilds-messenger-room-entry .wilds-messenger-avatar { color: #eafff8; background: linear-gradient(145deg, rgba(55, 190, 169, .78), rgba(82, 75, 182, .8)); }
 .wilds-messenger-avatar { display: grid; width: 44px; height: 44px; flex: 0 0 auto; place-items: center; color: #061916; font-size: 12px; font-weight: 950; letter-spacing: .04em; background: linear-gradient(145deg, #bcf9e4, #61cfbe 60%, #6f78da); border: 1px solid rgba(255, 255, 255, .38); border-radius: 16px; box-shadow: 0 8px 20px rgba(0, 0, 0, .18); }
 .wilds-messenger-conversations > button > span:nth-child(2) { display: grid; min-width: 0; gap: 4px; }
 .wilds-messenger-conversations > button strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
@@ -11607,6 +11614,8 @@ button.product-purchase-secondary-link {
 .wilds-message-bubble { display: grid; max-width: min(82%, 620px); gap: 5px; padding: 9px 11px 7px; color: var(--messenger-ink); text-align: left; overflow-wrap: anywhere; white-space: pre-wrap; border: 1px solid rgba(255, 255, 255, .07); background: rgba(255, 255, 255, .065); border-radius: 6px 17px 17px 17px; box-shadow: 0 5px 16px rgba(0, 0, 0, .11); }
 .wilds-message-row.is-mine .wilds-message-bubble { color: #031b16; border-color: rgba(168, 255, 226, .3); background: linear-gradient(145deg, #a9f3db, #79dabe); border-radius: 17px 6px 17px 17px; }
 .wilds-message-bubble > span { font-size: 11px; line-height: 1.45; }
+.wilds-room-message-sender { color: #81e9c9; font-size: 8px; letter-spacing: .05em; }
+.wilds-message-row.is-mine .wilds-room-message-sender { color: rgba(2, 27, 22, .62); }
 .wilds-message-bubble > small { justify-self: end; color: rgba(221, 245, 238, .45); font-size: 7px; font-weight: 700; white-space: nowrap; }
 .wilds-message-row.is-mine .wilds-message-bubble > small { color: rgba(2, 27, 22, .54); }
 .wilds-message-reply { display: grid; gap: 2px; max-width: 100%; padding: 6px 8px; overflow: hidden; color: rgba(230, 255, 248, .66); font-size: 8px !important; border-left: 2px solid #79e8c6; background: rgba(0, 0, 0, .16); border-radius: 5px 8px 8px 5px; text-overflow: ellipsis; white-space: nowrap !important; }
@@ -15647,6 +15656,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-left-instrument-home > .wilds-kai-command-pill { grid-column: 1; grid-row: 1; width: 104px; }
 .wilds-left-instrument-home > .wilds-audio-settings { grid-column: 2; grid-row: 1; }
 .wilds-left-instrument-home > .wilds-wallet-instrument { grid-column: 1; grid-row: 2; width: 104px; margin-top: 0; }
+.wilds-left-instrument-home > .wilds-message-instrument { grid-column: 2; grid-row: 2; margin-top: 0; }
 
 .wilds-map-status-home[aria-hidden="true"],
 .wilds-left-instrument-home[aria-hidden="true"] {
@@ -15758,7 +15768,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 }
 
 .wilds-map-status-home :is(.wilds-live-badge, .wilds-live-share, .wilds-live-pill),
-.wilds-left-instrument-home :is(.wilds-kai-command-pill, .wilds-audio-settings > button) {
+.wilds-left-instrument-home :is(.wilds-kai-command-pill, .wilds-audio-settings > button, .wilds-message-instrument) {
   min-width: 44px;
   min-height: 44px;
 }

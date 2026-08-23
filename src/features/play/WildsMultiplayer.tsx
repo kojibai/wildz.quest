@@ -5,8 +5,7 @@ import { createPortal } from "react-dom";
 import { Icons } from "@/components/icons";
 import { WILDS_INTERACTION_DISTANCE, presenceDistance } from "./multiplayer-core";
 import type { WildsMultiplayerController } from "./use-wilds-multiplayer";
-import { useWildsMessenger } from "./use-wilds-messenger";
-import { WildsMessenger } from "./WildsMessenger";
+import type { WildsMessengerController } from "./use-wilds-messenger";
 import { shareWildzInvite } from "./wilds-invite-share";
 import {
   dismissIncomingChallengeWhenBlocked,
@@ -18,11 +17,18 @@ function healthPercent(hp: number, maxHp: number) {
   return `${Math.max(0, Math.min(100, (hp / maxHp) * 100))}%`;
 }
 
+const unavailableMessenger = {
+  open: false,
+  closeMessenger: () => undefined,
+  openMessenger: () => undefined
+} as unknown as WildsMessengerController;
+
 export function WildsMultiplayer({
   battleModalOwned,
   dismissSignal,
   interactionEnabled,
   modalOwned,
+  messenger = unavailableMessenger,
   multiplayer,
   position,
   onRosterOpenChange
@@ -31,13 +37,12 @@ export function WildsMultiplayer({
   dismissSignal: number;
   interactionEnabled: boolean;
   modalOwned: boolean;
+  messenger?: WildsMessengerController;
   multiplayer: WildsMultiplayerController;
   position: { x: number; z: number };
   onRosterOpenChange?: (open: boolean) => void;
 }) {
   const [rosterOpen, setRosterOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [message, setMessage] = useState("");
   const [notice, setNotice] = useState("");
   const priorDismissSignal = useRef(dismissSignal);
   const messengerPriorDismissSignal = useRef(dismissSignal);
@@ -45,15 +50,6 @@ export function WildsMultiplayer({
   const battleDialogRef = useRef<HTMLElement | null>(null);
   const { selectPlayer } = multiplayer;
   const selected = multiplayer.selectedPlayer;
-  const selfHandle = multiplayer.snapshot?.players.find((player) => player.playerId === multiplayer.selfId)?.handle
-    ?? multiplayer.selfId.replace(/^guest:/, "Explorer ").slice(0, 80)
-    ?? "Explorer";
-  const messenger = useWildsMessenger({
-    guestId: multiplayer.guestId,
-    selfId: multiplayer.selfId,
-    selfHandle,
-    livePeers: multiplayer.remotePlayers.filter((player) => !player.practice).map((player) => ({ id: player.playerId, handle: player.handle }))
-  });
   const closeMessenger = messenger.closeMessenger;
   const liveSurfaceOpen = rosterOpen || Boolean(selected) || messenger.open;
   const selectedDistance = selected ? presenceDistance(selected, position) : Infinity;
@@ -74,14 +70,15 @@ export function WildsMultiplayer({
   useEffect(() => {
     onRosterOpenChange?.(liveSurfaceOpen);
   }, [liveSurfaceOpen, onRosterOpenChange]);
+  useEffect(() => {
+    if (messenger.open) setRosterOpen(false);
+  }, [messenger.open]);
   useEffect(() => () => onRosterOpenChange?.(false), [onRosterOpenChange]);
   useEffect(() => {
     const dismissalChanged = priorDismissSignal.current !== dismissSignal;
     priorDismissSignal.current = dismissSignal;
     if (interactionEnabled && !dismissalChanged) return;
     setRosterOpen(false);
-    setChatOpen(false);
-    setMessage("");
     selectPlayer(null);
   }, [dismissSignal, interactionEnabled, modalOwned, selectPlayer]);
   useEffect(() => {
@@ -146,12 +143,6 @@ export function WildsMultiplayer({
           <i />
           <span>{multiplayer.remotePlayers.length}</span>
         </button>
-        <button aria-label={`Open messages${messenger.unreadCount ? ` · ${messenger.unreadCount} unread` : ""}`} className={`wilds-live-messages${messenger.unreadCount ? " has-unread" : ""}`} disabled={!interactionEnabled} onClick={() => {
-          if (!interactionEnabled) return;
-          setRosterOpen(false);
-          selectPlayer(null);
-          messenger.openMessenger();
-        }} type="button"><Icons.send size={14} />{messenger.unreadCount ? <b>{messenger.unreadCount > 99 ? "99+" : messenger.unreadCount}</b> : null}</button>
         <button aria-label="Share Wildz invite" className="wilds-live-share" disabled={!interactionEnabled} onClick={async () => {
           if (!interactionEnabled) return;
           try {
@@ -183,18 +174,6 @@ export function WildsMultiplayer({
               </button>
             )) : <div className="wilds-live-empty"><strong>The trail is quiet.</strong><span>Share the invite link and another explorer will appear here live.</span></div>}
           </div>
-          <button className="wilds-live-chat-toggle" disabled={!interactionEnabled} onClick={() => {
-            if (!interactionEnabled) return;
-            setChatOpen((value) => !value);
-          }} type="button">{chatOpen ? "Close room chat" : "Open room chat"}</button>
-          {chatOpen ? <form className="wilds-live-chat" onSubmit={async (event) => {
-            event.preventDefault();
-            if (!interactionEnabled || !message.trim()) return;
-            try { await multiplayer.sendMessage(message); setMessage(""); } catch (cause) { setNotice(cause instanceof Error ? cause.message : "Message not sent"); }
-          }}>
-            <div>{multiplayer.snapshot?.messages.slice(-8).map((item) => <p key={item.id}><b>{item.senderHandle}</b><span>{item.text}</span></p>)}</div>
-            <label><span className="sr-only">Room message</span><input disabled={!interactionEnabled} maxLength={280} onChange={(event) => setMessage(event.target.value)} placeholder="Say something kind…" value={message} /><button disabled={!interactionEnabled} type="submit">Send</button></label>
-          </form> : null}
         </section>
       ) : null}
 
@@ -248,8 +227,6 @@ export function WildsMultiplayer({
           </div> : <div className="wilds-pvp-result"><strong>{battle.winnerId === multiplayer.selfId ? "Victory" : battle.winnerId ? "Battle complete" : "Draw"}</strong><span>{battle.resultReason} · {battle.transcript.at(-1)?.digest.slice(0, 20)}</span><button onClick={() => multiplayer.dismissBattle(battle.id)} type="button">Return to world</button></div>}
         </section>
       ), document.body) : null}
-
-      <WildsMessenger messenger={messenger} selfId={multiplayer.selfId} />
 
       {notice || (liveSurfaceOpen && multiplayer.error) ? <div className="wilds-live-notice" aria-live="polite">{notice || multiplayer.error}</div> : null}
     </>

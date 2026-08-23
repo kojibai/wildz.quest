@@ -95,4 +95,18 @@ describe("Wilds Receiz-ID messenger", () => {
     assert.match(css, /\.wilds-messenger-composer textarea \{[^}]*font-size:\s*16px/);
     assert.match(css, /\.wilds-messenger button, \.wilds-messenger input, \.wilds-messenger textarea \{[^}]*touch-action:\s*manipulation/);
   });
+
+  it("keeps one messaging entry beside the wallet and owns shared-room creation inside Messages", () => {
+    const hud = readFileSync("src/features/play/WildsBalancedStatusHud.tsx", "utf8");
+    const multiplayer = readFileSync("src/features/play/WildsMultiplayer.tsx", "utf8");
+    const messenger = readFileSync("src/features/play/WildsMessenger.tsx", "utf8");
+    const css = readFileSync("app/globals.css", "utf8");
+    assert.match(hud, /<WildsWalletInstrument[\s\S]*className=\{`wilds-message-instrument/);
+    assert.match(css, /\.wilds-left-instrument-home > \.wilds-message-instrument\s*\{[^}]*grid-column:\s*2;[^}]*grid-row:\s*2;/);
+    assert.match(css, /\.wilds-message-instrument\s*\{[^}]*width:\s*44px;[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/);
+    assert.doesNotMatch(multiplayer, /wilds-live-messages|wilds-live-chat-toggle|wilds-live-chat/);
+    assert.match(messenger, /wilds-messenger-room-entry/);
+    assert.match(messenger, /Create a chat room for everyone live with you/);
+    assert.match(messenger, /roomChat\.onSend\(outgoing\)/);
+  });
 });
