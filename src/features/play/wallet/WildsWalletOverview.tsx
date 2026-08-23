@@ -14,9 +14,8 @@ export function WildsWalletOverview({ state, onNavigate }: { state: WildsWalletP
     {state.status === "offline-verified" ? <p className="wilds-wallet-state-strip is-offline" role="status">Offline verified · sending is disabled until authority reconnects.</p> : null}
     {summary.pendingCount ? <p className="wilds-wallet-state-strip is-pending" role="status">{summary.pendingCount} exact transfer {summary.pendingCount === 1 ? "attempt requires" : "attempts require"} recovery.</p> : null}
     <dl className="wilds-wallet-holdings-band">
-      <div><dt>Resources</dt><dd>{summary.assetCountsStatus === "available" ? summary.transferableResourceCount : "Not admitted"}</dd></div>
-      <div><dt>Creature cards</dt><dd>{summary.assetCountsStatus === "available" ? summary.transferableCardCount : "Not admitted"}</dd></div>
-      <div><dt>Reserved cards</dt><dd>{summary.assetCountsStatus === "available" ? summary.reservedCardCount : "Not admitted"}</dd></div>
+      <div><dt>Resource units</dt><dd>{summary.assetCountsStatus === "available" ? summary.transferableResourceCount : "—"}</dd></div>
+      <div><dt>Creature cards</dt><dd>{summary.assetCountsStatus === "available" ? summary.transferableCardCount : "—"}</dd></div>
     </dl>
     <div className="wilds-wallet-primary-actions"><button onClick={() => onNavigate("send")} type="button">Send</button><button onClick={() => onNavigate("receive")} type="button">Receive</button></div>
     <section aria-labelledby="wilds-wallet-latest-title" className="wilds-wallet-latest"><h3 id="wilds-wallet-latest-title">Latest verified ledger</h3>{state.ledger?.entries.slice(0, 3).length ? state.ledger.entries.slice(0, 3).map((entry, index) => <p key={`${entry.createdAt}-${index}`}><span>{entry.direction}</span><b>{entry.amountPhiMicro ? `Φ ${formatWildsPhiExact(entry.amountPhiMicro)}` : entry.state}</b></p>) : <p>No admitted entries yet.</p>}</section>

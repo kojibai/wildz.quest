@@ -114,6 +114,7 @@ import { WildsWorldCanvas } from "@/features/play/WildsWorldCanvas";
 import { useWildsWalletController, type WildsWalletClientAuthorizationPort } from "@/features/play/wallet/useWildsWalletController";
 import { authorizeWildsWalletReadWithIdentity, projectWildsWalletSourceAuthority } from "@/features/play/wallet/wilds-wallet-read-authorization";
 import { authorizeWildsWalletTransferWithIdentity } from "@/features/play/wallet/wilds-wallet-transfer-authorization";
+import { projectWildsWalletPlayStateSeed, seedWildsWalletFromPlayState } from "@/features/play/wallet/wilds-wallet-play-state";
 import { canCloseWildsWalletTerminal, WildsWalletTerminal } from "@/features/play/wallet/WildsWalletTerminal";
 import { emptyAdventureCondition } from "@/features/play/adventure/card-condition";
 import { projectWildsTraversalCapabilities } from "@/features/play/wilds-traversal-capabilities";
@@ -297,10 +298,26 @@ export function PlayCampaign({
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
   const [mapOpen, setMapOpen] = useState(false);
   const [multiplayerRosterOpen, setMultiplayerRosterOpen] = useState(false);
+  const walletPlayStateSeed = useMemo(() => projectWildsWalletPlayStateSeed({
+    ascensionCatalysts: state.ascensionCatalysts,
+    beans: state.beans,
+    fusionSparks: state.fusionSparks,
+    inventory: state.inventory
+  }), [
+    state.ascensionCatalysts,
+    state.beans,
+    state.fusionSparks,
+    state.inventory
+  ]);
+  const walletPlayStateSeedRef = useRef(walletPlayStateSeed);
+  walletPlayStateSeedRef.current = walletPlayStateSeed;
   const walletReadAuthorization = useMemo(() => walletReadIdentityKey
     ? {
       authorize: () => authorizeWildsWalletReadWithIdentity(walletReadIdentityKey),
-      projectSource: () => projectWildsWalletSourceAuthority(walletReadIdentityKey)
+      projectSource: async () => {
+        const source = await projectWildsWalletSourceAuthority(walletReadIdentityKey);
+        return source ? seedWildsWalletFromPlayState(source, walletPlayStateSeedRef.current) : null;
+      }
     }
     : undefined, [walletReadIdentityKey]);
   const walletTransferAuthorization = useMemo(() => walletAuthorization ?? (walletReadIdentityKey
@@ -1660,8 +1677,22 @@ export function PlayCampaign({
             />
 
             {exclusiveOwner === "wallet" ? <WildsWalletTerminal
+              cards={state.inventory}
+              cardConditions={state.adventureConditions}
               publicUsername={walletPublicUsername}
               state={walletController}
+              onPrepareCard={(asset) => onPrepareCard(asset, createWildsPlayerVault({
+                playerId: ownerReceizId,
+                exportedAt: new Date().toISOString(),
+                playState: state,
+                character,
+                settings: { avatarStyle: explorerStyle, movementMode, audio: presentation.audioSettings, cardOrder, visual: visualSettings },
+                personalEvents: initialPlayerContinuity?.personalEvents ?? [],
+                canonicalCursor: livingWorld.snapshot
+                  ? { worldId: "wilds:global:v3", revision: livingWorld.snapshot.revision, eventId: livingWorld.snapshot.cursor?.eventId ?? null }
+                  : initialPlayerContinuity?.canonicalCursor ?? { worldId: "wilds:global:v3", revision: 0, eventId: null },
+                receipts: initialPlayerContinuity?.receipts ?? []
+              }))}
               onClose={() => closeOwnedModal("wallet")}
               onNavigate={walletController.navigate}
               onRefresh={() => { void walletController.refresh(); }}

@@ -7,6 +7,7 @@ import { nextWildsWalletPageForKey, WildsWalletTerminal } from "../src/features/
 import { createWildsWalletAuthorizationHoldRuntime, isWildsWalletAuthorizationHoldKey } from "../src/features/play/wallet/WildsWalletSend";
 import { formatWildsPhiCompact } from "../src/features/play/wallet/wilds-wallet-format";
 import { createWildsWalletControllerState, gateWildsWalletClientCapabilities, reduceWildsWalletController } from "../src/features/play/wallet/wilds-wallet-controller";
+import { initialPlayState } from "../src/features/play/game-state";
 
 function state(overrides: Record<string, unknown> = {}) {
   return {
@@ -68,11 +69,31 @@ test("a verified Receiz ID renders its carried wallet without a projection workf
   assert.match(terminal, /ADMITTED PHI/);
   assert.doesNotMatch(terminal, /SYNC PENDING/);
   assert.doesNotMatch(terminal, /discover|resolve|projection|preserved|source authority|authorization required|safely locked|awaiting/i);
+  assert.doesNotMatch(terminal, /Reserved cards|Not admitted/);
 });
 
 test("verified display quote preserves every admitted cent beyond Number precision", () => {
   const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, { publicUsername: "explorer", state: state(), ...actions }));
   assert.match(markup, /\$987,654,321,098,765,432\.10/);
+});
+
+test("wallet Assets renders the user's real two-sided card and direct send control", () => {
+  const card = initialPlayState.inventory[0]!;
+  const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, {
+    cards: [card],
+    cardConditions: initialPlayState.adventureConditions,
+    onPrepareCard: async () => ({ assetId: card.id, bytes: new Uint8Array(), filename: "card.png", mimeType: "image/png", ownerReceizId: card.manifest.ownerReceizId }),
+    publicUsername: "explorer",
+    state: state({ page: "assets" }),
+    ...actions
+  }));
+
+  assert.match(markup, new RegExp(card.manifest.name));
+  assert.match(markup, /Living companion dossier/);
+  assert.match(markup, /Tap or swipe the card to see its complete verified back/);
+  assert.match(markup, /Receiz username or email to send this card/);
+  assert.match(markup, new RegExp(`Send ${card.manifest.name}`));
+  assert.doesNotMatch(markup, /Reserved cards|Not admitted/);
 });
 
 test("terminal is one modal dialog with five named surfaces and fail-closed send", () => {

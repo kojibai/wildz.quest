@@ -7,6 +7,9 @@ import { WildsWalletLedger } from "./WildsWalletLedger";
 import { WildsWalletOverview } from "./WildsWalletOverview";
 import { WildsWalletReceive } from "./WildsWalletReceive";
 import { WildsWalletSend, type WildsWalletSendActions } from "./WildsWalletSend";
+import type { PortableCardAsset } from "@/features/play/portable-card";
+import type { AdventureCardCondition } from "@/features/play/adventure/card-condition";
+import type { WildzPreparedIdentityOwnedCard } from "@/lib/receiz/wildz-identity-adapter";
 
 const pages: readonly Readonly<{ page: WildsWalletPage; label: string; mark: string }>[] = [
   { page: "overview", label: "Overview", mark: "◫" }, { page: "send", label: "Send", mark: "↗" },
@@ -34,7 +37,13 @@ export type WildsWalletTerminalActions = WildsWalletSendActions & Readonly<{
   onRequestReceive(): void;
 }>;
 
-export function WildsWalletTerminal({ publicUsername, state, ...actions }: { publicUsername: string | null; state: WildsWalletPresentationState } & WildsWalletTerminalActions) {
+export function WildsWalletTerminal({ cards = [], cardConditions = {}, onPrepareCard, publicUsername, state, ...actions }: {
+  cards?: readonly PortableCardAsset[];
+  cardConditions?: Readonly<Record<string, AdventureCardCondition>>;
+  onPrepareCard?: (asset: PortableCardAsset) => Promise<WildzPreparedIdentityOwnedCard>;
+  publicUsername: string | null;
+  state: WildsWalletPresentationState;
+} & WildsWalletTerminalActions) {
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   if (!state.open) return null;
   const moveTab = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
@@ -61,7 +70,7 @@ export function WildsWalletTerminal({ publicUsername, state, ...actions }: { pub
         {state.page === "overview" ? <WildsWalletOverview state={state} onNavigate={actions.onNavigate} /> : null}
         {state.page === "send" ? <WildsWalletSend state={state} {...actions} /> : null}
         {state.page === "receive" ? <WildsWalletReceive publicUsername={publicUsername} state={state} onRequestReceive={actions.onRequestReceive} /> : null}
-        {state.page === "assets" ? <WildsWalletAssets state={state} /> : null}
+        {state.page === "assets" ? <WildsWalletAssets cards={cards} cardConditions={cardConditions} onPrepareCard={onPrepareCard} state={state} /> : null}
         {state.page === "ledger" ? <WildsWalletLedger state={state} /> : null}
       </main>
       <footer><span>RECEIZ V124 · PROOF-NATIVE CUSTODY</span><span>PRIVATE · NO-STORE</span></footer>
