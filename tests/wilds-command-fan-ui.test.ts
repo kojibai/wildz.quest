@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { isWildsWorldToolsSwipeDown, isWildsWorldToolsSwipeUp } from "../src/features/play/WildsCommandDock";
 
 test("world tools rest behind one trigger and expose controlled fan and panel state", async () => {
   const source = await readFile("src/features/play/WildsCommandDock.tsx", "utf8");
@@ -11,4 +12,20 @@ test("world tools rest behind one trigger and expose controlled fan and panel st
   assert.match(source, /toolsOpen: boolean/);
   assert.match(source, /panelKey: WildsCommandKey \| null/);
   assert.doesNotMatch(source, /useState<WildsCommandKey \| null>/);
+});
+
+test("center world-tools trigger opens its four-box fan with a deliberate upward swipe", () => {
+  const origin = { x: 120, y: 180 };
+  assert.equal(isWildsWorldToolsSwipeUp(origin, { x: 124, y: 126 }), true);
+  assert.equal(isWildsWorldToolsSwipeUp(origin, { x: 120, y: 150 }), false);
+  assert.equal(isWildsWorldToolsSwipeUp(origin, { x: 190, y: 128 }), false);
+  assert.equal(isWildsWorldToolsSwipeUp(origin, { x: 120, y: 238 }), false);
+});
+
+test("center world-tools trigger recognizes a deliberate downward close gesture", () => {
+  const origin = { x: 120, y: 180 };
+  assert.equal(isWildsWorldToolsSwipeDown(origin, { x: 124, y: 234 }), true);
+  assert.equal(isWildsWorldToolsSwipeDown(origin, { x: 120, y: 210 }), false);
+  assert.equal(isWildsWorldToolsSwipeDown(origin, { x: 190, y: 232 }), false);
+  assert.equal(isWildsWorldToolsSwipeDown(origin, { x: 120, y: 122 }), false);
 });

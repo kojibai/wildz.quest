@@ -85,7 +85,18 @@ export function gateWildsWalletClientCapabilities(
   capabilities: WalletCapabilityProjection,
   ports: Readonly<{ proofAuthorization: boolean }>
 ): WalletCapabilityProjection {
-  if (capabilities.recipientLookup.available && ports.proofAuthorization) return capabilities;
+  // A verified Receiz ID emits the sealed proof object that carries transfer
+  // authority. Remote lookup/execution reports are subordinate sync projections
+  // and must never demote that source authority.
+  if (ports.proofAuthorization) {
+    const available = Object.freeze({ available: true as const });
+    return Object.freeze({
+      ...capabilities,
+      send: available,
+      phiSettlement: available,
+      phiReserve: available
+    });
+  }
   const unavailable = Object.freeze({ available: false as const, reason: V123_UNAVAILABLE });
   return Object.freeze({ ...capabilities, send: unavailable, phiSettlement: unavailable, phiReserve: unavailable });
 }
@@ -119,8 +130,8 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
       return { ...state, status: "source-verified", sourceAuthorityVerified: true, ...(event.response ? { summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger } : {}) };
     case "refresh-resolved":
       if (state.requestId !== event.requestId || state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration) return state;
-      // Transport reports whether an execution rail is available. It may enable
-      // operations, but its wallet representation never replaces source truth.
+      // Transport only reports globally synchronized additions. It cannot
+      // enable, disable, or replace the source proof object's authority.
       if (state.sourceAuthorityVerified) return { ...state, status: "source-verified", requestId: null, capabilities: event.response.capabilities };
       return { ...state, status: "verified", requestId: null, summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger };
     case "refresh-failed":

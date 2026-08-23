@@ -18,6 +18,27 @@ export type WildsCommandItem = {
   content: ReactNode;
 };
 
+const WORLD_TOOLS_SWIPE_UP_PX = 44;
+const WORLD_TOOLS_SWIPE_AXIS_RATIO = 1.15;
+
+export function isWildsWorldToolsSwipeUp(
+  origin: Readonly<{ x: number; y: number }>,
+  current: Readonly<{ x: number; y: number }>
+) {
+  const dx = current.x - origin.x;
+  const dy = current.y - origin.y;
+  return dy <= -WORLD_TOOLS_SWIPE_UP_PX && Math.abs(dy) >= Math.abs(dx) * WORLD_TOOLS_SWIPE_AXIS_RATIO;
+}
+
+export function isWildsWorldToolsSwipeDown(
+  origin: Readonly<{ x: number; y: number }>,
+  current: Readonly<{ x: number; y: number }>
+) {
+  const dx = current.x - origin.x;
+  const dy = current.y - origin.y;
+  return dy >= WORLD_TOOLS_SWIPE_UP_PX && Math.abs(dy) >= Math.abs(dx) * WORLD_TOOLS_SWIPE_AXIS_RATIO;
+}
+
 export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange, onPanelKeyChange, requestedKey = null, dismissSignal = 0, exclusiveOwner, onRequestHandled = () => {} }: {
   items: readonly WildsCommandItem[];
   toolsOpen: boolean;
@@ -34,12 +55,38 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
   const sheetRef = useRef<HTMLElement | null>(null);
   const originTriggerRef = useRef<HTMLElement | null>(null);
   const focusFrameRef = useRef<number | null>(null);
+  const toolsGestureRef = useRef<Readonly<{ pointerId: number; x: number; y: number; committed: boolean }> | null>(null);
+  const suppressToolsClickRef = useRef(false);
   const dragStartRef = useRef<number | null>(null);
   const dragDistanceRef = useRef(0);
   const priorDismissSignal = useRef(dismissSignal);
   const priorActiveKey = useRef<WildsCommandKey | null>(panelKey);
   const activeKey = panelKey;
   const activeItem = items.find((item) => item.key === activeKey) ?? null;
+
+  const resetToolsGesture = useCallback((target?: HTMLButtonElement, pointerId?: number) => {
+    toolsGestureRef.current = null;
+    if (target && pointerId !== undefined) {
+      try { if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId); } catch { /* capture is optional */ }
+    }
+  }, []);
+
+  const commitToolsGesture = useCallback((pointerId: number, x: number, y: number) => {
+    const gesture = toolsGestureRef.current;
+    if (!gesture || gesture.pointerId !== pointerId || gesture.committed) return false;
+    const point = { x, y };
+    const next = isWildsWorldToolsSwipeUp(gesture, point)
+      ? true
+      : isWildsWorldToolsSwipeDown(gesture, point)
+        ? false
+        : null;
+    if (next === null || next === toolsOpen) return false;
+    toolsGestureRef.current = { ...gesture, committed: true };
+    suppressToolsClickRef.current = true;
+    originTriggerRef.current = toolsTriggerRef.current;
+    onToolsOpenChange(next);
+    return true;
+  }, [onToolsOpenChange, toolsOpen]);
 
   const restoreOriginFocus = useCallback(() => {
     if (focusFrameRef.current !== null) window.cancelAnimationFrame(focusFrameRef.current);
@@ -152,8 +199,34 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
         className="wilds-world-tools-trigger"
         disabled={Boolean(activeItem)}
         onClick={() => {
+          if (suppressToolsClickRef.current) {
+            suppressToolsClickRef.current = false;
+            return;
+          }
           originTriggerRef.current = toolsTriggerRef.current;
           onToolsOpenChange(!toolsOpen);
+        }}
+        onLostPointerCapture={(event) => {
+          if (!toolsGestureRef.current) return;
+          resetToolsGesture(event.currentTarget, event.pointerId);
+          suppressToolsClickRef.current = false;
+        }}
+        onPointerCancel={(event) => {
+          resetToolsGesture(event.currentTarget, event.pointerId);
+          suppressToolsClickRef.current = false;
+        }}
+        onPointerDown={(event) => {
+          if (toolsGestureRef.current) return;
+          toolsGestureRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, committed: false };
+          try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* capture is optional */ }
+        }}
+        onPointerMove={(event) => { commitToolsGesture(event.pointerId, event.clientX, event.clientY); }}
+        onPointerUp={(event) => {
+          commitToolsGesture(event.pointerId, event.clientX, event.clientY);
+          resetToolsGesture(event.currentTarget, event.pointerId);
+          if (suppressToolsClickRef.current) {
+            window.setTimeout(() => { suppressToolsClickRef.current = false; }, 0);
+          }
         }}
         ref={toolsTriggerRef}
         type="button"

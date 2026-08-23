@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorldOverlayOwner } from "@/features/play/world-overlay-state";
 import { createWildsWalletControllerState, gateWildsWalletClientCapabilities, hydrateWildsWalletControllerState, type WildsWalletControllerState, type WildsWalletPage, type WildsWalletReadResponse } from "./wilds-wallet-controller";
+import { normalizeWildsWalletPublicUsername } from "@/lib/receiz/wilds-wallet-projections";
 import { createWildsWalletControllerDriver, type WildsWalletControllerDriver, wildsWalletSharedSessionCache } from "./wilds-wallet-controller-driver";
 
 type FetchResponse = Readonly<{ ok: boolean; status: number; json(): Promise<unknown> }>;
@@ -85,6 +86,16 @@ export function useWildsWalletController(
   const capabilities = visible.capabilities
     ? gateWildsWalletClientCapabilities(visible.capabilities, { proofAuthorization: Boolean(options.authorization) })
     : null;
+  const lookupRecipient = useCallback((username: string) => {
+    // The recipient username is carried by the source-issued proof object.
+    // Public lookup may enrich/resolve it, but a missing projection is not a
+    // transfer-authority gate.
+    if (visible.sourceAuthorityVerified && !visible.capabilities?.recipientLookup.available) {
+      try { driver.selectTransferRecipient(normalizeWildsWalletPublicUsername(username)); } catch { /* form remains editable */ }
+      return;
+    }
+    return driver.lookupRecipient(username);
+  }, [driver, visible.capabilities?.recipientLookup.available, visible.sourceAuthorityVerified]);
   const authorizeTransfer = useCallback(async (pointerId: number) => {
     const authorization = options.authorization;
     const transfer = driver.state.transfer;
@@ -108,7 +119,7 @@ export function useWildsWalletController(
     closeTerminal: driver.close,
     navigate: (page: WildsWalletPage) => driver.navigate(page),
     refresh: admitSourceThenRefresh,
-    lookupRecipient: driver.lookupRecipient,
+    lookupRecipient,
     selectTransferRecipient: driver.selectTransferRecipient,
     reviewTransferAmount: driver.reviewTransferAmount,
     stageTransfer: driver.stageTransfer,

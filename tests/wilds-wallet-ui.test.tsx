@@ -104,7 +104,7 @@ test("terminal is one modal dialog with five named surfaces and fail-closed send
   assert.match(markup, /aria-modal="true"/);
   assert.match(markup, /WILDZ SOVEREIGN TERMINAL/);
   for (const label of ["Overview", "Send", "Receive", "Assets", "Ledger"]) assert.match(markup, new RegExp(`>${label}<`));
-  assert.match(markup, /execution rail is unavailable\. Your Receiz ID authority is unchanged/);
+  assert.match(markup, /cannot sign a transfer proof object/);
   assert.doesNotMatch(markup, /Transfer complete/);
   assert.doesNotMatch(markup, /proofDigest|subjectId|ownerReceizId|accessToken/);
   assert.doesNotMatch(markup, /explorer-with-an-intentionally-long-coordinate/);
@@ -113,11 +113,11 @@ test("terminal is one modal dialog with five named surfaces and fail-closed send
   assert.doesNotMatch(markup, /RECEIZ V123/);
 });
 
-test("client capability projection refuses to advertise send without both lookup and proof authorization ports", () => {
+test("client capability projection takes send authority from the Receiz ID signer, not public lookup", () => {
   const live = state().capabilities!;
   const serverLive = { ...live, recipientLookup: { available: true as const }, send: { available: true as const }, phiSettlement: { available: true as const } };
   assert.equal(gateWildsWalletClientCapabilities(serverLive, { proofAuthorization: false }).send.available, false);
-  assert.equal(gateWildsWalletClientCapabilities({ ...serverLive, recipientLookup: { available: false as const, reason: "receiz_v123_execution_unavailable" as const } }, { proofAuthorization: true }).send.available, false);
+  assert.equal(gateWildsWalletClientCapabilities({ ...serverLive, recipientLookup: { available: false as const, reason: "receiz_v123_execution_unavailable" as const } }, { proofAuthorization: true }).send.available, true);
   assert.equal(gateWildsWalletClientCapabilities(serverLive, { proofAuthorization: true }).send.available, true);
 });
 
