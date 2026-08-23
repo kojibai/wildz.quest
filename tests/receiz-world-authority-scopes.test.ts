@@ -8,7 +8,7 @@ import { playerReceizWorldAuthorityAccessToken, type ReceizRequestSession } from
 import { WILDZ_RECEIZ_SESSION_SCOPE } from "../src/lib/receiz/wildz-auth-url";
 
 describe("Receiz world authority OAuth scopes", () => {
-  it("requests the exact v121 command, event, subject, mandate, and inventory rails", () => {
+  it("requests the exact v124 command, event, subject, mandate, and inventory rails", () => {
     assert.deepEqual(new Set(RECEIZ_WORLD_AUTHORITY_OIDC_SCOPES), new Set([
       "receiz:world_commands.write",
       "receiz:world_events.read",
@@ -16,6 +16,8 @@ describe("Receiz world authority OAuth scopes", () => {
       "receiz:subjects.write",
       "receiz:subject_mandates.read",
       "receiz:subject_mandates.write",
+      "receiz:subject-mandates.read",
+      "receiz:subject-mandates.write",
       "receiz:subject_inventory.write"
     ]));
   });

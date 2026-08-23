@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateReceizProofAuthorityV123, sha256ReceizBytes } from "@receiz/sdk";
 import { createReceizCommerceAdapter, receizCommerceAdapter } from "@/lib/receiz/adapter";
 import { loadReceizConnectProfile } from "@/lib/receiz/connect-profile";
+import { receizHttpFailureCode } from "@/lib/receiz/receiz-http-failure";
 import { receizOAuthSecret } from "@/lib/receiz/oauth-state";
 import { WILDZ_RECEIZ_SESSION_SCOPE } from "@/lib/receiz/wildz-auth-url";
 import {
@@ -49,7 +50,8 @@ function edgeIdentity(request: NextRequest) {
 }
 
 function failure(cause: unknown) {
-  const code = cause instanceof Error ? cause.message : "receiz_wallet_identity_authority_failed";
+  const code = receizHttpFailureCode(cause)
+    ?? (cause instanceof Error ? cause.message : "receiz_wallet_identity_authority_failed");
   const status = /required/.test(code) ? 401 : /binding|profile|token/.test(code) ? 403 : 400;
   return NextResponse.json({ error: code }, { status, headers: { "cache-control": "no-store" } });
 }

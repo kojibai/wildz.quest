@@ -15,7 +15,8 @@ import {
 } from "@receiz/sdk";
 import { checkReceizIntegration } from "@receiz/sdk/compiler";
 
-const TARGET_VERSION = "124.0.0";
+const TARGET_PACKAGE_VERSION = "124.0.1";
+const TARGET_RULESET_VERSION = "124.0.0";
 const TARGET_REGISTRY_DIGEST = "d02429151b0bcebdaeb89485792e377afc55130f9a25e07982c1c88221314247";
 const TARGET_OPERATION_MATRIX_DIGEST = "540d1c1bf39f1b288b257c79a6e020bdcc5e587fc9b7dbf6b7aaa5d082e20ad5";
 const sourceRoot = resolve(process.cwd());
@@ -49,11 +50,11 @@ async function assertCompilerBoundary(directory) {
 }
 
 function assertReleaseIdentity() {
-  if (RECEIZ_RELEASE_VERSION !== TARGET_VERSION || RECEIZ_RULESET_VERSION !== TARGET_VERSION) {
+  if (RECEIZ_RELEASE_VERSION !== TARGET_PACKAGE_VERSION || RECEIZ_RULESET_VERSION !== TARGET_RULESET_VERSION) {
     throw new Error("receiz_v124_release_identity_mismatch");
   }
   if (RECEIZ_V124_REGISTRY_DIGEST !== TARGET_REGISTRY_DIGEST
-    || RECEIZ_CURRENT_CONSTITUTION_REGISTRY.version !== TARGET_VERSION) {
+    || RECEIZ_CURRENT_CONSTITUTION_REGISTRY.version !== TARGET_RULESET_VERSION) {
     throw new Error("receiz_v124_registry_digest_mismatch");
   }
   if (RECEIZ_V124_APPLICATION_OPERATION_MATRIX_DIGEST !== TARGET_OPERATION_MATRIX_DIGEST
@@ -62,7 +63,7 @@ function assertReleaseIdentity() {
     || RECEIZ_V124_APP_COMPATIBLE_SDK_RANGE !== ">=124.0.0 <125.0.0") {
     throw new Error("receiz_v124_operation_matrix_mismatch");
   }
-  if (RECEIZ_CURRENT_CONSTITUTION_REGISTRY.version !== TARGET_VERSION
+  if (RECEIZ_CURRENT_CONSTITUTION_REGISTRY.version !== TARGET_RULESET_VERSION
     || RECEIZ_V124_AUTHORITY_BOUNDARY.authority.enclosingArtifact !== "strongest"
     || RECEIZ_V124_AUTHORITY_BOUNDARY.authority.projectionIsAuthority !== false
     || RECEIZ_V124_AUTHORITY_BOUNDARY.authority.multiSubjectEffectsAreAtomic !== true
@@ -88,7 +89,7 @@ try {
     }
   });
   await assertCompilerBoundary(snapshotRoot);
-  const officialResult = await checkReceizIntegration({ root: snapshotRoot, targetSdkVersion: TARGET_VERSION });
+  const officialResult = await checkReceizIntegration({ root: snapshotRoot, targetSdkVersion: TARGET_PACKAGE_VERSION });
   const reviewedScannerCode = "compiler_import_requires_manual_migration";
   const blockingFindings = officialResult.blockingFindings.filter((finding) => finding.code !== reviewedScannerCode);
   const result = {

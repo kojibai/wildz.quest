@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import {
   RECEIZ_CURRENT_CONSTITUTION_REGISTRY,
+  RECEIZ_OIDC_SCOPES_BY_RAIL,
   RECEIZ_RELEASE_VERSION,
   RECEIZ_RULESET_VERSION,
   RECEIZ_SDK_VERSION,
@@ -15,11 +16,12 @@ import {
   RECEIZ_V124_REGISTRY_DIGEST
 } from "@receiz/sdk";
 import { compileReceizAppContract, defineReceizApp } from "@receiz/sdk/compiler";
+import { RECEIZ_V124_MCP_REQUIRED_SCOPES, RECEIZ_V124_MCP_TOOL_NAMES } from "@receiz/mcp-server";
 
 describe("Receiz v124 application contract", () => {
   it("pins the coordinated v124 release identity and artifact-first authority", () => {
-    assert.equal(RECEIZ_SDK_VERSION, "124.0.0");
-    assert.equal(RECEIZ_RELEASE_VERSION, "124.0.0");
+    assert.equal(RECEIZ_SDK_VERSION, "124.0.1");
+    assert.equal(RECEIZ_RELEASE_VERSION, "124.0.1");
     assert.equal(RECEIZ_RULESET_VERSION, "124.0.0");
     assert.equal(RECEIZ_CURRENT_CONSTITUTION_REGISTRY.version, "124.0.0");
     assert.equal(RECEIZ_V124_REGISTRY_DIGEST, "d02429151b0bcebdaeb89485792e377afc55130f9a25e07982c1c88221314247");
@@ -33,8 +35,8 @@ describe("Receiz v124 application contract", () => {
 
     const checkedIn = JSON.parse(readFileSync("receiz.app.json", "utf8"));
     const contract = defineReceizApp({ ...checkedIn, operations: RECEIZ_V124_APPLICATION_OPERATION_MATRIX });
-    const plan = compileReceizAppContract(contract, { targetSdkVersion: "124.0.0" });
-    assert.equal(plan.targetSdkVersion, "124.0.0");
+    const plan = compileReceizAppContract(contract, { targetSdkVersion: "124.0.1" });
+    assert.equal(plan.targetSdkVersion, "124.0.1");
     assert.equal(contract.authority.mode, "artifact-first");
     assert.equal(contract.authority.allowDatabaseAuthority, false);
     assert.deepEqual(contract.operations?.map((operation: { operation: string }) => operation.operation), RECEIZ_V124_APPLICATION_OPERATIONS);
@@ -48,11 +50,30 @@ describe("Receiz v124 application contract", () => {
     assert.equal(report.ok, true);
     assert.deepEqual(report.blockingFindings, []);
     assert.deepEqual(report.releaseIdentity, {
-      releaseVersion: "124.0.0",
+      releaseVersion: "124.0.1",
       rulesetVersion: "124.0.0",
       registryDigest: RECEIZ_V124_REGISTRY_DIGEST,
       operationMatrixDigest: RECEIZ_V124_APPLICATION_OPERATION_MATRIX_DIGEST
     });
+  });
+
+  it("exposes the complete v124.0.1 authority, execution, and private-world surface", () => {
+    assert.equal(RECEIZ_V124_MCP_TOOL_NAMES.length, 22);
+    for (const tool of [
+      "receiz_v124_proof_authority_challenge_create",
+      "receiz_v124_execution_execute",
+      "receiz_v124_runtime_authority_session_open",
+      "receiz_v124_domain_verified_private_additions",
+      "receiz_v124_identity_public_recipient_resolve",
+      "receiz_v124_source_publish_sealed"
+    ] as const) {
+      assert.ok(RECEIZ_V124_MCP_TOOL_NAMES.includes(tool), tool);
+    }
+    assert.deepEqual(RECEIZ_V124_MCP_REQUIRED_SCOPES.receiz_v124_domain_verified_private_additions, ["receiz:world.private"]);
+    assert.deepEqual(RECEIZ_OIDC_SCOPES_BY_RAIL.wallet, ["receiz:wallet.read", "receiz:wallet.transfer"]);
+    assert.ok(RECEIZ_OIDC_SCOPES_BY_RAIL.twin.includes("receiz:twin.execute"));
+    assert.ok(RECEIZ_OIDC_SCOPES_BY_RAIL.twin.includes("receiz:creator.execute"));
+    assert.ok(RECEIZ_OIDC_SCOPES_BY_RAIL.world.includes("receiz:world.private"));
   });
 
   it("wires the v124 checker into the release gate", () => {

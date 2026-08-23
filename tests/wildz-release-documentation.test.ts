@@ -21,20 +21,20 @@ test("Wildz current release doctrine names the exact Receiz v124 toolchain", () 
   };
 
   assert.equal(pkg.version, "8.0.0");
-  assert.equal(pkg.dependencies?.["@receiz/sdk"], "124.0.0");
-  assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "124.0.0");
-  assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "124.0.0");
+  assert.equal(pkg.dependencies?.["@receiz/sdk"], "124.0.1");
+  assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "124.0.1");
+  assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "124.0.1");
   for (const [name, source] of Object.entries(currentDoctrine)) {
     for (const packageName of ["@receiz/sdk", "@receiz/mcp-server", "@receiz/ai-skills"]) {
-      assert.match(source, new RegExp(`${packageName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}@124\\.0\\.0`), name);
+      assert.match(source, new RegExp(`${packageName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}@124\\.0\\.1`), name);
     }
     assert.match(source, /d02429151b0bcebdaeb89485792e377afc55130f9a25e07982c1c88221314247/i, name);
     assert.match(source, /540d1c1bf39f1b288b257c79a6e020bdcc5e587fc9b7dbf6b7aaa5d082e20ad5/i, name);
     assert.doesNotMatch(source, /@receiz\/(?:sdk|mcp-server|ai-skills)@122\.0\.0/i, name);
   }
-  assert.match(mcp, /@receiz\/sdk@124\.0\.0/);
-  assert.match(mcp, /@receiz\/mcp-server@124\.0\.0/);
-  assert.match(mcp, /@receiz\/ai-skills@124\.0\.0/);
+  assert.match(mcp, /@receiz\/sdk@124\.0\.1/);
+  assert.match(mcp, /@receiz\/mcp-server@124\.0\.1/);
+  assert.match(mcp, /@receiz\/ai-skills@124\.0\.1/);
   assert.match(currentDoctrine.readme, /public npm/i);
   assert.match(currentDoctrine.readme, /published (?:SHA-512 )?integrity/i);
   assert.match(currentDoctrine.releaseSkill, /first admission only, then append forever/i);

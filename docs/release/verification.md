@@ -1,6 +1,6 @@
 # Wildz v8.0.0 release verification
 
-Date: 2026-08-23. Target application version: `8.0.0`. Receiz integration target: `124.0.0`.
+Date: 2026-08-23. Target application version: `8.0.0`. Receiz package target: `124.0.1`; constitutional ruleset: `124.0.0`.
 
 This record distinguishes repository evidence from external production evidence. A passing local gate proves the source, deterministic contracts, compilation, and configured local browser paths observed in the run. It does not manufacture credentials, remote authority, deployment, payment settlement, or literal creature sentience.
 
@@ -8,9 +8,9 @@ This record distinguishes repository evidence from external production evidence.
 
 | Package | Requested | Installed | Role |
 |---|---:|---:|---|
-| `@receiz/sdk` | `124.0.0` | `124.0.0` | Artifact, durable subject, proof-authority, authority-session, durable execution, recipient-resolution, and Phi boundary |
-| `@receiz/mcp-server` | `124.0.0` | `124.0.0` | Coordinated operator tools; never proof authority |
-| `@receiz/ai-skills` | `124.0.0` | `124.0.0` | Coordinated proof-aware operating skills; never proof authority |
+| `@receiz/sdk` | `124.0.1` | `124.0.1` | Artifact, durable subject, proof-authority, authority-session, durable execution, recipient-resolution, and Phi boundary |
+| `@receiz/mcp-server` | `124.0.1` | `124.0.1` | Coordinated operator tools; never proof authority |
+| `@receiz/ai-skills` | `124.0.1` | `124.0.1` | Coordinated proof-aware operating skills; never proof authority |
 
 All three exact public npm packages use published SHA-512 integrity values pinned in `pnpm-lock.yaml`. The V124 registry digest is `d02429151b0bcebdaeb89485792e377afc55130f9a25e07982c1c88221314247`; the 53-operation matrix digest is `540d1c1bf39f1b288b257c79a6e020bdcc5e587fc9b7dbf6b7aaa5d082e20ad5`.
 
@@ -24,14 +24,16 @@ The V124 wallet release gate is being requalified on 2026-08-23:
 
 | Gate | Observed result |
 |---|---|
-| Receiz architecture lock | Pass; 491 runtime files checked |
-| Node law/regression suite | Pass; 1,765 tests across 161 suites, zero failures |
+| Receiz architecture lock | Pass; 500 runtime files checked |
+| Node law/regression suite | Pass; 1,788 tests across 163 suites, zero failures |
 | Typecheck | Pass |
 | Official V124 repository checker | Pass; exact release, 53-operation registry/matrix, and authority identity |
 | MCP/SDK conformance | Pass; 15/15 checks, zero network calls, zero database calls |
 | ESLint | Pass |
 | Optimized Next.js build | Pass; 19 static pages generated and all application routes compiled |
-| Receiz packages | Pass; SDK/MCP/AI skills requested and installed at exact compatible `124.0.0` |
+| Receiz packages | Pass; SDK/MCP/AI skills requested and installed at exact compatible `124.0.1` |
+
+The published `receiz conformance` command passes all 15 checks under the compatible V124 package set, but its report metadata still emits the stale label `sdkVersion: 121.0.0`. Installed SDK and release exports, package pins, the official V124 repository checker, and the application contract all report `124.0.1`; the stale CLI label is recorded as an upstream packaging issue rather than rewritten as application evidence.
 
 The optimized build retains two upstream `web-worker` dynamic-require warnings in the Receiz `snarkjs` verifier import chain. They are not application exceptions, do not add a Wildz voice dependency, and were disclosed rather than mislabeled as a warning-free build. The root, robots, standard sitemap, image sitemap, manifest, and social metadata remain outside the gameplay render loop.
 

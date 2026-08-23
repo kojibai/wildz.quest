@@ -32,6 +32,18 @@ test("wallet CSS owns responsive geometry, safe areas, touch floors, long text, 
   assert.doesNotMatch(walletValueRule, /overflow:\s*hidden|text-overflow:/);
   assert.match(css, /@media \(orientation: landscape\) and \(max-height: 500px\)[\s\S]*\.wilds-wallet-terminal-header\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.wilds-wallet-terminal/);
+  assert.match(css, /@media \(max-width: 350px\)[\s\S]*\.wilds-left-instrument-home\s*\{[^}]*grid-template-columns:\s*min\(30vw, 104px\) 44px;/s);
+  assert.match(css, /@media \(max-width: 350px\)[\s\S]*\.wilds-left-instrument-home > \.wilds-wallet-instrument\s*\{[^}]*width:\s*min\(30vw, 104px\);/s);
+});
+
+test("wallet authority failures preserve a safe upstream Receiz code for production diagnosis", () => {
+  const route = readFileSync("app/api/auth/wildz/wallet-authority/route.ts", "utf8");
+  const helper = readFileSync("src/lib/receiz/receiz-http-failure.ts", "utf8");
+  assert.match(route, /receizHttpFailureCode\(cause\)/);
+  assert.match(helper, /cause instanceof ReceizHttpError/);
+  assert.match(helper, /\["code", "error", "message"\]/);
+  assert.match(helper, /\^\[A-Z\]\[A-Z0-9_\]\{2,80\}\$/);
+  assert.doesNotMatch(helper, /JSON\.stringify\(cause\.payload\)/);
 });
 
 test("shell passes a private wallet cache key separately from an optional public username", () => {

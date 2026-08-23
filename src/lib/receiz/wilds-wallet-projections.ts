@@ -3,6 +3,7 @@ import {
   RECEIZ_PHI_RESERVE_OIDC_SCOPES,
   RECEIZ_PHI_SETTLEMENT_OIDC_SCOPES
 } from "./oauth-scopes";
+import { RECEIZ_SDK_VERSION } from "@receiz/sdk";
 
 const MAX_CURSOR_LENGTH = 256;
 const MAX_LEDGER_ENTRIES = 50;
@@ -235,7 +236,7 @@ export function projectWildsWalletCapabilities(
     available: false as const,
     reason: "receiz_v123_execution_unavailable" as const
   });
-  if (!admission || admission.sdkVersion !== "124.0.0") {
+  if (!admission || admission.sdkVersion !== RECEIZ_SDK_VERSION) {
     return Object.freeze({
       read: "available" as const,
       receive: "available" as const,
