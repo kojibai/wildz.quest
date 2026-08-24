@@ -84,6 +84,7 @@ test("wallet Assets renders the user's real two-sided card and direct send contr
   const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, {
     cards: [card],
     cardConditions: initialPlayState.adventureConditions,
+    onOpenVaultCard() {},
     onPrepareCard: async () => ({ assetId: card.id, bytes: new Uint8Array(), filename: "card.png", mimeType: "image/png", ownerReceizId: card.manifest.ownerReceizId }),
     publicUsername: "explorer",
     state: state({ page: "assets" }),
@@ -93,6 +94,8 @@ test("wallet Assets renders the user's real two-sided card and direct send contr
   assert.match(markup, new RegExp(card.manifest.name));
   assert.match(markup, /Living companion dossier/);
   assert.match(markup, /Tap or swipe the card to see its complete verified back/);
+  assert.match(markup, new RegExp(`aria-label="Open ${card.manifest.name} in Card Vault"`));
+  assert.match(markup, /class="wilds-wallet-vault-pill"/);
   assert.match(markup, /Receiz username or email to send this card/);
   assert.match(markup, new RegExp(`Send ${card.manifest.name}`));
   assert.doesNotMatch(markup, /Reserved cards|Not admitted/);

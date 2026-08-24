@@ -70,6 +70,13 @@ test("campaign mounts the terminal outside the Canvas and instrument directly af
   assert.match(hud, /walletEnabled \? <WildsWalletInstrument/);
 });
 
+test("wallet Assets hands the exact viewed card to the in-world Vault without selecting a new companion", () => {
+  const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
+  assert.match(campaign, /focusedAssetId=\{vaultFocusedAssetId \?\? state\.selectedAssetId\}/);
+  assert.match(campaign, /onOpenVaultCard=\{\(assetId\) => \{[\s\S]*setVaultFocusedAssetId\(assetId\)[\s\S]*setRequestedCommand\("vault"\)/);
+  assert.doesNotMatch(campaign, /onOpenVaultCard=\{[\s\S]{0,500}type: "select-asset"/);
+});
+
 test("wallet HUD control is a compact wallet icon with a stable Phi balance", () => {
   const state = {
     ...createWildsWalletControllerState("explorer", "generation"),

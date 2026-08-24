@@ -372,6 +372,7 @@ export function PlayCampaign({
   const [raidBusyIntent, setRaidBusyIntent] = useState<WildsRaidIntent["type"] | null>(null);
   const [riftError, setRiftError] = useState("");
   const [requestedCommand, setRequestedCommand] = useState<WildsCommandKey | null>(null);
+  const [vaultFocusedAssetId, setVaultFocusedAssetId] = useState<string | null>(null);
   const [commandDismissSignal, setCommandDismissSignal] = useState(0);
   const [activeTrainer, setActiveTrainer] = useState<WildsTrainerProjection | null>(null);
   const [trainerEncounter, setTrainerEncounter] = useState<TrainerEncounterState | null>(null);
@@ -1559,7 +1560,7 @@ export function PlayCampaign({
             state={state}
             ownerReceizId={ownerReceizId}
             kaiMoment={kaiMoment}
-            focusedAssetId={state.selectedAssetId}
+            focusedAssetId={vaultFocusedAssetId ?? state.selectedAssetId}
             cardOrder={cardOrder}
             onCardOrderChange={setCardOrder}
             playerVault={() => createWildsPlayerVault({
@@ -1779,6 +1780,14 @@ export function PlayCampaign({
               onSendCard={(asset, targetHandle) => messenger.sendCardOffer(asset, targetHandle)}
               onClose={() => closeOwnedModal("wallet")}
               onNavigate={walletController.navigate}
+              onOpenVaultCard={(assetId) => {
+                setVaultFocusedAssetId(assetId);
+                closeOwnedModal("wallet");
+                window.requestAnimationFrame(() => {
+                  setRequestedCommand("vault");
+                  window.requestAnimationFrame(() => setVaultFocusedAssetId(null));
+                });
+              }}
               onRefresh={() => { void walletController.refresh(); }}
               onLookupRecipient={walletController.lookupRecipient}
               onSelectRecipient={walletController.selectTransferRecipient}

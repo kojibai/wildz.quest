@@ -34,6 +34,7 @@ export function canCloseWildsWalletTerminal(state: WildsWalletControllerState) {
 export type WildsWalletTerminalActions = WildsWalletSendActions & Readonly<{
   onClose(): void;
   onNavigate(page: WildsWalletPage): void;
+  onOpenVaultCard?(assetId: string): void;
   onRefresh(): void;
   onRequestReceive(): void;
   onReturnToMessages?(): void;
@@ -73,7 +74,7 @@ export function WildsWalletTerminal({ cards = [], cardConditions = {}, onPrepare
         {state.page === "overview" ? <WildsWalletOverview state={state} onNavigate={actions.onNavigate} /> : null}
         {state.page === "send" ? <WildsWalletSend state={state} {...actions} /> : null}
         {state.page === "receive" ? <WildsWalletReceive publicUsername={publicUsername} state={state} onRequestReceive={actions.onRequestReceive} /> : null}
-        {state.page === "assets" ? <WildsWalletAssets cards={cards} cardConditions={cardConditions} onPrepareCard={onPrepareCard} onSendCard={onSendCard} state={state} /> : null}
+        {state.page === "assets" ? <WildsWalletAssets cards={cards} cardConditions={cardConditions} onOpenVaultCard={closeAllowed ? actions.onOpenVaultCard : undefined} onPrepareCard={onPrepareCard} onSendCard={onSendCard} state={state} /> : null}
         {state.page === "ledger" ? <WildsWalletLedger state={state} /> : null}
       </main>
       <footer><span>RECEIZ V124 · PROOF-NATIVE CUSTODY</span><span>PRIVATE · NO-STORE</span></footer>

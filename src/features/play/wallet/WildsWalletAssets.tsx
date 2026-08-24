@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Icons } from "@/components/icons";
 import type { AdventureCardCondition } from "@/features/play/adventure/card-condition";
 import { createWildsCardSendDraft, downloadBlob, normalizeWildsCardSendTarget } from "@/features/play/card-export";
 import { WildsCardScene } from "@/features/play/WildsCardScene";
@@ -10,9 +11,10 @@ import type { WildsWalletControllerState } from "./wilds-wallet-controller";
 import { formatWildsPhiExact } from "./wilds-wallet-format";
 import { PhiNetworkAmount } from "./PhiNetworkMark";
 
-export function WildsWalletAssets({ cards, cardConditions, onPrepareCard, onSendCard, state }: {
+export function WildsWalletAssets({ cards, cardConditions, onOpenVaultCard, onPrepareCard, onSendCard, state }: {
   cards: readonly PortableCardAsset[];
   cardConditions: Readonly<Record<string, AdventureCardCondition>>;
+  onOpenVaultCard?: (assetId: string) => void;
   onPrepareCard?: (asset: PortableCardAsset) => Promise<WildzPreparedIdentityOwnedCard>;
   onSendCard?: (asset: PortableCardAsset, targetHandle: string) => Promise<unknown>;
   state: WildsWalletControllerState;
@@ -68,6 +70,7 @@ export function WildsWalletAssets({ cards, cardConditions, onPrepareCard, onSend
     {cards.length ? <div className="wilds-wallet-card-vault">
       <div aria-label="Choose a wallet card" className="wilds-wallet-card-selector">{cards.map((card) => <button aria-pressed={selected?.id === card.id} key={card.id} onClick={() => { setSelectedId(card.id); setMessage(""); }} type="button"><span>{card.manifest.name}</span><small>{card.manifest.rarity} · Stage {card.manifest.stage}</small></button>)}</div>
       {selected ? <div className="wilds-wallet-card-detail">
+        {onOpenVaultCard ? <div className="wilds-wallet-card-heading"><small>SELECTED CARD</small><button aria-label={`Open ${selected.manifest.name} in Card Vault`} className="wilds-wallet-vault-pill" onClick={() => onOpenVaultCard(selected.id)} type="button"><Icons.box aria-hidden="true" size={16} /><span>Vault</span></button></div> : null}
         <div className="wilds-wallet-card-stage"><WildsCardScene asset={selected} condition={cardConditions[selected.id]} origin={origin} qr="" tapToFlip /></div>
         <small>Tap or swipe the card to see its complete verified back.</small>
         <label><span>Send this exact card</span><input aria-label="Receiz username or email to send this card" autoCapitalize="none" autoCorrect="off" onChange={(event) => setTarget(event.target.value)} placeholder="@username or email" value={target} /></label>
