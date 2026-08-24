@@ -18,6 +18,8 @@ import { platform } from "@/lib/platform";
 import { createReceizCommerceAdapter } from "./adapter";
 import type { WildsMultiplayerActor } from "./wilds-multiplayer-server";
 
+type WildsMessengerAdapterFactory = typeof createReceizCommerceAdapter;
+
 const hydrateKey = Symbol.for("receiz.wilds.messenger-hydration.v1");
 const WILDS_MESSAGE_REMOTE_DEADLINE_MS = 900;
 const WILDS_MESSAGE_HYDRATE_TTL_MS = 4_000;
@@ -77,13 +79,13 @@ function findGroupRoom(value: unknown): WildsGroupRoom | null {
   return null;
 }
 
-export async function hydrateWildsGroupRoom(request: NextRequest, actor: WildsMultiplayerActor, roomId: string) {
+export async function hydrateWildsGroupRoom(request: NextRequest, actor: WildsMultiplayerActor, roomId: string, adapterFactory: WildsMessengerAdapterFactory = createReceizCommerceAdapter) {
   const sourceUrl = wildsGroupRoomSourceUrl(request, roomId);
   const hydratedAt = hydratedUrls().get(sourceUrl) ?? 0;
   if (Date.now() - hydratedAt >= WILDS_MESSAGE_HYDRATE_TTL_MS) {
     hydratedUrls().set(sourceUrl, Date.now());
     try {
-      const adapter = createReceizCommerceAdapter(actor.accessToken ? { accessToken: actor.accessToken } : undefined);
+      const adapter = adapterFactory(actor.accessToken ? { accessToken: actor.accessToken } : undefined);
       const recovered = await withDeadline(adapter.readAppStateByUrl(sourceUrl));
       const room = findGroupRoom(recovered);
       if (room?.id === roomId && room.members.some((member) => member.id === actor.playerId)) admitWildsGroupRoom(room);
@@ -95,7 +97,8 @@ export async function hydrateWildsGroupRoom(request: NextRequest, actor: WildsMu
 export async function hydrateWildsConversation(
   request: NextRequest,
   actor: WildsMultiplayerActor,
-  peer: WildsMessengerParticipant
+  peer: WildsMessengerParticipant,
+  adapterFactory: WildsMessengerAdapterFactory = createReceizCommerceAdapter
 ) {
   const self = { id: actor.playerId, handle: actor.handle };
   const sourceUrl = wildsConversationSourceUrl(request, actor.playerId, peer.id);
@@ -103,7 +106,7 @@ export async function hydrateWildsConversation(
   if (Date.now() - hydratedAt < WILDS_MESSAGE_HYDRATE_TTL_MS) return getWildsConversation(self, peer);
   hydratedUrls().set(sourceUrl, Date.now());
   try {
-    const adapter = createReceizCommerceAdapter(actor.accessToken ? { accessToken: actor.accessToken } : undefined);
+    const adapter = adapterFactory(actor.accessToken ? { accessToken: actor.accessToken } : undefined);
     const recovered = await withDeadline(adapter.readAppStateByUrl(sourceUrl));
     const conversation = findConversation(recovered);
     if (conversation?.id === wildsConversationId(actor.playerId, peer.id)) admitWildsConversation(conversation);
@@ -136,7 +139,8 @@ export async function hydrateWildsMessengerInbox(actor: WildsMultiplayerActor) {
 export async function publishWildsConversation(
   request: NextRequest,
   actor: WildsMultiplayerActor,
-  conversation: WildsConversation
+  conversation: WildsConversation,
+  adapterFactory: WildsMessengerAdapterFactory = createReceizCommerceAdapter
 ) {
   if (actor.practice) return { published: false, mode: "local_practice" as const };
   const peer = conversation.participants.find((participant) => participant.id !== actor.playerId);
@@ -145,7 +149,7 @@ export async function publishWildsConversation(
   const hostContext = hostContextFromHost(new URL(sourceUrl).host);
   const tenantHost = hostContext.tenantHost ?? hostContext.host ?? platform.domain;
   try {
-    const adapter = createReceizCommerceAdapter(actor.accessToken ? { accessToken: actor.accessToken } : undefined);
+    const adapter = adapterFactory(actor.accessToken ? { accessToken: actor.accessToken } : undefined);
     const result = await withDeadline(adapter.client.appState.publish({
       tenantHost,
       creatorReceizId: actor.receizActorId,
@@ -165,14 +169,14 @@ export async function publishWildsConversation(
   }
 }
 
-export async function publishWildsGroupRoom(request: NextRequest, actor: WildsMultiplayerActor, room: WildsGroupRoom) {
+export async function publishWildsGroupRoom(request: NextRequest, actor: WildsMultiplayerActor, room: WildsGroupRoom, adapterFactory: WildsMessengerAdapterFactory = createReceizCommerceAdapter) {
   if (actor.practice) return { published: false, mode: "local_practice" as const };
   if (!room.members.some((member) => member.id === actor.playerId)) throw new Error("wilds_group_room_required");
   const sourceUrl = wildsGroupRoomSourceUrl(request, room.id);
   const hostContext = hostContextFromHost(new URL(sourceUrl).host);
   const tenantHost = hostContext.tenantHost ?? hostContext.host ?? platform.domain;
   try {
-    const adapter = createReceizCommerceAdapter(actor.accessToken ? { accessToken: actor.accessToken } : undefined);
+    const adapter = adapterFactory(actor.accessToken ? { accessToken: actor.accessToken } : undefined);
     const result = await withDeadline(adapter.client.appState.publish({ tenantHost, creatorReceizId: actor.receizActorId, externalCreatorId: room.owner.id, title: `Wildz room · ${room.name}`, sourceUrl, namespace: room.id, projectionState: "published", visibility: "private", platform: platform.productName, state: room as unknown as JsonObject, data: room as unknown as JsonObject }, { idempotencyKey: `${room.id}:${room.revision}` }));
     return { published: Boolean(result?.ok), mode: result?.ok ? "receiz_synced" as const : "sync_pending" as const };
   } catch { return { published: false, mode: "sync_pending" as const }; }

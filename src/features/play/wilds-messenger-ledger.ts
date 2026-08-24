@@ -1,6 +1,8 @@
 import {
   normalizeWildsMessengerParticipant,
   sanitizeWildsDirectMessage,
+  mergeWildsConversations,
+  mergeWildsGroupRooms,
   wildsConversationId,
   wildsDirectMessageId,
   wildsGroupRoomId,
@@ -46,36 +48,7 @@ function emptyConversation(
   };
 }
 
-function laterIso(left?: string, right?: string) {
-  if (!left) return right;
-  if (!right) return left;
-  return Date.parse(left) >= Date.parse(right) ? left : right;
-}
-
-export function mergeWildsConversations(left: WildsConversation, right: WildsConversation): WildsConversation {
-  if (left.id !== right.id) throw new Error("wilds_conversation_mismatch");
-  const byId = new Map<string, WildsDirectMessage>();
-  for (const message of [...left.messages, ...right.messages]) {
-    const current = byId.get(message.id);
-    if (!current || Date.parse(message.editedAt ?? message.createdAt) >= Date.parse(current.editedAt ?? current.createdAt)) {
-      byId.set(message.id, message);
-    }
-  }
-  const readThrough: Record<string, string> = {};
-  for (const actorId of new Set([...Object.keys(left.readThrough), ...Object.keys(right.readThrough)])) {
-    const value = laterIso(left.readThrough[actorId], right.readThrough[actorId]);
-    if (value) readThrough[actorId] = value;
-  }
-  const newest = left.revision >= right.revision ? left : right;
-  return {
-    ...newest,
-    revision: Math.max(left.revision, right.revision),
-    messages: [...byId.values()].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)).slice(-1_000),
-    readThrough,
-    createdAt: laterIso(left.createdAt, right.createdAt) === left.createdAt ? right.createdAt : left.createdAt,
-    updatedAt: laterIso(left.updatedAt, right.updatedAt)!
-  };
-}
+export { mergeWildsConversations } from "./wilds-messenger-core";
 
 export function admitWildsConversation(value: WildsConversation) {
   if (value.schema !== "receiz.wilds_conversation.v1" || !value.id || !Array.isArray(value.messages)) {
@@ -187,7 +160,7 @@ export function createWildsGroupRoom(input: { owner: WildsMessengerParticipant; 
 export function admitWildsGroupRoom(value: WildsGroupRoom) {
   if (value.schema !== "receiz.wilds_group_room.v1" || !value.id || !Array.isArray(value.members) || !Array.isArray(value.messages)) throw new Error("wilds_group_room_invalid");
   const current = groupRooms().get(value.id);
-  if (!current || value.revision >= current.revision) groupRooms().set(value.id, value);
+  groupRooms().set(value.id, current ? mergeWildsGroupRooms(current, value) : value);
   return groupRooms().get(value.id)!;
 }
 

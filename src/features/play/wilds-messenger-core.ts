@@ -91,6 +91,54 @@ export type WildsConversationSummary = {
   updatedAt: string;
 };
 
+function laterIso(left?: string, right?: string) {
+  if (!left) return right;
+  if (!right) return left;
+  return Date.parse(left) >= Date.parse(right) ? left : right;
+}
+
+function earlierIso(left: string, right: string) {
+  return Date.parse(left) <= Date.parse(right) ? left : right;
+}
+
+export function mergeWildsConversations(left: WildsConversation, right: WildsConversation): WildsConversation {
+  if (left.id !== right.id) throw new Error("wilds_conversation_mismatch");
+  const byId = new Map<string, WildsDirectMessage>();
+  for (const message of [...left.messages, ...right.messages]) {
+    const current = byId.get(message.id);
+    if (!current || Date.parse(message.editedAt ?? message.createdAt) >= Date.parse(current.editedAt ?? current.createdAt)) byId.set(message.id, message);
+  }
+  const readThrough: Record<string, string> = {};
+  for (const actorId of new Set([...Object.keys(left.readThrough), ...Object.keys(right.readThrough)])) {
+    const value = laterIso(left.readThrough[actorId], right.readThrough[actorId]);
+    if (value) readThrough[actorId] = value;
+  }
+  const newest = left.revision >= right.revision ? left : right;
+  return {
+    ...newest,
+    revision: Math.max(left.revision, right.revision),
+    messages: [...byId.values()].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)).slice(-1_000),
+    readThrough,
+    createdAt: earlierIso(left.createdAt, right.createdAt),
+    updatedAt: laterIso(left.updatedAt, right.updatedAt)!
+  };
+}
+
+export function mergeWildsGroupRooms(left: WildsGroupRoom, right: WildsGroupRoom): WildsGroupRoom {
+  if (left.id !== right.id) throw new Error("wilds_group_room_mismatch");
+  const members = new Map([...left.members, ...right.members].map((member) => [member.id, member]));
+  const messages = new Map([...left.messages, ...right.messages].map((message) => [message.id, message]));
+  const newest = left.revision >= right.revision ? left : right;
+  return {
+    ...newest,
+    revision: Math.max(left.revision, right.revision),
+    members: [...members.values()].sort((a, b) => a.id.localeCompare(b.id)),
+    messages: [...messages.values()].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)).slice(-1_000),
+    createdAt: earlierIso(left.createdAt, right.createdAt),
+    updatedAt: laterIso(left.updatedAt, right.updatedAt)!
+  };
+}
+
 export function normalizeWildsMessengerParticipant(input: WildsMessengerParticipant) {
   const id = input.id.replace(/[\u0000-\u001f\u007f]/g, "").trim();
   const handle = input.handle.replace(/[\u0000-\u001f\u007f]/g, "").trim();

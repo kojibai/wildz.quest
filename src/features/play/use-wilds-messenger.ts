@@ -5,6 +5,8 @@ import {
   wildsConversationId,
   wildsDirectMessageId,
   wildsConversationSummary,
+  mergeWildsConversations,
+  mergeWildsGroupRooms,
   type WildsConversation,
   type WildsConversationSummary,
   type WildsDirectMessage,
@@ -63,6 +65,18 @@ function mergePeers(...lists: readonly WildsMessengerParticipant[][]) {
   return [...byId.values()];
 }
 
+function admitConversationState(current: WildsConversation[], incoming: WildsConversation) {
+  const existing = current.find((conversation) => conversation.id === incoming.id);
+  const admitted = existing ? mergeWildsConversations(existing, incoming) : incoming;
+  return [...current.filter((conversation) => conversation.id !== incoming.id), admitted];
+}
+
+function admitRoomState(current: WildsGroupRoom[], incoming: WildsGroupRoom) {
+  const existing = current.find((room) => room.id === incoming.id);
+  const admitted = existing ? mergeWildsGroupRooms(existing, incoming) : incoming;
+  return [admitted, ...current.filter((room) => room.id !== incoming.id)];
+}
+
 export function useWildsMessenger(input: {
   guestId: string;
   selfId: string;
@@ -112,14 +126,17 @@ export function useWildsMessenger(input: {
       const result = await messengerRequest<{ rooms: WildsGroupRoom[] }>(`/api/wilds/messages/rooms?${params.toString()}`, { cache: "no-store" });
       setRooms((current) => {
         const byId = new Map(current.map((room) => [room.id, room]));
-        for (const room of result.rooms) byId.set(room.id, room);
+        for (const room of result.rooms) {
+          const existing = byId.get(room.id);
+          byId.set(room.id, existing ? mergeWildsGroupRooms(existing, room) : room);
+        }
         const next = [...byId.values()].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
         return next.length === current.length && next.every((room, index) => room.id === current[index]?.id && room.revision === current[index]?.revision) ? current : next;
       });
       setSelectedRoom((current) => {
         if (!current) return null;
         const next = result.rooms.find((room) => room.id === current.id);
-        return !next || next.revision === current.revision ? current : next;
+        return next ? mergeWildsGroupRooms(current, next) : current;
       });
     } catch { /* cached rooms remain available */ }
   }, [input.guestId, input.selfId]);
@@ -134,7 +151,7 @@ export function useWildsMessenger(input: {
     try {
       const params = new URLSearchParams({ guestId: input.guestId, peerId: peer.id, peerHandle: peer.handle });
       const result = await messengerRequest<{ conversation: WildsConversation }>(`/api/wilds/messages/thread?${params.toString()}`, { cache: "no-store" });
-      setConversations((current) => [...current.filter((item) => item.id !== result.conversation.id), result.conversation]);
+      setConversations((current) => admitConversationState(current, result.conversation));
       setPending((current) => current.filter((item) => !result.conversation.messages.some((message) => message.clientMessageId === item.message.clientMessageId)));
       setError("");
       return result.conversation;
@@ -213,7 +230,7 @@ export function useWildsMessenger(input: {
 
   const createRoom = useCallback(async (name: string, members: WildsMessengerParticipant[]) => {
     const result = await messengerRequest<{ room: WildsGroupRoom }>("/api/wilds/messages/rooms", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "create", guestId: input.guestId, name, members, clientRoomId: crypto.randomUUID() }) });
-    setRooms((current) => [result.room, ...current.filter((room) => room.id !== result.room.id)]);
+    setRooms((current) => admitRoomState(current, result.room));
     setSelectedPeer(null); setSelectedRoom(result.room); return result.room;
   }, [input.guestId]);
 
@@ -222,13 +239,13 @@ export function useWildsMessenger(input: {
   const sendRoom = useCallback(async (body: string) => {
     if (!selectedRoom) return;
     const result = await messengerRequest<{ room: WildsGroupRoom }>("/api/wilds/messages/rooms", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "send", guestId: input.guestId, roomId: selectedRoom.id, message: body, clientMessageId: `wilds-group-message:${crypto.randomUUID()}` }) });
-    setRooms((current) => [result.room, ...current.filter((room) => room.id !== result.room.id)]); setSelectedRoom(result.room);
+    setRooms((current) => admitRoomState(current, result.room)); setSelectedRoom((current) => current ? mergeWildsGroupRooms(current, result.room) : result.room);
   }, [input.guestId, selectedRoom]);
 
   const addRoomMembers = useCallback(async (members: WildsMessengerParticipant[]) => {
     if (!selectedRoom) return;
     const result = await messengerRequest<{ room: WildsGroupRoom }>("/api/wilds/messages/rooms", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "add-members", guestId: input.guestId, roomId: selectedRoom.id, members }) });
-    setRooms((current) => [result.room, ...current.filter((room) => room.id !== result.room.id)]); setSelectedRoom(result.room);
+    setRooms((current) => admitRoomState(current, result.room)); setSelectedRoom((current) => current ? mergeWildsGroupRooms(current, result.room) : result.room);
   }, [input.guestId, selectedRoom]);
 
   const send = useCallback(async (body: string, replyToId?: string | null, retryClientMessageId?: string) => {
@@ -263,7 +280,7 @@ export function useWildsMessenger(input: {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "send", guestId: input.guestId, peer: selectedPeer, message: body, clientMessageId, replyToId })
       });
-      setConversations((current) => [...current.filter((item) => item.id !== result.conversation.id), result.conversation]);
+      setConversations((current) => admitConversationState(current, result.conversation));
       setPending((current) => current.filter((item) => item.message.clientMessageId !== clientMessageId));
     } catch (cause) {
       setPending((current) => current.map((item) => item.message.clientMessageId === clientMessageId ? { ...item, state: "failed" } : item));
@@ -283,7 +300,7 @@ export function useWildsMessenger(input: {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "read", guestId: input.guestId, peer: selectedPeer, through })
       });
-      setConversations((current) => [...current.filter((item) => item.id !== result.conversation.id), result.conversation]);
+      setConversations((current) => admitConversationState(current, result.conversation));
     } catch { /* the next poll retries the read receipt */ }
   }, [conversation, input.guestId, input.selfId, selectedPeer]);
 
@@ -295,7 +312,7 @@ export function useWildsMessenger(input: {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "react", guestId: input.guestId, peer: selectedPeer, messageId, emoji })
       });
-      setConversations((current) => [...current.filter((item) => item.id !== result.conversation.id), result.conversation]);
+      setConversations((current) => admitConversationState(current, result.conversation));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Reaction not sent");
     }
