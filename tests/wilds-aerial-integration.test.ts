@@ -175,4 +175,10 @@ describe("Wildz aerial and vista integration", () => {
     assert.match(bosses, /physicalRadius:\s*physicalEnvelope\.radius/);
     assert.match(settlement, /WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS\.timberHall/);
   });
+
+  it("never eases a prior underwater offset upward through grounded terrain after capture", async () => {
+    const canvas = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");
+    assert.match(canvas, /const nextActorY = THREE\.MathUtils\.damp/);
+    assert.match(canvas, /layer === "ground" \? Math\.max\(0, nextActorY\) : nextActorY/);
+  });
 });

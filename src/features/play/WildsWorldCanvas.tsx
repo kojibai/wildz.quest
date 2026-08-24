@@ -532,7 +532,11 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, flight
     }
     if (group.current) {
       const actorLocalY = layer === "ground" ? 0 : currentVertical.offset;
-      group.current.position.y = THREE.MathUtils.damp(group.current.position.y, actorLocalY, 8, delta);
+      const nextActorY = THREE.MathUtils.damp(group.current.position.y, actorLocalY, 8, delta);
+      // Capture can immediately select a creature with different traversal
+      // anatomy. Never ease a prior underwater offset upward through solid
+      // terrain: grounded actors may settle from above, but never from below.
+      group.current.position.y = layer === "ground" ? Math.max(0, nextActorY) : nextActorY;
     }
   }, -2);
   return <group ref={group}>{children}</group>;
