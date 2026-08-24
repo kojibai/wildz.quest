@@ -127,6 +127,24 @@ test("driver deduplicates staging, requires an armed pointer, and recovers an am
   assert.equal(calls.filter((path) => path.endsWith("/preview")).length, 1);
 });
 
+test("a scanned receiving QR stages against its sealed locator and keeps its proposed amount editable", async () => {
+  const bodies: Record<string, unknown>[] = [];
+  const driver = createWildsWalletControllerDriver({
+    identityKey: "kai", authorityGeneration: "issued-1", publish: () => {},
+    fetcher: async (path, init) => {
+      assert.equal(path, "/api/wilds/wallet/transfer/preview");
+      bodies.push(JSON.parse(init.body ?? "null"));
+      return { ok: true, status: 200, json: async () => ({ status: "staged", rail: "settlement", amountPhiMicro: "3000000", quotedUsdCents: "1", attempt: "v1.coordinate", expiresAtKai: 100 }) };
+    }
+  });
+  driver.open();
+  driver.selectReceiveCoordinate("friend", "wildz:receive:v1.aaa.bbb.ccc", "2500000");
+  assert.equal(driver.state.transfer.amountPhiMicro, "2500000");
+  driver.reviewTransferAmount("settlement", "3000000", "nonce-coordinate");
+  await driver.stageTransfer();
+  assert.deepEqual(bodies, [{ recipientLocator: "wildz:receive:v1.aaa.bbb.ccc", amountPhiMicro: "3000000", rail: "settlement", operationNonce: "nonce-coordinate" }]);
+});
+
 test("driver converts malformed execution success to unknown and cancellation cannot publish a late commit", async () => {
   let resolveExecute!: (value: { ok: boolean; status: number; json(): Promise<unknown> }) => void;
   const driver = createWildsWalletControllerDriver({

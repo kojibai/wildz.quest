@@ -121,6 +121,7 @@ export function useWildsWalletController(
     refresh: admitSourceThenRefresh,
     lookupRecipient,
     selectTransferRecipient: driver.selectTransferRecipient,
+    selectReceiveCoordinate: driver.selectReceiveCoordinate,
     reviewTransferAmount: driver.reviewTransferAmount,
     stageTransfer: driver.stageTransfer,
     authorizationPointerStart: driver.authorizationPointerStart,

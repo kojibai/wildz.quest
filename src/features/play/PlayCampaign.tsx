@@ -1791,6 +1791,7 @@ export function PlayCampaign({
               onRefresh={() => { void walletController.refresh(); }}
               onLookupRecipient={walletController.lookupRecipient}
               onSelectRecipient={walletController.selectTransferRecipient}
+              onSelectReceiveCoordinate={walletController.selectReceiveCoordinate}
               onReviewAmount={walletController.reviewTransferAmount}
               onStage={() => { void walletController.stageTransfer(); }}
               onAuthorizationPointerStart={walletController.authorizationPointerStart}
@@ -1803,7 +1804,7 @@ export function PlayCampaign({
                 messenger.openMessenger(walletMessagePeer);
                 setWalletMessagePeer(null);
               } : undefined}
-              onRequestReceive={() => { void walletController.requestReceive(); }}
+              onRequestReceive={(amountPhiMicro) => { void walletController.requestReceive(amountPhiMicro); }}
             /> : null}
 
             <WildzWorldControls

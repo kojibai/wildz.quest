@@ -85,9 +85,7 @@ export function WildzMarketSheet({
     } | null;
     const nextHead = marketHead(result?.head);
     if (!response.ok || result?.status !== "ready" || !Array.isArray(result.listings) || !nextHead) {
-      setListings([]);
-      setHead(null);
-      throw new Error(typeof result?.error === "string" ? result.error : "Receiz market is temporarily unavailable.");
+      throw new Error(typeof result?.error === "string" ? result.error : "Global market additions are reconnecting.");
     }
     setListings(result.listings as MarketListing[]);
     setHead(nextHead);
@@ -97,7 +95,9 @@ export function WildzMarketSheet({
     if (!connected) return;
     let active = true;
     void refreshMarket().catch((cause) => {
-      if (active) setMessage(cause instanceof Error ? cause.message : "Receiz market is temporarily unavailable.");
+      if (active) setMessage(cause instanceof Error && !/unavailable|capability/i.test(cause.message)
+        ? cause.message
+        : "Your Receiz ID is active. Global market additions are reconnecting; verified local custody remains available.");
     });
     return () => { active = false; };
   }, [connected, refreshMarket]);
@@ -214,6 +214,6 @@ export function WildzMarketSheet({
     {selected ? <section className="wildz-market-consequence" aria-label="Trade consequence"><small>Vault consequence</small><strong>{selected.assetId} joins your verified collection only after Receiz admits ownership.</strong><span>${(selected.priceCents / 100).toFixed(2)} · seller {selected.seller ?? selected.sellerActorId}</span></section> : null}
     {selected ? <WildzTradeConfirm listing={selected} busy={busy} onConfirm={() => void checkout()} /> : null}
     {pending ? <button type="button" className="wildz-market-retry" disabled={busy} onClick={() => void retrySettlement()}>{busy ? "Checking Receiz…" : "Retry ownership admission"}</button> : null}
-    {message ? <p role="status" className="wildz-market-status">{message}</p> : !connected ? <p role="status" className="wildz-market-status">Connect your Receiz ID to load live market listings.</p> : null}
+    {message ? <p role="status" className="wildz-market-status">{message}</p> : !connected ? <p role="status" className="wildz-market-status">Your Receiz ID remains the local authority. Global market additions will appear when synchronization reconnects.</p> : null}
   </div>;
 }

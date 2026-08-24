@@ -55,6 +55,7 @@
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
     "@receiz/sdk": "124.0.1",
+    "jsqr": "^1.4.0",
     "jszip": "^3.10.1",
     "kokoro-js": "1.2.1",
     "lucide-react": "^0.468.0",

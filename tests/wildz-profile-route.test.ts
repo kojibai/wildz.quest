@@ -39,10 +39,12 @@ test("shared profiles recover and publish through Receiz instead of a local plac
   assert.doesNotMatch(adapter, /new Map|Map</);
 });
 
-test("own-profile share controls remain disabled until durable publication succeeds", () => {
+test("own-profile share controls always respond while reporting durable publication state", () => {
   const sheet = readFileSync("src/features/profile/WildzProfileSheet.tsx", "utf8");
   assert.match(sheet, /shareEnabled/);
-  assert.match(sheet, /disabled=\{!shareEnabled\}/);
+  assert.doesNotMatch(sheet, /disabled=\{!shareEnabled\}/);
+  assert.match(sheet, /Public profile publication is still syncing/);
+  assert.match(sheet, /document\.execCommand\("copy"\)/);
   assert.match(sheet, /not yet published/i);
   assert.doesNotMatch(sheet, /Receiz verified<\/p>/);
   assert.match(sheet, /profileLinkAction/);

@@ -36,7 +36,7 @@ export type WildsWalletTerminalActions = WildsWalletSendActions & Readonly<{
   onNavigate(page: WildsWalletPage): void;
   onOpenVaultCard?(assetId: string): void;
   onRefresh(): void;
-  onRequestReceive(): void;
+  onRequestReceive(amountPhiMicro?: string): void;
   onReturnToMessages?(): void;
 }>;
 

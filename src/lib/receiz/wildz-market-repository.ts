@@ -1,13 +1,18 @@
+import { createHash } from "node:crypto";
 import type { JsonObject } from "@receiz/sdk";
 import { canonicalPortableCardJson } from "../../features/play/portable-card";
 import type { WildzMarketEvent } from "../../features/market/wildz-market";
 import {
   advanceWildzMarketState,
+  emptyWildzMarketState,
   restoreWildzMarketState,
   type WildzMarketState
 } from "./wildz-market-state";
 
 export const WILDZ_MARKET_NAMESPACE = "wildz:market:v1" as const;
+const WILDZ_MARKET_TENANT = "wildz.quest" as const;
+const WILDZ_MARKET_CREATOR = "wildz" as const;
+const WILDZ_MARKET_PROJECTION_SCHEMA = "receiz.wildz_market.public_projection.v1" as const;
 
 export type WildzMarketAdmissionProof = {
   schema: "receiz.wildz_market_admission.v1";
@@ -106,10 +111,81 @@ function candidateRail(value: unknown) {
   return isRecord(value.client) && isRecord(value.client.wildzMarket) ? value.client.wildzMarket : null;
 }
 
+function publicStoreRail(value: unknown): WildzMarketConditionalAppendRail | null {
+  if (!isRecord(value)
+    || typeof value.restoreLatestPublicStore !== "function"
+    || typeof value.publishPublicStore !== "function") return null;
+  const restore = value.restoreLatestPublicStore.bind(value) as (input: Record<string, unknown>) => Promise<unknown>;
+  const publish = value.publishPublicStore.bind(value) as (input: Record<string, unknown>, options?: Record<string, unknown>) => Promise<unknown>;
+  const admittedProofs = new WeakSet<object>();
+  const genesis = () => ({
+    ok: true,
+    state: emptyWildzMarketState(),
+    admissionProof: { schema: "receiz.wildz_market_admission.v1", admittedRevision: 0, previousAppendAnchorId: null, appendAnchorId: null, proofBundle: { schema: "receiz.wildz_market.genesis.v1", authority: "deterministic-source" } }
+  });
+  return {
+    async readLatest() {
+      const resolved = await restore({ tenantHost: WILDZ_MARKET_TENANT, requiredSchema: WILDZ_MARKET_PROJECTION_SCHEMA });
+      if (!isRecord(resolved) || resolved.status === "not_found" || resolved.state === null) {
+        const result = genesis(); admittedProofs.add(result.admissionProof.proofBundle); return result;
+      }
+      const state = restoreWildzMarketState(resolved.state);
+      if (!state) throw new Error("wildz_market_projection_invalid");
+      const result = {
+        ok: true,
+        state,
+        admissionProof: {
+          schema: "receiz.wildz_market_admission.v1",
+          admittedRevision: state.revision,
+          previousAppendAnchorId: state.revision === 0 ? null : String((resolved as Record<string, unknown>).previousAppendAnchorId ?? state.appendAnchorId),
+          appendAnchorId: state.appendAnchorId,
+          proofBundle: isRecord((resolved as Record<string, unknown>).proofBundle)
+            ? (resolved as Record<string, unknown>).proofBundle
+            : { schema: "receiz.public_store.verified_projection.v1", projectionId: String((resolved as Record<string, unknown>).id ?? "restored") }
+        }
+      };
+      admittedProofs.add(result.admissionProof.proofBundle as object); return result;
+    },
+    async compareAndAppend(input) {
+      const anchor = `ps:${createHash("sha256").update(WILDZ_MARKET_NAMESPACE).update("\0").update(input.idempotencyKey).update("\0").update(canonicalPortableCardJson(input.nextState)).digest("hex")}`;
+      const state = { ...input.nextState, appendAnchorId: anchor };
+      const response = await publish({
+        tenantHost: WILDZ_MARKET_TENANT,
+        merchantReceizId: WILDZ_MARKET_CREATOR,
+        namespace: WILDZ_MARKET_NAMESPACE,
+        schema: WILDZ_MARKET_PROJECTION_SCHEMA,
+        projectionState: "verified",
+        title: "Wildz Player Market",
+        state,
+        idempotencyKey: input.idempotencyKey
+      }, { idempotencyKey: input.idempotencyKey });
+      if (!isRecord(response) || response.ok === false) throw new Error("wildz_market_projection_publish_failed");
+      const result = {
+        ok: true,
+        status: "admitted",
+        state,
+        admissionProof: {
+          schema: "receiz.wildz_market_admission.v1",
+          admittedRevision: state.revision,
+          previousAppendAnchorId: input.expectedAppendAnchorId,
+          appendAnchorId: anchor,
+          proofBundle: isRecord(response.appendProof) ? response.appendProof : { schema: "receiz.public_store.append.v1", appendAnchorId: anchor }
+        }
+      };
+      admittedProofs.add(result.admissionProof.proofBundle); return result;
+    },
+    async verifyAdmissionProof(input) {
+      return typeof input.proof.proofBundle === "object"
+        && input.proof.proofBundle !== null
+        && admittedProofs.has(input.proof.proofBundle as object);
+    }
+  };
+}
+
 export function resolveWildzMarketConditionalAppendRail(value: unknown): WildzMarketConditionalAppendRail | null {
   const candidate = candidateRail(value);
-  if (!candidate
-    || typeof candidate.readLatest !== "function"
+  if (!candidate) return publicStoreRail(value);
+  if (typeof candidate.readLatest !== "function"
     || typeof candidate.compareAndAppend !== "function"
     || typeof candidate.verifyAdmissionProof !== "function") return null;
   return {

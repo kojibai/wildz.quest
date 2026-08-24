@@ -68,11 +68,35 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
   useEffect(() => () => {
     if (profileLinkFeedbackTimerRef.current !== null) window.clearTimeout(profileLinkFeedbackTimerRef.current);
   }, []);
+  const copyProfileText = async (value: string) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        return;
+      }
+    } catch {
+      // iOS/PWA clipboard permissions can reject despite a direct user tap.
+    }
+    const field = document.createElement("textarea");
+    field.value = value;
+    field.readOnly = true;
+    field.setAttribute("aria-hidden", "true");
+    field.style.position = "fixed";
+    field.style.inset = "0 auto auto -9999px";
+    field.style.opacity = "0";
+    document.body.appendChild(field);
+    try {
+      field.focus({ preventScroll: true });
+      field.select();
+      field.setSelectionRange(0, field.value.length);
+      if (!document.execCommand("copy")) throw new Error("wildz_profile_copy_unavailable");
+    } finally {
+      field.remove();
+    }
+  };
   const browserPort = (): WildzSharePort => ({
     share: typeof navigator.share === "function" ? (data) => navigator.share(data) : undefined,
-    clipboard: navigator.clipboard?.writeText
-      ? { writeText: (value) => navigator.clipboard.writeText(value) }
-      : undefined
+    clipboard: { writeText: copyProfileText }
   });
   const runProfileLinkAction = async (kind: "share" | "copy") => {
     if (profileLinkAction?.phase === "working") return;
@@ -159,8 +183,8 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
       <p aria-live="polite" role="status">{editMessage}</p>
     </section> : null}
     <section className="wildz-profile-action-rail" aria-label="Profile actions">
-      <button aria-busy={profileLinkAction?.kind === "share" && profileLinkAction.phase === "working"} aria-disabled={profileLinkAction?.phase === "working"} aria-label="Share profile" data-state={profileLinkAction?.kind === "share" ? profileLinkAction.phase : "idle"} disabled={!shareEnabled} onClick={() => void runProfileLinkAction("share")} title="Share profile" type="button">{profileLinkAction?.kind === "share" && profileLinkAction.phase === "working" ? <LoaderCircle aria-hidden="true" size={18} /> : profileLinkAction?.kind === "share" && profileLinkAction.phase === "success" ? <Check aria-hidden="true" size={18} /> : <Share2 aria-hidden="true" size={18} />}</button>
-      <button aria-busy={profileLinkAction?.kind === "copy" && profileLinkAction.phase === "working"} aria-disabled={profileLinkAction?.phase === "working"} aria-label="Copy profile link" data-state={profileLinkAction?.kind === "copy" ? profileLinkAction.phase : "idle"} disabled={!shareEnabled} onClick={() => void runProfileLinkAction("copy")} title="Copy profile link" type="button">{profileLinkAction?.kind === "copy" && profileLinkAction.phase === "working" ? <LoaderCircle aria-hidden="true" size={18} /> : profileLinkAction?.kind === "copy" && profileLinkAction.phase === "success" ? <Check aria-hidden="true" size={18} /> : <Link aria-hidden="true" size={18} />}</button>
+      <button aria-busy={profileLinkAction?.kind === "share" && profileLinkAction.phase === "working"} aria-disabled={profileLinkAction?.phase === "working"} aria-label="Share profile" data-state={profileLinkAction?.kind === "share" ? profileLinkAction.phase : "idle"} onClick={() => void runProfileLinkAction("share")} title="Share profile" type="button">{profileLinkAction?.kind === "share" && profileLinkAction.phase === "working" ? <LoaderCircle aria-hidden="true" size={18} /> : profileLinkAction?.kind === "share" && profileLinkAction.phase === "success" ? <Check aria-hidden="true" size={18} /> : <Share2 aria-hidden="true" size={18} />}</button>
+      <button aria-busy={profileLinkAction?.kind === "copy" && profileLinkAction.phase === "working"} aria-disabled={profileLinkAction?.phase === "working"} aria-label="Copy profile link" data-state={profileLinkAction?.kind === "copy" ? profileLinkAction.phase : "idle"} onClick={() => void runProfileLinkAction("copy")} title="Copy profile link" type="button">{profileLinkAction?.kind === "copy" && profileLinkAction.phase === "working" ? <LoaderCircle aria-hidden="true" size={18} /> : profileLinkAction?.kind === "copy" && profileLinkAction.phase === "success" ? <Check aria-hidden="true" size={18} /> : <Link aria-hidden="true" size={18} />}</button>
       {editable ? <>
       <button
         aria-busy={identityAuthenticating}
@@ -224,7 +248,9 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
         type="file"
       />
     </section> : null}
-    <p className="wildz-profile-action-status" aria-live="polite" role="status">{identityMessage || shareResult?.message || (!shareEnabled ? "Publish this profile before sharing its link." : "")}</p>
+    <p className="wildz-profile-action-status" aria-live="polite" role="status">{identityMessage || (shareResult
+      ? `${shareResult.message}${!shareEnabled && (shareResult.status === "shared" || shareResult.status === "copied") ? " Public profile publication is still syncing." : ""}`
+      : !shareEnabled ? "Public profile publication is still syncing. You can copy or share its permanent URL now." : "")}</p>
     <div className="wildz-profile-stats"><span><b>{profile.discoveries}</b> discoveries</span><span><b>{profile.record.wins}</b> wins</span><span><b>{profile.reputation}</b> reputation</span></div>
     <section className="wildz-profile-impact" aria-label="Explorer impact">
       <span><small>World impact</small><strong>{profile.discoveries + profile.record.wins} admitted milestones</strong></span>

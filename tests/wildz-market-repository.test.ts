@@ -6,6 +6,7 @@ import { initialPlayState } from "../src/features/play/game-state";
 import { canonicalWildzActorId } from "../src/lib/receiz/wildz-identity-repository";
 import {
   createReceizWildzMarketRepository,
+  resolveWildzMarketConditionalAppendRail,
   type WildzMarketConditionalAppendRail
 } from "../src/lib/receiz/wildz-market-repository";
 import { emptyWildzMarketState } from "../src/lib/receiz/wildz-market-state";
@@ -44,14 +45,41 @@ test("market repository refuses reads and appends without remote conditional pro
   }), { status: "market_capability_unavailable" });
 });
 
-test("market authority has no public-store or in-memory fallback", () => {
+test("market composes the universal verified public-store projection without in-memory authority", () => {
   const source = readFileSync("src/lib/receiz/wildz-market-repository.ts", "utf8");
 
-  assert.doesNotMatch(source, /publishPublicStore|WildzPublicProjectionRepository|new Map|Map</);
+  assert.match(source, /restoreLatestPublicStore/);
+  assert.match(source, /publishPublicStore/);
+  assert.doesNotMatch(source, /WildzPublicProjectionRepository|new Map|Map</);
   assert.match(source, /market_capability_unavailable/);
   assert.match(source, /expectedAppendAnchorId/);
   assert.match(source, /admissionProof/);
   assert.match(source, /verifyAdmissionProof/);
+});
+
+test("a brand-new verified Receiz market begins at source genesis and publishes its first addition", async () => {
+  const publications: Record<string, unknown>[] = [];
+  const rail = resolveWildzMarketConditionalAppendRail({
+    restoreLatestPublicStore: async () => ({ ok: true, state: null }),
+    publishPublicStore: async (input: Record<string, unknown>) => { publications.push(input); return { ok: true, appendProof: { schema: "receiz.public_store.append.v1" } }; }
+  });
+  assert.ok(rail);
+  const repository = createReceizWildzMarketRepository({ rail });
+  const loaded = await repository.load();
+  assert.equal(loaded.status, "ready");
+  if (loaded.status !== "ready") return;
+  const listing = listingFixture();
+  const admitted = await repository.compareAndAppend({
+    current: loaded.state,
+    expectedRevision: 0,
+    expectedAppendAnchorId: null,
+    idempotencyKey: listing.idempotencyKey,
+    occurredAt: listing.createdAt,
+    event: { type: "listing-admitted", listing }
+  });
+  assert.equal(admitted.status, "admitted");
+  assert.equal((publications[0]?.state as { revision?: number }).revision, 1);
+  assert.equal(publications[0]?.tenantHost, "wildz.quest");
 });
 
 test("market repository rejects a shaped snapshot whose proof fails verification", async () => {

@@ -24,6 +24,7 @@ export type WildsWalletStagedTransferResponse = Readonly<{
 export type WildsWalletTransferState = Readonly<{
   phase: "recipient" | "amount" | "review" | "stage" | "authorize" | "authorize-pending" | "unknown" | "zero-write" | "committed";
   recipientUsername: string | null;
+  recipientLocator?: string | null;
   amountPhiMicro: string | null;
   rail: "settlement" | "reserve" | null;
   operationNonce: string | null;
@@ -60,6 +61,7 @@ export type WildsWalletControllerEvent =
   | { type: "receive-request-cleared" }
   | { type: "transfer-reset" }
   | { type: "transfer-recipient-selected"; username: string }
+  | { type: "transfer-coordinate-selected"; username: string; locator: string; amountPhiMicro: string | null }
   | { type: "transfer-amount-reviewed"; rail: "settlement" | "reserve"; amountPhiMicro: string; operationNonce: string }
   | { type: "transfer-stage-start"; requestId: number; identityKey: string; authorityGeneration: string }
   | { type: "transfer-stage-resolved"; requestId: number; identityKey: string; authorityGeneration: string; projection: WildsWalletStagedTransferResponse }
@@ -73,7 +75,7 @@ export type WildsWalletControllerEvent =
 
 const emptyRecipient: WildsWalletRecipientState = Object.freeze({ status: "idle", requestId: null, username: null, projection: null });
 const emptyTransfer: WildsWalletTransferState = Object.freeze({
-  phase: "recipient", recipientUsername: null, amountPhiMicro: null, rail: null,
+  phase: "recipient", recipientUsername: null, recipientLocator: null, amountPhiMicro: null, rail: null,
   operationNonce: null, attempt: null, expiresAtKai: null, requestId: null,
   authorizationPointerId: null, result: null
 });
@@ -152,6 +154,8 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
     case "transfer-reset": return { ...state, stagedTransactionId: null, transfer: emptyTransfer };
     case "transfer-recipient-selected":
       return { ...state, transfer: { ...emptyTransfer, phase: "amount", recipientUsername: event.username } };
+    case "transfer-coordinate-selected":
+      return { ...state, transfer: { ...emptyTransfer, phase: "amount", recipientUsername: event.username, recipientLocator: event.locator, amountPhiMicro: event.amountPhiMicro } };
     case "transfer-amount-reviewed":
       return state.transfer.recipientUsername
         ? { ...state, transfer: { ...state.transfer, phase: "review", amountPhiMicro: event.amountPhiMicro, rail: event.rail, operationNonce: event.operationNonce, attempt: null, expiresAtKai: null, requestId: null, result: null } }

@@ -6,10 +6,7 @@ import {
   issueWildsCardTransfer,
   type WildsCardTransferOffer
 } from "@/lib/receiz/wilds-card-transfer";
-import {
-  resolveWildsWalletReadAuthority,
-  wildsWalletAuthorityStatusFor
-} from "@/lib/receiz/wilds-wallet-route-authority";
+import { wildsWalletAuthorityStatusFor, type WildsWalletReadAuthority } from "@/lib/receiz/wilds-wallet-route-authority";
 import { appendWildsDirectMessage } from "@/features/play/wilds-messenger-ledger";
 import { publishWildsConversation } from "@/lib/receiz/wilds-messenger-server";
 import { resolveWildsMultiplayerActor } from "@/lib/receiz/wilds-multiplayer-server";
@@ -27,8 +24,14 @@ function failure(cause: unknown) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as Record<string, unknown>;
-    const authority = await resolveWildsWalletReadAuthority(request);
     const actor = await resolveWildsMultiplayerActor(request);
+    if (!actor.accessToken || actor.practice) throw new Error("receiz_wallet_authority_required");
+    const authority: WildsWalletReadAuthority = Object.freeze({
+      accessToken: actor.accessToken,
+      ownerReceizId: actor.receizActorId,
+      actorId: actor.playerId,
+      profileHandle: actor.handle
+    });
     const rail = createReceizCommerceAdapter({ accessToken: authority.accessToken });
     if (body.action === "issue") {
       const offer = await issueWildsCardTransfer({

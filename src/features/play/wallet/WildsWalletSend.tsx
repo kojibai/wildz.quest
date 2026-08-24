@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKe
 import type { WildsWalletControllerState } from "./wilds-wallet-controller";
 import { formatWildsPhiExact, parseWildsPhiInput } from "./wilds-wallet-format";
 import { PhiNetworkAmount } from "./PhiNetworkMark";
+import { WildsWalletQrScanner } from "./WildsWalletQrScanner";
+import type { WildsWalletReceiveCoordinate } from "./wilds-wallet-coordinate";
 
 const HOLD_MILLISECONDS = 900;
 const KEYBOARD_AUTHORIZATION_GESTURE_ID = -1;
@@ -46,6 +48,7 @@ export function createWildsWalletAuthorizationHoldRuntime(input: Readonly<{
 export type WildsWalletSendActions = Readonly<{
   onLookupRecipient(username: string): void;
   onSelectRecipient(username: string): void;
+  onSelectReceiveCoordinate?(username: string, locator: string, amountPhiMicro: string | null): void;
   onReviewAmount(rail: "settlement" | "reserve", amountPhiMicro: string, operationNonce: string): void;
   onStage(): void;
   onAuthorizationPointerStart(pointerId: number): void;
@@ -66,6 +69,8 @@ function unavailableReason(state: WildsWalletControllerState) {
 export function WildsWalletSend({ state, ...actions }: { state: WildsWalletControllerState } & WildsWalletSendActions) {
   const [username, setUsername] = useState(state.transfer.recipientUsername ?? "");
   const [amount, setAmount] = useState("");
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanStatus, setScanStatus] = useState<string | null>(null);
   const onAuthorizationPointerCancel = actions.onAuthorizationPointerCancel;
   const holdCallbacksRef = useRef({ onArm: actions.onAuthorizationPointerStart, onCancel: onAuthorizationPointerCancel, onComplete: actions.onAuthorize });
   holdCallbacksRef.current = { onArm: actions.onAuthorizationPointerStart, onCancel: onAuthorizationPointerCancel, onComplete: actions.onAuthorize };
@@ -77,6 +82,16 @@ export function WildsWalletSend({ state, ...actions }: { state: WildsWalletContr
   });
   const unavailable = unavailableReason(state);
   const transfer = state.transfer;
+  const onSelectReceiveCoordinate = actions.onSelectReceiveCoordinate;
+  useEffect(() => {
+    if (transfer.phase === "amount" && transfer.amountPhiMicro) setAmount(formatWildsPhiExact(transfer.amountPhiMicro));
+  }, [transfer.amountPhiMicro, transfer.phase]);
+  const acceptCoordinate = useCallback((coordinate: WildsWalletReceiveCoordinate) => {
+    setScannerOpen(false);
+    setUsername(coordinate.recipientUsername);
+    setScanStatus(`Receiving coordinate verified for @${coordinate.recipientUsername}.`);
+    onSelectReceiveCoordinate?.(coordinate.recipientUsername, coordinate.recipientLocator, coordinate.amountPhiMicro ?? null);
+  }, [onSelectReceiveCoordinate]);
   const cancelHold = useCallback((pointerId?: number) => {
     holdRuntimeRef.current?.cancel(pointerId);
   }, []);
@@ -120,9 +135,10 @@ export function WildsWalletSend({ state, ...actions }: { state: WildsWalletContr
 
   return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface">
     <header><small>SOURCE-ISSUED PROOF OBJECT</small><h2 id="wilds-wallet-send-title">Send</h2></header>
-    {transfer.phase === "recipient" ? <form onSubmit={(event) => { event.preventDefault(); actions.onLookupRecipient(username); }}>
-      <label htmlFor="wilds-wallet-recipient">Exact username</label><input autoComplete="off" id="wilds-wallet-recipient" maxLength={64} onChange={(event) => setUsername(event.target.value)} spellCheck={false} value={username} />
+    {transfer.phase === "recipient" ? scannerOpen ? <WildsWalletQrScanner onCancel={() => setScannerOpen(false)} onScan={acceptCoordinate} /> : <form onSubmit={(event) => { event.preventDefault(); actions.onLookupRecipient(username); }}>
+      <label htmlFor="wilds-wallet-recipient">Exact username or receiving QR</label><div className="wilds-wallet-recipient-field"><input autoComplete="off" id="wilds-wallet-recipient" maxLength={64} onChange={(event) => setUsername(event.target.value)} spellCheck={false} value={username} /><button aria-label="Scan receiving QR" disabled={!actions.onSelectReceiveCoordinate} onClick={() => { setScanStatus(null); setScannerOpen(true); }} type="button">⌁</button></div>
       <button disabled={!username.trim() || state.recipient.status === "loading"} type="submit">Continue to recipient</button>
+      {scanStatus ? <p aria-live="polite" role="status">{scanStatus}</p> : null}
       {state.recipient.status === "unavailable" ? <p role="status">The username will be carried by the transfer proof and resolved when claimed.</p> : null}
       {state.recipient.status === "verified" && state.recipient.projection ? <button onClick={() => actions.onSelectRecipient(state.recipient.projection!.username)} type="button">Continue with @{state.recipient.projection.username}</button> : null}
     </form> : null}

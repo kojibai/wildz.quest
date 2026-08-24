@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { WildsWalletTerminal } from "./WildsWalletTerminal";
-import { createWildsWalletControllerState, type WildsWalletControllerState } from "./wilds-wallet-controller";
+import { createWildsWalletControllerState, type WildsWalletControllerState, type WildsWalletPresentationState } from "./wilds-wallet-controller";
 
 function fixtureState(status: WildsWalletControllerState["status"], phase: WildsWalletControllerState["transfer"]["phase"] = "recipient"): WildsWalletControllerState {
   return {
@@ -13,10 +14,26 @@ function fixtureState(status: WildsWalletControllerState["status"], phase: Wilds
 }
 const actions = { onClose() {}, onNavigate() {}, onRefresh() {}, onLookupRecipient() {}, onSelectRecipient() {}, onReviewAmount() {}, onStage() {}, onAuthorizationPointerStart() {}, onAuthorizationPointerCancel() {}, onRecover() {}, onResetTransfer() {}, onRequestReceive() {} };
 export function WildsWalletEdgeBrowserFixture() {
-  const state = {
-    ...fixtureState("source-verified"), summary: null, capabilities: null, ledger: null, sourceAuthorityVerified: true, edgeAuthorityVerified: true
+  const [state, setState] = useState<WildsWalletPresentationState>({
+    ...fixtureState("source-verified"),
+    capabilities: {
+      read: "available", receive: "available", recipientLookup: { available: true }, send: { available: true },
+      resourceTransfer: { available: true }, cardTransfer: { available: true }, phiSettlement: { available: true }, phiReserve: { available: true }
+    },
+    sourceAuthorityVerified: true, edgeAuthorityVerified: true
+  });
+  const fixtureActions = {
+    ...actions,
+    onNavigate(page: WildsWalletControllerState["page"]) { setState((current) => ({ ...current, page })); },
+    onRequestReceive() {
+      setState((current) => ({ ...current, receiveRequestId: 1, receiveLocator: null }));
+      window.setTimeout(() => setState((current) => ({ ...current, receiveRequestId: null, receiveLocator: `wildz:receive:v1.${"a".repeat(16)}.${"b".repeat(32)}.${"c".repeat(22)}` })), 20);
+    },
+    onSelectReceiveCoordinate(username: string, locator: string, amountPhiMicro: string | null) {
+      setState((current) => ({ ...current, page: "send", transfer: { ...current.transfer, phase: "amount", recipientUsername: username, recipientLocator: locator, amountPhiMicro } }));
+    }
   };
-  return <main className="wildz-app" data-testid="wallet-edge-browser-fixture"><WildsWalletTerminal publicUsername="explorer" state={state} {...actions} /></main>;
+  return <main className="wildz-app" data-testid="wallet-edge-browser-fixture"><WildsWalletTerminal publicUsername="explorer" state={state} {...fixtureActions} /></main>;
 }
 export function WildsWalletBrowserFixture() {
   return <div id="wilds-wallet-browser-fixture">{[["verified", fixtureState("verified")], ["offline-verified", fixtureState("offline-verified")], ["unknown", fixtureState("verified", "unknown")], ["zero-write", fixtureState("verified", "zero-write")], ["committed", fixtureState("verified", "committed")]].map(([name, state]) => <div data-fixture-state={name as string} key={name as string}><WildsWalletTerminal publicUsername="fixture-explorer" state={state as WildsWalletControllerState} {...actions} /></div>)}</div>;

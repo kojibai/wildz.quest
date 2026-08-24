@@ -158,7 +158,7 @@ export function createWildsWalletControllerDriver(input: {
         const response = await input.fetcher("/api/wilds/wallet/transfer/preview", {
           method: "POST",
           body: JSON.stringify({
-            recipientUsername: transfer.recipientUsername,
+            ...(transfer.recipientLocator ? { recipientLocator: transfer.recipientLocator } : { recipientUsername: transfer.recipientUsername }),
             amountPhiMicro: transfer.amountPhiMicro,
             rail: transfer.rail,
             operationNonce: transfer.operationNonce
@@ -253,6 +253,7 @@ export function createWildsWalletControllerDriver(input: {
     recipientUnavailable(username: string) { publish({ type: "recipient-lookup-unavailable", username }); },
     lookupRecipient,
     selectTransferRecipient(username: string) { publish({ type: "transfer-recipient-selected", username }); },
+    selectReceiveCoordinate(username: string, locator: string, amountPhiMicro: string | null) { publish({ type: "transfer-coordinate-selected", username, locator, amountPhiMicro }); },
     reviewTransferAmount(rail: "settlement" | "reserve", amountPhiMicro: string, operationNonce: string) { publish({ type: "transfer-amount-reviewed", rail, amountPhiMicro, operationNonce }); },
     authorizationPointerStart(pointerId: number) { publish({ type: "authorization-pointer-start", pointerId }); },
     authorizationPointerCancel(pointerId: number) { publish({ type: "authorization-pointer-cancel", pointerId }); },
