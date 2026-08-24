@@ -17,6 +17,12 @@ import { validateLivingCreatureIdentity, type LivingCreatureIdentityV3 } from ".
 
 export type PortableCardStatus = "sealed_local" | "verified" | "listed" | "suspended" | "revoked";
 
+export function portableCardStatusLabel(status: PortableCardStatus) {
+  return status === "sealed_local" || status === "verified"
+    ? "verified"
+    : status.replace("_", " ");
+}
+
 export type PortableCardVariant = {
   generatorVersion: 1;
   seed: string;

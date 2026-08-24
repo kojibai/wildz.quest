@@ -216,6 +216,31 @@ export function PlayCampaign({
   const [state, setState] = useState(() => initialState);
   const [saveRestored, setSaveRestored] = useState(false);
   const [memorialAssetId, setMemorialAssetId] = useState<string | null>(null);
+  const gameplaySurfaceRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const surface = gameplaySurfaceRef.current;
+    if (!surface) return;
+    const isEditable = (target: EventTarget | null) => target instanceof Element
+      && Boolean(target.closest("input, textarea, [contenteditable='true'], [data-native-selection='true']"));
+    const blockNativeCallout = (event: Event) => {
+      if (!isEditable(event.target)) event.preventDefault();
+    };
+    const clearAccidentalSelection = (event: PointerEvent) => {
+      if (isEditable(event.target)) return;
+      const selection = window.getSelection();
+      if (selection?.rangeCount) selection.removeAllRanges();
+    };
+    surface.addEventListener("selectstart", blockNativeCallout);
+    surface.addEventListener("contextmenu", blockNativeCallout);
+    surface.addEventListener("dragstart", blockNativeCallout);
+    surface.addEventListener("pointerdown", clearAccidentalSelection, { passive: true });
+    return () => {
+      surface.removeEventListener("selectstart", blockNativeCallout);
+      surface.removeEventListener("contextmenu", blockNativeCallout);
+      surface.removeEventListener("dragstart", blockNativeCallout);
+      surface.removeEventListener("pointerdown", clearAccidentalSelection);
+    };
+  }, []);
   useEffect(() => {
     const serialized = Object.keys(window.localStorage)
       .filter((key) => key.startsWith(ARENA_SETTLEMENT_JOURNAL_PREFIX))
@@ -1611,6 +1636,7 @@ export function PlayCampaign({
           <div
             className={`wilds-stage${state.encounter.phase === "hint" ? ` signal-${state.encounter.proximity}` : ""}${combatSurface === "pvp" ? " pvp-active" : ""}${multiplayerRosterOpen ? " multiplayer-roster-open" : ""}${combatSurface === "wild" ? " wild-battle-active" : ""}${commandPanelOpen ? " is-command-panel-open" : ""}${worldOverlayState.toolsOpen ? " is-world-tools-open" : ""}`}
             aria-label="Receiz Wilds playable 3D world"
+            ref={gameplaySurfaceRef}
           >
             <WildsWorldCanvas
               aerialCapabilities={activeTraversalCapabilities}
@@ -1829,7 +1855,7 @@ export function PlayCampaign({
 
         </div>
       </div>
-      {exclusiveOwner === "map" && mapOpen ? <WildsWorldMap
+      <WildsWorldMap
         currentPosition={state.player}
         discoveredLandmarkIds={discoveredLandmarkIds}
         explorationAtlas={state.explorationAtlas}
@@ -1840,7 +1866,7 @@ export function PlayCampaign({
           setMapOpen(false);
         }}
         onRift={riftTo}
-        open
+        open={exclusiveOwner === "map" && mapOpen}
         qualityProfile={qualityProfile}
         reducedMotion={reducedMotion}
         remotePlayers={multiplayer.remotePlayers}
@@ -1850,7 +1876,7 @@ export function PlayCampaign({
         ecologyKnowledge={state.ecologyKnowledge}
         bossKnowledge={state.bossKnowledge}
         trainers={sagaTrainers}
-      /> : null}
+      />
       <WildsLandmarkExperience
         access={activeLandmarkId && activeLandmarkId !== "wayfinder-hollow" ? evaluateLandmarkAccess(WILDS_FLAGSHIP_LANDMARKS.find((item) => item.id === activeLandmarkId)!, landmarkProgress) : null}
         card={activeAsset}

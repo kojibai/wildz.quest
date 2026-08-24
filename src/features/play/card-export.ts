@@ -13,6 +13,7 @@ import {
 import { WILDZ_PRODUCT } from "../../lib/wildz/product";
 import {
   canonicalPortableCardJson,
+  portableCardStatusLabel,
   portableCardBaseProofAsset,
   requiresPortableCardProofAppend,
   sha256PortableBasis,
@@ -223,7 +224,7 @@ export function renderWildsCardSvg(asset: PortableCardAsset, options: { origin?:
     <g data-card-story="right-half" data-column-width="300" transform="translate(320 0)"><rect width="300" height="190" rx="22" fill="#0a202b" stroke="${xml(palette.accent)}" stroke-opacity=".52"/><circle cx="266" cy="28" r="16" fill="${xml(palette.primary)}" opacity=".16"/><path d="M256 28h20M266 18v20" stroke="${xml(palette.accent)}" stroke-width="2" stroke-linecap="round" opacity=".72"/><text x="20" y="31" fill="${xml(palette.accent)}" font-family="system-ui,sans-serif" font-size="13" font-weight="900" letter-spacing="1.6">LIVING STORY</text><text x="20" y="60" fill="#c7dbe2" font-family="system-ui,sans-serif" font-size="13">${svgTextTspans(story, { x: 20, lineHeight: 19, maxChars: 34, maxLines: 6 })}</text></g>
   </g>
   <text x="65" y="960" fill="#7896a1" font-family="ui-monospace,monospace" font-size="12">${xml(asset.proof.digest)}</text>${premiumQrSvg(cardPath, 621, 927, palette.accent)}
-  <text x="65" y="990" fill="#fff" font-family="system-ui,sans-serif" font-size="15" font-weight="750">RECEIZ WILDS · PORTABLE PROOF CARD</text><text x="600" y="990" text-anchor="end" fill="${xml(palette.accent)}" font-family="system-ui,sans-serif" font-size="15" font-weight="850">${xml(asset.status.replace("_", " ").toUpperCase())}</text>
+  <text x="65" y="990" fill="#fff" font-family="system-ui,sans-serif" font-size="15" font-weight="750">RECEIZ WILDS · PORTABLE PROOF CARD</text><text x="600" y="990" text-anchor="end" fill="${xml(palette.accent)}" font-family="system-ui,sans-serif" font-size="15" font-weight="850">${xml(portableCardStatusLabel(asset.status).toUpperCase())}</text>
 </svg>`;
 }
 

@@ -31,7 +31,7 @@ test("ten thousand post-upload movement steps reuse exploration and perform no b
   assert.deepEqual(wildsTraversalProjectionDiagnostics(), traversal);
 });
 
-test("exploration, movement, and atlas rendering contain no verification or background work", async () => {
+test("exploration, movement, and atlas rendering contain no verification or repeated background work", async () => {
   const exploration = await readFile("src/features/play/wilds-exploration-atlas.ts", "utf8");
   const canvas = await readFile("src/features/play/WildsAtlasCanvas.tsx", "utf8");
   const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
@@ -46,5 +46,6 @@ test("exploration, movement, and atlas rendering contain no verification or back
   );
   assert.ok(movement.length > 1_000);
   assert.doesNotMatch(movement, /verifyAnyWildsCard|verifyPortableCard|nearbyHiddenHotspots|hotspotsForRegion|serializePlayState|fetch\(/);
-  assert.match(campaign, /\{exclusiveOwner === "map" && mapOpen \? <WildsWorldMap/);
+  assert.match(campaign, /<WildsWorldMap[\s\S]*open=\{exclusiveOwner === "map" && mapOpen\}/);
+  assert.match(canvas, /frameloop=\{active && !reducedMotion \? "always" : "demand"\}/);
 });

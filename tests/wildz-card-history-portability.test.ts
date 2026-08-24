@@ -14,6 +14,7 @@ import { admitLegacyCard } from "../src/features/play/living-card-proof";
 import {
   canonicalPortableCardJson,
   portableCardBaseProofAsset,
+  portableCardStatusLabel,
   sealCollectedCard
 } from "../src/features/play/portable-card";
 import { isLivingCardAsset } from "../src/features/play/living-card-types";
@@ -23,6 +24,12 @@ const BASE_PNG = Uint8Array.from(Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
   "base64"
 ));
+
+test("valid local and globally projected card seals share the verified player-facing label", () => {
+  assert.equal(portableCardStatusLabel("sealed_local"), "verified");
+  assert.equal(portableCardStatusLabel("verified"), "verified");
+  assert.equal(portableCardStatusLabel("listed"), "listed");
+});
 
 function trainedCard() {
   const capturedAt = "2026-08-11T13:00:00.000Z";

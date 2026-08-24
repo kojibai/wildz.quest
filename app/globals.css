@@ -2958,6 +2958,22 @@ a {
   isolation: isolate;
 }
 
+/* Camera gestures must never become browser text-selection or copy gestures. */
+.wilds-stage,
+.wilds-stage * {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.wilds-stage :is(input, textarea, [contenteditable="true"], [data-native-selection="true"]) {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 .wilds-stage.signal-warm {
   box-shadow: inset 0 0 0 2px rgba(216, 255, 242, 0.3), inset 0 0 34px rgba(55, 214, 136, 0.14), 0 24px 52px rgba(23, 19, 17, 0.16);
 }
@@ -12991,6 +13007,14 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   isolation: isolate;
 }
 
+.wilds-world-map.is-dormant {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.wilds-world-map.is-open { visibility: visible; opacity: 1; }
+
 .wilds-world-map::before {
   position: absolute;
   z-index: -1;
@@ -15461,6 +15485,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   background: linear-gradient(145deg, rgba(16, 44, 39, .93), rgba(7, 25, 22, .96));
   box-shadow: 0 8px 22px rgba(0, 0, 0, .35), inset 0 1px rgba(255, 255, 255, .08);
   backdrop-filter: blur(15px);
+  touch-action: none;
 }
 
 .wildz-tools-home .wilds-command-button:hover,

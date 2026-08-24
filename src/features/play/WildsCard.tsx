@@ -9,7 +9,7 @@ import { isLivingCardAsset } from "./living-card-types";
 import { cardDeathRecord } from "./card-death-record";
 import type { AdventureCardCondition } from "./adventure/card-condition";
 import { emptyAdventureCondition } from "./adventure/card-condition";
-import type { PortableCardAsset } from "./portable-card";
+import { portableCardStatusLabel, type PortableCardAsset } from "./portable-card";
 import { creatureConsciousnessMotion } from "./creature-consciousness";
 import { projectCreatureCapabilityIdentity, projectCreatureRuntimeCapabilities } from "./creature-capability-identity";
 
@@ -100,7 +100,7 @@ export const WildsCard = memo(function WildsCard({ asset, compact = false, condi
         {capabilityRuntime.abilities.map((ability) => <div key={ability.descriptor.id}><strong>{ability.descriptor.name}</strong><b>{ability.currentPower}</b><p>{ability.descriptor.action}</p></div>)}
       </div>
       <footer>
-        <span>{asset.status.replace("_", " ")}</span>
+        <span>{portableCardStatusLabel(asset.status)}</span>
         <code title={asset.proof.digest}>{asset.proof.digest.slice(7, 19)}</code>
       </footer>
     </article>

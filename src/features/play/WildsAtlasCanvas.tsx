@@ -57,6 +57,8 @@ export function WildsAtlasCanvas({
   recenterRequest,
   fitRequest,
   reducedMotion,
+  active = true,
+  onReady = () => {},
   onSelect,
   onDrop
 }: {
@@ -68,6 +70,8 @@ export function WildsAtlasCanvas({
   recenterRequest: number;
   fitRequest: number;
   reducedMotion: boolean;
+  active?: boolean;
+  onReady?: () => void;
   onSelect: (landmarkId: string) => void;
   onDrop: (position: { x: number; z: number }) => void;
 }) {
@@ -91,7 +95,7 @@ export function WildsAtlasCanvas({
       <Canvas
         camera={{ fov: 40, near: 0.1, far: Math.max(80, fogFar * 1.6), position: [0, 9.6, 11.5] }}
         dpr={qualityProfile.dpr}
-        frameloop={reducedMotion ? "demand" : "always"}
+        frameloop={active && !reducedMotion ? "always" : "demand"}
         gl={{ antialias: true, powerPreference: "high-performance" }}
         onCreated={({ gl }) => {
           gl.outputColorSpace = THREE.SRGBColorSpace;
@@ -117,6 +121,7 @@ export function WildsAtlasCanvas({
         <PresenceLights projection={projection} />
         <TrainerLights projection={projection} />
         <CurrentPositionBeam position={currentPosition} projection={projection} />
+        <AtlasReadySignal onReady={onReady} />
         <Sparkles
           key={`wilds-atlas-sparkles-${atlasSparkleCount}`}
           count={atlasSparkleCount}
@@ -140,6 +145,16 @@ export function WildsAtlasCanvas({
       </Canvas>
     </div>
   );
+}
+
+function AtlasReadySignal({ onReady }: { onReady: () => void }) {
+  const signaled = useRef(false);
+  useFrame(() => {
+    if (signaled.current) return;
+    signaled.current = true;
+    onReady();
+  });
+  return null;
 }
 
 function AtlasCameraRig({

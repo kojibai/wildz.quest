@@ -42,6 +42,7 @@ import { isLivingCardAsset } from "./living-card-types";
 import { summarizeWildzInventoryImport } from "./inventory-import-result";
 import { resolveInventoryDetailSelection } from "./inventory-detail-selection";
 import { rememberStandaloneWildzCard } from "./standalone-card-handoff";
+import { portableCardStatusLabel } from "./portable-card";
 import {
   createWildzVaultCardMembershipProof,
   type WildzVaultCardAdmission
@@ -491,7 +492,7 @@ export function WildsInventory({
                 <span className="wilds-inventory-card-xp">{cardProgress.xp} XP</span>
                 <strong className="wilds-creature-name"><span>{asset.manifest.name}</span><WildsVerifiedBadge /></strong>
                 <small>Stage {form.stage} · {form.rarity} · Bond {cardProgress.bond}</small>
-                <b>{retired ? "Retired memorial · permanently unplayable" : `${asset.manifest.stats.power} PWR · ${asset.status === "sealed_local" ? "Offline sealed" : "Verified"}`}</b>
+                <b>{retired ? "Retired memorial · permanently unplayable" : `${asset.manifest.stats.power} PWR · ${portableCardStatusLabel(asset.status)}`}</b>
               </span>
             </button>;
           })}

@@ -64,6 +64,7 @@ export function WildsWorldMap({
   const [zoom, setZoom] = useState<WildsAtlasZoom>("world");
   const [recenterRequest, setRecenterRequest] = useState(0);
   const [fitRequest, setFitRequest] = useState(0);
+  const [atlasReady, setAtlasReady] = useState(false);
   const [atlasPresence, setAtlasPresence] = useState<{
     loaded: boolean;
     players: WildsAtlasExactPlayer[];
@@ -164,13 +165,15 @@ export function WildsWorldMap({
     };
   }, [currentPosition.x, currentPosition.z, guestId, open]);
 
-  if (!open || typeof document === "undefined") return null;
+  if (typeof document === "undefined") return null;
 
   return createPortal((
     <div
       aria-labelledby="wilds-world-map-title"
       aria-modal="true"
-      className="wilds-world-map"
+      aria-hidden={!open}
+      className={`wilds-world-map${open ? " is-open" : " is-dormant"}${atlasReady ? " is-ready" : ""}`}
+      inert={!open ? true : undefined}
       role="dialog"
     >
       <header className="wilds-world-map-header">
@@ -186,6 +189,7 @@ export function WildsWorldMap({
       <div className="wilds-world-map-body">
         <div className="wilds-atlas-stage">
           <WildsAtlasCanvas
+            active={open}
             currentPosition={currentPosition}
             onDrop={(position) => void onRift(position)}
             onSelect={(landmarkId) => {
@@ -197,6 +201,7 @@ export function WildsWorldMap({
             recenterRequest={recenterRequest}
             fitRequest={fitRequest}
             reducedMotion={reducedMotion}
+            onReady={() => setAtlasReady(true)}
             selectedDrop={null}
             selectedId={null}
           />
