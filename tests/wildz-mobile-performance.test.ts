@@ -116,7 +116,7 @@ test("proof admission does not activate recurring work on the gameplay hot path"
   const shell = source("src/features/shell/WildzApp.tsx");
 
   assert.doesNotMatch(campaign, /usePublicCardPublisher/);
-  assert.match(campaign, /live:\s*multiplayerRosterOpen/);
+  assert.match(campaign, /surfaceOpen:\s*multiplayerRosterOpen/);
   assert.doesNotMatch(world, /setInterval/);
   assert.doesNotMatch(multiplayer, /setInterval/);
 

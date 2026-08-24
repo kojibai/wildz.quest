@@ -16,7 +16,7 @@ import {
 
 const GUEST_KEY = "receiz:wilds:multiplayer-guest:v1";
 const WILDS_MULTIPLAYER_HEARTBEAT_MS = 2_500;
-const WILDS_GLOBAL_PRESENCE_REFRESH_MS = 3_000;
+const WILDS_GLOBAL_PRESENCE_REFRESH_MS = 1_000;
 
 function samePresence(left: WildsPresence[], right: WildsPresence[]) {
   if (left.length !== right.length) return false;
@@ -91,7 +91,7 @@ export function buildWildsMultiplayerHeartbeatBody(input: {
 
 export function useWildsMultiplayer(input: {
   enabled: boolean;
-  live: boolean;
+  surfaceOpen: boolean;
   style: "female" | "male";
   position: { x: number; z: number };
   activeCard: PortableCardAsset | null;
@@ -106,6 +106,7 @@ export function useWildsMultiplayer(input: {
   const [error, setError] = useState("");
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [dismissedBattleIds, setDismissedBattleIds] = useState<Set<string>>(() => new Set());
+  const [pageVisible, setPageVisible] = useState(() => typeof document === "undefined" || document.visibilityState === "visible");
   const latest = useRef(input);
   const retryAfter = useRef(0);
   const admittedHeartbeatCards = useRef(new Set<string>());
@@ -116,11 +117,17 @@ export function useWildsMultiplayer(input: {
     setRoomOverride(queryInviteRoom());
   }, []);
 
+  useEffect(() => {
+    const updateVisibility = () => setPageVisible(document.visibilityState === "visible");
+    document.addEventListener("visibilitychange", updateVisibility);
+    return () => document.removeEventListener("visibilitychange", updateVisibility);
+  }, []);
+
   const roomKey = roomOverride ?? roomKeyForPosition("platform", input.position);
 
   const heartbeat = useCallback(async () => {
     const current = latest.current;
-    if (!current.enabled || !current.live || !current.activeCard || !guestId) return;
+    if (!current.enabled || document.visibilityState !== "visible" || !current.activeCard || !guestId) return;
     const activeCard = current.activeCard;
     if (!shouldAttemptWildsNetwork()) {
       setMode("reconnecting");
@@ -164,7 +171,17 @@ export function useWildsMultiplayer(input: {
       }
       admittedHeartbeatCards.current.add(admissionPin);
       setSelfId(result.actor.playerId);
-      setSnapshot((current) => current?.revision === result.snapshot.revision ? current : result.snapshot);
+      const requiresAttention = result.snapshot.challenges.some((challenge) => (
+        challenge.opponentId === result.actor.playerId && challenge.state === "offered"
+      )) || result.snapshot.battles.some((battle) => (
+        Boolean(battle.players[result.actor.playerId]) && battle.phase !== "settled"
+      ));
+      // The global atlas owns passive world discovery. Keep room detail only
+      // while its UI is open or an incoming interaction needs attention, so a
+      // routine self-heartbeat cannot rerender the game every 2.5 seconds.
+      if (current.surfaceOpen || requiresAttention) {
+        setSnapshot((prior) => prior?.revision === result.snapshot.revision ? prior : result.snapshot);
+      }
       // A server-accepted heartbeat is shared internet presence. Publication
       // controls durability; it does not decide whether other players see it.
       setMode("receiz_live");
@@ -181,7 +198,7 @@ export function useWildsMultiplayer(input: {
   }, [guestId, roomKey]);
 
   useEffect(() => {
-    if (!input.live) return;
+    if (!input.enabled || !pageVisible) return;
     let stopped = false;
     let timer: number | null = null;
     const tickHeartbeat = () => {
@@ -195,7 +212,7 @@ export function useWildsMultiplayer(input: {
       stopped = true;
       if (timer !== null) window.clearTimeout(timer);
     };
-  }, [heartbeat, input.live]);
+  }, [heartbeat, input.enabled, pageVisible]);
 
   const refresh = useCallback(async () => {
     if (!input.enabled || !guestId) return;
@@ -222,7 +239,7 @@ export function useWildsMultiplayer(input: {
 
   useEffect(() => {
     const resume = () => {
-      if (!latest.current.live) return;
+      if (!latest.current.enabled || document.visibilityState !== "visible") return;
       retryAfter.current = 0;
       void heartbeat();
       void refresh();
@@ -232,7 +249,7 @@ export function useWildsMultiplayer(input: {
   }, [heartbeat, refresh]);
 
   const refreshGlobalPresence = useCallback(async () => {
-    if (!latest.current.enabled || !latest.current.live || !guestId || !shouldAttemptWildsNetwork()) return;
+    if (!latest.current.enabled || document.visibilityState !== "visible" || !guestId || !shouldAttemptWildsNetwork()) return;
     const current = latest.current;
     try {
       const params = new URLSearchParams({
@@ -250,7 +267,7 @@ export function useWildsMultiplayer(input: {
   }, [guestId]);
 
   useEffect(() => {
-    if (!input.live) return;
+    if (!input.enabled || !pageVisible) return;
     let stopped = false;
     let timer: number | null = null;
     const tickPresence = () => {
@@ -264,7 +281,14 @@ export function useWildsMultiplayer(input: {
       stopped = true;
       if (timer !== null) window.clearTimeout(timer);
     };
-  }, [input.live, refreshGlobalPresence]);
+  }, [input.enabled, pageVisible, refreshGlobalPresence]);
+
+  useEffect(() => {
+    if (!input.surfaceOpen || !pageVisible) return;
+    // Opening the room surface requests its exact interaction state without
+    // controlling whether the player exists in the living world.
+    void refresh();
+  }, [input.surfaceOpen, pageVisible, refresh]);
 
   const post = useCallback(async (path: "message" | "challenge" | "battle", body: Record<string, unknown>) => {
     try {
@@ -296,14 +320,15 @@ export function useWildsMultiplayer(input: {
 
   const remotePlayers = useMemo(() => {
     const newestByPlayer = new Map<string, WildsPresence>();
-    for (const player of [...(snapshot?.players ?? []), ...globalPlayers]) {
+    const roomPlayers = input.surfaceOpen ? snapshot?.players ?? [] : [];
+    for (const player of [...roomPlayers, ...globalPlayers]) {
       const current = newestByPlayer.get(player.playerId);
       if (!current || Date.parse(player.lastSeenAt) > Date.parse(current.lastSeenAt)) newestByPlayer.set(player.playerId, player);
     }
     return [...newestByPlayer.values()]
     .filter((player) => player.playerId !== selfId && player.status !== "private")
     .sort((left, right) => Math.hypot(left.x - input.position.x, left.z - input.position.z) - Math.hypot(right.x - input.position.x, right.z - input.position.z))
-  }, [globalPlayers, input.position.x, input.position.z, selfId, snapshot?.players]);
+  }, [globalPlayers, input.position.x, input.position.z, input.surfaceOpen, selfId, snapshot?.players]);
   const selectedPlayer = remotePlayers.find((player) => player.playerId === selectedPlayerId) ?? null;
   const selectPlayer = useCallback((player: WildsPresence | null) => setSelectedPlayerId(player?.playerId ?? null), []);
   const activeBattle = snapshot?.battles.find((battle) => battle.phase === "active" && Boolean(battle.players[selfId]))

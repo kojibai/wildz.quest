@@ -464,7 +464,7 @@ export function PlayCampaign({
     // networkEnabled still protects canonical world writes, but must not turn
     // unauthenticated live players into an isolated local session.
     enabled: enabled && Boolean(activeAsset),
-    live: multiplayerRosterOpen,
+    surfaceOpen: multiplayerRosterOpen,
     style: explorerStyle,
     position: state.player,
     activeCard: activeAsset,

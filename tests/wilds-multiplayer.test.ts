@@ -83,14 +83,18 @@ it("does not turn optional multiplayer projection publication into a repeating r
   assert.match(routes, /publishWildsRoomToReceiz/);
 });
 
-it("keeps authenticated walking completely free of multiplayer refresh loops", () => {
+it("keeps always-live discovery off the movement and render loops", () => {
   const hook = readFileSync("src/features/play/use-wilds-multiplayer.ts", "utf8");
   const surface = readFileSync("src/features/play/WildsMultiplayer.tsx", "utf8");
-  assert.match(hook, /live:\s*boolean/);
-  assert.match(hook, /if \(!input\.live\) return/);
+  const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
+  assert.match(hook, /surfaceOpen:\s*boolean/);
+  assert.match(campaign, /surfaceOpen:\s*multiplayerRosterOpen/);
+  assert.doesNotMatch(hook, /if \(!current\.surfaceOpen\)/);
+  assert.match(hook, /document\.visibilityState !== "visible"/);
+  assert.match(hook, /routine self-heartbeat cannot rerender the game/);
   assert.doesNotMatch(hook, /setInterval/);
   assert.match(hook, /WILDS_MULTIPLAYER_HEARTBEAT_MS = 2_500/);
-  assert.match(hook, /WILDS_GLOBAL_PRESENCE_REFRESH_MS = 3_000/);
+  assert.match(hook, /WILDS_GLOBAL_PRESENCE_REFRESH_MS = 1_000/);
   assert.match(hook, /setTimeout\(tickHeartbeat, WILDS_MULTIPLAYER_HEARTBEAT_MS\)/);
   assert.match(hook, /setTimeout\(tickPresence, WILDS_GLOBAL_PRESENCE_REFRESH_MS\)/);
   assert.match(surface, /liveSurfaceOpen && multiplayer\.error/);
