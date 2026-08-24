@@ -12,6 +12,9 @@ import {
   type WildsGroupRoom,
   type WildsMessengerParticipant
 } from "./wilds-messenger-core";
+import { verifyAnyWildsCard } from "./portable-card";
+import { validateWildsCardTransferOffer } from "@/lib/receiz/wilds-card-transfer";
+import { sameWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 
 const messengerLedgerKey = Symbol.for("receiz.wilds.messenger-ledger.v1");
@@ -112,6 +115,24 @@ export function appendWildsDirectMessage(input: {
     || context.status !== "committed"
     || !/^phi-transfer:[a-f0-9]{32,64}$/.test(context.transferReference)
   )) throw new Error("wilds_message_phi_transfer_invalid");
+  if (context?.kind === "card-offer") {
+    try { validateWildsCardTransferOffer(context.offer); }
+    catch { throw new Error("wilds_message_card_offer_invalid"); }
+    if (!sameWildzPlayerCoordinate(context.offer.targetHandle, recipient.handle)) {
+      throw new Error("wilds_message_card_offer_recipient_invalid");
+    }
+  }
+  if (context?.kind === "card-transfer" && (
+    context.status !== "claimed"
+    || !verifyAnyWildsCard(context.card).ok
+    || context.subjectId.length < 16
+    || context.transferId.length < 16
+    || context.receiptId.length < 16
+    || !context.sourceHandle
+    || !context.targetHandle
+    || !context.priorOwnerReceizId
+    || !context.nextOwnerReceizId
+  )) throw new Error("wilds_message_card_transfer_invalid");
   const existing = conversation.messages.find((message) => (
     message.senderId === sender.id && message.clientMessageId === clientMessageId
   ));

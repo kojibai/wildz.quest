@@ -109,6 +109,7 @@ export type WildsInput = (
   | { type: "care-for-creature"; assetId: string; ownerReceizId: string; action: CreatureCareAction; at: string }
   | { type: "settle-creature-care"; assetId: string; ownerReceizId: string; at: string }
   | { type: "import-card"; asset: PortableCardAsset }
+  | { type: "transfer-card-out"; assetId: string }
   | { type: "fuse-cards"; parentAId: string; parentBId: string; inheritance: FusionInheritance; fusedAt: string }
   | { type: "evolve"; assetId: string; evolvedAt: string }
   | { type: "record-growth"; assetId: string; event: GrowthEvent }
@@ -1486,6 +1487,22 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       selectedCardId: asset.manifest.familyId,
       lastEvent: `${asset.manifest.name} passed offline verification and joined your playable inventory.`
     });
+  }
+
+  if (input.type === "transfer-card-out") {
+    if (!state.inventory.some((asset) => asset.id === input.assetId)) return state;
+    const inventory = retainAdmittedWildsInventory(state.inventory.filter((asset) => asset.id !== input.assetId));
+    const selected = inventory[0] ?? null;
+    return {
+      ...state,
+      inventory,
+      pendingSyncAssetIds: state.pendingSyncAssetIds.filter((id) => id !== input.assetId),
+      selectedAssetId: state.selectedAssetId === input.assetId ? selected?.id ?? "" : state.selectedAssetId,
+      selectedCardId: state.selectedAssetId === input.assetId ? selected?.manifest.familyId ?? "" : state.selectedCardId,
+      supportAssetIds: state.supportAssetIds.map((id) => id === input.assetId ? null : id) as [string | null, string | null],
+      hearttreeSquadAssetIds: state.hearttreeSquadAssetIds.filter((id) => id !== input.assetId),
+      lastEvent: "A claimed bearer transfer moved that card out of this Vault. Its permanent proof history remains preserved."
+    };
   }
 
   if (input.type === "fuse-cards") {

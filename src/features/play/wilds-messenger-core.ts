@@ -1,4 +1,6 @@
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
+import type { PortableCardAsset } from "./portable-card";
+import type { WildsCardTransferOffer } from "@/lib/receiz/wilds-card-transfer";
 
 export const WILDS_DIRECT_MESSAGE_MAX_LENGTH = 2_000;
 export const WILDS_DIRECT_MESSAGE_PAGE_SIZE = 60;
@@ -39,6 +41,20 @@ export type WildsDirectMessage = {
     rail: "settlement";
     status: "committed";
     transferReference: string;
+  } | {
+    kind: "card-offer";
+    offer: WildsCardTransferOffer;
+  } | {
+    kind: "card-transfer";
+    card: PortableCardAsset;
+    subjectId: string;
+    transferId: string;
+    receiptId: string;
+    sourceHandle: string;
+    targetHandle: string;
+    priorOwnerReceizId: string;
+    nextOwnerReceizId: string;
+    status: "claimed";
   };
   authority: {
     source: "receiz-id-proof-object";

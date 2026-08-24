@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { AdventureCardCondition } from "@/features/play/adventure/card-condition";
-import { createWildsCardSendDraft, downloadBlob } from "@/features/play/card-export";
+import { createWildsCardSendDraft, downloadBlob, normalizeWildsCardSendTarget } from "@/features/play/card-export";
 import { WildsCardScene } from "@/features/play/WildsCardScene";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import type { WildzPreparedIdentityOwnedCard } from "@/lib/receiz/wildz-identity-adapter";
@@ -10,10 +10,11 @@ import type { WildsWalletControllerState } from "./wilds-wallet-controller";
 import { formatWildsPhiExact } from "./wilds-wallet-format";
 import { PhiNetworkAmount } from "./PhiNetworkMark";
 
-export function WildsWalletAssets({ cards, cardConditions, onPrepareCard, state }: {
+export function WildsWalletAssets({ cards, cardConditions, onPrepareCard, onSendCard, state }: {
   cards: readonly PortableCardAsset[];
   cardConditions: Readonly<Record<string, AdventureCardCondition>>;
   onPrepareCard?: (asset: PortableCardAsset) => Promise<WildzPreparedIdentityOwnedCard>;
+  onSendCard?: (asset: PortableCardAsset, targetHandle: string) => Promise<unknown>;
   state: WildsWalletControllerState;
 }) {
   const [selectedId, setSelectedId] = useState(cards[0]?.id ?? "");
@@ -25,11 +26,18 @@ export function WildsWalletAssets({ cards, cardConditions, onPrepareCard, state 
   useEffect(() => { setOrigin(window.location.origin); }, []);
 
   const sendSelectedCard = async () => {
-    if (!selected || !onPrepareCard) return;
+    if (!selected) return;
     setSending(true);
     setMessage("Preparing the exact verified card…");
     try {
       const draft = createWildsCardSendDraft(selected, target, origin);
+      if (draft.target.kind === "receiz-username") {
+        if (!onSendCard) throw new Error("Online card transfer is unavailable.");
+        await onSendCard(selected, draft.target.value);
+        setMessage(`One-use card claim sent privately to ${draft.target.label}. Your card remains here until they claim it.`);
+        return;
+      }
+      if (!onPrepareCard) throw new Error("Verified card export is unavailable.");
       const artifact = await onPrepareCard(selected);
       const blob = new Blob([artifact.bytes.slice().buffer], { type: artifact.mimeType });
       const file = new File([blob], artifact.filename, { type: artifact.mimeType });
@@ -63,7 +71,7 @@ export function WildsWalletAssets({ cards, cardConditions, onPrepareCard, state 
         <div className="wilds-wallet-card-stage"><WildsCardScene asset={selected} condition={cardConditions[selected.id]} origin={origin} qr="" tapToFlip /></div>
         <small>Tap or swipe the card to see its complete verified back.</small>
         <label><span>Send this exact card</span><input aria-label="Receiz username or email to send this card" autoCapitalize="none" autoCorrect="off" onChange={(event) => setTarget(event.target.value)} placeholder="@username or email" value={target} /></label>
-        <button disabled={sending || !target.trim() || !onPrepareCard} onClick={() => { void sendSelectedCard(); }} type="button">{sending ? "Preparing verified card…" : `Send ${selected.manifest.name}`}</button>
+        <button disabled={sending || !target.trim() || (!onSendCard && !onPrepareCard) || !normalizeWildsCardSendTarget(target)} onClick={() => { void sendSelectedCard(); }} type="button">{sending ? "Preparing verified card…" : `Send ${selected.manifest.name}`}</button>
         {message ? <p aria-live="polite">{message}</p> : null}
       </div> : null}
     </div> : <p>No creature cards are carried by this Receiz ID yet.</p>}

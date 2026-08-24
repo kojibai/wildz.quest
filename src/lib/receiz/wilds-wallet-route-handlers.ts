@@ -34,6 +34,7 @@ import type {
   WildsWalletTransferTerminalIntegrityPort
 } from "./wilds-wallet-transfer-journal";
 import { receizOidcScopesForRails, type ReceizValueRailV122 } from "@receiz/sdk";
+import { createWildsWalletV124TransferRuntime } from "./wilds-wallet-v124-runtime";
 
 const RECIPIENT_LOOKUP_LIMIT = 6;
 const RECIPIENT_LOOKUP_WINDOW_SECONDS = 60;
@@ -71,6 +72,7 @@ export type WildsWalletTransferConsent = Readonly<{ artifact: unknown; challenge
 
 export interface WildsWalletTransferRouteRuntime {
   readonly durable: true;
+  readonly recipientLookupAdmission?: "distributed-v124" | "external-limiter";
   capabilityAdmission(authority: WildsWalletReadAuthority): Promise<WalletCapabilityAdmission>;
   preview(
     authority: WildsWalletReadAuthority,
@@ -130,7 +132,7 @@ const ATTEMPT_VERSION = "v1";
 const ATTEMPT_REVIEW_KAI = 120;
 // Five canonical days, bounded and enforced by durable journal cleanup.
 const ATTEMPT_RECOVERY_KAI = 86_400;
-const OPAQUE_ATTEMPT = /^v1\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{2,4096}\.[A-Za-z0-9_-]{16,}$/;
+const OPAQUE_ATTEMPT = /^v[12]\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{2,8192}\.[A-Za-z0-9_-]{16,}$/;
 const OPERATION_NONCE = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|[A-Za-z0-9_-]{24,128})$/i;
 
 function purposeKey(secret: string, purpose: string) {
@@ -289,7 +291,7 @@ function exactReceiveProjection(value: unknown) {
   const requestValid = request === null || (request !== undefined && exactObject(request, ["amountPhiMicro", "authority", "kind"])
     && request.kind === "phi" && isMicroPhi(request.amountPhiMicro) && request.authority === "non-authoritative");
   if (!item || !exactObject(item, ["locator", "request"]) || typeof item.locator !== "string"
-    || !item.locator.startsWith("wildz:receive:v1.") || item.locator.length > 8_192 || !requestValid) {
+    || !/^wildz:receive:v[12]\./.test(item.locator) || item.locator.length > 8_192 || !requestValid) {
     throw new Error("wilds_wallet_receive_locator_invalid");
   }
   return Object.freeze({
@@ -343,6 +345,7 @@ export function createWildsWalletTransferRouteRuntime(input: Readonly<{
   };
   const runtime: WildsWalletTransferRouteRuntime = {
     durable: true as const,
+    recipientLookupAdmission: "external-limiter" as const,
     capabilityAdmission: (authority: WildsWalletReadAuthority) => input.context.capabilityAdmission(authority),
     async preview(authority: WildsWalletReadAuthority, command: WildsWalletTransferPreviewCommand) {
       const cleanupKai = await input.authorityAdmission.currentKai();
@@ -515,6 +518,9 @@ const SAFE_FAILURES = Object.freeze({
   wilds_wallet_receive_locator_invalid: 400,
   wilds_wallet_receive_locator_expired: 410,
   wilds_wallet_transfer_review_expired: 409,
+  wilds_wallet_transfer_insufficient_value: 409,
+  wilds_wallet_transfer_consent_binding_invalid: 400,
+  wilds_wallet_v124_source_invalid: 409,
   wilds_wallet_transfer_clock_unavailable: 503,
   wilds_wallet_transfer_not_staged: 404,
   wilds_wallet_idempotency_conflict: 409,
@@ -598,13 +604,25 @@ async function consumeRecipientLookup(limiter: WildsWalletRecipientLookupLimiter
 }
 
 function defaultDependencies(): WildsWalletRouteHandlerDependencies {
+  let transferRuntime: WildsWalletTransferRouteRuntime | null = null;
+  const liveTransferRuntime = () => (transferRuntime ??= createWildsWalletV124TransferRuntime({
+    createAdapter: (accessToken) => createReceizCommerceAdapter({ accessToken })
+  }));
   return {
     resolveAuthority: resolveWildsWalletReadAuthority,
     createAdapter: (accessToken) => createReceizCommerceAdapter({ accessToken }),
     // No process-local fallback is permitted: production recipient lookup remains closed
     // until the hosting platform wires a durable limiter port into this handler factory.
     recipientLookupLimiter: undefined,
-    transferRuntime: undefined
+    transferRuntime: Object.freeze({
+      durable: true as const,
+      recipientLookupAdmission: "distributed-v124" as const,
+      capabilityAdmission: (authority: WildsWalletReadAuthority) => liveTransferRuntime().capabilityAdmission(authority),
+      preview: (authority: WildsWalletReadAuthority, command: WildsWalletTransferPreviewCommand) => liveTransferRuntime().preview(authority, command),
+      execute: (authority: WildsWalletReadAuthority, request: Readonly<{ attempt: string; consent: WildsWalletTransferConsent }>) => liveTransferRuntime().execute(authority, request),
+      status: (authority: WildsWalletReadAuthority, attempt: string) => liveTransferRuntime().status(authority, attempt),
+      receive: (authority: WildsWalletReadAuthority, amountPhiMicro: string | null) => liveTransferRuntime().receive(authority, amountPhiMicro)
+    })
   };
 }
 
@@ -694,13 +712,15 @@ export function createWildsWalletRouteHandlers(
         if (hasUsername === hasLocator) throw new Error("wilds_wallet_transfer_request_invalid");
         const recipientUsername = hasUsername ? normalizeWildsWalletPublicUsername(body.recipientUsername) : undefined;
         const recipientLocator = hasLocator && typeof body.recipientLocator === "string" ? body.recipientLocator : undefined;
-        if (hasLocator && (!recipientLocator || !recipientLocator.startsWith("wildz:receive:v1."))) throw new Error("wilds_wallet_receive_locator_invalid");
+        if (hasLocator && (!recipientLocator || !/^wildz:receive:v[12]\./.test(recipientLocator))) throw new Error("wilds_wallet_receive_locator_invalid");
         const amountPhiMicro = parseWildsWalletMicroPhi(body.amountPhiMicro);
         if (amountPhiMicro === "0" || (body.rail !== "settlement" && body.rail !== "reserve")
           || typeof body.operationNonce !== "string" || !OPERATION_NONCE.test(body.operationNonce)) {
           throw new Error("wilds_wallet_transfer_request_invalid");
         }
-        if (recipientUsername) await consumeRecipientLookup(dependencies.recipientLookupLimiter, authority.actorId);
+        if (recipientUsername && dependencies.transferRuntime?.recipientLookupAdmission !== "distributed-v124") {
+          await consumeRecipientLookup(dependencies.recipientLookupLimiter, authority.actorId);
+        }
         const value = await transferRuntimeOrThrow(dependencies.transferRuntime).preview(authority, {
           ...(recipientUsername ? { recipientUsername } : { recipientLocator: recipientLocator! }),
           amountPhiMicro, rail: body.rail, operationNonce: body.operationNonce

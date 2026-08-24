@@ -11637,6 +11637,13 @@ button.product-purchase-secondary-link {
 .wilds-message-phi-transfer > small { color: inherit; font-size: 7px; font-weight: 900; letter-spacing: .14em; opacity: .58; }
 .wilds-message-phi-transfer > strong { font-size: 18px; letter-spacing: -.03em; }
 .wilds-message-phi-transfer > em { font-size: 8px; font-style: normal; font-weight: 700; opacity: .62; }
+.wilds-message-card-transfer { display: grid; width: min(230px, 58vw); gap: 7px; white-space: normal; }
+.wilds-message-card-transfer > small { font-size: 7px; font-weight: 900; letter-spacing: .14em; opacity: .62; }
+.wilds-message-card-transfer > strong { font-size: 12px; }
+.wilds-message-card-transfer > em { font-size: 8px; font-style: normal; font-weight: 700; opacity: .68; }
+.wilds-message-card-transfer > button { min-height: 38px; border: 1px solid rgba(255, 255, 255, .18); border-radius: 11px; color: #031b16; background: linear-gradient(145deg, #b5ffe8, #65d8bb); font: inherit; font-weight: 900; }
+.wilds-message-card-scene { display: block; width: 100%; aspect-ratio: 5 / 7; overflow: hidden; border-radius: 13px; }
+.wilds-message-card-scene .wilds-card-scene { width: 100%; height: 100%; }
 .wilds-message-reply { display: grid; gap: 2px; max-width: 100%; padding: 6px 8px; overflow: hidden; color: rgba(230, 255, 248, .66); font-size: 8px !important; border-left: 2px solid #79e8c6; background: rgba(0, 0, 0, .16); border-radius: 5px 8px 8px 5px; text-overflow: ellipsis; white-space: nowrap !important; }
 .wilds-message-row.is-mine .wilds-message-reply { color: rgba(2, 27, 22, .6); border-color: #14765e; background: rgba(0, 55, 42, .09); }
 .wilds-message-reply b { font-size: 7px; text-transform: uppercase; }

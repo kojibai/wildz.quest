@@ -76,7 +76,7 @@ function durableLimiter() {
 }
 
 function dependencies(receiz = adapter(), limiter: unknown = durableLimiter()) {
-  return { resolveAuthority: async () => authority(), createAdapter: () => receiz, recipientLookupLimiter: limiter };
+  return { resolveAuthority: async () => authority(), createAdapter: () => receiz, recipientLookupLimiter: limiter, transferRuntime: undefined };
 }
 
 async function responseBody(response: Response) {

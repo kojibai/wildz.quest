@@ -142,6 +142,11 @@ export type ReceizCommerceAdapter = {
   resolveExecutionByIdempotencyV124: ReceizClient["execution"]["resolveByIdempotencyKey"];
   cancelExecutionV124: ReceizClient["execution"]["cancel"];
   planAtomicOperationV124: ReceizClient["execution"]["planAtomicOperationV124"];
+  previewBearerTransfer: ReceizClient["bearer"]["previewTransfer"];
+  issueBearerTransferInstrument: ReceizClient["bearer"]["issueTransferInstrument"];
+  inspectBearerTransferInstrument: ReceizClient["bearer"]["inspectInstrument"];
+  claimBearerTransferInstrument: ReceizClient["bearer"]["claimInstrument"];
+  bearerTransferStatus: ReceizClient["bearer"]["transferStatus"];
   ensureTenantSession(input: ReceizEnsureTenantSessionInput): ReceizEnsureTenantSessionResult;
   createProofRegister(ownerId?: string): ReceizProofRegister;
   createProofMemory(options?: ReceizProofMemoryOptions): Promise<ReceizProofMemory>;
@@ -639,6 +644,21 @@ export function createReceizCommerceAdapter(
     },
     planAtomicOperationV124(input) {
       return client.execution.planAtomicOperationV124(input);
+    },
+    previewBearerTransfer(input) {
+      return client.bearer.previewTransfer(input);
+    },
+    issueBearerTransferInstrument(input) {
+      return client.bearer.issueTransferInstrument(input);
+    },
+    inspectBearerTransferInstrument(input) {
+      return client.bearer.inspectInstrument(input);
+    },
+    claimBearerTransferInstrument(instrument, recipientCapability) {
+      return client.bearer.claimInstrument(instrument, recipientCapability);
+    },
+    bearerTransferStatus(transferId) {
+      return client.bearer.transferStatus(transferId);
     },
     ensureTenantSession(input) {
       return client.identity.ensureTenantSession(input);

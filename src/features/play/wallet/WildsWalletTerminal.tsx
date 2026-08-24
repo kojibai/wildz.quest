@@ -39,10 +39,11 @@ export type WildsWalletTerminalActions = WildsWalletSendActions & Readonly<{
   onReturnToMessages?(): void;
 }>;
 
-export function WildsWalletTerminal({ cards = [], cardConditions = {}, onPrepareCard, publicUsername, state, ...actions }: {
+export function WildsWalletTerminal({ cards = [], cardConditions = {}, onPrepareCard, onSendCard, publicUsername, state, ...actions }: {
   cards?: readonly PortableCardAsset[];
   cardConditions?: Readonly<Record<string, AdventureCardCondition>>;
   onPrepareCard?: (asset: PortableCardAsset) => Promise<WildzPreparedIdentityOwnedCard>;
+  onSendCard?: (asset: PortableCardAsset, targetHandle: string) => Promise<unknown>;
   publicUsername: string | null;
   state: WildsWalletPresentationState;
 } & WildsWalletTerminalActions) {
@@ -72,7 +73,7 @@ export function WildsWalletTerminal({ cards = [], cardConditions = {}, onPrepare
         {state.page === "overview" ? <WildsWalletOverview state={state} onNavigate={actions.onNavigate} /> : null}
         {state.page === "send" ? <WildsWalletSend state={state} {...actions} /> : null}
         {state.page === "receive" ? <WildsWalletReceive publicUsername={publicUsername} state={state} onRequestReceive={actions.onRequestReceive} /> : null}
-        {state.page === "assets" ? <WildsWalletAssets cards={cards} cardConditions={cardConditions} onPrepareCard={onPrepareCard} state={state} /> : null}
+        {state.page === "assets" ? <WildsWalletAssets cards={cards} cardConditions={cardConditions} onPrepareCard={onPrepareCard} onSendCard={onSendCard} state={state} /> : null}
         {state.page === "ledger" ? <WildsWalletLedger state={state} /> : null}
       </main>
       <footer><span>RECEIZ V124 · PROOF-NATIVE CUSTODY</span><span>PRIVATE · NO-STORE</span></footer>

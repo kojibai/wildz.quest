@@ -13,6 +13,7 @@ import type { useWildsWorld } from "./use-wilds-world";
 import type { WildsMultiplayerController } from "./use-wilds-multiplayer";
 import { WildsWalletInstrument } from "./wallet/WildsWalletInstrument";
 import type { WildsWalletPresentationState } from "./wallet/wilds-wallet-controller";
+import type { WildsCardTransferOffer } from "@/lib/receiz/wilds-card-transfer";
 
 export function WildsBalancedStatusHud({
   audio,
@@ -29,6 +30,7 @@ export function WildsBalancedStatusHud({
   onOpenCommandCenter,
   onOpenWallet,
   onSendPhi,
+  onClaimCard,
   onRosterOpenChange,
   player,
   wallet,
@@ -54,6 +56,7 @@ export function WildsBalancedStatusHud({
   onOpenCommandCenter: () => void;
   onOpenWallet: (origin: HTMLButtonElement) => void;
   onSendPhi: (peer: { id: string; handle: string }) => void;
+  onClaimCard: (offer: WildsCardTransferOffer) => Promise<unknown>;
   onRosterOpenChange?: (open: boolean) => void;
   player: { x: number; z: number };
   wallet: WildsWalletPresentationState;
@@ -118,6 +121,7 @@ export function WildsBalancedStatusHud({
     <WildsMessenger
       messenger={messenger}
       onSendPhi={onSendPhi}
+      onClaimCard={onClaimCard}
       roomChat={{
         messages: multiplayer.snapshot?.messages ?? [],
         onSend: multiplayer.sendMessage

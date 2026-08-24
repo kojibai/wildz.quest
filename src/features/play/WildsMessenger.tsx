@@ -13,6 +13,8 @@ import {
 import type { WildsMessengerController } from "./use-wilds-messenger";
 import { PhiNetworkAmount } from "./wallet/PhiNetworkMark";
 import { formatWildsPhiExact } from "./wallet/wilds-wallet-format";
+import { WildsCardScene } from "./WildsCardScene";
+import type { WildsCardTransferOffer } from "@/lib/receiz/wilds-card-transfer";
 
 function shortTime(value: string) {
   return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(value));
@@ -36,12 +38,14 @@ export function WildsMessenger({
   messenger,
   roomChat,
   selfId,
-  onSendPhi
+  onSendPhi,
+  onClaimCard
 }: {
   messenger: WildsMessengerController;
   roomChat: { messages: readonly WildsRoomMessage[]; onSend: (message: string) => Promise<unknown> };
   selfId: string;
   onSendPhi?: (peer: { id: string; handle: string }) => void;
+  onClaimCard?: (offer: WildsCardTransferOffer) => Promise<unknown>;
 }) {
   const [draft, setDraft] = useState("");
   const [roomDraft, setRoomDraft] = useState("");
@@ -53,6 +57,7 @@ export function WildsMessenger({
   const [query, setQuery] = useState("");
   const [replyTo, setReplyTo] = useState<WildsDirectMessage | null>(null);
   const [reactionFor, setReactionFor] = useState<string | null>(null);
+  const [claimingTransferId, setClaimingTransferId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const dialogRef = useRef<HTMLElement | null>(null);
@@ -229,14 +234,20 @@ export function WildsMessenger({
             const showDay = !prior || new Date(prior.createdAt).toDateString() !== new Date(message.createdAt).toDateString();
             const reply = message.replyToId ? messages.find((candidate) => candidate.id === message.replyToId) : null;
             const pending = messenger.pending.find((item) => item.message.clientMessageId === message.clientMessageId);
+            const offer = message.context?.kind === "card-offer" ? message.context.offer : null;
+            const offerClaimed = offer ? messages.some((candidate) => candidate.context?.kind === "card-transfer"
+              && candidate.context.transferId === offer.instrument.plan.transferId) : false;
             return <div className="wilds-message-block" key={message.id}>
               {showDay ? <div className="wilds-message-day"><span>{dayLabel(message.createdAt)}</span></div> : null}
               <div className={`wilds-message-row${mine ? " is-mine" : ""}`}>
-                <button aria-label={`Message from ${message.senderHandle}. Tap for reactions`} className="wilds-message-bubble" onClick={() => setReactionFor((current) => current === message.id ? null : message.id)} type="button">
+                <div aria-label={`Message from ${message.senderHandle}. Tap for reactions`} className="wilds-message-bubble" onClick={() => setReactionFor((current) => current === message.id ? null : message.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setReactionFor((current) => current === message.id ? null : message.id); }} role="button" tabIndex={0}>
                   {reply ? <span className="wilds-message-reply"><b>{reply.senderId === selfId ? "You" : reply.senderHandle}</b>{reply.body}</span> : null}
-                  {message.context?.kind === "phi-transfer" ? <span className="wilds-message-phi-transfer"><small>WALLET TRANSACTION</small><strong><PhiNetworkAmount value={formatWildsPhiExact(message.context.amountPhiMicro)} /></strong><em>Committed by source proof object</em></span> : <span>{message.deletedAt ? "Message removed" : message.body}</span>}
+                  {message.context?.kind === "phi-transfer" ? <span className="wilds-message-phi-transfer"><small>WALLET TRANSACTION</small><strong><PhiNetworkAmount value={formatWildsPhiExact(message.context.amountPhiMicro)} /></strong><em>Committed by source proof object</em></span>
+                    : offer ? <span className="wilds-message-card-transfer"><small>ONE-USE CARD CLAIM</small><span className="wilds-message-card-scene"><WildsCardScene asset={offer.card} origin="https://wildz.quest" qr="" tapToFlip /></span><strong>{offer.card.manifest.name}</strong><em>{offerClaimed ? "Claimed · custody moved exactly once" : mine ? `Awaiting ${offer.targetHandle}` : "Source verified · accept into your Vault"}</em>{!mine && !offerClaimed && onClaimCard ? <button disabled={claimingTransferId === offer.instrument.plan.transferId} onClick={(event) => { event.stopPropagation(); setClaimingTransferId(offer.instrument.plan.transferId); void onClaimCard(offer).finally(() => setClaimingTransferId(null)); }} type="button">{claimingTransferId === offer.instrument.plan.transferId ? "Claiming…" : "Claim card"}</button> : null}</span>
+                    : message.context?.kind === "card-transfer" ? <span className="wilds-message-card-transfer"><small>CARD TRANSFER COMMITTED</small><span className="wilds-message-card-scene"><WildsCardScene asset={message.context.card} origin="https://wildz.quest" qr="" tapToFlip /></span><strong>{message.context.card.manifest.name}</strong><em>Receiver admitted · sender Vault reconciled</em></span>
+                      : <span>{message.deletedAt ? "Message removed" : message.body}</span>}
                   <small>{shortTime(message.createdAt)}{message.editedAt ? " · edited" : ""}{mine ? ` · ${pending?.state === "failed" ? "not sent" : pending ? "sending" : conversation ? wildsMessageDeliveryState(message, conversation, selfId) : "sent"}` : ""}</small>
-                </button>
+                </div>
                 {message.reactions.length ? <div className="wilds-message-reactions">{message.reactions.map((reaction) => <button aria-label={`${reaction.emoji}, ${reaction.actorIds.length}`} key={reaction.emoji} onClick={() => void messenger.react(message.id, reaction.emoji)} type="button">{reaction.emoji}<b>{reaction.actorIds.length}</b></button>)}</div> : null}
                 {reactionFor === message.id && !pending ? <div className="wilds-message-actions">{WILDS_DIRECT_MESSAGE_REACTIONS.map((emoji) => <button aria-label={`React ${emoji}`} key={emoji} onClick={() => { setReactionFor(null); void messenger.react(message.id, emoji); }} type="button">{emoji}</button>)}<button onClick={() => { setReplyTo(message); setReactionFor(null); composerRef.current?.focus(); }} type="button">Reply</button></div> : null}
                 {pending?.state === "failed" ? <button className="wilds-message-retry" onClick={() => void messenger.send(message.body, message.replyToId, message.clientMessageId)} type="button">Retry</button> : null}

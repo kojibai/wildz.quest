@@ -49,6 +49,7 @@ import { projectWildsCommandCenter, type WildsCommandAction } from "@/features/p
 import { kaiUPulseToISOString, millisecondsUntilNextKaiPulse } from "@/features/play/kai-klok-moment";
 import { createWildsKaiRuntimeClock, observeWildsKaiUPulse, resolveWildsRuntimeKaiMoment } from "@/features/play/wilds-kai-runtime";
 import { rootWildsInputInKai } from "@/features/play/wilds-input-temporal-root";
+import { sameWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate";
 import { friendlyWildsGameplayError, isWildsTemporalContinuityError } from "@/features/play/wilds-temporal-errors";
 import { kaiTransition, projectKaiWorldExpression, type KaiWorldExpression } from "@/features/play/kai-moment-expression";
 import { WildzCommandInsight } from "@/features/play/WildzCommandInsight";
@@ -491,6 +492,26 @@ export function PlayCampaign({
     void messenger.recordPhiTransfer(walletMessagePeer, transfer.amountPhiMicro, transferReference)
       .catch(() => { recordedPhiTransfersRef.current.delete(transferReference); });
   }, [messenger, walletController.transfer, walletMessagePeer]);
+  useEffect(() => {
+    const transfers = messenger.conversations.flatMap((conversation) => conversation.messages)
+      .map((message) => message.context)
+      .filter((context) => context?.kind === "card-transfer");
+    if (!transfers.length) return;
+    setState((current) => {
+      for (const transfer of transfers) {
+        if (transfer?.kind !== "card-transfer") continue;
+        if (sameWildzPlayerCoordinate(transfer.targetHandle, ownerReceizId)
+          && !current.inventory.some((asset) => asset.id === transfer.card.id)) {
+          return applyWildsInput(current, { type: "import-card", asset: transfer.card });
+        }
+        if (sameWildzPlayerCoordinate(transfer.sourceHandle, ownerReceizId)
+          && current.inventory.some((asset) => asset.id === transfer.card.id)) {
+          return applyWildsInput(current, { type: "transfer-card-out", assetId: transfer.card.id });
+        }
+      }
+      return current;
+    });
+  }, [messenger.conversations, ownerReceizId]);
   const captureRewardAssetId = state.encounter.phase === "revealed" ? state.encounter.assetId : null;
   const captureRewardAsset = captureRewardAssetId
     ? state.inventory.find((candidate) => candidate.id === captureRewardAssetId) ?? null
@@ -1701,6 +1722,10 @@ export function PlayCampaign({
                 claimPlayModalOwner("wallet");
                 walletController.openTerminal();
               }}
+              onClaimCard={async (offer) => {
+                const admission = await messenger.claimCardOffer(offer);
+                dispatchWorldInput({ type: "import-card", asset: admission.card });
+              }}
               onRosterOpenChange={handleMultiplayerRosterOpenChange}
               player={state.player}
               wallet={walletController}
@@ -1725,6 +1750,7 @@ export function PlayCampaign({
                   : initialPlayerContinuity?.canonicalCursor ?? { worldId: "wilds:global:v3", revision: 0, eventId: null },
                 receipts: initialPlayerContinuity?.receipts ?? []
               }))}
+              onSendCard={(asset, targetHandle) => messenger.sendCardOffer(asset, targetHandle)}
               onClose={() => closeOwnedModal("wallet")}
               onNavigate={walletController.navigate}
               onRefresh={() => { void walletController.refresh(); }}

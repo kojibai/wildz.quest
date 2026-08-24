@@ -13,6 +13,11 @@ import {
   type WildsGroupRoom,
   type WildsMessengerParticipant
 } from "./wilds-messenger-core";
+import type { PortableCardAsset } from "./portable-card";
+import type {
+  WildsCardTransferAdmission,
+  WildsCardTransferOffer
+} from "@/lib/receiz/wilds-card-transfer";
 import { formatWildsPhiExact } from "./wallet/wilds-wallet-format";
 
 type MessengerCache = {
@@ -315,6 +320,28 @@ export function useWildsMessenger(input: {
     return result.conversation;
   }, [input.guestId, input.selfId, rememberPeer]);
 
+  const sendCardOffer = useCallback(async (card: PortableCardAsset, targetHandle: string) => {
+    const result = await messengerRequest<{ offer: WildsCardTransferOffer; conversation: WildsConversation }>("/api/wilds/cards/transfers", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "issue", card, targetHandle })
+    });
+    const peer = { id: result.offer.targetHandle, handle: result.offer.targetHandle };
+    rememberPeer(peer);
+    setConversations((current) => admitConversationState(current, result.conversation));
+    return result.offer;
+  }, [rememberPeer]);
+
+  const claimCardOffer = useCallback(async (offer: WildsCardTransferOffer) => {
+    const result = await messengerRequest<{ admission: WildsCardTransferAdmission; conversation: WildsConversation }>("/api/wilds/cards/transfers", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "claim", offer })
+    });
+    setConversations((current) => admitConversationState(current, result.conversation));
+    return result.admission;
+  }, []);
+
   const markRead = useCallback(async () => {
     if (!selectedPeer || !conversation || !conversation.messages.length) return;
     const through = conversation.messages.at(-1)!.createdAt;
@@ -350,6 +377,7 @@ export function useWildsMessenger(input: {
     rooms,
     allPeers,
     conversation,
+    conversations,
     summaries,
     unreadCount,
     pending: selectedPeer ? pending.filter((item) => item.message.recipientId === selectedPeer.id) : [],
@@ -364,6 +392,8 @@ export function useWildsMessenger(input: {
     addRoomMembers,
     send,
     recordPhiTransfer,
+    sendCardOffer,
+    claimCardOffer,
     markRead,
     react,
     refreshInbox
