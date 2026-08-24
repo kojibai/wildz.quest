@@ -375,7 +375,7 @@ body {
 .wilds-wallet-terminal :is(button, input, select):focus-visible { outline: 2px solid #70e6ff; outline-offset: 2px; }
 .wilds-wallet-terminal button { cursor: pointer; }
 .wilds-wallet-terminal button:disabled { cursor: not-allowed; opacity: .46; }
-.wilds-wallet-terminal footer { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 12px; min-height: 32px; padding: 9px 12px; border-top: 1px solid rgba(177,208,193,.12); color: #647a72; font: 700 7px/1.2 ui-monospace, monospace; letter-spacing: .12em; }
+.wilds-wallet-terminal > footer { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 12px; min-height: 32px; padding: 9px 12px; border-top: 1px solid rgba(177,208,193,.12); color: #647a72; font: 700 7px/1.2 ui-monospace, monospace; letter-spacing: .12em; }
 .wilds-wallet-surface, .wilds-wallet-overview { display: grid; align-content: start; gap: 20px; min-width: 0; }
 .wilds-wallet-surface > header { display: grid; gap: 4px; border-bottom: 1px solid rgba(177,208,193,.15); padding-bottom: 12px; }
 .wilds-wallet-surface > header small, .wilds-wallet-balance-band small, .wilds-wallet-latest h3 { margin: 0; color: #869b92; font: 800 8px/1.2 ui-monospace, monospace; letter-spacing: .16em; }
@@ -426,6 +426,33 @@ body {
 .wilds-wallet-card-stage { display: grid; width: min(100%, 270px); aspect-ratio: 5 / 7; place-items: center; }
 .wilds-wallet-card-stage .wilds-card-scene { width: 100%; min-height: 0; aspect-ratio: 5 / 7; }
 .wilds-wallet-card-stage .wilds-card-float { height: 100%; animation: none; transform: none; }
+.wilds-wallet-card-stage .wilds-collectible-card {
+  --card-border: 6px;
+  --card-radius: 19px;
+  gap: 6px;
+  padding: 11px;
+}
+.wilds-wallet-card-stage .wilds-collectible-card > header strong { font-size: clamp(14px, 5.2vw, 19px); }
+.wilds-wallet-card-stage .wilds-collectible-card > header span,
+.wilds-wallet-card-stage .wilds-collectible-card > header small,
+.wilds-wallet-card-stage .wilds-card-rarity { font-size: 7px; }
+.wilds-wallet-card-stage .wilds-card-stats { gap: 3px; }
+.wilds-wallet-card-stage .wilds-card-stats div { gap: 1px; padding: 3px 2px; }
+.wilds-wallet-card-stage .wilds-card-stats dt { font-size: 5px; }
+.wilds-wallet-card-stage .wilds-card-stats dd { font-size: 10px; }
+.wilds-wallet-card-stage .wilds-card-abilities { gap: 4px; }
+.wilds-wallet-card-stage .wilds-card-abilities > div { gap: 1px 5px; padding: 4px 6px; }
+.wilds-wallet-card-stage .wilds-card-abilities strong,
+.wilds-wallet-card-stage .wilds-card-abilities b { font-size: 8px; }
+.wilds-wallet-card-stage .wilds-card-abilities p { font-size: 6px; line-height: 1.15; }
+.wilds-wallet-card-stage .wilds-collectible-card > footer {
+  position: relative;
+  padding-top: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--card-accent) 34%, transparent);
+  font-size: 7px;
+  background: none;
+}
+.wilds-wallet-card-stage .wilds-collectible-card > footer code { font-size: 7px; }
 .wilds-wallet-card-detail > small { color: #80968d; font-size: 9px; text-align: center; }
 .wilds-wallet-card-detail label { display: grid; width: 100%; gap: 6px; }.wilds-wallet-card-detail label span { color: #91a69d; font-size: 9px; font-weight: 800; text-transform: uppercase; }
 .wilds-wallet-card-detail input { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid rgba(177,208,193,.2); border-radius: 5px; color: #eff7f3; background: rgba(0,0,0,.2); }
@@ -450,7 +477,7 @@ body {
   .wilds-wallet-terminal-content { grid-row: 2; grid-column: 1; padding: 20px max(14px, env(safe-area-inset-right)) 22px max(14px, env(safe-area-inset-left)); }
   .wilds-wallet-navigation { grid-row: 4; grid-column: 1; grid-template-columns: repeat(5,minmax(0,1fr)); padding: 6px max(5px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(5px, env(safe-area-inset-left)); border-top: 1px solid rgba(177,208,193,.18); border-right: 0; }
   .wilds-wallet-navigation button { grid-template-columns: 1fr; grid-template-rows: 18px auto; justify-items: center; gap: 1px; min-height: 50px; padding: 4px 2px; text-align: center; }.wilds-wallet-navigation span { font-size: 8px; }
-  .wilds-wallet-terminal footer { grid-row: 3; grid-column: 1; min-height: 26px; padding: 7px max(10px, env(safe-area-inset-right)) 7px max(10px, env(safe-area-inset-left)); }.wilds-wallet-terminal footer span:last-child { display: none; }
+  .wilds-wallet-terminal > footer { grid-row: 3; grid-column: 1; min-height: 26px; padding: 7px max(10px, env(safe-area-inset-right)) 7px max(10px, env(safe-area-inset-left)); }.wilds-wallet-terminal > footer span:last-child { display: none; }
   .wilds-wallet-balance-band { align-items: start; flex-direction: column; }.wilds-wallet-display-quote { flex: none; justify-items: start; text-align: left; }
   .wilds-wallet-holdings-band { grid-template-columns: 1fr; }.wilds-wallet-holdings-band div { grid-template-columns: minmax(0,1fr) auto; align-items: center; border-right: 0; border-bottom: 1px solid rgba(177,208,193,.1); }
   .wilds-wallet-asset-register div { grid-template-columns: minmax(88px,.7fr) minmax(0,1fr); }
