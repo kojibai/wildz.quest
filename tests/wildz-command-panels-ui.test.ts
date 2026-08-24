@@ -124,6 +124,6 @@ test("Profile and Market show admitted impact without inventing authority", () =
 
   assert.match(profile, /wildz-profile-impact/);
   assert.match(market, /wildz-market-consequence/);
-  assert.match(market, /Trade settled\. Receiz admitted the ownership transfer\./);
+  assert.match(market, /Trade settled\. Receiz admitted the ownership transfer\. The exact verified card is now in your playable Vault\./);
   assert.match(market, /recovery_pending/);
 });

@@ -786,8 +786,10 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 .wildz-profile-editor > [role="status"] { grid-column: 1 / -1; min-height: 16px; margin: 0; color: #a8c7b6; font-size: 11px; }
 .wildz-profile-action-rail { display: grid; grid-template-columns: repeat(4, 44px); justify-content: start; gap: 8px; }
 .wildz-profile-action-rail button { display: grid; width: 44px; height: 44px; min-height: 44px; padding: 0; place-items: center; border: 1px solid rgba(151,226,155,.28); border-radius: 14px; color: #effff2; background: rgba(118,199,134,.1); font: inherit; cursor: pointer; transition: transform .16s ease, border-color .16s ease, background .16s ease; }
-.wildz-profile-action-rail button:active { transform: scale(.96); }
+.wildz-profile-action-rail button:hover, .wildz-profile-action-rail button:focus-visible { border-color: rgba(151,226,155,.58); background: rgba(118,199,134,.17); outline: 0; box-shadow: 0 0 0 3px rgba(113,236,188,.08); }
+.wildz-profile-action-rail button:active { transform: scale(.94); }
 .wildz-profile-action-rail button[data-state="success"] { border-color: rgba(151,226,155,.7); background: rgba(118,199,134,.22); animation: wildz-profile-action-success .42s ease; }
+.wildz-profile-action-rail button[data-state="error"] { border-color: rgba(255,151,157,.5); color: #ffd9dc; background: rgba(211,82,92,.12); }
 .wildz-profile-action-rail button[data-state="working"] svg { animation: wildz-profile-spinner .8s linear infinite; }
 .wildz-profile-proof-actions { display: contents; }
 .wildz-profile-action-status { min-height: 18px; margin: -4px 0 0; color: #9cbaa9; font-size: 11px; }

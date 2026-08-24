@@ -13,7 +13,11 @@ import {
   type WildzMarketReceipt,
   type WildzOwnershipReceipt
 } from "../../features/market/wildz-market";
-import { canonicalPortableCardJson } from "../../features/play/portable-card";
+import {
+  canonicalPortableCardJson,
+  verifyAnyWildsCard,
+  type PortableCardAsset
+} from "../../features/play/portable-card";
 import type { ReceizCommerceAdapter } from "./adapter";
 import type { WildzCookieActor } from "./wildz-cookie-actor";
 import {
@@ -174,6 +178,7 @@ export type WildzPurchaseResult =
     status: "settled";
     receipt: WildzMarketReceipt;
     ownership: WildzOwnershipReceipt;
+    asset: PortableCardAsset;
     admissionProof: WildzMarketAdmissionProof;
   }
   | {
@@ -219,13 +224,20 @@ function settledResult(
   const trade = state.state.trades[tradeId];
   if (!trade) return null;
   const ownership = state.state.ownership[trade.assetId];
+  const listing = state.state.listings[trade.listingId];
   const receipt = state.state.receipts.find((candidate) => candidate.tradeId === tradeId && candidate.status === "settled");
   if (!ownership
+    || !listing
+    || listing.assetId !== trade.assetId
+    || listing.asset.id !== listing.assetId
+    || listing.asset.proof.digest !== listing.proofDigest
+    || listing.proofDigest !== ownership.proofDigest
+    || !verifyAnyWildsCard(listing.asset).ok
     || !receipt
     || receipt.transferId !== ownership.transferId
     || receipt.ledgerEventId !== ownership.ledgerEventId
     || receipt.nextOwnerReceizId !== ownership.ownerReceizId) return null;
-  return { status: "settled", receipt, ownership, admissionProof: state.admissionProof };
+  return { status: "settled", receipt, ownership, asset: listing.asset, admissionProof: state.admissionProof };
 }
 
 export async function purchaseAdmittedWildzTrade(
@@ -331,7 +343,19 @@ export async function purchaseAdmittedWildzTrade(
       const receipt = admission.state.receipts.find((candidate) => candidate.tradeId === trade.id && candidate.status === "settled");
       const admittedOwnership = admission.state.ownership[currentListing.assetId];
       if (!receipt || !admittedOwnership) throw new Error("market_settlement_admission_missing");
-      return { status: "settled", receipt, ownership: admittedOwnership, admissionProof: admission.admissionProof };
+      if (currentListing.asset.id !== currentListing.assetId
+        || currentListing.asset.proof.digest !== currentListing.proofDigest
+        || admittedOwnership.proofDigest !== currentListing.proofDigest
+        || !verifyAnyWildsCard(currentListing.asset).ok) {
+        throw new Error("market_settlement_asset_invalid");
+      }
+      return {
+        status: "settled",
+        receipt,
+        ownership: admittedOwnership,
+        asset: currentListing.asset,
+        admissionProof: admission.admissionProof
+      };
     }
     if (admission.status !== "market_revision_conflict") break;
     const refreshed = await repository.load();

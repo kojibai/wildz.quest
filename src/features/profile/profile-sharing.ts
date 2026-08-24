@@ -49,6 +49,6 @@ export async function shareWildzProfile(input: {
     const name = error && typeof error === "object" && "name" in error ? String(error.name) : "";
     if (name === "AbortError") return { status: "cancelled", message: "Share cancelled." };
     if (name === "NotAllowedError") return { status: "denied", message: "Profile sharing was denied." };
-    return { status: "unavailable", message: "Profile link is unavailable on this device." };
+    return copyWildzProfileLink(input);
   }
 }

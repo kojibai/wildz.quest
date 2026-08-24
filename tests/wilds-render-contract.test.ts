@@ -166,7 +166,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(referenceHud, /<WildzMinimap[\s\S]*onOpen=\{onOpenMap\}/);
     assert.match(minimap, /<button[\s\S]*aria-label=\{`Open world map\./);
     assert.match(campaign, /<WildsWorldMap/);
-    assert.match(campaign, /\{exclusiveOwner === "map" && mapOpen \? <WildsWorldMap/);
+    assert.match(campaign, /<WildsWorldMap[\s\S]*open=\{exclusiveOwner === "map" && mapOpen\}/);
     assert.match(campaign, /<WildzWorldControls/);
     assert.doesNotMatch(campaign, /<WildzSocialDeck/);
     assert.match(campaign, /fetch\("\/api\/wilds\/rift"/);

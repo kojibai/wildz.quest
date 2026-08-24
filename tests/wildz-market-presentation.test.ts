@@ -19,5 +19,8 @@ test("market purchase admits a trade before proof-backed checkout and reuses set
   assert.match(source, /marketHead\(result\?\.head\)/);
   assert.match(source, /setPending\(\{ tradeId, checkoutHead: recoveryHead \}\)/);
   assert.match(source, /result\?\.status === "reservation_expired"/);
+  assert.match(source, /settledMarketProjection/);
+  assert.match(source, /verifyAnyWildsCard\(asset\)\.ok/);
+  assert.match(source, /await onSettlement\?\.\(projection\.asset\)/);
   assert.doesNotMatch(source, /wildz-listing-composer|body:\s*JSON\.stringify\(\{[^}]*\b(?:actor|buyer|seller|listing|priceCents|amount|recipientUserId)\b/s);
 });

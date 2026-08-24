@@ -15,6 +15,7 @@ test("profile Share uses native share and unsupported Share falls back to canoni
   assert.deepEqual(await copyWildzProfileLink({ port: { clipboard: { writeText: async (value) => { writes.push(value); } } }, username: "@fern.path", origin: "https://wildz.quest" }), { status: "copied", message: "Profile link copied." });
   assert.deepEqual(await shareWildzProfile({ port: { share: async () => { throw Object.assign(new Error("cancel"), { name: "AbortError" }); } }, username: "@fern.path", displayName: "Fern", origin: "https://wildz.quest" }), { status: "cancelled", message: "Share cancelled." });
   assert.deepEqual(await shareWildzProfile({ port: { share: async () => { throw Object.assign(new Error("denied"), { name: "NotAllowedError" }); } }, username: "@fern.path", displayName: "Fern", origin: "https://wildz.quest" }), { status: "denied", message: "Profile sharing was denied." });
+  assert.deepEqual(await shareWildzProfile({ port: { share: async () => { throw new Error("native-share-failed"); }, clipboard: { writeText: async (value) => { writes.push(value); } } }, username: "@fern.path", displayName: "Fern", origin: "https://wildz.quest" }), { status: "copied", message: "Profile link copied." });
   assert.deepEqual(await copyWildzProfileLink({ port: {}, username: "@fern.path", origin: "https://wildz.quest" }), { status: "unavailable", message: "Profile link is unavailable on this device." });
-  assert.deepEqual(writes, [url, url]);
+  assert.deepEqual(writes, [url, url, url]);
 });

@@ -54,7 +54,7 @@ test("companion selector exposes only Vault characters and real card interaction
   assert.match(command, /View in Vault/);
   assert.match(controls, /type: "train"/);
   assert.match(controls, /type: "panel", key: "vault"/);
-  assert.match(campaign, /focusedAssetId=\{state\.selectedAssetId\}/);
+  assert.match(campaign, /focusedAssetId=\{vaultFocusedAssetId \?\? state\.selectedAssetId\}/);
   const inventory = read("src/features/play/WildsInventory.tsx");
   assert.match(inventory, /previousFocusedAssetId/);
   assert.match(inventory, /resolveInventoryDetailSelection/);

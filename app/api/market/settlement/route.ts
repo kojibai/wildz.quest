@@ -29,7 +29,17 @@ export async function POST(request: NextRequest) {
           : result.status === "market_revision_conflict" ? 409
             : 503;
     const response = result.status === "settled"
-      ? { status: result.status, receipt: result.receipt, ownershipTransferred: true }
+      ? {
+        status: result.status,
+        receipt: result.receipt,
+        asset: result.asset,
+        ownership: {
+          assetId: result.ownership.assetId,
+          proofDigest: result.ownership.proofDigest,
+          ownerReceizId: result.ownership.ownerReceizId
+        },
+        ownershipTransferred: true
+      }
       : result;
     return NextResponse.json(response, { status, headers: { "cache-control": "no-store" } });
   } catch (cause) {

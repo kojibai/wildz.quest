@@ -7,7 +7,10 @@ test("canonical shareable player route opens the profile and the legacy path red
   const alias = readFileSync("app/[username]/page.tsx", "utf8");
   assert.match(canonical, /<WildzApp/);
   assert.match(canonical, /kind:\s*"profile"/);
+  assert.match(canonical, /mode:\s*"public"/);
+  assert.match(canonical, /canonicalWildzProfilePath\(username\)/);
   assert.doesNotMatch(canonical, /marketplace|PublicStorefront/);
+  assert.doesNotMatch(canonical, /encodeURIComponent\(username\)/);
   assert.match(alias, /redirect\(canonicalWildzProfilePath/);
 });
 
@@ -42,6 +45,15 @@ test("own-profile share controls remain disabled until durable publication succe
   assert.match(sheet, /disabled=\{!shareEnabled\}/);
   assert.match(sheet, /not yet published/i);
   assert.doesNotMatch(sheet, /Receiz verified<\/p>/);
+  assert.match(sheet, /profileLinkAction/);
+  assert.match(sheet, /data-state=\{profileLinkAction/);
+  assert.match(sheet, /aria-busy=\{profileLinkAction/);
+});
+
+test("a canonical profile URL always resolves the requested public profile rather than local viewer state", () => {
+  const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
+  assert.match(shell, /overlay\.mode !== "public"/);
+  assert.match(shell, /fetchPublicWildzProfile\(overlay\.username\)/);
 });
 
 test("only the owner profile exposes compact identity edit and image controls", () => {

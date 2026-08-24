@@ -5,7 +5,7 @@ import type { PortableCardAsset } from "@/features/play/portable-card";
 import { WildzProfileVaultGallery } from "@/features/profile/WildzProfileVaultGallery";
 import { Camera, Check, Download, Link, LoaderCircle, Pencil, Share2, Upload, X } from "lucide-react";
 import Image from "next/image";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   copyWildzProfileLink,
   shareWildzProfile,
@@ -53,6 +53,7 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
   onSaveProfile?: (input: { username: string; displayName: string; avatarImageUrl: string | null }) => Promise<void>;
 }) {
   const [shareResult, setShareResult] = useState<WildzShareResult | null>(null);
+  const [profileLinkAction, setProfileLinkAction] = useState<{ kind: "share" | "copy"; phase: "working" | "success" | "error" } | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draftUsername, setDraftUsername] = useState(profile.username.replace(/^@/, ""));
@@ -63,23 +64,42 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
   const [identityAuthenticating, setIdentityAuthenticating] = useState(false);
   const [identityMessage, setIdentityMessage] = useState("");
   const identityInputRef = useRef<HTMLInputElement>(null);
+  const profileLinkFeedbackTimerRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (profileLinkFeedbackTimerRef.current !== null) window.clearTimeout(profileLinkFeedbackTimerRef.current);
+  }, []);
   const browserPort = (): WildzSharePort => ({
     share: typeof navigator.share === "function" ? (data) => navigator.share(data) : undefined,
     clipboard: navigator.clipboard?.writeText
       ? { writeText: (value) => navigator.clipboard.writeText(value) }
       : undefined
   });
-  const share = async () => setShareResult(await shareWildzProfile({
-    port: browserPort(),
-    username: profile.username,
-    displayName: profile.displayName,
-    origin: window.location.origin
-  }));
-  const copy = async () => setShareResult(await copyWildzProfileLink({
-    port: browserPort(),
-    username: profile.username,
-    origin: window.location.origin
-  }));
+  const runProfileLinkAction = async (kind: "share" | "copy") => {
+    if (profileLinkAction?.phase === "working") return;
+    if (profileLinkFeedbackTimerRef.current !== null) window.clearTimeout(profileLinkFeedbackTimerRef.current);
+    setProfileLinkAction({ kind, phase: "working" });
+    const result = kind === "share"
+      ? await shareWildzProfile({
+        port: browserPort(),
+        username: profile.username,
+        displayName: profile.displayName,
+        origin: window.location.origin
+      })
+      : await copyWildzProfileLink({
+        port: browserPort(),
+        username: profile.username,
+        origin: window.location.origin
+      });
+    setShareResult(result);
+    setProfileLinkAction({
+      kind,
+      phase: result.status === "shared" || result.status === "copied" ? "success" : "error"
+    });
+    profileLinkFeedbackTimerRef.current = window.setTimeout(() => {
+      profileLinkFeedbackTimerRef.current = null;
+      setProfileLinkAction(null);
+    }, 1_800);
+  };
 
   const cancelEdit = () => {
     setDraftUsername(profile.username.replace(/^@/, ""));
@@ -139,8 +159,8 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
       <p aria-live="polite" role="status">{editMessage}</p>
     </section> : null}
     <section className="wildz-profile-action-rail" aria-label="Profile actions">
-      <button aria-label="Share profile" data-state={shareResult?.status === "shared" ? "success" : "idle"} disabled={!shareEnabled} onClick={() => void share()} title="Share profile" type="button"><Share2 aria-hidden="true" size={18} /></button>
-      <button aria-label="Copy profile link" data-state={shareResult?.status === "copied" ? "success" : "idle"} disabled={!shareEnabled} onClick={() => void copy()} title="Copy profile link" type="button"><Link aria-hidden="true" size={18} /></button>
+      <button aria-busy={profileLinkAction?.kind === "share" && profileLinkAction.phase === "working"} aria-disabled={profileLinkAction?.phase === "working"} aria-label="Share profile" data-state={profileLinkAction?.kind === "share" ? profileLinkAction.phase : "idle"} disabled={!shareEnabled} onClick={() => void runProfileLinkAction("share")} title="Share profile" type="button">{profileLinkAction?.kind === "share" && profileLinkAction.phase === "working" ? <LoaderCircle aria-hidden="true" size={18} /> : profileLinkAction?.kind === "share" && profileLinkAction.phase === "success" ? <Check aria-hidden="true" size={18} /> : <Share2 aria-hidden="true" size={18} />}</button>
+      <button aria-busy={profileLinkAction?.kind === "copy" && profileLinkAction.phase === "working"} aria-disabled={profileLinkAction?.phase === "working"} aria-label="Copy profile link" data-state={profileLinkAction?.kind === "copy" ? profileLinkAction.phase : "idle"} disabled={!shareEnabled} onClick={() => void runProfileLinkAction("copy")} title="Copy profile link" type="button">{profileLinkAction?.kind === "copy" && profileLinkAction.phase === "working" ? <LoaderCircle aria-hidden="true" size={18} /> : profileLinkAction?.kind === "copy" && profileLinkAction.phase === "success" ? <Check aria-hidden="true" size={18} /> : <Link aria-hidden="true" size={18} />}</button>
       {editable ? <>
       <button
         aria-busy={identityAuthenticating}

@@ -2,7 +2,8 @@
 
 import { PlayCampaign } from "@/features/play/PlayCampaign";
 import { generateIdentityBoundWildzCharacter, type WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
-import { createOwnerBoundInitialPlayState, initialPlayState, type PlayState } from "@/features/play/game-state";
+import { applyWildsInput, createOwnerBoundInitialPlayState, initialPlayState, type PlayState } from "@/features/play/game-state";
+import type { PortableCardAsset } from "@/features/play/portable-card";
 import { createWildsPlayerVault } from "@/features/play/wilds-player-vault";
 import {
   wildzVaultUploadDisposition,
@@ -178,7 +179,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   }) : null, [identity, ownerPlayState.inventory]);
   const vaultAdmission = admittedVault?.admission ?? null;
   const admittedProofObjects = admittedVault?.proofObjects;
-  const viewingOwnProfile = !overlay || overlay.kind !== "profile" || overlay.username.toLowerCase() === `@${ownerUsername}`.toLowerCase();
+  const viewingOwnProfile = !overlay
+    || overlay.kind !== "profile"
+    || (overlay.mode !== "public" && overlay.username.toLowerCase() === `@${ownerUsername}`.toLowerCase());
   const localPublicProfile = useMemo(() => createOwnerPublicWildzProfile({
     username: ownerUsername,
     displayName: identity?.displayName ?? undefined,
@@ -865,6 +868,26 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     }, true);
   }, [acceptSnapshot]);
 
+  const admitPurchasedMarketAsset = useCallback((asset: PortableCardAsset) => {
+    const current = continuityRef.current;
+    if (!current?.playState || !current.playerContinuity) throw new Error("wildz_market_vault_unavailable");
+    const playState = applyWildsInput(current.playState, { type: "import-card", asset });
+    const admitted = playState.inventory.find((candidate) => candidate.id === asset.id);
+    if (!admitted || admitted.proof.digest !== asset.proof.digest) throw new Error("wildz_market_asset_admission_failed");
+    const snapshot = { ...current, playState };
+    acceptSnapshot(snapshot);
+    playStateSaveSchedulerRef.current?.schedule({
+      snapshot,
+      playState,
+      playerContinuity: current.playerContinuity
+    }, true);
+    if (typeof BroadcastChannel !== "undefined") {
+      const channel = new BroadcastChannel("receiz:wildz:ownership:v119");
+      channel.postMessage({ ownerActorId: current.session.actorId, assetIds: [asset.id] });
+      channel.close();
+    }
+  }, [acceptSnapshot]);
+
   useEffect(() => {
     const current = continuityRef.current;
     const assetIds = current?.playState?.inventory.map((asset) => asset.id) ?? [];
@@ -1037,7 +1060,12 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             }}
             onClaimBearer={proofSessionConnected ? claimBearerArtifact : undefined}
             onSaveVault={saveCombinedVault}
-          /> : overlay.kind === "market" ? <WildzMarketSheet listings={[]} buyer={`@${ownerUsername}`} connected={proofSessionConnected} /> : <div className="wildz-shell-overlay-placeholder">
+          /> : overlay.kind === "market" ? <WildzMarketSheet
+            listings={[]}
+            buyer={`@${ownerUsername}`}
+            connected={proofSessionConnected}
+            onSettlement={admitPurchasedMarketAsset}
+          /> : <div className="wildz-shell-overlay-placeholder">
             <Image src="/brand/wildz-mark.svg" alt="" width={48} height={48} />
             <strong>{overlay.kind}</strong>
             <span>Wildz surface loading</span>

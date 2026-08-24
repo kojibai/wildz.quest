@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { WildzListing } from "@/features/market/wildz-market";
+import { verifyAnyWildsCard, type PortableCardAsset } from "@/features/play/portable-card";
 import { WildzTradeConfirm } from "@/features/market/WildzTradeConfirm";
 import { shouldRefreshWildzMarket } from "@/features/market/market-refresh-policy";
 
@@ -12,6 +13,10 @@ type MarketListing = Pick<
 
 type MarketHead = { revision: number; appendAnchorId: string | null };
 type PendingSettlement = { tradeId: string; checkoutHead: MarketHead };
+type SettledMarketProjection = {
+  asset: PortableCardAsset;
+  ownership: { assetId: string; proofDigest: string; ownerReceizId: string };
+};
 
 function marketHead(value: unknown): MarketHead | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -21,14 +26,32 @@ function marketHead(value: unknown): MarketHead | null {
   return { revision: Number(head.revision), appendAnchorId: head.appendAnchorId };
 }
 
+export function settledMarketProjection(value: unknown): SettledMarketProjection | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const result = value as { asset?: unknown; ownership?: unknown };
+  if (!result.asset || typeof result.asset !== "object" || Array.isArray(result.asset)
+    || !result.ownership || typeof result.ownership !== "object" || Array.isArray(result.ownership)) return null;
+  const asset = result.asset as PortableCardAsset;
+  const ownership = result.ownership as { assetId?: unknown; proofDigest?: unknown; ownerReceizId?: unknown };
+  if (typeof ownership.assetId !== "string"
+    || typeof ownership.proofDigest !== "string"
+    || typeof ownership.ownerReceizId !== "string"
+    || asset.id !== ownership.assetId
+    || asset.proof?.digest !== ownership.proofDigest
+    || !verifyAnyWildsCard(asset).ok) return null;
+  return { asset, ownership: ownership as SettledMarketProjection["ownership"] };
+}
+
 export function WildzMarketSheet({
   listings: initialListings,
   buyer,
-  connected
+  connected,
+  onSettlement
 }: {
   listings: MarketListing[];
   buyer: string;
   connected: boolean;
+  onSettlement?: (asset: PortableCardAsset) => void | Promise<void>;
 }) {
   const [listings, setListings] = useState(initialListings);
   const [head, setHead] = useState<MarketHead | null>(null);
@@ -36,6 +59,16 @@ export function WildzMarketSheet({
   const [pending, setPending] = useState<PendingSettlement | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+
+  const admitSettledAsset = useCallback(async (result: unknown) => {
+    const projection = settledMarketProjection(result);
+    if (!projection) throw new Error("Receiz settled the trade, but its exact verified card projection was invalid.");
+    try {
+      await onSettlement?.(projection.asset);
+    } catch {
+      throw new Error("Trade settled globally. Your local Vault refresh is pending; reopen Market to reconcile it safely.");
+    }
+  }, [onSettlement]);
 
   const refreshMarket = useCallback(async () => {
     if (!shouldRefreshWildzMarket(connected)) return;
@@ -107,9 +140,10 @@ export function WildzMarketSheet({
         head?: unknown;
       } | null;
       if (result?.status === "settled") {
+        await admitSettledAsset(result);
         setPending(null);
         setSelected(null);
-        setMessage("Trade settled. Receiz admitted the ownership transfer.");
+        setMessage("Trade settled. Receiz admitted the ownership transfer. The exact verified card is now in your playable Vault.");
         await refreshMarket();
       } else if (result?.status === "recovery_pending" || result?.status === "payment_failed") {
         const recoveryHead = marketHead(result?.head) ?? checkoutHead;
@@ -150,9 +184,10 @@ export function WildzMarketSheet({
         head?: unknown;
       } | null;
       if (result?.status === "settled") {
+        await admitSettledAsset(result);
         setPending(null);
         setSelected(null);
-        setMessage("Trade settled. Receiz admitted the ownership transfer.");
+        setMessage("Trade settled. Receiz admitted the ownership transfer. The exact verified card is now in your playable Vault.");
         await refreshMarket();
       } else if (result?.status === "recovery_pending") {
         const recoveryHead = marketHead(result?.head) ?? checkoutHead;

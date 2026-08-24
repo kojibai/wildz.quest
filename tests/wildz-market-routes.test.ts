@@ -95,7 +95,18 @@ test("market routes expose no process-memory fallback and settle only through ad
   assert.match(adapter, /compareAndAppend/);
   assert.match(checkout, /purchaseAdmittedWildzTrade/);
   assert.match(checkout, /result\.status === "settled"[\s\S]*ownershipTransferred:\s*true/);
+  assert.match(checkout, /asset:\s*result\.asset/);
+  assert.match(checkout, /proofDigest:\s*result\.ownership\.proofDigest/);
+  assert.match(adapter, /verifyAnyWildsCard\(currentListing\.asset\)\.ok/);
   assert.doesNotMatch(checkout, /oneClickCheckout|checkoutSession/);
+});
+
+test("settled Market cards are admitted into the buyer Vault immediately", () => {
+  const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
+  assert.match(shell, /applyWildsInput\(current\.playState, \{ type: "import-card", asset \}\)/);
+  assert.match(shell, /admitted\.proof\.digest !== asset\.proof\.digest/);
+  assert.match(shell, /onSettlement=\{admitPurchasedMarketAsset\}/);
+  assert.match(shell, /playStateSaveSchedulerRef\.current\?\.schedule/);
 });
 
 test("market exposes buyer-only reservation release and discovers expired reservations", () => {

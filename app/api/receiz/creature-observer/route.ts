@@ -41,6 +41,21 @@ function eventBytes(value: unknown) {
   return encoder.encode(`data: ${JSON.stringify(value)}\n\n`);
 }
 
+async function streamProofReply(
+  reply: string,
+  send: (value: unknown) => void,
+  signal: AbortSignal
+) {
+  const words = reply.match(/\S+\s*/g) ?? [reply];
+  for (let index = 0; index < words.length; index += 3) {
+    if (signal.aborted) throw new Error("creature_observer_cancelled");
+    send({ type: "reply_delta", delta: words.slice(index, index + 3).join("") });
+    if (index + 3 < words.length) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 18));
+    }
+  }
+}
+
 function withinPerformanceBudget<T>(promise: Promise<T>) {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
@@ -127,7 +142,8 @@ export async function POST(request: NextRequest) {
               speak: async ({ brain: subjectBrain, proofContext }) => {
                 const observerContext = creatureObserverClientContext(subjectBrain, presentKaiMoment);
                 const speech = proofGroundedCreatureReply(subjectBrain, input.message, presentKaiMoment.temporalRoot.uPulse);
-                send({ type: "reply_reset", text: speech });
+                send({ type: "reply_reset", text: "" });
+                await streamProofReply(speech, send, request.signal);
                 const performanceMessage = [
                   observerContext.instruction,
                   `Present Kai causal context: ${JSON.stringify(observerContext.presentKaiMoment)}`,

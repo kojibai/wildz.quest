@@ -336,3 +336,15 @@ test("Vault consciousness keeps the local subject Twin immediate and adds qualif
   assert.match(css, /wilds-creature-blink/);
   assert.match(css, /wilds-creature-consciousness/);
 });
+
+test("the proof Twin streams its full brain-grounded reply before committing memory", () => {
+  const route = readFileSync("app/api/receiz/creature-observer/route.ts", "utf8");
+  const brain = readFileSync("src/features/play/creature-consciousness.ts", "utf8");
+  assert.match(route, /streamProofReply\(speech, send, request\.signal\)/);
+  assert.match(route, /type: "reply_delta"/);
+  assert.match(route, /creatureObserverClientContext\(subjectBrain, presentKaiMoment\)/);
+  assert.match(brain, /creatureBrain:\s*brain/);
+  assert.match(route, /historyHead:\s*brain\.memory\.historyHead/);
+  assert.match(route, /observerHead:\s*brain\.memory\.observerHead/);
+  assert.match(route, /type: "reply_done"/);
+});
