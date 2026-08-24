@@ -8,8 +8,8 @@ import { WildsAudioSettings } from "./WildsAudioSettings";
 import { WildsLivingWorldHud } from "./WildsLivingWorldHud";
 import { WildsMultiplayer } from "./WildsMultiplayer";
 import { WildsMessenger } from "./WildsMessenger";
+import type { WildsMessengerController } from "./use-wilds-messenger";
 import type { useWildsWorld } from "./use-wilds-world";
-import { useWildsMessenger } from "./use-wilds-messenger";
 import type { WildsMultiplayerController } from "./use-wilds-multiplayer";
 import { WildsWalletInstrument } from "./wallet/WildsWalletInstrument";
 import type { WildsWalletPresentationState } from "./wallet/wilds-wallet-controller";
@@ -24,9 +24,11 @@ export function WildsBalancedStatusHud({
   kaiMoment,
   modalOwned,
   multiplayer,
+  messenger,
   onEnterRaid,
   onOpenCommandCenter,
   onOpenWallet,
+  onSendPhi,
   onRosterOpenChange,
   player,
   wallet,
@@ -47,9 +49,11 @@ export function WildsBalancedStatusHud({
   kaiMoment: KaiKlokMoment;
   modalOwned: boolean;
   multiplayer: WildsMultiplayerController;
+  messenger: WildsMessengerController;
   onEnterRaid: (bossId: string) => void;
   onOpenCommandCenter: () => void;
   onOpenWallet: (origin: HTMLButtonElement) => void;
+  onSendPhi: (peer: { id: string; handle: string }) => void;
   onRosterOpenChange?: (open: boolean) => void;
   player: { x: number; z: number };
   wallet: WildsWalletPresentationState;
@@ -57,16 +61,6 @@ export function WildsBalancedStatusHud({
   world: ReturnType<typeof useWildsWorld>;
 }) {
   const homeInteractionEnabled = interactionEnabled && !blocked;
-  const selfHandle = multiplayer.snapshot?.players.find((entry) => entry.playerId === multiplayer.selfId)?.handle
-    ?? multiplayer.selfId.replace(/^guest:/, "Explorer ").slice(0, 80)
-    ?? "Explorer";
-  const messenger = useWildsMessenger({
-    guestId: multiplayer.guestId,
-    selfId: multiplayer.selfId,
-    selfHandle,
-    livePeers: multiplayer.remotePlayers.filter((entry) => !entry.practice).map((entry) => ({ id: entry.playerId, handle: entry.handle }))
-  });
-
   return <>
     <div aria-hidden={blocked} className="wilds-map-status-home" inert={blocked ? true : undefined}>
       {blocked ? null : <WildsLivingWorldHud connected={connected} onEnterRaid={onEnterRaid} player={player} world={world} />}
@@ -123,6 +117,7 @@ export function WildsBalancedStatusHud({
     </div>
     <WildsMessenger
       messenger={messenger}
+      onSendPhi={onSendPhi}
       roomChat={{
         messages: multiplayer.snapshot?.messages ?? [],
         onSend: multiplayer.sendMessage

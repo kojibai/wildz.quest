@@ -36,6 +36,7 @@ export type WildsWalletTerminalActions = WildsWalletSendActions & Readonly<{
   onNavigate(page: WildsWalletPage): void;
   onRefresh(): void;
   onRequestReceive(): void;
+  onReturnToMessages?(): void;
 }>;
 
 export function WildsWalletTerminal({ cards = [], cardConditions = {}, onPrepareCard, publicUsername, state, ...actions }: {

@@ -33,6 +33,12 @@ export type WildsDirectMessage = {
     kind: "group-invite";
     roomId: string;
     roomName: string;
+  } | {
+    kind: "phi-transfer";
+    amountPhiMicro: string;
+    rail: "settlement";
+    status: "committed";
+    transferReference: string;
   };
   authority: {
     source: "receiz-id-proof-object";

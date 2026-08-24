@@ -53,6 +53,7 @@ export type WildsWalletSendActions = Readonly<{
   onAuthorize?: (pointerId: number) => void;
   onRecover(): void;
   onResetTransfer(): void;
+  onReturnToMessages?(): void;
 }>;
 
 function unavailableReason(state: WildsWalletControllerState) {
@@ -114,7 +115,7 @@ export function WildsWalletSend({ state, ...actions }: { state: WildsWalletContr
   };
   if (transfer.phase === "unknown") return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface"><header><small>EXACT ATTEMPT RETAINED</small><h2 id="wilds-wallet-send-title">Recovery pending</h2></header><p>The outcome is ambiguous. Wildz will not create or send another transfer.</p><button disabled={transfer.requestId !== null} onClick={actions.onRecover} type="button">Check exact outcome</button></section>;
   if (transfer.phase === "zero-write") return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface"><header><small>ZERO-WRITE REJECTION</small><h2 id="wilds-wallet-send-title">Nothing moved</h2></header><p>The proof-object transition was not admitted. Balance, assets, and ownership remain unchanged.</p><button onClick={actions.onResetTransfer} type="button">Start again</button></section>;
-  if (transfer.phase === "committed") return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface"><header><small>PROOF OBJECT ISSUED</small><h2 id="wilds-wallet-send-title">Transfer ready</h2></header><p role="status">Your Receiz ID issued the exact transfer proof. Global verification and synchronization follow its source truth.</p><button onClick={actions.onResetTransfer} type="button">Done</button></section>;
+  if (transfer.phase === "committed") return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface"><header><small>PROOF OBJECT ISSUED</small><h2 id="wilds-wallet-send-title">Transfer committed</h2></header><p role="status">Your Receiz ID issued the exact transfer proof. Its private message-thread record synchronizes globally without replacing source truth.</p><button onClick={actions.onReturnToMessages ?? actions.onResetTransfer} type="button">{actions.onReturnToMessages ? "Return to messages" : "Done"}</button></section>;
   if (unavailable) return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface"><header><small>TRANSFER AUTHORITY</small><h2 id="wilds-wallet-send-title">Send</h2></header><p className="wilds-wallet-state-strip is-source" role="status">{unavailable}</p><p>You can still inspect verified holdings and receive coordinates. Wildz never simulates settlement.</p></section>;
 
   return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface">

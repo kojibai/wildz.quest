@@ -104,10 +104,24 @@ export function appendWildsDirectMessage(input: {
   const conversation = getWildsConversation(sender, recipient, now);
   const clientMessageId = input.clientMessageId.trim().slice(0, 160);
   if (!clientMessageId) throw new Error("wilds_client_message_id_required");
+  const body = sanitizeWildsDirectMessage(input.body);
+  const context = input.context;
+  if (context?.kind === "phi-transfer" && (
+    !/^[1-9][0-9]{0,29}$/.test(context.amountPhiMicro)
+    || context.rail !== "settlement"
+    || context.status !== "committed"
+    || !/^phi-transfer:[a-f0-9]{32,64}$/.test(context.transferReference)
+  )) throw new Error("wilds_message_phi_transfer_invalid");
   const existing = conversation.messages.find((message) => (
     message.senderId === sender.id && message.clientMessageId === clientMessageId
   ));
-  if (existing) return { message: existing, conversation };
+  if (existing) {
+    if (existing.recipientId !== recipient.id || existing.body !== body
+      || JSON.stringify(existing.context ?? null) !== JSON.stringify(context ?? null)) {
+      throw new Error("wilds_message_idempotency_conflict");
+    }
+    return { message: existing, conversation };
+  }
   const recent = conversation.messages.filter((message) => (
     message.senderId === sender.id && Date.parse(now) - Date.parse(message.createdAt) <= 10_000
   ));
@@ -124,13 +138,13 @@ export function appendWildsDirectMessage(input: {
     senderHandle: sender.handle,
     recipientId: recipient.id,
     recipientHandle: recipient.handle,
-    body: sanitizeWildsDirectMessage(input.body),
+    body,
     createdAt: now,
     editedAt: null,
     deletedAt: null,
     replyToId,
     reactions: [],
-    ...(input.context ? { context: input.context } : {}),
+    ...(context ? { context } : {}),
     authority: { source: "receiz-id-proof-object", projection: "sync-only" }
   };
   return { message, conversation: save({ ...conversation, messages: [...conversation.messages, message] }, now) };

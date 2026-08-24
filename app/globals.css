@@ -11633,6 +11633,10 @@ button.product-purchase-secondary-link {
 .wilds-message-row.is-mine .wilds-room-message-sender { color: rgba(2, 27, 22, .62); }
 .wilds-message-bubble > small { justify-self: end; color: rgba(221, 245, 238, .45); font-size: 7px; font-weight: 700; white-space: nowrap; }
 .wilds-message-row.is-mine .wilds-message-bubble > small { color: rgba(2, 27, 22, .54); }
+.wilds-message-phi-transfer { display: grid; min-width: 154px; gap: 3px; }
+.wilds-message-phi-transfer > small { color: inherit; font-size: 7px; font-weight: 900; letter-spacing: .14em; opacity: .58; }
+.wilds-message-phi-transfer > strong { font-size: 18px; letter-spacing: -.03em; }
+.wilds-message-phi-transfer > em { font-size: 8px; font-style: normal; font-weight: 700; opacity: .62; }
 .wilds-message-reply { display: grid; gap: 2px; max-width: 100%; padding: 6px 8px; overflow: hidden; color: rgba(230, 255, 248, .66); font-size: 8px !important; border-left: 2px solid #79e8c6; background: rgba(0, 0, 0, .16); border-radius: 5px 8px 8px 5px; text-overflow: ellipsis; white-space: nowrap !important; }
 .wilds-message-row.is-mine .wilds-message-reply { color: rgba(2, 27, 22, .6); border-color: #14765e; background: rgba(0, 55, 42, .09); }
 .wilds-message-reply b { font-size: 7px; text-transform: uppercase; }
@@ -11645,9 +11649,11 @@ button.product-purchase-secondary-link {
 .wilds-message-retry { min-height: 30px; margin: 3px 4px; padding: 0 10px; color: #ff9c9c; font-size: 8px; font-weight: 850; border: 1px solid rgba(255, 120, 120, .3); background: rgba(255, 100, 100, .08); border-radius: 10px; }
 .wilds-messenger-composer { position: relative; display: grid; gap: 4px; padding: 8px max(10px, calc((100vw - 760px) / 2)) max(8px, env(safe-area-inset-bottom)); border-top: 1px solid var(--messenger-line); background: rgba(2, 13, 17, .92); backdrop-filter: blur(24px); }
 .wilds-messenger-composer > div:last-of-type { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: end; gap: 7px; }
+.wilds-messenger-composer > div:last-of-type:has(.wilds-messenger-wallet-action) { grid-template-columns: 38px minmax(0, 1fr) 44px; }
 .wilds-messenger-composer textarea { width: 100%; min-height: 44px; max-height: 132px; resize: none; padding: 11px 14px; color: var(--messenger-ink); font-size: 16px; line-height: 1.4; border: 1px solid var(--messenger-line); outline: 0; background: rgba(255, 255, 255, .055); border-radius: 16px; }
 .wilds-messenger-composer textarea:focus { border-color: rgba(130, 238, 204, .48); box-shadow: 0 0 0 3px rgba(111, 225, 193, .07); }
 .wilds-messenger-composer > div:last-of-type > button { display: grid; width: 44px; height: 44px; padding: 0; place-items: center; color: #041914; border: 0; background: linear-gradient(145deg, #a8f4dc, #6dd7bc); border-radius: 15px; box-shadow: 0 8px 20px rgba(74, 217, 181, .16); }
+.wilds-messenger-composer > div:last-of-type > .wilds-messenger-wallet-action { width: 38px; color: #aaf2df; font-family: Georgia, serif; font-size: 20px; border: 1px solid rgba(137, 239, 210, .28); background: rgba(91, 215, 181, .08); box-shadow: none; }
 .wilds-messenger-composer > div:last-of-type > button:disabled { opacity: .28; filter: grayscale(.7); }
 .wilds-messenger-composer > small { justify-self: end; color: rgba(221, 245, 238, .34); font-size: 7px; }
 .wilds-messenger-replying { display: flex !important; min-height: 42px; align-items: center !important; justify-content: space-between; gap: 10px; padding: 5px 6px 5px 11px; border-left: 2px solid #7ce5c5; background: rgba(112, 229, 195, .06); border-radius: 8px; }

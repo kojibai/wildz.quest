@@ -18,6 +18,23 @@ function peerFrom(value: unknown) {
   return { id: record.id, handle: record.handle };
 }
 
+function phiTransferContext(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("wilds_message_phi_transfer_invalid");
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).sort().join("\0") !== ["amountPhiMicro", "kind", "rail", "status", "transferReference"].sort().join("\0")
+    || record.kind !== "phi-transfer" || record.rail !== "settlement" || record.status !== "committed"
+    || typeof record.amountPhiMicro !== "string" || typeof record.transferReference !== "string") {
+    throw new Error("wilds_message_phi_transfer_invalid");
+  }
+  return {
+    kind: "phi-transfer" as const,
+    amountPhiMicro: record.amountPhiMicro,
+    rail: "settlement" as const,
+    status: "committed" as const,
+    transferReference: record.transferReference
+  };
+}
+
 function responseError(cause: unknown) {
   const error = cause instanceof Error ? cause.message : "wilds_message_failed";
   const status = error.includes("rate_limited") ? 429 : error.includes("required") || error.includes("invalid") ? 400 : 503;
@@ -46,13 +63,14 @@ export async function POST(request: NextRequest) {
     const peer = peerFrom(body.peer);
     await hydrateWildsConversation(request, actor, peer);
     const action = body.action;
-    const conversation = action === "send"
+    const conversation = action === "send" || action === "phi-transfer"
       ? appendWildsDirectMessage({
           sender: self,
           recipient: peer,
           body: String(body.message ?? ""),
           clientMessageId: String(body.clientMessageId ?? ""),
-          replyToId: typeof body.replyToId === "string" ? body.replyToId : null
+          replyToId: typeof body.replyToId === "string" ? body.replyToId : null,
+          ...(action === "phi-transfer" ? { context: phiTransferContext(body.context) } : {})
         }).conversation
       : action === "read"
         ? markWildsConversationRead({ left: self, right: peer, actorId: actor.playerId, through: typeof body.through === "string" ? body.through : undefined })

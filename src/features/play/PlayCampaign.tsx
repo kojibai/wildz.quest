@@ -13,13 +13,14 @@ import {
   type WildsInput
 } from "@/features/play/game-state";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { PortableCardAsset } from "@/features/play/portable-card";
+import { sha256PortableBasis, type PortableCardAsset } from "@/features/play/portable-card";
 import { WildsCaptureReward } from "@/features/play/WildsCaptureReward";
 import { WildsInventory } from "@/features/play/WildsInventory";
 import { WildsBattle } from "@/features/play/WildsBattle";
 import { WildsTransformation } from "@/features/play/WildsTransformation";
 import { WildsChildCeremony } from "@/features/play/WildsChildCeremony";
 import { useWildsMultiplayer } from "@/features/play/use-wilds-multiplayer";
+import { useWildsMessenger } from "@/features/play/use-wilds-messenger";
 import { useWildsWorld } from "@/features/play/use-wilds-world";
 import type { WildsWorldProjection } from "@/features/play/wilds-world-state";
 import { WildsBalancedStatusHud } from "@/features/play/WildsBalancedStatusHud";
@@ -470,6 +471,26 @@ export function PlayCampaign({
     activeCard: activeAsset,
     cardAdmission
   });
+  const messengerSelfHandle = multiplayer.snapshot?.players.find((entry) => entry.playerId === multiplayer.selfId)?.handle
+    ?? multiplayer.selfId.replace(/^guest:/, "Explorer ").slice(0, 80)
+    ?? "Explorer";
+  const messenger = useWildsMessenger({
+    guestId: multiplayer.guestId,
+    selfId: multiplayer.selfId,
+    selfHandle: messengerSelfHandle,
+    livePeers: multiplayer.remotePlayers.filter((entry) => !entry.practice).map((entry) => ({ id: entry.playerId, handle: entry.handle }))
+  });
+  const [walletMessagePeer, setWalletMessagePeer] = useState<{ id: string; handle: string } | null>(null);
+  const recordedPhiTransfersRef = useRef(new Set<string>());
+  useEffect(() => {
+    const transfer = walletController.transfer;
+    if (!walletMessagePeer || transfer.phase !== "committed" || !transfer.attempt || !transfer.amountPhiMicro) return;
+    const transferReference = `phi-transfer:${sha256PortableBasis(transfer.attempt).replace(/^sha256:/, "")}`;
+    if (recordedPhiTransfersRef.current.has(transferReference)) return;
+    recordedPhiTransfersRef.current.add(transferReference);
+    void messenger.recordPhiTransfer(walletMessagePeer, transfer.amountPhiMicro, transferReference)
+      .catch(() => { recordedPhiTransfersRef.current.delete(transferReference); });
+  }, [messenger, walletController.transfer, walletMessagePeer]);
   const captureRewardAssetId = state.encounter.phase === "revealed" ? state.encounter.assetId : null;
   const captureRewardAsset = captureRewardAssetId
     ? state.inventory.find((candidate) => candidate.id === captureRewardAssetId) ?? null
@@ -1658,6 +1679,7 @@ export function PlayCampaign({
               interactionEnabled={worldInteractionEnabled}
               kaiMoment={kaiMoment}
               modalOwned={exclusiveOwner === "multiplayer"}
+              messenger={messenger}
               multiplayer={multiplayer}
               onEnterRaid={enterLivingRaid}
               onOpenCommandCenter={() => {
@@ -1667,6 +1689,16 @@ export function PlayCampaign({
               onOpenWallet={(origin) => {
                 if (!canUseWorldStage()) return;
                 claimPlayModalOwner("wallet", origin);
+                walletController.openTerminal();
+              }}
+              onSendPhi={(peer) => {
+                if (!canUseWorldStage()) return;
+                messenger.closeMessenger();
+                setWalletMessagePeer(peer);
+                walletController.resetTransfer();
+                walletController.selectTransferRecipient(peer.handle);
+                walletController.navigate("send");
+                claimPlayModalOwner("wallet");
                 walletController.openTerminal();
               }}
               onRosterOpenChange={handleMultiplayerRosterOpenChange}
@@ -1705,6 +1737,11 @@ export function PlayCampaign({
               onAuthorize={walletController.authorizeTransfer ?? undefined}
               onRecover={() => { void walletController.recoverTransfer(); }}
               onResetTransfer={walletController.resetTransfer}
+              onReturnToMessages={walletMessagePeer ? () => {
+                closeOwnedModal("wallet");
+                messenger.openMessenger(walletMessagePeer);
+                setWalletMessagePeer(null);
+              } : undefined}
               onRequestReceive={() => { void walletController.requestReceive(); }}
             /> : null}
 

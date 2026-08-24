@@ -52,6 +52,29 @@ describe("Wilds Receiz-ID messenger", () => {
     assert.equal(reply.message.authority.projection, "sync-only");
   });
 
+  it("records a committed Phi proof once and rejects semantic mutation under its message identity", () => {
+    const context = {
+      kind: "phi-transfer" as const,
+      amountPhiMicro: "2500000",
+      rail: "settlement" as const,
+      status: "committed" as const,
+      transferReference: `phi-transfer:${"a".repeat(64)}`
+    };
+    const first = appendWildsDirectMessage({ sender: kai, recipient: nova, body: "Sent Φ2.5", clientMessageId: `wilds-message:${context.transferReference}`, context, now: "2026-08-23T20:10:00.000Z" });
+    const replay = appendWildsDirectMessage({ sender: kai, recipient: nova, body: "Sent Φ2.5", clientMessageId: `wilds-message:${context.transferReference}`, context, now: "2026-08-23T20:10:01.000Z" });
+    assert.equal(replay.message.id, first.message.id);
+    assert.equal(replay.conversation.messages.filter((message) => message.context?.kind === "phi-transfer").length, 1);
+    assert.equal(replay.message.authority.source, "receiz-id-proof-object");
+    assert.equal(replay.message.authority.projection, "sync-only");
+    assert.throws(() => appendWildsDirectMessage({
+      sender: kai,
+      recipient: nova,
+      body: "Sent Φ99",
+      clientMessageId: `wilds-message:${context.transferReference}`,
+      context: { ...context, amountPhiMicro: "99000000" }
+    }), /wilds_message_idempotency_conflict/);
+  });
+
   it("tracks unread/read state and delivery without making synchronization authoritative", () => {
     const sender = { id: "receiz:kai-read", handle: "kai" };
     const recipient = { id: "receiz:nova-read", handle: "nova" };
@@ -136,6 +159,50 @@ describe("Wilds Receiz-ID messenger", () => {
     assert.equal(afterStaleProjection.messages.at(-1)?.body, "Local source reply");
   });
 
+  it("globally syncs the exact committed Phi record to the recipient thread", async () => {
+    const sender = { id: "receiz:phi-kai", handle: "phi-kai" };
+    const recipient = { id: "receiz:phi-nova", handle: "phi-nova" };
+    const request = new NextRequest("https://wildz.quest/api/wilds/messages/thread");
+    const remote = new Map<string, unknown>();
+    const adapterFactory = ((options?: { accessToken?: string }) => ({
+      readAppStateByUrl: async (url: string) => remote.get(url) ?? null,
+      client: { appState: { publish: async (input: { sourceUrl: string; state: unknown }) => {
+        assert.ok(options?.accessToken);
+        remote.set(input.sourceUrl, { result: { appState: input.state } });
+        return { ok: true };
+      } } }
+    })) as never;
+    const transferReference = `phi-transfer:${"b".repeat(64)}`;
+    const sent = appendWildsDirectMessage({
+      sender,
+      recipient,
+      body: "Sent Φ3.25",
+      clientMessageId: `wilds-message:${transferReference}`,
+      context: {
+        kind: "phi-transfer",
+        amountPhiMicro: "3250000",
+        rail: "settlement",
+        status: "committed",
+        transferReference
+      },
+      now: "2026-08-23T23:45:00.000Z"
+    }).conversation;
+    assert.deepEqual(
+      await publishWildsConversation(request, { playerId: sender.id, handle: sender.handle, receizActorId: sender.id, practice: false, accessToken: "phi-sender-token" }, sent, adapterFactory),
+      { published: true, mode: "receiz_synced" }
+    );
+
+    delete (globalThis as Record<symbol, unknown>)[Symbol.for("receiz.wilds.messenger-ledger.v1")];
+    delete (globalThis as Record<symbol, unknown>)[Symbol.for("receiz.wilds.messenger-hydration.v1")];
+    const admitted = await hydrateWildsConversation(request, { playerId: recipient.id, handle: recipient.handle, receizActorId: recipient.id, practice: false, accessToken: "phi-recipient-token" }, sender, adapterFactory);
+    const record = admitted.messages.find((message) => message.context?.kind === "phi-transfer");
+    assert.equal(record?.context?.kind, "phi-transfer");
+    assert.equal(record?.context?.amountPhiMicro, "3250000");
+    assert.equal(record?.context?.transferReference, transferReference);
+    assert.equal(record?.authority.source, "receiz-id-proof-object");
+    assert.equal(record?.authority.projection, "sync-only");
+  });
+
   it("creates multiple member-bound rooms and lets their owner add explorers", () => {
     const first = createWildsGroupRoom({ owner: kai, members: [nova], name: "Expedition crew", clientRoomId: "room-one", now: "2026-08-23T23:00:00.000Z" });
     const second = createWildsGroupRoom({ owner: kai, members: [nova], name: "Night watch", clientRoomId: "room-two", now: "2026-08-23T23:00:00.000Z" });
@@ -176,6 +243,11 @@ describe("Wilds Receiz-ID messenger", () => {
     assert.match(messenger, /messenger\.addRoomMembers\(members\)/);
     assert.match(messenger, /byClientMessageId\.set\(message\.clientMessageId, message\)/);
     assert.match(messenger, /composerSendingRef\.current/);
+    assert.match(messenger, /wilds-messenger-wallet-action/);
+    assert.match(messenger, /Committed by source proof object/);
+    const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
+    assert.match(campaign, /messenger\.recordPhiTransfer\(walletMessagePeer/);
+    assert.match(campaign, /walletController\.selectTransferRecipient\(peer\.handle\)/);
     assert.match(readFileSync("src/features/play/use-wilds-messenger.ts", "utf8"), /admitConversationState\(current, result\.conversation\)/);
   });
 });

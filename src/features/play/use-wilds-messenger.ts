@@ -13,6 +13,7 @@ import {
   type WildsGroupRoom,
   type WildsMessengerParticipant
 } from "./wilds-messenger-core";
+import { formatWildsPhiExact } from "./wallet/wilds-wallet-format";
 
 type MessengerCache = {
   peers: WildsMessengerParticipant[];
@@ -290,6 +291,30 @@ export function useWildsMessenger(input: {
     }
   }, [input.guestId, input.selfHandle, input.selfId, selectedPeer]);
 
+  const recordPhiTransfer = useCallback(async (
+    peer: WildsMessengerParticipant,
+    amountPhiMicro: string,
+    transferReference: string
+  ) => {
+    if (!input.selfId) throw new Error("wilds_message_participant_required");
+    const clientMessageId = `wilds-message:${transferReference}`;
+    const result = await messengerRequest<{ conversation: WildsConversation }>("/api/wilds/messages/thread", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "phi-transfer",
+        guestId: input.guestId,
+        peer,
+        message: `Sent Φ${formatWildsPhiExact(amountPhiMicro)}`,
+        clientMessageId,
+        context: { kind: "phi-transfer", amountPhiMicro, rail: "settlement", status: "committed", transferReference }
+      })
+    });
+    rememberPeer(peer);
+    setConversations((current) => admitConversationState(current, result.conversation));
+    return result.conversation;
+  }, [input.guestId, input.selfId, rememberPeer]);
+
   const markRead = useCallback(async () => {
     if (!selectedPeer || !conversation || !conversation.messages.length) return;
     const through = conversation.messages.at(-1)!.createdAt;
@@ -338,6 +363,7 @@ export function useWildsMessenger(input: {
     sendRoom,
     addRoomMembers,
     send,
+    recordPhiTransfer,
     markRead,
     react,
     refreshInbox

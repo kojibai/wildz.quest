@@ -11,6 +11,8 @@ import {
   type WildsDirectMessage
 } from "./wilds-messenger-core";
 import type { WildsMessengerController } from "./use-wilds-messenger";
+import { PhiNetworkAmount } from "./wallet/PhiNetworkMark";
+import { formatWildsPhiExact } from "./wallet/wilds-wallet-format";
 
 function shortTime(value: string) {
   return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(value));
@@ -33,11 +35,13 @@ function avatarLetters(handle: string) {
 export function WildsMessenger({
   messenger,
   roomChat,
-  selfId
+  selfId,
+  onSendPhi
 }: {
   messenger: WildsMessengerController;
   roomChat: { messages: readonly WildsRoomMessage[]; onSend: (message: string) => Promise<unknown> };
   selfId: string;
+  onSendPhi?: (peer: { id: string; handle: string }) => void;
 }) {
   const [draft, setDraft] = useState("");
   const [roomDraft, setRoomDraft] = useState("");
@@ -230,7 +234,7 @@ export function WildsMessenger({
               <div className={`wilds-message-row${mine ? " is-mine" : ""}`}>
                 <button aria-label={`Message from ${message.senderHandle}. Tap for reactions`} className="wilds-message-bubble" onClick={() => setReactionFor((current) => current === message.id ? null : message.id)} type="button">
                   {reply ? <span className="wilds-message-reply"><b>{reply.senderId === selfId ? "You" : reply.senderHandle}</b>{reply.body}</span> : null}
-                  <span>{message.deletedAt ? "Message removed" : message.body}</span>
+                  {message.context?.kind === "phi-transfer" ? <span className="wilds-message-phi-transfer"><small>WALLET TRANSACTION</small><strong><PhiNetworkAmount value={formatWildsPhiExact(message.context.amountPhiMicro)} /></strong><em>Committed by source proof object</em></span> : <span>{message.deletedAt ? "Message removed" : message.body}</span>}
                   <small>{shortTime(message.createdAt)}{message.editedAt ? " · edited" : ""}{mine ? ` · ${pending?.state === "failed" ? "not sent" : pending ? "sending" : conversation ? wildsMessageDeliveryState(message, conversation, selfId) : "sent"}` : ""}</small>
                 </button>
                 {message.reactions.length ? <div className="wilds-message-reactions">{message.reactions.map((reaction) => <button aria-label={`${reaction.emoji}, ${reaction.actorIds.length}`} key={reaction.emoji} onClick={() => void messenger.react(message.id, reaction.emoji)} type="button">{reaction.emoji}<b>{reaction.actorIds.length}</b></button>)}</div> : null}
@@ -252,7 +256,7 @@ export function WildsMessenger({
           finally { composerSendingRef.current = false; }
         }}>
           {replyTo ? <div className="wilds-messenger-replying"><span><small>Replying to {replyTo.senderId === selfId ? "yourself" : replyTo.senderHandle}</small><strong>{replyTo.body}</strong></span><button aria-label="Cancel reply" onClick={() => setReplyTo(null)} type="button"><Icons.close size={15} /></button></div> : null}
-          <div><textarea aria-label={`Message ${selectedPeer?.handle ?? "explorer"}`} maxLength={WILDS_DIRECT_MESSAGE_MAX_LENGTH} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
+          <div>{selectedPeer && onSendPhi ? <button aria-label={`Send Phi to ${selectedPeer.handle}`} className="wilds-messenger-wallet-action" onClick={() => onSendPhi(selectedPeer)} title="Send Phi" type="button">Φ</button> : null}<textarea aria-label={`Message ${selectedPeer?.handle ?? "explorer"}`} maxLength={WILDS_DIRECT_MESSAGE_MAX_LENGTH} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && matchMedia("(pointer: fine)").matches) {
               event.preventDefault();
               event.currentTarget.form?.requestSubmit();
