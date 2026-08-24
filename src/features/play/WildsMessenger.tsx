@@ -42,6 +42,9 @@ export function WildsMessenger({
   const [draft, setDraft] = useState("");
   const [roomDraft, setRoomDraft] = useState("");
   const [roomOpen, setRoomOpen] = useState(false);
+  const [roomEditor, setRoomEditor] = useState<"create" | "add" | null>(null);
+  const [roomName, setRoomName] = useState("");
+  const [roomMemberIds, setRoomMemberIds] = useState<string[]>([]);
   const [roomError, setRoomError] = useState("");
   const [query, setQuery] = useState("");
   const [replyTo, setReplyTo] = useState<WildsDirectMessage | null>(null);
@@ -49,14 +52,21 @@ export function WildsMessenger({
   const listRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const dialogRef = useRef<HTMLElement | null>(null);
+  const composerSendingRef = useRef(false);
   const selectedPeerId = messenger.selectedPeer?.id ?? null;
   const closeMessenger = messenger.closeMessenger;
   const selectConversation = messenger.selectConversation;
+  const selectRoom = messenger.selectRoom;
   const selectedPeer = messenger.selectedPeer;
-  const messages = useMemo(() => [
-    ...(messenger.conversation?.messages ?? []),
-    ...messenger.pending.map((item) => item.message)
-  ].sort((left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt)), [messenger.conversation?.messages, messenger.pending]);
+  const selectedRoom = messenger.selectedRoom;
+  const messages = useMemo(() => {
+    const byClientMessageId = new Map<string, WildsDirectMessage>();
+    for (const item of messenger.pending) byClientMessageId.set(item.message.clientMessageId, item.message);
+    // An admitted source message replaces its optimistic projection. This
+    // prevents a response/poll race from rendering the same send twice.
+    for (const message of messenger.conversation?.messages ?? []) byClientMessageId.set(message.clientMessageId, message);
+    return [...byClientMessageId.values()].sort((left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt));
+  }, [messenger.conversation?.messages, messenger.pending]);
   const visiblePeers = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const summaryIds = new Set(messenger.summaries.map((summary) => summary.peer.id));
@@ -84,6 +94,8 @@ export function WildsMessenger({
       if (event.key === "Escape") {
         event.preventDefault();
         if (selectedPeer) selectConversation(null);
+        else if (roomEditor) setRoomEditor(null);
+        else if (selectedRoom) selectRoom(null);
         else if (roomOpen) setRoomOpen(false);
         else closeMessenger();
         return;
@@ -102,11 +114,12 @@ export function WildsMessenger({
       window.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = priorOverflow;
     };
-  }, [closeMessenger, messenger.open, roomOpen, selectConversation, selectedPeer]);
+  }, [closeMessenger, messenger.open, roomEditor, roomOpen, selectConversation, selectedPeer, selectedRoom, selectRoom]);
 
   useEffect(() => {
     if (messenger.open) return;
     setRoomOpen(false);
+    setRoomEditor(null);
     setRoomDraft("");
     setRoomError("");
   }, [messenger.open]);
@@ -120,10 +133,10 @@ export function WildsMessenger({
 
   useEffect(() => {
     const list = listRef.current;
-    if (!list || (!selectedPeerId && !roomOpen)) return;
+    if (!list || (!selectedPeerId && !roomOpen && !messenger.selectedRoom)) return;
     const frame = requestAnimationFrame(() => list.scrollTo({ top: list.scrollHeight, behavior: "smooth" }));
     return () => cancelAnimationFrame(frame);
-  }, [messages.length, roomChat.messages.length, roomOpen, selectedPeerId]);
+  }, [messages.length, messenger.selectedRoom, roomChat.messages.length, roomOpen, selectedPeerId]);
 
   useEffect(() => {
     const textarea = composerRef.current;
@@ -138,19 +151,20 @@ export function WildsMessenger({
   return createPortal((
     <section aria-label="Wildz messages" aria-modal="true" className="wilds-messenger" ref={dialogRef} role="dialog">
       <header className="wilds-messenger-header">
-        {messenger.selectedPeer || roomOpen ? <button aria-label="Back to conversations" className="wilds-messenger-back" onClick={() => { messenger.selectConversation(null); setRoomOpen(false); }} type="button"><Icons.chevronLeft size={20} /></button> : <span className="wilds-messenger-mark"><Icons.send size={18} /></span>}
-        <div><small>{roomOpen ? "Shared live connection" : messenger.selectedPeer ? "Private connection" : "Receiz ID messenger"}</small><strong>{roomOpen ? "Shared room" : messenger.selectedPeer?.handle ?? "Messages"}</strong></div>
+        {messenger.selectedPeer || messenger.selectedRoom || roomOpen || roomEditor ? <button aria-label="Back to conversations" className="wilds-messenger-back" onClick={() => { messenger.selectConversation(null); messenger.selectRoom(null); setRoomOpen(false); setRoomEditor(null); }} type="button"><Icons.chevronLeft size={20} /></button> : <span className="wilds-messenger-mark"><Icons.send size={18} /></span>}
+        <div><small>{messenger.selectedRoom ? `${messenger.selectedRoom.members.length} members` : roomOpen ? "Shared live connection" : messenger.selectedPeer ? "Private connection" : roomEditor ? "New private room" : "Receiz ID messenger"}</small><strong>{messenger.selectedRoom?.name ?? (roomOpen ? "World room" : messenger.selectedPeer?.handle ?? (roomEditor ? "Create room" : "Messages"))}</strong></div>
         <span className={`wilds-messenger-sync${messenger.syncing ? " is-syncing" : ""}`} title={messenger.syncing ? "Synchronizing" : "Source verified"}><i />{messenger.syncing ? "Syncing" : "Verified"}</span>
         <button aria-label="Close messages" className="wilds-messenger-close" onClick={messenger.closeMessenger} type="button"><Icons.close size={20} /></button>
       </header>
 
-      {!messenger.selectedPeer && !roomOpen ? <div className="wilds-messenger-inbox">
+      {!messenger.selectedPeer && !messenger.selectedRoom && !roomOpen && !roomEditor ? <div className="wilds-messenger-inbox">
         <div className="wilds-messenger-search"><Icons.search size={17} /><input aria-label="Search conversations" onChange={(event) => setQuery(event.target.value)} placeholder="Search explorers" value={query} /></div>
-        <div className="wilds-messenger-inbox-title"><span><strong>Connections</strong><small>{messenger.unreadCount ? `${messenger.unreadCount} unread` : "You’re all caught up"}</small></span><button onClick={() => void messenger.refreshInbox()} type="button">Refresh</button></div>
+        <div className="wilds-messenger-inbox-title"><span><strong>Connections</strong><small>{messenger.unreadCount ? `${messenger.unreadCount} unread` : "You’re all caught up"}</small></span><div><button onClick={() => { setRoomName(""); setRoomMemberIds([]); setRoomEditor("create"); }} type="button">New room</button><button onClick={() => void messenger.refreshInbox()} type="button">Refresh</button></div></div>
         <div className="wilds-messenger-conversations">
+          {messenger.rooms.map((room) => <button className="wilds-messenger-room-entry" key={room.id} onClick={() => messenger.selectRoom(room)} type="button"><span className="wilds-messenger-avatar"><Icons.users size={20} /></span><span><strong>{room.name}</strong><small>{room.messages.at(-1)?.body ?? `${room.members.length} members`}</small></span><span className="wilds-messenger-conversation-meta"><time>{room.messages.length ? shortTime(room.messages.at(-1)!.createdAt) : ""}</time><Icons.chevronRight size={15} /></span></button>)}
           <button className="wilds-messenger-room-entry" onClick={() => { setRoomError(""); setRoomOpen(true); }} type="button">
             <span className="wilds-messenger-avatar"><Icons.users size={20} /></span>
-            <span><strong>Shared room</strong><small>{roomChat.messages.at(-1)?.text ?? "Create a chat room for everyone live with you"}</small></span>
+            <span><strong>World room</strong><small>{roomChat.messages.at(-1)?.text ?? "Everyone currently live in this world room"}</small></span>
             <span className="wilds-messenger-conversation-meta"><time>{roomChat.messages.length ? shortTime(roomChat.messages.at(-1)!.sentAt) : ""}</time><Icons.chevronRight size={15} /></span>
           </button>
           {visiblePeers.map((peer) => {
@@ -164,6 +178,14 @@ export function WildsMessenger({
           })}
           {!visiblePeers.length ? <div className="wilds-messenger-empty"><span><Icons.users size={24} /></span><strong>Your next connection starts in the Wilds.</strong><p>Open a live explorer and choose Message. The conversation will stay here.</p></div> : null}
         </div>
+      </div> : roomEditor ? <form className="wilds-messenger-room-editor" onSubmit={async (event) => { event.preventDefault(); const members = messenger.allPeers.filter((peer) => roomMemberIds.includes(peer.id)); if (!members.length) return; setRoomError(""); try { if (roomEditor === "create") await messenger.createRoom(roomName, members); else await messenger.addRoomMembers(members); setRoomEditor(null); setRoomMemberIds([]); } catch (cause) { setRoomError(cause instanceof Error ? cause.message : "Room could not be saved"); } }}>
+        <label><span>Room name</span><input aria-label="Room name" autoFocus disabled={roomEditor === "add"} maxLength={48} onChange={(event) => setRoomName(event.target.value)} placeholder="Expedition crew" value={roomEditor === "add" ? messenger.selectedRoom?.name ?? "" : roomName} /></label>
+        <fieldset><legend>{roomEditor === "add" ? "Add explorers" : "Choose members"}</legend>{messenger.allPeers.filter((peer) => !messenger.selectedRoom?.members.some((member) => member.id === peer.id)).map((peer) => <label key={peer.id}><input checked={roomMemberIds.includes(peer.id)} onChange={() => setRoomMemberIds((current) => current.includes(peer.id) ? current.filter((id) => id !== peer.id) : [...current, peer.id])} type="checkbox" /><span className="wilds-messenger-avatar">{avatarLetters(peer.handle)}</span><strong>{peer.handle}</strong></label>)}</fieldset>
+        <button disabled={!roomMemberIds.length || (roomEditor === "create" && !roomName.trim())} type="submit">{roomEditor === "add" ? "Add to room" : "Create room"}</button>
+      </form> : messenger.selectedRoom ? <div className="wilds-messenger-thread wilds-messenger-room-thread">
+        <div className="wilds-messenger-room-members"><span>{messenger.selectedRoom.members.map((member) => member.handle).join(" · ")}</span>{messenger.selectedRoom.owner.id === selfId ? <button onClick={() => { setRoomMemberIds([]); setRoomEditor("add"); }} type="button">Add people</button> : null}</div>
+        <div className="wilds-messenger-messages" ref={listRef}>{!messenger.selectedRoom.messages.length ? <div className="wilds-messenger-thread-start"><span className="wilds-messenger-avatar"><Icons.users size={20} /></span><strong>{messenger.selectedRoom.name} is ready.</strong><p>Only the explorers added to this room can participate.</p></div> : null}{messenger.selectedRoom.messages.map((message, index, roomMessages) => { const mine = message.senderId === selfId; const prior = roomMessages[index - 1]; const showDay = !prior || new Date(prior.createdAt).toDateString() !== new Date(message.createdAt).toDateString(); return <div className="wilds-message-block" key={message.id}>{showDay ? <div className="wilds-message-day"><span>{dayLabel(message.createdAt)}</span></div> : null}<div className={`wilds-message-row${mine ? " is-mine" : ""}`}><div className="wilds-message-bubble"><b className="wilds-room-message-sender">{mine ? "You" : message.senderHandle}</b><span>{message.body}</span><small>{shortTime(message.createdAt)}</small></div></div></div>; })}</div>
+        <form className="wilds-messenger-composer" onSubmit={async (event) => { event.preventDefault(); const outgoing = roomDraft.trim(); if (!outgoing) return; try { await messenger.sendRoom(outgoing); setRoomDraft(""); } catch (cause) { setRoomError(cause instanceof Error ? cause.message : "Room message not sent"); } }}><div><textarea aria-label={`Message ${messenger.selectedRoom.name}`} maxLength={2_000} onChange={(event) => setRoomDraft(event.target.value)} placeholder="Message room…" rows={1} value={roomDraft} /><button aria-label="Send room message" disabled={!roomDraft.trim()} type="submit"><Icons.send size={19} /></button></div><small>Private to {messenger.selectedRoom.members.length} Receiz IDs</small></form>
       </div> : roomOpen ? <div className="wilds-messenger-thread wilds-messenger-room-thread">
         <div className="wilds-messenger-messages" ref={listRef}>
           {!roomChat.messages.length ? <div className="wilds-messenger-thread-start"><span className="wilds-messenger-avatar"><Icons.users size={20} /></span><strong>Create the room.</strong><p>Send the first message to open a shared conversation with the explorers live in this room.</p></div> : null}
@@ -218,14 +240,16 @@ export function WildsMessenger({
             </div>;
           })}
         </div>
-        <form className="wilds-messenger-composer" onSubmit={(event) => {
+        <form className="wilds-messenger-composer" onSubmit={async (event) => {
           event.preventDefault();
-          if (!draft.trim()) return;
+          if (!draft.trim() || composerSendingRef.current) return;
+          composerSendingRef.current = true;
           const outgoing = draft;
           const replyId = replyTo?.id ?? null;
           setDraft("");
           setReplyTo(null);
-          void messenger.send(outgoing, replyId);
+          try { await messenger.send(outgoing, replyId); }
+          finally { composerSendingRef.current = false; }
         }}>
           {replyTo ? <div className="wilds-messenger-replying"><span><small>Replying to {replyTo.senderId === selfId ? "yourself" : replyTo.senderHandle}</small><strong>{replyTo.body}</strong></span><button aria-label="Cancel reply" onClick={() => setReplyTo(null)} type="button"><Icons.close size={15} /></button></div> : null}
           <div><textarea aria-label={`Message ${selectedPeer?.handle ?? "explorer"}`} maxLength={WILDS_DIRECT_MESSAGE_MAX_LENGTH} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {

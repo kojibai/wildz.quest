@@ -3,16 +3,26 @@ import {
   sanitizeWildsDirectMessage,
   wildsConversationId,
   wildsDirectMessageId,
+  wildsGroupRoomId,
+  normalizeWildsGroupRoomName,
   type WildsConversation,
   type WildsDirectMessage,
+  type WildsGroupRoom,
   type WildsMessengerParticipant
 } from "./wilds-messenger-core";
+import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 
 const messengerLedgerKey = Symbol.for("receiz.wilds.messenger-ledger.v1");
+const groupRoomLedgerKey = Symbol.for("receiz.wilds.group-room-ledger.v1");
 
 function conversations(): Map<string, WildsConversation> {
   const root = globalThis as typeof globalThis & { [messengerLedgerKey]?: Map<string, WildsConversation> };
   return (root[messengerLedgerKey] ??= new Map());
+}
+
+function groupRooms(): Map<string, WildsGroupRoom> {
+  const root = globalThis as typeof globalThis & { [groupRoomLedgerKey]?: Map<string, WildsGroupRoom> };
+  return (root[groupRoomLedgerKey] ??= new Map());
 }
 
 function emptyConversation(
@@ -112,6 +122,7 @@ export function appendWildsDirectMessage(input: {
   body: string;
   clientMessageId: string;
   replyToId?: string | null;
+  context?: WildsDirectMessage["context"];
   now?: string;
 }) {
   const now = input.now ?? new Date().toISOString();
@@ -146,9 +157,66 @@ export function appendWildsDirectMessage(input: {
     deletedAt: null,
     replyToId,
     reactions: [],
+    ...(input.context ? { context: input.context } : {}),
     authority: { source: "receiz-id-proof-object", projection: "sync-only" }
   };
   return { message, conversation: save({ ...conversation, messages: [...conversation.messages, message] }, now) };
+}
+
+function normalizeGroupMembers(owner: WildsMessengerParticipant, members: readonly WildsMessengerParticipant[]) {
+  const byId = new Map<string, WildsMessengerParticipant>();
+  for (const member of [owner, ...members]) {
+    const normalized = normalizeWildsMessengerParticipant(member);
+    byId.set(normalized.id, normalized);
+  }
+  if (byId.size < 2 || byId.size > 24) throw new Error("wilds_group_room_members_invalid");
+  return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+}
+
+export function createWildsGroupRoom(input: { owner: WildsMessengerParticipant; members: readonly WildsMessengerParticipant[]; name: string; clientRoomId: string; now?: string }) {
+  const now = input.now ?? new Date().toISOString();
+  const owner = normalizeWildsMessengerParticipant(input.owner);
+  const id = wildsGroupRoomId(owner.id, input.clientRoomId);
+  const existing = groupRooms().get(id);
+  if (existing) return existing;
+  const room: WildsGroupRoom = { schema: "receiz.wilds_group_room.v1", id, name: normalizeWildsGroupRoomName(input.name), owner, members: normalizeGroupMembers(owner, input.members), revision: 1, messages: [], createdAt: now, updatedAt: now };
+  groupRooms().set(id, room);
+  return room;
+}
+
+export function admitWildsGroupRoom(value: WildsGroupRoom) {
+  if (value.schema !== "receiz.wilds_group_room.v1" || !value.id || !Array.isArray(value.members) || !Array.isArray(value.messages)) throw new Error("wilds_group_room_invalid");
+  const current = groupRooms().get(value.id);
+  if (!current || value.revision >= current.revision) groupRooms().set(value.id, value);
+  return groupRooms().get(value.id)!;
+}
+
+export function getWildsGroupRoom(roomId: string, actorId: string) {
+  const room = groupRooms().get(roomId);
+  if (!room || !room.members.some((member) => member.id === actorId)) throw new Error("wilds_group_room_required");
+  return room;
+}
+
+export function appendWildsGroupMessage(input: { roomId: string; sender: WildsMessengerParticipant; body: string; clientMessageId: string; now?: string }) {
+  const now = input.now ?? new Date().toISOString();
+  const sender = normalizeWildsMessengerParticipant(input.sender);
+  const room = getWildsGroupRoom(input.roomId, sender.id);
+  const clientMessageId = input.clientMessageId.trim().slice(0, 160);
+  if (!clientMessageId) throw new Error("wilds_client_message_id_required");
+  if (room.messages.some((message) => message.senderId === sender.id && message.clientMessageId === clientMessageId)) return room;
+  const message = { id: `group-message:${sha256PortableBasis(canonicalPortableCardJson({ roomId: room.id, senderId: sender.id, clientMessageId })).slice(7, 39)}`, clientMessageId, senderId: sender.id, senderHandle: sender.handle, body: sanitizeWildsDirectMessage(input.body), createdAt: now };
+  const next = { ...room, revision: room.revision + 1, messages: [...room.messages, message].slice(-1_000), updatedAt: now };
+  groupRooms().set(room.id, next);
+  return next;
+}
+
+export function addWildsGroupRoomMembers(input: { roomId: string; actorId: string; members: readonly WildsMessengerParticipant[]; now?: string }) {
+  const room = getWildsGroupRoom(input.roomId, input.actorId);
+  if (room.owner.id !== input.actorId) throw new Error("wilds_group_room_owner_required");
+  const now = input.now ?? new Date().toISOString();
+  const next = { ...room, revision: room.revision + 1, members: normalizeGroupMembers(room.owner, [...room.members, ...input.members]), updatedAt: now };
+  groupRooms().set(room.id, next);
+  return next;
 }
 
 export function markWildsConversationRead(input: {

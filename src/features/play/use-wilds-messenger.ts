@@ -8,12 +8,14 @@ import {
   type WildsConversation,
   type WildsConversationSummary,
   type WildsDirectMessage,
+  type WildsGroupRoom,
   type WildsMessengerParticipant
 } from "./wilds-messenger-core";
 
 type MessengerCache = {
   peers: WildsMessengerParticipant[];
   conversations: WildsConversation[];
+  rooms: WildsGroupRoom[];
 };
 
 type PendingMessage = {
@@ -26,21 +28,22 @@ function messengerStorageKey(actorId: string) {
 }
 
 function readCache(actorId: string): MessengerCache {
-  if (!actorId) return { peers: [], conversations: [] };
+  if (!actorId) return { peers: [], conversations: [], rooms: [] };
   try {
     const parsed = JSON.parse(window.localStorage.getItem(messengerStorageKey(actorId)) ?? "null") as MessengerCache | null;
-    return parsed && Array.isArray(parsed.peers) && Array.isArray(parsed.conversations) ? parsed : { peers: [], conversations: [] };
+    return parsed && Array.isArray(parsed.peers) && Array.isArray(parsed.conversations) ? { ...parsed, rooms: Array.isArray(parsed.rooms) ? parsed.rooms : [] } : { peers: [], conversations: [], rooms: [] };
   } catch {
-    return { peers: [], conversations: [] };
+    return { peers: [], conversations: [], rooms: [] };
   }
 }
 
-function writeCache(actorId: string, peers: WildsMessengerParticipant[], conversations: WildsConversation[]) {
+function writeCache(actorId: string, peers: WildsMessengerParticipant[], conversations: WildsConversation[], rooms: WildsGroupRoom[]) {
   if (!actorId) return;
   try {
     window.localStorage.setItem(messengerStorageKey(actorId), JSON.stringify({
       peers: peers.slice(0, 80),
-      conversations: conversations.map((conversation) => ({ ...conversation, messages: conversation.messages.slice(-120) })).slice(0, 80)
+      conversations: conversations.map((conversation) => ({ ...conversation, messages: conversation.messages.slice(-120) })).slice(0, 80),
+      rooms: rooms.map((room) => ({ ...room, messages: room.messages.slice(-120) })).slice(0, 40)
     }));
   } catch {
     // The source proof and Receiz sync remain authoritative if the cache is full.
@@ -70,10 +73,18 @@ export function useWildsMessenger(input: {
   const [selectedPeer, setSelectedPeer] = useState<WildsMessengerParticipant | null>(null);
   const [peers, setPeers] = useState<WildsMessengerParticipant[]>([]);
   const [conversations, setConversations] = useState<WildsConversation[]>([]);
+  const [rooms, setRooms] = useState<WildsGroupRoom[]>([]);
+  const [selectedRoom, setSelectedRoom] = useState<WildsGroupRoom | null>(null);
   const [pending, setPending] = useState<PendingMessage[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState("");
   const hydratedActorRef = useRef("");
+  const conversationsRef = useRef<WildsConversation[]>([]);
+  const roomsRef = useRef<WildsGroupRoom[]>([]);
+  const sendingClientIdsRef = useRef(new Set<string>());
+
+  useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
+  useEffect(() => { roomsRef.current = rooms; }, [rooms]);
 
   useEffect(() => {
     if (!input.selfId || hydratedActorRef.current === input.selfId) return;
@@ -81,13 +92,37 @@ export function useWildsMessenger(input: {
     const cache = readCache(input.selfId);
     setPeers(cache.peers);
     setConversations(cache.conversations);
+    setRooms(cache.rooms);
   }, [input.selfId]);
 
   const allPeers = useMemo(() => mergePeers(peers, input.livePeers as WildsMessengerParticipant[]), [input.livePeers, peers]);
+  const selectedRoomId = selectedRoom?.id ?? null;
 
   useEffect(() => {
-    writeCache(input.selfId, allPeers, conversations);
-  }, [allPeers, conversations, input.selfId]);
+    writeCache(input.selfId, allPeers, conversations, rooms);
+  }, [allPeers, conversations, input.selfId, rooms]);
+
+  const refreshRooms = useCallback(async (roomIds?: readonly string[]) => {
+    if (!input.selfId || document.visibilityState === "hidden") return;
+    const inviteIds = conversationsRef.current.flatMap((conversation) => conversation.messages.flatMap((message) => message.context?.kind === "group-invite" ? [message.context.roomId] : []));
+    const ids = [...new Set([...(roomIds ?? roomsRef.current.map((room) => room.id)), ...inviteIds])].slice(0, 40);
+    if (!ids.length) return;
+    try {
+      const params = new URLSearchParams({ guestId: input.guestId, ids: ids.join(",") });
+      const result = await messengerRequest<{ rooms: WildsGroupRoom[] }>(`/api/wilds/messages/rooms?${params.toString()}`, { cache: "no-store" });
+      setRooms((current) => {
+        const byId = new Map(current.map((room) => [room.id, room]));
+        for (const room of result.rooms) byId.set(room.id, room);
+        const next = [...byId.values()].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+        return next.length === current.length && next.every((room, index) => room.id === current[index]?.id && room.revision === current[index]?.revision) ? current : next;
+      });
+      setSelectedRoom((current) => {
+        if (!current) return null;
+        const next = result.rooms.find((room) => room.id === current.id);
+        return !next || next.revision === current.revision ? current : next;
+      });
+    } catch { /* cached rooms remain available */ }
+  }, [input.guestId, input.selfId]);
 
   const rememberPeer = useCallback((peer: WildsMessengerParticipant) => {
     setPeers((current) => mergePeers(current, [peer]));
@@ -120,30 +155,32 @@ export function useWildsMessenger(input: {
       const result = await messengerRequest<{ summaries: WildsConversationSummary[] }>(`/api/wilds/messages/inbox?${params.toString()}`, { cache: "no-store" });
       for (const summary of result.summaries) rememberPeer(summary.peer);
       await Promise.all(result.summaries.map((summary) => refreshThread(summary.peer, true)));
+      void refreshRooms();
       setError("");
     } catch (cause) {
       if (!quiet) setError(cause instanceof Error ? cause.message : "Inbox could not sync");
     } finally {
       if (!quiet) setSyncing(false);
     }
-  }, [allPeers, input.guestId, input.selfId, refreshThread, rememberPeer]);
+  }, [allPeers, input.guestId, input.selfId, refreshRooms, refreshThread, rememberPeer]);
 
   useEffect(() => {
     // Gameplay remains allocation- and network-free while the messenger is
     // closed. A foreground thread can poll cheaply without touching the world
     // frame loop; background delivery should graduate to push, never walking-time polling.
-    if (!open || !input.selfId || !allPeers.length) return;
+    if (!open || !input.selfId) return;
     let stopped = false;
     let timer: number | null = null;
     const tick = async () => {
       if (stopped) return;
-      if (selectedPeer) await refreshThread(selectedPeer, true);
+      if (selectedRoomId) await refreshRooms([selectedRoomId]);
+      else if (selectedPeer) await refreshThread(selectedPeer, true);
       else await refreshInbox(true);
       if (!stopped) timer = window.setTimeout(tick, 4_000);
     };
     void tick();
     return () => { stopped = true; if (timer !== null) window.clearTimeout(timer); };
-  }, [allPeers.length, input.selfId, open, refreshInbox, refreshThread, selectedPeer]);
+  }, [input.selfId, open, refreshInbox, refreshRooms, refreshThread, selectedPeer, selectedRoomId]);
 
   const conversation = selectedPeer
     ? conversations.find((item) => item.id === wildsConversationId(input.selfId, selectedPeer.id)) ?? null
@@ -153,6 +190,7 @@ export function useWildsMessenger(input: {
   const unreadCount = summaries.reduce((total, summary) => total + summary.unreadCount, 0);
 
   const selectConversation = useCallback((peer: WildsMessengerParticipant | null) => {
+    setSelectedRoom(null);
     setSelectedPeer(peer);
     if (peer) { rememberPeer(peer); void refreshThread(peer); }
   }, [refreshThread, rememberPeer]);
@@ -160,19 +198,45 @@ export function useWildsMessenger(input: {
   const openMessenger = useCallback((peer?: WildsMessengerParticipant) => {
     setOpen(true);
     if (peer) selectConversation(peer);
-    else void refreshInbox();
-  }, [refreshInbox, selectConversation]);
+    else {
+      void refreshInbox();
+      void refreshRooms();
+    }
+  }, [refreshInbox, refreshRooms, selectConversation]);
 
   const closeMessenger = useCallback(() => {
     setOpen(false);
     setSelectedPeer(null);
+    setSelectedRoom(null);
     setError("");
   }, []);
+
+  const createRoom = useCallback(async (name: string, members: WildsMessengerParticipant[]) => {
+    const result = await messengerRequest<{ room: WildsGroupRoom }>("/api/wilds/messages/rooms", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "create", guestId: input.guestId, name, members, clientRoomId: crypto.randomUUID() }) });
+    setRooms((current) => [result.room, ...current.filter((room) => room.id !== result.room.id)]);
+    setSelectedPeer(null); setSelectedRoom(result.room); return result.room;
+  }, [input.guestId]);
+
+  const selectRoom = useCallback((room: WildsGroupRoom | null) => { setSelectedPeer(null); setSelectedRoom(room); if (room) void refreshRooms([room.id]); }, [refreshRooms]);
+
+  const sendRoom = useCallback(async (body: string) => {
+    if (!selectedRoom) return;
+    const result = await messengerRequest<{ room: WildsGroupRoom }>("/api/wilds/messages/rooms", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "send", guestId: input.guestId, roomId: selectedRoom.id, message: body, clientMessageId: `wilds-group-message:${crypto.randomUUID()}` }) });
+    setRooms((current) => [result.room, ...current.filter((room) => room.id !== result.room.id)]); setSelectedRoom(result.room);
+  }, [input.guestId, selectedRoom]);
+
+  const addRoomMembers = useCallback(async (members: WildsMessengerParticipant[]) => {
+    if (!selectedRoom) return;
+    const result = await messengerRequest<{ room: WildsGroupRoom }>("/api/wilds/messages/rooms", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "add-members", guestId: input.guestId, roomId: selectedRoom.id, members }) });
+    setRooms((current) => [result.room, ...current.filter((room) => room.id !== result.room.id)]); setSelectedRoom(result.room);
+  }, [input.guestId, selectedRoom]);
 
   const send = useCallback(async (body: string, replyToId?: string | null, retryClientMessageId?: string) => {
     if (!selectedPeer || !input.selfId) return;
     const now = new Date().toISOString();
     const clientMessageId = retryClientMessageId ?? `wilds-message:${crypto.randomUUID()}`;
+    if (sendingClientIdsRef.current.has(clientMessageId)) return;
+    sendingClientIdsRef.current.add(clientMessageId);
     const conversationId = wildsConversationId(input.selfId, selectedPeer.id);
     const optimistic: WildsDirectMessage = {
       schema: "receiz.wilds_direct_message.v1",
@@ -204,6 +268,8 @@ export function useWildsMessenger(input: {
     } catch (cause) {
       setPending((current) => current.map((item) => item.message.clientMessageId === clientMessageId ? { ...item, state: "failed" } : item));
       setError(cause instanceof Error ? cause.message : "Message not sent");
+    } finally {
+      sendingClientIdsRef.current.delete(clientMessageId);
     }
   }, [input.guestId, input.selfHandle, input.selfId, selectedPeer]);
 
@@ -238,6 +304,8 @@ export function useWildsMessenger(input: {
   return {
     open,
     selectedPeer,
+    selectedRoom,
+    rooms,
     allPeers,
     conversation,
     summaries,
@@ -248,6 +316,10 @@ export function useWildsMessenger(input: {
     openMessenger,
     closeMessenger,
     selectConversation,
+    selectRoom,
+    createRoom,
+    sendRoom,
+    addRoomMembers,
     send,
     markRead,
     react,

@@ -29,11 +29,48 @@ export type WildsDirectMessage = {
   deletedAt: string | null;
   replyToId: string | null;
   reactions: WildsDirectMessageReaction[];
+  context?: {
+    kind: "group-invite";
+    roomId: string;
+    roomName: string;
+  };
   authority: {
     source: "receiz-id-proof-object";
     projection: "sync-only";
   };
 };
+
+export type WildsGroupMessage = {
+  id: string;
+  clientMessageId: string;
+  senderId: string;
+  senderHandle: string;
+  body: string;
+  createdAt: string;
+};
+
+export type WildsGroupRoom = {
+  schema: "receiz.wilds_group_room.v1";
+  id: string;
+  name: string;
+  owner: WildsMessengerParticipant;
+  members: WildsMessengerParticipant[];
+  revision: number;
+  messages: WildsGroupMessage[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function normalizeWildsGroupRoomName(value: string) {
+  const name = value.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim();
+  if (!name || name.length > 48) throw new Error("wilds_group_room_name_invalid");
+  return name;
+}
+
+export function wildsGroupRoomId(ownerId: string, clientRoomId: string) {
+  if (!ownerId.trim() || !clientRoomId.trim()) throw new Error("wilds_group_room_id_invalid");
+  return `group-room:${sha256PortableBasis(canonicalPortableCardJson({ ownerId: ownerId.trim(), clientRoomId: clientRoomId.trim() })).slice(7, 39)}`;
+}
 
 export type WildsConversation = {
   schema: "receiz.wilds_conversation.v1";

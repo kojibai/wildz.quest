@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import {
   sanitizeWildsDirectMessage,
+  wildsGroupRoomId,
   wildsConversationId,
   wildsConversationSummary,
   wildsMessageDeliveryState
@@ -10,6 +11,9 @@ import {
 import {
   admitWildsConversation,
   appendWildsDirectMessage,
+  appendWildsGroupMessage,
+  addWildsGroupRoomMembers,
+  createWildsGroupRoom,
   markWildsConversationRead,
   mergeWildsConversations,
   reactToWildsDirectMessage
@@ -84,9 +88,22 @@ describe("Wilds Receiz-ID messenger", () => {
     assert.match(server, /visibility:\s*"private"/);
     assert.match(server, /sync_pending/);
     assert.match(sourceRoute, /Message content is never served/);
-    assert.match(hook, /if \(!open \|\| !input\.selfId \|\| !allPeers\.length\) return/);
+    assert.match(hook, /if \(!open \|\| !input\.selfId\) return/);
+    assert.match(hook, /window\.setTimeout\(tick, 4_000\)/);
     assert.doesNotMatch(hook, /20_000|setInterval/);
     assert.doesNotMatch(server, /authorization required|permission required|projection required/i);
+  });
+
+  it("creates multiple member-bound rooms and lets their owner add explorers", () => {
+    const first = createWildsGroupRoom({ owner: kai, members: [nova], name: "Expedition crew", clientRoomId: "room-one", now: "2026-08-23T23:00:00.000Z" });
+    const second = createWildsGroupRoom({ owner: kai, members: [nova], name: "Night watch", clientRoomId: "room-two", now: "2026-08-23T23:00:00.000Z" });
+    assert.notEqual(first.id, second.id);
+    assert.equal(first.id, wildsGroupRoomId(kai.id, "room-one"));
+    const expanded = addWildsGroupRoomMembers({ roomId: first.id, actorId: kai.id, members: [{ id: "receiz:sol", handle: "sol" }], now: "2026-08-23T23:00:01.000Z" });
+    assert.deepEqual(expanded.members.map((member) => member.handle), ["kai", "nova", "sol"]);
+    const messaged = appendWildsGroupMessage({ roomId: first.id, sender: nova, body: "Meet at the ridge.", clientMessageId: "group-1", now: "2026-08-23T23:00:02.000Z" });
+    assert.equal(messaged.messages.at(-1)?.body, "Meet at the ridge.");
+    assert.throws(() => addWildsGroupRoomMembers({ roomId: first.id, actorId: nova.id, members: [{ id: "receiz:x", handle: "x" }] }), /owner_required/);
   });
 
   it("keeps mobile composer focus app-native without Safari tap zoom", () => {
@@ -106,7 +123,12 @@ describe("Wilds Receiz-ID messenger", () => {
     assert.match(css, /\.wilds-message-instrument\s*\{[^}]*width:\s*44px;[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/);
     assert.doesNotMatch(multiplayer, /wilds-live-messages|wilds-live-chat-toggle|wilds-live-chat/);
     assert.match(messenger, /wilds-messenger-room-entry/);
-    assert.match(messenger, /Create a chat room for everyone live with you/);
+    assert.match(messenger, /Everyone currently live in this world room/);
     assert.match(messenger, /roomChat\.onSend\(outgoing\)/);
+    assert.match(messenger, /messenger\.rooms\.map/);
+    assert.match(messenger, /messenger\.createRoom\(roomName, members\)/);
+    assert.match(messenger, /messenger\.addRoomMembers\(members\)/);
+    assert.match(messenger, /byClientMessageId\.set\(message\.clientMessageId, message\)/);
+    assert.match(messenger, /composerSendingRef\.current/);
   });
 });
