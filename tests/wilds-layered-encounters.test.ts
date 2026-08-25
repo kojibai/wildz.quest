@@ -22,8 +22,33 @@ import { projectWildsCreatureLocomotionFrame } from "../src/features/play/WildsC
 import { isWildsClimbingForm } from "../src/features/play/wilds-creature-habitat";
 import { admitWildsDiscoveryPhysicalNeighborhood, wildsDiscoverySiteRegionForPosition, wildsMountainSurfaceAt } from "../src/features/play/wilds-discovery-sites";
 import { creatureForm } from "../src/features/play/creature-catalog";
+import { encounterFromSearch } from "../src/features/play/encounter-state";
+import { projectWildsInteractionSurfacePoint } from "../src/features/play/wilds-surface-interaction";
+import { prepareWildsSiteRuntime } from "../src/features/play/wilds-site-runtime";
 
 describe("deterministic layered Wilds encounters", () => {
+  it("preserves the exact clicked mountain skin for the visible search pulse", () => {
+    let mountainPoint: { x: number; z: number; worldY: number } | null = null;
+    let runtime: ReturnType<typeof prepareWildsSiteRuntime> | null = null;
+    for (let regionZ = -4; regionZ <= 4 && !mountainPoint; regionZ += 1) {
+      for (let regionX = -4; regionX <= 4 && !mountainPoint; regionX += 1) {
+        const physical = admitWildsDiscoveryPhysicalNeighborhood(regionX, regionZ);
+        for (const hotspot of hotspotsForRegion(regionX, regionZ)) {
+          const mountain = wildsMountainSurfaceAt(physical, hotspot.x, hotspot.z);
+          if (!mountain) continue;
+          mountainPoint = { x: hotspot.x, z: hotspot.z, worldY: mountain.worldY };
+          runtime = prepareWildsSiteRuntime(physical);
+          break;
+        }
+      }
+    }
+    assert.ok(mountainPoint && runtime);
+    const surface = projectWildsInteractionSurfacePoint(runtime, "wildz.space.outer.v1", mountainPoint, sampleWildsTerrain(mountainPoint.x, mountainPoint.z).elevation);
+    assert.equal(surface.surfaceWorldY, mountainPoint.worldY);
+    const encounter = encounterFromSearch({ kind: "empty" }, surface, "2026-08-25T12:00:00.000Z", "receiz:test");
+    assert.equal(encounter.searchPoint.surfaceWorldY, mountainPoint.worldY);
+  });
+
   it("puts mountain encounters on the mountain skin and gives them functional climbing forms", () => {
     let checked = 0;
     for (let regionZ = -4; regionZ <= 4; regionZ += 1) {

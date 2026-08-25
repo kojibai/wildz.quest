@@ -97,7 +97,7 @@ export type WildsInput = (
   | { type: "apply-rift-grant"; grant: RiftTravelGrant; playerId: string }
   | { type: "discover" }
   | { type: "capture"; encounterId: string; capturedAt: string; ownerReceizId: string }
-  | { type: "search-point"; x: number; z: number; searchedAt: string; ownerReceizId: string; verticalLayer?: WildsEncounterInteractionLayer; verticalWorldY?: number; verticalMinWorldY?: number; verticalMaxWorldY?: number; traversalCapabilities?: readonly WildsTraversalCapability[]; siteKey?: string | null; siteSpaceId?: string }
+  | { type: "search-point"; x: number; z: number; surfaceWorldY?: number; searchedAt: string; ownerReceizId: string; verticalLayer?: WildsEncounterInteractionLayer; verticalWorldY?: number; verticalMinWorldY?: number; verticalMaxWorldY?: number; traversalCapabilities?: readonly WildsTraversalCapability[]; siteKey?: string | null; siteSpaceId?: string }
   | { type: "advance-encounter"; at: string }
   | { type: "start-battle"; at: string }
   | { type: "battle-action"; action: BattleAction; at?: string }
@@ -781,6 +781,11 @@ function restoreEncounter(value: unknown, occupiedNames: ReadonlySet<string> = n
   if (!phases.has(String(candidate.phase)) || typeof candidate.searchedAt !== "string" || typeof candidate.ownerReceizId !== "string") return idleEncounterState;
   const point = candidate.searchPoint as Record<string, unknown> | undefined;
   if (!point || typeof point.x !== "number" || typeof point.z !== "number") return idleEncounterState;
+  const searchPoint = {
+    x: point.x,
+    z: point.z,
+    ...(typeof point.surfaceWorldY === "number" && Number.isFinite(point.surfaceWorldY) ? { surfaceWorldY: point.surfaceWorldY } : {})
+  };
   const proximity = candidate.proximity === "warm" || candidate.proximity === "hot" ? candidate.proximity : "cold";
   const trend = candidate.trend === "closer" || candidate.trend === "farther" || candidate.trend === "steady" ? candidate.trend : null;
   let discoveryIdentity: LivingCreatureIdentityV3 | undefined;
@@ -808,6 +813,7 @@ function restoreEncounter(value: unknown, occupiedNames: ReadonlySet<string> = n
   const canonicalForm = discoveryIdentity ? discoveredFormForIdentity(discoveryIdentity) : undefined;
   return {
     ...candidate,
+    searchPoint,
     proximity,
     trend,
     ...(canonicalForm ? { familyId: canonicalForm.familyId, formId: canonicalForm.id } : {}),
@@ -1636,7 +1642,8 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     if (!Number.isFinite(input.x) || !Number.isFinite(input.z) || !Number.isFinite(Date.parse(input.searchedAt)) || !input.ownerReceizId.trim()) return state;
     const point = {
       x: clamp(input.x, worldBounds.min, worldBounds.max),
-      z: clamp(input.z, worldBounds.min, worldBounds.max)
+      z: clamp(input.z, worldBounds.min, worldBounds.max),
+      ...(Number.isFinite(input.surfaceWorldY) ? { surfaceWorldY: input.surfaceWorldY! } : {})
     };
     if (distance2d(point, state.player) > 8) return { ...state, lastEvent: "That signal is beyond reach. Move closer before scanning." };
     const ownerScope = input.ownerReceizId.trim();

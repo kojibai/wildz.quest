@@ -86,6 +86,8 @@ export function WildsCardBack({ asset, origin, qr, condition }: { asset: Portabl
           <div className="wilds-dossier-stat-grid">{Object.entries(dossier.gameplay.stats).map(([name, value]) => <span key={name}><small>{label(name)}</small><b>{value}</b></span>)}</div>
           <dl>
             <div><dt>Abilities</dt><dd>{dossier.gameplay.abilities.map((ability) => `${ability.name}: ${ability.action}`).join(" · ")}</dd></div>
+            <div><dt>Can do now</dt><dd>{dossier.gameplay.worldCapabilities.length ? dossier.gameplay.worldCapabilities.map((capability) => `${capability.name}: ${capability.availableNow}`).join(" · ") : "Its proof-sealed abilities are active now; discover their uses through the living world."}</dd></div>
+            <div><dt>Evolution horizon</dt><dd>{dossier.gameplay.worldCapabilities.length ? dossier.gameplay.worldCapabilities.map((capability) => `${capability.name}: ${capability.evolution}`).join(" · ") : "Evolution strengthens control, endurance, and power without withholding its core nature."}</dd></div>
             <div><dt>Strengths</dt><dd>{dossier.gameplay.strengths.join(" · ")}</dd></div>
             <div><dt>Needs support</dt><dd>{dossier.gameplay.vulnerabilities.join(" · ")}</dd></div>
             <div><dt>Team fit</dt><dd>{dossier.gameplay.teammates.join(" ")}</dd></div>

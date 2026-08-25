@@ -3,15 +3,44 @@ import { describe, it } from "node:test";
 import {
   clearWildsResourceAuthorityCachesForTests,
   previewWildsHarvest,
+  isCanonicalWildsResourceSource,
   projectWildsResourceAvailability,
   projectWildsResourceRegion,
+  projectWildsResourceSourceForObstacle,
   wildsResourceAuthorityDiagnostics,
   wildsResourceRegionForPosition
 } from "../src/features/play/wilds-resource-authority";
 import { sampleWildsTerrain } from "../src/features/play/wilds-terrain-authority";
 import { canonicalPortableCardJson, sha256PortableBasis } from "../src/features/play/portable-card";
+import { wildsTerrainObstaclesForTile } from "../src/features/play/wilds-terrain-obstacles";
 
 describe("deterministic sparse Wilds resource authority", () => {
+  it("makes every rendered terrain tree and rock an exact canonical living source", () => {
+    let checked = 0;
+    for (let tileZ = -4; tileZ <= 4; tileZ += 1) for (let tileX = -4; tileX <= 4; tileX += 1) {
+      for (const obstacle of wildsTerrainObstaclesForTile(tileX, tileZ)) {
+        if (obstacle.kind !== "tree" && obstacle.kind !== "rock") continue;
+        const source = projectWildsResourceSourceForObstacle(obstacle);
+        checked += 1;
+        assert.equal(source.kind, obstacle.kind === "tree" ? "timber" : "stone");
+        assert.equal(source.position.x, obstacle.position.x);
+        assert.equal(source.position.z, obstacle.position.z);
+        assert.equal(isCanonicalWildsResourceSource(source), true);
+        assert.equal(previewWildsHarvest({
+          source,
+          sourceHead: `head:${source.sourceId}:0`,
+          explorerSubjectId: "explorer:one",
+          creature: { subjectId: "creature:one", head: "head:creature:one", workFamilies: [source.requirements.creature] },
+          tool: { subjectId: "tool:one", head: "head:tool:one", family: source.requirements.tool },
+          kaiPulse: "123456",
+          admittedHarvestedCapacity: 0,
+          physicalEvidence: { sourceId: source.sourceId, protected: false, reachable: true, sourceHead: `head:${source.sourceId}:0` }
+        }).valid, true);
+      }
+    }
+    assert.ok(checked > 40);
+  });
+
   it("reconstructs exact sources at ordinary, boundary, negative, and extreme canonical coordinates", () => {
     const positions = [
       { x: 0, z: 0 },

@@ -48,6 +48,8 @@ import {
   Store,
   TentTree,
   Trophy,
+  Pickaxe,
+  TreePine,
   User,
   Users,
   WalletCards,
@@ -109,6 +111,8 @@ export const Icons = {
   star: Star,
   store: Store,
   trophy: Trophy,
+  quarry: Pickaxe,
+  timber: TreePine,
   user: User,
   users: Users,
   wallet: WalletCards

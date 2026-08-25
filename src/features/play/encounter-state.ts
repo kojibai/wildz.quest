@@ -11,7 +11,7 @@ export type IdleEncounterState = { phase: "idle" };
 export type ActiveEncounterState = {
   phase: Exclude<EncounterPhase, "idle">;
   searchedAt: string;
-  searchPoint: { x: number; z: number };
+  searchPoint: { x: number; z: number; surfaceWorldY?: number };
   ownerReceizId: string;
   hotspotId?: string;
   familyId?: string;
@@ -33,7 +33,7 @@ export const idleEncounterState: IdleEncounterState = { phase: "idle" };
 
 export function encounterFromSearch(
   result: HotspotSearchResult,
-  searchPoint: { x: number; z: number },
+  searchPoint: { x: number; z: number; surfaceWorldY?: number },
   searchedAt: string,
   ownerReceizId: string,
   previous?: EncounterState,

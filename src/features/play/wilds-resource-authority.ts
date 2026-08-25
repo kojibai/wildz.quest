@@ -1,5 +1,6 @@
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import { sampleWildsTerrain } from "./wilds-terrain-authority";
+import { wildsTerrainObstaclesForTile, type WildsTerrainObstacle } from "./wilds-terrain-obstacles";
 
 // Pure v121-independent inspection authority. Harvest candidates are never
 // proof objects and cannot mutate a source or inventory.
@@ -10,6 +11,7 @@ const MIN_REGION = Math.floor(-WORLD_LIMIT / WILDS_RESOURCE_REGION_SIZE);
 const MAX_REGION = Math.ceil(WORLD_LIMIT / WILDS_RESOURCE_REGION_SIZE) - 1;
 const SOURCES_PER_REGION = 6;
 const REGION_CACHE_LIMIT = 96;
+const TERRAIN_SOURCE = /^wildz\.resource\.v1:terrain:(-?\d+):(-?\d+):(tree|rock):(\d+)$/;
 
 export type WildsResourceKind = "timber" | "stone" | "ore" | "fiber" | "aquatic" | "buried";
 export type WildsResourceWorkFamily = "lumber" | "quarry" | "mine" | "gather" | "recover" | "excavate";
@@ -158,6 +160,56 @@ export function projectWildsResourceRegion(regionX: number, regionZ: number): re
   return projection;
 }
 
+export function projectWildsResourceSourceForObstacle(obstacle: WildsTerrainObstacle): WildsResourceSource {
+  if (obstacle.kind !== "tree" && obstacle.kind !== "rock") throw new Error("wilds_resource_obstacle_kind_invalid");
+  const match = obstacle.id.match(/^wildz\.terrain\.v1:(-?\d+):(-?\d+):(tree|rock):(\d+)$/);
+  if (!match || match[3] !== obstacle.kind) throw new Error("wilds_resource_obstacle_id_invalid");
+  const tileX = Number(match[1]), tileZ = Number(match[2]), slot = Number(match[4]);
+  const kind = obstacle.kind === "tree" ? "timber" as const : "stone" as const;
+  const region = wildsResourceRegionForPosition(obstacle.position);
+  const capacity = obstacle.kind === "tree"
+    ? 12 + Math.round(obstacle.visualScale * 8)
+    : 8 + Math.round(obstacle.visualScale * 6);
+  const quality = (1 + Number(hash64(tileX, tileZ, slot, obstacle.kind === "tree" ? 71 : 73) % 5n)) as 1 | 2 | 3 | 4 | 5;
+  return freeze({
+    schema: "wildz.resource-source.v1",
+    sourceId: `wildz.resource.v1:terrain:${tileX}:${tileZ}:${obstacle.kind}:${slot}`,
+    regionX: region.x,
+    regionZ: region.z,
+    slot,
+    kind,
+    position: { ...obstacle.position },
+    capacity,
+    quality,
+    requirements: REQUIREMENTS[kind],
+    replenishment: {
+      intervalPulses: obstacle.kind === "tree" ? 720 : 1_440,
+      capacityPerInterval: obstacle.kind === "tree" ? 2 : 1
+    }
+  });
+}
+
+export function canonicalWildsResourceSource(source: WildsResourceSource): WildsResourceSource | null {
+  const terrain = source.sourceId.match(TERRAIN_SOURCE);
+  if (terrain) {
+    const tileX = Number(terrain[1]), tileZ = Number(terrain[2]), kind = terrain[3], slot = Number(terrain[4]);
+    if (!Number.isSafeInteger(tileX) || !Number.isSafeInteger(tileZ) || !Number.isSafeInteger(slot)) return null;
+    const obstacle = wildsTerrainObstaclesForTile(tileX, tileZ).find((candidate) => candidate.kind === kind && candidate.id === `wildz.terrain.v1:${tileX}:${tileZ}:${kind}:${slot}`);
+    return obstacle ? projectWildsResourceSourceForObstacle(obstacle) : null;
+  }
+  if (!Number.isSafeInteger(source.regionX) || !Number.isSafeInteger(source.regionZ) || !Number.isSafeInteger(source.slot) || source.slot < 0 || source.slot >= SOURCES_PER_REGION) return null;
+  try {
+    return projectWildsResourceRegion(source.regionX, source.regionZ)[source.slot] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function isCanonicalWildsResourceSource(source: WildsResourceSource) {
+  const canonical = canonicalWildsResourceSource(source);
+  return Boolean(canonical && canonicalPortableCardJson(canonical) === canonicalPortableCardJson(source));
+}
+
 function kai(value: string, name: string) {
   if (!/^(?:0|[1-9]\d{0,77})$/.test(value)) throw new Error(`wilds_resource_${name}_invalid`);
   return BigInt(value);
@@ -197,11 +249,10 @@ export function previewWildsHarvest(input: Readonly<{
 }>): WildsHarvestPreview {
   kai(input.kaiPulse, "kai");
   if (!Number.isSafeInteger(input.source.regionX) || !Number.isSafeInteger(input.source.regionZ)
-    || !Number.isSafeInteger(input.source.slot) || input.source.slot < 0 || input.source.slot >= SOURCES_PER_REGION
+    || !Number.isSafeInteger(input.source.slot) || input.source.slot < 0
     || input.source.regionX < MIN_REGION || input.source.regionX > MAX_REGION
     || input.source.regionZ < MIN_REGION || input.source.regionZ > MAX_REGION) return invalid("source-noncanonical");
-  const canonicalSource = projectWildsResourceRegion(input.source.regionX, input.source.regionZ)[input.source.slot];
-  if (!canonicalSource || canonicalPortableCardJson(canonicalSource) !== canonicalPortableCardJson(input.source)) return invalid("source-noncanonical");
+  if (!isCanonicalWildsResourceSource(input.source)) return invalid("source-noncanonical");
   if (!input.sourceHead || !input.explorerSubjectId || !input.creature.subjectId || !input.creature.head || !input.tool.subjectId || !input.tool.head) return invalid("authority-incomplete");
   if (input.physicalEvidence.sourceId !== input.source.sourceId || input.physicalEvidence.sourceHead !== input.sourceHead) return invalid("source-head-stale");
   if (input.physicalEvidence.protected) return invalid("source-protected");

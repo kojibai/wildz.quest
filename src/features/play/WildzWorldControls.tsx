@@ -21,6 +21,7 @@ import { projectCreatureCapabilityIdentity } from "./creature-capability-identit
 import { projectWildsTraversalStatus } from "./wilds-traversal-status";
 import { WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE, type WildsVerticalTraversalIntent, type WildsVerticalTraversalState } from "./wilds-vertical-traversal";
 import { projectWildsFlightObstruction } from "./wilds-flight-obstruction";
+import { projectWildsWorkCapabilityMeters } from "./wilds-work-capability";
 
 const ignore = () => {};
 const DEFAULT_VERTICAL_READOUT = { layer: "ground", value: 0, safeMin: 0, safeMax: 0, blockerId: null } as const;
@@ -218,6 +219,10 @@ export function WildzWorldControls({
     activeAssetId: activeCard?.id ?? null,
     newAssetId: newRosterAssetId
   }), [activeCard?.id, cardConditions, companionProgress, nearbyCards, newRosterAssetId]);
+  const workCapabilities = useMemo(() => projectWildsWorkCapabilityMeters(
+    activeCard,
+    activeCard ? cardConditions[activeCard.id] : null
+  ), [activeCard, cardConditions]);
   const activeEntry = companionRoster.find((entry) => entry.active) ?? null;
   const swimSpecialty = useMemo(() => {
     if (!activeCard) return "aquatic movement";
@@ -284,6 +289,20 @@ export function WildzWorldControls({
             style={{ "--wildz-flight-energy": `${aerialEnergy}%` } as CSSProperties}
             type="button"
           ><Icons.sparkle size={20} /><i aria-hidden="true" /></button> : null}
+          {workCapabilities.map((capability) => {
+            const Icon = capability.family === "lumber" ? Icons.timber : Icons.quarry;
+            return <div
+              aria-label={`${capability.label} work capacity ${capability.value} percent. ${capability.guidance}`}
+              aria-valuemax={100}
+              aria-valuemin={0}
+              aria-valuenow={capability.value}
+              className={`wildz-work-capability is-${capability.state}`}
+              key={capability.family}
+              role="meter"
+              style={{ "--wildz-work-capacity": `${capability.value}%` } as CSSProperties}
+              title={`${capability.label} · ${capability.value}%`}
+            ><Icon size={20} /><i aria-hidden="true" /></div>;
+          })}
           {verticalControlsVisible ? <div aria-label="Vertical traversal controls" className="wildz-vertical-controls">
             <button
               aria-label={verticalReadout.layer === "water" ? "Ascend toward the water surface" : "Ascend"}

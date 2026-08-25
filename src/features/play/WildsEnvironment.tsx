@@ -20,7 +20,7 @@ import { projectWildsOverlooks, type WildsOverlookId } from "@/features/play/wil
 import { WildsWorldArt } from "@/features/play/WildsWorldArt";
 import { WildsDiscoverySites } from "@/features/play/WildsDiscoverySites";
 import type { WildsSiteSpaceState } from "@/features/play/wilds-discovery-sites";
-import type { WildsSiteRuntimeProjection } from "@/features/play/wilds-site-runtime";
+import { wildsSiteRuntimeGroundY, type WildsSiteRuntimeProjection } from "@/features/play/wilds-site-runtime";
 
 export const WILDS_TILE_SIZE = 12;
 const STREAM_RADIUS = 2;
@@ -62,7 +62,9 @@ function useInstances(
   terrainElevation: number,
   y: number,
   shape: (item: Placement) => [number, number, number],
-  clearRadius = 0
+  clearRadius = 0,
+  siteRuntime?: WildsSiteRuntimeProjection,
+  siteSpaceId = "wildz.space.outer.v1"
 ) {
   useLayoutEffect(() => {
     const matrix = new THREE.Matrix4();
@@ -71,13 +73,17 @@ function useInstances(
     items.forEach((item, index) => {
       const shaped = shape(item);
       const projected = projectWildsEcologyInstance(item, { x: player.x, z: player.z }, y, shaped, clearRadius, terrainElevation);
+      if (siteRuntime) {
+        const baseWorldY = terrainElevation + projected.position[1] - y;
+        projected.position[1] = y + wildsSiteRuntimeGroundY(siteRuntime, siteSpaceId, item.x, item.z, baseWorldY) - terrainElevation;
+      }
       scale.set(...projected.scale);
       quaternion.setFromEuler(new THREE.Euler(0, seededUnit(index, item.variant + 17) * Math.PI * 2, 0));
       matrix.compose(new THREE.Vector3(...projected.position), quaternion, scale);
       mesh.current?.setMatrixAt(index, matrix);
     });
     if (mesh.current) mesh.current.instanceMatrix.needsUpdate = true;
-  }, [clearRadius, items, mesh, player.x, player.z, shape, terrainElevation, y]);
+  }, [clearRadius, items, mesh, player.x, player.z, shape, siteRuntime, siteSpaceId, terrainElevation, y]);
 }
 
 export function WildsEnvironment({
@@ -138,7 +144,7 @@ export function WildsEnvironment({
       </group>
       <group name="world-layer-mid">
         <WildsDiscoverySites onPortal={onSitePortal} player={player} runtime={siteRuntime} space={siteSpace} />
-        {outer ? <><EcologyInstances bushes={bushes} flowers={flowers} palette={tiles[12]?.canopy} player={player} qualityProfile={qualityProfile} rocks={rocks} terrainElevation={terrainElevation} trees={trees} />
+        {outer ? <><EcologyInstances bushes={bushes} flowers={flowers} palette={tiles[12]?.canopy} player={player} qualityProfile={qualityProfile} rocks={rocks} siteRuntime={siteRuntime} siteSpaceId={siteSpace.spaceId} terrainElevation={terrainElevation} trees={trees} />
         <FlagshipLandmarkEntrances detail={qualityProfile.tier !== "low"} livingWorld={livingWorld} player={player} terrainElevation={terrainElevation} worldMode={worldMode} />
         <LivingWorldSites player={player} terrainElevation={terrainElevation} world={livingWorld} />
         <AuthoredOverlooks onSelect={onSelectOverlook} player={player} terrainElevation={terrainElevation} />
@@ -423,6 +429,8 @@ function EcologyInstances({
   player,
   qualityProfile,
   rocks,
+  siteRuntime,
+  siteSpaceId,
   terrainElevation,
   trees
 }: {
@@ -432,6 +440,8 @@ function EcologyInstances({
   player: PlayState["player"];
   qualityProfile: WildsQualityProfile;
   rocks: Placement[];
+  siteRuntime: WildsSiteRuntimeProjection;
+  siteSpaceId: string;
   terrainElevation: number;
   trees: Placement[];
 }) {
@@ -452,14 +462,14 @@ function EcologyInstances({
   const flowerScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.09, item.scale * 0.22, item.scale * 0.09], []);
   const grassScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * .035, item.scale * (qualityProfile.tier === "low" ? .13 : .2), item.scale * .025], [qualityProfile.tier]);
   const treeClearRadius = 13.6;
-  useInstances(trunks, trees, player, terrainElevation, 0.64, treeScale, treeClearRadius);
-  useInstances(lowerCrowns, trees, player, terrainElevation, 1.65, crownScale, treeClearRadius);
-  useInstances(upperCrowns, trees, player, terrainElevation, 2.16, crownScale, treeClearRadius);
-  useInstances(middleCrowns, trees, player, terrainElevation, 2.68, middleCrownScale, treeClearRadius);
-  useInstances(shrubMesh, bushes, player, terrainElevation, 0.23, shrubScale, 1.45);
-  useInstances(rockMesh, rocks, player, terrainElevation, 0.13, rockScale, 1.2);
-  useInstances(flowerMesh, flowers, player, terrainElevation, 0.15, flowerScale);
-  useInstances(grassMesh, flowers, player, terrainElevation, .11, grassScale, .8);
+  useInstances(trunks, trees, player, terrainElevation, 0.64, treeScale, treeClearRadius, siteRuntime, siteSpaceId);
+  useInstances(lowerCrowns, trees, player, terrainElevation, 1.65, crownScale, treeClearRadius, siteRuntime, siteSpaceId);
+  useInstances(upperCrowns, trees, player, terrainElevation, 2.16, crownScale, treeClearRadius, siteRuntime, siteSpaceId);
+  useInstances(middleCrowns, trees, player, terrainElevation, 2.68, middleCrownScale, treeClearRadius, siteRuntime, siteSpaceId);
+  useInstances(shrubMesh, bushes, player, terrainElevation, 0.23, shrubScale, 1.45, siteRuntime, siteSpaceId);
+  useInstances(rockMesh, rocks, player, terrainElevation, 0.13, rockScale, 1.2, siteRuntime, siteSpaceId);
+  useInstances(flowerMesh, flowers, player, terrainElevation, 0.15, flowerScale, 0, siteRuntime, siteSpaceId);
+  useInstances(grassMesh, flowers, player, terrainElevation, .11, grassScale, .8, siteRuntime, siteSpaceId);
 
   return (
     <group>

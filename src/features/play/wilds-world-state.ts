@@ -14,7 +14,7 @@ import { verifyWildsRegenerativeGrove, type WildsRegenerativeGroveV1 } from "./w
 import { verifyWildsLivingOperationPlan, type WildsLivingOperationPlanV1 } from "./wilds-living-operation";
 import { verifyWildsWorldEmissionProof, wildsEmissionRegionRemaining, type WildsWorldEmissionProofV1 } from "./wilds-world-emission";
 import { verifyWildsResourceLot, type WildsResourceLotV1 } from "./wilds-resource-lot";
-import { projectWildsResourceRegion, type WildsResourceSource } from "./wilds-resource-authority";
+import { isCanonicalWildsResourceSource, type WildsResourceSource } from "./wilds-resource-authority";
 import {
   initialWildsHarvestedSourceState,
   verifyWildsStewardPhiAward,
@@ -477,8 +477,7 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
       const source = recordPayload(payload.source) as unknown as WildsResourceSource;
       const sourceState = recordPayload(payload.sourceState) as unknown as WildsHarvestedSourceStateV1;
       const lot = recordPayload(payload.lot) as unknown as WildsMaterialLotV1;
-      const canonical = projectWildsResourceRegion(source.regionX, source.regionZ)[source.slot];
-      if (!canonical || canonicalPortableCardJson(canonical) !== canonicalPortableCardJson(source)
+      if (!isCanonicalWildsResourceSource(source)
         || !verifyWildsHarvestedSourceState(sourceState) || sourceState.sourceId !== source.sourceId
         || !verifyWildsMaterialLot(lot) || lot.ownerReceizId !== event.actorId || lot.source.sourceId !== source.sourceId
         || lot.source.admittedSourceHead !== sourceState.head || state.materialLots[lot.lotId]) {

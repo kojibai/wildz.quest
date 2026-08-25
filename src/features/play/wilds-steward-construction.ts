@@ -1,7 +1,7 @@
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import {
+  isCanonicalWildsResourceSource,
   projectWildsResourceAvailability,
-  projectWildsResourceRegion,
   type WildsResourceSource,
   type WildsResourceWorkFamily
 } from "./wilds-resource-authority";
@@ -339,8 +339,7 @@ export function createWildsMaterialHarvest(input: Readonly<{
   creature: Readonly<{ subjectId: string; head: string; workFamilies: readonly string[]; willing: boolean }>;
   kaiUPulse: number;
 }>) {
-  const canonicalSource = projectWildsResourceRegion(input.source.regionX, input.source.regionZ)[input.source.slot];
-  if (!canonicalSource || canonicalPortableCardJson(canonicalSource) !== canonicalPortableCardJson(input.source)) throw new Error("wilds_steward_source_noncanonical");
+  if (!isCanonicalWildsResourceSource(input.source)) throw new Error("wilds_steward_source_noncanonical");
   if (input.source.kind !== "timber" && input.source.kind !== "stone") throw new Error("wilds_steward_material_unsupported");
   if (!verifyWildsHarvestedSourceState(input.current) || input.current.sourceId !== input.source.sourceId) throw new Error("wilds_steward_source_head_invalid");
   if (!ID.test(input.ownerReceizId) || !ID.test(input.creature.subjectId) || !HEAD.test(input.creature.head)) throw new Error("wilds_steward_authority_invalid");

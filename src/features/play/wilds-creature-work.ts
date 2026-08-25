@@ -1,7 +1,7 @@
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import { reverifyWildsCreatureMandate, type WildsCreatureMandateV1 } from "./wilds-creature-mandate";
 import type { WildsBlueprintPreview, WildsConstructionKind } from "./wilds-world-construction";
-import { projectWildsResourceRegion, type WildsResourceKind, type WildsResourceSource } from "./wilds-resource-authority";
+import { isCanonicalWildsResourceSource, type WildsResourceKind, type WildsResourceSource } from "./wilds-resource-authority";
 
 // Pure work planning only. Receiz mandate/job execution is intentionally absent
 // until the v122 authority contracts are available.
@@ -105,12 +105,7 @@ export function compileWildsCreatureWorkPlan(input: Readonly<{
   const canonicalResource = (resource: (typeof input.allocations.resources)[number]) => {
     const source = resource.source;
     if (!source || !Number.isSafeInteger(source.regionX) || !Number.isSafeInteger(source.regionZ) || !Number.isSafeInteger(source.slot)) return false;
-    try {
-      const canonical = projectWildsResourceRegion(source.regionX, source.regionZ)[source.slot];
-      return canonical !== undefined && canonicalPortableCardJson(canonical) === canonicalPortableCardJson(source);
-    } catch {
-      return false;
-    }
+    return isCanonicalWildsResourceSource(source);
   };
   if (input.allocations.resources.length === 0 || input.allocations.resources.some((resource) => !resource.sourceHead || !canonicalResource(resource) || !Number.isSafeInteger(resource.capacity) || resource.capacity <= 0 || resource.capacity > resource.source.capacity)) reasons.push("resource-allocation-required");
   if (input.assignments.some((assignment) => !assignment.creatureSubjectId || !assignment.creatureHead || assignment.professions.length === 0)) reasons.push("assignment-invalid");

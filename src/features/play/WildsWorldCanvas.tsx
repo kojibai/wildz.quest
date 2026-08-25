@@ -31,6 +31,7 @@ import { WildsEcologyEnvironment } from "@/features/play/WildsEcologyEnvironment
 import { WildsBossEnvironment } from "@/features/play/WildsBossEnvironment";
 import { WildsRegenerativeGroveEnvironment } from "@/features/play/WildsRegenerativeGroveEnvironment";
 import { WildsStewardEnvironment } from "@/features/play/WildsStewardEnvironment";
+import { projectWildsCreatureWorkFamilies } from "@/features/play/wilds-steward-construction";
 import type { WildsResourceSource } from "@/features/play/wilds-resource-authority";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import type { KaiKlokMoment } from "@/features/play/kai-klok-moment";
@@ -82,10 +83,11 @@ import {
 } from "@/features/play/wilds-grounded-movement";
 import type { WildsTerrainObstacle } from "@/features/play/wilds-terrain-obstacles";
 import { WILDS_PLAYER_BODY_HEIGHT, WILDS_PLAYER_BODY_RADIUS } from "@/features/play/wilds-player-body";
-import { WILDS_TERRAIN_TILE_SIZE } from "@/features/play/wilds-terrain-authority";
+import { WILDS_TERRAIN_TILE_SIZE, wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
 import type { WildsSiteSpaceState } from "@/features/play/wilds-discovery-sites";
 import { wildsSiteRuntimeCameraIsFlooded, wildsSiteRuntimeDiagnostics, wildsSiteRuntimeGroundY, writeWildsSiteRuntimeAerialCollision, writeWildsSiteRuntimeCamera, writeWildsSiteRuntimeEncounter, type WildsSiteRuntimeProjection } from "@/features/play/wilds-site-runtime";
 import { createWildsFlightCameraControlState, writeWildsFlightCameraControlState } from "@/features/play/wilds-flight-camera";
+import { projectWildsInteractionSurfacePoint, type WildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
 
 const WILDS_DIAGNOSTICS_ENABLED = process.env.NODE_ENV !== "production";
 const EMPTY_AERIAL_OBSTACLE_NEIGHBORHOOD = Object.freeze({ tileX: 0, tileZ: 0, obstacles: Object.freeze([]) }) as WildsAerialObstacleNeighborhood;
@@ -127,7 +129,9 @@ export function WildsWorldCanvas({
   onLandingRequired,
   onVerticalReadoutChange,
   vistaHeading = null,
-  suspended = false
+  suspended = false,
+  resourcePending = false,
+  resourceCompanionReady = true
 }: {
   state: PlayState;
   character: WildzCharacterGenesis;
@@ -137,7 +141,7 @@ export function WildsWorldCanvas({
   onCameraHeadingChange: (heading: number) => void;
   searchEnabled: boolean;
   onSelectPlayer: (player: WildsPresence | null) => void;
-  onSearchPoint: (point: { x: number; z: number }) => void;
+  onSearchPoint: (point: WildsInteractionSurfacePoint) => void;
   onInteractResource?: (source: WildsResourceSource) => void;
   livingWorld?: WildsWorldProjection | null;
   livingPhysicalObstacles: readonly WildsTerrainObstacle[];
@@ -166,6 +170,8 @@ export function WildsWorldCanvas({
   onSelectTrainer: (trainer: WildsTrainerProjection) => void;
   onSelectOverlook: (overlookId: WildsOverlookId) => void;
   suspended?: boolean;
+  resourcePending?: boolean;
+  resourceCompanionReady?: boolean;
 }) {
   return (
     <div
@@ -188,7 +194,7 @@ export function WildsWorldCanvas({
       >
         {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
-          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} />
+          <WildsScene state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
         </Suspense>
       </Canvas>
     </div>
@@ -235,7 +241,9 @@ function WildsScene({
   onAerialModeChange,
   onLandingRequired,
   onVerticalReadoutChange,
-  vistaHeading
+  vistaHeading,
+  resourcePending,
+  resourceCompanionReady
 }: {
   state: PlayState;
   character: WildzCharacterGenesis;
@@ -244,7 +252,7 @@ function WildsScene({
   searchEnabled: boolean;
   onCameraHeadingChange: (heading: number) => void;
   onSelectPlayer: (player: WildsPresence | null) => void;
-  onSearchPoint: (point: { x: number; z: number }) => void;
+  onSearchPoint: (point: WildsInteractionSurfacePoint) => void;
   onInteractResource?: (source: WildsResourceSource) => void;
   livingWorld?: WildsWorldProjection | null;
   livingPhysicalObstacles: readonly WildsTerrainObstacle[];
@@ -272,6 +280,8 @@ function WildsScene({
   onLandingRequired: (reason: WildsAerialLandingReason) => void;
   onVerticalReadoutChange: (layer: WildsVerticalTraversalState["layer"], value: number, safeMin: number, safeMax: number, blockerId: string | null) => void;
   vistaHeading: number | null;
+  resourcePending: boolean;
+  resourceCompanionReady: boolean;
 }) {
   const world = projectWorldProgression(state.worldMastery);
   const kaiExpression = projectKaiWorldExpression(kaiMoment);
@@ -361,7 +371,18 @@ function WildsScene({
         <WildsAmbientLife enabled={siteSpace.spaceId === "wildz.space.outer.v1"} player={state.player} qualityProfile={qualityProfile} siteRuntime={siteRuntime} terrainElevation={activeFloorY} />
         <WildsEcologyEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={activeFloorY} worldMode={worldMode} />
         <WildsRegenerativeGroveEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={activeFloorY} />
-        <WildsStewardEnvironment kaiUPulse={kaiMoment.uPulse} livingWorld={livingWorld} onInteractSource={onInteractResource} player={state.player} terrainElevation={activeFloorY} />
+        <WildsStewardEnvironment
+          companionWorkFamilies={activeAsset ? projectWildsCreatureWorkFamilies(creatureForm(activeAsset.manifest.formId)?.element ?? "") : []}
+          kaiUPulse={kaiMoment.uPulse}
+          livingWorld={livingWorld}
+          onInteractSource={onInteractResource}
+          pending={resourcePending}
+          player={state.player}
+          companionReady={resourceCompanionReady}
+          siteRuntime={siteRuntime}
+          siteSpaceId={siteSpace.spaceId}
+          terrainElevation={activeFloorY}
+        />
         <WildsBossEnvironment livingWorld={livingWorld} player={state.player} qualityProfile={qualityProfile} terrainElevation={activeFloorY} />
         <EncounterSequence state={state} terrainElevation={activeFloorY} siteRuntime={siteRuntime} siteSpace={siteSpace} />
         {visibleRemotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={activeFloorY} />)}
@@ -911,7 +932,7 @@ function SearchableTerrain({
   qualityProfile: WildsQualityProfile;
   terrainElevation: number;
   worldMastery: number;
-  onSearchPoint: (point: { x: number; z: number }) => void;
+  onSearchPoint: (point: WildsInteractionSurfacePoint) => void;
   onSelectOverlook: (overlookId: WildsOverlookId) => void;
   livingWorld?: WildsWorldProjection | null;
   worldMode: WildsSettlementWorldMode;
@@ -924,7 +945,13 @@ function SearchableTerrain({
       onClick={(event) => {
         if (!enabled) return;
         event.stopPropagation();
-        onSearchPoint({ x: player.x + event.point.x, z: player.z + event.point.z });
+        const point = { x: player.x + event.point.x, z: player.z + event.point.z };
+        onSearchPoint(projectWildsInteractionSurfacePoint(
+          siteRuntime,
+          siteSpace.spaceId,
+          point,
+          siteSpace.spaceId === "wildz.space.outer.v1" ? wildsTerrainElevation(point.x, point.z) : siteSpace.position.y
+        ));
       }}
     >
       <StreamedTerrain missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} onSelectOverlook={onSelectOverlook} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} />
@@ -1029,7 +1056,9 @@ function Creature({
 function EncounterSequence({ state, terrainElevation, siteRuntime, siteSpace }: { state: PlayState; terrainElevation: number; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState }) {
   const encounter = state.encounter;
   if (encounter.phase === "idle") return null;
-  const searchPosition = projectWildsTerrainActorPosition(encounter.searchPoint, state.player, .04, { anchorElevation: terrainElevation });
+  const searchPosition = Number.isFinite(encounter.searchPoint.surfaceWorldY)
+    ? [encounter.searchPoint.x - state.player.x, encounter.searchPoint.surfaceWorldY! - terrainElevation + .04, encounter.searchPoint.z - state.player.z] as [number, number, number]
+    : projectWildsTerrainActorPosition(encounter.searchPoint, state.player, .04, { anchorElevation: terrainElevation });
   if (encounter.phase === "searching") {
     return <SearchPulse hint={false} position={searchPosition} />;
   }

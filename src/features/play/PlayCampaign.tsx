@@ -155,7 +155,8 @@ import { admitWildsDiscoveryPhysicalNeighborhood, wildsDiscoverySiteRegionForPos
 import { prepareWildsSiteRuntime, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeEncounter, writeWildsSiteRuntimeLanding, writeWildsSiteRuntimeMovement } from "@/features/play/wilds-site-runtime";
 import { discoverWildsExplorationSite } from "@/features/play/wilds-exploration-atlas";
 import { initialWildsHarvestedSourceState, projectWildsCreatureWorkFamilies, selectWildsTrailBridgeRotation } from "@/features/play/wilds-steward-construction";
-import type { WildsResourceSource } from "@/features/play/wilds-resource-authority";
+import { projectWildsResourceAvailability, type WildsResourceSource } from "@/features/play/wilds-resource-authority";
+import { projectWildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
 
 const WildsWorldMap = dynamic(() => import("@/features/play/WildsWorldMap").then((mod) => mod.WildsWorldMap), { ssr: false });
 const WildsLandmarkExperience = dynamic(() => import("@/features/play/WildsLandmarkExperience").then((mod) => mod.WildsLandmarkExperience), { ssr: false });
@@ -1040,7 +1041,9 @@ export function PlayCampaign({
   }, [onComplete, worldInteractionEnabled]);
 
   const activeGrove = activeGroveId ? livingWorld.snapshot?.groves[activeGroveId] ?? null : null;
-  const activeCondition = activeAsset ? state.adventureConditions[activeAsset.id] : null;
+  const activeCondition = activeAsset
+    ? state.adventureConditions[activeAsset.id] ?? emptyAdventureCondition(activeAsset.id)
+    : null;
   const activeGroveMandate = useMemo(() => {
     if (!activeGrove || !activeAsset || !activeCondition) return null;
     const creatureHead = sha256PortableBasis(activeAsset.proof.digest);
@@ -1146,12 +1149,23 @@ export function PlayCampaign({
     }
     try {
       if (!activeAsset) throw new Error("Choose a companion to work beside you.");
+      if (!activeCondition || activeCondition.fatigue >= 85 || activeCondition.injuries.length >= 4) {
+        throw new Error(`${activeAsset.manifest.name} needs to recover before working. Make camp together, then return when the work meter is restored.`);
+      }
       const element = creatureForm(activeAsset.manifest.formId)?.element ?? "";
       const workFamilies = projectWildsCreatureWorkFamilies(element);
       if (!workFamilies.includes(source.requirements.creature)) {
         throw new Error(source.kind === "timber" ? "This timber needs a companion drawn to careful woodland work." : "This stone needs a companion with natural quarry strength.");
       }
       const current = livingWorld.snapshot?.harvestedSources[source.sourceId] ?? initialWildsHarvestedSourceState(source);
+      const availability = projectWildsResourceAvailability(source, {
+        admittedHarvestedCapacity: current.harvestedCapacity,
+        lastHarvestKaiPulse: current.lastHarvestKaiPulse,
+        currentKaiPulse: String(kaiUPulse)
+      });
+      if (availability.availableCapacity === 0) {
+        throw new Error(`This ${source.kind === "timber" ? "tree" : "stone"} is recovering. Its dim base ring and returning capacity marks show when it can be tended again.`);
+      }
       const mandate = createStewardMandate([source.requirements.creature], [source.sourceId], { x: source.regionX, z: source.regionZ });
       const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
       const projection = await livingWorld.harvestMaterial(source, current.head, state.player, mandate);
@@ -1255,26 +1269,34 @@ export function PlayCampaign({
     }
     dispatch(input);
   };
-  const dispatchLayeredSearch = (point: { x: number; z: number }) => {
+  const dispatchLayeredSearch = (point: { x: number; z: number; surfaceWorldY?: number }) => {
     if (!canUseWorldStage()) return;
+    const searchPoint = Number.isFinite(point.surfaceWorldY)
+      ? { x: point.x, z: point.z, surfaceWorldY: point.surfaceWorldY! }
+      : projectWildsInteractionSurfacePoint(
+        siteRuntime,
+        state.siteSpace.spaceId,
+        point,
+        state.siteSpace.spaceId === "wildz.space.outer.v1" ? wildsTerrainElevation(point.x, point.z) : state.siteSpace.position.y
+      );
     const vertical = verticalTraversalRef.current;
     let layer = vertical.layer;
-    const groundY = aquaticPresentation.terrainElevation;
+    const groundY = Number.isFinite(state.siteSpace.position.y) ? state.siteSpace.position.y : aquaticPresentation.terrainElevation;
     const worldY = layer === "ground" ? groundY : vertical.worldY;
     const safeMinWorldY = layer === "ground" ? worldY - .65 : groundY + vertical.safeMin;
     const safeMaxWorldY = layer === "ground" ? worldY + .65 : groundY + vertical.safeMax;
     let minWorldY = Math.max(safeMinWorldY, worldY - .65);
     let maxWorldY = Math.min(safeMaxWorldY, worldY + .65);
     const siteQueryY = state.siteSpace.spaceId === "wildz.space.outer.v1"
-      ? layer === "ground" ? wildsTerrainElevation(point.x, point.z) : worldY
+      ? layer === "ground" ? searchPoint.surfaceWorldY : worldY
       : state.siteSpace.position.y + .8;
     const siteEncounter = writeWildsSiteRuntimeEncounter(
       { siteKey: null, spaceId: state.siteSpace.spaceId, layer: "ground", minY: 0, maxY: 0 },
       siteRuntime,
       state.siteSpace.spaceId,
-      point.x,
+      searchPoint.x,
       siteQueryY,
-      point.z
+      searchPoint.z
     );
     if (siteEncounter.siteKey) {
       layer = siteEncounter.layer === "air" ? "air" : siteEncounter.layer === "water-column" || siteEncounter.layer === "seabed" ? "water" : "ground";
@@ -1283,7 +1305,7 @@ export function PlayCampaign({
     }
     dispatch({
       type: "search-point",
-      ...point,
+      ...searchPoint,
       searchedAt: new Date().toISOString(),
       ownerReceizId,
       verticalLayer: layer,
@@ -1942,6 +1964,8 @@ export function PlayCampaign({
               onVerticalReadoutChange={publishVerticalReadout}
               onCameraHeadingChange={updateCameraHeading}
               searchEnabled={worldInteractionEnabled && discoveryActive}
+              resourcePending={Boolean(livingWorld.pendingCommand)}
+              resourceCompanionReady={Boolean(activeCondition && activeCondition.fatigue < 85 && activeCondition.injuries.length < 4)}
               livingWorld={livingWorld.snapshot}
               livingPhysicalObstacles={livingPhysicalObstacles}
               siteRuntime={siteRuntime}

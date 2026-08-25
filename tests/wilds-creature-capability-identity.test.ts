@@ -248,5 +248,6 @@ describe("proof-derived creature capability identity", () => {
 
     assert.deepEqual(dossier.gameplay.abilities.map((ability) => ability.name), asset.manifest.abilityNames);
     assert.equal(dossier.gameplay.abilities.every((ability) => ability.action.length > 0 && ability.tags.length >= 2), true);
+    assert.equal(dossier.gameplay.worldCapabilities.every((capability) => capability.availableNow.length > 0 && capability.evolution.length > 0), true);
   });
 });
