@@ -152,6 +152,8 @@ import { projectWildsRenderedLivingObstacles } from "@/features/play/wilds-terra
 import { admitWildsDiscoveryPhysicalNeighborhood, wildsDiscoverySiteRegionForPosition } from "@/features/play/wilds-discovery-sites";
 import { prepareWildsSiteRuntime, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeEncounter, writeWildsSiteRuntimeLanding, writeWildsSiteRuntimeMovement } from "@/features/play/wilds-site-runtime";
 import { discoverWildsExplorationSite } from "@/features/play/wilds-exploration-atlas";
+import { initialWildsHarvestedSourceState, projectWildsCreatureWorkFamilies } from "@/features/play/wilds-steward-construction";
+import type { WildsResourceSource } from "@/features/play/wilds-resource-authority";
 
 const WildsWorldMap = dynamic(() => import("@/features/play/WildsWorldMap").then((mod) => mod.WildsWorldMap), { ssr: false });
 const WildsLandmarkExperience = dynamic(() => import("@/features/play/WildsLandmarkExperience").then((mod) => mod.WildsLandmarkExperience), { ssr: false });
@@ -415,6 +417,7 @@ export function PlayCampaign({
   const [raidReturnPosition, setRaidReturnPosition] = useState<{ x: number; z: number } | null>(null);
   const [raidBusyIntent, setRaidBusyIntent] = useState<WildsRaidIntent["type"] | null>(null);
   const [riftError, setRiftError] = useState("");
+  const [shelterPlacementArmed, setShelterPlacementArmed] = useState(false);
   const [requestedCommand, setRequestedCommand] = useState<WildsCommandKey | null>(null);
   const [vaultFocusedAssetId, setVaultFocusedAssetId] = useState<string | null>(null);
   const [commandDismissSignal, setCommandDismissSignal] = useState(0);
@@ -1067,6 +1070,90 @@ export function PlayCampaign({
     consequence: groveConsequence(preview.action),
     amountPhiMicro: preview.emission.amountPhiMicro
   })), [activeGroveMandate, activeGrovePreviews]);
+  const availableMaterialLots = useMemo(() => Object.values(livingWorld.snapshot?.materialLots ?? {})
+    .filter((lot) => sameWildzPlayerCoordinate(lot.ownerReceizId, ownerReceizId) && !livingWorld.snapshot?.consumedMaterialLots?.[lot.lotId])
+    .sort((left, right) => left.lotId.localeCompare(right.lotId)), [livingWorld.snapshot?.consumedMaterialLots, livingWorld.snapshot?.materialLots, ownerReceizId]);
+  const stewardMaterials = useMemo(() => ({
+    timber: availableMaterialLots.filter((lot) => lot.kind === "timber").length,
+    stone: availableMaterialLots.filter((lot) => lot.kind === "stone").length
+  }), [availableMaterialLots]);
+  const canBuildTrailShelter = stewardMaterials.timber >= 2 && stewardMaterials.stone >= 1;
+
+  const createStewardMandate = (professions: readonly string[], allowedResourceIds: readonly string[], region: { x: number; z: number }) => {
+    if (!activeAsset || !activeCondition) throw new Error("Choose a rested companion to work beside you.");
+    const creatureHead = sha256PortableBasis(activeAsset.proof.digest);
+    const creatureSubjectId = `creature:${sha256PortableBasis(activeAsset.id).slice(0, 32)}`;
+    const normalizedProfessions = [...new Set(professions)].sort((left, right) => left.localeCompare(right));
+    const consent = evaluateWildsCreatureConsent({
+      creatureSubjectId,
+      creatureHead,
+      condition: {
+        energy: Math.max(0, 100 - activeCondition.fatigue),
+        fatigue: activeCondition.fatigue,
+        injury: Math.min(100, activeCondition.injuries.length * 24),
+        stress: Math.min(100, Math.round(activeCondition.fatigue * .6))
+      },
+      bond: state.companionProgress[activeAsset.manifest.familyId]?.bond ?? 70,
+      preferences: { professions: normalizedProfessions, avoidHazards: [] },
+      capabilities: { professions: normalizedProfessions },
+      safety: { risk: 6, hazards: [], supportAvailable: multiplayer.remotePlayers.length > 0 },
+      requested: { professions: normalizedProfessions, maxActions: 8 },
+      kaiUPulse
+    });
+    if (consent.decision !== "accept") throw new Error(consent.reasons[0] ?? "Your companion needs a pause.");
+    return createWildsCreatureMandate({
+      consent,
+      creatureSubjectId,
+      creatureHead,
+      region,
+      professions: normalizedProfessions,
+      allowedResourceIds: [...allowedResourceIds].sort((left, right) => left.localeCompare(right)),
+      maxActions: 8,
+      issuedAtKaiUPulse: kaiUPulse,
+      expiresAtKaiUPulse: kaiUPulse + 10_000_000
+    });
+  };
+
+  const gatherStewardResource = async (source: WildsResourceSource) => {
+    if (!canUseWorldStage() || livingWorld.pendingCommand) return;
+    if (Math.hypot(source.position.x - state.player.x, source.position.z - state.player.z) > 5.5) {
+      setRiftError(`Move beside the ${source.kind === "timber" ? "fallen timber" : "stone outcrop"} so your companion can work with you.`);
+      return;
+    }
+    try {
+      if (!activeAsset) throw new Error("Choose a companion to work beside you.");
+      const element = creatureForm(activeAsset.manifest.formId)?.element ?? "";
+      const workFamilies = projectWildsCreatureWorkFamilies(element);
+      if (!workFamilies.includes(source.requirements.creature)) {
+        throw new Error(source.kind === "timber" ? "This timber needs a companion drawn to careful woodland work." : "This stone needs a companion with natural quarry strength.");
+      }
+      const current = livingWorld.snapshot?.harvestedSources[source.sourceId] ?? initialWildsHarvestedSourceState(source);
+      const mandate = createStewardMandate([source.requirements.creature], [source.sourceId], { x: source.regionX, z: source.regionZ });
+      await livingWorld.harvestMaterial(source, current.head, state.player, mandate);
+      setRiftError(`${activeAsset.manifest.name} worked beside you. One exact ${source.kind} lot entered your Satchel.`);
+    } catch (error) {
+      handleStoryCommandError(error, "The living source did not admit that work.");
+    }
+  };
+
+  const placeTrailShelter = async (position: { x: number; z: number }) => {
+    if (!shelterPlacementArmed || livingWorld.pendingCommand) return;
+    if (Math.hypot(position.x - state.player.x, position.z - state.player.z) > 7) {
+      setRiftError("Place the shelter within reach of you and your companion.");
+      return;
+    }
+    try {
+      const timber = availableMaterialLots.filter((lot) => lot.kind === "timber").slice(0, 2);
+      const stone = availableMaterialLots.filter((lot) => lot.kind === "stone").slice(0, 1);
+      if (timber.length !== 2 || stone.length !== 1) throw new Error("Gather two timber lots and one stone lot first.");
+      const mandate = createStewardMandate(["build"], [], { x: Math.floor(position.x / 128), z: Math.floor(position.z / 128) });
+      await livingWorld.buildTrailShelter(position, state.player, 0, [...timber, ...stone].map((lot) => lot.lotId), mandate);
+      setShelterPlacementArmed(false);
+      setRiftError("Your Trail Shelter now stands in the shared Wilds.");
+    } catch (error) {
+      handleStoryCommandError(error, "That place cannot hold a shelter yet.");
+    }
+  };
 
   if (!enabled) {
     return (
@@ -1600,8 +1687,19 @@ export function PlayCampaign({
             <article><Icons.star aria-hidden="true" size={18} /><span><small>World mastery</small><strong>{state.worldMastery}</strong></span><em>Permanent</em></article>
             <article><Icons.trophy aria-hidden="true" size={18} /><span><small>Trail streak</small><strong>{state.streak}×</strong></span><em>Active</em></article>
             <article><Icons.package aria-hidden="true" size={18} /><span><small>Ascension catalysts</small><strong>{state.ascensionCatalysts.length}</strong></span><em>Vaulted</em></article>
+            <article><Icons.products aria-hidden="true" size={18} /><span><small>Living timber</small><strong>{stewardMaterials.timber}</strong></span><em>Exact lots</em></article>
+            <article><Icons.package aria-hidden="true" size={18} /><span><small>Foundation stone</small><strong>{stewardMaterials.stone}</strong></span><em>Exact lots</em></article>
           </div>
-          <p className="wilds-satchel-note">Explore, scan, battle, and bond to fill the satchel. Every resource is earned inside the game.</p>
+          <div className="wilds-steward-build-action">
+            <button disabled={!canBuildTrailShelter} onClick={() => {
+              if (!canBuildTrailShelter) return;
+              setShelterPlacementArmed(true);
+              setRiftError("Choose nearby clear ground. You and your companion will raise the shelter there.");
+              dispatchStageOverlay({ type: "panel", key: null });
+            }} type="button">{canBuildTrailShelter ? "Place Trail Shelter" : "Need 2 timber · 1 stone"}</button>
+            <small>Material lots are consumed once when the shared structure is admitted.</small>
+          </div>
+          <p className="wilds-satchel-note">Explore, gather beside a willing companion, and build from exact world-born resources. Nothing enters the Satchel without source proof.</p>
         </div>
       )
     },
@@ -1795,8 +1893,10 @@ export function PlayCampaign({
               trainers={sagaTrainers}
               onSelectTrainer={(trainer) => openTrainerEncounter(trainer, "world")}
               onSearchPoint={(point) => {
-                dispatchLayeredSearch(point);
+                if (shelterPlacementArmed) void placeTrailShelter(point);
+                else dispatchLayeredSearch(point);
               }}
+              onInteractResource={(source) => { void gatherStewardResource(source); }}
               onSitePortal={(siteKey, direction) => {
                 if (!canUseWorldStage()) return;
                 const discovery = writeWildsSiteRuntimeDiscovery({ siteKey: null }, siteRuntime, state.siteSpace.spaceId, state.player.x, state.siteSpace.position.y, state.player.z, 14);
@@ -1882,6 +1982,7 @@ export function PlayCampaign({
             {exclusiveOwner === "wallet" ? <WildsWalletTerminal
               cards={state.inventory}
               cardConditions={state.adventureConditions}
+              materialLots={availableMaterialLots}
               resourceLots={Object.values(livingWorld.snapshot?.resourceLots ?? {}).filter((lot) => sameWildzPlayerCoordinate(livingWorld.snapshot?.resourceCustody?.[lot.lotId]?.ownerReceizId ?? lot.ownerReceizId, ownerReceizId))}
               publicUsername={walletPublicUsername}
               state={walletController}

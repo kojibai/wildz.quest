@@ -54,7 +54,7 @@ describe("deterministic sparse Wilds resource authority", () => {
           const surface = sampleWildsTerrain(source.position.x, source.position.z).surface;
           if (source.kind === "aquatic") assert.equal(surface === "shallow-water" || surface === "deep-water", true);
           else assert.equal(surface === "shallow-water" || surface === "deep-water", false);
-          if (source.kind === "stone" || source.kind === "ore") assert.equal(surface === "rock", true);
+          if (source.kind === "ore") assert.equal(surface === "rock", true);
         }
       }
     }

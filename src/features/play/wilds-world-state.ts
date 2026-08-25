@@ -14,6 +14,16 @@ import { verifyWildsRegenerativeGrove, type WildsRegenerativeGroveV1 } from "./w
 import { verifyWildsLivingOperationPlan, type WildsLivingOperationPlanV1 } from "./wilds-living-operation";
 import { verifyWildsWorldEmissionProof, type WildsWorldEmissionProofV1 } from "./wilds-world-emission";
 import { verifyWildsResourceLot, type WildsResourceLotV1 } from "./wilds-resource-lot";
+import { projectWildsResourceRegion, type WildsResourceSource } from "./wilds-resource-authority";
+import {
+  initialWildsHarvestedSourceState,
+  verifyWildsHarvestedSourceState,
+  verifyWildsMaterialLot,
+  verifyWildsStructure,
+  type WildsHarvestedSourceStateV1,
+  type WildsMaterialLotV1,
+  type WildsStructureV1
+} from "./wilds-steward-construction";
 
 export type WildsDynamicSitePhase = "rumored" | "tracked" | "emerged" | "assaulting" | "engaged" | "defeated" | "memorialized" | "expired";
 
@@ -128,6 +138,10 @@ export type WildsWorldProjection = {
   groves: Record<string, WildsRegenerativeGroveV1>;
   resourceLots: Record<string, WildsResourceLotV1>;
   resourceCustody: Record<string, Readonly<{ ownerReceizId: string; subjectId: string; subjectHead: string; receiptId: string; transferId: string }>>;
+  harvestedSources: Record<string, WildsHarvestedSourceStateV1>;
+  materialLots: Record<string, WildsMaterialLotV1>;
+  consumedMaterialLots: Record<string, string>;
+  structures: Record<string, WildsStructureV1>;
   livingOperations: Record<string, WildsLivingOperationPlanV1>;
   worldEmission: WildsWorldEmissionProofV1 | null;
   contributionHistory: Readonly<{ operationId: string; amountPhiMicro: string; eventId: string }>[];
@@ -164,6 +178,10 @@ export function initialWildsWorldProjection(): WildsWorldProjection {
     groves: {},
     resourceLots: {},
     resourceCustody: {},
+    harvestedSources: {},
+    materialLots: {},
+    consumedMaterialLots: {},
+    structures: {},
     livingOperations: {},
     worldEmission: null,
     contributionHistory: [],
@@ -421,6 +439,45 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
       }
       return appendEvent(state, event, { resourceCustody: { ...state.resourceCustody, [lotId]: { ownerReceizId, subjectId, subjectHead, receiptId, transferId } } });
     }
+    case "resource.material_harvested": {
+      const source = recordPayload(payload.source) as unknown as WildsResourceSource;
+      const sourceState = recordPayload(payload.sourceState) as unknown as WildsHarvestedSourceStateV1;
+      const lot = recordPayload(payload.lot) as unknown as WildsMaterialLotV1;
+      const canonical = projectWildsResourceRegion(source.regionX, source.regionZ)[source.slot];
+      if (!canonical || canonicalPortableCardJson(canonical) !== canonicalPortableCardJson(source)
+        || !verifyWildsHarvestedSourceState(sourceState) || sourceState.sourceId !== source.sourceId
+        || !verifyWildsMaterialLot(lot) || lot.ownerReceizId !== event.actorId || lot.source.sourceId !== source.sourceId
+        || lot.source.admittedSourceHead !== sourceState.head || state.materialLots[lot.lotId]) {
+        throw new Error("wilds_world_material_harvest_invalid");
+      }
+      const current = state.harvestedSources[source.sourceId] ?? initialWildsHarvestedSourceState(source);
+      if (sourceState.parentHead !== current.head || sourceState.revision !== current.revision + 1
+        || lot.source.sourceHead !== current.head || sourceState.harvestedCapacity < 1
+        || sourceState.harvestedCapacity > source.capacity) throw new Error("wilds_world_material_conservation_invalid");
+      return appendEvent(state, event, {
+        harvestedSources: { ...state.harvestedSources, [source.sourceId]: sourceState },
+        materialLots: { ...state.materialLots, [lot.lotId]: lot }
+      });
+    }
+    case "structure.built": {
+      const structure = recordPayload(payload.structure) as unknown as WildsStructureV1;
+      if (!verifyWildsStructure(structure) || structure.ownerReceizId !== event.actorId || state.structures[structure.structureId]) {
+        throw new Error("wilds_world_structure_invalid");
+      }
+      for (let index = 0; index < structure.consumedLotIds.length; index += 1) {
+        const lotId = structure.consumedLotIds[index]!;
+        const lot = state.materialLots[lotId];
+        if (!lot || lot.ownerReceizId !== event.actorId || lot.head !== structure.consumedLotHeads[index]
+          || state.consumedMaterialLots[lotId]) throw new Error("wilds_world_structure_material_invalid");
+      }
+      return appendEvent(state, event, {
+        structures: { ...state.structures, [structure.structureId]: structure },
+        consumedMaterialLots: {
+          ...state.consumedMaterialLots,
+          ...Object.fromEntries(structure.consumedLotIds.map((lotId) => [lotId, structure.structureId]))
+        }
+      });
+    }
     case "team.created":
     case "team.joined":
     case "team.invited":
@@ -579,6 +636,10 @@ export function replayWildsWorld(events: readonly CompatibleWildsWorldEvent[], c
     groves: projection.groves ?? {},
     resourceLots: projection.resourceLots ?? {},
     resourceCustody: projection.resourceCustody ?? {},
+    harvestedSources: projection.harvestedSources ?? {},
+    materialLots: projection.materialLots ?? {},
+    consumedMaterialLots: projection.consumedMaterialLots ?? {},
+    structures: projection.structures ?? {},
     livingOperations: projection.livingOperations ?? {},
     worldEmission: projection.worldEmission ?? null,
     contributionHistory: projection.contributionHistory ?? []

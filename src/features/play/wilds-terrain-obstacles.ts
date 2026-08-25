@@ -112,6 +112,24 @@ export function projectWildsRenderedLivingObstacles(world?: WildsWorldProjection
       airbornePolicy: "persistent"
     });
   }
+  for (const structure of Object.values(world.structures ?? {})) {
+    const terrainY = renderedTerrainY(structure.position.x, structure.position.z);
+    const rotation = structure.rotationQuarterTurns * Math.PI / 2;
+    for (const [index, local] of [[-2.45, -1.95], [2.45, -1.95], [-2.45, 1.95], [2.45, 1.95]].entries()) {
+      const x = local[0]! * Math.cos(rotation) + local[1]! * Math.sin(rotation);
+      const z = -local[0]! * Math.sin(rotation) + local[1]! * Math.cos(rotation);
+      obstacles.push({
+        id: `wildz.rendered.v1:structure:${structure.structureId}:post:${index}`,
+        kind: "structure",
+        material: "solid",
+        position: { x: structure.position.x + x, y: terrainY, z: structure.position.z + z },
+        radius: .24,
+        shape: { kind: "cylinder", radius: .24, height: 2.8 },
+        visualScale: 1,
+        airbornePolicy: "clearable"
+      });
+    }
+  }
   return obstacles.sort((left, right) => left.id.localeCompare(right.id));
 }
 

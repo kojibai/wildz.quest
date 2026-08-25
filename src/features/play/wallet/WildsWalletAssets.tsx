@@ -11,11 +11,13 @@ import type { WildsWalletControllerState } from "./wilds-wallet-controller";
 import { formatWildsPhiExact } from "./wilds-wallet-format";
 import { PhiNetworkAmount } from "./PhiNetworkMark";
 import type { WildsResourceLotV1 } from "@/features/play/wilds-resource-lot";
+import type { WildsMaterialLotV1 } from "@/features/play/wilds-steward-construction";
 
-export function WildsWalletAssets({ cards, cardConditions, resourceLots, onOpenVaultCard, onPrepareCard, onSendCard, onSendResource, state }: {
+export function WildsWalletAssets({ cards, cardConditions, materialLots, resourceLots, onOpenVaultCard, onPrepareCard, onSendCard, onSendResource, state }: {
   cards: readonly PortableCardAsset[];
   cardConditions: Readonly<Record<string, AdventureCardCondition>>;
   resourceLots: readonly WildsResourceLotV1[];
+  materialLots: readonly WildsMaterialLotV1[];
   onOpenVaultCard?: (assetId: string) => void;
   onPrepareCard?: (asset: PortableCardAsset) => Promise<WildzPreparedIdentityOwnedCard>;
   onSendCard?: (asset: PortableCardAsset, targetHandle: string) => Promise<unknown>;
@@ -98,6 +100,14 @@ export function WildsWalletAssets({ cards, cardConditions, resourceLots, onOpenV
         <b>VERIFIED</b>
       </article>)}</div>
       {onSendResource ? <div className="wilds-wallet-resource-send"><label><span>Send one exact resource</span><input aria-label="Receiz username to send Living Honey" autoCapitalize="none" autoCorrect="off" onChange={(event) => setResourceTarget(event.target.value)} placeholder="@username" value={resourceTarget} /></label><button disabled={resourceSending || !resourceTarget.trim()} onClick={() => { const lot = resourceLots[0]; if (lot) void sendResource(lot); }} type="button">{resourceSending ? "Preparing claim…" : "Send Living Honey"}</button>{resourceMessage ? <p aria-live="polite">{resourceMessage}</p> : null}</div> : null}
+    </section> : null}
+    {materialLots.length ? <section aria-label="Verified construction materials" className="wilds-wallet-resource-vault">
+      <header><small>SOURCE-PROOF CUSTODY</small><strong>Building materials</strong></header>
+      <div>{materialLots.map((lot) => <article key={lot.lotId}>
+        <span aria-hidden="true" className="wilds-wallet-resource-mark">{lot.kind === "timber" ? "⌁" : "◆"}</span>
+        <div><strong>{lot.kind === "timber" ? "Living Timber" : "Foundation Stone"}</strong><small>1 exact unit · Quality {lot.quality}</small><p>Gathered with a willing companion from {lot.source.sourceId.slice(-18)}.</p></div>
+        <b>VERIFIED</b>
+      </article>)}</div>
     </section> : null}
     {cards.length ? <div className="wilds-wallet-card-vault">
       <div aria-label="Choose a wallet card" className="wilds-wallet-card-selector">{cards.map((card) => <button aria-pressed={selected?.id === card.id} key={card.id} onClick={() => { setSelectedId(card.id); setMessage(""); }} type="button"><span>{card.manifest.name}</span><small>{card.manifest.rarity} · Stage {card.manifest.stage}</small></button>)}</div>

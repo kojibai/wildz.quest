@@ -13,6 +13,8 @@ import type { WildsRegenerativeGroveV1 } from "./wilds-regenerative-grove";
 import type { WildsLivingOperationPlanV1 } from "./wilds-living-operation";
 import type { WildsWorldEmissionProofV1 } from "./wilds-world-emission";
 import type { WildsResourceLotV1 } from "./wilds-resource-lot";
+import type { WildsResourceSource } from "./wilds-resource-authority";
+import type { WildsCreatureMandateV1 } from "./wilds-creature-mandate";
 import { worldCommandRequiresCard } from "./wilds-world-authority";
 import { withWildsWorldCommandKai } from "./wilds-world-authority";
 import { deriveKaiKlokMomentFromUPulse } from "./kai-klok-moment";
@@ -341,6 +343,31 @@ export function useWildsWorld(input: {
     actInGrove: (operation: WildsLivingOperationPlanV1, grove: WildsRegenerativeGroveV1, emission: WildsWorldEmissionProofV1, amountPhiMicro: string, resourceLot?: WildsResourceLotV1 | null) => post({
       type: "grove.act", operation, grove, emission, amountPhiMicro, resourceLot: resourceLot ?? null, commandId: commandId("command:grove:act")
     }),
+    harvestMaterial: (source: WildsResourceSource, sourceHead: string, actorPosition: { x: number; z: number }, mandate: WildsCreatureMandateV1) => {
+      if (!input.activeCard) throw new Error("wilds_world_active_card_required");
+      return post({
+        type: "resource.material.harvest",
+        source,
+        sourceHead,
+        actorPosition,
+        mandate,
+        cardProofDigest: input.activeCard.proof.digest,
+        commandId: commandId("command:material:harvest")
+      });
+    },
+    buildTrailShelter: (position: { x: number; z: number }, actorPosition: { x: number; z: number }, rotationQuarterTurns: number, lotIds: string[], mandate: WildsCreatureMandateV1) => {
+      if (!input.activeCard) throw new Error("wilds_world_active_card_required");
+      return post({
+        type: "structure.trail-shelter.build",
+        position,
+        actorPosition,
+        rotationQuarterTurns,
+        lotIds,
+        mandate,
+        cardProofDigest: input.activeCard.proof.digest,
+        commandId: commandId("command:structure:trail-shelter")
+      });
+    },
     contributeEcology: (siteId: string, position: { x: number; z: number }, amount: number) => {
       if (!input.activeCard) throw new Error("wilds_world_active_card_required");
       return post({ type: "ecology.contribute", siteId, position, amount, cardProofDigest: input.activeCard.proof.digest, commandId: commandId("command:ecology:contribute") });

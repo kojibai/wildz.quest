@@ -14368,6 +14368,10 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-satchel-grid strong { color: #fff3bf; font-size: 16px; font-variant-numeric: tabular-nums; }
 .wilds-satchel-grid em { position: absolute; right: 8px; bottom: 6px; max-width: 48%; overflow: hidden; color: #80c99a; font-size: 7px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
 .wilds-satchel-note { margin: 0; padding: 9px 11px; color: #9fb0a4; border-left: 2px solid rgba(235, 204, 99, .48); font-size: 9px; line-height: 1.45; }
+.wilds-steward-build-action { display: grid; gap: 6px; padding: 10px; border: 1px solid rgba(105, 235, 194, .2); border-radius: 16px; background: linear-gradient(135deg, rgba(30, 73, 62, .72), rgba(18, 36, 32, .9)); }
+.wilds-steward-build-action button { min-height: 44px; padding: 10px 14px; color: #08231d; border: 1px solid rgba(203, 255, 235, .48); border-radius: 13px; background: linear-gradient(135deg, #7de8c4, #c5f0b0); box-shadow: inset 0 1px rgba(255,255,255,.56), 0 8px 22px rgba(22, 110, 85, .18); font: inherit; font-size: 10px; font-weight: 950; letter-spacing: .04em; }
+.wilds-steward-build-action button:disabled { color: #8fa39a; border-color: rgba(157, 181, 169, .16); background: rgba(72, 88, 80, .48); box-shadow: none; }
+.wilds-steward-build-action small { color: #9cb4aa; font-size: 8px; line-height: 1.4; }
 
 .wilds-receiz-vault-library { display: grid; gap: 10px; padding: 12px; border: 1px solid rgba(132, 222, 169, .16); border-radius: 17px; background: linear-gradient(145deg, rgba(54, 83, 65, .25), rgba(18, 34, 27, .38)); }
 .wilds-receiz-vault-library > div:first-child { display: grid; gap: 2px; }

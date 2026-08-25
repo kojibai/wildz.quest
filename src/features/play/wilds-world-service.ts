@@ -7,7 +7,17 @@ import { applyWildsRaidIntent, createWildsRaidEncounter, type WildsRaidIntent } 
 import { admitWildsRaidParticipant, createWildsRaidRound, renewWildsRaidLease, retreatWildsRaidParticipant, settleWildsRaidRound, type WildsRaidRound } from "./wilds-raid-round";
 import { deriveKaiKlokMoment, deriveKaiKlokMomentFromUPulse, kaiUPulseToISOString, KAI_N_DAY_MICRO, KAI_PULSE_DURATION_MS } from "./kai-klok-moment";
 import type { KaiTemporalRoot } from "./kai-temporal-root";
-import type { PortableCardAsset } from "./portable-card";
+import { sha256PortableBasis, type PortableCardAsset } from "./portable-card";
+import { creatureForm } from "./creature-catalog";
+import { reverifyWildsCreatureMandate, type WildsCreatureMandateV1 } from "./wilds-creature-mandate";
+import type { WildsResourceSource } from "./wilds-resource-authority";
+import {
+  createWildsMaterialHarvest,
+  createWildsTrailShelter,
+  initialWildsHarvestedSourceState,
+  projectWildsCreatureWorkFamilies
+} from "./wilds-steward-construction";
+import { sampleWildsTerrain } from "./wilds-terrain-authority";
 import { achievementGrantCandidates } from "./wilds-saga-achievements";
 import { wildsSagaFramework } from "./wilds-saga-content";
 import { projectWildsSaga } from "./wilds-saga-director";
@@ -63,6 +73,8 @@ export type WildsWorldCommand = (
   | { type: "grove.observe"; grove: WildsRegenerativeGroveV1; emission: WildsWorldEmissionProofV1; commandId: string }
   | { type: "grove.act"; operation: WildsLivingOperationPlanV1; grove: WildsRegenerativeGroveV1; emission: WildsWorldEmissionProofV1; amountPhiMicro: string; resourceLot?: WildsResourceLotV1 | null; commandId: string }
   | { type: "resource.transfer.admit"; lotId: string; ownerReceizId: string; subjectId: string; subjectHead: string; receiptId: string; transferId: string; commandId: string }
+  | { type: "resource.material.harvest"; source: WildsResourceSource; sourceHead: string; actorPosition: { x: number; z: number }; mandate: WildsCreatureMandateV1; cardProofDigest: string; commandId: string }
+  | { type: "structure.trail-shelter.build"; position: { x: number; z: number }; actorPosition: { x: number; z: number }; rotationQuarterTurns: number; lotIds: string[]; mandate: WildsCreatureMandateV1; cardProofDigest: string; commandId: string }
   | { type: "story.contribute"; dayId: string; objectiveId: string; verb: WildsGameplayVerb; amount: number; position?: { x: number; z: number }; cardProofDigest?: string; commandId: string }
   | { type: "story.trainer_battle"; dayId: string; trainerId: string; matchId: string; outcome: "player_victory" | "trainer_victory" | "fled"; cardProofDigest: string; commandId: string }
   | { type: "story.tournament_enter"; tournamentId: string; qualificationGrantId: string; cardProofDigest: string; commandId: string }
@@ -418,6 +430,52 @@ export class WildsWorldService {
         receiptId: command.receiptId,
         transferId: command.transferId
       }, authority, command.commandId));
+    } else if (command.type === "resource.material.harvest") {
+      if (!authority.card) throw new Error("wilds_world_verified_card_required");
+      const creatureHead = sha256PortableBasis(authority.card.proof.digest);
+      const creatureSubjectId = `creature:${sha256PortableBasis(authority.card.id).slice(0, 32)}`;
+      const mandate = reverifyWildsCreatureMandate(command.mandate, { creatureHead, kaiUPulse: authorityMoment(authority).uPulse, revokedMandateIds: [] });
+      if (!mandate.ok || command.mandate.creatureSubjectId !== creatureSubjectId
+        || !command.mandate.professions.includes(command.source.requirements.creature)
+        || !command.mandate.allowedResourceIds.includes(command.source.sourceId)) throw new Error("wilds_world_resource_mandate_invalid");
+      const element = creatureForm(authority.card.manifest.formId)?.element ?? "";
+      const current = this.projection.harvestedSources[command.source.sourceId] ?? initialWildsHarvestedSourceState(command.source);
+      if (current.head !== command.sourceHead) throw new Error("wilds_world_resource_source_stale");
+      const harvest = createWildsMaterialHarvest({
+        source: command.source,
+        current,
+        ownerReceizId: authority.actorId,
+        actorPosition: command.actorPosition,
+        creature: { subjectId: creatureSubjectId, head: creatureHead, workFamilies: projectWildsCreatureWorkFamilies(element), willing: true },
+        kaiUPulse: authorityMoment(authority).uPulse
+      });
+      events.push(this.append("resource.material_harvested", { source: command.source, sourceState: harvest.source, lot: harvest.lot }, authority, command.commandId));
+    } else if (command.type === "structure.trail-shelter.build") {
+      if (!authority.card) throw new Error("wilds_world_verified_card_required");
+      const creatureHead = sha256PortableBasis(authority.card.proof.digest);
+      const creatureSubjectId = `creature:${sha256PortableBasis(authority.card.id).slice(0, 32)}`;
+      const mandate = reverifyWildsCreatureMandate(command.mandate, { creatureHead, kaiUPulse: authorityMoment(authority).uPulse, revokedMandateIds: [] });
+      if (!mandate.ok || command.mandate.creatureSubjectId !== creatureSubjectId || !command.mandate.professions.includes("build")) {
+        throw new Error("wilds_world_structure_mandate_invalid");
+      }
+      if (!Number.isFinite(command.actorPosition.x) || !Number.isFinite(command.actorPosition.z)
+        || Math.hypot(command.actorPosition.x - command.position.x, command.actorPosition.z - command.position.z) > 7) throw new Error("wilds_world_structure_unreachable");
+      const terrain = sampleWildsTerrain(command.position.x, command.position.z);
+      if (terrain.surface === "shallow-water" || terrain.surface === "deep-water") throw new Error("wilds_world_structure_water_invalid");
+      const lots = command.lotIds.map((lotId) => this.projection.materialLots[lotId]).filter((lot) => Boolean(lot));
+      if (lots.length !== command.lotIds.length || command.lotIds.some((lotId) => this.projection.consumedMaterialLots[lotId])) {
+        throw new Error("wilds_world_structure_material_invalid");
+      }
+      const structure = createWildsTrailShelter({
+        ownerReceizId: authority.actorId,
+        position: { x: command.position.x, y: terrain.elevation, z: command.position.z },
+        rotationQuarterTurns: command.rotationQuarterTurns,
+        lots,
+        builder: { creatureSubjectId, creatureHead },
+        existingStructures: Object.values(this.projection.structures),
+        kaiUPulse: authorityMoment(authority).uPulse
+      });
+      events.push(this.append("structure.built", { structure }, authority, command.commandId));
     } else if (command.type === "story.contribute") {
       const { saga } = this.sagaAt(authority);
       const nodes = saga.chapter.missions.flatMap((mission) => mission.nodes);

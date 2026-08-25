@@ -101,7 +101,10 @@ const REQUIREMENTS = Object.freeze({
   buried: Object.freeze({ creature: "excavate", tool: "shovel" })
 } satisfies Record<WildsResourceKind, Readonly<{ creature: WildsResourceWorkFamily; tool: WildsResourceToolFamily }>>);
 
-const LAND_KINDS = Object.freeze(["timber", "fiber", "buried"] as const);
+// Loose stone is a lawful surface resource on dry land; ore remains bound to
+// exposed rock. Restricting both to the rare rock surface made ordinary
+// regions incapable of ever supporting construction.
+const LAND_KINDS = Object.freeze(["timber", "fiber", "buried", "stone"] as const);
 const ROCK_KINDS = Object.freeze(["stone", "ore"] as const);
 
 export function wildsResourceRegionForPosition(position: Readonly<{ x: number; z: number }>) {
