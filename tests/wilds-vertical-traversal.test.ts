@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   createWildsVerticalTraversalState,
   WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE,
+  WILDS_SWIM_SURFACE_CLEARANCE,
   writeWildsVerticalTraversalStep
 } from "../src/features/play/wilds-vertical-traversal";
 import { WILDS_PLAYER_BODY_HEIGHT } from "../src/features/play/wilds-player-body";
@@ -47,7 +48,7 @@ describe("Wildz bounded vertical traversal", () => {
       });
     }
     assert.equal(state.offset, state.safeMax);
-    assert.ok(-4 + state.offset < 0);
+    assert.ok(-4 + state.offset <= -WILDS_SWIM_SURFACE_CLEARANCE);
   });
 
   it("limits dive depth by pressure potential and recovers toward the surface without stamina", () => {

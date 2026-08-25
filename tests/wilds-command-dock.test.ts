@@ -3,10 +3,10 @@ import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 
 describe("Wilds command dock", () => {
-  it("exposes one accessible dismissible sheet for four icon commands", async () => {
+  it("exposes one accessible dismissible sheet for every world command", async () => {
     const source = await readFile("src/features/play/WildsCommandDock.tsx", "utf8");
 
-    assert.match(source, /"mission" \| "fieldGuide" \| "satchel" \| "deck" \| "vault"/);
+    assert.match(source, /"mission" \| "fieldGuide" \| "satchel" \| "construction" \| "deck" \| "vault"/);
     assert.match(source, /role="dialog"/);
     assert.match(source, /aria-modal="true"/);
     assert.match(source, /aria-controls=/);

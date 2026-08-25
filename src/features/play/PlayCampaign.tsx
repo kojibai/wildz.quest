@@ -149,17 +149,17 @@ import {
 } from "@/features/play/wilds-vertical-traversal";
 import { resolveWildsRequiredLandingPosition } from "@/features/play/wilds-grounded-movement";
 import { projectCreatureCapabilityIdentity, projectCreatureRuntimeCapabilities } from "@/features/play/creature-capability-identity";
-import { wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
-import { projectWildsRenderedLivingObstacles } from "@/features/play/wilds-terrain-obstacles";
+import { wildsTerrainElevation, WILDS_TERRAIN_TILE_SIZE } from "@/features/play/wilds-terrain-authority";
+import { projectWildsRenderedLivingObstacles, wildsTerrainObstaclesForTile } from "@/features/play/wilds-terrain-obstacles";
 import { projectWildsStructureSupports, wildsStructureSupportAt } from "@/features/play/wilds-structure-support";
 import { admitWildsDiscoveryPhysicalNeighborhood, wildsDiscoverySiteRegionForPosition } from "@/features/play/wilds-discovery-sites";
 import { prepareWildsSiteRuntime, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeEncounter, writeWildsSiteRuntimeLanding, writeWildsSiteRuntimeMovement } from "@/features/play/wilds-site-runtime";
 import { discoverWildsExplorationSite } from "@/features/play/wilds-exploration-atlas";
 import { initialWildsHarvestedSourceState, projectWildsCreatureWorkFamilies, selectWildsTrailBridgeRotation } from "@/features/play/wilds-steward-construction";
-import { projectWildsResourceAvailability, type WildsResourceSource } from "@/features/play/wilds-resource-authority";
+import { projectWildsResourceAvailability, projectWildsResourceSourceForObstacle, type WildsResourceSource } from "@/features/play/wilds-resource-authority";
 import { projectWildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
 import type { WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
-import { projectWildsWorkCapabilityMeters, selectWildsResourceWorkPartner } from "@/features/play/wilds-work-capability";
+import { projectWildsWorkCapabilityMeters, selectNearestWildsWorkSource, selectWildsResourceWorkPartner, type WildsVisibleWorkFamily } from "@/features/play/wilds-work-capability";
 import { projectWildsStewardCraft, projectWildsStewardPlacement, type WildsStewardBlueprintId, type WildsStewardPlacement } from "@/features/play/wilds-steward-craft";
 import { WildsStewardCraftPanel } from "@/features/play/WildsStewardCraftPanel";
 import { WildsStewardPlacementHud } from "@/features/play/WildsStewardPlacementHud";
@@ -1249,6 +1249,7 @@ export function PlayCampaign({
       setActiveWorkSource({ sourceId: source.sourceId, kind: source.kind === "timber" ? "timber" : "stone", position: source.position, startedAtMs: performance.now(), settledAtMs: null });
       const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
       const projection = await livingWorld.harvestMaterial(source, current.head, state.player, mandate, partner ? { card: partner, cardAdmission: partnerAdmission } : null);
+      if (partner) dispatch({ type: "record-steward-work", assetId: partner.id });
       setActiveWorkSource((active) => active?.sourceId === source.sourceId ? { ...active, settledAtMs: performance.now() } : active);
       workPresentationTimerRef.current = window.setTimeout(() => {
         setActiveWorkSource((active) => active?.sourceId === source.sourceId ? null : active);
@@ -1256,11 +1257,45 @@ export function PlayCampaign({
       }, 850);
       const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
       const awardMessage = award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the work.` : "";
-      showWorldFeedback(`${partner ? `${partner.manifest.name} joined you. ` : ""}One ${source.kind} lot entered your Satchel.${awardMessage}`);
+      const satchelCount = Object.values(projection.materialLots).filter((lot) => lot.kind === source.kind
+        && sameWildzPlayerCoordinate(lot.ownerReceizId, ownerReceizId)
+        && !projection.consumedMaterialLots[lot.lotId] && !projection.storedMaterialLots[lot.lotId]
+        && !projection.reservedMaterialLots[lot.lotId]).length;
+      showWorldFeedback(`${partner ? `${partner.manifest.name} joined you and spent 3% capacity. ` : ""}+1 ${source.kind} · Satchel ${satchelCount}.${awardMessage}`);
     } catch (error) {
       setActiveWorkSource((active) => active?.sourceId === source.sourceId ? null : active);
       handleStoryCommandError(error, `Stay beside this ${source.kind === "timber" ? "tree" : "stone"} ring while the living world refreshes it.`);
     }
+  };
+
+  const gatherNearestStewardResource = (family: WildsVisibleWorkFamily) => {
+    if (!canUseWorldStage() || livingWorld.pendingCommand) return;
+    if (state.siteSpace.spaceId !== "wildz.space.outer.v1") {
+      showWorldFeedback("Return to the open world to gather living timber and stone.");
+      return;
+    }
+    const tileX = Math.floor(state.player.x / WILDS_TERRAIN_TILE_SIZE);
+    const tileZ = Math.floor(state.player.z / WILDS_TERRAIN_TILE_SIZE);
+    const candidates = [] as Array<{ source: WildsResourceSource; availableCapacity: number }>;
+    for (let x = tileX - 1; x <= tileX + 1; x += 1) for (let z = tileZ - 1; z <= tileZ + 1; z += 1) {
+      for (const obstacle of wildsTerrainObstaclesForTile(x, z)) {
+        if (obstacle.kind !== "tree" && obstacle.kind !== "rock") continue;
+        const source = projectWildsResourceSourceForObstacle(obstacle);
+        const harvested = livingWorld.snapshot?.harvestedSources[source.sourceId];
+        const availability = projectWildsResourceAvailability(source, {
+          admittedHarvestedCapacity: harvested?.harvestedCapacity ?? 0,
+          lastHarvestKaiPulse: harvested?.lastHarvestKaiPulse ?? "0",
+          currentKaiPulse: String(kaiUPulse)
+        });
+        candidates.push({ source, availableCapacity: availability.availableCapacity });
+      }
+    }
+    const source = selectNearestWildsWorkSource(candidates, family, state.player, 5.5);
+    if (!source) {
+      showWorldFeedback(`Move toward a glowing ${family === "lumber" ? "tree" : "stone"} ring, then tap this button again.`);
+      return;
+    }
+    void gatherStewardResource(source);
   };
 
   const placeTrailShelter = async (position: { x: number; z: number }) => {
@@ -1959,6 +1994,34 @@ export function PlayCampaign({
       )
     },
     {
+      key: "construction",
+      label: "Living Construction",
+      icon: <Icons.construction size={21} />,
+      badge: `${stewardMaterials.timber}·${stewardMaterials.stone}`,
+      status: `${stewardMaterials.timber} timber · ${stewardMaterials.stone} stone`,
+      dockVisible: false,
+      content: (
+        <div className="wilds-command-content wilds-construction-center">
+          <div className="wilds-construction-center-lead">
+            <span><small>Sovereign making</small><strong>Living Construction</strong><em>Shape useful places from exact materials gathered in this world.</em></span>
+            <div aria-label={`${stewardMaterials.timber} timber and ${stewardMaterials.stone} stone in Satchel`}>
+              <b><Icons.timber size={16} />{stewardMaterials.timber}</b>
+              <b><Icons.quarry size={16} />{stewardMaterials.stone}</b>
+            </div>
+          </div>
+          <WildsStewardCraftPanel projection={stewardCraft} nearbySite={nearbyConstructionSite} tools={stewardTools} equippedToolId={livingWorld.snapshot?.equippedStewardTools?.[ownerReceizId] ?? null} nearbyWorkbench={Boolean(nearbyStewardWorkbench)} nearbyCache={Boolean(nearbyTrailCache)} stored={{ timber: storedStewardLots.filter((lot) => lot?.kind === "timber").length, stone: storedStewardLots.filter((lot) => lot?.kind === "stone").length }} onContributeSite={(site) => void contributeNearbyConstructionSite(site)} onWorkSite={(site) => void workNearbyConstructionSite(site)} onCraftTool={(kind) => void craftStewardTool(kind)} onEquipTool={(toolId) => { beginWorldActionFeedback(); void livingWorld.equipStewardTool(toolId).then(() => showWorldFeedback("Field tool equipped. Matching work now preserves one higher grade of material while durability remains.")).catch((error) => handleStoryCommandError(error, "That tool could not be equipped.")); }} onStoreMaterial={(kind) => void moveStewardMaterial(kind, "deposit")} onWithdrawMaterial={(kind) => void moveStewardMaterial(kind, "withdraw")} onSelectBlueprint={(blueprintId) => {
+            beginWorldActionFeedback();
+            setStewardPlacementMode(blueprintId);
+            setStewardPlacementPreview(null);
+            showWorldFeedback(blueprintId === "trail-bridge"
+              ? "Tap a nearby crossing to preview it. Both banks are read before any exact lot can move."
+              : "Tap nearby living ground to preview it. No exact lot moves until you confirm.");
+            dispatchStageOverlay({ type: "panel", key: null });
+          }} />
+        </div>
+      )
+    },
+    {
       key: "deck",
       label: "Trail Pack",
       icon: <Icons.assets size={21} />,
@@ -2324,6 +2387,7 @@ export function PlayCampaign({
               cardConditions={state.adventureConditions}
               cardOrder={cardOrder}
               commandItems={commandItems}
+              materialCounts={stewardMaterials}
               companionProgress={state.companionProgress}
               dismissSignal={commandDismissSignal}
               exclusiveOwner={exclusiveOwner}
@@ -2341,6 +2405,7 @@ export function PlayCampaign({
               onMovementModeChange={setMovementMode}
               onRequestedCommandHandled={() => setRequestedCommand(null)}
               onRest={() => dispatchWorldInput({ type: "rest", at: new Date().toISOString() })}
+              onRequestWork={gatherNearestStewardResource}
               onSelectCard={(assetId) => dispatchWorldInput({ type: "select-asset", assetId })}
               requestedCommand={requestedCommand}
               traversalCapabilities={activeTraversalCapabilities}

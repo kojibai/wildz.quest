@@ -79,6 +79,7 @@ import type { ArenaSettlement } from "../games/mortal-arena/settlement";
 import type { CreatureObserverMemoryTurn } from "./creature-history-types";
 import { livingSubjectContinuityV120 } from "./creature-continuity";
 import { careForCreature, settleCreatureCare, type CreatureCareAction } from "./creature-care";
+import { applyWildsCompanionWork } from "./wilds-work-capability";
 import {
   EMPTY_WILDS_SUPPORT_ASSET_IDS,
   type WildsBossFamilyId,
@@ -126,6 +127,7 @@ export type WildsInput = (
   | { type: "finish-lineage-reveal" }
   | { type: "train"; cardId?: string; at?: string }
   | { type: "use-field-ability"; assetId: string; abilityIndex: number; usedAt: string }
+  | { type: "record-steward-work"; assetId: string }
   | { type: "mission" }
   | { type: "rest"; at?: string }
   | { type: "select-card"; cardId: string }
@@ -1052,6 +1054,19 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
   if (input.type === "reset") {
     const owner = selectedAsset(state)?.manifest.ownerReceizId ?? state.inventory[0]?.manifest.ownerReceizId;
     return owner ? createOwnerBoundInitialPlayState(owner) : initialPlayState;
+  }
+
+  if (input.type === "record-steward-work") {
+    const asset = state.inventory.find((candidate) => candidate.id === input.assetId);
+    if (!asset || !isPlayableAsset(state, asset.id)) return state;
+    const prior = state.adventureConditions[asset.id] ?? emptyAdventureCondition(asset.id);
+    const condition = applyWildsCompanionWork(prior);
+    return {
+      ...state,
+      adventureConditions: { ...state.adventureConditions, [asset.id]: condition },
+      hearttreeConditions: { ...state.hearttreeConditions, [asset.id]: adventureConditionToHearttree(condition) },
+      lastEvent: `${asset.manifest.name} spent 3% work capacity helping the living world.`
+    };
   }
 
   if (input.type === "settle-pending-travel-growth") {
@@ -2023,6 +2038,8 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       ? healWildBattleCard(leader, Math.max(1, Math.round((maxVitality ?? 20) * .25)), input.at)
       : leader;
     const exactRecovery = Boolean(recovered && recovered !== leader && isLivingCardAsset(recovered));
+    const priorCondition = leader ? state.adventureConditions[leader.id] ?? emptyAdventureCondition(leader.id) : null;
+    const recoveredCondition = priorCondition ? { ...priorCondition, fatigue: Math.max(0, priorCondition.fatigue - 35) } : null;
     return {
       ...state,
       inventory: recovered
@@ -2034,6 +2051,12 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       pendingSyncAssetIds: exactRecovery && recovered
         ? Array.from(new Set([...state.pendingSyncAssetIds, recovered.id]))
         : state.pendingSyncAssetIds,
+      adventureConditions: recoveredCondition && leader
+        ? { ...state.adventureConditions, [leader.id]: recoveredCondition }
+        : state.adventureConditions,
+      hearttreeConditions: recoveredCondition && leader
+        ? { ...state.hearttreeConditions, [leader.id]: adventureConditionToHearttree(recoveredCondition) }
+        : state.hearttreeConditions,
       activeAction: "explore",
       combo: 0,
       energy: Math.min(100, state.energy + 35),

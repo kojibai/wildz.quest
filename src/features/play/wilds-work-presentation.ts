@@ -11,7 +11,7 @@ export type WildsActiveWorkSource = Readonly<{
 export type WildsResourceBodyProjection = Readonly<{
   vitality: number;
   ringIntensity: number;
-  tree: Readonly<{ trunkScale: number; crownScale: number; stumpVisible: boolean }>;
+  tree: Readonly<{ trunkScale: number; crownScale: number; stumpVisible: boolean; worked: boolean }>;
   rock: Readonly<{ scale: number; fracture: number; fractured: boolean }>;
 }>;
 
@@ -30,16 +30,20 @@ export function projectWildsResourceBody(input: Readonly<{
     : 0;
   const vitality = clamp01(available / capacity);
   const depleted = 1 - vitality;
+  // One ordinary harvest should read at a glance, without making a healthy
+  // source appear ruined. Later work compounds into the deeper state change.
+  const visibleDepletion = depleted <= 0 ? 0 : clamp01(Math.max(.06, Math.pow(depleted, 2) * .76));
   return Object.freeze({
     vitality,
     ringIntensity: clamp01(.2 + vitality * .8),
     tree: Object.freeze({
-      trunkScale: clamp01(.28 + vitality * .72),
-      crownScale: clamp01(.12 + Math.pow(vitality, .78) * .88),
-      stumpVisible: input.kind === "timber" && available === 0
+      trunkScale: clamp01(1 - visibleDepletion * .72),
+      crownScale: clamp01(1 - visibleDepletion),
+      stumpVisible: input.kind === "timber" && available === 0,
+      worked: input.kind === "timber" && available < capacity
     }),
     rock: Object.freeze({
-      scale: clamp01(.24 + vitality * .76),
+      scale: clamp01(1 - visibleDepletion),
       fracture: clamp01(depleted),
       fractured: input.kind === "stone" && available < capacity
     })

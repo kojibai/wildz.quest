@@ -2,6 +2,7 @@ import type { WildsAquaticPresentation } from "./wilds-aquatic-presentation";
 
 export const UNDERWATER_CAMERA_ENTER_DEPTH = 0.18;
 export const UNDERWATER_CAMERA_EXIT_DEPTH = 0.08;
+export const UNDERWATER_CAMERA_FRAME_DEPTH = 0.6;
 
 export type UnderwaterCameraProjection = Readonly<{
   underwaterTargetActive: boolean;
@@ -34,7 +35,7 @@ export function writeUnderwaterCameraTarget(
     output.cameraY = surfaceTargetY + orbitOffsetY;
     return;
   }
-  output.targetY = Math.min(actorLocalY, localWaterSurfaceY - UNDERWATER_CAMERA_EXIT_DEPTH - orbitOffsetY);
+  output.targetY = Math.min(actorLocalY, localWaterSurfaceY - UNDERWATER_CAMERA_FRAME_DEPTH - orbitOffsetY);
   output.cameraY = output.targetY + orbitOffsetY;
 }
 

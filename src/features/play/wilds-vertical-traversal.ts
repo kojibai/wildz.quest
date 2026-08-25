@@ -28,7 +28,7 @@ export type WildsVerticalTraversalStep = {
 };
 
 const WATER_FLOOR_CLEARANCE = .32;
-const WATER_SURFACE_CLEARANCE = .85;
+export const WILDS_SWIM_SURFACE_CLEARANCE = 1.35;
 const AIR_GROUND_CLEARANCE = .35;
 const AIR_OBSTACLE_CLEARANCE = .35;
 const AIR_CEILING_CLEARANCE = .45;
@@ -85,7 +85,7 @@ export function writeWildsVerticalTraversalStep(
     const pressure = bounded(input.pressurePotential ?? 0, 0, 1);
     const admittedDepth = Math.min(column - WATER_FLOOR_CLEARANCE, 2.25 + pressure * 8);
     state.safeMin = quantize(Math.max(WATER_FLOOR_CLEARANCE, column - Math.max(0, admittedDepth)));
-    state.safeMax = quantize(Math.max(state.safeMin, column - WATER_SURFACE_CLEARANCE));
+    state.safeMax = quantize(Math.max(state.safeMin, column - WILDS_SWIM_SURFACE_CLEARANCE));
     if (priorLayer !== "water") {
       state.offset = quantize(bounded(input.initialOffset ?? state.safeMax, state.safeMin, state.safeMax));
     } else {

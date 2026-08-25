@@ -15,6 +15,16 @@ import { canonicalPortableCardJson, sha256PortableBasis } from "../src/features/
 import { wildsTerrainObstaclesForTile } from "../src/features/play/wilds-terrain-obstacles";
 
 describe("deterministic sparse Wilds resource authority", () => {
+  it("keeps living source recovery observable instead of restoring within milliseconds", () => {
+    const obstacle = Array.from({ length: 49 }, (_, index) => {
+      const x = index % 7 - 3;
+      const z = Math.floor(index / 7) - 3;
+      return wildsTerrainObstaclesForTile(x, z).find((candidate) => candidate.kind === "tree");
+    }).find(Boolean)!;
+    const source = projectWildsResourceSourceForObstacle(obstacle);
+    assert.ok(source.replenishment.intervalPulses >= 1_000_000);
+  });
+
   it("makes every rendered terrain tree and rock an exact canonical living source", () => {
     let checked = 0;
     for (let tileZ = -4; tileZ <= 4; tileZ += 1) for (let tileX = -4; tileX <= 4; tileX += 1) {

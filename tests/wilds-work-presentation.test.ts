@@ -36,6 +36,17 @@ describe("living stewardship presentation", () => {
     assert.ok(recovering.tree.crownScale < full.tree.crownScale);
   });
 
+  it("keeps one ordinary harvest visibly readable without making the source look destroyed", () => {
+    const workedTree = projectWildsResourceBody({ kind: "timber", capacity: 20, availableCapacity: 15 });
+    const workedStone = projectWildsResourceBody({ kind: "stone", capacity: 20, availableCapacity: 15 });
+    assert.ok(workedTree.tree.crownScale <= .95);
+    assert.ok(workedTree.tree.crownScale >= .85);
+    assert.equal(workedTree.tree.worked, true);
+    assert.ok(workedStone.rock.scale <= .95);
+    assert.ok(workedStone.rock.scale >= .85);
+    assert.equal(workedStone.rock.fractured, true);
+  });
+
   it("leaves exhausted stone visibly fractured and restores it monotonically", () => {
     const exhausted = projectWildsResourceBody({ kind: "stone", capacity: 5, availableCapacity: 0 });
     const half = projectWildsResourceBody({ kind: "stone", capacity: 5, availableCapacity: 3 });

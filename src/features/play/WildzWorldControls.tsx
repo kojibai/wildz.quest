@@ -21,7 +21,7 @@ import { projectCreatureCapabilityIdentity } from "./creature-capability-identit
 import { projectWildsTraversalStatus } from "./wilds-traversal-status";
 import { WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE, type WildsVerticalTraversalIntent, type WildsVerticalTraversalState } from "./wilds-vertical-traversal";
 import { projectWildsFlightObstruction } from "./wilds-flight-obstruction";
-import { projectWildsWorkCapabilityMeters } from "./wilds-work-capability";
+import { projectWildsWorkCapabilityMeters, type WildsVisibleWorkFamily } from "./wilds-work-capability";
 
 const ignore = () => {};
 const DEFAULT_VERTICAL_READOUT = { layer: "ground", value: 0, safeMin: 0, safeMax: 0, blockerId: null } as const;
@@ -43,6 +43,7 @@ export function WildzWorldControls({
   movementMode,
   cardOrder,
   commandItems,
+  materialCounts = { timber: 0, stone: 0 },
   dismissSignal,
   exclusiveOwner,
   overlayState,
@@ -56,6 +57,7 @@ export function WildzWorldControls({
   onMovementModeChange,
   onSelectCard,
   onRest,
+  onRequestWork = ignore,
   onAudioCue,
   aerialEnergy,
   aerialMode,
@@ -74,6 +76,7 @@ export function WildzWorldControls({
   movementMode: WildsMovementMode;
   cardOrder: WildzCardSort;
   commandItems: readonly WildsCommandItem[];
+  materialCounts?: Readonly<{ timber: number; stone: number }>;
   dismissSignal: number;
   exclusiveOwner: WorldOverlayOwner;
   overlayState: WorldOverlayState;
@@ -87,6 +90,7 @@ export function WildzWorldControls({
   onMovementModeChange: (mode: WildsMovementMode) => void;
   onSelectCard: (assetId: string) => void;
   onRest: () => void;
+  onRequestWork?: (family: WildsVisibleWorkFamily) => void;
   onAudioCue?: (cue: WildsAudioCue) => void;
   aerialEnergy: number;
   aerialMode: WildsAerialMode;
@@ -104,6 +108,7 @@ export function WildzWorldControls({
   const forwardInput = useStableEvent(onInput);
   const changeMovementMode = useStableEvent(onMovementModeChange);
   const rest = useStableEvent(onRest);
+  const requestWork = useStableEvent(onRequestWork);
   const toggleAerial = useStableEvent(onAerialToggle);
   const requestHandled = useStableEvent(onRequestedCommandHandled);
   const drawerOriginRef = useRef<HTMLElement | null>(null);
@@ -120,6 +125,7 @@ export function WildzWorldControls({
   const companionHomeBlocked = exclusiveOwner !== "none" || panelOpen;
   const controlledDrawerSnap = worldHomesEnabled ? overlayState.drawerSnap : "closed";
   const hasFlight = traversalCapabilities.includes("flight");
+  const hasClimb = traversalCapabilities.includes("climb");
   const flightRecharging = hasFlight && aerialMode === "ground" && aerialEnergy < WILDS_FLIGHT_RELAUNCH_ENERGY;
   const flightStatus = !hasFlight
     ? null
@@ -184,6 +190,10 @@ export function WildzWorldControls({
     if (!worldHomesEnabled) return;
     overlayDispatch({ type: "panel", key: "vault" });
   }, [overlayDispatch, worldHomesEnabled]);
+  const handleOpenConstruction = useCallback(() => {
+    if (!worldHomesEnabled) return;
+    overlayDispatch({ type: "panel", key: "construction" });
+  }, [overlayDispatch, worldHomesEnabled]);
   const handleMovementModeChange = useCallback(() => {
     if (worldHomesEnabled) changeMovementMode(movementMode === "walk" ? "run" : "walk");
   }, [changeMovementMode, movementMode, worldHomesEnabled]);
@@ -223,6 +233,9 @@ export function WildzWorldControls({
     activeCard,
     activeCard ? cardConditions[activeCard.id] : null
   ), [activeCard, cardConditions]);
+  const climbCapacity = activeCard
+    ? Math.max(0, Math.min(100, Math.round(100 - (cardConditions[activeCard.id]?.fatigue ?? 0) - (cardConditions[activeCard.id]?.injuries.length ?? 0) * 10)))
+    : 0;
   const activeEntry = companionRoster.find((entry) => entry.active) ?? null;
   const swimSpecialty = useMemo(() => {
     if (!activeCard) return "aquatic movement";
@@ -291,18 +304,40 @@ export function WildzWorldControls({
           ><Icons.sparkle size={20} /><i aria-hidden="true" /></button> : null}
           {workCapabilities.map((capability) => {
             const Icon = capability.family === "lumber" ? Icons.timber : Icons.quarry;
-            return <div
+            return <button
               aria-label={`${capability.label} work capacity ${capability.value} percent. ${capability.guidance}`}
-              aria-valuemax={100}
-              aria-valuemin={0}
-              aria-valuenow={capability.value}
               className={`wildz-work-capability is-${capability.state}`}
+              disabled={!worldHomesEnabled || capability.value <= 0}
               key={capability.family}
-              role="meter"
+              onClick={() => requestWork(capability.family)}
               style={{ "--wildz-work-capacity": `${capability.value}%` } as CSSProperties}
               title={`${capability.label} · ${capability.value}%`}
-            ><Icon size={20} /><i aria-hidden="true" /></div>;
+              type="button"
+            ><Icon size={20} /><i aria-hidden="true" /></button>;
           })}
+          {hasClimb ? <div
+            aria-label={`Mountain grip capacity ${climbCapacity} percent`}
+            aria-valuemax={100}
+            aria-valuemin={0}
+            aria-valuenow={climbCapacity}
+            className="wildz-work-capability wildz-climb-capability is-ready"
+            role="meter"
+            style={{ "--wildz-work-capacity": `${climbCapacity}%` } as CSSProperties}
+            title={`Mountain grip · ${climbCapacity}%`}
+          ><Icons.climb size={20} /><i aria-hidden="true" /></div> : null}
+          <button
+            aria-label={`Open Living Construction. Satchel has ${materialCounts.timber} timber and ${materialCounts.stone} stone`}
+            className="wildz-construction-control"
+            onClick={handleOpenConstruction}
+            title="Living Construction"
+            type="button"
+          >
+            <Icons.construction aria-hidden="true" size={20} />
+            <span aria-hidden="true" className="wildz-construction-counts">
+              <b key={`timber-${materialCounts.timber}`}><Icons.timber size={9} />{materialCounts.timber}</b>
+              <b key={`stone-${materialCounts.stone}`}><Icons.quarry size={9} />{materialCounts.stone}</b>
+            </span>
+          </button>
           {verticalControlsVisible ? <div aria-label="Vertical traversal controls" className="wildz-vertical-controls">
             <button
               aria-label={verticalReadout.layer === "water" ? "Ascend toward the water surface" : "Ascend"}

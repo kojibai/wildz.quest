@@ -6,7 +6,7 @@ import { Icons } from "@/components/icons";
 import type { WorldOverlayOwner } from "./world-overlay-state";
 import { canRestoreFocus } from "./focus-recovery";
 
-export type WildsCommandKey = "commandCenter" | "mission" | "fieldGuide" | "satchel" | "deck" | "vault";
+export type WildsCommandKey = "commandCenter" | "mission" | "fieldGuide" | "satchel" | "construction" | "deck" | "vault";
 
 export type WildsCommandItem = {
   key: WildsCommandKey;

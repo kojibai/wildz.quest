@@ -147,7 +147,10 @@ export function projectWildsResourceRegion(regionX: number, regionZ: number): re
       capacity,
       quality: (1 + Number(hash64(regionX, regionZ, slot, 6) % 5n)) as 1 | 2 | 3 | 4 | 5,
       requirements: REQUIREMENTS[kind],
-      replenishment: { intervalPulses: 360 + Number(hash64(regionX, regionZ, slot, 7) % 1081n), capacityPerInterval }
+      // Policies are expressed in whole Kai pulses; authority stores exact
+      // micro-pulses. Keeping the million multiplier here prevents a living
+      // source from visually restoring a few milliseconds after it is worked.
+      replenishment: { intervalPulses: (360 + Number(hash64(regionX, regionZ, slot, 7) % 1081n)) * 1_000_000, capacityPerInterval }
     });
   });
   const projection = freeze(sources);
@@ -183,7 +186,7 @@ export function projectWildsResourceSourceForObstacle(obstacle: WildsTerrainObst
     quality,
     requirements: REQUIREMENTS[kind],
     replenishment: {
-      intervalPulses: obstacle.kind === "tree" ? 720 : 1_440,
+      intervalPulses: (obstacle.kind === "tree" ? 720 : 1_440) * 1_000_000,
       capacityPerInterval: obstacle.kind === "tree" ? 2 : 1
     }
   });

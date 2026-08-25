@@ -2471,8 +2471,13 @@ a {
   align-items: center;
   justify-content: space-between;
   opacity: 0.78;
-  pointer-events: none;
+  pointer-events: auto;
 }
+
+button.wildz-work-capability { padding: 0; cursor: pointer; }
+button.wildz-work-capability:active { transform: translateY(1px); }
+button.wildz-work-capability:focus-visible { outline: 2px solid #b8f5d9; outline-offset: 2px; }
+.wildz-climb-capability { pointer-events: none; }
 
 .wilds-skyline span {
   display: block;
@@ -15666,6 +15671,39 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wildz-work-capability.is-rest > i { background: linear-gradient(90deg, #f1d676 var(--wildz-work-capacity), rgba(255,255,255,.12) var(--wildz-work-capacity)); }
 .wildz-work-capability.is-recovering { color: #a9bbb5; border-color: rgba(143, 220, 255, .3); }
 .wildz-work-capability.is-recovering > i { background: linear-gradient(90deg, #8fdcff var(--wildz-work-capacity), rgba(255,255,255,.12) var(--wildz-work-capacity)); }
+
+.wildz-quick-utilities > .wildz-construction-control {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(120, 236, 203, .42);
+  color: #e7fff6;
+  background: radial-gradient(circle at 50% 12%, rgba(110, 238, 199, .2), transparent 52%), linear-gradient(145deg, rgba(14, 55, 47, .96), rgba(7, 27, 27, .98));
+}
+.wildz-construction-control > svg { position: relative; z-index: 1; transform: translateY(-4px); }
+.wildz-construction-counts { position: absolute; right: 3px; bottom: 3px; left: 3px; z-index: 2; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+.wildz-construction-counts b { display: flex; min-width: 0; height: 12px; align-items: center; justify-content: center; gap: 1px; overflow: hidden; color: #dffff4; border: 1px solid rgba(171, 255, 230, .17); border-radius: 5px; background: rgba(2, 21, 19, .76); font-size: 6.5px; font-variant-numeric: tabular-nums; line-height: 1; animation: wildz-material-count-in 260ms cubic-bezier(.2, .9, .2, 1) both; }
+.wildz-construction-counts svg { flex: 0 0 auto; color: #7ff0c5; }
+.wildz-construction-control:focus-visible { outline: 2px solid #b8f5d9; outline-offset: 2px; }
+.wildz-construction-control:active { transform: translateY(1px); }
+
+@keyframes wildz-material-count-in {
+  0% { color: #fff3a8; background: rgba(84, 69, 22, .92); transform: scale(.72); }
+  100% { color: #dffff4; background: rgba(2, 21, 19, .76); transform: scale(1); }
+}
+
+.wilds-construction-center { min-width: 0; gap: 12px; }
+.wilds-construction-center-lead { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 14px; border: 1px solid rgba(111, 236, 198, .25); border-radius: 19px; background: radial-gradient(circle at 100% 0%, rgba(104, 237, 197, .16), transparent 48%), linear-gradient(145deg, rgba(13, 47, 41, .86), rgba(7, 24, 24, .96)); box-shadow: inset 0 1px rgba(255,255,255,.07); }
+.wilds-construction-center-lead > span { display: grid; min-width: 0; gap: 3px; }
+.wilds-construction-center-lead small { color: #78d9b9; font-size: 8px; font-weight: 950; letter-spacing: .14em; text-transform: uppercase; }
+.wilds-construction-center-lead strong { color: #f0fff8; font-size: clamp(18px, 5vw, 24px); }
+.wilds-construction-center-lead em { color: #a8c1b8; font-size: 9px; font-style: normal; line-height: 1.4; }
+.wilds-construction-center-lead > div { display: grid; grid-template-columns: repeat(2, minmax(46px, auto)); gap: 6px; }
+.wilds-construction-center-lead > div b { display: flex; min-width: 46px; min-height: 38px; align-items: center; justify-content: center; gap: 5px; padding: 0 8px; color: #dffff4; border: 1px solid rgba(127, 240, 197, .22); border-radius: 12px; background: rgba(4, 25, 23, .72); font-variant-numeric: tabular-nums; }
+.wilds-construction-center-lead > div svg { color: #7ff0c5; }
+@media (max-width: 430px) {
+  .wilds-construction-center-lead { grid-template-columns: 1fr; padding: 11px; }
+  .wilds-construction-center-lead > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 .wildz-vertical-controls {
   display: grid;

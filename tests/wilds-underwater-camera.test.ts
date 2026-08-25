@@ -5,6 +5,7 @@ import { WILDS_WATERLINE_ELEVATION } from "../src/features/play/wilds-aquatic-pr
 import {
   UNDERWATER_CAMERA_ENTER_DEPTH,
   UNDERWATER_CAMERA_EXIT_DEPTH,
+  UNDERWATER_CAMERA_FRAME_DEPTH,
   projectUnderwaterCameraSubmersion,
   projectUnderwaterCameraTarget
 } from "../src/features/play/wilds-underwater-camera";
@@ -36,7 +37,7 @@ test("admitted swimming translates camera and target below the exact shared wate
   assert.equal(projected.underwaterTargetActive, true);
   assert.equal(projected.localWaterSurfaceY, localWaterSurfaceY);
   assert.ok(projected.targetY <= localWaterSurfaceY - UNDERWATER_CAMERA_ENTER_DEPTH);
-  assert.ok(projected.cameraY < localWaterSurfaceY);
+  assert.ok(projected.cameraY <= localWaterSurfaceY - UNDERWATER_CAMERA_FRAME_DEPTH);
   assert.ok(Math.abs((projected.cameraY - projected.targetY) - orbitOffsetY) < 1e-9);
 });
 
