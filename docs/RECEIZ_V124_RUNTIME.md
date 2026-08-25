@@ -21,6 +21,8 @@ The proof exchange may issue any SDK-valid bounded short-lived bearer; Wildz doe
 
 Value movement remains preview → explicit edge consent → exact proof-authority exchange → durable stage/execute → resolution by execution ID or semantic idempotency key. Unknown outcomes are resolved before retry. Settlement and Reserve remain separate rails, and Phi—not USD—is the moved value.
 
+Portable execution uses the same law outside a conventional wallet screen. A playable claim URL carries either an exact bearer-card proof or an SDK V124 portable transition set for Phi, resources, custody, access, or world rights. The receiving Receiz ID signs the exact claim consent at the edge; the application verifies and stages the carried transition without inventing a second registry, wallet, or authority. The URL and native Claim button are representations only. After a committed edge execution, recipient source sealing is prepared immediately while sealed-source publication and conversation projection synchronize asynchronously.
+
 ## MCP and AI skills
 
 The 22 V124 MCP tools and 42 AI skills are operator/developer composition surfaces. They are not shipped into the gameplay bundle and never become player authority. MCP keeps handle/session/private material in trusted-host custody, and private additions never enter model output. The application consumes the same canonical SDK methods the MCP adapters map to, preserving SDK/MCP parity without turning MCP into a second backend.

@@ -10,6 +10,7 @@ import { wildsWalletAuthorityStatusFor, type WildsWalletReadAuthority } from "@/
 import { appendWildsDirectMessage } from "@/features/play/wilds-messenger-ledger";
 import { publishWildsConversation } from "@/lib/receiz/wilds-messenger-server";
 import { resolveWildsMultiplayerActor } from "@/lib/receiz/wilds-multiplayer-server";
+import { createWildsCardPortableClaim, encodeWildsPortableClaim, wildsPortableClaimUrl } from "@/features/play/wilds-portable-claim";
 
 function failure(cause: unknown) {
   const error = cause instanceof Error ? cause.message : "wilds_card_transfer_failed";
@@ -40,16 +41,19 @@ export async function POST(request: NextRequest) {
         targetHandle: String(body.targetHandle ?? ""),
         rail
       });
+      const claim = createWildsCardPortableClaim(offer);
+      const claimProof = encodeWildsPortableClaim(claim);
+      const claimUrl = wildsPortableClaimUrl(request.nextUrl.origin, claim);
       const peer = { id: offer.targetHandle, handle: offer.targetHandle };
       const conversation = appendWildsDirectMessage({
         sender: { id: actor.playerId, handle: actor.handle },
         recipient: peer,
         body: `Card offered: ${offer.card.manifest.name}`,
         clientMessageId: `card-offer:${offer.instrument.plan.transferId}`,
-        context: { kind: "card-offer", offer }
+        context: { kind: "card-offer", offer, claimId: claim.claimId, claimProof }
       }).conversation;
       const publication = await publishWildsConversation(request, actor, conversation);
-      return NextResponse.json({ ok: true, offer, conversation, publication }, { headers: { "cache-control": "private, no-store" } });
+      return NextResponse.json({ ok: true, offer, claimUrl, conversation, publication }, { headers: { "cache-control": "private, no-store" } });
     }
     if (body.action === "claim") {
       const admission = await claimWildsCardTransfer({

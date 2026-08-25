@@ -24,6 +24,7 @@ Wildz targets the exact `@receiz/sdk@124.0.2` release. Application code uses SDK
 | V121 living subject and proof brain | Exact primary proof objects, byte-preserved namespaces, subject head, object Merkle root, registry and reducer identities | The proof-brain index, Twin output, memory summary, or UI projection cannot replace cited source objects |
 | Creature Twin turn | Exact subject brain plus current Kai `uPulse`, temporal coordinate, world presence, causal head, relationship, and condition | A reply is observation only; unavailable real intelligence produces no canned substitute and appends no memory |
 | V121 bearer instrument | Verified owner/recipient capabilities, exact transfer plan and instrument, independently verified complete claimed artifact | Preview, issue, inspection, receipt, notification, or local projection alone does not change custody; former-owner authority is revoked on claim |
+| Playable proof claim | A self-contained source proof or SDK-verified V124 portable transition set, exact recipient edge consent, and the enclosing proof object's authority | The URL, button, app route, session, receipt, and global projection are carriers only; they cannot authorize, mutate, or outrank the source proof |
 | Ranked Arena | Verified signed global admission bound to ruleset, definition, roster revisions, and Kai root, followed by independently verified deterministic replay and current publication head at settlement | Local play may remain practice evidence, but cannot change rating, season, or published result |
 | Mortal Arena | Ranked evidence plus a verified, match-scoped, player-bound, revision-pinned Mortal covenant with bounded Kai expiry | Missing, expired, mismatched, or digest-shaped consent cannot retire a creature |
 | Tournament and season projection | Admitted match results under the current published ruleset and season head | Audit, coaching, local simulation, MCP output, and queued publication never change standings |
@@ -45,6 +46,12 @@ High-frequency Arena inputs belong in a deterministic transcript, not in per-fra
 There is no external database added by Wildz. The installed app keeps owner-scoped continuity in browser IndexedDB. Shared public, world, social, and economy durability depends on configured Receiz publication, audit, proof, wallet, and settlement rails. Under the current V123 release, unattended shared-world/publication writes use the server-only `RECEIZ_CONNECT_ACCESS_TOKEN`; it is an app/service coordination credential, never a generated player login token or artifact authority.
 
 Durable Receiz rails fail closed. Capability absence, network failure, stale revisions, proof mismatch, and unconfirmed reads or writes are returned as unavailable, conflict, or recovery-pending states; they are never simulated as success.
+
+## Universal playable proof claims
+
+Wildz can carry Phi, resources, exact card or creature custody, experience access, and world rights through one native claim surface. The transferable representation is self-contained in the URL fragment, so browsers do not send it during ordinary navigation and the player sees a native Claim action rather than proof plumbing. A direct bearer card claim executes through the existing exact-custody primitive. Every other claim carries an SDK-issued V124 portable execution transition set, which is independently verified before an authority session is opened, staged, and atomically executed with the recipient's exact edge consent.
+
+The claim representation is never proof authority and cannot commit. Successful edge execution prepares the recipient's sealed source addition immediately; global source publication and message projection are asynchronous distribution. Missing projection therefore cannot demote a lawful local result, while malformed, expired, wrong-recipient, replayed, or unverified claims fail closed. Card offers are the first live producer; Phi, resource, access, and world-operation producers plug into the same carrier whenever their source operation emits the canonical V124 transition set.
 
 ## V123 constitutional application boundary
 

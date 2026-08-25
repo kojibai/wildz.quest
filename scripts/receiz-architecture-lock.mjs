@@ -61,6 +61,9 @@ const groveOperation = await read("src/features/play/wilds-grove-operation.ts");
 const groveEnvironment = await read("src/features/play/WildsRegenerativeGroveEnvironment.tsx");
 const livingRuntime = await read("src/lib/receiz/wilds-living-world-v124-runtime.ts");
 const livingAuthority = await read("src/lib/receiz/wilds-living-world-authority.ts");
+const portableClaim = await read("src/features/play/wilds-portable-claim.ts");
+const portableClaimRuntime = await read("src/lib/receiz/wilds-portable-claim-runtime.ts");
+const portableClaimRoute = await read("app/api/wilds/claims/route.ts");
 
 if (pkg.dependencies?.["@receiz/sdk"] !== "124.0.2") failures.push("receiz_sdk_pin_mismatch");
 if (pkg.devDependencies?.["@receiz/mcp-server"] !== "124.0.2") failures.push("receiz_mcp_pin_mismatch");
@@ -81,6 +84,19 @@ requireMatch(worldEmission, /amountPhiMicro:\s*string/, "living_world_integer_ph
 requireMatch(livingRuntime, /planAtomicOperationV124\(/, "living_world_atomic_execution_missing");
 requireMatch(livingAuthority, /prepareReceizSubjectSourceProofObjectCandidateV124\(/, "living_world_subject_source_seal_missing");
 requireMatch(livingAuthority, /void\s+input\.rail\.publishSealedSourceV124\(/, "living_world_async_global_sync_missing");
+const portableClaimKernel = [portableClaim, portableClaimRuntime, portableClaimRoute].join("\n");
+if (!portableClaim.includes("claimIsProof" + "Authority: false")) {
+  failures.push("portable_claim_representation_boundary_missing");
+}
+requireMatch(portableClaim, /representationCanCommit:\s*false/, "portable_claim_commit_boundary_missing");
+requireMatch(portableClaim, /strongerTruth:\s*["']sealed-receiz-proof-object["']/, "portable_claim_source_authority_missing");
+requireMatch(portableClaim, /url\.hash\s*=\s*`proof=/, "portable_claim_fragment_carrier_missing");
+requireMatch(portableClaimRuntime, /verifyReceizPortableExecutionTransitionSetV124/, "portable_claim_transition_verifier_missing");
+requireMatch(portableClaimRuntime, /const\s+verified\s*=\s*await\s+verify\(/, "portable_claim_transition_verification_missing");
+requireMatch(portableClaimRuntime, /stagePreparedExecutionV124\(/, "portable_claim_prepared_execution_missing");
+requireMatch(portableClaimRuntime, /void\s+input\.rail\.publishSealedSourceV124\(/, "portable_claim_async_global_sync_missing");
+requireMatch(portableClaimRoute, /void\s+publishWildsConversation\(/, "portable_claim_async_message_sync_missing");
+forbidMatch(portableClaimKernel, /createHmac|createCipheriv|Symbol\.for|new\s+Map\s*\(/, "portable_claim_parallel_authority_present");
 
 const allDependencies = { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.optionalDependencies };
 for (const dependency of Object.keys(allDependencies)) {

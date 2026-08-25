@@ -58,6 +58,7 @@ export function WildsMessenger({
   const [replyTo, setReplyTo] = useState<WildsDirectMessage | null>(null);
   const [reactionFor, setReactionFor] = useState<string | null>(null);
   const [claimingTransferId, setClaimingTransferId] = useState<string | null>(null);
+  const [sharedClaimId, setSharedClaimId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const dialogRef = useRef<HTMLElement | null>(null);
@@ -85,6 +86,18 @@ export function WildsMessenger({
     ];
     return normalized ? ordered.filter((peer) => peer.handle.toLowerCase().includes(normalized)) : ordered;
   }, [messenger.allPeers, messenger.summaries, query]);
+
+  const shareClaim = async (claimId: string, claimProof: string, title: string) => {
+    const url = `${window.location.origin}/claim#proof=${claimProof}`;
+    try {
+      if (navigator.share) await navigator.share({ title, text: `Claim ${title} in Wildz`, url });
+      else await navigator.clipboard.writeText(url);
+      setSharedClaimId(claimId);
+      window.setTimeout(() => setSharedClaimId((current) => current === claimId ? null : current), 1_800);
+    } catch {
+      // Cancelling the native share sheet leaves the source offer untouched.
+    }
+  };
 
   const markRead = messenger.markRead;
   useEffect(() => {
@@ -234,7 +247,8 @@ export function WildsMessenger({
             const showDay = !prior || new Date(prior.createdAt).toDateString() !== new Date(message.createdAt).toDateString();
             const reply = message.replyToId ? messages.find((candidate) => candidate.id === message.replyToId) : null;
             const pending = messenger.pending.find((item) => item.message.clientMessageId === message.clientMessageId);
-            const offer = message.context?.kind === "card-offer" ? message.context.offer : null;
+            const offerContext = message.context?.kind === "card-offer" ? message.context : null;
+            const offer = offerContext?.offer ?? null;
             const offerClaimed = offer ? messages.some((candidate) => candidate.context?.kind === "card-transfer"
               && candidate.context.transferId === offer.instrument.plan.transferId) : false;
             return <div className="wilds-message-block" key={message.id}>
@@ -243,7 +257,8 @@ export function WildsMessenger({
                 <div aria-label={`Message from ${message.senderHandle}. Tap for reactions`} className="wilds-message-bubble" onClick={() => setReactionFor((current) => current === message.id ? null : message.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setReactionFor((current) => current === message.id ? null : message.id); }} role="button" tabIndex={0}>
                   {reply ? <span className="wilds-message-reply"><b>{reply.senderId === selfId ? "You" : reply.senderHandle}</b>{reply.body}</span> : null}
                   {message.context?.kind === "phi-transfer" ? <span className="wilds-message-phi-transfer"><small>WALLET TRANSACTION</small><strong><PhiNetworkAmount value={formatWildsPhiExact(message.context.amountPhiMicro)} /></strong><em>Committed by source proof object</em></span>
-                    : offer ? <span className="wilds-message-card-transfer"><small>ONE-USE CARD CLAIM</small><span className="wilds-message-card-scene"><WildsCardScene asset={offer.card} origin="https://wildz.quest" qr="" tapToFlip /></span><strong>{offer.card.manifest.name}</strong><em>{offerClaimed ? "Claimed · custody moved exactly once" : mine ? `Awaiting ${offer.targetHandle}` : "Source verified · accept into your Vault"}</em>{!mine && !offerClaimed && onClaimCard ? <button disabled={claimingTransferId === offer.instrument.plan.transferId} onClick={(event) => { event.stopPropagation(); setClaimingTransferId(offer.instrument.plan.transferId); void onClaimCard(offer).finally(() => setClaimingTransferId(null)); }} type="button">{claimingTransferId === offer.instrument.plan.transferId ? "Claiming…" : "Claim card"}</button> : null}</span>
+                    : message.context?.kind === "portable-claim" ? <span className="wilds-message-phi-transfer"><small>PLAYABLE PROOF CLAIM</small><strong>{message.context.title}</strong><em>{message.context.claimKind.replaceAll("-", " ")} · committed by source proof object</em></span>
+                    : offer ? <span className="wilds-message-card-transfer"><small>ONE-USE CARD CLAIM</small><span className="wilds-message-card-scene"><WildsCardScene asset={offer.card} origin="https://wildz.quest" qr="" tapToFlip /></span><strong>{offer.card.manifest.name}</strong><em>{offerClaimed ? "Claimed · custody moved exactly once" : mine ? `Awaiting ${offer.targetHandle}` : "Source verified · accept into your Vault"}</em>{mine && !offerClaimed && offerContext?.claimId && offerContext.claimProof ? <button onClick={(event) => { event.stopPropagation(); void shareClaim(offerContext.claimId!, offerContext.claimProof!, offer.card.manifest.name); }} type="button">{sharedClaimId === offerContext.claimId ? "Claim link ready" : "Share claim"}</button> : null}{!mine && !offerClaimed && onClaimCard ? <button disabled={claimingTransferId === offer.instrument.plan.transferId} onClick={(event) => { event.stopPropagation(); setClaimingTransferId(offer.instrument.plan.transferId); void onClaimCard(offer).finally(() => setClaimingTransferId(null)); }} type="button">{claimingTransferId === offer.instrument.plan.transferId ? "Claiming…" : "Claim card"}</button> : null}</span>
                     : message.context?.kind === "card-transfer" ? <span className="wilds-message-card-transfer"><small>CARD TRANSFER COMMITTED</small><span className="wilds-message-card-scene"><WildsCardScene asset={message.context.card} origin="https://wildz.quest" qr="" tapToFlip /></span><strong>{message.context.card.manifest.name}</strong><em>Receiver admitted · sender Vault reconciled</em></span>
                       : <span>{message.deletedAt ? "Message removed" : message.body}</span>}
                   <small>{shortTime(message.createdAt)}{message.editedAt ? " · edited" : ""}{mine ? ` · ${pending?.state === "failed" ? "not sent" : pending ? "sending" : conversation ? wildsMessageDeliveryState(message, conversation, selfId) : "sent"}` : ""}</small>

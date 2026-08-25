@@ -1,6 +1,7 @@
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import type { PortableCardAsset } from "./portable-card";
 import type { WildsCardTransferOffer } from "@/lib/receiz/wilds-card-transfer";
+import type { WildsPortableClaimKind } from "./wilds-portable-claim";
 
 export const WILDS_DIRECT_MESSAGE_MAX_LENGTH = 2_000;
 export const WILDS_DIRECT_MESSAGE_PAGE_SIZE = 60;
@@ -44,6 +45,8 @@ export type WildsDirectMessage = {
   } | {
     kind: "card-offer";
     offer: WildsCardTransferOffer;
+    claimId?: string;
+    claimProof?: string;
   } | {
     kind: "card-transfer";
     card: PortableCardAsset;
@@ -55,6 +58,13 @@ export type WildsDirectMessage = {
     priorOwnerReceizId: string;
     nextOwnerReceizId: string;
     status: "claimed";
+  } | {
+    kind: "portable-claim";
+    claimId: string;
+    claimKind: WildsPortableClaimKind;
+    title: string;
+    status: "committed";
+    executionId: string;
   };
   authority: {
     source: "receiz-id-proof-object";

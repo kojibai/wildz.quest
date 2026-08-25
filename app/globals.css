@@ -25,6 +25,87 @@
   color-scheme: dark;
 }
 
+.wilds-portable-claim-page {
+  height: 100svh;
+  min-height: 100svh;
+  display: grid;
+  place-items: start center;
+  padding: max(58px, calc(env(safe-area-inset-top) + 46px)) 18px max(24px, env(safe-area-inset-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  color: #eafff9;
+  background:
+    radial-gradient(circle at 18% 4%, rgba(77, 232, 204, .2), transparent 34%),
+    radial-gradient(circle at 92% 88%, rgba(103, 77, 232, .2), transparent 42%),
+    #020b0d;
+}
+
+.wilds-portable-claim-page > header {
+  position: fixed;
+  inset: max(12px, env(safe-area-inset-top)) 16px auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  color: #8eb4ab;
+  z-index: 1;
+}
+
+.wilds-portable-claim-page > header a { color: #b9fff0; text-decoration: none; }
+
+.wilds-portable-claim-panel {
+  width: min(100%, 520px);
+  padding: clamp(24px, 7vw, 44px);
+  border: 1px solid rgba(138, 255, 226, .24);
+  border-radius: 30px;
+  background: linear-gradient(145deg, rgba(7, 31, 34, .97), rgba(9, 8, 29, .98));
+  box-shadow: 0 32px 90px rgba(0, 0, 0, .55), inset 0 1px rgba(255, 255, 255, .06);
+  margin-block: auto;
+}
+
+.wilds-portable-claim-seal {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 24px;
+  border: 1px solid rgba(117, 255, 221, .4);
+  border-radius: 18px;
+  color: #78f8d7;
+  background: linear-gradient(145deg, rgba(48, 230, 193, .22), rgba(79, 71, 205, .25));
+}
+
+.wilds-portable-claim-panel > small { color: #75e8cf; font-weight: 900; letter-spacing: .18em; }
+.wilds-portable-claim-panel h1 { margin: 12px 0 8px; font-size: clamp(34px, 9vw, 54px); line-height: .98; }
+.wilds-portable-claim-panel > p { color: #9dbbb4; }
+.wilds-portable-claim-panel > p strong { color: #eafff9; }
+
+.wilds-portable-claim-law {
+  display: grid;
+  gap: 11px;
+  margin: 30px 0;
+  padding: 20px 0;
+  border-block: 1px solid rgba(138, 255, 226, .13);
+  color: #a9c9c1;
+  font-size: 13px;
+}
+
+.wilds-portable-claim-law span { display: flex; align-items: center; gap: 10px; }
+.wilds-portable-claim-law i { width: 8px; height: 8px; border-radius: 50%; background: #6ff0cf; box-shadow: 0 0 18px #6ff0cf; }
+.wilds-portable-claim-panel > button {
+  width: 100%; min-height: 56px; border: 0; border-radius: 16px; font: inherit; font-weight: 900;
+  color: #031211; background: linear-gradient(90deg, #68dff4, #77f2c8); touch-action: manipulation;
+}
+.wilds-portable-claim-panel > button:disabled { opacity: .62; }
+.wilds-portable-claim-complete { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; padding: 18px; border-radius: 16px; color: #76f0ce; background: rgba(67, 211, 174, .12); }
+.wilds-portable-claim-complete svg { grid-row: 1 / 3; }
+.wilds-portable-claim-complete span { color: #9dbbb4; font-size: 12px; }
+.wilds-portable-claim-error { color: #ff9d9d !important; font-size: 12px; }
+.wilds-portable-claim-panel footer { margin-top: 22px; color: #63817a; font-size: 10px; line-height: 1.5; text-align: center; }
+
 /* A Grove is encountered as part of the world, never as a tutorial layer. */
 .wilds-grove-experience {
   position: fixed;

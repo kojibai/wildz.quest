@@ -75,6 +75,34 @@ describe("Wilds Receiz-ID messenger", () => {
     }), /wilds_message_idempotency_conflict/);
   });
 
+  it("records a universal claim outcome as a source-authoritative thread event", () => {
+    const claimId = `wildz-claim:${"c".repeat(64)}`;
+    const result = appendWildsDirectMessage({
+      sender: nova,
+      recipient: kai,
+      body: "Claimed 12 moonwood",
+      clientMessageId: claimId,
+      context: { kind: "portable-claim", claimId, claimKind: "resource", title: "12 moonwood", status: "committed", executionId: "execution-one" },
+      now: "2026-08-23T20:12:00.000Z"
+    });
+    assert.equal(result.message.context?.kind, "portable-claim");
+    assert.equal(result.message.authority.source, "receiz-id-proof-object");
+    assert.throws(() => appendWildsDirectMessage({
+      sender: nova,
+      recipient: kai,
+      body: "Claimed 99 moonwood",
+      clientMessageId: claimId,
+      context: { kind: "portable-claim", claimId, claimKind: "resource", title: "99 moonwood", status: "committed", executionId: "execution-one" }
+    }), /wilds_message_idempotency_conflict/);
+    assert.throws(() => appendWildsDirectMessage({
+      sender: nova,
+      recipient: kai,
+      body: "Malformed claim",
+      clientMessageId: "malformed-claim",
+      context: { kind: "portable-claim", claimId: "not-a-claim", claimKind: "resource", title: "Moonwood", status: "committed", executionId: "execution-one" }
+    }), /wilds_message_portable_claim_invalid/);
+  });
+
   it("tracks unread/read state and delivery without making synchronization authoritative", () => {
     const sender = { id: "receiz:kai-read", handle: "kai" };
     const recipient = { id: "receiz:nova-read", handle: "nova" };

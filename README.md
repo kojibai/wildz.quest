@@ -35,6 +35,7 @@ Wildz replaces the source repository's commerce-site experience with a game-firs
 - A no-signup first landing with local player genesis and later Receiz identity activation.
 - Identity Seal/key continuation and verified Vault recovery.
 - Living, portable creature cards with lineage, mastery, progression, export, import, and cross-application continuity.
+- Universal playable proof claims for exact card custody today and SDK-issued Phi, resource, access, and world-right transition sets through the same native Claim surface.
 - A proof-grounded creature Twin: talk to the exact being from its card, hear its deterministic neural voice, and see genome/state-shaped expression synchronized to speech.
 - Search-ready canonical metadata, game structured data, standard and image sitemaps, and bespoke Open Graph/iMessage/Discover artwork that remain outside the gameplay hot path.
 - A deterministic world with ecology, settlements, social memory, routes, raids, bosses, and canonical event projections.

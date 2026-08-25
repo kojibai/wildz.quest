@@ -16,6 +16,7 @@ import { verifyAnyWildsCard } from "./portable-card";
 import { validateWildsCardTransferOffer } from "@/lib/receiz/wilds-card-transfer";
 import { sameWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
+import { decodeWildsPortableClaim } from "./wilds-portable-claim";
 
 const messengerLedgerKey = Symbol.for("receiz.wilds.messenger-ledger.v1");
 const groupRoomLedgerKey = Symbol.for("receiz.wilds.group-room-ledger.v1");
@@ -121,6 +122,16 @@ export function appendWildsDirectMessage(input: {
     if (!sameWildzPlayerCoordinate(context.offer.targetHandle, recipient.handle)) {
       throw new Error("wilds_message_card_offer_recipient_invalid");
     }
+    if (context.claimId || context.claimProof) {
+      if (!context.claimId || !context.claimProof) throw new Error("wilds_message_card_claim_invalid");
+      try {
+        const claim = decodeWildsPortableClaim(context.claimProof);
+        if (claim.claimId !== context.claimId || claim.carrier.kind !== "bearer-card"
+          || claim.carrier.offer.instrument.plan.transferId !== context.offer.instrument.plan.transferId) {
+          throw new Error("mismatch");
+        }
+      } catch { throw new Error("wilds_message_card_claim_invalid"); }
+    }
   }
   if (context?.kind === "card-transfer" && (
     context.status !== "claimed"
@@ -133,6 +144,13 @@ export function appendWildsDirectMessage(input: {
     || !context.priorOwnerReceizId
     || !context.nextOwnerReceizId
   )) throw new Error("wilds_message_card_transfer_invalid");
+  if (context?.kind === "portable-claim" && (
+    !/^wildz-claim:[a-f0-9]{64}$/.test(context.claimId)
+    || !["phi", "resource", "card", "creature-custody", "experience-access", "world-right"].includes(context.claimKind)
+    || !context.title.trim() || context.title.length > 120
+    || context.status !== "committed"
+    || !context.executionId.trim()
+  )) throw new Error("wilds_message_portable_claim_invalid");
   const existing = conversation.messages.find((message) => (
     message.senderId === sender.id && message.clientMessageId === clientMessageId
   ));
