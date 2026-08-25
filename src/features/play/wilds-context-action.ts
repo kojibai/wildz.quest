@@ -6,6 +6,7 @@ export type WildsContextAction =
   | { kind: "activate"; label: "Awaken hidden signal"; targetId: string }
   | { kind: "greet"; label: string; playerId: string }
   | { kind: "join"; label: string; activityId: string }
+  | { kind: "tend"; label: "Tend the living grove" | "Enter the living grove"; groveId: string }
   | { kind: "scan"; label: "Pulse the world" };
 
 export type WildsContextInput = {
@@ -14,6 +15,7 @@ export type WildsContextInput = {
   secretId: string | null;
   selectedPlayer: { playerId: string; handle: string } | null;
   joinableActivity: { id: string; name: string } | null;
+  nearbyGrove: { id: string; needsCare: boolean } | null;
 };
 
 export function resolveWildsContextAction(input: WildsContextInput): WildsContextAction {
@@ -33,6 +35,13 @@ export function resolveWildsContextAction(input: WildsContextInput): WildsContex
       kind: "join",
       label: `Join ${input.joinableActivity.name}`,
       activityId: input.joinableActivity.id
+    };
+  }
+  if (input.nearbyGrove) {
+    return {
+      kind: "tend",
+      label: input.nearbyGrove.needsCare ? "Tend the living grove" : "Enter the living grove",
+      groveId: input.nearbyGrove.id
     };
   }
   if (input.selectedPlayer) {

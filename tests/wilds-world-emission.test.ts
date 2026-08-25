@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import { compileWildsLivingOperation, type WildsLivingOperationInputV1 } from "../src/features/play/wilds-living-operation";
 import {
+  admitWildsEmissionOutcome,
   admitWildsEmission,
   createWildsWorldEmissionGenesis,
   previewWildsEmission
@@ -111,5 +112,19 @@ describe("bounded World Emission authority", () => {
     assert.deepEqual(successor.consumedOperationIds, [operation.operationId]);
     assert.equal(previewWildsEmission({ emission: successor, operation, contributionClass: "ecology" }).reason, "operation_already_consumed");
     assert.throws(() => admitWildsEmission({ emission: successor, operation, contributionClass: "ecology", preview }), /preview_mismatch/);
+  });
+
+  it("records valid zero-Phi work without reducing bounded capacity", () => {
+    const emission = genesis();
+    const operation = compileWildsLivingOperation(operationInput({
+      operationId: "grove:observe:one",
+      semanticIdempotencyKey: "wildz:grove:observe:one",
+      consequences: { usefulOutput: 0, ecologicalRenewal: 0, publicBenefit: 0, cooperation: 0, durability: 0, extraction: 0, damage: 0, waste: 0, restorationDebt: 0 }
+    }));
+    const preview = previewWildsEmission({ emission, operation, contributionClass: "ecology" });
+    const successor = admitWildsEmissionOutcome({ emission, operation, contributionClass: "ecology", preview });
+    assert.equal(successor.globalRemainingPhiMicro, emission.globalRemainingPhiMicro);
+    assert.equal(successor.revision, 1);
+    assert.deepEqual(successor.consumedOperationIds, [operation.operationId]);
   });
 });

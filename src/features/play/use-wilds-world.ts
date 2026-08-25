@@ -99,6 +99,12 @@ export function useWildsWorld(input: {
   activeCard: PortableCardAsset | null;
   cardAdmission: WildzVaultCardMembershipProof | null;
   initialSnapshot?: { projection: WildsWorldProjection; mode: "receiz_live" | "kai_live" } | null;
+  authorizeLivingWorld?: (input: Readonly<{
+    operationId: string;
+    planDigest: string;
+    semanticIdempotencyKey: string;
+    amountPhiMicro: string;
+  }>) => Promise<unknown>;
 }) {
   const [snapshot, setSnapshot] = useState<WildsWorldProjection | null>(() => input.initialSnapshot?.projection ?? null);
   const [mode, setMode] = useState<WildsWorldClientMode>(() => input.initialSnapshot?.mode ?? "connecting");
@@ -127,6 +133,14 @@ export function useWildsWorld(input: {
   }, []);
 
   const sendEntry = useCallback(async (entry: WildsWorldOutboxEntry) => {
+    const receizExecution = entry.command.type === "grove.act"
+      ? await input.authorizeLivingWorld?.({
+          operationId: entry.command.operation.operationId,
+          planDigest: entry.command.operation.planDigest,
+          semanticIdempotencyKey: entry.command.operation.semanticIdempotencyKey,
+          amountPhiMicro: entry.command.amountPhiMicro
+        })
+      : undefined;
     const value = await request("/api/wilds/world/command", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -134,7 +148,8 @@ export function useWildsWorld(input: {
         guestId: entry.guestId,
         command: entry.command,
         ...(entry.card ? { card: entry.card } : {}),
-        ...(entry.cardAdmission ? { cardAdmission: entry.cardAdmission } : {})
+        ...(entry.cardAdmission ? { cardAdmission: entry.cardAdmission } : {}),
+        ...(receizExecution ? { receizExecution } : {})
       })
     });
     const publication = value.publication as Record<string, unknown> | undefined;
@@ -142,7 +157,7 @@ export function useWildsWorld(input: {
       await publishActiveWildsWorldWithIdentityProof(publication.draft);
     }
     return parseWildsWorldCommandResponse(value);
-  }, [request]);
+  }, [input.authorizeLivingWorld, request]);
 
   const flushOutbox = useCallback(async (base: WildsWorldProjection, initialMode: WildsWorldCommandMode) => {
     if (commandPending.current) {

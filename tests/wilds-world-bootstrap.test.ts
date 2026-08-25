@@ -8,7 +8,7 @@ import { createKaiTemporalRoot } from "../src/features/play/kai-temporal-root.js
 import { createWildsCreatureMandate, evaluateWildsCreatureConsent } from "../src/features/play/wilds-creature-mandate.js";
 import { admitWildsGroveAction, previewWildsGroveAction, projectWildsRegenerativeGrove } from "../src/features/play/wilds-regenerative-grove.js";
 import { projectWildsRegionalWeather } from "../src/features/play/wilds-regional-weather.js";
-import { admitWildsEmission, createWildsWorldEmissionGenesis } from "../src/features/play/wilds-world-emission.js";
+import { admitWildsEmission, admitWildsEmissionOutcome, createWildsWorldEmissionGenesis } from "../src/features/play/wilds-world-emission.js";
 import type { WildsWorldRecord } from "../src/features/play/wilds-world-record.js";
 import * as worldServer from "../src/lib/receiz/wilds-world-server.js";
 import {
@@ -46,18 +46,10 @@ function canonicalWorld(pulse = GENESIS_PULSE): WildsWorldRecord {
 
 function canonicalGroveWorld() {
   const moment = deriveKaiKlokMoment({ occurredAt: GENESIS_PULSE, authority: "world" });
-  const weather = projectWildsRegionalWeather({
-    moment, region: { x: 0, z: 0 }, biome: "grove", elevation: 0.2,
-    waterProximity: 0.4, ecologyHead: "1".repeat(64)
-  });
-  const projectedGrove = projectWildsRegenerativeGrove({
-    regionId: "region:0:0", regionHead: "2".repeat(64), position: { x: 4, z: 6 }, moment, weather
-  });
-  const emission = createWildsWorldEmissionGenesis({
-    epochId: "epoch:bootstrap", epochEndsAtKaiUPulse: moment.uPulse + 20_000_000,
-    globalCapacityPhiMicro: "1000000", regionCapacityPhiMicro: { "region:0:0": "1000000" },
-    classCapacityPhiMicro: { ecology: "1000000" }, policyDigest: "3".repeat(64)
-  });
+  const seeded = new WildsWorldService(canonicalWorld());
+  const projectedGrove = Object.values(seeded.snapshot().groves)[0]!;
+  const emission = seeded.snapshot().worldEmission!;
+  const weather = projectedGrove.weather;
   const professions = ["gather"];
   const consent = evaluateWildsCreatureConsent({
     creatureSubjectId: "creature:bee", creatureHead: "4".repeat(64),
@@ -66,7 +58,7 @@ function canonicalGroveWorld() {
     safety: { risk: 1, hazards: [], supportAvailable: true }, requested: { professions, maxActions: 2 }, kaiUPulse: moment.uPulse
   });
   const mandate = createWildsCreatureMandate({
-    consent, creatureSubjectId: "creature:bee", creatureHead: "4".repeat(64), region: { x: 0, z: 0 },
+    consent, creatureSubjectId: "creature:bee", creatureHead: "4".repeat(64), region: { x: -2, z: -2 },
     professions, allowedResourceIds: [projectedGrove.groveId], maxActions: 2,
     issuedAtKaiUPulse: moment.uPulse, expiresAtKaiUPulse: moment.uPulse + 10_000_000
   });
@@ -74,19 +66,25 @@ function canonicalGroveWorld() {
     grove: projectedGrove, action: "observe", actor: { id: "bjklock.receiz.id", head: "5".repeat(64) }, mandate, weather, moment, emission
   });
   const grove = admitWildsGroveAction({ grove: projectedGrove, preview: observation });
-  const preview = previewWildsGroveAction({
-    grove, action: "gather", actor: { id: "bjklock.receiz.id", head: "5".repeat(64) }, mandate, weather, moment, emission
-  });
-  const nextGrove = admitWildsGroveAction({ grove, preview });
-  const nextEmission = admitWildsEmission({ emission, operation: preview.operation, contributionClass: "ecology", preview: preview.emission });
-  const world = new WildsWorldService(canonicalWorld());
+  const world = seeded;
   const authority = { actorId: "bjklock", canonical: true, pulse: GENESIS_PULSE, occurredAt: GENESIS_PULSE, uPulse: moment.uPulse } as const;
-  world.execute({ type: "grove.observe", grove, emission, commandId: "grove:observe:bootstrap" }, authority);
+  world.execute({
+    type: "grove.act", operation: observation.operation, grove,
+    emission: admitWildsEmissionOutcome({ emission, operation: observation.operation, contributionClass: "ecology", preview: observation.emission }),
+    amountPhiMicro: observation.emission.amountPhiMicro,
+    commandId: "grove:observe:bootstrap"
+  }, authority);
+  const observedEmission = world.snapshot().worldEmission!;
+  const observedPreview = previewWildsGroveAction({
+    grove, action: "gather", actor: { id: "bjklock.receiz.id", head: "5".repeat(64) }, mandate, weather, moment, emission: observedEmission
+  });
+  const admittedGrove = admitWildsGroveAction({ grove, preview: observedPreview });
+  const admittedEmission = admitWildsEmission({ emission: observedEmission, operation: observedPreview.operation, contributionClass: "ecology", preview: observedPreview.emission });
   return {
     record: { checkpoint: world.checkpoint(), eventTail: world.events() },
     command: {
-      type: "grove.act" as const, operation: preview.operation, grove: nextGrove, emission: nextEmission,
-      amountPhiMicro: preview.emission.amountPhiMicro, commandId: "grove:gather:bootstrap", kai: commandKai()
+      type: "grove.act" as const, operation: observedPreview.operation, grove: admittedGrove, emission: admittedEmission,
+      amountPhiMicro: observedPreview.emission.amountPhiMicro, commandId: "grove:gather:bootstrap", kai: commandKai()
     }
   };
 }
@@ -400,6 +398,7 @@ test("a Grove operation reaches the canonical world only after its exact V124 pl
     command: data.command,
     receizExecution: { authoritySession: { signedSourceAuthority: true } }
   }, {
+    prepareLivingWorldAuthorityV124: async () => ({ signedSourceAuthority: true }) as never,
     executeLivingWorldV124: async (input) => {
       sourceRevisionDuringExecution = ((globalThis as Record<symbol, unknown>)[serviceKey] as WildsWorldService).checkpoint().revision;
       assert.equal(input.amountPhiMicro, data.command.amountPhiMicro);
@@ -424,6 +423,7 @@ test("a V124 zero-write Grove outcome leaves canonical memory exactly at its rec
     command: data.command,
     receizExecution: { authoritySession: { signedSourceAuthority: true } }
   }, {
+    prepareLivingWorldAuthorityV124: async () => ({ signedSourceAuthority: true }) as never,
     executeLivingWorldV124: async () => ({ status: "zero-write", reasonCode: "STALE_HEAD" })
   }), /wilds_living_world_zero_write:STALE_HEAD/);
 

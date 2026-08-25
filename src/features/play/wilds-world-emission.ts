@@ -207,3 +207,30 @@ export function admitWildsEmission(input: Readonly<{
     parentHead: input.emission.head
   });
 }
+
+export function admitWildsEmissionOutcome(input: Readonly<{
+  emission: WildsWorldEmissionProofV1;
+  operation: WildsLivingOperationPlanV1;
+  contributionClass: WildsContributionClass;
+  preview: WildsEmissionPreviewV1;
+}>): WildsWorldEmissionProofV1 {
+  const expected = previewWildsEmission(input);
+  if (canonicalPortableCardJson(input.preview) !== canonicalPortableCardJson(expected)
+    || expected.reason === "operation_already_consumed" || expected.reason === "epoch_mismatch") {
+    throw new Error("world_emission_preview_mismatch");
+  }
+  if (expected.eligible && expected.amountPhiMicro !== "0") return admitWildsEmission(input);
+  const regionId = operationRegion(input.operation);
+  return withHead({
+    schema: "wildz.world-emission-proof.v1",
+    epochId: input.emission.epochId,
+    epochEndsAtKaiUPulse: input.emission.epochEndsAtKaiUPulse,
+    policyDigest: input.emission.policyDigest,
+    globalRemainingPhiMicro: input.emission.globalRemainingPhiMicro,
+    regionRemainingPhiMicro: { ...input.emission.regionRemainingPhiMicro, [regionId]: input.emission.regionRemainingPhiMicro[regionId]! },
+    classRemainingPhiMicro: { ...input.emission.classRemainingPhiMicro },
+    consumedOperationIds: [...input.emission.consumedOperationIds, input.operation.operationId].sort(),
+    revision: input.emission.revision + 1,
+    parentHead: input.emission.head
+  });
+}

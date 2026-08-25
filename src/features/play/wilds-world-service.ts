@@ -19,6 +19,7 @@ import { acceptWildsInvite, assembleWildsSquad, changeWildsRole, inviteWildsPlay
 import type { WildsRegenerativeGroveV1 } from "./wilds-regenerative-grove";
 import type { WildsLivingOperationPlanV1 } from "./wilds-living-operation";
 import type { WildsWorldEmissionProofV1 } from "./wilds-world-emission";
+import { projectWildsGroveGenesis } from "./wilds-grove-genesis";
 import {
   createWildsWorldEvent,
   wildsWorldEventSequence,
@@ -347,6 +348,12 @@ export class WildsWorldService {
     const existingSites = Object.values(this.projection.ecologySites) as WildsEcologySite[];
     const ensemble = generateWildsEcologyEnsemble({ pulse: input.pulse, existingSites, ordinalStart: existingSites.length + 1 });
     for (const site of ensemble) events.push(this.append("ecology.spawned", { site: ecologyProjection(site) }, authority, causeId));
+    if (this.projection.worldEmission === null && Object.keys(this.projection.groves).length === 0) {
+      const genesis = projectWildsGroveGenesis(moment);
+      for (const grove of genesis.groves) {
+        events.push(this.append("grove.discovered", { grove, emission: genesis.emission }, authority, causeId));
+      }
+    }
     return { events, projection: this.projection };
   }
 

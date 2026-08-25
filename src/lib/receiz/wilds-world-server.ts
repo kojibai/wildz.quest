@@ -11,6 +11,7 @@ import { readWildzProofSessionCookie } from "./wildz-proof-session";
 import { createWildsWorldIdentityPublicationDraft } from "./wilds-world-identity-publication";
 import { createReceizCommerceAdapter } from "./adapter";
 import { executeWildsLivingWorldV124, type WildsLivingWorldV124RuntimeInput } from "./wilds-living-world-v124-runtime";
+import { prepareWildsLivingWorldAuthoritySession } from "./wilds-living-world-authority";
 import {
   WILDS_LIVING_WORLD_REDUCER_DIGEST,
   WILDS_LIVING_WORLD_REGISTRY_DIGEST,
@@ -21,6 +22,7 @@ export type { WildsWorldPublication } from "./wilds-world-repository";
 
 type WildsWorldServerDependencies = Readonly<{
   executeLivingWorldV124?: (input: WildsLivingWorldV124RuntimeInput) => Promise<Readonly<{ status: string; reasonCode?: unknown }>>;
+  prepareLivingWorldAuthorityV124?: typeof prepareWildsLivingWorldAuthoritySession;
 }>;
 
 function origin(request: NextRequest) {
@@ -289,9 +291,20 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
       }
       const authorityRecord = executionAuthority as Record<string, unknown>;
       const rail = createReceizCommerceAdapter(actor.accessToken ? { accessToken: actor.accessToken } : undefined);
+      const authoritySessionInput = await (dependencies.prepareLivingWorldAuthorityV124 ?? prepareWildsLivingWorldAuthoritySession)({
+        rail,
+        actor,
+        executionProof: authorityRecord,
+        operation: {
+          operationId: command.operation.operationId,
+          planDigest: command.operation.planDigest,
+          semanticIdempotencyKey: command.operation.semanticIdempotencyKey,
+          amountPhiMicro: command.amountPhiMicro
+        }
+      });
       const outcome = await (dependencies.executeLivingWorldV124 ?? executeWildsLivingWorldV124)({
         rail: rail as unknown as WildsLivingWorldV124RuntimeInput["rail"],
-        authoritySessionInput: authorityRecord.authoritySession,
+        authoritySessionInput,
         operation: command.operation,
         heads: wildsLivingWorldSuccessorHeads({
           actorId: actor.handle,

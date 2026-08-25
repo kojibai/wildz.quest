@@ -55,6 +55,10 @@ import { kaiTransition, projectKaiWorldExpression, type KaiWorldExpression } fro
 import { WildzCommandInsight } from "@/features/play/WildzCommandInsight";
 import type { WildsMovementMode } from "@/features/play/wilds-movement";
 import { resolveWildsContextAction } from "@/features/play/wilds-context-action";
+import { createWildsCreatureMandate, evaluateWildsCreatureConsent } from "@/features/play/wilds-creature-mandate";
+import { admitWildsGroveAction, previewWildsGroveAction, type WildsGroveActionKind } from "@/features/play/wilds-regenerative-grove";
+import { admitWildsEmissionOutcome } from "@/features/play/wilds-world-emission";
+import type { WildsGroveExperienceAction } from "@/features/play/WildsRegenerativeGroveExperience";
 import { landmarkAtPosition, WILDS_FLAGSHIP_LANDMARKS, type WildsLandmarkId } from "@/features/play/wilds-landmarks";
 import { evaluateLandmarkAccess, type WildsLandmarkProgress } from "@/features/play/wilds-landmark-access";
 import type { RiftTravelGrant } from "@/features/play/wilds-rift-travel";
@@ -116,6 +120,7 @@ import { WildsWorldCanvas } from "@/features/play/WildsWorldCanvas";
 import { useWildsWalletController, type WildsWalletClientAuthorizationPort } from "@/features/play/wallet/useWildsWalletController";
 import { authorizeWildsWalletReadWithIdentity, projectWildsWalletSourceAuthority } from "@/features/play/wallet/wilds-wallet-read-authorization";
 import { authorizeWildsWalletTransferWithIdentity } from "@/features/play/wallet/wilds-wallet-transfer-authorization";
+import { authorizeWildsLivingWorldOperationWithIdentity } from "@/features/play/wilds-living-world-authorization";
 import { projectWildsWalletPlayStateSeed, seedWildsWalletFromPlayState } from "@/features/play/wallet/wilds-wallet-play-state";
 import { canCloseWildsWalletTerminal, WildsWalletTerminal } from "@/features/play/wallet/WildsWalletTerminal";
 import { emptyAdventureCondition } from "@/features/play/adventure/card-condition";
@@ -151,8 +156,40 @@ const WildsWorldMap = dynamic(() => import("@/features/play/WildsWorldMap").then
 const WildsLandmarkExperience = dynamic(() => import("@/features/play/WildsLandmarkExperience").then((mod) => mod.WildsLandmarkExperience), { ssr: false });
 const WildsSettlementExperience = dynamic(() => import("@/features/play/WildsSettlementExperience").then((mod) => mod.WildsSettlementExperience), { ssr: false });
 const WildsEcologyExperience = dynamic(() => import("@/features/play/WildsEcologyExperience").then((mod) => mod.WildsEcologyExperience), { ssr: false });
+const WildsRegenerativeGroveExperience = dynamic(() => import("@/features/play/WildsRegenerativeGroveExperience").then((mod) => mod.WildsRegenerativeGroveExperience), { ssr: false });
 const WildsRaidExperience = dynamic(() => import("@/features/play/WildsRaidExperience").then((mod) => mod.WildsRaidExperience), { ssr: false });
 const WildsTrainerEncounter = dynamic(() => import("@/features/play/WildsTrainerEncounter").then((mod) => mod.WildsTrainerEncounter), { ssr: false });
+const GROVE_CREATURE_PROFESSIONS = ["build-hive", "build-nursery", "gather", "harvest-honey", "pollinate", "sow", "transform-nectar"] as const;
+
+function groveConsequence(action: WildsGroveActionKind) {
+  return ({
+    observe: "You learn what this place needs without disturbing it.",
+    gather: "Fallen fiber, pollen, and seeds enter your shared stores.",
+    pollinate: "New flowers spread beyond this grove.",
+    sow: "Young roots take hold and strengthen the soil.",
+    water: "Moisture rises and young roots recover.",
+    compost: "The soil deepens for everything growing here.",
+    cultivate: "The grove matures under patient care.",
+    "transform-nectar": "Nectar becomes nourishment that can be shared.",
+    "harvest-honey": "Living honey nourishes beings beyond the hive.",
+    "build-hive": "A hive shelters future pollinators.",
+    "build-nursery": "A nursery protects the next generation.",
+    repair: "The grove's worn structures become sound again."
+  } satisfies Record<WildsGroveActionKind, string>)[action];
+}
+
+function groveReason(reason: string | undefined) {
+  return ({
+    "grove-unobserved": "Listen to this place before changing it.",
+    "creature-mandate-required": "A willing creature partner is needed here.",
+    "creature-mandate-invalid": "Your companion needs rest or different work.",
+    "pollen-required": "Gather pollen before carrying the bloom.",
+    "seed-required": "Gather seeds before sowing.",
+    "nectar-required": "More nectar is needed.",
+    "fallen-fiber-required": "More fallen fiber would steady the frame.",
+    "living-honey-unavailable": "The hive is not ready to share honey yet."
+  } as Record<string, string>)[reason ?? ""] ?? "The grove is not ready for this yet.";
+}
 const MortalArenaExperience = dynamic(() => import("@/features/games/mortal-arena/MortalArenaExperience").then((mod) => mod.MortalArenaExperience), { ssr: false });
 export function PlayCampaign({
   campaignName = "Reward Challenge",
@@ -350,6 +387,10 @@ export function PlayCampaign({
   const walletTransferAuthorization = useMemo(() => walletAuthorization ?? (walletReadIdentityKey
     ? { authorize: (input: Parameters<WildsWalletClientAuthorizationPort["authorize"]>[0]) => authorizeWildsWalletTransferWithIdentity(walletReadIdentityKey, input) }
     : undefined), [walletAuthorization, walletReadIdentityKey]);
+  const livingWorldAuthorization = useMemo(() => walletReadIdentityKey
+    ? (authorization: Parameters<typeof authorizeWildsLivingWorldOperationWithIdentity>[1]) =>
+        authorizeWildsLivingWorldOperationWithIdentity(walletReadIdentityKey, authorization)
+    : undefined, [walletReadIdentityKey]);
   const walletController = useWildsWalletController(walletIdentityKey, walletAuthorityGeneration, {
     authorization: walletTransferAuthorization,
     readAuthorization: walletReadAuthorization
@@ -367,6 +408,8 @@ export function PlayCampaign({
   const [activeLandmarkId, setActiveLandmarkId] = useState<WildsLandmarkId | null>(null);
   const [activeDistrictId, setActiveDistrictId] = useState<WildsSettlementDistrictId>("trail-gate");
   const [activeEcologySiteId, setActiveEcologySiteId] = useState<string | null>(null);
+  const [activeGroveId, setActiveGroveId] = useState<string | null>(null);
+  const [groveBusyAction, setGroveBusyAction] = useState<WildsGroveActionKind | null>(null);
   const [activeRaid, setActiveRaid] = useState<{ bossId: string; roundId: string; placement: "fighter" | "support"; connected: boolean } | null>(null);
   const [raidReturnPosition, setRaidReturnPosition] = useState<{ x: number; z: number } | null>(null);
   const [raidBusyIntent, setRaidBusyIntent] = useState<WildsRaidIntent["type"] | null>(null);
@@ -554,7 +597,7 @@ export function PlayCampaign({
     reward: isCaptureRewardModalOwner(state.encounter.phase, Boolean(captureRewardAsset)),
     ceremony: Boolean(state.transformation || state.lineageReveal),
     raid: Boolean(activeRaid),
-    ecology: Boolean(activeEcologySiteId),
+    ecology: Boolean(activeEcologySiteId || activeGroveId),
     settlement: activeLandmarkId === "wayfinder-hollow",
     landmark: activeLandmarkId !== null && activeLandmarkId !== "wayfinder-hollow",
     map: mapOpen,
@@ -588,7 +631,11 @@ export function PlayCampaign({
   const clearIncompatibleModalState = useCallback((owner: typeof exclusiveOwner) => {
     if (owner !== "map") setMapOpen(false);
     if (owner !== "landmark" && owner !== "settlement") setActiveLandmarkId(null);
-    if (owner !== "ecology") setActiveEcologySiteId(null);
+    if (owner !== "ecology") {
+      setActiveEcologySiteId(null);
+      setActiveGroveId(null);
+      setGroveBusyAction(null);
+    }
     if (owner !== "raid") {
       setActiveRaid(null);
       setRaidBusyIntent(null);
@@ -662,6 +709,8 @@ export function PlayCampaign({
       setActiveLandmarkId(null);
     } else if (owner === "ecology") {
       setActiveEcologySiteId(null);
+      setActiveGroveId(null);
+      setGroveBusyAction(null);
     } else if (owner === "raid") {
       setActiveRaid(null);
     } else if (owner === "reward") {
@@ -694,7 +743,8 @@ export function PlayCampaign({
     kaiUPulse,
     activeCard: activeAsset ?? null,
     cardAdmission,
-    initialSnapshot: initialWorld
+    initialSnapshot: initialWorld,
+    authorizeLivingWorld: livingWorldAuthorization
   });
   const livingPhysicalObstacles = useMemo(
     () => projectWildsRenderedLivingObstacles(livingWorld.snapshot),
@@ -1173,7 +1223,12 @@ export function PlayCampaign({
     .map((site) => ({ site, distance: Math.hypot(site.position.x - state.player.x, site.position.z - state.player.z) }))
     .filter(({ site, distance }) => (site.phase === "foreshadowed" || site.phase === "discovered" || site.phase === "active") && distance <= site.radius)
     .sort((left, right) => left.distance - right.distance)[0] ?? null;
+  const nearbyGrove = Object.values(livingWorld.snapshot?.groves ?? {})
+    .map((grove) => ({ grove, distance: Math.hypot(grove.position.x - state.player.x, grove.position.z - state.player.z) }))
+    .filter(({ distance }) => distance <= 16)
+    .sort((left, right) => left.distance - right.distance || left.grove.groveId.localeCompare(right.grove.groveId))[0] ?? null;
   const activeEcologySite = activeEcologySiteId ? livingWorld.snapshot?.ecologySites[activeEcologySiteId] ?? null : null;
+  const activeGrove = activeGroveId ? livingWorld.snapshot?.groves[activeGroveId] ?? null : null;
   const activeRaidBoss = activeRaid ? livingWorld.snapshot?.bosses[activeRaid.bossId] ?? null : null;
   const activeRaidRound = activeRaid ? livingWorld.snapshot?.raids[activeRaid.roundId] ?? null : null;
   const activeRaidEncounter = activeRaidRound && typeof activeRaidRound.encounter === "object" ? activeRaidRound.encounter as WildsRaidEncounterState : null;
@@ -1185,7 +1240,11 @@ export function PlayCampaign({
     selectedPlayer: multiplayer.selectedPlayer
       ? { playerId: multiplayer.selectedPlayer.playerId, handle: multiplayer.selectedPlayer.handle }
       : null,
-    joinableActivity: nearbyLivingBoss && nearbyLivingBoss.phase !== "defeated" ? { id: nearbyLivingBoss.id, name: "shared boss raid" } : null
+    joinableActivity: nearbyLivingBoss && nearbyLivingBoss.phase !== "defeated" ? { id: nearbyLivingBoss.id, name: "shared boss raid" } : null,
+    nearbyGrove: nearbyGrove ? {
+      id: nearbyGrove.grove.groveId,
+      needsCare: nearbyGrove.grove.ecology.moisture < 35 || nearbyGrove.grove.restorationDebt > 0
+    } : null
   });
   const pulse = nearbyEcology && (basePulse.kind === "scan" || basePulse.kind === "greet")
     ? { kind: "join" as const, label: `${nearbyEcology.site.phase === "foreshadowed" ? "Discover" : "Enter"} ${nearbyEcology.site.name}`, activityId: nearbyEcology.site.id }
@@ -1198,6 +1257,58 @@ export function PlayCampaign({
     livingWorld.snapshot?.defeatedBossIds.length ? `${livingWorld.snapshot.defeatedBossIds.length} shared victory ${livingWorld.snapshot.defeatedBossIds.length === 1 ? "monument stands" : "monuments stand"} in the world.` : null
   ].filter((message): message is string => Boolean(message));
   const activeCondition = activeAsset ? state.adventureConditions[activeAsset.id] : null;
+  const activeGroveMandate = useMemo(() => {
+    if (!activeGrove || !activeAsset || !activeCondition) return null;
+    const creatureHead = sha256PortableBasis(activeAsset.proof.digest);
+    const creatureSubjectId = `creature:${sha256PortableBasis(activeAsset.id).slice(0, 32)}`;
+    const consent = evaluateWildsCreatureConsent({
+      creatureSubjectId,
+      creatureHead,
+      condition: {
+        energy: Math.max(0, 100 - activeCondition.fatigue),
+        fatigue: activeCondition.fatigue,
+        injury: Math.min(100, activeCondition.injuries.length * 24),
+        stress: Math.min(100, Math.round(activeCondition.fatigue * .6))
+      },
+      bond: 70,
+      preferences: { professions: GROVE_CREATURE_PROFESSIONS, avoidHazards: [] },
+      capabilities: { professions: GROVE_CREATURE_PROFESSIONS },
+      safety: { risk: activeGrove.weather.hazardCues.length * 18, hazards: activeGrove.weather.hazardCues, supportAvailable: multiplayer.remotePlayers.length > 0 },
+      requested: { professions: GROVE_CREATURE_PROFESSIONS, maxActions: 8 },
+      kaiUPulse: kaiMoment.uPulse
+    });
+    if (consent.decision !== "accept") return null;
+    return createWildsCreatureMandate({
+      consent,
+      creatureSubjectId,
+      creatureHead,
+      region: { x: Math.floor(activeGrove.position.x / 64), z: Math.floor(activeGrove.position.z / 64) },
+      professions: GROVE_CREATURE_PROFESSIONS,
+      allowedResourceIds: [activeGrove.groveId],
+      maxActions: 8,
+      issuedAtKaiUPulse: kaiMoment.uPulse,
+      expiresAtKaiUPulse: kaiMoment.uPulse + 10_000_000
+    });
+  }, [activeAsset, activeCondition, activeGrove, kaiMoment.uPulse, multiplayer.remotePlayers.length]);
+  const activeGrovePreviews = useMemo(() => {
+    if (!activeGrove || !livingWorld.snapshot?.worldEmission) return [];
+    return activeGrove.availableActions.map((action) => previewWildsGroveAction({
+      grove: activeGrove,
+      action,
+      actor: { id: ownerReceizId, head: sha256PortableBasis(ownerReceizId) },
+      ...(activeGroveMandate ? { mandate: activeGroveMandate } : {}),
+      weather: activeGrove.weather,
+      moment: kaiMoment,
+      emission: livingWorld.snapshot!.worldEmission!
+    }));
+  }, [activeGrove, activeGroveMandate, kaiMoment, livingWorld.snapshot, ownerReceizId]);
+  const activeGroveActions = useMemo<WildsGroveExperienceAction[]>(() => activeGrovePreviews.map((preview) => ({
+    action: preview.action,
+    valid: preview.valid && Boolean(activeGroveMandate),
+    reason: preview.valid && activeGroveMandate ? null : groveReason(preview.reasons[0]),
+    consequence: groveConsequence(preview.action),
+    amountPhiMicro: preview.emission.amountPhiMicro
+  })), [activeGroveMandate, activeGrovePreviews]);
   const commandModel = projectWildsCommandCenter({
     moment: kaiMoment,
     connected: livingWorld.mode === "receiz_live",
@@ -1258,6 +1369,12 @@ export function PlayCampaign({
     });
   };
   const activatePulse = () => {
+    if (pulse.kind === "tend") {
+      if (!nearbyGrove || nearbyGrove.grove.groveId !== pulse.groveId) return;
+      claimPlayModalOwner("ecology");
+      setActiveGroveId(pulse.groveId);
+      return;
+    }
     if (pulse.kind === "enter") {
       if (pulse.landmarkId === "wayfinder-hollow") {
         if (!civic.completedSourceIds.includes("settlement:wayfinder-hollow")) {
@@ -2013,6 +2130,45 @@ export function PlayCampaign({
         site={activeEcologySite}
         worldMode={settlementWorldMode}
       />
+      {activeGrove ? <WildsRegenerativeGroveExperience
+        open={exclusiveOwner === "ecology" && Boolean(activeGrove)}
+        grove={activeGrove}
+        companion={activeAsset && activeCondition ? {
+          name: activeAsset.manifest.name,
+          willing: Boolean(activeGroveMandate),
+          energy: Math.max(0, 100 - activeCondition.fatigue),
+          fatigue: activeCondition.fatigue
+        } : null}
+        actions={activeGroveActions}
+        busyAction={groveBusyAction}
+        reconnecting={groveBusyAction !== null && livingWorld.mode === "receiz_recovery_pending"}
+        error={riftError || null}
+        onAction={(action) => {
+          const preview = activeGrovePreviews.find((candidate) => candidate.action === action);
+          if (!preview?.valid || !activeGroveMandate || !livingWorld.snapshot?.worldEmission || groveBusyAction) return;
+          const nextGrove = admitWildsGroveAction({ grove: activeGrove, preview });
+          const nextEmission = admitWildsEmissionOutcome({
+            emission: livingWorld.snapshot.worldEmission,
+            operation: preview.operation,
+            contributionClass: preview.operation.category === "construction" ? "construction" : "ecology",
+            preview: preview.emission
+          });
+          setGroveBusyAction(action);
+          setRiftError("");
+          void livingWorld.actInGrove(preview.operation, nextGrove, nextEmission, preview.emission.amountPhiMicro)
+            .then((projection) => {
+              const admitted = projection.groves[activeGrove.groveId];
+              if (!admitted || admitted.head !== nextGrove.head) throw new Error("wilds_grove_admission_missing");
+            })
+            .catch((cause) => setRiftError(friendlyWildsGameplayError(cause, "The grove is holding this work safely. Try again.")))
+            .finally(() => setGroveBusyAction(null));
+        }}
+        onExit={() => {
+          releasePlayModalOwner("ecology");
+          setActiveGroveId(null);
+          setGroveBusyAction(null);
+        }}
+      /> : null}
       <WildsRaidExperience
         boss={activeRaidBoss}
         busyIntent={raidBusyIntent}

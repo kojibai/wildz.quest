@@ -11,7 +11,8 @@ const emptyContext = {
   landmark: null,
   secretId: null,
   selectedPlayer: null,
-  joinableActivity: null
+  joinableActivity: null,
+  nearbyGrove: null
 };
 
 describe("Wilds contextual world actions", () => {
@@ -61,6 +62,14 @@ describe("Wilds contextual world actions", () => {
       kind: "join",
       label: "Join Resonance Run",
       activityId: "run-1"
+    });
+    assert.deepEqual(resolveWildsContextAction({
+      ...emptyContext,
+      nearbyGrove: { id: "grove:one", needsCare: true }
+    }), {
+      kind: "tend",
+      label: "Tend the living grove",
+      groveId: "grove:one"
     });
     assert.deepEqual(resolveWildsContextAction(emptyContext), {
       kind: "scan",

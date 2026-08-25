@@ -29,6 +29,7 @@ import type { WildsWorldProjection } from "@/features/play/wilds-world-state";
 import type { WildsSettlementWorldMode } from "@/features/play/WildsSettlementEnvironment";
 import { WildsEcologyEnvironment } from "@/features/play/WildsEcologyEnvironment";
 import { WildsBossEnvironment } from "@/features/play/WildsBossEnvironment";
+import { WildsRegenerativeGroveEnvironment } from "@/features/play/WildsRegenerativeGroveEnvironment";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import type { KaiKlokMoment } from "@/features/play/kai-klok-moment";
 import { projectKaiWorldExpression } from "@/features/play/kai-moment-expression";
@@ -353,6 +354,7 @@ function WildsScene({
         />
         <WildsAmbientLife enabled={siteSpace.spaceId === "wildz.space.outer.v1"} player={state.player} qualityProfile={qualityProfile} siteRuntime={siteRuntime} terrainElevation={activeFloorY} />
         <WildsEcologyEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={activeFloorY} worldMode={worldMode} />
+        <WildsRegenerativeGroveEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={activeFloorY} />
         <WildsBossEnvironment livingWorld={livingWorld} player={state.player} qualityProfile={qualityProfile} terrainElevation={activeFloorY} />
         <EncounterSequence state={state} terrainElevation={activeFloorY} siteRuntime={siteRuntime} siteSpace={siteSpace} />
         {visibleRemotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={activeFloorY} />)}
