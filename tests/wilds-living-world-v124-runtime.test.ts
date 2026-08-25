@@ -21,6 +21,21 @@ const operation = compileWildsLivingOperation({
   semanticIdempotencyKey: "wildz:grove:pollinate:runtime"
 });
 
+const stewardOperation = compileWildsLivingOperation({
+  operationId: "steward:harvest:runtime",
+  category: "construction",
+  intention: { kind: "steward.harvest-timber", regionId: "region:0:0", featureId: "source:timber:one" },
+  participants: [
+    { id: "player:one", kind: "player", expectedHead: H("1"), role: "steward" },
+    { id: "creature:bee", kind: "creature", expectedHead: H("2"), role: "lumber-partner" }
+  ],
+  stages: [{ id: "stage:cooperative-harvest", profession: "lumber", participantIds: ["player:one", "creature:bee"] }],
+  consequences: { usefulOutput: 2, ecologicalRenewal: 1, publicBenefit: 0, cooperation: 2, durability: 0, extraction: 1, damage: 0, waste: 0, restorationDebt: 0 },
+  kaiUPulse: 1_000_000,
+  expiresAtKaiUPulse: 2_000_000,
+  semanticIdempotencyKey: "wildz:steward:harvest:runtime"
+});
+
 const heads = {
   world: { id: "wilds:global:v3", current: H("3"), next: H("4") },
   emission: { id: "world-emission:one", current: H("5"), next: H("6"), sourceProofObjectId: "proof:world-emission" },
@@ -29,7 +44,7 @@ const heads = {
   inventory: { id: "inventory:player:one", current: H("9"), next: H("a") }
 } as const;
 
-function fixture(status: "committed" | "zero-write" | "unknown" = "committed") {
+function fixture(status: "committed" | "zero-write" | "unknown" = "committed", exactOperation = operation) {
   let staged: Record<string, unknown> | null = null;
   let resolutions = 0;
   const committedHeads = Object.fromEntries(Object.values(heads).map((entry) => [entry.id, entry.next]));
@@ -38,7 +53,7 @@ function fixture(status: "committed" | "zero-write" | "unknown" = "committed") {
     closeAuthoritySessionV124: async () => ({ status: "closed" }),
     stageExecutionV124: async (plan: Record<string, unknown>) => {
       staged = plan;
-      return { executionId: "execution:one", exactPlanDigest: plan.exactPlanDigest, semanticIdempotencyKey: operation.semanticIdempotencyKey };
+      return { executionId: "execution:one", exactPlanDigest: plan.exactPlanDigest, semanticIdempotencyKey: exactOperation.semanticIdempotencyKey };
     },
     executeV124: async (handle: Record<string, unknown>) => status === "committed"
       ? { status: "committed", exactPlanDigest: handle.exactPlanDigest, semanticIdempotencyKey: handle.semanticIdempotencyKey, committedHeads }
@@ -47,16 +62,16 @@ function fixture(status: "committed" | "zero-write" | "unknown" = "committed") {
         : { status: "unknown", exactPlanDigest: handle.exactPlanDigest, semanticIdempotencyKey: handle.semanticIdempotencyKey },
     resolveExecutionByIdempotencyV124: async () => {
       resolutions += 1;
-      return { status: "committed", exactPlanDigest: staged?.exactPlanDigest, semanticIdempotencyKey: operation.semanticIdempotencyKey, committedHeads };
+      return { status: "committed", exactPlanDigest: staged?.exactPlanDigest, semanticIdempotencyKey: exactOperation.semanticIdempotencyKey, committedHeads };
     }
   };
   return { rail, committedHeads, metrics: () => ({ staged, resolutions }) };
 }
 
-const input = (rail: ReturnType<typeof fixture>["rail"], amountPhiMicro = "110000") => ({
+const input = (rail: ReturnType<typeof fixture>["rail"], amountPhiMicro = "110000", exactOperation = operation) => ({
   rail,
   authoritySessionInput: { completeReceizProofAuthority: true },
-  operation,
+  operation: exactOperation,
   heads,
   amountPhiMicro,
   registryDigest: H("b"),
@@ -82,6 +97,17 @@ describe("Receiz V124 living-world atomic runtime", () => {
     const plan = state.metrics().staged as { exactPlanBytesB64u?: string };
     const exact = JSON.parse(Buffer.from(String(plan.exactPlanBytesB64u), "base64url").toString("utf8"));
     assert.deepEqual(exact.operations.map((item: { category: string }) => item.category), ["inventory", "subject", "world"]);
+  });
+
+  it("stages stewardship harvest semantics instead of mislabeling the proof as Grove work", async () => {
+    const state = fixture("committed", stewardOperation);
+    await executeWildsLivingWorldV124(input(state.rail, "40000", stewardOperation));
+    const plan = state.metrics().staged as { exactPlanBytesB64u?: string };
+    const exactJson = Buffer.from(String(plan.exactPlanBytesB64u), "base64url").toString("utf8");
+    assert.match(exactJson, /resource\.material_harvested/);
+    assert.match(exactJson, /subject\.steward\.work/);
+    assert.match(exactJson, /inventory\.material\.admit/);
+    assert.doesNotMatch(exactJson, /grove\.operation\.admit/);
   });
 
   it("returns SDK zero-write unchanged and resolves ambiguous execution before success", async () => {

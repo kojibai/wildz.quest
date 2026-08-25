@@ -1,23 +1,34 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { creatureForm } from "../src/features/play/creature-catalog";
+import { kaiUPulseToISOString } from "../src/features/play/kai-klok-moment";
 import { createWildsCreatureMandate, evaluateWildsCreatureConsent } from "../src/features/play/wilds-creature-mandate";
 import { sealCollectedCard, sha256PortableBasis, type PortableCardAsset } from "../src/features/play/portable-card";
 import { projectWildsResourceRegion, type WildsResourceSource } from "../src/features/play/wilds-resource-authority";
-import { initialWildsHarvestedSourceState, projectWildsCreatureWorkFamilies } from "../src/features/play/wilds-steward-construction";
+import {
+  createWildsMaterialHarvest,
+  createWildsStewardHarvestOperation,
+  createWildsStewardPhiAward,
+  createWildsStewardStructureOperation,
+  createWildsTrailShelter,
+  initialWildsHarvestedSourceState,
+  projectWildsCreatureWorkFamilies
+} from "../src/features/play/wilds-steward-construction";
+import { admitWildsEmission, previewWildsEmission } from "../src/features/play/wilds-world-emission";
 import { WildsWorldService } from "../src/features/play/wilds-world-service";
 import { projectWildsRenderedLivingObstacles } from "../src/features/play/wilds-terrain-obstacles";
+import { sampleWildsTerrain } from "../src/features/play/wilds-terrain-authority";
 
 const actorId = "player:steward";
 const baseUPulse = 1_000_000;
-const timestamp = "2026-08-24T12:00:00.000Z";
+const timestamp = kaiUPulseToISOString(baseUPulse);
 
 function card(formId: string, ordinal: string) {
   return sealCollectedCard({ capturedAt: timestamp, encounterId: `steward-${ordinal}`, formId, ownerReceizId: actorId });
 }
 
 function sourceOf(kind: "timber" | "stone") {
-  for (let x = -12; x <= 12; x += 1) for (let z = -12; z <= 12; z += 1) {
+  for (let x = -2; x <= 2; x += 1) for (let z = -2; z <= 2; z += 1) {
     const source = projectWildsResourceRegion(x, z).find((candidate) => candidate.kind === kind);
     if (source) return source;
   }
@@ -47,12 +58,41 @@ function harvest(service: WildsWorldService, source: WildsResourceSource, asset:
   const current = service.snapshot().harvestedSources[source.sourceId] ?? initialWildsHarvestedSourceState(source);
   const element = creatureForm(asset.manifest.formId)!.element;
   const profession = projectWildsCreatureWorkFamilies(element)[0]!;
+  const creatureSubjectId = `creature:${sha256PortableBasis(asset.id).slice(0, 32)}`;
+  const creatureHead = sha256PortableBasis(asset.proof.digest);
+  const material = createWildsMaterialHarvest({
+    source,
+    current,
+    ownerReceizId: actorId,
+    actorPosition: { x: source.position.x, z: source.position.z },
+    creature: { subjectId: creatureSubjectId, head: creatureHead, workFamilies: [profession], willing: true },
+    kaiUPulse: uPulse
+  });
+  const operation = createWildsStewardHarvestOperation({
+    source,
+    currentSource: current,
+    harvestedSource: material.source,
+    lot: material.lot,
+    ownerReceizId: actorId,
+    playerHead: sha256PortableBasis(actorId),
+    creatureSubjectId,
+    creatureHead,
+    kaiUPulse: uPulse
+  });
+  const currentEmission = service.snapshot().worldEmission!;
+  const preview = previewWildsEmission({ emission: currentEmission, operation, contributionClass: "construction" });
+  const nextEmission = admitWildsEmission({ emission: currentEmission, operation, contributionClass: "construction", preview });
+  const award = createWildsStewardPhiAward({ ownerReceizId: actorId, operation, currentEmission, nextEmission, amountPhiMicro: preview.amountPhiMicro });
   return service.execute({
     type: "resource.material.harvest",
     source,
     sourceHead: current.head,
     actorPosition: { x: source.position.x, z: source.position.z },
     mandate: mandate(asset, [profession], [source.sourceId], uPulse),
+    operation,
+    emission: nextEmission,
+    amountPhiMicro: preview.amountPhiMicro,
+    phiAward: award,
     cardProofDigest: asset.proof.digest,
     commandId: `command:material:${ordinal}`
   }, { actorId, canonical: true, pulse: timestamp, occurredAt: timestamp, uPulse, card: asset });
@@ -61,6 +101,7 @@ function harvest(service: WildsWorldService, source: WildsResourceSource, asset:
 describe("shared-world steward commands", () => {
   it("admits exact source lots, consumes them once, and restores the structure from checkpoint", () => {
     const service = new WildsWorldService();
+    service.tickGroves({ pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse, systemActorId: "receiz:pulse" });
     const timber = sourceOf("timber");
     const stone = sourceOf("stone");
     const groveCard = card("mintcub-1", "grove");
@@ -72,6 +113,23 @@ describe("shared-world steward commands", () => {
     assert.equal(lotIds.length, 3);
 
     const position = { x: timber.position.x + 2, z: timber.position.z + 2 };
+    const lots = lotIds.map((lotId) => service.snapshot().materialLots[lotId]!);
+    const creatureSubjectId = `creature:${sha256PortableBasis(groveCard.id).slice(0, 32)}`;
+    const creatureHead = sha256PortableBasis(groveCard.proof.digest);
+    const expectedStructure = createWildsTrailShelter({
+      ownerReceizId: actorId,
+      position: { x: position.x, y: sampleWildsTerrain(position.x, position.z).elevation, z: position.z },
+      rotationQuarterTurns: 0,
+      lots,
+      builder: { creatureSubjectId, creatureHead },
+      existingStructures: [],
+      kaiUPulse: baseUPulse + 3
+    });
+    const operation = createWildsStewardStructureOperation({ structure: expectedStructure, lots, ownerReceizId: actorId, playerHead: sha256PortableBasis(actorId) });
+    const currentEmission = service.snapshot().worldEmission!;
+    const preview = previewWildsEmission({ emission: currentEmission, operation, contributionClass: "construction" });
+    const nextEmission = admitWildsEmission({ emission: currentEmission, operation, contributionClass: "construction", preview });
+    const phiAward = createWildsStewardPhiAward({ ownerReceizId: actorId, operation, currentEmission, nextEmission, amountPhiMicro: preview.amountPhiMicro });
     const result = service.execute({
       type: "structure.trail-shelter.build",
       position,
@@ -79,12 +137,18 @@ describe("shared-world steward commands", () => {
       rotationQuarterTurns: 0,
       lotIds,
       mandate: mandate(groveCard, ["build"], [], baseUPulse + 3),
+      operation,
+      emission: nextEmission,
+      amountPhiMicro: preview.amountPhiMicro,
+      phiAward,
       cardProofDigest: groveCard.proof.digest,
       commandId: "command:shelter:1"
     }, { actorId, canonical: true, pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse + 3, card: groveCard });
     const structure = Object.values(result.projection.structures)[0]!;
     assert.equal(structure.stage, "complete");
     assert.equal(Object.keys(result.projection.consumedMaterialLots).length, 3);
+    assert.equal(Object.keys(result.projection.stewardPhiAwards).length, 4);
+    assert.equal(result.projection.contributionHistory.at(-1)?.amountPhiMicro, "80000");
     const shelterObstacles = projectWildsRenderedLivingObstacles(result.projection).filter((obstacle) => obstacle.id.includes(structure.structureId));
     assert.equal(shelterObstacles.length, 4);
     assert.equal(shelterObstacles.every((obstacle) => obstacle.shape.kind === "cylinder" && obstacle.airbornePolicy === "clearable"), true);
@@ -104,6 +168,7 @@ describe("shared-world steward commands", () => {
 
   it("rejects a stale source head and a card whose affinity cannot perform the work", () => {
     const service = new WildsWorldService();
+    service.tickGroves({ pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse, systemActorId: "receiz:pulse" });
     const timber = sourceOf("timber");
     const groveCard = card("mintcub-1", "grove-2");
     const stoneCard = card("titanseal-1", "stone-2");

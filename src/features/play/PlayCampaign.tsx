@@ -124,6 +124,7 @@ import { authorizeWildsWalletTransferWithIdentity } from "@/features/play/wallet
 import { authorizeWildsLivingWorldOperationWithIdentity } from "@/features/play/wilds-living-world-authorization";
 import { projectWildsWalletPlayStateSeed, seedWildsWalletFromPlayState } from "@/features/play/wallet/wilds-wallet-play-state";
 import { canCloseWildsWalletTerminal, WildsWalletTerminal } from "@/features/play/wallet/WildsWalletTerminal";
+import { formatWildsPhiExact } from "@/features/play/wallet/wilds-wallet-format";
 import { emptyAdventureCondition } from "@/features/play/adventure/card-condition";
 import { projectWildsTraversalCapabilities } from "@/features/play/wilds-traversal-capabilities";
 import {
@@ -750,6 +751,18 @@ export function PlayCampaign({
     initialSnapshot: initialWorld,
     authorizeLivingWorld: livingWorldAuthorization
   });
+  const stewardPhiAwards = useMemo(() => Object.values(livingWorld.snapshot?.stewardPhiAwards ?? {})
+    .filter((award) => sameWildzPlayerCoordinate(award.ownerReceizId, ownerReceizId))
+    .sort((left, right) => right.awardId.localeCompare(left.awardId)), [livingWorld.snapshot?.stewardPhiAwards, ownerReceizId]);
+  const stewardAwardIdsRef = useRef<Set<string> | null>(null);
+  const refreshWalletAfterStewardSettlement = walletController.refresh;
+  useEffect(() => {
+    const nextIds = new Set(stewardPhiAwards.map((award) => award.awardId));
+    const priorIds = stewardAwardIdsRef.current;
+    stewardAwardIdsRef.current = nextIds;
+    if (!priorIds || !stewardPhiAwards.some((award) => !priorIds.has(award.awardId))) return;
+    void refreshWalletAfterStewardSettlement();
+  }, [refreshWalletAfterStewardSettlement, stewardPhiAwards]);
   const livingPhysicalObstacles = useMemo(
     () => projectWildsRenderedLivingObstacles(livingWorld.snapshot),
     [livingWorld.snapshot]
@@ -1129,8 +1142,11 @@ export function PlayCampaign({
       }
       const current = livingWorld.snapshot?.harvestedSources[source.sourceId] ?? initialWildsHarvestedSourceState(source);
       const mandate = createStewardMandate([source.requirements.creature], [source.sourceId], { x: source.regionX, z: source.regionZ });
-      await livingWorld.harvestMaterial(source, current.head, state.player, mandate);
-      setRiftError(`${activeAsset.manifest.name} worked beside you. One exact ${source.kind} lot entered your Satchel.`);
+      const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
+      const projection = await livingWorld.harvestMaterial(source, current.head, state.player, mandate);
+      const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
+      const awardMessage = award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the work.` : "";
+      setRiftError(`${activeAsset.manifest.name} worked beside you. One exact ${source.kind} lot entered your Satchel.${awardMessage}`);
     } catch (error) {
       handleStoryCommandError(error, "The living source did not admit that work.");
     }
@@ -1147,9 +1163,11 @@ export function PlayCampaign({
       const stone = availableMaterialLots.filter((lot) => lot.kind === "stone").slice(0, 1);
       if (timber.length !== 2 || stone.length !== 1) throw new Error("Gather two timber lots and one stone lot first.");
       const mandate = createStewardMandate(["build"], [], { x: Math.floor(position.x / 128), z: Math.floor(position.z / 128) });
-      await livingWorld.buildTrailShelter(position, state.player, 0, [...timber, ...stone].map((lot) => lot.lotId), mandate);
+      const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
+      const projection = await livingWorld.buildTrailShelter(position, state.player, 0, [...timber, ...stone].map((lot) => lot.lotId), mandate);
+      const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
       setShelterPlacementArmed(false);
-      setRiftError("Your Trail Shelter now stands in the shared Wilds.");
+      setRiftError(`Your Trail Shelter now stands in the shared Wilds.${award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the work.` : ""}`);
     } catch (error) {
       handleStoryCommandError(error, "That place cannot hold a shelter yet.");
     }
@@ -1983,6 +2001,7 @@ export function PlayCampaign({
               cards={state.inventory}
               cardConditions={state.adventureConditions}
               materialLots={availableMaterialLots}
+              stewardPhiAwards={stewardPhiAwards}
               resourceLots={Object.values(livingWorld.snapshot?.resourceLots ?? {}).filter((lot) => sameWildzPlayerCoordinate(livingWorld.snapshot?.resourceCustody?.[lot.lotId]?.ownerReceizId ?? lot.ownerReceizId, ownerReceizId))}
               publicUsername={walletPublicUsername}
               state={walletController}

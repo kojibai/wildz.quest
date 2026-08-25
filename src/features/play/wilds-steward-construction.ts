@@ -5,6 +5,9 @@ import {
   type WildsResourceSource,
   type WildsResourceWorkFamily
 } from "./wilds-resource-authority";
+import { compileWildsLivingOperation, verifyWildsLivingOperationPlan, type WildsLivingOperationPlanV1 } from "./wilds-living-operation";
+import { verifyWildsWorldEmissionProof, wildsEmissionRegionRemaining, type WildsWorldEmissionProofV1 } from "./wilds-world-emission";
+import { WILDS_EMISSION_REGION_SIZE } from "./wilds-grove-genesis";
 
 export type WildsBuildMaterialKind = "timber" | "stone";
 
@@ -53,6 +56,20 @@ export type WildsStructureV1 = Readonly<{
   head: string;
 }>;
 
+export type WildsStewardPhiAwardV1 = Readonly<{
+  schema: "wildz.steward-phi-award.v1";
+  awardId: string;
+  ownerReceizId: string;
+  amountPhiMicro: string;
+  operationId: string;
+  operationPlanDigest: string;
+  sourceEmissionHead: string;
+  admittedEmissionHead: string;
+  rail: "settlement";
+  authority: "source-proof-objects";
+  head: string;
+}>;
+
 const ID = /^[a-z0-9][a-z0-9._:-]{0,179}$/i;
 const HEAD = /^sha256:[a-f0-9]{64}$/;
 
@@ -74,6 +91,171 @@ function digest(value: unknown) {
 
 function validKai(value: number) {
   return Number.isSafeInteger(value) && value >= 0;
+}
+
+function regionId(x: number, z: number) {
+  return `region:${Math.floor(x / WILDS_EMISSION_REGION_SIZE)}:${Math.floor(z / WILDS_EMISSION_REGION_SIZE)}`;
+}
+
+function operationIdentity(kind: string, sourceHead: string) {
+  return digest({ schema: "wildz.steward-operation-identity.v1", kind, sourceHead }).replace(/^sha256:/, "");
+}
+
+export function createWildsStewardHarvestOperation(input: Readonly<{
+  source: WildsResourceSource;
+  currentSource: WildsHarvestedSourceStateV1;
+  harvestedSource: WildsHarvestedSourceStateV1;
+  lot: WildsMaterialLotV1;
+  ownerReceizId: string;
+  playerHead: string;
+  creatureSubjectId: string;
+  creatureHead: string;
+  kaiUPulse: number;
+}>): WildsLivingOperationPlanV1 {
+  if (!verifyWildsHarvestedSourceState(input.currentSource) || !verifyWildsHarvestedSourceState(input.harvestedSource)
+    || !verifyWildsMaterialLot(input.lot) || input.currentSource.sourceId !== input.source.sourceId
+    || input.harvestedSource.parentHead !== input.currentSource.head || input.harvestedSource.revision !== input.currentSource.revision + 1
+    || input.lot.source.sourceHead !== input.currentSource.head || input.lot.source.admittedSourceHead !== input.harvestedSource.head
+    || input.lot.ownerReceizId !== input.ownerReceizId || input.lot.contributors.creatureSubjectId !== input.creatureSubjectId
+    || input.lot.contributors.creatureHead !== input.creatureHead || input.lot.source.kaiUPulse !== input.kaiUPulse) {
+    throw new Error("wilds_steward_operation_source_invalid");
+  }
+  const identity = operationIdentity("harvest", input.lot.head);
+  const timber = input.lot.kind === "timber";
+  return compileWildsLivingOperation({
+    operationId: `steward:harvest:${identity}`,
+    category: "construction",
+    intention: {
+      kind: `steward.harvest-${input.lot.kind}`,
+      regionId: regionId(input.source.position.x, input.source.position.z),
+      featureId: input.source.sourceId,
+      sourceHead: input.currentSource.head,
+      admittedSourceHead: input.harvestedSource.head,
+      outputLotHead: input.lot.head
+    },
+    participants: [
+      { id: input.ownerReceizId, kind: "player", expectedHead: input.playerHead, role: "steward" },
+      { id: input.creatureSubjectId, kind: "creature", expectedHead: input.creatureHead, role: timber ? "lumber-partner" : "quarry-partner" }
+    ],
+    stages: [{ id: "stage:cooperative-harvest", profession: timber ? "lumber" : "quarry", participantIds: [input.ownerReceizId, input.creatureSubjectId] }],
+    consequences: {
+      usefulOutput: 2,
+      ecologicalRenewal: timber ? 1 : 0,
+      publicBenefit: 0,
+      cooperation: 2,
+      durability: 0,
+      extraction: timber ? 1 : 2,
+      damage: 0,
+      waste: 0,
+      restorationDebt: 0
+    },
+    kaiUPulse: input.kaiUPulse,
+    expiresAtKaiUPulse: input.kaiUPulse + 1_000_000,
+    semanticIdempotencyKey: `steward:harvest:${identity}`
+  });
+}
+
+export function createWildsStewardStructureOperation(input: Readonly<{
+  structure: WildsStructureV1;
+  lots: readonly WildsMaterialLotV1[];
+  ownerReceizId: string;
+  playerHead: string;
+}>): WildsLivingOperationPlanV1 {
+  if (!verifyWildsStructure(input.structure) || input.structure.ownerReceizId !== input.ownerReceizId
+    || input.lots.length !== 3 || input.lots.some((lot) => !verifyWildsMaterialLot(lot) || lot.ownerReceizId !== input.ownerReceizId)
+    || canonicalPortableCardJson(input.structure.consumedLotHeads) !== canonicalPortableCardJson([...input.lots].sort((a, b) => a.lotId.localeCompare(b.lotId)).map((lot) => lot.head))) {
+    throw new Error("wilds_steward_structure_operation_source_invalid");
+  }
+  const identity = operationIdentity("trail-shelter", input.structure.head);
+  return compileWildsLivingOperation({
+    operationId: `steward:build:${identity}`,
+    category: "construction",
+    intention: {
+      kind: "steward.build-trail-shelter",
+      regionId: regionId(input.structure.position.x, input.structure.position.z),
+      featureId: input.structure.structureId,
+      structureHead: input.structure.head,
+      consumedLotHeads: input.structure.consumedLotHeads
+    },
+    participants: [
+      { id: input.ownerReceizId, kind: "player", expectedHead: input.playerHead, role: "steward" },
+      { id: input.structure.builder.creatureSubjectId, kind: "creature", expectedHead: input.structure.builder.creatureHead, role: "building-partner" }
+    ],
+    stages: [{ id: "stage:cooperative-build", profession: "build", participantIds: [input.ownerReceizId, input.structure.builder.creatureSubjectId] }],
+    consequences: {
+      usefulOutput: 3,
+      ecologicalRenewal: 0,
+      publicBenefit: 2,
+      cooperation: 2,
+      durability: 4,
+      extraction: 3,
+      damage: 0,
+      waste: 0,
+      restorationDebt: 0
+    },
+    kaiUPulse: input.structure.kaiUPulse,
+    expiresAtKaiUPulse: input.structure.kaiUPulse + 1_000_000,
+    semanticIdempotencyKey: `steward:build:${identity}`
+  });
+}
+
+export function createWildsStewardPhiAward(input: Readonly<{
+  ownerReceizId: string;
+  operation: WildsLivingOperationPlanV1;
+  currentEmission: WildsWorldEmissionProofV1;
+  nextEmission: WildsWorldEmissionProofV1;
+  amountPhiMicro: string;
+}>): WildsStewardPhiAwardV1 {
+  if (!ID.test(input.ownerReceizId) || !verifyWildsLivingOperationPlan(input.operation).ok
+    || !verifyWildsWorldEmissionProof(input.currentEmission) || !verifyWildsWorldEmissionProof(input.nextEmission)
+    || input.nextEmission.parentHead !== input.currentEmission.head || input.nextEmission.revision !== input.currentEmission.revision + 1
+    || !input.nextEmission.consumedOperationIds.includes(input.operation.operationId)
+    || !input.operation.participants.some((participant) => participant.kind === "player" && participant.id === input.ownerReceizId)
+    || !/^[1-9][0-9]{0,39}$/.test(input.amountPhiMicro)) throw new Error("wilds_steward_phi_award_invalid");
+  const amount = BigInt(input.amountPhiMicro);
+  const region = String(input.operation.intention.regionId ?? "");
+  const globalDelta = BigInt(input.currentEmission.globalRemainingPhiMicro) - BigInt(input.nextEmission.globalRemainingPhiMicro);
+  const regionDelta = BigInt(wildsEmissionRegionRemaining(input.currentEmission, region)) - BigInt(wildsEmissionRegionRemaining(input.nextEmission, region));
+  const classDelta = BigInt(input.currentEmission.classRemainingPhiMicro.construction ?? "-1") - BigInt(input.nextEmission.classRemainingPhiMicro.construction ?? "-1");
+  if (globalDelta !== amount || regionDelta !== amount || classDelta !== amount) throw new Error("wilds_steward_phi_conservation_invalid");
+  const identity = digest({ schema: "wildz.steward-phi-award-identity.v1", operationPlanDigest: input.operation.planDigest, admittedEmissionHead: input.nextEmission.head }).replace(/^sha256:/, "");
+  const basis = {
+    schema: "wildz.steward-phi-award.v1" as const,
+    awardId: `wildz:steward-phi:${identity}`,
+    ownerReceizId: input.ownerReceizId,
+    amountPhiMicro: amount.toString(),
+    operationId: input.operation.operationId,
+    operationPlanDigest: input.operation.planDigest,
+    sourceEmissionHead: input.currentEmission.head,
+    admittedEmissionHead: input.nextEmission.head,
+    rail: "settlement" as const,
+    authority: "source-proof-objects" as const
+  };
+  return freeze({ ...basis, head: digest(basis) });
+}
+
+export function verifyWildsStewardPhiAward(value: unknown): value is WildsStewardPhiAwardV1 {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const award = value as Partial<WildsStewardPhiAwardV1>;
+  if (award.schema !== "wildz.steward-phi-award.v1" || !/^wildz:steward-phi:[a-f0-9]{64}$/.test(award.awardId ?? "")
+    || !ID.test(award.ownerReceizId ?? "") || !/^[1-9][0-9]{0,39}$/.test(award.amountPhiMicro ?? "")
+    || !ID.test(award.operationId ?? "") || !HEAD.test(award.operationPlanDigest ?? "")
+    || !HEAD.test(award.sourceEmissionHead ?? "") || !HEAD.test(award.admittedEmissionHead ?? "")
+    || award.rail !== "settlement" || award.authority !== "source-proof-objects" || !HEAD.test(award.head ?? "")) return false;
+  const { head, ...basis } = award as WildsStewardPhiAwardV1;
+  return head === digest(basis);
+}
+
+export function sumWildsStewardPhiAwards(awards: readonly WildsStewardPhiAwardV1[], ownerReceizId: string) {
+  const seen = new Set<string>();
+  let total = 0n;
+  for (const award of awards) {
+    if (!verifyWildsStewardPhiAward(award)) throw new Error("wilds_steward_phi_award_invalid");
+    if (seen.has(award.awardId)) throw new Error("wilds_steward_phi_award_duplicate");
+    seen.add(award.awardId);
+    if (award.ownerReceizId === ownerReceizId) total += BigInt(award.amountPhiMicro);
+  }
+  return total.toString();
 }
 
 function sourceStateBasis(state: Omit<WildsHarvestedSourceStateV1, "head">) {

@@ -16,7 +16,8 @@ import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import {
   WILDS_LIVING_WORLD_REDUCER_DIGEST,
   WILDS_LIVING_WORLD_REGISTRY_DIGEST,
-  wildsLivingWorldSuccessorHeads
+  wildsLivingWorldSuccessorHeads,
+  wildsStewardWorldSuccessorHeads
 } from "./wilds-world-emission-source";
 
 export type { WildsWorldPublication } from "./wilds-world-repository";
@@ -271,6 +272,9 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
   if (worldCommandRequiresCard(command)) authorizeWildsMultiplayerCard(actor, card, value.cardAdmission);
   await hydrateWildsWorldFromReceiz(request);
   if (actor.practice) {
+    if (command.type === "resource.material.harvest" || command.type === "structure.trail-shelter.build") {
+      throw new Error("wilds_world_steward_identity_required");
+    }
     const now = new Date().toISOString();
     const practiceCommand = command.type === "grove.act" ? { ...command, amountPhiMicro: "0" } : command;
     const result = practiceService().execute(practiceCommand, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now, uPulse: kai.uPulse, card });
@@ -286,14 +290,18 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
   const before = { checkpoint: current.checkpoint(), events: current.events() };
   const now = new Date().toISOString();
   let result;
-  if (command.type === "grove.act") {
+  if (command.type === "grove.act" || command.type === "resource.material.harvest" || command.type === "structure.trail-shelter.build") {
     const candidate = new WildsWorldService(before);
-    result = candidate.execute(command, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now, uPulse: kai.uPulse, card });
+    result = candidate.execute(command, { actorId: actor.handle, canonical: true, pulse: now, occurredAt: now, uPulse: kai.uPulse, card });
     if (result.events.length > 0) {
-      const currentGrove = current.snapshot().groves[command.grove.groveId];
+      const operation = command.operation;
+      const nextEmission = command.emission;
+      const amountPhiMicro = command.amountPhiMicro;
+      const currentGrove = command.type === "grove.act" ? current.snapshot().groves[command.grove.groveId] : null;
       const currentEmission = current.snapshot().worldEmission;
       const executionAuthority = value.receizExecution;
-      if (!currentGrove || !currentEmission || !executionAuthority || typeof executionAuthority !== "object") {
+      if (!operation || !nextEmission || !amountPhiMicro || (command.type === "grove.act" && !currentGrove)
+        || !currentEmission || !executionAuthority || typeof executionAuthority !== "object") {
         throw new Error("wilds_living_world_authority_required");
       }
       const authorityRecord = executionAuthority as Record<string, unknown>;
@@ -303,27 +311,37 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
         actor,
         executionProof: authorityRecord,
         operation: {
-          operationId: command.operation.operationId,
-          planDigest: command.operation.planDigest,
-          semanticIdempotencyKey: command.operation.semanticIdempotencyKey,
-          amountPhiMicro: command.amountPhiMicro
+          operationId: operation.operationId,
+          planDigest: operation.planDigest,
+          semanticIdempotencyKey: operation.semanticIdempotencyKey,
+          amountPhiMicro
         }
       });
+      const heads = command.type === "grove.act"
+        ? wildsLivingWorldSuccessorHeads({
+            actorId: actor.handle,
+            operation,
+            currentCheckpoint: before.checkpoint,
+            nextCheckpoint: candidate.checkpoint(),
+            currentEmission,
+            nextEmission,
+            currentGrove: currentGrove!,
+            nextGrove: command.grove
+          })
+        : wildsStewardWorldSuccessorHeads({
+            actorId: actor.handle,
+            operation,
+            currentCheckpoint: before.checkpoint,
+            nextCheckpoint: candidate.checkpoint(),
+            currentEmission,
+            nextEmission
+          });
       const outcome = await (dependencies.executeLivingWorldV124 ?? executeWildsLivingWorldV124)({
         rail: rail as unknown as WildsLivingWorldV124RuntimeInput["rail"],
         authoritySessionInput,
-        operation: command.operation,
-        heads: wildsLivingWorldSuccessorHeads({
-          actorId: actor.handle,
-          operation: command.operation,
-          currentCheckpoint: before.checkpoint,
-          nextCheckpoint: candidate.checkpoint(),
-          currentEmission,
-          nextEmission: command.emission,
-          currentGrove,
-          nextGrove: command.grove
-        }),
-        amountPhiMicro: command.amountPhiMicro,
+        operation,
+        heads,
+        amountPhiMicro,
         registryDigest: WILDS_LIVING_WORLD_REGISTRY_DIGEST,
         reducerDigest: WILDS_LIVING_WORLD_REDUCER_DIGEST,
         usdPerPhiMicrocents: typeof authorityRecord.usdPerPhiMicrocents === "string" ? authorityRecord.usdPerPhiMicrocents : "0",

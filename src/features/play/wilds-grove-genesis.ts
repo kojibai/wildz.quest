@@ -2,11 +2,11 @@ import type { KaiKlokMoment } from "./kai-klok-moment";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import { projectWildsRegenerativeGrove } from "./wilds-regenerative-grove";
 import { projectWildsRegionalWeather } from "./wilds-regional-weather";
-import { createWildsWorldEmissionGenesis } from "./wilds-world-emission";
+import { createWildsWorldEmissionGenesis, WILDS_REGION_EMISSION_CAPACITY_PHI_MICRO } from "./wilds-world-emission";
 
 const REGION_RADIUS = 2;
-const REGION_SIZE = 64;
-const REGION_CAPACITY_PHI_MICRO = 10_000_000n;
+export const WILDS_EMISSION_REGION_SIZE = 64;
+const REGION_CAPACITY_PHI_MICRO = BigInt(WILDS_REGION_EMISSION_CAPACITY_PHI_MICRO);
 
 function bareDigest(value: unknown) {
   return sha256PortableBasis(canonicalPortableCardJson(value)).replace(/^sha256:/, "");
@@ -30,7 +30,7 @@ export function projectWildsGroveGenesis(moment: KaiKlokMoment) {
       groves.push(projectWildsRegenerativeGrove({
         regionId,
         regionHead,
-        position: { x: x * REGION_SIZE + REGION_SIZE / 2, z: z * REGION_SIZE + REGION_SIZE / 2 },
+        position: { x: x * WILDS_EMISSION_REGION_SIZE + WILDS_EMISSION_REGION_SIZE / 2, z: z * WILDS_EMISSION_REGION_SIZE + WILDS_EMISSION_REGION_SIZE / 2 },
         moment,
         weather
       }));

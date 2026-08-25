@@ -7,15 +7,19 @@ import { applyWildsRaidIntent, createWildsRaidEncounter, type WildsRaidIntent } 
 import { admitWildsRaidParticipant, createWildsRaidRound, renewWildsRaidLease, retreatWildsRaidParticipant, settleWildsRaidRound, type WildsRaidRound } from "./wilds-raid-round";
 import { deriveKaiKlokMoment, deriveKaiKlokMomentFromUPulse, kaiUPulseToISOString, KAI_N_DAY_MICRO, KAI_PULSE_DURATION_MS } from "./kai-klok-moment";
 import type { KaiTemporalRoot } from "./kai-temporal-root";
-import { sha256PortableBasis, type PortableCardAsset } from "./portable-card";
+import { canonicalPortableCardJson, sha256PortableBasis, type PortableCardAsset } from "./portable-card";
 import { creatureForm } from "./creature-catalog";
 import { reverifyWildsCreatureMandate, type WildsCreatureMandateV1 } from "./wilds-creature-mandate";
 import type { WildsResourceSource } from "./wilds-resource-authority";
 import {
   createWildsMaterialHarvest,
+  createWildsStewardHarvestOperation,
+  createWildsStewardPhiAward,
+  createWildsStewardStructureOperation,
   createWildsTrailShelter,
   initialWildsHarvestedSourceState,
-  projectWildsCreatureWorkFamilies
+  projectWildsCreatureWorkFamilies,
+  type WildsStewardPhiAwardV1
 } from "./wilds-steward-construction";
 import { sampleWildsTerrain } from "./wilds-terrain-authority";
 import { achievementGrantCandidates } from "./wilds-saga-achievements";
@@ -28,7 +32,7 @@ import { createWildsTeam, joinWildsTeam, scoreWildsLeague } from "./wilds-team-l
 import { acceptWildsInvite, assembleWildsSquad, changeWildsRole, inviteWildsPlayer, reportWildsAbuse, scheduleWildsTeamEvent, type WildsSocialTeam } from "./wilds-social-core";
 import type { WildsRegenerativeGroveV1 } from "./wilds-regenerative-grove";
 import type { WildsLivingOperationPlanV1 } from "./wilds-living-operation";
-import type { WildsWorldEmissionProofV1 } from "./wilds-world-emission";
+import { admitWildsEmission, previewWildsEmission, type WildsWorldEmissionProofV1 } from "./wilds-world-emission";
 import type { WildsResourceLotV1 } from "./wilds-resource-lot";
 import { projectWildsGroveGenesis } from "./wilds-grove-genesis";
 import {
@@ -73,8 +77,8 @@ export type WildsWorldCommand = (
   | { type: "grove.observe"; grove: WildsRegenerativeGroveV1; emission: WildsWorldEmissionProofV1; commandId: string }
   | { type: "grove.act"; operation: WildsLivingOperationPlanV1; grove: WildsRegenerativeGroveV1; emission: WildsWorldEmissionProofV1; amountPhiMicro: string; resourceLot?: WildsResourceLotV1 | null; commandId: string }
   | { type: "resource.transfer.admit"; lotId: string; ownerReceizId: string; subjectId: string; subjectHead: string; receiptId: string; transferId: string; commandId: string }
-  | { type: "resource.material.harvest"; source: WildsResourceSource; sourceHead: string; actorPosition: { x: number; z: number }; mandate: WildsCreatureMandateV1; cardProofDigest: string; commandId: string }
-  | { type: "structure.trail-shelter.build"; position: { x: number; z: number }; actorPosition: { x: number; z: number }; rotationQuarterTurns: number; lotIds: string[]; mandate: WildsCreatureMandateV1; cardProofDigest: string; commandId: string }
+  | { type: "resource.material.harvest"; source: WildsResourceSource; sourceHead: string; actorPosition: { x: number; z: number }; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
+  | { type: "structure.trail-shelter.build"; position: { x: number; z: number }; actorPosition: { x: number; z: number }; rotationQuarterTurns: number; lotIds: string[]; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
   | { type: "story.contribute"; dayId: string; objectiveId: string; verb: WildsGameplayVerb; amount: number; position?: { x: number; z: number }; cardProofDigest?: string; commandId: string }
   | { type: "story.trainer_battle"; dayId: string; trainerId: string; matchId: string; outcome: "player_victory" | "trainer_victory" | "fled"; cardProofDigest: string; commandId: string }
   | { type: "story.tournament_enter"; tournamentId: string; qualificationGrantId: string; cardProofDigest: string; commandId: string }
@@ -449,7 +453,39 @@ export class WildsWorldService {
         creature: { subjectId: creatureSubjectId, head: creatureHead, workFamilies: projectWildsCreatureWorkFamilies(element), willing: true },
         kaiUPulse: authorityMoment(authority).uPulse
       });
-      events.push(this.append("resource.material_harvested", { source: command.source, sourceState: harvest.source, lot: harvest.lot }, authority, command.commandId));
+      const operation = createWildsStewardHarvestOperation({
+        source: command.source,
+        currentSource: current,
+        harvestedSource: harvest.source,
+        lot: harvest.lot,
+        ownerReceizId: authority.actorId,
+        playerHead: sha256PortableBasis(authority.actorId),
+        creatureSubjectId,
+        creatureHead,
+        kaiUPulse: authorityMoment(authority).uPulse
+      });
+      const currentEmission = this.projection.worldEmission;
+      if (!currentEmission) throw new Error("wilds_world_emission_required");
+      const preview = previewWildsEmission({ emission: currentEmission, operation, contributionClass: "construction" });
+      if (!preview.eligible || preview.amountPhiMicro === "0") throw new Error("wilds_world_steward_emission_unavailable");
+      const emission = admitWildsEmission({ emission: currentEmission, operation, contributionClass: "construction", preview });
+      const phiAward = createWildsStewardPhiAward({ ownerReceizId: authority.actorId, operation, currentEmission, nextEmission: emission, amountPhiMicro: preview.amountPhiMicro });
+      if (!command.operation || !command.emission || !command.amountPhiMicro || !command.phiAward
+        || canonicalPortableCardJson(command.operation) !== canonicalPortableCardJson(operation)
+        || canonicalPortableCardJson(command.emission) !== canonicalPortableCardJson(emission)
+        || command.amountPhiMicro !== preview.amountPhiMicro
+        || canonicalPortableCardJson(command.phiAward) !== canonicalPortableCardJson(phiAward)) {
+        throw new Error("wilds_world_steward_economy_mismatch");
+      }
+      events.push(this.append("resource.material_harvested", {
+        source: command.source,
+        sourceState: harvest.source,
+        lot: harvest.lot,
+        operation,
+        emission,
+        amountPhiMicro: preview.amountPhiMicro,
+        phiAward
+      }, authority, command.commandId));
     } else if (command.type === "structure.trail-shelter.build") {
       if (!authority.card) throw new Error("wilds_world_verified_card_required");
       const creatureHead = sha256PortableBasis(authority.card.proof.digest);
@@ -475,7 +511,26 @@ export class WildsWorldService {
         existingStructures: Object.values(this.projection.structures),
         kaiUPulse: authorityMoment(authority).uPulse
       });
-      events.push(this.append("structure.built", { structure }, authority, command.commandId));
+      const operation = createWildsStewardStructureOperation({
+        structure,
+        lots,
+        ownerReceizId: authority.actorId,
+        playerHead: sha256PortableBasis(authority.actorId)
+      });
+      const currentEmission = this.projection.worldEmission;
+      if (!currentEmission) throw new Error("wilds_world_emission_required");
+      const preview = previewWildsEmission({ emission: currentEmission, operation, contributionClass: "construction" });
+      if (!preview.eligible || preview.amountPhiMicro === "0") throw new Error("wilds_world_steward_emission_unavailable");
+      const emission = admitWildsEmission({ emission: currentEmission, operation, contributionClass: "construction", preview });
+      const phiAward = createWildsStewardPhiAward({ ownerReceizId: authority.actorId, operation, currentEmission, nextEmission: emission, amountPhiMicro: preview.amountPhiMicro });
+      if (!command.operation || !command.emission || !command.amountPhiMicro || !command.phiAward
+        || canonicalPortableCardJson(command.operation) !== canonicalPortableCardJson(operation)
+        || canonicalPortableCardJson(command.emission) !== canonicalPortableCardJson(emission)
+        || command.amountPhiMicro !== preview.amountPhiMicro
+        || canonicalPortableCardJson(command.phiAward) !== canonicalPortableCardJson(phiAward)) {
+        throw new Error("wilds_world_steward_economy_mismatch");
+      }
+      events.push(this.append("structure.built", { structure, operation, emission, amountPhiMicro: preview.amountPhiMicro, phiAward }, authority, command.commandId));
     } else if (command.type === "story.contribute") {
       const { saga } = this.sagaAt(authority);
       const nodes = saga.chapter.missions.flatMap((mission) => mission.nodes);

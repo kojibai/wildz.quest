@@ -110,11 +110,32 @@ async function registeredOperation(basis: ReceizRegisteredOperationBasisV124): P
   return { ...basis, participants: cas.participants };
 }
 
+function operationCommandKinds(operation: WildsLivingOperationPlanV1) {
+  const kind = String(operation.intention.kind ?? "");
+  if (kind === "steward.harvest-timber" || kind === "steward.harvest-stone") return {
+    world: "resource.material_harvested",
+    subject: "subject.steward.work",
+    inventory: "inventory.material.admit"
+  } as const;
+  if (kind === "steward.build-trail-shelter") return {
+    world: "structure.built",
+    subject: "subject.steward.work",
+    inventory: "inventory.material.consume"
+  } as const;
+  if (kind.startsWith("grove.")) return {
+    world: "grove.operation.admit",
+    subject: "subject.grove.work",
+    inventory: "inventory.grove.material"
+  } as const;
+  throw new Error("wilds_living_world_operation_kind_invalid");
+}
+
 async function compileOperations(input: WildsLivingWorldV124RuntimeInput) {
+  const commandKinds = operationCommandKinds(input.operation);
   const bases: ReceizRegisteredOperationBasisV124[] = [
-    await worldPrimitive(input, "world", "grove.operation.admit"),
-    await worldPrimitive(input, "subject", "subject.grove.work"),
-    await worldPrimitive(input, "inventory", "inventory.grove.material")
+    await worldPrimitive(input, "world", commandKinds.world),
+    await worldPrimitive(input, "subject", commandKinds.subject),
+    await worldPrimitive(input, "inventory", commandKinds.inventory)
   ];
   if (input.amountPhiMicro !== "0") {
     const valueIntent = await planReceizValueIntentV122({

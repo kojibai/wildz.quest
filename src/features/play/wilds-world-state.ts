@@ -12,16 +12,18 @@ import type { WildsChapterMemory } from "./wilds-saga-director";
 import type { WildsReward } from "./wilds-saga-types";
 import { verifyWildsRegenerativeGrove, type WildsRegenerativeGroveV1 } from "./wilds-regenerative-grove";
 import { verifyWildsLivingOperationPlan, type WildsLivingOperationPlanV1 } from "./wilds-living-operation";
-import { verifyWildsWorldEmissionProof, type WildsWorldEmissionProofV1 } from "./wilds-world-emission";
+import { verifyWildsWorldEmissionProof, wildsEmissionRegionRemaining, type WildsWorldEmissionProofV1 } from "./wilds-world-emission";
 import { verifyWildsResourceLot, type WildsResourceLotV1 } from "./wilds-resource-lot";
 import { projectWildsResourceRegion, type WildsResourceSource } from "./wilds-resource-authority";
 import {
   initialWildsHarvestedSourceState,
+  verifyWildsStewardPhiAward,
   verifyWildsHarvestedSourceState,
   verifyWildsMaterialLot,
   verifyWildsStructure,
   type WildsHarvestedSourceStateV1,
   type WildsMaterialLotV1,
+  type WildsStewardPhiAwardV1,
   type WildsStructureV1
 } from "./wilds-steward-construction";
 
@@ -142,6 +144,7 @@ export type WildsWorldProjection = {
   materialLots: Record<string, WildsMaterialLotV1>;
   consumedMaterialLots: Record<string, string>;
   structures: Record<string, WildsStructureV1>;
+  stewardPhiAwards: Record<string, WildsStewardPhiAwardV1>;
   livingOperations: Record<string, WildsLivingOperationPlanV1>;
   worldEmission: WildsWorldEmissionProofV1 | null;
   contributionHistory: Readonly<{ operationId: string; amountPhiMicro: string; eventId: string }>[];
@@ -182,6 +185,7 @@ export function initialWildsWorldProjection(): WildsWorldProjection {
     materialLots: {},
     consumedMaterialLots: {},
     structures: {},
+    stewardPhiAwards: {},
     livingOperations: {},
     worldEmission: null,
     contributionHistory: [],
@@ -267,6 +271,36 @@ function cursorAsEvent(cursor: NonNullable<WildsWorldProjection["cursor"]>) {
     ...(cursor.uPulse === undefined ? {} : { uPulse: cursor.uPulse }),
     ...(cursor.sequence === undefined ? {} : { sequence: cursor.sequence })
   } as CompatibleWildsWorldEvent;
+}
+
+function stewardEconomyPatch(state: WildsWorldProjection, event: CompatibleWildsWorldEvent, payload: Record<string, unknown>) {
+  const operation = recordPayload(payload.operation) as unknown as WildsLivingOperationPlanV1;
+  const emission = recordPayload(payload.emission) as unknown as WildsWorldEmissionProofV1;
+  const phiAward = recordPayload(payload.phiAward) as unknown as WildsStewardPhiAwardV1;
+  const amountPhiMicro = String(payload.amountPhiMicro ?? "");
+  const currentEmission = state.worldEmission;
+  if (!currentEmission || !verifyWildsLivingOperationPlan(operation).ok || operation.category !== "construction"
+    || !operation.participants.some((participant) => participant.kind === "player" && participant.id === event.actorId)
+    || state.livingOperations[operation.operationId] || !verifyWildsWorldEmissionProof(emission)
+    || emission.parentHead !== currentEmission.head || emission.revision !== currentEmission.revision + 1
+    || canonicalPortableCardJson(emission.consumedOperationIds) !== canonicalPortableCardJson([...currentEmission.consumedOperationIds, operation.operationId].sort())
+    || !verifyWildsStewardPhiAward(phiAward) || phiAward.ownerReceizId !== event.actorId
+    || phiAward.operationId !== operation.operationId || phiAward.operationPlanDigest !== operation.planDigest
+    || phiAward.sourceEmissionHead !== currentEmission.head || phiAward.admittedEmissionHead !== emission.head
+    || phiAward.amountPhiMicro !== amountPhiMicro || state.stewardPhiAwards[phiAward.awardId]
+    || !/^[1-9][0-9]{0,39}$/.test(amountPhiMicro)) throw new Error("wilds_world_steward_economy_invalid");
+  const amount = BigInt(amountPhiMicro);
+  const regionId = String(operation.intention.regionId ?? "");
+  const globalDelta = BigInt(currentEmission.globalRemainingPhiMicro) - BigInt(emission.globalRemainingPhiMicro);
+  const regionDelta = BigInt(wildsEmissionRegionRemaining(currentEmission, regionId)) - BigInt(wildsEmissionRegionRemaining(emission, regionId));
+  const classDelta = BigInt(currentEmission.classRemainingPhiMicro.construction ?? "-1") - BigInt(emission.classRemainingPhiMicro.construction ?? "-1");
+  if (globalDelta !== amount || regionDelta !== amount || classDelta !== amount) throw new Error("wilds_world_steward_emission_invalid");
+  return {
+    livingOperations: { ...state.livingOperations, [operation.operationId]: operation },
+    worldEmission: emission,
+    stewardPhiAwards: { ...state.stewardPhiAwards, [phiAward.awardId]: phiAward },
+    contributionHistory: [...state.contributionHistory, { operationId: operation.operationId, amountPhiMicro, eventId: event.eventId }].slice(-4_096)
+  };
 }
 
 export function reduceWildsWorldEvent(state: WildsWorldProjection, event: CompatibleWildsWorldEvent): WildsWorldProjection {
@@ -454,9 +488,11 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
       if (sourceState.parentHead !== current.head || sourceState.revision !== current.revision + 1
         || lot.source.sourceHead !== current.head || sourceState.harvestedCapacity < 1
         || sourceState.harvestedCapacity > source.capacity) throw new Error("wilds_world_material_conservation_invalid");
+      const economy = stewardEconomyPatch(state, event, payload);
       return appendEvent(state, event, {
         harvestedSources: { ...state.harvestedSources, [source.sourceId]: sourceState },
-        materialLots: { ...state.materialLots, [lot.lotId]: lot }
+        materialLots: { ...state.materialLots, [lot.lotId]: lot },
+        ...economy
       });
     }
     case "structure.built": {
@@ -470,12 +506,14 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
         if (!lot || lot.ownerReceizId !== event.actorId || lot.head !== structure.consumedLotHeads[index]
           || state.consumedMaterialLots[lotId]) throw new Error("wilds_world_structure_material_invalid");
       }
+      const economy = stewardEconomyPatch(state, event, payload);
       return appendEvent(state, event, {
         structures: { ...state.structures, [structure.structureId]: structure },
         consumedMaterialLots: {
           ...state.consumedMaterialLots,
           ...Object.fromEntries(structure.consumedLotIds.map((lotId) => [lotId, structure.structureId]))
-        }
+        },
+        ...economy
       });
     }
     case "team.created":
@@ -640,6 +678,7 @@ export function replayWildsWorld(events: readonly CompatibleWildsWorldEvent[], c
     materialLots: projection.materialLots ?? {},
     consumedMaterialLots: projection.consumedMaterialLots ?? {},
     structures: projection.structures ?? {},
+    stewardPhiAwards: projection.stewardPhiAwards ?? {},
     livingOperations: projection.livingOperations ?? {},
     worldEmission: projection.worldEmission ?? null,
     contributionHistory: projection.contributionHistory ?? []

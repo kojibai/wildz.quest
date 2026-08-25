@@ -6,9 +6,19 @@ import { WildsWorldService } from "../src/features/play/wilds-world-service.js";
 import { deriveKaiKlokMoment } from "../src/features/play/kai-klok-moment.js";
 import { createKaiTemporalRoot } from "../src/features/play/kai-temporal-root.js";
 import { createWildsCreatureMandate, evaluateWildsCreatureConsent } from "../src/features/play/wilds-creature-mandate.js";
+import { creatureForm } from "../src/features/play/creature-catalog.js";
+import { sealCollectedCard, sha256PortableBasis } from "../src/features/play/portable-card.js";
+import { projectWildsResourceRegion } from "../src/features/play/wilds-resource-authority.js";
+import {
+  createWildsMaterialHarvest,
+  createWildsStewardHarvestOperation,
+  createWildsStewardPhiAward,
+  initialWildsHarvestedSourceState,
+  projectWildsCreatureWorkFamilies
+} from "../src/features/play/wilds-steward-construction.js";
 import { admitWildsGroveAction, previewWildsGroveAction, projectWildsRegenerativeGrove } from "../src/features/play/wilds-regenerative-grove.js";
 import { projectWildsRegionalWeather } from "../src/features/play/wilds-regional-weather.js";
-import { admitWildsEmission, admitWildsEmissionOutcome, createWildsWorldEmissionGenesis } from "../src/features/play/wilds-world-emission.js";
+import { admitWildsEmission, admitWildsEmissionOutcome, createWildsWorldEmissionGenesis, previewWildsEmission } from "../src/features/play/wilds-world-emission.js";
 import type { WildsWorldRecord } from "../src/features/play/wilds-world-record.js";
 import * as worldServer from "../src/lib/receiz/wilds-world-server.js";
 import {
@@ -86,6 +96,55 @@ function canonicalGroveWorld() {
     command: {
       type: "grove.act" as const, operation: observedPreview.operation, grove: admittedGrove, emission: admittedEmission,
       amountPhiMicro: observedPreview.emission.amountPhiMicro, commandId: "grove:gather:bootstrap", kai: commandKai()
+    }
+  };
+}
+
+function canonicalStewardWorld() {
+  const actorId = "bjklock.receiz.id";
+  const moment = deriveKaiKlokMoment({ occurredAt: GENESIS_PULSE, authority: "world" });
+  const service = new WildsWorldService(canonicalWorld());
+  const source = [-1, 0, 1].flatMap((x) => [-1, 0, 1].flatMap((z) => projectWildsResourceRegion(x, z)))
+    .find((candidate) => candidate.kind === "timber")!;
+  assert.ok(source);
+  const asset = sealCollectedCard({ capturedAt: GENESIS_PULSE, encounterId: "bootstrap-steward", formId: "mintcub-1", ownerReceizId: actorId });
+  const creatureSubjectId = `creature:${sha256PortableBasis(asset.id).slice(0, 32)}`;
+  const creatureHead = sha256PortableBasis(asset.proof.digest);
+  const professions = projectWildsCreatureWorkFamilies(creatureForm(asset.manifest.formId)!.element);
+  const consent = evaluateWildsCreatureConsent({
+    creatureSubjectId, creatureHead,
+    condition: { energy: 100, fatigue: 0, injury: 0, stress: 0 }, bond: 80,
+    preferences: { professions, avoidHazards: [] }, capabilities: { professions },
+    safety: { risk: 1, hazards: [], supportAvailable: false }, requested: { professions, maxActions: 2 }, kaiUPulse: moment.uPulse
+  });
+  const mandate = createWildsCreatureMandate({
+    consent, creatureSubjectId, creatureHead, region: { x: source.regionX, z: source.regionZ },
+    professions, allowedResourceIds: [source.sourceId], maxActions: 2,
+    issuedAtKaiUPulse: moment.uPulse, expiresAtKaiUPulse: moment.uPulse + 1_000_000
+  });
+  const currentSource = initialWildsHarvestedSourceState(source);
+  const harvested = createWildsMaterialHarvest({
+    source, current: currentSource, ownerReceizId: actorId, actorPosition: source.position,
+    creature: { subjectId: creatureSubjectId, head: creatureHead, workFamilies: professions, willing: true },
+    kaiUPulse: moment.uPulse
+  });
+  const operation = createWildsStewardHarvestOperation({
+    source, currentSource, harvestedSource: harvested.source, lot: harvested.lot,
+    ownerReceizId: actorId, playerHead: sha256PortableBasis(actorId), creatureSubjectId, creatureHead,
+    kaiUPulse: moment.uPulse
+  });
+  const currentEmission = service.snapshot().worldEmission!;
+  const preview = previewWildsEmission({ emission: currentEmission, operation, contributionClass: "construction" });
+  const emission = admitWildsEmission({ emission: currentEmission, operation, contributionClass: "construction", preview });
+  const phiAward = createWildsStewardPhiAward({ ownerReceizId: actorId, operation, currentEmission, nextEmission: emission, amountPhiMicro: preview.amountPhiMicro });
+  return {
+    record: { checkpoint: service.checkpoint(), eventTail: service.events() },
+    card: asset,
+    command: {
+      type: "resource.material.harvest" as const, source, sourceHead: currentSource.head,
+      actorPosition: { x: source.position.x, z: source.position.z }, mandate, operation, emission,
+      amountPhiMicro: preview.amountPhiMicro, phiAward, cardProofDigest: asset.proof.digest,
+      commandId: "command:steward:bootstrap", kai: commandKai()
     }
   };
 }
@@ -410,6 +469,35 @@ test("a Grove operation reaches the canonical world only after its exact V124 pl
 
   assert.equal(sourceRevisionDuringExecution, data.record.checkpoint.revision);
   assert.equal(result.projection.revision, data.record.checkpoint.revision + 1);
+  assert.equal(result.projection.worldEmission?.head, data.command.emission.head);
+});
+
+test("source-authoritative steward work reaches the world and settlement together", async () => {
+  const data = canonicalStewardWorld();
+  (globalThis as Record<symbol, unknown>)[repositoryKey] = {
+    recover: async () => data.record,
+    publish: async () => { throw new Error("delegated_publish_forbidden"); },
+    audit: async () => true
+  };
+  let sourceRevisionDuringExecution = -1;
+  const result = await worldServer.executeWildsWorldCommand(proofRequest().request, {
+    command: data.command,
+    card: data.card,
+    receizExecution: { authoritySession: { signedSourceAuthority: true } }
+  }, {
+    prepareLivingWorldAuthorityV124: async () => ({ signedSourceAuthority: true }) as never,
+    executeLivingWorldV124: async (input) => {
+      sourceRevisionDuringExecution = ((globalThis as Record<symbol, unknown>)[serviceKey] as WildsWorldService).checkpoint().revision;
+      assert.equal(input.amountPhiMicro, "40000");
+      assert.equal(input.operation.intention.kind, "steward.harvest-timber");
+      assert.notEqual(input.heads.inventory.current, input.heads.inventory.next);
+      return { status: "committed" };
+    }
+  });
+
+  assert.equal(sourceRevisionDuringExecution, data.record.checkpoint.revision);
+  assert.equal(result.projection.revision, data.record.checkpoint.revision + 1);
+  assert.equal(Object.keys(result.projection.stewardPhiAwards).length, 1);
   assert.equal(result.projection.worldEmission?.head, data.command.emission.head);
 });
 

@@ -29,6 +29,7 @@ const IDENTIFIER = /^[a-z0-9][a-z0-9._:-]{0,159}$/;
 const DIGEST = /^(?:sha256:)?[a-f0-9]{64}$/;
 const MICRO_PHI = /^(?:0|[1-9][0-9]{0,39})$/;
 const MICRO_PHI_PER_CONTRIBUTION = 10_000n;
+export const WILDS_REGION_EMISSION_CAPACITY_PHI_MICRO = "10000000";
 
 function deepFreeze<T>(value: T): T {
   if (value && typeof value === "object" && !Object.isFrozen(value)) {
@@ -120,6 +121,11 @@ function operationRegion(operation: WildsLivingOperationPlanV1) {
   return regionId;
 }
 
+export function wildsEmissionRegionRemaining(emission: WildsWorldEmissionProofV1, regionId: string) {
+  if (!IDENTIFIER.test(regionId)) throw new Error("world_emission_region_invalid");
+  return emission.regionRemainingPhiMicro[regionId] ?? WILDS_REGION_EMISSION_CAPACITY_PHI_MICRO;
+}
+
 function previewReason(
   emission: WildsWorldEmissionProofV1,
   operation: WildsLivingOperationPlanV1,
@@ -140,9 +146,9 @@ export function previewWildsEmission(input: Readonly<{
   assertEmission(input.emission);
   if (!verifyWildsLivingOperationPlan(input.operation).ok) throw new Error("world_emission_operation_invalid");
   const regionId = operationRegion(input.operation);
-  const regionCapacity = input.emission.regionRemainingPhiMicro[regionId];
+  const regionCapacity = wildsEmissionRegionRemaining(input.emission, regionId);
   const classCapacity = input.emission.classRemainingPhiMicro[input.contributionClass];
-  if (regionCapacity === undefined || classCapacity === undefined) throw new Error("world_emission_capacity_missing");
+  if (classCapacity === undefined) throw new Error("world_emission_capacity_missing");
 
   const hasNecessaryCooperation = input.operation.participants.length >= 2
     && input.operation.stages.some((stage) => new Set(stage.participantIds).size >= 2);
@@ -188,7 +194,7 @@ export function admitWildsEmission(input: Readonly<{
   const amount = parseMicroPhi(expected.amountPhiMicro);
   const regionRemainingPhiMicro = {
     ...input.emission.regionRemainingPhiMicro,
-    [regionId]: (parseMicroPhi(input.emission.regionRemainingPhiMicro[regionId]!) - amount).toString()
+    [regionId]: (parseMicroPhi(wildsEmissionRegionRemaining(input.emission, regionId)) - amount).toString()
   };
   const classRemainingPhiMicro = {
     ...input.emission.classRemainingPhiMicro,
@@ -227,7 +233,7 @@ export function admitWildsEmissionOutcome(input: Readonly<{
     epochEndsAtKaiUPulse: input.emission.epochEndsAtKaiUPulse,
     policyDigest: input.emission.policyDigest,
     globalRemainingPhiMicro: input.emission.globalRemainingPhiMicro,
-    regionRemainingPhiMicro: { ...input.emission.regionRemainingPhiMicro, [regionId]: input.emission.regionRemainingPhiMicro[regionId]! },
+    regionRemainingPhiMicro: { ...input.emission.regionRemainingPhiMicro, [regionId]: wildsEmissionRegionRemaining(input.emission, regionId) },
     classRemainingPhiMicro: { ...input.emission.classRemainingPhiMicro },
     consumedOperationIds: [...input.emission.consumedOperationIds, input.operation.operationId].sort(),
     revision: input.emission.revision + 1,

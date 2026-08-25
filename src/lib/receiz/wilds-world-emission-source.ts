@@ -77,3 +77,55 @@ export function wildsLivingWorldSuccessorHeads(input: Readonly<{
     })
   });
 }
+
+export function wildsStewardWorldSuccessorHeads(input: Readonly<{
+  actorId: string;
+  operation: WildsLivingOperationPlanV1;
+  currentCheckpoint: WildsWorldCheckpoint;
+  nextCheckpoint: WildsWorldCheckpoint;
+  currentEmission: WildsWorldEmissionProofV1;
+  nextEmission: WildsWorldEmissionProofV1;
+}>) {
+  const actor = input.operation.participants.find((participant) => participant.id === input.actorId && participant.kind === "player");
+  const creature = input.operation.participants.find((participant) => participant.kind === "creature");
+  if (!actor || !creature) throw new Error("wilds_living_world_participants_required");
+  const inventoryId = `inventory:${input.actorId}`;
+  const inventory = (checkpoint: WildsWorldCheckpoint) => ({
+    materialLots: Object.values(checkpoint.projection.materialLots ?? {})
+      .filter((lot) => sameWildzPlayerCoordinate(lot.ownerReceizId, input.actorId))
+      .sort((left, right) => left.lotId.localeCompare(right.lotId)),
+    consumedMaterialLots: Object.fromEntries(Object.entries(checkpoint.projection.consumedMaterialLots ?? {})
+      .filter(([lotId]) => sameWildzPlayerCoordinate(checkpoint.projection.materialLots[lotId]?.ownerReceizId ?? "", input.actorId))
+      .sort(([left], [right]) => left.localeCompare(right))),
+    structures: Object.values(checkpoint.projection.structures ?? {})
+      .filter((structure) => sameWildzPlayerCoordinate(structure.ownerReceizId, input.actorId))
+      .sort((left, right) => left.structureId.localeCompare(right.structureId)),
+    phiAwards: Object.values(checkpoint.projection.stewardPhiAwards ?? {})
+      .filter((award) => sameWildzPlayerCoordinate(award.ownerReceizId, input.actorId))
+      .sort((left, right) => left.awardId.localeCompare(right.awardId))
+  });
+  return Object.freeze({
+    world: Object.freeze({ id: "wilds:global:v3", current: digest(input.currentCheckpoint), next: digest(input.nextCheckpoint) }),
+    emission: Object.freeze({
+      id: `world-emission:${input.currentEmission.epochId}`,
+      current: input.currentEmission.head,
+      next: input.nextEmission.head,
+      sourceProofObjectId: `proof:world-emission:${input.currentEmission.epochId}`
+    }),
+    player: Object.freeze({
+      id: actor.id,
+      current: actor.expectedHead,
+      next: digest({ schema: "wildz.player-operation-successor.v1", head: actor.expectedHead, operation: input.operation.planDigest })
+    }),
+    creature: Object.freeze({
+      id: creature.id,
+      current: creature.expectedHead,
+      next: digest({ schema: "wildz.creature-operation-successor.v1", head: creature.expectedHead, operation: input.operation.planDigest })
+    }),
+    inventory: Object.freeze({
+      id: inventoryId,
+      current: digest({ schema: "wildz.steward-inventory.v1", ownerId: input.actorId, ...inventory(input.currentCheckpoint) }),
+      next: digest({ schema: "wildz.steward-inventory.v1", ownerId: input.actorId, ...inventory(input.nextCheckpoint) })
+    })
+  });
+}
