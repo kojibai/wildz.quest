@@ -16,6 +16,9 @@ import { projectSagaTrainers, type WildsTrainerBattleMemory, type WildsTrainerPr
 import type { WildsGameplayVerb } from "./wilds-saga-types";
 import { createWildsTeam, joinWildsTeam, scoreWildsLeague } from "./wilds-team-league";
 import { acceptWildsInvite, assembleWildsSquad, changeWildsRole, inviteWildsPlayer, reportWildsAbuse, scheduleWildsTeamEvent, type WildsSocialTeam } from "./wilds-social-core";
+import type { WildsRegenerativeGroveV1 } from "./wilds-regenerative-grove";
+import type { WildsLivingOperationPlanV1 } from "./wilds-living-operation";
+import type { WildsWorldEmissionProofV1 } from "./wilds-world-emission";
 import {
   createWildsWorldEvent,
   wildsWorldEventSequence,
@@ -55,6 +58,8 @@ export type WildsWorldCommand = (
   | { type: "social.report"; subjectId: string; reason: string; commandId: string }
   | { type: "ecology.discover"; siteId: string; position: { x: number; z: number }; commandId: string }
   | { type: "ecology.contribute"; siteId: string; position: { x: number; z: number }; amount: number; cardProofDigest: string; commandId: string }
+  | { type: "grove.observe"; grove: WildsRegenerativeGroveV1; emission: WildsWorldEmissionProofV1; commandId: string }
+  | { type: "grove.act"; operation: WildsLivingOperationPlanV1; grove: WildsRegenerativeGroveV1; emission: WildsWorldEmissionProofV1; amountPhiMicro: string; commandId: string }
   | { type: "story.contribute"; dayId: string; objectiveId: string; verb: WildsGameplayVerb; amount: number; position?: { x: number; z: number }; cardProofDigest?: string; commandId: string }
   | { type: "story.trainer_battle"; dayId: string; trainerId: string; matchId: string; outcome: "player_victory" | "trainer_victory" | "fled"; cardProofDigest: string; commandId: string }
   | { type: "story.tournament_enter"; tournamentId: string; qualificationGrantId: string; cardProofDigest: string; commandId: string }
@@ -368,7 +373,16 @@ export class WildsWorldService {
       this.advanceSaga({ occurredAt: authority.occurredAt }, authority, command.commandId, events);
     }
 
-    if (command.type === "story.contribute") {
+    if (command.type === "grove.observe") {
+      events.push(this.append("grove.discovered", { grove: command.grove, emission: command.emission }, authority, command.commandId));
+    } else if (command.type === "grove.act") {
+      events.push(this.append("grove.operation_admitted", {
+        operation: command.operation,
+        grove: command.grove,
+        emission: command.emission,
+        amountPhiMicro: command.amountPhiMicro
+      }, authority, command.commandId));
+    } else if (command.type === "story.contribute") {
       const { saga } = this.sagaAt(authority);
       const nodes = saga.chapter.missions.flatMap((mission) => mission.nodes);
       const node = nodes.find((candidate) => candidate.id === command.objectiveId);

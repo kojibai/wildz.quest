@@ -77,6 +77,15 @@ function assertEmission(proof: WildsWorldEmissionProofV1) {
   if (proof.head !== sha256PortableBasis(emissionBasis(basis))) throw new Error("world_emission_head_invalid");
 }
 
+export function verifyWildsWorldEmissionProof(proof: WildsWorldEmissionProofV1) {
+  try {
+    assertEmission(proof);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function createWildsWorldEmissionGenesis(input: Readonly<{
   epochId: string;
   epochEndsAtKaiUPulse: number;

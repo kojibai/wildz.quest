@@ -64,9 +64,13 @@ function groveWithHead(basis: Omit<WildsRegenerativeGroveV1, "head">): WildsRege
   return freeze({ ...basis, head: digest(basis) });
 }
 
-function assertGroveHead(grove: WildsRegenerativeGroveV1) {
+export function verifyWildsRegenerativeGrove(grove: WildsRegenerativeGroveV1) {
   const { head, ...basis } = grove;
-  if (head !== digest(basis)) throw new Error("wilds_grove_head_invalid");
+  return head === digest(basis);
+}
+
+function assertGroveHead(grove: WildsRegenerativeGroveV1) {
+  if (!verifyWildsRegenerativeGrove(grove)) throw new Error("wilds_grove_head_invalid");
 }
 
 export function projectWildsRegenerativeGrove(input: Readonly<{

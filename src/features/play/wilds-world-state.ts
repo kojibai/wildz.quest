@@ -10,6 +10,9 @@ import {
 import type { WildsEcologySite } from "./wilds-ecology";
 import type { WildsChapterMemory } from "./wilds-saga-director";
 import type { WildsReward } from "./wilds-saga-types";
+import { verifyWildsRegenerativeGrove, type WildsRegenerativeGroveV1 } from "./wilds-regenerative-grove";
+import { verifyWildsLivingOperationPlan, type WildsLivingOperationPlanV1 } from "./wilds-living-operation";
+import { verifyWildsWorldEmissionProof, type WildsWorldEmissionProofV1 } from "./wilds-world-emission";
 
 export type WildsDynamicSitePhase = "rumored" | "tracked" | "emerged" | "assaulting" | "engaged" | "defeated" | "memorialized" | "expired";
 
@@ -121,6 +124,10 @@ export type WildsWorldProjection = {
   sites: Record<string, WildsWorldSiteProjection>;
   ecologySites: Record<string, WildsWorldEcologyProjection>;
   ecologyHistory: string[];
+  groves: Record<string, WildsRegenerativeGroveV1>;
+  livingOperations: Record<string, WildsLivingOperationPlanV1>;
+  worldEmission: WildsWorldEmissionProofV1 | null;
+  contributionHistory: Readonly<{ operationId: string; amountPhiMicro: string; eventId: string }>[];
   bosses: Record<string, WildsWorldBossProjection>;
   raids: Record<string, WildsWorldRaidProjection>;
   teams: Record<string, WildsWorldTeamProjection>;
@@ -151,6 +158,10 @@ export function initialWildsWorldProjection(): WildsWorldProjection {
     sites: {},
     ecologySites: {},
     ecologyHistory: [],
+    groves: {},
+    livingOperations: {},
+    worldEmission: null,
+    contributionHistory: [],
     bosses: {},
     raids: {},
     teams: {},
@@ -327,6 +338,45 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
         ecologyHistory: state.ecologyHistory.includes(site.id) ? state.ecologyHistory : [...state.ecologyHistory, site.id].slice(-512)
       });
     }
+    case "grove.discovered": {
+      const grove = recordPayload(payload.grove) as unknown as WildsRegenerativeGroveV1;
+      const emission = recordPayload(payload.emission) as unknown as WildsWorldEmissionProofV1;
+      if (!verifyWildsRegenerativeGrove(grove) || !verifyWildsWorldEmissionProof(emission)) throw new Error("wilds_world_grove_discovery_invalid");
+      if (state.groves[grove.groveId]) throw new Error("wilds_world_grove_exists");
+      if (state.worldEmission && state.worldEmission.head !== emission.head) throw new Error("wilds_world_emission_conflict");
+      return appendEvent(state, event, {
+        groves: { ...state.groves, [grove.groveId]: grove },
+        worldEmission: emission
+      });
+    }
+    case "grove.operation_admitted": {
+      const grove = recordPayload(payload.grove) as unknown as WildsRegenerativeGroveV1;
+      const operation = recordPayload(payload.operation) as unknown as WildsLivingOperationPlanV1;
+      const emission = recordPayload(payload.emission) as unknown as WildsWorldEmissionProofV1;
+      const amountPhiMicro = String(payload.amountPhiMicro ?? "");
+      const currentGrove = state.groves[grove.groveId];
+      if (!currentGrove || grove.parentHead !== currentGrove.head || grove.revision !== currentGrove.revision + 1
+        || grove.lastKaiUPulse !== operation.kaiUPulse || !verifyWildsRegenerativeGrove(grove)
+        || !verifyWildsLivingOperationPlan(operation).ok || operation.intention.featureId !== grove.groveId
+        || !state.worldEmission || emission.parentHead !== state.worldEmission.head
+        || emission.revision !== state.worldEmission.revision + 1 || !verifyWildsWorldEmissionProof(emission)
+        || canonicalPortableCardJson(emission.consumedOperationIds) !== canonicalPortableCardJson([...state.worldEmission.consumedOperationIds, operation.operationId].sort())
+        || !/^(?:0|[1-9][0-9]{0,39})$/.test(amountPhiMicro)) {
+        throw new Error("wilds_world_grove_operation_invalid");
+      }
+      const emitted = BigInt(state.worldEmission.globalRemainingPhiMicro) - BigInt(emission.globalRemainingPhiMicro);
+      const regionId = String(operation.intention.regionId ?? "");
+      const contributionClass = operation.category === "construction" ? "construction" : "ecology";
+      const regionEmitted = BigInt(state.worldEmission.regionRemainingPhiMicro[regionId] ?? "-1") - BigInt(emission.regionRemainingPhiMicro[regionId] ?? "-1");
+      const classEmitted = BigInt(state.worldEmission.classRemainingPhiMicro[contributionClass] ?? "-1") - BigInt(emission.classRemainingPhiMicro[contributionClass] ?? "-1");
+      if (emitted.toString() !== amountPhiMicro || regionEmitted !== emitted || classEmitted !== emitted) throw new Error("wilds_world_grove_emission_invalid");
+      return appendEvent(state, event, {
+        groves: { ...state.groves, [grove.groveId]: grove },
+        livingOperations: { ...state.livingOperations, [operation.operationId]: operation },
+        worldEmission: emission,
+        contributionHistory: [...state.contributionHistory, { operationId: operation.operationId, amountPhiMicro, eventId: event.eventId }].slice(-4_096)
+      });
+    }
     case "team.created":
     case "team.joined":
     case "team.invited":
@@ -479,5 +529,13 @@ function verifyCheckpoint(checkpoint: WildsWorldCheckpoint) {
 
 export function replayWildsWorld(events: readonly CompatibleWildsWorldEvent[], checkpoint?: WildsWorldCheckpoint) {
   if (checkpoint && !verifyCheckpoint(checkpoint)) throw new Error("wilds_world_checkpoint_invalid");
-  return events.reduce(reduceWildsWorldEvent, checkpoint?.projection ?? initialWildsWorldProjection());
+  const projection = checkpoint?.projection;
+  const hydrated = projection ? {
+    ...projection,
+    groves: projection.groves ?? {},
+    livingOperations: projection.livingOperations ?? {},
+    worldEmission: projection.worldEmission ?? null,
+    contributionHistory: projection.contributionHistory ?? []
+  } : initialWildsWorldProjection();
+  return events.reduce(reduceWildsWorldEvent, hydrated);
 }
