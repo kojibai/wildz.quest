@@ -31,6 +31,12 @@ function createGeometry() {
     bridgeRail: new THREE.BoxGeometry(.14, .14, 7.8),
     bridgePost: new THREE.CylinderGeometry(.1, .13, 1.05, 8),
     bridgeFooting: new THREE.CylinderGeometry(.22, .3, 1.2, 8),
+    benchTop: new THREE.BoxGeometry(3.2, .24, 1.35),
+    benchLeg: new THREE.BoxGeometry(.24, 1.25, .24),
+    toolRack: new THREE.BoxGeometry(2.5, .12, .12),
+    cacheBody: new THREE.BoxGeometry(2.5, 1.3, 1.65),
+    cacheLid: new THREE.BoxGeometry(2.7, .2, 1.85),
+    cacheBand: new THREE.BoxGeometry(.16, 1.38, 1.72),
     ghostMarker: new THREE.TorusGeometry(3.5, .045, 7, 48)
   };
 }
@@ -51,6 +57,9 @@ function createMaterials() {
     roof: new THREE.MeshStandardMaterial({ color: "#275947", roughness: .78, side: THREE.DoubleSide }),
     bridgeWood: new THREE.MeshStandardMaterial({ color: "#8c6746", roughness: .9 }),
     bridgeEdge: new THREE.MeshStandardMaterial({ color: "#4f392c", roughness: .94 }),
+    workshopWood: new THREE.MeshStandardMaterial({ color: "#6e4934", roughness: .82 }),
+    workshopMetal: new THREE.MeshStandardMaterial({ color: "#77d9c4", emissive: "#1d584d", emissiveIntensity: .22, roughness: .58 }),
+    cacheWood: new THREE.MeshStandardMaterial({ color: "#496153", roughness: .9 }),
     ghostValid: new THREE.MeshStandardMaterial({ color: "#87f4ce", emissive: "#34b98d", emissiveIntensity: .5, transparent: true, opacity: .38, depthWrite: false }),
     ghostInvalid: new THREE.MeshStandardMaterial({ color: "#ff887f", emissive: "#b83b38", emissiveIntensity: .42, transparent: true, opacity: .34, depthWrite: false })
   };
@@ -121,7 +130,11 @@ export function WildsStewardEnvironment({ activeWorkSource, placementPreview, li
     {sources.map(({ source, availableCapacity }) => <ResourceManifestation activeWorkSource={activeWorkSource} availableCapacity={availableCapacity} companionQualified={companionWorkFamilies.includes(source.requirements.creature)} companionReady={companionReady} geometry={geometry} key={source.sourceId} materials={materials} onInteract={onInteractSource} pending={pending && activeWorkSource?.sourceId === source.sourceId} player={player} siteRuntime={siteRuntime} siteSpaceId={siteSpaceId} source={source} terrainElevation={terrainElevation} />)}
     {structures.map((structure) => structure.blueprint === "trail-bridge"
       ? <TrailBridge geometry={geometry} key={structure.structureId} materials={materials} player={player} structure={structure} terrainElevation={terrainElevation} />
-      : <TrailShelter geometry={geometry} key={structure.structureId} materials={materials} player={player} structure={structure} terrainElevation={terrainElevation} />)}
+      : structure.blueprint === "steward-workbench"
+        ? <StewardWorkbench geometry={geometry} key={structure.structureId} materials={materials} player={player} structure={structure} terrainElevation={terrainElevation} />
+        : structure.blueprint === "trail-cache"
+          ? <TrailCache geometry={geometry} key={structure.structureId} materials={materials} player={player} structure={structure} terrainElevation={terrainElevation} />
+          : <TrailShelter geometry={geometry} key={structure.structureId} materials={materials} player={player} structure={structure} terrainElevation={terrainElevation} />)}
   </group>;
 }
 
@@ -146,11 +159,43 @@ function StewardPlacementGhost({ geometry, materials, player, preview, terrainEl
     {preview.blueprintId === "trail-bridge" ? <>
       <Shared geometry={geometry.bridgeDeck} material={material} position={[0, .28, 0]} />
       {[-1.42, 1.42].map((x) => <Shared geometry={geometry.bridgeRail} key={x} material={material} position={[x, 1.05, 0]} />)}
+    </> : preview.blueprintId === "steward-workbench" ? <>
+      <Shared geometry={geometry.benchTop} material={material} position={[0, 1.35, 0]} />
+      {[[-1.25, .65, -.48], [1.25, .65, -.48], [-1.25, .65, .48], [1.25, .65, .48]].map((point, index) => <Shared geometry={geometry.benchLeg} key={index} material={material} position={point as [number, number, number]} />)}
+    </> : preview.blueprintId === "trail-cache" ? <>
+      <Shared geometry={geometry.cacheBody} material={material} position={[0, .68, 0]} />
+      <Shared geometry={geometry.cacheLid} material={material} position={[0, 1.43, 0]} />
     </> : <>
       <Shared geometry={geometry.foundation} material={material} position={[0, .24, 0]} />
       {[[-2.45, 1.55, -1.95], [2.45, 1.55, -1.95], [-2.45, 1.55, 1.95], [2.45, 1.55, 1.95]].map((point, index) => <Shared geometry={geometry.post} key={index} material={material} position={point as [number, number, number]} />)}
       <Shared geometry={geometry.roof} material={material} position={[0, 3.25, 0]} rotation={[0, Math.PI / 4, 0]} scale={[1, 1, .82]} />
     </>}
+  </group>;
+}
+
+function StewardWorkbench({ geometry, materials, player, structure, terrainElevation }: {
+  geometry: Geometry; materials: Materials; player: Readonly<{ x: number; z: number }>;
+  structure: Extract<WildsStructureV1, { blueprint: "steward-workbench" }>; terrainElevation: number;
+}) {
+  const position = projectWildsTerrainActorPosition(structure.position, player, 0, { actorElevation: structure.position.y, anchorElevation: terrainElevation });
+  const rotation = structure.rotationQuarterTurns * Math.PI / 2;
+  return <group name={`steward-workbench-${structure.structureId}`} position={position} rotation={[0, rotation, 0]} userData={{ interactable: "workbench", structureId: structure.structureId }}>
+    <Shared castShadow receiveShadow geometry={geometry.benchTop} material={materials.workshopWood} position={[0, 1.35, 0]} />
+    {[[-1.25, .65, -.48], [1.25, .65, -.48], [-1.25, .65, .48], [1.25, .65, .48]].map((point, index) => <Shared castShadow geometry={geometry.benchLeg} key={index} material={materials.workshopWood} position={point as [number, number, number]} />)}
+    <Shared geometry={geometry.toolRack} material={materials.workshopMetal} position={[0, 1.62, 0]} />
+  </group>;
+}
+
+function TrailCache({ geometry, materials, player, structure, terrainElevation }: {
+  geometry: Geometry; materials: Materials; player: Readonly<{ x: number; z: number }>;
+  structure: Extract<WildsStructureV1, { blueprint: "trail-cache" }>; terrainElevation: number;
+}) {
+  const position = projectWildsTerrainActorPosition(structure.position, player, 0, { actorElevation: structure.position.y, anchorElevation: terrainElevation });
+  const rotation = structure.rotationQuarterTurns * Math.PI / 2;
+  return <group name={`trail-cache-${structure.structureId}`} position={position} rotation={[0, rotation, 0]} userData={{ interactable: "trail-cache", structureId: structure.structureId }}>
+    <Shared castShadow receiveShadow geometry={geometry.cacheBody} material={materials.cacheWood} position={[0, .68, 0]} />
+    <Shared castShadow geometry={geometry.cacheLid} material={materials.workshopWood} position={[0, 1.43, 0]} />
+    {[-.85, .85].map((x) => <Shared geometry={geometry.cacheBand} key={x} material={materials.workshopMetal} position={[x, .7, 0]} />)}
   </group>;
 }
 

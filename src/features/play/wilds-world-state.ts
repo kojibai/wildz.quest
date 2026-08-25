@@ -18,12 +18,14 @@ import { isCanonicalWildsResourceSource, type WildsResourceSource } from "./wild
 import {
   initialWildsHarvestedSourceState,
   verifyWildsStewardPhiAward,
+  verifyWildsStewardTool,
   verifyWildsHarvestedSourceState,
   verifyWildsMaterialLot,
   verifyWildsStructure,
   type WildsHarvestedSourceStateV1,
   type WildsMaterialLotV1,
   type WildsStewardPhiAwardV1,
+  type WildsStewardToolV1,
   type WildsStructureV1
 } from "./wilds-steward-construction";
 
@@ -144,6 +146,9 @@ export type WildsWorldProjection = {
   materialLots: Record<string, WildsMaterialLotV1>;
   consumedMaterialLots: Record<string, string>;
   structures: Record<string, WildsStructureV1>;
+  stewardTools: Record<string, WildsStewardToolV1>;
+  equippedStewardTools: Record<string, string>;
+  storedMaterialLots: Record<string, string>;
   stewardPhiAwards: Record<string, WildsStewardPhiAwardV1>;
   livingOperations: Record<string, WildsLivingOperationPlanV1>;
   worldEmission: WildsWorldEmissionProofV1 | null;
@@ -185,6 +190,9 @@ export function initialWildsWorldProjection(): WildsWorldProjection {
     materialLots: {},
     consumedMaterialLots: {},
     structures: {},
+    stewardTools: {},
+    equippedStewardTools: {},
+    storedMaterialLots: {},
     stewardPhiAwards: {},
     livingOperations: {},
     worldEmission: null,
@@ -487,10 +495,23 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
       if (sourceState.parentHead !== current.head || sourceState.revision !== current.revision + 1
         || lot.source.sourceHead !== current.head || sourceState.harvestedCapacity < 1
         || sourceState.harvestedCapacity > source.capacity) throw new Error("wilds_world_material_conservation_invalid");
+      const nextToolValue = payload.tool;
+      let stewardTools = state.stewardTools;
+      if (nextToolValue) {
+        const nextTool = recordPayload(nextToolValue) as unknown as WildsStewardToolV1;
+        const currentTool = state.stewardTools[nextTool.toolId];
+        if (!currentTool || !verifyWildsStewardTool(nextTool) || currentTool.ownerReceizId !== event.actorId
+          || nextTool.parentHead !== currentTool.head || nextTool.revision !== currentTool.revision + 1
+          || nextTool.durability.remaining !== currentTool.durability.remaining - 1
+          || state.equippedStewardTools[event.actorId] !== nextTool.toolId
+          || nextTool.capability !== source.requirements.creature) throw new Error("wilds_world_material_tool_invalid");
+        stewardTools = { ...state.stewardTools, [nextTool.toolId]: nextTool };
+      }
       const economy = stewardEconomyPatch(state, event, payload);
       return appendEvent(state, event, {
         harvestedSources: { ...state.harvestedSources, [source.sourceId]: sourceState },
         materialLots: { ...state.materialLots, [lot.lotId]: lot },
+        stewardTools,
         ...economy
       });
     }
@@ -503,7 +524,7 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
         const lotId = structure.consumedLotIds[index]!;
         const lot = state.materialLots[lotId];
         if (!lot || lot.ownerReceizId !== event.actorId || lot.head !== structure.consumedLotHeads[index]
-          || state.consumedMaterialLots[lotId]) throw new Error("wilds_world_structure_material_invalid");
+          || state.consumedMaterialLots[lotId] || state.storedMaterialLots[lotId]) throw new Error("wilds_world_structure_material_invalid");
       }
       const economy = stewardEconomyPatch(state, event, payload);
       return appendEvent(state, event, {
@@ -514,6 +535,47 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
         },
         ...economy
       });
+    }
+    case "tool.crafted": {
+      const tool = recordPayload(payload.tool) as unknown as WildsStewardToolV1;
+      if (!verifyWildsStewardTool(tool) || tool.ownerReceizId !== event.actorId || state.stewardTools[tool.toolId]
+        || state.structures[tool.workstationId]?.head !== tool.workstationHead) throw new Error("wilds_world_tool_invalid");
+      for (let index = 0; index < tool.consumedLotIds.length; index += 1) {
+        const lotId = tool.consumedLotIds[index]!;
+        const lot = state.materialLots[lotId];
+        if (!lot || lot.ownerReceizId !== event.actorId || lot.head !== tool.consumedLotHeads[index]
+          || state.consumedMaterialLots[lotId] || state.storedMaterialLots[lotId]) throw new Error("wilds_world_tool_material_invalid");
+      }
+      const economy = stewardEconomyPatch(state, event, payload);
+      return appendEvent(state, event, {
+        stewardTools: { ...state.stewardTools, [tool.toolId]: tool },
+        consumedMaterialLots: { ...state.consumedMaterialLots, ...Object.fromEntries(tool.consumedLotIds.map((lotId) => [lotId, tool.toolId])) },
+        ...economy
+      });
+    }
+    case "tool.equipped": {
+      const toolId = String(payload.toolId ?? "");
+      const tool = state.stewardTools[toolId];
+      if (!tool || tool.ownerReceizId !== event.actorId || tool.durability.remaining < 1) throw new Error("wilds_world_tool_equip_invalid");
+      return appendEvent(state, event, { equippedStewardTools: { ...state.equippedStewardTools, [event.actorId]: toolId } });
+    }
+    case "storage.material_moved": {
+      const lotId = String(payload.lotId ?? "");
+      const cacheId = String(payload.cacheId ?? "");
+      const direction = String(payload.direction ?? "");
+      const lot = state.materialLots[lotId];
+      const cache = state.structures[cacheId];
+      if (!lot || lot.ownerReceizId !== event.actorId || state.consumedMaterialLots[lotId]
+        || !cache || cache.blueprint !== "trail-cache" || cache.ownerReceizId !== event.actorId
+        || (direction !== "deposit" && direction !== "withdraw")) throw new Error("wilds_world_storage_invalid");
+      if (direction === "deposit") {
+        if (state.storedMaterialLots[lotId]) throw new Error("wilds_world_storage_already_stored");
+        return appendEvent(state, event, { storedMaterialLots: { ...state.storedMaterialLots, [lotId]: cacheId } });
+      }
+      if (state.storedMaterialLots[lotId] !== cacheId) throw new Error("wilds_world_storage_lot_missing");
+      const storedMaterialLots = { ...state.storedMaterialLots };
+      delete storedMaterialLots[lotId];
+      return appendEvent(state, event, { storedMaterialLots });
     }
     case "team.created":
     case "team.joined":
@@ -677,6 +739,9 @@ export function replayWildsWorld(events: readonly CompatibleWildsWorldEvent[], c
     materialLots: projection.materialLots ?? {},
     consumedMaterialLots: projection.consumedMaterialLots ?? {},
     structures: projection.structures ?? {},
+    stewardTools: projection.stewardTools ?? {},
+    equippedStewardTools: projection.equippedStewardTools ?? {},
+    storedMaterialLots: projection.storedMaterialLots ?? {},
     stewardPhiAwards: projection.stewardPhiAwards ?? {},
     livingOperations: projection.livingOperations ?? {},
     worldEmission: projection.worldEmission ?? null,

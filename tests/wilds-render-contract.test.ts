@@ -63,6 +63,21 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(css, /\.wilds-steward-craft-catalog\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit,/s);
   });
 
+  it("projects workstation tools and exact-lot storage without adding frame-loop authority", async () => {
+    const environment = await readFile("src/features/play/WildsStewardEnvironment.tsx", "utf8");
+    const panel = await readFile("src/features/play/WildsStewardCraftPanel.tsx", "utf8");
+    const world = await readFile("src/features/play/wilds-world-state.ts", "utf8");
+    assert.match(environment, /function StewardWorkbench/);
+    assert.match(environment, /function TrailCache/);
+    assert.match(panel, /Field tools/);
+    assert.match(panel, /Workbench required/);
+    assert.match(panel, /Store \{kind\}/);
+    assert.match(world, /stewardTools/);
+    assert.match(world, /storedMaterialLots/);
+    const staticStructures = environment.slice(environment.indexOf("function StewardWorkbench"), environment.indexOf("function ResourceManifestation"));
+    assert.doesNotMatch(staticStructures, /useFrame|setInterval|requestAnimationFrame/);
+  });
+
   it("renders bounded ambient life as non-catchable instanced world detail", async () => {
     const ambient = await readFile("src/features/play/WildsAmbientLife.tsx", "utf8");
     const authority = await readFile("src/features/play/wilds-ambient-life.ts", "utf8");

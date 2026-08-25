@@ -3,7 +3,7 @@ import { selectWildsTrailBridgeRotation } from "./wilds-steward-construction";
 import { sampleWildsTerrain } from "./wilds-terrain-authority";
 import type { WildsWorkCapabilityMeter } from "./wilds-work-capability";
 
-export type WildsStewardBlueprintId = "trail-shelter" | "trail-bridge";
+export type WildsStewardBlueprintId = "trail-shelter" | "trail-bridge" | "steward-workbench" | "trail-cache";
 
 export type WildsStewardBlueprintDefinition = Readonly<{
   id: WildsStewardBlueprintId;
@@ -35,6 +35,20 @@ export const WILDS_STEWARD_BLUEPRINTS: readonly WildsStewardBlueprintDefinition[
     purpose: "A persistent public crossing between two safe banks.",
     placement: "Water between level banks",
     materials: Object.freeze({ timber: 4, stone: 2 })
+  }),
+  Object.freeze({
+    id: "steward-workbench" as const,
+    label: "Steward Workbench",
+    purpose: "A persistent station where exact material lots become proof-bound field tools.",
+    placement: "Reachable dry ground",
+    materials: Object.freeze({ timber: 3, stone: 2 })
+  }),
+  Object.freeze({
+    id: "trail-cache" as const,
+    label: "Trail Cache",
+    purpose: "Persistent exact-lot storage that keeps gathered materials safe without changing their proof.",
+    placement: "Reachable dry ground",
+    materials: Object.freeze({ timber: 2, stone: 2 })
   })
 ]);
 

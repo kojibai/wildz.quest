@@ -76,7 +76,40 @@ export type WildsTrailBridgeV1 = WildsStructureBaseV1 & Readonly<{
   physical: WildsBridgePhysicalEvidenceV1;
 }>;
 
-export type WildsStructureV1 = WildsTrailShelterV1 | WildsTrailBridgeV1;
+export type WildsStewardWorkbenchV1 = WildsStructureBaseV1 & Readonly<{
+  structureId: string;
+  blueprint: "steward-workbench";
+  materials: Readonly<{ timber: 3; stone: 2 }>;
+}>;
+
+export type WildsTrailCacheV1 = WildsStructureBaseV1 & Readonly<{
+  structureId: string;
+  blueprint: "trail-cache";
+  materials: Readonly<{ timber: 2; stone: 2 }>;
+}>;
+
+export type WildsStructureV1 = WildsTrailShelterV1 | WildsTrailBridgeV1 | WildsStewardWorkbenchV1 | WildsTrailCacheV1;
+
+export type WildsStewardToolKind = "steward-axe" | "quarry-pick";
+
+export type WildsStewardToolV1 = Readonly<{
+  schema: "wildz.steward-tool.v1";
+  toolId: string;
+  kind: WildsStewardToolKind;
+  capability: "lumber" | "quarry";
+  ownerReceizId: string;
+  workstationId: string;
+  workstationHead: string;
+  consumedLotIds: readonly string[];
+  consumedLotHeads: readonly string[];
+  builder: Readonly<{ creatureSubjectId: string; creatureHead: string }>;
+  durability: Readonly<{ remaining: number; capacity: 24 }>;
+  revision: number;
+  parentHead: string | null;
+  kaiUPulse: number;
+  authority: "source-proof-objects";
+  head: string;
+}>;
 
 export type WildsStewardPhiAwardV1 = Readonly<{
   schema: "wildz.steward-phi-award.v1";
@@ -132,6 +165,8 @@ export function createWildsStewardHarvestOperation(input: Readonly<{
   playerHead: string;
   creatureSubjectId: string;
   creatureHead: string;
+  tool?: WildsStewardToolV1 | null;
+  nextTool?: WildsStewardToolV1 | null;
   kaiUPulse: number;
 }>): WildsLivingOperationPlanV1 {
   if (!verifyWildsHarvestedSourceState(input.currentSource) || !verifyWildsHarvestedSourceState(input.harvestedSource)
@@ -142,6 +177,13 @@ export function createWildsStewardHarvestOperation(input: Readonly<{
     || input.lot.contributors.creatureHead !== input.creatureHead || input.lot.source.kaiUPulse !== input.kaiUPulse) {
     throw new Error("wilds_steward_operation_source_invalid");
   }
+  if (input.tool && (!verifyWildsStewardTool(input.tool) || !input.nextTool || !verifyWildsStewardTool(input.nextTool)
+    || input.tool.ownerReceizId !== input.ownerReceizId || input.tool.capability !== input.source.requirements.creature
+    || input.nextTool.toolId !== input.tool.toolId || input.nextTool.parentHead !== input.tool.head
+    || input.nextTool.revision !== input.tool.revision + 1 || input.nextTool.durability.remaining !== input.tool.durability.remaining - 1)) {
+    throw new Error("wilds_steward_operation_tool_invalid");
+  }
+  if (!input.tool && input.nextTool) throw new Error("wilds_steward_operation_tool_invalid");
   const identity = operationIdentity("harvest", input.lot.head);
   const timber = input.lot.kind === "timber";
   return compileWildsLivingOperation({
@@ -153,7 +195,8 @@ export function createWildsStewardHarvestOperation(input: Readonly<{
       featureId: input.source.sourceId,
       sourceHead: input.currentSource.head,
       admittedSourceHead: input.harvestedSource.head,
-      outputLotHead: input.lot.head
+      outputLotHead: input.lot.head,
+      ...(input.tool ? { toolId: input.tool.toolId, toolSourceHead: input.tool.head, toolAdmittedHead: input.nextTool!.head } : {})
     },
     participants: [
       { id: input.ownerReceizId, kind: "player", expectedHead: input.playerHead, role: "steward" },
@@ -161,11 +204,11 @@ export function createWildsStewardHarvestOperation(input: Readonly<{
     ],
     stages: [{ id: "stage:cooperative-harvest", profession: timber ? "lumber" : "quarry", participantIds: [input.ownerReceizId, input.creatureSubjectId] }],
     consequences: {
-      usefulOutput: 2,
+      usefulOutput: input.tool ? 3 : 2,
       ecologicalRenewal: timber ? 1 : 0,
       publicBenefit: 0,
       cooperation: 2,
-      durability: 0,
+      durability: input.tool ? 1 : 0,
       extraction: timber ? 1 : 2,
       damage: 0,
       waste: 0,
@@ -220,6 +263,50 @@ export function createWildsStewardStructureOperation(input: Readonly<{
     kaiUPulse: input.structure.kaiUPulse,
     expiresAtKaiUPulse: input.structure.kaiUPulse + 1_000_000,
     semanticIdempotencyKey: `steward:build:${identity}`
+  });
+}
+
+export function createWildsStewardToolOperation(input: Readonly<{
+  tool: WildsStewardToolV1;
+  lots: readonly WildsMaterialLotV1[];
+  workstation: WildsStewardWorkbenchV1;
+  ownerReceizId: string;
+  playerHead: string;
+}>): WildsLivingOperationPlanV1 {
+  const orderedLots = [...input.lots].sort((left, right) => left.lotId.localeCompare(right.lotId));
+  if (!verifyWildsStewardTool(input.tool) || input.tool.revision !== 0 || input.tool.ownerReceizId !== input.ownerReceizId
+    || !verifyWildsStructure(input.workstation) || input.workstation.blueprint !== "steward-workbench"
+    || input.tool.workstationId !== input.workstation.structureId || input.tool.workstationHead !== input.workstation.head
+    || canonicalPortableCardJson(input.tool.consumedLotHeads) !== canonicalPortableCardJson(orderedLots.map((lot) => lot.head))
+    || orderedLots.some((lot) => !verifyWildsMaterialLot(lot) || lot.ownerReceizId !== input.ownerReceizId)) {
+    throw new Error("wilds_steward_tool_operation_source_invalid");
+  }
+  const participantIds = [input.ownerReceizId, input.tool.builder.creatureSubjectId];
+  const identity = operationIdentity(input.tool.kind, input.tool.head);
+  return compileWildsLivingOperation({
+    operationId: `steward:craft:${identity}`,
+    category: "construction",
+    intention: {
+      kind: `steward.craft-${input.tool.kind}`,
+      regionId: regionId(input.workstation.position.x, input.workstation.position.z),
+      featureId: input.tool.toolId,
+      toolHead: input.tool.head,
+      workstationHead: input.workstation.head,
+      consumedLotHeads: input.tool.consumedLotHeads
+    },
+    participants: [
+      { id: input.ownerReceizId, kind: "player", expectedHead: input.playerHead, role: "steward" },
+      { id: input.tool.builder.creatureSubjectId, kind: "creature", expectedHead: input.tool.builder.creatureHead, role: "crafting-partner" }
+    ],
+    stages: [
+      { id: "stage:shape", profession: "craft", participantIds },
+      { id: "stage:balance", profession: "finish", participantIds }
+    ],
+    consequences: { usefulOutput: input.tool.kind === "quarry-pick" ? 4 : 3, ecologicalRenewal: 0, publicBenefit: 1, cooperation: 2,
+      durability: 5, extraction: input.tool.consumedLotIds.length, damage: 0, waste: 0, restorationDebt: 0 },
+    kaiUPulse: input.tool.kaiUPulse,
+    expiresAtKaiUPulse: input.tool.kaiUPulse + 1_000_000,
+    semanticIdempotencyKey: `steward:craft:${identity}`
   });
 }
 
@@ -337,6 +424,7 @@ export function createWildsMaterialHarvest(input: Readonly<{
   ownerReceizId: string;
   actorPosition: Readonly<{ x: number; z: number }>;
   creature: Readonly<{ subjectId: string; head: string; workFamilies: readonly string[]; willing: boolean }>;
+  tool?: WildsStewardToolV1 | null;
   kaiUPulse: number;
 }>) {
   if (!isCanonicalWildsResourceSource(input.source)) throw new Error("wilds_steward_source_noncanonical");
@@ -348,6 +436,10 @@ export function createWildsMaterialHarvest(input: Readonly<{
     || Math.hypot(input.actorPosition.x - input.source.position.x, input.actorPosition.z - input.source.position.z) > 5.5) throw new Error("wilds_steward_source_unreachable");
   if (!input.creature.willing) throw new Error("wilds_steward_creature_unwilling");
   if (!input.creature.workFamilies.includes(input.source.requirements.creature)) throw new Error("wilds_steward_creature_unqualified");
+  if (input.tool && (!verifyWildsStewardTool(input.tool) || input.tool.ownerReceizId !== input.ownerReceizId
+    || input.tool.capability !== input.source.requirements.creature || input.tool.durability.remaining < 1)) {
+    throw new Error("wilds_steward_tool_invalid");
+  }
   const availability = projectWildsResourceAvailability(input.source, {
     admittedHarvestedCapacity: input.current.harvestedCapacity,
     lastHarvestKaiPulse: input.current.lastHarvestKaiPulse,
@@ -377,7 +469,7 @@ export function createWildsMaterialHarvest(input: Readonly<{
     lotId: `wildz:material:${input.source.kind}:${lotIdentity}`,
     kind: input.source.kind,
     quantity: 1 as const,
-    quality: input.source.quality,
+    quality: Math.min(5, input.source.quality + (input.tool ? 1 : 0)) as 1 | 2 | 3 | 4 | 5,
     ownerReceizId: input.ownerReceizId,
     source: {
       sourceId: input.source.sourceId,
@@ -393,7 +485,8 @@ export function createWildsMaterialHarvest(input: Readonly<{
     authority: "source-proof-object" as const
   };
   const lot = freeze({ ...lotBasis, head: digest(lotBasis) });
-  return freeze({ source, lot });
+  const tool = input.tool ? reviseWildsStewardToolAfterUse(input.tool, { capability: input.source.requirements.creature as "lumber" | "quarry", kaiUPulse: input.kaiUPulse }) : null;
+  return freeze({ source, lot, tool });
 }
 
 function verifyStructureBase(structure: Partial<WildsStructureV1>, expectedLots: number) {
@@ -433,13 +526,144 @@ export function verifyWildsStructure(value: unknown): value is WildsStructureV1 
   const structure = value as Partial<WildsStructureV1>;
   const shelter = structure.blueprint === "trail-shelter";
   const bridge = structure.blueprint === "trail-bridge";
-  if ((!shelter && !bridge) || !verifyStructureBase(structure, shelter ? 3 : 6)
+  const workstation = structure.blueprint === "steward-workbench";
+  const cache = structure.blueprint === "trail-cache";
+  const expectedLots = shelter ? 3 : bridge ? 6 : workstation ? 5 : cache ? 4 : 0;
+  if ((!shelter && !bridge && !workstation && !cache) || !verifyStructureBase(structure, expectedLots)
     || !new RegExp(`^wildz:structure:${structure.blueprint}:[a-f0-9]{64}$`).test(structure.structureId ?? "")
     || (shelter && (structure.materials?.timber !== 2 || structure.materials?.stone !== 1))
+    || (workstation && (structure.materials?.timber !== 3 || structure.materials?.stone !== 2))
+    || (cache && (structure.materials?.timber !== 2 || structure.materials?.stone !== 2))
     || (bridge && (structure.materials?.timber !== 4 || structure.materials?.stone !== 2
       || !verifyBridgePhysical((structure as Partial<WildsTrailBridgeV1>).physical)))) return false;
   const { head, ...basis } = structure as WildsStructureV1;
   return head === digest(basis);
+}
+
+function createGroundStewardStructure(input: Readonly<{
+  blueprint: "steward-workbench" | "trail-cache";
+  materials: Readonly<{ timber: number; stone: number }>;
+  ownerReceizId: string;
+  position: Readonly<{ x: number; y: number; z: number }>;
+  rotationQuarterTurns: number;
+  lots: readonly WildsMaterialLotV1[];
+  builder: Readonly<{ creatureSubjectId: string; creatureHead: string }>;
+  existingStructures: readonly WildsStructureV1[];
+  kaiUPulse: number;
+}>): WildsStewardWorkbenchV1 | WildsTrailCacheV1 {
+  if (!ID.test(input.ownerReceizId) || !validKai(input.kaiUPulse)) throw new Error("wilds_steward_structure_authority_invalid");
+  if (!ID.test(input.builder.creatureSubjectId) || !HEAD.test(input.builder.creatureHead)) throw new Error("wilds_steward_builder_invalid");
+  if (![input.position.x, input.position.y, input.position.z].every(Number.isFinite)) throw new Error("wilds_steward_structure_position_invalid");
+  if (!Number.isSafeInteger(input.rotationQuarterTurns)) throw new Error("wilds_steward_structure_rotation_invalid");
+  if (input.lots.some((lot) => !verifyWildsMaterialLot(lot) || lot.ownerReceizId !== input.ownerReceizId)) throw new Error("wilds_steward_material_authority_invalid");
+  if (new Set(input.lots.map((lot) => lot.lotId)).size !== input.lots.length) throw new Error("wilds_steward_material_duplicate");
+  const timber = input.lots.filter((lot) => lot.kind === "timber").length;
+  const stone = input.lots.filter((lot) => lot.kind === "stone").length;
+  if (input.lots.length !== input.materials.timber + input.materials.stone || timber !== input.materials.timber || stone !== input.materials.stone) {
+    throw new Error("wilds_steward_materials_insufficient");
+  }
+  if (input.existingStructures.some((structure) => Math.hypot(structure.position.x - input.position.x, structure.position.z - input.position.z) < 7.25)) {
+    throw new Error("wilds_steward_structure_overlap");
+  }
+  const rotationQuarterTurns = (((input.rotationQuarterTurns % 4) + 4) % 4) as 0 | 1 | 2 | 3;
+  const orderedLots = [...input.lots].sort((left, right) => left.lotId.localeCompare(right.lotId));
+  const identity = digest({ schema: "wildz.structure-identity.v1", blueprint: input.blueprint, ownerReceizId: input.ownerReceizId,
+    position: input.position, rotationQuarterTurns, consumedLotHeads: orderedLots.map((lot) => lot.head) }).replace(/^sha256:/, "");
+  const basis = {
+    schema: "wildz.structure.v1" as const,
+    structureId: `wildz:structure:${input.blueprint}:${identity}`,
+    blueprint: input.blueprint,
+    ownerReceizId: input.ownerReceizId,
+    position: freeze({ ...input.position }),
+    rotationQuarterTurns,
+    stage: "complete" as const,
+    materials: freeze({ ...input.materials }),
+    consumedLotIds: freeze(orderedLots.map((lot) => lot.lotId)),
+    consumedLotHeads: freeze(orderedLots.map((lot) => lot.head)),
+    builder: freeze({ ...input.builder }),
+    kaiUPulse: input.kaiUPulse,
+    authority: "source-proof-objects" as const
+  };
+  return freeze({ ...basis, head: digest(basis) }) as WildsStewardWorkbenchV1 | WildsTrailCacheV1;
+}
+
+export function createWildsWorkstation(input: Omit<Parameters<typeof createGroundStewardStructure>[0], "blueprint" | "materials">): WildsStewardWorkbenchV1 {
+  return createGroundStewardStructure({ ...input, blueprint: "steward-workbench", materials: { timber: 3, stone: 2 } }) as WildsStewardWorkbenchV1;
+}
+
+export function createWildsTrailCache(input: Omit<Parameters<typeof createGroundStewardStructure>[0], "blueprint" | "materials">): WildsTrailCacheV1 {
+  return createGroundStewardStructure({ ...input, blueprint: "trail-cache", materials: { timber: 2, stone: 2 } }) as WildsTrailCacheV1;
+}
+
+export function verifyWildsStewardTool(value: unknown): value is WildsStewardToolV1 {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const tool = value as Partial<WildsStewardToolV1>;
+  const capability = tool.kind === "steward-axe" ? "lumber" : tool.kind === "quarry-pick" ? "quarry" : null;
+  if (!capability || tool.schema !== "wildz.steward-tool.v1" || tool.capability !== capability
+    || !new RegExp(`^wildz:tool:${tool.kind}:[a-f0-9]{64}$`).test(tool.toolId ?? "")
+    || !ID.test(tool.ownerReceizId ?? "") || !/^wildz:structure:steward-workbench:[a-f0-9]{64}$/.test(tool.workstationId ?? "")
+    || !HEAD.test(tool.workstationHead ?? "") || !Array.isArray(tool.consumedLotIds) || !Array.isArray(tool.consumedLotHeads)
+    || tool.consumedLotIds.length !== (tool.kind === "steward-axe" ? 2 : 3) || tool.consumedLotHeads.length !== tool.consumedLotIds.length
+    || new Set(tool.consumedLotIds).size !== tool.consumedLotIds.length || !tool.consumedLotHeads.every((head) => HEAD.test(head))
+    || !tool.builder || !ID.test(tool.builder.creatureSubjectId) || !HEAD.test(tool.builder.creatureHead)
+    || tool.durability?.capacity !== 24 || !Number.isSafeInteger(tool.durability?.remaining) || (tool.durability?.remaining ?? -1) < 0 || (tool.durability?.remaining ?? 25) > 24
+    || !Number.isSafeInteger(tool.revision) || (tool.revision ?? -1) < 0 || (tool.parentHead !== null && !HEAD.test(tool.parentHead ?? ""))
+    || !validKai(tool.kaiUPulse ?? -1) || tool.authority !== "source-proof-objects" || !HEAD.test(tool.head ?? "")) return false;
+  if (tool.revision === 0 ? tool.parentHead !== null || tool.durability.remaining !== 24 : tool.parentHead === null) return false;
+  const { head, ...basis } = tool as WildsStewardToolV1;
+  return head === digest(basis);
+}
+
+export function createWildsStewardTool(input: Readonly<{
+  kind: WildsStewardToolKind;
+  ownerReceizId: string;
+  workstation: WildsStewardWorkbenchV1;
+  lots: readonly WildsMaterialLotV1[];
+  builder: Readonly<{ creatureSubjectId: string; creatureHead: string }>;
+  kaiUPulse: number;
+}>): WildsStewardToolV1 {
+  if (!verifyWildsStructure(input.workstation) || input.workstation.blueprint !== "steward-workbench"
+    || input.workstation.ownerReceizId !== input.ownerReceizId) throw new Error("wilds_steward_tool_workstation_invalid");
+  if (!ID.test(input.ownerReceizId) || !ID.test(input.builder.creatureSubjectId) || !HEAD.test(input.builder.creatureHead) || !validKai(input.kaiUPulse)) {
+    throw new Error("wilds_steward_tool_authority_invalid");
+  }
+  const expected = input.kind === "steward-axe" ? { timber: 1, stone: 1 } : { timber: 1, stone: 2 };
+  if (input.lots.some((lot) => !verifyWildsMaterialLot(lot) || lot.ownerReceizId !== input.ownerReceizId)
+    || new Set(input.lots.map((lot) => lot.lotId)).size !== input.lots.length
+    || input.lots.filter((lot) => lot.kind === "timber").length !== expected.timber
+    || input.lots.filter((lot) => lot.kind === "stone").length !== expected.stone
+    || input.lots.length !== expected.timber + expected.stone) throw new Error("wilds_steward_tool_material_invalid");
+  const orderedLots = [...input.lots].sort((left, right) => left.lotId.localeCompare(right.lotId));
+  const identity = digest({ schema: "wildz.steward-tool-identity.v1", kind: input.kind, ownerReceizId: input.ownerReceizId,
+    workstationHead: input.workstation.head, consumedLotHeads: orderedLots.map((lot) => lot.head) }).replace(/^sha256:/, "");
+  const basis = {
+    schema: "wildz.steward-tool.v1" as const,
+    toolId: `wildz:tool:${input.kind}:${identity}`,
+    kind: input.kind,
+    capability: input.kind === "steward-axe" ? "lumber" as const : "quarry" as const,
+    ownerReceizId: input.ownerReceizId,
+    workstationId: input.workstation.structureId,
+    workstationHead: input.workstation.head,
+    consumedLotIds: freeze(orderedLots.map((lot) => lot.lotId)),
+    consumedLotHeads: freeze(orderedLots.map((lot) => lot.head)),
+    builder: freeze({ ...input.builder }),
+    durability: freeze({ remaining: 24, capacity: 24 as const }),
+    revision: 0,
+    parentHead: null,
+    kaiUPulse: input.kaiUPulse,
+    authority: "source-proof-objects" as const
+  };
+  return freeze({ ...basis, head: digest(basis) });
+}
+
+export function reviseWildsStewardToolAfterUse(tool: WildsStewardToolV1, input: Readonly<{ capability: "lumber" | "quarry"; kaiUPulse: number }>): WildsStewardToolV1 {
+  if (!verifyWildsStewardTool(tool)) throw new Error("wilds_steward_tool_invalid");
+  if (tool.capability !== input.capability) throw new Error("wilds_steward_tool_capability_invalid");
+  if (tool.durability.remaining < 1) throw new Error("wilds_steward_tool_depleted");
+  if (!validKai(input.kaiUPulse) || input.kaiUPulse < tool.kaiUPulse) throw new Error("wilds_steward_tool_kai_invalid");
+  const { head: parentHead, ...prior } = tool;
+  const basis = { ...prior, durability: freeze({ remaining: tool.durability.remaining - 1, capacity: 24 as const }), revision: tool.revision + 1, parentHead, kaiUPulse: input.kaiUPulse };
+  return freeze({ ...basis, head: digest(basis) });
 }
 
 export function createWildsTrailShelter(input: Readonly<{

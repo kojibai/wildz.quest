@@ -11,13 +11,13 @@ describe("Wilds resource affordances", () => {
       state: "ready", label: "Harvest timber", guidance: "Work together", enabled: true
     });
     assert.deepEqual(projectWildsResourceAffordance({ kind: "timber", distance: 4, availableCapacity: 12, pending: false, companionQualified: false }), {
-      state: "companion", label: "Living timber", guidance: "Lead with a woodland worker", enabled: false
+      state: "companion", label: "Observe timber", guidance: "Reveals why a Woodland companion is needed", enabled: true
     });
     assert.deepEqual(projectWildsResourceAffordance({ kind: "timber", distance: 4, availableCapacity: 12, pending: true, companionQualified: true }), {
       state: "working", label: "Harvesting…", guidance: "Work is being admitted", enabled: false
     });
     assert.deepEqual(projectWildsResourceAffordance({ kind: "timber", distance: 4, availableCapacity: 12, pending: false, companionQualified: true, companionReady: false }), {
-      state: "rest", label: "Rest companion", guidance: "Pause together before working", enabled: true
+      state: "rest", label: "Observe timber", guidance: "Read the source now; gather after your companion rests", enabled: true
     });
     assert.deepEqual(projectWildsResourceAffordance({ kind: "timber", distance: 4, availableCapacity: 0, pending: false, companionQualified: true }), {
       state: "recovering", label: "Timber recovering", guidance: "This living source is replenishing", enabled: false

@@ -16,11 +16,16 @@ import {
   createWildsStewardHarvestOperation,
   createWildsStewardPhiAward,
   createWildsStewardStructureOperation,
+  createWildsStewardTool,
+  createWildsStewardToolOperation,
+  createWildsTrailCache,
   createWildsTrailBridge,
   createWildsTrailShelter,
+  createWildsWorkstation,
   initialWildsHarvestedSourceState,
   projectWildsCreatureWorkFamilies,
-  type WildsStewardPhiAwardV1
+  type WildsStewardPhiAwardV1,
+  type WildsStewardToolKind
 } from "./wilds-steward-construction";
 import { sampleWildsTerrain } from "./wilds-terrain-authority";
 import { achievementGrantCandidates } from "./wilds-saga-achievements";
@@ -78,9 +83,14 @@ export type WildsWorldCommand = (
   | { type: "grove.observe"; grove: WildsRegenerativeGroveV1; emission: WildsWorldEmissionProofV1; commandId: string }
   | { type: "grove.act"; operation: WildsLivingOperationPlanV1; grove: WildsRegenerativeGroveV1; emission: WildsWorldEmissionProofV1; amountPhiMicro: string; resourceLot?: WildsResourceLotV1 | null; commandId: string }
   | { type: "resource.transfer.admit"; lotId: string; ownerReceizId: string; subjectId: string; subjectHead: string; receiptId: string; transferId: string; commandId: string }
-  | { type: "resource.material.harvest"; source: WildsResourceSource; sourceHead: string; actorPosition: { x: number; z: number }; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
+  | { type: "resource.material.harvest"; source: WildsResourceSource; sourceHead: string; actorPosition: { x: number; z: number }; toolId?: string; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
   | { type: "structure.trail-shelter.build"; position: { x: number; z: number }; actorPosition: { x: number; z: number }; rotationQuarterTurns: number; lotIds: string[]; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
   | { type: "structure.trail-bridge.build"; position: { x: number; z: number }; actorPosition: { x: number; z: number }; rotationQuarterTurns: number; lotIds: string[]; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
+  | { type: "structure.steward-workbench.build"; position: { x: number; z: number }; actorPosition: { x: number; z: number }; rotationQuarterTurns: number; lotIds: string[]; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
+  | { type: "structure.trail-cache.build"; position: { x: number; z: number }; actorPosition: { x: number; z: number }; rotationQuarterTurns: number; lotIds: string[]; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
+  | { type: "tool.steward.craft"; kind: WildsStewardToolKind; workstationId: string; actorPosition: { x: number; z: number }; lotIds: string[]; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
+  | { type: "tool.steward.equip"; toolId: string; commandId: string }
+  | { type: "storage.material.move"; lotId: string; cacheId: string; direction: "deposit" | "withdraw"; actorPosition: { x: number; z: number }; commandId: string }
   | { type: "story.contribute"; dayId: string; objectiveId: string; verb: WildsGameplayVerb; amount: number; position?: { x: number; z: number }; cardProofDigest?: string; commandId: string }
   | { type: "story.trainer_battle"; dayId: string; trainerId: string; matchId: string; outcome: "player_victory" | "trainer_victory" | "fled"; cardProofDigest: string; commandId: string }
   | { type: "story.tournament_enter"; tournamentId: string; qualificationGrantId: string; cardProofDigest: string; commandId: string }
@@ -447,12 +457,16 @@ export class WildsWorldService {
       const element = creatureForm(authority.card.manifest.formId)?.element ?? "";
       const current = this.projection.harvestedSources[command.source.sourceId] ?? initialWildsHarvestedSourceState(command.source);
       if (current.head !== command.sourceHead) throw new Error("wilds_world_resource_source_stale");
+      const equippedToolId = this.projection.equippedStewardTools[authority.actorId];
+      const tool = command.toolId ? this.projection.stewardTools[command.toolId] : null;
+      if (command.toolId && (equippedToolId !== command.toolId || !tool || tool.ownerReceizId !== authority.actorId)) throw new Error("wilds_world_material_tool_invalid");
       const harvest = createWildsMaterialHarvest({
         source: command.source,
         current,
         ownerReceizId: authority.actorId,
         actorPosition: command.actorPosition,
         creature: { subjectId: creatureSubjectId, head: creatureHead, workFamilies: projectWildsCreatureWorkFamilies(element), willing: true },
+        tool,
         kaiUPulse: authorityMoment(authority).uPulse
       });
       const operation = createWildsStewardHarvestOperation({
@@ -464,6 +478,8 @@ export class WildsWorldService {
         playerHead: sha256PortableBasis(authority.actorId),
         creatureSubjectId,
         creatureHead,
+        tool,
+        nextTool: harvest.tool,
         kaiUPulse: authorityMoment(authority).uPulse
       });
       const currentEmission = this.projection.worldEmission;
@@ -483,12 +499,14 @@ export class WildsWorldService {
         source: command.source,
         sourceState: harvest.source,
         lot: harvest.lot,
+        tool: harvest.tool,
         operation,
         emission,
         amountPhiMicro: preview.amountPhiMicro,
         phiAward
       }, authority, command.commandId));
-    } else if (command.type === "structure.trail-shelter.build" || command.type === "structure.trail-bridge.build") {
+    } else if (command.type === "structure.trail-shelter.build" || command.type === "structure.trail-bridge.build"
+      || command.type === "structure.steward-workbench.build" || command.type === "structure.trail-cache.build") {
       if (!authority.card) throw new Error("wilds_world_verified_card_required");
       const creatureHead = sha256PortableBasis(authority.card.proof.digest);
       const creatureSubjectId = `creature:${sha256PortableBasis(authority.card.id).slice(0, 32)}`;
@@ -503,7 +521,7 @@ export class WildsWorldService {
       if (!Number.isFinite(command.actorPosition.x) || !Number.isFinite(command.actorPosition.z)
         || Math.hypot(command.actorPosition.x - command.position.x, command.actorPosition.z - command.position.z) > 7) throw new Error("wilds_world_structure_unreachable");
       const lots = command.lotIds.map((lotId) => this.projection.materialLots[lotId]).filter((lot) => Boolean(lot));
-      if (lots.length !== command.lotIds.length || command.lotIds.some((lotId) => this.projection.consumedMaterialLots[lotId])) {
+      if (lots.length !== command.lotIds.length || command.lotIds.some((lotId) => this.projection.consumedMaterialLots[lotId] || this.projection.storedMaterialLots[lotId])) {
         throw new Error("wilds_world_structure_material_invalid");
       }
       const structure = command.type === "structure.trail-bridge.build"
@@ -519,7 +537,7 @@ export class WildsWorldService {
         : (() => {
             const terrain = sampleWildsTerrain(command.position.x, command.position.z);
             if (terrain.surface === "shallow-water" || terrain.surface === "deep-water") throw new Error("wilds_world_structure_water_invalid");
-            return createWildsTrailShelter({
+            const groundInput = {
               ownerReceizId: authority.actorId,
               position: { x: command.position.x, y: terrain.elevation, z: command.position.z },
               rotationQuarterTurns: command.rotationQuarterTurns,
@@ -527,7 +545,10 @@ export class WildsWorldService {
               builder: { creatureSubjectId, creatureHead },
               existingStructures: Object.values(this.projection.structures),
               kaiUPulse: authorityMoment(authority).uPulse
-            });
+            };
+            return command.type === "structure.steward-workbench.build" ? createWildsWorkstation(groundInput)
+              : command.type === "structure.trail-cache.build" ? createWildsTrailCache(groundInput)
+                : createWildsTrailShelter(groundInput);
           })();
       const operation = createWildsStewardStructureOperation({
         structure,
@@ -549,6 +570,41 @@ export class WildsWorldService {
         throw new Error("wilds_world_steward_economy_mismatch");
       }
       events.push(this.append("structure.built", { structure, operation, emission, amountPhiMicro: preview.amountPhiMicro, phiAward }, authority, command.commandId));
+    } else if (command.type === "tool.steward.craft") {
+      if (!authority.card) throw new Error("wilds_world_verified_card_required");
+      const workstation = this.projection.structures[command.workstationId];
+      if (!workstation || workstation.blueprint !== "steward-workbench" || workstation.ownerReceizId !== authority.actorId) throw new Error("wilds_world_tool_workstation_invalid");
+      if (Math.hypot(command.actorPosition.x - workstation.position.x, command.actorPosition.z - workstation.position.z) > 6) throw new Error("wilds_world_tool_workstation_unreachable");
+      const creatureHead = sha256PortableBasis(authority.card.proof.digest);
+      const creatureSubjectId = `creature:${sha256PortableBasis(authority.card.id).slice(0, 32)}`;
+      const mandate = reverifyWildsCreatureMandate(command.mandate, { creatureHead, kaiUPulse: authorityMoment(authority).uPulse, revokedMandateIds: [] });
+      if (!mandate.ok || command.mandate.creatureSubjectId !== creatureSubjectId || !command.mandate.professions.includes("craft")) throw new Error("wilds_world_tool_mandate_invalid");
+      const lots = command.lotIds.map((lotId) => this.projection.materialLots[lotId]).filter(Boolean);
+      if (lots.length !== command.lotIds.length || command.lotIds.some((lotId) => this.projection.consumedMaterialLots[lotId] || this.projection.storedMaterialLots[lotId])) throw new Error("wilds_world_tool_material_invalid");
+      const tool = createWildsStewardTool({ kind: command.kind, ownerReceizId: authority.actorId, workstation, lots,
+        builder: { creatureSubjectId, creatureHead }, kaiUPulse: authorityMoment(authority).uPulse });
+      const operation = createWildsStewardToolOperation({ tool, lots, workstation, ownerReceizId: authority.actorId, playerHead: sha256PortableBasis(authority.actorId) });
+      const currentEmission = this.projection.worldEmission;
+      if (!currentEmission) throw new Error("wilds_world_emission_required");
+      const preview = previewWildsEmission({ emission: currentEmission, operation, contributionClass: "construction" });
+      if (!preview.eligible || preview.amountPhiMicro === "0") throw new Error("wilds_world_steward_emission_unavailable");
+      const emission = admitWildsEmission({ emission: currentEmission, operation, contributionClass: "construction", preview });
+      const phiAward = createWildsStewardPhiAward({ ownerReceizId: authority.actorId, operation, currentEmission, nextEmission: emission, amountPhiMicro: preview.amountPhiMicro });
+      if (!command.operation || !command.emission || !command.amountPhiMicro || !command.phiAward
+        || canonicalPortableCardJson(command.operation) !== canonicalPortableCardJson(operation)
+        || canonicalPortableCardJson(command.emission) !== canonicalPortableCardJson(emission)
+        || command.amountPhiMicro !== preview.amountPhiMicro
+        || canonicalPortableCardJson(command.phiAward) !== canonicalPortableCardJson(phiAward)) throw new Error("wilds_world_steward_economy_mismatch");
+      events.push(this.append("tool.crafted", { tool, operation, emission, amountPhiMicro: preview.amountPhiMicro, phiAward }, authority, command.commandId));
+    } else if (command.type === "tool.steward.equip") {
+      const tool = this.projection.stewardTools[command.toolId];
+      if (!tool || tool.ownerReceizId !== authority.actorId) throw new Error("wilds_world_tool_equip_invalid");
+      events.push(this.append("tool.equipped", { toolId: command.toolId }, authority, command.commandId));
+    } else if (command.type === "storage.material.move") {
+      const cache = this.projection.structures[command.cacheId];
+      if (!cache || cache.blueprint !== "trail-cache" || cache.ownerReceizId !== authority.actorId) throw new Error("wilds_world_storage_invalid");
+      if (Math.hypot(command.actorPosition.x - cache.position.x, command.actorPosition.z - cache.position.z) > 6) throw new Error("wilds_world_storage_unreachable");
+      events.push(this.append("storage.material_moved", { lotId: command.lotId, cacheId: command.cacheId, direction: command.direction }, authority, command.commandId));
     } else if (command.type === "story.contribute") {
       const { saga } = this.sagaAt(authority);
       const nodes = saga.chapter.missions.flatMap((mission) => mission.nodes);

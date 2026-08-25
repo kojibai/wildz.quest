@@ -102,9 +102,13 @@ export function evaluateWildsCreatureConsent(input: WildsCreatureConsentInputV1)
     decision = "refuse";
     reasons.push("That path does not feel safe to me.");
   } else if (requested.some((profession) => !capabilities.includes(profession))
-    || input.condition.stress >= 70 || input.bond < 20) {
+    || input.condition.stress >= 70 || (input.bond < 20 && input.safety.risk >= 30)) {
     decision = "request-help";
-    reasons.push("I can help if we bring the right support.");
+    reasons.push(requested.some((profession) => !capabilities.includes(profession))
+      ? `I cannot perform ${requested.filter((profession) => !capabilities.includes(profession)).join(" or ")}. Choose a companion whose card shows that work.`
+      : input.condition.stress >= 70
+        ? "I am too stressed for this work. Rest with me until my readiness meter recovers."
+        : "This demanding work needs a stronger bond or another explorer beside us.");
   } else if (requested.some((profession) => !preferences.includes(profession))) {
     reasons.push("I will try this with you, though it is not my favored work.");
   } else {

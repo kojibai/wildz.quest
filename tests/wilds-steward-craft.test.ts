@@ -12,10 +12,12 @@ function lot(kind: "timber" | "stone", index: number): WildsMaterialLotV1 {
 }
 
 describe("Steward Craft player projection", () => {
-  it("publishes only the two end-to-end admitted blueprints with exact requirements", () => {
+  it("publishes the four end-to-end admitted blueprints with exact requirements", () => {
     assert.deepEqual(WILDS_STEWARD_BLUEPRINTS.map(({ id, materials }) => ({ id, materials })), [
       { id: "trail-shelter", materials: { timber: 2, stone: 1 } },
-      { id: "trail-bridge", materials: { timber: 4, stone: 2 } }
+      { id: "trail-bridge", materials: { timber: 4, stone: 2 } },
+      { id: "steward-workbench", materials: { timber: 3, stone: 2 } },
+      { id: "trail-cache", materials: { timber: 2, stone: 2 } }
     ]);
   });
 

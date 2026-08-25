@@ -26,6 +26,11 @@ describe("sovereign creature consent and work mandates", () => {
       ...safePollination(),
       condition: { ...safePollination().condition, energy: 4 }
     }).decision, "pause");
+    assert.equal(evaluateWildsCreatureConsent({
+      ...safePollination(),
+      bond: 8,
+      safety: { risk: 6, hazards: [], supportAvailable: false }
+    }).decision, "accept", "low bond must not invisibly block basic safe work");
   });
 
   it("refuses feared unsafe work and requests help for unsupported capability", () => {

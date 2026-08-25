@@ -10,8 +10,12 @@ import {
   createWildsStewardHarvestOperation,
   createWildsStewardPhiAward,
   createWildsStewardStructureOperation,
+  createWildsStewardTool,
+  createWildsStewardToolOperation,
+  createWildsTrailCache,
   createWildsTrailBridge,
   createWildsTrailShelter,
+  createWildsWorkstation,
   initialWildsHarvestedSourceState,
   projectWildsCreatureWorkFamilies
 } from "../src/features/play/wilds-steward-construction";
@@ -256,5 +260,102 @@ describe("shared-world steward commands", () => {
       commandId: "command:bridge:replay-spend"
     }, { actorId, canonical: true, pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse + 27, card: groveCard }), /structure_material_invalid/);
     assert.deepEqual(service.snapshot(), settled);
+  });
+
+  it("crafts, equips, and atomically spends one tool durability revision", () => {
+    const service = new WildsWorldService();
+    service.tickGroves({ pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse, systemActorId: "receiz:pulse" });
+    const timber = sourceOf("timber");
+    const stone = sourceOf("stone");
+    const groveCard = card("mintcub-1", "tool-grove");
+    const stoneCard = card("titanseal-1", "tool-stone");
+    for (let ordinal = 0; ordinal < 4; ordinal += 1) harvest(service, timber, groveCard, baseUPulse + 40 + ordinal, 40 + ordinal);
+    for (let ordinal = 0; ordinal < 3; ordinal += 1) harvest(service, stone, stoneCard, baseUPulse + 44 + ordinal, 44 + ordinal);
+    const timberLots = Object.values(service.snapshot().materialLots).filter((lot) => lot.kind === "timber");
+    const stoneLots = Object.values(service.snapshot().materialLots).filter((lot) => lot.kind === "stone");
+    const position = { x: timber.position.x + 2, z: timber.position.z + 2 };
+    const buildLots = [...timberLots.slice(0, 3), ...stoneLots.slice(0, 2)];
+    const creatureSubjectId = `creature:${sha256PortableBasis(groveCard.id).slice(0, 32)}`;
+    const creatureHead = sha256PortableBasis(groveCard.proof.digest);
+    const workstation = createWildsWorkstation({ ownerReceizId: actorId, position: { ...position, y: sampleWildsTerrain(position.x, position.z).elevation }, rotationQuarterTurns: 0,
+      lots: buildLots, builder: { creatureSubjectId, creatureHead }, existingStructures: [], kaiUPulse: baseUPulse + 47 });
+    const buildOperation = createWildsStewardStructureOperation({ structure: workstation, lots: buildLots, ownerReceizId: actorId, playerHead: sha256PortableBasis(actorId) });
+    const buildPreview = previewWildsEmission({ emission: service.snapshot().worldEmission!, operation: buildOperation, contributionClass: "construction" });
+    const buildEmission = admitWildsEmission({ emission: service.snapshot().worldEmission!, operation: buildOperation, contributionClass: "construction", preview: buildPreview });
+    const buildAward = createWildsStewardPhiAward({ ownerReceizId: actorId, operation: buildOperation, currentEmission: service.snapshot().worldEmission!, nextEmission: buildEmission, amountPhiMicro: buildPreview.amountPhiMicro });
+    service.execute({ type: "structure.steward-workbench.build", position, actorPosition: position, rotationQuarterTurns: 0, lotIds: buildLots.map((lot) => lot.lotId),
+      mandate: mandate(groveCard, ["build"], [], baseUPulse + 47, { x: Math.floor(position.x / 128), z: Math.floor(position.z / 128) }), operation: buildOperation,
+      emission: buildEmission, amountPhiMicro: buildPreview.amountPhiMicro, phiAward: buildAward, cardProofDigest: groveCard.proof.digest, commandId: "command:workbench:1" },
+    { actorId, canonical: true, pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse + 47, card: groveCard });
+
+    const toolLots = [timberLots[3]!, stoneLots[2]!];
+    const tool = createWildsStewardTool({ kind: "steward-axe", ownerReceizId: actorId, workstation, lots: toolLots,
+      builder: { creatureSubjectId, creatureHead }, kaiUPulse: baseUPulse + 48 });
+    const toolOperation = createWildsStewardToolOperation({ tool, lots: toolLots, workstation, ownerReceizId: actorId, playerHead: sha256PortableBasis(actorId) });
+    const toolPreview = previewWildsEmission({ emission: service.snapshot().worldEmission!, operation: toolOperation, contributionClass: "construction" });
+    const toolEmission = admitWildsEmission({ emission: service.snapshot().worldEmission!, operation: toolOperation, contributionClass: "construction", preview: toolPreview });
+    const toolAward = createWildsStewardPhiAward({ ownerReceizId: actorId, operation: toolOperation, currentEmission: service.snapshot().worldEmission!, nextEmission: toolEmission, amountPhiMicro: toolPreview.amountPhiMicro });
+    service.execute({ type: "tool.steward.craft", kind: "steward-axe", workstationId: workstation.structureId, actorPosition: position,
+      lotIds: toolLots.map((lot) => lot.lotId), mandate: mandate(groveCard, ["craft"], [], baseUPulse + 48, { x: Math.floor(position.x / 128), z: Math.floor(position.z / 128) }),
+      operation: toolOperation, emission: toolEmission, amountPhiMicro: toolPreview.amountPhiMicro, phiAward: toolAward,
+      cardProofDigest: groveCard.proof.digest, commandId: "command:tool:craft" },
+    { actorId, canonical: true, pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse + 48, card: groveCard });
+    service.execute({ type: "tool.steward.equip", toolId: tool.toolId, commandId: "command:tool:equip" },
+      { actorId, canonical: true, pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse + 49 });
+    assert.equal(service.snapshot().equippedStewardTools[actorId], tool.toolId);
+    assert.equal(service.snapshot().stewardTools[tool.toolId]?.durability.remaining, 24);
+    const currentSource = service.snapshot().harvestedSources[timber.sourceId]!;
+    const equipped = service.snapshot().stewardTools[tool.toolId]!;
+    const material = createWildsMaterialHarvest({ source: timber, current: currentSource, ownerReceizId: actorId, actorPosition: timber.position,
+      creature: { subjectId: creatureSubjectId, head: creatureHead, workFamilies: ["lumber"], willing: true }, tool: equipped, kaiUPulse: baseUPulse + 50 });
+    const harvestOperation = createWildsStewardHarvestOperation({ source: timber, currentSource, harvestedSource: material.source, lot: material.lot,
+      ownerReceizId: actorId, playerHead: sha256PortableBasis(actorId), creatureSubjectId, creatureHead, tool: equipped, nextTool: material.tool, kaiUPulse: baseUPulse + 50 });
+    const harvestPreview = previewWildsEmission({ emission: service.snapshot().worldEmission!, operation: harvestOperation, contributionClass: "construction" });
+    const harvestEmission = admitWildsEmission({ emission: service.snapshot().worldEmission!, operation: harvestOperation, contributionClass: "construction", preview: harvestPreview });
+    const harvestAward = createWildsStewardPhiAward({ ownerReceizId: actorId, operation: harvestOperation, currentEmission: service.snapshot().worldEmission!, nextEmission: harvestEmission, amountPhiMicro: harvestPreview.amountPhiMicro });
+    service.execute({ type: "resource.material.harvest", source: timber, sourceHead: currentSource.head, actorPosition: timber.position, toolId: tool.toolId,
+      mandate: mandate(groveCard, ["lumber"], [timber.sourceId], baseUPulse + 50), operation: harvestOperation, emission: harvestEmission,
+      amountPhiMicro: harvestPreview.amountPhiMicro, phiAward: harvestAward, cardProofDigest: groveCard.proof.digest, commandId: "command:tool:harvest" },
+    { actorId, canonical: true, pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse + 50, card: groveCard });
+    assert.equal(service.snapshot().stewardTools[tool.toolId]?.durability.remaining, 23);
+    assert.equal(Object.values(service.snapshot().materialLots).at(-1)?.quality, Math.min(5, timber.quality + 1));
+    const recovered = new WildsWorldService({ checkpoint: service.checkpoint(), events: service.events() });
+    assert.deepEqual(recovered.snapshot().stewardTools, service.snapshot().stewardTools);
+    assert.deepEqual(recovered.snapshot().equippedStewardTools, service.snapshot().equippedStewardTools);
+  });
+
+  it("stores and withdraws an exact unconsumed lot only at an owned cache", () => {
+    const service = new WildsWorldService();
+    service.tickGroves({ pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse, systemActorId: "receiz:pulse" });
+    const timber = sourceOf("timber");
+    const stone = sourceOf("stone");
+    const groveCard = card("mintcub-1", "cache-grove");
+    const stoneCard = card("titanseal-1", "cache-stone");
+    for (let ordinal = 0; ordinal < 3; ordinal += 1) harvest(service, timber, groveCard, baseUPulse + 60 + ordinal, 60 + ordinal);
+    for (let ordinal = 0; ordinal < 2; ordinal += 1) harvest(service, stone, stoneCard, baseUPulse + 63 + ordinal, 63 + ordinal);
+    const allLots = Object.values(service.snapshot().materialLots);
+    const cacheLots = [...allLots.filter((lot) => lot.kind === "timber").slice(0, 2), ...allLots.filter((lot) => lot.kind === "stone").slice(0, 2)];
+    const looseLot = allLots.find((lot) => !cacheLots.includes(lot))!;
+    const position = { x: timber.position.x + 2, z: timber.position.z + 2 };
+    const creatureSubjectId = `creature:${sha256PortableBasis(groveCard.id).slice(0, 32)}`;
+    const creatureHead = sha256PortableBasis(groveCard.proof.digest);
+    const cache = createWildsTrailCache({ ownerReceizId: actorId, position: { ...position, y: sampleWildsTerrain(position.x, position.z).elevation }, rotationQuarterTurns: 0,
+      lots: cacheLots, builder: { creatureSubjectId, creatureHead }, existingStructures: [], kaiUPulse: baseUPulse + 65 });
+    const operation = createWildsStewardStructureOperation({ structure: cache, lots: cacheLots, ownerReceizId: actorId, playerHead: sha256PortableBasis(actorId) });
+    const preview = previewWildsEmission({ emission: service.snapshot().worldEmission!, operation, contributionClass: "construction" });
+    const emission = admitWildsEmission({ emission: service.snapshot().worldEmission!, operation, contributionClass: "construction", preview });
+    const award = createWildsStewardPhiAward({ ownerReceizId: actorId, operation, currentEmission: service.snapshot().worldEmission!, nextEmission: emission, amountPhiMicro: preview.amountPhiMicro });
+    service.execute({ type: "structure.trail-cache.build", position, actorPosition: position, rotationQuarterTurns: 0, lotIds: cacheLots.map((lot) => lot.lotId),
+      mandate: mandate(groveCard, ["build"], [], baseUPulse + 65, { x: Math.floor(position.x / 128), z: Math.floor(position.z / 128) }), operation, emission,
+      amountPhiMicro: preview.amountPhiMicro, phiAward: award, cardProofDigest: groveCard.proof.digest, commandId: "command:cache:build" },
+    { actorId, canonical: true, pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse + 65, card: groveCard });
+    service.execute({ type: "storage.material.move", lotId: looseLot.lotId, cacheId: cache.structureId, direction: "deposit", actorPosition: position, commandId: "command:cache:deposit" },
+      { actorId, canonical: true, pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse + 66 });
+    assert.equal(service.snapshot().storedMaterialLots[looseLot.lotId], cache.structureId);
+    assert.throws(() => service.execute({ type: "storage.material.move", lotId: looseLot.lotId, cacheId: cache.structureId, direction: "deposit", actorPosition: position, commandId: "command:cache:duplicate" },
+      { actorId, canonical: true, pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse + 67 }), /already_stored/);
+    service.execute({ type: "storage.material.move", lotId: looseLot.lotId, cacheId: cache.structureId, direction: "withdraw", actorPosition: position, commandId: "command:cache:withdraw" },
+      { actorId, canonical: true, pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse + 68 });
+    assert.equal(service.snapshot().storedMaterialLots[looseLot.lotId], undefined);
   });
 });

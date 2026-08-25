@@ -14398,6 +14398,21 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-steward-blueprint button:active:not(:disabled) { transform: translateY(1px); filter: brightness(.94); }
 .wilds-steward-blueprint button:disabled { color: #92a69e; border-color: rgba(151, 178, 165, .15); background: rgba(76, 94, 86, .44); }
 .wilds-steward-blueprint.is-ready { border-color: rgba(110, 236, 194, .34); box-shadow: inset 0 0 22px rgba(83, 211, 168, .06); }
+.wilds-steward-workshop { display: grid; gap: 8px; padding: 10px; border: 1px solid rgba(113, 226, 210, .2); border-radius: 16px; background: linear-gradient(145deg, rgba(8, 36, 35, .82), rgba(12, 20, 27, .9)); }
+.wilds-steward-workshop > header { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.wilds-steward-workshop > header span, .wilds-steward-cache > span { display: grid; gap: 2px; }
+.wilds-steward-workshop small { color: #78d9c8; font-size: 8px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.wilds-steward-workshop strong { color: #effffb; font-size: 11px; }
+.wilds-steward-workshop em { color: #91aaa4; font-size: 8px; font-style: normal; text-align: right; }
+.wilds-steward-tool-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.wilds-steward-tool-grid article { display: grid; min-width: 0; gap: 7px; padding: 9px; border: 1px solid rgba(123, 218, 202, .14); border-radius: 13px; background: rgba(5, 19, 22, .64); }
+.wilds-steward-tool-grid article > span { display: grid; min-width: 0; gap: 2px; }
+.wilds-steward-tool-grid meter { width: 100%; height: 5px; accent-color: #6fe2c6; }
+.wilds-steward-workshop button { min-height: 42px; padding: 7px 9px; color: #eafff8; border: 1px solid rgba(108, 227, 201, .28); border-radius: 10px; background: rgba(45, 124, 108, .2); font: inherit; font-size: 8px; font-weight: 900; }
+.wilds-steward-workshop button:disabled { color: #82938e; border-color: rgba(130, 151, 145, .12); background: rgba(57, 71, 68, .24); }
+.wilds-steward-cache { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding-top: 8px; border-top: 1px solid rgba(148, 210, 195, .12); }
+.wilds-steward-cache > div, .wilds-steward-cache > div > span { display: flex; gap: 5px; }
+@media (max-width: 430px) { .wilds-steward-tool-grid { grid-template-columns: 1fr; } .wilds-steward-cache { grid-template-columns: 1fr; } .wilds-steward-cache > div { display: grid; grid-template-columns: 1fr 1fr; } .wilds-steward-cache > div > span { display: grid; } }
 @media (max-width: 430px) { .wilds-steward-craft { padding: 9px; } .wilds-steward-craft-catalog { grid-template-columns: 1fr; } .wilds-steward-blueprint { grid-template-columns: minmax(0, 1fr); } }
 
 .wilds-steward-placement-hud { position: absolute; z-index: 42; bottom: max(136px, calc(env(safe-area-inset-bottom) + 124px)); left: 50%; display: grid; width: min(520px, calc(100% - 24px)); min-width: 0; gap: 9px; padding: 11px; overflow: hidden; border: 1px solid rgba(127, 240, 197, .34); border-radius: 20px; background: radial-gradient(circle at 0 0, rgba(91, 222, 179, .14), transparent 52%), rgba(5, 22, 21, .94); box-shadow: inset 0 1px rgba(255,255,255,.08), 0 18px 44px rgba(0,0,0,.34); backdrop-filter: blur(16px); transform: translateX(-50%); }

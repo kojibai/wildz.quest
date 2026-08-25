@@ -23,4 +23,9 @@ describe("Wilds temporal continuity errors", () => {
   it("preserves already-readable messages", () => {
     assert.equal(friendlyWildsGameplayError(new Error("Connection paused. Try again.")), "Connection paused. Try again.");
   });
+
+  it("explains steward validation without implying Receiz denied authority", () => {
+    assert.equal(friendlyWildsGameplayError(new Error("wilds_world_resource_mandate_invalid")), "Choose a rested companion whose card shows the work this source needs.");
+    assert.equal(friendlyWildsGameplayError(new Error("wilds_world_resource_source_stale")), "This source changed in the shared world. Its current state is refreshing—touch it again.");
+  });
 });
