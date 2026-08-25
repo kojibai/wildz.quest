@@ -3,6 +3,18 @@ import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 
 describe("Receiz Wilds rendering contract", () => {
+  it("embodies exact-source creature work and assembles persistent structures in stages", async () => {
+    const environment = await readFile("src/features/play/WildsStewardEnvironment.tsx", "utf8");
+    const canvas = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");
+
+    assert.match(environment, /projectWildsWorkPresentation/);
+    assert.match(environment, /work-impact-fragments/);
+    assert.match(environment, /construction-stage-foundation/);
+    assert.match(environment, /construction-stage-finish/);
+    assert.match(canvas, /activeWorkSource/);
+    assert.match(canvas, /pose=\{working \? "work" : "curious"\}/);
+  });
+
   it("renders admitted steward bridges and exposes a responsive bank-reading build action", async () => {
     const environment = await readFile("src/features/play/WildsStewardEnvironment.tsx", "utf8");
     const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");

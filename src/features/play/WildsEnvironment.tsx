@@ -16,6 +16,8 @@ import { useWildsReadability } from "@/features/play/WildsReadabilityContext";
 import { projectWildsEcologyInstance } from "@/features/play/wilds-ecology-placement";
 import { buildWildsTerrainPatchProjection, buildWildsTerrainRibbonProjection, buildWildsTerrainWaterProjection, wildsTerrainRelativeElevation } from "@/features/play/wilds-terrain-rendering";
 import { projectWildsObstaclePlacement, wildsTerrainObstaclesForTile } from "@/features/play/wilds-terrain-obstacles";
+import { projectWildsResourceAvailability, projectWildsResourceSourceForObstacle } from "@/features/play/wilds-resource-authority";
+import { projectWildsResourceBody, type WildsActiveWorkSource, type WildsResourceBodyProjection } from "@/features/play/wilds-work-presentation";
 import { projectWildsOverlooks, type WildsOverlookId } from "@/features/play/wilds-overlooks";
 import { WildsWorldArt } from "@/features/play/WildsWorldArt";
 import { WildsDiscoverySites } from "@/features/play/WildsDiscoverySites";
@@ -28,7 +30,7 @@ const PHI = (1 + Math.sqrt(5)) / 2;
 const GOLDEN_ANGLE = Math.PI * 2 / (PHI * PHI);
 
 type Tile = WildsBiomeTile & { key: string; tileX: number; tileZ: number };
-type Placement = { x: number; z: number; scale: number; variant: number };
+type Placement = { x: number; z: number; scale: number; variant: number; resourceBody?: WildsResourceBodyProjection; working?: boolean };
 const EMPTY_TILES = Object.freeze([]) as unknown as Tile[];
 const EMPTY_PLACEMENTS = Object.freeze([]) as unknown as Placement[];
 const EMPTY_VALUES = Object.freeze([]) as readonly never[];
@@ -87,6 +89,8 @@ function useInstances(
 }
 
 export function WildsEnvironment({
+  activeWorkSource,
+  kaiUPulse,
   player,
   missionProgress,
   worldMastery,
@@ -99,6 +103,8 @@ export function WildsEnvironment({
   onSitePortal,
   onSelectOverlook
 }: {
+  activeWorkSource?: WildsActiveWorkSource | null;
+  kaiUPulse: number;
   player: PlayState["player"];
   missionProgress: number;
   worldMastery: number;
@@ -128,9 +134,28 @@ export function WildsEnvironment({
   }, [centerX, centerZ, missionProgress, outer, worldMastery]);
 
   const physicalObstacles = useMemo(() => outer ? tiles.flatMap((tile) => wildsTerrainObstaclesForTile(tile.tileX, tile.tileZ)) : EMPTY_VALUES, [outer, tiles]);
-  const trees = useMemo(() => outer ? physicalObstacles.filter((obstacle) => obstacle.kind === "tree").map(projectWildsObstaclePlacement) : EMPTY_PLACEMENTS, [outer, physicalObstacles]);
+  const resourcePlacement = (obstacle: (typeof physicalObstacles)[number]): Placement => {
+    const source = projectWildsResourceSourceForObstacle(obstacle);
+    const state = livingWorld?.harvestedSources[source.sourceId];
+    const availability = projectWildsResourceAvailability(source, {
+      admittedHarvestedCapacity: state?.harvestedCapacity ?? 0,
+      lastHarvestKaiPulse: state?.lastHarvestKaiPulse ?? "0",
+      currentKaiPulse: String(kaiUPulse)
+    });
+    return {
+      ...projectWildsObstaclePlacement(obstacle),
+      resourceBody: projectWildsResourceBody({ kind: source.kind === "timber" ? "timber" : "stone", capacity: source.capacity, availableCapacity: availability.availableCapacity }),
+      working: activeWorkSource?.sourceId === source.sourceId
+    };
+  };
+  const trees = useMemo(() => outer ? physicalObstacles.filter((obstacle) => obstacle.kind === "tree").map(resourcePlacement) : EMPTY_PLACEMENTS,
+    // resourcePlacement is a pure projection over these exact admitted inputs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeWorkSource?.sourceId, kaiUPulse, livingWorld?.harvestedSources, outer, physicalObstacles]);
   const bushes = useMemo(() => outer ? placements(tiles, "bushCount", 211, qualityProfile.foliage) : EMPTY_PLACEMENTS, [outer, qualityProfile.foliage, tiles]);
-  const rocks = useMemo(() => outer ? physicalObstacles.filter((obstacle) => obstacle.kind === "rock").map(projectWildsObstaclePlacement) : EMPTY_PLACEMENTS, [outer, physicalObstacles]);
+  const rocks = useMemo(() => outer ? physicalObstacles.filter((obstacle) => obstacle.kind === "rock").map(resourcePlacement) : EMPTY_PLACEMENTS,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeWorkSource?.sourceId, kaiUPulse, livingWorld?.harvestedSources, outer, physicalObstacles]);
   const flowers = useMemo(() => outer ? placements(tiles, "flowerCount", 401, qualityProfile.foliage) : EMPTY_PLACEMENTS, [outer, qualityProfile.foliage, tiles]);
 
   return (
@@ -454,11 +479,11 @@ function EcologyInstances({
   const rockMesh = useRef<THREE.InstancedMesh>(null);
   const flowerMesh = useRef<THREE.InstancedMesh>(null);
   const grassMesh = useRef<THREE.InstancedMesh>(null);
-  const treeScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale, item.scale * (1.55 + item.variant * 0.14), item.scale], []);
-  const crownScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * (1.18 + item.variant * 0.08), item.scale * .92, item.scale * (1.08 - item.variant * 0.04)], []);
-  const middleCrownScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * .92, item.scale * .72, item.scale * .88], []);
+  const treeScale = useMemo(() => (item: Placement): [number, number, number] => { const body = item.resourceBody?.tree.trunkScale ?? 1; return [item.scale, item.scale * (1.55 + item.variant * 0.14) * body, item.scale]; }, []);
+  const crownScale = useMemo(() => (item: Placement): [number, number, number] => { const body = item.resourceBody?.tree.crownScale ?? 1; return [item.scale * (1.18 + item.variant * 0.08) * body, item.scale * .92 * body, item.scale * (1.08 - item.variant * 0.04) * body]; }, []);
+  const middleCrownScale = useMemo(() => (item: Placement): [number, number, number] => { const body = item.resourceBody?.tree.crownScale ?? 1; return [item.scale * .92 * body, item.scale * .72 * body, item.scale * .88 * body]; }, []);
   const shrubScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.56, item.scale * 0.38, item.scale * 0.52], []);
-  const rockScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.32, item.scale * 0.21, item.scale * 0.38], []);
+  const rockScale = useMemo(() => (item: Placement): [number, number, number] => { const body = item.resourceBody?.rock.scale ?? 1; return [item.scale * 0.32 * body, item.scale * 0.21 * body, item.scale * 0.38 * body]; }, []);
   const flowerScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.09, item.scale * 0.22, item.scale * 0.09], []);
   const grassScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * .035, item.scale * (qualityProfile.tier === "low" ? .13 : .2), item.scale * .025], [qualityProfile.tier]);
   const treeClearRadius = 13.6;

@@ -11,6 +11,8 @@ import { WILDS_TERRAIN_TILE_SIZE } from "./wilds-terrain-authority";
 import { wildsTerrainObstaclesForTile } from "./wilds-terrain-obstacles";
 import { wildsSiteRuntimeGroundY, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 import { projectWildsResourceAffordance } from "./wilds-resource-affordance";
+import { projectWildsWorkPresentation, type WildsActiveWorkSource } from "./wilds-work-presentation";
+import { useWildsReadability } from "./WildsReadabilityContext";
 
 function createGeometry() {
   return {
@@ -18,6 +20,7 @@ function createGeometry() {
     stoneRing: new THREE.TorusGeometry(.62, .055, 7, 24),
     sourceHit: new THREE.CylinderGeometry(.72, .72, 3.8, 10),
     capacityPip: new THREE.SphereGeometry(.065, 6, 5),
+    workChip: new THREE.OctahedronGeometry(.09, 0),
     foundation: new THREE.BoxGeometry(5.6, .4, 4.8),
     post: new THREE.CylinderGeometry(.16, .2, 2.5, 8),
     beam: new THREE.BoxGeometry(5.4, .22, .28),
@@ -39,6 +42,8 @@ function createMaterials() {
     sourceWorking: new THREE.MeshStandardMaterial({ color: "#efffbf", emissive: "#65a450", emissiveIntensity: .75 }),
     sourceRecovering: new THREE.MeshStandardMaterial({ color: "#617a72", emissive: "#1d3932", emissiveIntensity: .18, transparent: true, opacity: .56 }),
     sourceHit: new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: .001, depthWrite: false }),
+    timberChip: new THREE.MeshStandardMaterial({ color: "#d59b61", emissive: "#78512d", emissiveIntensity: .32, roughness: .82 }),
+    stoneChip: new THREE.MeshStandardMaterial({ color: "#b9ccc1", emissive: "#526b60", emissiveIntensity: .22, roughness: .96 }),
     foundation: new THREE.MeshStandardMaterial({ color: "#68766e", roughness: .95 }),
     wood: new THREE.MeshStandardMaterial({ color: "#73513b", roughness: .88 }),
     roof: new THREE.MeshStandardMaterial({ color: "#275947", roughness: .78, side: THREE.DoubleSide }),
@@ -54,7 +59,16 @@ function Shared({ geometry, material, ...props }: { geometry: THREE.BufferGeomet
   return <mesh {...props}><primitive attach="geometry" object={geometry} /><primitive attach="material" object={material} /></mesh>;
 }
 
-export function WildsStewardEnvironment({ livingWorld, player, terrainElevation, kaiUPulse, onInteractSource, companionWorkFamilies = [], companionReady = true, pending = false, siteRuntime, siteSpaceId }: {
+function writeConstructionStage(group: THREE.Group | null, progress: number, start: number, end: number) {
+  if (!group) return;
+  const local = Math.max(0, Math.min(1, (progress - start) / Math.max(.001, end - start)));
+  const eased = 1 - Math.pow(1 - local, 3);
+  group.visible = local > 0;
+  group.scale.set(1, Math.max(.035, eased), 1);
+}
+
+export function WildsStewardEnvironment({ activeWorkSource, livingWorld, player, terrainElevation, kaiUPulse, onInteractSource, companionWorkFamilies = [], companionReady = true, pending = false, siteRuntime, siteSpaceId }: {
+  activeWorkSource?: WildsActiveWorkSource | null;
   livingWorld?: WildsWorldProjection | null;
   player: Readonly<{ x: number; z: number }>;
   terrainElevation: number;
@@ -98,14 +112,15 @@ export function WildsStewardEnvironment({ livingWorld, player, terrainElevation,
     Object.values(materials).forEach((item) => item.dispose());
   }, [geometry, materials]);
   return <group name="wilds-steward-world">
-    {sources.map(({ source, availableCapacity }) => <ResourceManifestation availableCapacity={availableCapacity} companionQualified={companionWorkFamilies.includes(source.requirements.creature)} companionReady={companionReady} geometry={geometry} key={source.sourceId} materials={materials} onInteract={onInteractSource} pending={pending} player={player} siteRuntime={siteRuntime} siteSpaceId={siteSpaceId} source={source} terrainElevation={terrainElevation} />)}
+    {sources.map(({ source, availableCapacity }) => <ResourceManifestation activeWorkSource={activeWorkSource} availableCapacity={availableCapacity} companionQualified={companionWorkFamilies.includes(source.requirements.creature)} companionReady={companionReady} geometry={geometry} key={source.sourceId} materials={materials} onInteract={onInteractSource} pending={pending && activeWorkSource?.sourceId === source.sourceId} player={player} siteRuntime={siteRuntime} siteSpaceId={siteSpaceId} source={source} terrainElevation={terrainElevation} />)}
     {structures.map((structure) => structure.blueprint === "trail-bridge"
       ? <TrailBridge geometry={geometry} key={structure.structureId} materials={materials} player={player} structure={structure} terrainElevation={terrainElevation} />
       : <TrailShelter geometry={geometry} key={structure.structureId} materials={materials} player={player} structure={structure} terrainElevation={terrainElevation} />)}
   </group>;
 }
 
-function ResourceManifestation({ geometry, materials, onInteract, player, source, terrainElevation, availableCapacity, companionQualified, companionReady, pending, siteRuntime, siteSpaceId }: {
+function ResourceManifestation({ activeWorkSource, geometry, materials, onInteract, player, source, terrainElevation, availableCapacity, companionQualified, companionReady, pending, siteRuntime, siteSpaceId }: {
+  activeWorkSource?: WildsActiveWorkSource | null;
   geometry: Geometry;
   materials: Materials;
   onInteract?: (source: WildsResourceSource) => void;
@@ -119,6 +134,8 @@ function ResourceManifestation({ geometry, materials, onInteract, player, source
   siteRuntime: WildsSiteRuntimeProjection;
   siteSpaceId: string;
 }) {
+  const readability = useWildsReadability();
+  const impact = useRef<THREE.Group>(null);
   const timber = source.kind === "timber";
   const actorElevation = wildsSiteRuntimeGroundY(siteRuntime, siteSpaceId, source.position.x, source.position.z, source.position.y);
   const position = projectWildsTerrainActorPosition(source.position, player, .05, { actorElevation, anchorElevation: terrainElevation });
@@ -132,12 +149,33 @@ function ResourceManifestation({ geometry, materials, onInteract, player, source
             : materials.sourceRecovering;
   const ratio = Math.max(0, Math.min(1, availableCapacity / source.capacity));
   const pips = Math.ceil(ratio * 4);
+  useFrame(() => {
+    if (!impact.current) return;
+    const elapsedMs = activeWorkSource?.sourceId === source.sourceId ? performance.now() - activeWorkSource.startedAtMs : 0;
+    const work = projectWildsWorkPresentation({
+      sourceId: source.sourceId,
+      activeSourceId: activeWorkSource?.sourceId ?? null,
+      commandPending: Boolean(activeWorkSource && activeWorkSource.settledAtMs === null),
+      commandSettled: Boolean(activeWorkSource?.settledAtMs !== null && activeWorkSource?.settledAtMs !== undefined),
+      elapsedMs,
+      reducedMotion: readability.motionScale === 0
+    });
+    impact.current.visible = work.impact > .02;
+    impact.current.rotation.y = elapsedMs * .006;
+    impact.current.scale.setScalar(.35 + work.impact * .9);
+  });
   return <group name={`steward-source-${source.sourceId}`} onClick={(event) => { event.stopPropagation(); if (!pending) onInteract?.(source); }} position={position} userData={{ affordance: affordance.state, availableCapacity, capacity: source.capacity }}>
     <Shared geometry={timber ? geometry.timberRing : geometry.stoneRing} material={material} position={[0, .055, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[.82 + ratio * .18, .82 + ratio * .18, 1]} />
     {Array.from({ length: pips }, (_, index) => {
       const angle = index / 4 * Math.PI * 2;
       return <Shared geometry={geometry.capacityPip} key={index} material={material} position={[Math.cos(angle) * .78, .08, Math.sin(angle) * .78]} />;
     })}
+    <group name="work-impact-fragments" position={[0, timber ? .78 : .34, 0]} ref={impact} visible={false}>
+      {Array.from({ length: 6 }, (_, index) => {
+        const angle = index / 6 * Math.PI * 2;
+        return <Shared geometry={geometry.workChip} key={index} material={timber ? materials.timberChip : materials.stoneChip} position={[Math.cos(angle) * (.2 + index * .035), .06 + (index % 3) * .08, Math.sin(angle) * (.2 + index * .035)]} rotation={[angle, angle * .5, 0]} />;
+      })}
+    </group>
     <Shared geometry={geometry.sourceHit} material={materials.sourceHit} position={[0, 1.8, 0]} scale={timber ? [1, 1, 1] : [.72, .35, .72]} />
   </group>;
 }
@@ -149,22 +187,31 @@ function TrailShelter({ geometry, materials, player, structure, terrainElevation
   structure: WildsStructureV1;
   terrainElevation: number;
 }) {
-  const root = useRef<THREE.Group>(null);
+  const foundation = useRef<THREE.Group>(null);
+  const frame = useRef<THREE.Group>(null);
+  const finish = useRef<THREE.Group>(null);
   const progress = useRef(0);
   useFrame((_, delta) => {
-    if (!root.current || progress.current >= 1) return;
+    if (progress.current >= 1) return;
     progress.current = Math.min(1, progress.current + Math.min(delta, .05) * .9);
-    const eased = 1 - Math.pow(1 - progress.current, 3);
-    root.current.scale.set(1, Math.max(.04, eased), 1);
+    writeConstructionStage(foundation.current, progress.current, 0, .28);
+    writeConstructionStage(frame.current, progress.current, .2, .72);
+    writeConstructionStage(finish.current, progress.current, .62, 1);
   });
   const position = projectWildsTerrainActorPosition(structure.position, player, 0, { actorElevation: structure.position.y, anchorElevation: terrainElevation });
   const rotation = structure.rotationQuarterTurns * Math.PI / 2;
-  return <group name={`trail-shelter-${structure.structureId}`} position={position} ref={root} rotation={[0, rotation, 0]} scale={[1, .04, 1]}>
-    <Shared castShadow receiveShadow geometry={geometry.foundation} material={materials.foundation} position={[0, .2, 0]} />
-    {[[-2.45, 1.55, -1.95], [2.45, 1.55, -1.95], [-2.45, 1.55, 1.95], [2.45, 1.55, 1.95]].map((point, index) => <Shared castShadow geometry={geometry.post} key={index} material={materials.wood} position={point as [number, number, number]} />)}
-    <Shared castShadow geometry={geometry.beam} material={materials.wood} position={[0, 2.65, -1.95]} />
-    <Shared castShadow geometry={geometry.beam} material={materials.wood} position={[0, 2.65, 1.95]} />
-    <Shared castShadow geometry={geometry.roof} material={materials.roof} position={[0, 3.25, 0]} rotation={[0, Math.PI / 4, 0]} scale={[1, 1, .82]} />
+  return <group name={`trail-shelter-${structure.structureId}`} position={position} rotation={[0, rotation, 0]}>
+    <group name="construction-stage-foundation" ref={foundation} scale={[1, .035, 1]}>
+      <Shared castShadow receiveShadow geometry={geometry.foundation} material={materials.foundation} position={[0, .2, 0]} />
+    </group>
+    <group name="construction-stage-frame" ref={frame} scale={[1, .035, 1]} visible={false}>
+      {[[-2.45, 1.55, -1.95], [2.45, 1.55, -1.95], [-2.45, 1.55, 1.95], [2.45, 1.55, 1.95]].map((point, index) => <Shared castShadow geometry={geometry.post} key={index} material={materials.wood} position={point as [number, number, number]} />)}
+      <Shared castShadow geometry={geometry.beam} material={materials.wood} position={[0, 2.65, -1.95]} />
+      <Shared castShadow geometry={geometry.beam} material={materials.wood} position={[0, 2.65, 1.95]} />
+    </group>
+    <group name="construction-stage-finish" ref={finish} scale={[1, .035, 1]} visible={false}>
+      <Shared castShadow geometry={geometry.roof} material={materials.roof} position={[0, 3.25, 0]} rotation={[0, Math.PI / 4, 0]} scale={[1, 1, .82]} />
+    </group>
   </group>;
 }
 
@@ -175,13 +222,16 @@ function TrailBridge({ geometry, materials, player, structure, terrainElevation 
   structure: Extract<WildsStructureV1, { blueprint: "trail-bridge" }>;
   terrainElevation: number;
 }) {
-  const root = useRef<THREE.Group>(null);
+  const foundation = useRef<THREE.Group>(null);
+  const frame = useRef<THREE.Group>(null);
+  const finish = useRef<THREE.Group>(null);
   const progress = useRef(0);
   useFrame((_, delta) => {
-    if (!root.current || progress.current >= 1) return;
+    if (progress.current >= 1) return;
     progress.current = Math.min(1, progress.current + Math.min(delta, .05) * 1.1);
-    const eased = 1 - Math.pow(1 - progress.current, 3);
-    root.current.scale.set(1, Math.max(.04, eased), 1);
+    writeConstructionStage(foundation.current, progress.current, 0, .25);
+    writeConstructionStage(frame.current, progress.current, .18, .76);
+    writeConstructionStage(finish.current, progress.current, .62, 1);
   });
   const position = projectWildsTerrainActorPosition(structure.position, player, 0, {
     actorElevation: structure.physical.deckY,
@@ -189,11 +239,17 @@ function TrailBridge({ geometry, materials, player, structure, terrainElevation 
   });
   const rotation = structure.rotationQuarterTurns * Math.PI / 2;
   const plankSlots = [-3.55, -2.85, -2.15, -1.45, -.75, -.05, .65, 1.35, 2.05, 2.75, 3.45];
-  return <group name={`trail-bridge-${structure.structureId}`} position={position} ref={root} rotation={[0, rotation, 0]} scale={[1, .04, 1]}>
-    <Shared castShadow receiveShadow geometry={geometry.bridgeDeck} material={materials.bridgeEdge} position={[0, -.13, 0]} />
-    {plankSlots.map((z, index) => <Shared castShadow receiveShadow geometry={geometry.bridgePlank} key={index} material={materials.bridgeWood} position={[0, .035, z]} />)}
-    {[-1.42, 1.42].map((x) => <Shared castShadow geometry={geometry.bridgeRail} key={`rail-${x}`} material={materials.bridgeEdge} position={[x, .72, 0]} />)}
-    {[-1.42, 1.42].flatMap((x) => [-3.7, -1.25, 1.25, 3.7].map((z) => <Shared castShadow geometry={geometry.bridgePost} key={`post-${x}-${z}`} material={materials.bridgeEdge} position={[x, .48, z]} />))}
-    {[-1.12, 1.12].flatMap((x) => [-3.65, 3.65].map((z) => <Shared castShadow geometry={geometry.bridgeFooting} key={`footing-${x}-${z}`} material={materials.foundation} position={[x, -.62, z]} />))}
+  return <group name={`trail-bridge-${structure.structureId}`} position={position} rotation={[0, rotation, 0]}>
+    <group name="construction-stage-foundation" ref={foundation} scale={[1, .035, 1]}>
+      {[-1.12, 1.12].flatMap((x) => [-3.65, 3.65].map((z) => <Shared castShadow geometry={geometry.bridgeFooting} key={`footing-${x}-${z}`} material={materials.foundation} position={[x, -.62, z]} />))}
+    </group>
+    <group name="construction-stage-frame" ref={frame} scale={[1, .035, 1]} visible={false}>
+      <Shared castShadow receiveShadow geometry={geometry.bridgeDeck} material={materials.bridgeEdge} position={[0, -.13, 0]} />
+      {plankSlots.map((z, index) => <Shared castShadow receiveShadow geometry={geometry.bridgePlank} key={index} material={materials.bridgeWood} position={[0, .035, z]} />)}
+    </group>
+    <group name="construction-stage-finish" ref={finish} scale={[1, .035, 1]} visible={false}>
+      {[-1.42, 1.42].map((x) => <Shared castShadow geometry={geometry.bridgeRail} key={`rail-${x}`} material={materials.bridgeEdge} position={[x, .72, 0]} />)}
+      {[-1.42, 1.42].flatMap((x) => [-3.7, -1.25, 1.25, 3.7].map((z) => <Shared castShadow geometry={geometry.bridgePost} key={`post-${x}-${z}`} material={materials.bridgeEdge} position={[x, .48, z]} />))}
+    </group>
   </group>;
 }

@@ -157,6 +157,7 @@ import { discoverWildsExplorationSite } from "@/features/play/wilds-exploration-
 import { initialWildsHarvestedSourceState, projectWildsCreatureWorkFamilies, selectWildsTrailBridgeRotation } from "@/features/play/wilds-steward-construction";
 import { projectWildsResourceAvailability, type WildsResourceSource } from "@/features/play/wilds-resource-authority";
 import { projectWildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
+import type { WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
 
 const WildsWorldMap = dynamic(() => import("@/features/play/WildsWorldMap").then((mod) => mod.WildsWorldMap), { ssr: false });
 const WildsLandmarkExperience = dynamic(() => import("@/features/play/WildsLandmarkExperience").then((mod) => mod.WildsLandmarkExperience), { ssr: false });
@@ -724,6 +725,11 @@ export function PlayCampaign({
     initialSnapshot: initialWorld,
     authorizeLivingWorld: livingWorldAuthorization
   });
+  const [activeWorkSource, setActiveWorkSource] = useState<WildsActiveWorkSource | null>(null);
+  const workPresentationTimerRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (workPresentationTimerRef.current !== null) window.clearTimeout(workPresentationTimerRef.current);
+  }, []);
   const stewardPhiAwards = useMemo(() => Object.values(livingWorld.snapshot?.stewardPhiAwards ?? {})
     .filter((award) => sameWildzPlayerCoordinate(award.ownerReceizId, ownerReceizId))
     .sort((left, right) => right.awardId.localeCompare(left.awardId)), [livingWorld.snapshot?.stewardPhiAwards, ownerReceizId]);
@@ -1167,12 +1173,20 @@ export function PlayCampaign({
         throw new Error(`This ${source.kind === "timber" ? "tree" : "stone"} is recovering. Its dim base ring and returning capacity marks show when it can be tended again.`);
       }
       const mandate = createStewardMandate([source.requirements.creature], [source.sourceId], { x: source.regionX, z: source.regionZ });
+      if (workPresentationTimerRef.current !== null) window.clearTimeout(workPresentationTimerRef.current);
+      setActiveWorkSource({ sourceId: source.sourceId, kind: source.kind === "timber" ? "timber" : "stone", position: source.position, startedAtMs: performance.now(), settledAtMs: null });
       const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
       const projection = await livingWorld.harvestMaterial(source, current.head, state.player, mandate);
+      setActiveWorkSource((active) => active?.sourceId === source.sourceId ? { ...active, settledAtMs: performance.now() } : active);
+      workPresentationTimerRef.current = window.setTimeout(() => {
+        setActiveWorkSource((active) => active?.sourceId === source.sourceId ? null : active);
+        workPresentationTimerRef.current = null;
+      }, 850);
       const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
       const awardMessage = award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the work.` : "";
       setRiftError(`${activeAsset.manifest.name} worked beside you. One exact ${source.kind} lot entered your Satchel.${awardMessage}`);
     } catch (error) {
+      setActiveWorkSource((active) => active?.sourceId === source.sourceId ? null : active);
       handleStoryCommandError(error, "The living source did not admit that work.");
     }
   };
@@ -1944,6 +1958,7 @@ export function PlayCampaign({
             ref={gameplaySurfaceRef}
           >
             <WildsWorldCanvas
+              activeWorkSource={activeWorkSource}
               aerialCapabilities={activeTraversalCapabilities}
               aerialStateRef={aerialStateRef}
               verticalTraversalRef={verticalTraversalRef}

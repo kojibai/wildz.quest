@@ -7,7 +7,7 @@ import { creatureForm } from "./creature-catalog";
 import { threeCreatureColor, type CardKaiAppearance } from "./card-kai-appearance";
 import { useWildsReadability } from "./WildsReadabilityContext";
 
-export type WildsCreaturePose = "idle" | "curious" | "attack" | "impact" | "weakened" | "capture";
+export type WildsCreaturePose = "idle" | "curious" | "work" | "attack" | "impact" | "weakened" | "capture";
 export type WildsCreatureLocomotion = "ground" | "swim" | "air";
 
 export type MutableWildsCreatureLocomotionFrame = {
@@ -40,7 +40,7 @@ export function writeWildsCreatureLocomotionFrame(
   target.rootY = .46 + (weakened ? -.08 : swimming ? Math.sin(timeSeconds * 1.55) * .018 * motionScale : Math.abs(Math.sin(timeSeconds * 1.7)) * .035 * motionScale);
   target.rootPitch = swimming ? -.36 + Math.sin(timeSeconds * 1.25) * .035 * motionScale : 0;
   target.rootRoll = impact ? Math.sin(timeSeconds * 18) * .08 * motionScale : weakened ? -.08 : swimming ? Math.sin(timeSeconds * 1.8) * .055 * motionScale : 0;
-  target.limbPitch = pose === "attack" ? Math.sin(timeSeconds * 13) * .22 * motionScale : weakened ? .18 : swimming ? Math.sin(timeSeconds * 3.2) * .18 * motionScale : Math.sin(timeSeconds * 2.4) * .04 * motionScale;
+  target.limbPitch = pose === "attack" ? Math.sin(timeSeconds * 13) * .22 * motionScale : pose === "work" ? Math.sin(timeSeconds * 8.4) * .34 * motionScale : weakened ? .18 : swimming ? Math.sin(timeSeconds * 3.2) * .18 * motionScale : Math.sin(timeSeconds * 2.4) * .04 * motionScale;
   target.wingAngle = 0;
   return target;
 }
@@ -154,13 +154,14 @@ export function WildsCreatureActor({
     const motion = readability.motionScale;
     const breath = Math.sin(time * cadence + identity.marking * 4) * 0.025 * motion;
     const attack = pose === "attack";
+    const work = pose === "work";
     const frame = writeWildsCreatureLocomotionFrame(locomotionFrame.current, locomotion, time, motion, identity.marking, pose);
     root.current.position.y = frame.rootY;
     root.current.rotation.x = frame.rootPitch;
     root.current.rotation.z = frame.rootRoll;
     root.current.scale.setScalar(pose === "capture" ? 0.9 + Math.sin(time * 5) * 0.035 * motion : 1);
     if (head.current) {
-      head.current.rotation.x = attack ? -0.22 : pose === "weakened" ? 0.16 : Math.sin(time * 0.9) * 0.045 * motion;
+      head.current.rotation.x = attack ? -0.22 : work ? -.14 + Math.sin(time * 4.2) * .08 * motion : pose === "weakened" ? 0.16 : Math.sin(time * 0.9) * 0.045 * motion;
       head.current.rotation.y = pose === "curious" ? Math.sin(time * 1.4) * 0.18 * motion : 0;
       head.current.position.y = 0.31 + breath;
     }
