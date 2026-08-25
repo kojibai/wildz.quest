@@ -33,6 +33,7 @@ import {
 import { sampleWildsTerrain } from "../src/features/play/wilds-terrain-authority.js";
 import { admitWildsDiscoveryPhysicalNeighborhood, normalizeWildsSiteSpaceState } from "../src/features/play/wilds-discovery-sites.js";
 import { prepareWildsSiteRuntime } from "../src/features/play/wilds-site-runtime.js";
+import { createWildsConstructionSite } from "../src/features/play/wilds-construction-site.js";
 
 function activeTravelState(): PlayState {
   const capturedAt = "2026-07-13T11:00:00.000Z";
@@ -722,7 +723,7 @@ describe("Receiz Wilds game state", () => {
     assert.equal(next, initialPlayState);
   });
 
-  it("turns legacy mission completion into a permanent story achievement", () => {
+  it("settles a completed mission into history and immediately starts the next mission", () => {
     const readyState: PlayState = {
       ...initialPlayState,
       completed: false,
@@ -735,11 +736,38 @@ describe("Receiz Wilds game state", () => {
     const next = applyWildsInput(readyState, { type: "mission" });
 
     assert.equal(next.completed, true);
-    assert.equal(next.missionProgress, 100);
+    assert.equal(next.missionProgress, 20);
     assert.equal(next.rewardCards.length, 0);
     assert.ok(next.achievements.includes("first-light"));
+    assert.ok(next.completedMissionIds.includes("living-expedition:1"));
     assert.match(next.lastEvent, /First Light is now part of your story/);
     assert.equal(next.worldMastery, readyState.worldMastery + 25);
+  });
+
+  it("restores only verified player-owned construction proof objects from the saved play state", () => {
+    const actorId = "player:builder";
+    const site = createWildsConstructionSite({
+      blueprint: "trail-shelter",
+      placedByReceizId: actorId,
+      actorPosition: { x: 10, z: 10 },
+      position: { x: 12, z: 11 },
+      rotationQuarterTurns: 0,
+      existingStructures: [],
+      existingSites: [],
+      kaiUPulse: 2_000_010
+    });
+    const saved = {
+      ...createOwnerBoundInitialPlayState(actorId, "2026-08-25T12:00:00.000Z"),
+      ownedWorldAdditions: {
+        constructionSites: { [site.siteId]: site, forged: { ...site, head: `sha256:${"0".repeat(64)}` } },
+        structures: {}
+      }
+    } as PlayState;
+
+    const restored = restorePlayState(serializePlayState(saved), actorId);
+
+    assert.deepEqual(Object.keys(restored.ownedWorldAdditions.constructionSites), [site.siteId]);
+    assert.equal(restored.ownedWorldAdditions.constructionSites[site.siteId]?.head, site.head);
   });
 
   it("levels and bonds the selected companion through deterministic training", () => {

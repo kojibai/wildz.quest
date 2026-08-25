@@ -52,6 +52,8 @@ import {
 } from "./wilds-network-status";
 import { createWildsSourceAuthorityProjection, planWildsMaterialHarvest } from "./wilds-source-work-authority";
 import { wildsWorldSourceEmission } from "./wilds-world-genesis";
+import type { WildsOwnedWorldAdditions } from "./game-state";
+import { mergeWildsOwnedWorldAdditions } from "./wilds-player-world-additions";
 
 export function acceptWildsWorldSnapshot(current: WildsWorldProjection | null, candidate: WildsWorldProjection) {
   return current && candidate.revision < current.revision ? current : candidate;
@@ -130,6 +132,7 @@ export function useWildsWorld(input: {
   activeCard: PortableCardAsset | null;
   cardAdmission: WildzVaultCardMembershipProof | null;
   initialSnapshot?: { projection: WildsWorldProjection; mode: "receiz_live" | "kai_live" } | null;
+  ownedWorldAdditions?: WildsOwnedWorldAdditions;
   authorizeLivingWorld?: (input: Readonly<{
     operationId: string;
     planDigest: string;
@@ -137,7 +140,10 @@ export function useWildsWorld(input: {
     amountPhiMicro: string;
   }>) => Promise<unknown>;
 }) {
-  const [snapshot, setSnapshot] = useState<WildsWorldProjection | null>(() => input.initialSnapshot?.projection ?? createWildsSourceAuthorityProjection());
+  const [snapshot, setSnapshot] = useState<WildsWorldProjection | null>(() => mergeWildsOwnedWorldAdditions(
+    input.initialSnapshot?.projection ?? createWildsSourceAuthorityProjection(),
+    input.ownedWorldAdditions ?? { constructionSites: {}, structures: {} }
+  ));
   const [mode, setMode] = useState<WildsWorldClientMode>(() => input.initialSnapshot?.mode ?? "connecting");
   const [error, setError] = useState("");
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
@@ -254,7 +260,7 @@ export function useWildsWorld(input: {
       const { projection, mode: nextMode } = parseWildsWorldSnapshotResponse(value);
       canonicalSnapshot.current = projection;
       const flushed = await flushOutbox(projection, nextMode);
-      setSnapshot(flushed.projection);
+      setSnapshot(mergeWildsOwnedWorldAdditions(flushed.projection, input.ownedWorldAdditions ?? { constructionSites: {}, structures: {} }));
       setMode(flushed.mode);
       setError("");
       retryAfter.current = 0;
@@ -266,7 +272,7 @@ export function useWildsWorld(input: {
       setMode((current) => wildsWorldModeAfterRequestFailure(offline, current));
       setError(wildsNetworkFailureMessage(cause, "world", !offline));
     }
-  }, [flushOutbox, input.enabled, input.networkEnabled, request]);
+  }, [flushOutbox, input.enabled, input.networkEnabled, input.ownedWorldAdditions, request]);
 
   useEffect(() => {
     if (input.enabled) setMode(wildsWorldModeAfterConfirmedBootstrap);
@@ -277,14 +283,14 @@ export function useWildsWorld(input: {
     canonicalSnapshot.current = input.initialSnapshot.projection;
     void flushOutbox(input.initialSnapshot.projection, input.initialSnapshot.mode)
       .then((flushed) => {
-        setSnapshot(flushed.projection);
+        setSnapshot(mergeWildsOwnedWorldAdditions(flushed.projection, input.ownedWorldAdditions ?? { constructionSites: {}, structures: {} }));
         setMode(flushed.mode);
         setError("");
       })
       .catch(() => {
         setMode("receiz_recovery_pending");
       });
-  }, [flushOutbox, input.enabled, input.initialSnapshot]);
+  }, [flushOutbox, input.enabled, input.initialSnapshot, input.ownedWorldAdditions]);
 
   useEffect(() => {
     const activeControllers = controllers.current;
@@ -344,7 +350,7 @@ export function useWildsWorld(input: {
       const synchronizedProjection = parsed.globallyPublished
         ? acceptWildsWorldSnapshot(locallyAdmittedProjection, projection)
         : projectWildsWorldOutbox(projection, input.actorId, queued);
-      setSnapshot(synchronizedProjection);
+      setSnapshot(mergeWildsOwnedWorldAdditions(synchronizedProjection, input.ownedWorldAdditions ?? { constructionSites: {}, structures: {} }));
       setMode(parsed.globallyPublished ? parsed.mode : "receiz_recovery_pending");
       setError(parsed.globallyPublished ? "" : "Your work is admitted here and its global projection will keep syncing in the background.");
       retryAfter.current = 0;
@@ -357,7 +363,7 @@ export function useWildsWorld(input: {
       commandPending.current = false;
       setPendingCommand(null);
     }
-  }, [input.activeCard, input.actorId, input.cardAdmission, input.enabled, input.guestId, input.kaiUPulse, input.networkEnabled, mode, sendEntry, snapshot]);
+  }, [input.activeCard, input.actorId, input.cardAdmission, input.enabled, input.guestId, input.kaiUPulse, input.networkEnabled, input.ownedWorldAdditions, mode, sendEntry, snapshot]);
 
   useEffect(() => {
     const resume = () => {

@@ -5,6 +5,7 @@ import { parseWildzCharacter, type WildzCharacterGenesis } from "../identity/wil
 import { WILDS_WORLD_ID } from "./wilds-world-event";
 import type { WildsWorldProjection } from "./wilds-world-state";
 import { normalizeWildsVisualSettings, type WildsVisualSettings } from "./wilds-night-visibility";
+import { mergeWildsOwnedAdditionSets } from "./wilds-player-world-additions";
 
 export type WildzCardOrder = "rarity" | "newest" | "oldest";
 
@@ -201,6 +202,7 @@ export function reconcileWildsPlayerVault(input: {
     raidAchievements: mergeRecords(input.local.raidAchievements, restoredPlayState.raidAchievements),
     ascensionCatalysts: mergeRecords(input.local.ascensionCatalysts, restoredPlayState.ascensionCatalysts),
     hearttreeReceipts: mergeRecords(input.local.hearttreeReceipts, restoredPlayState.hearttreeReceipts).slice(-512),
+    ownedWorldAdditions: mergeWildsOwnedAdditionSets(input.local.ownedWorldAdditions, restoredPlayState.ownedWorldAdditions),
     adventureConditions
   };
   const state = restorePlayState(serializePlayState(mergedState), input.actorId);

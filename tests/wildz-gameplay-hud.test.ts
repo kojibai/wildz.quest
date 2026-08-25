@@ -10,6 +10,7 @@ test("HUD projection exposes existing energy XP mission and companion state", ()
   assert.equal(model.energy.current, initialPlayState.energy);
   assert.equal(model.xp.current, initialPlayState.cardXp);
   assert.equal(model.mission.progress, initialPlayState.missionProgress);
+  assert.equal(model.mission.title, "Living Expedition 1");
   assert.equal(model.companion.name, "SealCub");
 });
 
@@ -17,5 +18,15 @@ test("HUD projection preserves bounded percentages", () => {
   const model = projectWildzHud({ ...initialPlayState, energy: 101, cardXp: 200, challenge: -1, missionProgress: 999 }, { username: "trail", displayName: "Trail" });
   assert.equal(model.energy.current, 100);
   assert.equal(model.xp.progress, 0);
-  assert.equal(model.mission.progress, 100);
+  assert.equal(model.mission.progress, 99);
+});
+
+test("HUD names the next living mission from recorded completion history", () => {
+  const model = projectWildzHud({
+    ...initialPlayState,
+    completedMissionIds: ["living-expedition:1", "living-expedition:2"],
+    missionProgress: 7
+  }, { username: "trail", displayName: "Trail" });
+  assert.equal(model.mission.title, "Living Expedition 3");
+  assert.equal(model.mission.progress, 7);
 });

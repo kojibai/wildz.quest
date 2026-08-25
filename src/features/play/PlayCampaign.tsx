@@ -13,7 +13,7 @@ import {
   type WildsInput
 } from "@/features/play/game-state";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { sha256PortableBasis, type PortableCardAsset } from "@/features/play/portable-card";
+import { canonicalPortableCardJson, sha256PortableBasis, type PortableCardAsset } from "@/features/play/portable-card";
 import { WildsCaptureReward } from "@/features/play/WildsCaptureReward";
 import { WildsInventory } from "@/features/play/WildsInventory";
 import { WildsBattle } from "@/features/play/WildsBattle";
@@ -22,6 +22,7 @@ import { WildsChildCeremony } from "@/features/play/WildsChildCeremony";
 import { useWildsMultiplayer } from "@/features/play/use-wilds-multiplayer";
 import { useWildsMessenger } from "@/features/play/use-wilds-messenger";
 import { useWildsWorld } from "@/features/play/use-wilds-world";
+import { projectWildsOwnedWorldAdditions } from "@/features/play/wilds-player-world-additions";
 import type { WildsWorldProjection } from "@/features/play/wilds-world-state";
 import { WildsBalancedStatusHud } from "@/features/play/WildsBalancedStatusHud";
 import { useWildsPresentation } from "@/features/play/use-wilds-presentation";
@@ -775,8 +776,16 @@ export function PlayCampaign({
     activeCard: activeAsset ?? null,
     cardAdmission,
     initialSnapshot: initialWorld,
+    ownedWorldAdditions: state.ownedWorldAdditions,
     authorizeLivingWorld: livingWorldAuthorization
   });
+  useEffect(() => {
+    if (!livingWorld.snapshot) return;
+    const ownedWorldAdditions = projectWildsOwnedWorldAdditions(livingWorld.snapshot, ownerReceizId);
+    setState((current) => canonicalPortableCardJson(current.ownedWorldAdditions) === canonicalPortableCardJson(ownedWorldAdditions)
+      ? current
+      : { ...current, ownedWorldAdditions });
+  }, [livingWorld.snapshot, ownerReceizId]);
   const [activeWorkSource, setActiveWorkSource] = useState<WildsActiveWorkSource | null>(null);
   const workPresentationTimerRef = useRef<number | null>(null);
   useEffect(() => () => {

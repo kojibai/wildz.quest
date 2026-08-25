@@ -29,6 +29,7 @@ type IdentityProofPublisher = {
     input: ReceizPublicStoreSignedPublishInput<JsonObject>,
     options?: { idempotencyKey?: string }
   ): Promise<ReceizPublicStoreAppendResult>;
+  readAppStateByUrl(url: string): Promise<unknown>;
 };
 
 function publicationLastEventId(record: WildsWorldRecord) {
@@ -151,6 +152,10 @@ export async function publishWildsWorldWithIdentityProof(
       || !result.knownHead?.afterKaiUpulse
       || result.knownHead.appendAnchorId !== result.appendAnchorId) {
       throw new Error("wilds_world_identity_publication_unacknowledged");
+    }
+    const admitted = findWildsWorldRecord(await publisher.readAppStateByUrl(draft.sourceUrl));
+    if (!admitted || canonicalPortableCardJson(admitted) !== canonicalPortableCardJson(draft.storeStateRecord)) {
+      throw new Error("wilds_world_identity_publication_unconfirmed");
     }
     return {
       result,

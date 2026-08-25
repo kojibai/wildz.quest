@@ -80,6 +80,9 @@ import type { CreatureObserverMemoryTurn } from "./creature-history-types";
 import { livingSubjectContinuityV120 } from "./creature-continuity";
 import { careForCreature, settleCreatureCare, type CreatureCareAction } from "./creature-care";
 import { applyWildsCompanionWork } from "./wilds-work-capability";
+import { verifyWildsConstructionSite, type WildsConstructionSiteV1 } from "./wilds-construction-site";
+import { verifyWildsStructure, type WildsStructureV1 } from "./wilds-steward-construction";
+import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 import {
   EMPTY_WILDS_SUPPORT_ASSET_IDS,
   type WildsBossFamilyId,
@@ -165,6 +168,11 @@ export type RewardCard = {
   value: string;
 };
 
+export type WildsOwnedWorldAdditions = {
+  constructionSites: Record<string, WildsConstructionSiteV1>;
+  structures: Record<string, WildsStructureV1>;
+};
+
 export type PlayState = {
   activeAction: GameAction;
   beans: number;
@@ -182,6 +190,7 @@ export type PlayState = {
   lastEvent: string;
   level: number;
   missionProgress: number;
+  ownedWorldAdditions: WildsOwnedWorldAdditions;
   lastSearchPoint: { x: number; z: number } | null;
   player: {
     x: number;
@@ -363,7 +372,8 @@ export const initialPlayState: PlayState = {
   inventory: admitLocallySealedWildsInventory([{ ...starterCardAsset, status: "verified", synchronizedAt: "2026-06-29T12:00:00.000Z" }]),
   lastEvent: "SealCub joined your deck. Walk near another wild companion.",
   level: 7,
-  missionProgress: 38,
+  missionProgress: 0,
+  ownedWorldAdditions: { constructionSites: {}, structures: {} },
   lastSearchPoint: null,
   player: {
     x: -2.15,
@@ -458,6 +468,27 @@ function admitAndMergeInventory(assets: PortableCardAsset[]) {
 
 function fallbackPlayState(ownerReceizId?: string) {
   return ownerReceizId ? createOwnerBoundInitialPlayState(ownerReceizId) : initialPlayState;
+}
+
+function sameOwnedWorldActor(left: string, right: string) {
+  return left.trim().toLowerCase() === right.trim().toLowerCase() || sameWildzPlayerCoordinate(left, right);
+}
+
+function normalizeOwnedWorldAdditions(value: unknown, ownerReceizId?: string): WildsOwnedWorldAdditions {
+  const input = value && typeof value === "object" && !Array.isArray(value)
+    ? value as Partial<WildsOwnedWorldAdditions>
+    : {};
+  const constructionSites = Object.fromEntries(Object.entries(input.constructionSites ?? {})
+    .filter(([siteId, site]) => siteId === site.siteId
+      && verifyWildsConstructionSite(site)
+      && (!ownerReceizId || sameOwnedWorldActor(site.placedByReceizId, ownerReceizId)))
+    .sort(([left], [right]) => left.localeCompare(right)));
+  const structures = Object.fromEntries(Object.entries(input.structures ?? {})
+    .filter(([structureId, structure]) => structureId === structure.structureId
+      && verifyWildsStructure(structure)
+      && (!ownerReceizId || sameOwnedWorldActor(structure.ownerReceizId, ownerReceizId)))
+    .sort(([left], [right]) => left.localeCompare(right)));
+  return { constructionSites, structures };
 }
 
 function reissuePlaceholderAsset(asset: PortableCardAsset, ownerReceizId: string): PortableCardAsset {
@@ -614,6 +645,13 @@ export function restorePlayState(
       player: restoredPlayer,
       siteSpace: normalizeWildsSiteSpaceState(saved.siteSpace, { x: restoredPlayer.x, y: wildsTerrainElevation(restoredPlayer.x, restoredPlayer.z), z: restoredPlayer.z }),
       explorationAtlas: normalizeWildsExplorationAtlas(saved.explorationAtlas, restoredPlayer),
+      ownedWorldAdditions: normalizeOwnedWorldAdditions(saved.ownedWorldAdditions, ownerReceizId),
+      missionProgress: typeof saved.missionProgress === "number" && Number.isFinite(saved.missionProgress)
+        ? Math.max(0, Math.min(99, Math.floor(saved.missionProgress)))
+        : fallback.missionProgress,
+      completedMissionIds: Array.isArray(saved.completedMissionIds)
+        ? Array.from(new Set(saved.completedMissionIds.filter((id): id is string => typeof id === "string" && id.length > 0))).slice(-2_048)
+        : [],
       discoveredCardIds,
       inventory: migratedInventory,
       selectedAssetId: restoredSelectedAssetId,
@@ -1047,6 +1085,25 @@ function strongestGrowthPath(progress: LivingGrowthSnapshot): GrowthPath {
 
 function awardWorldMastery(state: PlayState, verb: WorldMasteryVerb) {
   return { ...state, worldMastery: state.worldMastery + worldMasteryAward(verb) };
+}
+
+function livingMissionOrdinal(state: Pick<PlayState, "completedMissionIds">) {
+  return state.completedMissionIds.filter((id) => /^living-expedition:\d+$/.test(id)).length + 1;
+}
+
+export function livingMissionTitle(state: Pick<PlayState, "completedMissionIds">) {
+  return `Living Expedition ${livingMissionOrdinal(state)}`;
+}
+
+function advanceLivingMission(state: PlayState, amount: number): PlayState {
+  let progress = Math.max(0, Math.min(99, Math.floor(state.missionProgress))) + Math.max(0, Math.floor(amount));
+  const completedMissionIds = [...state.completedMissionIds];
+  while (progress >= 100) {
+    const missionId = `living-expedition:${completedMissionIds.filter((id) => /^living-expedition:\d+$/.test(id)).length + 1}`;
+    if (!completedMissionIds.includes(missionId)) completedMissionIds.push(missionId);
+    progress -= 100;
+  }
+  return { ...state, missionProgress: progress, completedMissionIds };
 }
 
 export function applyWildsInput(state: PlayState, input: WildsInput): PlayState {
@@ -1806,7 +1863,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       };
     }
     const nextDiscovered = Array.from(new Set([...state.discoveredCardIds, sealed.manifest.familyId]));
-    return withWorldProgress(awardWorldMastery({
+    return withWorldProgress(awardWorldMastery(advanceLivingMission({
       ...state,
       beans: state.beans + 6,
       cardXp: state.cardXp + 12,
@@ -1817,12 +1874,11 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       inventory: admitLocallySealedWildsInventory([...state.inventory, sealed]),
       lastEvent: `${sealed.manifest.name} was captured and sealed as one portable card.`,
       level: nextDiscovered.length >= 3 ? Math.max(state.level, 8) : state.level,
-      missionProgress: Math.min(100, state.missionProgress + 12),
       pendingSyncAssetIds: [...state.pendingSyncAssetIds, sealed.id],
       selectedAssetId: sealed.id,
       selectedCardId: sealed.manifest.familyId,
       streak: state.streak + 1
-    }, "capture"));
+    }, 12), "capture"));
   }
 
   if (input.type === "mark-synced" || input.type === "mark-listed") {
@@ -2124,7 +2180,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     }
 
     const nextDiscovered = [...state.discoveredCardIds, nearest.card.id];
-    return withWorldProgress(awardWorldMastery({
+    return withWorldProgress(awardWorldMastery(advanceLivingMission({
       ...state,
       activeAction: "explore",
       beans: state.beans + 6,
@@ -2134,12 +2190,11 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       lastEvent: `${nearest.card.name} card collected and sealed for offline use. ${nearest.card.businessLogic}.`,
       combo: state.combo + 1,
       level: nextDiscovered.length >= 3 ? Math.max(state.level, 8) : state.level,
-      missionProgress: Math.min(100, state.missionProgress + 12),
       pendingSyncAssetIds: [...state.pendingSyncAssetIds, sealed.id],
       selectedAssetId: sealed.id,
       selectedCardId: nearest.card.id,
       streak: state.streak + 1
-    }, "capture"));
+    }, 12), "capture"));
   }
 
   if (input.type === "train") {
@@ -2169,7 +2224,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       bond: Math.min(100, currentProgress.bond + 1)
     };
 
-    const trained = withWorldProgress(awardWorldMastery({
+    const trained = withWorldProgress(awardWorldMastery(advanceLivingMission({
       ...state,
       activeAction: "train",
       beans: state.beans + 4,
@@ -2182,11 +2237,10 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       lastEvent: leveledUp
         ? `${targetAsset.manifest.name} reached Level ${nextProgress.level}. A new mastery tier is active.`
         : `${targetAsset.manifest.name} gained 40 XP and strengthened your bond.`,
-      missionProgress: Math.min(100, state.missionProgress + 9),
       selectedAssetId: targetAsset.id,
       selectedCardId: targetCardId,
       streak: state.streak + 1
-    }, "training"));
+    }, 9), "training"));
     const progressed = applyRecordedGrowth(trained, targetAsset, {
       eventId: `bond_moment:${targetAsset.id}:${trainedAt}`,
       kind: "bond_moment",
@@ -2203,10 +2257,10 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
   }
 
   const progressGain = 16 + discoveredCards(state).length * 4 + Math.floor(selectedCard(state).power / 24);
-  const nextProgress = Math.min(100, state.missionProgress + progressGain);
-  const earnedAchievement = nextProgress >= 100 && !state.achievements.includes("first-light");
+  const missionSettled = state.missionProgress + progressGain >= 100;
+  const earnedAchievement = missionSettled && !state.achievements.includes("first-light");
 
-  return withWorldProgress(awardWorldMastery({
+  return withWorldProgress(awardWorldMastery(advanceLivingMission({
     ...state,
     activeAction: "mission",
     beans: state.beans + 10,
@@ -2219,7 +2273,6 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       ? "Mission cleared. First Light is now part of your story."
       : `${selectedCard(state).name} played a mission power.`,
     level: earnedAchievement ? Math.max(state.level, 9) : state.level,
-    missionProgress: nextProgress,
     rewardCards: state.rewardCards,
     achievements: earnedAchievement
       ? Array.from(new Set([...state.achievements, "first-light"]))
@@ -2228,7 +2281,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
       ? Array.from(new Set([...state.completedMissionIds, "daily-expedition"]))
       : state.completedMissionIds,
     streak: state.streak + 1
-  }, "mission"));
+  }, progressGain), "mission"));
 }
 
 function withWorldProgress(state: PlayState): PlayState {

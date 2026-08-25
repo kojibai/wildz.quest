@@ -60,6 +60,7 @@ test("Identity Seal publication uses the SDK proof rail and returns its Kai caus
       withKeyFile: async (_keyId, operation) => operation(keyFile)
     },
     adapterFactory: async () => ({
+      readAppStateByUrl: async () => draft.storeStateRecord,
       publishPublicStoreWithIdentityProof: async (input, options) => {
         signedInput = input as unknown as Record<string, unknown>;
         idempotencyKey = options?.idempotencyKey ?? "";
@@ -85,6 +86,35 @@ test("Identity Seal publication uses the SDK proof rail and returns its Kai caus
     afterKaiUpulse: "424242",
     appendAnchorId: "anchor:424242"
   });
+});
+
+test("an append is not globally acknowledged until the exact proof object reads back", async () => {
+  const keyFile = {
+    keyId: session.keyId,
+    crypto: { privateKeyPkcs8B64u: "private", privateKeyPkcs8CiphertextB64u: "" }
+  } as ReceizKeyFile;
+  const draft = createWildsWorldIdentityPublicationDraft({
+    sourceUrl: "https://wildz.quest/api/wilds/world/snapshot",
+    merchantReceizId: "bjklock.receiz.id",
+    record: record(),
+    expectedHead: { revision: 0, lastEventId: null }
+  });
+
+  await assert.rejects(() => publishWildsWorldWithIdentityProof(session, draft, {
+    repository: { withKeyFile: async (_keyId, operation) => operation(keyFile) },
+    adapterFactory: async () => ({
+      readAppStateByUrl: async () => null,
+      publishPublicStoreWithIdentityProof: async () => ({
+        ok: true,
+        storeStateRecordId: "world:1",
+        tenantHost: "wildz.quest",
+        kaiPulse: "424242",
+        appendAnchorId: "anchor:424242",
+        appendProof: {},
+        knownHead: { afterKaiUpulse: "424242", appendAnchorId: "anchor:424242" }
+      })
+    })
+  }), /wilds_world_identity_publication_unconfirmed/);
 });
 
 test("proof-sealed vaults cannot fabricate an Identity Seal signer", async () => {
