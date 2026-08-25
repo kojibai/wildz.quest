@@ -34,6 +34,8 @@ import { sampleWildsTerrain } from "../src/features/play/wilds-terrain-authority
 import { admitWildsDiscoveryPhysicalNeighborhood, normalizeWildsSiteSpaceState } from "../src/features/play/wilds-discovery-sites.js";
 import { prepareWildsSiteRuntime } from "../src/features/play/wilds-site-runtime.js";
 import { createWildsConstructionSite } from "../src/features/play/wilds-construction-site.js";
+import { projectWildsResourceRegion } from "../src/features/play/wilds-resource-authority.js";
+import { createWildsMaterialHarvest, initialWildsHarvestedSourceState } from "../src/features/play/wilds-steward-construction.js";
 
 function activeTravelState(): PlayState {
   const capturedAt = "2026-07-13T11:00:00.000Z";
@@ -760,7 +762,12 @@ describe("Receiz Wilds game state", () => {
       ...createOwnerBoundInitialPlayState(actorId, "2026-08-25T12:00:00.000Z"),
       ownedWorldAdditions: {
         constructionSites: { [site.siteId]: site, forged: { ...site, head: `sha256:${"0".repeat(64)}` } },
-        structures: {}
+        structures: {},
+        harvestedSources: {},
+        materialLots: {},
+        consumedMaterialLots: {},
+        reservedMaterialLots: {},
+        storedMaterialLots: {}
       }
     } as PlayState;
 
@@ -768,6 +775,35 @@ describe("Receiz Wilds game state", () => {
 
     assert.deepEqual(Object.keys(restored.ownedWorldAdditions.constructionSites), [site.siteId]);
     assert.equal(restored.ownedWorldAdditions.constructionSites[site.siteId]?.head, site.head);
+  });
+
+  it("restores source-authoritative material holdings from the identity play record", () => {
+    const actorId = "player:builder";
+    const source = Array.from({ length: 25 }, (_, index) => projectWildsResourceRegion(index - 12, 0)).flat()
+      .find((candidate) => candidate.kind === "timber");
+    assert.ok(source);
+    const harvest = createWildsMaterialHarvest({
+      source,
+      current: initialWildsHarvestedSourceState(source),
+      ownerReceizId: actorId,
+      actorPosition: source.position,
+      kaiUPulse: 2_000_020
+    });
+    const saved = createOwnerBoundInitialPlayState(actorId, "2026-08-25T12:00:00.000Z");
+    saved.ownedWorldAdditions = {
+      constructionSites: {},
+      structures: {},
+      harvestedSources: { [harvest.source.sourceId]: harvest.source },
+      materialLots: { [harvest.lot.lotId]: harvest.lot },
+      consumedMaterialLots: {},
+      reservedMaterialLots: {},
+      storedMaterialLots: {}
+    };
+
+    const restored = restorePlayState(serializePlayState(saved), actorId);
+
+    assert.equal(restored.ownedWorldAdditions.materialLots[harvest.lot.lotId]?.head, harvest.lot.head);
+    assert.equal(restored.ownedWorldAdditions.harvestedSources[source.sourceId]?.head, harvest.source.head);
   });
 
   it("levels and bonds the selected companion through deterministic training", () => {

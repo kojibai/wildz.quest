@@ -159,8 +159,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(map, /previousFocus/);
     assert.match(canvas, /<Canvas/);
     assert.match(canvas, /MapControls/);
-    assert.match(canvas, /mouseButtons=\{\{[^}]*LEFT:\s*THREE\.MOUSE\.PAN/);
-    assert.match(canvas, /touches=\{\{[^}]*ONE:\s*THREE\.TOUCH\.PAN/);
+    assert.match(canvas, /mouseButtons=\{\{[^}]*LEFT:\s*THREE\.MOUSE\.ROTATE/);
+    assert.match(canvas, /touches=\{\{[^}]*ONE:\s*THREE\.TOUCH\.ROTATE/);
     assert.doesNotMatch(canvas, /<OrbitControls/);
     assert.doesNotMatch(canvas, /minPan|maxPan|clamp.*target|target.*clamp/);
     assert.match(canvas, /maxDistance/);
@@ -198,7 +198,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(cameraRig, /enablePan/);
     assert.match(cameraRig, /enableRotate/);
     assert.match(cameraRig, /zoomToCursor/);
-    assert.match(cameraRig, /touches=\{\{ ONE: THREE\.TOUCH\.PAN, TWO: THREE\.TOUCH\.DOLLY_ROTATE \}\}/);
+    assert.match(cameraRig, /touches=\{\{ ONE: THREE\.TOUCH\.ROTATE, TWO: THREE\.TOUCH\.DOLLY_PAN \}\}/);
     assert.doesNotMatch(cameraRig, /minAzimuthAngle|maxAzimuthAngle/);
     assert.doesNotMatch(cameraRig, /onChange=\{/);
     assert.equal(passThroughLabels.length, htmlLabels.length);

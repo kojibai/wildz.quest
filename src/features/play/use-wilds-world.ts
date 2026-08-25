@@ -142,7 +142,7 @@ export function useWildsWorld(input: {
 }) {
   const [snapshot, setSnapshot] = useState<WildsWorldProjection | null>(() => mergeWildsOwnedWorldAdditions(
     input.initialSnapshot?.projection ?? createWildsSourceAuthorityProjection(),
-    input.ownedWorldAdditions ?? { constructionSites: {}, structures: {} }
+    input.ownedWorldAdditions ?? { constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {} }
   ));
   const [mode, setMode] = useState<WildsWorldClientMode>(() => input.initialSnapshot?.mode ?? "connecting");
   const [error, setError] = useState("");
@@ -260,7 +260,7 @@ export function useWildsWorld(input: {
       const { projection, mode: nextMode } = parseWildsWorldSnapshotResponse(value);
       canonicalSnapshot.current = projection;
       const flushed = await flushOutbox(projection, nextMode);
-      setSnapshot(mergeWildsOwnedWorldAdditions(flushed.projection, input.ownedWorldAdditions ?? { constructionSites: {}, structures: {} }));
+      setSnapshot(mergeWildsOwnedWorldAdditions(flushed.projection, input.ownedWorldAdditions ?? { constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {} }));
       setMode(flushed.mode);
       setError("");
       retryAfter.current = 0;
@@ -283,7 +283,7 @@ export function useWildsWorld(input: {
     canonicalSnapshot.current = input.initialSnapshot.projection;
     void flushOutbox(input.initialSnapshot.projection, input.initialSnapshot.mode)
       .then((flushed) => {
-        setSnapshot(mergeWildsOwnedWorldAdditions(flushed.projection, input.ownedWorldAdditions ?? { constructionSites: {}, structures: {} }));
+        setSnapshot(mergeWildsOwnedWorldAdditions(flushed.projection, input.ownedWorldAdditions ?? { constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {} }));
         setMode(flushed.mode);
         setError("");
       })
@@ -350,7 +350,7 @@ export function useWildsWorld(input: {
       const synchronizedProjection = parsed.globallyPublished
         ? acceptWildsWorldSnapshot(locallyAdmittedProjection, projection)
         : projectWildsWorldOutbox(projection, input.actorId, queued);
-      setSnapshot(mergeWildsOwnedWorldAdditions(synchronizedProjection, input.ownedWorldAdditions ?? { constructionSites: {}, structures: {} }));
+      setSnapshot(mergeWildsOwnedWorldAdditions(synchronizedProjection, input.ownedWorldAdditions ?? { constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {} }));
       setMode(parsed.globallyPublished ? parsed.mode : "receiz_recovery_pending");
       setError(parsed.globallyPublished ? "" : "Your work is admitted here and its global projection will keep syncing in the background.");
       retryAfter.current = 0;

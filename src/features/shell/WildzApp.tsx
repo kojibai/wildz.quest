@@ -844,17 +844,28 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           return previousCardPins.length !== nextCardPins.length
             || previousCardPins.some((pin, index) => pin !== nextCardPins[index]);
         })();
+    const worldTruthChanged = current.playState?.ownedWorldAdditions !== playState.ownedWorldAdditions;
+    const identityTruthChanged = cardTruthChanged || worldTruthChanged;
     const snapshot = { ...current, playState, playerContinuity };
     continuityRef.current = snapshot;
     if (cardTruthChanged) {
       setContinuity(snapshot);
     }
-    playStateSaveSchedulerRef.current?.schedule({
+    const pendingSave = {
       snapshot,
       playState,
       previousInventory: cardTruthChanged ? current.playState?.inventory : undefined,
       playerContinuity
-    }, cardTruthChanged);
+    };
+    if (worldTruthChanged) {
+      writeWildzRuntimeCheckpoint(window.localStorage, {
+        keyId: snapshot.session.keyId,
+        actorId: snapshot.session.actorId,
+        playState
+      });
+    }
+    playStateSaveSchedulerRef.current?.schedule(pendingSave, identityTruthChanged);
+    if (worldTruthChanged) void playStateSaveSchedulerRef.current?.flush().catch(() => undefined);
   }, []);
 
   const removeLostVaultAssets = useCallback((assetIds: readonly string[]) => {

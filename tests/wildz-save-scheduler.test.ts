@@ -136,12 +136,15 @@ test("a newer snapshot supersedes a failed in-flight snapshot", async () => {
   assert.equal(scheduler.hasPending(), false);
 });
 
-test("card truth stays queued for durable Vault persistence while movement uses runtime checkpoints", () => {
+test("identity truth persists durably while ordinary movement uses runtime checkpoints", () => {
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
   assert.match(shell, /previousCardPins/);
   assert.match(shell, /nextCardPins/);
   assert.match(shell, /createWildzPlayStatePersistenceCoordinator/);
-  assert.match(shell, /}, cardTruthChanged\)/);
+  assert.match(shell, /const identityTruthChanged = cardTruthChanged \|\| worldTruthChanged/);
+  assert.match(shell, /schedule\(pendingSave, identityTruthChanged\)/);
+  assert.match(shell, /if \(worldTruthChanged\) \{[\s\S]*writeWildzRuntimeCheckpoint/);
+  assert.match(shell, /if \(worldTruthChanged\) void playStateSaveSchedulerRef\.current\?\.flush\(\)/);
   assert.doesNotMatch(shell, /vaultSavePendingRef/);
   assert.doesNotMatch(shell, /kind: vaultSavePendingRef/);
   assert.doesNotMatch(shell, /if \(cardTruthChanged\) void scheduler\?\.flush\(\)/);

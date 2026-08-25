@@ -277,12 +277,12 @@ function AtlasCameraRig({
     maxPolarAngle={Math.PI / 2.25}
     minDistance={activeLimits.minDistance}
     minPolarAngle={0.35}
-    mouseButtons={{ LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }}
+    mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
     panSpeed={0.72}
     ref={controls}
     rotateSpeed={0.5}
     screenSpacePanning={false}
-    touches={{ ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE }}
+    touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
     zoomSpeed={0.82}
     zoomToCursor
   />;

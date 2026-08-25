@@ -139,7 +139,8 @@ test("large Vault movement coalesces runtime state without repeating durable Vau
   assert.match(source, /pagehide/);
   assert.match(source, /visibilitychange/);
   assert.match(persist, /\.schedule\(\{/);
-  assert.match(persist, /}, cardTruthChanged\)/);
+  assert.match(persist, /const identityTruthChanged = cardTruthChanged \|\| worldTruthChanged/);
+  assert.match(persist, /schedule\(pendingSave, identityTruthChanged\)/);
   assert.doesNotMatch(source, /vaultSavePendingRef/);
   assert.doesNotMatch(persist, /void saveWildzContinuityPlayState\(/);
 });

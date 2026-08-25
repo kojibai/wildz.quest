@@ -81,7 +81,14 @@ import { livingSubjectContinuityV120 } from "./creature-continuity";
 import { careForCreature, settleCreatureCare, type CreatureCareAction } from "./creature-care";
 import { applyWildsCompanionWork } from "./wilds-work-capability";
 import { verifyWildsConstructionSite, type WildsConstructionSiteV1 } from "./wilds-construction-site";
-import { verifyWildsStructure, type WildsStructureV1 } from "./wilds-steward-construction";
+import {
+  verifyWildsHarvestedSourceState,
+  verifyWildsMaterialLot,
+  verifyWildsStructure,
+  type WildsHarvestedSourceStateV1,
+  type WildsMaterialLotV1,
+  type WildsStructureV1
+} from "./wilds-steward-construction";
 import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 import {
   EMPTY_WILDS_SUPPORT_ASSET_IDS,
@@ -171,6 +178,11 @@ export type RewardCard = {
 export type WildsOwnedWorldAdditions = {
   constructionSites: Record<string, WildsConstructionSiteV1>;
   structures: Record<string, WildsStructureV1>;
+  harvestedSources: Record<string, WildsHarvestedSourceStateV1>;
+  materialLots: Record<string, WildsMaterialLotV1>;
+  consumedMaterialLots: Record<string, string>;
+  reservedMaterialLots: Record<string, string>;
+  storedMaterialLots: Record<string, string>;
 };
 
 export type PlayState = {
@@ -373,7 +385,10 @@ export const initialPlayState: PlayState = {
   lastEvent: "SealCub joined your deck. Walk near another wild companion.",
   level: 7,
   missionProgress: 0,
-  ownedWorldAdditions: { constructionSites: {}, structures: {} },
+  ownedWorldAdditions: {
+    constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {},
+    consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {}
+  },
   lastSearchPoint: null,
   player: {
     x: -2.15,
@@ -488,7 +503,30 @@ function normalizeOwnedWorldAdditions(value: unknown, ownerReceizId?: string): W
       && verifyWildsStructure(structure)
       && (!ownerReceizId || sameOwnedWorldActor(structure.ownerReceizId, ownerReceizId)))
     .sort(([left], [right]) => left.localeCompare(right)));
-  return { constructionSites, structures };
+  const materialLots = Object.fromEntries(Object.entries(input.materialLots ?? {})
+    .filter(([lotId, lot]) => lotId === lot.lotId
+      && verifyWildsMaterialLot(lot)
+      && (!ownerReceizId || sameOwnedWorldActor(lot.ownerReceizId, ownerReceizId)))
+    .sort(([left], [right]) => left.localeCompare(right)));
+  const ownedLotIds = new Set(Object.keys(materialLots));
+  const ownedSourceIds = new Set(Object.values(materialLots).map((lot) => lot.source.sourceId));
+  const harvestedSources = Object.fromEntries(Object.entries(input.harvestedSources ?? {})
+    .filter(([sourceId, source]) => sourceId === source.sourceId
+      && ownedSourceIds.has(sourceId)
+      && verifyWildsHarvestedSourceState(source))
+    .sort(([left], [right]) => left.localeCompare(right)));
+  const materialState = (value: Record<string, string> | undefined) => Object.fromEntries(Object.entries(value ?? {})
+    .filter(([lotId, targetId]) => ownedLotIds.has(lotId) && typeof targetId === "string" && targetId.length > 0)
+    .sort(([left], [right]) => left.localeCompare(right)));
+  return {
+    constructionSites,
+    structures,
+    harvestedSources,
+    materialLots,
+    consumedMaterialLots: materialState(input.consumedMaterialLots),
+    reservedMaterialLots: materialState(input.reservedMaterialLots),
+    storedMaterialLots: materialState(input.storedMaterialLots)
+  };
 }
 
 function reissuePlaceholderAsset(asset: PortableCardAsset, ownerReceizId: string): PortableCardAsset {
