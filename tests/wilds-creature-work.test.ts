@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { createWildsBlueprintPreview, previewWildsBlueprintPlacement, reduceWildsBlueprintPreview } from "../src/features/play/wilds-world-construction";
+import { createWildsCreatureMandate, evaluateWildsCreatureConsent } from "../src/features/play/wilds-creature-mandate";
 import { compileWildsCreatureWorkPlan, projectWildsCreatureWorkProgress } from "../src/features/play/wilds-creature-work";
 import { projectWildsResourceRegion, type WildsResourceKind } from "../src/features/play/wilds-resource-authority";
 
@@ -35,6 +36,52 @@ function blueprint() {
 }
 
 describe("bounded creature work planning", () => {
+  it("binds an accepted sovereign mandate to exact creature, work, region, budget, and expiry", () => {
+    const professions = ["survey", "haul", "shape", "stabilize", "masonry", "finish"] as const;
+    const creatureHead = "a".repeat(64);
+    const resources = [resource("buried"), resource("timber")] as const;
+    const consent = evaluateWildsCreatureConsent({
+      creatureSubjectId: "creature:builder",
+      creatureHead,
+      condition: { energy: 90, fatigue: 4, injury: 0, stress: 3 },
+      bond: 80,
+      preferences: { professions, avoidHazards: [] },
+      capabilities: { professions },
+      safety: { risk: 5, hazards: [], supportAvailable: true },
+      requested: { professions, maxActions: 64 },
+      kaiUPulse: 1
+    });
+    const mandate = createWildsCreatureMandate({
+      consent,
+      creatureSubjectId: "creature:builder",
+      creatureHead,
+      region: { x: 0, z: 0 },
+      professions,
+      allowedResourceIds: resources.map((entry) => entry.source.sourceId),
+      maxActions: 64,
+      issuedAtKaiUPulse: 1,
+      expiresAtKaiUPulse: 999_999
+    });
+    const base = {
+      blueprint: blueprint(),
+      assignments: [{ creatureSubjectId: "creature:builder", creatureHead, professions }],
+      allocations: {
+        resources,
+        tools: [{ subjectId: "tool:mason", head: "head:mason", professions: ["shape", "masonry", "finish"] as const }]
+      },
+      bounds: { regionX: 0, regionZ: 0, maxActions: 64, expiresAtKaiPulse: "999999" },
+      mandates: [mandate]
+    } as const;
+
+    assert.equal(compileWildsCreatureWorkPlan(base).valid, true);
+    const stale = compileWildsCreatureWorkPlan({
+      ...base,
+      assignments: [{ ...base.assignments[0], creatureHead: "b".repeat(64) }]
+    });
+    assert.equal(stale.valid, false);
+    assert.ok(stale.reasons.includes("mandate-creature-head-mismatch"));
+  });
+
   it("compiles exact blueprint pieces into a deterministic bounded stage plan", () => {
     const input = {
       blueprint: blueprint(),

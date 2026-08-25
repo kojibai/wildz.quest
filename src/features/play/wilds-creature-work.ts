@@ -1,4 +1,5 @@
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
+import { reverifyWildsCreatureMandate, type WildsCreatureMandateV1 } from "./wilds-creature-mandate";
 import type { WildsBlueprintPreview, WildsConstructionKind } from "./wilds-world-construction";
 import { projectWildsResourceRegion, type WildsResourceKind, type WildsResourceSource } from "./wilds-resource-authority";
 
@@ -23,6 +24,7 @@ export type WildsCreatureWorkPlan = Readonly<{
   }>[];
   pieceRequirements: readonly Readonly<{ pieceId: string; materialKind: WildsResourceKind; capacity: number }>[];
   assignments: readonly Readonly<{ creatureSubjectId: string; creatureHead: string; professions: readonly WildsWorkProfession[] }>[];
+  mandates: readonly WildsCreatureMandateV1[];
   allocations: Readonly<{
     resources: readonly Readonly<{ source: WildsResourceSource; sourceHead: string; capacity: number }>[];
     tools: readonly Readonly<{ subjectId: string; head: string; professions: readonly WildsWorkProfession[] }>[];
@@ -88,6 +90,7 @@ export function compileWildsCreatureWorkPlan(input: Readonly<{
     tools: readonly Readonly<{ subjectId: string; head: string; professions: readonly WildsWorkProfession[] }>[];
   }>;
   bounds: Readonly<{ regionX: number; regionZ: number; maxActions: number; expiresAtKaiPulse: string }>;
+  mandates?: readonly WildsCreatureMandateV1[];
 }>): WildsCreatureWorkPlan {
   if (!Number.isSafeInteger(input.bounds.maxActions) || input.bounds.maxActions < 1 || input.bounds.maxActions > 128) throw new Error("wilds_work_action_budget_invalid");
   if (!Number.isSafeInteger(input.bounds.regionX) || !Number.isSafeInteger(input.bounds.regionZ)
@@ -111,6 +114,30 @@ export function compileWildsCreatureWorkPlan(input: Readonly<{
   };
   if (input.allocations.resources.length === 0 || input.allocations.resources.some((resource) => !resource.sourceHead || !canonicalResource(resource) || !Number.isSafeInteger(resource.capacity) || resource.capacity <= 0 || resource.capacity > resource.source.capacity)) reasons.push("resource-allocation-required");
   if (input.assignments.some((assignment) => !assignment.creatureSubjectId || !assignment.creatureHead || assignment.professions.length === 0)) reasons.push("assignment-invalid");
+  const mandates = input.mandates ? [...input.mandates] : [];
+  if (mandates.length > 0) {
+    if (mandates.length !== input.assignments.length) reasons.push("mandate-assignment-mismatch");
+    const workExpiry = Number(input.bounds.expiresAtKaiPulse);
+    for (const assignment of input.assignments) {
+      const mandate = mandates.find((candidate) => candidate.creatureSubjectId === assignment.creatureSubjectId);
+      if (!mandate) {
+        reasons.push("mandate-assignment-mismatch");
+        continue;
+      }
+      if (mandate.creatureHead !== assignment.creatureHead) reasons.push("mandate-creature-head-mismatch");
+      const verification = reverifyWildsCreatureMandate(mandate, {
+        creatureHead: assignment.creatureHead,
+        kaiUPulse: workExpiry,
+        revokedMandateIds: []
+      });
+      if (!verification.ok && !verification.errors.includes("mandate_creature_head_stale")) reasons.push("mandate-invalid");
+      if (mandate.region.x !== input.bounds.regionX || mandate.region.z !== input.bounds.regionZ) reasons.push("mandate-region-mismatch");
+      if (mandate.maxActions < input.bounds.maxActions) reasons.push("mandate-action-budget-exceeded");
+      if (mandate.expiresAtKaiUPulse < workExpiry) reasons.push("mandate-expiry-exceeded");
+      if (assignment.professions.some((profession) => !mandate.professions.includes(profession))) reasons.push("mandate-profession-mismatch");
+      if (input.allocations.resources.some((resource) => !mandate.allowedResourceIds.includes(resource.source.sourceId))) reasons.push("mandate-resource-mismatch");
+    }
+  }
   const pieceRequirements = freeze(input.blueprint.pieces.map((piece) => freeze({ pieceId: piece.placementId, ...PIECE_MATERIALS[piece.kind] })));
   const desired = input.blueprint.pieces.flatMap((piece) => PIECE_STAGES[piece.kind].map((profession) => ({ pieceId: piece.placementId, profession, materialKind: PIECE_MATERIALS[piece.kind].materialKind })));
   const participantIds = [
@@ -143,6 +170,7 @@ export function compileWildsCreatureWorkPlan(input: Readonly<{
     schema: "wildz.creature-work-plan-preview.v1",
     blueprintDigest,
     assignments: input.assignments,
+    mandates,
     allocations: input.allocations,
     bounds: input.bounds,
     stages,
@@ -157,6 +185,7 @@ export function compileWildsCreatureWorkPlan(input: Readonly<{
     stages,
     pieceRequirements,
     assignments: input.assignments.map((assignment) => ({ ...assignment, professions: [...assignment.professions] })),
+    mandates,
     allocations: {
       resources: input.allocations.resources.map((resource) => ({ source: resource.source, sourceHead: resource.sourceHead, capacity: resource.capacity })),
       tools: input.allocations.tools.map((tool) => ({ ...tool, professions: [...tool.professions] }))
