@@ -8,6 +8,7 @@ import {
   verifyAnyWildsCard,
   type LegacyPortableCardAsset
 } from "../src/features/play/portable-card";
+import { applyWildsInput, createOwnerBoundInitialPlayState } from "../src/features/play/game-state";
 
 const PLAYER = "current_keeper.receiz.id";
 const CAPTURED_AT = "2026-07-16T12:00:00.000Z";
@@ -82,6 +83,25 @@ test("one Vault admission retains exact proof-object authority for downstream pu
   assert.equal(carries!(admitted.proofObjects, second), true);
   assert.equal(carries!(admitted.proofObjects, structuredClone(first)), false);
   assert.equal(carries!({}, first), false);
+});
+
+test("Vault projection reuses the existing exact-card admission instead of verifying the established Vault again", async () => {
+  const utility = await admissionUtility() as Record<string, unknown>;
+  const diagnostics = utility.wildzVaultAdmissionDiagnostics as (() => { verifierCalls: number }) | undefined;
+  const derive = utility.deriveWildzVaultCardAdmission as typeof import("../src/lib/receiz/wildz-vault-card-admission")["deriveWildzVaultCardAdmission"];
+  assert.equal(typeof diagnostics, "function");
+  let playState = createOwnerBoundInitialPlayState(PLAYER);
+  for (let index = 0; index < 24; index += 1) {
+    playState = applyWildsInput(playState, {
+      type: "import-card",
+      asset: card(PLAYER, `already-admitted-${index}`)
+    });
+  }
+  const before = diagnostics!().verifierCalls;
+
+  derive({ cards: playState.inventory, playerHandle: PLAYER });
+
+  assert.equal(diagnostics!().verifierCalls, before);
 });
 
 test("a compact proof admits a legitimate later revision of a historical-owner card", async () => {

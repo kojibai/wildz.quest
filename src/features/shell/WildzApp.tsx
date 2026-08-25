@@ -84,6 +84,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 type PendingPlayStateSave = {
   snapshot: WildzContinuitySnapshot;
   playState: PlayState;
+  previousInventory?: PlayState["inventory"];
   playerContinuity: NonNullable<WildzContinuitySnapshot["playerContinuity"]>;
 };
 
@@ -109,11 +110,12 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   if (!playStateSaveSchedulerRef.current) {
     playStateSaveSchedulerRef.current = createWildzPlayStatePersistenceCoordinator({
       delayMs: 400,
-      stagePendingVault: ({ snapshot, playState }: PendingPlayStateSave) => {
+      stagePendingVault: ({ snapshot, playState, previousInventory }: PendingPlayStateSave) => {
         writeWildzPendingInventoryCheckpoint(window.localStorage, {
           keyId: snapshot.session.keyId,
           actorId: snapshot.session.actorId,
-          playState
+          playState,
+          previousInventory
         });
       },
       writeRuntime: ({ snapshot, playState }: PendingPlayStateSave) => {
@@ -850,6 +852,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     playStateSaveSchedulerRef.current?.schedule({
       snapshot,
       playState,
+      previousInventory: cardTruthChanged ? current.playState?.inventory : undefined,
       playerContinuity
     }, cardTruthChanged);
   }, []);
@@ -864,6 +867,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     playStateSaveSchedulerRef.current?.schedule({
       snapshot,
       playState: reconciled,
+      previousInventory: current.playState.inventory,
       playerContinuity: current.playerContinuity
     }, true);
   }, [acceptSnapshot]);
@@ -879,6 +883,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     playStateSaveSchedulerRef.current?.schedule({
       snapshot,
       playState,
+      previousInventory: current.playState.inventory,
       playerContinuity: current.playerContinuity
     }, true);
     if (typeof BroadcastChannel !== "undefined") {

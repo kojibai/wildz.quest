@@ -5,6 +5,19 @@ import { filterWildsAtlasPresence, projectWildsAtlas, projectWildsAtlasPresence,
 import { atlasLocalCoordinate } from "../src/features/play/wilds-atlas-render-tiles";
 import type { WildsPresence } from "../src/features/play/multiplayer-core";
 import { createInitialWildsExplorationAtlas, revealWildsExplorationAt } from "../src/features/play/wilds-exploration-atlas";
+import { createWildsConstructionSite } from "../src/features/play/wilds-construction-site";
+import type { WildsStructureV1 } from "../src/features/play/wilds-steward-construction";
+
+type ProjectedWorldAddition = {
+  id: string;
+  phase: "construction" | "complete";
+  blueprint: string;
+  ownerReceizId: string;
+};
+
+function projectedWorldAdditions(value: ReturnType<typeof projectWildsAtlas>) {
+  return ((value as unknown as { worldAdditions?: ProjectedWorldAddition[] }).worldAdditions ?? []);
+}
 
 function presence(index: number, position: { x: number; z: number }): WildsPresence {
   return {
@@ -242,5 +255,58 @@ describe("Wilds world atlas", () => {
     assert.equal(presenceOnly.exactPlayers.length, 0);
     assert.equal(presenceOnly.playerClusters.length, 0);
     assert.deepEqual(fetchedPresence, { exactPlayers: [], playerClusters: [] });
+  });
+
+  it("projects player construction only after its exact world region has been discovered", () => {
+    const site = createWildsConstructionSite({
+      blueprint: "trail-shelter",
+      placedByReceizId: "builder.receiz.id",
+      actorPosition: { x: 10, z: 10 },
+      position: { x: 12, z: 11 },
+      rotationQuarterTurns: 0,
+      existingStructures: [],
+      existingSites: [],
+      kaiUPulse: 4_200
+    });
+    const distantStructure = {
+      schema: "wildz.structure.v1",
+      structureId: "wildz:structure:trail-shelter:distant",
+      blueprint: "trail-shelter",
+      ownerReceizId: "other-builder.receiz.id",
+      position: { x: 9_000, y: 1, z: 9_000 },
+      rotationQuarterTurns: 0,
+      stage: "complete"
+    } as unknown as WildsStructureV1;
+    const baseInput = {
+      center: { x: 0, z: 0 },
+      zoom: "world" as const,
+      missionProgress: 20,
+      worldMastery: 5,
+      discoveredLandmarkIds: [],
+      selfId: "self",
+      players: [] as WildsPresence[],
+      constructionSites: [site],
+      structures: [distantStructure]
+    };
+
+    const local = projectWildsAtlas({ ...baseInput, explorationAtlas });
+    assert.deepEqual(projectedWorldAdditions(local).map((addition) => ({
+      id: addition.id,
+      phase: addition.phase,
+      blueprint: addition.blueprint,
+      ownerReceizId: addition.ownerReceizId
+    })), [{
+      id: site.siteId,
+      phase: "construction",
+      blueprint: "trail-shelter",
+      ownerReceizId: "builder.receiz.id"
+    }]);
+
+    const expanded = projectWildsAtlas({
+      ...baseInput,
+      explorationAtlas: revealWildsExplorationAt(explorationAtlas, distantStructure.position)
+    });
+    assert.equal(projectedWorldAdditions(expanded).length, 2);
+    assert.equal(projectedWorldAdditions(expanded).some((addition) => addition.id === distantStructure.structureId && addition.phase === "complete"), true);
   });
 });

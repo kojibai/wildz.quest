@@ -9,7 +9,7 @@ type LivingWorldDetail =
   | { kind: "boss"; siteId: string }
   | { kind: "ecology"; siteId: string };
 
-export function WildsLivingWorldHud({ world, player, onEnterRaid }: {
+export function WildsLivingWorldHud({ world, player, connected, onEnterRaid }: {
   world: ReturnType<typeof useWildsWorld>;
   player: { x: number; z: number };
   connected: boolean;
@@ -31,13 +31,16 @@ export function WildsLivingWorldHud({ world, player, onEnterRaid }: {
   const selectedSiteDistance = selectedSite ? Math.hypot(selectedSite.position.x - player.x, selectedSite.position.z - player.z) : 0;
   const selectedEcologyDistance = selectedEcology ? Math.hypot(selectedEcology.position.x - player.x, selectedEcology.position.z - player.z) : 0;
   const closeToBoss = Boolean(selectedSite && selectedSiteDistance <= selectedSite.radius + 8);
-  const modeLabel = wildsLivingWorldModeLabel(world.mode);
+  const modeLabel = wildsLivingWorldModeLabel(world.mode, connected);
+  const worldDetail = connected && world.mode === "receiz_recovery_pending"
+    ? "Connected globally · your latest admitted world change is propagating."
+    : world.error;
   const activeChapter = world.snapshot?.story.activeChapter;
   const compactSiteName = nearby?.site.name.split(/\s+/).at(-1) ?? "Event";
   const bossHealthPercent = selectedBoss ? Math.max(0, Math.min(100, selectedBoss.health / selectedBoss.maxHealth * 100)) : 0;
 
   return <div className={`wilds-living-world-hud ${nearby || nearbyEcology ? "has-event" : ""}`} aria-label="Living world status">
-    <button aria-label={modeLabel} className={`wilds-live-pill mode-${world.mode}`} onClick={() => setDetail((current) => current?.kind === "status" ? null : { kind: "status" })} title={modeLabel} type="button">
+    <button aria-label={modeLabel} className={`wilds-live-pill mode-${connected ? "receiz_live" : world.mode}`} onClick={() => setDetail((current) => current?.kind === "status" ? null : { kind: "status" })} title={modeLabel} type="button">
       <i aria-hidden="true" /><span>{modeLabel}</span>
     </button>
     {nearby ? <button aria-label={`${nearby.site.name} ${Math.round(nearby.distance)} meters away`} className="wilds-live-pill event" onClick={() => setDetail({ kind: "boss", siteId: nearby.site.id })} type="button">
@@ -71,7 +74,7 @@ export function WildsLivingWorldHud({ world, player, onEnterRaid }: {
         <p>{selectedEcology.phase.replaceAll("_", " ")} · {Math.round(selectedEcologyDistance)}m away</p>
         <p>{selectedEcology.participantIds.length} verified participant{selectedEcology.participantIds.length === 1 ? "" : "s"} · {selectedEcology.contributionTotal.toLocaleString()} total contribution</p>
       </> : <p>This ecology signal is no longer active.</p> : null}
-      {world.error ? <em role="status">{world.error}</em> : null}
+      {worldDetail ? <em role="status">{worldDetail}</em> : null}
     </section> : null}
   </div>;
 }

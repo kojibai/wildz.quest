@@ -120,6 +120,7 @@ export function WildsAtlasCanvas({
         <ExactPlayerLights projection={projection} />
         <PresenceLights projection={projection} />
         <TrainerLights projection={projection} />
+        <WorldAdditionMarkers projection={projection} />
         <CurrentPositionBeam position={currentPosition} projection={projection} />
         <AtlasReadySignal onReady={onReady} />
         <Sparkles
@@ -295,6 +296,35 @@ function TrainerLights({ projection }: { projection: WildsAtlasProjection }) {
       <mesh><capsuleGeometry args={[.11, .28, 4, 8]} /><meshStandardMaterial color="#fff2b0" emissive="#d9982b" emissiveIntensity={1.65} /></mesh>
       <mesh position={[0, -.17, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[.22, .025, 6, 20]} /><meshBasicMaterial color="#f7d25b" /></mesh>
       {projection.zoom === "world" ? null : <Html center position={[0, .55, 0]} wrapperClass="wilds-atlas-pass-through-label" zIndexRange={[2, 1]}><span className="wilds-atlas-trainer-label">{trainer.name} · Trainer</span></Html>}
+    </group>;
+  })}</group>;
+}
+
+function WorldAdditionMarkers({ projection }: { projection: WildsAtlasProjection }) {
+  return <group name="atlas-player-world-additions">{projection.worldAdditions.map((addition) => {
+    const x = atlasLocalCoordinate(addition.position.x, projection.centerRegion.x, projection.regionUnit);
+    const z = atlasLocalCoordinate(addition.position.z, projection.centerRegion.z, projection.regionUnit);
+    const complete = addition.phase === "complete";
+    const accent = complete ? "#71e8c3" : "#f7d25b";
+    const label = addition.blueprint.split("-").map((part) => part[0]?.toUpperCase() + part.slice(1)).join(" ");
+    return <group key={addition.id} name={`atlas-world-addition-${addition.id}`} position={[x, atlasTerrainHeight(addition.position.x, addition.position.z, projection.regionUnit) + .12, z]}>
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[.22, .025, 7, 24]} />
+        <meshBasicMaterial color={accent} transparent opacity={complete ? .9 : .62} />
+      </mesh>
+      {addition.blueprint === "trail-bridge" ? <mesh position={[0, .13, 0]} scale={[.48, .08, .16]}>
+        <boxGeometry />
+        <meshStandardMaterial color={complete ? "#bf9a67" : "#9b814f"} emissive={accent} emissiveIntensity={complete ? .35 : .18} wireframe={!complete} />
+      </mesh> : addition.blueprint === "trail-shelter" ? <group position={[0, .13, 0]}>
+        <mesh scale={[.25, .18, .22]}><boxGeometry /><meshStandardMaterial color={complete ? "#8bbf99" : "#755f45"} emissive={accent} emissiveIntensity={complete ? .28 : .18} wireframe={!complete} /></mesh>
+        <mesh position={[0, .2, 0]} rotation={[0, Math.PI / 4, 0]} scale={[.22, .16, .22]}><coneGeometry args={[1, 1, 4]} /><meshStandardMaterial color={complete ? "#d8c486" : "#8a7449"} emissive={accent} emissiveIntensity={.2} wireframe={!complete} /></mesh>
+      </group> : <mesh position={[0, .16, 0]} scale={addition.blueprint === "steward-workbench" ? [.34, .12, .2] : [.22, .22, .22]}>
+        <boxGeometry />
+        <meshStandardMaterial color={complete ? "#74b9a5" : "#8a7449"} emissive={accent} emissiveIntensity={complete ? .4 : .2} wireframe={!complete} />
+      </mesh>}
+      {projection.zoom === "world" ? null : <Html center position={[0, .58, 0]} wrapperClass="wilds-atlas-pass-through-label" zIndexRange={[2, 1]}>
+        <span className="wilds-atlas-trainer-label">{label}{complete ? "" : ` · ${Math.round(addition.progress * 100)}%`}</span>
+      </Html>}
     </group>;
   })}</group>;
 }

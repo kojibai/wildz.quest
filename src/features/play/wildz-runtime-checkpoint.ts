@@ -10,6 +10,7 @@ import { reuseWildsTraversalConditionReferences } from "./wilds-traversal-capabi
 const RUNTIME_SCHEMA = "receiz.wildz.runtime_checkpoint.v1" as const;
 const RUNTIME_KEY_PREFIX = "receiz:wildz:runtime:v1";
 const PENDING_INVENTORY_SCHEMA = "receiz.wildz.pending_inventory.v1" as const;
+const PENDING_INVENTORY_JOURNAL_SCHEMA = "receiz.wildz.pending_inventory_journal.v2" as const;
 const PENDING_INVENTORY_KEY_PREFIX = "receiz:wildz:pending-inventory:v1";
 const vaultRoots = new WeakMap<readonly unknown[], string>();
 
@@ -29,6 +30,22 @@ type PendingInventoryCheckpoint = {
   actorId: string;
   vaultRoot: string;
   inventory: PlayState["inventory"];
+};
+
+type PendingInventoryDelta = {
+  fromVaultRoot: string;
+  toVaultRoot: string;
+  upserts: PlayState["inventory"];
+  removedAssetIds: string[];
+};
+
+type PendingInventoryJournal = {
+  schema: typeof PENDING_INVENTORY_JOURNAL_SCHEMA;
+  keyId: string;
+  actorId: string;
+  baseVaultRoot: string;
+  targetVaultRoot: string;
+  deltas: PendingInventoryDelta[];
 };
 
 function runtimeKey(keyId: string, actorId: string) {
@@ -71,7 +88,43 @@ export function writeWildzPendingInventoryCheckpoint(storage: RuntimeStorage, in
   keyId: string;
   actorId: string;
   playState: PlayState;
+  previousInventory?: PlayState["inventory"];
 }) {
+  if (input.previousInventory) {
+    const fromVaultRoot = vaultRoot(input.previousInventory);
+    const toVaultRoot = vaultRoot(input.playState.inventory);
+    const previousById = new Map(input.previousInventory.map((asset) => [asset.id, asset]));
+    const nextIds = new Set(input.playState.inventory.map((asset) => asset.id));
+    const delta: PendingInventoryDelta = {
+      fromVaultRoot,
+      toVaultRoot,
+      upserts: input.playState.inventory.filter((asset) => previousById.get(asset.id)?.proof.digest !== asset.proof.digest),
+      removedAssetIds: input.previousInventory.filter((asset) => !nextIds.has(asset.id)).map((asset) => asset.id)
+    };
+    const key = pendingInventoryKey(input.keyId, input.actorId);
+    let existing: PendingInventoryJournal | null = null;
+    try {
+      const parsed = JSON.parse(storage.getItem(key) ?? "null") as Partial<PendingInventoryJournal> | null;
+      if (parsed?.schema === PENDING_INVENTORY_JOURNAL_SCHEMA
+        && parsed.keyId === input.keyId
+        && parsed.actorId === input.actorId
+        && parsed.targetVaultRoot === fromVaultRoot
+        && typeof parsed.baseVaultRoot === "string"
+        && Array.isArray(parsed.deltas)) existing = parsed as PendingInventoryJournal;
+    } catch {
+      existing = null;
+    }
+    const journal: PendingInventoryJournal = {
+      schema: PENDING_INVENTORY_JOURNAL_SCHEMA,
+      keyId: input.keyId,
+      actorId: input.actorId,
+      baseVaultRoot: existing?.baseVaultRoot ?? fromVaultRoot,
+      targetVaultRoot: toVaultRoot,
+      deltas: [...(existing?.deltas ?? []), delta]
+    };
+    storage.setItem(key, JSON.stringify(journal));
+    return;
+  }
   const checkpoint: PendingInventoryCheckpoint = {
     schema: PENDING_INVENTORY_SCHEMA,
     keyId: input.keyId,
@@ -93,8 +146,9 @@ export function clearWildzPendingInventoryCheckpoint(storage: RuntimeStorage, in
     return;
   }
   try {
-    const pending = JSON.parse(storage.getItem(key) ?? "null") as Partial<PendingInventoryCheckpoint> | null;
-    if (pending?.vaultRoot !== vaultRoot(input.expectedInventory)) return;
+    const pending = JSON.parse(storage.getItem(key) ?? "null") as (Partial<PendingInventoryCheckpoint> & Partial<PendingInventoryJournal>) | null;
+    const pendingRoot = pending?.schema === PENDING_INVENTORY_JOURNAL_SCHEMA ? pending.targetVaultRoot : pending?.vaultRoot;
+    if (pendingRoot !== vaultRoot(input.expectedInventory)) return;
     storage.removeItem(key);
   } catch {
     storage.removeItem(key);
@@ -105,12 +159,56 @@ function pendingInventoryFor(storage: RuntimeStorage, input: {
   keyId: string;
   actorId: string;
   vaultRoot: string;
+  baseInventory: PlayState["inventory"];
 }): PlayState["inventory"] | null {
   const key = pendingInventoryKey(input.keyId, input.actorId);
   const serialized = storage.getItem(key);
   if (!serialized) return null;
   try {
-    const pending = JSON.parse(serialized) as Partial<PendingInventoryCheckpoint>;
+    const pending = JSON.parse(serialized) as Partial<PendingInventoryCheckpoint> & Partial<PendingInventoryJournal>;
+    if (pending.schema === PENDING_INVENTORY_JOURNAL_SCHEMA) {
+      if (pending.keyId !== input.keyId
+        || pending.actorId !== input.actorId
+        || pending.targetVaultRoot !== input.vaultRoot
+        || pending.baseVaultRoot !== vaultRoot(input.baseInventory)
+        || !Array.isArray(pending.deltas)
+        || pending.deltas.length > 1_000) {
+        storage.removeItem(key);
+        return null;
+      }
+      let inventory = input.baseInventory;
+      for (const candidate of pending.deltas) {
+        if (!candidate || typeof candidate !== "object"
+          || candidate.fromVaultRoot !== vaultRoot(inventory)
+          || typeof candidate.toVaultRoot !== "string"
+          || !Array.isArray(candidate.upserts)
+          || !Array.isArray(candidate.removedAssetIds)
+          || candidate.upserts.length > 1_000
+          || candidate.removedAssetIds.length > 1_000
+          || candidate.removedAssetIds.some((assetId) => typeof assetId !== "string")
+          || !candidate.upserts.every((asset) => verifyAndAdmitWildsCard(asset))) {
+          storage.removeItem(key);
+          return null;
+        }
+        const removed = new Set(candidate.removedAssetIds);
+        const next = inventory.filter((asset) => !removed.has(asset.id));
+        for (const asset of candidate.upserts) {
+          const index = next.findIndex((current) => current.id === asset.id);
+          if (index >= 0) next[index] = asset;
+          else next.push(asset);
+        }
+        if (vaultRoot(next) !== candidate.toVaultRoot) {
+          storage.removeItem(key);
+          return null;
+        }
+        inventory = next;
+      }
+      if (vaultRoot(inventory) !== input.vaultRoot) {
+        storage.removeItem(key);
+        return null;
+      }
+      return retainAdmittedWildsInventory(inventory);
+    }
     if (pending.schema !== PENDING_INVENTORY_SCHEMA
       || pending.keyId !== input.keyId
       || pending.actorId !== input.actorId
@@ -152,7 +250,8 @@ export function readWildzRuntimeCheckpoint(storage: RuntimeStorage, input: {
       : pendingInventoryFor(storage, {
           keyId: input.keyId,
           actorId: input.actorId,
-          vaultRoot: checkpoint.vaultRoot
+          vaultRoot: checkpoint.vaultRoot,
+          baseInventory: input.playState.inventory
         }) ?? input.playState.inventory;
     const admittedInventory = createAdmittedWildsInventory(inventory, input.actorId);
     if (!admittedInventory) {

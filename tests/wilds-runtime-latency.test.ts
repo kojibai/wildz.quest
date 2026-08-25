@@ -22,6 +22,7 @@ class MemoryStorage implements Pick<Storage, "getItem" | "setItem" | "removeItem
   getItem(key: string) { return this.values.get(key) ?? null; }
   setItem(key: string, value: string) { this.values.set(key, value); }
   removeItem(key: string) { this.values.delete(key); }
+  entries() { return [...this.values.entries()]; }
 }
 
 test("admitted checkpoint restore and ten thousand movement/submersion ticks stay off every slow path", () => {
@@ -145,6 +146,47 @@ test("refresh during a pending capture restores the caught card and exact world 
     assert.ok(restoredRow);
     assert.deepEqual(restoredRow.ranges, row.ranges);
   }
+});
+
+test("a pending capture journals only the changed card instead of serializing the established Vault", () => {
+  const owner = "runtime_compact_capture_keeper";
+  let baseline = createOwnerBoundInitialPlayState(owner);
+  for (let index = 0; index < 64; index += 1) {
+    baseline = applyWildsInput(baseline, {
+      type: "import-card",
+      asset: sealCollectedCard({
+        formId: "amberbeak-1",
+        ownerReceizId: owner,
+        encounterId: `runtime-established-${index}`,
+        capturedAt: new Date(Date.UTC(2026, 7, 21, 20, index)).toISOString()
+      })
+    });
+  }
+  const caught = sealCollectedCard({
+    formId: "amberbeak-1",
+    ownerReceizId: owner,
+    encounterId: "runtime-one-new-card",
+    capturedAt: "2026-08-21T22:00:00.000Z"
+  });
+  const current = applyWildsInput(baseline, { type: "import-card", asset: caught });
+  const storage = new MemoryStorage();
+  const staged = { keyId: "runtime-compact-key", actorId: owner, playState: current, previousInventory: baseline.inventory };
+
+  writeWildzPendingInventoryCheckpoint(storage, staged);
+  writeWildzRuntimeCheckpoint(storage, { keyId: staged.keyId, actorId: owner, playState: current });
+
+  const pending = storage.entries().find(([key]) => key.includes("pending-inventory"))?.[1] ?? "";
+  assert.ok(pending.length > 0);
+  assert.ok(pending.length < JSON.stringify(current.inventory).length / 4);
+  assert.equal(pending.includes(baseline.inventory[12]!.id), false);
+  assert.equal(pending.includes(caught.id), true);
+  const restored = readWildzRuntimeCheckpoint(storage, {
+    keyId: staged.keyId,
+    actorId: owner,
+    playState: baseline
+  });
+  assert.equal(restored.inventory.length, current.inventory.length);
+  assert.equal(restored.inventory.at(-1)?.proof.digest, caught.proof.digest);
 });
 
 test("a missing pending card backup never discards unrelated world progress", () => {

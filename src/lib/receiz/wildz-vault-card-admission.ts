@@ -5,6 +5,7 @@ import {
   type PortableCardAsset
 } from "../../features/play/portable-card";
 import { parseWildzPlayerCoordinate, sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
+import { isAdmittedWildsCard } from "../../features/play/admitted-inventory";
 
 const ADMISSION_SCHEMA = "receiz.wilds.vault_card_admission.v1" as const;
 const MEMBERSHIP_SCHEMA = "receiz.wilds.vault_card_membership.v1" as const;
@@ -40,6 +41,11 @@ export type WildzAdmittedVaultProofObjects = Readonly<{
 }>;
 
 const admittedVaultProofObjectSets = new WeakMap<WildzAdmittedVaultProofObjects, WeakSet<PortableCardAsset>>();
+let verifierCalls = 0;
+
+export function wildzVaultAdmissionDiagnostics() {
+  return Object.freeze({ verifierCalls });
+}
 
 export type WildzVaultCardMembershipStep = {
   side: "left" | "right";
@@ -92,11 +98,14 @@ function admissionRoot(playerHandle: string, leafCount: number, merkleRoot: stri
 }
 
 function lineageIdentity(card: PortableCardAsset) {
-  let verified: ReturnType<typeof verifyAnyWildsCard>;
-  try {
-    verified = verifyAnyWildsCard(card);
-  } catch {
-    throw new Error("wildz_vault_card_invalid");
+  let verified = { ok: true } as ReturnType<typeof verifyAnyWildsCard>;
+  if (!isAdmittedWildsCard(card)) {
+    try {
+      verifierCalls += 1;
+      verified = verifyAnyWildsCard(card);
+    } catch {
+      throw new Error("wildz_vault_card_invalid");
+    }
   }
   const assetId = card?.id;
   const rootDigest = card?.manifest?.lineage?.rootDigest;

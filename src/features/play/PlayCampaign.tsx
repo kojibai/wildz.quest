@@ -2421,7 +2421,7 @@ export function PlayCampaign({
               }}
               battleModalOwned={exclusiveOwner === "combat" && combatSurface === "pvp"}
               blocked={backgroundHomesBlocked}
-              connected={networkEnabled}
+              connected={multiplayer.mode === "receiz_live"}
               dismissSignal={commandDismissSignal}
               interactionEnabled={worldInteractionEnabled}
               kaiMoment={kaiMoment}

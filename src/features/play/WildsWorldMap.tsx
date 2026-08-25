@@ -93,8 +93,10 @@ export function WildsWorldMap({
     ecologyKnowledge,
     bosses: Object.values(livingWorld?.bosses ?? {}),
     bossKnowledge,
-    trainers
-  }), [bossKnowledge, currentPosition, discoveredLandmarkIds, ecologyKnowledge, explorationAtlas, livingWorld?.bosses, livingWorld?.ecologySites, livingWorld?.sites, missionProgress, trainers, worldMastery, zoom]);
+    trainers,
+    constructionSites: Object.values(livingWorld?.constructionSites ?? {}),
+    structures: Object.values(livingWorld?.structures ?? {})
+  }), [bossKnowledge, currentPosition, discoveredLandmarkIds, ecologyKnowledge, explorationAtlas, livingWorld?.bosses, livingWorld?.constructionSites, livingWorld?.ecologySites, livingWorld?.sites, livingWorld?.structures, missionProgress, trainers, worldMastery, zoom]);
   const localPresence = useMemo(() => projectWildsAtlasPresence({
     center: currentPosition,
     players: remotePlayers,

@@ -15,6 +15,8 @@ import type { WildsWorldBossProjection } from "./wilds-world-state";
 import type { WildsBossKnowledge } from "./wilds-raid-history";
 import type { WildsBossFamilyId } from "./wilds-boss-ecology";
 import type { WildsTrainerProjection } from "./wilds-saga-trainers";
+import type { WildsConstructionSiteV1 } from "./wilds-construction-site";
+import type { WildsStructureV1 } from "./wilds-steward-construction";
 import {
   wildsExplorationBounds,
   wildsExplorationContainsRegion,
@@ -46,6 +48,15 @@ export type WildsAtlasPlayerCluster = {
   position: { x: number; z: number };
 };
 
+export type WildsAtlasWorldAddition = {
+  id: string;
+  blueprint: WildsConstructionSiteV1["blueprint"] | WildsStructureV1["blueprint"];
+  phase: "construction" | "complete";
+  ownerReceizId: string;
+  position: { x: number; y: number; z: number };
+  progress: number;
+};
+
 export type WildsAtlasProjection = {
   /** Physical region-space origin used to normalize exact world coordinates for rendering. */
   centerRegion: { x: number; z: number };
@@ -62,6 +73,7 @@ export type WildsAtlasProjection = {
   ecologySites: WildsAtlasEcologySite[];
   bosses: WildsAtlasBoss[];
   trainers: WildsTrainerProjection[];
+  worldAdditions: WildsAtlasWorldAddition[];
 };
 
 type WildsAtlasBossCommon = {
@@ -99,6 +111,8 @@ export type WildsAtlasInput = {
   ecologyKnowledge?: Record<string, WildsEcologyKnowledge>;
   bosses?: readonly WildsWorldBossProjection[];
   trainers?: readonly WildsTrainerProjection[];
+  constructionSites?: readonly WildsConstructionSiteV1[];
+  structures?: readonly WildsStructureV1[];
   bossKnowledge?: Record<string, WildsBossKnowledge>;
   now?: number;
 };
@@ -242,7 +256,32 @@ export function projectWildsAtlas(input: WildsAtlasInput): WildsAtlasProjection 
       .map((boss) => projectAtlasBoss(boss, input.bossKnowledge?.[boss.id])),
     trainers: (input.trainers ?? [])
       .filter((trainer) => trainer.available)
-      .filter((trainer) => knownPosition({ x: trainer.position[0], z: trainer.position[2] }))
+      .filter((trainer) => knownPosition({ x: trainer.position[0], z: trainer.position[2] })),
+    worldAdditions: [
+      ...(input.constructionSites ?? [])
+        .filter((site) => site.stage !== "complete")
+        .filter((site) => knownPosition(site.position))
+        .map((site) => ({
+          id: site.siteId,
+          blueprint: site.blueprint,
+          phase: "construction" as const,
+          ownerReceizId: site.placedByReceizId,
+          position: { ...site.position },
+          progress: Math.max(0, Math.min(1, (
+            site.contributedLots.length / (site.materialsRequired.timber + site.materialsRequired.stone) * .8
+          ) + site.workCompleted * .2))
+        })),
+      ...(input.structures ?? [])
+        .filter((structure) => knownPosition(structure.position))
+        .map((structure) => ({
+          id: structure.structureId,
+          blueprint: structure.blueprint,
+          phase: "complete" as const,
+          ownerReceizId: structure.ownerReceizId,
+          position: { ...structure.position },
+          progress: 1
+        }))
+    ].sort((left, right) => left.id.localeCompare(right.id))
   };
 }
 
