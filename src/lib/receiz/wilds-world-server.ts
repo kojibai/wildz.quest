@@ -19,6 +19,7 @@ import {
   wildsLivingWorldSuccessorHeads,
   wildsStewardWorldSuccessorHeads
 } from "./wilds-world-emission-source";
+import { WILDS_WORLD_GENESIS_PULSE } from "@/features/play/wilds-world-genesis";
 
 export type { WildsWorldPublication } from "./wilds-world-repository";
 
@@ -42,7 +43,6 @@ const practiceKey = Symbol.for("receiz.wilds.world.practice.v3");
 const hydrationKey = Symbol.for("receiz.wilds.world.hydrated.v3");
 const repositoryKey = Symbol.for("receiz.wilds.world.repository.v3");
 const mutationQueueKey = Symbol.for("receiz.wilds.world.mutation_queue.v3");
-const WILDS_WORLD_GENESIS_PULSE = "2026-07-15T00:00:00.000Z";
 type WorldGlobal = typeof globalThis & {
   [serviceKey]?: WildsWorldService;
   [practiceKey]?: WildsWorldService;

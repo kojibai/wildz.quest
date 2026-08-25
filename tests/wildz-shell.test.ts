@@ -108,7 +108,7 @@ test("local gameplay stays mounted while every authenticated world mutation wait
   assert.match(shell, /walletAuthorityGeneration=\{proofSessionGeneration \|\| identity\.keyId\}/);
   assert.match(shell, /walletReadIdentityKey=\{identity\.localAuthority === "verified" \? identity\.keyId : undefined\}/);
   assert.match(campaign, /networkEnabled:\s*boolean/);
-  assert.match(campaign, /useWildsWorld\(\{[\s\S]*enabled:\s*enabled && networkEnabled/);
+  assert.match(campaign, /useWildsWorld\(\{[\s\S]*enabled,\s*networkEnabled,/);
   assert.match(multiplayer, /if \(!latest\.current\.enabled\) throw new Error\("wilds_multiplayer_session_required"\)/);
   assert.match(world, /if \(!input\.enabled\) throw new Error\("wilds_world_session_required"\)/);
 });

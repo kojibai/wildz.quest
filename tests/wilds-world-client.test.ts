@@ -9,6 +9,7 @@ import {
   buildWildsWorldCommandBody,
   parseWildsWorldCommandResponse,
   parseWildsWorldSnapshotResponse,
+  shouldQueueWildsWorldCommandLocally,
   wildsWorldModeAfterConfirmedBootstrap,
   wildsWorldModeAfterRequestFailure
 } from "../src/features/play/use-wilds-world.js";
@@ -22,6 +23,11 @@ describe("Wilds world client contract", () => {
 
     assert.equal(acceptWildsWorldSnapshot(current, stale), current);
     assert.equal(acceptWildsWorldSnapshot(current, fresh), fresh);
+  });
+
+  it("admits work locally until the shared projection exists", () => {
+    assert.equal(shouldQueueWildsWorldCommandLocally({ commandPending: false, networkEnabled: true, networkAvailable: true, canonicalAvailable: false }), true);
+    assert.equal(shouldQueueWildsWorldCommandLocally({ commandPending: false, networkEnabled: true, networkAvailable: true, canonicalAvailable: true }), false);
   });
 
   it("builds one explicit guest-aware command envelope", () => {

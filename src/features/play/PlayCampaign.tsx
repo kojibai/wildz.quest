@@ -731,7 +731,8 @@ export function PlayCampaign({
     setTrainerEncounter(null);
   }, [multiplayer.activeBattle, state.battle, trainerEncounter?.phase]);
   const livingWorld = useWildsWorld({
-    enabled: enabled && networkEnabled,
+    enabled,
+    networkEnabled,
     actorId: ownerReceizId,
     guestId: multiplayer.guestId,
     kaiUPulse,

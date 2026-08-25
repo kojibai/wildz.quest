@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { sha256PortableBasis, type PortableCardAsset } from "./portable-card";
-import { creatureForm } from "./creature-catalog";
 import type { WildzVaultCardMembershipProof } from "@/lib/receiz/wildz-vault-card-admission";
 import type { WildsWorldCommand } from "./wilds-world-service";
 import { WILDS_WORLD_ID } from "./wilds-world-event";
@@ -28,8 +27,6 @@ import {
   createWildsTrailBridge,
   createWildsTrailShelter,
   createWildsWorkstation,
-  initialWildsHarvestedSourceState,
-  projectWildsCreatureWorkFamilies,
   type WildsStewardToolKind
 } from "./wilds-steward-construction";
 import { sampleWildsTerrain } from "./wilds-terrain-authority";
@@ -52,6 +49,7 @@ import {
   WILDS_WORLD_OFFLINE_MESSAGE,
   wildsNetworkFailureMessage
 } from "./wilds-network-status";
+import { createWildsSourceAuthorityProjection, planWildsMaterialHarvest } from "./wilds-source-work-authority";
 
 export function acceptWildsWorldSnapshot(current: WildsWorldProjection | null, candidate: WildsWorldProjection) {
   return current && candidate.revision < current.revision ? current : candidate;
@@ -101,6 +99,15 @@ export function wildsWorldModeAfterConfirmedBootstrap(mode: WildsWorldClientMode
   return mode === "connecting" ? "kai_live" : mode;
 }
 
+export function shouldQueueWildsWorldCommandLocally(input: Readonly<{
+  commandPending: boolean;
+  networkEnabled: boolean;
+  networkAvailable: boolean;
+  canonicalAvailable: boolean;
+}>) {
+  return input.commandPending || !input.networkEnabled || !input.networkAvailable || !input.canonicalAvailable;
+}
+
 export function parseWildsWorldCommandResponse(value: unknown): { projection: WildsWorldProjection; mode: WildsWorldCommandMode } {
   if (!value || typeof value !== "object") throw new Error("wilds_world_command_response_invalid");
   const response = value as Record<string, unknown>;
@@ -114,6 +121,7 @@ export function parseWildsWorldCommandResponse(value: unknown): { projection: Wi
 
 export function useWildsWorld(input: {
   enabled: boolean;
+  networkEnabled: boolean;
   actorId: string;
   guestId: string;
   kaiUPulse: number;
@@ -127,7 +135,7 @@ export function useWildsWorld(input: {
     amountPhiMicro: string;
   }>) => Promise<unknown>;
 }) {
-  const [snapshot, setSnapshot] = useState<WildsWorldProjection | null>(() => input.initialSnapshot?.projection ?? null);
+  const [snapshot, setSnapshot] = useState<WildsWorldProjection | null>(() => input.initialSnapshot?.projection ?? createWildsSourceAuthorityProjection());
   const [mode, setMode] = useState<WildsWorldClientMode>(() => input.initialSnapshot?.mode ?? "connecting");
   const [error, setError] = useState("");
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
@@ -201,11 +209,28 @@ export function useWildsWorld(input: {
     let entries = await readWildsWorldOutbox(input.actorId);
     try {
       while (entries.length > 0 && shouldAttemptWildsNetwork()) {
-        const parsed = await sendEntry(entries[0]!);
+        const queued = entries[0]!;
+        const entry = queued.command.type === "resource.material.harvest"
+          ? {
+              ...queued,
+              command: planWildsMaterialHarvest({
+                projection: canonical,
+                source: queued.command.source,
+                actorId: input.actorId,
+                actorPosition: queued.command.actorPosition,
+                kaiUPulse: queued.command.kai?.uPulse ?? queued.command.operation?.kaiUPulse ?? 0,
+                commandId: queued.command.commandId,
+                card: queued.card,
+                mandate: queued.command.mandate,
+                kai: queued.command.kai
+              })
+            }
+          : queued;
+        const parsed = await sendEntry(entry);
         canonical = parsed.projection;
         nextMode = parsed.mode;
         if (!parsed.globallyPublished) break;
-        entries = await acknowledgeWildsWorldCommand(input.actorId, entries[0]!.command.commandId);
+        entries = await acknowledgeWildsWorldCommand(input.actorId, queued.command.commandId);
       }
     } finally {
       commandPending.current = false;
@@ -215,7 +240,7 @@ export function useWildsWorld(input: {
   }, [input.actorId, sendEntry]);
 
   const refresh = useCallback(async () => {
-    if (!input.enabled) return;
+    if (!input.enabled || !input.networkEnabled) return;
     if (!shouldAttemptWildsNetwork()) {
       setMode("receiz_recovery_pending");
       setError(WILDS_WORLD_OFFLINE_MESSAGE);
@@ -239,7 +264,7 @@ export function useWildsWorld(input: {
       setMode((current) => wildsWorldModeAfterRequestFailure(offline, current));
       setError(wildsNetworkFailureMessage(cause, "world", !offline));
     }
-  }, [flushOutbox, input.enabled, request]);
+  }, [flushOutbox, input.enabled, input.networkEnabled, request]);
 
   useEffect(() => {
     if (input.enabled) setMode(wildsWorldModeAfterConfirmedBootstrap);
@@ -248,10 +273,16 @@ export function useWildsWorld(input: {
   useEffect(() => {
     if (!input.enabled || !input.initialSnapshot || !validWildsWorldProjection(input.initialSnapshot.projection)) return;
     canonicalSnapshot.current = input.initialSnapshot.projection;
-    setSnapshot(input.initialSnapshot.projection);
-    setMode(input.initialSnapshot.mode);
-    setError("");
-  }, [input.enabled, input.initialSnapshot]);
+    void flushOutbox(input.initialSnapshot.projection, input.initialSnapshot.mode)
+      .then((flushed) => {
+        setSnapshot(flushed.projection);
+        setMode(flushed.mode);
+        setError("");
+      })
+      .catch(() => {
+        setMode("receiz_recovery_pending");
+      });
+  }, [flushOutbox, input.enabled, input.initialSnapshot]);
 
   useEffect(() => {
     const activeControllers = controllers.current;
@@ -283,14 +314,19 @@ export function useWildsWorld(input: {
     };
     const queueForGlobalCommit = async () => {
       const entries = await enqueueWildsWorldCommand(entry);
-      const base = canonicalSnapshot.current ?? snapshot ?? initialWildsWorldProjection();
+      const base = canonicalSnapshot.current ?? snapshot ?? createWildsSourceAuthorityProjection();
       const projection = projectWildsWorldOutbox(base, input.actorId, entries);
       setSnapshot(projection);
       setMode("receiz_recovery_pending");
       setError(WILDS_WORLD_OFFLINE_MESSAGE);
       return projection;
     };
-    if (commandPending.current || !shouldAttemptWildsNetwork()) {
+    if (shouldQueueWildsWorldCommandLocally({
+      commandPending: commandPending.current,
+      networkEnabled: input.networkEnabled,
+      networkAvailable: shouldAttemptWildsNetwork(),
+      canonicalAvailable: canonicalSnapshot.current !== null
+    })) {
       return queueForGlobalCommit();
     }
     commandPending.current = true;
@@ -321,7 +357,7 @@ export function useWildsWorld(input: {
       commandPending.current = false;
       setPendingCommand(null);
     }
-  }, [input.activeCard, input.actorId, input.cardAdmission, input.enabled, input.guestId, input.kaiUPulse, mode, sendEntry, snapshot]);
+  }, [input.activeCard, input.actorId, input.cardAdmission, input.enabled, input.guestId, input.kaiUPulse, input.networkEnabled, mode, sendEntry, snapshot]);
 
   useEffect(() => {
     const resume = () => {
@@ -453,54 +489,19 @@ export function useWildsWorld(input: {
     }),
     harvestMaterial: (source: WildsResourceSource, sourceHead: string, actorPosition: { x: number; z: number }, mandate?: WildsCreatureMandateV1, authority?: Readonly<{ card: PortableCardAsset; cardAdmission?: WildzVaultCardMembershipProof | null }> | null) => {
       const authorityCard = authority === null ? null : authority?.card ?? input.activeCard;
-      if (!snapshot?.worldEmission) throw new Error("wilds_world_emission_required");
-      const currentSource = snapshot.harvestedSources[source.sourceId] ?? initialWildsHarvestedSourceState(source);
-      if (currentSource.head !== sourceHead) throw new Error("wilds_world_resource_source_stale");
-      const creatureSubjectId = authorityCard ? `creature:${sha256PortableBasis(authorityCard.id).slice(0, 32)}` : undefined;
-      const creatureHead = authorityCard ? sha256PortableBasis(authorityCard.proof.digest) : undefined;
-      const element = authorityCard ? creatureForm(authorityCard.manifest.formId)?.element ?? "" : "";
-      const toolId = snapshot.equippedStewardTools[input.actorId];
-      const tool = toolId ? snapshot.stewardTools[toolId] : null;
-      const matchingTool = tool?.capability === source.requirements.creature && tool.durability.remaining > 0 ? tool : null;
-      const harvested = createWildsMaterialHarvest({
+      if (!snapshot) throw new Error("wilds_world_session_required");
+      const command = planWildsMaterialHarvest({
+        projection: snapshot,
         source,
-        current: currentSource,
-        ownerReceizId: input.actorId,
+        actorId: input.actorId,
         actorPosition,
-        creature: creatureSubjectId && creatureHead ? { subjectId: creatureSubjectId, head: creatureHead, workFamilies: projectWildsCreatureWorkFamilies(element), willing: true } : undefined,
-        tool: matchingTool,
-        kaiUPulse: input.kaiUPulse
+        kaiUPulse: input.kaiUPulse,
+        commandId: commandId("command:material:harvest"),
+        card: authorityCard,
+        mandate
       });
-      const operation = createWildsStewardHarvestOperation({
-        source,
-        currentSource,
-        harvestedSource: harvested.source,
-        lot: harvested.lot,
-        ownerReceizId: input.actorId,
-        playerHead: sha256PortableBasis(input.actorId),
-        ...(creatureSubjectId && creatureHead ? { creatureSubjectId, creatureHead } : {}),
-        tool: matchingTool,
-        nextTool: harvested.tool,
-        kaiUPulse: input.kaiUPulse
-      });
-      const preview = previewWildsEmission({ emission: snapshot.worldEmission, operation, contributionClass: "construction" });
-      if (!preview.eligible || preview.amountPhiMicro === "0") throw new Error("wilds_world_steward_emission_unavailable");
-      const emission = admitWildsEmission({ emission: snapshot.worldEmission, operation, contributionClass: "construction", preview });
-      const phiAward = createWildsStewardPhiAward({ ownerReceizId: input.actorId, operation, currentEmission: snapshot.worldEmission, nextEmission: emission, amountPhiMicro: preview.amountPhiMicro });
-      return post({
-        type: "resource.material.harvest",
-        source,
-        sourceHead,
-        actorPosition,
-        toolId: matchingTool?.toolId,
-        ...(mandate ? { mandate } : {}),
-        operation,
-        emission,
-        amountPhiMicro: preview.amountPhiMicro,
-        phiAward,
-        ...(authorityCard ? { cardProofDigest: authorityCard.proof.digest } : {}),
-        commandId: commandId("command:material:harvest")
-      }, authority);
+      if (command.sourceHead !== sourceHead) throw new Error("wilds_world_resource_source_stale");
+      return post(command, authority);
     },
     placeConstructionSite,
     contributeConstructionSite,

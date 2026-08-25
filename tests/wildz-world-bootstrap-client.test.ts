@@ -29,7 +29,7 @@ test("the admitted bootstrap projection reaches the living HUD instead of being 
   assert.match(shell, /setWorldBootstrap\(\{ projection: admitted\.projection/);
   assert.match(shell, /initialWorld=\{worldBootstrap\}/);
   assert.match(campaign, /initialSnapshot: initialWorld/);
-  assert.match(hook, /setSnapshot\(input\.initialSnapshot\.projection\)/);
+  assert.match(hook, /flushOutbox\(input\.initialSnapshot\.projection, input\.initialSnapshot\.mode\)/);
 });
 
 test("shared-world bootstrap preserves an Identity Seal publication request without navigation", async () => {
