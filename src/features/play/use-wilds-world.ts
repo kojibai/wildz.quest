@@ -261,19 +261,24 @@ export function useWildsWorld(input: {
     };
   }, []);
 
-  const post = useCallback(async (command: WildsWorldCommand) => {
+  const post = useCallback(async (
+    command: WildsWorldCommand,
+    authority?: Readonly<{ card: PortableCardAsset; cardAdmission?: WildzVaultCardMembershipProof | null }> | null
+  ) => {
     if (!input.enabled) throw new Error("wilds_world_session_required");
     const kaiAuthority = mode === "receiz_live" || mode === "kai_live" ? "world" : "local";
     const rootedCommand = withWildsWorldCommandKai(command, createKaiTemporalRoot(
       deriveKaiKlokMomentFromUPulse({ uPulse: input.kaiUPulse, authority: kaiAuthority })
     ));
+    const authorityCard = authority === null ? null : authority?.card ?? input.activeCard;
+    const authorityCardAdmission = authority === null ? null : authority?.cardAdmission ?? input.cardAdmission;
     const entry: WildsWorldOutboxEntry = {
       schema: "receiz.wilds_world_outbox_entry.v1",
       actorId: input.actorId,
       guestId: input.guestId,
       command: rootedCommand,
-      ...(worldCommandRequiresCard(rootedCommand) && input.activeCard ? { card: input.activeCard } : {}),
-      ...(input.cardAdmission ? { cardAdmission: input.cardAdmission } : {}),
+      ...((worldCommandRequiresCard(rootedCommand) || rootedCommand.type === "resource.material.harvest") && authorityCard ? { card: authorityCard } : {}),
+      ...(authorityCardAdmission ? { cardAdmission: authorityCardAdmission } : {}),
       queuedAt: new Date().toISOString()
     };
     const queueForGlobalCommit = async () => {
@@ -446,14 +451,14 @@ export function useWildsWorld(input: {
     actInGrove: (operation: WildsLivingOperationPlanV1, grove: WildsRegenerativeGroveV1, emission: WildsWorldEmissionProofV1, amountPhiMicro: string, resourceLot?: WildsResourceLotV1 | null) => post({
       type: "grove.act", operation, grove, emission, amountPhiMicro, resourceLot: resourceLot ?? null, commandId: commandId("command:grove:act")
     }),
-    harvestMaterial: (source: WildsResourceSource, sourceHead: string, actorPosition: { x: number; z: number }, mandate: WildsCreatureMandateV1) => {
-      if (!input.activeCard) throw new Error("wilds_world_active_card_required");
+    harvestMaterial: (source: WildsResourceSource, sourceHead: string, actorPosition: { x: number; z: number }, mandate?: WildsCreatureMandateV1, authority?: Readonly<{ card: PortableCardAsset; cardAdmission?: WildzVaultCardMembershipProof | null }> | null) => {
+      const authorityCard = authority === null ? null : authority?.card ?? input.activeCard;
       if (!snapshot?.worldEmission) throw new Error("wilds_world_emission_required");
       const currentSource = snapshot.harvestedSources[source.sourceId] ?? initialWildsHarvestedSourceState(source);
       if (currentSource.head !== sourceHead) throw new Error("wilds_world_resource_source_stale");
-      const creatureSubjectId = `creature:${sha256PortableBasis(input.activeCard.id).slice(0, 32)}`;
-      const creatureHead = sha256PortableBasis(input.activeCard.proof.digest);
-      const element = creatureForm(input.activeCard.manifest.formId)?.element ?? "";
+      const creatureSubjectId = authorityCard ? `creature:${sha256PortableBasis(authorityCard.id).slice(0, 32)}` : undefined;
+      const creatureHead = authorityCard ? sha256PortableBasis(authorityCard.proof.digest) : undefined;
+      const element = authorityCard ? creatureForm(authorityCard.manifest.formId)?.element ?? "" : "";
       const toolId = snapshot.equippedStewardTools[input.actorId];
       const tool = toolId ? snapshot.stewardTools[toolId] : null;
       const matchingTool = tool?.capability === source.requirements.creature && tool.durability.remaining > 0 ? tool : null;
@@ -462,7 +467,7 @@ export function useWildsWorld(input: {
         current: currentSource,
         ownerReceizId: input.actorId,
         actorPosition,
-        creature: { subjectId: creatureSubjectId, head: creatureHead, workFamilies: projectWildsCreatureWorkFamilies(element), willing: true },
+        creature: creatureSubjectId && creatureHead ? { subjectId: creatureSubjectId, head: creatureHead, workFamilies: projectWildsCreatureWorkFamilies(element), willing: true } : undefined,
         tool: matchingTool,
         kaiUPulse: input.kaiUPulse
       });
@@ -473,8 +478,7 @@ export function useWildsWorld(input: {
         lot: harvested.lot,
         ownerReceizId: input.actorId,
         playerHead: sha256PortableBasis(input.actorId),
-        creatureSubjectId,
-        creatureHead,
+        ...(creatureSubjectId && creatureHead ? { creatureSubjectId, creatureHead } : {}),
         tool: matchingTool,
         nextTool: harvested.tool,
         kaiUPulse: input.kaiUPulse
@@ -489,14 +493,14 @@ export function useWildsWorld(input: {
         sourceHead,
         actorPosition,
         toolId: matchingTool?.toolId,
-        mandate,
+        ...(mandate ? { mandate } : {}),
         operation,
         emission,
         amountPhiMicro: preview.amountPhiMicro,
         phiAward,
-        cardProofDigest: input.activeCard.proof.digest,
+        ...(authorityCard ? { cardProofDigest: authorityCard.proof.digest } : {}),
         commandId: commandId("command:material:harvest")
-      });
+      }, authority);
     },
     placeConstructionSite,
     contributeConstructionSite,

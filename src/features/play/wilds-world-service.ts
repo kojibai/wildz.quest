@@ -89,7 +89,7 @@ export type WildsWorldCommand = (
   | { type: "grove.observe"; grove: WildsRegenerativeGroveV1; emission: WildsWorldEmissionProofV1; commandId: string }
   | { type: "grove.act"; operation: WildsLivingOperationPlanV1; grove: WildsRegenerativeGroveV1; emission: WildsWorldEmissionProofV1; amountPhiMicro: string; resourceLot?: WildsResourceLotV1 | null; commandId: string }
   | { type: "resource.transfer.admit"; lotId: string; ownerReceizId: string; subjectId: string; subjectHead: string; receiptId: string; transferId: string; commandId: string }
-  | { type: "resource.material.harvest"; source: WildsResourceSource; sourceHead: string; actorPosition: { x: number; z: number }; toolId?: string; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
+  | { type: "resource.material.harvest"; source: WildsResourceSource; sourceHead: string; actorPosition: { x: number; z: number }; toolId?: string; mandate?: WildsCreatureMandateV1; cardProofDigest?: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
   | { type: "construction.site.place"; blueprint: WildsConstructionBlueprint; position: { x: number; z: number }; actorPosition: { x: number; z: number }; rotationQuarterTurns: number; cardProofDigest: string; commandId: string }
   | { type: "construction.site.contribute"; siteId: string; siteHead: string; actorPosition: { x: number; z: number }; lotIds: string[]; cardProofDigest: string; commandId: string }
   | { type: "construction.site.work"; siteId: string; siteHead: string; actorPosition: { x: number; z: number }; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
@@ -456,14 +456,18 @@ export class WildsWorldService {
         transferId: command.transferId
       }, authority, command.commandId));
     } else if (command.type === "resource.material.harvest") {
-      if (!authority.card) throw new Error("wilds_world_verified_card_required");
-      const creatureHead = sha256PortableBasis(authority.card.proof.digest);
-      const creatureSubjectId = `creature:${sha256PortableBasis(authority.card.id).slice(0, 32)}`;
-      const mandate = reverifyWildsCreatureMandate(command.mandate, { creatureHead, kaiUPulse: authorityMoment(authority).uPulse, revokedMandateIds: [] });
-      if (!mandate.ok || command.mandate.creatureSubjectId !== creatureSubjectId
-        || !command.mandate.professions.includes(command.source.requirements.creature)
-        || !command.mandate.allowedResourceIds.includes(command.source.sourceId)) throw new Error("wilds_world_resource_mandate_invalid");
-      const element = creatureForm(authority.card.manifest.formId)?.element ?? "";
+      const creatureHead = authority.card ? sha256PortableBasis(authority.card.proof.digest) : undefined;
+      const creatureSubjectId = authority.card ? `creature:${sha256PortableBasis(authority.card.id).slice(0, 32)}` : undefined;
+      if (authority.card) {
+        if (!command.mandate || !creatureHead || !creatureSubjectId) throw new Error("wilds_world_resource_mandate_invalid");
+        const mandate = reverifyWildsCreatureMandate(command.mandate, { creatureHead, kaiUPulse: authorityMoment(authority).uPulse, revokedMandateIds: [] });
+        if (!mandate.ok || command.mandate.creatureSubjectId !== creatureSubjectId
+          || !command.mandate.professions.includes(command.source.requirements.creature)
+          || !command.mandate.allowedResourceIds.includes(command.source.sourceId)) throw new Error("wilds_world_resource_mandate_invalid");
+      } else if (command.mandate || command.cardProofDigest) {
+        throw new Error("wilds_world_resource_mandate_invalid");
+      }
+      const element = authority.card ? creatureForm(authority.card.manifest.formId)?.element ?? "" : "";
       const current = this.projection.harvestedSources[command.source.sourceId] ?? initialWildsHarvestedSourceState(command.source);
       if (current.head !== command.sourceHead) throw new Error("wilds_world_resource_source_stale");
       const equippedToolId = this.projection.equippedStewardTools[authority.actorId];
@@ -474,7 +478,7 @@ export class WildsWorldService {
         current,
         ownerReceizId: authority.actorId,
         actorPosition: command.actorPosition,
-        creature: { subjectId: creatureSubjectId, head: creatureHead, workFamilies: projectWildsCreatureWorkFamilies(element), willing: true },
+        creature: creatureSubjectId && creatureHead ? { subjectId: creatureSubjectId, head: creatureHead, workFamilies: projectWildsCreatureWorkFamilies(element), willing: true } : undefined,
         tool,
         kaiUPulse: authorityMoment(authority).uPulse
       });
@@ -485,8 +489,7 @@ export class WildsWorldService {
         lot: harvest.lot,
         ownerReceizId: authority.actorId,
         playerHead: sha256PortableBasis(authority.actorId),
-        creatureSubjectId,
-        creatureHead,
+        ...(creatureSubjectId && creatureHead ? { creatureSubjectId, creatureHead } : {}),
         tool,
         nextTool: harvest.tool,
         kaiUPulse: authorityMoment(authority).uPulse

@@ -70,6 +70,41 @@ function harvest(kind: "timber" | "stone", ordinal = 0) {
 }
 
 describe("source-authoritative stewardship Phi", () => {
+  it("settles baseline solo work while a matching companion increases the exact award", () => {
+    for (const [kind, expectedSolo, expectedPartnered] of [["timber", "20000", "40000"], ["stone", "10000", "20000"]] as const) {
+      const source = sourceOf(kind);
+      const current = initialWildsHarvestedSourceState(source);
+      const solo = createWildsMaterialHarvest({ source, current, ownerReceizId, actorPosition: source.position, kaiUPulse: 900_000 });
+      const soloOperation = createWildsStewardHarvestOperation({
+        source,
+        currentSource: current,
+        harvestedSource: solo.source,
+        lot: solo.lot,
+        ownerReceizId,
+        playerHead,
+        kaiUPulse: 900_000
+      });
+      const soloPreview = previewWildsEmission({ emission: emission(), operation: soloOperation, contributionClass: "construction" });
+      const partnered = harvest(kind);
+      const partneredOperation = createWildsStewardHarvestOperation({
+        source: partnered.source,
+        currentSource: partnered.current,
+        harvestedSource: partnered.result.source,
+        lot: partnered.result.lot,
+        ownerReceizId,
+        playerHead,
+        creatureSubjectId: creature.subjectId,
+        creatureHead: creature.head,
+        kaiUPulse: partnered.result.lot.source.kaiUPulse
+      });
+      const partneredPreview = previewWildsEmission({ emission: emission(), operation: partneredOperation, contributionClass: "construction" });
+
+      assert.equal(soloPreview.amountPhiMicro, expectedSolo);
+      assert.equal(partneredPreview.amountPhiMicro, expectedPartnered);
+      assert.equal(BigInt(partneredPreview.amountPhiMicro) > BigInt(soloPreview.amountPhiMicro), true);
+    }
+  });
+
   it("issues exact bounded Phi for cooperative renewable timber and stone work", () => {
     for (const [kind, expected] of [["timber", "40000"], ["stone", "20000"]] as const) {
       const work = harvest(kind);

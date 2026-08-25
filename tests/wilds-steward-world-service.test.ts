@@ -104,7 +104,59 @@ function harvest(service: WildsWorldService, source: WildsResourceSource, asset:
   }, { actorId, canonical: true, pulse: timestamp, occurredAt: timestamp, uPulse, card: asset });
 }
 
+function soloHarvest(service: WildsWorldService, source: WildsResourceSource, uPulse: number, ordinal: number) {
+  const current = service.snapshot().harvestedSources[source.sourceId] ?? initialWildsHarvestedSourceState(source);
+  const material = createWildsMaterialHarvest({
+    source,
+    current,
+    ownerReceizId: actorId,
+    actorPosition: source.position,
+    kaiUPulse: uPulse
+  });
+  const operation = createWildsStewardHarvestOperation({
+    source,
+    currentSource: current,
+    harvestedSource: material.source,
+    lot: material.lot,
+    ownerReceizId: actorId,
+    playerHead: sha256PortableBasis(actorId),
+    kaiUPulse: uPulse
+  });
+  const currentEmission = service.snapshot().worldEmission!;
+  const preview = previewWildsEmission({ emission: currentEmission, operation, contributionClass: "construction" });
+  const nextEmission = admitWildsEmission({ emission: currentEmission, operation, contributionClass: "construction", preview });
+  const award = createWildsStewardPhiAward({ ownerReceizId: actorId, operation, currentEmission, nextEmission, amountPhiMicro: preview.amountPhiMicro });
+  return service.execute({
+    type: "resource.material.harvest",
+    source,
+    sourceHead: current.head,
+    actorPosition: source.position,
+    operation,
+    emission: nextEmission,
+    amountPhiMicro: preview.amountPhiMicro,
+    phiAward: award,
+    commandId: `command:material:solo:${ordinal}`
+  }, { actorId, canonical: true, pulse: timestamp, occurredAt: timestamp, uPulse });
+}
+
 describe("shared-world steward commands", () => {
+  it("admits baseline tree and stone gathering without a creature, mandate, or card", () => {
+    const service = new WildsWorldService();
+    service.tickGroves({ pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse, systemActorId: "receiz:pulse" });
+    const timber = sourceOf("timber");
+    const stone = sourceOf("stone");
+
+    const timberResult = soloHarvest(service, timber, baseUPulse + 1, 1);
+    const stoneResult = soloHarvest(service, stone, baseUPulse + 2, 2);
+    const lots = Object.values(stoneResult.projection.materialLots);
+
+    assert.equal(lots.length, 2);
+    assert.deepEqual(lots.map((lot) => lot.kind).sort(), ["stone", "timber"]);
+    assert.equal(lots.every((lot) => lot.contributors.creatureSubjectId === undefined), true);
+    assert.equal(Object.keys(stoneResult.projection.stewardPhiAwards).length, 2);
+    assert.notEqual(stoneResult.projection.worldEmission?.head, timberResult.projection.worldEmission?.head);
+  });
+
   it("persists place, contribution, and companion work as three causal construction stages", () => {
     const service = new WildsWorldService();
     service.tickGroves({ pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse, systemActorId: "receiz:pulse" });

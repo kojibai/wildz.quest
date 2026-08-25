@@ -15,8 +15,8 @@ export type WildsWorkCapabilityMeter = Readonly<{
 type WildsVisibleWorkFamily = Extract<WildsResourceWorkFamily, "lumber" | "quarry">;
 
 const DESCRIPTORS: Record<WildsVisibleWorkFamily, Readonly<{ label: string; guidance: string }>> = {
-  lumber: { label: "Woodland", guidance: "Tend and harvest living timber in right relation." },
-  quarry: { label: "Quarry", guidance: "Read and shape harvestable stone without waste." }
+  lumber: { label: "Woodland assist", guidance: "Improves timber work when this companion joins you." },
+  quarry: { label: "Quarry assist", guidance: "Improves stone work when this companion joins you." }
 };
 
 export function projectWildsWorkCapabilityMeters(asset: PortableCardAsset | null, condition?: AdventureCardCondition | null): readonly WildsWorkCapabilityMeter[] {
@@ -33,6 +33,20 @@ export function projectWildsWorkCapabilityMeters(asset: PortableCardAsset | null
     value,
     state
   }));
+}
+
+export function selectWildsResourceWorkPartner(
+  assets: readonly PortableCardAsset[],
+  conditions: Readonly<Record<string, AdventureCardCondition | undefined>>,
+  family: WildsResourceWorkFamily,
+  activeAssetId?: string | null
+): PortableCardAsset | null {
+  const ready = assets.filter((asset) => {
+    const condition = conditions[asset.id];
+    if (condition && (condition.life === "dead" || condition.retiredAt || condition.fatigue >= 85 || condition.injuries.length >= 4)) return false;
+    return projectWildsCreatureWorkFamilies(creatureForm(asset.manifest.formId)?.element ?? "").includes(family);
+  });
+  return ready.find((asset) => asset.id === activeAssetId) ?? ready[0] ?? null;
 }
 
 export function wildsWorkCapabilityDescription(family: WildsVisibleWorkFamily) {

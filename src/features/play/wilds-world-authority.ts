@@ -19,7 +19,6 @@ export function worldCommandRequiresCard(command: WildsWorldCommand) {
     || command.type === "ecology.contribute"
     || command.type === "story.trainer_battle"
     || command.type === "story.tournament_enter"
-    || command.type === "resource.material.harvest"
     || command.type === "construction.site.place"
     || command.type === "construction.site.contribute"
     || command.type === "construction.site.work"

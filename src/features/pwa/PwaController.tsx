@@ -2,21 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  pwaControllerChangeAction,
   WILDZ_CARE_NOTIFICATIONS_READY,
   WILDZ_ENABLE_CARE_NOTIFICATIONS,
   WILDZ_APPLY_UPDATE_MESSAGE,
   WILDZ_PREPARE_LOCAL_VOICE_MESSAGE
 } from "@/features/pwa/pwa-events";
+import { activateWaitingUpdate } from "@/features/pwa/pwa-update";
 
 type BeforeInstallPromptEvent = Event & {
   prompt(): Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 };
 
-type UpdateStatus = "idle" | "applying" | "applied" | "failed";
-
-const UPDATE_TIMEOUT_MS = 15_000;
+type UpdateStatus = "idle" | "applying" | "applied";
 
 export function PwaController() {
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
@@ -24,8 +22,7 @@ export function PwaController() {
   const [online, setOnline] = useState(true);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
   const applyingUpdateRef = useRef(false);
-  const updateRequestedRef = useRef(false);
-  const updateTimeoutRef = useRef<number | null>(null);
+  const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,12 +34,6 @@ export function PwaController() {
       promptEvent.preventDefault();
       setInstallPrompt(promptEvent);
     };
-    const clearUpdateTimeout = () => {
-      if (updateTimeoutRef.current === null) return;
-      window.clearTimeout(updateTimeoutRef.current);
-      updateTimeoutRef.current = null;
-    };
-
     setOnline(navigator.onLine);
     window.addEventListener("online", updateOnlineStatus);
     window.addEventListener("offline", updateOnlineStatus);
@@ -64,18 +55,6 @@ export function PwaController() {
       };
     }
 
-    const handleControllerChange = () => {
-      if (pwaControllerChangeAction(updateRequestedRef.current) === "ignore") return;
-      updateRequestedRef.current = false;
-      applyingUpdateRef.current = false;
-      clearUpdateTimeout();
-      if (cancelled) return;
-      setWaiting(null);
-      setUpdateStatus("applied");
-      window.dispatchEvent(new Event("wildz:preserve-state"));
-      window.requestAnimationFrame(() => window.location.reload());
-    };
-
     const watchWorker = (worker: ServiceWorker | null) => {
       if (!worker || stateListeners.has(worker)) return;
       const handleStateChange = () => {
@@ -84,13 +63,7 @@ export function PwaController() {
           setWaiting(worker);
           setUpdateStatus("idle");
         }
-        if (worker.state === "redundant" && updateRequestedRef.current) {
-          updateRequestedRef.current = false;
-          applyingUpdateRef.current = false;
-          clearUpdateTimeout();
-          setWaiting(null);
-          setUpdateStatus("failed");
-        }
+        if (worker.state === "redundant") setWaiting((current) => current === worker ? null : current);
       };
       stateListeners.set(worker, handleStateChange);
       worker.addEventListener("statechange", handleStateChange);
@@ -106,6 +79,7 @@ export function PwaController() {
       }).then((activeRegistration) => {
         if (cancelled) return;
         registration = activeRegistration;
+        registrationRef.current = activeRegistration;
         if (registration.waiting) {
           setWaiting(registration.waiting);
           setUpdateStatus("idle");
@@ -125,7 +99,6 @@ export function PwaController() {
       });
     };
 
-    navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
     const idle: number = typeof window.requestIdleCallback === "function"
       ? window.requestIdleCallback(register)
       : window.setTimeout(register, 1200);
@@ -133,13 +106,11 @@ export function PwaController() {
     return () => {
       cancelled = true;
       applyingUpdateRef.current = false;
-      updateRequestedRef.current = false;
-      clearUpdateTimeout();
+      registrationRef.current = null;
       window.removeEventListener("online", updateOnlineStatus);
       window.removeEventListener("offline", updateOnlineStatus);
       window.removeEventListener("beforeinstallprompt", captureInstallPrompt);
       window.removeEventListener(WILDZ_ENABLE_CARE_NOTIFICATIONS, enableCareNotifications);
-      navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
       registration?.removeEventListener("updatefound", handleUpdateFound);
       for (const [worker, listener] of stateListeners) worker.removeEventListener("statechange", listener);
       if (typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(idle);
@@ -161,34 +132,28 @@ export function PwaController() {
   const applyUpdate = async () => {
     if (!waiting || applyingUpdateRef.current) return;
     applyingUpdateRef.current = true;
-    updateRequestedRef.current = true;
     setUpdateStatus("applying");
     window.dispatchEvent(new Event("wildz:preserve-state"));
     await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
 
-    if (waiting.state === "redundant") {
-      applyingUpdateRef.current = false;
-      updateRequestedRef.current = false;
-      setWaiting(null);
-      setUpdateStatus("failed");
-      return;
-    }
-
-    updateTimeoutRef.current = window.setTimeout(() => {
-      applyingUpdateRef.current = false;
-      updateTimeoutRef.current = null;
-      setUpdateStatus("failed");
-    }, UPDATE_TIMEOUT_MS);
-
     try {
-      waiting.postMessage({ type: WILDZ_APPLY_UPDATE_MESSAGE });
+      const registration = registrationRef.current
+        ?? await navigator.serviceWorker.getRegistration();
+      if (!registration) throw new Error("wildz_update_registration_unavailable");
+      await activateWaitingUpdate({
+        serviceWorkers: navigator.serviceWorker,
+        registration,
+        renderedWorker: waiting,
+        message: { type: WILDZ_APPLY_UPDATE_MESSAGE }
+      });
     } catch {
-      applyingUpdateRef.current = false;
-      updateRequestedRef.current = false;
-      if (updateTimeoutRef.current !== null) window.clearTimeout(updateTimeoutRef.current);
-      updateTimeoutRef.current = null;
-      setUpdateStatus("failed");
+      // A navigation still fetches the deployed document network-first and
+      // lets the browser finish any activation that advanced during the tap.
+      void registrationRef.current?.update().catch(() => undefined);
     }
+    setWaiting(null);
+    setUpdateStatus("applied");
+    window.requestAnimationFrame(() => window.location.reload());
   };
 
   const applying = updateStatus === "applying";
@@ -203,17 +168,14 @@ export function PwaController() {
       ) : null}
       {online && waiting ? (
         <>
-          <span>{applying ? "Applying update…" : updateStatus === "failed" ? "Update paused" : "Update ready"}</span>
+          <span>{applying ? "Applying update…" : "Update ready"}</span>
           <button type="button" disabled={applying} onClick={() => void applyUpdate()}>
-            {applying ? "Applying…" : updateStatus === "failed" ? "Retry update" : "Apply update"}
+            {applying ? "Applying…" : "Apply update"}
           </button>
         </>
       ) : null}
       {updateStatus === "applied" ? (
         <span role="status" aria-live="polite">Update applied. New Wildz assets are ready.</span>
-      ) : null}
-      {updateStatus === "failed" && !waiting ? (
-        <span role="status" aria-live="polite">Update could not be applied. Wildz will retry when another update is ready.</span>
       ) : null}
     </div>
   );

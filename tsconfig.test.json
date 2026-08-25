@@ -23,6 +23,7 @@
     "src/lib/launch/readiness.ts",
     "src/lib/pwa/cache-policy.ts",
     "src/lib/pwa/manifest.ts",
+    "src/features/pwa/pwa-update.ts",
     "src/lib/import/commerce-importer.ts",
     "src/lib/media/image-upload.ts",
     "src/lib/storage/pending-publish.ts",

@@ -158,7 +158,7 @@ import { initialWildsHarvestedSourceState, projectWildsCreatureWorkFamilies, sel
 import { projectWildsResourceAvailability, type WildsResourceSource } from "@/features/play/wilds-resource-authority";
 import { projectWildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
 import type { WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
-import { projectWildsWorkCapabilityMeters } from "@/features/play/wilds-work-capability";
+import { projectWildsWorkCapabilityMeters, selectWildsResourceWorkPartner } from "@/features/play/wilds-work-capability";
 import { projectWildsStewardCraft, projectWildsStewardPlacement, type WildsStewardBlueprintId, type WildsStewardPlacement } from "@/features/play/wilds-steward-craft";
 import { WildsStewardCraftPanel } from "@/features/play/WildsStewardCraftPanel";
 import { WildsStewardPlacementHud } from "@/features/play/WildsStewardPlacementHud";
@@ -1149,21 +1149,27 @@ export function PlayCampaign({
     workMeters: stewardWorkMeters
   }), [activeAsset?.manifest.name, activeCard.name, availableMaterialLots, livingWorld.pendingCommand, stewardPlacementMode, stewardWorkMeters]);
 
-  const createStewardMandate = (professions: readonly string[], allowedResourceIds: readonly string[], region: { x: number; z: number }) => {
-    if (!activeAsset || !activeCondition) throw new Error("Choose a rested companion to work beside you.");
-    const creatureHead = sha256PortableBasis(activeAsset.proof.digest);
-    const creatureSubjectId = `creature:${sha256PortableBasis(activeAsset.id).slice(0, 32)}`;
+  const createStewardMandate = (
+    professions: readonly string[],
+    allowedResourceIds: readonly string[],
+    region: { x: number; z: number },
+    partner = activeAsset,
+    partnerCondition = activeCondition
+  ) => {
+    if (!partner || !partnerCondition) throw new Error("Choose a rested companion to work beside you.");
+    const creatureHead = sha256PortableBasis(partner.proof.digest);
+    const creatureSubjectId = `creature:${sha256PortableBasis(partner.id).slice(0, 32)}`;
     const normalizedProfessions = [...new Set(professions)].sort((left, right) => left.localeCompare(right));
     const consent = evaluateWildsCreatureConsent({
       creatureSubjectId,
       creatureHead,
       condition: {
-        energy: Math.max(0, 100 - activeCondition.fatigue),
-        fatigue: activeCondition.fatigue,
-        injury: Math.min(100, activeCondition.injuries.length * 24),
-        stress: Math.min(100, Math.round(activeCondition.fatigue * .6))
+        energy: Math.max(0, 100 - partnerCondition.fatigue),
+        fatigue: partnerCondition.fatigue,
+        injury: Math.min(100, partnerCondition.injuries.length * 24),
+        stress: Math.min(100, Math.round(partnerCondition.fatigue * .6))
       },
-      bond: state.companionProgress[activeAsset.manifest.familyId]?.bond ?? 70,
+      bond: state.companionProgress[partner.manifest.familyId]?.bond ?? 70,
       preferences: { professions: normalizedProfessions, avoidHazards: [] },
       capabilities: { professions: normalizedProfessions },
       safety: { risk: 6, hazards: [], supportAvailable: multiplayer.remotePlayers.length > 0 },
@@ -1187,25 +1193,14 @@ export function PlayCampaign({
   const gatherStewardResource = async (source: WildsResourceSource) => {
     if (!canUseWorldStage() || livingWorld.pendingCommand) return;
     if (Math.hypot(source.position.x - state.player.x, source.position.z - state.player.z) > 5.5) {
-      setRiftError(`Move beside the ${source.kind === "timber" ? "fallen timber" : "stone outcrop"} so your companion can work with you.`);
+      setRiftError(`Move beside the ${source.kind === "timber" ? "tree" : "stone"}, then touch its glowing ring to gather it.`);
       return;
     }
     try {
-      if (!activeAsset) throw new Error("Choose a companion to work beside you.");
-      if (!activeCondition || activeCondition.fatigue >= 85 || activeCondition.injuries.length >= 4) {
-        throw new Error(`${activeAsset.manifest.name} needs to recover before working. Make camp together, then return when the work meter is restored.`);
-      }
-      const element = creatureForm(activeAsset.manifest.formId)?.element ?? "";
-      const workFamilies = projectWildsCreatureWorkFamilies(element);
-      if (!workFamilies.includes(source.requirements.creature)) {
-        const remaining = projectWildsResourceAvailability(source, {
-          admittedHarvestedCapacity: livingWorld.snapshot?.harvestedSources[source.sourceId]?.harvestedCapacity ?? 0,
-          lastHarvestKaiPulse: livingWorld.snapshot?.harvestedSources[source.sourceId]?.lastHarvestKaiPulse ?? "0",
-          currentKaiPulse: String(kaiUPulse)
-        }).availableCapacity;
-        throw new Error(source.kind === "timber"
-          ? `You observe living timber: quality ${source.quality}/5 · ${remaining}/${source.capacity} capacity. Choose a card marked Woodland to gather it.`
-          : `You observe foundation stone: quality ${source.quality}/5 · ${remaining}/${source.capacity} capacity. Choose a card marked Quarry to gather it.`);
+      const partner = selectWildsResourceWorkPartner(state.inventory, state.adventureConditions, source.requirements.creature, activeAsset?.id);
+      const partnerCondition = partner ? state.adventureConditions[partner.id] ?? emptyAdventureCondition(partner.id) : null;
+      if (partner && partner.id !== activeAsset?.id) {
+        setState((current) => applyWildsInput(current, { type: "select-asset", assetId: partner.id }));
       }
       const current = livingWorld.snapshot?.harvestedSources[source.sourceId] ?? initialWildsHarvestedSourceState(source);
       const availability = projectWildsResourceAvailability(source, {
@@ -1216,11 +1211,20 @@ export function PlayCampaign({
       if (availability.availableCapacity === 0) {
         throw new Error(`This ${source.kind === "timber" ? "tree" : "stone"} is recovering. Its dim base ring and returning capacity marks show when it can be tended again.`);
       }
-      const mandate = createStewardMandate([source.requirements.creature], [source.sourceId], { x: source.regionX, z: source.regionZ });
+      const mandate = partner && partnerCondition
+        ? createStewardMandate([source.requirements.creature], [source.sourceId], { x: source.regionX, z: source.regionZ }, partner, partnerCondition)
+        : undefined;
+      let partnerAdmission: WildzVaultCardMembershipProof | null = null;
+      try {
+        if (!partner) throw new Error("solo_harvest");
+        partnerAdmission = createWildzVaultCardMembershipProof(currentVaultAdmission, partner);
+      } catch {
+        partnerAdmission = null;
+      }
       if (workPresentationTimerRef.current !== null) window.clearTimeout(workPresentationTimerRef.current);
       setActiveWorkSource({ sourceId: source.sourceId, kind: source.kind === "timber" ? "timber" : "stone", position: source.position, startedAtMs: performance.now(), settledAtMs: null });
       const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
-      const projection = await livingWorld.harvestMaterial(source, current.head, state.player, mandate);
+      const projection = await livingWorld.harvestMaterial(source, current.head, state.player, mandate, partner ? { card: partner, cardAdmission: partnerAdmission } : null);
       setActiveWorkSource((active) => active?.sourceId === source.sourceId ? { ...active, settledAtMs: performance.now() } : active);
       workPresentationTimerRef.current = window.setTimeout(() => {
         setActiveWorkSource((active) => active?.sourceId === source.sourceId ? null : active);
@@ -1228,10 +1232,10 @@ export function PlayCampaign({
       }, 850);
       const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
       const awardMessage = award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the work.` : "";
-      setRiftError(`${activeAsset.manifest.name} worked beside you. One exact ${source.kind} lot entered your Satchel.${awardMessage}`);
+      setRiftError(`${partner ? `${partner.manifest.name} joined you. ` : ""}One ${source.kind} lot entered your Satchel.${awardMessage}`);
     } catch (error) {
       setActiveWorkSource((active) => active?.sourceId === source.sourceId ? null : active);
-      handleStoryCommandError(error, "That work could not complete. Read the source ring, your companion's work meter, and the exact guidance shown here.");
+      handleStoryCommandError(error, `Stay beside this ${source.kind === "timber" ? "tree" : "stone"} ring while the living world refreshes it.`);
     }
   };
 

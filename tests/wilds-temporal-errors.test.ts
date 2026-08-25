@@ -27,5 +27,8 @@ describe("Wilds temporal continuity errors", () => {
   it("explains steward validation without implying Receiz denied authority", () => {
     assert.equal(friendlyWildsGameplayError(new Error("wilds_world_resource_mandate_invalid")), "Choose a rested companion whose card shows the work this source needs.");
     assert.equal(friendlyWildsGameplayError(new Error("wilds_world_resource_source_stale")), "This source changed in the shared world. Its current state is refreshing—touch it again.");
+    assert.equal(friendlyWildsGameplayError(new Error("wilds_steward_source_unreachable")), "Move beside the glowing source ring, then touch the tree or stone.");
+    assert.equal(friendlyWildsGameplayError(new Error("wilds_steward_source_exhausted")), "This source is resting. Choose another bright source ring while it regrows.");
+    assert.equal(friendlyWildsGameplayError(new Error("wilds_world_steward_identity_required")), "Your Receiz ID is active locally. Reopen this source after identity sync finishes.");
   });
 });

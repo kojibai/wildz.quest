@@ -59,11 +59,9 @@ test("applying an update preserves state for a frame and uses the shared message
 test("update activation preserves state and reloads into one coherent Next release", () => {
   const source = readFileSync("src/features/pwa/PwaController.tsx", "utf8");
 
-  assert.match(source, /addEventListener\("controllerchange"/);
   assert.match(source, /aria-live="polite"/);
   assert.match(source, /Update applied/);
-  assert.match(source, /Retry update/);
-  assert.match(source, /clearTimeout/);
-  assert.match(source, /updateRequestedRef/);
+  assert.doesNotMatch(source, /Retry update/);
+  assert.match(source, /activateWaitingUpdate/);
   assert.match(source, /location\.reload/);
 });

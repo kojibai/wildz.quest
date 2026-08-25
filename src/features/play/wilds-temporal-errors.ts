@@ -5,7 +5,15 @@ const TEMPORAL_CONTINUITY_CODES = new Set([
 
 const ACTIONABLE_WORLD_ERRORS: Record<string, string> = {
   wilds_world_resource_mandate_invalid: "Choose a rested companion whose card shows the work this source needs.",
+  wilds_world_active_card_required: "Bring a living companion beside the source, then touch it.",
+  wilds_world_verified_card_required: "This companion card is still sealing. Keep it selected and touch the source when its verified mark appears.",
+  wilds_world_steward_identity_required: "Your Receiz ID is active locally. Reopen this source after identity sync finishes.",
+  wilds_world_emission_required: "The living world is still arriving. Stay beside this source while it becomes ready.",
   wilds_world_resource_source_stale: "This source changed in the shared world. Its current state is refreshing—touch it again.",
+  wilds_steward_source_unreachable: "Move beside the glowing source ring, then touch the tree or stone.",
+  wilds_steward_creature_unqualified: "This companion cannot perform this kind of work. Touch the source again after a matching companion steps forward.",
+  wilds_steward_creature_unwilling: "Your companion needs care before working. Make camp together, then return.",
+  wilds_steward_source_exhausted: "This source is resting. Choose another bright source ring while it regrows.",
   wilds_world_material_tool_invalid: "The equipped field tool no longer matches this work. Reopen Steward Craft and equip a usable tool.",
   wilds_world_tool_workstation_invalid: "Build and approach your own Steward Workbench before shaping that tool.",
   wilds_world_tool_workstation_unreachable: "Move beside your Steward Workbench before shaping that tool.",

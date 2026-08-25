@@ -281,11 +281,15 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
   const actor = await resolveWildsMultiplayerActor(request, value.guestId);
   const command = value.command as WildsWorldCommand;
   const kai = verifyWildsWorldCommandKai(command);
-  const card = worldCommandRequiresCard(command) ? value.card as PortableCardAsset | undefined : undefined;
-  if (worldCommandRequiresCard(command)) authorizeWildsMultiplayerCard(actor, card, value.cardAdmission);
+  const optionalHarvestCard = command.type === "resource.material.harvest" && value.card
+    ? value.card as PortableCardAsset
+    : undefined;
+  const card = worldCommandRequiresCard(command) ? value.card as PortableCardAsset | undefined : optionalHarvestCard;
+  if (card) authorizeWildsMultiplayerCard(actor, card, value.cardAdmission);
+  else if (worldCommandRequiresCard(command)) authorizeWildsMultiplayerCard(actor, card, value.cardAdmission);
   await hydrateWildsWorldFromReceiz(request);
   if (actor.practice) {
-    if (command.type === "resource.material.harvest" || command.type === "structure.trail-shelter.build" || command.type === "structure.trail-bridge.build"
+    if (command.type === "structure.trail-shelter.build" || command.type === "structure.trail-bridge.build"
       || command.type === "construction.site.place" || command.type === "construction.site.contribute" || command.type === "construction.site.work") {
       throw new Error("wilds_world_steward_identity_required");
     }

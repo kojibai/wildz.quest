@@ -21,6 +21,21 @@ function sourceOf(kind: "timber" | "stone") {
 }
 
 describe("source-authoritative steward construction", () => {
+  it("allows baseline explorer harvesting without a creature partner", () => {
+    const source = sourceOf("timber");
+    const result = createWildsMaterialHarvest({
+      source,
+      current: initialWildsHarvestedSourceState(source),
+      ownerReceizId: "explorer:solo",
+      actorPosition: source.position,
+      kaiUPulse: 100
+    });
+
+    assert.equal(result.lot.contributors.explorerReceizId, "explorer:solo");
+    assert.equal(result.lot.contributors.creatureSubjectId, undefined);
+    assert.equal(result.lot.quantity, 1);
+  });
+
   it("derives level-one natural work from canonical creature affinity", () => {
     assert.deepEqual(projectWildsCreatureWorkFamilies("Grove"), ["lumber"]);
     assert.deepEqual(projectWildsCreatureWorkFamilies("Stone"), ["quarry"]);
