@@ -13,6 +13,7 @@ import {
 import { admitLegacyCard } from "../src/features/play/living-card-proof";
 import {
   canonicalPortableCardJson,
+  portableCardExchangeAsset,
   portableCardBaseProofAsset,
   portableCardStatusLabel,
   sealCollectedCard
@@ -29,6 +30,20 @@ test("valid local and globally projected card seals share the verified player-fa
   assert.equal(portableCardStatusLabel("sealed_local"), "verified");
   assert.equal(portableCardStatusLabel("verified"), "verified");
   assert.equal(portableCardStatusLabel("listed"), "listed");
+});
+
+test("a verified local card proof can enter exchange before global status projection", () => {
+  const card = sealCollectedCard({
+    formId: "voltray-1",
+    ownerReceizId: "source_keeper",
+    encounterId: "source-authority-exchange",
+    capturedAt: "2026-08-25T12:00:00.000Z"
+  });
+
+  assert.equal(card.status, "sealed_local");
+  const exchange = portableCardExchangeAsset(card, 500, "source_keeper");
+  assert.equal(exchange.verifiedArtifact?.sha256Basis, card.proof.digest);
+  assert.equal(exchange.ownerId, "source_keeper");
 });
 
 function trainedCard() {

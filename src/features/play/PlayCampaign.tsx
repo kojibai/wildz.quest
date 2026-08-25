@@ -58,11 +58,12 @@ import { resolveWildsContextAction } from "@/features/play/wilds-context-action"
 import { createWildsCreatureMandate, evaluateWildsCreatureConsent } from "@/features/play/wilds-creature-mandate";
 import { admitWildsGroveAction, previewWildsGroveAction, type WildsGroveActionKind } from "@/features/play/wilds-regenerative-grove";
 import { admitWildsEmissionOutcome } from "@/features/play/wilds-world-emission";
+import { wildsWorldSourceEmission } from "@/features/play/wilds-world-genesis";
 import { createWildsGroveResourceLot } from "@/features/play/wilds-resource-lot";
 import type { WildsGroveExperienceAction } from "@/features/play/WildsRegenerativeGroveExperience";
 import { landmarkAtPosition, WILDS_FLAGSHIP_LANDMARKS, type WildsLandmarkId } from "@/features/play/wilds-landmarks";
 import { evaluateLandmarkAccess, type WildsLandmarkProgress } from "@/features/play/wilds-landmark-access";
-import type { RiftTravelGrant } from "@/features/play/wilds-rift-travel";
+import { authorizeRiftTravel, type RiftTravelGrant } from "@/features/play/wilds-rift-travel";
 import { projectWildzHud } from "@/features/play/wildz-gameplay-hud";
 import { shouldRunWildzOffHotPathWork } from "@/features/play/wilds-network-status";
 import { WildzReferenceHud } from "@/features/play/WildzReferenceHud";
@@ -426,6 +427,26 @@ export function PlayCampaign({
   const [raidReturnPosition, setRaidReturnPosition] = useState<{ x: number; z: number } | null>(null);
   const [raidBusyIntent, setRaidBusyIntent] = useState<WildsRaidIntent["type"] | null>(null);
   const [riftError, setRiftError] = useState("");
+  const [worldFeedbackRevision, setWorldFeedbackRevision] = useState(0);
+  const worldFeedbackTimerRef = useRef<number | null>(null);
+  const beginWorldActionFeedback = useCallback(() => {
+    if (worldFeedbackTimerRef.current !== null) window.clearTimeout(worldFeedbackTimerRef.current);
+    worldFeedbackTimerRef.current = null;
+    setRiftError("");
+    setWorldFeedbackRevision((revision) => revision + 1);
+  }, []);
+  const showWorldFeedback = useCallback((message: string) => {
+    if (worldFeedbackTimerRef.current !== null) window.clearTimeout(worldFeedbackTimerRef.current);
+    setRiftError(message);
+    setWorldFeedbackRevision((revision) => revision + 1);
+    worldFeedbackTimerRef.current = window.setTimeout(() => {
+      setRiftError("");
+      worldFeedbackTimerRef.current = null;
+    }, 4_800);
+  }, []);
+  useEffect(() => () => {
+    if (worldFeedbackTimerRef.current !== null) window.clearTimeout(worldFeedbackTimerRef.current);
+  }, []);
   const [stewardPlacementMode, setStewardPlacementMode] = useState<WildsStewardBlueprintId | null>(null);
   const [stewardPlacementPreview, setStewardPlacementPreview] = useState<WildsStewardPlacement | null>(null);
   const [requestedCommand, setRequestedCommand] = useState<WildsCommandKey | null>(null);
@@ -812,8 +833,8 @@ export function PlayCampaign({
   const refreshLivingWorld = livingWorld.refresh;
   const handleStoryCommandError = useCallback((error: unknown, fallback: string) => {
     if (isWildsTemporalContinuityError(error)) void refreshLivingWorld();
-    setRiftError(friendlyWildsGameplayError(error, fallback));
-  }, [refreshLivingWorld]);
+    showWorldFeedback(friendlyWildsGameplayError(error, fallback));
+  }, [refreshLivingWorld, showWorldFeedback]);
   const kaiMoment = resolveWildsRuntimeKaiMoment({
     uPulse: kaiUPulse,
     mode: livingWorld.mode,
@@ -1100,7 +1121,8 @@ export function PlayCampaign({
     });
   }, [activeAsset, activeCondition, activeGrove, kaiMoment.uPulse, multiplayer.remotePlayers.length]);
   const activeGrovePreviews = useMemo(() => {
-    if (!activeGrove || !livingWorld.snapshot?.worldEmission) return [];
+    if (!activeGrove) return [];
+    const emission = wildsWorldSourceEmission(livingWorld.snapshot);
     return activeGrove.availableActions.map((action) => previewWildsGroveAction({
       grove: activeGrove,
       action,
@@ -1108,7 +1130,7 @@ export function PlayCampaign({
       ...(activeGroveMandate ? { mandate: activeGroveMandate } : {}),
       weather: activeGrove.weather,
       moment: kaiMoment,
-      emission: livingWorld.snapshot!.worldEmission!
+      emission
     }));
   }, [activeGrove, activeGroveMandate, kaiMoment, livingWorld.snapshot, ownerReceizId]);
   const activeGroveActions = useMemo<WildsGroveExperienceAction[]>(() => activeGrovePreviews.map((preview) => ({
@@ -1193,8 +1215,9 @@ export function PlayCampaign({
 
   const gatherStewardResource = async (source: WildsResourceSource) => {
     if (!canUseWorldStage() || livingWorld.pendingCommand) return;
+    beginWorldActionFeedback();
     if (Math.hypot(source.position.x - state.player.x, source.position.z - state.player.z) > 5.5) {
-      setRiftError(`Move beside the ${source.kind === "timber" ? "tree" : "stone"}, then touch its glowing ring to gather it.`);
+      showWorldFeedback(`Move beside the ${source.kind === "timber" ? "tree" : "stone"}, then touch its glowing ring to gather it.`);
       return;
     }
     try {
@@ -1233,7 +1256,7 @@ export function PlayCampaign({
       }, 850);
       const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
       const awardMessage = award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the work.` : "";
-      setRiftError(`${partner ? `${partner.manifest.name} joined you. ` : ""}One ${source.kind} lot entered your Satchel.${awardMessage}`);
+      showWorldFeedback(`${partner ? `${partner.manifest.name} joined you. ` : ""}One ${source.kind} lot entered your Satchel.${awardMessage}`);
     } catch (error) {
       setActiveWorkSource((active) => active?.sourceId === source.sourceId ? null : active);
       handleStoryCommandError(error, `Stay beside this ${source.kind === "timber" ? "tree" : "stone"} ring while the living world refreshes it.`);
@@ -1242,15 +1265,16 @@ export function PlayCampaign({
 
   const placeTrailShelter = async (position: { x: number; z: number }) => {
     if (stewardPlacementMode !== "trail-shelter" || livingWorld.pendingCommand) return;
+    beginWorldActionFeedback();
     if (Math.hypot(position.x - state.player.x, position.z - state.player.z) > 7) {
-      setRiftError("Place the shelter within reach of you and your companion.");
+      showWorldFeedback("Place the shelter within reach of you and your companion.");
       return;
     }
     try {
       await livingWorld.placeConstructionSite("trail-shelter", position, state.player, 0);
       setStewardPlacementMode(null);
       setStewardPlacementPreview(null);
-      setRiftError("A Trail Shelter site now lives here. Approach its mint ring to contribute exact timber and stone, then work beside your companion.");
+      showWorldFeedback("A Trail Shelter site now lives here. Approach its mint ring to contribute exact timber and stone, then work beside your companion.");
     } catch (error) {
       handleStoryCommandError(error, "That place cannot hold a shelter yet.");
     }
@@ -1258,8 +1282,9 @@ export function PlayCampaign({
 
   const placeTrailBridge = async (position: { x: number; z: number }) => {
     if (stewardPlacementMode !== "trail-bridge" || livingWorld.pendingCommand) return;
+    beginWorldActionFeedback();
     if (Math.hypot(position.x - state.player.x, position.z - state.player.z) > 7) {
-      setRiftError("Choose a crossing within reach of you and your companion.");
+      showWorldFeedback("Choose a crossing within reach of you and your companion.");
       return;
     }
     try {
@@ -1268,38 +1293,41 @@ export function PlayCampaign({
       await livingWorld.placeConstructionSite("trail-bridge", position, state.player, rotationQuarterTurns);
       setStewardPlacementMode(null);
       setStewardPlacementPreview(null);
-      setRiftError("A Trail Bridge site now marks this crossing. Bring its exact timber and stone, then finish it with a willing companion.");
+      showWorldFeedback("A Trail Bridge site now marks this crossing. Bring its exact timber and stone, then finish it with a willing companion.");
     } catch (error) {
       handleStoryCommandError(error, "That crossing cannot hold a bridge yet.");
     }
   };
 
   const contributeNearbyConstructionSite = async (site: WildsConstructionSiteV1) => {
+    beginWorldActionFeedback();
     const haveTimber = site.contributedLots.filter((entry) => entry.kind === "timber").length;
     const haveStone = site.contributedLots.filter((entry) => entry.kind === "stone").length;
     const timber = availableMaterialLots.filter((lot) => lot.kind === "timber").slice(0, site.materialsRequired.timber - haveTimber);
     const stone = availableMaterialLots.filter((lot) => lot.kind === "stone").slice(0, site.materialsRequired.stone - haveStone);
     const lots = [...timber, ...stone];
-    if (!lots.length) return setRiftError(`This site still needs ${site.materialsRequired.timber - haveTimber} timber and ${site.materialsRequired.stone - haveStone} stone. Gather either living source and return.`);
+    if (!lots.length) return showWorldFeedback(`This site still needs ${site.materialsRequired.timber - haveTimber} timber and ${site.materialsRequired.stone - haveStone} stone. Gather either living source and return.`);
     try {
       const projection = await livingWorld.contributeConstructionSite(site.siteId, site.head, state.player, lots.map((lot) => lot.lotId));
       const next = projection.constructionSites[site.siteId];
-      setRiftError(next?.stage === "materials-ready" ? "Every exact lot is now held by the site. Your companion can work beside you to raise it." : "Your exact lots are now visible in this site. Other stewards can add what remains.");
+      showWorldFeedback(next?.stage === "materials-ready" ? "Every exact lot is now held by the site. Your companion can work beside you to raise it." : "Your exact lots are now visible in this site. Other stewards can add what remains.");
     } catch (error) { handleStoryCommandError(error, "Those exact lots could not enter this site yet."); }
   };
 
   const workNearbyConstructionSite = async (site: WildsConstructionSiteV1) => {
+    beginWorldActionFeedback();
     try {
       const mandate = createStewardMandate(["build"], [], { x: Math.floor(site.position.x / 128), z: Math.floor(site.position.z / 128) });
       const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
       const projection = await livingWorld.workConstructionSite(site.siteId, site.head, state.player, mandate);
       const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
-      setRiftError(`${site.blueprint === "trail-shelter" ? "The Trail Shelter now stands" : "The Trail Bridge now joins both banks"} in the shared Wilds.${award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the useful work.` : ""}`);
+      showWorldFeedback(`${site.blueprint === "trail-shelter" ? "The Trail Shelter now stands" : "The Trail Bridge now joins both banks"} in the shared Wilds.${award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the useful work.` : ""}`);
     } catch (error) { handleStoryCommandError(error, "Move beside the funded site with a rested companion who can build."); }
   };
 
   const placeStewardGroundStructure = async (blueprint: "steward-workbench" | "trail-cache", position: { x: number; z: number }) => {
     if (stewardPlacementMode !== blueprint || livingWorld.pendingCommand) return;
+    beginWorldActionFeedback();
     const definition = blueprint === "steward-workbench"
       ? { label: "Steward Workbench", timber: 3, stone: 2, build: livingWorld.buildStewardWorkbench }
       : { label: "Trail Cache", timber: 2, stone: 2, build: livingWorld.buildTrailCache };
@@ -1313,14 +1341,15 @@ export function PlayCampaign({
       const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
       setStewardPlacementMode(null);
       setStewardPlacementPreview(null);
-      setRiftError(`Your ${definition.label} now persists in the shared Wilds.${award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the work.` : ""}`);
+      showWorldFeedback(`Your ${definition.label} now persists in the shared Wilds.${award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the work.` : ""}`);
     } catch (error) {
       handleStoryCommandError(error, `That place cannot hold a ${definition.label.toLowerCase()} yet.`);
     }
   };
 
   const craftStewardTool = async (kind: "steward-axe" | "quarry-pick") => {
-    if (!nearbyStewardWorkbench) return setRiftError("Approach your Steward Workbench before shaping a tool.");
+    beginWorldActionFeedback();
+    if (!nearbyStewardWorkbench) return showWorldFeedback("Approach your Steward Workbench before shaping a tool.");
     try {
       const timber = availableMaterialLots.filter((lot) => lot.kind === "timber").slice(0, 1);
       const stoneNeeded = kind === "steward-axe" ? 1 : 2;
@@ -1328,17 +1357,18 @@ export function PlayCampaign({
       if (timber.length !== 1 || stone.length !== stoneNeeded) throw new Error(`Crafting needs 1 timber and ${stoneNeeded} stone.`);
       const mandate = createStewardMandate(["craft"], [], { x: Math.floor(nearbyStewardWorkbench.position.x / 128), z: Math.floor(nearbyStewardWorkbench.position.z / 128) });
       await livingWorld.craftStewardTool(kind, nearbyStewardWorkbench.structureId, state.player, [...timber, ...stone].map((lot) => lot.lotId), mandate);
-      setRiftError(`${kind === "steward-axe" ? "Steward Axe" : "Quarry Pick"} sealed from exact material proofs. Equip it here when you are ready.`);
+      showWorldFeedback(`${kind === "steward-axe" ? "Steward Axe" : "Quarry Pick"} sealed from exact material proofs. Equip it here when you are ready.`);
     } catch (error) { handleStoryCommandError(error, "That tool could not be shaped yet."); }
   };
 
   const moveStewardMaterial = async (kind: "timber" | "stone", direction: "deposit" | "withdraw") => {
-    if (!nearbyTrailCache) return setRiftError("Approach your Trail Cache first.");
+    beginWorldActionFeedback();
+    if (!nearbyTrailCache) return showWorldFeedback("Approach your Trail Cache first.");
     const lot = direction === "deposit" ? availableMaterialLots.find((candidate) => candidate.kind === kind) : storedStewardLots.find((candidate) => candidate?.kind === kind);
-    if (!lot) return setRiftError(direction === "deposit" ? `No loose ${kind} lot is available.` : `No ${kind} lot is stored here.`);
+    if (!lot) return showWorldFeedback(direction === "deposit" ? `No loose ${kind} lot is available.` : `No ${kind} lot is stored here.`);
     try {
       await livingWorld.moveStoredMaterial(lot.lotId, nearbyTrailCache.structureId, direction, state.player);
-      setRiftError(direction === "deposit" ? `One exact ${kind} lot is now held by this Trail Cache.` : `One exact ${kind} lot returned to your Satchel.`);
+      showWorldFeedback(direction === "deposit" ? `One exact ${kind} lot is now held by this Trail Cache.` : `One exact ${kind} lot returned to your Satchel.`);
     } catch (error) { handleStoryCommandError(error, "That exact lot could not move."); }
   };
 
@@ -1399,6 +1429,7 @@ export function PlayCampaign({
   };
   const dispatchLayeredSearch = (point: { x: number; z: number; surfaceWorldY?: number }) => {
     if (!canUseWorldStage()) return;
+    beginWorldActionFeedback();
     const searchPoint = Number.isFinite(point.surfaceWorldY)
       ? { x: point.x, z: point.z, surfaceWorldY: point.surfaceWorldY! }
       : projectWildsInteractionSurfacePoint(
@@ -1641,11 +1672,12 @@ export function PlayCampaign({
   });
   const enterLivingRaid = (bossId: string) => {
     if (!worldInteractionEnabled) return;
+    beginWorldActionFeedback();
     const admission = beginPlayModalAdmission();
     if (!admission) return;
     const round = Object.values(livingWorld.snapshot?.raids ?? {}).find((candidate) => candidate.bossId === bossId && candidate.phase !== "settled" && candidate.phase !== "expired");
     const boss = livingWorld.snapshot?.bosses[bossId];
-    if (!round) { setRiftError("wilds_world_raid_missing"); return; }
+    if (!round) { showWorldFeedback("wilds_world_raid_missing"); return; }
     setRaidReturnPosition({ ...state.player });
     void livingWorld.enterRaid(bossId, round.id, state.player).then((projection) => {
       const admitted = projection.raids[round.id];
@@ -1657,11 +1689,12 @@ export function PlayCampaign({
       if (boss?.familyId) presentation.playCue(bossAudioCue("telegraph", boss.familyId as WildsBossFamilyId));
     }).catch((error) => {
       if (canCommitModalAdmission(modalAdmissionRef.current, admission)) {
-        setRiftError(error instanceof Error ? error.message : "wilds_raid_join_failed");
+        showWorldFeedback(error instanceof Error ? error.message : "wilds_raid_join_failed");
       }
     });
   };
   const activatePulse = () => {
+    beginWorldActionFeedback();
     if (pulse.kind === "tend") {
       if (!nearbyGrove || nearbyGrove.grove.groveId !== pulse.groveId) return;
       claimPlayModalOwner("ecology");
@@ -1725,7 +1758,7 @@ export function PlayCampaign({
           setActiveEcologySiteId(admitted.id);
         }).catch((error) => {
           if (canCommitModalAdmission(modalAdmissionRef.current, admission)) {
-            setRiftError(error instanceof Error ? error.message : "wilds_ecology_discovery_failed");
+            showWorldFeedback(error instanceof Error ? error.message : "wilds_ecology_discovery_failed");
           }
         });
         return;
@@ -1751,21 +1784,40 @@ export function PlayCampaign({
     else activatePulseFromCommandPanel();
   };
   const riftTo = async (destination: { x: number; z: number }) => {
-    setRiftError("");
-    if (!networkEnabled) {
-      setRiftError("Wildz is connecting your verified Receiz session.");
-      return;
-    }
+    beginWorldActionFeedback();
+    const localRequest = {
+      source: state.player,
+      destination,
+      idempotencyKey: `rift:${crypto.randomUUID()}`
+    };
     try {
+      if (!networkEnabled) {
+        const local = authorizeRiftTravel(localRequest, {
+          playerId: multiplayer.selfId,
+          coordinationPulse: String(kaiMoment.uPulse),
+          locked: modalOwner !== "map"
+        });
+        if (!local.ok) throw new Error(local.error);
+        dispatch({ type: "apply-rift-grant", grant: local.grant, playerId: local.grant.playerId });
+        resetTransientTraversal(local.grant.destination, projectWildsAquaticPresentationAtPosition({
+          ...local.grant.destination,
+          airborne: false,
+          canSwim
+        }).terrainElevation);
+        multiplayer.selectPlayer(null);
+        setActiveLandmarkId(null);
+        releasePlayModalOwner("map");
+        setMapOpen(false);
+        showWorldFeedback("Rift admitted here. Its shared position will synchronize when connection returns.");
+        return;
+      }
       const response = await fetch("/api/wilds/rift", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           roomKey: multiplayer.roomKey,
           guestId: multiplayer.guestId,
-          source: state.player,
-          destination,
-          idempotencyKey: `rift:${crypto.randomUUID()}`
+          ...localRequest
         })
       });
       const result = await response.json().catch(() => null) as { ok?: boolean; grant?: RiftTravelGrant; error?: string } | null;
@@ -1785,7 +1837,7 @@ export function PlayCampaign({
       releasePlayModalOwner("map");
       setMapOpen(false);
     } catch (error) {
-      setRiftError(error instanceof Error ? error.message : "wilds_rift_failed");
+      showWorldFeedback(error instanceof Error ? error.message : "wilds_rift_failed");
     }
   };
   const commandItems: readonly WildsCommandItem[] = [
@@ -1894,10 +1946,11 @@ export function PlayCampaign({
             <article><Icons.products aria-hidden="true" size={18} /><span><small>Living timber</small><strong>{stewardMaterials.timber}</strong></span><em>Exact lots</em></article>
             <article><Icons.package aria-hidden="true" size={18} /><span><small>Foundation stone</small><strong>{stewardMaterials.stone}</strong></span><em>Exact lots</em></article>
           </div>
-          <WildsStewardCraftPanel projection={stewardCraft} nearbySite={nearbyConstructionSite} tools={stewardTools} equippedToolId={livingWorld.snapshot?.equippedStewardTools?.[ownerReceizId] ?? null} nearbyWorkbench={Boolean(nearbyStewardWorkbench)} nearbyCache={Boolean(nearbyTrailCache)} stored={{ timber: storedStewardLots.filter((lot) => lot?.kind === "timber").length, stone: storedStewardLots.filter((lot) => lot?.kind === "stone").length }} onContributeSite={(site) => void contributeNearbyConstructionSite(site)} onWorkSite={(site) => void workNearbyConstructionSite(site)} onCraftTool={(kind) => void craftStewardTool(kind)} onEquipTool={(toolId) => void livingWorld.equipStewardTool(toolId).then(() => setRiftError("Field tool equipped. Matching work now preserves one higher grade of material while durability remains.")).catch((error) => handleStoryCommandError(error, "That tool could not be equipped."))} onStoreMaterial={(kind) => void moveStewardMaterial(kind, "deposit")} onWithdrawMaterial={(kind) => void moveStewardMaterial(kind, "withdraw")} onSelectBlueprint={(blueprintId) => {
+          <WildsStewardCraftPanel projection={stewardCraft} nearbySite={nearbyConstructionSite} tools={stewardTools} equippedToolId={livingWorld.snapshot?.equippedStewardTools?.[ownerReceizId] ?? null} nearbyWorkbench={Boolean(nearbyStewardWorkbench)} nearbyCache={Boolean(nearbyTrailCache)} stored={{ timber: storedStewardLots.filter((lot) => lot?.kind === "timber").length, stone: storedStewardLots.filter((lot) => lot?.kind === "stone").length }} onContributeSite={(site) => void contributeNearbyConstructionSite(site)} onWorkSite={(site) => void workNearbyConstructionSite(site)} onCraftTool={(kind) => void craftStewardTool(kind)} onEquipTool={(toolId) => { beginWorldActionFeedback(); void livingWorld.equipStewardTool(toolId).then(() => showWorldFeedback("Field tool equipped. Matching work now preserves one higher grade of material while durability remains.")).catch((error) => handleStoryCommandError(error, "That tool could not be equipped.")); }} onStoreMaterial={(kind) => void moveStewardMaterial(kind, "deposit")} onWithdrawMaterial={(kind) => void moveStewardMaterial(kind, "withdraw")} onSelectBlueprint={(blueprintId) => {
+            beginWorldActionFeedback();
             setStewardPlacementMode(blueprintId);
             setStewardPlacementPreview(null);
-            setRiftError(blueprintId === "trail-bridge"
+            showWorldFeedback(blueprintId === "trail-bridge"
               ? "Tap a nearby crossing to preview it. Both banks are read before any exact lot can move."
               : "Tap nearby living ground to preview the shelter. No exact lot moves until you confirm.");
             dispatchStageOverlay({ type: "panel", key: null });
@@ -2114,7 +2167,7 @@ export function PlayCampaign({
                   const portal = siteRuntime.physical.portals.find((candidate) => candidate.siteKey === siteKey);
                   const firstSurface = portal ? siteRuntime.physical.surfaces.find((surface) => surface.spaceId === portal.toSpaceId) : null;
                   if (firstSurface?.flooded && !activeTraversalCapabilities.includes("swim")) {
-                    setRiftError("This entrance opens underwater. Lead with a creature that can swim.");
+                    showWorldFeedback("This entrance opens underwater. Lead with a creature that can swim.");
                     return;
                   }
                 }
@@ -2131,7 +2184,7 @@ export function PlayCampaign({
               onCancel={() => {
                 setStewardPlacementMode(null);
                 setStewardPlacementPreview(null);
-                setRiftError("Placement released. The terrain is open to discovery again.");
+                showWorldFeedback("Placement released. The terrain is open to discovery again.");
               }}
               onConfirm={confirmStewardPlacement}
               partnerName={activeAsset?.manifest.name ?? activeCard.name}
@@ -2311,7 +2364,7 @@ export function PlayCampaign({
 
             <div className={`wilds-event-toast${captureToastActive ? " is-capture" : ""}`} aria-live="polite">
               {captureToastActive ? <Icons.seal aria-hidden="true" size={19} /> : null}
-              <span>{riftError || (activeLandmarkId ? `${currentLandmark?.name ?? "Landmark"} entrance awakened.` : state.lastEvent)}</span>
+              <span key={worldFeedbackRevision}>{riftError || (activeLandmarkId ? `${currentLandmark?.name ?? "Landmark"} entrance awakened.` : state.lastEvent)}</span>
               {captureToastActive ? <small>Portable proof sequence</small> : null}
             </div>
           </div>
@@ -2406,10 +2459,8 @@ export function PlayCampaign({
               arenaPathStage: path.stage
             }
           });
-          if (livingWorld.mode === "receiz_live") {
-            void livingWorld.settleTrainerBattle(saga.dayId, activeTrainer.id, outcome)
-              .catch((error) => handleStoryCommandError(error, "Trainer battle progress could not save. Try again."));
-          }
+          void livingWorld.settleTrainerBattle(saga.dayId, activeTrainer.id, outcome)
+            .catch((error) => handleStoryCommandError(error, "Trainer battle progress could not save. Try again."));
         }}
         onExit={() => {
           releasePlayModalOwner("combat");
@@ -2481,10 +2532,11 @@ export function PlayCampaign({
         error={riftError || null}
         onAction={(action) => {
           const preview = activeGrovePreviews.find((candidate) => candidate.action === action);
-          if (!preview?.valid || !activeGroveMandate || !livingWorld.snapshot?.worldEmission || groveBusyAction) return;
+          if (!preview?.valid || !activeGroveMandate || groveBusyAction) return;
+          const emission = wildsWorldSourceEmission(livingWorld.snapshot);
           const nextGrove = admitWildsGroveAction({ grove: activeGrove, preview });
           const nextEmission = admitWildsEmissionOutcome({
-            emission: livingWorld.snapshot.worldEmission,
+            emission,
             operation: preview.operation,
             contributionClass: preview.operation.category === "construction" ? "construction" : "ecology",
             preview: preview.emission
@@ -2496,13 +2548,13 @@ export function PlayCampaign({
             admittedGrove: { groveId: nextGrove.groveId, head: nextGrove.head, parentHead: nextGrove.parentHead, honey: nextGrove.materials.honey }
           });
           setGroveBusyAction(action);
-          setRiftError("");
+          beginWorldActionFeedback();
           void livingWorld.actInGrove(preview.operation, nextGrove, nextEmission, preview.emission.amountPhiMicro, resourceLot)
             .then((projection) => {
               const admitted = projection.groves[activeGrove.groveId];
               if (!admitted || admitted.head !== nextGrove.head) throw new Error("wilds_grove_admission_missing");
             })
-            .catch((cause) => setRiftError(friendlyWildsGameplayError(cause, "The grove is holding this work safely. Try again.")))
+            .catch((cause) => showWorldFeedback(friendlyWildsGameplayError(cause, "The grove is holding this work safely. Try again.")))
             .finally(() => setGroveBusyAction(null));
         }}
         onExit={() => {
@@ -2521,6 +2573,7 @@ export function PlayCampaign({
         error={livingWorld.error || riftError || null}
         onAction={(intent) => {
           if (!activeRaid || !activeAsset || !activeRaidBoss || !activeRaidRoles) return;
+          beginWorldActionFeedback();
           setRaidBusyIntent(intent);
           void livingWorld.actRaid(activeRaid.bossId, activeRaid.roundId, intent).then((projection) => {
             const boss = projection.bosses[activeRaid.bossId];
@@ -2549,7 +2602,7 @@ export function PlayCampaign({
               })
             });
             presentation.playCue(bossAudioCue(boss.phase === "defeated" ? "defeat" : boss.phase === "transforming" ? "transform" : boss.phase === "vulnerable" ? "vulnerable" : "action", boss.familyId as WildsBossFamilyId));
-          }).catch((error) => setRiftError(error instanceof Error ? error.message : "wilds_raid_action_failed")).finally(() => setRaidBusyIntent(null));
+          }).catch((error) => showWorldFeedback(error instanceof Error ? error.message : "wilds_raid_action_failed")).finally(() => setRaidBusyIntent(null));
         }}
         onClose={() => {
           if (!activeRaid) return;
@@ -2561,7 +2614,8 @@ export function PlayCampaign({
         }}
         onLease={(status) => {
           if (!activeRaid) return;
-          void livingWorld.leaseRaid(activeRaid.bossId, activeRaid.roundId, status).then(() => setActiveRaid((current) => current ? { ...current, connected: status === "connected" } : current)).catch((error) => setRiftError(error instanceof Error ? error.message : "wilds_raid_lease_failed"));
+          beginWorldActionFeedback();
+          void livingWorld.leaseRaid(activeRaid.bossId, activeRaid.roundId, status).then(() => setActiveRaid((current) => current ? { ...current, connected: status === "connected" } : current)).catch((error) => showWorldFeedback(error instanceof Error ? error.message : "wilds_raid_lease_failed"));
         }}
         onRetreat={() => {
           if (!activeRaid) return;

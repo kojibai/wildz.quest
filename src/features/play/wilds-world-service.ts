@@ -497,25 +497,28 @@ export class WildsWorldService {
       });
       const currentEmission = wildsWorldSourceEmission(this.projection);
       const preview = previewWildsEmission({ emission: currentEmission, operation, contributionClass: "construction" });
-      if (!preview.eligible || preview.amountPhiMicro === "0") throw new Error("wilds_world_steward_emission_unavailable");
-      const emission = admitWildsEmission({ emission: currentEmission, operation, contributionClass: "construction", preview });
-      const phiAward = createWildsStewardPhiAward({ ownerReceizId: authority.actorId, operation, currentEmission, nextEmission: emission, amountPhiMicro: preview.amountPhiMicro });
-      if (!command.operation || !command.emission || !command.amountPhiMicro || !command.phiAward
-        || canonicalPortableCardJson(command.operation) !== canonicalPortableCardJson(operation)
-        || canonicalPortableCardJson(command.emission) !== canonicalPortableCardJson(emission)
-        || command.amountPhiMicro !== preview.amountPhiMicro
-        || canonicalPortableCardJson(command.phiAward) !== canonicalPortableCardJson(phiAward)) {
-        throw new Error("wilds_world_steward_economy_mismatch");
-      }
+      if (!command.operation || canonicalPortableCardJson(command.operation) !== canonicalPortableCardJson(operation)) throw new Error("wilds_world_steward_operation_mismatch");
+      const economy = preview.eligible && preview.amountPhiMicro !== "0"
+        ? (() => {
+            const emission = admitWildsEmission({ emission: currentEmission, operation, contributionClass: "construction", preview });
+            const phiAward = createWildsStewardPhiAward({ ownerReceizId: authority.actorId, operation, currentEmission, nextEmission: emission, amountPhiMicro: preview.amountPhiMicro });
+            if (!command.emission || !command.amountPhiMicro || !command.phiAward
+              || canonicalPortableCardJson(command.emission) !== canonicalPortableCardJson(emission)
+              || command.amountPhiMicro !== preview.amountPhiMicro
+              || canonicalPortableCardJson(command.phiAward) !== canonicalPortableCardJson(phiAward)) throw new Error("wilds_world_steward_economy_mismatch");
+            return { emission, amountPhiMicro: preview.amountPhiMicro, phiAward };
+          })()
+        : (() => {
+            if (command.emission || command.amountPhiMicro || command.phiAward) throw new Error("wilds_world_steward_economy_mismatch");
+            return null;
+          })();
       events.push(this.append("resource.material_harvested", {
         source: command.source,
         sourceState: harvest.source,
         lot: harvest.lot,
         tool: harvest.tool,
         operation,
-        emission,
-        amountPhiMicro: preview.amountPhiMicro,
-        phiAward
+        ...(economy ?? {})
       }, authority, command.commandId));
     } else if (command.type === "construction.site.place") {
       if (!authority.card) throw new Error("wilds_world_verified_card_required");

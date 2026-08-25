@@ -89,7 +89,14 @@ export async function hydrateWildsWorldFromReceiz(request: NextRequest) {
     ]);
     const record = findWildsWorldRecord(recovered);
     if (record) {
-      root()[serviceKey] = new WildsWorldService({ checkpoint: record.checkpoint, events: record.eventTail });
+      const local = service();
+      const localRecord = { checkpoint: local.checkpoint(), eventTail: local.events() };
+      if (localRecord.checkpoint.revision === 0 || worldRecordContainsHead(record, {
+        revision: localRecord.checkpoint.revision,
+        lastEventId: localRecord.checkpoint.lastEventId
+      })) {
+        root()[serviceKey] = new WildsWorldService({ checkpoint: record.checkpoint, events: record.eventTail });
+      }
     } else {
       delete root()[hydrationKey];
     }
@@ -104,21 +111,25 @@ export async function hydrateWildsWorldFromReceiz(request: NextRequest) {
 
 async function recoverCanonicalWorldBeforeMutation(request: NextRequest, actor?: WildsMultiplayerActor) {
   const local = service();
-  const recovered = await Promise.race([
-    repository().recover(sourceUrl(request), actor),
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("wilds_world_recovery_timeout")), 1_200))
-  ]);
+  let recovered: WildsWorldRecord | null = null;
+  try {
+    recovered = await Promise.race([
+      repository().recover(sourceUrl(request), actor),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("wilds_world_recovery_timeout")), 1_200))
+    ]);
+  } catch {
+    return local;
+  }
   if (recovered) {
     const localRecord = { checkpoint: local.checkpoint(), eventTail: local.events() };
-    if (localRecord.checkpoint.revision > recovered.checkpoint.revision && worldRecordContainsHead(localRecord, {
-      revision: recovered.checkpoint.revision,
-      lastEventId: recovered.checkpoint.lastEventId
+    if (localRecord.checkpoint.revision > 0 && !worldRecordContainsHead(recovered, {
+      revision: localRecord.checkpoint.revision,
+      lastEventId: localRecord.checkpoint.lastEventId
     })) return local;
     const authoritative = new WildsWorldService({ checkpoint: recovered.checkpoint, events: recovered.eventTail });
     root()[serviceKey] = authoritative;
     return authoritative;
   }
-  if (local.checkpoint().revision > 0) throw new Error("wilds_world_canonical_recovery_required");
   return local;
 }
 
@@ -166,15 +177,26 @@ export function bootstrapWildsWorld(request: NextRequest) {
       throw error;
     }
     if (actor.practice) throw new Error("wilds_world_proof_session_required");
-    let recovered;
+    let recovered = null;
     try {
       recovered = await repository().recover(sourceUrl(request), actor);
-    } catch {
-      throw new Error("wilds_world_canonical_recovery_required");
-    }
+    } catch {}
 
     const existing = positiveCanonicalWorld(recovered);
     if (existing) {
+      const local = service();
+      const localHead = local.checkpoint();
+      if (localHead.revision > 0 && !worldRecordContainsHead(existing.record, {
+        revision: localHead.revision,
+        lastEventId: localHead.lastEventId
+      })) {
+        return {
+          projection: local.snapshot(),
+          mode: "kai_live" as const,
+          events: [],
+          publication: { published: false as const, mode: "receiz_recovery_pending" as const, revision: localHead.revision }
+        };
+      }
       root()[serviceKey] = existing.world;
       return {
         projection: existing.world.snapshot(),
@@ -190,7 +212,14 @@ export function bootstrapWildsWorld(request: NextRequest) {
     }
 
     const local = service();
-    if (local.checkpoint().revision > 0) throw new Error("wilds_world_canonical_recovery_required");
+    if (local.checkpoint().revision > 0) {
+      return {
+        projection: local.snapshot(),
+        mode: "kai_live" as const,
+        events: [],
+        publication: { published: false as const, mode: "receiz_recovery_pending" as const, revision: local.checkpoint().revision }
+      };
+    }
     if (recovered && (
       recovered.checkpoint.revision !== 0
       || recovered.checkpoint.lastEventId !== null
@@ -225,15 +254,11 @@ export function bootstrapWildsWorld(request: NextRequest) {
     if (actor.accessToken) {
       let publication = await publish(request, actor, current, { revision: 0, lastEventId: null });
       if (!publication.published) {
-        root()[serviceKey] = publication.conflict && publication.record
-          ? new WildsWorldService(publication.record)
-          : new WildsWorldService(before);
-        throw new Error("wilds_world_canonical_publish_required");
+        return { projection, mode: "receiz_recovery_pending" as const, events, publication };
       }
       if (!await auditMajorEvents(request, actor, events)) publication = { ...publication, mode: "receiz_recovery_pending" };
       return { projection, mode: publication.mode, events, publication };
     }
-    root()[serviceKey] = new WildsWorldService(before);
     return {
       projection,
       mode: "kai_live" as const,
@@ -259,7 +284,12 @@ export async function worldSnapshot(request: NextRequest) {
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 1_200))
     ]);
     const record = findWildsWorldRecord(recovered);
-    if (record && record.checkpoint.revision >= service().checkpoint().revision) {
+    const local = service();
+    const localHead = local.checkpoint();
+    if (record && (localHead.revision === 0 || worldRecordContainsHead(record, {
+      revision: localHead.revision,
+      lastEventId: localHead.lastEventId
+    }))) {
       root()[serviceKey] = new WildsWorldService({ checkpoint: record.checkpoint, events: record.eventTail });
     }
   } catch {
@@ -324,8 +354,9 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
       // transition; it can never be a second grant or a rollback authority.
       if (executionAuthority && typeof executionAuthority === "object") {
         if (!operation || !nextEmission || !amountPhiMicro || (command.type === "grove.act" && !currentGrove) || !currentEmission) {
-          throw new Error("wilds_living_world_source_proof_invalid");
-        }
+          // The source work is still complete. With no lawful Phi successor
+          // there is simply no settlement projection to distribute.
+        } else {
         const authorityRecord = executionAuthority as Record<string, unknown>;
         const rail = createReceizCommerceAdapter(actor.accessToken ? { accessToken: actor.accessToken } : undefined);
         try {
@@ -379,6 +410,7 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
           // Global distribution is retryable representation. The admitted
           // source proof remains authoritative and is published below.
         }
+        }
       }
     }
     current = candidate;
@@ -417,7 +449,6 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
     if (!await auditMajorEvents(request, actor, result.events)) publication = { ...publication, mode: "receiz_recovery_pending" };
     return { projection: result.projection, mode: publication.mode, events: result.events, publication };
   }
-  root()[serviceKey] = new WildsWorldService(before);
   return {
     projection: result.projection,
     mode: "kai_live" as const,
@@ -460,10 +491,7 @@ export function tickWildsWorld(request: NextRequest) {
     lastEventId: before.checkpoint.lastEventId
   });
   if (!publication.published) {
-    root()[serviceKey] = publication.conflict && publication.record
-      ? new WildsWorldService(publication.record)
-      : new WildsWorldService(before);
-    throw new Error("wilds_world_canonical_publish_required");
+    return { projection: result.projection, mode: "receiz_recovery_pending" as const, events: result.events, publication };
   }
   if (!await auditMajorEvents(request, pulseActor, result.events)) publication = { ...publication, mode: "receiz_recovery_pending" };
   return { projection: result.projection, mode: publication.mode, events: result.events, publication };

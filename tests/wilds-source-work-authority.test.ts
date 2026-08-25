@@ -8,6 +8,7 @@ import {
 import { WildsWorldService } from "../src/features/play/wilds-world-service";
 import { checkpointWildsWorld, initialWildsWorldProjection } from "../src/features/play/wilds-world-state";
 import { wildsWorldSourceEmission, wildsWorldSourceGenesis } from "../src/features/play/wilds-world-genesis";
+import { createWildsWorldEmissionGenesis } from "../src/features/play/wilds-world-emission";
 
 function sourceOf(kind: "timber" | "stone") {
   for (let x = -2; x <= 2; x += 1) for (let z = -2; z <= 2; z += 1) {
@@ -108,5 +109,34 @@ describe("source-first baseline work", () => {
     assert.equal(rebased.sourceHead, advanced.harvestedSources[timber.sourceId]?.head);
     assert.equal(rebased.emission?.parentHead, advanced.worldEmission?.head);
     assert.equal(rebased.operation?.intention.sourceHead, rebased.sourceHead);
+  });
+
+  it("admits the material when the bounded Phi rail lawfully awards no new emission", () => {
+    const source = sourceOf("timber");
+    const projection = createWildsSourceAuthorityProjection();
+    const genesis = wildsWorldSourceGenesis().emission;
+    const regionId = `region:${Math.floor(source.position.x / 64)}:${Math.floor(source.position.z / 64)}`;
+    projection.worldEmission = createWildsWorldEmissionGenesis({
+      epochId: genesis.epochId,
+      epochEndsAtKaiUPulse: genesis.epochEndsAtKaiUPulse,
+      globalCapacityPhiMicro: genesis.globalRemainingPhiMicro,
+      regionCapacityPhiMicro: { ...genesis.regionRemainingPhiMicro, [regionId]: "0" },
+      classCapacityPhiMicro: genesis.classRemainingPhiMicro,
+      policyDigest: genesis.policyDigest
+    });
+
+    const command = planWildsMaterialHarvest({
+      projection,
+      source,
+      actorId: "explorer:bounded-emission",
+      actorPosition: source.position,
+      kaiUPulse: 1_000_000,
+      commandId: "command:bounded-emission:timber"
+    });
+
+    assert.equal(command.operation?.intention.kind, "steward.harvest-timber");
+    assert.equal(command.emission, undefined);
+    assert.equal(command.amountPhiMicro, undefined);
+    assert.equal(command.phiAward, undefined);
   });
 });

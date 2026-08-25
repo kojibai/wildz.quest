@@ -243,6 +243,7 @@ test("an authenticated bootstrap prepares deterministic genesis for Identity Sea
   assert.equal(result.projection.revision, expected.checkpoint.revision);
   assert.equal(result.publication.published, false);
   assert.equal((result.publication as { required?: string }).required, "identity_proof");
+  assert.ok("draft" in result.publication && result.publication.draft);
   assert.equal(result.publication.draft.merchantReceizId, "bjklock.receiz.id");
   assert.deepEqual(result.publication.draft.expectedHead, { revision: 0, lastEventId: null });
   assert.deepEqual(result.publication.draft.storeStateRecord, expected);
@@ -316,7 +317,7 @@ test("genesis bootstrap never invokes the delegated publication repository", asy
   assert.equal(publishes, 0);
 });
 
-test("prepared Identity Seal genesis rolls canonical memory back until the proof append is recoverable", async () => {
+test("prepared Identity Seal genesis remains authoritative while its projection catches up", async () => {
   (globalThis as Record<symbol, unknown>)[repositoryKey] = {
     recover: async () => null,
     publish: async () => ({
@@ -332,7 +333,7 @@ test("prepared Identity Seal genesis rolls canonical memory back until the proof
   assert.equal(result.mode, "kai_live");
   assert.equal(
     ((globalThis as Record<symbol, unknown>)[serviceKey] as WildsWorldService).checkpoint().revision,
-    0
+    result.projection.revision
   );
 });
 
@@ -421,6 +422,11 @@ test("a proof-native player command prepares an Identity Seal append and never d
   assert.equal(result.publication.draft.merchantReceizId, "bjklock.receiz.id");
   assert.equal(result.publication.draft.expectedHead.revision, record.checkpoint.revision);
   assert.equal(result.publication.draft.storeStateRecord.checkpoint.revision > record.checkpoint.revision, true);
+  assert.equal(
+    ((globalThis as Record<symbol, unknown>)[serviceKey] as WildsWorldService).checkpoint().revision,
+    result.projection.revision,
+    "a missing sync transport must not roll back the source-authoritative transition"
+  );
   assert.equal(publishes, 0);
 });
 

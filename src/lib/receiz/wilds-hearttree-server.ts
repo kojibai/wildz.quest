@@ -39,7 +39,7 @@ type HearttreeAdmissionResult = Readonly<{
   receipt: HearttreeReceipt | null;
   preview: HearttreeConsequenceSet;
   projection: HearttreeAdmissionProjection | null;
-  publication: Readonly<{ published: boolean; mode: "receiz_live" | "local_practice"; revision: number }>;
+  publication: Readonly<{ published: boolean; mode: "receiz_live" | "receiz_recovery_pending" | "local_practice"; revision: number }>;
 }>;
 
 const ledgerKey = Symbol.for("receiz.wilds.hearttree.admission.v1");
@@ -159,10 +159,19 @@ export async function executeHearttreeAdmission(request: NextRequest, rawBody: u
     createdAt: dependencies.now()
   });
   const projection = nextProjection(actor.playerId, previous, body.priorConditions, preview, receipt);
-  if (!await dependencies.publish(request, actor, projection, `hearttree:${receipt.digest}`)) throw new Error("hearttree_canonical_publish_required");
-  if (!await dependencies.audit(request, actor, receipt)) throw new Error("hearttree_canonical_audit_required");
-  const result: HearttreeAdmissionResult = { receipt, preview, projection, publication: { published: true, mode: "receiz_live", revision } };
   ledger().projections.set(actor.playerId, projection);
+  const published = await dependencies.publish(request, actor, projection, `hearttree:${receipt.digest}`);
+  const audited = published ? await dependencies.audit(request, actor, receipt) : false;
+  const result: HearttreeAdmissionResult = {
+    receipt,
+    preview,
+    projection,
+    publication: {
+      published,
+      mode: published && audited ? "receiz_live" : "receiz_recovery_pending",
+      revision
+    }
+  };
   ledger().results.set(cacheKey, result);
   if (ledger().results.size > 512) ledger().results.delete(ledger().results.keys().next().value!);
   return result;

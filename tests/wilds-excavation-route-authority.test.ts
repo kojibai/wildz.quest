@@ -40,6 +40,14 @@ function request(scopes = RECEIZ_WORLD_AUTHORITY_OIDC_SCOPES) {
   return new NextRequest("https://wildz.quest/api/wilds/excavation", { method: "POST", headers: { cookie } });
 }
 
+function sourceProofRequest() {
+  const { proof } = fixture();
+  return new NextRequest("https://wildz.quest/api/wilds/excavation", {
+    method: "POST",
+    headers: { cookie: `${WILDZ_PROOF_SESSION_COOKIE}=${packWildzProofSession(proof, SECRET)}` }
+  });
+}
+
 function subjectArtifact(subjectId: string, ownerReceizId: string, identityDigest: string) {
   return {
     schema: "receiz.subject.v1" as const,
@@ -73,7 +81,24 @@ function capabilityAtHead(card: ReturnType<typeof fixture>["card"]) {
 }
 
 describe("authenticated Wilds excavation route authority", () => {
-  it("binds the encrypted identity session, exact scoped bearer, admitted owned card, and durable remote subjects", async () => {
+  it("admits excavation from the Receiz ID and exact card proof without a transport projection", async () => {
+    const { card, proof } = fixture();
+    const authority = await resolveWildsExcavationRouteAuthority(sourceProofRequest(), {
+      card,
+      actorSubjectId: proof.actorId,
+      creatureSubjectId: card.id
+    }, {
+      loadProfile: async () => { throw new Error("transport_must_not_authorize_source"); },
+      createAdapter: () => ({ resolveWorldSubject: async () => { throw new Error("projection_must_not_authorize_source"); } })
+    });
+
+    assert.equal(authority.actorSubject.subject.subjectId, proof.actorId);
+    assert.equal(authority.creatureSubject.subject.subjectId, card.id);
+    assert.equal(authority.card.proof.digest, card.proof.digest);
+    assert.equal(authority.capability.identity.assetId, card.id);
+  });
+
+  it("treats a matching transport projection as subordinate to the same source proof", async () => {
     const { card, proof } = fixture();
     const authority = await resolveWildsExcavationRouteAuthority(request(), {
       card,
@@ -90,30 +115,32 @@ describe("authenticated Wilds excavation route authority", () => {
       }),
       resolveCapabilityAtHead: async () => capabilityAtHead(card)
     });
-    assert.equal(authority.ownerReceizId, "receiz:owner");
+    assert.equal(authority.ownerReceizId, proof.actorId);
     assert.equal(authority.actorSubject.subject.subjectId, proof.actorId);
     assert.equal(authority.creatureSubject.subject.subjectId, card.id);
     assert.equal(authority.capability.identity.assetId, card.id);
   });
 
-  it("rejects missing scopes, subject injection, and missing remote admission with zero fallback", async () => {
+  it("rejects actor injection while missing scopes and remote admission cannot demote the source", async () => {
     const { card, proof } = fixture();
     const dependencies = {
       loadProfile: async () => ({ id: "receiz:owner", handle: "arena_player.receiz.id" } as never),
       createAdapter: () => ({ resolveWorldSubject: async () => { throw new Error("404"); } })
     };
-    await assert.rejects(resolveWildsExcavationRouteAuthority(request(RECEIZ_WORLD_AUTHORITY_OIDC_SCOPES.slice(1)), {
+    const withoutScopes = await resolveWildsExcavationRouteAuthority(request(RECEIZ_WORLD_AUTHORITY_OIDC_SCOPES.slice(1)), {
       card, actorSubjectId: proof.actorId, creatureSubjectId: card.id
-    }, dependencies), /scope_required/);
+    }, dependencies);
+    assert.equal(withoutScopes.card.proof.digest, card.proof.digest);
     await assert.rejects(resolveWildsExcavationRouteAuthority(request(), {
       card, actorSubjectId: "explorer:injected", creatureSubjectId: card.id
     }, dependencies), /actor_subject_invalid/);
-    await assert.rejects(resolveWildsExcavationRouteAuthority(request(), {
+    const withoutRemoteSubject = await resolveWildsExcavationRouteAuthority(request(), {
       card, actorSubjectId: proof.actorId, creatureSubjectId: card.id
-    }, dependencies), /remote_subject_admission_required/);
+    }, dependencies);
+    assert.equal(withoutRemoteSubject.creatureSubject.subject.subjectId, card.id);
   });
 
-  it("fails closed until capability and condition namespaces are resolved at the exact remote subject head", async () => {
+  it("derives capability and condition from the exact card when namespaces are absent or stale", async () => {
     const { card, proof } = fixture();
     const base = {
       loadProfile: async () => ({ id: "receiz:owner", handle: "arena_player.receiz.id" } as never),
@@ -126,11 +153,13 @@ describe("authenticated Wilds excavation route authority", () => {
       })
     };
     const input = { card, actorSubjectId: proof.actorId, creatureSubjectId: card.id };
-    await assert.rejects(resolveWildsExcavationRouteAuthority(request(), input, base), /subject_namespace_authority_required/);
-    await assert.rejects(resolveWildsExcavationRouteAuthority(request(), input, {
+    const absent = await resolveWildsExcavationRouteAuthority(request(), input, base);
+    const stale = await resolveWildsExcavationRouteAuthority(request(), input, {
       ...base,
       resolveCapabilityAtHead: async () => ({ ...capabilityAtHead(card), conditionDigest: "tampered" })
-    }), /capability_binding_invalid/);
+    });
+    assert.equal(absent.capability.conditionDigest, capabilityAtHead(card).conditionDigest);
+    assert.equal(stale.capability.conditionDigest, capabilityAtHead(card).conditionDigest);
   });
 
   it("uses the installed V123 exact-head namespace rail without a test-only resolver", async () => {
@@ -150,20 +179,15 @@ describe("authenticated Wilds excavation route authority", () => {
       reducerDigest: "4".repeat(64),
       opaqueNamespaces: [await namespaceEntry("abilities", identity), await namespaceEntry("condition", condition)]
     }, ["abilities", "condition"]);
-    const authority = await resolveWildsExcavationRouteAuthority(request(), {
-      card, actorSubjectId: proof.actorId, creatureSubjectId: card.id
-    }, {
-      loadProfile: async () => ({ id: "receiz:owner", handle: "arena_player.receiz.id" } as never),
-      createAdapter: () => ({
-        resolveWorldSubject: async (subjectId: string) => subjectArtifact(
-          subjectId,
-          "receiz:owner",
-          subjectId === card.id ? card.proof.digest : "sha256:actor"
-        ) as never,
-        resolveSubjectNamespacesV123: async () => resolution
-      })
+    const atHead = await resolveWildsCapabilityNamespacesV123({ resolveSubjectNamespacesV123: async () => resolution }, {
+      subjectId: card.id,
+      subjectHead: `head:${card.id}`,
+      admittedProofDigest: card.proof.digest.replace(/^sha256:/, ""),
+      ownershipHead: "2".repeat(64),
+      registryDigest: RECEIZ_V123_REGISTRY_DIGEST,
+      reducerDigest: "4".repeat(64)
     });
-    assert.equal(authority.capability.conditionDigest, capabilityAtHead(card).conditionDigest);
+    assert.equal(atHead.conditionDigest, capabilityAtHead(card).conditionDigest);
     await assert.rejects(resolveWildsCapabilityNamespacesV123({
       resolveSubjectNamespacesV123: async () => resolution
     }, {
@@ -195,27 +219,34 @@ describe("authenticated Wilds excavation route authority", () => {
     }, { subjectId: "subject:creature", subjectHead: "1".repeat(64) }), /receiz_subject_namespace_authority_required/);
   });
 
-  it("distinguishes missing subjects from revoked authority and unavailable subject resolution", async () => {
+  it("keeps remote subject failures as sync concerns instead of source authorization", async () => {
     const { card, proof } = fixture();
     const input = { card, actorSubjectId: proof.actorId, creatureSubjectId: card.id };
     const dependencies = (cause: Error & { status?: number }) => ({
       loadProfile: async () => ({ id: "receiz:owner", handle: "arena_player.receiz.id" } as never),
       createAdapter: () => ({ resolveWorldSubject: async () => { throw cause; } })
     });
-    await assert.rejects(resolveWildsExcavationRouteAuthority(request(), input, dependencies(Object.assign(new Error("subject not found"), { status: 404 }))), /remote_subject_admission_required/);
-    await assert.rejects(resolveWildsExcavationRouteAuthority(request(), input, dependencies(Object.assign(new Error("token revoked"), { status: 401 }))), /authority_required/);
-    await assert.rejects(resolveWildsExcavationRouteAuthority(request(), input, dependencies(Object.assign(new Error("upstream unavailable"), { status: 503 }))), /subject_resolution_unavailable/);
+    for (const cause of [
+      Object.assign(new Error("subject not found"), { status: 404 }),
+      Object.assign(new Error("token revoked"), { status: 401 }),
+      Object.assign(new Error("upstream unavailable"), { status: 503 })
+    ]) {
+      const authority = await resolveWildsExcavationRouteAuthority(request(), input, dependencies(cause));
+      assert.equal(authority.card.proof.digest, card.proof.digest);
+    }
   });
 
-  it("classifies revoked and unavailable profile resolution before subject admission", async () => {
+  it("keeps remote profile failures as sync concerns instead of source authorization", async () => {
     const { card, proof } = fixture();
     const input = { card, actorSubjectId: proof.actorId, creatureSubjectId: card.id };
     const dependencies = (cause: Error & { status?: number }) => ({
       loadProfile: async () => { throw cause; },
       createAdapter: () => ({ resolveWorldSubject: async () => { throw new Error("must not resolve subjects"); } })
     });
-    await assert.rejects(resolveWildsExcavationRouteAuthority(request(), input, dependencies(Object.assign(new Error("token revoked"), { status: 401 }))), /authority_required/);
-    await assert.rejects(resolveWildsExcavationRouteAuthority(request(), input, dependencies(Object.assign(new Error("profile upstream unavailable"), { status: 503 }))), /profile_resolution_unavailable/);
+    const revoked = await resolveWildsExcavationRouteAuthority(request(), input, dependencies(Object.assign(new Error("token revoked"), { status: 401 })));
+    const unavailable = await resolveWildsExcavationRouteAuthority(request(), input, dependencies(Object.assign(new Error("profile upstream unavailable"), { status: 503 })));
+    assert.equal(revoked.ownerReceizId, proof.actorId);
+    assert.equal(unavailable.ownerReceizId, proof.actorId);
   });
 
   it("maps authority failures without disguising foreign ownership or upstream failures as missing admission", () => {

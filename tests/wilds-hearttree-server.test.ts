@@ -74,16 +74,19 @@ describe("Receiz Hearttree replay admission", () => {
     assert.deepEqual(calls, ["publish", "audit"]);
   });
 
-  it("rolls back publication and audit failures without adopting a receipt", async () => {
+  it("keeps a source-authoritative receipt when publication or audit is unavailable", async () => {
     resetHearttreeAdmissionForTests();
     const body = submitted();
-    await assert.rejects(() => executeHearttreeAdmission(request, body, dependencies({ publish: false }).deps), /hearttree_canonical_publish_required/);
-    const afterPublishFailure = await executeHearttreeAdmission(request, body, dependencies().deps);
-    assert.equal(afterPublishFailure.publication.revision, 1);
+    const afterPublishFailure = await executeHearttreeAdmission(request, body, dependencies({ publish: false }).deps);
+    assert.equal(afterPublishFailure.receipt?.actorId, "player.one");
+    assert.equal(afterPublishFailure.projection?.revision, 1);
+    assert.equal(afterPublishFailure.publication.published, false);
 
     resetHearttreeAdmissionForTests();
-    await assert.rejects(() => executeHearttreeAdmission(request, body, dependencies({ audit: false }).deps), /hearttree_canonical_audit_required/);
-    const afterAuditFailure = await executeHearttreeAdmission(request, body, dependencies().deps);
-    assert.equal(afterAuditFailure.publication.revision, 1);
+    const afterAuditFailure = await executeHearttreeAdmission(request, body, dependencies({ audit: false }).deps);
+    assert.equal(afterAuditFailure.receipt?.actorId, "player.one");
+    assert.equal(afterAuditFailure.projection?.revision, 1);
+    assert.equal(afterAuditFailure.publication.published, true);
+    assert.equal(afterAuditFailure.publication.mode, "receiz_recovery_pending");
   });
 });

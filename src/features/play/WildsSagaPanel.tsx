@@ -43,7 +43,7 @@ export function WildsSagaPanel({
   const percent = primaryTarget ? Math.round(primaryProgress / primaryTarget * 100) : 0;
   const qualification = Object.values(player?.achievementGrants ?? {}).find((grant) => grant.definitionId === saga.chapter.tournament.qualificationAchievementId);
   const entered = tournament?.entrants.some((entrant) => entrant.id === playerId) ?? false;
-  const worldMutable = mode === "receiz_live" && Boolean(recommended?.worldMutable);
+  const worldMutable = Boolean(recommended?.worldMutable);
 
   return <section className="wilds-saga-panel" aria-label="Living story progression">
     <header>
@@ -53,7 +53,11 @@ export function WildsSagaPanel({
     <p className="wilds-saga-directive">{saga.act.directive}</p>
     <div className="wilds-progress" aria-label={`${percent}% chapter progress`}><span style={{ width: `${percent}%` }} /></div>
     <p className="wilds-saga-live-state" aria-live="polite">
-      {worldMutable ? "Your next admitted action can still change this Kai day." : mode === "receiz_live" ? "This objective is an echo; the shared day has moved on." : "Practice mode previews the story without changing the shared world."}
+      {worldMutable
+        ? mode === "receiz_live"
+          ? "Your next admitted action can still change this Kai day."
+          : "Your next action is admitted locally and its shared projection will follow."
+        : "This objective is an echo; the shared day has moved on."}
     </p>
 
     <div className="wilds-saga-grid">
@@ -90,7 +94,7 @@ export function WildsSagaPanel({
       <small>Daily tournament</small>
       <strong>{tournament?.name ?? saga.chapter.tournament.name}</strong>
       <p>{tournament ? `${tournament.phase} · ${tournament.entrants.length}/8 seeded entrants` : "Opens during the Purify Ark and resolves with or without you."}</p>
-      {tournament?.phase === "open" && qualification && !entered ? <button disabled={pending || mode !== "receiz_live"} onClick={() => onEnterTournament(tournament.id, qualification.grantId)} type="button">Enter tournament</button> : null}
+      {tournament?.phase === "open" && qualification && !entered ? <button disabled={pending} onClick={() => onEnterTournament(tournament.id, qualification.grantId)} type="button">Enter tournament</button> : null}
       {entered ? <em>Entered in today&apos;s living bracket.</em> : !qualification ? <em>Complete the qualifying achievement to enter.</em> : null}
     </section>
 

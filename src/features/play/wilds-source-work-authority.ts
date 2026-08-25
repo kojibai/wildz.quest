@@ -83,7 +83,20 @@ export function planWildsMaterialHarvest(input: Readonly<{
     kaiUPulse: input.kaiUPulse
   });
   const preview = previewWildsEmission({ emission: currentEmission, operation, contributionClass: "construction" });
-  if (!preview.eligible || preview.amountPhiMicro === "0") throw new Error("wilds_world_steward_emission_unavailable");
+  if (!preview.eligible || preview.amountPhiMicro === "0") {
+    return {
+      type: "resource.material.harvest",
+      source: input.source,
+      sourceHead: currentSource.head,
+      actorPosition: input.actorPosition,
+      ...(matchingTool ? { toolId: matchingTool.toolId } : {}),
+      ...(input.mandate ? { mandate: input.mandate } : {}),
+      operation,
+      ...(input.card ? { cardProofDigest: input.card.proof.digest } : {}),
+      ...(input.kai ? { kai: input.kai } : {}),
+      commandId: input.commandId
+    };
+  }
   const emission = admitWildsEmission({ emission: currentEmission, operation, contributionClass: "construction", preview });
   const phiAward = createWildsStewardPhiAward({
     ownerReceizId: input.actorId,

@@ -514,7 +514,12 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
           || nextTool.capability !== source.requirements.creature) throw new Error("wilds_world_material_tool_invalid");
         stewardTools = { ...state.stewardTools, [nextTool.toolId]: nextTool };
       }
-      const economy = stewardEconomyPatch(state, event, payload);
+      const economyValues = [payload.emission, payload.amountPhiMicro, payload.phiAward];
+      const economy = economyValues.every((value) => value === undefined)
+        ? {}
+        : economyValues.every((value) => value !== undefined)
+          ? stewardEconomyPatch(state, event, payload)
+          : (() => { throw new Error("wilds_world_steward_economy_invalid"); })();
       return appendEvent(state, event, {
         harvestedSources: { ...state.harvestedSources, [source.sourceId]: sourceState },
         materialLots: { ...state.materialLots, [lot.lotId]: lot },
