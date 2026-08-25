@@ -15672,6 +15672,67 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wildz-work-capability.is-recovering { color: #a9bbb5; border-color: rgba(143, 220, 255, .3); }
 .wildz-work-capability.is-recovering > i { background: linear-gradient(90deg, #8fdcff var(--wildz-work-capacity), rgba(255,255,255,.12) var(--wildz-work-capacity)); }
 
+.wilds-capability-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(44px, 1fr));
+  grid-column: 1 / -1;
+  gap: clamp(5px, 1.2vw, 8px);
+  align-self: end;
+  width: max-content;
+  max-width: min(112px, 28vw);
+}
+
+.wilds-capability-control {
+  --wilds-capability-capacity: 100%;
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  overflow: hidden;
+  color: #d9fff2;
+  border: 1px solid rgba(133, 233, 203, .38);
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(9, 34, 31, .96), rgba(7, 19, 24, .94));
+  box-shadow: inset 0 0 18px rgba(85, 232, 189, .07), 0 5px 18px rgba(0, 0, 0, .2);
+  touch-action: manipulation;
+}
+
+.wilds-capability-control > svg { position: relative; z-index: 2; }
+.wilds-capability-control > i {
+  position: absolute;
+  z-index: 1;
+  inset: auto 4px 4px;
+  height: 3px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #72efca var(--wilds-capability-capacity), rgba(255,255,255,.12) var(--wilds-capability-capacity));
+}
+.wilds-capability-control > span {
+  position: absolute;
+  z-index: 2;
+  top: 3px;
+  right: 5px;
+  font: 700 7px/1 var(--font-mono, monospace);
+  opacity: .74;
+}
+.wilds-capability-control.is-awakened { border-color: rgba(126, 255, 205, .82); box-shadow: inset 0 0 20px rgba(77, 240, 188, .15), 0 0 13px rgba(77, 240, 188, .2); }
+.wilds-capability-control.is-active { color: #fff; border-color: #7cf7d1; background: linear-gradient(145deg, rgba(16, 88, 74, .96), rgba(13, 34, 48, .96)); }
+.wilds-capability-control.is-recovering { color: #9dafaa; border-style: dashed; }
+.wilds-capability-control.is-recovering > i { background: linear-gradient(90deg, #8fdcff var(--wilds-capability-capacity), rgba(255,255,255,.1) var(--wilds-capability-capacity)); }
+.wilds-capability-control.is-guidance { color: #d8e9ff; border-color: rgba(151, 191, 255, .42); }
+.wilds-capability-control:active { transform: translateY(1px) scale(.98); }
+.wilds-capability-control:focus-visible { outline: 2px solid #c5ffed; outline-offset: 2px; }
+
+@media (max-width: 360px), (max-height: 650px) {
+  .wilds-capability-controls { gap: 4px; max-width: 96px; }
+  .wilds-capability-control { border-radius: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wilds-capability-control { transition: none !important; animation: none !important; }
+}
+
 .wildz-quick-utilities > .wildz-construction-control {
   position: relative;
   overflow: hidden;

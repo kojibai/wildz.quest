@@ -160,6 +160,11 @@ import { projectWildsResourceAvailability, projectWildsResourceSourceForObstacle
 import { projectWildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
 import type { WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
 import { projectWildsWorkCapabilityMeters, selectNearestWildsWorkSource, selectWildsResourceWorkPartner, type WildsVisibleWorkFamily } from "@/features/play/wilds-work-capability";
+import { projectWildsCapabilityControls } from "@/features/play/wilds-world-capability-controls";
+import { projectWildsCapabilityContext } from "@/features/play/wilds-world-capability-context";
+import { WILDS_WORLD_CAPABILITY_REGISTRY, type WildsWorldCapabilityFamily } from "@/features/play/wilds-world-capability-registry";
+import { applyWildsCapabilityCost } from "@/features/play/wilds-capability-runtime";
+import { beginWildsCurrentRide } from "@/features/play/wilds-environment-capabilities";
 import { projectWildsStewardCraft, projectWildsStewardPlacement, type WildsStewardBlueprintId, type WildsStewardPlacement } from "@/features/play/wilds-steward-craft";
 import { WildsStewardCraftPanel } from "@/features/play/WildsStewardCraftPanel";
 import { WildsStewardPlacementHud } from "@/features/play/WildsStewardPlacementHud";
@@ -459,6 +464,16 @@ export function PlayCampaign({
   const worldProgression = projectWorldProgression(state.worldMastery);
   const activeCard = selectedCard(state);
   const activeAsset = selectedAsset(state);
+  const [activeWorldCapability, setActiveWorldCapability] = useState<WildsWorldCapabilityFamily | null>(null);
+  useEffect(() => setActiveWorldCapability(null), [activeAsset?.id]);
+  const activeCapabilityControls = useMemo(() => activeAsset
+    ? projectWildsCapabilityControls(activeAsset, state.adventureConditions[activeAsset.id] ?? emptyAdventureCondition(activeAsset.id))
+    : [], [activeAsset, state.adventureConditions]);
+  const activeCapabilityContexts = useMemo(() => projectWildsCapabilityContext(Object.freeze({
+    controls: activeCapabilityControls,
+    candidates: Object.freeze([]),
+    activeFamilies: Object.freeze(activeWorldCapability ? [activeWorldCapability] : [])
+  })), [activeCapabilityControls, activeWorldCapability]);
   const activeTraversalCapabilities = useMemo(() => activeAsset
     ? projectWildsTraversalCapabilities(
       activeAsset,
@@ -1581,6 +1596,106 @@ export function PlayCampaign({
     setAerialMode(begun.state.mode);
     if (activeVistaId) setActiveVistaId(null);
   };
+  const spendWorldCapability = (family: WildsWorldCapabilityFamily) => {
+    if (!activeAsset) return;
+    const amount = WILDS_WORLD_CAPABILITY_REGISTRY[family].baseCost;
+    setState((current) => {
+      const prior = current.adventureConditions[activeAsset.id] ?? emptyAdventureCondition(activeAsset.id);
+      try {
+        const next = applyWildsCapabilityCost(prior, family, amount);
+        return { ...current, adventureConditions: { ...current.adventureConditions, [activeAsset.id]: next } };
+      } catch {
+        return current;
+      }
+    });
+  };
+  const toggleSustainedWorldCapability = (family: WildsWorldCapabilityFamily, activeMessage: string, releasedMessage: string) => {
+    if (activeWorldCapability === family) {
+      setActiveWorldCapability(null);
+      showWorldFeedback(releasedMessage);
+      return;
+    }
+    setActiveWorldCapability(family);
+    spendWorldCapability(family);
+    showWorldFeedback(activeMessage);
+  };
+  const requestWildsCapability = (family: WildsWorldCapabilityFamily) => {
+    if (!canUseWorldStage() || !activeAsset) return;
+    beginWorldActionFeedback();
+    switch (family) {
+      case "flight":
+      case "glide":
+        toggleAerialTraversal();
+        return;
+      case "lumber":
+      case "quarry":
+        gatherNearestStewardResource(family);
+        return;
+      case "swim":
+        if (aquaticPresentation.mode === "swim") showWorldFeedback(`${activeAsset.manifest.name} is swimming fully submerged beside you.`);
+        else showWorldFeedback("Move into the nearest deep-water edge; this swimmer will enter with you immediately.");
+        return;
+      case "dive":
+        if (aquaticPresentation.mode !== "swim") {
+          showWorldFeedback("Enter deep water first; the nearest deep-water edge is the dive route.");
+          return;
+        }
+        verticalIntentRef.current = -1;
+        window.requestAnimationFrame(() => { verticalIntentRef.current = 0; });
+        setActiveWorldCapability("dive");
+        spendWorldCapability("dive");
+        showWorldFeedback(`${activeAsset.manifest.name} pitches downward and leads you deeper.`);
+        return;
+      case "current": {
+        if (aquaticPresentation.mode !== "swim") {
+          showWorldFeedback("Enter deep water to read and ride its living current.");
+          return;
+        }
+        const heading = cameraHeadingRef.current;
+        const ride = beginWildsCurrentRide({ flow: { x: Math.sin(heading), z: Math.cos(heading) }, flowStrength: .72, creaturePower: 60 });
+        dispatchWorldInput({ type: "move-vector", x: ride.velocity.x, z: ride.velocity.z, mode: "run" });
+        setActiveWorldCapability("current");
+        spendWorldCapability("current");
+        showWorldFeedback(`${activeAsset.manifest.name} reveals the current and pulls you into its flow.`);
+        return;
+      }
+      case "climb":
+        setActiveWorldCapability("climb");
+        spendWorldCapability("climb");
+        showWorldFeedback("Grip is active. Move into the mountain face and climb from this exact surface.");
+        return;
+      case "burrow":
+        showWorldFeedback("Touch compatible ground beside you to place the exact tunnel entrance preview.");
+        return;
+      case "balance":
+        toggleSustainedWorldCapability("balance", `${activeAsset.manifest.name} centers beside you for narrow crossings.`, "Balance stance released.");
+        return;
+      case "light":
+        toggleSustainedWorldCapability("light", `${activeAsset.manifest.name} awakens a living light around the expedition.`, "Living light rests.");
+        return;
+      case "camouflage":
+        toggleSustainedWorldCapability("camouflage", `${activeAsset.manifest.name} blends the expedition with the surrounding terrain.`, "Camouflage released.");
+        return;
+      case "track":
+        dispatchLayeredSearch({ x: state.player.x, z: state.player.z, surfaceWorldY: state.siteSpace.position.y });
+        setActiveWorldCapability("track");
+        spendWorldCapability("track");
+        showWorldFeedback(`${activeAsset.manifest.name} reads the nearest proof-sealed traces.`);
+        return;
+      case "break":
+        showWorldFeedback("Move beside a visibly cracked obstacle. Healthy living sources and protected structures will not break.");
+        return;
+      case "resist":
+        toggleSustainedWorldCapability("resist", `${activeAsset.manifest.name} forms a bounded protection envelope.`, "Protection stance released.");
+        return;
+      case "anchor":
+        toggleSustainedWorldCapability("anchor", `${activeAsset.manifest.name} anchors the expedition against force.`, "Anchor released.");
+        return;
+      case "rescue":
+        showWorldFeedback("The nearby party is safe. Rescue will awaken at the first admitted traversal emergency.");
+        return;
+    }
+  };
   const openProfile = () => {
     if (!canUseWorldStage()) return;
     const origin = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -2385,6 +2500,7 @@ export function PlayCampaign({
               activeCard={activeAsset}
               cameraHeadingRef={cameraHeadingRef}
               cardConditions={state.adventureConditions}
+              capabilityContexts={activeCapabilityContexts}
               cardOrder={cardOrder}
               commandItems={commandItems}
               materialCounts={stewardMaterials}
@@ -2405,7 +2521,7 @@ export function PlayCampaign({
               onMovementModeChange={setMovementMode}
               onRequestedCommandHandled={() => setRequestedCommand(null)}
               onRest={() => dispatchWorldInput({ type: "rest", at: new Date().toISOString() })}
-              onRequestWork={gatherNearestStewardResource}
+              onRequestCapability={requestWildsCapability}
               onSelectCard={(assetId) => dispatchWorldInput({ type: "select-asset", assetId })}
               requestedCommand={requestedCommand}
               traversalCapabilities={activeTraversalCapabilities}

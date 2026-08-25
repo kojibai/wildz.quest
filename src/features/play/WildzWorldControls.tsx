@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, type CSSProperties, type MutableRefObject, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, type MutableRefObject, type RefObject } from "react";
 import { Icons } from "@/components/icons";
 import type { WildzCardSort } from "./card-sort";
 import type { PlayState, WildsInput } from "./game-state";
@@ -18,10 +18,14 @@ import { WILDS_FLIGHT_RELAUNCH_ENERGY, type WildsAerialMode } from "./wilds-aeri
 import type { WildsTraversalCapability } from "./wilds-traversal-capabilities";
 import type { WildsAquaticPresentation } from "./wilds-aquatic-presentation";
 import { projectCreatureCapabilityIdentity } from "./creature-capability-identity";
+import { emptyAdventureCondition } from "./adventure/card-condition";
+import { WildsCapabilityControls } from "./WildsCapabilityControls";
+import { projectWildsCapabilityControls } from "./wilds-world-capability-controls";
+import type { WildsCapabilityContext } from "./wilds-world-capability-context";
+import type { WildsWorldCapabilityFamily } from "./wilds-world-capability-registry";
 import { projectWildsTraversalStatus } from "./wilds-traversal-status";
 import { WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE, type WildsVerticalTraversalIntent, type WildsVerticalTraversalState } from "./wilds-vertical-traversal";
 import { projectWildsFlightObstruction } from "./wilds-flight-obstruction";
-import { projectWildsWorkCapabilityMeters, type WildsVisibleWorkFamily } from "./wilds-work-capability";
 
 const ignore = () => {};
 const DEFAULT_VERTICAL_READOUT = { layer: "ground", value: 0, safeMin: 0, safeMax: 0, blockerId: null } as const;
@@ -57,7 +61,8 @@ export function WildzWorldControls({
   onMovementModeChange,
   onSelectCard,
   onRest,
-  onRequestWork = ignore,
+  capabilityContexts,
+  onRequestCapability = ignore,
   onAudioCue,
   aerialEnergy,
   aerialMode,
@@ -66,7 +71,7 @@ export function WildzWorldControls({
   verticalReadout = DEFAULT_VERTICAL_READOUT,
   traversalCapabilities,
   glideLaunchAvailable,
-  onAerialToggle
+  onAerialToggle: _onAerialToggle
 }: {
   nearbyCards: readonly PortableCardAsset[];
   activeCard: PortableCardAsset | null;
@@ -90,7 +95,8 @@ export function WildzWorldControls({
   onMovementModeChange: (mode: WildsMovementMode) => void;
   onSelectCard: (assetId: string) => void;
   onRest: () => void;
-  onRequestWork?: (family: WildsVisibleWorkFamily) => void;
+  capabilityContexts?: ReadonlyMap<WildsWorldCapabilityFamily, WildsCapabilityContext>;
+  onRequestCapability?: (family: WildsWorldCapabilityFamily) => void;
   onAudioCue?: (cue: WildsAudioCue) => void;
   aerialEnergy: number;
   aerialMode: WildsAerialMode;
@@ -108,8 +114,7 @@ export function WildzWorldControls({
   const forwardInput = useStableEvent(onInput);
   const changeMovementMode = useStableEvent(onMovementModeChange);
   const rest = useStableEvent(onRest);
-  const requestWork = useStableEvent(onRequestWork);
-  const toggleAerial = useStableEvent(onAerialToggle);
+  const requestCapability = useStableEvent(onRequestCapability);
   const requestHandled = useStableEvent(onRequestedCommandHandled);
   const drawerOriginRef = useRef<HTMLElement | null>(null);
   const companionCommandRef = useRef<HTMLButtonElement | null>(null);
@@ -125,8 +130,6 @@ export function WildzWorldControls({
   const companionHomeBlocked = exclusiveOwner !== "none" || panelOpen;
   const controlledDrawerSnap = worldHomesEnabled ? overlayState.drawerSnap : "closed";
   const hasFlight = traversalCapabilities.includes("flight");
-  const hasClimb = traversalCapabilities.includes("climb");
-  const flightRecharging = hasFlight && aerialMode === "ground" && aerialEnergy < WILDS_FLIGHT_RELAUNCH_ENERGY;
   const flightStatus = !hasFlight
     ? null
     : aerialMode === "flight" && aerialEnergy <= 25
@@ -197,9 +200,6 @@ export function WildzWorldControls({
   const handleMovementModeChange = useCallback(() => {
     if (worldHomesEnabled) changeMovementMode(movementMode === "walk" ? "run" : "walk");
   }, [changeMovementMode, movementMode, worldHomesEnabled]);
-  const handleAerialToggle = useCallback(() => {
-    if (worldHomesEnabled) toggleAerial();
-  }, [toggleAerial, worldHomesEnabled]);
   const verticalControlsVisible = aerialMode === "flight" || aquaticPresentation?.mode === "swim";
   const stopVerticalIntent = useCallback(() => {
     verticalIntentRef.current = 0;
@@ -229,13 +229,9 @@ export function WildzWorldControls({
     activeAssetId: activeCard?.id ?? null,
     newAssetId: newRosterAssetId
   }), [activeCard?.id, cardConditions, companionProgress, nearbyCards, newRosterAssetId]);
-  const workCapabilities = useMemo(() => projectWildsWorkCapabilityMeters(
-    activeCard,
-    activeCard ? cardConditions[activeCard.id] : null
-  ), [activeCard, cardConditions]);
-  const climbCapacity = activeCard
-    ? Math.max(0, Math.min(100, Math.round(100 - (cardConditions[activeCard.id]?.fatigue ?? 0) - (cardConditions[activeCard.id]?.injuries.length ?? 0) * 10)))
-    : 0;
+  const capabilityControls = useMemo(() => activeCard
+    ? projectWildsCapabilityControls(activeCard, cardConditions[activeCard.id] ?? emptyAdventureCondition(activeCard.id))
+    : [], [activeCard, cardConditions]);
   const activeEntry = companionRoster.find((entry) => entry.active) ?? null;
   const swimSpecialty = useMemo(() => {
     if (!activeCard) return "aquatic movement";
@@ -294,37 +290,12 @@ export function WildzWorldControls({
           >
             {movementMode === "walk" ? <Icons.walk size={21} /> : <Icons.run size={21} />}
           </button>
-          {(hasFlight || glideLaunchAvailable) ? <button
-            aria-label={aerialMode === "ground" ? (hasFlight ? flightRecharging ? `Flight recharging, ${aerialEnergy} percent. Recharge on the ground` : `Take flight, ${aerialEnergy} percent energy` : "Glide from overlook") : `Land safely, ${aerialEnergy} percent flight energy`}
-            className={aerialMode !== "ground" ? "is-active wildz-flight-control" : "wildz-flight-control"}
-            disabled={!worldHomesEnabled || flightRecharging}
-            onClick={handleAerialToggle}
-            style={{ "--wildz-flight-energy": `${aerialEnergy}%` } as CSSProperties}
-            type="button"
-          ><Icons.sparkle size={20} /><i aria-hidden="true" /></button> : null}
-          {workCapabilities.map((capability) => {
-            const Icon = capability.family === "lumber" ? Icons.timber : Icons.quarry;
-            return <button
-              aria-label={`${capability.label} work capacity ${capability.value} percent. ${capability.guidance}`}
-              className={`wildz-work-capability is-${capability.state}`}
-              disabled={!worldHomesEnabled || capability.value <= 0}
-              key={capability.family}
-              onClick={() => requestWork(capability.family)}
-              style={{ "--wildz-work-capacity": `${capability.value}%` } as CSSProperties}
-              title={`${capability.label} · ${capability.value}%`}
-              type="button"
-            ><Icon size={20} /><i aria-hidden="true" /></button>;
-          })}
-          {hasClimb ? <div
-            aria-label={`Mountain grip capacity ${climbCapacity} percent`}
-            aria-valuemax={100}
-            aria-valuemin={0}
-            aria-valuenow={climbCapacity}
-            className="wildz-work-capability wildz-climb-capability is-ready"
-            role="meter"
-            style={{ "--wildz-work-capacity": `${climbCapacity}%` } as CSSProperties}
-            title={`Mountain grip · ${climbCapacity}%`}
-          ><Icons.climb size={20} /><i aria-hidden="true" /></div> : null}
+          <WildsCapabilityControls
+            contexts={capabilityContexts}
+            controls={capabilityControls}
+            enabled={worldHomesEnabled}
+            onRequest={requestCapability}
+          />
           <button
             aria-label={`Open Living Construction. Satchel has ${materialCounts.timber} timber and ${materialCounts.stone} stone`}
             className="wildz-construction-control"
