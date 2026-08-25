@@ -272,7 +272,7 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
   if (worldCommandRequiresCard(command)) authorizeWildsMultiplayerCard(actor, card, value.cardAdmission);
   await hydrateWildsWorldFromReceiz(request);
   if (actor.practice) {
-    if (command.type === "resource.material.harvest" || command.type === "structure.trail-shelter.build") {
+    if (command.type === "resource.material.harvest" || command.type === "structure.trail-shelter.build" || command.type === "structure.trail-bridge.build") {
       throw new Error("wilds_world_steward_identity_required");
     }
     const now = new Date().toISOString();
@@ -290,7 +290,7 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
   const before = { checkpoint: current.checkpoint(), events: current.events() };
   const now = new Date().toISOString();
   let result;
-  if (command.type === "grove.act" || command.type === "resource.material.harvest" || command.type === "structure.trail-shelter.build") {
+  if (command.type === "grove.act" || command.type === "resource.material.harvest" || command.type === "structure.trail-shelter.build" || command.type === "structure.trail-bridge.build") {
     const candidate = new WildsWorldService(before);
     result = candidate.execute(command, { actorId: actor.handle, canonical: true, pulse: now, occurredAt: now, uPulse: kai.uPulse, card });
     if (result.events.length > 0) {

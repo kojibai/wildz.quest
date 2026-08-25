@@ -16,6 +16,7 @@ import {
   createWildsStewardHarvestOperation,
   createWildsStewardPhiAward,
   createWildsStewardStructureOperation,
+  createWildsTrailBridge,
   createWildsTrailShelter,
   initialWildsHarvestedSourceState,
   projectWildsCreatureWorkFamilies,
@@ -79,6 +80,7 @@ export type WildsWorldCommand = (
   | { type: "resource.transfer.admit"; lotId: string; ownerReceizId: string; subjectId: string; subjectHead: string; receiptId: string; transferId: string; commandId: string }
   | { type: "resource.material.harvest"; source: WildsResourceSource; sourceHead: string; actorPosition: { x: number; z: number }; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
   | { type: "structure.trail-shelter.build"; position: { x: number; z: number }; actorPosition: { x: number; z: number }; rotationQuarterTurns: number; lotIds: string[]; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
+  | { type: "structure.trail-bridge.build"; position: { x: number; z: number }; actorPosition: { x: number; z: number }; rotationQuarterTurns: number; lotIds: string[]; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
   | { type: "story.contribute"; dayId: string; objectiveId: string; verb: WildsGameplayVerb; amount: number; position?: { x: number; z: number }; cardProofDigest?: string; commandId: string }
   | { type: "story.trainer_battle"; dayId: string; trainerId: string; matchId: string; outcome: "player_victory" | "trainer_victory" | "fled"; cardProofDigest: string; commandId: string }
   | { type: "story.tournament_enter"; tournamentId: string; qualificationGrantId: string; cardProofDigest: string; commandId: string }
@@ -486,7 +488,7 @@ export class WildsWorldService {
         amountPhiMicro: preview.amountPhiMicro,
         phiAward
       }, authority, command.commandId));
-    } else if (command.type === "structure.trail-shelter.build") {
+    } else if (command.type === "structure.trail-shelter.build" || command.type === "structure.trail-bridge.build") {
       if (!authority.card) throw new Error("wilds_world_verified_card_required");
       const creatureHead = sha256PortableBasis(authority.card.proof.digest);
       const creatureSubjectId = `creature:${sha256PortableBasis(authority.card.id).slice(0, 32)}`;
@@ -494,23 +496,39 @@ export class WildsWorldService {
       if (!mandate.ok || command.mandate.creatureSubjectId !== creatureSubjectId || !command.mandate.professions.includes("build")) {
         throw new Error("wilds_world_structure_mandate_invalid");
       }
+      const expectedRegion = { x: Math.floor(command.position.x / 128), z: Math.floor(command.position.z / 128) };
+      if (command.mandate.region.x !== expectedRegion.x || command.mandate.region.z !== expectedRegion.z) {
+        throw new Error("wilds_world_structure_mandate_region_invalid");
+      }
       if (!Number.isFinite(command.actorPosition.x) || !Number.isFinite(command.actorPosition.z)
         || Math.hypot(command.actorPosition.x - command.position.x, command.actorPosition.z - command.position.z) > 7) throw new Error("wilds_world_structure_unreachable");
-      const terrain = sampleWildsTerrain(command.position.x, command.position.z);
-      if (terrain.surface === "shallow-water" || terrain.surface === "deep-water") throw new Error("wilds_world_structure_water_invalid");
       const lots = command.lotIds.map((lotId) => this.projection.materialLots[lotId]).filter((lot) => Boolean(lot));
       if (lots.length !== command.lotIds.length || command.lotIds.some((lotId) => this.projection.consumedMaterialLots[lotId])) {
         throw new Error("wilds_world_structure_material_invalid");
       }
-      const structure = createWildsTrailShelter({
-        ownerReceizId: authority.actorId,
-        position: { x: command.position.x, y: terrain.elevation, z: command.position.z },
-        rotationQuarterTurns: command.rotationQuarterTurns,
-        lots,
-        builder: { creatureSubjectId, creatureHead },
-        existingStructures: Object.values(this.projection.structures),
-        kaiUPulse: authorityMoment(authority).uPulse
-      });
+      const structure = command.type === "structure.trail-bridge.build"
+        ? createWildsTrailBridge({
+            ownerReceizId: authority.actorId,
+            position: command.position,
+            rotationQuarterTurns: command.rotationQuarterTurns,
+            lots,
+            builder: { creatureSubjectId, creatureHead },
+            existingStructures: Object.values(this.projection.structures),
+            kaiUPulse: authorityMoment(authority).uPulse
+          })
+        : (() => {
+            const terrain = sampleWildsTerrain(command.position.x, command.position.z);
+            if (terrain.surface === "shallow-water" || terrain.surface === "deep-water") throw new Error("wilds_world_structure_water_invalid");
+            return createWildsTrailShelter({
+              ownerReceizId: authority.actorId,
+              position: { x: command.position.x, y: terrain.elevation, z: command.position.z },
+              rotationQuarterTurns: command.rotationQuarterTurns,
+              lots,
+              builder: { creatureSubjectId, creatureHead },
+              existingStructures: Object.values(this.projection.structures),
+              kaiUPulse: authorityMoment(authority).uPulse
+            });
+          })();
       const operation = createWildsStewardStructureOperation({
         structure,
         lots,

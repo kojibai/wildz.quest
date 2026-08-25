@@ -105,7 +105,7 @@ describe("Wildz aerial and vista integration", () => {
     assert.match(campaign, /verticalClearance:\s*verticalTraversalRef\.current\.offset/);
     assert.match(campaign, /verticalWorldY:\s*verticalTraversalRef\.current\.worldY/);
     assert.match(gameState, /verticalClearance\?: number/);
-    assert.match(gameState, /resolveWildsGroundMovement\(player, intended, \{ capabilities, aerialMode, verticalClearance, verticalWorldY \}\)/);
+    assert.match(gameState, /resolveWildsGroundMovement\(player, intended, \{ capabilities, aerialMode, verticalClearance, verticalWorldY, structureSupports, additionalObstacles \}\)/);
     assert.doesNotMatch(playStateContract, /verticalTraversal|verticalClearance|safeMin|safeMax/);
   });
 

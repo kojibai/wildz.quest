@@ -25,6 +25,7 @@ import { beginWildsAerialTraversal, createGroundedWildsAerialState, createWildsA
 import { WILDS_BOSS_FAMILIES } from "../src/features/play/wilds-boss-ecology";
 import { wildsBossPhysicalEnvelope } from "../src/features/play/wilds-boss-physical-envelope";
 import { WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS } from "../src/features/play/wilds-physical-dimensions";
+import { projectWildsStructureSupports } from "../src/features/play/wilds-structure-support";
 
 function obstacle(id: string, x: number, z: number, radius: number, material: WildsTerrainObstacle["material"] = "solid"): WildsTerrainObstacle {
   return {
@@ -137,6 +138,49 @@ test("landing deterministically finds clear terrain and refuses inaccessible dee
   assert.deepEqual(first, replay);
   assert.equal(deepWater, null);
   assert.deepEqual(swimmer, { x: -94, z: -240 });
+});
+
+test("an admitted bridge is exact walkable support without granting swim outside its deck", () => {
+  const world = initialWildsWorldProjection();
+  world.structures.bridge = {
+    schema: "wildz.structure.v1",
+    structureId: `wildz:structure:trail-bridge:${"a".repeat(64)}`,
+    blueprint: "trail-bridge",
+    ownerReceizId: "player:bridge",
+    position: { x: -94, y: -1, z: -240 },
+    rotationQuarterTurns: 1,
+    stage: "complete",
+    materials: { timber: 4, stone: 2 },
+    consumedLotIds: Array.from({ length: 6 }, (_, index) => `lot:${index}`),
+    consumedLotHeads: Array.from({ length: 6 }, (_, index) => `sha256:${String(index + 1).repeat(64)}`),
+    builder: { creatureSubjectId: "creature:bridge", creatureHead: `sha256:${"b".repeat(64)}` },
+    physical: {
+      centerSurface: "deep-water",
+      start: { x: -98, y: -1.1, z: -240, surface: "soil" },
+      end: { x: -90, y: -1.2, z: -240, surface: "soil" },
+      deckY: -1,
+      halfWidth: 1.5,
+      halfLength: 4
+    },
+    kaiUPulse: 1,
+    authority: "source-proof-objects",
+    head: `sha256:${"c".repeat(64)}`
+  };
+  const supports = projectWildsStructureSupports(world);
+  const withoutBridge = resolveWildsGroundMovement({ x: -94.4, z: -240 }, { x: -94, z: -240 }, { obstacles: [] });
+  const onBridge = resolveWildsGroundMovement({ x: -94.4, z: -240 }, { x: -94, z: -240 }, { obstacles: [], structureSupports: supports });
+  const rails = projectWildsRenderedLivingObstacles(world).filter((entry) => entry.id.includes("trail-bridge") && entry.id.includes(":rail:"));
+  const againstRail = resolveWildsGroundMovement({ x: -94, z: -240 }, { x: -94, z: -238.9 }, { obstacles: rails, structureSupports: supports });
+
+  assert.equal(withoutBridge.traversalBlockedBy, "swim");
+  assert.equal(onBridge.traversalBlockedBy, null);
+  assert.equal(onBridge.traversalMode, "walk");
+  assert.equal(onBridge.elevation, -1);
+  assert.equal(supports.length, 1);
+  assert.equal(rails.length, 2);
+  assert.ok(againstRail.blockedBy.some((id) => id.includes(":rail:")));
+  assert.ok(againstRail.position.z < -238.9);
+  assert.equal(resolveWildsGroundMovement({ x: -94.4, z: -237 }, { x: -94, z: -237 }, { obstacles: [], structureSupports: supports }).traversalBlockedBy, "swim");
 });
 
 test("required landing never accepts an obstructed, stale, or inaccessible anchor", () => {

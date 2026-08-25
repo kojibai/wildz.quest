@@ -25,6 +25,7 @@ export type WildsAquaticPositionInput = Readonly<{
   z: number;
   canSwim: boolean;
   airborne: boolean;
+  supportElevation?: number | null;
 }>;
 
 let terrainProjections = 0;
@@ -61,10 +62,22 @@ export function projectWildsAquaticPresentation(input: WildsAquaticPresentationI
 
 export function projectWildsAquaticPresentationAtPosition(input: WildsAquaticPositionInput) {
   terrainProjections += 1;
-  return projectWildsAquaticPresentation({
+  const projected = projectWildsAquaticPresentation({
     terrain: sampleWildsTerrain(input.x, input.z),
     canSwim: input.canSwim,
     airborne: input.airborne
+  });
+  if (input.supportElevation === null || input.supportElevation === undefined || !Number.isFinite(input.supportElevation)) return projected;
+  const elevation = quantize(input.supportElevation);
+  return Object.freeze({
+    mode: "land" as const,
+    terrainElevation: elevation,
+    waterSurfaceY: projected.waterSurfaceY,
+    waterDepth: 0,
+    actorLocalY: 0,
+    actorWorldY: elevation,
+    cameraSubmersionAllowed: false,
+    scubaVisible: false
   });
 }
 

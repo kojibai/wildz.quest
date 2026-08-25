@@ -3,9 +3,11 @@ import { describe, it } from "node:test";
 import { projectWildsResourceRegion } from "../src/features/play/wilds-resource-authority";
 import {
   createWildsMaterialHarvest,
+  createWildsTrailBridge,
   createWildsTrailShelter,
   initialWildsHarvestedSourceState,
   projectWildsCreatureWorkFamilies,
+  selectWildsTrailBridgeRotation,
   verifyWildsMaterialLot,
   verifyWildsStructure
 } from "../src/features/play/wilds-steward-construction";
@@ -133,5 +135,67 @@ describe("source-authoritative steward construction", () => {
       existingStructures: [shelter],
       kaiUPulse: 222_223
     }), /structure_overlap/);
+  });
+
+  it("builds one source-authoritative bridge across water from exact conserved lots", () => {
+    assert.equal(selectWildsTrailBridgeRotation({ x: -292, z: -289 }), 1);
+    assert.equal(selectWildsTrailBridgeRotation({ x: 0, z: 0 }), null);
+    const ownerReceizId = "explorer:bridge";
+    const makeLot = (kind: "timber" | "stone", ordinal: number) => {
+      const source = sourceOf(kind);
+      let current = initialWildsHarvestedSourceState(source);
+      for (let index = 0; index <= ordinal; index += 1) {
+        const result = createWildsMaterialHarvest({
+          source,
+          current,
+          ownerReceizId,
+          actorPosition: source.position,
+          creature: { subjectId: `creature:${kind}`, head: "sha256:" + (kind === "timber" ? "6" : "7").repeat(64), workFamilies: [kind === "timber" ? "lumber" : "quarry"], willing: true },
+          kaiUPulse: 300_000 + index
+        });
+        if (index === ordinal) return result.lot;
+        current = result.source;
+      }
+      throw new Error("lot_missing");
+    };
+    const lots = [0, 1, 2, 3].map((ordinal) => makeLot("timber", ordinal))
+      .concat([0, 1].map((ordinal) => makeLot("stone", ordinal)));
+    const bridge = createWildsTrailBridge({
+      ownerReceizId,
+      position: { x: -292, z: -289 },
+      rotationQuarterTurns: 1,
+      lots,
+      builder: { creatureSubjectId: "creature:bridge", creatureHead: "sha256:" + "8".repeat(64) },
+      existingStructures: [],
+      kaiUPulse: 333_333
+    });
+
+    assert.equal(bridge.blueprint, "trail-bridge");
+    assert.deepEqual(bridge.materials, { timber: 4, stone: 2 });
+    assert.equal(bridge.consumedLotIds.length, 6);
+    assert.equal(bridge.physical.centerSurface, "shallow-water");
+    assert.equal(bridge.physical.start.surface, "soil");
+    assert.equal(bridge.physical.end.surface, "soil");
+    assert.equal(verifyWildsStructure(bridge), true);
+    assert.equal(verifyWildsStructure({ ...bridge, physical: { ...bridge.physical, deckY: bridge.physical.deckY + 1 } }), false);
+
+    assert.throws(() => createWildsTrailBridge({
+      ownerReceizId,
+      position: { x: 0, z: 0 },
+      rotationQuarterTurns: 1,
+      lots,
+      builder: { creatureSubjectId: "creature:bridge", creatureHead: "sha256:" + "8".repeat(64) },
+      existingStructures: [],
+      kaiUPulse: 333_334
+    }), /bridge_water_required/);
+    assert.throws(() => createWildsTrailBridge({
+      ownerReceizId,
+      position: { x: -292, z: -289 },
+      rotationQuarterTurns: 1,
+      lots: lots.slice(0, 5),
+      builder: { creatureSubjectId: "creature:bridge", creatureHead: "sha256:" + "8".repeat(64) },
+      existingStructures: [],
+      kaiUPulse: 333_334
+    }), /materials_insufficient/);
   });
 });

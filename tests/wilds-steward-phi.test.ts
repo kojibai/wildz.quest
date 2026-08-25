@@ -7,6 +7,7 @@ import {
   createWildsStewardHarvestOperation,
   createWildsStewardPhiAward,
   createWildsStewardStructureOperation,
+  createWildsTrailBridge,
   createWildsTrailShelter,
   initialWildsHarvestedSourceState,
   sumWildsStewardPhiAwards,
@@ -117,5 +118,26 @@ describe("source-authoritative stewardship Phi", () => {
     const award = createWildsStewardPhiAward({ ownerReceizId, operation, currentEmission, nextEmission, amountPhiMicro: "80000" });
     assert.equal(verifyWildsStewardPhiAward(award), true);
     assert.equal(verifyWildsStewardPhiAward({ ...award, amountPhiMicro: "90000" }), false);
+  });
+
+  it("issues exact bounded Phi for a durable public bridge", () => {
+    const lots = [0, 1, 2, 3].map((ordinal) => harvest("timber", ordinal).result.lot)
+      .concat([0, 1].map((ordinal) => harvest("stone", ordinal).result.lot));
+    const structure = createWildsTrailBridge({
+      ownerReceizId,
+      position: { x: -292, z: -289 },
+      rotationQuarterTurns: 1,
+      lots,
+      builder: { creatureSubjectId: creature.subjectId, creatureHead: creature.head },
+      existingStructures: [],
+      kaiUPulse: 1_200_000
+    });
+    const operation = createWildsStewardStructureOperation({ structure, lots, ownerReceizId, playerHead });
+    const currentEmission = emission();
+    const preview = previewWildsEmission({ emission: currentEmission, operation, contributionClass: "construction" });
+
+    assert.equal(operation.intention.kind, "steward.build-trail-bridge");
+    assert.deepEqual(operation.stages.map((stage) => stage.profession), ["finish", "haul", "stabilize", "survey"]);
+    assert.equal(preview.amountPhiMicro, "140000");
   });
 });

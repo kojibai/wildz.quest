@@ -8,6 +8,7 @@ import {
 import { compileWildsLivingOperation, verifyWildsLivingOperationPlan, type WildsLivingOperationPlanV1 } from "./wilds-living-operation";
 import { verifyWildsWorldEmissionProof, wildsEmissionRegionRemaining, type WildsWorldEmissionProofV1 } from "./wilds-world-emission";
 import { WILDS_EMISSION_REGION_SIZE } from "./wilds-grove-genesis";
+import { sampleWildsTerrain, type WildsTerrainSurface } from "./wilds-terrain-authority";
 
 export type WildsBuildMaterialKind = "timber" | "stone";
 
@@ -39,15 +40,12 @@ export type WildsMaterialLotV1 = Readonly<{
   head: string;
 }>;
 
-export type WildsStructureV1 = Readonly<{
+type WildsStructureBaseV1 = Readonly<{
   schema: "wildz.structure.v1";
-  structureId: string;
-  blueprint: "trail-shelter";
   ownerReceizId: string;
   position: Readonly<{ x: number; y: number; z: number }>;
   rotationQuarterTurns: 0 | 1 | 2 | 3;
   stage: "complete";
-  materials: Readonly<{ timber: 2; stone: 1 }>;
   consumedLotIds: readonly string[];
   consumedLotHeads: readonly string[];
   builder: Readonly<{ creatureSubjectId: string; creatureHead: string }>;
@@ -55,6 +53,30 @@ export type WildsStructureV1 = Readonly<{
   authority: "source-proof-objects";
   head: string;
 }>;
+
+export type WildsTrailShelterV1 = WildsStructureBaseV1 & Readonly<{
+  structureId: string;
+  blueprint: "trail-shelter";
+  materials: Readonly<{ timber: 2; stone: 1 }>;
+}>;
+
+export type WildsBridgePhysicalEvidenceV1 = Readonly<{
+  centerSurface: "shallow-water" | "deep-water";
+  start: Readonly<{ x: number; y: number; z: number; surface: WildsTerrainSurface }>;
+  end: Readonly<{ x: number; y: number; z: number; surface: WildsTerrainSurface }>;
+  deckY: number;
+  halfWidth: 1.5;
+  halfLength: 4;
+}>;
+
+export type WildsTrailBridgeV1 = WildsStructureBaseV1 & Readonly<{
+  structureId: string;
+  blueprint: "trail-bridge";
+  materials: Readonly<{ timber: 4; stone: 2 }>;
+  physical: WildsBridgePhysicalEvidenceV1;
+}>;
+
+export type WildsStructureV1 = WildsTrailShelterV1 | WildsTrailBridgeV1;
 
 export type WildsStewardPhiAwardV1 = Readonly<{
   schema: "wildz.steward-phi-award.v1";
@@ -161,17 +183,20 @@ export function createWildsStewardStructureOperation(input: Readonly<{
   ownerReceizId: string;
   playerHead: string;
 }>): WildsLivingOperationPlanV1 {
+  const expectedLotCount = input.structure.consumedLotIds.length;
   if (!verifyWildsStructure(input.structure) || input.structure.ownerReceizId !== input.ownerReceizId
-    || input.lots.length !== 3 || input.lots.some((lot) => !verifyWildsMaterialLot(lot) || lot.ownerReceizId !== input.ownerReceizId)
+    || input.lots.length !== expectedLotCount || input.lots.some((lot) => !verifyWildsMaterialLot(lot) || lot.ownerReceizId !== input.ownerReceizId)
     || canonicalPortableCardJson(input.structure.consumedLotHeads) !== canonicalPortableCardJson([...input.lots].sort((a, b) => a.lotId.localeCompare(b.lotId)).map((lot) => lot.head))) {
     throw new Error("wilds_steward_structure_operation_source_invalid");
   }
-  const identity = operationIdentity("trail-shelter", input.structure.head);
+  const bridge = input.structure.blueprint === "trail-bridge";
+  const identity = operationIdentity(input.structure.blueprint, input.structure.head);
+  const participantIds = [input.ownerReceizId, input.structure.builder.creatureSubjectId];
   return compileWildsLivingOperation({
     operationId: `steward:build:${identity}`,
     category: "construction",
     intention: {
-      kind: "steward.build-trail-shelter",
+      kind: `steward.build-${input.structure.blueprint}`,
       regionId: regionId(input.structure.position.x, input.structure.position.z),
       featureId: input.structure.structureId,
       structureHead: input.structure.head,
@@ -181,18 +206,17 @@ export function createWildsStewardStructureOperation(input: Readonly<{
       { id: input.ownerReceizId, kind: "player", expectedHead: input.playerHead, role: "steward" },
       { id: input.structure.builder.creatureSubjectId, kind: "creature", expectedHead: input.structure.builder.creatureHead, role: "building-partner" }
     ],
-    stages: [{ id: "stage:cooperative-build", profession: "build", participantIds: [input.ownerReceizId, input.structure.builder.creatureSubjectId] }],
-    consequences: {
-      usefulOutput: 3,
-      ecologicalRenewal: 0,
-      publicBenefit: 2,
-      cooperation: 2,
-      durability: 4,
-      extraction: 3,
-      damage: 0,
-      waste: 0,
-      restorationDebt: 0
-    },
+    stages: bridge
+      ? [
+          { id: "stage:survey", profession: "survey", participantIds },
+          { id: "stage:haul", profession: "haul", participantIds },
+          { id: "stage:stabilize", profession: "stabilize", participantIds },
+          { id: "stage:finish", profession: "finish", participantIds }
+        ]
+      : [{ id: "stage:cooperative-build", profession: "build", participantIds }],
+    consequences: bridge
+      ? { usefulOutput: 5, ecologicalRenewal: 0, publicBenefit: 5, cooperation: 3, durability: 7, extraction: 6, damage: 0, waste: 0, restorationDebt: 0 }
+      : { usefulOutput: 3, ecologicalRenewal: 0, publicBenefit: 2, cooperation: 2, durability: 4, extraction: 3, damage: 0, waste: 0, restorationDebt: 0 },
     kaiUPulse: input.structure.kaiUPulse,
     expiresAtKaiUPulse: input.structure.kaiUPulse + 1_000_000,
     semanticIdempotencyKey: `steward:build:${identity}`
@@ -373,21 +397,48 @@ export function createWildsMaterialHarvest(input: Readonly<{
   return freeze({ source, lot });
 }
 
+function verifyStructureBase(structure: Partial<WildsStructureV1>, expectedLots: number) {
+  return structure.schema === "wildz.structure.v1"
+    && ID.test(structure.ownerReceizId ?? "") && structure.stage === "complete"
+    && structure.authority === "source-proof-objects" && HEAD.test(structure.head ?? "")
+    && validKai(structure.kaiUPulse ?? -1) && Boolean(structure.position)
+    && [structure.position?.x, structure.position?.y, structure.position?.z].every((value) => typeof value === "number" && Number.isFinite(value))
+    && Number.isSafeInteger(structure.rotationQuarterTurns) && (structure.rotationQuarterTurns ?? -1) >= 0 && (structure.rotationQuarterTurns ?? 4) <= 3
+    && Array.isArray(structure.consumedLotIds) && structure.consumedLotIds.length === expectedLots
+    && new Set(structure.consumedLotIds).size === expectedLots
+    && Array.isArray(structure.consumedLotHeads) && structure.consumedLotHeads.length === expectedLots
+    && structure.consumedLotHeads.every((head) => HEAD.test(head)) && Boolean(structure.builder)
+    && ID.test(structure.builder?.creatureSubjectId ?? "") && HEAD.test(structure.builder?.creatureHead ?? "");
+}
+
+function waterSurface(surface: WildsTerrainSurface) {
+  return surface === "shallow-water" || surface === "deep-water";
+}
+
+function verifyBridgePhysical(value: unknown): value is WildsBridgePhysicalEvidenceV1 {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const physical = value as Partial<WildsBridgePhysicalEvidenceV1>;
+  return (physical.centerSurface === "shallow-water" || physical.centerSurface === "deep-water")
+    && physical.halfWidth === 1.5 && physical.halfLength === 4 && typeof physical.deckY === "number" && Number.isFinite(physical.deckY)
+    && Boolean(physical.start) && Boolean(physical.end)
+    && [physical.start?.x, physical.start?.y, physical.start?.z, physical.end?.x, physical.end?.y, physical.end?.z]
+      .every((candidate) => typeof candidate === "number" && Number.isFinite(candidate))
+    && typeof physical.start?.surface === "string" && typeof physical.end?.surface === "string"
+    && !waterSurface(physical.start.surface) && !waterSurface(physical.end.surface)
+    && Math.abs(physical.start.y - physical.end.y) <= 1.250001
+    && physical.deckY >= Math.max(physical.start.y, physical.end.y);
+}
+
 export function verifyWildsStructure(value: unknown): value is WildsStructureV1 {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const structure = value as Partial<WildsStructureV1>;
-  if (structure.schema !== "wildz.structure.v1" || structure.blueprint !== "trail-shelter"
-    || !/^wildz:structure:trail-shelter:[a-f0-9]{64}$/.test(structure.structureId ?? "")
-    || !ID.test(structure.ownerReceizId ?? "") || structure.stage !== "complete"
-    || structure.materials?.timber !== 2 || structure.materials?.stone !== 1
-    || structure.authority !== "source-proof-objects" || !HEAD.test(structure.head ?? "")
-    || !validKai(structure.kaiUPulse ?? -1) || !structure.position
-    || ![structure.position.x, structure.position.y, structure.position.z].every(Number.isFinite)
-    || !Number.isSafeInteger(structure.rotationQuarterTurns) || (structure.rotationQuarterTurns ?? -1) < 0 || (structure.rotationQuarterTurns ?? 4) > 3
-    || !Array.isArray(structure.consumedLotIds) || structure.consumedLotIds.length !== 3
-    || !Array.isArray(structure.consumedLotHeads) || structure.consumedLotHeads.length !== 3
-    || !structure.consumedLotHeads.every((head) => HEAD.test(head)) || !structure.builder
-    || !ID.test(structure.builder.creatureSubjectId) || !HEAD.test(structure.builder.creatureHead)) return false;
+  const shelter = structure.blueprint === "trail-shelter";
+  const bridge = structure.blueprint === "trail-bridge";
+  if ((!shelter && !bridge) || !verifyStructureBase(structure, shelter ? 3 : 6)
+    || !new RegExp(`^wildz:structure:${structure.blueprint}:[a-f0-9]{64}$`).test(structure.structureId ?? "")
+    || (shelter && (structure.materials?.timber !== 2 || structure.materials?.stone !== 1))
+    || (bridge && (structure.materials?.timber !== 4 || structure.materials?.stone !== 2
+      || !verifyBridgePhysical((structure as Partial<WildsTrailBridgeV1>).physical)))) return false;
   const { head, ...basis } = structure as WildsStructureV1;
   return head === digest(basis);
 }
@@ -435,6 +486,94 @@ export function createWildsTrailShelter(input: Readonly<{
     consumedLotIds: freeze(orderedLots.map((lot) => lot.lotId)),
     consumedLotHeads: freeze(orderedLots.map((lot) => lot.head)),
     builder: freeze({ ...input.builder }),
+    kaiUPulse: input.kaiUPulse,
+    authority: "source-proof-objects" as const
+  };
+  return freeze({ ...basis, head: digest(basis) });
+}
+
+function bridgeAxis(rotationQuarterTurns: 0 | 1 | 2 | 3) {
+  return rotationQuarterTurns % 2 === 0 ? { x: 0, z: 4 } : { x: 4, z: 0 };
+}
+
+function bridgeTerrainEvidence(position: Readonly<{ x: number; z: number }>, rotationQuarterTurns: 0 | 1 | 2 | 3) {
+  const axis = bridgeAxis(rotationQuarterTurns);
+  const center = sampleWildsTerrain(position.x, position.z);
+  const start = sampleWildsTerrain(position.x - axis.x, position.z - axis.z);
+  const end = sampleWildsTerrain(position.x + axis.x, position.z + axis.z);
+  return { axis, center, start, end };
+}
+
+export function selectWildsTrailBridgeRotation(position: Readonly<{ x: number; z: number }>): 0 | 1 | null {
+  if (![position.x, position.z].every(Number.isFinite)) return null;
+  for (const rotationQuarterTurns of [0, 1] as const) {
+    const terrain = bridgeTerrainEvidence(position, rotationQuarterTurns);
+    if (waterSurface(terrain.center.surface) && !waterSurface(terrain.start.surface) && !waterSurface(terrain.end.surface)
+      && Math.abs(terrain.start.elevation - terrain.end.elevation) <= 1.25) return rotationQuarterTurns;
+  }
+  return null;
+}
+
+export function createWildsTrailBridge(input: Readonly<{
+  ownerReceizId: string;
+  position: Readonly<{ x: number; z: number }>;
+  rotationQuarterTurns: number;
+  lots: readonly WildsMaterialLotV1[];
+  builder: Readonly<{ creatureSubjectId: string; creatureHead: string }>;
+  existingStructures: readonly WildsStructureV1[];
+  kaiUPulse: number;
+}>): WildsTrailBridgeV1 {
+  if (!ID.test(input.ownerReceizId) || !validKai(input.kaiUPulse)) throw new Error("wilds_steward_structure_authority_invalid");
+  if (!ID.test(input.builder.creatureSubjectId) || !HEAD.test(input.builder.creatureHead)) throw new Error("wilds_steward_builder_invalid");
+  if (![input.position.x, input.position.z].every(Number.isFinite)
+    || Math.abs(input.position.x) > 500_000_000 || Math.abs(input.position.z) > 500_000_000) throw new Error("wilds_steward_structure_position_invalid");
+  if (!Number.isSafeInteger(input.rotationQuarterTurns)) throw new Error("wilds_steward_structure_rotation_invalid");
+  const rotationQuarterTurns = (((input.rotationQuarterTurns % 4) + 4) % 4) as 0 | 1 | 2 | 3;
+  if (input.lots.some((lot) => !verifyWildsMaterialLot(lot) || lot.ownerReceizId !== input.ownerReceizId)) throw new Error("wilds_steward_material_authority_invalid");
+  if (new Set(input.lots.map((lot) => lot.lotId)).size !== input.lots.length) throw new Error("wilds_steward_material_duplicate");
+  const timber = input.lots.filter((lot) => lot.kind === "timber");
+  const stone = input.lots.filter((lot) => lot.kind === "stone");
+  if (input.lots.length !== 6 || timber.length !== 4 || stone.length !== 2) throw new Error("wilds_steward_materials_insufficient");
+
+  const { axis, center, start: startTerrain, end: endTerrain } = bridgeTerrainEvidence(input.position, rotationQuarterTurns);
+  if (!waterSurface(center.surface)) throw new Error("wilds_steward_bridge_water_required");
+  if (waterSurface(startTerrain.surface) || waterSurface(endTerrain.surface)) throw new Error("wilds_steward_bridge_bank_required");
+  if (Math.abs(startTerrain.elevation - endTerrain.elevation) > 1.25) throw new Error("wilds_steward_bridge_grade_invalid");
+  if (input.existingStructures.some((structure) => Math.hypot(structure.position.x - input.position.x, structure.position.z - input.position.z) < 9.25)) {
+    throw new Error("wilds_steward_structure_overlap");
+  }
+  const deckY = Math.round((Math.max(startTerrain.elevation, endTerrain.elevation) + .18) * 1_000_000) / 1_000_000;
+  const physical = freeze({
+    centerSurface: center.surface as "shallow-water" | "deep-water",
+    start: freeze({ x: input.position.x - axis.x, y: startTerrain.elevation, z: input.position.z - axis.z, surface: startTerrain.surface }),
+    end: freeze({ x: input.position.x + axis.x, y: endTerrain.elevation, z: input.position.z + axis.z, surface: endTerrain.surface }),
+    deckY,
+    halfWidth: 1.5 as const,
+    halfLength: 4 as const
+  });
+  const orderedLots = [...input.lots].sort((left, right) => left.lotId.localeCompare(right.lotId));
+  const identity = digest({
+    schema: "wildz.structure-identity.v1",
+    blueprint: "trail-bridge",
+    ownerReceizId: input.ownerReceizId,
+    position: { x: input.position.x, y: deckY, z: input.position.z },
+    rotationQuarterTurns,
+    physical,
+    consumedLotHeads: orderedLots.map((lot) => lot.head)
+  }).replace(/^sha256:/, "");
+  const basis = {
+    schema: "wildz.structure.v1" as const,
+    structureId: `wildz:structure:trail-bridge:${identity}`,
+    blueprint: "trail-bridge" as const,
+    ownerReceizId: input.ownerReceizId,
+    position: freeze({ x: input.position.x, y: deckY, z: input.position.z }),
+    rotationQuarterTurns,
+    stage: "complete" as const,
+    materials: freeze({ timber: 4 as const, stone: 2 as const }),
+    consumedLotIds: freeze(orderedLots.map((lot) => lot.lotId)),
+    consumedLotHeads: freeze(orderedLots.map((lot) => lot.head)),
+    builder: freeze({ ...input.builder }),
+    physical,
     kaiUPulse: input.kaiUPulse,
     authority: "source-proof-objects" as const
   };

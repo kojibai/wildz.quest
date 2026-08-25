@@ -10,6 +10,12 @@ import {
   distanceToWildsMajorRoute,
   sampleWildsTerrain
 } from "./wilds-terrain-authority";
+import {
+  WILDS_TRAIL_BRIDGE_HALF_LENGTH,
+  WILDS_TRAIL_BRIDGE_HALF_WIDTH,
+  WILDS_TRAIL_BRIDGE_RAIL_HALF_THICKNESS,
+  WILDS_TRAIL_BRIDGE_RAIL_HEIGHT
+} from "./wilds-structure-support";
 
 export type WildsObstacleMaterial = "solid" | "stepable" | "soft" | "conditional";
 export type WildsObstacleKind = "tree" | "rock" | "structure" | "ceiling" | "aerial-hazard";
@@ -113,8 +119,32 @@ export function projectWildsRenderedLivingObstacles(world?: WildsWorldProjection
     });
   }
   for (const structure of Object.values(world.structures ?? {})) {
-    const terrainY = renderedTerrainY(structure.position.x, structure.position.z);
     const rotation = structure.rotationQuarterTurns * Math.PI / 2;
+    if (structure.blueprint === "trail-bridge") {
+      for (const [index, side] of [-1, 1].entries()) {
+        const localX = side * (WILDS_TRAIL_BRIDGE_HALF_WIDTH - WILDS_TRAIL_BRIDGE_RAIL_HALF_THICKNESS);
+        const x = localX * Math.cos(rotation);
+        const z = -localX * Math.sin(rotation);
+        const turned = structure.rotationQuarterTurns % 2 === 1;
+        obstacles.push({
+          id: `wildz.rendered.v1:structure:${structure.structureId}:rail:${index}`,
+          kind: "structure",
+          material: "solid",
+          position: { x: structure.position.x + x, y: structure.physical.deckY + WILDS_TRAIL_BRIDGE_RAIL_HEIGHT / 2, z: structure.position.z + z },
+          radius: WILDS_TRAIL_BRIDGE_HALF_LENGTH,
+          shape: {
+            kind: "box",
+            halfX: turned ? WILDS_TRAIL_BRIDGE_HALF_LENGTH : WILDS_TRAIL_BRIDGE_RAIL_HALF_THICKNESS,
+            halfY: WILDS_TRAIL_BRIDGE_RAIL_HEIGHT / 2,
+            halfZ: turned ? WILDS_TRAIL_BRIDGE_RAIL_HALF_THICKNESS : WILDS_TRAIL_BRIDGE_HALF_LENGTH
+          },
+          visualScale: 1,
+          airbornePolicy: "clearable"
+        });
+      }
+      continue;
+    }
+    const terrainY = renderedTerrainY(structure.position.x, structure.position.z);
     for (const [index, local] of [[-2.45, -1.95], [2.45, -1.95], [-2.45, 1.95], [2.45, 1.95]].entries()) {
       const x = local[0]! * Math.cos(rotation) + local[1]! * Math.sin(rotation);
       const z = -local[0]! * Math.sin(rotation) + local[1]! * Math.cos(rotation);

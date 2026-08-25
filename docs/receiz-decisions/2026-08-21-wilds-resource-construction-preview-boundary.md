@@ -1,8 +1,8 @@
 # Wilds resources, construction, and authored play on Receiz v121
 
-Status: Grove execution admitted on Receiz 124.0.2; general construction and excavation remain preview-only
+Status: Grove stewardship plus exact Trail Shelter and Trail Bridge execution admitted on Receiz 124.0.2; the general construction catalog and excavation remain preview-only
 
-## Regenerative Grove exception now shipped
+## Narrow source-authoritative exceptions now shipped
 
 The regenerative Grove is no longer a preview-only surface. Its observation, gathering, pollination, sowing, watering, composting, cultivation, nectar transformation, honey harvest, hive/nursery construction, and repair actions compile through the universal living-world operation kernel. Every action binds exact world, player, creature, Grove, inventory, and World Emission heads. Receiz stages the registered operations as one atomic compare-and-swap plan; a committed exact result advances all participants, while stale, cancelled, ambiguous, or zero-write outcomes advance none.
 
@@ -10,7 +10,9 @@ The player's Receiz ID proof object remains the source authority. Exact consent 
 
 Lawful regenerative work may receive newly issued integer micro-Phi only from the bounded World Emission proof. Damage-and-repair cycles, extraction-only work, replayed operations, missing cooperation, restoration debt, and exhausted region/class/global capacity cannot fabricate issuance. Zero-Phi care still advances its exact proof history without touching settlement capacity.
 
-This exception is intentionally narrow. The general resource, construction, excavation, authored-experience, and damage/salvage systems described below retain their preview-only boundary until they are migrated through the same kernel and exact proof-head execution law.
+The Trail Shelter and Trail Bridge are now admitted through that same universal kernel. A willing, head-bound creature mandate and current player proof authorize the work at the edge. Exact harvested timber and stone lots, structure proof, bounded World Emission successor, and Phi award advance atomically or do not advance at all. The bridge additionally carries deterministic water, bank, grade, deck, and rotation evidence; its admitted proof restores the same visible geometry, rail collision, and walkable deck after refresh without any frame-time proof work.
+
+This exception is intentionally narrow. Material harvesting currently exists to supply these two exact steward structures. The general blueprint catalog, excavation, authored-experience, and damage/salvage systems described below retain their preview-only boundary until they are migrated through the same kernel and exact proof-head execution law.
 
 ## Shipped in this boundary
 
@@ -28,8 +30,8 @@ Damage, repair, and salvage are policy previews only. They validate ownership/pu
 
 ## Explicitly not shipped
 
-- harvesting admission, ecological source mutation, resource proof creation, inventory mutation, split/merge/gift/listing/sale, or Φ settlement;
-- blueprint publication, physical structure admission, collaborative head advancement, or authored atlas/restore;
+- harvesting, inventory, or Φ settlement beyond the narrow exact steward material and Grove paths described above; split/merge/gift/listing/sale remain outside this boundary;
+- blueprint publication or physical structure admission beyond the exact Trail Shelter and Trail Bridge; general collaborative construction and authored atlas/restore remain outside this boundary;
 - online or offline creature job execution, mandates, polling, queues, or background work;
 - authored reward, shop, processor, hazard, battle, or score consequences outside the pure preview state;
 - public/private/invited construction, destruction, repair, salvage, or stewardship commands;

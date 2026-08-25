@@ -11,6 +11,7 @@ import {
   wildsTerrainObstaclesForTile,
   type WildsTerrainObstacle
 } from "./wilds-terrain-obstacles";
+import { wildsStructureSupportAt, type WildsStructureSupport } from "./wilds-structure-support";
 
 type Point = Readonly<{ x: number; z: number }>;
 type TraversalCapability = WildsTraversalRequirement["kind"];
@@ -356,6 +357,8 @@ export function resolveWildsGroundMovement(
     verticalClearance?: number;
     verticalWorldY?: number;
     obstacles?: readonly WildsTerrainObstacle[];
+    additionalObstacles?: readonly WildsTerrainObstacle[];
+    structureSupports?: readonly WildsStructureSupport[];
   } = {}
 ): WildsGroundMovementResult {
   if (!finitePoint(start) || !finitePoint(intended)) throw new Error("wilds_ground_movement_invalid");
@@ -363,13 +366,15 @@ export function resolveWildsGroundMovement(
   const startTerrain = sampleWildsTerrain(start.x, start.z);
   const intendedTerrain = sampleWildsTerrain(intended.x, intended.z);
   const capabilities = new Set(options.capabilities ?? []);
-  const intendedMode = options.aerialMode ?? traversalModeFor(intendedTerrain, capabilities);
+  const intendedSupport = wildsStructureSupportAt(intended, options.structureSupports, capsuleRadius);
+  const intendedMode = options.aerialMode ?? (intendedSupport ? "walk" : traversalModeFor(intendedTerrain, capabilities));
   const speedMultiplier = speedForTraversalMode(intendedMode);
   const target = {
     x: quantize(start.x + (intended.x - start.x) * speedMultiplier),
     z: quantize(start.z + (intended.z - start.z) * speedMultiplier)
   };
   const targetTerrain = sampleWildsTerrain(target.x, target.z);
+  const targetSupport = wildsStructureSupportAt(target, options.structureSupports, capsuleRadius);
   const airborneClearance = options.aerialMode
     ? Math.max(0, Number.isFinite(options.verticalWorldY)
       ? options.verticalWorldY! - startTerrain.elevation
@@ -412,8 +417,8 @@ export function resolveWildsGroundMovement(
   }
   const missingTraversal = airborneClearance !== null
     ? null
-    : intendedTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind
-      ?? targetTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind
+    : (intendedSupport ? null : intendedTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind)
+      ?? (targetSupport ? null : targetTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind)
       ?? null;
   if (missingTraversal) {
     return {
@@ -426,7 +431,10 @@ export function resolveWildsGroundMovement(
       traversalBlockedBy: missingTraversal
     };
   }
-  const allObstacles = options.obstacles ?? movementObstacles(start, target, capsuleRadius);
+  const allObstacles = options.obstacles ?? [
+    ...movementObstacles(start, target, capsuleRadius),
+    ...(options.additionalObstacles ?? [])
+  ];
   const obstacles = airborneClearance === null
     ? allObstacles
     : allObstacles.filter((obstacle) => wildsObstacleBlocksVerticalBand(
@@ -435,9 +443,10 @@ export function resolveWildsGroundMovement(
     ));
   const collision = resolveWildsObstacleMotion(start, target, obstacles, capsuleRadius);
   const resolvedTerrain = sampleWildsTerrain(collision.position.x, collision.position.z);
+  const resolvedSupport = wildsStructureSupportAt(collision.position, options.structureSupports, capsuleRadius);
   const pushedIntoMissingTraversal = airborneClearance !== null
     ? null
-    : resolvedTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind ?? null;
+    : resolvedSupport ? null : resolvedTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind ?? null;
   if (pushedIntoMissingTraversal) {
     return {
       position: { ...start },
@@ -451,10 +460,10 @@ export function resolveWildsGroundMovement(
   }
   return {
     position: collision.position,
-    elevation: resolvedTerrain.elevation,
-    surface: resolvedTerrain.surface,
+    elevation: resolvedSupport?.deckY ?? resolvedTerrain.elevation,
+    surface: resolvedSupport ? "trail" : resolvedTerrain.surface,
     speedMultiplier,
-    traversalMode: intendedMode,
+    traversalMode: resolvedSupport ? "walk" : intendedMode,
     blockedBy: collision.blockedBy,
     traversalBlockedBy: null
   };

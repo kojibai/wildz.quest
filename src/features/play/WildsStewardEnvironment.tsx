@@ -17,7 +17,12 @@ function createGeometry() {
     foundation: new THREE.BoxGeometry(5.6, .4, 4.8),
     post: new THREE.CylinderGeometry(.16, .2, 2.5, 8),
     beam: new THREE.BoxGeometry(5.4, .22, .28),
-    roof: new THREE.ConeGeometry(4.2, 1.25, 4)
+    roof: new THREE.ConeGeometry(4.2, 1.25, 4),
+    bridgeDeck: new THREE.BoxGeometry(3, .24, 8),
+    bridgePlank: new THREE.BoxGeometry(2.86, .1, .62),
+    bridgeRail: new THREE.BoxGeometry(.14, .14, 7.8),
+    bridgePost: new THREE.CylinderGeometry(.1, .13, 1.05, 8),
+    bridgeFooting: new THREE.CylinderGeometry(.22, .3, 1.2, 8)
   };
 }
 
@@ -29,7 +34,9 @@ function createMaterials() {
     stoneGlow: new THREE.MeshStandardMaterial({ color: "#9ee8ff", emissive: "#316c88", emissiveIntensity: .52 }),
     foundation: new THREE.MeshStandardMaterial({ color: "#68766e", roughness: .95 }),
     wood: new THREE.MeshStandardMaterial({ color: "#73513b", roughness: .88 }),
-    roof: new THREE.MeshStandardMaterial({ color: "#275947", roughness: .78, side: THREE.DoubleSide })
+    roof: new THREE.MeshStandardMaterial({ color: "#275947", roughness: .78, side: THREE.DoubleSide }),
+    bridgeWood: new THREE.MeshStandardMaterial({ color: "#8c6746", roughness: .9 }),
+    bridgeEdge: new THREE.MeshStandardMaterial({ color: "#4f392c", roughness: .94 })
   };
 }
 
@@ -77,7 +84,9 @@ export function WildsStewardEnvironment({ livingWorld, player, terrainElevation,
   }, [geometry, materials]);
   return <group name="wilds-steward-world">
     {sources.map((source) => <ResourceManifestation geometry={geometry} key={source.sourceId} materials={materials} onInteract={onInteractSource} player={player} source={source} terrainElevation={terrainElevation} />)}
-    {structures.map((structure) => <TrailShelter geometry={geometry} key={structure.structureId} materials={materials} player={player} structure={structure} terrainElevation={terrainElevation} />)}
+    {structures.map((structure) => structure.blueprint === "trail-bridge"
+      ? <TrailBridge geometry={geometry} key={structure.structureId} materials={materials} player={player} structure={structure} terrainElevation={terrainElevation} />
+      : <TrailShelter geometry={geometry} key={structure.structureId} materials={materials} player={player} structure={structure} terrainElevation={terrainElevation} />)}
   </group>;
 }
 
@@ -113,7 +122,7 @@ function TrailShelter({ geometry, materials, player, structure, terrainElevation
     const eased = 1 - Math.pow(1 - progress.current, 3);
     root.current.scale.set(1, Math.max(.04, eased), 1);
   });
-  const position = projectWildsTerrainActorPosition(structure.position, player, 0, { anchorElevation: terrainElevation });
+  const position = projectWildsTerrainActorPosition(structure.position, player, 0, { actorElevation: structure.position.y, anchorElevation: terrainElevation });
   const rotation = structure.rotationQuarterTurns * Math.PI / 2;
   return <group name={`trail-shelter-${structure.structureId}`} position={position} ref={root} rotation={[0, rotation, 0]} scale={[1, .04, 1]}>
     <Shared castShadow receiveShadow geometry={geometry.foundation} material={materials.foundation} position={[0, .2, 0]} />
@@ -121,5 +130,35 @@ function TrailShelter({ geometry, materials, player, structure, terrainElevation
     <Shared castShadow geometry={geometry.beam} material={materials.wood} position={[0, 2.65, -1.95]} />
     <Shared castShadow geometry={geometry.beam} material={materials.wood} position={[0, 2.65, 1.95]} />
     <Shared castShadow geometry={geometry.roof} material={materials.roof} position={[0, 3.25, 0]} rotation={[0, Math.PI / 4, 0]} scale={[1, 1, .82]} />
+  </group>;
+}
+
+function TrailBridge({ geometry, materials, player, structure, terrainElevation }: {
+  geometry: Geometry;
+  materials: Materials;
+  player: Readonly<{ x: number; z: number }>;
+  structure: Extract<WildsStructureV1, { blueprint: "trail-bridge" }>;
+  terrainElevation: number;
+}) {
+  const root = useRef<THREE.Group>(null);
+  const progress = useRef(0);
+  useFrame((_, delta) => {
+    if (!root.current || progress.current >= 1) return;
+    progress.current = Math.min(1, progress.current + Math.min(delta, .05) * 1.1);
+    const eased = 1 - Math.pow(1 - progress.current, 3);
+    root.current.scale.set(1, Math.max(.04, eased), 1);
+  });
+  const position = projectWildsTerrainActorPosition(structure.position, player, 0, {
+    actorElevation: structure.physical.deckY,
+    anchorElevation: terrainElevation
+  });
+  const rotation = structure.rotationQuarterTurns * Math.PI / 2;
+  const plankSlots = [-3.55, -2.85, -2.15, -1.45, -.75, -.05, .65, 1.35, 2.05, 2.75, 3.45];
+  return <group name={`trail-bridge-${structure.structureId}`} position={position} ref={root} rotation={[0, rotation, 0]} scale={[1, .04, 1]}>
+    <Shared castShadow receiveShadow geometry={geometry.bridgeDeck} material={materials.bridgeEdge} position={[0, -.13, 0]} />
+    {plankSlots.map((z, index) => <Shared castShadow receiveShadow geometry={geometry.bridgePlank} key={index} material={materials.bridgeWood} position={[0, .035, z]} />)}
+    {[-1.42, 1.42].map((x) => <Shared castShadow geometry={geometry.bridgeRail} key={`rail-${x}`} material={materials.bridgeEdge} position={[x, .72, 0]} />)}
+    {[-1.42, 1.42].flatMap((x) => [-3.7, -1.25, 1.25, 3.7].map((z) => <Shared castShadow geometry={geometry.bridgePost} key={`post-${x}-${z}`} material={materials.bridgeEdge} position={[x, .48, z]} />))}
+    {[-1.12, 1.12].flatMap((x) => [-3.65, 3.65].map((z) => <Shared castShadow geometry={geometry.bridgeFooting} key={`footing-${x}-${z}`} material={materials.foundation} position={[x, -.62, z]} />))}
   </group>;
 }

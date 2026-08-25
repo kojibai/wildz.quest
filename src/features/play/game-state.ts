@@ -58,6 +58,8 @@ import {
 } from "./wilds-traversal-capabilities";
 import type { WildsEncounterInteractionLayer } from "./wilds-layered-encounters";
 import { wildsTerrainElevation } from "./wilds-terrain-authority";
+import type { WildsStructureSupport } from "./wilds-structure-support";
+import type { WildsTerrainObstacle } from "./wilds-terrain-obstacles";
 import { projectWildsCivicHistory, type WildsCivicEvent } from "./wilds-civic-history";
 import { projectWildsEcologyHistory, type WildsEcologyKnowledge, type WildsEcologyReceipt } from "./wilds-ecology-history";
 import { projectWildsRaidHistory, type WildsBossKnowledge, type WildsRaidReceipt } from "./wilds-raid-history";
@@ -89,8 +91,8 @@ export type { WildsSupportAssetIds } from "./wilds-v3-contracts";
 export type GameAction = "explore" | "train" | "mission";
 export type MoveDirection = "north" | "south" | "west" | "east";
 export type WildsInput = (
-  | { type: "move"; direction: MoveDirection; aerialMode?: "glide" | "flight"; verticalClearance?: number; verticalWorldY?: number; siteRuntime?: WildsSiteRuntimeProjection; siteMovementOutput?: WildsSiteMovementOutput; siteDiscoveryOutput?: WildsSiteDiscoveryOutput }
-  | { type: "move-vector"; x: number; z: number; mode?: WildsMovementMode; aerialMode?: "glide" | "flight"; verticalClearance?: number; verticalWorldY?: number; siteRuntime?: WildsSiteRuntimeProjection; siteMovementOutput?: WildsSiteMovementOutput; siteDiscoveryOutput?: WildsSiteDiscoveryOutput }
+  | { type: "move"; direction: MoveDirection; aerialMode?: "glide" | "flight"; verticalClearance?: number; verticalWorldY?: number; structureSupports?: readonly WildsStructureSupport[]; additionalObstacles?: readonly WildsTerrainObstacle[]; siteRuntime?: WildsSiteRuntimeProjection; siteMovementOutput?: WildsSiteMovementOutput; siteDiscoveryOutput?: WildsSiteDiscoveryOutput }
+  | { type: "move-vector"; x: number; z: number; mode?: WildsMovementMode; aerialMode?: "glide" | "flight"; verticalClearance?: number; verticalWorldY?: number; structureSupports?: readonly WildsStructureSupport[]; additionalObstacles?: readonly WildsTerrainObstacle[]; siteRuntime?: WildsSiteRuntimeProjection; siteMovementOutput?: WildsSiteMovementOutput; siteDiscoveryOutput?: WildsSiteDiscoveryOutput }
   | { type: "site-portal"; direction: "enter" | "exit"; siteKey: string; siteRuntime: WildsSiteRuntimeProjection }
   | { type: "apply-rift-grant"; grant: RiftTravelGrant; playerId: string }
   | { type: "discover" }
@@ -1922,8 +1924,8 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     });
     const movement = currentSpace.spaceId === "wildz.space.outer.v1"
       ? input.type === "move"
-        ? movePlayer(state.player, input.direction, movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, input.verticalWorldY)
-        : movePlayerVector(state.player, input.x, input.z, movementScale(input.mode ?? "walk"), movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, input.verticalWorldY)
+        ? movePlayer(state.player, input.direction, movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, input.verticalWorldY, input.structureSupports, input.additionalObstacles)
+        : movePlayerVector(state.player, input.x, input.z, movementScale(input.mode ?? "walk"), movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, input.verticalWorldY, input.structureSupports, input.additionalObstacles)
       : movePlayerInsideSite(state.player, input);
     const siteMovement = input.siteRuntime ? writeWildsSiteRuntimeMovement(
       input.siteMovementOutput ?? { x: movement.position.x, z: movement.position.z, floorY: movement.elevation, ceilingY: Number.POSITIVE_INFINITY, surfaceId: null, flooded: false, blocked: false, blockedByClimb: false },
@@ -2218,7 +2220,9 @@ function movePlayer(
   capabilities: readonly WildsTraversalCapability[],
   aerialMode?: "glide" | "flight",
   verticalClearance?: number,
-  verticalWorldY?: number
+  verticalWorldY?: number,
+  structureSupports?: readonly WildsStructureSupport[],
+  additionalObstacles?: readonly WildsTerrainObstacle[]
 ) {
   const next = { ...player };
 
@@ -2231,7 +2235,7 @@ function movePlayer(
     x: clamp(next.x, worldBounds.min, worldBounds.max),
     z: clamp(next.z, worldBounds.min, worldBounds.max)
   };
-  return resolveWildsGroundMovement(player, intended, { capabilities, aerialMode, verticalClearance, verticalWorldY });
+  return resolveWildsGroundMovement(player, intended, { capabilities, aerialMode, verticalClearance, verticalWorldY, structureSupports, additionalObstacles });
 }
 
 function movePlayerVector(
@@ -2242,18 +2246,20 @@ function movePlayerVector(
   capabilities: readonly WildsTraversalCapability[],
   aerialMode?: "glide" | "flight",
   verticalClearance?: number,
-  verticalWorldY?: number
+  verticalWorldY?: number,
+  structureSupports?: readonly WildsStructureSupport[],
+  additionalObstacles?: readonly WildsTerrainObstacle[]
 ) {
   const safeX = Number.isFinite(x) ? x : 0;
   const safeZ = Number.isFinite(z) ? z : 0;
   const magnitude = Math.hypot(safeX, safeZ);
-  if (magnitude < 0.08) return resolveWildsGroundMovement(player, player, { capabilities, aerialMode, obstacles: [], verticalClearance, verticalWorldY });
+  if (magnitude < 0.08) return resolveWildsGroundMovement(player, player, { capabilities, aerialMode, obstacles: [], verticalClearance, verticalWorldY, structureSupports });
   const scale = worldBounds.analogStep * movementMultiplier / Math.max(1, magnitude);
   const intended = {
     x: clamp(player.x + safeX * scale, worldBounds.min, worldBounds.max),
     z: clamp(player.z + safeZ * scale, worldBounds.min, worldBounds.max)
   };
-  return resolveWildsGroundMovement(player, intended, { capabilities, aerialMode, verticalClearance, verticalWorldY });
+  return resolveWildsGroundMovement(player, intended, { capabilities, aerialMode, verticalClearance, verticalWorldY, structureSupports, additionalObstacles });
 }
 
 function movePlayerInsideSite(player: PlayState["player"], input: Extract<WildsInput, { type: "move" | "move-vector" }>) {

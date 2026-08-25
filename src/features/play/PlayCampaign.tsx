@@ -150,10 +150,11 @@ import { resolveWildsRequiredLandingPosition } from "@/features/play/wilds-groun
 import { projectCreatureCapabilityIdentity, projectCreatureRuntimeCapabilities } from "@/features/play/creature-capability-identity";
 import { wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
 import { projectWildsRenderedLivingObstacles } from "@/features/play/wilds-terrain-obstacles";
+import { projectWildsStructureSupports, wildsStructureSupportAt } from "@/features/play/wilds-structure-support";
 import { admitWildsDiscoveryPhysicalNeighborhood, wildsDiscoverySiteRegionForPosition } from "@/features/play/wilds-discovery-sites";
 import { prepareWildsSiteRuntime, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeEncounter, writeWildsSiteRuntimeLanding, writeWildsSiteRuntimeMovement } from "@/features/play/wilds-site-runtime";
 import { discoverWildsExplorationSite } from "@/features/play/wilds-exploration-atlas";
-import { initialWildsHarvestedSourceState, projectWildsCreatureWorkFamilies } from "@/features/play/wilds-steward-construction";
+import { initialWildsHarvestedSourceState, projectWildsCreatureWorkFamilies, selectWildsTrailBridgeRotation } from "@/features/play/wilds-steward-construction";
 import type { WildsResourceSource } from "@/features/play/wilds-resource-authority";
 
 const WildsWorldMap = dynamic(() => import("@/features/play/WildsWorldMap").then((mod) => mod.WildsWorldMap), { ssr: false });
@@ -418,7 +419,7 @@ export function PlayCampaign({
   const [raidReturnPosition, setRaidReturnPosition] = useState<{ x: number; z: number } | null>(null);
   const [raidBusyIntent, setRaidBusyIntent] = useState<WildsRaidIntent["type"] | null>(null);
   const [riftError, setRiftError] = useState("");
-  const [shelterPlacementArmed, setShelterPlacementArmed] = useState(false);
+  const [stewardPlacementMode, setStewardPlacementMode] = useState<"shelter" | "bridge" | null>(null);
   const [requestedCommand, setRequestedCommand] = useState<WildsCommandKey | null>(null);
   const [vaultFocusedAssetId, setVaultFocusedAssetId] = useState<string | null>(null);
   const [commandDismissSignal, setCommandDismissSignal] = useState(0);
@@ -454,36 +455,7 @@ export function PlayCampaign({
       pressure: activeTraversalCapabilities.includes("swim") ? potential(["dive", "current", "swim", "anchor"]) : 0
     };
   }, [activeAsset, activeTraversalCapabilities, state.adventureConditions]);
-  const [aerialMode, setAerialMode] = useState<WildsAerialMode>("ground");
   const canSwim = activeTraversalCapabilities.includes("swim");
-  const aquaticPresentation = useMemo(() => projectWildsAquaticPresentationAtPosition({
-    x: state.player.x,
-    z: state.player.z,
-    canSwim,
-    airborne: aerialMode !== "ground"
-  }), [aerialMode, canSwim, state.player.x, state.player.z]);
-  const [initialAerialState] = useState(() => createGroundedWildsAerialState(
-    state.player,
-    aquaticPresentation.terrainElevation
-  ));
-  const aerialStateRef = useRef<WildsAerialTraversalState>(initialAerialState);
-  const verticalTraversalRef = useRef<WildsVerticalTraversalState>(createWildsVerticalTraversalState());
-  const verticalIntentRef = useRef<WildsVerticalTraversalIntent>(0);
-  const horizontalAllowedRef = useRef(true);
-  const [aerialEnergy, setAerialEnergy] = useState(100);
-  const [verticalReadout, setTraversalReadout] = useState({ layer: "ground" as WildsVerticalTraversalState["layer"], value: 0, safeMin: 0, safeMax: 0, blockerId: null as string | null });
-  const publishVerticalReadout = useCallback((layer: WildsVerticalTraversalState["layer"], value: number, safeMin: number, safeMax: number, blockerId: string | null) => {
-    setTraversalReadout({ layer, value, safeMin, safeMax, blockerId });
-  }, []);
-  const resetTransientTraversal = useCallback((position = state.player, elevation = aquaticPresentation.terrainElevation) => {
-    aerialStateRef.current = createGroundedWildsAerialState(position, elevation);
-    resetWildsVerticalTraversalState(verticalTraversalRef.current);
-    verticalIntentRef.current = 0;
-    horizontalAllowedRef.current = true;
-    setAerialMode("ground");
-    setAerialEnergy(100);
-    setTraversalReadout({ layer: "ground", value: 0, safeMin: 0, safeMax: 0, blockerId: null });
-  }, [aquaticPresentation.terrainElevation, state.player]);
   const [activeVistaId, setActiveVistaId] = useState<WildsOverlookId | null>(null);
   const deckCards = state.inventory;
   const priorVaultIdsRef = useRef(new Set(state.inventory.map((asset) => asset.id)));
@@ -767,6 +739,44 @@ export function PlayCampaign({
     () => projectWildsRenderedLivingObstacles(livingWorld.snapshot),
     [livingWorld.snapshot]
   );
+  const livingStructureSupports = useMemo(
+    () => projectWildsStructureSupports(livingWorld.snapshot),
+    [livingWorld.snapshot]
+  );
+  const playerStructureSupport = useMemo(
+    () => wildsStructureSupportAt(state.player, livingStructureSupports),
+    [livingStructureSupports, state.player]
+  );
+  const [aerialMode, setAerialMode] = useState<WildsAerialMode>("ground");
+  const aquaticPresentation = useMemo(() => projectWildsAquaticPresentationAtPosition({
+    x: state.player.x,
+    z: state.player.z,
+    canSwim,
+    airborne: aerialMode !== "ground",
+    supportElevation: playerStructureSupport?.deckY ?? null
+  }), [aerialMode, canSwim, playerStructureSupport?.deckY, state.player.x, state.player.z]);
+  const [initialAerialState] = useState(() => createGroundedWildsAerialState(
+    state.player,
+    aquaticPresentation.terrainElevation
+  ));
+  const aerialStateRef = useRef<WildsAerialTraversalState>(initialAerialState);
+  const verticalTraversalRef = useRef<WildsVerticalTraversalState>(createWildsVerticalTraversalState());
+  const verticalIntentRef = useRef<WildsVerticalTraversalIntent>(0);
+  const horizontalAllowedRef = useRef(true);
+  const [aerialEnergy, setAerialEnergy] = useState(100);
+  const [verticalReadout, setTraversalReadout] = useState({ layer: "ground" as WildsVerticalTraversalState["layer"], value: 0, safeMin: 0, safeMax: 0, blockerId: null as string | null });
+  const publishVerticalReadout = useCallback((layer: WildsVerticalTraversalState["layer"], value: number, safeMin: number, safeMax: number, blockerId: string | null) => {
+    setTraversalReadout({ layer, value, safeMin, safeMax, blockerId });
+  }, []);
+  const resetTransientTraversal = useCallback((position = state.player, elevation = aquaticPresentation.terrainElevation) => {
+    aerialStateRef.current = createGroundedWildsAerialState(position, elevation);
+    resetWildsVerticalTraversalState(verticalTraversalRef.current);
+    verticalIntentRef.current = 0;
+    horizontalAllowedRef.current = true;
+    setAerialMode("ground");
+    setAerialEnergy(100);
+    setTraversalReadout({ layer: "ground", value: 0, safeMin: 0, safeMax: 0, blockerId: null });
+  }, [aquaticPresentation.terrainElevation, state.player]);
   const siteRegion = wildsDiscoverySiteRegionForPosition(state.player);
   const sitePhysical = useMemo(
     () => admitWildsDiscoveryPhysicalNeighborhood(siteRegion.x, siteRegion.z),
@@ -1091,6 +1101,7 @@ export function PlayCampaign({
     stone: availableMaterialLots.filter((lot) => lot.kind === "stone").length
   }), [availableMaterialLots]);
   const canBuildTrailShelter = stewardMaterials.timber >= 2 && stewardMaterials.stone >= 1;
+  const canBuildTrailBridge = stewardMaterials.timber >= 4 && stewardMaterials.stone >= 2;
 
   const createStewardMandate = (professions: readonly string[], allowedResourceIds: readonly string[], region: { x: number; z: number }) => {
     if (!activeAsset || !activeCondition) throw new Error("Choose a rested companion to work beside you.");
@@ -1153,7 +1164,7 @@ export function PlayCampaign({
   };
 
   const placeTrailShelter = async (position: { x: number; z: number }) => {
-    if (!shelterPlacementArmed || livingWorld.pendingCommand) return;
+    if (stewardPlacementMode !== "shelter" || livingWorld.pendingCommand) return;
     if (Math.hypot(position.x - state.player.x, position.z - state.player.z) > 7) {
       setRiftError("Place the shelter within reach of you and your companion.");
       return;
@@ -1166,10 +1177,33 @@ export function PlayCampaign({
       const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
       const projection = await livingWorld.buildTrailShelter(position, state.player, 0, [...timber, ...stone].map((lot) => lot.lotId), mandate);
       const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
-      setShelterPlacementArmed(false);
+      setStewardPlacementMode(null);
       setRiftError(`Your Trail Shelter now stands in the shared Wilds.${award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the work.` : ""}`);
     } catch (error) {
       handleStoryCommandError(error, "That place cannot hold a shelter yet.");
+    }
+  };
+
+  const placeTrailBridge = async (position: { x: number; z: number }) => {
+    if (stewardPlacementMode !== "bridge" || livingWorld.pendingCommand) return;
+    if (Math.hypot(position.x - state.player.x, position.z - state.player.z) > 7) {
+      setRiftError("Choose a crossing within reach of you and your companion.");
+      return;
+    }
+    try {
+      const timber = availableMaterialLots.filter((lot) => lot.kind === "timber").slice(0, 4);
+      const stone = availableMaterialLots.filter((lot) => lot.kind === "stone").slice(0, 2);
+      if (timber.length !== 4 || stone.length !== 2) throw new Error("Gather four timber lots and two stone lots first.");
+      const rotationQuarterTurns = selectWildsTrailBridgeRotation(position);
+      if (rotationQuarterTurns === null) throw new Error("Choose water between two nearby, level banks.");
+      const mandate = createStewardMandate(["build"], [], { x: Math.floor(position.x / 128), z: Math.floor(position.z / 128) });
+      const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
+      const projection = await livingWorld.buildTrailBridge(position, state.player, rotationQuarterTurns, [...timber, ...stone].map((lot) => lot.lotId), mandate);
+      const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
+      setStewardPlacementMode(null);
+      setRiftError(`Your Trail Bridge now joins both banks in the shared Wilds.${award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the work.` : ""}`);
+    } catch (error) {
+      handleStoryCommandError(error, "That crossing cannot hold a bridge yet.");
     }
   };
 
@@ -1211,6 +1245,8 @@ export function PlayCampaign({
         siteRuntime,
         siteMovementOutput: siteMovementOutputRef.current,
         siteDiscoveryOutput: siteDiscoveryOutputRef.current,
+        structureSupports: livingStructureSupports,
+        additionalObstacles: livingPhysicalObstacles,
         aerialMode: airborne ? liveAerialMode : undefined,
         verticalClearance: verticalTraversalRef.current.offset,
         verticalWorldY: verticalTraversalRef.current.worldY
@@ -1708,14 +1744,25 @@ export function PlayCampaign({
             <article><Icons.products aria-hidden="true" size={18} /><span><small>Living timber</small><strong>{stewardMaterials.timber}</strong></span><em>Exact lots</em></article>
             <article><Icons.package aria-hidden="true" size={18} /><span><small>Foundation stone</small><strong>{stewardMaterials.stone}</strong></span><em>Exact lots</em></article>
           </div>
-          <div className="wilds-steward-build-action">
+          <div className="wilds-steward-build-actions">
+            <div className="wilds-steward-build-action">
             <button disabled={!canBuildTrailShelter} onClick={() => {
               if (!canBuildTrailShelter) return;
-              setShelterPlacementArmed(true);
+              setStewardPlacementMode("shelter");
               setRiftError("Choose nearby clear ground. You and your companion will raise the shelter there.");
               dispatchStageOverlay({ type: "panel", key: null });
             }} type="button">{canBuildTrailShelter ? "Place Trail Shelter" : "Need 2 timber · 1 stone"}</button>
             <small>Material lots are consumed once when the shared structure is admitted.</small>
+            </div>
+            <div className="wilds-steward-build-action">
+              <button disabled={!canBuildTrailBridge} onClick={() => {
+                if (!canBuildTrailBridge) return;
+                setStewardPlacementMode("bridge");
+                setRiftError("Choose a nearby crossing. You and your companion will read both banks before building.");
+                dispatchStageOverlay({ type: "panel", key: null });
+              }} type="button">{canBuildTrailBridge ? "Place Trail Bridge" : "Need 4 timber · 2 stone"}</button>
+              <small>The world aligns the deck to two safe banks before any exact lot is consumed.</small>
+            </div>
           </div>
           <p className="wilds-satchel-note">Explore, gather beside a willing companion, and build from exact world-born resources. Nothing enters the Satchel without source proof.</p>
         </div>
@@ -1911,7 +1958,8 @@ export function PlayCampaign({
               trainers={sagaTrainers}
               onSelectTrainer={(trainer) => openTrainerEncounter(trainer, "world")}
               onSearchPoint={(point) => {
-                if (shelterPlacementArmed) void placeTrailShelter(point);
+                if (stewardPlacementMode === "shelter") void placeTrailShelter(point);
+                else if (stewardPlacementMode === "bridge") void placeTrailBridge(point);
                 else dispatchLayeredSearch(point);
               }}
               onInteractResource={(source) => { void gatherStewardResource(source); }}

@@ -21,6 +21,7 @@ import {
   createWildsStewardHarvestOperation,
   createWildsStewardPhiAward,
   createWildsStewardStructureOperation,
+  createWildsTrailBridge,
   createWildsTrailShelter,
   initialWildsHarvestedSourceState,
   projectWildsCreatureWorkFamilies
@@ -150,7 +151,8 @@ export function useWildsWorld(input: {
   const sendEntry = useCallback(async (entry: WildsWorldOutboxEntry) => {
     const receizExecution = (entry.command.type === "grove.act"
       || entry.command.type === "resource.material.harvest"
-      || entry.command.type === "structure.trail-shelter.build") && entry.command.operation && entry.command.amountPhiMicro
+      || entry.command.type === "structure.trail-shelter.build"
+      || entry.command.type === "structure.trail-bridge.build") && entry.command.operation && entry.command.amountPhiMicro
       ? await authorizeLivingWorld?.({
           operationId: entry.command.operation.operationId,
           planDigest: entry.command.operation.planDigest,
@@ -436,6 +438,42 @@ export function useWildsWorld(input: {
         phiAward,
         cardProofDigest: input.activeCard.proof.digest,
         commandId: commandId("command:structure:trail-shelter")
+      });
+    },
+    buildTrailBridge: (position: { x: number; z: number }, actorPosition: { x: number; z: number }, rotationQuarterTurns: number, lotIds: string[], mandate: WildsCreatureMandateV1) => {
+      if (!input.activeCard) throw new Error("wilds_world_active_card_required");
+      if (!snapshot?.worldEmission) throw new Error("wilds_world_emission_required");
+      const lots = lotIds.map((lotId) => snapshot.materialLots[lotId]).filter((lot) => Boolean(lot));
+      if (lots.length !== lotIds.length || lotIds.some((lotId) => snapshot.consumedMaterialLots[lotId])) throw new Error("wilds_world_structure_material_invalid");
+      const creatureSubjectId = `creature:${sha256PortableBasis(input.activeCard.id).slice(0, 32)}`;
+      const creatureHead = sha256PortableBasis(input.activeCard.proof.digest);
+      const structure = createWildsTrailBridge({
+        ownerReceizId: input.actorId,
+        position,
+        rotationQuarterTurns,
+        lots,
+        builder: { creatureSubjectId, creatureHead },
+        existingStructures: Object.values(snapshot.structures),
+        kaiUPulse: input.kaiUPulse
+      });
+      const operation = createWildsStewardStructureOperation({ structure, lots, ownerReceizId: input.actorId, playerHead: sha256PortableBasis(input.actorId) });
+      const preview = previewWildsEmission({ emission: snapshot.worldEmission, operation, contributionClass: "construction" });
+      if (!preview.eligible || preview.amountPhiMicro === "0") throw new Error("wilds_world_steward_emission_unavailable");
+      const emission = admitWildsEmission({ emission: snapshot.worldEmission, operation, contributionClass: "construction", preview });
+      const phiAward = createWildsStewardPhiAward({ ownerReceizId: input.actorId, operation, currentEmission: snapshot.worldEmission, nextEmission: emission, amountPhiMicro: preview.amountPhiMicro });
+      return post({
+        type: "structure.trail-bridge.build",
+        position,
+        actorPosition,
+        rotationQuarterTurns,
+        lotIds,
+        mandate,
+        operation,
+        emission,
+        amountPhiMicro: preview.amountPhiMicro,
+        phiAward,
+        cardProofDigest: input.activeCard.proof.digest,
+        commandId: commandId("command:structure:trail-bridge")
       });
     },
     contributeEcology: (siteId: string, position: { x: number; z: number }, amount: number) => {

@@ -3,6 +3,21 @@ import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 
 describe("Receiz Wilds rendering contract", () => {
+  it("renders admitted steward bridges and exposes a responsive bank-reading build action", async () => {
+    const environment = await readFile("src/features/play/WildsStewardEnvironment.tsx", "utf8");
+    const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
+    const css = await readFile("app/globals.css", "utf8");
+
+    assert.match(environment, /structure\.blueprint === "trail-bridge"/);
+    assert.match(environment, /function TrailBridge/);
+    assert.match(environment, /bridgeDeck/);
+    assert.match(environment, /bridgeRail/);
+    assert.match(campaign, /selectWildsTrailBridgeRotation/);
+    assert.match(campaign, /Place Trail Bridge/);
+    assert.match(campaign, /Need 4 timber · 2 stone/);
+    assert.match(css, /\.wilds-steward-build-actions\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit,/s);
+  });
+
   it("renders bounded ambient life as non-catchable instanced world detail", async () => {
     const ambient = await readFile("src/features/play/WildsAmbientLife.tsx", "utf8");
     const authority = await readFile("src/features/play/wilds-ambient-life.ts", "utf8");

@@ -21,6 +21,7 @@ export function worldCommandRequiresCard(command: WildsWorldCommand) {
     || command.type === "story.tournament_enter"
     || command.type === "resource.material.harvest"
     || command.type === "structure.trail-shelter.build"
+    || command.type === "structure.trail-bridge.build"
     || (command.type === "story.contribute" && Boolean(command.cardProofDigest));
 }
 
