@@ -1,6 +1,16 @@
 # Wilds resources, construction, and authored play on Receiz v121
 
-Status: preview-only implementation boundary for Wildz 8.0.0
+Status: Grove execution admitted on Receiz 124.0.2; general construction and excavation remain preview-only
+
+## Regenerative Grove exception now shipped
+
+The regenerative Grove is no longer a preview-only surface. Its observation, gathering, pollination, sowing, watering, composting, cultivation, nectar transformation, honey harvest, hive/nursery construction, and repair actions compile through the universal living-world operation kernel. Every action binds exact world, player, creature, Grove, inventory, and World Emission heads. Receiz stages the registered operations as one atomic compare-and-swap plan; a committed exact result advances all participants, while stale, cancelled, ambiguous, or zero-write outcomes advance none.
+
+The player's Receiz ID proof object remains the source authority. Exact consent is signed locally at the edge and bound to the operation digest. Subject-source sealing is performed outside rendering and movement work, and the locally usable result does not wait for global publication. Receiz distribution publishes and synchronizes the sealed source asynchronously; its session, receipt, projection, and API response never outrank the source proof object.
+
+Lawful regenerative work may receive newly issued integer micro-Phi only from the bounded World Emission proof. Damage-and-repair cycles, extraction-only work, replayed operations, missing cooperation, restoration debt, and exhausted region/class/global capacity cannot fabricate issuance. Zero-Phi care still advances its exact proof history without touching settlement capacity.
+
+This exception is intentionally narrow. The general resource, construction, excavation, authored-experience, and damage/salvage systems described below retain their preview-only boundary until they are migrated through the same kernel and exact proof-head execution law.
 
 ## Shipped in this boundary
 

@@ -63,6 +63,7 @@ function practiceService() {
     const pulse = WILDS_WORLD_GENESIS_PULSE;
     practice.tick({ pulse, occurredAt: pulse, systemActorId: "receiz:pulse" });
     practice.tickEcology({ pulse, occurredAt: pulse, systemActorId: "receiz:pulse" });
+    practice.tickGroves({ pulse, occurredAt: pulse, systemActorId: "receiz:pulse" });
     root()[practiceKey] = practice;
   }
   return root()[practiceKey]!;
@@ -198,7 +199,12 @@ export function bootstrapWildsWorld(request: NextRequest) {
       occurredAt: WILDS_WORLD_GENESIS_PULSE,
       systemActorId: "receiz:pulse"
     });
-    const events = [...worldTick.events, ...ecologyTick.events];
+    const groveTick = current.tickGroves({
+      pulse: WILDS_WORLD_GENESIS_PULSE,
+      occurredAt: WILDS_WORLD_GENESIS_PULSE,
+      systemActorId: "receiz:pulse"
+    });
+    const events = [...worldTick.events, ...ecologyTick.events, ...groveTick.events];
     const projection = current.snapshot();
     const record = { checkpoint: current.checkpoint(), eventTail: current.events() };
     if (actor.accessToken) {
@@ -382,7 +388,8 @@ export function tickWildsWorld(request: NextRequest) {
   const now = new Date().toISOString();
   const world = current.tick({ pulse: now, occurredAt: now, systemActorId: "receiz:pulse" });
   const ecology = current.tickEcology({ pulse: now, occurredAt: now, systemActorId: "receiz:pulse" });
-  const result = { projection: ecology.projection, events: [...world.events, ...ecology.events] };
+  const groves = current.tickGroves({ pulse: now, occurredAt: now, systemActorId: "receiz:pulse" });
+  const result = { projection: groves.projection, events: [...world.events, ...ecology.events, ...groves.events] };
   const pulseActor = {
     playerId: "receiz:pulse",
     handle: "receiz:pulse",

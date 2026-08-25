@@ -41,6 +41,7 @@ function canonicalWorld(pulse = GENESIS_PULSE): WildsWorldRecord {
   const canonical = new WildsWorldService();
   canonical.tick({ pulse, occurredAt: pulse, systemActorId: "receiz:pulse" });
   canonical.tickEcology({ pulse, occurredAt: pulse, systemActorId: "receiz:pulse" });
+  canonical.tickGroves({ pulse, occurredAt: pulse, systemActorId: "receiz:pulse" });
   return { checkpoint: canonical.checkpoint(), eventTail: canonical.events() };
 }
 

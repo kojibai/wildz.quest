@@ -16161,7 +16161,17 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 
 @media (max-width: 350px) {
   .wildz-reference-hud {
-    grid-template-columns: minmax(0, 112px) minmax(44px, 1fr) 64px;
+    width: calc(100% / .86);
+    grid-template-columns: minmax(0, 150px) minmax(52px, 1fr) 68px;
+    transform: scale(.86);
+    transform-origin: top left;
+  }
+
+  .wildz-identity-home > .wildz-explorer-capsule strong {
+    overflow: visible;
+    font-size: 8px;
+    letter-spacing: -.03em;
+    text-overflow: clip;
   }
 
   .wildz-map-home,
@@ -16392,7 +16402,7 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 }
 
 @media (max-width: 360px) and (orientation: portrait) {
-  .wildz-app .wilds-search-reticle { top: calc(154px + var(--wildz-stage-safe-top)); }
+  .wildz-app .wilds-search-reticle { top: calc(204px + var(--wildz-stage-safe-top)); }
   .wildz-app .wilds-event-toast { bottom: max(136px, calc(env(safe-area-inset-bottom) + 130px)); }
 }
 

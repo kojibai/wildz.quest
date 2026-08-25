@@ -1012,6 +1012,61 @@ export function PlayCampaign({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onComplete, worldInteractionEnabled]);
 
+  const activeGrove = activeGroveId ? livingWorld.snapshot?.groves[activeGroveId] ?? null : null;
+  const activeCondition = activeAsset ? state.adventureConditions[activeAsset.id] : null;
+  const activeGroveMandate = useMemo(() => {
+    if (!activeGrove || !activeAsset || !activeCondition) return null;
+    const creatureHead = sha256PortableBasis(activeAsset.proof.digest);
+    const creatureSubjectId = `creature:${sha256PortableBasis(activeAsset.id).slice(0, 32)}`;
+    const consent = evaluateWildsCreatureConsent({
+      creatureSubjectId,
+      creatureHead,
+      condition: {
+        energy: Math.max(0, 100 - activeCondition.fatigue),
+        fatigue: activeCondition.fatigue,
+        injury: Math.min(100, activeCondition.injuries.length * 24),
+        stress: Math.min(100, Math.round(activeCondition.fatigue * .6))
+      },
+      bond: 70,
+      preferences: { professions: GROVE_CREATURE_PROFESSIONS, avoidHazards: [] },
+      capabilities: { professions: GROVE_CREATURE_PROFESSIONS },
+      safety: { risk: activeGrove.weather.hazardCues.length * 18, hazards: activeGrove.weather.hazardCues, supportAvailable: multiplayer.remotePlayers.length > 0 },
+      requested: { professions: GROVE_CREATURE_PROFESSIONS, maxActions: 8 },
+      kaiUPulse: kaiMoment.uPulse
+    });
+    if (consent.decision !== "accept") return null;
+    return createWildsCreatureMandate({
+      consent,
+      creatureSubjectId,
+      creatureHead,
+      region: { x: Math.floor(activeGrove.position.x / 64), z: Math.floor(activeGrove.position.z / 64) },
+      professions: GROVE_CREATURE_PROFESSIONS,
+      allowedResourceIds: [activeGrove.groveId],
+      maxActions: 8,
+      issuedAtKaiUPulse: kaiMoment.uPulse,
+      expiresAtKaiUPulse: kaiMoment.uPulse + 10_000_000
+    });
+  }, [activeAsset, activeCondition, activeGrove, kaiMoment.uPulse, multiplayer.remotePlayers.length]);
+  const activeGrovePreviews = useMemo(() => {
+    if (!activeGrove || !livingWorld.snapshot?.worldEmission) return [];
+    return activeGrove.availableActions.map((action) => previewWildsGroveAction({
+      grove: activeGrove,
+      action,
+      actor: { id: ownerReceizId, head: sha256PortableBasis(ownerReceizId) },
+      ...(activeGroveMandate ? { mandate: activeGroveMandate } : {}),
+      weather: activeGrove.weather,
+      moment: kaiMoment,
+      emission: livingWorld.snapshot!.worldEmission!
+    }));
+  }, [activeGrove, activeGroveMandate, kaiMoment, livingWorld.snapshot, ownerReceizId]);
+  const activeGroveActions = useMemo<WildsGroveExperienceAction[]>(() => activeGrovePreviews.map((preview) => ({
+    action: preview.action,
+    valid: preview.valid && Boolean(activeGroveMandate),
+    reason: preview.valid && activeGroveMandate ? null : groveReason(preview.reasons[0]),
+    consequence: groveConsequence(preview.action),
+    amountPhiMicro: preview.emission.amountPhiMicro
+  })), [activeGroveMandate, activeGrovePreviews]);
+
   if (!enabled) {
     return (
       <section className="panel play-disabled">
@@ -1228,7 +1283,6 @@ export function PlayCampaign({
     .filter(({ distance }) => distance <= 16)
     .sort((left, right) => left.distance - right.distance || left.grove.groveId.localeCompare(right.grove.groveId))[0] ?? null;
   const activeEcologySite = activeEcologySiteId ? livingWorld.snapshot?.ecologySites[activeEcologySiteId] ?? null : null;
-  const activeGrove = activeGroveId ? livingWorld.snapshot?.groves[activeGroveId] ?? null : null;
   const activeRaidBoss = activeRaid ? livingWorld.snapshot?.bosses[activeRaid.bossId] ?? null : null;
   const activeRaidRound = activeRaid ? livingWorld.snapshot?.raids[activeRaid.roundId] ?? null : null;
   const activeRaidEncounter = activeRaidRound && typeof activeRaidRound.encounter === "object" ? activeRaidRound.encounter as WildsRaidEncounterState : null;
@@ -1256,59 +1310,6 @@ export function PlayCampaign({
     nearbyEcology ? `${nearbyEcology.site.name} is changing this region.` : null,
     livingWorld.snapshot?.defeatedBossIds.length ? `${livingWorld.snapshot.defeatedBossIds.length} shared victory ${livingWorld.snapshot.defeatedBossIds.length === 1 ? "monument stands" : "monuments stand"} in the world.` : null
   ].filter((message): message is string => Boolean(message));
-  const activeCondition = activeAsset ? state.adventureConditions[activeAsset.id] : null;
-  const activeGroveMandate = useMemo(() => {
-    if (!activeGrove || !activeAsset || !activeCondition) return null;
-    const creatureHead = sha256PortableBasis(activeAsset.proof.digest);
-    const creatureSubjectId = `creature:${sha256PortableBasis(activeAsset.id).slice(0, 32)}`;
-    const consent = evaluateWildsCreatureConsent({
-      creatureSubjectId,
-      creatureHead,
-      condition: {
-        energy: Math.max(0, 100 - activeCondition.fatigue),
-        fatigue: activeCondition.fatigue,
-        injury: Math.min(100, activeCondition.injuries.length * 24),
-        stress: Math.min(100, Math.round(activeCondition.fatigue * .6))
-      },
-      bond: 70,
-      preferences: { professions: GROVE_CREATURE_PROFESSIONS, avoidHazards: [] },
-      capabilities: { professions: GROVE_CREATURE_PROFESSIONS },
-      safety: { risk: activeGrove.weather.hazardCues.length * 18, hazards: activeGrove.weather.hazardCues, supportAvailable: multiplayer.remotePlayers.length > 0 },
-      requested: { professions: GROVE_CREATURE_PROFESSIONS, maxActions: 8 },
-      kaiUPulse: kaiMoment.uPulse
-    });
-    if (consent.decision !== "accept") return null;
-    return createWildsCreatureMandate({
-      consent,
-      creatureSubjectId,
-      creatureHead,
-      region: { x: Math.floor(activeGrove.position.x / 64), z: Math.floor(activeGrove.position.z / 64) },
-      professions: GROVE_CREATURE_PROFESSIONS,
-      allowedResourceIds: [activeGrove.groveId],
-      maxActions: 8,
-      issuedAtKaiUPulse: kaiMoment.uPulse,
-      expiresAtKaiUPulse: kaiMoment.uPulse + 10_000_000
-    });
-  }, [activeAsset, activeCondition, activeGrove, kaiMoment.uPulse, multiplayer.remotePlayers.length]);
-  const activeGrovePreviews = useMemo(() => {
-    if (!activeGrove || !livingWorld.snapshot?.worldEmission) return [];
-    return activeGrove.availableActions.map((action) => previewWildsGroveAction({
-      grove: activeGrove,
-      action,
-      actor: { id: ownerReceizId, head: sha256PortableBasis(ownerReceizId) },
-      ...(activeGroveMandate ? { mandate: activeGroveMandate } : {}),
-      weather: activeGrove.weather,
-      moment: kaiMoment,
-      emission: livingWorld.snapshot!.worldEmission!
-    }));
-  }, [activeGrove, activeGroveMandate, kaiMoment, livingWorld.snapshot, ownerReceizId]);
-  const activeGroveActions = useMemo<WildsGroveExperienceAction[]>(() => activeGrovePreviews.map((preview) => ({
-    action: preview.action,
-    valid: preview.valid && Boolean(activeGroveMandate),
-    reason: preview.valid && activeGroveMandate ? null : groveReason(preview.reasons[0]),
-    consequence: groveConsequence(preview.action),
-    amountPhiMicro: preview.emission.amountPhiMicro
-  })), [activeGroveMandate, activeGrovePreviews]);
   const commandModel = projectWildsCommandCenter({
     moment: kaiMoment,
     connected: livingWorld.mode === "receiz_live",

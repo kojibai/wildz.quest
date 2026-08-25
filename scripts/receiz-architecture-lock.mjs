@@ -55,6 +55,12 @@ const v121VoiceRequest = await read("docs/RECEIZ_V121_OFFLINE_VOICE_REQUEST.md")
 const offlineVoiceDecision = await read("docs/receiz-decisions/2026-08-17-offline-acoustic-renderer.md");
 const walletTransfer = await read("src/lib/receiz/wilds-wallet-transfer.ts");
 const walletTransferJournal = await read("src/lib/receiz/wilds-wallet-transfer-journal.ts");
+const livingOperation = await read("src/features/play/wilds-living-operation.ts");
+const worldEmission = await read("src/features/play/wilds-world-emission.ts");
+const groveOperation = await read("src/features/play/wilds-grove-operation.ts");
+const groveEnvironment = await read("src/features/play/WildsRegenerativeGroveEnvironment.tsx");
+const livingRuntime = await read("src/lib/receiz/wilds-living-world-v124-runtime.ts");
+const livingAuthority = await read("src/lib/receiz/wilds-living-world-authority.ts");
 
 if (pkg.dependencies?.["@receiz/sdk"] !== "124.0.2") failures.push("receiz_sdk_pin_mismatch");
 if (pkg.devDependencies?.["@receiz/mcp-server"] !== "124.0.2") failures.push("receiz_mcp_pin_mismatch");
@@ -66,6 +72,15 @@ requireMatch(releaseCheck, /run\(["']pnpm["'], \[["']receiz:architecture-lock["'
 requireMatch(continuousIntegration, /pnpm release:check/, "receiz_architecture_lock_ci_gate_missing");
 requireMatch(walletTransfer, /^import\s+["']server-only["'];/m, "wallet_transfer_server_boundary_missing");
 requireMatch(walletTransferJournal, /^import\s+["']server-only["'];/m, "wallet_transfer_journal_server_boundary_missing");
+const livingWorldKernel = [livingOperation, worldEmission, groveOperation, groveEnvironment, livingRuntime, livingAuthority].join("\n");
+forbidMatch(livingWorldKernel, /Math\.random\s*\(/, "living_world_nondeterministic_random_present");
+forbidMatch(livingWorldKernel, /blocked-receiz-v122/, "living_world_preview_only_marker_present");
+forbidMatch(groveEnvironment, /fetch\s*\(|WebSocket|setInterval|setTimeout|new\s+Worker|createReceiz|publish|verifyArtifact/, "living_world_frame_authority_work_present");
+requireMatch(livingOperation, /authority:\s*["']source-proof-objects["']/, "living_world_source_authority_missing");
+requireMatch(worldEmission, /amountPhiMicro:\s*string/, "living_world_integer_phi_contract_missing");
+requireMatch(livingRuntime, /planAtomicOperationV124\(/, "living_world_atomic_execution_missing");
+requireMatch(livingAuthority, /prepareReceizSubjectSourceProofObjectCandidateV124\(/, "living_world_subject_source_seal_missing");
+requireMatch(livingAuthority, /void\s+input\.rail\.publishSealedSourceV124\(/, "living_world_async_global_sync_missing");
 
 const allDependencies = { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.optionalDependencies };
 for (const dependency of Object.keys(allDependencies)) {

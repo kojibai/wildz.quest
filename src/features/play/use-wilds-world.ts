@@ -114,6 +114,7 @@ export function useWildsWorld(input: {
   const canonicalSnapshot = useRef<WildsWorldProjection | null>(null);
   const controllers = useRef(new Set<AbortController>());
   const retryAfter = useRef(0);
+  const authorizeLivingWorld = input.authorizeLivingWorld;
 
   const request = useCallback(async (url: string, init?: RequestInit) => {
     const controller = new AbortController();
@@ -134,7 +135,7 @@ export function useWildsWorld(input: {
 
   const sendEntry = useCallback(async (entry: WildsWorldOutboxEntry) => {
     const receizExecution = entry.command.type === "grove.act"
-      ? await input.authorizeLivingWorld?.({
+      ? await authorizeLivingWorld?.({
           operationId: entry.command.operation.operationId,
           planDigest: entry.command.operation.planDigest,
           semanticIdempotencyKey: entry.command.operation.semanticIdempotencyKey,
@@ -157,7 +158,7 @@ export function useWildsWorld(input: {
       await publishActiveWildsWorldWithIdentityProof(publication.draft);
     }
     return parseWildsWorldCommandResponse(value);
-  }, [input.authorizeLivingWorld, request]);
+  }, [authorizeLivingWorld, request]);
 
   const flushOutbox = useCallback(async (base: WildsWorldProjection, initialMode: WildsWorldCommandMode) => {
     if (commandPending.current) {

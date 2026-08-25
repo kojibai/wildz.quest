@@ -348,12 +348,26 @@ export class WildsWorldService {
     const existingSites = Object.values(this.projection.ecologySites) as WildsEcologySite[];
     const ensemble = generateWildsEcologyEnsemble({ pulse: input.pulse, existingSites, ordinalStart: existingSites.length + 1 });
     for (const site of ensemble) events.push(this.append("ecology.spawned", { site: ecologyProjection(site) }, authority, causeId));
-    if (this.projection.worldEmission === null && Object.keys(this.projection.groves).length === 0) {
-      const genesis = projectWildsGroveGenesis(moment);
-      for (const grove of genesis.groves) {
-        events.push(this.append("grove.discovered", { grove, emission: genesis.emission }, authority, causeId));
-      }
+    return { events, projection: this.projection };
+  }
+
+  tickGroves(input: { pulse: string; occurredAt: string; uPulse?: number; systemActorId: "receiz:pulse" }) {
+    if (input.systemActorId !== "receiz:pulse") throw new Error("wilds_world_pulse_authority_invalid");
+    const moment = authorityMoment(input);
+    if (this.projection.cursor && moment.uPulse < wildsWorldCursorUPulse(this.projection.cursor)) {
+      throw new Error("wilds_world_pulse_order_invalid");
     }
+    const hasGroves = Object.keys(this.projection.groves).length > 0;
+    if (hasGroves || this.projection.worldEmission) {
+      if (!hasGroves || !this.projection.worldEmission) throw new Error("wilds_world_grove_genesis_incomplete");
+      return { events: [] as WildsWorldEvent[], projection: this.projection };
+    }
+    const causeId = `grove-genesis:${moment.year}`;
+    const authority = { actorId: input.systemActorId, pulse: input.pulse, occurredAt: input.occurredAt, uPulse: moment.uPulse };
+    const genesis = projectWildsGroveGenesis(moment);
+    const events = genesis.groves.map((grove) =>
+      this.append("grove.discovered", { grove, emission: genesis.emission }, authority, causeId)
+    );
     return { events, projection: this.projection };
   }
 
