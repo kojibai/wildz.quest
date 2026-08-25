@@ -90,12 +90,15 @@ import { createWildsFlightCameraControlState, writeWildsFlightCameraControlState
 import { projectWildsInteractionSurfacePoint, type WildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
 import type { WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
 import type { WildsStewardPlacement } from "@/features/play/wilds-steward-craft";
+import type { WildsWorldCapabilityFamily } from "@/features/play/wilds-world-capability-registry";
+import { projectWildsCapabilityPresentation } from "@/features/play/wilds-capability-presentation";
 
 const WILDS_DIAGNOSTICS_ENABLED = process.env.NODE_ENV !== "production";
 const EMPTY_AERIAL_OBSTACLE_NEIGHBORHOOD = Object.freeze({ tileX: 0, tileZ: 0, obstacles: Object.freeze([]) }) as WildsAerialObstacleNeighborhood;
 
 export function WildsWorldCanvas({
   activeWorkSource,
+  activeCapabilityFamily = null,
   stewardPlacementPreview,
   state,
   character,
@@ -138,6 +141,7 @@ export function WildsWorldCanvas({
   resourceCompanionReady = true
 }: {
   activeWorkSource?: WildsActiveWorkSource | null;
+  activeCapabilityFamily?: WildsWorldCapabilityFamily | null;
   stewardPlacementPreview?: WildsStewardPlacement | null;
   state: PlayState;
   character: WildzCharacterGenesis;
@@ -200,7 +204,7 @@ export function WildsWorldCanvas({
       >
         {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
-          <WildsScene activeWorkSource={activeWorkSource} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
+          <WildsScene activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
         </Suspense>
       </Canvas>
     </div>
@@ -214,6 +218,7 @@ function WildsFrameReporter({ onFrameSample }: { onFrameSample: (frameMs: number
 
 function WildsScene({
   activeWorkSource,
+  activeCapabilityFamily,
   stewardPlacementPreview,
   state,
   character,
@@ -254,6 +259,7 @@ function WildsScene({
   resourceCompanionReady
 }: {
   activeWorkSource?: WildsActiveWorkSource | null;
+  activeCapabilityFamily: WildsWorldCapabilityFamily | null;
   stewardPlacementPreview?: WildsStewardPlacement | null;
   state: PlayState;
   character: WildzCharacterGenesis;
@@ -420,7 +426,7 @@ function WildsScene({
           style={character.gender}
           worldPosition={state.player}
         />
-        <ActiveCompanion activeWorkSource={activeWorkSource} locomotion={swimming ? "swim" : aerialStateRef.current.mode !== "ground" ? "air" : "ground"} siteRuntime={siteRuntime} siteSpace={siteSpace} state={state} terrainElevation={activeFloorY} />
+        <ActiveCompanion activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} locomotion={swimming ? "swim" : aerialStateRef.current.mode !== "ground" ? "air" : "ground"} siteRuntime={siteRuntime} siteSpace={siteSpace} state={state} terrainElevation={activeFloorY} />
       </AerialPlayerFrame>
       <group name="grounded-support-companions" visible={!swimming}>
         <SupportCompanions cards={supportCards} player={state.player} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={activeFloorY} />
@@ -665,11 +671,14 @@ function isBattleTelemetryPhase(phase: PlayState["encounter"]["phase"]) {
   return phase === "player_turn" || phase === "capture_ready" || phase === "fled" || phase === "defeated";
 }
 
-function ActiveCompanion({ activeWorkSource, locomotion, siteRuntime, siteSpace, state, terrainElevation }: { activeWorkSource?: WildsActiveWorkSource | null; locomotion: "ground" | "swim" | "air"; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; state: PlayState; terrainElevation: number }) {
+function ActiveCompanion({ activeWorkSource, activeCapabilityFamily, locomotion, siteRuntime, siteSpace, state, terrainElevation }: { activeWorkSource?: WildsActiveWorkSource | null; activeCapabilityFamily: WildsWorldCapabilityFamily | null; locomotion: "ground" | "swim" | "air"; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; state: PlayState; terrainElevation: number }) {
   const card = selectedCard(state);
   const asset = state.inventory.find((candidate) => candidate.id === state.selectedAssetId);
   const formId = asset?.manifest.formId ?? `${card.id}-1`;
   const appearance = useMemo(() => asset ? projectCardKaiAppearance(asset) : null, [asset]);
+  const capabilityPresentation = useMemo(() => activeCapabilityFamily
+    ? projectWildsCapabilityPresentation({ family: activeCapabilityFamily, targetId: activeWorkSource?.sourceId ?? null })
+    : null, [activeCapabilityFamily, activeWorkSource?.sourceId]);
   const restingPosition = useMemo(() => {
     const world = { x: state.player.x - 1.08, z: state.player.z + .42 };
     const mountainElevation = wildsSiteRuntimeGroundY(siteRuntime, siteSpace.spaceId, world.x, world.z, Number.NaN);
@@ -703,7 +712,14 @@ function ActiveCompanion({ activeWorkSource, locomotion, siteRuntime, siteSpace,
   });
   return (
     <group name="active-companion" position={restingPosition} ref={group} scale={0.82}>
-      <WildsCreatureActor accent={appearance?.palette.accent ?? card.accent} anatomy={appearance?.anatomy} cadenceMs={appearance?.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} glow={appearance?.palette.glow ?? card.accent} identityToken={appearance?.fingerprint} locomotion={locomotion} morphology={appearance?.morphology} pose={working ? "work" : "curious"} primary={appearance?.palette.primary ?? card.color} secondary={appearance?.palette.secondary ?? card.color} />
+      <WildsCreatureActor accent={appearance?.palette.accent ?? card.accent} anatomy={appearance?.anatomy} cadenceMs={appearance?.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} glow={appearance?.palette.glow ?? card.accent} identityToken={appearance?.fingerprint} locomotion={locomotion} morphology={appearance?.morphology} pose={working ? "work" : capabilityPresentation?.actorPose ?? "curious"} primary={appearance?.palette.primary ?? card.color} secondary={appearance?.palette.secondary ?? card.color} />
+      {capabilityPresentation ? <>
+        <mesh position={[0, -.28, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[.58, .025, 8, 40]} />
+          <meshStandardMaterial color={capabilityPresentation.color} emissive={capabilityPresentation.color} emissiveIntensity={.72} transparent opacity={.76} />
+        </mesh>
+        {activeCapabilityFamily === "light" ? <pointLight color={capabilityPresentation.color} decay={1.8} distance={6} intensity={1.35} position={[0, .75, 0]} /> : null}
+      </> : null}
       <mesh position={[0, -0.37, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.46, 0.035, 8, 36]} />
         <meshStandardMaterial color="#f4fff6" emissive="#7cdea5" emissiveIntensity={0.55} transparent opacity={0.92} />

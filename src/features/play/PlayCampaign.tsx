@@ -1458,6 +1458,9 @@ export function PlayCampaign({
   const dispatchWorldInput = (input: WildsInput) => {
     if (!canUseWorldStage()) return;
     if (input.type === "move" || input.type === "move-vector") {
+      if (activeWorldCapability === "anchor" || activeWorldCapability === "camouflage" || activeWorldCapability === "track" || activeWorldCapability === "current" || activeWorldCapability === "dive") {
+        setActiveWorldCapability(null);
+      }
       if (!horizontalAllowedRef.current) return;
       if (activeVistaId) setActiveVistaId(null);
       const liveAerialMode = aerialStateRef.current.mode;
@@ -2290,6 +2293,7 @@ export function PlayCampaign({
             ref={gameplaySurfaceRef}
           >
             <WildsWorldCanvas
+              activeCapabilityFamily={activeWorldCapability}
               activeWorkSource={activeWorkSource}
               stewardPlacementPreview={stewardPlacementPreview}
               aerialCapabilities={activeTraversalCapabilities}

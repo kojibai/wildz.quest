@@ -10,7 +10,7 @@ import { isLivingCardAsset } from "./living-card-types";
 import { canonicalPortableCardJson, verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
 import { projectCreatureCapabilityIdentity, type CreatureAbilityDescriptor } from "./creature-capability-identity";
 import { projectWildsCreatureWorkFamilies } from "./wilds-steward-construction";
-import { wildsWorkCapabilityDescription } from "./wilds-work-capability";
+import { WILDS_WORLD_CAPABILITY_REGISTRY, type WildsWorldCapabilityFamily } from "./wilds-world-capability-registry";
 
 export type LivingCardDossier = {
   story: string;
@@ -41,7 +41,7 @@ export type LivingCardDossier = {
     teammates: string[];
     stats: CreatureStats;
     abilities: CreatureAbilityDescriptor[];
-    worldCapabilities: Array<{ name: string; availableNow: string; evolution: string }>;
+    worldCapabilities: Array<{ family: WildsWorldCapabilityFamily; name: string; availableNow: string; evolution: string }>;
     growthPaths: Record<string, number>;
     level: number;
     xp: number;
@@ -151,6 +151,11 @@ export function projectLivingCardDossier(asset: PortableCardAsset, origin: strin
   const capabilityIdentity = projectCreatureCapabilityIdentity(asset);
   const workFamilies = projectWildsCreatureWorkFamilies(form.element)
     .filter((family): family is "lumber" | "quarry" => family === "lumber" || family === "quarry");
+  const worldFamilies = [...new Set<WildsWorldCapabilityFamily>([
+    ...capabilityIdentity.specialties.map((specialty) => specialty.family),
+    ...capabilityIdentity.traversalPotential,
+    ...workFamilies
+  ])];
   const verification = verifyAnyWildsCard(asset);
   const growth = historyProjection?.growth ?? revision?.growth ?? {
     bond: asset.manifest.stats.bond,
@@ -229,21 +234,17 @@ export function projectLivingCardDossier(asset: PortableCardAsset, origin: strin
       teammates: [`A ${identity.family.locomotion === "flying" ? "grounded guardian" : "swift aerial scout"} balances its movement style.`, `A companion with strong ${powerEntries.at(-1)?.[0] ?? "bond"} covers its lowest current stat.`],
       stats: { ...asset.manifest.stats },
       abilities: [...capabilityIdentity.abilities],
-      worldCapabilities: [
-        ...capabilityIdentity.traversalPotential.map((capability) => ({
-          name: title(capability),
-          availableNow: capability === "flight" ? "Powered flight above the canopy." : capability === "glide" ? "Controlled glide from height." : capability === "swim" ? "Deep-water swimming and diving." : "Grip and climb steep living terrain.",
-          evolution: capability === "flight" ? "Longer flight, stronger lift, and finer altitude control." : capability === "swim" ? "Longer dives, deeper control, and stronger current handling." : "Greater endurance, control, and reach."
-        })),
-        ...workFamilies.map((family) => {
-          const descriptor = wildsWorkCapabilityDescription(family);
-          return {
-            name: descriptor.label,
-            availableNow: descriptor.guidance,
-            evolution: "Greater work endurance and more precise stewardship with less recovery time."
-          };
-        })
-      ],
+      worldCapabilities: worldFamilies.map((family) => {
+        const definition = WILDS_WORLD_CAPABILITY_REGISTRY[family];
+        const specialtyIndex = capabilityIdentity.specialties.findIndex((specialty) => specialty.family === family);
+        const ability = specialtyIndex >= 0 ? capabilityIdentity.abilities[specialtyIndex] : null;
+        return {
+          family,
+          name: ability?.name ?? definition.label,
+          availableNow: `${ability?.action ?? definition.ready} ${definition.guidance}`,
+          evolution: `Progression improves ${definition.progression.map((dimension) => title(dimension)).join(", ")} without withholding this Level 1 ability.`
+        };
+      }),
       growthPaths: { ...growth.paths },
       level: historyProjection?.level ?? 1,
       xp: historyProjection?.xp ?? 0,
