@@ -11,11 +11,13 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : "wilds_world_command_failed";
     const connectRequired = message === "wilds_world_connect_required"
       || message === "wilds_world_connect_identity_mismatch";
+    const executionUnknown = message === "wilds_living_world_execution_unknown";
+    const zeroWrite = message.startsWith("wilds_living_world_zero_write:");
     return NextResponse.json({
       ok: false,
       error: message
     }, {
-      status: connectRequired ? 401 : message.includes("required") ? 403 : 400,
+      status: connectRequired ? 401 : executionUnknown ? 503 : zeroWrite ? 409 : message.includes("required") ? 403 : 400,
       headers: { "cache-control": "private, no-store" }
     });
   }

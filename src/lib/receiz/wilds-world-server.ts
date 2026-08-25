@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { WildsWorldService, type WildsWorldCommand } from "@/features/play/wilds-world-service";
 import { findWildsWorldRecord, selectWildsWorldSnapshot } from "@/features/play/wilds-world-record";
+import { canonicalPortableCardJson, sha256PortableBasis } from "@/features/play/portable-card";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import { verifyWildsWorldCommandKai, worldCommandRequiresCard } from "@/features/play/wilds-world-authority";
 import { platform } from "@/lib/platform";
@@ -8,8 +9,19 @@ import { authorizeWildsMultiplayerCard, resolveWildsMultiplayerActor, type Wilds
 import { createReceizWildsWorldRepository, type WildsWorldPublication, type WildsWorldRepository } from "./wilds-world-repository";
 import { readWildzProofSessionCookie } from "./wildz-proof-session";
 import { createWildsWorldIdentityPublicationDraft } from "./wilds-world-identity-publication";
+import { createReceizCommerceAdapter } from "./adapter";
+import { executeWildsLivingWorldV124, type WildsLivingWorldV124RuntimeInput } from "./wilds-living-world-v124-runtime";
+import {
+  WILDS_LIVING_WORLD_REDUCER_DIGEST,
+  WILDS_LIVING_WORLD_REGISTRY_DIGEST,
+  wildsLivingWorldSuccessorHeads
+} from "./wilds-world-emission-source";
 
 export type { WildsWorldPublication } from "./wilds-world-repository";
+
+type WildsWorldServerDependencies = Readonly<{
+  executeLivingWorldV124?: (input: WildsLivingWorldV124RuntimeInput) => Promise<Readonly<{ status: string; reasonCode?: unknown }>>;
+}>;
 
 function origin(request: NextRequest) {
   const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? platform.domain;
@@ -240,7 +252,7 @@ export async function worldSnapshot(request: NextRequest) {
   }
 }
 
-export function executeWildsWorldCommand(request: NextRequest, body: unknown) {
+export function executeWildsWorldCommand(request: NextRequest, body: unknown, dependencies: WildsWorldServerDependencies = {}) {
   return serializeWildsWorldMutation(async () => {
   const value = body && typeof body === "object" ? body as Record<string, unknown> : {};
   const actor = await resolveWildsMultiplayerActor(request, value.guestId);
@@ -251,7 +263,8 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown) {
   await hydrateWildsWorldFromReceiz(request);
   if (actor.practice) {
     const now = new Date().toISOString();
-    const result = practiceService().execute(command, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now, uPulse: kai.uPulse, card });
+    const practiceCommand = command.type === "grove.act" ? { ...command, amountPhiMicro: "0" } : command;
+    const result = practiceService().execute(practiceCommand, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now, uPulse: kai.uPulse, card });
     const publication = { published: false, mode: "local_practice" as const, revision: result.projection.revision };
     return {
       projection: result.projection,
@@ -260,10 +273,57 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown) {
       publication
     };
   }
-  const current = await recoverCanonicalWorldBeforeMutation(request, actor);
+  let current = await recoverCanonicalWorldBeforeMutation(request, actor);
   const before = { checkpoint: current.checkpoint(), events: current.events() };
   const now = new Date().toISOString();
-  const result = current.execute(command, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now, uPulse: kai.uPulse, card });
+  let result;
+  if (command.type === "grove.act") {
+    const candidate = new WildsWorldService(before);
+    result = candidate.execute(command, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now, uPulse: kai.uPulse, card });
+    if (result.events.length > 0) {
+      const currentGrove = current.snapshot().groves[command.grove.groveId];
+      const currentEmission = current.snapshot().worldEmission;
+      const executionAuthority = value.receizExecution;
+      if (!currentGrove || !currentEmission || !executionAuthority || typeof executionAuthority !== "object") {
+        throw new Error("wilds_living_world_authority_required");
+      }
+      const authorityRecord = executionAuthority as Record<string, unknown>;
+      const rail = createReceizCommerceAdapter(actor.accessToken ? { accessToken: actor.accessToken } : undefined);
+      const outcome = await (dependencies.executeLivingWorldV124 ?? executeWildsLivingWorldV124)({
+        rail: rail as unknown as WildsLivingWorldV124RuntimeInput["rail"],
+        authoritySessionInput: authorityRecord.authoritySession,
+        operation: command.operation,
+        heads: wildsLivingWorldSuccessorHeads({
+          actorId: actor.handle,
+          operation: command.operation,
+          currentCheckpoint: before.checkpoint,
+          nextCheckpoint: candidate.checkpoint(),
+          currentEmission,
+          nextEmission: command.emission,
+          currentGrove,
+          nextGrove: command.grove
+        }),
+        amountPhiMicro: command.amountPhiMicro,
+        registryDigest: WILDS_LIVING_WORLD_REGISTRY_DIGEST,
+        reducerDigest: WILDS_LIVING_WORLD_REDUCER_DIGEST,
+        usdPerPhiMicrocents: typeof authorityRecord.usdPerPhiMicrocents === "string" ? authorityRecord.usdPerPhiMicrocents : "0",
+        priceBasis: authorityRecord.priceBasis ?? {
+          schema: "wildz.world-emission-price.v1",
+          sourceProofDigest: sha256PortableBasis(canonicalPortableCardJson(currentEmission)),
+          lawfulAward: true
+        },
+        attemptId: `wildz:${command.commandId}`
+      });
+      if (outcome.status !== "committed") {
+        if (outcome.status === "zero-write") throw new Error(`wilds_living_world_zero_write:${String(outcome.reasonCode ?? "UNKNOWN")}`);
+        throw new Error("wilds_living_world_execution_unknown");
+      }
+    }
+    current = candidate;
+    root()[serviceKey] = candidate;
+  } else {
+    result = current.execute(command, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now, uPulse: kai.uPulse, card });
+  }
   const record = { checkpoint: current.checkpoint(), eventTail: current.events() };
   if (actor.accessToken) {
     let publication = await publish(request, actor, current, {
