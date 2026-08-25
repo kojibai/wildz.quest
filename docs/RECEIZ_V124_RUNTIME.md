@@ -1,6 +1,6 @@
 # Receiz V124 production runtime in Wildz
 
-Wildz uses the exact `@receiz/sdk`, `@receiz/mcp-server`, and `@receiz/ai-skills` `124.0.1` packages against constitutional ruleset `124.0.0`. The checked-in application contract declares the complete 53-operation V124 matrix. The enclosing sealed proof object and its admitted append-only history remain stronger than a token, authority session, execution handle, MCP reference, projection, receipt, database row, or AI response.
+Wildz uses the exact `@receiz/sdk`, `@receiz/mcp-server`, and `@receiz/ai-skills` `124.0.2` packages against constitutional ruleset `124.0.0`. The checked-in application contract declares the complete 53-operation V124 matrix. The enclosing sealed proof object and its admitted append-only history remain stronger than a token, authority session, execution handle, MCP reference, projection, receipt, database row, or AI response.
 
 ## Active application composition
 

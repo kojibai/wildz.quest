@@ -15,7 +15,7 @@ import {
 } from "@receiz/sdk";
 import { checkReceizIntegration } from "@receiz/sdk/compiler";
 
-const TARGET_PACKAGE_VERSION = "124.0.1";
+const TARGET_PACKAGE_VERSION = "124.0.2";
 const TARGET_RULESET_VERSION = "124.0.0";
 const TARGET_REGISTRY_DIGEST = "d02429151b0bcebdaeb89485792e377afc55130f9a25e07982c1c88221314247";
 const TARGET_OPERATION_MATRIX_DIGEST = "540d1c1bf39f1b288b257c79a6e020bdcc5e587fc9b7dbf6b7aaa5d082e20ad5";

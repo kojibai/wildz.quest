@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/kojibai/wildz.quest/actions/workflows/ci.yml/badge.svg)](https://github.com/kojibai/wildz.quest/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-2ea44f.svg)](LICENSE)
-[![Receiz SDK](https://img.shields.io/badge/Receiz%20SDK-124.0.1-6f42c1.svg)](https://www.npmjs.com/package/@receiz/sdk)
+[![Receiz SDK](https://img.shields.io/badge/Receiz%20SDK-124.0.2-6f42c1.svg)](https://www.npmjs.com/package/@receiz/sdk)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
 
 > Wildz is both a product and a reference implementation. The game is the product; the repository is the evidence that the Receiz application model can be reshaped into something genuinely different without replacing its proof authority.
@@ -20,11 +20,11 @@ It demonstrates four layers working together:
 | Layer | What Wildz uses it for | Authority boundary |
 |---|---|---|
 | [Receiz Commerce Kit](https://github.com/kojibai/Receiz-commerce) | The forkable application kernel and original commerce architecture | Starting point, not a runtime dependency |
-| `@receiz/sdk@124.0.1` | Identity, proof objects, durable subjects, authority sessions, durable execution, recipient resolution, and executable Phi value rails | The typed application/runtime boundary |
-| `@receiz/mcp-server@124.0.1` | Capability inspection and authorized operator workflows | Tooling only; it cannot manufacture proof or authority |
-| `@receiz/ai-skills@124.0.1` plus the checked-in Wildz skills | Proof-aware build, market, and release procedures for coding agents | Operating guidance only; verification still wins |
+| `@receiz/sdk@124.0.2` | Identity, proof objects, durable subjects, authority sessions, durable execution, recipient resolution, and executable Phi value rails | The typed application/runtime boundary |
+| `@receiz/mcp-server@124.0.2` | Capability inspection and authorized operator workflows | Tooling only; it cannot manufacture proof or authority |
+| `@receiz/ai-skills@124.0.2` plus the checked-in Wildz skills | Proof-aware build, market, and release procedures for coding agents | Operating guidance only; verification still wins |
 
-All three Receiz packages resolve at exact version `124.0.1` from the public npm registry, with their published SHA-512 integrity values pinned by `pnpm-lock.yaml`. This patch release retains the v124 ruleset, whose registry digest is `d02429151b0bcebdaeb89485792e377afc55130f9a25e07982c1c88221314247` and operation-matrix digest is `540d1c1bf39f1b288b257c79a6e020bdcc5e587fc9b7dbf6b7aaa5d082e20ad5`. The application contract in [`receiz.app.json`](receiz.app.json) selects artifact-first authority, declares the complete 53-operation V124 matrix, and explicitly disables database authority. See the [V124 runtime composition](docs/RECEIZ_V124_RUNTIME.md) for qualified Twin enrichment, proof memory, authority sessions, durable execution, replay/private additions, and MCP custody boundaries.
+All three Receiz packages resolve at exact version `124.0.2` from the public npm registry, with their published SHA-512 integrity values pinned by `pnpm-lock.yaml`. This patch release retains the v124 ruleset, whose registry digest is `d02429151b0bcebdaeb89485792e377afc55130f9a25e07982c1c88221314247` and operation-matrix digest is `540d1c1bf39f1b288b257c79a6e020bdcc5e587fc9b7dbf6b7aaa5d082e20ad5`. The application contract in [`receiz.app.json`](receiz.app.json) selects artifact-first authority, declares the complete 53-operation V124 matrix, and explicitly disables database authority. See the [V124 runtime composition](docs/RECEIZ_V124_RUNTIME.md) for qualified Twin enrichment, proof memory, authority sessions, durable execution, replay/private additions, and MCP custody boundaries.
 
 V123 keeps that source-first continuity and adds exact proof-authority exchange, scope introspection, namespace resolution, Settlement/Reserve execution, and idempotent value-execution recovery to the retained V122 planning rails. Wildz uses only the exact SDK-custodied primitives that the published client exposes; missing durable application dependencies remain fail-closed instead of being recreated locally.
 
