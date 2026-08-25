@@ -16,6 +16,7 @@ import { admitWildsEmission, previewWildsEmission, type WildsWorldEmissionProofV
 import type { WildsResourceLotV1 } from "./wilds-resource-lot";
 import type { WildsResourceSource } from "./wilds-resource-authority";
 import type { WildsCreatureMandateV1 } from "./wilds-creature-mandate";
+import { completeWildsConstructionSite, contributeWildsConstructionSite, createWildsConstructionSite, type WildsConstructionBlueprint } from "./wilds-construction-site";
 import {
   createWildsMaterialHarvest,
   createWildsStewardHarvestOperation,
@@ -160,6 +161,7 @@ export function useWildsWorld(input: {
       || entry.command.type === "structure.trail-bridge.build"
       || entry.command.type === "structure.steward-workbench.build"
       || entry.command.type === "structure.trail-cache.build"
+      || entry.command.type === "construction.site.work"
       || entry.command.type === "tool.steward.craft") && entry.command.operation && entry.command.amountPhiMicro
       ? await authorizeLivingWorld?.({
           operationId: entry.command.operation.operationId,
@@ -180,10 +182,12 @@ export function useWildsWorld(input: {
       })
     });
     const publication = value.publication as Record<string, unknown> | undefined;
+    let globallyPublished = publication?.published === true || value.mode === "local_practice";
     if (publication?.required === "identity_proof" && publication.published === false) {
       await publishActiveWildsWorldWithIdentityProof(publication.draft);
+      globallyPublished = true;
     }
-    return parseWildsWorldCommandResponse(value);
+    return { ...parseWildsWorldCommandResponse(value), globallyPublished };
   }, [authorizeLivingWorld, request]);
 
   const flushOutbox = useCallback(async (base: WildsWorldProjection, initialMode: WildsWorldCommandMode) => {
@@ -200,6 +204,7 @@ export function useWildsWorld(input: {
         const parsed = await sendEntry(entries[0]!);
         canonical = parsed.projection;
         nextMode = parsed.mode;
+        if (!parsed.globallyPublished) break;
         entries = await acknowledgeWildsWorldCommand(input.actorId, entries[0]!.command.commandId);
       }
     } finally {
@@ -289,10 +294,12 @@ export function useWildsWorld(input: {
       const parsed = await sendEntry(entry);
       const projection = parsed.projection;
       canonicalSnapshot.current = projection;
-      const queued = await readWildsWorldOutbox(input.actorId);
+      const queued = parsed.globallyPublished
+        ? await readWildsWorldOutbox(input.actorId)
+        : await enqueueWildsWorldCommand(entry);
       setSnapshot(projectWildsWorldOutbox(projection, input.actorId, queued));
-      setMode(parsed.mode);
-      setError("");
+      setMode(parsed.globallyPublished ? parsed.mode : "receiz_recovery_pending");
+      setError(parsed.globallyPublished ? "" : "Your work is admitted here and its global projection will keep syncing in the background.");
       retryAfter.current = 0;
       return projection;
     } catch (cause) {
@@ -325,7 +332,7 @@ export function useWildsWorld(input: {
     if (!input.activeCard) throw new Error("wilds_world_active_card_required");
     if (!snapshot?.worldEmission) throw new Error("wilds_world_emission_required");
     const lots = lotIds.map((lotId) => snapshot.materialLots[lotId]).filter(Boolean);
-    if (lots.length !== lotIds.length || lotIds.some((lotId) => snapshot.consumedMaterialLots[lotId] || snapshot.storedMaterialLots[lotId])) throw new Error("wilds_world_structure_material_invalid");
+    if (lots.length !== lotIds.length || lotIds.some((lotId) => snapshot.consumedMaterialLots[lotId] || snapshot.storedMaterialLots[lotId] || snapshot.reservedMaterialLots[lotId])) throw new Error("wilds_world_structure_material_invalid");
     const creatureSubjectId = `creature:${sha256PortableBasis(input.activeCard.id).slice(0, 32)}`;
     const creatureHead = sha256PortableBasis(input.activeCard.proof.digest);
     const terrain = sampleWildsTerrain(position.x, position.z);
@@ -347,7 +354,7 @@ export function useWildsWorld(input: {
     const workstation = snapshot.structures[workstationId];
     if (!workstation || workstation.blueprint !== "steward-workbench") throw new Error("wilds_world_tool_workstation_invalid");
     const lots = lotIds.map((lotId) => snapshot.materialLots[lotId]).filter(Boolean);
-    if (lots.length !== lotIds.length || lotIds.some((lotId) => snapshot.consumedMaterialLots[lotId] || snapshot.storedMaterialLots[lotId])) throw new Error("wilds_world_tool_material_invalid");
+    if (lots.length !== lotIds.length || lotIds.some((lotId) => snapshot.consumedMaterialLots[lotId] || snapshot.storedMaterialLots[lotId] || snapshot.reservedMaterialLots[lotId])) throw new Error("wilds_world_tool_material_invalid");
     const creatureSubjectId = `creature:${sha256PortableBasis(input.activeCard.id).slice(0, 32)}`;
     const creatureHead = sha256PortableBasis(input.activeCard.proof.digest);
     const tool = createWildsStewardTool({ kind, ownerReceizId: input.actorId, workstation, lots, builder: { creatureSubjectId, creatureHead }, kaiUPulse: input.kaiUPulse });
@@ -358,6 +365,41 @@ export function useWildsWorld(input: {
     const phiAward = createWildsStewardPhiAward({ ownerReceizId: input.actorId, operation, currentEmission: snapshot.worldEmission, nextEmission: emission, amountPhiMicro: preview.amountPhiMicro });
     return post({ type: "tool.steward.craft", kind, workstationId, actorPosition, lotIds, mandate, operation, emission,
       amountPhiMicro: preview.amountPhiMicro, phiAward, cardProofDigest: input.activeCard.proof.digest, commandId: commandId(`command:tool:${kind}`) });
+  };
+  const placeConstructionSite = (blueprint: WildsConstructionBlueprint, position: { x: number; z: number }, actorPosition: { x: number; z: number }, rotationQuarterTurns: number) => {
+    if (!input.activeCard || !snapshot) throw new Error("wilds_world_active_card_required");
+    createWildsConstructionSite({ blueprint, placedByReceizId: input.actorId, actorPosition, position, rotationQuarterTurns,
+      existingStructures: Object.values(snapshot.structures), existingSites: Object.values(snapshot.constructionSites), kaiUPulse: input.kaiUPulse });
+    return post({ type: "construction.site.place", blueprint, position, actorPosition, rotationQuarterTurns,
+      cardProofDigest: input.activeCard.proof.digest, commandId: commandId("command:construction:site:place") });
+  };
+  const contributeConstructionSite = (siteId: string, siteHead: string, actorPosition: { x: number; z: number }, lotIds: string[]) => {
+    if (!input.activeCard || !snapshot) throw new Error("wilds_world_active_card_required");
+    const site = snapshot.constructionSites[siteId];
+    if (!site || site.head !== siteHead) throw new Error("wilds_construction_site_stale");
+    const lots = lotIds.map((lotId) => snapshot.materialLots[lotId]).filter(Boolean);
+    if (lots.length !== lotIds.length || lotIds.some((lotId) => snapshot.consumedMaterialLots[lotId] || snapshot.storedMaterialLots[lotId] || snapshot.reservedMaterialLots[lotId])) throw new Error("wilds_construction_material_invalid");
+    contributeWildsConstructionSite({ site, expectedSiteHead: siteHead, contributorReceizId: input.actorId, lots, kaiUPulse: input.kaiUPulse });
+    return post({ type: "construction.site.contribute", siteId, siteHead, actorPosition, lotIds,
+      cardProofDigest: input.activeCard.proof.digest, commandId: commandId("command:construction:site:contribute") });
+  };
+  const workConstructionSite = (siteId: string, siteHead: string, actorPosition: { x: number; z: number }, mandate: WildsCreatureMandateV1) => {
+    if (!input.activeCard || !snapshot?.worldEmission) throw new Error("wilds_world_active_card_required");
+    const site = snapshot.constructionSites[siteId];
+    if (!site || site.head !== siteHead) throw new Error("wilds_construction_site_stale");
+    const lots = site.contributedLots.map((entry) => snapshot.materialLots[entry.lotId]).filter(Boolean);
+    const creatureSubjectId = `creature:${sha256PortableBasis(input.activeCard.id).slice(0, 32)}`;
+    const creatureHead = sha256PortableBasis(input.activeCard.proof.digest);
+    const completed = completeWildsConstructionSite({ site, expectedSiteHead: siteHead, lots, workerReceizId: input.actorId,
+      creature: { subjectId: creatureSubjectId, head: creatureHead }, existingStructures: Object.values(snapshot.structures), kaiUPulse: input.kaiUPulse });
+    const operation = createWildsStewardStructureOperation({ structure: completed.structure, lots, ownerReceizId: completed.structure.ownerReceizId,
+      actorReceizId: input.actorId, playerHead: sha256PortableBasis(input.actorId) });
+    const preview = previewWildsEmission({ emission: snapshot.worldEmission, operation, contributionClass: "construction" });
+    if (!preview.eligible || preview.amountPhiMicro === "0") throw new Error("wilds_world_steward_emission_unavailable");
+    const emission = admitWildsEmission({ emission: snapshot.worldEmission, operation, contributionClass: "construction", preview });
+    const phiAward = createWildsStewardPhiAward({ ownerReceizId: input.actorId, operation, currentEmission: snapshot.worldEmission, nextEmission: emission, amountPhiMicro: preview.amountPhiMicro });
+    return post({ type: "construction.site.work", siteId, siteHead, actorPosition, mandate, operation, emission,
+      amountPhiMicro: preview.amountPhiMicro, phiAward, cardProofDigest: input.activeCard.proof.digest, commandId: commandId("command:construction:site:work") });
   };
   return {
     snapshot,
@@ -456,6 +498,9 @@ export function useWildsWorld(input: {
         commandId: commandId("command:material:harvest")
       });
     },
+    placeConstructionSite,
+    contributeConstructionSite,
+    workConstructionSite,
     buildTrailShelter: (position: { x: number; z: number }, actorPosition: { x: number; z: number }, rotationQuarterTurns: number, lotIds: string[], mandate: WildsCreatureMandateV1) => {
       if (!input.activeCard) throw new Error("wilds_world_active_card_required");
       if (!snapshot?.worldEmission) throw new Error("wilds_world_emission_required");

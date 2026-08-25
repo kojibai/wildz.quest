@@ -3,12 +3,14 @@
 import { Icons } from "@/components/icons";
 import type { projectWildsStewardCraft, WildsStewardBlueprintId } from "./wilds-steward-craft";
 import type { WildsStewardToolKind, WildsStewardToolV1 } from "./wilds-steward-construction";
+import type { WildsConstructionSiteV1 } from "./wilds-construction-site";
 
 type Projection = ReturnType<typeof projectWildsStewardCraft>;
 
-export function WildsStewardCraftPanel({ projection, onSelectBlueprint, tools = [], equippedToolId = null, nearbyWorkbench = false, nearbyCache = false, stored = { timber: 0, stone: 0 }, onCraftTool, onEquipTool, onStoreMaterial, onWithdrawMaterial }: {
+export function WildsStewardCraftPanel({ projection, onSelectBlueprint, nearbySite = null, tools = [], equippedToolId = null, nearbyWorkbench = false, nearbyCache = false, stored = { timber: 0, stone: 0 }, onContributeSite, onWorkSite, onCraftTool, onEquipTool, onStoreMaterial, onWithdrawMaterial }: {
   projection: Projection;
   onSelectBlueprint: (blueprintId: WildsStewardBlueprintId) => void;
+  nearbySite?: WildsConstructionSiteV1 | null;
   tools?: readonly WildsStewardToolV1[];
   equippedToolId?: string | null;
   nearbyWorkbench?: boolean;
@@ -18,6 +20,8 @@ export function WildsStewardCraftPanel({ projection, onSelectBlueprint, tools = 
   onEquipTool?: (toolId: string) => void;
   onStoreMaterial?: (kind: "timber" | "stone") => void;
   onWithdrawMaterial?: (kind: "timber" | "stone") => void;
+  onContributeSite?: (site: WildsConstructionSiteV1) => void;
+  onWorkSite?: (site: WildsConstructionSiteV1) => void;
 }) {
   return <section className="wilds-steward-craft" aria-label="Steward Craft">
     <header className="wilds-steward-craft-header">
@@ -34,13 +38,16 @@ export function WildsStewardCraftPanel({ projection, onSelectBlueprint, tools = 
       </div>
       <em>{projection.partner.families.join(" · ") || "Rest before working"}</em>
     </div>
+    {nearbySite ? <ConstructionSiteCard onContribute={onContributeSite} onWork={onWorkSite} pending={Boolean(projection.blueprints.some((blueprint) => blueprint.state === "pending"))} site={nearbySite} /> : null}
     <div className="wilds-steward-craft-catalog" aria-label="Known construction blueprints">
       {projection.blueprints.map((blueprint) => {
+        const progressiveSite = blueprint.id === "trail-shelter" || blueprint.id === "trail-bridge";
         const disabled = blueprint.state !== "ready";
         const status = blueprint.state === "pending" ? "World command in progress"
           : blueprint.state === "partner" ? "Partner needs recovery"
             : blueprint.state === "materials" ? `Need ${blueprint.missing.timber} timber · ${blueprint.missing.stone} stone`
-              : "Ready to place";
+              : progressiveSite && (blueprint.missing.timber > 0 || blueprint.missing.stone > 0) ? `Place site · gather ${blueprint.missing.timber} + ${blueprint.missing.stone}`
+                : "Ready to place";
         return <article className={`wilds-steward-blueprint is-${blueprint.state}${blueprint.selected ? " is-selected" : ""}`} key={blueprint.id}>
           <div>
             <span className="wilds-steward-blueprint-icon" aria-hidden="true">{blueprint.id === "trail-shelter" ? <Icons.camp size={21} /> : <Icons.box size={21} />}</span>
@@ -73,5 +80,24 @@ export function WildsStewardCraftPanel({ projection, onSelectBlueprint, tools = 
       </div>
     </section>
     <p className="wilds-satchel-note">A blueprint is only a possibility. Exact lots move once, after you preview a physical place and confirm the work.</p>
+  </section>;
+}
+
+function ConstructionSiteCard({ site, pending, onContribute, onWork }: {
+  site: WildsConstructionSiteV1;
+  pending: boolean;
+  onContribute?: (site: WildsConstructionSiteV1) => void;
+  onWork?: (site: WildsConstructionSiteV1) => void;
+}) {
+  const timber = site.contributedLots.filter((entry) => entry.kind === "timber").length;
+  const stone = site.contributedLots.filter((entry) => entry.kind === "stone").length;
+  const total = site.materialsRequired.timber + site.materialsRequired.stone + site.workRequired;
+  const complete = timber + stone + site.workCompleted;
+  return <section className={`wilds-construction-site-card is-${site.stage}`} aria-label={`Nearby ${site.blueprint.replace("trail-", "trail ")} construction site`}>
+    <header><span><small>In reach · shared site</small><strong>{site.blueprint === "trail-shelter" ? "Trail Shelter" : "Trail Bridge"}</strong></span><em>{Math.round(complete / total * 100)}%</em></header>
+    <div className="wilds-construction-site-progress" aria-label={`${complete} of ${total} construction steps complete`} aria-valuemax={total} aria-valuemin={0} aria-valuenow={complete} role="meter"><i style={{ width: `${complete / total * 100}%` }} /></div>
+    <div className="wilds-construction-site-ledger"><span><Icons.timber size={14} /> Timber <b>{timber}/{site.materialsRequired.timber}</b></span><span><Icons.quarry size={14} /> Stone <b>{stone}/{site.materialsRequired.stone}</b></span></div>
+    <p>{site.stage === "materials-ready" ? "Every exact lot is present. Work beside a willing building companion to raise it." : "Contributed lots remain here for every steward to see. Bring any material still missing."}</p>
+    <button disabled={pending} onClick={() => site.stage === "materials-ready" ? onWork?.(site) : onContribute?.(site)} type="button">{pending ? "World command in progress" : site.stage === "materials-ready" ? "Work together" : "Contribute what I carry"}</button>
   </section>;
 }

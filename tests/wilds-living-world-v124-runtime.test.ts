@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { ReceizExecutionZeroWriteErrorV124 } from "@receiz/sdk";
 
 import { compileWildsLivingOperation } from "../src/features/play/wilds-living-operation";
 import { executeWildsLivingWorldV124 } from "../src/lib/receiz/wilds-living-world-v124-runtime";
@@ -34,6 +35,21 @@ const stewardOperation = compileWildsLivingOperation({
   kaiUPulse: 1_000_000,
   expiresAtKaiUPulse: 2_000_000,
   semanticIdempotencyKey: "wildz:steward:harvest:runtime"
+});
+
+const bridgeOperation = compileWildsLivingOperation({
+  operationId: "steward:bridge:runtime",
+  category: "construction",
+  intention: { kind: "steward.build-trail-bridge", regionId: "region:0:0", featureId: "bridge:one" },
+  participants: [
+    { id: "player:one", kind: "player", expectedHead: H("1"), role: "steward" },
+    { id: "creature:bee", kind: "creature", expectedHead: H("2"), role: "building-partner" }
+  ],
+  stages: [{ id: "stage:build", profession: "build", participantIds: ["player:one", "creature:bee"] }],
+  consequences: { usefulOutput: 5, ecologicalRenewal: 0, publicBenefit: 5, cooperation: 3, durability: 7, extraction: 6, damage: 0, waste: 0, restorationDebt: 0 },
+  kaiUPulse: 1_000_000,
+  expiresAtKaiUPulse: 2_000_000,
+  semanticIdempotencyKey: "wildz:steward:bridge:runtime"
 });
 
 const heads = {
@@ -110,12 +126,45 @@ describe("Receiz V124 living-world atomic runtime", () => {
     assert.doesNotMatch(exactJson, /grove\.operation\.admit/);
   });
 
-  it("returns SDK zero-write unchanged and resolves ambiguous execution before success", async () => {
+  it("stages a trail bridge as structure work with exact material consumption", async () => {
+    const state = fixture("committed", bridgeOperation);
+    await executeWildsLivingWorldV124(input(state.rail, "90000", bridgeOperation));
+    const plan = state.metrics().staged as { exactPlanBytesB64u?: string };
+    const exactJson = Buffer.from(String(plan.exactPlanBytesB64u), "base64url").toString("utf8");
+    assert.match(exactJson, /structure\.built/);
+    assert.match(exactJson, /inventory\.material\.consume/);
+  });
+
+  it("resolves an apparent stale-head zero-write by idempotency before classifying it", async () => {
     const zero = fixture("zero-write");
-    assert.deepEqual(await executeWildsLivingWorldV124(input(zero.rail)), { status: "zero-write", reasonCode: "STALE_HEAD", writes: 0 });
+    assert.equal((await executeWildsLivingWorldV124(input(zero.rail))).status, "committed");
+    assert.equal(zero.metrics().resolutions, 1);
     const unknown = fixture("unknown");
     assert.equal((await executeWildsLivingWorldV124(input(unknown.rail))).status, "committed");
     assert.equal(unknown.metrics().resolutions, 1);
+  });
+
+  it("resolves a remote zero-write raised while staging before classifying it", async () => {
+    const zero = fixture();
+    let exactPlanDigest = "";
+    zero.rail.stageExecutionV124 = async (plan: Record<string, unknown>) => {
+      exactPlanDigest = String(plan.exactPlanDigest);
+      throw new ReceizExecutionZeroWriteErrorV124({ reasonCode: "STALE_HEAD" } as never);
+    };
+    zero.rail.resolveExecutionByIdempotencyV124 = (async () => ({
+      status: "committed",
+      exactPlanDigest,
+      semanticIdempotencyKey: operation.semanticIdempotencyKey,
+      committedHeads: zero.committedHeads
+    })) as never;
+    assert.equal((await executeWildsLivingWorldV124(input(zero.rail))).status, "committed");
+    assert.ok(exactPlanDigest);
+  });
+
+  it("returns a bound zero-write only when idempotency resolution confirms no commit", async () => {
+    const zero = fixture("zero-write");
+    zero.rail.resolveExecutionByIdempotencyV124 = (async () => ({ status: "zero-write", reasonCode: "STALE_HEAD", writes: 0 })) as never;
+    assert.deepEqual(await executeWildsLivingWorldV124(input(zero.rail)), { status: "zero-write", reasonCode: "STALE_HEAD", writes: 0 });
   });
 
   it("rejects a committed receipt whose participant heads do not match the source successors", async () => {

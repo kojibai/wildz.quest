@@ -23,6 +23,7 @@ import { admitWildsEmission, previewWildsEmission } from "../src/features/play/w
 import { WildsWorldService } from "../src/features/play/wilds-world-service";
 import { projectWildsRenderedLivingObstacles } from "../src/features/play/wilds-terrain-obstacles";
 import { sampleWildsTerrain } from "../src/features/play/wilds-terrain-authority";
+import { completeWildsConstructionSite, contributeWildsConstructionSite, createWildsConstructionSite } from "../src/features/play/wilds-construction-site";
 
 const actorId = "player:steward";
 const baseUPulse = 1_000_000;
@@ -104,6 +105,63 @@ function harvest(service: WildsWorldService, source: WildsResourceSource, asset:
 }
 
 describe("shared-world steward commands", () => {
+  it("persists place, contribution, and companion work as three causal construction stages", () => {
+    const service = new WildsWorldService();
+    service.tickGroves({ pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse, systemActorId: "receiz:pulse" });
+    const timberSource = sourceOf("timber");
+    const stoneSource = sourceOf("stone");
+    const groveCard = card("mintcub-1", "site-grove");
+    const stoneCard = card("titanseal-1", "site-stone");
+    harvest(service, timberSource, groveCard, baseUPulse + 1, 401);
+    harvest(service, timberSource, groveCard, baseUPulse + 2, 402);
+    harvest(service, stoneSource, stoneCard, baseUPulse + 3, 403);
+    const position = { x: timberSource.position.x + 2, z: timberSource.position.z + 2 };
+    const expectedSite = createWildsConstructionSite({ blueprint: "trail-shelter", placedByReceizId: actorId, actorPosition: position, position,
+      rotationQuarterTurns: 0, existingStructures: [], existingSites: [], kaiUPulse: baseUPulse + 4 });
+
+    const placed = service.execute({ type: "construction.site.place", blueprint: "trail-shelter", position, actorPosition: position,
+      rotationQuarterTurns: 0, cardProofDigest: groveCard.proof.digest, commandId: "command:construction:place" },
+    { actorId, canonical: true, pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse + 4, card: groveCard });
+    assert.equal(placed.projection.constructionSites[expectedSite.siteId]?.head, expectedSite.head);
+    assert.equal(Object.keys(placed.projection.consumedMaterialLots).length, 0);
+    assert.equal(Object.keys(placed.projection.stewardPhiAwards).length, 3);
+    const placedRestore = new WildsWorldService({ checkpoint: service.checkpoint(), events: service.events() });
+    assert.deepEqual(placedRestore.snapshot().constructionSites, service.snapshot().constructionSites);
+
+    const lotIds = Object.keys(service.snapshot().materialLots).sort();
+    const lots = lotIds.map((lotId) => service.snapshot().materialLots[lotId]!);
+    const expectedReady = contributeWildsConstructionSite({ site: expectedSite, expectedSiteHead: expectedSite.head, contributorReceizId: actorId, lots, kaiUPulse: baseUPulse + 5 });
+    const contributed = service.execute({ type: "construction.site.contribute", siteId: expectedSite.siteId, siteHead: expectedSite.head,
+      actorPosition: position, lotIds, cardProofDigest: groveCard.proof.digest, commandId: "command:construction:contribute" },
+    { actorId, canonical: true, pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse + 5, card: groveCard });
+    assert.equal(contributed.projection.constructionSites[expectedSite.siteId]?.head, expectedReady.head);
+    assert.equal(Object.keys(contributed.projection.reservedMaterialLots).length, 3);
+    assert.equal(Object.keys(contributed.projection.consumedMaterialLots).length, 0);
+    assert.equal(Object.keys(contributed.projection.stewardPhiAwards).length, 3);
+
+    const creatureSubjectId = `creature:${sha256PortableBasis(groveCard.id).slice(0, 32)}`;
+    const creatureHead = sha256PortableBasis(groveCard.proof.digest);
+    const completed = completeWildsConstructionSite({ site: expectedReady, expectedSiteHead: expectedReady.head, lots, workerReceizId: actorId,
+      creature: { subjectId: creatureSubjectId, head: creatureHead }, existingStructures: [], kaiUPulse: baseUPulse + 6 });
+    const operation = createWildsStewardStructureOperation({ structure: completed.structure, lots, ownerReceizId: actorId, playerHead: sha256PortableBasis(actorId) });
+    const currentEmission = service.snapshot().worldEmission!;
+    const preview = previewWildsEmission({ emission: currentEmission, operation, contributionClass: "construction" });
+    const emission = admitWildsEmission({ emission: currentEmission, operation, contributionClass: "construction", preview });
+    const phiAward = createWildsStewardPhiAward({ ownerReceizId: actorId, operation, currentEmission, nextEmission: emission, amountPhiMicro: preview.amountPhiMicro });
+    const worked = service.execute({ type: "construction.site.work", siteId: expectedSite.siteId, siteHead: expectedReady.head, actorPosition: position,
+      mandate: mandate(groveCard, ["build"], [], baseUPulse + 6, { x: Math.floor(position.x / 128), z: Math.floor(position.z / 128) }),
+      operation, emission, amountPhiMicro: preview.amountPhiMicro, phiAward, cardProofDigest: groveCard.proof.digest,
+      commandId: "command:construction:work" },
+    { actorId, canonical: true, pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse + 6, card: groveCard });
+    assert.equal(worked.projection.constructionSites[expectedSite.siteId]?.stage, "complete");
+    assert.equal(Object.keys(worked.projection.structures).length, 1);
+    assert.equal(Object.keys(worked.projection.reservedMaterialLots).length, 0);
+    assert.equal(Object.keys(worked.projection.consumedMaterialLots).length, 3);
+    assert.equal(Object.keys(worked.projection.stewardPhiAwards).length, 4);
+    const completedRestore = new WildsWorldService({ checkpoint: service.checkpoint(), events: service.events() });
+    assert.deepEqual(completedRestore.snapshot(), service.snapshot());
+  });
+
   it("admits exact source lots, consumes them once, and restores the structure from checkpoint", () => {
     const service = new WildsWorldService();
     service.tickGroves({ pulse: timestamp, occurredAt: timestamp, uPulse: baseUPulse, systemActorId: "receiz:pulse" });

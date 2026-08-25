@@ -162,6 +162,7 @@ import { projectWildsWorkCapabilityMeters } from "@/features/play/wilds-work-cap
 import { projectWildsStewardCraft, projectWildsStewardPlacement, type WildsStewardBlueprintId, type WildsStewardPlacement } from "@/features/play/wilds-steward-craft";
 import { WildsStewardCraftPanel } from "@/features/play/WildsStewardCraftPanel";
 import { WildsStewardPlacementHud } from "@/features/play/WildsStewardPlacementHud";
+import type { WildsConstructionSiteV1 } from "@/features/play/wilds-construction-site";
 
 const WildsWorldMap = dynamic(() => import("@/features/play/WildsWorldMap").then((mod) => mod.WildsWorldMap), { ssr: false });
 const WildsLandmarkExperience = dynamic(() => import("@/features/play/WildsLandmarkExperience").then((mod) => mod.WildsLandmarkExperience), { ssr: false });
@@ -1117,8 +1118,9 @@ export function PlayCampaign({
     amountPhiMicro: preview.emission.amountPhiMicro
   })), [activeGroveMandate, activeGrovePreviews]);
   const availableMaterialLots = useMemo(() => Object.values(livingWorld.snapshot?.materialLots ?? {})
-    .filter((lot) => sameWildzPlayerCoordinate(lot.ownerReceizId, ownerReceizId) && !livingWorld.snapshot?.consumedMaterialLots?.[lot.lotId] && !livingWorld.snapshot?.storedMaterialLots?.[lot.lotId])
-    .sort((left, right) => left.lotId.localeCompare(right.lotId)), [livingWorld.snapshot?.consumedMaterialLots, livingWorld.snapshot?.materialLots, livingWorld.snapshot?.storedMaterialLots, ownerReceizId]);
+    .filter((lot) => sameWildzPlayerCoordinate(lot.ownerReceizId, ownerReceizId) && !livingWorld.snapshot?.consumedMaterialLots?.[lot.lotId]
+      && !livingWorld.snapshot?.storedMaterialLots?.[lot.lotId] && !livingWorld.snapshot?.reservedMaterialLots?.[lot.lotId])
+    .sort((left, right) => left.lotId.localeCompare(right.lotId)), [livingWorld.snapshot?.consumedMaterialLots, livingWorld.snapshot?.materialLots, livingWorld.snapshot?.reservedMaterialLots, livingWorld.snapshot?.storedMaterialLots, ownerReceizId]);
   const stewardMaterials = useMemo(() => ({
     timber: availableMaterialLots.filter((lot) => lot.kind === "timber").length,
     stone: availableMaterialLots.filter((lot) => lot.kind === "stone").length
@@ -1130,6 +1132,11 @@ export function PlayCampaign({
   const nearbyTrailCache = useMemo(() => Object.values(livingWorld.snapshot?.structures ?? {}).find((structure) => structure.blueprint === "trail-cache"
     && sameWildzPlayerCoordinate(structure.ownerReceizId, ownerReceizId) && Math.hypot(structure.position.x - state.player.x, structure.position.z - state.player.z) <= 6) ?? null,
   [livingWorld.snapshot?.structures, ownerReceizId, state.player.x, state.player.z]);
+  const nearbyConstructionSite = useMemo(() => Object.values(livingWorld.snapshot?.constructionSites ?? {})
+    .filter((site) => site.stage !== "complete" && Math.hypot(site.position.x - state.player.x, site.position.z - state.player.z) <= 7)
+    .sort((left, right) => Math.hypot(left.position.x - state.player.x, left.position.z - state.player.z)
+      - Math.hypot(right.position.x - state.player.x, right.position.z - state.player.z) || left.siteId.localeCompare(right.siteId))[0] ?? null,
+  [livingWorld.snapshot?.constructionSites, state.player.x, state.player.z]);
   const stewardTools = useMemo(() => Object.values(livingWorld.snapshot?.stewardTools ?? {}).filter((tool) => sameWildzPlayerCoordinate(tool.ownerReceizId, ownerReceizId)), [livingWorld.snapshot?.stewardTools, ownerReceizId]);
   const storedStewardLots = useMemo(() => Object.entries(livingWorld.snapshot?.storedMaterialLots ?? {})
     .filter(([, cacheId]) => cacheId === nearbyTrailCache?.structureId)
@@ -1224,7 +1231,7 @@ export function PlayCampaign({
       setRiftError(`${activeAsset.manifest.name} worked beside you. One exact ${source.kind} lot entered your Satchel.${awardMessage}`);
     } catch (error) {
       setActiveWorkSource((active) => active?.sourceId === source.sourceId ? null : active);
-      handleStoryCommandError(error, "The living source did not admit that work.");
+      handleStoryCommandError(error, "That work could not complete. Read the source ring, your companion's work meter, and the exact guidance shown here.");
     }
   };
 
@@ -1235,16 +1242,10 @@ export function PlayCampaign({
       return;
     }
     try {
-      const timber = availableMaterialLots.filter((lot) => lot.kind === "timber").slice(0, 2);
-      const stone = availableMaterialLots.filter((lot) => lot.kind === "stone").slice(0, 1);
-      if (timber.length !== 2 || stone.length !== 1) throw new Error("Gather two timber lots and one stone lot first.");
-      const mandate = createStewardMandate(["build"], [], { x: Math.floor(position.x / 128), z: Math.floor(position.z / 128) });
-      const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
-      const projection = await livingWorld.buildTrailShelter(position, state.player, 0, [...timber, ...stone].map((lot) => lot.lotId), mandate);
-      const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
+      await livingWorld.placeConstructionSite("trail-shelter", position, state.player, 0);
       setStewardPlacementMode(null);
       setStewardPlacementPreview(null);
-      setRiftError(`Your Trail Shelter now stands in the shared Wilds.${award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the work.` : ""}`);
+      setRiftError("A Trail Shelter site now lives here. Approach its mint ring to contribute exact timber and stone, then work beside your companion.");
     } catch (error) {
       handleStoryCommandError(error, "That place cannot hold a shelter yet.");
     }
@@ -1257,21 +1258,39 @@ export function PlayCampaign({
       return;
     }
     try {
-      const timber = availableMaterialLots.filter((lot) => lot.kind === "timber").slice(0, 4);
-      const stone = availableMaterialLots.filter((lot) => lot.kind === "stone").slice(0, 2);
-      if (timber.length !== 4 || stone.length !== 2) throw new Error("Gather four timber lots and two stone lots first.");
       const rotationQuarterTurns = selectWildsTrailBridgeRotation(position);
       if (rotationQuarterTurns === null) throw new Error("Choose water between two nearby, level banks.");
-      const mandate = createStewardMandate(["build"], [], { x: Math.floor(position.x / 128), z: Math.floor(position.z / 128) });
-      const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
-      const projection = await livingWorld.buildTrailBridge(position, state.player, rotationQuarterTurns, [...timber, ...stone].map((lot) => lot.lotId), mandate);
-      const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
+      await livingWorld.placeConstructionSite("trail-bridge", position, state.player, rotationQuarterTurns);
       setStewardPlacementMode(null);
       setStewardPlacementPreview(null);
-      setRiftError(`Your Trail Bridge now joins both banks in the shared Wilds.${award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the work.` : ""}`);
+      setRiftError("A Trail Bridge site now marks this crossing. Bring its exact timber and stone, then finish it with a willing companion.");
     } catch (error) {
       handleStoryCommandError(error, "That crossing cannot hold a bridge yet.");
     }
+  };
+
+  const contributeNearbyConstructionSite = async (site: WildsConstructionSiteV1) => {
+    const haveTimber = site.contributedLots.filter((entry) => entry.kind === "timber").length;
+    const haveStone = site.contributedLots.filter((entry) => entry.kind === "stone").length;
+    const timber = availableMaterialLots.filter((lot) => lot.kind === "timber").slice(0, site.materialsRequired.timber - haveTimber);
+    const stone = availableMaterialLots.filter((lot) => lot.kind === "stone").slice(0, site.materialsRequired.stone - haveStone);
+    const lots = [...timber, ...stone];
+    if (!lots.length) return setRiftError(`This site still needs ${site.materialsRequired.timber - haveTimber} timber and ${site.materialsRequired.stone - haveStone} stone. Gather either living source and return.`);
+    try {
+      const projection = await livingWorld.contributeConstructionSite(site.siteId, site.head, state.player, lots.map((lot) => lot.lotId));
+      const next = projection.constructionSites[site.siteId];
+      setRiftError(next?.stage === "materials-ready" ? "Every exact lot is now held by the site. Your companion can work beside you to raise it." : "Your exact lots are now visible in this site. Other stewards can add what remains.");
+    } catch (error) { handleStoryCommandError(error, "Those exact lots could not enter this site yet."); }
+  };
+
+  const workNearbyConstructionSite = async (site: WildsConstructionSiteV1) => {
+    try {
+      const mandate = createStewardMandate(["build"], [], { x: Math.floor(site.position.x / 128), z: Math.floor(site.position.z / 128) });
+      const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
+      const projection = await livingWorld.workConstructionSite(site.siteId, site.head, state.player, mandate);
+      const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
+      setRiftError(`${site.blueprint === "trail-shelter" ? "The Trail Shelter now stands" : "The Trail Bridge now joins both banks"} in the shared Wilds.${award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the useful work.` : ""}`);
+    } catch (error) { handleStoryCommandError(error, "Move beside the funded site with a rested companion who can build."); }
   };
 
   const placeStewardGroundStructure = async (blueprint: "steward-workbench" | "trail-cache", position: { x: number; z: number }) => {
@@ -1870,7 +1889,7 @@ export function PlayCampaign({
             <article><Icons.products aria-hidden="true" size={18} /><span><small>Living timber</small><strong>{stewardMaterials.timber}</strong></span><em>Exact lots</em></article>
             <article><Icons.package aria-hidden="true" size={18} /><span><small>Foundation stone</small><strong>{stewardMaterials.stone}</strong></span><em>Exact lots</em></article>
           </div>
-          <WildsStewardCraftPanel projection={stewardCraft} tools={stewardTools} equippedToolId={livingWorld.snapshot?.equippedStewardTools?.[ownerReceizId] ?? null} nearbyWorkbench={Boolean(nearbyStewardWorkbench)} nearbyCache={Boolean(nearbyTrailCache)} stored={{ timber: storedStewardLots.filter((lot) => lot?.kind === "timber").length, stone: storedStewardLots.filter((lot) => lot?.kind === "stone").length }} onCraftTool={(kind) => void craftStewardTool(kind)} onEquipTool={(toolId) => void livingWorld.equipStewardTool(toolId).then(() => setRiftError("Field tool equipped. Matching work now preserves one higher grade of material while durability remains.")).catch((error) => handleStoryCommandError(error, "That tool could not be equipped."))} onStoreMaterial={(kind) => void moveStewardMaterial(kind, "deposit")} onWithdrawMaterial={(kind) => void moveStewardMaterial(kind, "withdraw")} onSelectBlueprint={(blueprintId) => {
+          <WildsStewardCraftPanel projection={stewardCraft} nearbySite={nearbyConstructionSite} tools={stewardTools} equippedToolId={livingWorld.snapshot?.equippedStewardTools?.[ownerReceizId] ?? null} nearbyWorkbench={Boolean(nearbyStewardWorkbench)} nearbyCache={Boolean(nearbyTrailCache)} stored={{ timber: storedStewardLots.filter((lot) => lot?.kind === "timber").length, stone: storedStewardLots.filter((lot) => lot?.kind === "stone").length }} onContributeSite={(site) => void contributeNearbyConstructionSite(site)} onWorkSite={(site) => void workNearbyConstructionSite(site)} onCraftTool={(kind) => void craftStewardTool(kind)} onEquipTool={(toolId) => void livingWorld.equipStewardTool(toolId).then(() => setRiftError("Field tool equipped. Matching work now preserves one higher grade of material while durability remains.")).catch((error) => handleStoryCommandError(error, "That tool could not be equipped."))} onStoreMaterial={(kind) => void moveStewardMaterial(kind, "deposit")} onWithdrawMaterial={(kind) => void moveStewardMaterial(kind, "withdraw")} onSelectBlueprint={(blueprintId) => {
             setStewardPlacementMode(blueprintId);
             setStewardPlacementPreview(null);
             setRiftError(blueprintId === "trail-bridge"

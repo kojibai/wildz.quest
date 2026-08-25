@@ -48,6 +48,7 @@ type WildsStructureBaseV1 = Readonly<{
   stage: "complete";
   consumedLotIds: readonly string[];
   consumedLotHeads: readonly string[];
+  materialContributorReceizIds?: readonly string[];
   builder: Readonly<{ creatureSubjectId: string; creatureHead: string }>;
   kaiUPulse: number;
   authority: "source-proof-objects";
@@ -224,17 +225,21 @@ export function createWildsStewardStructureOperation(input: Readonly<{
   structure: WildsStructureV1;
   lots: readonly WildsMaterialLotV1[];
   ownerReceizId: string;
+  actorReceizId?: string;
   playerHead: string;
 }>): WildsLivingOperationPlanV1 {
   const expectedLotCount = input.structure.consumedLotIds.length;
+  const materialOwners = input.structure.materialContributorReceizIds ?? [input.structure.ownerReceizId];
+  const actorReceizId = input.actorReceizId ?? input.ownerReceizId;
   if (!verifyWildsStructure(input.structure) || input.structure.ownerReceizId !== input.ownerReceizId
-    || input.lots.length !== expectedLotCount || input.lots.some((lot) => !verifyWildsMaterialLot(lot) || lot.ownerReceizId !== input.ownerReceizId)
+    || input.lots.length !== expectedLotCount || input.lots.some((lot) => !verifyWildsMaterialLot(lot) || !materialOwners.includes(lot.ownerReceizId))
     || canonicalPortableCardJson(input.structure.consumedLotHeads) !== canonicalPortableCardJson([...input.lots].sort((a, b) => a.lotId.localeCompare(b.lotId)).map((lot) => lot.head))) {
     throw new Error("wilds_steward_structure_operation_source_invalid");
   }
   const bridge = input.structure.blueprint === "trail-bridge";
   const identity = operationIdentity(input.structure.blueprint, input.structure.head);
-  const participantIds = [input.ownerReceizId, input.structure.builder.creatureSubjectId];
+  const playerIds = [...new Set([actorReceizId, input.ownerReceizId, ...materialOwners])].sort();
+  const participantIds = [...playerIds, input.structure.builder.creatureSubjectId];
   return compileWildsLivingOperation({
     operationId: `steward:build:${identity}`,
     category: "construction",
@@ -246,7 +251,7 @@ export function createWildsStewardStructureOperation(input: Readonly<{
       consumedLotHeads: input.structure.consumedLotHeads
     },
     participants: [
-      { id: input.ownerReceizId, kind: "player", expectedHead: input.playerHead, role: "steward" },
+      ...playerIds.map((id) => ({ id, kind: "player" as const, expectedHead: id === actorReceizId ? input.playerHead : sha256PortableBasis(id), role: id === actorReceizId ? "steward" : id === input.ownerReceizId ? "site-steward" : "material-contributor" })),
       { id: input.structure.builder.creatureSubjectId, kind: "creature", expectedHead: input.structure.builder.creatureHead, role: "building-partner" }
     ],
     stages: bridge
@@ -500,6 +505,10 @@ function verifyStructureBase(structure: Partial<WildsStructureV1>, expectedLots:
     && new Set(structure.consumedLotIds).size === expectedLots
     && Array.isArray(structure.consumedLotHeads) && structure.consumedLotHeads.length === expectedLots
     && structure.consumedLotHeads.every((head) => HEAD.test(head)) && Boolean(structure.builder)
+    && (structure.materialContributorReceizIds === undefined || (Array.isArray(structure.materialContributorReceizIds)
+      && structure.materialContributorReceizIds.length > 0
+      && structure.materialContributorReceizIds.every((id) => ID.test(id))
+      && canonicalPortableCardJson(structure.materialContributorReceizIds) === canonicalPortableCardJson([...new Set(structure.materialContributorReceizIds)].sort())))
     && ID.test(structure.builder?.creatureSubjectId ?? "") && HEAD.test(structure.builder?.creatureHead ?? "");
 }
 
@@ -673,6 +682,7 @@ export function createWildsTrailShelter(input: Readonly<{
   lots: readonly WildsMaterialLotV1[];
   builder: Readonly<{ creatureSubjectId: string; creatureHead: string }>;
   existingStructures: readonly WildsStructureV1[];
+  materialContributorReceizIds?: readonly string[];
   kaiUPulse: number;
 }>): WildsStructureV1 {
   if (!ID.test(input.ownerReceizId) || !validKai(input.kaiUPulse)) throw new Error("wilds_steward_structure_authority_invalid");
@@ -681,7 +691,9 @@ export function createWildsTrailShelter(input: Readonly<{
     || Math.abs(input.position.x) > 500_000_000 || Math.abs(input.position.z) > 500_000_000) throw new Error("wilds_steward_structure_position_invalid");
   if (!Number.isSafeInteger(input.rotationQuarterTurns)) throw new Error("wilds_steward_structure_rotation_invalid");
   const rotationQuarterTurns = (((input.rotationQuarterTurns % 4) + 4) % 4) as 0 | 1 | 2 | 3;
-  if (input.lots.some((lot) => !verifyWildsMaterialLot(lot) || lot.ownerReceizId !== input.ownerReceizId)) throw new Error("wilds_steward_material_authority_invalid");
+  const materialContributorReceizIds = [...new Set(input.materialContributorReceizIds ?? [input.ownerReceizId])].sort();
+  if (!materialContributorReceizIds.includes(input.ownerReceizId) || materialContributorReceizIds.some((id) => !ID.test(id))
+    || input.lots.some((lot) => !verifyWildsMaterialLot(lot) || !materialContributorReceizIds.includes(lot.ownerReceizId))) throw new Error("wilds_steward_material_authority_invalid");
   if (new Set(input.lots.map((lot) => lot.lotId)).size !== input.lots.length) throw new Error("wilds_steward_material_duplicate");
   const timber = input.lots.filter((lot) => lot.kind === "timber");
   const stone = input.lots.filter((lot) => lot.kind === "stone");
@@ -708,6 +720,7 @@ export function createWildsTrailShelter(input: Readonly<{
     materials: freeze({ timber: 2 as const, stone: 1 as const }),
     consumedLotIds: freeze(orderedLots.map((lot) => lot.lotId)),
     consumedLotHeads: freeze(orderedLots.map((lot) => lot.head)),
+    ...(input.materialContributorReceizIds ? { materialContributorReceizIds: freeze(materialContributorReceizIds) } : {}),
     builder: freeze({ ...input.builder }),
     kaiUPulse: input.kaiUPulse,
     authority: "source-proof-objects" as const
@@ -744,6 +757,7 @@ export function createWildsTrailBridge(input: Readonly<{
   lots: readonly WildsMaterialLotV1[];
   builder: Readonly<{ creatureSubjectId: string; creatureHead: string }>;
   existingStructures: readonly WildsStructureV1[];
+  materialContributorReceizIds?: readonly string[];
   kaiUPulse: number;
 }>): WildsTrailBridgeV1 {
   if (!ID.test(input.ownerReceizId) || !validKai(input.kaiUPulse)) throw new Error("wilds_steward_structure_authority_invalid");
@@ -752,7 +766,9 @@ export function createWildsTrailBridge(input: Readonly<{
     || Math.abs(input.position.x) > 500_000_000 || Math.abs(input.position.z) > 500_000_000) throw new Error("wilds_steward_structure_position_invalid");
   if (!Number.isSafeInteger(input.rotationQuarterTurns)) throw new Error("wilds_steward_structure_rotation_invalid");
   const rotationQuarterTurns = (((input.rotationQuarterTurns % 4) + 4) % 4) as 0 | 1 | 2 | 3;
-  if (input.lots.some((lot) => !verifyWildsMaterialLot(lot) || lot.ownerReceizId !== input.ownerReceizId)) throw new Error("wilds_steward_material_authority_invalid");
+  const materialContributorReceizIds = [...new Set(input.materialContributorReceizIds ?? [input.ownerReceizId])].sort();
+  if (!materialContributorReceizIds.includes(input.ownerReceizId) || materialContributorReceizIds.some((id) => !ID.test(id))
+    || input.lots.some((lot) => !verifyWildsMaterialLot(lot) || !materialContributorReceizIds.includes(lot.ownerReceizId))) throw new Error("wilds_steward_material_authority_invalid");
   if (new Set(input.lots.map((lot) => lot.lotId)).size !== input.lots.length) throw new Error("wilds_steward_material_duplicate");
   const timber = input.lots.filter((lot) => lot.kind === "timber");
   const stone = input.lots.filter((lot) => lot.kind === "stone");
@@ -795,6 +811,7 @@ export function createWildsTrailBridge(input: Readonly<{
     materials: freeze({ timber: 4 as const, stone: 2 as const }),
     consumedLotIds: freeze(orderedLots.map((lot) => lot.lotId)),
     consumedLotHeads: freeze(orderedLots.map((lot) => lot.head)),
+    ...(input.materialContributorReceizIds ? { materialContributorReceizIds: freeze(materialContributorReceizIds) } : {}),
     builder: freeze({ ...input.builder }),
     physical,
     kaiUPulse: input.kaiUPulse,

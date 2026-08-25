@@ -117,7 +117,7 @@ function operationCommandKinds(operation: WildsLivingOperationPlanV1) {
     subject: "subject.steward.work",
     inventory: "inventory.material.admit"
   } as const;
-  if (kind === "steward.build-trail-shelter") return {
+  if (kind === "steward.build-trail-shelter" || kind === "steward.build-trail-bridge") return {
     world: "structure.built",
     subject: "subject.steward.work",
     inventory: "inventory.material.consume"
@@ -213,23 +213,44 @@ export async function executeWildsLivingWorldV124(input: WildsLivingWorldV124Run
   let session: unknown = null;
   try {
     session = await input.rail.openAuthoritySessionV124(input.authoritySessionInput);
-    const handle = await input.rail.stageExecutionV124(plan) as Record<string, unknown>;
-    let outcome: unknown;
+    let handle: Record<string, unknown>;
     try {
-      outcome = await input.rail.executeV124(handle, session);
+      handle = await input.rail.stageExecutionV124(plan) as Record<string, unknown>;
     } catch (cause) {
-      if (cause instanceof ReceizExecutionZeroWriteErrorV124) {
-        return Object.freeze({ status: "zero-write" as const, reasonCode: cause.failure.reasonCode, writes: 0 as const });
-      }
-      outcome = await input.rail.resolveExecutionByIdempotencyV124({
+      if (!(cause instanceof ReceizExecutionZeroWriteErrorV124)) throw cause;
+      // Stage can report STALE_HEAD/ALREADY_COMMITTED when the first exact
+      // attempt landed remotely but its response was lost. The zero-write is
+      // not sufficient to classify the semantic operation; resolve the exact
+      // key and admit only a receipt bound to this plan and its successors.
+      const resolved = await input.rail.resolveExecutionByIdempotencyV124({
         applicationId: WILDZ_RECEIZ_APPLICATION_ID,
         domainId: plan.domainId,
         operationKind: plan.operationKind,
         semanticIdempotencyKey: input.operation.semanticIdempotencyKey
       });
+      const admitted = admitOutcome(resolved, input, plan.exactPlanDigest);
+      return admitted ?? Object.freeze({ status: "unknown" as const });
+    }
+    let outcome: unknown;
+    try {
+      outcome = await input.rail.executeV124(handle, session);
+    } catch (cause) {
+      if (cause instanceof ReceizExecutionZeroWriteErrorV124) {
+        outcome = { status: "zero-write", reasonCode: cause.failure.reasonCode, writes: 0 };
+      } else {
+        outcome = await input.rail.resolveExecutionByIdempotencyV124({
+          applicationId: WILDZ_RECEIZ_APPLICATION_ID,
+          domainId: plan.domainId,
+          operationKind: plan.operationKind,
+          semanticIdempotencyKey: input.operation.semanticIdempotencyKey
+        });
+      }
     }
     let admitted = admitOutcome(outcome, input, plan.exactPlanDigest);
-    if (admitted) return admitted;
+    if (admitted?.status === "committed") return admitted;
+    // A stale head is also the normal response to a retry whose first request
+    // committed but whose receipt was lost. Resolve the exact semantic key
+    // before accepting zero-write as terminal.
     outcome = await input.rail.resolveExecutionByIdempotencyV124({
       applicationId: WILDZ_RECEIZ_APPLICATION_ID,
       domainId: plan.domainId,

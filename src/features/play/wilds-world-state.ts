@@ -28,6 +28,7 @@ import {
   type WildsStewardToolV1,
   type WildsStructureV1
 } from "./wilds-steward-construction";
+import { verifyWildsConstructionSite, type WildsConstructionSiteV1 } from "./wilds-construction-site";
 
 export type WildsDynamicSitePhase = "rumored" | "tracked" | "emerged" | "assaulting" | "engaged" | "defeated" | "memorialized" | "expired";
 
@@ -146,6 +147,8 @@ export type WildsWorldProjection = {
   materialLots: Record<string, WildsMaterialLotV1>;
   consumedMaterialLots: Record<string, string>;
   structures: Record<string, WildsStructureV1>;
+  constructionSites: Record<string, WildsConstructionSiteV1>;
+  reservedMaterialLots: Record<string, string>;
   stewardTools: Record<string, WildsStewardToolV1>;
   equippedStewardTools: Record<string, string>;
   storedMaterialLots: Record<string, string>;
@@ -190,6 +193,8 @@ export function initialWildsWorldProjection(): WildsWorldProjection {
     materialLots: {},
     consumedMaterialLots: {},
     structures: {},
+    constructionSites: {},
+    reservedMaterialLots: {},
     stewardTools: {},
     equippedStewardTools: {},
     storedMaterialLots: {},
@@ -536,6 +541,66 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
         ...economy
       });
     }
+    case "construction.site_placed": {
+      const site = recordPayload(payload.site) as unknown as WildsConstructionSiteV1;
+      if (!verifyWildsConstructionSite(site) || site.stage !== "placed" || site.revision !== 0
+        || site.placedByReceizId !== event.actorId || state.constructionSites[site.siteId]
+        || Object.values(state.structures).some((structure) => Math.hypot(structure.position.x - site.position.x, structure.position.z - site.position.z) < (site.blueprint === "trail-bridge" ? 9.25 : 7.25))
+        || Object.values(state.constructionSites).some((existing) => existing.stage !== "complete" && Math.hypot(existing.position.x - site.position.x, existing.position.z - site.position.z) < (site.blueprint === "trail-bridge" ? 9.25 : 7.25))) {
+        throw new Error("wilds_world_construction_site_invalid");
+      }
+      return appendEvent(state, event, { constructionSites: { ...state.constructionSites, [site.siteId]: site } });
+    }
+    case "construction.site_contributed": {
+      const site = recordPayload(payload.site) as unknown as WildsConstructionSiteV1;
+      const current = state.constructionSites[site.siteId];
+      if (!current || !verifyWildsConstructionSite(site) || current.stage === "complete" || site.stage === "complete"
+        || site.parentHead !== current.head || site.revision !== current.revision + 1) throw new Error("wilds_world_construction_site_transition_invalid");
+      const prior = new Map(current.contributedLots.map((entry) => [entry.lotId, entry]));
+      if (current.contributedLots.some((entry) => canonicalPortableCardJson(site.contributedLots.find((candidate) => candidate.lotId === entry.lotId)) !== canonicalPortableCardJson(entry))) {
+        throw new Error("wilds_world_construction_site_transition_invalid");
+      }
+      const additions = site.contributedLots.filter((entry) => !prior.has(entry.lotId));
+      if (additions.length < 1 || additions.some((entry) => {
+        const lot = state.materialLots[entry.lotId];
+        return entry.ownerReceizId !== event.actorId || !lot || lot.ownerReceizId !== event.actorId || lot.head !== entry.lotHead || lot.kind !== entry.kind
+          || state.consumedMaterialLots[entry.lotId] || state.storedMaterialLots[entry.lotId] || state.reservedMaterialLots[entry.lotId];
+      })) throw new Error("wilds_world_construction_material_invalid");
+      return appendEvent(state, event, {
+        constructionSites: { ...state.constructionSites, [site.siteId]: site },
+        reservedMaterialLots: { ...state.reservedMaterialLots, ...Object.fromEntries(additions.map((entry) => [entry.lotId, site.siteId])) }
+      });
+    }
+    case "construction.site_worked": {
+      const site = recordPayload(payload.site) as unknown as WildsConstructionSiteV1;
+      const structure = recordPayload(payload.structure) as unknown as WildsStructureV1;
+      const current = state.constructionSites[site.siteId];
+      if (!current || !verifyWildsConstructionSite(site) || current.stage !== "materials-ready" || site.stage !== "complete"
+        || site.parentHead !== current.head || site.revision !== current.revision + 1
+        || !verifyWildsStructure(structure) || state.structures[structure.structureId]
+        || site.terminalStructureId !== structure.structureId || site.terminalStructureHead !== structure.head
+        || structure.ownerReceizId !== current.placedByReceizId
+        || canonicalPortableCardJson(structure.consumedLotIds) !== canonicalPortableCardJson(current.contributedLots.map((entry) => entry.lotId))
+        || canonicalPortableCardJson(structure.consumedLotHeads) !== canonicalPortableCardJson(current.contributedLots.map((entry) => entry.lotHead))) {
+        throw new Error("wilds_world_construction_completion_invalid");
+      }
+      for (const entry of current.contributedLots) {
+        const lot = state.materialLots[entry.lotId];
+        if (!lot || lot.head !== entry.lotHead || state.reservedMaterialLots[entry.lotId] !== site.siteId || state.consumedMaterialLots[entry.lotId]) {
+          throw new Error("wilds_world_construction_material_invalid");
+        }
+      }
+      const reservedMaterialLots = { ...state.reservedMaterialLots };
+      for (const entry of current.contributedLots) delete reservedMaterialLots[entry.lotId];
+      const economy = stewardEconomyPatch(state, event, payload);
+      return appendEvent(state, event, {
+        constructionSites: { ...state.constructionSites, [site.siteId]: site },
+        structures: { ...state.structures, [structure.structureId]: structure },
+        reservedMaterialLots,
+        consumedMaterialLots: { ...state.consumedMaterialLots, ...Object.fromEntries(structure.consumedLotIds.map((lotId) => [lotId, structure.structureId])) },
+        ...economy
+      });
+    }
     case "tool.crafted": {
       const tool = recordPayload(payload.tool) as unknown as WildsStewardToolV1;
       if (!verifyWildsStewardTool(tool) || tool.ownerReceizId !== event.actorId || state.stewardTools[tool.toolId]
@@ -739,6 +804,8 @@ export function replayWildsWorld(events: readonly CompatibleWildsWorldEvent[], c
     materialLots: projection.materialLots ?? {},
     consumedMaterialLots: projection.consumedMaterialLots ?? {},
     structures: projection.structures ?? {},
+    constructionSites: projection.constructionSites ?? {},
+    reservedMaterialLots: projection.reservedMaterialLots ?? {},
     stewardTools: projection.stewardTools ?? {},
     equippedStewardTools: projection.equippedStewardTools ?? {},
     storedMaterialLots: projection.storedMaterialLots ?? {},

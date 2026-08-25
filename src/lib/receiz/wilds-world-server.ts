@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { WildsWorldService, type WildsWorldCommand } from "@/features/play/wilds-world-service";
-import { findWildsWorldRecord, selectWildsWorldSnapshot } from "@/features/play/wilds-world-record";
+import { findWildsWorldRecord, selectWildsWorldSnapshot, type WildsWorldRecord } from "@/features/play/wilds-world-record";
 import { canonicalPortableCardJson, sha256PortableBasis } from "@/features/play/portable-card";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import { verifyWildsWorldCommandKai, worldCommandRequiresCard } from "@/features/play/wilds-world-authority";
@@ -71,6 +71,14 @@ function practiceService() {
   return root()[practiceKey]!;
 }
 
+function worldRecordContainsHead(record: WildsWorldRecord, candidate: { revision: number; lastEventId: string | null }) {
+  if (candidate.revision === 0 && candidate.lastEventId === null) return true;
+  if (candidate.revision === record.checkpoint.revision && candidate.lastEventId === record.checkpoint.lastEventId) return true;
+  return candidate.revision < record.checkpoint.revision && candidate.lastEventId !== null
+    && (record.eventTail.some((event) => event.eventId === candidate.lastEventId)
+      || record.eventTail[0]?.previousEventId === candidate.lastEventId);
+}
+
 export async function hydrateWildsWorldFromReceiz(request: NextRequest) {
   const existing = root()[hydrationKey];
   if (existing) return existing;
@@ -101,6 +109,11 @@ async function recoverCanonicalWorldBeforeMutation(request: NextRequest, actor?:
     new Promise<never>((_, reject) => setTimeout(() => reject(new Error("wilds_world_recovery_timeout")), 1_200))
   ]);
   if (recovered) {
+    const localRecord = { checkpoint: local.checkpoint(), eventTail: local.events() };
+    if (localRecord.checkpoint.revision > recovered.checkpoint.revision && worldRecordContainsHead(localRecord, {
+      revision: recovered.checkpoint.revision,
+      lastEventId: recovered.checkpoint.lastEventId
+    })) return local;
     const authoritative = new WildsWorldService({ checkpoint: recovered.checkpoint, events: recovered.eventTail });
     root()[serviceKey] = authoritative;
     return authoritative;
@@ -272,7 +285,8 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
   if (worldCommandRequiresCard(command)) authorizeWildsMultiplayerCard(actor, card, value.cardAdmission);
   await hydrateWildsWorldFromReceiz(request);
   if (actor.practice) {
-    if (command.type === "resource.material.harvest" || command.type === "structure.trail-shelter.build" || command.type === "structure.trail-bridge.build") {
+    if (command.type === "resource.material.harvest" || command.type === "structure.trail-shelter.build" || command.type === "structure.trail-bridge.build"
+      || command.type === "construction.site.place" || command.type === "construction.site.contribute" || command.type === "construction.site.work") {
       throw new Error("wilds_world_steward_identity_required");
     }
     const now = new Date().toISOString();
@@ -290,7 +304,7 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
   const before = { checkpoint: current.checkpoint(), events: current.events() };
   const now = new Date().toISOString();
   let result;
-  if (command.type === "grove.act" || command.type === "resource.material.harvest" || command.type === "structure.trail-shelter.build" || command.type === "structure.trail-bridge.build") {
+  if (command.type === "grove.act" || command.type === "resource.material.harvest" || command.type === "structure.trail-shelter.build" || command.type === "structure.trail-bridge.build" || command.type === "construction.site.work") {
     const candidate = new WildsWorldService(before);
     result = candidate.execute(command, { actorId: actor.handle, canonical: true, pulse: now, occurredAt: now, uPulse: kai.uPulse, card });
     if (result.events.length > 0) {
@@ -300,61 +314,67 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
       const currentGrove = command.type === "grove.act" ? current.snapshot().groves[command.grove.groveId] : null;
       const currentEmission = current.snapshot().worldEmission;
       const executionAuthority = value.receizExecution;
-      if (!operation || !nextEmission || !amountPhiMicro || (command.type === "grove.act" && !currentGrove)
-        || !currentEmission || !executionAuthority || typeof executionAuthority !== "object") {
-        throw new Error("wilds_living_world_authority_required");
-      }
-      const authorityRecord = executionAuthority as Record<string, unknown>;
-      const rail = createReceizCommerceAdapter(actor.accessToken ? { accessToken: actor.accessToken } : undefined);
-      const authoritySessionInput = await (dependencies.prepareLivingWorldAuthorityV124 ?? prepareWildsLivingWorldAuthoritySession)({
-        rail,
-        actor,
-        executionProof: authorityRecord,
-        operation: {
-          operationId: operation.operationId,
-          planDigest: operation.planDigest,
-          semanticIdempotencyKey: operation.semanticIdempotencyKey,
-          amountPhiMicro
+      // The candidate has already re-derived and verified the exact source,
+      // operation, emission successor, and settlement proof. Receiz execution
+      // is therefore an optional distribution of that source-authoritative
+      // transition; it can never be a second grant or a rollback authority.
+      if (executionAuthority && typeof executionAuthority === "object") {
+        if (!operation || !nextEmission || !amountPhiMicro || (command.type === "grove.act" && !currentGrove) || !currentEmission) {
+          throw new Error("wilds_living_world_source_proof_invalid");
         }
-      });
-      const heads = command.type === "grove.act"
-        ? wildsLivingWorldSuccessorHeads({
-            actorId: actor.handle,
-            operation,
-            currentCheckpoint: before.checkpoint,
-            nextCheckpoint: candidate.checkpoint(),
-            currentEmission,
-            nextEmission,
-            currentGrove: currentGrove!,
-            nextGrove: command.grove
-          })
-        : wildsStewardWorldSuccessorHeads({
-            actorId: actor.handle,
-            operation,
-            currentCheckpoint: before.checkpoint,
-            nextCheckpoint: candidate.checkpoint(),
-            currentEmission,
-            nextEmission
+        const authorityRecord = executionAuthority as Record<string, unknown>;
+        const rail = createReceizCommerceAdapter(actor.accessToken ? { accessToken: actor.accessToken } : undefined);
+        try {
+          const authoritySessionInput = await (dependencies.prepareLivingWorldAuthorityV124 ?? prepareWildsLivingWorldAuthoritySession)({
+            rail,
+            actor,
+            executionProof: authorityRecord,
+            operation: {
+              operationId: operation.operationId,
+              planDigest: operation.planDigest,
+              semanticIdempotencyKey: operation.semanticIdempotencyKey,
+              amountPhiMicro
+            }
           });
-      const outcome = await (dependencies.executeLivingWorldV124 ?? executeWildsLivingWorldV124)({
-        rail: rail as unknown as WildsLivingWorldV124RuntimeInput["rail"],
-        authoritySessionInput,
-        operation,
-        heads,
-        amountPhiMicro,
-        registryDigest: WILDS_LIVING_WORLD_REGISTRY_DIGEST,
-        reducerDigest: WILDS_LIVING_WORLD_REDUCER_DIGEST,
-        usdPerPhiMicrocents: typeof authorityRecord.usdPerPhiMicrocents === "string" ? authorityRecord.usdPerPhiMicrocents : "0",
-        priceBasis: authorityRecord.priceBasis ?? {
-          schema: "wildz.world-emission-price.v1",
-          sourceProofDigest: sha256PortableBasis(canonicalPortableCardJson(currentEmission)),
-          lawfulAward: true
-        },
-        attemptId: `wildz:${command.commandId}`
-      });
-      if (outcome.status !== "committed") {
-        if (outcome.status === "zero-write") throw new Error(`wilds_living_world_zero_write:${String(outcome.reasonCode ?? "UNKNOWN")}`);
-        throw new Error("wilds_living_world_execution_unknown");
+          const heads = command.type === "grove.act"
+            ? wildsLivingWorldSuccessorHeads({
+                actorId: actor.handle,
+                operation,
+                currentCheckpoint: before.checkpoint,
+                nextCheckpoint: candidate.checkpoint(),
+                currentEmission,
+                nextEmission,
+                currentGrove: currentGrove!,
+                nextGrove: command.grove
+              })
+            : wildsStewardWorldSuccessorHeads({
+                actorId: actor.handle,
+                operation,
+                currentCheckpoint: before.checkpoint,
+                nextCheckpoint: candidate.checkpoint(),
+                currentEmission,
+                nextEmission
+              });
+          await (dependencies.executeLivingWorldV124 ?? executeWildsLivingWorldV124)({
+            rail: rail as unknown as WildsLivingWorldV124RuntimeInput["rail"],
+            authoritySessionInput,
+            operation,
+            heads,
+            amountPhiMicro,
+            registryDigest: WILDS_LIVING_WORLD_REGISTRY_DIGEST,
+            reducerDigest: WILDS_LIVING_WORLD_REDUCER_DIGEST,
+            usdPerPhiMicrocents: typeof authorityRecord.usdPerPhiMicrocents === "string" ? authorityRecord.usdPerPhiMicrocents : "0",
+            priceBasis: authorityRecord.priceBasis ?? {
+              schema: "wildz.world-emission-price.v1",
+              sourceProofDigest: sha256PortableBasis(canonicalPortableCardJson(currentEmission)),
+              lawfulAward: true
+            },
+            attemptId: `wildz:${command.commandId}`
+          });
+        } catch {
+          // Global distribution is retryable representation. The admitted
+          // source proof remains authoritative and is published below.
+        }
       }
     }
     current = candidate;
@@ -379,10 +399,16 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
       lastEventId: before.checkpoint.lastEventId
     });
     if (!publication.published) {
-      root()[serviceKey] = publication.conflict && publication.record
-        ? new WildsWorldService(publication.record)
-        : new WildsWorldService(before);
-      throw new Error("wilds_world_canonical_publish_required");
+      if (publication.conflict && publication.record && !worldRecordContainsHead(record, {
+        revision: publication.record.checkpoint.revision,
+        lastEventId: publication.record.checkpoint.lastEventId
+      })) {
+        root()[serviceKey] = new WildsWorldService(publication.record);
+        throw new Error("wilds_world_canonical_conflict");
+      }
+      // The source transition remains committed. The same command id can be
+      // retried idempotently until its weaker global projection catches up.
+      return { projection: result.projection, mode: "receiz_recovery_pending" as const, events: result.events, publication };
     }
     if (!await auditMajorEvents(request, actor, result.events)) publication = { ...publication, mode: "receiz_recovery_pending" };
     return { projection: result.projection, mode: publication.mode, events: result.events, publication };

@@ -24,8 +24,9 @@ export function projectWildsWorkCapabilityMeters(asset: PortableCardAsset | null
   const element = creatureForm(asset.manifest.formId)?.element ?? "";
   const fatigue = condition?.fatigue ?? 0;
   const injuries = condition?.injuries.length ?? 0;
-  const value = Math.max(0, Math.min(100, Math.round(100 - fatigue - injuries * 10)));
-  const state = value <= 15 ? "recovering" as const : value < 45 ? "rest" as const : "ready" as const;
+  const consentBlocked = fatigue >= 85 || injuries >= 4;
+  const value = consentBlocked ? 0 : Math.max(0, Math.min(100, Math.round(100 - fatigue - injuries * 10)));
+  const state = consentBlocked || value <= 15 ? "recovering" as const : value < 45 ? "rest" as const : "ready" as const;
   return projectWildsCreatureWorkFamilies(element).filter((family): family is WildsVisibleWorkFamily => family === "lumber" || family === "quarry").map((family) => ({
     family,
     ...DESCRIPTORS[family],

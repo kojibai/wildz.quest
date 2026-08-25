@@ -74,6 +74,15 @@ function sameRecord(left: WildsWorldRecord, right: WildsWorldRecord) {
   return canonicalPortableCardJson(left) === canonicalPortableCardJson(right);
 }
 
+function containsHead(record: WildsWorldRecord, candidate: WildsWorldHead) {
+  if (candidate.revision === 0 && candidate.lastEventId === null) return true;
+  if (candidate.revision === record.checkpoint.revision && candidate.lastEventId === record.checkpoint.lastEventId) return true;
+  return candidate.revision < record.checkpoint.revision
+    && candidate.lastEventId !== null
+    && (record.eventTail.some((event) => event.eventId === candidate.lastEventId)
+      || record.eventTail[0]?.previousEventId === candidate.lastEventId);
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -117,7 +126,12 @@ export function createReceizWildsWorldRepository(options: {
         adapter = await adapterFactory(input.actor.accessToken ? { accessToken: input.actor.accessToken } : undefined);
         const recovered = findWildsWorldRecord(await adapter.readAppStateByUrl(input.sourceUrl));
         if (!sameHead(head(recovered), input.expectedHead)) {
-          return { published: false, mode: "receiz_recovery_pending", revision, conflict: true, record: recovered };
+          if (recovered && sameRecord(recovered, input.record)) {
+            return { published: true, mode: "receiz_live", revision, conflict: false, record: recovered };
+          }
+          if (!containsHead(input.record, head(recovered))) {
+            return { published: false, mode: "receiz_recovery_pending", revision, conflict: true, record: recovered };
+          }
         }
         const result = await adapter.publishPublicStore({
           tenantHost: new URL(input.sourceUrl).host,

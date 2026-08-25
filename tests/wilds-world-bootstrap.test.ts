@@ -242,7 +242,7 @@ test("an authenticated bootstrap prepares deterministic genesis for Identity Sea
   assert.equal(result.mode, "kai_live");
   assert.equal(result.projection.revision, expected.checkpoint.revision);
   assert.equal(result.publication.published, false);
-  assert.equal(result.publication.required, "identity_proof");
+  assert.equal((result.publication as { required?: string }).required, "identity_proof");
   assert.equal(result.publication.draft.merchantReceizId, "bjklock.receiz.id");
   assert.deepEqual(result.publication.draft.expectedHead, { revision: 0, lastEventId: null });
   assert.deepEqual(result.publication.draft.storeStateRecord, expected);
@@ -312,7 +312,7 @@ test("genesis bootstrap never invokes the delegated publication repository", asy
 
   assert.equal(result.mode, "kai_live");
   assert.equal(result.publication.published, false);
-  assert.equal(result.publication.required, "identity_proof");
+  assert.equal((result.publication as { required?: string }).required, "identity_proof");
   assert.equal(publishes, 0);
 });
 
@@ -501,23 +501,58 @@ test("source-authoritative steward work reaches the world and settlement togethe
   assert.equal(result.projection.worldEmission?.head, data.command.emission.head);
 });
 
-test("a V124 zero-write Grove outcome leaves canonical memory exactly at its recovered source", async () => {
+test("source-authoritative steward work commits without a second global execution grant", async () => {
+  const data = canonicalStewardWorld();
+  (globalThis as Record<symbol, unknown>)[repositoryKey] = {
+    recover: async () => data.record,
+    publish: async () => { throw new Error("delegated_publish_forbidden"); },
+    audit: async () => true
+  };
+
+  const result = await worldServer.executeWildsWorldCommand(proofRequest().request, {
+    command: data.command,
+    card: data.card
+  }, {
+    prepareLivingWorldAuthorityV124: async () => { throw new Error("representation_must_not_gate_source"); },
+    executeLivingWorldV124: async () => { throw new Error("representation_must_not_gate_source"); }
+  });
+
+  assert.equal(result.projection.revision, data.record.checkpoint.revision + 1);
+  assert.equal(Object.keys(result.projection.materialLots).length, 1);
+  assert.equal(Object.keys(result.projection.stewardPhiAwards).length, 1);
+  assert.equal(result.projection.worldEmission?.head, data.command.emission.head);
+});
+
+test("a V124 zero-write representation cannot roll back an admitted source proof", async () => {
   const data = canonicalGroveWorld();
   (globalThis as Record<symbol, unknown>)[repositoryKey] = {
     recover: async () => data.record,
     publish: async () => { throw new Error("unexpected_publish"); },
     audit: async () => true
   };
-  await assert.rejects(() => worldServer.executeWildsWorldCommand(proofRequest().request, {
+  const result = await worldServer.executeWildsWorldCommand(proofRequest().request, {
     command: data.command,
     receizExecution: { authoritySession: { signedSourceAuthority: true } }
   }, {
     prepareLivingWorldAuthorityV124: async () => ({ signedSourceAuthority: true }) as never,
     executeLivingWorldV124: async () => ({ status: "zero-write", reasonCode: "STALE_HEAD" })
-  }), /wilds_living_world_zero_write:STALE_HEAD/);
+  });
 
-  assert.equal(
-    ((globalThis as Record<symbol, unknown>)[serviceKey] as WildsWorldService).checkpoint().revision,
-    data.record.checkpoint.revision
-  );
+  assert.equal(result.projection.revision, data.record.checkpoint.revision + 1);
+  assert.equal(result.projection.groves[data.command.grove.groveId]?.head, data.command.grove.head);
+  assert.equal((result.publication as { required?: string }).required, "identity_proof");
+});
+
+test("a temporarily unavailable global projection cannot roll back admitted source work", async () => {
+  const data = canonicalStewardWorld();
+  (globalThis as Record<symbol, unknown>)[repositoryKey] = {
+    recover: async () => data.record,
+    publish: async () => ({ published: false, mode: "receiz_recovery_pending", revision: data.record.checkpoint.revision + 1 }),
+    audit: async () => true
+  };
+  const result = await worldServer.executeWildsWorldCommand(proofRequest(true).request, { command: data.command, card: data.card });
+  assert.equal(result.mode, "receiz_recovery_pending");
+  assert.equal(result.projection.revision, data.record.checkpoint.revision + 1);
+  assert.equal(Object.keys(result.projection.materialLots).length, 1);
+  assert.equal(((globalThis as Record<symbol, unknown>)[serviceKey] as WildsWorldService).checkpoint().revision, result.projection.revision);
 });

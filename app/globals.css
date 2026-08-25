@@ -14383,6 +14383,21 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-steward-partner > div i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #55d9b0, #b7f3bd); box-shadow: 0 0 10px rgba(94, 226, 183, .32); }
 .wilds-steward-partner > em { grid-column: 1 / -1; overflow: hidden; color: #9db7ad; font-size: 8px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
 .wilds-steward-partner.is-recovering > div i { background: #8fdcff; }
+.wilds-construction-site-card { display: grid; min-width: 0; gap: 8px; padding: 11px; overflow: hidden; border: 1px solid rgba(126, 239, 202, .3); border-radius: 16px; background: radial-gradient(circle at 100% 0%, rgba(114, 228, 189, .15), transparent 48%), rgba(4, 27, 24, .82); box-shadow: inset 3px 0 #73e5bf; }
+.wilds-construction-site-card > header { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; }
+.wilds-construction-site-card > header > span { display: grid; min-width: 0; gap: 2px; }
+.wilds-construction-site-card small { color: #78d9b9; font-size: 7px; font-weight: 950; letter-spacing: .12em; text-transform: uppercase; }
+.wilds-construction-site-card strong { color: #f0fff8; font-size: 12px; }
+.wilds-construction-site-card > header em { color: #9bf0cf; font-size: 14px; font-style: normal; font-weight: 950; font-variant-numeric: tabular-nums; }
+.wilds-construction-site-progress { height: 6px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.09); }
+.wilds-construction-site-progress i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #66dcb8, #d4e98d); box-shadow: 0 0 12px rgba(102, 220, 184, .34); transition: width .24s ease; }
+.wilds-construction-site-ledger { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.wilds-construction-site-ledger span { display: flex; min-width: 0; align-items: center; gap: 5px; padding: 7px 8px; color: #adc8bd; border: 1px solid rgba(150, 218, 196, .14); border-radius: 10px; background: rgba(0,0,0,.16); font-size: 8px; }
+.wilds-construction-site-ledger svg { flex: 0 0 auto; color: #7ff0c5; }
+.wilds-construction-site-ledger b { margin-left: auto; color: #effff8; font-variant-numeric: tabular-nums; }
+.wilds-construction-site-card p { margin: 0; color: #9fb8ae; font-size: 8px; line-height: 1.45; }
+.wilds-construction-site-card > button { min-height: 44px; color: #06251e; border: 1px solid rgba(218, 255, 241, .48); border-radius: 12px; background: linear-gradient(135deg, #73e4be, #c8efae); font: inherit; font-size: 9px; font-weight: 950; }
+.wilds-construction-site-card > button:disabled { color: #84978f; border-color: rgba(151, 178, 165, .14); background: rgba(65, 82, 76, .52); }
 .wilds-steward-craft-catalog { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 8px; }
 .wilds-steward-blueprint { display: grid; min-width: 0; align-content: start; gap: 8px; padding: 10px; border: 1px solid rgba(158, 213, 190, .16); border-radius: 16px; background: linear-gradient(145deg, rgba(25, 55, 47, .72), rgba(12, 29, 27, .88)); }
 .wilds-steward-blueprint > div { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 8px; }

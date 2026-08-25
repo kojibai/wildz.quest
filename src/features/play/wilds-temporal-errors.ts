@@ -11,7 +11,13 @@ const ACTIONABLE_WORLD_ERRORS: Record<string, string> = {
   wilds_world_tool_workstation_unreachable: "Move beside your Steward Workbench before shaping that tool.",
   wilds_world_storage_unreachable: "Move beside your Trail Cache before moving an exact lot.",
   wilds_world_steward_emission_unavailable: "This bounded region has no productive emission available for that work yet.",
-  wilds_world_steward_economy_mismatch: "The shared world changed while the work was forming. It is refreshing—touch the source again."
+  wilds_world_steward_economy_mismatch: "The shared world changed while the work was forming. It is refreshing—touch the source again.",
+  wilds_world_canonical_conflict: "Another verified world addition arrived first. Your source proof is preserved; the shared view is reconciling before you try again.",
+  wilds_construction_site_stale: "This shared site changed. Its newest exact state is refreshing—approach it again.",
+  wilds_construction_site_unreachable: "Move inside the site's glowing boundary before contributing or working.",
+  wilds_construction_material_invalid: "Those lots are already held, stored, spent, or belong to another source. Bring an available exact lot.",
+  wilds_construction_materials_incomplete: "The site still shows missing timber or stone. Contribute those exact lots before beginning the build.",
+  wilds_world_structure_mandate_invalid: "Choose a rested companion willing and able to build beside you."
 };
 
 function errorMessage(error: unknown) {

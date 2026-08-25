@@ -40,6 +40,12 @@ import type { WildsRegenerativeGroveV1 } from "./wilds-regenerative-grove";
 import type { WildsLivingOperationPlanV1 } from "./wilds-living-operation";
 import { admitWildsEmission, previewWildsEmission, type WildsWorldEmissionProofV1 } from "./wilds-world-emission";
 import type { WildsResourceLotV1 } from "./wilds-resource-lot";
+import {
+  completeWildsConstructionSite,
+  contributeWildsConstructionSite,
+  createWildsConstructionSite,
+  type WildsConstructionBlueprint
+} from "./wilds-construction-site";
 import { projectWildsGroveGenesis } from "./wilds-grove-genesis";
 import {
   createWildsWorldEvent,
@@ -84,6 +90,9 @@ export type WildsWorldCommand = (
   | { type: "grove.act"; operation: WildsLivingOperationPlanV1; grove: WildsRegenerativeGroveV1; emission: WildsWorldEmissionProofV1; amountPhiMicro: string; resourceLot?: WildsResourceLotV1 | null; commandId: string }
   | { type: "resource.transfer.admit"; lotId: string; ownerReceizId: string; subjectId: string; subjectHead: string; receiptId: string; transferId: string; commandId: string }
   | { type: "resource.material.harvest"; source: WildsResourceSource; sourceHead: string; actorPosition: { x: number; z: number }; toolId?: string; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
+  | { type: "construction.site.place"; blueprint: WildsConstructionBlueprint; position: { x: number; z: number }; actorPosition: { x: number; z: number }; rotationQuarterTurns: number; cardProofDigest: string; commandId: string }
+  | { type: "construction.site.contribute"; siteId: string; siteHead: string; actorPosition: { x: number; z: number }; lotIds: string[]; cardProofDigest: string; commandId: string }
+  | { type: "construction.site.work"; siteId: string; siteHead: string; actorPosition: { x: number; z: number }; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
   | { type: "structure.trail-shelter.build"; position: { x: number; z: number }; actorPosition: { x: number; z: number }; rotationQuarterTurns: number; lotIds: string[]; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
   | { type: "structure.trail-bridge.build"; position: { x: number; z: number }; actorPosition: { x: number; z: number }; rotationQuarterTurns: number; lotIds: string[]; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
   | { type: "structure.steward-workbench.build"; position: { x: number; z: number }; actorPosition: { x: number; z: number }; rotationQuarterTurns: number; lotIds: string[]; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
@@ -505,6 +514,63 @@ export class WildsWorldService {
         amountPhiMicro: preview.amountPhiMicro,
         phiAward
       }, authority, command.commandId));
+    } else if (command.type === "construction.site.place") {
+      if (!authority.card) throw new Error("wilds_world_verified_card_required");
+      const site = createWildsConstructionSite({
+        blueprint: command.blueprint,
+        placedByReceizId: authority.actorId,
+        actorPosition: command.actorPosition,
+        position: command.position,
+        rotationQuarterTurns: command.rotationQuarterTurns,
+        existingStructures: Object.values(this.projection.structures),
+        existingSites: Object.values(this.projection.constructionSites),
+        kaiUPulse: authorityMoment(authority).uPulse
+      });
+      events.push(this.append("construction.site_placed", { site }, authority, command.commandId));
+    } else if (command.type === "construction.site.contribute") {
+      if (!authority.card) throw new Error("wilds_world_verified_card_required");
+      const currentSite = this.projection.constructionSites[command.siteId];
+      if (!currentSite || currentSite.head !== command.siteHead) throw new Error("wilds_construction_site_stale");
+      if (Math.hypot(command.actorPosition.x - currentSite.position.x, command.actorPosition.z - currentSite.position.z) > 6) throw new Error("wilds_construction_site_unreachable");
+      if (new Set(command.lotIds).size !== command.lotIds.length) throw new Error("wilds_construction_material_invalid");
+      const lots = command.lotIds.map((lotId) => this.projection.materialLots[lotId]).filter(Boolean);
+      if (lots.length !== command.lotIds.length || lots.some((lot) => lot.ownerReceizId !== authority.actorId)
+        || command.lotIds.some((lotId) => this.projection.consumedMaterialLots[lotId] || this.projection.storedMaterialLots[lotId] || this.projection.reservedMaterialLots[lotId])) {
+        throw new Error("wilds_construction_material_invalid");
+      }
+      const site = contributeWildsConstructionSite({ site: currentSite, expectedSiteHead: command.siteHead, contributorReceizId: authority.actorId, lots, kaiUPulse: authorityMoment(authority).uPulse });
+      events.push(this.append("construction.site_contributed", { site }, authority, command.commandId));
+    } else if (command.type === "construction.site.work") {
+      if (!authority.card) throw new Error("wilds_world_verified_card_required");
+      const currentSite = this.projection.constructionSites[command.siteId];
+      if (!currentSite || currentSite.head !== command.siteHead) throw new Error("wilds_construction_site_stale");
+      if (Math.hypot(command.actorPosition.x - currentSite.position.x, command.actorPosition.z - currentSite.position.z) > 6) throw new Error("wilds_construction_site_unreachable");
+      const creatureHead = sha256PortableBasis(authority.card.proof.digest);
+      const creatureSubjectId = `creature:${sha256PortableBasis(authority.card.id).slice(0, 32)}`;
+      const mandate = reverifyWildsCreatureMandate(command.mandate, { creatureHead, kaiUPulse: authorityMoment(authority).uPulse, revokedMandateIds: [] });
+      if (!mandate.ok || command.mandate.creatureSubjectId !== creatureSubjectId || !command.mandate.professions.includes("build")) throw new Error("wilds_world_structure_mandate_invalid");
+      const expectedRegion = { x: Math.floor(currentSite.position.x / 128), z: Math.floor(currentSite.position.z / 128) };
+      if (command.mandate.region.x !== expectedRegion.x || command.mandate.region.z !== expectedRegion.z) throw new Error("wilds_world_structure_mandate_region_invalid");
+      const lots = currentSite.contributedLots.map((entry) => this.projection.materialLots[entry.lotId]).filter(Boolean);
+      if (lots.length !== currentSite.contributedLots.length || currentSite.contributedLots.some((entry) => this.projection.reservedMaterialLots[entry.lotId] !== currentSite.siteId)) {
+        throw new Error("wilds_construction_material_lineage_invalid");
+      }
+      const completed = completeWildsConstructionSite({ site: currentSite, expectedSiteHead: command.siteHead, lots, workerReceizId: authority.actorId,
+        creature: { subjectId: creatureSubjectId, head: creatureHead }, existingStructures: Object.values(this.projection.structures), kaiUPulse: authorityMoment(authority).uPulse });
+      const operation = createWildsStewardStructureOperation({ structure: completed.structure, lots, ownerReceizId: completed.structure.ownerReceizId,
+        actorReceizId: authority.actorId, playerHead: sha256PortableBasis(authority.actorId) });
+      const currentEmission = this.projection.worldEmission;
+      if (!currentEmission) throw new Error("wilds_world_emission_required");
+      const preview = previewWildsEmission({ emission: currentEmission, operation, contributionClass: "construction" });
+      if (!preview.eligible || preview.amountPhiMicro === "0") throw new Error("wilds_world_steward_emission_unavailable");
+      const emission = admitWildsEmission({ emission: currentEmission, operation, contributionClass: "construction", preview });
+      const phiAward = createWildsStewardPhiAward({ ownerReceizId: authority.actorId, operation, currentEmission, nextEmission: emission, amountPhiMicro: preview.amountPhiMicro });
+      if (!command.operation || !command.emission || !command.amountPhiMicro || !command.phiAward
+        || canonicalPortableCardJson(command.operation) !== canonicalPortableCardJson(operation)
+        || canonicalPortableCardJson(command.emission) !== canonicalPortableCardJson(emission)
+        || command.amountPhiMicro !== preview.amountPhiMicro
+        || canonicalPortableCardJson(command.phiAward) !== canonicalPortableCardJson(phiAward)) throw new Error("wilds_world_steward_economy_mismatch");
+      events.push(this.append("construction.site_worked", { site: completed.site, structure: completed.structure, operation, emission, amountPhiMicro: preview.amountPhiMicro, phiAward }, authority, command.commandId));
     } else if (command.type === "structure.trail-shelter.build" || command.type === "structure.trail-bridge.build"
       || command.type === "structure.steward-workbench.build" || command.type === "structure.trail-cache.build") {
       if (!authority.card) throw new Error("wilds_world_verified_card_required");
@@ -521,7 +587,7 @@ export class WildsWorldService {
       if (!Number.isFinite(command.actorPosition.x) || !Number.isFinite(command.actorPosition.z)
         || Math.hypot(command.actorPosition.x - command.position.x, command.actorPosition.z - command.position.z) > 7) throw new Error("wilds_world_structure_unreachable");
       const lots = command.lotIds.map((lotId) => this.projection.materialLots[lotId]).filter((lot) => Boolean(lot));
-      if (lots.length !== command.lotIds.length || command.lotIds.some((lotId) => this.projection.consumedMaterialLots[lotId] || this.projection.storedMaterialLots[lotId])) {
+      if (lots.length !== command.lotIds.length || command.lotIds.some((lotId) => this.projection.consumedMaterialLots[lotId] || this.projection.storedMaterialLots[lotId] || this.projection.reservedMaterialLots[lotId])) {
         throw new Error("wilds_world_structure_material_invalid");
       }
       const structure = command.type === "structure.trail-bridge.build"
@@ -580,7 +646,7 @@ export class WildsWorldService {
       const mandate = reverifyWildsCreatureMandate(command.mandate, { creatureHead, kaiUPulse: authorityMoment(authority).uPulse, revokedMandateIds: [] });
       if (!mandate.ok || command.mandate.creatureSubjectId !== creatureSubjectId || !command.mandate.professions.includes("craft")) throw new Error("wilds_world_tool_mandate_invalid");
       const lots = command.lotIds.map((lotId) => this.projection.materialLots[lotId]).filter(Boolean);
-      if (lots.length !== command.lotIds.length || command.lotIds.some((lotId) => this.projection.consumedMaterialLots[lotId] || this.projection.storedMaterialLots[lotId])) throw new Error("wilds_world_tool_material_invalid");
+      if (lots.length !== command.lotIds.length || command.lotIds.some((lotId) => this.projection.consumedMaterialLots[lotId] || this.projection.storedMaterialLots[lotId] || this.projection.reservedMaterialLots[lotId])) throw new Error("wilds_world_tool_material_invalid");
       const tool = createWildsStewardTool({ kind: command.kind, ownerReceizId: authority.actorId, workstation, lots,
         builder: { creatureSubjectId, creatureHead }, kaiUPulse: authorityMoment(authority).uPulse });
       const operation = createWildsStewardToolOperation({ tool, lots, workstation, ownerReceizId: authority.actorId, playerHead: sha256PortableBasis(authority.actorId) });

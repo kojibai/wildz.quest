@@ -21,7 +21,7 @@ describe("Steward Craft player projection", () => {
     ]);
   });
 
-  it("binds readiness to the exact material bank and active creature condition", () => {
+  it("lets a site be placed before materials while instant workshop builds remain source-bound", () => {
     const projection = projectWildsStewardCraft({
       activeCreatureName: "Mosslight",
       materialLots: [lot("timber", 1), lot("timber", 2), lot("stone", 1)],
@@ -33,7 +33,7 @@ describe("Steward Craft player projection", () => {
     assert.equal(projection.partner.name, "Mosslight");
     assert.equal(projection.partner.capacity, 72);
     assert.equal(projection.blueprints.find((item) => item.id === "trail-shelter")?.state, "ready");
-    assert.equal(projection.blueprints.find((item) => item.id === "trail-bridge")?.state, "materials");
+    assert.equal(projection.blueprints.find((item) => item.id === "trail-bridge")?.state, "ready");
 
     const recovering = projectWildsStewardCraft({
       activeCreatureName: "Mosslight",
@@ -42,7 +42,8 @@ describe("Steward Craft player projection", () => {
       selectedBlueprintId: null,
       workMeters: [{ family: "lumber", label: "Woodland", guidance: "Tend timber", value: 8, state: "recovering" }]
     });
-    assert.equal(recovering.blueprints.find((item) => item.id === "trail-shelter")?.state, "partner");
+    assert.equal(recovering.blueprints.find((item) => item.id === "trail-shelter")?.state, "ready");
+    assert.equal(recovering.blueprints.find((item) => item.id === "steward-workbench")?.state, "partner");
   });
 
   it("previews reachable dry shelter ground without consuming any exact lot", () => {
@@ -57,6 +58,14 @@ describe("Steward Craft player projection", () => {
     assert.equal(preview.reason, null);
     assert.equal(preview.rotationQuarterTurns, 0);
     assert.deepEqual(lots.map((item) => item.lotId), before);
+  });
+
+  it("never presents a full or ready work meter when injuries require recovery", async () => {
+    const { projectWildsWorkCapabilityMeters } = await import("../src/features/play/wilds-work-capability.js");
+    const asset = { manifest: { formId: "mintcub-1" } } as never;
+    const meters = projectWildsWorkCapabilityMeters(asset, { fatigue: 0, injuries: ["a", "b", "c", "d"] } as never);
+    assert.equal(meters[0]?.state, "recovering");
+    assert.equal((meters[0]?.value ?? 100) <= 15, true);
   });
 
   it("rejects unreachable placement and admits a bridge only from its physical bank reading", () => {

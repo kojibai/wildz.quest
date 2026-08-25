@@ -23,7 +23,7 @@ describe("Receiz Wilds rendering contract", () => {
     const canvas = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");
     const environment = await readFile("src/features/play/WildsStewardEnvironment.tsx", "utf8");
 
-    assert.match(hud, /Confirm build/);
+    assert.match(hud, /Place site/);
     assert.match(hud, /Cancel placement/);
     assert.match(hud, /disabled=\{!preview\.valid \|\| pending\}/);
     assert.match(campaign, /setStewardPlacementPreview\(projectWildsStewardPlacement/);
@@ -33,6 +33,20 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(environment, /function StewardPlacementGhost/);
     assert.match(environment, /ghostValid/);
     assert.match(environment, /ghostInvalid/);
+  });
+
+  it("renders progressive shared construction sites with exact material and work actions", async () => {
+    const panel = await readFile("src/features/play/WildsStewardCraftPanel.tsx", "utf8");
+    const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
+    const environment = await readFile("src/features/play/WildsStewardEnvironment.tsx", "utf8");
+    const css = await readFile("app/globals.css", "utf8");
+    assert.match(panel, /Contribute what I carry/);
+    assert.match(panel, /Work together/);
+    assert.match(campaign, /contributeConstructionSite/);
+    assert.match(campaign, /workConstructionSite/);
+    assert.match(environment, /function PartialConstructionSite/);
+    assert.match(environment, /site\.contributedLots\.map/);
+    assert.match(css, /\.wilds-construction-site-card/);
   });
 
   it("embodies exact-source creature work and assembles persistent structures in stages", async () => {

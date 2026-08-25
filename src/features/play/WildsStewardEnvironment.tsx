@@ -14,6 +14,7 @@ import { projectWildsResourceAffordance } from "./wilds-resource-affordance";
 import { projectWildsWorkPresentation, type WildsActiveWorkSource } from "./wilds-work-presentation";
 import { useWildsReadability } from "./WildsReadabilityContext";
 import type { WildsStewardPlacement } from "./wilds-steward-craft";
+import type { WildsConstructionSiteV1 } from "./wilds-construction-site";
 
 function createGeometry() {
   return {
@@ -37,7 +38,8 @@ function createGeometry() {
     cacheBody: new THREE.BoxGeometry(2.5, 1.3, 1.65),
     cacheLid: new THREE.BoxGeometry(2.7, .2, 1.85),
     cacheBand: new THREE.BoxGeometry(.16, 1.38, 1.72),
-    ghostMarker: new THREE.TorusGeometry(3.5, .045, 7, 48)
+    ghostMarker: new THREE.TorusGeometry(3.5, .045, 7, 48),
+    siteMarker: new THREE.TorusGeometry(2.7, .065, 7, 48)
   };
 }
 
@@ -61,7 +63,9 @@ function createMaterials() {
     workshopMetal: new THREE.MeshStandardMaterial({ color: "#77d9c4", emissive: "#1d584d", emissiveIntensity: .22, roughness: .58 }),
     cacheWood: new THREE.MeshStandardMaterial({ color: "#496153", roughness: .9 }),
     ghostValid: new THREE.MeshStandardMaterial({ color: "#87f4ce", emissive: "#34b98d", emissiveIntensity: .5, transparent: true, opacity: .38, depthWrite: false }),
-    ghostInvalid: new THREE.MeshStandardMaterial({ color: "#ff887f", emissive: "#b83b38", emissiveIntensity: .42, transparent: true, opacity: .34, depthWrite: false })
+    ghostInvalid: new THREE.MeshStandardMaterial({ color: "#ff887f", emissive: "#b83b38", emissiveIntensity: .42, transparent: true, opacity: .34, depthWrite: false }),
+    sitePlaced: new THREE.MeshStandardMaterial({ color: "#79e6c0", emissive: "#277a61", emissiveIntensity: .52, roughness: .72 }),
+    siteReady: new THREE.MeshStandardMaterial({ color: "#e5e889", emissive: "#807d28", emissiveIntensity: .62, roughness: .68 })
   };
 }
 
@@ -119,6 +123,9 @@ export function WildsStewardEnvironment({ activeWorkSource, placementPreview, li
   const structures = useMemo(() => Object.values(livingWorld?.structures ?? {})
     .filter((structure) => Math.hypot(structure.position.x - player.x, structure.position.z - player.z) <= 110)
     .sort((left, right) => left.structureId.localeCompare(right.structureId)), [livingWorld?.structures, player.x, player.z]);
+  const constructionSites = useMemo(() => Object.values(livingWorld?.constructionSites ?? {})
+    .filter((site) => site.stage !== "complete" && Math.hypot(site.position.x - player.x, site.position.z - player.z) <= 110)
+    .sort((left, right) => left.siteId.localeCompare(right.siteId)), [livingWorld?.constructionSites, player.x, player.z]);
   const geometry = useMemo(createGeometry, []);
   const materials = useMemo(createMaterials, []);
   useEffect(() => () => {
@@ -128,6 +135,7 @@ export function WildsStewardEnvironment({ activeWorkSource, placementPreview, li
   return <group name="wilds-steward-world">
     {placementPreview && siteSpaceId === "wildz.space.outer.v1" ? <StewardPlacementGhost geometry={geometry} materials={materials} player={player} preview={placementPreview} terrainElevation={terrainElevation} /> : null}
     {sources.map(({ source, availableCapacity }) => <ResourceManifestation activeWorkSource={activeWorkSource} availableCapacity={availableCapacity} companionQualified={companionWorkFamilies.includes(source.requirements.creature)} companionReady={companionReady} geometry={geometry} key={source.sourceId} materials={materials} onInteract={onInteractSource} pending={pending && activeWorkSource?.sourceId === source.sourceId} player={player} siteRuntime={siteRuntime} siteSpaceId={siteSpaceId} source={source} terrainElevation={terrainElevation} />)}
+    {constructionSites.map((site) => <PartialConstructionSite geometry={geometry} key={site.siteId} materials={materials} player={player} site={site} terrainElevation={terrainElevation} />)}
     {structures.map((structure) => structure.blueprint === "trail-bridge"
       ? <TrailBridge geometry={geometry} key={structure.structureId} materials={materials} player={player} structure={structure} terrainElevation={terrainElevation} />
       : structure.blueprint === "steward-workbench"
@@ -135,6 +143,25 @@ export function WildsStewardEnvironment({ activeWorkSource, placementPreview, li
         : structure.blueprint === "trail-cache"
           ? <TrailCache geometry={geometry} key={structure.structureId} materials={materials} player={player} structure={structure} terrainElevation={terrainElevation} />
           : <TrailShelter geometry={geometry} key={structure.structureId} materials={materials} player={player} structure={structure} terrainElevation={terrainElevation} />)}
+  </group>;
+}
+
+function PartialConstructionSite({ geometry, materials, player, site, terrainElevation }: {
+  geometry: Geometry;
+  materials: Materials;
+  player: Readonly<{ x: number; z: number }>;
+  site: WildsConstructionSiteV1;
+  terrainElevation: number;
+}) {
+  const position = projectWildsTerrainActorPosition(site.position, player, .03, { actorElevation: site.position.y, anchorElevation: terrainElevation });
+  const rotation = site.rotationQuarterTurns * Math.PI / 2;
+  const material = site.stage === "materials-ready" ? materials.siteReady : materials.sitePlaced;
+  const scaleZ = site.blueprint === "trail-bridge" ? 1.45 : .9;
+  return <group name={`construction-site-${site.siteId}`} position={position} rotation={[0, rotation, 0]} userData={{ interactable: "construction-site", siteId: site.siteId, stage: site.stage }}>
+    <Shared geometry={geometry.siteMarker} material={material} position={[0, .05, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, scaleZ, 1]} />
+    {[[-2.15, .62, -1.7], [2.15, .62, -1.7], [-2.15, .62, 1.7], [2.15, .62, 1.7]].map((point, index) => <Shared castShadow geometry={geometry.post} key={index} material={material} position={point as [number, number, number]} scale={[.62, .48, .62]} />)}
+    {site.contributedLots.map((entry, index) => <Shared geometry={entry.kind === "timber" ? geometry.workChip : geometry.capacityPip} key={entry.lotId}
+      material={entry.kind === "timber" ? materials.timberChip : materials.stoneChip} position={[-.75 + index % 3 * .75, .18 + Math.floor(index / 3) * .16, 0]} scale={[1.7, 1.7, 1.7]} />)}
   </group>;
 }
 

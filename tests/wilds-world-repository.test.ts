@@ -99,7 +99,7 @@ describe("Receiz Wilds world repository", () => {
     assert.notEqual(calls[0]?.merchantReceizId, "bjklock.receiz.id");
   });
 
-  it("rejects a stale expected head before publish and returns the remote record for rehydration", async () => {
+  it("recognizes an already-synced exact record despite a stale caller head", async () => {
     const remote = record();
     let publishes = 0;
     const repository = createReceizWildsWorldRepository({
@@ -114,10 +114,27 @@ describe("Receiz Wilds world repository", () => {
       record: remote,
       expectedHead: { revision: 0, lastEventId: null }
     });
-    assert.equal(publication.published, false);
-    assert.equal(publication.conflict, true);
+    assert.equal(publication.published, true);
+    assert.equal(publication.conflict, false);
     assert.deepEqual(publication.record, remote);
     assert.equal(publishes, 0);
+  });
+
+  it("fast-forwards a verified local descendant when the remote projection is behind", async () => {
+    const older = record();
+    const service = new WildsWorldService({ checkpoint: older.checkpoint, events: older.eventTail });
+    service.tickEcology({ pulse: "2026-07-15T12:00:01.000Z", occurredAt: "2026-07-15T12:00:01.000Z", systemActorId: "receiz:pulse" });
+    const newer = { checkpoint: service.checkpoint(), eventTail: service.events() };
+    let reads = 0;
+    let publishes = 0;
+    const repository = createReceizWildsWorldRepository({ adapterFactory: () => ({
+      readAppStateByUrl: async () => ({ state: reads++ === 0 ? older : newer }),
+      publishPublicStore: async () => { publishes += 1; return { ok: true, accepted: 1 }; }
+    }) as never });
+    const publication = await repository.publish({ sourceUrl, actor: { handle: "receiz", practice: false }, record: newer,
+      expectedHead: { revision: newer.checkpoint.revision, lastEventId: newer.checkpoint.lastEventId } });
+    assert.equal(publication.published, true);
+    assert.equal(publishes, 1);
   });
 
   it("reports publication and audit failures without claiming canonical durability", async () => {
@@ -166,8 +183,8 @@ describe("Receiz Wilds world repository", () => {
     assert.match(source, /serializeWildsWorldMutation/);
     assert.match(source, /mutationQueueKey/);
     assert.match(source, /recoverCanonicalWorldBeforeMutation/);
-    assert.match(source, /publication\.conflict[^\n]*publication\.record/s);
-    assert.match(source, /new WildsWorldService\(publication\.record\)/);
+    assert.match(source, /worldRecordContainsHead/);
+    assert.match(source, /wilds_world_canonical_conflict/);
     assert.match(multiplayer, /sameWildzPlayerCoordinate/);
     assert.doesNotMatch(multiplayer, /owner !== "wilds\.player\.receiz\.id"/);
   });

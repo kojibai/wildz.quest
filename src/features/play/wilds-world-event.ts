@@ -26,6 +26,9 @@ export type WildsWorldEventKind =
   | "resource.custody_transferred"
   | "resource.material_harvested"
   | "structure.built"
+  | "construction.site_placed"
+  | "construction.site_contributed"
+  | "construction.site_worked"
   | "tool.crafted"
   | "tool.equipped"
   | "storage.material_moved"
@@ -105,6 +108,9 @@ const eventKinds = new Set<WildsWorldEventKind>([
   "resource.custody_transferred",
   "resource.material_harvested",
   "structure.built",
+  "construction.site_placed",
+  "construction.site_contributed",
+  "construction.site_worked",
   "tool.crafted",
   "tool.equipped",
   "storage.material_moved",
