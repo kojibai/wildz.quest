@@ -8,7 +8,6 @@ const ACTIONABLE_WORLD_ERRORS: Record<string, string> = {
   wilds_world_active_card_required: "Bring a living companion beside the source, then touch it.",
   wilds_world_verified_card_required: "This companion card is still sealing. Keep it selected and touch the source when its verified mark appears.",
   wilds_world_steward_identity_required: "Your Receiz ID is active locally. Reopen this source after identity sync finishes.",
-  wilds_world_emission_required: "The living world is still arriving. Stay beside this source while it becomes ready.",
   wilds_world_resource_source_stale: "This source changed in the shared world. Its current state is refreshing—touch it again.",
   wilds_steward_source_unreachable: "Move beside the glowing source ring, then touch the tree or stone.",
   wilds_steward_creature_unqualified: "This companion cannot perform this kind of work. Touch the source again after a matching companion steps forward.",

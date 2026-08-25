@@ -1,7 +1,5 @@
 import { creatureForm } from "./creature-catalog";
-import { deriveKaiKlokMoment } from "./kai-klok-moment";
 import type { KaiTemporalRoot } from "./kai-temporal-root";
-import { projectWildsGroveGenesis } from "./wilds-grove-genesis";
 import type { PortableCardAsset } from "./portable-card";
 import { sha256PortableBasis } from "./portable-card";
 import type { WildsCreatureMandateV1 } from "./wilds-creature-mandate";
@@ -16,7 +14,7 @@ import {
 import { admitWildsEmission, previewWildsEmission } from "./wilds-world-emission";
 import type { WildsWorldCommand } from "./wilds-world-service";
 import { initialWildsWorldProjection, type WildsWorldProjection } from "./wilds-world-state";
-import { WILDS_WORLD_GENESIS_PULSE } from "./wilds-world-genesis";
+import { wildsWorldSourceEmission, wildsWorldSourceGenesis } from "./wilds-world-genesis";
 
 export { WILDS_WORLD_GENESIS_PULSE } from "./wilds-world-genesis";
 
@@ -27,10 +25,7 @@ export { WILDS_WORLD_GENESIS_PULSE } from "./wilds-world-genesis";
  */
 export function createWildsSourceAuthorityProjection(): WildsWorldProjection {
   const projection = initialWildsWorldProjection();
-  const genesis = projectWildsGroveGenesis(deriveKaiKlokMoment({
-    occurredAt: WILDS_WORLD_GENESIS_PULSE,
-    authority: "world"
-  }));
+  const genesis = wildsWorldSourceGenesis();
   return {
     ...projection,
     groves: Object.fromEntries(genesis.groves.map((grove) => [grove.groveId, grove])),
@@ -51,8 +46,7 @@ export function planWildsMaterialHarvest(input: Readonly<{
   mandate?: WildsCreatureMandateV1;
   kai?: KaiTemporalRoot;
 }>): MaterialHarvestCommand {
-  const currentEmission = input.projection.worldEmission;
-  if (!currentEmission) throw new Error("wilds_world_emission_required");
+  const currentEmission = wildsWorldSourceEmission(input.projection);
   const currentSource = input.projection.harvestedSources[input.source.sourceId]
     ?? initialWildsHarvestedSourceState(input.source);
   const creatureSubjectId = input.card

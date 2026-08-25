@@ -27,6 +27,7 @@ import {
   type WildsStewardPhiAwardV1,
   type WildsStewardToolKind
 } from "./wilds-steward-construction";
+import { wildsWorldSourceEmission } from "./wilds-world-genesis";
 import { sampleWildsTerrain } from "./wilds-terrain-authority";
 import { achievementGrantCandidates } from "./wilds-saga-achievements";
 import { wildsSagaFramework } from "./wilds-saga-content";
@@ -494,8 +495,7 @@ export class WildsWorldService {
         nextTool: harvest.tool,
         kaiUPulse: authorityMoment(authority).uPulse
       });
-      const currentEmission = this.projection.worldEmission;
-      if (!currentEmission) throw new Error("wilds_world_emission_required");
+      const currentEmission = wildsWorldSourceEmission(this.projection);
       const preview = previewWildsEmission({ emission: currentEmission, operation, contributionClass: "construction" });
       if (!preview.eligible || preview.amountPhiMicro === "0") throw new Error("wilds_world_steward_emission_unavailable");
       const emission = admitWildsEmission({ emission: currentEmission, operation, contributionClass: "construction", preview });
@@ -562,8 +562,7 @@ export class WildsWorldService {
         creature: { subjectId: creatureSubjectId, head: creatureHead }, existingStructures: Object.values(this.projection.structures), kaiUPulse: authorityMoment(authority).uPulse });
       const operation = createWildsStewardStructureOperation({ structure: completed.structure, lots, ownerReceizId: completed.structure.ownerReceizId,
         actorReceizId: authority.actorId, playerHead: sha256PortableBasis(authority.actorId) });
-      const currentEmission = this.projection.worldEmission;
-      if (!currentEmission) throw new Error("wilds_world_emission_required");
+      const currentEmission = wildsWorldSourceEmission(this.projection);
       const preview = previewWildsEmission({ emission: currentEmission, operation, contributionClass: "construction" });
       if (!preview.eligible || preview.amountPhiMicro === "0") throw new Error("wilds_world_steward_emission_unavailable");
       const emission = admitWildsEmission({ emission: currentEmission, operation, contributionClass: "construction", preview });
@@ -625,8 +624,7 @@ export class WildsWorldService {
         ownerReceizId: authority.actorId,
         playerHead: sha256PortableBasis(authority.actorId)
       });
-      const currentEmission = this.projection.worldEmission;
-      if (!currentEmission) throw new Error("wilds_world_emission_required");
+      const currentEmission = wildsWorldSourceEmission(this.projection);
       const preview = previewWildsEmission({ emission: currentEmission, operation, contributionClass: "construction" });
       if (!preview.eligible || preview.amountPhiMicro === "0") throw new Error("wilds_world_steward_emission_unavailable");
       const emission = admitWildsEmission({ emission: currentEmission, operation, contributionClass: "construction", preview });
@@ -653,8 +651,7 @@ export class WildsWorldService {
       const tool = createWildsStewardTool({ kind: command.kind, ownerReceizId: authority.actorId, workstation, lots,
         builder: { creatureSubjectId, creatureHead }, kaiUPulse: authorityMoment(authority).uPulse });
       const operation = createWildsStewardToolOperation({ tool, lots, workstation, ownerReceizId: authority.actorId, playerHead: sha256PortableBasis(authority.actorId) });
-      const currentEmission = this.projection.worldEmission;
-      if (!currentEmission) throw new Error("wilds_world_emission_required");
+      const currentEmission = wildsWorldSourceEmission(this.projection);
       const preview = previewWildsEmission({ emission: currentEmission, operation, contributionClass: "construction" });
       if (!preview.eligible || preview.amountPhiMicro === "0") throw new Error("wilds_world_steward_emission_unavailable");
       const emission = admitWildsEmission({ emission: currentEmission, operation, contributionClass: "construction", preview });

@@ -29,6 +29,7 @@ import {
   type WildsStructureV1
 } from "./wilds-steward-construction";
 import { verifyWildsConstructionSite, type WildsConstructionSiteV1 } from "./wilds-construction-site";
+import { wildsWorldSourceEmission } from "./wilds-world-genesis";
 
 export type WildsDynamicSitePhase = "rumored" | "tracked" | "emerged" | "assaulting" | "engaged" | "defeated" | "memorialized" | "expired";
 
@@ -291,8 +292,8 @@ function stewardEconomyPatch(state: WildsWorldProjection, event: CompatibleWilds
   const emission = recordPayload(payload.emission) as unknown as WildsWorldEmissionProofV1;
   const phiAward = recordPayload(payload.phiAward) as unknown as WildsStewardPhiAwardV1;
   const amountPhiMicro = String(payload.amountPhiMicro ?? "");
-  const currentEmission = state.worldEmission;
-  if (!currentEmission || !verifyWildsLivingOperationPlan(operation).ok || operation.category !== "construction"
+  const currentEmission = wildsWorldSourceEmission(state);
+  if (!verifyWildsLivingOperationPlan(operation).ok || operation.category !== "construction"
     || !operation.participants.some((participant) => participant.kind === "player" && participant.id === event.actorId)
     || state.livingOperations[operation.operationId] || !verifyWildsWorldEmissionProof(emission)
     || emission.parentHead !== currentEmission.head || emission.revision !== currentEmission.revision + 1
@@ -426,12 +427,13 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
       const amountPhiMicro = String(payload.amountPhiMicro ?? "");
       const resourceLot = payload.resourceLot ?? null;
       const currentGrove = state.groves[grove.groveId];
+      const currentEmission = wildsWorldSourceEmission(state);
       if (!currentGrove || grove.parentHead !== currentGrove.head || grove.revision !== currentGrove.revision + 1
         || grove.lastKaiUPulse !== operation.kaiUPulse || !verifyWildsRegenerativeGrove(grove)
         || !verifyWildsLivingOperationPlan(operation).ok || operation.intention.featureId !== grove.groveId
-        || !state.worldEmission || emission.parentHead !== state.worldEmission.head
-        || emission.revision !== state.worldEmission.revision + 1 || !verifyWildsWorldEmissionProof(emission)
-        || canonicalPortableCardJson(emission.consumedOperationIds) !== canonicalPortableCardJson([...state.worldEmission.consumedOperationIds, operation.operationId].sort())
+        || emission.parentHead !== currentEmission.head
+        || emission.revision !== currentEmission.revision + 1 || !verifyWildsWorldEmissionProof(emission)
+        || canonicalPortableCardJson(emission.consumedOperationIds) !== canonicalPortableCardJson([...currentEmission.consumedOperationIds, operation.operationId].sort())
         || !/^(?:0|[1-9][0-9]{0,39})$/.test(amountPhiMicro)) {
         throw new Error("wilds_world_grove_operation_invalid");
       }
@@ -450,11 +452,11 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
       } else if (resourceLot !== null) {
         throw new Error("wilds_world_grove_resource_lot_invalid");
       }
-      const emitted = BigInt(state.worldEmission.globalRemainingPhiMicro) - BigInt(emission.globalRemainingPhiMicro);
+      const emitted = BigInt(currentEmission.globalRemainingPhiMicro) - BigInt(emission.globalRemainingPhiMicro);
       const regionId = String(operation.intention.regionId ?? "");
       const contributionClass = operation.category === "construction" ? "construction" : "ecology";
-      const regionEmitted = BigInt(state.worldEmission.regionRemainingPhiMicro[regionId] ?? "-1") - BigInt(emission.regionRemainingPhiMicro[regionId] ?? "-1");
-      const classEmitted = BigInt(state.worldEmission.classRemainingPhiMicro[contributionClass] ?? "-1") - BigInt(emission.classRemainingPhiMicro[contributionClass] ?? "-1");
+      const regionEmitted = BigInt(currentEmission.regionRemainingPhiMicro[regionId] ?? "-1") - BigInt(emission.regionRemainingPhiMicro[regionId] ?? "-1");
+      const classEmitted = BigInt(currentEmission.classRemainingPhiMicro[contributionClass] ?? "-1") - BigInt(emission.classRemainingPhiMicro[contributionClass] ?? "-1");
       if (emitted.toString() !== amountPhiMicro || regionEmitted !== emitted || classEmitted !== emitted) throw new Error("wilds_world_grove_emission_invalid");
       return appendEvent(state, event, {
         groves: { ...state.groves, [grove.groveId]: grove },

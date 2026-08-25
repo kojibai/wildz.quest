@@ -6,7 +6,8 @@ import {
   planWildsMaterialHarvest
 } from "../src/features/play/wilds-source-work-authority";
 import { WildsWorldService } from "../src/features/play/wilds-world-service";
-import { checkpointWildsWorld } from "../src/features/play/wilds-world-state";
+import { checkpointWildsWorld, initialWildsWorldProjection } from "../src/features/play/wilds-world-state";
+import { wildsWorldSourceEmission, wildsWorldSourceGenesis } from "../src/features/play/wilds-world-genesis";
 
 function sourceOf(kind: "timber" | "stone") {
   for (let x = -2; x <= 2; x += 1) for (let z = -2; z <= 2; z += 1) {
@@ -17,6 +18,38 @@ function sourceOf(kind: "timber" | "stone") {
 }
 
 describe("source-first baseline work", () => {
+  it("rejects a projection that claims a different source law", () => {
+    const source = wildsWorldSourceGenesis().emission;
+    const representation = { ...source, epochId: "epoch:representation", head: source.head };
+
+    assert.equal(wildsWorldSourceEmission({ worldEmission: representation }).head, source.head);
+    assert.equal(wildsWorldSourceEmission({ worldEmission: representation }).epochId, source.epochId);
+  });
+
+  it("cannot be demoted by a connected projection that omitted source emission", () => {
+    const projection = initialWildsWorldProjection();
+    const source = sourceOf("stone");
+    const command = planWildsMaterialHarvest({
+      projection,
+      source,
+      actorId: "explorer:connected-incomplete",
+      actorPosition: source.position,
+      kaiUPulse: 1_000_000,
+      commandId: "command:connected-incomplete:stone"
+    });
+    const world = new WildsWorldService({ checkpoint: checkpointWildsWorld(projection) });
+    const result = world.execute(command, {
+      actorId: "explorer:connected-incomplete",
+      canonical: true,
+      pulse: "2026-07-15T00:00:00.000Z",
+      occurredAt: "2026-07-15T00:00:00.000Z",
+      uPulse: 1_000_000
+    });
+
+    assert.equal(Object.values(result.projection.materialLots).length, 1);
+    assert.equal(Object.values(result.projection.stewardPhiAwards).length, 1);
+  });
+
   it("admits a local material lot before any shared-world snapshot arrives", () => {
     const projection = createWildsSourceAuthorityProjection();
     const source = sourceOf("timber");
