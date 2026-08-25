@@ -633,6 +633,18 @@ body {
 .wilds-wallet-asset-register div { display: grid; grid-template-columns: minmax(100px,.7fr) minmax(0,1fr); gap: 5px 16px; padding: 16px 0; border-top: 1px solid rgba(177,208,193,.12); }
 .wilds-wallet-asset-register dt { color: #9aada5; font-weight: 800; }.wilds-wallet-asset-register dd { margin: 0; color: #eafaff; font: 700 15px/1.4 ui-monospace, monospace; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .wilds-wallet-asset-register small { grid-column: 2; color: #748980; line-height: 1.4; overflow-wrap: anywhere; }
+.wilds-wallet-resource-vault { display: grid; gap: 10px; min-width: 0; }
+.wilds-wallet-resource-vault > header { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
+.wilds-wallet-resource-vault > header small { color: #76f2ca; font: 800 8px/1.2 ui-monospace, monospace; letter-spacing: .16em; }
+.wilds-wallet-resource-vault > header strong { color: #dceae5; font-size: 13px; }
+.wilds-wallet-resource-vault > div { display: grid; gap: 8px; }
+.wilds-wallet-resource-vault article { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 12px; min-width: 0; padding: 13px; border: 1px solid rgba(112,231,255,.24); border-radius: 12px; background: linear-gradient(110deg, rgba(21,83,91,.28), rgba(27,19,69,.28)); box-shadow: inset 0 1px rgba(255,255,255,.04); }
+.wilds-wallet-resource-mark { display: grid; place-items: center; width: 38px; aspect-ratio: 1; border: 1px solid rgba(118,242,202,.5); border-radius: 50%; color: #76f2ca; background: radial-gradient(circle, rgba(112,231,255,.22), rgba(21,83,91,.08)); }
+.wilds-wallet-resource-vault article div { display: grid; gap: 3px; min-width: 0; }
+.wilds-wallet-resource-vault article strong { color: #f2fbf8; }.wilds-wallet-resource-vault article small { color: #9db4ab; font: 700 9px/1.4 ui-monospace, monospace; }
+.wilds-wallet-resource-vault article p { color: #789087; font-size: 10px; line-height: 1.4; }
+.wilds-wallet-resource-vault article > b { color: #76f2ca; font: 800 8px/1 ui-monospace, monospace; letter-spacing: .12em; }
+.wilds-wallet-resource-send { display: grid; gap: 8px; }.wilds-wallet-resource-send label { display: grid; gap: 6px; }.wilds-wallet-resource-send button { min-height: 44px; }.wilds-wallet-resource-send p { font-size: 10px; }
 .wilds-wallet-card-vault { display: grid; grid-template-columns: minmax(130px,.55fr) minmax(0,1fr); gap: 16px; min-width: 0; padding-top: 4px; }
 .wilds-wallet-card-selector { display: grid; align-content: start; gap: 6px; max-height: 520px; overflow-y: auto; }
 .wilds-wallet-card-selector button { display: grid; min-width: 0; min-height: 54px; padding: 9px 11px; border: 1px solid rgba(177,208,193,.16); border-radius: 5px; color: #dce9e3; background: rgba(255,255,255,.025); text-align: left; }

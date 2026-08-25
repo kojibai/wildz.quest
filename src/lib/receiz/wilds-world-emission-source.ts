@@ -3,6 +3,7 @@ import { canonicalPortableCardJson, sha256PortableBasis } from "@/features/play/
 import type { WildsRegenerativeGroveV1 } from "@/features/play/wilds-regenerative-grove";
 import type { WildsWorldCheckpoint } from "@/features/play/wilds-world-state";
 import type { WildsWorldEmissionProofV1 } from "@/features/play/wilds-world-emission";
+import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 
 export const WILDS_LIVING_WORLD_REGISTRY_DIGEST = sha256PortableBasis("wildz.living-world.registry.v1");
 export const WILDS_LIVING_WORLD_REDUCER_DIGEST = sha256PortableBasis("wildz.living-world.reducer.v1");
@@ -37,7 +38,15 @@ export function wildsLivingWorldSuccessorHeads(input: Readonly<{
   const creature = input.operation.participants.find((participant) => participant.kind === "creature");
   if (!actor || !creature) throw new Error("wilds_living_world_participants_required");
   const inventoryId = `inventory:${input.actorId}`;
-  const inventoryCurrent = digest({ schema: "wildz.grove-inventory.v1", ownerId: input.actorId, materials: input.currentGrove.materials });
+  const resourceLots = (checkpoint: WildsWorldCheckpoint) => Object.values(checkpoint.projection.resourceLots ?? {})
+    .filter((lot) => sameWildzPlayerCoordinate(checkpoint.projection.resourceCustody?.[lot.lotId]?.ownerReceizId ?? lot.ownerReceizId, input.actorId))
+    .sort((left, right) => left.lotId.localeCompare(right.lotId));
+  const inventoryCurrent = digest({
+    schema: "wildz.grove-inventory.v2",
+    ownerId: input.actorId,
+    materials: input.currentGrove.materials,
+    resourceLots: resourceLots(input.currentCheckpoint)
+  });
   return Object.freeze({
     world: Object.freeze({ id: "wilds:global:v3", current: digest(input.currentCheckpoint), next: digest(input.nextCheckpoint) }),
     emission: Object.freeze({
@@ -59,7 +68,12 @@ export function wildsLivingWorldSuccessorHeads(input: Readonly<{
     inventory: Object.freeze({
       id: inventoryId,
       current: inventoryCurrent,
-      next: digest({ schema: "wildz.grove-inventory.v1", ownerId: input.actorId, materials: input.nextGrove.materials })
+      next: digest({
+        schema: "wildz.grove-inventory.v2",
+        ownerId: input.actorId,
+        materials: input.nextGrove.materials,
+        resourceLots: resourceLots(input.nextCheckpoint)
+      })
     })
   });
 }

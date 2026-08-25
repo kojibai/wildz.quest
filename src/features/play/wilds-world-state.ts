@@ -13,6 +13,7 @@ import type { WildsReward } from "./wilds-saga-types";
 import { verifyWildsRegenerativeGrove, type WildsRegenerativeGroveV1 } from "./wilds-regenerative-grove";
 import { verifyWildsLivingOperationPlan, type WildsLivingOperationPlanV1 } from "./wilds-living-operation";
 import { verifyWildsWorldEmissionProof, type WildsWorldEmissionProofV1 } from "./wilds-world-emission";
+import { verifyWildsResourceLot, type WildsResourceLotV1 } from "./wilds-resource-lot";
 
 export type WildsDynamicSitePhase = "rumored" | "tracked" | "emerged" | "assaulting" | "engaged" | "defeated" | "memorialized" | "expired";
 
@@ -125,6 +126,8 @@ export type WildsWorldProjection = {
   ecologySites: Record<string, WildsWorldEcologyProjection>;
   ecologyHistory: string[];
   groves: Record<string, WildsRegenerativeGroveV1>;
+  resourceLots: Record<string, WildsResourceLotV1>;
+  resourceCustody: Record<string, Readonly<{ ownerReceizId: string; subjectId: string; subjectHead: string; receiptId: string; transferId: string }>>;
   livingOperations: Record<string, WildsLivingOperationPlanV1>;
   worldEmission: WildsWorldEmissionProofV1 | null;
   contributionHistory: Readonly<{ operationId: string; amountPhiMicro: string; eventId: string }>[];
@@ -159,6 +162,8 @@ export function initialWildsWorldProjection(): WildsWorldProjection {
     ecologySites: {},
     ecologyHistory: [],
     groves: {},
+    resourceLots: {},
+    resourceCustody: {},
     livingOperations: {},
     worldEmission: null,
     contributionHistory: [],
@@ -354,6 +359,7 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
       const operation = recordPayload(payload.operation) as unknown as WildsLivingOperationPlanV1;
       const emission = recordPayload(payload.emission) as unknown as WildsWorldEmissionProofV1;
       const amountPhiMicro = String(payload.amountPhiMicro ?? "");
+      const resourceLot = payload.resourceLot ?? null;
       const currentGrove = state.groves[grove.groveId];
       if (!currentGrove || grove.parentHead !== currentGrove.head || grove.revision !== currentGrove.revision + 1
         || grove.lastKaiUPulse !== operation.kaiUPulse || !verifyWildsRegenerativeGrove(grove)
@@ -364,6 +370,21 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
         || !/^(?:0|[1-9][0-9]{0,39})$/.test(amountPhiMicro)) {
         throw new Error("wilds_world_grove_operation_invalid");
       }
+      const harvest = operation.intention.kind === "grove.harvest-honey";
+      if (harvest) {
+        if (!verifyWildsResourceLot(resourceLot)
+          || resourceLot.ownerReceizId !== event.actorId
+          || resourceLot.source.groveId !== grove.groveId
+          || resourceLot.source.groveSourceHead !== currentGrove.head
+          || resourceLot.source.groveAdmittedHead !== grove.head
+          || resourceLot.source.operationId !== operation.operationId
+          || resourceLot.source.operationPlanDigest !== operation.planDigest
+          || state.resourceLots[resourceLot.lotId]) {
+          throw new Error("wilds_world_grove_resource_lot_invalid");
+        }
+      } else if (resourceLot !== null) {
+        throw new Error("wilds_world_grove_resource_lot_invalid");
+      }
       const emitted = BigInt(state.worldEmission.globalRemainingPhiMicro) - BigInt(emission.globalRemainingPhiMicro);
       const regionId = String(operation.intention.regionId ?? "");
       const contributionClass = operation.category === "construction" ? "construction" : "ecology";
@@ -372,10 +393,33 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
       if (emitted.toString() !== amountPhiMicro || regionEmitted !== emitted || classEmitted !== emitted) throw new Error("wilds_world_grove_emission_invalid");
       return appendEvent(state, event, {
         groves: { ...state.groves, [grove.groveId]: grove },
+        resourceLots: harvest ? { ...state.resourceLots, [(resourceLot as WildsResourceLotV1).lotId]: resourceLot as WildsResourceLotV1 } : state.resourceLots,
+        resourceCustody: harvest ? { ...state.resourceCustody, [(resourceLot as WildsResourceLotV1).lotId]: {
+          ownerReceizId: (resourceLot as WildsResourceLotV1).ownerReceizId,
+          subjectId: "",
+          subjectHead: (resourceLot as WildsResourceLotV1).head.replace(/^sha256:/, ""),
+          receiptId: "genesis",
+          transferId: "genesis"
+        } } : state.resourceCustody,
         livingOperations: { ...state.livingOperations, [operation.operationId]: operation },
         worldEmission: emission,
         contributionHistory: [...state.contributionHistory, { operationId: operation.operationId, amountPhiMicro, eventId: event.eventId }].slice(-4_096)
       });
+    }
+    case "resource.custody_transferred": {
+      const lotId = String(payload.lotId ?? "");
+      const ownerReceizId = String(payload.ownerReceizId ?? "");
+      const subjectId = String(payload.subjectId ?? "");
+      const subjectHead = String(payload.subjectHead ?? "");
+      const receiptId = String(payload.receiptId ?? "");
+      const transferId = String(payload.transferId ?? "");
+      if (!state.resourceLots[lotId] || !ownerReceizId || !subjectId || !/^[a-f0-9]{64}$/.test(subjectHead)
+        || !receiptId || !transferId || ownerReceizId !== event.actorId) throw new Error("wilds_world_resource_transfer_invalid");
+      const current = state.resourceCustody[lotId];
+      if (current?.transferId === transferId) {
+        throw new Error("wilds_world_resource_transfer_replay");
+      }
+      return appendEvent(state, event, { resourceCustody: { ...state.resourceCustody, [lotId]: { ownerReceizId, subjectId, subjectHead, receiptId, transferId } } });
     }
     case "team.created":
     case "team.joined":
@@ -533,6 +577,8 @@ export function replayWildsWorld(events: readonly CompatibleWildsWorldEvent[], c
   const hydrated = projection ? {
     ...projection,
     groves: projection.groves ?? {},
+    resourceLots: projection.resourceLots ?? {},
+    resourceCustody: projection.resourceCustody ?? {},
     livingOperations: projection.livingOperations ?? {},
     worldEmission: projection.worldEmission ?? null,
     contributionHistory: projection.contributionHistory ?? []

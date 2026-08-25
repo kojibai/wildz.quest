@@ -11,6 +11,7 @@ import { WildsWalletSend, type WildsWalletSendActions } from "./WildsWalletSend"
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import type { AdventureCardCondition } from "@/features/play/adventure/card-condition";
 import type { WildzPreparedIdentityOwnedCard } from "@/lib/receiz/wildz-identity-adapter";
+import type { WildsResourceLotV1 } from "@/features/play/wilds-resource-lot";
 
 const pages: readonly Readonly<{ page: WildsWalletPage; label: string; mark: string }>[] = [
   { page: "overview", label: "Overview", mark: "◫" }, { page: "send", label: "Send", mark: "↗" },
@@ -40,11 +41,13 @@ export type WildsWalletTerminalActions = WildsWalletSendActions & Readonly<{
   onReturnToMessages?(): void;
 }>;
 
-export function WildsWalletTerminal({ cards = [], cardConditions = {}, onPrepareCard, onSendCard, publicUsername, state, ...actions }: {
+export function WildsWalletTerminal({ cards = [], cardConditions = {}, resourceLots = [], onPrepareCard, onSendCard, onSendResource, publicUsername, state, ...actions }: {
   cards?: readonly PortableCardAsset[];
   cardConditions?: Readonly<Record<string, AdventureCardCondition>>;
+  resourceLots?: readonly WildsResourceLotV1[];
   onPrepareCard?: (asset: PortableCardAsset) => Promise<WildzPreparedIdentityOwnedCard>;
   onSendCard?: (asset: PortableCardAsset, targetHandle: string) => Promise<unknown>;
+  onSendResource?: (resourceLot: WildsResourceLotV1, targetHandle: string) => Promise<Readonly<{ claimUrl: string }>>;
   publicUsername: string | null;
   state: WildsWalletPresentationState;
 } & WildsWalletTerminalActions) {
@@ -74,7 +77,7 @@ export function WildsWalletTerminal({ cards = [], cardConditions = {}, onPrepare
         {state.page === "overview" ? <WildsWalletOverview state={state} onNavigate={actions.onNavigate} /> : null}
         {state.page === "send" ? <WildsWalletSend state={state} {...actions} /> : null}
         {state.page === "receive" ? <WildsWalletReceive publicUsername={publicUsername} state={state} onRequestReceive={actions.onRequestReceive} /> : null}
-        {state.page === "assets" ? <WildsWalletAssets cards={cards} cardConditions={cardConditions} onOpenVaultCard={closeAllowed ? actions.onOpenVaultCard : undefined} onPrepareCard={onPrepareCard} onSendCard={onSendCard} state={state} /> : null}
+        {state.page === "assets" ? <WildsWalletAssets cards={cards} cardConditions={cardConditions} resourceLots={resourceLots} onOpenVaultCard={closeAllowed ? actions.onOpenVaultCard : undefined} onPrepareCard={onPrepareCard} onSendCard={onSendCard} onSendResource={onSendResource} state={state} /> : null}
         {state.page === "ledger" ? <WildsWalletLedger state={state} /> : null}
       </main>
       <footer><span>RECEIZ V124 · PROOF-NATIVE CUSTODY</span><span>PRIVATE · NO-STORE</span></footer>

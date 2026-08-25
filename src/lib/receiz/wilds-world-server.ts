@@ -12,6 +12,7 @@ import { createWildsWorldIdentityPublicationDraft } from "./wilds-world-identity
 import { createReceizCommerceAdapter } from "./adapter";
 import { executeWildsLivingWorldV124, type WildsLivingWorldV124RuntimeInput } from "./wilds-living-world-v124-runtime";
 import { prepareWildsLivingWorldAuthoritySession } from "./wilds-living-world-authority";
+import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import {
   WILDS_LIVING_WORLD_REDUCER_DIGEST,
   WILDS_LIVING_WORLD_REGISTRY_DIGEST,
@@ -340,6 +341,16 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
     }
     current = candidate;
     root()[serviceKey] = candidate;
+  } else if (command.type === "resource.transfer.admit") {
+    if (!actor.accessToken || command.ownerReceizId !== actor.playerId) throw new Error("wilds_world_resource_transfer_authority_required");
+    const rail = createReceizCommerceAdapter({ accessToken: actor.accessToken });
+    const subject = await rail.subjectStateV122(command.subjectId);
+    if (subject.subjectId !== command.subjectId || subject.head !== command.subjectHead
+      || !sameWildzPlayerCoordinate(subject.ownerReceizId, actor.receizActorId)
+      || !sameWildzPlayerCoordinate(subject.ownerReceizId, actor.handle)) {
+      throw new Error("wilds_world_resource_transfer_source_invalid");
+    }
+    result = current.execute(command, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now, uPulse: kai.uPulse, card });
   } else {
     result = current.execute(command, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now, uPulse: kai.uPulse, card });
   }

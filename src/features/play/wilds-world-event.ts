@@ -23,6 +23,7 @@ export type WildsWorldEventKind =
   | "ecology.historicized"
   | "grove.discovered"
   | "grove.operation_admitted"
+  | "resource.custody_transferred"
   | "team.created"
   | "team.joined"
   | "team.invited"
@@ -96,6 +97,7 @@ const eventKinds = new Set<WildsWorldEventKind>([
   "ecology.historicized",
   "grove.discovered",
   "grove.operation_admitted",
+  "resource.custody_transferred",
   "team.created",
   "team.joined",
   "team.invited",

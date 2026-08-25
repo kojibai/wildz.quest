@@ -58,6 +58,7 @@ import { resolveWildsContextAction } from "@/features/play/wilds-context-action"
 import { createWildsCreatureMandate, evaluateWildsCreatureConsent } from "@/features/play/wilds-creature-mandate";
 import { admitWildsGroveAction, previewWildsGroveAction, type WildsGroveActionKind } from "@/features/play/wilds-regenerative-grove";
 import { admitWildsEmissionOutcome } from "@/features/play/wilds-world-emission";
+import { createWildsGroveResourceLot } from "@/features/play/wilds-resource-lot";
 import type { WildsGroveExperienceAction } from "@/features/play/WildsRegenerativeGroveExperience";
 import { landmarkAtPosition, WILDS_FLAGSHIP_LANDMARKS, type WildsLandmarkId } from "@/features/play/wilds-landmarks";
 import { evaluateLandmarkAccess, type WildsLandmarkProgress } from "@/features/play/wilds-landmark-access";
@@ -1881,6 +1882,7 @@ export function PlayCampaign({
             {exclusiveOwner === "wallet" ? <WildsWalletTerminal
               cards={state.inventory}
               cardConditions={state.adventureConditions}
+              resourceLots={Object.values(livingWorld.snapshot?.resourceLots ?? {}).filter((lot) => sameWildzPlayerCoordinate(livingWorld.snapshot?.resourceCustody?.[lot.lotId]?.ownerReceizId ?? lot.ownerReceizId, ownerReceizId))}
               publicUsername={walletPublicUsername}
               state={walletController}
               onPrepareCard={(asset) => onPrepareCard(asset, createWildsPlayerVault({
@@ -1896,6 +1898,15 @@ export function PlayCampaign({
                 receipts: initialPlayerContinuity?.receipts ?? []
               }))}
               onSendCard={(asset, targetHandle) => messenger.sendCardOffer(asset, targetHandle)}
+              onSendResource={async (resourceLot, targetHandle) => {
+                const response = await fetch("/api/wilds/resources/transfers", {
+                  method: "POST", credentials: "same-origin", cache: "no-store", headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ resourceLot, targetHandle })
+                });
+                const payload = await response.json().catch(() => null) as { claimUrl?: string; error?: string } | null;
+                if (!response.ok || !payload?.claimUrl) throw new Error(payload?.error ?? "wilds_resource_transfer_failed");
+                return { claimUrl: payload.claimUrl };
+              }}
               onClose={() => closeOwnedModal("wallet")}
               onNavigate={walletController.navigate}
               onOpenVaultCard={(assetId) => {
@@ -2154,9 +2165,15 @@ export function PlayCampaign({
             contributionClass: preview.operation.category === "construction" ? "construction" : "ecology",
             preview: preview.emission
           });
+          const resourceLot = createWildsGroveResourceLot({
+            operation: preview.operation,
+            ownerReceizId,
+            sourceGrove: { groveId: activeGrove.groveId, head: activeGrove.head, honey: activeGrove.materials.honey },
+            admittedGrove: { groveId: nextGrove.groveId, head: nextGrove.head, parentHead: nextGrove.parentHead, honey: nextGrove.materials.honey }
+          });
           setGroveBusyAction(action);
           setRiftError("");
-          void livingWorld.actInGrove(preview.operation, nextGrove, nextEmission, preview.emission.amountPhiMicro)
+          void livingWorld.actInGrove(preview.operation, nextGrove, nextEmission, preview.emission.amountPhiMicro, resourceLot)
             .then((projection) => {
               const admitted = projection.groves[activeGrove.groveId];
               if (!admitted || admitted.head !== nextGrove.head) throw new Error("wilds_grove_admission_missing");

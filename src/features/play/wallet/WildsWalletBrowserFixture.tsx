@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { WildsResourceLotV1 } from "../wilds-resource-lot";
 import { WildsWalletTerminal } from "./WildsWalletTerminal";
 import { createWildsWalletControllerState, type WildsWalletControllerState, type WildsWalletPresentationState } from "./wilds-wallet-controller";
 
@@ -13,6 +14,11 @@ function fixtureState(status: WildsWalletControllerState["status"], phase: Wilds
   };
 }
 const actions = { onClose() {}, onNavigate() {}, onRefresh() {}, onLookupRecipient() {}, onSelectRecipient() {}, onReviewAmount() {}, onStage() {}, onAuthorizationPointerStart() {}, onAuthorizationPointerCancel() {}, onRecover() {}, onResetTransfer() {}, onRequestReceive() {} };
+const resourceFixture: WildsResourceLotV1 = {
+  schema: "wildz.resource-lot.v1", lotId: `wildz:resource:living-honey:${"a".repeat(64)}`, kind: "living-honey", quantity: 1, quality: 4,
+  ownerReceizId: "explorer", source: { groveId: "grove:fixture", groveSourceHead: `sha256:${"b".repeat(64)}`, groveAdmittedHead: `sha256:${"c".repeat(64)}`, operationId: "grove:fixture:harvest", operationPlanDigest: `sha256:${"d".repeat(64)}`, kaiUPulse: 1 },
+  revision: 0, parentHead: null, transferable: true, authority: "source-proof-objects", head: `sha256:${"e".repeat(64)}`
+};
 export function WildsWalletEdgeBrowserFixture() {
   const [state, setState] = useState<WildsWalletPresentationState>({
     ...fixtureState("source-verified"),
@@ -33,7 +39,7 @@ export function WildsWalletEdgeBrowserFixture() {
       setState((current) => ({ ...current, page: "send", transfer: { ...current.transfer, phase: "amount", recipientUsername: username, recipientLocator: locator, amountPhiMicro } }));
     }
   };
-  return <main className="wildz-app" data-testid="wallet-edge-browser-fixture"><WildsWalletTerminal publicUsername="explorer" state={state} {...fixtureActions} /></main>;
+  return <main className="wildz-app" data-testid="wallet-edge-browser-fixture"><WildsWalletTerminal onSendResource={async () => ({ claimUrl: "https://wildz.quest/claim#proof=fixture" })} publicUsername="explorer" resourceLots={[resourceFixture]} state={state} {...fixtureActions} /></main>;
 }
 export function WildsWalletBrowserFixture() {
   return <div id="wilds-wallet-browser-fixture">{[["verified", fixtureState("verified")], ["offline-verified", fixtureState("offline-verified")], ["unknown", fixtureState("verified", "unknown")], ["zero-write", fixtureState("verified", "zero-write")], ["committed", fixtureState("verified", "committed")]].map(([name, state]) => <div data-fixture-state={name as string} key={name as string}><WildsWalletTerminal publicUsername="fixture-explorer" state={state as WildsWalletControllerState} {...actions} /></div>)}</div>;

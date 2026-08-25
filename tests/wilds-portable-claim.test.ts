@@ -3,11 +3,14 @@ import { describe, it } from "node:test";
 import {
   createWildsPortableClaim,
   createWildsCardPortableClaim,
+  createWildsResourcePortableClaim,
   decodeWildsPortableClaim,
   encodeWildsPortableClaim,
   wildsPortableClaimUrl
 } from "../src/features/play/wilds-portable-claim.js";
 import { createOwnerBoundInitialPlayState } from "../src/features/play/game-state.js";
+import { compileWildsLivingOperation } from "../src/features/play/wilds-living-operation.js";
+import { createWildsGroveResourceLot } from "../src/features/play/wilds-resource-lot.js";
 
 const digest = (character: string) => character.repeat(64);
 
@@ -126,5 +129,34 @@ describe("universal playable proof claims", () => {
     assert.deepEqual(decodeWildsPortableClaim(encodeWildsPortableClaim(claim)), claim);
     assert.equal(createWildsCardPortableClaim(offer).claimId, claim.claimId);
     assert.throws(() => createWildsPortableClaim({ ...claim, claimId: undefined, recipient: { handle: "sol" } } as never), /wilds_portable_claim_carrier_invalid/);
+  });
+
+  it("carries an exact one-use resource instrument without inventing a portable transition set", () => {
+    const operation = compileWildsLivingOperation({
+      operationId: "grove:one:harvest-honey:42", category: "ecology", intention: { kind: "grove.harvest-honey", regionId: "region:0:0", featureId: "grove:one" },
+      participants: [{ id: "kai", kind: "player", expectedHead: digest("a"), role: "steward" }],
+      stages: [{ id: "stage:harvest-honey", profession: "harvest-honey", participantIds: ["kai"] }],
+      consequences: { usefulOutput: 2, ecologicalRenewal: 0, publicBenefit: 0, cooperation: 0, durability: 0, extraction: 0, damage: 0, waste: 0, restorationDebt: 0 },
+      kaiUPulse: 42, expiresAtKaiUPulse: 542, semanticIdempotencyKey: "wildz:grove:one:harvest-honey:42"
+    });
+    const resourceLot = createWildsGroveResourceLot({
+      operation, ownerReceizId: "kai",
+      sourceGrove: { groveId: "grove:one", head: `sha256:${digest("b")}`, honey: 2 },
+      admittedGrove: { groveId: "grove:one", head: `sha256:${digest("c")}`, parentHead: `sha256:${digest("b")}`, honey: 1 }
+    })!;
+    const offer = {
+      schema: "receiz.wilds.resource-transfer-offer.v1" as const, resourceLot, subjectId: "wildz:resource:subject:one", sourceHandle: "kai", targetHandle: "nova",
+      instrument: {
+        schema: "receiz.bearer.instrument.v1" as const,
+        plan: { schema: "receiz.bearer.transfer_plan.v1" as const, transferId: digest("1"), transferDigest: digest("1"), subjectId: "wildz:resource:subject:one", subjectDigest: digest("2"), expectedSubjectHead: digest("3"), expectedOwnershipHead: digest("4"), currentOwnerReceizId: "receiz:kai", policy: { recipientReceizId: null, openBearer: true, expiresAtKai: "542", requiresRecipientAcceptance: true, priorOwnerConversationPolicy: "encrypted-evidence" as const, inventoryDisposition: {} }, policyDigest: digest("5"), registryDigest: digest("6"), reducerDigest: digest("7") },
+        oneTimeClaimDigest: digest("8"), issuedAtKai: "42", exactBytesB64u: "ZXhhY3Q", artifactDigest: digest("9"), status: "pending-acceptance" as const
+      }
+    };
+    const claim = createWildsResourcePortableClaim(offer);
+    assert.equal(claim.kind, "resource");
+    assert.equal(claim.carrier.kind, "bearer-resource");
+    assert.equal(claim.source.proofObjectDigest, digest("2"));
+    assert.deepEqual(decodeWildsPortableClaim(encodeWildsPortableClaim(claim)), claim);
+    assert.throws(() => createWildsPortableClaim({ ...claim, claimId: undefined, title: "999 honey" } as never), /wilds_portable_claim_carrier_invalid/);
   });
 });

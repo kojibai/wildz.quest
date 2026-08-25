@@ -19,6 +19,7 @@ import { acceptWildsInvite, assembleWildsSquad, changeWildsRole, inviteWildsPlay
 import type { WildsRegenerativeGroveV1 } from "./wilds-regenerative-grove";
 import type { WildsLivingOperationPlanV1 } from "./wilds-living-operation";
 import type { WildsWorldEmissionProofV1 } from "./wilds-world-emission";
+import type { WildsResourceLotV1 } from "./wilds-resource-lot";
 import { projectWildsGroveGenesis } from "./wilds-grove-genesis";
 import {
   createWildsWorldEvent,
@@ -60,7 +61,8 @@ export type WildsWorldCommand = (
   | { type: "ecology.discover"; siteId: string; position: { x: number; z: number }; commandId: string }
   | { type: "ecology.contribute"; siteId: string; position: { x: number; z: number }; amount: number; cardProofDigest: string; commandId: string }
   | { type: "grove.observe"; grove: WildsRegenerativeGroveV1; emission: WildsWorldEmissionProofV1; commandId: string }
-  | { type: "grove.act"; operation: WildsLivingOperationPlanV1; grove: WildsRegenerativeGroveV1; emission: WildsWorldEmissionProofV1; amountPhiMicro: string; commandId: string }
+  | { type: "grove.act"; operation: WildsLivingOperationPlanV1; grove: WildsRegenerativeGroveV1; emission: WildsWorldEmissionProofV1; amountPhiMicro: string; resourceLot?: WildsResourceLotV1 | null; commandId: string }
+  | { type: "resource.transfer.admit"; lotId: string; ownerReceizId: string; subjectId: string; subjectHead: string; receiptId: string; transferId: string; commandId: string }
   | { type: "story.contribute"; dayId: string; objectiveId: string; verb: WildsGameplayVerb; amount: number; position?: { x: number; z: number }; cardProofDigest?: string; commandId: string }
   | { type: "story.trainer_battle"; dayId: string; trainerId: string; matchId: string; outcome: "player_victory" | "trainer_victory" | "fled"; cardProofDigest: string; commandId: string }
   | { type: "story.tournament_enter"; tournamentId: string; qualificationGrantId: string; cardProofDigest: string; commandId: string }
@@ -397,11 +399,24 @@ export class WildsWorldService {
     if (command.type === "grove.observe") {
       events.push(this.append("grove.discovered", { grove: command.grove, emission: command.emission }, authority, command.commandId));
     } else if (command.type === "grove.act") {
+      const harvest = command.operation.intention.kind === "grove.harvest-honey";
+      if (harvest && !command.resourceLot) throw new Error("wilds_world_grove_resource_lot_required");
+      if (!harvest && command.resourceLot) throw new Error("wilds_world_grove_resource_lot_invalid");
       events.push(this.append("grove.operation_admitted", {
         operation: command.operation,
         grove: command.grove,
         emission: command.emission,
-        amountPhiMicro: command.amountPhiMicro
+        amountPhiMicro: command.amountPhiMicro,
+        resourceLot: command.resourceLot ?? null
+      }, authority, command.commandId));
+    } else if (command.type === "resource.transfer.admit") {
+      events.push(this.append("resource.custody_transferred", {
+        lotId: command.lotId,
+        ownerReceizId: command.ownerReceizId,
+        subjectId: command.subjectId,
+        subjectHead: command.subjectHead,
+        receiptId: command.receiptId,
+        transferId: command.transferId
       }, authority, command.commandId));
     } else if (command.type === "story.contribute") {
       const { saga } = this.sagaAt(authority);

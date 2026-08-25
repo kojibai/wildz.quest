@@ -101,6 +101,23 @@ test("wallet Assets renders the user's real two-sided card and direct send contr
   assert.doesNotMatch(markup, /Reserved cards|Not admitted/);
 });
 
+test("wallet Assets renders exact warmed resource custody without fetching or estimating it", () => {
+  const resourceLot = {
+    schema: "wildz.resource-lot.v1", lotId: `wildz:resource:living-honey:${"a".repeat(64)}`, kind: "living-honey", quantity: 1, quality: 4,
+    ownerReceizId: "explorer", source: { groveId: "grove:one", groveSourceHead: `sha256:${"b".repeat(64)}`, groveAdmittedHead: `sha256:${"c".repeat(64)}`, operationId: "grove:one:harvest-honey:1", operationPlanDigest: `sha256:${"d".repeat(64)}`, kaiUPulse: 1 },
+    revision: 0, parentHead: null, transferable: true, authority: "source-proof-objects", head: `sha256:${"e".repeat(64)}`
+  } as const;
+  const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, {
+    publicUsername: "explorer", resourceLots: [resourceLot], state: state({ page: "assets" }), ...actions
+  }));
+  assert.match(markup, /Living Honey/);
+  assert.match(markup, /1 sealed unit/);
+  assert.match(markup, /Quality 4/);
+  assert.match(markup, /Harvested with a willing companion/);
+  assert.match(markup, /VERIFIED/);
+  assert.doesNotMatch(markup, /Loading|reconnecting|projection/i);
+});
+
 test("terminal is one modal dialog with five named surfaces and fail-closed send", () => {
   const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, { publicUsername: null, state: state({ page: "send" }), ...actions }));
   assert.match(markup, /role="dialog"/);

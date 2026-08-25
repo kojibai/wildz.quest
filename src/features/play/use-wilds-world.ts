@@ -12,6 +12,7 @@ import type { WildsGameplayVerb } from "./wilds-saga-types";
 import type { WildsRegenerativeGroveV1 } from "./wilds-regenerative-grove";
 import type { WildsLivingOperationPlanV1 } from "./wilds-living-operation";
 import type { WildsWorldEmissionProofV1 } from "./wilds-world-emission";
+import type { WildsResourceLotV1 } from "./wilds-resource-lot";
 import { worldCommandRequiresCard } from "./wilds-world-authority";
 import { withWildsWorldCommandKai } from "./wilds-world-authority";
 import { deriveKaiKlokMomentFromUPulse } from "./kai-klok-moment";
@@ -337,8 +338,8 @@ export function useWildsWorld(input: {
     discoverGrove: (grove: WildsRegenerativeGroveV1, emission: WildsWorldEmissionProofV1) => post({
       type: "grove.observe", grove, emission, commandId: commandId("command:grove:observe")
     }),
-    actInGrove: (operation: WildsLivingOperationPlanV1, grove: WildsRegenerativeGroveV1, emission: WildsWorldEmissionProofV1, amountPhiMicro: string) => post({
-      type: "grove.act", operation, grove, emission, amountPhiMicro, commandId: commandId("command:grove:act")
+    actInGrove: (operation: WildsLivingOperationPlanV1, grove: WildsRegenerativeGroveV1, emission: WildsWorldEmissionProofV1, amountPhiMicro: string, resourceLot?: WildsResourceLotV1 | null) => post({
+      type: "grove.act", operation, grove, emission, amountPhiMicro, resourceLot: resourceLot ?? null, commandId: commandId("command:grove:act")
     }),
     contributeEcology: (siteId: string, position: { x: number; z: number }, amount: number) => {
       if (!input.activeCard) throw new Error("wilds_world_active_card_required");
