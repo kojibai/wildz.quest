@@ -158,6 +158,10 @@ import { initialWildsHarvestedSourceState, projectWildsCreatureWorkFamilies, sel
 import { projectWildsResourceAvailability, type WildsResourceSource } from "@/features/play/wilds-resource-authority";
 import { projectWildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
 import type { WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
+import { projectWildsWorkCapabilityMeters } from "@/features/play/wilds-work-capability";
+import { projectWildsStewardCraft, projectWildsStewardPlacement, type WildsStewardBlueprintId, type WildsStewardPlacement } from "@/features/play/wilds-steward-craft";
+import { WildsStewardCraftPanel } from "@/features/play/WildsStewardCraftPanel";
+import { WildsStewardPlacementHud } from "@/features/play/WildsStewardPlacementHud";
 
 const WildsWorldMap = dynamic(() => import("@/features/play/WildsWorldMap").then((mod) => mod.WildsWorldMap), { ssr: false });
 const WildsLandmarkExperience = dynamic(() => import("@/features/play/WildsLandmarkExperience").then((mod) => mod.WildsLandmarkExperience), { ssr: false });
@@ -421,7 +425,8 @@ export function PlayCampaign({
   const [raidReturnPosition, setRaidReturnPosition] = useState<{ x: number; z: number } | null>(null);
   const [raidBusyIntent, setRaidBusyIntent] = useState<WildsRaidIntent["type"] | null>(null);
   const [riftError, setRiftError] = useState("");
-  const [stewardPlacementMode, setStewardPlacementMode] = useState<"shelter" | "bridge" | null>(null);
+  const [stewardPlacementMode, setStewardPlacementMode] = useState<WildsStewardBlueprintId | null>(null);
+  const [stewardPlacementPreview, setStewardPlacementPreview] = useState<WildsStewardPlacement | null>(null);
   const [requestedCommand, setRequestedCommand] = useState<WildsCommandKey | null>(null);
   const [vaultFocusedAssetId, setVaultFocusedAssetId] = useState<string | null>(null);
   const [commandDismissSignal, setCommandDismissSignal] = useState(0);
@@ -599,6 +604,15 @@ export function PlayCampaign({
   } = useWorldOverlayDirector({ dismissSignal: commandDismissSignal, exclusiveOwner: modalOwner });
   const commandPanelOpen = modalOwner === "none" && worldOverlayState.panelKey !== null;
   const exclusiveOwner = commandPanelOpen ? "command" : modalOwner;
+  useEffect(() => {
+    if (exclusiveOwner === "none") return;
+    setStewardPlacementMode(null);
+    setStewardPlacementPreview(null);
+  }, [exclusiveOwner]);
+  useEffect(() => {
+    setStewardPlacementMode(null);
+    setStewardPlacementPreview(null);
+  }, [activeAsset?.id]);
   useEffect(() => {
     if (shellOverlayOwner === "none") return;
     setState((current) => applyWildsInput(current, { type: "settle-pending-travel-growth" }));
@@ -1109,8 +1123,14 @@ export function PlayCampaign({
     timber: availableMaterialLots.filter((lot) => lot.kind === "timber").length,
     stone: availableMaterialLots.filter((lot) => lot.kind === "stone").length
   }), [availableMaterialLots]);
-  const canBuildTrailShelter = stewardMaterials.timber >= 2 && stewardMaterials.stone >= 1;
-  const canBuildTrailBridge = stewardMaterials.timber >= 4 && stewardMaterials.stone >= 2;
+  const stewardWorkMeters = useMemo(() => projectWildsWorkCapabilityMeters(activeAsset ?? null, activeCondition), [activeAsset, activeCondition]);
+  const stewardCraft = useMemo(() => projectWildsStewardCraft({
+    activeCreatureName: activeAsset?.manifest.name ?? activeCard.name,
+    materialLots: availableMaterialLots,
+    pending: Boolean(livingWorld.pendingCommand),
+    selectedBlueprintId: stewardPlacementMode,
+    workMeters: stewardWorkMeters
+  }), [activeAsset?.manifest.name, activeCard.name, availableMaterialLots, livingWorld.pendingCommand, stewardPlacementMode, stewardWorkMeters]);
 
   const createStewardMandate = (professions: readonly string[], allowedResourceIds: readonly string[], region: { x: number; z: number }) => {
     if (!activeAsset || !activeCondition) throw new Error("Choose a rested companion to work beside you.");
@@ -1192,7 +1212,7 @@ export function PlayCampaign({
   };
 
   const placeTrailShelter = async (position: { x: number; z: number }) => {
-    if (stewardPlacementMode !== "shelter" || livingWorld.pendingCommand) return;
+    if (stewardPlacementMode !== "trail-shelter" || livingWorld.pendingCommand) return;
     if (Math.hypot(position.x - state.player.x, position.z - state.player.z) > 7) {
       setRiftError("Place the shelter within reach of you and your companion.");
       return;
@@ -1206,6 +1226,7 @@ export function PlayCampaign({
       const projection = await livingWorld.buildTrailShelter(position, state.player, 0, [...timber, ...stone].map((lot) => lot.lotId), mandate);
       const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
       setStewardPlacementMode(null);
+      setStewardPlacementPreview(null);
       setRiftError(`Your Trail Shelter now stands in the shared Wilds.${award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the work.` : ""}`);
     } catch (error) {
       handleStoryCommandError(error, "That place cannot hold a shelter yet.");
@@ -1213,7 +1234,7 @@ export function PlayCampaign({
   };
 
   const placeTrailBridge = async (position: { x: number; z: number }) => {
-    if (stewardPlacementMode !== "bridge" || livingWorld.pendingCommand) return;
+    if (stewardPlacementMode !== "trail-bridge" || livingWorld.pendingCommand) return;
     if (Math.hypot(position.x - state.player.x, position.z - state.player.z) > 7) {
       setRiftError("Choose a crossing within reach of you and your companion.");
       return;
@@ -1229,10 +1250,17 @@ export function PlayCampaign({
       const projection = await livingWorld.buildTrailBridge(position, state.player, rotationQuarterTurns, [...timber, ...stone].map((lot) => lot.lotId), mandate);
       const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
       setStewardPlacementMode(null);
+      setStewardPlacementPreview(null);
       setRiftError(`Your Trail Bridge now joins both banks in the shared Wilds.${award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the work.` : ""}`);
     } catch (error) {
       handleStoryCommandError(error, "That crossing cannot hold a bridge yet.");
     }
+  };
+
+  const confirmStewardPlacement = () => {
+    if (!stewardPlacementPreview?.valid || livingWorld.pendingCommand) return;
+    if (stewardPlacementPreview.blueprintId === "trail-shelter") void placeTrailShelter(stewardPlacementPreview.point);
+    else void placeTrailBridge(stewardPlacementPreview.point);
   };
 
   if (!enabled) {
@@ -1780,27 +1808,14 @@ export function PlayCampaign({
             <article><Icons.products aria-hidden="true" size={18} /><span><small>Living timber</small><strong>{stewardMaterials.timber}</strong></span><em>Exact lots</em></article>
             <article><Icons.package aria-hidden="true" size={18} /><span><small>Foundation stone</small><strong>{stewardMaterials.stone}</strong></span><em>Exact lots</em></article>
           </div>
-          <div className="wilds-steward-build-actions">
-            <div className="wilds-steward-build-action">
-            <button disabled={!canBuildTrailShelter} onClick={() => {
-              if (!canBuildTrailShelter) return;
-              setStewardPlacementMode("shelter");
-              setRiftError("Choose nearby clear ground. You and your companion will raise the shelter there.");
-              dispatchStageOverlay({ type: "panel", key: null });
-            }} type="button">{canBuildTrailShelter ? "Place Trail Shelter" : "Need 2 timber · 1 stone"}</button>
-            <small>Material lots are consumed once when the shared structure is admitted.</small>
-            </div>
-            <div className="wilds-steward-build-action">
-              <button disabled={!canBuildTrailBridge} onClick={() => {
-                if (!canBuildTrailBridge) return;
-                setStewardPlacementMode("bridge");
-                setRiftError("Choose a nearby crossing. You and your companion will read both banks before building.");
-                dispatchStageOverlay({ type: "panel", key: null });
-              }} type="button">{canBuildTrailBridge ? "Place Trail Bridge" : "Need 4 timber · 2 stone"}</button>
-              <small>The world aligns the deck to two safe banks before any exact lot is consumed.</small>
-            </div>
-          </div>
-          <p className="wilds-satchel-note">Explore, gather beside a willing companion, and build from exact world-born resources. Nothing enters the Satchel without source proof.</p>
+          <WildsStewardCraftPanel projection={stewardCraft} onSelectBlueprint={(blueprintId) => {
+            setStewardPlacementMode(blueprintId);
+            setStewardPlacementPreview(null);
+            setRiftError(blueprintId === "trail-bridge"
+              ? "Tap a nearby crossing to preview it. Both banks are read before any exact lot can move."
+              : "Tap nearby living ground to preview the shelter. No exact lot moves until you confirm.");
+            dispatchStageOverlay({ type: "panel", key: null });
+          }} />
         </div>
       )
     },
@@ -1959,6 +1974,7 @@ export function PlayCampaign({
           >
             <WildsWorldCanvas
               activeWorkSource={activeWorkSource}
+              stewardPlacementPreview={stewardPlacementPreview}
               aerialCapabilities={activeTraversalCapabilities}
               aerialStateRef={aerialStateRef}
               verticalTraversalRef={verticalTraversalRef}
@@ -1978,7 +1994,7 @@ export function PlayCampaign({
               onAerialEnergyChange={setAerialEnergy}
               onVerticalReadoutChange={publishVerticalReadout}
               onCameraHeadingChange={updateCameraHeading}
-              searchEnabled={worldInteractionEnabled && discoveryActive}
+              searchEnabled={worldInteractionEnabled && (discoveryActive || Boolean(stewardPlacementMode))}
               resourcePending={Boolean(livingWorld.pendingCommand)}
               resourceCompanionReady={Boolean(activeCondition && activeCondition.fatigue < 85 && activeCondition.injuries.length < 4)}
               livingWorld={livingWorld.snapshot}
@@ -1997,9 +2013,11 @@ export function PlayCampaign({
               trainers={sagaTrainers}
               onSelectTrainer={(trainer) => openTrainerEncounter(trainer, "world")}
               onSearchPoint={(point) => {
-                if (stewardPlacementMode === "shelter") void placeTrailShelter(point);
-                else if (stewardPlacementMode === "bridge") void placeTrailBridge(point);
-                else dispatchLayeredSearch(point);
+                if (stewardPlacementMode) {
+                  setStewardPlacementPreview(projectWildsStewardPlacement({ actorPosition: state.player, blueprintId: stewardPlacementMode, point }));
+                  return;
+                }
+                dispatchLayeredSearch(point);
               }}
               onInteractResource={(source) => { void gatherStewardResource(source); }}
               onSitePortal={(siteKey, direction) => {
@@ -2021,6 +2039,19 @@ export function PlayCampaign({
                 setActiveVistaId((current) => current === overlookId ? null : overlookId);
               }}
             />
+
+            {stewardPlacementPreview ? <WildsStewardPlacementHud
+              blueprintLabel={stewardPlacementPreview.blueprintId === "trail-bridge" ? "Trail Bridge" : "Trail Shelter"}
+              onCancel={() => {
+                setStewardPlacementMode(null);
+                setStewardPlacementPreview(null);
+                setRiftError("Placement released. The terrain is open to discovery again.");
+              }}
+              onConfirm={confirmStewardPlacement}
+              partnerName={activeAsset?.manifest.name ?? activeCard.name}
+              pending={Boolean(livingWorld.pendingCommand)}
+              preview={stewardPlacementPreview}
+            /> : null}
 
             <div aria-hidden={referenceHomeBlocked} className="wildz-reference-home" inert={referenceHomeBlocked ? true : undefined}>
               <WildzReferenceHud

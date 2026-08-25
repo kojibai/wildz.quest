@@ -7,12 +7,13 @@ import { projectWildsResourceAvailability, projectWildsResourceSourceForObstacle
 import type { WildsWorldProjection } from "./wilds-world-state";
 import type { WildsStructureV1 } from "./wilds-steward-construction";
 import { projectWildsTerrainActorPosition } from "./wilds-terrain-rendering";
-import { WILDS_TERRAIN_TILE_SIZE } from "./wilds-terrain-authority";
+import { sampleWildsTerrain, WILDS_TERRAIN_TILE_SIZE } from "./wilds-terrain-authority";
 import { wildsTerrainObstaclesForTile } from "./wilds-terrain-obstacles";
 import { wildsSiteRuntimeGroundY, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 import { projectWildsResourceAffordance } from "./wilds-resource-affordance";
 import { projectWildsWorkPresentation, type WildsActiveWorkSource } from "./wilds-work-presentation";
 import { useWildsReadability } from "./WildsReadabilityContext";
+import type { WildsStewardPlacement } from "./wilds-steward-craft";
 
 function createGeometry() {
   return {
@@ -29,7 +30,8 @@ function createGeometry() {
     bridgePlank: new THREE.BoxGeometry(2.86, .1, .62),
     bridgeRail: new THREE.BoxGeometry(.14, .14, 7.8),
     bridgePost: new THREE.CylinderGeometry(.1, .13, 1.05, 8),
-    bridgeFooting: new THREE.CylinderGeometry(.22, .3, 1.2, 8)
+    bridgeFooting: new THREE.CylinderGeometry(.22, .3, 1.2, 8),
+    ghostMarker: new THREE.TorusGeometry(3.5, .045, 7, 48)
   };
 }
 
@@ -48,7 +50,9 @@ function createMaterials() {
     wood: new THREE.MeshStandardMaterial({ color: "#73513b", roughness: .88 }),
     roof: new THREE.MeshStandardMaterial({ color: "#275947", roughness: .78, side: THREE.DoubleSide }),
     bridgeWood: new THREE.MeshStandardMaterial({ color: "#8c6746", roughness: .9 }),
-    bridgeEdge: new THREE.MeshStandardMaterial({ color: "#4f392c", roughness: .94 })
+    bridgeEdge: new THREE.MeshStandardMaterial({ color: "#4f392c", roughness: .94 }),
+    ghostValid: new THREE.MeshStandardMaterial({ color: "#87f4ce", emissive: "#34b98d", emissiveIntensity: .5, transparent: true, opacity: .38, depthWrite: false }),
+    ghostInvalid: new THREE.MeshStandardMaterial({ color: "#ff887f", emissive: "#b83b38", emissiveIntensity: .42, transparent: true, opacity: .34, depthWrite: false })
   };
 }
 
@@ -67,8 +71,9 @@ function writeConstructionStage(group: THREE.Group | null, progress: number, sta
   group.scale.set(1, Math.max(.035, eased), 1);
 }
 
-export function WildsStewardEnvironment({ activeWorkSource, livingWorld, player, terrainElevation, kaiUPulse, onInteractSource, companionWorkFamilies = [], companionReady = true, pending = false, siteRuntime, siteSpaceId }: {
+export function WildsStewardEnvironment({ activeWorkSource, placementPreview, livingWorld, player, terrainElevation, kaiUPulse, onInteractSource, companionWorkFamilies = [], companionReady = true, pending = false, siteRuntime, siteSpaceId }: {
   activeWorkSource?: WildsActiveWorkSource | null;
+  placementPreview?: WildsStewardPlacement | null;
   livingWorld?: WildsWorldProjection | null;
   player: Readonly<{ x: number; z: number }>;
   terrainElevation: number;
@@ -112,10 +117,40 @@ export function WildsStewardEnvironment({ activeWorkSource, livingWorld, player,
     Object.values(materials).forEach((item) => item.dispose());
   }, [geometry, materials]);
   return <group name="wilds-steward-world">
+    {placementPreview && siteSpaceId === "wildz.space.outer.v1" ? <StewardPlacementGhost geometry={geometry} materials={materials} player={player} preview={placementPreview} terrainElevation={terrainElevation} /> : null}
     {sources.map(({ source, availableCapacity }) => <ResourceManifestation activeWorkSource={activeWorkSource} availableCapacity={availableCapacity} companionQualified={companionWorkFamilies.includes(source.requirements.creature)} companionReady={companionReady} geometry={geometry} key={source.sourceId} materials={materials} onInteract={onInteractSource} pending={pending && activeWorkSource?.sourceId === source.sourceId} player={player} siteRuntime={siteRuntime} siteSpaceId={siteSpaceId} source={source} terrainElevation={terrainElevation} />)}
     {structures.map((structure) => structure.blueprint === "trail-bridge"
       ? <TrailBridge geometry={geometry} key={structure.structureId} materials={materials} player={player} structure={structure} terrainElevation={terrainElevation} />
       : <TrailShelter geometry={geometry} key={structure.structureId} materials={materials} player={player} structure={structure} terrainElevation={terrainElevation} />)}
+  </group>;
+}
+
+function StewardPlacementGhost({ geometry, materials, player, preview, terrainElevation }: {
+  geometry: Geometry;
+  materials: Materials;
+  player: Readonly<{ x: number; z: number }>;
+  preview: WildsStewardPlacement;
+  terrainElevation: number;
+}) {
+  const terrain = sampleWildsTerrain(preview.point.x, preview.point.z);
+  const position = projectWildsTerrainActorPosition(
+    { x: preview.point.x, z: preview.point.z },
+    player,
+    .04,
+    { actorElevation: terrain.elevation, anchorElevation: terrainElevation }
+  );
+  const material = preview.valid ? materials.ghostValid : materials.ghostInvalid;
+  const rotation = preview.rotationQuarterTurns * Math.PI / 2;
+  return <group name={`steward-placement-ghost-${preview.blueprintId}`} position={position} rotation={[0, rotation, 0]} userData={{ previewOnly: true, valid: preview.valid }}>
+    <Shared geometry={geometry.ghostMarker} material={material} position={[0, .04, 0]} rotation={[-Math.PI / 2, 0, 0]} />
+    {preview.blueprintId === "trail-bridge" ? <>
+      <Shared geometry={geometry.bridgeDeck} material={material} position={[0, .28, 0]} />
+      {[-1.42, 1.42].map((x) => <Shared geometry={geometry.bridgeRail} key={x} material={material} position={[x, 1.05, 0]} />)}
+    </> : <>
+      <Shared geometry={geometry.foundation} material={material} position={[0, .24, 0]} />
+      {[[-2.45, 1.55, -1.95], [2.45, 1.55, -1.95], [-2.45, 1.55, 1.95], [2.45, 1.55, 1.95]].map((point, index) => <Shared geometry={geometry.post} key={index} material={material} position={point as [number, number, number]} />)}
+      <Shared geometry={geometry.roof} material={material} position={[0, 3.25, 0]} rotation={[0, Math.PI / 4, 0]} scale={[1, 1, .82]} />
+    </>}
   </group>;
 }
 

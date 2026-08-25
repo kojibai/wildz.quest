@@ -89,12 +89,14 @@ import { wildsSiteRuntimeCameraIsFlooded, wildsSiteRuntimeDiagnostics, wildsSite
 import { createWildsFlightCameraControlState, writeWildsFlightCameraControlState } from "@/features/play/wilds-flight-camera";
 import { projectWildsInteractionSurfacePoint, type WildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
 import type { WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
+import type { WildsStewardPlacement } from "@/features/play/wilds-steward-craft";
 
 const WILDS_DIAGNOSTICS_ENABLED = process.env.NODE_ENV !== "production";
 const EMPTY_AERIAL_OBSTACLE_NEIGHBORHOOD = Object.freeze({ tileX: 0, tileZ: 0, obstacles: Object.freeze([]) }) as WildsAerialObstacleNeighborhood;
 
 export function WildsWorldCanvas({
   activeWorkSource,
+  stewardPlacementPreview,
   state,
   character,
   remotePlayers,
@@ -136,6 +138,7 @@ export function WildsWorldCanvas({
   resourceCompanionReady = true
 }: {
   activeWorkSource?: WildsActiveWorkSource | null;
+  stewardPlacementPreview?: WildsStewardPlacement | null;
   state: PlayState;
   character: WildzCharacterGenesis;
   remotePlayers: WildsPresence[];
@@ -197,7 +200,7 @@ export function WildsWorldCanvas({
       >
         {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
-          <WildsScene activeWorkSource={activeWorkSource} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
+          <WildsScene activeWorkSource={activeWorkSource} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
         </Suspense>
       </Canvas>
     </div>
@@ -211,6 +214,7 @@ function WildsFrameReporter({ onFrameSample }: { onFrameSample: (frameMs: number
 
 function WildsScene({
   activeWorkSource,
+  stewardPlacementPreview,
   state,
   character,
   remotePlayers,
@@ -250,6 +254,7 @@ function WildsScene({
   resourceCompanionReady
 }: {
   activeWorkSource?: WildsActiveWorkSource | null;
+  stewardPlacementPreview?: WildsStewardPlacement | null;
   state: PlayState;
   character: WildzCharacterGenesis;
   remotePlayers: WildsPresence[];
@@ -380,6 +385,7 @@ function WildsScene({
         <WildsRegenerativeGroveEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={activeFloorY} />
         <WildsStewardEnvironment
           activeWorkSource={activeWorkSource}
+          placementPreview={stewardPlacementPreview}
           companionWorkFamilies={activeAsset ? projectWildsCreatureWorkFamilies(creatureForm(activeAsset.manifest.formId)?.element ?? "") : []}
           kaiUPulse={kaiMoment.uPulse}
           livingWorld={livingWorld}

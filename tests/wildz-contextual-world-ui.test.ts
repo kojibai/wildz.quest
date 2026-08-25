@@ -38,7 +38,7 @@ test("campaign projects one modal owner and gates underlying world input", () =>
   assert.match(campaign, /exclusiveOwner=\{exclusiveOwner\}/);
   assert.match(campaign, /const worldInteractionEnabled = canAcceptPlayShellInput\(interactionEnabled, modalOwner, commandPanelOpen\)/);
   assert.match(campaign, /if \(!worldInteractionEnabled\) return/);
-  assert.match(campaign, /searchEnabled=\{worldInteractionEnabled && discoveryActive\}/);
+  assert.match(campaign, /searchEnabled=\{worldInteractionEnabled && \(discoveryActive \|\| Boolean\(stewardPlacementMode\)\)\}/);
 });
 
 test("exclusive ownership dismisses multiplayer expansions and blocks roster and challenge actions", () => {

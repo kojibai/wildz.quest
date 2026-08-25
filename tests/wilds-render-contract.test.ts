@@ -3,6 +3,38 @@ import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 
 describe("Receiz Wilds rendering contract", () => {
+  it("presents Steward Craft as one partner-bound responsive blueprint selector", async () => {
+    const panel = await readFile("src/features/play/WildsStewardCraftPanel.tsx", "utf8");
+    const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
+    const css = await readFile("app/globals.css", "utf8");
+
+    assert.match(panel, /Assigned partner/);
+    assert.match(panel, /projection\.blueprints\.map/);
+    assert.match(panel, /onSelectBlueprint\(blueprint\.id\)/);
+    assert.match(panel, /blueprint\.state !== "ready"/);
+    assert.match(campaign, /<WildsStewardCraftPanel/);
+    assert.match(css, /\.wilds-steward-craft-catalog\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit,/s);
+    assert.match(css, /\.wilds-steward-blueprint[^}]*min-height:\s*44px/s);
+  });
+
+  it("requires an explicit physical preview before construction and renders its shared-geometry ghost", async () => {
+    const hud = await readFile("src/features/play/WildsStewardPlacementHud.tsx", "utf8");
+    const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
+    const canvas = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");
+    const environment = await readFile("src/features/play/WildsStewardEnvironment.tsx", "utf8");
+
+    assert.match(hud, /Confirm build/);
+    assert.match(hud, /Cancel placement/);
+    assert.match(hud, /disabled=\{!preview\.valid \|\| pending\}/);
+    assert.match(campaign, /setStewardPlacementPreview\(projectWildsStewardPlacement/);
+    assert.match(campaign, /confirmStewardPlacement/);
+    assert.match(campaign, /<WildsStewardPlacementHud/);
+    assert.match(canvas, /stewardPlacementPreview/);
+    assert.match(environment, /function StewardPlacementGhost/);
+    assert.match(environment, /ghostValid/);
+    assert.match(environment, /ghostInvalid/);
+  });
+
   it("embodies exact-source creature work and assembles persistent structures in stages", async () => {
     const environment = await readFile("src/features/play/WildsStewardEnvironment.tsx", "utf8");
     const canvas = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");
@@ -18,6 +50,7 @@ describe("Receiz Wilds rendering contract", () => {
   it("renders admitted steward bridges and exposes a responsive bank-reading build action", async () => {
     const environment = await readFile("src/features/play/WildsStewardEnvironment.tsx", "utf8");
     const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
+    const craft = await readFile("src/features/play/wilds-steward-craft.ts", "utf8");
     const css = await readFile("app/globals.css", "utf8");
 
     assert.match(environment, /structure\.blueprint === "trail-bridge"/);
@@ -25,9 +58,9 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(environment, /bridgeDeck/);
     assert.match(environment, /bridgeRail/);
     assert.match(campaign, /selectWildsTrailBridgeRotation/);
-    assert.match(campaign, /Place Trail Bridge/);
-    assert.match(campaign, /Need 4 timber · 2 stone/);
-    assert.match(css, /\.wilds-steward-build-actions\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit,/s);
+    assert.match(campaign, /Tap a nearby crossing to preview it/);
+    assert.match(craft, /id: "trail-bridge"[\s\S]*?timber: 4, stone: 2/);
+    assert.match(css, /\.wilds-steward-craft-catalog\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit,/s);
   });
 
   it("renders bounded ambient life as non-catchable instanced world detail", async () => {
