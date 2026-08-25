@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createReceizInMemoryOfflineProofQueueStorage } from "@receiz/sdk";
 import {
+  admitWildsWorldOutboxEntry,
   acknowledgeWildsWorldCommand,
   enqueueWildsWorldCommand,
   projectWildsWorldOutbox,
@@ -35,6 +36,15 @@ test("the SDK offline queue durably persists and deduplicates the canonical comm
 test("a saved live command immediately projects while remaining queued for global Receiz commitment", () => {
   const base = initialWildsWorldProjection();
   const projection = projectWildsWorldOutbox(base, "global_keeper.receiz.id", [entry()]);
+
+  assert.equal(projection.revision, 1);
+  assert.equal(Object.values(projection.teams)[0]?.captainId, "global_keeper.receiz.id");
+  assert.equal(base.revision, 0);
+});
+
+test("source authority admits a valid command before any global projection responds", () => {
+  const base = initialWildsWorldProjection();
+  const projection = admitWildsWorldOutboxEntry(base, entry("command:team:create:edge"));
 
   assert.equal(projection.revision, 1);
   assert.equal(Object.values(projection.teams)[0]?.captainId, "global_keeper.receiz.id");

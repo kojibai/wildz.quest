@@ -92,6 +92,7 @@ import type { WildsActiveWorkSource } from "@/features/play/wilds-work-presentat
 import type { WildsStewardPlacement } from "@/features/play/wilds-steward-craft";
 import type { WildsWorldCapabilityFamily } from "@/features/play/wilds-world-capability-registry";
 import { projectWildsCapabilityPresentation } from "@/features/play/wilds-capability-presentation";
+import { projectWildsDiscoveryHint } from "@/features/play/wilds-discovery-hint";
 
 const WILDS_DIAGNOSTICS_ENABLED = process.env.NODE_ENV !== "production";
 const EMPTY_AERIAL_OBSTACLE_NEIGHBORHOOD = Object.freeze({ tileX: 0, tileZ: 0, obstacles: Object.freeze([]) }) as WildsAerialObstacleNeighborhood;
@@ -404,7 +405,7 @@ function WildsScene({
           terrainElevation={activeFloorY}
         />
         <WildsBossEnvironment livingWorld={livingWorld} player={state.player} qualityProfile={qualityProfile} terrainElevation={activeFloorY} />
-        <EncounterSequence state={state} terrainElevation={activeFloorY} siteRuntime={siteRuntime} siteSpace={siteSpace} />
+        <EncounterSequence onSearchPoint={onSearchPoint} state={state} terrainElevation={activeFloorY} siteRuntime={siteRuntime} siteSpace={siteSpace} />
         {visibleRemotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={activeFloorY} />)}
         {trainers.map((trainer, index) => (
           index < 10 && Math.hypot(trainer.position[0] - state.player.x, trainer.position[2] - state.player.z) <= 28
@@ -1117,7 +1118,7 @@ function Creature({
   );
 }
 
-function EncounterSequence({ state, terrainElevation, siteRuntime, siteSpace }: { state: PlayState; terrainElevation: number; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState }) {
+function EncounterSequence({ state, terrainElevation, siteRuntime, siteSpace, onSearchPoint }: { state: PlayState; terrainElevation: number; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; onSearchPoint: (point: WildsInteractionSurfacePoint) => void }) {
   const encounter = state.encounter;
   if (encounter.phase === "idle") return null;
   const searchPosition = Number.isFinite(encounter.searchPoint.surfaceWorldY)
@@ -1127,10 +1128,17 @@ function EncounterSequence({ state, terrainElevation, siteRuntime, siteSpace }: 
     return <SearchPulse hint={false} position={searchPosition} />;
   }
   if (encounter.phase === "hint") {
+    const hint = projectWildsDiscoveryHint(encounter)!;
+    const placement = encounter.placement;
+    const hintPosition = hint.medium === "air" && placement
+      ? [placement.x - state.player.x, placement.worldY - terrainElevation, placement.z - state.player.z] as [number, number, number]
+      : searchPosition;
     return (
       <>
-        <SearchPulse hint position={searchPosition} />
-        <RustlingClue encounter={encounter} player={state.player} terrainElevation={terrainElevation} />
+        <SearchPulse hint medium={hint.medium} onActivate={hint.activateOnSignal && placement ? () => onSearchPoint({ x: placement.x, z: placement.z, surfaceWorldY: placement.worldY }) : undefined} position={hintPosition} />
+        {hint.showHabitatCover
+          ? <RustlingClue encounter={encounter} player={state.player} terrainElevation={terrainElevation} />
+          : <AirborneClue position={hintPosition} />}
       </>
     );
   }
@@ -1231,7 +1239,21 @@ function RustlingClue({
   );
 }
 
-function SearchPulse({ hint, position }: { hint: boolean; position: [number, number, number] }) {
+function AirborneClue({ position }: { position: [number, number, number] }) {
+  return <group position={position} name="airborne-discovery-signal">
+    <mesh position={[-.28, 0, 0]} rotation={[0, 0, -.5]} scale={[.48, .16, .08]}>
+      <sphereGeometry args={[1, 10, 6]} />
+      <meshStandardMaterial color="#bff7ff" emissive="#61dff2" emissiveIntensity={.78} transparent opacity={.72} />
+    </mesh>
+    <mesh position={[.28, 0, 0]} rotation={[0, 0, .5]} scale={[.48, .16, .08]}>
+      <sphereGeometry args={[1, 10, 6]} />
+      <meshStandardMaterial color="#bff7ff" emissive="#61dff2" emissiveIntensity={.78} transparent opacity={.72} />
+    </mesh>
+    <Sparkles count={8} scale={[.9, .62, .9]} size={2.8} speed={.8} color="#e8fdff" />
+  </group>;
+}
+
+function SearchPulse({ hint, medium = "ground", onActivate, position }: { hint: boolean; medium?: "ground" | "water" | "air"; onActivate?: () => void; position: [number, number, number] }) {
   const ref = useRef<THREE.Group>(null);
   useFrame(() => {
     if (!ref.current) return;
@@ -1241,11 +1263,20 @@ function SearchPulse({ hint, position }: { hint: boolean; position: [number, num
     ref.current.rotation.y = elapsed * 0.7;
   });
   return (
-    <group ref={ref} position={position}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+    <group
+      ref={ref}
+      position={position}
+      name={`${medium}-discovery-pulse`}
+      onClick={onActivate ? (event) => { event.stopPropagation(); onActivate(); } : undefined}
+    >
+      <mesh rotation={medium === "air" ? [0, 0, 0] : [-Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.56, hint ? 0.045 : 0.028, 8, 48]} />
-        <meshStandardMaterial color={hint ? "#fff2a8" : "#d8fff2"} emissive={hint ? "#f7c948" : "#37d688"} emissiveIntensity={0.75} transparent opacity={0.8} />
+        <meshStandardMaterial color={medium === "air" ? "#dffcff" : hint ? "#fff2a8" : "#d8fff2"} emissive={medium === "air" ? "#61dff2" : hint ? "#f7c948" : "#37d688"} emissiveIntensity={medium === "air" ? 1.05 : 0.75} transparent opacity={0.8} />
       </mesh>
+      {medium === "air" ? <mesh rotation={[Math.PI / 2, 0, 0]} scale={.72}>
+        <torusGeometry args={[0.56, .025, 7, 36]} />
+        <meshStandardMaterial color="#9ef5ff" emissive="#61dff2" emissiveIntensity={.9} transparent opacity={.6} />
+      </mesh> : null}
     </group>
   );
 }

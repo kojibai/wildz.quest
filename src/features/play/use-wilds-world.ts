@@ -36,6 +36,7 @@ import { deriveKaiKlokMomentFromUPulse } from "./kai-klok-moment";
 import { createKaiTemporalRoot } from "./kai-temporal-root";
 import { publishActiveWildsWorldWithIdentityProof } from "@/lib/receiz/wilds-world-identity-publication";
 import {
+  admitWildsWorldOutboxEntry,
   acknowledgeWildsWorldCommand,
   enqueueWildsWorldCommand,
   projectWildsWorldOutbox,
@@ -313,14 +314,15 @@ export function useWildsWorld(input: {
       ...(authorityCardAdmission ? { cardAdmission: authorityCardAdmission } : {}),
       queuedAt: new Date().toISOString()
     };
+    const localBase = snapshot ?? canonicalSnapshot.current ?? createWildsSourceAuthorityProjection();
+    const locallyAdmittedProjection = admitWildsWorldOutboxEntry(localBase, entry);
+    setSnapshot(locallyAdmittedProjection);
     const queueForGlobalCommit = async () => {
       const entries = await enqueueWildsWorldCommand(entry);
-      const base = canonicalSnapshot.current ?? snapshot ?? createWildsSourceAuthorityProjection();
-      const projection = projectWildsWorldOutbox(base, input.actorId, entries);
-      setSnapshot(projection);
+      setSnapshot(locallyAdmittedProjection);
       setMode("receiz_recovery_pending");
-      setError(WILDS_WORLD_OFFLINE_MESSAGE);
-      return projection;
+      setError("Your work is admitted here and will keep syncing globally in the background.");
+      return locallyAdmittedProjection;
     };
     if (shouldQueueWildsWorldCommandLocally({
       commandPending: commandPending.current,
@@ -339,21 +341,18 @@ export function useWildsWorld(input: {
       const queued = parsed.globallyPublished
         ? await readWildsWorldOutbox(input.actorId)
         : await enqueueWildsWorldCommand(entry);
-      setSnapshot(projectWildsWorldOutbox(projection, input.actorId, queued));
+      const synchronizedProjection = parsed.globallyPublished
+        ? acceptWildsWorldSnapshot(locallyAdmittedProjection, projection)
+        : projectWildsWorldOutbox(projection, input.actorId, queued);
+      setSnapshot(synchronizedProjection);
       setMode(parsed.globallyPublished ? parsed.mode : "receiz_recovery_pending");
       setError(parsed.globallyPublished ? "" : "Your work is admitted here and its global projection will keep syncing in the background.");
       retryAfter.current = 0;
-      return projection;
+      return synchronizedProjection;
     } catch (cause) {
       const opaqueFailure = isOpaqueWildsNetworkFailure(cause);
       if (opaqueFailure) retryAfter.current = Date.now() + WILDS_NETWORK_RETRY_BACKOFF_MS;
-      const offline = !shouldAttemptWildsNetwork() || opaqueFailure;
-      const status = (cause as Error & { status?: number }).status;
-      if (offline || status === undefined || status >= 500) return queueForGlobalCommit();
-      const message = wildsNetworkFailureMessage(cause, "world", !offline);
-      setMode((current) => wildsWorldModeAfterRequestFailure(offline, current));
-      setError(message);
-      throw new Error(message);
+      return queueForGlobalCommit();
     } finally {
       commandPending.current = false;
       setPendingCommand(null);

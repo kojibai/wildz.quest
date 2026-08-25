@@ -81,6 +81,18 @@ export async function acknowledgeWildsWorldCommand(actorId: string, commandId: s
   return readWildsWorldOutbox(actorId, storage);
 }
 
+export function admitWildsWorldOutboxEntry(base: WildsWorldProjection, entry: WildsWorldOutboxEntry) {
+  const world = new WildsWorldService({ checkpoint: checkpointWildsWorld(base) });
+  world.execute(entry.command, {
+    actorId: entry.actorId,
+    canonical: true,
+    pulse: entry.queuedAt,
+    occurredAt: entry.queuedAt,
+    card: entry.card
+  });
+  return world.snapshot();
+}
+
 export function projectWildsWorldOutbox(base: WildsWorldProjection, actorId: string, entries: WildsWorldOutboxEntry[]) {
   const world = new WildsWorldService({ checkpoint: checkpointWildsWorld(base) });
   for (const entry of entries) {

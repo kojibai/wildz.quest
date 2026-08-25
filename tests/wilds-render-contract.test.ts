@@ -58,7 +58,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(environment, /construction-stage-foundation/);
     assert.match(environment, /construction-stage-finish/);
     assert.match(canvas, /activeWorkSource/);
-    assert.match(canvas, /pose=\{working \? "work" : "curious"\}/);
+    assert.match(canvas, /pose=\{working \? "work" : capabilityPresentation\?\.actorPose \?\? "curious"\}/);
   });
 
   it("renders admitted steward bridges and exposes a responsive bank-reading build action", async () => {

@@ -1228,8 +1228,11 @@ export function PlayCampaign({
     });
   };
 
-  const gatherStewardResource = async (source: WildsResourceSource) => {
-    if (!canUseWorldStage() || livingWorld.pendingCommand) return;
+  const gatherStewardResource = async (source: WildsResourceSource, admittedHudAction = false) => {
+    if ((!admittedHudAction && !canUseWorldStage()) || livingWorld.pendingCommand) {
+      if (admittedHudAction) showWorldFeedback("Your current work is settling. The satchel count will update here before the next source can be gathered.");
+      return;
+    }
     beginWorldActionFeedback();
     if (Math.hypot(source.position.x - state.player.x, source.position.z - state.player.z) > 5.5) {
       showWorldFeedback(`Move beside the ${source.kind === "timber" ? "tree" : "stone"}, then touch its glowing ring to gather it.`);
@@ -1248,7 +1251,15 @@ export function PlayCampaign({
         currentKaiPulse: String(kaiUPulse)
       });
       if (availability.availableCapacity === 0) {
-        throw new Error(`This ${source.kind === "timber" ? "tree" : "stone"} is recovering. Its dim base ring and returning capacity marks show when it can be tended again.`);
+        const remainingMicroPulses = availability.nextChangeKaiPulse
+          ? BigInt(availability.nextChangeKaiPulse) - BigInt(kaiUPulse)
+          : 0n;
+        const remainingSeconds = Math.max(1, Number(remainingMicroPulses > 0n ? remainingMicroPulses / 1_000_000n : 0n));
+        const minutes = Math.floor(remainingSeconds / 60);
+        const seconds = remainingSeconds % 60;
+        const wait = minutes > 0 ? `${minutes}m ${seconds.toString().padStart(2, "0")}s` : `${seconds}s`;
+        showWorldFeedback(`This ${source.kind === "timber" ? "tree" : "stone"} is regrowing. Its dim ring brightens in ${wait}; use any bright ${source.kind === "timber" ? "tree" : "stone"} ring now.`);
+        return;
       }
       const mandate = partner && partnerCondition
         ? createStewardMandate([source.requirements.creature], [source.sourceId], { x: source.regionX, z: source.regionZ }, partner, partnerCondition)
@@ -1279,12 +1290,15 @@ export function PlayCampaign({
       showWorldFeedback(`${partner ? `${partner.manifest.name} joined you and spent 3% capacity. ` : ""}+1 ${source.kind} · Satchel ${satchelCount}.${awardMessage}`);
     } catch (error) {
       setActiveWorkSource((active) => active?.sourceId === source.sourceId ? null : active);
-      handleStoryCommandError(error, `Stay beside this ${source.kind === "timber" ? "tree" : "stone"} ring while the living world refreshes it.`);
+      handleStoryCommandError(error, `That ${source.kind === "timber" ? "tree" : "stone"} cannot be gathered from this position. Move inside its bright ring and tap again.`);
     }
   };
 
   const gatherNearestStewardResource = (family: WildsVisibleWorkFamily) => {
-    if (!canUseWorldStage() || livingWorld.pendingCommand) return;
+    if (livingWorld.pendingCommand) {
+      showWorldFeedback("Your current work is settling. The satchel count will update here before the next source can be gathered.");
+      return;
+    }
     if (state.siteSpace.spaceId !== "wildz.space.outer.v1") {
       showWorldFeedback("Return to the open world to gather living timber and stone.");
       return;
@@ -1310,7 +1324,7 @@ export function PlayCampaign({
       showWorldFeedback(`Move toward a glowing ${family === "lumber" ? "tree" : "stone"} ring, then tap this button again.`);
       return;
     }
-    void gatherStewardResource(source);
+    void gatherStewardResource(source, true);
   };
 
   const placeTrailShelter = async (position: { x: number; z: number }) => {
@@ -1623,7 +1637,7 @@ export function PlayCampaign({
     showWorldFeedback(activeMessage);
   };
   const requestWildsCapability = (family: WildsWorldCapabilityFamily) => {
-    if (!canUseWorldStage() || !activeAsset) return;
+    if (!activeAsset) return;
     beginWorldActionFeedback();
     switch (family) {
       case "flight":

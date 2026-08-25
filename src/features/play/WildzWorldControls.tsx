@@ -114,7 +114,6 @@ export function WildzWorldControls({
   const forwardInput = useStableEvent(onInput);
   const changeMovementMode = useStableEvent(onMovementModeChange);
   const rest = useStableEvent(onRest);
-  const requestCapability = useStableEvent(onRequestCapability);
   const requestHandled = useStableEvent(onRequestedCommandHandled);
   const drawerOriginRef = useRef<HTMLElement | null>(null);
   const companionCommandRef = useRef<HTMLButtonElement | null>(null);
@@ -294,7 +293,7 @@ export function WildzWorldControls({
             contexts={capabilityContexts}
             controls={capabilityControls}
             enabled={worldHomesEnabled}
-            onRequest={requestCapability}
+            onRequest={onRequestCapability}
           />
           <button
             aria-label={`Open Living Construction. Satchel has ${materialCounts.timber} timber and ${materialCounts.stone} stone`}

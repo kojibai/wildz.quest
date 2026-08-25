@@ -7,7 +7,7 @@ describe("Wildz dynamic particle geometry", () => {
     const world = await readFile("src/features/play/WildsWorldCanvas.tsx", "utf8");
     const atlas = await readFile("src/features/play/WildsAtlasCanvas.tsx", "utf8");
 
-    assert.equal(world.match(/<Sparkles\b/g)?.length, 2);
+    assert.equal(world.match(/<Sparkles\b/g)?.length, 3);
     assert.match(world, /const worldSparkleCount = Math\.round\(54 \* qualityProfile\.particles\);/);
     assert.match(
       world,
@@ -18,6 +18,7 @@ describe("Wildz dynamic particle geometry", () => {
       world,
       /<Sparkles\s+key=\{`wilds-clue-sparkles-\$\{clueSparkleCount\}`\}\s+count=\{clueSparkleCount\}/
     );
+    assert.match(world, /<Sparkles count=\{8\} scale=\{\[\.9, \.62, \.9\]\} size=\{2\.8\} speed=\{\.8\} color="#e8fdff" \/>/);
 
     assert.equal(atlas.match(/<Sparkles\b/g)?.length, 1);
     assert.match(atlas, /const atlasSparkleCount = reducedMotion \? 12 : Math\.round\(38 \* qualityProfile\.particles\);/);

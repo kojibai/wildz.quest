@@ -25,21 +25,23 @@ describe("Wildz aerial and vista integration", () => {
   });
 
   it("offers explicit takeoff, landing, overlook entry, and exact camera restoration", async () => {
-    const [controls, environment, canvas] = await Promise.all([
+    const [controls, environment, canvas, campaign, registry] = await Promise.all([
       readFile("src/features/play/WildzWorldControls.tsx", "utf8"),
       readFile("src/features/play/WildsEnvironment.tsx", "utf8"),
-      readFile("src/features/play/WildsWorldCanvas.tsx", "utf8")
+      readFile("src/features/play/WildsWorldCanvas.tsx", "utf8"),
+      readFile("src/features/play/PlayCampaign.tsx", "utf8"),
+      readFile("src/features/play/wilds-world-capability-registry.ts", "utf8")
     ]);
 
-    assert.match(controls, /Take flight/);
+    assert.match(registry, /flight: define\("flight"/);
+    assert.match(campaign, /case "flight":[\s\S]*toggleAerialTraversal\(\)/);
     assert.match(controls, /Flight energy/);
     assert.match(controls, /Recharge on the ground/);
-    assert.match(controls, /Land safely/);
+    assert.match(campaign, /requestWildsAerialLanding/);
     assert.match(environment, /Open \$\{overlook\.name\} vista/);
     assert.match(environment, /name="overlook-sightglass"/);
     assert.match(canvas, /priorVista\.current = \{ position: camera\.position\.clone\(\), target: orbit\.target\.clone\(\) \}/);
     assert.match(canvas, /camera\.position\.copy\(priorVista\.current\.position\)/);
-    assert.match(controls, /Land safely/);
     assert.match(canvas, /runtime\.current\.mode !== "ground"/);
   });
 

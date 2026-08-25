@@ -30,6 +30,15 @@ describe("Wilds world client contract", () => {
     assert.equal(shouldQueueWildsWorldCommandLocally({ commandPending: false, networkEnabled: true, networkAvailable: true, canonicalAvailable: true }), false);
   });
 
+  it("updates the local source projection before attempting global synchronization", () => {
+    const source = readFileSync("src/features/play/use-wilds-world.ts", "utf8");
+    const admit = source.indexOf("admitWildsWorldOutboxEntry(localBase, entry)");
+    const display = source.indexOf("setSnapshot(locallyAdmittedProjection)", admit);
+    const send = source.indexOf("await sendEntry(entry)", display);
+    assert.ok(admit >= 0 && display > admit && send > display);
+    assert.match(source, /return synchronizedProjection/);
+  });
+
   it("builds one explicit guest-aware command envelope", () => {
     assert.deepEqual(buildWildsWorldCommandBody("guest-12345678", { type: "raid.join", bossId: "boss:one", commandId: "command:one", kai }), {
       guestId: "guest-12345678",
