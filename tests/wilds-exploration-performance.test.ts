@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { applyWildsInput, initialPlayState } from "../src/features/play/game-state";
-import { sealCollectedCard } from "../src/features/play/portable-card";
+import * as portableCardModule from "../src/features/play/portable-card";
+import { sealCollectedCard, verifyAnyWildsCard } from "../src/features/play/portable-card";
 import { wildsHotspotProjectionDiagnostics } from "../src/features/play/hidden-hotspots";
 import { wildsTraversalProjectionDiagnostics } from "../src/features/play/wilds-traversal-capabilities";
 
@@ -29,6 +30,37 @@ test("ten thousand post-upload movement steps reuse exploration and perform no b
   assert.equal(state.explorationAtlas, exploration);
   assert.deepEqual(wildsHotspotProjectionDiagnostics(), hotspots);
   assert.deepEqual(wildsTraversalProjectionDiagnostics(), traversal);
+});
+
+test("an uploaded card is cryptographically verified once and every gameplay consumer reuses that admission", () => {
+  const diagnostics = (portableCardModule as unknown as {
+    wildsCardVerificationDiagnostics?: () => { executions: number; admittedCacheHits: number };
+  }).wildsCardVerificationDiagnostics;
+  assert.equal(typeof diagnostics, "function");
+  const uploaded = sealCollectedCard({
+    formId: "voltray-1",
+    ownerReceizId: "verified-upload-player",
+    encounterId: "verified-upload-no-gameplay-recheck",
+    capturedAt: "2026-08-26T12:00:00.000Z"
+  });
+  const before = diagnostics!();
+  const admitted = applyWildsInput(initialPlayState, { type: "import-card", asset: uploaded });
+  const afterAdmission = diagnostics!();
+  assert.equal(afterAdmission.executions, before.executions + 1);
+
+  const exactUploadedCard = admitted.inventory.find((asset) => asset.id === uploaded.id);
+  assert.ok(exactUploadedCard);
+  for (let index = 0; index < 1_000; index += 1) {
+    assert.equal(verifyAnyWildsCard(exactUploadedCard).ok, true);
+  }
+  const afterGameplay = diagnostics!();
+  assert.equal(afterGameplay.executions, afterAdmission.executions);
+  assert.equal(afterGameplay.admittedCacheHits - afterAdmission.admittedCacheHits, 1_000);
+
+  const tampered = structuredClone(exactUploadedCard);
+  tampered.manifest.name = "Tampered after admission";
+  assert.equal(verifyAnyWildsCard(tampered).ok, false);
+  assert.equal(diagnostics!().executions, afterGameplay.executions + 1);
 });
 
 test("exploration, movement, and atlas rendering contain no verification or repeated background work", async () => {

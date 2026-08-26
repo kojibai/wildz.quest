@@ -2,6 +2,30 @@ export type WildsWingRotationTarget = {
   rotation: { x: number; y: number; z: number };
 };
 
+export type WildsExplorerRotationTarget = {
+  x: number;
+  y: number;
+  z: number;
+  order: string;
+};
+
+export function nextWildsExplorerFacing(current: number, target: number, blend: number) {
+  const shortestDelta = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+  return current + shortestDelta * Math.max(0, Math.min(1, blend));
+}
+
+export function writeWildsExplorerOrientation(
+  rotation: WildsExplorerRotationTarget,
+  heading: number,
+  pitch: number,
+  blend: number
+) {
+  rotation.order = "YXZ";
+  rotation.y = nextWildsExplorerFacing(rotation.y, heading, blend);
+  rotation.x = pitch;
+  rotation.z = 0;
+}
+
 export function writeWildsExplorerWingFlightPose(
   left: WildsWingRotationTarget,
   right: WildsWingRotationTarget,

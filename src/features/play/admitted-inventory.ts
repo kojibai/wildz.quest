@@ -1,4 +1,8 @@
-import { verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
+import {
+  rememberAdmittedWildsCardVerification,
+  verifyAnyWildsCard,
+  type PortableCardAsset
+} from "./portable-card";
 
 declare const admittedInventoryBrand: unique symbol;
 
@@ -15,11 +19,24 @@ const admittedHandles = new WeakMap<object, AdmittedInventoryRecord>();
 let verifierCalls = 0;
 let checkpointRestores = 0;
 
+function freezeAdmittedProofObject(value: unknown, seen = new WeakSet<object>()) {
+  if (!value || typeof value !== "object" || seen.has(value)) return;
+  seen.add(value);
+  for (const child of Object.values(value)) freezeAdmittedProofObject(child, seen);
+  Object.freeze(value);
+}
+
+function rememberAdmittedCard(asset: PortableCardAsset) {
+  freezeAdmittedProofObject(asset);
+  admittedCards.add(asset);
+  rememberAdmittedWildsCardVerification(asset);
+}
+
 /** The one explicit proof boundary for externally supplied cards. */
 export function verifyAndAdmitWildsCard(asset: PortableCardAsset) {
   verifierCalls += 1;
   const verified = verifyAnyWildsCard(asset).ok;
-  if (verified) admittedCards.add(asset);
+  if (verified) rememberAdmittedCard(asset);
   return verified;
 }
 
@@ -31,7 +48,7 @@ export function retainAdmittedWildsInventory(inventory: PortableCardAsset[]) {
 
 /** Records cards created by Wildz's own deterministic proof sealer or verified migration. */
 export function admitLocallySealedWildsInventory(inventory: PortableCardAsset[]) {
-  for (const asset of inventory) admittedCards.add(asset);
+  for (const asset of inventory) rememberAdmittedCard(asset);
   admittedInventories.add(inventory);
   return inventory;
 }

@@ -99,6 +99,6 @@ export function projectWildsQuickCapabilityControls(
   traversalCapabilities: readonly string[]
 ): readonly WildsProjectedCapabilityControl[] {
   return traversalCapabilities.includes("flight")
-    ? Object.freeze(controls.filter((control) => control.family !== "flight"))
+    ? Object.freeze(controls.filter((control) => control.family !== "glide"))
     : controls;
 }

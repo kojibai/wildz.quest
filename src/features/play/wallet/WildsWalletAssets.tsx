@@ -165,6 +165,18 @@ export function WildsWalletAssets({ cards, cardConditions, materialLots, resourc
       </div>
       <label className="wilds-wallet-asset-search"><span>Find exact custody</span><input aria-label="Search exact wallet assets" onChange={(event) => setQuery(event.target.value)} placeholder="Search name, kind, or proof ID" type="search" value={query} /></label>
     </div>
+    {filteredCards.length ? <div className="wilds-wallet-card-vault">
+      <div aria-label="Choose a wallet card" className="wilds-wallet-card-selector">{filteredCards.slice(0, visibleLimit).map((card) => <button aria-pressed={selected?.id === card.id} key={card.id} onClick={() => { setSelectedId(card.id); setMessage(""); }} type="button"><span>{card.manifest.name}</span><small>{card.manifest.rarity} · Stage {card.manifest.stage}</small></button>)}</div>
+      {selected ? <div className="wilds-wallet-card-detail">
+        {onOpenVaultCard ? <div className="wilds-wallet-card-heading"><small>SELECTED CARD</small><button aria-label={`Open ${selected.manifest.name} in Card Vault`} className="wilds-wallet-vault-pill" onClick={() => onOpenVaultCard(selected.id)} type="button"><Icons.box aria-hidden="true" size={16} /><span>Vault</span></button></div> : null}
+        <div className="wilds-wallet-card-stage"><WildsCardScene asset={selected} condition={cardConditions[selected.id]} origin={origin} qr="" tapToFlip /></div>
+        <small>Tap or swipe the card to see its complete verified back.</small>
+        <label><span>Send this exact card</span><input aria-label="Receiz username or email to send this card" autoCapitalize="none" autoCorrect="off" onChange={(event) => setTarget(event.target.value)} placeholder="@username or email" value={target} /></label>
+        <button disabled={sending || !target.trim() || (!onSendCard && !onPrepareCard) || !normalizeWildsCardSendTarget(target)} onClick={() => { void sendSelectedCard(); }} type="button">{sending ? "Preparing verified card…" : `Send ${selected.manifest.name}`}</button>
+        {onListCard ? <div className="wilds-wallet-resource-send"><label><span>Sell on Receiz Market</span><input aria-label="Card listing price in USD" inputMode="decimal" min="0.01" onChange={(event) => setPriceUsd(event.target.value)} placeholder="0.00" step="0.01" type="number" value={priceUsd} /></label><button disabled={listing || selected.status === "listed" || !Number.isFinite(Number(priceUsd)) || Number(priceUsd) <= 0} onClick={() => { void listSelectedCard(); }} type="button">{selected.status === "listed" ? "Already listed" : listing ? "Committing listing…" : `List ${selected.manifest.name}`}</button></div> : null}
+        {message ? <p aria-live="polite">{message}</p> : null}
+      </div> : null}
+    </div> : filter === "creatures" && !cards.length ? <p>No creature cards are carried by this Receiz ID yet.</p> : null}
     {filteredResources.length ? <section aria-label="Verified world resources" className="wilds-wallet-resource-vault">
       <header><small>WORLD-BORN CUSTODY</small><strong>Harvested resources</strong></header>
       <div>{visibleResources.map((lot) => <article className={selectedResource?.lotId === lot.lotId ? "is-selected" : undefined} key={lot.lotId}>
@@ -184,18 +196,6 @@ export function WildsWalletAssets({ cards, cardConditions, materialLots, resourc
       {selectedMaterial ? <><p className="wilds-wallet-material-proof">Selected {selectedMaterial.kind} proof · {selectedMaterial.lotId.slice(-20)} · VERIFIED</p>
         {onSendMaterial ? <div className="wilds-wallet-resource-send"><label><span>Send this exact unit</span><input aria-label={`Receiz username to send ${selectedMaterial.kind}`} autoCapitalize="none" autoCorrect="off" onChange={(event) => setResourceTarget(event.target.value)} placeholder="@username" value={resourceTarget} /></label><button disabled={resourceSending || !resourceTarget.trim()} onClick={() => { void sendMaterial(selectedMaterial); }} type="button">{resourceSending ? "Preparing claim…" : `Send selected ${selectedMaterial.kind}`}</button>{resourceMessage ? <p aria-live="polite">{resourceMessage}</p> : null}</div> : null}</> : null}
     </section> : null}
-    {filteredCards.length ? <div className="wilds-wallet-card-vault">
-      <div aria-label="Choose a wallet card" className="wilds-wallet-card-selector">{filteredCards.slice(0, visibleLimit).map((card) => <button aria-pressed={selected?.id === card.id} key={card.id} onClick={() => { setSelectedId(card.id); setMessage(""); }} type="button"><span>{card.manifest.name}</span><small>{card.manifest.rarity} · Stage {card.manifest.stage}</small></button>)}</div>
-      {selected ? <div className="wilds-wallet-card-detail">
-        {onOpenVaultCard ? <div className="wilds-wallet-card-heading"><small>SELECTED CARD</small><button aria-label={`Open ${selected.manifest.name} in Card Vault`} className="wilds-wallet-vault-pill" onClick={() => onOpenVaultCard(selected.id)} type="button"><Icons.box aria-hidden="true" size={16} /><span>Vault</span></button></div> : null}
-        <div className="wilds-wallet-card-stage"><WildsCardScene asset={selected} condition={cardConditions[selected.id]} origin={origin} qr="" tapToFlip /></div>
-        <small>Tap or swipe the card to see its complete verified back.</small>
-        <label><span>Send this exact card</span><input aria-label="Receiz username or email to send this card" autoCapitalize="none" autoCorrect="off" onChange={(event) => setTarget(event.target.value)} placeholder="@username or email" value={target} /></label>
-        <button disabled={sending || !target.trim() || (!onSendCard && !onPrepareCard) || !normalizeWildsCardSendTarget(target)} onClick={() => { void sendSelectedCard(); }} type="button">{sending ? "Preparing verified card…" : `Send ${selected.manifest.name}`}</button>
-        {onListCard ? <div className="wilds-wallet-resource-send"><label><span>Sell on Receiz Market</span><input aria-label="Card listing price in USD" inputMode="decimal" min="0.01" onChange={(event) => setPriceUsd(event.target.value)} placeholder="0.00" step="0.01" type="number" value={priceUsd} /></label><button disabled={listing || selected.status === "listed" || !Number.isFinite(Number(priceUsd)) || Number(priceUsd) <= 0} onClick={() => { void listSelectedCard(); }} type="button">{selected.status === "listed" ? "Already listed" : listing ? "Committing listing…" : `List ${selected.manifest.name}`}</button></div> : null}
-        {message ? <p aria-live="polite">{message}</p> : null}
-      </div> : null}
-    </div> : filter === "creatures" && !cards.length ? <p>No creature cards are carried by this Receiz ID yet.</p> : null}
     {filteredCards.length + filteredMaterials.length + filteredResources.length > visibleLimit ? <button className="wilds-wallet-show-more" onClick={() => setVisibleLimit((value) => value + PAGE_SIZE)} type="button">Show {Math.min(PAGE_SIZE, filteredCards.length + filteredMaterials.length + filteredResources.length - visibleLimit)} more exact assets</button> : null}
   </section>;
 }

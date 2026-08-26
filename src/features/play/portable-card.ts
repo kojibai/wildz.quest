@@ -96,6 +96,26 @@ export type PortableCardVerification = {
   errors: string[];
 };
 
+const admittedCardVerificationCache = new WeakSet<PortableCardAsset>();
+const admittedVerification = Object.freeze({
+  ok: true,
+  errors: Object.freeze([]) as unknown as string[]
+}) satisfies PortableCardVerification;
+let cardVerificationExecutions = 0;
+let admittedCardVerificationCacheHits = 0;
+
+/** Records an exact immutable card object after an authoritative admission boundary verified it. */
+export function rememberAdmittedWildsCardVerification(asset: PortableCardAsset) {
+  admittedCardVerificationCache.add(asset);
+}
+
+export function wildsCardVerificationDiagnostics() {
+  return Object.freeze({
+    executions: cardVerificationExecutions,
+    admittedCacheHits: admittedCardVerificationCacheHits
+  });
+}
+
 function canonicalValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalValue);
   if (value && typeof value === "object") {
@@ -437,6 +457,11 @@ export function verifyPortableCard(asset: PortableCardAsset): PortableCardVerifi
 }
 
 export function verifyAnyWildsCard(asset: PortableCardAsset): PortableCardVerification {
+  if (admittedCardVerificationCache.has(asset)) {
+    admittedCardVerificationCacheHits += 1;
+    return admittedVerification;
+  }
+  cardVerificationExecutions += 1;
   return isLivingCardAsset(asset) ? verifyLivingCard(asset) : verifyPortableCard(asset);
 }
 

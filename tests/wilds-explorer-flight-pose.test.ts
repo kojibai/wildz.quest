@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import * as THREE from "three";
+import * as flightPoseModule from "../src/features/play/wilds-explorer-flight-pose";
 import { writeWildsExplorerWingFlightPose } from "../src/features/play/wilds-explorer-flight-pose";
 
 function wing() {
@@ -7,6 +9,39 @@ function wing() {
 }
 
 describe("Wilds explorer powered-flight wing pose", () => {
+  it("crosses the signed-pi seam by the shortest turn instead of spinning south", () => {
+    const nextFacing = (flightPoseModule as unknown as {
+      nextWildsExplorerFacing?: (current: number, target: number, blend: number) => number;
+    }).nextWildsExplorerFacing;
+    assert.equal(typeof nextFacing, "function");
+
+    const current = Math.PI - .02;
+    const target = -Math.PI + .02;
+    const next = nextFacing!(current, target, .5);
+    assert.ok(Math.abs(next - current) < .03);
+    assert.ok(Math.abs(next) > 3);
+  });
+
+  it("composes yaw before flight pitch so every compass direction stays upright", () => {
+    const writeOrientation = (flightPoseModule as unknown as {
+      writeWildsExplorerOrientation?: (
+        rotation: THREE.Euler,
+        heading: number,
+        pitch: number,
+        blend: number
+      ) => void;
+    }).writeWildsExplorerOrientation;
+    assert.equal(typeof writeOrientation, "function");
+
+    for (const heading of [-Math.PI, -Math.PI / 2, 0, Math.PI / 2, Math.PI]) {
+      const rotation = new THREE.Euler(0, heading, 0);
+      writeOrientation!(rotation, heading, -1.12, 1);
+      const forward = new THREE.Vector3(0, 0, 1).applyEuler(rotation);
+      assert.equal(rotation.order, "YXZ");
+      assert.ok(forward.y > .85, `heading ${heading} tipped the explorer backward`);
+    }
+  });
+
   it("deploys laterally and flaps symmetrically instead of pointing both wings forward", () => {
     const left = wing();
     const right = wing();

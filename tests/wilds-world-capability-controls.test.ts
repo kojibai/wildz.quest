@@ -27,7 +27,7 @@ test("active proof projects only its deduplicated Level-1 capability controls", 
   assert.equal(controls.every((entry) => entry.assetId === winged.id), true);
 });
 
-test("the dedicated plane owns flight so the quick capability row never adds a feather duplicate", () => {
+test("powered flight keeps the plane and removes the feather glide duplicate", () => {
   const winged = card("voltray-1", "capability-controls:single-flight-control");
   const controls = projectWildsCapabilityControls(winged, emptyAdventureCondition(winged.id));
   const projectQuick = (capabilityControlModule as unknown as {
@@ -36,8 +36,8 @@ test("the dedicated plane owns flight so the quick capability row never adds a f
 
   assert.equal(typeof projectQuick, "function");
   const quick = projectQuick!(controls, ["flight", "glide"]);
-  assert.equal(quick.some((entry) => entry.family === "flight"), false);
-  assert.equal(quick.some((entry) => entry.family === "glide"), true);
+  assert.equal(quick.some((entry) => entry.family === "flight"), true);
+  assert.equal(quick.some((entry) => entry.family === "glide"), false);
 });
 
 test("named proof abilities label their owning family while stable family glyphs remain unchanged", () => {

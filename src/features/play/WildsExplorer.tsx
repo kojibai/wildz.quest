@@ -10,7 +10,10 @@ import type { WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
 import { projectWildzExplorerRender } from "@/features/play/wildz-explorer-proof";
 import { useWildsReadability } from "@/features/play/WildsReadabilityContext";
 import type { WildsAerialTraversalState } from "@/features/play/wilds-aerial-traversal";
-import { writeWildsExplorerWingFlightPose } from "@/features/play/wilds-explorer-flight-pose";
+import {
+  writeWildsExplorerOrientation,
+  writeWildsExplorerWingFlightPose
+} from "@/features/play/wilds-explorer-flight-pose";
 
 type ExplorerStyle = "female" | "male";
 
@@ -246,13 +249,15 @@ export function WildsExplorer({
     const airborne = aerialMode !== "ground";
     const verticalVelocity = aerialStateRef?.current.verticalVelocity ?? 0;
     const breath = Math.sin(elapsed * 1.8) * 0.018 * readability.motionScale;
-    root.current.rotation.y = THREE.MathUtils.lerp(root.current.rotation.y, facing.current, remote ? 0.11 : 0.18);
     const bodyPitch = locomotion === "swim"
       ? moving ? -1.42 : -0.78
       : airborne
         ? aerialMode === "glide" || moving ? -1.12 : verticalVelocity < -0.2 ? -0.32 : 0
         : 0;
-    root.current.rotation.x = readability.motionScale === 0 ? bodyPitch : THREE.MathUtils.damp(root.current.rotation.x, bodyPitch, 7, delta);
+    const nextPitch = readability.motionScale === 0
+      ? bodyPitch
+      : THREE.MathUtils.damp(root.current.rotation.x, bodyPitch, 7, delta);
+    writeWildsExplorerOrientation(root.current.rotation, facing.current, nextPitch, remote ? 0.11 : 0.18);
     root.current.position.y = grounded && moving ? Math.abs(Math.sin(elapsed * 11.5)) * 0.026 * readability.motionScale : 0;
     if (hips.current) {
       hips.current.rotation.y = grounded ? stride * 0.08 : 0;

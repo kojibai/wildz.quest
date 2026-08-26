@@ -141,6 +141,7 @@ test("wallet groups large exact custody by asset kind and never substitutes aggr
   assert.match(markup, /aria-label="Search exact wallet assets"/);
   assert.match(markup, /1 exact unit/);
   assert.match(markup, /class="phi-network-amount" data-compact="true"/);
+  assert.ok(markup.indexOf("wilds-wallet-card-vault") < markup.indexOf("wilds-wallet-resource-vault"), "All assets must present creatures before resources");
 });
 
 test("source-settled Phi sums exact micro-Phi without waiting for or mutating the remote projection", () => {
