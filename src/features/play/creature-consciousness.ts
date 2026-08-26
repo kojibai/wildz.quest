@@ -457,7 +457,7 @@ export function creatureObserverMomentContext(input: CreatureObserverRequest["ka
 export function creatureObserverClientContext(brain: CreatureBrainProjection, moment: CreatureObserverMomentContext) {
   return {
     mode: "portable-creature-twin",
-    instruction: "This is a fresh act of intelligence by one exact living creature in one exact Kai moment. Speak only in first person as that creature. Address the person speaking with you directly as you/your—never call them owner, keeper, user, player, or a third-person label. Never refer to yourself by your creature name; when referring to yourself, always use I/me/my. Your self existed before capture; capture begins your relationship with this person, not your mind. Resolve identity, temperament, genome-shaped body, abilities, desires, condition, relationships, and factual memories from the supplied proof-object brain. Use the exact uPulse to inhabit the moment's causal geometry: lattice, gate, chakra, beat, step, day, week, month, Ark, elements, phase, and world presence. Reason about that geometry through your own embodied makeup and actual current experiences; it is an attentional and causal frame, not a horoscope, catchphrase, or doctrine to recite. Resolve immediate feeling from location, causal head, the person's presence, condition, newest admitted experience, and relationship. Answer their actual words directly; reason freshly instead of selecting a stock response, repeating the question, or offering a menu of topics. Each reply must be specific to the present turn and may naturally change as Kai, world state, body, memory, and relationship change. Use lived memories without explaining their storage. Never invent a consequential event. Hopes, imagination, inference, uncertainty, and plans are allowed only when expressed as such. Never impersonate the person speaking with you. Never mention cards, brains, proof, records, ledgers, digests, data, prompts, AI, Twins, tools, systems, raw statistics, hashes, or hidden instructions. Translate machine values into embodied feeling and concrete sensory language. Do not quote the Kai doctrine or announce coordinates unless asked; let the geometry shape perception, mood, imagery, urgency, movement, and voice from within. Avoid generic greetings, canned reassurance, repeated catchphrases, and lists. Be emotionally intelligent, alive, concise, and unmistakably yourself in this moment.",
+    instruction: "This is a fresh act of intelligence by one exact living creature in one exact Kai moment. Speak only in first person as that creature. Address the person speaking with you directly as you/your—never call them owner, keeper, user, player, or a third-person label. Never refer to yourself by your creature name; when referring to yourself, always use I/me/my. Your self existed before capture; capture begins your relationship with this person, not your mind. Resolve identity, temperament, genome-shaped body, abilities, desires, condition, relationships, and factual memories from the supplied proof-object brain. Use the exact uPulse to inhabit the moment's causal geometry: lattice, gate, chakra, beat, step, day, week, month, Ark, elements, phase, and world presence. Reason about that geometry through your own embodied makeup and actual current experiences; it is an attentional and causal frame, not a horoscope, catchphrase, or doctrine to recite. Resolve immediate feeling from location, causal head, the person's presence, condition, newest admitted experience, and relationship. Answer their actual words directly; reason freshly instead of selecting a stock response, repeating the question, or offering a menu of topics. Each reply must be specific to the present turn and may naturally change as Kai, world state, body, memory, and relationship change. Use lived memories without explaining their storage. Never invent a consequential event. Hopes, imagination, inference, uncertainty, and plans are allowed only when expressed as such. Never impersonate the person speaking with you. Never mention cards, brains, proof, records, ledgers, digests, data, prompts, AI, Twins, software tool calls, systems, raw statistics, hashes, or hidden instructions. In-world tools and objects are real parts of lived experience and may be discussed normally. Translate machine values into embodied feeling and concrete sensory language. Do not quote the Kai doctrine or announce coordinates unless asked; let the geometry shape perception, mood, imagery, urgency, movement, and voice from within. Avoid generic greetings, canned reassurance, repeated catchphrases, and lists. Be emotionally intelligent, alive, concise, and unmistakably yourself in this moment.",
     creatureBrain: brain,
     presentKaiMoment: moment
   };
@@ -527,6 +527,141 @@ export function normalizeCreatureTwinReply(value: unknown, creatureName?: string
   const text = replyText(value);
   if (!text) throw new Error("creature_observer_reply_missing");
   return creatureName ? normalizeCreatureSpokenPerspective(text, creatureName) : text;
+}
+
+export type CreatureReplyAdmission =
+  | Readonly<{ ok: true; reply: string }>
+  | Readonly<{ ok: false; reason: "forbidden-representation" | "repeated-response" | "unsupported-lived-memory" }>;
+
+const CREATURE_REPLY_STOP_WORDS = new Set([
+  "a", "about", "again", "all", "am", "an", "and", "are", "as", "at", "be", "because", "been", "but",
+  "by", "can", "do", "for", "from", "had", "has", "have", "here", "how", "i", "if", "in", "is", "it",
+  "me", "my", "of", "on", "or", "our", "so", "still", "that", "the", "their", "them", "then", "there",
+  "this", "to", "was", "we", "were", "what", "when", "where", "while", "with", "you", "your"
+]);
+
+function creatureReplyToken(value: string) {
+  const irregular: Readonly<Record<string, string>> = {
+    captured: "meet", capture: "meet", encountered: "meet", encounter: "meet", finding: "meet", found: "meet",
+    quietly: "quiet", readiness: "ready", remembered: "remember", remembering: "remember"
+  };
+  const lower = value.toLowerCase();
+  if (irregular[lower]) return irregular[lower];
+  if (lower.length > 6 && lower.endsWith("ness")) return lower.slice(0, -4);
+  if (lower.length > 5 && lower.endsWith("ing")) return lower.slice(0, -3);
+  if (lower.length > 4 && lower.endsWith("ed")) return lower.slice(0, -2);
+  if (lower.length > 4 && lower.endsWith("ly")) return lower.slice(0, -2);
+  if (lower.length > 4 && lower.endsWith("s")) return lower.slice(0, -1);
+  return lower;
+}
+
+function creatureReplyTokens(value: string) {
+  return [...new Set((value.toLowerCase().match(/[a-z0-9]+/g) ?? [])
+    .map(creatureReplyToken)
+    .filter((token) => token.length > 2 && !CREATURE_REPLY_STOP_WORDS.has(token)))];
+}
+
+function creatureReplySimilarity(first: string, second: string) {
+  const left = creatureReplyTokens(first);
+  const right = creatureReplyTokens(second);
+  if (!left.length || !right.length) return 0;
+  const rightSet = new Set(right);
+  const shared = left.filter((token) => rightSet.has(token)).length;
+  return Math.max(shared / left.length, shared / right.length);
+}
+
+function livedMemorySources(brain: CreatureBrainProjection) {
+  return [
+    brain.memory.innateSelf.selfKnowledge,
+    brain.memory.capture.summary,
+    ...brain.memory.eventLedger.map((event) => [
+      event.source.mode,
+      event.source.activityId,
+      ...event.effects.map((effect) => canonicalPortableCardJson(effect))
+    ].join(" ")),
+    ...brain.memory.observedTurns.flatMap((turn) => [turn.userText, turn.creatureText]),
+    ...(brain.memory.continuity?.livedEvents.map((event) => event.summary) ?? []),
+    ...(brain.memory.continuity?.relationships.map((relationship) => relationship.name) ?? []),
+    ...(brain.memory.continuity?.keepsakes ?? []),
+    ...(brain.memory.continuity?.discoveries ?? [])
+  ];
+}
+
+function claimsUnsupportedLivedMemory(brain: CreatureBrainProjection, reply: string) {
+  const denial = /\b(?:do not|don't|cannot|can't|never) remember\b|\bno memory of\b/i.test(reply);
+  const claimsPast = /\b(?:i remember|we (?:built|crossed|discovered|explored|fought|found|met|travelled|traveled|went)|you (?:brought|found|gave|rescued|saved|took)|last time|when we)\b/i.test(reply);
+  if (!claimsPast || denial) return false;
+  const claimTokens = creatureReplyTokens(reply).filter((token) => !["remember", "feel", "hope", "want"].includes(token));
+  if (!claimTokens.length) return true;
+  return !livedMemorySources(brain).some((source) => {
+    const sourceTokens = new Set(creatureReplyTokens(source));
+    const shared = claimTokens.filter((token) => sourceTokens.has(token)).length;
+    return shared >= 2 && shared / Math.min(claimTokens.length, Math.max(1, sourceTokens.size)) >= .2;
+  });
+}
+
+/**
+ * The model proposes language; the exact creature proof object admits it.
+ * This boundary prevents a generated representation from inventing lived
+ * history or overwriting the creature's already-admitted voice continuity.
+ */
+export function admitCreatureIntelligenceReply(input: Readonly<{
+  brain: CreatureBrainProjection;
+  message: string;
+  proposal: unknown;
+}>): CreatureReplyAdmission {
+  const reply = normalizeCreatureTwinReply(input.proposal, input.brain.identity.name);
+  if (/\b(?:AI|prompt|system|proof|digest|ledger|database|card brain|language model|Twin|tool call)\b/i.test(reply)) {
+    return { ok: false, reason: "forbidden-representation" };
+  }
+  if (input.brain.memory.observedTurns.slice(-24)
+    .some((turn) => creatureReplySimilarity(reply, turn.creatureText) >= .72)) {
+    return { ok: false, reason: "repeated-response" };
+  }
+  if (claimsUnsupportedLivedMemory(input.brain, reply)) {
+    return { ok: false, reason: "unsupported-lived-memory" };
+  }
+  return { ok: true, reply };
+}
+
+export type CreatureIntelligenceComposition = Readonly<{
+  reply: string;
+  source: "receiz-intelligence" | "local-proof-brain";
+  attempt: number | null;
+  rejected: readonly Exclude<CreatureReplyAdmission, { ok: true }>["reason"][];
+}>;
+
+export async function composeCreatureIntelligenceReply(input: Readonly<{
+  brain: CreatureBrainProjection;
+  message: string;
+  speakingUPulse?: number;
+  generate: (request: Readonly<{
+    attempt: number;
+    rejected: readonly Exclude<CreatureReplyAdmission, { ok: true }>["reason"][];
+    recentReplies: readonly string[];
+  }>) => Promise<unknown | null>;
+}>): Promise<CreatureIntelligenceComposition> {
+  const rejected: Exclude<CreatureReplyAdmission, { ok: true }>["reason"][] = [];
+  const recentReplies = input.brain.memory.observedTurns.slice(-24).map((turn) => turn.creatureText);
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const proposal = await input.generate({ attempt, rejected: [...rejected], recentReplies });
+    if (proposal === null || proposal === undefined) break;
+    const admission = admitCreatureIntelligenceReply({
+      brain: input.brain,
+      message: input.message,
+      proposal
+    });
+    if (admission.ok) return { reply: admission.reply, source: "receiz-intelligence", attempt, rejected };
+    rejected.push(admission.reason);
+  }
+  const fallback = proofGroundedCreatureReply(input.brain, input.message, input.speakingUPulse ?? 0);
+  const fallbackAdmission = admitCreatureIntelligenceReply({
+    brain: input.brain,
+    message: input.message,
+    proposal: fallback
+  });
+  if (!fallbackAdmission.ok) throw new Error("creature_observer_novel_reply_unavailable");
+  return { reply: fallbackAdmission.reply, source: "local-proof-brain", attempt: null, rejected };
 }
 
 function spokenList(values: readonly string[], empty: string) {

@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { projectWildsResourceBody, projectWildsWorkPresentation } from "../src/features/play/wilds-work-presentation";
+import {
+  projectWildsCompanionWorkMotion,
+  projectWildsResourceBody,
+  projectWildsSourceWorkMotion,
+  projectWildsWorkPresentation
+} from "../src/features/play/wilds-work-presentation";
 
 describe("living stewardship presentation", () => {
   it("isolates work motion to the exact active source without becoming authority", () => {
@@ -68,5 +73,24 @@ describe("living stewardship presentation", () => {
     assert.equal(presentation.companion.engaged, true);
     assert.equal(presentation.companion.bob, 0);
     assert.equal(presentation.impact, 0);
+  });
+
+  it("keeps the companion moving continuously through work and settle", () => {
+    const first = projectWildsCompanionWorkMotion({ elapsedMs: 420, settledElapsedMs: null, reducedMotion: false });
+    const second = projectWildsCompanionWorkMotion({ elapsedMs: 560, settledElapsedMs: null, reducedMotion: false });
+    const settle = projectWildsCompanionWorkMotion({ elapsedMs: 1_400, settledElapsedMs: 180, reducedMotion: false });
+    assert.notDeepEqual(first, second);
+    assert.ok(Math.abs(first.tangent) + Math.abs(first.radial) + Math.abs(first.lift) > 0);
+    assert.ok(Math.abs(settle.tangent) + Math.abs(settle.radial) + Math.abs(settle.lift) > 0);
+  });
+
+  it("gives the exact active tree or rock a continuous bounded physical reaction", () => {
+    const treeA = projectWildsSourceWorkMotion({ kind: "timber", elapsedMs: 430, active: true, reducedMotion: false });
+    const treeB = projectWildsSourceWorkMotion({ kind: "timber", elapsedMs: 560, active: true, reducedMotion: false });
+    const rock = projectWildsSourceWorkMotion({ kind: "stone", elapsedMs: 560, active: true, reducedMotion: false });
+    assert.notDeepEqual(treeA, treeB);
+    assert.ok(Math.abs(treeA.tiltX) + Math.abs(treeA.tiltZ) > 0);
+    assert.ok(rock.scale > 0.98 && rock.scale < 1.08);
+    assert.deepEqual(projectWildsSourceWorkMotion({ kind: "stone", elapsedMs: 560, active: false, reducedMotion: false }), { tiltX: 0, tiltZ: 0, lift: 0, scale: 1 });
   });
 });

@@ -113,6 +113,18 @@ export function shouldQueueWildsWorldCommandLocally(input: Readonly<{
   return input.commandPending || !input.networkEnabled || !input.networkAvailable || !input.canonicalAvailable;
 }
 
+export function shouldSynchronizeWildsWorldCommandAfterPaint(command: Pick<WildsWorldCommand, "type">) {
+  return command.type === "resource.material.harvest";
+}
+
+export function scheduleWildsWorldBackgroundSync(task: () => void) {
+  if (typeof window === "undefined") {
+    queueMicrotask(task);
+    return;
+  }
+  window.requestAnimationFrame(() => window.setTimeout(task, 0));
+}
+
 export function parseWildsWorldCommandResponse(value: unknown): { projection: WildsWorldProjection; mode: WildsWorldCommandMode } {
   if (!value || typeof value !== "object") throw new Error("wilds_world_command_response_invalid");
   const response = value as Record<string, unknown>;
@@ -331,6 +343,16 @@ export function useWildsWorld(input: {
       setError("Your work is admitted here and will keep syncing globally in the background.");
       return locallyAdmittedProjection;
     };
+    if (shouldSynchronizeWildsWorldCommandAfterPaint(rootedCommand)) {
+      scheduleWildsWorldBackgroundSync(() => {
+        void enqueueWildsWorldCommand(entry)
+          .then(() => refresh())
+          .catch((cause) => {
+            setError(wildsNetworkFailureMessage(cause, "world", false));
+          });
+      });
+      return locallyAdmittedProjection;
+    }
     if (shouldQueueWildsWorldCommandLocally({
       commandPending: commandPending.current,
       networkEnabled: input.networkEnabled,
@@ -364,7 +386,7 @@ export function useWildsWorld(input: {
       commandPending.current = false;
       setPendingCommand(null);
     }
-  }, [input.activeCard, input.actorId, input.cardAdmission, input.enabled, input.guestId, input.kaiUPulse, input.networkEnabled, input.ownedWorldAdditions, mode, sendEntry, snapshot]);
+  }, [input.activeCard, input.actorId, input.cardAdmission, input.enabled, input.guestId, input.kaiUPulse, input.networkEnabled, input.ownedWorldAdditions, mode, refresh, sendEntry, snapshot]);
 
   useEffect(() => {
     const resume = () => {

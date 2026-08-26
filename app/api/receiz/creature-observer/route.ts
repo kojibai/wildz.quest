@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createReceizClient } from "@receiz/sdk";
 import {
+  composeCreatureIntelligenceReply,
   createObservedCreatureTurn,
   creatureObserverClientContext,
   creatureObserverMomentContext,
   creatureObserverThreadKey,
   creatureObserverVisitorKey,
-  proofGroundedCreatureReply,
   normalizeCreatureTwinReply,
   parseCreatureObserverRequest,
   projectVerifiedCreatureBrain
@@ -141,68 +141,92 @@ export async function POST(request: NextRequest) {
               clientMessageId: clientOperationId,
               speak: async ({ brain: subjectBrain, proofContext }) => {
                 const observerContext = creatureObserverClientContext(subjectBrain, presentKaiMoment);
-                const speech = proofGroundedCreatureReply(subjectBrain, input.message, presentKaiMoment.temporalRoot.uPulse);
-                send({ type: "reply_reset", text: "" });
-                await streamProofReply(speech, send, request.signal);
-                const performanceMessage = [
-                  observerContext.instruction,
-                  `Present Kai causal context: ${JSON.stringify(observerContext.presentKaiMoment)}`,
-                  `The person's message was: ${input.message}`,
-                  `Perform this exact proof-derived response without changing its words: ${speech}`
-                ].join("\n\n");
-                const enrichment = withinPerformanceBudget(twinQualification.then(async (qualified) => {
-                  if (!qualified) return null;
-                  const [worldResponse, remoteMemory] = await Promise.all([
-                    receiz.world.message(WILDZ_RECEIZ_APPLICATION_ID, {
+                const qualified = await twinQualification;
+                const generatedAttempts = new Map<number, Readonly<{
+                  audio: ReturnType<typeof finalPerformanceAudio>;
+                  provider: string;
+                  model: string;
+                  version: string;
+                }>>();
+                const admittedResult = await composeCreatureIntelligenceReply({
+                  brain: subjectBrain,
+                  message: input.message,
+                  speakingUPulse: presentKaiMoment.temporalRoot.uPulse,
+                  generate: async ({ attempt, rejected, recentReplies }) => {
+                    if (!qualified) return null;
+                    const generationMessage = [
+                      observerContext.instruction,
+                      "The supplied creatureBrain proof object is the source authority. Your response is only a proposed representation and cannot add a memory, event, relationship, condition, or fact that is absent from that source.",
+                      "Compose one new direct response in the creature's natural voice. Do not repeat or closely paraphrase any recent admitted reply. If the source does not establish a past experience, plainly distinguish uncertainty, imagination, hope, or intention from memory.",
+                      `Present Kai causal context: ${JSON.stringify(observerContext.presentKaiMoment)}`,
+                      `Recent admitted replies that must not be repeated: ${JSON.stringify(recentReplies)}`,
+                      `Prior rejected proposal reasons for this turn: ${JSON.stringify(rejected)}`,
+                      `The person's exact message is: ${input.message}`
+                    ].join("\n\n");
+                    const worldResponse = await receiz.world.message(WILDZ_RECEIZ_APPLICATION_ID, {
                       action: "message",
-                      message: performanceMessage,
+                      message: generationMessage,
                       visitorKey: creatureObserverVisitorKey(actor.actorId),
                       threadKey: creatureObserverThreadKey(input.card.id),
                       allowBrowserVoiceFallback: false,
                       clientContext: observerContext,
-                      clientUserMessageId: clientOperationId,
-                      clientOperationId,
+                      clientUserMessageId: `${clientOperationId.slice(0, 150)}:ai:${attempt}`,
+                      clientOperationId: `${clientOperationId.slice(0, 150)}:ai:${attempt}`,
                       quoteExpiresAt: new Date(Date.now() + 9 * 60_000).toISOString()
-                    }),
-                    receiz.subjects.twin.memorySummary(input.card.id).catch(() => null)
-                  ]);
-                  if (worldResponse.ok !== true) throw new Error(worldResponse.error || "creature_observer_intelligence_unavailable");
-                  const reply = asRecord(worldResponse.reply);
-                  return {
-                    audio: reply?.source === "upstream"
-                      ? finalPerformanceAudio(upstreamWorldPerformance(reply))
-                      : null,
-                    remoteMemory
-                  };
-                }).catch(() => null));
+                    });
+                    if (worldResponse.ok !== true) return null;
+                    const reply = asRecord(worldResponse.reply);
+                    const proposal = normalizeCreatureTwinReply(worldResponse.reply, subjectBrain.identity.name);
+                    generatedAttempts.set(attempt, {
+                      audio: reply?.source === "upstream"
+                        ? finalPerformanceAudio(upstreamWorldPerformance(reply))
+                        : null,
+                      provider: typeof reply?.provider === "string" ? reply.provider : "receiz-world",
+                      model: typeof reply?.model === "string" ? reply.model : "receiz-v124-memory-intelligence",
+                      version: typeof reply?.version === "string" ? reply.version : "124.0.3"
+                    });
+                    return proposal;
+                  }
+                });
+                const speech = admittedResult.reply;
+                send({ type: "reply_reset", text: "" });
+                await streamProofReply(speech, send, request.signal);
+                const enrichment = withinPerformanceBudget(qualified
+                  ? receiz.subjects.twin.memorySummary(input.card.id).catch(() => null)
+                  : Promise.resolve(null));
                 enrichmentSettled = enrichment.then((result) => {
                   if (!result || request.signal.aborted) return;
-                  if (result.remoteMemory) send({
+                  send({
                     type: "memory_sync",
-                    subjectId: result.remoteMemory.subjectId,
-                    head: result.remoteMemory.head,
-                    projectionDigest: result.remoteMemory.projectionDigest,
+                    subjectId: result.subjectId,
+                    head: result.head,
+                    projectionDigest: result.projectionDigest,
                     authority: false
                   });
-                  if (result.audio) send({
-                    ...result.audio,
-                    voiceSignature: subjectBrain.performance.expression.voiceSignature,
-                    source: "receiz-v124-qualified-proof-performance"
-                  });
                 }).catch(() => { /* Enrichment never affects the proof response rail. */ });
+                const acceptedGeneration = admittedResult.attempt === null
+                  ? null
+                  : generatedAttempts.get(admittedResult.attempt) ?? null;
+                const admittedAudio = acceptedGeneration?.audio ?? null;
+                if (admittedAudio) send({
+                  ...admittedAudio,
+                  voiceSignature: subjectBrain.performance.expression.voiceSignature,
+                  source: "receiz-v124-qualified-proof-performance"
+                });
                 return {
-                  provider: "wildz-proof-brain",
-                  model: "proof-grounded-creature-twin",
-                  version: "120.0.0",
+                  provider: acceptedGeneration?.provider ?? "wildz-proof-brain",
+                  model: acceptedGeneration?.model ?? "proof-grounded-creature-twin",
+                  version: acceptedGeneration?.version ?? "120.0.0",
                   speech,
                   performance: {
                     ...subjectBrain.performance.expression,
                     voiceSignature: subjectBrain.performance.expression.voiceSignature,
                     neuralInterface: subjectBrain.performance.neuralInterface,
                     proofContextDigest: proofContext.receipt.queryDigest,
-                    generatedAudio: false,
+                    generatedAudio: admittedAudio !== null,
                     authoritative: false,
-                    responseRail: "proof-grounded-local"
+                    responseRail: admittedResult.source,
+                    rejectedProposalReasons: admittedResult.rejected
                   }
                 };
               }

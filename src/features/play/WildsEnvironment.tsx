@@ -1,6 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
@@ -17,7 +18,7 @@ import { projectWildsEcologyInstance } from "@/features/play/wilds-ecology-place
 import { buildWildsTerrainPatchProjection, buildWildsTerrainRibbonProjection, buildWildsTerrainWaterProjection, wildsTerrainRelativeElevation } from "@/features/play/wilds-terrain-rendering";
 import { projectWildsObstaclePlacement, wildsTerrainObstaclesForTile } from "@/features/play/wilds-terrain-obstacles";
 import { projectWildsResourceAvailability, projectWildsResourceSourceForObstacle } from "@/features/play/wilds-resource-authority";
-import { projectWildsResourceBody, type WildsActiveWorkSource, type WildsResourceBodyProjection } from "@/features/play/wilds-work-presentation";
+import { projectWildsResourceBody, projectWildsSourceWorkMotion, type WildsActiveWorkSource, type WildsResourceBodyProjection } from "@/features/play/wilds-work-presentation";
 import { projectWildsOverlooks, type WildsOverlookId } from "@/features/play/wilds-overlooks";
 import { WildsWorldArt } from "@/features/play/WildsWorldArt";
 import { WildsDiscoverySites } from "@/features/play/WildsDiscoverySites";
@@ -30,7 +31,7 @@ const PHI = (1 + Math.sqrt(5)) / 2;
 const GOLDEN_ANGLE = Math.PI * 2 / (PHI * PHI);
 
 type Tile = WildsBiomeTile & { key: string; tileX: number; tileZ: number };
-type Placement = { x: number; z: number; scale: number; variant: number; resourceBody?: WildsResourceBodyProjection; working?: boolean };
+type Placement = { x: number; z: number; scale: number; variant: number; resourceBody?: WildsResourceBodyProjection; working?: boolean; workStartedAtMs?: number };
 const EMPTY_TILES = Object.freeze([]) as unknown as Tile[];
 const EMPTY_PLACEMENTS = Object.freeze([]) as unknown as Placement[];
 const EMPTY_VALUES = Object.freeze([]) as readonly never[];
@@ -66,8 +67,18 @@ function useInstances(
   shape: (item: Placement) => [number, number, number],
   clearRadius = 0,
   siteRuntime?: WildsSiteRuntimeProjection,
-  siteSpaceId = "wildz.space.outer.v1"
+  siteSpaceId = "wildz.space.outer.v1",
+  motionKind?: "timber" | "stone",
+  reducedMotion = false
 ) {
+  const baseMatrices = useRef<THREE.Matrix4[]>([]);
+  const previousActiveIndex = useRef(-1);
+  const animatedMatrix = useRef(new THREE.Matrix4());
+  const animatedPosition = useRef(new THREE.Vector3());
+  const animatedQuaternion = useRef(new THREE.Quaternion());
+  const animatedScale = useRef(new THREE.Vector3());
+  const animatedTilt = useRef(new THREE.Quaternion());
+  const activeIndex = useMemo(() => items.findIndex((item) => item.working && item.workStartedAtMs !== undefined), [items]);
   useLayoutEffect(() => {
     const matrix = new THREE.Matrix4();
     const quaternion = new THREE.Quaternion();
@@ -83,9 +94,41 @@ function useInstances(
       quaternion.setFromEuler(new THREE.Euler(0, seededUnit(index, item.variant + 17) * Math.PI * 2, 0));
       matrix.compose(new THREE.Vector3(...projected.position), quaternion, scale);
       mesh.current?.setMatrixAt(index, matrix);
+      baseMatrices.current[index] = matrix.clone();
     });
+    baseMatrices.current.length = items.length;
     if (mesh.current) mesh.current.instanceMatrix.needsUpdate = true;
   }, [clearRadius, items, mesh, player.x, player.z, shape, siteRuntime, siteSpaceId, terrainElevation, y]);
+  useFrame(() => {
+    if (!motionKind || !mesh.current) return;
+    const priorActiveIndex = previousActiveIndex.current;
+    if (priorActiveIndex >= 0 && priorActiveIndex !== activeIndex) {
+      const previous = baseMatrices.current[priorActiveIndex];
+      if (previous) mesh.current.setMatrixAt(priorActiveIndex, previous);
+    }
+    previousActiveIndex.current = activeIndex;
+    if (activeIndex < 0) {
+      if (priorActiveIndex >= 0) mesh.current.instanceMatrix.needsUpdate = true;
+      return;
+    }
+    const item = items[activeIndex]!;
+    const base = baseMatrices.current[activeIndex];
+    if (!base) return;
+    const motion = projectWildsSourceWorkMotion({
+      kind: motionKind,
+      elapsedMs: performance.now() - item.workStartedAtMs!,
+      active: true,
+      reducedMotion
+    });
+    base.decompose(animatedPosition.current, animatedQuaternion.current, animatedScale.current);
+    animatedTilt.current.setFromEuler(new THREE.Euler(motion.tiltX, 0, motion.tiltZ));
+    animatedQuaternion.current.multiply(animatedTilt.current);
+    animatedPosition.current.y += motion.lift;
+    animatedScale.current.multiplyScalar(motion.scale);
+    animatedMatrix.current.compose(animatedPosition.current, animatedQuaternion.current, animatedScale.current);
+    mesh.current.setMatrixAt(activeIndex, animatedMatrix.current);
+    mesh.current.instanceMatrix.needsUpdate = true;
+  });
 }
 
 export function WildsEnvironment({
@@ -145,7 +188,8 @@ export function WildsEnvironment({
     return {
       ...projectWildsObstaclePlacement(obstacle),
       resourceBody: projectWildsResourceBody({ kind: source.kind === "timber" ? "timber" : "stone", capacity: source.capacity, availableCapacity: availability.availableCapacity }),
-      working: activeWorkSource?.sourceId === source.sourceId
+      working: activeWorkSource?.sourceId === source.sourceId,
+      workStartedAtMs: activeWorkSource?.sourceId === source.sourceId ? activeWorkSource.startedAtMs : undefined
     };
   };
   const trees = useMemo(() => outer ? physicalObstacles.filter((obstacle) => obstacle.kind === "tree").map(resourcePlacement) : EMPTY_PLACEMENTS,
@@ -487,12 +531,12 @@ function EcologyInstances({
   const flowerScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.09, item.scale * 0.22, item.scale * 0.09], []);
   const grassScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * .035, item.scale * (qualityProfile.tier === "low" ? .13 : .2), item.scale * .025], [qualityProfile.tier]);
   const treeClearRadius = 13.6;
-  useInstances(trunks, trees, player, terrainElevation, 0.64, treeScale, treeClearRadius, siteRuntime, siteSpaceId);
-  useInstances(lowerCrowns, trees, player, terrainElevation, 1.65, crownScale, treeClearRadius, siteRuntime, siteSpaceId);
-  useInstances(upperCrowns, trees, player, terrainElevation, 2.16, crownScale, treeClearRadius, siteRuntime, siteSpaceId);
-  useInstances(middleCrowns, trees, player, terrainElevation, 2.68, middleCrownScale, treeClearRadius, siteRuntime, siteSpaceId);
+  useInstances(trunks, trees, player, terrainElevation, 0.64, treeScale, treeClearRadius, siteRuntime, siteSpaceId, "timber", readability.motionScale === 0);
+  useInstances(lowerCrowns, trees, player, terrainElevation, 1.65, crownScale, treeClearRadius, siteRuntime, siteSpaceId, "timber", readability.motionScale === 0);
+  useInstances(upperCrowns, trees, player, terrainElevation, 2.16, crownScale, treeClearRadius, siteRuntime, siteSpaceId, "timber", readability.motionScale === 0);
+  useInstances(middleCrowns, trees, player, terrainElevation, 2.68, middleCrownScale, treeClearRadius, siteRuntime, siteSpaceId, "timber", readability.motionScale === 0);
   useInstances(shrubMesh, bushes, player, terrainElevation, 0.23, shrubScale, 1.45, siteRuntime, siteSpaceId);
-  useInstances(rockMesh, rocks, player, terrainElevation, 0.13, rockScale, 1.2, siteRuntime, siteSpaceId);
+  useInstances(rockMesh, rocks, player, terrainElevation, 0.13, rockScale, 1.2, siteRuntime, siteSpaceId, "stone", readability.motionScale === 0);
   useInstances(flowerMesh, flowers, player, terrainElevation, 0.15, flowerScale, 0, siteRuntime, siteSpaceId);
   useInstances(grassMesh, flowers, player, terrainElevation, .11, grassScale, .8, siteRuntime, siteSpaceId);
 

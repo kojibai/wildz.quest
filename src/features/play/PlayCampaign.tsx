@@ -1333,9 +1333,13 @@ export function PlayCampaign({
         partnerAdmission = null;
       }
       if (workPresentationTimerRef.current !== null) window.clearTimeout(workPresentationTimerRef.current);
-      setActiveWorkSource({ sourceId: source.sourceId, kind: source.kind === "timber" ? "timber" : "stone", position: source.position, startedAtMs: performance.now(), settledAtMs: null });
+      const workStartedAtMs = performance.now();
+      setActiveWorkSource({ sourceId: source.sourceId, kind: source.kind === "timber" ? "timber" : "stone", position: source.position, startedAtMs: workStartedAtMs, settledAtMs: null });
       const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
-      const projection = await livingWorld.harvestMaterial(source, current.head, state.player, mandate, partner ? { card: partner, cardAdmission: partnerAdmission } : null);
+      const [projection] = await Promise.all([
+        livingWorld.harvestMaterial(source, current.head, state.player, mandate, partner ? { card: partner, cardAdmission: partnerAdmission } : null),
+        new Promise<void>((resolve) => window.setTimeout(resolve, 720))
+      ]);
       if (partner) dispatch({ type: "record-steward-work", assetId: partner.id });
       setActiveWorkSource((active) => active?.sourceId === source.sourceId ? { ...active, settledAtMs: performance.now() } : active);
       workPresentationTimerRef.current = window.setTimeout(() => {

@@ -88,7 +88,7 @@ import type { WildsSiteSpaceState } from "@/features/play/wilds-discovery-sites"
 import { wildsSiteRuntimeCameraIsFlooded, wildsSiteRuntimeDiagnostics, wildsSiteRuntimeGroundY, writeWildsSiteRuntimeAerialCollision, writeWildsSiteRuntimeCamera, writeWildsSiteRuntimeEncounter, type WildsSiteRuntimeProjection } from "@/features/play/wilds-site-runtime";
 import { createWildsFlightCameraControlState, writeWildsFlightCameraControlState } from "@/features/play/wilds-flight-camera";
 import { projectWildsInteractionSurfacePoint, type WildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
-import type { WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
+import { projectWildsCompanionWorkMotion, type WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
 import type { WildsStewardPlacement } from "@/features/play/wilds-steward-craft";
 import type { WildsWorldCapabilityFamily } from "@/features/play/wilds-world-capability-registry";
 import { projectWildsCapabilityPresentation } from "@/features/play/wilds-capability-presentation";
@@ -674,6 +674,7 @@ function isBattleTelemetryPhase(phase: PlayState["encounter"]["phase"]) {
 }
 
 function ActiveCompanion({ activeWorkSource, activeCapabilityFamily, locomotion, siteRuntime, siteSpace, state, terrainElevation }: { activeWorkSource?: WildsActiveWorkSource | null; activeCapabilityFamily: WildsWorldCapabilityFamily | null; locomotion: "ground" | "swim" | "air"; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; state: PlayState; terrainElevation: number }) {
+  const readability = useWildsReadability();
   const card = selectedCard(state);
   const asset = state.inventory.find((candidate) => candidate.id === state.selectedAssetId);
   const formId = asset?.manifest.formId ?? `${card.id}-1`;
@@ -720,6 +721,25 @@ function ActiveCompanion({ activeWorkSource, activeCapabilityFamily, locomotion,
         target[0] + Math.cos(angle) * roamingRadius,
         target[1] + Math.sin(angle * 2) * .025,
         target[2] + Math.sin(angle) * roamingRadius
+      );
+    } else if (activeWorkSource) {
+      const now = performance.now();
+      const motion = projectWildsCompanionWorkMotion({
+        elapsedMs: now - activeWorkSource.startedAtMs,
+        settledElapsedMs: activeWorkSource.settledAtMs === null ? null : now - activeWorkSource.settledAtMs,
+        reducedMotion: readability.motionScale === 0
+      });
+      const sourceX = activeWorkSource.position.x - state.player.x;
+      const sourceZ = activeWorkSource.position.z - state.player.z;
+      const dx = sourceX - target[0];
+      const dz = sourceZ - target[2];
+      const distance = Math.max(.001, Math.hypot(dx, dz));
+      const directionX = dx / distance;
+      const directionZ = dz / distance;
+      workTarget.current.set(
+        target[0] + -directionZ * motion.tangent + directionX * motion.radial,
+        target[1] + motion.lift,
+        target[2] + directionX * motion.tangent + directionZ * motion.radial
       );
     } else {
       workTarget.current.set(...target);

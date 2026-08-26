@@ -10,6 +10,7 @@ import {
   parseWildsWorldCommandResponse,
   parseWildsWorldSnapshotResponse,
   shouldQueueWildsWorldCommandLocally,
+  shouldSynchronizeWildsWorldCommandAfterPaint,
   wildsWorldModeAfterConfirmedBootstrap,
   wildsWorldModeAfterRequestFailure
 } from "../src/features/play/use-wilds-world.js";
@@ -37,6 +38,14 @@ describe("Wilds world client contract", () => {
     const send = source.indexOf("await sendEntry(entry)", display);
     assert.ok(admit >= 0 && display > admit && send > display);
     assert.match(source, /return synchronizedProjection/);
+  });
+
+  it("keeps material harvest network work out of the visible action path", () => {
+    assert.equal(shouldSynchronizeWildsWorldCommandAfterPaint({ type: "resource.material.harvest" } as never), true);
+    assert.equal(shouldSynchronizeWildsWorldCommandAfterPaint({ type: "team.create" } as never), false);
+    const source = readFileSync("src/features/play/use-wilds-world.ts", "utf8");
+    assert.match(source, /scheduleWildsWorldBackgroundSync/);
+    assert.match(source, /return locallyAdmittedProjection/);
   });
 
   it("builds one explicit guest-aware command envelope", () => {

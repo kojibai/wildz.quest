@@ -19,6 +19,68 @@ function clamp01(value: number) {
   return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 }
 
+export type WildsCompanionWorkMotion = Readonly<{
+  tangent: number;
+  radial: number;
+  lift: number;
+}>;
+
+/** Pure render-time motion. It presents admitted work but never changes authority. */
+export function projectWildsCompanionWorkMotion(input: Readonly<{
+  elapsedMs: number;
+  settledElapsedMs: number | null;
+  reducedMotion: boolean;
+}>): WildsCompanionWorkMotion {
+  if (input.reducedMotion) return Object.freeze({ tangent: 0, radial: 0, lift: 0 });
+  const seconds = Math.max(0, Number.isFinite(input.elapsedMs) ? input.elapsedMs : 0) / 1_000;
+  if (input.settledElapsedMs !== null) {
+    const settle = clamp01(1 - Math.max(0, input.settledElapsedMs) / 850);
+    return Object.freeze({
+      tangent: Math.sin(seconds * 7.2) * .1 * settle,
+      radial: .1 * settle,
+      lift: (Math.sin(seconds * 8.4) * .025 + .025) * settle
+    });
+  }
+  return Object.freeze({
+    tangent: Math.sin(seconds * 6.8) * .16,
+    radial: Math.cos(seconds * 13.6) * .075,
+    lift: Math.abs(Math.sin(seconds * 6.8)) * .07
+  });
+}
+
+export type WildsSourceWorkMotion = Readonly<{
+  tiltX: number;
+  tiltZ: number;
+  lift: number;
+  scale: number;
+}>;
+
+/** Bounded visual reaction for only the exact active living source. */
+export function projectWildsSourceWorkMotion(input: Readonly<{
+  kind: "timber" | "stone";
+  elapsedMs: number;
+  active: boolean;
+  reducedMotion: boolean;
+}>): WildsSourceWorkMotion {
+  if (!input.active || input.reducedMotion) return Object.freeze({ tiltX: 0, tiltZ: 0, lift: 0, scale: 1 });
+  const seconds = Math.max(0, Number.isFinite(input.elapsedMs) ? input.elapsedMs : 0) / 1_000;
+  if (input.kind === "timber") {
+    return Object.freeze({
+      tiltX: Math.sin(seconds * 7.1) * .035,
+      tiltZ: Math.cos(seconds * 6.2) * .028,
+      lift: 0,
+      scale: 1 + Math.sin(seconds * 12.4) * .008
+    });
+  }
+  const impact = Math.abs(Math.sin(seconds * 10.8));
+  return Object.freeze({
+    tiltX: Math.sin(seconds * 8.1) * .018,
+    tiltZ: Math.cos(seconds * 7.4) * .018,
+    lift: impact * .018,
+    scale: 1 + impact * .045
+  });
+}
+
 export function projectWildsResourceBody(input: Readonly<{
   kind: "timber" | "stone";
   capacity: number;

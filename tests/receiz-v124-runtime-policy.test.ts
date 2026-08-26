@@ -84,13 +84,16 @@ describe("Receiz v124 production-runtime policy", () => {
     assert.doesNotMatch(adapter, /authoritySessionHandle\s*:\s*["'`]wildz/);
   });
 
-  it("keeps Twin qualification outside the local proof response rail", () => {
+  it("keeps generated intelligence subordinate to proof admission and memory enrichment optional", () => {
     const route = readFileSync("app/api/receiz/creature-observer/route.ts", "utf8");
     const panel = readFileSync("src/features/play/CreatureConsciousnessPanel.tsx", "utf8");
-    const localSpeech = route.indexOf("proofGroundedCreatureReply");
+    const composition = route.indexOf("composeCreatureIntelligenceReply");
+    const admittedSpeech = route.indexOf("const speech = admittedResult.reply");
     const optionalAudio = route.indexOf("const enrichment");
-    assert.ok(localSpeech >= 0 && optionalAudio > localSpeech);
-    assert.match(route, /twinQualification\.then/);
+    assert.ok(composition >= 0 && admittedSpeech > composition && optionalAudio > admittedSpeech);
+    assert.match(route, /proof object is the source authority/);
+    assert.match(route, /responseRail: admittedResult\.source/);
+    assert.match(route, /const qualified = await twinQualification/);
     assert.match(route, /subjects\.twin\.memorySummary/);
     assert.match(route, /await enrichmentSettled/);
     assert.match(route, /Enrichment never affects the proof response rail/);

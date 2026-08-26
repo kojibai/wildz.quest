@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
+  admitCreatureIntelligenceReply,
+  composeCreatureIntelligenceReply,
   createObservedCreatureTurn,
   creatureConsciousnessMotion,
   creatureObserverClientContext,
@@ -41,6 +43,94 @@ test("the verified proof brain always forms a real creature response when both l
     assert.ok(first.length > 24);
     assert.doesNotMatch(first, /could not form a response|no world event was created|try once more/i);
   }
+});
+
+test("a fresh AI reply is admitted only when its lived-memory claim comes from the creature source", () => {
+  const brain = projectCreatureBrain(initialPlayState.inventory[0]!);
+  const admitted = admitCreatureIntelligenceReply({
+    brain,
+    message: "What do you remember about meeting me?",
+    proposal: `I remember you finding me in ${brain.personality.habitat}. The quiet of that beginning still steadies me. `
+      + "I want our next path to give us room to notice something new."
+  });
+
+  assert.equal(admitted.ok, true);
+  if (admitted.ok) assert.match(admitted.reply, /I remember you finding me/i);
+
+  const invented = admitCreatureIntelligenceReply({
+    brain,
+    message: "What do you remember?",
+    proposal: "I remember crossing a silver bridge with you while thunder broke over the valley."
+  });
+  assert.deepEqual(invented, { ok: false, reason: "unsupported-lived-memory" });
+});
+
+test("the admission boundary rejects a semantically repeated creature reply", () => {
+  const original = initialPlayState.inventory[0]!;
+  const firstBrain = projectCreatureBrain(original);
+  const first = createObservedCreatureTurn({
+    brain: firstBrain,
+    ownerActorId: original.manifest.ownerReceizId,
+    message: "How do you feel?",
+    reply: "I feel steady beside you, with a warm bond and a quiet readiness to explore.",
+    observedAt: new Date(Date.parse(original.proof.sealedAt) + 1_000).toISOString()
+  });
+  const rememberedState = applyWildsInput(structuredClone(initialPlayState), {
+    type: "record-creature-observation",
+    turn: first
+  });
+  const remembered = rememberedState.inventory.find((asset) => asset.id === original.id)!;
+  const brain = projectCreatureBrain(remembered);
+
+  assert.deepEqual(admitCreatureIntelligenceReply({
+    brain,
+    message: "And now?",
+    proposal: "Beside you I feel steady, quietly ready to explore, and our bond feels warm."
+  }), { ok: false, reason: "repeated-response" });
+
+  const fresh = admitCreatureIntelligenceReply({
+    brain,
+    message: "And now?",
+    proposal: `Right now, my attention keeps returning to ${brain.personality.habitat}. `
+      + "I hope we choose a patient route and listen before moving."
+  });
+  assert.equal(fresh.ok, true);
+});
+
+test("AI composition retries a rejected repetition and returns the first newly admitted thought", async () => {
+  const original = initialPlayState.inventory[0]!;
+  const firstBrain = projectCreatureBrain(original);
+  const priorReply = "I feel steady beside you, with a warm bond and a quiet readiness to explore.";
+  const first = createObservedCreatureTurn({
+    brain: firstBrain,
+    ownerActorId: original.manifest.ownerReceizId,
+    message: "How do you feel?",
+    reply: priorReply,
+    observedAt: new Date(Date.parse(original.proof.sealedAt) + 1_000).toISOString()
+  });
+  const state = applyWildsInput(structuredClone(initialPlayState), { type: "record-creature-observation", turn: first });
+  const brain = projectCreatureBrain(state.inventory.find((asset) => asset.id === original.id)!);
+  const proposals = [
+    "Beside you I feel steady, quietly ready to explore, and our bond feels warm.",
+    `The air of ${brain.personality.habitat} is on my mind now. I hope we move slowly enough to notice what changed.`
+  ];
+  const attempts: number[] = [];
+
+  const result = await composeCreatureIntelligenceReply({
+    brain,
+    message: "Tell me something real right now.",
+    speakingUPulse: 42,
+    generate: async ({ attempt }) => {
+      attempts.push(attempt);
+      return proposals[attempt - 1];
+    }
+  });
+
+  assert.deepEqual(attempts, [1, 2]);
+  assert.equal(result.source, "receiz-intelligence");
+  assert.equal(result.attempt, 2);
+  assert.match(result.reply, /on my mind now/i);
+  assert.deepEqual(result.rejected, ["repeated-response"]);
 });
 
 test("a Receiz Twin observation appends to the exact portable card brain", () => {
@@ -248,9 +338,13 @@ test("Vault consciousness keeps the local subject Twin immediate and adds qualif
   assert.doesNotMatch(route, /if \(!actor\.accessToken\) throw new Error\("receiz_authority_required"\)/);
   assert.doesNotMatch(route, /RECEIZ_CREATURE_TWIN_HANDLE|receiz\.world\.streamProfile/);
   assert.match(route, /observeCreatureThroughReceizV120/);
-  assert.match(route, /proofGroundedCreatureReply\(subjectBrain, input\.message, presentKaiMoment\.temporalRoot\.uPulse\)/);
+  assert.match(route, /composeCreatureIntelligenceReply/);
+  assert.match(route, /generatedAttempts\.get\(admittedResult\.attempt\)/);
+  assert.match(route, /recentReplies/);
+  assert.match(route, /normalizeCreatureTwinReply\(worldResponse\.reply, subjectBrain\.identity\.name\)/);
+  assert.doesNotMatch(route, /Perform this exact proof-derived response without changing its words/);
   assert.match(route, /Present Kai causal context/);
-  assert.match(route, /clientUserMessageId: clientOperationId/);
+  assert.match(route, /clientUserMessageId: `\$\{clientOperationId\.slice\(0, 150\)\}:ai:\$\{attempt\}`/);
   assert.match(route, /text\/event-stream/);
   assert.match(route, /type: "reply_reset"/);
   assert.match(route, /type: "reply_done"/);
@@ -264,7 +358,7 @@ test("Vault consciousness keeps the local subject Twin immediate and adds qualif
   assert.match(route, /receiz\.world\.message\(WILDZ_RECEIZ_APPLICATION_ID/);
   assert.match(route, /receiz\.runtime\.qualifyV124/);
   assert.match(route, /receiz\.subjects\.twin\.memorySummary/);
-  assert.match(route, /proofGroundedCreatureReply/);
+  assert.match(route, /responseRail: admittedResult\.source/);
   assert.match(route, /proof-grounded-creature-twin/);
   assert.match(route, /type: "reply_reset"/);
   assert.match(route, /finalPerformanceAudio/);
