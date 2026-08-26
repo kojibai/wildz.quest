@@ -16,7 +16,7 @@ const vaultRoots = new WeakMap<readonly unknown[], string>();
 
 type RuntimeStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
-type RuntimeCheckpoint = {
+export type WildzRuntimeCheckpoint = {
   schema: typeof RUNTIME_SCHEMA;
   keyId: string;
   actorId: string;
@@ -69,15 +69,31 @@ export function writeWildzRuntimeCheckpoint(storage: RuntimeStorage, input: {
   actorId: string;
   playState: PlayState;
 }) {
+  const prepared = prepareWildzRuntimeCheckpoint(input);
+  storage.setItem(prepared.key, JSON.stringify(prepared.checkpoint));
+}
+
+export function prepareWildzRuntimeCheckpoint(input: {
+  keyId: string;
+  actorId: string;
+  playState: PlayState;
+}): { key: string; checkpoint: WildzRuntimeCheckpoint } {
   const { inventory, ...playState } = input.playState;
-  const checkpoint: RuntimeCheckpoint = {
+  const checkpoint: WildzRuntimeCheckpoint = {
     schema: RUNTIME_SCHEMA,
     keyId: input.keyId,
     actorId: input.actorId,
     vaultRoot: vaultRoot(inventory),
     playState
   };
-  storage.setItem(runtimeKey(input.keyId, input.actorId), JSON.stringify(checkpoint));
+  return { key: runtimeKey(input.keyId, input.actorId), checkpoint };
+}
+
+export function writePreparedWildzRuntimeCheckpoint(
+  storage: RuntimeStorage,
+  prepared: { key: string; serialized: string }
+) {
+  storage.setItem(prepared.key, prepared.serialized);
 }
 
 export function clearWildzRuntimeCheckpoint(storage: RuntimeStorage, input: { keyId: string; actorId: string }) {
@@ -235,7 +251,7 @@ export function readWildzRuntimeCheckpoint(storage: RuntimeStorage, input: {
   const serialized = storage.getItem(key);
   if (!serialized) return input.playState;
   try {
-    const checkpoint = JSON.parse(serialized) as Partial<RuntimeCheckpoint>;
+    const checkpoint = JSON.parse(serialized) as Partial<WildzRuntimeCheckpoint>;
     if (checkpoint.schema !== RUNTIME_SCHEMA
       || checkpoint.keyId !== input.keyId
       || checkpoint.actorId !== input.actorId

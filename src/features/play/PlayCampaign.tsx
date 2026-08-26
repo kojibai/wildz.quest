@@ -51,6 +51,7 @@ import { kaiUPulseToISOString, millisecondsUntilNextKaiPulse } from "@/features/
 import { createWildsKaiRuntimeClock, observeWildsKaiUPulse, resolveWildsRuntimeKaiMoment } from "@/features/play/wilds-kai-runtime";
 import { rootWildsInputInKai } from "@/features/play/wilds-input-temporal-root";
 import { sameWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate";
+import { createWildzGameplayPublisher, type WildzGameplayPublisher } from "@/lib/performance/wildz-gameplay-publisher";
 import { friendlyWildsGameplayError, isWildsTemporalContinuityError } from "@/features/play/wilds-temporal-errors";
 import { kaiTransition, projectKaiWorldExpression, type KaiWorldExpression } from "@/features/play/kai-moment-expression";
 import { WildzCommandInsight } from "@/features/play/WildzCommandInsight";
@@ -273,6 +274,19 @@ export function PlayCampaign({
   const [state, setState] = useState(() => initialState);
   const admittedSourceStateRef = useRef(initialState);
   const [saveRestored, setSaveRestored] = useState(false);
+  const onPlayStateChangeRef = useRef(onPlayStateChange);
+  const playStatePublisherRef = useRef<WildzGameplayPublisher<{
+    state: PlayState;
+    continuity: WildzPlayerContinuity;
+  }> | null>(null);
+  const scheduledSourceStateRef = useRef(initialState);
+  onPlayStateChangeRef.current = onPlayStateChange;
+  if (!playStatePublisherRef.current) {
+    playStatePublisherRef.current = createWildzGameplayPublisher({
+      cadenceMs: 140,
+      publish: ({ state: nextState, continuity }) => onPlayStateChangeRef.current(nextState, continuity)
+    });
+  }
 
   useEffect(() => {
     if (admittedSourceStateRef.current === initialState) return;
@@ -1062,7 +1076,7 @@ export function PlayCampaign({
 
   useEffect(() => {
     if (!saveRestored) return;
-    onPlayStateChange(state, {
+    const continuity: WildzPlayerContinuity = {
       settings: {
         avatarStyle: explorerStyle,
         movementMode,
@@ -1079,19 +1093,36 @@ export function PlayCampaign({
           }
         : initialPlayerContinuity?.canonicalCursor ?? { worldId: "wilds:global:v3", revision: 0, eventId: null },
       receipts: initialPlayerContinuity?.receipts ?? []
-    });
+    };
+    const previous = scheduledSourceStateRef.current;
+    scheduledSourceStateRef.current = state;
+    const sourceTruthChanged = previous.inventory !== state.inventory
+      || previous.ownedWorldAdditions !== state.ownedWorldAdditions;
+    playStatePublisherRef.current?.schedule({ state, continuity }, sourceTruthChanged);
   }, [
     cardOrder,
     explorerStyle,
     initialPlayerContinuity,
     livingWorld.snapshot,
     movementMode,
-    onPlayStateChange,
     presentation.audioSettings,
     saveRestored,
     state,
     visualSettings
   ]);
+
+  useEffect(() => {
+    const publisher = playStatePublisherRef.current;
+    if (!publisher) return;
+    const flush = () => { void publisher.flush().catch(() => undefined); };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", flush);
+      flush();
+    };
+  }, []);
 
   useEffect(() => {
     if (state.encounter.phase === "battle_intro") {

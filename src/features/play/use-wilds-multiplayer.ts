@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createInviteRoom, roomKeyForPosition, type WildsPresence } from "./multiplayer-core";
 import type { WildsMultiplayerSnapshot } from "./multiplayer-ledger";
 import type { PvpIntent } from "./pvp-battle-engine";
@@ -180,7 +180,9 @@ export function useWildsMultiplayer(input: {
       // while its UI is open or an incoming interaction needs attention, so a
       // routine self-heartbeat cannot rerender the game every 2.5 seconds.
       if (current.surfaceOpen || requiresAttention) {
-        setSnapshot((prior) => prior?.revision === result.snapshot.revision ? prior : result.snapshot);
+        startTransition(() => {
+          setSnapshot((prior) => prior?.revision === result.snapshot.revision ? prior : result.snapshot);
+        });
       }
       // A server-accepted heartbeat is shared internet presence. Publication
       // controls durability; it does not decide whether other players see it.
@@ -259,7 +261,9 @@ export function useWildsMultiplayer(input: {
       });
       const result = await jsonRequest<{ players: WildsPresence[] }>(`/api/wilds/atlas?${params.toString()}`, { cache: "no-store" });
       const players = result.players ?? [];
-      setGlobalPlayers((currentPlayers) => samePresence(currentPlayers, players) ? currentPlayers : players);
+      startTransition(() => {
+        setGlobalPlayers((currentPlayers) => samePresence(currentPlayers, players) ? currentPlayers : players);
+      });
     } catch {
       // Retain the last short-lived atlas projection until the next heartbeat.
       // Server-side TTL enforcement prevents stale players from reappearing.

@@ -64,26 +64,36 @@ import {
   publishCurrentWildzProfile,
   wildzProfilePublicationReadiness
 } from "@/lib/receiz/wildz-profile-adapter";
-import { WildzProfileSheet } from "@/features/profile/WildzProfileSheet";
-import { WildzVaultSheet } from "@/features/profile/WildzVaultSheet";
-import { WildzMarketSheet } from "@/features/market/WildzMarketSheet";
 import type { WildzOverlay } from "@/features/shell/wildz-overlay";
 import { shouldRunWildzOffHotPathWork } from "@/features/play/wilds-network-status";
 import { downloadBlob } from "@/features/play/card-export";
 import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-verifier";
 import { canRestoreFocus } from "@/features/play/focus-recovery";
 import type { WildzPlayerStateRecord } from "@/lib/receiz/wildz-player-state-sync";
+import { wildzGameplayBackground } from "@/lib/performance/wildz-gameplay-background";
+import { wildzPlayerStateSerializer } from "@/lib/performance/wildz-player-state-serializer";
+import { wildzJsonSerializer } from "@/lib/performance/wildz-json-serializer";
 import { projectWildzContinuityExplorer } from "@/features/play/wildz-explorer-proof";
 import type { WildsWorldProjection } from "@/features/play/wilds-world-state";
 import {
   clearWildzPendingInventoryCheckpoint,
   clearWildzRuntimeCheckpoint,
+  prepareWildzRuntimeCheckpoint,
   readWildzRuntimeCheckpoint,
   writeWildzPendingInventoryCheckpoint,
+  writePreparedWildzRuntimeCheckpoint,
   writeWildzRuntimeCheckpoint
 } from "@/features/play/wildz-runtime-checkpoint";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+const loadWildzProfileSheet = () => import("@/features/profile/WildzProfileSheet").then((module) => module.WildzProfileSheet);
+const loadWildzVaultSheet = () => import("@/features/profile/WildzVaultSheet").then((module) => module.WildzVaultSheet);
+const loadWildzMarketSheet = () => import("@/features/market/WildzMarketSheet").then((module) => module.WildzMarketSheet);
+const WildzProfileSheet = dynamic(loadWildzProfileSheet, { ssr: false });
+const WildzVaultSheet = dynamic(loadWildzVaultSheet, { ssr: false });
+const WildzMarketSheet = dynamic(loadWildzMarketSheet, { ssr: false });
 
 type PendingPlayStateSave = {
   snapshot: WildzContinuitySnapshot;
@@ -92,13 +102,13 @@ type PendingPlayStateSave = {
   playerContinuity: NonNullable<WildzContinuitySnapshot["playerContinuity"]>;
 };
 
-function playerVaultFromSnapshot(
+function playerVaultInputFromSnapshot(
   snapshot: WildzContinuitySnapshot,
   playState: PlayState,
   exportedAt = new Date().toISOString()
 ) {
   const playerContinuity = snapshot.playerContinuity;
-  return createWildsPlayerVault({
+  return {
     playerId: snapshot.session.username ?? snapshot.session.actorId,
     exportedAt,
     playState,
@@ -112,7 +122,7 @@ function playerVaultFromSnapshot(
     personalEvents: playerContinuity?.personalEvents ?? [],
     canonicalCursor: playerContinuity?.canonicalCursor ?? { worldId: "wilds:global:v3", revision: 0, eventId: null },
     receipts: playerContinuity?.receipts ?? []
-  });
+  };
 }
 
 function clearWildzAuthQuery() {
@@ -141,6 +151,15 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const lastRemotePlayerDigestRef = useRef("");
   const adoptingRemotePlayStateRef = useRef<PlayState | null>(null);
   const playStateSaveSchedulerRef = useRef<WildzPlayStatePersistenceCoordinator<PendingPlayStateSave> | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void wildzGameplayBackground.run(async () => {
+      if (!active) return;
+      await Promise.all([loadWildzProfileSheet(), loadWildzVaultSheet(), loadWildzMarketSheet()]);
+    }, { timeoutMs: 2_500 }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
   if (!playStateSaveSchedulerRef.current) {
     playStateSaveSchedulerRef.current = createWildzPlayStatePersistenceCoordinator({
       delayMs: 400,
@@ -152,12 +171,24 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           previousInventory
         });
       },
-      writeRuntime: ({ snapshot, playState }: PendingPlayStateSave) => {
-        writeWildzRuntimeCheckpoint(window.localStorage, {
+      writeRuntime: async ({ snapshot, playState }: PendingPlayStateSave) => {
+        const prepared = prepareWildzRuntimeCheckpoint({
           keyId: snapshot.session.keyId,
           actorId: snapshot.session.actorId,
           playState
         });
+        const serialized = await wildzJsonSerializer.serialize(prepared.checkpoint);
+        await wildzGameplayBackground.run(() => {
+          if (serialized) {
+            writePreparedWildzRuntimeCheckpoint(window.localStorage, { key: prepared.key, serialized });
+          } else {
+            writeWildzRuntimeCheckpoint(window.localStorage, {
+              keyId: snapshot.session.keyId,
+              actorId: snapshot.session.actorId,
+              playState
+            });
+          }
+        }, { timeoutMs: 1_200 });
       },
       writeVault: async ({ snapshot, playState, playerContinuity }: PendingPlayStateSave) => {
         const saved = await saveWildzContinuityPlayState(
@@ -899,15 +930,19 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       playerStateSyncQueuedRef.current = null;
       if (!queued?.playState || !queued.playerContinuity) return;
       const mutationAtSubmit = playerStateMutationRef.current;
-      const player = playerVaultFromSnapshot(queued, queued.playState);
+      const projectionInput = playerVaultInputFromSnapshot(queued, queued.playState);
       playerStateSyncInFlightRef.current = true;
-      void fetch("/api/wilds/player-state", {
+      void wildzPlayerStateSerializer.serialize(projectionInput).then((workerBody) => workerBody
+        ?? wildzGameplayBackground.run(() => {
+          const player = createWildsPlayerVault(projectionInput);
+          return JSON.stringify({ player });
+        }, { timeoutMs: 1_500 })).then((body) => fetch("/api/wilds/player-state", {
         method: "POST",
         credentials: "same-origin",
         cache: "no-store",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ player })
-      }).then(async (response) => {
+        body
+      })).then(async (response) => {
         const result = await response.json().catch(() => null) as { ok?: boolean; record?: WildzPlayerStateRecord | null } | null;
         if (!response.ok || !result?.ok || !result.record) return;
         playerStateSubmittedMutationRef.current = Math.max(playerStateSubmittedMutationRef.current, mutationAtSubmit);
@@ -934,10 +969,24 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   useEffect(() => {
     if (!proofSessionConnected || !identity) return;
     let active = true;
-    const pull = () => {
+    let inFlight = false;
+    let timer: number | null = null;
+    const schedule = (delayMs: number) => {
+      if (!active || timer !== null) return;
+      timer = window.setTimeout(() => {
+        timer = null;
+        void pull();
+      }, delayMs);
+    };
+    const pull = async () => {
       if (!active || document.visibilityState !== "visible"
-        || playerStateMutationRef.current !== playerStateSubmittedMutationRef.current) return;
-      void fetch("/api/wilds/player-state", {
+        || inFlight
+        || playerStateMutationRef.current !== playerStateSubmittedMutationRef.current) {
+        schedule(5_000);
+        return;
+      }
+      inFlight = true;
+      await fetch("/api/wilds/player-state", {
         credentials: "same-origin",
         cache: "no-store"
       }).then(async (response) => {
@@ -946,15 +995,22 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           && playerStateMutationRef.current === playerStateSubmittedMutationRef.current) {
           await admitRemotePlayerState(result.record);
         }
-      }).catch(() => undefined);
+      }).catch(() => undefined).finally(() => {
+        inFlight = false;
+        schedule(5_000);
+      });
     };
-    pull();
-    const interval = window.setInterval(pull, 5_000);
-    const onVisibility = () => { if (document.visibilityState === "visible") pull(); };
+    void pull();
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      if (timer !== null) window.clearTimeout(timer);
+      timer = null;
+      void pull();
+    };
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       active = false;
-      window.clearInterval(interval);
+      if (timer !== null) window.clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [admitRemotePlayerState, identity, proofSessionConnected]);
