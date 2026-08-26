@@ -405,8 +405,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       });
     };
     const syncPublication = () => {
-      const surface = overlay?.kind === "profile" ? "profile" : "gameplay";
-      if (shouldRunWildzOffHotPathWork({ visibility: document.visibilityState, surface })) publish();
+      if (shouldRunWildzOffHotPathWork({ visibility: document.visibilityState, surface: "profile" })) publish();
       else stopPublishing();
     };
     syncPublication();

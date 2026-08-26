@@ -93,6 +93,7 @@ import type { WildsStewardPlacement } from "@/features/play/wilds-steward-craft"
 import type { WildsWorldCapabilityFamily } from "@/features/play/wilds-world-capability-registry";
 import { projectWildsCapabilityPresentation } from "@/features/play/wilds-capability-presentation";
 import { projectWildsDiscoveryHint } from "@/features/play/wilds-discovery-hint";
+import { creatureContinuityProjection } from "@/features/play/creature-continuity";
 
 const WILDS_DIAGNOSTICS_ENABLED = process.env.NODE_ENV !== "production";
 const EMPTY_AERIAL_OBSTACLE_NEIGHBORHOOD = Object.freeze({ tileX: 0, tileZ: 0, obstacles: Object.freeze([]) }) as WildsAerialObstacleNeighborhood;
@@ -677,6 +678,15 @@ function ActiveCompanion({ activeWorkSource, activeCapabilityFamily, locomotion,
   const asset = state.inventory.find((candidate) => candidate.id === state.selectedAssetId);
   const formId = asset?.manifest.formId ?? `${card.id}-1`;
   const appearance = useMemo(() => asset ? projectCardKaiAppearance(asset) : null, [asset]);
+  const roaming = useMemo(() => {
+    const mandate = asset ? creatureContinuityProjection(asset)?.mandate : null;
+    return Boolean(mandate?.status === "active" && mandate.ownerReceizId === asset?.manifest.ownerReceizId);
+  }, [asset]);
+  const roamingPhase = useMemo(() => {
+    const token = asset?.proof.digest.slice(-8) ?? "0";
+    return (Number.parseInt(token, 16) % 6283) / 1000;
+  }, [asset?.proof.digest]);
+  const roamingRadius = .56;
   const capabilityPresentation = useMemo(() => activeCapabilityFamily
     ? projectWildsCapabilityPresentation({ family: activeCapabilityFamily, targetId: activeWorkSource?.sourceId ?? null })
     : null, [activeCapabilityFamily, activeWorkSource?.sourceId]);
@@ -700,14 +710,25 @@ function ActiveCompanion({ activeWorkSource, activeCapabilityFamily, locomotion,
   const group = useRef<THREE.Group>(null);
   const workTarget = useRef(new THREE.Vector3());
   const working = Boolean(activeWorkSource);
-  useFrame((_, delta) => {
+  useFrame(({ clock }, delta) => {
     if (!group.current) return;
     const target = working ? workPosition : restingPosition;
     const blend = 1 - Math.exp(-Math.min(delta, .05) * (working ? 8.5 : 6.5));
-    workTarget.current.set(...target);
+    if (roaming && !working && locomotion === "ground") {
+      const angle = clock.elapsedTime * .48 + roamingPhase;
+      workTarget.current.set(
+        target[0] + Math.cos(angle) * roamingRadius,
+        target[1] + Math.sin(angle * 2) * .025,
+        target[2] + Math.sin(angle) * roamingRadius
+      );
+    } else {
+      workTarget.current.set(...target);
+    }
     group.current.position.lerp(workTarget.current, blend);
-    if (activeWorkSource) {
-      const heading = Math.atan2(activeWorkSource.position.x - state.player.x - group.current.position.x, activeWorkSource.position.z - state.player.z - group.current.position.z);
+    if (activeWorkSource || roaming) {
+      const heading = activeWorkSource
+        ? Math.atan2(activeWorkSource.position.x - state.player.x - group.current.position.x, activeWorkSource.position.z - state.player.z - group.current.position.z)
+        : Math.atan2(workTarget.current.x - group.current.position.x, workTarget.current.z - group.current.position.z);
       group.current.rotation.y = THREE.MathUtils.lerp(group.current.rotation.y, heading, blend);
     }
   });

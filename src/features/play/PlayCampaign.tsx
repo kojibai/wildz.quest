@@ -67,6 +67,7 @@ import { evaluateLandmarkAccess, type WildsLandmarkProgress } from "@/features/p
 import { authorizeRiftTravel, type RiftTravelGrant } from "@/features/play/wilds-rift-travel";
 import { projectWildzHud } from "@/features/play/wildz-gameplay-hud";
 import { shouldRunWildzOffHotPathWork } from "@/features/play/wilds-network-status";
+import { nextCreatureContinuityDueAt } from "@/features/play/creature-continuity";
 import { WildzReferenceHud } from "@/features/play/WildzReferenceHud";
 import { WildzWorldControls } from "@/features/play/WildzWorldControls";
 import { WildsCreatureThumbnail } from "@/features/play/WildsCreatureThumbnail";
@@ -315,8 +316,7 @@ export function PlayCampaign({
       }
     }, current));
   }, []);
-  useEffect(() => {
-    const settleLivingCreatures = () => setState((current) => {
+  const settleLivingCreatures = useCallback(() => setState((current) => {
       const at = new Date().toISOString();
       const travelSettled = applyWildsInput(current, { type: "settle-pending-travel-growth" });
       return travelSettled.inventory.reduce((next, asset) => applyWildsInput(next, {
@@ -330,7 +330,8 @@ export function PlayCampaign({
         ownerReceizId,
         at
       }), travelSettled));
-    });
+    }), [ownerReceizId]);
+  useEffect(() => {
     const settleWhenHidden = () => {
       if (shouldRunWildzOffHotPathWork({ visibility: document.visibilityState, surface: "gameplay" })) {
         settleLivingCreatures();
@@ -340,7 +341,17 @@ export function PlayCampaign({
     return () => {
       document.removeEventListener("visibilitychange", settleWhenHidden);
     };
-  }, [ownerReceizId]);
+  }, [settleLivingCreatures]);
+  useEffect(() => {
+    const nextDueAt = state.inventory.reduce<number | null>((earliest, asset) => {
+      const dueAt = nextCreatureContinuityDueAt(asset);
+      return dueAt === null || (earliest !== null && earliest <= dueAt) ? earliest : dueAt;
+    }, null);
+    if (nextDueAt === null) return;
+    const delay = Math.max(0, Math.min(2_147_000_000, nextDueAt - Date.now()));
+    const timer = window.setTimeout(settleLivingCreatures, delay);
+    return () => window.clearTimeout(timer);
+  }, [settleLivingCreatures, state.inventory]);
   useEffect(() => {
     if (!("serviceWorker" in navigator) || !("Notification" in window)) return;
     let cancelled = false;

@@ -8,6 +8,7 @@ test("Card Vault export seals the complete live V3 player payload, not cards alo
   const exporter = readFileSync("src/features/play/card-export.ts", "utf8");
   const localVerifier = readFileSync("src/lib/receiz/wildz-downloaded-proof-verifier.ts", "utf8");
   const adapter = readFileSync("src/lib/receiz/wildz-identity-adapter.ts", "utf8");
+  const binding = readFileSync("src/lib/receiz/wildz-identity-vault-binding.ts", "utf8");
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
 
   assert.match(campaign, /createWildsPlayerVault/);
@@ -29,9 +30,9 @@ test("Card Vault export seals the complete live V3 player payload, not cards alo
   assert.doesNotMatch(exporter, /\.wildz-card\.png/);
   assert.match(adapter, /downloadWildzIdentityPlayerVault/);
   assert.match(adapter, /withKeyFile/);
-  assert.match(adapter, /appendWildzIdentitySealAuthority/);
-  assert.match(adapter, /createWildzIdentityBinding/);
-  assert.match(adapter, /appendWildzIdentityBindingTrailer/);
+  assert.match(binding, /appendWildzIdentitySealAuthority/);
+  assert.match(binding, /createWildzIdentityBinding/);
+  assert.match(binding, /appendWildzIdentityBindingTrailer/);
   assert.match(shell, /downloadWildzIdentityPlayerCard/);
   const profile = readFileSync("src/features/profile/WildzProfileSheet.tsx", "utf8");
   assert.doesNotMatch(campaign, /onExportIdentityCard/);

@@ -1011,7 +1011,8 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 
 .wildz-profile-sheet,
 .wildz-vault-sheet { display: grid; gap: 12px; max-height: min(76dvh, 700px); overflow: auto; padding: 16px; }
-.wildz-profile-sheet { isolation: isolate; overscroll-behavior-y: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+.wildz-profile-sheet { isolation: isolate; grid-template-columns: minmax(0, 1fr); overscroll-behavior-y: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+.wildz-profile-sheet > * { min-width: 0; }
 .wildz-profile-head { position: relative; display: flex; align-items: center; gap: 14px; padding-right: 100px; }
 .wildz-profile-head span, .wildz-vault-sheet header span { color: #9cbaa9; font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
 .wildz-profile-head h2 { margin: 2px 0 0; font-size: 25px; }
@@ -1064,13 +1065,23 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 .wildz-profile-vault-gallery { position: relative; display: grid; gap: 10px; }
 .wildz-profile-vault-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .wildz-profile-vault-heading span { color: #9cbaa9; font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
-.wildz-profile-vault-heading strong { color: #d9eddf; font-size: 10px; }
+.wildz-profile-vault-heading strong { min-width: 0; overflow: hidden; color: #d9eddf; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .wildz-profile-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .wildz-profile-card-tile { position: relative; display: grid; min-width: 0; min-height: 44px; padding: 0; overflow: hidden; border: 1px solid rgba(151,226,155,.2); border-radius: 18px; color: #effff5; background: linear-gradient(155deg, rgba(29,72,52,.9), rgba(5,23,18,.96)); box-shadow: 0 12px 26px rgba(0,0,0,.2); text-align: left; touch-action: pan-y; cursor: pointer; }
 .wildz-profile-card-tile:focus-visible { outline: 3px solid rgba(113,232,195,.78); outline-offset: 3px; }
 .wildz-profile-card-tile img { display: block; width: 100%; height: auto; aspect-ratio: 5 / 7; object-fit: contain; background: #061a17; }
-.wildz-profile-card-local { width: 100%; aspect-ratio: 5 / 7; overflow: hidden; background: #061a17; pointer-events: none; }
-.wildz-profile-card-local .wilds-collectible-card.compact { width: 100%; height: 100%; padding: 6%; gap: 2.1%; border-width: 4px; border-radius: 14px; box-shadow: none; }
+.wildz-profile-card-local { width: 100%; aspect-ratio: 5 / 7; overflow: hidden; background: #061a17; container-type: inline-size; pointer-events: none; }
+.wildz-profile-card-deferred { display: grid; width: 100%; height: 100%; place-items: center; background: radial-gradient(circle at 50% 38%, rgba(113,232,195,.16), transparent 34%), linear-gradient(155deg, #0c3027, #061a17); }
+.wildz-profile-card-deferred i { display: grid; width: 42%; aspect-ratio: 1; place-items: center; border: 1px solid rgba(113,232,195,.28); border-radius: 50%; color: rgba(221,255,242,.66); background: rgba(2,17,14,.7); font-size: clamp(18px, 7vw, 34px); font-style: normal; font-weight: 900; letter-spacing: .06em; }
+.wildz-profile-card-local .wilds-collectible-card.compact { width: 100%; height: 100%; box-sizing: border-box; grid-template-columns: minmax(0, 1fr); padding: 6%; gap: 2.1%; border-width: 4px; border-radius: 14px; box-shadow: none; }
+.wildz-profile-card-local .wilds-collectible-card > :not(.wilds-card-foil),
+.wildz-profile-card-local .wilds-collectible-card > header > div { min-width: 0; max-width: 100%; }
+.wildz-profile-card-local .wilds-collectible-card > header strong,
+.wildz-profile-card-local .wilds-collectible-card > header :is(span, small),
+.wildz-profile-card-local .wilds-card-rarity > * { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wildz-profile-card-local .wilds-card-stats { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: clamp(1px, 1cqw, 3px); }
+.wildz-profile-card-local .wilds-card-stats > div { min-width: 0; padding-right: 0; padding-left: 0; overflow: hidden; }
+.wildz-profile-card-local .wilds-card-stats :is(dt, dd) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wildz-profile-card-local .wilds-collectible-card > header strong { font-size: clamp(8px, 3.1vw, 14px); }
 .wildz-profile-card-local .wilds-collectible-card > header span,
 .wildz-profile-card-local .wilds-collectible-card > header small,
@@ -1131,6 +1142,14 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
     bottom: max(18px, env(safe-area-inset-bottom));
     left: auto;
     width: min(420px, 34vw);
+    overflow: hidden;
+  }
+
+  .wildz-shell-overlay > .wildz-profile-sheet,
+  .wildz-shell-overlay > .wildz-vault-sheet {
+    height: 100%;
+    max-height: none;
+    box-sizing: border-box;
   }
 }
 

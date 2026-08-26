@@ -155,8 +155,13 @@ export function activateCreatureContinuity(input: Readonly<{
     }
     const candidate = living(input.asset, input.at);
     const mandate = createMandate({ ...input, asset: candidate, status: "active" });
-    const asset = appendMandate(candidate, mandate);
-    return { ok: true, asset, appended: 1 };
+    const awakened = appendMandate(candidate, mandate);
+    const continuity = currentCreatureHistoryProjection(awakened).continuity!;
+    const firstExperience = eventFor({ asset: awakened, continuity, at: input.at, ordinal: 0 });
+    const asset = appendAutonomyEvent(awakened, firstExperience);
+    validateCreatureContinuityProjection(currentCreatureHistoryProjection(asset).continuity!, asset.id);
+    if (!verifyAnyWildsCard(asset).ok) throw new Error("continuity_candidate_invalid");
+    return { ok: true, asset, appended: 2 };
   } catch {
     return { ok: false, asset: input.asset, appended: 0, code: "continuity_command_rejected" };
   }
@@ -198,6 +203,17 @@ function dueTimes(continuity: CreatureContinuityProjection, now: string) {
     cursor += interval;
   }
   return times;
+}
+
+export function nextCreatureContinuityDueAt(asset: PortableCardAsset) {
+  const continuity = creatureContinuityProjection(asset);
+  const mandate = continuity?.mandate;
+  if (!continuity || !mandate || mandate.status !== "active") return null;
+  const hasLivedExperience = continuity.events.some((event) => CREATURE_CONTINUITY_ACTIONS.includes(event.kind as CreatureAutonomyAction));
+  const interval = hasLivedExperience
+    ? Math.floor(86_400_000 / mandate.maxActionsPerDay)
+    : CREATURE_CONTINUITY_FIRST_EXPERIENCE_MS;
+  return Date.parse(continuity.lastSettledAt ?? mandate.changedAt) + interval;
 }
 
 function eventFor(input: Readonly<{
@@ -251,6 +267,20 @@ function eventFor(input: Readonly<{
   return { ...basis, digest: digest(basis) };
 }
 
+function appendAutonomyEvent(asset: LivingCardAsset, event: CreatureContinuityEvent) {
+  return appendLivingCardHistory({
+    asset,
+    event: {
+      eventId: event.eventId,
+      rulesetVersion: CREATURE_CONTINUITY_RULESET,
+      occurredAt: event.occurredAt,
+      source: { mode: "continuity", activityId: event.commandId, actorId: mandateActor(event), authority: "local" },
+      evidence: { sourceEventDigest: event.digest },
+      effects: [{ kind: "continuity-event", event }]
+    }
+  });
+}
+
 export function settleCreatureContinuity(input: Readonly<{
   asset: PortableCardAsset;
   ownerReceizId: string;
@@ -273,17 +303,7 @@ export function settleCreatureContinuity(input: Readonly<{
     for (const [ordinal, at] of times.entries()) {
       const continuity = currentCreatureHistoryProjection(candidate).continuity!;
       const event = eventFor({ asset: candidate, continuity, at, ordinal });
-      candidate = appendLivingCardHistory({
-        asset: candidate,
-        event: {
-          eventId: event.eventId,
-          rulesetVersion: CREATURE_CONTINUITY_RULESET,
-          occurredAt: event.occurredAt,
-          source: { mode: "continuity", activityId: event.commandId, actorId: mandateActor(event), authority: "local" },
-          evidence: { sourceEventDigest: event.digest },
-          effects: [{ kind: "continuity-event", event }]
-        }
-      });
+      candidate = appendAutonomyEvent(candidate, event);
     }
     validateCreatureContinuityProjection(currentCreatureHistoryProjection(candidate).continuity!, candidate.id);
     if (!verifyAnyWildsCard(candidate).ok) throw new Error("continuity_candidate_invalid");

@@ -127,7 +127,7 @@ export function CreatureContinuityPanel({
             <span aria-hidden="true">{event.kind === "discover" ? "✦" : event.kind === "barter-keepsake" ? "⇄" : event.kind === "explore" ? "⌁" : "●"}</span>
             <p><strong>{event.kind.replaceAll("-", " ")}</strong>{event.summary}<small>{relativeMoment(event.occurredAt)} · proof {event.digest.slice(7, 17)}</small></p>
           </article>
-        )) : <p className="wilds-continuity-empty">No roaming experience yet. Once awakened, the first real creature meeting settles within the next five-minute world check.</p>}
+        )) : <p className="wilds-continuity-empty">No roaming experience yet. Awakening roaming seals the first real meeting immediately.</p>}
       </div>
 
       {continuity?.relationships.length ? <div className="wilds-continuity-bonds">

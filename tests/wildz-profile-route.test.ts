@@ -22,6 +22,7 @@ test("shared profiles recover and publish through Receiz instead of a local plac
   assert.match(shell, /publishCurrentWildzProfile\(localPublicProfile, publishableOwnerAssets, globalThis\.fetch/);
   assert.match(shell, /signal:\s*controller\.signal/);
   assert.match(shell, /controller\.abort\(\)/);
+  assert.doesNotMatch(shell, /const surface = overlay\?\.kind === "profile" \? "profile" : "gameplay"/);
   assert.match(shell, /locallyClaimedWildzAssetIds/);
   assert.match(shell, /setProfileStatus\("publishing"\)/);
   assert.match(shell, /setProfileStatus\("unpublished"\)/);

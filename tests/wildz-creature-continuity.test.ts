@@ -5,7 +5,8 @@ import { projectCreatureBrain } from "../src/features/play/creature-consciousnes
 import { projectCreatureCare } from "../src/features/play/creature-care";
 import {
   CREATURE_CONTINUITY_FIRST_EXPERIENCE_MS,
-  creatureContinuityProjection
+  creatureContinuityProjection,
+  nextCreatureContinuityDueAt
 } from "../src/features/play/creature-continuity";
 import { applyWildsInput, initialPlayState } from "../src/features/play/game-state";
 import { currentCreatureHistoryProjection } from "../src/features/play/living-card-proof";
@@ -17,7 +18,7 @@ function timeline() {
   const asset = state.inventory[0]!;
   const ownerReceizId = asset.manifest.ownerReceizId;
   const start = new Date(Date.parse(asset.proof.sealedAt) + 1_000).toISOString();
-  const due = new Date(Date.parse(start) + CREATURE_CONTINUITY_FIRST_EXPERIENCE_MS + 3 * 60_000).toISOString();
+  const due = new Date(Date.parse(start) + 3_600_000 + 3 * 60_000).toISOString();
   const active = applyWildsInput(state, { type: "activate-creature-continuity", assetId: asset.id, ownerReceizId, at: start });
   const settled = applyWildsInput(active, { type: "settle-creature-continuity", assetId: asset.id, ownerReceizId, at: due });
   return { active, assetId: asset.id, ownerReceizId, settled, start, due };
@@ -35,24 +36,28 @@ test("an owner-bound mandate deterministically settles replayable creature life"
   assert.equal(continuity.mandate?.status, "active");
   assert.equal(continuity.mandate?.ownerReceizId, first.ownerReceizId);
   assert.equal(continuity.mandate?.maxActionsPerDay, 24);
-  assert.equal(continuity.events.length, 2);
+  assert.equal(continuity.events.length, 3);
   assert.equal(continuity.events[1]?.digest, replayedContinuity.events[1]?.digest);
   assert.equal(continuity.headDigest, continuity.events.at(-1)?.digest);
   assert.match(continuity.events[0]?.summary ?? "", /awakened to life while away/i);
   assert.match(continuity.events[1]?.summary ?? "", new RegExp(card.manifest.name));
   assert.equal(continuity.events[1]?.kind, "meet");
-  assert.equal(continuity.relationships.length, 1);
+  assert.ok(continuity.relationships.length >= 1);
   assert.equal(projectCreatureBrain(card).memory.continuity?.livedEvents.at(-1)?.digest, continuity.headDigest);
 });
 
-test("the first real roaming experience arrives in minutes without exceeding its mandate", () => {
+test("the first real roaming experience is sealed immediately and schedules the next bounded experience", () => {
   const state = structuredClone(initialPlayState);
   const asset = state.inventory[0]!;
   const ownerReceizId = asset.manifest.ownerReceizId;
   const start = new Date(Date.parse(asset.proof.sealedAt) + 1_000).toISOString();
   const active = applyWildsInput(state, { type: "activate-creature-continuity", assetId: asset.id, ownerReceizId, at: start });
+  const projection = creatureContinuityProjection(active.inventory.find((candidate) => candidate.id === asset.id)!)!;
+  assert.equal(projection.events.filter((event) => ["explore", "meet", "bond", "discover", "barter-keepsake"].includes(event.kind)).length, 1);
+  assert.equal(projection.events.at(-1)?.kind, "meet");
+  assert.equal(nextCreatureContinuityDueAt(active.inventory.find((candidate) => candidate.id === asset.id)!), Date.parse(start) + 3_600_000);
   const tooSoon = new Date(Date.parse(start) + CREATURE_CONTINUITY_FIRST_EXPERIENCE_MS - 1).toISOString();
-  const due = new Date(Date.parse(start) + 5 * 60_000).toISOString();
+  const due = new Date(Date.parse(start) + 3_600_000).toISOString();
   const unchanged = applyWildsInput(active, { type: "settle-creature-continuity", assetId: asset.id, ownerReceizId, at: tooSoon });
   const settled = applyWildsInput(active, { type: "settle-creature-continuity", assetId: asset.id, ownerReceizId, at: due });
   const before = active.inventory.find((candidate) => candidate.id === asset.id)!;
@@ -60,7 +65,7 @@ test("the first real roaming experience arrives in minutes without exceeding its
 
   assert.equal(unchanged.inventory.find((candidate) => candidate.id === asset.id)?.proof.digest, before.proof.digest);
   assert.notEqual(after.proof.digest, before.proof.digest);
-  assert.equal(creatureContinuityProjection(after)?.events.at(-1)?.kind, "meet");
+  assert.ok(["explore", "meet", "bond", "discover", "barter-keepsake"].includes(creatureContinuityProjection(after)?.events.at(-1)?.kind ?? ""));
 });
 
 test("continuity denials are zero-write and a pause preserves all lived memory", () => {
@@ -110,8 +115,19 @@ test("suspending the app settles due roaming life without blocking visible gamep
   const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
   assert.doesNotMatch(campaign, /window\.addEventListener\("focus", settleLivingCreatures\)/);
   assert.match(campaign, /document\.addEventListener\("visibilitychange", settleWhenHidden\)/);
+  assert.match(campaign, /nextCreatureContinuityDueAt/);
+  assert.match(campaign, /window\.setTimeout\(settleLivingCreatures/);
+  assert.doesNotMatch(campaign, /setInterval\(settleLivingCreatures/);
   assert.match(campaign, /shouldRunWildzOffHotPathWork\(\{ visibility: document\.visibilityState, surface: "gameplay" \}\)/);
   assert.match(campaign, /type: "settle-creature-care"/);
+});
+
+test("an active roaming mandate has visible embodied movement in the world", () => {
+  const world = readFileSync("src/features/play/WildsWorldCanvas.tsx", "utf8");
+  assert.match(world, /creatureContinuityProjection\(asset\)/);
+  assert.match(world, /const roaming =/);
+  assert.match(world, /roamingRadius/);
+  assert.match(world, /clock\.elapsedTime/);
 });
 
 test("active creatures develop deterministic real-time needs and earned care restores them", () => {

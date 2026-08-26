@@ -27,7 +27,6 @@ import {
   readPortableVaultFromPng,
   readWildzPlayerVaultAppendFromPng,
   saveBlobToDevice,
-  verifyPortableVaultPng
 } from "../../features/play/card-export";
 import type { PortableCardAsset } from "../../features/play/portable-card";
 import {
@@ -39,11 +38,12 @@ import {
   createWildzIdentityCardArtworkPng,
   createWildzIdentitySealPng
 } from "./wildz-identity-seal";
-import { appendWildzIdentitySealAuthority } from "./wildz-identity-seal";
+import { createWildzIdentityPlayerCardOffThread } from "./wildz-identity-export-client";
 import {
-  appendWildzIdentityBindingTrailer,
-  createWildzIdentityBinding
-} from "./wildz-identity-binding";
+  createWildzIdentityBoundPlayerVault,
+  wildzIdentityKeyNeedsPassphrase
+} from "./wildz-identity-vault-binding";
+export { createWildzIdentityBoundPlayerVault } from "./wildz-identity-vault-binding";
 import {
   createWildzArtifactCodec,
   type WildzArtifactCodec,
@@ -549,38 +549,7 @@ export function saveWildzContinuityPlayState(
 }
 
 function identityKeyNeedsPassphrase(keyFile: ReceizKeyFile) {
-  return !keyFile.crypto.privateKeyPkcs8B64u
-    && keyFile.crypto.privateKeyPkcs8CiphertextB64u.length > 0;
-}
-
-export async function createWildzIdentityBoundPlayerVault(input: {
-  keyFile: ReceizKeyFile;
-  passphrase?: string;
-  vaultBytes: Uint8Array;
-}) {
-  const verified = verifyPortableVaultPng(input.vaultBytes);
-  const proof = readPortableVaultFromPng(input.vaultBytes);
-  let playerAppend: ReturnType<typeof readWildzPlayerVaultAppendFromPng>;
-  try {
-    playerAppend = readWildzPlayerVaultAppendFromPng(input.vaultBytes);
-  } catch {
-    throw new Error("wildz_vault_export_proof_invalid");
-  }
-  if (!verified.ok || playerAppend.base.vaultDigest !== proof.vaultDigest) {
-    throw new Error("wildz_vault_export_proof_invalid");
-  }
-  if (identityKeyNeedsPassphrase(input.keyFile) && !input.passphrase) {
-    throw new Error("wildz_identity_passphrase_required");
-  }
-  const withIdentity = appendWildzIdentitySealAuthority(input.vaultBytes, input.keyFile);
-  const binding = await createWildzIdentityBinding({
-    keyFile: input.keyFile,
-    playerId: playerAppend.player.playerId,
-    vaultDigest: proof.vaultDigest,
-    playerPayloadDigest: playerAppend.player.payloadDigest,
-    ...(input.passphrase !== undefined ? { passphrase: input.passphrase } : {})
-  });
-  return appendWildzIdentityBindingTrailer(withIdentity, binding);
+  return wildzIdentityKeyNeedsPassphrase(keyFile);
 }
 
 export async function createWildzIdentityPlayerCard(input: {
@@ -592,6 +561,14 @@ export async function createWildzIdentityPlayerCard(input: {
 }) {
   if (input.keyFile.keyId !== input.session.keyId) throw new Error("wildz_identity_card_key_id_mismatch");
   const artwork = await createWildzIdentityCardArtworkPng(input.session);
+  const offThread = await createWildzIdentityPlayerCardOffThread({
+    artwork,
+    assets: input.assets,
+    player: input.player,
+    keyFile: input.keyFile,
+    ...(input.passphrase !== undefined ? { passphrase: input.passphrase } : {})
+  });
+  if (offThread) return offThread;
   const vaultBytes = embedPortableVaultInPng(artwork, input.assets, input.player);
   return createWildzIdentityBoundPlayerVault({
     keyFile: input.keyFile,

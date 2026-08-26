@@ -12,8 +12,10 @@ import {
 
 test("upload follow-up work cannot run while gameplay is visible", () => {
   assert.equal(shouldRunWildzOffHotPathWork({ visibility: "visible", surface: "gameplay" }), false);
-  assert.equal(shouldRunWildzOffHotPathWork({ visibility: "visible", surface: "profile" }), true);
+  assert.equal(shouldRunWildzOffHotPathWork({ visibility: "visible", surface: "profile" }), false);
+  assert.equal(shouldRunWildzOffHotPathWork({ visibility: "visible", surface: "overlay" }), false);
   assert.equal(shouldRunWildzOffHotPathWork({ visibility: "hidden", surface: "gameplay" }), true);
+  assert.equal(shouldRunWildzOffHotPathWork({ visibility: "hidden", surface: "profile" }), true);
 });
 
 test("offline Wildz surfaces skip network work and explain local continuity", () => {

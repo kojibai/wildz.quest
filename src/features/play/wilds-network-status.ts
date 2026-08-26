@@ -10,7 +10,11 @@ export function shouldRunWildzOffHotPathWork(input: {
   visibility: DocumentVisibilityState;
   surface: WildzRuntimeSurface;
 }) {
-  return input.visibility === "hidden" || input.surface !== "gameplay";
+  // A visible overlay is still an interactive hot path. Treating Profile as
+  // background time made card publication compete with its controls and Vault
+  // gallery, producing inventory-dependent stalls. Truly deferred work runs
+  // only once the document is no longer visible.
+  return input.visibility === "hidden";
 }
 
 function browserNetworkStatus(): NetworkStatus {

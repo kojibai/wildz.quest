@@ -72,6 +72,15 @@ test("Profile mounts real published card artwork and only one complete selected 
   assert.equal((gallery.match(/<WildsCardScene/g) ?? []).length, 1);
 });
 
+test("owner Profile bounds live card rendering to the visible gallery viewport", () => {
+  const gallery = readFileSync("src/features/profile/WildzProfileVaultGallery.tsx", "utf8");
+  assert.match(gallery, /IntersectionObserver/);
+  assert.match(gallery, /visibleOwnerCardIds/);
+  assert.match(gallery, /data-owner-card-preview/);
+  assert.match(gallery, /visibleOwnerCardIds\.has\(card\.id\)/);
+  assert.equal((gallery.match(/<WildsCard\b/g) ?? []).length, 1);
+});
+
 test("the complete card viewer cancels stale recovery and restores its exact gallery origin", () => {
   const gallery = readFileSync("src/features/profile/WildzProfileVaultGallery.tsx", "utf8");
   for (const token of ["AbortController", "requestRef.current?.abort()", "originRef", "canRestoreFocus", "aria-modal=\"true\"", "inert"])
@@ -99,7 +108,12 @@ test("Profile cards are responsive real images with native vertical scrolling", 
   assert.match(css, /\.wildz-profile-card-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/s);
   assert.match(css, /\.wildz-profile-card-tile\s*\{[^}]*min-height:\s*44px[^}]*touch-action:\s*pan-y/s);
   assert.match(css, /\.wildz-profile-card-tile img\s*\{[^}]*object-fit:\s*contain/s);
-  assert.match(css, /\.wildz-profile-sheet\s*\{[^}]*touch-action:\s*pan-y[^}]*-webkit-overflow-scrolling:\s*touch/s);
+  assert.match(css, /\.wildz-profile-sheet\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)[^}]*touch-action:\s*pan-y[^}]*-webkit-overflow-scrolling:\s*touch/s);
+  assert.match(css, /\.wildz-profile-sheet\s*>\s*\*\s*\{[^}]*min-width:\s*0/s);
+  assert.match(css, /\.wildz-profile-card-local \.wilds-collectible-card\.compact\s*\{[^}]*box-sizing:\s*border-box[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
+  assert.match(css, /\.wildz-profile-card-local \.wilds-collectible-card > :not\(\.wilds-card-foil\)[^{]*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%/s);
+  assert.match(css, /\.wildz-profile-card-local \.wilds-card-stats\s*\{[^}]*grid-template-columns:\s*repeat\(5,\s*minmax\(0,\s*1fr\)\)/s);
+  assert.match(css, /@media \(min-width:\s*820px\)\s*\{[^}]*\.wildz-shell-overlay[^}]*overflow:\s*hidden[^}]*\}[^}]*\.wildz-shell-overlay\s*>\s*\.wildz-profile-sheet[^}]*height:\s*100%[^}]*max-height:\s*none/s);
 });
 
 test("a selected Profile card stays compact when the published gallery is long", () => {
@@ -119,4 +133,16 @@ test("game browser zoom is suppressed without changing custom world-map zoom", (
   assert.match(css, /\.wildz-shell-overlay\s*\{[^}]*touch-action:\s*pan-y/s);
   assert.match(css, /\.wilds-atlas-canvas canvas\s*\{[^}]*touch-action:\s*none/s);
   assert.doesNotMatch(layout, /maximumScale|max(?:imum)?-scale|userScalable:\s*false/);
+});
+
+test("full Identity Seal proof assembly leaves the visible Profile thread", () => {
+  const adapter = readFileSync("src/lib/receiz/wildz-identity-adapter.ts", "utf8");
+  const client = readFileSync("src/lib/receiz/wildz-identity-export-client.ts", "utf8");
+  const worker = readFileSync("src/lib/receiz/wildz-identity-export.worker.ts", "utf8");
+  assert.match(adapter, /createWildzIdentityPlayerCardOffThread/);
+  assert.match(client, /new Worker\(new URL\("\.\/wildz-identity-export\.worker\.ts", import\.meta\.url\)/);
+  assert.match(client, /worker\.terminate\(\)/);
+  assert.match(client, /postMessage\([\s\S]*transferableArtwork\.buffer/);
+  assert.match(worker, /embedPortableVaultInPng/);
+  assert.match(worker, /createWildzIdentityBoundPlayerVault/);
 });

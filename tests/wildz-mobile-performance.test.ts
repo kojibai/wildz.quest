@@ -140,7 +140,8 @@ test("artifact upload follow-up work stays off visible gameplay", () => {
 
   assert.doesNotMatch(shell, /retryTimer|retryAttempt|proofSessionRetryDecision/);
   assert.match(shell, /shouldRunWildzOffHotPathWork/);
-  assert.match(shell, /overlay\?\.kind === "profile" \? "profile" : "gameplay"/);
+  assert.doesNotMatch(shell, /overlay\?\.kind === "profile" \? "profile" : "gameplay"/);
+  assert.match(shell, /visibility:\s*document\.visibilityState, surface:\s*"profile"/);
 });
 
 test("trackpad pointer motion updates the knob outside React's render path", () => {
