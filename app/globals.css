@@ -1071,9 +1071,8 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 .wildz-profile-card-tile:focus-visible { outline: 3px solid rgba(113,232,195,.78); outline-offset: 3px; }
 .wildz-profile-card-tile img { display: block; width: 100%; height: auto; aspect-ratio: 5 / 7; object-fit: contain; background: #061a17; }
 .wildz-profile-card-local { width: 100%; aspect-ratio: 5 / 7; overflow: hidden; background: #061a17; container-type: inline-size; pointer-events: none; }
-.wildz-profile-card-deferred { display: grid; width: 100%; height: 100%; place-items: center; background: radial-gradient(circle at 50% 38%, rgba(113,232,195,.16), transparent 34%), linear-gradient(155deg, #0c3027, #061a17); }
-.wildz-profile-card-deferred i { display: grid; width: 42%; aspect-ratio: 1; place-items: center; border: 1px solid rgba(113,232,195,.28); border-radius: 50%; color: rgba(221,255,242,.66); background: rgba(2,17,14,.7); font-size: clamp(18px, 7vw, 34px); font-style: normal; font-weight: 900; letter-spacing: .06em; }
 .wildz-profile-card-local .wilds-collectible-card.compact { width: 100%; height: 100%; box-sizing: border-box; grid-template-columns: minmax(0, 1fr); padding: 6%; gap: 2.1%; border-width: 4px; border-radius: 14px; box-shadow: none; }
+.wildz-profile-card-local .wilds-card-foil { animation: none; }
 .wildz-profile-card-local .wilds-collectible-card > :not(.wilds-card-foil),
 .wildz-profile-card-local .wilds-collectible-card > header > div { min-width: 0; max-width: 100%; }
 .wildz-profile-card-local .wilds-collectible-card > header strong,

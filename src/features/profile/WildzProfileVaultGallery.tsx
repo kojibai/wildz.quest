@@ -29,38 +29,10 @@ export function WildzProfileVaultGallery({ cards, ownerAssets }: {
   const [selectedAsset, setSelectedAsset] = useState<PortableCardAsset | null>(null);
   const [selectedQr, setSelectedQr] = useState("");
   const [viewerState, setViewerState] = useState<ViewerState>("idle");
-  const [visibleOwnerCardIds, setVisibleOwnerCardIds] = useState<ReadonlySet<string>>(() => new Set());
-  const gridRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
   const originRef = useRef<HTMLButtonElement | null>(null);
   const requestRef = useRef<AbortController | null>(null);
   const restoreFrameRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const grid = gridRef.current;
-    if (!grid) return;
-    const previews = Array.from(grid.querySelectorAll<HTMLElement>("[data-owner-card-preview]"));
-    if (!previews.length) return;
-    if (typeof IntersectionObserver === "undefined") {
-      setVisibleOwnerCardIds(new Set(previews.slice(0, 4).map((preview) => preview.dataset.ownerCardPreview!)));
-      return;
-    }
-    const observer = new IntersectionObserver((entries) => {
-      const entered = entries
-        .filter((entry) => entry.isIntersecting)
-        .map((entry) => (entry.target as HTMLElement).dataset.ownerCardPreview)
-        .filter((id): id is string => Boolean(id));
-      if (!entered.length) return;
-      setVisibleOwnerCardIds((current) => {
-        const next = new Set(current);
-        entered.forEach((id) => next.add(id));
-        return next.size === current.size ? current : next;
-      });
-      entries.filter((entry) => entry.isIntersecting).forEach((entry) => observer.unobserve(entry.target));
-    }, { root: grid.closest(".wildz-profile-sheet"), rootMargin: "280px 0px" });
-    previews.forEach((preview) => observer.observe(preview));
-    return () => observer.disconnect();
-  }, [cards, ownerAssetsById]);
 
   const closeViewer = useCallback((restoreFocus = true) => {
     requestRef.current?.abort();
@@ -166,7 +138,7 @@ export function WildzProfileVaultGallery({ cards, ownerAssets }: {
       <span>Published Vault</span>
       <strong>{cards.length} verified card{cards.length === 1 ? "" : "s"}</strong>
     </header>
-    <div aria-hidden={selectedCard ? true : undefined} className="wildz-profile-card-grid" inert={selectedCard ? true : undefined} ref={gridRef}>
+    <div aria-hidden={selectedCard ? true : undefined} className="wildz-profile-card-grid" inert={selectedCard ? true : undefined}>
       {cards.map((card) => {
         const localAsset = ownerAssetsById.get(card.id);
         return <button
@@ -177,11 +149,7 @@ export function WildzProfileVaultGallery({ cards, ownerAssets }: {
           type="button"
         >
           {localAsset
-            ? <div className="wildz-profile-card-local" aria-label={`${card.name} card front`} data-owner-card-preview={card.id}>
-              {visibleOwnerCardIds.has(card.id)
-                ? <WildsCard asset={localAsset} compact />
-                : <span aria-hidden="true" className="wildz-profile-card-deferred"><i>{card.name.slice(0, 2).toUpperCase()}</i></span>}
-            </div>
+            ? <div className="wildz-profile-card-local" aria-label={`${card.name} card front`}><WildsCard asset={localAsset} compact interactive={false} /></div>
             : <Image
               alt={`${card.name} card front`}
               height={700}

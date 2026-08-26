@@ -173,6 +173,34 @@ export function reconcileWildsPlayerVault(input: {
   const verified = verifyWildsPlayerVault(input.restored);
   if (!verified.ok) throw new Error(verified.errors[0] ?? "wilds_player_vault_invalid");
   const restoredPlayState = input.restored.playState;
+  const state = mergeWildsPlayerPlayStates({
+    local: input.local,
+    restored: restoredPlayState,
+    actorId: input.actorId,
+    preferLocalState: input.preferLocalState,
+    mergeExploration: input.mergeExploration
+  });
+  const warnings: string[] = [];
+  if (input.restored.canonicalCursor.revision < input.canonical.revision) warnings.push("wilds_player_vault_canonical_cursor_stale");
+  if (input.restored.canonicalCursor.revision > input.canonical.revision) warnings.push("wilds_player_vault_canonical_sync_pending");
+  return { state, warnings };
+}
+
+/**
+ * Converges two valid states owned by the same Receiz ID. Additive proof
+ * histories are unioned while the preferred source supplies ephemeral scalar
+ * state. This is deliberately independent from any remote projection: callers
+ * validate ownership before invoking it, and a projection can never delete a
+ * locally admitted card, discovery, material lot, or world addition.
+ */
+export function mergeWildsPlayerPlayStates(input: {
+  local: PlayState;
+  restored: PlayState;
+  actorId: string;
+  preferLocalState?: boolean;
+  mergeExploration?: boolean;
+}) {
+  const restoredPlayState = input.restored;
   const adventureConditions = { ...input.local.adventureConditions, ...restoredPlayState.adventureConditions };
   for (const [assetId, condition] of Object.entries(input.local.adventureConditions)) {
     if (condition.life === "dead") adventureConditions[assetId] = condition;
@@ -205,9 +233,5 @@ export function reconcileWildsPlayerVault(input: {
     ownedWorldAdditions: mergeWildsOwnedAdditionSets(input.local.ownedWorldAdditions, restoredPlayState.ownedWorldAdditions),
     adventureConditions
   };
-  const state = restorePlayState(serializePlayState(mergedState), input.actorId);
-  const warnings: string[] = [];
-  if (input.restored.canonicalCursor.revision < input.canonical.revision) warnings.push("wilds_player_vault_canonical_cursor_stale");
-  if (input.restored.canonicalCursor.revision > input.canonical.revision) warnings.push("wilds_player_vault_canonical_sync_pending");
-  return { state, warnings };
+  return restorePlayState(serializePlayState(mergedState), input.actorId);
 }

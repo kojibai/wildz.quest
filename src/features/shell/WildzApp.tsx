@@ -4,7 +4,10 @@ import { PlayCampaign } from "@/features/play/PlayCampaign";
 import { generateIdentityBoundWildzCharacter, type WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
 import { applyWildsInput, createOwnerBoundInitialPlayState, initialPlayState, type PlayState } from "@/features/play/game-state";
 import type { PortableCardAsset } from "@/features/play/portable-card";
-import { createWildsPlayerVault } from "@/features/play/wilds-player-vault";
+import {
+  createWildsPlayerVault,
+  mergeWildsPlayerPlayStates
+} from "@/features/play/wilds-player-vault";
 import {
   wildzVaultUploadDisposition,
   type WildzCardOnlyConfirmation
@@ -69,6 +72,7 @@ import { shouldRunWildzOffHotPathWork } from "@/features/play/wilds-network-stat
 import { downloadBlob } from "@/features/play/card-export";
 import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-verifier";
 import { canRestoreFocus } from "@/features/play/focus-recovery";
+import type { WildzPlayerStateRecord } from "@/lib/receiz/wildz-player-state-sync";
 import { projectWildzContinuityExplorer } from "@/features/play/wildz-explorer-proof";
 import type { WildsWorldProjection } from "@/features/play/wilds-world-state";
 import {
@@ -88,6 +92,29 @@ type PendingPlayStateSave = {
   playerContinuity: NonNullable<WildzContinuitySnapshot["playerContinuity"]>;
 };
 
+function playerVaultFromSnapshot(
+  snapshot: WildzContinuitySnapshot,
+  playState: PlayState,
+  exportedAt = new Date().toISOString()
+) {
+  const playerContinuity = snapshot.playerContinuity;
+  return createWildsPlayerVault({
+    playerId: snapshot.session.username ?? snapshot.session.actorId,
+    exportedAt,
+    playState,
+    character: snapshot.character,
+    settings: playerContinuity?.settings ?? {
+      avatarStyle: snapshot.character?.gender ?? null,
+      movementMode: "walk",
+      audio: {},
+      cardOrder: "rarity"
+    },
+    personalEvents: playerContinuity?.personalEvents ?? [],
+    canonicalCursor: playerContinuity?.canonicalCursor ?? { worldId: "wilds:global:v3", revision: 0, eventId: null },
+    receipts: playerContinuity?.receipts ?? []
+  });
+}
+
 function clearWildzAuthQuery() {
   const url = new URL(window.location.href);
   const searchParams = url.searchParams;
@@ -106,6 +133,13 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const priorShellOverlayOpenRef = useRef(Boolean(initialOverlay));
   const [continuity, setContinuity] = useState<WildzContinuitySnapshot | null>(null);
   const continuityRef = useRef<WildzContinuitySnapshot | null>(null);
+  const playerStateSyncTimerRef = useRef<number | null>(null);
+  const playerStateSyncInFlightRef = useRef(false);
+  const playerStateSyncQueuedRef = useRef<WildzContinuitySnapshot | null>(null);
+  const playerStateMutationRef = useRef(0);
+  const playerStateSubmittedMutationRef = useRef(0);
+  const lastRemotePlayerDigestRef = useRef("");
+  const adoptingRemotePlayStateRef = useRef<PlayState | null>(null);
   const playStateSaveSchedulerRef = useRef<WildzPlayStatePersistenceCoordinator<PendingPlayStateSave> | null>(null);
   if (!playStateSaveSchedulerRef.current) {
     playStateSaveSchedulerRef.current = createWildzPlayStatePersistenceCoordinator({
@@ -184,7 +218,14 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const viewingOwnProfile = !overlay
     || overlay.kind !== "profile"
     || (overlay.mode !== "public" && overlay.username.toLowerCase() === `@${ownerUsername}`.toLowerCase());
-  const localPublicProfile = useMemo(() => createOwnerPublicWildzProfile({
+  const ownerSourceProfile = useMemo(() => createOwnerPublicWildzProfile({
+    username: ownerUsername,
+    displayName: identity?.displayName ?? undefined,
+    avatarImageUrl,
+    explorer: character,
+    assets: ownerPlayState.inventory
+  }), [avatarImageUrl, character, identity?.displayName, ownerPlayState.inventory, ownerUsername]);
+  const publishablePublicProfile = useMemo(() => createOwnerPublicWildzProfile({
     username: ownerUsername,
     displayName: identity?.displayName ?? undefined,
     avatarImageUrl,
@@ -267,6 +308,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     setContinuity(snapshot);
     setCharacter(snapshot.character);
     if (!previous || !sameWildzPlayerCoordinate(previous.session.actorId, snapshot.session.actorId)) {
+      playerStateMutationRef.current = 0;
+      playerStateSubmittedMutationRef.current = 0;
+      lastRemotePlayerDigestRef.current = "";
       setProofSessionConnected(false);
       setProofSessionGeneration("");
     }
@@ -381,13 +425,13 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     };
     const publish = () => {
       if (!active || publishing) return;
-      const publicationKey = JSON.stringify(localPublicProfile);
+      const publicationKey = JSON.stringify(publishablePublicProfile);
       if (publishedProfileRef.current === publicationKey) return;
       publishing = true;
       controller = new AbortController();
       const requestController = controller;
       setProfileStatus("publishing");
-      void publishCurrentWildzProfile(localPublicProfile, publishableOwnerAssets, globalThis.fetch, {
+      void publishCurrentWildzProfile(publishablePublicProfile, publishableOwnerAssets, globalThis.fetch, {
         signal: requestController.signal,
         proofObjects: admittedProofObjects
       }).then(() => {
@@ -415,7 +459,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       document.removeEventListener("visibilitychange", syncPublication);
       stopPublishing();
     };
-  }, [admittedProofObjects, localPublicProfile, overlay?.kind, profilePublicationReadiness, publishableOwnerAssets]);
+  }, [admittedProofObjects, overlay?.kind, profilePublicationReadiness, publishableOwnerAssets, publishablePublicProfile]);
 
   useEffect(() => {
     if (overlay?.kind !== "profile") {
@@ -425,8 +469,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     }
     let active = true;
     if (viewingOwnProfile) {
-      setRemoteProfile(localPublicProfile);
-      const publicationKey = JSON.stringify(localPublicProfile);
+      setRemoteProfile(ownerSourceProfile);
+      const publicationKey = JSON.stringify(publishablePublicProfile);
       setProfileStatus(publishedProfileRef.current === publicationKey
         ? "ready"
         : profilePublicationReadiness === "ready" ? "publishing" : "unpublished");
@@ -442,7 +486,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       if (active) setProfileStatus("error");
     });
     return () => { active = false; };
-  }, [localPublicProfile, overlay, profilePublicationReadiness, viewingOwnProfile]);
+  }, [overlay, ownerSourceProfile, profilePublicationReadiness, publishablePublicProfile, viewingOwnProfile]);
 
   useEffect(() => {
     let active = true;
@@ -809,9 +853,124 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     return outcome.verifiedAssetIds.length;
   }, [claimAndRestoreVaultArtifact]);
 
+  const admitRemotePlayerState = useCallback(async (record: WildzPlayerStateRecord | null) => {
+    if (!record || record.sourceDigest === lastRemotePlayerDigestRef.current) return;
+    const current = continuityRef.current;
+    if (!current?.playState || !sameWildzPlayerCoordinate(current.session.actorId, record.playerId)) return;
+    const playState = mergeWildsPlayerPlayStates({
+      local: current.playState,
+      restored: record.player.playState,
+      actorId: current.session.actorId
+    });
+    const snapshot: WildzContinuitySnapshot = {
+      ...current,
+      playState,
+      character: record.player.character ?? current.character,
+      playerContinuity: {
+        settings: record.player.settings,
+        personalEvents: record.player.personalEvents,
+        canonicalCursor: record.player.canonicalCursor,
+        receipts: record.player.receipts
+      }
+    };
+    lastRemotePlayerDigestRef.current = record.sourceDigest;
+    adoptingRemotePlayStateRef.current = playState;
+    acceptSnapshot(snapshot);
+    writeWildzRuntimeCheckpoint(window.localStorage, {
+      keyId: snapshot.session.keyId,
+      actorId: snapshot.session.actorId,
+      playState
+    });
+    await saveWildzContinuityPlayState(
+      snapshot,
+      playState,
+      snapshot.playerContinuity!,
+      snapshot.character
+    ).catch(() => null);
+  }, [acceptSnapshot]);
+
+  const queueGlobalPlayerStateSync = useCallback((snapshot: WildzContinuitySnapshot) => {
+    if (!proofSessionConnected || !snapshot.playState || !snapshot.playerContinuity) return;
+    playerStateSyncQueuedRef.current = snapshot;
+    if (playerStateSyncTimerRef.current !== null || playerStateSyncInFlightRef.current) return;
+    playerStateSyncTimerRef.current = window.setTimeout(() => {
+      playerStateSyncTimerRef.current = null;
+      const queued = playerStateSyncQueuedRef.current;
+      playerStateSyncQueuedRef.current = null;
+      if (!queued?.playState || !queued.playerContinuity) return;
+      const mutationAtSubmit = playerStateMutationRef.current;
+      const player = playerVaultFromSnapshot(queued, queued.playState);
+      playerStateSyncInFlightRef.current = true;
+      void fetch("/api/wilds/player-state", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ player })
+      }).then(async (response) => {
+        const result = await response.json().catch(() => null) as { ok?: boolean; record?: WildzPlayerStateRecord | null } | null;
+        if (!response.ok || !result?.ok || !result.record) return;
+        playerStateSubmittedMutationRef.current = Math.max(playerStateSubmittedMutationRef.current, mutationAtSubmit);
+        if (playerStateMutationRef.current === mutationAtSubmit) await admitRemotePlayerState(result.record);
+      }).catch(() => undefined).finally(() => {
+        playerStateSyncInFlightRef.current = false;
+        const latest = playerStateSyncQueuedRef.current;
+        if (latest) {
+          queueGlobalPlayerStateSync(latest);
+        } else if (playerStateMutationRef.current > playerStateSubmittedMutationRef.current) {
+          const current = continuityRef.current;
+          if (current?.playState && current.playerContinuity) {
+            playerStateSyncQueuedRef.current = current;
+            playerStateSyncTimerRef.current = window.setTimeout(() => {
+              playerStateSyncTimerRef.current = null;
+              queueGlobalPlayerStateSync(current);
+            }, 12_500);
+          }
+        }
+      });
+    }, 2_500);
+  }, [admitRemotePlayerState, proofSessionConnected]);
+
+  useEffect(() => {
+    if (!proofSessionConnected || !identity) return;
+    let active = true;
+    const pull = () => {
+      if (!active || document.visibilityState !== "visible"
+        || playerStateMutationRef.current !== playerStateSubmittedMutationRef.current) return;
+      void fetch("/api/wilds/player-state", {
+        credentials: "same-origin",
+        cache: "no-store"
+      }).then(async (response) => {
+        const result = await response.json().catch(() => null) as { ok?: boolean; record?: WildzPlayerStateRecord | null } | null;
+        if (active && response.ok && result?.ok && result.record
+          && playerStateMutationRef.current === playerStateSubmittedMutationRef.current) {
+          await admitRemotePlayerState(result.record);
+        }
+      }).catch(() => undefined);
+    };
+    pull();
+    const interval = window.setInterval(pull, 5_000);
+    const onVisibility = () => { if (document.visibilityState === "visible") pull(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [admitRemotePlayerState, identity, proofSessionConnected]);
+
+  useEffect(() => () => {
+    if (playerStateSyncTimerRef.current !== null) window.clearTimeout(playerStateSyncTimerRef.current);
+  }, []);
+
   const persistPlayState = useCallback((playState: PlayState, playerContinuity: NonNullable<WildzContinuitySnapshot["playerContinuity"]>) => {
     const current = continuityRef.current;
     if (!current) return;
+    if (adoptingRemotePlayStateRef.current === playState) {
+      adoptingRemotePlayStateRef.current = null;
+      continuityRef.current = { ...current, playerContinuity };
+      return;
+    }
     const cardTruthChanged = current.playState?.inventory === playState.inventory
       ? false
       : (() => {
@@ -837,7 +996,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       durableChanged: identityTruthChanged,
       inventoryChanged: cardTruthChanged
     });
-  }, []);
+    playerStateMutationRef.current += 1;
+    queueGlobalPlayerStateSync(snapshot);
+  }, [queueGlobalPlayerStateSync]);
 
   const removeLostVaultAssets = useCallback((assetIds: readonly string[]) => {
     const current = continuityRef.current;
@@ -1022,8 +1183,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           <button type="button" className="wildz-overlay-dismiss" onClick={closeShellOverlay} aria-label="Return to world">
             <span aria-hidden="true">×</span>
           </button>
-          {overlay.kind === "profile" ? (viewingOwnProfile ? localPublicProfile : remoteProfile) ? <WildzProfileSheet
-            profile={(viewingOwnProfile ? localPublicProfile : remoteProfile)!}
+          {overlay.kind === "profile" ? (viewingOwnProfile ? ownerSourceProfile : remoteProfile) ? <WildzProfileSheet
+            profile={(viewingOwnProfile ? ownerSourceProfile : remoteProfile)!}
             vaultAssets={viewingOwnProfile ? ownerPlayState.inventory : undefined}
             publicationStatus={viewingOwnProfile && profileStatus !== "ready" ? "local" : "published"}
             shareEnabled={!viewingOwnProfile || profileStatus === "ready"}
@@ -1037,7 +1198,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             <strong>{profileStatus === "loading" ? "Finding explorer…" : "Explorer unavailable"}</strong>
             <span>{profileStatus === "missing" || profileStatus === "unpublished" ? "This Wildz profile has not been published yet." : profileStatus === "error" ? "Receiz profile recovery is temporarily unavailable." : "Preparing profile"}</span>
           </div> : overlay.kind === "vault" ? <WildzVaultSheet
-            cards={localPublicProfile.vault}
+            cards={ownerSourceProfile.vault}
             title="Card Vault"
             onAddVault={async (file) => {
               const outcome = await claimAndRestoreVaultArtifact(file, () => window.confirm(

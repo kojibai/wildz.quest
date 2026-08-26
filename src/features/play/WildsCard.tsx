@@ -13,7 +13,7 @@ import { portableCardStatusLabel, type PortableCardAsset } from "./portable-card
 import { creatureConsciousnessMotion } from "./creature-consciousness";
 import { projectCreatureCapabilityIdentity, projectCreatureRuntimeCapabilities } from "./creature-capability-identity";
 
-export const WildsCard = memo(function WildsCard({ asset, compact = false, condition, speaking = false }: { asset: PortableCardAsset; compact?: boolean; condition?: AdventureCardCondition | null; speaking?: boolean }) {
+export const WildsCard = memo(function WildsCard({ asset, compact = false, condition, speaking = false, interactive = true }: { asset: PortableCardAsset; compact?: boolean; condition?: AdventureCardCondition | null; speaking?: boolean; interactive?: boolean }) {
   const card = useRef<HTMLElement>(null);
   const form = creatureForm(asset.manifest.formId);
   const variant = asset.manifest.variant.traits;
@@ -50,6 +50,7 @@ export const WildsCard = memo(function WildsCard({ asset, compact = false, condi
     condition ?? emptyAdventureCondition(asset.id)
   ), [asset, condition]);
   useEffect(() => {
+    if (!interactive) return;
     const reset = () => card.current?.style.setProperty("--creature-mouth-open", "0");
     const onMouthMotion = (event: Event) => {
       const detail = (event as CustomEvent<{ assetId?: string; openness?: number }>).detail;
@@ -62,13 +63,13 @@ export const WildsCard = memo(function WildsCard({ asset, compact = false, condi
       window.removeEventListener("wildz-creature-mouth", onMouthMotion);
       reset();
     };
-  }, [asset.id, speaking]);
+  }, [asset.id, interactive, speaking]);
   if (!form) return null;
   return (
     <article
       aria-label={`${asset.manifest.name}, Stage ${form.stage}, ${form.rarity} Wilds card`}
       className={`wilds-collectible-card foil-${form.foil}${compact ? " compact" : ""}${death ? " is-dead" : ""}`}
-      data-conscious="true"
+      data-conscious={interactive ? "true" : "false"}
       data-care-memory={livedAppearance.care}
       data-lived={livedAppearance.events > 0 ? "true" : "false"}
       data-speaking={speaking ? "true" : "false"}

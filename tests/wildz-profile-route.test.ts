@@ -19,7 +19,7 @@ test("shared profiles recover and publish through Receiz instead of a local plac
   const route = readFileSync("app/api/profiles/[handle]/route.ts", "utf8");
   const adapter = readFileSync("src/lib/receiz/wildz-profile-adapter.ts", "utf8");
   assert.match(shell, /fetchPublicWildzProfile\(overlay\.username\)/);
-  assert.match(shell, /publishCurrentWildzProfile\(localPublicProfile, publishableOwnerAssets, globalThis\.fetch/);
+  assert.match(shell, /publishCurrentWildzProfile\(publishablePublicProfile, publishableOwnerAssets, globalThis\.fetch/);
   assert.match(shell, /signal:\s*controller\.signal/);
   assert.match(shell, /controller\.abort\(\)/);
   assert.doesNotMatch(shell, /const surface = overlay\?\.kind === "profile" \? "profile" : "gameplay"/);
@@ -38,6 +38,14 @@ test("shared profiles recover and publish through Receiz instead of a local plac
   assert.doesNotMatch(route, /playerReceizAccessToken|session\.accessToken|delegatedAccessToken/);
   assert.match(adapter, /WildzPublicProjectionRepository/);
   assert.doesNotMatch(adapter, /new Map|Map</);
+});
+
+test("the owner Profile and Vault project the complete source inventory without waiting for publication", () => {
+  const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
+  assert.match(shell, /const ownerSourceProfile = useMemo\([\s\S]*assets:\s*ownerPlayState\.inventory/);
+  assert.match(shell, /profile=\{\(viewingOwnProfile \? ownerSourceProfile : remoteProfile\)!\}/);
+  assert.match(shell, /cards=\{ownerSourceProfile\.vault\}/);
+  assert.doesNotMatch(shell, /assets:\s*publishableOwnerAssets[\s\S]{0,300}const ownerSourceProfile/);
 });
 
 test("own-profile share controls always respond while reporting durable publication state", () => {

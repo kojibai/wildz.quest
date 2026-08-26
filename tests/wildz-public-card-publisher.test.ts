@@ -43,7 +43,7 @@ test("the shell owns automatic publication without mounting a second gameplay pu
   const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
   assert.doesNotMatch(campaign, /usePublicCardPublisher/);
-  assert.match(shell, /publishCurrentWildzProfile\(localPublicProfile, publishableOwnerAssets/);
+  assert.match(shell, /publishCurrentWildzProfile\(publishablePublicProfile, publishableOwnerAssets/);
   assert.match(shell, /proofObjects:\s*admittedProofObjects/);
 });
 

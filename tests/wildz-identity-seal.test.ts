@@ -60,7 +60,7 @@ test("Identity Seal PNG round-trips through the official SDK", async () => {
   assert.notEqual(projection.portableStateStatus, "invalid");
 });
 
-test("Receiz ID Card carries SDK identity, complete player state, and every verified card", async () => {
+test("saving an Identity Seal after Vault imports carries complete game state and every newly added card", async () => {
   const identity = await createReceizIdIdentity({ username: "card_keeper", displayName: "Card Keeper" });
   const session = await sessionFromIdentity(identity);
   const assets = [0, 1].map((index) => sealCollectedCard({
@@ -102,6 +102,13 @@ test("Receiz ID Card carries SDK identity, complete player state, and every veri
   assert.deepEqual(proof.assets.map((asset) => asset.id).sort(), assets.map((asset) => asset.id).sort());
   assert.equal(playerAppend.base.vaultDigest, proof.vaultDigest);
   assert.equal(playerAppend.player.playerId, "card_keeper");
+  assert.deepEqual(
+    playerAppend.player.playState.inventory.map((asset) => asset.id).sort(),
+    playState.inventory.map((asset) => asset.id).sort()
+  );
+  assert.equal(playerAppend.player.playState.selectedAssetId, playState.selectedAssetId);
+  assert.deepEqual(playerAppend.player.playState.explorationAtlas, playState.explorationAtlas);
+  assert.equal(playerAppend.player.payloadDigest, player.payloadDigest);
   assert.equal(verified.ok, true);
   assert.equal(verified.player, null);
 });

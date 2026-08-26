@@ -271,7 +271,17 @@ export function PlayCampaign({
   ) => Promise<WildzCommittedArtifactRestore>;
 }) {
   const [state, setState] = useState(() => initialState);
+  const admittedSourceStateRef = useRef(initialState);
   const [saveRestored, setSaveRestored] = useState(false);
+
+  useEffect(() => {
+    if (admittedSourceStateRef.current === initialState) return;
+    admittedSourceStateRef.current = initialState;
+    // The shell has already reconciled this state against the active Receiz ID.
+    // Adopt that source directly so another authenticated browser can advance
+    // live gameplay without remounting Canvas or replaying local input.
+    setState(initialState);
+  }, [initialState]);
   const [memorialAssetId, setMemorialAssetId] = useState<string | null>(null);
   const gameplaySurfaceRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
