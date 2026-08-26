@@ -3,6 +3,7 @@ import test from "node:test";
 import { emptyAdventureCondition } from "../src/features/play/adventure/card-condition";
 import { sealCollectedCard } from "../src/features/play/portable-card";
 import { projectWildsCapabilityControls } from "../src/features/play/wilds-world-capability-controls";
+import * as capabilityControlModule from "../src/features/play/wilds-world-capability-controls";
 
 function card(formId: string, encounterId: string) {
   return sealCollectedCard({
@@ -24,6 +25,19 @@ test("active proof projects only its deduplicated Level-1 capability controls", 
   assert.equal(families.includes("glide"), true);
   assert.equal(families.includes("swim"), false);
   assert.equal(controls.every((entry) => entry.assetId === winged.id), true);
+});
+
+test("the dedicated plane owns flight so the quick capability row never adds a feather duplicate", () => {
+  const winged = card("voltray-1", "capability-controls:single-flight-control");
+  const controls = projectWildsCapabilityControls(winged, emptyAdventureCondition(winged.id));
+  const projectQuick = (capabilityControlModule as unknown as {
+    projectWildsQuickCapabilityControls?: (entries: typeof controls, traversal: readonly string[]) => typeof controls;
+  }).projectWildsQuickCapabilityControls;
+
+  assert.equal(typeof projectQuick, "function");
+  const quick = projectQuick!(controls, ["flight", "glide"]);
+  assert.equal(quick.some((entry) => entry.family === "flight"), false);
+  assert.equal(quick.some((entry) => entry.family === "glide"), true);
 });
 
 test("named proof abilities label their owning family while stable family glyphs remain unchanged", () => {
@@ -61,4 +75,3 @@ test("structurally equal inputs reuse the bounded canonical projection", () => {
   assert.equal(Object.isFrozen(first), true);
   assert.equal(first.every(Object.isFrozen), true);
 });
-

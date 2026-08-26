@@ -21,7 +21,7 @@ describe("Steward Craft player projection", () => {
     ]);
   });
 
-  it("lets a site be placed before materials while instant workshop builds remain source-bound", () => {
+  it("requires every exact material before any construction site can be placed", () => {
     const projection = projectWildsStewardCraft({
       activeCreatureName: "Mosslight",
       materialLots: [lot("timber", 1), lot("timber", 2), lot("stone", 1)],
@@ -33,7 +33,8 @@ describe("Steward Craft player projection", () => {
     assert.equal(projection.partner.name, "Mosslight");
     assert.equal(projection.partner.capacity, 72);
     assert.equal(projection.blueprints.find((item) => item.id === "trail-shelter")?.state, "ready");
-    assert.equal(projection.blueprints.find((item) => item.id === "trail-bridge")?.state, "ready");
+    assert.equal(projection.blueprints.find((item) => item.id === "trail-bridge")?.state, "materials");
+    assert.deepEqual(projection.blueprints.find((item) => item.id === "trail-bridge")?.missing, { timber: 2, stone: 1 });
 
     const recovering = projectWildsStewardCraft({
       activeCreatureName: "Mosslight",
@@ -43,7 +44,7 @@ describe("Steward Craft player projection", () => {
       workMeters: [{ family: "lumber", label: "Woodland", guidance: "Tend timber", value: 8, state: "recovering" }]
     });
     assert.equal(recovering.blueprints.find((item) => item.id === "trail-shelter")?.state, "ready");
-    assert.equal(recovering.blueprints.find((item) => item.id === "steward-workbench")?.state, "partner");
+    assert.equal(recovering.blueprints.find((item) => item.id === "steward-workbench")?.state, "materials");
   });
 
   it("previews reachable dry shelter ground without consuming any exact lot", () => {

@@ -46,8 +46,7 @@ export function WildsStewardCraftPanel({ projection, onSelectBlueprint, nearbySi
         const status = blueprint.state === "pending" ? "World command in progress"
           : blueprint.state === "partner" ? "Partner needs recovery"
             : blueprint.state === "materials" ? `Need ${blueprint.missing.timber} timber · ${blueprint.missing.stone} stone`
-              : progressiveSite && (blueprint.missing.timber > 0 || blueprint.missing.stone > 0) ? `Place site · gather ${blueprint.missing.timber} + ${blueprint.missing.stone}`
-                : "Ready to place";
+              : "Ready to place";
         return <article className={`wilds-steward-blueprint is-${blueprint.state}${blueprint.selected ? " is-selected" : ""}`} key={blueprint.id}>
           <div>
             <span className="wilds-steward-blueprint-icon" aria-hidden="true">{blueprint.id === "trail-shelter" ? <Icons.camp size={21} /> : <Icons.box size={21} />}</span>
@@ -79,7 +78,7 @@ export function WildsStewardCraftPanel({ projection, onSelectBlueprint, nearbySi
         <div>{(["timber", "stone"] as const).map((kind) => <span key={kind}><button disabled={!nearbyCache || projection.materials[kind] < 1} onClick={() => onStoreMaterial?.(kind)} type="button">Store {kind}</button><button disabled={!nearbyCache || stored[kind] < 1} onClick={() => onWithdrawMaterial?.(kind)} type="button">Take {kind}</button></span>)}</div>
       </div>
     </section>
-    <p className="wilds-satchel-note">A blueprint is only a possibility. Exact lots move once, after you preview a physical place and confirm the work.</p>
+    <p className="wilds-satchel-note">Previewing moves nothing. Confirming a site reserves every exact material shown by its blueprint.</p>
   </section>;
 }
 

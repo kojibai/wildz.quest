@@ -1344,10 +1344,13 @@ export function PlayCampaign({
       return;
     }
     try {
-      await livingWorld.placeConstructionSite("trail-shelter", position, state.player, 0);
+      const timber = availableMaterialLots.filter((lot) => lot.kind === "timber").slice(0, 2);
+      const stone = availableMaterialLots.filter((lot) => lot.kind === "stone").slice(0, 1);
+      if (timber.length !== 2 || stone.length !== 1) throw new Error("Gather 2 timber and 1 stone first.");
+      await livingWorld.placeConstructionSite("trail-shelter", position, state.player, 0, [...timber, ...stone].map((lot) => lot.lotId));
       setStewardPlacementMode(null);
       setStewardPlacementPreview(null);
-      showWorldFeedback("A Trail Shelter site now lives here. Approach its mint ring to contribute exact timber and stone, then work beside your companion.");
+      showWorldFeedback("A funded Trail Shelter site now lives here. Its exact timber and stone are held in the mint ring; work beside your companion to raise it.");
     } catch (error) {
       handleStoryCommandError(error, "That place cannot hold a shelter yet.");
     }
@@ -1363,10 +1366,13 @@ export function PlayCampaign({
     try {
       const rotationQuarterTurns = selectWildsTrailBridgeRotation(position);
       if (rotationQuarterTurns === null) throw new Error("Choose water between two nearby, level banks.");
-      await livingWorld.placeConstructionSite("trail-bridge", position, state.player, rotationQuarterTurns);
+      const timber = availableMaterialLots.filter((lot) => lot.kind === "timber").slice(0, 4);
+      const stone = availableMaterialLots.filter((lot) => lot.kind === "stone").slice(0, 2);
+      if (timber.length !== 4 || stone.length !== 2) throw new Error("Gather 4 timber and 2 stone first.");
+      await livingWorld.placeConstructionSite("trail-bridge", position, state.player, rotationQuarterTurns, [...timber, ...stone].map((lot) => lot.lotId));
       setStewardPlacementMode(null);
       setStewardPlacementPreview(null);
-      showWorldFeedback("A Trail Bridge site now marks this crossing. Bring its exact timber and stone, then finish it with a willing companion.");
+      showWorldFeedback("A funded Trail Bridge site now marks this crossing. Its exact timber and stone are held there; finish it with a willing companion.");
     } catch (error) {
       handleStoryCommandError(error, "That crossing cannot hold a bridge yet.");
     }

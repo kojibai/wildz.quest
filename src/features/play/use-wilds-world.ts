@@ -421,11 +421,20 @@ export function useWildsWorld(input: {
     return post({ type: "tool.steward.craft", kind, workstationId, actorPosition, lotIds, mandate, operation, emission,
       amountPhiMicro: preview.amountPhiMicro, phiAward, cardProofDigest: input.activeCard.proof.digest, commandId: commandId(`command:tool:${kind}`) });
   };
-  const placeConstructionSite = (blueprint: WildsConstructionBlueprint, position: { x: number; z: number }, actorPosition: { x: number; z: number }, rotationQuarterTurns: number) => {
+  const placeConstructionSite = (blueprint: WildsConstructionBlueprint, position: { x: number; z: number }, actorPosition: { x: number; z: number }, rotationQuarterTurns: number, lotIds: string[]) => {
     if (!input.activeCard || !snapshot) throw new Error("wilds_world_active_card_required");
     createWildsConstructionSite({ blueprint, placedByReceizId: input.actorId, actorPosition, position, rotationQuarterTurns,
       existingStructures: Object.values(snapshot.structures), existingSites: Object.values(snapshot.constructionSites), kaiUPulse: input.kaiUPulse });
-    return post({ type: "construction.site.place", blueprint, position, actorPosition, rotationQuarterTurns,
+    const required = blueprint === "trail-shelter" ? { timber: 2, stone: 1 } : { timber: 4, stone: 2 };
+    const lots = lotIds.map((lotId) => snapshot.materialLots[lotId]).filter(Boolean);
+    if (new Set(lotIds).size !== lotIds.length || lots.length !== required.timber + required.stone
+      || lots.filter((lot) => lot.kind === "timber").length !== required.timber
+      || lots.filter((lot) => lot.kind === "stone").length !== required.stone
+      || lots.some((lot) => wildsMaterialCustodian(snapshot, lot) !== input.actorId)
+      || lotIds.some((lotId) => snapshot.consumedMaterialLots[lotId] || snapshot.storedMaterialLots[lotId] || snapshot.reservedMaterialLots[lotId])) {
+      throw new Error("wilds_construction_material_invalid");
+    }
+    return post({ type: "construction.site.place", blueprint, position, actorPosition, rotationQuarterTurns, lotIds,
       cardProofDigest: input.activeCard.proof.digest, commandId: commandId("command:construction:site:place") });
   };
   const contributeConstructionSite = (siteId: string, siteHead: string, actorPosition: { x: number; z: number }, lotIds: string[]) => {

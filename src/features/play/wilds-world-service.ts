@@ -94,7 +94,7 @@ export type WildsWorldCommand = (
   | { type: "resource.transfer.admit"; lotId: string; ownerReceizId: string; subjectId: string; subjectHead: string; receiptId: string; transferId: string; commandId: string }
   | { type: "resource.material.transfer.admit"; lotId: string; ownerReceizId: string; subjectId: string; subjectHead: string; receiptId: string; transferId: string; commandId: string }
   | { type: "resource.material.harvest"; source: WildsResourceSource; sourceHead: string; actorPosition: { x: number; z: number }; toolId?: string; mandate?: WildsCreatureMandateV1; cardProofDigest?: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
-  | { type: "construction.site.place"; blueprint: WildsConstructionBlueprint; position: { x: number; z: number }; actorPosition: { x: number; z: number }; rotationQuarterTurns: number; cardProofDigest: string; commandId: string }
+  | { type: "construction.site.place"; blueprint: WildsConstructionBlueprint; position: { x: number; z: number }; actorPosition: { x: number; z: number }; rotationQuarterTurns: number; lotIds: string[]; cardProofDigest: string; commandId: string }
   | { type: "construction.site.contribute"; siteId: string; siteHead: string; actorPosition: { x: number; z: number }; lotIds: string[]; cardProofDigest: string; commandId: string }
   | { type: "construction.site.work"; siteId: string; siteHead: string; actorPosition: { x: number; z: number }; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
   | { type: "structure.trail-shelter.build"; position: { x: number; z: number }; actorPosition: { x: number; z: number }; rotationQuarterTurns: number; lotIds: string[]; mandate: WildsCreatureMandateV1; cardProofDigest: string; operation?: WildsLivingOperationPlanV1; emission?: WildsWorldEmissionProofV1; amountPhiMicro?: string; phiAward?: WildsStewardPhiAwardV1; commandId: string }
@@ -534,6 +534,16 @@ export class WildsWorldService {
       }, authority, command.commandId));
     } else if (command.type === "construction.site.place") {
       if (!authority.card) throw new Error("wilds_world_verified_card_required");
+      if (!Array.isArray(command.lotIds) || new Set(command.lotIds).size !== command.lotIds.length) throw new Error("wilds_construction_material_invalid");
+      const lots = command.lotIds.map((lotId) => this.projection.materialLots[lotId]).filter(Boolean);
+      const required = command.blueprint === "trail-shelter" ? { timber: 2, stone: 1 } : { timber: 4, stone: 2 };
+      if (lots.length !== command.lotIds.length || lots.length !== required.timber + required.stone
+        || lots.filter((lot) => lot.kind === "timber").length !== required.timber
+        || lots.filter((lot) => lot.kind === "stone").length !== required.stone
+        || lots.some((lot) => wildsMaterialCustodian(this.projection, lot) !== authority.actorId)
+        || command.lotIds.some((lotId) => this.projection.consumedMaterialLots[lotId] || this.projection.storedMaterialLots[lotId] || this.projection.reservedMaterialLots[lotId])) {
+        throw new Error("wilds_construction_material_invalid");
+      }
       const site = createWildsConstructionSite({
         blueprint: command.blueprint,
         placedByReceizId: authority.actorId,
@@ -544,7 +554,16 @@ export class WildsWorldService {
         existingSites: Object.values(this.projection.constructionSites),
         kaiUPulse: authorityMoment(authority).uPulse
       });
+      const fundedSite = contributeWildsConstructionSite({
+        site,
+        expectedSiteHead: site.head,
+        contributorReceizId: authority.actorId,
+        lots,
+        lotCustodians: Object.fromEntries(lots.map((lot) => [lot.lotId, wildsMaterialCustodian(this.projection, lot)])),
+        kaiUPulse: authorityMoment(authority).uPulse
+      });
       events.push(this.append("construction.site_placed", { site }, authority, command.commandId));
+      events.push(this.append("construction.site_contributed", { site: fundedSite }, authority, command.commandId));
     } else if (command.type === "construction.site.contribute") {
       if (!authority.card) throw new Error("wilds_world_verified_card_required");
       const currentSite = this.projection.constructionSites[command.siteId];

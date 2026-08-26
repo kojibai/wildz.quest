@@ -94,3 +94,11 @@ export function projectWildsCapabilityControls(
   return boundedCache(key, Object.freeze(controls));
 }
 
+export function projectWildsQuickCapabilityControls(
+  controls: readonly WildsProjectedCapabilityControl[],
+  traversalCapabilities: readonly string[]
+): readonly WildsProjectedCapabilityControl[] {
+  return traversalCapabilities.includes("flight")
+    ? Object.freeze(controls.filter((control) => control.family !== "flight"))
+    : controls;
+}

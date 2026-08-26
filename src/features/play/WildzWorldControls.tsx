@@ -20,7 +20,7 @@ import type { WildsAquaticPresentation } from "./wilds-aquatic-presentation";
 import { projectCreatureCapabilityIdentity } from "./creature-capability-identity";
 import { emptyAdventureCondition } from "./adventure/card-condition";
 import { WildsCapabilityControls } from "./WildsCapabilityControls";
-import { projectWildsCapabilityControls } from "./wilds-world-capability-controls";
+import { projectWildsCapabilityControls, projectWildsQuickCapabilityControls } from "./wilds-world-capability-controls";
 import type { WildsCapabilityContext } from "./wilds-world-capability-context";
 import type { WildsWorldCapabilityFamily } from "./wilds-world-capability-registry";
 import { projectWildsTraversalStatus } from "./wilds-traversal-status";
@@ -229,8 +229,11 @@ export function WildzWorldControls({
     newAssetId: newRosterAssetId
   }), [activeCard?.id, cardConditions, companionProgress, nearbyCards, newRosterAssetId]);
   const capabilityControls = useMemo(() => activeCard
-    ? projectWildsCapabilityControls(activeCard, cardConditions[activeCard.id] ?? emptyAdventureCondition(activeCard.id))
-    : [], [activeCard, cardConditions]);
+    ? projectWildsQuickCapabilityControls(
+        projectWildsCapabilityControls(activeCard, cardConditions[activeCard.id] ?? emptyAdventureCondition(activeCard.id)),
+        traversalCapabilities
+      )
+    : [], [activeCard, cardConditions, traversalCapabilities]);
   const activeEntry = companionRoster.find((entry) => entry.active) ?? null;
   const swimSpecialty = useMemo(() => {
     if (!activeCard) return "aquatic movement";

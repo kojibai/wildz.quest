@@ -81,9 +81,9 @@ export function projectWildsStewardCraft(input: Readonly<{
     });
     const progressiveSite = definition.id === "trail-shelter" || definition.id === "trail-bridge";
     const state = input.pending ? "pending" as const
-      : progressiveSite ? "ready" as const
-        : !partner.ready ? "partner" as const
-          : missing.timber > 0 || missing.stone > 0 ? "materials" as const
+      : missing.timber > 0 || missing.stone > 0 ? "materials" as const
+        : progressiveSite ? "ready" as const
+          : !partner.ready ? "partner" as const
             : "ready" as const;
     return Object.freeze({
       ...definition,
