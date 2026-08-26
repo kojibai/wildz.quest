@@ -146,6 +146,7 @@ export type WildsWorldProjection = {
   resourceCustody: Record<string, Readonly<{ ownerReceizId: string; subjectId: string; subjectHead: string; receiptId: string; transferId: string }>>;
   harvestedSources: Record<string, WildsHarvestedSourceStateV1>;
   materialLots: Record<string, WildsMaterialLotV1>;
+  materialCustody: Record<string, Readonly<{ ownerReceizId: string; subjectId: string; subjectHead: string; receiptId: string; transferId: string }>>;
   consumedMaterialLots: Record<string, string>;
   structures: Record<string, WildsStructureV1>;
   constructionSites: Record<string, WildsConstructionSiteV1>;
@@ -178,6 +179,11 @@ export type WildsWorldCheckpoint = {
   projection: WildsWorldProjection;
 };
 
+/** The sealed lot preserves creator provenance; a later receipt changes custody only. */
+export function wildsMaterialCustodian(projection: Pick<WildsWorldProjection, "materialCustody">, lot: WildsMaterialLotV1) {
+  return projection.materialCustody?.[lot.lotId]?.ownerReceizId ?? lot.ownerReceizId;
+}
+
 export function initialWildsWorldProjection(): WildsWorldProjection {
   return {
     schema: "receiz.wilds_world_projection.v3",
@@ -192,6 +198,7 @@ export function initialWildsWorldProjection(): WildsWorldProjection {
     resourceCustody: {},
     harvestedSources: {},
     materialLots: {},
+    materialCustody: {},
     consumedMaterialLots: {},
     structures: {},
     constructionSites: {},
@@ -488,6 +495,22 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
       }
       return appendEvent(state, event, { resourceCustody: { ...state.resourceCustody, [lotId]: { ownerReceizId, subjectId, subjectHead, receiptId, transferId } } });
     }
+    case "resource.material_custody_transferred": {
+      const lotId = String(payload.lotId ?? "");
+      const ownerReceizId = String(payload.ownerReceizId ?? "");
+      const subjectId = String(payload.subjectId ?? "");
+      const subjectHead = String(payload.subjectHead ?? "");
+      const receiptId = String(payload.receiptId ?? "");
+      const transferId = String(payload.transferId ?? "");
+      if (!state.materialLots[lotId] || !ownerReceizId || !subjectId || !/^[a-f0-9]{64}$/.test(subjectHead)
+        || !receiptId || !transferId || ownerReceizId !== event.actorId
+        || state.consumedMaterialLots[lotId] || state.reservedMaterialLots[lotId] || state.storedMaterialLots[lotId]) {
+        throw new Error("wilds_world_material_transfer_invalid");
+      }
+      const current = state.materialCustody[lotId];
+      if (current?.transferId === transferId) throw new Error("wilds_world_material_transfer_replay");
+      return appendEvent(state, event, { materialCustody: { ...state.materialCustody, [lotId]: { ownerReceizId, subjectId, subjectHead, receiptId, transferId } } });
+    }
     case "resource.material_harvested": {
       const source = recordPayload(payload.source) as unknown as WildsResourceSource;
       const sourceState = recordPayload(payload.sourceState) as unknown as WildsHarvestedSourceStateV1;
@@ -535,7 +558,7 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
       for (let index = 0; index < structure.consumedLotIds.length; index += 1) {
         const lotId = structure.consumedLotIds[index]!;
         const lot = state.materialLots[lotId];
-        if (!lot || lot.ownerReceizId !== event.actorId || lot.head !== structure.consumedLotHeads[index]
+        if (!lot || wildsMaterialCustodian(state, lot) !== event.actorId || lot.head !== structure.consumedLotHeads[index]
           || state.consumedMaterialLots[lotId] || state.storedMaterialLots[lotId]) throw new Error("wilds_world_structure_material_invalid");
       }
       const economy = stewardEconomyPatch(state, event, payload);
@@ -570,7 +593,7 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
       const additions = site.contributedLots.filter((entry) => !prior.has(entry.lotId));
       if (additions.length < 1 || additions.some((entry) => {
         const lot = state.materialLots[entry.lotId];
-        return entry.ownerReceizId !== event.actorId || !lot || lot.ownerReceizId !== event.actorId || lot.head !== entry.lotHead || lot.kind !== entry.kind
+        return entry.ownerReceizId !== event.actorId || !lot || wildsMaterialCustodian(state, lot) !== event.actorId || lot.head !== entry.lotHead || lot.kind !== entry.kind
           || state.consumedMaterialLots[entry.lotId] || state.storedMaterialLots[entry.lotId] || state.reservedMaterialLots[entry.lotId];
       })) throw new Error("wilds_world_construction_material_invalid");
       return appendEvent(state, event, {
@@ -615,7 +638,7 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
       for (let index = 0; index < tool.consumedLotIds.length; index += 1) {
         const lotId = tool.consumedLotIds[index]!;
         const lot = state.materialLots[lotId];
-        if (!lot || lot.ownerReceizId !== event.actorId || lot.head !== tool.consumedLotHeads[index]
+        if (!lot || wildsMaterialCustodian(state, lot) !== event.actorId || lot.head !== tool.consumedLotHeads[index]
           || state.consumedMaterialLots[lotId] || state.storedMaterialLots[lotId]) throw new Error("wilds_world_tool_material_invalid");
       }
       const economy = stewardEconomyPatch(state, event, payload);
@@ -637,7 +660,7 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
       const direction = String(payload.direction ?? "");
       const lot = state.materialLots[lotId];
       const cache = state.structures[cacheId];
-      if (!lot || lot.ownerReceizId !== event.actorId || state.consumedMaterialLots[lotId]
+      if (!lot || wildsMaterialCustodian(state, lot) !== event.actorId || state.consumedMaterialLots[lotId]
         || !cache || cache.blueprint !== "trail-cache" || cache.ownerReceizId !== event.actorId
         || (direction !== "deposit" && direction !== "withdraw")) throw new Error("wilds_world_storage_invalid");
       if (direction === "deposit") {
@@ -809,6 +832,7 @@ export function replayWildsWorld(events: readonly CompatibleWildsWorldEvent[], c
     resourceCustody: projection.resourceCustody ?? {},
     harvestedSources: projection.harvestedSources ?? {},
     materialLots: projection.materialLots ?? {},
+    materialCustody: projection.materialCustody ?? {},
     consumedMaterialLots: projection.consumedMaterialLots ?? {},
     structures: projection.structures ?? {},
     constructionSites: projection.constructionSites ?? {},

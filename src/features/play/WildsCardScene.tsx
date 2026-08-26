@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import type { PortableCardAsset } from "./portable-card";
 import { WildsCard } from "./WildsCard";
 import { WildsCardBack } from "./WildsCardBack";

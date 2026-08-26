@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createElement } from "react";
+import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { WildsWalletInstrument } from "../src/features/play/wallet/WildsWalletInstrument";
 import { nextWildsWalletPageForKey, WildsWalletTerminal } from "../src/features/play/wallet/WildsWalletTerminal";
 import { createWildsWalletAuthorizationHoldRuntime, isWildsWalletAuthorizationHoldKey } from "../src/features/play/wallet/WildsWalletSend";
 import { formatWildsPhiCompact } from "../src/features/play/wallet/wilds-wallet-format";
 import { createWildsWalletControllerState, gateWildsWalletClientCapabilities, reduceWildsWalletController } from "../src/features/play/wallet/wilds-wallet-controller";
+import { totalWildsStewardPhiMicro } from "../src/features/play/wallet/wilds-wallet-inventory";
 import { initialPlayState } from "../src/features/play/game-state";
 
 function state(overrides: Record<string, unknown> = {}) {
@@ -116,6 +117,57 @@ test("wallet Assets renders exact warmed resource custody without fetching or es
   assert.match(markup, /Harvested with a willing companion/);
   assert.match(markup, /VERIFIED/);
   assert.doesNotMatch(markup, /Loading|reconnecting|projection/i);
+});
+
+test("wallet groups large exact custody by asset kind and never substitutes aggregate projection counts", () => {
+  const card = initialPlayState.inventory[0]!;
+  const materialLots = ["timber", "stone"].map((kind, index) => ({
+    schema: "wildz.material-lot.v1" as const,
+    lotId: `wildz:material:${kind}:${"a".repeat(63)}${index}`,
+    kind: kind as "timber" | "stone",
+    quantity: 1 as const,
+    quality: 3 as const,
+    ownerReceizId: "explorer",
+    source: { sourceId: `source:${kind}`, sourceHead: `sha256:${"b".repeat(64)}`, admittedSourceHead: `sha256:${"c".repeat(64)}`, kaiUPulse: index + 1 },
+    contributors: { explorerReceizId: "explorer" }, authority: "source-proof-object" as const, head: `sha256:${"d".repeat(64)}`
+  }));
+  const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, {
+    cards: [card], materialLots, publicUsername: "explorer", state: state({ page: "assets" }), ...actions
+  }));
+  assert.match(markup, /All assets/);
+  assert.match(markup, /Creatures/);
+  assert.match(markup, /Timber/);
+  assert.match(markup, /Stone/);
+  assert.match(markup, /aria-label="Search exact wallet assets"/);
+  assert.match(markup, /1 exact unit/);
+  assert.match(markup, /class="phi-network-amount" data-compact="true"/);
+});
+
+test("source-settled Phi sums exact micro-Phi without waiting for or mutating the remote projection", () => {
+  assert.equal(totalWildsStewardPhiMicro([
+    { amountPhiMicro: "9007199254740993000001" }, { amountPhiMicro: "999999" }
+  ]), "9007199254740994000000");
+});
+
+test("ledger includes exact creature, material, resource, Phi, and remote transfer evidence", () => {
+  const card = initialPlayState.inventory[0]!;
+  const award = {
+    schema: "wildz.steward-phi-award.v1" as const, awardId: "award:one", ownerReceizId: "explorer", amountPhiMicro: "2500000",
+    operationId: "operation:harvest", operationPlanDigest: "a".repeat(64), sourceEmissionHead: `sha256:${"b".repeat(64)}`,
+    admittedEmissionHead: `sha256:${"c".repeat(64)}`, rail: "settlement" as const, authority: "source-proof-objects" as const, head: `sha256:${"d".repeat(64)}`
+  };
+  const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, {
+    cards: [card], stewardPhiAwards: [award], publicUsername: "explorer",
+    state: state({ page: "ledger", ledger: { cursor: null, nextCursor: null, entries: [{ receiptReference: null, direction: "received", state: "committed", counterpartyUsername: "friend", amountPhiMicro: "1000000", createdAt: "2026-08-25T12:00:00.000Z" }] } }),
+    ...actions
+  }));
+  assert.match(markup, /All activity/);
+  assert.match(markup, /Value/);
+  assert.match(markup, /Creatures/);
+  assert.match(markup, /Materials/);
+  assert.match(markup, /Creature admitted/);
+  assert.match(markup, /Stewardship award/);
+  assert.match(markup, /Received/);
 });
 
 test("terminal is one modal dialog with five named surfaces and fail-closed send", () => {

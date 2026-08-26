@@ -5,7 +5,7 @@ import { sha256PortableBasis, type PortableCardAsset } from "./portable-card";
 import type { WildzVaultCardMembershipProof } from "@/lib/receiz/wildz-vault-card-admission";
 import type { WildsWorldCommand } from "./wilds-world-service";
 import { WILDS_WORLD_ID } from "./wilds-world-event";
-import { initialWildsWorldProjection, type WildsWorldProjection } from "./wilds-world-state";
+import { initialWildsWorldProjection, wildsMaterialCustodian, type WildsWorldProjection } from "./wilds-world-state";
 import type { WildsWorldSnapshot } from "./wilds-world-record";
 import type { WildsRaidIntent } from "./wilds-raid-encounter";
 import type { WildsGameplayVerb } from "./wilds-saga-types";
@@ -27,6 +27,7 @@ import {
   createWildsTrailBridge,
   createWildsTrailShelter,
   createWildsWorkstation,
+  wildsMaterialContributorReceizIds,
   type WildsStewardToolKind
 } from "./wilds-steward-construction";
 import { sampleWildsTerrain } from "./wilds-terrain-authority";
@@ -142,7 +143,7 @@ export function useWildsWorld(input: {
 }) {
   const [snapshot, setSnapshot] = useState<WildsWorldProjection | null>(() => mergeWildsOwnedWorldAdditions(
     input.initialSnapshot?.projection ?? createWildsSourceAuthorityProjection(),
-    input.ownedWorldAdditions ?? { constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {} }
+    input.ownedWorldAdditions ?? { constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, materialCustody: {}, consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {} }
   ));
   const [mode, setMode] = useState<WildsWorldClientMode>(() => input.initialSnapshot?.mode ?? "connecting");
   const [error, setError] = useState("");
@@ -260,7 +261,7 @@ export function useWildsWorld(input: {
       const { projection, mode: nextMode } = parseWildsWorldSnapshotResponse(value);
       canonicalSnapshot.current = projection;
       const flushed = await flushOutbox(projection, nextMode);
-      setSnapshot(mergeWildsOwnedWorldAdditions(flushed.projection, input.ownedWorldAdditions ?? { constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {} }));
+      setSnapshot(mergeWildsOwnedWorldAdditions(flushed.projection, input.ownedWorldAdditions ?? { constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, materialCustody: {}, consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {} }));
       setMode(flushed.mode);
       setError("");
       retryAfter.current = 0;
@@ -283,7 +284,7 @@ export function useWildsWorld(input: {
     canonicalSnapshot.current = input.initialSnapshot.projection;
     void flushOutbox(input.initialSnapshot.projection, input.initialSnapshot.mode)
       .then((flushed) => {
-        setSnapshot(mergeWildsOwnedWorldAdditions(flushed.projection, input.ownedWorldAdditions ?? { constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {} }));
+        setSnapshot(mergeWildsOwnedWorldAdditions(flushed.projection, input.ownedWorldAdditions ?? { constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, materialCustody: {}, consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {} }));
         setMode(flushed.mode);
         setError("");
       })
@@ -350,7 +351,7 @@ export function useWildsWorld(input: {
       const synchronizedProjection = parsed.globallyPublished
         ? acceptWildsWorldSnapshot(locallyAdmittedProjection, projection)
         : projectWildsWorldOutbox(projection, input.actorId, queued);
-      setSnapshot(mergeWildsOwnedWorldAdditions(synchronizedProjection, input.ownedWorldAdditions ?? { constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {} }));
+      setSnapshot(mergeWildsOwnedWorldAdditions(synchronizedProjection, input.ownedWorldAdditions ?? { constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, materialCustody: {}, consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {} }));
       setMode(parsed.globallyPublished ? parsed.mode : "receiz_recovery_pending");
       setError(parsed.globallyPublished ? "" : "Your work is admitted here and its global projection will keep syncing in the background.");
       retryAfter.current = 0;
@@ -380,11 +381,13 @@ export function useWildsWorld(input: {
     if (!snapshot) throw new Error("wilds_world_session_required");
     const currentEmission = wildsWorldSourceEmission(snapshot);
     const lots = lotIds.map((lotId) => snapshot.materialLots[lotId]).filter(Boolean);
-    if (lots.length !== lotIds.length || lotIds.some((lotId) => snapshot.consumedMaterialLots[lotId] || snapshot.storedMaterialLots[lotId] || snapshot.reservedMaterialLots[lotId])) throw new Error("wilds_world_structure_material_invalid");
+    if (lots.length !== lotIds.length || lots.some((lot) => wildsMaterialCustodian(snapshot, lot) !== input.actorId)
+      || lotIds.some((lotId) => snapshot.consumedMaterialLots[lotId] || snapshot.storedMaterialLots[lotId] || snapshot.reservedMaterialLots[lotId])) throw new Error("wilds_world_structure_material_invalid");
     const creatureSubjectId = `creature:${sha256PortableBasis(input.activeCard.id).slice(0, 32)}`;
     const creatureHead = sha256PortableBasis(input.activeCard.proof.digest);
     const terrain = sampleWildsTerrain(position.x, position.z);
     const structureInput = { ownerReceizId: input.actorId, position: { x: position.x, y: terrain.elevation, z: position.z }, rotationQuarterTurns, lots,
+      materialContributorReceizIds: wildsMaterialContributorReceizIds(lots, input.actorId),
       builder: { creatureSubjectId, creatureHead }, existingStructures: Object.values(snapshot.structures), kaiUPulse: input.kaiUPulse };
     const structure = blueprint === "steward-workbench" ? createWildsWorkstation(structureInput) : createWildsTrailCache(structureInput);
     const operation = createWildsStewardStructureOperation({ structure, lots, ownerReceizId: input.actorId, playerHead: sha256PortableBasis(input.actorId) });
@@ -403,10 +406,13 @@ export function useWildsWorld(input: {
     const workstation = snapshot.structures[workstationId];
     if (!workstation || workstation.blueprint !== "steward-workbench") throw new Error("wilds_world_tool_workstation_invalid");
     const lots = lotIds.map((lotId) => snapshot.materialLots[lotId]).filter(Boolean);
-    if (lots.length !== lotIds.length || lotIds.some((lotId) => snapshot.consumedMaterialLots[lotId] || snapshot.storedMaterialLots[lotId] || snapshot.reservedMaterialLots[lotId])) throw new Error("wilds_world_tool_material_invalid");
+    if (lots.length !== lotIds.length || lots.some((lot) => wildsMaterialCustodian(snapshot, lot) !== input.actorId)
+      || lotIds.some((lotId) => snapshot.consumedMaterialLots[lotId] || snapshot.storedMaterialLots[lotId] || snapshot.reservedMaterialLots[lotId])) throw new Error("wilds_world_tool_material_invalid");
     const creatureSubjectId = `creature:${sha256PortableBasis(input.activeCard.id).slice(0, 32)}`;
     const creatureHead = sha256PortableBasis(input.activeCard.proof.digest);
-    const tool = createWildsStewardTool({ kind, ownerReceizId: input.actorId, workstation, lots, builder: { creatureSubjectId, creatureHead }, kaiUPulse: input.kaiUPulse });
+    const tool = createWildsStewardTool({ kind, ownerReceizId: input.actorId, workstation, lots,
+      materialContributorReceizIds: wildsMaterialContributorReceizIds(lots, input.actorId),
+      builder: { creatureSubjectId, creatureHead }, kaiUPulse: input.kaiUPulse });
     const operation = createWildsStewardToolOperation({ tool, lots, workstation, ownerReceizId: input.actorId, playerHead: sha256PortableBasis(input.actorId) });
     const preview = previewWildsEmission({ emission: currentEmission, operation, contributionClass: "construction" });
     if (!preview.eligible || preview.amountPhiMicro === "0") throw new Error("wilds_world_steward_emission_unavailable");
@@ -520,7 +526,8 @@ export function useWildsWorld(input: {
       if (!snapshot) throw new Error("wilds_world_session_required");
       const currentEmission = wildsWorldSourceEmission(snapshot);
       const lots = lotIds.map((lotId) => snapshot.materialLots[lotId]).filter((lot) => Boolean(lot));
-      if (lots.length !== lotIds.length || lotIds.some((lotId) => snapshot.consumedMaterialLots[lotId])) throw new Error("wilds_world_structure_material_invalid");
+      if (lots.length !== lotIds.length || lots.some((lot) => wildsMaterialCustodian(snapshot, lot) !== input.actorId)
+        || lotIds.some((lotId) => snapshot.consumedMaterialLots[lotId] || snapshot.storedMaterialLots[lotId] || snapshot.reservedMaterialLots[lotId])) throw new Error("wilds_world_structure_material_invalid");
       const creatureSubjectId = `creature:${sha256PortableBasis(input.activeCard.id).slice(0, 32)}`;
       const creatureHead = sha256PortableBasis(input.activeCard.proof.digest);
       const terrain = sampleWildsTerrain(position.x, position.z);
@@ -529,6 +536,7 @@ export function useWildsWorld(input: {
         position: { x: position.x, y: terrain.elevation, z: position.z },
         rotationQuarterTurns,
         lots,
+        materialContributorReceizIds: wildsMaterialContributorReceizIds(lots, input.actorId),
         builder: { creatureSubjectId, creatureHead },
         existingStructures: Object.values(snapshot.structures),
         kaiUPulse: input.kaiUPulse
@@ -558,7 +566,8 @@ export function useWildsWorld(input: {
       if (!snapshot) throw new Error("wilds_world_session_required");
       const currentEmission = wildsWorldSourceEmission(snapshot);
       const lots = lotIds.map((lotId) => snapshot.materialLots[lotId]).filter((lot) => Boolean(lot));
-      if (lots.length !== lotIds.length || lotIds.some((lotId) => snapshot.consumedMaterialLots[lotId])) throw new Error("wilds_world_structure_material_invalid");
+      if (lots.length !== lotIds.length || lots.some((lot) => wildsMaterialCustodian(snapshot, lot) !== input.actorId)
+        || lotIds.some((lotId) => snapshot.consumedMaterialLots[lotId] || snapshot.storedMaterialLots[lotId] || snapshot.reservedMaterialLots[lotId])) throw new Error("wilds_world_structure_material_invalid");
       const creatureSubjectId = `creature:${sha256PortableBasis(input.activeCard.id).slice(0, 32)}`;
       const creatureHead = sha256PortableBasis(input.activeCard.proof.digest);
       const structure = createWildsTrailBridge({
@@ -566,6 +575,7 @@ export function useWildsWorld(input: {
         position,
         rotationQuarterTurns,
         lots,
+        materialContributorReceizIds: wildsMaterialContributorReceizIds(lots, input.actorId),
         builder: { creatureSubjectId, creatureHead },
         existingStructures: Object.values(snapshot.structures),
         kaiUPulse: input.kaiUPulse

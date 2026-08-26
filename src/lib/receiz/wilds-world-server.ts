@@ -415,7 +415,7 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
     }
     current = candidate;
     root()[serviceKey] = candidate;
-  } else if (command.type === "resource.transfer.admit") {
+  } else if (command.type === "resource.transfer.admit" || command.type === "resource.material.transfer.admit") {
     if (!actor.accessToken || command.ownerReceizId !== actor.playerId) throw new Error("wilds_world_resource_transfer_authority_required");
     const rail = createReceizCommerceAdapter({ accessToken: actor.accessToken });
     const subject = await rail.subjectStateV122(command.subjectId);

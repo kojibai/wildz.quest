@@ -23,7 +23,7 @@ import { useWildsMultiplayer } from "@/features/play/use-wilds-multiplayer";
 import { useWildsMessenger } from "@/features/play/use-wilds-messenger";
 import { useWildsWorld } from "@/features/play/use-wilds-world";
 import { projectWildsOwnedWorldAdditions } from "@/features/play/wilds-player-world-additions";
-import type { WildsWorldProjection } from "@/features/play/wilds-world-state";
+import { wildsMaterialCustodian, type WildsWorldProjection } from "@/features/play/wilds-world-state";
 import { WildsBalancedStatusHud } from "@/features/play/WildsBalancedStatusHud";
 import { useWildsPresentation } from "@/features/play/use-wilds-presentation";
 import { useWildsQualityProfile } from "@/features/play/use-wilds-quality-profile";
@@ -1165,9 +1165,9 @@ export function PlayCampaign({
     amountPhiMicro: preview.emission.amountPhiMicro
   })), [activeGroveMandate, activeGrovePreviews]);
   const availableMaterialLots = useMemo(() => Object.values(livingWorld.snapshot?.materialLots ?? {})
-    .filter((lot) => sameWildzPlayerCoordinate(lot.ownerReceizId, ownerReceizId) && !livingWorld.snapshot?.consumedMaterialLots?.[lot.lotId]
+    .filter((lot) => sameWildzPlayerCoordinate(livingWorld.snapshot ? wildsMaterialCustodian(livingWorld.snapshot, lot) : lot.ownerReceizId, ownerReceizId) && !livingWorld.snapshot?.consumedMaterialLots?.[lot.lotId]
       && !livingWorld.snapshot?.storedMaterialLots?.[lot.lotId] && !livingWorld.snapshot?.reservedMaterialLots?.[lot.lotId])
-    .sort((left, right) => left.lotId.localeCompare(right.lotId)), [livingWorld.snapshot?.consumedMaterialLots, livingWorld.snapshot?.materialLots, livingWorld.snapshot?.reservedMaterialLots, livingWorld.snapshot?.storedMaterialLots, ownerReceizId]);
+    .sort((left, right) => left.lotId.localeCompare(right.lotId)), [livingWorld.snapshot, ownerReceizId]);
   const stewardMaterials = useMemo(() => ({
     timber: availableMaterialLots.filter((lot) => lot.kind === "timber").length,
     stone: availableMaterialLots.filter((lot) => lot.kind === "stone").length
@@ -1293,7 +1293,7 @@ export function PlayCampaign({
       const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
       const awardMessage = award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the work.` : "";
       const satchelCount = Object.values(projection.materialLots).filter((lot) => lot.kind === source.kind
-        && sameWildzPlayerCoordinate(lot.ownerReceizId, ownerReceizId)
+        && sameWildzPlayerCoordinate(wildsMaterialCustodian(projection, lot), ownerReceizId)
         && !projection.consumedMaterialLots[lot.lotId] && !projection.storedMaterialLots[lot.lotId]
         && !projection.reservedMaterialLots[lot.lotId]).length;
       showWorldFeedback(`${partner ? `${partner.manifest.name} joined you and spent 3% capacity. ` : ""}+1 ${source.kind} · Satchel ${satchelCount}.${awardMessage}`);
@@ -2463,6 +2463,7 @@ export function PlayCampaign({
               cards={state.inventory}
               cardConditions={state.adventureConditions}
               materialLots={availableMaterialLots}
+              ledgerMaterialLots={Object.values(livingWorld.snapshot?.materialLots ?? {}).filter((lot) => sameWildzPlayerCoordinate(livingWorld.snapshot ? wildsMaterialCustodian(livingWorld.snapshot, lot) : lot.ownerReceizId, ownerReceizId))}
               stewardPhiAwards={stewardPhiAwards}
               resourceLots={Object.values(livingWorld.snapshot?.resourceLots ?? {}).filter((lot) => sameWildzPlayerCoordinate(livingWorld.snapshot?.resourceCustody?.[lot.lotId]?.ownerReceizId ?? lot.ownerReceizId, ownerReceizId))}
               publicUsername={walletPublicUsername}
@@ -2480,6 +2481,7 @@ export function PlayCampaign({
                 receipts: initialPlayerContinuity?.receipts ?? []
               }))}
               onSendCard={(asset, targetHandle) => messenger.sendCardOffer(asset, targetHandle)}
+              onListCard={onListAsset}
               onSendResource={async (resourceLot, targetHandle) => {
                 const response = await fetch("/api/wilds/resources/transfers", {
                   method: "POST", credentials: "same-origin", cache: "no-store", headers: { "content-type": "application/json" },
@@ -2487,6 +2489,15 @@ export function PlayCampaign({
                 });
                 const payload = await response.json().catch(() => null) as { claimUrl?: string; error?: string } | null;
                 if (!response.ok || !payload?.claimUrl) throw new Error(payload?.error ?? "wilds_resource_transfer_failed");
+                return { claimUrl: payload.claimUrl };
+              }}
+              onSendMaterial={async (materialLot, targetHandle) => {
+                const response = await fetch("/api/wilds/resources/transfers", {
+                  method: "POST", credentials: "same-origin", cache: "no-store", headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ materialLot, targetHandle })
+                });
+                const payload = await response.json().catch(() => null) as { claimUrl?: string; error?: string } | null;
+                if (!response.ok || !payload?.claimUrl) throw new Error(payload?.error ?? "wilds_material_transfer_failed");
                 return { claimUrl: payload.claimUrl };
               }}
               onClose={() => closeOwnedModal("wallet")}

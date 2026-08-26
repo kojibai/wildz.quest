@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import React, { useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { WildsWalletControllerState, WildsWalletPage, WildsWalletPresentationState } from "./wilds-wallet-controller";
 import { PhiNetworkMark } from "./PhiNetworkMark";
 import { WildsWalletAssets } from "./WildsWalletAssets";
@@ -42,15 +42,18 @@ export type WildsWalletTerminalActions = WildsWalletSendActions & Readonly<{
   onReturnToMessages?(): void;
 }>;
 
-export function WildsWalletTerminal({ cards = [], cardConditions = {}, materialLots = [], resourceLots = [], stewardPhiAwards = [], onPrepareCard, onSendCard, onSendResource, publicUsername, state, ...actions }: {
+export function WildsWalletTerminal({ cards = [], cardConditions = {}, materialLots = [], ledgerMaterialLots, resourceLots = [], stewardPhiAwards = [], onPrepareCard, onListCard, onSendCard, onSendMaterial, onSendResource, publicUsername, state, ...actions }: {
   cards?: readonly PortableCardAsset[];
   cardConditions?: Readonly<Record<string, AdventureCardCondition>>;
   resourceLots?: readonly WildsResourceLotV1[];
   materialLots?: readonly WildsMaterialLotV1[];
+  ledgerMaterialLots?: readonly WildsMaterialLotV1[];
   stewardPhiAwards?: readonly WildsStewardPhiAwardV1[];
   onPrepareCard?: (asset: PortableCardAsset) => Promise<WildzPreparedIdentityOwnedCard>;
+  onListCard?: (asset: PortableCardAsset, priceCents: number) => Promise<PortableCardAsset | null>;
   onSendCard?: (asset: PortableCardAsset, targetHandle: string) => Promise<unknown>;
   onSendResource?: (resourceLot: WildsResourceLotV1, targetHandle: string) => Promise<Readonly<{ claimUrl: string }>>;
+  onSendMaterial?: (materialLot: WildsMaterialLotV1, targetHandle: string) => Promise<Readonly<{ claimUrl: string }>>;
   publicUsername: string | null;
   state: WildsWalletPresentationState;
 } & WildsWalletTerminalActions) {
@@ -80,8 +83,8 @@ export function WildsWalletTerminal({ cards = [], cardConditions = {}, materialL
         {state.page === "overview" ? <WildsWalletOverview state={state} onNavigate={actions.onNavigate} /> : null}
         {state.page === "send" ? <WildsWalletSend state={state} {...actions} /> : null}
         {state.page === "receive" ? <WildsWalletReceive publicUsername={publicUsername} state={state} onRequestReceive={actions.onRequestReceive} /> : null}
-        {state.page === "assets" ? <WildsWalletAssets cards={cards} cardConditions={cardConditions} materialLots={materialLots} resourceLots={resourceLots} onOpenVaultCard={closeAllowed ? actions.onOpenVaultCard : undefined} onPrepareCard={onPrepareCard} onSendCard={onSendCard} onSendResource={onSendResource} state={state} /> : null}
-        {state.page === "ledger" ? <WildsWalletLedger state={state} stewardPhiAwards={stewardPhiAwards} /> : null}
+        {state.page === "assets" ? <WildsWalletAssets cards={cards} cardConditions={cardConditions} materialLots={materialLots} resourceLots={resourceLots} stewardPhiAwards={stewardPhiAwards} onOpenVaultCard={closeAllowed ? actions.onOpenVaultCard : undefined} onPrepareCard={onPrepareCard} onListCard={onListCard} onSendCard={onSendCard} onSendMaterial={onSendMaterial} onSendResource={onSendResource} state={state} /> : null}
+        {state.page === "ledger" ? <WildsWalletLedger cards={cards} materialLots={ledgerMaterialLots ?? materialLots} resourceLots={resourceLots} state={state} stewardPhiAwards={stewardPhiAwards} /> : null}
       </main>
       <footer><span>RECEIZ V124 · PROOF-NATIVE CUSTODY</span><span>PRIVATE · NO-STORE</span></footer>
     </section>

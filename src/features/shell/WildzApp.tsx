@@ -680,33 +680,10 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     }
 
     setOverlay({ kind: "profile", username: `@${outcome.session.username ?? outcome.session.actorId}` });
-    const identityStillActive = () => continuityRef.current?.session.keyId === outcome.session.keyId
-      && continuityRef.current.session.actorId === outcome.session.actorId;
-    const reconcileIdentityProjection = async () => {
-      const restoredAdmission = deriveWildzVaultCardAdmission({
-        cards: outcome.playState.inventory,
-        playerHandle: outcome.session.actorId
-      });
-      try {
-        const remote = await connectWildzProofSession(outcome.session, { vaultAdmission: restoredAdmission });
-        if (!identityStillActive()) return;
-        if (wildzRemoteSessionMatchesIdentity(outcome.session, remote)) {
-          const aligned = await alignWildzContinuityWithProofSession(restored, remote);
-          if (!identityStillActive()) return;
-          acceptSnapshot(aligned);
-          setProofSessionConnected(true);
-          setProofSessionGeneration(wildzProofSessionGeneration(remote));
-        } else {
-          setProofSessionConnected(false);
-          setProofSessionGeneration("");
-        }
-      } catch {
-        // The verified Seal still activates local authority; the connection effect retries.
-        if (identityStillActive()) { setProofSessionConnected(false); setProofSessionGeneration(""); }
-      }
-    };
-    void reconcileIdentityProjection().catch(() => undefined);
-  }, [acceptSnapshot, restoreArtifact]);
+    // Identity and Vault admission changes are reconciled by the shared
+    // connection effect. Starting a second admission/alignment pass here made
+    // Seal imports perform the same hash, network, and persistence work twice.
+  }, [restoreArtifact]);
 
   const claimAndRestoreVaultArtifact = useCallback(async (
     file: File,
@@ -857,15 +834,10 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       previousInventory: cardTruthChanged ? current.playState?.inventory : undefined,
       playerContinuity
     };
-    if (worldTruthChanged) {
-      writeWildzRuntimeCheckpoint(window.localStorage, {
-        keyId: snapshot.session.keyId,
-        actorId: snapshot.session.actorId,
-        playState
-      });
-    }
-    playStateSaveSchedulerRef.current?.schedule(pendingSave, identityTruthChanged);
-    if (worldTruthChanged) void playStateSaveSchedulerRef.current?.flush().catch(() => undefined);
+    playStateSaveSchedulerRef.current?.schedule(pendingSave, {
+      durableChanged: identityTruthChanged,
+      inventoryChanged: cardTruthChanged
+    });
   }, []);
 
   const removeLostVaultAssets = useCallback((assetIds: readonly string[]) => {

@@ -103,6 +103,7 @@ export type WildsStewardToolV1 = Readonly<{
   workstationHead: string;
   consumedLotIds: readonly string[];
   consumedLotHeads: readonly string[];
+  materialContributorReceizIds?: readonly string[];
   builder: Readonly<{ creatureSubjectId: string; creatureHead: string }>;
   durability: Readonly<{ remaining: number; capacity: 24 }>;
   revision: number;
@@ -125,6 +126,14 @@ export type WildsStewardPhiAwardV1 = Readonly<{
   authority: "source-proof-objects";
   head: string;
 }>;
+
+export function wildsMaterialContributorReceizIds(
+  lots: readonly WildsMaterialLotV1[],
+  currentOwnerReceizId: string
+): readonly string[] | undefined {
+  const contributors = [...new Set([currentOwnerReceizId, ...lots.map((lot) => lot.ownerReceizId)])].sort();
+  return contributors.length === 1 ? undefined : freeze(contributors);
+}
 
 const ID = /^[a-z0-9][a-z0-9._:-]{0,179}$/i;
 const HEAD = /^sha256:[a-f0-9]{64}$/;
@@ -280,14 +289,16 @@ export function createWildsStewardToolOperation(input: Readonly<{
   playerHead: string;
 }>): WildsLivingOperationPlanV1 {
   const orderedLots = [...input.lots].sort((left, right) => left.lotId.localeCompare(right.lotId));
+  const materialOwners = input.tool.materialContributorReceizIds ?? [input.tool.ownerReceizId];
   if (!verifyWildsStewardTool(input.tool) || input.tool.revision !== 0 || input.tool.ownerReceizId !== input.ownerReceizId
     || !verifyWildsStructure(input.workstation) || input.workstation.blueprint !== "steward-workbench"
     || input.tool.workstationId !== input.workstation.structureId || input.tool.workstationHead !== input.workstation.head
     || canonicalPortableCardJson(input.tool.consumedLotHeads) !== canonicalPortableCardJson(orderedLots.map((lot) => lot.head))
-    || orderedLots.some((lot) => !verifyWildsMaterialLot(lot) || lot.ownerReceizId !== input.ownerReceizId)) {
+    || orderedLots.some((lot) => !verifyWildsMaterialLot(lot) || !materialOwners.includes(lot.ownerReceizId))) {
     throw new Error("wilds_steward_tool_operation_source_invalid");
   }
-  const participantIds = [input.ownerReceizId, input.tool.builder.creatureSubjectId];
+  const playerParticipantIds = [...new Set([input.ownerReceizId, ...materialOwners])];
+  const participantIds = [...playerParticipantIds, input.tool.builder.creatureSubjectId];
   const identity = operationIdentity(input.tool.kind, input.tool.head);
   return compileWildsLivingOperation({
     operationId: `steward:craft:${identity}`,
@@ -301,7 +312,7 @@ export function createWildsStewardToolOperation(input: Readonly<{
       consumedLotHeads: input.tool.consumedLotHeads
     },
     participants: [
-      { id: input.ownerReceizId, kind: "player", expectedHead: input.playerHead, role: "steward" },
+      ...playerParticipantIds.map((id) => ({ id, kind: "player" as const, expectedHead: id === input.ownerReceizId ? input.playerHead : sha256PortableBasis(id), role: id === input.ownerReceizId ? "steward" : "material-contributor" })),
       { id: input.tool.builder.creatureSubjectId, kind: "creature", expectedHead: input.tool.builder.creatureHead, role: "crafting-partner" }
     ],
     stages: [
@@ -560,13 +571,15 @@ function createGroundStewardStructure(input: Readonly<{
   lots: readonly WildsMaterialLotV1[];
   builder: Readonly<{ creatureSubjectId: string; creatureHead: string }>;
   existingStructures: readonly WildsStructureV1[];
+  materialContributorReceizIds?: readonly string[];
   kaiUPulse: number;
 }>): WildsStewardWorkbenchV1 | WildsTrailCacheV1 {
   if (!ID.test(input.ownerReceizId) || !validKai(input.kaiUPulse)) throw new Error("wilds_steward_structure_authority_invalid");
   if (!ID.test(input.builder.creatureSubjectId) || !HEAD.test(input.builder.creatureHead)) throw new Error("wilds_steward_builder_invalid");
   if (![input.position.x, input.position.y, input.position.z].every(Number.isFinite)) throw new Error("wilds_steward_structure_position_invalid");
   if (!Number.isSafeInteger(input.rotationQuarterTurns)) throw new Error("wilds_steward_structure_rotation_invalid");
-  if (input.lots.some((lot) => !verifyWildsMaterialLot(lot) || lot.ownerReceizId !== input.ownerReceizId)) throw new Error("wilds_steward_material_authority_invalid");
+  const materialContributorReceizIds = [...new Set(input.materialContributorReceizIds ?? [input.ownerReceizId])].sort();
+  if (!materialContributorReceizIds.includes(input.ownerReceizId) || input.lots.some((lot) => !verifyWildsMaterialLot(lot) || !materialContributorReceizIds.includes(lot.ownerReceizId))) throw new Error("wilds_steward_material_authority_invalid");
   if (new Set(input.lots.map((lot) => lot.lotId)).size !== input.lots.length) throw new Error("wilds_steward_material_duplicate");
   const timber = input.lots.filter((lot) => lot.kind === "timber").length;
   const stone = input.lots.filter((lot) => lot.kind === "stone").length;
@@ -591,6 +604,7 @@ function createGroundStewardStructure(input: Readonly<{
     materials: freeze({ ...input.materials }),
     consumedLotIds: freeze(orderedLots.map((lot) => lot.lotId)),
     consumedLotHeads: freeze(orderedLots.map((lot) => lot.head)),
+    materialContributorReceizIds: freeze(materialContributorReceizIds),
     builder: freeze({ ...input.builder }),
     kaiUPulse: input.kaiUPulse,
     authority: "source-proof-objects" as const
@@ -614,6 +628,8 @@ export function verifyWildsStewardTool(value: unknown): value is WildsStewardToo
     || !new RegExp(`^wildz:tool:${tool.kind}:[a-f0-9]{64}$`).test(tool.toolId ?? "")
     || !ID.test(tool.ownerReceizId ?? "") || !/^wildz:structure:steward-workbench:[a-f0-9]{64}$/.test(tool.workstationId ?? "")
     || !HEAD.test(tool.workstationHead ?? "") || !Array.isArray(tool.consumedLotIds) || !Array.isArray(tool.consumedLotHeads)
+    || (tool.materialContributorReceizIds !== undefined && (!Array.isArray(tool.materialContributorReceizIds)
+      || !tool.materialContributorReceizIds.includes(tool.ownerReceizId ?? "") || tool.materialContributorReceizIds.some((id) => !ID.test(id))))
     || tool.consumedLotIds.length !== (tool.kind === "steward-axe" ? 2 : 3) || tool.consumedLotHeads.length !== tool.consumedLotIds.length
     || new Set(tool.consumedLotIds).size !== tool.consumedLotIds.length || !tool.consumedLotHeads.every((head) => HEAD.test(head))
     || !tool.builder || !ID.test(tool.builder.creatureSubjectId) || !HEAD.test(tool.builder.creatureHead)
@@ -631,6 +647,7 @@ export function createWildsStewardTool(input: Readonly<{
   workstation: WildsStewardWorkbenchV1;
   lots: readonly WildsMaterialLotV1[];
   builder: Readonly<{ creatureSubjectId: string; creatureHead: string }>;
+  materialContributorReceizIds?: readonly string[];
   kaiUPulse: number;
 }>): WildsStewardToolV1 {
   if (!verifyWildsStructure(input.workstation) || input.workstation.blueprint !== "steward-workbench"
@@ -639,7 +656,8 @@ export function createWildsStewardTool(input: Readonly<{
     throw new Error("wilds_steward_tool_authority_invalid");
   }
   const expected = input.kind === "steward-axe" ? { timber: 1, stone: 1 } : { timber: 1, stone: 2 };
-  if (input.lots.some((lot) => !verifyWildsMaterialLot(lot) || lot.ownerReceizId !== input.ownerReceizId)
+  const materialContributorReceizIds = [...new Set(input.materialContributorReceizIds ?? [input.ownerReceizId])].sort();
+  if (!materialContributorReceizIds.includes(input.ownerReceizId) || input.lots.some((lot) => !verifyWildsMaterialLot(lot) || !materialContributorReceizIds.includes(lot.ownerReceizId))
     || new Set(input.lots.map((lot) => lot.lotId)).size !== input.lots.length
     || input.lots.filter((lot) => lot.kind === "timber").length !== expected.timber
     || input.lots.filter((lot) => lot.kind === "stone").length !== expected.stone
@@ -657,6 +675,7 @@ export function createWildsStewardTool(input: Readonly<{
     workstationHead: input.workstation.head,
     consumedLotIds: freeze(orderedLots.map((lot) => lot.lotId)),
     consumedLotHeads: freeze(orderedLots.map((lot) => lot.head)),
+    ...(input.materialContributorReceizIds ? { materialContributorReceizIds: freeze(materialContributorReceizIds) } : {}),
     builder: freeze({ ...input.builder }),
     durability: freeze({ remaining: 24, capacity: 24 as const }),
     revision: 0,

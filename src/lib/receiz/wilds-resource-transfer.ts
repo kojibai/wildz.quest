@@ -10,6 +10,7 @@ import {
 } from "@receiz/sdk";
 import { canonicalPortableCardJson } from "@/features/play/portable-card";
 import { verifyWildsResourceLot, type WildsResourceLotV1 } from "@/features/play/wilds-resource-lot";
+import { verifyWildsMaterialLot, type WildsMaterialLotV1 } from "@/features/play/wilds-steward-construction";
 import type { ReceizCommerceAdapter } from "./adapter";
 import { parseWildzPlayerCoordinate, sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import type { WildsWalletReadAuthority } from "./wilds-wallet-route-authority";
@@ -37,8 +38,32 @@ export type WildsResourceTransferAdmission = Readonly<{
   idempotent: boolean;
 }>;
 
+export type WildsMaterialTransferOffer = Readonly<{
+  schema: "receiz.wilds.material-transfer-offer.v1";
+  materialLot: WildsMaterialLotV1;
+  subjectId: string;
+  sourceHandle: string;
+  targetHandle: string;
+  instrument: ReceizBearerInstrumentV1;
+}>;
+
+export type WildsMaterialTransferAdmission = Readonly<{
+  schema: "receiz.wilds.material-transfer-admission.v1";
+  materialLot: WildsMaterialLotV1;
+  subjectId: string;
+  sourceHandle: string;
+  targetHandle: string;
+  receipt: ReceizBearerTransferReceiptV1;
+  idempotent: boolean;
+}>;
+
 function exactLot(value: unknown) {
   if (!verifyWildsResourceLot(value)) throw new Error("wilds_resource_transfer_lot_invalid");
+  return value;
+}
+
+function exactMaterialLot(value: unknown) {
+  if (!verifyWildsMaterialLot(value)) throw new Error("wilds_material_transfer_lot_invalid");
   return value;
 }
 
@@ -72,7 +97,22 @@ export async function projectWildsResourceSubjectAdmissionV122(resourceLot: Wild
   });
 }
 
-function assertState(state: ReceizSubjectStateV122, projected: Awaited<ReturnType<typeof projectWildsResourceSubjectAdmissionV122>>, ownerReceizId: string) {
+async function projectLotSubjectAdmission(lot: WildsResourceLotV1 | WildsMaterialLotV1, ownerReceizId: string, kind: "resource" | "material") {
+  const proofObject = new Blob([new TextEncoder().encode(canonicalPortableCardJson(lot))], { type: "application/json" });
+  const snapshot = await snapshotReceizArtifactInput(proofObject);
+  const subjectId = await deriveReceizSubjectIdV122(snapshot.artifactDigest.value);
+  return Object.freeze({
+    subjectId,
+    admittedProofDigest: snapshot.artifactDigest.value,
+    input: Object.freeze({ proofObject, ownerReceizId, idempotencyKey: `wildz:${kind}-subject:v124:${subjectId}`, expectedAbsent: true as const })
+  });
+}
+
+export function projectWildsMaterialSubjectAdmissionV122(materialLot: WildsMaterialLotV1, ownerReceizId: string) {
+  return projectLotSubjectAdmission(exactMaterialLot(materialLot), ownerReceizId, "material");
+}
+
+function assertState(state: ReceizSubjectStateV122, projected: Readonly<{ subjectId: string; admittedProofDigest: string }>, ownerReceizId: string) {
   if (state.subjectId !== projected.subjectId || state.admittedProofDigest !== projected.admittedProofDigest || state.ownerReceizId !== ownerReceizId) {
     throw new Error("wilds_resource_transfer_subject_invalid");
   }
@@ -90,6 +130,21 @@ async function admitResourceSubject(resourceLot: WildsResourceLotV1, authority: 
   const result = await validateReceizSubjectAdmissionResultV122(await rail.admitSubjectV122(projected.input));
   if (!result.ok || result.subjectId !== projected.subjectId || result.proofDigest !== projected.admittedProofDigest) {
     throw new Error("wilds_resource_transfer_subject_admission_invalid");
+  }
+  return assertState(await rail.subjectStateV122(projected.subjectId), projected, authority.ownerReceizId);
+}
+
+async function admitMaterialSubject(materialLot: WildsMaterialLotV1, authority: WildsWalletReadAuthority, rail: BearerRail) {
+  const projected = await projectWildsMaterialSubjectAdmissionV122(materialLot, authority.ownerReceizId);
+  try { return assertState(await rail.subjectStateV122(projected.subjectId), projected, authority.ownerReceizId); }
+  catch (cause) { if (!missingSubject(cause)) throw cause; }
+  if (!sameWildzPlayerCoordinate(materialLot.ownerReceizId, authority.profileHandle)
+    && !sameWildzPlayerCoordinate(materialLot.ownerReceizId, authority.ownerReceizId)) {
+    throw new Error("wilds_material_transfer_owner_invalid");
+  }
+  const result = await validateReceizSubjectAdmissionResultV122(await rail.admitSubjectV122(projected.input));
+  if (!result.ok || result.subjectId !== projected.subjectId || result.proofDigest !== projected.admittedProofDigest) {
+    throw new Error("wilds_material_transfer_subject_admission_invalid");
   }
   return assertState(await rail.subjectStateV122(projected.subjectId), projected, authority.ownerReceizId);
 }
@@ -141,4 +196,53 @@ export async function claimWildsResourceTransfer(input: Readonly<{
     throw new Error("wilds_resource_transfer_receipt_binding_invalid");
   }
   return Object.freeze({ schema: "receiz.wilds.resource-transfer-admission.v1", resourceLot, subjectId: input.offer.subjectId, sourceHandle, targetHandle, receipt: result.receipt, idempotent: result.idempotent });
+}
+
+export function validateWildsMaterialTransferOffer(value: WildsMaterialTransferOffer) {
+  const materialLot = exactMaterialLot(value.materialLot);
+  const sourceHandle = exactTarget(value.sourceHandle);
+  const targetHandle = exactTarget(value.targetHandle);
+  const instrument = value.instrument;
+  if (value.schema !== "receiz.wilds.material-transfer-offer.v1" || instrument.schema !== "receiz.bearer.instrument.v1"
+    || instrument.plan.subjectId !== value.subjectId || instrument.plan.transferId !== instrument.plan.transferDigest
+    || !instrument.plan.policy.openBearer || !instrument.plan.policy.requiresRecipientAcceptance
+    || instrument.plan.policy.recipientReceizId !== null || instrument.status !== "pending-acceptance"
+    || !/^[a-f0-9]{64}$/.test(instrument.plan.subjectDigest)) {
+    throw new Error("wilds_material_transfer_offer_invalid");
+  }
+  return { materialLot, sourceHandle, targetHandle, instrument };
+}
+
+export async function issueWildsMaterialTransfer(input: Readonly<{
+  authority: WildsWalletReadAuthority; materialLot: WildsMaterialLotV1; targetHandle: string; rail: BearerRail; currentKai?: number;
+}>): Promise<WildsMaterialTransferOffer> {
+  const materialLot = exactMaterialLot(input.materialLot);
+  const targetHandle = exactTarget(input.targetHandle);
+  const state = await admitMaterialSubject(materialLot, input.authority, input.rail);
+  const currentKai = input.currentKai ?? receizKaiNow().pulse;
+  const plan = await input.rail.previewBearerTransfer({
+    subjectId: state.subjectId,
+    policy: { recipientReceizId: null, openBearer: true, expiresAtKai: String(currentKai + 86_400), requiresRecipientAcceptance: true, priorOwnerConversationPolicy: "encrypted-evidence", inventoryDisposition: {} }
+  });
+  const instrument = await input.rail.issueBearerTransferInstrument({ plan, ownerCapability: { receizId: input.authority.ownerReceizId, capabilityDigest: capabilityDigest(input.authority, state.admittedProofDigest) } });
+  if (instrument.plan.subjectId !== state.subjectId || instrument.plan.currentOwnerReceizId !== input.authority.ownerReceizId || instrument.status !== "pending-acceptance") {
+    throw new Error("wilds_material_transfer_instrument_binding_invalid");
+  }
+  return Object.freeze({ schema: "receiz.wilds.material-transfer-offer.v1", materialLot, subjectId: state.subjectId, sourceHandle: exactTarget(input.authority.profileHandle), targetHandle, instrument });
+}
+
+export async function claimWildsMaterialTransfer(input: Readonly<{
+  authority: WildsWalletReadAuthority; offer: WildsMaterialTransferOffer; rail: BearerRail;
+}>): Promise<WildsMaterialTransferAdmission> {
+  const { materialLot, sourceHandle, targetHandle, instrument } = validateWildsMaterialTransferOffer(input.offer);
+  if (!sameWildzPlayerCoordinate(targetHandle, input.authority.profileHandle)) throw new Error("wilds_material_transfer_recipient_invalid");
+  const inspection = await input.rail.inspectBearerTransferInstrument(instrument);
+  if (!inspection.valid || !inspection.offlineVerified || inspection.instrument.artifactDigest !== instrument.artifactDigest) throw new Error("wilds_material_transfer_instrument_invalid");
+  const result = await input.rail.claimBearerTransferInstrument(instrument, { receizId: input.authority.ownerReceizId, capabilityDigest: capabilityDigest(input.authority) });
+  if (!result.ok) throw new Error(`wilds_material_transfer_${result.code.toLowerCase()}`);
+  if (result.receipt.transferId !== instrument.plan.transferId || result.receipt.subjectId !== input.offer.subjectId
+    || result.receipt.priorOwnerReceizId !== instrument.plan.currentOwnerReceizId || result.receipt.nextOwnerReceizId !== input.authority.ownerReceizId) {
+    throw new Error("wilds_material_transfer_receipt_binding_invalid");
+  }
+  return Object.freeze({ schema: "receiz.wilds.material-transfer-admission.v1", materialLot, subjectId: input.offer.subjectId, sourceHandle, targetHandle, receipt: result.receipt, idempotent: result.idempotent });
 }

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createWildsResourcePortableClaim, encodeWildsPortableClaim, wildsPortableClaimUrl } from "@/features/play/wilds-portable-claim";
+import { createWildsMaterialPortableClaim, createWildsResourcePortableClaim, encodeWildsPortableClaim, wildsPortableClaimUrl } from "@/features/play/wilds-portable-claim";
 import type { WildsResourceLotV1 } from "@/features/play/wilds-resource-lot";
+import type { WildsMaterialLotV1 } from "@/features/play/wilds-steward-construction";
 import { createReceizCommerceAdapter } from "@/lib/receiz/adapter";
-import { issueWildsResourceTransfer } from "@/lib/receiz/wilds-resource-transfer";
+import { issueWildsMaterialTransfer, issueWildsResourceTransfer } from "@/lib/receiz/wilds-resource-transfer";
 import { resolveWildsMultiplayerActor } from "@/lib/receiz/wilds-multiplayer-server";
 import type { WildsWalletReadAuthority } from "@/lib/receiz/wilds-wallet-route-authority";
 
@@ -20,13 +21,12 @@ export async function POST(request: NextRequest) {
     const authority: WildsWalletReadAuthority = Object.freeze({
       accessToken: actor.accessToken, ownerReceizId: actor.receizActorId, actorId: actor.playerId, profileHandle: actor.handle
     });
-    const offer = await issueWildsResourceTransfer({
-      authority,
-      resourceLot: body.resourceLot as WildsResourceLotV1,
-      targetHandle: String(body.targetHandle ?? ""),
-      rail: createReceizCommerceAdapter({ accessToken: actor.accessToken })
-    });
-    const claim = createWildsResourcePortableClaim(offer);
+    const rail = createReceizCommerceAdapter({ accessToken: actor.accessToken });
+    const material = body.materialLot !== undefined;
+    const offer = material
+      ? await issueWildsMaterialTransfer({ authority, materialLot: body.materialLot as WildsMaterialLotV1, targetHandle: String(body.targetHandle ?? ""), rail })
+      : await issueWildsResourceTransfer({ authority, resourceLot: body.resourceLot as WildsResourceLotV1, targetHandle: String(body.targetHandle ?? ""), rail });
+    const claim = material ? createWildsMaterialPortableClaim(offer as Awaited<ReturnType<typeof issueWildsMaterialTransfer>>) : createWildsResourcePortableClaim(offer as Awaited<ReturnType<typeof issueWildsResourceTransfer>>);
     const claimProof = encodeWildsPortableClaim(claim);
     return NextResponse.json({
       ok: true,

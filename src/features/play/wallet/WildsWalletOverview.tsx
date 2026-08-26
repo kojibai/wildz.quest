@@ -1,3 +1,4 @@
+import React from "react";
 import type { WildsWalletPresentationState } from "./wilds-wallet-controller";
 import { formatWildsPhiExact, formatWildsUsdCents } from "./wilds-wallet-format";
 import { PhiNetworkAmount } from "./PhiNetworkMark";

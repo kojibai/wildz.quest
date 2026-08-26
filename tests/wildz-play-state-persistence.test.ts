@@ -58,3 +58,24 @@ test("a failed durable write never creates a gameplay-time retry loop", async ()
 
   assert.equal(attempts, 1);
 });
+
+test("world truth persists durably without staging the full card inventory", async () => {
+  const runtimeWrites: number[] = [];
+  const vaultWrites: number[] = [];
+  const pendingInventoryStages: number[] = [];
+  const coordinator = createWildzPlayStatePersistenceCoordinator<number>({
+    stagePendingVault: (value) => { pendingInventoryStages.push(value); },
+    writeRuntime: (value) => { runtimeWrites.push(value); },
+    writeVault: async (value) => { vaultWrites.push(value); }
+  });
+
+  coordinator.schedule(7, {
+    durableChanged: true,
+    inventoryChanged: false
+  });
+  await coordinator.flush();
+
+  assert.deepEqual(pendingInventoryStages, []);
+  assert.deepEqual(runtimeWrites, [7]);
+  assert.deepEqual(vaultWrites, [7]);
+});

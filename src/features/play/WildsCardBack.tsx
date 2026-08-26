@@ -2,7 +2,7 @@
 
 import Image from "next/image.js";
 import Link from "next/link.js";
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { portableCardPngBlob, readPortableCardFromPng, type PortableCardPngProof } from "./card-export";
 import { compactProofFingerprint, projectLivingCardDossier } from "./living-card-dossier";
 import { cardDeathRecord } from "./card-death-record";

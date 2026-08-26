@@ -7,9 +7,9 @@ import {
   readReceizMaterialCompositePackageDigest
 } from "@receiz/sdk";
 
-describe("Receiz 124.0.2 material runtime", () => {
+describe("Receiz 124.0.3 material runtime", () => {
   it("carries exact material bytes beneath sealed proof-object authority", async () => {
-    assert.equal(RECEIZ_SDK_VERSION, "124.0.2");
+    assert.equal(RECEIZ_SDK_VERSION, "124.0.3");
     const capsuleBytes = encodeReceizMaterialCapsuleBytes({
       exactArtifactBytes: new Uint8Array([1, 2, 3]),
       filename: "grove-seed.receiz",

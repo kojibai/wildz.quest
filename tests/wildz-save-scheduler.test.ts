@@ -142,9 +142,10 @@ test("identity truth persists durably while ordinary movement uses runtime check
   assert.match(shell, /nextCardPins/);
   assert.match(shell, /createWildzPlayStatePersistenceCoordinator/);
   assert.match(shell, /const identityTruthChanged = cardTruthChanged \|\| worldTruthChanged/);
-  assert.match(shell, /schedule\(pendingSave, identityTruthChanged\)/);
-  assert.match(shell, /if \(worldTruthChanged\) \{[\s\S]*writeWildzRuntimeCheckpoint/);
-  assert.match(shell, /if \(worldTruthChanged\) void playStateSaveSchedulerRef\.current\?\.flush\(\)/);
+  assert.match(shell, /durableChanged: identityTruthChanged/);
+  assert.match(shell, /inventoryChanged: cardTruthChanged/);
+  assert.doesNotMatch(shell, /if \(worldTruthChanged\) \{[\s\S]*writeWildzRuntimeCheckpoint/);
+  assert.doesNotMatch(shell, /if \(worldTruthChanged\) void playStateSaveSchedulerRef\.current\?\.flush\(\)/);
   assert.doesNotMatch(shell, /vaultSavePendingRef/);
   assert.doesNotMatch(shell, /kind: vaultSavePendingRef/);
   assert.doesNotMatch(shell, /if \(cardTruthChanged\) void scheduler\?\.flush\(\)/);

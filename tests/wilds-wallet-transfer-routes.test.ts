@@ -33,7 +33,7 @@ function runtime(overrides: Partial<WildsWalletTransferRouteRuntime> = {}): Wild
   return {
     durable: true,
     capabilityAdmission: async () => ({
-      sdkVersion: "124.0.2",
+      sdkVersion: "124.0.3",
       rails: {
         proofAuthorityExchange: true,
         settlementExecution: true,

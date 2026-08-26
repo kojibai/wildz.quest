@@ -177,16 +177,17 @@ export function contributeWildsConstructionSite(input: Readonly<{
   expectedSiteHead?: string;
   contributorReceizId: string;
   lots: readonly WildsMaterialLotV1[];
+  lotCustodians?: Readonly<Record<string, string>>;
   kaiUPulse: number;
 }>): WildsConstructionSiteV1 {
   if (!verifyWildsConstructionSite(input.site)) throw new Error("wilds_construction_site_invalid");
   if (input.site.stage === "complete") throw new Error("wilds_construction_site_terminal");
   if (input.expectedSiteHead && input.expectedSiteHead !== input.site.head) throw new Error("wilds_construction_site_stale");
   if (!ID.test(input.contributorReceizId) || !Number.isSafeInteger(input.kaiUPulse) || input.kaiUPulse < input.site.kaiUPulse) throw new Error("wilds_construction_contributor_invalid");
-  if (input.lots.length < 1 || input.lots.some((lot) => !verifyWildsMaterialLot(lot) || lot.ownerReceizId !== input.contributorReceizId)
+  if (input.lots.length < 1 || input.lots.some((lot) => !verifyWildsMaterialLot(lot) || (input.lotCustodians?.[lot.lotId] ?? lot.ownerReceizId) !== input.contributorReceizId)
     || new Set(input.lots.map((lot) => lot.lotId)).size !== input.lots.length
     || input.lots.some((lot) => input.site.contributedLots.some((entry) => entry.lotId === lot.lotId))) throw new Error("wilds_construction_material_invalid");
-  const additions = input.lots.map((lot) => ({ lotId: lot.lotId, lotHead: lot.head, kind: lot.kind, ownerReceizId: lot.ownerReceizId, contributedAtKaiUPulse: input.kaiUPulse } as const));
+  const additions = input.lots.map((lot) => ({ lotId: lot.lotId, lotHead: lot.head, kind: lot.kind, ownerReceizId: input.lotCustodians?.[lot.lotId] ?? lot.ownerReceizId, contributedAtKaiUPulse: input.kaiUPulse } as const));
   const contributedLots = [...input.site.contributedLots, ...additions].sort((left, right) => left.lotId.localeCompare(right.lotId));
   const counts = materialCounts(contributedLots);
   if (counts.timber > input.site.materialsRequired.timber || counts.stone > input.site.materialsRequired.stone) throw new Error("wilds_construction_materials_exceed");
@@ -211,11 +212,11 @@ export function completeWildsConstructionSite(input: Readonly<{
   if (!ID.test(input.workerReceizId) || !ID.test(input.creature.subjectId) || !HEAD.test(input.creature.head)
     || !Number.isSafeInteger(input.kaiUPulse) || input.kaiUPulse < input.site.kaiUPulse) throw new Error("wilds_construction_worker_invalid");
   const orderedLots = [...input.lots].sort((left, right) => left.lotId.localeCompare(right.lotId));
-  if (canonicalPortableCardJson(orderedLots.map((lot) => ({ lotId: lot.lotId, lotHead: lot.head, kind: lot.kind, ownerReceizId: lot.ownerReceizId })))
+  if (canonicalPortableCardJson(orderedLots.map((lot) => ({ lotId: lot.lotId, lotHead: lot.head, kind: lot.kind, ownerReceizId: input.site.contributedLots.find((entry) => entry.lotId === lot.lotId)?.ownerReceizId })))
     !== canonicalPortableCardJson(input.site.contributedLots.map(({ lotId, lotHead, kind, ownerReceizId }) => ({ lotId, lotHead, kind, ownerReceizId })))) {
     throw new Error("wilds_construction_material_lineage_invalid");
   }
-  const materialContributorReceizIds = [...new Set([input.site.placedByReceizId, ...input.site.contributorReceizIds])].sort();
+  const materialContributorReceizIds = [...new Set([input.site.placedByReceizId, ...input.site.contributorReceizIds, ...orderedLots.map((lot) => lot.ownerReceizId)])].sort();
   const common = {
     ownerReceizId: input.site.placedByReceizId,
     rotationQuarterTurns: input.site.rotationQuarterTurns,

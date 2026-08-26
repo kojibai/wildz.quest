@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import React, { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { WildsWalletControllerState } from "./wilds-wallet-controller";
 import { formatWildsPhiExact, parseWildsPhiInput } from "./wilds-wallet-format";
 import { PhiNetworkAmount } from "./PhiNetworkMark";

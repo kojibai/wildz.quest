@@ -1,7 +1,10 @@
 import { createLatestOnlySaveScheduler } from "./wildz-save-scheduler";
 
 export type WildzPlayStatePersistenceCoordinator<Value> = {
-  schedule(value: Value, vaultChanged: boolean): void;
+  schedule(value: Value, change: boolean | Readonly<{
+    durableChanged: boolean;
+    inventoryChanged: boolean;
+  }>): void;
   flush(): Promise<void>;
   cancel(): void;
 };
@@ -36,10 +39,12 @@ export function createWildzPlayStatePersistenceCoordinator<
   });
 
   return {
-    schedule(value, vaultChanged) {
+    schedule(value, change) {
+      const durableChanged = typeof change === "boolean" ? change : change.durableChanged;
+      const inventoryChanged = typeof change === "boolean" ? change : change.inventoryChanged;
       runtime.schedule(value);
-      if (!vaultChanged) return;
-      options.stagePendingVault(value);
+      if (!durableChanged) return;
+      if (inventoryChanged) options.stagePendingVault(value);
       vault.schedule(value);
     },
     async flush() {

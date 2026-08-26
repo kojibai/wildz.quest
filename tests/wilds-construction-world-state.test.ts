@@ -24,11 +24,28 @@ function lot(kind: "timber" | "stone", ownerReceizId: string, kaiUPulse: number)
   }).lot;
 }
 
-function event(kind: "construction.site_placed" | "construction.site_contributed", actorId: string, payload: unknown, previousEventId: string | null, uPulse: number) {
+function event(kind: "construction.site_placed" | "construction.site_contributed" | "resource.material_custody_transferred", actorId: string, payload: unknown, previousEventId: string | null, uPulse: number) {
   return createWildsWorldEvent({ kind, actorId, causeId: `command:${uPulse}`, pulse: TIME, occurredAt: TIME, kaiKlok: uPulse, uPulse, previousEventId, payload });
 }
 
 describe("construction site world projection", () => {
+  it("moves custody by receipt without rewriting the source lot", () => {
+    const timber = lot("timber", OWNER, 2_000_000);
+    const seeded = { ...initialWildsWorldProjection(), materialLots: { [timber.lotId]: timber } };
+    const transfer = event("resource.material_custody_transferred", HELPER, {
+      lotId: timber.lotId,
+      ownerReceizId: HELPER,
+      subjectId: "subject:timber",
+      subjectHead: "b".repeat(64),
+      receiptId: "receipt:timber",
+      transferId: "transfer:timber"
+    }, null, 2_000_001);
+    const moved = reduceWildsWorldEvent(seeded, transfer);
+    assert.equal(moved.materialLots[timber.lotId], timber);
+    assert.equal(moved.materialLots[timber.lotId]?.ownerReceizId, OWNER);
+    assert.equal(moved.materialCustody[timber.lotId]?.ownerReceizId, HELPER);
+  });
+
   it("places without reserving materials then reserves an exact contributed lot once", () => {
     const timber = lot("timber", HELPER, 2_000_001);
     const site = createWildsConstructionSite({ blueprint: "trail-shelter", placedByReceizId: OWNER, actorPosition: { x: 10, z: 10 }, position: { x: 12, z: 11 }, rotationQuarterTurns: 0, existingStructures: [], existingSites: [], kaiUPulse: 2_000_010 });

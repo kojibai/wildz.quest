@@ -28,15 +28,13 @@ test("explicit uploads adopt ownership in both directions", () => {
   assert.match(adapter, /intent === "merge-vault"[\s\S]*preserveActiveIdentity: true/);
   assert.match(adapter, /intent === "activate-identity"[\s\S]*carryCurrentVault: true/);
   assert.match(shell, /const activateIdentitySeal/);
-  assert.match(shell, /activateIdentitySeal[\s\S]*connectWildzProofSession/);
-  assert.match(shell, /activateIdentitySeal[\s\S]*wildzRemoteSessionMatchesIdentity/);
   const activation = shell.slice(
     shell.indexOf("const activateIdentitySeal"),
     shell.indexOf("const claimAndRestoreVaultArtifact")
   );
   assert.match(activation, /setOverlay\(\{ kind: "profile"/);
-  assert.match(activation, /void reconcileIdentityProjection\(\)\.catch/);
-  assert.ok(activation.indexOf('setOverlay({ kind: "profile"') < activation.indexOf("void reconcileIdentityProjection()"));
+  assert.doesNotMatch(activation, /connectWildzProofSession|reconcileIdentityProjection/);
+  assert.match(shell, /useEffect\(\(\) => \{[\s\S]*connectWildzProofSession\(identity, \{ vaultAdmission \}\)/);
   assert.match(shell, /onAuthenticateIdentitySeal=\{activateIdentitySeal\}/);
   assert.match(shell, /const claimAndRestoreVaultArtifact/);
   assert.match(shell, /onRestoreArtifact=\{claimAndRestoreVaultArtifact\}/);

@@ -1,5 +1,7 @@
 "use client";
 
+import React from "react";
+
 import type { WildsWalletPresentationState } from "./wilds-wallet-controller";
 import { formatWildsPhiCompact, formatWildsPhiExact } from "./wilds-wallet-format";
 import { Icons } from "@/components/icons";

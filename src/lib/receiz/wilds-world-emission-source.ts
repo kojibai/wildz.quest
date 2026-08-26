@@ -4,6 +4,7 @@ import type { WildsRegenerativeGroveV1 } from "@/features/play/wilds-regenerativ
 import type { WildsWorldCheckpoint } from "@/features/play/wilds-world-state";
 import type { WildsWorldEmissionProofV1 } from "@/features/play/wilds-world-emission";
 import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
+import { wildsMaterialCustodian } from "@/features/play/wilds-world-state";
 
 export const WILDS_LIVING_WORLD_REGISTRY_DIGEST = sha256PortableBasis("wildz.living-world.registry.v1");
 export const WILDS_LIVING_WORLD_REDUCER_DIGEST = sha256PortableBasis("wildz.living-world.reducer.v1");
@@ -92,10 +93,13 @@ export function wildsStewardWorldSuccessorHeads(input: Readonly<{
   const inventoryId = `inventory:${input.actorId}`;
   const inventory = (checkpoint: WildsWorldCheckpoint) => ({
     materialLots: Object.values(checkpoint.projection.materialLots ?? {})
-      .filter((lot) => sameWildzPlayerCoordinate(lot.ownerReceizId, input.actorId))
+      .filter((lot) => sameWildzPlayerCoordinate(wildsMaterialCustodian(checkpoint.projection, lot), input.actorId))
       .sort((left, right) => left.lotId.localeCompare(right.lotId)),
     consumedMaterialLots: Object.fromEntries(Object.entries(checkpoint.projection.consumedMaterialLots ?? {})
-      .filter(([lotId]) => sameWildzPlayerCoordinate(checkpoint.projection.materialLots[lotId]?.ownerReceizId ?? "", input.actorId))
+      .filter(([lotId]) => {
+        const lot = checkpoint.projection.materialLots[lotId];
+        return Boolean(lot && sameWildzPlayerCoordinate(wildsMaterialCustodian(checkpoint.projection, lot), input.actorId));
+      })
       .sort(([left], [right]) => left.localeCompare(right))),
     structures: Object.values(checkpoint.projection.structures ?? {})
       .filter((structure) => sameWildzPlayerCoordinate(structure.ownerReceizId, input.actorId))

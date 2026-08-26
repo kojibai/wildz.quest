@@ -180,6 +180,7 @@ export type WildsOwnedWorldAdditions = {
   structures: Record<string, WildsStructureV1>;
   harvestedSources: Record<string, WildsHarvestedSourceStateV1>;
   materialLots: Record<string, WildsMaterialLotV1>;
+  materialCustody?: Record<string, Readonly<{ ownerReceizId: string; subjectId: string; subjectHead: string; receiptId: string; transferId: string }>>;
   consumedMaterialLots: Record<string, string>;
   reservedMaterialLots: Record<string, string>;
   storedMaterialLots: Record<string, string>;
@@ -386,7 +387,7 @@ export const initialPlayState: PlayState = {
   level: 7,
   missionProgress: 0,
   ownedWorldAdditions: {
-    constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {},
+    constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, materialCustody: {},
     consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {}
   },
   lastSearchPoint: null,
@@ -503,10 +504,14 @@ function normalizeOwnedWorldAdditions(value: unknown, ownerReceizId?: string): W
       && verifyWildsStructure(structure)
       && (!ownerReceizId || sameOwnedWorldActor(structure.ownerReceizId, ownerReceizId)))
     .sort(([left], [right]) => left.localeCompare(right)));
+  const materialCustody = Object.fromEntries(Object.entries(input.materialCustody ?? {})
+    .filter(([lotId, custody]) => typeof lotId === "string" && custody && typeof custody === "object"
+      && typeof custody.ownerReceizId === "string" && (!ownerReceizId || sameOwnedWorldActor(custody.ownerReceizId, ownerReceizId)))
+    .sort(([left], [right]) => left.localeCompare(right)));
   const materialLots = Object.fromEntries(Object.entries(input.materialLots ?? {})
     .filter(([lotId, lot]) => lotId === lot.lotId
       && verifyWildsMaterialLot(lot)
-      && (!ownerReceizId || sameOwnedWorldActor(lot.ownerReceizId, ownerReceizId)))
+      && (!ownerReceizId || sameOwnedWorldActor(materialCustody[lotId]?.ownerReceizId ?? lot.ownerReceizId, ownerReceizId)))
     .sort(([left], [right]) => left.localeCompare(right)));
   const ownedLotIds = new Set(Object.keys(materialLots));
   const ownedSourceIds = new Set(Object.values(materialLots).map((lot) => lot.source.sourceId));
@@ -523,6 +528,7 @@ function normalizeOwnedWorldAdditions(value: unknown, ownerReceizId?: string): W
     structures,
     harvestedSources,
     materialLots,
+    materialCustody,
     consumedMaterialLots: materialState(input.consumedMaterialLots),
     reservedMaterialLots: materialState(input.reservedMaterialLots),
     storedMaterialLots: materialState(input.storedMaterialLots)

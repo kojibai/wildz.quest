@@ -67,32 +67,32 @@ test("SDK, operational MCP, and AI skills request and install only Receiz v124",
   const installedMcpPackage = readJson("node_modules/@receiz/mcp-server/package.json");
   const installedAiSkillsIndex = readJson("node_modules/@receiz/ai-skills/skills.json");
 
-  assert.equal(requestedSdk, "124.0.2");
-  assert.equal(requestedMcp, "124.0.2");
-  assert.equal(requestedAiSkills, "124.0.2");
-  assert.equal(installedSdk, "124.0.2");
-  assert.equal(installedMcp, "124.0.2");
-  assert.equal(installedAiSkills, "124.0.2");
-  assert.equal(installedSdkPackage.dependencies?.["@receiz/ai-skills"], "124.0.2");
-  assert.equal(installedMcpPackage.dependencies?.["@receiz/sdk"], "124.0.2");
-  assert.equal(installedMcpPackage.dependencies?.["@receiz/ai-skills"], "124.0.2");
+  assert.equal(requestedSdk, "124.0.3");
+  assert.equal(requestedMcp, "124.0.3");
+  assert.equal(requestedAiSkills, "124.0.3");
+  assert.equal(installedSdk, "124.0.3");
+  assert.equal(installedMcp, "124.0.3");
+  assert.equal(installedAiSkills, "124.0.3");
+  assert.equal(installedSdkPackage.dependencies?.["@receiz/ai-skills"], "124.0.3");
+  assert.equal(installedMcpPackage.dependencies?.["@receiz/sdk"], "124.0.3");
+  assert.equal(installedMcpPackage.dependencies?.["@receiz/ai-skills"], "124.0.3");
   assert.equal(installedAiSkillsIndex.schema, "receiz.ai-skills-index.v124");
-  assert.equal(installedAiSkillsIndex.version, "124.0.2");
+  assert.equal(installedAiSkillsIndex.version, "124.0.3");
   assert.equal(pkg.pnpm?.overrides?.["@receiz/sdk"], undefined);
   assert.equal(pkg.pnpm?.overrides?.["@receiz/mcp-server"], undefined);
   assert.equal(pkg.pnpm?.overrides?.["@receiz/ai-skills"], undefined);
   assert.doesNotMatch(lockfile, /file:.*receiz/);
-  assert.ok(lockfile.includes("sha512-Uxl2j0lApCrI0S1gVzgnTcw3MHrE4elN5+nd60F7wU5U2gD665BY0DX24/bCHVr7PORTnHLo+Rt4VUsY6NzR/A=="));
-  assert.ok(lockfile.includes("sha512-jawcKioRczgzcWXztfKzR9FAup0bysAo+dAvjV6sxR67eBWdwmJ+bRmQZKDHOhxi9uclMSotbtdtvbxjF4cqNw=="));
-  assert.ok(lockfile.includes("sha512-d/+Z/zEDePXUURwJm0FUJOpnDaV6U7qoRo1tacIaDd/hYHkBalMDuvj+qVeYsaRjLJzjyE694Ec2JiJ7tka2Xw=="));
+  assert.ok(lockfile.includes("sha512-kdJicDfB+tcODBVtxdKdmxCV7NKzWhTHPKJcJPiYOadxkNx5LdmUxMuwjhiuRSMLRIEKo0YfPYcIjPzilrERtA=="));
+  assert.ok(lockfile.includes("sha512-dxtpqkW46mC/2DHG+Voxr4wUmSD4wj3Jxq0g2GMyBaYU7dt17l2ZBY/SIFpvRt28VpLB9esTD1io0ptspDwKkg=="));
+  assert.ok(lockfile.includes("sha512-iTSplhw5J/+kCtjZjRNA/dg1/SIEzTCIBDkrhRK+0zp7W9FWECXUpq1nemQ16gIyR0dHZbTZPnjUV3RqdmoV1Q=="));
   assert.equal(pkg.scripts?.["receiz:check"], "node scripts/receiz-v124-check.mjs");
   assert.equal(pkg.scripts?.["receiz:conformance"], "receiz conformance");
   for (const version of [requestedSdk, requestedMcp, requestedAiSkills, installedSdk, installedMcp, installedAiSkills]) {
     assert.equal(major(version), 124);
   }
-  assert.match(docs, /@receiz\/sdk@124\.0\.2/);
-  assert.match(docs, /@receiz\/mcp-server@124\.0\.2/);
-  assert.match(docs, /@receiz\/ai-skills@124\.0\.2/);
+  assert.match(docs, /@receiz\/sdk@124\.0\.3/);
+  assert.match(docs, /@receiz\/mcp-server@124\.0\.3/);
+  assert.match(docs, /@receiz\/ai-skills@124\.0\.3/);
 });
 
 test("the production env template contains only standalone Wildz variables and an opt-in doctor token", () => {
@@ -144,20 +144,20 @@ test("Receiz doctor verifies requested and installed SDK/MCP/AI-skills major 124
     targetMajor: 124,
     compatible: true,
     sdk: {
-      requested: "124.0.2",
-      installed: "124.0.2",
+      requested: "124.0.3",
+      installed: "124.0.3",
       requestedMajor: 124,
       installedMajor: 124
     },
     mcp: {
-      requested: "124.0.2",
-      installed: "124.0.2",
+      requested: "124.0.3",
+      installed: "124.0.3",
       requestedMajor: 124,
       installedMajor: 124
     },
     aiSkills: {
-      requested: "124.0.2",
-      installed: "124.0.2",
+      requested: "124.0.3",
+      installed: "124.0.3",
       requestedMajor: 124,
       installedMajor: 124
     }

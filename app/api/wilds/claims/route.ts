@@ -4,7 +4,7 @@ import { decodeWildsPortableClaim } from "@/features/play/wilds-portable-claim";
 import { appendWildsDirectMessage } from "@/features/play/wilds-messenger-ledger";
 import { createReceizCommerceAdapter } from "@/lib/receiz/adapter";
 import { claimWildsCardTransfer } from "@/lib/receiz/wilds-card-transfer";
-import { claimWildsResourceTransfer } from "@/lib/receiz/wilds-resource-transfer";
+import { claimWildsMaterialTransfer, claimWildsResourceTransfer } from "@/lib/receiz/wilds-resource-transfer";
 import { publishWildsConversation } from "@/lib/receiz/wilds-messenger-server";
 import { resolveWildsMultiplayerActor } from "@/lib/receiz/wilds-multiplayer-server";
 import {
@@ -85,6 +85,33 @@ export async function POST(request: NextRequest) {
         body: "Claimed Living Honey",
         clientMessageId: claim.claimId,
         context: { kind: "portable-claim", claimId: claim.claimId, claimKind: "resource", title: "Living Honey", status: "committed", executionId: admission.receipt.receiptId }
+      }).conversation;
+      void publishWildsConversation(request, actor, conversation).catch(() => undefined);
+      return NextResponse.json({ ok: true, status: "committed", claimId: claim.claimId, kind: claim.kind, admission, world }, { headers: { "cache-control": "private, no-store" } });
+    }
+
+    if (claim.carrier.kind === "bearer-material") {
+      const admission = await claimWildsMaterialTransfer({ authority, offer: claim.carrier.offer, rail });
+      const kaiNow = receizKaiNow();
+      const kai = createKaiTemporalRoot(deriveKaiKlokMomentFromUPulse({ uPulse: kaiNow.uPulse, authority: "world" }));
+      const world = await executeWildsWorldCommand(request, { command: {
+        type: "resource.material.transfer.admit",
+        lotId: admission.materialLot.lotId,
+        ownerReceizId: actor.playerId,
+        subjectId: admission.subjectId,
+        subjectHead: admission.receipt.nextSubjectHead,
+        receiptId: admission.receipt.receiptId,
+        transferId: admission.receipt.transferId,
+        commandId: `resource:material:transfer:${admission.receipt.transferId}`,
+        kai
+      } });
+      const title = admission.materialLot.kind === "timber" ? "Timber" : "Stone";
+      const conversation = appendWildsDirectMessage({
+        sender: { id: actor.playerId, handle: actor.handle },
+        recipient: { id: admission.sourceHandle, handle: admission.sourceHandle },
+        body: `Claimed ${title}`,
+        clientMessageId: claim.claimId,
+        context: { kind: "portable-claim", claimId: claim.claimId, claimKind: "resource", title, status: "committed", executionId: admission.receipt.receiptId }
       }).conversation;
       void publishWildsConversation(request, actor, conversation).catch(() => undefined);
       return NextResponse.json({ ok: true, status: "committed", claimId: claim.claimId, kind: claim.kind, admission, world }, { headers: { "cache-control": "private, no-store" } });

@@ -1,6 +1,6 @@
 # Wildz v8.0.0 release verification
 
-Date: 2026-08-23. Target application version: `8.0.0`. Receiz package target: `124.0.2`; constitutional ruleset: `124.0.0`.
+Date: 2026-08-23. Target application version: `8.0.0`. Receiz package target: `124.0.3`; constitutional ruleset: `124.0.0`.
 
 This record distinguishes repository evidence from external production evidence. A passing local gate proves the source, deterministic contracts, compilation, and configured local browser paths observed in the run. It does not manufacture credentials, remote authority, deployment, payment settlement, or literal creature sentience.
 
@@ -8,9 +8,9 @@ This record distinguishes repository evidence from external production evidence.
 
 | Package | Requested | Installed | Role |
 |---|---:|---:|---|
-| `@receiz/sdk` | `124.0.2` | `124.0.2` | Artifact, durable subject, proof-authority, authority-session, durable execution, recipient-resolution, and Phi boundary |
-| `@receiz/mcp-server` | `124.0.2` | `124.0.2` | Coordinated operator tools; never proof authority |
-| `@receiz/ai-skills` | `124.0.2` | `124.0.2` | Coordinated proof-aware operating skills; never proof authority |
+| `@receiz/sdk` | `124.0.3` | `124.0.3` | Artifact, durable subject, proof-authority, authority-session, durable execution, recipient-resolution, and Phi boundary |
+| `@receiz/mcp-server` | `124.0.3` | `124.0.3` | Coordinated operator tools; never proof authority |
+| `@receiz/ai-skills` | `124.0.3` | `124.0.3` | Coordinated proof-aware operating skills; never proof authority |
 
 All three exact public npm packages use published SHA-512 integrity values pinned in `pnpm-lock.yaml`. The V124 registry digest is `d02429151b0bcebdaeb89485792e377afc55130f9a25e07982c1c88221314247`; the 53-operation matrix digest is `540d1c1bf39f1b288b257c79a6e020bdcc5e587fc9b7dbf6b7aaa5d082e20ad5`.
 
@@ -33,9 +33,9 @@ The V124 wallet release gate is being requalified on 2026-08-23:
 | MCP/SDK conformance | Pass; 15/15 checks, zero network calls, zero database calls |
 | ESLint | Pass |
 | Optimized Next.js build | Pass; 20 static pages generated and all application routes compiled |
-| Receiz packages | Pass; SDK/MCP/AI skills requested and installed at exact compatible `124.0.2` |
+| Receiz packages | Pass; SDK/MCP/AI skills requested and installed at exact compatible `124.0.3` |
 
-The published `receiz conformance` command passes all 15 checks under the compatible V124 package set, but its report metadata still emits the stale label `sdkVersion: 121.0.0`. Installed SDK and release exports, package pins, the official V124 repository checker, and the application contract all report `124.0.2`; the stale CLI label is recorded as an upstream packaging issue rather than rewritten as application evidence.
+The published `receiz conformance` command passes all 15 checks under the compatible V124 package set, but its report metadata still emits the stale label `sdkVersion: 121.0.0`. Installed SDK and release exports, package pins, the official V124 repository checker, and the application contract all report `124.0.3`; the stale CLI label is recorded as an upstream packaging issue rather than rewritten as application evidence.
 
 The checked-in V124 application contract now declares the complete exact 53-operation matrix. Wildz requests the SDK-derived world-private and Twin execution scopes, qualifies optional remote work before use, and exposes the canonical authority-session, replay, private-memory, durable-execution, atomic-planning, recipient-resolution, source-publication, and subject-Twin methods through its adapter. These capabilities are invoked only on relevant, consent-bound paths; registration or qualification alone is never represented as authority or completed execution.
 

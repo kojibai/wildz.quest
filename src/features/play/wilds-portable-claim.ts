@@ -2,6 +2,8 @@ import { canonicalPortableCardJson, sha256PortableBasis, verifyAnyWildsCard } fr
 import type { WildsCardTransferOffer } from "@/lib/receiz/wilds-card-transfer";
 import { verifyWildsResourceLot } from "./wilds-resource-lot";
 import type { WildsResourceTransferOffer } from "@/lib/receiz/wilds-resource-transfer";
+import { verifyWildsMaterialLot } from "./wilds-steward-construction";
+import type { WildsMaterialTransferOffer } from "@/lib/receiz/wilds-resource-transfer";
 
 export const WILDS_PORTABLE_CLAIM_SCHEMA = "receiz.wildz.portable-claim.v1" as const;
 export const WILDS_PORTABLE_CLAIM_MAX_BYTES = 128 * 1024;
@@ -30,7 +32,12 @@ export type WildsBearerResourceClaimCarrier = Readonly<{
   offer: WildsResourceTransferOffer;
 }>;
 
-export type WildsPortableClaimCarrier = WildsPortableExecutionCarrier | WildsBearerCardClaimCarrier | WildsBearerResourceClaimCarrier;
+export type WildsBearerMaterialClaimCarrier = Readonly<{
+  kind: "bearer-material";
+  offer: WildsMaterialTransferOffer;
+}>;
+
+export type WildsPortableClaimCarrier = WildsPortableExecutionCarrier | WildsBearerCardClaimCarrier | WildsBearerResourceClaimCarrier | WildsBearerMaterialClaimCarrier;
 
 export type WildsPortableClaim = Readonly<{
   schema: typeof WILDS_PORTABLE_CLAIM_SCHEMA;
@@ -134,6 +141,21 @@ function claimCarrier(value: unknown): WildsPortableClaimCarrier {
       throw new Error("wilds_portable_claim_carrier_invalid");
     }
   }
+  if (item.kind === "bearer-material") {
+    try {
+      const offer = item.offer as WildsMaterialTransferOffer;
+      const instrument = offer.instrument;
+      if (offer.schema !== "receiz.wilds.material-transfer-offer.v1" || !verifyWildsMaterialLot(offer.materialLot)
+        || !offer.subjectId || !offer.sourceHandle || !offer.targetHandle
+        || instrument.schema !== "receiz.bearer.instrument.v1" || instrument.plan.schema !== "receiz.bearer.transfer_plan.v1"
+        || instrument.plan.subjectId !== offer.subjectId || instrument.plan.transferId !== instrument.plan.transferDigest
+        || !instrument.plan.policy.openBearer || !instrument.plan.policy.requiresRecipientAcceptance
+        || instrument.plan.policy.recipientReceizId !== null || instrument.status !== "pending-acceptance") throw new Error("invalid");
+      return Object.freeze({ kind: "bearer-material" as const, offer });
+    } catch {
+      throw new Error("wilds_portable_claim_carrier_invalid");
+    }
+  }
   throw new Error("wilds_portable_claim_carrier_invalid");
 }
 
@@ -172,6 +194,20 @@ function basis(input: WildsPortableClaimInput) {
     const { offer } = normalizedCarrier;
     const { plan } = offer.instrument;
     if (input.kind !== "resource" || title !== "Living Honey"
+      || normalizedSource.ownerReceizId !== plan.currentOwnerReceizId
+      || normalizedSource.subjectId !== offer.subjectId
+      || normalizedSource.head !== plan.expectedSubjectHead
+      || normalizedSource.proofObjectDigest !== plan.subjectDigest
+      || handle !== offer.targetHandle
+      || String(input.issuedAtKai) !== offer.instrument.issuedAtKai
+      || String(input.expiresAtKai) !== plan.policy.expiresAtKai) {
+      throw new Error("wilds_portable_claim_carrier_invalid");
+    }
+  } else if (normalizedCarrier.kind === "bearer-material") {
+    const { offer } = normalizedCarrier;
+    const { plan } = offer.instrument;
+    const expectedTitle = offer.materialLot.kind === "timber" ? "Timber" : "Stone";
+    if (input.kind !== "resource" || title !== expectedTitle
       || normalizedSource.ownerReceizId !== plan.currentOwnerReceizId
       || normalizedSource.subjectId !== offer.subjectId
       || normalizedSource.head !== plan.expectedSubjectHead
@@ -249,6 +285,27 @@ export function createWildsResourcePortableClaim(offerInput: WildsResourceTransf
     issuedAtKai,
     expiresAtKai,
     carrier: { kind: "bearer-resource", offer }
+  });
+}
+
+export function createWildsMaterialPortableClaim(offerInput: WildsMaterialTransferOffer) {
+  const { offer } = claimCarrier({ kind: "bearer-material", offer: offerInput }) as WildsBearerMaterialClaimCarrier;
+  const issuedAtKai = Number(offer.instrument.issuedAtKai);
+  const expiresAtKai = Number(offer.instrument.plan.policy.expiresAtKai);
+  if (!Number.isSafeInteger(issuedAtKai) || !Number.isSafeInteger(expiresAtKai)) throw new Error("wilds_portable_claim_kai_invalid");
+  return createWildsPortableClaim({
+    kind: "resource",
+    title: offer.materialLot.kind === "timber" ? "Timber" : "Stone",
+    source: {
+      ownerReceizId: offer.instrument.plan.currentOwnerReceizId,
+      subjectId: offer.subjectId,
+      head: offer.instrument.plan.expectedSubjectHead,
+      proofObjectDigest: offer.instrument.plan.subjectDigest
+    },
+    recipient: { handle: offer.targetHandle },
+    issuedAtKai,
+    expiresAtKai,
+    carrier: { kind: "bearer-material", offer }
   });
 }
 

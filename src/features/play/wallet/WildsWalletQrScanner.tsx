@@ -1,7 +1,7 @@
 "use client";
 
 import jsQR from "jsqr";
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import React, { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { parseWildsWalletReceiveCoordinate, type WildsWalletReceiveCoordinate } from "./wilds-wallet-coordinate";
 
 function scanPixels(context: CanvasRenderingContext2D, width: number, height: number) {

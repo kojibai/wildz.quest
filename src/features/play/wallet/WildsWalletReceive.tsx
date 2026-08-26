@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- generated QR data URLs are already final pixels and must stay portable in the standalone controller tests */
 
 import QRCode from "qrcode";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { WildsWalletControllerState } from "./wilds-wallet-controller";
 import { formatWildsPhiExact, parseWildsPhiInput } from "./wilds-wallet-format";
 import { PhiNetworkAmount } from "./PhiNetworkMark";
