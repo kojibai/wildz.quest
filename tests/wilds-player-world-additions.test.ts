@@ -1,11 +1,13 @@
 import { createWildsConstructionProject, createWildsConstructionChunk, appendWildsConstructionProjectChunk } from "../src/features/play/wilds-construction-project.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { createOwnerBoundInitialPlayState, restorePlayState, serializePlayState } from "../src/features/play/game-state.js";
 import { createWildsConstructionSite } from "../src/features/play/wilds-construction-site.js";
 import { projectWildsResourceRegion } from "../src/features/play/wilds-resource-authority.js";
 import { createWildsMaterialHarvest, initialWildsHarvestedSourceState } from "../src/features/play/wilds-steward-construction.js";
 import {
   mergeWildsOwnedWorldAdditions,
+  mergeWildsOwnedAdditionSets,
   projectWildsOwnedWorldAdditions
 } from "../src/features/play/wilds-player-world-additions.js";
 import { initialWildsWorldProjection } from "../src/features/play/wilds-world-state.js";
@@ -118,4 +120,47 @@ test("V10 owned additions retain continuous owner projects and exact source chun
   const restored = mergeWildsOwnedWorldAdditions(initialWildsWorldProjection(), owned);
   assert.deepEqual(restored.constructionProjects, world.constructionProjects);
   assert.deepEqual(restored.constructionChunks, world.constructionChunks);
+});
+
+test("portable saves retain exact owner construction sources and exclude unrelated foreign projects", () => {
+  const project = createWildsConstructionProject({ ownerReceizId: "builder", name: "Home", region: { x: 0, z: 0 }, kaiUPulse: 1 });
+  const chunk = createWildsConstructionChunk({ project, kaiUPulse: 1 });
+  const linked = appendWildsConstructionProjectChunk({ project, chunk, kaiUPulse: 2 });
+  const foreign = createWildsConstructionProject({ ownerReceizId: "neighbor", name: "Elsewhere", region: { x: 1, z: 0 }, kaiUPulse: 1 });
+  const world = { ...initialWildsWorldProjection(), constructionProjects: { [project.projectId]: linked, [foreign.projectId]: foreign }, constructionChunks: { [chunk.chunkId]: chunk } };
+  const owned = projectWildsOwnedWorldAdditions(world, "builder");
+  const saved = { ...createOwnerBoundInitialPlayState("builder"), ownedWorldAdditions: owned };
+  const restored = mergeWildsOwnedWorldAdditions(initialWildsWorldProjection(), restorePlayState(serializePlayState(saved), "builder").ownedWorldAdditions);
+  assert.deepEqual(restored.constructionProjects, { [project.projectId]: linked });
+  assert.deepEqual(restored.constructionChunks, { [chunk.chunkId]: chunk });
+  assert.deepEqual(restored.materialLots, {});
+});
+
+test("owned-set merges preserve compatible construction history in either order", () => {
+  const project = createWildsConstructionProject({ ownerReceizId: "builder", name: "Home", region: { x: 0, z: 0 }, kaiUPulse: 1 });
+  const chunk = createWildsConstructionChunk({ project, kaiUPulse: 1 });
+  const linked = appendWildsConstructionProjectChunk({ project, chunk, kaiUPulse: 2 });
+  const empty = projectWildsOwnedWorldAdditions(initialWildsWorldProjection(), "builder");
+  const older = { ...empty, constructionProjects: { [project.projectId]: project } };
+  const newer = { ...empty, constructionProjects: { [project.projectId]: linked }, constructionChunks: { [chunk.chunkId]: chunk } };
+  for (const owned of [mergeWildsOwnedAdditionSets(older, newer), mergeWildsOwnedAdditionSets(newer, older)]) {
+    const restored = mergeWildsOwnedWorldAdditions(initialWildsWorldProjection(), owned);
+    assert.deepEqual(restored.constructionProjects, newer.constructionProjects);
+    assert.deepEqual(restored.constructionChunks, newer.constructionChunks);
+  }
+});
+
+test("refresh keeps the local construction fork and preserves the remote source through save restore", () => {
+  const project = createWildsConstructionProject({ ownerReceizId: "builder", name: "Home", region: { x: 0, z: 0 }, kaiUPulse: 1 });
+  const chunk = createWildsConstructionChunk({ project, kaiUPulse: 1 });
+  const localProject = appendWildsConstructionProjectChunk({ project, chunk, kaiUPulse: 2 });
+  const remoteProject = appendWildsConstructionProjectChunk({ project, chunk, kaiUPulse: 3 });
+  const base = initialWildsWorldProjection();
+  const local = { ...projectWildsOwnedWorldAdditions(base, "builder"), constructionProjects: { [project.projectId]: localProject }, constructionChunks: { [chunk.chunkId]: chunk } };
+  const merged = mergeWildsOwnedWorldAdditions({ ...base, constructionProjects: { [project.projectId]: remoteProject } }, local);
+  assert.deepEqual(merged.constructionProjects[project.projectId], localProject);
+  const state = { ...createOwnerBoundInitialPlayState("builder"), ownedWorldAdditions: projectWildsOwnedWorldAdditions(merged, "builder") };
+  const restored = mergeWildsOwnedWorldAdditions(base, restorePlayState(serializePlayState(state), "builder").ownedWorldAdditions);
+  assert.deepEqual(restored.constructionProjects[project.projectId], localProject);
+  assert.deepEqual(restored.constructionRecoverySources?.[remoteProject.head], remoteProject);
 });

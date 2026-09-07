@@ -1,4 +1,5 @@
 import { creatureFamilies, creatureForm, creatureForms, type CreatureRarity } from "./creature-catalog";
+import { projectWildsConstructionPersistence, type WildsConstructionPersistence } from "./wilds-construction-persistence";
 import {
   evolvePortableCard,
   canonicalPortableCardJson,
@@ -175,7 +176,7 @@ export type RewardCard = {
   value: string;
 };
 
-export type WildsOwnedWorldAdditions = {
+export type WildsOwnedWorldAdditions = Partial<WildsConstructionPersistence> & {
   constructionSites: Record<string, WildsConstructionSiteV1>;
   structures: Record<string, WildsStructureV1>;
   harvestedSources: Record<string, WildsHarvestedSourceStateV1>;
@@ -524,6 +525,7 @@ function normalizeOwnedWorldAdditions(value: unknown, ownerReceizId?: string): W
     .filter(([lotId, targetId]) => ownedLotIds.has(lotId) && typeof targetId === "string" && targetId.length > 0)
     .sort(([left], [right]) => left.localeCompare(right)));
   return {
+    ...projectWildsConstructionPersistence(input, ownerReceizId),
     constructionSites,
     structures,
     harvestedSources,

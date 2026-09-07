@@ -1,6 +1,7 @@
 import { verifyWildsConstructionProject, verifyWildsConstructionChunk, canWildsConstructionProject, createWildsConstructionChunk, appendWildsConstructionChunkReference, appendWildsConstructionProjectChunk, constructionProofDigest, validConstructionHead, type WildsConstructionProjectV1, type WildsConstructionChunkV1 } from "./wilds-construction-project";
 import { verifyWildsConstructionComponent, verifyWildsMaterialContribution, verifyWildsWorkContribution, projectWildsConstructionProgress, type WildsConstructionComponentV1, type WildsConstructionMaterialContributionV1, type WildsConstructionWorkContributionV1 } from "./wilds-construction-component";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
+import type { WildsConstructionPersistence } from "./wilds-construction-persistence";
 import {
   compareWildsWorldEvents,
   wildsWorldEventSequence,
@@ -157,6 +158,7 @@ export type WildsWorldProjection = {
   constructionMaterialContributions: Record<string, WildsConstructionMaterialContributionV1>;
   constructionWorkContributions: Record<string, WildsConstructionWorkContributionV1>;
   constructionCommandReceipts: Record<string, Readonly<{ commandDigest: string; eventPayloadDigest: string; actorId: string; kind: string }>>;
+  constructionRecoverySources?: WildsConstructionPersistence["constructionRecoverySources"];
   constructionSites: Record<string, WildsConstructionSiteV1>;
   reservedMaterialLots: Record<string, string>;
   stewardTools: Record<string, WildsStewardToolV1>;
