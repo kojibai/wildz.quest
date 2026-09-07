@@ -301,15 +301,16 @@ export function WildzWorldControls({
           <button
             aria-label={`Open Living Construction. Satchel has ${materialCounts.hay} hay, ${materialCounts.timber} timber, and ${materialCounts.stone} stone`}
             className="wildz-construction-control"
+            disabled={!worldHomesEnabled}
             onClick={handleOpenConstruction}
             title="Living Construction"
             type="button"
           >
-            <Icons.construction aria-hidden="true" size={20} />
+            <span className="wildz-construction-label"><Icons.construction aria-hidden="true" size={16} />Build</span>
             <span aria-hidden="true" className="wildz-construction-counts">
-              <b key={`hay-${materialCounts.hay}`}><Icons.products size={9} />{materialCounts.hay}</b>
-              <b key={`timber-${materialCounts.timber}`}><Icons.timber size={9} />{materialCounts.timber}</b>
-              <b key={`stone-${materialCounts.stone}`}><Icons.quarry size={9} />{materialCounts.stone}</b>
+              <b key={`hay-${materialCounts.hay}`}><Icons.products size={11} />{materialCounts.hay}</b>
+              <b key={`timber-${materialCounts.timber}`}><Icons.timber size={11} />{materialCounts.timber}</b>
+              <b key={`stone-${materialCounts.stone}`}><Icons.quarry size={11} />{materialCounts.stone}</b>
             </span>
           </button>
           {verticalControlsVisible ? <div aria-label="Vertical traversal controls" className="wildz-vertical-controls">

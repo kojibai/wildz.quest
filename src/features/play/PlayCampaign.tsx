@@ -1402,7 +1402,8 @@ export function PlayCampaign({
       await livingWorld.placeConstructionSite("trail-shelter", position, state.player, 0, [...timber, ...stone].map((lot) => lot.lotId));
       setStewardPlacementMode(null);
       setStewardPlacementPreview(null);
-      showWorldFeedback("A funded Trail Shelter site now lives here. Its exact timber and stone are held in the mint ring; work beside your companion to raise it.");
+      dispatchStageOverlay({ type: "panel", key: "construction" });
+      showWorldFeedback("Shelter materials placed. Tap Finish shelter to complete it with your companion.");
     } catch (error) {
       handleStoryCommandError(error, "That place cannot hold a shelter yet.");
     }
@@ -1424,7 +1425,8 @@ export function PlayCampaign({
       await livingWorld.placeConstructionSite("trail-bridge", position, state.player, rotationQuarterTurns, [...timber, ...stone].map((lot) => lot.lotId));
       setStewardPlacementMode(null);
       setStewardPlacementPreview(null);
-      showWorldFeedback("A funded Trail Bridge site now marks this crossing. Its exact timber and stone are held there; finish it with a willing companion.");
+      dispatchStageOverlay({ type: "panel", key: "construction" });
+      showWorldFeedback("Bridge materials placed. Tap Finish bridge to complete it with your companion.");
     } catch (error) {
       handleStoryCommandError(error, "That crossing cannot hold a bridge yet.");
     }
@@ -1452,7 +1454,7 @@ export function PlayCampaign({
       const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
       const projection = await livingWorld.workConstructionSite(site.siteId, site.head, state.player, mandate);
       const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
-      showWorldFeedback(`${site.blueprint === "trail-shelter" ? "The Trail Shelter now stands" : "The Trail Bridge now joins both banks"} in the shared Wilds.${award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the useful work.` : ""}`);
+      showWorldFeedback(`${site.blueprint === "trail-shelter" ? "The Trail Shelter now stands. Build a Steward Workbench (3 timber · 2 stone) to craft an axe and pick" : "The Trail Bridge now joins both banks"} in the shared Wilds.${award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the useful work.` : ""}`);
     } catch (error) { handleStoryCommandError(error, "Move beside the funded site with a rested companion who can build."); }
   };
 
@@ -2187,7 +2189,7 @@ export function PlayCampaign({
             setStewardPlacementPreview(null);
             showWorldFeedback(blueprintId === "trail-bridge"
               ? "Tap a nearby crossing to preview it. Both banks are read before any exact lot can move."
-              : "Tap nearby living ground to preview the shelter. No exact lot moves until you confirm.");
+              : "Tap nearby living ground to preview it. No exact lot moves until you confirm.");
             dispatchStageOverlay({ type: "panel", key: null });
           }} />
         </div>

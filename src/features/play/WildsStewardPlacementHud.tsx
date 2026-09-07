@@ -15,7 +15,7 @@ export function WildsStewardPlacementHud({ blueprintLabel, partnerName, pending,
   return <aside className={`wilds-steward-placement-hud${preview.valid ? " is-valid" : " is-invalid"}`} aria-label={`${blueprintLabel} placement preview`}>
     <div className="wilds-steward-placement-copy">
       <span aria-hidden="true"><Icons.check size={18} /></span>
-      <div><small>{preview.valid ? "Physical place found" : "Place not admitted"}</small><strong>{blueprintLabel}</strong><em>{preview.reason ?? (progressiveSite ? "Mark this living place now; exact materials and shared work follow." : `${partnerName} is ready to build here.`)}</em></div>
+      <div><small>{preview.valid ? "Physical place found" : "Place not admitted"}</small><strong>{blueprintLabel}</strong><em>{preview.reason ?? (progressiveSite ? "Place the materials now, then finish construction with your companion in Build." : `${partnerName} is ready to build here.`)}</em></div>
     </div>
     <div className="wilds-steward-placement-actions">
       <button aria-label="Cancel placement" disabled={pending} onClick={onCancel} type="button"><Icons.close size={17} /><span>Cancel</span></button>

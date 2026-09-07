@@ -52,7 +52,8 @@ describe("Receiz Wilds rendering contract", () => {
     const environment = await readFile("src/features/play/WildsStewardEnvironment.tsx", "utf8");
     const css = await readFile("app/globals.css", "utf8");
     assert.match(panel, /Contribute what I carry/);
-    assert.match(panel, /Work together/);
+    assert.match(panel, /Finish shelter/);
+    assert.match(panel, /Build a Steward Workbench/);
     assert.match(campaign, /contributeConstructionSite/);
     assert.match(campaign, /workConstructionSite/);
     assert.match(environment, /function PartialConstructionSite/);

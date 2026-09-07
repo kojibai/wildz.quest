@@ -40,9 +40,9 @@ export function WildsStewardCraftPanel({ projection, onSelectBlueprint, nearbySi
       <em>{projection.partner.families.join(" · ") || "Rest before working"}</em>
     </div>
     {nearbySite ? <ConstructionSiteCard onContribute={onContributeSite} onWork={onWorkSite} pending={Boolean(projection.blueprints.some((blueprint) => blueprint.state === "pending"))} site={nearbySite} /> : null}
+    <p className="wilds-satchel-note">Build a Steward Workbench (3 timber · 2 stone) to craft an axe and pick. Shelter, bridge, workbench, and cache blueprints are all available below; gather their materials to build them.</p>
     <div className="wilds-steward-craft-catalog" aria-label="Known construction blueprints">
       {projection.blueprints.map((blueprint) => {
-        const progressiveSite = blueprint.id === "trail-shelter" || blueprint.id === "trail-bridge";
         const disabled = blueprint.state !== "ready";
         const status = blueprint.state === "pending" ? "World command in progress"
           : blueprint.state === "partner" ? "Partner needs recovery"
@@ -97,7 +97,7 @@ function ConstructionSiteCard({ site, pending, onContribute, onWork }: {
     <header><span><small>In reach · shared site</small><strong>{site.blueprint === "trail-shelter" ? "Trail Shelter" : "Trail Bridge"}</strong></span><em>{Math.round(complete / total * 100)}%</em></header>
     <div className="wilds-construction-site-progress" aria-label={`${complete} of ${total} construction steps complete`} aria-valuemax={total} aria-valuemin={0} aria-valuenow={complete} role="meter"><i style={{ width: `${complete / total * 100}%` }} /></div>
     <div className="wilds-construction-site-ledger"><span><Icons.timber size={14} /> Timber <b>{timber}/{site.materialsRequired.timber}</b></span><span><Icons.quarry size={14} /> Stone <b>{stone}/{site.materialsRequired.stone}</b></span></div>
-    <p>{site.stage === "materials-ready" ? "Every exact lot is present. Work beside a willing building companion to raise it." : "Contributed lots remain here for every steward to see. Bring any material still missing."}</p>
-    <button disabled={pending} onClick={() => site.stage === "materials-ready" ? onWork?.(site) : onContribute?.(site)} type="button">{pending ? "World command in progress" : site.stage === "materials-ready" ? "Work together" : "Contribute what I carry"}</button>
+    <p>{site.stage === "materials-ready" ? "Materials are placed, but construction is not finished. Tap below to build with your assigned companion; another player is not required." : "Contributed lots remain here for every steward to see. Bring any material still missing."}</p>
+    <button disabled={pending} onClick={() => site.stage === "materials-ready" ? onWork?.(site) : onContribute?.(site)} type="button">{pending ? "World command in progress" : site.stage === "materials-ready" ? (site.blueprint === "trail-shelter" ? "Finish shelter" : "Finish bridge") : "Contribute what I carry"}</button>
   </section>;
 }
