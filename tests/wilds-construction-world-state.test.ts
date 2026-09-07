@@ -5,7 +5,7 @@ import { canonicalPortableCardJson, sha256PortableBasis } from "../src/features/
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { createWildsConstructionProject, createWildsConstructionChunk, appendWildsConstructionChunkReference, appendWildsConstructionProjectChunk, constructionProofDigest } from "../src/features/play/wilds-construction-project";
-import { createWildsConstructionComponent, createWildsMaterialContribution, createWildsWorkContribution } from "../src/features/play/wilds-construction-component";
+import { createWildsConstructionComponent, createWildsMaterialContribution, createWildsWorkContribution, verifyWildsMaterialContribution, verifyWildsWorkContribution } from "../src/features/play/wilds-construction-component";
 import { createWildsBlueprintPreview, previewWildsBlueprintPlacement } from "../src/features/play/wilds-world-construction";
 import { createWildsWorldEvent, type WildsWorldEventKind } from "../src/features/play/wilds-world-event";
 import { initialWildsWorldProjection, reduceWildsWorldEvent, checkpointWildsWorld, replayWildsWorld, projectWildsConstructionProgressFromWorld, type WildsWorldProjection, type WildsWorldCheckpoint } from "../src/features/play/wilds-world-state";
@@ -148,4 +148,38 @@ it("rejects a sealed page that drops a causal reference",()=>{
  const {head:_,...basis}=chunk;const altered={...basis,references:chunk.references.filter(r=>r.componentId===component.componentId)};const forged={...altered,head:digest(altered)};
  const before=JSON.stringify(checkpointWildsWorld(world));assert.throws(()=>reduceWildsWorldEvent(world,continuousEvent(world,"construction.component_placed",{component,chunk:forged},"place:second")));assert.equal(JSON.stringify(checkpointWildsWorld(world)),before);
  const next=reduceWildsWorldEvent(world,continuousEvent(world,"construction.component_placed",{component,chunk},"place:second"));assert.equal(next.constructionChunks[chunk.chunkId].references.length,2);
+});
+
+it("rejects correctly sealed material that predates its component without changing checkpoint bytes", () => {
+  const f = fixture();
+  const placed = reduceWildsWorldEvent(f.world, f.placed);
+  const lot = material(91);
+  const world = { ...placed, materialLots: { [lot.lotId]: lot } };
+  const contribution = createWildsMaterialContribution({ component: f.component, lot, custodianReceizId: "owner", contributorReceizId: "owner", commandId: "deposit:backdated", kaiUPulse: 3 });
+  const { head: _, ...basis } = contribution;
+  const backdatedBasis = { ...basis, kaiUPulse: f.component.kaiUPulse - 1 };
+  const backdated = { ...backdatedBasis, head: digest(backdatedBasis) };
+  assert.equal(verifyWildsMaterialContribution(backdated), true);
+  const before = JSON.stringify(checkpointWildsWorld(world));
+  assert.throws(() => reduceWildsWorldEvent(world, continuousEvent(world, "construction.material_contributed", { contributions: [backdated] }, "deposit:backdated")), /transition_invalid/);
+  assert.equal(JSON.stringify(checkpointWildsWorld(world)), before);
+  assert.equal(world.reservedMaterialLots[lot.lotId], undefined);
+  assert.equal(world.constructionCommandReceipts["deposit:backdated"], undefined);
+});
+
+it("rejects correctly sealed funded work that predates its component atomically", () => {
+  const f = fixture();
+  let world = reduceWildsWorldEvent(f.world, f.placed);
+  const lots = [material(92), material(93)];
+  world = { ...world, materialLots: Object.fromEntries(lots.map(lot => [lot.lotId, lot])) };
+  const contributions = lots.map(lot => createWildsMaterialContribution({ component: f.component, lot, custodianReceizId: "owner", contributorReceizId: "owner", commandId: "deposit:funded", kaiUPulse: 3 }));
+  world = reduceWildsWorldEvent(world, continuousEvent(world, "construction.material_contributed", { contributions }, "deposit:funded"));
+  const contribution = createWildsWorkContribution({ component: f.component, materials: contributions, worker: { kind: "player", receizId: "owner" }, amount: 1, commandId: "work:backdated", kaiUPulse: 4 });
+  const { head: _, ...basis } = contribution;
+  const backdatedBasis = { ...basis, kaiUPulse: f.component.kaiUPulse - 1 };
+  const backdated = { ...backdatedBasis, head: digest(backdatedBasis) };
+  assert.equal(verifyWildsWorkContribution(backdated), true);
+  const before = JSON.stringify(checkpointWildsWorld(world));
+  assert.throws(() => reduceWildsWorldEvent(world, continuousEvent(world, "construction.work_contributed", { contribution: backdated }, "work:backdated")), /transition_invalid/);
+  assert.equal(JSON.stringify(checkpointWildsWorld(world)), before);
 });

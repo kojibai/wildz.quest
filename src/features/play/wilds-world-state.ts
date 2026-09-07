@@ -951,7 +951,7 @@ function reduceContinuousConstruction(state: WildsWorldProjection, event: Compat
       const project = state.constructionProjects[proof.projectId];
       const lot = state.materialLots[proof.lotId];
       if (!component || !verifyWildsConstructionComponent(component) || !project || !canWildsConstructionProject(project, event.actorId, "contribute")
-        || component.projectId !== project.projectId || component.head !== proof.componentHead || proof.commandId !== event.causeId
+        || component.projectId !== project.projectId || component.head !== proof.componentHead || proof.kaiUPulse < component.kaiUPulse || proof.commandId !== event.causeId
         || proof.contributorReceizId !== event.actorId || proof.custodianReceizId !== event.actorId
         || !lot || !verifyWildsMaterialLot(lot) || !same(lot, proof.lot) || wildsMaterialCustodian(state, lot) !== event.actorId
         || state.consumedMaterialLots[lot.lotId] || state.storedMaterialLots[lot.lotId] || reserved[lot.lotId] || materials[proof.contributionId]
@@ -966,7 +966,7 @@ function reduceContinuousConstruction(state: WildsWorldProjection, event: Compat
   const component = state.constructionComponents[proof.componentId];
   const project = state.constructionProjects[proof.projectId];
   if (!component || !project || !canWildsConstructionProject(project, event.actorId, "work") || component.projectId !== project.projectId
-    || component.head !== proof.componentHead || proof.commandId !== event.causeId || proof.worker.kind !== "player"
+    || component.head !== proof.componentHead || proof.kaiUPulse < component.kaiUPulse || proof.commandId !== event.causeId || proof.worker.kind !== "player"
     || proof.worker.receizId !== event.actorId || proof.amount !== 1 || state.constructionWorkContributions[proof.contributionId]) return invalid();
   // Every sealed dependency must already be admitted on this exact structural lineage.
   for (const ref of proof.priorWork) {
