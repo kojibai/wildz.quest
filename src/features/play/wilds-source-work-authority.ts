@@ -94,7 +94,7 @@ export function planWildsMaterialHarvest(input: Readonly<{
       ...(matchingTool ? { toolId: matchingTool.toolId } : {}),
       ...(input.mandate ? { mandate: input.mandate } : {}),
       operation,
-      ...(input.card ? { cardProofDigest: input.card.proof.digest } : {}),
+      ...(matchingCreature ? { cardProofDigest: input.card!.proof.digest } : {}),
       ...(input.kai ? { kai: input.kai } : {}),
       commandId: input.commandId
     };
@@ -118,7 +118,7 @@ export function planWildsMaterialHarvest(input: Readonly<{
     emission,
     amountPhiMicro: preview.amountPhiMicro,
     phiAward,
-    ...(input.card ? { cardProofDigest: input.card.proof.digest } : {}),
+    ...(matchingCreature ? { cardProofDigest: input.card!.proof.digest } : {}),
     ...(input.kai ? { kai: input.kai } : {}),
     commandId: input.commandId
   };

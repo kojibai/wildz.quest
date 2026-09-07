@@ -18,7 +18,7 @@ const OWNER = "player:builder";
 const HELPER = "player:helper";
 const CREATURE = { subjectId: "creature:builder", head: `sha256:${"a".repeat(64)}` };
 
-function sourceOf(kind: "timber" | "stone") {
+function sourceOf(kind: "hay" | "timber" | "stone") {
   for (let x = -3; x <= 3; x += 1) for (let z = -3; z <= 3; z += 1) {
     const source = projectWildsResourceRegion(x, z).find((candidate) => candidate.kind === kind);
     if (source) return source;
@@ -26,7 +26,7 @@ function sourceOf(kind: "timber" | "stone") {
   throw new Error(`missing_${kind}`);
 }
 
-function lots(kind: "timber" | "stone", count: number, ownerReceizId: string, firstPulse: number) {
+function lots(kind: "hay" | "timber" | "stone", count: number, ownerReceizId: string, firstPulse: number) {
   const source = sourceOf(kind);
   let current = initialWildsHarvestedSourceState(source);
   const output: WildsMaterialLotV1[] = [];
@@ -120,6 +120,17 @@ describe("persistent cooperative construction site proof", () => {
     });
     assert.throws(() => contributeWildsConstructionSite({ site: completed.site, contributorReceizId: OWNER, lots: [], kaiUPulse: 1_000_073 }), /terminal/);
     assert.throws(() => completeWildsConstructionSite({ site: ready, expectedSiteHead: placed.head, lots: [...timber, ...stone], workerReceizId: OWNER, creature: CREATURE, existingStructures: [], kaiUPulse: 1_000_074 }), /stale/);
+  });
+
+  it("rejects a valid hay lot at the legacy prefab authority boundary", () => {
+    const hay = lots("hay", 1, OWNER, 1_000_075);
+    assert.equal(hay[0]?.kind, "hay");
+    assert.throws(() => contributeWildsConstructionSite({
+      site: shelter(),
+      contributorReceizId: OWNER,
+      lots: hay,
+      kaiUPulse: 1_000_076
+    }), /material_invalid/);
   });
 
   it("completes into one verified structure preserving every exact lot and contributor", () => {

@@ -56,6 +56,7 @@ export type WildsHarvestPreview = Readonly<{
 
 const regionCache = new Map<string, readonly WildsResourceSource[]>();
 let regionsBuilt = 0;
+let constructionTerrainSamples = 0;
 
 function freeze<T>(value: T): T {
   if (Array.isArray(value)) {
@@ -116,28 +117,19 @@ function guaranteedConstructionKind(slot: number) {
   return slot < LEGACY_SOURCES_PER_REGION ? null : CONSTRUCTION_KINDS[slot - LEGACY_SOURCES_PER_REGION] ?? null;
 }
 
-function constructionSourcePosition(regionX: number, regionZ: number, slot: number) {
-  let fallback: { x: number; z: number; terrain: ReturnType<typeof sampleWildsTerrain> } | null = null;
-  for (let candidate = 0; candidate < 128; candidate += 1) {
+function constructionSourcePositions(regionX: number, regionZ: number) {
+  const dry: Array<{ x: number; z: number; terrain: ReturnType<typeof sampleWildsTerrain> }> = [];
+  for (let candidate = 0; candidate < 32; candidate += 1) {
     const salt = candidate * 2;
-    const x = quantize(regionX * WILDS_RESOURCE_REGION_SIZE + 8 + unit(regionX, regionZ, slot, 2 + salt) * 112);
-    const z = quantize(regionZ * WILDS_RESOURCE_REGION_SIZE + 8 + unit(regionX, regionZ, slot, 3 + salt) * 112);
+    const x = quantize(regionX * WILDS_RESOURCE_REGION_SIZE + 8 + unit(regionX, regionZ, LEGACY_SOURCES_PER_REGION, 2 + salt) * 112);
+    const z = quantize(regionZ * WILDS_RESOURCE_REGION_SIZE + 8 + unit(regionX, regionZ, LEGACY_SOURCES_PER_REGION, 3 + salt) * 112);
     const terrain = sampleWildsTerrain(x, z);
-    fallback ??= { x, z, terrain };
-    if (terrain.surface !== "shallow-water" && terrain.surface !== "deep-water") return { x, z, terrain };
+    constructionTerrainSamples += 1;
+    if (terrain.surface !== "shallow-water" && terrain.surface !== "deep-water") dry.push({ x, z, terrain });
+    if (dry.length === CONSTRUCTION_KINDS.length) break;
   }
-  // The random scan keeps ordinary projection cheap. The bounded lattice
-  // closes narrow dry-land gaps deterministically before an all-water region
-  // falls back to its canonical candidate.
-  const start = Number(hash64(regionX, regionZ, slot, 29) % (112n * 112n));
-  for (let offset = 0; offset < 112 * 112; offset += 1) {
-    const candidate = (start + offset) % (112 * 112);
-    const x = regionX * WILDS_RESOURCE_REGION_SIZE + 8.5 + candidate % 112;
-    const z = regionZ * WILDS_RESOURCE_REGION_SIZE + 8.5 + Math.floor(candidate / 112);
-    const terrain = sampleWildsTerrain(x, z);
-    if (terrain.surface !== "shallow-water" && terrain.surface !== "deep-water") return { x, z, terrain };
-  }
-  return fallback!;
+  if (dry.length === 0) return freeze([]);
+  return freeze(CONSTRUCTION_KINDS.map((_, index) => dry[index % dry.length]!));
 }
 
 export function wildsResourceRegionForPosition(position: Readonly<{ x: number; z: number }>) {
@@ -155,9 +147,11 @@ export function projectWildsResourceRegion(regionX: number, regionZ: number): re
   const cached = regionCache.get(key);
   if (cached) return cached;
   regionsBuilt += 1;
-  const sources = Array.from({ length: SOURCES_PER_REGION }, (_, slot): WildsResourceSource => {
+  const constructionPositions = constructionSourcePositions(regionX, regionZ);
+  const sourceCount = constructionPositions.length === 0 ? LEGACY_SOURCES_PER_REGION : SOURCES_PER_REGION;
+  const sources = Array.from({ length: sourceCount }, (_, slot): WildsResourceSource => {
     const constructionKind = guaranteedConstructionKind(slot);
-    const constructionPosition = constructionKind ? constructionSourcePosition(regionX, regionZ, slot) : null;
+    const constructionPosition = constructionKind ? constructionPositions[slot - LEGACY_SOURCES_PER_REGION]! : null;
     const x = constructionPosition?.x ?? quantize(regionX * WILDS_RESOURCE_REGION_SIZE + 8 + unit(regionX, regionZ, slot, 2) * 112);
     const z = constructionPosition?.z ?? quantize(regionZ * WILDS_RESOURCE_REGION_SIZE + 8 + unit(regionX, regionZ, slot, 3) * 112);
     const terrain = constructionPosition?.terrain ?? sampleWildsTerrain(x, z);
@@ -320,10 +314,11 @@ export function previewWildsHarvest(input: Readonly<{
 }
 
 export function wildsResourceAuthorityDiagnostics() {
-  return freeze({ regionsBuilt, regionCacheSize: regionCache.size });
+  return freeze({ regionsBuilt, regionCacheSize: regionCache.size, constructionTerrainSamples });
 }
 
 export function clearWildsResourceAuthorityCachesForTests() {
   regionCache.clear();
   regionsBuilt = 0;
+  constructionTerrainSamples = 0;
 }
