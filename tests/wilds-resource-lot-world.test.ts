@@ -9,6 +9,7 @@ import { createWildsGroveResourceLot } from "../src/features/play/wilds-resource
 import { admitWildsEmissionOutcome, createWildsWorldEmissionGenesis } from "../src/features/play/wilds-world-emission.js";
 import { WildsWorldService } from "../src/features/play/wilds-world-service.js";
 import { wildsLivingWorldSuccessorHeads } from "../src/lib/receiz/wilds-world-emission-source.js";
+import { isCanonicalWildsResourceSource, projectWildsResourceRegion } from "../src/features/play/wilds-resource-authority.js";
 
 function fixture() {
   const moment = deriveKaiKlokMomentFromUPulse({ uPulse: 1_000_000, authority: "world" });
@@ -48,6 +49,21 @@ function fixture() {
 }
 
 describe("resource custody in shared-world continuity", () => {
+  it("guarantees renewable hay timber and stone without changing legacy region slots", () => {
+    const sources = projectWildsResourceRegion(0, 0);
+    assert.deepEqual(sources.slice(0, 6).map((source) => source.sourceId), [
+      "wildz.resource.v1:0:0:0:3bfa03d73b63c2b1",
+      "wildz.resource.v1:0:0:1:96e205d13ef96125",
+      "wildz.resource.v1:0:0:2:cb8f3840d3cc16ba",
+      "wildz.resource.v1:0:0:3:84311c92f48bd664",
+      "wildz.resource.v1:0:0:4:e0006f49e135954e",
+      "wildz.resource.v1:0:0:5:5ed80e97e05ae9f2"
+    ]);
+    assert.deepEqual(sources.slice(6, 9).map((source) => source.kind), ["hay", "timber", "stone"]);
+    assert.equal(isCanonicalWildsResourceSource(sources[6]!), true);
+    assert.ok(sources[6]!.replenishment.capacityPerInterval > 0);
+  });
+
   it("admits and replays one exact resource lot with its Grove operation", () => {
     const data = fixture();
     const occurredAt = kaiUPulseToISOString(data.moment.uPulse);

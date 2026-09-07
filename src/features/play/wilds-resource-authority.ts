@@ -9,11 +9,13 @@ export const WILDS_RESOURCE_REGION_SIZE = 128;
 const WORLD_LIMIT = 500_000_000;
 const MIN_REGION = Math.floor(-WORLD_LIMIT / WILDS_RESOURCE_REGION_SIZE);
 const MAX_REGION = Math.ceil(WORLD_LIMIT / WILDS_RESOURCE_REGION_SIZE) - 1;
-const SOURCES_PER_REGION = 6;
+const LEGACY_SOURCES_PER_REGION = 6;
+const CONSTRUCTION_KINDS = Object.freeze(["hay", "timber", "stone"] as const);
+const SOURCES_PER_REGION = LEGACY_SOURCES_PER_REGION + CONSTRUCTION_KINDS.length;
 const REGION_CACHE_LIMIT = 96;
 const TERRAIN_SOURCE = /^wildz\.resource\.v1:terrain:(-?\d+):(-?\d+):(tree|rock):(\d+)$/;
 
-export type WildsResourceKind = "timber" | "stone" | "ore" | "fiber" | "aquatic" | "buried";
+export type WildsResourceKind = "hay" | "timber" | "stone" | "ore" | "fiber" | "aquatic" | "buried";
 export type WildsResourceWorkFamily = "lumber" | "quarry" | "mine" | "gather" | "recover" | "excavate";
 export type WildsResourceToolFamily = "axe" | "hammer" | "pick" | "shears" | "dive-rig" | "shovel";
 
@@ -95,6 +97,7 @@ function unit(regionX: number, regionZ: number, slot: number, salt: number) {
 }
 
 const REQUIREMENTS = Object.freeze({
+  hay: Object.freeze({ creature: "gather", tool: "shears" }),
   timber: Object.freeze({ creature: "lumber", tool: "axe" }),
   stone: Object.freeze({ creature: "quarry", tool: "hammer" }),
   ore: Object.freeze({ creature: "mine", tool: "pick" }),
@@ -108,6 +111,34 @@ const REQUIREMENTS = Object.freeze({
 // regions incapable of ever supporting construction.
 const LAND_KINDS = Object.freeze(["timber", "fiber", "buried", "stone"] as const);
 const ROCK_KINDS = Object.freeze(["stone", "ore"] as const);
+
+function guaranteedConstructionKind(slot: number) {
+  return slot < LEGACY_SOURCES_PER_REGION ? null : CONSTRUCTION_KINDS[slot - LEGACY_SOURCES_PER_REGION] ?? null;
+}
+
+function constructionSourcePosition(regionX: number, regionZ: number, slot: number) {
+  let fallback: { x: number; z: number; terrain: ReturnType<typeof sampleWildsTerrain> } | null = null;
+  for (let candidate = 0; candidate < 128; candidate += 1) {
+    const salt = candidate * 2;
+    const x = quantize(regionX * WILDS_RESOURCE_REGION_SIZE + 8 + unit(regionX, regionZ, slot, 2 + salt) * 112);
+    const z = quantize(regionZ * WILDS_RESOURCE_REGION_SIZE + 8 + unit(regionX, regionZ, slot, 3 + salt) * 112);
+    const terrain = sampleWildsTerrain(x, z);
+    fallback ??= { x, z, terrain };
+    if (terrain.surface !== "shallow-water" && terrain.surface !== "deep-water") return { x, z, terrain };
+  }
+  // The random scan keeps ordinary projection cheap. The bounded lattice
+  // closes narrow dry-land gaps deterministically before an all-water region
+  // falls back to its canonical candidate.
+  const start = Number(hash64(regionX, regionZ, slot, 29) % (112n * 112n));
+  for (let offset = 0; offset < 112 * 112; offset += 1) {
+    const candidate = (start + offset) % (112 * 112);
+    const x = regionX * WILDS_RESOURCE_REGION_SIZE + 8.5 + candidate % 112;
+    const z = regionZ * WILDS_RESOURCE_REGION_SIZE + 8.5 + Math.floor(candidate / 112);
+    const terrain = sampleWildsTerrain(x, z);
+    if (terrain.surface !== "shallow-water" && terrain.surface !== "deep-water") return { x, z, terrain };
+  }
+  return fallback!;
+}
 
 export function wildsResourceRegionForPosition(position: Readonly<{ x: number; z: number }>) {
   if (!Number.isFinite(position.x) || !Number.isFinite(position.z)) throw new Error("wilds_resource_position_invalid");
@@ -125,15 +156,17 @@ export function projectWildsResourceRegion(regionX: number, regionZ: number): re
   if (cached) return cached;
   regionsBuilt += 1;
   const sources = Array.from({ length: SOURCES_PER_REGION }, (_, slot): WildsResourceSource => {
-    const x = quantize(regionX * WILDS_RESOURCE_REGION_SIZE + 8 + unit(regionX, regionZ, slot, 2) * 112);
-    const z = quantize(regionZ * WILDS_RESOURCE_REGION_SIZE + 8 + unit(regionX, regionZ, slot, 3) * 112);
-    const terrain = sampleWildsTerrain(x, z);
+    const constructionKind = guaranteedConstructionKind(slot);
+    const constructionPosition = constructionKind ? constructionSourcePosition(regionX, regionZ, slot) : null;
+    const x = constructionPosition?.x ?? quantize(regionX * WILDS_RESOURCE_REGION_SIZE + 8 + unit(regionX, regionZ, slot, 2) * 112);
+    const z = constructionPosition?.z ?? quantize(regionZ * WILDS_RESOURCE_REGION_SIZE + 8 + unit(regionX, regionZ, slot, 3) * 112);
+    const terrain = constructionPosition?.terrain ?? sampleWildsTerrain(x, z);
     const candidates = terrain.surface === "shallow-water" || terrain.surface === "deep-water"
       ? ["aquatic"] as const
       : terrain.surface === "rock"
         ? ROCK_KINDS
         : LAND_KINDS;
-    const kind = candidates[Number(hash64(regionX, regionZ, slot, 1) % BigInt(candidates.length))]!;
+    const kind = constructionKind ?? candidates[Number(hash64(regionX, regionZ, slot, 1) % BigInt(candidates.length))]!;
     const capacity = 12 + Number(hash64(regionX, regionZ, slot, 4) % 37n);
     const capacityPerInterval = Math.max(1, Math.floor(capacity / (3 + Number(hash64(regionX, regionZ, slot, 5) % 3n))));
     return freeze({
