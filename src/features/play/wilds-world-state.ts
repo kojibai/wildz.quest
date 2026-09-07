@@ -1,3 +1,5 @@
+import { verifyWildsConstructionProject, verifyWildsConstructionChunk, canWildsConstructionProject, createWildsConstructionChunk, appendWildsConstructionChunkReference, appendWildsConstructionProjectChunk, constructionProofDigest, validConstructionHead, type WildsConstructionProjectV1, type WildsConstructionChunkV1 } from "./wilds-construction-project";
+import { verifyWildsConstructionComponent, verifyWildsMaterialContribution, verifyWildsWorkContribution, projectWildsConstructionProgress, type WildsConstructionComponentV1, type WildsConstructionMaterialContributionV1, type WildsConstructionWorkContributionV1 } from "./wilds-construction-component";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import {
   compareWildsWorldEvents,
@@ -149,6 +151,12 @@ export type WildsWorldProjection = {
   materialCustody: Record<string, Readonly<{ ownerReceizId: string; subjectId: string; subjectHead: string; receiptId: string; transferId: string }>>;
   consumedMaterialLots: Record<string, string>;
   structures: Record<string, WildsStructureV1>;
+  constructionProjects: Record<string, WildsConstructionProjectV1>;
+  constructionChunks: Record<string, WildsConstructionChunkV1>;
+  constructionComponents: Record<string, WildsConstructionComponentV1>;
+  constructionMaterialContributions: Record<string, WildsConstructionMaterialContributionV1>;
+  constructionWorkContributions: Record<string, WildsConstructionWorkContributionV1>;
+  constructionCommandReceipts: Record<string, Readonly<{ commandDigest: string; eventPayloadDigest: string; actorId: string; kind: string }>>;
   constructionSites: Record<string, WildsConstructionSiteV1>;
   reservedMaterialLots: Record<string, string>;
   stewardTools: Record<string, WildsStewardToolV1>;
@@ -201,6 +209,12 @@ export function initialWildsWorldProjection(): WildsWorldProjection {
     materialCustody: {},
     consumedMaterialLots: {},
     structures: {},
+    constructionProjects: {},
+    constructionChunks: {},
+    constructionComponents: {},
+    constructionMaterialContributions: {},
+    constructionWorkContributions: {},
+    constructionCommandReceipts: {},
     constructionSites: {},
     reservedMaterialLots: {},
     stewardTools: {},
@@ -325,6 +339,17 @@ function stewardEconomyPatch(state: WildsWorldProjection, event: CompatibleWilds
 }
 
 export function reduceWildsWorldEvent(state: WildsWorldProjection, event: CompatibleWildsWorldEvent): WildsWorldProjection {
+  if (isContinuousConstructionEvent(event.kind)) {
+    if (!verifyWildsWorldEvent(event).ok) throw new Error("wilds_world_event_invalid");
+    const payload = recordPayload(event.payload);
+    const receipt = state.constructionCommandReceipts?.[event.causeId];
+    if (!validConstructionHead(payload.commandDigest)) throw new Error("wilds_construction_command_digest_invalid");
+    if (receipt) {
+      if (receipt.commandDigest !== payload.commandDigest || receipt.eventPayloadDigest !== constructionProofDigest(event.payload)
+        || receipt.actorId !== event.actorId || receipt.kind !== event.kind) throw new Error("wilds_construction_command_conflict");
+      return state;
+    }
+  }
   if (state.recentEventIds.includes(event.eventId)) return state;
   if (state.cursor) {
     const prior = cursorAsEvent(state.cursor);
@@ -337,6 +362,11 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
   const payload = recordPayload(event.payload);
 
   switch (event.kind) {
+    case "construction.project_created":
+    case "construction.component_placed":
+    case "construction.material_contributed":
+    case "construction.work_contributed":
+      return reduceContinuousConstruction(state, event, payload);
     case "site.spawned": {
       const site = entity<WildsWorldSiteProjection>(payload.site, "site");
       if (state.sites[site.id]) throw new Error("wilds_world_site_exists");
@@ -835,6 +865,12 @@ export function replayWildsWorld(events: readonly CompatibleWildsWorldEvent[], c
     materialCustody: projection.materialCustody ?? {},
     consumedMaterialLots: projection.consumedMaterialLots ?? {},
     structures: projection.structures ?? {},
+    constructionProjects: projection.constructionProjects ?? {},
+    constructionChunks: projection.constructionChunks ?? {},
+    constructionComponents: projection.constructionComponents ?? {},
+    constructionMaterialContributions: projection.constructionMaterialContributions ?? {},
+    constructionWorkContributions: projection.constructionWorkContributions ?? {},
+    constructionCommandReceipts: projection.constructionCommandReceipts ?? {},
     constructionSites: projection.constructionSites ?? {},
     reservedMaterialLots: projection.reservedMaterialLots ?? {},
     stewardTools: projection.stewardTools ?? {},
@@ -846,4 +882,114 @@ export function replayWildsWorld(events: readonly CompatibleWildsWorldEvent[], c
     contributionHistory: projection.contributionHistory ?? []
   } : initialWildsWorldProjection();
   return events.reduce(reduceWildsWorldEvent, hydrated);
+}
+
+function isContinuousConstructionEvent(kind: string) {
+  return ["construction.project_created", "construction.component_placed", "construction.material_contributed", "construction.work_contributed"].includes(kind);
+}
+
+export function projectWildsConstructionProgressFromWorld(world: WildsWorldProjection, componentId: string) {
+  const component = world.constructionComponents[componentId];
+  if (!component || !verifyWildsConstructionComponent(component)) throw new Error("wilds_construction_component_missing");
+  return projectWildsConstructionProgress(component, Object.values(world.constructionMaterialContributions), Object.values(world.constructionWorkContributions));
+}
+
+function reduceContinuousConstruction(state: WildsWorldProjection, event: CompatibleWildsWorldEvent, payload: Record<string, unknown>): WildsWorldProjection {
+  const invalid = () => { throw new Error("wilds_construction_transition_invalid"); };
+  const same = (a: unknown, b: unknown) => constructionProofDigest(a) === constructionProofDigest(b);
+  const finish = (patch: Partial<WildsWorldProjection>) => appendEvent(state, event, {
+    ...patch,
+    constructionCommandReceipts: { ...state.constructionCommandReceipts, [event.causeId]: {
+      commandDigest: payload.commandDigest as string, eventPayloadDigest: constructionProofDigest(event.payload), actorId: event.actorId, kind: event.kind
+    } }
+  });
+  if (event.kind === "construction.project_created") {
+    const project = payload.project;
+    if (!verifyWildsConstructionProject(project) || project.ownerReceizId !== event.actorId || project.commandId !== event.causeId
+      || project.revision !== 0 || project.firstChunkId !== null || state.constructionProjects[project.projectId]) return invalid();
+    return finish({ constructionProjects: { ...state.constructionProjects, [project.projectId]: project } });
+  }
+  if (event.kind === "construction.component_placed") {
+    const component = payload.component;
+    const chunk = payload.chunk;
+    if (!verifyWildsConstructionComponent(component) || !verifyWildsConstructionChunk(chunk)) return invalid();
+    const project = state.constructionProjects[component.projectId];
+    if (!project || !canWildsConstructionProject(project, event.actorId, "plan") || component.ownerReceizId !== event.actorId
+      || component.commandId !== event.causeId || component.projectHead !== project.head || state.constructionComponents[component.componentId]
+      || !same(component.region, project.region) || !same(chunk.region, project.region) || chunk.projectId !== project.projectId) return invalid();
+    let current: WildsConstructionChunkV1;
+    if (project.firstChunkId === null) {
+      if (chunk.page !== 0 || state.constructionChunks[chunk.chunkId]) return invalid();
+      current = createWildsConstructionChunk({ project, kaiUPulse: component.kaiUPulse });
+    } else {
+      let page = state.constructionChunks[project.firstChunkId];
+      const visited = new Set<string>();
+      while (page && page.chunkId !== chunk.chunkId && page.nextChunkId && !visited.has(page.chunkId)) {
+        visited.add(page.chunkId); page = state.constructionChunks[page.nextChunkId];
+      }
+      if (!page || page.chunkId !== chunk.chunkId || !verifyWildsConstructionChunk(page)) return invalid();
+      current = page;
+    }
+    const expected = appendWildsConstructionChunkReference({ chunk: current, component, kaiUPulse: component.kaiUPulse });
+    if (!same(chunk, expected.chunk) || !same(payload.continuation ?? null, expected.continuation ?? null)) return invalid();
+    if (expected.continuation && state.constructionChunks[expected.continuation.chunkId]) return invalid();
+    const nextProject = appendWildsConstructionProjectChunk({ project, chunk: project.firstChunkId === null ? chunk : state.constructionChunks[project.firstChunkId], kaiUPulse: component.kaiUPulse });
+    if (nextProject.head !== project.head ? !verifyWildsConstructionProject(payload.project) || !same(payload.project, nextProject)
+      : payload.project !== undefined && (!verifyWildsConstructionProject(payload.project) || !same(payload.project, project))) return invalid();
+    return finish({ constructionProjects: { ...state.constructionProjects, [project.projectId]: nextProject },
+      constructionChunks: { ...state.constructionChunks, [chunk.chunkId]: chunk, ...(expected.continuation ? { [expected.continuation.chunkId]: expected.continuation } : {}) },
+      constructionComponents: { ...state.constructionComponents, [component.componentId]: component } });
+  }
+  if (event.kind === "construction.material_contributed") {
+    if (!Array.isArray(payload.contributions) || !payload.contributions.length || payload.contributions.length > 64) return invalid();
+    const materials = { ...state.constructionMaterialContributions };
+    const reserved = { ...state.reservedMaterialLots };
+    let componentId: string | undefined;
+    for (const proof of payload.contributions) {
+      if (!verifyWildsMaterialContribution(proof)) return invalid();
+      const component = state.constructionComponents[proof.componentId];
+      const project = state.constructionProjects[proof.projectId];
+      const lot = state.materialLots[proof.lotId];
+      if (!component || !verifyWildsConstructionComponent(component) || !project || !canWildsConstructionProject(project, event.actorId, "contribute")
+        || component.projectId !== project.projectId || component.head !== proof.componentHead || proof.commandId !== event.causeId
+        || proof.contributorReceizId !== event.actorId || proof.custodianReceizId !== event.actorId
+        || !lot || !verifyWildsMaterialLot(lot) || !same(lot, proof.lot) || wildsMaterialCustodian(state, lot) !== event.actorId
+        || state.consumedMaterialLots[lot.lotId] || state.storedMaterialLots[lot.lotId] || reserved[lot.lotId] || materials[proof.contributionId]
+        || componentId !== undefined && componentId !== component.componentId) return invalid();
+      componentId = component.componentId;
+      materials[proof.contributionId] = proof; reserved[lot.lotId] = component.componentId;
+    }
+    return finish({ constructionMaterialContributions: materials, reservedMaterialLots: reserved });
+  }
+  const proof = payload.contribution;
+  if (!verifyWildsWorkContribution(proof)) return invalid();
+  const component = state.constructionComponents[proof.componentId];
+  const project = state.constructionProjects[proof.projectId];
+  if (!component || !project || !canWildsConstructionProject(project, event.actorId, "work") || component.projectId !== project.projectId
+    || component.head !== proof.componentHead || proof.commandId !== event.causeId || proof.worker.kind !== "player"
+    || proof.worker.receizId !== event.actorId || proof.amount !== 1 || state.constructionWorkContributions[proof.contributionId]) return invalid();
+  // Every sealed dependency must already be admitted on this exact structural lineage.
+  for (const ref of proof.priorWork) {
+    const prior = state.constructionWorkContributions[ref.contributionId];
+    if (!prior || prior.head !== ref.contributionHead || prior.componentHead !== component.head || prior.componentId !== component.componentId) return invalid();
+  }
+  for (const allocation of proof.stageAllocations) for (const ref of allocation.materials) {
+    const material = state.constructionMaterialContributions[ref.contributionId];
+    const lot = material && state.materialLots[material.lotId];
+    if (!material || material.head !== ref.contributionHead || material.componentId !== component.componentId || material.componentHead !== component.head
+      || !lot || !verifyWildsMaterialLot(lot) || lot.head !== material.lotHead || wildsMaterialCustodian(state, lot) !== material.custodianReceizId
+      || state.storedMaterialLots[lot.lotId]
+      || (state.reservedMaterialLots[lot.lotId] !== component.componentId && state.consumedMaterialLots[lot.lotId] !== component.componentId)) return invalid();
+  }
+  const before = projectWildsConstructionProgressFromWorld(state, component.componentId);
+  const work = { ...state.constructionWorkContributions, [proof.contributionId]: proof };
+  const after = projectWildsConstructionProgress(component, Object.values(state.constructionMaterialContributions), Object.values(work));
+  if (after.allocationConflicts.length || after.invalidWorkContributionIds.length || after.work.contributed <= before.work.contributed
+    || !after.appliedWorkContributionIds.includes(proof.contributionId) || before.embeddedLotIds.some(id => !after.embeddedLotIds.includes(id))) return invalid();
+  const reserved = { ...state.reservedMaterialLots }, consumed = { ...state.consumedMaterialLots };
+  for (const lotId of after.embeddedLotIds.filter(id => !before.embeddedLotIds.includes(id))) {
+    if (reserved[lotId] !== component.componentId || consumed[lotId] || state.storedMaterialLots[lotId]) return invalid();
+    delete reserved[lotId]; consumed[lotId] = component.componentId;
+  }
+  return finish({ constructionWorkContributions: work, reservedMaterialLots: reserved, consumedMaterialLots: consumed });
 }
