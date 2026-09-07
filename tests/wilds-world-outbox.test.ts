@@ -4,6 +4,7 @@ import { createReceizInMemoryOfflineProofQueueStorage } from "@receiz/sdk";
 import {
   admitWildsWorldOutboxEntry,
   acknowledgeWildsWorldCommand,
+  acknowledgeWildsWorldPublication,
   createWildsWorldEdgeAdmissionQueue,
   drainWildsWorldOutbox,
   enqueueWildsWorldCommand,
@@ -240,4 +241,43 @@ test("successor entries share one durable anchor and restore after that anchor i
   const pending = await readWildsWorldOutbox(persisted[0]!.actorId, storage);
   assert.ok(pending[0]?.admittedSource?.checkpoint, "publication obtains verified transient source context from the shared anchor");
   assert.deepEqual(projectWildsWorldOutbox(initialWildsWorldProjection(), persisted[0]!.actorId, pending), admission.current());
+});
+
+
+test("direct confirmed legacy publication settles its exact durable entry before later construction drains", async () => {
+  const storage = createReceizInMemoryOfflineProofQueueStorage();
+  const actorId = entry().actorId;
+  const admission = createWildsWorldEdgeAdmissionQueue({ initialProjection: initialWildsWorldProjection(), persist: (queued) => enqueueWildsWorldCommand(queued, storage) });
+  const legacy = entry("command:online:legacy");
+  assert.deepEqual(await readWildsWorldOutbox(actorId, storage), []);
+  await admission.admit(legacy);
+  assert.equal((await readWildsWorldOutbox(actorId, storage)).length, 1);
+  assert.deepEqual(await acknowledgeWildsWorldPublication(legacy, { commandId: legacy.command.commandId, globallyPublished: true }, storage), []);
+  const construction = projectEntry("command:online:next:construction", "Next Place");
+  await admission.admit(construction);
+  const published: string[] = [];
+  const remaining = await drainWildsWorldOutbox(actorId, async (queued) => {
+    published.push(queued.command.commandId);
+    assert.ok(queued.admittedSource);
+    return { commandId: queued.command.commandId, globallyPublished: true };
+  }, storage);
+  assert.deepEqual(published, [construction.command.commandId]);
+  assert.deepEqual(remaining, []);
+  const persisted = JSON.parse(storage.readText()!);
+  assert.deepEqual(persisted.settled.map((item: { id: string }) => item.id), [legacy.command.commandId, construction.command.commandId]);
+});
+
+test("unpublished, mismatched or failed direct publication retains the durable legacy head", async () => {
+  const storage = createReceizInMemoryOfflineProofQueueStorage();
+  const legacy = entry("command:direct:unpublished");
+  const admission = createWildsWorldEdgeAdmissionQueue({ initialProjection: initialWildsWorldProjection(), persist: (queued) => enqueueWildsWorldCommand(queued, storage) });
+  await admission.admit(legacy);
+  const publish = async (confirmed: boolean) => acknowledgeWildsWorldPublication(legacy, { commandId: legacy.command.commandId, globallyPublished: confirmed }, storage);
+  assert.equal((await publish(false))[0]?.command.commandId, legacy.command.commandId);
+  await assert.rejects(acknowledgeWildsWorldPublication(legacy, { commandId: "command:different", globallyPublished: true }, storage), /published_head_mismatch/);
+  await assert.rejects((async () => {
+    await Promise.reject(new Error("transport_failed"));
+    return publish(true);
+  })(), /transport_failed/);
+  assert.deepEqual((await readWildsWorldOutbox(legacy.actorId, storage)).map((queued) => queued.command.commandId), [legacy.command.commandId]);
 });

@@ -41,6 +41,7 @@ import {
   preserveWildsConstructionHistory,
   restoreWildsWorldEdgeSource,
   acknowledgeWildsWorldCommand,
+  acknowledgeWildsWorldPublication,
   enqueueWildsWorldCommand,
   projectWildsWorldOutbox,
   readWildsWorldOutbox,
@@ -238,7 +239,7 @@ export function useWildsWorld(input: {
       await publishActiveWildsWorldWithIdentityProof(publication.draft);
       globallyPublished = true;
     }
-    return { ...parseWildsWorldCommandResponse(value), globallyPublished };
+    return { ...parseWildsWorldCommandResponse(value), commandId: entry.command.commandId, globallyPublished };
   }, [authorizeLivingWorld, request]);
 
   const flushOutbox = useCallback(async (base: WildsWorldProjection, initialMode: WildsWorldCommandMode) => {
@@ -414,9 +415,7 @@ export function useWildsWorld(input: {
       const parsed = await sendEntry(entry);
       const projection = parsed.projection;
       canonicalSnapshot.current = projection;
-      const queued = parsed.globallyPublished
-        ? await readWildsWorldOutbox(input.actorId)
-        : await enqueueWildsWorldCommand(entry);
+      const queued = await acknowledgeWildsWorldPublication(entry, parsed);
       const synchronizedProjection = parsed.globallyPublished
         ? acceptWildsWorldSnapshot(locallyAdmittedProjection, projection)
         : projectWildsWorldOutbox(projection, input.actorId, queued);

@@ -39,6 +39,9 @@ describe("Wilds world client contract", () => {
     const queue = readFileSync("src/features/play/wilds-world-outbox.ts", "utf8");
     assert.ok(queue.indexOf("await input.persist(durable)") < queue.indexOf("input.onAdmitted?.(projection)"));
     assert.match(source, /return synchronizedProjection/);
+    const acknowledgement = source.indexOf("await acknowledgeWildsWorldPublication(entry, parsed)", send);
+    const synchronized = source.indexOf("const synchronizedProjection", acknowledgement);
+    assert.ok(acknowledgement > send && synchronized > acknowledgement);
   });
 
   it("keeps material harvest network work out of the visible action path", () => {

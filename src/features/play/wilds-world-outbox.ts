@@ -82,6 +82,14 @@ export async function acknowledgeWildsWorldCommand(actorId: string, commandId: s
   return withOutboxMutation(actorId, storage, async (resolved) => acknowledgeUnlocked(actorId, commandId, resolved));
 }
 
+/** A confirmed response settles only the exact request that produced it. */
+export async function acknowledgeWildsWorldPublication(entry: WildsWorldOutboxEntry, publication: { commandId: string; globallyPublished: boolean }, storage?: ReceizOfflineProofQueueStorage) {
+  if (publication.commandId !== entry.command.commandId) throw new Error("wilds_world_published_head_mismatch");
+  return publication.globallyPublished
+    ? acknowledgeWildsWorldCommand(entry.actorId, entry.command.commandId, storage)
+    : readWildsWorldOutbox(entry.actorId, storage);
+}
+
 async function acknowledgeUnlocked(actorId: string, commandId: string, storage: ReceizOfflineProofQueueStorage) {
   const queue = await createReceizOfflineProofQueue({ ownerId: actorId, storage });
   const snapshot = queue.snapshot();
