@@ -29,15 +29,16 @@ test("the admitted bootstrap projection reaches the living HUD instead of being 
   assert.match(shell, /setWorldBootstrap\(\{ projection: admitted\.projection/);
   assert.match(shell, /initialWorld=\{worldBootstrap\}/);
   assert.match(campaign, /initialSnapshot: initialWorld/);
-  const initialAdoption = hook.indexOf("edgeQueue.adopt(input.initialSnapshot.projection)");
+  const initialAdoption = hook.indexOf("adoptSnapshot(input.initialSnapshot.projection)");
   const restore = hook.indexOf("restoreWildsWorldEdgeSource(edgeQueue.current(), input.actorId)", initialAdoption);
-  const durableAdoption = hook.indexOf("const admitted = edgeQueue.adopt(restored)", restore);
+  const durableAdoption = hook.indexOf("const admitted = adoptSnapshot(restored)", restore);
   const canonical = hook.indexOf("canonicalSnapshot.current = admitted", durableAdoption);
-  const display = hook.indexOf("setSnapshot((current) => acceptWildsWorldSnapshot(current, admitted))", canonical);
-  const replication = hook.indexOf("await flushOutbox(admitted,", display);
+  const display = hook.indexOf("setSnapshot((current) => acceptWildsWorldSnapshot(current, admitted, ownedWorldAdditions.current))", canonical);
+  const replication = hook.indexOf("await refresh()", display);
   assert.ok(initialAdoption >= 0 && restore > initialAdoption && durableAdoption > restore);
   assert.ok(canonical > durableAdoption && display > canonical && replication > display);
-  assert.match(hook.slice(display, replication), /input\.networkEnabled && shouldAttemptWildsNetwork\(\)/);
+  assert.match(hook.slice(display, replication), /input\.networkEnabled/);
+  assert.match(hook, /networkAvailable: shouldAttemptWildsNetwork/);
 });
 
 test("shared-world bootstrap preserves an Identity Seal publication request without navigation", async () => {

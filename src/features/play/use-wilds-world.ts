@@ -63,7 +63,8 @@ import { publishWildsConstructionEntry } from "./wilds-construction-publication"
 import type { WildsBlueprintPlacement } from "./wilds-world-construction";
 import type { WildsConstructionPlacementRequest } from "./wilds-construction-placement";
 
-export function acceptWildsWorldSnapshot(current: WildsWorldProjection | null, candidate: WildsWorldProjection) {
+export function acceptWildsWorldSnapshot(current: WildsWorldProjection | null, candidate: WildsWorldProjection, owned?: WildsOwnedWorldAdditions) {
+  if (owned) candidate = mergeWildsOwnedWorldAdditions(candidate, owned);
   if (current && candidate.revision < current.revision) return current;
   return current ? preserveWildsConstructionHistory(current, candidate) : candidate;
 }
@@ -144,6 +145,44 @@ export function parseWildsWorldCommandResponse(value: unknown): { projection: Wi
   return { projection: projection!, mode };
 }
 
+/** Run the refresh transaction independently of React's presentation state. */
+export async function refreshWildsWorldClient(input: {
+  current: () => WildsWorldProjection;
+  currentMode: () => WildsWorldClientMode;
+  networkAvailable: () => boolean;
+  readPending: () => Promise<WildsWorldOutboxEntry[]>;
+  requestSnapshot: () => Promise<WildsWorldSnapshot>;
+  adopt: (projection: WildsWorldProjection) => WildsWorldProjection;
+  flush: (projection: WildsWorldProjection, mode: WildsWorldCommandMode) => Promise<{ projection: WildsWorldProjection; mode: WildsWorldClientMode }>;
+}): Promise<{ projection?: WildsWorldProjection; mode: WildsWorldClientMode; error: string; retryAfter?: number } | null> {
+  if (!input.networkAvailable()) {
+    return { mode: "receiz_recovery_pending", error: WILDS_WORLD_OFFLINE_MESSAGE };
+  }
+  try {
+    const pending = await input.readPending();
+    if (pending.some((entry) => isWildsEdgeImmediateConstructionCommand(entry.command))) await input.flush(input.current(), "receiz_live");
+    const snapshot = await input.requestSnapshot();
+    const projection = input.adopt(snapshot.projection);
+    const flushed = await input.flush(projection, snapshot.mode);
+    const remaining = await input.readPending();
+    return {
+      projection: flushed.projection,
+      mode: remaining.length ? "receiz_recovery_pending" : flushed.mode,
+      error: remaining.length ? "Your work is admitted here and will keep syncing globally in the background." : "",
+      retryAfter: 0
+    };
+  } catch (cause) {
+    if ((cause as Error).name === "AbortError") return null;
+    const opaqueFailure = isOpaqueWildsNetworkFailure(cause);
+    const offline = !input.networkAvailable() || opaqueFailure;
+    return {
+      mode: wildsWorldModeAfterRequestFailure(offline, input.currentMode()),
+      error: wildsNetworkFailureMessage(cause, "world", !offline),
+      ...(opaqueFailure ? { retryAfter: Date.now() + WILDS_NETWORK_RETRY_BACKOFF_MS } : {})
+    };
+  }
+}
+
 export function useWildsWorld(input: {
   enabled: boolean;
   networkEnabled: boolean;
@@ -161,11 +200,15 @@ export function useWildsWorld(input: {
     amountPhiMicro: string;
   }>) => Promise<unknown>;
 }) {
+  const ownedWorldAdditions = useRef(input.ownedWorldAdditions);
+  ownedWorldAdditions.current = input.ownedWorldAdditions;
   const [snapshot, setSnapshot] = useState<WildsWorldProjection | null>(() => mergeWildsOwnedWorldAdditions(
     input.initialSnapshot?.projection ?? createWildsSourceAuthorityProjection(),
     input.ownedWorldAdditions ?? { constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, materialCustody: {}, consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {} }
   ));
   const [mode, setMode] = useState<WildsWorldClientMode>(() => input.initialSnapshot?.mode ?? "connecting");
+  const currentMode = useRef(mode);
+  currentMode.current = mode;
   const [error, setError] = useState("");
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
   const commandPending = useRef(false);
@@ -181,11 +224,13 @@ export function useWildsWorld(input: {
         try { await enqueueWildsWorldCommand(entry); }
         catch (cause) { throw new Error("wilds_world_local_persistence_failed", { cause }); }
       },
-      onAdmitted: (projection) => { canonicalSnapshot.current = projection; setSnapshot((current) => acceptWildsWorldSnapshot(current, projection)); }
+      onAdmitted: (projection) => { canonicalSnapshot.current = projection; setSnapshot((current) => acceptWildsWorldSnapshot(current, projection, ownedWorldAdditions.current)); }
     }) };
   }
   const edgeQueue = edge.current.queue;
-  const hasConstruction = useCallback(() => Object.keys(edgeQueue.current().constructionCommandReceipts).length > 0, [edgeQueue]);
+  const adoptSnapshot = useCallback((projection: WildsWorldProjection) => edgeQueue.adopt(
+    acceptWildsWorldSnapshot(null, projection, ownedWorldAdditions.current)
+  ), [edgeQueue]);
 
 
   const request = useCallback(async (url: string, init?: RequestInit) => {
@@ -280,41 +325,32 @@ export function useWildsWorld(input: {
     } finally {
       commandPending.current = false;
     }
-    canonical = edgeQueue.adopt(projectWildsWorldOutbox(canonical, input.actorId, entries));
+    canonical = adoptSnapshot(projectWildsWorldOutbox(canonical, input.actorId, entries));
     canonicalSnapshot.current = canonical;
     return { projection: canonical, mode: nextMode };
-  }, [edgeQueue, input.actorId, sendEntry]);
+  }, [adoptSnapshot, edgeQueue, input.actorId, sendEntry]);
 
   const refresh = useCallback(async () => {
     if (!input.enabled || !input.networkEnabled) return;
-    if (!shouldAttemptWildsNetwork()) {
-      if (hasConstruction()) return;
-      setMode("receiz_recovery_pending");
-      setError(WILDS_WORLD_OFFLINE_MESSAGE);
-      return;
+    if (shouldAttemptWildsNetwork() && Date.now() < retryAfter.current) return;
+    const result = await refreshWildsWorldClient({
+      current: edgeQueue.current,
+      currentMode: () => currentMode.current,
+      networkAvailable: shouldAttemptWildsNetwork,
+      readPending: () => readWildsWorldOutbox(input.actorId),
+      requestSnapshot: async () => parseWildsWorldSnapshotResponse(await request("/api/wilds/world/snapshot")),
+      adopt: adoptSnapshot,
+      flush: flushOutbox
+    });
+    if (!result) return;
+    if (result.projection) {
+      canonicalSnapshot.current = result.projection;
+      setSnapshot((current) => acceptWildsWorldSnapshot(current, result.projection!, ownedWorldAdditions.current));
     }
-    if (Date.now() < retryAfter.current) return;
-    try {
-      if (hasConstruction()) await flushOutbox(edgeQueue.current(), "receiz_live");
-      const value = await request("/api/wilds/world/snapshot");
-      const parsedSnapshot = parseWildsWorldSnapshotResponse(value);
-      const projection = edgeQueue.adopt(parsedSnapshot.projection);
-      const nextMode = parsedSnapshot.mode;
-      canonicalSnapshot.current = projection;
-      const flushed = await flushOutbox(projection, nextMode);
-      setSnapshot((current) => acceptWildsWorldSnapshot(current, mergeWildsOwnedWorldAdditions(flushed.projection, input.ownedWorldAdditions ?? { constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, materialCustody: {}, consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {} })));
-      if (!hasConstruction()) setMode(flushed.mode);
-      setError("");
-      retryAfter.current = 0;
-    } catch (cause) {
-      if ((cause as Error).name === "AbortError" || hasConstruction()) return;
-      const opaqueFailure = isOpaqueWildsNetworkFailure(cause);
-      if (opaqueFailure) retryAfter.current = Date.now() + WILDS_NETWORK_RETRY_BACKOFF_MS;
-      const offline = !shouldAttemptWildsNetwork() || opaqueFailure;
-      setMode((current) => wildsWorldModeAfterRequestFailure(offline, current));
-      setError(wildsNetworkFailureMessage(cause, "world", !offline));
-    }
-  }, [edgeQueue, hasConstruction, flushOutbox, input.enabled, input.networkEnabled, input.ownedWorldAdditions, request]);
+    setMode(result.mode);
+    setError(result.error);
+    if (result.retryAfter !== undefined) retryAfter.current = result.retryAfter;
+  }, [adoptSnapshot, edgeQueue, flushOutbox, input.actorId, input.enabled, input.networkEnabled, request]);
 
   useEffect(() => {
     if (input.enabled) setMode(wildsWorldModeAfterConfirmedBootstrap);
@@ -322,21 +358,23 @@ export function useWildsWorld(input: {
 
   useEffect(() => {
     if (!input.enabled) return;
-    if (input.initialSnapshot && validWildsWorldProjection(input.initialSnapshot.projection)) edgeQueue.adopt(input.initialSnapshot.projection);
+    if (input.initialSnapshot && validWildsWorldProjection(input.initialSnapshot.projection)) adoptSnapshot(input.initialSnapshot.projection);
     let cancelled = false;
     void restoreWildsWorldEdgeSource(edgeQueue.current(), input.actorId)
       .then(async (restored) => {
         if (cancelled) return;
-        const admitted = edgeQueue.adopt(restored);
+        const admitted = adoptSnapshot(restored);
         canonicalSnapshot.current = admitted;
-        setSnapshot((current) => acceptWildsWorldSnapshot(current, admitted));
-        if (input.networkEnabled && shouldAttemptWildsNetwork()) await flushOutbox(admitted, input.initialSnapshot?.mode ?? "receiz_live");
+        setSnapshot((current) => acceptWildsWorldSnapshot(current, admitted, ownedWorldAdditions.current));
+        if (input.networkEnabled) await refresh();
       })
-      .catch(() => {
-        if (!cancelled && !hasConstruction()) setMode("receiz_recovery_pending");
+      .catch((cause) => {
+        if (cancelled || (cause as Error).name === "AbortError") return;
+        setMode("receiz_recovery_pending");
+        setError(wildsNetworkFailureMessage(cause, "world"));
       });
     return () => { cancelled = true; };
-  }, [edgeQueue, hasConstruction, flushOutbox, input.actorId, input.enabled, input.networkEnabled, input.initialSnapshot]);
+  }, [adoptSnapshot, edgeQueue, input.actorId, input.enabled, input.networkEnabled, input.initialSnapshot, refresh]);
 
   useEffect(() => {
     const activeControllers = controllers.current;
@@ -369,11 +407,11 @@ export function useWildsWorld(input: {
     if (isWildsEdgeImmediateConstructionCommand(rootedCommand)) {
       try {
         const restored = await restoreWildsWorldEdgeSource(edgeQueue.current(), input.actorId);
-        edgeQueue.adopt(restored);
+        adoptSnapshot(restored);
         const projection = await edgeQueue.admit(entry);
         setError("");
         scheduleWildsWorldBackgroundSync(() => {
-          if (input.networkEnabled && shouldAttemptWildsNetwork()) void flushOutbox(edgeQueue.current(), "receiz_live").catch(() => undefined);
+          if (input.networkEnabled) void refresh();
         });
         return projection;
       } catch (cause) {
@@ -386,7 +424,7 @@ export function useWildsWorld(input: {
     const locallyAdmittedProjection = await edgeQueue.admit(entry);
     const queueForGlobalCommit = async () => {
       const entries = await enqueueWildsWorldCommand(entry);
-      setSnapshot((current) => acceptWildsWorldSnapshot(current, locallyAdmittedProjection));
+      setSnapshot((current) => acceptWildsWorldSnapshot(current, locallyAdmittedProjection, ownedWorldAdditions.current));
       setMode("receiz_recovery_pending");
       setError("Your work is admitted here and will keep syncing globally in the background.");
       return locallyAdmittedProjection;
@@ -419,7 +457,7 @@ export function useWildsWorld(input: {
       const synchronizedProjection = parsed.globallyPublished
         ? acceptWildsWorldSnapshot(locallyAdmittedProjection, projection)
         : projectWildsWorldOutbox(projection, input.actorId, queued);
-      setSnapshot((current) => acceptWildsWorldSnapshot(current, mergeWildsOwnedWorldAdditions(synchronizedProjection, input.ownedWorldAdditions ?? { constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, materialCustody: {}, consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {} })));
+      setSnapshot((current) => acceptWildsWorldSnapshot(current, synchronizedProjection, ownedWorldAdditions.current));
       setMode(parsed.globallyPublished ? parsed.mode : "receiz_recovery_pending");
       setError(parsed.globallyPublished ? "" : "Your work is admitted here and its global projection will keep syncing in the background.");
       retryAfter.current = 0;
@@ -432,7 +470,7 @@ export function useWildsWorld(input: {
       commandPending.current = false;
       setPendingCommand(null);
     }
-  }, [edgeQueue, flushOutbox, input.activeCard, input.actorId, input.cardAdmission, input.enabled, input.guestId, input.kaiUPulse, input.networkEnabled, input.ownedWorldAdditions, mode, refresh, sendEntry, snapshot]);
+  }, [adoptSnapshot, edgeQueue, input.activeCard, input.actorId, input.cardAdmission, input.enabled, input.guestId, input.kaiUPulse, input.networkEnabled, mode, refresh, sendEntry]);
 
   useEffect(() => {
     const resume = () => {

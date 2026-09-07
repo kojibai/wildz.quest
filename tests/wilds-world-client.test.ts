@@ -4,6 +4,9 @@ import { describe, it } from "node:test";
 import { initialWildsWorldProjection } from "../src/features/play/wilds-world-state.js";
 import { deriveKaiKlokMomentFromUPulse } from "../src/features/play/kai-klok-moment.js";
 import { createKaiTemporalRoot } from "../src/features/play/kai-temporal-root.js";
+import { createReceizInMemoryOfflineProofQueueStorage } from "@receiz/sdk";
+import { acknowledgeWildsWorldCommand, createWildsWorldEdgeAdmissionQueue, enqueueWildsWorldCommand, readWildsWorldOutbox } from "../src/features/play/wilds-world-outbox.js";
+import { WILDS_WORLD_OFFLINE_MESSAGE, WILDS_NETWORK_RETRY_BACKOFF_MS } from "../src/features/play/wilds-network-status.js";
 import {
   acceptWildsWorldSnapshot,
   buildWildsWorldCommandBody,
@@ -12,7 +15,8 @@ import {
   shouldQueueWildsWorldCommandLocally,
   shouldSynchronizeWildsWorldCommandAfterPaint,
   wildsWorldModeAfterConfirmedBootstrap,
-  wildsWorldModeAfterRequestFailure
+  wildsWorldModeAfterRequestFailure,
+  refreshWildsWorldClient
 } from "../src/features/play/use-wilds-world.js";
 
 describe("Wilds world client contract", () => {
@@ -133,4 +137,75 @@ describe("Wilds world client contract", () => {
     assert.equal(wildsWorldModeAfterConfirmedBootstrap("local_practice"), "local_practice");
   });
 
+});
+
+describe("construction refresh status", () => {
+  async function fixture(settled = true) {
+    const actorId = "refresh-builder.receiz.id";
+    const storage = createReceizInMemoryOfflineProofQueueStorage();
+    const queue = createWildsWorldEdgeAdmissionQueue({ initialProjection: initialWildsWorldProjection(), persist: (entry) => enqueueWildsWorldCommand(entry, storage) });
+    const command = { type: "construction.project.create" as const, name: "Local Home", region: { x: 0, z: 0 }, commandId: "command:refresh:home" };
+    await queue.admit({ schema: "receiz.wilds_world_outbox_entry.v1", actorId, guestId: "guest-12345678", command, queuedAt: "2026-08-26T00:00:00.000Z" });
+    if (settled) await acknowledgeWildsWorldCommand(actorId, command.commandId, storage);
+    const calls: string[] = [];
+    const input: Parameters<typeof refreshWildsWorldClient>[0] = {
+      current: queue.current,
+      currentMode: () => "connecting",
+      networkAvailable: () => true,
+      readPending: () => readWildsWorldOutbox(actorId, storage),
+      requestSnapshot: async () => { calls.push("snapshot"); return { projection: initialWildsWorldProjection(), mode: "receiz_live" }; },
+      adopt: queue.adopt,
+      flush: async (projection, mode) => { calls.push("flush"); return { projection, mode }; }
+    };
+    return { input, queue, calls, actorId, storage, command };
+  }
+
+  it("reports offline status after all construction has settled without discarding local history", async () => {
+    const { input, queue, calls } = await fixture();
+    const admitted = queue.current();
+    const result = await refreshWildsWorldClient({ ...input, networkAvailable: () => false });
+    assert.equal(result?.mode, "receiz_recovery_pending");
+    assert.equal(result?.error, WILDS_WORLD_OFFLINE_MESSAGE);
+    assert.equal(queue.current(), admitted);
+    assert.deepEqual(calls, []);
+  });
+
+  it("settled receipts do not preflush or freeze a recovered connection mode", async () => {
+    const { input, queue, calls } = await fixture();
+    const admitted = queue.current();
+    const result = await refreshWildsWorldClient(input);
+    assert.equal(result?.mode, "receiz_live");
+    assert.equal(result?.error, "");
+    assert.equal(result?.projection, admitted);
+    assert.deepEqual(calls, ["snapshot", "flush"]);
+    assert.equal(Object.keys(queue.current().constructionCommandReceipts).length, 1);
+  });
+
+  it("surfaces opaque outages with backoff and explicit proof failures despite retained receipts", async () => {
+    const { input, queue } = await fixture();
+    const admitted = queue.current();
+    const before = Date.now();
+    const outage = await refreshWildsWorldClient({ ...input, requestSnapshot: async () => { throw new TypeError("Failed to fetch"); } });
+    assert.equal(outage?.mode, "receiz_recovery_pending");
+    assert.equal(outage?.error, WILDS_WORLD_OFFLINE_MESSAGE);
+    assert.ok(outage?.retryAfter && outage.retryAfter >= before + WILDS_NETWORK_RETRY_BACKOFF_MS);
+    const invalid = await refreshWildsWorldClient({ ...input, requestSnapshot: async () => { throw new Error("wilds_world_snapshot_invalid"); } });
+    assert.equal(invalid?.mode, "reconnecting");
+    assert.equal(invalid?.error, "wilds_world_snapshot_invalid");
+    assert.equal(queue.current(), admitted);
+  });
+
+  it("reports remaining unpublished work until its exact entry settles, then resumes live mode", async () => {
+    const { input, calls, actorId, storage, command } = await fixture(false);
+    const pending = await refreshWildsWorldClient(input);
+    assert.equal(pending?.mode, "receiz_recovery_pending");
+    assert.ok(pending?.error);
+    assert.deepEqual(calls, ["flush", "snapshot", "flush"]);
+    await acknowledgeWildsWorldCommand(actorId, command.commandId, storage);
+    calls.length = 0;
+    const settled = await refreshWildsWorldClient(input);
+    assert.equal(settled?.mode, "receiz_live");
+    assert.equal(settled?.error, "");
+    assert.deepEqual(calls, ["snapshot", "flush"]);
+  });
 });

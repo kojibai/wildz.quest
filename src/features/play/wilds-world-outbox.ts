@@ -253,12 +253,17 @@ export async function restoreWildsWorldEdgeSource(base: WildsWorldProjection, ac
 
 /** Resolve the shared anchor transiently. Persisted successor envelopes contain only exact events. */
 function resolveOutboxSources(snapshot: ReceizOfflineProofQueueSnapshot, actorId: string) {
+  const pendingIds = new Set(snapshot.pending.map((item) => item.id));
   const entries = [...snapshot.settled, ...snapshot.pending].filter((item) => item.kind === "wilds.world.command").map((item) => item.payload.entry).filter((entry): entry is WildsWorldOutboxEntry => validEntry(entry, actorId));
   const anchors = new Map<string, WildsWorldProjection>();
   const resolved = new Map<string, WildsWorldOutboxEntry>();
   for (const entry of entries) {
     const source = entry.admittedSource;
-    if (!source) { resolved.set(entry.command.commandId, entry); continue; }
+    if (!source) {
+      // Settled legacy intent has no replayable source and must never execute again.
+      if (pendingIds.has(entry.command.commandId)) resolved.set(entry.command.commandId, entry);
+      continue;
+    }
     try {
       const base = source.checkpoint ? replayWildsWorld([], source.checkpoint) : anchors.get(source.anchorId);
       if (!base) throw new Error("wilds_world_source_anchor_missing");

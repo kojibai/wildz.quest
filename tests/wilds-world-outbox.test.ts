@@ -10,9 +10,16 @@ import {
   enqueueWildsWorldCommand,
   projectWildsWorldOutbox,
   readWildsWorldOutbox,
+  restoreWildsWorldEdgeSource,
   type WildsWorldOutboxEntry
 } from "../src/features/play/wilds-world-outbox.js";
 import { initialWildsWorldProjection } from "../src/features/play/wilds-world-state.js";
+import { createWildsConstructionSite } from "../src/features/play/wilds-construction-site.js";
+import { projectWildsResourceRegion } from "../src/features/play/wilds-resource-authority.js";
+import { createWildsMaterialHarvest, initialWildsHarvestedSourceState } from "../src/features/play/wilds-steward-construction.js";
+import { mergeWildsOwnedWorldAdditions, projectWildsOwnedWorldAdditions } from "../src/features/play/wilds-player-world-additions.js";
+import { createOwnerBoundInitialPlayState, restorePlayState, serializePlayState } from "../src/features/play/game-state.js";
+import { acceptWildsWorldSnapshot } from "../src/features/play/use-wilds-world.js";
 
 function entry(commandId = "command:team:create:offline"): WildsWorldOutboxEntry {
   return {
@@ -35,6 +42,43 @@ function projectEntry(commandId: string, name: string): WildsWorldOutboxEntry {
     }
   };
 }
+
+test("offline source restoration and later admission retain portable owner sites and exact spent lots", async () => {
+  const actorId = entry().actorId;
+  const site = createWildsConstructionSite({ blueprint: "trail-shelter", placedByReceizId: actorId, actorPosition: { x: 10, z: 10 }, position: { x: 12, z: 11 }, rotationQuarterTurns: 0, existingStructures: [], existingSites: [], kaiUPulse: 2_000_010 });
+  const source = Array.from({ length: 25 }, (_, index) => projectWildsResourceRegion(index - 12, 0)).flat().find((source) => source.kind === "timber")!;
+  const harvest = createWildsMaterialHarvest({ source, current: initialWildsHarvestedSourceState(source), ownerReceizId: actorId, actorPosition: source.position, kaiUPulse: 2_000_020 });
+  const saved = { ...initialWildsWorldProjection(), constructionSites: { [site.siteId]: site }, materialLots: { [harvest.lot.lotId]: harvest.lot }, harvestedSources: { [source.sourceId]: harvest.source }, consumedMaterialLots: { [harvest.lot.lotId]: "structure:completed" } };
+  const owned = projectWildsOwnedWorldAdditions(saved, actorId);
+  const storage = createReceizInMemoryOfflineProofQueueStorage();
+  const prior = createWildsWorldEdgeAdmissionQueue({ initialProjection: initialWildsWorldProjection(), persist: (entry) => enqueueWildsWorldCommand(entry, storage) });
+  const first = projectEntry("command:restore:owner:first", "Restored Home");
+  await prior.admit(first);
+  await acknowledgeWildsWorldCommand(actorId, first.command.commandId, storage);
+  const presented: ReturnType<typeof prior.current>[] = [];
+  const options = {
+    initialProjection: mergeWildsOwnedWorldAdditions(initialWildsWorldProjection(), owned),
+    persist: (entry: WildsWorldOutboxEntry) => enqueueWildsWorldCommand(entry, storage),
+    onAdmitted: (projection: ReturnType<typeof prior.current>) => presented.push(acceptWildsWorldSnapshot(null, projection, owned))
+  };
+  const reopened = createWildsWorldEdgeAdmissionQueue(options);
+  reopened.adopt(initialWildsWorldProjection());
+  // The durable source's older checkpoint predates the separate portable save.
+  const restored = await restoreWildsWorldEdgeSource(reopened.current(), actorId, storage);
+  const visible = reopened.adopt(acceptWildsWorldSnapshot(null, restored, owned));
+  assert.equal(visible.constructionSites[site.siteId]?.head, site.head);
+  assert.equal(visible.materialLots[harvest.lot.lotId]?.head, harvest.lot.head);
+  assert.equal(visible.consumedMaterialLots[harvest.lot.lotId], "structure:completed");
+  await reopened.admit(projectEntry("command:restore:owner:next", "Next Home"));
+  assert.equal(presented.length, 1);
+  const additions = projectWildsOwnedWorldAdditions(presented[0]!, actorId);
+  const play = createOwnerBoundInitialPlayState(actorId);
+  const roundTrip = restorePlayState(serializePlayState({ ...play, ownedWorldAdditions: additions }), actorId);
+  assert.deepEqual(roundTrip.ownedWorldAdditions.constructionSites, owned.constructionSites);
+  assert.deepEqual(roundTrip.ownedWorldAdditions.materialLots, owned.materialLots);
+  assert.deepEqual(roundTrip.ownedWorldAdditions.consumedMaterialLots, owned.consumedMaterialLots);
+  assert.equal(Object.keys(roundTrip.ownedWorldAdditions.constructionProjects ?? {}).length, 2);
+});
 
 test("the SDK offline queue durably persists and deduplicates the canonical command id", async () => {
   const storage = createReceizInMemoryOfflineProofQueueStorage();
@@ -171,6 +215,24 @@ test("a saved live command immediately projects while remaining queued for globa
   assert.equal(projection.revision, 1);
   assert.equal(Object.values(projection.teams)[0]?.captainId, "global_keeper.receiz.id");
   assert.equal(base.revision, 0);
+});
+
+test("restoration replays pending legacy reports but never executes settled reports again", async () => {
+  const storage = createReceizInMemoryOfflineProofQueueStorage();
+  const report: WildsWorldOutboxEntry = {
+    ...entry("command:report:legacy"),
+    command: { type: "social.report", subjectId: "player:spam", reason: "Repeated spam", commandId: "command:report:legacy" }
+  };
+  await enqueueWildsWorldCommand(report, storage);
+  const pending = await restoreWildsWorldEdgeSource(initialWildsWorldProjection(), report.actorId, storage);
+  assert.equal(pending.revision, 1);
+  await acknowledgeWildsWorldCommand(report.actorId, report.command.commandId, storage);
+  // A different report was settled by a prior session, absent from this session's in-memory deduplication.
+  const priorSession: WildsWorldOutboxEntry = { ...report, command: { type: "social.report", subjectId: "player:prior-session", reason: "Prior session report", commandId: "command:report:prior-session" } };
+  await enqueueWildsWorldCommand(priorSession, storage);
+  await acknowledgeWildsWorldCommand(report.actorId, priorSession.command.commandId, storage);
+  assert.deepEqual(await restoreWildsWorldEdgeSource(pending, report.actorId, storage), pending);
+  assert.deepEqual(await restoreWildsWorldEdgeSource(initialWildsWorldProjection(), report.actorId, storage), initialWildsWorldProjection());
 });
 
 test("source authority admits a valid command before any global projection responds", () => {

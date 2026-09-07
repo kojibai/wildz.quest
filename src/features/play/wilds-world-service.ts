@@ -71,7 +71,7 @@ import {
 } from "./wilds-world-state";
 
 import { createWildsConstructionProject, createWildsConstructionChunk, appendWildsConstructionChunkReference, appendWildsConstructionProjectChunk, constructionProofDigest, canWildsConstructionProject } from "./wilds-construction-project";
-import { createWildsConstructionComponent, createWildsMaterialContribution, createWildsWorkContribution } from "./wilds-construction-component";
+import { createWildsConstructionComponent, createWildsMaterialContribution, createWildsWorkContribution, projectWildsConstructionProgress } from "./wilds-construction-component";
 import { projectWildsProductionPlacementEvidence, type WildsConstructionPlacementRequest } from "./wilds-construction-placement";
 import type { WildsBlueprintPlacement } from "./wilds-world-construction";
 
@@ -489,6 +489,15 @@ export class WildsWorldService {
           if (!lot || wildsMaterialCustodian(this.projection, lot) !== authority.actorId || this.projection.consumedMaterialLots[lotId] || this.projection.storedMaterialLots[lotId] || this.projection.reservedMaterialLots[lotId]) throw new Error("wilds_construction_lot_unavailable");
           return createWildsMaterialContribution({ component, lot, custodianReceizId: authority.actorId, contributorReceizId: authority.actorId, commandId: command.commandId, kaiUPulse });
         });
+        const materials = Object.values(this.projection.constructionMaterialContributions);
+        const work = Object.values(this.projection.constructionWorkContributions);
+        const previouslyUnused = new Set(projectWildsConstructionProgress(component, materials, work).unusedLotIds);
+        const nextProgress = projectWildsConstructionProgress(component, [...materials, ...contributions], work);
+        // Reject both surplus new lots and new allocations that strand an earlier
+        // reservation. Existing historical surplus remains valid replay evidence.
+        if (nextProgress.unusedLotIds.some(lotId => !previouslyUnused.has(lotId))) {
+          throw new Error("wilds_construction_lots_exceed_remaining");
+        }
         events.push(this.append("construction.material_contributed", { contributions, commandDigest }, authority, command.commandId));
       } else {
         if (command.creature) throw new Error("wilds_construction_creature_authority_required");

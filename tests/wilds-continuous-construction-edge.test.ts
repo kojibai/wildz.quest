@@ -2,15 +2,16 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createReceizInMemoryOfflineProofQueueStorage } from "@receiz/sdk";
 import { WildsWorldService, type WildsWorldCommand } from "../src/features/play/wilds-world-service";
-import { createWildsMaterialContribution, createWildsWorkContribution } from "../src/features/play/wilds-construction-component";
+import { createWildsMaterialContribution, createWildsWorkContribution, projectWildsConstructionProgress } from "../src/features/play/wilds-construction-component";
 import { constructionProofDigest } from "../src/features/play/wilds-construction-project";
 import { worldCommandRequiresCard, isWildsEdgeImmediateConstructionCommand } from "../src/features/play/wilds-world-authority";
 import { projectWildsProductionPlacementEvidence } from "../src/features/play/wilds-construction-placement";
 import { projectWildsConstructionStageGeometry } from "../src/features/play/wilds-construction-geometry";
 import { previewWildsBlueprintPlacement } from "../src/features/play/wilds-world-construction";
-import { checkpointWildsWorld, initialWildsWorldProjection, projectWildsConstructionProgressFromWorld } from "../src/features/play/wilds-world-state";
+import { checkpointWildsWorld, initialWildsWorldProjection, projectWildsConstructionProgressFromWorld, reduceWildsWorldEvent, replayWildsWorld } from "../src/features/play/wilds-world-state";
 import { createWildsWorldEdgeAdmissionQueue, enqueueWildsWorldCommand, acknowledgeWildsWorldCommand, restoreWildsWorldEdgeSource, preserveWildsConstructionHistory, type WildsWorldOutboxEntry } from "../src/features/play/wilds-world-outbox";
 import { publishWildsConstructionEntry } from "../src/features/play/wilds-construction-publication";
+import { createWildsWorldEvent } from "../src/features/play/wilds-world-event";
 const actorId = "builder.receiz.id";
 const authority = { actorId, canonical: true, pulse: "2026-08-26T00:00:00.000Z", occurredAt: "2026-08-26T00:00:00.000Z", uPulse: 10 };
 const request = { pointer: { x: 2, y: 0, z: 2 }, rotationQuarterTurns: 0, heightStep: 0 };
@@ -60,6 +61,89 @@ test("owner places with zero lots and partial deposits support exact baseline pl
   assert.throws(() => restored.execute({ ...work, actorPosition: { x: 3, z: 2 } }, authority), /command_conflict/);
   assert.throws(() => restored.execute(work, { ...authority, actorId: "other" }), /command_conflict/);
 });
+test("excess deposits reject atomically while exact remaining material batches remain available", () => {
+  const f = fixture();
+  f.service.execute(f.place, authority);
+  const component = Object.values(f.service.snapshot().constructionComponents)[0]!;
+  const lots = [stone(101), stone(102), stone(103), stone(104), stone(105, "hay"), stone(106, "timber")];
+  const service = new WildsWorldService({ checkpoint: checkpointWildsWorld({ ...f.service.snapshot(),
+    materialLots: Object.fromEntries(lots.map(lot => [lot.lotId, lot])) }) });
+  const deposit = (indexes: number[], commandId: string): WildsWorldCommand => ({
+    type: "construction.component.deposit", componentId: component.componentId, componentHead: component.head,
+    lotIds: indexes.map(index => lots[index]!.lotId), actorPosition: request.pointer, commandId
+  });
+  const empty = service.checkpoint();
+  assert.throws(() => service.execute(deposit([0, 1, 2, 3, 4], "command:deposit:excess-batch"), authority), /lots_exceed_remaining/);
+  assert.deepEqual(service.checkpoint(), empty, "no event, reservation, or command receipt may survive batch rejection");
+  service.execute(deposit([0, 1], "command:deposit:frame"), authority);
+  service.execute({ type: "construction.component.work", componentId: component.componentId, componentHead: component.head,
+    actorPosition: request.pointer, commandId: "command:work:frame" }, authority);
+  const framed = service.checkpoint();
+  assert.throws(() => service.execute(deposit([2, 3, 4], "command:deposit:excess-remaining"), authority), /lots_exceed_remaining/);
+  assert.deepEqual(service.checkpoint(), framed);
+  service.execute(deposit([2, 4, 5], "command:deposit:remaining"), authority);
+  const progress = projectWildsConstructionProgressFromWorld(service.snapshot(), component.componentId);
+  assert.deepEqual(progress.unusedLotIds, []);
+  assert.equal(progress.materials.stone.remaining + progress.materials.hay.remaining + progress.materials.timber.remaining, 0);
+  assert.equal(service.snapshot().reservedMaterialLots[lots[3]!.lotId], undefined);
+  const supplied = service.checkpoint();
+  assert.throws(() => service.execute(deposit([3], "command:deposit:already-supplied"), authority), /lots_exceed_remaining/);
+  assert.deepEqual(service.checkpoint(), supplied);
+});
+
+test("excess deposits cannot displace an earlier unembedded reservation", () => {
+  const f = fixture();
+  f.service.execute(f.place, authority);
+  const component = Object.values(f.service.snapshot().constructionComponents)[0]!;
+  const originalLots = [stone(201), stone(202), stone(203)];
+  const originalProofs = originalLots.map(lot => createWildsMaterialContribution({ component, lot,
+    custodianReceizId: actorId, contributorReceizId: actorId, commandId: "command:deposit:original", kaiUPulse: 10 }));
+  const incoming = Array.from({ length: 100 }, (_, index) => stone(300 + index)).find(lot => {
+    const proof = createWildsMaterialContribution({ component, lot, custodianReceizId: actorId,
+      contributorReceizId: actorId, commandId: "command:deposit:displace", kaiUPulse: 10 });
+    return !projectWildsConstructionProgress(component, [...originalProofs, proof], []).unusedLotIds.includes(lot.lotId);
+  });
+  assert.ok(incoming, "fixture must sort the incoming contribution before an existing allocated lot");
+  const allLots = [...originalLots, incoming];
+  const service = new WildsWorldService({ checkpoint: checkpointWildsWorld({ ...f.service.snapshot(),
+    materialLots: Object.fromEntries(allLots.map(lot => [lot.lotId, lot])) }) });
+  const deposit = (lotIds: string[], commandId: string): WildsWorldCommand => ({
+    type: "construction.component.deposit", componentId: component.componentId, componentHead: component.head,
+    lotIds, actorPosition: request.pointer, commandId
+  });
+  service.execute(deposit(originalLots.map(lot => lot.lotId), "command:deposit:original"), authority);
+  const before = service.checkpoint();
+  assert.throws(() => service.execute(deposit([incoming.lotId], "command:deposit:displace"), authority), /lots_exceed_remaining/);
+  assert.deepEqual(service.checkpoint(), before);
+});
+
+test("historical surplus deposits replay exactly and do not block newly needed material", () => {
+  const f = fixture();
+  f.service.execute(f.place, authority);
+  const component = Object.values(f.service.snapshot().constructionComponents)[0]!;
+  const lots = [stone(501), stone(502), stone(503), stone(504), stone(505, "hay")];
+  const before = { ...f.service.snapshot(), materialLots: Object.fromEntries(lots.map(lot => [lot.lotId, lot])) };
+  const causeId = "command:deposit:historical-surplus";
+  const contributions = lots.slice(0, 4).map(lot => createWildsMaterialContribution({ component, lot,
+    custodianReceizId: actorId, contributorReceizId: actorId, commandId: causeId, kaiUPulse: 10 }));
+  // The prior admission policy allowed this event. Its exact proof remains
+  // replayable; the new command guard must not retroactively rewrite custody.
+  const historical = createWildsWorldEvent({ actorId, pulse: authority.pulse, occurredAt: authority.occurredAt, uPulse: authority.uPulse,
+    kind: "construction.material_contributed", causeId,
+    kaiKlok: before.revision + 1, previousEventId: before.cursor?.eventId ?? null,
+    payload: { contributions, commandDigest: constructionProofDigest({ causeId }) } });
+  const restored = replayWildsWorld([historical], checkpointWildsWorld(before));
+  assert.deepEqual(restored, reduceWildsWorldEvent(before, historical));
+  assert.equal(projectWildsConstructionProgressFromWorld(restored, component.componentId).unusedLotIds.length, 1);
+  const oldUnused = projectWildsConstructionProgressFromWorld(restored, component.componentId).unusedLotIds;
+  const service = new WildsWorldService({ checkpoint: checkpointWildsWorld(restored) });
+  assert.equal(service.execute({ type: "construction.component.deposit", componentId: component.componentId,
+    componentHead: component.head, lotIds: [lots[4]!.lotId], actorPosition: request.pointer,
+    commandId: "command:deposit:historical-needed" }, authority).events.length, 1);
+  assert.deepEqual(projectWildsConstructionProgressFromWorld(service.snapshot(), component.componentId).unusedLotIds, oldUnused);
+  assert.deepEqual(new WildsWorldService({ checkpoint: service.checkpoint() }).snapshot(), service.snapshot());
+});
+
 test("production placement derives current terrain, planned reservations and rejects tampered/stale source without writes", () => {
   const f = fixture();
   assert.equal(f.place.type, "construction.component.place");
