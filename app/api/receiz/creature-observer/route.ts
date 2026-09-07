@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
                         : null,
                       provider: typeof reply?.provider === "string" ? reply.provider : "receiz-world",
                       model: typeof reply?.model === "string" ? reply.model : "receiz-v124-memory-intelligence",
-                      version: typeof reply?.version === "string" ? reply.version : "124.0.3"
+                      version: typeof reply?.version === "string" ? reply.version : "125.0.0"
                     });
                     return proposal;
                   }
