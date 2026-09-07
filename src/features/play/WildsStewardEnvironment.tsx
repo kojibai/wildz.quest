@@ -3,23 +3,23 @@
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, type ComponentProps } from "react";
 import * as THREE from "three";
-import { projectWildsResourceAvailability, projectWildsResourceSourceForObstacle, type WildsResourceSource } from "./wilds-resource-authority";
+import { projectWildsResourceAvailability, type WildsResourceSource } from "./wilds-resource-authority";
 import type { WildsWorldProjection } from "./wilds-world-state";
 import type { WildsStructureV1 } from "./wilds-steward-construction";
 import { projectWildsTerrainActorPosition } from "./wilds-terrain-rendering";
-import { sampleWildsTerrain, WILDS_TERRAIN_TILE_SIZE } from "./wilds-terrain-authority";
-import { wildsTerrainObstaclesForTile } from "./wilds-terrain-obstacles";
+import { sampleWildsTerrain } from "./wilds-terrain-authority";
 import { wildsSiteRuntimeGroundY, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 import { projectWildsResourceAffordance } from "./wilds-resource-affordance";
 import { projectWildsWorkPresentation, type WildsActiveWorkSource } from "./wilds-work-presentation";
 import { useWildsReadability } from "./WildsReadabilityContext";
-import type { WildsStewardPlacement } from "./wilds-steward-craft";
+import { constructionSourcesNear, type WildsStewardPlacement } from "./wilds-steward-craft";
 import type { WildsConstructionSiteV1 } from "./wilds-construction-site";
 
 function createGeometry() {
   return {
     timberRing: new THREE.TorusGeometry(.62, .055, 7, 24),
     stoneRing: new THREE.TorusGeometry(.62, .055, 7, 24),
+    hayTuft: new THREE.ConeGeometry(.12, .7, 5),
     sourceHit: new THREE.CylinderGeometry(.72, .72, 3.8, 10),
     capacityPip: new THREE.SphereGeometry(.065, 6, 5),
     workChip: new THREE.OctahedronGeometry(.09, 0),
@@ -54,6 +54,7 @@ function createMaterials() {
     sourceHit: new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: .001, depthWrite: false }),
     timberChip: new THREE.MeshStandardMaterial({ color: "#d59b61", emissive: "#78512d", emissiveIntensity: .32, roughness: .82 }),
     stoneChip: new THREE.MeshStandardMaterial({ color: "#b9ccc1", emissive: "#526b60", emissiveIntensity: .22, roughness: .96 }),
+    hayBlade: new THREE.MeshStandardMaterial({ color: "#d9c76c", emissive: "#746522", emissiveIntensity: .3, roughness: .9 }),
     foundation: new THREE.MeshStandardMaterial({ color: "#68766e", roughness: .95 }),
     wood: new THREE.MeshStandardMaterial({ color: "#73513b", roughness: .88 }),
     roof: new THREE.MeshStandardMaterial({ color: "#275947", roughness: .78, side: THREE.DoubleSide }),
@@ -98,28 +99,20 @@ export function WildsStewardEnvironment({ activeWorkSource, placementPreview, li
   siteRuntime: WildsSiteRuntimeProjection;
   siteSpaceId: string;
 }) {
-  const tileX = Math.floor(player.x / WILDS_TERRAIN_TILE_SIZE);
-  const tileZ = Math.floor(player.z / WILDS_TERRAIN_TILE_SIZE);
   const sources = useMemo(() => {
     const projected: Array<{ source: WildsResourceSource; availableCapacity: number }> = [];
     if (siteSpaceId !== "wildz.space.outer.v1") return projected;
-    for (let x = tileX - 2; x <= tileX + 2; x += 1) for (let z = tileZ - 2; z <= tileZ + 2; z += 1) {
-      for (const obstacle of wildsTerrainObstaclesForTile(x, z)) {
-        if (obstacle.kind !== "tree" && obstacle.kind !== "rock") continue;
-        const source = projectWildsResourceSourceForObstacle(obstacle);
-        const distance = Math.hypot(source.position.x - player.x, source.position.z - player.z);
-        if (distance > 11) continue;
-        const state = livingWorld?.harvestedSources[source.sourceId];
-        const availability = projectWildsResourceAvailability(source, {
-          admittedHarvestedCapacity: state?.harvestedCapacity ?? 0,
-          lastHarvestKaiPulse: state?.lastHarvestKaiPulse ?? "0",
-          currentKaiPulse: String(kaiUPulse)
-        });
-        projected.push({ source, availableCapacity: availability.availableCapacity });
-      }
+    for (const source of constructionSourcesNear(player)) {
+      const state = livingWorld?.harvestedSources[source.sourceId];
+      const availability = projectWildsResourceAvailability(source, {
+        admittedHarvestedCapacity: state?.harvestedCapacity ?? 0,
+        lastHarvestKaiPulse: state?.lastHarvestKaiPulse ?? "0",
+        currentKaiPulse: String(kaiUPulse)
+      });
+      projected.push({ source, availableCapacity: availability.availableCapacity });
     }
-    return projected.sort((left, right) => Math.hypot(left.source.position.x - player.x, left.source.position.z - player.z) - Math.hypot(right.source.position.x - player.x, right.source.position.z - player.z) || left.source.sourceId.localeCompare(right.source.sourceId)).slice(0, 24);
-  }, [kaiUPulse, livingWorld?.harvestedSources, player.x, player.z, siteSpaceId, tileX, tileZ]);
+    return projected;
+  }, [kaiUPulse, livingWorld?.harvestedSources, player.x, player.z, siteSpaceId]);
   const structures = useMemo(() => Object.values(livingWorld?.structures ?? {})
     .filter((structure) => Math.hypot(structure.position.x - player.x, structure.position.z - player.z) <= 110)
     .sort((left, right) => left.structureId.localeCompare(right.structureId)), [livingWorld?.structures, player.x, player.z]);
@@ -244,6 +237,7 @@ function ResourceManifestation({ activeWorkSource, geometry, materials, onIntera
   const readability = useWildsReadability();
   const impact = useRef<THREE.Group>(null);
   const timber = source.kind === "timber";
+  const hay = source.kind === "hay";
   const actorElevation = wildsSiteRuntimeGroundY(siteRuntime, siteSpaceId, source.position.x, source.position.z, source.position.y);
   const position = projectWildsTerrainActorPosition(source.position, player, .05, { actorElevation, anchorElevation: terrainElevation });
   const distance = Math.hypot(source.position.x - player.x, source.position.z - player.z);
@@ -273,6 +267,9 @@ function ResourceManifestation({ activeWorkSource, geometry, materials, onIntera
   });
   return <group name={`steward-source-${source.sourceId}`} onClick={(event) => { event.stopPropagation(); if (!pending) onInteract?.(source); }} position={position} userData={{ affordance: affordance.state, availableCapacity, capacity: source.capacity }}>
     <Shared geometry={timber ? geometry.timberRing : geometry.stoneRing} material={material} position={[0, .055, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[.82 + ratio * .18, .82 + ratio * .18, 1]} />
+    {hay ? <group name="hay-source-manifestation">
+      {Array.from({ length: 9 }, (_, index) => { const angle = index / 9 * Math.PI * 2; return <Shared castShadow geometry={geometry.hayTuft} key={index} material={materials.hayBlade} position={[Math.cos(angle) * (.18 + index % 3 * .12), .34, Math.sin(angle) * (.18 + index % 3 * .12)]} rotation={[0, angle, (index % 2 ? 1 : -1) * .12]} />; })}
+    </group> : null}
     {Array.from({ length: pips }, (_, index) => {
       const angle = index / 4 * Math.PI * 2;
       return <Shared geometry={geometry.capacityPip} key={index} material={material} position={[Math.cos(angle) * .78, .08, Math.sin(angle) * .78]} />;
@@ -283,7 +280,7 @@ function ResourceManifestation({ activeWorkSource, geometry, materials, onIntera
         return <Shared geometry={geometry.workChip} key={index} material={timber ? materials.timberChip : materials.stoneChip} position={[Math.cos(angle) * (.2 + index * .035), .06 + (index % 3) * .08, Math.sin(angle) * (.2 + index * .035)]} rotation={[angle, angle * .5, 0]} />;
       })}
     </group>
-    <Shared geometry={geometry.sourceHit} material={materials.sourceHit} position={[0, 1.8, 0]} scale={timber ? [1, 1, 1] : [.72, .35, .72]} />
+    <Shared geometry={geometry.sourceHit} material={materials.sourceHit} position={[0, hay ? .45 : 1.8, 0]} scale={timber ? [1, 1, 1] : [.72, hay ? .22 : .35, .72]} />
   </group>;
 }
 

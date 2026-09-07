@@ -14409,7 +14409,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-field-guide-entry.is-undiscovered em { color: #d2c27e; }
 .wilds-field-guide-limit { justify-self: center; color: #82968a; font-size: 8px; letter-spacing: .04em; text-align: center; }
 
-.wilds-satchel-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.wilds-satchel-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .wilds-satchel-grid article { position: relative; display: grid; grid-template-columns: 34px minmax(0, 1fr); min-height: 68px; align-items: center; gap: 9px; padding: 10px; overflow: hidden; border: 1px solid rgba(227, 211, 143, .17); border-radius: 16px; background: radial-gradient(circle at 4% 0%, rgba(222, 196, 101, .14), transparent 48%), linear-gradient(145deg, rgba(65, 70, 57, .64), rgba(25, 34, 28, .82)); box-shadow: inset 0 1px rgba(255,255,255,.05), 0 8px 18px rgba(0,0,0,.12); }
 .wilds-satchel-grid article > svg { display: grid; width: 34px; height: 34px; padding: 8px; color: #efcf65; border: 1px solid rgba(237, 216, 139, .23); border-radius: 12px; background: rgba(236, 207, 104, .08); }
 .wilds-satchel-grid article > span { display: grid; min-width: 0; gap: 2px; }
@@ -14424,7 +14424,9 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-steward-craft-header strong { color: #effff7; font-size: clamp(15px, 4vw, 19px); }
 .wilds-steward-material-bank { display: flex; flex: 0 0 auto; gap: 5px; }
 .wilds-steward-material-bank > span { display: flex; min-width: 46px; height: 34px; align-items: center; justify-content: center; gap: 5px; color: #dcfff1; border: 1px solid rgba(127, 240, 197, .22); border-radius: 12px; background: rgba(7, 29, 25, .7); font-variant-numeric: tabular-nums; }
+.wilds-steward-material-bank > span:first-child { border-color: rgba(224, 205, 111, .34); background: rgba(102, 87, 24, .22); }
 .wilds-steward-material-bank svg { color: #7ff0c5; }
+.wilds-steward-material-bank small { color: #9fcf9d; font-size: 7px; text-transform: uppercase; }
 .wilds-steward-partner { display: grid; grid-template-columns: minmax(0, 1fr) minmax(76px, .65fr); align-items: center; gap: 5px 10px; padding: 9px 10px; border: 1px solid rgba(127, 240, 197, .18); border-radius: 14px; background: rgba(5, 25, 22, .66); }
 .wilds-steward-partner > span { display: grid; min-width: 0; gap: 2px; }
 .wilds-steward-partner strong { overflow: hidden; color: #f2fff9; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }

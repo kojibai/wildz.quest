@@ -47,7 +47,7 @@ export function WildzWorldControls({
   movementMode,
   cardOrder,
   commandItems,
-  materialCounts = { timber: 0, stone: 0 },
+  materialCounts = { hay: 0, timber: 0, stone: 0 },
   dismissSignal,
   exclusiveOwner,
   overlayState,
@@ -81,7 +81,7 @@ export function WildzWorldControls({
   movementMode: WildsMovementMode;
   cardOrder: WildzCardSort;
   commandItems: readonly WildsCommandItem[];
-  materialCounts?: Readonly<{ timber: number; stone: number }>;
+  materialCounts?: Readonly<{ hay: number; timber: number; stone: number }>;
   dismissSignal: number;
   exclusiveOwner: WorldOverlayOwner;
   overlayState: WorldOverlayState;
@@ -299,7 +299,7 @@ export function WildzWorldControls({
             onRequest={onRequestCapability}
           />
           <button
-            aria-label={`Open Living Construction. Satchel has ${materialCounts.timber} timber and ${materialCounts.stone} stone`}
+            aria-label={`Open Living Construction. Satchel has ${materialCounts.hay} hay, ${materialCounts.timber} timber, and ${materialCounts.stone} stone`}
             className="wildz-construction-control"
             onClick={handleOpenConstruction}
             title="Living Construction"
@@ -307,6 +307,7 @@ export function WildzWorldControls({
           >
             <Icons.construction aria-hidden="true" size={20} />
             <span aria-hidden="true" className="wildz-construction-counts">
+              <b key={`hay-${materialCounts.hay}`}><Icons.products size={9} />{materialCounts.hay}</b>
               <b key={`timber-${materialCounts.timber}`}><Icons.timber size={9} />{materialCounts.timber}</b>
               <b key={`stone-${materialCounts.stone}`}><Icons.quarry size={9} />{materialCounts.stone}</b>
             </span>

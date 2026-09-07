@@ -3,6 +3,15 @@ import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 
 describe("Receiz Wilds rendering contract", () => {
+  it("projects and manifests canonical living hay alongside timber and stone", async () => {
+    const environment = await readFile("src/features/play/WildsStewardEnvironment.tsx", "utf8");
+    const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
+    const panel = await readFile("src/features/play/WildsStewardCraftPanel.tsx", "utf8");
+
+    assert.match(environment, /hay-source-manifestation/);
+    assert.match(campaign, /projectWildsResourceRegion/);
+    assert.match(panel, /Living hay/);
+  });
   it("presents Steward Craft as one partner-bound responsive blueprint selector", async () => {
     const panel = await readFile("src/features/play/WildsStewardCraftPanel.tsx", "utf8");
     const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");

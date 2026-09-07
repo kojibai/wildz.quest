@@ -2,16 +2,22 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   WILDS_STEWARD_BLUEPRINTS,
+  constructionSourcesNear,
   projectWildsStewardCraft,
   projectWildsStewardPlacement
 } from "../src/features/play/wilds-steward-craft";
 import type { WildsMaterialLotV1 } from "../src/features/play/wilds-steward-construction";
 
-function lot(kind: "timber" | "stone", index: number): WildsMaterialLotV1 {
+function lot(kind: "hay" | "timber" | "stone", index: number): WildsMaterialLotV1 {
   return { kind, lotId: `${kind}:${index}` } as WildsMaterialLotV1;
 }
 
 describe("Steward Craft player projection", () => {
+  it("keeps canonical construction discovery bounded at the world edge", () => {
+    const sources = constructionSourcesNear({ x: 500_000_000, z: 500_000_000 });
+    assert.equal(sources.some((source) => source.kind === "hay"), true);
+    assert.equal(new Set(sources.map((source) => source.sourceId)).size, sources.length);
+  });
   it("publishes the four end-to-end admitted blueprints with exact requirements", () => {
     assert.deepEqual(WILDS_STEWARD_BLUEPRINTS.map(({ id, materials }) => ({ id, materials })), [
       { id: "trail-shelter", materials: { timber: 2, stone: 1 } },
@@ -24,12 +30,12 @@ describe("Steward Craft player projection", () => {
   it("requires every exact material before any construction site can be placed", () => {
     const projection = projectWildsStewardCraft({
       activeCreatureName: "Mosslight",
-      materialLots: [lot("timber", 1), lot("timber", 2), lot("stone", 1)],
+      materialLots: [lot("hay", 1), lot("timber", 1), lot("timber", 2), lot("stone", 1)],
       pending: false,
       selectedBlueprintId: null,
       workMeters: [{ family: "lumber", label: "Woodland", guidance: "Tend timber", value: 72, state: "ready" }]
     });
-    assert.deepEqual(projection.materials, { timber: 2, stone: 1 });
+    assert.deepEqual(projection.materials, { hay: 1, timber: 2, stone: 1 });
     assert.equal(projection.partner.name, "Mosslight");
     assert.equal(projection.partner.capacity, 72);
     assert.equal(projection.blueprints.find((item) => item.id === "trail-shelter")?.state, "ready");
