@@ -33,16 +33,18 @@ describe("Wilds world client contract", () => {
 
   it("updates the local source projection before attempting global synchronization", () => {
     const source = readFileSync("src/features/play/use-wilds-world.ts", "utf8");
-    const admit = source.indexOf("admitWildsWorldOutboxEntry(localBase, entry)");
-    const display = source.indexOf("setSnapshot(locallyAdmittedProjection)", admit);
-    const send = source.indexOf("await sendEntry(entry)", display);
-    assert.ok(admit >= 0 && display > admit && send > display);
+    const admit = source.indexOf("const locallyAdmittedProjection = await edgeQueue.admit(entry)");
+    const send = source.indexOf("await sendEntry(entry)", admit);
+    assert.ok(admit >= 0 && send > admit);
+    const queue = readFileSync("src/features/play/wilds-world-outbox.ts", "utf8");
+    assert.ok(queue.indexOf("await input.persist(durable)") < queue.indexOf("input.onAdmitted?.(projection)"));
     assert.match(source, /return synchronizedProjection/);
   });
 
   it("keeps material harvest network work out of the visible action path", () => {
     assert.equal(shouldSynchronizeWildsWorldCommandAfterPaint({ type: "resource.material.harvest" } as never), true);
     assert.equal(shouldSynchronizeWildsWorldCommandAfterPaint({ type: "team.create" } as never), false);
+    for (const type of ["construction.project.create", "construction.component.place", "construction.component.deposit", "construction.component.work"]) assert.equal(shouldSynchronizeWildsWorldCommandAfterPaint({ type } as never), true);
     const source = readFileSync("src/features/play/use-wilds-world.ts", "utf8");
     assert.match(source, /scheduleWildsWorldBackgroundSync/);
     assert.match(source, /return locallyAdmittedProjection/);

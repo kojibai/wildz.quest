@@ -47,3 +47,7 @@ export function verifyWildsWorldCommandCard(input: {
   }
   return input.card;
 }
+
+export function isWildsEdgeImmediateConstructionCommand(command: Pick<WildsWorldCommand, "type">) {
+  return command.type === "construction.project.create" || command.type.startsWith("construction.component.");
+}

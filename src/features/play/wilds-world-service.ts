@@ -70,7 +70,16 @@ import {
   type WildsWorldProjection
 } from "./wilds-world-state";
 
+import { createWildsConstructionProject, createWildsConstructionChunk, appendWildsConstructionChunkReference, appendWildsConstructionProjectChunk, constructionProofDigest, canWildsConstructionProject } from "./wilds-construction-project";
+import { createWildsConstructionComponent, createWildsMaterialContribution, createWildsWorkContribution } from "./wilds-construction-component";
+import { projectWildsProductionPlacementEvidence, type WildsConstructionPlacementRequest } from "./wilds-construction-placement";
+import type { WildsBlueprintPlacement } from "./wilds-world-construction";
+
 export type WildsWorldCommand = (
+  | { type: "construction.project.create"; name: string; region: { x: number; z: number }; commandId: string }
+  | { type: "construction.component.place"; projectId: string; placement: WildsBlueprintPlacement; request: WildsConstructionPlacementRequest; actorPosition: { x: number; z: number }; commandId: string }
+  | { type: "construction.component.deposit"; componentId: string; componentHead: string; lotIds: string[]; actorPosition: { x: number; z: number }; commandId: string }
+  | { type: "construction.component.work"; componentId: string; componentHead: string; actorPosition: { x: number; z: number }; creature?: { subjectId: string; head: string }; commandId: string }
   | { type: "boss.track"; bossId: string; position: { x: number; z: number }; commandId: string }
   | { type: "raid.enter"; bossId: string; roundId: string; position: { x: number; z: number }; preferredSquad?: number; commandId: string }
   | { type: "raid.act"; bossId: string; roundId: string; intent: WildsRaidIntent["type"]; commandId: string }
@@ -417,7 +426,16 @@ export class WildsWorldService {
   execute(command: WildsWorldCommand, authority: WildsWorldAuthority) {
     if (!authority.canonical) throw new Error("wilds_world_canonical_authority_required");
     if (!commandIdValid(command.commandId)) throw new Error("wilds_world_command_id_invalid");
-    if (this.eventTail.some((event) => event.causeId === command.commandId)) return { events: [], projection: this.projection };
+    const commandDigest = constructionProofDigest(command);
+    const receipt = this.projection.constructionCommandReceipts[command.commandId];
+    if (receipt) {
+      if (receipt.commandDigest !== commandDigest || receipt.actorId !== authority.actorId) throw new Error("wilds_construction_command_conflict");
+      return { events: [], projection: this.projection };
+    }
+    if (this.eventTail.some((event) => event.causeId === command.commandId)) {
+      if (command.type.startsWith("construction.component.") || command.type === "construction.project.create") throw new Error("wilds_construction_command_conflict");
+      return { events: [], projection: this.projection };
+    }
     const commandKai = command.kai ? verifyWildsWorldCommandKai(command) : null;
     const kaiOccurredAt = commandKai ? kaiUPulseToISOString(commandKai.uPulse) : null;
     authority = {
@@ -437,7 +455,47 @@ export class WildsWorldService {
       this.advanceSaga({ occurredAt: authority.occurredAt }, authority, command.commandId, events);
     }
 
-    if (command.type === "grove.observe") {
+    const kaiUPulse = authorityMoment(authority).uPulse;
+    if (command.type === "construction.project.create") {
+      const project = createWildsConstructionProject({ ownerReceizId: authority.actorId, name: command.name, region: command.region, commandId: command.commandId, kaiUPulse });
+      events.push(this.append("construction.project_created", { project, commandDigest }, authority, command.commandId));
+    } else if (command.type === "construction.component.place") {
+      const project = this.projection.constructionProjects[command.projectId];
+      if (!project || !canWildsConstructionProject(project, authority.actorId, "plan")) throw new Error("wilds_construction_access_denied");
+      requireConstructionReach(command.actorPosition, command.placement.transform.position);
+      const evidence = projectWildsProductionPlacementEvidence(this.projection, command.projectId, command.request);
+      const component = createWildsConstructionComponent({ project, placement: command.placement, evidence, ownerReceizId: authority.actorId, commandId: command.commandId, kaiUPulse });
+      let page = project.firstChunkId ? this.projection.constructionChunks[project.firstChunkId] : createWildsConstructionChunk({ project, kaiUPulse });
+      const visited = new Set<string>();
+      while (page?.nextChunkId) {
+        if (visited.has(page.chunkId)) throw new Error("wilds_construction_chunk_cycle");
+        visited.add(page.chunkId);
+        page = this.projection.constructionChunks[page.nextChunkId];
+      }
+      if (!page) throw new Error("wilds_construction_chunk_missing");
+      const appended = appendWildsConstructionChunkReference({ chunk: page, component, kaiUPulse });
+      const successor = project.firstChunkId ? project : appendWildsConstructionProjectChunk({ project, chunk: appended.chunk, kaiUPulse });
+      events.push(this.append("construction.component_placed", { component, ...appended, project: successor, commandDigest }, authority, command.commandId));
+    } else if (command.type === "construction.component.deposit" || command.type === "construction.component.work") {
+      const component = this.projection.constructionComponents[command.componentId];
+      if (!component || component.head !== command.componentHead) throw new Error("wilds_construction_component_stale");
+      requireConstructionReach(command.actorPosition, component.transform.position);
+      const project = this.projection.constructionProjects[component.projectId];
+      if (!project || !canWildsConstructionProject(project, authority.actorId, command.type === "construction.component.deposit" ? "contribute" : "work")) throw new Error("wilds_construction_access_denied");
+      if (command.type === "construction.component.deposit") {
+        if (!command.lotIds.length || command.lotIds.length > 64 || new Set(command.lotIds).size !== command.lotIds.length) throw new Error("wilds_construction_lots_invalid");
+        const contributions = command.lotIds.map((lotId) => {
+          const lot = this.projection.materialLots[lotId];
+          if (!lot || wildsMaterialCustodian(this.projection, lot) !== authority.actorId || this.projection.consumedMaterialLots[lotId] || this.projection.storedMaterialLots[lotId] || this.projection.reservedMaterialLots[lotId]) throw new Error("wilds_construction_lot_unavailable");
+          return createWildsMaterialContribution({ component, lot, custodianReceizId: authority.actorId, contributorReceizId: authority.actorId, commandId: command.commandId, kaiUPulse });
+        });
+        events.push(this.append("construction.material_contributed", { contributions, commandDigest }, authority, command.commandId));
+      } else {
+        if (command.creature) throw new Error("wilds_construction_creature_authority_required");
+        const contribution = createWildsWorkContribution({ component, materials: Object.values(this.projection.constructionMaterialContributions), work: Object.values(this.projection.constructionWorkContributions), worker: { kind: "player", receizId: authority.actorId }, amount: 1, commandId: command.commandId, kaiUPulse });
+        events.push(this.append("construction.work_contributed", { contribution, commandDigest }, authority, command.commandId));
+      }
+    } else if (command.type === "grove.observe") {
       events.push(this.append("grove.discovered", { grove: command.grove, emission: command.emission }, authority, command.commandId));
     } else if (command.type === "grove.act") {
       const harvest = command.operation.intention.kind === "grove.harvest-honey";
@@ -915,4 +973,8 @@ function socialTeam(team: import("./wilds-team-league").WildsTeam): WildsSocialT
 
 function projectionTeam(team: WildsSocialTeam, previous: import("./wilds-team-league").WildsTeam) {
   return { ...previous, captainId: team.captainId, memberIds: team.members.map((member) => member.playerId), members: team.members, invites: team.invites, events: team.events };
+}
+
+function requireConstructionReach(actor: { x: number; z: number }, target: { x: number; z: number }) {
+  if (![actor.x, actor.z, target.x, target.z].every(Number.isFinite) || Math.hypot(actor.x - target.x, actor.z - target.z) > 6) throw new Error("wilds_construction_unreachable");
 }
