@@ -1,3 +1,5 @@
+import { createWildsStewardStructureOperation } from "./wilds-steward-construction";
+import { settleWildsBuild, verifyWildsBuildSettlement } from "./wilds-steward-build-settlement";
 import { resolveWildsCraftWorkstation, resolveWildsMaterialCache } from "./wilds-construction-function";
 import { verifyWildsConstructionProject, verifyWildsConstructionChunk, canWildsConstructionProject, createWildsConstructionChunk, appendWildsConstructionChunkReference, appendWildsConstructionProjectChunk, constructionProofDigest, validConstructionHead, type WildsConstructionProjectV1, type WildsConstructionChunkV1 } from "./wilds-construction-project";
 import { verifyWildsConstructionComponent, verifyWildsMaterialContribution, verifyWildsWorkContribution, projectWildsConstructionProgress, type WildsConstructionComponentV1, type WildsConstructionMaterialContributionV1, type WildsConstructionWorkContributionV1 } from "./wilds-construction-component";
@@ -326,10 +328,19 @@ function cursorAsEvent(cursor: NonNullable<WildsWorldProjection["cursor"]>) {
 
 function stewardEconomyPatch(state: WildsWorldProjection, event: CompatibleWildsWorldEvent, payload: Record<string, unknown>) {
   const operation = recordPayload(payload.operation) as unknown as WildsLivingOperationPlanV1;
-  const emission = recordPayload(payload.emission) as unknown as WildsWorldEmissionProofV1;
-  const phiAward = recordPayload(payload.phiAward) as unknown as WildsStewardPhiAwardV1;
   const amountPhiMicro = String(payload.amountPhiMicro ?? "");
   const currentEmission = wildsWorldSourceEmission(state);
+  if (amountPhiMicro === "0" && ["structure.built", "construction.site_worked", "tool.crafted"].includes(event.kind)) {
+    if (!verifyWildsLivingOperationPlan(operation).ok || operation.category !== "construction"
+      || !operation.participants.some(participant => participant.kind === "player" && participant.id === event.actorId)
+      || state.livingOperations[operation.operationId]) throw new Error("wilds_world_steward_economy_invalid");
+    const expected = settleWildsBuild({ operation, currentEmission, actorId: event.actorId });
+    verifyWildsBuildSettlement(payload, expected);
+    return { livingOperations: { ...state.livingOperations, [operation.operationId]: operation },
+      contributionHistory: [...state.contributionHistory, { operationId: operation.operationId, amountPhiMicro, eventId: event.eventId }].slice(-4_096) };
+  }
+  const emission = recordPayload(payload.emission) as unknown as WildsWorldEmissionProofV1;
+  const phiAward = recordPayload(payload.phiAward) as unknown as WildsStewardPhiAwardV1;
   if (!verifyWildsLivingOperationPlan(operation).ok || operation.category !== "construction"
     || !operation.participants.some((participant) => participant.kind === "player" && participant.id === event.actorId)
     || state.livingOperations[operation.operationId] || !verifyWildsWorldEmissionProof(emission)
@@ -607,6 +618,9 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
         if (!lot || wildsMaterialCustodian(state, lot) !== event.actorId || lot.head !== structure.consumedLotHeads[index]
           || state.consumedMaterialLots[lotId] || state.storedMaterialLots[lotId]) throw new Error("wilds_world_structure_material_invalid");
       }
+      const expectedOperation = createWildsStewardStructureOperation({ structure, lots: structure.consumedLotIds.map(id => state.materialLots[id]),
+        ownerReceizId: structure.ownerReceizId, actorReceizId: event.actorId, playerHead: sha256PortableBasis(event.actorId) });
+      if (canonicalPortableCardJson(expectedOperation) !== canonicalPortableCardJson(payload.operation)) throw new Error("wilds_world_structure_source_mismatch");
       const economy = stewardEconomyPatch(state, event, payload);
       return appendEvent(state, event, {
         structures: { ...state.structures, [structure.structureId]: structure },
@@ -668,6 +682,9 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
       }
       const reservedMaterialLots = { ...state.reservedMaterialLots };
       for (const entry of current.contributedLots) delete reservedMaterialLots[entry.lotId];
+      const expectedOperation = createWildsStewardStructureOperation({ structure, lots: structure.consumedLotIds.map(id => state.materialLots[id]),
+        ownerReceizId: structure.ownerReceizId, actorReceizId: event.actorId, playerHead: sha256PortableBasis(event.actorId) });
+      if (canonicalPortableCardJson(expectedOperation) !== canonicalPortableCardJson(payload.operation)) throw new Error("wilds_world_structure_source_mismatch");
       const economy = stewardEconomyPatch(state, event, payload);
       return appendEvent(state, event, {
         constructionSites: { ...state.constructionSites, [site.siteId]: site },

@@ -1,3 +1,4 @@
+import { wildsStructureSupportAt } from "./wilds-structure-support";
 import { appendWildsActivity, normalizeWildsActivityHistory, type WildsActivityEntry } from "./wallet/wilds-activity-history";
 import { creatureFamilies, creatureForm, creatureForms, type CreatureRarity } from "./creature-catalog";
 import { projectWildsConstructionPersistence, type WildsConstructionPersistence } from "./wilds-construction-persistence";
@@ -2091,6 +2092,10 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       movementCapabilities.includes("climb"),
       admittedAirborne ? input.verticalWorldY : undefined
     ) : null;
+    if (siteMovement && !admittedAirborne && currentSpace.spaceId === "wildz.space.outer.v1") {
+      const builtFloor = wildsStructureSupportAt({ x: siteMovement.x, z: siteMovement.z }, input.structureSupports, 0, currentSpace.position.y);
+      if (builtFloor && builtFloor.deckY >= siteMovement.floorY && builtFloor.deckY + 1.55 <= siteMovement.ceilingY) siteMovement.floorY = builtFloor.deckY;
+    }
     const nextPlayer = siteMovement ? { x: siteMovement.x, z: siteMovement.z } : movement.position;
     const previousRegion = regionForPosition(state.player);
     const nextRegion = regionForPosition(nextPlayer);

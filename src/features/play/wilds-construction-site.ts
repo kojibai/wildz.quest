@@ -1,3 +1,4 @@
+import { playerStewardBuilder } from "./wilds-steward-construction";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import { projectWildsStewardPlacement, type WildsStewardPlacement } from "./wilds-steward-craft";
 import {
@@ -205,7 +206,7 @@ export function completeWildsConstructionSite(input: Readonly<{
   expectedSiteHead?: string;
   lots: readonly WildsMaterialLotV1[];
   workerReceizId: string;
-  creature: Readonly<{ subjectId: string; head: string }>;
+  creature?: Readonly<{ subjectId: string; head: string }>;
   existingStructures: readonly WildsStructureV1[];
   kaiUPulse: number;
 }>): Readonly<{ site: WildsConstructionSiteV1; structure: WildsStructureV1 }> {
@@ -213,7 +214,7 @@ export function completeWildsConstructionSite(input: Readonly<{
   if (input.site.stage === "complete") throw new Error("wilds_construction_site_terminal");
   if (input.expectedSiteHead && input.expectedSiteHead !== input.site.head) throw new Error("wilds_construction_site_stale");
   if (input.site.stage !== "materials-ready") throw new Error("wilds_construction_materials_incomplete");
-  if (!ID.test(input.workerReceizId) || !ID.test(input.creature.subjectId) || !HEAD.test(input.creature.head)
+  if (!ID.test(input.workerReceizId) || (input.creature && (!ID.test(input.creature.subjectId) || !HEAD.test(input.creature.head)))
     || !Number.isSafeInteger(input.kaiUPulse) || input.kaiUPulse < input.site.kaiUPulse) throw new Error("wilds_construction_worker_invalid");
   const orderedLots = [...input.lots].sort((left, right) => left.lotId.localeCompare(right.lotId));
   if (canonicalPortableCardJson(orderedLots.map((lot) => ({ lotId: lot.lotId, lotHead: lot.head, kind: lot.kind, ownerReceizId: input.site.contributedLots.find((entry) => entry.lotId === lot.lotId)?.ownerReceizId })))
@@ -225,7 +226,7 @@ export function completeWildsConstructionSite(input: Readonly<{
     ownerReceizId: input.site.placedByReceizId,
     rotationQuarterTurns: input.site.rotationQuarterTurns,
     lots: orderedLots,
-    builder: { creatureSubjectId: input.creature.subjectId, creatureHead: input.creature.head },
+    builder: input.creature ? { creatureSubjectId: input.creature.subjectId, creatureHead: input.creature.head } : playerStewardBuilder(input.workerReceizId),
     existingStructures: input.existingStructures,
     materialContributorReceizIds,
     kaiUPulse: input.kaiUPulse

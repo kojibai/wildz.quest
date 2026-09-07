@@ -1,5 +1,7 @@
-import type { WildsActivityEntry } from "./wallet/wilds-activity-history";
 "use client";
+import { settleWildsBuild } from "./wilds-steward-build-settlement";
+import { playerStewardBuilder } from "./wilds-steward-construction";
+import type { WildsActivityEntry } from "./wallet/wilds-activity-history";
 import { resolveWildsCraftWorkstation } from "./wilds-construction-function";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -271,7 +273,7 @@ export function useWildsWorld(input: {
       || entry.command.type === "structure.steward-workbench.build"
       || entry.command.type === "structure.trail-cache.build"
       || entry.command.type === "construction.site.work"
-      || entry.command.type === "tool.steward.craft") && entry.command.operation && entry.command.amountPhiMicro
+      || entry.command.type === "tool.steward.craft") && entry.command.operation && entry.command.amountPhiMicro && entry.command.amountPhiMicro !== "0"
       ? await authorizeLivingWorld?.({
           operationId: entry.command.operation.operationId,
           planDigest: entry.command.operation.planDigest,
@@ -494,31 +496,28 @@ export function useWildsWorld(input: {
   }, [refresh]);
 
   const commandId = (kind: string) => `${kind}:${crypto.randomUUID()}`;
-  const buildGroundStewardStructure = (blueprint: "steward-workbench" | "trail-cache", position: { x: number; z: number }, actorPosition: { x: number; z: number }, rotationQuarterTurns: number, lotIds: string[], mandate: WildsCreatureMandateV1) => {
-    if (!input.activeCard) throw new Error("wilds_world_active_card_required");
+  const buildGroundStewardStructure = (blueprint: "steward-workbench" | "trail-cache", position: { x: number; z: number }, actorPosition: { x: number; z: number }, rotationQuarterTurns: number, lotIds: string[], mandate?: WildsCreatureMandateV1) => {
+    if (mandate && !input.activeCard) throw new Error("wilds_world_active_card_required");
     if (!snapshot) throw new Error("wilds_world_session_required");
     const currentEmission = wildsWorldSourceEmission(snapshot);
     const lots = lotIds.map((lotId) => snapshot.materialLots[lotId]).filter(Boolean);
     if (lots.length !== lotIds.length || lots.some((lot) => wildsMaterialCustodian(snapshot, lot) !== input.actorId)
       || lotIds.some((lotId) => snapshot.consumedMaterialLots[lotId] || snapshot.storedMaterialLots[lotId] || snapshot.reservedMaterialLots[lotId])) throw new Error("wilds_world_structure_material_invalid");
-    const creatureSubjectId = `creature:${sha256PortableBasis(input.activeCard.id).slice(0, 32)}`;
-    const creatureHead = sha256PortableBasis(input.activeCard.proof.digest);
+    const creatureSubjectId = `creature:${sha256PortableBasis(input.activeCard?.id ?? input.actorId).slice(0, 32)}`;
+    const creatureHead = sha256PortableBasis(input.activeCard?.proof.digest ?? input.actorId);
     const terrain = sampleWildsTerrain(position.x, position.z);
     const structureInput = { ownerReceizId: input.actorId, position: { x: position.x, y: terrain.elevation, z: position.z }, rotationQuarterTurns, lots,
       materialContributorReceizIds: wildsMaterialContributorReceizIds(lots, input.actorId),
-      builder: { creatureSubjectId, creatureHead }, existingStructures: Object.values(snapshot.structures), kaiUPulse: input.kaiUPulse };
+      builder: mandate ? { creatureSubjectId, creatureHead } : playerStewardBuilder(input.actorId), existingStructures: Object.values(snapshot.structures), kaiUPulse: input.kaiUPulse };
     const structure = blueprint === "steward-workbench" ? createWildsWorkstation(structureInput) : createWildsTrailCache(structureInput);
     const operation = createWildsStewardStructureOperation({ structure, lots, ownerReceizId: input.actorId, playerHead: sha256PortableBasis(input.actorId) });
-    const preview = previewWildsEmission({ emission: currentEmission, operation, contributionClass: "construction" });
-    if (!preview.eligible || preview.amountPhiMicro === "0") throw new Error("wilds_world_steward_emission_unavailable");
-    const emission = admitWildsEmission({ emission: currentEmission, operation, contributionClass: "construction", preview });
-    const phiAward = createWildsStewardPhiAward({ ownerReceizId: input.actorId, operation, currentEmission, nextEmission: emission, amountPhiMicro: preview.amountPhiMicro });
+    const settlement = settleWildsBuild({ operation, currentEmission, actorId: input.actorId });
     return post({ type: blueprint === "steward-workbench" ? "structure.steward-workbench.build" : "structure.trail-cache.build", position, actorPosition,
-      rotationQuarterTurns, lotIds, mandate, operation, emission, amountPhiMicro: preview.amountPhiMicro, phiAward,
-      cardProofDigest: input.activeCard.proof.digest, commandId: commandId(`command:structure:${blueprint}`) });
+      rotationQuarterTurns, lotIds, ...(mandate ? { mandate } : {}), ...settlement,
+      ...(input.activeCard ? { cardProofDigest: input.activeCard.proof.digest } : {}), commandId: commandId(`command:structure:${blueprint}`) });
   };
-  const craftStewardTool = (kind: WildsStewardToolKind, workstationId: string, actorPosition: { x: number; z: number }, lotIds: string[], mandate: WildsCreatureMandateV1) => {
-    if (!input.activeCard) throw new Error("wilds_world_active_card_required");
+  const craftStewardTool = (kind: WildsStewardToolKind, workstationId: string, actorPosition: { x: number; z: number }, lotIds: string[], mandate?: WildsCreatureMandateV1) => {
+    if (mandate && !input.activeCard) throw new Error("wilds_world_active_card_required");
     if (!snapshot) throw new Error("wilds_world_session_required");
     const currentEmission = wildsWorldSourceEmission(snapshot);
     const workstation = resolveWildsCraftWorkstation(snapshot, workstationId);
@@ -526,21 +525,17 @@ export function useWildsWorld(input: {
     const lots = lotIds.map((lotId) => snapshot.materialLots[lotId]).filter(Boolean);
     if (lots.length !== lotIds.length || lots.some((lot) => wildsMaterialCustodian(snapshot, lot) !== input.actorId)
       || lotIds.some((lotId) => snapshot.consumedMaterialLots[lotId] || snapshot.storedMaterialLots[lotId] || snapshot.reservedMaterialLots[lotId])) throw new Error("wilds_world_tool_material_invalid");
-    const creatureSubjectId = `creature:${sha256PortableBasis(input.activeCard.id).slice(0, 32)}`;
-    const creatureHead = sha256PortableBasis(input.activeCard.proof.digest);
+    const creatureSubjectId = `creature:${sha256PortableBasis(input.activeCard?.id ?? input.actorId).slice(0, 32)}`;
+    const creatureHead = sha256PortableBasis(input.activeCard?.proof.digest ?? input.actorId);
     const tool = createWildsStewardTool({ kind, ownerReceizId: input.actorId, workstation, lots,
       materialContributorReceizIds: wildsMaterialContributorReceizIds(lots, input.actorId),
-      builder: { creatureSubjectId, creatureHead }, kaiUPulse: input.kaiUPulse });
+      builder: mandate ? { creatureSubjectId, creatureHead } : playerStewardBuilder(input.actorId), kaiUPulse: input.kaiUPulse });
     const operation = createWildsStewardToolOperation({ tool, lots, workstation, ownerReceizId: input.actorId, playerHead: sha256PortableBasis(input.actorId) });
-    const preview = previewWildsEmission({ emission: currentEmission, operation, contributionClass: "construction" });
-    if (!preview.eligible || preview.amountPhiMicro === "0") throw new Error("wilds_world_steward_emission_unavailable");
-    const emission = admitWildsEmission({ emission: currentEmission, operation, contributionClass: "construction", preview });
-    const phiAward = createWildsStewardPhiAward({ ownerReceizId: input.actorId, operation, currentEmission, nextEmission: emission, amountPhiMicro: preview.amountPhiMicro });
-    return post({ type: "tool.steward.craft", kind, workstationId, actorPosition, lotIds, mandate, operation, emission,
-      amountPhiMicro: preview.amountPhiMicro, phiAward, cardProofDigest: input.activeCard.proof.digest, commandId: commandId(`command:tool:${kind}`) });
+    const settlement = settleWildsBuild({ operation, currentEmission, actorId: input.actorId });
+    return post({ type: "tool.steward.craft", kind, workstationId, actorPosition, lotIds, ...(mandate ? { mandate } : {}), ...settlement, ...(input.activeCard ? { cardProofDigest: input.activeCard.proof.digest } : {}), commandId: commandId(`command:tool:${kind}`) });
   };
   const placeConstructionSite = (blueprint: WildsConstructionBlueprint, position: { x: number; z: number }, actorPosition: { x: number; z: number }, rotationQuarterTurns: number, lotIds: string[]) => {
-    if (!input.activeCard || !snapshot) throw new Error("wilds_world_active_card_required");
+    if (!snapshot) throw new Error("wilds_world_session_required");
     createWildsConstructionSite({ blueprint, placedByReceizId: input.actorId, actorPosition, position, rotationQuarterTurns,
       existingStructures: Object.values(snapshot.structures), existingSites: Object.values(snapshot.constructionSites), kaiUPulse: input.kaiUPulse });
     const required = blueprint === "trail-shelter" ? { timber: 2, stone: 1 } : { timber: 4, stone: 2 };
@@ -553,36 +548,32 @@ export function useWildsWorld(input: {
       throw new Error("wilds_construction_material_invalid");
     }
     return post({ type: "construction.site.place", blueprint, position, actorPosition, rotationQuarterTurns, lotIds,
-      cardProofDigest: input.activeCard.proof.digest, commandId: commandId("command:construction:site:place") });
+      ...(input.activeCard ? { cardProofDigest: input.activeCard.proof.digest } : {}), commandId: commandId("command:construction:site:place") });
   };
   const contributeConstructionSite = (siteId: string, siteHead: string, actorPosition: { x: number; z: number }, lotIds: string[]) => {
-    if (!input.activeCard || !snapshot) throw new Error("wilds_world_active_card_required");
+    if (!snapshot) throw new Error("wilds_world_session_required");
     const site = snapshot.constructionSites[siteId];
     if (!site || site.head !== siteHead) throw new Error("wilds_construction_site_stale");
     const lots = lotIds.map((lotId) => snapshot.materialLots[lotId]).filter(Boolean);
     if (lots.length !== lotIds.length || lotIds.some((lotId) => snapshot.consumedMaterialLots[lotId] || snapshot.storedMaterialLots[lotId] || snapshot.reservedMaterialLots[lotId])) throw new Error("wilds_construction_material_invalid");
     contributeWildsConstructionSite({ site, expectedSiteHead: siteHead, contributorReceizId: input.actorId, lots, kaiUPulse: input.kaiUPulse });
     return post({ type: "construction.site.contribute", siteId, siteHead, actorPosition, lotIds,
-      cardProofDigest: input.activeCard.proof.digest, commandId: commandId("command:construction:site:contribute") });
+      ...(input.activeCard ? { cardProofDigest: input.activeCard.proof.digest } : {}), commandId: commandId("command:construction:site:contribute") });
   };
-  const workConstructionSite = (siteId: string, siteHead: string, actorPosition: { x: number; z: number }, mandate: WildsCreatureMandateV1) => {
-    if (!input.activeCard || !snapshot) throw new Error("wilds_world_active_card_required");
+  const workConstructionSite = (siteId: string, siteHead: string, actorPosition: { x: number; z: number }, mandate?: WildsCreatureMandateV1) => {
+    if ((mandate && !input.activeCard) || !snapshot) throw new Error("wilds_world_active_card_required");
     const currentEmission = wildsWorldSourceEmission(snapshot);
     const site = snapshot.constructionSites[siteId];
     if (!site || site.head !== siteHead) throw new Error("wilds_construction_site_stale");
     const lots = site.contributedLots.map((entry) => snapshot.materialLots[entry.lotId]).filter(Boolean);
-    const creatureSubjectId = `creature:${sha256PortableBasis(input.activeCard.id).slice(0, 32)}`;
-    const creatureHead = sha256PortableBasis(input.activeCard.proof.digest);
+    const creatureSubjectId = `creature:${sha256PortableBasis(input.activeCard?.id ?? input.actorId).slice(0, 32)}`;
+    const creatureHead = sha256PortableBasis(input.activeCard?.proof.digest ?? input.actorId);
     const completed = completeWildsConstructionSite({ site, expectedSiteHead: siteHead, lots, workerReceizId: input.actorId,
-      creature: { subjectId: creatureSubjectId, head: creatureHead }, existingStructures: Object.values(snapshot.structures), kaiUPulse: input.kaiUPulse });
+      ...(mandate ? { creature: { subjectId: creatureSubjectId, head: creatureHead } } : {}), existingStructures: Object.values(snapshot.structures), kaiUPulse: input.kaiUPulse });
     const operation = createWildsStewardStructureOperation({ structure: completed.structure, lots, ownerReceizId: completed.structure.ownerReceizId,
       actorReceizId: input.actorId, playerHead: sha256PortableBasis(input.actorId) });
-    const preview = previewWildsEmission({ emission: currentEmission, operation, contributionClass: "construction" });
-    if (!preview.eligible || preview.amountPhiMicro === "0") throw new Error("wilds_world_steward_emission_unavailable");
-    const emission = admitWildsEmission({ emission: currentEmission, operation, contributionClass: "construction", preview });
-    const phiAward = createWildsStewardPhiAward({ ownerReceizId: input.actorId, operation, currentEmission, nextEmission: emission, amountPhiMicro: preview.amountPhiMicro });
-    return post({ type: "construction.site.work", siteId, siteHead, actorPosition, mandate, operation, emission,
-      amountPhiMicro: preview.amountPhiMicro, phiAward, cardProofDigest: input.activeCard.proof.digest, commandId: commandId("command:construction:site:work") });
+    const settlement = settleWildsBuild({ operation, currentEmission, actorId: input.actorId });
+    return post({ type: "construction.site.work", siteId, siteHead, actorPosition, ...(mandate ? { mandate } : {}), ...settlement, ...(input.activeCard ? { cardProofDigest: input.activeCard.proof.digest } : {}), commandId: commandId("command:construction:site:work") });
   };
   return {
     snapshot,
@@ -652,7 +643,7 @@ export function useWildsWorld(input: {
     placeConstructionSite,
     contributeConstructionSite,
     workConstructionSite,
-    buildTrailShelter: (position: { x: number; z: number }, actorPosition: { x: number; z: number }, rotationQuarterTurns: number, lotIds: string[], mandate: WildsCreatureMandateV1) => {
+    buildTrailShelter: (position: { x: number; z: number }, actorPosition: { x: number; z: number }, rotationQuarterTurns: number, lotIds: string[], mandate?: WildsCreatureMandateV1) => {
       if (!input.activeCard) throw new Error("wilds_world_active_card_required");
       if (!snapshot) throw new Error("wilds_world_session_required");
       const currentEmission = wildsWorldSourceEmission(snapshot);
@@ -692,7 +683,7 @@ export function useWildsWorld(input: {
         commandId: commandId("command:structure:trail-shelter")
       });
     },
-    buildTrailBridge: (position: { x: number; z: number }, actorPosition: { x: number; z: number }, rotationQuarterTurns: number, lotIds: string[], mandate: WildsCreatureMandateV1) => {
+    buildTrailBridge: (position: { x: number; z: number }, actorPosition: { x: number; z: number }, rotationQuarterTurns: number, lotIds: string[], mandate?: WildsCreatureMandateV1) => {
       if (!input.activeCard) throw new Error("wilds_world_active_card_required");
       if (!snapshot) throw new Error("wilds_world_session_required");
       const currentEmission = wildsWorldSourceEmission(snapshot);
@@ -731,8 +722,8 @@ export function useWildsWorld(input: {
         commandId: commandId("command:structure:trail-bridge")
       });
     },
-    buildStewardWorkbench: (position: { x: number; z: number }, actorPosition: { x: number; z: number }, rotationQuarterTurns: number, lotIds: string[], mandate: WildsCreatureMandateV1) => buildGroundStewardStructure("steward-workbench", position, actorPosition, rotationQuarterTurns, lotIds, mandate),
-    buildTrailCache: (position: { x: number; z: number }, actorPosition: { x: number; z: number }, rotationQuarterTurns: number, lotIds: string[], mandate: WildsCreatureMandateV1) => buildGroundStewardStructure("trail-cache", position, actorPosition, rotationQuarterTurns, lotIds, mandate),
+    buildStewardWorkbench: (position: { x: number; z: number }, actorPosition: { x: number; z: number }, rotationQuarterTurns: number, lotIds: string[], mandate?: WildsCreatureMandateV1) => buildGroundStewardStructure("steward-workbench", position, actorPosition, rotationQuarterTurns, lotIds, mandate),
+    buildTrailCache: (position: { x: number; z: number }, actorPosition: { x: number; z: number }, rotationQuarterTurns: number, lotIds: string[], mandate?: WildsCreatureMandateV1) => buildGroundStewardStructure("trail-cache", position, actorPosition, rotationQuarterTurns, lotIds, mandate),
     craftStewardTool,
     equipStewardTool: (toolId: string) => post({ type: "tool.steward.equip", toolId, commandId: commandId("command:tool:equip") }),
     moveStoredMaterial: (lotId: string, cacheId: string, direction: "deposit" | "withdraw", actorPosition: { x: number; z: number }) => post({ type: "storage.material.move", lotId, cacheId, direction, actorPosition, commandId: commandId("command:storage:material") }),

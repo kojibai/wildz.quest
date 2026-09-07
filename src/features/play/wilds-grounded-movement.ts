@@ -251,6 +251,14 @@ function movementObstacles(start: Point, target: Point, capsuleRadius: number) {
 }
 
 function pushOutsideObstacle(point: Point, obstacle: WildsTerrainObstacle, capsuleRadius: number, fallback: Point) {
+  if (obstacle.id.startsWith("wildz.component:") && obstacle.shape.kind === "box") {
+    const dx = point.x - obstacle.position.x, dz = point.z - obstacle.position.z;
+    const halfX = obstacle.shape.halfX + capsuleRadius, halfZ = obstacle.shape.halfZ + capsuleRadius;
+    if (Math.abs(dx) >= halfX || Math.abs(dz) >= halfZ) return { ...point };
+    return halfX - Math.abs(dx) < halfZ - Math.abs(dz)
+      ? { x: obstacle.position.x + (dx >= 0 ? 1 : -1) * (halfX + CONTACT_EPSILON), z: point.z }
+      : { x: point.x, z: obstacle.position.z + (dz >= 0 ? 1 : -1) * (halfZ + CONTACT_EPSILON) };
+  }
   const radius = obstacle.radius + capsuleRadius;
   const offsetX = point.x - obstacle.position.x;
   const offsetZ = point.z - obstacle.position.z;
@@ -270,9 +278,28 @@ function firstSweepHit(start: Point, target: Point, obstacles: readonly WildsTer
   const motionZ = target.z - start.z;
   const motionLengthSquared = motionX * motionX + motionZ * motionZ;
   if (motionLengthSquared <= CONTACT_EPSILON) return null;
-  let earliest: { obstacle: WildsTerrainObstacle; amount: number } | null = null;
+  let earliest: { obstacle: WildsTerrainObstacle; amount: number; normal?: Point } | null = null;
   for (const obstacle of obstacles) {
     if (!blockingObstacle(obstacle)) continue;
+    if (obstacle.id.startsWith("wildz.component:") && obstacle.shape.kind === "box") {
+      let enter = Number.NEGATIVE_INFINITY, leave = Number.POSITIVE_INFINITY;
+      let normal: Point = { x: 0, z: 0 };
+      for (const axis of ["x", "z"] as const) {
+        const delta = axis === "x" ? motionX : motionZ;
+        const half = (axis === "x" ? obstacle.shape.halfX : obstacle.shape.halfZ) + capsuleRadius;
+        const low = obstacle.position[axis] - half, high = obstacle.position[axis] + half;
+        if (Math.abs(delta) < CONTACT_EPSILON) {
+          if (start[axis] < low || start[axis] > high) { leave = Number.NEGATIVE_INFINITY; break; }
+          continue;
+        }
+        const first = (low - start[axis]) / delta, second = (high - start[axis]) / delta;
+        const near = Math.min(first, second), far = Math.max(first, second);
+        if (near > enter) { enter = near; normal = axis === "x" ? { x: delta > 0 ? -1 : 1, z: 0 } : { x: 0, z: delta > 0 ? -1 : 1 }; }
+        leave = Math.min(leave, far);
+      }
+      if (enter <= leave && enter >= 0 && enter <= 1 && (!earliest || enter < earliest.amount || (enter === earliest.amount && obstacle.id < earliest.obstacle.id))) earliest = { obstacle, amount: enter, normal };
+      continue;
+    }
     const radius = obstacle.radius + capsuleRadius;
     const offsetX = start.x - obstacle.position.x;
     const offsetZ = start.z - obstacle.position.z;
@@ -326,8 +353,8 @@ export function resolveWildsObstacleMotion(
       z: current.z + motionZ * hit.amount
     };
     const normalLength = Math.hypot(contact.x - hit.obstacle.position.x, contact.z - hit.obstacle.position.z) || 1;
-    const normalX = (contact.x - hit.obstacle.position.x) / normalLength;
-    const normalZ = (contact.z - hit.obstacle.position.z) / normalLength;
+    const normalX = hit.normal?.x ?? (contact.x - hit.obstacle.position.x) / normalLength;
+    const normalZ = hit.normal?.z ?? (contact.z - hit.obstacle.position.z) / normalLength;
     const remainingX = motionX * (1 - hit.amount);
     const remainingZ = motionZ * (1 - hit.amount);
     const inward = Math.min(0, remainingX * normalX + remainingZ * normalZ);
@@ -436,10 +463,18 @@ export function resolveWildsGroundMovement(
     ...movementObstacles(start, target, capsuleRadius),
     ...(options.additionalObstacles ?? [])
   ];
+  // A capsule meets the slab edge before its centre enters the support area.
+  // Read the leading foot contact so a reachable floor does not act like a wall.
+  const travel = Math.hypot(target.x - start.x, target.z - start.z);
+  const leadingSupport = travel > 0 ? wildsStructureSupportAt({
+    x: target.x + (target.x - start.x) / travel * (capsuleRadius + .02),
+    z: target.z + (target.z - start.z) / travel * (capsuleRadius + .02)
+  }, options.structureSupports, 0, footY) : null;
+  const collisionSupport = targetSupport ?? leadingSupport;
   const obstacles = airborneClearance === null
     ? allObstacles.filter(obstacle => !obstacle.id.startsWith("wildz.component:") || (
-      wildsObstacleVerticalBounds(obstacle).maximum > (targetSupport?.deckY ?? footY) + .001
-      && wildsObstacleBlocksVerticalBand(obstacle, targetSupport?.deckY ?? footY)
+      wildsObstacleVerticalBounds(obstacle).maximum > (collisionSupport?.deckY ?? footY) + .001
+      && wildsObstacleBlocksVerticalBand(obstacle, collisionSupport?.deckY ?? footY)
     ))
     : allObstacles.filter((obstacle) => wildsObstacleBlocksVerticalBand(
       obstacle,
@@ -447,7 +482,7 @@ export function resolveWildsGroundMovement(
     ));
   const collision = resolveWildsObstacleMotion(start, target, obstacles, capsuleRadius);
   const resolvedTerrain = sampleWildsTerrain(collision.position.x, collision.position.z);
-  const resolvedSupport = wildsStructureSupportAt(collision.position, options.structureSupports, capsuleRadius, footY);
+  const resolvedSupport = wildsStructureSupportAt(collision.position, options.structureSupports, 0, footY);
   const pushedIntoMissingTraversal = airborneClearance !== null
     ? null
     : resolvedSupport ? null : resolvedTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind ?? null;

@@ -1,3 +1,4 @@
+import { resolveWildsGroundMovement } from "../src/features/play/wilds-grounded-movement";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { initialWildsWorldProjection, checkpointWildsWorld } from "../src/features/play/wilds-world-state";
@@ -12,7 +13,7 @@ import type { WildsMaterialLotV1 } from "../src/features/play/wilds-steward-cons
 const actorId = "owner";
 const authority = { actorId, canonical: true, occurredAt: "2026-09-07T12:00:00.000Z", pulse: "2026-09-07T12:00:00.000Z", uPulse: 10 };
 const request = { pointer: { x: 20, y: 0, z: 20 }, rotationQuarterTurns: 0, heightStep: 0, surfaceSnap: true };
-function fixture(kind: "foundation" | "stair" = "foundation") {
+function fixture(kind: "foundation" | "stair" | "floor" = "foundation") {
   const service = new WildsWorldService();
   service.execute({ type: "construction.project.create", name: "Home", region: { x: 0, z: 0 }, commandId: "project:1" }, authority);
   const preview = previewWildsContinuousBuild(service.snapshot(), actorId, kind, request);
@@ -23,7 +24,7 @@ function lot(index: number, kind: WildsMaterialLotV1["kind"]): WildsMaterialLotV
   const basis = { schema: "wildz.material-lot.v1" as const, lotId: `wildz:material:${kind}:${index.toString(16).padStart(64, "0")}`, kind, quantity: 1 as const, quality: 1 as const, ownerReceizId: actorId, source: { sourceId: "source:test", sourceHead: `sha256:${"a".repeat(64)}`, admittedSourceHead: `sha256:${"b".repeat(64)}`, kaiUPulse: 1 }, contributors: { explorerReceizId: actorId }, authority: "source-proof-object" as const };
   return { ...basis, head: sha256PortableBasis(canonicalPortableCardJson(basis)) };
 }
-function finish(kind: "foundation" | "stair") {
+function finish(kind: "foundation" | "stair" | "floor") {
   const f = fixture(kind);
   let index = 0;
   const materials = f.component.recipe.stages.flatMap(stage => (["hay", "timber", "stone"] as const).flatMap(kind => Array.from({ length: stage.materials[kind] }, () => createWildsMaterialContribution({ component: f.component, lot: lot(++index, kind), custodianReceizId: actorId, contributorReceizId: actorId, commandId: `deposit:${index}`, kaiUPulse: 11 }))));
@@ -80,4 +81,22 @@ test("surface snapping positions walls and furniture across a foundation without
   const bed = previewWildsContinuousBuild(f.world, actorId, "bed", { ...request, pointer: { ...request.pointer, y: f.component.transform.position.y, x: 21 } });
   assert.equal(bed.placement.valid, true);
   assert.equal(bed.placement.transform.position.x, 21);
+});
+
+test("a visible framed floor is walkable and its edge does not block small walking steps", () => {
+  const f = finish("floor");
+  const framedWork = createWildsWorkContribution({ component: f.component, materials: f.materials, worker: { kind: "player", receizId: actorId }, amount: 1, commandId: "work:frame", kaiUPulse: 12 });
+  const world = { ...f.world, constructionWorkContributions: { [framedWork.contributionId]: framedWork } };
+  const supports = projectWildsStructureSupports(world);
+  const obstacles = projectWildsConstructionObstacles(world);
+  assert.equal(supports.length, 1);
+  assert.equal(supports[0].deckY, obstacles[0].position.y + (obstacles[0].shape.kind === "box" ? obstacles[0].shape.halfY : 0));
+  let point = { x: 16.4, z: 20 };
+  let footY = supports[0].deckY - .24;
+  for (let step = 0; step < 30; step++) {
+    const next = resolveWildsGroundMovement(point, { x: point.x + .1, z: point.z }, { obstacles, structureSupports: supports, verticalWorldY: footY, capabilities: ["climb", "swim"] });
+    point = next.position; footY = next.elevation;
+  }
+  assert.ok(point.x > 18, `floor edge blocked walking at ${point.x}`);
+  assert.equal(footY, supports[0].deckY);
 });

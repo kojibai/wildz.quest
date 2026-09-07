@@ -1,6 +1,7 @@
 "use client";
 
-import type { PublicWildzProfile } from "@/features/profile/public-profile";
+import { canonicalWildzProfilePath, type PublicWildzProfile } from "@/features/profile/public-profile";
+import NextLink from "next/link";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import { WildzProfileVaultGallery } from "@/features/profile/WildzProfileVaultGallery";
 import { Camera, Check, Download, Link, LoaderCircle, Pencil, Share2, Upload, X } from "lucide-react";
@@ -41,8 +42,11 @@ async function profileImageFromFile(file: File) {
   }
 }
 
-export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "published", shareEnabled = true, editable = false, signingAvailable = true, onAuthenticateIdentitySeal, onSaveIdentitySeal, onSaveProfile }: {
+export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "published", shareEnabled = true, editable = false, signingAvailable = true, onAuthenticateIdentitySeal, onSaveIdentitySeal, onSaveProfile, onPublish, publishing = false, publicationMessage }: {
   profile: PublicWildzProfile;
+  onPublish?: () => void;
+  publishing?: boolean;
+  publicationMessage?: string;
   vaultAssets?: readonly PortableCardAsset[];
   publicationStatus?: "local" | "published";
   shareEnabled?: boolean;
@@ -161,6 +165,7 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
     <header className="wildz-profile-head"><div className="wildz-profile-avatar">{draftAvatar ? <Image alt="" height={58} src={draftAvatar} unoptimized width={58} /> : profile.displayName.slice(0, 2).toUpperCase()}</div><div>
       <span>Explorer profile</span><h2>{profile.displayName}</h2><p>{profile.username} · {publicationStatus === "published" ? "Published via Receiz" : "Local verified profile · not yet published"}</p>
     </div>{editable ? <button className="wildz-profile-edit-trigger" aria-label="Edit profile" aria-pressed={editing} onClick={() => setEditing((value) => !value)} type="button"><Pencil aria-hidden="true" size={18} /></button> : null}</header>
+    {editable && <section className="wildz-profile-publication" aria-label="Publish profile"><p role="status">{publicationMessage}</p>{publicationStatus === "published" ? <NextLink href={canonicalWildzProfilePath(profile.username)}>Open public profile ↗</NextLink> : <button type="button" disabled={publishing} onClick={onPublish}>{publishing ? "Publishing…" : "Publish profile"}</button>}</section>}
     {editable && editing ? <section className="wildz-profile-editor" aria-label="Edit explorer profile" aria-busy={saving}>
       <label className="wildz-profile-photo-control">
         <span>{draftAvatar ? <Image alt="Profile preview" height={58} src={draftAvatar} unoptimized width={58} /> : <Camera aria-hidden="true" size={22} />}</span>

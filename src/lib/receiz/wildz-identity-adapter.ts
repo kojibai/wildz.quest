@@ -36,7 +36,8 @@ import {
 import { inspectReceizCommerceVault } from "./receiz-commerce-vault";
 import {
   createWildzIdentityCardArtworkPng,
-  createWildzIdentitySealPng
+  createWildzIdentitySealPng,
+  wildzIdentitySealFilename
 } from "./wildz-identity-seal";
 import { createWildzIdentityPlayerCardOffThread } from "./wildz-identity-export-client";
 import {
@@ -560,7 +561,7 @@ export async function createWildzIdentityPlayerCard(input: {
   passphrase?: string;
 }) {
   if (input.keyFile.keyId !== input.session.keyId) throw new Error("wildz_identity_card_key_id_mismatch");
-  const artwork = await createWildzIdentityCardArtworkPng(input.session);
+  const artwork = await createWildzIdentityCardArtworkPng(input.session, input.player.exportedAt);
   const offThread = await createWildzIdentityPlayerCardOffThread({
     artwork,
     assets: input.assets,
@@ -737,7 +738,7 @@ export async function downloadWildzIdentityPlayerCard(
   });
   downloadBlob(
     new Blob([combined.slice().buffer], { type: "image/png" }),
-    `${username}.receiz-id-card.png`
+    wildzIdentitySealFilename(username, player.exportedAt)
   );
   return { identityBound: true } as const;
 }
@@ -757,8 +758,9 @@ export async function downloadWildzIdentitySeal(
   const username = normalizedIdentitySealUsername(session.username);
   if (typeof document === "undefined") throw new Error("wildz_identity_seal_download_browser_required");
 
+  const exportedAt = new Date().toISOString();
   const blob = await repository.withKeyFile(session.keyId, async (keyFile) => {
-    const bytes = await createWildzIdentitySealPng(keyFile, session);
+    const bytes = await createWildzIdentitySealPng(keyFile, session, exportedAt);
     const payload = new Uint8Array(bytes.byteLength);
     payload.set(bytes);
     return new Blob([payload.buffer], { type: "image/png" });
@@ -768,7 +770,7 @@ export async function downloadWildzIdentitySeal(
   try {
     anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `${username}.receiz-identity-seal.png`;
+    anchor.download = wildzIdentitySealFilename(username, exportedAt);
     anchor.rel = "noopener";
     document.body.append(anchor);
     anchor.click();

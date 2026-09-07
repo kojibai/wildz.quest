@@ -1,4 +1,5 @@
 "use client";
+import { requestWildsDive } from "./wilds-vertical-traversal";
 import { resolveWildsConstructionFunction } from "./wilds-construction-function";
 
 import dynamic from "next/dynamic";
@@ -479,10 +480,12 @@ export function PlayCampaign({
     setRiftError("");
     setWorldFeedbackRevision((revision) => revision + 1);
   }, []);
-  const showWorldFeedback = useCallback((message: string) => {
+  const showWorldFeedback = useCallback((message: string, persistent = false) => {
     if (worldFeedbackTimerRef.current !== null) window.clearTimeout(worldFeedbackTimerRef.current);
     setRiftError(message);
     setWorldFeedbackRevision((revision) => revision + 1);
+    worldFeedbackTimerRef.current = null;
+    if (persistent) return;
     worldFeedbackTimerRef.current = window.setTimeout(() => {
       setRiftError("");
       worldFeedbackTimerRef.current = null;
@@ -491,6 +494,7 @@ export function PlayCampaign({
   useEffect(() => () => {
     if (worldFeedbackTimerRef.current !== null) window.clearTimeout(worldFeedbackTimerRef.current);
   }, []);
+  const [constructionFocus, setConstructionFocus] = useState<"tools" | "storage" | null>(null);
   const [stewardPlacementMode, setStewardPlacementMode] = useState<WildsStewardBlueprintId | null>(null);
   const [stewardPlacementPreview, setStewardPlacementPreview] = useState<WildsStewardPlacement | null>(null);
   const [requestedCommand, setRequestedCommand] = useState<WildsCommandKey | null>(null);
@@ -896,7 +900,7 @@ export function PlayCampaign({
   const refreshLivingWorld = livingWorld.refresh;
   const handleStoryCommandError = useCallback((error: unknown, fallback: string) => {
     if (isWildsTemporalContinuityError(error)) void refreshLivingWorld();
-    showWorldFeedback(friendlyWildsGameplayError(error, fallback));
+    showWorldFeedback(friendlyWildsGameplayError(error, fallback), true);
   }, [refreshLivingWorld, showWorldFeedback]);
   const kaiMoment = resolveWildsRuntimeKaiMoment({
     uPulse: kaiUPulse,
@@ -1253,6 +1257,17 @@ export function PlayCampaign({
   }), [activeAsset?.manifest.name, activeCard.name, availableMaterialLots, livingWorld.pendingCommand, stewardPlacementMode, stewardWorkMeters]);
   const continuousBuilder = useWildsContinuousBuilder({ world: livingWorld, owner: ownerReceizId, player: state.player, lots: availableMaterialLots, feedback: showWorldFeedback });
 
+  const selectLivingBuildPiece = (kind: Parameters<typeof continuousBuilder.selectKind>[0]) => {
+    beginWorldActionFeedback(); setConstructionFocus(null);
+    setStewardPlacementMode(null); setStewardPlacementPreview(null);
+    continuousBuilder.begin(); continuousBuilder.selectKind(kind);
+    dispatchStageOverlay({ type: "panel", key: null });
+  };
+  const openLivingConstruction = (focus: "tools" | "storage" | null = null) => {
+    continuousBuilder.close(); setConstructionFocus(focus);
+    dispatchStageOverlay({ type: "panel", key: "construction" });
+  };
+
   const createStewardMandate = (
     professions: readonly string[],
     allowedResourceIds: readonly string[],
@@ -1396,7 +1411,7 @@ export function PlayCampaign({
     if (stewardPlacementMode !== "trail-shelter" || livingWorld.pendingCommand) return;
     beginWorldActionFeedback();
     if (Math.hypot(position.x - state.player.x, position.z - state.player.z) > 7) {
-      showWorldFeedback("Place the shelter within reach of you and your companion.");
+      showWorldFeedback("Place the shelter within 7 metres of you.");
       return;
     }
     try {
@@ -1407,7 +1422,7 @@ export function PlayCampaign({
       setStewardPlacementMode(null);
       setStewardPlacementPreview(null);
       dispatchStageOverlay({ type: "panel", key: "construction" });
-      showWorldFeedback("Shelter materials placed. Tap Finish shelter to complete it with your companion.");
+      showWorldFeedback("Shelter materials placed. Tap Finish shelter to build it yourself. No workbench or companion is required.");
     } catch (error) {
       handleStoryCommandError(error, "That place cannot hold a shelter yet.");
     }
@@ -1417,7 +1432,7 @@ export function PlayCampaign({
     if (stewardPlacementMode !== "trail-bridge" || livingWorld.pendingCommand) return;
     beginWorldActionFeedback();
     if (Math.hypot(position.x - state.player.x, position.z - state.player.z) > 7) {
-      showWorldFeedback("Choose a crossing within reach of you and your companion.");
+      showWorldFeedback("Choose a crossing within 7 metres of you.");
       return;
     }
     try {
@@ -1430,7 +1445,7 @@ export function PlayCampaign({
       setStewardPlacementMode(null);
       setStewardPlacementPreview(null);
       dispatchStageOverlay({ type: "panel", key: "construction" });
-      showWorldFeedback("Bridge materials placed. Tap Finish bridge to complete it with your companion.");
+      showWorldFeedback("Bridge materials placed. Tap Finish bridge to build it yourself. No workbench or companion is required.");
     } catch (error) {
       handleStoryCommandError(error, "That crossing cannot hold a bridge yet.");
     }
@@ -1447,19 +1462,18 @@ export function PlayCampaign({
     try {
       const projection = await livingWorld.contributeConstructionSite(site.siteId, site.head, state.player, lots.map((lot) => lot.lotId));
       const next = projection.constructionSites[site.siteId];
-      showWorldFeedback(next?.stage === "materials-ready" ? "Every exact lot is now held by the site. Your companion can work beside you to raise it." : "Your exact lots are now visible in this site. Other stewards can add what remains.");
+      showWorldFeedback(next?.stage === "materials-ready" ? "All materials are at the site. Tap Finish to build it yourself; no workbench or companion is required." : "Your exact lots are now visible in this site. Other stewards can add what remains.");
     } catch (error) { handleStoryCommandError(error, "Those exact lots could not enter this site yet."); }
   };
 
   const workNearbyConstructionSite = async (site: WildsConstructionSiteV1) => {
     beginWorldActionFeedback();
     try {
-      const mandate = createStewardMandate(["build"], [], { x: Math.floor(site.position.x / 128), z: Math.floor(site.position.z / 128) });
       const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
-      const projection = await livingWorld.workConstructionSite(site.siteId, site.head, state.player, mandate);
+      const projection = await livingWorld.workConstructionSite(site.siteId, site.head, state.player);
       const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
-      showWorldFeedback(`${site.blueprint === "trail-shelter" ? "The Trail Shelter now stands. Build a Steward Workbench (3 timber · 2 stone) to craft an axe and pick" : "The Trail Bridge now joins both banks"} in the shared Wilds.${award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the useful work.` : ""}`);
-    } catch (error) { handleStoryCommandError(error, "Move beside the funded site with a rested companion who can build."); }
+      showWorldFeedback(`${site.blueprint === "trail-shelter" ? "The Trail Shelter now stands. Choose a building piece below to add walls, stairs or a roof. A workbench is only needed to craft an axe or pick" : "The Trail Bridge now joins both banks"}.${award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the useful work.` : ""}`);
+    } catch (error) { handleStoryCommandError(error, "Move within 6 metres of the funded site, then tap Finish again."); }
   };
 
   const placeStewardGroundStructure = async (blueprint: "steward-workbench" | "trail-cache", position: { x: number; z: number }) => {
@@ -1472,9 +1486,8 @@ export function PlayCampaign({
       const timber = availableMaterialLots.filter((lot) => lot.kind === "timber").slice(0, definition.timber);
       const stone = availableMaterialLots.filter((lot) => lot.kind === "stone").slice(0, definition.stone);
       if (timber.length !== definition.timber || stone.length !== definition.stone) throw new Error(`Gather ${definition.timber} timber and ${definition.stone} stone first.`);
-      const mandate = createStewardMandate(["build"], [], { x: Math.floor(position.x / 128), z: Math.floor(position.z / 128) });
       const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
-      const projection = await definition.build(position, state.player, 0, [...timber, ...stone].map((lot) => lot.lotId), mandate);
+      const projection = await definition.build(position, state.player, 0, [...timber, ...stone].map((lot) => lot.lotId));
       const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
       setStewardPlacementMode(null);
       setStewardPlacementPreview(null);
@@ -1492,8 +1505,7 @@ export function PlayCampaign({
       const stoneNeeded = kind === "steward-axe" ? 1 : 2;
       const stone = availableMaterialLots.filter((lot) => lot.kind === "stone").slice(0, stoneNeeded);
       if (timber.length !== 1 || stone.length !== stoneNeeded) throw new Error(`Crafting needs 1 timber and ${stoneNeeded} stone.`);
-      const mandate = createStewardMandate(["craft"], [], { x: Math.floor(nearbyStewardWorkbench.position.x / 128), z: Math.floor(nearbyStewardWorkbench.position.z / 128) });
-      await livingWorld.craftStewardTool(kind, nearbyStewardWorkbench.structureId, state.player, [...timber, ...stone].map((lot) => lot.lotId), mandate);
+      await livingWorld.craftStewardTool(kind, nearbyStewardWorkbench.structureId, state.player, [...timber, ...stone].map((lot) => lot.lotId));
       showWorldFeedback(`${kind === "steward-axe" ? "Steward Axe" : "Quarry Pick"} sealed from exact material proofs. Equip it here when you are ready.`);
     } catch (error) { handleStoryCommandError(error, "That tool could not be shaped yet."); }
   };
@@ -1730,17 +1742,19 @@ export function PlayCampaign({
         if (aquaticPresentation.mode === "swim") showWorldFeedback(`${activeAsset.manifest.name} is swimming fully submerged beside you.`);
         else showWorldFeedback("Move into the nearest deep-water edge; this swimmer will enter with you immediately.");
         return;
-      case "dive":
+      case "dive": {
         if (aquaticPresentation.mode !== "swim") {
           showWorldFeedback("Enter deep water first; the nearest deep-water edge is the dive route.");
           return;
         }
-        verticalIntentRef.current = -1;
-        window.requestAnimationFrame(() => { verticalIntentRef.current = 0; });
+        if (state.energy <= 0) { showWorldFeedback("You need energy to dive. Return to shore and make camp, then enter the water again.", true); return; }
+        const dive = requestWildsDive(verticalTraversalRef.current);
+        if (!dive.ok) { showWorldFeedback(dive.reason, true); return; }
         setActiveWorldCapability("dive");
         spendWorldCapability("dive");
-        showWorldFeedback(`${activeAsset.manifest.name} pitches downward and leads you deeper.`);
+        showWorldFeedback(`${activeAsset.manifest.name} leads you up to 2 metres deeper. Tap Dive again to descend further, or hold Rise to swim upward.`);
         return;
+      }
       case "current": {
         if (aquaticPresentation.mode !== "swim") {
           showWorldFeedback("Enter deep water to read and ride its living current.");
@@ -2192,7 +2206,7 @@ export function PlayCampaign({
             <article><Icons.products aria-hidden="true" size={18} /><span><small>Living timber</small><strong>{stewardMaterials.timber}</strong></span><em>Exact lots</em></article>
             <article><Icons.package aria-hidden="true" size={18} /><span><small>Foundation stone</small><strong>{stewardMaterials.stone}</strong></span><em>Exact lots</em></article>
           </div>
-          <WildsStewardCraftPanel projection={stewardCraft} nearbySite={nearbyConstructionSite} tools={stewardTools} equippedToolId={livingWorld.snapshot?.equippedStewardTools?.[ownerReceizId] ?? null} nearbyWorkbench={Boolean(nearbyStewardWorkbench)} nearbyCache={Boolean(nearbyTrailCache)} stored={{ timber: storedStewardLots.filter((lot) => lot?.kind === "timber").length, stone: storedStewardLots.filter((lot) => lot?.kind === "stone").length }} onContributeSite={(site) => void contributeNearbyConstructionSite(site)} onWorkSite={(site) => void workNearbyConstructionSite(site)} onCraftTool={(kind) => void craftStewardTool(kind)} onEquipTool={(toolId) => { beginWorldActionFeedback(); void livingWorld.equipStewardTool(toolId).then(() => showWorldFeedback("Field tool equipped. Matching work now preserves one higher grade of material while durability remains.")).catch((error) => handleStoryCommandError(error, "That tool could not be equipped.")); }} onStoreMaterial={(kind) => void moveStewardMaterial(kind, "deposit")} onWithdrawMaterial={(kind) => void moveStewardMaterial(kind, "withdraw")} onSelectBlueprint={(blueprintId) => {
+          <WildsStewardCraftPanel onSelectPiece={selectLivingBuildPiece} focusSection={constructionFocus} projection={stewardCraft} nearbySite={nearbyConstructionSite} siteDistance={nearbyConstructionSite ? Math.hypot(nearbyConstructionSite.position.x - state.player.x, nearbyConstructionSite.position.z - state.player.z) : 0} tools={stewardTools} equippedToolId={livingWorld.snapshot?.equippedStewardTools?.[ownerReceizId] ?? null} nearbyWorkbench={Boolean(nearbyStewardWorkbench)} nearbyCache={Boolean(nearbyTrailCache)} stored={{ timber: storedStewardLots.filter((lot) => lot?.kind === "timber").length, stone: storedStewardLots.filter((lot) => lot?.kind === "stone").length }} onContributeSite={(site) => void contributeNearbyConstructionSite(site)} onWorkSite={(site) => void workNearbyConstructionSite(site)} onCraftTool={(kind) => void craftStewardTool(kind)} onEquipTool={(toolId) => { beginWorldActionFeedback(); void livingWorld.equipStewardTool(toolId).then(() => showWorldFeedback("Field tool equipped. Matching work now preserves one higher grade of material while durability remains.")).catch((error) => handleStoryCommandError(error, "That tool could not be equipped.")); }} onStoreMaterial={(kind) => void moveStewardMaterial(kind, "deposit")} onWithdrawMaterial={(kind) => void moveStewardMaterial(kind, "withdraw")} onSelectBlueprint={(blueprintId) => {
             beginWorldActionFeedback();
             continuousBuilder.close();
             setStewardPlacementMode(blueprintId);
@@ -2214,10 +2228,6 @@ export function PlayCampaign({
       dockVisible: false,
       content: (
         <div className="wilds-command-content wilds-construction-center">
-          <button className="wilds-open-piece-builder" type="button" onClick={() => {
-            setStewardPlacementMode(null); setStewardPlacementPreview(null);
-            continuousBuilder.begin(); dispatchStageOverlay({ type: "panel", key: null });
-          }}><Icons.construction size={24} /><span><strong>Build with pieces</strong><small>Walls, stairs, floors, roofs & more · plan, gather, build</small></span><Icons.construction size={20} /></button>
           <div className="wilds-construction-center-lead">
             <span><small>Sovereign making</small><strong>Living Construction</strong><em>Shape useful places from exact materials gathered in this world.</em></span>
             <div aria-label={`${stewardMaterials.hay} hay, ${stewardMaterials.timber} timber, and ${stewardMaterials.stone} stone in Satchel`}>
@@ -2226,7 +2236,7 @@ export function PlayCampaign({
               <b><Icons.quarry size={16} />{stewardMaterials.stone}</b>
             </div>
           </div>
-          <WildsStewardCraftPanel projection={stewardCraft} nearbySite={nearbyConstructionSite} tools={stewardTools} equippedToolId={livingWorld.snapshot?.equippedStewardTools?.[ownerReceizId] ?? null} nearbyWorkbench={Boolean(nearbyStewardWorkbench)} nearbyCache={Boolean(nearbyTrailCache)} stored={{ timber: storedStewardLots.filter((lot) => lot?.kind === "timber").length, stone: storedStewardLots.filter((lot) => lot?.kind === "stone").length }} onContributeSite={(site) => void contributeNearbyConstructionSite(site)} onWorkSite={(site) => void workNearbyConstructionSite(site)} onCraftTool={(kind) => void craftStewardTool(kind)} onEquipTool={(toolId) => { beginWorldActionFeedback(); void livingWorld.equipStewardTool(toolId).then(() => showWorldFeedback("Field tool equipped. Matching work now preserves one higher grade of material while durability remains.")).catch((error) => handleStoryCommandError(error, "That tool could not be equipped.")); }} onStoreMaterial={(kind) => void moveStewardMaterial(kind, "deposit")} onWithdrawMaterial={(kind) => void moveStewardMaterial(kind, "withdraw")} onSelectBlueprint={(blueprintId) => {
+          <WildsStewardCraftPanel onSelectPiece={selectLivingBuildPiece} focusSection={constructionFocus} projection={stewardCraft} nearbySite={nearbyConstructionSite} siteDistance={nearbyConstructionSite ? Math.hypot(nearbyConstructionSite.position.x - state.player.x, nearbyConstructionSite.position.z - state.player.z) : 0} tools={stewardTools} equippedToolId={livingWorld.snapshot?.equippedStewardTools?.[ownerReceizId] ?? null} nearbyWorkbench={Boolean(nearbyStewardWorkbench)} nearbyCache={Boolean(nearbyTrailCache)} stored={{ timber: storedStewardLots.filter((lot) => lot?.kind === "timber").length, stone: storedStewardLots.filter((lot) => lot?.kind === "stone").length }} onContributeSite={(site) => void contributeNearbyConstructionSite(site)} onWorkSite={(site) => void workNearbyConstructionSite(site)} onCraftTool={(kind) => void craftStewardTool(kind)} onEquipTool={(toolId) => { beginWorldActionFeedback(); void livingWorld.equipStewardTool(toolId).then(() => showWorldFeedback("Field tool equipped. Matching work now preserves one higher grade of material while durability remains.")).catch((error) => handleStoryCommandError(error, "That tool could not be equipped.")); }} onStoreMaterial={(kind) => void moveStewardMaterial(kind, "deposit")} onWithdrawMaterial={(kind) => void moveStewardMaterial(kind, "withdraw")} onSelectBlueprint={(blueprintId) => {
             beginWorldActionFeedback();
             continuousBuilder.close();
             setStewardPlacementMode(blueprintId);
@@ -2397,7 +2407,7 @@ export function PlayCampaign({
               activeWorkSource={activeWorkSource}
               stewardPlacementPreview={stewardPlacementPreview}
               constructionPreview={continuousBuilder.preview}
-              constructionSelectionEnabled={continuousBuilder.open && worldInteractionEnabled}
+              constructionSelectionEnabled={continuousBuilder.open && Boolean(continuousBuilder.selected) && worldInteractionEnabled}
               onSelectConstruction={continuousBuilder.selectComponent}
               aerialCapabilities={activeTraversalCapabilities}
               aerialStateRef={aerialStateRef}
@@ -2465,7 +2475,7 @@ export function PlayCampaign({
               }}
             />
 
-            {continuousBuilder.open && worldInteractionEnabled ? <WildsContinuousBuilderPanel builder={continuousBuilder} materials={stewardMaterials} /> : null}
+            {continuousBuilder.open && worldInteractionEnabled ? <WildsContinuousBuilderPanel builder={continuousBuilder} materials={stewardMaterials} onOpenCatalogue={() => openLivingConstruction()} onUse={kind => openLivingConstruction(kind === "workshop" ? "tools" : "storage")} /> : null}
             {stewardPlacementPreview ? <WildsStewardPlacementHud
               blueprintLabel={stewardCraft.blueprints.find(blueprint => blueprint.id === stewardPlacementPreview.blueprintId)?.label ?? "Build"}
               onCancel={() => {

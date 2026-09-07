@@ -14,15 +14,16 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(campaign, /projectWildsResourceRegion/);
     assert.match(panel, /Living hay/);
   });
-  it("presents Steward Craft as one partner-bound responsive blueprint selector", async () => {
+  it("presents Steward Craft as one player-operated responsive blueprint selector", async () => {
     const panel = await readFile("src/features/play/WildsStewardCraftPanel.tsx", "utf8");
     const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
     const css = await readFile("app/globals.css", "utf8");
 
-    assert.match(panel, /Assigned partner/);
+    assert.match(panel, /You can build these yourself/);
     assert.match(panel, /projection\.blueprints\.map/);
     assert.match(panel, /onSelectBlueprint\(blueprint\.id\)/);
-    assert.match(panel, /blueprint\.state !== "ready"/);
+    assert.match(panel, /missingBuildMaterials\(blueprint\.materials, projection\.materials\)/);
+    assert.match(panel, /WildsExplainedAction/);
     assert.match(campaign, /<WildsStewardCraftPanel/);
     assert.match(css, /\.wilds-steward-craft-catalog\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit,/s);
     assert.match(css, /\.wilds-steward-blueprint[^}]*min-height:\s*44px/s);
@@ -53,7 +54,7 @@ describe("Receiz Wilds rendering contract", () => {
     const css = await readFile("app/globals.css", "utf8");
     assert.match(panel, /Contribute what I carry/);
     assert.match(panel, /Finish shelter/);
-    assert.match(panel, /Build a Steward Workbench/);
+    assert.match(panel, /A workbench costs 3 timber \+ 2 stone/);
     assert.match(campaign, /contributeConstructionSite/);
     assert.match(campaign, /workConstructionSite/);
     assert.match(environment, /function PartialConstructionSite/);
@@ -96,8 +97,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(environment, /function StewardWorkbench/);
     assert.match(environment, /function TrailCache/);
     assert.match(panel, /Field tools/);
-    assert.match(panel, /Workbench required/);
-    assert.match(panel, /Store \{kind\}/);
+    assert.match(panel, /stand within 6 metres/);
+    assert.match(panel, /Store \$\{kind\}/);
     assert.match(world, /stewardTools/);
     assert.match(world, /storedMaterialLots/);
     const staticStructures = environment.slice(environment.indexOf("function StewardWorkbench"), environment.indexOf("function ResourceManifestation"));

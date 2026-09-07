@@ -1,3 +1,4 @@
+import { deriveKaiKlokMoment } from "../../features/play/kai-klok-moment";
 import {
   appendReceizIdentityArtifactTrailerToPng,
   type ReceizKeyFile
@@ -11,6 +12,19 @@ type WildzIdentitySealArtworkIdentity = Pick<
   WildzIdentitySession,
   "keyId" | "username" | "displayName"
 >;
+
+/** One export moment is shared by the artwork, searchable name and vault payload. */
+export function wildzIdentitySealStamp(exportedAt: string) {
+  const moment = deriveKaiKlokMoment({ occurredAt: exportedAt, authority: "local" });
+  return { coordinate: moment.latticeCoordinate, totalPulses: String(moment.pulse), uPulse: moment.uPulse,
+    filenameTime: `kai-${String(moment.pulse).padStart(10, "0")}-${String(moment.uPulse % 1_000_000).padStart(6, "0")}.${moment.latticeCoordinate.replaceAll(":", "-")}` };
+}
+
+export function wildzIdentitySealFilename(username: string, exportedAt: string) {
+  const name = username.trim().replace(/^@+/, "").toLowerCase();
+  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(name)) throw new Error("wildz_identity_seal_username_invalid");
+  return `${name}.receiz-identity-seal.${wildzIdentitySealStamp(exportedAt).filenameTime}.png`;
+}
 
 function roundedRectPath(
   context: CanvasRenderingContext2D,
@@ -131,7 +145,8 @@ async function renderPortableSealArtwork() {
   ]);
 }
 
-async function renderWildzIdentitySealArtwork(identity: WildzIdentitySealArtworkIdentity) {
+async function renderWildzIdentitySealArtwork(identity: WildzIdentitySealArtworkIdentity, exportedAt: string) {
+  const stamp = wildzIdentitySealStamp(exportedAt);
   if (typeof document === "undefined") return renderPortableSealArtwork();
 
   const canvas = document.createElement("canvas");
@@ -160,17 +175,17 @@ async function renderWildzIdentitySealArtwork(identity: WildzIdentitySealArtwork
   context.fillStyle = "#00a58a";
   context.font = "800 18px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
   context.letterSpacing = "4px";
-  context.fillText("PORTABLE ACCOUNT", 450, 228);
+  context.fillText("IDENTITY SEAL", 450, 228);
 
   context.strokeStyle = "#00a58a";
   context.lineWidth = 18;
-  roundedRectPath(context, 320, 300, 260, 260, 74);
+  roundedRectPath(context, 340, 280, 220, 220, 64);
   context.stroke();
 
   context.beginPath();
-  context.moveTo(390, 424);
-  context.lineTo(438, 472);
-  context.lineTo(524, 374);
+  context.moveTo(398, 384);
+  context.lineTo(438, 424);
+  context.lineTo(510, 342);
   context.lineWidth = 28;
   context.lineCap = "round";
   context.lineJoin = "round";
@@ -178,17 +193,39 @@ async function renderWildzIdentitySealArtwork(identity: WildzIdentitySealArtwork
 
   const identityLabel = identity.username?.trim() ? `@${identity.username.trim().replace(/^@+/, "")}` : identity.displayName?.trim() || identity.keyId;
   context.fillStyle = "#001b2d";
-  context.font = "800 42px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
   context.letterSpacing = "0px";
-  context.fillText(identityLabel, 450, 650);
+  let nameSize = 42;
+  const nameFont = () => `800 ${nameSize}px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif`;
+  context.font = nameFont();
+  while (context.measureText(identityLabel).width > 600 && nameSize > 18) { nameSize -= 1; context.font = nameFont(); }
+  context.fillText(identityLabel, 450, 567, 600);
 
   context.fillStyle = "#667085";
-  context.font = "800 18px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  context.font = "700 14px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
   context.letterSpacing = "3px";
-  context.fillText("BEARER CREDENTIAL", 450, 700);
-  context.font = "700 16px ui-monospace, SFMono-Regular, Menlo, monospace";
+  context.fillText("BEARER CREDENTIAL", 450, 602);
+
+  context.fillStyle = "rgba(0, 165, 138, 0.065)";
+  roundedRectPath(context, 146, 628, 608, 112, 22);
+  context.fill();
+  context.strokeStyle = "rgba(0, 120, 104, 0.18)";
+  context.lineWidth = 1;
+  context.beginPath(); context.moveTo(450, 653); context.lineTo(450, 718); context.stroke();
+  context.fillStyle = "#48665f";
+  context.font = "700 12px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  context.letterSpacing = "1.5px";
+  context.fillText("KAI · BEAT:STEP:PULSE", 298, 662);
+  context.fillText("TOTAL PULSES · SEALED", 602, 662);
+  context.fillStyle = "#003e38";
+  context.font = "600 32px ui-monospace, SFMono-Regular, Menlo, monospace";
+  context.letterSpacing = "0px";
+  context.fillText(stamp.coordinate, 298, 708, 254);
+  context.fillText(stamp.totalPulses, 602, 708, 254);
+
+  context.fillStyle = "#667085";
+  context.font = "600 12px ui-monospace, SFMono-Regular, Menlo, monospace";
   context.letterSpacing = "1px";
-  context.fillText(`KEY ${identity.keyId.slice(0, 8).toUpperCase()} · FULL CONTINUITY`, 450, 742);
+  context.fillText(`KEY ${identity.keyId.slice(0, 8).toUpperCase()} · FULL CONTINUITY`, 450, 778);
 
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((value) => {
@@ -203,19 +240,20 @@ export function appendWildzIdentitySealAuthority(pngBytes: Uint8Array, keyFile: 
   return appendReceizIdentityArtifactTrailerToPng(pngBytes, keyFile);
 }
 
-export async function createWildzIdentityCardArtworkPng(session: WildzIdentitySession) {
+export async function createWildzIdentityCardArtworkPng(session: WildzIdentitySession, exportedAt = new Date().toISOString()) {
   return renderWildzIdentitySealArtwork({
     keyId: session.keyId,
     username: session.username,
     displayName: session.displayName
-  });
+  }, exportedAt);
 }
 
 export async function createWildzIdentitySealPng(
   keyFile: ReceizKeyFile,
-  session: WildzIdentitySession
+  session: WildzIdentitySession,
+  exportedAt = new Date().toISOString()
 ) {
   if (keyFile.keyId !== session.keyId) throw new Error("wildz_identity_seal_key_id_mismatch");
-  const artwork = await createWildzIdentityCardArtworkPng(session);
+  const artwork = await createWildzIdentityCardArtworkPng(session, exportedAt);
   return appendWildzIdentitySealAuthority(artwork, keyFile);
 }

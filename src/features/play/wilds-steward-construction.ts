@@ -41,6 +41,22 @@ export type WildsMaterialLotV1 = Readonly<{
   head: string;
 }>;
 
+export type WildsStewardBuilder = Readonly<{ creatureSubjectId: string; creatureHead: string }> | Readonly<{ playerReceizId: string; playerHead: string }>;
+
+export function playerStewardBuilder(playerReceizId: string): WildsStewardBuilder {
+  return { playerReceizId, playerHead: sha256PortableBasis(playerReceizId) };
+}
+
+export function verifyWildsStewardBuilder(builder: WildsStewardBuilder | undefined): boolean {
+  if (!builder) return false;
+  if ("playerReceizId" in builder) return !("creatureSubjectId" in builder) && ID.test(builder.playerReceizId) && builder.playerHead === sha256PortableBasis(builder.playerReceizId);
+  return ID.test(builder.creatureSubjectId) && HEAD.test(builder.creatureHead);
+}
+
+function builderPartners(builder: WildsStewardBuilder, role: string) {
+  return "creatureSubjectId" in builder ? [{ id: builder.creatureSubjectId, kind: "creature" as const, expectedHead: builder.creatureHead, role }] : [];
+}
+
 type WildsStructureBaseV1 = Readonly<{
   schema: "wildz.structure.v1";
   ownerReceizId: string;
@@ -50,7 +66,7 @@ type WildsStructureBaseV1 = Readonly<{
   consumedLotIds: readonly string[];
   consumedLotHeads: readonly string[];
   materialContributorReceizIds?: readonly string[];
-  builder: Readonly<{ creatureSubjectId: string; creatureHead: string }>;
+  builder: WildsStewardBuilder;
   kaiUPulse: number;
   authority: "source-proof-objects";
   head: string;
@@ -105,7 +121,7 @@ export type WildsStewardToolV1 = Readonly<{
   consumedLotIds: readonly string[];
   consumedLotHeads: readonly string[];
   materialContributorReceizIds?: readonly string[];
-  builder: Readonly<{ creatureSubjectId: string; creatureHead: string }>;
+  builder: WildsStewardBuilder;
   durability: Readonly<{ remaining: number; capacity: 24 }>;
   revision: number;
   parentHead: string | null;
@@ -255,7 +271,9 @@ export function createWildsStewardStructureOperation(input: Readonly<{
   const bridge = input.structure.blueprint === "trail-bridge";
   const identity = operationIdentity(input.structure.blueprint, input.structure.head);
   const playerIds = [...new Set([actorReceizId, input.ownerReceizId, ...materialOwners])].sort();
-  const participantIds = [...playerIds, input.structure.builder.creatureSubjectId];
+  const partners = builderPartners(input.structure.builder, "building-partner");
+  if ("playerReceizId" in input.structure.builder && input.structure.builder.playerReceizId !== actorReceizId) throw new Error("wilds_steward_builder_invalid");
+  const participantIds = [...playerIds, ...partners.map(partner => partner.id)];
   return compileWildsLivingOperation({
     operationId: `steward:build:${identity}`,
     category: "construction",
@@ -268,7 +286,7 @@ export function createWildsStewardStructureOperation(input: Readonly<{
     },
     participants: [
       ...playerIds.map((id) => ({ id, kind: "player" as const, expectedHead: id === actorReceizId ? input.playerHead : sha256PortableBasis(id), role: id === actorReceizId ? "steward" : id === input.ownerReceizId ? "site-steward" : "material-contributor" })),
-      { id: input.structure.builder.creatureSubjectId, kind: "creature", expectedHead: input.structure.builder.creatureHead, role: "building-partner" }
+      ...partners
     ],
     stages: bridge
       ? [
@@ -279,8 +297,8 @@ export function createWildsStewardStructureOperation(input: Readonly<{
         ]
       : [{ id: "stage:cooperative-build", profession: "build", participantIds }],
     consequences: bridge
-      ? { usefulOutput: 5, ecologicalRenewal: 0, publicBenefit: 5, cooperation: 3, durability: 7, extraction: 6, damage: 0, waste: 0, restorationDebt: 0 }
-      : { usefulOutput: 3, ecologicalRenewal: 0, publicBenefit: 2, cooperation: 2, durability: 4, extraction: 3, damage: 0, waste: 0, restorationDebt: 0 },
+      ? { usefulOutput: 5, ecologicalRenewal: 0, publicBenefit: 5, cooperation: partners.length ? 3 : 0, durability: 7, extraction: 6, damage: 0, waste: 0, restorationDebt: 0 }
+      : { usefulOutput: 3, ecologicalRenewal: 0, publicBenefit: 2, cooperation: partners.length ? 2 : 0, durability: 4, extraction: 3, damage: 0, waste: 0, restorationDebt: 0 },
     kaiUPulse: input.structure.kaiUPulse,
     expiresAtKaiUPulse: input.structure.kaiUPulse + 1_000_000,
     semanticIdempotencyKey: `steward:build:${identity}`
@@ -304,7 +322,9 @@ export function createWildsStewardToolOperation(input: Readonly<{
     throw new Error("wilds_steward_tool_operation_source_invalid");
   }
   const playerParticipantIds = [...new Set([input.ownerReceizId, ...materialOwners])];
-  const participantIds = [...playerParticipantIds, input.tool.builder.creatureSubjectId];
+  const partners = builderPartners(input.tool.builder, "crafting-partner");
+  if ("playerReceizId" in input.tool.builder && input.tool.builder.playerReceizId !== input.ownerReceizId) throw new Error("wilds_steward_builder_invalid");
+  const participantIds = [...playerParticipantIds, ...partners.map(partner => partner.id)];
   const identity = operationIdentity(input.tool.kind, input.tool.head);
   return compileWildsLivingOperation({
     operationId: `steward:craft:${identity}`,
@@ -319,13 +339,13 @@ export function createWildsStewardToolOperation(input: Readonly<{
     },
     participants: [
       ...playerParticipantIds.map((id) => ({ id, kind: "player" as const, expectedHead: id === input.ownerReceizId ? input.playerHead : sha256PortableBasis(id), role: id === input.ownerReceizId ? "steward" : "material-contributor" })),
-      { id: input.tool.builder.creatureSubjectId, kind: "creature", expectedHead: input.tool.builder.creatureHead, role: "crafting-partner" }
+      ...partners
     ],
     stages: [
       { id: "stage:shape", profession: "craft", participantIds },
       { id: "stage:balance", profession: "finish", participantIds }
     ],
-    consequences: { usefulOutput: input.tool.kind === "quarry-pick" ? 4 : 3, ecologicalRenewal: 0, publicBenefit: 1, cooperation: 2,
+    consequences: { usefulOutput: input.tool.kind === "quarry-pick" ? 4 : 3, ecologicalRenewal: 0, publicBenefit: 1, cooperation: partners.length ? 2 : 0,
       durability: 5, extraction: input.tool.consumedLotIds.length, damage: 0, waste: 0, restorationDebt: 0 },
     kaiUPulse: input.tool.kaiUPulse,
     expiresAtKaiUPulse: input.tool.kaiUPulse + 1_000_000,
@@ -528,7 +548,7 @@ function verifyStructureBase(structure: Partial<WildsStructureV1>, expectedLots:
       && structure.materialContributorReceizIds.length > 0
       && structure.materialContributorReceizIds.every((id) => ID.test(id))
       && canonicalPortableCardJson(structure.materialContributorReceizIds) === canonicalPortableCardJson([...new Set(structure.materialContributorReceizIds)].sort())))
-    && ID.test(structure.builder?.creatureSubjectId ?? "") && HEAD.test(structure.builder?.creatureHead ?? "");
+    && verifyWildsStewardBuilder(structure.builder);
 }
 
 function waterSurface(surface: WildsTerrainSurface) {
@@ -575,13 +595,13 @@ function createGroundStewardStructure(input: Readonly<{
   position: Readonly<{ x: number; y: number; z: number }>;
   rotationQuarterTurns: number;
   lots: readonly WildsMaterialLotV1[];
-  builder: Readonly<{ creatureSubjectId: string; creatureHead: string }>;
+  builder: WildsStewardBuilder;
   existingStructures: readonly WildsStructureV1[];
   materialContributorReceizIds?: readonly string[];
   kaiUPulse: number;
 }>): WildsStewardWorkbenchV1 | WildsTrailCacheV1 {
   if (!ID.test(input.ownerReceizId) || !validKai(input.kaiUPulse)) throw new Error("wilds_steward_structure_authority_invalid");
-  if (!ID.test(input.builder.creatureSubjectId) || !HEAD.test(input.builder.creatureHead)) throw new Error("wilds_steward_builder_invalid");
+  if (!verifyWildsStewardBuilder(input.builder)) throw new Error("wilds_steward_builder_invalid");
   if (![input.position.x, input.position.y, input.position.z].every(Number.isFinite)) throw new Error("wilds_steward_structure_position_invalid");
   if (!Number.isSafeInteger(input.rotationQuarterTurns)) throw new Error("wilds_steward_structure_rotation_invalid");
   const materialContributorReceizIds = [...new Set(input.materialContributorReceizIds ?? [input.ownerReceizId])].sort();
@@ -638,7 +658,7 @@ export function verifyWildsStewardTool(value: unknown): value is WildsStewardToo
       || !tool.materialContributorReceizIds.includes(tool.ownerReceizId ?? "") || tool.materialContributorReceizIds.some((id) => !ID.test(id))))
     || tool.consumedLotIds.length !== (tool.kind === "steward-axe" ? 2 : 3) || tool.consumedLotHeads.length !== tool.consumedLotIds.length
     || new Set(tool.consumedLotIds).size !== tool.consumedLotIds.length || !tool.consumedLotHeads.every((head) => HEAD.test(head))
-    || !tool.builder || !ID.test(tool.builder.creatureSubjectId) || !HEAD.test(tool.builder.creatureHead)
+    || !tool.builder || !verifyWildsStewardBuilder(tool.builder)
     || tool.durability?.capacity !== 24 || !Number.isSafeInteger(tool.durability?.remaining) || (tool.durability?.remaining ?? -1) < 0 || (tool.durability?.remaining ?? 25) > 24
     || !Number.isSafeInteger(tool.revision) || (tool.revision ?? -1) < 0 || (tool.parentHead !== null && !HEAD.test(tool.parentHead ?? ""))
     || !validKai(tool.kaiUPulse ?? -1) || tool.authority !== "source-proof-objects" || !HEAD.test(tool.head ?? "")) return false;
@@ -652,13 +672,13 @@ export function createWildsStewardTool(input: Readonly<{
   ownerReceizId: string;
   workstation: WildsCraftWorkstation;
   lots: readonly WildsMaterialLotV1[];
-  builder: Readonly<{ creatureSubjectId: string; creatureHead: string }>;
+  builder: WildsStewardBuilder;
   materialContributorReceizIds?: readonly string[];
   kaiUPulse: number;
 }>): WildsStewardToolV1 {
   if (!verifyWildsCraftWorkstation(input.workstation)
     || input.workstation.ownerReceizId !== input.ownerReceizId) throw new Error("wilds_steward_tool_workstation_invalid");
-  if (!ID.test(input.ownerReceizId) || !ID.test(input.builder.creatureSubjectId) || !HEAD.test(input.builder.creatureHead) || !validKai(input.kaiUPulse)) {
+  if (!ID.test(input.ownerReceizId) || !verifyWildsStewardBuilder(input.builder) || !validKai(input.kaiUPulse)) {
     throw new Error("wilds_steward_tool_authority_invalid");
   }
   const expected = input.kind === "steward-axe" ? { timber: 1, stone: 1 } : { timber: 1, stone: 2 };
@@ -707,13 +727,13 @@ export function createWildsTrailShelter(input: Readonly<{
   position: Readonly<{ x: number; y: number; z: number }>;
   rotationQuarterTurns: number;
   lots: readonly WildsMaterialLotV1[];
-  builder: Readonly<{ creatureSubjectId: string; creatureHead: string }>;
+  builder: WildsStewardBuilder;
   existingStructures: readonly WildsStructureV1[];
   materialContributorReceizIds?: readonly string[];
   kaiUPulse: number;
 }>): WildsStructureV1 {
   if (!ID.test(input.ownerReceizId) || !validKai(input.kaiUPulse)) throw new Error("wilds_steward_structure_authority_invalid");
-  if (!ID.test(input.builder.creatureSubjectId) || !HEAD.test(input.builder.creatureHead)) throw new Error("wilds_steward_builder_invalid");
+  if (!verifyWildsStewardBuilder(input.builder)) throw new Error("wilds_steward_builder_invalid");
   if (![input.position.x, input.position.y, input.position.z].every(Number.isFinite)
     || Math.abs(input.position.x) > 500_000_000 || Math.abs(input.position.z) > 500_000_000) throw new Error("wilds_steward_structure_position_invalid");
   if (!Number.isSafeInteger(input.rotationQuarterTurns)) throw new Error("wilds_steward_structure_rotation_invalid");
@@ -782,13 +802,13 @@ export function createWildsTrailBridge(input: Readonly<{
   position: Readonly<{ x: number; z: number }>;
   rotationQuarterTurns: number;
   lots: readonly WildsMaterialLotV1[];
-  builder: Readonly<{ creatureSubjectId: string; creatureHead: string }>;
+  builder: WildsStewardBuilder;
   existingStructures: readonly WildsStructureV1[];
   materialContributorReceizIds?: readonly string[];
   kaiUPulse: number;
 }>): WildsTrailBridgeV1 {
   if (!ID.test(input.ownerReceizId) || !validKai(input.kaiUPulse)) throw new Error("wilds_steward_structure_authority_invalid");
-  if (!ID.test(input.builder.creatureSubjectId) || !HEAD.test(input.builder.creatureHead)) throw new Error("wilds_steward_builder_invalid");
+  if (!verifyWildsStewardBuilder(input.builder)) throw new Error("wilds_steward_builder_invalid");
   if (![input.position.x, input.position.z].every(Number.isFinite)
     || Math.abs(input.position.x) > 500_000_000 || Math.abs(input.position.z) > 500_000_000) throw new Error("wilds_steward_structure_position_invalid");
   if (!Number.isSafeInteger(input.rotationQuarterTurns)) throw new Error("wilds_steward_structure_rotation_invalid");

@@ -10,6 +10,8 @@ export type WildsVerticalTraversalState = {
   intent: WildsVerticalTraversalIntent;
   safeMin: number;
   safeMax: number;
+  /** A tapped dive continues toward this bounded depth across animation frames. */
+  targetWorldY?: number;
 };
 
 export type WildsVerticalTraversalStep = {
@@ -57,7 +59,16 @@ export function resetWildsVerticalTraversalState(state: WildsVerticalTraversalSt
   state.intent = 0;
   state.safeMin = 0;
   state.safeMax = 0;
+  delete state.targetWorldY;
   return state;
+}
+
+export function requestWildsDive(state: WildsVerticalTraversalState) {
+  if (state.layer !== "water") return { ok: false as const, reason: "Enter deep water with a swimming companion first, then tap Dive." };
+  const floorY = state.worldY - state.offset + state.safeMin;
+  if (state.worldY <= floorY + .05) return { ok: false as const, reason: "You are at the safe depth limit here. Move to deeper water, or use a companion with stronger diving ability." };
+  state.targetWorldY = Math.max(floorY, state.worldY - 2);
+  return { ok: true as const, targetWorldY: state.targetWorldY };
 }
 
 export function writeWildsVerticalTraversalStep(
@@ -92,10 +103,16 @@ export function writeWildsVerticalTraversalStep(
       state.offset = quantize(bounded(state.worldY - input.terrainElevation, state.safeMin, state.safeMax));
     }
     const exhausted = input.stamina <= 0;
-    const direction = exhausted ? 1 : input.intent;
+    if (input.intent !== 0 || exhausted) delete state.targetWorldY;
+    if (state.targetWorldY !== undefined) state.targetWorldY = bounded(state.targetWorldY, input.terrainElevation + state.safeMin, input.terrainElevation + state.safeMax);
+    const targetDirection = state.targetWorldY !== undefined && state.worldY > state.targetWorldY + .005 ? -1 : 0;
+    const direction = exhausted ? 1 : input.intent || targetDirection;
     const speed = direction > 0 ? 1.35 : .9 + pressure * .85;
     state.offset = quantize(bounded(state.offset + direction * speed * delta, state.safeMin, state.safeMax));
     state.worldY = quantize(input.terrainElevation + state.offset);
+    if (state.targetWorldY !== undefined && state.worldY <= state.targetWorldY + .005) {
+      state.worldY = quantize(state.targetWorldY); state.offset = quantize(state.worldY - input.terrainElevation); delete state.targetWorldY;
+    }
     return state;
   }
 

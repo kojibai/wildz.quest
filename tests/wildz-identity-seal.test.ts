@@ -146,6 +146,7 @@ test("Identity Seal download uses protected authority and a normalized PNG filen
     fill() {},
     fillRect() {},
     fillText() {},
+    measureText: (text: string) => ({ width: text.length * 20 }),
     lineCap: "butt",
     lineJoin: "miter",
     lineTo() {},
@@ -191,7 +192,7 @@ test("Identity Seal download uses protected authority and a normalized PNG filen
 
   assert.equal(requestedKeyId, identity.keyFile.keyId);
   assert.equal(download.blob?.type, "image/png");
-  assert.equal(anchor.download, "seal_download.receiz-identity-seal.png");
+  assert.match(anchor.download, /^seal_download\.receiz-identity-seal\.kai-\d{10}-\d{6}\.\d{2}-\d{2}-\d{2}\.png$/);
   assert.equal(anchor.href, "blob:wildz-identity-seal");
   assert.equal(anchor.rel, "noopener");
   assert.equal(appended, true);
@@ -237,6 +238,7 @@ test("Identity Seal download revokes its object URL when DOM setup throws", asyn
     fill() {},
     fillRect() {},
     fillText() {},
+    measureText: (text: string) => ({ width: text.length * 20 }),
     lineCap: "butt",
     lineJoin: "miter",
     lineTo() {},

@@ -19,14 +19,7 @@ export function worldCommandRequiresCard(command: WildsWorldCommand) {
     || command.type === "ecology.contribute"
     || command.type === "story.trainer_battle"
     || command.type === "story.tournament_enter"
-    || command.type === "construction.site.place"
-    || command.type === "construction.site.contribute"
-    || command.type === "construction.site.work"
-    || command.type === "structure.trail-shelter.build"
-    || command.type === "structure.trail-bridge.build"
-    || command.type === "structure.steward-workbench.build"
-    || command.type === "structure.trail-cache.build"
-    || command.type === "tool.steward.craft"
+    || ((command.type === "construction.site.work" || command.type.startsWith("structure.") || command.type === "tool.steward.craft") && "mandate" in command && Boolean(command.mandate))
     || (command.type === "story.contribute" && Boolean(command.cardProofDigest));
 }
 

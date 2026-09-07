@@ -335,7 +335,8 @@ export function previewWildsBlueprintPlacement(input: WildsBlueprintPlacementInp
   const compatibleAnchors = input.physical.anchors.filter((candidate) => acceptedAnchors.includes(candidate.kind)
     && canonicalPortableCardJson(blueprintAnchors.get(candidate.id) ?? null) === canonicalPortableCardJson(candidate));
   const anchor = nearestAnchor(compatibleAnchors, input.pointer);
-  const needsStructure = catalog.support === "structure";
+  const groundWorkbench = input.surfaceSnap && input.kind === "workshop";
+  const needsStructure = catalog.support === "structure" && !groundWorkbench;
   const needsWater = catalog.support === "water";
   const baseY = needsWater && input.physical.waterline !== null
     ? input.physical.waterline
@@ -353,6 +354,8 @@ export function previewWildsBlueprintPlacement(input: WildsBlueprintPlacementInp
   });
   const geometry = freeze({ center: position, halfExtents: freeze({ ...rotated }) });
   const cues: string[] = [];
+  if (groundWorkbench && !anchor && input.heightStep !== 0) cues.push("needs-terrain-support");
+  if (groundWorkbench && !anchor && input.physical.waterline !== null) cues.push("needs-dry-ground");
   if (needsStructure && !anchor) cues.push("needs-structure-anchor");
   if (needsWater && input.physical.waterline === null) cues.push("needs-water");
   if (catalog.support === "terrain" && input.heightStep !== 0) cues.push("needs-terrain-support");

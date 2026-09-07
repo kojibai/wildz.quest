@@ -5,9 +5,11 @@ import { test } from "node:test";
 test("canonical shareable player route opens the profile and the legacy path redirects", () => {
   const canonical = readFileSync("app/u/[handle]/page.tsx", "utf8");
   const alias = readFileSync("app/[username]/page.tsx", "utf8");
-  assert.match(canonical, /<WildzApp/);
-  assert.match(canonical, /kind:\s*"profile"/);
-  assert.match(canonical, /mode:\s*"public"/);
+  assert.match(canonical, /<WildzPublicProfilePage/);
+  assert.doesNotMatch(canonical, /WildzApp|initialOverlay/);
+  const page = readFileSync("src/features/profile/WildzPublicProfilePage.tsx", "utf8");
+  assert.match(page, /fetchPublicWildzProfile\(username\)/);
+  assert.doesNotMatch(page, /PlayCampaign|WildzApp|canvas/);
   assert.match(canonical, /canonicalWildzProfilePath\(username\)/);
   assert.doesNotMatch(canonical, /marketplace|PublicStorefront/);
   assert.doesNotMatch(canonical, /encodeURIComponent\(username\)/);

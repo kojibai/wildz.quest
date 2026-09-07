@@ -15,7 +15,7 @@ export const WILDS_COMMAND_LAW = {
   "ecology.discover": "commons.observe", "ecology.contribute": "stewardship.fruit", "grove.observe": "commons.observe", "grove.act": "stewardship.fruit",
   "resource.transfer.admit": "verified-title.successor", "resource.material.transfer.admit": "verified-title.successor",
   "resource.material.harvest": "commons.harvest", "construction.site.place": "materials.create",
-  "construction.site.contribute": "materials.contribute", "construction.site.work": "mandate.work",
+  "construction.site.contribute": "materials.contribute", "construction.site.work": "materials.create",
   "structure.trail-shelter.build": "materials.create", "structure.trail-bridge.build": "materials.create",
   "structure.steward-workbench.build": "materials.create", "structure.trail-cache.build": "materials.create",
   "tool.steward.craft": "materials.create", "tool.steward.equip": "owner.use", "storage.material.move": "owner.use",

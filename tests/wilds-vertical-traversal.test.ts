@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   createWildsVerticalTraversalState,
+  requestWildsDive,
   WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE,
   WILDS_SWIM_SURFACE_CLEARANCE,
   writeWildsVerticalTraversalStep
@@ -468,4 +469,19 @@ describe("Wildz bounded vertical traversal", () => {
     const source = await readFile("src/features/play/wilds-vertical-traversal.ts", "utf8");
     assert.doesNotMatch(source, /fetch|verify|localStorage|indexedDB|setTimeout|setInterval|requestAnimationFrame|react/i);
   });
+});
+
+it("a tapped dive continues across frames and stops at its target without a held button", () => {
+  const state = createWildsVerticalTraversalState();
+  const input = { layer: "water" as const, deltaSeconds: .1, intent: 0 as const, terrainElevation: -12, waterSurfaceY: 0, pressurePotential: 1, stamina: 100 };
+  writeWildsVerticalTraversalStep(state, input);
+  const initial = state.worldY;
+  assert.equal(requestWildsDive(state).ok, true);
+  for (let frame = 0; frame < 100; frame++) writeWildsVerticalTraversalStep(state, input);
+  assert.equal(state.worldY, initial - 2);
+  assert.equal(state.targetWorldY, undefined);
+  assert.equal(requestWildsDive(state).ok, true);
+  writeWildsVerticalTraversalStep(state, { ...input, intent: 1 });
+  assert.equal(state.targetWorldY, undefined);
+  assert.ok(state.worldY > initial - 2);
 });

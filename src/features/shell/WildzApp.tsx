@@ -220,6 +220,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const [profileStatus, setProfileStatus] = useState<"idle" | "loading" | "publishing" | "ready" | "unpublished" | "missing" | "error">("idle");
   const [avatarImageUrl, setAvatarImageUrl] = useState<string | null>(null);
   const publishedProfileRef = useRef("");
+  const [publicationAttempt, setPublicationAttempt] = useState(0);
   const identity = continuity?.session ?? null;
   const profilePublicationReadiness = wildzProfilePublicationReadiness({
     hasIdentity: Boolean(identity),
@@ -490,7 +491,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       document.removeEventListener("visibilitychange", syncPublication);
       stopPublishing();
     };
-  }, [admittedProofObjects, overlay?.kind, profilePublicationReadiness, publishableOwnerAssets, publishablePublicProfile]);
+  }, [admittedProofObjects, overlay?.kind, profilePublicationReadiness, publishableOwnerAssets, publishablePublicProfile, publicationAttempt]);
 
   useEffect(() => {
     if (overlay?.kind !== "profile") {
@@ -1244,6 +1245,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             vaultAssets={viewingOwnProfile ? ownerPlayState.inventory : undefined}
             publicationStatus={viewingOwnProfile && profileStatus !== "ready" ? "local" : "published"}
             shareEnabled={!viewingOwnProfile || profileStatus === "ready"}
+            publicationMessage={viewingOwnProfile ? profileStatus === "ready" ? "Your profile is live. Open your public page or share its link." : profileStatus === "publishing" ? "Publishing your verified profile…" : !proofSessionConnected ? "Connect online and activate your Identity Seal to publish this profile." : !character ? "Finish creating your explorer to publish your profile." : "Publication did not complete. Your profile is saved here; tap Publish profile to retry." : undefined}
+            publishing={profileStatus === "publishing"}
+            onPublish={viewingOwnProfile ? () => setPublicationAttempt(value => value + 1) : undefined}
             editable={viewingOwnProfile}
             signingAvailable={identity?.localAuthority === "verified"}
             onAuthenticateIdentitySeal={activateIdentitySeal}

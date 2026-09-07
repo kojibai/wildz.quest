@@ -6,6 +6,7 @@ test("the playable construction center connects the component builder and physic
   const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
   const canvas = readFileSync("src/features/play/WildsWorldCanvas.tsx", "utf8");
   assert.match(campaign, /useWildsContinuousBuilder/);
-  assert.match(campaign, /Build with pieces/);
+  assert.match(campaign, /onSelectPiece=\{selectLivingBuildPiece\}/);
+  assert.match(campaign, /onUse=\{kind => openLivingConstruction/);
   assert.match(canvas, /WildsContinuousConstruction/);
 });

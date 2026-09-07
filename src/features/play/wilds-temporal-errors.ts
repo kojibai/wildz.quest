@@ -21,9 +21,16 @@ const ACTIONABLE_WORLD_ERRORS: Record<string, string> = {
   wilds_world_steward_economy_mismatch: "The work state changed. Its current ring and satchel count are now shown; touch a bright source again.",
   wilds_world_canonical_conflict: "Your admitted work is preserved. Continue from the source and satchel state shown here.",
   wilds_construction_site_stale: "This site changed. Approach its current boundary and continue from the materials shown.",
-  wilds_construction_site_unreachable: "Move inside the site's glowing boundary before contributing or working.",
+  wilds_construction_site_unreachable: "Move within 6 metres of the site, then tap Contribute or Finish again.",
   wilds_construction_material_invalid: "Those lots are already held, stored, spent, or belong to another source. Bring an available exact lot.",
   wilds_construction_materials_incomplete: "The site still shows missing timber or stone. Contribute those exact lots before beginning the build.",
+  wilds_world_session_required: "Your world is still loading. Wait for your saved builds and material counts to appear, then retry.",
+  wilds_world_structure_unreachable: "Move within 7 metres of the placement preview, then confirm it again.",
+  wilds_world_structure_water_invalid: "This blueprint needs dry ground. Move its preview out of the water, then confirm.",
+  wilds_steward_structure_overlap: "Move the preview away from existing structures, then confirm in a clear spot.",
+  wilds_world_structure_material_invalid: "The materials must be in your satchel and unspent. Take stored timber or stone out of your cache; materials at another build cannot be reused.",
+  wilds_world_tool_material_invalid: "The tool materials must be in your satchel. Take them out of storage or gather the missing amount shown under Field tools.",
+  wilds_construction_site_terminal: "This site is already finished. Open Build with pieces to add walls, stairs and roofs.",
   wilds_world_structure_mandate_invalid: "Choose a rested companion willing and able to build beside you."
 };
 

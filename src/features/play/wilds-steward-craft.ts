@@ -148,8 +148,9 @@ export function projectWildsStewardCraft(input: Readonly<{
   const recovering = input.workMeters.length === 0 || input.workMeters.every((meter) => meter.state === "recovering");
   const partner = Object.freeze({
     name: input.activeCreatureName || "No active companion",
-    capacity,
+    capacity: capacity,
     ready: !recovering,
+    reason: (recovering ? "Select a rested companion or make camp before building." : null),
     families: Object.freeze(input.workMeters.map((meter) => meter.label))
   });
   const blueprints = Object.freeze(WILDS_STEWARD_BLUEPRINTS.map((definition) => {
@@ -157,12 +158,9 @@ export function projectWildsStewardCraft(input: Readonly<{
       timber: Math.max(0, definition.materials.timber - timber),
       stone: Math.max(0, definition.materials.stone - stone)
     });
-    const progressiveSite = definition.id === "trail-shelter" || definition.id === "trail-bridge";
     const state = input.pending ? "pending" as const
       : missing.timber > 0 || missing.stone > 0 ? "materials" as const
-        : progressiveSite ? "ready" as const
-          : !partner.ready ? "partner" as const
-            : "ready" as const;
+        : "ready" as const;
     return Object.freeze({
       ...definition,
       missing,
@@ -170,7 +168,7 @@ export function projectWildsStewardCraft(input: Readonly<{
       state
     });
   }));
-  return Object.freeze({ materials: Object.freeze({ hay, timber, stone }), partner, blueprints });
+  return Object.freeze({ materials: Object.freeze({ hay, timber, stone }), partner, blueprints, pending: input.pending });
 }
 
 export function projectWildsStewardPlacement(input: Readonly<{

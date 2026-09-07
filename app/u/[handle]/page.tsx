@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { WildzApp } from "@/features/shell/WildzApp";
+import { WildzPublicProfilePage } from "@/features/profile/WildzPublicProfilePage";
 import { canonicalWildzHandle, canonicalWildzProfilePath } from "@/features/profile/public-profile";
 import { WILDZ_PRODUCT } from "@/lib/wildz/product";
 
@@ -17,5 +17,5 @@ export async function generateMetadata({ params }: { params: Promise<{ handle: s
 
 export default async function WildzPlayerPage({ params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
-  return <WildzApp initialOverlay={{ kind: "profile", username: canonicalWildzHandle(handle), mode: "public" }} />;
+  return <WildzPublicProfilePage username={canonicalWildzHandle(handle)} />;
 }
