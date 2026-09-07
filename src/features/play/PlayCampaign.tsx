@@ -1,4 +1,5 @@
 "use client";
+import { resolveWildsConstructionFunction } from "./wilds-construction-function";
 
 import dynamic from "next/dynamic";
 import { Icons } from "@/components/icons";
@@ -171,6 +172,8 @@ import { beginWildsCurrentRide } from "@/features/play/wilds-environment-capabil
 import { constructionSourcesNear, projectWildsStewardCraft, projectWildsStewardPlacement, type WildsStewardBlueprintId, type WildsStewardPlacement } from "@/features/play/wilds-steward-craft";
 import { WildsStewardCraftPanel } from "@/features/play/WildsStewardCraftPanel";
 import { WildsStewardPlacementHud } from "@/features/play/WildsStewardPlacementHud";
+import { useWildsContinuousBuilder } from "./use-wilds-continuous-builder";
+import { WildsContinuousBuilderPanel } from "./WildsContinuousBuilderPanel";
 import type { WildsConstructionSiteV1 } from "@/features/play/wilds-construction-site";
 
 const WildsWorldMap = dynamic(() => import("@/features/play/WildsWorldMap").then((mod) => mod.WildsWorldMap), { ssr: false });
@@ -803,6 +806,7 @@ export function PlayCampaign({
     setTrainerEncounter(null);
   }, [multiplayer.activeBattle, state.battle, trainerEncounter?.phase]);
   const livingWorld = useWildsWorld({
+    onActivity: (activity) => setState(current => applyWildsInput(current, { type: "record-world-activity", activity })),
     enabled,
     networkEnabled,
     actorId: ownerReceizId,
@@ -847,8 +851,8 @@ export function PlayCampaign({
     [livingWorld.snapshot]
   );
   const playerStructureSupport = useMemo(
-    () => wildsStructureSupportAt(state.player, livingStructureSupports),
-    [livingStructureSupports, state.player]
+    () => wildsStructureSupportAt(state.player, livingStructureSupports, 0, state.siteSpace.position.y),
+    [livingStructureSupports, state.player, state.siteSpace.position.y]
   );
   const [aerialMode, setAerialMode] = useState<WildsAerialMode>("ground");
   const aquaticPresentation = useMemo(() => projectWildsAquaticPresentationAtPosition({
@@ -1226,12 +1230,11 @@ export function PlayCampaign({
     stone: availableMaterialLots.filter((lot) => lot.kind === "stone").length
   }), [availableMaterialLots]);
   const stewardWorkMeters = useMemo(() => projectWildsWorkCapabilityMeters(activeAsset ?? null, activeCondition), [activeAsset, activeCondition]);
-  const nearbyStewardWorkbench = useMemo(() => Object.values(livingWorld.snapshot?.structures ?? {}).find((structure) => structure.blueprint === "steward-workbench"
-    && sameWildzPlayerCoordinate(structure.ownerReceizId, ownerReceizId) && Math.hypot(structure.position.x - state.player.x, structure.position.z - state.player.z) <= 6) ?? null,
-  [livingWorld.snapshot?.structures, ownerReceizId, state.player.x, state.player.z]);
-  const nearbyTrailCache = useMemo(() => Object.values(livingWorld.snapshot?.structures ?? {}).find((structure) => structure.blueprint === "trail-cache"
-    && sameWildzPlayerCoordinate(structure.ownerReceizId, ownerReceizId) && Math.hypot(structure.position.x - state.player.x, structure.position.z - state.player.z) <= 6) ?? null,
-  [livingWorld.snapshot?.structures, ownerReceizId, state.player.x, state.player.z]);
+  const nearbyFunctionalPieces = useMemo(() => livingWorld.snapshot ? Object.values(livingWorld.snapshot.constructionComponents).filter(component => sameWildzPlayerCoordinate(component.ownerReceizId, ownerReceizId) && Math.hypot(component.transform.position.x - state.player.x, component.transform.position.z - state.player.z) <= 6) : [], [livingWorld.snapshot, ownerReceizId, state.player.x, state.player.z]);
+  const nearbyStewardWorkbench = useMemo(() => Object.values(livingWorld.snapshot?.structures ?? {}).find(structure => structure.blueprint === "steward-workbench" && sameWildzPlayerCoordinate(structure.ownerReceizId, ownerReceizId) && Math.hypot(structure.position.x - state.player.x, structure.position.z - state.player.z) <= 6)
+    ?? nearbyFunctionalPieces.map(component => resolveWildsConstructionFunction(livingWorld.snapshot!, component.componentId, "workshop")).find(Boolean) ?? null, [livingWorld.snapshot, nearbyFunctionalPieces, ownerReceizId, state.player.x, state.player.z]);
+  const nearbyTrailCache = useMemo(() => Object.values(livingWorld.snapshot?.structures ?? {}).find(structure => structure.blueprint === "trail-cache" && sameWildzPlayerCoordinate(structure.ownerReceizId, ownerReceizId) && Math.hypot(structure.position.x - state.player.x, structure.position.z - state.player.z) <= 6)
+    ?? nearbyFunctionalPieces.map(component => resolveWildsConstructionFunction(livingWorld.snapshot!, component.componentId, "storage")).find(Boolean) ?? null, [livingWorld.snapshot, nearbyFunctionalPieces, ownerReceizId, state.player.x, state.player.z]);
   const nearbyConstructionSite = useMemo(() => Object.values(livingWorld.snapshot?.constructionSites ?? {})
     .filter((site) => site.stage !== "complete" && Math.hypot(site.position.x - state.player.x, site.position.z - state.player.z) <= 7)
     .sort((left, right) => Math.hypot(left.position.x - state.player.x, left.position.z - state.player.z)
@@ -1248,6 +1251,7 @@ export function PlayCampaign({
     selectedBlueprintId: stewardPlacementMode,
     workMeters: stewardWorkMeters
   }), [activeAsset?.manifest.name, activeCard.name, availableMaterialLots, livingWorld.pendingCommand, stewardPlacementMode, stewardWorkMeters]);
+  const continuousBuilder = useWildsContinuousBuilder({ world: livingWorld, owner: ownerReceizId, player: state.player, lots: availableMaterialLots, feedback: showWorldFeedback });
 
   const createStewardMandate = (
     professions: readonly string[],
@@ -1304,7 +1308,7 @@ export function PlayCampaign({
       const partner = selectWildsResourceWorkPartner(state.inventory, state.adventureConditions, source.requirements.creature, activeAsset?.id);
       const partnerCondition = partner ? state.adventureConditions[partner.id] ?? emptyAdventureCondition(partner.id) : null;
       if (partner && partner.id !== activeAsset?.id) {
-        setState((current) => applyWildsInput(current, { type: "select-asset", assetId: partner.id }));
+        setState((current) => applyWildsInput(current, { type: "select-asset", assetId: partner.id, kaiUPulse }));
       }
       const current = livingWorld.snapshot?.harvestedSources[source.sourceId] ?? initialWildsHarvestedSourceState(source);
       const availability = projectWildsResourceAvailability(source, {
@@ -1612,6 +1616,9 @@ export function PlayCampaign({
       siteSpaceId: siteEncounter.spaceId
     });
   };
+  const withLocalActivity = (current: PlayState, next: PlayState, title: string, detail: string) => applyWildsInput(next, {
+    type: "record-world-activity", activity: { id: `local:${kaiUPulse}:${current.actionHistory?.length ?? 0}:${title}`, kind: "activity", title, detail, uPulse: kaiUPulse, authority: "local" }
+  });
   const consumePendingAerialLanding = (reason: WildsAerialLandingReason) => {
     const runtime = aerialStateRef.current;
     if (!runtime.landingRequired) return;
@@ -1680,6 +1687,7 @@ export function PlayCampaign({
       terrainElevation: groundElevation
     });
     setAerialMode(begun.state.mode);
+    setState(current => withLocalActivity(current, current, "Takeoff", `${kind} started`));
     if (activeVistaId) setActiveVistaId(null);
   };
   const spendWorldCapability = (family: WildsWorldCapabilityFamily) => {
@@ -1689,7 +1697,7 @@ export function PlayCampaign({
       const prior = current.adventureConditions[activeAsset.id] ?? emptyAdventureCondition(activeAsset.id);
       try {
         const next = applyWildsCapabilityCost(prior, family, amount);
-        return { ...current, adventureConditions: { ...current.adventureConditions, [activeAsset.id]: next } };
+        return withLocalActivity(current, { ...current, adventureConditions: { ...current.adventureConditions, [activeAsset.id]: next } }, "Companion capability", `${activeAsset.manifest.name} used ${family}`);
       } catch {
         return current;
       }
@@ -1698,6 +1706,7 @@ export function PlayCampaign({
   const toggleSustainedWorldCapability = (family: WildsWorldCapabilityFamily, activeMessage: string, releasedMessage: string) => {
     if (activeWorldCapability === family) {
       setActiveWorldCapability(null);
+      setState(current => withLocalActivity(current, current, "Companion capability ended", releasedMessage));
       showWorldFeedback(releasedMessage);
       return;
     }
@@ -2185,6 +2194,7 @@ export function PlayCampaign({
           </div>
           <WildsStewardCraftPanel projection={stewardCraft} nearbySite={nearbyConstructionSite} tools={stewardTools} equippedToolId={livingWorld.snapshot?.equippedStewardTools?.[ownerReceizId] ?? null} nearbyWorkbench={Boolean(nearbyStewardWorkbench)} nearbyCache={Boolean(nearbyTrailCache)} stored={{ timber: storedStewardLots.filter((lot) => lot?.kind === "timber").length, stone: storedStewardLots.filter((lot) => lot?.kind === "stone").length }} onContributeSite={(site) => void contributeNearbyConstructionSite(site)} onWorkSite={(site) => void workNearbyConstructionSite(site)} onCraftTool={(kind) => void craftStewardTool(kind)} onEquipTool={(toolId) => { beginWorldActionFeedback(); void livingWorld.equipStewardTool(toolId).then(() => showWorldFeedback("Field tool equipped. Matching work now preserves one higher grade of material while durability remains.")).catch((error) => handleStoryCommandError(error, "That tool could not be equipped.")); }} onStoreMaterial={(kind) => void moveStewardMaterial(kind, "deposit")} onWithdrawMaterial={(kind) => void moveStewardMaterial(kind, "withdraw")} onSelectBlueprint={(blueprintId) => {
             beginWorldActionFeedback();
+            continuousBuilder.close();
             setStewardPlacementMode(blueprintId);
             setStewardPlacementPreview(null);
             showWorldFeedback(blueprintId === "trail-bridge"
@@ -2204,6 +2214,10 @@ export function PlayCampaign({
       dockVisible: false,
       content: (
         <div className="wilds-command-content wilds-construction-center">
+          <button className="wilds-open-piece-builder" type="button" onClick={() => {
+            setStewardPlacementMode(null); setStewardPlacementPreview(null);
+            continuousBuilder.begin(); dispatchStageOverlay({ type: "panel", key: null });
+          }}><Icons.construction size={24} /><span><strong>Build with pieces</strong><small>Walls, stairs, floors, roofs & more · plan, gather, build</small></span><Icons.construction size={20} /></button>
           <div className="wilds-construction-center-lead">
             <span><small>Sovereign making</small><strong>Living Construction</strong><em>Shape useful places from exact materials gathered in this world.</em></span>
             <div aria-label={`${stewardMaterials.hay} hay, ${stewardMaterials.timber} timber, and ${stewardMaterials.stone} stone in Satchel`}>
@@ -2214,6 +2228,7 @@ export function PlayCampaign({
           </div>
           <WildsStewardCraftPanel projection={stewardCraft} nearbySite={nearbyConstructionSite} tools={stewardTools} equippedToolId={livingWorld.snapshot?.equippedStewardTools?.[ownerReceizId] ?? null} nearbyWorkbench={Boolean(nearbyStewardWorkbench)} nearbyCache={Boolean(nearbyTrailCache)} stored={{ timber: storedStewardLots.filter((lot) => lot?.kind === "timber").length, stone: storedStewardLots.filter((lot) => lot?.kind === "stone").length }} onContributeSite={(site) => void contributeNearbyConstructionSite(site)} onWorkSite={(site) => void workNearbyConstructionSite(site)} onCraftTool={(kind) => void craftStewardTool(kind)} onEquipTool={(toolId) => { beginWorldActionFeedback(); void livingWorld.equipStewardTool(toolId).then(() => showWorldFeedback("Field tool equipped. Matching work now preserves one higher grade of material while durability remains.")).catch((error) => handleStoryCommandError(error, "That tool could not be equipped.")); }} onStoreMaterial={(kind) => void moveStewardMaterial(kind, "deposit")} onWithdrawMaterial={(kind) => void moveStewardMaterial(kind, "withdraw")} onSelectBlueprint={(blueprintId) => {
             beginWorldActionFeedback();
+            continuousBuilder.close();
             setStewardPlacementMode(blueprintId);
             setStewardPlacementPreview(null);
             showWorldFeedback(blueprintId === "trail-bridge"
@@ -2381,6 +2396,9 @@ export function PlayCampaign({
               activeCapabilityFamily={activeWorldCapability}
               activeWorkSource={activeWorkSource}
               stewardPlacementPreview={stewardPlacementPreview}
+              constructionPreview={continuousBuilder.preview}
+              constructionSelectionEnabled={continuousBuilder.open && worldInteractionEnabled}
+              onSelectConstruction={continuousBuilder.selectComponent}
               aerialCapabilities={activeTraversalCapabilities}
               aerialStateRef={aerialStateRef}
               verticalTraversalRef={verticalTraversalRef}
@@ -2400,7 +2418,7 @@ export function PlayCampaign({
               onAerialEnergyChange={setAerialEnergy}
               onVerticalReadoutChange={publishVerticalReadout}
               onCameraHeadingChange={updateCameraHeading}
-              searchEnabled={worldInteractionEnabled && (discoveryActive || Boolean(stewardPlacementMode))}
+              searchEnabled={worldInteractionEnabled && (discoveryActive || Boolean(stewardPlacementMode) || continuousBuilder.open)}
               resourcePending={Boolean(livingWorld.pendingCommand)}
               resourceCompanionReady={Boolean(activeCondition && activeCondition.fatigue < 85 && activeCondition.injuries.length < 4)}
               livingWorld={livingWorld.snapshot}
@@ -2419,6 +2437,7 @@ export function PlayCampaign({
               trainers={sagaTrainers}
               onSelectTrainer={(trainer) => openTrainerEncounter(trainer, "world")}
               onSearchPoint={(point) => {
+                if (continuousBuilder.open) { continuousBuilder.point(point); return; }
                 if (stewardPlacementMode) {
                   setStewardPlacementPreview(projectWildsStewardPlacement({ actorPosition: state.player, blueprintId: stewardPlacementMode, point }));
                   return;
@@ -2446,8 +2465,9 @@ export function PlayCampaign({
               }}
             />
 
+            {continuousBuilder.open && worldInteractionEnabled ? <WildsContinuousBuilderPanel builder={continuousBuilder} materials={stewardMaterials} /> : null}
             {stewardPlacementPreview ? <WildsStewardPlacementHud
-              blueprintLabel={stewardPlacementPreview.blueprintId === "trail-bridge" ? "Trail Bridge" : "Trail Shelter"}
+              blueprintLabel={stewardCraft.blueprints.find(blueprint => blueprint.id === stewardPlacementPreview.blueprintId)?.label ?? "Build"}
               onCancel={() => {
                 setStewardPlacementMode(null);
                 setStewardPlacementPreview(null);
@@ -2522,6 +2542,8 @@ export function PlayCampaign({
             />
 
             {exclusiveOwner === "wallet" ? <WildsWalletTerminal
+              actionHistory={state.actionHistory}
+              livingOperations={livingWorld.snapshot?.livingOperations}
               cards={state.inventory}
               cardConditions={state.adventureConditions}
               materialLots={availableMaterialLots}

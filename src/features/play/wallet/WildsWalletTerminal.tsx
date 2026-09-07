@@ -1,5 +1,7 @@
 "use client";
 
+import type { WildsActivityEntry } from "./wilds-activity-history";
+import type { WildsLivingOperationPlanV1 } from "../wilds-living-operation";
 import React, { useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { WildsWalletControllerState, WildsWalletPage, WildsWalletPresentationState } from "./wilds-wallet-controller";
 import { PhiNetworkMark } from "./PhiNetworkMark";
@@ -42,7 +44,9 @@ export type WildsWalletTerminalActions = WildsWalletSendActions & Readonly<{
   onReturnToMessages?(): void;
 }>;
 
-export function WildsWalletTerminal({ cards = [], cardConditions = {}, materialLots = [], ledgerMaterialLots, resourceLots = [], stewardPhiAwards = [], onPrepareCard, onListCard, onSendCard, onSendMaterial, onSendResource, publicUsername, state, ...actions }: {
+export function WildsWalletTerminal({ actionHistory, livingOperations, cards = [], cardConditions = {}, materialLots = [], ledgerMaterialLots, resourceLots = [], stewardPhiAwards = [], onPrepareCard, onListCard, onSendCard, onSendMaterial, onSendResource, publicUsername, state, ...actions }: {
+  actionHistory?: readonly WildsActivityEntry[];
+  livingOperations?: Readonly<Record<string, WildsLivingOperationPlanV1>>;
   cards?: readonly PortableCardAsset[];
   cardConditions?: Readonly<Record<string, AdventureCardCondition>>;
   resourceLots?: readonly WildsResourceLotV1[];
@@ -84,7 +88,7 @@ export function WildsWalletTerminal({ cards = [], cardConditions = {}, materialL
         {state.page === "send" ? <WildsWalletSend state={state} {...actions} /> : null}
         {state.page === "receive" ? <WildsWalletReceive publicUsername={publicUsername} state={state} onRequestReceive={actions.onRequestReceive} /> : null}
         {state.page === "assets" ? <WildsWalletAssets cards={cards} cardConditions={cardConditions} materialLots={materialLots} resourceLots={resourceLots} stewardPhiAwards={stewardPhiAwards} onOpenVaultCard={closeAllowed ? actions.onOpenVaultCard : undefined} onPrepareCard={onPrepareCard} onListCard={onListCard} onSendCard={onSendCard} onSendMaterial={onSendMaterial} onSendResource={onSendResource} state={state} /> : null}
-        {state.page === "ledger" ? <WildsWalletLedger cards={cards} materialLots={ledgerMaterialLots ?? materialLots} resourceLots={resourceLots} state={state} stewardPhiAwards={stewardPhiAwards} /> : null}
+        {state.page === "ledger" ? <WildsWalletLedger actionHistory={actionHistory} livingOperations={livingOperations} cards={cards} materialLots={ledgerMaterialLots ?? materialLots} resourceLots={resourceLots} state={state} stewardPhiAwards={stewardPhiAwards} /> : null}
       </main>
       <footer><span>RECEIZ V124 · PROOF-NATIVE CUSTODY</span><span>PRIVATE · NO-STORE</span></footer>
     </section>

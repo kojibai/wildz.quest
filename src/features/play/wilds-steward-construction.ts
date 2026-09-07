@@ -1,3 +1,4 @@
+import { verifyWildsCraftWorkstation, type WildsCraftWorkstation } from "./wilds-construction-function";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import {
   isCanonicalWildsResourceSource,
@@ -289,14 +290,14 @@ export function createWildsStewardStructureOperation(input: Readonly<{
 export function createWildsStewardToolOperation(input: Readonly<{
   tool: WildsStewardToolV1;
   lots: readonly WildsMaterialLotV1[];
-  workstation: WildsStewardWorkbenchV1;
+  workstation: WildsCraftWorkstation;
   ownerReceizId: string;
   playerHead: string;
 }>): WildsLivingOperationPlanV1 {
   const orderedLots = [...input.lots].sort((left, right) => left.lotId.localeCompare(right.lotId));
   const materialOwners = input.tool.materialContributorReceizIds ?? [input.tool.ownerReceizId];
   if (!verifyWildsStewardTool(input.tool) || input.tool.revision !== 0 || input.tool.ownerReceizId !== input.ownerReceizId
-    || !verifyWildsStructure(input.workstation) || input.workstation.blueprint !== "steward-workbench"
+    || !verifyWildsCraftWorkstation(input.workstation)
     || input.tool.workstationId !== input.workstation.structureId || input.tool.workstationHead !== input.workstation.head
     || canonicalPortableCardJson(input.tool.consumedLotHeads) !== canonicalPortableCardJson(orderedLots.map((lot) => lot.head))
     || orderedLots.some((lot) => !verifyWildsMaterialLot(lot) || !materialOwners.includes(lot.ownerReceizId))) {
@@ -631,7 +632,7 @@ export function verifyWildsStewardTool(value: unknown): value is WildsStewardToo
   const capability = tool.kind === "steward-axe" ? "lumber" : tool.kind === "quarry-pick" ? "quarry" : null;
   if (!capability || tool.schema !== "wildz.steward-tool.v1" || tool.capability !== capability
     || !new RegExp(`^wildz:tool:${tool.kind}:[a-f0-9]{64}$`).test(tool.toolId ?? "")
-    || !ID.test(tool.ownerReceizId ?? "") || !/^wildz:structure:steward-workbench:[a-f0-9]{64}$/.test(tool.workstationId ?? "")
+    || !ID.test(tool.ownerReceizId ?? "") || !/^wildz:(?:structure:steward-workbench|construction-component):[a-f0-9]{64}$/.test(tool.workstationId ?? "")
     || !HEAD.test(tool.workstationHead ?? "") || !Array.isArray(tool.consumedLotIds) || !Array.isArray(tool.consumedLotHeads)
     || (tool.materialContributorReceizIds !== undefined && (!Array.isArray(tool.materialContributorReceizIds)
       || !tool.materialContributorReceizIds.includes(tool.ownerReceizId ?? "") || tool.materialContributorReceizIds.some((id) => !ID.test(id))))
@@ -649,13 +650,13 @@ export function verifyWildsStewardTool(value: unknown): value is WildsStewardToo
 export function createWildsStewardTool(input: Readonly<{
   kind: WildsStewardToolKind;
   ownerReceizId: string;
-  workstation: WildsStewardWorkbenchV1;
+  workstation: WildsCraftWorkstation;
   lots: readonly WildsMaterialLotV1[];
   builder: Readonly<{ creatureSubjectId: string; creatureHead: string }>;
   materialContributorReceizIds?: readonly string[];
   kaiUPulse: number;
 }>): WildsStewardToolV1 {
-  if (!verifyWildsStructure(input.workstation) || input.workstation.blueprint !== "steward-workbench"
+  if (!verifyWildsCraftWorkstation(input.workstation)
     || input.workstation.ownerReceizId !== input.ownerReceizId) throw new Error("wilds_steward_tool_workstation_invalid");
   if (!ID.test(input.ownerReceizId) || !ID.test(input.builder.creatureSubjectId) || !HEAD.test(input.builder.creatureHead) || !validKai(input.kaiUPulse)) {
     throw new Error("wilds_steward_tool_authority_invalid");

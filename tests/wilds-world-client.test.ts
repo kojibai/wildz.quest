@@ -41,7 +41,7 @@ describe("Wilds world client contract", () => {
     const send = source.indexOf("await sendEntry(entry)", admit);
     assert.ok(admit >= 0 && send > admit);
     const queue = readFileSync("src/features/play/wilds-world-outbox.ts", "utf8");
-    assert.ok(queue.indexOf("await input.persist(durable)") < queue.indexOf("input.onAdmitted?.(projection)"));
+    assert.ok(queue.indexOf("await input.persist(durable)") < queue.indexOf("input.onAdmitted?.(projection,"));
     assert.match(source, /return synchronizedProjection/);
     const acknowledgement = source.indexOf("await acknowledgeWildsWorldPublication(entry, parsed)", send);
     const synchronized = source.indexOf("const synchronizedProjection", acknowledgement);

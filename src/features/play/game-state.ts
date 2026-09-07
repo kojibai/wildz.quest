@@ -1,3 +1,4 @@
+import { appendWildsActivity, normalizeWildsActivityHistory, type WildsActivityEntry } from "./wallet/wilds-activity-history";
 import { creatureFamilies, creatureForm, creatureForms, type CreatureRarity } from "./creature-catalog";
 import { projectWildsConstructionPersistence, type WildsConstructionPersistence } from "./wilds-construction-persistence";
 import {
@@ -107,6 +108,7 @@ export type WildsInput = (
   | { type: "move-vector"; x: number; z: number; mode?: WildsMovementMode; aerialMode?: "glide" | "flight"; verticalClearance?: number; verticalWorldY?: number; structureSupports?: readonly WildsStructureSupport[]; additionalObstacles?: readonly WildsTerrainObstacle[]; siteRuntime?: WildsSiteRuntimeProjection; siteMovementOutput?: WildsSiteMovementOutput; siteDiscoveryOutput?: WildsSiteDiscoveryOutput }
   | { type: "site-portal"; direction: "enter" | "exit"; siteKey: string; siteRuntime: WildsSiteRuntimeProjection }
   | { type: "apply-rift-grant"; grant: RiftTravelGrant; playerId: string }
+  | { type: "record-world-activity"; activity: WildsActivityEntry }
   | { type: "discover" }
   | { type: "capture"; encounterId: string; capturedAt: string; ownerReceizId: string }
   | { type: "search-point"; x: number; z: number; surfaceWorldY?: number; searchedAt: string; ownerReceizId: string; verticalLayer?: WildsEncounterInteractionLayer; verticalWorldY?: number; verticalMinWorldY?: number; verticalMaxWorldY?: number; traversalCapabilities?: readonly WildsTraversalCapability[]; siteKey?: string | null; siteSpaceId?: string }
@@ -188,6 +190,7 @@ export type WildsOwnedWorldAdditions = Partial<WildsConstructionPersistence> & {
 };
 
 export type PlayState = {
+  actionHistory: WildsActivityEntry[];
   activeAction: GameAction;
   beans: number;
   cardXp: number;
@@ -371,6 +374,7 @@ function kaiBornStarterCardForOwner(ownerReceizId: string, createdAt: string) {
 const starterCardAsset = legacyStarterCardForOwner(LEGACY_PLACEHOLDER_OWNER);
 
 export const initialPlayState: PlayState = {
+  actionHistory: [],
   activeAction: "explore",
   beans: 28,
   cardXp: 136,
@@ -688,6 +692,7 @@ export function restorePlayState(
     return withWorldProgress({
       ...fallback,
       ...saved,
+      actionHistory: normalizeWildsActivityHistory(saved.actionHistory),
       player: restoredPlayer,
       siteSpace: normalizeWildsSiteSpaceState(saved.siteSpace, { x: restoredPlayer.x, y: wildsTerrainElevation(restoredPlayer.x, restoredPlayer.z), z: restoredPlayer.z }),
       explorationAtlas: normalizeWildsExplorationAtlas(saved.explorationAtlas, restoredPlayer),
@@ -987,6 +992,7 @@ export function applyCommittedArenaSettlement(state: PlayState, settlement: Aren
 
   return {
     ...provisional,
+    actionHistory: appendWildsActivity(state.actionHistory, { id: `arena:${settlement.id}`, kind: "activity", title: "Arena settled", detail: `${mode} · ${settlement.result.winnerSide === settlement.playerSide ? "victory" : "result recorded"}`, uPulse: settlement.kai?.uPulse ?? deriveKaiKlokMoment({ occurredAt: settlement.completedAt, authority: "admitted" }).uPulse, authority: "local" }),
     selectedAssetId,
     selectedCardId: selected?.manifest.familyId ?? "",
     companionProgress,
@@ -1153,6 +1159,26 @@ function advanceLivingMission(state: PlayState, amount: number): PlayState {
 }
 
 export function applyWildsInput(state: PlayState, input: WildsInput): PlayState {
+  if (input.type === "record-world-activity") return { ...state, actionHistory: appendWildsActivity(state.actionHistory, input.activity) };
+  const next = reduceWildsInput(state, input);
+  const quiet = ["reset", "dismiss-reveal", "finish-transformation", "finish-lineage-reveal", "advance-encounter", "mark-synced", "settle-pending-travel-growth"];
+  if (next === state || quiet.includes(input.type) || !Number.isSafeInteger(input.kaiUPulse)) return next;
+  const moving = input.type === "move" || input.type === "move-vector";
+  if (moving && next.player.x === state.player.x && next.player.z === state.player.z) return next;
+  const previous = state.actionHistory?.at(-1);
+  if (moving && previous?.title === "Travel" && input.kaiUPulse! - previous.uPulse < 1_000_000) {
+    const updated = { ...previous, uPulse: input.kaiUPulse!, detail: `Moved to X ${next.player.x.toFixed(1)} · Z ${next.player.z.toFixed(1)}` };
+    return { ...next, actionHistory: [...state.actionHistory.slice(0, -1), updated] };
+  }
+  const entry: WildsActivityEntry = {
+    id: `local:${input.kaiUPulse}:${(state.actionHistory ?? []).length}:${input.type}`,
+    kind: "activity", title: moving ? "Travel" : input.type.replaceAll("-", " "), detail: moving ? `Moved to X ${next.player.x.toFixed(1)} · Z ${next.player.z.toFixed(1)}` : next.lastEvent,
+    uPulse: input.kaiUPulse!, authority: "local"
+  };
+  return { ...next, actionHistory: appendWildsActivity(state.actionHistory, entry) };
+}
+
+function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
   if (input.kaiUPulse !== undefined) input = rootWildsInputInKai(input, input.kaiUPulse);
   if (input.type === "reset") {
     const owner = selectedAsset(state)?.manifest.ownerReceizId ?? state.inventory[0]?.manifest.ownerReceizId;
@@ -2048,15 +2074,15 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     });
     const movement = currentSpace.spaceId === "wildz.space.outer.v1"
       ? input.type === "move"
-        ? movePlayer(state.player, input.direction, movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, input.verticalWorldY, input.structureSupports, input.additionalObstacles)
-        : movePlayerVector(state.player, input.x, input.z, movementScale(input.mode ?? "walk"), movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, input.verticalWorldY, input.structureSupports, input.additionalObstacles)
+        ? movePlayer(state.player, input.direction, movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, admittedAirborne ? input.verticalWorldY : currentSpace.position.y, input.structureSupports, input.additionalObstacles)
+        : movePlayerVector(state.player, input.x, input.z, movementScale(input.mode ?? "walk"), movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, admittedAirborne ? input.verticalWorldY : currentSpace.position.y, input.structureSupports, input.additionalObstacles)
       : movePlayerInsideSite(state.player, input);
     const siteMovement = input.siteRuntime ? writeWildsSiteRuntimeMovement(
       input.siteMovementOutput ?? { x: movement.position.x, z: movement.position.z, floorY: movement.elevation, ceilingY: Number.POSITIVE_INFINITY, surfaceId: null, flooded: false, blocked: false, blockedByClimb: false },
       input.siteRuntime,
       currentSpace.spaceId,
       state.player.x,
-      currentSpace.spaceId === "wildz.space.outer.v1" ? wildsTerrainElevation(state.player.x, state.player.z) : currentSpace.position.y,
+      currentSpace.position.y,
       state.player.z,
       movement.position.x,
       movement.position.z,

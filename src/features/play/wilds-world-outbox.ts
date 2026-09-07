@@ -1,3 +1,4 @@
+import type { ConstitutionalDecision } from "./wilds-constitution";
 import {
   createReceizOfflineProofQueue,
   type JsonObject,
@@ -135,7 +136,7 @@ export function verifyWildsWorldAdmittedSource(entry: WildsWorldOutboxEntry, con
 function prepareWildsWorldOutboxEntry(base: WildsWorldProjection, entry: WildsWorldOutboxEntry) {
   if (entry.admittedSource) {
     verifyWildsWorldAdmittedSource(entry, base);
-    return { entry, projection: entry.admittedSource.events.reduce(reduceWildsWorldEvent, base) };
+    return { entry, projection: entry.admittedSource.events.reduce(reduceWildsWorldEvent, base), events: entry.admittedSource.events, constitution: undefined as ConstitutionalDecision | undefined };
   }
   const world = new WildsWorldService({ checkpoint: checkpointWildsWorld(base) });
   const result = world.execute(entry.command, { actorId: entry.actorId, canonical: true, pulse: entry.queuedAt, occurredAt: entry.queuedAt, card: entry.card });
@@ -143,7 +144,7 @@ function prepareWildsWorldOutboxEntry(base: WildsWorldProjection, entry: WildsWo
     entry: isWildsEdgeImmediateConstructionCommand(entry.command) && result.events.length
       ? { ...entry, admittedSource: { anchorId: entry.command.commandId, checkpoint: checkpointWildsWorld(base), events: result.events } }
       : entry,
-    projection: result.projection
+    projection: result.projection, events: result.events, constitution: result.constitution
   };
 }
 
@@ -193,7 +194,7 @@ export function preserveWildsConstructionHistory(current: WildsWorldProjection, 
 export function createWildsWorldEdgeAdmissionQueue(input: {
   initialProjection: WildsWorldProjection;
   persist: (entry: WildsWorldOutboxEntry) => Promise<unknown>;
-  onAdmitted?: (projection: WildsWorldProjection) => void;
+  onAdmitted?: (projection: WildsWorldProjection, entry: WildsWorldOutboxEntry, events: readonly WildsWorldEvent[], constitution?: ConstitutionalDecision) => void;
 }) {
   let projection = input.initialProjection;
   let tail: Promise<unknown> = Promise.resolve();
@@ -222,7 +223,7 @@ export function createWildsWorldEdgeAdmissionQueue(input: {
         if (durable.admittedSource) anchorId = durable.admittedSource.anchorId;
         else anchorId = null;
         projection = prepared.projection;
-        input.onAdmitted?.(projection);
+        input.onAdmitted?.(projection, durable, prepared.events, prepared.constitution);
         return projection;
       });
       tail = next;

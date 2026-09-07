@@ -1,3 +1,4 @@
+import { WildsConstitutionalError } from "@/features/play/wilds-constitution";
 import { NextRequest, NextResponse } from "next/server";
 import { executeWildsWorldCommand } from "@/lib/receiz/wilds-world-server";
 
@@ -15,7 +16,8 @@ export async function POST(request: NextRequest) {
     const zeroWrite = message.startsWith("wilds_living_world_zero_write:");
     return NextResponse.json({
       ok: false,
-      error: message
+      error: message,
+      ...(error instanceof WildsConstitutionalError ? { constitution: error.decision } : {})
     }, {
       status: connectRequired ? 401 : executionUnknown ? 503 : zeroWrite ? 409 : message.includes("required") ? 403 : 400,
       headers: { "cache-control": "private, no-store" }

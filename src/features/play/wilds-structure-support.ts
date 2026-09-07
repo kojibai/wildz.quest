@@ -1,3 +1,4 @@
+import { projectWildsConstructionStageGeometry } from "./wilds-construction-geometry";
 import type { WildsTrailBridgeV1 } from "./wilds-steward-construction";
 import type { WildsWorldProjection } from "./wilds-world-state";
 
@@ -25,11 +26,20 @@ function freeze<T>(value: T): T {
   return value;
 }
 
-export function projectWildsStructureSupports(world?: Pick<WildsWorldProjection, "structures"> | null): readonly WildsStructureSupport[] {
+export function projectWildsStructureSupports(world?: Pick<WildsWorldProjection, "structures"> & Partial<Pick<WildsWorldProjection, "constructionComponents" | "constructionMaterialContributions" | "constructionWorkContributions">> | null): readonly WildsStructureSupport[] {
   if (!world) return Object.freeze([]);
+  const components: WildsStructureSupport[] = Object.values(world.constructionComponents ?? {}).flatMap(component => {
+    const geometry = projectWildsConstructionStageGeometry(component, Object.values(world.constructionMaterialContributions ?? {}), Object.values(world.constructionWorkContributions ?? {}));
+    if (geometry.stage !== "functional" && geometry.stage !== "finished") return [];
+    if (!["foundation", "floor", "room", "roof", "stair", "bridge", "platform", "path"].includes(component.kind)) return [];
+    return geometry.solids.filter(solid => component.kind !== "room" || solid.id.endsWith(":floor")).map(solid => ({
+      id: `wildz.support.component:${solid.id}`, structureId: component.componentId, deckY: solid.center.y + solid.halfExtents.y,
+      center: { x: solid.center.x, z: solid.center.z }, halfWidth: solid.halfExtents.x, halfLength: solid.halfExtents.z, rotationQuarterTurns: 0 as const
+    }));
+  });
   return freeze(Object.values(world.structures)
     .filter((structure): structure is WildsTrailBridgeV1 => structure.blueprint === "trail-bridge" && structure.stage === "complete")
-    .map((structure) => ({
+    .map((structure): WildsStructureSupport => ({
       id: `wildz.support.v1:${structure.structureId}`,
       structureId: structure.structureId,
       deckY: structure.physical.deckY,
@@ -38,22 +48,26 @@ export function projectWildsStructureSupports(world?: Pick<WildsWorldProjection,
       halfLength: structure.physical.halfLength,
       rotationQuarterTurns: structure.rotationQuarterTurns
     }))
+    .concat(components)
     .sort((left, right) => left.id.localeCompare(right.id)));
 }
 
 export function wildsStructureSupportAt(
   point: Readonly<{ x: number; z: number }>,
   supports: readonly WildsStructureSupport[] | undefined,
-  inset = 0
+  inset = 0,
+  footY?: number
 ) {
   if (!Number.isFinite(point.x) || !Number.isFinite(point.z) || !Number.isFinite(inset) || inset < 0) return null;
+  let best: WildsStructureSupport | null = null;
   for (const support of supports ?? []) {
+    if (support.id.startsWith("wildz.support.component:") && Number.isFinite(footY) && support.deckY > footY! + .65) continue;
     const deltaX = point.x - support.center.x;
     const deltaZ = point.z - support.center.z;
     const lengthCoordinate = support.rotationQuarterTurns % 2 === 0 ? deltaZ : deltaX;
     const widthCoordinate = support.rotationQuarterTurns % 2 === 0 ? deltaX : deltaZ;
-    if (Math.abs(lengthCoordinate) <= support.halfLength - inset + .000001
-      && Math.abs(widthCoordinate) <= support.halfWidth - inset + .000001) return support;
+    if (Math.abs(lengthCoordinate) <= support.halfLength - (support.id.startsWith("wildz.support.component:") ? Math.min(inset, support.halfLength * .1) : inset) + .000001
+      && Math.abs(widthCoordinate) <= support.halfWidth - (support.id.startsWith("wildz.support.component:") ? Math.min(inset, support.halfWidth * .1) : inset) + .000001) { if (!best || support.deckY > best.deckY) best = support; }
   }
-  return null;
+  return best;
 }

@@ -366,7 +366,8 @@ export function resolveWildsGroundMovement(
   const startTerrain = sampleWildsTerrain(start.x, start.z);
   const intendedTerrain = sampleWildsTerrain(intended.x, intended.z);
   const capabilities = new Set(options.capabilities ?? []);
-  const intendedSupport = wildsStructureSupportAt(intended, options.structureSupports, capsuleRadius);
+  const footY = Number.isFinite(options.verticalWorldY) ? options.verticalWorldY! : startTerrain.elevation;
+  const intendedSupport = wildsStructureSupportAt(intended, options.structureSupports, capsuleRadius, footY);
   const intendedMode = options.aerialMode ?? (intendedSupport ? "walk" : traversalModeFor(intendedTerrain, capabilities));
   const speedMultiplier = speedForTraversalMode(intendedMode);
   const target = {
@@ -374,7 +375,7 @@ export function resolveWildsGroundMovement(
     z: quantize(start.z + (intended.z - start.z) * speedMultiplier)
   };
   const targetTerrain = sampleWildsTerrain(target.x, target.z);
-  const targetSupport = wildsStructureSupportAt(target, options.structureSupports, capsuleRadius);
+  const targetSupport = wildsStructureSupportAt(target, options.structureSupports, capsuleRadius, footY);
   const airborneClearance = options.aerialMode
     ? Math.max(0, Number.isFinite(options.verticalWorldY)
       ? options.verticalWorldY! - startTerrain.elevation
@@ -436,14 +437,17 @@ export function resolveWildsGroundMovement(
     ...(options.additionalObstacles ?? [])
   ];
   const obstacles = airborneClearance === null
-    ? allObstacles
+    ? allObstacles.filter(obstacle => !obstacle.id.startsWith("wildz.component:") || (
+      wildsObstacleVerticalBounds(obstacle).maximum > (targetSupport?.deckY ?? footY) + .001
+      && wildsObstacleBlocksVerticalBand(obstacle, targetSupport?.deckY ?? footY)
+    ))
     : allObstacles.filter((obstacle) => wildsObstacleBlocksVerticalBand(
       obstacle,
       startTerrain.elevation + airborneClearance
     ));
   const collision = resolveWildsObstacleMotion(start, target, obstacles, capsuleRadius);
   const resolvedTerrain = sampleWildsTerrain(collision.position.x, collision.position.z);
-  const resolvedSupport = wildsStructureSupportAt(collision.position, options.structureSupports, capsuleRadius);
+  const resolvedSupport = wildsStructureSupportAt(collision.position, options.structureSupports, capsuleRadius, footY);
   const pushedIntoMissingTraversal = airborneClearance !== null
     ? null
     : resolvedSupport ? null : resolvedTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind ?? null;

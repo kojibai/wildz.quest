@@ -50,6 +50,6 @@ describe("Slice 5 social core", () => {
     assert.throws(() => inviteWildsPlayer({ team, inviterId: "player:captain", inviteeId: "player:new", occurredAt: at, expiresAt: "2026-07-21T12:00:00.000Z", inviteeAccountAgeDays: 0 }), /wilds_social_new_player_protected/);
     const report = reportWildsAbuse({ reporterId: "player:captain", subjectId: "player:bad", reason: "harassment", occurredAt: at });
     assert.equal(report.status, "queued");
-    assert.throws(() => reportWildsAbuse({ reporterId: "player:captain", subjectId: "player:bad", reason: "harassment", occurredAt: at }), /wilds_social_report_duplicate/);
+    assert.throws(() => reportWildsAbuse({ reporterId: "player:captain", subjectId: "player:bad", reason: "harassment", occurredAt: at, existingReportIds: [report.id] }), /wilds_social_report_duplicate/);
   });
 });

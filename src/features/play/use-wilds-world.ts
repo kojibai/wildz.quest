@@ -1,4 +1,6 @@
+import type { WildsActivityEntry } from "./wallet/wilds-activity-history";
 "use client";
+import { resolveWildsCraftWorkstation } from "./wilds-construction-function";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { sha256PortableBasis, type PortableCardAsset } from "./portable-card";
@@ -184,6 +186,7 @@ export async function refreshWildsWorldClient(input: {
 }
 
 export function useWildsWorld(input: {
+  onActivity?: (activity: WildsActivityEntry) => void;
   enabled: boolean;
   networkEnabled: boolean;
   actorId: string;
@@ -200,6 +203,8 @@ export function useWildsWorld(input: {
     amountPhiMicro: string;
   }>) => Promise<unknown>;
 }) {
+  const activityListener = useRef(input.onActivity);
+  activityListener.current = input.onActivity;
   const ownedWorldAdditions = useRef(input.ownedWorldAdditions);
   ownedWorldAdditions.current = input.ownedWorldAdditions;
   const [snapshot, setSnapshot] = useState<WildsWorldProjection | null>(() => mergeWildsOwnedWorldAdditions(
@@ -224,7 +229,14 @@ export function useWildsWorld(input: {
         try { await enqueueWildsWorldCommand(entry); }
         catch (cause) { throw new Error("wilds_world_local_persistence_failed", { cause }); }
       },
-      onAdmitted: (projection) => { canonicalSnapshot.current = projection; setSnapshot((current) => acceptWildsWorldSnapshot(current, projection, ownedWorldAdditions.current)); }
+      onAdmitted: (projection, entry, events, constitution) => {
+        canonicalSnapshot.current = projection;
+        setSnapshot((current) => acceptWildsWorldSnapshot(current, projection, ownedWorldAdditions.current));
+        for (const event of events) {
+          if (event.actorId !== entry.actorId) continue;
+          activityListener.current?.({ id: event.eventId, kind: "activity", title: event.kind.replaceAll(".", " ").replaceAll("_", " "), detail: "Admitted world activity on this device", uPulse: event.uPulse, authority: "world", constitution });
+        }
+      }
     }) };
   }
   const edgeQueue = edge.current.queue;
@@ -509,8 +521,8 @@ export function useWildsWorld(input: {
     if (!input.activeCard) throw new Error("wilds_world_active_card_required");
     if (!snapshot) throw new Error("wilds_world_session_required");
     const currentEmission = wildsWorldSourceEmission(snapshot);
-    const workstation = snapshot.structures[workstationId];
-    if (!workstation || workstation.blueprint !== "steward-workbench") throw new Error("wilds_world_tool_workstation_invalid");
+    const workstation = resolveWildsCraftWorkstation(snapshot, workstationId);
+    if (!workstation) throw new Error("wilds_world_tool_workstation_invalid");
     const lots = lotIds.map((lotId) => snapshot.materialLots[lotId]).filter(Boolean);
     if (lots.length !== lotIds.length || lots.some((lot) => wildsMaterialCustodian(snapshot, lot) !== input.actorId)
       || lotIds.some((lotId) => snapshot.consumedMaterialLots[lotId] || snapshot.storedMaterialLots[lotId] || snapshot.reservedMaterialLots[lotId])) throw new Error("wilds_world_tool_material_invalid");

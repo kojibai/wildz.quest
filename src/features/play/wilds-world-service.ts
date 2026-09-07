@@ -1,3 +1,6 @@
+import { WILDS_COMMAND_LAW, worldConstitutionalDecision } from "./wilds-world-constitution";
+import { WildsConstitutionalError, constitutionalDigest, constitutionalPredicate, deriveConstitutionalDecision } from "./wilds-constitution";
+import { resolveWildsCraftWorkstation, resolveWildsMaterialCache } from "./wilds-construction-function";
 import { generateCrystalBurrower, type WildsBoss } from "./wilds-boss-generator";
 import { deriveWildsBossSuccessor, generateWildsBoss, WILDS_BOSS_FAMILIES, type WildsBossDefinition } from "./wilds-boss-ecology";
 import { advanceDynamicSite, generateCrystalBurrow, type WildsDynamicSite } from "./wilds-dynamic-sites";
@@ -143,6 +146,7 @@ function commandIdValid(value: string) {
 export class WildsWorldService {
   private projection: WildsWorldProjection;
   private eventTail: WildsWorldEvent[];
+  private constitutionalCommand: { digest: string; type: string } | null = null;
 
   constructor(input?: { checkpoint?: WildsWorldCheckpoint; events?: WildsWorldEvent[] }) {
     this.projection = input?.checkpoint ? replayWildsWorld([], input.checkpoint) : initialWildsWorldProjection();
@@ -190,7 +194,7 @@ export class WildsWorldService {
       kaiKlok,
       occurredAt: authority.occurredAt,
       previousEventId: this.projection.cursor?.eventId ?? null,
-      payload
+      payload: this.constitutionalCommand ? { ...(payload as Record<string, unknown>), constitutionalCommand: this.constitutionalCommand } : payload
     });
     this.appendExisting(event);
     return event;
@@ -260,7 +264,24 @@ export class WildsWorldService {
     }
   }
 
+  private constitutionalSystemTransition(law: string, actor: string, action: () => { events: WildsWorldEvent[]; projection: WildsWorldProjection }) {
+    const before = this.projection, previousTail = this.eventTail;
+    try {
+      if (actor !== "receiz:pulse") throw new Error("wilds_constitution_system_scope_invalid");
+      const result = action();
+      const constitution = deriveConstitutionalDecision({ sourceState: constitutionalDigest(before), actor,
+        standing: "DELEGATED_EXECUTION_AUTHORITY", authority: law, successor: constitutionalDigest(result.projection), predicates: [
+          constitutionalPredicate("TOB-54/74", "System execution remains within its declared deterministic simulation rule", true, [law]),
+          constitutionalPredicate("TOB-60/62/75", "Ordered source transitions preserve predecessor continuity", true, result.events.map(event => event.digest))
+        ] });
+      return { ...result, constitution };
+    } catch (error) { this.projection = before; this.eventTail = previousTail; throw error; }
+  }
+
   tick(input: { pulse: string; occurredAt: string; uPulse?: number; systemActorId: "receiz:pulse" }) {
+    return this.constitutionalSystemTransition("wildz:simulation:site-boss-saga", input.systemActorId, () => this.tickUnderSourceLaw(input));
+  }
+  private tickUnderSourceLaw(input: { pulse: string; occurredAt: string; uPulse?: number; systemActorId: "receiz:pulse" }) {
     if (input.systemActorId !== "receiz:pulse") throw new Error("wilds_world_pulse_authority_invalid");
     // A scheduler retry may arrive after a newer pulse has already been
     // committed (for example after a process restart).  Reject that stale
@@ -330,6 +351,9 @@ export class WildsWorldService {
   }
 
   tickEcology(input: { pulse: string; occurredAt: string; uPulse?: number; systemActorId: "receiz:pulse" }) {
+    return this.constitutionalSystemTransition("wildz:simulation:ecology", input.systemActorId, () => this.tickEcologyUnderSourceLaw(input));
+  }
+  private tickEcologyUnderSourceLaw(input: { pulse: string; occurredAt: string; uPulse?: number; systemActorId: "receiz:pulse" }) {
     if (input.systemActorId !== "receiz:pulse") throw new Error("wilds_world_pulse_authority_invalid");
     const moment = authorityMoment(input);
     if (this.projection.cursor && moment.uPulse < wildsWorldCursorUPulse(this.projection.cursor)) {
@@ -404,6 +428,9 @@ export class WildsWorldService {
   }
 
   tickGroves(input: { pulse: string; occurredAt: string; uPulse?: number; systemActorId: "receiz:pulse" }) {
+    return this.constitutionalSystemTransition("wildz:simulation:grove-regeneration", input.systemActorId, () => this.tickGrovesUnderSourceLaw(input));
+  }
+  private tickGrovesUnderSourceLaw(input: { pulse: string; occurredAt: string; uPulse?: number; systemActorId: "receiz:pulse" }) {
     if (input.systemActorId !== "receiz:pulse") throw new Error("wilds_world_pulse_authority_invalid");
     const moment = authorityMoment(input);
     if (this.projection.cursor && moment.uPulse < wildsWorldCursorUPulse(this.projection.cursor)) {
@@ -424,6 +451,30 @@ export class WildsWorldService {
   }
 
   execute(command: WildsWorldCommand, authority: WildsWorldAuthority) {
+    const before = this.projection;
+    const previousTail = this.eventTail;
+    try {
+      if (!Object.hasOwn(WILDS_COMMAND_LAW, command.type)) throw new Error("wilds_constitution_action_undefined");
+      const preflight = worldConstitutionalDecision({ before, command, authority });
+      if (preflight.predicatesFailed.some(p => p.rule === "TOB-23/54/56")) throw new Error("wilds_social_organizer_forbidden");
+      const priorReceipt = before.constitutionalCommandReceipts?.[command.commandId];
+      if (priorReceipt && (priorReceipt.digest !== constitutionalDigest(command) || priorReceipt.actorId !== authority.actorId)) throw new Error("wilds_constitution_command_conflict");
+      this.constitutionalCommand = { digest: constitutionalDigest(command), type: command.type };
+      const result = priorReceipt ? { events: [], projection: before } : this.executeUnderSourceLaw(command, authority);
+      const constitution = worldConstitutionalDecision({ before, command, authority, after: result.projection, events: result.events });
+      if (constitution.result !== "VALID") throw new WildsConstitutionalError("wilds_constitution_authority_unproven", constitution);
+      return { ...result, constitution };
+    } catch (cause) {
+      // A failed late predicate cannot leave a partially accepted story or economic transition.
+      this.projection = before;
+      this.eventTail = previousTail;
+      if (cause instanceof WildsConstitutionalError) throw cause;
+      const message = cause instanceof Error ? cause.message : "wilds_constitution_transition_unresolved";
+      throw new WildsConstitutionalError(message, worldConstitutionalDecision({ before, command, authority, failure: message }));
+    } finally { this.constitutionalCommand = null; }
+  }
+
+  private executeUnderSourceLaw(command: WildsWorldCommand, authority: WildsWorldAuthority) {
     if (!authority.canonical) throw new Error("wilds_world_canonical_authority_required");
     if (!commandIdValid(command.commandId)) throw new Error("wilds_world_command_id_invalid");
     const commandDigest = constructionProofDigest(command);
@@ -744,8 +795,8 @@ export class WildsWorldService {
       events.push(this.append("structure.built", { structure, operation, emission, amountPhiMicro: preview.amountPhiMicro, phiAward }, authority, command.commandId));
     } else if (command.type === "tool.steward.craft") {
       if (!authority.card) throw new Error("wilds_world_verified_card_required");
-      const workstation = this.projection.structures[command.workstationId];
-      if (!workstation || workstation.blueprint !== "steward-workbench" || workstation.ownerReceizId !== authority.actorId) throw new Error("wilds_world_tool_workstation_invalid");
+      const workstation = resolveWildsCraftWorkstation(this.projection, command.workstationId);
+      if (!workstation || workstation.ownerReceizId !== authority.actorId) throw new Error("wilds_world_tool_workstation_invalid");
       if (Math.hypot(command.actorPosition.x - workstation.position.x, command.actorPosition.z - workstation.position.z) > 6) throw new Error("wilds_world_tool_workstation_unreachable");
       const creatureHead = sha256PortableBasis(authority.card.proof.digest);
       const creatureSubjectId = `creature:${sha256PortableBasis(authority.card.id).slice(0, 32)}`;
@@ -774,8 +825,8 @@ export class WildsWorldService {
       if (!tool || tool.ownerReceizId !== authority.actorId) throw new Error("wilds_world_tool_equip_invalid");
       events.push(this.append("tool.equipped", { toolId: command.toolId }, authority, command.commandId));
     } else if (command.type === "storage.material.move") {
-      const cache = this.projection.structures[command.cacheId];
-      if (!cache || cache.blueprint !== "trail-cache" || cache.ownerReceizId !== authority.actorId) throw new Error("wilds_world_storage_invalid");
+      const cache = resolveWildsMaterialCache(this.projection, command.cacheId);
+      if (!cache || cache.ownerReceizId !== authority.actorId) throw new Error("wilds_world_storage_invalid");
       if (Math.hypot(command.actorPosition.x - cache.position.x, command.actorPosition.z - cache.position.z) > 6) throw new Error("wilds_world_storage_unreachable");
       events.push(this.append("storage.material_moved", { lotId: command.lotId, cacheId: command.cacheId, direction: command.direction }, authority, command.commandId));
     } else if (command.type === "story.contribute") {
@@ -953,7 +1004,7 @@ export class WildsWorldService {
       }
       events.push(this.append(kind, { team: projectionTeam(next, current) }, authority, command.commandId));
     } else if (command.type === "social.report") {
-      const report = reportWildsAbuse({ reporterId: authority.actorId, subjectId: command.subjectId, reason: command.reason, occurredAt: authority.occurredAt });
+      const report = reportWildsAbuse({ reporterId: authority.actorId, subjectId: command.subjectId, reason: command.reason, occurredAt: authority.occurredAt, existingReportIds: Object.keys(this.projection.constitutionalClaims ?? {}) });
       events.push(this.append("social.abuse_reported", { report }, authority, command.commandId));
     }
     return { events, projection: this.projection };

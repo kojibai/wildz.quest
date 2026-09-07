@@ -331,6 +331,7 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
       projection: result.projection,
       mode: publication.mode,
       events: result.events,
+      constitution: result.constitution,
       publication
     };
   }
@@ -439,20 +440,24 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
         revision: publication.record.checkpoint.revision,
         lastEventId: publication.record.checkpoint.lastEventId
       })) {
-        root()[serviceKey] = new WildsWorldService(publication.record);
-        throw new Error("wilds_world_canonical_conflict");
+        // Keep both branches visible. Publication cannot retroactively erase admitted source work.
+        return { projection: result.projection, mode: "receiz_recovery_pending" as const, events: result.events,
+          constitution: { ...result.constitution, publicationStatus: "DISPUTED" as const }, publication,
+          constitutionalFork: { status: "FORK" as const, source: record, competing: publication.record, resolution: "UNRESOLVED" as const } };
+
       }
       // The source transition remains committed. The same command id can be
       // retried idempotently until its weaker global projection catches up.
-      return { projection: result.projection, mode: "receiz_recovery_pending" as const, events: result.events, publication };
+      return { projection: result.projection, mode: "receiz_recovery_pending" as const, events: result.events, constitution: result.constitution, publication };
     }
     if (!await auditMajorEvents(request, actor, result.events)) publication = { ...publication, mode: "receiz_recovery_pending" };
-    return { projection: result.projection, mode: publication.mode, events: result.events, publication };
+    return { projection: result.projection, mode: publication.mode, events: result.events, constitution: result.constitution, publication };
   }
   return {
     projection: result.projection,
     mode: "kai_live" as const,
     events: result.events,
+    constitution: result.constitution,
     publication: {
       published: false as const,
       required: "identity_proof" as const,
@@ -479,7 +484,7 @@ export function tickWildsWorld(request: NextRequest) {
   const world = current.tick({ pulse: now, occurredAt: now, systemActorId: "receiz:pulse" });
   const ecology = current.tickEcology({ pulse: now, occurredAt: now, systemActorId: "receiz:pulse" });
   const groves = current.tickGroves({ pulse: now, occurredAt: now, systemActorId: "receiz:pulse" });
-  const result = { projection: groves.projection, events: [...world.events, ...ecology.events, ...groves.events] };
+  const result = { projection: groves.projection, events: [...world.events, ...ecology.events, ...groves.events], constitution: [world.constitution, ecology.constitution, groves.constitution] };
   const pulseActor = {
     playerId: "receiz:pulse",
     handle: "receiz:pulse",
@@ -491,9 +496,9 @@ export function tickWildsWorld(request: NextRequest) {
     lastEventId: before.checkpoint.lastEventId
   });
   if (!publication.published) {
-    return { projection: result.projection, mode: "receiz_recovery_pending" as const, events: result.events, publication };
+    return { projection: result.projection, mode: "receiz_recovery_pending" as const, events: result.events, constitution: result.constitution, publication };
   }
   if (!await auditMajorEvents(request, pulseActor, result.events)) publication = { ...publication, mode: "receiz_recovery_pending" };
-  return { projection: result.projection, mode: publication.mode, events: result.events, publication };
+  return { projection: result.projection, mode: publication.mode, events: result.events, constitution: result.constitution, publication };
   });
 }

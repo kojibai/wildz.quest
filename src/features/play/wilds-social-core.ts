@@ -84,10 +84,11 @@ export function assembleWildsSquad(input: { team: WildsSocialTeam; eventId: stri
   return { team: { ...input.team, events: input.team.events.map((entry) => entry.id === event.id ? updated : entry) }, event: updated };
 }
 
-const abuseReports = new Set<string>();
-export function reportWildsAbuse(input: { reporterId: string; subjectId: string; reason: string; occurredAt: string }) {
+export function reportWildsAbuse(input: { reporterId: string; subjectId: string; reason: string; occurredAt: string; existingReportIds?: readonly string[] }) {
   iso(input.occurredAt); if (!idValid(input.reporterId) || !idValid(input.subjectId)) throw new Error("wilds_social_report_invalid");
   const reason = input.reason.trim().slice(0, 280); if (!reason) throw new Error("wilds_social_report_invalid");
-  const key = `${input.reporterId}:${input.subjectId}:${reason.toLowerCase()}`; if (abuseReports.has(key)) throw new Error("wilds_social_report_duplicate"); abuseReports.add(key);
-  return { id: `report:${sha256PortableBasis(`wilds:report:${key}`).slice(7, 31)}`, status: "queued" as const };
+  const key = `${input.reporterId}:${input.subjectId}:${reason.toLowerCase()}`;
+  const id = `report:${sha256PortableBasis(`wilds:report:${key}`).slice(7, 31)}`;
+  if (input.existingReportIds?.includes(id)) throw new Error("wilds_social_report_duplicate");
+  return { id, status: "queued" as const, claimant: input.reporterId, subject: input.subjectId, proposition: reason, claimStatus: "ALLEGED" as const };
 }

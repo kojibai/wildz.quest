@@ -1,3 +1,4 @@
+import { projectWildsConstructionObstacles } from "./wilds-construction-physics";
 import { projectWildsBiome } from "./wilds-biome";
 import { WILDS_FLAGSHIP_LANDMARKS } from "./wilds-landmarks";
 import type { WildsWorldProjection } from "./wilds-world-state";
@@ -85,7 +86,7 @@ export const WILDS_RENDERED_PHYSICAL_OBSTACLES: readonly WildsTerrainObstacle[] 
 
 export function projectWildsRenderedLivingObstacles(world?: WildsWorldProjection | null) {
   if (!world) return [] as WildsTerrainObstacle[];
-  const obstacles: WildsTerrainObstacle[] = [];
+  const obstacles: WildsTerrainObstacle[] = projectWildsConstructionObstacles(world);
   for (const site of Object.values(world.sites)) {
     if (site.phase === "expired") continue;
     const terrainY = renderedTerrainY(site.position.x, site.position.z);

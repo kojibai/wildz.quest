@@ -66,6 +66,7 @@ export type WildsBlueprintPlacementInput = Readonly<{
   pointer: Point3;
   rotationQuarterTurns: number;
   heightStep: number;
+  surfaceSnap?: boolean;
   physical: WildsPlacementPhysicalEvidence;
 }>;
 
@@ -74,6 +75,7 @@ export type WildsProductionPlacementEvidence = Readonly<{
   pointer: Point3;
   rotationQuarterTurns: number;
   heightStep: number;
+  surfaceSnap?: boolean;
   physical: WildsPlacementPhysicalEvidence;
 }>;
 
@@ -327,7 +329,8 @@ export function previewWildsBlueprintPlacement(input: WildsBlueprintPlacementInp
   if (!catalog) throw new Error("wilds_blueprint_component_invalid");
   const rotationQuarterTurns = quarter(input.rotationQuarterTurns);
   const rotated = rotationQuarterTurns % 2 === 0 ? catalog.halfExtents : { x: catalog.halfExtents.z, y: catalog.halfExtents.y, z: catalog.halfExtents.x };
-  const acceptedAnchors: readonly AnchorKind[] = ACCEPTED_ANCHORS[input.kind];
+  const acceptedAnchors: readonly AnchorKind[] = input.surfaceSnap && ["storage", "workshop", "habitat", "bed", "hearth", "light", "trim"].includes(input.kind)
+    ? [...ACCEPTED_ANCHORS[input.kind], "foundation"] : ACCEPTED_ANCHORS[input.kind];
   const blueprintAnchors = new Map(input.blueprint.pieces.flatMap((piece) => piece.anchors.map((candidate) => [candidate.id, candidate] as const)));
   const compatibleAnchors = input.physical.anchors.filter((candidate) => acceptedAnchors.includes(candidate.kind)
     && canonicalPortableCardJson(blueprintAnchors.get(candidate.id) ?? null) === canonicalPortableCardJson(candidate));
@@ -339,10 +342,14 @@ export function previewWildsBlueprintPlacement(input: WildsBlueprintPlacementInp
     : anchor && catalog.support !== "terrain"
       ? anchor.position.y
       : input.physical.terrainY;
+  const supportPiece = anchor ? input.blueprint.pieces.find(piece => piece.anchors.some(candidate => candidate.id === anchor.id)) : null;
+  const surfaceOffset = input.surfaceSnap && anchor && supportPiece && !["door", "window", "roof", "room"].includes(input.kind)
+    && Math.abs(input.pointer.x - supportPiece.geometry.center.x) <= supportPiece.geometry.halfExtents.x + .25
+    && Math.abs(input.pointer.z - supportPiece.geometry.center.z) <= supportPiece.geometry.halfExtents.z + .25;
   const position = freeze({
-    x: quantize(anchor && catalog.support !== "terrain" ? anchor.position.x : input.pointer.x, .5),
+    x: quantize(anchor && catalog.support !== "terrain" && !surfaceOffset ? anchor.position.x : input.pointer.x, .5),
     y: quantize(baseY + rotated.y + input.heightStep * .5, .000001),
-    z: quantize(anchor && catalog.support !== "terrain" ? anchor.position.z : input.pointer.z, .5)
+    z: quantize(anchor && catalog.support !== "terrain" && !surfaceOffset ? anchor.position.z : input.pointer.z, .5)
   });
   const geometry = freeze({ center: position, halfExtents: freeze({ ...rotated }) });
   const cues: string[] = [];
@@ -354,8 +361,19 @@ export function previewWildsBlueprintPlacement(input: WildsBlueprintPlacementInp
   const placementBasis = { schema: "wildz.blueprint-placement-preview.v1", blueprintId: input.blueprint.blueprintId, worldId: input.blueprint.worldId, sourceRevision: input.blueprint.revision, sourceBlueprintDigest, kind: input.kind, position, rotationQuarterTurns };
   const placementId = `preview:${sha256PortableBasis(canonicalPortableCardJson(placementBasis)).slice(0, 24)}`;
   const detailedGeometry = placementGeometry(input.kind, placementId, position, geometry.halfExtents, rotationQuarterTurns);
-  if (detailedGeometry.collisionSolids.some((component) => input.physical.solids.some((solid) => overlaps(component, solid)))) cues.push("blocked");
-  if (detailedGeometry.collisionSolids.some((component) => input.blueprint.pieces.some((piece) => piece.collisionSolids.some((solid) => overlaps(component, solid))))) cues.push("blueprint-collision");
+  const collides = (first: Box, second: Box) => {
+    if (!overlaps(first, second)) return false;
+    // Thin wall ends may meet at a corner; broad overlaps are still rejected.
+    if (input.surfaceSnap && ["wall", "partition"].includes(input.kind)
+      && Math.min(second.halfExtents.x, second.halfExtents.z) <= .15) {
+      const overlapX = first.halfExtents.x + second.halfExtents.x - Math.abs(first.center.x - second.center.x);
+      const overlapZ = first.halfExtents.z + second.halfExtents.z - Math.abs(first.center.z - second.center.z);
+      if (overlapX <= .301 && overlapZ <= .301) return false;
+    }
+    return true;
+  };
+  if (detailedGeometry.collisionSolids.some((component) => input.physical.solids.some((solid) => collides(component, solid)))) cues.push("blocked");
+  if (detailedGeometry.collisionSolids.some((component) => input.blueprint.pieces.some((piece) => piece.collisionSolids.some((solid) => collides(component, solid))))) cues.push("blueprint-collision");
   const anchors = placementAnchors(input.kind, placementId, position, geometry.halfExtents, catalog.anchors, rotationQuarterTurns);
   const content = {
     schema: "wildz.blueprint-placement-preview.v1",
@@ -391,6 +409,7 @@ export function verifyWildsProductionPlacement(
       pointer: evidence.pointer,
       rotationQuarterTurns: evidence.rotationQuarterTurns,
       heightStep: evidence.heightStep,
+      surfaceSnap: evidence.surfaceSnap,
       physical: evidence.physical
     });
     return recomputed.valid

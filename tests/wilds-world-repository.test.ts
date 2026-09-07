@@ -177,14 +177,16 @@ describe("Receiz Wilds world repository", () => {
     assert.equal(publication.mode, "receiz_recovery_pending");
   });
 
-  it("serializes every canonical mutation and rehydrates a competing remote winner", () => {
+  it("serializes every canonical mutation and preserves unresolved competing branches", () => {
     const source = readFileSync("src/lib/receiz/wilds-world-server.ts", "utf8");
     const multiplayer = readFileSync("src/lib/receiz/wilds-multiplayer-server.ts", "utf8");
     assert.match(source, /serializeWildsWorldMutation/);
     assert.match(source, /mutationQueueKey/);
     assert.match(source, /recoverCanonicalWorldBeforeMutation/);
     assert.match(source, /worldRecordContainsHead/);
-    assert.match(source, /wilds_world_canonical_conflict/);
+    assert.match(source, /constitutionalFork: \{ status: "FORK"/);
+    assert.match(source, /source: record, competing: publication.record/);
+    assert.doesNotMatch(source, /root\(\)\[serviceKey\] = new WildsWorldService\(publication.record\)/);
     assert.match(multiplayer, /sameWildzPlayerCoordinate/);
     assert.doesNotMatch(multiplayer, /owner !== "wilds\.player\.receiz\.id"/);
   });

@@ -1,3 +1,4 @@
+import { resolveWildsCraftWorkstation, resolveWildsMaterialCache } from "./wilds-construction-function";
 import { verifyWildsConstructionProject, verifyWildsConstructionChunk, canWildsConstructionProject, createWildsConstructionChunk, appendWildsConstructionChunkReference, appendWildsConstructionProjectChunk, constructionProofDigest, validConstructionHead, type WildsConstructionProjectV1, type WildsConstructionChunkV1 } from "./wilds-construction-project";
 import { verifyWildsConstructionComponent, verifyWildsMaterialContribution, verifyWildsWorkContribution, projectWildsConstructionProgress, type WildsConstructionComponentV1, type WildsConstructionMaterialContributionV1, type WildsConstructionWorkContributionV1 } from "./wilds-construction-component";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
@@ -19,6 +20,8 @@ import { verifyWildsWorldEmissionProof, wildsEmissionRegionRemaining, type Wilds
 import { verifyWildsResourceLot, type WildsResourceLotV1 } from "./wilds-resource-lot";
 import { isCanonicalWildsResourceSource, type WildsResourceSource } from "./wilds-resource-authority";
 import {
+  createWildsStewardTool,
+  createWildsStewardToolOperation,
   initialWildsHarvestedSourceState,
   verifyWildsStewardPhiAward,
   verifyWildsStewardTool,
@@ -129,6 +132,8 @@ export type WildsTrainerWorldProjection = { id: string; [key: string]: unknown }
 export type WildsTournamentWorldProjection = { id: string; phase?: string; [key: string]: unknown };
 
 export type WildsWorldProjection = {
+  constitutionalCommandReceipts?: Record<string, { digest: string; actorId: string; type: string; eventIds: string[] }>;
+  constitutionalClaims?: Record<string, { id: string; claimant: string; subject: string; proposition: string; status: "ALLEGED"; sourceEventId: string }>;
   schema: "receiz.wilds_world_projection.v3";
   worldId: typeof WILDS_WORLD_ID;
   revision: number;
@@ -251,9 +256,18 @@ function entity<T extends { id: string }>(value: unknown, label: string): T {
 }
 
 function appendEvent(state: WildsWorldProjection, event: CompatibleWildsWorldEvent, patch: Partial<WildsWorldProjection>): WildsWorldProjection {
+  const command = recordPayload(recordPayload(event.payload).constitutionalCommand ?? {});
+  let receipts = state.constitutionalCommandReceipts;
+  if (Object.keys(command).length) {
+    if (!validConstructionHead(command.digest) || typeof command.type !== "string") throw new Error("wilds_constitution_command_source_invalid");
+    const prior = receipts?.[event.causeId];
+    if (prior && (prior.digest !== command.digest || prior.actorId !== event.actorId || prior.type !== command.type)) throw new Error("wilds_constitution_command_fork");
+    receipts = { ...receipts, [event.causeId]: { digest: command.digest as string, type: command.type, actorId: event.actorId, eventIds: [...(prior?.eventIds ?? []), event.eventId] } };
+  }
   return {
     ...state,
     ...patch,
+    ...(receipts ? { constitutionalCommandReceipts: receipts } : {}),
     revision: state.revision + 1,
     cursor: {
       pulse: event.pulse,
@@ -666,13 +680,21 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
     case "tool.crafted": {
       const tool = recordPayload(payload.tool) as unknown as WildsStewardToolV1;
       if (!verifyWildsStewardTool(tool) || tool.ownerReceizId !== event.actorId || state.stewardTools[tool.toolId]
-        || state.structures[tool.workstationId]?.head !== tool.workstationHead) throw new Error("wilds_world_tool_invalid");
+        || resolveWildsCraftWorkstation(state, tool.workstationId)?.head !== tool.workstationHead
+        || resolveWildsCraftWorkstation(state, tool.workstationId)?.ownerReceizId !== event.actorId) throw new Error("wilds_world_tool_invalid");
       for (let index = 0; index < tool.consumedLotIds.length; index += 1) {
         const lotId = tool.consumedLotIds[index]!;
         const lot = state.materialLots[lotId];
         if (!lot || wildsMaterialCustodian(state, lot) !== event.actorId || lot.head !== tool.consumedLotHeads[index]
-          || state.consumedMaterialLots[lotId] || state.storedMaterialLots[lotId]) throw new Error("wilds_world_tool_material_invalid");
+          || state.consumedMaterialLots[lotId] || state.storedMaterialLots[lotId] || state.reservedMaterialLots[lotId]) throw new Error("wilds_world_tool_material_invalid");
       }
+      const workstation = resolveWildsCraftWorkstation(state, tool.workstationId)!;
+      const lots = tool.consumedLotIds.map((id) => state.materialLots[id]);
+      const expectedTool = createWildsStewardTool({ kind: tool.kind, ownerReceizId: event.actorId, workstation, lots,
+        builder: tool.builder, materialContributorReceizIds: tool.materialContributorReceizIds, kaiUPulse: tool.kaiUPulse });
+      const expectedOperation = createWildsStewardToolOperation({ tool: expectedTool, lots, workstation, ownerReceizId: event.actorId, playerHead: sha256PortableBasis(event.actorId) });
+      if (canonicalPortableCardJson(expectedTool) !== canonicalPortableCardJson(tool)
+        || canonicalPortableCardJson(expectedOperation) !== canonicalPortableCardJson(payload.operation)) throw new Error("wilds_world_tool_source_mismatch");
       const economy = stewardEconomyPatch(state, event, payload);
       return appendEvent(state, event, {
         stewardTools: { ...state.stewardTools, [tool.toolId]: tool },
@@ -691,9 +713,9 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
       const cacheId = String(payload.cacheId ?? "");
       const direction = String(payload.direction ?? "");
       const lot = state.materialLots[lotId];
-      const cache = state.structures[cacheId];
+      const cache = resolveWildsMaterialCache(state, cacheId);
       if (!lot || wildsMaterialCustodian(state, lot) !== event.actorId || state.consumedMaterialLots[lotId]
-        || !cache || cache.blueprint !== "trail-cache" || cache.ownerReceizId !== event.actorId
+        || state.reservedMaterialLots[lotId] || !cache || cache.ownerReceizId !== event.actorId
         || (direction !== "deposit" && direction !== "withdraw")) throw new Error("wilds_world_storage_invalid");
       if (direction === "deposit") {
         if (state.storedMaterialLots[lotId]) throw new Error("wilds_world_storage_already_stored");
@@ -712,10 +734,29 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
     case "team.event_scheduled":
     case "team.squad_assembled": {
       const team = entity<WildsWorldTeamProjection>(payload.team, "team");
+      if (event.kind === "team.squad_assembled") {
+        const previous = state.teams[team.id];
+        const role = previous?.members?.find(member => member.playerId === event.actorId)?.role ?? (previous?.captainId === event.actorId ? "captain" : null);
+        if (role !== "captain" && role !== "officer") throw new Error("wilds_social_organizer_forbidden");
+        if (!previous || canonicalPortableCardJson({ ...team, events: previous.events }) !== canonicalPortableCardJson(previous)
+          || team.events?.length !== previous.events?.length
+          || team.events?.some((entry, index) => {
+            const prior = previous.events?.[index];
+            return !prior || canonicalPortableCardJson({ ...entry, squadPlayerIds: prior.squadPlayerIds }) !== canonicalPortableCardJson(prior)
+              || entry.squadPlayerIds.length > 6 || new Set(entry.squadPlayerIds).size !== entry.squadPlayerIds.length
+              || entry.squadPlayerIds.some(id => !previous.memberIds.includes(id));
+          })) throw new Error("wilds_social_squad_scope_invalid");
+      }
       return appendEvent(state, event, { teams: { ...state.teams, [team.id]: team } });
     }
-    case "social.abuse_reported":
-      return appendEvent(state, event, {});
+    case "social.abuse_reported": {
+      const report = recordPayload(payload.report);
+      if (report.claimant !== undefined) {
+        if (report.claimant !== event.actorId || report.claimStatus !== "ALLEGED" || typeof report.id !== "string" || typeof report.subject !== "string" || typeof report.proposition !== "string") throw new Error("wilds_constitution_claim_invalid");
+        return appendEvent(state, event, { constitutionalClaims: { ...state.constitutionalClaims, [report.id]: { id: report.id, claimant: event.actorId, subject: report.subject, proposition: report.proposition, status: "ALLEGED", sourceEventId: event.eventId } } });
+      }
+      return appendEvent(state, event, {}); // Legacy report receipts establish no guilt.
+    }
     case "league.scored": {
       const league = recordPayload(payload.league) as WildsLeagueProjection;
       if (league.seasonId !== "v3-genesis") throw new Error("wilds_world_league_invalid");

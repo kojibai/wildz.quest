@@ -1,5 +1,7 @@
 "use client";
 
+import { WildsContinuousConstruction } from "./WildsContinuousConstruction";
+import type { WildsBlueprintPlacement } from "./wilds-world-construction";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, type ComponentRef, type MutableRefObject, type ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, OrbitControls, Sparkles } from "@react-three/drei";
@@ -102,6 +104,9 @@ export function WildsWorldCanvas({
   activeWorkSource,
   activeCapabilityFamily = null,
   stewardPlacementPreview,
+  constructionPreview,
+  constructionSelectionEnabled,
+  onSelectConstruction,
   state,
   character,
   remotePlayers,
@@ -145,6 +150,9 @@ export function WildsWorldCanvas({
   activeWorkSource?: WildsActiveWorkSource | null;
   activeCapabilityFamily?: WildsWorldCapabilityFamily | null;
   stewardPlacementPreview?: WildsStewardPlacement | null;
+  constructionPreview?: WildsBlueprintPlacement | null;
+  constructionSelectionEnabled?: boolean;
+  onSelectConstruction?: (id: string) => void;
   state: PlayState;
   character: WildzCharacterGenesis;
   remotePlayers: WildsPresence[];
@@ -206,7 +214,7 @@ export function WildsWorldCanvas({
       >
         {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
-          <WildsScene activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
+          <WildsScene constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
         </Suspense>
       </Canvas>
     </div>
@@ -222,6 +230,9 @@ function WildsScene({
   activeWorkSource,
   activeCapabilityFamily,
   stewardPlacementPreview,
+  constructionPreview,
+  constructionSelectionEnabled,
+  onSelectConstruction,
   state,
   character,
   remotePlayers,
@@ -263,6 +274,9 @@ function WildsScene({
   activeWorkSource?: WildsActiveWorkSource | null;
   activeCapabilityFamily: WildsWorldCapabilityFamily | null;
   stewardPlacementPreview?: WildsStewardPlacement | null;
+  constructionPreview?: WildsBlueprintPlacement | null;
+  constructionSelectionEnabled?: boolean;
+  onSelectConstruction?: (id: string) => void;
   state: PlayState;
   character: WildzCharacterGenesis;
   remotePlayers: WildsPresence[];
@@ -391,6 +405,7 @@ function WildsScene({
         <WildsAmbientLife enabled={siteSpace.spaceId === "wildz.space.outer.v1"} player={state.player} qualityProfile={qualityProfile} siteRuntime={siteRuntime} terrainElevation={activeFloorY} />
         <WildsEcologyEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={activeFloorY} worldMode={worldMode} />
         <WildsRegenerativeGroveEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={activeFloorY} />
+        {siteSpace.spaceId === "wildz.space.outer.v1" && <WildsContinuousConstruction world={livingWorld} player={state.player} terrainElevation={activeFloorY} preview={constructionPreview} selectable={constructionSelectionEnabled} onSelect={onSelectConstruction} />}
         <WildsStewardEnvironment
           activeWorkSource={activeWorkSource}
           placementPreview={stewardPlacementPreview}
