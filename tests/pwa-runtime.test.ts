@@ -23,8 +23,8 @@ test("PWA controller registers a release-distinct worker after paint", () => {
   assert.match(source, /requestIdleCallback|setTimeout/);
   assert.match(source, /\/sw\.js\?release=/);
   assert.match(source, /NEXT_PUBLIC_WILDZ_SW_RELEASE/);
-  assert.match(source, /v8\.0\.0-r1/);
-  assert.match(env, /^NEXT_PUBLIC_WILDZ_SW_RELEASE=v8\.0\.0-r1$/m);
+  assert.match(source, /v9\.0\.0-r1/);
+  assert.match(env, /^NEXT_PUBLIC_WILDZ_SW_RELEASE=v9\.0\.0-r1$/m);
 });
 
 test("local neural voice preparation is complete-once and single-flight across rapid refreshes", () => {

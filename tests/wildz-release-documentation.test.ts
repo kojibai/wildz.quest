@@ -20,7 +20,7 @@ test("Wildz current release doctrine names the exact Receiz v125 toolchain", () 
     mcp
   };
 
-  assert.equal(pkg.version, "8.0.0");
+  assert.equal(pkg.version, "9.0.0");
   assert.equal(pkg.dependencies?.["@receiz/sdk"], "125.0.0");
   assert.equal(pkg.devDependencies?.["@receiz/mcp-server"], "125.0.0");
   assert.equal(pkg.devDependencies?.["@receiz/ai-skills"], "125.0.0");

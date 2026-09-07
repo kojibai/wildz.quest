@@ -79,7 +79,7 @@ Each stage cell is `hay/timber/stone · work`. These exact integers seed `WILDS_
 - Consumes: existing `WildsResourceSource`, `WildsMaterialLotV1`, source-state, harvest, emission, and custody functions.
 - Produces: `WildsBuildMaterialKind = "hay" | "timber" | "stone"`; canonical region slots 6/7/8 that guarantee hay/timber/stone; solo-valid hay harvest lots.
 
-- [ ] **Step 1: Write failing hay authority tests**
+- [x] **Step 1: Write failing hay authority tests**
 
 ```ts
 it("guarantees renewable hay timber and stone without changing legacy region slots", () => {
@@ -104,13 +104,13 @@ it("harvests one exact hay lot with Receiz ID authority and no creature", () => 
 });
 ```
 
-- [ ] **Step 2: Run the tests and verify the missing hay failure**
+- [x] **Step 2: Run the tests and verify the missing hay failure**
 
 Run: `npx tsx --test tests/wilds-resource-lot-world.test.ts tests/wilds-steward-construction.test.ts`
 
 Expected: FAIL because `hay` is not a valid resource/material kind and region slots 6-8 do not exist.
 
-- [ ] **Step 3: Extend canonical sources without mutating legacy slots**
+- [x] **Step 3: Extend canonical sources without mutating legacy slots**
 
 ```ts
 export type WildsResourceKind = "hay" | "timber" | "stone" | "ore" | "fiber" | "aquatic" | "buried";
@@ -126,7 +126,7 @@ function guaranteedConstructionKind(slot: number) {
 
 Keep the existing source algorithm byte-identical for slots 0-5. For slots 6-8, deterministically scan bounded candidate coordinates inside the region until dry terrain is found, use the fixed construction kind, and retain the existing canonical ID/hash and replenishment rules. Add hay requirements `{ creature: "gather", tool: "shears" }`.
 
-- [ ] **Step 4: Admit hay material and harvest operations**
+- [x] **Step 4: Admit hay material and harvest operations**
 
 ```ts
 export type WildsBuildMaterialKind = "hay" | "timber" | "stone";
@@ -138,13 +138,13 @@ function harvestProfession(kind: WildsBuildMaterialKind): WildsResourceWorkFamil
 
 Update material-lot ID verification, source-kind admission, operation intention/stage/consequence selection, and optional tool matching so hay works with no creature or tool while a compatible optional helper remains creditable.
 
-- [ ] **Step 5: Run focused tests**
+- [x] **Step 5: Run focused tests**
 
 Run: `npx tsx --test tests/wilds-resource-lot-world.test.ts tests/wilds-steward-construction.test.ts tests/wilds-steward-phi.test.ts`
 
 Expected: PASS with legacy timber/stone hashes and harvest behavior unchanged.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/features/play/wilds-resource-authority.ts src/features/play/wilds-steward-construction.ts src/features/play/wilds-source-work-authority.ts tests/wilds-resource-lot-world.test.ts tests/wilds-steward-construction.test.ts
@@ -168,7 +168,7 @@ git commit -m "feat: add renewable hay construction authority"
 - Consumes: Task 1 guaranteed sources and hay lots.
 - Produces: visible renewable hay patches, nearest-source selection across canonical region sources, and live hay/timber/stone counts everywhere construction is opened.
 
-- [ ] **Step 1: Write failing projection and render-contract tests**
+- [x] **Step 1: Write failing projection and render-contract tests**
 
 ```ts
 assert.deepEqual(projection.materials, { hay: 1, timber: 1, stone: 1 });
@@ -178,13 +178,13 @@ assert.match(controls, /materialCounts\.hay/);
 assert.match(panel, /Living hay/);
 ```
 
-- [ ] **Step 2: Run the focused tests and verify missing hay UI**
+- [x] **Step 2: Run the focused tests and verify missing hay UI**
 
 Run: `npx tsx --test tests/wilds-steward-craft.test.ts tests/wilds-render-contract.test.ts tests/wilds-steward-hud-loop.test.ts`
 
 Expected: FAIL because craft projection and live world expose only timber and stone.
 
-- [ ] **Step 3: Add canonical source-neighborhood projection**
+- [x] **Step 3: Add canonical source-neighborhood projection**
 
 ```ts
 function constructionSourcesNear(position: { x: number; z: number }) {
@@ -198,17 +198,17 @@ function constructionSourcesNear(position: { x: number; z: number }) {
 
 Merge generic construction sources with existing tree/rock sources by `sourceId`, sort by distance and ID, and use the same list for world manifestation and nearest-source actions.
 
-- [ ] **Step 4: Render hay and add three-resource counts**
+- [x] **Step 4: Render hay and add three-resource counts**
 
 Add shared tuft/ring geometry and a hay material in `WildsStewardEnvironment`. Extend satchel, quick construction control, craft projection, labels, and CSS to three resources. Do not disable the construction entry point when a count is zero.
 
-- [ ] **Step 5: Run focused tests**
+- [x] **Step 5: Run focused tests**
 
 Run: `npx tsx --test tests/wilds-steward-craft.test.ts tests/wilds-render-contract.test.ts tests/wilds-steward-hud-loop.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/features/play/WildsStewardEnvironment.tsx src/features/play/PlayCampaign.tsx src/features/play/WildzWorldControls.tsx src/features/play/wilds-steward-craft.ts src/features/play/WildsStewardCraftPanel.tsx app/globals.css tests/wilds-steward-craft.test.ts tests/wilds-render-contract.test.ts tests/wilds-steward-hud-loop.test.ts
@@ -227,7 +227,7 @@ git commit -m "feat: surface renewable hay in living construction"
 - Consumes: existing `WildsConstructionKind`, catalog dimensions, anchors, collision solids, and preview placement digests.
 - Produces: the extended 23-kind catalog, `WILDS_CONSTRUCTION_RECIPES`; `wildsConstructionRecipe(kind)`; `verifyWildsProductionPlacement(preview, physical)`; cumulative resource/work helpers.
 
-- [ ] **Step 1: Write failing recipe and placement tests**
+- [x] **Step 1: Write failing recipe and placement tests**
 
 ```ts
 it("defines planned framed functional and finished requirements for every catalog kind", () => {
@@ -245,13 +245,13 @@ it("revalidates a preview against production physical evidence", () => {
 });
 ```
 
-- [ ] **Step 2: Run tests and verify missing recipe failure**
+- [x] **Step 2: Run tests and verify missing recipe failure**
 
 Run: `npx tsx --test tests/wilds-construction-recipes.test.ts tests/wilds-world-construction.test.ts`
 
 Expected: FAIL because the production recipe module and verifier do not exist.
 
-- [ ] **Step 3: Implement stable stage recipes**
+- [x] **Step 3: Implement stable stage recipes**
 
 ```ts
 export type WildsConstructionKind =
@@ -274,17 +274,17 @@ export type WildsConstructionRecipe = Readonly<{
 
 Extend `WILDS_CONSTRUCTION_CATALOG`, anchor acceptance, authored collision solids, and placement anchors to the 23 kinds above. Define recipes exactly from the Recipe Matrix. Every stage has positive integer work, all material counts are nonnegative safe integers, ordinary function is reachable using only hay/timber/stone, and the table is deeply frozen.
 
-- [ ] **Step 4: Export a production placement verifier**
+- [x] **Step 4: Export a production placement verifier**
 
 Recompute catalog geometry, anchors, source blueprint digest, placement ID/digest, support, overlap, rotation, and height from the supplied physical evidence. The verifier accepts only a valid preview whose exact content matches recomputation; it does not mutate `physical`, `publish`, `canConfirm`, or `writes` on the preview.
 
-- [ ] **Step 5: Run focused tests**
+- [x] **Step 5: Run focused tests**
 
 Run: `npx tsx --test tests/wilds-construction-recipes.test.ts tests/wilds-world-construction.test.ts tests/wilds-creature-work.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/features/play/wilds-construction-recipes.ts src/features/play/wilds-world-construction.ts tests/wilds-construction-recipes.test.ts tests/wilds-world-construction.test.ts
@@ -303,7 +303,7 @@ git commit -m "feat: define continuous construction stage recipes"
 - Consumes: Task 3 recipes/placement and existing canonical JSON/SHA-256 helpers.
 - Produces: project/chunk/component/contribution types and verifiers; `createWildsConstructionProject`; `appendWildsConstructionChunkReference`; `createWildsConstructionComponent`; `createWildsMaterialContribution`; `createWildsWorkContribution`; `projectWildsConstructionProgress`.
 
-- [ ] **Step 1: Write failing proof-object tests**
+- [x] **Step 1: Write failing proof-object tests**
 
 ```ts
 it("creates a zero-material planned component and pages its project references", () => {
@@ -322,13 +322,13 @@ it("advances only with exact material and solo work proofs", () => {
 });
 ```
 
-- [ ] **Step 2: Run tests and verify missing module failures**
+- [x] **Step 2: Run tests and verify missing module failures**
 
 Run: `npx tsx --test tests/wilds-construction-project.test.ts tests/wilds-construction-component.test.ts`
 
 Expected: FAIL because both modules do not exist.
 
-- [ ] **Step 3: Implement immutable project and 64-reference chunk pages**
+- [x] **Step 3: Implement immutable project and 64-reference chunk pages**
 
 ```ts
 export const WILDS_CONSTRUCTION_CHUNK_REFERENCE_LIMIT = 64;
@@ -340,7 +340,7 @@ export type WildsConstructionPermissions = Readonly<{
 
 Seal every object with canonical content hashes. A full chunk returns a newly sealed continuation page; placement never throws a player-facing piece-limit error.
 
-- [ ] **Step 4: Implement immutable component and append-only contribution proofs**
+- [x] **Step 4: Implement immutable component and append-only contribution proofs**
 
 ```ts
 export type WildsConstructionWorker =
@@ -356,17 +356,17 @@ export function projectWildsConstructionProgress(
 
 Material contributions bind exact lot ID/head/kind/custodian and component lineage. Work contributions bind worker identity, integer amount, component lineage, and optional creature proof. The fold sorts by contribution ID, deduplicates IDs/lots, fills stages in order, applies work only where stage material is complete, and derives percentage/stage without an independently writable progress field.
 
-- [ ] **Step 5: Add tamper, duplicate-lot, excess-material, and multi-worker tests**
+- [x] **Step 5: Add tamper, duplicate-lot, excess-material, and multi-worker tests**
 
 Prove invalid heads fail, one lot cannot fill two stages, compatible excess moves to the next stage, player work succeeds without creature fields, and two creature proofs add throughput without changing access.
 
-- [ ] **Step 6: Run focused tests**
+- [x] **Step 6: Run focused tests**
 
 Run: `npx tsx --test tests/wilds-construction-project.test.ts tests/wilds-construction-component.test.ts tests/wilds-construction-recipes.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/features/play/wilds-construction-project.ts src/features/play/wilds-construction-component.ts tests/wilds-construction-project.test.ts tests/wilds-construction-component.test.ts
@@ -385,7 +385,7 @@ git commit -m "feat: add sovereign construction proof objects"
 - Consumes: Task 4 proof objects and existing material lifecycle maps.
 - Produces: projection maps for projects/chunks/components/material contributions/work contributions and reducers for create/place/contribute/work events.
 
-- [ ] **Step 1: Write failing reducer tests**
+- [x] **Step 1: Write failing reducer tests**
 
 ```ts
 assert.equal(placed.constructionComponents[component.componentId]?.head, component.head);
@@ -397,13 +397,13 @@ assert.equal(projectWildsConstructionProgressFromWorld(worked, component.compone
 
 Also test that component placement with zero lots succeeds, a second use of the same lot fails atomically, player work has no card/mandate dependency, and absent maps hydrate as empty.
 
-- [ ] **Step 2: Run tests and verify missing projection fields**
+- [x] **Step 2: Run tests and verify missing projection fields**
 
 Run: `npx tsx --test tests/wilds-construction-world-state.test.ts tests/wilds-world-bootstrap.test.ts`
 
 Expected: FAIL on missing event kinds and projection maps.
 
-- [ ] **Step 3: Add event kinds and projection maps**
+- [x] **Step 3: Add event kinds and projection maps**
 
 ```ts
 type ContinuousConstructionEventKind =
@@ -415,17 +415,17 @@ type ContinuousConstructionEventKind =
 
 Add typed maps to `WildsWorldProjection`, initialize them empty, and default them during checkpoint hydration without changing the projection schema or legacy digest path.
 
-- [ ] **Step 4: Implement strict reducers**
+- [x] **Step 4: Implement strict reducers**
 
 Validate every proof, project/component relationship, permission, region chunk, actor/custodian, exact lot disposition, contribution uniqueness, and local causal head. Reserve deposited lots and consume only lots embedded by a newly completed stage. Export `projectWildsConstructionProgressFromWorld(world, componentId)` as the single projection helper used by rendering, collision, functions, saves, and tests. Append an event only after every validation succeeds.
 
-- [ ] **Step 5: Run focused state tests**
+- [x] **Step 5: Run focused state tests**
 
 Run: `npx tsx --test tests/wilds-construction-world-state.test.ts tests/wilds-world-bootstrap.test.ts tests/wilds-construction-site.test.ts`
 
 Expected: PASS, including legacy V1 site reducers.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/features/play/wilds-world-event.ts src/features/play/wilds-world-state.ts tests/wilds-construction-world-state.test.ts tests/wilds-world-bootstrap.test.ts
@@ -447,7 +447,7 @@ git commit -m "feat: project continuous construction world history"
 - Consumes: Task 5 reducers and Task 4 constructors.
 - Produces: component project/create/place/deposit/work/revise/replace/salvage commands and hook methods; `isWildsEdgeImmediateConstructionCommand`.
 
-- [ ] **Step 1: Write failing edge-first tests**
+- [x] **Step 1: Write failing edge-first tests**
 
 ```ts
 assert.equal(worldCommandRequiresCard(placeCommand), false);
@@ -459,13 +459,13 @@ assert.equal(Object.values(local.constructionComponents)[0]?.kind, "foundation")
 
 Add service tests executing project creation, zero-material placement, partial deposit, and player work using `{ actorId, canonical: true, pulse, occurredAt, uPulse }` with no card and no mandate.
 
-- [ ] **Step 2: Run tests and verify command/type failures**
+- [x] **Step 2: Run tests and verify command/type failures**
 
 Run: `npx tsx --test tests/wilds-continuous-construction-edge.test.ts tests/wilds-steward-world-service.test.ts tests/wilds-world-outbox.test.ts`
 
 Expected: FAIL because continuous construction commands do not exist.
 
-- [ ] **Step 3: Add command union and service branches**
+- [x] **Step 3: Add command union and service branches**
 
 ```ts
 type ContinuousConstructionCommand =
@@ -477,7 +477,7 @@ type ContinuousConstructionCommand =
 
 Add revision/replacement/salvage commands in Task 11. The service must recompute every proof from current local projection and reject client-supplied successors.
 
-- [ ] **Step 4: Route construction through source authority before paint**
+- [x] **Step 4: Route construction through source authority before paint**
 
 ```ts
 export function isWildsEdgeImmediateConstructionCommand(command: Pick<WildsWorldCommand, "type">) {
@@ -491,17 +491,17 @@ export function shouldSynchronizeWildsWorldCommandAfterPaint(command: Pick<Wilds
 
 Do not set `pendingCommand`, `receiz_recovery_pending`, or network status copy for these commands. Locally admit, update the snapshot, enqueue publication after paint, and return the local projection. A transport error remains a background replication concern and does not change construction UI state.
 
-- [ ] **Step 5: Add `useWildsWorld` methods**
+- [x] **Step 5: Add `useWildsWorld` methods**
 
 Expose `createConstructionProject`, `placeConstructionComponent`, `depositConstructionMaterial`, and `workConstructionComponent`. They require an actor/session and exact current projection, but never `activeCard` or a creature mandate for owner work.
 
-- [ ] **Step 6: Run focused tests**
+- [x] **Step 6: Run focused tests**
 
 Run: `npx tsx --test tests/wilds-continuous-construction-edge.test.ts tests/wilds-steward-world-service.test.ts tests/wilds-world-outbox.test.ts tests/wilds-world-authority.test.ts`
 
 Expected: PASS and no regression to card-gated historical commands.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/features/play/wilds-world-service.ts src/features/play/wilds-world-authority.ts src/features/play/use-wilds-world.ts src/features/play/wilds-world-outbox.ts tests/wilds-continuous-construction-edge.test.ts tests/wilds-steward-world-service.test.ts tests/wilds-world-outbox.test.ts

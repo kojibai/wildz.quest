@@ -155,9 +155,9 @@ V121 exposes direct bearer transfer preview, instrument issue, inspection, claim
 
 ## Release status
 
-`v8.0.0` is the Proof-Native Living World release. An admitted Identity Seal or Vault restores its exact Receiz identity, complete Wildz continuity, selected creature, and eligible card collection, then gameplay begins from that local Proof Object truth without per-card re-verification or duplicate publication work. Single-card import stays exact, profiles publish independently of whether their panel is open, large Profile Vaults retain a compact card viewer and QR-backed cards, and the world gains genome-derived creature anatomy, deeper terrain, water, lighting, culling, instancing, and quality-aware LOD. The server and database remain transport/projection, never authority. Installed PWAs advance to `v8.0.0-r1`.
+`v9.0.0` is the Living Wilds release in preparation, bringing together the post-v8 terrain, traversal, exploration atlas, creature capabilities, sovereign wallet, messaging, and regenerative Grove work with continuous construction and Receiz v125. Application and installed-PWA version markers are `9.0.0` and `v9.0.0-r1`. Continuous construction and final release qualification are still in progress.
 
-Read the complete [v8.0.0 release notes](docs/release/v8.0.0.md), [v7.0.0 care baseline](docs/release/v7.0.0.md), [Receiz v120 creature voice architecture](docs/RECEIZ_V120_CREATURE_VOICE.md), [Living Creature Continuity contract](docs/WILDZ_LIVING_CREATURE_CONTINUITY_V120.md), [verification record](docs/release/verification.md), and [changelog](CHANGELOG.md).
+Read the [v9.0.0 release notes and implementation ledger](docs/release/v9.0.0.md), [Receiz v125 integration record](docs/release/receiz-v125-integration.md), [previous v8.0.0 release notes](docs/release/v8.0.0.md), [verification record](docs/release/verification.md), and [changelog](CHANGELOG.md).
 
 ## Build your own Receiz-native product
 

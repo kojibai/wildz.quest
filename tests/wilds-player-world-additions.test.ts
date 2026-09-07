@@ -1,3 +1,4 @@
+import { createWildsConstructionProject, createWildsConstructionChunk, appendWildsConstructionProjectChunk } from "../src/features/play/wilds-construction-project.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createWildsConstructionSite } from "../src/features/play/wilds-construction-site.js";
@@ -105,4 +106,16 @@ test("sealed material lifecycle state cannot be rolled back by a stale projectio
 
   assert.equal(restored.consumedMaterialLots[harvest.lot.lotId], "structure:complete");
   assert.equal(restored.reservedMaterialLots[harvest.lot.lotId], undefined);
+});
+
+
+test("V10 owned additions retain continuous owner projects and exact source chunks", () => {
+  const project = createWildsConstructionProject({ ownerReceizId: "builder", name: "Home", region: { x: 0, z: 0 }, kaiUPulse: 1 });
+  const chunk = createWildsConstructionChunk({ project, kaiUPulse: 1 });
+  const linked = appendWildsConstructionProjectChunk({ project, chunk, kaiUPulse: 2 });
+  const world = { ...initialWildsWorldProjection(), constructionProjects: { [project.projectId]: linked }, constructionChunks: { [chunk.chunkId]: chunk } };
+  const owned = projectWildsOwnedWorldAdditions(world, "builder");
+  const restored = mergeWildsOwnedWorldAdditions(initialWildsWorldProjection(), owned);
+  assert.deepEqual(restored.constructionProjects, world.constructionProjects);
+  assert.deepEqual(restored.constructionChunks, world.constructionChunks);
 });
