@@ -96,7 +96,7 @@ export const WILDS_CONSTRUCTION_CATALOG: readonly WildsConstructionCatalogEntry[
   entry("foundation", { x: 3, y: .3, z: 3 }, "terrain", ["foundation"]),
   entry("floor", { x: 3, y: .12, z: 3 }, "terrain-or-structure", ["foundation"]),
   entry("room", { x: 3, y: 1.5, z: 3 }, "structure", ["wall", "roof", "door", "utility"]),
-  entry("wall", { x: 3, y: 1.5, z: .15 }, "structure", ["wall", "roof", "door"]),
+  entry("wall", { x: 3, y: 1.5, z: .15 }, "structure", ["wall", "roof", "door", "utility"]),
   entry("roof", { x: 3.2, y: .25, z: 3.2 }, "structure", ["roof"]),
   entry("door", { x: .65, y: 1.2, z: .15 }, "structure", ["door"]),
   entry("window", { x: .8, y: .65, z: .12 }, "structure", ["utility"]),
@@ -123,10 +123,10 @@ const ACCEPTED_ANCHORS = Object.freeze({
   foundation: [],
   floor: ["foundation"],
   room: ["foundation"],
-  wall: ["wall"],
+  wall: ["foundation", "wall"],
   roof: ["roof"],
   door: ["door"],
-  window: ["wall"],
+  window: ["utility"],
   column: ["foundation", "wall"],
   stair: ["foundation"],
   bridge: ["foundation"],
@@ -142,7 +142,7 @@ const ACCEPTED_ANCHORS = Object.freeze({
   water: ["water"],
   trim: ["wall", "door"],
   railing: ["foundation", "wall"],
-  partition: ["wall"]
+  partition: ["foundation", "wall"]
 } satisfies Record<WildsConstructionKind, readonly AnchorKind[]>);
 
 function quantize(value: number, unit = .25) {
@@ -233,6 +233,46 @@ function placementGeometry(kind: WildsConstructionKind, placementId: string, cen
       interior: freeze({ center, halfExtents: freeze({ x: Math.max(.1, halfExtents.x - .3), y: Math.max(.1, halfExtents.y - .15), z: Math.max(.1, halfExtents.z - .3) }) })
     });
   }
+  if (kind === "wall" || kind === "partition") {
+    const width = kind === "wall" ? 3 : 1.5;
+    const depth = kind === "wall" ? .15 : .08;
+    const height = halfExtents.y;
+    const segment = (suffix: string, xMin: number, xMax: number, yMin: number, yMax: number) => solid(
+      suffix,
+      { x: (xMin + xMax) / 2, y: -height + (yMin + yMax) / 2, z: 0 },
+      { x: (xMax - xMin) / 2, y: (yMax - yMin) / 2, z: depth },
+      true
+    );
+    const collisionSolids = kind === "partition" ? [
+      segment("door-left", -width, -.65, 0, height * 2),
+      segment("door-right", .65, width, 0, height * 2),
+      segment("door-lintel", -.65, .65, 2.4, height * 2)
+    ] : [
+      segment("door-left", -width, -.65, 0, height * 2),
+      segment("between-openings", .65, 1.2, 0, height * 2),
+      segment("window-sill", 1.2, 2.8, 0, 1.15),
+      segment("window-lintel", 1.2, 2.8, 2.45, height * 2),
+      segment("window-right", 2.8, width, 0, height * 2),
+      segment("door-lintel", -.65, .65, 2.4, height * 2)
+    ];
+    return freeze({ collisionSolids, interior: null });
+  }
+  if (kind === "window") {
+    const width = .8;
+    const height = .65;
+    const depth = .12;
+    return freeze({
+      collisionSolids: [
+        solid("left", { x: -width + .1, y: 0, z: 0 }, { x: .1, y: height, z: depth }, true),
+        solid("right", { x: width - .1, y: 0, z: 0 }, { x: .1, y: height, z: depth }, true),
+        solid("sill", { x: 0, y: -height + .1, z: 0 }, { x: width - .2, y: .1, z: depth }, true),
+        solid("lintel", { x: 0, y: height - .1, z: 0 }, { x: width - .2, y: .1, z: depth }, true)
+      ],
+      interior: freeze({ center, halfExtents: freeze(rotation % 2 === 0
+        ? { x: width - .2, y: height - .2, z: depth }
+        : { x: depth, y: height - .2, z: width - .2 }) })
+    });
+  }
   if (kind === "door") {
     const widthAlongX = halfExtents.x >= halfExtents.z;
     return freeze({
@@ -266,6 +306,11 @@ function placementAnchors(kind: WildsConstructionKind, placementId: string, cent
     if (kind === "room" && anchorKind === "wall") {
       const side = rotateHorizontal({ x: -halfExtents.x, y: 0, z: 0 }, rotation);
       position = { x: center.x + side.x, y: bottom, z: center.z + side.z };
+    }
+    if ((kind === "wall" || kind === "partition") && anchorKind === "door") position = { x: center.x, y: bottom, z: center.z };
+    if (kind === "wall" && anchorKind === "utility") {
+      const windowBottom = rotateHorizontal({ x: 2, y: 0, z: 0 }, rotation);
+      position = { x: center.x + windowBottom.x, y: bottom + 1.15, z: center.z + windowBottom.z };
     }
     return freeze({ id: `${placementId}:anchor:${index}`, kind: anchorKind, position: freeze(position) });
   }));
