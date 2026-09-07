@@ -8,19 +8,43 @@ import {
   previewWildsBlueprintPlacement,
   previewWildsStructureTransition,
   reduceWildsBlueprintPreview,
+  verifyWildsProductionPlacement,
   WILDS_CONSTRUCTION_CATALOG
 } from "../src/features/play/wilds-world-construction";
 
 describe("nonphysical Wilds blueprint mode", () => {
   it("offers the bounded inhabitable component catalog without publishing authority", () => {
     assert.deepEqual(WILDS_CONSTRUCTION_CATALOG.map((entry) => entry.kind), [
-      "foundation", "room", "roof", "door", "stair", "bridge", "storage", "workshop", "habitat", "light", "water"
+      "foundation", "floor", "room", "wall", "roof", "door", "window", "column", "stair", "bridge", "platform", "path", "storage", "workshop", "habitat", "bed", "hearth", "light", "garden", "water", "trim", "railing", "partition"
     ]);
     assert.equal(WILDS_CONSTRUCTION_CATALOG.every((entry) => Object.isFrozen(entry)), true);
     const blueprint = createWildsBlueprintPreview("blueprint:test", "wildz.excavation.region.v1:0:0");
     assert.equal(blueprint.physical, false);
     assert.equal(blueprint.publish, "blocked-receiz-v122");
     assert.equal(blueprint.pieces.length, 0);
+  });
+
+  it("recomputes the complete production placement from original request evidence", () => {
+    const sourceBlueprint = createWildsBlueprintPreview("blueprint:production", "wildz.excavation.region.v1:0:0");
+    const evidence = {
+      sourceBlueprint,
+      pointer: { x: 2.13, y: 9, z: -3.88 },
+      rotationQuarterTurns: 0,
+      heightStep: 0,
+      physical: { terrainY: 1.25, waterline: null, anchors: [], solids: [] }
+    } as const;
+    const placement = previewWildsBlueprintPlacement({ ...evidence, blueprint: sourceBlueprint, kind: "foundation" });
+    assert.equal(verifyWildsProductionPlacement(placement, evidence), true);
+    assert.equal(verifyWildsProductionPlacement({ ...placement, valid: false }, evidence), false);
+    assert.equal(verifyWildsProductionPlacement({ ...placement, placementDigest: `sha256:${"0".repeat(64)}` }, evidence), false);
+    assert.equal(verifyWildsProductionPlacement(placement, { ...evidence, heightStep: 1 }), false);
+    assert.equal(verifyWildsProductionPlacement({ ...placement, kind: "unknown" as never }, evidence), false);
+    assert.equal(verifyWildsProductionPlacement(placement, undefined as never), false);
+    assert.equal(verifyWildsProductionPlacement(placement, { ...evidence, physical: { ...evidence.physical, solids: [{ id: "tamper", center: placement.geometry.center, halfExtents: { x: 1, y: 1, z: 1 } }] } }), false);
+    assert.equal(placement.valid, true);
+    assert.equal(placement.physical, false);
+    assert.equal(placement.canConfirm, false);
+    assert.equal(placement.writes, 0);
   });
 
   it("snaps exact geometry to terrain and anchors while sharing validity with collision preview", () => {

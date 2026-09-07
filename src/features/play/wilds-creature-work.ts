@@ -50,30 +50,54 @@ function freeze<T>(value: T): T {
 
 const PIECE_STAGES = Object.freeze({
   foundation: ["survey", "haul", "shape", "stabilize", "finish"],
+  floor: ["haul", "shape", "stabilize", "finish"],
   room: ["survey", "haul", "masonry", "stabilize", "finish"],
+  wall: ["haul", "masonry", "stabilize", "finish"],
   roof: ["haul", "shape", "stabilize", "finish"],
   door: ["shape", "finish"],
+  window: ["shape", "finish"],
+  column: ["haul", "masonry", "stabilize", "finish"],
   stair: ["shape", "stabilize", "finish"],
   bridge: ["survey", "haul", "shape", "stabilize", "rescue", "finish"],
+  platform: ["haul", "shape", "stabilize", "finish"],
+  path: ["survey", "haul", "stabilize", "finish"],
   storage: ["haul", "shape", "finish"],
   workshop: ["haul", "masonry", "finish"],
   habitat: ["survey", "shape", "finish"],
+  bed: ["haul", "shape", "finish"],
+  hearth: ["masonry", "illuminate", "finish"],
   light: ["illuminate", "finish"],
-  water: ["survey", "underwater-build", "stabilize", "rescue", "finish"]
+  garden: ["survey", "haul", "finish"],
+  water: ["survey", "underwater-build", "stabilize", "rescue", "finish"],
+  trim: ["shape", "finish"],
+  railing: ["shape", "stabilize", "finish"],
+  partition: ["haul", "shape", "finish"]
 } satisfies Record<WildsConstructionKind, readonly WildsWorkProfession[]>);
 const TOOL_PROFESSIONS = new Set<WildsWorkProfession>(["lumber", "quarry", "mine", "burrow", "shape", "masonry", "underwater-build", "illuminate"]);
 const PIECE_MATERIALS = Object.freeze({
   foundation: { materialKind: "buried", capacity: 3 },
+  floor: { materialKind: "timber", capacity: 3 },
   room: { materialKind: "timber", capacity: 4 },
+  wall: { materialKind: "timber", capacity: 3 },
   roof: { materialKind: "timber", capacity: 3 },
   door: { materialKind: "timber", capacity: 2 },
+  window: { materialKind: "timber", capacity: 2 },
+  column: { materialKind: "buried", capacity: 2 },
   stair: { materialKind: "buried", capacity: 2 },
   bridge: { materialKind: "timber", capacity: 4 },
+  platform: { materialKind: "timber", capacity: 3 },
+  path: { materialKind: "buried", capacity: 2 },
   storage: { materialKind: "timber", capacity: 2 },
   workshop: { materialKind: "buried", capacity: 3 },
   habitat: { materialKind: "fiber", capacity: 3 },
+  bed: { materialKind: "fiber", capacity: 2 },
+  hearth: { materialKind: "buried", capacity: 2 },
   light: { materialKind: "ore", capacity: 1 },
-  water: { materialKind: "aquatic", capacity: 2 }
+  garden: { materialKind: "fiber", capacity: 3 },
+  water: { materialKind: "aquatic", capacity: 2 },
+  trim: { materialKind: "fiber", capacity: 1 },
+  railing: { materialKind: "timber", capacity: 2 },
+  partition: { materialKind: "timber", capacity: 2 }
 } satisfies Record<WildsConstructionKind, Readonly<{ materialKind: WildsResourceKind; capacity: number }>>);
 const MIN_REGION = -3_906_250;
 const MAX_REGION = 3_906_249;
