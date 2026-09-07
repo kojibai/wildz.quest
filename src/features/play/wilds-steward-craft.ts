@@ -1,6 +1,14 @@
 import type { WildsMaterialLotV1 } from "./wilds-steward-construction";
 import { selectWildsTrailBridgeRotation } from "./wilds-steward-construction";
 import { sampleWildsTerrain } from "./wilds-terrain-authority";
+import { WILDS_TERRAIN_TILE_SIZE } from "./wilds-terrain-authority";
+import { wildsTerrainObstaclesForTile } from "./wilds-terrain-obstacles";
+import {
+  projectWildsResourceRegion,
+  projectWildsResourceSourceForObstacle,
+  wildsResourceRegionForPosition,
+  type WildsResourceSource
+} from "./wilds-resource-authority";
 import type { WildsWorkCapabilityMeter } from "./wilds-work-capability";
 
 export type WildsStewardBlueprintId = "trail-shelter" | "trail-bridge" | "steward-workbench" | "trail-cache";
@@ -52,6 +60,75 @@ export const WILDS_STEWARD_BLUEPRINTS: readonly WildsStewardBlueprintDefinition[
   })
 ]);
 
+const CONSTRUCTION_SOURCE_CELL_SIZE = 4;
+const CONSTRUCTION_SOURCE_RADIUS = 11;
+const CONSTRUCTION_SOURCE_LIMIT = 24;
+const CONSTRUCTION_SOURCE_CACHE_LIMIT = 128;
+const constructionSourceCache = new Map<string, readonly WildsResourceSource[]>();
+
+function constructionSourceCell(position: Readonly<{ x: number; z: number }>) {
+  const x = Math.floor(position.x / CONSTRUCTION_SOURCE_CELL_SIZE);
+  const z = Math.floor(position.z / CONSTRUCTION_SOURCE_CELL_SIZE);
+  const maximum = 500_000_000 - .000001;
+  return Object.freeze({
+    key: `${x}:${z}`,
+    x: Math.max(-500_000_000, Math.min(maximum, (x + .5) * CONSTRUCTION_SOURCE_CELL_SIZE)),
+    z: Math.max(-500_000_000, Math.min(maximum, (z + .5) * CONSTRUCTION_SOURCE_CELL_SIZE))
+  });
+}
+
+export function constructionSourceCellKey(position: Readonly<{ x: number; z: number }>) {
+  return constructionSourceCell(position).key;
+}
+
+export function constructionSourcesNear(
+  position: Readonly<{ x: number; z: number }>,
+  projectRegion: typeof projectWildsResourceRegion = projectWildsResourceRegion
+): readonly WildsResourceSource[] {
+  const cell = constructionSourceCell(position);
+  const cacheable = projectRegion === projectWildsResourceRegion;
+  const cached = cacheable ? constructionSourceCache.get(cell.key) : undefined;
+  if (cached) return cached;
+  const region = wildsResourceRegionForPosition(cell);
+  const sources = new Map<string, WildsResourceSource>();
+  for (let dx = -1; dx <= 1; dx += 1) for (let dz = -1; dz <= 1; dz += 1) {
+    let regionSources: readonly WildsResourceSource[];
+    try {
+      regionSources = projectRegion(region.x + dx, region.z + dz);
+    } catch {
+      continue;
+    }
+    for (const source of regionSources) {
+      if (source.kind === "hay" || source.kind === "timber" || source.kind === "stone") sources.set(source.sourceId, source);
+    }
+  }
+  const tileX = Math.floor(cell.x / WILDS_TERRAIN_TILE_SIZE);
+  const tileZ = Math.floor(cell.z / WILDS_TERRAIN_TILE_SIZE);
+  for (let x = tileX - 2; x <= tileX + 2; x += 1) for (let z = tileZ - 2; z <= tileZ + 2; z += 1) {
+    for (const obstacle of wildsTerrainObstaclesForTile(x, z)) {
+      if (obstacle.kind !== "tree" && obstacle.kind !== "rock") continue;
+      const source = projectWildsResourceSourceForObstacle(obstacle);
+      sources.set(source.sourceId, source);
+    }
+  }
+  const projection = Object.freeze([...sources.values()]
+    .filter((source) => Math.hypot(source.position.x - cell.x, source.position.z - cell.z) <= CONSTRUCTION_SOURCE_RADIUS)
+    .sort((left, right) =>
+      Math.hypot(left.position.x - cell.x, left.position.z - cell.z)
+        - Math.hypot(right.position.x - cell.x, right.position.z - cell.z)
+        || left.sourceId.localeCompare(right.sourceId))
+    .slice(0, CONSTRUCTION_SOURCE_LIMIT));
+  if (cacheable) {
+    constructionSourceCache.set(cell.key, projection);
+    while (constructionSourceCache.size > CONSTRUCTION_SOURCE_CACHE_LIMIT) {
+      const oldest = constructionSourceCache.keys().next().value as string | undefined;
+      if (oldest === undefined) break;
+      constructionSourceCache.delete(oldest);
+    }
+  }
+  return projection;
+}
+
 function finitePoint(point: Readonly<{ x: number; z: number }>) {
   return Number.isFinite(point.x) && Number.isFinite(point.z)
     && Math.abs(point.x) <= 500_000_000 && Math.abs(point.z) <= 500_000_000;
@@ -66,6 +143,7 @@ export function projectWildsStewardCraft(input: Readonly<{
 }>) {
   const timber = input.materialLots.filter((lot) => lot.kind === "timber").length;
   const stone = input.materialLots.filter((lot) => lot.kind === "stone").length;
+  const hay = input.materialLots.filter((lot) => lot.kind === "hay").length;
   const capacity = input.workMeters.length ? Math.min(...input.workMeters.map((meter) => meter.value)) : 0;
   const recovering = input.workMeters.length === 0 || input.workMeters.every((meter) => meter.state === "recovering");
   const partner = Object.freeze({
@@ -92,7 +170,7 @@ export function projectWildsStewardCraft(input: Readonly<{
       state
     });
   }));
-  return Object.freeze({ materials: Object.freeze({ timber, stone }), partner, blueprints });
+  return Object.freeze({ materials: Object.freeze({ hay, timber, stone }), partner, blueprints });
 }
 
 export function projectWildsStewardPlacement(input: Readonly<{

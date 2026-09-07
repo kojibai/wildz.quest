@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { projectWildsResourceRegion } from "../src/features/play/wilds-resource-authority";
 import {
   createWildsMaterialHarvest,
+  createWildsStewardHarvestOperation,
   createWildsTrailBridge,
   createWildsTrailShelter,
   initialWildsHarvestedSourceState,
@@ -21,6 +22,35 @@ function sourceOf(kind: "timber" | "stone") {
 }
 
 describe("source-authoritative steward construction", () => {
+  it("harvests one exact hay lot with Receiz ID authority and no creature", () => {
+    const source = projectWildsResourceRegion(0, 0)[6]!;
+    const result = createWildsMaterialHarvest({
+      source,
+      current: initialWildsHarvestedSourceState(source),
+      ownerReceizId: "explorer:hay",
+      actorPosition: source.position,
+      kaiUPulse: 2_000_000
+    });
+
+    assert.equal(result.lot.kind, "hay");
+    assert.match(result.lot.lotId, /^wildz:material:hay:/);
+    assert.equal(result.lot.contributors.creatureSubjectId, undefined);
+    assert.equal(verifyWildsMaterialLot(result.lot), true);
+    const operation = createWildsStewardHarvestOperation({
+      source,
+      currentSource: initialWildsHarvestedSourceState(source),
+      harvestedSource: result.source,
+      lot: result.lot,
+      ownerReceizId: "explorer:hay",
+      playerHead: "sha256:" + "a".repeat(64),
+      kaiUPulse: 2_000_000
+    });
+    assert.equal(operation.intention.kind, "steward.harvest-hay");
+    assert.equal(operation.stages[0]?.profession, "gather");
+    assert.equal(operation.consequences.ecologicalRenewal, 1);
+    assert.equal(operation.consequences.extraction, 1);
+  });
+
   it("allows baseline explorer harvesting without a creature partner", () => {
     const source = sourceOf("timber");
     const result = createWildsMaterialHarvest({

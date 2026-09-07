@@ -8,19 +8,90 @@ import {
   previewWildsBlueprintPlacement,
   previewWildsStructureTransition,
   reduceWildsBlueprintPreview,
+  verifyWildsProductionPlacement,
   WILDS_CONSTRUCTION_CATALOG
 } from "../src/features/play/wilds-world-construction";
 
 describe("nonphysical Wilds blueprint mode", () => {
   it("offers the bounded inhabitable component catalog without publishing authority", () => {
     assert.deepEqual(WILDS_CONSTRUCTION_CATALOG.map((entry) => entry.kind), [
-      "foundation", "room", "roof", "door", "stair", "bridge", "storage", "workshop", "habitat", "light", "water"
+      "foundation", "floor", "room", "wall", "roof", "door", "window", "column", "stair", "bridge", "platform", "path", "storage", "workshop", "habitat", "bed", "hearth", "light", "garden", "water", "trim", "railing", "partition"
     ]);
     assert.equal(WILDS_CONSTRUCTION_CATALOG.every((entry) => Object.isFrozen(entry)), true);
     const blueprint = createWildsBlueprintPreview("blueprint:test", "wildz.excavation.region.v1:0:0");
     assert.equal(blueprint.physical, false);
     assert.equal(blueprint.publish, "blocked-receiz-v122");
     assert.equal(blueprint.pieces.length, 0);
+  });
+
+  it("recomputes the complete production placement from original request evidence", () => {
+    const sourceBlueprint = createWildsBlueprintPreview("blueprint:production", "wildz.excavation.region.v1:0:0");
+    const evidence = {
+      sourceBlueprint,
+      pointer: { x: 2.13, y: 9, z: -3.88 },
+      rotationQuarterTurns: 0,
+      heightStep: 0,
+      physical: { terrainY: 1.25, waterline: null, anchors: [], solids: [] }
+    } as const;
+    const placement = previewWildsBlueprintPlacement({ ...evidence, blueprint: sourceBlueprint, kind: "foundation" });
+    assert.equal(verifyWildsProductionPlacement(placement, evidence), true);
+    assert.equal(verifyWildsProductionPlacement({ ...placement, valid: false }, evidence), false);
+    assert.equal(verifyWildsProductionPlacement({ ...placement, placementDigest: `sha256:${"0".repeat(64)}` }, evidence), false);
+    assert.equal(verifyWildsProductionPlacement(placement, { ...evidence, heightStep: 1 }), false);
+    assert.equal(verifyWildsProductionPlacement({ ...placement, kind: "unknown" as never }, evidence), false);
+    assert.equal(verifyWildsProductionPlacement(placement, undefined as never), false);
+    assert.equal(verifyWildsProductionPlacement(placement, { ...evidence, physical: { ...evidence.physical, solids: [{ id: "tamper", center: placement.geometry.center, halfExtents: { x: 1, y: 1, z: 1 } }] } }), false);
+    assert.equal(placement.valid, true);
+    assert.equal(placement.physical, false);
+    assert.equal(placement.canConfirm, false);
+    assert.equal(placement.writes, 0);
+  });
+
+  it("attaches authored wall and partition openings to floor supports in both orientations", () => {
+    const overlaps = (first: { center: { x: number; y: number; z: number }; halfExtents: { x: number; y: number; z: number } }, second: typeof first) =>
+      Math.abs(first.center.x - second.center.x) < first.halfExtents.x + second.halfExtents.x - .000001
+      && Math.abs(first.center.y - second.center.y) < first.halfExtents.y + second.halfExtents.y - .000001
+      && Math.abs(first.center.z - second.center.z) < first.halfExtents.z + second.halfExtents.z - .000001;
+    const place = (blueprint: ReturnType<typeof createWildsBlueprintPreview>, kind: "foundation" | "floor" | "wall" | "partition" | "door" | "window", pointer: { x: number; y: number; z: number }, rotationQuarterTurns: number, anchors: readonly (typeof blueprint.pieces[number]["anchors"][number])[] = []) =>
+      previewWildsBlueprintPlacement({ blueprint, kind, pointer, rotationQuarterTurns, heightStep: 0, physical: { terrainY: 0, waterline: null, anchors, solids: [] } });
+
+    let wallBlueprint = createWildsBlueprintPreview("blueprint:wall-openings", "wildz.excavation.region.v1:0:0");
+    const foundation = place(wallBlueprint, "foundation", { x: 0, y: 0, z: 0 }, 0);
+    wallBlueprint = reduceWildsBlueprintPreview(wallBlueprint, { kind: "place-preview", placement: foundation });
+    const wall = place(wallBlueprint, "wall", foundation.anchors[0]!.position, 1, foundation.anchors);
+    assert.equal(wall.valid, true);
+    assert.deepEqual(wall.geometry.halfExtents, { x: .15, y: 1.5, z: 3 });
+    assert.equal(Math.abs(wall.transform.position.y - wall.geometry.halfExtents.y - foundation.anchors[0]!.position.y) < .000001, true);
+    wallBlueprint = reduceWildsBlueprintPreview(wallBlueprint, { kind: "place-preview", placement: wall });
+
+    const doorAnchor = wall.anchors.find((anchor) => anchor.kind === "door")!;
+    const door = place(wallBlueprint, "door", doorAnchor.position, 1, wall.anchors);
+    assert.equal(door.valid, true);
+    assert.equal(Math.abs((door.transform.position.y - door.geometry.halfExtents.y) - (wall.transform.position.y - wall.geometry.halfExtents.y)) < .000001, true);
+    const doorwayProbe = { center: door.transform.position, halfExtents: { x: .05, y: .8, z: .3 } };
+    assert.equal([...wall.collisionSolids, ...door.collisionSolids].some((solid) => overlaps(solid, doorwayProbe)), false);
+
+    const windowAnchor = wall.anchors.find((anchor) => anchor.kind === "utility")!;
+    assert.deepEqual({ x: windowAnchor.position.x, z: windowAnchor.position.z }, { x: wall.transform.position.x, z: wall.transform.position.z - 2 });
+    const window = place(wallBlueprint, "window", windowAnchor.position, 1, wall.anchors);
+    assert.equal(window.valid, true);
+    const windowProbe = { center: window.transform.position, halfExtents: { x: .05, y: .25, z: .35 } };
+    assert.equal([...wall.collisionSolids, ...window.collisionSolids].some((solid) => overlaps(solid, windowProbe)), false);
+
+    let partitionBlueprint = createWildsBlueprintPreview("blueprint:partition-openings", "wildz.excavation.region.v1:0:0");
+    const floor = place(partitionBlueprint, "floor", { x: 10, y: 0, z: 0 }, 0);
+    assert.equal(floor.valid, true);
+    partitionBlueprint = reduceWildsBlueprintPreview(partitionBlueprint, { kind: "place-preview", placement: floor });
+    const partition = place(partitionBlueprint, "partition", floor.anchors[0]!.position, 0, floor.anchors);
+    assert.equal(partition.valid, true);
+    assert.deepEqual(partition.geometry.halfExtents, { x: 1.5, y: 1.25, z: .08 });
+    partitionBlueprint = reduceWildsBlueprintPreview(partitionBlueprint, { kind: "place-preview", placement: partition });
+    const partitionDoorAnchor = partition.anchors.find((anchor) => anchor.kind === "door")!;
+    const partitionDoor = place(partitionBlueprint, "door", partitionDoorAnchor.position, 0, partition.anchors);
+    assert.equal(partitionDoor.valid, true);
+    assert.equal(partitionDoor.transform.rotationQuarterTurns, 0);
+    const partitionDoorwayProbe = { center: partitionDoor.transform.position, halfExtents: { x: .3, y: .8, z: .05 } };
+    assert.equal([...partition.collisionSolids, ...partitionDoor.collisionSolids].some((solid) => overlaps(solid, partitionDoorwayProbe)), false);
   });
 
   it("snaps exact geometry to terrain and anchors while sharing validity with collision preview", () => {

@@ -99,6 +99,16 @@ describe("deterministic sparse Wilds resource authority", () => {
     }
   });
 
+  it("keeps known ocean regions free of invented construction sources within one small scan budget", () => {
+    clearWildsResourceAuthorityCachesForTests();
+    const before = wildsResourceAuthorityDiagnostics();
+    const sources = projectWildsResourceRegion(3, -7);
+    const after = wildsResourceAuthorityDiagnostics();
+    assert.equal(sources.length, 6);
+    assert.equal(sources.some((source) => source.kind === "hay"), false);
+    assert.ok(after.constructionTerrainSamples - before.constructionTerrainSamples <= 32);
+  });
+
   it("produces a deterministic zero-write harvest candidate only for the exact source requirements", () => {
     const source = projectWildsResourceRegion(0, 0)[0];
     const input = {

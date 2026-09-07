@@ -26,7 +26,8 @@ export function WildsStewardCraftPanel({ projection, onSelectBlueprint, nearbySi
   return <section className="wilds-steward-craft" aria-label="Steward Craft">
     <header className="wilds-steward-craft-header">
       <span><small>Living construction</small><strong>Steward Craft</strong></span>
-      <div className="wilds-steward-material-bank" aria-label={`${projection.materials.timber} timber and ${projection.materials.stone} stone available`}>
+      <div className="wilds-steward-material-bank" aria-label={`${projection.materials.hay} hay, ${projection.materials.timber} timber, and ${projection.materials.stone} stone available`}>
+        <span><Icons.products aria-hidden="true" size={16} /><b>{projection.materials.hay}</b><small>Living hay</small></span>
         <span><Icons.timber aria-hidden="true" size={16} /><b>{projection.materials.timber}</b></span>
         <span><Icons.quarry aria-hidden="true" size={16} /><b>{projection.materials.stone}</b></span>
       </div>

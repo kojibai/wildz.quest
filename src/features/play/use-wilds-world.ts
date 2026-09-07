@@ -31,14 +31,17 @@ import {
   type WildsStewardToolKind
 } from "./wilds-steward-construction";
 import { sampleWildsTerrain } from "./wilds-terrain-authority";
-import { worldCommandRequiresCard } from "./wilds-world-authority";
+import { isWildsEdgeImmediateConstructionCommand, worldCommandRequiresCard } from "./wilds-world-authority";
 import { withWildsWorldCommandKai } from "./wilds-world-authority";
 import { deriveKaiKlokMomentFromUPulse } from "./kai-klok-moment";
 import { createKaiTemporalRoot } from "./kai-temporal-root";
 import { publishActiveWildsWorldWithIdentityProof } from "@/lib/receiz/wilds-world-identity-publication";
 import {
-  admitWildsWorldOutboxEntry,
+  createWildsWorldEdgeAdmissionQueue,
+  preserveWildsConstructionHistory,
+  restoreWildsWorldEdgeSource,
   acknowledgeWildsWorldCommand,
+  acknowledgeWildsWorldPublication,
   enqueueWildsWorldCommand,
   projectWildsWorldOutbox,
   readWildsWorldOutbox,
@@ -56,8 +59,14 @@ import { wildsWorldSourceEmission } from "./wilds-world-genesis";
 import type { WildsOwnedWorldAdditions } from "./game-state";
 import { mergeWildsOwnedWorldAdditions } from "./wilds-player-world-additions";
 
-export function acceptWildsWorldSnapshot(current: WildsWorldProjection | null, candidate: WildsWorldProjection) {
-  return current && candidate.revision < current.revision ? current : candidate;
+import { publishWildsConstructionEntry } from "./wilds-construction-publication";
+import type { WildsBlueprintPlacement } from "./wilds-world-construction";
+import type { WildsConstructionPlacementRequest } from "./wilds-construction-placement";
+
+export function acceptWildsWorldSnapshot(current: WildsWorldProjection | null, candidate: WildsWorldProjection, owned?: WildsOwnedWorldAdditions) {
+  if (owned) candidate = mergeWildsOwnedWorldAdditions(candidate, owned);
+  if (current && candidate.revision < current.revision) return current;
+  return current ? preserveWildsConstructionHistory(current, candidate) : candidate;
 }
 
 export function buildWildsWorldCommandBody(
@@ -114,7 +123,7 @@ export function shouldQueueWildsWorldCommandLocally(input: Readonly<{
 }
 
 export function shouldSynchronizeWildsWorldCommandAfterPaint(command: Pick<WildsWorldCommand, "type">) {
-  return command.type === "resource.material.harvest";
+  return command.type === "resource.material.harvest" || isWildsEdgeImmediateConstructionCommand(command);
 }
 
 export function scheduleWildsWorldBackgroundSync(task: () => void) {
@@ -136,6 +145,44 @@ export function parseWildsWorldCommandResponse(value: unknown): { projection: Wi
   return { projection: projection!, mode };
 }
 
+/** Run the refresh transaction independently of React's presentation state. */
+export async function refreshWildsWorldClient(input: {
+  current: () => WildsWorldProjection;
+  currentMode: () => WildsWorldClientMode;
+  networkAvailable: () => boolean;
+  readPending: () => Promise<WildsWorldOutboxEntry[]>;
+  requestSnapshot: () => Promise<WildsWorldSnapshot>;
+  adopt: (projection: WildsWorldProjection) => WildsWorldProjection;
+  flush: (projection: WildsWorldProjection, mode: WildsWorldCommandMode) => Promise<{ projection: WildsWorldProjection; mode: WildsWorldClientMode }>;
+}): Promise<{ projection?: WildsWorldProjection; mode: WildsWorldClientMode; error: string; retryAfter?: number } | null> {
+  if (!input.networkAvailable()) {
+    return { mode: "receiz_recovery_pending", error: WILDS_WORLD_OFFLINE_MESSAGE };
+  }
+  try {
+    const pending = await input.readPending();
+    if (pending.some((entry) => isWildsEdgeImmediateConstructionCommand(entry.command))) await input.flush(input.current(), "receiz_live");
+    const snapshot = await input.requestSnapshot();
+    const projection = input.adopt(snapshot.projection);
+    const flushed = await input.flush(projection, snapshot.mode);
+    const remaining = await input.readPending();
+    return {
+      projection: flushed.projection,
+      mode: remaining.length ? "receiz_recovery_pending" : flushed.mode,
+      error: remaining.length ? "Your work is admitted here and will keep syncing globally in the background." : "",
+      retryAfter: 0
+    };
+  } catch (cause) {
+    if ((cause as Error).name === "AbortError") return null;
+    const opaqueFailure = isOpaqueWildsNetworkFailure(cause);
+    const offline = !input.networkAvailable() || opaqueFailure;
+    return {
+      mode: wildsWorldModeAfterRequestFailure(offline, input.currentMode()),
+      error: wildsNetworkFailureMessage(cause, "world", !offline),
+      ...(opaqueFailure ? { retryAfter: Date.now() + WILDS_NETWORK_RETRY_BACKOFF_MS } : {})
+    };
+  }
+}
+
 export function useWildsWorld(input: {
   enabled: boolean;
   networkEnabled: boolean;
@@ -153,11 +200,15 @@ export function useWildsWorld(input: {
     amountPhiMicro: string;
   }>) => Promise<unknown>;
 }) {
+  const ownedWorldAdditions = useRef(input.ownedWorldAdditions);
+  ownedWorldAdditions.current = input.ownedWorldAdditions;
   const [snapshot, setSnapshot] = useState<WildsWorldProjection | null>(() => mergeWildsOwnedWorldAdditions(
     input.initialSnapshot?.projection ?? createWildsSourceAuthorityProjection(),
     input.ownedWorldAdditions ?? { constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, materialCustody: {}, consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {} }
   ));
   const [mode, setMode] = useState<WildsWorldClientMode>(() => input.initialSnapshot?.mode ?? "connecting");
+  const currentMode = useRef(mode);
+  currentMode.current = mode;
   const [error, setError] = useState("");
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
   const commandPending = useRef(false);
@@ -165,6 +216,22 @@ export function useWildsWorld(input: {
   const controllers = useRef(new Set<AbortController>());
   const retryAfter = useRef(0);
   const authorizeLivingWorld = input.authorizeLivingWorld;
+  const edge = useRef<{ actorId: string; queue: ReturnType<typeof createWildsWorldEdgeAdmissionQueue> } | null>(null);
+  if (!edge.current || edge.current.actorId !== input.actorId) {
+    edge.current = { actorId: input.actorId, queue: createWildsWorldEdgeAdmissionQueue({
+      initialProjection: snapshot ?? createWildsSourceAuthorityProjection(),
+      persist: async (entry) => {
+        try { await enqueueWildsWorldCommand(entry); }
+        catch (cause) { throw new Error("wilds_world_local_persistence_failed", { cause }); }
+      },
+      onAdmitted: (projection) => { canonicalSnapshot.current = projection; setSnapshot((current) => acceptWildsWorldSnapshot(current, projection, ownedWorldAdditions.current)); }
+    }) };
+  }
+  const edgeQueue = edge.current.queue;
+  const adoptSnapshot = useCallback((projection: WildsWorldProjection) => edgeQueue.adopt(
+    acceptWildsWorldSnapshot(null, projection, ownedWorldAdditions.current)
+  ), [edgeQueue]);
+
 
   const request = useCallback(async (url: string, init?: RequestInit) => {
     const controller = new AbortController();
@@ -184,6 +251,7 @@ export function useWildsWorld(input: {
   }, []);
 
   const sendEntry = useCallback(async (entry: WildsWorldOutboxEntry) => {
+    if (isWildsEdgeImmediateConstructionCommand(entry.command)) return publishWildsConstructionEntry(entry, `${window.location.origin}/api/wilds/world/snapshot`);
     const receizExecution = (entry.command.type === "grove.act"
       || entry.command.type === "resource.material.harvest"
       || entry.command.type === "structure.trail-shelter.build"
@@ -216,7 +284,7 @@ export function useWildsWorld(input: {
       await publishActiveWildsWorldWithIdentityProof(publication.draft);
       globallyPublished = true;
     }
-    return { ...parseWildsWorldCommandResponse(value), globallyPublished };
+    return { ...parseWildsWorldCommandResponse(value), commandId: entry.command.commandId, globallyPublished };
   }, [authorizeLivingWorld, request]);
 
   const flushOutbox = useCallback(async (base: WildsWorldProjection, initialMode: WildsWorldCommandMode) => {
@@ -248,7 +316,8 @@ export function useWildsWorld(input: {
             }
           : queued;
         const parsed = await sendEntry(entry);
-        canonical = parsed.projection;
+        if ("commandId" in parsed && parsed.commandId !== queued.command.commandId) throw new Error("wilds_world_published_head_mismatch");
+        canonical = acceptWildsWorldSnapshot(edgeQueue.current(), parsed.projection);
         nextMode = parsed.mode;
         if (!parsed.globallyPublished) break;
         entries = await acknowledgeWildsWorldCommand(input.actorId, queued.command.commandId);
@@ -256,54 +325,56 @@ export function useWildsWorld(input: {
     } finally {
       commandPending.current = false;
     }
+    canonical = adoptSnapshot(projectWildsWorldOutbox(canonical, input.actorId, entries));
     canonicalSnapshot.current = canonical;
-    return { projection: projectWildsWorldOutbox(canonical, input.actorId, entries), mode: nextMode };
-  }, [input.actorId, sendEntry]);
+    return { projection: canonical, mode: nextMode };
+  }, [adoptSnapshot, edgeQueue, input.actorId, sendEntry]);
 
   const refresh = useCallback(async () => {
     if (!input.enabled || !input.networkEnabled) return;
-    if (!shouldAttemptWildsNetwork()) {
-      setMode("receiz_recovery_pending");
-      setError(WILDS_WORLD_OFFLINE_MESSAGE);
-      return;
+    if (shouldAttemptWildsNetwork() && Date.now() < retryAfter.current) return;
+    const result = await refreshWildsWorldClient({
+      current: edgeQueue.current,
+      currentMode: () => currentMode.current,
+      networkAvailable: shouldAttemptWildsNetwork,
+      readPending: () => readWildsWorldOutbox(input.actorId),
+      requestSnapshot: async () => parseWildsWorldSnapshotResponse(await request("/api/wilds/world/snapshot")),
+      adopt: adoptSnapshot,
+      flush: flushOutbox
+    });
+    if (!result) return;
+    if (result.projection) {
+      canonicalSnapshot.current = result.projection;
+      setSnapshot((current) => acceptWildsWorldSnapshot(current, result.projection!, ownedWorldAdditions.current));
     }
-    if (Date.now() < retryAfter.current) return;
-    try {
-      const value = await request("/api/wilds/world/snapshot");
-      const { projection, mode: nextMode } = parseWildsWorldSnapshotResponse(value);
-      canonicalSnapshot.current = projection;
-      const flushed = await flushOutbox(projection, nextMode);
-      setSnapshot(mergeWildsOwnedWorldAdditions(flushed.projection, input.ownedWorldAdditions ?? { constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, materialCustody: {}, consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {} }));
-      setMode(flushed.mode);
-      setError("");
-      retryAfter.current = 0;
-    } catch (cause) {
-      if ((cause as Error).name === "AbortError") return;
-      const opaqueFailure = isOpaqueWildsNetworkFailure(cause);
-      if (opaqueFailure) retryAfter.current = Date.now() + WILDS_NETWORK_RETRY_BACKOFF_MS;
-      const offline = !shouldAttemptWildsNetwork() || opaqueFailure;
-      setMode((current) => wildsWorldModeAfterRequestFailure(offline, current));
-      setError(wildsNetworkFailureMessage(cause, "world", !offline));
-    }
-  }, [flushOutbox, input.enabled, input.networkEnabled, input.ownedWorldAdditions, request]);
+    setMode(result.mode);
+    setError(result.error);
+    if (result.retryAfter !== undefined) retryAfter.current = result.retryAfter;
+  }, [adoptSnapshot, edgeQueue, flushOutbox, input.actorId, input.enabled, input.networkEnabled, request]);
 
   useEffect(() => {
     if (input.enabled) setMode(wildsWorldModeAfterConfirmedBootstrap);
   }, [input.enabled]);
 
   useEffect(() => {
-    if (!input.enabled || !input.initialSnapshot || !validWildsWorldProjection(input.initialSnapshot.projection)) return;
-    canonicalSnapshot.current = input.initialSnapshot.projection;
-    void flushOutbox(input.initialSnapshot.projection, input.initialSnapshot.mode)
-      .then((flushed) => {
-        setSnapshot(mergeWildsOwnedWorldAdditions(flushed.projection, input.ownedWorldAdditions ?? { constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, materialCustody: {}, consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {} }));
-        setMode(flushed.mode);
-        setError("");
+    if (!input.enabled) return;
+    if (input.initialSnapshot && validWildsWorldProjection(input.initialSnapshot.projection)) adoptSnapshot(input.initialSnapshot.projection);
+    let cancelled = false;
+    void restoreWildsWorldEdgeSource(edgeQueue.current(), input.actorId)
+      .then(async (restored) => {
+        if (cancelled) return;
+        const admitted = adoptSnapshot(restored);
+        canonicalSnapshot.current = admitted;
+        setSnapshot((current) => acceptWildsWorldSnapshot(current, admitted, ownedWorldAdditions.current));
+        if (input.networkEnabled) await refresh();
       })
-      .catch(() => {
+      .catch((cause) => {
+        if (cancelled || (cause as Error).name === "AbortError") return;
         setMode("receiz_recovery_pending");
+        setError(wildsNetworkFailureMessage(cause, "world"));
       });
-  }, [flushOutbox, input.enabled, input.initialSnapshot, input.ownedWorldAdditions]);
+    return () => { cancelled = true; };
+  }, [adoptSnapshot, edgeQueue, input.actorId, input.enabled, input.networkEnabled, input.initialSnapshot, refresh]);
 
   useEffect(() => {
     const activeControllers = controllers.current;
@@ -333,12 +404,27 @@ export function useWildsWorld(input: {
       ...(authorityCardAdmission ? { cardAdmission: authorityCardAdmission } : {}),
       queuedAt: new Date().toISOString()
     };
-    const localBase = snapshot ?? canonicalSnapshot.current ?? createWildsSourceAuthorityProjection();
-    const locallyAdmittedProjection = admitWildsWorldOutboxEntry(localBase, entry);
-    setSnapshot(locallyAdmittedProjection);
+    if (isWildsEdgeImmediateConstructionCommand(rootedCommand)) {
+      try {
+        const restored = await restoreWildsWorldEdgeSource(edgeQueue.current(), input.actorId);
+        adoptSnapshot(restored);
+        const projection = await edgeQueue.admit(entry);
+        setError("");
+        scheduleWildsWorldBackgroundSync(() => {
+          if (input.networkEnabled) void refresh();
+        });
+        return projection;
+      } catch (cause) {
+        setError((cause as Error).message === "wilds_world_local_persistence_failed"
+          ? "This change could not be saved on this device. Please try again."
+          : "This placement or contribution could not be completed. Check its position and available materials.");
+        throw cause;
+      }
+    }
+    const locallyAdmittedProjection = await edgeQueue.admit(entry);
     const queueForGlobalCommit = async () => {
       const entries = await enqueueWildsWorldCommand(entry);
-      setSnapshot(locallyAdmittedProjection);
+      setSnapshot((current) => acceptWildsWorldSnapshot(current, locallyAdmittedProjection, ownedWorldAdditions.current));
       setMode("receiz_recovery_pending");
       setError("Your work is admitted here and will keep syncing globally in the background.");
       return locallyAdmittedProjection;
@@ -367,13 +453,11 @@ export function useWildsWorld(input: {
       const parsed = await sendEntry(entry);
       const projection = parsed.projection;
       canonicalSnapshot.current = projection;
-      const queued = parsed.globallyPublished
-        ? await readWildsWorldOutbox(input.actorId)
-        : await enqueueWildsWorldCommand(entry);
+      const queued = await acknowledgeWildsWorldPublication(entry, parsed);
       const synchronizedProjection = parsed.globallyPublished
         ? acceptWildsWorldSnapshot(locallyAdmittedProjection, projection)
         : projectWildsWorldOutbox(projection, input.actorId, queued);
-      setSnapshot(mergeWildsOwnedWorldAdditions(synchronizedProjection, input.ownedWorldAdditions ?? { constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, materialCustody: {}, consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {} }));
+      setSnapshot((current) => acceptWildsWorldSnapshot(current, synchronizedProjection, ownedWorldAdditions.current));
       setMode(parsed.globallyPublished ? parsed.mode : "receiz_recovery_pending");
       setError(parsed.globallyPublished ? "" : "Your work is admitted here and its global projection will keep syncing in the background.");
       retryAfter.current = 0;
@@ -386,7 +470,7 @@ export function useWildsWorld(input: {
       commandPending.current = false;
       setPendingCommand(null);
     }
-  }, [input.activeCard, input.actorId, input.cardAdmission, input.enabled, input.guestId, input.kaiUPulse, input.networkEnabled, input.ownedWorldAdditions, mode, refresh, sendEntry, snapshot]);
+  }, [adoptSnapshot, edgeQueue, input.activeCard, input.actorId, input.cardAdmission, input.enabled, input.guestId, input.kaiUPulse, input.networkEnabled, mode, refresh, sendEntry]);
 
   useEffect(() => {
     const resume = () => {
@@ -494,6 +578,10 @@ export function useWildsWorld(input: {
     error,
     pendingCommand,
     refresh,
+    createConstructionProject: (name: string, region: { x: number; z: number }) => post({ type: "construction.project.create", name, region, commandId: commandId("command:construction:project") }, null),
+    placeConstructionComponent: (projectId: string, placement: WildsBlueprintPlacement, request: WildsConstructionPlacementRequest, actorPosition: { x: number; z: number }) => post({ type: "construction.component.place", projectId, placement, request, actorPosition, commandId: commandId("command:construction:place") }, null),
+    depositConstructionMaterial: (componentId: string, componentHead: string, lotIds: string[], actorPosition: { x: number; z: number }) => post({ type: "construction.component.deposit", componentId, componentHead, lotIds, actorPosition, commandId: commandId("command:construction:deposit") }, null),
+    workConstructionComponent: (componentId: string, componentHead: string, actorPosition: { x: number; z: number }) => post({ type: "construction.component.work", componentId, componentHead, actorPosition, commandId: commandId("command:construction:work") }, null),
     contributeStory: (dayId: string, objectiveId: string, verb: WildsGameplayVerb, amount = 1, position?: { x: number; z: number }) => post({
       type: "story.contribute",
       dayId,

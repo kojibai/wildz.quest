@@ -22,10 +22,10 @@ test("Wildz AI skills state exact release authority and confirmation law", () =>
   }
 
   const release = readFileSync("ai-skills/wildz-release-skill/SKILL.md", "utf8");
-  assert.match(release, /124\.0\.0/i);
-  assert.match(release, /d02429151b0bcebdaeb89485792e377afc55130f9a25e07982c1c88221314247/i);
-  assert.match(release, /540d1c1bf39f1b288b257c79a6e020bdcc5e587fc9b7dbf6b7aaa5d082e20ad5/i);
-  assert.match(release, /53 v124 application operations/i);
+  assert.match(release, /125\.0\.0/i);
+  assert.match(release, /85a24c3a7fe144c8ec03c6b5fae238d1dfda64c1ed3091b24d4264dc3862ff17/i);
+  assert.match(release, /17c98e99c3f54b7a18dea9f2466a49ea2ac5da4d1cf0a90c723560184a314a6c/i);
+  assert.match(release, /60 v125 application operations/i);
   assert.match(release, /v124[\s\S]*(?:enclosing artifact|known truth|Merkle|Fibonacci)/i);
   assert.doesNotMatch(release, /123\.0\.0|945a581d|e08cec3e/i);
 });

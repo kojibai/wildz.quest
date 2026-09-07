@@ -10,7 +10,7 @@ import { verifyWildsWorldEmissionProof, wildsEmissionRegionRemaining, type Wilds
 import { WILDS_EMISSION_REGION_SIZE } from "./wilds-grove-genesis";
 import { sampleWildsTerrain, type WildsTerrainSurface } from "./wilds-terrain-authority";
 
-export type WildsBuildMaterialKind = "timber" | "stone";
+export type WildsBuildMaterialKind = "hay" | "timber" | "stone";
 
 export type WildsHarvestedSourceStateV1 = Readonly<{
   schema: "wildz.harvested-source-state.v1";
@@ -166,6 +166,10 @@ function operationIdentity(kind: string, sourceHead: string) {
   return digest({ schema: "wildz.steward-operation-identity.v1", kind, sourceHead }).replace(/^sha256:/, "");
 }
 
+function harvestProfession(kind: WildsBuildMaterialKind): WildsResourceWorkFamily {
+  return kind === "timber" ? "lumber" : kind === "stone" ? "quarry" : "gather";
+}
+
 export function createWildsStewardHarvestOperation(input: Readonly<{
   source: WildsResourceSource;
   currentSource: WildsHarvestedSourceStateV1;
@@ -196,7 +200,8 @@ export function createWildsStewardHarvestOperation(input: Readonly<{
   }
   if (!input.tool && input.nextTool) throw new Error("wilds_steward_operation_tool_invalid");
   const identity = operationIdentity("harvest", input.lot.head);
-  const timber = input.lot.kind === "timber";
+  const profession = harvestProfession(input.lot.kind);
+  const renewable = input.lot.kind !== "stone";
   return compileWildsLivingOperation({
     operationId: `steward:harvest:${identity}`,
     category: "construction",
@@ -211,16 +216,16 @@ export function createWildsStewardHarvestOperation(input: Readonly<{
     },
     participants: [
       { id: input.ownerReceizId, kind: "player", expectedHead: input.playerHead, role: "steward" },
-      ...(input.creatureSubjectId && input.creatureHead ? [{ id: input.creatureSubjectId, kind: "creature" as const, expectedHead: input.creatureHead, role: timber ? "lumber-partner" : "quarry-partner" }] : [])
+      ...(input.creatureSubjectId && input.creatureHead ? [{ id: input.creatureSubjectId, kind: "creature" as const, expectedHead: input.creatureHead, role: `${profession}-partner` }] : [])
     ],
-    stages: [{ id: "stage:harvest", profession: timber ? "lumber" : "quarry", participantIds: [input.ownerReceizId, ...(input.creatureSubjectId ? [input.creatureSubjectId] : [])] }],
+    stages: [{ id: "stage:harvest", profession, participantIds: [input.ownerReceizId, ...(input.creatureSubjectId ? [input.creatureSubjectId] : [])] }],
     consequences: {
-      usefulOutput: input.tool ? 3 : input.creatureSubjectId ? 2 : timber ? 2 : 3,
-      ecologicalRenewal: timber ? 1 : 0,
+      usefulOutput: input.tool ? 3 : input.creatureSubjectId ? 2 : renewable ? 2 : 3,
+      ecologicalRenewal: renewable ? 1 : 0,
       publicBenefit: 0,
       cooperation: input.creatureSubjectId ? 2 : 0,
       durability: input.tool ? 1 : 0,
-      extraction: timber ? 1 : 2,
+      extraction: renewable ? 1 : 2,
       damage: 0,
       waste: 0,
       restorationDebt: 0
@@ -424,9 +429,9 @@ export function projectWildsCreatureWorkFamilies(element: string): readonly Wild
 export function verifyWildsMaterialLot(value: unknown): value is WildsMaterialLotV1 {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const lot = value as Partial<WildsMaterialLotV1>;
-  if (lot.schema !== "wildz.material-lot.v1" || (lot.kind !== "timber" && lot.kind !== "stone") || lot.quantity !== 1
+  if (lot.schema !== "wildz.material-lot.v1" || (lot.kind !== "hay" && lot.kind !== "timber" && lot.kind !== "stone") || lot.quantity !== 1
     || !Number.isSafeInteger(lot.quality) || (lot.quality ?? 0) < 1 || (lot.quality ?? 0) > 5
-    || !ID.test(lot.ownerReceizId ?? "") || !/^wildz:material:(?:timber|stone):[a-f0-9]{64}$/.test(lot.lotId ?? "")
+    || !ID.test(lot.ownerReceizId ?? "") || !/^wildz:material:(?:hay|timber|stone):[a-f0-9]{64}$/.test(lot.lotId ?? "")
     || lot.authority !== "source-proof-object" || !HEAD.test(lot.head ?? "") || !lot.source || !lot.contributors) return false;
   if (!ID.test(lot.source.sourceId) || !HEAD.test(lot.source.sourceHead) || !HEAD.test(lot.source.admittedSourceHead)
     || !validKai(lot.source.kaiUPulse) || lot.contributors.explorerReceizId !== lot.ownerReceizId
@@ -447,7 +452,7 @@ export function createWildsMaterialHarvest(input: Readonly<{
   kaiUPulse: number;
 }>) {
   if (!isCanonicalWildsResourceSource(input.source)) throw new Error("wilds_steward_source_noncanonical");
-  if (input.source.kind !== "timber" && input.source.kind !== "stone") throw new Error("wilds_steward_material_unsupported");
+  if (input.source.kind !== "hay" && input.source.kind !== "timber" && input.source.kind !== "stone") throw new Error("wilds_steward_material_unsupported");
   if (!verifyWildsHarvestedSourceState(input.current) || input.current.sourceId !== input.source.sourceId) throw new Error("wilds_steward_source_head_invalid");
   if (!ID.test(input.ownerReceizId) || (input.creature && (!ID.test(input.creature.subjectId) || !HEAD.test(input.creature.head)))) throw new Error("wilds_steward_authority_invalid");
   if (!validKai(input.kaiUPulse)) throw new Error("wilds_steward_kai_invalid");
@@ -503,7 +508,7 @@ export function createWildsMaterialHarvest(input: Readonly<{
     authority: "source-proof-object" as const
   };
   const lot = freeze({ ...lotBasis, head: digest(lotBasis) });
-  const tool = input.tool ? reviseWildsStewardToolAfterUse(input.tool, { capability: input.source.requirements.creature as "lumber" | "quarry", kaiUPulse: input.kaiUPulse }) : null;
+  const tool = input.tool ? reviseWildsStewardToolAfterUse(input.tool, { capability: input.tool.capability, kaiUPulse: input.kaiUPulse }) : null;
   return freeze({ source, lot, tool });
 }
 

@@ -160,9 +160,9 @@ test("v124 MCP and AI Skills retain artifact, living-subject, and exact executio
   ];
   assert.deepEqual(aiIndex.currentMcpArtifactTools, expectedTools);
   for (const operation of expectedTools) assert.match(mcpOperations, new RegExp(operation));
-  assert.equal(aiIndex.version, "124.0.3");
-  assert.equal(aiIndex.registryDigest, "d02429151b0bcebdaeb89485792e377afc55130f9a25e07982c1c88221314247");
-  assert.equal(aiIndex.operationMatrixDigest, "540d1c1bf39f1b288b257c79a6e020bdcc5e587fc9b7dbf6b7aaa5d082e20ad5");
+  assert.equal(aiIndex.version, "125.0.0");
+  assert.equal(aiIndex.registryDigest, "85a24c3a7fe144c8ec03c6b5fae238d1dfda64c1ed3091b24d4264dc3862ff17");
+  assert.equal(aiIndex.operationMatrixDigest, "17c98e99c3f54b7a18dea9f2466a49ea2ac5da4d1cf0a90c723560184a314a6c");
   assert.equal(aiIndex.currentMcpLivingSubjectTools.length, 37);
   for (const operation of [
     "receiz_subject_twin_message",

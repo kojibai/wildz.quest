@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { ReceizIdentityAccountProjection } from "@receiz/sdk";
+import { RECEIZ_IDENTITY_LOCAL_CONTINUITY_AUTHORITY, type ReceizIdentityAccountProjection } from "@receiz/sdk";
 import { projectWildsWalletFromIdentityAccount } from "../src/features/play/wallet/wilds-wallet-source-authority";
 
 function identityAccount(overrides: Partial<ReceizIdentityAccountProjection> = {}): ReceizIdentityAccountProjection {
   return {
     schema: "receiz.sdk.identity_account_projection.v1",
+    continuity: RECEIZ_IDENTITY_LOCAL_CONTINUITY_AUTHORITY,
     keyId: "a".repeat(64),
     alg: "Ed25519",
     owner: { uid: "receiz:explorer", email: null, username: "explorer", displayName: "Explorer" },
@@ -34,7 +35,8 @@ function identityAccount(overrides: Partial<ReceizIdentityAccountProjection> = {
     snapshot: null,
     domains: {
       profile: true, showcase: true, actionLedger: true, calendar: true, contacts: true,
-      wallet: true, sports: true, signalVault: true, media: true, preferences: true, proofHistory: true
+      wallet: true,
+      market: true, sports: true, signalVault: true, media: true, preferences: true, proofHistory: true
     },
     ...overrides
   };

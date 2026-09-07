@@ -90,6 +90,10 @@ function validContribution(value: unknown): value is WildsConstructionSiteContri
     && (entry.contributedAtKaiUPulse ?? -1) >= 0;
 }
 
+function isLegacyConstructionMaterialLot(lot: WildsMaterialLotV1): lot is WildsMaterialLotV1 & Readonly<{ kind: "timber" | "stone" }> {
+  return lot.kind === "timber" || lot.kind === "stone";
+}
+
 export function verifyWildsConstructionSite(value: unknown): value is WildsConstructionSiteV1 {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const site = value as Partial<WildsConstructionSiteV1>;
@@ -184,10 +188,10 @@ export function contributeWildsConstructionSite(input: Readonly<{
   if (input.site.stage === "complete") throw new Error("wilds_construction_site_terminal");
   if (input.expectedSiteHead && input.expectedSiteHead !== input.site.head) throw new Error("wilds_construction_site_stale");
   if (!ID.test(input.contributorReceizId) || !Number.isSafeInteger(input.kaiUPulse) || input.kaiUPulse < input.site.kaiUPulse) throw new Error("wilds_construction_contributor_invalid");
-  if (input.lots.length < 1 || input.lots.some((lot) => !verifyWildsMaterialLot(lot) || (input.lotCustodians?.[lot.lotId] ?? lot.ownerReceizId) !== input.contributorReceizId)
+  if (input.lots.length < 1 || input.lots.some((lot) => !verifyWildsMaterialLot(lot) || !isLegacyConstructionMaterialLot(lot) || (input.lotCustodians?.[lot.lotId] ?? lot.ownerReceizId) !== input.contributorReceizId)
     || new Set(input.lots.map((lot) => lot.lotId)).size !== input.lots.length
     || input.lots.some((lot) => input.site.contributedLots.some((entry) => entry.lotId === lot.lotId))) throw new Error("wilds_construction_material_invalid");
-  const additions = input.lots.map((lot) => ({ lotId: lot.lotId, lotHead: lot.head, kind: lot.kind, ownerReceizId: input.lotCustodians?.[lot.lotId] ?? lot.ownerReceizId, contributedAtKaiUPulse: input.kaiUPulse } as const));
+  const additions = input.lots.filter(isLegacyConstructionMaterialLot).map((lot) => ({ lotId: lot.lotId, lotHead: lot.head, kind: lot.kind, ownerReceizId: input.lotCustodians?.[lot.lotId] ?? lot.ownerReceizId, contributedAtKaiUPulse: input.kaiUPulse } as const));
   const contributedLots = [...input.site.contributedLots, ...additions].sort((left, right) => left.lotId.localeCompare(right.lotId));
   const counts = materialCounts(contributedLots);
   if (counts.timber > input.site.materialsRequired.timber || counts.stone > input.site.materialsRequired.stone) throw new Error("wilds_construction_materials_exceed");

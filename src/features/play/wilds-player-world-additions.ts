@@ -1,5 +1,6 @@
 import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 import type { WildsOwnedWorldAdditions } from "./game-state";
+import { mergeWildsConstructionPersistence, projectWildsConstructionPersistence, type WildsConstructionPersistence } from "./wilds-construction-persistence";
 import { verifyWildsConstructionSite } from "./wilds-construction-site";
 import { verifyWildsHarvestedSourceState, verifyWildsMaterialLot, verifyWildsStructure } from "./wilds-steward-construction";
 import { wildsMaterialCustodian, type WildsWorldProjection } from "./wilds-world-state";
@@ -28,7 +29,7 @@ function mergeMaterialLifecycle(
 }
 
 export function projectWildsOwnedWorldAdditions(
-  world: Pick<WildsWorldProjection, "constructionSites" | "structures" | "harvestedSources" | "materialLots" | "materialCustody" | "consumedMaterialLots" | "reservedMaterialLots" | "storedMaterialLots">,
+  world: Pick<WildsWorldProjection, "constructionSites" | "structures" | "harvestedSources" | "materialLots" | "materialCustody" | "consumedMaterialLots" | "reservedMaterialLots" | "storedMaterialLots"> & Partial<WildsConstructionPersistence>,
   ownerReceizId: string
 ): WildsOwnedWorldAdditions {
   const materialLots = sortedRecord(Object.entries(world.materialLots).filter(([lotId, lot]) =>
@@ -38,6 +39,7 @@ export function projectWildsOwnedWorldAdditions(
   const materialState = (state: Record<string, string>) => sortedRecord(Object.entries(state)
     .filter(([lotId, targetId]) => ownedLotIds.has(lotId) && typeof targetId === "string" && targetId.length > 0));
   return {
+    ...projectWildsConstructionPersistence(world, ownerReceizId),
     constructionSites: sortedRecord(Object.entries(world.constructionSites).filter(([siteId, site]) =>
       siteId === site.siteId && verifyWildsConstructionSite(site)
       && sameOwner(site.placedByReceizId, ownerReceizId))),
@@ -82,6 +84,7 @@ export function mergeWildsOwnedWorldAdditions(
   const materialLifecycle = mergeMaterialLifecycle(world, owned);
   return {
     ...world,
+    ...mergeWildsConstructionPersistence(owned, world),
     constructionSites,
     structures,
     harvestedSources,
@@ -117,6 +120,7 @@ export function mergeWildsOwnedAdditionSets(
   }
   const materialLifecycle = mergeMaterialLifecycle(left, right);
   return {
+    ...mergeWildsConstructionPersistence(left, right),
     constructionSites,
     structures,
     harvestedSources,

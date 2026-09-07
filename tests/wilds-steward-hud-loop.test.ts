@@ -9,6 +9,7 @@ test("the gameplay HUD exposes live Satchel totals and a dedicated construction 
   const registry = readFileSync("src/features/play/wilds-world-capability-registry.ts", "utf8");
   const dock = readFileSync("src/features/play/WildsCommandDock.tsx", "utf8");
   assert.match(controls, /materialCounts/);
+  assert.match(controls, /materialCounts\.hay/);
   assert.match(controls, /Open Living Construction/);
   assert.match(controls, /onRequestCapability/);
   assert.match(controls, /WildsCapabilityControls/);

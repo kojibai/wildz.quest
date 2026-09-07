@@ -3,10 +3,11 @@ import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card"
 // Disposable local blueprint geometry only. Nothing in this module publishes
 // physical world state or consumes material authority.
 
-type Point3 = Readonly<{ x: number; y: number; z: number }>;
+export type WildsConstructionPoint3 = Readonly<{ x: number; y: number; z: number }>;
+type Point3 = WildsConstructionPoint3;
 type Box = Readonly<{ center: Point3; halfExtents: Point3 }>;
 
-export type WildsConstructionKind = "foundation" | "room" | "roof" | "door" | "stair" | "bridge" | "storage" | "workshop" | "habitat" | "light" | "water";
+export type WildsConstructionKind = "foundation" | "floor" | "room" | "wall" | "roof" | "door" | "window" | "column" | "stair" | "bridge" | "platform" | "path" | "storage" | "workshop" | "habitat" | "bed" | "hearth" | "light" | "garden" | "water" | "trim" | "railing" | "partition";
 type AnchorKind = "foundation" | "wall" | "roof" | "door" | "utility" | "water";
 
 export type WildsConstructionCatalogEntry = Readonly<{
@@ -52,6 +53,30 @@ export type WildsBlueprintPreview = Readonly<{
   writes: 0;
 }>;
 
+export type WildsPlacementPhysicalEvidence = Readonly<{
+  terrainY: number;
+  waterline: number | null;
+  anchors: readonly WildsBlueprintAnchor[];
+  solids: readonly Readonly<{ id: string; center: Point3; halfExtents: Point3 }>[];
+}>;
+
+export type WildsBlueprintPlacementInput = Readonly<{
+  blueprint: WildsBlueprintPreview;
+  kind: WildsConstructionKind;
+  pointer: Point3;
+  rotationQuarterTurns: number;
+  heightStep: number;
+  physical: WildsPlacementPhysicalEvidence;
+}>;
+
+export type WildsProductionPlacementEvidence = Readonly<{
+  sourceBlueprint: WildsBlueprintPreview;
+  pointer: Point3;
+  rotationQuarterTurns: number;
+  heightStep: number;
+  physical: WildsPlacementPhysicalEvidence;
+}>;
+
 function freeze<T>(value: T): T {
   if (Array.isArray(value)) {
     for (const entry of value) freeze(entry);
@@ -69,31 +94,55 @@ const entry = (kind: WildsConstructionKind, halfExtents: Point3, support: WildsC
 
 export const WILDS_CONSTRUCTION_CATALOG: readonly WildsConstructionCatalogEntry[] = freeze([
   entry("foundation", { x: 3, y: .3, z: 3 }, "terrain", ["foundation"]),
+  entry("floor", { x: 3, y: .12, z: 3 }, "terrain-or-structure", ["foundation"]),
   entry("room", { x: 3, y: 1.5, z: 3 }, "structure", ["wall", "roof", "door", "utility"]),
+  entry("wall", { x: 3, y: 1.5, z: .15 }, "structure", ["wall", "roof", "door", "utility"]),
   entry("roof", { x: 3.2, y: .25, z: 3.2 }, "structure", ["roof"]),
   entry("door", { x: .65, y: 1.2, z: .15 }, "structure", ["door"]),
+  entry("window", { x: .8, y: .65, z: .12 }, "structure", ["utility"]),
+  entry("column", { x: .25, y: 1.5, z: .25 }, "terrain-or-structure", ["roof"]),
   entry("stair", { x: 1.2, y: 1, z: 2 }, "terrain-or-structure", ["foundation"]),
   entry("bridge", { x: 1.5, y: .25, z: 4 }, "terrain-or-structure", ["foundation"]),
+  entry("platform", { x: 2, y: .2, z: 2 }, "structure", ["foundation"]),
+  entry("path", { x: 1, y: .08, z: 2 }, "terrain", ["foundation"]),
   entry("storage", { x: .8, y: .8, z: .6 }, "structure", ["utility"]),
   entry("workshop", { x: 1.4, y: 1, z: 1 }, "structure", ["utility"]),
   entry("habitat", { x: 1.5, y: 1.2, z: 1.5 }, "structure", ["utility"]),
+  entry("bed", { x: 1, y: .35, z: .55 }, "structure", ["utility"]),
+  entry("hearth", { x: .7, y: .45, z: .7 }, "structure", ["utility"]),
   entry("light", { x: .2, y: .6, z: .2 }, "structure", ["utility"]),
-  entry("water", { x: 2, y: .5, z: 2 }, "water", ["water"])
+  entry("garden", { x: 1.5, y: .2, z: 1.5 }, "terrain-or-structure", ["utility"]),
+  entry("water", { x: 2, y: .5, z: 2 }, "water", ["water"]),
+  entry("trim", { x: 1.5, y: .08, z: .08 }, "structure", []),
+  entry("railing", { x: 1.5, y: .55, z: .08 }, "structure", ["wall"]),
+  entry("partition", { x: 1.5, y: 1.25, z: .08 }, "structure", ["wall", "door"])
 ]);
 
 const CATALOG = new Map(WILDS_CONSTRUCTION_CATALOG.map((value) => [value.kind, value]));
 const ACCEPTED_ANCHORS = Object.freeze({
   foundation: [],
+  floor: ["foundation"],
   room: ["foundation"],
+  wall: ["foundation", "wall"],
   roof: ["roof"],
   door: ["door"],
+  window: ["utility"],
+  column: ["foundation", "wall"],
   stair: ["foundation"],
   bridge: ["foundation"],
+  platform: ["foundation"],
+  path: [],
   storage: ["utility"],
   workshop: ["utility"],
   habitat: ["utility"],
+  bed: ["utility"],
+  hearth: ["utility"],
   light: ["utility"],
-  water: ["water"]
+  garden: ["utility", "foundation"],
+  water: ["water"],
+  trim: ["wall", "door"],
+  railing: ["foundation", "wall"],
+  partition: ["foundation", "wall"]
 } satisfies Record<WildsConstructionKind, readonly AnchorKind[]>);
 
 function quantize(value: number, unit = .25) {
@@ -184,6 +233,46 @@ function placementGeometry(kind: WildsConstructionKind, placementId: string, cen
       interior: freeze({ center, halfExtents: freeze({ x: Math.max(.1, halfExtents.x - .3), y: Math.max(.1, halfExtents.y - .15), z: Math.max(.1, halfExtents.z - .3) }) })
     });
   }
+  if (kind === "wall" || kind === "partition") {
+    const width = kind === "wall" ? 3 : 1.5;
+    const depth = kind === "wall" ? .15 : .08;
+    const height = halfExtents.y;
+    const segment = (suffix: string, xMin: number, xMax: number, yMin: number, yMax: number) => solid(
+      suffix,
+      { x: (xMin + xMax) / 2, y: -height + (yMin + yMax) / 2, z: 0 },
+      { x: (xMax - xMin) / 2, y: (yMax - yMin) / 2, z: depth },
+      true
+    );
+    const collisionSolids = kind === "partition" ? [
+      segment("door-left", -width, -.65, 0, height * 2),
+      segment("door-right", .65, width, 0, height * 2),
+      segment("door-lintel", -.65, .65, 2.4, height * 2)
+    ] : [
+      segment("door-left", -width, -.65, 0, height * 2),
+      segment("between-openings", .65, 1.2, 0, height * 2),
+      segment("window-sill", 1.2, 2.8, 0, 1.15),
+      segment("window-lintel", 1.2, 2.8, 2.45, height * 2),
+      segment("window-right", 2.8, width, 0, height * 2),
+      segment("door-lintel", -.65, .65, 2.4, height * 2)
+    ];
+    return freeze({ collisionSolids, interior: null });
+  }
+  if (kind === "window") {
+    const width = .8;
+    const height = .65;
+    const depth = .12;
+    return freeze({
+      collisionSolids: [
+        solid("left", { x: -width + .1, y: 0, z: 0 }, { x: .1, y: height, z: depth }, true),
+        solid("right", { x: width - .1, y: 0, z: 0 }, { x: .1, y: height, z: depth }, true),
+        solid("sill", { x: 0, y: -height + .1, z: 0 }, { x: width - .2, y: .1, z: depth }, true),
+        solid("lintel", { x: 0, y: height - .1, z: 0 }, { x: width - .2, y: .1, z: depth }, true)
+      ],
+      interior: freeze({ center, halfExtents: freeze(rotation % 2 === 0
+        ? { x: width - .2, y: height - .2, z: depth }
+        : { x: depth, y: height - .2, z: width - .2 }) })
+    });
+  }
   if (kind === "door") {
     const widthAlongX = halfExtents.x >= halfExtents.z;
     return freeze({
@@ -218,23 +307,16 @@ function placementAnchors(kind: WildsConstructionKind, placementId: string, cent
       const side = rotateHorizontal({ x: -halfExtents.x, y: 0, z: 0 }, rotation);
       position = { x: center.x + side.x, y: bottom, z: center.z + side.z };
     }
+    if ((kind === "wall" || kind === "partition") && anchorKind === "door") position = { x: center.x, y: bottom, z: center.z };
+    if (kind === "wall" && anchorKind === "utility") {
+      const windowBottom = rotateHorizontal({ x: 2, y: 0, z: 0 }, rotation);
+      position = { x: center.x + windowBottom.x, y: bottom + 1.15, z: center.z + windowBottom.z };
+    }
     return freeze({ id: `${placementId}:anchor:${index}`, kind: anchorKind, position: freeze(position) });
   }));
 }
 
-export function previewWildsBlueprintPlacement(input: Readonly<{
-  blueprint: WildsBlueprintPreview;
-  kind: WildsConstructionKind;
-  pointer: Point3;
-  rotationQuarterTurns: number;
-  heightStep: number;
-  physical: Readonly<{
-    terrainY: number;
-    waterline: number | null;
-    anchors: readonly WildsBlueprintAnchor[];
-    solids: readonly Readonly<{ id: string; center: Point3; halfExtents: Point3 }>[];
-  }>;
-}>): WildsBlueprintPlacement {
+export function previewWildsBlueprintPlacement(input: WildsBlueprintPlacementInput): WildsBlueprintPlacement {
   if (!finitePoint(input.pointer)) throw new Error("wilds_blueprint_pointer_invalid");
   if (!Number.isFinite(input.physical.terrainY) || (input.physical.waterline !== null && !Number.isFinite(input.physical.waterline))) throw new Error("wilds_blueprint_surface_invalid");
   if (input.physical.anchors.some((anchor) => !anchor.id || !finitePoint(anchor.position))
@@ -296,6 +378,26 @@ export function previewWildsBlueprintPlacement(input: Readonly<{
     writes: 0
   } as const;
   return freeze({ ...content, placementDigest: sha256PortableBasis(canonicalPortableCardJson(content)) });
+}
+
+export function verifyWildsProductionPlacement(
+  preview: WildsBlueprintPlacement,
+  evidence: WildsProductionPlacementEvidence
+): boolean {
+  try {
+    const recomputed = previewWildsBlueprintPlacement({
+      blueprint: evidence.sourceBlueprint,
+      kind: preview.kind,
+      pointer: evidence.pointer,
+      rotationQuarterTurns: evidence.rotationQuarterTurns,
+      heightStep: evidence.heightStep,
+      physical: evidence.physical
+    });
+    return recomputed.valid
+      && canonicalPortableCardJson(preview) === canonicalPortableCardJson(recomputed);
+  } catch {
+    return false;
+  }
 }
 
 function canonicalPlacementContent(placement: WildsBlueprintPlacement) {

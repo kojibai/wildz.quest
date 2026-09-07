@@ -54,6 +54,10 @@ export function planWildsMaterialHarvest(input: Readonly<{
     : undefined;
   const creatureHead = input.card ? sha256PortableBasis(input.card.proof.digest) : undefined;
   const element = input.card ? creatureForm(input.card.manifest.formId)?.element ?? "" : "";
+  const creatureWorkFamilies = projectWildsCreatureWorkFamilies(element);
+  const matchingCreature = creatureSubjectId && creatureHead && creatureWorkFamilies.includes(input.source.requirements.creature)
+    ? { subjectId: creatureSubjectId, head: creatureHead, workFamilies: creatureWorkFamilies, willing: true as const }
+    : undefined;
   const toolId = input.projection.equippedStewardTools[input.actorId];
   const tool = toolId ? input.projection.stewardTools[toolId] : null;
   const matchingTool = tool?.capability === input.source.requirements.creature && tool.durability.remaining > 0
@@ -64,9 +68,7 @@ export function planWildsMaterialHarvest(input: Readonly<{
     current: currentSource,
     ownerReceizId: input.actorId,
     actorPosition: input.actorPosition,
-    creature: creatureSubjectId && creatureHead
-      ? { subjectId: creatureSubjectId, head: creatureHead, workFamilies: projectWildsCreatureWorkFamilies(element), willing: true }
-      : undefined,
+    creature: matchingCreature,
     tool: matchingTool,
     kaiUPulse: input.kaiUPulse
   });
@@ -77,7 +79,7 @@ export function planWildsMaterialHarvest(input: Readonly<{
     lot: harvested.lot,
     ownerReceizId: input.actorId,
     playerHead: sha256PortableBasis(input.actorId),
-    ...(creatureSubjectId && creatureHead ? { creatureSubjectId, creatureHead } : {}),
+    ...(matchingCreature ? { creatureSubjectId: matchingCreature.subjectId, creatureHead: matchingCreature.head } : {}),
     tool: matchingTool,
     nextTool: harvested.tool,
     kaiUPulse: input.kaiUPulse
@@ -92,7 +94,7 @@ export function planWildsMaterialHarvest(input: Readonly<{
       ...(matchingTool ? { toolId: matchingTool.toolId } : {}),
       ...(input.mandate ? { mandate: input.mandate } : {}),
       operation,
-      ...(input.card ? { cardProofDigest: input.card.proof.digest } : {}),
+      ...(matchingCreature ? { cardProofDigest: input.card!.proof.digest } : {}),
       ...(input.kai ? { kai: input.kai } : {}),
       commandId: input.commandId
     };
@@ -116,7 +118,7 @@ export function planWildsMaterialHarvest(input: Readonly<{
     emission,
     amountPhiMicro: preview.amountPhiMicro,
     phiAward,
-    ...(input.card ? { cardProofDigest: input.card.proof.digest } : {}),
+    ...(matchingCreature ? { cardProofDigest: input.card!.proof.digest } : {}),
     ...(input.kai ? { kai: input.kai } : {}),
     commandId: input.commandId
   };

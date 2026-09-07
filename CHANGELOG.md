@@ -4,6 +4,13 @@ All notable changes to Wildz are documented here. Wildz uses semantic versioning
 
 ## [Unreleased]
 
+Target: **9.0.0 — The Living Wilds**. Release preparation and continuous-construction qualification are in progress; see the [v9.0.0 release notes](docs/release/v9.0.0.md).
+
+### Changed
+
+- Upgrade the coordinated Receiz SDK, MCP server, and AI skills to exact public `125.0.0`, with the v125 registry and 60-operation application contract. Retain historical artifact readers and V124 runtime methods.
+- Refresh identity projection compatibility for v125 market coverage and permanent local continuity metadata.
+
 ## [8.0.0] - 2026-08-20
 
 The Proof-Native Living World release: admitted identity, complete game continuity, the Vault, public profiles, and immediate gameplay now operate as one coherent artifact-first system, while the world gains materially richer terrain and creature embodiment.

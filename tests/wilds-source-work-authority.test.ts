@@ -9,6 +9,7 @@ import { WildsWorldService } from "../src/features/play/wilds-world-service";
 import { checkpointWildsWorld, initialWildsWorldProjection } from "../src/features/play/wilds-world-state";
 import { wildsWorldSourceEmission, wildsWorldSourceGenesis } from "../src/features/play/wilds-world-genesis";
 import { createWildsWorldEmissionGenesis } from "../src/features/play/wilds-world-emission";
+import { sealCollectedCard } from "../src/features/play/portable-card";
 
 function sourceOf(kind: "timber" | "stone") {
   for (let x = -2; x <= 2; x += 1) for (let z = -2; z <= 2; z += 1) {
@@ -19,6 +20,54 @@ function sourceOf(kind: "timber" | "stone") {
 }
 
 describe("source-first baseline work", () => {
+  it("keeps an incompatible active helper optional while crediting a matching helper", () => {
+    const projection = createWildsSourceAuthorityProjection();
+    const source = sourceOf("timber");
+    const incompatible = sealCollectedCard({
+      capturedAt: "2026-07-15T00:00:00.000Z",
+      encounterId: "source-work-incompatible",
+      formId: "titanseal-1",
+      ownerReceizId: "explorer:helpers"
+    });
+    const solo = planWildsMaterialHarvest({
+      projection,
+      source,
+      actorId: "explorer:helpers",
+      actorPosition: source.position,
+      kaiUPulse: 1_000_000,
+      commandId: "command:helpers:solo",
+      card: incompatible
+    });
+    assert.deepEqual(solo.operation?.participants.map((entry) => entry.kind), ["player"]);
+    assert.equal(solo.operation?.consequences.cooperation, 0);
+    const admitted = new WildsWorldService({ checkpoint: checkpointWildsWorld(projection) }).execute(solo, {
+      actorId: "explorer:helpers",
+      canonical: true,
+      pulse: "2026-07-15T00:00:00.000Z",
+      occurredAt: "2026-07-15T00:00:00.000Z",
+      uPulse: 1_000_000
+    });
+    assert.equal(Object.values(admitted.projection.materialLots)[0]?.contributors.creatureSubjectId, undefined);
+
+    const matching = sealCollectedCard({
+      capturedAt: "2026-07-15T00:00:00.000Z",
+      encounterId: "source-work-matching",
+      formId: "mintcub-1",
+      ownerReceizId: "explorer:helpers"
+    });
+    const partnered = planWildsMaterialHarvest({
+      projection,
+      source,
+      actorId: "explorer:helpers",
+      actorPosition: source.position,
+      kaiUPulse: 1_000_001,
+      commandId: "command:helpers:partnered",
+      card: matching
+    });
+    assert.deepEqual(partnered.operation?.participants.map((entry) => entry.kind), ["creature", "player"]);
+    assert.equal(partnered.operation?.consequences.cooperation, 2);
+  });
+
   it("rejects a projection that claims a different source law", () => {
     const source = wildsWorldSourceGenesis().emission;
     const representation = { ...source, epochId: "epoch:representation", head: source.head };

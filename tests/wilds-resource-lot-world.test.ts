@@ -9,6 +9,8 @@ import { createWildsGroveResourceLot } from "../src/features/play/wilds-resource
 import { admitWildsEmissionOutcome, createWildsWorldEmissionGenesis } from "../src/features/play/wilds-world-emission.js";
 import { WildsWorldService } from "../src/features/play/wilds-world-service.js";
 import { wildsLivingWorldSuccessorHeads } from "../src/lib/receiz/wilds-world-emission-source.js";
+import { isCanonicalWildsResourceSource, projectWildsResourceRegion } from "../src/features/play/wilds-resource-authority.js";
+import { canonicalPortableCardJson, sha256PortableBasis } from "../src/features/play/portable-card.js";
 
 function fixture() {
   const moment = deriveKaiKlokMomentFromUPulse({ uPulse: 1_000_000, authority: "world" });
@@ -48,6 +50,14 @@ function fixture() {
 }
 
 describe("resource custody in shared-world continuity", () => {
+  it("guarantees renewable hay timber and stone without changing legacy region slots", () => {
+    const sources = projectWildsResourceRegion(0, 0);
+    assert.equal(sha256PortableBasis(canonicalPortableCardJson(sources.slice(0, 6))), "sha256:a0913e9806228d91f3aef8705a6755b11cb9a53cda225d01d54ade8a722ac59f");
+    assert.deepEqual(sources.slice(6, 9).map((source) => source.kind), ["hay", "timber", "stone"]);
+    assert.equal(isCanonicalWildsResourceSource(sources[6]!), true);
+    assert.ok(sources[6]!.replenishment.capacityPerInterval > 0);
+  });
+
   it("admits and replays one exact resource lot with its Grove operation", () => {
     const data = fixture();
     const occurredAt = kaiUPulseToISOString(data.moment.uPulse);
