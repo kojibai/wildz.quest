@@ -12,7 +12,7 @@ import { wildsSiteRuntimeGroundY, type WildsSiteRuntimeProjection } from "./wild
 import { projectWildsResourceAffordance } from "./wilds-resource-affordance";
 import { projectWildsWorkPresentation, type WildsActiveWorkSource } from "./wilds-work-presentation";
 import { useWildsReadability } from "./WildsReadabilityContext";
-import { constructionSourcesNear, type WildsStewardPlacement } from "./wilds-steward-craft";
+import { constructionSourceCellKey, constructionSourcesNear, type WildsStewardPlacement } from "./wilds-steward-craft";
 import type { WildsConstructionSiteV1 } from "./wilds-construction-site";
 
 function createGeometry() {
@@ -99,6 +99,7 @@ export function WildsStewardEnvironment({ activeWorkSource, placementPreview, li
   siteRuntime: WildsSiteRuntimeProjection;
   siteSpaceId: string;
 }) {
+  const sourceCellKey = constructionSourceCellKey(player);
   const sources = useMemo(() => {
     const projected: Array<{ source: WildsResourceSource; availableCapacity: number }> = [];
     if (siteSpaceId !== "wildz.space.outer.v1") return projected;
@@ -112,7 +113,7 @@ export function WildsStewardEnvironment({ activeWorkSource, placementPreview, li
       projected.push({ source, availableCapacity: availability.availableCapacity });
     }
     return projected;
-  }, [kaiUPulse, livingWorld?.harvestedSources, player.x, player.z, siteSpaceId]);
+  }, [kaiUPulse, livingWorld?.harvestedSources, siteSpaceId, sourceCellKey]);
   const structures = useMemo(() => Object.values(livingWorld?.structures ?? {})
     .filter((structure) => Math.hypot(structure.position.x - player.x, structure.position.z - player.z) <= 110)
     .sort((left, right) => left.structureId.localeCompare(right.structureId)), [livingWorld?.structures, player.x, player.z]);

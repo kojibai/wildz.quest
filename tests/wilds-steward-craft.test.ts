@@ -7,6 +7,7 @@ import {
   projectWildsStewardPlacement
 } from "../src/features/play/wilds-steward-craft";
 import type { WildsMaterialLotV1 } from "../src/features/play/wilds-steward-construction";
+import { projectWildsResourceRegion } from "../src/features/play/wilds-resource-authority";
 
 function lot(kind: "hay" | "timber" | "stone", index: number): WildsMaterialLotV1 {
   return { kind, lotId: `${kind}:${index}` } as WildsMaterialLotV1;
@@ -15,8 +16,23 @@ function lot(kind: "hay" | "timber" | "stone", index: number): WildsMaterialLotV
 describe("Steward Craft player projection", () => {
   it("keeps canonical construction discovery bounded at the world edge", () => {
     const sources = constructionSourcesNear({ x: 500_000_000, z: 500_000_000 });
-    assert.equal(sources.some((source) => source.kind === "hay"), true);
     assert.equal(new Set(sources.map((source) => source.sourceId)).size, sources.length);
+    assert.equal(sources.length <= 24, true);
+  });
+
+  it("reuses one bounded source projection across fractional movement in a stable cell", () => {
+    const first = constructionSourcesNear({ x: 16.1, z: -7.8 });
+    const second = constructionSourcesNear({ x: 16.8, z: -7.1 });
+    assert.equal(second, first);
+    assert.equal(first.length <= 24, true);
+    assert.equal(first.every((source) => Math.hypot(source.position.x - 18, source.position.z + 6) <= 11), true);
+  });
+
+  it("includes a canonical hay patch when its stable visible neighborhood reaches it", () => {
+    const hay = projectWildsResourceRegion(0, 0).find((source) => source.kind === "hay");
+    assert.ok(hay);
+    const visible = constructionSourcesNear(hay.position);
+    assert.equal(visible.some((source) => source.sourceId === hay.sourceId), true);
   });
   it("publishes the four end-to-end admitted blueprints with exact requirements", () => {
     assert.deepEqual(WILDS_STEWARD_BLUEPRINTS.map(({ id, materials }) => ({ id, materials })), [

@@ -60,11 +60,36 @@ export const WILDS_STEWARD_BLUEPRINTS: readonly WildsStewardBlueprintDefinition[
   })
 ]);
 
+const CONSTRUCTION_SOURCE_CELL_SIZE = 4;
+const CONSTRUCTION_SOURCE_RADIUS = 11;
+const CONSTRUCTION_SOURCE_LIMIT = 24;
+const CONSTRUCTION_SOURCE_CACHE_LIMIT = 128;
+const constructionSourceCache = new Map<string, readonly WildsResourceSource[]>();
+
+function constructionSourceCell(position: Readonly<{ x: number; z: number }>) {
+  const x = Math.floor(position.x / CONSTRUCTION_SOURCE_CELL_SIZE);
+  const z = Math.floor(position.z / CONSTRUCTION_SOURCE_CELL_SIZE);
+  const maximum = 500_000_000 - .000001;
+  return Object.freeze({
+    key: `${x}:${z}`,
+    x: Math.max(-500_000_000, Math.min(maximum, (x + .5) * CONSTRUCTION_SOURCE_CELL_SIZE)),
+    z: Math.max(-500_000_000, Math.min(maximum, (z + .5) * CONSTRUCTION_SOURCE_CELL_SIZE))
+  });
+}
+
+export function constructionSourceCellKey(position: Readonly<{ x: number; z: number }>) {
+  return constructionSourceCell(position).key;
+}
+
 export function constructionSourcesNear(
   position: Readonly<{ x: number; z: number }>,
   projectRegion: typeof projectWildsResourceRegion = projectWildsResourceRegion
 ): readonly WildsResourceSource[] {
-  const region = wildsResourceRegionForPosition(position);
+  const cell = constructionSourceCell(position);
+  const cacheable = projectRegion === projectWildsResourceRegion;
+  const cached = cacheable ? constructionSourceCache.get(cell.key) : undefined;
+  if (cached) return cached;
+  const region = wildsResourceRegionForPosition(cell);
   const sources = new Map<string, WildsResourceSource>();
   for (let dx = -1; dx <= 1; dx += 1) for (let dz = -1; dz <= 1; dz += 1) {
     let regionSources: readonly WildsResourceSource[];
@@ -77,8 +102,8 @@ export function constructionSourcesNear(
       if (source.kind === "hay" || source.kind === "timber" || source.kind === "stone") sources.set(source.sourceId, source);
     }
   }
-  const tileX = Math.floor(position.x / WILDS_TERRAIN_TILE_SIZE);
-  const tileZ = Math.floor(position.z / WILDS_TERRAIN_TILE_SIZE);
+  const tileX = Math.floor(cell.x / WILDS_TERRAIN_TILE_SIZE);
+  const tileZ = Math.floor(cell.z / WILDS_TERRAIN_TILE_SIZE);
   for (let x = tileX - 2; x <= tileX + 2; x += 1) for (let z = tileZ - 2; z <= tileZ + 2; z += 1) {
     for (const obstacle of wildsTerrainObstaclesForTile(x, z)) {
       if (obstacle.kind !== "tree" && obstacle.kind !== "rock") continue;
@@ -86,10 +111,22 @@ export function constructionSourcesNear(
       sources.set(source.sourceId, source);
     }
   }
-  return Object.freeze([...sources.values()].sort((left, right) =>
-    Math.hypot(left.position.x - position.x, left.position.z - position.z)
-      - Math.hypot(right.position.x - position.x, right.position.z - position.z)
-      || left.sourceId.localeCompare(right.sourceId)));
+  const projection = Object.freeze([...sources.values()]
+    .filter((source) => Math.hypot(source.position.x - cell.x, source.position.z - cell.z) <= CONSTRUCTION_SOURCE_RADIUS)
+    .sort((left, right) =>
+      Math.hypot(left.position.x - cell.x, left.position.z - cell.z)
+        - Math.hypot(right.position.x - cell.x, right.position.z - cell.z)
+        || left.sourceId.localeCompare(right.sourceId))
+    .slice(0, CONSTRUCTION_SOURCE_LIMIT));
+  if (cacheable) {
+    constructionSourceCache.set(cell.key, projection);
+    while (constructionSourceCache.size > CONSTRUCTION_SOURCE_CACHE_LIMIT) {
+      const oldest = constructionSourceCache.keys().next().value as string | undefined;
+      if (oldest === undefined) break;
+      constructionSourceCache.delete(oldest);
+    }
+  }
+  return projection;
 }
 
 function finitePoint(point: Readonly<{ x: number; z: number }>) {
