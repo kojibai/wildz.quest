@@ -65,7 +65,7 @@ import {
   wildzProfilePublicationReadiness
 } from "@/lib/receiz/wildz-profile-adapter";
 import type { WildzOverlay } from "@/features/shell/wildz-overlay";
-import { shouldRunWildzOffHotPathWork } from "@/features/play/wilds-network-status";
+import { startWildzProfilePublication, type ProfilePublicationStatus } from "@/features/profile/background-publication";
 import { downloadBlob } from "@/features/play/card-export";
 import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-verifier";
 import { canRestoreFocus } from "@/features/play/focus-recovery";
@@ -220,7 +220,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const [profileStatus, setProfileStatus] = useState<"idle" | "loading" | "publishing" | "ready" | "unpublished" | "missing" | "error">("idle");
   const [avatarImageUrl, setAvatarImageUrl] = useState<string | null>(null);
   const publishedProfileRef = useRef("");
-  const [publicationAttempt, setPublicationAttempt] = useState(0);
+  const [ownerPublicationStatus, setOwnerPublicationStatus] = useState<ProfilePublicationStatus>("unpublished");
   const identity = continuity?.session ?? null;
   const profilePublicationReadiness = wildzProfilePublicationReadiness({
     hasIdentity: Boolean(identity),
@@ -241,10 +241,11 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     return ownerPlayState.inventory.filter((asset) => !locallyClaimed.has(asset.id));
   }, [identity, ownerPlayState.inventory]);
   const ownerUsername = identity?.username ?? identity?.actorId ?? "explorer";
-  const admittedVault = useMemo(() => identity ? admitWildzVaultProofObjects({
+  const ownerActorId = identity?.actorId;
+  const admittedVault = useMemo(() => ownerActorId ? admitWildzVaultProofObjects({
     cards: ownerPlayState.inventory,
-    playerHandle: identity.actorId
-  }) : null, [identity, ownerPlayState.inventory]);
+    playerHandle: ownerActorId
+  }) : null, [ownerActorId, ownerPlayState.inventory]);
   const vaultAdmission = admittedVault?.admission ?? null;
   const admittedProofObjects = admittedVault?.proofObjects;
   const viewingOwnProfile = !overlay
@@ -446,52 +447,35 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   }, [acceptSnapshot, identity, vaultAdmission]);
 
   useEffect(() => {
-    if (profilePublicationReadiness !== "ready") return;
-    let active = true;
-    let publishing = false;
-    let controller: AbortController | null = null;
-    const stopPublishing = () => {
-      controller?.abort();
-      controller = null;
-      publishing = false;
-    };
-    const publish = () => {
-      if (!active || publishing) return;
-      const publicationKey = JSON.stringify(publishablePublicProfile);
-      if (publishedProfileRef.current === publicationKey) return;
-      publishing = true;
-      controller = new AbortController();
-      const requestController = controller;
-      setProfileStatus("publishing");
-      void publishCurrentWildzProfile(publishablePublicProfile, publishableOwnerAssets, globalThis.fetch, {
-        signal: requestController.signal,
-        proofObjects: admittedProofObjects
-      }).then(() => {
-        if (!active || requestController.signal.aborted) return;
-        publishedProfileRef.current = publicationKey;
-        setProfileStatus("ready");
-      }).catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        if (active) setProfileStatus("unpublished");
-      }).finally(() => {
-        if (controller === requestController) {
-          controller = null;
-          publishing = false;
-        }
-      });
-    };
-    const syncPublication = () => {
-      if (shouldRunWildzOffHotPathWork({ visibility: document.visibilityState, surface: "profile" })) publish();
-      else stopPublishing();
-    };
-    syncPublication();
-    document.addEventListener("visibilitychange", syncPublication);
+    if (profilePublicationReadiness !== "ready") {
+      setOwnerPublicationStatus("unpublished");
+      return;
+    }
+    const publicationKey = JSON.stringify(publishablePublicProfile);
+    if (publishedProfileRef.current === publicationKey) {
+      setOwnerPublicationStatus("ready");
+      return;
+    }
+    const publication = startWildzProfilePublication({
+      isOnline: () => navigator.onLine !== false,
+      schedule: (task) => wildzGameplayBackground.run(task),
+      onStatus: (status) => {
+        if (status === "ready") publishedProfileRef.current = publicationKey;
+        setOwnerPublicationStatus(status);
+      },
+      publish: (signal) => publishCurrentWildzProfile(publishablePublicProfile, publishableOwnerAssets, globalThis.fetch, {
+        signal,
+        proofObjects: admittedProofObjects,
+        prepareBody: async (value) => await wildzJsonSerializer.serialize(value)
+          ?? wildzGameplayBackground.run(() => JSON.stringify(value))
+      })
+    });
+    window.addEventListener("online", publication.wake);
     return () => {
-      active = false;
-      document.removeEventListener("visibilitychange", syncPublication);
-      stopPublishing();
+      window.removeEventListener("online", publication.wake);
+      publication.stop();
     };
-  }, [admittedProofObjects, overlay?.kind, profilePublicationReadiness, publishableOwnerAssets, publishablePublicProfile, publicationAttempt]);
+  }, [admittedProofObjects, profilePublicationReadiness, publishableOwnerAssets, publishablePublicProfile]);
 
   useEffect(() => {
     if (overlay?.kind !== "profile") {
@@ -502,10 +486,6 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     let active = true;
     if (viewingOwnProfile) {
       setRemoteProfile(ownerSourceProfile);
-      const publicationKey = JSON.stringify(publishablePublicProfile);
-      setProfileStatus(publishedProfileRef.current === publicationKey
-        ? "ready"
-        : profilePublicationReadiness === "ready" ? "publishing" : "unpublished");
       return () => { active = false; };
     }
     setRemoteProfile(null);
@@ -518,7 +498,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       if (active) setProfileStatus("error");
     });
     return () => { active = false; };
-  }, [overlay, ownerSourceProfile, profilePublicationReadiness, publishablePublicProfile, viewingOwnProfile]);
+  }, [overlay, ownerSourceProfile, viewingOwnProfile]);
 
   useEffect(() => {
     let active = true;
@@ -1243,11 +1223,10 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           {overlay.kind === "profile" ? (viewingOwnProfile ? ownerSourceProfile : remoteProfile) ? <WildzProfileSheet
             profile={(viewingOwnProfile ? ownerSourceProfile : remoteProfile)!}
             vaultAssets={viewingOwnProfile ? ownerPlayState.inventory : undefined}
-            publicationStatus={viewingOwnProfile && profileStatus !== "ready" ? "local" : "published"}
-            shareEnabled={!viewingOwnProfile || profileStatus === "ready"}
-            publicationMessage={viewingOwnProfile ? profileStatus === "ready" ? "Your profile is live. Open your public page or share its link." : profileStatus === "publishing" ? "Publishing your verified profile…" : !proofSessionConnected ? "Connect online and activate your Identity Seal to publish this profile." : !character ? "Finish creating your explorer to publish your profile." : "Publication did not complete. Your profile is saved here; tap Publish profile to retry." : undefined}
-            publishing={profileStatus === "publishing"}
-            onPublish={viewingOwnProfile ? () => setPublicationAttempt(value => value + 1) : undefined}
+            publicationStatus={viewingOwnProfile && ownerPublicationStatus !== "ready" ? "local" : "published"}
+            shareEnabled={!viewingOwnProfile || ownerPublicationStatus === "ready"}
+            publicationMessage={viewingOwnProfile ? ownerPublicationStatus === "ready" ? "Profile is live" : ownerPublicationStatus === "publishing" ? "Syncing profile in the background" : !proofSessionConnected ? "Saved here · publishes automatically when connected with your Identity Seal" : !character ? "Saved here · publishes after your explorer is ready" : "Saved here · syncing will retry automatically" : undefined}
+            publishing={ownerPublicationStatus === "publishing"}
             editable={viewingOwnProfile}
             signingAvailable={identity?.localAuthority === "verified"}
             onAuthenticateIdentitySeal={activateIdentitySeal}

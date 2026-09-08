@@ -221,17 +221,18 @@ export async function publishCurrentWildzProfile(
   profile: PublicWildzProfile,
   assetsOrFetcher: readonly PortableCardAsset[] | typeof fetch = [],
   suppliedFetcher: typeof fetch = globalThis.fetch,
-  options: { signal?: AbortSignal; proofObjects?: WildzAdmittedVaultProofObjects } = {}
+  options: { signal?: AbortSignal; proofObjects?: WildzAdmittedVaultProofObjects; prepareBody?: (value: unknown) => Promise<string> } = {}
 ) {
   const assets = typeof assetsOrFetcher === "function" ? [] : assetsOrFetcher;
   const fetcher = typeof assetsOrFetcher === "function" ? assetsOrFetcher : suppliedFetcher;
+  const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
   for (const requested of profile.vault) {
     options.signal?.throwIfAborted();
-    const asset = assets.find((candidate) => candidate.id === requested.id);
+    const asset = assetsById.get(requested.id);
     if (!asset || asset.proof.digest !== requested.proofDigest) {
       throw new Error("wildz_public_profile_card_unverified");
     }
-    await registerPublicWildsCard(asset, fetcher, { proofObjects: options.proofObjects });
+    await registerPublicWildsCard(asset, fetcher, { proofObjects: options.proofObjects, signal: options.signal, prepareBody: options.prepareBody });
     options.signal?.throwIfAborted();
   }
   options.signal?.throwIfAborted();
@@ -240,7 +241,7 @@ export async function publishCurrentWildzProfile(
     credentials: "same-origin",
     signal: options.signal,
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(profile)
+    body: options.prepareBody ? await options.prepareBody(profile) : JSON.stringify(profile)
   });
   const value = await response.json().catch(() => null) as Record<string, unknown> | null;
   if (!response.ok || value?.ok !== true || !isRecord(value.profile)) {

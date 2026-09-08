@@ -139,9 +139,9 @@ test("artifact upload follow-up work stays off visible gameplay", () => {
   assert.match(campaign, /shouldRunWildzOffHotPathWork/);
 
   assert.doesNotMatch(shell, /retryTimer|retryAttempt|proofSessionRetryDecision/);
-  assert.match(shell, /shouldRunWildzOffHotPathWork/);
+  assert.match(shell, /schedule: \(task\) => wildzGameplayBackground\.run\(task\)/);
   assert.doesNotMatch(shell, /overlay\?\.kind === "profile" \? "profile" : "gameplay"/);
-  assert.match(shell, /visibility:\s*document\.visibilityState, surface:\s*"profile"/);
+  assert.match(shell, /prepareBody:[\s\S]*wildzJsonSerializer\.serialize/);
 });
 
 test("trackpad pointer motion updates the knob outside React's render path", () => {

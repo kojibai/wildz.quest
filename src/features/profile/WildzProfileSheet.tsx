@@ -4,7 +4,7 @@ import { canonicalWildzProfilePath, type PublicWildzProfile } from "@/features/p
 import NextLink from "next/link";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import { WildzProfileVaultGallery } from "@/features/profile/WildzProfileVaultGallery";
-import { Camera, Check, Download, Link, LoaderCircle, Pencil, Share2, Upload, X } from "lucide-react";
+import { Camera, Check, CloudUpload, Download, Link, LoaderCircle, Pencil, Share2, Upload, X } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -42,9 +42,8 @@ async function profileImageFromFile(file: File) {
   }
 }
 
-export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "published", shareEnabled = true, editable = false, signingAvailable = true, onAuthenticateIdentitySeal, onSaveIdentitySeal, onSaveProfile, onPublish, publishing = false, publicationMessage }: {
+export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "published", shareEnabled = true, editable = false, signingAvailable = true, onAuthenticateIdentitySeal, onSaveIdentitySeal, onSaveProfile, publishing = false, publicationMessage }: {
   profile: PublicWildzProfile;
-  onPublish?: () => void;
   publishing?: boolean;
   publicationMessage?: string;
   vaultAssets?: readonly PortableCardAsset[];
@@ -163,9 +162,11 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
 
   return <div className="wildz-profile-sheet">
     <header className="wildz-profile-head"><div className="wildz-profile-avatar">{draftAvatar ? <Image alt="" height={58} src={draftAvatar} unoptimized width={58} /> : profile.displayName.slice(0, 2).toUpperCase()}</div><div>
-      <span>Explorer profile</span><h2>{profile.displayName}</h2><p>{profile.username} · {publicationStatus === "published" ? "Published via Receiz" : "Local verified profile · not yet published"}</p>
+      <span>Explorer profile</span><h2>{profile.displayName}</h2><p className="wildz-profile-handle">{profile.username}{editable ? <span className="wildz-profile-sync" data-state={publishing ? "syncing" : publicationStatus} role="status" aria-live="polite" aria-label={publicationMessage} title={publicationMessage}>
+        {publicationStatus === "published" ? <NextLink aria-label="Open public profile" title="Profile is live · open public profile" href={canonicalWildzProfilePath(profile.username)}><Check aria-hidden="true" size={16} /></NextLink> : <CloudUpload aria-hidden="true" size={16} />}
+      </span> : null}</p>
     </div>{editable ? <button className="wildz-profile-edit-trigger" aria-label="Edit profile" aria-pressed={editing} onClick={() => setEditing((value) => !value)} type="button"><Pencil aria-hidden="true" size={18} /></button> : null}</header>
-    {editable && <section className="wildz-profile-publication" aria-label="Publish profile"><p role="status">{publicationMessage}</p>{publicationStatus === "published" ? <NextLink href={canonicalWildzProfilePath(profile.username)}>Open public profile ↗</NextLink> : <button type="button" disabled={publishing} onClick={onPublish}>{publishing ? "Publishing…" : "Publish profile"}</button>}</section>}
+
     {editable && editing ? <section className="wildz-profile-editor" aria-label="Edit explorer profile" aria-busy={saving}>
       <label className="wildz-profile-photo-control">
         <span>{draftAvatar ? <Image alt="Profile preview" height={58} src={draftAvatar} unoptimized width={58} /> : <Camera aria-hidden="true" size={22} />}</span>
@@ -188,6 +189,7 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
       <p aria-live="polite" role="status">{editMessage}</p>
     </section> : null}
     <section className="wildz-profile-action-rail" aria-label="Profile actions">
+
       <button aria-busy={profileLinkAction?.kind === "share" && profileLinkAction.phase === "working"} aria-disabled={profileLinkAction?.phase === "working"} aria-label="Share profile" data-state={profileLinkAction?.kind === "share" ? profileLinkAction.phase : "idle"} onClick={() => void runProfileLinkAction("share")} title="Share profile" type="button">{profileLinkAction?.kind === "share" && profileLinkAction.phase === "working" ? <LoaderCircle aria-hidden="true" size={18} /> : profileLinkAction?.kind === "share" && profileLinkAction.phase === "success" ? <Check aria-hidden="true" size={18} /> : <Share2 aria-hidden="true" size={18} />}</button>
       <button aria-busy={profileLinkAction?.kind === "copy" && profileLinkAction.phase === "working"} aria-disabled={profileLinkAction?.phase === "working"} aria-label="Copy profile link" data-state={profileLinkAction?.kind === "copy" ? profileLinkAction.phase : "idle"} onClick={() => void runProfileLinkAction("copy")} title="Copy profile link" type="button">{profileLinkAction?.kind === "copy" && profileLinkAction.phase === "working" ? <LoaderCircle aria-hidden="true" size={18} /> : profileLinkAction?.kind === "copy" && profileLinkAction.phase === "success" ? <Check aria-hidden="true" size={18} /> : <Link aria-hidden="true" size={18} />}</button>
       {editable ? <>
@@ -255,7 +257,7 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
     </section> : null}
     <p className="wildz-profile-action-status" aria-live="polite" role="status">{identityMessage || (shareResult
       ? `${shareResult.message}${!shareEnabled && (shareResult.status === "shared" || shareResult.status === "copied") ? " Public profile publication is still syncing." : ""}`
-      : !shareEnabled ? "Public profile publication is still syncing. You can copy or share its permanent URL now." : "")}</p>
+      : "")}</p>
     <div className="wildz-profile-stats"><span><b>{profile.discoveries}</b> discoveries</span><span><b>{profile.record.wins}</b> wins</span><span><b>{profile.reputation}</b> reputation</span></div>
     <section className="wildz-profile-impact" aria-label="Explorer impact">
       <span><small>World impact</small><strong>{profile.discoveries + profile.record.wins} admitted milestones</strong></span>

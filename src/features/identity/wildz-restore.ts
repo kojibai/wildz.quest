@@ -3,6 +3,7 @@ import {
   createOwnerBoundInitialPlayState,
   initialPlayState,
   restorePlayState,
+  normalizeWildsRuntimePlayState,
   serializePlayState,
   type PlayState
 } from "../play/game-state";
@@ -10,6 +11,7 @@ import { parseWildzCharacter, type WildzCharacterGenesis } from "./wildz-genesis
 import { canonicalPortableCardJson, verifyAnyWildsCard, type PortableCardAsset } from "../play/portable-card";
 import {
   createWildsPlayerVault,
+  normalizeWildsPlayerVaultInput,
   reconcileWildsPlayerVault,
   type WildsPlayerVaultPayload
 } from "../play/wilds-player-vault";
@@ -279,7 +281,7 @@ function normalizedPlayerContinuity(
     throw new Error("wildz_restore_owner_mismatch");
   }
   const continuity = source ?? defaultPlayerContinuity();
-  const normalized = createWildsPlayerVault({
+  const normalized = normalizeWildsPlayerVaultInput({
     playerId: session.actorId,
     exportedAt,
     playState,
@@ -303,7 +305,7 @@ export function createStoredWildzPlayState(
   updatedAt = new Date().toISOString(),
   character?: WildzCharacterGenesis | null
 ): StoredWildzPlayState {
-  const normalizedPlayState = restorePlayState(serializePlayState(playState), session.actorId);
+  const normalizedPlayState = normalizeWildsRuntimePlayState(playState, session.actorId);
   const continuity = normalizedPlayerContinuity(session, normalizedPlayState, player, updatedAt);
   const requestedCharacter = character === undefined && player && "playerId" in player ? player.character : character;
   const normalizedCharacter = requestedCharacter === null || requestedCharacter === undefined
@@ -463,9 +465,9 @@ export async function restoreWildzArtifactForSurface(input: {
         : false;
       const previous = storedOwnerState(stored, session);
       const current = shouldCarryCurrentVault && input.currentPlayState
-        ? restorePlayState(serializePlayState(input.currentPlayState), session.actorId)
+        ? normalizeWildsRuntimePlayState(input.currentPlayState, session.actorId)
         : sameActivePlayer && input.currentPlayState
-        ? restorePlayState(serializePlayState(input.currentPlayState), session.actorId)
+        ? normalizeWildsRuntimePlayState(input.currentPlayState, session.actorId)
         : previous
           ? restorePlayState(serializePlayState(previous.playState))
           : assets.length

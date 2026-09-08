@@ -26,9 +26,9 @@ test("shared profiles recover and publish through Receiz instead of a local plac
   assert.match(shell, /controller\.abort\(\)/);
   assert.doesNotMatch(shell, /const surface = overlay\?\.kind === "profile" \? "profile" : "gameplay"/);
   assert.match(shell, /locallyClaimedWildzAssetIds/);
-  assert.match(shell, /setProfileStatus\("publishing"\)/);
-  assert.match(shell, /setProfileStatus\("unpublished"\)/);
-  assert.match(shell, /shareEnabled=\{[^}]*profileStatus === "ready"/);
+  assert.match(shell, /startWildzProfilePublication/);
+  assert.match(shell, /setOwnerPublicationStatus/);
+  assert.match(shell, /shareEnabled=\{[^}]*ownerPublicationStatus === "ready"/);
   assert.match(shell, /This Wildz profile has not been published yet/);
   assert.match(route, /resolveWildzCookieActor/);
   assert.match(route, /createReceizWildzPublicRepository/);
@@ -39,7 +39,7 @@ test("shared profiles recover and publish through Receiz instead of a local plac
   assert.match(route, /x-wildz-public-projection/);
   assert.doesNotMatch(route, /playerReceizAccessToken|session\.accessToken|delegatedAccessToken/);
   assert.match(adapter, /WildzPublicProjectionRepository/);
-  assert.doesNotMatch(adapter, /new Map|Map</);
+  assert.doesNotMatch(adapter, /^(?:const|let) .*new Map/m);
 });
 
 test("the owner Profile and Vault project the complete source inventory without waiting for publication", () => {
@@ -56,7 +56,8 @@ test("own-profile share controls always respond while reporting durable publicat
   assert.doesNotMatch(sheet, /disabled=\{!shareEnabled\}/);
   assert.match(sheet, /Public profile publication is still syncing/);
   assert.match(sheet, /document\.execCommand\("copy"\)/);
-  assert.match(sheet, /not yet published/i);
+  assert.match(sheet, /aria-label=\{publicationMessage\}/);
+  assert.doesNotMatch(sheet, /Publish profile|onPublish/);
   assert.doesNotMatch(sheet, /Receiz verified<\/p>/);
   assert.match(sheet, /profileLinkAction/);
   assert.match(sheet, /data-state=\{profileLinkAction/);

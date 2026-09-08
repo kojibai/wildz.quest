@@ -18,6 +18,8 @@ export type PublicWildsCardRecord = {
 };
 
 export type PublicWildsCardRegistrationOptions = {
+  signal?: AbortSignal;
+  prepareBody?: (value: unknown) => Promise<string>;
   proofObjects?: WildzAdmittedVaultProofObjects;
 };
 
@@ -201,7 +203,8 @@ async function registerPublicWildsCardRevision(
     method: "POST",
     credentials: "same-origin",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ asset })
+    signal: options.signal,
+    body: options.prepareBody ? await options.prepareBody({ asset }) : JSON.stringify({ asset })
   });
   const payload = await response.json().catch(() => null) as {
     ok?: boolean;

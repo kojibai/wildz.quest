@@ -1,5 +1,5 @@
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
-import { restorePlayState, serializePlayState, type PlayState } from "./game-state";
+import { normalizeWildsRuntimePlayState, type PlayState } from "./game-state";
 import { mergeWildsExplorationAtlases } from "./wilds-exploration-atlas";
 import { parseWildzCharacter, type WildzCharacterGenesis } from "../identity/wildz-genesis";
 import { WILDS_WORLD_ID } from "./wilds-world-event";
@@ -49,7 +49,7 @@ function normalizedCharacter(value: WildzCharacterGenesis | null | undefined) {
   return parsed;
 }
 
-function normalizedInput(input: PlayerVaultInput): NormalizedPlayerVaultInput {
+export function normalizeWildsPlayerVaultInput(input: PlayerVaultInput): NormalizedPlayerVaultInput {
   if (!identityValid(input.playerId)) throw new Error("wilds_player_vault_owner_invalid");
   if (!Number.isFinite(Date.parse(input.exportedAt))) throw new Error("wilds_player_vault_time_invalid");
   if (input.settings.avatarStyle !== null && input.settings.avatarStyle !== "female" && input.settings.avatarStyle !== "male") {
@@ -96,7 +96,7 @@ function normalizedInput(input: PlayerVaultInput): NormalizedPlayerVaultInput {
   return {
     ...input,
     exportedAt: new Date(Date.parse(input.exportedAt)).toISOString(),
-    playState: restorePlayState(serializePlayState(input.playState), input.playerId),
+    playState: normalizeWildsRuntimePlayState(input.playState, input.playerId),
     character: normalizedCharacter(input.character),
     settings: {
       avatarStyle: input.settings.avatarStyle,
@@ -131,7 +131,7 @@ function basis(input: NormalizedPlayerVaultInput) {
 }
 
 export function createWildsPlayerVault(input: PlayerVaultInput): WildsPlayerVaultPayload {
-  const normalized = normalizedInput(input);
+  const normalized = normalizeWildsPlayerVaultInput(input);
   return { ...basis(normalized), payloadDigest: sha256PortableBasis(canonicalPortableCardJson(basis(normalized))) };
 }
 
@@ -145,7 +145,7 @@ export function verifyWildsPlayerVault(value: WildsPlayerVaultPayload) {
     if (schema !== "receiz.wilds_player_vault.v3" || payloadDigest !== expectedDigest) {
       errors.push("wilds_player_vault_digest_invalid");
     }
-    normalizedInput({
+    normalizeWildsPlayerVaultInput({
       playerId: value.playerId,
       exportedAt: value.exportedAt,
       playState: value.playState,
@@ -233,5 +233,5 @@ export function mergeWildsPlayerPlayStates(input: {
     ownedWorldAdditions: mergeWildsOwnedAdditionSets(input.local.ownedWorldAdditions, restoredPlayState.ownedWorldAdditions),
     adventureConditions
   };
-  return restorePlayState(serializePlayState(mergedState), input.actorId);
+  return normalizeWildsRuntimePlayState(mergedState, input.actorId);
 }

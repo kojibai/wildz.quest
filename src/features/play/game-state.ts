@@ -13,6 +13,7 @@ import {
 } from "./portable-card";
 import {
   admitLocallySealedWildsInventory,
+  createAdmittedWildsInventory,
   isAdmittedWildsCard,
   restoreAdmittedWildsInventory,
   retainAdmittedWildsInventory,
@@ -463,6 +464,18 @@ const LEGACY_PLAY_SAVE_SCHEMAS = new Set(["receiz.wilds.save.v2", "receiz.wilds.
 
 export function serializePlayState(state: PlayState) {
   return JSON.stringify({ schema: PLAY_SAVE_SCHEMA, state });
+}
+
+/** Normalize runtime state without serializing or reverifying exact admitted cards.
+ * Parsed uploads/storage have no runtime admission and take the full verifier path.
+ */
+export function normalizeWildsRuntimePlayState(state: PlayState, ownerReceizId: string): PlayState {
+  const admitted = createAdmittedWildsInventory(state.inventory, ownerReceizId);
+  return restorePlayState(
+    serializePlayState(admitted ? { ...state, inventory: [] } : state),
+    ownerReceizId,
+    admitted ?? undefined
+  );
 }
 
 function admitAndMergeInventory(assets: PortableCardAsset[]) {

@@ -27,6 +27,7 @@ function freezeAdmittedProofObject(value: unknown, seen = new WeakSet<object>())
 }
 
 function rememberAdmittedCard(asset: PortableCardAsset) {
+  if (admittedCards.has(asset)) return;
   freezeAdmittedProofObject(asset);
   admittedCards.add(asset);
   rememberAdmittedWildsCardVerification(asset);

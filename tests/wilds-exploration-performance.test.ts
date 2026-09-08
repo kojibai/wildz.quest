@@ -81,3 +81,32 @@ test("exploration, movement, and atlas rendering contain no verification or repe
   assert.match(campaign, /<WildsWorldMap[\s\S]*open=\{exclusiveOwner === "map" && mapOpen\}/);
   assert.match(canvas, /frameloop=\{active && !reducedMotion \? "always" : "demand"\}/);
 });
+
+test("post-restore saves retain exact admitted cards without repeated proof verification", async () => {
+  const { createStoredWildzPlayState } = await import("../src/features/identity/wildz-restore");
+  const { normalizeWildsRuntimePlayState, createOwnerBoundInitialPlayState } = await import("../src/features/play/game-state");
+  const session = {
+    schema: "receiz.wildz.identity_session.v1" as const,
+    keyId: "restore-perf-key", actorId: "restore-perf", username: "restore-perf", displayName: "Explorer",
+    portableStateStatus: "verified" as const, localAuthority: "verified" as const, remoteStatus: "offline" as const
+  };
+  const state = applyWildsInput(createOwnerBoundInitialPlayState(session.actorId), {
+    type: "import-card", asset: sealCollectedCard({
+      formId: "ledgerfox-1", ownerReceizId: session.actorId, encounterId: "restore-save-perf",
+      capturedAt: "2026-08-21T14:00:00.000Z"
+    })
+  });
+  const before = portableCardModule.wildsCardVerificationDiagnostics();
+  for (let i = 0; i < 20; i++) {
+    const saved = createStoredWildzPlayState(session, state);
+    assert.equal(saved.playState.inventory, state.inventory);
+    assert.equal(saved.playState.inventory.at(-1), state.inventory.at(-1));
+  }
+  assert.equal(portableCardModule.wildsCardVerificationDiagnostics().executions, before.executions);
+  const untrusted = structuredClone(state);
+  const last = untrusted.inventory.at(-1)!;
+  last.manifest.name = "Tampered stored proof";
+  const restored = normalizeWildsRuntimePlayState(untrusted, session.actorId);
+  assert.equal(restored.inventory.some((asset) => asset.id === last.id), false);
+  assert.ok(portableCardModule.wildsCardVerificationDiagnostics().executions > before.executions);
+});
