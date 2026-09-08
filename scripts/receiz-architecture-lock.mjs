@@ -65,9 +65,9 @@ const portableClaim = await read("src/features/play/wilds-portable-claim.ts");
 const portableClaimRuntime = await read("src/lib/receiz/wilds-portable-claim-runtime.ts");
 const portableClaimRoute = await read("app/api/wilds/claims/route.ts");
 
-if (pkg.dependencies?.["@receiz/sdk"] !== "125.0.0") failures.push("receiz_sdk_pin_mismatch");
-if (pkg.devDependencies?.["@receiz/mcp-server"] !== "125.0.0") failures.push("receiz_mcp_pin_mismatch");
-if (pkg.devDependencies?.["@receiz/ai-skills"] !== "125.0.0") failures.push("receiz_ai_skills_pin_mismatch");
+if (pkg.dependencies?.["@receiz/sdk"] !== "126.0.0") failures.push("receiz_sdk_pin_mismatch");
+if (pkg.devDependencies?.["@receiz/mcp-server"] !== "126.0.0") failures.push("receiz_mcp_pin_mismatch");
+if (pkg.devDependencies?.["@receiz/ai-skills"] !== "126.0.0") failures.push("receiz_ai_skills_pin_mismatch");
 if (pkg.scripts?.["receiz:architecture-lock"] !== "node scripts/receiz-architecture-lock.mjs") {
   failures.push("receiz_architecture_lock_script_unwired");
 }

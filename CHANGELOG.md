@@ -8,7 +8,7 @@ Target: **9.0.0 — The Living Wilds**. Release preparation and continuous-const
 
 ### Changed
 
-- Upgrade the coordinated Receiz SDK, MCP server, and AI skills to exact public `125.0.0`, with the v125 registry and 60-operation application contract. Retain historical artifact readers and V124 runtime methods.
+- Upgrade the coordinated Receiz SDK, MCP server, and AI skills to exact public `126.0.0`, with the v126 registry and 60-operation application contract. Retain historical artifact readers and V124 runtime methods.
 - Refresh identity projection compatibility for v125 market coverage and permanent local continuity metadata.
 
 ## [8.0.0] - 2026-08-20
