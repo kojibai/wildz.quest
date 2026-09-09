@@ -1,3 +1,5 @@
+import { composeWildsInteriorConstruction } from "./wilds-construction-physics";
+import { restoreWildsBurrowSpace } from "./wilds-burrow";
 import { wildsStructureSupportAt } from "./wilds-structure-support";
 import { appendWildsActivity, normalizeWildsActivityHistory, type WildsActivityEntry } from "./wallet/wilds-activity-history";
 import { creatureFamilies, creatureForm, creatureForms, type CreatureRarity } from "./creature-catalog";
@@ -703,14 +705,15 @@ export function restorePlayState(
       x: clamp(saved.player.x, worldBounds.min, worldBounds.max),
       z: clamp(saved.player.z, worldBounds.min, worldBounds.max)
     };
+    const restoredWorldAdditions = normalizeOwnedWorldAdditions(saved.ownedWorldAdditions,ownerReceizId);
     return withWorldProgress({
       ...fallback,
       ...saved,
       actionHistory: normalizeWildsActivityHistory(saved.actionHistory),
       player: restoredPlayer,
-      siteSpace: normalizeWildsSiteSpaceState(saved.siteSpace, { x: restoredPlayer.x, y: wildsTerrainElevation(restoredPlayer.x, restoredPlayer.z), z: restoredPlayer.z }),
+      siteSpace: restoreWildsBurrowSpace(saved.siteSpace,restoredWorldAdditions.burrows??{},physical=>composeWildsInteriorConstruction(physical,{structures:restoredWorldAdditions.structures,constructionComponents:restoredWorldAdditions.constructionComponents??{},constructionMaterialContributions:restoredWorldAdditions.constructionMaterialContributions??{},constructionWorkContributions:restoredWorldAdditions.constructionWorkContributions??{}})) ?? normalizeWildsSiteSpaceState(saved.siteSpace, { x: restoredPlayer.x, y: wildsTerrainElevation(restoredPlayer.x, restoredPlayer.z), z: restoredPlayer.z }),
       explorationAtlas: normalizeWildsExplorationAtlas(saved.explorationAtlas, restoredPlayer),
-      ownedWorldAdditions: normalizeOwnedWorldAdditions(saved.ownedWorldAdditions, ownerReceizId),
+      ownedWorldAdditions: restoredWorldAdditions,
       missionProgress: typeof saved.missionProgress === "number" && Number.isFinite(saved.missionProgress)
         ? Math.max(0, Math.min(99, Math.floor(saved.missionProgress)))
         : fallback.missionProgress,

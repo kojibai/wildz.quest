@@ -1,8 +1,10 @@
+import { createWildsBurrow, verifyWildsBurrow, type WildsBurrowV1 } from "./wilds-burrow";
+import { previewWildsConstructionAdjustment, type WildsConstructionPlacementRequest } from "./wilds-construction-placement";
 import { createWildsStewardStructureOperation } from "./wilds-steward-construction";
 import { settleWildsBuild, verifyWildsBuildSettlement } from "./wilds-steward-build-settlement";
 import { resolveWildsCraftWorkstation, resolveWildsMaterialCache } from "./wilds-construction-function";
-import { verifyWildsConstructionProject, verifyWildsConstructionChunk, canWildsConstructionProject, createWildsConstructionChunk, appendWildsConstructionChunkReference, appendWildsConstructionProjectChunk, constructionProofDigest, validConstructionHead, type WildsConstructionProjectV1, type WildsConstructionChunkV1 } from "./wilds-construction-project";
-import { verifyWildsConstructionComponent, verifyWildsMaterialContribution, verifyWildsWorkContribution, projectWildsConstructionProgress, type WildsConstructionComponentV1, type WildsConstructionMaterialContributionV1, type WildsConstructionWorkContributionV1 } from "./wilds-construction-component";
+import { verifyWildsConstructionProject, reviseWildsConstructionChunkReference, verifyWildsConstructionChunk, canWildsConstructionProject, createWildsConstructionChunk, appendWildsConstructionChunkReference, appendWildsConstructionProjectChunk, constructionProofDigest, validConstructionHead, type WildsConstructionProjectV1, type WildsConstructionChunkV1 } from "./wilds-construction-project";
+import { adjustWildsConstructionComponent, constructionComponentCarriesHead, verifyWildsConstructionComponent, verifyWildsMaterialContribution, verifyWildsWorkContribution, projectWildsConstructionProgress, type WildsConstructionComponentV1, type WildsConstructionMaterialContributionV1, type WildsConstructionWorkContributionV1 } from "./wilds-construction-component";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import type { WildsConstructionPersistence } from "./wilds-construction-persistence";
 import {
@@ -159,6 +161,7 @@ export type WildsWorldProjection = {
   materialCustody: Record<string, Readonly<{ ownerReceizId: string; subjectId: string; subjectHead: string; receiptId: string; transferId: string }>>;
   consumedMaterialLots: Record<string, string>;
   structures: Record<string, WildsStructureV1>;
+  burrows?: Record<string,WildsBurrowV1>;
   constructionProjects: Record<string, WildsConstructionProjectV1>;
   constructionChunks: Record<string, WildsConstructionChunkV1>;
   constructionComponents: Record<string, WildsConstructionComponentV1>;
@@ -218,6 +221,7 @@ export function initialWildsWorldProjection(): WildsWorldProjection {
     materialCustody: {},
     consumedMaterialLots: {},
     structures: {},
+    burrows: {},
     constructionProjects: {},
     constructionChunks: {},
     constructionComponents: {},
@@ -390,6 +394,8 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
 
   switch (event.kind) {
     case "construction.project_created":
+    case "construction.burrow_dug":
+    case "construction.component_adjusted":
     case "construction.component_placed":
     case "construction.material_contributed":
     case "construction.work_contributed":
@@ -925,6 +931,7 @@ export function replayWildsWorld(events: readonly CompatibleWildsWorldEvent[], c
     materialCustody: projection.materialCustody ?? {},
     consumedMaterialLots: projection.consumedMaterialLots ?? {},
     structures: projection.structures ?? {},
+    burrows: projection.burrows ?? {},
     constructionProjects: projection.constructionProjects ?? {},
     constructionChunks: projection.constructionChunks ?? {},
     constructionComponents: projection.constructionComponents ?? {},
@@ -945,7 +952,7 @@ export function replayWildsWorld(events: readonly CompatibleWildsWorldEvent[], c
 }
 
 function isContinuousConstructionEvent(kind: string) {
-  return ["construction.project_created", "construction.component_placed", "construction.material_contributed", "construction.work_contributed"].includes(kind);
+  return ["construction.burrow_dug", "construction.project_created", "construction.component_adjusted", "construction.component_placed", "construction.material_contributed", "construction.work_contributed"].includes(kind);
 }
 
 export function projectWildsConstructionProgressFromWorld(world: WildsWorldProjection, componentId: string) {
@@ -963,11 +970,40 @@ function reduceContinuousConstruction(state: WildsWorldProjection, event: Compat
       commandDigest: payload.commandDigest as string, eventPayloadDigest: constructionProofDigest(event.payload), actorId: event.actorId, kind: event.kind
     } }
   });
+  if (event.kind === "construction.burrow_dug") {
+    const proof=payload.burrow;
+    if(!verifyWildsBurrow(proof)||proof.ownerReceizId!==event.actorId||proof.commandId!==event.causeId||state.burrows?.[proof.id])return invalid();
+    const expected=createWildsBurrow({burrows:state.burrows??{},request:proof.request,ownerReceizId:event.actorId,creature:proof.creature,commandId:event.causeId,kaiUPulse:proof.kaiUPulse,actorPosition:payload.actorPosition as {x:number;y:number;z:number}});
+    if(!same(expected,proof))return invalid();
+    return finish({burrows:{...state.burrows,[proof.id]:proof}});
+  }
   if (event.kind === "construction.project_created") {
     const project = payload.project;
     if (!verifyWildsConstructionProject(project) || project.ownerReceizId !== event.actorId || project.commandId !== event.causeId
       || project.revision !== 0 || project.firstChunkId !== null || state.constructionProjects[project.projectId]) return invalid();
     return finish({ constructionProjects: { ...state.constructionProjects, [project.projectId]: project } });
+  }
+  if (event.kind === "construction.component_adjusted") {
+    const component = payload.component;
+    if (!verifyWildsConstructionComponent(component)) return invalid();
+    const previous = state.constructionComponents[component.componentId];
+    if (!previous || previous.ownerReceizId !== event.actorId || component.adjustmentCommandId !== event.causeId) return invalid();
+    const project = state.constructionProjects[previous.projectId];
+    if (!project || !canWildsConstructionProject(project, event.actorId, "renovate")) return invalid();
+    const position = payload.actorPosition as {x:number;z:number} | undefined;
+    if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.z)
+      || [previous, component].some(piece => Math.hypot(piece.transform.position.x-position.x, piece.transform.position.z-position.z)>6)) return invalid();
+    const preview = previewWildsConstructionAdjustment(state, previous.componentId, payload.request as WildsConstructionPlacementRequest);
+    if (preview.blocker) return invalid();
+    const expected = adjustWildsConstructionComponent({component: previous, placement: preview.placement, evidence: preview.evidence, commandId: event.causeId, kaiUPulse: component.kaiUPulse});
+    if (!same(component, expected)) return invalid();
+    const page = Object.values(state.constructionChunks).find(chunk => chunk.projectId === previous.projectId && chunk.references.some(ref => ref.componentId === previous.componentId && ref.componentHead === previous.head));
+    if (!page) return invalid();
+    const chunk = reviseWildsConstructionChunkReference(page, previous, component, component.kaiUPulse);
+    if (!same(payload.chunk, chunk)) return invalid();
+    return finish({constructionComponents: {...state.constructionComponents, [component.componentId]: component},
+      constructionChunks: {...state.constructionChunks, [chunk.chunkId]: chunk},
+      constructionRecoverySources: {...state.constructionRecoverySources, [previous.head]: previous, [page.head]: page}});
   }
   if (event.kind === "construction.component_placed") {
     const component = payload.component;
@@ -1031,12 +1067,12 @@ function reduceContinuousConstruction(state: WildsWorldProjection, event: Compat
   // Every sealed dependency must already be admitted on this exact structural lineage.
   for (const ref of proof.priorWork) {
     const prior = state.constructionWorkContributions[ref.contributionId];
-    if (!prior || prior.head !== ref.contributionHead || prior.componentHead !== component.head || prior.componentId !== component.componentId) return invalid();
+    if (!prior || prior.head !== ref.contributionHead || !constructionComponentCarriesHead(component, prior.componentHead) || prior.componentId !== component.componentId) return invalid();
   }
   for (const allocation of proof.stageAllocations) for (const ref of allocation.materials) {
     const material = state.constructionMaterialContributions[ref.contributionId];
     const lot = material && state.materialLots[material.lotId];
-    if (!material || material.head !== ref.contributionHead || material.componentId !== component.componentId || material.componentHead !== component.head
+    if (!material || material.head !== ref.contributionHead || material.componentId !== component.componentId || !constructionComponentCarriesHead(component, material.componentHead)
       || !lot || !verifyWildsMaterialLot(lot) || lot.head !== material.lotHead || wildsMaterialCustodian(state, lot) !== material.custodianReceizId
       || state.storedMaterialLots[lot.lotId]
       || (state.reservedMaterialLots[lot.lotId] !== component.componentId && state.consumedMaterialLots[lot.lotId] !== component.componentId)) return invalid();

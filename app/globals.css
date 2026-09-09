@@ -16878,3 +16878,58 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 .wildz-profile-sync a { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; color: #aeecc9; }
 @media (prefers-reduced-motion: no-preference) { .wildz-profile-sync[data-state="syncing"] svg { animation: wildz-profile-sync-pulse 1.6s ease-in-out infinite; } }
 @keyframes wildz-profile-sync-pulse { 50% { opacity: .4; } }
+
+.wilds-builder-adjustment { display: grid; gap: 8px; }
+.wilds-builder-adjustment p { margin: 0; font-size: 12px; line-height: 1.4; }
+.wilds-builder-adjustment button, .wilds-builder-adjust-trigger { min-height: 44px; touch-action: manipulation; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid #acd5bf55; border-radius: 12px; background: #18382f; color: #e5f9ed; }
+.wilds-builder-adjust-grid { display: grid; grid-template-columns: repeat(3, 48px); grid-template-rows: repeat(3, 44px); gap: 4px; justify-content: center; align-items: center; text-align: center; }
+.wilds-builder-adjust-grid > :nth-child(1) { grid-column: 2; }
+.wilds-builder-adjust-grid > :nth-child(2) { grid-column: 1; grid-row: 2; }
+.wilds-builder-adjust-grid > :nth-child(3) { grid-column: 2; grid-row: 2; font-size: 11px; }
+.wilds-builder-adjust-grid > :nth-child(4) { grid-column: 3; grid-row: 2; }
+.wilds-builder-adjust-grid > :nth-child(5) { grid-column: 2; grid-row: 3; }
+.wilds-builder-adjust-transforms { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.wilds-builder-adjust-position { font-size: 11px; font-variant-numeric: tabular-nums; text-align: center; }
+.wilds-builder-adjust-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.wilds-builder-adjust-actions button:last-child { background: #295f48; }
+.wilds-builder-adjustment button:disabled { opacity: .45; cursor: default; }
+.wilds-builder-adjustment button:focus-visible, .wilds-builder-adjust-trigger:focus-visible { outline: 2px solid #b8f1cf; outline-offset: 2px; }
+.wilds-burrow-builder label { display:grid;gap:6px;font-size:12px; }
+.wilds-burrow-builder select { width:100%;min-height:44px;background:#142523;color:#e9f4ea;border:1px solid #426057;border-radius:10px;padding:8px; }
+.wilds-burrow-builder button[aria-pressed="true"] { background:#315b4e;border-color:#97d7bc; }
+.wilds-burrow-preview-label { display:block;white-space:nowrap;padding:5px 8px;border-radius:8px;background:#152a24e8;color:#b5eed4;font-size:11px; }
+@media (max-width: 767px) {
+  .wilds-continuous-builder:has(.wilds-builder-adjustment) { max-height: min(60dvh, 480px); }
+}
+
+.wilds-panel-drag-handle { cursor: grab; touch-action: none; flex: 0 0 44px; min-height: 44px; }
+.wilds-panel-drag-handle:active { cursor: grabbing; }
+.wilds-continuous-builder > header > span { min-width: 0; flex: 1; }
+.wilds-builder-gesture-help { font-size: 12px; line-height: 1.4; color: #b4d9c9; }
+.wilds-build-gesture-ring { position: relative; width: 132px; height: 96px; border: 1px dashed #a9e9c888; border-radius: 50%; pointer-events: none; }
+.wilds-build-gesture-ring button { position: absolute; display: grid; place-items: center; width: 44px; height: 44px; min-width: 44px; border: 1px solid #a3e4c79c; border-radius: 50%; background: #102d26ec; color: #e8fff2; box-shadow: 0 3px 12px #0004; pointer-events: auto; touch-action: none; cursor: grab; }
+.wilds-build-gesture-ring button:focus-visible { outline: 2px solid #d9ffed; outline-offset: 3px; }
+.wilds-build-gesture-rotate { right: -20px; bottom: -4px; }
+.wilds-build-gesture-height { left: -20px; top: -10px; }
+.wilds-build-gesture-hint { position: absolute; bottom: -26px; left: 0; width: 100%; text-align: center; font-size: 10px; color: #e6fff0; text-shadow: 0 1px 4px #000; }
+@media (max-width: 600px) {
+  .wilds-continuous-builder { width: min(310px, calc(100vw - 24px)); padding: 9px; max-height: min(38dvh, 320px); right: 12px; bottom: max(100px, env(safe-area-inset-bottom)); }
+  .wilds-continuous-builder:has(.wilds-builder-adjustment) { max-height: min(38dvh, 320px); }
+  .wilds-continuous-builder > header { gap: 3px; }
+  .wilds-continuous-builder > header button { padding: 4px; }
+  .wilds-continuous-builder > header small { display: none; }
+  .wilds-builder-adjustment { gap: 6px; }
+  .wilds-builder-adjustment > p { margin: 2px 0; font-size: 11px; }
+  .wilds-builder-restore { min-height: 44px; border-radius: 22px; padding: 7px 12px; }
+}
+@media (max-width: 600px) {
+  .wilds-continuous-builder.is-compact .wilds-builder-inspector > p:not(.wilds-builder-gesture-help),
+  .wilds-continuous-builder.is-compact .wilds-builder-needed,
+  .wilds-continuous-builder.is-compact .wilds-explained-action > p { display: none; }
+  .wilds-continuous-builder.is-compact .wilds-builder-inspector { gap: 6px; }
+  .wilds-continuous-builder.is-compact .wilds-builder-inspector > strong { font-size: 11px; }
+}
+.wilds-site-portal-control button { min-height: 44px; padding: 8px 12px; border: 1px solid #9be3c680; border-radius: 22px; background: #102d26ef; color: #e6fff0; font: 600 12px/1.2 system-ui; white-space: nowrap; }
+@media (max-width: 600px) {
+  .wildz-world-controls.is-building .wildz-quick-utilities { display: none; }
+}

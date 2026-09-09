@@ -1,4 +1,5 @@
 "use client";
+import type { WildsBurrowRequest } from "./wilds-burrow";
 import { settleWildsBuild } from "./wilds-steward-build-settlement";
 import { playerStewardBuilder } from "./wilds-steward-construction";
 import type { WildsActivityEntry } from "./wallet/wilds-activity-history";
@@ -581,8 +582,10 @@ export function useWildsWorld(input: {
     error,
     pendingCommand,
     refresh,
+    digBurrow: (request:WildsBurrowRequest,actorPosition:{x:number;y:number;z:number}) => post({type:"construction.burrow.dig",request,actorPosition,cardProofDigest:input.activeCard?.proof.digest??"",commandId:commandId("command:burrow")}),
     createConstructionProject: (name: string, region: { x: number; z: number }) => post({ type: "construction.project.create", name, region, commandId: commandId("command:construction:project") }, null),
     placeConstructionComponent: (projectId: string, placement: WildsBlueprintPlacement, request: WildsConstructionPlacementRequest, actorPosition: { x: number; z: number }) => post({ type: "construction.component.place", projectId, placement, request, actorPosition, commandId: commandId("command:construction:place") }, null),
+    adjustConstructionComponent: (componentId: string, componentHead: string, placement: WildsBlueprintPlacement, request: WildsConstructionPlacementRequest, actorPosition: {x:number;z:number}) => post({type: "construction.component.adjust", componentId, componentHead, placement, request, actorPosition, commandId: commandId("command:construction:adjust")}, null),
     depositConstructionMaterial: (componentId: string, componentHead: string, lotIds: string[], actorPosition: { x: number; z: number }) => post({ type: "construction.component.deposit", componentId, componentHead, lotIds, actorPosition, commandId: commandId("command:construction:deposit") }, null),
     workConstructionComponent: (componentId: string, componentHead: string, actorPosition: { x: number; z: number }) => post({ type: "construction.component.work", componentId, componentHead, actorPosition, commandId: commandId("command:construction:work") }, null),
     contributeStory: (dayId: string, objectiveId: string, verb: WildsGameplayVerb, amount = 1, position?: { x: number; z: number }) => post({

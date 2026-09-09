@@ -1,4 +1,8 @@
 "use client";
+import { composeWildsInteriorConstruction } from "./wilds-construction-physics";
+import { composeWildsBurrowPhysical } from "./wilds-burrow";
+import { useWildsBurrowBuilder } from "./use-wilds-burrow-builder";
+import { WildsBurrowBuilderPanel } from "./WildsBurrowBuilderPanel";
 import { requestWildsDive } from "./wilds-vertical-traversal";
 import { resolveWildsConstructionFunction } from "./wilds-construction-function";
 
@@ -890,8 +894,8 @@ export function PlayCampaign({
   }, [aquaticPresentation.terrainElevation, state.player]);
   const siteRegion = wildsDiscoverySiteRegionForPosition(state.player);
   const sitePhysical = useMemo(
-    () => admitWildsDiscoveryPhysicalNeighborhood(siteRegion.x, siteRegion.z),
-    [siteRegion.x, siteRegion.z]
+    () => composeWildsInteriorConstruction(composeWildsBurrowPhysical(admitWildsDiscoveryPhysicalNeighborhood(siteRegion.x, siteRegion.z),livingWorld.snapshot?.burrows),livingWorld.snapshot),
+    [siteRegion.x, siteRegion.z, livingWorld.snapshot]
   );
   const siteRuntime = useMemo(() => prepareWildsSiteRuntime(sitePhysical), [sitePhysical]);
   const siteMovementOutputRef = useRef({ x: 0, z: 0, floorY: 0, ceilingY: Number.POSITIVE_INFINITY, surfaceId: null as string | null, flooded: false, blocked: false, blockedByClimb: false });
@@ -1255,10 +1259,11 @@ export function PlayCampaign({
     selectedBlueprintId: stewardPlacementMode,
     workMeters: stewardWorkMeters
   }), [activeAsset?.manifest.name, activeCard.name, availableMaterialLots, livingWorld.pendingCommand, stewardPlacementMode, stewardWorkMeters]);
-  const continuousBuilder = useWildsContinuousBuilder({ world: livingWorld, owner: ownerReceizId, player: state.player, lots: availableMaterialLots, feedback: showWorldFeedback });
+  const continuousBuilder = useWildsContinuousBuilder({ spaceId:state.siteSpace.spaceId, world: livingWorld, owner: ownerReceizId, player: state.player, lots: availableMaterialLots, feedback: showWorldFeedback });
 
+  const burrowBuilder = useWildsBurrowBuilder({world:livingWorld,physical:sitePhysical,space:state.siteSpace,player:state.player,owner:ownerReceizId,card:activeAsset,feedback:showWorldFeedback,onDig:()=>{spendWorldCapability("burrow");},onEnter:(siteKey)=>dispatch({type:"site-portal",direction:"enter",siteKey,siteRuntime})});
   const selectLivingBuildPiece = (kind: Parameters<typeof continuousBuilder.selectKind>[0]) => {
-    beginWorldActionFeedback(); setConstructionFocus(null);
+    beginWorldActionFeedback(); burrowBuilder.close(); setConstructionFocus(null);
     setStewardPlacementMode(null); setStewardPlacementPreview(null);
     continuousBuilder.begin(); continuousBuilder.selectKind(kind);
     dispatchStageOverlay({ type: "panel", key: null });
@@ -1774,7 +1779,9 @@ export function PlayCampaign({
         showWorldFeedback("Grip is active. Move into the mountain face and climb from this exact surface.");
         return;
       case "burrow":
-        showWorldFeedback("Touch compatible ground beside you to place the exact tunnel entrance preview.");
+        continuousBuilder.close();
+        burrowBuilder.begin(cameraHeadingRef.current);
+        showWorldFeedback("Choose an entrance, tunnel, or room. Your creature can dig through ground and mountains.");
         return;
       case "balance":
         toggleSustainedWorldCapability("balance", `${activeAsset.manifest.name} centers beside you for narrow crossings.`, "Balance stance released.");
@@ -2403,12 +2410,16 @@ export function PlayCampaign({
             ref={gameplaySurfaceRef}
           >
             <WildsWorldCanvas
-              activeCapabilityFamily={activeWorldCapability}
+              activeCapabilityFamily={burrowBuilder.busy ? "burrow" : activeWorldCapability}
               activeWorkSource={activeWorkSource}
               stewardPlacementPreview={stewardPlacementPreview}
+              burrowPreview={burrowBuilder.preview ? {...burrowBuilder.preview,blocker:burrowBuilder.blocker} : null}
               constructionPreview={continuousBuilder.preview}
-              constructionSelectionEnabled={continuousBuilder.open && Boolean(continuousBuilder.selected) && worldInteractionEnabled}
+              constructionSelectionEnabled={continuousBuilder.open && !continuousBuilder.adjusting && worldInteractionEnabled}
               onSelectConstruction={continuousBuilder.selectComponent}
+              onDragConstruction={continuousBuilder.dragPiece}
+              activeConstructionId={continuousBuilder.open?continuousBuilder.selected?.componentId:undefined}
+              explorerIdentityKey={ownerReceizId}
               aerialCapabilities={activeTraversalCapabilities}
               aerialStateRef={aerialStateRef}
               verticalTraversalRef={verticalTraversalRef}
@@ -2428,7 +2439,7 @@ export function PlayCampaign({
               onAerialEnergyChange={setAerialEnergy}
               onVerticalReadoutChange={publishVerticalReadout}
               onCameraHeadingChange={updateCameraHeading}
-              searchEnabled={worldInteractionEnabled && (discoveryActive || Boolean(stewardPlacementMode) || continuousBuilder.open)}
+              searchEnabled={worldInteractionEnabled && (discoveryActive || Boolean(stewardPlacementMode) || continuousBuilder.open || burrowBuilder.open)}
               resourcePending={Boolean(livingWorld.pendingCommand)}
               resourceCompanionReady={Boolean(activeCondition && activeCondition.fatigue < 85 && activeCondition.injuries.length < 4)}
               livingWorld={livingWorld.snapshot}
@@ -2447,6 +2458,7 @@ export function PlayCampaign({
               trainers={sagaTrainers}
               onSelectTrainer={(trainer) => openTrainerEncounter(trainer, "world")}
               onSearchPoint={(point) => {
+                if (burrowBuilder.open) { burrowBuilder.point(point); return; }
                 if (continuousBuilder.open) { continuousBuilder.point(point); return; }
                 if (stewardPlacementMode) {
                   setStewardPlacementPreview(projectWildsStewardPlacement({ actorPosition: state.player, blueprintId: stewardPlacementMode, point }));
@@ -2475,6 +2487,7 @@ export function PlayCampaign({
               }}
             />
 
+            {burrowBuilder.open && worldInteractionEnabled ? <WildsBurrowBuilderPanel builder={burrowBuilder} /> : null}
             {continuousBuilder.open && worldInteractionEnabled ? <WildsContinuousBuilderPanel builder={continuousBuilder} materials={stewardMaterials} onOpenCatalogue={() => openLivingConstruction()} onUse={kind => openLivingConstruction(kind === "workshop" ? "tools" : "storage")} /> : null}
             {stewardPlacementPreview ? <WildsStewardPlacementHud
               blueprintLabel={stewardCraft.blueprints.find(blueprint => blueprint.id === stewardPlacementPreview.blueprintId)?.label ?? "Build"}
@@ -2624,6 +2637,8 @@ export function PlayCampaign({
             /> : null}
 
             <WildzWorldControls
+              onBeginConstruction={()=>selectLivingBuildPiece(continuousBuilder.kind)}
+              buildingActive={continuousBuilder.open||burrowBuilder.open}
               aerialEnergy={aerialEnergy}
               aerialMode={aerialMode}
               aquaticPresentation={aquaticPresentation}

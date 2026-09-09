@@ -93,6 +93,10 @@ The important rule is directional: AI skills and MCP can help inspect, prepare, 
 
 Read the detailed [architecture](docs/ARCHITECTURE.md), [Receiz rail map](docs/RECEIZ_RAILS.md), and [MCP contract](docs/MCP.md).
 
+## Creature-compatible experiences
+
+Start with the [developer guide](docs/developers/creature-experiences.md), the [creature entry point](src/experience/creature.ts), and the [test-covered trail example](examples/creature-experience.ts). They cover verified identity, current capabilities, offline play, and the boundary between a local experience and portable authoritative progress.
+
 ## SDK, MCP, and AI skills
 
 ### SDK application boundary

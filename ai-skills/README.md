@@ -19,3 +19,5 @@ MCP and AI outputs are operational guidance, never proof authority. Any admitted
 - `wildz-builder-skill`: preserve artifact custody, continuity, history, and deterministic projections.
 - `wildz-market-operator-skill`: use native v121 bearer ownership and fail closed on unavailable admission.
 - `wildz-release-skill`: enforce exact package/digest parity and all artifact evidence fields.
+
+For creature-compatible experiences, follow the [developer integration guide](../docs/developers/creature-experiences.md) and its tested source example. Preserve exact identity and revision, admit once outside the frame loop, and use current capabilities rather than family defaults.

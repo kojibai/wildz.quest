@@ -1,3 +1,4 @@
+import { mergeWildsConstructionPersistence } from "./wilds-construction-persistence";
 import type { ConstitutionalDecision } from "./wilds-constitution";
 import {
   createReceizOfflineProofQueue,
@@ -125,7 +126,7 @@ export function verifyWildsWorldAdmittedSource(entry: WildsWorldOutboxEntry, con
   const source = entry.admittedSource;
   if (!source || source.events.length !== 1) throw new Error("wilds_world_admitted_source_required");
   const event = source.events[0]!;
-  const expectedKinds: Record<string, string> = { "construction.project.create": "construction.project_created", "construction.component.place": "construction.component_placed", "construction.component.deposit": "construction.material_contributed", "construction.component.work": "construction.work_contributed" };
+  const expectedKinds: Record<string, string> = { "construction.project.create": "construction.project_created", "construction.component.place": "construction.component_placed", "construction.burrow.dig": "construction.burrow_dug", "construction.component.adjust": "construction.component_adjusted", "construction.component.deposit": "construction.material_contributed", "construction.component.work": "construction.work_contributed" };
   if (event.kind !== expectedKinds[entry.command.type]) throw new Error("wilds_world_admitted_source_kind_mismatch");
   if (event.actorId !== entry.actorId || event.causeId !== entry.command.commandId || (event.payload as { commandDigest?: unknown } | null)?.commandDigest !== constructionProofDigest(entry.command)) throw new Error("wilds_world_admitted_source_mismatch");
   const base = source.checkpoint ? replayWildsWorld([], source.checkpoint) : context;
@@ -169,8 +170,13 @@ export function projectWildsWorldOutbox(base: WildsWorldProjection, actorId: str
 
 export function preserveWildsConstructionHistory(current: WildsWorldProjection, candidate: WildsWorldProjection) {
   const same = (left: unknown, right: unknown) => constructionProofDigest(left ?? null) === constructionProofDigest(right ?? null);
-  for (const key of ["constructionCommandReceipts", "constructionComponents", "constructionMaterialContributions", "constructionWorkContributions"] as const) {
+  for (const key of ["constructionCommandReceipts", "constructionMaterialContributions", "constructionWorkContributions"] as const) {
     for (const [id, proof] of Object.entries(current[key])) if (!same(candidate[key]?.[id], proof)) return current;
+  }
+  for(const [id,p] of Object.entries(current.burrows??{}))if(!same(p,candidate.burrows?.[id]))return current;
+  const merged = mergeWildsConstructionPersistence(current,candidate);
+  for (const id of Object.keys(current.constructionComponents)) {
+    if (merged.constructionComponents[id]?.head !== candidate.constructionComponents[id]?.head) return current;
   }
   for (const [id, proof] of Object.entries(current.constructionProjects)) {
     const next = candidate.constructionProjects?.[id];

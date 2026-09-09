@@ -1,6 +1,8 @@
 "use client";
+import { useWildsNaturalTexture } from "./wilds-natural-material";
+import { useWildsRockTexture } from "./wilds-rock-material";
 
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
@@ -410,6 +412,7 @@ function GroundField({ centerX, centerZ, color, player, qualityProfile, terrainE
     texture.needsUpdate = true;
     return texture;
   }, [centerX, centerZ, color]);
+  useEffect(()=>()=>terrainMap.dispose(),[terrainMap]);
   return (
     <mesh
       geometry={geometry}
@@ -437,6 +440,7 @@ function TerrainWaterField({ centerX, centerZ, player, qualityProfile, terrainEl
   ), [centerX, centerZ, qualityProfile.tier, terrainRadius]);
   const shallowGeometry = useMemo(() => waterLayerGeometry(projection.shallow), [projection]);
   const deepGeometry = useMemo(() => waterLayerGeometry(projection.deep), [projection]);
+  useEffect(()=>()=>{shallowGeometry.dispose();deepGeometry.dispose();},[shallowGeometry,deepGeometry]);
   const position: [number, number, number] = [
     projection.origin.x - player.x,
     -terrainElevation,
@@ -444,10 +448,10 @@ function TerrainWaterField({ centerX, centerZ, player, qualityProfile, terrainEl
   ];
   return <group name="world-physical-water" position={position}>
     <mesh geometry={shallowGeometry} name="world-shallow-water" receiveShadow>
-      <meshPhysicalMaterial color="#35d5d5" emissive="#087b8c" emissiveIntensity={.52} fog={false} metalness={.03} opacity={.96} roughness={.12} side={THREE.DoubleSide} transparent clearcoat={qualityProfile.tier === "low" ? .48 : .94} clearcoatRoughness={.14} depthWrite />
+      <meshPhysicalMaterial color="#479a96" emissive="#153c40" emissiveIntensity={.08} metalness={.03} opacity={.96} roughness={.12} side={THREE.DoubleSide} transparent clearcoat={qualityProfile.tier === "low" ? .48 : .94} clearcoatRoughness={.14} depthWrite />
     </mesh>
     <mesh geometry={deepGeometry} name="world-deep-water" receiveShadow>
-      <meshPhysicalMaterial color="#047dab" emissive="#023d74" emissiveIntensity={.72} fog={false} metalness={.06} roughness={.08} side={THREE.DoubleSide} clearcoat={qualityProfile.tier === "low" ? .56 : 1} clearcoatRoughness={.1} depthWrite />
+      <meshPhysicalMaterial color="#205569" emissive="#102f3d" emissiveIntensity={.08} metalness={.06} roughness={.08} side={THREE.DoubleSide} clearcoat={qualityProfile.tier === "low" ? .56 : 1} clearcoatRoughness={.1} depthWrite />
     </mesh>
   </group>;
 }
@@ -515,6 +519,8 @@ function EcologyInstances({
   trees: Placement[];
 }) {
   const readability = useWildsReadability();
+  const rockTexture = useWildsRockTexture();
+  const barkTexture = useWildsNaturalTexture("bark"), leafTexture = useWildsNaturalTexture("leaf");
   const trunks = useRef<THREE.InstancedMesh>(null);
   const lowerCrowns = useRef<THREE.InstancedMesh>(null);
   const upperCrowns = useRef<THREE.InstancedMesh>(null);
@@ -544,15 +550,15 @@ function EcologyInstances({
     <group>
       <instancedMesh args={[undefined, undefined, trees.length]} castShadow ref={trunks}>
         <cylinderGeometry args={[0.16, 0.29, 1.2, 8]} />
-        <meshStandardMaterial color="#64462f" roughness={0.94} />
+        <meshStandardMaterial map={barkTexture} color="#806449" roughness={0.94} />
       </instancedMesh>
       <instancedMesh args={[undefined, undefined, trees.length]} ref={lowerCrowns}>
         <dodecahedronGeometry args={[0.72, 1]} />
-        <meshStandardMaterial color={palette?.deep ?? "#246b46"} emissive="#123c27" emissiveIntensity={.05 + readability.darkness * .15} roughness={0.82} />
+        <meshStandardMaterial map={leafTexture} color={palette?.deep ?? "#246b46"} emissive="#123c27" emissiveIntensity={.05 + readability.darkness * .15} roughness={0.82} />
       </instancedMesh>
       <instancedMesh args={[undefined, undefined, trees.length]} ref={upperCrowns}>
         <dodecahedronGeometry args={[0.56, 1]} />
-        <meshStandardMaterial color={palette?.mid ?? "#3d9250"} emissive="#174c2d" emissiveIntensity={.05 + readability.darkness * .16} roughness={0.78} />
+        <meshStandardMaterial map={leafTexture} color={palette?.mid ?? "#3d9250"} emissive="#174c2d" emissiveIntensity={.05 + readability.darkness * .16} roughness={0.78} />
       </instancedMesh>
       <instancedMesh args={[undefined, undefined, trees.length]} ref={middleCrowns}>
         <icosahedronGeometry args={[.52, 1]} />
@@ -564,7 +570,7 @@ function EcologyInstances({
       </instancedMesh>
       <instancedMesh args={[undefined, undefined, rocks.length]} receiveShadow ref={rockMesh}>
         <dodecahedronGeometry args={[1, 0]} />
-        <meshStandardMaterial color="#67776c" roughness={0.98} />
+        <meshStandardMaterial map={rockTexture} color="#92988b" roughness={0.98} />
       </instancedMesh>
       <instancedMesh args={[undefined, undefined, flowers.length]} ref={flowerMesh}>
         <octahedronGeometry args={[1, 0]} />
@@ -624,6 +630,7 @@ function HearttreeSanctum() {
 }
 
 function ArenaOfEchoes({ detail }: { detail: boolean }) {
+  const rockTexture=useWildsRockTexture();
   const spectators = useRef<THREE.InstancedMesh>(null);
   const proofSeams = useRef<THREE.InstancedMesh>(null);
   const floorStones = useRef<THREE.InstancedMesh>(null);
@@ -632,12 +639,14 @@ function ArenaOfEchoes({ detail }: { detail: boolean }) {
   const archEmblems = useRef<THREE.InstancedMesh>(null);
   const archBanners = useRef<THREE.InstancedMesh>(null);
   const arenaStoneMaterial = useMemo(() => new THREE.MeshStandardMaterial({
-    color: "#29483d",
+    map: rockTexture,
+    color: "#778075",
     emissive: "#163b29",
-    emissiveIntensity: .28,
-    metalness: .12,
-    roughness: .86
-  }), []);
+    emissiveIntensity: .04,
+    metalness: 0,
+    roughness: .94
+  }), [rockTexture]);
+  useEffect(()=>()=>arenaStoneMaterial.dispose(),[arenaStoneMaterial]);
   const arenaRingsGeometry = useMemo(() => mergeGeometries([7.5, 8.6, 10.35].map((radius, index) => {
     const geometry = new THREE.TorusGeometry(radius, index === 2 ? .34 : .16, 8, 72);
     geometry.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2));
@@ -719,11 +728,11 @@ function ArenaOfEchoes({ detail }: { detail: boolean }) {
   }, [detail]);
   return <group name="mortal-arena-world-anchor">
     <mesh receiveShadow position={[0, .18, 0]} name="arena-foundation"><cylinderGeometry args={[11.25, 11.7, .36, 64]} /><primitive attach="material" object={arenaStoneMaterial} /></mesh>
-    <mesh receiveShadow position={[0, .39, 0]} name="arena-open-bowl"><cylinderGeometry args={[7.65, 8.15, .28, 64]} /><meshStandardMaterial color="#58775e" emissive="#1c4930" emissiveIntensity={.38} metalness={.03} roughness={.92} /></mesh>
-    <mesh position={[0, .455, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[1.25, 7.1, 64]} /><meshStandardMaterial color="#5e8263" emissive="#205037" emissiveIntensity={.36} roughness={.84} /></mesh>
+    <mesh receiveShadow position={[0, .39, 0]} name="arena-open-bowl"><cylinderGeometry args={[7.65, 8.15, .28, 64]} /><meshStandardMaterial map={rockTexture} color="#81917b" emissive="#1c4930" emissiveIntensity={.06} metalness={.03} roughness={.92} /></mesh>
+    <mesh position={[0, .455, 0]} rotation={[-Math.PI / 2, 0, 0]}><ringGeometry args={[1.25, 7.1, 64]} /><meshStandardMaterial map={rockTexture} color="#8a9a80" emissive="#205037" emissiveIntensity={.06} roughness={.84} /></mesh>
     <instancedMesh args={[undefined, undefined, detail ? 36 : 20]} ref={floorStones} name="arena-floor-stones">
       <dodecahedronGeometry args={[1, 0]} />
-      <meshStandardMaterial color="#65746a" emissive="#1b3528" emissiveIntensity={.24} roughness={.99} />
+      <meshStandardMaterial map={rockTexture} color="#a5afa2" emissive="#1b3528" emissiveIntensity={.04} roughness={.99} />
     </instancedMesh>
     <instancedMesh args={[undefined, undefined, 20]} ref={proofSeams} name="arena-proof-seams"><boxGeometry args={[1, 1, 1]} /><meshStandardMaterial color="#ffe288" emissive="#f7c948" emissiveIntensity={1.6} metalness={.4} roughness={.28} /></instancedMesh>
     <mesh geometry={arenaRingsGeometry} name="arena-merged-tier-rings">

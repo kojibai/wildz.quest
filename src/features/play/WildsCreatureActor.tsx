@@ -1,5 +1,7 @@
 "use client";
 
+import { useWildsCharacterTexture } from "./wilds-character-material";
+import { useWildsNaturalTexture } from "./wilds-natural-material";
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
@@ -116,6 +118,9 @@ export function WildsCreatureActor({
   locomotion?: WildsCreatureLocomotion;
 }) {
   const readability = useWildsReadability();
+  const grainTexture=useWildsNaturalTexture("skin");
+  const detailedTexture=useWildsCharacterTexture(anatomy?.surface === "scale" || anatomy?.surface === "shell" ? "scales" : "fur");
+  const skinTexture=anatomy?.surface === "energy" ? grainTexture : detailedTexture ?? grainTexture;
   const root = useRef<THREE.Group>(null);
   const head = useRef<THREE.Group>(null);
   const limbs = useRef<THREE.Group>(null);
@@ -190,20 +195,20 @@ export function WildsCreatureActor({
       <group name="wilds-creature-body" rotation={[0, 0, identity.asymmetry * 0.08]}>
         <mesh castShadow scale={bodyScale}>
           {body === "armored" ? <dodecahedronGeometry args={[0.4, 1]} /> : body === "serpentine" ? <capsuleGeometry args={[0.25, 0.62, 7, 12]} /> : <sphereGeometry args={[0.4, 22, 16]} />}
-          <meshStandardMaterial color={renderedPrimary} emissive={renderedPrimary} emissiveIntensity={readableBodyColorFloor} roughness={body === "armored" ? 0.78 : 0.6} />
+          <meshStandardMaterial map={skinTexture} color={renderedPrimary} emissive={renderedPrimary} emissiveIntensity={readableBodyColorFloor} roughness={body === "armored" ? 0.78 : 0.6} />
         </mesh>
         {body === "armored" ? [-0.22, 0, 0.22].map((x) => <mesh castShadow key={x} position={[x, 0.31, -0.06]} rotation={[0, 0, x * 0.6]}><coneGeometry args={[0.075, 0.28, 5]} /><meshStandardMaterial color={renderedAccent} roughness={0.46} /></mesh>) : null}
-        {body === "serpentine" ? [0, 1, 2].map((index) => <mesh castShadow key={index} position={[0.12 + index * 0.15, -0.12 - index * 0.055, -0.3 - index * 0.18]} rotation={[0.5, 0, -0.5]} scale={1 - index * 0.14}><sphereGeometry args={[0.2, 12, 9]} /><meshStandardMaterial color={renderedPrimary} roughness={0.62} /></mesh>) : null}
+        {body === "serpentine" ? [0, 1, 2].map((index) => <mesh castShadow key={index} position={[0.12 + index * 0.15, -0.12 - index * 0.055, -0.3 - index * 0.18]} rotation={[0.5, 0, -0.5]} scale={1 - index * 0.14}><sphereGeometry args={[0.2, 12, 9]} /><meshStandardMaterial map={skinTexture} color={renderedPrimary} roughness={0.62} /></mesh>) : null}
       </group>
 
       <group name="wilds-creature-limbs" ref={limbs}>
-        {wingPlan.pairCount ? <group name={wingPlan.kind} ref={wings}>{[-1, 1].map((side) => <mesh castShadow key={side} position={[side * 0.46, 0.08, -0.08]} rotation={[0.15, 0, side * -0.72]} scale={[0.48, 1.3, 0.18]}><tetrahedronGeometry args={[0.46, 0]} /><meshStandardMaterial color={renderedSecondary} emissive={renderedSecondary} emissiveIntensity={0.12} roughness={0.46} /></mesh>)}</group> : null}
-        {body === "round" || body === "long" || body === "armored" ? [-1, 1].flatMap((side) => [-1, 1].map((front) => <mesh castShadow key={`${side}:${front}`} position={[side * 0.26, -0.3, front * 0.2]} rotation={[front * 0.14, 0, side * -0.08]}><capsuleGeometry args={[0.07, 0.22, 5, 8]} /><meshStandardMaterial color={renderedPrimary} roughness={0.7} /></mesh>)) : null}
+        {wingPlan.pairCount ? <group name={wingPlan.kind} ref={wings}>{[-1, 1].map((side) => <mesh castShadow key={side} position={[side * 0.46, 0.08, -0.08]} rotation={[0.15, 0, side * -0.72]} scale={[0.48, 1.3, 0.18]}><tetrahedronGeometry args={[0.46, 0]} /><meshStandardMaterial map={skinTexture} color={renderedSecondary} emissive={renderedSecondary} emissiveIntensity={0.12} roughness={0.46} /></mesh>)}</group> : null}
+        {body === "round" || body === "long" || body === "armored" ? [-1, 1].flatMap((side) => [-1, 1].map((front) => <mesh castShadow key={`${side}:${front}`} position={[side * 0.26, -0.3, front * 0.2]} rotation={[front * 0.14, 0, side * -0.08]}><capsuleGeometry args={[0.07, 0.22, 5, 8]} /><meshStandardMaterial map={skinTexture} color={renderedPrimary} roughness={0.7} /></mesh>)) : null}
         {gripPlan.padCount ? [-1, 1].flatMap((side) => [-1, 1].map((front) => <mesh castShadow key={`grip:${side}:${front}`} name="functional-grip-pad" position={[side * 0.27, -0.43, front * 0.2]} scale={[0.09, 0.035, 0.11]}><sphereGeometry args={[1, 10, 7]} /><meshStandardMaterial color={renderedAccent} roughness={0.82} /></mesh>)) : null}
       </group>
 
       <group name="wilds-creature-face" position={[0, 0.31, 0.3]} ref={head} scale={identity.head}>
-        <mesh castShadow scale={[0.82, 0.72, 0.6]}><sphereGeometry args={[0.34, 20, 14]} /><meshStandardMaterial color={renderedPrimary} emissive={renderedPrimary} emissiveIntensity={0.07 + readability.actorEmissive * 0.45} roughness={0.58} /></mesh>
+        <mesh castShadow scale={[0.82, 0.72, 0.6]}><sphereGeometry args={[0.34, 20, 14]} /><meshStandardMaterial map={skinTexture} color={renderedPrimary} emissive={renderedPrimary} emissiveIntensity={0.07 + readability.actorEmissive * 0.45} roughness={0.58} /></mesh>
         {[-1, 1].map((side) => <group key={side} position={[side * 0.13, 0.045, 0.19]} scale={[1, eyeScaleY, 1]}>
           <mesh><sphereGeometry args={[0.072, 12, 9]} /><meshStandardMaterial color="#fffdf3" roughness={0.32} /></mesh>
           <mesh position={[side * 0.008, -0.006, 0.061]}><sphereGeometry args={[0.033, 10, 8]} /><meshStandardMaterial color={renderedGlow} emissive={renderedGlow} emissiveIntensity={0.12} roughness={0.3} /></mesh>
@@ -212,7 +217,7 @@ export function WildsCreatureActor({
         <mesh position={[0, -0.055, 0.255]} scale={[1, 0.72, 0.7]}><sphereGeometry args={[0.038, 9, 7]} /><meshStandardMaterial color="#5b3b35" roughness={0.48} /></mesh>
         <mesh position={[0, -0.125, 0.246]} rotation={[Math.PI / 2, 0, 0]} scale={[1, pose === "attack" ? 1.35 : 0.55, 1]}><torusGeometry args={[0.055, 0.012, 6, 18, Math.PI]} /><meshStandardMaterial color="#7d3f50" roughness={0.54} /></mesh>
         {[-1, 1].map((side) => <mesh key={side} position={[side * 0.2, -0.08, 0.19]} scale={[1.1, 0.55, 0.5]}><sphereGeometry args={[0.042, 8, 6]} /><meshStandardMaterial color="#ff9baa" transparent opacity={0.62} /></mesh>)}
-        <CreatureIdentityDetail accent={renderedAccent} glow={renderedGlow} hasCrest={hasCrest} hasEars={hasEars} hasFins={hasFins} hasFrills={hasFrills} hasHorns={hasHorns} hasShell={hasShell} hasTail={hasTail} hasVoltrayCrown={hasVoltrayCrown} secondary={renderedSecondary} />
+        <CreatureIdentityDetail texture={skinTexture} accent={renderedAccent} glow={renderedGlow} hasCrest={hasCrest} hasEars={hasEars} hasFins={hasFins} hasFrills={hasFrills} hasHorns={hasHorns} hasShell={hasShell} hasTail={hasTail} hasVoltrayCrown={hasVoltrayCrown} secondary={renderedSecondary} />
       </group>
 
       <group name={`wilds-creature-aura-${auraKind}`} ref={aura} position={[0, -0.35, 0]}>
@@ -223,15 +228,15 @@ export function WildsCreatureActor({
   );
 }
 
-function CreatureIdentityDetail({ accent, glow, hasCrest, hasEars, hasFins, hasFrills, hasHorns, hasShell, hasTail, hasVoltrayCrown, secondary }: { accent: string; glow: string; hasCrest: boolean; hasEars: boolean; hasFins: boolean; hasFrills: boolean; hasHorns: boolean; hasShell: boolean; hasTail: boolean; hasVoltrayCrown: boolean; secondary: string }) {
+function CreatureIdentityDetail({ texture, accent, glow, hasCrest, hasEars, hasFins, hasFrills, hasHorns, hasShell, hasTail, hasVoltrayCrown, secondary }: { texture: THREE.Texture; accent: string; glow: string; hasCrest: boolean; hasEars: boolean; hasFins: boolean; hasFrills: boolean; hasHorns: boolean; hasShell: boolean; hasTail: boolean; hasVoltrayCrown: boolean; secondary: string }) {
   return <>
-    {hasEars ? [-1, 1].map((side) => <mesh castShadow key={`ear-${side}`} position={[side * 0.22, 0.27, -0.03]} rotation={[0, 0, side * -0.36]} scale={[0.7, 1.1, 0.5]}><coneGeometry args={[0.12, 0.34, 5]} /><meshStandardMaterial color={secondary} roughness={0.66} /></mesh>) : null}
-    {hasTail ? <mesh castShadow position={[0.34, -0.22, -0.36]} rotation={[0.15, 0, -0.68]}><capsuleGeometry args={[0.06, 0.42, 5, 8]} /><meshStandardMaterial color={secondary} roughness={0.72} /></mesh> : null}
+    {hasEars ? [-1, 1].map((side) => <mesh castShadow key={`ear-${side}`} position={[side * 0.22, 0.27, -0.03]} rotation={[0, 0, side * -0.36]} scale={[0.7, 1.1, 0.5]}><coneGeometry args={[0.12, 0.34, 5]} /><meshStandardMaterial map={texture} color={secondary} roughness={0.66} /></mesh>) : null}
+    {hasTail ? <mesh castShadow position={[0.34, -0.22, -0.36]} rotation={[0.15, 0, -0.68]}><capsuleGeometry args={[0.06, 0.42, 5, 8]} /><meshStandardMaterial map={texture} color={secondary} roughness={0.72} /></mesh> : null}
     {hasHorns ? [-1, 1].map((side) => <mesh castShadow key={`horn-${side}`} position={[side * 0.2, 0.25, 0]} rotation={[0.2, 0, side * -0.22]}><coneGeometry args={[0.055, 0.26, 7]} /><meshStandardMaterial color={glow} roughness={0.44} /></mesh>) : null}
-    {hasFins ? [-1, 1].map((side) => <mesh castShadow key={`fin-${side}`} name="fin" position={[side * 0.34, -0.04, -0.18]} rotation={[0, 0, side * -0.85]} scale={[0.22, 0.42, 0.12]}><coneGeometry args={[0.22, 1, 3]} /><meshStandardMaterial color={secondary} roughness={0.48} /></mesh>) : null}
+    {hasFins ? [-1, 1].map((side) => <mesh castShadow key={`fin-${side}`} name="fin" position={[side * 0.34, -0.04, -0.18]} rotation={[0, 0, side * -0.85]} scale={[0.22, 0.42, 0.12]}><coneGeometry args={[0.22, 1, 3]} /><meshStandardMaterial map={texture} color={secondary} roughness={0.48} /></mesh>) : null}
     {hasFrills ? <mesh name="frill" position={[0, 0.33, -0.05]} rotation={[0, Math.PI / 4, 0]} scale={[0.22, 0.22, 0.12]}><octahedronGeometry args={[1, 0]} /><meshStandardMaterial color={accent} roughness={0.42} /></mesh> : null}
     {hasVoltrayCrown ? <mesh name="voltray-crown" position={[0, 0.38, -0.08]} rotation={[0, Math.PI / 4, 0]} scale={[0.1, 0.18, 0.1]}><octahedronGeometry args={[1, 0]} /><meshStandardMaterial color={glow} emissive={glow} emissiveIntensity={0.18} /></mesh> : null}
     {hasCrest ? <mesh position={[0, 0.3, -0.03]}><octahedronGeometry args={[0.14, 0]} /><meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.12} /></mesh> : null}
-    {hasShell ? <mesh castShadow position={[0, -0.13, -0.32]} scale={[1.05, 0.82, 0.36]}><sphereGeometry args={[0.28, 12, 9]} /><meshStandardMaterial color={secondary} roughness={0.8} /></mesh> : null}
+    {hasShell ? <mesh castShadow position={[0, -0.13, -0.32]} scale={[1.05, 0.82, 0.36]}><sphereGeometry args={[0.28, 12, 9]} /><meshStandardMaterial map={texture} color={secondary} roughness={0.8} /></mesh> : null}
   </>;
 }

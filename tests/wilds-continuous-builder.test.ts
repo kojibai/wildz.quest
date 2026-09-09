@@ -100,3 +100,49 @@ test("a visible framed floor is walkable and its edge does not block small walki
   assert.ok(point.x > 18, `floor edge blocked walking at ${point.x}`);
   assert.equal(footY, supports[0].deckY);
 });
+
+test("adjusting a worked piece preserves exact contributions through checkpoint and merge", async () => {
+  const { previewWildsConstructionAdjustment } = await import("../src/features/play/wilds-construction-placement");
+  const { mergeWildsConstructionPersistence } = await import("../src/features/play/wilds-construction-persistence");
+  const f = finish("foundation");
+  const service = new WildsWorldService({checkpoint:checkpointWildsWorld(f.world)});
+  const nextRequest = {...request,pointer:{...request.pointer,x:22}};
+  const preview = previewWildsConstructionAdjustment(service.snapshot(),f.component.componentId,nextRequest);
+  assert.equal(preview.blocker,null);
+  assert.equal(preview.placement.valid,true);
+  const command = {type:"construction.component.adjust" as const, componentId:f.component.componentId,componentHead:f.component.head,placement:preview.placement,request:nextRequest,actorPosition:request.pointer,commandId:"adjust:1"};
+  const before = projectWildsConstructionProgress(f.component,f.materials,[f.work]);
+  service.execute(command,{...authority,uPulse:13});
+  const changed = service.snapshot();
+  const next = changed.constructionComponents[f.component.componentId];
+  assert.equal(next.transform.position.x,22);
+  assert.deepEqual(projectWildsConstructionProgress(next,f.materials,[f.work]),{...before,componentHead:next.head});
+  assert.deepEqual(changed.constructionMaterialContributions,f.world.constructionMaterialContributions);
+  assert.deepEqual(changed.constructionWorkContributions,f.world.constructionWorkContributions);
+  const checkpoint = checkpointWildsWorld(changed);
+  assert.deepEqual(new WildsWorldService({checkpoint}).snapshot(),changed);
+  const merged = mergeWildsConstructionPersistence(f.world,changed);
+  assert.equal(merged.constructionComponents[next.componentId].head,next.head);
+  assert.ok(Object.values(merged.constructionChunks).some(chunk=>chunk.references.some(ref=>ref.componentHead===next.head)));
+  service.execute(command,{...authority,uPulse:14});
+  assert.deepEqual(service.snapshot(),changed);
+  assert.throws(()=>service.execute({...command,commandId:"stale:1"},{...authority,uPulse:14}));
+  assert.throws(()=>service.execute({...command,componentHead:next.head,commandId:"foreign:1"},{...authority,actorId:"other",uPulse:14}));
+  assert.deepEqual(service.snapshot(),changed);
+});
+
+test("moving a supporting foundation is blocked until its wall is moved", async () => {
+  const { previewWildsConstructionAdjustment } = await import("../src/features/play/wilds-construction-placement");
+  const f=fixture();
+  const service=new WildsWorldService({checkpoint:checkpointWildsWorld(f.world)});
+  const wallRequest={...request,pointer:{...request.pointer,y:f.component.transform.position.y,z:23}};
+  const wall=previewWildsContinuousBuild(service.snapshot(),actorId,"wall",wallRequest);
+  assert.ok(wall.placement.valid);
+  service.execute({type:"construction.component.place",projectId:f.component.projectId,placement:wall.placement,request:wallRequest,actorPosition:request.pointer,commandId:"wall:1"},authority);
+  const nextRequest={...request,pointer:{...request.pointer,x:22}};
+  const preview=previewWildsConstructionAdjustment(service.snapshot(),f.component.componentId,nextRequest);
+  assert.match(preview.blocker ?? "",/supported/);
+  const before=checkpointWildsWorld(service.snapshot());
+  assert.throws(()=>service.execute({type:"construction.component.adjust",componentId:f.component.componentId,componentHead:f.component.head,placement:preview.placement,request:nextRequest,actorPosition:request.pointer,commandId:"support:1"},{...authority,uPulse:13}));
+  assert.deepEqual(checkpointWildsWorld(service.snapshot()),before);
+});

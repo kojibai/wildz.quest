@@ -1,3 +1,4 @@
+import { createWildsBurrow, type WildsBurrowRequest } from "./wilds-burrow";
 import { settleWildsBuild, verifyWildsBuildSettlement } from "./wilds-steward-build-settlement";
 import { playerStewardBuilder } from "./wilds-steward-construction";
 import { WILDS_COMMAND_LAW, worldConstitutionalDecision } from "./wilds-world-constitution";
@@ -75,14 +76,16 @@ import {
   type WildsWorldProjection
 } from "./wilds-world-state";
 
-import { createWildsConstructionProject, createWildsConstructionChunk, appendWildsConstructionChunkReference, appendWildsConstructionProjectChunk, constructionProofDigest, canWildsConstructionProject } from "./wilds-construction-project";
-import { createWildsConstructionComponent, createWildsMaterialContribution, createWildsWorkContribution, projectWildsConstructionProgress } from "./wilds-construction-component";
-import { projectWildsProductionPlacementEvidence, type WildsConstructionPlacementRequest } from "./wilds-construction-placement";
+import { reviseWildsConstructionChunkReference, createWildsConstructionProject, createWildsConstructionChunk, appendWildsConstructionChunkReference, appendWildsConstructionProjectChunk, constructionProofDigest, canWildsConstructionProject } from "./wilds-construction-project";
+import { adjustWildsConstructionComponent, createWildsConstructionComponent, createWildsMaterialContribution, createWildsWorkContribution, projectWildsConstructionProgress } from "./wilds-construction-component";
+import { previewWildsConstructionAdjustment, projectWildsProductionPlacementEvidence, type WildsConstructionPlacementRequest } from "./wilds-construction-placement";
 import type { WildsBlueprintPlacement } from "./wilds-world-construction";
 
 export type WildsWorldCommand = (
   | { type: "construction.project.create"; name: string; region: { x: number; z: number }; commandId: string }
   | { type: "construction.component.place"; projectId: string; placement: WildsBlueprintPlacement; request: WildsConstructionPlacementRequest; actorPosition: { x: number; z: number }; commandId: string }
+  | { type: "construction.burrow.dig"; request:WildsBurrowRequest; actorPosition:{x:number;y:number;z:number};cardProofDigest:string;commandId:string }
+  | { type: "construction.component.adjust"; componentId: string; componentHead: string; placement: WildsBlueprintPlacement; request: WildsConstructionPlacementRequest; actorPosition: { x: number; z: number }; commandId: string }
   | { type: "construction.component.deposit"; componentId: string; componentHead: string; lotIds: string[]; actorPosition: { x: number; z: number }; commandId: string }
   | { type: "construction.component.work"; componentId: string; componentHead: string; actorPosition: { x: number; z: number }; creature?: { subjectId: string; head: string }; commandId: string }
   | { type: "boss.track"; bossId: string; position: { x: number; z: number }; commandId: string }
@@ -529,6 +532,24 @@ export class WildsWorldService {
       const appended = appendWildsConstructionChunkReference({ chunk: page, component, kaiUPulse });
       const successor = project.firstChunkId ? project : appendWildsConstructionProjectChunk({ project, chunk: appended.chunk, kaiUPulse });
       events.push(this.append("construction.component_placed", { component, ...appended, project: successor, commandDigest }, authority, command.commandId));
+    } else if (command.type === "construction.burrow.dig") {
+      if(!authority.card)throw new Error("wilds_world_verified_card_required");
+      const burrow=createWildsBurrow({burrows:this.projection.burrows??{},request:command.request,ownerReceizId:authority.actorId,creature:authority.card,commandId:command.commandId,kaiUPulse:authorityMoment(authority).uPulse,actorPosition:command.actorPosition});
+      events.push(this.append("construction.burrow_dug",{burrow,actorPosition:command.actorPosition,commandDigest},authority,command.commandId));
+    } else if (command.type === "construction.component.adjust") {
+      const previous = this.projection.constructionComponents[command.componentId];
+      if (!previous || previous.head !== command.componentHead) throw new Error("wilds_construction_component_stale");
+      const project = this.projection.constructionProjects[previous.projectId];
+      if (!project || previous.ownerReceizId !== authority.actorId || !canWildsConstructionProject(project, authority.actorId, "renovate")) throw new Error("wilds_construction_access_denied");
+      requireConstructionReach(command.actorPosition, previous.transform.position);
+      requireConstructionReach(command.actorPosition, command.placement.transform.position);
+      const preview = previewWildsConstructionAdjustment(this.projection, previous.componentId, command.request);
+      if (preview.blocker || constructionProofDigest(preview.placement) !== constructionProofDigest(command.placement)) throw new Error("wilds_construction_adjustment_conflict");
+      const component = adjustWildsConstructionComponent({component: previous, placement: command.placement, evidence: preview.evidence, commandId: command.commandId, kaiUPulse});
+      const page = Object.values(this.projection.constructionChunks).find(chunk => chunk.projectId === previous.projectId && chunk.references.some(ref => ref.componentId === previous.componentId && ref.componentHead === previous.head));
+      if (!page) throw new Error("wilds_construction_chunk_missing");
+      const chunk = reviseWildsConstructionChunkReference(page, previous, component, kaiUPulse);
+      events.push(this.append("construction.component_adjusted", {component, chunk, request: command.request, actorPosition: command.actorPosition, commandDigest}, authority, command.commandId));
     } else if (command.type === "construction.component.deposit" || command.type === "construction.component.work") {
       const component = this.projection.constructionComponents[command.componentId];
       if (!component || component.head !== command.componentHead) throw new Error("wilds_construction_component_stale");

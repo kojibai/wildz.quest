@@ -1,9 +1,11 @@
+import { admitWildsBurrows, type WildsBurrowV1 } from "./wilds-burrow";
 import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 import { verifyWildsConstructionProject, verifyWildsConstructionChunk, validConstructionHead, type WildsConstructionProjectV1, type WildsConstructionChunkV1 } from "./wilds-construction-project";
-import { verifyWildsConstructionComponent, verifyWildsMaterialContribution, verifyWildsWorkContribution, type WildsConstructionComponentV1, type WildsConstructionMaterialContributionV1, type WildsConstructionWorkContributionV1 } from "./wilds-construction-component";
+import { adjustWildsConstructionComponent, verifyWildsConstructionComponent, verifyWildsMaterialContribution, verifyWildsWorkContribution, type WildsConstructionComponentV1, type WildsConstructionMaterialContributionV1, type WildsConstructionWorkContributionV1 } from "./wilds-construction-component";
 
 type Source = WildsConstructionProjectV1 | WildsConstructionChunkV1 | WildsConstructionComponentV1 | WildsConstructionMaterialContributionV1 | WildsConstructionWorkContributionV1;
 export type WildsConstructionPersistence = {
+  burrows?: Record<string,WildsBurrowV1>;
   constructionProjects: Record<string, WildsConstructionProjectV1>;
   constructionChunks: Record<string, WildsConstructionChunkV1>;
   constructionComponents: Record<string, WildsConstructionComponentV1>;
@@ -26,7 +28,7 @@ const entries = (value: unknown): [string, unknown][] => value && typeof value =
 const idOf = (value: Source, key: Key): string => (value as unknown as Record<string, string>)[descriptors[key][0]];
 const sameOwner = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase() || sameWildzPlayerCoordinate(a, b);
 export function emptyWildsConstructionPersistence(): WildsConstructionPersistence {
-  return { constructionProjects: {}, constructionChunks: {}, constructionComponents: {}, constructionMaterialContributions: {}, constructionWorkContributions: {}, constructionRecoverySources: {}, constructionCommandReceipts: {} };
+  return { burrows: {}, constructionProjects: {}, constructionChunks: {}, constructionComponents: {}, constructionMaterialContributions: {}, constructionWorkContributions: {}, constructionRecoverySources: {}, constructionCommandReceipts: {} };
 }
 function sources(input: Partial<WildsConstructionPersistence>, key: Key): Source[] {
   const verify = descriptors[key][1];
@@ -40,11 +42,17 @@ function successor(child: Source, parent: Source, key: Key): boolean {
   if (!("revision" in child) || !("revision" in parent) || child.parentHead !== parent.head
     || child.revision !== parent.revision + 1 || child.kaiUPulse < parent.kaiUPulse || idOf(child, key) !== idOf(parent, key)) return false;
   if ("ownerReceizId" in child && "ownerReceizId" in parent && child.ownerReceizId !== parent.ownerReceizId) return false;
+  if (key === "constructionComponents") {
+    const c = child as WildsConstructionComponentV1, p = parent as WildsConstructionComponentV1;
+    try {
+      return adjustWildsConstructionComponent({component:p,placement:c.placement,evidence:c.evidence,commandId:c.adjustmentCommandId!,kaiUPulse:c.kaiUPulse}).head === c.head;
+    } catch { return false; }
+  }
   if (key === "constructionChunks") {
     const c = child as WildsConstructionChunkV1, p = parent as WildsConstructionChunkV1;
     return c.projectId === p.projectId && c.regionId === p.regionId && c.page === p.page
       && (!p.nextChunkId || p.nextChunkId === c.nextChunkId)
-      && p.references.every(ref => c.references.some(next => next.componentId === ref.componentId && next.componentHead === ref.componentHead));
+      && p.references.every(ref => c.references.some(next => next.componentId === ref.componentId && (next.componentHead === ref.componentHead ? JSON.stringify(next.priorComponentHeads ?? []) === JSON.stringify(ref.priorComponentHeads ?? []) : JSON.stringify(next.priorComponentHeads) === JSON.stringify([...(ref.priorComponentHeads ?? []),ref.componentHead]))));
   }
   return true;
 }
@@ -81,6 +89,7 @@ export function mergeWildsConstructionPersistence(left: Partial<WildsConstructio
     for (const source of all.values()) if (selected[idOf(source, key)]?.head !== source.head) recovery[source.head] = source;
     Object.assign(result[key], Object.fromEntries(Object.entries(selected).sort(([a], [b]) => a.localeCompare(b))));
   }
+  result.burrows = admitWildsBurrows({...right.burrows,...left.burrows});
   result.constructionRecoverySources = Object.fromEntries(Object.entries(recovery).sort(([a], [b]) => a.localeCompare(b)));
   for (const input of [left, right]) for (const [id, receipt] of entries(input.constructionCommandReceipts)) {
     if (!receipt || typeof receipt !== "object") continue;
@@ -113,9 +122,11 @@ export function projectWildsConstructionPersistence(input: Partial<WildsConstruc
     return componentHeads.has(c.componentHead) && keepComponents.some(component => component.head === c.componentHead && component.componentId === c.componentId && component.projectId === c.projectId && c.kaiUPulse >= component.kaiUPulse);
   };
   const result = emptyWildsConstructionPersistence();
-  const commandIds = new Set<string>();
+  result.burrows = Object.fromEntries(Object.entries(verified.burrows ?? {}).filter(([,p])=>sameOwner(p.ownerReceizId,ownerReceizId)));
+  const commandIds = new Set<string>(Object.values(result.burrows).map(p=>p.commandId));
   for (const key of keys) for (const source of sources(verified, key)) if (keep(source, key)) {
     if ("commandId" in source) commandIds.add(source.commandId);
+    if ("adjustmentCommandId" in source && source.adjustmentCommandId) commandIds.add(source.adjustmentCommandId);
     if ((verified[key] as Record<string, Source>)[idOf(source, key)]?.head === source.head) Object.assign(result[key], { [idOf(source, key)]: source });
     else result.constructionRecoverySources![source.head] = source;
   }

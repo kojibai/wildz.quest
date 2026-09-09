@@ -11,7 +11,8 @@ export type WildsConstructionComponentV1 = Readonly<{
   placement: WildsBlueprintPlacement; evidence: WildsProductionPlacementEvidence;
   transform: WildsBlueprintPlacement["transform"]; anchors: WildsBlueprintPlacement["anchors"];
   stageGeometryDigest: string; functionId: string | null; recipe: WildsConstructionRecipe;
-  commandId: string; revision: 0; parentHead: null; kaiUPulse: number; authority: "source-proof-object"; head: string;
+  commandId: string; revision: number; parentHead: string | null;
+  priorHeads?: readonly string[]; originKaiUPulse?: number; adjustmentCommandId?: string; kaiUPulse: number; authority: "source-proof-object"; head: string;
 }>;
 export type WildsConstructionWorker =
   | Readonly<{ kind: "player"; receizId: string }>
@@ -59,7 +60,10 @@ export function verifyWildsConstructionComponent(value: unknown): value is Wilds
     if (!c || c.schema !== "wildz.construction-component.v1" || !validConstructionId(c.projectId) || !validConstructionHead(c.projectHead)
       || !validConstructionId(c.ownerReceizId) || !validConstructionId(c.commandId) || !validConstructionRegion(c.region)
       || c.componentId !== componentId(c.projectId, c.ownerReceizId, c.commandId) || c.regionId !== wildsConstructionRegionId(c.region)
-      || c.variant !== "default" || !c.customization || Object.keys(c.customization).length !== 0 || c.revision !== 0 || c.parentHead !== null
+      || c.variant !== "default" || !c.customization || Object.keys(c.customization).length !== 0
+      || !Number.isSafeInteger(c.revision) || c.revision < 0
+      || (c.revision === 0 ? c.parentHead !== null || c.priorHeads !== undefined || c.originKaiUPulse !== undefined || c.adjustmentCommandId !== undefined
+        : !Array.isArray(c.priorHeads) || c.priorHeads.length !== c.revision || new Set(c.priorHeads).size !== c.priorHeads.length || !c.priorHeads.every(validConstructionHead) || c.parentHead !== c.priorHeads.at(-1) || !validConstructionKai(c.originKaiUPulse) || c.originKaiUPulse > c.kaiUPulse || !validConstructionId(c.adjustmentCommandId))
       || c.authority !== "source-proof-object" || !validConstructionKai(c.kaiUPulse) || !validConstructionSeal(c)
       || !verifyWildsProductionPlacement(c.placement, c.evidence)) return false;
     const recipe = wildsConstructionRecipe(c.kind);
@@ -86,6 +90,27 @@ export function createWildsConstructionComponent(input: Readonly<{
   if (!verifyWildsConstructionComponent(component)) throw new Error("wilds_construction_component_invalid");
   return component;
 }
+export function constructionComponentCarriesHead(component: WildsConstructionComponentV1, head: string) {
+  return component.head === head || Boolean(component.priorHeads?.includes(head));
+}
+
+export function adjustWildsConstructionComponent(input: {
+  component: WildsConstructionComponentV1; placement: WildsBlueprintPlacement; evidence: WildsProductionPlacementEvidence;
+  commandId: string; kaiUPulse: number;
+}): WildsConstructionComponentV1 {
+  const { component, placement, evidence } = input;
+  if (!verifyWildsConstructionComponent(component) || !verifyWildsProductionPlacement(placement, evidence)
+    || placement.kind !== component.kind || !equal(regionForPosition(placement.transform.position), component.region)
+    || input.kaiUPulse < component.kaiUPulse || !validConstructionId(input.commandId)) throw new Error("wilds_construction_adjustment_invalid");
+  const { head, ...basis } = component;
+  const next = sealConstructionProof({ ...basis, placement, evidence, transform: placement.transform, anchors: placement.anchors,
+    stageGeometryDigest: geometryDigest(placement, component.recipe), revision: component.revision + 1, parentHead: head,
+    priorHeads: [...(component.priorHeads ?? []), head], originKaiUPulse: component.originKaiUPulse ?? component.kaiUPulse,
+    adjustmentCommandId: input.commandId, kaiUPulse: input.kaiUPulse });
+  if (!verifyWildsConstructionComponent(next)) throw new Error("wilds_construction_adjustment_invalid");
+  return next;
+}
+
 function materialId(c: Omit<WildsConstructionMaterialContributionV1, "head" | "contributionId">): string {
   return `wildz:construction-material:${constructionProofDigest({ componentId: c.componentId, componentHead: c.componentHead, contributorReceizId: c.contributorReceizId, commandId: c.commandId, lotId: c.lotId }).slice(7)}`;
 }
@@ -160,7 +185,7 @@ export function createWildsWorkContribution(input: Readonly<{
 
 export function projectWildsConstructionProgress(component: WildsConstructionComponentV1, materials: readonly WildsConstructionMaterialContributionV1[], work: readonly WildsConstructionWorkContributionV1[]): WildsConstructionProgress {
   if (!verifyWildsConstructionComponent(component)) throw new Error("wilds_construction_component_invalid");
-  const sameLineage = (proof: ContributionBase) => proof.projectId === component.projectId && proof.componentId === component.componentId && proof.componentHead === component.head && proof.kaiUPulse >= component.kaiUPulse;
+  const sameLineage = (proof: ContributionBase) => proof.projectId === component.projectId && proof.componentId === component.componentId && constructionComponentCarriesHead(component, proof.componentHead) && proof.kaiUPulse >= (component.originKaiUPulse ?? component.kaiUPulse);
   // Head is a deterministic tie-breaker for conflicting copies of one contribution ID.
   const sorted = <T extends ContributionBase>(proofs: readonly T[]) => [...proofs].sort((a, b) => a.contributionId < b.contributionId ? -1 : a.contributionId > b.contributionId ? 1 : a.head < b.head ? -1 : a.head > b.head ? 1 : 0);
   const validMaterials = sorted(materials.filter((proof) => verifyWildsMaterialContribution(proof) && sameLineage(proof)));

@@ -1,5 +1,9 @@
 "use client";
 
+import { projectWildsExplorerAnatomy } from "./wilds-explorer-anatomy";
+import { createWildsExplorerFace, createWildsExplorerTorso } from "./wilds-explorer-face";
+import { useWildsCharacterTexture } from "./wilds-character-material";
+import { useWildsNaturalTexture } from "./wilds-natural-material";
 import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
@@ -29,16 +33,20 @@ const palette = {
 function LimbSegment({
   color,
   length,
-  radius
+  radius,
+  skin = false
 }: {
   color: string;
   length: number;
   radius: number;
+  skin?: boolean;
 }) {
+  const cloth = useWildsCharacterTexture("cloth");
+  const grain = useWildsNaturalTexture("skin");
   return (
     <mesh castShadow position={[0, -length / 2, 0]}>
       <capsuleGeometry args={[radius, Math.max(0.04, length - radius * 2), 5, 9]} />
-      <meshStandardMaterial color={color} roughness={0.72} />
+      <meshStandardMaterial map={skin ? grain : cloth} color={color} roughness={0.82} />
     </mesh>
   );
 }
@@ -101,6 +109,7 @@ function ExplorerBackpack({
   leftWingRef: React.RefObject<THREE.Mesh | null>;
   rightWingRef: React.RefObject<THREE.Mesh | null>;
 }) {
+  const leather = useWildsCharacterTexture("leather");
   const badge = useTexture("/brand/explorer-pack-badge.svg");
   const shellGeometry = useMemo(mergedBackpackGeometry, []);
   const hardwareGeometry = useMemo(mergedBackpackHardwareGeometry, []);
@@ -122,7 +131,7 @@ function ExplorerBackpack({
   return (
     <group name="trail-pack" position={[0, 0.24, 0.2]} ref={backpackRef} rotation={[0.03, 0, 0]}>
       <mesh castShadow geometry={shellGeometry}>
-        <meshStandardMaterial color="#8a603d" emissive="#3c2518" emissiveIntensity={0.055} metalness={0.03} roughness={0.76} />
+        <meshStandardMaterial map={leather} color="#8a603d" emissive="#3c2518" emissiveIntensity={0.055} metalness={0.03} roughness={0.76} />
       </mesh>
       <mesh castShadow geometry={hardwareGeometry}>
         <meshStandardMaterial color="#c7a85a" metalness={0.66} roughness={0.3} />
@@ -175,6 +184,7 @@ function ExplorerScubaKit({ accent, visible }: { accent: string; visible: boolea
 
 export function WildsExplorer({
   character,
+  identityKey,
   style,
   worldPosition,
   remote = false,
@@ -184,6 +194,7 @@ export function WildsExplorer({
   aerialPalette = { primary: "#c9fff0", accent: "#f5d46c", glow: "#76f3cf" }
 }: {
   character?: WildzCharacterGenesis;
+  identityKey?:string;
   style: ExplorerStyle;
   worldPosition: PlayState["player"];
   remote?: boolean;
@@ -208,6 +219,12 @@ export function WildsExplorer({
     signatureMark: "sprout",
     signatureSeed: 0.5
   };
+  const anatomy=useMemo(()=>projectWildsExplorerAnatomy(identityKey??character?.identityRef??`wildz:explorer:${style}`),[identityKey,character?.identityRef,style]);
+  const clothTexture=useWildsCharacterTexture("cloth");
+  const skinTexture=useWildsNaturalTexture("skin"),hairTexture=useWildsNaturalTexture("bark");
+  const faceGeometry=useMemo(()=>createWildsExplorerFace(anatomy,appearance.skin,appearance.hair,remote),[anatomy,appearance.skin,appearance.hair,remote]);
+  const torsoGeometry=useMemo(()=>createWildsExplorerTorso(anatomy),[anatomy]);
+  useEffect(()=>()=>{faceGeometry.dispose();torsoGeometry.dispose();},[faceGeometry,torsoGeometry]);
   const root = useRef<THREE.Group>(null);
   const hips = useRef<THREE.Group>(null);
   const spine = useRef<THREE.Group>(null);
@@ -292,11 +309,11 @@ export function WildsExplorer({
   const outfitWidth = appearance.outfitProfile === "canopy-guard" ? 1.08 : appearance.outfitProfile === "rift-scout" ? 0.92 : 1;
 
   return (
-    <group name={`wilds-explorer-${renderStyle}`} ref={root} scale={remote ? 0.62 : 0.78}>
+    <group name={`wilds-explorer-${renderStyle}`} ref={root} scale={.82*anatomy.height}>
       <group name="hips" position={[0, 0.72, 0]} ref={hips}>
-        <mesh castShadow scale={[0.86, 0.52, 0.66]}>
+        <mesh castShadow scale={[0.98, 0.7, 0.72]}>
           <capsuleGeometry args={[0.18, 0.2, 6, 12]} />
-          <meshStandardMaterial color={appearance.outfitSecondary} emissive={appearance.outfitSecondary} emissiveIntensity={readability.actorEmissive * 0.6} roughness={appearance.materialRoughness} />
+          <meshStandardMaterial map={clothTexture} color={appearance.outfitSecondary} emissive={appearance.outfitSecondary} emissiveIntensity={readability.actorEmissive * 0.6} roughness={appearance.materialRoughness} />
         </mesh>
         <Leg boots={appearance.outfitSecondary} side={-1} knee={leftKnee} trousers={appearance.outfitSecondary} />
         <Leg boots={appearance.outfitSecondary} side={1} knee={rightKnee} trousers={appearance.outfitSecondary} />
@@ -304,8 +321,8 @@ export function WildsExplorer({
 
       <group name="spine" position={[0, 0.92, 0]} ref={spine}>
         <mesh castShadow position={[0, 0.2, 0]} scale={[outfitWidth * (renderStyle === "female" ? 0.86 : 1), 1, renderStyle === "female" ? 0.72 : 0.76]}>
-          <capsuleGeometry args={[0.24, 0.34, 8, 14]} />
-          <meshStandardMaterial color={appearance.outfitPrimary} emissive={appearance.outfitPrimary} emissiveIntensity={readability.actorEmissive} roughness={appearance.materialRoughness} />
+          <primitive object={torsoGeometry} attach="geometry" />
+          <meshStandardMaterial map={clothTexture} color={appearance.outfitPrimary} emissive={appearance.outfitPrimary} emissiveIntensity={readability.actorEmissive} roughness={appearance.materialRoughness} />
         </mesh>
         {remote ? <mesh castShadow position={[0, 0.24, 0.2]} scale={[0.78, 0.88, 0.52]}>
           <boxGeometry args={[0.42, 0.45, 0.22]} />
@@ -315,11 +332,11 @@ export function WildsExplorer({
           <>
             <mesh castShadow name={appearance.accessory} position={[-0.13, 0.48, 0.08]} ref={scarf} rotation={[0.18, 0, 0.08]}>
               <capsuleGeometry args={[0.045, 0.32, 5, 8]} />
-              <meshStandardMaterial color={appearance.outfitPrimary} emissive={appearance.outfitPrimary} emissiveIntensity={0.08} roughness={0.82} />
+              <meshStandardMaterial map={clothTexture} color={appearance.outfitPrimary} emissive={appearance.outfitPrimary} emissiveIntensity={0.08} roughness={0.82} />
             </mesh>
             <mesh name={`signature-${appearance.signatureMark}`} position={[0, 0.24, -0.225]} rotation={[0, 0, appearance.signatureSeed * Math.PI]}>
               <torusGeometry args={[0.055, 0.012, 6, 10]} />
-              <meshStandardMaterial color={appearance.outfitSecondary} emissive={appearance.outfitPrimary} emissiveIntensity={0.28} />
+              <meshStandardMaterial map={clothTexture} color={appearance.outfitSecondary} emissive={appearance.outfitPrimary} emissiveIntensity={0.28} />
             </mesh>
           </>
         ) : null}
@@ -327,14 +344,13 @@ export function WildsExplorer({
         <Arm elbow={rightElbow} shoulder={rightShoulder} side={1} skin={appearance.skin} sleeve={appearance.outfitSecondary} />
       </group>
 
-      <group name="head" position={[0, 1.57, -0.01]} ref={head}>
-        <mesh castShadow scale={[0.9, 1.06, 0.92]}>
-          <sphereGeometry args={[0.225, 18, 14]} />
-          <meshStandardMaterial color={appearance.skin} roughness={0.72} />
+      <group name="head" position={[0, 1.57, -0.01]} ref={head} scale={.85}>
+        <mesh castShadow geometry={faceGeometry} name="identity-bound-face">
+          <meshStandardMaterial vertexColors map={skinTexture} roughness={.68}/>
         </mesh>
         <mesh castShadow position={[0, 0.075, 0.025]} scale={renderStyle === "female" ? [1.1, 0.9, 1.08] : [1.09, 0.76, 1.07]}>
-          <sphereGeometry args={[0.225, 16, 12]} />
-          <meshStandardMaterial color={appearance.hair} roughness={0.88} />
+          <sphereGeometry args={[0.225, 16, 12, 0, Math.PI*2, 0, Math.PI*.53]} />
+          <meshStandardMaterial map={hairTexture} color={appearance.hair} roughness={0.88} />
         </mesh>
         <mesh
           castShadow
@@ -343,26 +359,15 @@ export function WildsExplorer({
           scale={[renderStyle === "female" ? 1.12 : 1.08, hairLength, renderStyle === "female" ? 0.8 : 0.72]}
         >
           <sphereGeometry args={[0.205, 16, 12]} />
-          <meshStandardMaterial color={appearance.hair} roughness={0.9} />
+          <meshStandardMaterial map={hairTexture} color={appearance.hair} roughness={0.9} />
         </mesh>
         {renderStyle === "female" ? (
           <mesh castShadow position={[0, -0.13, 0.19]} rotation={[-0.22, 0, 0]}>
             <capsuleGeometry args={[0.075, 0.3, 5, 9]} />
-            <meshStandardMaterial color={appearance.hair} roughness={0.9} />
+            <meshStandardMaterial map={hairTexture} color={appearance.hair} roughness={0.9} />
           </mesh>
         ) : null}
-        {!remote ? (
-          <>
-            <mesh name="leftEar" position={[-0.23, -0.02, 0]} rotation={[0, 0, 0.2]}>
-              <sphereGeometry args={[0.045, 8, 6]} />
-              <meshStandardMaterial color={appearance.skin} roughness={0.72} />
-            </mesh>
-            <mesh name="rightEar" position={[0.23, -0.02, 0]} rotation={[0, 0, -0.2]}>
-              <sphereGeometry args={[0.045, 8, 6]} />
-              <meshStandardMaterial color={appearance.skin} roughness={0.72} />
-            </mesh>
-          </>
-        ) : null}
+
       </group>
       {!remote ? <ExplorerScubaKit accent={appearance.outfitPrimary} visible={scubaVisible} /> : null}
     </group>
@@ -383,10 +388,10 @@ function Arm({
   sleeve: string;
 }) {
   return (
-    <group name={side < 0 ? "leftShoulder" : "rightShoulder"} position={[side * 0.31, 0.37, 0]} ref={shoulder}>
-      <LimbSegment color={sleeve} length={0.3} radius={0.075} />
+    <group name={side < 0 ? "leftShoulder" : "rightShoulder"} position={[side * 0.25, 0.43, 0]} ref={shoulder}>
+      <LimbSegment color={sleeve} length={0.35} radius={0.09} />
       <group name={side < 0 ? "leftElbow" : "rightElbow"} position={[0, -0.29, 0]} ref={elbow}>
-        <LimbSegment color={skin} length={0.28} radius={0.06} />
+        <LimbSegment skin color={skin} length={0.32} radius={0.068} />
         <mesh castShadow position={[0, -0.3, 0]} scale={[0.8, 1, 0.72]}>
           <sphereGeometry args={[0.075, 9, 7]} />
           <meshStandardMaterial color={skin} roughness={0.7} />
@@ -397,14 +402,15 @@ function Arm({
 }
 
 function Leg({ boots, side, knee, trousers }: { boots: string; side: -1 | 1; knee: React.RefObject<THREE.Group | null>; trousers: string }) {
+  const leather = useWildsCharacterTexture("leather");
   return (
     <group name={side < 0 ? "leftKnee" : "rightKnee"} position={[side * 0.12, -0.06, 0]} ref={knee}>
-      <LimbSegment color={trousers} length={0.34} radius={0.08} />
+      <LimbSegment color={trousers} length={0.39} radius={0.095} />
       <group position={[0, -0.32, 0]}>
-        <LimbSegment color={trousers} length={0.31} radius={0.072} />
-        <mesh castShadow position={[0, -0.34, -0.055]}>
-          <boxGeometry args={[0.17, 0.13, 0.31]} />
-          <meshStandardMaterial color={boots} roughness={0.9} />
+        <LimbSegment color={trousers} length={0.35} radius={0.078} />
+        <mesh castShadow position={[0, -0.34, -0.055]} scale={[.09,.07,.17]}>
+          <sphereGeometry args={[1,12,8]} />
+          <meshStandardMaterial map={leather} color={boots} roughness={0.9} />
         </mesh>
       </group>
     </group>

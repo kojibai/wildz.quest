@@ -1,7 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useWildsFloatingPanel } from "./use-wilds-floating-panel";
 import { WildsConstructionPieceCatalog, WILDS_BUILD_PIECE_GROUPS as groups } from "./WildsConstructionPieceCatalog";
 import { WildsExplainedAction } from "./WildsExplainedAction";
+import { Check, GripHorizontal, X } from "lucide-react";
 import { Icons } from "@/components/icons";
 import type { useWildsContinuousBuilder } from "./use-wilds-continuous-builder";
 import { wildsConstructionCue, wildsConstructionLabel } from "./wilds-continuous-builder";
@@ -13,13 +15,16 @@ export function WildsContinuousBuilderPanel({ builder, materials, onOpenCatalogu
   onUse?: (kind: "workshop" | "storage") => void;
   builder: ReturnType<typeof useWildsContinuousBuilder>; materials: { hay: number; timber: number; stone: number };
 }) {
+  const floating=useWildsFloatingPanel();
   const [minimized, setMinimized] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  useEffect(()=>{if(builder.dragging)setMinimized(true);},[builder.dragging]);
+  useEffect(()=>{if(builder.error)setMinimized(false);},[builder.error]);
   const cost = cumulativeWildsConstructionMaterials(wildsConstructionRecipe(builder.kind), "finished");
   const next = builder.progress?.stages.find(stage => !stage.complete);
   if (minimized) return <button className="wilds-builder-restore" type="button" aria-label="Restore build panel" onClick={() => setMinimized(false)}><Icons.construction size={18} /><span>Build<small>{wildsConstructionLabel(builder.selected?.kind ?? builder.kind)}</small></span></button>;
-  return <aside className={`wilds-continuous-builder${expanded ? " is-expanded" : " is-compact"}`} aria-label="Build with pieces">
-    <header><span><small>Living Construction</small><select aria-label="Choose building piece" value={builder.selected ? "" : builder.kind} onChange={event => { builder.selectKind(event.target.value as WildsConstructionKind); setExpanded(false); }}><option value="" disabled>{builder.selected ? `${wildsConstructionLabel(builder.selected.kind)} · selected` : "Choose a piece"}</option>{groups.map(group => <optgroup key={group.label} label={group.label}>{group.kinds.map(kind => <option key={kind} value={kind}>{wildsConstructionLabel(kind)}</option>)}</optgroup>)}</select></span><button className="wilds-builder-tray-toggle" type="button" aria-expanded={expanded} aria-label={expanded ? "Compact build tray" : "Expand build tray"} onClick={() => setExpanded(value => !value)}>{expanded ? "Less" : "More"}</button><button aria-label="Minimize build panel" type="button" onClick={() => setMinimized(true)}>−</button><button aria-label="Close piece builder" onClick={builder.close} type="button"><Icons.close size={18} /></button></header>
+  return <aside ref={floating.ref} style={floating.style} className={`wilds-continuous-builder${expanded ? " is-expanded" : " is-compact"}`} aria-label="Build with pieces">
+    <header><button className="wilds-panel-drag-handle" type="button" aria-label="Move build panel" title="Drag to move; arrow keys to reposition; Home to reset" {...floating.handle}><GripHorizontal size={18}/></button><span><small>Living Construction</small><select aria-label="Choose building piece" value={builder.selected ? "" : builder.kind} onChange={event => { builder.selectKind(event.target.value as WildsConstructionKind); setExpanded(false); }}><option value="" disabled>{builder.selected ? `${wildsConstructionLabel(builder.selected.kind)} · selected` : "Choose a piece"}</option>{groups.map(group => <optgroup key={group.label} label={group.label}>{group.kinds.map(kind => <option key={kind} value={kind}>{wildsConstructionLabel(kind)}</option>)}</optgroup>)}</select></span><button className="wilds-builder-tray-toggle" type="button" aria-expanded={expanded} aria-label={expanded ? "Compact build tray" : "Expand build tray"} onClick={() => setExpanded(value => !value)}>{expanded ? "Less" : "More"}</button><button aria-label="Minimize build panel" type="button" onClick={() => setMinimized(true)}>−</button><button aria-label="Close piece builder" onClick={builder.close} type="button"><Icons.close size={18} /></button></header>
     <div className="wilds-builder-resources" aria-label="Carried building materials">
       <span><Icons.products size={15} /><b>{materials.hay}</b><small>Hay</small></span>
       <span><Icons.timber size={15} /><b>{materials.timber}</b><small>Timber</small></span>
@@ -27,7 +32,18 @@ export function WildsContinuousBuilderPanel({ builder, materials, onOpenCatalogu
     </div>
     <div className="wilds-builder-catalog-link">{onOpenCatalogue && <button type="button" onClick={onOpenCatalogue}>Blueprints, tools & storage</button>}<small>Keep this tray open and tap the world to place or select.</small></div>
     {builder.error && <p className="wilds-builder-error" role="alert">{builder.error}</p>}
-    {builder.selected && builder.progress ? <section className="wilds-builder-inspector" aria-label="Selected piece progress">
+    {builder.adjusting ? <section className="wilds-builder-adjustment" aria-label="Adjust placed piece">
+      <strong>Adjust {wildsConstructionLabel(builder.selected?.kind ?? builder.kind).toLowerCase()}</strong>
+      <p>Drag the piece to move it, or tap a new spot.</p>
+      <p className="wilds-builder-gesture-help">Drag the piece to move. Sweep its curved handle to rotate; pull its height handle up or down. Release to save.</p>
+      {builder.preview && <output className="wilds-builder-adjust-position">X {builder.preview.transform.position.x.toFixed(1)} · Z {builder.preview.transform.position.z.toFixed(1)} · Height {builder.preview.transform.position.y.toFixed(1)} m</output>}
+      <p role="status">{builder.busy ? "Saving adjustment…" : builder.adjustBlocker ?? "Fits here. Your materials and progress stay with this piece."}</p>
+      <div className="wilds-builder-adjust-actions">
+        <button type="button" disabled={Boolean(builder.busy)} onClick={builder.cancelAdjustment}><X size={18} /> Cancel</button>
+        <button type="button" disabled={Boolean(builder.busy) || Boolean(builder.adjustBlocker)} onClick={builder.confirmAdjustment}><Check size={18} />{builder.busy ? "Saving…" : "Confirm"}</button>
+      </div>
+    </section> : builder.selected && builder.progress ? <section className="wilds-builder-inspector" aria-label="Selected piece progress">
+      <p className="wilds-builder-gesture-help">Drag your piece or its handles to adjust.</p>
       <div className="wilds-builder-stages">{["planned", "framed", "functional", "finished"].map(stage => <span key={stage} aria-current={builder.progress?.stage === stage ? "step" : undefined}>{stage}</span>)}</div>
       <progress max={100} value={builder.progress.percentage} aria-label="Construction progress" /><strong>{builder.progress.stage === "planned" ? "Plan placed · add materials to build" : `${builder.progress.percentage}% complete`}</strong>
       {(builder.progress.stage === "functional" || builder.progress.stage === "finished") && (builder.selected.kind === "workshop" || builder.selected.kind === "storage") && onUse && <button type="button" onClick={() => onUse(builder.selected!.kind as "workshop" | "storage")}>{builder.selected.kind === "workshop" ? "Craft tools at this workbench" : "Use this storage"}</button>}
@@ -38,13 +54,13 @@ export function WildsContinuousBuilderPanel({ builder, materials, onOpenCatalogu
       </> : <p>Finished. Choose another piece above to keep building.</p>}
     </section> : <section className="wilds-builder-placement" aria-label="Piece placement">
       <strong className="wilds-builder-piece-name">{wildsConstructionLabel(builder.kind)}</strong>
-      <p>{builder.preview ? builder.preview.valid ? builder.canPlace ? "This piece fits. Tap the world to place, or use Place below." : "Move closer to place this piece (within 6 metres)." : builder.preview.cues.map(wildsConstructionCue).join(" ") : "Select a piece above, then tap the world to place its plan. Use Continue nearby builds to work on an existing piece."}</p>
+      <p>{builder.preview ? builder.preview.valid ? builder.canPlace ? "This piece fits. Tap the world to place, or use Place below." : "Move closer to place this piece (within 6 metres)." : builder.preview.cues.map(wildsConstructionCue).join(" ") : "Choose a piece, tap to place, then drag it or its handles to move, turn, or lift it."}</p>
       <p className="wilds-builder-cost">Full build: {cost.hay} hay · {cost.timber} timber · {cost.stone} stone</p>
-      <div className="wilds-builder-transforms"><button type="button" onClick={builder.rotate}>Rotate {builder.rotation * 90}°</button><button aria-label="Lower piece" type="button" onClick={builder.lower}>−</button><span>{builder.height * .5} m</span><button aria-label="Raise piece" type="button" onClick={builder.raise}>+</button><button aria-label="Clear placement preview" type="button" onClick={builder.undoPreview}>Reset</button></div>
+
       {builder.preview && <WildsExplainedAction className="wilds-builder-confirm" label={`Place ${wildsConstructionLabel(builder.kind).toLowerCase()} plan`} pending={Boolean(builder.busy)} blocker={builder.placeBlocker} onAction={builder.place} />}
     </section>}
-    {builder.nearbyPieces.length > 0 && <details className="wilds-builder-palette"><summary>Continue nearby builds ({builder.nearbyPieces.length})</summary><section><div>{builder.nearbyPieces.map((piece, index) => <button type="button" key={piece.componentId} onClick={() => builder.selectComponent(piece.componentId)}>{wildsConstructionLabel(piece.kind)} {index + 1}</button>)}</div></section></details>}
-    <details open={!builder.selected} className="wilds-builder-palette"><summary>Choose building pieces</summary>
+    {!builder.adjusting && builder.nearbyPieces.length > 0 && <details className="wilds-builder-palette"><summary>Continue nearby builds ({builder.nearbyPieces.length})</summary><section><div>{builder.nearbyPieces.map((piece, index) => <button type="button" key={piece.componentId} onClick={() => builder.selectComponent(piece.componentId)}>{wildsConstructionLabel(piece.kind)} {index + 1}</button>)}</div></section></details>}
+    <details hidden={builder.adjusting} open={!builder.selected} className="wilds-builder-palette"><summary>Choose building pieces</summary>
       <WildsConstructionPieceCatalog selected={builder.selected ? undefined : builder.kind} onSelect={kind => { builder.selectKind(kind); setExpanded(false); }} />
     </details>
   </aside>;

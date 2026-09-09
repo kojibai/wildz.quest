@@ -12,7 +12,7 @@ export type WildsConstructionProjectV1 = CausalProof & Readonly<{
 }>;
 export type WildsConstructionChunkV1 = CausalProof & Readonly<{
   schema: "wildz.construction-chunk.v1"; chunkId: string; projectId: string; region: WildsConstructionRegion; regionId: string;
-  page: number; references: readonly Readonly<{ componentId: string; componentHead: string }>[]; nextChunkId: string | null;
+  page: number; references: readonly Readonly<{ componentId: string; componentHead: string; priorComponentHeads?: readonly string[] }>[]; nextChunkId: string | null;
 }>;
 
 export const constructionProofDigest = (value: unknown): string => sha256PortableBasis(canonicalPortableCardJson(value));
@@ -75,7 +75,7 @@ export function verifyWildsConstructionChunk(value: unknown): value is WildsCons
     return !!c && c.schema === "wildz.construction-chunk.v1" && validConstructionId(c.projectId) && validConstructionRegion(c.region)
       && c.regionId === wildsConstructionRegionId(c.region) && Number.isSafeInteger(c.page) && c.page >= 0
       && c.chunkId === chunkId(c.projectId, c.region, c.page) && Array.isArray(c.references) && c.references.length <= WILDS_CONSTRUCTION_CHUNK_REFERENCE_LIMIT
-      && c.references.every((ref, i) => validConstructionId(ref.componentId) && validConstructionHead(ref.componentHead) && (i === 0 || c.references[i - 1].componentId < ref.componentId))
+      && c.references.every((ref, i) => validConstructionId(ref.componentId) && validConstructionHead(ref.componentHead) && (ref.priorComponentHeads === undefined || (Array.isArray(ref.priorComponentHeads) && ref.priorComponentHeads.every(validConstructionHead) && new Set(ref.priorComponentHeads).size === ref.priorComponentHeads.length && !ref.priorComponentHeads.includes(ref.componentHead))) && (i === 0 || c.references[i - 1].componentId < ref.componentId))
       && (c.nextChunkId === null || (c.references.length === WILDS_CONSTRUCTION_CHUNK_REFERENCE_LIMIT && c.nextChunkId === chunkId(c.projectId, c.region, c.page + 1))) && validCausal(c);
   } catch { return false; }
 }
@@ -114,4 +114,13 @@ export function appendWildsConstructionChunkReference(input: Readonly<{ chunk: W
     chunk: sealConstructionProof({ ...basis, nextChunkId, revision: chunk.revision + 1, parentHead: head, kaiUPulse: input.kaiUPulse }),
     continuation: sealConstructionProof({ ...basis, chunkId: nextChunkId, page: chunk.page + 1, references: [reference], nextChunkId: null, revision: 0, parentHead: null, kaiUPulse: input.kaiUPulse })
   });
+}
+
+export function reviseWildsConstructionChunkReference(chunk: WildsConstructionChunkV1, previous: {componentId: string; head: string}, next: {componentId: string; head: string}, kaiUPulse: number): WildsConstructionChunkV1 {
+  if (!verifyWildsConstructionChunk(chunk) || previous.componentId !== next.componentId || !validConstructionHead(previous.head) || !validConstructionHead(next.head) || previous.head === next.head || !validConstructionKai(kaiUPulse) || kaiUPulse < chunk.kaiUPulse
+    || !chunk.references.some(ref => ref.componentId === previous.componentId && ref.componentHead === previous.head)) throw new Error("wilds_construction_chunk_reference_conflict");
+  const { head, ...basis } = chunk;
+  return sealConstructionProof({...basis, revision: chunk.revision + 1, parentHead: head, kaiUPulse,
+    references: chunk.references.map(ref => ref.componentId === previous.componentId
+      ? {...ref, componentHead: next.head, priorComponentHeads: [...(ref.priorComponentHeads ?? []), previous.head]} : ref)});
 }

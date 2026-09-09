@@ -26,9 +26,9 @@ function freeze<T>(value: T): T {
   return value;
 }
 
-export function projectWildsStructureSupports(world?: Pick<WildsWorldProjection, "structures"> & Partial<Pick<WildsWorldProjection, "constructionComponents" | "constructionMaterialContributions" | "constructionWorkContributions">> | null): readonly WildsStructureSupport[] {
+export function projectWildsStructureSupports(world?: Pick<WildsWorldProjection, "structures"> & Partial<Pick<WildsWorldProjection, "constructionComponents" | "constructionMaterialContributions" | "constructionWorkContributions">> | null, spaceId="wildz.space.outer.v1"): readonly WildsStructureSupport[] {
   if (!world) return Object.freeze([]);
-  const components: WildsStructureSupport[] = Object.values(world.constructionComponents ?? {}).flatMap(component => {
+  const components: WildsStructureSupport[] = Object.values(world.constructionComponents ?? {}).filter(c=>(c.evidence.spaceId??"wildz.space.outer.v1")===spaceId).flatMap(component => {
     const geometry = projectWildsConstructionStageGeometry(component, Object.values(world.constructionMaterialContributions ?? {}), Object.values(world.constructionWorkContributions ?? {}));
     if (geometry.stage === "planned") return [];
     if (!["foundation", "floor", "room", "roof", "stair", "bridge", "platform", "path"].includes(component.kind)) return [];
@@ -38,7 +38,7 @@ export function projectWildsStructureSupports(world?: Pick<WildsWorldProjection,
     }));
   });
   return freeze(Object.values(world.structures)
-    .filter((structure): structure is WildsTrailBridgeV1 => structure.blueprint === "trail-bridge" && structure.stage === "complete")
+    .filter((structure): structure is WildsTrailBridgeV1 => spaceId==="wildz.space.outer.v1" && structure.blueprint === "trail-bridge" && structure.stage === "complete")
     .map((structure): WildsStructureSupport => ({
       id: `wildz.support.v1:${structure.structureId}`,
       structureId: structure.structureId,

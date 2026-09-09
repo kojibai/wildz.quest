@@ -14,7 +14,7 @@ export function verifyWildsWorldCommandKai(command: WildsWorldCommand): KaiTempo
 }
 
 export function worldCommandRequiresCard(command: WildsWorldCommand) {
-  return command.type === "raid.act"
+  return command.type === "construction.burrow.dig" || command.type === "raid.act"
     || command.type === "raid.contribute"
     || command.type === "ecology.contribute"
     || command.type === "story.trainer_battle"
@@ -42,5 +42,5 @@ export function verifyWildsWorldCommandCard(input: {
 }
 
 export function isWildsEdgeImmediateConstructionCommand(command: Pick<WildsWorldCommand, "type">) {
-  return command.type === "construction.project.create" || command.type.startsWith("construction.component.");
+  return command.type === "construction.burrow.dig" || command.type === "construction.project.create" || command.type.startsWith("construction.component.");
 }

@@ -5,7 +5,7 @@ import { constitutionalDigest, constitutionalPredicate as predicate, deriveConst
 
 /** Adding a command requires choosing its bounded source law at compile time. */
 export const WILDS_COMMAND_LAW = {
-  "construction.project.create": "commons.plan", "construction.component.place": "project.plan",
+  "construction.project.create": "commons.plan", "construction.component.place": "project.plan", "construction.burrow.dig": "project.plan", "construction.component.adjust": "project.plan",
   "construction.component.deposit": "materials.contribute", "construction.component.work": "project.work",
   "boss.track": "commons.observe", "raid.enter": "raid.participate", "raid.act": "raid.participate",
   "raid.lease": "raid.participate", "raid.retreat": "voluntary.exit", "raid.join": "raid.participate", "raid.contribute": "raid.participate",

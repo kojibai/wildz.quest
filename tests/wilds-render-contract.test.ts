@@ -383,12 +383,12 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(explorer, /name="hips" position=\{\[0, 0\.72, 0\]\}/);
     assert.match(explorer, /hips\.current\.position\.y = 0\.72 \+ footPlant \* 0\.012/);
     assert.match(explorer, /position=\{\[side \* 0\.12, -0\.06, 0\]\} ref=\{knee\}/);
-    assert.match(explorer, /length=\{0\.34\} radius=\{0\.08\}/);
+    assert.match(explorer, /length=\{0\.39\} radius=\{0\.095\}/);
     assert.doesNotMatch(explorer, /"leftLeg"/);
     assert.doesNotMatch(explorer, /name="bootSole"/);
     assert.match(explorer, /name="rearHair"/);
-    assert.match(explorer, /name="leftEar"/);
-    assert.match(explorer, /name="rightEar"/);
+    assert.match(explorer, /name="identity-bound-face"/);
+    assert.match(explorer, /createWildsExplorerFace/);
   });
 
   it("adds deterministic canopy atmosphere and proximity motion", async () => {

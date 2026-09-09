@@ -72,12 +72,16 @@ export function prepareWildsSiteRuntime(physical: WildsDiscoveryPhysicalNeighbor
 }
 function indexFor(runtime: WildsSiteRuntimeProjection) { const index = indexes.get(runtime); if (!index) throw new Error("wilds_site_runtime_not_prepared"); return index; }
 function surfaceAt(runtime: WildsSiteRuntimeProjection, spaceId: string, x: number, y: number, z: number) {
+  let support: WildsSiteSurface | undefined;
   let nearest: WildsSiteSurface | undefined, distance = Number.POSITIVE_INFINITY;
   for (const surface of at(indexFor(runtime).surfaces, spaceId, x, z)) {
     if (Math.abs(x - surface.center.x) > surface.halfExtents.x || Math.abs(z - surface.center.z) > surface.halfExtents.z || y < surface.center.y - .75 || y > surface.center.y + 2.25) continue;
+    if(surface.id.startsWith("wildz.support.component:") && surface.center.y>=y-.05 && surface.center.y<=y+.65
+      && (!support || surface.center.y>support.center.y)
+      && !at(indexFor(runtime).ceilings,spaceId,x,z).some(c=>Math.abs(x-c.center.x)<=c.halfExtents.x && Math.abs(z-c.center.z)<=c.halfExtents.z && c.center.y-c.halfExtents.y>surface.center.y+.01 && c.center.y-c.halfExtents.y<surface.center.y+1.55))support=surface;
     const next = Math.abs(y - surface.center.y); if (next < distance) { nearest = surface; distance = next; }
   }
-  return nearest;
+  return support??nearest;
 }
 function contains(value: Readonly<{ center: Point3; halfExtents: Point3 }>, x: number, y: number, z: number, margin = 0) { return Math.abs(x - value.center.x) <= value.halfExtents.x + margin && Math.abs(y - value.center.y) <= value.halfExtents.y && Math.abs(z - value.center.z) <= value.halfExtents.z + margin; }
 function isBlocked(runtime: WildsSiteRuntimeProjection, spaceId: string, x: number, y: number, z: number, radius: number) { for (const solid of at(indexFor(runtime).solids, spaceId, x, z)) if (solid.kind !== "mountain-envelope" && contains(solid, x, y + .78, z, radius)) return true; return false; }

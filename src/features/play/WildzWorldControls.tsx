@@ -39,6 +39,8 @@ function useStableEvent<Arguments extends unknown[]>(handler: (...args: Argument
 }
 
 export function WildzWorldControls({
+  onBeginConstruction,
+  buildingActive=false,
   nearbyCards,
   activeCard,
   companionProgress,
@@ -73,6 +75,8 @@ export function WildzWorldControls({
   glideLaunchAvailable,
   onAerialToggle: _onAerialToggle
 }: {
+  onBeginConstruction?:()=>void;
+  buildingActive?:boolean;
   nearbyCards: readonly PortableCardAsset[];
   activeCard: PortableCardAsset | null;
   companionProgress: PlayState["companionProgress"];
@@ -194,8 +198,9 @@ export function WildzWorldControls({
   }, [overlayDispatch, worldHomesEnabled]);
   const handleOpenConstruction = useCallback(() => {
     if (!worldHomesEnabled) return;
+    if(onBeginConstruction){onBeginConstruction();return;}
     overlayDispatch({ type: "panel", key: "construction" });
-  }, [overlayDispatch, worldHomesEnabled]);
+  }, [onBeginConstruction, overlayDispatch, worldHomesEnabled]);
   const handleMovementModeChange = useCallback(() => {
     if (worldHomesEnabled) changeMovementMode(movementMode === "walk" ? "run" : "walk");
   }, [changeMovementMode, movementMode, worldHomesEnabled]);
@@ -280,7 +285,7 @@ export function WildzWorldControls({
   }, [exclusiveOwner, requestHandled, requestedCommand]);
 
   return (
-    <section className={`wildz-world-controls${panelOpen ? " is-panel-open" : ""}`} aria-label="World controls">
+    <section className={`wildz-world-controls${panelOpen ? " is-panel-open" : ""}${buildingActive ? " is-building" : ""}`} aria-label="World controls">
       <div aria-hidden={movementHomeBlocked} className="wildz-movement-home" inert={movementHomeBlocked ? true : undefined}>
         <div className="wildz-quick-utilities" aria-label="Quick utilities">
           <button aria-label="Make camp and recover" disabled={!worldHomesEnabled} onClick={handleRest} type="button"><Icons.camp size={20} /></button>

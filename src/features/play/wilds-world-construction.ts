@@ -71,6 +71,7 @@ export type WildsBlueprintPlacementInput = Readonly<{
 }>;
 
 export type WildsProductionPlacementEvidence = Readonly<{
+  spaceId?: string;
   sourceBlueprint: WildsBlueprintPreview;
   pointer: Point3;
   rotationQuarterTurns: number;
