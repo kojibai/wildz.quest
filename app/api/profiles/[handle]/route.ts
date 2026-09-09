@@ -1,3 +1,4 @@
+import { createReceizClient } from "@receiz/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import {
   canonicalWildzHandle,
@@ -11,7 +12,11 @@ import {
   loadVerifiedWildzPublicOwnershipAuthority,
   requireCurrentWildzPublicOwner
 } from "@/lib/receiz/wildz-public-ownership";
-import { advanceWildzPublicState } from "@/lib/receiz/wildz-public-state";
+import { publishPublicWildzProfile, resolvePublicWildzProfile } from "@/lib/receiz/wildz-profile-adapter";
+import { parseSignedWildzProfilePublication } from "@/lib/receiz/wildz-profile-publication-envelope";
+import { resolveSdkPublicWildzCard } from "@/lib/receiz/wildz-market-public-card";
+import { WILDZ_PRODUCT } from "@/lib/wildz/product";
+import { canonicalWildzProfilePath } from "@/features/profile/public-profile";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +33,7 @@ function json(body: unknown, status = 200, publicProjection = false) {
 
 function profileError(cause: unknown) {
   const error = cause instanceof Error ? cause.message : "wildz_public_profile_invalid";
-  if (error === "receiz_authority_required") return json({ ok: false, error }, 401);
+  if (error === "unauthorized" || error === "receiz_identity_key_required" || error === "receiz_authority_required") return json({ ok: false, error }, 401);
   if (error === "receiz_profile_required"
     || error === "wildz_public_profile_owner_mismatch"
     || error === "wildz_public_profile_card_not_owned"
@@ -45,7 +50,8 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ ha
     const { handle } = await context.params;
     const username = canonicalWildzHandle(handle);
     const repository = createReceizWildzPublicRepository({ adapter: createReceizCommerceAdapter() });
-    const profile = (await repository.load()).state.profiles[username.toLowerCase()] ?? null;
+    const profile = await resolvePublicWildzProfile(username)
+      ?? (await repository.load()).state.profiles[username.toLowerCase()] ?? null;
     return profile
       ? json({ ok: true, profile }, 200, true)
       : json({ ok: false, error: "wildz_public_profile_not_found" }, 404);
@@ -56,52 +62,51 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ ha
 
 export async function POST(request: NextRequest, context: { params: Promise<{ handle: string }> }) {
   try {
-    const actor = await resolveWildzCookieActor(request);
     const { handle } = await context.params;
     const requestedHandle = canonicalWildzHandle(handle);
-    if (requestedHandle !== canonicalWildzHandle(actor.actorId)) {
-      throw new Error("wildz_public_profile_owner_mismatch");
-    }
-
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("wildz_public_profile_invalid");
-    const profile = sanitizePublicWildzProfile(body as Record<string, unknown>);
+    const profile = sanitizePublicWildzProfile(body.signedPublication ? body.profile : body);
     if (profile.username !== requestedHandle) throw new Error("wildz_public_profile_owner_mismatch");
-
-    const adapter = createReceizCommerceAdapter({ accessToken: actor.accessToken });
-    const repository = createReceizWildzPublicRepository({ adapter });
-    const current = await repository.load();
+    const signed = body.signedPublication ? parseSignedWildzProfilePublication(body.signedPublication, profile) : null;
+    const actor = signed ? null : await resolveWildzCookieActor(request);
+    // A proof session identifies the player but does not supply a registry write token.
+    // Let a matching local Identity Seal sign, including after switching Connect accounts.
+    if (!signed && (!actor?.accessToken || requestedHandle !== canonicalWildzHandle(actor.actorId))) {
+      throw new Error("receiz_authority_required");
+    }
+    const actorId = requestedHandle.slice(1);
+    const adapter = createReceizCommerceAdapter(actor?.accessToken ? {accessToken: actor.accessToken} : undefined);
     const ownershipAuthority = await loadVerifiedWildzPublicOwnershipAuthority(adapter);
     const requestedCardIds = new Set<string>();
     for (const requested of profile.vault) {
-      const card = current.state.cards[requested.id];
-      if (requestedCardIds.has(requested.id)
-        || !card
-        || !verifyAnyWildsCard(card).ok
-        || card.proof.digest !== requested.proofDigest) {
-        throw new Error("wildz_public_profile_card_unverified");
-      }
-      requireCurrentWildzPublicOwner(
-        ownershipAuthority,
-        card,
-        actor.actorId,
-        "wildz_public_profile_card_not_owned"
-      );
+      if (requestedCardIds.has(requested.id)) throw new Error("wildz_public_profile_card_unverified");
       requestedCardIds.add(requested.id);
     }
+    // Bound network concurrency without serializing up to 120 independent public reads.
+    for (let offset = 0; offset < profile.vault.length; offset += 6) {
+      await Promise.all(profile.vault.slice(offset, offset + 6).map(async requested => {
+        const card = await resolveSdkPublicWildzCard(requested.id, {adapter, requestOrigin: WILDZ_PRODUCT.origin});
+        if (!card || !verifyAnyWildsCard(card).ok || card.proof.digest !== requested.proofDigest) {
+          throw new Error("wildz_public_profile_card_unverified");
+        }
+        requireCurrentWildzPublicOwner(ownershipAuthority, card, actorId, "wildz_public_profile_card_not_owned");
+      }));
+    }
 
-    const occurredAt = new Date().toISOString();
-    const next = advanceWildzPublicState(current.state, {
-      type: "publish-profile",
-      actorHandle: requestedHandle,
-      expectedRevision: current.state.revision,
-      profile
-    }, { occurredAt });
-    await repository.publish(next, {
-      expectedHead: current.head,
-      idempotencyKey: `profile:${requestedHandle}:${next.revision}`,
-      merchantReceizId: actor.receizUserId
-    });
+    if (signed) {
+      const result = await createReceizClient().publicStore.publishSigned(signed.signed, {
+        idempotencyKey: `wildz-profile:${requestedHandle.slice(1)}:${signed.record.publishedAt}`
+      });
+      if (result.ok !== true || !result.appendAnchorId || result.knownHead?.appendAnchorId !== result.appendAnchorId) {
+        throw new Error("wildz_public_profile_publication_unconfirmed");
+      }
+    } else {
+      await publishPublicWildzProfile(profile as unknown as Record<string, unknown>, {
+        adapter, merchantReceizId: actor!.profileHandle,
+        sourceUrl: `${WILDZ_PRODUCT.origin}${canonicalWildzProfilePath(requestedHandle)}`
+      });
+    }
     return json({ ok: true, published: true, profile }, 201);
   } catch (cause) {
     return profileError(cause);

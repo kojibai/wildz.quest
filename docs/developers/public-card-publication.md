@@ -59,3 +59,11 @@ Keep publication off the gameplay frame loop. Publish the whole eligible Vault i
 The August 20 `be6ab53` change removed the card endpoint's delegated and Identity Seal publication paths. `500f065` later removed the independent publisher. During the September 9 investigation, production logs showed repeated rejected POSTs; an unchanged already-public card also reproduced `unauthorized`. These commit dates establish source changes, not the deployment or disappearance time of any individual card.
 
 The fix is covered by tests for the gallery limit, completed-revision reuse, cancellation of shared waits, authorization fallback, a real Ed25519 SDK signature, absence of private key material in requests, and rejection of altered relay feeds and foreign owners. A live existing card was successfully published through the repaired path (201), then loaded anonymously from `wildz.quest` (200). See the [incident evidence](../release/public-card-link-regression.md) for exact IDs and limits of that verification.
+
+## Automatic profile publication
+
+Profiles use the same authority separation as cards: anonymous readers need no login; publishing requires a delegated owner token or a locally signed Identity Seal envelope. A verified local identity can start background profile publication without waiting for a remote proof-session cookie. Private keys and passwords never enter the profile API.
+
+The profile relay constrains the signature to one sanitized profile, canonical `/u/<handle>` URL, and `wildz-profile:<handle>` namespace. It checks each gallery card's exact published proof and current ownership before forwarding the signature. Public card lookups run in batches of six. Optional gallery properties are omitted rather than serialized as `undefined`, which the SDK's canonical signer rejects.
+
+Both token and signature paths publish the per-profile public record. Anonymous profile reads resolve that record first and retain the legacy shared-projection fallback. Existing background scheduling, cancellation, and retries remain in place; there is no Publish Profile button.

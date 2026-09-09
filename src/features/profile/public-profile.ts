@@ -96,8 +96,8 @@ export function sanitizePublicWildzProfile(input: Record<string, unknown>): Publ
       name: clean(card.name) || "Wildz companion",
       proofDigest,
       visibility: "public" as const,
-      status: clean(card.status, 30) || undefined,
-      listedPriceCents: Number.isFinite(card.listedPriceCents) ? boundedInt(card.listedPriceCents, 100_000_000) : undefined
+      ...(clean(card.status, 30) ? {status: clean(card.status, 30)} : {}),
+      ...(Number.isFinite(card.listedPriceCents) ? {listedPriceCents: boundedInt(card.listedPriceCents, 100_000_000)} : {})
     }];
   }).slice(0, 120) : [];
   const safeExplorer = sanitizeExplorer(input.explorer);

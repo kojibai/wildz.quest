@@ -245,3 +245,28 @@ test("the profile gallery limit does not strand standalone cards beyond its firs
   assert.equal(published.size,121);
   assert.ok(published.has(assets[120]!.id));
 });
+
+test("profile publication falls back to local signing when the recognized identity has no registry token", async () => {
+  const profile = sanitizePublicWildzProfile(fernProfile);
+  let signed = 0;
+  const options = {
+    publishWithIdentityProof: async (input: typeof profile) => { signed++; return input; }
+  };
+  const fetcher = (async () => Response.json({ok:false,error:"unauthorized"},{status:400})) as typeof fetch;
+  const result = await publishCurrentWildzProfile(profile, [], fetcher, options as Parameters<typeof publishCurrentWildzProfile>[3]);
+  assert.equal(signed, 1);
+  assert.deepEqual(result, profile);
+});
+
+test("a locally verified signing identity can publish before remote proof-session connection", () => {
+  assert.equal(profileAdapter.wildzProfilePublicationReadiness({hasIdentity:true,hasCharacter:true,proofSessionConnected:false,localSigningAvailable:true}),"ready");
+});
+
+test("profile signing does not bypass rejected card ownership", async () => {
+  const profile = sanitizePublicWildzProfile(fernProfile);
+  let signed = false;
+  await assert.rejects(publishCurrentWildzProfile(profile, [], (async()=>Response.json({ok:false,error:"wildz_public_profile_card_not_owned"},{status:403})) as typeof fetch, {
+    publishWithIdentityProof: async () => { signed = true; return profile; }
+  }), /card_not_owned/);
+  assert.equal(signed,false);
+});

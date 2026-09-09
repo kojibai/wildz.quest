@@ -195,8 +195,9 @@ export function wildzProfilePublicationReadiness(input: {
   hasIdentity: boolean;
   hasCharacter: boolean;
   proofSessionConnected: boolean;
+  localSigningAvailable?: boolean;
 }) {
-  return input.hasIdentity && input.hasCharacter && input.proofSessionConnected
+  return input.hasIdentity && input.hasCharacter && (input.proofSessionConnected || input.localSigningAvailable)
     ? "ready"
     : "waiting";
 }
@@ -221,7 +222,7 @@ export async function publishCurrentWildzProfile(
   profile: PublicWildzProfile,
   assetsOrFetcher: readonly PortableCardAsset[] | typeof fetch = [],
   suppliedFetcher: typeof fetch = globalThis.fetch,
-  options: { signal?: AbortSignal; proofObjects?: WildzAdmittedVaultProofObjects; prepareBody?: (value: unknown) => Promise<string> } = {}
+  options: { signal?: AbortSignal; proofObjects?: WildzAdmittedVaultProofObjects; prepareBody?: (value: unknown) => Promise<string>; publishWithIdentityProof?: (profile: PublicWildzProfile, signal?: AbortSignal) => Promise<PublicWildzProfile> } = {}
 ) {
   const assets = typeof assetsOrFetcher === "function" ? [] : assetsOrFetcher;
   const fetcher = typeof assetsOrFetcher === "function" ? assetsOrFetcher : suppliedFetcher;
@@ -249,6 +250,12 @@ export async function publishCurrentWildzProfile(
   });
   const value = await response.json().catch(() => null) as Record<string, unknown> | null;
   if (!response.ok || value?.ok !== true || !isRecord(value.profile)) {
+    if (["unauthorized", "receiz_authority_required", "receiz_identity_key_required"].includes(String(value?.error))) {
+      const publish = options.publishWithIdentityProof ?? (typeof window !== "undefined"
+        ? async (input: PublicWildzProfile, signal?: AbortSignal) => (await import("./wildz-profile-identity-publication")).publishWildzProfileWithIdentityProof(input, {fetcher, signal})
+        : undefined);
+      if (publish) return publish(profile, options.signal);
+    }
     throw new Error(typeof value?.error === "string" ? value.error : "wildz_public_profile_publication_failed");
   }
   return sanitizePublicWildzProfile(value.profile);

@@ -226,7 +226,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const profilePublicationReadiness = wildzProfilePublicationReadiness({
     hasIdentity: Boolean(identity),
     hasCharacter: Boolean(character),
-    proofSessionConnected
+    proofSessionConnected,
+    localSigningAvailable: identity?.localAuthority === "verified"
   });
   const ownerPlayState = useMemo(
     () => continuity?.playState ?? (identity ? createOwnerBoundInitialPlayState(identity.actorId, identity.createdAt) : initialPlayState),
