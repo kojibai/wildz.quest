@@ -2,6 +2,8 @@
 
 Wildz includes the creature formats, verifiers, identity and appearance projections, current capabilities, history reducers, and Receiz v126 adapters. The source entry point is [`src/experience/creature.ts`](../../src/experience/creature.ts); a runnable, test-covered integration is [`examples/creature-experience.ts`](../../examples/creature-experience.ts). This is a source integration in this repository, not a separately published creature SDK package.
 
+For QR URLs and publicly hosted cards, first read [public card recovery and publication authorization](public-card-publication.md). The [server-side public-card example](../../examples/public-card-experience.ts) recovers a card without owner cookies and then opens the compatible trail experience.
+
 ## Start with a verified creature
 
 ```ts

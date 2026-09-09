@@ -714,7 +714,9 @@ describe("Receiz Wilds rendering contract", () => {
     assert.doesNotMatch(css, /\.wilds-card-flip-control/);
     assert.match(cardExport, /requireGloballyAvailablePublicWildsCard/);
     assert.doesNotMatch(cardExport, /BROWSER_RECEIZ_ID_SESSION_KEY|keyFile|passphrase/);
-    assert.doesNotMatch(cardRoute, /resolveWildzCookieActor|publishPublicStoreWithIdentityProof|identityProof/);
+    assert.doesNotMatch(cardRoute, /keyFile|passphrase|privateKey/);
+    assert.match(cardRoute, /parseSignedWildzCardPublication/);
+    assert.match(cardRoute, /resolveWildzCookieActor/);
     assert.match(cardRoute, /publishPublicStore\(\{\s*\.\.\.base,\s*state:/);
     assert.match(cardRoute, /status:\s*503/);
     assert.doesNotMatch(cardRoute, /createReceizWildzPublicRepository|hasPublicationAuthority|published:\s*false/);
@@ -742,7 +744,8 @@ describe("Receiz Wilds rendering contract", () => {
     const css = await readFile("app/globals.css", "utf8");
 
     assert.match(inventory, /import QRCode from "qrcode"/);
-    assert.match(inventory, /standaloneCardUrl/);
+    assert.match(inventory, /requireGloballyAvailablePublicWildsCard/);
+    assert.match(inventory, /QRCode\.toDataURL\(record\.sourceUrl/);
     assert.match(inventory, /<WildsCardScene asset=\{selected\} condition=\{state\.adventureConditions\[selected\.id\]\} origin=\{origin\} qr=\{qr\}/);
     assert.match(inventory, />Import card or vault</);
     assert.match(inventory, />Save verified vault</);

@@ -65,6 +65,7 @@ import {
   wildzProfilePublicationReadiness
 } from "@/lib/receiz/wildz-profile-adapter";
 import type { WildzOverlay } from "@/features/shell/wildz-overlay";
+import { usePublicCardPublisher } from "@/features/play/use-public-card-publisher";
 import { startWildzProfilePublication, type ProfilePublicationStatus } from "@/features/profile/background-publication";
 import { downloadBlob } from "@/features/play/card-export";
 import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-verifier";
@@ -248,6 +249,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   }) : null, [ownerActorId, ownerPlayState.inventory]);
   const vaultAdmission = admittedVault?.admission ?? null;
   const admittedProofObjects = admittedVault?.proofObjects;
+  // Card proofs can publish independently of explorer/profile/session readiness.
+  usePublicCardPublisher(publishableOwnerAssets, Boolean(identity), admittedProofObjects);
   const viewingOwnProfile = !overlay
     || overlay.kind !== "profile"
     || (overlay.mode !== "public" && overlay.username.toLowerCase() === `@${ownerUsername}`.toLowerCase());

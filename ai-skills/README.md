@@ -21,3 +21,5 @@ MCP and AI outputs are operational guidance, never proof authority. Any admitted
 - `wildz-release-skill`: enforce exact package/digest parity and all artifact evidence fields.
 
 For creature-compatible experiences, follow the [developer integration guide](../docs/developers/creature-experiences.md) and its tested source example. Preserve exact identity and revision, admit once outside the frame loop, and use current capabilities rather than family defaults.
+
+Public card URLs require a publicly recoverable record. Follow the [publication authorization guide](../docs/developers/public-card-publication.md): card verification does not grant registry write permission. Use matching delegated authority or local Identity Seal signing through the exact same-origin relay, and confirm anonymous recovery before advertising a QR. Never transmit private seal material or put publication in the frame loop.

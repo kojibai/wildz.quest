@@ -227,3 +227,21 @@ describe("Receiz-backed public Wildz profiles", () => {
     assert.equal(calls.length, 1);
   });
 });
+
+test("the profile gallery limit does not strand standalone cards beyond its first 120 entries", async () => {
+  const assets = Array.from({length:121}, (_,i) => sealCollectedCard({formId:"mintcub-1",ownerReceizId:"fern",encounterId:`public-full-vault-${i}`,capturedAt:"2026-09-09T11:00:00.000Z"}));
+  const profile = sanitizePublicWildzProfile({...fernProfile,vault:assets.map(asset=>({id:asset.id,name:asset.manifest.name,proofDigest:asset.proof.digest,visibility:"public"}))});
+  assert.equal(profile.vault.length,120);
+  const published = new Set<string>();
+  const fetcher = (async (url: string, init?: RequestInit) => {
+    if (url.startsWith("/api/cards/")) {
+      const {asset} = JSON.parse(String(init?.body)) as {asset:PortableCardAsset};
+      published.add(asset.id);
+      return Response.json({ok:true,record:{schema:"receiz.wilds_public_card.v1",assetId:asset.id,sourceUrl:`https://wildz.quest/cards/${encodeURIComponent(asset.id)}`,registeredAt:"2026-09-09T11:00:00.000Z",asset}},{status:201});
+    }
+    return Response.json({ok:true,profile},{status:201});
+  }) as typeof fetch;
+  await publishCurrentWildzProfile(profile,assets,fetcher);
+  assert.equal(published.size,121);
+  assert.ok(published.has(assets[120]!.id));
+});

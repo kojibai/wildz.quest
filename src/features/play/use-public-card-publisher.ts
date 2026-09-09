@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { wildzJsonSerializer } from "../../lib/performance/wildz-json-serializer";
+import { wildzGameplayBackground } from "../../lib/performance/wildz-gameplay-background";
 import { attemptPublicWildsCardRegistration } from "./public-card-registry";
 import { verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
 import {
@@ -27,7 +29,7 @@ export function publicCardPublicationQueue(
   return assets
     .filter((asset) => {
       try {
-        return verifyAnyWildsCard(asset).ok && !publishedPins.has(`${asset.id}:${asset.proof.digest}`);
+        return !publishedPins.has(`${asset.id}:${asset.proof.digest}`) && verifyAnyWildsCard(asset).ok;
       } catch {
         return false;
       }
@@ -56,9 +58,9 @@ export async function publicCardPublicationQueueCooperatively(
   for (let index = 0; index < candidates.length; index += 1) {
     const asset = candidates[index]!;
     try {
-      const admitted = wildzVaultAdmissionCarriesProofObject(options.proofObjects, asset);
-      if ((admitted || verifyCard(asset)) && !publishedPins.has(`${asset.id}:${asset.proof.digest}`)) {
-        waiting.push(asset);
+      if (!publishedPins.has(`${asset.id}:${asset.proof.digest}`)) {
+        const admitted = wildzVaultAdmissionCarriesProofObject(options.proofObjects, asset);
+        if (admitted || verifyCard(asset)) waiting.push(asset);
       }
     } catch {
       // Invalid cards never enter the public projection.
@@ -89,7 +91,14 @@ export function usePublicCardPublisher(
       for (const asset of queue) {
         if (cancelled) break;
         const pin = `${asset.id}:${asset.proof.digest}`;
-        const result = await attemptPublicWildsCardRegistration(asset, { proofObjects });
+        const controller = new AbortController();
+        const deadline = setTimeout(() => controller.abort(), 30_000);
+        const result = await attemptPublicWildsCardRegistration(asset, {
+          proofObjects,
+          signal: controller.signal,
+          prepareBody: async (value) => await wildzJsonSerializer.serialize(value)
+            ?? wildzGameplayBackground.run(() => JSON.stringify(value))
+        }).finally(() => clearTimeout(deadline));
         if (result.published) {
           publishedPins.current.add(pin);
           retryAt.current.delete(pin);
@@ -108,8 +117,15 @@ export function usePublicCardPublisher(
 
     // Deferring one microtask lets React Strict Mode retire its probe effect
     // before any network publication begins.
+    const reconnect = () => {
+      if (retryTimer) clearTimeout(retryTimer);
+      retryAt.current.clear();
+      void publish();
+    };
+    window.addEventListener("online", reconnect);
     queueMicrotask(() => void publish());
     return () => {
+      window.removeEventListener("online", reconnect);
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
     };

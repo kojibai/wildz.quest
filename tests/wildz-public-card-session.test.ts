@@ -90,7 +90,8 @@ test("a weaker publication response cannot replace or re-verify an admitted loca
 
 test("public card publication treats the Proof Object as authority and the server as transport", () => {
   const route = readFileSync("app/api/cards/[assetId]/route.ts", "utf8");
-  assert.doesNotMatch(route, /resolveWildzCookieActor|isReceizKeyFile|identityProof|publishPublicStoreWithIdentityProof/);
+  assert.doesNotMatch(route, /isReceizKeyFile|publishPublicStoreWithIdentityProof/);
+  assert.match(route, /resolveWildzCookieActor/);
   assert.match(route, /verifyAnyWildsCard\(asset\)/);
   assert.match(route, /publishPublicStore\(\{\s*\.\.\.base,\s*state:/);
   assert.match(route, /merchantReceizId:\s*ownerCoordinate\.profileHandle/);
@@ -166,4 +167,49 @@ test("local standalone recovery returns only the exact proof-verified card", asy
     ...dependencies,
     loadOwnerState: async () => ({ playState: { inventory: [tampered] } }) as never
   }), null);
+});
+
+test("QR public-read verification forwards cancellation to a stalled anonymous request", async () => {
+  const asset=initialPlayState.inventory[0]!;
+  const record=createPublicWildsCardRecord(asset,"https://wildz.quest","2026-09-09T11:00:00.000Z");
+  const controller=new AbortController();
+  let readSignal:AbortSignal | null | undefined;
+  const fetcher=(async (_url: string, init?: RequestInit)=>{
+    if(init?.method === "POST") return Response.json({ok:true,record},{status:201});
+    readSignal=init?.signal;
+    return Response.json({ok:true,record});
+  }) as typeof fetch;
+  const requirePublic = publicCardRegistry.requireGloballyAvailablePublicWildsCard as (candidate: typeof asset, fetcher:typeof fetch, options?:{signal:AbortSignal})=>Promise<unknown>;
+  await requirePublic(asset,fetcher,{signal:controller.signal});
+  assert.equal(readSignal,controller.signal);
+});
+
+test("a QR caller can cancel its wait without cancelling another publisher's shared registration", async () => {
+  const asset=initialPlayState.inventory[0]!;
+  const record=createPublicWildsCardRecord(asset,"https://wildz.quest","2026-09-09T11:00:00.000Z");
+  let release!:()=>void;
+  const gate=new Promise<void>(resolve=>{release=resolve;});
+  let calls=0;
+  const fetcher=(async ()=>{calls++;await gate;return Response.json({ok:true,record},{status:201});}) as typeof fetch;
+  const publishing=registerPublicWildsCard(asset,fetcher);
+  const controller=new AbortController();
+  const waiting=publicCardRegistry.requireGloballyAvailablePublicWildsCard(asset,fetcher,{signal:controller.signal}).then(()=>"resolved",()=>"aborted");
+  controller.abort();
+  const outcome=await Promise.race([waiting,new Promise<string>(resolve=>setTimeout(()=>resolve("stalled"),30))]);
+  release();
+  await publishing;
+  await waiting;
+  assert.equal(outcome,"aborted");
+  assert.equal(calls,1);
+});
+
+test("unsigned registry authorization failure retries through the owner's signed publication", async () => {
+  const asset=initialPlayState.inventory[0]!;
+  const record=createPublicWildsCardRecord(asset,"https://wildz.quest","2026-09-09T11:00:00.000Z");
+  let signed=0;
+  const fetcher=(async ()=>Response.json({ok:false,error:"unauthorized"},{status:400})) as typeof fetch;
+  const options={publishWithIdentityProof:async (candidate:typeof asset)=>{assert.equal(candidate,asset);signed++;return record;}};
+  const result=await registerPublicWildsCard(asset,fetcher,options as publicCardRegistry.PublicWildsCardRegistrationOptions);
+  assert.equal(signed,1);
+  assert.equal(result.asset.proof.digest,asset.proof.digest);
 });

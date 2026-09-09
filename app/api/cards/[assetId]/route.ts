@@ -1,4 +1,5 @@
-import type { JsonObject } from "@receiz/sdk";
+import { createReceizClient, type JsonObject } from "@receiz/sdk";
+import { parseSignedWildzCardPublication } from "@/lib/receiz/wildz-card-publication-envelope";
 import { NextRequest, NextResponse } from "next/server";
 import {
   createPublicWildsCardRecord,
@@ -9,7 +10,8 @@ import { verifyAnyWildsCard, type PortableCardAsset } from "@/features/play/port
 import { WILDZ_PRODUCT } from "@/lib/wildz/product";
 import { createReceizCommerceAdapter } from "@/lib/receiz/adapter";
 import { resolvePublicWildsCardRecord } from "@/lib/receiz/wildz-public-card-resolver";
-import { parseWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate";
+import { resolveWildzCookieActor } from "@/lib/receiz/wildz-cookie-actor";
+import { parseWildzPlayerCoordinate, sameWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,6 +32,9 @@ function publicationSucceeded(value: unknown) {
 
 function publicCardError(cause: unknown) {
   const error = cause instanceof Error ? cause.message : "wildz_public_card_failed";
+  if (error === "unauthorized" || error === "receiz_authority_required") {
+    return NextResponse.json({ ok: false, error }, { status: 401 });
+  }
   if (error === "wildz_public_projection_conflict" || error === "wildz_public_revision_conflict") {
     return NextResponse.json({ ok: false, error }, { status: 409 });
   }
@@ -43,7 +48,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ as
   try {
     const { assetId: rawAssetId } = await context.params;
     const { assetId } = parsePublicCardParam(rawAssetId);
-    const body = await request.json().catch(() => null) as { asset?: PortableCardAsset } | null;
+    const body = await request.json().catch(() => null) as { asset?: PortableCardAsset; signedPublication?: unknown } | null;
     if (!body?.asset || !isRecord(body.asset)) {
       throw new Error("wildz_public_card_request_invalid");
     }
@@ -52,7 +57,22 @@ export async function POST(request: NextRequest, context: { params: Promise<{ as
       throw new Error("wildz_public_card_verification_failed");
     }
 
-    const adapter = createReceizCommerceAdapter();
+    if (body.signedPublication) {
+      const { record, signed } = parseSignedWildzCardPublication(body.signedPublication, asset);
+      const result = await createReceizClient().publicStore.publishSigned(signed, {
+        idempotencyKey: `wildz-card:${asset.id}:${asset.proof.digest}`
+      });
+      if (result.ok !== true || !result.appendAnchorId || result.knownHead?.appendAnchorId !== result.appendAnchorId) {
+        throw new Error("wildz_public_card_publication_unconfirmed");
+      }
+      return NextResponse.json({ ok: true, record }, { status: 201, headers: { "cache-control": "no-store" } });
+    }
+    const actor = await resolveWildzCookieActor(request).catch(() => null);
+    if (actor?.accessToken && !sameWildzPlayerCoordinate(actor.actorId, asset.manifest.ownerReceizId)) {
+      throw new Error("receiz_authority_required");
+    }
+    if (!actor?.accessToken && !process.env.RECEIZ_CONNECT_ACCESS_TOKEN) throw new Error("receiz_authority_required");
+    const adapter = createReceizCommerceAdapter(actor?.accessToken ? { accessToken: actor.accessToken } : undefined);
     const occurredAt = new Date().toISOString();
     const record = createPublicWildsCardRecord(asset, requestOrigin(request), occurredAt);
     const transportRecord = createPublicWildsCardTransportRecord(record);

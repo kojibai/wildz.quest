@@ -137,3 +137,11 @@ test("background publication reuses admitted Proof Objects without verifying eve
   assert.deepEqual(queue.map((asset) => asset.id).sort(), cards.map((asset) => asset.id).sort());
   assert.equal(verifications, 0);
 });
+
+test("already published revisions are skipped before verification on gameplay updates", async () => {
+  const asset=sealCollectedCard({formId:"mintcub-1",ownerReceizId:"publisher",encounterId:"published-no-reverification",capturedAt:"2026-09-09T11:00:00.000Z"});
+  let verifications=0;
+  const queue=await publicCardPublicationQueueCooperatively([asset],new Set([`${asset.id}:${asset.proof.digest}`]),{verifyCard:()=>{verifications++;return true;}});
+  assert.equal(queue.length,0);
+  assert.equal(verifications,0);
+});

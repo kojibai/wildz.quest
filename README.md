@@ -95,7 +95,7 @@ Read the detailed [architecture](docs/ARCHITECTURE.md), [Receiz rail map](docs/R
 
 ## Creature-compatible experiences
 
-Start with the [developer guide](docs/developers/creature-experiences.md), the [creature entry point](src/experience/creature.ts), and the [test-covered trail example](examples/creature-experience.ts). They cover verified identity, current capabilities, offline play, and the boundary between a local experience and portable authoritative progress.
+Start with the [developer guide](docs/developers/creature-experiences.md), the [creature entry point](src/experience/creature.ts), and the [test-covered trail example](examples/creature-experience.ts). They cover verified identity, current capabilities, offline play, and the boundary between a local experience and portable authoritative progress. For card URLs, use the [public-card publication guide](docs/developers/public-card-publication.md) and [public recovery example](examples/public-card-experience.ts): a valid card proof is distinct from permission to publish it.
 
 ## SDK, MCP, and AI skills
 

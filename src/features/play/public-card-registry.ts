@@ -21,6 +21,7 @@ export type PublicWildsCardRegistrationOptions = {
   signal?: AbortSignal;
   prepareBody?: (value: unknown) => Promise<string>;
   proofObjects?: WildzAdmittedVaultProofObjects;
+  publishWithIdentityProof?: (asset: PortableCardAsset, signal?: AbortSignal) => Promise<PublicWildsCardRecord>;
 };
 
 export type PublicWildsCardTransportRecord = {
@@ -168,27 +169,41 @@ export function parsePublicWildsCardRecord(value: unknown): PublicWildsCardRecor
   return parse(value);
 }
 
+function waitForPublicCardRegistration(
+  registration: Promise<PublicWildsCardRecord>,
+  signal?: AbortSignal
+) {
+  if (!signal) return registration;
+  signal.throwIfAborted();
+  return new Promise<PublicWildsCardRecord>((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener("abort", abort, { once: true });
+    void registration.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
+  });
+}
+
 export async function registerPublicWildsCard(
   asset: PortableCardAsset,
   fetcher: typeof fetch = globalThis.fetch,
   options: PublicWildsCardRegistrationOptions = {}
 ) {
+  options.signal?.throwIfAborted();
   const pin = `${asset.id}:${asset.proof.digest}`;
   const state = publicCardRegistrationState(fetcher);
   const admitted = state.admitted.get(pin);
   if (admitted) return admitted;
   const existing = state.inFlight.get(pin);
-  if (existing) return existing;
+  if (existing) return waitForPublicCardRegistration(existing, options.signal);
 
-  const registration = registerPublicWildsCardRevision(asset, fetcher, options);
-  state.inFlight.set(pin, registration);
-  try {
-    const record = await registration;
+  // Keep the shared request registered until it settles, even if one caller stops waiting.
+  const registration = registerPublicWildsCardRevision(asset, fetcher, options).then(record => {
     state.admitted.set(pin, record);
     return record;
-  } finally {
+  }).finally(() => {
     if (state.inFlight.get(pin) === registration) state.inFlight.delete(pin);
-  }
+  });
+  state.inFlight.set(pin, registration);
+  return waitForPublicCardRegistration(registration, options.signal);
 }
 
 async function registerPublicWildsCardRevision(
@@ -211,6 +226,21 @@ async function registerPublicWildsCardRevision(
     record?: PublicWildsCardRecord;
     error?: string;
   } | null;
+  if (!response.ok && (payload?.error === "unauthorized" || payload?.error === "receiz_authority_required")) {
+    options.signal?.throwIfAborted();
+    const publishSigned = options.publishWithIdentityProof ?? (typeof window !== "undefined"
+      ? async (card: PortableCardAsset, signal?: AbortSignal) => (
+        await import("../../lib/receiz/wildz-card-identity-publication")
+      ).publishWildzCardWithIdentityProof(card, { signal })
+      : null);
+    if (publishSigned) {
+      const signedRecord = parsePublicWildsCardRecord(await publishSigned(asset, options.signal));
+      if (signedRecord?.assetId !== asset.id || signedRecord.asset.proof.digest !== asset.proof.digest) {
+        throw new Error("wildz_public_card_registration_failed");
+      }
+      return signedRecord;
+    }
+  }
   const record = needsClientVerification
     ? parsePublicWildsCardRecord(payload?.record)
     : publicationRecordForAdmittedProofObject(payload?.record, asset);
@@ -261,11 +291,15 @@ export function publicCardNeedsClientVerification(
  */
 export async function requireGloballyAvailablePublicWildsCard(
   asset: PortableCardAsset,
-  fetcher: typeof fetch = globalThis.fetch
+  fetcher: typeof fetch = globalThis.fetch,
+  options: PublicWildsCardRegistrationOptions = {}
 ) {
-  await registerPublicWildsCard(asset, fetcher);
+  options.signal?.throwIfAborted();
+  await registerPublicWildsCard(asset, fetcher, options);
+  options.signal?.throwIfAborted();
   const response = await fetcher(`/api/cards/${encodeURIComponent(asset.id)}`, {
     method: "GET",
+    signal: options.signal,
     credentials: "omit",
     cache: "no-store",
     headers: { accept: "application/json", "cache-control": "no-cache" }

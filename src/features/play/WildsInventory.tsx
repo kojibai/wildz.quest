@@ -16,8 +16,7 @@ import {
   createWildsCardSendDraft,
   downloadBlob,
   downloadPreparedCardArtifact,
-  preparePortableCardArtifact,
-  standaloneCardUrl
+  preparePortableCardArtifact
 } from "./card-export";
 import { createPreparedCardArtifactCache } from "./prepared-card-artifact";
 import type { PlayState, WildsInput } from "./game-state";
@@ -41,6 +40,8 @@ import { currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import { summarizeWildzInventoryImport } from "./inventory-import-result";
 import { resolveInventoryDetailSelection } from "./inventory-detail-selection";
+import { requireGloballyAvailablePublicWildsCard } from "./public-card-registry";
+import { locallyClaimedWildzAssetIds } from "../identity/wildz-ownership-reconciliation";
 import { rememberStandaloneWildzCard } from "./standalone-card-handoff";
 import { portableCardStatusLabel } from "./portable-card";
 import {
@@ -102,6 +103,7 @@ export function WildsInventory({
   const [compact, setCompact] = useState(false);
   const [origin, setOrigin] = useState("https://receiz.app");
   const [qr, setQr] = useState("");
+  const [publicLinkStatus, setPublicLinkStatus] = useState("");
   const [importing, setImporting] = useState(false);
   const [vaultSaving, setVaultSaving] = useState(false);
   const [cardSaveState, setCardSaveState] = useState<CardSaveState>("idle");
@@ -192,16 +194,46 @@ export function WildsInventory({
   }, []);
 
   useEffect(() => {
-    if (!selected) {
-      setQr("");
-      return;
-    }
+    setQr("");
+    setPublicLinkStatus("");
+    const asset = selectedCardRef.current;
+    if (!asset) return;
     let active = true;
-    void QRCode.toDataURL(standaloneCardUrl(selected.id, origin), { errorCorrectionLevel: "M", margin: 4, width: 160 })
-      .then((value) => { if (active) setQr(value); })
-      .catch(() => { if (active) setQr(""); });
-    return () => { active = false; };
-  }, [origin, selected]);
+    let running = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    let controller: AbortController | undefined;
+    const prepare = async () => {
+      if (!active || running) return;
+      if (retry) clearTimeout(retry);
+      running = true;
+      controller = new AbortController();
+      const deadline = setTimeout(() => controller?.abort(), 30_000);
+      try {
+        if (locallyClaimedWildzAssetIds(window.localStorage, ownerReceizId, [asset.id]).length) {
+          setPublicLinkStatus("Public link becomes available after transfer sync.");
+          retry = setTimeout(() => void prepare(), 30_000);
+          return;
+        }
+        setPublicLinkStatus("Preparing public card link…");
+        const record = await requireGloballyAvailablePublicWildsCard(asset, globalThis.fetch, { signal: controller.signal });
+        if (!active) return;
+        const value = await QRCode.toDataURL(record.sourceUrl, { errorCorrectionLevel: "M", margin: 4, width: 160 });
+        if (active) { setQr(value); setPublicLinkStatus(""); }
+      } catch {
+        if (active) {
+          setPublicLinkStatus("Public link is syncing. Retrying automatically…");
+          retry = setTimeout(() => void prepare(), 30_000);
+        }
+      } finally {
+        clearTimeout(deadline);
+        running = false;
+      }
+    };
+    const wake = () => void prepare();
+    window.addEventListener("online", wake);
+    void prepare();
+    return () => { active = false; controller?.abort(); if (retry) clearTimeout(retry); window.removeEventListener("online", wake); };
+  }, [ownerReceizId, selected?.id, selected?.proof.digest]);
 
   useEffect(() => {
     setCardSaveState("idle");
@@ -512,6 +544,7 @@ export function WildsInventory({
               {selectedRetired ? <div className="wilds-vault-card-memorial"><WildsCardScene asset={selected} condition={state.adventureConditions[selected.id]} origin={origin} qr={qr} speaking={false} /><strong>Retired memorial · swipe to view death record</strong></div> : <WildsCardScene asset={selected} condition={state.adventureConditions[selected.id]} origin={origin} qr={qr} speaking={speakingAssetId === selected.id} />}
               {cardSaveState === "success" ? <span aria-hidden="true" className="wilds-card-save-celebration"><i /><i /><i /><i /></span> : null}
             </div>
+            {publicLinkStatus ? <p role="status" className="wilds-card-public-link-status">{publicLinkStatus}</p> : null}
             <CreatureConsciousnessPanel
               asset={selected}
               ownerReceizId={ownerReceizId}

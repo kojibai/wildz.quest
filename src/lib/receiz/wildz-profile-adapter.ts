@@ -232,8 +232,12 @@ export async function publishCurrentWildzProfile(
     if (!asset || asset.proof.digest !== requested.proofDigest) {
       throw new Error("wildz_public_profile_card_unverified");
     }
-    await registerPublicWildsCard(asset, fetcher, { proofObjects: options.proofObjects, signal: options.signal, prepareBody: options.prepareBody });
+  }
+  // The supplied publishable Vault is complete; profile.vault is a bounded gallery.
+  // Never use that display limit as the standalone-card publication queue.
+  for (const asset of assetsById.values()) {
     options.signal?.throwIfAborted();
+    await registerPublicWildsCard(asset, fetcher, { proofObjects: options.proofObjects, signal: options.signal, prepareBody: options.prepareBody });
   }
   options.signal?.throwIfAborted();
   const response = await fetcher(publicProfileEndpoint(profile.username), {
