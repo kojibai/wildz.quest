@@ -20,6 +20,7 @@ export function useWildsContinuousBuilder({ world, owner, player, lots, feedback
   const [rotation, setRotation] = useState(0);
   const [height, setHeight] = useState(0);
   const [pointer, setPointer] = useState<WildsInteractionSurfacePoint | null>(null);
+  const [inspecting, setInspecting] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [adjustmentHead, setAdjustmentHead] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -53,8 +54,8 @@ export function useWildsContinuousBuilder({ world, owner, player, lots, feedback
   const workBlocker = !snapshot ? "Your world is loading. Wait for your saved builds to appear." : !selected ? "Select a nearby build to continue it." : !inReach(selected.transform.position) ? "Move within 6 metres of this piece, then try again." : !nextStage ? "This piece is finished. Choose another piece above to keep building." : !nextStage.materialsComplete ? missing ? gatherBuildGuidance(missing) : "You carry the materials for this stage. Tap Add what I carry first, then build." : null;
   const depositBlocker = !selected ? "Select a nearby build to add materials." : !inReach(selected.transform.position) ? "Move within 6 metres of this piece to add materials." : !deposit.length ? nextStage?.materialsComplete ? "This stage is funded. Tap Build to do the work." : workBlocker : null;
   const placeBlocker = !snapshot ? "Your world is loading. Wait for it to finish before placing a plan." : !preview ? pointer ? "This preview could not be resolved. Tap a clear ground spot to try again." : "Tap the ground to choose a position for this plan." : !preview.placement.valid ? preview.placement.cues.map(wildsConstructionCue).join(" ") : !inReach(preview.placement.transform.position) ? "Move within 6 metres of the plan to place it." : null;
-  const adjustBlocker = !selected || selected.ownerReceizId !== owner ? "Select one of your pieces." : selected.head !== adjustmentHead ? "This piece changed. Cancel and select it again." : !inReach(selected.transform.position) ? "Move within 6 metres of this piece." : !adjustment ? "Tap the ground to preview a new position." : adjustment.blocker ? adjustment.blocker : !adjustment.placement.valid ? adjustment.placement.cues.map(wildsConstructionCue).join(" ") : !inReach(adjustment.placement.transform.position) ? "Keep the new position within 6 metres." : JSON.stringify(adjustment.placement.transform) === JSON.stringify(selected.transform) ? "Move or rotate the piece to make an adjustment." : null;
-  const cancelAdjustment = () => { if (lock.current) return; setAdjustmentHead(null); setPointer(null); setError(null); };
+  const adjustBlocker = !selected || selected.ownerReceizId !== owner ? "Select one of your pieces." : selected.head !== adjustmentHead ? "This piece changed. Cancel and select it again." : !inReach(selected.transform.position) ? "Move within 6 metres of this piece." : !adjustment ? "Drag the piece or its handles to adjust it." : adjustment.blocker ? adjustment.blocker : !adjustment.placement.valid ? adjustment.placement.cues.map(wildsConstructionCue).join(" ") : !inReach(adjustment.placement.transform.position) ? "Keep the new position within 6 metres." : JSON.stringify(adjustment.placement.transform) === JSON.stringify(selected.transform) ? "Move or rotate the piece to make an adjustment." : null;
+  const cancelAdjustment = () => { if (lock.current) return; dragSource.current=null; setDragging(false); setAdjustmentHead(null); setPointer(null); setError(null); };
   const run = async (action: () => Promise<void>) => {
     if (lock.current) return;
     lock.current = true; setBusy(true); setError(null);
@@ -80,16 +81,19 @@ export function useWildsContinuousBuilder({ world, owner, player, lots, feedback
       const before = new Set(Object.keys(current.constructionComponents));
       const result = await world.placeConstructionComponent(project.projectId, fresh.placement, preview.request, player);
       const component = Object.values(result.constructionComponents).find(c => !before.has(c.componentId) && c.ownerReceizId === owner);
-      if (component) setSelectedId(component.componentId);
+      if (component) { setSelectedId(component.componentId); setInspecting(false); }
       setPointer(null);
-      feedback(`${wildsConstructionLabel(kind)} planned. Add materials, then build each stage. You can do the work yourself.`);
+      feedback(`${wildsConstructionLabel(kind)} planned and locked. Add materials, then build each stage. You can do the work yourself.`);
     });
   return {
     dragging,
+    inspecting,
+    selectionEnabled: open && inspecting && !adjusting && !busy,
+    editPieces: () => { if (lock.current) return; cancelAdjustment(); setInspecting(true); setSelectedId(null); setOpen(true); feedback("Tap the piece you want to edit. It stays locked until you unlock it."); },
     dragPiece:(id:string,point:WildsInteractionSurfacePoint,phase:"move"|"drop"|"cancel",transform?:{rotation:number;height:number})=>{
       if(phase==="cancel"){dragSource.current=null;setDragging(false);cancelAdjustment();return;}
       const component=snapshot?.constructionComponents[id];
-      if(lock.current||!snapshot||!component||component.ownerReceizId!==owner)return;
+      if(!adjusting || selectedId !== id || lock.current||!snapshot||!component||component.ownerReceizId!==owner)return;
       const source=dragSource.current??{id,head:component.head,rotation:component.transform.rotationQuarterTurns,height:component.evidence.heightStep};
       if(transform){source.rotation=transform.rotation;source.height=transform.height;}
       dragSource.current=source;
@@ -103,7 +107,7 @@ export function useWildsContinuousBuilder({ world, owner, player, lots, feedback
         if(!inReach(component.transform.position)||!inReach(next.placement.transform.position)){setAdjustmentHead(null);setPointer(null);setError("Keep the piece within 6 metres.");feedback("Keep the piece within 6 metres.");return;}
         if(next.blocker||!next.placement.valid){const reason=next.blocker??next.placement.cues.map(wildsConstructionCue).join(" ");setAdjustmentHead(null);setPointer(null);setError(reason);feedback(reason);return;}
         if(JSON.stringify(next.placement.transform)!==JSON.stringify(component.transform))await world.adjustConstructionComponent(id,source.head,next.placement,request,player);
-        setAdjustmentHead(null);setPointer(null);feedback("Piece moved. Materials and progress preserved.");
+        setAdjustmentHead(null);setPointer(null);feedback("Piece moved and locked. Materials and progress preserved.");
       });
     },
     nearbyPieces: Object.values(snapshot?.constructionComponents ?? {}).filter(component => component.ownerReceizId === owner && (component.evidence.spaceId??"wildz.space.outer.v1")===spaceId && Math.hypot(component.transform.position.x - player.x, component.transform.position.z - player.z) <= 24),
@@ -111,13 +115,13 @@ export function useWildsContinuousBuilder({ world, owner, player, lots, feedback
     canPlace: Boolean(preview?.placement.valid && inReach(preview.placement.transform.position)),
     canDeposit: Boolean(selected && inReach(selected.transform.position) && deposit.length),
     canWork: Boolean(selected && inReach(selected.transform.position) && nextStage?.materialsComplete),
-    begin: () => { setAdjustmentHead(null); setOpen(true); setPointer(null); setSelectedId(null); setError(null); },
+    begin: () => { setInspecting(false); setAdjustmentHead(null); setOpen(true); setPointer(null); setSelectedId(null); setError(null); },
     close: () => { if (lock.current) return; setAdjustmentHead(null); setOpen(false); setPointer(null); },
-    selectKind: (next: WildsConstructionKind) => { if (lock.current) return; setAdjustmentHead(null); setKind(next); setPointer(null); setSelectedId(null); setError(null); },
-    selectComponent: (id: string) => { if (lock.current || adjusting) return; setAdjustmentHead(null); setSelectedId(id); setPointer(null); setOpen(true); setError(null); },
+    selectKind: (next: WildsConstructionKind) => { if (lock.current) return; dragSource.current=null; setDragging(false); setAdjustmentHead(null); setInspecting(false); setKind(next); setPointer(null); setSelectedId(null); setError(null); },
+    selectComponent: (id: string) => { if (lock.current || adjusting) return; setInspecting(true); setAdjustmentHead(null); setSelectedId(id); setPointer(null); setOpen(true); setError(null); },
     point: (next: WildsInteractionSurfacePoint) => {
       if (lock.current || world.pendingCommand || !snapshot) return;
-      if (adjusting) { setPointer(next); setError(null); return; }
+      if (inspecting || adjusting) return;
       setPointer(next); setSelectedId(null); setError(null);
       try {
         const tapped = previewWildsContinuousBuild(snapshot, owner, kind, { ...(spaceId!=="wildz.space.outer.v1"?{spaceId}:{}), pointer: { x: next.x, y: next.surfaceWorldY ?? sampleWildsTerrain(next.x, next.z).elevation, z: next.z }, rotationQuarterTurns: rotation, heightStep: height, surfaceSnap: true });
@@ -128,9 +132,9 @@ export function useWildsContinuousBuilder({ world, owner, player, lots, feedback
     },
     beginAdjustment: () => {
       if (!selected || selected.ownerReceizId !== owner || lock.current) return;
-      setAdjustmentHead(selected.head); setKind(selected.kind); setRotation(selected.transform.rotationQuarterTurns);
-      setHeight(selected.evidence.heightStep); setPointer({...selected.evidence.pointer, surfaceWorldY:selected.evidence.pointer.y}); setError(null);
-      feedback("Adjust this piece. Tap a new spot or use the arrows, then confirm.");
+      setInspecting(true); setAdjustmentHead(selected.head); setKind(selected.kind); setRotation(selected.transform.rotationQuarterTurns);
+      setHeight(selected.evidence.heightStep); setPointer(null); setError(null);
+      feedback("Unlocked. Drag this piece or its handles. Release to save and lock.");
     },
     cancelAdjustment,
     nudge: (x: number, z: number) => { if (lock.current) return; setPointer(current => current ? {...current,x:Math.round((current.x+x*.5)*2)/2,z:Math.round((current.z+z*.5)*2)/2} : current); },

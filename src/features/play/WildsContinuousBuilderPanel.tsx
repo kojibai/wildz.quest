@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useWildsFloatingPanel } from "./use-wilds-floating-panel";
 import { WildsConstructionPieceCatalog, WILDS_BUILD_PIECE_GROUPS as groups } from "./WildsConstructionPieceCatalog";
 import { WildsExplainedAction } from "./WildsExplainedAction";
-import { Check, GripHorizontal, X } from "lucide-react";
+import { Check, GripHorizontal, Lock, Unlock } from "lucide-react";
 import { Icons } from "@/components/icons";
 import type { useWildsContinuousBuilder } from "./use-wilds-continuous-builder";
 import { wildsConstructionCue, wildsConstructionLabel } from "./wilds-continuous-builder";
@@ -30,20 +30,22 @@ export function WildsContinuousBuilderPanel({ builder, materials, onOpenCatalogu
       <span><Icons.timber size={15} /><b>{materials.timber}</b><small>Timber</small></span>
       <span><Icons.quarry size={15} /><b>{materials.stone}</b><small>Stone</small></span>
     </div>
-    <div className="wilds-builder-catalog-link">{onOpenCatalogue && <button type="button" onClick={onOpenCatalogue}>Blueprints, tools & storage</button>}<small>Keep this tray open and tap the world to place or select.</small></div>
+    <div className="wilds-builder-catalog-link">{onOpenCatalogue && <button type="button" onClick={onOpenCatalogue}>Blueprints, tools & storage</button>}<small>{builder.inspecting ? "Tap a piece to inspect it. It stays locked." : "Tap to place. Existing pieces stay locked."}</small></div>
+    {!builder.adjusting && <button type="button" aria-pressed={builder.inspecting} onClick={builder.inspecting ? () => builder.selectKind(builder.kind) : builder.editPieces}>{builder.inspecting ? "Back to building" : "Edit placed pieces"}</button>}
     {builder.error && <p className="wilds-builder-error" role="alert">{builder.error}</p>}
     {builder.adjusting ? <section className="wilds-builder-adjustment" aria-label="Adjust placed piece">
       <strong>Adjust {wildsConstructionLabel(builder.selected?.kind ?? builder.kind).toLowerCase()}</strong>
-      <p>Drag the piece to move it, or tap a new spot.</p>
-      <p className="wilds-builder-gesture-help">Drag the piece to move. Sweep its curved handle to rotate; pull its height handle up or down. Release to save.</p>
+      <p>This piece is unlocked. Drag it to move it.</p>
+      <p className="wilds-builder-gesture-help">Drag the piece to move. Sweep its curved handle to rotate; pull its height handle up or down. Release to save and lock.</p>
       {builder.preview && <output className="wilds-builder-adjust-position">X {builder.preview.transform.position.x.toFixed(1)} · Z {builder.preview.transform.position.z.toFixed(1)} · Height {builder.preview.transform.position.y.toFixed(1)} m</output>}
       <p role="status">{builder.busy ? "Saving adjustment…" : builder.adjustBlocker ?? "Fits here. Your materials and progress stay with this piece."}</p>
       <div className="wilds-builder-adjust-actions">
-        <button type="button" disabled={Boolean(builder.busy)} onClick={builder.cancelAdjustment}><X size={18} /> Cancel</button>
-        <button type="button" disabled={Boolean(builder.busy) || Boolean(builder.adjustBlocker)} onClick={builder.confirmAdjustment}><Check size={18} />{builder.busy ? "Saving…" : "Confirm"}</button>
+        <button type="button" disabled={Boolean(builder.busy)} onClick={builder.cancelAdjustment}><Lock size={18} /> Lock without changes</button>
+        <button type="button" disabled={Boolean(builder.busy) || Boolean(builder.adjustBlocker)} onClick={builder.confirmAdjustment}><Check size={18} />{builder.busy ? "Saving…" : "Save & lock"}</button>
       </div>
     </section> : builder.selected && builder.progress ? <section className="wilds-builder-inspector" aria-label="Selected piece progress">
-      <p className="wilds-builder-gesture-help">Drag your piece or its handles to adjust.</p>
+      <p className="wilds-builder-gesture-help"><Lock size={14} aria-hidden="true" /> Locked in place</p>
+      <button type="button" disabled={Boolean(builder.busy)} onClick={builder.beginAdjustment}><Unlock size={18} aria-hidden="true" /> Unlock to adjust</button>
       <div className="wilds-builder-stages">{["planned", "framed", "functional", "finished"].map(stage => <span key={stage} aria-current={builder.progress?.stage === stage ? "step" : undefined}>{stage}</span>)}</div>
       <progress max={100} value={builder.progress.percentage} aria-label="Construction progress" /><strong>{builder.progress.stage === "planned" ? "Plan placed · add materials to build" : `${builder.progress.percentage}% complete`}</strong>
       {(builder.progress.stage === "functional" || builder.progress.stage === "finished") && (builder.selected.kind === "workshop" || builder.selected.kind === "storage") && onUse && <button type="button" onClick={() => onUse(builder.selected!.kind as "workshop" | "storage")}>{builder.selected.kind === "workshop" ? "Craft tools at this workbench" : "Use this storage"}</button>}
@@ -52,9 +54,9 @@ export function WildsContinuousBuilderPanel({ builder, materials, onOpenCatalogu
         <div className="wilds-builder-actions"><WildsExplainedAction label="Add what I carry" pending={Boolean(builder.busy)} blocker={builder.depositBlocker} onAction={builder.addCarried} /><WildsExplainedAction label={`Build ${next.stage}`} pending={Boolean(builder.busy)} blocker={builder.workBlocker} onAction={builder.work} /></div>
         <p>You do the work yourself. No companion or workbench is required.</p>
       </> : <p>Finished. Choose another piece above to keep building.</p>}
-    </section> : <section className="wilds-builder-placement" aria-label="Piece placement">
+    </section> : builder.inspecting ? <p role="status">Tap the piece you want to edit, or choose it from nearby builds below. Nothing moves until you unlock it.</p> : <section className="wilds-builder-placement" aria-label="Piece placement">
       <strong className="wilds-builder-piece-name">{wildsConstructionLabel(builder.kind)}</strong>
-      <p>{builder.preview ? builder.preview.valid ? builder.canPlace ? "This piece fits. Tap the world to place, or use Place below." : "Move closer to place this piece (within 6 metres)." : builder.preview.cues.map(wildsConstructionCue).join(" ") : "Choose a piece, tap to place, then drag it or its handles to move, turn, or lift it."}</p>
+      <p>{builder.preview ? builder.preview.valid ? builder.canPlace ? "This piece fits. Tap the world to place, or use Place below." : "Move closer to place this piece (within 6 metres)." : builder.preview.cues.map(wildsConstructionCue).join(" ") : "Choose a piece and tap to place. Placed pieces lock automatically; select one and unlock to adjust."}</p>
       <p className="wilds-builder-cost">Full build: {cost.hay} hay · {cost.timber} timber · {cost.stone} stone</p>
 
       {builder.preview && <WildsExplainedAction className="wilds-builder-confirm" label={`Place ${wildsConstructionLabel(builder.kind).toLowerCase()} plan`} pending={Boolean(builder.busy)} blocker={builder.placeBlocker} onAction={builder.place} />}

@@ -2415,9 +2415,9 @@ export function PlayCampaign({
               stewardPlacementPreview={stewardPlacementPreview}
               burrowPreview={burrowBuilder.preview ? {...burrowBuilder.preview,blocker:burrowBuilder.blocker} : null}
               constructionPreview={continuousBuilder.preview}
-              constructionSelectionEnabled={continuousBuilder.open && !continuousBuilder.adjusting && worldInteractionEnabled}
+              constructionSelectionEnabled={continuousBuilder.selectionEnabled && worldInteractionEnabled}
               onSelectConstruction={continuousBuilder.selectComponent}
-              onDragConstruction={continuousBuilder.dragPiece}
+              onDragConstruction={continuousBuilder.adjusting ? continuousBuilder.dragPiece : undefined}
               activeConstructionId={continuousBuilder.open?continuousBuilder.selected?.componentId:undefined}
               explorerIdentityKey={ownerReceizId}
               aerialCapabilities={activeTraversalCapabilities}

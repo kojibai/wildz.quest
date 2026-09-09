@@ -68,7 +68,7 @@ export function BuilderRefinementBrowserFixture(){
     </nav>
     <Canvas><FixtureDiagnostics/><PerspectiveCamera makeDefault position={space.spaceId==="wildz.space.outer.v1"?[10,16,16]:[0,1.4,-1.8]} fov={50}/><OrbitControls makeDefault target={space.spaceId==="wildz.space.outer.v1"?[0,0,0]:[0,1,2]}/><ambientLight intensity={2}/><directionalLight position={[3,10,5]} intensity={2}/>
       {space.spaceId==="wildz.space.outer.v1"&&<mesh rotation={[-Math.PI/2,0,0]} position={[0,-.1,0]}><planeGeometry args={[80,80]}/><meshStandardMaterial color="#53764c"/></mesh>}
-      <WildsContinuousConstruction world={snapshot} player={player} terrainElevation={space.position.y} preview={builder.preview} selectable={mode==="build"&&!builder.adjusting} onSelect={builder.selectComponent} onDrag={builder.dragPiece} activeComponentId={builder.open?builder.selected?.componentId:undefined} spaceId={space.spaceId}/>
+      <WildsContinuousConstruction world={snapshot} player={player} terrainElevation={space.position.y} preview={builder.preview} selectable={mode==="build"&&builder.selectionEnabled} onSelect={builder.selectComponent} onDrag={builder.adjusting ? builder.dragPiece : undefined} activeComponentId={builder.open?builder.selected?.componentId:undefined} spaceId={space.spaceId}/>
       <WildsDiscoverySites runtime={runtime} player={player} space={space} onPortal={portal}/>
       {dig.preview&&<WildsBurrowGhost preview={dig.preview} player={player} elevation={space.position.y}/>}
     </Canvas>
