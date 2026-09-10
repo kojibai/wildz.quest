@@ -1478,7 +1478,7 @@ export function PlayCampaign({
       const projection = await livingWorld.workConstructionSite(site.siteId, site.head, state.player);
       const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
       showWorldFeedback(`${site.blueprint === "trail-shelter" ? "The Trail Shelter now stands. Choose a building piece below to add walls, stairs or a roof. A workbench is only needed to craft an axe or pick" : "The Trail Bridge now joins both banks"}.${award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the useful work.` : ""}`);
-    } catch (error) { handleStoryCommandError(error, "Move within 6 metres of the funded site, then tap Finish again."); }
+    } catch (error) { handleStoryCommandError(error, "This build could not finish yet. Your placed materials are preserved. Try Finish again."); }
   };
 
   const placeStewardGroundStructure = async (blueprint: "steward-workbench" | "trail-cache", position: { x: number; z: number }) => {

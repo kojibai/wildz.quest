@@ -22,7 +22,7 @@ const ACTIONABLE_WORLD_ERRORS: Record<string, string> = {
   wilds_world_canonical_conflict: "Your admitted work is preserved. Continue from the source and satchel state shown here.",
   wilds_construction_site_stale: "This site changed. Approach its current boundary and continue from the materials shown.",
   wilds_construction_site_unreachable: "Move within 6 metres of the site, then tap Contribute or Finish again.",
-  wilds_construction_material_invalid: "Those lots are already held, stored, spent, or belong to another source. Bring an available exact lot.",
+  wilds_construction_material_invalid: "These materials are not available for this build. Check the required amounts and take any stored materials into your satchel.",
   wilds_construction_materials_incomplete: "The site still shows missing timber or stone. Contribute those exact lots before beginning the build.",
   wilds_world_session_required: "Your world is still loading. Wait for your saved builds and material counts to appear, then retry.",
   wilds_world_structure_unreachable: "Move within 7 metres of the placement preview, then confirm it again.",

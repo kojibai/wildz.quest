@@ -63,7 +63,7 @@ export function useWildsContinuousBuilder({ world, owner, player, lots, feedback
       const message = error instanceof Error ? error.message : "";
       const explanation = /unreachable/.test(message) ? "Move closer to this piece (within 6 metres)."
         : /lot|material/.test(message) ? "Those materials have changed. Check your satchel and try again."
-        : /placement|component_invalid|conflict/.test(message) ? "This place changed. Tap the ground again to refresh the preview."
+        : /placement|component_invalid|conflict/.test(message) ? "This piece could not be placed or adjusted here. Check its support and spacing, then try again."
         : "That build action could not complete. Your saved work is still here; try again.";
       setError(explanation); feedback(explanation);
     } finally { lock.current = false; setBusy(false); }
@@ -111,7 +111,7 @@ export function useWildsContinuousBuilder({ world, owner, player, lots, feedback
       });
     },
     nearbyPieces: Object.values(snapshot?.constructionComponents ?? {}).filter(component => component.ownerReceizId === owner && (component.evidence.spaceId??"wildz.space.outer.v1")===spaceId && Math.hypot(component.transform.position.x - player.x, component.transform.position.z - player.z) <= 24),
-    open, kind, rotation, height, error, adjusting, adjustBlocker, placeBlocker, depositBlocker, workBlocker, preview: adjusting ? adjustment ? {...adjustment.placement, valid:adjustment.placement.valid && !adjustment.blocker} : null : preview?.placement ?? null, selected, progress, busy: busy || world.pendingCommand,
+    open, kind, rotation, height, error, adjusting, adjustBlocker, placeBlocker, depositBlocker, workBlocker, preview: adjusting ? adjustment ? {...adjustment.placement, valid:adjustment.placement.valid && !adjustment.blocker} : null : preview?.placement ?? null, selected, progress, busy,
     canPlace: Boolean(preview?.placement.valid && inReach(preview.placement.transform.position)),
     canDeposit: Boolean(selected && inReach(selected.transform.position) && deposit.length),
     canWork: Boolean(selected && inReach(selected.transform.position) && nextStage?.materialsComplete),
@@ -120,7 +120,8 @@ export function useWildsContinuousBuilder({ world, owner, player, lots, feedback
     selectKind: (next: WildsConstructionKind) => { if (lock.current) return; dragSource.current=null; setDragging(false); setAdjustmentHead(null); setInspecting(false); setKind(next); setPointer(null); setSelectedId(null); setError(null); },
     selectComponent: (id: string) => { if (lock.current || adjusting) return; setInspecting(true); setAdjustmentHead(null); setSelectedId(id); setPointer(null); setOpen(true); setError(null); },
     point: (next: WildsInteractionSurfacePoint) => {
-      if (lock.current || world.pendingCommand || !snapshot) return;
+      // Construction admits locally; unrelated global sync must not swallow a placement tap.
+      if (lock.current || !snapshot) return;
       if (inspecting || adjusting) return;
       setPointer(next); setSelectedId(null); setError(null);
       try {

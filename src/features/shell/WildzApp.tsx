@@ -1,5 +1,6 @@
 "use client";
 
+import { WildzProfileSheet } from "@/features/profile/WildzProfileSheet";
 import { PlayCampaign } from "@/features/play/PlayCampaign";
 import { generateIdentityBoundWildzCharacter, type WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
 import { applyWildsInput, createOwnerBoundInitialPlayState, initialPlayState, type PlayState } from "@/features/play/game-state";
@@ -92,7 +93,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 const loadWildzProfileSheet = () => import("@/features/profile/WildzProfileSheet").then((module) => module.WildzProfileSheet);
 const loadWildzVaultSheet = () => import("@/features/profile/WildzVaultSheet").then((module) => module.WildzVaultSheet);
 const loadWildzMarketSheet = () => import("@/features/market/WildzMarketSheet").then((module) => module.WildzMarketSheet);
-const WildzProfileSheet = dynamic(loadWildzProfileSheet, { ssr: false });
 const WildzVaultSheet = dynamic(loadWildzVaultSheet, { ssr: false });
 const WildzMarketSheet = dynamic(loadWildzMarketSheet, { ssr: false });
 
@@ -269,6 +269,20 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     explorer: character,
     assets: publishableOwnerAssets
   }), [avatarImageUrl, character, identity?.displayName, ownerUsername, publishableOwnerAssets]);
+  // Equal public content must not cancel a request when gameplay saves replace object references.
+  const profilePublicationKey = `${identity?.keyId ?? ""}:${JSON.stringify(publishablePublicProfile)}`;
+  const profilePublicationRequestRef = useRef({
+    key: profilePublicationKey,
+    profile: publishablePublicProfile,
+    assets: publishableOwnerAssets,
+    proofObjects: admittedProofObjects
+  });
+  profilePublicationRequestRef.current = {
+    key: profilePublicationKey,
+    profile: publishablePublicProfile,
+    assets: publishableOwnerAssets,
+    proofObjects: admittedProofObjects
+  };
   const campaignExplorer = useMemo(() => continuity ? projectWildzContinuityExplorer(continuity) : null, [continuity]);
   const campaignCharacter = campaignExplorer?.character ?? null;
   const shellOverlayOwner = overlay?.kind === "profile" ? "profile" : overlay?.kind === "market" ? "market" : "none";
@@ -455,7 +469,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       setOwnerPublicationStatus("unpublished");
       return;
     }
-    const publicationKey = JSON.stringify(publishablePublicProfile);
+    const publicationKey = profilePublicationKey;
     if (publishedProfileRef.current === publicationKey) {
       setOwnerPublicationStatus("ready");
       return;
@@ -467,19 +481,23 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         if (status === "ready") publishedProfileRef.current = publicationKey;
         setOwnerPublicationStatus(status);
       },
-      publish: (signal) => publishCurrentWildzProfile(publishablePublicProfile, publishableOwnerAssets, globalThis.fetch, {
-        signal,
-        proofObjects: admittedProofObjects,
-        prepareBody: async (value) => await wildzJsonSerializer.serialize(value)
-          ?? wildzGameplayBackground.run(() => JSON.stringify(value))
-      })
+      publish: (signal) => {
+        // Each retry sees current proof data without interrupting an equivalent in-flight request.
+        const profilePublicationRequest = profilePublicationRequestRef.current;
+        return publishCurrentWildzProfile(profilePublicationRequest.profile, profilePublicationRequest.assets, globalThis.fetch, {
+          signal,
+          proofObjects: profilePublicationRequest.proofObjects,
+          prepareBody: async (value) => await wildzJsonSerializer.serialize(value)
+            ?? wildzGameplayBackground.run(() => JSON.stringify(value))
+        });
+      }
     });
     window.addEventListener("online", publication.wake);
     return () => {
       window.removeEventListener("online", publication.wake);
       publication.stop();
     };
-  }, [admittedProofObjects, profilePublicationReadiness, publishableOwnerAssets, publishablePublicProfile]);
+  }, [profilePublicationReadiness, profilePublicationKey]);
 
   useEffect(() => {
     if (overlay?.kind !== "profile") {
