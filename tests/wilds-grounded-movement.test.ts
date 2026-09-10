@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  nearbyWildsMovementObstacles,
   createWildsAerialCollisionSample,
   createWildsAerialNeighborhoodDiagnostics,
   mergeWildsAerialCollisionSample,
@@ -25,7 +26,7 @@ import { beginWildsAerialTraversal, createGroundedWildsAerialState, createWildsA
 import { WILDS_BOSS_FAMILIES } from "../src/features/play/wilds-boss-ecology";
 import { wildsBossPhysicalEnvelope } from "../src/features/play/wilds-boss-physical-envelope";
 import { WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS } from "../src/features/play/wilds-physical-dimensions";
-import { projectWildsStructureSupports } from "../src/features/play/wilds-structure-support";
+import { projectWildsStructureSupports, wildsStructureSupportAt, type WildsStructureSupport } from "../src/features/play/wilds-structure-support";
 
 function obstacle(id: string, x: number, z: number, radius: number, material: WildsTerrainObstacle["material"] = "solid"): WildsTerrainObstacle {
   return {
@@ -478,4 +479,38 @@ test("declared climb traversal is slower and exits safely without a retained cap
   assert.deepEqual(climbing.position, { x: 79.7564, z: 28 });
   assert.equal(exit.traversalBlockedBy, null);
   assert.ok(exit.position.x < 80);
+});
+
+test("large world movement matches full collision checks across sliding and overlap recovery", () => {
+  const distant = Array.from({ length: 1000 }, (_, i) => obstacle(`distant:${i}`, 1000 + i * 3, 1000, 1));
+  const wall = obstacle("near-wall", 1, 0, .34);
+  const all = [...distant, wall];
+  for (const [start, target] of [
+    [{x:0,z:0}, {x:2,z:.2}],
+    [{x:1,z:0}, {x:2,z:0}],
+    [{x:0,z:4}, {x:2,z:4}]
+  ]) {
+    const full = resolveWildsObstacleMotion(start!, target!, all);
+    const nearby = nearbyWildsMovementObstacles(all, start!, target!, .38);
+    assert.deepEqual(resolveWildsObstacleMotion(start!, target!, nearby), full);
+  }
+  assert.equal(nearbyWildsMovementObstacles(all, {x:0,z:4}, {x:.42,z:4}, .38).length, 0);
+  const updated = [...all, obstacle("new-wall", .5, 4, .1)];
+  assert.ok(nearbyWildsMovementObstacles(updated, {x:0,z:4}, {x:.42,z:4}, .38).some(value => value.id === "new-wall"));
+});
+
+test("large support indexes preserve rotated floors, boundaries, height limits, and snapshot updates", () => {
+  const near: WildsStructureSupport[] = [0, 1, 2, 3].map(rotation => ({
+    id: `wildz.support.component:${rotation}`, structureId: `piece:${rotation}`, deckY: rotation * .2,
+    center: {x:16,z:-16}, halfWidth:2, halfLength:4, rotationQuarterTurns: rotation as 0 | 1 | 2 | 3
+  }));
+  const far = Array.from({length:1000}, (_,i) => ({...near[0]!, id:`far:${i}`, center:{x:1000+i*16,z:1000}}));
+  const all = [...near, ...far];
+  for (const point of [{x:16,z:-16},{x:20,z:-16},{x:18.0000005,z:-16},{x:12,z:-16},{x:21,z:-16}]) {
+    for (const inset of [0, .38]) for (const footY of [0, -.5, 1]) {
+      assert.equal(wildsStructureSupportAt(point, all, inset, footY), wildsStructureSupportAt(point, near, inset, footY));
+    }
+  }
+  const moved = all.map(item => ({...item, center:{x:item.center.x+100,z:item.center.z}}));
+  assert.equal(wildsStructureSupportAt({x:16,z:-16}, moved), null);
 });

@@ -5,6 +5,8 @@ import {
   type WildsTraversalRequirement
 } from "./wilds-terrain-authority";
 import {
+  buildWildsObstacleIndex,
+  queryWildsObstacles,
   wildsObstacleBlocksVerticalBand,
   wildsObstacleVerticalBounds,
   WILDS_RENDERED_PHYSICAL_OBSTACLES,
@@ -14,6 +16,25 @@ import {
 import { wildsStructureSupportAt, type WildsStructureSupport } from "./wilds-structure-support";
 
 type Point = Readonly<{ x: number; z: number }>;
+const livingObstacleIndexes = new WeakMap<readonly WildsTerrainObstacle[], ReturnType<typeof buildWildsObstacleIndex>>();
+
+/** Arrays are immutable world projections; a new world snapshot gets a new index. */
+export function nearbyWildsMovementObstacles(obstacles: readonly WildsTerrainObstacle[], start: Point, target: Point, radius: number) {
+  if (obstacles.length < 64) return obstacles;
+  const travel = Math.hypot(target.x - start.x, target.z - start.z);
+  if (!Number.isFinite(travel) || travel > 128) return obstacles;
+  let index = livingObstacleIndexes.get(obstacles);
+  if (!index) {
+    index = buildWildsObstacleIndex(obstacles);
+    livingObstacleIndexes.set(obstacles, index);
+  }
+  // Sliding cannot increase remaining travel. Include a generous contact margin.
+  const reach = travel * 2 + radius + .1;
+  const nearby = queryWildsObstacles(index, { minX: start.x - reach, maxX: start.x + reach, minZ: start.z - reach, maxZ: start.z + reach });
+  // Starting inside geometry can cause chained push-outs beyond the swept area.
+  if (nearby.some(obstacle => Math.hypot(start.x - obstacle.position.x, start.z - obstacle.position.z) <= obstacle.radius + radius)) return obstacles;
+  return nearby;
+}
 type TraversalCapability = WildsTraversalRequirement["kind"];
 
 export type WildsGroundMovementResult = {
@@ -459,10 +480,12 @@ export function resolveWildsGroundMovement(
       traversalBlockedBy: missingTraversal
     };
   }
-  const allObstacles = options.obstacles ?? [
-    ...movementObstacles(start, target, capsuleRadius),
-    ...(options.additionalObstacles ?? [])
-  ];
+  const terrainObstacles = options.obstacles ? [] : movementObstacles(start, target, capsuleRadius);
+  const terrainOverlap = terrainObstacles.some(obstacle => Math.hypot(start.x - obstacle.position.x, start.z - obstacle.position.z) <= obstacle.radius + capsuleRadius);
+  const additional = options.additionalObstacles ?? [];
+  const allObstacles = options.obstacles
+    ? nearbyWildsMovementObstacles(options.obstacles, start, target, capsuleRadius)
+    : [...terrainObstacles, ...(terrainOverlap ? additional : nearbyWildsMovementObstacles(additional, start, target, capsuleRadius))];
   // A capsule meets the slab edge before its centre enters the support area.
   // Read the leading foot contact so a reachable floor does not act like a wall.
   const travel = Math.hypot(target.x - start.x, target.z - start.z);
