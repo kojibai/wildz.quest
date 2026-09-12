@@ -70,3 +70,43 @@ export function parseWildsJourney(serialized: string | null): WildsJourneyMemory
   if (!serialized || serialized.length > 300_000) return [];
   try { return sanitizeWildsJourney(JSON.parse(serialized)); } catch { return []; }
 }
+
+/** Portable explorer notes. These are not creature proofs or reward receipts. */
+export type WildsJourneyJournal = { version: 1; ownerId: string; memories: readonly WildsJourneyMemory[] };
+
+export function sanitizeWildsJourneyJournal(value: unknown, ownerId?: string): WildsJourneyJournal | undefined {
+  if (!ownerId || !value || typeof value !== "object") return undefined;
+  const journal = value as Partial<WildsJourneyJournal>;
+  if (journal.version !== 1 || journal.ownerId !== ownerId) return undefined;
+  return { version: 1, ownerId, memories: sanitizeWildsJourney(journal.memories) };
+}
+
+export function mergeWildsJourneyJournal(
+  ownerId: string, local: readonly WildsJourneyMemory[], portable: unknown
+): WildsJourneyJournal {
+  const imported = sanitizeWildsJourneyJournal(portable, ownerId);
+  return { version: 1, ownerId, memories: sanitizeWildsJourney([...local, ...(imported?.memories ?? [])]) };
+}
+
+/** Fixed templates never interpret imported journal text as model instructions. */
+export function recallWildsJourney(
+  memories: readonly WildsJourneyMemory[], companionId: string, question: string,
+  position?: Readonly<{ x: number; z: number }>
+): string | null {
+  if (!/remember|memory|memories|together|home|met|built|explor/i.test(question)) return null;
+  const shared = sanitizeWildsJourney(memories).filter(memory => memory.companionId === companionId);
+  const nearby = position ? shared.filter(memory => Math.hypot(memory.position.x - position.x, memory.position.z - position.z) <= 8) : [];
+  const memory = /meet|met|first/i.test(question)
+    ? shared.find(memory => memory.kind === "met")
+    : /home|built/i.test(question)
+      ? [...shared].reverse().find(memory => memory.kind === "home" || memory.kind === "built")
+      : nearby.at(-1) ?? shared.at(-1);
+  if (!memory) return "Your explorer journal has no matching shared memory yet. A new adventure together can change that.";
+  const action: Record<WildsJourneyKind, string> = {
+    met: "you first met this companion", harvest: "you gathered resources with this companion",
+    built: "you completed construction with this companion", discovered: "you discovered a place with this companion",
+    home: "you rested at home with this companion"
+  };
+  const here = position && Math.hypot(memory.position.x - position.x, memory.position.z - position.z) <= 8;
+  return `Your explorer journal remembers that ${action[memory.kind]} near (${Math.round(memory.position.x)}, ${Math.round(memory.position.z)}).${here ? " You are back near that shared place." : ""}`;
+}

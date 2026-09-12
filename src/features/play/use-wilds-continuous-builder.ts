@@ -1,4 +1,6 @@
 "use client";
+import { projectWildsEarnedPhi } from "./wilds-earned-phi";
+import { formatWildsPhiExact } from "./wallet/wilds-wallet-format";
 import { useMemo, useRef, useState } from "react";
 import type { useWildsWorld } from "./use-wilds-world";
 import type { WildsConstructionKind } from "./wilds-world-construction";
@@ -157,8 +159,10 @@ export function useWildsContinuousBuilder({ world, owner, player, lots, feedback
     work: () => void run(async () => {
       if (!selected || !nextStage?.materialsComplete || !inReach(selected.transform.position)) return;
       const result = await world.workConstructionComponent(selected.componentId, selected.head, player);
+      const earnings = projectWildsEarnedPhi({ awards: Object.values(result.stewardPhiAwards), ownerReceizId: owner, previousAwardIds: Object.keys(snapshot?.stewardPhiAwards ?? {}) });
+      const earned = earnings.freshPhiMicro !== "0" ? `+Φ${formatWildsPhiExact(earnings.freshPhiMicro)} earned · ` : "";
       const next = projectWildsConstructionProgressFromWorld(result, selected.componentId);
-      feedback(next.stage === "finished" ? `${wildsConstructionLabel(selected.kind)} finished. Choose another piece to keep building.` : `${wildsConstructionLabel(selected.kind)} · ${next.percentage}% complete.`);
+      feedback(earned + (next.stage === "finished" ? `${wildsConstructionLabel(selected.kind)} finished. Choose another piece to keep building.` : `${wildsConstructionLabel(selected.kind)} · ${next.percentage}% complete.`));
     })
   };
 }

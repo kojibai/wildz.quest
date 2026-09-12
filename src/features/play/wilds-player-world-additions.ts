@@ -1,9 +1,12 @@
+import { createWildsExactProofCache } from "./wilds-exact-proof-cache";
 import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 import type { WildsOwnedWorldAdditions } from "./game-state";
 import { mergeWildsConstructionPersistence, projectWildsConstructionPersistence, type WildsConstructionPersistence } from "./wilds-construction-persistence";
 import { verifyWildsConstructionSite } from "./wilds-construction-site";
 import { verifyWildsHarvestedSourceState, verifyWildsMaterialLot, verifyWildsStructure } from "./wilds-steward-construction";
 import { wildsMaterialCustodian, type WildsWorldProjection } from "./wilds-world-state";
+
+const ownedProofCache = createWildsExactProofCache();
 
 function sortedRecord<T>(entries: Array<[string, T]>): Record<string, T> {
   return Object.fromEntries(entries.sort(([left], [right]) => left.localeCompare(right)));
@@ -33,7 +36,7 @@ export function projectWildsOwnedWorldAdditions(
   ownerReceizId: string
 ): WildsOwnedWorldAdditions {
   const materialLots = sortedRecord(Object.entries(world.materialLots).filter(([lotId, lot]) =>
-    lotId === lot.lotId && verifyWildsMaterialLot(lot) && sameOwner(wildsMaterialCustodian(world, lot), ownerReceizId)));
+    lotId === lot.lotId && ownedProofCache.verify(lot, verifyWildsMaterialLot) && sameOwner(wildsMaterialCustodian(world, lot), ownerReceizId)));
   const ownedLotIds = new Set(Object.keys(materialLots));
   const ownedSourceIds = new Set(Object.values(materialLots).map((lot) => lot.source.sourceId));
   const materialState = (state: Record<string, string>) => sortedRecord(Object.entries(state)
@@ -41,13 +44,13 @@ export function projectWildsOwnedWorldAdditions(
   return {
     ...projectWildsConstructionPersistence(world, ownerReceizId),
     constructionSites: sortedRecord(Object.entries(world.constructionSites).filter(([siteId, site]) =>
-      siteId === site.siteId && verifyWildsConstructionSite(site)
+      siteId === site.siteId && ownedProofCache.verify(site, verifyWildsConstructionSite)
       && sameOwner(site.placedByReceizId, ownerReceizId))),
     structures: sortedRecord(Object.entries(world.structures).filter(([structureId, structure]) =>
-      structureId === structure.structureId && verifyWildsStructure(structure)
+      structureId === structure.structureId && ownedProofCache.verify(structure, verifyWildsStructure)
       && sameOwner(structure.ownerReceizId, ownerReceizId))),
     harvestedSources: sortedRecord(Object.entries(world.harvestedSources).filter(([sourceId, source]) =>
-      sourceId === source.sourceId && ownedSourceIds.has(sourceId) && verifyWildsHarvestedSourceState(source))),
+      sourceId === source.sourceId && ownedSourceIds.has(sourceId) && ownedProofCache.verify(source, verifyWildsHarvestedSourceState))),
     materialLots,
     materialCustody: sortedRecord(Object.entries(world.materialCustody ?? {}).filter(([lotId]) => ownedLotIds.has(lotId))),
     consumedMaterialLots: materialState(world.consumedMaterialLots),

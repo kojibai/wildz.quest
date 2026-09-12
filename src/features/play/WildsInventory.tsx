@@ -550,6 +550,7 @@ export function WildsInventory({
               ownerReceizId={ownerReceizId}
               kaiMoment={kaiMoment}
               playerPosition={state.player}
+              journeyMemories={state.journeyJournal?.ownerId === ownerReceizId ? state.journeyJournal.memories : undefined}
               cardAdmission={selectedCardAdmission}
               disabled={selectedRetired}
               onObserved={(turn) => onInput({ type: "record-creature-observation", turn })}

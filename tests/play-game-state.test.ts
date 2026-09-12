@@ -1393,3 +1393,32 @@ describe("Receiz Wilds game state", () => {
     assert.match(flying.lastEvent, /flying/i);
   });
 });
+
+
+describe("explorer journal Identity Seal state", () => {
+  it("round trips owner-bound notes without granting resources or growth", () => {
+    const state = createOwnerBoundInitialPlayState("journal-owner");
+    state.journeyJournal = { version: 1, ownerId: "journal-owner", memories: [{
+      kind: "home", subjectId: "shelter", companionId: "friend", label: "Rested together",
+      position: { x: 3, z: 4 }, timestamp: 100, id: "untrusted-id"
+    }] };
+    const restored = restorePlayState(serializePlayState(state), "journal-owner");
+    assert.equal(restored.journeyJournal?.memories.length, 1);
+    assert.notEqual(restored.journeyJournal?.memories[0].id, "untrusted-id");
+    assert.equal(restored.beans, state.beans);
+    assert.equal(restored.worldMastery, state.worldMastery);
+    assert.equal(restored.journeyJournal?.ownerId, "journal-owner");
+    assert.equal(restorePlayState(serializePlayState(state), "another-owner").journeyJournal, undefined);
+    assert.equal(restorePlayState(serializePlayState(state)).journeyJournal, undefined);
+  });
+
+  it("restores older saves without notes and strips malformed imported journal fields", () => {
+    const state = createOwnerBoundInitialPlayState("journal-owner");
+    const oldSave = JSON.parse(serializePlayState(state));
+    oldSave.schema = "receiz.wilds.save.v8";
+    assert.equal(restorePlayState(JSON.stringify(oldSave), "journal-owner").journeyJournal, undefined);
+    oldSave.state.journeyJournal = { version: 1, ownerId: "journal-owner", memories: [null, { kind: "reward", timestamp: 1 }], balance: 999 };
+    const journal = restorePlayState(JSON.stringify(oldSave), "journal-owner").journeyJournal;
+    assert.deepEqual(journal, { version: 1, ownerId: "journal-owner", memories: [] });
+  });
+});

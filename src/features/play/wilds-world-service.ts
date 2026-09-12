@@ -1,3 +1,4 @@
+import { settleWildsConstructionWork } from "./wilds-construction-work-reward";
 import { createWildsBurrow, type WildsBurrowRequest } from "./wilds-burrow";
 import { settleWildsBuild, verifyWildsBuildSettlement } from "./wilds-steward-build-settlement";
 import { playerStewardBuilder } from "./wilds-steward-construction";
@@ -576,7 +577,8 @@ export class WildsWorldService {
       } else {
         if (command.creature) throw new Error("wilds_construction_creature_authority_required");
         const contribution = createWildsWorkContribution({ component, materials: Object.values(this.projection.constructionMaterialContributions), work: Object.values(this.projection.constructionWorkContributions), worker: { kind: "player", receizId: authority.actorId }, amount: 1, commandId: command.commandId, kaiUPulse });
-        events.push(this.append("construction.work_contributed", { contribution, commandDigest }, authority, command.commandId));
+        const settlement = settleWildsConstructionWork({ component, contribution, currentEmission: wildsWorldSourceEmission(this.projection) });
+        events.push(this.append("construction.work_contributed", { contribution, commandDigest, ...settlement }, authority, command.commandId));
       }
     } else if (command.type === "grove.observe") {
       events.push(this.append("grove.discovered", { grove: command.grove, emission: command.emission }, authority, command.commandId));

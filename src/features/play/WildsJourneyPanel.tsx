@@ -45,7 +45,7 @@ export function WildsJourneyPanel({ step, companionName, memories, home, onActio
     <section className={styles.memories} aria-label="Shared memories">
       <span className={styles.eyebrow}>{companionName ? `On the trail with ${companionName}` : "Your trail journal"}</span>
       <h4>What you have shared</h4>
-      <p className={styles.empty}>A journal of moments witnessed on this device.</p>
+      <p className={styles.empty}>Explorer notes travel with your next saved Identity Seal.</p>
       {recent.length ? <ol>{recent.map((memory) => <li key={memory.id}>
         <span className={styles.marker} aria-hidden="true" />
         <div><p>{memory.label}</p>{memory.companionName && <span className={styles.with}>With {memory.companionName}</span>}<span className={styles.with}>X {Math.round(memory.position.x)} · Z {Math.round(memory.position.z)}</span></div>

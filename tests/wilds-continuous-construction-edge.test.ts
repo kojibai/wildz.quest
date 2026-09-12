@@ -1,3 +1,5 @@
+import { createWildsWorldEmissionGenesis } from "../src/features/play/wilds-world-emission";
+import { wildsWorldSourceEmission } from "../src/features/play/wilds-world-genesis";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createReceizInMemoryOfflineProofQueueStorage } from "@receiz/sdk";
@@ -50,7 +52,25 @@ test("owner places with zero lots and partial deposits support exact baseline pl
   assert.throws(() => service.execute(work, authority));
   assert.equal(projectWildsConstructionProgressFromWorld(service.snapshot(), component.componentId).materials.stone.contributed, 1);
   service.execute(deposit(1), authority);
-  assert.equal(service.execute(work, authority).events.length, 1);
+  const beforeReward = service.snapshot();
+  const result = service.execute(work, authority);
+  assert.equal(result.events.length, 1);
+  const awards = Object.values(service.snapshot().stewardPhiAwards);
+  assert.equal(awards.length, 1);
+  assert.equal(awards[0]!.ownerReceizId, actorId);
+  assert.equal(awards[0]!.amountPhiMicro, "10000");
+  const beforeEmission = wildsWorldSourceEmission(beforeReward);
+  const afterEmission = wildsWorldSourceEmission(service.snapshot());
+  assert.equal(BigInt(beforeEmission.globalRemainingPhiMicro) - BigInt(afterEmission.globalRemainingPhiMicro), 10000n);
+  assert.equal(BigInt(beforeEmission.classRemainingPhiMicro.construction!) - BigInt(afterEmission.classRemainingPhiMicro.construction!), 10000n);
+  assert.deepEqual(replayWildsWorld(result.events, checkpointWildsWorld(beforeReward)), service.snapshot());
+  const { eventId: _eventId, digest: _digest, schema: _schema, worldId: _worldId, sequence: _sequence, ...eventInput } = result.events[0]!;
+  const forged = createWildsWorldEvent({ ...eventInput, payload: { ...result.events[0]!.payload as object, amountPhiMicro: "100000" } });
+  assert.throws(() => reduceWildsWorldEvent(beforeReward, forged), /economy_mismatch/);
+  const legacyPayload = { ...result.events[0]!.payload as Record<string, unknown> };
+  for (const key of ["rewardPolicy", "operation", "emission", "phiAward", "amountPhiMicro"]) delete legacyPayload[key];
+  const legacy = createWildsWorldEvent({ ...eventInput, payload: legacyPayload });
+  assert.deepEqual(reduceWildsWorldEvent(beforeReward, legacy).stewardPhiAwards, {}, "historical work remains valid without retroactive earnings");
   assert.equal(projectWildsConstructionProgressFromWorld(service.snapshot(), component.componentId).stage, "framed");
   assert.equal(Object.values(service.snapshot().constructionWorkContributions)[0]?.amount, 1);
   assert.deepEqual(Object.keys(service.snapshot().consumedMaterialLots).sort(), lots.map((lot) => lot.lotId).sort());
@@ -58,6 +78,7 @@ test("owner places with zero lots and partial deposits support exact baseline pl
   assert.throws(() => service.execute({ ...work, creature: { subjectId: "creature:fake", head: constructionProofDigest("fake") }, commandId: "command:work:creature" }, authority), /creature_authority/);
   const restored = new WildsWorldService({ checkpoint: service.checkpoint() });
   assert.equal(restored.execute(work, authority).events.length, 0);
+  assert.equal(Object.values(restored.snapshot().stewardPhiAwards).length, 1, "retry cannot mint a second award");
   assert.throws(() => restored.execute({ ...work, actorPosition: { x: 3, z: 2 } }, authority), /command_conflict/);
   assert.throws(() => restored.execute(work, { ...authority, actorId: "other" }), /command_conflict/);
 });
@@ -217,4 +238,33 @@ test("the shared stage geometry folds funded proofs and keeps room openings inta
   assert.deepEqual(functional.solids, room.placement.collisionSolids);
   assert.equal(functional.solids.some((solid) => solid.id.endsWith(":body")), false);
   assert.deepEqual(projectWildsConstructionStageGeometry(room, [], [first, second]).solids, []);
+});
+
+
+test("construction steps use the last bounded micro reward and still finish when capacity runs out", () => {
+  const f = fixture();
+  f.service.execute(f.place, authority);
+  const component = Object.values(f.service.snapshot().constructionComponents)[0]!;
+  const lots = [stone(901), stone(902), stone(903), stone(904, "timber"), stone(905, "hay")];
+  const worldEmission = createWildsWorldEmissionGenesis({ epochId: "epoch:test", epochEndsAtKaiUPulse: 100000,
+    globalCapacityPhiMicro: "1000", regionCapacityPhiMicro: { "region:0:0": "1000" },
+    classCapacityPhiMicro: { construction: "1000" }, policyDigest: constructionProofDigest("policy") });
+  const service = new WildsWorldService({ checkpoint: checkpointWildsWorld({ ...f.service.snapshot(), worldEmission,
+    materialLots: Object.fromEntries(lots.map(lot => [lot.lotId, lot])) }) });
+  service.execute({ type: "construction.component.deposit", componentId: component.componentId, componentHead: component.head,
+    actorPosition: request.pointer, lotIds: lots.map(lot => lot.lotId), commandId: "command:deposit:reward-cap" }, authority);
+  let steps = 0;
+  while (projectWildsConstructionProgressFromWorld(service.snapshot(), component.componentId).work.remaining > 0) {
+    assert.ok(steps < 20, "recipe has finite paid work");
+    service.execute({ type: "construction.component.work", componentId: component.componentId, componentHead: component.head,
+      actorPosition: request.pointer, commandId: `command:work:reward-cap:${steps++}` }, authority);
+  }
+  assert.ok(steps > 1, "exhausted capacity must allow subsequent useful work");
+  assert.deepEqual(Object.values(service.snapshot().stewardPhiAwards).map(award => award.amountPhiMicro), ["1000"]);
+  assert.equal(service.snapshot().worldEmission!.globalRemainingPhiMicro, "0");
+  assert.equal(Object.values(service.snapshot().constructionWorkContributions).length, steps);
+  const complete = service.checkpoint();
+  assert.throws(() => service.execute({ type: "construction.component.work", componentId: component.componentId, componentHead: component.head,
+    actorPosition: request.pointer, commandId: "command:work:over-complete" }, authority));
+  assert.deepEqual(service.checkpoint(), complete, "completed work cannot be farmed with a new command ID");
 });

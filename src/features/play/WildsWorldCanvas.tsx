@@ -1,5 +1,7 @@
 "use client";
 
+import { WildsHomeResidents, type WildsHomeResidentsInput } from "./WildsHomeResidents";
+import { projectWildsHomeResidents } from "./wilds-home-residents";
 import type { WildsBurrowPreview } from "./wilds-burrow";
 import { WildsBurrowGhost } from "./WildsBurrowGhost";
 import { WildsContinuousConstruction } from "./WildsContinuousConstruction";
@@ -10,6 +12,7 @@ import { Html, OrbitControls, Sparkles } from "@react-three/drei";
 import * as THREE from "three";
 import {
   creatureCards,
+  playableInventory,
   selectedCard,
   type CreatureCard,
   type PlayState
@@ -103,6 +106,7 @@ const WILDS_DIAGNOSTICS_ENABLED = process.env.NODE_ENV !== "production";
 const EMPTY_AERIAL_OBSTACLE_NEIGHBORHOOD = Object.freeze({ tileX: 0, tileZ: 0, obstacles: Object.freeze([]) }) as WildsAerialObstacleNeighborhood;
 
 export function WildsWorldCanvas({
+  homeResidents,
   activeWorkSource,
   activeCapabilityFamily = null,
   stewardPlacementPreview,
@@ -153,6 +157,7 @@ export function WildsWorldCanvas({
   resourcePending = false,
   resourceCompanionReady = true
 }: {
+  homeResidents?: WildsHomeResidentsInput;
   activeWorkSource?: WildsActiveWorkSource | null;
   activeCapabilityFamily?: WildsWorldCapabilityFamily | null;
   stewardPlacementPreview?: WildsStewardPlacement | null;
@@ -224,7 +229,7 @@ export function WildsWorldCanvas({
       >
         {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
-          <WildsScene burrowPreview={burrowPreview} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
+          <WildsScene homeResidents={homeResidents} burrowPreview={burrowPreview} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
         </Suspense>
       </Canvas>
     </div>
@@ -237,6 +242,7 @@ function WildsFrameReporter({ onFrameSample }: { onFrameSample: (frameMs: number
 }
 
 function WildsScene({
+  homeResidents,
   activeWorkSource,
   activeCapabilityFamily,
   stewardPlacementPreview,
@@ -285,6 +291,7 @@ function WildsScene({
   resourcePending,
   resourceCompanionReady
 }: {
+  homeResidents?: WildsHomeResidentsInput;
   activeWorkSource?: WildsActiveWorkSource | null;
   activeCapabilityFamily: WildsWorldCapabilityFamily | null;
   stewardPlacementPreview?: WildsStewardPlacement | null;
@@ -374,6 +381,14 @@ function WildsScene({
   const swimming = (siteSpace.spaceId === "wildz.space.outer.v1" ? aquaticPresentation.mode === "swim" : siteSpace.flooded)
     && aerialCapabilities.includes("swim");
   const activeFloorY = siteSpace.position.y;
+  const homeResidentCards = useMemo(() => homeResidents ? projectWildsHomeResidents({
+    candidates: homeResidents.cards, ownedIds: playableInventory({inventory: state.inventory, adventureConditions: state.adventureConditions}).map(card => card.id),
+    excludedIds: [activeAsset?.id ?? "", ...supportCards.map(card => card.id)],
+    shelterPosition: homeResidents.shelterPosition, player: homeResidents.shelterPosition,
+    spaceId: "wildz.space.outer.v1"
+  }) : [], [homeResidents, state.inventory, state.adventureConditions, activeAsset?.id, supportCards]);
+  const homeResidentsNearby = homeResidents && siteSpace.spaceId === "wildz.space.outer.v1"
+    && Math.hypot(homeResidents.shelterPosition.x-state.player.x,homeResidents.shelterPosition.z-state.player.z) <= 30;
   const terrainTileX = Math.floor(state.player.x / WILDS_TERRAIN_TILE_SIZE);
   const terrainTileZ = Math.floor(state.player.z / WILDS_TERRAIN_TILE_SIZE);
   const terrainObstacleNeighborhood = useMemo(
@@ -468,6 +483,7 @@ function WildsScene({
       <group name="grounded-support-companions" visible={!swimming}>
         <SupportCompanions cards={supportCards} player={state.player} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={activeFloorY} />
       </group>
+      {homeResidentsNearby && homeResidents && <WildsHomeResidents shelterPosition={homeResidents.shelterPosition} cards={homeResidentCards} player={state.player} terrainElevation={activeFloorY} reducedMotion={qualityProfile.reducedMotion} />}
       <Sparkles key={`wilds-world-sparkles-${worldSparkleCount}`} count={worldSparkleCount} scale={[8, 2.4, 8]} size={2.1} speed={qualityProfile.reducedMotion ? 0 : kaiExpression.particleSpeed} color={kaiExpression.accent} />
     </WildsReadabilityProvider>
   );

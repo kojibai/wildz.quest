@@ -11,6 +11,10 @@ import { projectWildsEarnedPhi } from "./wilds-earned-phi";
 import { useWildsJourney } from "./useWildsJourney";
 import { useWildsPlaytest } from "./useWildsPlaytest";
 import { WildsPlaytestPanel } from "./WildsPlaytestPanel";
+import { WildsHomeLife } from "./WildsHomeLife";
+import { projectWildsHomeLife, type WildsHomeAction } from "./wilds-home-life";
+import { WildsDiscoveryStory } from "./WildsDiscoveryStory";
+import { projectWildsDiscoveryStory } from "./wilds-discovery-story";
 import { WildsJourneyPanel } from "./WildsJourneyPanel";
 import { projectWildsNextStep, type WildsNextStepAction } from "./wilds-next-step";
 import { nearestUnvisitedWildsSite, wildsDiscoveryImpression, wildsTrailDirection } from "./wilds-journey-discovery";
@@ -20,6 +24,8 @@ import {
   applyWildsInput,
   applyCommittedArenaSettlement,
   initialPlayState,
+  playableInventory,
+  isPlayableAsset,
   selectedAsset,
   selectedCard,
   type PlayState,
@@ -474,7 +480,11 @@ export function PlayCampaign({
   const previousPlayerPosition = useRef(state.player);
   const [movementMode, setMovementMode] = useState<WildsMovementMode>(() => initialPlayerContinuity?.settings.movementMode ?? "walk");
   const [cardOrder, setCardOrder] = useState<WildzCardOrder>(() => initialPlayerContinuity?.settings.cardOrder ?? "rarity");
-  const { memories: journeyMemories, remember: rememberJourney } = useWildsJourney(ownerReceizId);
+  const { memories: journeyMemories, remember: rememberJourney, journal: journeyJournal, ready: journeyReady } = useWildsJourney(ownerReceizId, state.journeyJournal);
+  useEffect(() => {
+    if (!journeyReady) return;
+    setState(current => JSON.stringify(current.journeyJournal) === JSON.stringify(journeyJournal) ? current : { ...current, journeyJournal });
+  }, [journeyJournal, journeyReady]);
   const playtest = useWildsPlaytest();
   const markPlaytest = playtest.mark;
   useEffect(() => { if (shellOverlayOwner === "profile" || shellOverlayOwner === "market") markPlaytest("panel", "success"); }, [shellOverlayOwner, markPlaytest]);
@@ -524,6 +534,11 @@ export function PlayCampaign({
   const worldProgression = projectWorldProgression(state.worldMastery);
   const activeCard = selectedCard(state);
   const activeAsset = selectedAsset(state);
+  const homeCompanions = useMemo(() => playableInventory({inventory:state.inventory,adventureConditions:state.adventureConditions}), [state.inventory, state.adventureConditions]);
+  const journeyStructures = useMemo(() => Object.values(state.ownedWorldAdditions.structures).filter(item => sameWildzPlayerCoordinate(item.ownerReceizId, ownerReceizId)), [state.ownedWorldAdditions.structures, ownerReceizId]);
+  const journeyHome = useMemo(() => journeyStructures.filter(item => item.blueprint === "trail-shelter").sort((a, b) => Math.hypot(a.position.x-state.player.x,a.position.z-state.player.z)-Math.hypot(b.position.x-state.player.x,b.position.z-state.player.z))[0], [journeyStructures, state.player.x, state.player.z]);
+  const homeResidents = useMemo(() => journeyHome ? { shelterPosition: journeyHome.position, cards: homeCompanions } : undefined, [journeyHome, homeCompanions]);
+
   const [activeWorldCapability, setActiveWorldCapability] = useState<WildsWorldCapabilityFamily | null>(null);
   useEffect(() => setActiveWorldCapability(null), [activeAsset?.id]);
   const activeCapabilityControls = useMemo(() => activeAsset
@@ -2083,10 +2098,11 @@ export function PlayCampaign({
     if (pulse.kind === "collect" || pulse.kind === "greet") return;
     dispatchLayeredSearch(state.player);
   };
-  const journeyStructures = Object.values(state.ownedWorldAdditions.structures).filter(item => sameWildzPlayerCoordinate(item.ownerReceizId, ownerReceizId));
-  const journeyHome = journeyStructures.filter(item => item.blueprint === "trail-shelter").sort((a, b) => Math.hypot(a.position.x-state.player.x,a.position.z-state.player.z)-Math.hypot(b.position.x-state.player.x,b.position.z-state.player.z))[0];
   const homeDistance = journeyHome ? Math.hypot(journeyHome.position.x-state.player.x,journeyHome.position.z-state.player.z) : Infinity;
   const unfinishedJourneyShelter = Object.values(state.ownedWorldAdditions.constructionSites).find(site => site.blueprint === "trail-shelter" && site.stage !== "complete" && sameWildzPlayerCoordinate(site.placedByReceizId, ownerReceizId));
+  const homeLife = projectWildsHomeLife({ structures: journeyStructures, preferredHomeId: journeyHome?.structureId, companions: homeCompanions.map(asset => ({id:asset.id,name:asset.manifest.name})), activeCompanionId: activeAsset?.id, now: Date.parse(kaiUPulseToISOString(kaiUPulse)) });
+  const discoveryLead = nearestUnvisitedWildsSite(siteRuntime.sites, state.explorationAtlas.siteKeys, state.player);
+  const discoveryStory = discoveryLead ? projectWildsDiscoveryStory(discoveryLead, activeTraversalCapabilities, state.explorationAtlas.siteKeys.includes(discoveryLead.key)) : null;
   const nextJourneyStep = unfinishedJourneyShelter ? { title: "Finish your trail shelter", reason: `Your materials are waiting at the site, ${wildsTrailDirection(state.player, unfinishedJourneyShelter.position)}. Return to contribute what remains or finish construction.`, actionLabel: "Continue your shelter", action: "shelter" as const } : projectWildsNextStep({ hasCompanion: Boolean(activeAsset), timber: stewardMaterials.timber, stone: stewardMaterials.stone, hasShelter: Boolean(journeyHome), hasWorkbench: journeyStructures.some(item=>item.blueprint === "steward-workbench"), hasCache: journeyStructures.some(item=>item.blueprint === "trail-cache") });
   const closeJourney = () => { dispatchStageOverlay({ type: "panel", key: null }); setRequestedCommand(null); setCommandDismissSignal(signal=>signal+1); };
   const followJourneyStep = (action: WildsNextStepAction) => {
@@ -2113,6 +2129,24 @@ export function PlayCampaign({
     rememberJourney({ kind: "home", subjectId: journeyHome.structureId, companionId: activeAsset?.id, companionName: activeAsset?.manifest.name, label: "Rested at your trail shelter", position: journeyHome.position });
     markPlaytest("home", "success");
     showWorldFeedback(`${activeAsset ? `${activeAsset.manifest.name} rests beside you. ` : ""}Camp restores energy and eases fatigue. Your expedition combo resets.`);
+  };
+
+  const doHomeActivity = (action: WildsHomeAction, structureId: string, companionId?: string) => {
+    if (!interactionEnabled || modalOwner !== "none" || worldOverlayState.panelKey !== "mission") return;
+    const structure = journeyStructures.find(item => item.structureId === structureId);
+    if (!structure) return;
+    if (state.siteSpace.spaceId !== "wildz.space.outer.v1" || Math.hypot(structure.position.x-state.player.x,structure.position.z-state.player.z) > 6) {
+      closeJourney(); showWorldFeedback(`Come home first: ${wildsTrailDirection(state.player, structure.position)}.`, true); return;
+    }
+    if (action === "rest") { restAtJourneyHome(); return; }
+    if (action === "invite") {
+      const companion = state.inventory.find(asset => asset.id === companionId);
+      if (!companion || !isPlayableAsset(state, companion.id)) return;
+      dispatch({type:"select-asset",assetId:companion.id,kaiUPulse});
+      closeJourney(); showWorldFeedback(`${companion.manifest.name} is beside you. Rest together or take a new trail.`); return;
+    }
+    setConstructionFocus(action === "craft" ? "tools" : "storage");
+    setRequestedCommand("construction");
   };
 
   const activatePulseFromCommandPanel = () => {
@@ -2204,9 +2238,11 @@ export function PlayCampaign({
       content: (
         <div className="wilds-command-content wilds-mission-content">
           <WildsJourneyPanel step={nextJourneyStep} companionName={activeAsset?.manifest.name} memories={journeyMemories} home={journeyHome ? { label: "Your trail shelter", distance: homeDistance } : undefined} onAction={followJourneyStep} onReturnHome={() => { if (!journeyHome) return; closeJourney(); showWorldFeedback(`Your trail shelter is ${wildsTrailDirection(state.player, journeyHome.position)}. Rest beside it to recover for your next journey.`, true); }} onRest={restAtJourneyHome} canRest={homeDistance <= 6 && state.siteSpace.spaceId === "wildz.space.outer.v1" && !state.battle} />
+          {homeLife ? <WildsHomeLife home={homeLife} onAction={doHomeActivity} /> : null}
+          {discoveryStory ? <WildsDiscoveryStory discovery={discoveryStory} onExplore={() => followJourneyStep("explore")} /> : null}
           <section aria-label="Φ earned through world work" style={{ fontSize: 13, lineHeight: 1.6 }}>
             <strong>Φ{formatWildsPhiExact(earnedWorldPhi.totalPhiMicro)} earned through world work</strong>
-            <p>Small rewards for useful work: stone Φ0.01, timber Φ0.02. A helping companion can earn more. Rewards depend on the world’s available supply; your wallet balance is shown separately.</p>
+            <p>Small rewards for useful work: stone Φ0.01, timber Φ0.02, and funded building work Φ0.01. A helping companion can earn more. Rewards depend on the world’s available supply; your wallet balance is shown separately.</p>
           </section>
           <details><summary>Playtest tools</summary><WildsPlaytestPanel playtest={playtest} /></details>
           <p className="wilds-saga-deck-count"><strong>{deckCards.length}/∞</strong> living cards in your deck</p>
@@ -2496,6 +2532,7 @@ export function PlayCampaign({
             ref={gameplaySurfaceRef}
           >
             <WildsWorldCanvas
+              homeResidents={homeResidents}
               activeCapabilityFamily={burrowBuilder.busy ? "burrow" : activeWorldCapability}
               activeWorkSource={activeWorkSource}
               stewardPlacementPreview={stewardPlacementPreview}

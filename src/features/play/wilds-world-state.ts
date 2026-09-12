@@ -1,3 +1,4 @@
+import { settleWildsConstructionWork, WILDS_CONSTRUCTION_WORK_REWARD_POLICY } from "./wilds-construction-work-reward";
 import { createWildsBurrow, verifyWildsBurrow, type WildsBurrowV1 } from "./wilds-burrow";
 import { previewWildsConstructionAdjustment, type WildsConstructionPlacementRequest } from "./wilds-construction-placement";
 import { createWildsStewardStructureOperation } from "./wilds-steward-construction";
@@ -334,7 +335,7 @@ function stewardEconomyPatch(state: WildsWorldProjection, event: CompatibleWilds
   const operation = recordPayload(payload.operation) as unknown as WildsLivingOperationPlanV1;
   const amountPhiMicro = String(payload.amountPhiMicro ?? "");
   const currentEmission = wildsWorldSourceEmission(state);
-  if (amountPhiMicro === "0" && ["structure.built", "construction.site_worked", "tool.crafted"].includes(event.kind)) {
+  if (amountPhiMicro === "0" && ["structure.built", "construction.site_worked", "tool.crafted", "construction.work_contributed"].includes(event.kind)) {
     if (!verifyWildsLivingOperationPlan(operation).ok || operation.category !== "construction"
       || !operation.participants.some(participant => participant.kind === "player" && participant.id === event.actorId)
       || state.livingOperations[operation.operationId]) throw new Error("wilds_world_steward_economy_invalid");
@@ -1087,5 +1088,12 @@ function reduceContinuousConstruction(state: WildsWorldProjection, event: Compat
     if (reserved[lotId] !== component.componentId || consumed[lotId] || state.storedMaterialLots[lotId]) return invalid();
     delete reserved[lotId]; consumed[lotId] = component.componentId;
   }
-  return finish({ constructionWorkContributions: work, reservedMaterialLots: reserved, consumedMaterialLots: consumed });
+  let economy: Partial<WildsWorldProjection> = {};
+  if (payload.rewardPolicy !== undefined) {
+    if (payload.rewardPolicy !== WILDS_CONSTRUCTION_WORK_REWARD_POLICY) return invalid();
+    const expected = settleWildsConstructionWork({ component, contribution: proof, currentEmission: wildsWorldSourceEmission(state) });
+    verifyWildsBuildSettlement(payload, expected);
+    economy = stewardEconomyPatch(state, event, payload);
+  } else if (["operation", "emission", "phiAward", "amountPhiMicro"].some(key => payload[key] !== undefined)) return invalid();
+  return finish({ ...economy, constructionWorkContributions: work, reservedMaterialLots: reserved, consumedMaterialLots: consumed });
 }

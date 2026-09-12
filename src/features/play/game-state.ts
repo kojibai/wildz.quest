@@ -1,3 +1,4 @@
+import { sanitizeWildsJourneyJournal, type WildsJourneyJournal } from "./wilds-journey";
 import { composeWildsInteriorConstruction } from "./wilds-construction-physics";
 import { restoreWildsBurrowSpace } from "./wilds-burrow";
 import { wildsStructureSupportAt } from "./wilds-structure-support";
@@ -194,6 +195,7 @@ export type WildsOwnedWorldAdditions = Partial<WildsConstructionPersistence> & {
 };
 
 export type PlayState = {
+  journeyJournal?: WildsJourneyJournal;
   actionHistory: WildsActivityEntry[];
   activeAction: GameAction;
   beans: number;
@@ -465,7 +467,7 @@ const PLAY_SAVE_SCHEMA = "receiz.wilds.save.v9";
 const LEGACY_PLAY_SAVE_SCHEMAS = new Set(["receiz.wilds.save.v2", "receiz.wilds.save.v3", "receiz.wilds.save.v4", "receiz.wilds.save.v5", "receiz.wilds.save.v6", "receiz.wilds.save.v7", "receiz.wilds.save.v8"]);
 
 export function serializePlayState(state: PlayState) {
-  return JSON.stringify({ schema: PLAY_SAVE_SCHEMA, state });
+  return JSON.stringify({ schema: PLAY_SAVE_SCHEMA, state: { ...state, journeyJournal: sanitizeWildsJourneyJournal(state.journeyJournal, state.journeyJournal?.ownerId) } });
 }
 
 /** Normalize runtime state without serializing or reverifying exact admitted cards.
@@ -709,6 +711,7 @@ export function restorePlayState(
     return withWorldProgress({
       ...fallback,
       ...saved,
+      journeyJournal: sanitizeWildsJourneyJournal(saved.journeyJournal, ownerReceizId),
       actionHistory: normalizeWildsActivityHistory(saved.actionHistory),
       player: restoredPlayer,
       siteSpace: restoreWildsBurrowSpace(saved.siteSpace,restoredWorldAdditions.burrows??{},physical=>composeWildsInteriorConstruction(physical,{structures:restoredWorldAdditions.structures,constructionComponents:restoredWorldAdditions.constructionComponents??{},constructionMaterialContributions:restoredWorldAdditions.constructionMaterialContributions??{},constructionWorkContributions:restoredWorldAdditions.constructionWorkContributions??{}})) ?? normalizeWildsSiteSpaceState(saved.siteSpace, { x: restoredPlayer.x, y: wildsTerrainElevation(restoredPlayer.x, restoredPlayer.z), z: restoredPlayer.z }),
@@ -940,14 +943,14 @@ export function selectedAsset(state: PlayState) {
   return state.inventory.find((asset) => asset.id === state.selectedAssetId) ?? state.inventory.find((asset) => asset.manifest.familyId === state.selectedCardId) ?? state.inventory[0];
 }
 
-export function isPlayableAsset(state: PlayState, assetId: string) {
+export function isPlayableAsset(state: Pick<PlayState, "inventory" | "adventureConditions">, assetId: string) {
   const asset = state.inventory.find((candidate) => candidate.id === assetId);
   if (!asset || (!isAdmittedWildsCard(asset) && !verifyAndAdmitWildsCard(asset)) || state.adventureConditions[assetId]?.life === "dead") return false;
   const life = isLivingCardAsset(asset) ? currentRevision(asset).growth.life : null;
   return !life || (!life.retired && life.vitality > 0);
 }
 
-export function playableInventory(state: PlayState) {
+export function playableInventory(state: Pick<PlayState, "inventory" | "adventureConditions">) {
   return state.inventory.filter((asset) => isPlayableAsset(state, asset.id));
 }
 

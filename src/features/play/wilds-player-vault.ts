@@ -1,3 +1,4 @@
+import { mergeWildsJourneyJournal, sanitizeWildsJourneyJournal } from "./wilds-journey";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import { normalizeWildsRuntimePlayState, type PlayState } from "./game-state";
 import { mergeWildsExplorationAtlases } from "./wilds-exploration-atlas";
@@ -211,6 +212,9 @@ export function mergeWildsPlayerPlayStates(input: {
     // Preserve competing card heads until restore admission can resolve them by
     // causal creature history and authoritative Kai uPulse. A generic map
     // overwrite here would silently turn array order into temporal authority.
+    journeyJournal: input.local.journeyJournal || restoredPlayState.journeyJournal
+      ? mergeWildsJourneyJournal(input.actorId, sanitizeWildsJourneyJournal(input.local.journeyJournal, input.actorId)?.memories ?? [], restoredPlayState.journeyJournal)
+      : undefined,
     inventory: [...input.local.inventory, ...restoredPlayState.inventory],
     explorationAtlas: input.mergeExploration === false
       ? input.local.explorationAtlas

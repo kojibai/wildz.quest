@@ -1,5 +1,6 @@
 "use client";
 
+import { recallWildsJourney, type WildsJourneyMemory } from "./wilds-journey";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icons } from "@/components/icons";
 import {
@@ -84,6 +85,7 @@ export function CreatureConsciousnessPanel({
   ownerReceizId,
   kaiMoment,
   playerPosition,
+  journeyMemories = [],
   cardAdmission = null,
   disabled = false,
   onObserved,
@@ -93,11 +95,13 @@ export function CreatureConsciousnessPanel({
   ownerReceizId: string;
   kaiMoment: KaiKlokMoment;
   playerPosition: Readonly<{ x: number; z: number }>;
+  journeyMemories?: readonly WildsJourneyMemory[];
   cardAdmission?: WildzVaultCardMembershipProof | null;
   disabled?: boolean;
   onObserved: (turn: CreatureObserverMemoryTurn) => void;
   onSpeakingChange?: (speaking: boolean) => void;
 }) {
+  const [journalRecollection, setJournalRecollection] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -132,6 +136,7 @@ export function CreatureConsciousnessPanel({
 
   useEffect(() => {
     setDraft("");
+    setJournalRecollection(null);
     setError("");
     setEphemeralTurn(null);
     setStreamingExchange(null);
@@ -182,6 +187,7 @@ export function CreatureConsciousnessPanel({
   const submit = async (message = draft) => {
     const normalized = message.replace(/\s+/g, " ").trim();
     if (!normalized || loading || disabled) return;
+    setJournalRecollection(recallWildsJourney(journeyMemories, asset.id, normalized, playerPosition));
     if (voiceEnabled) void unlockCreatureVoice().catch(() => false);
     setLoading(true);
     setError("");
@@ -325,6 +331,8 @@ export function CreatureConsciousnessPanel({
           type="button"
         >{voiceEnabled ? "Voice on" : "Voice off"}</button>
       </header>
+
+      {journalRecollection ? <aside className="wilds-creature-awakening" aria-label="Explorer journal recollection" aria-live="polite"><strong>Shared journey</strong><p>{journalRecollection}</p><small>Explorer notes carried in your Identity Seal; separate from verified creature memory.</small></aside> : null}
 
       <div className="wilds-creature-transcript" aria-live="polite">
         {transcript.length ? transcript.slice(-6).map((turn) => (
