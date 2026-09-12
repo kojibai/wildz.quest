@@ -59,9 +59,7 @@ export function projectWildsNightRig(
     ? Math.max(0, Math.min(1, context.authoredDarkness ?? 0))
     : 0;
   const night = Math.max(expression.night.amount, authoredDarkness);
-  // `lanternEnabled` is retained only so older Vault payloads remain valid.
-  // Darkness is authoritative: players never need to manage a flashlight toggle.
-  const lanternIntensity = night * preset.lantern;
+  const lanternIntensity = effectiveSettings.lanternEnabled ? night * preset.lantern : 0;
   return {
     characterFill: expression.lighting.fill + night * preset.fill,
     rim: expression.lighting.rim * (1 + night * (preset.rim - 1)),

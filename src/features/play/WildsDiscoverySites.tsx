@@ -38,10 +38,10 @@ export function WildsDiscoverySites({ runtime, player, space, onPortal }: {
       <CaveSurfaces boxes={interiorGeometry.ceilings} role="ceiling" player={player} elevation={space.position.y} />
       {interiorGeometry.waters.map((water) => <mesh key={water.id} name={water.id} position={[water.center.x - player.x, water.center.y + water.halfExtents.y - space.position.y, water.center.z - player.z]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[water.halfExtents.x * 2, water.halfExtents.z * 2]} />
-        <meshPhysicalMaterial color="#197c9d" emissive="#0f4d67" emissiveIntensity={.22} opacity={.56} roughness={.16} side={2} transparent />
+        <meshPhysicalMaterial color="#197c9d" emissive="#0f4d67" emissiveIntensity={0} opacity={.56} roughness={.16} side={2} transparent />
       </mesh>)}
-      {interiorGeometry.portal && Math.hypot(interiorGeometry.portal.position.x - space.position.x, interiorGeometry.portal.position.z - space.position.z) <= WILDS_SITE_PORTAL_INTERACTION_RADIUS ? <group position={[interiorGeometry.portal.position.x - player.x, interiorGeometry.portal.position.y - space.position.y + 1, interiorGeometry.portal.position.z - player.z]}>
-        <mesh><torusGeometry args={[1.1, .14, 10, 32]} /><meshStandardMaterial color="#8edfc8" emissive="#2b806b" emissiveIntensity={.5} /></mesh>
+      {interiorGeometry.portal && Math.hypot(interiorGeometry.portal.position.x - space.position.x, interiorGeometry.portal.position.z - space.position.z) <= WILDS_SITE_PORTAL_INTERACTION_RADIUS ? <group position={[interiorGeometry.portal.position.x - player.x, (interiorGeometry.floors.find(floor => Math.abs(floor.center.x - interiorGeometry.portal!.position.x) <= floor.halfExtents.x && Math.abs(floor.center.z - interiorGeometry.portal!.position.z) <= floor.halfExtents.z)?.center.y ?? space.position.y) - space.position.y + 1, interiorGeometry.portal.position.z - player.z]}>
+        <CaveEntrance interior />
         <Html center zIndexRange={[20,0]}><span className="wilds-site-portal-control"><button onClick={(event) => { event.stopPropagation(); onPortal(interiorGeometry.portal!.siteKey, "exit"); }} type="button">Return outside</button></span></Html>
       </group> : null}
     </group>;
@@ -72,7 +72,7 @@ export function WildsDiscoverySites({ runtime, player, space, onPortal }: {
           <mesh><ringGeometry args={[1.4,1.7,32]}/><meshStandardMaterial color="#735d42" roughness={1}/></mesh>
         </group> : null}
         {portal && portalCue ? <group position={[portal.position.x - site.entrance.x, portal.position.y - site.entrance.y + 1, portal.position.z - site.entrance.z]}>
-          <mesh><torusGeometry args={[1.05, .13, 10, 30]} /><meshStandardMaterial color="#b8f4dc" emissive="#3c9d7c" emissiveIntensity={.45} /></mesh>
+          <CaveEntrance />
           <Html center zIndexRange={[20,0]}><span className="wilds-site-portal-control">{portalCue.action === "enter" ? <button onClick={(event) => { event.stopPropagation(); onPortal(site.key, "enter"); }} type="button">Enter {site.family.replaceAll("-", " ")}</button> : <span className="wilds-cave-entrance-cue">Cave entrance</span>}</span></Html>
         </group> : null}
       </group>;
@@ -131,4 +131,27 @@ function CaveSurfaces({boxes,role,player,elevation}:{boxes:Parameters<typeof cre
   return boxes.length?<mesh name={`cave-${role}-batch`} geometry={batch.geometry} position={[batch.origin.x-player.x,batch.origin.y-elevation,batch.origin.z-player.z]} receiveShadow>
     <meshStandardMaterial map={texture} color={texture?"#c9c3b6":"#675d4e"} vertexColors roughness={role==="floor"?.92:.97} />
   </mesh>:null;
+}
+
+
+function CaveEntrance({ interior = false }: { interior?: boolean }) {
+  const texture = useWildsRockTexture();
+  const geometry = useMemo(() => {
+    const arch = new THREE.TorusGeometry(1.05, .34, 5, 12);
+    const positions = arch.getAttribute("position");
+    for (let i = 0; i < positions.count; i++) {
+      const x = positions.getX(i), y = positions.getY(i), z = positions.getZ(i);
+      const relief = 1 + Math.sin(x * 8.1 + y * 5.3 + z * 4.7) * .085;
+      positions.setXYZ(i, x * relief, y * relief, z * relief);
+    }
+    arch.computeVertexNormals();
+    const flat = arch.toNonIndexed();
+    arch.dispose();
+    return applyWildsRockUV(flat);
+  }, []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return <group name="cave-rock-threshold">
+    <mesh geometry={geometry}><meshStandardMaterial map={texture} color="#70685a" roughness={.98} /></mesh>
+    <mesh position={[0, 0, -.12]}><circleGeometry args={[1.01, 16]} /><meshBasicMaterial color={interior ? "#31463b" : "#020304"} side={THREE.DoubleSide} /></mesh>
+  </group>;
 }

@@ -36,7 +36,7 @@ export function createWildsCaveBatch(boxes:readonly Box[], role:"wall"|"floor"|"
       let z=box.center.z+source.getZ(i)*box.halfExtents.z*2;
       const nx=normals.getX(i),ny=normals.getY(i),nz=normals.getZ(i);
       if(role==="wall") {
-        const relief=Math.sin(y*3.7+x*2.1+z*1.3)*.025*Math.sin((source.getY(i)+.5)*Math.PI);
+        const relief=Math.sin(y*3.7+x*2.1+z*1.3)*.085*Math.sin((source.getY(i)+.5)*Math.PI);
         x+=nx*relief;z+=nz*relief;
       }
       positions.set([x-origin.x,y-origin.y,z-origin.z],offset);
@@ -45,7 +45,8 @@ export function createWildsCaveBatch(boxes:readonly Box[], role:"wall"|"floor"|"
       uv[vertex*2+1]=(ny ? z : y)/2;
       // Baked foot darkening and sediment tint, without extra lights or frame work.
       const shade=role==="wall" ? .68+(source.getY(i)+.5)*.24 : role==="ceiling" ? .72 : .88;
-      colors.set([shade,shade*.97,shade*.91],offset);
+      const sediment = .94 + Math.sin(y * 6.7 + x * .13 + z * .19) * .06;
+      colors.set([shade * sediment,shade*.97 * sediment,shade*.91 * sediment],offset);
     }
   });
   unit.dispose();

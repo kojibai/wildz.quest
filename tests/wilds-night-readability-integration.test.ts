@@ -81,10 +81,10 @@ test("world actors, routes, atmosphere, and Kai geometry consume one readability
   ]);
 
   assert.match(world, /projectWildsAuthoredDarkness/);
-  assert.match(world, /authoredDarkness: darkness\.amount/);
+  assert.match(world, /authoredDarkness: interior \? 1 : darkness\.amount/);
   assert.match(world, /WildsReadabilityProvider/);
   assert.match(world, /darkness\.amount \* 0\.72/);
-  assert.match(world, /authoredDarkness: darkness\.amount/);
+  assert.match(world, /authoredDarkness: interior \? 1 : darkness\.amount/);
   assert.match(world, /darknessSource: darkness\.source/);
   assert.match(world, /reducedMotion: qualityProfile\.reducedMotion/);
   assert.match(world, /speed=\{qualityProfile\.reducedMotion \? 0 : kaiExpression\.particleSpeed\}/);

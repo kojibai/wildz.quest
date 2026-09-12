@@ -1,3 +1,4 @@
+import { writeWildsInteriorCameraPosition } from "../src/features/play/wilds-site-runtime";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
@@ -297,4 +298,40 @@ describe("production Wilds site runtime", () => {
     assert.doesNotMatch(renderer, /admitWildsDiscoveryPhysicalNeighborhood/);
     assert.doesNotMatch(campaign, /wildsSiteRuntimeDiscoveredKeys/);
   });
+});
+
+it("keeps a cave camera inside supported space instead of orbiting through its wall", () => {
+  const runtime = prepareWildsSiteRuntime(admitWildsDiscoveryPhysicalNeighborhood(3, 2));
+  const portal = runtime.physical.portals[0]!;
+  const entered = enterWildsSiteRuntime(runtime, portal.siteKey, portal.position)!;
+  const output = { x: 40, y: 10, z: 40 };
+  writeWildsInteriorCameraPosition(output, runtime, entered.spaceId, entered.position, .9);
+  assert.ok(Math.hypot(output.x, output.z) < 40);
+  assert.ok(Number.isFinite(output.y));
+  const floor = runtime.physical.surfaces.find(surface => surface.spaceId === entered.spaceId
+    && Math.abs(entered.position.x + output.x - surface.center.x) <= surface.halfExtents.x
+    && Math.abs(entered.position.z + output.z - surface.center.z) <= surface.halfExtents.z);
+  assert.ok(floor);
+});
+
+it("bounds all orbit directions without rebuilding cave authority or indexes", () => {
+  const runtime = prepareWildsSiteRuntime(admitWildsDiscoveryPhysicalNeighborhood(3, 2));
+  const portal = runtime.physical.portals[0]!;
+  const floor = runtime.physical.surfaces.find(surface => surface.spaceId === portal.toSpaceId)!;
+  const player = { ...floor.center };
+  const before = wildsSiteRuntimeDiagnostics();
+  const camera = { x: 0, y: 0, z: 0 };
+  for (let angle = 0; angle < 360; angle += 3) {
+    camera.x = Math.sin(angle) * 4; camera.z = Math.cos(angle) * 4; camera.y = 5;
+    writeWildsInteriorCameraPosition(camera, runtime, portal.toSpaceId, player, .9);
+    assert.ok(runtime.physical.surfaces.some(surface => surface.spaceId === portal.toSpaceId
+      && Math.abs(player.x + camera.x - surface.center.x) <= surface.halfExtents.x
+      && Math.abs(player.z + camera.z - surface.center.z) <= surface.halfExtents.z));
+    for (const ceiling of runtime.physical.ceilings.filter(c => c.spaceId === portal.toSpaceId)) {
+      if (Math.abs(player.x + camera.x - ceiling.center.x) <= ceiling.halfExtents.x && Math.abs(player.z + camera.z - ceiling.center.z) <= ceiling.halfExtents.z) {
+        assert.ok(player.y + camera.y < ceiling.center.y - ceiling.halfExtents.y);
+      }
+    }
+  }
+  assert.equal(wildsSiteRuntimeDiagnostics().indexBuilds, before.indexBuilds);
 });

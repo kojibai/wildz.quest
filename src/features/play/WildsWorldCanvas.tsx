@@ -1,5 +1,7 @@
 "use client";
 
+import { writeWildsInteriorCameraPosition } from "./wilds-site-runtime";
+
 import { WildsHomeResidents, type WildsHomeResidentsInput } from "./WildsHomeResidents";
 import { projectWildsHomeResidents } from "./wilds-home-residents";
 import type { WildsBurrowPreview } from "./wilds-burrow";
@@ -345,17 +347,18 @@ function WildsScene({
   const world = projectWorldProgression(state.worldMastery);
   const kaiExpression = projectKaiWorldExpression(kaiMoment);
   const normalizedVisualSettings = useMemo(() => normalizeWildsVisualSettings(visualSettings), [visualSettings]);
+  const interior = siteSpace.spaceId !== "wildz.space.outer.v1";
   const darkness = projectWildsAuthoredDarkness({
     encounter: state.encounter,
     player: state.player,
     ecologySites: Object.values(livingWorld?.ecologySites ?? {})
   });
   const nightRig = projectWildsNightRig(kaiExpression, normalizedVisualSettings, {
-    authoredDarkness: darkness.amount,
+    authoredDarkness: interior ? 1 : darkness.amount,
     mode: "adventure"
   });
   const readability = projectWildsReadabilityProfile({
-    authoredDarkness: darkness.amount,
+    authoredDarkness: interior ? 1 : darkness.amount,
     characterFill: nightRig.characterFill,
     nightAmount: kaiExpression.night.amount,
     reducedMotion: qualityProfile.reducedMotion,
@@ -402,15 +405,15 @@ function WildsScene({
   const actualCameraSubmergedRef = useRef(false);
   return (
     <WildsReadabilityProvider value={readability}>
-      <color attach="background" args={[kaiSky]} />
-      <fog attach="fog" args={[kaiFog, fogNear, fogFar]} />
-      <WildsCelestialSky expression={kaiExpression} qualityProfile={qualityProfile} />
-      <WildsAtmosphere encounter={state.encounter} expression={kaiExpression} missionProgress={state.missionProgress} nightRig={nightRig} player={state.player} qualityProfile={qualityProfile} />
-      <WildsKaiAtmosphereGeometry expression={kaiExpression} qualityProfile={qualityProfile} />
+      <color attach="background" args={[interior ? "#020304" : kaiSky]} />
+      <fog attach="fog" args={[interior ? "#020304" : kaiFog, interior ? 2 : fogNear, interior ? 22 : fogFar]} />
+      {!interior && <WildsCelestialSky expression={kaiExpression} qualityProfile={qualityProfile} />}
+      <WildsAtmosphere interior={interior} encounter={state.encounter} expression={kaiExpression} missionProgress={state.missionProgress} nightRig={nightRig} player={state.player} qualityProfile={qualityProfile} />
+      {!interior && <WildsKaiAtmosphereGeometry expression={kaiExpression} qualityProfile={qualityProfile} />}
       <CameraRig actualCameraSubmergedRef={actualCameraSubmergedRef} verticalTraversalRef={verticalTraversalRef} aquaticPresentation={aquaticPresentation} onCameraHeadingChange={onCameraHeadingChange} vistaHeading={vistaHeading} siteRuntime={siteRuntime} siteSpace={siteSpace} player={state.player} />
-      <WildsUnderwaterAtmosphere cameraSubmergedRef={actualCameraSubmergedRef} qualityProfile={qualityProfile} surfaceFog={kaiFog} surfaceFogFar={fogFar} surfaceFogNear={fogNear} surfaceSky={kaiSky} />
+      <WildsUnderwaterAtmosphere cameraSubmergedRef={actualCameraSubmergedRef} qualityProfile={qualityProfile} surfaceFog={interior ? "#020304" : kaiFog} surfaceFogFar={interior ? 22 : fogFar} surfaceFogNear={interior ? 2 : fogNear} surfaceSky={interior ? "#020304" : kaiSky} />
       {WILDS_DIAGNOSTICS_ENABLED ? <WildsDiagnostics environment={{
-        authoredDarkness: darkness.amount,
+        authoredDarkness: interior ? 1 : darkness.amount,
         dayPhase: kaiExpression.dayPhase,
         darknessSource: darkness.source,
         kaiCoordinate: kaiMoment.latticeCoordinate,
@@ -972,6 +975,14 @@ function CameraRig({ actualCameraSubmergedRef, verticalTraversalRef, aquaticPres
 }) {
   const { camera } = useThree();
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
+  const unclippedCamera = useRef(new THREE.Vector3());
+  const cameraWasClipped = useRef(false);
+  // OrbitControls updates at -1. Restore its desired orbit before it updates,
+  // then constrain only the rendered camera below; clear views regain distance.
+  useFrame(() => {
+    if (cameraWasClipped.current && siteSpace.spaceId !== "wildz.space.outer.v1") camera.position.copy(unclippedCamera.current);
+    cameraWasClipped.current = false;
+  }, -2);
   const priorVista = useRef<{ position: THREE.Vector3; target: THREE.Vector3 } | null>(null);
   const cameraProjection = useRef<MutableUnderwaterCameraProjection>({ underwaterTargetActive: false, localWaterSurfaceY: 0, targetY: .9, cameraY: 0 });
   const lastHeading = useRef(Number.NaN);
@@ -1002,8 +1013,8 @@ function CameraRig({ actualCameraSubmergedRef, verticalTraversalRef, aquaticPres
     if (orbit && vistaHeading === null) {
       const controlState = writeWildsFlightCameraControlState(flightControls.current, verticalTraversalRef.current.layer === "air", delta);
       orbit.dampingFactor = controlState.dampingFactor;
-      orbit.maxDistance = controlState.maxDistance;
-      orbit.minDistance = controlState.minDistance;
+      orbit.maxDistance = siteSpace.spaceId === "wildz.space.outer.v1" ? controlState.maxDistance : 4;
+      orbit.minDistance = siteSpace.spaceId === "wildz.space.outer.v1" ? controlState.minDistance : .45;
       orbit.minPolarAngle = controlState.minPolarAngle;
       orbit.maxPolarAngle = controlState.maxPolarAngle;
       orbit.rotateSpeed = controlState.rotateSpeed;
@@ -1047,6 +1058,12 @@ function CameraRig({ actualCameraSubmergedRef, verticalTraversalRef, aquaticPres
       );
     } else if (vistaHeading !== null) {
       actualCameraSubmergedRef.current = false;
+    }
+    if (orbit && siteSpace.spaceId !== "wildz.space.outer.v1") {
+      unclippedCamera.current.copy(camera.position);
+      writeWildsInteriorCameraPosition(camera.position, siteRuntime, siteSpace.spaceId, siteSpace.position, orbit.target.y);
+      cameraWasClipped.current = camera.position.distanceToSquared(unclippedCamera.current) > .000001;
+      camera.lookAt(orbit.target);
     }
     const heading = Math.atan2(camera.position.x, camera.position.z);
     if (Number.isFinite(lastHeading.current) && Math.abs(heading - lastHeading.current) < .001) return;

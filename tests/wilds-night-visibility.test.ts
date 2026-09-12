@@ -44,13 +44,13 @@ test("visibility presets improve actors without changing canonical sky darkness"
   assert.equal(expression.sky.luminance, deepNight().sky.luminance);
 
   const legacyOff = projectWildsNightRig(expression, { lanternEnabled: false, nightVisibility: "high" });
-  assert.ok(legacyOff.lanternIntensity > 0);
-  assert.equal(legacyOff.lanternVisible, true);
+  assert.equal(legacyOff.lanternIntensity, 0);
+  assert.equal(legacyOff.lanternVisible, false);
 });
 
-test("the flashlight comes on automatically only when the world is dark", () => {
+test("the equipped flashlight lights darkness and can be stowed", () => {
   const expression = deepNight();
-  const darkness = projectWildsNightRig(expression, { lanternEnabled: false, nightVisibility: "balanced" });
+  const darkness = projectWildsNightRig(expression, { lanternEnabled: true, nightVisibility: "balanced" });
   const daylight = projectWildsNightRig({
     ...expression,
     night: { ...expression.night, amount: 0 }
@@ -105,7 +105,7 @@ test("the world renders Kai darkness instead of clamping a daylight sun above th
   assert.match(world, /<WildsCelestialSky expression=\{kaiExpression\}/);
   assert.match(world, /kaiExpression\.night\.amount \* 0\.7/);
   assert.match(world, /new THREE\.Color\(kaiExpression\.sky\.zenith\)/);
-  assert.match(world, /<color attach="background" args=\{\[kaiSky\]\}/);
+  assert.match(world, /<color attach="background" args=\{\[interior \? "#020304" : kaiSky\]\}/);
   assert.doesNotMatch(atmosphere, /Math\.max\(0\.6, expression\.sun\.elevation/);
   assert.match(atmosphere, /expression\.celestial\.moon/);
   assert.match(atmosphere, /nightRig\.characterFill/);

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createWildsGrassGeometry } from "../src/features/play/wilds-botanical-geometry";
+import * as THREE from "three";
+import { createWildsGrassGeometry, createWildsLeafCluster } from "../src/features/play/wilds-botanical-geometry";
 import { wildsVegetationAspect, wildsTerrainSurfaceTint } from "../src/features/play/wilds-place-presentation";
 
 test("grass retains the old box's twelve triangles without degenerate normals", () => {
@@ -26,4 +27,19 @@ test("grove forms remain stable, smoothly varying and bounded across distant and
   assert.ok(forms.size > 100);
   assert.notDeepEqual(wildsTerrainSurfaceTint("rock"), wildsTerrainSurfaceTint("grass"));
   assert.notDeepEqual(wildsTerrainSurfaceTint("sand"), wildsTerrainSurfaceTint("soil"));
+});
+
+
+test("every leaf is rooted inside its crown without increasing the triangle budget", () => {
+  for (const triangles of [80, 144] as const) {
+    const core = triangles === 80 ? new THREE.IcosahedronGeometry(.58, 0) : new THREE.DodecahedronGeometry(.58, 0);
+    const geometry = createWildsLeafCluster(triangles);
+    const positions = geometry.getAttribute("position");
+    assert.equal(positions.count / 3, triangles);
+    for (let i = core.getAttribute("position").count; i < positions.count; i += 6) {
+      assert.ok(Math.hypot(positions.getX(i), positions.getY(i), positions.getZ(i)) < .34);
+    }
+    geometry.dispose();
+    core.dispose();
+  }
 });

@@ -26,7 +26,8 @@ export function createWildsLeafCluster(triangles: 144 | 80): THREE.BufferGeometr
     across.crossVectors(tangent, up).normalize();
     const length = .17 + (leaf % 7) * .014, width = length * .72;
     const tip = center.clone().addScaledVector(tangent, length);
-    const base = center.clone().addScaledVector(tangent, -length * .7);
+    // Root every leaf inside the solid core, including polar leaves.
+    const base = center.clone().normalize().multiplyScalar(.32);
     const left = center.clone().addScaledVector(across, width); left.y -= .025;
     const right = center.clone().addScaledVector(across, -width); right.y -= .025;
     const shade = .76 + (leaf % 9) * .025;

@@ -18,7 +18,8 @@ export function WildsAtmosphere({
   player,
   qualityProfile,
   expression,
-  nightRig
+  nightRig,
+  interior = false
 }: {
   encounter: PlayState["encounter"];
   missionProgress: number;
@@ -26,6 +27,7 @@ export function WildsAtmosphere({
   qualityProfile: WildsQualityProfile;
   expression: KaiWorldExpression;
   nightRig: WildsNightRig;
+  interior?: boolean;
 }) {
   const readability = useWildsReadability();
   const tileX = Math.floor(player.x / WILDS_TILE_SIZE);
@@ -70,6 +72,10 @@ export function WildsAtmosphere({
   const groundLight = useMemo(() => new THREE.Color("#2d5a39")
     .lerp(new THREE.Color("#050811"), expression.night.amount)
     .getStyle(), [expression.night.amount]);
+  if (interior) return <group name="cave-local-lighting">
+    <ambientLight intensity={.012} color="#5b6770" />
+    <WildsLantern intensity={nightRig.lanternIntensity} qualityTier={qualityProfile.tier} visible={nightRig.lanternVisible} />
+  </group>;
   return (
     <group name={`verdant-atmosphere-${biome.weather}`}>
       <hemisphereLight color={skyLight} groundColor={groundLight} intensity={(expression.lighting.hemisphere + .5 * (1 - expression.night.amount)) * biome.luminosity * (1 - readability.darkness * 0.42)} />

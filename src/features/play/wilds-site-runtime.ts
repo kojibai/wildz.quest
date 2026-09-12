@@ -280,7 +280,42 @@ export function enterWildsSiteRuntime(runtime: WildsSiteRuntimeProjection, siteK
 export function exitWildsSiteRuntime(runtime: WildsSiteRuntimeProjection, state: WildsSiteSpaceState, requestedSiteKey: string): WildsSiteSpaceState | null {
   if (!state.siteKey || state.spaceId === OUTER || state.siteKey !== requestedSiteKey) return null;
   const portal = runtime.physical.portals.find((value) => value.siteKey === state.siteKey && value.toSpaceId === state.spaceId);
-  if (!portal || Math.hypot(portal.position.x - state.position.x, portal.position.z - state.position.z) > WILDS_SITE_PORTAL_INTERACTION_RADIUS || Math.abs(portal.position.y - state.position.y) > 3) return null;
+  if (!portal || Math.hypot(portal.position.x - state.position.x, portal.position.z - state.position.z) > WILDS_SITE_PORTAL_INTERACTION_RADIUS || Math.abs((enterWildsSiteRuntime(runtime, portal.siteKey, portal.position)?.position.y ?? portal.position.y) - state.position.y) > 3) return null;
   return Object.freeze({ version: "wildz.site-space-state.v1", spaceId: OUTER, siteKey: null, surfaceId: null, position: point(portal.position.x, portal.position.y, portal.position.z), flooded: false });
 }
 export function wildsSiteRuntimeDiagnostics() { const a = wildsDiscoverySiteDiagnostics(); return Object.freeze({ runtimeBuilds, indexBuilds, movementWrites, aerialWrites, cameraWrites, encounterWrites, discoveryWrites, landingWrites, authorityBuilds: a.regionsBuilt + a.neighborhoodsBuilt + a.physicalNeighborhoodsBuilt + a.surfaceIndexesBuilt }); }
+
+/** Bounded, allocation-free sweep through the prepared interior index. The camera
+ * follows the actor's room and retracts before walls, floor or roof. */
+export function writeWildsInteriorCameraPosition(output: { x: number; y: number; z: number }, runtime: WildsSiteRuntimeProjection, spaceId: string, player: Point3, targetY: number) {
+  if (spaceId === OUTER) return output;
+  const index = indexFor(runtime);
+  let anchorY = Math.max(.18, targetY);
+  for (const ceiling of at(index.ceilings, spaceId, player.x, player.z)) {
+    if (Math.abs(player.x - ceiling.center.x) <= ceiling.halfExtents.x && Math.abs(player.z - ceiling.center.z) <= ceiling.halfExtents.z) {
+      anchorY = Math.min(anchorY, ceiling.center.y - ceiling.halfExtents.y - player.y - .22);
+    }
+  }
+  const dx = output.x, dy = output.y - anchorY, dz = output.z;
+  const steps = Math.min(64, Math.max(1, Math.ceil(Math.hypot(dx, dy, dz) / .08)));
+  output.x = 0; output.y = anchorY; output.z = 0;
+  for (let step = 1; step <= steps; step++) {
+    const t = step / steps, x = player.x + dx * t, y = player.y + anchorY + dy * t, z = player.z + dz * t;
+    let supported = false;
+    for (const floor of at(index.surfaces, spaceId, x, z)) {
+      if (floor.id.startsWith("wildz.support.component:")) continue;
+      if (Math.abs(x - floor.center.x) <= floor.halfExtents.x - .18 && Math.abs(z - floor.center.z) <= floor.halfExtents.z - .18 && y >= floor.center.y + .18) { supported = true; break; }
+    }
+    if (!supported) break;
+    let blocked = false;
+    for (const ceiling of at(index.ceilings, spaceId, x, z)) {
+      if (Math.abs(x - ceiling.center.x) <= ceiling.halfExtents.x + .18 && Math.abs(z - ceiling.center.z) <= ceiling.halfExtents.z + .18 && y >= ceiling.center.y - ceiling.halfExtents.y - .18) { blocked = true; break; }
+    }
+    if (!blocked) for (const solid of at(index.solids, spaceId, x, z)) {
+      if (Math.abs(x - solid.center.x) <= solid.halfExtents.x + .18 && Math.abs(y - solid.center.y) <= solid.halfExtents.y + .18 && Math.abs(z - solid.center.z) <= solid.halfExtents.z + .18) { blocked = true; break; }
+    }
+    if (blocked) break;
+    output.x = dx * t; output.y = anchorY + dy * t; output.z = dz * t;
+  }
+  return output;
+}

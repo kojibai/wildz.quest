@@ -36,6 +36,8 @@ describe("living stewardship presentation", () => {
     assert.ok(full.tree.crownScale > worked.tree.crownScale);
     assert.ok(worked.tree.crownScale > resting.tree.crownScale);
     assert.equal(resting.tree.stumpVisible, true);
+    assert.equal(resting.tree.crownScale, 0);
+    assert.ok(resting.tree.trunkScale <= .2);
     assert.ok(resting.tree.trunkScale > 0);
     assert.ok(recovering.tree.crownScale > resting.tree.crownScale);
     assert.ok(recovering.tree.crownScale < full.tree.crownScale);

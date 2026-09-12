@@ -352,7 +352,7 @@ describe("Receiz Wilds rendering contract", () => {
     const environment = await readFile("src/features/play/WildsEnvironment.tsx", "utf8");
 
     assert.match(world, /const fogFar = qualityProfile\.tier === "low" \? 38 : qualityProfile\.tier === "medium" \? 46 : 52/);
-    assert.match(world, /<fog attach="fog" args=\{\[kaiFog, fogNear, fogFar\]\}/);
+    assert.match(world, /<fog attach="fog" args=\{\[interior \? "#020304" : kaiFog, interior \? 2 : fogNear, interior \? 22 : fogFar\]\}/);
     assert.match(environment, /terrainRadius = qualityProfile\.tier === "low" \? 2 : qualityProfile\.tier === "medium" \? 3 : 4/);
     assert.match(environment, /name="world-physical-water"/);
     assert.match(worldArt, /name="world-route-waystones"/);

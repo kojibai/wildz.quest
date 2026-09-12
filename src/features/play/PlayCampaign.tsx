@@ -2351,6 +2351,7 @@ export function PlayCampaign({
           <WildzCommandInsight label="Trail preparation" value={`${state.energy} energy`} detail="Use what you gathered now; every action updates the same live explorer state used in the world.">
             <button onClick={() => dispatch({ type: "rest", at: new Date().toISOString() })} type="button">Make camp</button>
             <button onClick={() => dispatch({ type: "train", at: new Date().toISOString() })} type="button">Train leader</button>
+            <button aria-pressed={visualSettings.lanternEnabled} onClick={() => setVisualSettings(current => ({ ...current, lanternEnabled: !current.lanternEnabled }))} type="button">{visualSettings.lanternEnabled ? "Stow lantern" : "Equip lantern"}</button>
             <button onClick={() => dispatch({ type: "mission" })} type="button">How to earn mission progress</button>
           </WildzCommandInsight>
           <div className="wilds-command-content-lead">

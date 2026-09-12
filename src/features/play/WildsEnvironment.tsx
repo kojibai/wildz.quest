@@ -1,5 +1,7 @@
 "use client";
-import { wildsTerrainSurfaceTint, wildsVegetationAspect } from "./wilds-place-presentation";
+
+import { projectWildsTreePart } from "./wilds-tree-structure";
+import { wildsTerrainSurfaceTint } from "./wilds-place-presentation";
 import { createWildsGroundTexture, hydrateWildsGroundTexture } from "./wilds-ground-texture";
 import { createWildsGrassGeometry } from "./wilds-botanical-geometry";
 import { useWildsNaturalTexture } from "./wilds-natural-material";
@@ -71,7 +73,7 @@ function useInstances(
   player: PlayState["player"],
   terrainElevation: number,
   y: number,
-  shape: (item: Placement) => [number, number, number],
+  shape: (item: Placement) => [number, number, number] | { y: number; scale: [number, number, number] },
   clearRadius = 0,
   siteRuntime?: WildsSiteRuntimeProjection,
   siteSpaceId = "wildz.space.outer.v1",
@@ -79,6 +81,8 @@ function useInstances(
   reducedMotion = false
 ) {
   const baseMatrices = useRef<THREE.Matrix4[]>([]);
+  const groundYs = useRef<number[]>([]);
+  const animatedOffset = useRef(new THREE.Vector3());
   const previousActiveIndex = useRef(-1);
   const animatedMatrix = useRef(new THREE.Matrix4());
   const animatedPosition = useRef(new THREE.Vector3());
@@ -95,11 +99,13 @@ function useInstances(
     const euler = new THREE.Euler();
     items.forEach((item, index) => {
       const shaped = shape(item);
-      const projected = projectWildsEcologyInstance(item, { x: player.x, z: player.z }, y, shaped, clearRadius, terrainElevation);
+      const offsetY = Array.isArray(shaped) ? y : shaped.y;
+      const projected = projectWildsEcologyInstance(item, { x: player.x, z: player.z }, offsetY, Array.isArray(shaped) ? shaped : shaped.scale, clearRadius, terrainElevation);
       if (siteRuntime) {
-        const baseWorldY = terrainElevation + projected.position[1] - y;
-        projected.position[1] = y + wildsSiteRuntimeGroundY(siteRuntime, siteSpaceId, item.x, item.z, baseWorldY) - terrainElevation;
+        const baseWorldY = terrainElevation + projected.position[1] - offsetY;
+        projected.position[1] = offsetY + wildsSiteRuntimeGroundY(siteRuntime, siteSpaceId, item.x, item.z, baseWorldY) - terrainElevation;
       }
+      groundYs.current[index] = projected.position[1] - offsetY;
       scale.set(...projected.scale);
       quaternion.setFromEuler(euler.set(0, seededUnit(item.x * 73 + item.z * 137, item.variant + 17) * Math.PI * 2, 0));
       matrix.compose(position.set(...projected.position), quaternion, scale);
@@ -125,7 +131,7 @@ function useInstances(
     }
     const item = items[activeIndex]!;
     const base = baseMatrices.current[activeIndex];
-    if (!base) return;
+    if (!base || (motionKind === "timber" && item.resourceBody?.tree.stumpVisible)) return;
     const motion = projectWildsSourceWorkMotion({
       kind: motionKind,
       elapsedMs: performance.now() - item.workStartedAtMs!,
@@ -134,6 +140,14 @@ function useInstances(
     });
     base.decompose(animatedPosition.current, animatedQuaternion.current, animatedScale.current);
     animatedTilt.current.setFromEuler(animatedEuler.current.set(motion.tiltX, 0, motion.tiltZ));
+    if (motionKind === "timber") {
+      const ground = groundYs.current[activeIndex]!;
+      animatedOffset.current.set(0, animatedPosition.current.y - ground, 0)
+        .multiplyScalar(motion.scale).applyQuaternion(animatedTilt.current).applyQuaternion(animatedQuaternion.current);
+      animatedPosition.current.x += animatedOffset.current.x;
+      animatedPosition.current.y = ground + animatedOffset.current.y;
+      animatedPosition.current.z += animatedOffset.current.z;
+    }
     animatedQuaternion.current.multiply(animatedTilt.current);
     animatedPosition.current.y += motion.lift;
     animatedScale.current.multiplyScalar(motion.scale);
@@ -540,9 +554,10 @@ function EcologyInstances({
   const rockMesh = useRef<THREE.InstancedMesh>(null);
   const flowerMesh = useRef<THREE.InstancedMesh>(null);
   const grassMesh = useRef<THREE.InstancedMesh>(null);
-  const treeScale = useMemo(() => (item: Placement): [number, number, number] => { const body = item.resourceBody?.tree.trunkScale ?? 1; return [item.scale, item.scale * (1.55 + item.variant * 0.14) * body, item.scale]; }, []);
-  const crownScale = useMemo(() => (item: Placement): [number, number, number] => { const body = item.resourceBody?.tree.crownScale ?? 1; const aspect = wildsVegetationAspect(item.x, item.z); return [item.scale * (1.18 + item.variant * 0.08) * body * aspect, item.scale * .92 * body / aspect, item.scale * (1.08 - item.variant * 0.04) * body * aspect]; }, []);
-  const middleCrownScale = useMemo(() => (item: Placement): [number, number, number] => { const body = item.resourceBody?.tree.crownScale ?? 1; return [item.scale * .92 * body, item.scale * .72 * body, item.scale * .88 * body]; }, []);
+  const treeScale = useMemo(() => (item: Placement) => projectWildsTreePart(item, "trunk"), []);
+  const crownScale = useMemo(() => (item: Placement) => projectWildsTreePart(item, "lower"), []);
+  const upperCrownScale = useMemo(() => (item: Placement) => projectWildsTreePart(item, "upper"), []);
+  const middleCrownScale = useMemo(() => (item: Placement) => projectWildsTreePart(item, "crown"), []);
   const shrubScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.56, item.scale * 0.38, item.scale * 0.52], []);
   const rockScale = useMemo(() => (item: Placement): [number, number, number] => { const body = item.resourceBody?.rock.scale ?? 1; return [item.scale * 0.32 * body, item.scale * 0.21 * body, item.scale * 0.38 * body]; }, []);
   const flowerScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.09, item.scale * 0.22, item.scale * 0.09], []);
@@ -550,7 +565,7 @@ function EcologyInstances({
   const treeClearRadius = 13.6;
   useInstances(trunks, trees, player, terrainElevation, 0.64, treeScale, treeClearRadius, siteRuntime, siteSpaceId, "timber", readability.motionScale === 0);
   useInstances(lowerCrowns, trees, player, terrainElevation, 1.65, crownScale, treeClearRadius, siteRuntime, siteSpaceId, "timber", readability.motionScale === 0);
-  useInstances(upperCrowns, trees, player, terrainElevation, 2.16, crownScale, treeClearRadius, siteRuntime, siteSpaceId, "timber", readability.motionScale === 0);
+  useInstances(upperCrowns, trees, player, terrainElevation, 2.16, upperCrownScale, treeClearRadius, siteRuntime, siteSpaceId, "timber", readability.motionScale === 0);
   useInstances(middleCrowns, trees, player, terrainElevation, 2.68, middleCrownScale, treeClearRadius, siteRuntime, siteSpaceId, "timber", readability.motionScale === 0);
   useInstances(shrubMesh, bushes, player, terrainElevation, 0.23, shrubScale, 1.45, siteRuntime, siteSpaceId);
   useInstances(rockMesh, rocks, player, terrainElevation, 0.13, rockScale, 1.2, siteRuntime, siteSpaceId, "stone", readability.motionScale === 0);

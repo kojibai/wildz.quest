@@ -75,7 +75,26 @@ export function WildsContinuousConstruction({ world, player, terrainElevation, p
   const pieces = queryComponents ? queryComponents({ minX: player.x - 64, maxX: player.x + 64, minZ: player.z - 64, maxZ: player.z + 64 })
     .filter(component => (component.evidence.spaceId ?? "wildz.space.outer.v1") === spaceId
       && Math.hypot(component.transform.position.x - player.x, component.transform.position.z - player.z) <= 64) : [];
+  // Reuse the already admitted stage projection; bound local lighting regardless
+  // of how many fixtures are built. No shadow maps or per-frame scene scans.
+  const interiorLights: typeof pieces = [];
+  let nearestDistance = Infinity, secondDistance = Infinity;
+  if (spaceId !== "wildz.space.outer.v1" && projectGeometry) for (const component of pieces) {
+    if (component.kind !== "light" && component.kind !== "hearth") continue;
+    const dx = component.transform.position.x - player.x, dz = component.transform.position.z - player.z;
+    const distance = dx * dx + dz * dz;
+    if (distance > 81 || distance >= secondDistance) continue;
+    const stage = projectGeometry(component).stage;
+    if (stage !== "functional" && stage !== "finished") continue;
+    if (distance < nearestDistance) {
+      if (interiorLights[0]) interiorLights[1] = interiorLights[0];
+      secondDistance = nearestDistance; nearestDistance = distance; interiorLights[0] = component;
+    } else { secondDistance = distance; interiorLights[1] = component; }
+  }
   return <group ref={root} name="continuous-construction" position={[-player.x, -terrainElevation, -player.z]}>
+    {interiorLights.map(component => <pointLight key={`light:${component.componentId}`} castShadow={false}
+      color={component.kind === "hearth" ? "#ffb76a" : "#ffe5ad"} intensity={component.kind === "hearth" ? 7 : 5}
+      distance={9} decay={2} position={[component.placement.geometry.center.x, component.placement.geometry.center.y + component.placement.geometry.halfExtents.y + .1, component.placement.geometry.center.z]} />)}
     {pieces.map(component => {
       if (!projectGeometry) return null;
       const geometry = projectGeometry(component);

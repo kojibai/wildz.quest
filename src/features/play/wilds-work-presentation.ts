@@ -99,8 +99,8 @@ export function projectWildsResourceBody(input: Readonly<{
     vitality,
     ringIntensity: clamp01(.2 + vitality * .8),
     tree: Object.freeze({
-      trunkScale: clamp01(1 - visibleDepletion * .72),
-      crownScale: clamp01(1 - visibleDepletion),
+      trunkScale: available === 0 ? .18 : clamp01(1 - visibleDepletion * .72),
+      crownScale: available === 0 ? 0 : clamp01(1 - visibleDepletion),
       stumpVisible: input.kind === "timber" && available === 0,
       worked: input.kind === "timber" && available < capacity
     }),
