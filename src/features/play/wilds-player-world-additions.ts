@@ -65,22 +65,22 @@ export function mergeWildsOwnedWorldAdditions(
 ): WildsWorldProjection {
   const constructionSites = { ...world.constructionSites };
   for (const [siteId, saved] of Object.entries(owned.constructionSites)) {
-    if (!verifyWildsConstructionSite(saved) || saved.siteId !== siteId) continue;
+    if (!ownedProofCache.verify(saved, verifyWildsConstructionSite) || saved.siteId !== siteId) continue;
     const current = constructionSites[siteId];
     if (!current || current.revision < saved.revision) constructionSites[siteId] = saved;
   }
   const structures = { ...world.structures };
   for (const [structureId, saved] of Object.entries(owned.structures)) {
-    if (!verifyWildsStructure(saved) || saved.structureId !== structureId) continue;
+    if (!ownedProofCache.verify(saved, verifyWildsStructure) || saved.structureId !== structureId) continue;
     if (!structures[structureId]) structures[structureId] = saved;
   }
   const materialLots = { ...world.materialLots };
   for (const [lotId, saved] of Object.entries(owned.materialLots)) {
-    if (verifyWildsMaterialLot(saved) && saved.lotId === lotId && !materialLots[lotId]) materialLots[lotId] = saved;
+    if (ownedProofCache.verify(saved, verifyWildsMaterialLot) && saved.lotId === lotId && !materialLots[lotId]) materialLots[lotId] = saved;
   }
   const harvestedSources = { ...world.harvestedSources };
   for (const [sourceId, saved] of Object.entries(owned.harvestedSources)) {
-    if (!verifyWildsHarvestedSourceState(saved) || saved.sourceId !== sourceId) continue;
+    if (!ownedProofCache.verify(saved, verifyWildsHarvestedSourceState) || saved.sourceId !== sourceId) continue;
     const current = harvestedSources[sourceId];
     if (!current || current.revision < saved.revision) harvestedSources[sourceId] = saved;
   }
@@ -104,22 +104,22 @@ export function mergeWildsOwnedAdditionSets(
   const constructionSites = { ...left.constructionSites };
   for (const [siteId, candidate] of Object.entries(right.constructionSites)) {
     const current = constructionSites[siteId];
-    if (verifyWildsConstructionSite(candidate) && (!current || current.revision < candidate.revision)) {
+    if (ownedProofCache.verify(candidate, verifyWildsConstructionSite) && (!current || current.revision < candidate.revision)) {
       constructionSites[siteId] = candidate;
     }
   }
   const structures = { ...left.structures };
   for (const [structureId, candidate] of Object.entries(right.structures)) {
-    if (verifyWildsStructure(candidate) && !structures[structureId]) structures[structureId] = candidate;
+    if (ownedProofCache.verify(candidate, verifyWildsStructure) && !structures[structureId]) structures[structureId] = candidate;
   }
   const materialLots = { ...left.materialLots };
   for (const [lotId, candidate] of Object.entries(right.materialLots)) {
-    if (verifyWildsMaterialLot(candidate) && !materialLots[lotId]) materialLots[lotId] = candidate;
+    if (ownedProofCache.verify(candidate, verifyWildsMaterialLot) && !materialLots[lotId]) materialLots[lotId] = candidate;
   }
   const harvestedSources = { ...left.harvestedSources };
   for (const [sourceId, candidate] of Object.entries(right.harvestedSources)) {
     const current = harvestedSources[sourceId];
-    if (verifyWildsHarvestedSourceState(candidate) && (!current || current.revision < candidate.revision)) harvestedSources[sourceId] = candidate;
+    if (ownedProofCache.verify(candidate, verifyWildsHarvestedSourceState) && (!current || current.revision < candidate.revision)) harvestedSources[sourceId] = candidate;
   }
   const materialLifecycle = mergeMaterialLifecycle(left, right);
   return {

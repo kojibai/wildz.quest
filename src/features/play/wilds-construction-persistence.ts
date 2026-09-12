@@ -1,3 +1,4 @@
+import { createWildsExactProofCache } from "./wilds-exact-proof-cache";
 import { admitWildsBurrows, type WildsBurrowV1 } from "./wilds-burrow";
 import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 import { verifyWildsConstructionProject, verifyWildsConstructionChunk, validConstructionHead, type WildsConstructionProjectV1, type WildsConstructionChunkV1 } from "./wilds-construction-project";
@@ -17,12 +18,14 @@ export type WildsConstructionPersistence = {
 };
 const keys = ["constructionProjects", "constructionChunks", "constructionComponents", "constructionMaterialContributions", "constructionWorkContributions"] as const;
 type Key = typeof keys[number];
+// Reuse only exact proof bytes; nested mutations and worker clones are checked safely.
+const proofCache = createWildsExactProofCache();
 const descriptors = {
-  constructionProjects: ["projectId", verifyWildsConstructionProject],
-  constructionChunks: ["chunkId", verifyWildsConstructionChunk],
-  constructionComponents: ["componentId", verifyWildsConstructionComponent],
-  constructionMaterialContributions: ["contributionId", verifyWildsMaterialContribution],
-  constructionWorkContributions: ["contributionId", verifyWildsWorkContribution]
+  constructionProjects: ["projectId", proofCache.guard(verifyWildsConstructionProject)],
+  constructionChunks: ["chunkId", proofCache.guard(verifyWildsConstructionChunk)],
+  constructionComponents: ["componentId", proofCache.guard(verifyWildsConstructionComponent)],
+  constructionMaterialContributions: ["contributionId", proofCache.guard(verifyWildsMaterialContribution)],
+  constructionWorkContributions: ["contributionId", proofCache.guard(verifyWildsWorkContribution)]
 } as const;
 const entries = (value: unknown): [string, unknown][] => value && typeof value === "object" && !Array.isArray(value) ? Object.entries(value) : [];
 const idOf = (value: Source, key: Key): string => (value as unknown as Record<string, string>)[descriptors[key][0]];

@@ -63,3 +63,34 @@ test("owned projection admits exact cloned material then rejects nested tamperin
   cloned.materialLots[lot.lotId]!.source.kaiUPulse = 2;
   assert.deepEqual(projectWildsOwnedWorldAdditions(cloned, "owner").materialLots, {});
 });
+
+test("cached type guards retain narrowing and recheck altered nested proof data", () => {
+  const cache = createWildsExactProofCache();
+  let calls = 0;
+  const guard = cache.guard((value: unknown): value is { nested: { owner: string } } => {
+    calls++;
+    return !!value && typeof value === "object" && (value as { nested?: { owner?: string } }).nested?.owner === "owner";
+  });
+  const proof: unknown = { nested: { owner: "owner" } };
+  assert.ok(guard(proof));
+  assert.equal(proof.nested.owner, "owner");
+  assert.ok(guard(structuredClone(proof)));
+  assert.equal(calls, 1);
+  proof.nested.owner = "changed";
+  assert.equal(guard(proof), false);
+  assert.equal(calls, 2);
+});
+
+test("construction history cache rejects changed permissions under a previously verified head", async () => {
+  const { createWildsConstructionProject } = await import("../src/features/play/wilds-construction-project");
+  const { mergeWildsConstructionPersistence } = await import("../src/features/play/wilds-construction-persistence");
+  const { preserveWildsConstructionHistory } = await import("../src/features/play/wilds-world-outbox");
+  const project = createWildsConstructionProject({ ownerReceizId: "owner", name: "Home", region: { x: 0, z: 0 }, kaiUPulse: 1 });
+  const world = { ...initialWildsWorldProjection(), constructionProjects: { [project.projectId]: project } };
+  const clone = structuredClone(world);
+  assert.equal(mergeWildsConstructionPersistence({}, clone).constructionProjects[project.projectId]?.head, project.head);
+  assert.equal(preserveWildsConstructionHistory(world, clone), clone);
+  Object.assign(clone.constructionProjects[project.projectId]!.permissions, { remove: !project.permissions.remove });
+  assert.deepEqual(mergeWildsConstructionPersistence({}, clone).constructionProjects, {});
+  assert.equal(preserveWildsConstructionHistory(world, clone), world);
+});

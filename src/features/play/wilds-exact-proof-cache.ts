@@ -51,7 +51,10 @@ export function createWildsExactProofCache(options: { maxEntries?: number; maxBy
     try { return visit(value, 0); } catch { return null; }
   }
 
-  return {
+  const cache = {
+    guard<T>(validator: (value: unknown) => value is T): (value: unknown) => value is T {
+      return (value: unknown): value is T => cache.verify(value, validator);
+    },
     verify<T>(value: T, validator: (value: T) => boolean): boolean {
       const data = exactDataKey(value);
       if (data === null) return validator(value);
@@ -76,4 +79,5 @@ export function createWildsExactProofCache(options: { maxEntries?: number; maxBy
     },
     stats: () => ({ entries: entries.size, bytes })
   };
+  return cache;
 }

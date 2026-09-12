@@ -1,3 +1,4 @@
+import { createWildsExactProofCache } from "./wilds-exact-proof-cache";
 import { mergeWildsConstructionPersistence } from "./wilds-construction-persistence";
 import type { ConstitutionalDecision } from "./wilds-constitution";
 import {
@@ -8,7 +9,7 @@ import {
 } from "@receiz/sdk";
 import type { WildzVaultCardMembershipProof } from "@/lib/receiz/wildz-vault-card-admission";
 import { createWildzContinuityDatabase } from "@/lib/storage/wildz-indexed-db";
-import type { PortableCardAsset } from "./portable-card";
+import { canonicalPortableCardJson, type PortableCardAsset } from "./portable-card";
 import { WildsWorldService, type WildsWorldCommand } from "./wilds-world-service";
 import { checkpointWildsWorld, reduceWildsWorldEvent, replayWildsWorld, type WildsWorldCheckpoint, type WildsWorldProjection } from "./wilds-world-state";
 
@@ -168,8 +169,10 @@ export function projectWildsWorldOutbox(base: WildsWorldProjection, actorId: str
   return projection;
 }
 
+const historyProofCache = createWildsExactProofCache();
+
 export function preserveWildsConstructionHistory(current: WildsWorldProjection, candidate: WildsWorldProjection) {
-  const same = (left: unknown, right: unknown) => constructionProofDigest(left ?? null) === constructionProofDigest(right ?? null);
+  const same = (left: unknown, right: unknown) => canonicalPortableCardJson(left ?? null) === canonicalPortableCardJson(right ?? null);
   for (const key of ["constructionCommandReceipts", "constructionMaterialContributions", "constructionWorkContributions"] as const) {
     for (const [id, proof] of Object.entries(current[key])) if (!same(candidate[key]?.[id], proof)) return current;
   }
@@ -180,11 +183,11 @@ export function preserveWildsConstructionHistory(current: WildsWorldProjection, 
   }
   for (const [id, proof] of Object.entries(current.constructionProjects)) {
     const next = candidate.constructionProjects?.[id];
-    if (!next || !verifyWildsConstructionProject(next) || (!same(next, proof) && (next.parentHead !== proof.head || next.revision !== proof.revision + 1))) return current;
+    if (!next || !historyProofCache.verify(next, verifyWildsConstructionProject) || (!same(next, proof) && (next.parentHead !== proof.head || next.revision !== proof.revision + 1))) return current;
   }
   for (const [id, proof] of Object.entries(current.constructionChunks)) {
     const next = candidate.constructionChunks?.[id];
-    if (!next || !verifyWildsConstructionChunk(next) || (!same(next, proof) && (next.parentHead !== proof.head || next.revision !== proof.revision + 1))) return current;
+    if (!next || !historyProofCache.verify(next, verifyWildsConstructionChunk) || (!same(next, proof) && (next.parentHead !== proof.head || next.revision !== proof.revision + 1))) return current;
   }
   for (const contribution of Object.values(current.constructionMaterialContributions)) {
     const id = contribution.lotId;
