@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import sharp from "sharp";
+import { publicPageMetadata } from "../src/lib/wildz/search-metadata";
 
 test("Wildz ships crawlable canonical metadata and honest game structured data", () => {
   const layout = readFileSync("app/layout.tsx", "utf8");
@@ -40,4 +41,30 @@ test("social and discovery masters have exact fast-preview dimensions", async ()
   assert.deepEqual([social.width, social.height], [1200, 630]);
   assert.deepEqual([messageFallback.width, messageFallback.height], [1200, 630]);
   assert.deepEqual([discovery.width, discovery.height], [1280, 720]);
+});
+
+
+test("public page metadata keeps each canonical and preview specific to that page", () => {
+  const guide = publicPageMetadata("Explorer guide", "Learn to explore.", "/guide");
+  const about = publicPageMetadata("About Wildz", "Official game information.", "/about");
+  assert.equal(guide.alternates?.canonical, "/guide");
+  assert.equal(about.alternates?.canonical, "/about");
+  assert.equal(guide.openGraph?.url, "/guide");
+  assert.equal(guide.openGraph?.description, "Learn to explore.");
+  assert.equal(guide.twitter?.description, "Learn to explore.");
+  assert.equal(guide.openGraph?.title, "Explorer guide · Wildz");
+  assert.notDeepEqual(guide, about);
+});
+
+test("discovery routes stay outside gameplay and crawlers can render published profiles", () => {
+  for (const path of ["app/guide/page.tsx", "app/about/page.tsx"]) {
+    const source = readFileSync(path, "utf8");
+    assert.doesNotMatch(source, /["']use client["']|@receiz|features\/play|useEffect|useFrame/);
+    assert.match(source, /prefetch=\{false\}/);
+  }
+  const robots = readFileSync("app/robots.ts", "utf8");
+  assert.match(robots, /allow:.*"\/api\/profiles\/"/);
+  for (const path of ["app/claim/layout.tsx", "app/test-fixtures/layout.tsx", "app/offline/page.tsx"]) {
+    assert.match(readFileSync(path, "utf8"), /index: false/);
+  }
 });

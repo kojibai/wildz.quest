@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+export const metadata = { title: "Offline", robots: { index: false, follow: false }, alternates: { canonical: null } };
+
 export default function OfflinePage() {
   return (
     <main>

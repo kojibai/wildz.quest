@@ -1,5 +1,8 @@
+import Link from "next/link";
 import { WildzApp } from "@/features/shell/WildzApp";
 import { WILDZ_PRODUCT } from "@/lib/wildz/product";
+
+export const metadata = { alternates: { canonical: "/" } };
 
 const structuredData = {
   "@context": "https://schema.org",
@@ -9,6 +12,7 @@ const structuredData = {
       "@id": `${WILDZ_PRODUCT.origin}/#website`,
       url: WILDZ_PRODUCT.origin,
       name: WILDZ_PRODUCT.name,
+      alternateName: "Wildz Quest",
       description: WILDZ_PRODUCT.description,
       inLanguage: "en-US"
     },
@@ -26,7 +30,7 @@ const structuredData = {
       browserRequirements: "Requires JavaScript, WebGL, and a modern browser",
       isAccessibleForFree: true,
       genre: ["Adventure", "Creature collecting", "Role-playing", "Virtual pet"],
-      playMode: ["SinglePlayer", "MultiPlayer"],
+      playMode: ["https://schema.org/SinglePlayer", "https://schema.org/MultiPlayer"],
       offers: {
         "@type": "Offer",
         price: "0",
@@ -72,6 +76,7 @@ export default function HomePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, "\\u003c") }}
       />
+      <noscript><p>Wildz needs JavaScript and WebGL to run. Read the <Link prefetch={false} href="/guide">Wildz explorer’s guide</Link> or learn <Link prefetch={false} href="/about">about the game</Link>.</p></noscript>
       <WildzApp />
     </>
   );

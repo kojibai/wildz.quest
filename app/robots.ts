@@ -5,7 +5,7 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: [{
       userAgent: "*",
-      allow: "/",
+      allow: ["/", "/api/cards/*/image", "/api/profiles/"],
       disallow: ["/api/", "/test-fixtures/"]
     }],
     host: WILDZ_PRODUCT.origin,

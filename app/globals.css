@@ -16943,3 +16943,6 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 
 .wildz-profile-sync-details { display: inline-flex; align-items: center; justify-content: center; padding: 0; width: 28px; height: 28px; border: 0; background: transparent; color: inherit; cursor: pointer; }
 .wildz-profile-sync-details:focus-visible { outline: 2px solid #c7e9ad; outline-offset: 3px; border-radius: 6px; }
+
+/* Public discovery links stay in page flow, never over the Vault. */
+.wildz-public-profile-links { display: flex; flex-wrap: wrap; gap: 12px 24px; max-width: 960px; margin: 24px auto 0; padding: 16px 0; border-top: 1px solid #7ba78e30; font-size: 12px; }

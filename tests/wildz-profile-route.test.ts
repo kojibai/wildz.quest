@@ -13,7 +13,7 @@ test("canonical shareable player route opens the profile and the legacy path red
   assert.match(canonical, /canonicalWildzProfilePath\(username\)/);
   assert.doesNotMatch(canonical, /marketplace|PublicStorefront/);
   assert.doesNotMatch(canonical, /encodeURIComponent\(username\)/);
-  assert.match(alias, /redirect\(canonicalWildzProfilePath/);
+  assert.match(alias, /permanentRedirect\(canonicalWildzProfilePath/);
 });
 
 test("shared profiles recover and publish through Receiz instead of a local placeholder", () => {

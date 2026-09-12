@@ -13,9 +13,6 @@ export const metadata: Metadata = {
   description: WILDZ_PRODUCT.description,
   category: "games",
   classification: "Living creature adventure game",
-  alternates: {
-    canonical: "/"
-  },
   robots: {
     index: true,
     follow: true,

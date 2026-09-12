@@ -26,5 +26,6 @@ export function WildzPublicProfilePage({ username }: { username: string }) {
   return <main className="wildz-public-profile-page">
     <nav aria-label="Profile navigation"><Link href="/">← Enter Wildz</Link><span>{username}</span></nav>
     {profile ? <WildzProfileSheet profile={profile} /> : <section className="wildz-public-profile-empty"><h1>{username}</h1><p role="status">{status}</p>{status !== "Loading explorer…" && <button type="button" onClick={() => setAttempt(value => value + 1)}>Try again</button>}</section>}
+    <footer className="wildz-public-profile-links"><Link prefetch={false} href="/guide">How to play Wildz</Link><Link prefetch={false} href="/about">About the game</Link><Link prefetch={false} href="/laws">World law</Link></footer>
   </main>;
 }
