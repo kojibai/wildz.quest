@@ -12,7 +12,7 @@ import type { WildsConstructionKind } from "./wilds-world-construction";
 
 export function WildsContinuousBuilderPanel({ builder, materials, onOpenCatalogue, onUse }: {
   onOpenCatalogue?: () => void;
-  onUse?: (kind: "workshop" | "storage") => void;
+  onUse?: (kind: "workshop" | "storage" | "bed") => void;
   builder: ReturnType<typeof useWildsContinuousBuilder>; materials: { hay: number; timber: number; stone: number };
 }) {
   const floating=useWildsFloatingPanel();
@@ -32,6 +32,9 @@ export function WildsContinuousBuilderPanel({ builder, materials, onOpenCatalogu
     </div>
     <div className="wilds-builder-catalog-link">{onOpenCatalogue && <button type="button" onClick={onOpenCatalogue}>Blueprints, tools & storage</button>}<small>{builder.inspecting ? "Tap a piece to inspect it. It stays locked." : "Tap to place. Existing pieces stay locked."}</small></div>
     {!builder.adjusting && <button type="button" aria-pressed={builder.inspecting} onClick={builder.inspecting ? () => builder.selectKind(builder.kind) : builder.editPieces}>{builder.inspecting ? "Back to building" : "Edit placed pieces"}</button>}
+    {builder.toggleSnap && <button type="button" aria-pressed={builder.snapEnabled} disabled={Boolean(builder.busy)} onClick={builder.toggleSnap}>
+      {builder.snapEnabled ? "Snap to structure · on" : "Free placement · grid"}
+    </button>}
     {builder.error && <p className="wilds-builder-error" role="alert">{builder.error}</p>}
     {builder.adjusting ? <section className="wilds-builder-adjustment" aria-label="Adjust placed piece">
       <strong>Adjust {wildsConstructionLabel(builder.selected?.kind ?? builder.kind).toLowerCase()}</strong>
@@ -48,7 +51,7 @@ export function WildsContinuousBuilderPanel({ builder, materials, onOpenCatalogu
       <button type="button" disabled={Boolean(builder.busy)} onClick={builder.beginAdjustment}><Unlock size={18} aria-hidden="true" /> Unlock to adjust</button>
       <div className="wilds-builder-stages">{["planned", "framed", "functional", "finished"].map(stage => <span key={stage} aria-current={builder.progress?.stage === stage ? "step" : undefined}>{stage}</span>)}</div>
       <progress max={100} value={builder.progress.percentage} aria-label="Construction progress" /><strong>{builder.progress.stage === "planned" ? "Plan placed · add materials to build" : `${builder.progress.percentage}% complete`}</strong>
-      {(builder.progress.stage === "functional" || builder.progress.stage === "finished") && (builder.selected.kind === "workshop" || builder.selected.kind === "storage") && onUse && <button type="button" onClick={() => onUse(builder.selected!.kind as "workshop" | "storage")}>{builder.selected.kind === "workshop" ? "Craft tools at this workbench" : "Use this storage"}</button>}
+      {(builder.progress.stage === "functional" || builder.progress.stage === "finished") && (builder.selected.kind === "workshop" || builder.selected.kind === "storage" || builder.selected.kind === "bed") && onUse && <button type="button" onClick={() => onUse(builder.selected!.kind as "workshop" | "storage" | "bed")}>{builder.selected.kind === "workshop" ? "Craft tools at this workbench" : builder.selected.kind === "bed" ? "Rest in this bed · recover energy" : "Use this storage"}</button>}
       {next ? <><p>Next: {next.stage}. Add materials and do {next.work.remaining} more work action{next.work.remaining === 1 ? "" : "s"}.</p>
         <div className="wilds-builder-needed">{(["hay", "timber", "stone"] as const).map(kind => <span key={kind}>{kind}<b>{next.materials[kind].contributed}/{next.materials[kind].required}</b></span>)}</div>
         <div className="wilds-builder-actions"><WildsExplainedAction label="Add what I carry" pending={Boolean(builder.busy)} blocker={builder.depositBlocker} onAction={builder.addCarried} /><WildsExplainedAction label={`Build ${next.stage}`} pending={Boolean(builder.busy)} blocker={builder.workBlocker} onAction={builder.work} /></div>

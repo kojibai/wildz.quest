@@ -1,3 +1,5 @@
+import { verifyWildsConstructionFunctionSource, type WildsConstructionFunctionSource } from "./wilds-construction-function";
+import { applyWildsFlightWind, createWildsKaiWeatherSample, writeWildsKaiWeather } from "./wilds-kai-wind";
 import { sanitizeWildsJourneyJournal, type WildsJourneyJournal } from "./wilds-journey";
 import { composeWildsInteriorConstruction } from "./wilds-construction-physics";
 import { restoreWildsBurrowSpace } from "./wilds-burrow";
@@ -147,7 +149,7 @@ export type WildsInput = (
   | { type: "use-field-ability"; assetId: string; abilityIndex: number; usedAt: string }
   | { type: "record-steward-work"; assetId: string }
   | { type: "mission" }
-  | { type: "rest"; at?: string }
+  | { type: "rest"; at?: string; bed?: WildsConstructionFunctionSource }
   | { type: "select-card"; cardId: string }
   | { type: "select-asset"; assetId: string }
   | { type: "assign-support"; slot: 0 | 1; assetId: string | null }
@@ -2095,8 +2097,8 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
     });
     const movement = currentSpace.spaceId === "wildz.space.outer.v1"
       ? input.type === "move"
-        ? movePlayer(state.player, input.direction, movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, admittedAirborne ? input.verticalWorldY : currentSpace.position.y, input.structureSupports, input.additionalObstacles)
-        : movePlayerVector(state.player, input.x, input.z, movementScale(input.mode ?? "walk"), movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, admittedAirborne ? input.verticalWorldY : currentSpace.position.y, input.structureSupports, input.additionalObstacles)
+        ? movePlayer(state.player, input.direction, movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, admittedAirborne ? input.verticalWorldY : currentSpace.position.y, input.structureSupports, input.additionalObstacles, input.kaiUPulse)
+        : movePlayerVector(state.player, input.x, input.z, movementScale(input.mode ?? "walk"), movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, admittedAirborne ? input.verticalWorldY : currentSpace.position.y, input.structureSupports, input.additionalObstacles, input.kaiUPulse)
       : movePlayerInsideSite(state.player, input);
     const siteMovement = input.siteRuntime ? writeWildsSiteRuntimeMovement(
       input.siteMovementOutput ?? { x: movement.position.x, z: movement.position.z, floorY: movement.elevation, ceilingY: Number.POSITIVE_INFINITY, surfaceId: null, flooded: false, blocked: false, blockedByClimb: false },
@@ -2185,14 +2187,21 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
   }
 
   if (input.type === "rest") {
+    const bed = input.bed;
+    const inBed = Boolean(bed && verifyWildsConstructionFunctionSource(bed, "bed")
+      && Math.hypot(bed.position.x - state.player.x, bed.position.z - state.player.z) <= 2.5
+      && (bed.component.evidence.spaceId ?? "wildz.space.outer.v1") === state.siteSpace.spaceId
+      && Math.abs(bed.position.y - state.siteSpace.position.y) < 2);
+    if (bed && !inBed) return state;
+    const recovery = inBed ? 55 : 35;
     const leader = selectedAsset(state);
     const maxVitality = leader && isLivingCardAsset(leader) ? currentRevision(leader).growth.life?.maxVitality : null;
     const recovered = leader && input.at
-      ? healWildBattleCard(leader, Math.max(1, Math.round((maxVitality ?? 20) * .25)), input.at)
+      ? healWildBattleCard(leader, Math.max(1, Math.round((maxVitality ?? 20) * (inBed ? .35 : .25))), input.at)
       : leader;
     const exactRecovery = Boolean(recovered && recovered !== leader && isLivingCardAsset(recovered));
     const priorCondition = leader ? state.adventureConditions[leader.id] ?? emptyAdventureCondition(leader.id) : null;
-    const recoveredCondition = priorCondition ? { ...priorCondition, fatigue: Math.max(0, priorCondition.fatigue - 35) } : null;
+    const recoveredCondition = priorCondition ? { ...priorCondition, fatigue: Math.max(0, priorCondition.fatigue - recovery) } : null;
     return {
       ...state,
       inventory: recovered
@@ -2212,8 +2221,8 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
         : state.hearttreeConditions,
       activeAction: "explore",
       combo: 0,
-      energy: Math.min(100, state.energy + 35),
-      lastEvent: recovered !== leader ? "Camp restored 35 energy and recovered 25% companion vitality." : "Camp restored 35 energy. Your expedition combo reset."
+      energy: Math.min(100, state.energy + recovery),
+      lastEvent: inBed ? "Rested in your bed: restored 55 energy, eased fatigue, and recovered companion vitality." : recovered !== leader ? "Camp restored 35 energy and recovered 25% companion vitality." : "Camp restored 35 energy. Your expedition combo reset."
     };
   }
 
@@ -2402,7 +2411,8 @@ function movePlayer(
   verticalClearance?: number,
   verticalWorldY?: number,
   structureSupports?: readonly WildsStructureSupport[],
-  additionalObstacles?: readonly WildsTerrainObstacle[]
+  additionalObstacles?: readonly WildsTerrainObstacle[],
+  kaiUPulse?: number
 ) {
   const next = { ...player };
 
@@ -2415,6 +2425,11 @@ function movePlayer(
     x: clamp(next.x, worldBounds.min, worldBounds.max),
     z: clamp(next.z, worldBounds.min, worldBounds.max)
   };
+  if (aerialMode && kaiUPulse !== undefined) {
+    applyWildsFlightWind(intended, player, writeWildsKaiWeather(createWildsKaiWeatherSample(), kaiUPulse, player.x, player.z));
+    intended.x = clamp(intended.x, worldBounds.min, worldBounds.max);
+    intended.z = clamp(intended.z, worldBounds.min, worldBounds.max);
+  }
   return resolveWildsGroundMovement(player, intended, { capabilities, aerialMode, verticalClearance, verticalWorldY, structureSupports, additionalObstacles });
 }
 
@@ -2428,7 +2443,8 @@ function movePlayerVector(
   verticalClearance?: number,
   verticalWorldY?: number,
   structureSupports?: readonly WildsStructureSupport[],
-  additionalObstacles?: readonly WildsTerrainObstacle[]
+  additionalObstacles?: readonly WildsTerrainObstacle[],
+  kaiUPulse?: number
 ) {
   const safeX = Number.isFinite(x) ? x : 0;
   const safeZ = Number.isFinite(z) ? z : 0;
@@ -2439,6 +2455,11 @@ function movePlayerVector(
     x: clamp(player.x + safeX * scale, worldBounds.min, worldBounds.max),
     z: clamp(player.z + safeZ * scale, worldBounds.min, worldBounds.max)
   };
+  if (aerialMode && kaiUPulse !== undefined) {
+    applyWildsFlightWind(intended, player, writeWildsKaiWeather(createWildsKaiWeatherSample(), kaiUPulse, player.x, player.z));
+    intended.x = clamp(intended.x, worldBounds.min, worldBounds.max);
+    intended.z = clamp(intended.z, worldBounds.min, worldBounds.max);
+  }
   return resolveWildsGroundMovement(player, intended, { capabilities, aerialMode, verticalClearance, verticalWorldY, structureSupports, additionalObstacles });
 }
 

@@ -332,7 +332,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(environment, /name="world-flagship-landmarks"/);
     assert.match(environment, /projectVisibleLandmarkEntrances\(player\)/);
     assert.match(environment, /function RootArch/);
-    assert.match(environment, /<mesh position=\{\[0, 1\.14, 0\]\}>/);
+    assert.match(environment, /TorusGeometry\(1\.18, \.22, 10, 32, Math\.PI\)\.translate\(0, 1\.14, 0\)/);
     assert.match(environment, /function SpringLandmark/);
     assert.match(environment, /const springStones = useRef<THREE\.InstancedMesh>/);
     assert.match(environment, /<WildsWorldArt/);

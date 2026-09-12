@@ -5,7 +5,8 @@ import * as THREE from "three";
 import type { WildsInteractionSurfacePoint } from "./wilds-surface-interaction";
 export type WildsConstructionDragHandler=(id:string,point:WildsInteractionSurfacePoint,phase:"move"|"drop"|"cancel",transform?:{rotation:number;height:number})=>void;
 import { createWildsConstructionMaterials } from "./wilds-construction-materials";
-import { useThree, type ThreeEvent } from "@react-three/fiber";
+import { wildsConstructionOccludesCamera } from "./wilds-construction-camera";
+import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import type { WildsWorldProjection } from "./wilds-world-state";
 import type { WildsBlueprintPlacement } from "./wilds-world-construction";
 import { indexWildsConstruction, constructionGeometryForCollections } from "./wilds-construction-neighborhood";
@@ -37,6 +38,22 @@ export function WildsContinuousConstruction({ world, player, terrainElevation, p
     canvas.addEventListener("lostpointercapture",cancel);
     return()=>{canvas.removeEventListener("pointercancel",cancel);canvas.removeEventListener("lostpointercapture",cancel);cancel();};
   },[controls,gl]);
+  const root = useRef<THREE.Group>(null);
+  const origin = useRef(new THREE.Vector3());
+  const cutaways = useRef(new Map<string, { mesh: THREE.Mesh; box: { center: { x: number; y: number; z: number }; halfExtents: { x: number; y: number; z: number } } }>());
+  const cameraPoint = useRef({ x: 0, y: 0, z: 0 });
+  const actorPoint = useRef({ x: 0, y: 0, z: 0 });
+  useFrame(({ camera }) => {
+    if (!root.current || cutaways.current.size === 0) return;
+    root.current.getWorldPosition(origin.current);
+    cameraPoint.current.x = camera.position.x - origin.current.x;
+    cameraPoint.current.y = camera.position.y - origin.current.y;
+    cameraPoint.current.z = camera.position.z - origin.current.z;
+    actorPoint.current.x = -origin.current.x; actorPoint.current.y = .9 - origin.current.y; actorPoint.current.z = -origin.current.z;
+    for (const { mesh, box } of cutaways.current.values()) {
+      mesh.visible = Boolean(selectable || activeComponentId) || !wildsConstructionOccludesCamera(box, cameraPoint.current, actorPoint.current);
+    }
+  });
   const surfaces = useMemo(createWildsConstructionMaterials, []);
   useEffect(() => () => surfaces.dispose(), [surfaces]);
   // Proof and stage projections run only when the snapshot changes, never in useFrame.
@@ -58,7 +75,7 @@ export function WildsContinuousConstruction({ world, player, terrainElevation, p
   const pieces = queryComponents ? queryComponents({ minX: player.x - 64, maxX: player.x + 64, minZ: player.z - 64, maxZ: player.z + 64 })
     .filter(component => (component.evidence.spaceId ?? "wildz.space.outer.v1") === spaceId
       && Math.hypot(component.transform.position.x - player.x, component.transform.position.z - player.z) <= 64) : [];
-  return <group name="continuous-construction" position={[-player.x, -terrainElevation, -player.z]}>
+  return <group ref={root} name="continuous-construction" position={[-player.x, -terrainElevation, -player.z]}>
     {pieces.map(component => {
       if (!projectGeometry) return null;
       const geometry = projectGeometry(component);
@@ -74,7 +91,11 @@ export function WildsContinuousConstruction({ world, player, terrainElevation, p
         {planned ? <group name="construction-plan-stakes">
           {[-1, 1].flatMap(x => [-1, 1].map(z => <mesh key={`${x}:${z}`} position={[box.center.x + x * box.halfExtents.x, box.center.y - box.halfExtents.y + .3, box.center.z + z * box.halfExtents.z]}><boxGeometry args={[.09, .6, .09]} /><meshStandardMaterial color="#9dddbf" /></mesh>))}
           <mesh position={[box.center.x, box.center.y - box.halfExtents.y + .025, box.center.z]}><boxGeometry args={[box.halfExtents.x * 2, .05, box.halfExtents.z * 2]} /><meshStandardMaterial color="#72d9b7" transparent opacity={.32} depthWrite={false} /></mesh>
-        </group> : geometry.solids.map(solid => <mesh castShadow receiveShadow key={solid.id} position={[solid.center.x, solid.center.y, solid.center.z]} geometry={surfaces.geometry(solid.halfExtents)} material={surfaces.material(component.kind, geometry.stage)} dispose={null}>
+        </group> : geometry.solids.map(solid => <mesh castShadow receiveShadow key={solid.id} ref={mesh => {
+          if (mesh && ["wall", "partition", "room", "roof"].includes(component.kind) && !solid.id.endsWith(":floor")) {
+            cutaways.current.set(solid.id, { mesh, box: solid });
+          } else cutaways.current.delete(solid.id);
+        }} position={[solid.center.x, solid.center.y, solid.center.z]} geometry={surfaces.geometry(solid.halfExtents)} material={surfaces.material(component.kind, geometry.stage)} dispose={null}>
         </mesh>)}
         {!planned && component.kind === "water" && <mesh position={[box.center.x, box.center.y, box.center.z]}><boxGeometry args={[box.halfExtents.x * 2, .08, box.halfExtents.z * 2]} /><meshStandardMaterial color="#70cddd" transparent opacity={.7} /></mesh>}
         {(geometry.stage === "functional" || geometry.stage === "finished") && (component.kind === "light" || component.kind === "hearth") && <mesh position={[box.center.x, box.center.y + box.halfExtents.y, box.center.z]}><sphereGeometry args={[.16, 8, 6]} /><meshStandardMaterial color="#ffe7a4" emissive="#ffbf60" emissiveIntensity={2} /></mesh>}

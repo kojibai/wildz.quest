@@ -16946,3 +16946,23 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 
 /* Public discovery links stay in page flow, never over the Vault. */
 .wildz-public-profile-links { display: flex; flex-wrap: wrap; gap: 12px 24px; max-width: 960px; margin: 24px auto 0; padding: 16px 0; border-top: 1px solid #7ba78e30; font-size: 12px; }
+
+/* Resting HUD surfaces: opaque enough for contrast without sampling the moving
+   WebGL scene through multiple backdrop blurs. Geometry/touch targets stay owned
+   by the responsive control layout above. */
+.wildz-app :is(.wildz-explorer-capsule, .wildz-mission-chip, .wilds-kai-command-pill,
+  .wilds-wallet-pill, .wilds-live-pill, .wilds-live-share, .wilds-audio-settings > button,
+  .wildz-quick-utilities > button, .wildz-direction-compass):not(.is-active):not([aria-pressed="true"]) {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: linear-gradient(155deg, #183b32, #0b211d);
+  border-color: rgb(197 221 191 / 28%);
+  box-shadow: 0 3px 10px rgb(3 15 11 / 18%), inset 0 1px rgb(242 242 217 / 9%);
+}
+.wildz-app .wildz-mission-home > .wildz-mission-chip {
+  border-width: 1px;
+  border-radius: 16px;
+  color: #eddfac;
+}
+.wildz-app .wildz-explorer-capsule strong { color: #f1f2df; }
+.wildz-app .wildz-explorer-capsule small { color: #bdcfbe; }

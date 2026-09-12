@@ -21,6 +21,8 @@ import { creatureForm } from "@/features/play/creature-catalog";
 import type { BattleFighter } from "@/features/play/battle-engine";
 import type { HotspotCover } from "@/features/play/hidden-hotspots";
 import type { WildsPresence } from "@/features/play/multiplayer-core";
+import { createWildsKaiWeatherSample, writeWildsKaiWeather } from "./wilds-kai-wind";
+import { writeWildsWeatherExposure } from "./wilds-weather-exposure";
 import { WildsEnvironment } from "@/features/play/WildsEnvironment";
 import { WildsExplorer } from "@/features/play/WildsExplorer";
 import { WildsAtmosphere } from "@/features/play/WildsAtmosphere";
@@ -463,7 +465,7 @@ function WildsScene({
             : null
         ))}
       </SmoothWorldFrame>
-      <AerialPlayerFrame aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} flightEndurancePotential={flightEndurancePotential} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} livingPhysicalObstacles={livingPhysicalObstacles} pressurePotential={pressurePotential} swimStamina={state.energy} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} player={state.player} runtime={aerialStateRef} terrainObstacleNeighborhood={terrainObstacleNeighborhood} verticalIntentRef={verticalIntentRef} verticalTraversalRef={verticalTraversalRef} siteRuntime={siteRuntime} siteSpace={siteSpace}>
+      <AerialPlayerFrame kaiUPulse={kaiMoment.uPulse} aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} flightEndurancePotential={flightEndurancePotential} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} livingPhysicalObstacles={livingPhysicalObstacles} pressurePotential={pressurePotential} swimStamina={state.energy} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} player={state.player} runtime={aerialStateRef} terrainObstacleNeighborhood={terrainObstacleNeighborhood} verticalIntentRef={verticalIntentRef} verticalTraversalRef={verticalTraversalRef} siteRuntime={siteRuntime} siteSpace={siteSpace}>
         <WildsExplorer
           aerialPalette={{
             primary: activeAppearance?.palette.primary ?? "#c9fff0",
@@ -489,10 +491,11 @@ function WildsScene({
   );
 }
 
-function AerialPlayerFrame({ aquaticPresentation, capabilities, children, flightEndurancePotential, horizontalAllowedRef, liftPotential, livingPhysicalObstacles, pressurePotential, swimStamina, onEnergyChange, onModeChange, onLandingRequired, onVerticalReadoutChange, player, runtime, terrainObstacleNeighborhood, verticalIntentRef, verticalTraversalRef, siteRuntime, siteSpace }: {
+function AerialPlayerFrame({ kaiUPulse, aquaticPresentation, capabilities, children, flightEndurancePotential, horizontalAllowedRef, liftPotential, livingPhysicalObstacles, pressurePotential, swimStamina, onEnergyChange, onModeChange, onLandingRequired, onVerticalReadoutChange, player, runtime, terrainObstacleNeighborhood, verticalIntentRef, verticalTraversalRef, siteRuntime, siteSpace }: {
   aquaticPresentation: WildsAquaticPresentation;
   capabilities: readonly WildsTraversalCapability[];
   children: ReactNode;
+  kaiUPulse: number;
   flightEndurancePotential: number;
   horizontalAllowedRef: MutableRefObject<boolean>;
   liftPotential: number;
@@ -530,6 +533,9 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, flight
     obstacleTopY: undefined, powered: false, pressurePotential: 0, stamina: 100,
     terrainElevation: 0, waterSurfaceY: 0
   });
+  const weatherSample = useRef(createWildsKaiWeatherSample());
+  const weatherExposure = useRef({ rain: 0, wind: 1, sheltered: false });
+  const weatherPoint = useRef({ x: 0, y: 0, z: 0 });
   const hasFlight = capabilities.includes("flight");
   const hasGlide = capabilities.includes("glide");
   const hasSwim = capabilities.includes("swim");
@@ -564,6 +570,14 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, flight
     const activeGroundElevation = typeof siteCollision.floorY === "number" && Number.isFinite(siteCollision.floorY) ? siteCollision.floorY : groundElevation;
     const activeWaterSurfaceY = typeof siteCollision.waterSurfaceY === "number" && Number.isFinite(siteCollision.waterSurfaceY) ? siteCollision.waterSurfaceY : aquaticPresentation.waterSurfaceY;
     const aerialInput = runtimeStep.current;
+    aerialInput.weatherLoad = 0;
+    if (!siteInterior && runtime.current.mode !== "ground") {
+      writeWildsKaiWeather(weatherSample.current, kaiUPulse, player.x, player.z);
+      weatherPoint.current.x = player.x; weatherPoint.current.z = player.z;
+      weatherPoint.current.y = currentVertical.worldY;
+      writeWildsWeatherExposure(weatherExposure.current, weatherSample.current, weatherPoint.current, livingPhysicalObstacles);
+      aerialInput.weatherLoad = weatherSample.current.flightLoad * weatherExposure.current.wind;
+    }
     aerialInput.deltaSeconds = delta;
     aerialInput.flightEndurancePotential = flightEndurancePotential;
     aerialInput.groundElevation = activeGroundElevation;
@@ -589,7 +603,7 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, flight
           : aquaticPresentation.actorLocalY;
     verticalInput.intent = verticalIntentRef.current;
     verticalInput.layer = layer;
-    verticalInput.liftPotential = liftPotential;
+    verticalInput.liftPotential = liftPotential * (1 - (aerialInput.weatherLoad ?? 0) * .2);
     verticalInput.ceilingY = collisionSample.ceilingY;
     verticalInput.obstacleTopY = collisionSample.obstacleTopY;
     verticalInput.powered = runtime.current.mode === "flight";

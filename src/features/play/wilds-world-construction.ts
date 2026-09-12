@@ -1,3 +1,4 @@
+import { architecturalSnap } from "./wilds-architectural-snap";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 
 // Disposable local blueprint geometry only. Nothing in this module publishes
@@ -20,6 +21,7 @@ export type WildsConstructionCatalogEntry = Readonly<{
 export type WildsBlueprintAnchor = Readonly<{ id: string; kind: AnchorKind; position: Point3 }>;
 export type WildsBlueprintPlacement = Readonly<{
   schema: "wildz.blueprint-placement-preview.v1";
+  snapVersion?: 2;
   blueprintId: string;
   worldId: string;
   sourceRevision: number;
@@ -67,6 +69,7 @@ export type WildsBlueprintPlacementInput = Readonly<{
   rotationQuarterTurns: number;
   heightStep: number;
   surfaceSnap?: boolean;
+  snapVersion?: 2;
   physical: WildsPlacementPhysicalEvidence;
 }>;
 
@@ -77,6 +80,7 @@ export type WildsProductionPlacementEvidence = Readonly<{
   rotationQuarterTurns: number;
   heightStep: number;
   surfaceSnap?: boolean;
+  snapVersion?: 2;
   physical: WildsPlacementPhysicalEvidence;
 }>;
 
@@ -328,30 +332,43 @@ export function previewWildsBlueprintPlacement(input: WildsBlueprintPlacementInp
   if (!Number.isSafeInteger(input.heightStep) || Math.abs(input.heightStep) > 32) throw new Error("wilds_blueprint_height_invalid");
   const catalog = CATALOG.get(input.kind);
   if (!catalog) throw new Error("wilds_blueprint_component_invalid");
-  const rotationQuarterTurns = quarter(input.rotationQuarterTurns);
-  const rotated = rotationQuarterTurns % 2 === 0 ? catalog.halfExtents : { x: catalog.halfExtents.z, y: catalog.halfExtents.y, z: catalog.halfExtents.x };
+  if (input.snapVersion !== undefined && input.snapVersion !== 2) throw new Error("wilds_blueprint_snap_version_invalid");
+  let rotationQuarterTurns = quarter(input.rotationQuarterTurns);
+  let rotated = rotationQuarterTurns % 2 === 0 ? catalog.halfExtents : { x: catalog.halfExtents.z, y: catalog.halfExtents.y, z: catalog.halfExtents.x };
   const acceptedAnchors: readonly AnchorKind[] = input.surfaceSnap && ["storage", "workshop", "habitat", "bed", "hearth", "light", "trim"].includes(input.kind)
     ? [...ACCEPTED_ANCHORS[input.kind], "foundation"] : ACCEPTED_ANCHORS[input.kind];
   const blueprintAnchors = new Map(input.blueprint.pieces.flatMap((piece) => piece.anchors.map((candidate) => [candidate.id, candidate] as const)));
   const compatibleAnchors = input.physical.anchors.filter((candidate) => acceptedAnchors.includes(candidate.kind)
     && canonicalPortableCardJson(blueprintAnchors.get(candidate.id) ?? null) === canonicalPortableCardJson(candidate));
-  const anchor = nearestAnchor(compatibleAnchors, input.pointer);
+  // At deck height, finish the room perimeter before offering a stacked wall.
+  // Keep the original anchor selection untouched for historical placements.
+  const deckAnchors = input.snapVersion === 2 && input.surfaceSnap && ["wall", "partition"].includes(input.kind)
+    ? compatibleAnchors.filter(candidate => candidate.kind === "foundation" && Math.abs(candidate.position.y - input.pointer.y) <= 1)
+    : [];
+  const anchor = nearestAnchor(deckAnchors, input.pointer) ?? nearestAnchor(compatibleAnchors, input.pointer);
   const groundWorkbench = input.surfaceSnap && input.kind === "workshop";
   const needsStructure = catalog.support === "structure" && !groundWorkbench;
   const needsWater = catalog.support === "water";
-  const baseY = needsWater && input.physical.waterline !== null
+  let baseY = needsWater && input.physical.waterline !== null
     ? input.physical.waterline
     : anchor && catalog.support !== "terrain"
       ? anchor.position.y
       : input.physical.terrainY;
   const supportPiece = anchor ? input.blueprint.pieces.find(piece => piece.anchors.some(candidate => candidate.id === anchor.id)) : null;
+  const architectural = input.snapVersion === 2 && input.surfaceSnap && supportPiece
+    ? architecturalSnap(input.kind, input.pointer, supportPiece, rotationQuarterTurns) : null;
+  if (architectural) {
+    rotationQuarterTurns = architectural.rotation;
+    rotated = rotationQuarterTurns % 2 === 0 ? catalog.halfExtents : { x: catalog.halfExtents.z, y: catalog.halfExtents.y, z: catalog.halfExtents.x };
+    if (architectural.baseY !== undefined) baseY = architectural.baseY;
+  }
   const surfaceOffset = input.surfaceSnap && anchor && supportPiece && !["door", "window", "roof", "room"].includes(input.kind)
     && Math.abs(input.pointer.x - supportPiece.geometry.center.x) <= supportPiece.geometry.halfExtents.x + .25
     && Math.abs(input.pointer.z - supportPiece.geometry.center.z) <= supportPiece.geometry.halfExtents.z + .25;
   const position = freeze({
-    x: quantize(anchor && catalog.support !== "terrain" && !surfaceOffset ? anchor.position.x : input.pointer.x, .5),
+    x: architectural?.x ?? (input.snapVersion === 2 && input.surfaceSnap && anchor && ["door", "window"].includes(input.kind) ? anchor.position.x : quantize(anchor && catalog.support !== "terrain" && !surfaceOffset ? anchor.position.x : input.pointer.x, .5)),
     y: quantize(baseY + rotated.y + input.heightStep * .5, .000001),
-    z: quantize(anchor && catalog.support !== "terrain" && !surfaceOffset ? anchor.position.z : input.pointer.z, .5)
+    z: architectural?.z ?? (input.snapVersion === 2 && input.surfaceSnap && anchor && ["door", "window"].includes(input.kind) ? anchor.position.z : quantize(anchor && catalog.support !== "terrain" && !surfaceOffset ? anchor.position.z : input.pointer.z, .5))
   });
   const geometry = freeze({ center: position, halfExtents: freeze({ ...rotated }) });
   const cues: string[] = [];
@@ -362,7 +379,7 @@ export function previewWildsBlueprintPlacement(input: WildsBlueprintPlacementInp
   if (catalog.support === "terrain" && input.heightStep !== 0) cues.push("needs-terrain-support");
   if (catalog.support === "terrain-or-structure" && input.heightStep !== 0 && !anchor) cues.push("needs-structure-anchor");
   const sourceBlueprintDigest = blueprintDigest(input.blueprint);
-  const placementBasis = { schema: "wildz.blueprint-placement-preview.v1", blueprintId: input.blueprint.blueprintId, worldId: input.blueprint.worldId, sourceRevision: input.blueprint.revision, sourceBlueprintDigest, kind: input.kind, position, rotationQuarterTurns };
+  const placementBasis = { ...(input.snapVersion === 2 ? { snapVersion: 2 } : {}), schema: "wildz.blueprint-placement-preview.v1", blueprintId: input.blueprint.blueprintId, worldId: input.blueprint.worldId, sourceRevision: input.blueprint.revision, sourceBlueprintDigest, kind: input.kind, position, rotationQuarterTurns };
   const placementId = `preview:${sha256PortableBasis(canonicalPortableCardJson(placementBasis)).slice(0, 24)}`;
   const detailedGeometry = placementGeometry(input.kind, placementId, position, geometry.halfExtents, rotationQuarterTurns);
   const collides = (first: Box, second: Box) => {
@@ -380,6 +397,7 @@ export function previewWildsBlueprintPlacement(input: WildsBlueprintPlacementInp
   if (detailedGeometry.collisionSolids.some((component) => input.blueprint.pieces.some((piece) => piece.collisionSolids.some((solid) => collides(component, solid))))) cues.push("blueprint-collision");
   const anchors = placementAnchors(input.kind, placementId, position, geometry.halfExtents, catalog.anchors, rotationQuarterTurns);
   const content = {
+    ...(input.snapVersion === 2 ? { snapVersion: 2 as const } : {}),
     schema: "wildz.blueprint-placement-preview.v1",
     blueprintId: input.blueprint.blueprintId,
     worldId: input.blueprint.worldId,
@@ -414,6 +432,7 @@ export function verifyWildsProductionPlacement(
       rotationQuarterTurns: evidence.rotationQuarterTurns,
       heightStep: evidence.heightStep,
       surfaceSnap: evidence.surfaceSnap,
+      snapVersion: evidence.snapVersion,
       physical: evidence.physical
     });
     return recomputed.valid
@@ -428,7 +447,9 @@ function canonicalPlacementContent(placement: WildsBlueprintPlacement) {
   if (!catalog || !finitePoint(placement.transform.position) || !Number.isSafeInteger(placement.transform.rotationQuarterTurns)) return false;
   const rotation = quarter(placement.transform.rotationQuarterTurns);
   const halfExtents = rotation % 2 === 0 ? catalog.halfExtents : { x: catalog.halfExtents.z, y: catalog.halfExtents.y, z: catalog.halfExtents.x };
+  if (placement.snapVersion !== undefined && placement.snapVersion !== 2) return false;
   const placementBasis = {
+    ...(placement.snapVersion === 2 ? { snapVersion: 2 } : {}),
     schema: placement.schema,
     blueprintId: placement.blueprintId,
     worldId: placement.worldId,

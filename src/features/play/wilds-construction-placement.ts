@@ -8,7 +8,7 @@ import { type WildsWorldProjection } from "./wilds-world-state";
 import { nearbyWildsConstruction, constructionGeometryForCollections } from "./wilds-construction-neighborhood";
 import { sampleWildsTerrain } from "./wilds-terrain-authority";
 
-export type WildsConstructionPlacementRequest = Pick<WildsProductionPlacementEvidence, "spaceId" | "pointer" | "rotationQuarterTurns" | "heightStep" | "surfaceSnap">;
+export type WildsConstructionPlacementRequest = Pick<WildsProductionPlacementEvidence, "spaceId" | "pointer" | "rotationQuarterTurns" | "heightStep" | "surfaceSnap" | "snapVersion">;
 
 /** Both preview and admission use this exact source request and admitted neighborhood. */
 export function projectWildsProductionPlacementEvidence(world: WildsWorldProjection, projectId: string, request: WildsConstructionPlacementRequest): WildsProductionPlacementEvidence {

@@ -14,7 +14,7 @@ export type WildsConstructionFunctionSource = Readonly<{
   position: WildsConstructionComponentV1["transform"]["position"];
 }>;
 export type WildsCraftWorkstation = WildsStewardWorkbenchV1 | WildsConstructionFunctionSource;
-export function verifyWildsConstructionFunctionSource(value: unknown, kind: "workshop" | "storage"): value is WildsConstructionFunctionSource {
+export function verifyWildsConstructionFunctionSource(value: unknown, kind: "workshop" | "storage" | "bed"): value is WildsConstructionFunctionSource {
   try {
     const source = value as WildsConstructionFunctionSource;
     const c = source.component;
@@ -32,7 +32,7 @@ export function verifyWildsConstructionFunctionSource(value: unknown, kind: "wor
 export function verifyWildsCraftWorkstation(value: unknown): value is WildsCraftWorkstation {
   return (verifyWildsStructure(value) && value.blueprint === "steward-workbench") || verifyWildsConstructionFunctionSource(value, "workshop");
 }
-export function resolveWildsConstructionFunction(world: WildsWorldProjection, id: string, kind: "workshop" | "storage"): WildsConstructionFunctionSource | null {
+export function resolveWildsConstructionFunction(world: WildsWorldProjection, id: string, kind: "workshop" | "storage" | "bed"): WildsConstructionFunctionSource | null {
   const component = world.constructionComponents[id];
   if (!component) return null;
   const source: WildsConstructionFunctionSource = { schema: "wildz.construction-function-source.v1", component,

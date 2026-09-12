@@ -21,6 +21,8 @@ varying vec3 vSkyDirection;
 void main() {
   float heightMix = smoothstep(0.02, 0.88, clamp(vSkyDirection.y, 0.0, 1.0));
   gl_FragColor = vec4(mix(uHorizon, uZenith, heightMix), 1.0);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
 }
 `;
 

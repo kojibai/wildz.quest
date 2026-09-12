@@ -63,17 +63,22 @@ export function WildsAtmosphere({
     expression.sun.elevation,
     expression.sun.intensity
   ]);
+  // A neutral skylight preserves material colors; the existing celestial key supplies warmth.
+  const skyLight = useMemo(() => new THREE.Color("#d8e8e5")
+    .lerp(new THREE.Color(expression.sky.tint), .28 + expression.night.amount * .72)
+    .getStyle(), [expression.sky.tint, expression.night.amount]);
   const groundLight = useMemo(() => new THREE.Color("#2d5a39")
     .lerp(new THREE.Color("#050811"), expression.night.amount)
     .getStyle(), [expression.night.amount]);
   return (
     <group name={`verdant-atmosphere-${biome.weather}`}>
-      <hemisphereLight color={expression.sky.tint} groundColor={groundLight} intensity={expression.lighting.hemisphere * biome.luminosity * (1 - readability.darkness * 0.42)} />
+      <hemisphereLight color={skyLight} groundColor={groundLight} intensity={expression.lighting.hemisphere * biome.luminosity * (1 - readability.darkness * 0.42)} />
       <directionalLight
         castShadow
         color={celestialKey.color}
         intensity={celestialKey.intensity * biome.luminosity * (1 - readability.darkness * 0.32)}
         position={celestialKey.position}
+        shadow-intensity={expression.lighting.shadow}
         shadow-camera-bottom={-8}
         shadow-camera-left={-8}
         shadow-camera-right={8}
@@ -112,16 +117,25 @@ function SunShafts({ strength, color }: { strength: number; color: string }) {
 }
 
 function CanopyShadows() {
-  return (
-    <group name="canopy-shadows" position={[0, 0.006, 0]}>
-      {([[-3.1, -1.8, 1.5], [2.4, -2.7, 1.15], [3.4, 2.2, 1.75], [-2.2, 3.1, 1.22]] as const).map(([x, z, scale], index) => (
-        <mesh key={index} position={[x, 0, z]} rotation={[-Math.PI / 2, 0, index * 0.6]} scale={[scale, scale * 0.62, 1]}>
-          <circleGeometry args={[1, 10]} />
-          <meshBasicMaterial color="#174a32" depthWrite={false} opacity={0.09} transparent />
-        </mesh>
-      ))}
-    </group>
-  );
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  useLayoutEffect(() => {
+    const matrix = new THREE.Matrix4();
+    const rotation = new THREE.Quaternion();
+    const position = new THREE.Vector3();
+    const scale = new THREE.Vector3();
+    const euler = new THREE.Euler();
+    ([[-3.1, -1.8, 1.5], [2.4, -2.7, 1.15], [3.4, 2.2, 1.75], [-2.2, 3.1, 1.22]] as const)
+      .forEach(([x, z, radius], index) => {
+        rotation.setFromEuler(euler.set(-Math.PI / 2, 0, index * .6));
+        matrix.compose(position.set(x, .006, z), rotation, scale.set(radius, radius * .62, 1));
+        mesh.current?.setMatrixAt(index, matrix);
+      });
+    if (mesh.current) mesh.current.instanceMatrix.needsUpdate = true;
+  }, []);
+  return <instancedMesh args={[undefined, undefined, 4]} name="canopy-shadows" ref={mesh}>
+    <circleGeometry args={[1, 10]} />
+    <meshBasicMaterial color="#174a32" depthWrite={false} opacity={.09} transparent />
+  </instancedMesh>;
 }
 
 function PollenDrift({ count, weather, speed, tint }: { count: number; weather: string; speed: number; tint: string }) {

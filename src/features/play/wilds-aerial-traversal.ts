@@ -29,6 +29,7 @@ export type MutableWildsAerialRuntimeResult = {
 };
 
 export type WildsAerialRuntimeStep = {
+  weatherLoad?: number;
   deltaSeconds: number;
   flightEndurancePotential?: number;
   groundElevation: number;
@@ -55,6 +56,7 @@ export function writeWildsAerialRuntimeStep(
   output: MutableWildsAerialRuntimeResult
 ) {
   if (!Number.isFinite(input.deltaSeconds)
+    || (input.weatherLoad !== undefined && !Number.isFinite(input.weatherLoad))
     || (input.flightEndurancePotential !== undefined && !Number.isFinite(input.flightEndurancePotential))
     || !Number.isFinite(input.groundElevation)
     || !Number.isFinite(input.horizontalDistance)
@@ -65,6 +67,7 @@ export function writeWildsAerialRuntimeStep(
   }
   const delta = bounded(input.deltaSeconds, 0, .1);
   const distance = bounded(input.horizontalDistance, 0, 4);
+  const weatherCost = 1 + bounded(input.weatherLoad ?? 0, 0, 1) * .65;
   output.state = state;
   output.reason = null;
   output.horizontalAllowed = true;
@@ -97,7 +100,7 @@ export function writeWildsAerialRuntimeStep(
   if (state.mode === "flight") {
     const endurance = bounded(input.flightEndurancePotential ?? 0, 0, 1);
     const enduranceMultiplier = 1 - endurance * .5;
-    state.stamina = quantize(Math.max(0, state.stamina - delta * (1.4 + distance * .8) * enduranceMultiplier));
+    state.stamina = quantize(Math.max(0, state.stamina - delta * (1.4 + distance * .8) * enduranceMultiplier * weatherCost));
     if (state.stamina <= 0) {
       if (input.hasGlide) {
         state.mode = "glide";
@@ -114,7 +117,7 @@ export function writeWildsAerialRuntimeStep(
     return output;
   }
 
-  state.stamina = quantize(Math.max(0, state.stamina - delta * (.8 + distance * .35)));
+  state.stamina = quantize(Math.max(0, state.stamina - delta * (.8 + distance * .35) * weatherCost));
   if (state.stamina <= 0 || input.verticalOffset <= AIR_GROUND_CLEARANCE) {
     const reason = state.stamina <= 0 ? "flight-exhausted" : "landed";
     requestWildsAerialLanding(state, reason);

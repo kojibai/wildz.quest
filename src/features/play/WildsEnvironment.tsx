@@ -1,5 +1,7 @@
 "use client";
 import { useWildsNaturalTexture } from "./wilds-natural-material";
+import { useWildsFoliageBreeze } from "./use-wilds-foliage-breeze";
+import { createWildsOrganicGeometry } from "./wilds-organic-geometry";
 import { useWildsRockTexture } from "./wilds-rock-material";
 
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
@@ -80,11 +82,14 @@ function useInstances(
   const animatedQuaternion = useRef(new THREE.Quaternion());
   const animatedScale = useRef(new THREE.Vector3());
   const animatedTilt = useRef(new THREE.Quaternion());
+  const animatedEuler = useRef(new THREE.Euler());
   const activeIndex = useMemo(() => items.findIndex((item) => item.working && item.workStartedAtMs !== undefined), [items]);
   useLayoutEffect(() => {
     const matrix = new THREE.Matrix4();
     const quaternion = new THREE.Quaternion();
     const scale = new THREE.Vector3();
+    const position = new THREE.Vector3();
+    const euler = new THREE.Euler();
     items.forEach((item, index) => {
       const shaped = shape(item);
       const projected = projectWildsEcologyInstance(item, { x: player.x, z: player.z }, y, shaped, clearRadius, terrainElevation);
@@ -93,14 +98,16 @@ function useInstances(
         projected.position[1] = y + wildsSiteRuntimeGroundY(siteRuntime, siteSpaceId, item.x, item.z, baseWorldY) - terrainElevation;
       }
       scale.set(...projected.scale);
-      quaternion.setFromEuler(new THREE.Euler(0, seededUnit(index, item.variant + 17) * Math.PI * 2, 0));
-      matrix.compose(new THREE.Vector3(...projected.position), quaternion, scale);
+      quaternion.setFromEuler(euler.set(0, seededUnit(item.x * 73 + item.z * 137, item.variant + 17) * Math.PI * 2, 0));
+      matrix.compose(position.set(...projected.position), quaternion, scale);
       mesh.current?.setMatrixAt(index, matrix);
-      baseMatrices.current[index] = matrix.clone();
+      if (motionKind) {
+        (baseMatrices.current[index] ??= new THREE.Matrix4()).copy(matrix);
+      }
     });
-    baseMatrices.current.length = items.length;
+    baseMatrices.current.length = motionKind ? items.length : 0;
     if (mesh.current) mesh.current.instanceMatrix.needsUpdate = true;
-  }, [clearRadius, items, mesh, player.x, player.z, shape, siteRuntime, siteSpaceId, terrainElevation, y]);
+  }, [clearRadius, items, mesh, motionKind, player.x, player.z, shape, siteRuntime, siteSpaceId, terrainElevation, y]);
   useFrame(() => {
     if (!motionKind || !mesh.current) return;
     const priorActiveIndex = previousActiveIndex.current;
@@ -123,7 +130,7 @@ function useInstances(
       reducedMotion
     });
     base.decompose(animatedPosition.current, animatedQuaternion.current, animatedScale.current);
-    animatedTilt.current.setFromEuler(new THREE.Euler(motion.tiltX, 0, motion.tiltZ));
+    animatedTilt.current.setFromEuler(animatedEuler.current.set(motion.tiltX, 0, motion.tiltZ));
     animatedQuaternion.current.multiply(animatedTilt.current);
     animatedPosition.current.y += motion.lift;
     animatedScale.current.multiplyScalar(motion.scale);
@@ -215,7 +222,7 @@ export function WildsEnvironment({
       </group>
       <group name="world-layer-mid">
         <WildsDiscoverySites onPortal={onSitePortal} player={player} runtime={siteRuntime} space={siteSpace} />
-        {outer ? <><EcologyInstances bushes={bushes} flowers={flowers} palette={tiles[12]?.canopy} player={player} qualityProfile={qualityProfile} rocks={rocks} siteRuntime={siteRuntime} siteSpaceId={siteSpace.spaceId} terrainElevation={terrainElevation} trees={trees} />
+        {outer ? <><EcologyInstances kaiUPulse={kaiUPulse} bushes={bushes} flowers={flowers} palette={tiles[12]?.canopy} player={player} qualityProfile={qualityProfile} rocks={rocks} siteRuntime={siteRuntime} siteSpaceId={siteSpace.spaceId} terrainElevation={terrainElevation} trees={trees} />
         <FlagshipLandmarkEntrances detail={qualityProfile.tier !== "low"} livingWorld={livingWorld} player={player} terrainElevation={terrainElevation} worldMode={worldMode} />
         <LivingWorldSites player={player} terrainElevation={terrainElevation} world={livingWorld} />
         <AuthoredOverlooks onSelect={onSelectOverlook} player={player} terrainElevation={terrainElevation} />
@@ -386,7 +393,10 @@ function GroundField({ centerX, centerZ, color, player, qualityProfile, terrainE
     const next = new THREE.BufferGeometry();
     next.setAttribute("position", new THREE.Float32BufferAttribute(projection.positions, 3));
     next.setAttribute("normal", new THREE.Float32BufferAttribute(projection.normals, 3));
-    next.setAttribute("uv", new THREE.Float32BufferAttribute(projection.uvs, 2));
+    // World-space UVs keep surface grain fixed while the streamed patch moves.
+    next.setAttribute("uv", new THREE.Float32BufferAttribute(
+      projection.vertices.flatMap((vertex) => [vertex.world.x / 12, vertex.world.z / 12]), 2
+    ));
     next.setIndex(Array.from(projection.indices));
     next.computeBoundingSphere();
     return next;
@@ -394,9 +404,9 @@ function GroundField({ centerX, centerZ, color, player, qualityProfile, terrainE
   const terrainMap = useMemo(() => {
     const size = 64;
     const data = new Uint8Array(size * size * 4);
-    const tint = new THREE.Color(color);
+    const tint = new THREE.Color(color).convertLinearToSRGB();
     for (let y = 0; y < size; y += 1) for (let x = 0; x < size; x += 1) {
-      const grain = .7 + seededUnit(centerX * 193 + centerZ * 389 + x * 17, y * 23) * .3;
+      const grain = .7 + seededUnit(x * 17, y * 23) * .3;
       const vein = Math.abs(Math.sin(x * .23 + y * .31)) < .075 ? .72 : 1;
       const mottling = .9 + Math.sin(x * .71 + y * .29) * .045 + Math.cos(y * .82 - x * .18) * .035;
       const index = (y * size + x) * 4;
@@ -407,12 +417,15 @@ function GroundField({ centerX, centerZ, color, player, qualityProfile, terrainE
     }
     const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
     texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(5, 5);
+    texture.generateMipmaps = true;
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.magFilter = THREE.LinearFilter;
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.needsUpdate = true;
     return texture;
-  }, [centerX, centerZ, color]);
+  }, [color]);
   useEffect(()=>()=>terrainMap.dispose(),[terrainMap]);
+  useEffect(()=>()=>geometry.dispose(),[geometry]);
   return (
     <mesh
       geometry={geometry}
@@ -496,6 +509,7 @@ function TrailNetwork({ player, palette, terrainElevation }: { player: PlayState
 }
 
 function EcologyInstances({
+  kaiUPulse,
   bushes,
   flowers,
   palette,
@@ -507,6 +521,7 @@ function EcologyInstances({
   terrainElevation,
   trees
 }: {
+  kaiUPulse: number;
   bushes: Placement[];
   flowers: Placement[];
   palette?: WildsBiomeTile["canopy"];
@@ -521,6 +536,16 @@ function EcologyInstances({
   const readability = useWildsReadability();
   const rockTexture = useWildsRockTexture();
   const barkTexture = useWildsNaturalTexture("bark"), leafTexture = useWildsNaturalTexture("leaf");
+  const foliageBreeze = useWildsFoliageBreeze(player, readability.motionScale === 0, kaiUPulse);
+  const organic = useMemo(() => ({
+    trunk: createWildsOrganicGeometry("trunk"),
+    lower: createWildsOrganicGeometry("canopy").scale(.72, .72, .72),
+    upper: createWildsOrganicGeometry("canopy").scale(.56, .56, .56),
+    crown: createWildsOrganicGeometry("crown").scale(.52, .52, .52),
+    shrub: createWildsOrganicGeometry("shrub"),
+    stone: createWildsOrganicGeometry("stone")
+  }), []);
+  useEffect(() => () => Object.values(organic).forEach((geometry) => geometry.dispose()), [organic]);
   const trunks = useRef<THREE.InstancedMesh>(null);
   const lowerCrowns = useRef<THREE.InstancedMesh>(null);
   const upperCrowns = useRef<THREE.InstancedMesh>(null);
@@ -548,29 +573,23 @@ function EcologyInstances({
 
   return (
     <group>
-      <instancedMesh args={[undefined, undefined, trees.length]} castShadow ref={trunks}>
-        <cylinderGeometry args={[0.16, 0.29, 1.2, 8]} />
-        <meshStandardMaterial map={barkTexture} color="#806449" roughness={0.94} />
+      <instancedMesh args={[undefined, undefined, trees.length]} castShadow geometry={organic.trunk} name="ecology-trunk" ref={trunks}>
+        <meshStandardMaterial vertexColors map={barkTexture} color="#806449" roughness={0.94} />
       </instancedMesh>
-      <instancedMesh args={[undefined, undefined, trees.length]} ref={lowerCrowns}>
-        <dodecahedronGeometry args={[0.72, 1]} />
-        <meshStandardMaterial map={leafTexture} color={palette?.deep ?? "#246b46"} emissive="#123c27" emissiveIntensity={.05 + readability.darkness * .15} roughness={0.82} />
+      <instancedMesh args={[undefined, undefined, trees.length]} geometry={organic.lower} name="ecology-lower" ref={lowerCrowns}>
+        <meshStandardMaterial onBeforeCompile={foliageBreeze} vertexColors map={leafTexture} color={palette?.deep ?? "#246b46"} emissive="#123c27" emissiveIntensity={.05 + readability.darkness * .15} roughness={0.82} />
       </instancedMesh>
-      <instancedMesh args={[undefined, undefined, trees.length]} ref={upperCrowns}>
-        <dodecahedronGeometry args={[0.56, 1]} />
-        <meshStandardMaterial map={leafTexture} color={palette?.mid ?? "#3d9250"} emissive="#174c2d" emissiveIntensity={.05 + readability.darkness * .16} roughness={0.78} />
+      <instancedMesh args={[undefined, undefined, trees.length]} geometry={organic.upper} name="ecology-upper" ref={upperCrowns}>
+        <meshStandardMaterial onBeforeCompile={foliageBreeze} vertexColors map={leafTexture} color={palette?.mid ?? "#3d9250"} emissive="#174c2d" emissiveIntensity={.05 + readability.darkness * .16} roughness={0.78} />
       </instancedMesh>
-      <instancedMesh args={[undefined, undefined, trees.length]} ref={middleCrowns}>
-        <icosahedronGeometry args={[.52, 1]} />
-        <meshStandardMaterial color={palette?.highlight ?? "#4f9f58"} emissive="#1b512d" emissiveIntensity={.04 + readability.darkness * .14} roughness={.8} />
+      <instancedMesh args={[undefined, undefined, trees.length]} geometry={organic.crown} name="ecology-crown" ref={middleCrowns}>
+        <meshStandardMaterial onBeforeCompile={foliageBreeze} vertexColors color={palette?.highlight ?? "#4f9f58"} emissive="#1b512d" emissiveIntensity={.04 + readability.darkness * .14} roughness={.8} />
       </instancedMesh>
-      <instancedMesh args={[undefined, undefined, bushes.length]} ref={shrubMesh}>
-        <dodecahedronGeometry args={[1, 1]} />
-        <meshStandardMaterial color={palette?.highlight ?? "#3b8d49"} emissive="#174329" emissiveIntensity={.04 + readability.darkness * .12} roughness={0.88} />
+      <instancedMesh args={[undefined, undefined, bushes.length]} geometry={organic.shrub} name="ecology-shrub" ref={shrubMesh}>
+        <meshStandardMaterial onBeforeCompile={foliageBreeze} vertexColors color={palette?.highlight ?? "#3b8d49"} emissive="#174329" emissiveIntensity={.04 + readability.darkness * .12} roughness={0.88} />
       </instancedMesh>
-      <instancedMesh args={[undefined, undefined, rocks.length]} receiveShadow ref={rockMesh}>
-        <dodecahedronGeometry args={[1, 0]} />
-        <meshStandardMaterial map={rockTexture} color="#92988b" roughness={0.98} />
+      <instancedMesh args={[undefined, undefined, rocks.length]} receiveShadow geometry={organic.stone} name="ecology-stone" ref={rockMesh}>
+        <meshStandardMaterial vertexColors map={rockTexture} color="#92988b" roughness={0.98} />
       </instancedMesh>
       <instancedMesh args={[undefined, undefined, flowers.length]} ref={flowerMesh}>
         <octahedronGeometry args={[1, 0]} />
@@ -778,20 +797,27 @@ function PrismArcade() {
 }
 
 function RootArch() {
-  return (
-    <group name="root-arch">
-      <mesh position={[0, 1.14, 0]}>
-        <torusGeometry args={[1.18, 0.22, 10, 32, Math.PI]} />
-        <meshStandardMaterial color="#62432d" roughness={0.94} />
-      </mesh>
-      {[-1, 1].map((side) => (
-        <group key={side} position={[side * 1.17, 0.54, 0]}>
-          <mesh><cylinderGeometry args={[0.18, 0.3, 1.3, 8]} /><meshStandardMaterial color="#62432d" roughness={0.94} /></mesh>
-          <mesh position={[side * 0.08, 0.28, 0.18]}><dodecahedronGeometry args={[0.28, 0]} /><meshStandardMaterial color="#5f9b50" roughness={0.86} /></mesh>
-        </group>
-      ))}
-    </group>
-  );
+  const bark = useWildsNaturalTexture("bark");
+  const leaf = useWildsNaturalTexture("leaf");
+  const wood = useMemo(() => {
+    const parts: THREE.BufferGeometry[] = [new THREE.TorusGeometry(1.18, .22, 10, 32, Math.PI).translate(0, 1.14, 0)];
+    for (const side of [-1, 1]) {
+      parts.push(new THREE.CylinderGeometry(.18, .3, 1.3, 8).translate(side * 1.17, .54, 0));
+    }
+    const merged = mergeGeometries(parts, false)!;
+    parts.forEach((part) => part.dispose());
+    return merged;
+  }, []);
+  useEffect(() => () => wood.dispose(), [wood]);
+  return <group name="root-arch">
+    <mesh geometry={wood}>
+      <meshStandardMaterial map={bark} color="#91775a" roughness={.94} />
+    </mesh>
+    {[-1, 1].map((side) => <mesh key={side} position={[side * 1.25, .82, .18]}>
+      <dodecahedronGeometry args={[.28, 0]} />
+      <meshStandardMaterial map={leaf} color="#78965a" roughness={.86} />
+    </mesh>)}
+  </group>;
 }
 
 function SpringLandmark() {

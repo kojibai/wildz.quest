@@ -924,6 +924,7 @@ export function PlayCampaign({
   const verticalTraversalRef = useRef<WildsVerticalTraversalState>(createWildsVerticalTraversalState());
   const verticalIntentRef = useRef<WildsVerticalTraversalIntent>(0);
   const horizontalAllowedRef = useRef(true);
+  const worldInputDispatcherRef = useRef<((input: WildsInput) => void) | null>(null);
   const [aerialEnergy, setAerialEnergy] = useState(100);
   const [verticalReadout, setTraversalReadout] = useState({ layer: "ground" as WildsVerticalTraversalState["layer"], value: 0, safeMin: 0, safeMax: 0, blockerId: null as string | null });
   const publishVerticalReadout = useCallback((layer: WildsVerticalTraversalState["layer"], value: number, safeMin: number, safeMax: number, blockerId: string | null) => {
@@ -1222,13 +1223,7 @@ export function PlayCampaign({
       const input = worldInputForKeyboardEvent(event);
       if (!input) return;
       event.preventDefault();
-      const uPulse = kaiRuntimeClockRef.current?.read(performance.now(), observeWildsKaiUPulse()) ?? observeWildsKaiUPulse();
-      const rootedInput = rootWildsInputInKai(input, uPulse);
-      setState((current) => {
-        const next = applyWildsInput(current, rootedInput);
-        if (!current.completed && next.completed) onComplete?.(next.beans);
-        return next;
-      });
+      worldInputDispatcherRef.current?.(input);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -1660,6 +1655,7 @@ export function PlayCampaign({
     }
     dispatch(input);
   };
+  worldInputDispatcherRef.current = dispatchWorldInput;
   const dispatchLayeredSearch = (point: { x: number; z: number; surfaceWorldY?: number }, fromJourney = false) => {
     if (fromJourney ? (!interactionEnabled || modalOwner !== "none" || worldOverlayState.panelKey !== "mission") : !canUseWorldStage()) return;
     beginWorldActionFeedback();
@@ -2648,7 +2644,19 @@ export function PlayCampaign({
             />
 
             {burrowBuilder.open && worldInteractionEnabled ? <WildsBurrowBuilderPanel builder={burrowBuilder} /> : null}
-            {continuousBuilder.open && worldInteractionEnabled ? <WildsContinuousBuilderPanel builder={continuousBuilder} materials={stewardMaterials} onOpenCatalogue={() => openLivingConstruction()} onUse={kind => openLivingConstruction(kind === "workshop" ? "tools" : "storage")} /> : null}
+            {continuousBuilder.open && worldInteractionEnabled ? <WildsContinuousBuilderPanel builder={continuousBuilder} materials={stewardMaterials} onOpenCatalogue={() => openLivingConstruction()} onUse={kind => {
+              if (kind !== "bed") { openLivingConstruction(kind === "workshop" ? "tools" : "storage"); return; }
+              const selected = continuousBuilder.selected;
+              const bed = selected && livingWorld.snapshot ? resolveWildsConstructionFunction(livingWorld.snapshot, selected.componentId, "bed") : null;
+              if (!bed || Math.hypot(bed.position.x - state.player.x, bed.position.z - state.player.z) > 2.5
+                || Math.abs(bed.position.y - state.siteSpace.position.y) >= 2
+                || (bed.component.evidence.spaceId ?? "wildz.space.outer.v1") !== state.siteSpace.spaceId) {
+                showWorldFeedback("Enter the room and move beside the finished bed to rest."); return;
+              }
+              dispatch({ type: "rest", bed, at: kaiUPulseToISOString(kaiUPulse), kaiUPulse });
+              continuousBuilder.close();
+              showWorldFeedback("Rested in bed. Energy and companion fatigue recover more than at an open camp.");
+            }} /> : null}
             {stewardPlacementPreview ? <WildsStewardPlacementHud
               blueprintLabel={stewardCraft.blueprints.find(blueprint => blueprint.id === stewardPlacementPreview.blueprintId)?.label ?? "Build"}
               onCancel={() => {
