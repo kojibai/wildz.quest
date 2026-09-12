@@ -18,13 +18,13 @@ export const WILDS_WORLD_CHAPTERS: readonly WildsWorldChapter[] = [
 ] as const;
 
 const masteryAwards: Readonly<Record<WorldMasteryVerb, number>> = {
-  travel: 1,
-  battle: 8,
-  capture: 18,
-  training: 3,
-  mission: 25,
-  lineage: 45,
-  ascension: 60
+  travel: 0,
+  battle: 2,
+  capture: 3,
+  training: 1,
+  mission: 5,
+  lineage: 8,
+  ascension: 12
 };
 
 export function worldMasteryAward(verb: WorldMasteryVerb) {

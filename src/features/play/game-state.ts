@@ -429,7 +429,7 @@ export const initialPlayState: PlayState = {
   transformation: null,
   lineageReveal: null,
   worldRank: "Grove scout",
-  worldMastery: 38,
+  worldMastery: 0,
   civicEvents: [],
   regionalReputation: {},
   ecologyEvents: [],
@@ -1177,7 +1177,15 @@ function advanceLivingMission(state: PlayState, amount: number): PlayState {
     if (!completedMissionIds.includes(missionId)) completedMissionIds.push(missionId);
     progress -= 100;
   }
-  return { ...state, missionProgress: progress, completedMissionIds };
+  const completedCount = completedMissionIds.length - state.completedMissionIds.length;
+  return {
+    ...state,
+    missionProgress: progress,
+    completedMissionIds,
+    worldMastery: state.worldMastery + completedCount * worldMasteryAward("mission"),
+    completed: state.completed || completedCount > 0,
+    achievements: completedCount > 0 ? Array.from(new Set([...state.achievements, "first-light"])) : state.achievements
+  };
 }
 
 export function applyWildsInput(state: PlayState, input: WildsInput): PlayState {
@@ -1801,7 +1809,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       kaiUPulse: input.kaiUPulse
     })));
     return awards.some((award) => award.kind === "battle_win")
-      ? awardWorldMastery({ ...progressed, lastEvent: last }, "battle")
+      ? awardWorldMastery(advanceLivingMission({ ...progressed, lastEvent: last }, 3), "battle")
       : { ...progressed, lastEvent: last };
   }
 
@@ -1973,7 +1981,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       selectedAssetId: sealed.id,
       selectedCardId: sealed.manifest.familyId,
       streak: state.streak + 1
-    }, 12), "capture"));
+    }, 5), "capture"));
   }
 
   if (input.type === "mark-synced" || input.type === "mark-listed") {
@@ -2183,7 +2191,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       ...moved,
       pendingTravelGrowthEvents: [...state.pendingTravelGrowthEvents, { assetId: leader.id, event }].slice(-256)
     };
-    return awardWorldMastery({ ...queued, lastEvent: nearbyText }, "travel");
+    return queued;
   }
 
   if (input.type === "rest") {
@@ -2300,7 +2308,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       selectedAssetId: sealed.id,
       selectedCardId: nearest.card.id,
       streak: state.streak + 1
-    }, 12), "capture"));
+    }, 5), "capture"));
   }
 
   if (input.type === "train") {
@@ -2330,7 +2338,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       bond: Math.min(100, currentProgress.bond + 1)
     };
 
-    const trained = withWorldProgress(awardWorldMastery(advanceLivingMission({
+    let trained = withWorldProgress({
       ...state,
       activeAction: "train",
       beans: state.beans + 4,
@@ -2346,7 +2354,10 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       selectedAssetId: targetAsset.id,
       selectedCardId: targetCardId,
       streak: state.streak + 1
-    }, 9), "training"));
+    });
+    if (nextProgress.level > currentProgress.level) {
+      trained = awardWorldMastery(advanceLivingMission(trained, 2), "training");
+    }
     const progressed = applyRecordedGrowth(trained, targetAsset, {
       eventId: `bond_moment:${targetAsset.id}:${trainedAt}`,
       kind: "bond_moment",
@@ -2358,36 +2369,12 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
     return { ...progressed, lastEvent: trained.lastEvent };
   }
 
-  if (state.energy < 10) {
-    return { ...state, lastEvent: "Not enough energy for a mission. Make camp to recover." };
-  }
-
-  const progressGain = 16 + discoveredCards(state).length * 4 + Math.floor(selectedCard(state).power / 24);
-  const missionSettled = state.missionProgress + progressGain >= 100;
-  const earnedAchievement = missionSettled && !state.achievements.includes("first-light");
-
-  return withWorldProgress(awardWorldMastery(advanceLivingMission({
+  // Mission is a navigation/help action. Only completed gameplay outcomes above
+  // contribute progress; a command cannot mint currency, XP or accomplishments.
+  return withWorldProgress({
     ...state,
-    activeAction: "mission",
-    beans: state.beans + 10,
-    cardXp: state.cardXp + 18,
-    challenge: Math.min(100, state.challenge + 7),
-    combo: state.combo + 1,
-    completed: state.completed || earnedAchievement,
-    energy: Math.max(0, state.energy - 10),
-    lastEvent: earnedAchievement
-      ? "Mission cleared. First Light is now part of your story."
-      : `${selectedCard(state).name} played a mission power.`,
-    level: earnedAchievement ? Math.max(state.level, 9) : state.level,
-    rewardCards: state.rewardCards,
-    achievements: earnedAchievement
-      ? Array.from(new Set([...state.achievements, "first-light"]))
-      : state.achievements,
-    completedMissionIds: earnedAchievement
-      ? Array.from(new Set([...state.completedMissionIds, "daily-expedition"]))
-      : state.completedMissionIds,
-    streak: state.streak + 1
-  }, progressGain), "mission"));
+    lastEvent: "Earn expedition progress: seal a capture (+5%), win a battle (+3%), or raise a companion level (+2%)."
+  });
 }
 
 function withWorldProgress(state: PlayState): PlayState {

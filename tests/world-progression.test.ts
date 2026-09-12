@@ -22,12 +22,12 @@ describe("Wilds endless world progression", () => {
     assert.equal(later.worldEvent.target > first.worldEvent.target, true);
   });
 
-  it("only awards mastery for authoritative gameplay verbs", () => {
-    assert.equal(worldMasteryAward("travel"), 1);
-    assert.equal(worldMasteryAward("battle"), 8);
-    assert.equal(worldMasteryAward("capture"), 18);
-    assert.equal(worldMasteryAward("mission"), 25);
-    assert.equal(worldMasteryAward("lineage"), 45);
-    assert.equal(worldMasteryAward("ascension"), 60);
+  it("reserves modest mastery awards for completed gameplay outcomes", () => {
+    assert.equal(worldMasteryAward("travel"), 0);
+    assert.equal(worldMasteryAward("battle"), 2);
+    assert.equal(worldMasteryAward("capture"), 3);
+    assert.equal(worldMasteryAward("mission"), 5);
+    assert.equal(worldMasteryAward("lineage"), 8);
+    assert.equal(worldMasteryAward("ascension"), 12);
   });
 });

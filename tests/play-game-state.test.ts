@@ -577,7 +577,7 @@ describe("Receiz Wilds game state", () => {
   });
 
   it("captures and seals one portable card atomically for an encounter", () => {
-    const nearby: PlayState = { ...initialPlayState, player: { x: 1.6, z: -2.1 } };
+    const nearby: PlayState = { ...initialPlayState, missionProgress: 95, player: { x: 1.6, z: -2.1 } };
     const input = {
       type: "capture" as const,
       encounterId: "encounter-voltray-test",
@@ -589,6 +589,11 @@ describe("Receiz Wilds game state", () => {
 
     assert.equal(once.inventory.length, initialPlayState.inventory.length + 1);
     assert.equal(twice.inventory.length, once.inventory.length);
+    assert.equal(once.missionProgress, 0);
+    assert.ok(once.completedMissionIds.includes("living-expedition:1"));
+    assert.equal(once.worldMastery, nearby.worldMastery + 3 + 5);
+    assert.equal(twice.worldMastery, once.worldMastery);
+    assert.deepEqual(twice.completedMissionIds, once.completedMissionIds);
     assert.equal(twice.inventory.at(-1)?.id, once.inventory.at(-1)?.id);
     assert.equal(once.inventory.at(-1)?.manifest.variant.generatorVersion, 3);
     assert.match(once.inventory.at(-1)?.manifest.name ?? "", /^[A-Z][a-z]{1,6}$/);
@@ -725,25 +730,13 @@ describe("Receiz Wilds game state", () => {
     assert.equal(next, initialPlayState);
   });
 
-  it("settles a completed mission into history and immediately starts the next mission", () => {
-    const readyState: PlayState = {
-      ...initialPlayState,
-      completed: false,
-      discoveredCardIds: ["mintcub", "voltray", "ledgerfox"],
-      missionProgress: 91,
-      rewardCards: [],
-      selectedCardId: "voltray"
-    };
-
+  it("mission help cannot complete a nearly finished expedition", () => {
+    const readyState = { ...initialPlayState, missionProgress: 99 };
     const next = applyWildsInput(readyState, { type: "mission" });
-
-    assert.equal(next.completed, true);
-    assert.equal(next.missionProgress, 20);
-    assert.equal(next.rewardCards.length, 0);
-    assert.ok(next.achievements.includes("first-light"));
-    assert.ok(next.completedMissionIds.includes("living-expedition:1"));
-    assert.match(next.lastEvent, /First Light is now part of your story/);
-    assert.equal(next.worldMastery, readyState.worldMastery + 25);
+    assert.equal(next.missionProgress, 99);
+    assert.deepEqual(next.completedMissionIds, readyState.completedMissionIds);
+    assert.equal(next.worldMastery, readyState.worldMastery);
+    assert.match(next.lastEvent, /seal a capture/);
   });
 
   it("restores only verified player-owned construction proof objects from the saved play state", () => {
@@ -837,6 +830,8 @@ describe("Receiz Wilds game state", () => {
     const leveled = applyWildsInput(ready, { type: "train", at: "2026-07-17T12:15:00.000Z" });
 
     assert.match(leveled.lastEvent, new RegExp(`^${creature.manifest.name} reached Level 2`));
+    assert.equal(leveled.worldMastery, ready.worldMastery + 1);
+    assert.equal(leveled.missionProgress, ready.missionProgress + 2);
   });
 
   it("queues active travel without changing card truth on the movement frame", () => {
@@ -845,6 +840,8 @@ describe("Receiz Wilds game state", () => {
     const within = applyWildsInput(crossed, { type: "move-vector", x: 0.2, z: 0 });
     const pending = (crossed as PlayState & { pendingTravelGrowthEvents?: unknown[] }).pendingTravelGrowthEvents;
 
+    assert.equal(crossed.worldMastery, ready.worldMastery);
+    assert.equal(within.worldMastery, ready.worldMastery);
     assert.equal(crossed.inventory, ready.inventory);
     assert.equal(crossed.livingProgress[ready.selectedAssetId]!.paths.bond, ready.livingProgress[ready.selectedAssetId]!.paths.bond);
     assert.equal(pending?.length, 1);
@@ -898,7 +895,7 @@ describe("Receiz Wilds game state", () => {
     const rested = applyWildsInput(blocked, { type: "rest" });
 
     assert.equal(blocked.missionProgress, exhausted.missionProgress);
-    assert.match(blocked.lastEvent, /energy/i);
+    assert.match(blocked.lastEvent, /Earn expedition progress/i);
     assert.equal(rested.energy, 35);
     assert.equal(rested.combo, 0);
   });
