@@ -752,18 +752,15 @@ function ActiveCompanion({ activeWorkSource, activeCapabilityFamily, locomotion,
     const mandate = asset ? creatureContinuityProjection(asset)?.mandate : null;
     return Boolean(mandate?.status === "active" && mandate.ownerReceizId === asset?.manifest.ownerReceizId);
   }, [asset]);
-  const roamingPhase = useMemo(() => {
-    const token = asset?.proof.digest.slice(-8) ?? "0";
-    return (Number.parseInt(token, 16) % 6283) / 1000;
-  }, [asset?.proof.digest]);
-  const roamingRadius = .56;
+  const roamingRadius = 2.2;
+  const roamingSeed = useMemo(() => Number.parseInt(asset?.proof.digest.slice(-6) ?? "0",16),[asset?.proof.digest]);
   const capabilityPresentation = useMemo(() => activeCapabilityFamily
     ? projectWildsCapabilityPresentation({ family: activeCapabilityFamily, targetId: activeWorkSource?.sourceId ?? null })
     : null, [activeCapabilityFamily, activeWorkSource?.sourceId]);
   const restingPosition = useMemo(() => {
     const world = { x: state.player.x - 1.08, z: state.player.z + .42 };
     const mountainElevation = wildsSiteRuntimeGroundY(siteRuntime, siteSpace.spaceId, world.x, world.z, Number.NaN);
-    return projectWildsTerrainActorPosition(world, state.player, .44, { actorElevation: Number.isFinite(mountainElevation) ? mountainElevation : undefined, anchorElevation: terrainElevation });
+    return projectWildsTerrainActorPosition(world, state.player, 0, { actorElevation: Number.isFinite(mountainElevation) ? mountainElevation : undefined, anchorElevation: terrainElevation });
   }, [siteRuntime, siteSpace.spaceId, state.player, terrainElevation]);
   const workPosition = useMemo(() => {
     if (!activeWorkSource) return restingPosition;
@@ -775,23 +772,20 @@ function ActiveCompanion({ activeWorkSource, activeCapabilityFamily, locomotion,
       z: activeWorkSource.position.z - dz / distance * .82
     };
     const elevation = wildsSiteRuntimeGroundY(siteRuntime, siteSpace.spaceId, world.x, world.z, activeWorkSource.position.y);
-    return projectWildsTerrainActorPosition(world, state.player, .44, { actorElevation: elevation, anchorElevation: terrainElevation });
+    return projectWildsTerrainActorPosition(world, state.player, 0, { actorElevation: elevation, anchorElevation: terrainElevation });
   }, [activeWorkSource, restingPosition, siteRuntime, siteSpace.spaceId, state.player, terrainElevation]);
   const group = useRef<THREE.Group>(null);
   const workTarget = useRef(new THREE.Vector3());
+  const floorPoint = useRef(new THREE.Vector3());
+  const floorCache = useRef({x: NaN, z: NaN, space: "", runtime: siteRuntime, y: 0});
+  const follower = useRef({ x: state.player.x + restingPosition[0], z: state.player.z + restingPosition[2] });
+  const gait = useRef({ distance: 0, speed: 0 });
   const working = Boolean(activeWorkSource);
-  useFrame(({ clock }, delta) => {
+  useFrame(({clock}, delta) => {
     if (!group.current) return;
     const target = working ? workPosition : restingPosition;
     const blend = 1 - Math.exp(-Math.min(delta, .05) * (working ? 8.5 : 6.5));
-    if (roaming && !working && locomotion === "ground") {
-      const angle = clock.elapsedTime * .48 + roamingPhase;
-      workTarget.current.set(
-        target[0] + Math.cos(angle) * roamingRadius,
-        target[1] + Math.sin(angle * 2) * .025,
-        target[2] + Math.sin(angle) * roamingRadius
-      );
-    } else if (activeWorkSource) {
+    if (activeWorkSource) {
       const now = performance.now();
       const motion = projectWildsCompanionWorkMotion({
         elapsedMs: now - activeWorkSource.startedAtMs,
@@ -812,9 +806,38 @@ function ActiveCompanion({ activeWorkSource, activeCapabilityFamily, locomotion,
       );
     } else {
       workTarget.current.set(...target);
+      if(roaming && locomotion === "ground") {
+        const visit = Math.floor(clock.elapsedTime / 7);
+        const angle = (roamingSeed + visit * 2.399963229728653);
+        const radius = roamingRadius * (.4 + .6 * Math.abs(Math.sin(roamingSeed + visit * 1.618)));
+        workTarget.current.x += Math.cos(angle) * radius;
+        workTarget.current.z += Math.sin(angle) * radius;
+      }
     }
-    group.current.position.lerp(workTarget.current, blend);
-    if (activeWorkSource || roaming) {
+    const destinationX = state.player.x + workTarget.current.x;
+    const destinationZ = state.player.z + workTarget.current.z;
+    const dx = destinationX - follower.current.x, dz = destinationZ - follower.current.z;
+    const distance = Math.hypot(dx, dz);
+    const step = distance < .015 ? 0 : distance > 20 ? distance : Math.min(distance * blend, Math.min(.05, Math.max(0, delta)) * 5.5);
+    if (distance > .001) { follower.current.x += dx / distance * step; follower.current.z += dz / distance * step; }
+    gait.current.distance += distance > 20 ? 0 : step;
+    gait.current.speed = distance > 20 ? 0 : step / Math.max(delta, .001);
+    const cached = floorCache.current;
+    if(cached.x !== follower.current.x || cached.z !== follower.current.z || cached.space !== siteSpace.spaceId || cached.runtime !== siteRuntime) {
+      cached.x=follower.current.x; cached.z=follower.current.z; cached.space=siteSpace.spaceId; cached.runtime=siteRuntime;
+      const siteY=wildsSiteRuntimeGroundY(siteRuntime, siteSpace.spaceId, cached.x, cached.z, Number.NaN);
+      writeWildsTerrainActorPosition(floorPoint.current,cached.x,cached.z,0,0,0,Number.isFinite(siteY)?siteY:undefined,terrainElevation);
+      cached.y=floorPoint.current.y + terrainElevation;
+    }
+    const floor = cached.y;
+    group.current.position.set(follower.current.x - state.player.x,
+      locomotion === "ground" ? floor - terrainElevation : workTarget.current.y,
+      follower.current.z - state.player.z);
+    if (!activeWorkSource && distance > .025) {
+      const heading = Math.atan2(dx, dz);
+      group.current.rotation.y += Math.atan2(Math.sin(heading-group.current.rotation.y), Math.cos(heading-group.current.rotation.y)) * blend;
+    }
+    if (activeWorkSource) {
       const heading = activeWorkSource
         ? Math.atan2(activeWorkSource.position.x - state.player.x - group.current.position.x, activeWorkSource.position.z - state.player.z - group.current.position.z)
         : Math.atan2(workTarget.current.x - group.current.position.x, workTarget.current.z - group.current.position.z);
@@ -823,15 +846,15 @@ function ActiveCompanion({ activeWorkSource, activeCapabilityFamily, locomotion,
   });
   return (
     <group name="active-companion" position={restingPosition} ref={group} scale={0.82}>
-      <WildsCreatureActor accent={appearance?.palette.accent ?? card.accent} anatomy={appearance?.anatomy} cadenceMs={appearance?.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} glow={appearance?.palette.glow ?? card.accent} identityToken={appearance?.fingerprint} locomotion={locomotion} morphology={appearance?.morphology} pose={working ? "work" : capabilityPresentation?.actorPose ?? "curious"} primary={appearance?.palette.primary ?? card.color} secondary={appearance?.palette.secondary ?? card.color} />
+      <WildsCreatureActor grounded gait={gait} accent={appearance?.palette.accent ?? card.accent} anatomy={appearance?.anatomy} cadenceMs={appearance?.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} glow={appearance?.palette.glow ?? card.accent} identityToken={appearance?.fingerprint} locomotion={locomotion} morphology={appearance?.morphology} pose={working ? "work" : capabilityPresentation?.actorPose ?? "curious"} primary={appearance?.palette.primary ?? card.color} secondary={appearance?.palette.secondary ?? card.color} />
       {capabilityPresentation ? <>
-        <mesh position={[0, -.28, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh position={[0, .035, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <torusGeometry args={[.58, .025, 8, 40]} />
           <meshStandardMaterial color={capabilityPresentation.color} emissive={capabilityPresentation.color} emissiveIntensity={.72} transparent opacity={.76} />
         </mesh>
         {activeCapabilityFamily === "light" ? <pointLight color={capabilityPresentation.color} decay={1.8} distance={6} intensity={1.35} position={[0, .75, 0]} /> : null}
       </> : null}
-      <mesh position={[0, -0.37, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[0, .025, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.46, 0.035, 8, 36]} />
         <meshStandardMaterial color="#f4fff6" emissive="#7cdea5" emissiveIntensity={0.55} transparent opacity={0.92} />
       </mesh>
@@ -847,20 +870,33 @@ function ActiveCompanion({ activeWorkSource, activeCapabilityFamily, locomotion,
 }
 
 function SupportCompanions({ cards, player, siteRuntime, siteSpace, terrainElevation }: { cards: readonly PortableCardAsset[]; player: PlayState["player"]; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; terrainElevation: number }) {
+  const pack = useRef<THREE.Group>(null);
+  const gait = useRef({ distance: 0, speed: 0 });
+  const priorPlayer = useRef({x: player.x, z: player.z});
+  useFrame((_, delta) => {
+    const distance = Math.hypot(player.x-priorPlayer.current.x, player.z-priorPlayer.current.z);
+    gait.current.speed = THREE.MathUtils.damp(gait.current.speed, distance > 20 ? 0 : distance / Math.max(delta, .001), 14, Math.min(delta,.05));
+    if(distance > .001 && distance < 20) {
+      const heading=Math.atan2(player.x-priorPlayer.current.x,player.z-priorPlayer.current.z);
+      for(const child of pack.current?.children ?? []) child.rotation.y += Math.atan2(Math.sin(heading-child.rotation.y),Math.cos(heading-child.rotation.y)) * (1-Math.exp(-Math.min(delta,.05)*12));
+    }
+    if(distance <= 20) gait.current.distance += distance;
+    priorPlayer.current.x=player.x; priorPlayer.current.z=player.z;
+  });
   const positions = useMemo(() => {
     const first = { x: player.x + 1.05, z: player.z + .72 };
     const second = { x: player.x + 1.62, z: player.z + 1.34 };
     const firstElevation = wildsSiteRuntimeGroundY(siteRuntime, siteSpace.spaceId, first.x, first.z, Number.NaN);
     const secondElevation = wildsSiteRuntimeGroundY(siteRuntime, siteSpace.spaceId, second.x, second.z, Number.NaN);
     return [
-      projectWildsTerrainActorPosition(first, player, .34, { actorElevation: Number.isFinite(firstElevation) ? firstElevation : undefined, anchorElevation: terrainElevation }),
-      projectWildsTerrainActorPosition(second, player, .28, { actorElevation: Number.isFinite(secondElevation) ? secondElevation : undefined, anchorElevation: terrainElevation })
+      projectWildsTerrainActorPosition(first, player, 0, { actorElevation: Number.isFinite(firstElevation) ? firstElevation : undefined, anchorElevation: terrainElevation }),
+      projectWildsTerrainActorPosition(second, player, 0, { actorElevation: Number.isFinite(secondElevation) ? secondElevation : undefined, anchorElevation: terrainElevation })
     ] as const;
   }, [player, siteRuntime, siteSpace.spaceId, terrainElevation]);
   const appearances = useMemo(() => cards.slice(0, 2).map((card) => ({ card, appearance: projectCardKaiAppearance(card) })), [cards]);
-  return <group name="trail-pack-support-companions">
+  return <group name="trail-pack-support-companions" ref={pack}>
     {appearances.map(({ card, appearance }, index) => <group key={card.id} name={`trail-support-${index + 1}`} position={positions[index]} scale={index === 0 ? 0.62 : 0.54}>
-      <WildsCreatureActor
+      <WildsCreatureActor grounded gait={gait}
         accent={appearance.palette.accent}
         anatomy={appearance.anatomy}
         cadenceMs={appearance.cadenceMs}
@@ -873,7 +909,7 @@ function SupportCompanions({ cards, player, siteRuntime, siteSpace, terrainEleva
         primary={appearance.palette.primary}
         secondary={appearance.palette.secondary}
       />
-      <mesh position={[0, -0.39, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[0, .025, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.4, 0.025, 8, 28]} />
         <meshStandardMaterial color="#dffcf0" emissive="#58c99d" emissiveIntensity={0.36} transparent opacity={0.72} />
       </mesh>

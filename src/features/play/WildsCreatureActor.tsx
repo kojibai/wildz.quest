@@ -2,7 +2,8 @@
 
 import { useWildsCharacterTexture } from "./wilds-character-material";
 import { useWildsNaturalTexture } from "./wilds-natural-material";
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, type RefObject } from "react";
+import { companionFootRows, companionFootStep, type WildsCompanionGait } from "./wilds-companion-gait";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { creatureForm } from "./creature-catalog";
@@ -102,7 +103,9 @@ export function WildsCreatureActor({
   anatomy,
   cadenceMs,
   pose = "idle",
-  locomotion = "ground"
+  locomotion = "ground",
+  gait,
+  grounded = false
 }: {
   formId: string;
   familyId: string;
@@ -116,6 +119,8 @@ export function WildsCreatureActor({
   cadenceMs?: number;
   pose?: WildsCreaturePose;
   locomotion?: WildsCreatureLocomotion;
+  gait?: RefObject<WildsCompanionGait>;
+  grounded?: boolean;
 }) {
   const readability = useWildsReadability();
   const grainTexture=useWildsNaturalTexture("skin");
@@ -128,6 +133,8 @@ export function WildsCreatureActor({
   const aura = useRef<THREE.Group>(null);
   const form = creatureForm(formId) ?? creatureForm(`${familyId}-1`);
   const body = anatomy?.body ?? form?.anatomy.body ?? "round";
+  const footRows = companionFootRows(anatomy?.locomotion ?? (body === "serpentine" ? "serpentine" : body === "winged" ? "flying" : "quadruped"));
+  const legged = footRows.length > 0;
   const detail = anatomy?.detail ?? form?.anatomy.detail ?? "ears";
   const auraKind = form?.anatomy.aura ?? "prism";
   const wingPlan = projectActorWingRenderPlan(anatomy);
@@ -160,8 +167,9 @@ export function WildsCreatureActor({
     const breath = Math.sin(time * cadence + identity.marking * 4) * 0.025 * motion;
     const attack = pose === "attack";
     const work = pose === "work";
-    const frame = writeWildsCreatureLocomotionFrame(locomotionFrame.current, locomotion, time, motion, identity.marking, pose);
-    root.current.position.y = frame.rootY;
+    const motionMode = locomotion === "ground" && anatomy?.locomotion === "flying" && wingPlan.pairCount > 0 && (gait?.current.speed ?? 0) > .025 ? "air" : locomotion;
+    const frame = writeWildsCreatureLocomotionFrame(locomotionFrame.current, motionMode, time, motion, identity.marking, pose);
+    root.current.position.y = grounded && motionMode === "ground" ? (legged ? .48 * identity.height : body === "serpentine" ? .56 : .4 * identity.height * .9) : frame.rootY;
     root.current.rotation.x = frame.rootPitch;
     root.current.rotation.z = frame.rootRoll;
     root.current.scale.setScalar(pose === "capture" ? 0.9 + Math.sin(time * 5) * 0.035 * motion : 1);
@@ -170,7 +178,16 @@ export function WildsCreatureActor({
       head.current.rotation.y = pose === "curious" ? Math.sin(time * 1.4) * 0.18 * motion : 0;
       head.current.position.y = 0.31 + breath;
     }
-    if (limbs.current) limbs.current.rotation.x = frame.limbPitch;
+    if (limbs.current) {
+      limbs.current.rotation.x = grounded && motionMode === "ground" ? 0 : frame.limbPitch;
+      if (grounded && motionMode === "ground") for (const limb of limbs.current.children) {
+        if (!limb.userData.walkFoot) continue;
+        const {side, front, pad} = limb.userData;
+        const step = companionFootStep(gait?.current.distance ?? 0, side, front, (gait?.current.speed ?? 0) > .025 && motion > 0);
+        limb.position.z = front * .2 + step.z;
+        limb.position.y = (pad ? -.43 : -.3) * identity.height + step.lift;
+      }
+    }
     if (wings.current) wings.current.rotation.x = frame.wingAngle;
     if (aura.current) aura.current.rotation.y = time * (pose === "capture" ? 2.4 : 0.7) * motion;
   });
@@ -203,8 +220,8 @@ export function WildsCreatureActor({
 
       <group name="wilds-creature-limbs" ref={limbs}>
         {wingPlan.pairCount ? <group name={wingPlan.kind} ref={wings}>{[-1, 1].map((side) => <mesh castShadow key={side} position={[side * 0.46, 0.08, -0.08]} rotation={[0.15, 0, side * -0.72]} scale={[0.48, 1.3, 0.18]}><tetrahedronGeometry args={[0.46, 0]} /><meshStandardMaterial map={skinTexture} color={renderedSecondary} emissive={renderedSecondary} emissiveIntensity={0.12} roughness={0.46} /></mesh>)}</group> : null}
-        {body === "round" || body === "long" || body === "armored" ? [-1, 1].flatMap((side) => [-1, 1].map((front) => <mesh castShadow key={`${side}:${front}`} position={[side * 0.26, -0.3, front * 0.2]} rotation={[front * 0.14, 0, side * -0.08]}><capsuleGeometry args={[0.07, 0.22, 5, 8]} /><meshStandardMaterial map={skinTexture} color={renderedPrimary} roughness={0.7} /></mesh>)) : null}
-        {gripPlan.padCount ? [-1, 1].flatMap((side) => [-1, 1].map((front) => <mesh castShadow key={`grip:${side}:${front}`} name="functional-grip-pad" position={[side * 0.27, -0.43, front * 0.2]} scale={[0.09, 0.035, 0.11]}><sphereGeometry args={[1, 10, 7]} /><meshStandardMaterial color={renderedAccent} roughness={0.82} /></mesh>)) : null}
+        {legged ? [-1, 1].flatMap((side) => footRows.map((front) => <mesh castShadow key={`${side}:${front}`} userData={{walkFoot:true,side,front}} scale={[1, identity.height, 1]} position={[side * 0.26, -0.3 * identity.height, front * 0.2]} rotation={[front * 0.14, 0, side * -0.08]}><capsuleGeometry args={[0.07, 0.22, 5, 8]} /><meshStandardMaterial map={skinTexture} color={renderedPrimary} roughness={0.7} /></mesh>)) : null}
+        {gripPlan.padCount ? [-1, 1].flatMap((side) => [-1, 1].map((front) => <mesh castShadow key={`grip:${side}:${front}`} userData={{walkFoot:true,side,front,pad:true}} name="functional-grip-pad" position={[side * 0.27, -0.43 * identity.height, front * 0.2]} scale={[0.09, 0.035, 0.11]}><sphereGeometry args={[1, 10, 7]} /><meshStandardMaterial color={renderedAccent} roughness={0.82} /></mesh>)) : null}
       </group>
 
       <group name="wilds-creature-face" position={[0, 0.31, 0.3]} ref={head} scale={identity.head}>

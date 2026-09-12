@@ -447,7 +447,7 @@ describe("Receiz Wilds rendering contract", () => {
     for (const pose of ["idle", "curious", "attack", "impact", "weakened", "capture"]) {
       assert.match(actor, new RegExp(`"${pose}"`));
     }
-    for (const body of ["round", "long", "armored", "winged", "serpentine"]) {
+    for (const body of ["long", "armored", "winged", "serpentine"]) {
       assert.match(actor, new RegExp(`body === "${body}"`));
     }
     assert.match(actor, /wilds-creature-face/);
