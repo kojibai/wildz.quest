@@ -5,6 +5,13 @@ export type RuleDetail = { title: string; summary: string; requirements: string;
 
 // Editorial explanations of the registered command families, not additional authority.
 export const RULE_DETAILS = {
+  "community.adopted-procedures": {
+    title: "Adopt and use community procedures", summary: "Run voluntary community participation under recorded, versioned rules.",
+    requirements: "An identified player adopts the exact charter. Other members explicitly join. Every change checks the current revision, membership and the action’s specific consent and timing rules.",
+    success: "Accepted allocations, notices, delegations, cases, work obligations and ratifications enter the world event history. Publication is confirmed separately through Receiz.",
+    blocked: "Stale revisions, missing consent, conflicts, premature deadlines and unsupported actions are rejected. Community participation places are not physical shelter or title to land.",
+    example: "A member requests a participation place. If capacity is full, the request waits in recorded order until a place becomes available."
+  },
   "commons.plan": {
     title: "Start a shared project", summary: "Give a construction project a defined plan and permissions.",
     requirements: "Submit a valid project definition as an identified player. The construction rules validate the project before it enters the world.",

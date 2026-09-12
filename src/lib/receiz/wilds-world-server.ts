@@ -1,3 +1,4 @@
+import { deriveKaiKlokMoment, KAI_PULSE_DURATION_MS } from "@/features/play/kai-klok-moment";
 import type { NextRequest } from "next/server";
 import { WildsWorldService, type WildsWorldCommand } from "@/features/play/wilds-world-service";
 import { findWildsWorldRecord, selectWildsWorldSnapshot, type WildsWorldRecord } from "@/features/play/wilds-world-record";
@@ -311,6 +312,9 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
   const actor = await resolveWildsMultiplayerActor(request, value.guestId);
   const command = value.command as WildsWorldCommand;
   const kai = verifyWildsWorldCommandKai(command);
+  if (command.type === "community.transition") {
+    if (actor.practice) throw new Error("wilds_community:Restore your Identity Seal in Wildz before adopting or changing community rules.");
+  }
   const optionalHarvestCard = command.type === "resource.material.harvest" && value.card
     ? value.card as PortableCardAsset
     : undefined;
@@ -336,6 +340,10 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
     };
   }
   let current = await recoverCanonicalWorldBeforeMutation(request, actor);
+  if (command.type === "community.transition" && !current.snapshot().constitutionalCommandReceipts?.[command.commandId]) {
+    const currentKai = deriveKaiKlokMoment({ occurredAt: new Date().toISOString(), authority: "world" }).uPulse;
+    if (kai.authority === "local" || Math.abs(currentKai - kai.uPulse) > 120000 / KAI_PULSE_DURATION_MS * 1000000) throw new Error("wilds_community:Refresh the community clock before submitting this action.");
+  }
   const before = { checkpoint: current.checkpoint(), events: current.events() };
   const now = new Date().toISOString();
   let result;

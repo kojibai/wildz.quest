@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ok: false,
       error: message,
+      ...(message.startsWith("wilds_community:") ? { zeroWrite: true } : {}),
       ...(error instanceof WildsConstitutionalError ? { constitution: error.decision } : {})
     }, {
       status: connectRequired ? 401 : executionUnknown ? 503 : zeroWrite ? 409 : message.includes("required") ? 403 : 400,

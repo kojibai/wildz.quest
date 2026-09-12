@@ -1,0 +1,12 @@
+.console { max-width: 820px; margin: auto; }
+.console label { display: grid; gap: 8px; margin: 16px 0; font-size: 13px; color: #d1ddc7; }
+.console input,.console select,.console textarea { width: 100%; min-width: 0; padding: 12px; border: 1px solid #66815d; border-radius: 8px; background: #11251a; color: #e6ead8; font: inherit; box-sizing: border-box; }
+.console button { min-height: 44px; padding: 10px 18px; border: 1px solid #aab980; border-radius: 10px; color: #1c3021; background: #d7dfac; cursor: pointer; font: inherit; font-size: 13px; }
+.console button:disabled { opacity: .5; cursor: default; }
+.console article { padding: 14px 0; border-bottom: 1px solid #526b454d; }
+.console code,.console p,.console strong { overflow-wrap: anywhere; }
+.console code { font-size: 11px; color: #c9d5a7; }
+.console .consent { display: flex; align-items: flex-start; line-height: 1.6; }.consent input { width: 20px; height: 20px; flex-shrink: 0; }
+.status,.notice { padding: 14px; border: 1px solid #6b8159; border-radius: 10px; }
+.console select { appearance: none; height: 48px; min-height: 48px; padding-right: 34px; background-image: linear-gradient(45deg, transparent 50%, #c9d5a7 50%), linear-gradient(135deg, #c9d5a7 50%, transparent 50%); background-position: calc(100% - 18px) 21px, calc(100% - 13px) 21px; background-size: 5px 5px; background-repeat: no-repeat; }
+.console input:not([type="checkbox"]) { min-height: 44px; }

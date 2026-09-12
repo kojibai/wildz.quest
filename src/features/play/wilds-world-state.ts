@@ -1,3 +1,4 @@
+import { transitionCommunity, type CommunityRequest, type WildsCommunity } from "./wilds-community";
 import { settleWildsConstructionWork, WILDS_CONSTRUCTION_WORK_REWARD_POLICY } from "./wilds-construction-work-reward";
 import { createWildsBurrow, verifyWildsBurrow, type WildsBurrowV1 } from "./wilds-burrow";
 import { previewWildsConstructionAdjustment, type WildsConstructionPlacementRequest } from "./wilds-construction-placement";
@@ -137,6 +138,7 @@ export type WildsTrainerWorldProjection = { id: string; [key: string]: unknown }
 export type WildsTournamentWorldProjection = { id: string; phase?: string; [key: string]: unknown };
 
 export type WildsWorldProjection = {
+  communities?: Record<string, WildsCommunity>;
   constitutionalCommandReceipts?: Record<string, { digest: string; actorId: string; type: string; eventIds: string[] }>;
   constitutionalClaims?: Record<string, { id: string; claimant: string; subject: string; proposition: string; status: "ALLEGED"; sourceEventId: string }>;
   schema: "receiz.wilds_world_projection.v3";
@@ -772,6 +774,13 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
           })) throw new Error("wilds_social_squad_scope_invalid");
       }
       return appendEvent(state, event, { teams: { ...state.teams, [team.id]: team } });
+    }
+    case "community.transitioned": {
+      const request = payload.request as CommunityRequest;
+      const previous = request && Object.hasOwn(state.communities ?? {}, request.communityId) ? state.communities?.[request.communityId] : undefined;
+      if (!previous && Object.keys(state.communities ?? {}).length >= 32) throw new Error("wilds_community:Community capacity reached.");
+      const community = transitionCommunity(previous, request, event.actorId, wildsWorldEventUPulse(event), event.causeId);
+      return appendEvent(state, event, { communities: { ...state.communities, [community.id]: community } });
     }
     case "social.abuse_reported": {
       const report = recordPayload(payload.report);

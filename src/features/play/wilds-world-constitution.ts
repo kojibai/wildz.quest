@@ -5,6 +5,7 @@ import { constitutionalDigest, constitutionalPredicate as predicate, deriveConst
 
 /** Adding a command requires choosing its bounded source law at compile time. */
 export const WILDS_COMMAND_LAW = {
+  "community.transition": "community.adopted-procedures",
   "construction.project.create": "commons.plan", "construction.component.place": "project.plan", "construction.burrow.dig": "project.plan", "construction.component.adjust": "project.plan",
   "construction.component.deposit": "materials.contribute", "construction.component.work": "project.work",
   "boss.track": "commons.observe", "raid.enter": "raid.participate", "raid.act": "raid.participate",
@@ -22,25 +23,32 @@ export const WILDS_COMMAND_LAW = {
   "story.contribute": "story.participate", "story.trainer_battle": "story.participate", "story.tournament_enter": "story.participate"
 } as const satisfies Record<WildsWorldCommand["type"], string>;
 
-export function worldConstitutionalDecision(input: {
-  before: WildsWorldProjection; command: WildsWorldCommand; authority: WildsWorldAuthority;
-  after?: WildsWorldProjection; events?: readonly WildsWorldEvent[]; failure?: string;
-}): ConstitutionalDecision {
-  const { before, command, authority } = input;
+type WorldDecisionSource = { before: WildsWorldProjection; command: WildsWorldCommand; authority: WildsWorldAuthority };
+type WorldDecisionOutcome = { after?: WildsWorldProjection; events?: readonly WildsWorldEvent[]; failure?: string };
+
+/** One synchronous execution scope: hash the source and command once, never cache mutable world state globally. */
+export function createWorldConstitutionalDecisionScope({ before, command, authority }: WorldDecisionSource) {
   const sourceState = constitutionalDigest(before);
+  const commandDigest = constitutionalDigest(command);
   const law = Object.hasOwn(WILDS_COMMAND_LAW, command.type) ? WILDS_COMMAND_LAW[command.type] : null;
-  const evidence = [sourceState, constitutionalDigest(command), ...(input.events ?? []).map(event => event.digest)];
   const team = "teamId" in command ? before.teams[command.teamId] : undefined;
   const teamRole = team?.members?.find(member => member.playerId === authority.actorId)?.role
     ?? (team?.captainId === authority.actorId ? "captain" : null);
-  const predicates = [
-    predicate("TOB-01/81", "Actor is identified at the admitted execution boundary", Boolean(authority.actorId?.trim()) && authority.canonical, [authority.actorId || "AUTHORITY_UNPROVEN"]),
-    predicate("TOB-03/23/74", "This action has a defined bounded transition law", law ? true : null, law ? [law] : []),
-    predicate("TOB-05/13/59", "Registered gameplay law creates no ownership of a person or absolute Earth title", law ? true : null, law ? [law] : []),
-    predicate("TOB-60/62", "Source state and command are explicitly bound", true, [sourceState, constitutionalDigest(command)])
-  ];
-  if (command.type === "team.squad.assemble") predicates.push(predicate("TOB-23/54/56", "Squad organizer holds current captain or officer standing", teamRole === "captain" || teamRole === "officer", team ? [constitutionalDigest(team)] : []));
-  if (input.failure) predicates.push(predicate("TOB-81", input.failure, /undefined|unproven|unresolved/.test(input.failure) ? null : false, evidence));
-  else predicates.push(predicate("TOB-81/84", "Resource-specific source, permission and successor predicates pass", input.after ? true : null, evidence));
-  return deriveConstitutionalDecision({ sourceState, actor: authority.actorId, standing: law ?? "AUTHORITY_UNPROVEN", authority: "source-state-and-resource-law", predicates, successor: input.after ? constitutionalDigest(input.after) : null });
+  const teamDigest = command.type === "team.squad.assemble" && team ? constitutionalDigest(team) : null;
+  return { commandDigest, decide(input: WorldDecisionOutcome = {}): ConstitutionalDecision {
+    const evidence = [sourceState, commandDigest, ...(input.events ?? []).map(event => event.digest)];
+    const predicates = [
+      predicate("TOB-01/81", "Actor is identified at the admitted execution boundary", Boolean(authority.actorId?.trim()) && authority.canonical, [authority.actorId || "AUTHORITY_UNPROVEN"]),
+      predicate("TOB-03/23/74", "This action has a defined bounded transition law", law ? true : null, law ? [law] : []),
+      predicate("TOB-05/13/59", "Registered gameplay law creates no ownership of a person or absolute Earth title", law ? true : null, law ? [law] : []),
+      predicate("TOB-60/62", "Source state and command are explicitly bound", true, [sourceState, commandDigest])
+    ];
+    if (command.type === "team.squad.assemble") predicates.push(predicate("TOB-23/54/56", "Squad organizer holds current captain or officer standing", teamRole === "captain" || teamRole === "officer", teamDigest ? [teamDigest] : []));
+    if (input.failure) predicates.push(predicate("TOB-81", input.failure, /undefined|unproven|unresolved/.test(input.failure) ? null : false, evidence));
+    else predicates.push(predicate("TOB-81/84", "Resource-specific source, permission and successor predicates pass", input.after ? true : null, evidence));
+    return deriveConstitutionalDecision({ sourceState, actor: authority.actorId, standing: law ?? "AUTHORITY_UNPROVEN", authority: "source-state-and-resource-law", predicates, successor: input.after ? constitutionalDigest(input.after) : null });
+  } };
+}
+export function worldConstitutionalDecision(input: WorldDecisionSource & WorldDecisionOutcome): ConstitutionalDecision {
+  return createWorldConstitutionalDecisionScope(input).decide(input);
 }

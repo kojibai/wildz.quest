@@ -1,8 +1,9 @@
+import type { CommunityRequest } from "./wilds-community";
 import { settleWildsConstructionWork } from "./wilds-construction-work-reward";
 import { createWildsBurrow, type WildsBurrowRequest } from "./wilds-burrow";
 import { settleWildsBuild, verifyWildsBuildSettlement } from "./wilds-steward-build-settlement";
 import { playerStewardBuilder } from "./wilds-steward-construction";
-import { WILDS_COMMAND_LAW, worldConstitutionalDecision } from "./wilds-world-constitution";
+import { WILDS_COMMAND_LAW, createWorldConstitutionalDecisionScope } from "./wilds-world-constitution";
 import { WildsConstitutionalError, constitutionalDigest, constitutionalPredicate, deriveConstitutionalDecision } from "./wilds-constitution";
 import { resolveWildsCraftWorkstation, resolveWildsMaterialCache } from "./wilds-construction-function";
 import { generateCrystalBurrower, type WildsBoss } from "./wilds-boss-generator";
@@ -83,6 +84,7 @@ import { previewWildsConstructionAdjustment, projectWildsProductionPlacementEvid
 import type { WildsBlueprintPlacement } from "./wilds-world-construction";
 
 export type WildsWorldCommand = (
+  | { type: "community.transition"; request: CommunityRequest; commandId: string }
   | { type: "construction.project.create"; name: string; region: { x: number; z: number }; commandId: string }
   | { type: "construction.component.place"; projectId: string; placement: WildsBlueprintPlacement; request: WildsConstructionPlacementRequest; actorPosition: { x: number; z: number }; commandId: string }
   | { type: "construction.burrow.dig"; request:WildsBurrowRequest; actorPosition:{x:number;y:number;z:number};cardProofDigest:string;commandId:string }
@@ -459,15 +461,16 @@ export class WildsWorldService {
   execute(command: WildsWorldCommand, authority: WildsWorldAuthority) {
     const before = this.projection;
     const previousTail = this.eventTail;
+    const decisionScope = createWorldConstitutionalDecisionScope({ before, command, authority });
     try {
       if (!Object.hasOwn(WILDS_COMMAND_LAW, command.type)) throw new Error("wilds_constitution_action_undefined");
-      const preflight = worldConstitutionalDecision({ before, command, authority });
+      const preflight = decisionScope.decide();
       if (preflight.predicatesFailed.some(p => p.rule === "TOB-23/54/56")) throw new Error("wilds_social_organizer_forbidden");
       const priorReceipt = before.constitutionalCommandReceipts?.[command.commandId];
-      if (priorReceipt && (priorReceipt.digest !== constitutionalDigest(command) || priorReceipt.actorId !== authority.actorId)) throw new Error("wilds_constitution_command_conflict");
-      this.constitutionalCommand = { digest: constitutionalDigest(command), type: command.type };
+      if (priorReceipt && (priorReceipt.digest !== decisionScope.commandDigest || priorReceipt.actorId !== authority.actorId)) throw new Error("wilds_constitution_command_conflict");
+      this.constitutionalCommand = { digest: decisionScope.commandDigest, type: command.type };
       const result = priorReceipt ? { events: [], projection: before } : this.executeUnderSourceLaw(command, authority);
-      const constitution = worldConstitutionalDecision({ before, command, authority, after: result.projection, events: result.events });
+      const constitution = decisionScope.decide({ after: result.projection, events: result.events });
       if (constitution.result !== "VALID") throw new WildsConstitutionalError("wilds_constitution_authority_unproven", constitution);
       return { ...result, constitution };
     } catch (cause) {
@@ -476,14 +479,14 @@ export class WildsWorldService {
       this.eventTail = previousTail;
       if (cause instanceof WildsConstitutionalError) throw cause;
       const message = cause instanceof Error ? cause.message : "wilds_constitution_transition_unresolved";
-      throw new WildsConstitutionalError(message, worldConstitutionalDecision({ before, command, authority, failure: message }));
+      throw new WildsConstitutionalError(message, decisionScope.decide({ failure: message }));
     } finally { this.constitutionalCommand = null; }
   }
 
   private executeUnderSourceLaw(command: WildsWorldCommand, authority: WildsWorldAuthority) {
     if (!authority.canonical) throw new Error("wilds_world_canonical_authority_required");
     if (!commandIdValid(command.commandId)) throw new Error("wilds_world_command_id_invalid");
-    const commandDigest = constructionProofDigest(command);
+    const commandDigest = this.constitutionalCommand?.digest ?? constructionProofDigest(command);
     const receipt = this.projection.constructionCommandReceipts[command.commandId];
     if (receipt) {
       if (receipt.commandDigest !== commandDigest || receipt.actorId !== authority.actorId) throw new Error("wilds_construction_command_conflict");
@@ -501,6 +504,10 @@ export class WildsWorldService {
       card: verifyWildsWorldCommandCard({ command, card: authority.card })
     };
     const events: WildsWorldEvent[] = [];
+    if (command.type === "community.transition") {
+      events.push(this.append("community.transitioned", { request: command.request }, authority, command.commandId));
+      return { events, projection: this.projection };
+    }
     const storyCommand = command.type === "story.contribute"
       || command.type === "story.trainer_battle"
       || command.type === "story.tournament_enter";
