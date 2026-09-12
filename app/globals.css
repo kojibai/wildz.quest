@@ -16923,9 +16923,9 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
   .wilds-builder-restore { min-height: 44px; border-radius: 22px; padding: 7px 12px; }
 }
 @media (max-width: 600px) {
-  .wilds-continuous-builder.is-compact .wilds-builder-inspector > p:not(.wilds-builder-gesture-help),
-  .wilds-continuous-builder.is-compact .wilds-builder-needed,
-  .wilds-continuous-builder.is-compact .wilds-explained-action > p { display: none; }
+  .wilds-continuous-builder.is-compact .wilds-builder-inspector > p:not(.wilds-builder-gesture-help) { display: none; }
+  .wilds-continuous-builder.is-compact .wilds-builder-needed { display: flex; }
+  .wilds-continuous-builder.is-compact .wilds-explained-action > p { display: block; }
   .wilds-continuous-builder.is-compact .wilds-builder-inspector { gap: 6px; }
   .wilds-continuous-builder.is-compact .wilds-builder-inspector > strong { font-size: 11px; }
 }

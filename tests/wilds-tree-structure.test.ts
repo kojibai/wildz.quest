@@ -20,3 +20,18 @@ test("trees and stumps remain rooted across sizes and depletion states", () => {
     }
   }
 });
+
+test("growth habits have distinct silhouettes but deterministic transforms and identical stumps", () => {
+  const ratios = new Set<number>();
+  for (const variant of [0, 1, 2]) {
+    const item = { x: -351, z: 928, scale: 1, variant };
+    const crown = projectWildsTreePart(item, "lower");
+    assert.deepEqual(crown, projectWildsTreePart(item, "lower"));
+    ratios.add(Math.round(crown.scale[0] / crown.scale[1] * 100));
+    const exhausted = { ...item, resourceBody: projectWildsResourceBody({ kind: "timber", capacity: 20, availableCapacity: 0 }) };
+    assert.deepEqual(projectWildsTreePart(exhausted, "crown").scale, [0, 0, 0]);
+    const stump = projectWildsTreePart(exhausted, "trunk");
+    assert.ok(Math.abs(stump.y - .6 * stump.scale[1] + .035) < 1e-8);
+  }
+  assert.equal(ratios.size, 3);
+});

@@ -19,4 +19,6 @@ test("placed pieces require explicit unlocking before world gestures can move th
   assert.match(panel, /onClick=\{builder.beginAdjustment\}/);
   assert.match(panel, /Unlock to adjust/);
   assert.match(campaign, /onDragConstruction=\{continuousBuilder.adjusting\s*\?\s*continuousBuilder.dragPiece\s*:\s*undefined\}/);
+  assert.match(hook, /selectionEnabled: open && !adjusting,/);
+  assert.match(hook, /if \(component\) \{ setSelectedId\(component.componentId\); setInspecting\(true\); \}/);
 });

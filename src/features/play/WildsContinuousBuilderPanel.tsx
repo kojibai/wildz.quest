@@ -20,6 +20,7 @@ export function WildsContinuousBuilderPanel({ builder, materials, onOpenCatalogu
   const [expanded, setExpanded] = useState(false);
   useEffect(()=>{if(builder.dragging)setMinimized(true);},[builder.dragging]);
   useEffect(()=>{if(builder.error)setMinimized(false);},[builder.error]);
+  useEffect(()=>{if(builder.selected)setMinimized(false);},[builder.selected]);
   const cost = cumulativeWildsConstructionMaterials(wildsConstructionRecipe(builder.kind), "finished");
   const next = builder.progress?.stages.find(stage => !stage.complete);
   if (minimized) return <button className="wilds-builder-restore" type="button" aria-label="Restore build panel" onClick={() => setMinimized(false)}><Icons.construction size={18} /><span>Build<small>{wildsConstructionLabel(builder.selected?.kind ?? builder.kind)}</small></span></button>;
@@ -30,7 +31,7 @@ export function WildsContinuousBuilderPanel({ builder, materials, onOpenCatalogu
       <span><Icons.timber size={15} /><b>{materials.timber}</b><small>Timber</small></span>
       <span><Icons.quarry size={15} /><b>{materials.stone}</b><small>Stone</small></span>
     </div>
-    <div className="wilds-builder-catalog-link">{onOpenCatalogue && <button type="button" onClick={onOpenCatalogue}>Blueprints, tools & storage</button>}<small>{builder.inspecting ? "Tap a piece to inspect it. It stays locked." : "Tap to place. Existing pieces stay locked."}</small></div>
+    <div className="wilds-builder-catalog-link">{onOpenCatalogue && <button type="button" onClick={onOpenCatalogue}>Blueprints, tools & storage</button>}<small>{builder.inspecting ? "Tap a piece to inspect it. It stays locked." : "Tap clear ground to place. Tap a layout to add materials and build."}</small></div>
     {!builder.adjusting && <button type="button" aria-pressed={builder.inspecting} onClick={builder.inspecting ? () => builder.selectKind(builder.kind) : builder.editPieces}>{builder.inspecting ? "Back to building" : "Edit placed pieces"}</button>}
     {builder.toggleSnap && <button type="button" aria-pressed={builder.snapEnabled} disabled={Boolean(builder.busy)} onClick={builder.toggleSnap}>
       {builder.snapEnabled ? "Snap to structure · on" : "Free placement · grid"}
@@ -65,7 +66,7 @@ export function WildsContinuousBuilderPanel({ builder, materials, onOpenCatalogu
         <div className="wilds-builder-actions"><WildsExplainedAction label="Add what I carry" pending={Boolean(builder.busy)} blocker={builder.depositBlocker} onAction={builder.addCarried} /><WildsExplainedAction label={`Build ${next.stage}`} pending={Boolean(builder.busy)} blocker={builder.workBlocker} onAction={builder.work} /></div>
         <p>You do the work yourself. No companion or workbench is required.</p>
       </> : <p>Finished. Choose another piece above to keep building.</p>}
-    </section> : builder.inspecting ? <p role="status">Tap the piece you want to edit, or choose it from nearby builds below. Nothing moves until you unlock it.</p> : <section className="wilds-builder-placement" aria-label="Piece placement">
+    </section> : builder.inspecting ? <p role="status">Tap a layout to add materials and build, or choose it below. Nothing moves until you unlock it.</p> : <section className="wilds-builder-placement" aria-label="Piece placement">
       <strong className="wilds-builder-piece-name">{wildsConstructionLabel(builder.kind)}</strong>
       <p>{builder.preview ? builder.preview.valid ? builder.canPlace ? "This piece fits. Tap the world to place, or use Place below." : "Move closer to place this piece (within 6 metres)." : builder.preview.cues.map(wildsConstructionCue).join(" ") : "Choose a piece and tap to place. Placed pieces lock automatically; select one and unlock to adjust."}</p>
       <p className="wilds-builder-cost">Full build: {cost.hay} hay · {cost.timber} timber · {cost.stone} stone</p>

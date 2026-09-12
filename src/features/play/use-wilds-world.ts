@@ -6,7 +6,7 @@ import { playerStewardBuilder } from "./wilds-steward-construction";
 import type { WildsActivityEntry } from "./wallet/wilds-activity-history";
 import { resolveWildsCraftWorkstation } from "./wilds-construction-function";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sha256PortableBasis, type PortableCardAsset } from "./portable-card";
 import type { WildzVaultCardMembershipProof } from "@/lib/receiz/wildz-vault-card-admission";
 import type { WildsWorldCommand } from "./wilds-world-service";
@@ -48,6 +48,7 @@ import {
   projectWildsWorldOutbox,
   type WildsWorldOutboxEntry
 } from "./wilds-world-outbox";
+import { createWildsSessionRestore } from "./wilds-session-restore";
 import { prepareWildsWorldOutboxEntryAsync, restoreWildsWorldEdgeSource, acknowledgeWildsWorldCommand, acknowledgeWildsWorldPublication, persistWildsWorldCommand, readWildsWorldOutbox } from "./wilds-world-work-client";
 import {
   shouldAttemptWildsNetwork,
@@ -246,6 +247,12 @@ export function useWildsWorld(input: {
   ), [edgeQueue]);
 
 
+  const restoreSession = useMemo(() => createWildsSessionRestore(async () => {
+    const restored = await restoreWildsWorldEdgeSource(edgeQueue.current(), input.actorId);
+    if (edge.current?.queue !== edgeQueue) throw new Error("wilds_world_session_changed");
+    adoptSnapshot(restored);
+  }), [adoptSnapshot, edgeQueue, input.actorId]);
+
   const request = useCallback(async (url: string, init?: RequestInit) => {
     const controller = new AbortController();
     controllers.current.add(controller);
@@ -375,10 +382,10 @@ export function useWildsWorld(input: {
     if (!input.enabled) return;
     if (input.initialSnapshot && validWildsWorldProjection(input.initialSnapshot.projection)) adoptSnapshot(input.initialSnapshot.projection);
     let cancelled = false;
-    void restoreWildsWorldEdgeSource(edgeQueue.current(), input.actorId)
-      .then(async (restored) => {
+    void restoreSession()
+      .then(async () => {
         if (cancelled) return;
-        const admitted = adoptSnapshot(restored);
+        const admitted = edgeQueue.current();
         canonicalSnapshot.current = admitted;
         setSnapshot((current) => acceptWildsWorldSnapshot(current, admitted, ownedWorldAdditions.current));
         if (input.networkEnabled) await refresh();
@@ -389,7 +396,7 @@ export function useWildsWorld(input: {
         setError(wildsNetworkFailureMessage(cause, "world"));
       });
     return () => { cancelled = true; };
-  }, [adoptSnapshot, edgeQueue, input.actorId, input.enabled, input.networkEnabled, input.initialSnapshot, refresh]);
+  }, [adoptSnapshot, edgeQueue, input.actorId, input.enabled, input.networkEnabled, input.initialSnapshot, refresh, restoreSession]);
 
   useEffect(() => {
     const activeControllers = controllers.current;
@@ -421,8 +428,7 @@ export function useWildsWorld(input: {
     };
     if (isWildsEdgeImmediateConstructionCommand(rootedCommand)) {
       try {
-        const restored = await restoreWildsWorldEdgeSource(edgeQueue.current(), input.actorId);
-        adoptSnapshot(restored);
+        await restoreSession();
         const projection = await edgeQueue.admit(entry);
         setError("");
         scheduleWildsWorldBackgroundSync(() => {
@@ -483,7 +489,7 @@ export function useWildsWorld(input: {
       commandPending.current = false;
       setPendingCommand(null);
     }
-  }, [adoptSnapshot, edgeQueue, input.activeCard, input.actorId, input.cardAdmission, input.enabled, input.guestId, input.kaiUPulse, input.networkEnabled, mode, refresh, sendEntry]);
+  }, [edgeQueue, input.activeCard, input.actorId, input.cardAdmission, input.enabled, input.guestId, input.kaiUPulse, input.networkEnabled, mode, refresh, restoreSession, sendEntry]);
 
   useEffect(() => {
     const resume = () => {

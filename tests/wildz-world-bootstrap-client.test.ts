@@ -30,8 +30,8 @@ test("the admitted bootstrap projection reaches the living HUD instead of being 
   assert.match(shell, /initialWorld=\{worldBootstrap\}/);
   assert.match(campaign, /initialSnapshot: initialWorld/);
   const initialAdoption = hook.indexOf("adoptSnapshot(input.initialSnapshot.projection)");
-  const restore = hook.indexOf("restoreWildsWorldEdgeSource(edgeQueue.current(), input.actorId)", initialAdoption);
-  const durableAdoption = hook.indexOf("const admitted = adoptSnapshot(restored)", restore);
+  const restore = hook.indexOf("void restoreSession()", initialAdoption);
+  const durableAdoption = hook.indexOf("const admitted = edgeQueue.current()", restore);
   const canonical = hook.indexOf("canonicalSnapshot.current = admitted", durableAdoption);
   const display = hook.indexOf("setSnapshot((current) => acceptWildsWorldSnapshot(current, admitted, ownedWorldAdditions.current))", canonical);
   const replication = hook.indexOf("await refresh()", display);

@@ -45,11 +45,11 @@ export function useWildsContinuousBuilder({ world, owner, player, lots, feedback
     catch { return null; }
   }, [adjusting,selected,snapshot,pointer,rotation,height,spaceId,snapEnabled]);
   const preview = useMemo(() => {
-    if (!open || adjusting || !snapshot || !pointer) return null;
+    if (!open || selectedId || adjusting || !snapshot || !pointer) return null;
     try {
       return previewWildsContinuousBuild(snapshot, owner, kind, { ...(spaceId!=="wildz.space.outer.v1"?{spaceId}:{}), pointer: { x: pointer.x, y: pointer.surfaceWorldY ?? sampleWildsTerrain(pointer.x, pointer.z).elevation, z: pointer.z }, rotationQuarterTurns: rotation, heightStep: height, surfaceSnap: snapEnabled, snapVersion: 2 });
     } catch { return null; }
-  }, [open, adjusting, snapshot, pointer, kind, owner, rotation, height,spaceId,snapEnabled]);
+  }, [open, selectedId, adjusting, snapshot, pointer, kind, owner, rotation, height,spaceId,snapEnabled]);
   const inReach = (point: { x: number; z: number }) => Math.hypot(player.x - point.x, player.z - point.z) <= 6;
   const deposit = progress ? selectWildsConstructionDeposit(lots, progress) : [];
   const nextStage = progress?.stages.find(stage => !stage.complete);
@@ -88,7 +88,7 @@ export function useWildsContinuousBuilder({ world, owner, player, lots, feedback
       const before = new Set(Object.keys(current.constructionComponents));
       const result = await world.placeConstructionComponent(project.projectId, fresh.placement, preview.request, player);
       const component = Object.values(result.constructionComponents).find(c => !before.has(c.componentId) && c.ownerReceizId === owner);
-      if (component) { setSelectedId(component.componentId); setInspecting(false); }
+      if (component) { setSelectedId(component.componentId); setInspecting(true); }
       setPointer(null);
       feedback(`${wildsConstructionLabel(kind)} planned and locked. Add materials, then build each stage. You can do the work yourself.`);
     });
@@ -103,7 +103,7 @@ export function useWildsContinuousBuilder({ world, owner, player, lots, feedback
     }),
     dragging,
     inspecting,
-    selectionEnabled: open && inspecting && !adjusting && !busy,
+    selectionEnabled: open && !adjusting,
     editPieces: () => { if (lock.current) return; cancelAdjustment(); setInspecting(true); setSelectedId(null); setOpen(true); feedback("Tap the piece you want to edit. It stays locked until you unlock it."); },
     dragPiece:(id:string,point:WildsInteractionSurfacePoint,phase:"move"|"drop"|"cancel",transform?:{rotation:number;height:number})=>{
       if(phase==="cancel"){dragSource.current=null;setDragging(false);cancelAdjustment();return;}
