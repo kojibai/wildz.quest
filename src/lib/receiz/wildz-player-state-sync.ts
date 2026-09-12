@@ -103,7 +103,8 @@ export function convergeWildzPlayerState(input: {
     : preferred.playState;
   const player = createWildsPlayerVault({
     playerId: preferred.playerId,
-    exportedAt: input.now,
+    // Transport/admission time must not make old gameplay newer.
+    exportedAt: preferred.exportedAt,
     playState,
     character: preferred.character,
     settings: preferred.settings,
@@ -121,6 +122,7 @@ export function convergeWildzPlayerState(input: {
       (receipt) => receipt.eventId
     )
   });
+  if (current?.sourceDigest === player.payloadDigest) return current;
   return {
     schema: WILDZ_PLAYER_STATE_SCHEMA,
     playerId: input.actorId,
@@ -148,7 +150,7 @@ export async function publishWildzPlayerState(
   if (actor.practice) throw new Error("wildz_player_state_identity_required");
   const adapter = createReceizCommerceAdapter(actor.accessToken ? { accessToken: actor.accessToken } : undefined);
   const sourceUrl = wildzPlayerStateSourceUrl(request, actor.playerId);
-  const current = findWildzPlayerStateRecord(await adapter.readAppStateByUrl(sourceUrl).catch(() => null));
+  const current = findWildzPlayerStateRecord(await adapter.readAppStateByUrl(sourceUrl));
   const next = convergeWildzPlayerState({ actorId: actor.playerId, current, incoming, now: new Date().toISOString() });
   if (next === current) return current;
   const hostContext = hostContextFromHost(new URL(sourceUrl).host);

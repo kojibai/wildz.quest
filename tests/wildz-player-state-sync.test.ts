@@ -76,3 +76,25 @@ test("an admitted state from another browser updates live play without remountin
   assert.match(source, /setState\(initialState\)/);
   assert.doesNotMatch(source, /key=\{[^}]*sourceDigest/);
 });
+
+
+test("a delayed publication keeps gameplay time so a later action can still become current", () => {
+  const older = vault("wildz", "2026-08-26T01:00:00.000Z", { beans: 4, achievements: ["older"] });
+  const published = convergeWildzPlayerState({ actorId: "wildz", current: null, incoming: older, now: "2026-08-26T02:00:00.000Z" });
+  const later = vault("wildz", "2026-08-26T01:30:00.000Z", { beans: 9, achievements: ["later"] });
+  const converged = convergeWildzPlayerState({ actorId: "wildz", current: published, incoming: later, now: "2026-08-26T02:01:00.000Z" });
+  assert.equal(converged.player.playState.beans, 9);
+  assert.equal(converged.player.exportedAt, later.exportedAt);
+  assert.equal(converged.updatedAt, "2026-08-26T02:01:00.000Z");
+  assert.deepEqual(new Set(converged.player.playState.achievements), new Set(["older", "later"]));
+});
+
+
+test("replaying an already merged older save does not create another revision", () => {
+  const older = vault("wildz", "2026-08-26T01:00:00.000Z", { beans: 4, achievements: ["older"] });
+  const later = vault("wildz", "2026-08-26T01:30:00.000Z", { beans: 9, achievements: ["later"] });
+  const first = convergeWildzPlayerState({ actorId: "wildz", current: null, incoming: later, now: "2026-08-26T02:00:00.000Z" });
+  const merged = convergeWildzPlayerState({ actorId: "wildz", current: first, incoming: older, now: "2026-08-26T02:01:00.000Z" });
+  const retried = convergeWildzPlayerState({ actorId: "wildz", current: merged, incoming: older, now: "2026-08-26T02:02:00.000Z" });
+  assert.equal(retried, merged);
+});

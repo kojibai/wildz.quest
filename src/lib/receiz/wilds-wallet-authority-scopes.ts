@@ -12,3 +12,15 @@ export function hasExactWildsWalletReadAuthorityScopes(value: readonly string[])
   return value.length === WILDS_WALLET_READ_AUTHORITY_SCOPES.length
     && WILDS_WALLET_READ_AUTHORITY_SCOPES.every((scope, index) => value[index] === scope);
 }
+
+export type WildsIdentityAuthorityPurpose = "wallet-read" | "artifact-claim";
+export const WILDS_ARTIFACT_CLAIM_AUTHORITY_SCOPES = Object.freeze([
+  ...WILDS_WALLET_READ_AUTHORITY_SCOPES, "receiz:record", "receiz:seal"
+] as const);
+export function wildsIdentityAuthorityScopes(purpose: WildsIdentityAuthorityPurpose) {
+  return purpose === "artifact-claim" ? WILDS_ARTIFACT_CLAIM_AUTHORITY_SCOPES : WILDS_WALLET_READ_AUTHORITY_SCOPES;
+}
+export function hasExactWildsIdentityAuthorityScopes(value: readonly string[], purpose: WildsIdentityAuthorityPurpose) {
+  const expected = wildsIdentityAuthorityScopes(purpose);
+  return value.length === expected.length && expected.every((scope, index) => value[index] === scope);
+}

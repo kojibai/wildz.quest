@@ -15,6 +15,7 @@ import { readWildzHttpArtifact } from "@/lib/receiz/wildz-http-artifact";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 function json(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: { "cache-control": "no-store" } });
@@ -46,6 +47,7 @@ function claimedArtifactResponse(
 export async function POST(request: NextRequest) {
   try {
     const actor = await resolveWildzCookieActor(request);
+    if (!actor.accessToken) throw new Error("receiz_authority_required");
     const uploaded = await readWildzHttpArtifact(request, {
       fallbackFilename: "wildz-bearer.receized",
       maximumBytes: 64 * 1024 * 1024

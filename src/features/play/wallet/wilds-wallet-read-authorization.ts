@@ -11,7 +11,7 @@ import {
   type ReceizIdentityLoginProof
 } from "@receiz/sdk";
 import { connectWildzProofSession, defaultIdentityRepository } from "@/lib/receiz/wildz-identity-adapter";
-import { hasExactWildsWalletReadAuthorityScopes } from "@/lib/receiz/wilds-wallet-authority-scopes";
+import { hasExactWildsIdentityAuthorityScopes, type WildsIdentityAuthorityPurpose } from "@/lib/receiz/wilds-wallet-authority-scopes";
 import { wildzRemoteSessionMatchesIdentity } from "@/lib/receiz/wildz-session-bridge";
 import { projectWildsWalletFromIdentityAccount } from "./wilds-wallet-source-authority";
 
@@ -74,15 +74,17 @@ function challengeEnvelope(value: unknown): ChallengeEnvelope | null {
     ? candidate as ChallengeEnvelope : null;
 }
 
-export async function authorizeWildsWalletReadWithIdentity(keyId: string, dependencies: ReadAuthorizationDependencies = DEFAULT_DEPENDENCIES) {
+export async function authorizeWildsWalletReadWithIdentity(keyId: string, dependencies: ReadAuthorizationDependencies = DEFAULT_DEPENDENCIES, purpose: WildsIdentityAuthorityPurpose = "wallet-read") {
+  const purposeQuery = purpose === "artifact-claim" ? "&purpose=artifact-claim" : "";
+  const completionPath = `/api/auth/wildz/wallet-authority${purpose === "artifact-claim" ? "?purpose=artifact-claim" : ""}`;
   const identity = await dependencies.loadIdentity(keyId);
   if (identity.keyId !== keyId) return false;
   const attempt = async (mayReconnect: boolean): Promise<boolean> => {
-    const issued = await dependencies.request(`/api/auth/wildz/wallet-authority?keyId=${encodeURIComponent(keyId)}&artifactDigest=${identity.artifactDigest}`);
+    const issued = await dependencies.request(`/api/auth/wildz/wallet-authority?keyId=${encodeURIComponent(keyId)}&artifactDigest=${identity.artifactDigest}${purposeQuery}`);
     if (!issued.ok) throw new WildsWalletAuthorizationError(walletAuthorizationFailureCode(issued.value));
     const envelope = issued.ok ? challengeEnvelope(issued.value) : null;
     if (!envelope || envelope.keyId !== keyId || !envelope.applicationId || envelope.unsigned.audience !== envelope.applicationId
-      || !hasExactWildsWalletReadAuthorityScopes(envelope.scopes)) return false;
+      || !hasExactWildsIdentityAuthorityScopes(envelope.scopes, purpose)) return false;
     const basis = proofAuthorityChallengeBasisV123({
       challenge: envelope.unsigned,
       applicationId: envelope.applicationId,
@@ -91,7 +93,7 @@ export async function authorizeWildsWalletReadWithIdentity(keyId: string, depend
     });
     const challengeB64Url = receizBase64UrlEncode(new TextEncoder().encode(dependencies.challengeText(basis)));
     const proof = await identity.sign(challengeB64Url);
-    const completed = await dependencies.request("/api/auth/wildz/wallet-authority", {
+    const completed = await dependencies.request(completionPath, {
       artifact: identity.artifact,
       challenge: { ...envelope.unsigned, proof }
     });
@@ -103,7 +105,7 @@ export async function authorizeWildsWalletReadWithIdentity(keyId: string, depend
     }
     const value = completed.value as { status?: unknown; scopes?: unknown } | null;
     return completed.ok && value?.status === "connected" && Array.isArray(value.scopes)
-      && hasExactWildsWalletReadAuthorityScopes(value.scopes);
+      && hasExactWildsIdentityAuthorityScopes(value.scopes, purpose);
   };
   return attempt(true);
 }

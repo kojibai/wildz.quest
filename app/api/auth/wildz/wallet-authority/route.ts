@@ -28,7 +28,14 @@ function registeredApplicationId() {
   return id;
 }
 
-const TICKET_COOKIE = "wildz_wallet_authority_ticket";
+function authorityPurpose(request: NextRequest) {
+  const purpose = request.nextUrl.searchParams.get("purpose");
+  if (purpose !== null && purpose !== "artifact-claim") throw new Error("receiz_wallet_identity_authority_invalid");
+  return purpose === "artifact-claim" ? "artifact-claim" as const : "wallet-read" as const;
+}
+function ticketCookie(request: NextRequest) {
+  return authorityPurpose(request) === "artifact-claim" ? "wildz_artifact_claim_authority_ticket" : "wildz_wallet_authority_ticket";
+}
 
 function cookieOptions(maxAge = 180) {
   return { httpOnly: true, maxAge, path: "/api/auth/wildz/wallet-authority", sameSite: "strict" as const, secure: process.env.NODE_ENV === "production" };
@@ -61,11 +68,12 @@ export async function GET(request: NextRequest) {
   try {
     const issued = issueWildsWalletIdentityAuthorityChallenge({
       applicationId: registeredApplicationId(),
+      purpose: authorityPurpose(request),
       session: edgeIdentity(request),
       artifactDigest: request.nextUrl.searchParams.get("artifactDigest") ?? ""
     }, receizOAuthSecret());
     const response = NextResponse.json(issued.challenge, { headers: { "cache-control": "no-store" } });
-    response.cookies.set(TICKET_COOKIE, issued.ticket, cookieOptions());
+    response.cookies.set(ticketCookie(request), issued.ticket, cookieOptions());
     return response;
   } catch (cause) {
     return failure(cause);
@@ -74,11 +82,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const ticket = request.cookies.get(TICKET_COOKIE)?.value;
+    const ticket = request.cookies.get(ticketCookie(request))?.value;
     if (!ticket) throw new Error("receiz_wallet_identity_authority_ticket_required");
     const admitted = await completeWildsWalletIdentityAuthority({
       session: proofSession(request),
       ticket,
+      purpose: authorityPurpose(request),
       body: await request.json()
     }, {
       secret: receizOAuthSecret(),
@@ -101,7 +110,7 @@ export async function POST(request: NextRequest) {
       displayName: null
     });
     response.cookies.set(WILDZ_PROOF_SESSION_COOKIE, packWildzProofSession(establishedSession), wildzProofSessionCookieOptions());
-    response.cookies.set(TICKET_COOKIE, "", { ...cookieOptions(0), maxAge: 0 });
+    response.cookies.set(ticketCookie(request), "", { ...cookieOptions(0), maxAge: 0 });
     return response;
   } catch (cause) {
     return failure(cause);

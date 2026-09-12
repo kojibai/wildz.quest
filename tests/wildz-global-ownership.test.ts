@@ -125,15 +125,12 @@ test("owned Vault uploads merge directly while foreign bearer artifacts claim fi
   const claimPath = shell.slice(claimStart, explicitClaimStart);
 
   assert.ok(claimStart >= 0 && explicitClaimStart > claimStart);
-  assert.match(claimPath, /proofSessionConnected/);
+  assert.match(claimPath, /authorizeWildsWalletReadWithIdentity/);
+  assert.match(claimPath, /"artifact-claim"/);
   assert.match(claimPath, /prepareWildzRestore\(file\)/);
   assert.match(claimPath, /wildzVaultUploadDisposition\(inspection, current\.session\.actorId\)/);
-  assert.match(claimPath, /const restoreVerifiedBaseline = async/);
   assert.match(claimPath, /const artifactAssetIds = inspection\.assets\.map/);
-  assert.match(claimPath, /return restoreVerifiedBaseline\(\)/);
   assert.match(claimPath, /disposition === "merge-owned"/);
-  assert.match(claimPath, /connectWildzProofSession\(current\.session, \{ vaultAdmission: admission \}\)/);
-  assert.match(claimPath, /wildzRemoteSessionMatchesIdentity\(current\.session, remote\)/);
   assert.match(claimPath, /fetch\("\/api\/market\/claims"/);
   assert.match(claimPath, /openWildzArtifactSameOrigin/);
   assert.match(claimPath, /x-receiz-artifact-sha256/);
@@ -142,9 +139,9 @@ test("owned Vault uploads merge directly while foreign bearer artifacts claim fi
   assert.match(claimPath, /restoreArtifact\(\s*file,\s*"card-vault",\s*true,/);
   assert.ok(claimPath.indexOf("prepareWildzRestore(file)") < claimPath.indexOf('fetch("/api/market/claims"'));
   assert.ok(claimPath.indexOf('disposition === "merge-owned"') < claimPath.indexOf('fetch("/api/market/claims"'));
-  assert.ok(claimPath.indexOf("const baseline = await restoreVerifiedBaseline()") < claimPath.indexOf('fetch("/api/market/claims"'));
-  assert.match(claimPath, /void reconcileBearerProjection\(\)\.catch/);
-  assert.match(claimPath, /return baseline/);
+  assert.doesNotMatch(claimPath, /void reconcileBearerProjection|return baseline|AbortController/);
+  assert.match(claimPath, /if \(!response\.ok\)/);
+  assert.match(claimPath, /x-wildz-ownership-sync/);
   const claimedRestore = claimPath.indexOf("restoreArtifact(", claimPath.indexOf("const claimedFile"));
   assert.ok(claimPath.indexOf('fetch("/api/market/claims"') < claimedRestore);
 

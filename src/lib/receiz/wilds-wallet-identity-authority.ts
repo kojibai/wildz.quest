@@ -6,14 +6,14 @@ import {
 } from "@receiz/sdk";
 import { parseWildzPlayerCoordinate, sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import {
-  hasExactWildsWalletReadAuthorityScopes,
+  hasExactWildsIdentityAuthorityScopes,
+  wildsIdentityAuthorityScopes,
+  type WildsIdentityAuthorityPurpose,
   WILDS_WALLET_AUTHORITY_WINDOW_PULSES,
-  WILDS_WALLET_READ_AUTHORITY_SCOPES
 } from "./wilds-wallet-authority-scopes";
 import { WILDZ_RECEIZ_APPLICATION_ID } from "./wildz-application";
 
 const APPLICATION_ID = WILDZ_RECEIZ_APPLICATION_ID;
-const WALLET_READ_SCOPE = "receiz:wallet.read";
 const TICKET_PURPOSE = "receiz.wildz.wallet_read_authority.v1";
 const TICKET_VERSION = "v1";
 
@@ -40,6 +40,7 @@ export function wildsWalletIdentitySessionForChallenge(
 }
 
 type WalletAuthorityTicket = Readonly<{
+  purpose?: WildsIdentityAuthorityPurpose;
   applicationId: string;
   keyId: string;
   actorId?: string;
@@ -93,27 +94,31 @@ function sha256Text(value: string) {
 export function issueWildsWalletIdentityAuthorityChallenge(input: Readonly<{
   session: WildsWalletIdentitySession;
   artifactDigest: string;
+  purpose?: WildsIdentityAuthorityPurpose;
   applicationId?: string;
 }>, secret: string) {
   const applicationId = input.applicationId ?? APPLICATION_ID;
   if (!/^[A-Za-z0-9:._-]{1,128}$/.test(applicationId)) throw new Error("receiz_wallet_application_invalid");
+  const purpose = input.purpose ?? "wallet-read";
+  const requestedScopes = wildsIdentityAuthorityScopes(purpose);
   const hasCompleteSessionBinding = Boolean(input.session.actorId && input.session.profileHandle);
   if (!/^[a-f0-9]{64}$/.test(input.session.keyId)
     || Boolean(input.session.actorId) !== Boolean(input.session.profileHandle)
     || !/^[a-f0-9]{64}$/.test(input.artifactDigest)) {
     throw new Error("receiz_wallet_identity_authority_challenge_invalid");
   }
-  const statementDigest = sha256Text("Wildz may identify this Receiz ID and refresh its wallet projection for 60 Kai pulses. Moving value requires a fresh exact edge signature from this Receiz ID.");
+  const statementDigest = sha256Text(purpose === "artifact-claim" ? "Claim the selected complete bearer artifact into this Receiz ID through native Record and Seal, preserving all prior history, and publish its ownership projection. Authority expires after 60 Kai pulses." : "Wildz may identify this Receiz ID and refresh its wallet projection for 60 Kai pulses. Moving value requires a fresh exact edge signature from this Receiz ID.");
   const created = createReceizProofAuthorityChallenge({
     applicationId,
     artifactDigest: input.artifactDigest,
-    scopes: WILDS_WALLET_READ_AUTHORITY_SCOPES,
+    scopes: requestedScopes,
     consentStatementDigest: statementDigest,
     ttlPulses: WILDS_WALLET_AUTHORITY_WINDOW_PULSES
   });
   const unsigned = created.challenge;
   const ticket = packTicket({
     applicationId,
+    purpose,
     keyId: input.session.keyId,
     ...(hasCompleteSessionBinding ? { actorId: input.session.actorId, profileHandle: input.session.profileHandle } : {}),
     artifactDigest: input.artifactDigest,
@@ -123,7 +128,7 @@ export function issueWildsWalletIdentityAuthorityChallenge(input: Readonly<{
     statementDigest
   }, secret);
   return Object.freeze({
-    challenge: Object.freeze({ applicationId, scopes: WILDS_WALLET_READ_AUTHORITY_SCOPES, keyId: input.session.keyId, unsigned }),
+    challenge: Object.freeze({ applicationId, scopes: requestedScopes, keyId: input.session.keyId, unsigned }),
     ticket
   });
 }
@@ -141,10 +146,14 @@ type CompletionDependencies = Readonly<{
 export async function completeWildsWalletIdentityAuthority(input: Readonly<{
   session?: WildsWalletIdentitySession;
   ticket: string;
+  purpose?: WildsIdentityAuthorityPurpose;
   body: unknown;
 }>, dependencies: CompletionDependencies) {
   const applicationId = dependencies.applicationId ?? APPLICATION_ID;
   const ticket = unpackTicket(input.ticket, dependencies.secret);
+  const purpose = input.purpose ?? "wallet-read";
+  const requestedScopes = wildsIdentityAuthorityScopes(purpose);
+  if ((ticket.purpose ?? "wallet-read") !== purpose) throw new Error("receiz_wallet_identity_authority_binding_invalid");
   const ticketCarriesSessionBinding = Boolean(ticket.actorId || ticket.profileHandle);
   if (ticket.applicationId !== applicationId
     || Boolean(ticket.actorId) !== Boolean(ticket.profileHandle)
@@ -170,13 +179,13 @@ export async function completeWildsWalletIdentityAuthority(input: Readonly<{
     artifact: body.artifact,
     challenge: body.challenge as ReceizProofAuthorityChallengeV123,
     applicationId,
-    scopes: WILDS_WALLET_READ_AUTHORITY_SCOPES
+    scopes: requestedScopes
   }));
   if (authority.applicationId !== applicationId || authority.keyId !== ticket.keyId
     || authority.artifactDigest !== artifactDigest || authority.nonce !== ticket.nonce
     || authority.issuedAtKai !== ticket.issuedAtKai || authority.expiresAtKai !== ticket.expiresAtKai
     || !Number.isSafeInteger(authority.expiresIn) || authority.expiresIn < 1 || authority.expiresIn > 600
-    || !hasExactWildsWalletReadAuthorityScopes(authority.grantedScopes)) {
+    || !hasExactWildsIdentityAuthorityScopes(authority.grantedScopes, purpose)) {
     throw new Error("receiz_wallet_identity_authority_response_invalid");
   }
   const profile = await dependencies.loadProfile(authority.accessToken);
@@ -190,13 +199,13 @@ export async function completeWildsWalletIdentityAuthority(input: Readonly<{
   }
   const introspection = introspectionValue as Record<string, unknown>;
   const scopes = typeof introspection.scope === "string" ? introspection.scope.split(/\s+/) : [];
-  if (introspection.active !== true || introspection.sub !== profile.id || !scopes.includes(WALLET_READ_SCOPE)) {
+  if (introspection.active !== true || introspection.sub !== profile.id || !requestedScopes.every(scope => scopes.includes(scope))) {
     throw new Error("receiz_wallet_identity_authority_token_invalid");
   }
   return Object.freeze({
     accessToken: authority.accessToken,
     expiresIn: authority.expiresIn,
-    grantedScopes: WILDS_WALLET_READ_AUTHORITY_SCOPES,
+    grantedScopes: requestedScopes,
     keyId: authority.keyId,
     actorId: coordinate.actorId,
     profileHandle: coordinate.profileHandle
