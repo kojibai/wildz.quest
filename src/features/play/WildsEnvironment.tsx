@@ -1,4 +1,7 @@
 "use client";
+import { wildsTerrainSurfaceTint, wildsVegetationAspect } from "./wilds-place-presentation";
+import { createWildsGroundTexture, hydrateWildsGroundTexture } from "./wilds-ground-texture";
+import { createWildsGrassGeometry } from "./wilds-botanical-geometry";
 import { useWildsNaturalTexture } from "./wilds-natural-material";
 import { useWildsFoliageBreeze } from "./use-wilds-foliage-breeze";
 import { createWildsOrganicGeometry } from "./wilds-organic-geometry";
@@ -395,35 +398,17 @@ function GroundField({ centerX, centerZ, color, player, qualityProfile, terrainE
     next.setAttribute("normal", new THREE.Float32BufferAttribute(projection.normals, 3));
     // World-space UVs keep surface grain fixed while the streamed patch moves.
     next.setAttribute("uv", new THREE.Float32BufferAttribute(
-      projection.vertices.flatMap((vertex) => [vertex.world.x / 12, vertex.world.z / 12]), 2
+      projection.vertices.flatMap((vertex) => [vertex.world.x / 3, vertex.world.z / 3]), 2
+    ));
+    next.setAttribute("color", new THREE.Float32BufferAttribute(
+      projection.vertices.flatMap(vertex => [...wildsTerrainSurfaceTint(vertex.surface)]), 3
     ));
     next.setIndex(Array.from(projection.indices));
     next.computeBoundingSphere();
     return next;
   }, [centerX, centerZ, qualityProfile.tier, terrainRadius]);
-  const terrainMap = useMemo(() => {
-    const size = 64;
-    const data = new Uint8Array(size * size * 4);
-    const tint = new THREE.Color(color).convertLinearToSRGB();
-    for (let y = 0; y < size; y += 1) for (let x = 0; x < size; x += 1) {
-      const grain = .7 + seededUnit(x * 17, y * 23) * .3;
-      const vein = Math.abs(Math.sin(x * .23 + y * .31)) < .075 ? .72 : 1;
-      const mottling = .9 + Math.sin(x * .71 + y * .29) * .045 + Math.cos(y * .82 - x * .18) * .035;
-      const index = (y * size + x) * 4;
-      data[index] = Math.round(tint.r * 255 * grain * vein * mottling);
-      data[index + 1] = Math.round(tint.g * 255 * grain * vein * mottling);
-      data[index + 2] = Math.round(tint.b * 255 * grain * vein * mottling);
-      data[index + 3] = 255;
-    }
-    const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
-    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-    texture.generateMipmaps = true;
-    texture.minFilter = THREE.LinearMipmapLinearFilter;
-    texture.magFilter = THREE.LinearFilter;
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.needsUpdate = true;
-    return texture;
-  }, [color]);
+  const terrainMap = useMemo(() => createWildsGroundTexture(color), [color]);
+  useEffect(() => hydrateWildsGroundTexture(terrainMap, color), [terrainMap, color]);
   useEffect(()=>()=>terrainMap.dispose(),[terrainMap]);
   useEffect(()=>()=>geometry.dispose(),[geometry]);
   return (
@@ -432,7 +417,7 @@ function GroundField({ centerX, centerZ, color, player, qualityProfile, terrainE
       receiveShadow
       position={[(centerX - terrainRadius) * WILDS_TILE_SIZE - player.x, -terrainElevation - .04, (centerZ - terrainRadius) * WILDS_TILE_SIZE - player.z]}
     >
-      <meshStandardMaterial color="#d5efe0" emissive="#183d28" emissiveIntensity={.06 + readability.darkness * .16} map={terrainMap} roughness={0.96} />
+      <meshStandardMaterial color="#d5efe0" emissive="#183d28" emissiveIntensity={.06 + readability.darkness * .16} map={terrainMap} vertexColors roughness={0.96} />
     </mesh>
   );
 }
@@ -538,6 +523,7 @@ function EcologyInstances({
   const barkTexture = useWildsNaturalTexture("bark"), leafTexture = useWildsNaturalTexture("leaf");
   const foliageBreeze = useWildsFoliageBreeze(player, readability.motionScale === 0, kaiUPulse);
   const organic = useMemo(() => ({
+    grass: createWildsGrassGeometry(),
     trunk: createWildsOrganicGeometry("trunk"),
     lower: createWildsOrganicGeometry("canopy").scale(.72, .72, .72),
     upper: createWildsOrganicGeometry("canopy").scale(.56, .56, .56),
@@ -555,12 +541,12 @@ function EcologyInstances({
   const flowerMesh = useRef<THREE.InstancedMesh>(null);
   const grassMesh = useRef<THREE.InstancedMesh>(null);
   const treeScale = useMemo(() => (item: Placement): [number, number, number] => { const body = item.resourceBody?.tree.trunkScale ?? 1; return [item.scale, item.scale * (1.55 + item.variant * 0.14) * body, item.scale]; }, []);
-  const crownScale = useMemo(() => (item: Placement): [number, number, number] => { const body = item.resourceBody?.tree.crownScale ?? 1; return [item.scale * (1.18 + item.variant * 0.08) * body, item.scale * .92 * body, item.scale * (1.08 - item.variant * 0.04) * body]; }, []);
+  const crownScale = useMemo(() => (item: Placement): [number, number, number] => { const body = item.resourceBody?.tree.crownScale ?? 1; const aspect = wildsVegetationAspect(item.x, item.z); return [item.scale * (1.18 + item.variant * 0.08) * body * aspect, item.scale * .92 * body / aspect, item.scale * (1.08 - item.variant * 0.04) * body * aspect]; }, []);
   const middleCrownScale = useMemo(() => (item: Placement): [number, number, number] => { const body = item.resourceBody?.tree.crownScale ?? 1; return [item.scale * .92 * body, item.scale * .72 * body, item.scale * .88 * body]; }, []);
   const shrubScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.56, item.scale * 0.38, item.scale * 0.52], []);
   const rockScale = useMemo(() => (item: Placement): [number, number, number] => { const body = item.resourceBody?.rock.scale ?? 1; return [item.scale * 0.32 * body, item.scale * 0.21 * body, item.scale * 0.38 * body]; }, []);
   const flowerScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.09, item.scale * 0.22, item.scale * 0.09], []);
-  const grassScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * .035, item.scale * (qualityProfile.tier === "low" ? .13 : .2), item.scale * .025], [qualityProfile.tier]);
+  const grassScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * .24, item.scale * (qualityProfile.tier === "low" ? .22 : .3), item.scale * .24], [qualityProfile.tier]);
   const treeClearRadius = 13.6;
   useInstances(trunks, trees, player, terrainElevation, 0.64, treeScale, treeClearRadius, siteRuntime, siteSpaceId, "timber", readability.motionScale === 0);
   useInstances(lowerCrowns, trees, player, terrainElevation, 1.65, crownScale, treeClearRadius, siteRuntime, siteSpaceId, "timber", readability.motionScale === 0);
@@ -577,16 +563,16 @@ function EcologyInstances({
         <meshStandardMaterial vertexColors map={barkTexture} color="#806449" roughness={0.94} />
       </instancedMesh>
       <instancedMesh args={[undefined, undefined, trees.length]} geometry={organic.lower} name="ecology-lower" ref={lowerCrowns}>
-        <meshStandardMaterial onBeforeCompile={foliageBreeze} vertexColors map={leafTexture} color={palette?.deep ?? "#246b46"} emissive="#123c27" emissiveIntensity={.05 + readability.darkness * .15} roughness={0.82} />
+        <meshStandardMaterial side={THREE.DoubleSide} onBeforeCompile={foliageBreeze} vertexColors map={leafTexture} color={palette?.deep ?? "#246b46"} emissive="#123c27" emissiveIntensity={.05 + readability.darkness * .15} roughness={0.82} />
       </instancedMesh>
       <instancedMesh args={[undefined, undefined, trees.length]} geometry={organic.upper} name="ecology-upper" ref={upperCrowns}>
-        <meshStandardMaterial onBeforeCompile={foliageBreeze} vertexColors map={leafTexture} color={palette?.mid ?? "#3d9250"} emissive="#174c2d" emissiveIntensity={.05 + readability.darkness * .16} roughness={0.78} />
+        <meshStandardMaterial side={THREE.DoubleSide} onBeforeCompile={foliageBreeze} vertexColors map={leafTexture} color={palette?.mid ?? "#3d9250"} emissive="#174c2d" emissiveIntensity={.05 + readability.darkness * .16} roughness={0.78} />
       </instancedMesh>
       <instancedMesh args={[undefined, undefined, trees.length]} geometry={organic.crown} name="ecology-crown" ref={middleCrowns}>
-        <meshStandardMaterial onBeforeCompile={foliageBreeze} vertexColors color={palette?.highlight ?? "#4f9f58"} emissive="#1b512d" emissiveIntensity={.04 + readability.darkness * .14} roughness={.8} />
+        <meshStandardMaterial side={THREE.DoubleSide} onBeforeCompile={foliageBreeze} vertexColors color={palette?.highlight ?? "#4f9f58"} emissive="#1b512d" emissiveIntensity={.04 + readability.darkness * .14} roughness={.8} />
       </instancedMesh>
       <instancedMesh args={[undefined, undefined, bushes.length]} geometry={organic.shrub} name="ecology-shrub" ref={shrubMesh}>
-        <meshStandardMaterial onBeforeCompile={foliageBreeze} vertexColors color={palette?.highlight ?? "#3b8d49"} emissive="#174329" emissiveIntensity={.04 + readability.darkness * .12} roughness={0.88} />
+        <meshStandardMaterial side={THREE.DoubleSide} onBeforeCompile={foliageBreeze} vertexColors color={palette?.highlight ?? "#3b8d49"} emissive="#174329" emissiveIntensity={.04 + readability.darkness * .12} roughness={0.88} />
       </instancedMesh>
       <instancedMesh args={[undefined, undefined, rocks.length]} receiveShadow geometry={organic.stone} name="ecology-stone" ref={rockMesh}>
         <meshStandardMaterial vertexColors map={rockTexture} color="#92988b" roughness={0.98} />
@@ -595,9 +581,8 @@ function EcologyInstances({
         <octahedronGeometry args={[1, 0]} />
         <meshStandardMaterial color="#ffd66f" emissive="#ff8da6" emissiveIntensity={0.12} roughness={0.7} />
       </instancedMesh>
-      <instancedMesh args={[undefined, undefined, flowers.length]} ref={grassMesh}>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color={palette?.highlight ?? "#5da857"} roughness={.96} />
+      <instancedMesh args={[undefined, undefined, flowers.length]} ref={grassMesh} geometry={organic.grass}>
+        <meshStandardMaterial side={THREE.DoubleSide} color={palette?.highlight ?? "#5da857"} roughness={.96} />
       </instancedMesh>
     </group>
   );

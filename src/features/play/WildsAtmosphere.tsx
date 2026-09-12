@@ -72,7 +72,7 @@ export function WildsAtmosphere({
     .getStyle(), [expression.night.amount]);
   return (
     <group name={`verdant-atmosphere-${biome.weather}`}>
-      <hemisphereLight color={skyLight} groundColor={groundLight} intensity={expression.lighting.hemisphere * biome.luminosity * (1 - readability.darkness * 0.42)} />
+      <hemisphereLight color={skyLight} groundColor={groundLight} intensity={(expression.lighting.hemisphere + .5 * (1 - expression.night.amount)) * biome.luminosity * (1 - readability.darkness * 0.42)} />
       <directionalLight
         castShadow
         color={celestialKey.color}
@@ -86,7 +86,7 @@ export function WildsAtmosphere({
         shadow-mapSize-height={qualityProfile.shadowMapSize}
         shadow-mapSize-width={qualityProfile.shadowMapSize}
       />
-      <directionalLight color={expression.night.amount > 0.25 ? "#9fb8ff" : expression.accent} intensity={nightRig.characterFill * 0.6 + nightRig.rim} position={[-4, 3.6, -5]} />
+      <directionalLight color={expression.night.amount > 0.25 ? "#9fb8ff" : "#e4e8db"} intensity={nightRig.characterFill * 0.6 + nightRig.rim + .5 * (1 - expression.night.amount)} position={[4, 4, 6]} />
       <WildsLantern intensity={nightRig.lanternIntensity} qualityTier={qualityProfile.tier} visible={nightRig.lanternVisible} />
       <SunShafts color={expression.sun.color} strength={(biome.weather === "sun-shower" ? 1 : 0.68) * expression.sun.intensity * (1 - readability.darkness)} />
       <CanopyShadows />
