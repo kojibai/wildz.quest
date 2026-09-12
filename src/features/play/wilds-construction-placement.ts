@@ -5,7 +5,7 @@ import { previewWildsBlueprintPlacement, createWildsBlueprintPreview, type Wilds
 import { verifyWildsConstructionComponent } from "./wilds-construction-component";
 import { verifyWildsConstructionProject, wildsConstructionRegionId } from "./wilds-construction-project";
 import { type WildsWorldProjection } from "./wilds-world-state";
-import { createWildsConstructionGeometryProjector } from "./wilds-construction-geometry";
+import { nearbyWildsConstruction, constructionGeometryForCollections } from "./wilds-construction-neighborhood";
 import { sampleWildsTerrain } from "./wilds-terrain-authority";
 
 export type WildsConstructionPlacementRequest = Pick<WildsProductionPlacementEvidence, "spaceId" | "pointer" | "rotationQuarterTurns" | "heightStep" | "surfaceSnap">;
@@ -16,11 +16,11 @@ export function projectWildsProductionPlacementEvidence(world: WildsWorldProject
   if (!project || !verifyWildsConstructionProject(project)) throw new Error("wilds_construction_project_invalid");
   if (!request || !request.pointer || ![request.pointer.x, request.pointer.y, request.pointer.z].every(Number.isFinite)) throw new Error("wilds_construction_request_invalid");
   // Catalog extents <= 6 and snapping distance <= 8. Include adjacent regions too.
-  const nearby = Object.values(world.constructionComponents)
+  const nearby = nearbyWildsConstruction(world.constructionComponents, request.pointer, 32)
     .filter((component) => (component.evidence.spaceId ?? "wildz.space.outer.v1") === (request.spaceId ?? "wildz.space.outer.v1") && Math.abs(component.transform.position.x - request.pointer.x) <= 32 && Math.abs(component.transform.position.z - request.pointer.z) <= 32)
     .sort((a, b) => a.componentId.localeCompare(b.componentId));
   if (nearby.some((component) => !verifyWildsConstructionComponent(component))) throw new Error("wilds_construction_source_invalid");
-  const projectGeometry = createWildsConstructionGeometryProjector(Object.values(world.constructionMaterialContributions), Object.values(world.constructionWorkContributions));
+  const projectGeometry = constructionGeometryForCollections(world.constructionMaterialContributions, world.constructionWorkContributions);
   const geometry = nearby.map(projectGeometry);
   const terrain = sampleWildsTerrain(Math.round(request.pointer.x * 2) / 2, Math.round(request.pointer.z * 2) / 2);
   const region = wildsDiscoverySiteRegionForPosition(request.pointer);

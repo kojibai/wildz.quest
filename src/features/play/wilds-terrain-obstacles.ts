@@ -84,7 +84,7 @@ export const WILDS_RENDERED_PHYSICAL_OBSTACLES: readonly WildsTerrainObstacle[] 
   }
 ] as const;
 
-export function projectWildsRenderedLivingObstacles(world?: WildsWorldProjection | null) {
+export function projectWildsRenderedLivingObstacles(world?: Pick<WildsWorldProjection, "sites" | "bosses" | "structures" | "constructionComponents" | "constructionMaterialContributions" | "constructionWorkContributions"> | null) {
   if (!world) return [] as WildsTerrainObstacle[];
   const obstacles: WildsTerrainObstacle[] = projectWildsConstructionObstacles(world);
   for (const site of Object.values(world.sites)) {

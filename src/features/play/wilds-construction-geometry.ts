@@ -4,7 +4,7 @@ import { verifyWildsConstructionComponent, projectWildsConstructionProgress, typ
 // Only deeply frozen plain data can be reused by identity. Mutable imported proofs
 // always go through the verifier; a proof head alone is never a cache key.
 const immutableData = new WeakSet<object>();
-function deeplyImmutable(value: unknown, active = new Set<object>()): boolean {
+export function deeplyImmutable(value: unknown, active = new Set<object>()): boolean {
   if (value === null || typeof value !== "object") return typeof value !== "function" && typeof value !== "symbol";
   if (immutableData.has(value)) return true;
   if (active.size >= 64 || active.has(value) || !Object.isFrozen(value)) return false;

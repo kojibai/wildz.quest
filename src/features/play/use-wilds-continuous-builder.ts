@@ -1,4 +1,5 @@
 "use client";
+import { indexWildsConstruction } from "./wilds-construction-neighborhood";
 import { projectWildsEarnedPhi } from "./wilds-earned-phi";
 import { formatWildsPhiExact } from "./wallet/wilds-wallet-format";
 import { useMemo, useRef, useState } from "react";
@@ -31,6 +32,8 @@ export function useWildsContinuousBuilder({ world, owner, player, lots, feedback
   const dragSource=useRef<{id:string;head:string;rotation:number;height:number}|null>(null);
   const lock = useRef(false);
   const snapshot = world.snapshot;
+  const components = snapshot?.constructionComponents;
+  const queryComponents = useMemo(() => components ? indexWildsConstruction(components) : null, [components]);
   const selected = selectedId ? snapshot?.constructionComponents[selectedId] ?? null : null;
   const progress = useMemo(() => selected && snapshot ? projectWildsConstructionProgressFromWorld(snapshot, selected.componentId) : null, [selected, snapshot]);
   const adjusting = adjustmentHead !== null;
@@ -113,7 +116,7 @@ export function useWildsContinuousBuilder({ world, owner, player, lots, feedback
         setAdjustmentHead(null);setPointer(null);feedback("Piece moved and locked. Materials and progress preserved.");
       });
     },
-    nearbyPieces: Object.values(snapshot?.constructionComponents ?? {}).filter(component => component.ownerReceizId === owner && (component.evidence.spaceId??"wildz.space.outer.v1")===spaceId && Math.hypot(component.transform.position.x - player.x, component.transform.position.z - player.z) <= 24),
+    nearbyPieces: (queryComponents ? queryComponents({ minX: player.x - 24, maxX: player.x + 24, minZ: player.z - 24, maxZ: player.z + 24 }) : []).filter(component => component.ownerReceizId === owner && (component.evidence.spaceId??"wildz.space.outer.v1")===spaceId && Math.hypot(component.transform.position.x - player.x, component.transform.position.z - player.z) <= 24),
     open, kind, rotation, height, error, adjusting, adjustBlocker, placeBlocker, depositBlocker, workBlocker, preview: adjusting ? adjustment ? {...adjustment.placement, valid:adjustment.placement.valid && !adjustment.blocker} : null : preview?.placement ?? null, selected, progress, busy,
     canPlace: Boolean(preview?.placement.valid && inReach(preview.placement.transform.position)),
     canDeposit: Boolean(selected && inReach(selected.transform.position) && deposit.length),

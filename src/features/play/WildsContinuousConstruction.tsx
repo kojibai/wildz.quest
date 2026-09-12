@@ -8,7 +8,7 @@ import { createWildsConstructionMaterials } from "./wilds-construction-materials
 import { useThree, type ThreeEvent } from "@react-three/fiber";
 import type { WildsWorldProjection } from "./wilds-world-state";
 import type { WildsBlueprintPlacement } from "./wilds-world-construction";
-import { createWildsConstructionGeometryProjector } from "./wilds-construction-geometry";
+import { indexWildsConstruction, constructionGeometryForCollections } from "./wilds-construction-neighborhood";
 
 export function WildsContinuousConstruction({ world, player, terrainElevation, preview, selectable, onSelect, onDrag, activeComponentId, spaceId="wildz.space.outer.v1" }: {
   spaceId?:string;
@@ -43,13 +43,25 @@ export function WildsContinuousConstruction({ world, player, terrainElevation, p
   const components = world?.constructionComponents;
   const materialContributions = world?.constructionMaterialContributions;
   const workContributions = world?.constructionWorkContributions;
-  const pieces = useMemo(() => {
-    if (!components) return [];
-    const projectGeometry = createWildsConstructionGeometryProjector(Object.values(materialContributions ?? {}), Object.values(workContributions ?? {}));
-    return Object.values(components).map(component => ({ component, geometry: projectGeometry(component) }));
+  const projectGeometry = useMemo(() => {
+    if (!components || !materialContributions || !workContributions) return null;
+    const project = constructionGeometryForCollections(materialContributions, workContributions);
+    // Lazily project each visible piece once for this render snapshot, including worker clones.
+    const visibleGeometry = new WeakMap<Parameters<typeof project>[0], ReturnType<typeof project>>();
+    return (component: Parameters<typeof project>[0]) => {
+      let geometry = visibleGeometry.get(component);
+      if (!geometry) { geometry = project(component); visibleGeometry.set(component, geometry); }
+      return geometry;
+    };
   }, [components, materialContributions, workContributions]);
+  const queryComponents = useMemo(() => components ? indexWildsConstruction(components) : null, [components]);
+  const pieces = queryComponents ? queryComponents({ minX: player.x - 64, maxX: player.x + 64, minZ: player.z - 64, maxZ: player.z + 64 })
+    .filter(component => (component.evidence.spaceId ?? "wildz.space.outer.v1") === spaceId
+      && Math.hypot(component.transform.position.x - player.x, component.transform.position.z - player.z) <= 64) : [];
   return <group name="continuous-construction" position={[-player.x, -terrainElevation, -player.z]}>
-    {pieces.filter(({ component }) => (component.evidence.spaceId??"wildz.space.outer.v1")===spaceId && Math.hypot(component.transform.position.x - player.x, component.transform.position.z - player.z) <= 64).map(({ component, geometry }) => {
+    {pieces.map(component => {
+      if (!projectGeometry) return null;
+      const geometry = projectGeometry(component);
       const box = component.placement.geometry;
       const planned = geometry.stage === "planned";
       const select = (event: ThreeEvent<MouseEvent>) => { if(suppressClick.current){event.stopPropagation();suppressClick.current=false;return;} if (selectable) { event.stopPropagation(); onSelect?.(component.componentId); } };

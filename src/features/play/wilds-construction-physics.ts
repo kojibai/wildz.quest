@@ -3,7 +3,7 @@ import type { WildsWorldProjection } from "./wilds-world-state";
 import type { WildsTerrainObstacle } from "./wilds-terrain-obstacles";
 import { createWildsConstructionGeometryProjector } from "./wilds-construction-geometry";
 
-export function projectWildsConstructionObstacles(world?: WildsWorldProjection | null): WildsTerrainObstacle[] {
+export function projectWildsConstructionObstacles(world?: Pick<WildsWorldProjection, "constructionComponents" | "constructionMaterialContributions" | "constructionWorkContributions"> | null): WildsTerrainObstacle[] {
   if (!world) return [];
   const projectGeometry = createWildsConstructionGeometryProjector(Object.values(world.constructionMaterialContributions), Object.values(world.constructionWorkContributions));
   return Object.values(world.constructionComponents ?? {}).filter(c=>(c.evidence.spaceId??"wildz.space.outer.v1")==="wildz.space.outer.v1").flatMap(component => {

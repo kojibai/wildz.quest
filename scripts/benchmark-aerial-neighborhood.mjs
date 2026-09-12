@@ -1,0 +1,12 @@
+import { performance } from 'node:perf_hooks';
+import { createWildsAerialCollisionSample, createWildsAerialCollisionSampler, writeWildsAerialCollisionSample, nearbyWildsAerialObstacles } from '../.test-build/src/features/play/wilds-grounded-movement.js';
+const obstacles = Array.from({length: 10000}, (_, i) => ({id: String(i), kind: 'structure', material: 'solid', position: {x: i % 100 * 12, y: 1, z: Math.floor(i / 100) * 12}, radius: 9, shape: {kind: 'box', halfX: 6, halfY: 1, halfZ: 6}, visualScale: 1}));
+const output = createWildsAerialCollisionSample();
+const sample = createWildsAerialCollisionSampler();
+const points = Array.from({length: 1000}, (_, i) => ({x: 400 + i % 100 * .4, z: 400 + Math.floor(i / 100) * .4}));
+const run = fn => {const start = performance.now(); for (const point of points) fn(point); return performance.now() - start;};
+const exhaustive = p => writeWildsAerialCollisionSample(p, 3, obstacles, output);
+const indexed = p => sample(p, 3, obstacles, output);
+run(exhaustive); run(indexed);
+const median = values => values.sort((a,b)=>a-b)[Math.floor(values.length/2)];
+console.log(JSON.stringify({scenario: '1000 moving samples, 10000 static obstacles, five warmed runs; CPU only', exhaustiveMs: median(Array.from({length:5},()=>run(exhaustive))), indexedMs: median(Array.from({length:5},()=>run(indexed))), candidateCount: nearbyWildsAerialObstacles(obstacles, points[0], .38).length}, null, 2));

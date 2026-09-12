@@ -1,3 +1,4 @@
+import { createWildsOrderedSpatialIndex } from "./wilds-ordered-spatial-index";
 import {
   WILDS_TERRAIN_TILE_SIZE,
   sampleWildsTerrain,
@@ -171,6 +172,21 @@ export function writeWildsAerialCollisionSample(
   return output;
 }
 
+const aerialIndexes = new WeakMap<readonly WildsTerrainObstacle[], ReturnType<typeof createAerialIndex>>();
+function createAerialIndex(obstacles: readonly WildsTerrainObstacle[]) {
+  return createWildsOrderedSpatialIndex(obstacles, obstacle => ({
+    minX: obstacle.position.x - obstacle.radius, maxX: obstacle.position.x + obstacle.radius,
+    minZ: obstacle.position.z - obstacle.radius, maxZ: obstacle.position.z + obstacle.radius
+  }));
+}
+/** Projected obstacle arrays are immutable for their lifetime, as in the movement index. */
+export function nearbyWildsAerialObstacles(obstacles: readonly WildsTerrainObstacle[], point: Point, radius: number) {
+  if (obstacles.length < 64 || !Number.isFinite(radius) || radius < 0) return obstacles;
+  let query = aerialIndexes.get(obstacles);
+  if (!query) { query = createAerialIndex(obstacles); aerialIndexes.set(obstacles, query); }
+  return query({ minX: point.x - radius, maxX: point.x + radius, minZ: point.z - radius, maxZ: point.z + radius });
+}
+
 /** Per-actor single-entry cache. Obstacle arrays are immutable world projections.
  * Copy into the caller's output because later site collision merges mutate it.
  */
@@ -183,7 +199,7 @@ export function createWildsAerialCollisionSampler() {
     terrain: readonly WildsTerrainObstacle[] = EMPTY_AERIAL_OBSTACLES, diagnostics?: WildsAerialNeighborhoodDiagnostics) => {
     if (!previous || previous.x !== point.x || previous.z !== point.z || previous.footY !== footY
       || previous.height !== height || previous.radius !== radius || previous.obstacles !== obstacles || previous.terrain !== terrain) {
-      writeWildsAerialCollisionSample(point, footY, obstacles, cached, height, radius, terrain, diagnostics);
+      writeWildsAerialCollisionSample(point, footY, obstacles && nearbyWildsAerialObstacles(obstacles, point, radius), cached, height, radius, nearbyWildsAerialObstacles(terrain, point, radius), diagnostics);
       previous = { x: point.x, z: point.z, footY, height, radius, obstacles, terrain };
     }
     output.obstacleTopY = cached.obstacleTopY;

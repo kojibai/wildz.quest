@@ -147,7 +147,7 @@ describe("Wildz aerial and vista integration", () => {
 
     assert.match(campaign, /if \(!horizontalAllowedRef\.current\) return;/);
     assert.match(campaign, /resolveWildsRequiredLandingPosition[\s\S]*safeAnchor/);
-    assert.match(campaign, /projectWildsRenderedLivingObstacles\(livingWorld\.snapshot\)/);
+    assert.match(campaign, /projectWildsRenderedLivingObstacles\(\{ sites, bosses, structures, constructionComponents, constructionMaterialContributions, constructionWorkContributions \}\)/);
     assert.match(campaign, /resolveWildsRequiredLandingPosition\([\s\S]*obstacles:\s*livingPhysicalObstacles/);
     assert.match(campaign, /livingPhysicalObstacles=\{livingPhysicalObstacles\}/);
     assert.doesNotMatch(campaign, /\?\?\s*anchor/);

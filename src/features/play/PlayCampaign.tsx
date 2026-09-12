@@ -887,13 +887,20 @@ export function PlayCampaign({
     if (!priorIds || !stewardPhiAwards.some((award) => !priorIds.has(award.awardId))) return;
     void refreshWalletAfterStewardSettlement();
   }, [refreshWalletAfterStewardSettlement, stewardPhiAwards]);
+  const sites = livingWorld.snapshot?.sites;
+  const bosses = livingWorld.snapshot?.bosses;
+  const structures = livingWorld.snapshot?.structures;
+  const constructionComponents = livingWorld.snapshot?.constructionComponents;
+  const constructionMaterialContributions = livingWorld.snapshot?.constructionMaterialContributions;
+  const constructionWorkContributions = livingWorld.snapshot?.constructionWorkContributions;
   const livingPhysicalObstacles = useMemo(
-    () => projectWildsRenderedLivingObstacles(livingWorld.snapshot),
-    [livingWorld.snapshot]
+    () => sites && bosses && structures && constructionComponents && constructionMaterialContributions && constructionWorkContributions
+      ? projectWildsRenderedLivingObstacles({ sites, bosses, structures, constructionComponents, constructionMaterialContributions, constructionWorkContributions }) : [],
+    [sites, bosses, structures, constructionComponents, constructionMaterialContributions, constructionWorkContributions]
   );
   const livingStructureSupports = useMemo(
-    () => projectWildsStructureSupports(livingWorld.snapshot),
-    [livingWorld.snapshot]
+    () => structures ? projectWildsStructureSupports({ structures, constructionComponents, constructionMaterialContributions, constructionWorkContributions }) : [],
+    [structures, constructionComponents, constructionMaterialContributions, constructionWorkContributions]
   );
   const playerStructureSupport = useMemo(
     () => wildsStructureSupportAt(state.player, livingStructureSupports, 0, state.siteSpace.position.y),
