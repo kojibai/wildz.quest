@@ -171,6 +171,29 @@ export function writeWildsAerialCollisionSample(
   return output;
 }
 
+/** Per-actor single-entry cache. Obstacle arrays are immutable world projections.
+ * Copy into the caller's output because later site collision merges mutate it.
+ */
+export function createWildsAerialCollisionSampler() {
+  let previous: { x: number; z: number; footY: number; height: number; radius: number;
+    obstacles: readonly WildsTerrainObstacle[] | undefined; terrain: readonly WildsTerrainObstacle[] } | undefined;
+  const cached = createWildsAerialCollisionSample();
+  return (point: Point, footY: number, obstacles: readonly WildsTerrainObstacle[] | undefined,
+    output: WildsAerialCollisionSample, height = 1.55, radius = DEFAULT_CAPSULE_RADIUS,
+    terrain: readonly WildsTerrainObstacle[] = EMPTY_AERIAL_OBSTACLES, diagnostics?: WildsAerialNeighborhoodDiagnostics) => {
+    if (!previous || previous.x !== point.x || previous.z !== point.z || previous.footY !== footY
+      || previous.height !== height || previous.radius !== radius || previous.obstacles !== obstacles || previous.terrain !== terrain) {
+      writeWildsAerialCollisionSample(point, footY, obstacles, cached, height, radius, terrain, diagnostics);
+      previous = { x: point.x, z: point.z, footY, height, radius, obstacles, terrain };
+    }
+    output.obstacleTopY = cached.obstacleTopY;
+    output.ceilingY = cached.ceilingY;
+    output.protectedAirspace = cached.protectedAirspace;
+    output.blockerId = cached.blockerId;
+    return output;
+  };
+}
+
 export function wildsObstacleTopAtPosition(point: Point, capsuleRadius = DEFAULT_CAPSULE_RADIUS) {
   if (!finitePoint(point)) return null;
   const tileX = Math.floor(point.x / WILDS_TERRAIN_TILE_SIZE);

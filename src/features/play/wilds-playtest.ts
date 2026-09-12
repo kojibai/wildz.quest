@@ -98,3 +98,23 @@ export function exportWildsPlaytest(recording: WildsPlaytestRecording, longTasks
     longTasksSupported, summary: summarizeWildsPlaytest(recording), events: recording.events.map(event => ({ ...event }))
   };
 }
+
+/** Conservative regression gate for a visible-tab recording, not a device certification. */
+export function assessWildsPlaytestPerformance(evidence: unknown) {
+  const limits = { minimumFrames: 600, recentP95Ms: 18, worstFrameMs: 50, longTasks: 0 };
+  const incomplete = (reason: string) => ({ status: "incomplete" as const, limits, reasons: [reason] });
+  if (!evidence || typeof evidence !== "object") return incomplete("Missing playtest evidence.");
+  const data = evidence as { version?: unknown; summary?: unknown; longTasksSupported?: unknown };
+  if (data.version !== "wildz.local-playtest.v2" || !data.summary || typeof data.summary !== "object") return incomplete("Expected a v2 local playtest export.");
+  const summary = data.summary as Record<string, unknown>;
+  for (const key of ["sampledFrames", "recentFrameP95Ms", "worstFrameMs", "frameGapsOver50ms", "longTasks"]) {
+    if (typeof summary[key] !== "number" || !Number.isFinite(summary[key]) || summary[key] < 0) return incomplete(`Invalid ${key}.`);
+  }
+  if ((summary.sampledFrames as number) < limits.minimumFrames) return incomplete("Record at least 600 visible frames after warmup.");
+  if (data.longTasksSupported !== true) return incomplete("Long-task observation was unavailable; main-thread stalls remain unverified.");
+  const reasons: string[] = [];
+  if ((summary.recentFrameP95Ms as number) > limits.recentP95Ms) reasons.push("Recent frame p95 exceeds 18 ms.");
+  if ((summary.worstFrameMs as number) > limits.worstFrameMs || (summary.frameGapsOver50ms as number) > 0) reasons.push("A frame gap exceeded 50 ms.");
+  if ((summary.longTasks as number) > limits.longTasks) reasons.push("Main-thread tasks exceeded 50 ms.");
+  return { status: reasons.length ? "fail" as const : "pass" as const, limits, reasons };
+}

@@ -85,7 +85,7 @@ import {
   createWildsAerialCollisionSample,
   mergeWildsAerialCollisionSample,
   projectWildsAerialObstacleNeighborhood,
-  writeWildsAerialCollisionSample,
+  createWildsAerialCollisionSampler,
   type WildsAerialObstacleNeighborhood
 } from "@/features/play/wilds-grounded-movement";
 import type { WildsTerrainObstacle } from "@/features/play/wilds-terrain-obstacles";
@@ -518,6 +518,7 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, flight
   const publishedVertical = useRef({ layer: "ground" as WildsVerticalTraversalState["layer"], value: Number.NaN, safeMin: Number.NaN, safeMax: Number.NaN, blockerId: null as string | null });
   const runtimeResult = useRef(createWildsAerialRuntimeResult());
   const collisionSampleRef = useRef(createWildsAerialCollisionSample());
+  const sampleAerialCollision = useMemo(createWildsAerialCollisionSampler, []);
   const siteCollisionSampleRef = useRef({ ...createWildsAerialCollisionSample(), floorY: Number.NaN, flooded: false, waterSurfaceY: Number.NaN });
   const publishedLandingRequired = useRef(false);
   const runtimeStep = useRef<WildsAerialRuntimeStep>({
@@ -546,7 +547,7 @@ function AerialPlayerFrame({ aquaticPresentation, capabilities, children, flight
       collisionSample.protectedAirspace = false;
       collisionSample.blockerId = null;
     } else {
-      writeWildsAerialCollisionSample(player, currentVertical.layer === "air" ? currentVertical.worldY : groundElevation + .35, livingPhysicalObstacles, collisionSample, WILDS_PLAYER_BODY_HEIGHT, WILDS_PLAYER_BODY_RADIUS, terrainObstacleNeighborhood.obstacles);
+      sampleAerialCollision(player, currentVertical.layer === "air" ? currentVertical.worldY : groundElevation + .35, livingPhysicalObstacles, collisionSample, WILDS_PLAYER_BODY_HEIGHT, WILDS_PLAYER_BODY_RADIUS, terrainObstacleNeighborhood.obstacles);
     }
     const siteCollision = writeWildsSiteRuntimeAerialCollision(
       siteCollisionSampleRef.current,

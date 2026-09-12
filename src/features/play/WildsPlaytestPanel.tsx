@@ -1,9 +1,11 @@
 "use client";
 
 import type { WildsPlaytestController } from "./useWildsPlaytest";
+import { assessWildsPlaytestPerformance } from "./wilds-playtest";
 import styles from "./WildsPlaytestPanel.module.css";
 
 export function WildsPlaytestPanel({ playtest }: { playtest: WildsPlaytestController }) {
+  const assessment = assessWildsPlaytestPerformance({ version: "wildz.local-playtest.v2", summary: playtest.summary, longTasksSupported: playtest.longTasksSupported });
   return <section className={styles.panel} aria-label="Local playtest">
     <label className={styles.toggle}>
       <input type="checkbox" checked={playtest.enabled} onChange={event => playtest.setEnabled(event.target.checked)} />
@@ -11,7 +13,10 @@ export function WildsPlaytestPanel({ playtest }: { playtest: WildsPlaytestContro
     </label>
     <p>Help find the moments that feel great or slow. Nothing is sent anywhere. Only this preference is saved; turning recording off clears this session.</p>
     {playtest.enabled && <>
+      <p>Performance sample: {assessment.status === "pass" ? "within the frame budgets for this recording" : assessment.reasons.join(" ")}</p>
       <dl className={styles.metrics}>
+        <div><dt>Visible frames recorded</dt><dd>{playtest.summary.sampledFrames}</dd></div>
+        <div><dt>Worst frame gap</dt><dd>{playtest.summary.worstFrameMs} ms</dd></div>
         <div><dt>Frame gaps over 50 ms</dt><dd>{playtest.summary.frameGapsOver50ms}</dd></div>
         <div><dt>Recent frame gap, 95th percentile</dt><dd>{playtest.summary.recentFrameP95Ms} ms</dd></div>
         <div><dt>Main thread tasks over 50 ms</dt><dd>{playtest.longTasksSupported ? playtest.summary.longTasks : "Unavailable"}</dd></div>

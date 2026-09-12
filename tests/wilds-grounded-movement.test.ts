@@ -514,3 +514,21 @@ test("large support indexes preserve rotated floors, boundaries, height limits, 
   const moved = all.map(item => ({...item, center:{x:item.center.x+100,z:item.center.z}}));
   assert.equal(wildsStructureSupportAt({x:16,z:-16}, moved), null);
 });
+
+test("stationary aerial sampling reuses work without sharing mutable output", async () => {
+  const { createWildsAerialCollisionSampler } = await import("../src/features/play/wilds-grounded-movement");
+  const sample = createWildsAerialCollisionSampler();
+  const output = createWildsAerialCollisionSample();
+  const obstacles = [obstacle("near", 0, 0, 2)];
+  const terrain = [obstacle("terrain", 5, 5, 1)];
+  const diagnostics = createWildsAerialNeighborhoodDiagnostics();
+  const write = (x = 0, y = 0, z = 0, height = 1.55, radius = .3, living = obstacles, ground = terrain) =>
+    sample({x,z}, y, living, output, height, radius, ground, diagnostics);
+  const expected = { ...write() };
+  for (let i=0;i<300;i++) { output.blockerId = "external merge"; assert.deepEqual(write(), expected); }
+  assert.equal(diagnostics.frameWriterCalls, 1);
+  write(1); write(1,1); write(1,1,1); write(1,1,1,2); write(1,1,1,2,.5);
+  write(1,1,1,2,.5,[...obstacles]); write(1,1,1,2,.5,obstacles,[...terrain]);
+  assert.equal(diagnostics.frameWriterCalls, 8);
+  assert.throws(() => write(NaN), /invalid/);
+});

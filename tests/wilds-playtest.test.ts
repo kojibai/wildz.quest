@@ -91,3 +91,19 @@ describe("playtest action attribution", () => {
     assert.equal(exported.version, "wildz.local-playtest.v2");
   });
 });
+
+describe("repeatable playtest performance gate", () => {
+  it("requires enough samples and supported long-task observation before passing", async () => {
+    const { assessWildsPlaytestPerformance } = await import("../src/features/play/wilds-playtest");
+    const recording = createWildsPlaytestRecording(0);
+    for(let i=0;i<600;i++) recordWildsPlaytestFrame(recording, 16.7);
+    const good = exportWildsPlaytest(recording, true);
+    assert.equal(assessWildsPlaytestPerformance(good).status, "pass");
+    assert.equal(assessWildsPlaytestPerformance({...good,longTasksSupported:false}).status, "incomplete");
+    assert.equal(assessWildsPlaytestPerformance({}).status, "incomplete");
+    recordWildsPlaytestFrame(recording, 50.1);
+    assert.equal(assessWildsPlaytestPerformance(exportWildsPlaytest(recording,true)).status, "fail");
+    assert.equal(assessWildsPlaytestPerformance({...good,summary:{...good.summary,sampledFrames:2}}).status, "incomplete");
+    assert.equal(assessWildsPlaytestPerformance({...good,summary:{...good.summary,worstFrameMs:NaN}}).status, "incomplete");
+  });
+});

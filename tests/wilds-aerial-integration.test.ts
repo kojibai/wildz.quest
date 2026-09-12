@@ -164,14 +164,14 @@ describe("Wildz aerial and vista integration", () => {
       readFile("src/features/play/WildsSettlementEnvironment.tsx", "utf8")
     ]);
 
-    assert.match(canvas, /writeWildsAerialCollisionSample/);
+    assert.match(canvas, /useMemo\(createWildsAerialCollisionSampler, \[\]\)/);
     assert.match(canvas, /aerialInput\.protectedAirspace = collisionSample\.protectedAirspace/);
     assert.match(canvas, /verticalInput\.ceilingY = collisionSample\.ceilingY/);
     assert.match(canvas, /verticalInput\.obstacleTopY = collisionSample\.obstacleTopY/);
     assert.match(canvas, /runtime\.current\.altitude = currentVertical\.worldY/);
     assert.match(canvas, /projectWildsAerialObstacleNeighborhood/);
     assert.match(canvas, /useMemo\([\s\S]*terrainTileX[\s\S]*terrainTileZ/);
-    assert.match(canvas, /writeWildsAerialCollisionSample\([\s\S]*livingPhysicalObstacles/);
+    assert.match(canvas, /sampleAerialCollision\([\s\S]*livingPhysicalObstacles/);
     assert.match(canvas, /livingPhysicalObstacles[\s\S]*terrainObstacleNeighborhood\.obstacles/);
     assert.match(bosses, /wildsBossPhysicalEnvelope\(familyId, boss\.phase\)/);
     assert.match(bosses, /physicalRadius:\s*physicalEnvelope\.radius/);
