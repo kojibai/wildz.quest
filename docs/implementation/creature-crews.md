@@ -25,3 +25,15 @@ The owner wants a tool icon beside flight and creature skills, opening a roster-
 ## Skill and SDK evidence
 
 Read `node_modules/@receiz/ai-skills/receiz-autonomous-mandate/SKILL.md`, its manifest and SDK/MCP/example maps. The skill requires one owner confirmation for the exact mandate digest and runtime revalidation. No live mandate was issued during this work. MCP is a tooling projection, not proof authority.
+
+## 2026-09-12 causal and execution foundations
+
+Implemented and unit tested, but not a live autonomous crew:
+
+- `wilds-crew-mandate.ts` prepares SDK mandates from explicitly verified proof objects and preflights exact command consent, current ownership/heads, revocation, expiry and cumulative budgets. Production verification and issuance adapters remain required.
+- `wilds-crew-navigation.ts` provides bounded deterministic paths and allocation-free movement against a caller-supplied canonical swept-segment sampler. Rendering and authoritative per-worker geometry/position integration remain required.
+- `wilds-crew-reservations.ts` performs all-or-nothing scheduling allocation on a supplied snapshot. It is not material custody or a cross-device lock. Its caller must atomically persist changes and retain pending-dispatch reservations through recall and recovery.
+- `wilds-crew-causality.ts` builds SDK-digested records with local observed Kai micro-pulses, monotonic causal micro-pulses, logical sequence, previous worker event, explicit dependencies and admitted world-event citations. It preserves a regressed physical clock observation instead of falsifying time. Pending work cannot become a completed dependency. Records still require a durable append-only journal and compare-and-swap worker heads. A valid digest alone is not event admission.
+- Existing transaction execution/recovery now returns `writes: "unknown"` and `recoveryRequired: true` for ambiguous, malformed, unverifiable or unavailable outcomes. Exact verified zero-write outcomes still return zero. Recovery never redispatches unknown work. A previously staged identical transaction cannot dispatch through the authored activation again.
+
+No live mandate, crew work, material movement or autonomous construction was activated by these changes. No new network work or frame-loop work was introduced. Device frame-time equivalence has not been measured for a complete crew system because that system is not yet integrated.

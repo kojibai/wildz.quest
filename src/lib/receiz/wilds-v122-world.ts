@@ -15,6 +15,11 @@ export type WildsV122TransactionJournal = Readonly<{
   clear(worldId: string, transactionId: string): Promise<void>;
 }>;
 
+/** After dispatch, lack of an authenticated outcome is not evidence of zero writes. */
+export function pendingWildsV122Outcome(code: string) {
+  return Object.freeze({ ok: false as const, code, writes: "unknown" as const, recoveryRequired: true as const });
+}
+
 function validationOk(value: unknown): value is Readonly<{ ok: true; transaction: ReceizWorldTransactionV122 }> {
   return value !== null
     && typeof value === "object"
@@ -58,30 +63,38 @@ export async function executeWildsV122Transaction(input: Readonly<{
   try {
     outcome = await input.rail.executeWorldTransactionV122({ transaction: input.transaction, authority: input.authority });
   } catch {
-    outcome = await lookupExactOutcome(input.rail, input.transaction);
-  }
-  if (outcome.status === "unknown") {
-    return Object.freeze({ ok: false as const, code: "receiz_v122_outcome_ambiguous", writes: 0 as const });
-  }
-  if (outcome.status === "zero-write") {
-    if (!zeroWriteBoundToTransaction(outcome, input.transaction)) {
-      return Object.freeze({ ok: false as const, code: "receiz_v122_zero_write_unverified", writes: 0 as const, outcome });
+    try {
+      outcome = await lookupExactOutcome(input.rail, input.transaction);
+    } catch {
+      return pendingWildsV122Outcome("receiz_v122_outcome_lookup_unavailable");
     }
+  }
+  try {
+    if (outcome.status === "unknown") {
+      return pendingWildsV122Outcome("receiz_v122_outcome_ambiguous");
+    }
+    if (outcome.status === "zero-write") {
+      if (!zeroWriteBoundToTransaction(outcome, input.transaction)) {
+        return pendingWildsV122Outcome("receiz_v122_zero_write_unverified");
+      }
+      await input.journal.clear(input.transaction.worldId, input.transaction.transactionId);
+      return Object.freeze({ ok: false as const, code: "receiz_v122_zero_write", writes: 0 as const, outcome });
+    }
+    if (outcome.status !== "committed") {
+      return pendingWildsV122Outcome("receiz_v123_execution_outcome_invalid");
+    }
+    if (input.admitCommittedOutcome && !await input.admitCommittedOutcome(outcome, input.transaction)) {
+      return pendingWildsV122Outcome("receiz_v123_committed_outcome_unadmitted");
+    }
+    const receipt = await validateReceizExecutionReceiptV122({
+      outcome,
+      expectedTransactionDigest: input.transaction.transactionDigest,
+      authenticateReceipt: input.authenticateReceipt
+    });
+    if (!receipt.ok) return pendingWildsV122Outcome(receipt.code);
     await input.journal.clear(input.transaction.worldId, input.transaction.transactionId);
-    return Object.freeze({ ok: false as const, code: "receiz_v122_zero_write", writes: 0 as const, outcome });
+    return Object.freeze({ ok: true as const, outcome });
+  } catch {
+    return pendingWildsV122Outcome("receiz_v122_outcome_verification_unavailable");
   }
-  if (outcome.status !== "committed") {
-    return Object.freeze({ ok: false as const, code: "receiz_v123_execution_outcome_invalid", writes: 0 as const });
-  }
-  if (input.admitCommittedOutcome && !await input.admitCommittedOutcome(outcome, input.transaction)) {
-    return Object.freeze({ ok: false as const, code: "receiz_v123_committed_outcome_unadmitted", writes: 0 as const });
-  }
-  const receipt = await validateReceizExecutionReceiptV122({
-    outcome,
-    expectedTransactionDigest: input.transaction.transactionDigest,
-    authenticateReceipt: input.authenticateReceipt
-  });
-  if (!receipt.ok) return Object.freeze({ ok: false as const, code: receipt.code, writes: 0 as const });
-  await input.journal.clear(input.transaction.worldId, input.transaction.transactionId);
-  return Object.freeze({ ok: true as const, outcome });
 }

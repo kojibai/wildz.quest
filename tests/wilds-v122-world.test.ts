@@ -69,7 +69,7 @@ describe("Wildz v122 exact execution recovery", () => {
         worldExecutionByIdempotencyKeyV122: async () => ({ status: "unknown" })
       }
     });
-    assert.deepEqual(result, { ok: false, code: "receiz_v122_outcome_ambiguous", writes: 0 });
+    assert.deepEqual(result, { ok: false, code: "receiz_v122_outcome_ambiguous", writes: "unknown", recoveryRequired: true });
     assert.equal(clears, 0);
   });
 
@@ -146,7 +146,25 @@ describe("Wildz v122 exact execution recovery", () => {
         worldExecutionByIdempotencyKeyV122: async () => ({ status: "unknown" })
       }
     });
-    assert.deepEqual(result, { ok: false, code: "receiz_v123_execution_outcome_invalid", writes: 0 });
+    assert.deepEqual(result, { ok: false, code: "receiz_v123_execution_outcome_invalid", writes: "unknown", recoveryRequired: true });
     assert.equal(clears, 0);
   });
+});
+
+it("retains the transaction when dispatch and recovery both lose connectivity", async () => {
+  let calls = 0;
+  let clears = 0;
+  const result = await executeWildsV122Transaction({
+    transaction, authority: {}, authenticateReceipt: () => true,
+    journal: { stage: async () => undefined, clear: async () => { clears++; } },
+    rail: {
+      validateWorldTransactionV122: async () => ({ ok: true, transaction }),
+      executeWorldTransactionV122: async () => { calls++; throw new Error("offline"); },
+      worldExecutionV122: async () => { throw new Error("offline"); },
+      worldExecutionByIdempotencyKeyV122: async () => { throw new Error("offline"); }
+    }
+  });
+  assert.deepEqual(result, {ok:false,code:"receiz_v122_outcome_lookup_unavailable",writes:"unknown",recoveryRequired:true});
+  assert.equal(calls, 1);
+  assert.equal(clears, 0);
 });

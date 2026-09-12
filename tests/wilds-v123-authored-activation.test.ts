@@ -189,7 +189,7 @@ describe("Wilds V123 authored-world activation boundary", () => {
       }
     });
     assert.deepEqual(await activation.execute({ transaction, authority: {} }), {
-      ok: false, code: "wilds_v123_durable_runtime_unavailable", writes: 0
+      ok: false, code: "wilds_v123_durable_runtime_unavailable", writes: "unknown", recoveryRequired: true
     });
     assert.equal(executes, 0);
   });
@@ -213,9 +213,45 @@ describe("Wilds V123 authored-world activation boundary", () => {
       }
     });
     assert.deepEqual(await activation.recover({ worldId: transaction.worldId, transactionId: transaction.transactionId, authority: {} }), {
-      ok: false, code: "receiz_v123_execution_outcome_invalid", writes: 0
+      ok: false, code: "receiz_v123_execution_outcome_invalid", writes: "unknown", recoveryRequired: true
     });
     assert.equal(executes, 0);
     assert.equal(entries.size, 1);
   });
+});
+
+it("never redispatches unresolved staged work and keeps missing or failed recovery indeterminate", async () => {
+  const { entries, journal } = sharedJournal();
+  let executes = 0;
+  let offline = false;
+  const activation = createWildsV123AuthoredActivation({
+    journal,
+    checkpointStore: { durability: "cross-instance", verification: "receiz-v123-full-chain", readVerified: async () => null, compareAndSwapVerified: async () => true },
+    additionsHydrator: { verification: "receiz-v123-full-chain", hydrate: async () => null },
+    receiptVerifier: { authority: "deployment-receiz", admitCommittedOutcome: async () => ({ ok: false }) },
+    rail: {
+      planWorldCommandV122: async () => { throw new Error("not used"); },
+      planWorldTransactionV122: async () => transaction,
+      validateWorldTransactionV122: async () => ({ ok: true, transaction }),
+      executeWorldTransactionV122: async () => { executes++; return {status:"unknown"}; },
+      worldExecutionV122: async () => { if (offline) throw new Error("offline"); return {status:"unknown"}; },
+      worldExecutionByIdempotencyKeyV122: async () => ({status:"unknown"})
+    }
+  });
+  await activation.execute({transaction, authority:{}});
+  await activation.execute({transaction, authority:{}});
+  const request = {worldId:transaction.worldId,transactionId:transaction.transactionId,authority:{}};
+  const pending = await activation.recover(request);
+  assert.equal(pending.ok, false);
+  if (!pending.ok) assert.equal(pending.writes, "unknown");
+  assert.equal(executes, 1);
+  assert.equal(entries.size, 1);
+  offline = true;
+  const failed = await activation.recover(request);
+  if (!failed.ok) assert.equal(failed.writes, "unknown");
+  assert.equal(entries.size, 1);
+  entries.clear();
+  const missing = await activation.recover(request);
+  if (!missing.ok) assert.equal(missing.writes, "unknown");
+  assert.equal(executes, 1);
 });

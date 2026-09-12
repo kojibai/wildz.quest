@@ -5,7 +5,7 @@ import {
   type ReceizWorldTransactionV122
 } from "@receiz/sdk";
 import type { ReceizCommerceAdapter } from "./adapter";
-import { executeWildsV122Transaction } from "./wilds-v122-world";
+import { pendingWildsV122Outcome, executeWildsV122Transaction } from "./wilds-v122-world";
 
 type ExactWorldRail = Pick<ReceizCommerceAdapter,
   "planWorldCommandV122" | "planWorldTransactionV122" | "validateWorldTransactionV122" | "executeWorldTransactionV122" | "worldExecutionV122" | "worldExecutionByIdempotencyKeyV122"
@@ -91,7 +91,8 @@ function journalFor(ports: WildsV123AuthoredActivationPorts, transaction: Receiz
     async stage(value: ReceizWorldTransactionV122) {
       if (canonicalizeReceizV122(value) !== canonicalizeReceizV122(transaction)) throw new Error("wilds_v123_journal_transaction_changed");
       const result = await ports.journal.compareAndStage(value);
-      if (result !== "stored" && result !== "same") throw new Error("wilds_v123_journal_conflict");
+      if (result === "same") throw new Error("wilds_v123_journal_recovery_required");
+      if (result !== "stored") throw new Error("wilds_v123_journal_conflict");
       const stored = await ports.journal.read(value.worldId, value.transactionId);
       if (!stored || canonicalizeReceizV122(stored) !== canonicalizeReceizV122(value)) {
         throw new Error("wilds_v123_journal_transaction_changed");
@@ -145,60 +146,57 @@ export function createWildsV123AuthoredActivation(ports: WildsV123AuthoredActiva
           admitCommittedOutcome: admit
         });
       } catch {
-        return Object.freeze({ ok: false as const, code: "wilds_v123_durable_runtime_unavailable", writes: 0 as const });
+        return pendingWildsV122Outcome("wilds_v123_durable_runtime_unavailable");
       }
     },
     async recover(input: Readonly<{ worldId: string; transactionId: string; authority: Readonly<Record<string, unknown>> }>) {
-      const transaction = await ports.journal.read(input.worldId, input.transactionId);
-      if (!transaction || transaction.worldId !== input.worldId || transaction.transactionId !== input.transactionId) {
-        return Object.freeze({ ok: false as const, code: "wilds_v123_pending_transaction_not_found", writes: 0 as const });
-      }
-      const validation = await ports.rail.validateWorldTransactionV122(transaction);
-      if (!validation || typeof validation !== "object" || (validation as { ok?: unknown }).ok !== true
-        || !("transaction" in validation)
-        || canonicalizeReceizV122((validation as { transaction: ReceizWorldTransactionV122 }).transaction) !== canonicalizeReceizV122(transaction)) {
-        return Object.freeze({ ok: false as const, code: "wilds_v123_pending_transaction_invalid", writes: 0 as const });
-      }
-      const outcome = await exactLookup(ports.rail, transaction);
-      if (outcome.status === "committed") {
-        if (!await admittedOutcome(ports, outcome, transaction)) {
-          return Object.freeze({ ok: false as const, code: "receiz_v123_committed_outcome_unadmitted", writes: 0 as const });
+      try {
+        const transaction = await ports.journal.read(input.worldId, input.transactionId);
+        if (!transaction || transaction.worldId !== input.worldId || transaction.transactionId !== input.transactionId) {
+          return pendingWildsV122Outcome("wilds_v123_pending_transaction_not_found");
         }
-        const verified = await validateReceizExecutionReceiptV122({
-          outcome,
-          expectedTransactionDigest: transaction.transactionDigest,
-          authenticateReceipt: async () => true
-        });
-        if (!verified.ok) return Object.freeze({ ok: false as const, code: verified.code, writes: 0 as const });
-        if (canonicalizeReceizV122(await ports.journal.read(transaction.worldId, transaction.transactionId)) !== canonicalizeReceizV122(transaction)
-          || !await ports.journal.compareAndClear(transaction.worldId, transaction.transactionId, transaction.transactionDigest)
-          || await ports.journal.read(transaction.worldId, transaction.transactionId) !== null) {
-          return Object.freeze({ ok: false as const, code: "wilds_v123_journal_clear_conflict", writes: 0 as const });
+        const validation = await ports.rail.validateWorldTransactionV122(transaction);
+        if (!validation || typeof validation !== "object" || (validation as { ok?: unknown }).ok !== true
+          || !("transaction" in validation)
+          || canonicalizeReceizV122((validation as { transaction: ReceizWorldTransactionV122 }).transaction) !== canonicalizeReceizV122(transaction)) {
+          return pendingWildsV122Outcome("wilds_v123_pending_transaction_invalid");
         }
-        return Object.freeze({ ok: true as const, outcome });
-      }
-      if (outcome.status === "zero-write") {
-        if (!exactZeroWrite(outcome, transaction)) {
-          return Object.freeze({ ok: false as const, code: "receiz_v122_zero_write_unverified", writes: 0 as const });
+        const outcome = await exactLookup(ports.rail, transaction);
+        if (outcome.status === "committed") {
+          if (!await admittedOutcome(ports, outcome, transaction)) {
+            return pendingWildsV122Outcome("receiz_v123_committed_outcome_unadmitted");
+          }
+          const verified = await validateReceizExecutionReceiptV122({
+            outcome,
+            expectedTransactionDigest: transaction.transactionDigest,
+            authenticateReceipt: async () => true
+          });
+          if (!verified.ok) return pendingWildsV122Outcome(verified.code);
+          if (canonicalizeReceizV122(await ports.journal.read(transaction.worldId, transaction.transactionId)) !== canonicalizeReceizV122(transaction)
+            || !await ports.journal.compareAndClear(transaction.worldId, transaction.transactionId, transaction.transactionDigest)
+            || await ports.journal.read(transaction.worldId, transaction.transactionId) !== null) {
+            return pendingWildsV122Outcome("wilds_v123_journal_clear_conflict");
+          }
+          return Object.freeze({ ok: true as const, outcome });
         }
-        if (canonicalizeReceizV122(await ports.journal.read(transaction.worldId, transaction.transactionId)) !== canonicalizeReceizV122(transaction)
-          || !await ports.journal.compareAndClear(transaction.worldId, transaction.transactionId, transaction.transactionDigest)
-          || await ports.journal.read(transaction.worldId, transaction.transactionId) !== null) {
-          return Object.freeze({ ok: false as const, code: "wilds_v123_journal_clear_conflict", writes: 0 as const });
+        if (outcome.status === "zero-write") {
+          if (!exactZeroWrite(outcome, transaction)) {
+            return pendingWildsV122Outcome("receiz_v122_zero_write_unverified");
+          }
+          if (canonicalizeReceizV122(await ports.journal.read(transaction.worldId, transaction.transactionId)) !== canonicalizeReceizV122(transaction)
+            || !await ports.journal.compareAndClear(transaction.worldId, transaction.transactionId, transaction.transactionDigest)
+            || await ports.journal.read(transaction.worldId, transaction.transactionId) !== null) {
+            return pendingWildsV122Outcome("wilds_v123_journal_clear_conflict");
+          }
+          return Object.freeze({ ok: false as const, code: "receiz_v122_zero_write", writes: 0 as const, outcome });
         }
-        return Object.freeze({ ok: false as const, code: "receiz_v122_zero_write", writes: 0 as const, outcome });
+        if (outcome.status !== "unknown") {
+          return pendingWildsV122Outcome("receiz_v123_execution_outcome_invalid");
+        }
+        return pendingWildsV122Outcome("receiz_v122_outcome_ambiguous");
+      } catch {
+        return pendingWildsV122Outcome("receiz_v122_outcome_recovery_unavailable");
       }
-      if (outcome.status !== "unknown") {
-        return Object.freeze({ ok: false as const, code: "receiz_v123_execution_outcome_invalid", writes: 0 as const });
-      }
-      return executeWildsV122Transaction({
-        transaction,
-        authority: input.authority,
-        rail: ports.rail,
-        journal: journalFor(ports, transaction),
-        authenticateReceipt: async () => true,
-        admitCommittedOutcome: (committed) => admittedOutcome(ports, committed, transaction)
-      });
     },
     hydrate(worldId: string) {
       return ports.additionsHydrator.hydrate(worldId, ports.checkpointStore);
