@@ -34,7 +34,7 @@ export function verifyWildsCraftWorkstation(value: unknown): value is WildsCraft
 }
 export function resolveWildsConstructionFunction(world: WildsWorldProjection, id: string, kind: "workshop" | "storage" | "bed"): WildsConstructionFunctionSource | null {
   const component = world.constructionComponents[id];
-  if (!component) return null;
+  if (!component || (kind !== "storage" && (world.constructionConditions?.[id]?.integrity ?? 100) < 50)) return null;
   const source: WildsConstructionFunctionSource = { schema: "wildz.construction-function-source.v1", component,
     materials: Object.values(world.constructionMaterialContributions).filter((p) => p.componentId === id),
     work: Object.values(world.constructionWorkContributions).filter((p) => p.componentId === id),

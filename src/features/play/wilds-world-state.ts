@@ -1,3 +1,4 @@
+import { projectWildsConstructionWeather, resolveWildsMaintenance, type WildsMaintenanceCommand, type WildsConstructionCondition } from "./wilds-construction-weather";
 import { transitionCommunity, type CommunityRequest, type WildsCommunity } from "./wilds-community";
 import { settleWildsConstructionWork, WILDS_CONSTRUCTION_WORK_REWARD_POLICY } from "./wilds-construction-work-reward";
 import { createWildsBurrow, verifyWildsBurrow, type WildsBurrowV1 } from "./wilds-burrow";
@@ -169,6 +170,7 @@ export type WildsWorldProjection = {
   constructionChunks: Record<string, WildsConstructionChunkV1>;
   constructionComponents: Record<string, WildsConstructionComponentV1>;
   constructionMaterialContributions: Record<string, WildsConstructionMaterialContributionV1>;
+  constructionConditions?: Record<string, WildsConstructionCondition>;
   constructionWorkContributions: Record<string, WildsConstructionWorkContributionV1>;
   constructionCommandReceipts: Record<string, Readonly<{ commandDigest: string; eventPayloadDigest: string; actorId: string; kind: string }>>;
   constructionRecoverySources?: WildsConstructionPersistence["constructionRecoverySources"];
@@ -396,6 +398,20 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
   const payload = recordPayload(event.payload);
 
   switch (event.kind) {
+    case "construction.weathered": {
+      if (!("uPulse" in event) || event.actorId !== "receiz:pulse" || !Array.isArray(payload.conditions) || payload.conditions.length > 16) throw new Error("wilds_weather_authority_invalid");
+      const conditions = { ...state.constructionConditions };
+      const seen = new Set<string>();
+      for (const condition of payload.conditions as WildsConstructionCondition[]) {
+        if (seen.has(condition.componentId)) throw new Error("wilds_weather_duplicate_component");
+        seen.add(condition.componentId);
+        const expected = projectWildsConstructionWeather(state, condition.componentId, wildsWorldEventUPulse(event));
+        if (!expected || constructionProofDigest(expected) !== constructionProofDigest(condition)) throw new Error("wilds_weather_transition_invalid");
+        conditions[condition.componentId] = condition;
+      }
+      return appendEvent(state, event, { constructionConditions: conditions });
+    }
+    case "construction.component_maintained":
     case "construction.project_created":
     case "construction.burrow_dug":
     case "construction.component_adjusted":
@@ -962,7 +978,7 @@ export function replayWildsWorld(events: readonly CompatibleWildsWorldEvent[], c
 }
 
 function isContinuousConstructionEvent(kind: string) {
-  return ["construction.burrow_dug", "construction.project_created", "construction.component_adjusted", "construction.component_placed", "construction.material_contributed", "construction.work_contributed"].includes(kind);
+  return ["construction.component_maintained", "construction.burrow_dug", "construction.project_created", "construction.component_adjusted", "construction.component_placed", "construction.material_contributed", "construction.work_contributed"].includes(kind);
 }
 
 export function projectWildsConstructionProgressFromWorld(world: WildsWorldProjection, componentId: string) {
@@ -980,6 +996,15 @@ function reduceContinuousConstruction(state: WildsWorldProjection, event: Compat
       commandDigest: payload.commandDigest as string, eventPayloadDigest: constructionProofDigest(event.payload), actorId: event.actorId, kind: event.kind
     } }
   });
+  if (event.kind === "construction.component_maintained") {
+    if (!("uPulse" in event)) return invalid();
+    const command = payload.command as WildsMaintenanceCommand;
+    if (!command || command.type !== "construction.component.maintain" || command.commandId !== event.causeId || constructionProofDigest(command) !== payload.commandDigest) return invalid();
+    const condition = resolveWildsMaintenance(state, command, event.actorId, wildsWorldEventUPulse(event));
+    if (!condition || !same(condition, payload.condition)) return invalid();
+    return finish({ constructionConditions: { ...state.constructionConditions, [condition.componentId]: condition },
+      ...(command.lotId ? { consumedMaterialLots: { ...state.consumedMaterialLots, [command.lotId]: `repair:${condition.head}` } } : {}) });
+  }
   if (event.kind === "construction.burrow_dug") {
     const proof=payload.burrow;
     if(!verifyWildsBurrow(proof)||proof.ownerReceizId!==event.actorId||proof.commandId!==event.causeId||state.burrows?.[proof.id])return invalid();

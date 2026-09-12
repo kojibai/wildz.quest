@@ -93,6 +93,14 @@ export function useWildsContinuousBuilder({ world, owner, player, lots, feedback
       feedback(`${wildsConstructionLabel(kind)} planned and locked. Add materials, then build each stage. You can do the work yourself.`);
     });
   return {
+    condition: selected ? snapshot?.constructionConditions?.[selected.componentId] ?? null : null,
+    maintain: (repair: boolean) => void run(async () => {
+      if (!snapshot || !selected || !inReach(selected.transform.position)) { feedback("Move within 6 metres of this piece to maintain it."); return; }
+      const lot = repair ? lots.find(lot => ["timber", "stone"].includes(lot.kind) && !snapshot.consumedMaterialLots[lot.lotId] && !snapshot.reservedMaterialLots[lot.lotId] && !snapshot.storedMaterialLots[lot.lotId]) : undefined;
+      if (repair && !lot) { feedback("Carry one free timber or stone material to repair this piece."); return; }
+      await world.maintainConstructionComponent(selected.componentId, selected.head, snapshot.constructionConditions?.[selected.componentId]?.head ?? null, player, lot?.lotId);
+      feedback(repair ? "Repair complete: restored up to 25 condition using one material." : "Weather condition checked and saved.");
+    }),
     dragging,
     inspecting,
     selectionEnabled: open && inspecting && !adjusting && !busy,

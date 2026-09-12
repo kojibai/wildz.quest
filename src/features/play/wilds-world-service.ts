@@ -1,3 +1,4 @@
+import { projectWildsConstructionWeather, resolveWildsMaintenance, type WildsMaintenanceCommand } from "./wilds-construction-weather";
 import type { CommunityRequest } from "./wilds-community";
 import { settleWildsConstructionWork } from "./wilds-construction-work-reward";
 import { createWildsBurrow, type WildsBurrowRequest } from "./wilds-burrow";
@@ -90,6 +91,7 @@ export type WildsWorldCommand = (
   | { type: "construction.burrow.dig"; request:WildsBurrowRequest; actorPosition:{x:number;y:number;z:number};cardProofDigest:string;commandId:string }
   | { type: "construction.component.adjust"; componentId: string; componentHead: string; placement: WildsBlueprintPlacement; request: WildsConstructionPlacementRequest; actorPosition: { x: number; z: number }; commandId: string }
   | { type: "construction.component.deposit"; componentId: string; componentHead: string; lotIds: string[]; actorPosition: { x: number; z: number }; commandId: string }
+  | WildsMaintenanceCommand
   | { type: "construction.component.work"; componentId: string; componentHead: string; actorPosition: { x: number; z: number }; creature?: { subjectId: string; head: string }; commandId: string }
   | { type: "boss.track"; bossId: string; position: { x: number; z: number }; commandId: string }
   | { type: "raid.enter"; bossId: string; roundId: string; position: { x: number; z: number }; preferredSquad?: number; commandId: string }
@@ -303,6 +305,14 @@ export class WildsWorldService {
     if (this.eventTail.some((event) => event.causeId === causeId)) return { events: [], projection: this.projection };
     const authority = { actorId: input.systemActorId, pulse: input.pulse, occurredAt: input.occurredAt, uPulse: moment.uPulse };
     const events: WildsWorldEvent[] = [];
+    // Bounded maintenance shares the existing tick and append transaction.
+    const due = Object.values(this.projection.constructionComponents).filter(component => component.kaiUPulse <= moment.uPulse)
+      .sort((a, b) => (this.projection.constructionConditions?.[a.componentId]?.kaiUPulse ?? a.kaiUPulse) - (this.projection.constructionConditions?.[b.componentId]?.kaiUPulse ?? b.kaiUPulse) || a.componentId.localeCompare(b.componentId)).slice(0, 16);
+    const conditions = due.flatMap(component => {
+      const condition = projectWildsConstructionWeather(this.projection, component.componentId, moment.uPulse);
+      return condition ? [condition] : [];
+    });
+    if (conditions.length) events.push(this.append("construction.weathered", { conditions }, authority, causeId));
     this.advanceSaga(input, authority, causeId, events);
     const existingBosses = Object.values(this.projection.bosses) as WildsBossDefinition[];
     const undefeated = existingBosses.filter((boss) => !["defeated", "memorialized", "withdrawn"].includes(boss.phase));
@@ -558,6 +568,9 @@ export class WildsWorldService {
       if (!page) throw new Error("wilds_construction_chunk_missing");
       const chunk = reviseWildsConstructionChunkReference(page, previous, component, kaiUPulse);
       events.push(this.append("construction.component_adjusted", {component, chunk, request: command.request, actorPosition: command.actorPosition, commandDigest}, authority, command.commandId));
+    } else if (command.type === "construction.component.maintain") {
+      const condition = resolveWildsMaintenance(this.projection, command, authority.actorId, kaiUPulse);
+      if (condition) events.push(this.append("construction.component_maintained", { command, commandDigest, condition }, authority, command.commandId));
     } else if (command.type === "construction.component.deposit" || command.type === "construction.component.work") {
       const component = this.projection.constructionComponents[command.componentId];
       if (!component || component.head !== command.componentHead) throw new Error("wilds_construction_component_stale");

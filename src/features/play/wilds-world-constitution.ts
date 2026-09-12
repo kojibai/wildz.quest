@@ -7,6 +7,7 @@ import { constitutionalDigest, constitutionalPredicate as predicate, deriveConst
 export const WILDS_COMMAND_LAW = {
   "community.transition": "community.adopted-procedures",
   "construction.project.create": "commons.plan", "construction.component.place": "project.plan", "construction.burrow.dig": "project.plan", "construction.component.adjust": "project.plan",
+  "construction.component.maintain": "project.work",
   "construction.component.deposit": "materials.contribute", "construction.component.work": "project.work",
   "boss.track": "commons.observe", "raid.enter": "raid.participate", "raid.act": "raid.participate",
   "raid.lease": "raid.participate", "raid.retreat": "voluntary.exit", "raid.join": "raid.participate", "raid.contribute": "raid.participate",

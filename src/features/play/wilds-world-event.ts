@@ -33,6 +33,8 @@ export type WildsWorldEventKind =
   | "construction.component_adjusted"
   | "construction.component_placed"
   | "construction.material_contributed"
+  | "construction.weathered"
+  | "construction.component_maintained"
   | "construction.work_contributed"
   | "construction.site_placed"
   | "construction.site_contributed"
@@ -123,6 +125,8 @@ const eventKinds = new Set<WildsWorldEventKind>([
   "construction.component_adjusted",
   "construction.component_placed",
   "construction.material_contributed",
+  "construction.weathered",
+  "construction.component_maintained",
   "construction.work_contributed",
   "construction.site_placed",
   "construction.site_contributed",

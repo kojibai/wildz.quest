@@ -49,9 +49,17 @@ export function WildsContinuousBuilderPanel({ builder, materials, onOpenCatalogu
     </section> : builder.selected && builder.progress ? <section className="wilds-builder-inspector" aria-label="Selected piece progress">
       <p className="wilds-builder-gesture-help"><Lock size={14} aria-hidden="true" /> Locked in place</p>
       <button type="button" disabled={Boolean(builder.busy)} onClick={builder.beginAdjustment}><Unlock size={18} aria-hidden="true" /> Unlock to adjust</button>
+      {builder.maintain && builder.progress.stage !== "planned" && <section aria-label="Weather condition">
+        <p>Condition · {builder.condition ? `${builder.condition.integrity}%` : "Not yet inspected"}</p>
+        <p>Storms wear exposed pieces. A finished roof protects what is below; stone-rich construction resists wear. Below 50%, repair beds and workshops before use.</p>
+        <div className="wilds-builder-actions">
+          <button type="button" disabled={Boolean(builder.busy)} onClick={() => builder.maintain(false)}>Check weather condition</button>
+          {builder.condition && builder.condition.integrity < 100 && <button type="button" disabled={Boolean(builder.busy)} onClick={() => builder.maintain(true)}>Repair +25 · 1 timber or stone</button>}
+        </div>
+      </section>}
       <div className="wilds-builder-stages">{["planned", "framed", "functional", "finished"].map(stage => <span key={stage} aria-current={builder.progress?.stage === stage ? "step" : undefined}>{stage}</span>)}</div>
       <progress max={100} value={builder.progress.percentage} aria-label="Construction progress" /><strong>{builder.progress.stage === "planned" ? "Plan placed · add materials to build" : `${builder.progress.percentage}% complete`}</strong>
-      {(builder.progress.stage === "functional" || builder.progress.stage === "finished") && (builder.selected.kind === "workshop" || builder.selected.kind === "storage" || builder.selected.kind === "bed") && onUse && <button type="button" onClick={() => onUse(builder.selected!.kind as "workshop" | "storage" | "bed")}>{builder.selected.kind === "workshop" ? "Craft tools at this workbench" : builder.selected.kind === "bed" ? "Rest in this bed · recover energy" : "Use this storage"}</button>}
+      {(builder.progress.stage === "functional" || builder.progress.stage === "finished") && (builder.selected.kind === "workshop" || builder.selected.kind === "storage" || builder.selected.kind === "bed") && (builder.selected.kind === "storage" || (builder.condition?.integrity ?? 100) >= 50) && onUse && <button type="button" onClick={() => onUse(builder.selected!.kind as "workshop" | "storage" | "bed")}>{builder.selected.kind === "workshop" ? "Craft tools at this workbench" : builder.selected.kind === "bed" ? "Rest in this bed · recover energy" : "Use this storage"}</button>}
       {next ? <><p>Next: {next.stage}. Add materials and do {next.work.remaining} more work action{next.work.remaining === 1 ? "" : "s"}.</p>
         <div className="wilds-builder-needed">{(["hay", "timber", "stone"] as const).map(kind => <span key={kind}>{kind}<b>{next.materials[kind].contributed}/{next.materials[kind].required}</b></span>)}</div>
         <div className="wilds-builder-actions"><WildsExplainedAction label="Add what I carry" pending={Boolean(builder.busy)} blocker={builder.depositBlocker} onAction={builder.addCarried} /><WildsExplainedAction label={`Build ${next.stage}`} pending={Boolean(builder.busy)} blocker={builder.workBlocker} onAction={builder.work} /></div>
