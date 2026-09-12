@@ -1,4 +1,4 @@
-import { projectWildsConstructionStageGeometry } from "./wilds-construction-geometry";
+import { createWildsConstructionGeometryProjector } from "./wilds-construction-geometry";
 import type { WildsTrailBridgeV1 } from "./wilds-steward-construction";
 import type { WildsWorldProjection } from "./wilds-world-state";
 
@@ -28,8 +28,9 @@ function freeze<T>(value: T): T {
 
 export function projectWildsStructureSupports(world?: Pick<WildsWorldProjection, "structures"> & Partial<Pick<WildsWorldProjection, "constructionComponents" | "constructionMaterialContributions" | "constructionWorkContributions">> | null, spaceId="wildz.space.outer.v1"): readonly WildsStructureSupport[] {
   if (!world) return Object.freeze([]);
+  const projectGeometry = createWildsConstructionGeometryProjector(Object.values(world.constructionMaterialContributions ?? {}), Object.values(world.constructionWorkContributions ?? {}));
   const components: WildsStructureSupport[] = Object.values(world.constructionComponents ?? {}).filter(c=>(c.evidence.spaceId??"wildz.space.outer.v1")===spaceId).flatMap(component => {
-    const geometry = projectWildsConstructionStageGeometry(component, Object.values(world.constructionMaterialContributions ?? {}), Object.values(world.constructionWorkContributions ?? {}));
+    const geometry = projectGeometry(component);
     if (geometry.stage === "planned") return [];
     if (!["foundation", "floor", "room", "roof", "stair", "bridge", "platform", "path"].includes(component.kind)) return [];
     return geometry.solids.filter(solid => component.kind !== "room" || solid.id.endsWith(":floor")).map(solid => ({

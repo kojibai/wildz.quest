@@ -5,7 +5,7 @@ import { previewWildsBlueprintPlacement, createWildsBlueprintPreview, type Wilds
 import { verifyWildsConstructionComponent } from "./wilds-construction-component";
 import { verifyWildsConstructionProject, wildsConstructionRegionId } from "./wilds-construction-project";
 import { type WildsWorldProjection } from "./wilds-world-state";
-import { projectWildsConstructionStageGeometry } from "./wilds-construction-geometry";
+import { createWildsConstructionGeometryProjector } from "./wilds-construction-geometry";
 import { sampleWildsTerrain } from "./wilds-terrain-authority";
 
 export type WildsConstructionPlacementRequest = Pick<WildsProductionPlacementEvidence, "spaceId" | "pointer" | "rotationQuarterTurns" | "heightStep" | "surfaceSnap">;
@@ -20,7 +20,8 @@ export function projectWildsProductionPlacementEvidence(world: WildsWorldProject
     .filter((component) => (component.evidence.spaceId ?? "wildz.space.outer.v1") === (request.spaceId ?? "wildz.space.outer.v1") && Math.abs(component.transform.position.x - request.pointer.x) <= 32 && Math.abs(component.transform.position.z - request.pointer.z) <= 32)
     .sort((a, b) => a.componentId.localeCompare(b.componentId));
   if (nearby.some((component) => !verifyWildsConstructionComponent(component))) throw new Error("wilds_construction_source_invalid");
-  const geometry = nearby.map((component) => projectWildsConstructionStageGeometry(component, Object.values(world.constructionMaterialContributions), Object.values(world.constructionWorkContributions)));
+  const projectGeometry = createWildsConstructionGeometryProjector(Object.values(world.constructionMaterialContributions), Object.values(world.constructionWorkContributions));
+  const geometry = nearby.map(projectGeometry);
   const terrain = sampleWildsTerrain(Math.round(request.pointer.x * 2) / 2, Math.round(request.pointer.z * 2) / 2);
   const region = wildsDiscoverySiteRegionForPosition(request.pointer);
   const spaceId=request.spaceId ?? "wildz.space.outer.v1";

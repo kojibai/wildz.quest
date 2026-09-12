@@ -268,3 +268,20 @@ test("construction steps use the last bounded micro reward and still finish when
     actorPosition: request.pointer, commandId: "command:work:over-complete" }, authority));
   assert.deepEqual(service.checkpoint(), complete, "completed work cannot be farmed with a new command ID");
 });
+
+test("snapped boundary plans select the region that can admit the component", async () => {
+  const { previewWildsContinuousBuild } = await import("../src/features/play/wilds-continuous-builder");
+  const { regionForPosition } = await import("../src/features/play/multiplayer-core");
+  for (const pointer of [{x:-.1,y:0,z:2},{x:2,y:0,z:-.1},{x:-.1,y:0,z:-.1}]) {
+    const service = new WildsWorldService();
+    const boundaryRequest = {...request,pointer};
+    const draft = previewWildsContinuousBuild(service.snapshot(),actorId,"foundation",boundaryRequest);
+    assert.deepEqual(draft.region, regionForPosition(draft.placement.transform.position));
+    service.execute({type:"construction.project.create",name:"Boundary",region:draft.region,commandId:"boundary:project"},authority);
+    const fresh = previewWildsContinuousBuild(service.snapshot(),actorId,"foundation",boundaryRequest);
+    assert.ok(fresh.project);
+    assert.equal(fresh.placement.valid,true);
+    const result = service.execute({type:"construction.component.place",projectId:fresh.project.projectId,placement:fresh.placement,request:boundaryRequest,actorPosition:pointer,commandId:"boundary:place"},authority);
+    assert.equal(Object.keys(result.projection.constructionComponents).length,1);
+  }
+});

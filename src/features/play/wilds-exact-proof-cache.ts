@@ -52,6 +52,8 @@ export function createWildsExactProofCache(options: { maxEntries?: number; maxBy
   }
 
   const cache = {
+    /** Returns null for accessor-bearing, non-plain, cyclic, or oversized data. */
+    exactKey: exactDataKey,
     guard<T>(validator: (value: unknown) => value is T): (value: unknown) => value is T {
       return (value: unknown): value is T => cache.verify(value, validator);
     },

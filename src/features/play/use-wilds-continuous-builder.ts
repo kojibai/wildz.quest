@@ -63,6 +63,7 @@ export function useWildsContinuousBuilder({ world, owner, player, lots, feedback
     lock.current = true; setBusy(true); setError(null);
     try { await action(); } catch (error) {
       const message = error instanceof Error ? error.message : "";
+      console.warn("wildz_build_action_failed", /^[a-z][a-z0-9_]{0,100}$/.test(message) ? message : "unclassified");
       const explanation = /unreachable/.test(message) ? "Move closer to this piece (within 6 metres)."
         : /lot|material/.test(message) ? "Those materials have changed. Check your satchel and try again."
         : /placement|component_invalid|conflict/.test(message) ? "This piece could not be placed or adjusted here. Check its support and spacing, then try again."

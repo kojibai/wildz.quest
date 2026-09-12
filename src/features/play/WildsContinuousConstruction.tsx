@@ -8,7 +8,7 @@ import { createWildsConstructionMaterials } from "./wilds-construction-materials
 import { useThree, type ThreeEvent } from "@react-three/fiber";
 import type { WildsWorldProjection } from "./wilds-world-state";
 import type { WildsBlueprintPlacement } from "./wilds-world-construction";
-import { projectWildsConstructionStageGeometry } from "./wilds-construction-geometry";
+import { createWildsConstructionGeometryProjector } from "./wilds-construction-geometry";
 
 export function WildsContinuousConstruction({ world, player, terrainElevation, preview, selectable, onSelect, onDrag, activeComponentId, spaceId="wildz.space.outer.v1" }: {
   spaceId?:string;
@@ -40,9 +40,14 @@ export function WildsContinuousConstruction({ world, player, terrainElevation, p
   const surfaces = useMemo(createWildsConstructionMaterials, []);
   useEffect(() => () => surfaces.dispose(), [surfaces]);
   // Proof and stage projections run only when the snapshot changes, never in useFrame.
-  const pieces = useMemo(() => !world ? [] : Object.values(world.constructionComponents ?? {}).map(component => ({ component,
-    geometry: projectWildsConstructionStageGeometry(component, Object.values(world.constructionMaterialContributions), Object.values(world.constructionWorkContributions))
-  })), [world]);
+  const components = world?.constructionComponents;
+  const materialContributions = world?.constructionMaterialContributions;
+  const workContributions = world?.constructionWorkContributions;
+  const pieces = useMemo(() => {
+    if (!components) return [];
+    const projectGeometry = createWildsConstructionGeometryProjector(Object.values(materialContributions ?? {}), Object.values(workContributions ?? {}));
+    return Object.values(components).map(component => ({ component, geometry: projectGeometry(component) }));
+  }, [components, materialContributions, workContributions]);
   return <group name="continuous-construction" position={[-player.x, -terrainElevation, -player.z]}>
     {pieces.filter(({ component }) => (component.evidence.spaceId??"wildz.space.outer.v1")===spaceId && Math.hypot(component.transform.position.x - player.x, component.transform.position.z - player.z) <= 64).map(({ component, geometry }) => {
       const box = component.placement.geometry;

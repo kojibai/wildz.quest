@@ -128,3 +128,46 @@ it("constructs identical work evidence for reordered duplicate material command 
   const make = (materials: typeof first[]) => createWildsWorkContribution({ component, materials, worker: { kind: "player", receizId: "owner" }, amount: 1, commandId: "stable-evidence", kaiUPulse: 5 });
   assert.deepEqual(make([first, alternate, second]), make([alternate, first, second]));
 });
+
+it("indexed geometry preserves full-history projection including conflicting and tampered contributions", async () => {
+  const { createWildsConstructionGeometryProjector, projectWildsConstructionStageGeometry } = await import("../src/features/play/wilds-construction-geometry");
+  const { component } = fixture();
+  const materials = [deposit(component, 1), deposit(component, 2), deposit(component, 3), deposit(component, 4), deposit(component, 5, "hay")];
+  const workProofs = [work(component, 3, materials)];
+  const noisyMaterials = [...materials, ...materials.map(p => ({...p,componentId:"other"})), {...materials[0]!,head:"tampered"}, materials[0]!];
+  const noisyWork = [...workProofs, {...workProofs[0]!,componentId:"other"}, {...workProofs[0]!,head:"tampered"}];
+  const project = createWildsConstructionGeometryProjector(noisyMaterials, noisyWork);
+  assert.deepEqual(project(component), projectWildsConstructionStageGeometry(component,noisyMaterials,noisyWork));
+  assert.throws(()=>project({...component,head:"tampered"}), /invalid/);
+  assert.deepEqual(createWildsConstructionGeometryProjector([],[])(component), projectWildsConstructionStageGeometry(component,[],[]));
+});
+
+it("reuses geometry only for deeply immutable inputs and protects its cached result", async () => {
+  const { projectWildsConstructionStageGeometry } = await import("../src/features/play/wilds-construction-geometry");
+  const { component } = fixture();
+  const material = deposit(component, 1);
+  const first = projectWildsConstructionStageGeometry(component,[material],[]);
+  assert.strictEqual(projectWildsConstructionStageGeometry(component,[material],[]), first);
+  assert.ok(Object.isFrozen(first));
+  assert.ok(Object.isFrozen(first.solids));
+  const mutable = structuredClone(component);
+  projectWildsConstructionStageGeometry(mutable,[],[]);
+  assert.throws(()=>projectWildsConstructionStageGeometry({...mutable,head:"tampered"},[],[]), /invalid/);
+  const mutableProof = structuredClone(material);
+  const prior = projectWildsConstructionStageGeometry(component,[mutableProof],[]);
+  assert.notStrictEqual(projectWildsConstructionStageGeometry(component,[mutableProof],[]),prior);
+  assert.notStrictEqual(projectWildsConstructionStageGeometry(component,[],[]),first);
+});
+
+
+it("worker-cloned geometry caching detects changed proof contents and isolates returned objects", async () => {
+  const { projectWildsConstructionStageGeometry } = await import("../src/features/play/wilds-construction-geometry");
+  const component = structuredClone(fixture().component);
+  const first = projectWildsConstructionStageGeometry(component, [], []);
+  const second = projectWildsConstructionStageGeometry(component, [], []);
+  assert.deepEqual(second, first);
+  second.stage = "finished";
+  assert.equal(projectWildsConstructionStageGeometry(component, [], []).stage, "planned");
+  (component.placement.transform.position as { x: number }).x += 10;
+  assert.throws(() => projectWildsConstructionStageGeometry(component, [], []), /invalid/);
+});

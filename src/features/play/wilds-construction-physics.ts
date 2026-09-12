@@ -1,12 +1,13 @@
 import { projectWildsStructureSupports } from "./wilds-structure-support";
 import type { WildsWorldProjection } from "./wilds-world-state";
 import type { WildsTerrainObstacle } from "./wilds-terrain-obstacles";
-import { projectWildsConstructionStageGeometry } from "./wilds-construction-geometry";
+import { createWildsConstructionGeometryProjector } from "./wilds-construction-geometry";
 
 export function projectWildsConstructionObstacles(world?: WildsWorldProjection | null): WildsTerrainObstacle[] {
   if (!world) return [];
+  const projectGeometry = createWildsConstructionGeometryProjector(Object.values(world.constructionMaterialContributions), Object.values(world.constructionWorkContributions));
   return Object.values(world.constructionComponents ?? {}).filter(c=>(c.evidence.spaceId??"wildz.space.outer.v1")==="wildz.space.outer.v1").flatMap(component => {
-    const geometry = projectWildsConstructionStageGeometry(component, Object.values(world.constructionMaterialContributions), Object.values(world.constructionWorkContributions));
+    const geometry = projectGeometry(component);
     return geometry.solids.map(solid => ({ id: `wildz.component:${solid.id}`, kind: "structure" as const,
       material: "solid" as const, position: solid.center, radius: Math.hypot(solid.halfExtents.x, solid.halfExtents.z),
       shape: { kind: "box" as const, halfX: solid.halfExtents.x, halfY: solid.halfExtents.y, halfZ: solid.halfExtents.z }, visualScale: 1,
@@ -20,10 +21,11 @@ export function composeWildsInteriorConstruction(
   world?: Pick<WildsWorldProjection, "structures" | "constructionComponents" | "constructionMaterialContributions" | "constructionWorkContributions"> | null
 ): import("./wilds-discovery-sites").WildsDiscoveryPhysicalNeighborhood {
   if(!world)return physical;
+  const projectGeometry = createWildsConstructionGeometryProjector(Object.values(world.constructionMaterialContributions), Object.values(world.constructionWorkContributions));
   const solids=Object.values(world.constructionComponents).filter(c=>c.evidence.spaceId && c.evidence.spaceId!=="wildz.space.outer.v1").flatMap(c=>{
     const site=physical.surfaces.find(s=>s.spaceId===c.evidence.spaceId);
     if(!site)return [];
-    return projectWildsConstructionStageGeometry(c,Object.values(world.constructionMaterialContributions),Object.values(world.constructionWorkContributions)).solids.map(s=>({...s,siteKey:site.siteKey,spaceId:c.evidence.spaceId!}));
+    return projectGeometry(c).solids.map(s=>({...s,siteKey:site.siteKey,spaceId:c.evidence.spaceId!}));
   });
   if(!solids.length)return physical;
   const spaces=[...new Set(solids.map(s=>s.spaceId))];

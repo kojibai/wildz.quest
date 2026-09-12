@@ -7,13 +7,18 @@ import { type WildsMaterialLotV1 } from "./wilds-steward-construction";
 import { regionForPosition } from "./multiplayer-core";
 
 export function previewWildsContinuousBuild(world: WildsWorldProjection, owner: string, kind: WildsConstructionKind, request: WildsConstructionPlacementRequest) {
-  const region = regionForPosition(request.pointer);
-  const project = Object.values(world.constructionProjects).filter(p => p.ownerReceizId === owner && p.region.x === region.x && p.region.z === region.z)
-    .sort((a, b) => a.projectId.localeCompare(b.projectId))[0];
-  const draft = project ?? createWildsConstructionProject({ ownerReceizId: owner, name: "My place", region, commandId: "construction:preview", kaiUPulse: 0 });
-  const evidence = projectWildsProductionPlacementEvidence({ ...world, constructionProjects: { ...world.constructionProjects, [draft.projectId]: draft } }, draft.projectId, request);
-  const placement = previewWildsBlueprintPlacement({ ...evidence, blueprint: evidence.sourceBlueprint, kind });
-  return { project: project ?? null, region, placement, request };
+  const resolve = (region: ReturnType<typeof regionForPosition>) => {
+    const project = Object.values(world.constructionProjects).filter(p => p.ownerReceizId === owner && p.region.x === region.x && p.region.z === region.z)
+      .sort((a, b) => a.projectId.localeCompare(b.projectId))[0];
+    const draft = project ?? createWildsConstructionProject({ ownerReceizId: owner, name: "My place", region, commandId: "construction:preview", kaiUPulse: 0 });
+    const evidence = projectWildsProductionPlacementEvidence({ ...world, constructionProjects: { ...world.constructionProjects, [draft.projectId]: draft } }, draft.projectId, request);
+    const placement = previewWildsBlueprintPlacement({ ...evidence, blueprint: evidence.sourceBlueprint, kind });
+    return { project: project ?? null, region, placement, request };
+  };
+  const preview = resolve(regionForPosition(request.pointer));
+  // Snapping can cross a region boundary. Admission binds the final position.
+  const placedRegion = regionForPosition(preview.placement.transform.position);
+  return placedRegion.x === preview.region.x && placedRegion.z === preview.region.z ? preview : resolve(placedRegion);
 }
 
 export function selectWildsConstructionDeposit(lots: readonly WildsMaterialLotV1[], progress: WildsConstructionProgress): string[] {
