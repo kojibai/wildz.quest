@@ -37,11 +37,12 @@ export type WildsWalletTransferState = Readonly<{
 export type WildsWalletControllerState = Readonly<{
   identityKey: string; authorityGeneration: string; open: boolean; page: WildsWalletPage; status: WildsWalletControllerStatus;
   sourceAuthorityVerified: boolean;
+  transportAuthorityRequired?: boolean;
   requestId: number | null; receiveRequestId: number | null; summary: WalletSummaryProjection | null; capabilities: WalletCapabilityProjection | null;
   ledger: WalletLedgerPageProjection | null; recipient: WildsWalletRecipientState; receiveLocator: string | null; stagedTransactionId: string | null;
   transfer: WildsWalletTransferState;
 }>;
-export type WildsWalletPresentationState = WildsWalletControllerState & Readonly<{ edgeAuthorityVerified?: boolean }>;
+export type WildsWalletPresentationState = WildsWalletControllerState & Readonly<{ edgeAuthorityVerified?: boolean; operationError?: string | null }>;
 export type WildsWalletControllerEvent =
   | { type: "open" }
   | { type: "close" | "cancel-pending" }
@@ -134,11 +135,11 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
       if (state.requestId !== event.requestId || state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration) return state;
       // Transport only reports globally synchronized additions. It cannot
       // enable, disable, or replace the source proof object's authority.
-      if (state.sourceAuthorityVerified) return { ...state, status: "source-verified", requestId: null, capabilities: event.response.capabilities };
-      return { ...state, status: "verified", requestId: null, summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger };
+      if (state.sourceAuthorityVerified) return { ...state, transportAuthorityRequired: false, status: "source-verified", requestId: null, capabilities: event.response.capabilities };
+      return { ...state, transportAuthorityRequired: false, status: "verified", requestId: null, summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger };
     case "refresh-failed":
       if (state.requestId !== event.requestId) return state;
-      if (state.sourceAuthorityVerified) return { ...state, status: "source-verified", requestId: null };
+      if (state.sourceAuthorityVerified) return { ...state, status: "source-verified", requestId: null, transportAuthorityRequired: event.reason === "authority-required" || event.reason === "revoked" || state.transportAuthorityRequired === true };
       if (event.reason === "revoked") return clearPrivate(state, "revoked");
       if (event.reason === "network" && hasRetainedProjection(state)) return { ...state, status: "offline-verified", requestId: null };
       return clearPrivate(state, event.reason === "authority-required" ? "authority-required" : "failed");

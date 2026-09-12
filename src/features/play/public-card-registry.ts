@@ -170,13 +170,13 @@ export function parsePublicWildsCardRecord(value: unknown): PublicWildsCardRecor
   return parse(value);
 }
 
-function waitForPublicCardRegistration(
-  registration: Promise<PublicWildsCardRecord>,
+function waitForPublicCardRegistration<T>(
+  registration: Promise<T>,
   signal?: AbortSignal
 ) {
   if (!signal) return registration;
   signal.throwIfAborted();
-  return new Promise<PublicWildsCardRecord>((resolve, reject) => {
+  return new Promise<T>((resolve, reject) => {
     const abort = () => reject(signal.reason);
     signal.addEventListener("abort", abort, { once: true });
     void registration.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
@@ -299,27 +299,23 @@ export async function requireGloballyAvailablePublicWildsCard(
   fetcher: typeof fetch = globalThis.fetch,
   options: PublicWildsCardRegistrationOptions = {}
 ) {
-  options.signal?.throwIfAborted();
+  const readPublicRevision = async () => {
+    options.signal?.throwIfAborted();
+    const response = await fetcher(`/api/cards/${encodeURIComponent(asset.id)}`, {
+      method: "GET", signal: options.signal, credentials: "omit", cache: "no-store",
+      headers: { accept: "application/json", "cache-control": "no-cache" }
+    });
+    const payload = await response.json().catch(() => null) as { ok?: boolean; record?: PublicWildsCardRecord } | null;
+    const record = parsePublicWildsCardRecord(payload?.record);
+    return response.ok && payload?.ok === true && record?.assetId === asset.id
+      && record.asset.proof.digest === asset.proof.digest ? record : null;
+  };
+  // A card already live at this exact revision needs no publication credentials or upload.
+  const existing = await waitForPublicCardRegistration(readPublicRevision(), options.signal);
+  if (existing) return existing;
   await registerPublicWildsCard(asset, fetcher, options);
-  options.signal?.throwIfAborted();
-  const response = await fetcher(`/api/cards/${encodeURIComponent(asset.id)}`, {
-    method: "GET",
-    signal: options.signal,
-    credentials: "omit",
-    cache: "no-store",
-    headers: { accept: "application/json", "cache-control": "no-cache" }
-  });
-  const payload = await response.json().catch(() => null) as {
-    ok?: boolean;
-    record?: PublicWildsCardRecord;
-  } | null;
-  const record = parsePublicWildsCardRecord(payload?.record);
-  if (!response.ok
-    || payload?.ok !== true
-    || record?.assetId !== asset.id
-    || record.asset.proof.digest !== asset.proof.digest) {
-    throw new Error("wildz_public_card_anonymous_read_required");
-  }
+  const record = await waitForPublicCardRegistration(readPublicRevision(), options.signal);
+  if (!record) throw new Error("wildz_public_card_anonymous_read_required");
   return record;
 }
 

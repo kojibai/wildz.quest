@@ -434,3 +434,26 @@ test("never adopts a staged preview as execution success and expires review auth
   assert.equal(expired.transfer.phase, "review");
   assert.equal(expired.transfer.attempt, null);
 });
+
+
+test("source verification preserves holdings but cannot hide expired server authority", () => {
+  let state = verifiedState();
+  state = { ...state, sourceAuthorityVerified: true };
+  state = reduceWildsWalletController(state, { type: "refresh-start", requestId: 42 });
+  state = reduceWildsWalletController(state, { type: "refresh-failed", requestId: 42, reason: "authority-required" });
+  assert.equal(state.status, "source-verified");
+  assert.ok(state.summary);
+  assert.equal(wildsWalletStatusNeedsIdentityReadAuthority(state.status, state.transportAuthorityRequired), true);
+  state = reduceWildsWalletController(state, { type: "refresh-start", requestId: 43 });
+  state = reduceWildsWalletController(state, { type: "refresh-resolved", requestId: 43, identityKey: state.identityKey, authorityGeneration: state.authorityGeneration, response: readResponse() });
+  assert.equal(wildsWalletStatusNeedsIdentityReadAuthority(state.status, state.transportAuthorityRequired), false);
+});
+
+test("Phi formatting preserves small rewards without floating-point rounding", async () => {
+  const { formatWildsPhiExact, formatWildsPhiCompact, parseWildsPhiInput } = await import("../src/features/play/wallet/wilds-wallet-format");
+  for (const [micro, expected] of [["1", "0.000001"], ["1000", "0.001"], ["10000", "0.01"], ["100010000", "100.01"]]) {
+    assert.equal(formatWildsPhiExact(micro!), expected);
+    assert.equal(formatWildsPhiCompact(micro!), expected);
+    assert.equal(parseWildsPhiInput(expected!), micro);
+  }
+});

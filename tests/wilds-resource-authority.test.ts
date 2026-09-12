@@ -194,3 +194,15 @@ describe("deterministic sparse Wilds resource authority", () => {
     }), /current_kai_invalid/);
   });
 });
+
+it("restored resource presentation retains depletion while the local clock catches up", async () => {
+  const { projectWildsResourcePresentationAvailability } = await import("../src/features/play/wilds-resource-authority");
+  const source = projectWildsResourceRegion(0, 0)[0]!;
+  const input = { admittedHarvestedCapacity: source.capacity, lastHarvestKaiPulse: "10000000000", currentKaiPulse: "0" };
+  const pending = projectWildsResourcePresentationAvailability(source, input);
+  assert.equal(pending.availableCapacity, 0);
+  assert.equal(pending.clockPending, true);
+  assert.throws(() => projectWildsResourceAvailability(source, input), /kai_order_invalid/);
+  const caughtUp = { ...input, currentKaiPulse: String(10000000000n + BigInt(source.replenishment.intervalPulses)) };
+  assert.deepEqual(projectWildsResourcePresentationAvailability(source, caughtUp), { ...projectWildsResourceAvailability(source, caughtUp), clockPending: false });
+});

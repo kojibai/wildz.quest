@@ -183,7 +183,7 @@ test("v103 card download preserves the native proof artifact bytes", async () =>
     const downloaded = browser.downloaded();
     assert.ok(downloaded);
     assert.equal(result.published, true);
-    assert.equal(requestCount, 3);
+    assert.equal(requestCount, 2);
     assert.equal(downloaded.type, "image/png");
     assert.deepEqual(new Uint8Array(await downloaded.arrayBuffer()), expected);
     assert.equal(browser.downloadedFilename(), `${asset.manifest.name}.receized`);

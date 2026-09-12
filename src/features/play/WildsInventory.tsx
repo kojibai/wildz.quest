@@ -215,14 +215,19 @@ export function WildsInventory({
           retry = setTimeout(() => void prepare(), 30_000);
           return;
         }
-        setPublicLinkStatus("Preparing public card link…");
+        setPublicLinkStatus("Checking public card link…");
         const record = await requireGloballyAvailablePublicWildsCard(asset, globalThis.fetch, { signal: controller.signal });
         if (!active) return;
-        const value = await QRCode.toDataURL(record.sourceUrl, { errorCorrectionLevel: "M", margin: 4, width: 160 });
-        if (active) { setQr(value); setPublicLinkStatus(""); }
+        setPublicLinkStatus("");
+        try {
+          const value = await QRCode.toDataURL(record.sourceUrl, { errorCorrectionLevel: "M", margin: 4, width: 160 });
+          if (active) setQr(value);
+        } catch {
+          if (active) setPublicLinkStatus("Public link is live. QR preview could not load.");
+        }
       } catch {
         if (active) {
-          setPublicLinkStatus("Public link is syncing. Retrying automatically…");
+          setPublicLinkStatus("Could not confirm the latest public card revision. Retrying automatically…");
           retry = setTimeout(() => void prepare(), 30_000);
         }
       } finally {

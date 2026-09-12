@@ -3,7 +3,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, type ComponentProps } from "react";
 import * as THREE from "three";
-import { projectWildsResourceAvailability, type WildsResourceSource } from "./wilds-resource-authority";
+import { projectWildsResourcePresentationAvailability as projectWildsResourceAvailability, type WildsResourceSource } from "./wilds-resource-authority";
 import type { WildsWorldProjection } from "./wilds-world-state";
 import type { WildsStructureV1 } from "./wilds-steward-construction";
 import { projectWildsTerrainActorPosition } from "./wilds-terrain-rendering";

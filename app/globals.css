@@ -16940,3 +16940,6 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 .wildz-profile-publication button:hover:not(:disabled) { background: #356548; }
 .wildz-profile-publication button:focus-visible { outline: 2px solid #c7e9ad; outline-offset: 3px; }
 .wildz-profile-publication button:disabled { opacity: .6; cursor: default; }
+
+.wildz-profile-sync-details { display: inline-flex; align-items: center; justify-content: center; padding: 0; width: 28px; height: 28px; border: 0; background: transparent; color: inherit; cursor: pointer; }
+.wildz-profile-sync-details:focus-visible { outline: 2px solid #c7e9ad; outline-offset: 3px; border-radius: 6px; }

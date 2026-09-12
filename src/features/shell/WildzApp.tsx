@@ -529,6 +529,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         return publishCurrentWildzProfile(profilePublicationRequest.profile, profilePublicationRequest.assets, globalThis.fetch, {
           signal,
           onProgress: progress,
+          confirmExisting: true,
           proofObjects: profilePublicationRequest.proofObjects,
           prepareBody: async (value) => await wildzJsonSerializer.serialize(value)
             ?? wildzGameplayBackground.run(() => JSON.stringify(value))
@@ -542,7 +543,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       publication.stop();
       if (retryProfilePublicationRef.current === publication.wake) retryProfilePublicationRef.current = null;
     };
-  }, [profilePublicationReadiness, profilePublicationKey]);
+  }, [profilePublicationReadiness, profilePublicationKey, proofSessionGeneration, identity?.remoteStatus]);
 
   useEffect(() => {
     if (overlay?.kind !== "profile") {

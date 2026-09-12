@@ -19,7 +19,7 @@ import { useWildsReadability } from "@/features/play/WildsReadabilityContext";
 import { projectWildsEcologyInstance } from "@/features/play/wilds-ecology-placement";
 import { buildWildsTerrainPatchProjection, buildWildsTerrainRibbonProjection, buildWildsTerrainWaterProjection, wildsTerrainRelativeElevation } from "@/features/play/wilds-terrain-rendering";
 import { projectWildsObstaclePlacement, wildsTerrainObstaclesForTile } from "@/features/play/wilds-terrain-obstacles";
-import { projectWildsResourceAvailability, projectWildsResourceSourceForObstacle } from "@/features/play/wilds-resource-authority";
+import { projectWildsResourcePresentationAvailability as projectWildsResourceAvailability, projectWildsResourceSourceForObstacle } from "@/features/play/wilds-resource-authority";
 import { projectWildsResourceBody, projectWildsSourceWorkMotion, type WildsActiveWorkSource, type WildsResourceBodyProjection } from "@/features/play/wilds-work-presentation";
 import { projectWildsOverlooks, type WildsOverlookId } from "@/features/play/wilds-overlooks";
 import { WildsWorldArt } from "@/features/play/WildsWorldArt";

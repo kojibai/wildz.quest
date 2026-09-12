@@ -263,6 +263,19 @@ export function projectWildsResourceAvailability(
   return freeze({ availableCapacity, nextChangeKaiPulse });
 }
 
+/** Rendering can see restored history before the local clock has caught up.
+ * Preserve depletion at the last admitted instant; never invent replenishment or
+ * relax the strict chronological checks used to authorize a harvest.
+ */
+export function projectWildsResourcePresentationAvailability(
+  source: WildsResourceSource,
+  input: Parameters<typeof projectWildsResourceAvailability>[1]
+) {
+  const clockPending = kai(input.currentKaiPulse, "current_kai") < kai(input.lastHarvestKaiPulse, "last_harvest_kai");
+  return { ...projectWildsResourceAvailability(source, clockPending
+    ? { ...input, currentKaiPulse: input.lastHarvestKaiPulse } : input), clockPending };
+}
+
 function invalid(reason: string): WildsHarvestPreview {
   return freeze({ schema: "wildz.harvest-preview.v1", valid: false, reason, physical: false, publish: "blocked-receiz-v122", writes: 0, candidate: null });
 }

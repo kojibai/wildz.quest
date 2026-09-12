@@ -181,7 +181,7 @@ import { admitWildsDiscoveryPhysicalNeighborhood, wildsDiscoverySiteRegionForPos
 import { prepareWildsSiteRuntime, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeEncounter, writeWildsSiteRuntimeLanding, writeWildsSiteRuntimeMovement } from "@/features/play/wilds-site-runtime";
 import { discoverWildsExplorationSite } from "@/features/play/wilds-exploration-atlas";
 import { initialWildsHarvestedSourceState, projectWildsCreatureWorkFamilies, selectWildsTrailBridgeRotation } from "@/features/play/wilds-steward-construction";
-import { projectWildsResourceAvailability, projectWildsResourceRegion, type WildsResourceSource } from "@/features/play/wilds-resource-authority";
+import { projectWildsResourcePresentationAvailability as projectWildsResourceAvailability, projectWildsResourceRegion, type WildsResourceSource } from "@/features/play/wilds-resource-authority";
 import { projectWildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
 import type { WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
 import { projectWildsWorkCapabilityMeters, selectNearestWildsWorkSource, selectWildsResourceWorkPartner, type WildsVisibleWorkFamily } from "@/features/play/wilds-work-capability";
@@ -497,6 +497,7 @@ export function PlayCampaign({
   const [groveBusyAction, setGroveBusyAction] = useState<WildsGroveActionKind | null>(null);
   const [activeRaid, setActiveRaid] = useState<{ bossId: string; roundId: string; placement: "fighter" | "support"; connected: boolean } | null>(null);
   const [raidReturnPosition, setRaidReturnPosition] = useState<{ x: number; z: number } | null>(null);
+  const [raidError, setRaidError] = useState<string | null>(null);
   const [raidBusyIntent, setRaidBusyIntent] = useState<WildsRaidIntent["type"] | null>(null);
   const [riftError, setRiftError] = useState("");
   const [worldFeedbackRevision, setWorldFeedbackRevision] = useState(0);
@@ -1397,6 +1398,10 @@ export function PlayCampaign({
         lastHarvestKaiPulse: current.lastHarvestKaiPulse,
         currentKaiPulse: String(kaiUPulse)
       });
+      if (availability.clockPending) {
+        showWorldFeedback("This resource has a newer update. Wait a moment, then gather again.");
+        return;
+      }
       if (availability.availableCapacity === 0) {
         const remainingMicroPulses = availability.nextChangeKaiPulse
           ? BigInt(availability.nextChangeKaiPulse) - BigInt(kaiUPulse)
@@ -2737,9 +2742,10 @@ export function PlayCampaign({
                   : initialPlayerContinuity?.canonicalCursor ?? { worldId: "wilds:global:v3", revision: 0, eventId: null },
                 receipts: initialPlayerContinuity?.receipts ?? []
               }))}
-              onSendCard={(asset, targetHandle) => messenger.sendCardOffer(asset, targetHandle)}
+              onSendCard={async (asset, targetHandle) => { await walletController.secureTransferAuthority(); return messenger.sendCardOffer(asset, targetHandle); }}
               onListCard={onListAsset}
               onSendResource={async (resourceLot, targetHandle) => {
+                await walletController.secureTransferAuthority();
                 const response = await fetch("/api/wilds/resources/transfers", {
                   method: "POST", credentials: "same-origin", cache: "no-store", headers: { "content-type": "application/json" },
                   body: JSON.stringify({ resourceLot, targetHandle })
@@ -2749,6 +2755,7 @@ export function PlayCampaign({
                 return { claimUrl: payload.claimUrl };
               }}
               onSendMaterial={async (materialLot, targetHandle) => {
+                await walletController.secureTransferAuthority();
                 const response = await fetch("/api/wilds/resources/transfers", {
                   method: "POST", credentials: "same-origin", cache: "no-store", headers: { "content-type": "application/json" },
                   body: JSON.stringify({ materialLot, targetHandle })
@@ -3048,10 +3055,11 @@ export function PlayCampaign({
         cardName={activeAsset?.manifest.name ?? activeCard.name}
         connected={activeRaid?.connected ?? false}
         encounter={activeRaidEncounter}
-        error={livingWorld.error || riftError || null}
+        error={raidError}
         onAction={(intent) => {
           if (!activeRaid || !activeAsset || !activeRaidBoss || !activeRaidRoles) return;
           beginWorldActionFeedback();
+          setRaidError(null);
           setRaidBusyIntent(intent);
           void livingWorld.actRaid(activeRaid.bossId, activeRaid.roundId, intent).then((projection) => {
             const boss = projection.bosses[activeRaid.bossId];
@@ -3080,7 +3088,7 @@ export function PlayCampaign({
               })
             });
             presentation.playCue(bossAudioCue(boss.phase === "defeated" ? "defeat" : boss.phase === "transforming" ? "transform" : boss.phase === "vulnerable" ? "vulnerable" : "action", boss.familyId as WildsBossFamilyId));
-          }).catch((error) => showWorldFeedback(error instanceof Error ? error.message : "wilds_raid_action_failed")).finally(() => setRaidBusyIntent(null));
+          }).catch((error) => { const message = friendlyWildsGameplayError(error, "The boss action could not finish. Please retry."); setRaidError(message); showWorldFeedback(message); }).finally(() => setRaidBusyIntent(null));
         }}
         onClose={() => {
           if (!activeRaid) return;
@@ -3088,6 +3096,7 @@ export function PlayCampaign({
           void livingWorld.retreatRaid(activeRaid.bossId, activeRaid.roundId).catch(() => undefined);
           if (raidReturnPosition) setState((current) => ({ ...current, player: raidReturnPosition }));
           setActiveRaid(null);
+          setRaidError(null);
           setRaidReturnPosition(null);
         }}
         onLease={(status) => {

@@ -59,6 +59,7 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
 }) {
   const [shareResult, setShareResult] = useState<WildzShareResult | null>(null);
   const [profileLinkAction, setProfileLinkAction] = useState<{ kind: "share" | "copy"; phase: "working" | "success" | "error" } | null>(null);
+  const [publicationDetailsOpen, setPublicationDetailsOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draftUsername, setDraftUsername] = useState(profile.username.replace(/^@/, ""));
@@ -165,11 +166,11 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
   return <div className="wildz-profile-sheet">
     <header className="wildz-profile-head"><div className="wildz-profile-avatar">{draftAvatar ? <Image alt="" height={58} src={draftAvatar} unoptimized width={58} /> : profile.displayName.slice(0, 2).toUpperCase()}</div><div>
       <span>Explorer profile</span><h2>{profile.displayName}</h2><p className="wildz-profile-handle">{profile.username}{editable ? <span className="wildz-profile-sync" data-state={publishing ? "syncing" : publicationStatus} role="status" aria-live="polite" aria-label={publicationMessage} title={publicationMessage}>
-        {publicationStatus === "published" ? <NextLink aria-label="Open public profile" title="Profile is live · open public profile" href={canonicalWildzProfilePath(profile.username)}><Check aria-hidden="true" size={16} /></NextLink> : <CloudUpload aria-hidden="true" size={16} />}
+        {publicationStatus === "published" ? <NextLink aria-label="Open public profile" title="Profile is live · open public profile" href={canonicalWildzProfilePath(profile.username)}><Check aria-hidden="true" size={16} /></NextLink> : <button type="button" className="wildz-profile-sync-details" aria-label="Profile sync details" aria-expanded={publicationDetailsOpen} title={publicationFailure || publicationMessage} onClick={() => setPublicationDetailsOpen(value => !value)}><CloudUpload aria-hidden="true" size={16} /></button>}
       </span> : null}</p>
     </div>{editable ? <button className="wildz-profile-edit-trigger" aria-label="Edit profile" aria-pressed={editing} onClick={() => setEditing((value) => !value)} type="button"><Pencil aria-hidden="true" size={18} /></button> : null}</header>
 
-    {editable && publicationStatus !== "published" ? <section className="wildz-profile-publication" aria-label="Profile publication">
+    {editable && publicationDetailsOpen && publicationStatus !== "published" ? <section className="wildz-profile-publication" aria-label="Profile publication">
       <p role="status" aria-live="polite">{publicationFailure || publicationMessage}</p>
       {onRetryPublication ? <button type="button" disabled={publishing} onClick={onRetryPublication}>{publishing ? "Syncing…" : "Retry sync"}</button> : null}
     </section> : null}

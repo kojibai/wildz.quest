@@ -270,3 +270,16 @@ test("profile signing does not bypass rejected card ownership", async () => {
   }), /card_not_owned/);
   assert.equal(signed,false);
 });
+
+test("restoring an unchanged public profile confirms it without requiring a new publication", async () => {
+  const profile = sanitizePublicWildzProfile(fernProfile);
+  const calls: string[] = [];
+  const fetcher = (async (_url: string, init?: RequestInit) => {
+    calls.push(init?.method ?? "GET");
+    if (init?.method === "POST") return Response.json({ error: "wildz_public_profile_owner_mismatch" }, { status: 403 });
+    assert.equal(init?.credentials, "omit");
+    return Response.json({ ok: true, profile });
+  }) as typeof fetch;
+  assert.deepEqual(await publishCurrentWildzProfile(profile, [], fetcher, { confirmExisting: true }), profile);
+  assert.deepEqual(calls, ["GET"]);
+});

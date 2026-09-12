@@ -82,6 +82,7 @@ export function WildsWalletTerminal({ actionHistory, livingOperations, cards = [
         <span className="wilds-wallet-identity"><b title={publicUsername ? `@${publicUsername}` : undefined}>{publicUsername ? `@${publicUsername}` : "PUBLIC HANDLE NOT AVAILABLE"}</b><small data-wallet-authority={authority.toLowerCase().replaceAll(" ", "-")}>{authority}</small></span>
         <button aria-label="Close sovereign wallet" disabled={!closeAllowed} onClick={actions.onClose} type="button">×</button>
       </header>
+      {state.operationError ? <p className="wilds-wallet-state-strip" role="status">{state.operationError}</p> : null}
       <nav aria-label="Wallet terminal" className="wilds-wallet-navigation" role="tablist">{pages.map((item, index) => <button aria-controls={`wilds-wallet-panel-${item.page}`} aria-selected={state.page === item.page} key={item.page} onClick={() => actions.onNavigate(item.page)} onKeyDown={moveTab} ref={(node) => { tabRefs.current[index] = node; }} role="tab" tabIndex={state.page === item.page ? 0 : -1} type="button"><i aria-hidden="true">{item.mark}</i><span>{item.label}</span></button>)}</nav>
       <main className="wilds-wallet-terminal-content" id={`wilds-wallet-panel-${state.page}`} role="tabpanel">
         {state.page === "overview" ? <WildsWalletOverview state={state} onNavigate={actions.onNavigate} /> : null}

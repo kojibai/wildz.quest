@@ -1,3 +1,4 @@
+import { canonicalPortableCardJson } from "../../features/play/portable-card";
 import { publishWildzProfileWithIdentityProof } from "./wildz-profile-identity-publication";
 import {
   canonicalWildzHandle,
@@ -5,7 +6,7 @@ import {
   sanitizePublicWildzProfile,
   type PublicWildzProfile
 } from "@/features/profile/public-profile";
-import { registerPublicWildsCard } from "@/features/play/public-card-registry";
+import { registerPublicWildsCard, requireGloballyAvailablePublicWildsCard } from "@/features/play/public-card-registry";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import type { WildzAdmittedVaultProofObjects } from "./wildz-vault-card-admission";
 import { createReceizCommerceAdapter } from "./adapter";
@@ -203,9 +204,10 @@ export function wildzProfilePublicationReadiness(input: {
     : "waiting";
 }
 
-export async function fetchPublicWildzProfile(username: string, fetcher: typeof fetch = globalThis.fetch) {
+export async function fetchPublicWildzProfile(username: string, fetcher: typeof fetch = globalThis.fetch, options: { signal?: AbortSignal } = {}) {
   const handle = canonicalWildzHandle(username);
   const response = await fetcher(publicProfileEndpoint(handle), {
+    signal: options.signal,
     cache: "no-cache",
     credentials: "omit",
     headers: { accept: "application/json" }
@@ -223,7 +225,7 @@ export async function publishCurrentWildzProfile(
   profile: PublicWildzProfile,
   assetsOrFetcher: readonly PortableCardAsset[] | typeof fetch = [],
   suppliedFetcher: typeof fetch = globalThis.fetch,
-  options: { signal?: AbortSignal; onProgress?: () => void; proofObjects?: WildzAdmittedVaultProofObjects; prepareBody?: (value: unknown) => Promise<string>; publishWithIdentityProof?: (profile: PublicWildzProfile, signal?: AbortSignal) => Promise<PublicWildzProfile> } = {}
+  options: { confirmExisting?: boolean; signal?: AbortSignal; onProgress?: () => void; proofObjects?: WildzAdmittedVaultProofObjects; prepareBody?: (value: unknown) => Promise<string>; publishWithIdentityProof?: (profile: PublicWildzProfile, signal?: AbortSignal) => Promise<PublicWildzProfile> } = {}
 ) {
   const assets = typeof assetsOrFetcher === "function" ? [] : assetsOrFetcher;
   const fetcher = typeof assetsOrFetcher === "function" ? assetsOrFetcher : suppliedFetcher;
@@ -239,10 +241,15 @@ export async function publishCurrentWildzProfile(
   // Never use that display limit as the standalone-card publication queue.
   for (const asset of assetsById.values()) {
     options.signal?.throwIfAborted();
-    await registerPublicWildsCard(asset, fetcher, { proofObjects: options.proofObjects, signal: options.signal, prepareBody: options.prepareBody });
+    await (options.confirmExisting ? requireGloballyAvailablePublicWildsCard : registerPublicWildsCard)(asset, fetcher, { proofObjects: options.proofObjects, signal: options.signal, prepareBody: options.prepareBody });
     options.onProgress?.();
   }
   options.signal?.throwIfAborted();
+  if (options.confirmExisting) {
+    const existing = await fetchPublicWildzProfile(profile.username, fetcher, { signal: options.signal });
+    options.signal?.throwIfAborted();
+    if (existing && canonicalPortableCardJson(existing) === canonicalPortableCardJson(sanitizePublicWildzProfile(profile))) return existing;
+  }
   const response = await fetcher(publicProfileEndpoint(profile.username), {
     method: "POST",
     credentials: "same-origin",

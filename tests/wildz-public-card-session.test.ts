@@ -200,7 +200,7 @@ test("a QR caller can cancel its wait without cancelling another publisher's sha
   await publishing;
   await waiting;
   assert.equal(outcome,"aborted");
-  assert.equal(calls,1);
+  assert.equal(calls,2); // One independent publication plus the anonymous availability check.
 });
 
 test("unsigned registry authorization failure retries through the owner's signed publication", async () => {
@@ -242,4 +242,31 @@ test("cancelled body preparation releases the shared upload and cannot publish l
   await new Promise<void>(resolve => setImmediate(resolve));
   assert.equal(outcome, "published");
   assert.equal(requests, 1, "only the fresh retry may reach the registry");
+});
+
+
+test("an already public exact revision opens without attempting another authenticated publication", async () => {
+  const asset = initialPlayState.inventory[0]!;
+  const record = createPublicWildsCardRecord(asset, "https://wildz.quest", "2026-09-09T11:00:00.000Z");
+  const methods: string[] = [];
+  const fetcher = (async (_url: string, init?: RequestInit) => {
+    methods.push(init?.method ?? "GET");
+    if (init?.method === "POST") return Response.json({ error: "unauthorized" }, { status: 401 });
+    assert.equal(init?.credentials, "omit");
+    return Response.json({ ok: true, record });
+  }) as typeof fetch;
+  assert.equal((await publicCardRegistry.requireGloballyAvailablePublicWildsCard(asset, fetcher)).assetId, asset.id);
+  assert.deepEqual(methods, ["GET"]);
+});
+
+test("a missing public revision is published and then anonymously verified", async () => {
+  const asset = initialPlayState.inventory[0]!;
+  const record = createPublicWildsCardRecord(asset, "https://wildz.quest", "2026-09-09T11:00:00.000Z");
+  const methods: string[] = [];
+  const fetcher = (async (_url: string, init?: RequestInit) => {
+    methods.push(init?.method ?? "GET");
+    return methods.length === 1 ? Response.json({ ok: false }, { status: 404 }) : Response.json({ ok: true, record });
+  }) as typeof fetch;
+  await publicCardRegistry.requireGloballyAvailablePublicWildsCard(asset, fetcher);
+  assert.deepEqual(methods, ["GET", "POST", "GET"]);
 });
