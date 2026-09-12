@@ -1,0 +1,22 @@
+.journey { color: #eaf5ed; min-width: 0; padding: 18px; background: #101f20; border: 1px solid #3b5650; border-radius: 16px; overflow-wrap: anywhere; }
+.eyebrow { display: block; color: #a7c7b3; font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+.title { margin: 8px 0; font-size: 21px; line-height: 1.2; }
+.reason, .empty { margin: 0 0 16px; color: #c4d6cc; font-size: 13px; line-height: 1.55; }
+.journey button { min-height: 44px; padding: 10px 14px; border: 1px solid #557365; border-radius: 9px; background: #233c33; color: #edf7ef; font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; text-align: left; }
+.journey button:hover:not(:disabled) { background: #345141; border-color: #a6cc9e; }
+.journey button:active:not(:disabled) { background: #426149; }
+.journey button:focus-visible { outline: 2px solid #d4eeb2; outline-offset: 3px; }
+.journey button:disabled { opacity: .5; cursor: default; }
+.journey .primary { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 12px; background: #c7e5ad; color: #172c21; border-color: #c7e5ad; }
+.journey .primary:hover { background: #dbefc9; color: #172c21; }
+.home, .memories { margin-top: 20px; padding-top: 18px; border-top: 1px solid #354d43; }
+.journey h4 { margin: 5px 0 8px; font-size: 15px; line-height: 1.4; }
+.home p { margin: 0; color: #b5cabe; font-size: 12px; font-variant-numeric: tabular-nums; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.memories ol { list-style: none; padding: 0; margin: 12px 0 0; }
+.memories li { display: flex; align-items: flex-start; gap: 11px; padding: 8px 0; }
+.memories li p { margin: 0; color: #d7e5dc; font-size: 13px; line-height: 1.5; }
+.marker { flex: 0 0 5px; width: 5px; height: 5px; border-radius: 50%; margin-top: 7px; background: #accb8e; }
+.with { display: block; margin-top: 3px; font-size: 11px; color: #a8beb1; }
+.empty { margin: 10px 0 0; }
+@media (max-width: 420px) { .journey { padding: 14px; } .title { font-size: 19px; } .actions button { flex: 1 1 120px; } }

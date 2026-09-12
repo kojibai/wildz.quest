@@ -1,0 +1,11 @@
+.panel { border: 1px solid rgba(157, 206, 181, .22); border-radius: 16px; padding: 16px; color: #e5f2e9; background: rgba(10, 27, 24, .72); }
+.panel p, .panel small { color: #b9cec2; font-size: .8rem; line-height: 1.5; }
+.toggle { display: flex; align-items: center; gap: 10px; font-weight: 650; cursor: pointer; min-height: 44px; }
+.toggle input { width: 20px; height: 20px; accent-color: #a5edc4; }
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 16px 0; }
+.metrics dt { font-size: .75rem; color: #b9cec2; }
+.metrics dd { margin: 6px 0 0; font-variant-numeric: tabular-nums; font-size: 1.2rem; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.actions button { min-height: 44px; border: 1px solid rgba(165, 237, 196, .35); border-radius: 10px; background: #183d31; color: #e5f2e9; padding: 8px 12px; cursor: pointer; font: inherit; font-size: .8rem; }
+.actions button:hover { background: #22513f; }
+.actions button:focus-visible, .toggle input:focus-visible { outline: 2px solid #a5edc4; outline-offset: 3px; }

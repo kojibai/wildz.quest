@@ -7,6 +7,13 @@ import { requestWildsDive } from "./wilds-vertical-traversal";
 import { resolveWildsConstructionFunction } from "./wilds-construction-function";
 
 import dynamic from "next/dynamic";
+import { projectWildsEarnedPhi } from "./wilds-earned-phi";
+import { useWildsJourney } from "./useWildsJourney";
+import { useWildsPlaytest } from "./useWildsPlaytest";
+import { WildsPlaytestPanel } from "./WildsPlaytestPanel";
+import { WildsJourneyPanel } from "./WildsJourneyPanel";
+import { projectWildsNextStep, type WildsNextStepAction } from "./wilds-next-step";
+import { nearestUnvisitedWildsSite, wildsDiscoveryImpression, wildsTrailDirection } from "./wilds-journey-discovery";
 import { Icons } from "@/components/icons";
 import { Button, StatusPill } from "@/components/ui";
 import {
@@ -467,6 +474,10 @@ export function PlayCampaign({
   const previousPlayerPosition = useRef(state.player);
   const [movementMode, setMovementMode] = useState<WildsMovementMode>(() => initialPlayerContinuity?.settings.movementMode ?? "walk");
   const [cardOrder, setCardOrder] = useState<WildzCardOrder>(() => initialPlayerContinuity?.settings.cardOrder ?? "rarity");
+  const { memories: journeyMemories, remember: rememberJourney } = useWildsJourney(ownerReceizId);
+  const playtest = useWildsPlaytest();
+  const markPlaytest = playtest.mark;
+  useEffect(() => { if (shellOverlayOwner === "profile" || shellOverlayOwner === "market") markPlaytest("panel", "success"); }, [shellOverlayOwner, markPlaytest]);
   const [visualSettings, setVisualSettings] = useState<WildsVisualSettings>(() => normalizeWildsVisualSettings(initialPlayerContinuity?.settings.visual));
   const [activeLandmarkId, setActiveLandmarkId] = useState<WildsLandmarkId | null>(null);
   const [activeDistrictId, setActiveDistrictId] = useState<WildsSettlementDistrictId>("trail-gate");
@@ -503,6 +514,7 @@ export function PlayCampaign({
   const [stewardPlacementMode, setStewardPlacementMode] = useState<WildsStewardBlueprintId | null>(null);
   const [stewardPlacementPreview, setStewardPlacementPreview] = useState<WildsStewardPlacement | null>(null);
   const [requestedCommand, setRequestedCommand] = useState<WildsCommandKey | null>(null);
+  useEffect(() => { if (requestedCommand) markPlaytest("panel", "success"); }, [requestedCommand, markPlaytest]);
   const [vaultFocusedAssetId, setVaultFocusedAssetId] = useState<string | null>(null);
   const [commandDismissSignal, setCommandDismissSignal] = useState(0);
   const [activeTrainer, setActiveTrainer] = useState<WildsTrainerProjection | null>(null);
@@ -654,6 +666,10 @@ export function PlayCampaign({
   const captureRewardAsset = captureRewardAssetId
     ? state.inventory.find((candidate) => candidate.id === captureRewardAssetId) ?? null
     : null;
+  useEffect(() => {
+    if (!captureRewardAsset || state.encounter.phase !== "revealed" || !sameWildzPlayerCoordinate(state.encounter.ownerReceizId, ownerReceizId)) return;
+    rememberJourney({ kind: "met", subjectId: captureRewardAsset.id, companionId: captureRewardAsset.id, companionName: captureRewardAsset.manifest.name, label: "Joined your trail", position: state.encounter.placement ? { x: state.encounter.placement.x, z: state.encounter.placement.z } : state.encounter.searchPoint });
+  }, [captureRewardAsset, state.encounter, rememberJourney, ownerReceizId]);
   const combatSurface = projectPlayCombatSurface({
     trainer: Boolean(activeTrainer && activeAsset && trainerEncounter?.phase === "combat"),
     wild: isWildBattleModalOwner(state.encounter.phase, Boolean(state.battle)),
@@ -903,6 +919,23 @@ export function PlayCampaign({
     [siteRegion.x, siteRegion.z, livingWorld.snapshot]
   );
   const siteRuntime = useMemo(() => prepareWildsSiteRuntime(sitePhysical), [sitePhysical]);
+  const earnedWorldPhi = useMemo(() => projectWildsEarnedPhi({ awards: Object.values(livingWorld.snapshot?.stewardPhiAwards ?? {}), ownerReceizId }), [livingWorld.snapshot?.stewardPhiAwards, ownerReceizId]);
+  const witnessedSites = useRef<{ owner: string; keys: readonly string[] }>({ owner: ownerReceizId, keys: state.explorationAtlas.siteKeys });
+  useEffect(() => {
+    const previous = witnessedSites.current;
+    witnessedSites.current = { owner: ownerReceizId, keys: state.explorationAtlas.siteKeys };
+    if (previous.owner !== ownerReceizId) return;
+    const known = new Set(previous.keys);
+    for (const key of state.explorationAtlas.siteKeys) {
+      if (known.has(key)) continue;
+      const site = siteRuntime.sites.find(candidate => candidate.key === key);
+      if (!site) continue;
+      const label = site.family.replaceAll("-", " ");
+      rememberJourney({ kind: "discovered", subjectId: key, companionId: activeAsset?.id, companionName: activeAsset?.manifest.name, label: `Discovered a ${label}`, position: site.entrance });
+      markPlaytest("discovery", "success");
+      showWorldFeedback(`${activeAsset ? `${activeAsset.manifest.name} is here with you. ` : ""}${wildsDiscoveryImpression(site)}`);
+    }
+  }, [state.explorationAtlas.siteKeys, siteRuntime, ownerReceizId, activeAsset, rememberJourney, markPlaytest, showWorldFeedback]);
   const siteMovementOutputRef = useRef({ x: 0, z: 0, floorY: 0, ceilingY: Number.POSITIVE_INFINITY, surfaceId: null as string | null, flooded: false, blocked: false, blockedByClimb: false });
   const siteDiscoveryOutputRef = useRef({ siteKey: null as string | null });
   const siteLandingOutputRef = useRef({ x: 0, z: 0, floorY: 0, found: false });
@@ -1367,10 +1400,10 @@ export function PlayCampaign({
       const workStartedAtMs = performance.now();
       setActiveWorkSource({ sourceId: source.sourceId, kind: source.kind === "timber" ? "timber" : "stone", position: source.position, startedAtMs: workStartedAtMs, settledAtMs: null });
       const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
-      const [projection] = await Promise.all([
-        livingWorld.harvestMaterial(source, current.head, state.player, mandate, partner ? { card: partner, cardAdmission: partnerAdmission } : null),
-        new Promise<void>((resolve) => window.setTimeout(resolve, 720))
-      ]);
+      markPlaytest("harvest", "start");
+      const projection = await livingWorld.harvestMaterial(source, current.head, state.player, mandate, partner ? { card: partner, cardAdmission: partnerAdmission } : null);
+      markPlaytest("harvest", "success");
+      rememberJourney({ kind: "harvest", subjectId: source.sourceId, companionId: partner?.id, companionName: partner?.manifest.name, label: partner ? `Gathered ${source.kind} together` : `Gathered ${source.kind}`, position: source.position });
       if (partner) dispatch({ type: "record-steward-work", assetId: partner.id });
       setActiveWorkSource((active) => active?.sourceId === source.sourceId ? { ...active, settledAtMs: performance.now() } : active);
       workPresentationTimerRef.current = window.setTimeout(() => {
@@ -1378,13 +1411,14 @@ export function PlayCampaign({
         workPresentationTimerRef.current = null;
       }, 850);
       const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
-      const awardMessage = award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the work.` : "";
+      const awardMessage = award ? `+Φ${formatWildsPhiExact(award.amountPhiMicro)} earned · ` : "";
       const satchelCount = Object.values(projection.materialLots).filter((lot) => lot.kind === source.kind
         && sameWildzPlayerCoordinate(wildsMaterialCustodian(projection, lot), ownerReceizId)
         && !projection.consumedMaterialLots[lot.lotId] && !projection.storedMaterialLots[lot.lotId]
         && !projection.reservedMaterialLots[lot.lotId]).length;
-      showWorldFeedback(`${partner ? `${partner.manifest.name} joined you and spent 3% capacity. ` : ""}+1 ${source.kind} · Satchel ${satchelCount}.${awardMessage}`);
+      showWorldFeedback(`${awardMessage}+1 ${source.kind} · Satchel ${satchelCount}. ${partner ? `${partner.manifest.name} helped and spent 3% capacity.` : ""}`);
     } catch (error) {
+      markPlaytest("harvest", "failure");
       setActiveWorkSource((active) => active?.sourceId === source.sourceId ? null : active);
       handleStoryCommandError(error, `That ${source.kind === "timber" ? "tree" : source.kind === "hay" ? "hay patch" : "stone"} cannot be gathered from this position. Move inside its bright ring and tap again.`);
     }
@@ -1480,10 +1514,13 @@ export function PlayCampaign({
     beginWorldActionFeedback();
     try {
       const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
+      markPlaytest("placement", "start");
       const projection = await livingWorld.workConstructionSite(site.siteId, site.head, state.player);
+      markPlaytest("placement", "success");
+      rememberJourney({ kind: "built", subjectId: site.siteId, companionId: activeAsset?.id, companionName: activeAsset?.manifest.name, label: `Finished a ${site.blueprint === "trail-shelter" ? "trail shelter" : "bridge"}`, position: site.position });
       const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
       showWorldFeedback(`${site.blueprint === "trail-shelter" ? "The Trail Shelter now stands. Choose a building piece below to add walls, stairs or a roof. A workbench is only needed to craft an axe or pick" : "The Trail Bridge now joins both banks"}.${award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the useful work.` : ""}`);
-    } catch (error) { handleStoryCommandError(error, "This build could not finish yet. Your placed materials are preserved. Try Finish again."); }
+    } catch (error) { markPlaytest("placement", "failure"); handleStoryCommandError(error, "This build could not finish yet. Your placed materials are preserved. Try Finish again."); }
   };
 
   const placeStewardGroundStructure = async (blueprint: "steward-workbench" | "trail-cache", position: { x: number; z: number }) => {
@@ -1497,12 +1534,17 @@ export function PlayCampaign({
       const stone = availableMaterialLots.filter((lot) => lot.kind === "stone").slice(0, definition.stone);
       if (timber.length !== definition.timber || stone.length !== definition.stone) throw new Error(`Gather ${definition.timber} timber and ${definition.stone} stone first.`);
       const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
+      markPlaytest("placement", "start");
       const projection = await definition.build(position, state.player, 0, [...timber, ...stone].map((lot) => lot.lotId));
+      markPlaytest("placement", "success");
+      const built = Object.values(projection.structures).find(item => item.blueprint === blueprint && item.position.x === position.x && item.position.z === position.z && sameWildzPlayerCoordinate(item.ownerReceizId, ownerReceizId));
+      if (built) rememberJourney({ kind: "built", subjectId: built.structureId, companionId: activeAsset?.id, companionName: activeAsset?.manifest.name, label: `Built a ${definition.label}`, position: built.position });
       const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
       setStewardPlacementMode(null);
       setStewardPlacementPreview(null);
       showWorldFeedback(`Your ${definition.label} now persists in the shared Wilds.${award ? ` Φ${formatWildsPhiExact(award.amountPhiMicro)} settled from the work.` : ""}`);
     } catch (error) {
+      markPlaytest("placement", "failure");
       handleStoryCommandError(error, `That place cannot hold a ${definition.label.toLowerCase()} yet.`);
     }
   };
@@ -1589,8 +1631,8 @@ export function PlayCampaign({
     }
     dispatch(input);
   };
-  const dispatchLayeredSearch = (point: { x: number; z: number; surfaceWorldY?: number }) => {
-    if (!canUseWorldStage()) return;
+  const dispatchLayeredSearch = (point: { x: number; z: number; surfaceWorldY?: number }, fromJourney = false) => {
+    if (fromJourney ? (!interactionEnabled || modalOwner !== "none" || worldOverlayState.panelKey !== "mission") : !canUseWorldStage()) return;
     beginWorldActionFeedback();
     const searchPoint = Number.isFinite(point.surfaceWorldY)
       ? { x: point.x, z: point.z, surfaceWorldY: point.surfaceWorldY! }
@@ -1821,6 +1863,7 @@ export function PlayCampaign({
     if (!canUseWorldStage()) return;
     const origin = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     claimPlayModalOwner("profile", origin);
+    markPlaytest("panel", "start");
     onOpenProfile(origin);
   };
   const openMarketFromVault = () => {
@@ -2040,6 +2083,38 @@ export function PlayCampaign({
     if (pulse.kind === "collect" || pulse.kind === "greet") return;
     dispatchLayeredSearch(state.player);
   };
+  const journeyStructures = Object.values(state.ownedWorldAdditions.structures).filter(item => sameWildzPlayerCoordinate(item.ownerReceizId, ownerReceizId));
+  const journeyHome = journeyStructures.filter(item => item.blueprint === "trail-shelter").sort((a, b) => Math.hypot(a.position.x-state.player.x,a.position.z-state.player.z)-Math.hypot(b.position.x-state.player.x,b.position.z-state.player.z))[0];
+  const homeDistance = journeyHome ? Math.hypot(journeyHome.position.x-state.player.x,journeyHome.position.z-state.player.z) : Infinity;
+  const unfinishedJourneyShelter = Object.values(state.ownedWorldAdditions.constructionSites).find(site => site.blueprint === "trail-shelter" && site.stage !== "complete" && sameWildzPlayerCoordinate(site.placedByReceizId, ownerReceizId));
+  const nextJourneyStep = unfinishedJourneyShelter ? { title: "Finish your trail shelter", reason: `Your materials are waiting at the site, ${wildsTrailDirection(state.player, unfinishedJourneyShelter.position)}. Return to contribute what remains or finish construction.`, actionLabel: "Continue your shelter", action: "shelter" as const } : projectWildsNextStep({ hasCompanion: Boolean(activeAsset), timber: stewardMaterials.timber, stone: stewardMaterials.stone, hasShelter: Boolean(journeyHome), hasWorkbench: journeyStructures.some(item=>item.blueprint === "steward-workbench"), hasCache: journeyStructures.some(item=>item.blueprint === "trail-cache") });
+  const closeJourney = () => { dispatchStageOverlay({ type: "panel", key: null }); setRequestedCommand(null); setCommandDismissSignal(signal=>signal+1); };
+  const followJourneyStep = (action: WildsNextStepAction) => {
+    if (!interactionEnabled || modalOwner !== "none" || worldOverlayState.panelKey !== "mission") return;
+    if (action === "shelter" && unfinishedJourneyShelter) { setRequestedCommand("construction"); showWorldFeedback(`Your shelter site is ${wildsTrailDirection(state.player, unfinishedJourneyShelter.position)}. Approach it to add materials or finish.`, true); return; }
+    closeJourney();
+    if (action === "scan") { dispatchLayeredSearch(state.player, true); return; }
+    if (action === "gather-timber" || action === "gather-stone") { gatherNearestStewardResource(action === "gather-timber" ? "lumber" : "quarry"); return; }
+    if (action === "explore") {
+      const site = nearestUnvisitedWildsSite(siteRuntime.sites, state.explorationAtlas.siteKeys, state.player);
+      showWorldFeedback(site ? `Your next trail: ${site.family.replaceAll("-", " ")}, ${wildsTrailDirection(state.player, site.entrance)}. ${wildsDiscoveryImpression(site)}` : "You have explored the nearby sites. Travel beyond this region to find a new trail.", true);
+      return;
+    }
+    if (state.siteSpace.spaceId !== "wildz.space.outer.v1") { showWorldFeedback("Return to the open world before placing this structure."); return; }
+    continuousBuilder.close();
+    setStewardPlacementMode(action === "shelter" ? "trail-shelter" : action === "workbench" ? "steward-workbench" : "trail-cache");
+    setStewardPlacementPreview(null);
+    showWorldFeedback("Tap nearby ground to preview your build, then confirm its position.");
+  };
+  const restAtJourneyHome = () => {
+    if (modalOwner !== "none" || !journeyHome || homeDistance > 6 || state.siteSpace.spaceId !== "wildz.space.outer.v1" || state.battle) return;
+    closeJourney();
+    dispatch({ type: "rest", at: new Date().toISOString() });
+    rememberJourney({ kind: "home", subjectId: journeyHome.structureId, companionId: activeAsset?.id, companionName: activeAsset?.manifest.name, label: "Rested at your trail shelter", position: journeyHome.position });
+    markPlaytest("home", "success");
+    showWorldFeedback(`${activeAsset ? `${activeAsset.manifest.name} rests beside you. ` : ""}Camp restores energy and eases fatigue. Your expedition combo resets.`);
+  };
+
   const activatePulseFromCommandPanel = () => {
     if (modalOwner !== "none" || worldOverlayState.panelKey !== "commandCenter") return;
     dispatchStageOverlay({ type: "panel", key: null });
@@ -2128,6 +2203,12 @@ export function PlayCampaign({
       status: `${saga.act.ark} · ${saga.chapter.title}`,
       content: (
         <div className="wilds-command-content wilds-mission-content">
+          <WildsJourneyPanel step={nextJourneyStep} companionName={activeAsset?.manifest.name} memories={journeyMemories} home={journeyHome ? { label: "Your trail shelter", distance: homeDistance } : undefined} onAction={followJourneyStep} onReturnHome={() => { if (!journeyHome) return; closeJourney(); showWorldFeedback(`Your trail shelter is ${wildsTrailDirection(state.player, journeyHome.position)}. Rest beside it to recover for your next journey.`, true); }} onRest={restAtJourneyHome} canRest={homeDistance <= 6 && state.siteSpace.spaceId === "wildz.space.outer.v1" && !state.battle} />
+          <section aria-label="Φ earned through world work" style={{ fontSize: 13, lineHeight: 1.6 }}>
+            <strong>Φ{formatWildsPhiExact(earnedWorldPhi.totalPhiMicro)} earned through world work</strong>
+            <p>Small rewards for useful work: stone Φ0.01, timber Φ0.02. A helping companion can earn more. Rewards depend on the world’s available supply; your wallet balance is shown separately.</p>
+          </section>
+          <details><summary>Playtest tools</summary><WildsPlaytestPanel playtest={playtest} /></details>
           <p className="wilds-saga-deck-count"><strong>{deckCards.length}/∞</strong> living cards in your deck</p>
           <WildsSagaPanel
             missions={sagaMissions}
