@@ -1,3 +1,4 @@
+import { WILDS_PLAYER_BODY_RADIUS } from "./wilds-player-body";
 import { validateAdventureCondition, type AdventureCardCondition } from "./adventure/card-condition";
 import { wildsTerrainElevation } from "./wilds-terrain-authority";
 import { writeWildsSiteRuntimeMovement, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
@@ -14,7 +15,7 @@ export function createWildsCrewPhysicalSampler(input: {
   obstacles: readonly WildsTerrainObstacle[];
   originX: number; originZ: number;
 }): WildsCrewSegmentSampler {
-  const reach = 32, radius = .5, height = 1.55;
+  const reach = 32, radius = WILDS_PLAYER_BODY_RADIUS, height = 1.55;
   const near = (x: number, z: number, extent: number) => Math.abs(x - input.originX) <= reach + extent && Math.abs(z - input.originZ) <= reach + extent;
   const solids = input.runtime.physical.solids.filter(s => s.spaceId === input.spaceId && s.kind !== "mountain-envelope" && near(s.center.x, s.center.z, Math.max(s.halfExtents.x, s.halfExtents.z)));
   const obstacles = input.spaceId === "wildz.space.outer.v1"

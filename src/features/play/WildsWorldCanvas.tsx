@@ -1,4 +1,5 @@
 "use client";
+import type { WildsCrewTravelRuntime } from "./wilds-crew-travel-runtime";
 
 import { writeWildsInteriorCameraPosition } from "./wilds-site-runtime";
 
@@ -108,7 +109,7 @@ import { currentCreatureHistoryProjection } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import { creatureContinuityProjection } from "@/features/play/creature-continuity";
 import { canWildsCrewTravel, createWildsCrewPhysicalSampler } from "./wilds-crew-physical-navigation";
-import { createWildsCrewPathStepState, planWildsCrewPath, writeWildsCrewFollowingStep, type WildsCrewNavigationPoint, type WildsCrewNavigationAuthority } from "./wilds-crew-navigation";
+import { createWildsCrewPathStepState, planWildsCrewPathNearTarget, wildsCrewRouteNeedsReplan, writeWildsCrewAlongsideTarget, writeWildsCrewTransportPosition, writeWildsCrewFollowingStep, type WildsCrewNavigationPoint, type WildsCrewNavigationAuthority } from "./wilds-crew-navigation";
 import { WILDS_RENDERED_PHYSICAL_OBSTACLES } from "./wilds-terrain-obstacles";
 
 export type WildsCrewModes = Readonly<Record<string, "follow" | "roam">>;
@@ -150,6 +151,7 @@ export function WildsWorldCanvas({
   visualSettings = DEFAULT_WILDS_VISUAL_SETTINGS,
   supportCards = [],
   crewModes,
+  crewTravelRuntime,
   trainers = [],
   aerialCapabilities,
   aerialStateRef,
@@ -200,6 +202,7 @@ export function WildsWorldCanvas({
   visualSettings?: Partial<WildsVisualSettings>;
   supportCards?: readonly PortableCardAsset[];
   crewModes?: WildsCrewModes;
+  crewTravelRuntime?: MutableRefObject<WildsCrewTravelRuntime>;
   trainers?: readonly WildsTrainerProjection[];
   aerialCapabilities: readonly WildsTraversalCapability[];
   aerialStateRef: MutableRefObject<WildsAerialTraversalState>;
@@ -242,7 +245,7 @@ export function WildsWorldCanvas({
       >
         {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
-          <WildsScene homeResidents={homeResidents} burrowPreview={burrowPreview} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} crewModes={crewModes} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
+          <WildsScene homeResidents={homeResidents} burrowPreview={burrowPreview} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} crewModes={crewModes} crewTravelRuntime={crewTravelRuntime} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
         </Suspense>
       </Canvas>
     </div>
@@ -285,6 +288,7 @@ function WildsScene({
   visualSettings,
   supportCards,
   crewModes,
+  crewTravelRuntime,
   trainers,
   onSelectTrainer,
   onSelectOverlook,
@@ -335,6 +339,7 @@ function WildsScene({
   visualSettings: Partial<WildsVisualSettings>;
   supportCards: readonly PortableCardAsset[];
   crewModes?: WildsCrewModes;
+  crewTravelRuntime?: MutableRefObject<WildsCrewTravelRuntime>;
   trainers: readonly WildsTrainerProjection[];
   onSelectTrainer: (trainer: WildsTrainerProjection) => void;
   onSelectOverlook: (overlookId: WildsOverlookId) => void;
@@ -495,10 +500,10 @@ function WildsScene({
           style={character.gender}
           worldPosition={state.player}
         />
-        <ActiveCompanion key={`${state.selectedAssetId}:${siteSpace.spaceId}`} kaiUPulse={kaiMoment.uPulse} locomotion={swimming ? "swim" : aerialStateRef.current.mode !== "ground" ? "air" : "ground"} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} crewModes={crewModes} obstacles={crewObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} state={state} terrainElevation={activeFloorY} />
+        <ActiveCompanion crewTravelRuntime={crewTravelRuntime} crewRelocationKey={state.partyTravelRevision ?? 0} key={`${state.selectedAssetId}:${siteSpace.spaceId}`} kaiUPulse={kaiMoment.uPulse} locomotion={swimming ? "swim" : aerialStateRef.current.mode !== "ground" ? "air" : "ground"} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} crewModes={crewModes} obstacles={crewObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} state={state} terrainElevation={activeFloorY} />
       </AerialPlayerFrame>
       <group name="grounded-support-companions" visible={!swimming}>
-        <SupportCompanions kaiUPulse={kaiMoment.uPulse} cards={supportCards} conditions={state.adventureConditions} crewModes={crewModes} obstacles={crewObstacles} player={state.player} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={activeFloorY} />
+        <SupportCompanions crewTravelRuntime={crewTravelRuntime} crewRelocationKey={state.partyTravelRevision ?? 0} kaiUPulse={kaiMoment.uPulse} cards={supportCards} conditions={state.adventureConditions} crewModes={crewModes} obstacles={crewObstacles} player={state.player} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={activeFloorY} />
       </group>
       {homeResidentsNearby && homeResidents && <WildsHomeResidents shelterPosition={homeResidents.shelterPosition} cards={homeResidentCards} player={state.player} terrainElevation={activeFloorY} reducedMotion={qualityProfile.reducedMotion} />}
       <Sparkles key={`wilds-world-sparkles-${worldSparkleCount}`} count={worldSparkleCount} scale={[8, 2.4, 8]} size={2.1} speed={qualityProfile.reducedMotion ? 0 : kaiExpression.particleSpeed} color={kaiExpression.accent} />
@@ -758,7 +763,7 @@ function isBattleTelemetryPhase(phase: PlayState["encounter"]["phase"]) {
 function useCrewFollower(input: {
   player: PlayState["player"]; terrainElevation: number; siteRuntime: WildsSiteRuntimeProjection;
   siteSpace: WildsSiteSpaceState; obstacles: readonly WildsTerrainObstacle[];
-  kaiUPulse: number; locomotion?: "ground" | "swim" | "air"; enabled: boolean; mode: "follow" | "roam"; cadenceMs: number; seed: number; offsetX: number; offsetZ: number;
+  assetId: string; crewTravelRuntime?: MutableRefObject<WildsCrewTravelRuntime>; crewRelocationKey?: string | number; kaiUPulse: number; locomotion?: "ground" | "swim" | "air"; enabled: boolean; mode: "follow" | "roam"; cadenceMs: number; seed: number; offsetX: number; offsetZ: number;
   workSource?: WildsActiveWorkSource | null;
 }) {
   const group = useRef<THREE.Group>(null);
@@ -772,14 +777,23 @@ function useCrewFollower(input: {
   const path = useRef<readonly Readonly<WildsCrewNavigationPoint>[]>([]);
   const latest = useRef(input); latest.current = input;
   const priorLocomotion = useRef(input.locomotion ?? "ground");
+  const heading = useRef({ playerX: input.player.x, playerZ: input.player.z, heading: 0, desiredHeading: 0 });
+  const fallbackTarget = useRef<{ requestedX: number; requestedZ: number; target: Readonly<WildsCrewNavigationPoint> } | null>(null);
+  const relocatedKey = useRef(input.crewRelocationKey);
+  const relocationPoint = useRef({ x: input.player.x, y: input.terrainElevation, z: input.player.z });
+  const relocationSample = useRef({ allowed: false, y: NaN });
   const originX = Math.floor(input.player.x / 16) * 16, originZ = Math.floor(input.player.z / 16) * 16;
   const sampleSegment = useMemo(() => createWildsCrewPhysicalSampler({ runtime: input.siteRuntime, spaceId: input.siteSpace.spaceId, obstacles: input.obstacles, originX, originZ }), [input.siteRuntime, input.siteSpace.spaceId, input.obstacles, originX, originZ]);
   const authority = useMemo<WildsCrewNavigationAuthority>(() => ({ mode: "walk", permittedModes: ["walk"], sampleSegment }), [sampleSegment]);
   const frameInput = useMemo(() => ({ ...authority, speed: 5.5, deltaSeconds: 0 }), [authority]);
   const latestAuthority = useRef(authority); latestAuthority.current = authority;
-  function writeTarget(current: typeof input) {
-    let x = current.player.x + current.offsetX, z = current.player.z + current.offsetZ;
-    if (current.workSource) {
+  function writeTarget(current: typeof input, delta: number) {
+    writeWildsCrewAlongsideTarget(target.current, heading.current, current.player, current.offsetX, delta);
+    let x = target.current.x, z = target.current.z;
+    const excursion = current.mode === "roam" && (!current.locomotion || current.locomotion === "ground") ? current.crewTravelRuntime?.current.get(current.assetId) : undefined;
+    if (excursion?.spaceId === current.siteSpace.spaceId) {
+      x = excursion.target.x; z = excursion.target.z;
+    } else if (current.workSource) {
       const dx = current.workSource.position.x - current.player.x, dz = current.workSource.position.z - current.player.z;
       const d = Math.max(.001, Math.hypot(dx, dz));
       x = current.workSource.position.x - dx / d * .82; z = current.workSource.position.z - dz / d * .82;
@@ -797,16 +811,38 @@ function useCrewFollower(input: {
       cached.y = wildsSiteRuntimeGroundY(current.siteRuntime, current.siteSpace.spaceId, x, z, fallback);
       cached.x = x; cached.z = z; cached.runtime = current.siteRuntime; cached.space = current.siteSpace.spaceId; cached.interiorFloor = interiorFloor;
     }
-    target.current.x = x; target.current.z = z; target.current.y = cached.y;
+    target.current.x = x; target.current.z = z; target.current.y = excursion?.spaceId === current.siteSpace.spaceId ? excursion.target.y : cached.y;
+    const alternate = fallbackTarget.current;
+    if (alternate && Math.hypot(x - alternate.requestedX, z - alternate.requestedZ) <= .35) {
+      target.current.x = alternate.target.x; target.current.y = alternate.target.y; target.current.z = alternate.target.z;
+    } else if (alternate) fallbackTarget.current = null;
   }
+  useEffect(() => {
+    if (input.crewRelocationKey === relocatedKey.current) return;
+    const p = relocationPoint.current;
+    p.x = input.player.x; p.z = input.player.z; p.y = input.terrainElevation;
+    if (!writeWildsCrewTransportPosition(position.current, p, relocationSample.current, authority)) return;
+    path.current = []; fallbackTarget.current = null; stepState.current.waypointIndex = 0;
+    stepState.current.reason = "arrived"; directState.current.reason = "arrived";
+    relocatedKey.current = input.crewRelocationKey;
+  }, [input.crewRelocationKey, input.player.x, input.player.z, input.terrainElevation, authority]);
+  useEffect(() => {
+    path.current = []; fallbackTarget.current = null; stepState.current.waypointIndex = 0;
+    stepState.current.reason = "arrived";
+  }, [input.mode, input.workSource?.sourceId]);
   // Sampler refreshes do not clear routes or restart this timer. Each frame uses the
   // newest sampler, so changed collision is still enforced immediately.
   useEffect(() => {
     const update = () => {
       const current = latest.current;
+      const travel = current.crewTravelRuntime?.current.get(current.assetId);
+      if (travel?.spaceId === current.siteSpace.spaceId && travel.position === null) travel.position = { ...position.current };
       if (!current.enabled || (current.locomotion && current.locomotion !== "ground")) return;
-      if (directState.current.reason !== "blocked") return;
-      const planned = planWildsCrewPath({ ...latestAuthority.current, start: position.current, target: target.current, cellSize: .8, maxNodes: 96, maxDistance: 24 });
+      if (!wildsCrewRouteNeedsReplan(path.current, stepState.current, directState.current)) return;
+      const requestedX = target.current.x, requestedZ = target.current.z;
+      const planned = planWildsCrewPathNearTarget({ ...latestAuthority.current, start: position.current, target: target.current, cellSize: .6, maxNodes: 192, maxDistance: 24 });
+      const endpoint = planned.waypoints.at(-1);
+      if (endpoint && Math.hypot(endpoint.x - requestedX, endpoint.z - requestedZ) > .01) fallbackTarget.current = { requestedX, requestedZ, target: endpoint };
       path.current = planned.waypoints; stepState.current.waypointIndex = 0;
       stepState.current.reason = planned.reason === "path" ? "moving" : planned.reason === "arrived" ? "arrived" : "blocked";
     };
@@ -817,7 +853,7 @@ function useCrewFollower(input: {
     if (!group.current) return;
     const current = latest.current, p = position.current;
     const oldX = p.x, oldZ = p.z;
-    writeTarget(current);
+    writeTarget(current, delta);
     frameInput.deltaSeconds = delta;
     if (current.locomotion && current.locomotion !== "ground") {
       // Retain the selected companion's existing player-supported flight/swim frame.
@@ -836,6 +872,13 @@ function useCrewFollower(input: {
       } else directState.current.reason = "arrived";
     }
     priorLocomotion.current = current.locomotion ?? "ground";
+    const travel = current.crewTravelRuntime?.current.get(current.assetId);
+    if (travel?.spaceId === current.siteSpace.spaceId) {
+      if (travel.position) { travel.position.x = p.x; travel.position.y = p.y; travel.position.z = p.z; }
+      travel.paused = !current.enabled || current.mode !== "roam" || Boolean(current.locomotion && current.locomotion !== "ground");
+      travel.blocked = (directState.current.reason === "blocked" && !(stepState.current.reason === "moving" && stepState.current.waypointIndex < path.current.length))
+        || (fallbackTarget.current !== null && directState.current.reason === "arrived" && Math.hypot(p.x - travel.target.x, p.z - travel.target.z) > .35);
+    }
     const dx = p.x - oldX, dz = p.z - oldZ, distance = Math.hypot(dx, dz);
     gait.current.distance += distance; gait.current.speed = distance / Math.max(.001, delta);
     group.current.position.set(p.x - current.player.x, p.y - current.terrainElevation, p.z - current.player.z);
@@ -847,7 +890,7 @@ function useCrewFollower(input: {
   return { group, gait };
 }
 
-function ActiveCompanion({ kaiUPulse, locomotion, activeWorkSource, activeCapabilityFamily, crewModes, obstacles, siteRuntime, siteSpace, state, terrainElevation }: { kaiUPulse: number; locomotion: "ground" | "swim" | "air"; activeWorkSource?: WildsActiveWorkSource | null; activeCapabilityFamily: WildsWorldCapabilityFamily | null; crewModes?: WildsCrewModes; obstacles: readonly WildsTerrainObstacle[]; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; state: PlayState; terrainElevation: number }) {
+function ActiveCompanion({ crewTravelRuntime, crewRelocationKey, kaiUPulse, locomotion, activeWorkSource, activeCapabilityFamily, crewModes, obstacles, siteRuntime, siteSpace, state, terrainElevation }: { crewTravelRuntime?: MutableRefObject<WildsCrewTravelRuntime>; crewRelocationKey?: string | number; kaiUPulse: number; locomotion: "ground" | "swim" | "air"; activeWorkSource?: WildsActiveWorkSource | null; activeCapabilityFamily: WildsWorldCapabilityFamily | null; crewModes?: WildsCrewModes; obstacles: readonly WildsTerrainObstacle[]; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; state: PlayState; terrainElevation: number }) {
   const card = selectedCard(state);
   const asset = state.inventory.find((candidate) => candidate.id === state.selectedAssetId);
   const formId = asset?.manifest.formId ?? `${card.id}-1`;
@@ -864,7 +907,7 @@ function ActiveCompanion({ kaiUPulse, locomotion, activeWorkSource, activeCapabi
     try { return isLivingCardAsset(asset) ? currentCreatureHistoryProjection(asset).condition : undefined; } catch { return undefined; }
   }, [asset, state.adventureConditions]);
   const enabled = useMemo(() => canWildsCrewTravel(condition), [condition]);
-  const { group, gait } = useCrewFollower({ kaiUPulse, locomotion, enabled, player: state.player, terrainElevation, siteRuntime, siteSpace, obstacles, mode, cadenceMs: appearance?.cadenceMs ?? 3200, seed, offsetX: -1.08, offsetZ: .42, workSource: activeWorkSource });
+  const { group, gait } = useCrewFollower({ assetId: asset?.id ?? state.selectedAssetId, crewTravelRuntime, crewRelocationKey, kaiUPulse, locomotion, enabled, player: state.player, terrainElevation, siteRuntime, siteSpace, obstacles, mode, cadenceMs: appearance?.cadenceMs ?? 3200, seed, offsetX: -1.08, offsetZ: .42, workSource: activeWorkSource });
   const working = Boolean(activeWorkSource);
   const capabilityPresentation = useMemo(() => activeCapabilityFamily
     ? projectWildsCapabilityPresentation({ family: activeCapabilityFamily, targetId: activeWorkSource?.sourceId ?? null })
@@ -894,18 +937,18 @@ function ActiveCompanion({ kaiUPulse, locomotion, activeWorkSource, activeCapabi
   );
 }
 
-function SupportCompanions({ kaiUPulse, cards, conditions, crewModes, obstacles, player, siteRuntime, siteSpace, terrainElevation }: { kaiUPulse: number; cards: readonly PortableCardAsset[]; conditions: PlayState["adventureConditions"]; crewModes?: WildsCrewModes; obstacles: readonly WildsTerrainObstacle[]; player: PlayState["player"]; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; terrainElevation: number }) {
+function SupportCompanions({ crewTravelRuntime, crewRelocationKey, kaiUPulse, cards, conditions, crewModes, obstacles, player, siteRuntime, siteSpace, terrainElevation }: { crewTravelRuntime?: MutableRefObject<WildsCrewTravelRuntime>; crewRelocationKey?: string | number; kaiUPulse: number; cards: readonly PortableCardAsset[]; conditions: PlayState["adventureConditions"]; crewModes?: WildsCrewModes; obstacles: readonly WildsTerrainObstacle[]; player: PlayState["player"]; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; terrainElevation: number }) {
   return <group name="trail-pack-support-companions">
-    {cards.slice(0, 2).map((card, index) => <SupportCompanion kaiUPulse={kaiUPulse} key={`${card.id}:${siteSpace.spaceId}`} card={card} condition={conditions[card.id]} index={index} mode={crewModes?.[card.id] ?? "follow"} obstacles={obstacles} player={player} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={terrainElevation} />)}
+    {cards.slice(0, 2).map((card, index) => <SupportCompanion crewTravelRuntime={crewTravelRuntime} crewRelocationKey={crewRelocationKey} kaiUPulse={kaiUPulse} key={`${card.id}:${siteSpace.spaceId}`} card={card} condition={conditions[card.id]} index={index} mode={crewModes?.[card.id] ?? "follow"} obstacles={obstacles} player={player} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={terrainElevation} />)}
   </group>;
 }
-function SupportCompanion({ kaiUPulse, card, condition, index, mode, obstacles, player, siteRuntime, siteSpace, terrainElevation }: { kaiUPulse: number; card: PortableCardAsset; condition: PlayState["adventureConditions"][string] | undefined; index: number; mode: "follow" | "roam"; obstacles: readonly WildsTerrainObstacle[]; player: PlayState["player"]; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; terrainElevation: number }) {
+function SupportCompanion({ crewTravelRuntime, crewRelocationKey, kaiUPulse, card, condition, index, mode, obstacles, player, siteRuntime, siteSpace, terrainElevation }: { crewTravelRuntime?: MutableRefObject<WildsCrewTravelRuntime>; crewRelocationKey?: string | number; kaiUPulse: number; card: PortableCardAsset; condition: PlayState["adventureConditions"][string] | undefined; index: number; mode: "follow" | "roam"; obstacles: readonly WildsTerrainObstacle[]; player: PlayState["player"]; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; terrainElevation: number }) {
   const appearance = useMemo(() => projectCardKaiAppearance(card), [card]);
   const seed = useMemo(() => Number.parseInt(card.proof.digest.slice(-6), 16) || 0, [card.proof.digest]);
   const enabled = useMemo(() => {
     try { return canWildsCrewTravel(condition ?? (isLivingCardAsset(card) ? currentCreatureHistoryProjection(card).condition : undefined)); } catch { return false; }
   }, [card, condition]);
-  const { group, gait } = useCrewFollower({ kaiUPulse, enabled, player, terrainElevation, siteRuntime, siteSpace, obstacles, mode, cadenceMs: appearance.cadenceMs, seed, offsetX: index === 0 ? 1.05 : 1.62, offsetZ: index === 0 ? .72 : 1.34 });
+  const { group, gait } = useCrewFollower({ assetId: card.id, crewTravelRuntime, crewRelocationKey, kaiUPulse, enabled, player, terrainElevation, siteRuntime, siteSpace, obstacles, mode, cadenceMs: appearance.cadenceMs, seed, offsetX: index === 0 ? 1.05 : 1.62, offsetZ: index === 0 ? .72 : 1.34 });
   return <group ref={group} name={`trail-support-${index + 1}`} scale={index === 0 ? .62 : .54}>
     <WildsCreatureActor grounded gait={gait} locomotion="ground" accent={appearance.palette.accent} anatomy={appearance.anatomy} cadenceMs={appearance.cadenceMs} familyId={card.manifest.familyId} formId={card.manifest.formId} glow={appearance.palette.glow} identityToken={appearance.fingerprint} morphology={appearance.morphology} pose={index === 0 ? "curious" : "idle"} primary={appearance.palette.primary} secondary={appearance.palette.secondary} />
     <mesh position={[0, .025, 0]} rotation={[-Math.PI / 2, 0, 0]}>

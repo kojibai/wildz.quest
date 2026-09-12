@@ -1,4 +1,5 @@
 "use client";
+import { nextWildsPartyTravelRevision } from "./wilds-party-transport";
 import { composeWildsInteriorConstruction } from "./wilds-construction-physics";
 import { composeWildsBurrowPhysical } from "./wilds-burrow";
 import { useWildsBurrowBuilder } from "./use-wilds-burrow-builder";
@@ -7,6 +8,7 @@ import { requestWildsDive } from "./wilds-vertical-traversal";
 import { resolveWildsConstructionFunction } from "./wilds-construction-function";
 
 import dynamic from "next/dynamic";
+import { useWildsCrewExpeditions } from "./use-wilds-crew-expeditions";
 import { WildsCrewPanel } from "./WildsCrewPanel";
 import { recordWildsCrewModeObservation } from "./wilds-crew-observations";
 import { sanitizeWildsCrewPreferences, setWildsCrewPreference } from "./wilds-crew-preferences";
@@ -950,6 +952,9 @@ export function PlayCampaign({
     [siteRegion.x, siteRegion.z, livingWorld.snapshot]
   );
   const siteRuntime = useMemo(() => prepareWildsSiteRuntime(sitePhysical), [sitePhysical]);
+  const accompanyingCrew = useMemo(() => state.inventory.filter(card => card.id === state.selectedAssetId || state.supportAssetIds.includes(card.id)).slice(0, 3), [state.inventory, state.selectedAssetId, state.supportAssetIds]);
+  const crewExpeditions = useWildsCrewExpeditions({ owner: ownerReceizId, state, cards: accompanyingCrew, siteRuntime, obstacles: livingPhysicalObstacles,
+    feedback: showWorldFeedback, onFinished: assetId => setState(current => ({ ...current, crewPreferences: setWildsCrewPreference(current.crewPreferences, current.inventory, ownerReceizId, assetId, "follow") })) });
   const earnedWorldPhi = useMemo(() => projectWildsEarnedPhi({ awards: Object.values(livingWorld.snapshot?.stewardPhiAwards ?? {}), ownerReceizId }), [livingWorld.snapshot?.stewardPhiAwards, ownerReceizId]);
   const witnessedSites = useRef<{ owner: string; keys: readonly string[] }>({ owner: ownerReceizId, keys: state.explorationAtlas.siteKeys });
   useEffect(() => {
@@ -1146,6 +1151,7 @@ export function PlayCampaign({
       setState((current) => ({
         ...current,
         player: { x: joinX + 1.4, z: joinZ + 1.4 },
+        partyTravelRevision: nextWildsPartyTravelRevision(current.partyTravelRevision),
         lastEvent: "Invite signal found. You joined the shared trail beside its sender."
       }));
     }
@@ -1736,6 +1742,7 @@ export function PlayCampaign({
       return {
         ...current,
         player: { x: siteLanding.x, z: siteLanding.z },
+        partyTravelRevision: nextWildsPartyTravelRevision(current.partyTravelRevision),
         siteSpace: {
           ...current.siteSpace,
           surfaceId: siteSurface.surfaceId,
@@ -2253,15 +2260,20 @@ export function PlayCampaign({
     {
       key: "crew",
       label: "Creature crew",
-      icon: <Icons.quarry size={21} />,
+      icon: <Icons.roam size={21} />,
       dockVisible: false,
       content: <WildsCrewPanel
         accompanyingAssetIds={[state.selectedAssetId, ...state.supportAssetIds.filter((id): id is string => Boolean(id))]}
         cards={crewCards}
+        reports={crewExpeditions.reports}
         modes={crewPreferences?.byAssetId ?? {}}
-        onModeChange={(assetId, mode) => {
+        onModeChange={async (assetId, mode) => {
           const card = state.inventory.find(asset => asset.id === assetId && sameWildzPlayerCoordinate(asset.manifest.ownerReceizId, ownerReceizId));
           if (!card) return;
+          try {
+            if (mode === "roam" && accompanyingCrew.some(value => value.id === assetId) && !await crewExpeditions.roam(card)) return;
+            if (mode === "follow" && await crewExpeditions.recall(assetId)) return;
+          } catch (error) { showWorldFeedback(error instanceof Error ? error.message : "This creature cannot start exploring here."); return; }
           setState(current => ({ ...current, crewPreferences: setWildsCrewPreference(current.crewPreferences, current.inventory, ownerReceizId, assetId, mode) }));
           void recordWildsCrewModeObservation({ ownerReceizId, assetId, mode, genomeProofDigest: card.proof.digest })
             .catch(() => showWorldFeedback("Movement preference saved; activity history could not be saved."));
@@ -2590,6 +2602,7 @@ export function PlayCampaign({
           >
             <WildsWorldCanvas
               crewModes={crewPreferences?.byAssetId}
+            crewTravelRuntime={crewExpeditions.runtime}
               homeResidents={homeResidents}
               activeCapabilityFamily={burrowBuilder.busy ? "burrow" : activeWorldCapability}
               activeWorkSource={activeWorkSource}
@@ -3134,7 +3147,7 @@ export function PlayCampaign({
           if (!activeRaid) return;
           releasePlayModalOwner("raid");
           void livingWorld.retreatRaid(activeRaid.bossId, activeRaid.roundId).catch(() => undefined);
-          if (raidReturnPosition) setState((current) => ({ ...current, player: raidReturnPosition }));
+          if (raidReturnPosition) setState((current) => ({ ...current, partyTravelRevision: nextWildsPartyTravelRevision(current.partyTravelRevision), player: raidReturnPosition }));
           setActiveRaid(null);
           setRaidError(null);
           setRaidReturnPosition(null);
@@ -3148,7 +3161,7 @@ export function PlayCampaign({
           if (!activeRaid) return;
           void livingWorld.retreatRaid(activeRaid.bossId, activeRaid.roundId).finally(() => {
             releasePlayModalOwner("raid");
-            if (raidReturnPosition) setState((current) => ({ ...current, player: raidReturnPosition }));
+            if (raidReturnPosition) setState((current) => ({ ...current, partyTravelRevision: nextWildsPartyTravelRevision(current.partyTravelRevision), player: raidReturnPosition }));
             setActiveRaid(null);
             setRaidReturnPosition(null);
           });

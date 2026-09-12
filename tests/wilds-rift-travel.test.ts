@@ -95,6 +95,9 @@ describe("Wilds Rift travel", () => {
       playerId: "player-1"
     });
     assert.deepEqual(moved.player, { x: 144, z: -96 });
+    assert.equal(moved.partyTravelRevision, (initialPlayState.partyTravelRevision ?? 0) + 1);
+    const walked = applyWildsInput(moved, { type: "move", direction: "east" });
+    assert.equal(walked.partyTravelRevision, moved.partyTravelRevision);
     assert.match(moved.lastEvent, /Rift complete.*Walk.*landmark entrance/);
 
     const incoherent = applyWildsInput(initialPlayState, {

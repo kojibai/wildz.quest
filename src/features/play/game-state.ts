@@ -1,3 +1,4 @@
+import { nextWildsPartyTravelRevision } from "./wilds-party-transport";
 import { sanitizeWildsCrewPreferences, type WildsCrewPreferences } from "./wilds-crew-preferences";
 import { verifyWildsConstructionFunctionSource, type WildsConstructionFunctionSource } from "./wilds-construction-function";
 import { applyWildsFlightWind, createWildsKaiWeatherSample, writeWildsKaiWeather } from "./wilds-kai-wind";
@@ -198,6 +199,8 @@ export type WildsOwnedWorldAdditions = Partial<WildsConstructionPersistence> & {
 };
 
 export type PlayState = {
+  /** Changes only on an admitted transport, never ordinary movement. */
+  partyTravelRevision?: number;
   crewPreferences?: WildsCrewPreferences;
   journeyJournal?: WildsJourneyJournal;
   actionHistory: WildsActivityEntry[];
@@ -717,6 +720,7 @@ export function restorePlayState(
       ...saved,
       journeyJournal: sanitizeWildsJourneyJournal(saved.journeyJournal, ownerReceizId),
       crewPreferences: sanitizeWildsCrewPreferences(saved.crewPreferences, migratedInventory, ownerReceizId),
+      partyTravelRevision: Number.isSafeInteger(saved.partyTravelRevision) && saved.partyTravelRevision! >= 0 ? saved.partyTravelRevision : 0,
       actionHistory: normalizeWildsActivityHistory(saved.actionHistory),
       player: restoredPlayer,
       siteSpace: restoreWildsBurrowSpace(saved.siteSpace,restoredWorldAdditions.burrows??{},physical=>composeWildsInteriorConstruction(physical,{structures:restoredWorldAdditions.structures,constructionComponents:restoredWorldAdditions.constructionComponents??{},constructionMaterialContributions:restoredWorldAdditions.constructionMaterialContributions??{},constructionWorkContributions:restoredWorldAdditions.constructionWorkContributions??{}})) ?? normalizeWildsSiteSpaceState(saved.siteSpace, { x: restoredPlayer.x, y: wildsTerrainElevation(restoredPlayer.x, restoredPlayer.z), z: restoredPlayer.z }),
@@ -2056,6 +2060,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
     return {
       ...state,
       activeAction: "explore",
+      partyTravelRevision: nextWildsPartyTravelRevision(state.partyTravelRevision),
       player,
       siteSpace: normalizeWildsSiteSpaceState(undefined, { x: player.x, y: wildsTerrainElevation(player.x, player.z), z: player.z }),
       explorationAtlas: revealWildsExplorationAt(state.explorationAtlas, player),
@@ -2080,6 +2085,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
     return {
       ...state,
       activeAction: "explore",
+      partyTravelRevision: nextWildsPartyTravelRevision(state.partyTravelRevision),
       player: { x: nextSpace.position.x, z: nextSpace.position.z },
       siteSpace: nextSpace,
       explorationAtlas: discoverWildsExplorationSite(state.explorationAtlas, nextSpace.siteKey ?? currentSpace.siteKey ?? input.siteKey),

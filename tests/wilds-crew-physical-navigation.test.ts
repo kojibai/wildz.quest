@@ -1,3 +1,4 @@
+import { createWildsCrewPathStepState, planWildsCrewPathNearTarget, wildsCrewRouteNeedsReplan, writeWildsCrewFollowingStep } from "../src/features/play/wilds-crew-navigation";
 import { emptyAdventureCondition } from "../src/features/play/adventure/card-condition";
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -82,4 +83,38 @@ test("planned canonical terrain routes advance repeatedly and physically recall 
     }
     assert.equal(state.reason, "arrived"); assert.ok(Math.hypot(position.x - target.x, position.z - target.z) < .000001);
   }
+});
+
+
+test("moving follow commits to tree and rock detours without timer cursor resets or collision crossing", () => {
+  const tree: WildsTerrainObstacle = { ...wall, id: "tree", kind: "tree", position: { x: 1.6, y: wildsTerrainElevation(1.6, 0), z: 0 }, radius: .45, shape: { kind: "cylinder", radius: .45, height: 3 } };
+  const rock: WildsTerrainObstacle = { ...tree, id: "rock", kind: "rock", position: { x: 3.2, y: wildsTerrainElevation(3.2, .7), z: .7 }, radius: .5, shape: { kind: "cylinder", radius: .5, height: 1 } };
+  const sampleSegment = createWildsCrewPhysicalSampler({ runtime, spaceId: "wildz.space.outer.v1", obstacles: [tree, rock], originX: 0, originZ: 0 });
+  const authority = { mode: "walk" as const, permittedModes: ["walk" as const], sampleSegment };
+  const position = { ...from }, target = { x: 3.2, z: 0, y: wildsTerrainElevation(3.2, 0) };
+  const routeState = createWildsCrewPathStepState(), directState = createWildsCrewPathStepState(), direct = [target];
+  let route: readonly Readonly<typeof position>[] = [], replans = 0;
+  for (let frame = 0; frame < 900; frame++) {
+    target.x = 3.2 + Math.min(1.6, frame / 60 * .8); target.y = wildsTerrainElevation(target.x, target.z);
+    if (frame % 18 === 0 && wildsCrewRouteNeedsReplan(route, routeState, directState)) {
+      const planned = planWildsCrewPathNearTarget({ ...authority, start: position, target, cellSize: .6, maxNodes: 192, maxDistance: 24 });
+      assert.equal(planned.reason, "path"); route = planned.waypoints; routeState.waypointIndex = 0; routeState.reason = "moving"; replans++;
+    }
+    const before = { ...position };
+    writeWildsCrewFollowingStep(position, target, route, routeState, directState, direct, { ...authority, speed: 5.5, deltaSeconds: 1 / 60 });
+    const out = output(); sampleSegment(before, position, "walk", out); assert.equal(out.allowed, true, `collision at frame ${frame}`);
+  }
+  assert.ok(replans > 0 && replans <= 4, `expected stable detours, got ${replans} replans`);
+  assert.ok(Math.hypot(position.x - target.x, position.z - target.z) < .01, "must rejoin the moving player");
+});
+
+test("blocked alongside anchors choose nearby reachable support without moving the actor", () => {
+  const tree: WildsTerrainObstacle = { ...wall, id: "anchor-tree", kind: "tree", position: { x: 1.6, y: wildsTerrainElevation(1.6, 0), z: 0 }, radius: .45, shape: { kind: "cylinder", radius: .45, height: 3 } };
+  const sampleSegment = createWildsCrewPhysicalSampler({ runtime, spaceId: "wildz.space.outer.v1", obstacles: [tree], originX: 0, originZ: 0 });
+  const position = { ...from };
+  const planned = planWildsCrewPathNearTarget({ mode: "walk", permittedModes: ["walk"], sampleSegment, start: position, target: to, maxNodes: 192, cellSize: .6 });
+  assert.equal(planned.reason, "path"); assert.ok(planned.visitedNodes <= 192); assert.deepEqual(position, from);
+  const endpoint = planned.waypoints.at(-1)!;
+  assert.ok(Math.hypot(endpoint.x - to.x, endpoint.z - to.z) <= 1.600001);
+  const out = output(); sampleSegment(endpoint, endpoint, "walk", out); assert.equal(out.allowed, true);
 });

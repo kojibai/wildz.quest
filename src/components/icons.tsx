@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  PawPrint,
   Archive,
   Anchor,
   ArrowDownToLine,
@@ -142,6 +143,7 @@ export const Icons = {
   star: Star,
   store: Store,
   trophy: Trophy,
+  roam: PawPrint,
   quarry: Pickaxe,
   timber: TreePine,
   user: User,

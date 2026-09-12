@@ -127,8 +127,65 @@ export function writeWildsCrewPathStep(position: WildsCrewNavigationPoint, waypo
  */
 export function writeWildsCrewFollowingStep(position: WildsCrewNavigationPoint, target: Readonly<WildsCrewNavigationPoint>, waypoints: readonly Readonly<WildsCrewNavigationPoint>[], routeState: WildsCrewPathStepState,
   directState: WildsCrewPathStepState, directWaypoints: Readonly<WildsCrewNavigationPoint>[], input: WildsCrewNavigationAuthority & { speed: number; deltaSeconds: number }): void {
+  // Finish a safe detour before chasing the moving anchor again. Direct chase must
+  // not continually pull the actor back into the obstacle it is walking around.
+  if (routeState.reason === "moving" && routeState.waypointIndex < waypoints.length) {
+    writeWildsCrewPathStep(position, waypoints, routeState, input);
+    return;
+  }
   directWaypoints[0] = target;
   directState.waypointIndex = 0;
   writeWildsCrewPathStep(position, directWaypoints, directState, input);
   if (directState.reason === "blocked" && waypoints.length) writeWildsCrewPathStep(position, waypoints, routeState, input);
+}
+
+/** Only stalled/completed routes may be replaced; timer ticks cannot reset progress. */
+export function wildsCrewRouteNeedsReplan(waypoints: readonly Readonly<WildsCrewNavigationPoint>[], routeState: WildsCrewPathStepState, directState: WildsCrewPathStepState): boolean {
+  if (routeState.reason === "moving" && routeState.waypointIndex < waypoints.length) return false;
+  return routeState.reason === "blocked" || directState.reason === "blocked";
+}
+
+/** An alongside anchor may fall inside a tree. Try a bounded set of adjacent supported
+ * targets and return only an actually traversable path. Never relocates the actor.
+ */
+export function planWildsCrewPathNearTarget(input: Parameters<typeof planWildsCrewPath>[0]): WildsCrewPath {
+  const maximum = input.maxNodes ?? 192;
+  if (!Number.isInteger(maximum) || maximum < 1 || maximum > 4096) return { reason: "invalid-input", visitedNodes: 0, waypoints: [] };
+  const exact = planWildsCrewPath({ ...input, maxNodes: Math.min(maximum, 96) });
+  if (exact.reason !== "blocked-target" && exact.reason !== "unreachable" && exact.reason !== "budget-exhausted") return exact;
+  let visited = exact.visitedNodes;
+  const candidates: WildsCrewNavigationPoint[] = [];
+  for (const radius of [.8, 1.6]) for (let i = 0; i < 8; i++) {
+    const angle = i * Math.PI / 4;
+    candidates.push({ x: input.target.x + Math.cos(angle) * radius, y: input.target.y, z: input.target.z + Math.sin(angle) * radius });
+  }
+  candidates.sort((a, b) => Math.hypot(a.x - input.start.x, a.z - input.start.z) - Math.hypot(b.x - input.start.x, b.z - input.start.z));
+  for (const target of candidates) {
+    if (visited >= maximum) return { reason: "budget-exhausted", visitedNodes: visited, waypoints: [] };
+    const planned = planWildsCrewPath({ ...input, target, maxNodes: Math.min(48, maximum - visited) });
+    visited += planned.visitedNodes;
+    if (planned.reason === "arrived") return { reason: "path", visitedNodes: visited, waypoints: [{ ...input.start }] };
+    if (planned.reason === "path") return { ...planned, visitedNodes: visited };
+  }
+  return { reason: visited >= maximum ? "budget-exhausted" : "unreachable", visitedNodes: visited, waypoints: [] };
+}
+
+export type WildsCrewHeading = { playerX: number; playerZ: number; heading: number; desiredHeading: number };
+/** Uses actual displacement; a stationary player retains the last travel direction. */
+export function writeWildsCrewAlongsideTarget(output: WildsCrewNavigationPoint, state: WildsCrewHeading, player: Readonly<{ x: number; z: number }>, side: number, deltaSeconds: number): void {
+  const dx = player.x - state.playerX, dz = player.z - state.playerZ;
+  if (Math.hypot(dx, dz) > .0001) state.desiredHeading = Math.atan2(dx, dz);
+  state.playerX = player.x; state.playerZ = player.z;
+  const turn = Math.atan2(Math.sin(state.desiredHeading - state.heading), Math.cos(state.desiredHeading - state.heading));
+  state.heading += turn * (1 - Math.exp(-Math.max(0, Math.min(.1, deltaSeconds)) * 12));
+  output.x = player.x + Math.cos(state.heading) * side;
+  output.z = player.z - Math.sin(state.heading) * side;
+}
+
+/** Call only for a changed, explicitly admitted party transport token. This validates
+ * destination occupancy; ordinary follow never calls it or performs distance warps. */
+export function writeWildsCrewTransportPosition(position: WildsCrewNavigationPoint, destination: Readonly<WildsCrewNavigationPoint>, scratch: WildsCrewNavigationSample, authority: WildsCrewNavigationAuthority): boolean {
+  if (!finitePoint(destination) || !permitted(authority) || !sample(authority, destination, destination, scratch)) return false;
+  position.x = destination.x; position.y = scratch.y; position.z = destination.z;
+  return true;
 }

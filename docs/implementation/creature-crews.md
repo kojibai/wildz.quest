@@ -45,3 +45,9 @@ No live mandate, crew work, material movement or autonomous construction was act
 `wilds-crew-execution.ts` connects that journal to the existing SDK transaction executor. It requires a fresh production authorization port, exact participant/mandate bindings and world-event causal parents, then records proposed/pending/admitted or rejected states. Exact recovery never redispatches. A failed local completion write keeps the runtime transaction and scheduling reservations for recovery. Approved transaction inputs are cloned and deeply frozen before SDK validation/staging/dispatch callbacks.
 
 This boundary has contract tests using explicit authority/runtime doubles, plus a real Chrome IndexedDB test with two competing tabs and reload. It is not mounted in the gameplay UI yet. Production proof/mandate authorization, task selection, independent visible workers and actual world gather/haul/build command admission remain required. The UI/renderer has not been changed in this checkpoint. Cross-tab IndexedDB serialization does not establish cross-device authority.
+
+## Alongside travel and local exploration integration
+
+The crew paw control now drives real local excursions for active/support companions: bounded reachable destinations, actual physical arrival, Kai-timed inspection, recall, return and persistent visit reports. Player transport carries the accompanying party through an explicit relocation marker. Ground detours remain collision checked and are no longer reset by direct chase or timer ticks.
+
+Durable job state and source-family/mandate adapters are implemented and tested separately. They are not yet connected to autonomous material mutations; current Roam visits do not mint materials, Phi, mission progress or shared world discoveries. Full-roster independent simulation, verified material jobs, execution/job dispatch fencing and the primary-source integration described in crew-proof-source-integration.md remain outstanding.

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createWildsCrewPathStepState, planWildsCrewPath, writeWildsCrewFollowingStep, writeWildsCrewPathStep, type WildsCrewNavigationAuthority, type WildsCrewSegmentSampler } from "../src/features/play/wilds-crew-navigation";
+import { createWildsCrewPathStepState, planWildsCrewPath, writeWildsCrewFollowingStep, writeWildsCrewAlongsideTarget, writeWildsCrewTransportPosition, writeWildsCrewPathStep, type WildsCrewNavigationAuthority, type WildsCrewSegmentSampler } from "../src/features/play/wilds-crew-navigation";
 
 const point = (x: number, z = 0, y = 0) => ({ x, y, z });
 const clear: WildsCrewSegmentSampler = (_from, to, _mode, out) => { out.allowed = true; out.y = to.y; };
@@ -118,4 +118,26 @@ test("direct moving-target chase never bypasses a newly built wall", () => {
   const target = point(3), directWaypoints = [target];
   writeWildsCrewFollowingStep(position, target, [], routeState, directState, directWaypoints, { ...authority(wall), speed: 5.5, deltaSeconds: .1 });
   assert.equal(directState.reason, "blocked"); assert.deepEqual(position, point(1.3));
+});
+
+
+test("alongside target follows observed heading and keeps that heading while stationary", () => {
+  const player = point(0), state = { playerX: 0, playerZ: 0, heading: 0, desiredHeading: 0 }, target = point(0);
+  for (let frame = 0; frame < 120; frame++) { player.x += .05; writeWildsCrewAlongsideTarget(target, state, player, -1.1, 1 / 60); }
+  assert.ok(Math.abs(target.x - player.x) < .001, "alongside must not trail along direction of movement");
+  assert.ok(Math.abs(target.z - player.z - 1.1) < .001);
+  const before = { ...target };
+  for (let frame = 0; frame < 60; frame++) writeWildsCrewAlongsideTarget(target, state, player, -1.1, 1 / 60);
+  assert.ok(Math.hypot(target.x - before.x, target.z - before.z) < .001);
+});
+
+
+test("explicit party transport admits destination occupancy while ordinary following stays speed limited", () => {
+  const position = point(0), destination = point(1000), scratch = { allowed: false, y: NaN };
+  writeWildsCrewPathStep(position, [destination], createWildsCrewPathStepState(), { ...authority(), speed: 5.5, deltaSeconds: .1 });
+  assert.equal(position.x, .55);
+  assert.equal(writeWildsCrewTransportPosition(position, point(1.5), scratch, authority(wall)), false);
+  assert.equal(position.x, .55);
+  assert.equal(writeWildsCrewTransportPosition(position, destination, scratch, authority()), true);
+  assert.deepEqual(position, destination);
 });
