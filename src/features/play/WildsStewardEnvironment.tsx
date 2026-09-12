@@ -13,6 +13,7 @@ import { projectWildsResourceAffordance } from "./wilds-resource-affordance";
 import { projectWildsWorkPresentation, type WildsActiveWorkSource } from "./wilds-work-presentation";
 import { useWildsReadability } from "./WildsReadabilityContext";
 import { constructionSourceCellKey, constructionSourcesNear, type WildsStewardPlacement } from "./wilds-steward-craft";
+import { createWildsProximityIndex } from "./wilds-proximity-index";
 import type { WildsConstructionSiteV1 } from "./wilds-construction-site";
 
 function createGeometry() {
@@ -114,12 +115,14 @@ export function WildsStewardEnvironment({ activeWorkSource, placementPreview, li
     }
     return projected;
   }, [kaiUPulse, livingWorld?.harvestedSources, siteSpaceId, sourceCellKey]);
-  const structures = useMemo(() => Object.values(livingWorld?.structures ?? {})
-    .filter((structure) => Math.hypot(structure.position.x - player.x, structure.position.z - player.z) <= 110)
-    .sort((left, right) => left.structureId.localeCompare(right.structureId)), [livingWorld?.structures, player.x, player.z]);
-  const constructionSites = useMemo(() => Object.values(livingWorld?.constructionSites ?? {})
-    .filter((site) => site.stage !== "complete" && Math.hypot(site.position.x - player.x, site.position.z - player.z) <= 110)
-    .sort((left, right) => left.siteId.localeCompare(right.siteId)), [livingWorld?.constructionSites, player.x, player.z]);
+  const structureIndex = useMemo(() => createWildsProximityIndex(
+    Object.values(livingWorld?.structures ?? {}), (structure) => structure.structureId
+  ), [livingWorld?.structures]);
+  const siteIndex = useMemo(() => createWildsProximityIndex(
+    Object.values(livingWorld?.constructionSites ?? {}).filter((site) => site.stage !== "complete"), (site) => site.siteId
+  ), [livingWorld?.constructionSites]);
+  const structures = useMemo(() => structureIndex.near({ x: player.x, z: player.z }), [structureIndex, player.x, player.z]);
+  const constructionSites = useMemo(() => siteIndex.near({ x: player.x, z: player.z }), [siteIndex, player.x, player.z]);
   const geometry = useMemo(createGeometry, []);
   const materials = useMemo(createMaterials, []);
   useEffect(() => () => {

@@ -135,16 +135,17 @@ export function verifyWildsWorldAdmittedSource(entry: WildsWorldOutboxEntry, con
   return reduceWildsWorldEvent(base, event);
 }
 
-export function prepareWildsWorldOutboxEntry(base: WildsWorldProjection, entry: WildsWorldOutboxEntry) {
+export function prepareWildsWorldOutboxEntry(base: WildsWorldProjection, entry: WildsWorldOutboxEntry, anchorId?: string | null) {
   if (entry.admittedSource) {
     verifyWildsWorldAdmittedSource(entry, base);
     return { entry, projection: entry.admittedSource.events.reduce(reduceWildsWorldEvent, base), events: entry.admittedSource.events, constitution: undefined as ConstitutionalDecision | undefined };
   }
-  const world = new WildsWorldService({ checkpoint: checkpointWildsWorld(base) });
+  const checkpoint = checkpointWildsWorld(base);
+  const world = new WildsWorldService({ checkpoint });
   const result = world.execute(entry.command, { actorId: entry.actorId, canonical: true, pulse: entry.queuedAt, occurredAt: entry.queuedAt, card: entry.card });
   return {
     entry: isWildsEdgeImmediateConstructionCommand(entry.command) && result.events.length
-      ? { ...entry, admittedSource: { anchorId: entry.command.commandId, checkpoint: checkpointWildsWorld(base), events: result.events } }
+      ? { ...entry, admittedSource: { anchorId: anchorId ?? entry.command.commandId, ...(anchorId ? {} : { checkpoint }), events: result.events } }
       : entry,
     projection: result.projection, events: result.events, constitution: result.constitution
   };
@@ -203,7 +204,7 @@ export function preserveWildsConstructionHistory(current: WildsWorldProjection, 
 export function createWildsWorldEdgeAdmissionQueue(input: {
   initialProjection: WildsWorldProjection;
   persist: (entry: WildsWorldOutboxEntry) => Promise<unknown>;
-  prepare?: (base: WildsWorldProjection, entry: WildsWorldOutboxEntry) => Promise<ReturnType<typeof prepareWildsWorldOutboxEntry>>;
+  prepare?: (base: WildsWorldProjection, entry: WildsWorldOutboxEntry, anchorId?: string | null) => Promise<ReturnType<typeof prepareWildsWorldOutboxEntry>>;
   onAdmitted?: (projection: WildsWorldProjection, entry: WildsWorldOutboxEntry, events: readonly WildsWorldEvent[], constitution?: ConstitutionalDecision) => void;
 }) {
   let projection = input.initialProjection;
@@ -225,7 +226,7 @@ export function createWildsWorldEdgeAdmissionQueue(input: {
       const exact = structuredClone(entry);
       activeAdmissions += 1;
       const next = tail.catch(() => undefined).then(async () => {
-        const prepared = await (input.prepare ?? prepareWildsWorldOutboxEntry)(projection, exact);
+        const prepared = await (input.prepare ?? prepareWildsWorldOutboxEntry)(projection, exact, anchorId);
         if (prepared.projection === projection || prepared.projection.revision === projection.revision) return projection;
         let durable = prepared.entry;
         if (durable.admittedSource && anchorId) durable = { ...durable, admittedSource: { anchorId, events: durable.admittedSource.events } };

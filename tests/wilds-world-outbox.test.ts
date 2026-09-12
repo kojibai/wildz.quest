@@ -372,3 +372,27 @@ test("edge admission waits for asynchronous preparation and durable storage befo
   assert.equal(await pending, projected);
   assert.deepEqual(order, ["prepared", "persisted", "displayed"]);
 });
+
+test("worker preparation receives only a durable anchor and omits successor checkpoints before reply", async () => {
+  const { prepareWildsWorldOutboxEntry } = await import("../src/features/play/wilds-world-outbox");
+  const anchors: Array<string | null | undefined> = [];
+  const replies: WildsWorldOutboxEntry[] = [];
+  let failNext = true;
+  const queue = createWildsWorldEdgeAdmissionQueue({
+    initialProjection: initialWildsWorldProjection(),
+    prepare: async (base, entry, anchor) => {
+      anchors.push(anchor);
+      const prepared = prepareWildsWorldOutboxEntry(base, entry, anchor);
+      replies.push(prepared.entry);
+      return prepared;
+    },
+    persist: async () => { if (failNext) { failNext = false; throw new Error("disk unavailable"); } }
+  });
+  await assert.rejects(queue.admit(projectEntry("command:compact:failed", "Failed")), /disk unavailable/);
+  await queue.admit(projectEntry("command:compact:first", "First"));
+  await queue.admit(projectEntry("command:compact:second", "Second"));
+  assert.deepEqual(anchors, [null,null,"command:compact:first"]);
+  assert.ok(replies[1]!.admittedSource!.checkpoint);
+  assert.equal(replies[2]!.admittedSource!.checkpoint, undefined);
+  assert.equal(replies[2]!.admittedSource!.anchorId, "command:compact:first");
+});

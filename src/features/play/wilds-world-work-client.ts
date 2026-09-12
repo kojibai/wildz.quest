@@ -59,8 +59,8 @@ export function createWildsWorldWorkerClient(createWorker?: () => WorkPort) {
 }
 
 const client = createWildsWorldWorkerClient();
-export const prepareWildsWorldOutboxEntryAsync = (base: WildsWorldProjection, entry: WildsWorldOutboxEntry) =>
-  client.run({ kind: "prepare", base, entry }) as Promise<ReturnType<typeof prepareWildsWorldOutboxEntry>>;
+export const prepareWildsWorldOutboxEntryAsync = (base: WildsWorldProjection, entry: WildsWorldOutboxEntry, anchorId?: string | null) =>
+  client.run({ kind: "prepare", base, entry, anchorId }) as Promise<ReturnType<typeof prepareWildsWorldOutboxEntry>>;
 export const persistWildsWorldCommand = (entry: WildsWorldOutboxEntry) =>
   client.run({ kind: "persist", entry }) as Promise<void>;
 export const readWildsWorldOutbox = (actorId: string) =>
