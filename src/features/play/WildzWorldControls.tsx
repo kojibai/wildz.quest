@@ -20,7 +20,7 @@ import type { WildsAquaticPresentation } from "./wilds-aquatic-presentation";
 import { projectCreatureCapabilityIdentity } from "./creature-capability-identity";
 import { emptyAdventureCondition } from "./adventure/card-condition";
 import { WildsCapabilityControls } from "./WildsCapabilityControls";
-import { projectWildsCapabilityControls, projectWildsQuickCapabilityControls } from "./wilds-world-capability-controls";
+import { projectWildsCapabilityControls, projectWildsQuickCapabilityControls, type WildsProjectedCapabilityControl } from "./wilds-world-capability-controls";
 import type { WildsCapabilityContext } from "./wilds-world-capability-context";
 import type { WildsWorldCapabilityFamily } from "./wilds-world-capability-registry";
 import { projectWildsTraversalStatus } from "./wilds-traversal-status";
@@ -39,6 +39,7 @@ function useStableEvent<Arguments extends unknown[]>(handler: (...args: Argument
 }
 
 export function WildzWorldControls({
+  capabilityControls: suppliedCapabilityControls,
   onBeginConstruction,
   buildingActive=false,
   nearbyCards,
@@ -99,6 +100,7 @@ export function WildzWorldControls({
   onMovementModeChange: (mode: WildsMovementMode) => void;
   onSelectCard: (assetId: string) => void;
   onRest: () => void;
+  capabilityControls?: readonly WildsProjectedCapabilityControl[];
   capabilityContexts?: ReadonlyMap<WildsWorldCapabilityFamily, WildsCapabilityContext>;
   onRequestCapability?: (family: WildsWorldCapabilityFamily) => void;
   onAudioCue?: (cue: WildsAudioCue) => void;
@@ -233,12 +235,12 @@ export function WildzWorldControls({
     activeAssetId: activeCard?.id ?? null,
     newAssetId: newRosterAssetId
   }), [activeCard?.id, cardConditions, companionProgress, nearbyCards, newRosterAssetId]);
-  const capabilityControls = useMemo(() => activeCard
+  const capabilityControls = useMemo(() => suppliedCapabilityControls ?? (activeCard
     ? projectWildsQuickCapabilityControls(
         projectWildsCapabilityControls(activeCard, cardConditions[activeCard.id] ?? emptyAdventureCondition(activeCard.id)),
         traversalCapabilities
       )
-    : [], [activeCard, cardConditions, traversalCapabilities]);
+    : []), [suppliedCapabilityControls, activeCard, cardConditions, traversalCapabilities]);
   const activeEntry = companionRoster.find((entry) => entry.active) ?? null;
   const swimSpecialty = useMemo(() => {
     if (!activeCard) return "aquatic movement";

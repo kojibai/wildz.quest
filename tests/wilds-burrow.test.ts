@@ -126,3 +126,16 @@ test("admitted immutable burrow sources are reused; changed serialized sources a
   const modified=JSON.parse(JSON.stringify(source));modified.to.y-=1;
   assert.equal(Object.keys(burrow.admitWildsBurrows({[source.id]:modified})).length,0);
 });
+
+
+import { projectWildsCapabilityControls, projectWildsQuickCapabilityControls } from "../src/features/play/wilds-world-capability-controls";
+import { emptyAdventureCondition } from "../src/features/play/adventure/card-condition";
+test("a real digging card exposes exactly one Dig action and injuries suppress it", () => {
+  const condition = emptyAdventureCondition(card.id);
+  const controls = projectWildsQuickCapabilityControls(projectWildsCapabilityControls(card, condition), []);
+  const dig = controls.filter(control => control.family === "burrow");
+  assert.equal(dig.length, 1); assert.match(dig[0].label, /^Dig · /); assert.equal(dig[0].runtimeAvailable, true);
+  const injured = { ...condition, injuries: [{ id: "limb-injury", kind: "limb" as const, severity: 2 as const, sourceEventId: "test:injury" }] };
+  assert.equal(projectWildsCapabilityControls(card, injured).find(control => control.family === "burrow")?.runtimeAvailable, false);
+  assert.equal(projectWildsCapabilityControls(card, { ...condition, fatigue: 95 }).find(control => control.family === "burrow")?.capacity, 0);
+});

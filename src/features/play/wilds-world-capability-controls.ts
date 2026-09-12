@@ -1,6 +1,6 @@
 import type { AdventureCardCondition } from "./adventure/card-condition";
 import { creatureForm } from "./creature-catalog";
-import { projectCreatureCapabilityIdentity, projectCreatureRuntimeCapabilities } from "./creature-capability-identity";
+import { canCreatureUseBurrow, projectCreatureCapabilityIdentity, projectCreatureRuntimeCapabilities } from "./creature-capability-identity";
 import { canonicalPortableCardJson, type PortableCardAsset } from "./portable-card";
 import { projectWildsCreatureWorkFamilies } from "./wilds-steward-construction";
 import {
@@ -78,11 +78,12 @@ export function projectWildsCapabilityControls(
     const runtimeAbility = ability ? runtime.abilities.find((candidate) => candidate.descriptor.id === ability.id) : undefined;
     const traversalSuppressed = (family === "flight" || family === "glide" || family === "swim" || family === "climb")
       && !runtime.capabilities.includes(family);
-    const runtimeAvailable = runtimeAbility ? runtimeAbility.available : !traversalSuppressed && baseCapacity > 0;
+    const runtimeAvailable = baseCapacity > 0 && (runtimeAbility ? runtimeAbility.available : !traversalSuppressed)
+      && (family !== "burrow" || canCreatureUseBurrow(runtime, condition));
     return Object.freeze({
       assetId: asset.id,
       family,
-      label: ability?.name ?? definition.label,
+      label: family === "burrow" ? `Dig · ${ability?.name ?? definition.label}` : ability?.name ?? definition.label,
       action: ability?.action ?? definition.ready,
       icon: definition.icon,
       unlockLevel: 1 as const,
@@ -94,11 +95,23 @@ export function projectWildsCapabilityControls(
   return boundedCache(key, Object.freeze(controls));
 }
 
+/** Only distinct, implemented action effects belong in the quick-action dock.
+ * Passive traversal and guidance-only specialties remain part of the card identity. */
+const QUICK_EFFECTS: Partial<Record<WildsWorldCapabilityFamily, string>> = {
+  flight: "aerial-toggle", glide: "aerial-toggle", dive: "descend-water", current: "ride-current",
+  burrow: "excavate", light: "illuminate", track: "search-traces", lumber: "harvest-timber", quarry: "harvest-stone"
+};
 export function projectWildsQuickCapabilityControls(
   controls: readonly WildsProjectedCapabilityControl[],
   traversalCapabilities: readonly string[]
 ): readonly WildsProjectedCapabilityControl[] {
-  return traversalCapabilities.includes("flight")
-    ? Object.freeze(controls.filter((control) => control.family !== "glide"))
-    : controls;
+  const preferredAerial = traversalCapabilities.includes("flight") && controls.some(c => c.family === "flight" && c.runtimeAvailable)
+    ? "flight" : controls.some(c => c.family === "glide") ? "glide" : "flight";
+  const seen = new Set<string>();
+  const unique = controls.filter(control => {
+    const effect = QUICK_EFFECTS[control.family];
+    if (!effect || (effect === "aerial-toggle" && control.family !== preferredAerial) || seen.has(effect)) return false;
+    seen.add(effect); return true;
+  });
+  return unique.length === controls.length ? controls : Object.freeze(unique);
 }

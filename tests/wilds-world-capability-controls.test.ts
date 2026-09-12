@@ -75,3 +75,23 @@ test("structurally equal inputs reuse the bounded canonical projection", () => {
   assert.equal(Object.isFrozen(first), true);
   assert.equal(first.every(Object.isFrozen), true);
 });
+
+
+test("quick actions omit passive and presentation-only duplicates without erasing the card", () => {
+  const asset = card("voltray-1", "capability-controls:unique-effects");
+  const all = projectWildsCapabilityControls(asset, emptyAdventureCondition(asset.id));
+  const quick = capabilityControlModule.projectWildsQuickCapabilityControls([...all, ...all], ["flight", "glide"]);
+  const effects = quick.map(c => c.family === "flight" || c.family === "glide" ? "aerial-toggle" : c.family);
+  assert.equal(new Set(effects).size, effects.length);
+  assert.equal(quick.some(c => ["swim", "climb", "balance", "resist", "anchor", "camouflage", "break", "rescue"].includes(c.family)), false);
+  assert.ok(all.length >= quick.length);
+  assert.ok(quick.every(c => all.includes(c)));
+});
+
+test("a suppressed powered-flight action keeps the distinct available glide route", () => {
+  const asset = card("voltray-1", "capability-controls:glide-fallback");
+  const all = projectWildsCapabilityControls(asset, emptyAdventureCondition(asset.id)).map(c => c.family === "flight" ? { ...c, runtimeAvailable: false, capacity: 0 } : c);
+  const quick = capabilityControlModule.projectWildsQuickCapabilityControls(all, ["glide"]);
+  assert.equal(quick.some(c => c.family === "flight"), false);
+  assert.equal(quick.some(c => c.family === "glide"), true);
+});

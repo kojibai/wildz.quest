@@ -1,7 +1,7 @@
 import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 import { sealConstructionProof, constructionProofDigest, validConstructionHead, validConstructionId, validConstructionKai } from "./wilds-construction-project";
 import { verifyAnyWildsCard, rememberAdmittedWildsCardVerification, type PortableCardAsset } from "./portable-card";
-import { projectCreatureCapabilityIdentity, projectCreatureRuntimeCapabilities } from "./creature-capability-identity";
+import { canCreatureUseBurrow, projectCreatureCapabilityIdentity, projectCreatureRuntimeCapabilities } from "./creature-capability-identity";
 import { currentCreatureHistoryProjection } from "./living-card-proof";
 import { emptyAdventureCondition } from "./adventure/card-condition";
 import { isLivingCardAsset } from "./living-card-types";
@@ -28,7 +28,7 @@ export function wildsCreatureCanDig(card:PortableCardAsset) {
   const identity=projectCreatureCapabilityIdentity(card);
   const condition=isLivingCardAsset(card)?currentCreatureHistoryProjection(card).condition:emptyAdventureCondition(card.id);
   const runtime=projectCreatureRuntimeCapabilities(identity,condition);
-  return condition.fatigue<95 && !condition.injuries.some(i=>i.kind==="limb"&&i.severity>=2) && runtime.abilities.some(ability=>ability.available && ability.descriptor.tags.includes("burrow"));
+  return canCreatureUseBurrow(runtime, condition);
 }
 export function previewWildsBurrow(burrows:WildsBurrows, physical:WildsDiscoveryPhysicalNeighborhood, request:WildsBurrowRequest, owner:string):WildsBurrowPreview {
   const zero={x:0,y:0,z:0};

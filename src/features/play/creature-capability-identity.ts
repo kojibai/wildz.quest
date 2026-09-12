@@ -316,3 +316,11 @@ export function projectCreatureRuntimeCapabilities(identity: CreatureCapabilityI
 export function projectCreatureCapabilityIdentityDiagnostics() {
   return Object.freeze({ identitySlowBuilds, runtimeSlowBuilds });
 }
+
+
+/** One eligibility rule shared by the action dock and admitted excavation. */
+export function canCreatureUseBurrow(runtime: CreatureRuntimeCapabilities, condition: AdventureCardCondition) {
+  return condition.life === "alive" && !condition.retiredAt && condition.fatigue < 95
+    && !condition.injuries.some(injury => injury.kind === "limb" && injury.severity >= 2)
+    && runtime.abilities.some(ability => ability.available && ability.descriptor.tags.includes("burrow"));
+}

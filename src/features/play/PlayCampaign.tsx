@@ -185,7 +185,7 @@ import { projectWildsResourcePresentationAvailability as projectWildsResourceAva
 import { projectWildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
 import type { WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
 import { projectWildsWorkCapabilityMeters, selectNearestWildsWorkSource, selectWildsResourceWorkPartner, type WildsVisibleWorkFamily } from "@/features/play/wilds-work-capability";
-import { projectWildsCapabilityControls } from "@/features/play/wilds-world-capability-controls";
+import { projectWildsCapabilityControls, projectWildsQuickCapabilityControls } from "@/features/play/wilds-world-capability-controls";
 import { projectWildsCapabilityContext } from "@/features/play/wilds-world-capability-context";
 import { WILDS_WORLD_CAPABILITY_REGISTRY, type WildsWorldCapabilityFamily } from "@/features/play/wilds-world-capability-registry";
 import { applyWildsCapabilityCost } from "@/features/play/wilds-capability-runtime";
@@ -557,6 +557,7 @@ export function PlayCampaign({
       state.adventureConditions[activeAsset.id] ?? emptyAdventureCondition(activeAsset.id)
     ).capabilities
     : [], [activeAsset, state.adventureConditions]);
+  const quickCapabilityControls = useMemo(() => projectWildsQuickCapabilityControls(activeCapabilityControls, activeTraversalCapabilities), [activeCapabilityControls, activeTraversalCapabilities]);
   const traversalPotentials = useMemo(() => {
     if (!activeAsset) return { flightEndurance: 0, lift: 0, pressure: 0 };
     const identity = projectCreatureCapabilityIdentity(activeAsset);
@@ -1808,6 +1809,10 @@ export function PlayCampaign({
   };
   const requestWildsCapability = (family: WildsWorldCapabilityFamily) => {
     if (!activeAsset) return;
+    const control = quickCapabilityControls.find(candidate => candidate.family === family);
+    if (!control) return;
+    const ending = (family === "light" && activeWorldCapability === "light") || ((family === "flight" || family === "glide") && aerialStateRef.current.mode !== "ground");
+    if (!ending && (!control.runtimeAvailable || control.capacity <= 0)) { showWorldFeedback(`${control.label} needs recovery before it can be used.`, true); return; }
     beginWorldActionFeedback();
     switch (family) {
       case "flight":
@@ -1841,7 +1846,7 @@ export function PlayCampaign({
           return;
         }
         const heading = cameraHeadingRef.current;
-        const ride = beginWildsCurrentRide({ flow: { x: Math.sin(heading), z: Math.cos(heading) }, flowStrength: .72, creaturePower: 60 });
+        const ride = beginWildsCurrentRide({ flow: { x: Math.sin(heading), z: Math.cos(heading) }, flowStrength: .72, creaturePower: control.currentPower });
         dispatchWorldInput({ type: "move-vector", x: ride.velocity.x, z: ride.velocity.z, mode: "run" });
         setActiveWorldCapability("current");
         spendWorldCapability("current");
@@ -2804,6 +2809,7 @@ export function PlayCampaign({
               activeCard={activeAsset}
               cameraHeadingRef={cameraHeadingRef}
               cardConditions={state.adventureConditions}
+              capabilityControls={quickCapabilityControls}
               capabilityContexts={activeCapabilityContexts}
               cardOrder={cardOrder}
               commandItems={commandItems}
