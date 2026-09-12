@@ -40,7 +40,7 @@ export function wildsWalletIdentitySessionForChallenge(
 }
 
 type WalletAuthorityTicket = Readonly<{
-  applicationId: typeof APPLICATION_ID;
+  applicationId: string;
   keyId: string;
   actorId?: string;
   profileHandle?: string;
@@ -93,7 +93,10 @@ function sha256Text(value: string) {
 export function issueWildsWalletIdentityAuthorityChallenge(input: Readonly<{
   session: WildsWalletIdentitySession;
   artifactDigest: string;
+  applicationId?: string;
 }>, secret: string) {
+  const applicationId = input.applicationId ?? APPLICATION_ID;
+  if (!/^[A-Za-z0-9:._-]{1,128}$/.test(applicationId)) throw new Error("receiz_wallet_application_invalid");
   const hasCompleteSessionBinding = Boolean(input.session.actorId && input.session.profileHandle);
   if (!/^[a-f0-9]{64}$/.test(input.session.keyId)
     || Boolean(input.session.actorId) !== Boolean(input.session.profileHandle)
@@ -102,7 +105,7 @@ export function issueWildsWalletIdentityAuthorityChallenge(input: Readonly<{
   }
   const statementDigest = sha256Text("Wildz may identify this Receiz ID and refresh its wallet projection for 60 Kai pulses. Moving value requires a fresh exact edge signature from this Receiz ID.");
   const created = createReceizProofAuthorityChallenge({
-    applicationId: APPLICATION_ID,
+    applicationId,
     artifactDigest: input.artifactDigest,
     scopes: WILDS_WALLET_READ_AUTHORITY_SCOPES,
     consentStatementDigest: statementDigest,
@@ -110,7 +113,7 @@ export function issueWildsWalletIdentityAuthorityChallenge(input: Readonly<{
   });
   const unsigned = created.challenge;
   const ticket = packTicket({
-    applicationId: APPLICATION_ID,
+    applicationId,
     keyId: input.session.keyId,
     ...(hasCompleteSessionBinding ? { actorId: input.session.actorId, profileHandle: input.session.profileHandle } : {}),
     artifactDigest: input.artifactDigest,
@@ -120,13 +123,14 @@ export function issueWildsWalletIdentityAuthorityChallenge(input: Readonly<{
     statementDigest
   }, secret);
   return Object.freeze({
-    challenge: Object.freeze({ applicationId: APPLICATION_ID, scopes: WILDS_WALLET_READ_AUTHORITY_SCOPES, keyId: input.session.keyId, unsigned }),
+    challenge: Object.freeze({ applicationId, scopes: WILDS_WALLET_READ_AUTHORITY_SCOPES, keyId: input.session.keyId, unsigned }),
     ticket
   });
 }
 
 type CompletionDependencies = Readonly<{
   secret: string;
+  applicationId?: string;
   exchange(input: Readonly<{ artifact: string; challenge: ReceizProofAuthorityChallengeV123; applicationId: string; scopes: readonly string[] }>): Promise<unknown>;
   validate(value: unknown): Promise<ReceizProofAuthorityV123>;
   loadProfile(accessToken: string): Promise<{ id: string; handle: string } | null>;
@@ -139,9 +143,10 @@ export async function completeWildsWalletIdentityAuthority(input: Readonly<{
   ticket: string;
   body: unknown;
 }>, dependencies: CompletionDependencies) {
+  const applicationId = dependencies.applicationId ?? APPLICATION_ID;
   const ticket = unpackTicket(input.ticket, dependencies.secret);
   const ticketCarriesSessionBinding = Boolean(ticket.actorId || ticket.profileHandle);
-  if (ticket.applicationId !== APPLICATION_ID
+  if (ticket.applicationId !== applicationId
     || Boolean(ticket.actorId) !== Boolean(ticket.profileHandle)
     || (ticketCarriesSessionBinding && (!input.session
       || ticket.keyId !== input.session.keyId
@@ -154,7 +159,7 @@ export async function completeWildsWalletIdentityAuthority(input: Readonly<{
   if (typeof body.artifact !== "string" || !body.artifact) throw new Error("receiz_wallet_identity_authority_invalid");
   const challenge = exactRecord(body.challenge, ["schema", "audience", "nonce", "issuedAtKai", "expiresAtKai", "consent", "proof"]);
   const consent = exactRecord(challenge.consent, ["approved", "statementDigest"]);
-  if (challenge.schema !== "receiz.identity.proof-authority-challenge.v123" || challenge.audience !== APPLICATION_ID
+  if (challenge.schema !== "receiz.identity.proof-authority-challenge.v123" || challenge.audience !== applicationId
     || challenge.nonce !== ticket.nonce || challenge.issuedAtKai !== ticket.issuedAtKai || challenge.expiresAtKai !== ticket.expiresAtKai
     || consent.approved !== true || consent.statementDigest !== ticket.statementDigest || !challenge.proof) {
     throw new Error("receiz_wallet_identity_authority_challenge_invalid");
@@ -164,10 +169,10 @@ export async function completeWildsWalletIdentityAuthority(input: Readonly<{
   const authority = await dependencies.validate(await dependencies.exchange({
     artifact: body.artifact,
     challenge: body.challenge as ReceizProofAuthorityChallengeV123,
-    applicationId: APPLICATION_ID,
+    applicationId,
     scopes: WILDS_WALLET_READ_AUTHORITY_SCOPES
   }));
-  if (authority.applicationId !== APPLICATION_ID || authority.keyId !== ticket.keyId
+  if (authority.applicationId !== applicationId || authority.keyId !== ticket.keyId
     || authority.artifactDigest !== artifactDigest || authority.nonce !== ticket.nonce
     || authority.issuedAtKai !== ticket.issuedAtKai || authority.expiresAtKai !== ticket.expiresAtKai
     || !Number.isSafeInteger(authority.expiresIn) || authority.expiresIn < 1 || authority.expiresIn > 600

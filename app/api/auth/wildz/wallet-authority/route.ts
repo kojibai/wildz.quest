@@ -1,3 +1,4 @@
+import { walletAuthorizationFailureCode } from "@/features/play/wallet/wilds-wallet-authorization-error";
 import { NextRequest, NextResponse } from "next/server";
 import { validateReceizProofAuthorityV123, sha256ReceizBytes } from "@receiz/sdk";
 import { createReceizCommerceAdapter, receizCommerceAdapter } from "@/lib/receiz/adapter";
@@ -21,6 +22,12 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function registeredApplicationId() {
+  const id = process.env.RECEIZ_CLIENT_ID?.trim();
+  if (!id) throw new Error("receiz_wallet_application_required");
+  return id;
+}
+
 const TICKET_COOKIE = "wildz_wallet_authority_ticket";
 
 function cookieOptions(maxAge = 180) {
@@ -43,8 +50,9 @@ function edgeIdentity(request: NextRequest) {
 }
 
 function failure(cause: unknown) {
-  const code = receizHttpFailureCode(cause)
-    ?? (cause instanceof Error ? cause.message : "receiz_wallet_identity_authority_failed");
+  const code = walletAuthorizationFailureCode({ error: receizHttpFailureCode(cause)
+    ?? (cause instanceof Error ? cause.message : "receiz_wallet_identity_authority_failed") });
+  console.warn("wildz_wallet_authority_rejected", { code });
   const status = /required/.test(code) ? 401 : /binding|profile|token/.test(code) ? 403 : 400;
   return NextResponse.json({ error: code }, { status, headers: { "cache-control": "no-store" } });
 }
@@ -52,6 +60,7 @@ function failure(cause: unknown) {
 export async function GET(request: NextRequest) {
   try {
     const issued = issueWildsWalletIdentityAuthorityChallenge({
+      applicationId: registeredApplicationId(),
       session: edgeIdentity(request),
       artifactDigest: request.nextUrl.searchParams.get("artifactDigest") ?? ""
     }, receizOAuthSecret());
@@ -73,6 +82,7 @@ export async function POST(request: NextRequest) {
       body: await request.json()
     }, {
       secret: receizOAuthSecret(),
+      applicationId: registeredApplicationId(),
       exchange: (input) => receizCommerceAdapter.exchangeProofAuthorityV123(input),
       validate: validateReceizProofAuthorityV123,
       loadProfile: loadReceizConnectProfile,

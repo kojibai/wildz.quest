@@ -260,12 +260,13 @@ export async function connectWildzProofSession(
   session: WildzIdentitySession,
   options: {
     passphrase?: string;
+    forceRemote?: boolean;
     requestPassphrase?: () => string | null;
     vaultAdmission?: WildzVaultCardAdmission;
   } = {}
 ) {
   const current = await wildzRemoteSessionBridge.current();
-  if (current.status === "connected"
+  if (!options.forceRemote && current.status === "connected"
     && wildzRemoteSessionMatchesIdentity(session, current)
     && (!options.vaultAdmission || current.vaultCardRootSha256 === options.vaultAdmission.root)) return current;
   if (session.localAuthority === "proof-sealed-vault") {

@@ -6,6 +6,8 @@ import { createWildsWalletControllerState, gateWildsWalletClientCapabilities, hy
 import { normalizeWildsWalletPublicUsername } from "@/lib/receiz/wilds-wallet-projections";
 import { createWildsWalletControllerDriver, type WildsWalletControllerDriver, wildsWalletSharedSessionCache } from "./wilds-wallet-controller-driver";
 
+import { WildsWalletAuthorizationError } from "./wilds-wallet-authorization-error";
+
 type FetchResponse = Readonly<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 export type WildsWalletClientAuthorizationPort = Readonly<{
   authorize(input: Readonly<{ attempt: string; recipientUsername: string; amountPhiMicro: string; rail: "settlement" | "reserve" }>): Promise<Readonly<{ artifact: unknown; challenge: unknown }>>;
@@ -38,6 +40,7 @@ export function useWildsWalletController(
     stateRef.current = driverRef.current.state;
   }
   const driver = driverRef.current;
+  const readAuthorityErrorRef = useRef<WildsWalletAuthorizationError | null>(null);
   const readAuthorityPromiseRef = useRef<Promise<boolean> | null>(null);
   const sourceAuthorityPromiseRef = useRef<Promise<void> | null>(null);
   const preloadGenerationRef = useRef("");
@@ -54,11 +57,15 @@ export function useWildsWalletController(
     const current = driver.state;
     if (options.readAuthorization) {
       if (!readAuthorityPromiseRef.current) {
-        const operation = options.readAuthorization.authorize().catch(() => false);
+        readAuthorityErrorRef.current = null;
+        const operation = options.readAuthorization.authorize().catch((cause: unknown) => {
+          readAuthorityErrorRef.current = cause instanceof WildsWalletAuthorizationError ? cause : null;
+          return false;
+        });
         readAuthorityPromiseRef.current = operation;
         void operation.finally(() => { if (readAuthorityPromiseRef.current === operation) readAuthorityPromiseRef.current = null; });
       }
-      if (!await readAuthorityPromiseRef.current) throw new Error("Wallet connection could not be renewed. Your funds and assets have not moved. Please retry.");
+      if (!await readAuthorityPromiseRef.current) throw readAuthorityErrorRef.current ?? new Error("Wallet connection could not be renewed. Your funds and assets have not moved. Please retry.");
     }
     if (driver.state.identityKey !== current.identityKey || driver.state.authorityGeneration !== current.authorityGeneration) {
       throw new Error("The active account changed. Reopen Send for the current account.");
@@ -68,11 +75,20 @@ export function useWildsWalletController(
     await driver.refresh();
     if (!wildsWalletStatusNeedsIdentityReadAuthority(driver.state.status, driver.state.transportAuthorityRequired) || !options.readAuthorization) return;
     if (!readAuthorityPromiseRef.current) {
-      const operation = options.readAuthorization.authorize().catch(() => false);
+      readAuthorityErrorRef.current = null;
+      const operation = options.readAuthorization.authorize().catch((cause: unknown) => {
+        readAuthorityErrorRef.current = cause instanceof WildsWalletAuthorizationError ? cause : null;
+        return false;
+      });
       readAuthorityPromiseRef.current = operation;
       void operation.finally(() => { if (readAuthorityPromiseRef.current === operation) readAuthorityPromiseRef.current = null; });
     }
-    if (await readAuthorityPromiseRef.current) await driver.refresh({ replace: true });
+    if (await readAuthorityPromiseRef.current) {
+      setOperationError(null);
+      await driver.refresh({ replace: true });
+    } else if (readAuthorityErrorRef.current) {
+      setOperationError(readAuthorityErrorRef.current.message);
+    }
   }, [driver, options.readAuthorization]);
   const admitSourceThenRefresh = useCallback(async () => {
     if (options.readAuthorization?.projectSource && !sourceAuthorityPromiseRef.current) {
@@ -117,7 +133,7 @@ export function useWildsWalletController(
     await refreshWithIdentityAuthority();
     if (driver.state.identityKey !== before.identityKey || driver.state.authorityGeneration !== before.authorityGeneration
       || driver.state.transfer.operationNonce !== before.transfer.operationNonce) return;
-    if (driver.state.transportAuthorityRequired) { setOperationError("Wallet connection could not be renewed. Please retry."); return; }
+    if (driver.state.transportAuthorityRequired) { setOperationError(readAuthorityErrorRef.current?.message ?? "Wallet connection could not be renewed. Please retry."); return; }
     await driver.stageTransfer();
   }, [driver, refreshWithIdentityAuthority]);
   const authorizeTransfer = useCallback(async (pointerId: number) => {
@@ -133,8 +149,8 @@ export function useWildsWalletController(
       await secureTransferAuthority();
       const consent = await authorization.authorize({ attempt: transfer.attempt, recipientUsername: transfer.recipientUsername, amountPhiMicro: transfer.amountPhiMicro, rail: transfer.rail });
       await driver.authorizeTransfer(pointerId, consent);
-    } catch {
-      setOperationError("Transfer authorization could not be completed. Nothing was sent. Please retry.");
+    } catch (cause) {
+      setOperationError(cause instanceof WildsWalletAuthorizationError ? cause.message : "Transfer authorization could not be completed. Nothing was sent. Please retry.");
       driver.authorizationPointerCancel(pointerId);
     }
   }, [driver, options.authorization, secureTransferAuthority]);

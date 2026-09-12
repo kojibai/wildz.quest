@@ -8,6 +8,7 @@ import { DeferredProfileCardPreview } from "./DeferredProfileCardPreview";
 import type { PublicWildzCard } from "@/features/profile/public-profile";
 import { RotateCcw, ShieldCheck, X } from "lucide-react";
 import Image from "next/image";
+import { standaloneCardUrl } from "@/features/play/card-export";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ownerProfileVaultAssets,
@@ -66,6 +67,7 @@ export function WildzProfileVaultGallery({ cards, ownerAssets }: {
     }
     setSelectedAsset(null);
     setViewerState("loading");
+    const timeout = window.setTimeout(() => controller.abort("timeout"), 15_000);
     try {
       const response = await fetch(`/api/cards/${encodeURIComponent(card.id)}`, {
         cache: "no-store",
@@ -78,9 +80,10 @@ export function WildzProfileVaultGallery({ cards, ownerAssets }: {
       setSelectedAsset(asset);
       setViewerState("ready");
     } catch (cause) {
-      if (controller.signal.aborted) return;
+      if (requestRef.current !== controller) return;
       setViewerState("unavailable");
     } finally {
+      window.clearTimeout(timeout);
       if (requestRef.current === controller) requestRef.current = null;
     }
   }, [ownerAssetsById]);
@@ -179,7 +182,7 @@ export function WildzProfileVaultGallery({ cards, ownerAssets }: {
       </header>
       <div className="wildz-profile-card-viewer-body">
         {viewerState === "loading" ? <div className="wildz-profile-card-state" role="status"><RotateCcw aria-hidden="true" size={24} /><strong>Recovering verified card…</strong></div> : null}
-        {viewerState === "unavailable" ? <div className="wildz-profile-card-state" role="status"><ShieldCheck aria-hidden="true" size={24} /><strong>Verified card unavailable</strong><span>The public proof could not be recovered right now.</span></div> : null}
+        {viewerState === "unavailable" ? <div className="wildz-profile-card-state" role="status"><ShieldCheck aria-hidden="true" size={24} /><strong>Verified card unavailable</strong><span>The public proof could not be recovered right now.</span><button type="button" onClick={() => { if (originRef.current) void openCard(selectedCard, originRef.current); }}>Retry card</button><a href={standaloneCardUrl(selectedCard.id, window.location.origin)}>Open latest published card</a></div> : null}
         {selectedAsset ? <WildsCardScene
           asset={selectedAsset}
           origin={window.location.origin}

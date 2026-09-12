@@ -267,3 +267,66 @@ describe("Receiz ID wallet read authority", () => {
     assert.equal(consent.challenge.proof.keyId, H.key);
   });
 });
+
+describe("registered wallet application binding", () => {
+  it("signs the configured Receiz client instead of the Wildz namespace", () => {
+    const issued = issueWildsWalletIdentityAuthorityChallenge({
+      session: { keyId: H.key }, artifactDigest: H.artifact,
+      applicationId: "rc_registered-Wildz_client"
+    }, "s".repeat(32));
+    assert.equal(issued.challenge.applicationId, "rc_registered-Wildz_client");
+    assert.equal(issued.challenge.unsigned.audience, "rc_registered-Wildz_client");
+  });
+  it("rejects a ticket issued to a different application before exchange", async () => {
+    const issued = issueWildsWalletIdentityAuthorityChallenge({
+      session: { keyId: H.key }, artifactDigest: H.artifact, applicationId: "rc_original"
+    }, "s".repeat(32));
+    let exchanged = false;
+    await assert.rejects(completeWildsWalletIdentityAuthority({ticket: issued.ticket, body: {}}, {
+      secret: "s".repeat(32), applicationId: "rc_other",
+      exchange: async () => { exchanged = true; return null; },
+      validate: async () => { throw new Error("unexpected"); },
+      loadProfile: async () => null, introspect: async () => null,
+      artifactDigest: async () => H.artifact
+    }), /binding_invalid/);
+    assert.equal(exchanged, false);
+  });
+});
+
+describe("wallet remote binding recovery", () => {
+  const readAuthorityScopes = ["openid", "profile", "receiz:wallet.read"];
+  for (const mode of ["recovered", "still-unbound", "scope-denied"] as const) {
+    it(`reconnects at most once with a fresh signed challenge: ${mode}`, async () => {
+      let challenges = 0;
+      let completions = 0;
+      let reconnects = 0;
+      let signatures = 0;
+      const operation = authorizeWildsWalletReadWithIdentity(H.key, {
+        loadIdentity: async () => ({
+          artifact: "identity-artifact", artifactDigest: H.artifact, keyId: H.key,
+          sign: async (challengeB64Url) => { signatures++; return { schema: "receiz.identity.login_proof.v1", keyId: H.key, alg: "Ed25519", challengeB64Url, signatureB64Url: "signature" }; }
+        }),
+        request: async (_path, body) => {
+          if (body === undefined) {
+            challenges++;
+            return { ok: true, value: { applicationId: "rc_registered", keyId: H.key, scopes: readAuthorityScopes, unsigned: {
+              schema: "receiz.identity.proof-authority-challenge.v123", audience: "rc_registered", nonce: `fresh-nonce-${challenges}`,
+              issuedAtKai: 13_731_001, expiresAtKai: 13_731_061, consent: { approved: true, statementDigest: H.authority }
+            } } };
+          }
+          completions++;
+          return mode === "recovered" && completions === 2
+            ? { ok: true, value: { status: "connected", scopes: readAuthorityScopes } }
+            : { ok: false, value: { error: mode === "scope-denied" ? "SCOPE_NOT_GRANTED" : "IDENTITY_NOT_BOUND" } };
+        },
+        reconnect: async () => { reconnects++; return true; },
+        challengeText: basis => JSON.stringify(basis)
+      });
+      if (mode === "recovered") assert.equal(await operation, true);
+      else await assert.rejects(operation, mode === "scope-denied" ? /SCOPE_NOT_GRANTED/ : /IDENTITY_NOT_BOUND/);
+      assert.equal(reconnects, mode === "scope-denied" ? 0 : 1);
+      assert.equal(challenges, mode === "scope-denied" ? 1 : 2);
+      assert.equal(signatures, challenges);
+    });
+  }
+});

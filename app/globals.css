@@ -16867,7 +16867,7 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 .wildz-public-profile-page { position: fixed; inset: 0; overflow: auto; background: radial-gradient(ellipse at top, #18352d, #081914 70%); padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)); color: #eef8f1; }
 .wildz-public-profile-page > nav { display: flex; justify-content: space-between; gap: 16px; max-width: 960px; margin: 0 auto 24px; align-items: center; }
 .wildz-public-profile-page > nav span { overflow-wrap: anywhere; }
-.wildz-public-profile-page > .wildz-profile-sheet { max-width: 960px; margin: auto; }
+.wildz-public-profile-page > .wildz-profile-sheet { max-width: 960px; max-height: none; overflow: visible; margin: auto; padding-bottom: max(32px, env(safe-area-inset-bottom)); }
 .wildz-public-profile-page a { color: #bcf2cc; }
 .wildz-public-profile-empty { max-width: 640px; margin: 12vh auto; }
 .wildz-public-profile-empty button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; padding: 10px 16px; border-radius: 12px; border: 1px solid #aeecc94d; background: #194638; color: #e3ffed; text-decoration: none; }
