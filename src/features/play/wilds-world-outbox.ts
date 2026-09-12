@@ -262,29 +262,68 @@ export async function restoreWildsWorldEdgeSource(base: WildsWorldProjection, ac
   return projectWildsWorldOutbox(base, actorId, entries);
 }
 
-/** Resolve the shared anchor transiently. Persisted successor envelopes contain only exact events. */
+/** Durable storage is still read on every call; only an exact unchanged source prefix is reused. */
+export function createWildsWorldSourceResolver(options: { maxEntries?: number; maxBytes?: number } = {}) {
+  type Cached = { key: string; value: string };
+  type Resolved = { entry: WildsWorldOutboxEntry | null; projection?: WildsWorldProjection };
+  let actor: string | null = null;
+  let cached: Cached[] = [];
+  let verifications = 0;
+  let reused = 0;
+  const maxEntries = options.maxEntries ?? 64;
+  const maxBytes = options.maxBytes ?? 8 * 1024 * 1024;
+  return {
+    stats: () => ({ verifications, reused, entries: cached.length }),
+    resolve(actorId: string, entries: readonly WildsWorldOutboxEntry[], pendingIds: ReadonlySet<string>) {
+      if (actor !== actorId) { actor = actorId; cached = []; }
+      const anchors = new Map<string, WildsWorldProjection>();
+      const resolved = new Map<string, WildsWorldOutboxEntry>();
+      const nextCache: Cached[] = [];
+      let matchingPrefix = true;
+      let bytes = 0;
+      for (const [index, entry] of entries.entries()) {
+        const source = entry.admittedSource;
+        const key = JSON.stringify([entry, source ? null : pendingIds.has(entry.command.commandId)]);
+        const prior = cached[index];
+        let value: Resolved;
+        if (matchingPrefix && prior?.key === key) {
+          // Retain serialized values so callers cannot mutate cached proof authority.
+          value = JSON.parse(prior.value) as Resolved;
+          reused++;
+        } else {
+          matchingPrefix = false;
+          value = { entry: source || pendingIds.has(entry.command.commandId) ? entry : null };
+          if (source) {
+            try {
+              const base = source.checkpoint ? replayWildsWorld([], source.checkpoint) : anchors.get(source.anchorId);
+              if (!base) throw new Error("wilds_world_source_anchor_missing");
+              verifications++;
+              const projection = verifyWildsWorldAdmittedSource(entry, base);
+              value = { projection, entry: { ...entry, admittedSource: { ...source, checkpoint: checkpointWildsWorld(base) } } };
+            } catch {
+              // Unresolved entries retain their exact source and cannot acquire a cached anchor.
+            }
+          }
+        }
+        if (source && value.projection) anchors.set(source.anchorId, value.projection);
+        if (value.entry) resolved.set(entry.command.commandId, value.entry);
+        if (index === nextCache.length && index < maxEntries) {
+          const serialized = matchingPrefix && prior?.key === key ? prior.value : JSON.stringify(value);
+          const size = (key.length + serialized.length) * 2;
+          if (bytes + size <= maxBytes) { nextCache.push({ key, value: serialized }); bytes += size; }
+        }
+      }
+      cached = nextCache;
+      return resolved;
+    }
+  };
+}
+
+const sourceResolver = createWildsWorldSourceResolver();
+
+/** Resolve shared anchors transiently. Successor envelopes retain only their exact events. */
 function resolveOutboxSources(snapshot: ReceizOfflineProofQueueSnapshot, actorId: string) {
   const pendingIds = new Set(snapshot.pending.map((item) => item.id));
   const entries = [...snapshot.settled, ...snapshot.pending].filter((item) => item.kind === "wilds.world.command").map((item) => item.payload.entry).filter((entry): entry is WildsWorldOutboxEntry => validEntry(entry, actorId));
-  const anchors = new Map<string, WildsWorldProjection>();
-  const resolved = new Map<string, WildsWorldOutboxEntry>();
-  for (const entry of entries) {
-    const source = entry.admittedSource;
-    if (!source) {
-      // Settled legacy intent has no replayable source and must never execute again.
-      if (pendingIds.has(entry.command.commandId)) resolved.set(entry.command.commandId, entry);
-      continue;
-    }
-    try {
-      const base = source.checkpoint ? replayWildsWorld([], source.checkpoint) : anchors.get(source.anchorId);
-      if (!base) throw new Error("wilds_world_source_anchor_missing");
-      const projection = verifyWildsWorldAdmittedSource(entry, base);
-      anchors.set(source.anchorId, projection);
-      resolved.set(entry.command.commandId, { ...entry, admittedSource: { ...source, checkpoint: checkpointWildsWorld(base) } });
-    } catch {
-      // Keep unresolved source pending, never replace it with reconstructed intent.
-      resolved.set(entry.command.commandId, entry);
-    }
-  }
-  return resolved;
+  return sourceResolver.resolve(actorId, entries, pendingIds);
 }

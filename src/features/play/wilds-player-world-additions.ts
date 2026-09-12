@@ -1,3 +1,4 @@
+import { canonicalPortableCardJson } from "./portable-card";
 import { createWildsExactProofCache } from "./wilds-exact-proof-cache";
 import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 import type { WildsOwnedWorldAdditions } from "./game-state";
@@ -131,4 +132,22 @@ export function mergeWildsOwnedAdditionSets(
     materialCustody: { ...(left.materialCustody ?? {}), ...(right.materialCustody ?? {}) },
     ...materialLifecycle
   };
+}
+
+/** Compare frequently changed records first; never serialize the entire owned save. */
+export function sameWildsOwnedWorldAdditions(left: WildsOwnedWorldAdditions, right: WildsOwnedWorldAdditions): boolean {
+  if (left === right) return true;
+  const keys = Object.keys(left) as (keyof WildsOwnedWorldAdditions)[];
+  if (keys.length !== Object.keys(right).length) return false;
+  const priority: (keyof WildsOwnedWorldAdditions)[] = ["materialLots", "constructionComponents", "constructionWorkContributions", "consumedMaterialLots", "reservedMaterialLots", "storedMaterialLots"];
+  const ordered = [...priority.filter(key => key in left), ...keys.filter(key => !priority.includes(key))];
+  for (const key of ordered) {
+    if (!Object.prototype.hasOwnProperty.call(right, key)) return false;
+    const a = left[key], b = right[key];
+    if (a === b) continue;
+    if (!a || !b) return false;
+    if (Object.keys(a).length !== Object.keys(b).length) return false;
+    if (canonicalPortableCardJson(a) !== canonicalPortableCardJson(b)) return false;
+  }
+  return true;
 }

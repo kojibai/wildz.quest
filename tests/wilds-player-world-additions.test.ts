@@ -164,3 +164,17 @@ test("refresh keeps the local construction fork and preserves the remote source 
   assert.deepEqual(restored.constructionProjects[project.projectId], localProject);
   assert.deepEqual(restored.constructionRecoverySources?.[remoteProject.head], remoteProject);
 });
+
+test("owned change detection skips equal collection references and finds exact nested changes", async () => {
+  const { sameWildsOwnedWorldAdditions } = await import("../src/features/play/wilds-player-world-additions");
+  const world = initialWildsWorldProjection();
+  const previous = projectWildsOwnedWorldAdditions(world, "builder");
+  assert.ok(sameWildsOwnedWorldAdditions(previous, previous));
+  assert.ok(sameWildsOwnedWorldAdditions(previous, structuredClone(previous)));
+  assert.equal(sameWildsOwnedWorldAdditions(previous, { ...previous, consumedMaterialLots: { lot: "spent" } }), false);
+  const project = createWildsConstructionProject({ ownerReceizId: "builder", name: "Home", region: { x: 0, z: 0 }, kaiUPulse: 1 });
+  const owned = { ...previous, constructionProjects: { [project.projectId]: project } };
+  const altered = structuredClone(owned);
+  Object.assign(altered.constructionProjects[project.projectId]!.permissions, { remove: !project.permissions.remove });
+  assert.equal(sameWildsOwnedWorldAdditions(owned, altered), false);
+});

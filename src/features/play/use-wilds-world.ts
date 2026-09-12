@@ -1,4 +1,5 @@
 "use client";
+import { createWildsWorldRefreshCoordinator } from "./wilds-world-refresh-coordinator";
 import type { WildsBurrowRequest } from "./wilds-burrow";
 import { settleWildsBuild } from "./wilds-steward-build-settlement";
 import { playerStewardBuilder } from "./wilds-steward-construction";
@@ -220,9 +221,9 @@ export function useWildsWorld(input: {
   const controllers = useRef(new Set<AbortController>());
   const retryAfter = useRef(0);
   const authorizeLivingWorld = input.authorizeLivingWorld;
-  const edge = useRef<{ actorId: string; queue: ReturnType<typeof createWildsWorldEdgeAdmissionQueue> } | null>(null);
+  const edge = useRef<{ actorId: string; queue: ReturnType<typeof createWildsWorldEdgeAdmissionQueue>; refresh: ReturnType<typeof createWildsWorldRefreshCoordinator> } | null>(null);
   if (!edge.current || edge.current.actorId !== input.actorId) {
-    edge.current = { actorId: input.actorId, queue: createWildsWorldEdgeAdmissionQueue({
+    edge.current = { actorId: input.actorId, refresh: createWildsWorldRefreshCoordinator(), queue: createWildsWorldEdgeAdmissionQueue({
       initialProjection: snapshot ?? createWildsSourceAuthorityProjection(),
       prepare: prepareWildsWorldOutboxEntryAsync,
       persist: async (entry) => {
@@ -342,7 +343,9 @@ export function useWildsWorld(input: {
     return { projection: canonical, mode: nextMode };
   }, [adoptSnapshot, edgeQueue, input.actorId, sendEntry]);
 
-  const refresh = useCallback(async () => {
+  const refreshCoordinator = edge.current.refresh;
+  useEffect(() => () => refreshCoordinator.cancelPending(), [refreshCoordinator]);
+  const refresh = useCallback(() => refreshCoordinator.run(async () => {
     if (!input.enabled || !input.networkEnabled) return;
     if (shouldAttemptWildsNetwork() && Date.now() < retryAfter.current) return;
     const result = await refreshWildsWorldClient({
@@ -362,7 +365,7 @@ export function useWildsWorld(input: {
     setMode(result.mode);
     setError(result.error);
     if (result.retryAfter !== undefined) retryAfter.current = result.retryAfter;
-  }, [adoptSnapshot, edgeQueue, flushOutbox, input.actorId, input.enabled, input.networkEnabled, request]);
+  }), [adoptSnapshot, edgeQueue, flushOutbox, input.actorId, input.enabled, input.networkEnabled, request, refreshCoordinator]);
 
   useEffect(() => {
     if (input.enabled) setMode(wildsWorldModeAfterConfirmedBootstrap);
