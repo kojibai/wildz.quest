@@ -1,4 +1,6 @@
-import type { WildsDiscoverySiteProjection, WildsDiscoverySiteFamily } from "./wilds-discovery-sites";
+import type { WildsDiscoverySiteProjection, WildsDiscoverySiteFamily, WildsDiscoveryRouteRequirement } from "./wilds-discovery-sites";
+
+import { projectWildsDiscoveryAccess } from "./wilds-discovery-story";
 
 const impressions: Record<WildsDiscoverySiteFamily, string> = {
   cave: "A sheltered passage leads beneath the trail. Look for another way through.",
@@ -30,4 +32,10 @@ export function nearestUnvisitedWildsSite(sites: readonly WildsDiscoverySiteProj
     if (known.has(site.key)) return nearest;
     return !nearest || Math.hypot(site.entrance.x-position.x,site.entrance.z-position.z) < Math.hypot(nearest.entrance.x-position.x,nearest.entrance.z-position.z) ? site : nearest;
   }, null);
+}
+
+/** Prefer a trail the current companion can approach; keep blocked places findable. */
+export function nextReachableWildsSite(sites: readonly WildsDiscoverySiteProjection[], visited: readonly string[], position: {x:number;z:number}, capabilities: readonly WildsDiscoveryRouteRequirement[]) {
+  const reachable = sites.filter(site => projectWildsDiscoveryAccess(site, capabilities).ready);
+  return nearestUnvisitedWildsSite(reachable, visited, position) ?? nearestUnvisitedWildsSite(sites, visited, position);
 }

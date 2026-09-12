@@ -16,6 +16,10 @@ export function WildsPlaytestPanel({ playtest }: { playtest: WildsPlaytestContro
         <div><dt>Recent frame gap, 95th percentile</dt><dd>{playtest.summary.recentFrameP95Ms} ms</dd></div>
         <div><dt>Main thread tasks over 50 ms</dt><dd>{playtest.longTasksSupported ? playtest.summary.longTasks : "Unavailable"}</dd></div>
       </dl>
+      {playtest.actionTimings.length > 0 && <ul aria-label="Recent action timing">
+        {playtest.actionTimings.map(timing => <li key={timing.action}>{timing.action}: {timing.p95Ms} ms at the 95th percentile · {timing.completed} measured · {timing.failures} failed</li>)}
+      </ul>}
+      <p>Action timing includes animation and network waits. The download shows which actions overlapped slow frames; overlap alone does not identify a cause.</p>
       <p>Visible-tab timing, not a GPU benchmark. Mark how a moment felt, then download the session to compare the same route after a change.</p>
       <div className={styles.actions}>
         <button type="button" onClick={() => playtest.mark("delight")}>That felt great</button>

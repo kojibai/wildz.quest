@@ -42,10 +42,12 @@ async function profileImageFromFile(file: File) {
   }
 }
 
-export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "published", shareEnabled = true, editable = false, signingAvailable = true, onAuthenticateIdentitySeal, onSaveIdentitySeal, onSaveProfile, publishing = false, publicationMessage }: {
+export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "published", shareEnabled = true, editable = false, signingAvailable = true, onAuthenticateIdentitySeal, onSaveIdentitySeal, onSaveProfile, publishing = false, publicationMessage, publicationFailure, onRetryPublication }: {
   profile: PublicWildzProfile;
   publishing?: boolean;
   publicationMessage?: string;
+  publicationFailure?: string;
+  onRetryPublication?: () => void;
   vaultAssets?: readonly PortableCardAsset[];
   publicationStatus?: "local" | "published";
   shareEnabled?: boolean;
@@ -166,6 +168,11 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
         {publicationStatus === "published" ? <NextLink aria-label="Open public profile" title="Profile is live · open public profile" href={canonicalWildzProfilePath(profile.username)}><Check aria-hidden="true" size={16} /></NextLink> : <CloudUpload aria-hidden="true" size={16} />}
       </span> : null}</p>
     </div>{editable ? <button className="wildz-profile-edit-trigger" aria-label="Edit profile" aria-pressed={editing} onClick={() => setEditing((value) => !value)} type="button"><Pencil aria-hidden="true" size={18} /></button> : null}</header>
+
+    {editable && publicationStatus !== "published" ? <section className="wildz-profile-publication" aria-label="Profile publication">
+      <p role="status" aria-live="polite">{publicationFailure || publicationMessage}</p>
+      {onRetryPublication ? <button type="button" disabled={publishing} onClick={onRetryPublication}>{publishing ? "Syncing…" : "Retry sync"}</button> : null}
+    </section> : null}
 
     {editable && editing ? <section className="wildz-profile-editor" aria-label="Edit explorer profile" aria-busy={saving}>
       <label className="wildz-profile-photo-control">

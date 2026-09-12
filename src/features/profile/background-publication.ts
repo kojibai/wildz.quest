@@ -1,3 +1,5 @@
+import { classifyProfilePublicationFailure, type ProfilePublicationFailure } from "./publication-failure";
+
 export type ProfilePublicationStatus = "publishing" | "ready" | "unpublished";
 
 type Timer = ReturnType<typeof setTimeout>;
@@ -6,6 +8,7 @@ type Timer = ReturnType<typeof setTimeout>;
 export function startWildzProfilePublication(input: {
   publish: (signal: AbortSignal, progress: () => void) => Promise<unknown>;
   onStatus: (status: ProfilePublicationStatus) => void;
+  onFailure?: (failure: ProfilePublicationFailure) => void;
   isOnline: () => boolean;
   schedule: (task: () => Promise<void>) => Promise<void>;
   setTimer?: (callback: () => void, delay: number) => Timer;
@@ -20,12 +23,14 @@ export function startWildzProfilePublication(input: {
   let timer: Timer | undefined;
   let deadline: Timer | undefined;
   let controller: AbortController | undefined;
+  let timedOut = false;
   const wake = () => {
     if (!active || complete || pending) return;
     if (timer !== undefined) clearTimer(timer);
     timer = undefined;
     if (!input.isOnline()) {
       input.onStatus("unpublished");
+      input.onFailure?.(classifyProfilePublicationFailure(null, { offline: true }));
       return;
     }
     pending = true;
@@ -33,10 +38,11 @@ export function startWildzProfilePublication(input: {
     void input.schedule(async () => {
       if (!active) return;
       controller = new AbortController();
+      timedOut = false;
       const progress = () => {
         if (!active || controller?.signal.aborted) return;
         if (deadline !== undefined) clearTimer(deadline);
-        deadline = setTimer(() => controller?.abort(), 30_000);
+        deadline = setTimer(() => { timedOut = true; controller?.abort(); }, 30_000);
       };
       progress();
       await input.publish(controller.signal, progress);
@@ -44,8 +50,11 @@ export function startWildzProfilePublication(input: {
       controller.signal.throwIfAborted();
       complete = true;
       input.onStatus("ready");
-    }).catch(() => {
-      if (active) input.onStatus("unpublished");
+    }).catch((cause: unknown) => {
+      if (active) {
+        input.onStatus("unpublished");
+        input.onFailure?.(classifyProfilePublicationFailure(cause, { timedOut, offline: !input.isOnline() }));
+      }
     }).finally(() => {
       pending = false;
       if (deadline !== undefined) clearTimer(deadline);

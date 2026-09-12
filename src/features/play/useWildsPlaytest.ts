@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createWildsPlaytestRecording, exportWildsPlaytest, markWildsPlaytest, recordWildsPlaytestFrame, recordWildsPlaytestLongTask, summarizeWildsPlaytest, type WildsPlaytestAction, type WildsPlaytestOutcome } from "./wilds-playtest";
+import { createWildsPlaytestRecording, exportWildsPlaytest, markWildsPlaytest, recordWildsPlaytestFrame, recordWildsPlaytestLongTask, summarizeWildsPlaytest, summarizeWildsPlaytestActions, type WildsPlaytestAction, type WildsPlaytestOutcome } from "./wilds-playtest";
+
+import { listenWildsPlaytestEvents } from "./wilds-playtest-events";
 
 const STORAGE_KEY = "wildz:local-playtest-enabled:v1";
 export function useWildsPlaytest() {
@@ -9,6 +11,7 @@ export function useWildsPlaytest() {
   const [initialized, setInitialized] = useState(false);
   const [longTasksSupported, setLongTasksSupported] = useState(false);
   const recording = useRef(createWildsPlaytestRecording(0));
+  const [actionTimings, setActionTimings] = useState<ReturnType<typeof summarizeWildsPlaytestActions>>([]);
   const [summary, setSummary] = useState(() => summarizeWildsPlaytest(recording.current));
   useEffect(() => {
     try { setEnabled(localStorage.getItem(STORAGE_KEY) === "true"); } catch { /* Storage may be unavailable. */ }
@@ -17,17 +20,19 @@ export function useWildsPlaytest() {
   const reset = useCallback(() => {
     recording.current = createWildsPlaytestRecording(performance.now());
     setSummary(summarizeWildsPlaytest(recording.current));
+    setActionTimings([]);
   }, []);
   useEffect(() => {
     if (!initialized) return;
     try { localStorage.setItem(STORAGE_KEY, String(enabled)); } catch { /* Recording does not depend on storage. */ }
     reset();
     if (!enabled) return;
+    const stopListening = listenWildsPlaytestEvents(window, (action, outcome) => markWildsPlaytest(recording.current, action, outcome, performance.now()));
     let previous = 0;
     let frame = 0;
     let observer: PerformanceObserver | undefined;
     const sample = (now: number) => {
-      if (previous > 0) recordWildsPlaytestFrame(recording.current, now - previous);
+      if (previous > 0) recordWildsPlaytestFrame(recording.current, now - previous, now);
       previous = now;
       frame = requestAnimationFrame(sample);
     };
@@ -42,12 +47,13 @@ export function useWildsPlaytest() {
     setLongTasksSupported(Boolean(supported));
     if (supported) {
       observer = new PerformanceObserver(list => {
-        if (!document.hidden) for (const entry of list.getEntries()) recordWildsPlaytestLongTask(recording.current, entry.duration);
+        if (!document.hidden) for (const entry of list.getEntries()) recordWildsPlaytestLongTask(recording.current, entry.duration, entry.startTime + entry.duration);
       });
       try { observer.observe({ type: "longtask" }); } catch { setLongTasksSupported(false); }
     }
-    const interval = window.setInterval(() => setSummary(summarizeWildsPlaytest(recording.current)), 3000);
+    const interval = window.setInterval(() => { setSummary(summarizeWildsPlaytest(recording.current)); setActionTimings(summarizeWildsPlaytestActions(recording.current)); }, 3000);
     return () => {
+      stopListening();
       cancelAnimationFrame(frame);
       clearInterval(interval);
       observer?.disconnect();
@@ -67,6 +73,6 @@ export function useWildsPlaytest() {
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, [enabled, longTasksSupported]);
-  return { enabled, setEnabled, summary, mark, reset, download, longTasksSupported };
+  return { actionTimings, enabled, setEnabled, summary, mark, reset, download, longTasksSupported };
 }
 export type WildsPlaytestController = ReturnType<typeof useWildsPlaytest>;

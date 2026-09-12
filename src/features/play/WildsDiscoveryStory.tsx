@@ -7,7 +7,7 @@ export function WildsDiscoveryStory({ discovery, onExplore }: { discovery: Retur
     <span className={styles.eyebrow}>From the field guide</span>
     <h4>{discovery.title}</h4><p>{discovery.story}</p>
     <p className={styles.note}>{discovery.progressLabel}</p>
-    <p>{discovery.objective}</p><p className={styles.note}>{discovery.routeHint}</p>
-    <div className={styles.actions}><button type="button" onClick={() => onExplore(discovery.siteKey)}>{discovery.stage === "seek" ? "Find this place" : "Explore this habitat"}</button></div>
+    <p>{discovery.objective}</p><p className={styles.note}>{discovery.approachHint}</p><p className={styles.note}>{discovery.routeHint}</p>
+    <div className={styles.actions}><button type="button" onClick={() => onExplore(discovery.siteKey)}>{discovery.actionLabel}</button></div>
   </section>;
 }

@@ -1,3 +1,4 @@
+import type { ProfilePublicationFailure } from "../src/features/profile/publication-failure";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { startWildzProfilePublication, type ProfilePublicationStatus } from "../src/features/profile/background-publication";
@@ -5,10 +6,12 @@ import { startWildzProfilePublication, type ProfilePublicationStatus } from "../
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 function harness(publish: (signal: AbortSignal, progress: () => void) => Promise<unknown>, online = true) {
   const statuses: ProfilePublicationStatus[] = [];
+  const failures: ProfilePublicationFailure[] = [];
   const timers = new Map<ReturnType<typeof setTimeout>, { callback: () => void; delay: number }>();
   let serial = 0;
   const connection = { online };
   const job = startWildzProfilePublication({
+    onFailure: (failure) => failures.push(failure),
     publish, onStatus: (status) => statuses.push(status), isOnline: () => connection.online,
     schedule: (task) => Promise.resolve().then(task),
     setTimer: (callback, delay) => {
@@ -23,7 +26,7 @@ function harness(publish: (signal: AbortSignal, progress: () => void) => Promise
     assert.ok(entry, `expected ${delay}ms timer`);
     timers.delete(entry[0]); entry[1].callback();
   };
-  return { job, statuses, timers, connection, fire };
+  return { job, statuses, failures, timers, connection, fire };
 }
 
 test("publication queues immediate feedback, runs without a click, and never republishes a completed revision", async () => {
@@ -88,4 +91,27 @@ test("card progress renews the deadline so large restored vaults can finish publ
   finish(); await flush();
   assert.equal(h.statuses.at(-1), "ready");
   assert.equal(h.timers.size, 0);
+});
+
+test("manual retry wakes failed publication immediately without duplicating or leaking the error", async () => {
+  let calls = 0;
+  const h = harness(async () => { if (++calls === 1) throw new Error("private server response secret=abc"); });
+  h.fire(300); await flush();
+  assert.equal(h.failures[0]?.kind, "unknown");
+  assert.doesNotMatch(h.failures[0]?.message ?? "", /secret|abc/);
+  h.job.wake(); h.job.wake(); await flush();
+  assert.equal(calls, 2);
+  assert.equal(h.statuses.at(-1), "ready");
+  assert.equal(h.timers.size, 0);
+});
+test("timeouts report a safe reason and replacement cancellation reports no failure", async () => {
+  const h = harness((signal) => new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason))));
+  h.fire(300); await flush(); h.fire(30_000); await flush();
+  assert.equal(h.failures[0]?.kind, "timeout");
+  h.job.stop();
+  const stopped = harness((signal) => new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason))));
+  stopped.fire(300); await flush(); stopped.job.stop(); await flush();
+  assert.equal(stopped.failures.length, 0);
+  stopped.job.wake(); await flush();
+  assert.equal(stopped.timers.size, 0);
 });

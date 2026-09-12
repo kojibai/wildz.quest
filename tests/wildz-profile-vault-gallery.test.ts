@@ -72,10 +72,10 @@ test("Profile mounts real published card artwork and only one complete selected 
   assert.equal((gallery.match(/<WildsCardScene/g) ?? []).length, 1);
 });
 
-test("owner Profile renders every admitted Vault card immediately without a deferred loading phase", () => {
+test("owner Profile keeps every card available while deferring offscreen detail previews", () => {
   const gallery = readFileSync("src/features/profile/WildzProfileVaultGallery.tsx", "utf8");
-  assert.doesNotMatch(gallery, /IntersectionObserver|visibleOwnerCardIds|wildz-profile-card-deferred|data-owner-card-preview/);
-  assert.match(gallery, /localAsset\s*\?\s*<div[^>]*wildz-profile-card-local[^>]*>[\s\S]*<WildsCard asset=\{localAsset\} compact/);
+  assert.match(gallery, /cards\.map\(\(card, index\)/);
+  assert.match(gallery, /localAsset\s*\?\s*<DeferredProfileCardPreview[^\n]*eager=\{index < 2\}><WildsCard asset=\{localAsset\} compact/);
   assert.equal((gallery.match(/<WildsCard\b/g) ?? []).length, 1);
 });
 

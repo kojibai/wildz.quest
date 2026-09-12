@@ -16933,3 +16933,10 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 @media (max-width: 600px) {
   .wildz-world-controls.is-building .wildz-quick-utilities { display: none; }
 }
+
+.wildz-profile-publication { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px; border: 1px solid #385346; border-radius: 12px; background: #15241e; }
+.wildz-profile-publication p { flex: 1 1 220px; min-width: 0; margin: 0; color: #bfd4c5; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.wildz-profile-publication button { min-height: 44px; padding: 10px 14px; border: 1px solid #648372; border-radius: 9px; background: #284d3a; color: #edf8f0; font: inherit; font-size: 12px; cursor: pointer; }
+.wildz-profile-publication button:hover:not(:disabled) { background: #356548; }
+.wildz-profile-publication button:focus-visible { outline: 2px solid #c7e9ad; outline-offset: 3px; }
+.wildz-profile-publication button:disabled { opacity: .6; cursor: default; }

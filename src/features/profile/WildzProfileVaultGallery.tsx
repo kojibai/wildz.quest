@@ -4,6 +4,7 @@ import { canRestoreFocus } from "@/features/play/focus-recovery";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import { WildsCard } from "@/features/play/WildsCard";
 import { WildsCardScene } from "@/features/play/WildsCardScene";
+import { DeferredProfileCardPreview } from "./DeferredProfileCardPreview";
 import type { PublicWildzCard } from "@/features/profile/public-profile";
 import { RotateCcw, ShieldCheck, X } from "lucide-react";
 import Image from "next/image";
@@ -133,13 +134,13 @@ export function WildzProfileVaultGallery({ cards, ownerAssets }: {
     if (restoreFrameRef.current !== null) window.cancelAnimationFrame(restoreFrameRef.current);
   }, []);
 
-  return <section className="wildz-profile-vault-gallery" aria-label="Published companion cards">
+  return <section className="wildz-profile-vault-gallery" aria-label="Companion cards">
     <header className="wildz-profile-vault-heading">
-      <span>Published Vault</span>
+      <span>Companion Vault</span>
       <strong>{cards.length} verified card{cards.length === 1 ? "" : "s"}</strong>
     </header>
     <div aria-hidden={selectedCard ? true : undefined} className="wildz-profile-card-grid" inert={selectedCard ? true : undefined}>
-      {cards.map((card) => {
+      {cards.map((card, index) => {
         const localAsset = ownerAssetsById.get(card.id);
         return <button
           aria-label={`Open ${card.name} card`}
@@ -149,7 +150,7 @@ export function WildzProfileVaultGallery({ cards, ownerAssets }: {
           type="button"
         >
           {localAsset
-            ? <div className="wildz-profile-card-local" aria-label={`${card.name} card front`}><WildsCard asset={localAsset} compact interactive={false} /></div>
+            ? <DeferredProfileCardPreview key={`${card.id}:${card.proofDigest}`} eager={index < 2}><WildsCard asset={localAsset} compact interactive={false} /></DeferredProfileCardPreview>
             : <Image
               alt={`${card.name} card front`}
               height={700}
@@ -162,7 +163,7 @@ export function WildzProfileVaultGallery({ cards, ownerAssets }: {
         </button>;
       })}
     </div>
-    {!cards.length ? <p className="wildz-sheet-empty">No published companion cards yet.</p> : null}
+    {!cards.length ? <p className="wildz-sheet-empty">No companion cards yet.</p> : null}
     {selectedCard ? <div
       aria-label={`${selectedCard.name} complete card viewer`}
       aria-modal="true"

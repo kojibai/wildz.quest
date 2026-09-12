@@ -15,18 +15,42 @@ const stories: Record<WildsDiscoverySiteFamily, readonly [string, string, string
   "sky-island": ["A distant landing", "The island is a destination you can see before you can reach. A capable flying companion changes that promise into a route.", "Check the flight route and your companion's abilities before leaving the ground."]
 };
 
+/** Advisory route planning; entering/traversing still uses the world's admission rules. */
+export function projectWildsDiscoveryAccess(site: WildsDiscoverySiteProjection, capabilities: readonly WildsDiscoveryRouteRequirement[]) {
+  const supported = new Set(capabilities);
+  const missingFor = (requirements: readonly WildsDiscoveryRouteRequirement[]) => [...new Set(requirements.filter(requirement => !supported.has(requirement)))];
+  const available = site.routes.filter(route => missingFor(route.requirements).length === 0);
+  const route = available.find(route => route.safe) ?? available[0];
+  // Alternative routes are choices, not cumulative prerequisites. Show the easiest
+  // remaining route and use safety as the tie-breaker, preserving authored order.
+  const blockedRoute = route ? undefined : [...site.routes].sort((a, b) =>
+    missingFor(a.requirements).length - missingFor(b.requirements).length || Number(b.safe) - Number(a.safe))[0];
+  const missingRequirements = blockedRoute ? missingFor(blockedRoute.requirements) : [];
+  const approachReady = site.entrance.layer === "water" ? supported.has("swim")
+    : site.entrance.layer === "air" ? supported.has("flight") || supported.has("glide") : true;
+  const approachHint = site.entrance.layer === "water"
+    ? approachReady ? "Your companion can swim to this water entrance." : "This entrance is in water. Choose a swimming companion before approaching."
+    : site.entrance.layer === "air"
+      ? approachReady ? "This entrance is above ground. Find a suitable launch or flight approach." : "This entrance is above ground. Bring a flying or gliding companion and plan an aerial approach."
+      : "Approach the entrance on foot.";
+  return { route, blockedRoute, missingRequirements, approachReady, approachHint,
+    ready: approachReady && (Boolean(route) || site.routes.length === 0) };
+}
+
 export function projectWildsDiscoveryStory(site: WildsDiscoverySiteProjection, capabilities: readonly WildsDiscoveryRouteRequirement[], visited: boolean) {
   const [title, story, objective] = stories[site.family];
-  const supported = new Set(capabilities);
-  const available = site.routes.filter(route => route.requirements.every(requirement => supported.has(requirement)));
-  const route = available.find(route => route.safe) ?? available[0];
-  const missing = [...new Set(site.routes.flatMap(route => route.requirements).filter(requirement => !supported.has(requirement)))];
+  const access = projectWildsDiscoveryAccess(site, capabilities);
+  const { route, missingRequirements } = access;
   return {
     siteKey: site.key, title, story, objective,
     stage: visited ? "discovered" as const : "seek" as const,
     routeId: route?.id,
-    routeHint: route ? `${route.safe ? "Safe route" : "Available route"}: ${route.requirements.length ? route.requirements.join(" + ") : "no special ability required"}.`
-      : site.routes.length ? `No supported route yet. Check abilities: ${missing.join(", ")}.` : "Explore the entrance and scan its habitat.",
+    missingRequirements,
+    approachHint: access.approachHint,
+    ready: access.ready,
+    actionLabel: access.ready ? visited ? "Explore this habitat" : "Find this place" : "Locate entrance for later",
+    routeHint: route ? `${route.safe ? "Safe route at the entrance" : "Available route at the entrance"}: ${route.requirements.length ? route.requirements.join(" + ") : "no special route ability required"}.`
+      : site.routes.length ? `For one route, you still need: ${missingRequirements.join(" + ")}. Other routes have their own requirements.` : "Explore the entrance and scan its habitat.",
     // A discovered entrance is not proof that its routes were completed.
     progressLabel: visited ? "Entrance discovered · explore the habitat next" : "Find the entrance · then explore its habitat"
   };

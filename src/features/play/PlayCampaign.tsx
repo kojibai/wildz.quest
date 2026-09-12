@@ -14,10 +14,12 @@ import { WildsPlaytestPanel } from "./WildsPlaytestPanel";
 import { WildsHomeLife } from "./WildsHomeLife";
 import { projectWildsHomeLife, type WildsHomeAction } from "./wilds-home-life";
 import { WildsDiscoveryStory } from "./WildsDiscoveryStory";
+import { projectWildsCompanionChapter } from "./wilds-companion-chapter";
+import { WildsCompanionChapter } from "./WildsCompanionChapter";
 import { projectWildsDiscoveryStory } from "./wilds-discovery-story";
 import { WildsJourneyPanel } from "./WildsJourneyPanel";
 import { projectWildsNextStep, type WildsNextStepAction } from "./wilds-next-step";
-import { nearestUnvisitedWildsSite, wildsDiscoveryImpression, wildsTrailDirection } from "./wilds-journey-discovery";
+import { nextReachableWildsSite, wildsDiscoveryImpression, wildsTrailDirection } from "./wilds-journey-discovery";
 import { Icons } from "@/components/icons";
 import { Button, StatusPill } from "@/components/ui";
 import {
@@ -487,7 +489,6 @@ export function PlayCampaign({
   }, [journeyJournal, journeyReady]);
   const playtest = useWildsPlaytest();
   const markPlaytest = playtest.mark;
-  useEffect(() => { if (shellOverlayOwner === "profile" || shellOverlayOwner === "market") markPlaytest("panel", "success"); }, [shellOverlayOwner, markPlaytest]);
   const [visualSettings, setVisualSettings] = useState<WildsVisualSettings>(() => normalizeWildsVisualSettings(initialPlayerContinuity?.settings.visual));
   const [activeLandmarkId, setActiveLandmarkId] = useState<WildsLandmarkId | null>(null);
   const [activeDistrictId, setActiveDistrictId] = useState<WildsSettlementDistrictId>("trail-gate");
@@ -1878,7 +1879,6 @@ export function PlayCampaign({
     if (!canUseWorldStage()) return;
     const origin = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     claimPlayModalOwner("profile", origin);
-    markPlaytest("panel", "start");
     onOpenProfile(origin);
   };
   const openMarketFromVault = () => {
@@ -2101,9 +2101,15 @@ export function PlayCampaign({
   const homeDistance = journeyHome ? Math.hypot(journeyHome.position.x-state.player.x,journeyHome.position.z-state.player.z) : Infinity;
   const unfinishedJourneyShelter = Object.values(state.ownedWorldAdditions.constructionSites).find(site => site.blueprint === "trail-shelter" && site.stage !== "complete" && sameWildzPlayerCoordinate(site.placedByReceizId, ownerReceizId));
   const homeLife = projectWildsHomeLife({ structures: journeyStructures, preferredHomeId: journeyHome?.structureId, companions: homeCompanions.map(asset => ({id:asset.id,name:asset.manifest.name})), activeCompanionId: activeAsset?.id, now: Date.parse(kaiUPulseToISOString(kaiUPulse)) });
-  const discoveryLead = nearestUnvisitedWildsSite(siteRuntime.sites, state.explorationAtlas.siteKeys, state.player);
+  const discoveryLead = nextReachableWildsSite(siteRuntime.sites, state.explorationAtlas.siteKeys, state.player, activeTraversalCapabilities);
   const discoveryStory = discoveryLead ? projectWildsDiscoveryStory(discoveryLead, activeTraversalCapabilities, state.explorationAtlas.siteKeys.includes(discoveryLead.key)) : null;
-  const nextJourneyStep = unfinishedJourneyShelter ? { title: "Finish your trail shelter", reason: `Your materials are waiting at the site, ${wildsTrailDirection(state.player, unfinishedJourneyShelter.position)}. Return to contribute what remains or finish construction.`, actionLabel: "Continue your shelter", action: "shelter" as const } : projectWildsNextStep({ hasCompanion: Boolean(activeAsset), timber: stewardMaterials.timber, stone: stewardMaterials.stone, hasShelter: Boolean(journeyHome), hasWorkbench: journeyStructures.some(item=>item.blueprint === "steward-workbench"), hasCache: journeyStructures.some(item=>item.blueprint === "trail-cache") });
+  const companionChapter = worldOverlayState.panelKey === "mission" ? projectWildsCompanionChapter({
+    companion: activeAsset ? { id: activeAsset.id, name: activeAsset.manifest.name } : undefined,
+    memories: journeyMemories, position: state.player,
+    inOuterWorld: state.siteSpace.spaceId === "wildz.space.outer.v1",
+    capabilities: activeTraversalCapabilities, discovery: discoveryLead ?? undefined
+  }) : null;
+  const nextJourneyStep = unfinishedJourneyShelter ? { title: "Finish your trail shelter", reason: `Your materials are waiting at the site, ${wildsTrailDirection(state.player, unfinishedJourneyShelter.position)}. Return to contribute what remains or finish construction.`, actionLabel: "Continue your shelter", action: "shelter" as const } : projectWildsNextStep({ hasCompanion: Boolean(activeAsset), timber: stewardMaterials.timber, stone: stewardMaterials.stone, hasShelter: Boolean(journeyHome), hasWorkbench: Boolean(homeLife?.activities.some(item => item.action === "craft")), hasCache: Boolean(homeLife?.activities.some(item => item.action === "storage")) });
   const closeJourney = () => { dispatchStageOverlay({ type: "panel", key: null }); setRequestedCommand(null); setCommandDismissSignal(signal=>signal+1); };
   const followJourneyStep = (action: WildsNextStepAction) => {
     if (!interactionEnabled || modalOwner !== "none" || worldOverlayState.panelKey !== "mission") return;
@@ -2112,11 +2118,16 @@ export function PlayCampaign({
     if (action === "scan") { dispatchLayeredSearch(state.player, true); return; }
     if (action === "gather-timber" || action === "gather-stone") { gatherNearestStewardResource(action === "gather-timber" ? "lumber" : "quarry"); return; }
     if (action === "explore") {
-      const site = nearestUnvisitedWildsSite(siteRuntime.sites, state.explorationAtlas.siteKeys, state.player);
-      showWorldFeedback(site ? `Your next trail: ${site.family.replaceAll("-", " ")}, ${wildsTrailDirection(state.player, site.entrance)}. ${wildsDiscoveryImpression(site)}` : "You have explored the nearby sites. Travel beyond this region to find a new trail.", true);
+      const site = nextReachableWildsSite(siteRuntime.sites, state.explorationAtlas.siteKeys, state.player, activeTraversalCapabilities);
+      const guidance = site ? projectWildsDiscoveryStory(site, activeTraversalCapabilities, false) : null;
+      showWorldFeedback(site ? `Your next trail: ${site.family.replaceAll("-", " ")}, ${wildsTrailDirection(state.player, site.entrance)}. ${wildsDiscoveryImpression(site)} ${guidance?.approachHint ?? ""} ${guidance?.routeHint ?? ""}` : "You have explored the nearby sites. Travel beyond this region to find a new trail.", true);
       return;
     }
     if (state.siteSpace.spaceId !== "wildz.space.outer.v1") { showWorldFeedback("Return to the open world before placing this structure."); return; }
+    if ((action === "workbench" || action === "cache") && journeyHome && homeDistance > 6) {
+      showWorldFeedback(`Return to your shelter first: ${wildsTrailDirection(state.player, journeyHome.position)}. Place this building within 24 m of your shelter so it becomes part of your home.`, true);
+      return;
+    }
     continuousBuilder.close();
     setStewardPlacementMode(action === "shelter" ? "trail-shelter" : action === "workbench" ? "steward-workbench" : "trail-cache");
     setStewardPlacementPreview(null);
@@ -2238,6 +2249,15 @@ export function PlayCampaign({
       content: (
         <div className="wilds-command-content wilds-mission-content">
           <WildsJourneyPanel step={nextJourneyStep} companionName={activeAsset?.manifest.name} memories={journeyMemories} home={journeyHome ? { label: "Your trail shelter", distance: homeDistance } : undefined} onAction={followJourneyStep} onReturnHome={() => { if (!journeyHome) return; closeJourney(); showWorldFeedback(`Your trail shelter is ${wildsTrailDirection(state.player, journeyHome.position)}. Rest beside it to recover for your next journey.`, true); }} onRest={restAtJourneyHome} canRest={homeDistance <= 6 && state.siteSpace.spaceId === "wildz.space.outer.v1" && !state.battle} />
+          {companionChapter ? <WildsCompanionChapter chapter={companionChapter} onFindPlace={(position, kind) => {
+            if (!interactionEnabled || modalOwner !== "none" || worldOverlayState.panelKey !== "mission") return;
+            closeJourney();
+            if (state.siteSpace.spaceId !== "wildz.space.outer.v1") {
+              showWorldFeedback("Return to the open world to follow this shared trail.", true);
+              return;
+            }
+            showWorldFeedback(`${kind === "meeting" ? "Where you first met" : "Your next shared trail"}: ${wildsTrailDirection(state.player, position)}.`, true);
+          }} /> : null}
           {homeLife ? <WildsHomeLife home={homeLife} onAction={doHomeActivity} /> : null}
           {discoveryStory ? <WildsDiscoveryStory discovery={discoveryStory} onExplore={() => followJourneyStep("explore")} /> : null}
           <section aria-label="Φ earned through world work" style={{ fontSize: 13, lineHeight: 1.6 }}>

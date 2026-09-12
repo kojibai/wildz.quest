@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import Link from "next/link";
 import QRCode from "qrcode";
+import { emitWildsPlaytestEvent } from "./wilds-playtest-events";
 import { Icons } from "@/components/icons";
 import { sortWildzCards, type WildzCardSort } from "./card-sort";
 import {
@@ -351,6 +352,7 @@ export function WildsInventory({
 
   const saveVerifiedCard = async (asset: PlayState["inventory"][number]) => {
     if (cardSaving) return;
+    emitWildsPlaytestEvent("card-save", "start");
     if (saveResetTimer.current !== null) window.clearTimeout(saveResetTimer.current);
     triggerCardHaptic("press");
     setCardSaveState("preparing");
@@ -362,6 +364,7 @@ export function WildsInventory({
         ? preparedIdentityCard.current
         : undefined;
       await onExportCard(asset, playerVault(), prepared);
+      emitWildsPlaytestEvent("card-save", "success");
       setCardSaveState("success");
       setDownloadMessage(cardSavePresentation("success").message);
       triggerCardHaptic("success");
@@ -370,6 +373,7 @@ export function WildsInventory({
         saveResetTimer.current = null;
       }, 2_400);
     } catch (error) {
+      emitWildsPlaytestEvent("card-save", "failure");
       setCardSaveState("error");
       triggerCardHaptic("error");
       setDownloadMessage(error instanceof Error
