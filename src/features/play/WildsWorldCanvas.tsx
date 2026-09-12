@@ -45,7 +45,7 @@ import { WildsStewardEnvironment } from "@/features/play/WildsStewardEnvironment
 import { projectWildsCreatureWorkFamilies } from "@/features/play/wilds-steward-construction";
 import type { WildsResourceSource } from "@/features/play/wilds-resource-authority";
 import type { PortableCardAsset } from "@/features/play/portable-card";
-import type { KaiKlokMoment } from "@/features/play/kai-klok-moment";
+import { KAI_PULSE_DURATION_MS, type KaiKlokMoment } from "@/features/play/kai-klok-moment";
 import { projectKaiWorldExpression } from "@/features/play/kai-moment-expression";
 import { WildsKaiAtmosphereGeometry } from "@/features/play/WildsKaiAtmosphereGeometry";
 import { WildsCelestialSky } from "@/features/play/WildsCelestialSky";
@@ -99,12 +99,19 @@ import type { WildsSiteSpaceState } from "@/features/play/wilds-discovery-sites"
 import { wildsSiteRuntimeCameraIsFlooded, wildsSiteRuntimeDiagnostics, wildsSiteRuntimeGroundY, writeWildsSiteRuntimeAerialCollision, writeWildsSiteRuntimeCamera, writeWildsSiteRuntimeEncounter, type WildsSiteRuntimeProjection } from "@/features/play/wilds-site-runtime";
 import { createWildsFlightCameraControlState, writeWildsFlightCameraControlState } from "@/features/play/wilds-flight-camera";
 import { projectWildsInteractionSurfacePoint, type WildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
-import { projectWildsCompanionWorkMotion, type WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
+import { type WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
 import type { WildsStewardPlacement } from "@/features/play/wilds-steward-craft";
 import type { WildsWorldCapabilityFamily } from "@/features/play/wilds-world-capability-registry";
 import { projectWildsCapabilityPresentation } from "@/features/play/wilds-capability-presentation";
 import { projectWildsDiscoveryHint } from "@/features/play/wilds-discovery-hint";
+import { currentCreatureHistoryProjection } from "./living-card-proof";
+import { isLivingCardAsset } from "./living-card-types";
 import { creatureContinuityProjection } from "@/features/play/creature-continuity";
+import { canWildsCrewTravel, createWildsCrewPhysicalSampler } from "./wilds-crew-physical-navigation";
+import { createWildsCrewPathStepState, planWildsCrewPath, writeWildsCrewFollowingStep, type WildsCrewNavigationPoint, type WildsCrewNavigationAuthority } from "./wilds-crew-navigation";
+import { WILDS_RENDERED_PHYSICAL_OBSTACLES } from "./wilds-terrain-obstacles";
+
+export type WildsCrewModes = Readonly<Record<string, "follow" | "roam">>;
 
 const WILDS_DIAGNOSTICS_ENABLED = process.env.NODE_ENV !== "production";
 const EMPTY_AERIAL_OBSTACLE_NEIGHBORHOOD = Object.freeze({ tileX: 0, tileZ: 0, obstacles: Object.freeze([]) }) as WildsAerialObstacleNeighborhood;
@@ -142,6 +149,7 @@ export function WildsWorldCanvas({
   kaiMoment,
   visualSettings = DEFAULT_WILDS_VISUAL_SETTINGS,
   supportCards = [],
+  crewModes,
   trainers = [],
   aerialCapabilities,
   aerialStateRef,
@@ -191,6 +199,7 @@ export function WildsWorldCanvas({
   kaiMoment: KaiKlokMoment;
   visualSettings?: Partial<WildsVisualSettings>;
   supportCards?: readonly PortableCardAsset[];
+  crewModes?: WildsCrewModes;
   trainers?: readonly WildsTrainerProjection[];
   aerialCapabilities: readonly WildsTraversalCapability[];
   aerialStateRef: MutableRefObject<WildsAerialTraversalState>;
@@ -233,7 +242,7 @@ export function WildsWorldCanvas({
       >
         {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
-          <WildsScene homeResidents={homeResidents} burrowPreview={burrowPreview} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
+          <WildsScene homeResidents={homeResidents} burrowPreview={burrowPreview} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} crewModes={crewModes} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
         </Suspense>
       </Canvas>
     </div>
@@ -275,6 +284,7 @@ function WildsScene({
   kaiMoment,
   visualSettings,
   supportCards,
+  crewModes,
   trainers,
   onSelectTrainer,
   onSelectOverlook,
@@ -324,6 +334,7 @@ function WildsScene({
   kaiMoment: KaiKlokMoment;
   visualSettings: Partial<WildsVisualSettings>;
   supportCards: readonly PortableCardAsset[];
+  crewModes?: WildsCrewModes;
   trainers: readonly WildsTrainerProjection[];
   onSelectTrainer: (trainer: WildsTrainerProjection) => void;
   onSelectOverlook: (overlookId: WildsOverlookId) => void;
@@ -402,6 +413,7 @@ function WildsScene({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [siteSpace.spaceId, terrainTileX, terrainTileZ]
   );
+  const crewObstacles = useMemo(() => [...WILDS_RENDERED_PHYSICAL_OBSTACLES, ...terrainObstacleNeighborhood.obstacles, ...livingPhysicalObstacles], [terrainObstacleNeighborhood, livingPhysicalObstacles]);
   const actualCameraSubmergedRef = useRef(false);
   return (
     <WildsReadabilityProvider value={readability}>
@@ -483,10 +495,10 @@ function WildsScene({
           style={character.gender}
           worldPosition={state.player}
         />
-        <ActiveCompanion activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} locomotion={swimming ? "swim" : aerialStateRef.current.mode !== "ground" ? "air" : "ground"} siteRuntime={siteRuntime} siteSpace={siteSpace} state={state} terrainElevation={activeFloorY} />
+        <ActiveCompanion key={`${state.selectedAssetId}:${siteSpace.spaceId}`} kaiUPulse={kaiMoment.uPulse} locomotion={swimming ? "swim" : aerialStateRef.current.mode !== "ground" ? "air" : "ground"} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} crewModes={crewModes} obstacles={crewObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} state={state} terrainElevation={activeFloorY} />
       </AerialPlayerFrame>
       <group name="grounded-support-companions" visible={!swimming}>
-        <SupportCompanions cards={supportCards} player={state.player} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={activeFloorY} />
+        <SupportCompanions kaiUPulse={kaiMoment.uPulse} cards={supportCards} conditions={state.adventureConditions} crewModes={crewModes} obstacles={crewObstacles} player={state.player} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={activeFloorY} />
       </group>
       {homeResidentsNearby && homeResidents && <WildsHomeResidents shelterPosition={homeResidents.shelterPosition} cards={homeResidentCards} player={state.player} terrainElevation={activeFloorY} reducedMotion={qualityProfile.reducedMotion} />}
       <Sparkles key={`wilds-world-sparkles-${worldSparkleCount}`} count={worldSparkleCount} scale={[8, 2.4, 8]} size={2.1} speed={qualityProfile.reducedMotion ? 0 : kaiExpression.particleSpeed} color={kaiExpression.accent} />
@@ -742,110 +754,123 @@ function isBattleTelemetryPhase(phase: PlayState["encounter"]["phase"]) {
   return phase === "player_turn" || phase === "capture_ready" || phase === "fled" || phase === "defeated";
 }
 
-function ActiveCompanion({ activeWorkSource, activeCapabilityFamily, locomotion, siteRuntime, siteSpace, state, terrainElevation }: { activeWorkSource?: WildsActiveWorkSource | null; activeCapabilityFamily: WildsWorldCapabilityFamily | null; locomotion: "ground" | "swim" | "air"; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; state: PlayState; terrainElevation: number }) {
-  const readability = useWildsReadability();
+/** Plans are produced by a bounded timer, never by the render-frame writer. */
+function useCrewFollower(input: {
+  player: PlayState["player"]; terrainElevation: number; siteRuntime: WildsSiteRuntimeProjection;
+  siteSpace: WildsSiteSpaceState; obstacles: readonly WildsTerrainObstacle[];
+  kaiUPulse: number; locomotion?: "ground" | "swim" | "air"; enabled: boolean; mode: "follow" | "roam"; cadenceMs: number; seed: number; offsetX: number; offsetZ: number;
+  workSource?: WildsActiveWorkSource | null;
+}) {
+  const group = useRef<THREE.Group>(null);
+  const gait = useRef({ distance: 0, speed: 0 });
+  const position = useRef({ x: input.player.x, y: input.terrainElevation, z: input.player.z });
+  const stepState = useRef(createWildsCrewPathStepState());
+  const directState = useRef(createWildsCrewPathStepState());
+  const target = useRef({ x: input.player.x, y: input.terrainElevation, z: input.player.z });
+  const targetFloor = useRef({ x: NaN, z: NaN, runtime: input.siteRuntime, space: "", interiorFloor: NaN, y: input.terrainElevation });
+  const directWaypoints = useRef<Readonly<WildsCrewNavigationPoint>[]>([target.current]);
+  const path = useRef<readonly Readonly<WildsCrewNavigationPoint>[]>([]);
+  const latest = useRef(input); latest.current = input;
+  const priorLocomotion = useRef(input.locomotion ?? "ground");
+  const originX = Math.floor(input.player.x / 16) * 16, originZ = Math.floor(input.player.z / 16) * 16;
+  const sampleSegment = useMemo(() => createWildsCrewPhysicalSampler({ runtime: input.siteRuntime, spaceId: input.siteSpace.spaceId, obstacles: input.obstacles, originX, originZ }), [input.siteRuntime, input.siteSpace.spaceId, input.obstacles, originX, originZ]);
+  const authority = useMemo<WildsCrewNavigationAuthority>(() => ({ mode: "walk", permittedModes: ["walk"], sampleSegment }), [sampleSegment]);
+  const frameInput = useMemo(() => ({ ...authority, speed: 5.5, deltaSeconds: 0 }), [authority]);
+  const latestAuthority = useRef(authority); latestAuthority.current = authority;
+  function writeTarget(current: typeof input) {
+    let x = current.player.x + current.offsetX, z = current.player.z + current.offsetZ;
+    if (current.workSource) {
+      const dx = current.workSource.position.x - current.player.x, dz = current.workSource.position.z - current.player.z;
+      const d = Math.max(.001, Math.hypot(dx, dz));
+      x = current.workSource.position.x - dx / d * .82; z = current.workSource.position.z - dz / d * .82;
+    } else if (current.mode === "roam" && (!current.locomotion || current.locomotion === "ground")) {
+      const cadence = Math.max(2500, Math.min(12000, current.cadenceMs * 2));
+      const visit = Math.floor(current.kaiUPulse / 1_000_000 * KAI_PULSE_DURATION_MS / cadence);
+      const angle = current.seed + visit * 2.399963229728653;
+      const radius = Math.max(1.1, Math.min(2.8, current.cadenceMs / 1600));
+      x += Math.cos(angle) * radius; z += Math.sin(angle) * radius;
+    }
+    const cached = targetFloor.current;
+    const interiorFloor = current.siteSpace.spaceId === "wildz.space.outer.v1" ? 0 : current.terrainElevation;
+    if (cached.x !== x || cached.z !== z || cached.runtime !== current.siteRuntime || cached.space !== current.siteSpace.spaceId || cached.interiorFloor !== interiorFloor) {
+      const fallback = current.siteSpace.spaceId === "wildz.space.outer.v1" ? wildsTerrainElevation(x, z) : current.terrainElevation;
+      cached.y = wildsSiteRuntimeGroundY(current.siteRuntime, current.siteSpace.spaceId, x, z, fallback);
+      cached.x = x; cached.z = z; cached.runtime = current.siteRuntime; cached.space = current.siteSpace.spaceId; cached.interiorFloor = interiorFloor;
+    }
+    target.current.x = x; target.current.z = z; target.current.y = cached.y;
+  }
+  // Sampler refreshes do not clear routes or restart this timer. Each frame uses the
+  // newest sampler, so changed collision is still enforced immediately.
+  useEffect(() => {
+    const update = () => {
+      const current = latest.current;
+      if (!current.enabled || (current.locomotion && current.locomotion !== "ground")) return;
+      if (directState.current.reason !== "blocked") return;
+      const planned = planWildsCrewPath({ ...latestAuthority.current, start: position.current, target: target.current, cellSize: .8, maxNodes: 96, maxDistance: 24 });
+      path.current = planned.waypoints; stepState.current.waypointIndex = 0;
+      stepState.current.reason = planned.reason === "path" ? "moving" : planned.reason === "arrived" ? "arrived" : "blocked";
+    };
+    const timer = window.setInterval(update, 300);
+    return () => { window.clearInterval(timer); };
+  }, []);
+  useFrame((_, delta) => {
+    if (!group.current) return;
+    const current = latest.current, p = position.current;
+    const oldX = p.x, oldZ = p.z;
+    writeTarget(current);
+    frameInput.deltaSeconds = delta;
+    if (current.locomotion && current.locomotion !== "ground") {
+      // Retain the selected companion's existing player-supported flight/swim frame.
+      // Free roaming never creates a separate aerial or aquatic traversal ability.
+      const dx = target.current.x - p.x, dz = target.current.z - p.z, distance = Math.hypot(dx, dz);
+      const step = Math.min(distance, Math.max(0, Math.min(delta, .1)) * frameInput.speed);
+      if (distance > .000001) { p.x += dx / distance * step; p.z += dz / distance * step; }
+      p.y = current.terrainElevation;
+    } else if (current.enabled) {
+      if (priorLocomotion.current !== "ground") {
+        const floor = current.siteSpace.spaceId === "wildz.space.outer.v1" ? wildsTerrainElevation(p.x, p.z) : current.terrainElevation;
+        p.y = wildsSiteRuntimeGroundY(current.siteRuntime, current.siteSpace.spaceId, p.x, p.z, floor);
+      }
+      if (Math.hypot(target.current.x - p.x, target.current.y - p.y, target.current.z - p.z) > .000001) {
+        writeWildsCrewFollowingStep(p, target.current, path.current, stepState.current, directState.current, directWaypoints.current, frameInput);
+      } else directState.current.reason = "arrived";
+    }
+    priorLocomotion.current = current.locomotion ?? "ground";
+    const dx = p.x - oldX, dz = p.z - oldZ, distance = Math.hypot(dx, dz);
+    gait.current.distance += distance; gait.current.speed = distance / Math.max(.001, delta);
+    group.current.position.set(p.x - current.player.x, p.y - current.terrainElevation, p.z - current.player.z);
+    if (distance > .0001) {
+      const heading = Math.atan2(dx, dz), blend = 1 - Math.exp(-Math.min(delta, .05) * 8);
+      group.current.rotation.y += Math.atan2(Math.sin(heading - group.current.rotation.y), Math.cos(heading - group.current.rotation.y)) * blend;
+    }
+  }, -.5);
+  return { group, gait };
+}
+
+function ActiveCompanion({ kaiUPulse, locomotion, activeWorkSource, activeCapabilityFamily, crewModes, obstacles, siteRuntime, siteSpace, state, terrainElevation }: { kaiUPulse: number; locomotion: "ground" | "swim" | "air"; activeWorkSource?: WildsActiveWorkSource | null; activeCapabilityFamily: WildsWorldCapabilityFamily | null; crewModes?: WildsCrewModes; obstacles: readonly WildsTerrainObstacle[]; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; state: PlayState; terrainElevation: number }) {
   const card = selectedCard(state);
   const asset = state.inventory.find((candidate) => candidate.id === state.selectedAssetId);
   const formId = asset?.manifest.formId ?? `${card.id}-1`;
   const appearance = useMemo(() => asset ? projectCardKaiAppearance(asset) : null, [asset]);
-  const roaming = useMemo(() => {
+  const legacyRoaming = useMemo(() => {
     const mandate = asset ? creatureContinuityProjection(asset)?.mandate : null;
     return Boolean(mandate?.status === "active" && mandate.ownerReceizId === asset?.manifest.ownerReceizId);
   }, [asset]);
-  const roamingRadius = 2.2;
-  const roamingSeed = useMemo(() => Number.parseInt(asset?.proof.digest.slice(-6) ?? "0",16),[asset?.proof.digest]);
+  const mode = (asset ? crewModes?.[asset.id] : undefined) ?? (legacyRoaming ? "roam" : "follow");
+  const seed = useMemo(() => Number.parseInt(asset?.proof.digest.slice(-6) ?? "0", 16) || 0, [asset?.proof.digest]);
+  const condition = useMemo(() => {
+    if (!asset) return undefined;
+    if (state.adventureConditions[asset.id]) return state.adventureConditions[asset.id];
+    try { return isLivingCardAsset(asset) ? currentCreatureHistoryProjection(asset).condition : undefined; } catch { return undefined; }
+  }, [asset, state.adventureConditions]);
+  const enabled = useMemo(() => canWildsCrewTravel(condition), [condition]);
+  const { group, gait } = useCrewFollower({ kaiUPulse, locomotion, enabled, player: state.player, terrainElevation, siteRuntime, siteSpace, obstacles, mode, cadenceMs: appearance?.cadenceMs ?? 3200, seed, offsetX: -1.08, offsetZ: .42, workSource: activeWorkSource });
+  const working = Boolean(activeWorkSource);
   const capabilityPresentation = useMemo(() => activeCapabilityFamily
     ? projectWildsCapabilityPresentation({ family: activeCapabilityFamily, targetId: activeWorkSource?.sourceId ?? null })
     : null, [activeCapabilityFamily, activeWorkSource?.sourceId]);
-  const restingPosition = useMemo(() => {
-    const world = { x: state.player.x - 1.08, z: state.player.z + .42 };
-    const mountainElevation = wildsSiteRuntimeGroundY(siteRuntime, siteSpace.spaceId, world.x, world.z, Number.NaN);
-    return projectWildsTerrainActorPosition(world, state.player, 0, { actorElevation: Number.isFinite(mountainElevation) ? mountainElevation : undefined, anchorElevation: terrainElevation });
-  }, [siteRuntime, siteSpace.spaceId, state.player, terrainElevation]);
-  const workPosition = useMemo(() => {
-    if (!activeWorkSource) return restingPosition;
-    const dx = activeWorkSource.position.x - state.player.x;
-    const dz = activeWorkSource.position.z - state.player.z;
-    const distance = Math.max(.001, Math.hypot(dx, dz));
-    const world = {
-      x: activeWorkSource.position.x - dx / distance * .82,
-      z: activeWorkSource.position.z - dz / distance * .82
-    };
-    const elevation = wildsSiteRuntimeGroundY(siteRuntime, siteSpace.spaceId, world.x, world.z, activeWorkSource.position.y);
-    return projectWildsTerrainActorPosition(world, state.player, 0, { actorElevation: elevation, anchorElevation: terrainElevation });
-  }, [activeWorkSource, restingPosition, siteRuntime, siteSpace.spaceId, state.player, terrainElevation]);
-  const group = useRef<THREE.Group>(null);
-  const workTarget = useRef(new THREE.Vector3());
-  const floorPoint = useRef(new THREE.Vector3());
-  const floorCache = useRef({x: NaN, z: NaN, space: "", runtime: siteRuntime, y: 0});
-  const follower = useRef({ x: state.player.x + restingPosition[0], z: state.player.z + restingPosition[2] });
-  const gait = useRef({ distance: 0, speed: 0 });
-  const working = Boolean(activeWorkSource);
-  useFrame(({clock}, delta) => {
-    if (!group.current) return;
-    const target = working ? workPosition : restingPosition;
-    const blend = 1 - Math.exp(-Math.min(delta, .05) * (working ? 8.5 : 6.5));
-    if (activeWorkSource) {
-      const now = performance.now();
-      const motion = projectWildsCompanionWorkMotion({
-        elapsedMs: now - activeWorkSource.startedAtMs,
-        settledElapsedMs: activeWorkSource.settledAtMs === null ? null : now - activeWorkSource.settledAtMs,
-        reducedMotion: readability.motionScale === 0
-      });
-      const sourceX = activeWorkSource.position.x - state.player.x;
-      const sourceZ = activeWorkSource.position.z - state.player.z;
-      const dx = sourceX - target[0];
-      const dz = sourceZ - target[2];
-      const distance = Math.max(.001, Math.hypot(dx, dz));
-      const directionX = dx / distance;
-      const directionZ = dz / distance;
-      workTarget.current.set(
-        target[0] + -directionZ * motion.tangent + directionX * motion.radial,
-        target[1] + motion.lift,
-        target[2] + directionX * motion.tangent + directionZ * motion.radial
-      );
-    } else {
-      workTarget.current.set(...target);
-      if(roaming && locomotion === "ground") {
-        const visit = Math.floor(clock.elapsedTime / 7);
-        const angle = (roamingSeed + visit * 2.399963229728653);
-        const radius = roamingRadius * (.4 + .6 * Math.abs(Math.sin(roamingSeed + visit * 1.618)));
-        workTarget.current.x += Math.cos(angle) * radius;
-        workTarget.current.z += Math.sin(angle) * radius;
-      }
-    }
-    const destinationX = state.player.x + workTarget.current.x;
-    const destinationZ = state.player.z + workTarget.current.z;
-    const dx = destinationX - follower.current.x, dz = destinationZ - follower.current.z;
-    const distance = Math.hypot(dx, dz);
-    const step = distance < .015 ? 0 : distance > 20 ? distance : Math.min(distance * blend, Math.min(.05, Math.max(0, delta)) * 5.5);
-    if (distance > .001) { follower.current.x += dx / distance * step; follower.current.z += dz / distance * step; }
-    gait.current.distance += distance > 20 ? 0 : step;
-    gait.current.speed = distance > 20 ? 0 : step / Math.max(delta, .001);
-    const cached = floorCache.current;
-    if(cached.x !== follower.current.x || cached.z !== follower.current.z || cached.space !== siteSpace.spaceId || cached.runtime !== siteRuntime) {
-      cached.x=follower.current.x; cached.z=follower.current.z; cached.space=siteSpace.spaceId; cached.runtime=siteRuntime;
-      const siteY=wildsSiteRuntimeGroundY(siteRuntime, siteSpace.spaceId, cached.x, cached.z, Number.NaN);
-      writeWildsTerrainActorPosition(floorPoint.current,cached.x,cached.z,0,0,0,Number.isFinite(siteY)?siteY:undefined,terrainElevation);
-      cached.y=floorPoint.current.y + terrainElevation;
-    }
-    const floor = cached.y;
-    group.current.position.set(follower.current.x - state.player.x,
-      locomotion === "ground" ? floor - terrainElevation : workTarget.current.y,
-      follower.current.z - state.player.z);
-    if (!activeWorkSource && distance > .025) {
-      const heading = Math.atan2(dx, dz);
-      group.current.rotation.y += Math.atan2(Math.sin(heading-group.current.rotation.y), Math.cos(heading-group.current.rotation.y)) * blend;
-    }
-    if (activeWorkSource) {
-      const heading = activeWorkSource
-        ? Math.atan2(activeWorkSource.position.x - state.player.x - group.current.position.x, activeWorkSource.position.z - state.player.z - group.current.position.z)
-        : Math.atan2(workTarget.current.x - group.current.position.x, workTarget.current.z - group.current.position.z);
-      group.current.rotation.y = THREE.MathUtils.lerp(group.current.rotation.y, heading, blend);
-    }
-  });
   return (
-    <group name="active-companion" position={restingPosition} ref={group} scale={0.82}>
+    <group name="active-companion" ref={group} scale={0.82}>
       <WildsCreatureActor grounded gait={gait} accent={appearance?.palette.accent ?? card.accent} anatomy={appearance?.anatomy} cadenceMs={appearance?.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} glow={appearance?.palette.glow ?? card.accent} identityToken={appearance?.fingerprint} locomotion={locomotion} morphology={appearance?.morphology} pose={working ? "work" : capabilityPresentation?.actorPose ?? "curious"} primary={appearance?.palette.primary ?? card.color} secondary={appearance?.palette.secondary ?? card.color} />
       {capabilityPresentation ? <>
         <mesh position={[0, .035, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -861,7 +886,7 @@ function ActiveCompanion({ activeWorkSource, activeCapabilityFamily, locomotion,
       {state.battle && isBattleTelemetryPhase(state.encounter.phase) ? (
         <BattleWorldTelemetry fighter={state.battle.player} position={[0, 1.9, 0]} side="player" />
       ) : (
-        <Html center className="wilds-world-label" distanceFactor={8} occlude={false} position={[0, 0.96, 0]} zIndexRange={[10, 0]}>
+        <Html center className="wilds-world-label" occlude={false} position={[0, 0.96, 0]} zIndexRange={[10, 0]}>
           <span>{asset?.manifest.name ?? card.name}</span>
         </Html>
       )}
@@ -869,51 +894,24 @@ function ActiveCompanion({ activeWorkSource, activeCapabilityFamily, locomotion,
   );
 }
 
-function SupportCompanions({ cards, player, siteRuntime, siteSpace, terrainElevation }: { cards: readonly PortableCardAsset[]; player: PlayState["player"]; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; terrainElevation: number }) {
-  const pack = useRef<THREE.Group>(null);
-  const gait = useRef({ distance: 0, speed: 0 });
-  const priorPlayer = useRef({x: player.x, z: player.z});
-  useFrame((_, delta) => {
-    const distance = Math.hypot(player.x-priorPlayer.current.x, player.z-priorPlayer.current.z);
-    gait.current.speed = THREE.MathUtils.damp(gait.current.speed, distance > 20 ? 0 : distance / Math.max(delta, .001), 14, Math.min(delta,.05));
-    if(distance > .001 && distance < 20) {
-      const heading=Math.atan2(player.x-priorPlayer.current.x,player.z-priorPlayer.current.z);
-      for(const child of pack.current?.children ?? []) child.rotation.y += Math.atan2(Math.sin(heading-child.rotation.y),Math.cos(heading-child.rotation.y)) * (1-Math.exp(-Math.min(delta,.05)*12));
-    }
-    if(distance <= 20) gait.current.distance += distance;
-    priorPlayer.current.x=player.x; priorPlayer.current.z=player.z;
-  });
-  const positions = useMemo(() => {
-    const first = { x: player.x + 1.05, z: player.z + .72 };
-    const second = { x: player.x + 1.62, z: player.z + 1.34 };
-    const firstElevation = wildsSiteRuntimeGroundY(siteRuntime, siteSpace.spaceId, first.x, first.z, Number.NaN);
-    const secondElevation = wildsSiteRuntimeGroundY(siteRuntime, siteSpace.spaceId, second.x, second.z, Number.NaN);
-    return [
-      projectWildsTerrainActorPosition(first, player, 0, { actorElevation: Number.isFinite(firstElevation) ? firstElevation : undefined, anchorElevation: terrainElevation }),
-      projectWildsTerrainActorPosition(second, player, 0, { actorElevation: Number.isFinite(secondElevation) ? secondElevation : undefined, anchorElevation: terrainElevation })
-    ] as const;
-  }, [player, siteRuntime, siteSpace.spaceId, terrainElevation]);
-  const appearances = useMemo(() => cards.slice(0, 2).map((card) => ({ card, appearance: projectCardKaiAppearance(card) })), [cards]);
-  return <group name="trail-pack-support-companions" ref={pack}>
-    {appearances.map(({ card, appearance }, index) => <group key={card.id} name={`trail-support-${index + 1}`} position={positions[index]} scale={index === 0 ? 0.62 : 0.54}>
-      <WildsCreatureActor grounded gait={gait}
-        accent={appearance.palette.accent}
-        anatomy={appearance.anatomy}
-        cadenceMs={appearance.cadenceMs}
-        familyId={card.manifest.familyId}
-        formId={card.manifest.formId}
-        glow={appearance.palette.glow}
-        identityToken={appearance.fingerprint}
-        morphology={appearance.morphology}
-        pose={index === 0 ? "curious" : "idle"}
-        primary={appearance.palette.primary}
-        secondary={appearance.palette.secondary}
-      />
-      <mesh position={[0, .025, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.4, 0.025, 8, 28]} />
-        <meshStandardMaterial color="#dffcf0" emissive="#58c99d" emissiveIntensity={0.36} transparent opacity={0.72} />
-      </mesh>
-    </group>)}
+function SupportCompanions({ kaiUPulse, cards, conditions, crewModes, obstacles, player, siteRuntime, siteSpace, terrainElevation }: { kaiUPulse: number; cards: readonly PortableCardAsset[]; conditions: PlayState["adventureConditions"]; crewModes?: WildsCrewModes; obstacles: readonly WildsTerrainObstacle[]; player: PlayState["player"]; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; terrainElevation: number }) {
+  return <group name="trail-pack-support-companions">
+    {cards.slice(0, 2).map((card, index) => <SupportCompanion kaiUPulse={kaiUPulse} key={`${card.id}:${siteSpace.spaceId}`} card={card} condition={conditions[card.id]} index={index} mode={crewModes?.[card.id] ?? "follow"} obstacles={obstacles} player={player} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={terrainElevation} />)}
+  </group>;
+}
+function SupportCompanion({ kaiUPulse, card, condition, index, mode, obstacles, player, siteRuntime, siteSpace, terrainElevation }: { kaiUPulse: number; card: PortableCardAsset; condition: PlayState["adventureConditions"][string] | undefined; index: number; mode: "follow" | "roam"; obstacles: readonly WildsTerrainObstacle[]; player: PlayState["player"]; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; terrainElevation: number }) {
+  const appearance = useMemo(() => projectCardKaiAppearance(card), [card]);
+  const seed = useMemo(() => Number.parseInt(card.proof.digest.slice(-6), 16) || 0, [card.proof.digest]);
+  const enabled = useMemo(() => {
+    try { return canWildsCrewTravel(condition ?? (isLivingCardAsset(card) ? currentCreatureHistoryProjection(card).condition : undefined)); } catch { return false; }
+  }, [card, condition]);
+  const { group, gait } = useCrewFollower({ kaiUPulse, enabled, player, terrainElevation, siteRuntime, siteSpace, obstacles, mode, cadenceMs: appearance.cadenceMs, seed, offsetX: index === 0 ? 1.05 : 1.62, offsetZ: index === 0 ? .72 : 1.34 });
+  return <group ref={group} name={`trail-support-${index + 1}`} scale={index === 0 ? .62 : .54}>
+    <WildsCreatureActor grounded gait={gait} locomotion="ground" accent={appearance.palette.accent} anatomy={appearance.anatomy} cadenceMs={appearance.cadenceMs} familyId={card.manifest.familyId} formId={card.manifest.formId} glow={appearance.palette.glow} identityToken={appearance.fingerprint} morphology={appearance.morphology} pose={index === 0 ? "curious" : "idle"} primary={appearance.palette.primary} secondary={appearance.palette.secondary} />
+    <mesh position={[0, .025, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <torusGeometry args={[.4, .025, 8, 28]} />
+      <meshStandardMaterial color="#dffcf0" emissive="#58c99d" emissiveIntensity={.36} transparent opacity={.72} />
+    </mesh>
   </group>;
 }
 
@@ -1105,7 +1103,7 @@ function CameraRig({ actualCameraSubmergedRef, verticalTraversalRef, aquaticPres
     if (Number.isFinite(lastHeading.current) && Math.abs(heading - lastHeading.current) < .001) return;
     lastHeading.current = heading;
     onCameraHeadingChange(heading);
-  });
+  }, -.25);
   return (
     <OrbitControls
       makeDefault

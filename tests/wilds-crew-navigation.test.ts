@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createWildsCrewPathStepState, planWildsCrewPath, writeWildsCrewPathStep, type WildsCrewNavigationAuthority, type WildsCrewSegmentSampler } from "../src/features/play/wilds-crew-navigation";
+import { createWildsCrewPathStepState, planWildsCrewPath, writeWildsCrewFollowingStep, writeWildsCrewPathStep, type WildsCrewNavigationAuthority, type WildsCrewSegmentSampler } from "../src/features/play/wilds-crew-navigation";
 
 const point = (x: number, z = 0, y = 0) => ({ x, y, z });
 const clear: WildsCrewSegmentSampler = (_from, to, _mode, out) => { out.allowed = true; out.y = to.y; };
@@ -83,4 +83,39 @@ test("advance follows admitted floor and rejects nonfinite inputs", () => {
   const before = { ...position };
   writeWildsCrewPathStep(position, [point(1)], state, { ...authority(), speed: NaN, deltaSeconds: .1 });
   assert.equal(state.reason, "invalid-input"); assert.deepEqual(position, before);
+});
+
+test("curved floors shorten and revalidate the sweep instead of permanently stalling", () => {
+  let calls = 0;
+  const curved: WildsCrewSegmentSampler = (_from, to, _mode, out) => { calls++; out.allowed = true; out.y = Math.sin(to.x * Math.PI) * .2; };
+  const position = point(0), state = createWildsCrewPathStepState();
+  writeWildsCrewPathStep(position, [point(1)], state, { ...authority(curved), speed: 2, deltaSeconds: .1 });
+  assert.equal(state.reason, "moving"); assert.ok(position.x > 0);
+  assert.ok(Math.hypot(position.x, position.y) <= .200001);
+  assert.ok(Math.hypot(position.x, position.y) > .19, "curvature must not needlessly halve follow speed");
+  assert.equal(position.y, Math.sin(position.x * Math.PI) * .2);
+  assert.ok(calls > 1 && calls <= 6);
+});
+
+
+test("continuous moving targets advance each frame even while physical authority references refresh", () => {
+  const position = point(0), routeState = createWildsCrewPathStepState(), directState = createWildsCrewPathStepState();
+  const target = point(1), directWaypoints = [target];
+  let previousX = position.x;
+  for (let frame = 0; frame < 600; frame++) {
+    target.x += 3 / 60;
+    // A refreshed immutable world projection must not require a new route/timer to move.
+    writeWildsCrewFollowingStep(position, target, [], routeState, directState, directWaypoints, { ...authority((_from, to, _mode, out) => { out.allowed = true; out.y = to.y; }), speed: 5.5, deltaSeconds: 1 / 60 });
+    assert.ok(position.x > previousX, `stopped during moving frame ${frame}`);
+    assert.ok(position.x - previousX <= 5.5 / 60 + 1e-6);
+    assert.ok(target.x - position.x <= 1.01, `fell behind during moving frame ${frame}`);
+    previousX = position.x;
+  }
+});
+
+test("direct moving-target chase never bypasses a newly built wall", () => {
+  const position = point(1.3), routeState = createWildsCrewPathStepState(), directState = createWildsCrewPathStepState();
+  const target = point(3), directWaypoints = [target];
+  writeWildsCrewFollowingStep(position, target, [], routeState, directState, directWaypoints, { ...authority(wall), speed: 5.5, deltaSeconds: .1 });
+  assert.equal(directState.reason, "blocked"); assert.deepEqual(position, point(1.3));
 });

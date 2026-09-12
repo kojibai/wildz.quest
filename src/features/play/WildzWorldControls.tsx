@@ -41,6 +41,7 @@ function useStableEvent<Arguments extends unknown[]>(handler: (...args: Argument
 export function WildzWorldControls({
   capabilityControls: suppliedCapabilityControls,
   onBeginConstruction,
+  onOpenCrew,
   buildingActive=false,
   nearbyCards,
   activeCard,
@@ -77,6 +78,7 @@ export function WildzWorldControls({
   onAerialToggle: _onAerialToggle
 }: {
   onBeginConstruction?:()=>void;
+  onOpenCrew?: () => void;
   buildingActive?:boolean;
   nearbyCards: readonly PortableCardAsset[];
   activeCard: PortableCardAsset | null;
@@ -305,6 +307,7 @@ export function WildzWorldControls({
             enabled={worldHomesEnabled}
             onRequest={onRequestCapability}
           />
+          <button aria-label="Open creature crew" title="Creature crew" disabled={!worldHomesEnabled} onClick={onOpenCrew} type="button"><Icons.quarry aria-hidden="true" size={21} /></button>
           <button
             aria-label={`Open Living Construction. Satchel has ${materialCounts.hay} hay, ${materialCounts.timber} timber, and ${materialCounts.stone} stone`}
             className="wildz-construction-control"

@@ -280,7 +280,10 @@ describe("production Wilds site runtime", () => {
     assert.match(canvas, /writeWildsSiteRuntimeCamera/);
     assert.match(canvas, /writeWildsSiteRuntimeEncounter/);
     assert.match(canvas, /wildsSiteRuntimeDiagnostics/);
-    assert.ok((canvas.match(/wildsSiteRuntimeGroundY/g)?.length ?? 0) >= 7);
+    assert.match(canvas, /wildsSiteRuntimeGroundY/);
+    assert.match(canvas, /createWildsCrewPhysicalSampler\(\{ runtime: input\.siteRuntime/);
+    const crewSampler = await readFile("src/features/play/wilds-crew-physical-navigation.ts", "utf8");
+    assert.match(crewSampler, /writeWildsSiteRuntimeMovement\(site, input\.runtime/);
     assert.match(ambient, /wildsSiteRuntimeGroundY/);
     assert.match(environment, /<WildsDiscoverySites/);
     assert.match(renderer, /runtime\.physical/);

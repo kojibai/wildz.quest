@@ -7,6 +7,9 @@ import { requestWildsDive } from "./wilds-vertical-traversal";
 import { resolveWildsConstructionFunction } from "./wilds-construction-function";
 
 import dynamic from "next/dynamic";
+import { WildsCrewPanel } from "./WildsCrewPanel";
+import { recordWildsCrewModeObservation } from "./wilds-crew-observations";
+import { sanitizeWildsCrewPreferences, setWildsCrewPreference } from "./wilds-crew-preferences";
 import { projectWildsEarnedPhi } from "./wilds-earned-phi";
 import { useWildsJourney } from "./useWildsJourney";
 import { useWildsPlaytest } from "./useWildsPlaytest";
@@ -296,6 +299,7 @@ export function PlayCampaign({
   ) => Promise<WildzCommittedArtifactRestore>;
 }) {
   const [state, setState] = useState(() => initialState);
+  const crewPreferences = useMemo(() => sanitizeWildsCrewPreferences(state.crewPreferences, state.inventory, ownerReceizId), [state.crewPreferences, state.inventory, ownerReceizId]);
   const admittedSourceStateRef = useRef(initialState);
   const [saveRestored, setSaveRestored] = useState(false);
   const onPlayStateChangeRef = useRef(onPlayStateChange);
@@ -537,6 +541,7 @@ export function PlayCampaign({
   const activeCard = selectedCard(state);
   const activeAsset = selectedAsset(state);
   const homeCompanions = useMemo(() => playableInventory({inventory:state.inventory,adventureConditions:state.adventureConditions}), [state.inventory, state.adventureConditions]);
+  const crewCards = useMemo(() => homeCompanions.filter(card => sameWildzPlayerCoordinate(card.manifest.ownerReceizId, ownerReceizId)), [homeCompanions, ownerReceizId]);
   const journeyStructures = useMemo(() => Object.values(state.ownedWorldAdditions.structures).filter(item => sameWildzPlayerCoordinate(item.ownerReceizId, ownerReceizId)), [state.ownedWorldAdditions.structures, ownerReceizId]);
   const journeyHome = useMemo(() => journeyStructures.filter(item => item.blueprint === "trail-shelter").sort((a, b) => Math.hypot(a.position.x-state.player.x,a.position.z-state.player.z)-Math.hypot(b.position.x-state.player.x,b.position.z-state.player.z))[0], [journeyStructures, state.player.x, state.player.z]);
   const homeResidents = useMemo(() => journeyHome ? { shelterPosition: journeyHome.position, cards: homeCompanions } : undefined, [journeyHome, homeCompanions]);
@@ -2246,6 +2251,24 @@ export function PlayCampaign({
   };
   const commandItems: readonly WildsCommandItem[] = [
     {
+      key: "crew",
+      label: "Creature crew",
+      icon: <Icons.quarry size={21} />,
+      dockVisible: false,
+      content: <WildsCrewPanel
+        accompanyingAssetIds={[state.selectedAssetId, ...state.supportAssetIds.filter((id): id is string => Boolean(id))]}
+        cards={crewCards}
+        modes={crewPreferences?.byAssetId ?? {}}
+        onModeChange={(assetId, mode) => {
+          const card = state.inventory.find(asset => asset.id === assetId && sameWildzPlayerCoordinate(asset.manifest.ownerReceizId, ownerReceizId));
+          if (!card) return;
+          setState(current => ({ ...current, crewPreferences: setWildsCrewPreference(current.crewPreferences, current.inventory, ownerReceizId, assetId, mode) }));
+          void recordWildsCrewModeObservation({ ownerReceizId, assetId, mode, genomeProofDigest: card.proof.digest })
+            .catch(() => showWorldFeedback("Movement preference saved; activity history could not be saved."));
+        }}
+      />
+    },
+    {
       key: "commandCenter",
       label: "Living Command Center",
       icon: <Icons.pulse size={21} />,
@@ -2566,6 +2589,7 @@ export function PlayCampaign({
             ref={gameplaySurfaceRef}
           >
             <WildsWorldCanvas
+              crewModes={crewPreferences?.byAssetId}
               homeResidents={homeResidents}
               activeCapabilityFamily={burrowBuilder.busy ? "burrow" : activeWorldCapability}
               activeWorkSource={activeWorkSource}
@@ -2808,6 +2832,7 @@ export function PlayCampaign({
             /> : null}
 
             <WildzWorldControls
+              onOpenCrew={() => setRequestedCommand("crew")}
               onBeginConstruction={()=>selectLivingBuildPiece(continuousBuilder.kind)}
               buildingActive={continuousBuilder.open||burrowBuilder.open}
               aerialEnergy={aerialEnergy}

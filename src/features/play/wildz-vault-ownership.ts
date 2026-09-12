@@ -1,3 +1,4 @@
+import { sanitizeWildsCrewPreferences } from "./wilds-crew-preferences";
 import type { WildzMarketState } from "../../lib/receiz/wildz-market-state";
 import { currentWildzOwner } from "../../lib/receiz/wildz-market-state";
 import { type PlayState } from "./game-state";
@@ -30,6 +31,7 @@ export function reconcileWildzVaultOwnership(
   return {
     ...playState,
     inventory,
+    crewPreferences: sanitizeWildsCrewPreferences(playState.crewPreferences, inventory, ownerReceizId),
     discoveredCardIds: [...new Set(inventory.map((asset) => asset.manifest.familyId))],
     pendingSyncAssetIds: playState.pendingSyncAssetIds.filter((assetId) => ownedIds.has(assetId)),
     selectedAssetId: selected?.id ?? "",

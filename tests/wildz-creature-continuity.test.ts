@@ -125,9 +125,10 @@ test("suspending the app settles due roaming life without blocking visible gamep
 test("an active roaming mandate has visible embodied movement in the world", () => {
   const world = readFileSync("src/features/play/WildsWorldCanvas.tsx", "utf8");
   assert.match(world, /creatureContinuityProjection\(asset\)/);
-  assert.match(world, /const roaming =/);
-  assert.match(world, /roamingRadius/);
-  assert.match(world, /clock\.elapsedTime/);
+  assert.match(world, /const legacyRoaming =/);
+  assert.match(world, /current\.mode === "roam"/);
+  assert.match(world, /useCrewFollower/);
+  assert.match(world, /writeWildsCrewFollowingStep/);
 });
 
 test("active creatures develop deterministic real-time needs and earned care restores them", () => {

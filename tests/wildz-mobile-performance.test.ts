@@ -168,7 +168,7 @@ test("authoritative terrain and route art are cell-bound instead of movement-bou
 test("trainer frames and environment consumers reuse the admitted player terrain anchor", () => {
   const world = source("src/features/play/WildsWorldCanvas.tsx");
   const environment = source("src/features/play/WildsEnvironment.tsx");
-  const trainer = world.slice(world.indexOf("function TrainerExplorer"), world.indexOf("function RemoteExplorer"));
+  const trainer = world.slice(world.indexOf("function TrainerExplorer"), world.indexOf("function isBattleTelemetryPhase"));
 
   assert.match(trainer, /wildsSiteRuntimeGroundY\(siteRuntime, siteSpace\.spaceId, worldX, worldZ, Number\.NaN\)/);
   assert.match(trainer, /writeWildsTerrainActorPosition\([\s\S]*?localPlayer\.x,[\s\S]*?localPlayer\.z,[\s\S]*?terrainElevation[\s\S]*?\);/);

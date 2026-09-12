@@ -101,15 +101,34 @@ export function writeWildsCrewPathStep(position: WildsCrewNavigationPoint, waypo
   const distance = Math.hypot(target.x - position.x, target.y - position.y, target.z - position.z);
   const step = Math.min(input.speed, 24) * Math.min(input.deltaSeconds, .1);
   if (step === 0 && distance > 1e-6) { state.reason = "moving"; return; }
-  const fraction = distance <= 1e-6 ? 1 : Math.min(1, step / distance), p = state.candidate;
-  p.x = position.x + (target.x - position.x) * fraction;
-  p.y = position.y + (target.y - position.y) * fraction;
-  p.z = position.z + (target.z - position.z) * fraction;
-  if (!sample(input, position, p, state.sample)) { state.reason = "blocked"; return; }
-  // A changed floor must not turn a short frame step into a vertical teleport.
-  p.y = state.sample.y;
-  if (Math.hypot(p.x - position.x, p.y - position.y, p.z - position.z) > step + 1e-6) { state.reason = "blocked"; return; }
+  let fraction = distance <= 1e-6 ? 1 : Math.min(1, step / distance);
+  const p = state.candidate;
+  let admitted = false;
+  // Curved terrain can make the sampled floor higher than the waypoint chord.
+  // Retry shorter sweeps within a fixed budget; never relax collision or speed caps.
+  for (let attempt = 0; attempt < 6; attempt++) {
+    p.x = position.x + (target.x - position.x) * fraction;
+    p.y = position.y + (target.y - position.y) * fraction;
+    p.z = position.z + (target.z - position.z) * fraction;
+    if (!sample(input, position, p, state.sample)) { state.reason = "blocked"; return; }
+    p.y = state.sample.y;
+    const sampledDistance = Math.hypot(p.x - position.x, p.y - position.y, p.z - position.z);
+    if (sampledDistance <= step + 1e-6) { admitted = true; break; }
+    fraction *= Math.min(.99, step / sampledDistance * .999);
+  }
+  if (!admitted) { state.reason = "blocked"; return; }
   position.x = p.x; position.y = p.y; position.z = p.z;
   if (Math.hypot(p.x - target.x, p.y - target.y, p.z - target.z) <= 1e-6) state.waypointIndex++;
   state.reason = state.waypointIndex === waypoints.length ? "arrived" : "moving";
+}
+
+/** Chase a fresh moving target every frame; planning is only a detour fallback.
+ * The direct state belongs to the caller and is independent of the saved route cursor.
+ */
+export function writeWildsCrewFollowingStep(position: WildsCrewNavigationPoint, target: Readonly<WildsCrewNavigationPoint>, waypoints: readonly Readonly<WildsCrewNavigationPoint>[], routeState: WildsCrewPathStepState,
+  directState: WildsCrewPathStepState, directWaypoints: Readonly<WildsCrewNavigationPoint>[], input: WildsCrewNavigationAuthority & { speed: number; deltaSeconds: number }): void {
+  directWaypoints[0] = target;
+  directState.waypointIndex = 0;
+  writeWildsCrewPathStep(position, directWaypoints, directState, input);
+  if (directState.reason === "blocked" && waypoints.length) writeWildsCrewPathStep(position, waypoints, routeState, input);
 }

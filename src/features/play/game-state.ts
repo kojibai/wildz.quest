@@ -1,3 +1,4 @@
+import { sanitizeWildsCrewPreferences, type WildsCrewPreferences } from "./wilds-crew-preferences";
 import { verifyWildsConstructionFunctionSource, type WildsConstructionFunctionSource } from "./wilds-construction-function";
 import { applyWildsFlightWind, createWildsKaiWeatherSample, writeWildsKaiWeather } from "./wilds-kai-wind";
 import { sanitizeWildsJourneyJournal, type WildsJourneyJournal } from "./wilds-journey";
@@ -197,6 +198,7 @@ export type WildsOwnedWorldAdditions = Partial<WildsConstructionPersistence> & {
 };
 
 export type PlayState = {
+  crewPreferences?: WildsCrewPreferences;
   journeyJournal?: WildsJourneyJournal;
   actionHistory: WildsActivityEntry[];
   activeAction: GameAction;
@@ -714,6 +716,7 @@ export function restorePlayState(
       ...fallback,
       ...saved,
       journeyJournal: sanitizeWildsJourneyJournal(saved.journeyJournal, ownerReceizId),
+      crewPreferences: sanitizeWildsCrewPreferences(saved.crewPreferences, migratedInventory, ownerReceizId),
       actionHistory: normalizeWildsActivityHistory(saved.actionHistory),
       player: restoredPlayer,
       siteSpace: restoreWildsBurrowSpace(saved.siteSpace,restoredWorldAdditions.burrows??{},physical=>composeWildsInteriorConstruction(physical,{structures:restoredWorldAdditions.structures,constructionComponents:restoredWorldAdditions.constructionComponents??{},constructionMaterialContributions:restoredWorldAdditions.constructionMaterialContributions??{},constructionWorkContributions:restoredWorldAdditions.constructionWorkContributions??{}})) ?? normalizeWildsSiteSpaceState(saved.siteSpace, { x: restoredPlayer.x, y: wildsTerrainElevation(restoredPlayer.x, restoredPlayer.z), z: restoredPlayer.z }),
