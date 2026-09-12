@@ -1,6 +1,6 @@
 import type { ReceizKeyFile } from "@receiz/sdk";
 import type { PortableCardAsset } from "../../features/play/portable-card";
-import type { WildsPlayerVaultPayload } from "../../features/play/wilds-player-vault";
+import type { createWildsPlayerVault, WildsPlayerVaultPayload } from "../../features/play/wilds-player-vault";
 
 type ExportWorkerReply =
   | { id: string; ok: true; bytes: ArrayBuffer }
@@ -9,7 +9,7 @@ type ExportWorkerReply =
 export async function createWildzIdentityPlayerCardOffThread(input: {
   artwork: Uint8Array;
   assets: PortableCardAsset[];
-  player: WildsPlayerVaultPayload;
+  player: WildsPlayerVaultPayload | Parameters<typeof createWildsPlayerVault>[0];
   keyFile: ReceizKeyFile;
   passphrase?: string;
 }): Promise<Uint8Array | null> {

@@ -1,3 +1,4 @@
+import { publishWildzProfileWithIdentityProof } from "./wildz-profile-identity-publication";
 import {
   canonicalWildzHandle,
   canonicalWildzProfilePath,
@@ -222,7 +223,7 @@ export async function publishCurrentWildzProfile(
   profile: PublicWildzProfile,
   assetsOrFetcher: readonly PortableCardAsset[] | typeof fetch = [],
   suppliedFetcher: typeof fetch = globalThis.fetch,
-  options: { signal?: AbortSignal; proofObjects?: WildzAdmittedVaultProofObjects; prepareBody?: (value: unknown) => Promise<string>; publishWithIdentityProof?: (profile: PublicWildzProfile, signal?: AbortSignal) => Promise<PublicWildzProfile> } = {}
+  options: { signal?: AbortSignal; onProgress?: () => void; proofObjects?: WildzAdmittedVaultProofObjects; prepareBody?: (value: unknown) => Promise<string>; publishWithIdentityProof?: (profile: PublicWildzProfile, signal?: AbortSignal) => Promise<PublicWildzProfile> } = {}
 ) {
   const assets = typeof assetsOrFetcher === "function" ? [] : assetsOrFetcher;
   const fetcher = typeof assetsOrFetcher === "function" ? assetsOrFetcher : suppliedFetcher;
@@ -239,6 +240,7 @@ export async function publishCurrentWildzProfile(
   for (const asset of assetsById.values()) {
     options.signal?.throwIfAborted();
     await registerPublicWildsCard(asset, fetcher, { proofObjects: options.proofObjects, signal: options.signal, prepareBody: options.prepareBody });
+    options.onProgress?.();
   }
   options.signal?.throwIfAborted();
   const response = await fetcher(publicProfileEndpoint(profile.username), {
@@ -252,7 +254,7 @@ export async function publishCurrentWildzProfile(
   if (!response.ok || value?.ok !== true || !isRecord(value.profile)) {
     if (["unauthorized", "receiz_authority_required", "receiz_identity_key_required"].includes(String(value?.error))) {
       const publish = options.publishWithIdentityProof ?? (typeof window !== "undefined"
-        ? async (input: PublicWildzProfile, signal?: AbortSignal) => (await import("./wildz-profile-identity-publication")).publishWildzProfileWithIdentityProof(input, {fetcher, signal})
+        ? async (input: PublicWildzProfile, signal?: AbortSignal) => publishWildzProfileWithIdentityProof(input, {fetcher, signal})
         : undefined);
       if (publish) return publish(profile, options.signal);
     }

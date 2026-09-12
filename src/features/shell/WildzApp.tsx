@@ -1,5 +1,7 @@
 "use client";
 
+import { wildsCardArtwork } from "@/features/play/wilds-card-artwork";
+import { WildzMarketSheet } from "@/features/market/WildzMarketSheet";
 import { WildzProfileSheet } from "@/features/profile/WildzProfileSheet";
 import { PlayCampaign } from "@/features/play/PlayCampaign";
 import { generateIdentityBoundWildzCharacter, type WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
@@ -94,7 +96,7 @@ const loadWildzProfileSheet = () => import("@/features/profile/WildzProfileSheet
 const loadWildzVaultSheet = () => import("@/features/profile/WildzVaultSheet").then((module) => module.WildzVaultSheet);
 const loadWildzMarketSheet = () => import("@/features/market/WildzMarketSheet").then((module) => module.WildzMarketSheet);
 const WildzVaultSheet = dynamic(loadWildzVaultSheet, { ssr: false });
-const WildzMarketSheet = dynamic(loadWildzMarketSheet, { ssr: false });
+
 
 type PendingPlayStateSave = {
   snapshot: WildzContinuitySnapshot;
@@ -262,6 +264,17 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     explorer: character,
     assets: ownerPlayState.inventory
   }), [avatarImageUrl, character, identity?.displayName, ownerPlayState.inventory, ownerUsername]);
+  useEffect(() => {
+    let cancelled = false;
+    // Prepare one preview at a time before Profile is opened, yielding between cards.
+    void (async () => {
+      for (const asset of ownerPlayState.inventory) {
+        if (cancelled) return;
+        await wildzGameplayBackground.run(() => { if (!cancelled) wildsCardArtwork(asset); });
+      }
+    })().catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [ownerPlayState.inventory]);
   const publishablePublicProfile = useMemo(() => createOwnerPublicWildzProfile({
     username: ownerUsername,
     displayName: identity?.displayName ?? undefined,
@@ -481,11 +494,12 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         if (status === "ready") publishedProfileRef.current = publicationKey;
         setOwnerPublicationStatus(status);
       },
-      publish: (signal) => {
+      publish: (signal, progress) => {
         // Each retry sees current proof data without interrupting an equivalent in-flight request.
         const profilePublicationRequest = profilePublicationRequestRef.current;
         return publishCurrentWildzProfile(profilePublicationRequest.profile, profilePublicationRequest.assets, globalThis.fetch, {
           signal,
+          onProgress: progress,
           proofObjects: profilePublicationRequest.proofObjects,
           prepareBody: async (value) => await wildzJsonSerializer.serialize(value)
             ?? wildzGameplayBackground.run(() => JSON.stringify(value))
@@ -647,7 +661,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (current.session.localAuthority !== "verified") throw new Error("wildz_identity_card_authority_required");
     const playerContinuity = current.playerContinuity;
     const playState = current.playState ?? createOwnerBoundInitialPlayState(current.session.actorId, current.session.createdAt);
-    const player = createWildsPlayerVault({
+    const player: Parameters<typeof createWildsPlayerVault>[0] = {
       playerId: current.session.username ?? current.session.actorId,
       exportedAt: new Date().toISOString(),
       playState,
@@ -661,7 +675,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       personalEvents: playerContinuity?.personalEvents ?? [],
       canonicalCursor: playerContinuity?.canonicalCursor ?? { worldId: "wilds:global:v3", revision: 0, eventId: null },
       receipts: playerContinuity?.receipts ?? []
-    });
+    };
     await downloadWildzIdentityPlayerCard(current.session, playState.inventory, player);
   };
 

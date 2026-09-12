@@ -1,3 +1,4 @@
+import { defaultIdentityRepository } from "./wildz-active-identity";
 import { createReceizClient, type JsonObject } from "@receiz/sdk";
 import { canonicalPortableCardJson } from "../../features/play/portable-card";
 import { canonicalWildzProfilePath, type PublicWildzProfile } from "../../features/profile/public-profile";
@@ -14,14 +15,16 @@ export async function publishWildzProfileWithIdentityProof(profile: PublicWildzP
   occurredAt?: string;
 } = {}) {
   options.signal?.throwIfAborted();
-  const repository = options.repository ?? (await import("./wildz-identity-adapter")).defaultIdentityRepository;
+  const repository = options.repository ?? defaultIdentityRepository;
   const session = await repository.active();
   const owner = parseWildzPlayerCoordinate(profile.username);
   if (!session || session.localAuthority !== "verified") throw new Error("wildz_profile_identity_seal_required");
   if (!owner || !sameWildzPlayerCoordinate(owner.actorId, session.actorId)) throw new Error("wildz_public_profile_owner_mismatch");
   const record = createPublicWildzProfileRecord(profile as unknown as Record<string, unknown>, `${WILDZ_PRODUCT.origin}${canonicalWildzProfilePath(profile.username)}`, options.occurredAt);
+  // A connected session has already aligned this exact key with Receiz. Older seal
+  // metadata may predate that canonical handle; the registry still verifies its signature.
   await repository.withKeyFile(session.keyId, async keyFile => {
-    if (keyFile.keyId !== session.keyId || !sameWildzPlayerCoordinate(keyFile.owner.username ?? "", owner.actorId)) throw new Error("wildz_public_profile_owner_mismatch");
+    if (keyFile.keyId !== session.keyId || (session.remoteStatus !== "connected" && !sameWildzPlayerCoordinate(keyFile.owner.username ?? "", owner.actorId))) throw new Error("wildz_public_profile_owner_mismatch");
     if (!keyFile.crypto.privateKeyPkcs8B64u && keyFile.crypto.privateKeyPkcs8CiphertextB64u.length) throw new Error("wildz_profile_identity_unlock_required");
     options.signal?.throwIfAborted();
     const signedPublication = await createReceizClient().publicStore.signPublish({

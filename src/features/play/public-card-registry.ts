@@ -1,3 +1,4 @@
+import { publishWildzCardWithIdentityProof } from "../../lib/receiz/wildz-card-identity-publication";
 import { verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
 import {
   wildzVaultAdmissionCarriesProofObject,
@@ -229,9 +230,7 @@ async function registerPublicWildsCardRevision(
   if (!response.ok && (payload?.error === "unauthorized" || payload?.error === "receiz_authority_required")) {
     options.signal?.throwIfAborted();
     const publishSigned = options.publishWithIdentityProof ?? (typeof window !== "undefined"
-      ? async (card: PortableCardAsset, signal?: AbortSignal) => (
-        await import("../../lib/receiz/wildz-card-identity-publication")
-      ).publishWildzCardWithIdentityProof(card, { signal })
+      ? async (card: PortableCardAsset, signal?: AbortSignal) => publishWildzCardWithIdentityProof(card, { fetcher, signal })
       : null);
     if (publishSigned) {
       const signedRecord = parsePublicWildsCardRecord(await publishSigned(asset, options.signal));

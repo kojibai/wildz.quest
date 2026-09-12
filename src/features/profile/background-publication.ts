@@ -4,7 +4,7 @@ type Timer = ReturnType<typeof setTimeout>;
 
 /** One background publication per profile revision; retries never require UI interaction. */
 export function startWildzProfilePublication(input: {
-  publish: (signal: AbortSignal) => Promise<unknown>;
+  publish: (signal: AbortSignal, progress: () => void) => Promise<unknown>;
   onStatus: (status: ProfilePublicationStatus) => void;
   isOnline: () => boolean;
   schedule: (task: () => Promise<void>) => Promise<void>;
@@ -33,8 +33,13 @@ export function startWildzProfilePublication(input: {
     void input.schedule(async () => {
       if (!active) return;
       controller = new AbortController();
-      deadline = setTimer(() => controller?.abort(), 30_000);
-      await input.publish(controller.signal);
+      const progress = () => {
+        if (!active || controller?.signal.aborted) return;
+        if (deadline !== undefined) clearTimer(deadline);
+        deadline = setTimer(() => controller?.abort(), 30_000);
+      };
+      progress();
+      await input.publish(controller.signal, progress);
       if (!active) return;
       controller.signal.throwIfAborted();
       complete = true;

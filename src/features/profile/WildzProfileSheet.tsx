@@ -3,7 +3,7 @@
 import { canonicalWildzProfilePath, type PublicWildzProfile } from "@/features/profile/public-profile";
 import NextLink from "next/link";
 import type { PortableCardAsset } from "@/features/play/portable-card";
-import dynamic from "next/dynamic";
+import { WildzProfileVaultGallery } from "./WildzProfileVaultGallery";
 import { Camera, Check, CloudUpload, Download, Link, LoaderCircle, Pencil, Share2, Upload, X } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
@@ -13,11 +13,6 @@ import {
   type WildzSharePort,
   type WildzShareResult
 } from "./profile-sharing";
-
-const WildzProfileVaultGallery = dynamic(
-  () => import("./WildzProfileVaultGallery").then((module) => module.WildzProfileVaultGallery),
-  { ssr: false, loading: () => <p role="status">Loading companion cards…</p> }
-);
 
 async function profileImageFromFile(file: File) {
   if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 8 * 1024 * 1024) throw new Error("Choose a PNG, JPEG, or WebP under 8 MB.");
@@ -62,12 +57,6 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
 }) {
   const [shareResult, setShareResult] = useState<WildzShareResult | null>(null);
   const [profileLinkAction, setProfileLinkAction] = useState<{ kind: "share" | "copy"; phase: "working" | "success" | "error" } | null>(null);
-  const [galleryReady, setGalleryReady] = useState(false);
-  useEffect(() => {
-    // Yield the opening interaction before mounting the detailed card gallery.
-    const timer = setTimeout(() => setGalleryReady(true), 0);
-    return () => clearTimeout(timer);
-  }, []);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draftUsername, setDraftUsername] = useState(profile.username.replace(/^@/, ""));
@@ -275,6 +264,6 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
       <p>{profile.reputation > 0 ? `Your choices carry ${profile.reputation} reputation into future encounters.` : "Explore, battle, and help the living world to build a remembered reputation."}</p>
     </section>
     {profile.explorer ? <p className="wildz-profile-traits">{profile.explorer.traits.outfit.replaceAll("-", " ")} · {profile.explorer.traits.trail.replaceAll("-", " ")} trail</p> : null}
-    {galleryReady ? <WildzProfileVaultGallery cards={profile.vault} ownerAssets={vaultAssets} /> : <p role="status">Loading companion cards…</p>}
+    <WildzProfileVaultGallery cards={profile.vault} ownerAssets={vaultAssets} />
   </div>;
 }

@@ -44,14 +44,10 @@ import { publishActiveWildsWorldWithIdentityProof } from "@/lib/receiz/wilds-wor
 import {
   createWildsWorldEdgeAdmissionQueue,
   preserveWildsConstructionHistory,
-  restoreWildsWorldEdgeSource,
-  acknowledgeWildsWorldCommand,
-  acknowledgeWildsWorldPublication,
-  enqueueWildsWorldCommand,
   projectWildsWorldOutbox,
-  readWildsWorldOutbox,
   type WildsWorldOutboxEntry
 } from "./wilds-world-outbox";
+import { prepareWildsWorldOutboxEntryAsync, restoreWildsWorldEdgeSource, acknowledgeWildsWorldCommand, acknowledgeWildsWorldPublication, persistWildsWorldCommand, readWildsWorldOutbox } from "./wilds-world-work-client";
 import {
   shouldAttemptWildsNetwork,
   isOpaqueWildsNetworkFailure,
@@ -228,8 +224,9 @@ export function useWildsWorld(input: {
   if (!edge.current || edge.current.actorId !== input.actorId) {
     edge.current = { actorId: input.actorId, queue: createWildsWorldEdgeAdmissionQueue({
       initialProjection: snapshot ?? createWildsSourceAuthorityProjection(),
+      prepare: prepareWildsWorldOutboxEntryAsync,
       persist: async (entry) => {
-        try { await enqueueWildsWorldCommand(entry); }
+        try { await persistWildsWorldCommand(entry); }
         catch (cause) { throw new Error("wilds_world_local_persistence_failed", { cause }); }
       },
       onAdmitted: (projection, entry, events, constitution) => {
@@ -438,7 +435,6 @@ export function useWildsWorld(input: {
     }
     const locallyAdmittedProjection = await edgeQueue.admit(entry);
     const queueForGlobalCommit = async () => {
-      const entries = await enqueueWildsWorldCommand(entry);
       setSnapshot((current) => acceptWildsWorldSnapshot(current, locallyAdmittedProjection, ownedWorldAdditions.current));
       setMode("receiz_recovery_pending");
       setError("Your work is admitted here and will keep syncing globally in the background.");
@@ -446,8 +442,7 @@ export function useWildsWorld(input: {
     };
     if (shouldSynchronizeWildsWorldCommandAfterPaint(rootedCommand)) {
       scheduleWildsWorldBackgroundSync(() => {
-        void enqueueWildsWorldCommand(entry)
-          .then(() => refresh())
+        void refresh()
           .catch((cause) => {
             setError(wildsNetworkFailureMessage(cause, "world", false));
           });

@@ -2,9 +2,8 @@
 
 import React, { memo, useEffect, useMemo, useRef } from "react";
 import { creatureForm } from "./creature-catalog";
-import { deriveBirthGenome } from "./heartbound-genome";
-import { renderHeartboundSvg } from "./heartbound-renderer";
-import { currentCreatureHistoryProjection, currentLivingGenome } from "./living-card-proof";
+import { wildsCardArtwork } from "./wilds-card-artwork";
+import { currentCreatureHistoryProjection } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import { cardDeathRecord } from "./card-death-record";
 import type { AdventureCardCondition } from "./adventure/card-condition";
@@ -17,13 +16,7 @@ export const WildsCard = memo(function WildsCard({ asset, compact = false, condi
   const card = useRef<HTMLElement>(null);
   const form = creatureForm(asset.manifest.formId);
   const variant = asset.manifest.variant.traits;
-  const creatureSvg = useMemo(() => renderHeartboundSvg(
-    isLivingCardAsset(asset)
-      ? currentLivingGenome(asset)
-      : deriveBirthGenome({ formId: asset.manifest.formId, proofDigest: asset.proof.digest, variant }),
-    "card",
-    { width: 640, height: 405, title: asset.manifest.name, fit: "full-body" }
-  ), [asset, variant]);
+  const creatureSvg = useMemo(() => wildsCardArtwork(asset), [asset]);
   const death = cardDeathRecord(asset, condition);
   const fusionBorn = isLivingCardAsset(asset) && asset.manifest.birth.kind === "fusion";
   const livedAppearance = useMemo(() => {

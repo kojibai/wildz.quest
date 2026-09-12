@@ -134,7 +134,7 @@ export function verifyWildsWorldAdmittedSource(entry: WildsWorldOutboxEntry, con
   return reduceWildsWorldEvent(base, event);
 }
 
-function prepareWildsWorldOutboxEntry(base: WildsWorldProjection, entry: WildsWorldOutboxEntry) {
+export function prepareWildsWorldOutboxEntry(base: WildsWorldProjection, entry: WildsWorldOutboxEntry) {
   if (entry.admittedSource) {
     verifyWildsWorldAdmittedSource(entry, base);
     return { entry, projection: entry.admittedSource.events.reduce(reduceWildsWorldEvent, base), events: entry.admittedSource.events, constitution: undefined as ConstitutionalDecision | undefined };
@@ -200,6 +200,7 @@ export function preserveWildsConstructionHistory(current: WildsWorldProjection, 
 export function createWildsWorldEdgeAdmissionQueue(input: {
   initialProjection: WildsWorldProjection;
   persist: (entry: WildsWorldOutboxEntry) => Promise<unknown>;
+  prepare?: (base: WildsWorldProjection, entry: WildsWorldOutboxEntry) => Promise<ReturnType<typeof prepareWildsWorldOutboxEntry>>;
   onAdmitted?: (projection: WildsWorldProjection, entry: WildsWorldOutboxEntry, events: readonly WildsWorldEvent[], constitution?: ConstitutionalDecision) => void;
 }) {
   let projection = input.initialProjection;
@@ -221,7 +222,7 @@ export function createWildsWorldEdgeAdmissionQueue(input: {
       const exact = structuredClone(entry);
       activeAdmissions += 1;
       const next = tail.catch(() => undefined).then(async () => {
-        const prepared = prepareWildsWorldOutboxEntry(projection, exact);
+        const prepared = await (input.prepare ?? prepareWildsWorldOutboxEntry)(projection, exact);
         if (prepared.projection === projection || prepared.projection.revision === projection.revision) return projection;
         let durable = prepared.entry;
         if (durable.admittedSource && anchorId) durable = { ...durable, admittedSource: { anchorId, events: durable.admittedSource.events } };

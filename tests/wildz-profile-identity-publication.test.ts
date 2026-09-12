@@ -37,3 +37,20 @@ test("profile relay carries a valid local signature constrained to the exact pub
   await assert.rejects(publishWildzProfileWithIdentityProof({...profile,username:"@other"},{repository,fetcher}),/owner_mismatch/);
   assert.equal(requests,1);
 });
+
+test("an original seal can publish its aligned canonical profile without rewriting the seal", async () => {
+  const identity = await createReceizIdIdentity({ username: "original_handle", displayName: "Original" });
+  const session: WildzIdentitySession = { schema: "receiz.wildz.identity_session.v1", keyId: identity.keyFile.keyId, actorId: "canonical_handle", username: "canonical_handle", displayName: "Canonical", portableStateStatus: "verified", localAuthority: "verified", remoteStatus: "connected" };
+  const repository: Pick<WildzIdentityRepository, "active" | "withKeyFile"> = { active: async () => session, withKeyFile: async (_id, op) => op(identity.keyFile) };
+  const profile = sanitizePublicWildzProfile({ username: "@canonical_handle", displayName: "Canonical", vault: [] });
+  const fetcher = (async (_url, init) => {
+    const body = JSON.parse(String(init?.body));
+    const signed = parseSignedWildzProfilePublication(body.signedPublication, profile);
+    assert.equal(body.signedPublication.identityProof.keyId, session.keyId);
+    return Response.json({ ok: true, profile: signed.record.profile });
+  }) as typeof fetch;
+  assert.deepEqual(await publishWildzProfileWithIdentityProof(profile, { repository, fetcher }), profile);
+  assert.equal(identity.keyFile.owner.username, "original_handle");
+  session.remoteStatus = "unknown";
+  await assert.rejects(publishWildzProfileWithIdentityProof(profile, { repository, fetcher }), /owner_mismatch/);
+});

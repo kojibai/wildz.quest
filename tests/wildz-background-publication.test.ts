@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { startWildzProfilePublication, type ProfilePublicationStatus } from "../src/features/profile/background-publication";
 
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
-function harness(publish: (signal: AbortSignal) => Promise<unknown>, online = true) {
+function harness(publish: (signal: AbortSignal, progress: () => void) => Promise<unknown>, online = true) {
   const statuses: ProfilePublicationStatus[] = [];
   const timers = new Map<ReturnType<typeof setTimeout>, { callback: () => void; delay: number }>();
   let serial = 0;
@@ -70,4 +70,22 @@ test("a timed-out request is cancelled and retries automatically", async () => {
   assert.equal(h.statuses.at(-1), "unpublished");
   assert.ok([...h.timers.values()].some((timer) => timer.delay === 15_000));
   h.job.stop();
+});
+
+test("card progress renews the deadline so large restored vaults can finish publishing", async () => {
+  let progress!: () => void;
+  let finish!: () => void;
+  const h = harness((_signal, reportProgress) => {
+    progress = reportProgress;
+    return new Promise<void>((resolve) => { finish = resolve; });
+  });
+  h.fire(300); await flush();
+  const firstDeadline = [...h.timers.keys()][0];
+  assert.equal(typeof progress, "function");
+  progress();
+  assert.equal(h.timers.has(firstDeadline!), false);
+  assert.equal(h.timers.size, 1);
+  finish(); await flush();
+  assert.equal(h.statuses.at(-1), "ready");
+  assert.equal(h.timers.size, 0);
 });

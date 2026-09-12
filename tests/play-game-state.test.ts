@@ -866,6 +866,18 @@ describe("Receiz Wilds game state", () => {
     assert.equal(replay, settled);
   });
 
+  it("bounded travel settlement preserves queued work for later frames", () => {
+    const crossed = applyWildsInput(activeTravelState(), { type: "move", direction: "east" });
+    const pending = crossed.pendingTravelGrowthEvents[0]!;
+    const queued = { ...crossed, pendingTravelGrowthEvents: [pending, pending] };
+    const input = { type: "settle-pending-travel-growth" as const, limit: 1 };
+    const first = applyWildsInput(queued, input);
+    assert.equal(first.pendingTravelGrowthEvents.length, 1);
+    const second = applyWildsInput(first, input);
+    assert.equal(second.pendingTravelGrowthEvents.length, 0);
+    assert.deepEqual(second.inventory, applyWildsInput(queued, { type: "settle-pending-travel-growth" }).inventory);
+  });
+
   it("restored pending travel cannot smuggle growth authority", () => {
     const crossed = applyWildsInput(activeTravelState(), { type: "move", direction: "east" });
     const altered = structuredClone(crossed);

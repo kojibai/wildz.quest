@@ -39,3 +39,20 @@ test("public card fallback creates a verifiable SDK signature without transmitti
   await assert.rejects(publishWildzCardWithIdentityProof(other,{repository,fetcher}),/owner_mismatch/);
   assert.equal(requests,1);
 });
+
+test("an imported seal publishes for its canonically aligned session even when embedded owner metadata is older", async () => {
+  const identity = await createReceizIdIdentity({ username: "original_handle", displayName: "Original" });
+  const session: WildzIdentitySession = { schema: "receiz.wildz.identity_session.v1", keyId: identity.keyFile.keyId, actorId: "canonical_handle", username: "canonical_handle", displayName: "Canonical", portableStateStatus: "verified", localAuthority: "verified", remoteStatus: "connected" };
+  const repository: Pick<WildzIdentityRepository, "active" | "withKeyFile"> = { active: async () => session, withKeyFile: async (_id, op) => op(identity.keyFile) };
+  const asset = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: session.actorId, encounterId: "restored-canonical-card", capturedAt: "2026-09-09T11:00:00.000Z" });
+  const fetcher = (async (_url, init) => {
+    const body = JSON.parse(String(init?.body));
+    const signed = parseSignedWildzCardPublication(body.signedPublication, asset);
+    assert.equal(signed.signed.identityProof.keyId, session.keyId);
+    assert.equal(signed.signed.merchantReceizId, "canonical_handle.receiz.id");
+    return Response.json({ ok: true, record: signed.record });
+  }) as typeof fetch;
+  assert.equal((await publishWildzCardWithIdentityProof(asset, { repository, fetcher })).assetId, asset.id);
+  session.remoteStatus = "unknown";
+  await assert.rejects(publishWildzCardWithIdentityProof(asset, { repository, fetcher }), /owner_mismatch/);
+});

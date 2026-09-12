@@ -3,14 +3,14 @@
 import type { ReceizKeyFile } from "@receiz/sdk";
 import { embedPortableVaultInPng } from "../../features/play/card-export";
 import type { PortableCardAsset } from "../../features/play/portable-card";
-import type { WildsPlayerVaultPayload } from "../../features/play/wilds-player-vault";
+import { createWildsPlayerVault, type WildsPlayerVaultPayload } from "../../features/play/wilds-player-vault";
 import { createWildzIdentityBoundPlayerVault } from "./wildz-identity-vault-binding";
 
 type ExportWorkerRequest = {
   id: string;
   artwork: ArrayBuffer;
   assets: PortableCardAsset[];
-  player: WildsPlayerVaultPayload;
+  player: WildsPlayerVaultPayload | Parameters<typeof createWildsPlayerVault>[0];
   keyFile: ReceizKeyFile;
   passphrase?: string;
 };
@@ -21,7 +21,8 @@ workerScope.addEventListener("message", (event: MessageEvent<ExportWorkerRequest
   const input = event.data;
   void (async () => {
     try {
-      const vaultBytes = embedPortableVaultInPng(new Uint8Array(input.artwork), input.assets, input.player);
+      const player = "payloadDigest" in input.player ? input.player : createWildsPlayerVault(input.player);
+      const vaultBytes = embedPortableVaultInPng(new Uint8Array(input.artwork), input.assets, player);
       const bytes = await createWildzIdentityBoundPlayerVault({
         keyFile: input.keyFile,
         vaultBytes,

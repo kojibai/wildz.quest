@@ -1,3 +1,4 @@
+import { defaultIdentityRepository } from "./wildz-active-identity";
 import { createReceizClient, type JsonObject } from "@receiz/sdk";
 import { createPublicWildsCardRecord, createPublicWildsCardTransportRecord, parsePublicWildsCardRecord } from "../../features/play/public-card-registry";
 import type { PortableCardAsset } from "../../features/play/portable-card";
@@ -16,7 +17,7 @@ export async function publishWildzCardWithIdentityProof(
   } = {}
 ) {
   options.signal?.throwIfAborted();
-  const repository = options.repository ?? (await import("./wildz-identity-adapter")).defaultIdentityRepository;
+  const repository = options.repository ?? defaultIdentityRepository;
   const session = await repository.active();
   const owner = parseWildzPlayerCoordinate(asset.manifest.ownerReceizId);
   if (!session || session.localAuthority !== "verified") throw new Error("wildz_card_identity_seal_required");
@@ -25,8 +26,10 @@ export async function publishWildzCardWithIdentityProof(
   const transport = createPublicWildsCardTransportRecord(record);
   const request = options.fetcher ?? globalThis.fetch;
   const client = createReceizClient();
+  // A connected session has already aligned this exact key with Receiz. Older seal
+  // metadata may predate that canonical handle; the registry still verifies its signature.
   await repository.withKeyFile(session.keyId, async keyFile => {
-    if (keyFile.keyId !== session.keyId || !sameWildzPlayerCoordinate(keyFile.owner.username ?? "", owner.actorId)) {
+    if (keyFile.keyId !== session.keyId || (session.remoteStatus !== "connected" && !sameWildzPlayerCoordinate(keyFile.owner.username ?? "", owner.actorId))) {
       throw new Error("wildz_public_card_owner_mismatch");
     }
     // Background work never prompts for or transmits an encrypted seal's password.

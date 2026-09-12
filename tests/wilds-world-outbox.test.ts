@@ -343,3 +343,32 @@ test("unpublished, mismatched or failed direct publication retains the durable l
   })(), /transport_failed/);
   assert.deepEqual((await readWildsWorldOutbox(legacy.actorId, storage)).map((queued) => queued.command.commandId), [legacy.command.commandId]);
 });
+
+test("edge admission waits for asynchronous preparation and durable storage before displaying a result", async () => {
+  const base = initialWildsWorldProjection();
+  const intent = projectEntry("command:async:prepare", "Async build");
+  const projected = admitWildsWorldOutboxEntry(base, intent);
+  let release!: () => void;
+  let prepared = false;
+  const order: string[] = [];
+  const input = {
+    initialProjection: base,
+    prepare: async () => {
+      prepared = true;
+      await new Promise<void>((resolve) => { release = resolve; });
+      order.push("prepared");
+      return { entry: intent, projection: projected, events: [], constitution: undefined };
+    },
+    persist: async () => { order.push("persisted"); },
+    onAdmitted: () => { order.push("displayed"); }
+  };
+  const queue = createWildsWorldEdgeAdmissionQueue(input);
+  const pending = queue.admit(intent);
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  assert.equal(prepared, true);
+  assert.equal(queue.current(), base);
+  assert.deepEqual(order, []);
+  release();
+  assert.equal(await pending, projected);
+  assert.deepEqual(order, ["prepared", "persisted", "displayed"]);
+});

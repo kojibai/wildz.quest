@@ -1,3 +1,4 @@
+import { defaultContinuityDatabase, defaultIdentityRepository } from "./wildz-active-identity";
 import {
   buildReceizIdContinueRequest,
   createReceizIdIdentity,
@@ -52,7 +53,6 @@ import {
 } from "./wildz-artifact-codec";
 import {
   createWildzAutomaticUsername,
-  createWildzIdentityRepository,
   wildzOwnerScope,
   type WildzIdentityRepository,
   type WildzIdentitySession
@@ -68,7 +68,6 @@ import {
   wildzRemoteSessionBridge
 } from "./wildz-session-bridge";
 import {
-  createWildzContinuityDatabase,
   type WildzContinuityDatabase
 } from "../storage/wildz-indexed-db";
 import { openWildzArtifactSameOrigin, verifyWildzArtifactSameOrigin } from "./wildz-same-origin-verifier";
@@ -87,8 +86,7 @@ export async function createAutomaticWildzIdentity() {
 }
 
 const LEGACY_PLAY_STATE_STORAGE_KEY = "receiz:wilds:save:v2";
-const defaultContinuityDatabase = createWildzContinuityDatabase();
-export const defaultIdentityRepository = createWildzIdentityRepository({ database: defaultContinuityDatabase });
+export { defaultIdentityRepository } from "./wildz-active-identity";
 const defaultArtifactHistory = createWildzArtifactHistory(defaultContinuityDatabase);
 const defaultArtifactCodec = createWildzArtifactCodec({
   identityRepository: defaultIdentityRepository,
@@ -557,7 +555,7 @@ export async function createWildzIdentityPlayerCard(input: {
   keyFile: ReceizKeyFile;
   session: WildzIdentitySession;
   assets: PortableCardAsset[];
-  player: WildsPlayerVaultPayload;
+  player: WildsPlayerVaultPayload | Parameters<typeof createWildsPlayerVault>[0];
   passphrase?: string;
 }) {
   if (input.keyFile.keyId !== input.session.keyId) throw new Error("wildz_identity_card_key_id_mismatch");
@@ -570,7 +568,8 @@ export async function createWildzIdentityPlayerCard(input: {
     ...(input.passphrase !== undefined ? { passphrase: input.passphrase } : {})
   });
   if (offThread) return offThread;
-  const vaultBytes = embedPortableVaultInPng(artwork, input.assets, input.player);
+  const player = "payloadDigest" in input.player ? input.player : createWildsPlayerVault(input.player);
+  const vaultBytes = embedPortableVaultInPng(artwork, input.assets, player);
   return createWildzIdentityBoundPlayerVault({
     keyFile: input.keyFile,
     vaultBytes,
@@ -712,7 +711,7 @@ export async function savePreparedWildzIdentityOwnedCard(artifact: WildzPrepared
 export async function downloadWildzIdentityPlayerCard(
   session: WildzIdentitySession,
   assets: PortableCardAsset[],
-  player: WildsPlayerVaultPayload,
+  player: WildsPlayerVaultPayload | Parameters<typeof createWildsPlayerVault>[0],
   options: {
     passphrase?: string;
     requestPassphrase?: () => string | null;

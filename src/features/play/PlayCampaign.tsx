@@ -19,6 +19,7 @@ import {
   type WildsInput
 } from "@/features/play/game-state";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { wildzGameplayBackground } from "@/lib/performance/wildz-gameplay-background";
 import { canonicalPortableCardJson, sha256PortableBasis, type PortableCardAsset } from "@/features/play/portable-card";
 import { WildsCaptureReward } from "@/features/play/WildsCaptureReward";
 import { WildsInventory } from "@/features/play/WildsInventory";
@@ -698,9 +699,13 @@ export function PlayCampaign({
     setStewardPlacementPreview(null);
   }, [activeAsset?.id]);
   useEffect(() => {
-    if (shellOverlayOwner === "none") return;
-    setState((current) => applyWildsInput(current, { type: "settle-pending-travel-growth" }));
-  }, [shellOverlayOwner]);
+    if (shellOverlayOwner === "none" || !state.pendingTravelGrowthEvents.length) return;
+    let cancelled = false;
+    void wildzGameplayBackground.run(() => {
+      if (!cancelled) setState((current) => applyWildsInput(current, { type: "settle-pending-travel-growth", limit: 1 }));
+    });
+    return () => { cancelled = true; };
+  }, [shellOverlayOwner, state.pendingTravelGrowthEvents]);
   const modalAdmissionRef = useRef(createModalAdmissionState(exclusiveOwner));
   if (modalAdmissionRef.current.owner !== exclusiveOwner) {
     modalAdmissionRef.current = claimModalAdmissionOwner(modalAdmissionRef.current, exclusiveOwner);

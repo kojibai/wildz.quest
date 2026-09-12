@@ -133,7 +133,7 @@ export type WildsInput = (
   | { type: "fuse-cards"; parentAId: string; parentBId: string; inheritance: FusionInheritance; fusedAt: string }
   | { type: "evolve"; assetId: string; evolvedAt: string }
   | { type: "record-growth"; assetId: string; event: GrowthEvent }
-  | { type: "settle-pending-travel-growth" }
+  | { type: "settle-pending-travel-growth"; limit?: number }
   | { type: "record-civic-event"; event: WildsCivicEvent }
   | { type: "record-ecology-event"; event: WildsEcologyReceipt }
   | { type: "record-raid-event"; event: WildsRaidReceipt }
@@ -1217,10 +1217,11 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
 
   if (input.type === "settle-pending-travel-growth") {
     if (!state.pendingTravelGrowthEvents.length) return state;
-    return state.pendingTravelGrowthEvents.reduce<PlayState>((next, pending) => {
+    const limit = input.limit === undefined ? state.pendingTravelGrowthEvents.length : Math.max(1, Math.floor(input.limit) || 1);
+    return state.pendingTravelGrowthEvents.slice(0, limit).reduce<PlayState>((next, pending) => {
       const asset = next.inventory.find((candidate) => candidate.id === pending.assetId);
       return asset ? applyRecordedGrowth(next, asset, pending.event) : next;
-    }, { ...state, pendingTravelGrowthEvents: [] });
+    }, { ...state, pendingTravelGrowthEvents: state.pendingTravelGrowthEvents.slice(limit) });
   }
 
   if (input.type === "record-creature-observation") {
