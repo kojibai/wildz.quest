@@ -196,8 +196,11 @@ export async function registerPublicWildsCard(
   const existing = state.inFlight.get(pin);
   if (existing) return waitForPublicCardRegistration(existing, options.signal);
 
-  // Keep the shared request registered until it settles, even if one caller stops waiting.
-  const registration = registerPublicWildsCardRevision(asset, fetcher, options).then(record => {
+  // A secondary caller only cancels its own wait. The owning request's deadline,
+  // however, must release the shared slot even if body preparation ignores abort.
+  const registration = waitForPublicCardRegistration(
+    registerPublicWildsCardRevision(asset, fetcher, options), options.signal
+  ).then(record => {
     state.admitted.set(pin, record);
     return record;
   }).finally(() => {
@@ -215,12 +218,15 @@ async function registerPublicWildsCardRevision(
   const needsClientVerification = publicCardNeedsClientVerification(asset, options.proofObjects);
   if (needsClientVerification
     && !verifyAnyWildsCard(asset).ok) throw new Error("wildz_public_card_verification_failed");
+  const body = options.prepareBody ? await options.prepareBody({ asset }) : JSON.stringify({ asset });
+  // A retired serializer must never start an upload after a fresh retry takes over.
+  options.signal?.throwIfAborted();
   const response = await fetcher(`/api/cards/${encodeURIComponent(asset.id)}`, {
     method: "POST",
     credentials: "same-origin",
     headers: { "content-type": "application/json" },
     signal: options.signal,
-    body: options.prepareBody ? await options.prepareBody({ asset }) : JSON.stringify({ asset })
+    body
   });
   const payload = await response.json().catch(() => null) as {
     ok?: boolean;

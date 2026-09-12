@@ -213,3 +213,33 @@ test("unsigned registry authorization failure retries through the owner's signed
   assert.equal(signed,1);
   assert.equal(result.asset.proof.digest,asset.proof.digest);
 });
+
+test("cancelled body preparation releases the shared upload and cannot publish late", async () => {
+  const asset = initialPlayState.inventory[0]!;
+  const record = createPublicWildsCardRecord(asset, "https://wildz.quest", "2026-09-09T11:00:00.000Z");
+  let requests = 0;
+  let release!: (body: string) => void;
+  const body = new Promise<string>(resolve => { release = resolve; });
+  const fetcher = (async () => {
+    requests++;
+    return Response.json({ ok: true, record }, { status: 201 });
+  }) as typeof fetch;
+  const controller = new AbortController();
+  const first = registerPublicWildsCard(asset, fetcher, {
+    signal: controller.signal, prepareBody: () => body
+  });
+  controller.abort();
+  await assert.rejects(first);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  const retry = registerPublicWildsCard(asset, fetcher);
+  const outcome = await Promise.race([
+    retry.then(() => "published"),
+    new Promise<string>(resolve => setTimeout(() => resolve("stalled"), 100))
+  ]);
+  // Retire the deliberately delayed operation even when testing the broken implementation.
+  release(JSON.stringify({ asset }));
+  await retry;
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(outcome, "published");
+  assert.equal(requests, 1, "only the fresh retry may reach the registry");
+});
