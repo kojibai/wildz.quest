@@ -25,11 +25,31 @@
 .principles article > span { color: #9fb687; font-size: 9px; letter-spacing: .13em; }
 .principles h2 { margin: 9px 0 7px; color: #e5e9d6; font: 400 19px/1.3 Georgia, serif; }
 .principles p { margin: 0; font-size: 12px; }
-.laws { display: grid; grid-template-columns: 1fr 1fr; list-style: none; padding: 0; margin: 24px 0; gap: 8px; }
-.laws li { display: flex; align-items: center; gap: 12px; padding: 14px; min-width: 0; border: 1px solid #58744750; border-radius: 11px; background: #23392670; }
-.laws li > span { font: 11px ui-monospace, monospace; color: #a5b57c; }
-.laws b { color: #d3dfca; font-size: 12px; font-weight: 500; flex: 1; overflow-wrap: anywhere; text-transform: capitalize; }
-.laws svg { color: #8caa85; flex-shrink: 0; }
+.ruleCount { color: #c2c58f !important; font-size: 11px !important; }
+.laws { display: grid; grid-template-columns: 1fr; list-style: none; padding: 0; margin: 20px 0; gap: 10px; }
+.laws > li { min-width: 0; border: 1px solid #58744760; border-radius: 13px; background: #23392670; overflow: clip; }
+.laws > li.expanded { border-color: #8ca174; background: #243b2a; }
+.laws h2 { margin: 0; }
+.laws h2 button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 76px; padding: 16px; border: 0; background: transparent; text-align: left; cursor: pointer; font: inherit; color: #dce7d3; }
+.ruleNumber { font: 11px ui-monospace, monospace; color: #b6c28c; }
+.ruleLabel { flex: 1; min-width: 0; }
+.ruleLabel b { display: block; font-size: 14px; font-weight: 600; }
+.ruleLabel small { display: block; margin-top: 5px; color: #b3c7ad; font: 12px/1.5 ui-sans-serif, system-ui, sans-serif; }
+.laws h2 svg { flex-shrink: 0; color: #b6c28c; transition: transform .18s ease; }
+.laws h2 button[aria-expanded="true"] svg { transform: rotate(180deg); }
+.ruleDetail { padding: 0 18px 18px; border-top: 1px solid #abc49b25; }
+.ruleDetail dl { margin: 18px 0; }
+.ruleDetail dt { color: #dfdfbc; font-size: 11px; font-weight: 700; letter-spacing: .04em; margin-top: 18px; }
+.ruleDetail dd { color: #bfd0b9; font-size: 13px; line-height: 1.75; margin: 7px 0 0; }
+.example { padding: 14px; border-left: 2px solid #b9af76; background: #0d201860; border-radius: 0 8px 8px 0; }
+.example strong { color: #daddb3; font-size: 11px; }.example p { margin: 6px 0 0; font-size: 12px; }
+.verification { margin-top: 18px; border-top: 1px solid #abc49b25; padding-top: 8px; }
+.verification summary { padding: 12px 0; color: #d5dfbb; font-size: 12px; cursor: pointer; line-height: 1.6; }
+.verification p { font-size: 12px; margin: 12px 0; }.verification code { font-size: 11px; overflow-wrap: anywhere; color: #c7d4ac; }
+.verification ul { list-style: none; padding: 0; display: grid; gap: 7px; }.verification li { padding: 8px 10px; background: #102119; border-radius: 6px; }
+.verification h3 { font-size: 13px; color: #e0e3c6; margin: 18px 0 8px; }
+.sourceLink { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 0; background: transparent; border: 0; color: #e1d89e; font: inherit; font-size: 12px; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .laws h2 svg { transition: none; } }
 .note { border-left: 2px solid #b9af76; padding-left: 16px; }
 .note h2 { color: #dedbb8; font-size: 14px; font-weight: 500; margin: 0 0 10px; }
 .note p { font-size: 12px; }

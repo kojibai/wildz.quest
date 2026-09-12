@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, Leaf, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, ChevronDown, Leaf, ShieldCheck } from "lucide-react";
+import type { ExplainedRule } from "./rule-details";
 import styles from "./world-law.module.css";
 
 const tabs = ["Overview", "World rules", "Source text"] as const;
-export function WorldLawReader({ source, version, digest, laws }: { source: string; version: string; digest: string; laws: string[] }) {
+export function WorldLawReader({ source, version, digest, rules }: { source: string; version: string; digest: string; rules: ExplainedRule[] }) {
   const [tab, setTab] = useState(0);
   const [chapter, setChapter] = useState(0);
+  const [expanded, setExpanded] = useState<string | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const tabButtons = useRef<Array<HTMLButtonElement | null>>([]);
   const sections = source.split(/\n⸻\n/).map(text => text.trim()).filter(Boolean);
@@ -41,8 +43,29 @@ export function WorldLawReader({ source, version, digest, laws }: { source: stri
               <article><span>04 / DEFINED RULES</span><h2>No unwritten powers.</h2><p>Rules without adopted decision predicates grant no executable authority.</p></article>
             </div>
           </> : tab === 1 ? <>
-            <p className={styles.lead}>Every action has a source.</p><p>These laws connect to the world’s defined commands.</p>
-            <ol className={styles.laws}>{laws.map((law, index) => <li key={law}><span>{String(index + 1).padStart(2, "0")}</span><b>{law.replaceAll(".", " · ").replaceAll("-", " ")}</b><ShieldCheck size={16} aria-hidden="true" /></li>)}</ol>
+            <p className={styles.lead}>Every action has a source.</p><p>Choose an action to understand its requirements, outcomes and limits. Open the verification details when you want to go deeper.</p>
+            <p className={styles.ruleCount}>{rules.length} rule families · {rules.reduce((total, rule) => total + rule.commands.length, 0)} connected actions</p>
+            <ol className={styles.laws}>{rules.map((rule, index) => {
+              const open = expanded === rule.id;
+              return <li key={rule.id} className={open ? styles.expanded : undefined}>
+                <h2><button type="button" id={`rule-${index}`} aria-expanded={open} aria-controls={`rule-detail-${index}`} onClick={() => setExpanded(open ? null : rule.id)}>
+                  <span className={styles.ruleNumber}>{String(index + 1).padStart(2, "0")}</span>
+                  <span className={styles.ruleLabel}><b>{rule.title}</b><small>{rule.summary}</small></span>
+                  <ChevronDown size={18} aria-hidden="true" />
+                </button></h2>
+                <div id={`rule-detail-${index}`} role="region" aria-labelledby={`rule-${index}`} hidden={!open} className={styles.ruleDetail}>
+                  <dl><dt>Before you act</dt><dd>{rule.requirements}</dd><dt>When accepted</dt><dd>{rule.success}</dd><dt>When it cannot proceed</dt><dd>{rule.blocked}</dd></dl>
+                  <aside className={styles.example}><strong>In the world</strong><p>{rule.example}</p></aside>
+                  {open && <details className={styles.verification}><summary>Go deeper · verification & connected actions</summary>
+                    <p>Rule reference: <code>{rule.id}</code>. These are the commands connected to this rule family; each keeps its own resource-specific checks.</p>
+                    <ul>{rule.commands.map(command => <li key={command}><code>{command}</code></li>)}</ul>
+                    <h3>How the decision is recorded</h3><p>The constitutional decision binds the identified actor, the starting world state and the requested command. It records the checks and, when supplied, the resulting state. A failed check is not permission to continue; an unresolved check is not treated as proven.</p>
+                    <p>Shared references: TOB-01/81 (identity), TOB-03/23/74 (defined authority), TOB-05/13/59 (limits on ownership), TOB-60/62 (source binding), and TOB-81/84 (transition checks). Accepted local execution and durable publication are separate steps; this reader does not verify your live sync status.</p>
+                    <button type="button" className={styles.sourceLink} onClick={() => selectTab(2)}>Read the original constitution <ArrowRight size={14} aria-hidden="true" /></button>
+                  </details>}
+                </div>
+              </li>;
+            })}</ol>
             <aside className={styles.note}><h2>Still to be adopted</h2><p>Community allocation, abandonment thresholds, guardianship appointments, adjudication, remedies, insolvency and ratification still require explicit adopted procedures. The current game does not execute those transitions.</p><p>The constitutional predicate library can evaluate supplied source facts; it does not establish them or issue human standing.</p></aside>
           </> : <div className={styles.sourceText}>{sections[chapter]}</div>}
         </div>
