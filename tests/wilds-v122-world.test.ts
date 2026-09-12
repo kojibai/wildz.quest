@@ -168,3 +168,11 @@ it("retains the transaction when dispatch and recovery both lose connectivity", 
   assert.equal(calls, 1);
   assert.equal(clears, 0);
 });
+
+it("does not dispatch transaction bytes changed by a staging callback",async()=>{
+ let executes=0;
+ await assert.rejects(executeWildsV122Transaction({transaction,authority:{},authenticateReceipt:()=>true,
+   journal:{stage:async staged=>{(staged as {worldId:string}).worldId="changed";},clear:async()=>undefined},
+   rail:{validateWorldTransactionV122:async input=>({ok:true,transaction:input}),executeWorldTransactionV122:async()=>{executes++;return committed();},worldExecutionV122:async()=>({status:"unknown"}),worldExecutionByIdempotencyKeyV122:async()=>({status:"unknown"})}}));
+ assert.equal(executes,0);
+});

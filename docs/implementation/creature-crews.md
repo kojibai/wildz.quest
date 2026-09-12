@@ -37,3 +37,11 @@ Implemented and unit tested, but not a live autonomous crew:
 - Existing transaction execution/recovery now returns `writes: "unknown"` and `recoveryRequired: true` for ambiguous, malformed, unverifiable or unavailable outcomes. Exact verified zero-write outcomes still return zero. Recovery never redispatches unknown work. A previously staged identical transaction cannot dispatch through the authored activation again.
 
 No live mandate, crew work, material movement or autonomous construction was activated by these changes. No new network work or frame-loop work was introduced. Device frame-time equivalence has not been measured for a complete crew system because that system is not yet integrated.
+
+## Durable causal execution boundary
+
+`wilds-crew-journal.ts` now stores individual causal events, exact transaction candidates, worker heads, command identity and lot reservations in the existing browser IndexedDB. Appends compare worker heads and update all scheduling rows in one transaction. Replays must match their transaction and lots; a previously used transaction cannot be proposed after intervening work. Display pagination does not truncate history. Undispatched proposals can be cancelled atomically; pending dispatches retain reservations.
+
+`wilds-crew-execution.ts` connects that journal to the existing SDK transaction executor. It requires a fresh production authorization port, exact participant/mandate bindings and world-event causal parents, then records proposed/pending/admitted or rejected states. Exact recovery never redispatches. A failed local completion write keeps the runtime transaction and scheduling reservations for recovery. Approved transaction inputs are cloned and deeply frozen before SDK validation/staging/dispatch callbacks.
+
+This boundary has contract tests using explicit authority/runtime doubles, plus a real Chrome IndexedDB test with two competing tabs and reload. It is not mounted in the gameplay UI yet. Production proof/mandate authorization, task selection, independent visible workers and actual world gather/haul/build command admission remain required. The UI/renderer has not been changed in this checkpoint. Cross-tab IndexedDB serialization does not establish cross-device authority.

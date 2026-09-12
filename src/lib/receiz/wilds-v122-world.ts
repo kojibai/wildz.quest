@@ -20,6 +20,14 @@ export function pendingWildsV122Outcome(code: string) {
   return Object.freeze({ ok: false as const, code, writes: "unknown" as const, recoveryRequired: true as const });
 }
 
+function freezeExactInput<T>(value: T): T {
+  if (value && typeof value === "object") {
+    for (const child of Object.values(value)) freezeExactInput(child);
+    Object.freeze(value);
+  }
+  return value;
+}
+
 function validationOk(value: unknown): value is Readonly<{ ok: true; transaction: ReceizWorldTransactionV122 }> {
   return value !== null
     && typeof value === "object"
@@ -50,6 +58,8 @@ export async function executeWildsV122Transaction(input: Readonly<{
   authenticateReceipt(receipt: unknown): boolean | Promise<boolean>;
   admitCommittedOutcome?(outcome: Extract<ReceizExecutionOutcomeV122, { status: "committed" }>, transaction: ReceizWorldTransactionV122): boolean | Promise<boolean>;
 }>) {
+  input = { ...input, transaction: freezeExactInput(structuredClone(input.transaction)),
+    authority: freezeExactInput(structuredClone(input.authority)) };
   const validation = await input.rail.validateWorldTransactionV122(input.transaction);
   if (validation !== null && typeof validation === "object" && (validation as { ok?: unknown }).ok !== true) {
     return Object.freeze({ ok: false as const, code: "receiz_v122_transaction_invalid", writes: 0 as const });
