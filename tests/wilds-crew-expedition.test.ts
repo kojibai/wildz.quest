@@ -111,3 +111,36 @@ it("supersession cannot relabel the same proof, cross owners, or silently replac
  await assert.rejects(store.supersede(change),/head_conflict/);
  assert.equal((await store.read("owner","asset"))?.head,recalled.head);
 });
+it("continues bounded itineraries without returning or fabricating visits until explicit recall",async()=>{
+ const store=createWildsCrewExpeditions(createMemoryWildzContinuityDatabase());
+ let trip=await store.start({...start,candidates:[candidates[2]]}),kai=100;
+ const base=()=>({ownerReceizId:"owner",assetId:"asset",expectedHead:trip.head,kaiUPulse:kai});
+ for(let batch=0;batch<8;batch++){
+   trip=await store.arrive({...base(),spaceId:"outer",actualPosition:trip.goal!});
+   const actual=trip.actualPosition!,head=trip.head;kai+=WILDS_CREW_EXPEDITION_OBSERVE_UPULSES;
+   trip=await store.extend({...base(),stops:[{...candidates[2],pointId:`batch-${batch}`,position:{x:actual.x+10,y:0,z:0}}]});
+   assert.equal(trip.previousHead,head);assert.equal(trip.phase,"outbound");assert.equal(trip.kind,"itinerary-continued");
+   assert.equal(trip.totalObserved,batch+1);assert.equal(trip.visitedPointIds.length,0);assert.equal(trip.stops.length,1);assert.deepEqual(trip.actualPosition,actual);
+ }
+ const history=await store.history("owner","asset",undefined,128);
+ assert.equal(history.observations.filter(row=>row.kind==="visited").length,8);
+ assert.equal(history.observations.filter(row=>row.kind==="returned").length,0);
+ trip=await store.recall(base());assert.equal(trip.phase,"returning");assert.equal(trip.recallRequested,true);
+});
+it("retries blocked routes without claiming travel or changing proof and can resume observing",async()=>{
+ const store=createWildsCrewExpeditions(createMemoryWildzContinuityDatabase());let trip=await store.start({...start,candidates:[candidates[2]]});
+ const base=()=>({ownerReceizId:"owner",assetId:"asset",expectedHead:trip.head,kaiUPulse:200});
+ trip=await store.block({...base(),reason:"tree"});trip=await store.retry(base());
+ assert.equal(trip.phase,"outbound");assert.equal(trip.kind,"route-retried");assert.equal(trip.actualPosition,null);assert.equal(trip.proofDigest,start.proofDigest);
+ trip=await store.arrive({...base(),spaceId:"outer",actualPosition:trip.goal!});const actual=trip.actualPosition;
+ trip=await store.block({...base(),reason:"temporary obstacle"});trip=await store.retry(base());
+ assert.equal(trip.phase,"observing");assert.deepEqual(trip.actualPosition,actual);assert.equal(trip.visitedPointIds.length,1);
+});
+it("restores the last actual anchor through continue and recall controls instead of the original origin",async()=>{
+ const db=createMemoryWildzContinuityDatabase(),store=createWildsCrewExpeditions(db);let trip=await store.start(start),kai=100;
+ const base=()=>({ownerReceizId:"owner",assetId:"asset",expectedHead:trip.head,kaiUPulse:kai});
+ trip=await store.arrive({...base(),spaceId:"outer",actualPosition:trip.goal!});const anchor={...trip.actualPosition!};
+ kai+=WILDS_CREW_EXPEDITION_OBSERVE_UPULSES;trip=await store.continue(base());
+ const restored=await createWildsCrewExpeditions(db).read("owner","asset");assert.deepEqual(restored!.actualPosition,anchor);assert.notDeepEqual(anchor,origin);
+ trip=await store.recall(base());assert.deepEqual((await createWildsCrewExpeditions(db).read("owner","asset"))!.actualPosition,anchor);assert.equal(trip.actualSpaceId,"outer");
+});

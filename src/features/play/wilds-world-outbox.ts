@@ -1,6 +1,6 @@
 import { createWildsExactProofCache } from "./wilds-exact-proof-cache";
 import { mergeWildsConstructionPersistence } from "./wilds-construction-persistence";
-import type { ConstitutionalDecision } from "./wilds-constitution";
+import { constitutionalDigest, type ConstitutionalDecision } from "./wilds-constitution";
 import {
   createReceizOfflineProofQueue,
   type JsonObject,
@@ -27,7 +27,25 @@ export type WildsWorldOutboxEntry = {
   cardAdmission?: WildzVaultCardMembershipProof;
   queuedAt: string;
   admittedSource?: WildsWorldAdmittedSource;
+  /** Immutable publication identity only; never grants worker authority. */
+  crewCommandDigest?: string;
 };
+
+/** Preserve the explicitly selected worker even when the source law does not
+ * itself require a card. This metadata cannot authorize a command. */
+export function bindWildsCrewOutboxIdentity(entry:WildsWorldOutboxEntry,card:PortableCardAsset):WildsWorldOutboxEntry {
+ return {...entry,card,crewCommandDigest:constitutionalDigest(entry.command)};
+}
+
+/** Crew admissions publish the exact durable command after reload, even when the
+ * canonical source has advanced. A conflict must be recovered, never replanned. */
+export function prepareWildsWorldOutboxPublication(entry: WildsWorldOutboxEntry, replan: (command: Extract<WildsWorldCommand, {type:"resource.material.harvest"}>) => WildsWorldCommand): WildsWorldOutboxEntry {
+  if (entry.crewCommandDigest !== undefined) {
+    if (entry.crewCommandDigest !== constitutionalDigest(entry.command)) throw new Error("wilds_crew_queued_command_changed");
+    return entry;
+  }
+  return entry.command.type === "resource.material.harvest" ? {...entry, command:replan(entry.command)} : entry;
+}
 
 const OUTBOX_META_PREFIX = "receiz:wilds-world-outbox:v1:";
 const continuity = createWildzContinuityDatabase();

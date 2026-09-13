@@ -5,19 +5,24 @@ import { createWildsCrewCausalEvent, verifyWildsCrewCausalEvent, type WildsCrewC
 import { wildsCrewJobStorageKey, type WildsCrewJob } from "./wilds-crew-jobs";
 
 import type { WildsWorldCommand } from "./wilds-world-service";
-export type WildsCrewStoredSourceCommand = Readonly<{
-  command:Extract<WildsWorldCommand,{type:"resource.material.harvest"}>;
+export type WildsCrewSourceTypedCommand = Extract<WildsWorldCommand,{type:"resource.material.harvest"|"construction.site.contribute"|"construction.site.work"}>;
+export type WildsCrewStoredSourceCommand<T extends WildsCrewSourceTypedCommand = Extract<WildsWorldCommand,{type:"resource.material.harvest"}>> = Readonly<{
+  command:T;
   ownerReceizId:string;ownerSubjectId:string;workerSubjectId:string;ownerHead:string;workerHead:string;
   ownerProofDigest:string;workerProofDigest:string;mandateDigest:string;worldId:string;assetId:string;cardProofDigest:string;expectedLotId?:string;
+  regionId?:string;
+  lotHeads?:readonly Readonly<{lotId:string;head:string}>[];
+  expectedSiteHead?:string;expectedStructure?:Readonly<{structureId:string;head:string}>;
   arrival?:Readonly<{position:Readonly<{x:number;y:number;z:number}>;spaceId:string;kaiUPulse:number}>;
 }>;
+export type WildsCrewAnyStoredSourceCommand=WildsCrewStoredSourceCommand<WildsCrewSourceTypedCommand>;
 export type WildsCrewStoredCommand = Readonly<{
   workerId: string; jobId: string; commandDigest: string; head: string;
   lotIds: readonly string[]; phase: WildsCrewCausalEvent["phase"];
   transaction: ReceizWorldTransactionV122 | null;
   /** Exact working job head whose final CAS committed this dispatch intent. */
   expectedJobHead?: string;
-  sourceCommand?:WildsCrewStoredSourceCommand;
+  sourceCommand?:WildsCrewAnyStoredSourceCommand;
 }>;
 type Reservation = Readonly<{ workerId: string; commandDigest: string }>;
 const validId = (value: string) => typeof value === "string" && value.length > 0 && value.length <= 512;
@@ -45,7 +50,7 @@ export function createWildsCrewJournal(ownerSubjectId: string, database: WildzCo
     admittedWorldEventIds?: readonly string[];
     transaction?: ReceizWorldTransactionV122;
     expectedJobHead?: string;
-    sourceCommand?:WildsCrewStoredSourceCommand;
+    sourceCommand?:WildsCrewAnyStoredSourceCommand;
   }>) => {
     const request = structuredClone(input);
     const lotIds = [...(request.lotIds ?? [])];
@@ -78,7 +83,9 @@ export function createWildsCrewJournal(ownerSubjectId: string, database: WildzCo
           ||source.ownerHead!==jobSnapshot.expectedOwnerSubjectHead||source.workerHead!==jobSnapshot.expectedWorkerSubjectHead
           ||source.ownerProofDigest!==jobSnapshot.ownerProofDigest||source.workerProofDigest!==jobSnapshot.workerProofDigest
           ||source.mandateDigest!==jobSnapshot.mandateDigest||source.worldId!==jobSnapshot.worldId||source.assetId!==jobSnapshot.assetId
-          ||source.command.type!=="resource.material.harvest"||source.cardProofDigest!==source.command.cardProofDigest
+          ||({"resource.material.harvest":"gather","construction.site.contribute":"deliver","construction.site.work":"build"} as const)[source.command.type]!==jobSnapshot.kind
+          ||(source.command.type!=="resource.material.harvest"&&source.regionId!==jobSnapshot.regionId)
+          ||source.cardProofDigest!==source.command.cardProofDigest
           ||await digestReceizCanonicalV122(source)!==request.commandDigest)throw new Error("crew_journal_job_source_mismatch");
       }
     }

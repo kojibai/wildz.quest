@@ -1,4 +1,5 @@
 import { creatureForm } from "./creature-catalog";
+import { wildzSealedDownloadFilename } from "../../lib/receiz/wildz-sealed-document";
 import QRCode from "qrcode";
 import { deriveBirthGenome } from "./heartbound-genome";
 import { renderHeartboundSvg } from "./heartbound-renderer";
@@ -642,7 +643,7 @@ export async function downloadReceizProofObject(
   );
   await saveBlobToDevice(
     new Blob([artifact.bytes.slice().buffer], { type: artifact.mimeType }),
-    options.outputFilename ?? artifact.filename
+    wildzSealedDownloadFilename(options.outputFilename ?? artifact.filename, artifact.mimeType)
   );
   return artifact;
 }

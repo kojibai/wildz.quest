@@ -118,3 +118,13 @@ test("blocked alongside anchors choose nearby reachable support without moving t
   assert.ok(Math.hypot(endpoint.x - to.x, endpoint.z - to.z) <= 1.600001);
   const out = output(); sampleSegment(endpoint, endpoint, "walk", out); assert.equal(out.allowed, true);
 });
+
+test("only accompanied Follow may wade canonical shallow water; deep water still requires separate traversal",()=>{
+ const shallow={x:-2.8,z:-58,y:wildsTerrainElevation(-2.8,-58)},deep={x:-2.8,z:-64,y:wildsTerrainElevation(-2.8,-64)};
+ const base={runtime,spaceId:"wildz.space.outer.v1",obstacles:[],originX:-3,originZ:-60};
+ const out=output(),ordinary=createWildsCrewPhysicalSampler(base),accompanying=createWildsCrewPhysicalSampler({...base,allowAccompaniedWading:true});
+ ordinary(shallow,shallow,"walk",out);assert.equal(out.allowed,false);
+ accompanying(shallow,shallow,"walk",out);assert.equal(out.allowed,true);assert.equal(out.y,shallow.y);
+ accompanying(deep,deep,"walk",out);assert.equal(out.allowed,false);
+ ordinary(deep,deep,"walk",out);assert.equal(out.allowed,false);
+});

@@ -224,6 +224,38 @@ function verification(
   };
 }
 
+test("an admitted native payload cannot activate its earlier owner's contained Identity", async () => {
+  const captured = cards(1);
+  const player = playerWith(captured);
+  const identity = await createReceizIdentityKeyFile({ owner: { uid: "proof_keeper_test", username: "proof_keeper" } });
+  const payloadBytes = await createWildzIdentityBoundPlayerVault({ keyFile: identity.keyFile,
+    vaultBytes: embedPortableVaultInPng(BASE_PNG, player.playState.inventory, player) });
+  const enclosingBytes = new TextEncoder().encode('{"kind":"receiz.bundle.v1"}');
+  for (const currentOwner of ["proof_keeper.receiz.id", "next_keeper.receiz.id"]) {
+    const repository = createWildzIdentityRepository({ database: createMemoryWildzContinuityDatabase() });
+    let preparations = 0;
+    const inspected = await createWildzArtifactCodec({
+      identityRepository: { prepare: async (key) => { preparations += 1; return repository.prepare(key); } },
+      commerceVaultReader: { inspect: async () => null },
+      // The opener is the already-admitted custody port. This test targets the
+      // subsequent contained-Identity/current-owner boundary, not seal crypto.
+      artifactOpener: { open: async () => ({ artifactBytes: enclosingBytes,
+        artifactSha256: await sha256Hex(enclosingBytes), payloadBytes,
+        payloadSha256: await sha256Hex(payloadBytes), filename: "test.receizbundle", mimeType: "image/png",
+        ownerReceizId: currentOwner, claimId: "test-claim", verifyPath: "/v/test/claim/1",
+        recordId: "test-native", compatibility: "current-native" as const }) }
+    }).inspect({ bytes: enclosingBytes, mimeType: "application/vnd.receiz.bundle+json" });
+    if (currentOwner === "proof_keeper.receiz.id") {
+      assert.equal(inspected.kind, "card-vault");
+      assert.equal(preparations, 1);
+      if (inspected.kind === "card-vault") assert.equal(inspected.identity?.session.keyId, identity.keyId);
+    } else {
+      assert.equal(inspected.kind, "invalid");
+      assert.equal(preparations, 0, "former owner must never enter Identity preparation");
+    }
+  }
+});
+
 test("SDK v102 proof objects recover the owner-bound player and all 98 cards only after verified continuity and exact V4 verification", async () => {
   const value = await proofObjectFixture();
   const inspected = await codec(value).inspect({

@@ -45,6 +45,8 @@ import { publishActiveWildsWorldWithIdentityProof } from "@/lib/receiz/wilds-wor
 import {
   createWildsWorldEdgeAdmissionQueue,
   preserveWildsConstructionHistory,
+  prepareWildsWorldOutboxPublication,
+  bindWildsCrewOutboxIdentity,
   projectWildsWorldOutbox,
   type WildsWorldOutboxEntry
 } from "./wilds-world-outbox";
@@ -319,22 +321,11 @@ export function useWildsWorld(input: {
     try {
       while (entries.length > 0 && shouldAttemptWildsNetwork()) {
         const queued = entries[0]!;
-        const entry = queued.command.type === "resource.material.harvest"
-          ? {
-              ...queued,
-              command: planWildsMaterialHarvest({
-                projection: canonical,
-                source: queued.command.source,
-                actorId: input.actorId,
-                actorPosition: queued.command.actorPosition,
-                kaiUPulse: queued.command.kai?.uPulse ?? queued.command.operation?.kaiUPulse ?? 0,
-                commandId: queued.command.commandId,
-                card: queued.card,
-                mandate: queued.command.mandate,
-                kai: queued.command.kai
-              })
-            }
-          : queued;
+        const entry = prepareWildsWorldOutboxPublication(queued, command => planWildsMaterialHarvest({
+          projection: canonical, source: command.source, actorId: input.actorId, actorPosition: command.actorPosition,
+          kaiUPulse: command.kai?.uPulse ?? command.operation?.kaiUPulse ?? 0, commandId: command.commandId,
+          card: queued.card, mandate: command.mandate, kai: command.kai
+        }));
         const parsed = await sendEntry(entry);
         if ("commandId" in parsed && parsed.commandId !== queued.command.commandId) throw new Error("wilds_world_published_head_mismatch");
         canonical = acceptWildsWorldSnapshot(edgeQueue.current(), parsed.projection);
@@ -418,19 +409,22 @@ export function useWildsWorld(input: {
     ));
     const authorityCard = authority === null ? null : authority?.card ?? input.activeCard;
     const authorityCardAdmission = authority === null ? null : authority?.cardAdmission ?? input.cardAdmission;
-    const entry: WildsWorldOutboxEntry = {
+    const unboundEntry: WildsWorldOutboxEntry = {
       schema: "receiz.wilds_world_outbox_entry.v1",
       actorId: input.actorId,
       guestId: input.guestId,
       command: rootedCommand,
-      ...((worldCommandRequiresCard(rootedCommand) || rootedCommand.type === "resource.material.harvest") && authorityCard ? { card: authorityCard } : {}),
+
+      ...((crewAdmission || worldCommandRequiresCard(rootedCommand) || rootedCommand.type === "resource.material.harvest") && authorityCard ? { card: authorityCard } : {}),
       ...(authorityCardAdmission ? { cardAdmission: authorityCardAdmission } : {}),
       queuedAt: new Date().toISOString()
     };
+    if(crewAdmission&&!authorityCard)throw new Error("wilds_crew_worker_card_required");
+    const entry=crewAdmission?bindWildsCrewOutboxIdentity(unboundEntry,authorityCard!):unboundEntry;
     if (isWildsEdgeImmediateConstructionCommand(rootedCommand)) {
       try {
         await restoreSession();
-        const projection = await edgeQueue.admit(entry);
+        const projection = await edgeQueue.admit(entry,crewAdmission);
         setError("");
         scheduleWildsWorldBackgroundSync(() => {
           if (input.networkEnabled) void refresh();
@@ -637,6 +631,15 @@ export function useWildsWorld(input: {
      * The queued source transition retains its Kai root and idempotency identity. */
     admitCrewHarvest: async (
       command:Extract<WildsWorldCommand,{type:"resource.material.harvest"}>,
+      authority:Readonly<{card:PortableCardAsset;cardAdmission?:WildzVaultCardMembershipProof|null}>,
+      beforeAdmit:(entry:WildsWorldOutboxEntry)=>Promise<void>
+    )=>{
+      const events:WildsWorldEvent[]=[];
+      const projection=await post(command,authority,{beforeAdmit,onAdmitted:(_projection,admitted)=>{events.push(...admitted);}});
+      return {projection,events};
+    },
+    admitCrewSourceWork: async (
+      command:Extract<WildsWorldCommand,{type:"resource.material.harvest"|"construction.site.contribute"|"construction.site.work"}>,
       authority:Readonly<{card:PortableCardAsset;cardAdmission?:WildzVaultCardMembershipProof|null}>,
       beforeAdmit:(entry:WildsWorldOutboxEntry)=>Promise<void>
     )=>{

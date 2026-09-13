@@ -7,7 +7,7 @@ import { prepareWildsCrewExpeditionStops } from "./wilds-crew-expedition-stops";
 import { canWildsCrewTravel } from "./wilds-crew-physical-navigation";
 import { observeWildsKaiUPulse } from "./wilds-kai-runtime";
 import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
-import type { WildsCrewTravelRuntime } from "./wilds-crew-travel-runtime";
+import { createWildsCrewTravelRuntime, wildsCrewTransportAccompanyingIds } from "./wilds-crew-travel-runtime";
 import type { PlayState } from "./game-state";
 import type { PortableCardAsset } from "./portable-card";
 import type { WildsSiteRuntimeProjection } from "./wilds-site-runtime";
@@ -59,7 +59,9 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
   feedback:(message:string)=>void;onFinished:(assetId:string)=>void;onResumed?:(assetId:string)=>void}) {
   const latest=useRef(input);latest.current=input;
   const store=useRef<ReturnType<typeof createWildsCrewExpeditions>|null>(null);
-  const runtime=useRef<WildsCrewTravelRuntime>(new Map());
+  const [runtimeMembershipRevision,setRuntimeMembershipRevision]=useState(0);
+  const [runtimeMap]=useState(()=>createWildsCrewTravelRuntime(()=>setRuntimeMembershipRevision(v=>v+1)));
+  const runtime=useRef(runtimeMap);
   const activeTrips=useRef(new Map<string,WildsCrewExpeditionTicket>());
   const [activeTripRevision,setActiveTripRevision]=useState(0);
   const protect=(ticket:WildsCrewExpeditionTicket)=>{activeTrips.current.set(ticket.assetId,ticket);setActiveTripRevision(v=>v+1);};
@@ -67,6 +69,9 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
   const rows=useRef(new Map<string,WildsCrewExpedition>());
   const guard=useRef<ReturnType<typeof createWildsCrewExpeditionGuard>|null>(null);
   if(!guard.current)guard.current=createWildsCrewExpeditionGuard(()=>latest.current);
+  const preparing=useRef(new Set<string>());
+  const nextRouteRetry=useRef(new Map<string,number>());
+  const nextPreparation=useRef(new Map<string,number>());
   const blockedSince=useRef(new Map<string,number>());
   const pausedSince=useRef(new Map<string,number>());
   const restoredScope=useRef<{owner:string;proofs:Map<string,string>}>({owner:"",proofs:new Map()});
@@ -88,7 +93,7 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
     const prior=rows.current.get(row.assetId);
     if(prior&&(prior.revision>row.revision||(prior.revision===row.revision&&prior.head!==row.head)))return false;
     rows.current.set(row.assetId,row);blockedSince.current.delete(row.assetId);pausedSince.current.delete(row.assetId);
-    const message=row.phase==="completed"?(row.kind==="superseded"?"Earlier trip ended after card proof changed. Its history is preserved.":`Returned · ${row.visitedPointIds.length} trail locations observed`)
+    const message=row.phase==="completed"?(row.kind==="superseded"?"Earlier trip ended after card proof changed. Its history is preserved.":`Returned · ${row.totalObserved??row.visitedPointIds.length} trail locations observed`)
       :row.phase==="outbound"?`Exploring · destination ${row.stopIndex+1} of ${row.stops.length}`
       :row.phase==="observing"?"Inspecting this part of the trail"
       :row.phase==="returning"?"Returning to you":row.blocker??"Waiting for a clear route";
@@ -116,11 +121,11 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
     const current=latest.current,g=guard.current!;
     const before=restoredScope.current,proofs=new Map(current.cards.map(card=>[card.id,card.proof.digest]));
     if(before.owner!==current.owner){
-      g.clear();activeTrips.current.clear();rows.current.clear();runtime.current.clear();blockedSince.current.clear();pausedSince.current.clear();setReports({});
+      g.clear();activeTrips.current.clear();rows.current.clear();runtime.current.clear();blockedSince.current.clear();pausedSince.current.clear();nextPreparation.current.clear();nextRouteRetry.current.clear();preparing.current.clear();setReports({});
     }else{
       for(const [assetId,proof] of before.proofs){
         if(proofs.get(assetId)===proof)continue;
-        g.invalidate(assetId);activeTrips.current.delete(assetId);rows.current.delete(assetId);runtime.current.delete(assetId);blockedSince.current.delete(assetId);pausedSince.current.delete(assetId);
+        g.invalidate(assetId);nextPreparation.current.delete(assetId);nextRouteRetry.current.delete(assetId);preparing.current.delete(assetId);activeTrips.current.delete(assetId);rows.current.delete(assetId);runtime.current.delete(assetId);blockedSince.current.delete(assetId);pausedSince.current.delete(assetId);
         setReports(old=>{if(!(assetId in old))return old;const next={...old};delete next[assetId];return next;});
       }
     }
@@ -173,7 +178,7 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
     travelRevision.current=input.state.partyTravelRevision??0;
     const current=latest.current,g=guard.current!,destination=origin(current),spaceId=current.state.siteSpace.spaceId;
     // Read every accompanying member, including a restore/start still in flight.
-    const accompanying=new Set(current.accompanyingAssetIds??current.cards.slice(0,3).map(card=>card.id));
+    const accompanying=new Set(wildsCrewTransportAccompanyingIds(current.accompanyingAssetIds??current.cards.slice(0,3).map(card=>card.id),current.state.crewPreferences?.byAssetId,activeTrips.current));
     for(const card of current.cards.filter(card=>accompanying.has(card.id))){
       runtime.current.delete(card.id);blockedSince.current.delete(card.id);pausedSince.current.delete(card.id);
       const ticket=g.begin(card.id);if(!ticket)continue;protect(ticket);
@@ -199,29 +204,54 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
           const g=guard.current!,ticket=g.current(assetId);if(!ticket)continue;
           await g.run(assetId,async()=>{
             const current=latest.current,row=rows.current.get(assetId),entry=runtime.current.get(assetId);
-            if(cancelled||!row||!matches(row,ticket)||!entry?.position||row.spaceId!==current.state.siteSpace.spaceId||row.phase==="completed"||row.phase==="blocked")return;
+            if(cancelled||!row||!matches(row,ticket)||!entry?.position||row.spaceId!==current.state.siteSpace.spaceId||row.phase==="completed")return;
             const change={ownerReceizId:ticket.owner,assetId,expectedHead:row.head,kaiUPulse:observeWildsKaiUPulse()};
             try {
+              if(row.phase==="blocked"){
+                if(performance.now()<(nextRouteRetry.current.get(assetId)??0))return;
+                nextRouteRetry.current.set(assetId,performance.now()+5000);
+                const card=current.cards.find(card=>card.id===assetId);
+                if(!card||!canWildsCrewTravel(readWildsCrewCondition(card,current.state.adventureConditions)))return;
+                protect(ticket);publish(await getStore().retry(change),ticket);return;
+              }
               const pause=observeWildsCrewTravelPause(pausedSince.current.get(assetId),entry.paused,true,performance.now());
               if(pause.since===undefined)pausedSince.current.delete(assetId);else pausedSince.current.set(assetId,pause.since);
               if(entry.paused){
                 if(pause.blocked){
                   const card=current.cards.find(card=>card.id===assetId);
                   const ready=card&&canWildsCrewTravel(readWildsCrewCondition(card,current.state.adventureConditions));
-                  publish(await getStore().block({...change,reason:ready
-                    ? "Exploration paused because ground travel stopped. Return to the ground and Recall before choosing another trip."
-                    : "Exploration paused because this creature needs rest or care. Recall after it is ready to travel."}),ticket);
+                  release(ticket);
+                  const message=ready?"Exploration paused until ground travel resumes.":"Exploration paused for rest or care.";
+                  setReports(old=>old[assetId]===message?old:({...old,[assetId]:message}));
                 }
                 return;
               }
+              if(!activeTrips.current.has(assetId))protect(ticket);
               if(entry.blocked){
                 const began=blockedSince.current.get(assetId)??performance.now();blockedSince.current.set(assetId,began);
-                if(performance.now()-began>8000){publish(await getStore().block({...change,reason:"The route is blocked. Recall this creature before choosing another trip."}),ticket);return;}
+                if(performance.now()-began>8000){publish(await getStore().block({...change,reason:"The route is blocked. Waiting to try the route again."}),ticket);return;}
               }else blockedSince.current.delete(assetId);
               if(row.phase==="returning"&&Math.hypot(row.home.x-current.state.player.x,row.home.z-current.state.player.z)>2&&row.spaceId===current.state.siteSpace.spaceId)
                 publish(await getStore().retargetReturn({...change,returnPosition:origin(current),spaceId:row.spaceId}),ticket);
               else if(row.phase==="observing"&&row.observingSinceKaiUPulse!==null&&change.kaiUPulse-row.observingSinceKaiUPulse>=WILDS_CREW_EXPEDITION_OBSERVE_UPULSES)
-                publish(await getStore().continue(change),ticket);
+                {
+                if(row.stopIndex<row.stops.length-1)publish(await getStore().continue(change),ticket);
+                else if(!preparing.current.has(assetId)&&performance.now()>=(nextPreparation.current.get(assetId)??0)){
+                  preparing.current.add(assetId);nextPreparation.current.set(assetId,performance.now()+5000);
+                  const start={...entry.position},card=current.cards.find(card=>card.id===assetId);
+                  const disposition=card&&prepareWildsCrewDisposition(card);
+                  if(!disposition){preparing.current.delete(assetId);return;}
+                  let seed=disposition.preferenceSeed;for(let i=0;i<row.head.length;i++)seed=Math.imul(seed^row.head.charCodeAt(i),16777619)>>>0;
+                  // Preparation yields internally and is not awaited by the fair journal loop.
+                  void prepareWildsCrewExpeditionStops({origin:start,spaceId:row.spaceId,runtime:current.siteRuntime,obstacles:current.obstacles,seed,
+                    cancelled:()=>!g.valid(ticket)||rows.current.get(assetId)?.head!==row.head||latest.current.state.siteSpace.spaceId!==row.spaceId})
+                    .then(stops=>g.run(assetId,async()=>{
+                      if(!stops.length||!g.valid(ticket)||rows.current.get(assetId)?.head!==row.head||latest.current.state.siteSpace.spaceId!==row.spaceId)return;
+                      if(!canWildsCrewTravel(readWildsCrewCondition(card!,latest.current.state.adventureConditions)))return;
+                      publish(await getStore().extend({...change,kaiUPulse:observeWildsKaiUPulse(),stops}),ticket);
+                    })).catch(()=>undefined).finally(()=>preparing.current.delete(assetId));
+                }
+              }
               else if(row.goal&&["outbound","returning"].includes(row.phase)&&Math.hypot(entry.position.x-row.goal.x,entry.position.y-row.goal.y,entry.position.z-row.goal.z)<=.8)
                 publish(await getStore().arrive({...change,actualPosition:{...entry.position},spaceId:entry.spaceId}),ticket);
             }catch{
@@ -241,7 +271,7 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
     const row=rows.current.get(ticket.assetId);
     if(!row||!matches(row,ticket)||row.phase==="completed"||row.phase==="blocked"||row.spaceId!==latest.current.state.siteSpace.spaceId)release(ticket);
   };
-  return {runtime,reports,activeTrips,activeTripRevision,
+  return {runtime,reports,activeTrips,activeTripRevision,runtimeMembershipRevision,
     async history(assetId:string,beforeHead?:string,limit=24){
       const current=latest.current,card=current.state.inventory.find(c=>c.id===assetId&&sameWildzPlayerCoordinate(c.manifest.ownerReceizId,current.owner));
       if(!card)throw new Error("This creature is no longer in your owned inventory.");

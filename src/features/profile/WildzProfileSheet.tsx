@@ -242,7 +242,7 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
     </section>
     {editable ? <section className="wildz-profile-proof-actions" aria-label="Receiz identity controls">
       <input
-        accept="image/png,image/jpeg,image/webp,application/json"
+        accept="image/png,image/jpeg,image/webp,.receizbundle,application/vnd.receiz.bundle+json,application/json,application/octet-stream"
         className="wilds-import-input"
         onChange={async (event) => {
           const file = event.target.files?.[0];

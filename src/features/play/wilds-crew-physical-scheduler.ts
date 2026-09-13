@@ -4,6 +4,7 @@ import type { WildsCrewTravelEntry, WildsCrewTravelRuntime } from "./wilds-crew-
 export const WILDS_CREW_PHYSICAL_TICK_MS = 100;
 export const WILDS_CREW_PHYSICAL_STEPS_PER_TICK = 2;
 const ROUTE_CACHE_LIMIT = 12;
+const ADMISSION_REFRESH_MS = 500, ADMISSIONS_PER_REFRESH = 16;
 type Route = { target:WildsCrewNavigationPoint; direct:ReturnType<typeof createWildsCrewPathStepState>; step:ReturnType<typeof createWildsCrewPathStepState>; waypoints:readonly Readonly<WildsCrewNavigationPoint>[]; directWaypoints:Readonly<WildsCrewNavigationPoint>[]; proofDigest:string };
 /** Caller supplies current canonical physical admission. null pauses, while "party"
  * leaves the entry exclusively to its mounted companion writer. Never advances lost time. */
@@ -12,24 +13,41 @@ export function createWildsCrewPhysicalScheduler(input:{
   admit:(assetId:string,entry:WildsCrewTravelEntry)=>WildsCrewNavigationAuthority|"party"|null;
 }) {
   const routes=new Map<string,Route>();
-  let iterator:IterableIterator<[string,WildsCrewTravelEntry]>|null=null,priorRuntime:WildsCrewTravelRuntime|null=null;
+  const eligible=new Set<string>();
+  let iterator:IterableIterator<string>|null=null,admissionIterator:IterableIterator<[string,WildsCrewTravelEntry]>|null=null,priorRuntime:WildsCrewTravelRuntime|null=null;
+  let admissionDue=-Infinity,knownRuntimeSize=-1;
   let waitingPlanner:string|null=null;
   return {
     tick(nowMs=performance.now()){
       const runtime=input.runtime();
-      if(runtime!==priorRuntime){priorRuntime=runtime;iterator=null;routes.clear();waitingPlanner=null;}
-      if(waitingPlanner!==null&&!runtime.has(waitingPlanner))waitingPlanner=null;
-      let plans=0,processed=0;
-      // The iterator bounds actual examined entries, including queued or paused ones.
-      for(let i=0;i<Math.min(WILDS_CREW_PHYSICAL_STEPS_PER_TICK,runtime.size);i++){
-        iterator??=runtime.entries();let next=iterator.next();
-        if(next.done){iterator=runtime.entries();next=iterator.next();}
-        if(next.done)break;
-        const [assetId,entry]=next.value;processed++;
-        const authority=input.admit(assetId,entry);
-        if(authority==="party"){if(waitingPlanner===assetId)waitingPlanner=null;routes.delete(assetId);delete entry.visualStep;continue;}
-        if(!authority||!entry.position||entry.halted){if(waitingPlanner===assetId)waitingPlanner=null;entry.paused=true;routes.delete(assetId);continue;}
+      if(runtime!==priorRuntime){priorRuntime=runtime;iterator=null;admissionIterator=null;routes.clear();eligible.clear();waitingPlanner=null;admissionDue=-Infinity;knownRuntimeSize=-1;}
+      let plans=0,processed=0,examined=0;
+      // Discover/update membership in bounded batches. Inactive history stays in the
+      // runtime but does not permanently consume physical service slots.
+      if(nowMs>=admissionDue||runtime.size!==knownRuntimeSize){
+        admissionDue=nowMs+ADMISSION_REFRESH_MS;knownRuntimeSize=runtime.size;
+        for(let i=0;i<Math.min(ADMISSIONS_PER_REFRESH,runtime.size);i++){
+          admissionIterator??=runtime.entries();let next=admissionIterator.next();
+          if(next.done){admissionIterator=runtime.entries();next=admissionIterator.next();}if(next.done)break;
+          const [id,entry]=next.value,authority=input.admit(id,entry);examined++;
+          if(authority&&authority!=="party"&&entry.position&&!entry.halted)eligible.add(id);
+          else {eligible.delete(id);routes.delete(id);if(authority!=="party")entry.paused=true;else delete entry.visualStep;}
+        }
+      }
+      if(waitingPlanner!==null&&(!runtime.has(waitingPlanner)||!eligible.has(waitingPlanner)))waitingPlanner=null;
+      for(let i=0;i<Math.min(WILDS_CREW_PHYSICAL_STEPS_PER_TICK,eligible.size);i++){
+        iterator??=eligible.keys();let next=iterator.next();
+        if(next.done){iterator=eligible.keys();next=iterator.next();}if(next.done)break;
+        const assetId=next.value,entry=runtime.get(assetId);processed++;
+        if(!entry){eligible.delete(assetId);routes.delete(assetId);continue;}
+        // Geometry, proof, condition and party ownership remain fresh at every step.
+        const authority=input.admit(assetId,entry);examined++;
+        if(authority==="party"){eligible.delete(assetId);if(waitingPlanner===assetId)waitingPlanner=null;routes.delete(assetId);delete entry.visualStep;continue;}
+        if(!authority||!entry.position||entry.halted){eligible.delete(assetId);if(waitingPlanner===assetId)waitingPlanner=null;entry.paused=true;routes.delete(assetId);continue;}
         entry.paused=false;
+        // Finish the admitted segment before starting another after roster shrink.
+        // This bounds presentation backlog to one segment and never cuts corners.
+        if(entry.visualStep && nowMs < entry.visualStep.startedAtMs + entry.visualStep.durationMs)continue;
         let route=routes.get(assetId);
         if(!route||route.proofDigest!==entry.proofDigest){
           if(routes.size>=ROUTE_CACHE_LIMIT)routes.delete(routes.keys().next().value!);
@@ -65,13 +83,13 @@ export function createWildsCrewPhysicalScheduler(input:{
           visual.startedAtMs=nowMs;
           // More dispatched agents share the same fixed work budget; rendering spans
           // their expected service interval without inventing additional travel.
-          visual.durationMs=Math.max(100,Math.min(1000,Math.ceil(runtime.size/WILDS_CREW_PHYSICAL_STEPS_PER_TICK)*WILDS_CREW_PHYSICAL_TICK_MS));
+          visual.durationMs=Math.max(100,Math.ceil(eligible.size/WILDS_CREW_PHYSICAL_STEPS_PER_TICK)*WILDS_CREW_PHYSICAL_TICK_MS);
         }
 
       }
-      return {processed,plans,cachedRoutes:routes.size};
+      return {processed,plans,cachedRoutes:routes.size,examined,eligibleAgents:eligible.size};
     },
-    clear(){routes.clear();iterator=null;priorRuntime=null;waitingPlanner=null;}
+    clear(){routes.clear();eligible.clear();iterator=null;admissionIterator=null;priorRuntime=null;waitingPlanner=null;admissionDue=-Infinity;knownRuntimeSize=-1;}
   };
 }
 

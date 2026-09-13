@@ -2,7 +2,7 @@ import { digestReceizCanonicalV122 } from "@receiz/sdk";
 import type { validateWildsCrewMandateCommand, WildsCrewCommand } from "../../lib/receiz/wilds-crew-mandate";
 import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 import { constitutionalDigest } from "./wilds-constitution";
-import { createWildsCrewJournal, type WildsCrewStoredSourceCommand } from "./wilds-crew-journal";
+import { createWildsCrewJournal, type WildsCrewStoredSourceCommand, type WildsCrewAnyStoredSourceCommand } from "./wilds-crew-journal";
 import type { WildsCrewJob } from "./wilds-crew-jobs";
 import { prepareWildsCrewDisposition } from "./wilds-crew-policy";
 import { canWildsCrewTravel } from "./wilds-crew-physical-navigation";
@@ -17,13 +17,14 @@ import type { WildsWorldProjection } from "./wilds-world-state";
 import type { WildsWorldOutboxEntry } from "./wilds-world-outbox";
 import type { WildsCrewNavigationPoint } from "./wilds-crew-navigation";
 
-export type WildsCrewGatheringBinding=Omit<WildsCrewStoredSourceCommand,"command"|"expectedLotId"|"arrival">;
+export type WildsCrewGatheringBinding=Omit<WildsCrewStoredSourceCommand,"command"|"expectedLotId"|"arrival"|"lotHeads"|"expectedSiteHead"|"expectedStructure">;
 export type WildsCrewPreparedGathering=Readonly<{
   jobId:string;workerId:string;expectedJobHead:string;commandDigest:string;
   source:WildsCrewStoredSourceCommand;card:PortableCardAsset;authorizationCommand:WildsCrewCommand;
   /** An expected successor identity only. Inventory changes exclusively on admission. */
   expectedLotId:string;
 }>;
+const gatheringSource=(value:WildsCrewAnyStoredSourceCommand|undefined):value is WildsCrewStoredSourceCommand=>value?.command.type==="resource.material.harvest";
 const fail=(code:string):never=>{throw new Error(`crew_gather_${code}`);};
 const same=(a:unknown,b:unknown)=>canonicalPortableCardJson(a)===canonicalPortableCardJson(b);
 function freeze<T>(value:T):T{if(value&&typeof value==="object"){Object.values(value).forEach(freeze);Object.freeze(value);}return value;}
@@ -110,7 +111,7 @@ export function createWildsCrewGathering(input:Readonly<{
       &&result.worldId===request.source.worldId&&result.regionId===request.authorizationCommand.regionId;
   };
   const settle=async(commandDigest:string,projection:WildsWorldProjection,expectedLotId?:string)=>{
-    const stored=await input.journal.command(commandDigest);if(!stored?.sourceCommand)return pending("crew_gather_recovery_command_missing");
+    const stored=await input.journal.command(commandDigest);if(!stored||!gatheringSource(stored.sourceCommand))return pending("crew_gather_recovery_command_missing");
     const result=admitted(stored.sourceCommand,projection,expectedLotId);if(!result)return pending("crew_gather_admission_unverified");
     if(stored.phase==="admitted"){
       const event=await input.journal.readEvent(stored.head);if(!event||!same(event.admittedWorldEventIds,result.eventIds))return pending("crew_gather_recovery_conflict");
@@ -135,7 +136,7 @@ export function createWildsCrewGathering(input:Readonly<{
           expectedJobHead:request.expectedJobHead,sourceCommand:request.source,lotIds:[request.source.command.source.sourceId],phase:"proposed",observedKaiUPulse:input.observeKaiUPulse()});
         if(proposed.replay)return pending("crew_gather_exact_recovery_required");
         const result=await input.admit(request.source.command,request.card,async entry=>{
-          if(entry.actorId!==request.source.ownerReceizId||!same(entry.command,request.source.command)||!same(entry.card,request.card))return fail("source_command_changed");
+          if((entry.crewCommandDigest!==undefined&&entry.crewCommandDigest!==constitutionalDigest(request.source.command))||entry.actorId!==request.source.ownerReceizId||!same(entry.command,request.source.command)||!same(entry.card,request.card))return fail("source_command_changed");
           if(!await authorized(request))return fail("authority_unavailable");
           const committed=await input.journal.append({workerId:request.workerId,jobId:request.jobId,commandDigest:request.commandDigest,expectedWorkerHead:proposed.event.eventId,
             expectedJobHead:request.expectedJobHead,lotIds:[request.source.command.source.sourceId],phase:"pending",observedKaiUPulse:input.observeKaiUPulse()});
@@ -157,7 +158,7 @@ export function createWildsCrewGathering(input:Readonly<{
     },
     async recover(commandDigest:string){
       try{
-        const stored=await input.journal.command(commandDigest);if(!stored?.sourceCommand)return pending("crew_gather_recovery_command_missing");
+        const stored=await input.journal.command(commandDigest);if(!stored||!gatheringSource(stored.sourceCommand))return pending("crew_gather_recovery_command_missing");
         if(stored.phase==="rejected")return {ok:false as const,code:"crew_gather_cancelled",writes:0 as const};
         const projection=await input.lookup(stored.sourceCommand);if(!projection)return pending("crew_gather_admission_unavailable");
         return await settle(commandDigest,projection);

@@ -33,7 +33,14 @@ test("profile offers Identity Seal authentication when signing authority is unav
   assert.match(sheet, /signingAvailable/);
   assert.match(sheet, /onAuthenticateIdentitySeal/);
   assert.match(sheet, /Upload Identity Seal/);
-  assert.match(sheet, /accept="image\/png,image\/jpeg,image\/webp,application\/json"/);
+  const identityPicker = [...sheet.matchAll(/<input\b[\s\S]*?\/>/g)]
+    .map((match) => match[0]).find((input) => input.includes("ref={identityInputRef}"));
+  assert.ok(identityPicker, "Identity upload picker must remain present");
+  const accepted = new Set(identityPicker.match(/accept="([^"]+)"/)?.[1]?.split(","));
+  for (const format of ["image/png", "image/jpeg", "image/webp", "application/json", ".receizbundle", "application/vnd.receiz.bundle+json"]) {
+    assert.ok(accepted.has(format), `Identity picker must accept ${format}`);
+  }
+  assert.ok(!accepted.has("*/*"), "Identity picker should not advertise unrestricted file types");
   assert.match(sheet, /aria-label="Upload Identity Seal or Record"[\s\S]*identityInputRef\.current\?\.click\(\)/);
   assert.match(sheet, /aria-label="Save Identity Seal"[\s\S]*disabled=\{identitySealSaving \|\| identityAuthenticating \|\| !signingAvailable \|\| !onSaveIdentitySeal\}/);
   assert.match(shell, /signingAvailable=\{identity\?\.localAuthority === "verified"\}/);

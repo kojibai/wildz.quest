@@ -59,3 +59,7 @@ The crew execution boundary now fences the current working job atomically at dis
 ## Full roster and source-command integration
 
 Owned creatures can now explore independently of active/support selection within loaded physical geometry. Simulation and visible models have separate bounded budgets, and changing one card no longer restarts other trips. A source-command gathering coordinator is connected to the existing admission queue with exact job fencing and lookup-only recovery, but it is not enabled without verified worker mandate authority. Separate material delivery custody, autonomous construction, and independent simulation beyond loaded geometry remain unfinished. See crew-roster-integration.md for current behavior and verification; the pending real sealing test is recorded in crew-proof-source-integration.md.
+
+## Continuous roaming checkpoint
+
+Roaming now continues through bounded itinerary batches until explicit recall and survives companion selection changes. Follow speed tracks actual player movement; legless creatures use distance-driven undulation. Real source-command delivery/building coordinators are implemented but remain gated on verified mandate and capability authority. See crew-continuous-follow-and-material-work.md for the current scope and verification; crew-proof-source-integration.md records the approved live disposable export/restore checks.

@@ -25,6 +25,7 @@ import { isWildzPng, splitWildzPngEnvelope } from "./wildz-png-envelope";
 import { requireWildzIdentityBindingFromEnvelope } from "./wildz-identity-binding";
 import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import type { WildzAdmittedArtifact } from "./wildz-artifact-custody";
+import { openWildzSealedDocument } from "./wildz-sealed-document";
 
 export type WildzPlayerBinding = "identity-portable-state" | "identity-v3-binding" | "artifact-v4-required" | null;
 
@@ -191,8 +192,13 @@ export function createWildzArtifactCodec(input: {
   identityRepository: Pick<WildzIdentityRepository, "prepare">;
   commerceVaultReader: ReceizCommerceVaultReader;
   artifactOpener?: WildzArtifactOpener;
+  sealedDocumentStore?: { retain(input: { bytes: Uint8Array; filename: string; mimeType: string }): Promise<unknown> };
   retirementAuthorityVerifier?: CreatureRetirementAuthorityVerifier;
 }): WildzArtifactCodec {
+  return createWildzArtifactCodecAtDepth(input, 0);
+}
+
+function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArtifactCodec>[0], depth: number): WildzArtifactCodec {
   return {
     async inspect(artifact) {
       const bytes = artifact.bytes;
@@ -246,7 +252,22 @@ export function createWildzArtifactCodec(input: {
             proofClaimId: admitted.claimId
           };
         } catch (error) {
-          return invalid(normalizedError(error));
+          // A plain sealed document is not native ownership evidence. Unwrap it
+          // only through the canonical SDK, then verify the original PNG proof
+          // and signed Identity binding through the unchanged inner pipeline.
+          try {
+            if (depth >= 4) throw new Error("wildz_restore_schema_unsupported");
+            const document = await openWildzSealedDocument({ bytes: proofObjectArtifactBytes,
+              mimeType: artifact.mimeType, name: artifact.name });
+            if (!isWildzPng(document.payloadBytes)) throw error;
+            const restored = await createWildzArtifactCodecAtDepth(input, depth + 1).inspect({ bytes: document.payloadBytes,
+              mimeType: document.payloadMimeType, name: document.payloadFilename });
+            if (restored.kind !== "invalid" && restored.kind !== "unsupported") {
+              await input.sealedDocumentStore?.retain({ bytes: document.exactSealedArtifactBytes,
+                filename: artifact.name ?? "wildz.receizbundle", mimeType: artifact.mimeType });
+            }
+            return restored;
+          } catch { return invalid(normalizedError(error)); }
         }
       }
 
@@ -255,9 +276,14 @@ export function createWildzArtifactCodec(input: {
       let identityError: WildzRestoreErrorCode | null = null;
       let keyFile: ReceizKeyFile | null = null;
       try {
-        if (proofObjectCandidate) throw new Error("wildz_proof_object_not_identity");
-        keyFile = await readReceizIdentityArtifact(bytes);
+        keyFile = await readReceizIdentityArtifact(proofObjectPayload?.bytes ?? bytes);
         const projection = await projectReceizIdentityAccount(keyFile);
+        // Transfers can preserve an earlier owner's signed payload. It cannot
+        // activate that Identity beneath a different current native owner.
+        if (proofObject && (!projection.owner.username
+          || !sameWildzPlayerCoordinate(projection.owner.username, proofObject.ownerReceizId))) {
+          throw new Error("wildz_proof_object_not_identity");
+        }
         if (keyFile.portableState && projection.portableStateStatus !== "verified") {
           identityError = "wildz_restore_portable_signature_invalid";
         } else {
@@ -344,7 +370,7 @@ export function createWildzArtifactCodec(input: {
           playerBinding = "identity-portable-state";
         } else {
           try {
-            await requireWildzIdentityBindingFromEnvelope(bytes);
+            await requireWildzIdentityBindingFromEnvelope(proofObjectPayload?.bytes ?? bytes);
             playerBinding = "identity-v3-binding";
           } catch (error) {
             return invalid(normalizedError(error));

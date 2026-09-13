@@ -128,6 +128,7 @@ export function WildsCreatureActor({
   const skinTexture=anatomy?.surface === "energy" ? grainTexture : detailedTexture ?? grainTexture;
   const root = useRef<THREE.Group>(null);
   const head = useRef<THREE.Group>(null);
+  const bodyMotion = useRef<THREE.Group>(null);
   const limbs = useRef<THREE.Group>(null);
   const wings = useRef<THREE.Group>(null);
   const aura = useRef<THREE.Group>(null);
@@ -173,6 +174,12 @@ export function WildsCreatureActor({
     root.current.rotation.x = frame.rootPitch;
     root.current.rotation.z = frame.rootRoll;
     root.current.scale.setScalar(pose === "capture" ? 0.9 + Math.sin(time * 5) * 0.035 * motion : 1);
+    if (bodyMotion.current) {
+      const slithering = grounded && motionMode === "ground" && !legged && gait && gait.current.speed > .01;
+      const wave = slithering ? Math.sin(gait.current.distance * 7) * .10 * motion : 0;
+      bodyMotion.current.position.x = 0;
+      bodyMotion.current.rotation.y = wave * 1.8;
+    }
     if (head.current) {
       head.current.rotation.x = attack ? -0.22 : work ? -.14 + Math.sin(time * 4.2) * .08 * motion : pose === "weakened" ? 0.16 : Math.sin(time * 0.9) * 0.045 * motion;
       head.current.rotation.y = pose === "curious" ? Math.sin(time * 1.4) * 0.18 * motion : 0;
@@ -209,7 +216,7 @@ export function WildsCreatureActor({
 
   return (
     <group name={`wilds-creature-${familyId}`} ref={root}>
-      <group name="wilds-creature-body" rotation={[0, 0, identity.asymmetry * 0.08]}>
+      <group ref={bodyMotion} name="wilds-creature-body" rotation={[0, 0, identity.asymmetry * 0.08]}>
         <mesh castShadow scale={bodyScale}>
           {body === "armored" ? <dodecahedronGeometry args={[0.4, 1]} /> : body === "serpentine" ? <capsuleGeometry args={[0.25, 0.62, 7, 12]} /> : <sphereGeometry args={[0.4, 22, 16]} />}
           <meshStandardMaterial map={skinTexture} color={renderedPrimary} emissive={renderedPrimary} emissiveIntensity={readableBodyColorFloor} roughness={body === "armored" ? 0.78 : 0.6} />

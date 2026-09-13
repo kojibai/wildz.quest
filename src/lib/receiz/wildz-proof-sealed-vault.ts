@@ -6,6 +6,8 @@ import type {
   WildzArtifactInspection
 } from "./wildz-artifact-codec";
 import type { WildzAdmittedArtifact } from "./wildz-artifact-custody";
+import { openWildzSealedDocument } from "./wildz-sealed-document";
+import { requireWildzIdentityBindingFromEnvelope } from "./wildz-identity-binding";
 import {
   parseWildzPlayerCoordinate,
   sameWildzPlayerCoordinate,
@@ -164,6 +166,21 @@ export async function verifyProofSealedWildzVault(input: {
       byteDigestSha256: await sha256Hex(input.bytes),
       inspection
     };
+  }
+  if (inspection.identity && inspection.playerBinding === "identity-v3-binding") {
+    const document = await openWildzSealedDocument({ bytes: input.bytes, mimeType: input.mimeType,
+      ...(input.name ? { name: input.name } : {}) }).catch(() => null);
+    if (document) {
+      const binding = await requireWildzIdentityBindingFromEnvelope(document.payloadBytes);
+      const player = parseWildzPlayerCoordinate(binding.playerId);
+      if (!player || binding.keyId !== inspection.identity.session.keyId
+        || binding.playerPayloadDigest !== inspection.player.payloadDigest
+        || !sameWildzPlayerCoordinate(binding.playerId, inspection.player.playerId))
+        throw new Error("wildz_restore_v4_binding_mismatch");
+      return { artifactKind: inspection.kind, assets: inspection.assets, playerPayload: inspection.player,
+        player, proofBasisSha256: document.sealedArtifactSha256,
+        byteDigestSha256: await sha256Hex(input.bytes), inspection };
+    }
   }
   if (input.verifier.openArtifact) {
     let admitted: WildzAdmittedArtifact;

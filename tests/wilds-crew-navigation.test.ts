@@ -141,3 +141,10 @@ test("explicit party transport admits destination occupancy while ordinary follo
   assert.equal(writeWildsCrewTransportPosition(position, destination, scratch, authority()), true);
   assert.deepEqual(position, destination);
 });
+test("invalid accompanying speed limits cannot corrupt a position with a permissive sampler",()=>{
+ for(const accompanyingSpeedLimit of [NaN,Infinity,-1]){
+  const position=point(0),state=createWildsCrewPathStepState();
+  writeWildsCrewPathStep(position,[point(5)],state,{...authority(),speed:72,deltaSeconds:.02,accompanyingSpeedLimit});
+  assert.deepEqual(position,point(0));assert.equal(state.reason,"invalid-input");
+ }
+});

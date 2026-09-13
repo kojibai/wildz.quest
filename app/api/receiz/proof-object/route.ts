@@ -5,6 +5,7 @@ import {
   requireVerifiedWildzPng
 } from "@/lib/receiz/wildz-proof-object-export";
 import { requireWildzIdentityBindingFromEnvelope } from "@/lib/receiz/wildz-identity-binding";
+import { verifyWildzSealedExport, wildzSealedDownloadFilename } from "@/lib/receiz/wildz-sealed-document";
 import {
   encodeWildzMultipartFile,
   readWildzHttpArtifact
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
       bytes: payloadBytes,
       filename: uploaded.filename,
       mimeType: "image/png",
-      fields: { visualStamp: "0" }
+      fields: { visualStamp: "0", forceBundleEnvelope: "1" }
     });
     const upstreamController = new AbortController();
     const upstreamTimeout = setTimeout(
@@ -112,8 +113,9 @@ export async function POST(request: NextRequest) {
       throw new Error(payload?.error || payload?.message || "wildz_proof_object_seal_failed");
     }
     const artifactBytes = new Uint8Array(await upstream.arrayBuffer());
+    await verifyWildzSealedExport(artifactBytes, payloadBytes);
     const mimeType = upstream.headers.get("content-type")?.split(";", 1)[0]?.trim() || "application/octet-stream";
-    const filename = safeDispositionFilename(upstream.headers.get("content-disposition"), uploaded.filename);
+    const filename = wildzSealedDownloadFilename(safeDispositionFilename(upstream.headers.get("content-disposition"), uploaded.filename), mimeType);
     const headers = new Headers({
       "cache-control": "no-store",
       "content-disposition": `attachment; filename=${filename}`,

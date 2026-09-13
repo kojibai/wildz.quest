@@ -92,14 +92,14 @@ export function createWildsCrewPathStepState(): WildsCrewPathStepState {
  * Revalidates current geometry, so a wall built after planning stops this step.
  */
 export function writeWildsCrewPathStep(position: WildsCrewNavigationPoint, waypoints: readonly Readonly<WildsCrewNavigationPoint>[], state: WildsCrewPathStepState,
-  input: WildsCrewNavigationAuthority & { speed: number; deltaSeconds: number }): void {
+  input: WildsCrewNavigationAuthority & { speed: number; deltaSeconds: number; accompanyingSpeedLimit?: number }): void {
   if (!permitted(input)) { state.reason = "mode-not-permitted"; return; }
-  if (!finitePoint(position) || !Number.isFinite(input.speed) || input.speed < 0 || !Number.isFinite(input.deltaSeconds) || input.deltaSeconds < 0 || !Number.isInteger(state.waypointIndex) || state.waypointIndex < 0 || state.waypointIndex > waypoints.length) { state.reason = "invalid-input"; return; }
+  if ((input.accompanyingSpeedLimit !== undefined && (!Number.isFinite(input.accompanyingSpeedLimit) || input.accompanyingSpeedLimit < 0)) || !finitePoint(position) || !Number.isFinite(input.speed) || input.speed < 0 || !Number.isFinite(input.deltaSeconds) || input.deltaSeconds < 0 || !Number.isInteger(state.waypointIndex) || state.waypointIndex < 0 || state.waypointIndex > waypoints.length) { state.reason = "invalid-input"; return; }
   const target = waypoints[state.waypointIndex];
   if (!target) { state.reason = "arrived"; return; }
   if (!finitePoint(target)) { state.reason = "invalid-input"; return; }
   const distance = Math.hypot(target.x - position.x, target.y - position.y, target.z - position.z);
-  const step = Math.min(input.speed, 24) * Math.min(input.deltaSeconds, .1);
+  const step = Math.min(input.speed, Math.max(24, Math.min(72, input.accompanyingSpeedLimit ?? 24))) * Math.min(input.deltaSeconds, .1);
   if (step === 0 && distance > 1e-6) { state.reason = "moving"; return; }
   let fraction = distance <= 1e-6 ? 1 : Math.min(1, step / distance);
   const p = state.candidate;
@@ -126,7 +126,7 @@ export function writeWildsCrewPathStep(position: WildsCrewNavigationPoint, waypo
  * The direct state belongs to the caller and is independent of the saved route cursor.
  */
 export function writeWildsCrewFollowingStep(position: WildsCrewNavigationPoint, target: Readonly<WildsCrewNavigationPoint>, waypoints: readonly Readonly<WildsCrewNavigationPoint>[], routeState: WildsCrewPathStepState,
-  directState: WildsCrewPathStepState, directWaypoints: Readonly<WildsCrewNavigationPoint>[], input: WildsCrewNavigationAuthority & { speed: number; deltaSeconds: number }): void {
+  directState: WildsCrewPathStepState, directWaypoints: Readonly<WildsCrewNavigationPoint>[], input: WildsCrewNavigationAuthority & { speed: number; deltaSeconds: number; accompanyingSpeedLimit?: number }): void {
   // Finish a safe detour before chasing the moving anchor again. Direct chase must
   // not continually pull the actor back into the obstacle it is walking around.
   if (routeState.reason === "moving" && routeState.waypointIndex < waypoints.length) {
@@ -183,7 +183,7 @@ export function writeWildsCrewAlongsideTarget(output: WildsCrewNavigationPoint, 
 }
 
 /** Call only for a changed, explicitly admitted party transport token. This validates
- * destination occupancy; ordinary follow never calls it or performs distance warps. */
+ * destination occupancy; follow recovery uses its separate validated regroup policy. */
 export function writeWildsCrewTransportPosition(position: WildsCrewNavigationPoint, destination: Readonly<WildsCrewNavigationPoint>, scratch: WildsCrewNavigationSample, authority: WildsCrewNavigationAuthority): boolean {
   if (!finitePoint(destination) || !permitted(authority) || !sample(authority, destination, destination, scratch)) return false;
   position.x = destination.x; position.y = scratch.y; position.z = destination.z;

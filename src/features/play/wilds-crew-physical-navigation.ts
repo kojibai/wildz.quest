@@ -1,12 +1,13 @@
 import { WILDS_PLAYER_BODY_RADIUS } from "./wilds-player-body";
 import { validateAdventureCondition, type AdventureCardCondition } from "./adventure/card-condition";
-import { wildsTerrainElevation } from "./wilds-terrain-authority";
+import { wildsTerrainElevation, wildsTerrainWaterSurface } from "./wilds-terrain-authority";
 import { writeWildsSiteRuntimeMovement, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 import type { WildsTerrainObstacle } from "./wilds-terrain-obstacles";
 import type { WildsCrewSegmentSampler } from "./wilds-crew-navigation";
 
 /** Conservative walk-only adapter. Shapes are canonical projections supplied by the
- * scene, never visual meshes. This intentionally refuses water, steep drops and stairs
+ * scene, never visual meshes. By default this refuses water; accompanying Follow may
+ * explicitly share shallow-water wading. It still refuses deep water, steep drops and stairs
  * that need unsupported stepping. It grants no flight, swimming or climbing capability.
  * Rebuild on physical projection/space changes; the prepared neighborhood is bounded.
  */
@@ -14,6 +15,8 @@ export function createWildsCrewPhysicalSampler(input: {
   runtime: WildsSiteRuntimeProjection; spaceId: string;
   obstacles: readonly WildsTerrainObstacle[];
   originX: number; originZ: number;
+  /** Only accompanying Follow shares the player’s shallow-water wading policy. */
+  allowAccompaniedWading?: boolean;
 }): WildsCrewSegmentSampler {
   const reach = 32, radius = WILDS_PLAYER_BODY_RADIUS, height = 1.55;
   const near = (x: number, z: number, extent: number) => Math.abs(x - input.originX) <= reach + extent && Math.abs(z - input.originZ) <= reach + extent;
@@ -72,8 +75,10 @@ export function createWildsCrewPhysicalSampler(input: {
       const tx = from.x + (to.x - from.x) * i / count, tz = from.z + (to.z - from.z) * i / count;
       const fallback = input.spaceId === "wildz.space.outer.v1" ? wildsTerrainElevation(tx, tz) : y;
       writeWildsSiteRuntimeMovement(site, input.runtime, input.spaceId, x, y, z, tx, tz, radius, fallback, false);
-      if (site.blocked || Math.abs(site.x - tx) > 1e-5 || Math.abs(site.z - tz) > 1e-5 || !Number.isFinite(site.floorY) || site.flooded || site.ceilingY - site.floorY < height) return;
-      if (input.spaceId === "wildz.space.outer.v1" && site.floorY < -1.1) return;
+      const water = input.spaceId === "wildz.space.outer.v1" ? wildsTerrainWaterSurface(site.floorY) : null;
+      const wading = input.allowAccompaniedWading === true && water === "shallow-water";
+      if (site.blocked || Math.abs(site.x - tx) > 1e-5 || Math.abs(site.z - tz) > 1e-5 || !Number.isFinite(site.floorY) || (site.flooded && !wading) || site.ceilingY - site.floorY < height) return;
+      if (water && !wading) return;
       // Refuse unsupported vertical discontinuities rather than snapping to a deck.
       if (Math.abs(site.floorY - y) > .03 + distance / count * .7) return;
       const bottom = Math.min(y, site.floorY), top = Math.max(y, site.floorY) + height;

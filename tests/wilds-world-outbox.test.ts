@@ -3,6 +3,8 @@ import { test } from "node:test";
 import { createReceizInMemoryOfflineProofQueueStorage } from "@receiz/sdk";
 import {
   admitWildsWorldOutboxEntry,
+  prepareWildsWorldOutboxPublication,
+  bindWildsCrewOutboxIdentity,
   acknowledgeWildsWorldCommand,
   acknowledgeWildsWorldPublication,
   createWildsWorldEdgeAdmissionQueue,
@@ -395,4 +397,32 @@ test("worker preparation receives only a durable anchor and omits successor chec
   assert.ok(replies[1]!.admittedSource!.checkpoint);
   assert.equal(replies[2]!.admittedSource!.checkpoint, undefined);
   assert.equal(replies[2]!.admittedSource!.anchorId, "command:compact:first");
+});
+
+
+test("crew publication retains durable exact command after reload and rejects changed bytes", async () => {
+  const {constitutionalDigest}=await import("../src/features/play/wilds-constitution.js");
+  const storage=createReceizInMemoryOfflineProofQueueStorage();
+  const original=entry("crew:exact");
+  const source=projectWildsResourceRegion(0,0).find(value=>value.kind==="timber")!;
+  original.command={type:"resource.material.harvest",source,sourceHead:initialWildsHarvestedSourceState(source).head,actorPosition:source.position,commandId:"crew:exact"};
+  original.crewCommandDigest=constitutionalDigest(original.command);
+  await enqueueWildsWorldCommand(original,storage);
+  const [restored]=await readWildsWorldOutbox(original.actorId,storage);
+  assert.ok(restored);
+  let replans=0;
+  const publish=prepareWildsWorldOutboxPublication(restored,()=>{replans++;throw new Error("must not replan");});
+  assert.deepEqual(publish.command,original.command);
+  assert.equal(replans,0);
+  assert.throws(()=>prepareWildsWorldOutboxPublication({...restored,command:{...original.command,commandId:"changed"}},()=>original.command),/queued_command_changed/);
+});
+
+test("crew entry composition retains the exact selected card for contribution law",async()=>{
+ const {sealCollectedCard}=await import("../src/features/play/portable-card.js");
+ const card=sealCollectedCard({capturedAt:"2026-07-15T00:00:00.000Z",encounterId:"crew-source",formId:"mintcub-1",ownerReceizId:"crew_test"});
+ const base=entry("crew:contribution");
+ base.command={type:"construction.site.contribute",siteId:"site",siteHead:"head",lotIds:["lot"],actorPosition:{x:0,z:0},commandId:"crew:contribution"};
+ const exact=bindWildsCrewOutboxIdentity(base,card);
+ assert.deepEqual(exact.card,card);assert.ok(exact.crewCommandDigest);
+ assert.deepEqual(prepareWildsWorldOutboxPublication(exact,()=>{throw new Error("no replan");}),exact);
 });

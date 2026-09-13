@@ -10,7 +10,6 @@ test("Receiz continuity preserves identity, original Wildz vault, and Commerce v
 
   assert.match(adapter, /inspectReceizCommerceVault/);
   assert.match(adapter, /restoreWildzArtifactForSurface/);
-  assert.match(codec, /readReceizIdentityArtifact\(bytes\)/);
   assert.match(codec, /extractVerifiedWildzCards/);
   assert.match(codec, /commerceVaultReader\.inspect/);
   assert.match(commerce, /restoreVerifiedReceizVaultPackage/);

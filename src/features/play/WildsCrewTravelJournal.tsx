@@ -7,6 +7,8 @@ export type WildsCrewTravelHistory = (assetId: string, beforeHead?: string, limi
 }>;
 
 const labels: Record<WildsCrewExpedition["kind"], string> = {
+  "route-retried": "Tried the route again",
+  "itinerary-continued": "Chose another exploration route",
   started: "Set out to explore", visited: "Observed a trail location", continued: "Continued exploring",
   recalled: "Called home", blocked: "Found a blocked route", returned: "Returned to you",
   superseded: "Earlier journey ended",
@@ -46,7 +48,7 @@ export function WildsCrewTravelJournal({ assetId, name, readHistory }: {
           {page.observations.map(row => <li key={row.head}>
             <strong>{labels[row.kind]}</strong>
             {row.actualPosition ? <div>Trail coordinates {row.actualPosition.x.toFixed(1)}, {row.actualPosition.z.toFixed(1)}</div> : null}
-            {row.kind === "returned" ? <div>{row.visitedPointIds.length} locations observed</div> : null}
+            {row.kind === "returned" ? <div>{row.totalObserved??row.visitedPointIds.length} locations observed</div> : null}
             {row.blocker ? <div>{row.blocker}</div> : null}
             <small style={{ display: "block", marginTop: 4, opacity: .7, overflowWrap: "anywhere" }}>Kai order {row.causalKaiUPulse} · record {row.revision}</small>
           </li>)}

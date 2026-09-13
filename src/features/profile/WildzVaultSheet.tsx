@@ -32,7 +32,7 @@ export function WildzVaultSheet({ cards, title = "Public Vault", onAddVault, onC
           setBusy(null);
         }
       }} type="button">{busy === "save" ? "Saving…" : "Save combined Vault"}</button> : null}
-      {onAddVault ? <input ref={addInputRef} accept="image/png,.png,.receized.png,.receizvault,application/vnd.receiz.vault+zip,application/zip" className="wilds-import-input" disabled={busy !== null} onChange={async (event) => {
+      {onAddVault ? <input ref={addInputRef} accept="image/png,.png,.receized.png,.receizbundle,application/vnd.receiz.bundle+json,application/json,application/octet-stream,.receizvault,application/vnd.receiz.vault+zip,application/zip" className="wilds-import-input" disabled={busy !== null} onChange={async (event) => {
         const file = event.currentTarget.files?.[0];
         event.currentTarget.value = "";
         if (!file) return;
@@ -47,7 +47,7 @@ export function WildzVaultSheet({ cards, title = "Public Vault", onAddVault, onC
           setBusy(null);
         }
       }} type="file" /> : null}
-      {onClaimBearer ? <input ref={claimInputRef} accept="image/png,.png,.receized.png,.receizvault,application/vnd.receiz.vault+zip,application/zip" className="wilds-import-input" disabled={busy !== null} onChange={async (event) => {
+      {onClaimBearer ? <input ref={claimInputRef} accept="image/png,.png,.receized.png,.receizbundle,application/vnd.receiz.bundle+json,application/json,application/octet-stream,.receizvault,application/vnd.receiz.vault+zip,application/zip" className="wilds-import-input" disabled={busy !== null} onChange={async (event) => {
         const file = event.currentTarget.files?.[0];
         event.currentTarget.value = "";
         if (!file) return;

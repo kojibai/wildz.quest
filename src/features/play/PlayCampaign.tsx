@@ -2618,6 +2618,7 @@ export function PlayCampaign({
           >
             <WildsWorldCanvas
               crewModes={crewPreferences?.byAssetId}
+            crewTravelMembershipRevision={crewExpeditions.runtimeMembershipRevision}
             crewTravelRuntime={crewExpeditions.runtime}
               homeResidents={homeResidents}
               activeCapabilityFamily={burrowBuilder.busy ? "burrow" : activeWorldCapability}

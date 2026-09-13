@@ -419,7 +419,7 @@ export function WildsInventory({
         </div>
         <input
           ref={importInput}
-          accept="image/png,.png,.receized.png,.receizvault,application/vnd.receiz.vault+zip,application/zip"
+          accept="image/png,.png,.receized.png,.receizbundle,application/vnd.receiz.bundle+json,application/json,application/octet-stream,.receizvault,application/vnd.receiz.vault+zip,application/zip"
           className="wilds-import-input"
           disabled={importing}
           multiple

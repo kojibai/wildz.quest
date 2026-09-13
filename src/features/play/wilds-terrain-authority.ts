@@ -161,9 +161,14 @@ function regionIdFor(x: number, z: number) {
   return nearest.id;
 }
 
+/** Elevation-only water classification shared by terrain and physical wading admission. */
+export function wildsTerrainWaterSurface(elevation: number): "deep-water" | "shallow-water" | null {
+  return elevation < -2.4 ? "deep-water" : elevation < -1.1 ? "shallow-water" : null;
+}
+
 function classifySurface(elevation: number, slope: number, routeDistance: number): WildsTerrainSurface {
-  if (elevation < -2.4) return "deep-water";
-  if (elevation < -1.1) return "shallow-water";
+  const water = wildsTerrainWaterSurface(elevation);
+  if (water) return water;
   if (routeDistance <= 0.55) return "trail";
   if (slope >= 0.62) return "rock";
   if (elevation < 0.25) return "soil";

@@ -92,6 +92,7 @@ const defaultArtifactHistory = createWildzArtifactHistory(defaultContinuityDatab
 export const defaultWildzProofSourceRepository = createWildzProofSourceRepository(defaultContinuityDatabase);
 const defaultArtifactCodec = createWildzArtifactCodec({
   identityRepository: defaultIdentityRepository,
+  sealedDocumentStore: defaultWildzProofSourceRepository,
   commerceVaultReader: { inspect: inspectReceizCommerceVault },
   artifactOpener: {
     async open(input) {
@@ -692,7 +693,6 @@ export async function prepareWildzIdentityOwnedCard(
       ...(passphrase !== undefined ? { passphrase } : {})
     });
   });
-  const filename = `${portableCreatureFilename(asset.manifest.name)}.receized.png`;
   const artifact = await createReceizProofObjectArtifact(
     new Blob([combined.slice().buffer], { type: "image/png" }),
     `${portableCreatureFilename(asset.manifest.name)}.png`,
@@ -702,7 +702,7 @@ export async function prepareWildzIdentityOwnedCard(
   return {
     assetId: asset.id,
     bytes: artifact.bytes,
-    filename,
+    filename: artifact.filename,
     mimeType: artifact.mimeType,
     ownerReceizId: activePlayer.playerId
   };
